@@ -1,0 +1,76 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dagster-user-code
+  namespace: weyland
+  labels:
+    app: dagster-user-code
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: dagster-user-code
+  template:
+    metadata:
+      labels:
+        app: dagster-user-code
+    spec:
+      containers:
+        - name: dagster-user-code
+          image: weyland-dagster-user-code:local
+          imagePullPolicy: Never
+          ports:
+            - containerPort: 4000
+          env:
+            - name: WEYLAND_PG_HOST
+              value: weyland-postgres.weyland.svc.cluster.local
+            - name: WEYLAND_PG_PORT
+              value: "5432"
+            - name: WEYLAND_PG_DB
+              value: weyland
+            - name: WEYLAND_PG_USER
+              value: weyland
+            - name: WEYLAND_PG_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: dagster-postgres-secret
+                  key: password
+            - name: WEYLAND_SSH_HOST
+              value: "192.168.1.230"
+            - name: WEYLAND_SSH_USER
+              value: edwardmangini
+            - name: WEYLAND_SSH_KEY_PATH
+              value: /var/secrets/ssh/id_rsa
+            - name: WEYLAND_SSH_FILE_PATH
+              value: /home/edwardmangini/Documents/ObsidianVault/Projects/weyland/weyland.md
+          volumeMounts:
+            - name: ssh-key
+              mountPath: /var/secrets/ssh
+              readOnly: true
+            - name: dagster-config
+              mountPath: /opt/dagster/dagster_home/dagster.yaml
+              subPath: dagster.yaml
+      volumes:
+        - name: ssh-key
+          secret:
+            secretName: weyland-lab-ssh-key
+            defaultMode: 0400
+        - name: dagster-config
+          configMap:
+            name: dagster-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: dagster-user-code
+  namespace: weyland
+  labels:
+    app: dagster-user-code
+spec:
+  type: ClusterIP
+  selector:
+    app: dagster-user-code
+  ports:
+    - name: grpc
+      port: 4000
+      targetPort: 4000

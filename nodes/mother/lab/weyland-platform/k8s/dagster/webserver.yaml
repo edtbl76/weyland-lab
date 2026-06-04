@@ -1,0 +1,63 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dagster-webserver
+  namespace: weyland
+  labels:
+    app: dagster-webserver
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: dagster-webserver
+  template:
+    metadata:
+      labels:
+        app: dagster-webserver
+    spec:
+      containers:
+        - name: dagster-webserver
+          image: ghcr.io/dagster-io/dagster:latest
+          imagePullPolicy: IfNotPresent
+          command: ["dagster-webserver", "-h", "0.0.0.0", "-p", "3000"]
+          ports:
+            - containerPort: 3000
+          env:
+            - name: DAGSTER_HOME
+              value: /opt/dagster/dagster_home
+            - name: DAGSTER_PG_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: dagster-postgres-secret
+                  key: password
+          volumeMounts:
+            - name: dagster-config
+              mountPath: /opt/dagster/dagster_home/dagster.yaml
+              subPath: dagster.yaml
+            - name: dagster-workspace
+              mountPath: /opt/dagster/dagster_home/workspace.yaml
+              subPath: workspace.yaml
+      volumes:
+        - name: dagster-config
+          configMap:
+            name: dagster-config
+        - name: dagster-workspace
+          configMap:
+            name: dagster-workspace
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: dagster-webserver
+  namespace: weyland
+  labels:
+    app: dagster-webserver
+spec:
+  type: NodePort
+  selector:
+    app: dagster-webserver
+  ports:
+    - name: http
+      port: 3000
+      targetPort: 3000
+      nodePort: 30088
