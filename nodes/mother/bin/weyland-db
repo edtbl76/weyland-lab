@@ -1,0 +1,22 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+if [[ "${1:-}" == "help" || "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
+  cat <<'EOF'
+weyland-db
+
+Query the Weyland Postgres database running in k3s on mother.
+
+Usage:
+  weyland-db [psql args...]
+  weyland-db help
+
+Examples:
+  weyland-db -c "SELECT name, status FROM services ORDER BY name;"
+  weyland-db -c "\dt"
+EOF
+  exit 0
+fi
+
+exec kubectl -n weyland exec -i deploy/weyland-postgres -- \
+  psql -U weyland -d weyland "$@"

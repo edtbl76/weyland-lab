@@ -1,0 +1,41 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+show_help() {
+  cat <<'HELP'
+ask-rogueone-vllm - send a prompt from openclaw to rogueone vLLM
+
+Why this exists:
+  OpenClaw runs on the openclaw VM.
+  vLLM runs on rogueone.
+  This verifies and uses the network inference endpoint directly.
+
+Usage:
+  ask-rogueone-vllm "your prompt here"
+
+Endpoint:
+  http://rogueone:8000/v1/chat/completions
+
+Model:
+  Qwen/Qwen2.5-1.5B-Instruct
+HELP
+}
+
+case "${1:-}" in
+  help|--help|-h|"")
+    show_help
+    exit 0
+    ;;
+esac
+
+PROMPT="$*"
+
+curl -s http://rogueone:8000/v1/chat/completions \
+  -H "Content-Type: application/json" \
+  -d "$(jq -n --arg prompt "$PROMPT" '{
+    model: "Qwen/Qwen2.5-1.5B-Instruct",
+    messages: [
+      {role: "user", content: $prompt}
+    ],
+    max_tokens: 256
+  }')" | jq -r '.choices[0].message.content'

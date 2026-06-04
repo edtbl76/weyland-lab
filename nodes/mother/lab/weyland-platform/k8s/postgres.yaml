@@ -1,0 +1,42 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: weyland-postgres
+  namespace: weyland
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: weyland-postgres
+  template:
+    metadata:
+      labels:
+        app: weyland-postgres
+    spec:
+      containers:
+        - name: postgres
+          image: pgvector/pgvector:pg16
+          ports:
+            - containerPort: 5432
+          envFrom:
+            - secretRef:
+                name: weyland-postgres-secret
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql/data
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: weyland-postgres-data
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: weyland-postgres
+  namespace: weyland
+spec:
+  selector:
+    app: weyland-postgres
+  ports:
+    - port: 5432
+      targetPort: 5432

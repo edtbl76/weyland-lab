@@ -1,0 +1,280 @@
+#!/home/emangini/.venvs/weyland/bin/python
+
+import argparse
+import hashlib
+import json
+import os
+import re
+import subprocess
+
+import psycopg2
+from sentence_transformers import SentenceTransformer
+
+
+NOTE_HOST = os.environ.get("WEYLAND_NOTE_HOST", "edwardmangini@192.168.1.230")
+NOTE_PATH = os.environ.get(
+    "WEYLAND_NOTE_PATH",
+    "/home/edwardmangini/Documents/ObsidianVault/Projects/weyland/weyland.md",
+)
+
+DB_HOST = os.environ.get("WEYLAND_DB_HOST", "localhost")
+DB_PORT = os.environ.get("WEYLAND_DB_PORT", "5432")
+DB_NAME = os.environ.get("WEYLAND_DB_NAME", "weyland")
+DB_USER = os.environ.get("WEYLAND_DB_USER", "weyland")
+DB_PASSWORD = os.environ.get("WEYLAND_DB_PASSWORD", "weyland_dev_password")
+
+DOCUMENT_NAME = "weyland.md"
+SOURCE_TYPE = "obsidian"
+SOURCE_PATH = NOTE_PATH
+MODEL_NAME = os.environ.get("WEYLAND_EMBED_MODEL", "BAAI/bge-small-en-v1.5")
+
+
+def connect():
+    return psycopg2.connect(
+        host=DB_HOST,
+        port=DB_PORT,
+        dbname=DB_NAME,
+        user=DB_USER,
+        password=DB_PASSWORD,
+    )
+
+
+def read_note() -> str:
+    result = subprocess.run(
+        ["ssh", NOTE_HOST, f"cat {NOTE_PATH}"],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    return result.stdout
+
+
+def chunk_markdown(text: str):
+    parts = re.split(r"(?m)^##\s+", text)
+    chunks = []
+
+    intro = parts[0].strip()
+    if intro:
+        chunks.append(("intro", intro))
+
+    for part in parts[1:]:
+        part = part.strip()
+        if not part:
+            continue
+
+        lines = part.splitlines()
+        title = lines[0].strip()
+        body = "\n".join(lines[1:]).strip()
+
+        content = f"## {title}"
+        if body:
+            content += f"\n\n{body}"
+
+        chunks.append((title, content.strip()))
+
+    return chunks
+
+
+def vector_literal(values) -> str:
+    return "[" + ",".join(str(float(v)) for v in values) + "]"
+
+
+def ingest(no_embed: bool = False):
+    text = read_note()
+    content_hash = hashlib.sha256(text.encode("utf-8")).hexdigest()
+    chunks = chunk_markdown(text)
+
+    model = None
+    if not no_embed:
+        model = SentenceTransformer(MODEL_NAME)
+
+    document_metadata = {
+        "title": "Weyland AI Lab",
+        "note_host": NOTE_HOST,
+        "embedding_model": None if no_embed else MODEL_NAME,
+    }
+
+    with connect() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                INSERT INTO rag_documents
+                    (name, source_type, source_path, content_hash, metadata)
+                VALUES
+                    (%s, %s, %s, %s, %s::jsonb)
+                ON CONFLICT (name)
+                DO UPDATE SET
+                    source_type = EXCLUDED.source_type,
+                    source_path = EXCLUDED.source_path,
+                    content_hash = EXCLUDED.content_hash,
+                    metadata = EXCLUDED.metadata,
+                    updated_at = now()
+                RETURNING id
+                """,
+                (
+                    DOCUMENT_NAME,
+                    SOURCE_TYPE,
+                    SOURCE_PATH,
+                    content_hash,
+                    json.dumps(document_metadata),
+                ),
+            )
+
+            document_id = cur.fetchone()[0]
+
+            cur.execute(
+                "DELETE FROM rag_chunks WHERE document_id = %s",
+                (document_id,),
+            )
+
+            for chunk_index, (chunk_title, content) in enumerate(chunks):
+                embedding = None
+                if model is not None:
+                    embedding = vector_literal(
+                        model.encode(content, normalize_embeddings=True)
+                    )
+
+                chunk_metadata = {
+                    "title": chunk_title,
+                    "source": DOCUMENT_NAME,
+                    "embedding_model": None if no_embed else MODEL_NAME,
+                }
+
+                cur.execute(
+                    """
+                    INSERT INTO rag_chunks
+                        (document_id, chunk_index, content, embedding, metadata)
+                    VALUES
+                        (%s, %s, %s, %s::vector, %s::jsonb)
+                    """,
+                    (
+                        document_id,
+                        chunk_index,
+                        content,
+                        embedding,
+                        json.dumps(chunk_metadata),
+                    ),
+                )
+
+    print(f"Ingested document: {DOCUMENT_NAME}")
+    print(f"Chunks: {len(chunks)}")
+    print(f"Embedding: {'disabled' if no_embed else MODEL_NAME}")
+
+
+def status():
+    with connect() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT
+                    d.name,
+                    d.source_type,
+                    d.source_path,
+                    d.content_hash,
+                    count(c.id) AS total_chunks,
+                    count(c.embedding) AS embedded_chunks,
+                    d.updated_at
+                FROM rag_documents d
+                LEFT JOIN rag_chunks c ON c.document_id = d.id
+                WHERE d.name = %s
+                GROUP BY d.id
+                """,
+                (DOCUMENT_NAME,),
+            )
+
+            row = cur.fetchone()
+
+    if row is None:
+        print(f"No document found: {DOCUMENT_NAME}")
+        return
+
+    name, source_type, source_path, content_hash, total, embedded, updated_at = row
+
+    print(f"Document: {name}")
+    print(f"Source type: {source_type}")
+    print(f"Source path: {source_path}")
+    print(f"Content hash: {content_hash}")
+    print(f"Chunks: {total}")
+    print(f"Embedded chunks: {embedded}")
+    print(f"Updated at: {updated_at}")
+
+
+def show_chunks(limit: int):
+    with connect() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT
+                    c.chunk_index,
+                    c.metadata->>'title' AS title,
+                    length(c.content) AS chars,
+                    c.embedding IS NOT NULL AS embedded
+                FROM rag_chunks c
+                JOIN rag_documents d ON d.id = c.document_id
+                WHERE d.name = %s
+                ORDER BY c.chunk_index
+                LIMIT %s
+                """,
+                (DOCUMENT_NAME, limit),
+            )
+
+            rows = cur.fetchall()
+
+    if not rows:
+        print(f"No chunks found for document: {DOCUMENT_NAME}")
+        return
+
+    for chunk_index, title, chars, embedded in rows:
+        print(
+            f"{chunk_index:02d} | embedded={str(embedded).lower():5s} | "
+            f"chars={chars:5d} | {title}"
+        )
+
+
+def main():
+    parser = argparse.ArgumentParser(
+        description="Ingest the Weyland Obsidian note into mother Postgres/pgvector."
+    )
+
+    subparsers = parser.add_subparsers(dest="command")
+
+    run_parser = subparsers.add_parser("run", help="Read, chunk, and ingest weyland.md.")
+    run_parser.add_argument(
+        "--no-embed",
+        action="store_true",
+        help="Ingest chunks without generating embeddings.",
+    )
+
+    subparsers.add_parser("status", help="Show current Weyland RAG document status.")
+
+    chunks_parser = subparsers.add_parser("chunks", help="List ingested chunks.")
+    chunks_parser.add_argument(
+        "--limit",
+        type=int,
+        default=50,
+        help="Maximum chunks to show.",
+    )
+
+    subparsers.add_parser("help", help="Show help.")
+
+    args = parser.parse_args()
+
+    if args.command in (None, "help"):
+        parser.print_help()
+        return
+
+    if args.command == "status":
+        status()
+        return
+
+    if args.command == "chunks":
+        show_chunks(args.limit)
+        return
+
+    if args.command == "run":
+        ingest(no_embed=args.no_embed)
+        return
+
+
+if __name__ == "__main__":
+    main()

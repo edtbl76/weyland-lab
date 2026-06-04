@@ -1,0 +1,82 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: n8n-data
+  namespace: n8n
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 10Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: n8n
+  namespace: n8n
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: n8n
+  template:
+    metadata:
+      labels:
+        app: n8n
+    spec:
+      securityContext:
+        fsGroup: 1000
+      containers:
+        - name: n8n
+          image: docker.n8n.io/n8nio/n8n:latest
+          ports:
+            - containerPort: 5678
+          env:
+            - name: N8N_ENCRYPTION_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: n8n-secret
+                  key: N8N_ENCRYPTION_KEY
+            - name: N8N_HOST
+              value: "192.168.1.243"
+            - name: N8N_PORT
+              value: "5678"
+            - name: N8N_PROTOCOL
+              value: "http"
+            - name: N8N_SECURE_COOKIE
+              value: "false"
+            - name: WEBHOOK_URL
+              value: "http://192.168.1.243:30082/"
+            - name: TZ
+              value: "America/New_York"
+          volumeMounts:
+            - name: n8n-data
+              mountPath: /home/node/.n8n
+            - name: weyland-lab-ssh-key
+              mountPath: /home/node/.ssh/weyland-lab
+              subPath: id_ed25519
+              readOnly: true
+      volumes:
+        - name: n8n-data
+          persistentVolumeClaim:
+            claimName: n8n-data
+        - name: weyland-lab-ssh-key
+          secret:
+            secretName: weyland-lab-ssh-key
+            defaultMode: 0440        
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: n8n
+  namespace: n8n
+spec:
+  type: NodePort
+  selector:
+    app: n8n
+  ports:
+    - name: http
+      port: 5678
+      targetPort: 5678
+      nodePort: 30082

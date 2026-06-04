@@ -1,0 +1,38 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+show_help() {
+  cat <<'HELP'
+gpu-docker - run Docker commands against the native Docker Engine GPU daemon
+
+Why this exists:
+  This machine uses Docker Desktop for normal development.
+  Docker Desktop is currently the active Docker context.
+
+  GPU containers need the native Docker Engine socket:
+    /var/run/docker.sock
+
+  This wrapper forces only this command to use native Docker Engine,
+  without changing your global Docker context or disturbing Docker Desktop.
+
+Usage:
+  gpu-docker <docker command>
+
+Examples:
+  gpu-docker version
+  gpu-docker ps
+  gpu-docker run --rm --gpus all nvidia/cuda:12.4.1-base-ubuntu22.04 nvidia-smi
+
+For vLLM later:
+  gpu-docker run --rm --gpus all -p 8000:8000 vllm/vllm-openai ...
+HELP
+}
+
+case "${1:-}" in
+  help|--help|-h)
+    show_help
+    exit 0
+    ;;
+esac
+
+exec env DOCKER_HOST=unix:///var/run/docker.sock docker "$@"

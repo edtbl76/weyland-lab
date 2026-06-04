@@ -1,0 +1,58 @@
+#!/home/emangini/.venvs/weyland/bin/python
+import sys
+import psycopg2
+from sentence_transformers import SentenceTransformer
+
+MODEL_NAME = "BAAI/bge-small-en-v1.5"
+
+def help_text():
+    print("""embed-weyland-chunks
+
+Creates embeddings for Weyland RAG chunks using BAAI/bge-small-en-v1.5.
+
+Usage:
+  embed-weyland-chunks
+  embed-weyland-chunks help
+""")
+
+def main():
+    if len(sys.argv) > 1 and sys.argv[1] in {"help", "--help", "-h"}:
+        help_text()
+        return
+
+    conn = psycopg2.connect(
+        host="localhost",
+        dbname="weyland",
+        user="weyland",
+        password="weyland_dev_password",
+        port=5432,
+    )
+
+    model = SentenceTransformer(MODEL_NAME)
+
+    with conn:
+        with conn.cursor() as cur:
+            cur.execute("""
+                SELECT id, content
+                FROM rag_chunks
+                WHERE embedding IS NULL
+                ORDER BY id;
+            """)
+            rows = cur.fetchall()
+
+            print(f"chunks needing embeddings: {len(rows)}")
+
+            for chunk_id, content in rows:
+                embedding = model.encode(content, normalize_embeddings=True)
+                vector = "[" + ",".join(str(float(x)) for x in embedding) + "]"
+
+                cur.execute(
+                    "UPDATE rag_chunks SET embedding = %s::vector WHERE id = %s;",
+                    (vector, chunk_id),
+                )
+                print(f"embedded chunk {chunk_id}")
+
+    conn.close()
+
+if __name__ == "__main__":
+    main()

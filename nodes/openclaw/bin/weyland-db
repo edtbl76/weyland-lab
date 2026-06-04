@@ -1,0 +1,92 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+if [[ "${1:-}" == "help" || "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
+  cat <<'EOF'
+weyland-db
+
+Query the Weyland Postgres database through the OpenClaw postgres container.
+
+Usage:
+  weyland-db [psql args...]
+
+Shortcuts:
+  weyland-db services
+  weyland-db machines
+  weyland-db models
+  weyland-db chunks
+  weyland-db search-note <text>
+  weyland-db chunk <chunk_index>
+
+Examples:
+  weyland-db -c "SELECT name, status FROM services ORDER BY name;"
+  weyland-db
+  weyland-db help
+EOF
+  exit 0
+fi
+
+if [[ "${1:-}" == "services" ]]; then
+  shift
+  set -- -c "SELECT name, status, endpoint FROM services ORDER BY name;"
+fi
+
+if [[ "${1:-}" == "machines" ]]; then
+  shift
+  set -- -c "SELECT name, ip, role FROM machines ORDER BY name;"
+fi
+
+if [[ "${1:-}" == "models" ]]; then
+  shift
+  set -- -c "SELECT name, provider, status, role FROM models ORDER BY name;"
+fi
+
+cd "$HOME/lab/openclaw"
+
+if [[ "${1:-}" == "search-note" ]]; then
+  shift
+  query="${*:-}"
+  if [[ -z "$query" ]]; then
+    echo "Usage: weyland-db search-note <text>"
+    exit 1
+  fi
+
+  escaped_query="$(printf '%s' "$query" | sed "s/'/''/g")"
+
+  set -- -c "
+    SELECT d.name, c.chunk_index, left(c.content, 500) AS preview
+    FROM rag_chunks c
+    JOIN rag_documents d ON d.id = c.document_id
+    WHERE c.content ILIKE '%${escaped_query}%'
+    ORDER BY d.name, c.chunk_index;
+  "
+fi
+
+if [[ "${1:-}" == "chunks" ]]; then
+  shift
+  set -- -c "
+    SELECT chunk_index, left(content, 120) AS preview
+    FROM rag_chunks
+    WHERE document_id = (SELECT id FROM rag_documents WHERE name = 'weyland.md')
+    ORDER BY chunk_index;
+  "
+fi
+
+if [[ "${1:-}" == "chunk" ]]; then
+  shift
+  idx="${1:-}"
+  if [[ -z "$idx" ]]; then
+    echo "Usage: weyland-db chunk <chunk_index>"
+    exit 1
+  fi
+
+  set -- -c "
+    SELECT content
+    FROM rag_chunks
+    WHERE document_id = (SELECT id FROM rag_documents WHERE name = 'weyland.md')
+      AND chunk_index = $idx;
+  "
+fi
+
+exec ./oc exec -T -e PGPASSWORD=weyland_dev_password postgres \
+  psql -U weyland -d weyland "$@"

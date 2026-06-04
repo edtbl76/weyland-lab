@@ -1,0 +1,40 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+if [[ "${1:-}" == "help" || "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
+  cat <<'EOF'
+weyland-context
+
+Searches Weyland RAG chunks and prints matching context.
+
+Usage:
+  weyland-context <query>
+  weyland-context help
+
+Examples:
+  weyland-context rogueone
+  weyland-context "Claude auth"
+  weyland-context "vLLM model"
+EOF
+  exit 0
+fi
+
+query="${*:-}"
+
+if [[ -z "$query" ]]; then
+  echo "Usage: weyland-context <query>"
+  exit 1
+fi
+
+escaped_query="$(printf '%s' "$query" | sed "s/'/''/g")"
+
+weyland-db -t -A -F $'\t' -c "
+SELECT
+  'SOURCE: ' || d.name || ' | CHUNK: ' || c.chunk_index || E'\n' ||
+  c.content || E'\n'
+FROM rag_chunks c
+JOIN rag_documents d ON d.id = c.document_id
+WHERE c.content ILIKE '%${escaped_query}%'
+ORDER BY d.name, c.chunk_index
+LIMIT 5;
+"

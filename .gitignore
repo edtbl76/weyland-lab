@@ -79,3 +79,8 @@ fabric.properties
 
 /.idea
 *.iml
+
+# Read-only upstream reference: a clone of github.com/openclaw/openclaw kept
+# locally for reference. Managed as its own repo (git pull there), intentionally
+# NOT tracked or vendored into weyland's history.
+nodes/openclaw/lab/openclaw/

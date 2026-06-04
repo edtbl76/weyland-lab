@@ -1,0 +1,18 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+if [[ "${1:-}" == "help" || "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
+  cat <<'EOF'
+read-weyland-note
+
+Reads the Weyland Obsidian README from rogueone over SSH.
+
+Usage:
+  read-weyland-note
+  read-weyland-note help
+EOF
+  exit 0
+fi
+
+ssh edwardmangini@192.168.1.230 \
+  'cat /home/edwardmangini/Documents/ObsidianVault/Projects/weyland/weyland.md'

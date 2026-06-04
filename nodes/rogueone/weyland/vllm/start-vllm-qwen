@@ -1,0 +1,42 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+show_help() {
+  cat <<'HELP'
+start-vllm-qwen - start local vLLM on rogueone using native GPU Docker
+
+Why this exists:
+  rogueone uses Docker Desktop for normal development.
+  GPU inference uses native Docker Engine through gpu-docker.
+
+  This starts vLLM with the validated model:
+    Qwen/Qwen2.5-1.5B-Instruct
+
+  It serves an OpenAI-compatible HTTP API on:
+    http://localhost:8000/v1
+
+Usage:
+  start-vllm-qwen
+  start-vllm-qwen help
+
+Test after startup:
+  curl http://localhost:8000/v1/models
+
+Stop:
+  Press Ctrl+C in the terminal running this script.
+HELP
+}
+
+case "${1:-}" in
+  help|--help|-h)
+    show_help
+    exit 0
+    ;;
+esac
+
+exec gpu-docker run --rm --gpus all \
+  -p 8000:8000 \
+  vllm/vllm-openai:latest \
+  --model Qwen/Qwen2.5-1.5B-Instruct \
+  --gpu-memory-utilization 0.65 \
+  --max-model-len 4096

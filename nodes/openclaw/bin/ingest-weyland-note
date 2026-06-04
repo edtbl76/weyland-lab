@@ -1,0 +1,164 @@
+#!/usr/bin/env python3
+import hashlib
+import json
+import subprocess
+import sys
+import tempfile
+from pathlib import Path
+
+NOTE_PATH = "/home/edwardmangini/Documents/ObsidianVault/Projects/weyland/weyland.md"
+SOURCE_MACHINE = "rogueone"
+SSH_TARGET = "edwardmangini@192.168.1.230"
+
+
+def help_text():
+    print("""ingest-weyland-note
+
+Ingests the Weyland Obsidian README from rogueone into Weyland Postgres.
+
+Usage:
+  ingest-weyland-note
+  ingest-weyland-note help
+""")
+
+
+def run(cmd, input_text=None):
+    return subprocess.run(
+        cmd,
+        input=input_text,
+        text=True,
+        check=True,
+        capture_output=True,
+    )
+
+
+def sql_literal(value):
+    return "'" + value.replace("'", "''") + "'"
+
+
+def read_note():
+    result = run(["ssh", SSH_TARGET, "cat", NOTE_PATH])
+    return result.stdout
+
+
+def chunk_markdown_h2(text):
+    chunks = []
+    current = []
+
+    for line in text.splitlines():
+        if line.startswith("## ") and current:
+            chunks.append("\n".join(current).strip())
+            current = [line]
+        else:
+            current.append(line)
+
+    if current:
+        chunks.append("\n".join(current).strip())
+
+    return [c for c in chunks if c]
+
+
+def weyland_db(sql):
+    result = run(["weyland-db", "-c", sql])
+    if result.stdout:
+        print(result.stdout, end="")
+    if result.stderr:
+        print(result.stderr, end="", file=sys.stderr)
+
+
+def main():
+    if len(sys.argv) > 1 and sys.argv[1] in {"help", "--help", "-h"}:
+        help_text()
+        return
+
+    if len(sys.argv) > 1 and sys.argv[1] == "status":
+        weyland_db("""
+SELECT 
+  d.name,
+  d.source_path,
+  d.content_hash,
+  count(c.id) AS chunks,
+  max(c.updated_at) AS last_chunk_update
+FROM rag_documents d
+LEFT JOIN rag_chunks c ON c.document_id = d.id
+WHERE d.name = 'weyland.md'
+GROUP BY d.id, d.name, d.source_path, d.content_hash;
+""")
+        return
+
+
+    if len(sys.argv) > 1 and sys.argv[1] == "changed":
+        content = read_note()
+        current_hash = hashlib.sha256(content.encode("utf-8")).hexdigest()
+
+        result = run([
+            "weyland-db",
+            "-t",
+            "-A",
+            "-c",
+            "SELECT content_hash FROM rag_documents WHERE name = 'weyland.md';"
+        ])
+
+        stored_hash = result.stdout.strip()
+
+        if current_hash == stored_hash:
+            print("unchanged")
+        else:
+            print("changed")
+            print(f"stored:  {stored_hash}")
+            print(f"current: {current_hash}")
+        return
+
+    content = read_note()
+    content_hash = hashlib.sha256(content.encode("utf-8")).hexdigest()
+    metadata = json.dumps({
+        "source_machine": SOURCE_MACHINE,
+        "purpose": "lab tracking README",
+    })
+
+    weyland_db(f"""
+INSERT INTO rag_documents (name, source_type, source_path, content_hash, metadata)
+VALUES (
+  'weyland.md',
+  'obsidian_note',
+  '{NOTE_PATH}',
+  '{content_hash}',
+  '{metadata}'::jsonb
+)
+ON CONFLICT (name)
+DO UPDATE SET
+  content_hash = EXCLUDED.content_hash,
+  metadata = EXCLUDED.metadata,
+  updated_at = now();
+""")
+
+    weyland_db("""
+DELETE FROM rag_chunks
+WHERE document_id = (SELECT id FROM rag_documents WHERE name = 'weyland.md');
+""")
+
+    chunks = chunk_markdown_h2(content)
+
+    for idx, chunk in enumerate(chunks):
+        chunk_metadata = json.dumps({"chunking": "markdown_h2_python_v1"})
+        weyland_db(f"""
+INSERT INTO rag_chunks (document_id, chunk_index, content, metadata)
+VALUES (
+  (SELECT id FROM rag_documents WHERE name = 'weyland.md'),
+  {idx},
+  {sql_literal(chunk)},
+  '{chunk_metadata}'::jsonb
+);
+""")
+
+    weyland_db("""
+SELECT d.name, count(*) AS chunks
+FROM rag_chunks c
+JOIN rag_documents d ON d.id = c.document_id
+WHERE d.name = 'weyland.md'
+GROUP BY d.name;
+""")
+
+
+if __name__ == "__main__":
+    main()
