@@ -1,0 +1,86 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: weaviate-data
+  namespace: weyland
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: local-path
+  resources:
+    requests:
+      storage: 20Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: weaviate
+  namespace: weyland
+  labels:
+    app: weaviate
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: weaviate
+  template:
+    metadata:
+      labels:
+        app: weaviate
+    spec:
+      containers:
+        - name: weaviate
+          image: semitechnologies/weaviate:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8080
+          env:
+            - name: QUERY_DEFAULTS_LIMIT
+              value: "25"
+            - name: AUTHENTICATION_ANONYMOUS_ACCESS_ENABLED
+              value: "true"
+            - name: PERSISTENCE_DATA_PATH
+              value: /var/lib/weaviate
+            - name: DEFAULT_VECTORIZER_MODULE
+              value: none
+            - name: ENABLE_MODULES
+              value: ""
+            - name: CLUSTER_HOSTNAME
+              value: node1
+          volumeMounts:
+            - name: weaviate-storage
+              mountPath: /var/lib/weaviate
+          readinessProbe:
+            httpGet:
+              path: /v1/.well-known/ready
+              port: 8080
+            initialDelaySeconds: 15
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /v1/.well-known/live
+              port: 8080
+            initialDelaySeconds: 30
+            periodSeconds: 20
+      volumes:
+        - name: weaviate-storage
+          persistentVolumeClaim:
+            claimName: weaviate-data
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: weaviate
+  namespace: weyland
+  labels:
+    app: weaviate
+spec:
+  type: NodePort
+  selector:
+    app: weaviate
+  ports:
+    - name: http
+      port: 8080
+      targetPort: 8080
+      nodePort: 30087
