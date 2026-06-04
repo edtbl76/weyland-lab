@@ -1,0 +1,1 @@
+/home/edwardmangini/Documents/ObsidianVault/Projects/weyland/weyland.md

@@ -39,6 +39,8 @@ spec:
                 secretKeyRef:
                   name: weyland-postgres-secret
                   key: POSTGRES_PASSWORD
+            - name: WEYLAND_QDRANT_URL
+              value: http://qdrant.weyland.svc.cluster.local:6333
 ---
 apiVersion: v1
 kind: Service
