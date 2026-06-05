@@ -50,6 +50,8 @@ spec:
               value: ""
             - name: CLUSTER_HOSTNAME
               value: node1
+            - name: GRPC_PORT
+              value: "50051"
           volumeMounts:
             - name: weaviate-storage
               mountPath: /var/lib/weaviate

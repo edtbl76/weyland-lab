@@ -15,6 +15,7 @@ spec:
       labels:
         app: dagster-user-code
     spec:
+      enableServiceLinks: false
       containers:
         - name: dagster-user-code
           image: weyland-dagster-user-code:local
