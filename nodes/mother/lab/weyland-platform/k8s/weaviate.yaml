@@ -35,6 +35,8 @@ spec:
           ports:
             - name: http
               containerPort: 8080
+            - name: grpc
+              containerPort: 50051
           env:
             - name: QUERY_DEFAULTS_LIMIT
               value: "25"
@@ -84,3 +86,6 @@ spec:
       port: 8080
       targetPort: 8080
       nodePort: 30087
+    - name: grpc
+      port: 50051
+      targetPort: 50051

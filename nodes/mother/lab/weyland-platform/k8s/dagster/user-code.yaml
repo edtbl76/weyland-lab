@@ -48,6 +48,25 @@ spec:
               value: /var/secrets/ssh/id_rsa
             - name: WEYLAND_SSH_FILE_PATH
               value: /home/edwardmangini/Documents/ObsidianVault/Projects/weyland/weyland.md
+            - name: QDRANT_HOST
+              value: qdrant.weyland.svc.cluster.local
+            - name: QDRANT_PORT
+              value: "6333"
+            - name: WEAVIATE_HOST
+              value: weaviate.weyland.svc.cluster.local
+            - name: WEAVIATE_PORT
+              value: "8080"
+            - name: WEAVIATE_GRPC_PORT
+              value: "50051"
+            - name: NEO4J_URI
+              value: bolt://neo4j.weyland.svc.cluster.local:7687
+            - name: NEO4J_USER
+              value: neo4j
+            - name: NEO4J_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: neo4j-secret
+                  key: password
           volumeMounts:
             - name: ssh-key
               mountPath: /var/secrets/ssh
