@@ -17,9 +17,9 @@ spec:
     spec:
       containers:
         - name: dagster-daemon
-          image: ghcr.io/dagster-io/dagster:latest
-          imagePullPolicy: IfNotPresent
-          command: ["dagster-daemon", "run"]
+          image: weyland-dagster-base:local
+          imagePullPolicy: Never
+          command: ["dagster-daemon", "run", "-w", "/opt/dagster/dagster_home/workspace.yaml"]
           env:
             - name: DAGSTER_HOME
               value: /opt/dagster/dagster_home

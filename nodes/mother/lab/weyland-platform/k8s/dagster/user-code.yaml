@@ -35,8 +35,13 @@ spec:
                 secretKeyRef:
                   name: dagster-postgres-secret
                   key: password
+            - name: DAGSTER_PG_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: dagster-postgres-secret
+                  key: password
             - name: WEYLAND_SSH_HOST
-              value: "192.168.1.230"
+              value: rogueone
             - name: WEYLAND_SSH_USER
               value: edwardmangini
             - name: WEYLAND_SSH_KEY_PATH

@@ -1,10 +1,10 @@
 import os
 import paramiko
-from dagster import asset, RetryPolicy, Backoff
+from dagster import asset, RetryPolicy
 
 
 @asset(
-    retry_policy=RetryPolicy(max_retries=2, delay=30, backoff=Backoff.NONE),
+    retry_policy=RetryPolicy(max_retries=2, delay=30),
     description="Read weyland.md from rogueone over SSH.",
 )
 def source_document() -> dict:
@@ -13,7 +13,7 @@ def source_document() -> dict:
     key_path = os.environ["WEYLAND_SSH_KEY_PATH"]
     file_path = os.environ["WEYLAND_SSH_FILE_PATH"]
 
-    key = paramiko.RSAKey.from_private_key_file(key_path)
+    key = paramiko.Ed25519Key.from_private_key_file(key_path)
     client = paramiko.SSHClient()
     client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
 
