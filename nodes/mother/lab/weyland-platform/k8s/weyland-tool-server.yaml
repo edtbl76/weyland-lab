@@ -13,6 +13,7 @@ spec:
       labels:
         app: weyland-tool-server
     spec:
+      enableServiceLinks: false
       containers:
         - name: weyland-tool-server
           image: weyland-tool-server:local
@@ -39,8 +40,27 @@ spec:
                 secretKeyRef:
                   name: weyland-postgres-secret
                   key: POSTGRES_PASSWORD
-            - name: WEYLAND_QDRANT_URL
-              value: http://qdrant.weyland.svc.cluster.local:6333
+            - name: QDRANT_HOST
+              value: qdrant.weyland.svc.cluster.local
+            - name: QDRANT_PORT
+              value: "6333"
+            - name: WEAVIATE_HOST
+              value: weaviate.weyland.svc.cluster.local
+            - name: WEAVIATE_PORT
+              value: "8080"
+            - name: WEAVIATE_GRPC_PORT
+              value: "50051"
+            - name: NEO4J_URI
+              value: bolt://neo4j.weyland.svc.cluster.local:7687
+            - name: NEO4J_USER
+              value: neo4j
+            - name: NEO4J_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: neo4j-secret
+                  key: password
+            - name: DAGSTER_URL
+              value: http://dagster-webserver.weyland.svc.cluster.local:3000
 ---
 apiVersion: v1
 kind: Service
