@@ -1,0 +1,49 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: weyland-apisix-dashboard
+  namespace: weyland
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: weyland-apisix-dashboard
+  template:
+    metadata:
+      labels:
+        app: weyland-apisix-dashboard
+    spec:
+      containers:
+        - name: apisix-dashboard
+          image: apache/apisix-dashboard:3.0.1-alpine
+          ports:
+            - containerPort: 9000
+          volumeMounts:
+            - name: dashboard-config
+              mountPath: /usr/local/apisix-dashboard/conf/conf.yaml
+              subPath: conf.yaml
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 9000
+            initialDelaySeconds: 10
+            periodSeconds: 10
+      volumes:
+        - name: dashboard-config
+          configMap:
+            name: apisix-dashboard-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: weyland-apisix-dashboard
+  namespace: weyland
+spec:
+  type: NodePort
+  selector:
+    app: weyland-apisix-dashboard
+  ports:
+    - name: dashboard
+      port: 9000
+      targetPort: 9000
+      nodePort: 30089

@@ -85,6 +85,9 @@ fabric.properties
 # NOT tracked or vendored into weyland's history.
 nodes/openclaw/lab/openclaw/
 
+# Environment secrets — never commit
+.env
+
 # Method AIDLC — installed tooling
 .methodaidlc/
 /CLAUDE.md

@@ -1,0 +1,56 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: weyland-apisix-etcd
+  namespace: weyland
+spec:
+  serviceName: weyland-apisix-etcd
+  replicas: 1
+  selector:
+    matchLabels:
+      app: weyland-apisix-etcd
+  template:
+    metadata:
+      labels:
+        app: weyland-apisix-etcd
+    spec:
+      containers:
+        - name: etcd
+          image: bitnami/etcd:3.5
+          env:
+            - name: ALLOW_NONE_AUTHENTICATION
+              value: "yes"
+            - name: ETCD_ADVERTISE_CLIENT_URLS
+              value: http://weyland-apisix-etcd:2379
+            - name: ETCD_LISTEN_CLIENT_URLS
+              value: http://0.0.0.0:2379
+          ports:
+            - containerPort: 2379
+          volumeMounts:
+            - name: etcd-data
+              mountPath: /bitnami/etcd
+          readinessProbe:
+            exec:
+              command: ["etcdctl", "endpoint", "health"]
+            initialDelaySeconds: 5
+            periodSeconds: 10
+  volumeClaimTemplates:
+    - metadata:
+        name: etcd-data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: 1Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: weyland-apisix-etcd
+  namespace: weyland
+spec:
+  selector:
+    app: weyland-apisix-etcd
+  ports:
+    - port: 2379
+      targetPort: 2379
