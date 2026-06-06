@@ -10,6 +10,20 @@ All commands run from `mother` unless noted.
 kubectl get pods -n weyland
 ```
 
+### Check logs
+
+```bash
+kubectl logs -n weyland deployment/weyland-tool-server --tail=50
+kubectl logs -n weyland deployment/weyland-tool-server --tail=50 --previous
+```
+
+### Evict dead pods
+
+```bash
+kubectl delete pods -n weyland --field-selector=status.phase=Failed
+kubectl get pods -n weyland | grep -E 'Error|Evicted|OOMKilled' | awk '{print $1}' | xargs kubectl delete pod -n weyland
+```
+
 ---
 
 ## Tool Server

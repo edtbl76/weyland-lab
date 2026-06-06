@@ -103,11 +103,11 @@ def _search_pgvector(query: str, limit: int) -> list[dict]:
 
 def _search_qdrant(query: str, limit: int) -> list[dict]:
     embedding = embed_model.get_text_embedding(query)
-    results = qdrant_client.search(
+    results = qdrant_client.query_points(
         collection_name="weyland_chunks",
-        query_vector=embedding,
+        query=embedding,
         limit=limit,
-    )
+    ).points
     return [
         {
             "source": r.payload.get("source_name", ""),
