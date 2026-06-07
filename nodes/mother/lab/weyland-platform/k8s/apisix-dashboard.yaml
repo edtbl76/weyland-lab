@@ -46,4 +46,4 @@ spec:
     - name: dashboard
       port: 9000
       targetPort: 9000
-      nodePort: 30089
+      nodePort: 30091

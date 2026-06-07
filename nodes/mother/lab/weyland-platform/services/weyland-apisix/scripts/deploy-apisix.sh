@@ -22,6 +22,14 @@ set +a
 
 echo "==> Applying APISIX k8s manifests..."
 kubectl apply -f "${K8S_DIR}/apisix-etcd.yaml"
+
+echo "==> Creating apisix-config ConfigMap..."
+envsubst < "${SERVICE_DIR}/conf/config.yaml" \
+  | kubectl create configmap apisix-config \
+      --from-file=config.yaml=/dev/stdin \
+      --namespace="$NAMESPACE" \
+      --dry-run=client -o yaml | kubectl apply -f -
+
 kubectl apply -f "${K8S_DIR}/apisix.yaml"
 
 echo "==> Creating apisix-secret..."
@@ -51,5 +59,5 @@ kubectl exec -n "$NAMESPACE" "$APISIX_POD" -- \
 
 echo ""
 echo "APISIX deployed."
-echo "  Gateway:   http://mother:30088"
-echo "  Dashboard: http://mother:30089  (admin / see .env)"
+echo "  Gateway:   http://mother:30090"
+echo "  Dashboard: http://mother:30091  (admin / see .env)"

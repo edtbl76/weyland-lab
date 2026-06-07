@@ -15,7 +15,7 @@ deployment:
       port: 9180
     admin_key:
       - name: admin
-        key: $ENV://APISIX_ADMIN_KEY
+        key: ${APISIX_ADMIN_KEY}
         role: admin
   etcd:
     host:

@@ -16,22 +16,27 @@ spec:
     spec:
       containers:
         - name: etcd
-          image: bitnami/etcd:3.5
-          env:
-            - name: ALLOW_NONE_AUTHENTICATION
-              value: "yes"
-            - name: ETCD_ADVERTISE_CLIENT_URLS
-              value: http://weyland-apisix-etcd:2379
-            - name: ETCD_LISTEN_CLIENT_URLS
-              value: http://0.0.0.0:2379
+          image: quay.io/coreos/etcd:v3.5.31
+          command:
+            - etcd
+            - --name=weyland-apisix-etcd
+            - --data-dir=/etcd-data
+            - --listen-client-urls=http://0.0.0.0:2379
+            - --advertise-client-urls=http://weyland-apisix-etcd:2379
+            - --listen-peer-urls=http://0.0.0.0:2380
+            - --initial-advertise-peer-urls=http://weyland-apisix-etcd:2380
+            - --initial-cluster=weyland-apisix-etcd=http://weyland-apisix-etcd:2380
+            - --initial-cluster-state=new
           ports:
             - containerPort: 2379
+            - containerPort: 2380
           volumeMounts:
             - name: etcd-data
-              mountPath: /bitnami/etcd
+              mountPath: /etcd-data
           readinessProbe:
-            exec:
-              command: ["etcdctl", "endpoint", "health"]
+            httpGet:
+              path: /health
+              port: 2379
             initialDelaySeconds: 5
             periodSeconds: 10
   volumeClaimTemplates:
@@ -52,5 +57,9 @@ spec:
   selector:
     app: weyland-apisix-etcd
   ports:
-    - port: 2379
+    - name: client
+      port: 2379
       targetPort: 2379
+    - name: peer
+      port: 2380
+      targetPort: 2380

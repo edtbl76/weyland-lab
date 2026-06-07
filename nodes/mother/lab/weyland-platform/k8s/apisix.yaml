@@ -71,14 +71,12 @@ spec:
               mountPath: /usr/local/apisix/conf/config.yaml
               subPath: config.yaml
           readinessProbe:
-            httpGet:
-              path: /apisix/status
+            tcpSocket:
               port: 9080
             initialDelaySeconds: 10
             periodSeconds: 10
           livenessProbe:
-            httpGet:
-              path: /apisix/status
+            tcpSocket:
               port: 9080
             initialDelaySeconds: 30
             periodSeconds: 30
@@ -100,4 +98,4 @@ spec:
     - name: gateway
       port: 9080
       targetPort: 9080
-      nodePort: 30088
+      nodePort: 30090
