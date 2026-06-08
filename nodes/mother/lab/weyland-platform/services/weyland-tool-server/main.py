@@ -34,6 +34,44 @@ NEO4J_PASSWORD = os.getenv("NEO4J_PASSWORD", "")
 
 DAGSTER_URL = os.getenv("DAGSTER_URL", "http://dagster-webserver.weyland.svc.cluster.local:3000")
 
+
+def validate_required_secrets() -> None:
+    """Fail fast at startup if required secret-backed env vars are missing or empty.
+
+    Passwords come from Kubernetes Secrets (weyland-postgres-secret, neo4j-secret)
+    via secretKeyRef. If a Secret fails to mount, the env var is absent or empty —
+    without this check the server starts with a blank password and fails later at
+    connection time with a confusing error far from the real cause.
+
+    Mirrors the fail-fast pattern already used in
+    weyland-apisix/conf/routes-init.sh (missing admin key -> hard error).
+
+    Raises:
+        RuntimeError: if any required secret env var is missing or empty.
+    """
+    # Secret-backed values that must be present for the server to function.
+    required = {
+        "WEYLAND_DB_PASSWORD": PG_PASSWORD,
+        "NEO4J_PASSWORD": NEO4J_PASSWORD,
+    }
+    # `not value` catches both the unset case and the empty-string case that a
+    # secretKeyRef to a missing/blank key produces. Collect every missing var so
+    # one error reports them all, rather than crashlooping one fix at a time.
+    missing = [name for name, value in required.items() if not value]
+    if missing:
+        raise RuntimeError(
+            "Missing required secret env vars: "
+            + ", ".join(missing)
+            + ". These are supplied by Kubernetes Secrets "
+            "(weyland-postgres-secret, neo4j-secret) via secretKeyRef — "
+            "check that the Secrets exist in the 'weyland' namespace and are "
+            "mounted by the deployment."
+        )
+
+
+# Fail loudly at import/startup, before the app builds connections.
+validate_required_secrets()
+
 VALID_BACKENDS = {"pgvector", "qdrant", "weaviate", "neo4j"}
 
 embed_model: HuggingFaceEmbedding | None = None
