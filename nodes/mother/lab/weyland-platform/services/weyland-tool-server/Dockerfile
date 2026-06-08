@@ -12,23 +12,24 @@ RUN pip install --no-cache-dir \
     weaviate-client \
     neo4j
 
+# Pin the Hugging Face cache so the build-time download and the runtime load
+# resolve to the same path (default would be /root/.cache/huggingface).
+ENV HF_HOME=/app/.cache/huggingface
+
+# Bake the public embedding model into the image at build time (no HF token needed).
 RUN python -c "from llama_index.embeddings.huggingface import HuggingFaceEmbedding; HuggingFaceEmbedding(model_name='BAAI/bge-small-en-v1.5')"
+
+# Model is baked in — force offline at runtime so startup never reaches the HF hub
+# (deterministic, airgap-safe). Set AFTER the build-time download so the build can
+# still fetch the weights.
+ENV HF_HUB_OFFLINE=1 \
+    TRANSFORMERS_OFFLINE=1
 
 COPY main.py /app/main.py
 
-ENV WEYLAND_DB_HOST=weyland-postgres.weyland.svc.cluster.local
-ENV WEYLAND_DB_PORT=5432
-ENV WEYLAND_DB_NAME=weyland
-ENV WEYLAND_DB_USER=weyland
-ENV QDRANT_HOST=qdrant.weyland.svc.cluster.local
-ENV QDRANT_PORT=6333
-ENV WEAVIATE_HOST=weaviate.weyland.svc.cluster.local
-ENV WEAVIATE_PORT=8080
-ENV WEAVIATE_GRPC_PORT=50051
-ENV NEO4J_URI=bolt://neo4j.weyland.svc.cluster.local:7687
-ENV NEO4J_USER=neo4j
-ENV DAGSTER_URL=http://dagster-webserver.weyland.svc.cluster.local:3000
-
+# Runtime config (DB / backend / Dagster URLs + secrets) is supplied by the k8s
+# deployment env — see k8s/weyland-tool-server.yaml, the single source of truth.
+# main.py keeps in-cluster DNS defaults so the image still runs standalone for dev.
 EXPOSE 8080
 
 CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8080"]
