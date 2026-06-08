@@ -1,0 +1,39 @@
+# Permanent cluster-admin login for Headlamp (LAN lab convenience — U8).
+#
+# WHY: Headlamp authenticates with a Kubernetes ServiceAccount bearer token.
+# Modern TokenRequest tokens are short-lived (~1h) and expire constantly, which is
+# tedious for a single-operator lab. A Secret of type service-account-token is
+# populated by k8s with a NON-EXPIRING token — paste it into Headlamp once.
+#
+# TRADE-OFF: this is a non-rotating cluster-admin credential. Acceptable for a
+# single-operator LAN lab; do NOT replicate to any internet-exposed or
+# multi-tenant cluster. Anyone who can read this Secret has permanent full admin.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: headlamp-admin
+  namespace: kube-system
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: headlamp-admin
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: cluster-admin
+subjects:
+  - kind: ServiceAccount
+    name: headlamp-admin
+    namespace: kube-system
+---
+# Legacy-style token Secret. The service-account-token controller fills
+# .data.token with a JWT that has NO `exp` claim — it does not expire.
+apiVersion: v1
+kind: Secret
+metadata:
+  name: headlamp-admin-token
+  namespace: kube-system
+  annotations:
+    kubernetes.io/service-account.name: headlamp-admin
+type: kubernetes.io/service-account-token
