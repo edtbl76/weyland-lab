@@ -17,7 +17,10 @@ metadata:
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
-  name: headlamp-admin
+  # IMPORTANT: do NOT name this "headlamp-admin" — the Headlamp Helm chart owns a CRB
+  # by that name (binding its pod SA headlamp/headlamp), and `helm upgrade` reclaims it,
+  # silently unbinding our SA. Use a weyland-prefixed name so the chart never touches it.
+  name: weyland-headlamp-admin
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
