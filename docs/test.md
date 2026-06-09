@@ -102,8 +102,14 @@ sudo k3s ctr images ls | grep tool-server
 ```bash
 docker build -t weyland-tool-server:local ~/lab/weyland-platform/services/weyland-tool-server/
 docker save weyland-tool-server:local | sudo k3s ctr images import -
+docker image prune -f   # reclaim the now-dangling previous build (prevents disk creep)
 kubectl rollout restart deployment/weyland-tool-server -n weyland
 ```
+
+> Note: mother runs workloads in k3s/containerd, NOT docker — docker here is only a
+> build tool. Every `save | ctr import` leaves the prior docker image dangling, so the
+> `docker image prune -f` above keeps `/var/lib/docker` from ballooning (it hit 88% once).
+> containerd self-GCs unreferenced images, so no manual cleanup needed there.
 
 ---
 
