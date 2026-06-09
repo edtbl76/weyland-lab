@@ -53,11 +53,36 @@ metadata:
   labels:
     app: dagster-webserver
 spec:
-  type: NodePort
+  # ClusterIP only — access is HTTPS via Traefik Ingress (dagster.weyland.lab).
+  # Raw LAN HTTP on :30088 removed (U9).
+  type: ClusterIP
   selector:
     app: dagster-webserver
   ports:
     - name: http
       port: 3000
       targetPort: 3000
-      nodePort: 30088
+---
+# Plain Ingress (portable). TLS secret weyland-wildcard-tls already exists in the
+# weyland namespace. Traefik proxies Dagster's websocket/GraphQL subscriptions natively.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: dagster-webserver
+  namespace: weyland
+spec:
+  tls:
+    - hosts:
+        - dagster.weyland.lab
+      secretName: weyland-wildcard-tls
+  rules:
+    - host: dagster.weyland.lab
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: dagster-webserver
+                port:
+                  number: 3000

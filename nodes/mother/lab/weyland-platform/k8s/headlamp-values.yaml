@@ -1,5 +1,6 @@
+# Access is HTTPS via Traefik Ingress (headlamp.weyland.lab, see k8s/headlamp-ingress.yaml).
+# ClusterIP drops the raw LAN HTTP NodePort (30081) — takes effect on next `helm upgrade`.
 service:
-  type: NodePort
+  type: ClusterIP
   port: 80
   targetPort: 4466
-  nodePort: 30081

@@ -39,11 +39,37 @@ metadata:
   name: weyland-apisix-dashboard
   namespace: weyland
 spec:
-  type: NodePort
+  # ClusterIP only — access is HTTPS via Traefik Ingress (apisix.weyland.lab).
+  # Raw LAN HTTP on :30091 removed (U9).
+  type: ClusterIP
   selector:
     app: weyland-apisix-dashboard
   ports:
     - name: dashboard
       port: 9000
       targetPort: 9000
-      nodePort: 30091
+---
+# Plain Ingress (portable). TLS secret weyland-wildcard-tls already exists in weyland ns.
+# Note: the APISIX *dashboard* is a platform-hosted UI → it sits behind Traefik like the
+# other UIs. (The APISIX *gateway* itself remains the outlier-cell front door — separate.)
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: weyland-apisix-dashboard
+  namespace: weyland
+spec:
+  tls:
+    - hosts:
+        - apisix.weyland.lab
+      secretName: weyland-wildcard-tls
+  rules:
+    - host: apisix.weyland.lab
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: weyland-apisix-dashboard
+                port:
+                  number: 9000

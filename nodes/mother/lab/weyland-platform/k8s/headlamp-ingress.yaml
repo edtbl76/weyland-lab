@@ -1,0 +1,25 @@
+# Standalone plain Ingress for Headlamp (U9). Headlamp itself is a Helm release
+# (headlamp chart, namespace headlamp); this Ingress is a separate object Helm does
+# not own, so no chart-schema guessing and no drift on Helm-managed resources.
+# TLS uses the shared wildcard cert — the Secret must exist in the headlamp namespace.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: headlamp
+  namespace: headlamp
+spec:
+  tls:
+    - hosts:
+        - headlamp.weyland.lab
+      secretName: weyland-wildcard-tls
+  rules:
+    - host: headlamp.weyland.lab
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: headlamp
+                port:
+                  number: 80
