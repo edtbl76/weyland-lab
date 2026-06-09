@@ -1,0 +1,22 @@
+# U10 — least privilege: stop auto-mounting an API token into pods that never call
+# the Kubernetes API. All weyland/n8n app workloads (tool server, Dagster, n8n, the
+# vector DBs, APISIX, CoreDNS, Postgres) talk to DBs / SSH / GraphQL / DNS — never the
+# k8s API — yet each pod gets the default SA's auto-mounted token (CIS 5.1.6).
+#
+# `kubectl apply` patches the auto-created `default` ServiceAccount in each namespace,
+# covering all current AND future pods that use it. Headlamp is untouched (it uses its
+# own SA and genuinely needs API access). A future pod that DOES need the API should get
+# its own dedicated SA rather than relying on default.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: default
+  namespace: weyland
+automountServiceAccountToken: false
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: default
+  namespace: n8n
+automountServiceAccountToken: false

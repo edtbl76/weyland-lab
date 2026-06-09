@@ -17,6 +17,10 @@ metadata:
   namespace: n8n
 spec:
   replicas: 1
+  # Single-instance + ReadWriteOnce storage: kill the old pod BEFORE starting the new
+  # one so they never contend for the storage lock on restart (RollingUpdate deadlocks).
+  strategy:
+    type: Recreate
   selector:
     matchLabels:
       app: n8n
