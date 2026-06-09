@@ -1,3 +1,4 @@
+import base64
 import os
 import paramiko
 from dagster import asset, RetryPolicy
@@ -12,10 +13,15 @@ def source_document() -> dict:
     user = os.environ["WEYLAND_SSH_USER"]
     key_path = os.environ["WEYLAND_SSH_KEY_PATH"]
     file_path = os.environ["WEYLAND_SSH_FILE_PATH"]
+    # rogueone's ed25519 HOST public key (base64 blob) — pinned to prevent MITM.
+    host_key_b64 = os.environ["WEYLAND_SSH_HOST_KEY"]
 
     key = paramiko.Ed25519Key.from_private_key_file(key_path)
     client = paramiko.SSHClient()
-    client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+    # Pin the expected host key and reject anything else — no blind AutoAddPolicy.
+    expected_host_key = paramiko.Ed25519Key(data=base64.b64decode(host_key_b64))
+    client.get_host_keys().add(host, "ssh-ed25519", expected_host_key)
+    client.set_missing_host_key_policy(paramiko.RejectPolicy())
 
     try:
         client.connect(hostname=host, username=user, pkey=key)

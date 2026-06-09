@@ -64,18 +64,10 @@ spec:
           volumeMounts:
             - name: n8n-data
               mountPath: /home/node/.n8n
-            - name: weyland-lab-ssh-key
-              mountPath: /home/node/.ssh/weyland-lab
-              subPath: id_ed25519
-              readOnly: true
       volumes:
         - name: n8n-data
           persistentVolumeClaim:
             claimName: n8n-data
-        - name: weyland-lab-ssh-key
-          secret:
-            secretName: weyland-lab-ssh-key
-            defaultMode: 0440        
 ---
 apiVersion: v1
 kind: Service

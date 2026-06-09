@@ -49,6 +49,11 @@ spec:
               value: /var/secrets/ssh/id_rsa
             - name: WEYLAND_SSH_FILE_PATH
               value: /home/edwardmangini/Documents/ObsidianVault/Projects/weyland/weyland.md
+            # rogueone's ed25519 HOST public key (public, safe to commit) — pinned so
+            # source_document rejects any other host key (no blind AutoAddPolicy / MITM).
+            # If rogueone's host key ever rotates, update this value.
+            - name: WEYLAND_SSH_HOST_KEY
+              value: AAAAC3NzaC1lZDI1NTE5AAAAIKDNtTabkxcgcud8wJbXmi1xqnYnMFj3RB/YbzakTKvm
             - name: QDRANT_HOST
               value: qdrant.weyland.svc.cluster.local
             - name: QDRANT_PORT
