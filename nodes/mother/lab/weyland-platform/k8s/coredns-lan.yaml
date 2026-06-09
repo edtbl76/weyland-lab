@@ -1,0 +1,93 @@
+# Weyland LAN DNS resolver (U9 prerequisite) — SEPARATE from k3s kube-dns.
+#
+# Authoritative for weyland.lab (wildcard *.weyland.lab -> mother), forwards everything
+# else to public resolvers. Exposed on mother:53 via k3s ServiceLB so LAN clients can
+# use it. Swappable for Pi-hole/dnsmasq later without touching certs or Ingress.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: weyland-lan-dns-corefile
+  namespace: weyland
+data:
+  Corefile: |
+    # Authoritative zone for the private lab domain.
+    weyland.lab:53 {
+        errors
+        log
+        # Wildcard: every name under weyland.lab (and the apex) resolves to mother.
+        template IN A {
+            answer "{{ .Name }} 60 IN A 192.168.1.243"
+        }
+        # We have no IPv6; return NODATA (NOERROR/empty), not NXDOMAIN, for AAAA.
+        template IN AAAA {
+            rcode NOERROR
+        }
+    }
+    # Everything else: forward to public resolvers (Cloudflare + Quad9).
+    .:53 {
+        errors
+        log
+        health
+        ready
+        prometheus :9153
+        forward . 1.1.1.1 9.9.9.9
+        cache 30
+        loop
+        reload
+    }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: weyland-lan-dns
+  namespace: weyland
+  labels:
+    app: weyland-lan-dns
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: weyland-lan-dns
+  template:
+    metadata:
+      labels:
+        app: weyland-lan-dns
+    spec:
+      containers:
+        - name: coredns
+          image: coredns/coredns:1.11.3
+          args: ["-conf", "/etc/coredns/Corefile"]
+          ports:
+            - { name: dns-udp, containerPort: 53, protocol: UDP }
+            - { name: dns-tcp, containerPort: 53, protocol: TCP }
+            - { name: metrics, containerPort: 9153, protocol: TCP }
+            - { name: health, containerPort: 8080, protocol: TCP }
+            - { name: ready, containerPort: 8181, protocol: TCP }
+          resources:
+            requests: { cpu: 50m, memory: 64Mi }
+            limits: { cpu: 200m, memory: 128Mi }
+          livenessProbe:
+            httpGet: { path: /health, port: 8080 }
+            initialDelaySeconds: 5
+          readinessProbe:
+            httpGet: { path: /ready, port: 8181 }
+            initialDelaySeconds: 2
+          volumeMounts:
+            - { name: corefile, mountPath: /etc/coredns, readOnly: true }
+      volumes:
+        - name: corefile
+          configMap:
+            name: weyland-lan-dns-corefile
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: weyland-lan-dns
+  namespace: weyland
+spec:
+  type: LoadBalancer
+  selector:
+    app: weyland-lan-dns
+  ports:
+    - { name: dns-udp, port: 53, targetPort: 53, protocol: UDP }
+    - { name: dns-tcp, port: 53, targetPort: 53, protocol: TCP }
