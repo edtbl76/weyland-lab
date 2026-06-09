@@ -39,15 +39,22 @@ spec:
                   name: n8n-secret
                   key: N8N_ENCRYPTION_KEY
             - name: N8N_HOST
-              value: "192.168.1.243"
+              value: "n8n.weyland.lab"
             - name: N8N_PORT
               value: "5678"
+            # Behind Traefik TLS termination — n8n is addressed as HTTPS by the browser.
             - name: N8N_PROTOCOL
-              value: "http"
+              value: "https"
+            # RL #6: secure cookies now possible because the UI is served over HTTPS.
             - name: N8N_SECURE_COOKIE
-              value: "false"
+              value: "true"
+            # One reverse proxy hop (Traefik) — trust X-Forwarded-* so n8n sees HTTPS.
+            - name: N8N_PROXY_HOPS
+              value: "1"
             - name: WEBHOOK_URL
-              value: "http://192.168.1.243:30082/"
+              value: "https://n8n.weyland.lab/"
+            - name: N8N_EDITOR_BASE_URL
+              value: "https://n8n.weyland.lab/"
             - name: TZ
               value: "America/New_York"
           volumeMounts:
@@ -72,11 +79,37 @@ metadata:
   name: n8n
   namespace: n8n
 spec:
-  type: NodePort
+  # ClusterIP only — access is HTTPS via Traefik Ingress (n8n.weyland.lab).
+  # Raw LAN HTTP on :30082 removed (RL #7).
+  type: ClusterIP
   selector:
     app: n8n
   ports:
     - name: http
       port: 5678
       targetPort: 5678
-      nodePort: 30082
+---
+# Traefik picks this up as the k3s default ingress controller. Plain Ingress (no
+# IngressRoute CRD) for portability. TLS terminated by Traefik using the shared
+# wildcard cert; the Secret must live in THIS namespace (n8n).
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: n8n
+  namespace: n8n
+spec:
+  tls:
+    - hosts:
+        - n8n.weyland.lab
+      secretName: weyland-wildcard-tls
+  rules:
+    - host: n8n.weyland.lab
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: n8n
+                port:
+                  number: 5678

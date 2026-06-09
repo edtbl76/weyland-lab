@@ -88,11 +88,17 @@ nodes/openclaw/lab/openclaw/
 # Environment secrets — never commit
 .env
 
+# TLS private keys / certs — never commit
+*.key
+*-key.pem
+certs/
+
 # Method AIDLC — installed tooling
 .methodaidlc/
 /CLAUDE.md
 /aidlc-docs/
-/docs/u6-credential-hardening.md
-/docs/u7-config-hf-cleanup.md
-/docs/u8-headlamp-token.md
-/docs/u9-dns-coredns.md
+
+
+/docs/
+!/docs/weyland.md
+!/docs/test.md
