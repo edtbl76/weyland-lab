@@ -1,0 +1,77 @@
+# kube-prometheus-stack — Weyland observability (B5).
+# Install: helm install monitoring prometheus-community/kube-prometheus-stack
+#          -n monitoring -f this-file  (see docs/b5-observability.md)
+# Grafana is fronted by a standalone Traefik Ingress (grafana.weyland.lab) — see
+# k8s/monitoring/grafana-ingress.yaml. Grafana admin creds come from a Secret created
+# out-of-band (grafana-admin) — NOT committed here (U6 lesson).
+
+# Alertmanager ON — default rules + firing-alert visibility from day one.
+# Phase 2: wire a receiver (Alertmanager -> n8n webhook -> Telegram, n8n's retained role).
+alertmanager:
+  enabled: true
+  alertmanagerSpec:
+    storage:
+      volumeClaimTemplate:
+        spec:
+          storageClassName: local-path
+          accessModes: ["ReadWriteOnce"]
+          resources:
+            requests:
+              storage: 2Gi
+    resources:
+      requests: { cpu: 25m, memory: 64Mi }
+      limits: { memory: 128Mi }
+
+grafana:
+  # Admin creds from a pre-created Secret (do NOT put the password in this file).
+  admin:
+    existingSecret: grafana-admin
+    userKey: admin-user
+    passwordKey: admin-password
+  # Single-instance + RWO PVC -> Recreate so it doesn't deadlock on restart
+  # (k8s-rwo-recreate-strategy lesson).
+  deploymentStrategy:
+    type: Recreate
+  persistence:
+    enabled: true
+    storageClassName: local-path
+    accessModes: ["ReadWriteOnce"]
+    size: 5Gi
+  # We front Grafana with our own Ingress for TLS consistency — disable the chart's.
+  ingress:
+    enabled: false
+  grafana.ini:
+    server:
+      root_url: https://grafana.weyland.lab
+  resources:
+    requests: { cpu: 50m, memory: 128Mi }
+    limits: { memory: 256Mi }
+
+prometheus:
+  prometheusSpec:
+    retention: 15d
+    storageSpec:
+      volumeClaimTemplate:
+        spec:
+          storageClassName: local-path
+          accessModes: ["ReadWriteOnce"]
+          resources:
+            requests:
+              storage: 20Gi
+    resources:
+      requests: { cpu: 200m, memory: 512Mi }
+      limits: { memory: 1Gi }
+    # Phase 1: scrapes the stack's own targets (kubelet, cAdvisor, node-exporter,
+    # kube-state-metrics, etc.). Phase 2: add ServiceMonitors for app emitters
+    # (APISIX, CoreDNS, Traefik, Qdrant, Weaviate) — may need
+    # serviceMonitorSelectorNilUsesHelmValues: false to pick up un-labelled ones.
+
+prometheus-node-exporter:
+  resources:
+    requests: { cpu: 25m, memory: 32Mi }
+    limits: { memory: 64Mi }
+
+kube-state-metrics:
+  resources:
+    requests: { cpu: 25m, memory: 64Mi }
+    limits: { memory: 128Mi }

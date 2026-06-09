@@ -1,0 +1,25 @@
+# Standalone Traefik Ingress for Grafana (B5) — same plain-Ingress pattern as the other
+# UIs. TLS secret weyland-wildcard-tls must exist in the monitoring namespace.
+# Backend service is <release>-grafana on port 80; this assumes Helm release name
+# "monitoring" -> service "monitoring-grafana".
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: grafana
+  namespace: monitoring
+spec:
+  tls:
+    - hosts:
+        - grafana.weyland.lab
+      secretName: weyland-wildcard-tls
+  rules:
+    - host: grafana.weyland.lab
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: monitoring-grafana
+                port:
+                  number: 80
