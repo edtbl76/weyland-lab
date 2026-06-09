@@ -20,6 +20,11 @@ metadata:
     app: qdrant
 spec:
   replicas: 1
+  # Single-instance + ReadWriteOnce storage: kill the old pod BEFORE starting the new
+  # one so they never contend for the storage lock on restart (RollingUpdate would
+  # deadlock — new pod can't lock storage held by the old, which won't terminate).
+  strategy:
+    type: Recreate
   selector:
     matchLabels:
       app: qdrant

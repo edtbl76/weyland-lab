@@ -19,9 +19,23 @@ kubectl logs -n weyland deployment/weyland-tool-server --tail=50 --previous
 
 ### Evict dead pods
 
+Sweep terminal-state leftovers across the app namespaces. `status.phase=Failed` catches
+`Evicted`/`Error`/`OOMKilled`; `status.phase=Succeeded` catches `Completed`. A
+field-selector delete can ONLY match non-Running pods, so it can never fat-finger a live
+pod (unlike a `grep | awk | xargs delete`).
+
+```bash
+for ns in n8n weyland headlamp; do
+  kubectl delete pods -n $ns --field-selector=status.phase=Failed
+  kubectl delete pods -n $ns --field-selector=status.phase=Succeeded
+done
+```
+
+Single namespace:
+
 ```bash
 kubectl delete pods -n weyland --field-selector=status.phase=Failed
-kubectl get pods -n weyland | grep -E 'Error|Evicted|OOMKilled' | awk '{print $1}' | xargs kubectl delete pod -n weyland
+kubectl delete pods -n weyland --field-selector=status.phase=Succeeded
 ```
 
 ---
