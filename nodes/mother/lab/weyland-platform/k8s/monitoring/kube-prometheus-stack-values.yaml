@@ -44,8 +44,9 @@ grafana:
     server:
       root_url: https://grafana.weyland.lab
   resources:
-    requests: { cpu: 50m, memory: 128Mi }
-    limits: { memory: 256Mi }
+    # 256Mi was too tight — Grafana + its 2 sidecars run ~310Mi and OOMKilled (→502s).
+    requests: { cpu: 50m, memory: 256Mi }
+    limits: { memory: 512Mi }
 
 prometheus:
   prometheusSpec:
@@ -59,8 +60,10 @@ prometheus:
             requests:
               storage: 20Gi
     resources:
-      requests: { cpu: 200m, memory: 512Mi }
-      limits: { memory: 1Gi }
+      # Prometheus memory grows with series count (Phase 2 ServiceMonitors add more) —
+      # generous limit to avoid OOM as it accumulates.
+      requests: { cpu: 200m, memory: 768Mi }
+      limits: { memory: 2Gi }
     # Phase 1: scrapes the stack's own targets (kubelet, cAdvisor, node-exporter,
     # kube-state-metrics, etc.). Phase 2: add ServiceMonitors for app emitters
     # (APISIX, CoreDNS, Traefik, Qdrant, Weaviate) — may need
