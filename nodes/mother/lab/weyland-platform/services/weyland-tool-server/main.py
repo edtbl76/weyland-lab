@@ -14,6 +14,7 @@ from qdrant_client import QdrantClient
 from weaviate.classes.query import MetadataQuery
 
 MODEL_NAME = "BAAI/bge-small-en-v1.5"
+VERSION = "0.2.0"
 
 PG_HOST = os.getenv("WEYLAND_DB_HOST", "weyland-postgres.weyland.svc.cluster.local")
 PG_PORT = int(os.getenv("WEYLAND_DB_PORT", "5432"))
@@ -208,42 +209,107 @@ SEARCH_FNS = {
 }
 
 
+# --- Backend health helpers (shared by the per-backend endpoints and /status) ---
+def _check_pgvector() -> dict:
+    try:
+        with psycopg2.connect(
+            host=PG_HOST, port=PG_PORT, dbname=PG_DB, user=PG_USER,
+            password=PG_PASSWORD, connect_timeout=5,
+        ) as conn:
+            with conn.cursor() as cur:
+                cur.execute("SELECT 1")
+                cur.fetchone()
+        return {"status": "ok"}
+    except Exception as e:
+        return {"status": "error", "detail": str(e)}
+
+
+def _check_qdrant() -> dict:
+    try:
+        url = f"http://{QDRANT_HOST}:{QDRANT_PORT}/collections"
+        with urllib.request.urlopen(url, timeout=5) as resp:
+            data = json.loads(resp.read().decode())
+        return {"status": "ok", "collections": data.get("result", {}).get("collections", [])}
+    except Exception as e:
+        return {"status": "error", "detail": str(e)}
+
+
+def _check_weaviate() -> dict:
+    try:
+        url = f"http://{WEAVIATE_HOST}:{WEAVIATE_PORT}/v1/.well-known/ready"
+        with urllib.request.urlopen(url, timeout=5) as resp:
+            resp.read()
+        return {"status": "ok"}
+    except Exception as e:
+        return {"status": "error", "detail": str(e)}
+
+
+def _check_neo4j() -> dict:
+    try:
+        with neo4j_driver.session() as session:
+            session.run("RETURN 1").consume()
+        return {"status": "ok"}
+    except Exception as e:
+        return {"status": "error", "detail": str(e)}
+
+
 @app.get("/health")
 def health():
-    return {"status": "ok", "service": "weyland-tool-server"}
+    """Liveness — is the process up? Trivial by design; backs the livenessProbe."""
+    return {"status": "ok", "service": "weyland-tool-server", "version": VERSION}
+
+
+@app.get("/ready")
+def ready():
+    """Readiness — can we serve the core path? Gates on embed model + pgvector (the
+    default backend) ONLY, so a single non-default backend being down does NOT pull the
+    server out of rotation. Backs the readinessProbe (503 => NotReady)."""
+    if embed_model is None:
+        raise HTTPException(status_code=503, detail="embedding model not loaded")
+    pg = _check_pgvector()
+    if pg["status"] != "ok":
+        raise HTTPException(status_code=503, detail=f"pgvector not ready: {pg.get('detail')}")
+    return {"status": "ready"}
+
+
+@app.get("/pgvector/health")
+def pgvector_health():
+    return {**_check_pgvector(), "pgvector_host": f"{PG_HOST}:{PG_PORT}"}
 
 
 @app.get("/qdrant/health")
 def qdrant_health():
-    url = f"http://{QDRANT_HOST}:{QDRANT_PORT}/collections"
-    with urllib.request.urlopen(url, timeout=5) as resp:
-        data = json.loads(resp.read().decode())
-    return {
-        "status": "ok",
-        "qdrant_url": f"http://{QDRANT_HOST}:{QDRANT_PORT}",
-        "collections": data.get("result", {}).get("collections", []),
-    }
+    return {**_check_qdrant(), "qdrant_url": f"http://{QDRANT_HOST}:{QDRANT_PORT}"}
 
 
 @app.get("/weaviate/health")
 def weaviate_health():
-    url = f"http://{WEAVIATE_HOST}:{WEAVIATE_PORT}/v1/.well-known/ready"
-    try:
-        with urllib.request.urlopen(url, timeout=5) as resp:
-            resp.read()
-        return {"status": "ok", "weaviate_url": f"http://{WEAVIATE_HOST}:{WEAVIATE_PORT}"}
-    except Exception as e:
-        return {"status": "error", "detail": str(e)}
+    return {**_check_weaviate(), "weaviate_url": f"http://{WEAVIATE_HOST}:{WEAVIATE_PORT}"}
 
 
 @app.get("/neo4j/health")
 def neo4j_health():
-    try:
-        with neo4j_driver.session() as session:
-            session.run("RETURN 1")
-        return {"status": "ok", "neo4j_uri": NEO4J_URI}
-    except Exception as e:
-        return {"status": "error", "detail": str(e)}
+    return {**_check_neo4j(), "neo4j_uri": NEO4J_URI}
+
+
+@app.get("/status")
+def status():
+    """Consolidated health — server + model + all four backends in one call.
+    overall='degraded' if any backend is down (the server itself stays live/ready)."""
+    backends = {
+        "pgvector": _check_pgvector(),
+        "qdrant": _check_qdrant(),
+        "weaviate": _check_weaviate(),
+        "neo4j": _check_neo4j(),
+    }
+    overall = "ok" if all(b["status"] == "ok" for b in backends.values()) else "degraded"
+    return {
+        "service": "weyland-tool-server",
+        "version": VERSION,
+        "status": overall,
+        "model": {"name": MODEL_NAME, "loaded": embed_model is not None},
+        "backends": backends,
+    }
 
 
 @app.post("/context/search")

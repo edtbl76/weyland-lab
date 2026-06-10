@@ -20,6 +20,17 @@ spec:
           imagePullPolicy: Never
           ports:
             - containerPort: 8080
+          # Liveness = process up (/health); Readiness = model loaded + pgvector (/ready).
+          # /ready returns 503 until the embed model is loaded, so traffic only arrives
+          # once the server can actually serve search.
+          livenessProbe:
+            httpGet: { path: /health, port: 8080 }
+            initialDelaySeconds: 30
+            periodSeconds: 20
+          readinessProbe:
+            httpGet: { path: /ready, port: 8080 }
+            initialDelaySeconds: 10
+            periodSeconds: 10
           env:
             - name: WEYLAND_DB_HOST
               value: weyland-postgres.weyland.svc.cluster.local
