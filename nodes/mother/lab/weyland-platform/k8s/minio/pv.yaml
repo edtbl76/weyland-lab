@@ -1,0 +1,31 @@
+# Static local PersistentVolume for MinIO, bound to the 8TB USB's XFS partition (sda1,
+# LABEL=minio) which is passed through to the mother VM and mounted at /mnt/minio.
+#
+# WHY static (not storageClassName: local-path like qdrant/postgres): we must bind to THIS
+# specific filesystem on THIS node, not let the provisioner carve space on the VM root disk.
+# The custom storageClassName (minio-local) makes the local-path provisioner ignore this PVC
+# so it binds to this PV instead.
+#
+# nodeAffinity pins scheduling to `mother` — the only node that physically has /mnt/minio.
+# reclaimPolicy Retain — never auto-wipe the object store if the PVC is deleted.
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: minio-data-pv
+spec:
+  capacity:
+    storage: 3900Gi
+  accessModes:
+    - ReadWriteOnce
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: minio-local
+  local:
+    path: /mnt/minio
+  nodeAffinity:
+    required:
+      nodeSelectorTerms:
+        - matchExpressions:
+            - key: kubernetes.io/hostname
+              operator: In
+              values:
+                - mother

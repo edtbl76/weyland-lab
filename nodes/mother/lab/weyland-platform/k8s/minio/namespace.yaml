@@ -1,0 +1,14 @@
+# B6 — MinIO object storage namespace.
+# Default SA token automount disabled (CIS 5.1.6, matches U10 posture) — MinIO needs no
+# Kubernetes API access.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: minio
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: default
+  namespace: minio
+automountServiceAccountToken: false

@@ -1,0 +1,79 @@
+# MinIO single-node server (community image alpine/minio — upstream minio/minio is archived,
+# see docs/b6-minio-storage.md). Single replica + RWO local PV => strategy: Recreate so the
+# old pod releases the storage before the new one starts (RollingUpdate would deadlock on the
+# single-writer volume — same pattern as qdrant/postgres/neo4j).
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: minio
+  namespace: minio
+  labels:
+    app: minio
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: minio
+  template:
+    metadata:
+      labels:
+        app: minio
+    spec:
+      # MinIO runs non-root as UID/GID 1000; /mnt/minio is chowned to 1000:1000 on mother to
+      # match (fsGroup does not apply to local/hostPath PVs, so ownership must be set on-disk).
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+      containers:
+        - name: minio
+          image: alpine/minio:RELEASE.2025-10-15T17-29-55Z
+          imagePullPolicy: IfNotPresent
+          args:
+            - server
+            - /data
+            - --console-address
+            - ":9001"
+          envFrom:
+            - secretRef:
+                name: minio-creds        # MINIO_ROOT_USER / MINIO_ROOT_PASSWORD (not committed)
+          env:
+            # Correct external URLs behind the Traefik TLS reverse proxy.
+            - name: MINIO_SERVER_URL
+              value: https://s3.weyland.lab
+            - name: MINIO_BROWSER_REDIRECT_URL
+              value: https://minio.weyland.lab
+          ports:
+            - name: api
+              containerPort: 9000
+            - name: console
+              containerPort: 9001
+          volumeMounts:
+            - name: data
+              mountPath: /data
+          readinessProbe:
+            httpGet:
+              path: /minio/health/ready
+              port: api
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /minio/health/live
+              port: api
+            initialDelaySeconds: 30
+            periodSeconds: 20
+          resources:
+            requests:
+              cpu: 250m
+              memory: 512Mi
+            limits:
+              cpu: "2"
+              memory: 4Gi
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: minio-data

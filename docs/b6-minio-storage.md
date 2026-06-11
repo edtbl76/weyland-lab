@@ -156,12 +156,65 @@ sudo mount /mnt/minio
 df -h /mnt/minio
 ```
 
-### 6. (mother) Deploy MinIO on k3s — **TODO / next**
-Plan: single-drive MinIO, RWO PVC + `strategy: Recreate` (see RWO-recreate convention),
-backed by `/mnt/minio` via a local PV (hostPath or local-volume with nodeAffinity to mother).
-Manifests to live under `nodes/mother/lab/weyland-platform/k8s/minio/`. Expose console +
-S3 API; front with Traefik TLS (`minio.weyland.lab` / `s3.weyland.lab`) per the other UIs.
-*(Fill in exact manifests + validation when deployed.)*
+### 6. (mother) Deploy MinIO on k3s
+Manifests: `nodes/mother/lab/weyland-platform/k8s/minio/` (namespace, pv, pvc, deployment,
+service, ingress). Single-drive MinIO, RWO local PV → `/mnt/minio`, `strategy: Recreate`.
+
+**Image:** `alpine/minio:RELEASE.2025-10-15T17-29-55Z` — upstream `minio/minio` was archived
+(Oct 2025); `alpine/minio` is the maintained community rebuild of the same last release.
+
+**Secrets (NOT committed):**
+```bash
+kubectl apply -f ~/lab/weyland-platform/k8s/minio/namespace.yaml
+kubectl create secret generic minio-creds -n minio \
+  --from-literal=MINIO_ROOT_USER=admin --from-literal=MINIO_ROOT_PASSWORD=weyland_dev_password
+kubectl create secret tls weyland-wildcard-tls -n minio \
+  --cert=$HOME/certs/weyland-wildcard.pem --key=$HOME/certs/weyland-wildcard-key.pem
+kubectl apply -f ~/lab/weyland-platform/k8s/minio/
+```
+
+**GOTCHA — non-root write permission:** `alpine/minio` runs as **UID 1000**, but `/mnt/minio`
+is `root:root`, so MinIO CrashLoops with `file access denied` creating `/data/.minio.sys`.
+Fix: `sudo chown 1000:1000 /mnt/minio` on mother (the deployment pins `runAsUser: 1000`;
+`fsGroup` does NOT apply to local PVs, so the on-disk chown is required).
+
+**Validate (functional S3 round-trip):**
+```bash
+kubectl run mc -it --rm --restart=Never --image=minio/mc -n minio --command -- sh
+# inside: mc alias set lab http://minio.minio.svc.cluster.local:9000 admin weyland_dev_password
+#         mc mb lab/smoke ; echo hi | mc pipe lab/smoke/o ; mc cat lab/smoke/o ; mc rb --force lab/smoke
+```
+
+### 7. Web UI — Filestash (the MinIO console is dead)
+**The MinIO community web console was stripped/removed in 2025** — login fails with a
+"network error" by design. Do NOT chase it; `minio.weyland.lab` (console ingress) is a no-op.
+Manage MinIO via `mc`/S3 API, and browse via **Filestash** instead.
+
+Manifest: `k8s/minio/filestash.yaml` (`machines/filestash:latest`), at `https://files.weyland.lab`.
+Reuses the `weyland-wildcard-tls` secret in the `minio` namespace. Config persists in the
+`filestash-data` PVC.
+
+Post-deploy (one-time, in the Filestash admin UI):
+1. Set a Filestash admin password.
+2. **Storage** → S3 backend; **Authentication Middleware** → `passthrough` → in the attribute
+   mapping enter: Access Key `admin`, Secret `weyland_dev_password`,
+   **Endpoint** `http://minio.minio.svc.cluster.local:9000`, Region `us-east-1`.
+   (No path-style checkbox — Filestash auto-uses path-style when a custom Endpoint is set.)
+
+**GOTCHA — scheme-doubled redirect / phantom NXDOMAIN:** do NOT set `APPLICATION_URL` to a full
+URL, and ensure the persisted config's `general.host` is a **bare host** (`files.weyland.lab`,
+no `https://`). With a scheme included, Filestash builds `http://https//files.weyland.lab`,
+and the browser then tries to resolve a host literally named `https` → `DNS_PROBE_FINISHED_NXDOMAIN`
+(which looks like a DNS problem but is not). The value lives in
+`/app/data/state/config/config.json` in the PVC (env seeds it once, then the file wins).
+
+## Access (day-to-day)
+- **CLI (`mc`) from rogueone:** `mc alias set weyland https://s3.weyland.lab admin weyland_dev_password`,
+  then `mc ls/cp/mirror weyland/<bucket>`. (Binary: `dl.min.io/client/mc/release/linux-amd64/mc`.)
+- **Web browser:** `https://files.weyland.lab` (Filestash).
+- **In-cluster workloads** (Dagster, tool server, etc.): S3 SDK → `http://minio.minio.svc.cluster.local:9000`.
+- **External S3 endpoint** (you, from rogueone): `https://s3.weyland.lab` (TLS, trusted mkcert cert).
+  Both `s3.weyland.lab` and `files.weyland.lab` need a `192.168.1.243` line in rogueone's `/etc/hosts`.
 
 ---
 
