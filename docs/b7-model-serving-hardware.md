@@ -27,6 +27,70 @@ Large models need **VRAM or patience**. 30B@4-bit ≈ 20 GB, 70B@4-bit ≈ 40 GB
 rogueone's 16 GB GPU is too small; weyland has 96 GB RAM but **no GPU** (CPU inference works but
 is slow). B7 = decide how weyland serves big models.
 
+## Background — the inference tradeoff (the *why*, generalizable)
+
+### Two independent axes
+- **VRAM/RAM = capacity = *what* you can run.** A **hard wall**: weights + KV cache must fit, or
+  it won't load (or spills to slow CPU offload). 24 GB clears 30B@4-bit; 48 GB clears 70B@4-bit.
+- **Memory bandwidth = speed = *how fast* once it fits.** A **dial**, not a wall.
+
+### Why token speed is bandwidth-bound
+Generating each token reads **every weight once**, so **tokens/sec ≈ bandwidth ÷ model-size**.
+A 30B@4-bit (~18 GB) on a 3090 (936 GB/s) ≈ 936÷18 ≈ 52 theoretical (~25–40 real). CUDA cores
+barely affect *generation* — they affect **prefill** (digesting the prompt), the other half of
+latency. **Quantization moves both axes**: 70B 8-bit→4-bit both *fits smaller* and *runs ~2×
+faster* (half the bytes per token). Q4 ≈ sweet spot; below Q3 quality degrades.
+
+### GPU vs CPU are opposite corners — the economic core
+**VRAM is fast + expensive; RAM is slow + cheap (~50–100×/GB).** So: buy a *little* fast memory
+(GPU) for what runs **constantly/interactively**, lean on *lots* of cheap slow memory (CPU) for
+what runs **occasionally/in bulk**. Same logic as cache vs RAM vs disk.
+
+| | Capacity | Bandwidth | Best for |
+|---|---|---|---|
+| **GPU** | small (16–48 GB VRAM) | high (576–1800 GB/s) | **fast & fits**: interactive, long-prompt/prefill, high-volume |
+| **CPU** | large (96 GB+ RAM) | low (~85 GB/s DDR5) | **big or batch**: too-big-for-VRAM, latency-tolerant, occasional |
+
+### When each makes sense (workload routing — applies anywhere)
+**GPU when:** a human / tight agent loop is **waiting** (latency compounds across turns) · long
+prompts / RAG / big code context (prefill is compute-bound — CPU can take *minutes* on 30K
+tokens) · high concurrency/batching · the model **fits VRAM** and speed matters at all.
+**CPU when:** the model **doesn't fit VRAM** (the capacity escape hatch — run 70B+ that no
+affordable GPU holds) · **nothing is waiting** (overnight eval, bulk processing, async steps) ·
+you need the big model **rarely** (don't justify GPU capex) · embeddings/small models that are
+"fast enough."
+
+**Decision as gates:** (1) Fits VRAM? No → CPU/offload. (2) Something waiting? Yes → GPU.
+(3) Long prompts / high volume? Yes → GPU.
+
+**Middle ground — hybrid offload:** llama.cpp can split a model *N layers on GPU, rest on CPU*
+— for a model that *almost* fits (70B on 24 GB). Speed lands between the two, bottlenecked by
+the CPU half. The "make it fit, claw back some speed" lever.
+
+### The pattern this produces (tiered inference)
+> Run a **fast, fits-in-VRAM model as the interactive daily driver on GPU**, and keep a
+> **bigger, smarter model on CPU for the occasional latency-tolerant "max capability" call.**
+> Route by *"is someone waiting?"* and *"does it fit?"* — **not** by which model is "best."
+
+An **agent harness is exactly this workload**: most steps are quick reasoning/tool-calls (GPU),
+with the occasional hard problem worth waiting on (CPU). Which is why weyland's CPU/Ollama path
+(capacity) + a future 24 GB eGPU (speed) is a *complete* answer, not a compromise — each axis
+covered by the corner that's cheap at it. The 48 GB premium buys capacity you *already have* on
+the CPU, not speed (A6000 bandwidth ≈ a 24 GB card), so it only pays off if you need 70B **fast
+and often** — uncommon for harness dev.
+
+### Lab context — weights everything above
+**This is a homelab for experimentation/learning, not production.** That softens the "is someone
+waiting?" gate *across the board* — there's no SLA, you're usually the only user, and you're
+poking at models to learn. Consequences:
+- **CPU/Ollama covers more than it would in prod** — slow is fine when nothing's waiting; 70B at
+  ~1–2 tok/s is genuinely useful for a lab. The committed CPU path is *enough* for most work.
+- **The eGPU is quality-of-life, not required** — it makes the interactive loop pleasant; no
+  experiment is blocked without it. Add it when a workload actually annoys you, not preemptively.
+- **Don't over-spend / over-engineer:** a used 3090 (24 GB) is peak-homelab; $3k+ workstation
+  cards (A6000/6000 Ada) are production economics — skip unless a specific experiment needs
+  fast-70B. The CPU "slowness" is itself instructive (teaches bandwidth/quant tradeoffs).
+
 ## Runtime note (engine follows the hardware)
 - **GPU path → vLLM** (preferred — PagedAttention, OpenAI-compatible API).
 - **CPU path → llama.cpp / ollama** (GGUF quant fits big models in RAM; also serves an
