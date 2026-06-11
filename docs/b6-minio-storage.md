@@ -238,5 +238,5 @@ and the browser then tries to resolve a host literally named `https` → `DNS_PR
 Set up 2026-06-10/11. Original drive contents (Music + Linux backups) were staged to
 `rpool/usb-stage` on weyland, the drive repartitioned, and the data restored to `sda2`
 (file-count verified). Staging reclaimed 2026-06-11 (`zfs destroy rpool/usb-stage`) after
-MinIO + Filestash were validated. **`sda2` is now the sole copy of Music** (Linux backups are
-redundant — rogueone holds the originals); a real Music backup is an open follow-up.
+MinIO + Filestash were validated. Data on `sda2` is adequately protected: Music is also backed
+up to **Google Cloud**, and the Linux backups are redundant (rogueone holds the originals).
