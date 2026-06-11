@@ -261,3 +261,65 @@ speed and 24 GB, ~$700–900.
 - [ ] Dock **cooling** for the chosen card (blower workstation vs open-air gaming).
 - [ ] Pin the **target model size** (30B vs 70B) → sets the VRAM tier.
 - [ ] Power budget / physical space for dock + ATX PSU next to the MS-A2.
+
+---
+
+# Deployment runbook — Ollama on weyland (CT 102)
+
+**Live since 2026-06-11.** Unprivileged LXC `ollama` (CTID **102**) on the weyland Proxmox host.
+- **Address:** `192.168.1.244` → API at **`http://192.168.1.244:11434`** (OpenAI-compatible `/v1`).
+- **Spec:** 48 GB RAM cap · 14-core *ceiling* (time-shared, not reserved — uses cores only while
+  inferring) · 150 GB rootfs on `local-zfs` (NVMe) · `nesting=1` (Debian 12 / systemd 252).
+
+## Create the container (on weyland host)
+```bash
+pveam update
+pveam download local debian-12-standard_12.12-1_amd64.tar.zst
+pct create 102 local:vztmpl/debian-12-standard_12.12-1_amd64.tar.zst \
+  --hostname ollama --unprivileged 1 --rootfs local-zfs:150
+pct set 102 --net0 name=eth0,bridge=vmbr0,ip=dhcp
+pct set 102 --cores 14 --memory 49152 --swap 0 --onboot 1 --features nesting=1
+pct start 102
+pct exec 102 -- hostname -I        # note the DHCP IP (192.168.1.244)
+```
+
+## Install Ollama (inside the container: `pct enter 102`)
+```bash
+apt update && apt install -y curl zstd     # zstd is required by the installer
+curl -fsSL https://ollama.com/install.sh | sh
+# bind to the LAN (default is 127.0.0.1 only) via a systemd drop-in:
+mkdir -p /etc/systemd/system/ollama.service.d
+printf '[Service]\nEnvironment="OLLAMA_HOST=0.0.0.0:11434"\n' \
+  > /etc/systemd/system/ollama.service.d/override.conf
+systemctl daemon-reload && systemctl restart ollama
+```
+
+## Where models are stored
+- **`/usr/share/ollama/.ollama/models`** — the systemd service runs as the **`ollama` user**, so
+  models land in its home (NOT `/root/.ollama`). `blobs/` = weights (content-addressed, dedupes
+  shared layers); `manifests/` = which blobs make up each `model:tag`.
+- This is on the **150 GB `local-zfs` rootfs → rpool NVMe** — the *right* home (fast load; do NOT
+  move to the slow USB/MinIO drive).
+- **Out of room?** `pct resize 102 rootfs +100G` (rpool has ~1.5 TB free), or set
+  `OLLAMA_MODELS=/path` to a separate dataset.
+
+## Run / use
+```bash
+ollama pull qwen3:30b-a3b          # MoE: ~30B quality at ~3B speed — ideal for CPU
+ollama run qwen3:30b-a3b --verbose "..."   # --verbose prints eval rate (tok/s)
+ollama list                        # installed models + sizes
+```
+- **Harness / tool-server integration:** point any OpenAI-compatible client at
+  `http://192.168.1.244:11434/v1` — same API shape as rogueone's vLLM, so client code is
+  engine-agnostic. (Future eGPU → swap Ollama for vLLM, same endpoint.)
+- **Service ops (inside CT):** `systemctl status|restart ollama`. Enter the CT from the host with
+  `pct enter 102`.
+
+## Model architecture note (matters on CPU)
+Prefer **MoE models** (e.g. `qwen3:30b-a3b`) on CPU: token-gen reads only the *active* experts
+(~3B) per token, so a 30B-total MoE runs at ~3B *speed* with ~30B *capability* — sidestepping the
+"dense large models are slow on CPU" problem. Dense `qwen3:14b`/`32b` exist for comparison.
+
+## TODO — measured benchmarks (replace estimates)
+- [ ] Record real `eval rate` (tok/s) per model from `ollama run --verbose` — supersedes the
+      estimated Performance-envelope tables above.
