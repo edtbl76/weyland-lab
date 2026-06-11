@@ -10,9 +10,10 @@ made cold later without re-deriving anything.
 - **Settled / proceeding NOW:** weyland (MS-A2) is the **dedicated large-model host** via
   **Ollama on CPU** — we move forward with this **regardless of any GPU decision**, so there is
   a **guaranteed CPU path either way**. rogueone stays the GPU/vLLM host for small fast models.
-- **Deferred (GPU only, additive):** whether to *add* an **OCuLink eGPU** (and which card) to
-  accelerate and enable bigger models. Deferred so the Ollama path isn't blocked on it; pending
-  pricing. **The eGPU augments — it does not replace — the CPU/Ollama path.**
+- **Tentative / someday (GPU, low priority — NOT pursued now):** an **OCuLink eGPU** would
+  accelerate (~10× on ≤32B), but the lab doesn't need the speed yet, so it's parked at the end of
+  the roadmap as *tentative*. Will invest eventually if a real workload feels too slow. **The eGPU
+  augments — never replaces — the CPU/Ollama path.** (Options + unverified pricing kept below.)
 
 ---
 
@@ -91,6 +92,40 @@ poking at models to learn. Consequences:
   cards (A6000/6000 Ada) are production economics — skip unless a specific experiment needs
   fast-70B. The CPU "slowness" is itself instructive (teaches bandwidth/quant tradeoffs).
 
+## Performance envelope — expected tok/s (ballpark, Q4)
+
+weyland CPU ceiling ≈ **~70–80 GB/s** DDR5 (dual-channel ~5600). Reading speed anchor ≈ 7–10 tok/s.
+Numbers are estimates — **benchmark with `ollama run` once it's up** (a useful first lab result).
+
+| Model (Q4) | Size in RAM | weyland **CPU** gen | Feel (CPU) |
+|---|---|---|---|
+| 7–8B | ~5 GB | ~10–14 tok/s | real-time, fine interactively |
+| 14B | ~9 GB | ~6–8 tok/s | just under reading speed — usable |
+| 32B | ~20 GB | ~3–3.5 tok/s | slow; non-interactive |
+| 70B | ~42 GB | ~1.5–2 tok/s | kick off & walk away (batch/async) |
+
+**Hidden cost = prefill (prompt digestion), not generation.** Prefill is compute-bound; on CPU a
+long prompt (big RAG context, several code files) adds **tens of seconds → minutes** before the
+first token. Negligible for short prompts; the main pain for long ones. (A GPU fixes this most.)
+
+### CPU vs GPU — same model, the ~10× gap (and where the GPU *doesn't* help)
+| Model (Q4) | weyland **CPU** | **24 GB** 3090 | **48 GB** A6000 |
+|---|---|---|---|
+| 8B | ~12 tok/s | ~100+ | ~80+ |
+| 14B | ~6–8 | ~60–80 | ~50 |
+| 32B | ~3 | ~30–40 | ~25–30 |
+| 70B | ~1.5–2 | ❌ doesn't fit → offload, ~3–5 | ~10–15 |
+
+- **For models that FIT, the GPU is ~10× on gen + far more on prefill** (32B: ~3 → ~35 tok/s =
+  batch-tool → interactive). Not marginal.
+- **The "GPU barely helps" case is exactly one: 70B on a 24 GB card** — doesn't fit, spills to
+  CPU, lands back near CPU speed. A 24 GB card transforms ≤32B; only a 48 GB card makes 70B fast.
+- **Two different comparisons:** "~1.6×" was 3090 vs the *laptop GPU*; vs weyland's **CPU** (where
+  it runs today) a 3090 is **~10×**. weyland is CPU-only now → the 10× is the relevant figure.
+- **Lab reconciliation:** CPU is *sufficient* (nothing blocked), but the GPU is a real ~10×
+  *experience* upgrade for 8–32B. "Not needed" ≠ "not impactful." Size the card to a model that
+  fits it (24 GB → 32B); 70B-fast (48 GB) is the rare thing a lab seldom needs.
+
 ## Runtime note (engine follows the hardware)
 - **GPU path → vLLM** (preferred — PagedAttention, OpenAI-compatible API).
 - **CPU path → llama.cpp / ollama** (GGUF quant fits big models in RAM; also serves an
@@ -119,7 +154,11 @@ Kit: OCuLink adapter + DEG1/DEG2 dock + ATX PSU + one GPU below. Serve via **vLL
 passthrough). **Baseline for comparison = rogueone's laptop RTX 5000 Ada: 16 GB / ~576 GB/s.**
 
 ### Candidate GPUs — exact models (pick by VRAM target + budget)
-> Prices are **approximate street/used, mid-2026 — VERIFY current** (you're pricing this out).
+> ⚠️ **PRICES BELOW ARE UNVERIFIED ESTIMATES AND PROVED UNRELIABLE** — the user spot-checked
+> them 2026-06-11 and found them off by ~10×. They are AI-recalled guesses, not sourced data.
+> **Treat every $ figure as a placeholder; get real current listings before any purchase.** The
+> only safe takeaway is the *relative* ordering (3090 < 4090 < A6000). TODO: replace with sourced
+> prices (region + marketplace).
 > "BW" = memory bandwidth (sets token-gen speed). Cooling matters in an enclosed dock:
 > **blower/workstation** cards exhaust out the back (dock-friendly); **open-air gaming** cards
 > dump heat inside the dock.
