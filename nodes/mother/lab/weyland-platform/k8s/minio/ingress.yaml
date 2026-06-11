@@ -1,0 +1,36 @@
+# Traefik TLS Ingress (same plain-Ingress pattern as grafana/headlamp/etc., U9 cell).
+# TLS secret weyland-wildcard-tls must exist in the minio namespace (created from ~/certs).
+#   s3.weyland.lab     -> S3 API     (port 9000)
+#   minio.weyland.lab  -> web console (port 9001)
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: minio
+  namespace: minio
+spec:
+  tls:
+    - hosts:
+        - s3.weyland.lab
+        - minio.weyland.lab
+      secretName: weyland-wildcard-tls
+  rules:
+    - host: s3.weyland.lab
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: minio
+                port:
+                  number: 9000
+    - host: minio.weyland.lab
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: minio
+                port:
+                  number: 9001

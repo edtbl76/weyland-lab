@@ -1,0 +1,15 @@
+# PVC for MinIO data. Binds explicitly to the static PV (volumeName) so it can never grab a
+# different/provisioned volume. storageClassName must match the PV (minio-local).
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: minio-data
+  namespace: minio
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: minio-local
+  volumeName: minio-data-pv
+  resources:
+    requests:
+      storage: 3900Gi
