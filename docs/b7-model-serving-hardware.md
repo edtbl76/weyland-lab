@@ -7,11 +7,12 @@ made cold later without re-deriving anything.
 ---
 
 ## Decision status — what's settled vs open
-- **Settled:** weyland (MS-A2) is the **dedicated large-model host**; rogueone stays the
-  GPU/vLLM host for small fast models. weyland was purchased *specifically* to host large
-  models for harness engineering.
-- **Open (deferred):** *how* weyland serves large models — **eGPU (which card?)** vs
-  **CPU-only** vs **cloud**. Pending price research + digestion.
+- **Settled / proceeding NOW:** weyland (MS-A2) is the **dedicated large-model host** via
+  **Ollama on CPU** — we move forward with this **regardless of any GPU decision**, so there is
+  a **guaranteed CPU path either way**. rogueone stays the GPU/vLLM host for small fast models.
+- **Deferred (GPU only, additive):** whether to *add* an **OCuLink eGPU** (and which card) to
+  accelerate and enable bigger models. Deferred so the Ollama path isn't blocked on it; pending
+  pricing. **The eGPU augments — it does not replace — the CPU/Ollama path.**
 
 ---
 
@@ -48,7 +49,7 @@ is slow). B7 = decide how weyland serves big models.
 
 ---
 
-# OPTION A — OCuLink eGPU on weyland  *(recommended direction)*
+# OPTION A — OCuLink eGPU on weyland  *(DEFERRED upgrade — additive to Ollama)*
 
 Kit: OCuLink adapter + DEG1/DEG2 dock + ATX PSU + one GPU below. Serve via **vLLM** (VFIO
 passthrough). **Baseline for comparison = rogueone's laptop RTX 5000 Ada: 16 GB / ~576 GB/s.**
@@ -62,6 +63,7 @@ passthrough). **Baseline for comparison = rogueone's laptop RTX 5000 Ada: 16 GB 
 #### 16 GB tier — ⚠️ NOT recommended (no VRAM gain over your laptop)
 | Exact model | VRAM | BW | CUDA | Arch | TDP | Cooling | ~Price | Notes |
 |---|---|---|---|---|---|---|---|---|
+| ⬅ **RTX 5000 Ada Laptop — YOURS (rogueone)** | 16 GB | 576 GB/s | 9728 | Ada (FP8) | 80–175 W | (in laptop) | — | **reference point.** Decent speed (~576 GB/s), but 16 GB is the model-size *floor* — every 24/32/48 GB tier below outranks it for what it can run |
 | RTX 4060 Ti 16GB | 16 GB | 288 GB/s | 4352 | Ada | 165 W | open-air | ~$450 | slower BW than your laptop; skip |
 | RTX 4070 Ti SUPER 16GB | 16 GB | 672 GB/s | 8448 | Ada | 285 W | open-air | ~$800 | only buy as a cheap *dedicated* card, not for size |
 | RTX 5060 Ti 16GB | 16 GB | 448 GB/s | 4608 | Blackwell | 180 W | open-air | ~$430 | FP4/FP8, but still 16 GB |
@@ -93,12 +95,15 @@ MS-A2 **OCuLink adapter** + **Minisforum DEG1/DEG2** dock + **~650–750 W ATX P
 
 ---
 
-# OPTION B — CPU inference on weyland  *(no new hardware, $0)*
-`llama.cpp` / `ollama` on the 96 GB RAM. Fits **70B @ 4-bit (~40 GB)** comfortably.
+# OPTION B — CPU inference on weyland via Ollama  ✅ **COMMITTED (proceeding now, $0)**
+**This is the decided baseline — we move forward with it now regardless of the GPU decision, so
+there's a guaranteed CPU path.** `ollama` (wraps `llama.cpp`) on the 96 GB RAM. Fits
+**70B @ 4-bit (~40 GB)** comfortably.
 - Speed (memory-bandwidth-bound on DDR5): **~30B@4-bit a few tok/s, 70B@4-bit ~1–2 tok/s.**
-- Good as a **$0 stopgap** and for non-interactive/batch harness runs; painful for interactive.
-- Serves an OpenAI-compatible API via ollama, so it drops into the harness now and can be
-  swapped for a GPU later with no client changes.
+- Fine for non-interactive/batch harness runs; slow for interactive — which is exactly what a
+  later eGPU (Option A) accelerates. The eGPU is **additive**: Ollama/CPU stays as a path.
+- Serves an OpenAI-compatible `/v1` API, so the tool server / harness points at it **now** and
+  needs **no client change** if/when a GPU is added.
 
 # OPTION C — Cloud GPU  *(no capex, opex + data leaves LAN)*
 Rent on demand (RunPod / Vast.ai / Lambda) for occasional heavy 70B runs. Against the LAN-lab
@@ -106,22 +111,45 @@ ethos for always-on use, and recurring cost — but zero hardware and instantly 
 
 ---
 
-## Why an eGPU is an upgrade over rogueone's laptop GPU
-| GPU | VRAM | BW | ≈ token-gen vs laptop | ~Price |
-|---|---|---|---|---|
-| RTX 5000 Ada **Laptop** (rogueone, baseline) | 16 GB | 576 GB/s | 1.0× | — |
-| RTX 3090 | 24 GB | 936 GB/s | ~1.6× | ~$700–900 |
-| RTX 4090 | 24 GB | 1008 GB/s | ~1.75× | ~$1500–2000 |
-| RTX A6000 | 48 GB | 768 GB/s | ~1.3× | ~$3000–4500 |
-A 3090 is **faster *and* bigger** than the laptop card. The laptop's limit is **VRAM (16 GB)**,
-not speed — so the upgrade goal is primarily VRAM (fit 30B/70B), with a speed bump as a bonus.
+## Pecking order — where your laptop card sits (frame of reference)
+LLM inference ranks on two axes: **VRAM = what you can run** (dominant) and **bandwidth = how
+fast**. Your **RTX 5000 Ada Laptop (16 GB / 576 GB/s)** lands:
+- **By capacity (VRAM): the floor** — every candidate is 24/32/48 GB, i.e. all run *bigger*
+  models than your laptop. This is the axis that matters for B7.
+- **By speed (bandwidth): mid-pack** — see the order below.
+- **Fun reference:** the **desktop RTX 5000 Ada (32 GB)** is literally your laptop card's desktop
+  sibling — same ~576 GB/s, but **2× the VRAM** and more cores.
+
+Ordered by **memory bandwidth** (≈ token-gen speed), your card marked ⬅:
+
+| Rank | GPU | VRAM | BW | ≈ speed vs yours | ~Price |
+|---|---|---|---|---|---|
+| 1 | RTX 5090 | 32 GB | ~1792 GB/s | ~3.1× | ~$2000–3000 |
+| 2 | RTX 4090 | 24 GB | 1008 GB/s | ~1.75× | ~$1500–2000 |
+| 2 | RTX 3090 Ti | 24 GB | 1008 GB/s | ~1.75× | ~$900–1100 |
+| 4 | RTX 6000 Ada | 48 GB | 960 GB/s | ~1.7× | ~$6000–7000 |
+| 5 | RTX 3090 | 24 GB | 936 GB/s | ~1.6× | ~$700–900 |
+| 6 | RTX A6000 | 48 GB | 768 GB/s | ~1.3× | ~$3000–4500 |
+| 6 | RTX A5000 | 24 GB | 768 GB/s | ~1.3× | ~$1200–1800 |
+| 8 | RTX 4070 Ti SUPER | 16 GB | 672 GB/s | ~1.2× | ~$800 |
+| **9** | ⬅ **RTX 5000 Ada Laptop — YOURS** | **16 GB** | **576 GB/s** | **1.0× (baseline)** | — |
+| 9 | RTX 5000 Ada (desktop) | 32 GB | 576 GB/s | 1.0× | ~$3500–4000 |
+| 11 | RTX 5060 Ti 16GB | 16 GB | 448 GB/s | ~0.8× | ~$430 |
+| 12 | RTX 4060 Ti 16GB | 16 GB | 288 GB/s | ~0.5× | ~$450 |
+
+**Takeaway:** your laptop card is upper-bottom on *speed* and at the *floor* on *capacity*. The
+limit for B7 is VRAM (16 GB), not speed — so every 24 GB+ card is an upgrade for the real goal
+(running 30B/70B), and most are faster too. The 3090 (rank 5) is the value pick: ~1.6× your
+speed and 24 GB, ~$700–900.
 
 ---
 
-## Lean recommendation (for when the decision is taken)
-- **Default:** used **RTX 3090 (24 GB)** on an OCuLink dock (~$900–1000) → 30B-class via vLLM.
-- **If true 70B@4-bit on GPU is a hard requirement:** **RTX A6000 (48 GB)** (~$3k+).
-- **Interim while deciding:** Option B (CPU inference, $0) — get a 70B running today, slowly.
+## Plan
+- **Now (committed):** Option B — **Ollama on weyland's CPU** (96 GB RAM). Guarantees a CPU path
+  and gives the harness a working large-model endpoint regardless of GPU timing. Build this.
+- **Deferred upgrade (additive, pending pricing):** Option A — OCuLink eGPU. Lean: used
+  **RTX 3090 (24 GB)** (~$900–1000) for 30B-class via vLLM; **RTX A6000 (48 GB)** if 70B@4-bit on
+  GPU is a hard requirement. The eGPU *accelerates*; it does **not** remove the Ollama path.
 
 ## To research before deciding (the deferred bits)
 - [ ] Current pricing: MS-A2 OCuLink adapter, **DEG1 vs DEG2** dock, ATX PSU, and the candidate
