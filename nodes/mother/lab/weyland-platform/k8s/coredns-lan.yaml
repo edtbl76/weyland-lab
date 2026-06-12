@@ -10,6 +10,30 @@ metadata:
   namespace: weyland
 data:
   Corefile: |
+    # Standalone LXC services on the weyland host — own LAN IPs, NOT k3s/Traefik.
+    # These are MORE-SPECIFIC zones than weyland.lab, and CoreDNS routes to the
+    # longest-matching zone, so they reliably override the wildcard below (no
+    # dependency on plugin ordering). Add one block per CT service.
+    ollama.weyland.lab:53 {
+        errors
+        log
+        template IN A {
+            answer "{{ .Name }} 60 IN A 192.168.1.244"
+        }
+        template IN AAAA {
+            rcode NOERROR
+        }
+    }
+    whisper.weyland.lab:53 {
+        errors
+        log
+        template IN A {
+            answer "{{ .Name }} 60 IN A 192.168.1.246"
+        }
+        template IN AAAA {
+            rcode NOERROR
+        }
+    }
     # Authoritative zone for the private lab domain.
     weyland.lab:53 {
         errors

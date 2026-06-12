@@ -1,0 +1,16 @@
+[Unit]
+Description=whisper.cpp server (STT, /inference)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/root/whisper.cpp
+# -t 4: conservative thread count for the CT cpuset (the llama.cpp oversubscription
+# lesson — see docs/b7-ollama-runbook.md). Tune after benchmarking real-time-factor.
+ExecStart=/root/whisper.cpp/build/bin/whisper-server -m /root/whisper.cpp/models/ggml-large-v3.bin --host 0.0.0.0 --port 8080 -t 4
+Restart=on-failure
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target

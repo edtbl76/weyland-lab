@@ -1,0 +1,16 @@
+[Unit]
+Description=OpenAI-compatible STT shim for whisper.cpp (/v1/audio/transcriptions)
+After=network-online.target whisper-server.service
+Wants=network-online.target
+Requires=whisper-server.service
+
+[Service]
+Type=simple
+WorkingDirectory=/root/whisper-shim
+Environment=WHISPER_INFERENCE_URL=http://127.0.0.1:8080/inference
+ExecStart=/root/whisper-shim/venv/bin/uvicorn shim:app --host 0.0.0.0 --port 9000
+Restart=on-failure
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target
