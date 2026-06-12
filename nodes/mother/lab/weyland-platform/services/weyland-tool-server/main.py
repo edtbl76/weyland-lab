@@ -14,7 +14,7 @@ from qdrant_client import QdrantClient
 from weaviate.classes.query import MetadataQuery
 
 MODEL_NAME = "BAAI/bge-small-en-v1.5"
-VERSION = "0.2.0"
+VERSION = "0.3.0"
 
 PG_HOST = os.getenv("WEYLAND_DB_HOST", "weyland-postgres.weyland.svc.cluster.local")
 PG_PORT = int(os.getenv("WEYLAND_DB_PORT", "5432"))
@@ -34,6 +34,14 @@ NEO4J_USER = os.getenv("NEO4J_USER", "neo4j")
 NEO4J_PASSWORD = os.getenv("NEO4J_PASSWORD", "")
 
 DAGSTER_URL = os.getenv("DAGSTER_URL", "http://dagster-webserver.weyland.svc.cluster.local:3000")
+
+# Local model serving (B7): Ollama on weyland CT 102, OpenAI-compatible /v1 API.
+# OLLAMA_MODEL is the default for /context/ask; callers may override per request.
+OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://192.168.1.244:11434/v1")
+OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "qwen3:30b-a3b")
+# Generation on CPU is slow (~25 tok/s) and qwen3 may emit a long thinking block — keep
+# the timeout generous so legitimate answers aren't cut off mid-stream.
+OLLAMA_TIMEOUT = float(os.getenv("OLLAMA_TIMEOUT", "300"))
 
 
 def validate_required_secrets() -> None:
@@ -112,6 +120,15 @@ class ContextSearchRequest(BaseModel):
 
 class PipelineTriggerRequest(BaseModel):
     job_name: str = Field(default="weyland_ingestion_job", pattern=r"^[A-Za-z_][A-Za-z0-9_]*$")
+
+
+class AskRequest(BaseModel):
+    query: str
+    backend: str = "pgvector"
+    limit: int = 5
+    # None -> fall back to OLLAMA_MODEL. Pass any model pulled on the Ollama host
+    # (see GET /models) to override per request.
+    model: str | None = None
 
 
 def _to_vector(values) -> str:
@@ -253,6 +270,48 @@ def _check_neo4j() -> dict:
         return {"status": "error", "detail": str(e)}
 
 
+def _check_ollama() -> dict:
+    """Reachability + model inventory of the Ollama endpoint (GET /v1/models is cheap)."""
+    try:
+        resp = httpx.get(f"{OLLAMA_BASE_URL}/models", timeout=5)
+        resp.raise_for_status()
+        models = [m["id"] for m in resp.json().get("data", [])]
+        return {"status": "ok", "models": models}
+    except Exception as e:
+        return {"status": "error", "detail": str(e)}
+
+
+# --- RAG generation helpers (retrieve -> ground -> generate via the local model) ---
+RAG_SYSTEM_PROMPT = (
+    "You are the Weyland lab assistant. Answer the question using ONLY the context "
+    "chunks provided. If the context does not contain the answer, say so plainly rather "
+    "than guessing. Cite the source name(s) you used."
+)
+
+
+def _build_context(chunks: list[dict]) -> str:
+    """Render retrieved chunks into a numbered, source-tagged context block for the prompt."""
+    return "\n\n".join(
+        f"[{i + 1}] source: {c['source']} (chunk {c['chunk_index']})\n{c['content']}"
+        for i, c in enumerate(chunks)
+    )
+
+
+def _ollama_chat(messages: list[dict], model: str) -> str:
+    """Call the Ollama OpenAI-compatible chat endpoint and return the answer text.
+
+    Engine-agnostic: the same call works against vLLM if a GPU is added later — only
+    OLLAMA_BASE_URL changes.
+    """
+    resp = httpx.post(
+        f"{OLLAMA_BASE_URL}/chat/completions",
+        json={"model": model, "messages": messages, "stream": False},
+        timeout=OLLAMA_TIMEOUT,
+    )
+    resp.raise_for_status()
+    return resp.json()["choices"][0]["message"]["content"]
+
+
 @app.get("/health")
 def health():
     """Liveness — is the process up? Trivial by design; backs the livenessProbe."""
@@ -292,6 +351,11 @@ def neo4j_health():
     return {**_check_neo4j(), "neo4j_uri": NEO4J_URI}
 
 
+@app.get("/ollama/health")
+def ollama_health():
+    return {**_check_ollama(), "ollama_url": OLLAMA_BASE_URL, "default_model": OLLAMA_MODEL}
+
+
 @app.get("/status")
 def status():
     """Consolidated health — server + model + all four backends in one call.
@@ -302,12 +366,14 @@ def status():
         "weaviate": _check_weaviate(),
         "neo4j": _check_neo4j(),
     }
-    overall = "ok" if all(b["status"] == "ok" for b in backends.values()) else "degraded"
+    llm = _check_ollama()
+    healthy = all(b["status"] == "ok" for b in backends.values()) and llm["status"] == "ok"
     return {
         "service": "weyland-tool-server",
         "version": VERSION,
-        "status": overall,
+        "status": "ok" if healthy else "degraded",
         "model": {"name": MODEL_NAME, "loaded": embed_model is not None},
+        "llm": {"endpoint": OLLAMA_BASE_URL, "default_model": OLLAMA_MODEL, **llm},
         "backends": backends,
     }
 
@@ -321,6 +387,43 @@ def context_search(request: ContextSearchRequest, backend: str = Query(default="
         )
     results = SEARCH_FNS[backend](request.query, request.limit)
     return {"query": request.query, "results": results}
+
+
+@app.get("/models")
+def list_models():
+    """Models available on the Ollama endpoint, for client-side selection in /context/ask."""
+    check = _check_ollama()
+    if check["status"] != "ok":
+        raise HTTPException(status_code=502, detail=f"Ollama unreachable: {check.get('detail')}")
+    return {"default": OLLAMA_MODEL, "available": check["models"]}
+
+
+@app.post("/context/ask")
+def context_ask(request: AskRequest):
+    """RAG: retrieve top-k chunks from a backend, then have the local model synthesize a
+    grounded answer. `model` is selectable per request (defaults to OLLAMA_MODEL)."""
+    if request.backend not in VALID_BACKENDS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Unknown backend '{request.backend}'. Valid options: {sorted(VALID_BACKENDS)}",
+        )
+    model = request.model or OLLAMA_MODEL
+    chunks = SEARCH_FNS[request.backend](request.query, request.limit)
+    messages = [
+        {"role": "system", "content": RAG_SYSTEM_PROMPT},
+        {"role": "user", "content": f"Context:\n{_build_context(chunks)}\n\nQuestion: {request.query}"},
+    ]
+    try:
+        answer = _ollama_chat(messages, model)
+    except httpx.HTTPError as e:
+        raise HTTPException(status_code=502, detail=f"LLM call failed ({model}): {e}")
+    return {
+        "query": request.query,
+        "backend": request.backend,
+        "model": model,
+        "answer": answer,
+        "sources": chunks,
+    }
 
 
 @app.post("/pipeline/trigger")

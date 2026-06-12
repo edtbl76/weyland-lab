@@ -72,6 +72,12 @@ spec:
                   key: password
             - name: DAGSTER_URL
               value: http://dagster-webserver.weyland.svc.cluster.local:3000
+            # B7: local model serving (Ollama on weyland CT 102, OpenAI-compatible /v1).
+            # IP is DHCP-reserved; default model is overridable per request via /context/ask.
+            - name: OLLAMA_BASE_URL
+              value: http://192.168.1.244:11434/v1
+            - name: OLLAMA_MODEL
+              value: qwen3:30b-a3b
 ---
 apiVersion: v1
 kind: Service
