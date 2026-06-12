@@ -101,7 +101,9 @@ Expect strict `{"text":" And so my fellow Americans, ask not what your country c
 The robust consumer: a browser voice/chat UI that uses **Ollama for chat** and **this shim for
 voice-in** via Open WebUI's OpenAI-compatible Audio→STT setting (base URL
 `http://192.168.1.246:9000/v1` + any dummy key). Stable, documented config that **fails open**
-(breaks one panel, not a whole agent). Planned on mother/k3s → `chat.weyland.lab`. See backlog B13.
+(breaks one panel, not a whole agent). ✅ **Live & validated 2026-06-12** at
+`https://chat.weyland.lab` (mic → shim `POST /v1/audio/transcriptions` confirmed). Manifests:
+`nodes/mother/lab/weyland-platform/k8s/open-webui/`. See backlog B13.
 
 ### OpenClaw — DEFERRED (2026-06-12)
 Goal: OpenClaw transcribes Telegram voice notes through this shim (on-LAN/zero-cost —

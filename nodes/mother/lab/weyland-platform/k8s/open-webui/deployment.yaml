@@ -1,0 +1,68 @@
+# Open WebUI (B13) — browser voice/chat front door to the lab's local models.
+#   chat  <- Ollama  (native API, CT 102, auto-lists the 6 models)
+#   voice <- whisper shim (B11, CT 103) via the OpenAI-compatible STT engine
+# Additive: independent consumer of shared endpoints — zero impact on OpenClaw/Telegram.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: open-webui
+  namespace: weyland
+spec:
+  replicas: 1
+  # RWO PVC single-instance — Recreate avoids two pods deadlocking on the volume
+  # (see [[k8s-rwo-recreate-strategy]] / docs).
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: open-webui
+  template:
+    metadata:
+      labels:
+        app: open-webui
+    spec:
+      enableServiceLinks: false
+      automountServiceAccountToken: false   # no k8s API access needed (U10 least-privilege)
+      containers:
+        - name: open-webui
+          image: ghcr.io/open-webui/open-webui:main   # TODO: pin to a release tag for reproducibility
+          ports:
+            - containerPort: 8080
+          env:
+            # --- Chat: native Ollama integration (CT 102) ---
+            - name: OLLAMA_BASE_URL
+              value: http://192.168.1.244:11434
+            - name: ENABLE_OPENAI_API          # don't reach OpenAI cloud for chat — Ollama only
+              value: "false"
+            # --- Voice input (STT) -> whisper shim (CT 103, B11), OpenAI-compatible ---
+            - name: AUDIO_STT_ENGINE
+              value: openai
+            - name: AUDIO_STT_OPENAI_API_BASE_URL
+              value: http://192.168.1.246:9000/v1
+            - name: AUDIO_STT_OPENAI_API_KEY
+              value: sk-local-whisper           # shim ignores it; present to satisfy the client
+            - name: AUDIO_STT_MODEL
+              value: whisper-1
+            - name: WEBUI_NAME
+              value: "Weyland AI"
+          volumeMounts:
+            - name: data
+              mountPath: /app/backend/data
+          # First run does DB migrations (+ may fetch a default embedding model) — be patient.
+          readinessProbe:
+            httpGet: { path: /health, port: 8080 }
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            failureThreshold: 6
+          livenessProbe:
+            httpGet: { path: /health, port: 8080 }
+            initialDelaySeconds: 60
+            periodSeconds: 20
+            failureThreshold: 6
+          resources:
+            requests: { cpu: 100m, memory: 256Mi }
+            limits: { cpu: "1", memory: 1Gi }
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: open-webui-data

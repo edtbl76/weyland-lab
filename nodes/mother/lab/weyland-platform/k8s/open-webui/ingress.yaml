@@ -1,0 +1,24 @@
+# Traefik TLS Ingress (same plain-Ingress pattern as grafana/minio/dagster, U9 cell).
+# TLS secret weyland-wildcard-tls must exist in the weyland namespace (dagster already uses it).
+#   chat.weyland.lab -> Open WebUI (port 8080)
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: open-webui
+  namespace: weyland
+spec:
+  tls:
+    - hosts:
+        - chat.weyland.lab
+      secretName: weyland-wildcard-tls
+  rules:
+    - host: chat.weyland.lab
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: open-webui
+                port:
+                  number: 8080

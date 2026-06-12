@@ -1,0 +1,13 @@
+# Open WebUI state (SQLite DB, uploads, the generated WEBUI_SECRET_KEY). RWO single-instance —
+# the Deployment uses strategy:Recreate so a redeploy never deadlocks two pods on this volume.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: open-webui-data
+  namespace: weyland
+spec:
+  accessModes: ["ReadWriteOnce"]
+  storageClassName: local-path
+  resources:
+    requests:
+      storage: 5Gi
