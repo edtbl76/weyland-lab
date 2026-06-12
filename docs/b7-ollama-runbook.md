@@ -76,6 +76,15 @@ ollama list                        # installed models + sizes
 - **Service ops (inside CT):** `systemctl status|restart ollama`. Enter the CT from the host with
   `pct enter 102`.
 
+## Consumers — who calls this endpoint
+- **weyland-tool-server** (mother / k3s, **v0.3.0+**) — its `/context/ask` does RAG against this
+  endpoint: retrieve top-k from a vector backend → synthesize a grounded answer via the local
+  model. Configured by `OLLAMA_BASE_URL=http://192.168.1.244:11434/v1` and
+  `OLLAMA_MODEL=qwen3:30b-a3b` (default; callers override per request via the `model` field).
+  `GET /models` lists the choices; `GET /ollama/health` and `/status`→`.llm` report reachability.
+  Wired + validated (mother + rogueone) 2026-06-12. Deploy/test recipes:
+  [docs/test.md](test.md) → *Tool Server → LLM / RAG*.
+
 ## Performance tuning — CPU thread count (CRITICAL — ~160× fix)
 
 **Symptom (2026-06-11):** `qwen3:30b-a3b` generated at **~0.15 tok/s** (6–7 s *per token*) while
