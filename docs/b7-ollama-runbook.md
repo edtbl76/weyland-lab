@@ -85,6 +85,27 @@ ollama list                        # installed models + sizes
   Wired + validated (mother + rogueone) 2026-06-12. Deploy/test recipes:
   [docs/test.md](test.md) → *Tool Server → LLM / RAG*.
 
+**The `/context/ask` RAG pipeline** — note the **two distinct models** (embedding vs generation):
+
+```text
+your question
+   │
+   ├─▶ 1. EMBED the question        ← BAAI/bge-small-en-v1.5 (baked into the tool-server)
+   │
+   ├─▶ 2. RETRIEVE top-k chunks     ← one of pgvector / qdrant / weaviate / neo4j
+   │
+   ├─▶ 3. GENERATE grounded answer  ← one of the 6 Ollama models (this endpoint)
+   │
+   └─▶ {answer, model, sources}
+```
+
+- **Generation (step 3)** is any of the 6 Ollama models, selectable per request (the `model`
+  field; default `qwen3:30b-a3b`). Switching models changes *how the answer is written*, not
+  *what's retrieved*.
+- **Embedding (step 1)** is a separate, **fixed** model (`bge-small`, in the tool-server image) —
+  it's what finds the relevant chunks, is **not** one of the 6, and doesn't change when you pick a
+  different generation model. So all 6 reason over the *same* retrieved context.
+
 ## Performance tuning — CPU thread count (CRITICAL — ~160× fix)
 
 **Symptom (2026-06-11):** `qwen3:30b-a3b` generated at **~0.15 tok/s** (6–7 s *per token*) while
