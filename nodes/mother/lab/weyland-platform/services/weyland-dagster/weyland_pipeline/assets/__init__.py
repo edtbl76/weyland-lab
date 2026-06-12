@@ -7,6 +7,7 @@ from .pgvector_write import pgvector_write
 from .qdrant_write import qdrant_write
 from .weaviate_write import weaviate_write
 from .neo4j_write import neo4j_write
+from .eval_testset import eval_testset
 
 all_assets = [
     source_document,
@@ -18,4 +19,5 @@ all_assets = [
     qdrant_write,
     weaviate_write,
     neo4j_write,
+    eval_testset,
 ]

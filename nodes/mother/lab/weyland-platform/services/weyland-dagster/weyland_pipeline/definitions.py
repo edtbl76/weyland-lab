@@ -8,11 +8,11 @@ from weyland_pipeline.resources import (
     WeaviateResource,
     Neo4jResource,
 )
-from weyland_pipeline.schedules import weyland_ingestion_schedule, weyland_ingestion_job
+from weyland_pipeline.schedules import weyland_ingestion_schedule, weyland_ingestion_job, weyland_eval_job
 
 defs = Definitions(
     assets=all_assets,
-    jobs=[weyland_ingestion_job],
+    jobs=[weyland_ingestion_job, weyland_eval_job],
     schedules=[weyland_ingestion_schedule],
     resources={
         "postgres": PostgresResource(
