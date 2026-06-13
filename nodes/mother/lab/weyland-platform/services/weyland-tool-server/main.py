@@ -38,7 +38,7 @@ DAGSTER_URL = os.getenv("DAGSTER_URL", "http://dagster-webserver.weyland.svc.clu
 # Local model serving (B7): Ollama on weyland CT 102, OpenAI-compatible /v1 API.
 # OLLAMA_MODEL is the default for /context/ask; callers may override per request.
 OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://192.168.1.244:11434/v1")
-OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "qwen3:30b-a3b")
+OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "gpt-oss:20b")  # B4 panel-validated most-faithful pick
 # Generation on CPU is slow (~25 tok/s) and qwen3 may emit a long thinking block — keep
 # the timeout generous so legitimate answers aren't cut off mid-stream.
 OLLAMA_TIMEOUT = float(os.getenv("OLLAMA_TIMEOUT", "300"))

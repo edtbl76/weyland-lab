@@ -77,7 +77,7 @@ spec:
             - name: OLLAMA_BASE_URL
               value: http://192.168.1.244:11434/v1
             - name: OLLAMA_MODEL
-              value: qwen3:30b-a3b
+              value: gpt-oss:20b   # B4 panel-validated most-faithful RAG model (2026-06-13)
 ---
 apiVersion: v1
 kind: Service

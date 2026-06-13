@@ -80,7 +80,7 @@ ollama list                        # installed models + sizes
 - **weyland-tool-server** (mother / k3s, **v0.3.0+**) — its `/context/ask` does RAG against this
   endpoint: retrieve top-k from a vector backend → synthesize a grounded answer via the local
   model. Configured by `OLLAMA_BASE_URL=http://192.168.1.244:11434/v1` and
-  `OLLAMA_MODEL=qwen3:30b-a3b` (default; callers override per request via the `model` field).
+  `OLLAMA_MODEL=gpt-oss:20b` (default since B4 panel; callers override per request via the `model` field).
   `GET /models` lists the choices; `GET /ollama/health` and `/status`→`.llm` report reachability.
   Wired + validated (mother + rogueone) 2026-06-12. Deploy/test recipes:
   [docs/test.md](test.md) → *Tool Server → LLM / RAG*.
