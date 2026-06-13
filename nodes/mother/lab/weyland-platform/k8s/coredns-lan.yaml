@@ -108,6 +108,8 @@ kind: Service
 metadata:
   name: weyland-lan-dns
   namespace: weyland
+  labels:
+    app: weyland-lan-dns
 spec:
   type: LoadBalancer
   selector:
@@ -115,3 +117,4 @@ spec:
   ports:
     - { name: dns-udp, port: 53, targetPort: 53, protocol: UDP }
     - { name: dns-tcp, port: 53, targetPort: 53, protocol: TCP }
+    - { name: metrics, port: 9153, targetPort: 9153, protocol: TCP }

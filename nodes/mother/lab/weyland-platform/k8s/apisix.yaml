@@ -33,7 +33,9 @@ data:
       prometheus:
         export_uri: /apisix/prometheus/metrics
         export_addr:
-          ip: 127.0.0.1
+          # 0.0.0.0 (not 127.0.0.1): Prometheus scrapes the pod IP from another pod,
+          # so the metrics endpoint must bind all interfaces, not just loopback.
+          ip: 0.0.0.0
           port: 9091
 
     plugins:
@@ -90,6 +92,8 @@ kind: Service
 metadata:
   name: weyland-apisix
   namespace: weyland
+  labels:
+    app: weyland-apisix
 spec:
   type: NodePort
   selector:
@@ -99,3 +103,6 @@ spec:
       port: 9080
       targetPort: 9080
       nodePort: 30090
+    - name: prometheus
+      port: 9091
+      targetPort: 9091

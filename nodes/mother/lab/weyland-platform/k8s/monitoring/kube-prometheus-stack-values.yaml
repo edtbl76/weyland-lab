@@ -32,7 +32,7 @@ alertmanager:
             send_resolved: true
             message: |
               Weyland alert ({{ .Alerts | len }}) — {{ .Status }}
-              {{ range .Alerts }}- {{ .Labels.alertname }} [{{ .Labels.severity }}]: {{ .Annotations.summary }}{{ .Annotations.description }}
+              {{ range .Alerts }}- {{ .Labels.alertname }} [{{ .Labels.severity }}]: {{ .Annotations.summary }}{{ if .Annotations.description }} — {{ .Annotations.description }}{{ end }}
               {{ end }}
   alertmanagerSpec:
     # Operator mounts this Secret at /etc/alertmanager/secrets/weyland-alerts-telegram/
@@ -78,6 +78,8 @@ grafana:
 
 prometheus:
   prometheusSpec:
+    # Phase 2b: discover ALL ServiceMonitors cluster-wide, not just release-labelled ones.
+    serviceMonitorSelectorNilUsesHelmValues: false
     retention: 15d
     storageSpec:
       volumeClaimTemplate:

@@ -76,6 +76,26 @@ mkcert wildcard cert; resolve from rogueone (`/etc/hosts`) or via CoreDNS. Share
 |---|---|---|
 | CoreDNS (LAN resolver) | `mother:53` | authoritative for `weyland.lab`; forwards else to 1.1.1.1/9.9.9.9 |
 
+## Metrics / scrape targets (B5 Phase 2b)
+
+Prometheus-format `/metrics` endpoints. Scraped **in-cluster** by Prometheus (ns `monitoring`) over the
+ClusterIP path below — the human-facing view is **Grafana** (`grafana.weyland.lab`). The raw endpoints are
+not meant for direct browsing. ServiceMonitors: `k8s/monitoring/servicemonitors.yaml`.
+
+| Emitter | In-cluster scrape target | Path | Direct LAN access |
+|---|---|---|---|
+| Qdrant | `qdrant.weyland.svc:6333` | `/metrics` | `http://mother:30083/metrics` (NodePort) |
+| CoreDNS | `weyland-lan-dns.weyland.svc:9153` | `/metrics` | `http://mother:9153/metrics` (LoadBalancer) |
+| Weaviate | `weaviate.weyland.svc:2112` | `/metrics` | NodePort auto-assigned (no fixed port) |
+| APISIX | `weyland-apisix.weyland.svc:9091` | `/apisix/prometheus/metrics` | NodePort auto-assigned (no fixed port) |
+
+Stack-internal targets (Prometheus, Alertmanager, Grafana, node-exporter, kube-state-metrics, kubelet,
+cAdvisor) are scraped by the chart's own ServiceMonitors — not listed here.
+
+> **Prometheus UI is not ingressed** — view targets/PromQL via
+> `kubectl -n monitoring port-forward svc/monitoring-kube-prometheus-prometheus 9090:9090`. Only Grafana is
+> TLS-fronted. (Follow-up if a browsable Prometheus is wanted.)
+
 ---
 **Conventions:** standalone CTs (ollama/whisper) use their reserved IPs or `*.weyland.lab` names
 (added to CoreDNS). k3s services use `mother:<NodePort>` or `*.weyland.lab` (Traefik). Internal-only

@@ -1,0 +1,55 @@
+# B5 Phase 2b — app ServiceMonitors. Prometheus discovers these via
+# serviceMonitorSelectorNilUsesHelmValues: false (set in the kube-prometheus-stack values), so no
+# release label is needed. Each selects its app's Service by label and scrapes the metrics port.
+# (Traefik intentionally omitted — k3s-managed, load-bearing ingress; not worth the blast-radius.)
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: qdrant
+  namespace: weyland
+spec:
+  selector:
+    matchLabels:
+      app: qdrant
+  endpoints:
+    - port: http            # Qdrant serves /metrics on its 6333 HTTP port
+      path: /metrics
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: weaviate
+  namespace: weyland
+spec:
+  selector:
+    matchLabels:
+      app: weaviate
+  endpoints:
+    - port: metrics         # :2112 (PROMETHEUS_MONITORING_ENABLED=true)
+      path: /metrics
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: weyland-apisix
+  namespace: weyland
+spec:
+  selector:
+    matchLabels:
+      app: weyland-apisix
+  endpoints:
+    - port: prometheus      # :9091, APISIX prometheus plugin
+      path: /apisix/prometheus/metrics
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: weyland-lan-dns
+  namespace: weyland
+spec:
+  selector:
+    matchLabels:
+      app: weyland-lan-dns
+  endpoints:
+    - port: metrics         # CoreDNS :9153 prometheus plugin
+      path: /metrics

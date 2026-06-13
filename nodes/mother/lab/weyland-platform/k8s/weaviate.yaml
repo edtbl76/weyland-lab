@@ -41,6 +41,8 @@ spec:
               containerPort: 8080
             - name: grpc
               containerPort: 50051
+            - name: metrics
+              containerPort: 2112
           env:
             - name: QUERY_DEFAULTS_LIMIT
               value: "25"
@@ -56,6 +58,8 @@ spec:
               value: node1
             - name: GRPC_PORT
               value: "50051"
+            - name: PROMETHEUS_MONITORING_ENABLED
+              value: "true"
           volumeMounts:
             - name: weaviate-storage
               mountPath: /var/lib/weaviate
@@ -95,3 +99,6 @@ spec:
     - name: grpc
       port: 50051
       targetPort: 50051
+    - name: metrics
+      port: 2112
+      targetPort: 2112
