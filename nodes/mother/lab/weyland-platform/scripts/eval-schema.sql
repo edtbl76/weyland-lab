@@ -39,14 +39,16 @@ CREATE TABLE IF NOT EXISTS eval_results (
     created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
--- Ragas metric scores per result (narrow table = add metrics without schema changes).
+-- LLM-as-judge metric scores per result, per JUDGE (panel). Narrow table = add metrics/judges
+-- without schema changes; the eval_leaderboard view averages across judges.
 CREATE TABLE IF NOT EXISTS eval_scores (
     id         BIGSERIAL PRIMARY KEY,
     result_id  BIGINT NOT NULL REFERENCES eval_results(id) ON DELETE CASCADE,
-    metric     TEXT NOT NULL,                         -- faithfulness | answer_relevancy | context_relevancy | ...
+    metric     TEXT NOT NULL,                         -- faithfulness | answer_relevancy | context_relevancy
+    judge      TEXT NOT NULL,                         -- judge model (panel: ≥3 judges per result/metric)
     score      DOUBLE PRECISION,                      -- nullable if scoring failed
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-    UNIQUE (result_id, metric)
+    UNIQUE (result_id, metric, judge)
 );
 
 -- Leaderboard: average metric score per (run, model). A view stays always-current — the
