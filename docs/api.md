@@ -29,6 +29,8 @@ Hosts & access users: [hosts.md](hosts.md). `mother` = 192.168.1.243, CTs by IP 
 | `/models` | GET | list selectable Ollama models |
 | `/pgvector/health` `/qdrant/health` `/weaviate/health` `/neo4j/health` `/ollama/health` | GET | per-backend health |
 | `/pipeline/trigger` | POST | fire Dagster `launchRun` |
+| `/evals/run` · `/evals/score` | POST | B4: trigger eval matrix / judge-panel scoring |
+| `/evals/runs` · `/evals/leaderboard` | GET | B4: list eval runs / panel-averaged leaderboard (`?run_id=`) |
 
 ## Data backends (mother, NodePort)
 

@@ -27,8 +27,9 @@ asset: `services/weyland-dagster/weyland_pipeline/assets/eval_testset.py`.
    matrix re-run): LLM-as-judge via Ollama (default judge `deepseek-coder-v2:16b`) → `eval_scores`.
 5. ⏳ **Judge-panel scoring** — score each result with **≥3 judges and average** (single-judge
    rankings swing wildly — see Results). The leaderboard should be panel-based.
-6. ⏳ **/evals endpoints** — tool-server `/evals/run` (single-path eval trigger), `/evals/leaderboard`,
-   `/evals/runs` (+ api.md). The `eval_leaderboard` SQL view already exists.
+6. ✅ **/evals endpoints** — tool-server **v0.4.0**: `/evals/run` (single-path trigger), `/evals/score`,
+   `/evals/runs`, `/evals/leaderboard` (panel-averaged, `?run_id=`; reports `judges` count). Documented
+   in api.md + test.md. **B4 core complete.**
 
 ## First results (run 3 — 10 questions, 2026-06-13)
 Scored **twice with two different judges** to test judge sensitivity. The result is the headline.
@@ -66,6 +67,33 @@ and more compressed (0.75–0.99) than deepseek (0.57–0.75) — judges have ve
   the metric measures the right thing (same chunks for every model).
 - **Robust read:** `gpt-oss:20b` is the only model **top-2 under both judges** → the safest RAG-default
   pick. `qwen3:30b-a3b` *might* be best, but its swing makes that judge-dependent.
+
+### Panel results (definitive — 3-judge average, run 3)
+Re-scored with a **3-judge panel** (mistral-small3.2 · deepseek-coder-v2 · qwen3-coder); the swing collapses:
+
+| model | faithful | answer_rel | context_rel |
+|---|---|---|---|
+| mistral-small3.2:24b | 0.823 | 0.903 | 0.822 |
+| gpt-oss:20b | 0.820 | 0.882 | 0.807 |
+| qwen3:14b | 0.775 | 0.850 | 0.783 |
+| deepseek-coder-v2:16b | 0.760 | 0.811 | 0.773 |
+| qwen3-coder:30b | 0.756 | 0.836 | 0.843 |
+| qwen3:30b-a3b | 0.752 | 0.765 | 0.710 |
+
+**The panel worked:** `qwen3:30b-a3b`'s 5th↔1st whiplash settled to a stable 6th (0.752); the field
+tightened to **0.75–0.82** (models are closer than any single judge implied).
+
+**Per-judge faithfulness (why one judge can't be trusted):**
+| judge | range | tendency |
+|---|---|---|
+| deepseek-coder-v2 | 0.47–0.70 | harsh |
+| mistral-small3.2 | 0.78–0.97 | generous |
+| qwen3-coder | 0.705–0.93 | generous; **ranked *itself* #1 (self-bias)** |
+
+**Defensible conclusion:** **`gpt-oss:20b`** is the best RAG pick — top-2 under *every* configuration
+(deepseek-only, mistral-only, panel) **and it is not a judge → zero self-bias.** `mistral` ties it
+(0.823) but is itself a panel judge (asterisk). The tight spread says retrieval/corpus matter about as
+much as model choice for this RAG.
 
 > **Operational gotchas hit building this** (all fixed, documented in b7-ollama-runbook.md): Ollama
 > OOM under the 48 GB cgroup (host-memory blindness → `OLLAMA_MAX_LOADED_MODELS=1`); thinking models

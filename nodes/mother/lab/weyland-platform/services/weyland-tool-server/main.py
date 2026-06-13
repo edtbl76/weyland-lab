@@ -14,7 +14,7 @@ from qdrant_client import QdrantClient
 from weaviate.classes.query import MetadataQuery
 
 MODEL_NAME = "BAAI/bge-small-en-v1.5"
-VERSION = "0.3.0"
+VERSION = "0.4.0"
 
 PG_HOST = os.getenv("WEYLAND_DB_HOST", "weyland-postgres.weyland.svc.cluster.local")
 PG_PORT = int(os.getenv("WEYLAND_DB_PORT", "5432"))
@@ -426,8 +426,8 @@ def context_ask(request: AskRequest):
     }
 
 
-@app.post("/pipeline/trigger")
-def pipeline_trigger(request: PipelineTriggerRequest):
+def _launch_dagster_job(job_name: str) -> dict:
+    """Fire a Dagster job via GraphQL launchRun. Shared by /pipeline/trigger and /evals/*."""
     mutation = {
         "query": (
             "mutation Launch($job: String!) {"
@@ -437,11 +437,101 @@ def pipeline_trigger(request: PipelineTriggerRequest):
             "__typename ... on LaunchRunSuccess { run { runId } } ... on PythonError { message }"
             "}}"
         ),
-        "variables": {"job": request.job_name},
+        "variables": {"job": job_name},
     }
     resp = httpx.post(f"{DAGSTER_URL}/graphql", json=mutation, timeout=10)
     resp.raise_for_status()
     result = resp.json().get("data", {}).get("launchRun", {})
     if result.get("__typename") != "LaunchRunSuccess":
         raise HTTPException(status_code=502, detail=result.get("message", "Dagster launch failed"))
-    return {"status": "ok", "run_id": result["run"]["runId"], "job_name": request.job_name}
+    return {"status": "ok", "run_id": result["run"]["runId"], "job_name": job_name}
+
+
+@app.post("/pipeline/trigger")
+def pipeline_trigger(request: PipelineTriggerRequest):
+    return _launch_dagster_job(request.job_name)
+
+
+# --- B4 eval endpoints (single-path eval + leaderboard; see docs/b4-eval-runbook.md) ---
+def _eval_pg_conn():
+    return psycopg2.connect(
+        host=PG_HOST, port=PG_PORT, dbname=PG_DB, user=PG_USER, password=PG_PASSWORD, connect_timeout=5
+    )
+
+
+@app.post("/evals/run")
+def evals_run():
+    """Single-path eval: generate a question set + run the model matrix. Then POST /evals/score."""
+    return _launch_dagster_job("weyland_eval_job")
+
+
+@app.post("/evals/score")
+def evals_score():
+    """Judge-panel scoring of the latest completed matrix run."""
+    return _launch_dagster_job("weyland_eval_score_job")
+
+
+@app.get("/evals/runs")
+def evals_runs():
+    """List recent eval runs."""
+    with _eval_pg_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT id, created_at, status, models, question_count, notes "
+                "FROM eval_runs ORDER BY id DESC LIMIT 20"
+            )
+            rows = cur.fetchall()
+    return {
+        "runs": [
+            {
+                "id": r[0],
+                "created_at": r[1].isoformat(),
+                "status": r[2],
+                "models": r[3],
+                "question_count": r[4],
+                "notes": r[5],
+            }
+            for r in rows
+        ]
+    }
+
+
+@app.get("/evals/leaderboard")
+def evals_leaderboard(run_id: int | None = Query(default=None)):
+    """Panel-averaged leaderboard for a run (default: the latest scored run)."""
+    with _eval_pg_conn() as conn:
+        with conn.cursor() as cur:
+            if run_id is None:
+                cur.execute("SELECT id FROM eval_runs WHERE status = 'scored' ORDER BY id DESC LIMIT 1")
+                row = cur.fetchone()
+                if not row:
+                    raise HTTPException(status_code=404, detail="no scored eval run found")
+                run_id = row[0]
+            cur.execute(
+                """
+                SELECT model,
+                       round(avg(score) FILTER (WHERE metric='faithfulness')::numeric, 3),
+                       round(avg(score) FILTER (WHERE metric='answer_relevancy')::numeric, 3),
+                       round(avg(score) FILTER (WHERE metric='context_relevancy')::numeric, 3),
+                       count(DISTINCT judge)
+                FROM eval_results r JOIN eval_scores s ON s.result_id = r.id
+                WHERE r.run_id = %s
+                GROUP BY model
+                ORDER BY 2 DESC NULLS LAST
+                """,
+                (run_id,),
+            )
+            rows = cur.fetchall()
+    return {
+        "run_id": run_id,
+        "leaderboard": [
+            {
+                "model": r[0],
+                "faithfulness": float(r[1]) if r[1] is not None else None,
+                "answer_relevancy": float(r[2]) if r[2] is not None else None,
+                "context_relevancy": float(r[3]) if r[3] is not None else None,
+                "judges": r[4],
+            }
+            for r in rows
+        ],
+    }

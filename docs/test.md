@@ -53,10 +53,14 @@ kubectl delete pods -n weyland --field-selector=status.phase=Succeeded
 curl -s http://localhost:30080/openapi.json | jq '.paths | keys'
 ```
 
-Expected routes (v0.3.0):
+Expected routes (v0.4.0):
 ```
 /context/ask
 /context/search
+/evals/leaderboard
+/evals/run
+/evals/runs
+/evals/score
 /health
 /models
 /neo4j/health
@@ -140,6 +144,21 @@ curl -s -X POST http://mother:30080/context/ask -H "Content-Type: application/js
 
 > `mother` must resolve from rogueone (`/etc/hosts` / CoreDNS LAN resolver, per U9). If it doesn't,
 > use `http://192.168.1.243:30080`.
+
+---
+
+## Eval (B4)
+
+Drive the eval loop + read the leaderboard via the tool-server — single-path, no kubectl/SQL. Dagster
+/ Postgres internals: docs/b4-eval-runbook.md.
+
+```bash
+curl -s -X POST http://localhost:30080/evals/run | jq      # question-gen + 6-model matrix (~40-60 min CPU)
+curl -s -X POST http://localhost:30080/evals/score | jq    # judge-panel score latest run (~70 min, 3 judges)
+curl -s http://localhost:30080/evals/runs | jq             # list recent runs
+curl -s http://localhost:30080/evals/leaderboard | jq      # panel leaderboard (latest scored run)
+curl -s "http://localhost:30080/evals/leaderboard?run_id=3" | jq   # a specific run
+```
 
 ---
 
