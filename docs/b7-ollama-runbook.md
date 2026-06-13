@@ -159,6 +159,27 @@ printf 'FROM <model:tag>\nPARAMETER num_thread 8\n' > /root/Mf
 ollama create <model:tag> -f /root/Mf   # re-tags same name + the thread param; reuses blobs
 ```
 
+## Memory — keep one model resident (cgroup OOM)
+
+**Symptom (2026-06-13):** a multi-model batch (the B4 eval — 6 models in sequence) **OOM-killed
+Ollama** after ~2 big models: `ollama.service: A process of this unit has been killed by the OOM
+killer … Failed with result 'oom-kill'`. Every `/context/ask` 502'd from then on.
+
+**Root cause — same blindness as the thread bug: Ollama sizes against the *host*, not the
+container.** Its memory-fit log read `projected to use … vs. 94198 MiB of total host memory … no
+changes needed` — i.e. it sized against the host's **94 GB**, not the container's **48 GB** cgroup.
+With **`OLLAMA_MAX_LOADED_MODELS=0`** (auto) it kept *multiple* models resident (2× ~19 GB), blew
+past the 48 GB cap, and the cgroup OOM-killed the process.
+
+**Fix — pin one model resident** so it always evicts before loading the next:
+```bash
+printf '[Service]\nEnvironment="OLLAMA_MAX_LOADED_MODELS=1"\n' >> /etc/systemd/system/ollama.service.d/override.conf
+systemctl daemon-reload && systemctl restart ollama
+```
+One model (~19 GB max) + KV/compute stays well under 48 GB. Sequential multi-model workloads
+(evals, A/B comparisons) then just **load → serve → evict** per model. Same lesson as the
+thread fix: in an LXC, Ollama can't see the cgroup limits — bound it explicitly.
+
 ## Model architecture note (matters on CPU)
 Prefer **MoE models** (e.g. `qwen3:30b-a3b`) on CPU: token-gen reads only the *active* experts
 (~3B) per token, so a 30B-total MoE runs at ~3B *speed* with ~30B *capability* — sidestepping the

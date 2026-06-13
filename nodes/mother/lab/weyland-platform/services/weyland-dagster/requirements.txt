@@ -8,6 +8,3 @@ qdrant-client
 weaviate-client
 neo4j
 httpx
-ragas
-langchain-openai
-langchain-huggingface
