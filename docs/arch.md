@@ -211,14 +211,14 @@ are engine-agnostic — Ollama today, vLLM if a GPU is added, same endpoint cont
 ### 8.1 Ingestion (Obsidian note → 4 vector backends)
 ```mermaid
 sequenceDiagram
-    participant Note as Obsidian note (rogueone)
+    participant Vault as Obsidian note (rogueone)
     participant Watch as inotify watcher (rogueone)
     participant Dag as Dagster (mother)
     participant PG as Postgres/pgvector
     participant Vec as Qdrant + Weaviate + Neo4j
-    Note->>Watch: file change (30s debounce)
+    Vault->>Watch: file change (30s debounce)
     Watch->>Dag: GraphQL launchRun (weyland_ingestion_job)
-    Dag->>Note: SSH read markdown (paramiko, pinned host key)
+    Dag->>Vault: SSH read markdown (paramiko, pinned host key)
     Dag->>Dag: SHA256 content_hash
     Dag->>PG: compare stored hash
     alt content unchanged
