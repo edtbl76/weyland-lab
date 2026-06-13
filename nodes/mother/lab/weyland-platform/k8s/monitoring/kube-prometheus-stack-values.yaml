@@ -6,10 +6,38 @@
 # out-of-band (grafana-admin) — NOT committed here (U6 lesson).
 
 # Alertmanager ON — default rules + firing-alert visibility from day one.
-# Phase 2: wire a receiver (Alertmanager -> n8n webhook -> Telegram, n8n's retained role).
+# Phase 2 DONE (2026-06-13): native Alertmanager -> Telegram. Chosen over Alertmanager->n8n->Telegram
+# to keep deps minimal in the failure-detection path (n8n stays standby for actions/orchestration).
+# Bot token lives in the weyland-alerts-telegram Secret (kubectl-created, NOT committed); the operator
+# mounts it at /etc/alertmanager/secrets/<name>/ and Alertmanager reads it via bot_token_file.
 alertmanager:
   enabled: true
+  config:
+    route:
+      receiver: telegram
+      group_by: ['alertname', 'namespace']
+      group_wait: 30s
+      group_interval: 5m
+      repeat_interval: 4h
+      routes:
+        - receiver: 'null'            # Watchdog = always-firing liveness alert; never notify on it
+          matchers:
+            - alertname = "Watchdog"
+    receivers:
+      - name: 'null'
+      - name: telegram
+        telegram_configs:
+          - bot_token_file: /etc/alertmanager/secrets/weyland-alerts-telegram/bot-token
+            chat_id: 8690429665
+            send_resolved: true
+            message: |
+              Weyland alert ({{ .Alerts | len }}) — {{ .Status }}
+              {{ range .Alerts }}- {{ .Labels.alertname }} [{{ .Labels.severity }}]: {{ .Annotations.summary }}{{ .Annotations.description }}
+              {{ end }}
   alertmanagerSpec:
+    # Operator mounts this Secret at /etc/alertmanager/secrets/weyland-alerts-telegram/
+    secrets:
+      - weyland-alerts-telegram
     storage:
       volumeClaimTemplate:
         spec:

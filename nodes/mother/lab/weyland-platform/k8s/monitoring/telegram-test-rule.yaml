@@ -1,0 +1,22 @@
+# Temporary always-firing alert to validate B5 Phase 2 Telegram delivery.
+# Apply it, confirm it lands in the Weyland Alerts chat, then DELETE it:
+#   kubectl delete -f telegram-test-rule.yaml   (the resolve also fires, proving send_resolved)
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: telegram-test
+  namespace: monitoring
+  labels:
+    release: monitoring   # matches kube-prometheus-stack's ruleSelector so Prometheus loads it
+spec:
+  groups:
+    - name: telegram-test
+      rules:
+        - alert: WeylandTelegramTest
+          expr: vector(1)            # always true -> always firing
+          for: 0m
+          labels:
+            severity: info
+          annotations:
+            summary: "Telegram wiring test"
+            description: "If you see this in the Weyland Alerts chat, B5 Phase 2 works. Now delete this rule."
