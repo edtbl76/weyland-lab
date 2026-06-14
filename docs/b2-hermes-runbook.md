@@ -129,6 +129,39 @@ Most config is adjustable in-session; prefer these over `hermes config edit` (wh
   `security.allow_lazy_installs: false` to stop it.
 - Reset `logging.level: INFO` if you ever set it to DEBUG (it doesn't log request bodies anyway).
 
+## Diagnostics — measure context, prefill, and warmth
+
+The exact commands used during bring-up to answer "why is it slow / is it hung / how big is the
+prompt." All on the **weyland host** unless noted.
+
+```bash
+# Loaded model? served CONTEXT? pinned? (UNTIL=Forever means KEEP_ALIVE=-1 held)
+pct exec 102 -- ollama ps
+
+# Prefill rate + EXACT prompt token count of recent turns — the "why slow" ground truth.
+pct exec 102 -- journalctl -u ollama --no-pager -n 80 | grep -iE 'prompt processing|prompt eval|tokens per second'
+#  "prompt eval ... N tokens (... tokens per second)"  -> total prompt size + prefill speed
+#  "prompt processing ... progress=0.NN"               -> live prefill progress mid-turn
+
+# Grinding or hung? llama-server near 100% = working (slow prefill); ~0% while waiting = stalled.
+pct exec 102 -- top -bn1 | head -12
+pct exec 102 -- bash -lc 'ps -eo pcpu,comm --sort=-pcpu | head -4'
+
+# Verify Ollama env vars actually applied (HOST, MAX_LOADED_MODELS, CONTEXT_LENGTH, KEEP_ALIVE)
+pct exec 102 -- systemctl show ollama -p Environment
+
+# Network reachability hermes CT (104) -> ollama CT (102)
+pct exec 104 -- curl -s http://192.168.1.244:11434/v1/models
+```
+
+In-session (inside `hermes`): **`/usage`** (token usage after a turn), **`/statusbar`** (live
+context/model bar — but its window number is the model's cosmetic native max; see Context window).
+
+> **Reading the prefill log:** a single turn logs `prompt processing` lines climbing to a final
+> `prompt eval ... N tokens`. `N` = the full prompt size; the trailing `tokens per second` is the CPU
+> prefill rate (degrades as context grows — attention is O(n)). This is how we measured the dense-24B
+> (~35 tok/s) vs MoE-30B (~154 tok/s) gap and confirmed `tool_search` (toggling tools → N unchanged).
+
 ## Performance reference (CPU, qwen3-coder:30b @ 64K)
 - **Prefill:** ~150 tok/s @ 1k ctx, degrading to ~60–90 tok/s as context fills (attention is O(n)).
 - **Base prompt:** ~17K tokens (fixed; `tool_search` keeps tools out of it).
