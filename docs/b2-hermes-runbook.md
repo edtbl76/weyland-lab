@@ -221,7 +221,111 @@ called it, returned LIVE backend health (pgvector/qdrant/weaviate/neo4j OK + the
   deployed old `mount()` code because the scp pre-dated the edit; the image "worked" on curl but
   Hermes 405'd. The build is only as correct as the file that actually arrived.
 
-## Front door (Telegram) — pending
-A dedicated Telegram bot was created (separate from `@weyland_alerts_bot`). Wiring it as the live
-front door needs the gateway: `hermes gateway install` (run the binary by absolute path in the unit —
-same PATH caveat as above). Deferred until the MCP system-view server is in.
+## OpenClaw — the delegate (Docker on vm-100) + MCP registration
+
+**OpenClaw runs in Docker on the openclaw VM (vm-100) — there is NO bare `openclaw` host command.**
+Run its CLI via `docker exec`; its config lives at `/home/node/.openclaw/openclaw.json` *inside the
+container* (it runs as user `node`) — manage it through the CLI, don't hand-edit.
+```
+# [on openclaw VM] find the gateway container, then run the CLI inside it
+docker ps --format '{{.Names}}'                         # → openclaw-openclaw-gateway-1
+docker exec -it openclaw-openclaw-gateway-1 openclaw <cmd>
+```
+
+**`openclaw mcp` subcommands** (OpenClaw 2026.5.31 — native MCP, stdio + HTTP/SSE):
+
+| cmd | purpose |
+|---|---|
+| `add` | add one server from flags — **probes before saving** (the safe path; bad config fails closed without writing) |
+| `list` / `show` | list configured servers / show one or the full MCP config |
+| `probe` | connect and list available capabilities |
+| `status` | transport status without connecting |
+| `reload` | dispose cached MCP runtimes → new config used on the next turn |
+| `configure` / `set` / `unset` | update operator controls / set from a JSON object / remove a server |
+| `tools` | per-server include/exclude tool filters |
+| `login` / `logout` | OAuth-authenticated servers |
+| `serve` | expose OpenClaw's *channels* over MCP stdio (the reverse direction) |
+| `doctor` | static setup checks |
+
+**Register the Weyland system-view** (same URL Hermes uses — the N+M payoff; check `mcp add --help`
+for exact flags first since the config is fragile):
+```
+# --transport streamable-http MUST match the tool-server's mount_http() endpoint (an sse/streamable
+# mismatch is the 405 that bit Hermes). `add` probes before saving, so success == connected + validated.
+docker exec openclaw-openclaw-gateway-1 openclaw mcp add weyland --url http://192.168.1.243:30080/mcp --transport streamable-http
+docker exec openclaw-openclaw-gateway-1 openclaw mcp list       # confirm it saved
+docker exec openclaw-openclaw-gateway-1 openclaw mcp reload     # apply on next turn
+```
+**Use `mcp add` (probes-before-saving), NOT a hand-edit of `openclaw.json`** — every prior manual edit
+broke the gateway (fails closed). The CLI writes valid JSON and validates the server before committing.
+
+## Front door (Telegram) — live 2026-06-14
+
+A dedicated Telegram bot (separate from `@weyland_alerts_bot`) is the live front door. Inbound DM →
+allowlist check → agent turn → reply. The gateway is a **headless systemd service**, distinct from the
+interactive `hermes` REPL: same agent, no keyboard.
+
+**Install the gateway** (inside CT 104): `hermes gateway install` creates
+`/etc/systemd/system/hermes-gateway.service`. Its `ExecStart` is
+`/usr/local/lib/hermes-agent/venv/bin/python -m hermes_cli.main gateway run` and it pins
+`VIRTUAL_ENV=/usr/local/lib/hermes-agent/venv` — **remember that venv path; it's where deps must land.**
+
+**Token + allowlist live in `~/.hermes/.env`, NOT `config.yaml`.** Setup ships a ~23 KB `.env` template
+(every var present, commented). Set just these two (uncommented):
+```
+TELEGRAM_BOT_TOKEN=<botfather token>
+TELEGRAM_ALLOWED_USERS=<your numeric telegram user id>   # locks the bot; clears the "no allowlist" warning
+# GATEWAY_ALLOW_ALL_USERS=true   # opposite stance — open access; do NOT use on a token-bearing bot
+```
+> Watch for paste cruft: a stray BotFather line (`Use this token to access the HTTP API:`) had landed
+> in `OPENROUTER_API_KEY=` — harmless (OpenRouter unused) but delete it so it doesn't mislead.
+
+### The dependency trap (the bring-up blocker)
+The gateway died on a restart loop (`status=1/FAILURE` every few seconds) logging:
+```
+WARNING gateway.run: Telegram: python-telegram-bot not installed
+WARNING gateway.run: No adapter available for telegram
+```
+**The headless gateway does NOT lazy-install messaging backends** — only the interactive REPL/tool path
+does (pyproject confirms telegram/slack/etc. are *meant* to lazy-install, but a cold systemd boot hits
+the import and fails closed). Install the **pinned** version (the adapter is written against `22.6`;
+latest would API-mismatch) **into the gateway's venv** — the installer is `uv`, parked at
+`/root/.hermes/bin/uv` (not on PATH; the venv has no `pip`/`ensurepip`):
+```
+# use `uv pip install` (additive, like pip) — NOT `uv sync` (prunes the venv to the lock, would rip out
+# REPL-lazy-installed extras like edge-tts). Target the exact venv the unit runs.
+VIRTUAL_ENV=/usr/local/lib/hermes-agent/venv /root/.hermes/bin/uv pip install \
+  --python /usr/local/lib/hermes-agent/venv/bin/python "python-telegram-bot[webhooks]==22.6"
+/usr/local/lib/hermes-agent/venv/bin/python -c "import telegram, telegram.ext; print(telegram.__version__)"  # expect 22.6
+systemctl restart hermes-gateway
+```
+After restart: `systemctl is-active hermes-gateway` → `active`, `systemctl show hermes-gateway -p NRestarts`
+→ **`NRestarts=0`** (the real success signal — the unit treats "no adapter" as fatal, so a stable
+non-flapping process means the adapter loaded). We run **polling**, not webhooks (a LAN bot has no public
+HTTPS callback URL); `[webhooks]` rides along only because that's how Hermes pins it, unused.
+
+> **`journalctl` looks frozen after a healthy restart — not a bug.** The startup banner goes through
+> `print()` → stdout, which Python **block-buffers** under systemd (stdout is a pipe, not a TTY), so it
+> never flushes on a long-lived process. The earlier WARNINGs appeared because they go through the
+> *logging* module (unbuffered). A quiet journal + `active`/`NRestarts=0` = running fine. A healthy poll
+> loop is silent anyway (it logs warnings/errors, not routine `getUpdates`).
+
+### First turn is the documented cold prefill (~3.5 min)
+First DM after a (re)start cold-prefills the ~18K prompt (17K base + MCP reg + your msg). Watch it on the
+Ollama CT — `pct exec 102 -- journalctl -u ollama --no-pager -n 30 | grep -iE 'prompt eval|progress'`
+shows `progress=` climbing with the rate decaying (141→69 tok/s, O(n) attention). `llama-server` at
+~800% CPU = grinding, not hung. Reply lands ~1 min after prefill hits 1.0; **subsequent turns reuse the
+cached prefix → warm ~6–17 s** (see Prompt caching). Meanwhile Hermes DMs a live status:
+`⏳ Working — iteration 1/150, waiting for stream response (… no chunks yet)` — "no chunks" = still
+prefilling (no first token yet); "iteration N/150" = the agent's reason→act loop budget, not an error.
+
+### Home channel + the "not supported on the web version" messages
+On first contact Hermes asks: `📬 No home channel is set for Telegram … Type /sethome`. The **home
+channel** is where it delivers cron-job results and cross-platform messages (no inbound to reply to).
+**Run `/sethome` in the target chat** or cron output is orphaned. Hermes's home-channel prompt and the
+⏳ status pings render as *"This message is not supported on the web version of Telegram"* in
+**web.telegram.org** (effect/format the web client can't draw) — they're fine; **read them in the mobile
+or desktop app.**
+
+**Validated 2026-06-14:** DM from the allowlisted user → "typing" → agent cold-prefilled (~3.5 min) →
+real reply in Telegram. Gateway `active`, `NRestarts=0`.

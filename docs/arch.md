@@ -82,7 +82,7 @@ graph TB
                 WSP["whisper.cpp<br/>shim /v1 :9000 · native :8080"]
             end
             subgraph CT104["hermes CT 104 (.247)"]
-                HRM["Hermes agent<br/>qwen3-coder MoE · MCP client"]
+                HRM["Hermes agent<br/>qwen3-coder MoE · MCP client<br/>Telegram gateway (front door)"]
             end
         end
         subgraph ROGUEONE["rogueone — laptop (.230) · RTX 5000 Ada"]
@@ -92,6 +92,7 @@ graph TB
     end
 
     TG --> OC
+    TG -->|"DM (allowlisted)"| HRM
     OC -->|"RAG context"| TS
     OC -->|"utility inference"| VLLM
     OWU -->|"chat"| OLL
@@ -174,7 +175,7 @@ agents/workflows and platform state. Agents call the tool-server, *not* database
 | Ollama (CT 102) | `ollama.weyland.lab:11434/v1` (.244) | CPU LLM serving — 6 models, `num_thread 8`, one model resident (`OLLAMA_MAX_LOADED_MODELS=1`). |
 | whisper-server (CT 103) | `whisper.weyland.lab:8080/inference` (.246) | native whisper.cpp STT (multipart). |
 | whisper OpenAI shim (CT 103) | `whisper.weyland.lab:9000/v1/audio/transcriptions` (.246) | OpenAI-compatible STT adapter → whisper-server. |
-| Hermes (CT 104) | `192.168.1.247` (agent; no served API) | Agent platform (B2). Brain → Ollama `qwen3-coder` (MoE); **MCP client** of the tool-server `/mcp` system-view (read-only v1). Runbook [b2-hermes-runbook.md](b2-hermes-runbook.md). |
+| Hermes (CT 104) | `192.168.1.247` (agent; no served API) | Agent platform (B2). Brain → Ollama `qwen3-coder` (MoE); **MCP client** of the tool-server `/mcp` system-view (read-only v1); **Telegram gateway front door** (live 2026-06-14, allowlisted DM → agent). Runbook [b2-hermes-runbook.md](b2-hermes-runbook.md). |
 
 ### rogueone
 | Component | Endpoint | Purpose |
