@@ -180,6 +180,41 @@ One model (~19 GB max) + KV/compute stays well under 48 GB. Sequential multi-mod
 (evals, A/B comparisons) then just **load → serve → evict** per model. Same lesson as the
 thread fix: in an LXC, Ollama can't see the cgroup limits — bound it explicitly.
 
+## Context window + keep-alive (added 2026-06-13 for the B2 agent)
+
+Two more env vars in the same drop-in, driven by the Hermes agent (B2) but affecting **all**
+consumers (RAG, Open WebUI, evals):
+
+```bash
+printf '[Service]\nEnvironment="OLLAMA_CONTEXT_LENGTH=65536"\nEnvironment="OLLAMA_KEEP_ALIVE=-1"\n' \
+  >> /etc/systemd/system/ollama.service.d/override.conf
+systemctl daemon-reload && systemctl restart ollama
+# verify: all vars present
+systemctl show ollama -p Environment
+# verify the served window (loaded model): CONTEXT column
+ollama ps
+```
+
+- **`OLLAMA_CONTEXT_LENGTH`** — Ollama's default served context is a stingy **4096**. That truncated
+  agent turns (a tool-heavy prompt + answer overflowed 4K → `finish_reason=length`, 1-token output).
+  Raised to **65536**. **Why not the model's native 262K?** KV-cache RAM grows linearly with the
+  window (~165 MB per 1K tokens for a 30B model): 32K≈20 GB, 64K≈25 GB, 128K≈36 GB, **262K≈~58 GB →
+  OOMs the 48 GB cgroup.** 64K leaves ample conversation room while staying well within the cap. Cost
+  scales with tokens *used*, not the *allocation*, so a large window you don't fill is cheap.
+- **`OLLAMA_KEEP_ALIVE=-1`** — default keep-alive is ~5 min, so on CPU the model **unloads between
+  turns** and every prompt after a pause pays a multi-minute cold reload (and can time out the
+  client). `-1` pins it resident. Bounded by `MAX_LOADED_MODELS=1` (still one model), so no extra
+  RAM beyond the single resident model.
+- **Prompt caching (free win):** llama.cpp caches the prompt-prefix KV, so an unchanged system
+  prompt is prefilled **once** — later turns reuse it (we saw turn-2 prefill drop from 13.5K tokens
+  to ~111). The cache **survives a Hermes restart** (it lives here, keyed by prefix + resident model)
+  but **dies on Ollama restart or model eviction** — so don't churn this service if you want warm
+  turns. Any cross-model request (a different model) evicts + cold-loads.
+
+> **Consumer pairing:** a client's declared context length **must match** `OLLAMA_CONTEXT_LENGTH`.
+> If a client thinks the window is larger (e.g. Hermes auto-detecting the model's 262K), it packs
+> past 64K and Ollama **silently drops the overflow**. Keep both equal.
+
 ## Model architecture note (matters on CPU)
 Prefer **MoE models** (e.g. `qwen3:30b-a3b`) on CPU: token-gen reads only the *active* experts
 (~3B) per token, so a 30B-total MoE runs at ~3B *speed* with ~30B *capability* — sidestepping the
