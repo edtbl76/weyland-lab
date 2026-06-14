@@ -167,6 +167,60 @@ context/model bar — but its window number is the model's cosmetic native max; 
 - **Base prompt:** ~17K tokens (fixed; `tool_search` keeps tools out of it).
 - **Warm turn (cached prefix):** ~6–17 s. **Cold turn (cache miss):** ~2–5 min (full base prefill).
 
+## MCP system-view server (B2 v1 — live 2026-06-14)
+
+The agent's "view into the system": read-only MCP tools over HTTP, built **into** the tool-server
+(it already holds the RAG/status/health logic). One server; both agents connect by URL (N+M).
+
+**Exposes (read-only v1):** `status`, `context_search`, `context_ask`, `list_models` — the tool-server
+routes carrying a `tags=["mcp"]` decorator. The write/act routes (`/pipeline/trigger`, `/evals/run`,
+`/evals/score`) are deliberately untagged → excluded. Read+act is a later slice, gated on B14.
+
+**Tool-server changes** (`services/weyland-tool-server/`):
+- `main.py`: `from fastapi_mcp import FastApiMCP`; `tags=["mcp"]` on the 4 read routes; at end of file
+  (after all routes are registered): `FastApiMCP(app, name="weyland-system-view", include_tags=["mcp"]).mount_http()`.
+- `Dockerfile`: added `fastapi-mcp` to the pip install.
+- Mounts at `/mcp` on the existing app + port (8080 → NodePort 30080) — no new service/port.
+
+**Build → load into k3s → deploy** (image is `weyland-tool-server:local`, `imagePullPolicy: Never` —
+local k3s image, no registry; built with **docker** on mother — *this process was previously undocumented*):
+```bash
+# [on rogueone] ship changed files to mother
+scp services/weyland-tool-server/main.py services/weyland-tool-server/Dockerfile emangini@mother:~/lab/weyland-platform/services/weyland-tool-server/
+# [on mother] VERIFY the shipped file BEFORE building (catches a stale scp — see lessons)
+grep -n 'mcp.mount' ~/lab/weyland-platform/services/weyland-tool-server/main.py    # expect mount_http()
+# [on mother] build, import into k3s containerd, roll out
+cd ~/lab/weyland-platform/services/weyland-tool-server
+docker build -t weyland-tool-server:local .
+docker save weyland-tool-server:local | sudo k3s ctr images import -
+kubectl rollout restart deployment/weyland-tool-server -n weyland && kubectl rollout status deployment/weyland-tool-server -n weyland
+# [on mother] confirm the DEPLOYED code (not just the shipped file)
+kubectl exec -n weyland deploy/weyland-tool-server -- grep -n 'mcp.mount' /app/main.py
+```
+Docker caches up to `COPY main.py`, so rebuilds are fast — the slow HF-model bake layer is reused.
+
+**Register in Hermes** (CT 104) — add a top-level section to `~/.hermes/config.yaml` (column 0):
+```yaml
+mcp_servers:
+  weyland:
+    url: "http://192.168.1.243:30080/mcp"
+```
+Then `/reload-mcp` → `➕ Added: weyland · 🔧 4 tool(s) from 1 server(s)`. `/tools list` shows
+`weyland  all tools available` (grouped under the server, not enumerated; `tool_search` keeps them
+searchable, not pinned — the "0 active" count is normal). OpenClaw later adds the *identical* line.
+
+**Validated 2026-06-14:** "What's the Weyland system status?" → agent searched the `status` tool,
+called it, returned LIVE backend health (pgvector/qdrant/weaviate/neo4j OK + the 6 live Ollama models).
+
+### Hard-won lessons (don't repeat these)
+- **Transport: `mount_http()` (Streamable HTTP), NOT `mount()`/`mount_sse()`.** Hermes's `url:` client
+  POSTs `initialize`; an SSE endpoint is GET-only → **`405 Method Not Allowed` → 0 tools**. A raw
+  `curl /mcp` that streams `event: endpoint` + `: ping` does **not** prove it works (GET is valid for
+  SSE) — only the agent handshake does.
+- **Stale-scp trap: `grep` the shipped file on mother BEFORE `docker build`.** Our first build
+  deployed old `mount()` code because the scp pre-dated the edit; the image "worked" on curl but
+  Hermes 405'd. The build is only as correct as the file that actually arrived.
+
 ## Front door (Telegram) — pending
 A dedicated Telegram bot was created (separate from `@weyland_alerts_bot`). Wiring it as the live
 front door needs the gateway: `hermes gateway install` (run the binary by absolute path in the unit —

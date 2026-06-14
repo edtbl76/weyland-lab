@@ -7,6 +7,7 @@ import httpx
 import psycopg2
 import weaviate
 from fastapi import FastAPI, HTTPException, Query
+from fastapi_mcp import FastApiMCP
 from llama_index.embeddings.huggingface import HuggingFaceEmbedding
 from neo4j import GraphDatabase
 from pydantic import BaseModel, Field
@@ -356,7 +357,7 @@ def ollama_health():
     return {**_check_ollama(), "ollama_url": OLLAMA_BASE_URL, "default_model": OLLAMA_MODEL}
 
 
-@app.get("/status")
+@app.get("/status", tags=["mcp"])
 def status():
     """Consolidated health — server + model + all four backends in one call.
     overall='degraded' if any backend is down (the server itself stays live/ready)."""
@@ -378,7 +379,7 @@ def status():
     }
 
 
-@app.post("/context/search")
+@app.post("/context/search", tags=["mcp"])
 def context_search(request: ContextSearchRequest, backend: str = Query(default="pgvector")):
     if backend not in VALID_BACKENDS:
         raise HTTPException(
@@ -389,7 +390,7 @@ def context_search(request: ContextSearchRequest, backend: str = Query(default="
     return {"query": request.query, "results": results}
 
 
-@app.get("/models")
+@app.get("/models", tags=["mcp"])
 def list_models():
     """Models available on the Ollama endpoint, for client-side selection in /context/ask."""
     check = _check_ollama()
@@ -398,7 +399,7 @@ def list_models():
     return {"default": OLLAMA_MODEL, "available": check["models"]}
 
 
-@app.post("/context/ask")
+@app.post("/context/ask", tags=["mcp"])
 def context_ask(request: AskRequest):
     """RAG: retrieve top-k chunks from a backend, then have the local model synthesize a
     grounded answer. `model` is selectable per request (defaults to OLLAMA_MODEL)."""
@@ -535,3 +536,15 @@ def evals_leaderboard(run_id: int | None = Query(default=None)):
             for r in rows
         ],
     }
+
+
+# --- MCP system-view server (B2) -------------------------------------------------
+# Expose the read-only tools tagged "mcp" (/status, /context/search, /context/ask,
+# /models) as an MCP server over HTTP, mounted at /mcp on this same app + port
+# (8080 -> NodePort 30080). Agents connect by URL (Hermes now, OpenClaw later):
+#   http://<host>:30080/mcp
+# Write/act endpoints (/pipeline/trigger, /evals/run, /evals/score) are deliberately
+# NOT tagged, so they're excluded — read-only v1; the act surface is gated on B14.
+# Constructed last so every route above is already registered for introspection.
+mcp = FastApiMCP(app, name="weyland-system-view", include_tags=["mcp"])
+mcp.mount_http()   # Streamable HTTP at /mcp — the transport remote agents connect to by URL

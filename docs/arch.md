@@ -46,7 +46,8 @@ weyland (MS-A2, Proxmox, 192.168.1.232)
 ├── vm-100  openclaw   192.168.1.169   agent control plane (Docker)
 ├── vm-101  mother     192.168.1.243   k3s AI platform
 ├── ct-102  ollama     192.168.1.244   Ollama CPU LLM serving
-└── ct-103  whisper    192.168.1.246   whisper.cpp CPU STT
+├── ct-103  whisper    192.168.1.246   whisper.cpp CPU STT
+└── ct-104  hermes     192.168.1.247   Hermes agent (qwen3-coder MoE) — system-view MCP client
 rogueone (laptop, 192.168.1.230, RTX 5000 Ada 16 GB) — external; vLLM + dev + source notes
 ```
 
@@ -61,7 +62,7 @@ graph TB
                 OC["OpenClaw gateway<br/>Telegram bot · Claude CLI · Tavily"]
             end
             subgraph MOTHER["mother VM vm-101 (.243) — k3s"]
-                TS["weyland-tool-server :30080<br/>RAG · /evals · pipeline trigger"]
+                TS["weyland-tool-server :30080<br/>RAG · /evals · pipeline · MCP /mcp"]
                 OWU["Open WebUI<br/>chat.weyland.lab"]
                 DAG["Dagster<br/>ingestion + eval jobs"]
                 N8N["n8n (automation)"]
@@ -80,6 +81,9 @@ graph TB
             subgraph CT103["whisper CT 103 (.246)"]
                 WSP["whisper.cpp<br/>shim /v1 :9000 · native :8080"]
             end
+            subgraph CT104["hermes CT 104 (.247)"]
+                HRM["Hermes agent<br/>qwen3-coder MoE · MCP client"]
+            end
         end
         subgraph ROGUEONE["rogueone — laptop (.230) · RTX 5000 Ada"]
             VLLM["vLLM /v1 :8000<br/>GPU · on-demand"]
@@ -92,6 +96,8 @@ graph TB
     OC -->|"utility inference"| VLLM
     OWU -->|"chat"| OLL
     OWU -->|"voice STT"| WSP
+    HRM -->|"reasoning"| OLL
+    HRM -->|"system view (MCP /mcp)"| TS
     TS -->|"embed + retrieve"| PG
     TS -->|"retrieve"| QD
     TS -->|"retrieve"| WV
@@ -120,6 +126,7 @@ graph TB
 | **rogueone** | Laptop, RTX 5000 Ada 16 GB | .230 | `edwardmangini@rogueone` | GPU inference (vLLM) + dev workstation + Obsidian source notes. Not always-on. |
 | **ollama** | LXC CT 102 | .244 | via `weyland` host | CPU LLM serving (Ollama, 6 models). |
 | **whisper** | LXC CT 103 | .246 | via `weyland` host | CPU STT (whisper.cpp + OpenAI shim). |
+| **hermes** | LXC CT 104 | .247 | via `weyland` host | Agent platform (B2): Hermes on `qwen3-coder` (MoE); MCP client of the tool-server's read-only system-view. |
 
 **Boundaries (intentional):** the **VM boundary** = lifecycle / blast-radius / rollback; the
 **k8s boundary** = deployable services; the **tool-server boundary** = the stable interface between
@@ -146,7 +153,7 @@ agents/workflows and platform state. Agents call the tool-server, *not* database
 ### mother (k3s, namespace `weyland` unless noted)
 | Component | Endpoint | Purpose |
 |---|---|---|
-| weyland-tool-server (v0.4.0) | `mother:30080` | RAG retrieval (4 backends) + `/context/ask` (RAG gen) + `/evals/*` + `/pipeline/trigger` + health. The platform's HTTP boundary. |
+| weyland-tool-server (v0.4.0) | `mother:30080` | RAG retrieval (4 backends) + `/context/ask` (RAG gen) + `/evals/*` + `/pipeline/trigger` + health, **+ `/mcp` system-view MCP server** (read-only tools for agents, `fastapi-mcp` Streamable HTTP). The platform's HTTP boundary. |
 | Postgres + pgvector | `weyland-postgres.weyland.svc:5432` | `rag_documents`/`rag_chunks` (vector 384-dim) + `eval_*` tables. In-cluster only. |
 | Qdrant | `mother:30083` (HTTP), `:30084` (gRPC) | vector store, collection `weyland_chunks`. |
 | Weaviate | `mother:30087` (gRPC 50051) | vector store, class `WeylandChunk`. |
@@ -167,6 +174,7 @@ agents/workflows and platform state. Agents call the tool-server, *not* database
 | Ollama (CT 102) | `ollama.weyland.lab:11434/v1` (.244) | CPU LLM serving — 6 models, `num_thread 8`, one model resident (`OLLAMA_MAX_LOADED_MODELS=1`). |
 | whisper-server (CT 103) | `whisper.weyland.lab:8080/inference` (.246) | native whisper.cpp STT (multipart). |
 | whisper OpenAI shim (CT 103) | `whisper.weyland.lab:9000/v1/audio/transcriptions` (.246) | OpenAI-compatible STT adapter → whisper-server. |
+| Hermes (CT 104) | `192.168.1.247` (agent; no served API) | Agent platform (B2). Brain → Ollama `qwen3-coder` (MoE); **MCP client** of the tool-server `/mcp` system-view (read-only v1). Runbook [b2-hermes-runbook.md](b2-hermes-runbook.md). |
 
 ### rogueone
 | Component | Endpoint | Purpose |
@@ -296,6 +304,26 @@ Telegram → OpenClaw gateway → **Claude CLI** (primary reasoning) with tools:
 skill calls the tool-server (`/context/search`) for semantic RAG; the `rogueone-vllm` skill calls
 vLLM for local utility inference. (Voice-note STT through OpenClaw is deferred — see
 [b11-whisper-runbook.md](b11-whisper-runbook.md); Open WebUI is the working voice path today.)
+
+### 8.6 Agent system-view (Hermes → MCP → tool-server)
+B2 v1, validated 2026-06-14: the agent answers about the *live system* by calling read-only MCP tools
+over Streamable HTTP — never touching databases directly. One MCP URL; OpenClaw registers the same
+line (N+M). Write/act tools are excluded (gated on B14).
+```mermaid
+sequenceDiagram
+    participant U as User
+    participant H as Hermes qwen3-coder
+    participant M as ToolServer MCP
+    participant T as ToolServer
+    participant B as Backends and Ollama
+    U->>H: ask system status
+    H->>M: MCP tool call status
+    M->>T: invoke /status
+    T->>B: health checks
+    B-->>T: live state
+    T-->>H: status JSON via MCP
+    H-->>U: live system health
+```
 
 ---
 

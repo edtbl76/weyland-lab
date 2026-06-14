@@ -4,6 +4,7 @@ WORKDIR /app
 
 RUN pip install --no-cache-dir \
     fastapi \
+    fastapi-mcp \
     uvicorn \
     psycopg2-binary \
     httpx \

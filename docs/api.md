@@ -31,6 +31,7 @@ Hosts & access users: [hosts.md](hosts.md). `mother` = 192.168.1.243, CTs by IP 
 | `/pipeline/trigger` | POST | fire Dagster `launchRun` |
 | `/evals/run` · `/evals/score` | POST | B4: trigger eval matrix / judge-panel scoring |
 | `/evals/runs` · `/evals/leaderboard` | GET | B4: list eval runs / panel-averaged leaderboard (`?run_id=`) |
+| `/mcp` | MCP | **B2 system-view MCP server** (Streamable HTTP via `fastapi-mcp`) — read-only tools for agents: `status`, `context_search`, `context_ask`, `list_models`. Register in an agent as `mcp_servers.weyland.url`. [b2-hermes-runbook.md](b2-hermes-runbook.md) |
 
 ## Data backends (mother, NodePort)
 
@@ -62,6 +63,15 @@ mkcert wildcard cert; resolve from rogueone (`/etc/hosts`) or via CoreDNS. Share
 | n8n | `https://n8n.weyland.lab` |
 | Headlamp (k8s UI) | `https://headlamp.weyland.lab` |
 | Filestash (MinIO browser) | `https://files.weyland.lab` |
+
+> **Headlamp login** uses a Kubernetes **ServiceAccount bearer token**, *not* the shared dev password.
+> A persistent token is stored in a Secret — retrieve and decode it (on mother):
+> ```
+> kubectl get secret -A | grep -i headlamp        # find the secret + namespace
+> kubectl get secret <name> -n <ns> -o jsonpath='{.data.token}' | base64 -d ; echo
+> ```
+> Paste the decoded JWT into Headlamp's token login. (Persistent = doesn't expire like
+> `kubectl create token`; same command always returns it until the SA/Secret is rotated.)
 
 ## Object storage (MinIO)
 
