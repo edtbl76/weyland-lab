@@ -84,11 +84,14 @@ kind: Service
 metadata:
   name: weyland-tool-server
   namespace: weyland
+  labels:
+    app: weyland-tool-server   # selected by the ServiceMonitor (B14 guardrail /metrics scrape)
 spec:
   type: NodePort
   selector:
     app: weyland-tool-server
   ports:
-    - port: 8080
+    - name: http               # named so the ServiceMonitor endpoint can reference it
+      port: 8080
       targetPort: 8080
       nodePort: 30080

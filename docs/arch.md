@@ -122,7 +122,7 @@ agents/workflows and platform state. Agents call the tool-server, *not* database
 ### mother (k3s, namespace `weyland` unless noted)
 | Component | Endpoint | Purpose |
 |---|---|---|
-| weyland-tool-server (v0.4.0) | `mother:30080` | RAG retrieval (4 backends) + `/context/ask` (RAG gen) + `/evals/*` + `/pipeline/trigger` + health, **+ `/mcp` system-view MCP server** (read-only tools, `fastapi-mcp` Streamable HTTP). Consumers: Hermes (CT 104) + **Claude Code** (rogueone, validated 2026-06-14). The platform's HTTP boundary. |
+| weyland-tool-server (v0.4.0) | `mother:30080` | RAG retrieval (4 backends) + `/context/ask` (RAG gen) + `/evals/*` + `/pipeline/trigger` + health, **+ `/mcp` system-view MCP server** (read-only tools, `fastapi-mcp` Streamable HTTP), **+ B14 guardrail layer** (shadow-mode validators on `/context/*`, verdicts → `/metrics` + `guardrail_verdicts` table). Consumers: Hermes (CT 104) + **Claude Code** (rogueone, validated 2026-06-14). The platform's HTTP boundary. |
 | Postgres + pgvector | `weyland-postgres.weyland.svc:5432` | `rag_documents`/`rag_chunks` (vector 384-dim) + `eval_*` tables. In-cluster only. |
 | Qdrant | `mother:30083` (HTTP), `:30084` (gRPC) | vector store, collection `weyland_chunks`. |
 | Weaviate | `mother:30087` (gRPC 50051) | vector store, class `WeylandChunk`. |
@@ -206,7 +206,14 @@ All inference speaks the **OpenAI `/v1` shape**, so clients are engine-agnostic.
 - **Storage:** RWO single-instance Deployments (pgvector/qdrant/weaviate/neo4j/n8n/open-webui) use
   `strategy: Recreate` to avoid volume-lock deadlocks. Model/eval data on NVMe (rpool); MinIO bulk on
   the 8 TB USB.
-- **Observability:** Prometheus + Grafana (B5 — done). Alertmanager -> Telegram alerts live.
+- **Observability:** Prometheus + Grafana (B5 — done). Alertmanager -> Telegram alerts live. App metrics via
+  ServiceMonitors: qdrant, weaviate, apisix, coredns, **tool-server (B14 guardrails)**, **minio** (full
+  scrape-target list in [api.md](api.md#metrics--scrape-targets-b5-phase-2b)).
+- **Guardrails (B14 — shadow):** a pluggable validator layer at the tool-server seam runs on `/context/*`
+  — `input` hook (LLM Guard prompt-injection) + `output` hook (LLM Guard toxicity, in-process NLI
+  grounding). Ships **shadow-mode** (record-only, never blocks; per-validator `off|shadow|flag|block` via
+  env); verdicts go to Prometheus (`/metrics`) + the `guardrail_verdicts` Postgres table (a future B1 data
+  product). PII deferred (coded, unbaked → B34). Full spec: `aidlc-docs/construction/b14-guardrails-design.md`.
 - **Deploy model:** manual `scp` -> build on the node -> import to k3s/containerd -> `kubectl rollout`
   (tool-server, Dagster, Open WebUI). No GitOps yet (deliberate, until stable).
 

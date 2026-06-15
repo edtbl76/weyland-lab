@@ -102,4 +102,9 @@ certs/
 # NOTE: already in git history — untrack + rotate the n8n key (security task).
 nodes/mother/lab/weyland-platform/k8s/n8n/encryption-key.txt
 
+# Python artifacts (tool-server + any Python service)
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
 

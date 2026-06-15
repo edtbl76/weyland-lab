@@ -1,18 +1,28 @@
+import asyncio
 import json
 import os
+import threading
 import urllib.request
+import uuid
 from contextlib import asynccontextmanager
 
 import httpx
 import psycopg2
 import weaviate
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import FastAPI, HTTPException, Query, Response
 from fastapi_mcp import FastApiMCP
 from llama_index.embeddings.huggingface import HuggingFaceEmbedding
 from neo4j import GraphDatabase
+from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
 from pydantic import BaseModel, Field
 from qdrant_client import QdrantClient
 from weaviate.classes.query import MetadataQuery
+
+from guardrails import metrics as guard_metrics
+from guardrails import store as guard_store
+from guardrails.config import hook_chain
+from guardrails.pipeline import GuardrailPipeline
+from guardrails.verdict import Hook, Mode
 
 MODEL_NAME = "BAAI/bge-small-en-v1.5"
 VERSION = "0.4.0"
@@ -89,10 +99,79 @@ qdrant_client: QdrantClient | None = None
 weaviate_client: weaviate.WeaviateClient | None = None
 neo4j_driver = None
 
+# --- B14 guardrails (shadow-first) ----------------------------------------------
+# Endpoints are sync (threadpool), but the validator pipeline is async with fire-and-forget
+# shadow tasks — those need a live event loop that outlives the request. We run one on a
+# daemon thread and submit coroutines to it via run_coroutine_threadsafe. Shadow validators
+# add ~zero response latency; only enforcing (flag/block) modes are waited on.
+GUARDRAIL_BLOCK_TIMEOUT = float(os.getenv("GUARDRAIL_BLOCK_TIMEOUT", "10"))
+guardrails: GuardrailPipeline | None = None
+_guard_loop: asyncio.AbstractEventLoop | None = None
+_guard_thread: threading.Thread | None = None
+
+
+def _record_verdict(hook, mode, verdict, request_id) -> None:
+    """Persist a verdict to Prometheus + the guardrail_verdicts table. Telemetry must never
+    break a request, so every path is best-effort."""
+    try:
+        guard_metrics.observe(hook, mode, verdict)
+    except Exception:
+        pass
+    try:
+        with psycopg2.connect(
+            host=PG_HOST, port=PG_PORT, dbname=PG_DB, user=PG_USER,
+            password=PG_PASSWORD, connect_timeout=5,
+        ) as conn:
+            guard_store.record_verdict(conn, request_id=request_id, hook=hook, mode=mode, verdict=verdict)
+    except Exception:
+        pass
+
+
+def _build_guardrails() -> GuardrailPipeline:
+    """Instantiate the validator set. Each validator loads its own model and is built
+    independently: if one fails (missing dep, model not baked), it's skipped and the rest
+    still run. Imported here (not at module top) so model loads happen at lifespan time."""
+    from guardrails.validators.grounding import GroundingValidator
+    from guardrails.validators.llm_guard import InjectionValidator, PIIValidator, ToxicityValidator
+
+    builders = {
+        "llm_guard.injection": InjectionValidator,
+        "llm_guard.pii": PIIValidator,
+        "llm_guard.toxicity": ToxicityValidator,
+        "grounding.nli": GroundingValidator,
+    }
+    validators = {}
+    for name, builder in builders.items():
+        try:
+            validators[name] = builder()
+        except Exception as exc:  # partial coverage beats none
+            print(f"[guardrails] validator '{name}' unavailable: {exc}", flush=True)
+    print(f"[guardrails] active validators: {sorted(validators)}", flush=True)
+    return GuardrailPipeline(validators, hook_chain, _record_verdict)
+
+
+def _guard(hook: Hook, request_id: str, payload: dict):
+    """Run the validator chain for `hook`. Returns a BLOCK Verdict if an enforcing validator
+    blocked the request, else None. Shadow-only chains fire-and-forget (telemetry only, no wait).
+    A guard must never break the request — any failure degrades to None (allow)."""
+    if guardrails is None or _guard_loop is None:
+        return None
+    try:
+        fut = asyncio.run_coroutine_threadsafe(
+            guardrails.run(hook, request_id, payload), _guard_loop
+        )
+        enforcing = any(mode in (Mode.FLAG, Mode.BLOCK) for _, mode in hook_chain(hook))
+        if enforcing:
+            return fut.result(timeout=GUARDRAIL_BLOCK_TIMEOUT)
+        return None
+    except Exception:
+        return None
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     global embed_model, qdrant_client, weaviate_client, neo4j_driver
+    global guardrails, _guard_loop, _guard_thread
     embed_model = HuggingFaceEmbedding(model_name=MODEL_NAME)
     qdrant_client = QdrantClient(host=QDRANT_HOST, port=QDRANT_PORT)
     weaviate_client = weaviate.connect_to_custom(
@@ -104,7 +183,18 @@ async def lifespan(app: FastAPI):
         grpc_secure=False,
     )
     neo4j_driver = GraphDatabase.driver(NEO4J_URI, auth=(NEO4J_USER, NEO4J_PASSWORD))
+    # Background loop for fire-and-forget shadow validators, then build the pipeline.
+    _guard_loop = asyncio.new_event_loop()
+    _guard_thread = threading.Thread(target=_guard_loop.run_forever, daemon=True)
+    _guard_thread.start()
+    try:
+        guardrails = _build_guardrails()
+    except Exception as exc:  # guardrails are advisory — never block server startup
+        print(f"[guardrails] disabled — failed to initialize: {exc}", flush=True)
+        guardrails = None
     yield
+    if _guard_loop:
+        _guard_loop.call_soon_threadsafe(_guard_loop.stop)
     if weaviate_client:
         weaviate_client.close()
     if neo4j_driver:
@@ -386,6 +476,10 @@ def context_search(request: ContextSearchRequest, backend: str = Query(default="
             status_code=400,
             detail=f"Unknown backend '{backend}'. Valid options: {sorted(VALID_BACKENDS)}",
         )
+    request_id = str(uuid.uuid4())
+    blocked = _guard(Hook.INPUT, request_id, {"query": request.query})
+    if blocked is not None:
+        raise HTTPException(status_code=403, detail=f"blocked by {blocked.validator}: {blocked.reason}")
     results = SEARCH_FNS[backend](request.query, request.limit)
     return {"query": request.query, "results": results}
 
@@ -408,6 +502,10 @@ def context_ask(request: AskRequest):
             status_code=400,
             detail=f"Unknown backend '{request.backend}'. Valid options: {sorted(VALID_BACKENDS)}",
         )
+    request_id = str(uuid.uuid4())
+    blocked = _guard(Hook.INPUT, request_id, {"query": request.query})
+    if blocked is not None:
+        raise HTTPException(status_code=403, detail=f"blocked by {blocked.validator}: {blocked.reason}")
     model = request.model or OLLAMA_MODEL
     chunks = SEARCH_FNS[request.backend](request.query, request.limit)
     messages = [
@@ -418,6 +516,10 @@ def context_ask(request: AskRequest):
         answer = _ollama_chat(messages, model)
     except httpx.HTTPError as e:
         raise HTTPException(status_code=502, detail=f"LLM call failed ({model}): {e}")
+    # OUTPUT hook: grounding (answer vs retrieved chunks) + PII/toxicity on the answer.
+    out_blocked = _guard(Hook.OUTPUT, request_id, {"query": request.query, "answer": answer, "sources": chunks})
+    if out_blocked is not None:
+        raise HTTPException(status_code=403, detail=f"blocked by {out_blocked.validator}: {out_blocked.reason}")
     return {
         "query": request.query,
         "backend": request.backend,
@@ -536,6 +638,15 @@ def evals_leaderboard(run_id: int | None = Query(default=None)):
             for r in rows
         ],
     }
+
+
+# --- Prometheus scrape target (B14 guardrail telemetry + future app metrics) -----
+# A plain route (not a sub-app mount) so it serves at exactly /metrics with no trailing-slash
+# redirect — clean for Prometheus (B5) scraping. Untagged, so it stays out of the MCP surface.
+# Guardrail shadow verdicts land here via guardrails.metrics.
+@app.get("/metrics")
+def metrics():
+    return Response(generate_latest(), media_type=CONTENT_TYPE_LATEST)
 
 
 # --- MCP system-view server (B2) -------------------------------------------------

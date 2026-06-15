@@ -24,8 +24,9 @@ Hosts & access users: [hosts.md](hosts.md). `mother` = 192.168.1.243, CTs by IP 
 | Route | Method | Purpose |
 |---|---|---|
 | `/health` `/ready` `/status` | GET | liveness / readiness / consolidated status (incl. `llm`) |
-| `/context/search?backend=<pgvector\|qdrant\|weaviate\|neo4j>` | POST | vector retrieval |
-| `/context/ask` | POST | **RAG** — retrieve → local LLM answer (per-request `model`) |
+| `/metrics` | GET | **B14** Prometheus exposition — guardrail shadow verdicts + validator latency (plain route, no trailing slash) |
+| `/context/search?backend=<pgvector\|qdrant\|weaviate\|neo4j>` | POST | vector retrieval (B14 `input` guardrail hook: injection) |
+| `/context/ask` | POST | **RAG** — retrieve → local LLM answer (per-request `model`); B14 `input` hook (injection) + `output` hook (toxicity, grounding) |
 | `/models` | GET | list selectable Ollama models |
 | `/pgvector/health` `/qdrant/health` `/weaviate/health` `/neo4j/health` `/ollama/health` | GET | per-backend health |
 | `/pipeline/trigger` | POST | fire Dagster `launchRun` |
@@ -98,9 +99,16 @@ not meant for direct browsing. ServiceMonitors: `k8s/monitoring/servicemonitors.
 | CoreDNS | `weyland-lan-dns.weyland.svc:9153` | `/metrics` | `http://mother:9153/metrics` (LoadBalancer) |
 | Weaviate | `weaviate.weyland.svc:2112` | `/metrics` | NodePort auto-assigned (no fixed port) |
 | APISIX | `weyland-apisix.weyland.svc:9091` | `/apisix/prometheus/metrics` | NodePort auto-assigned (no fixed port) |
+| Tool server (B14 guardrails) | `weyland-tool-server.weyland.svc:8080` | `/metrics` | `http://mother:30080/metrics` (NodePort) |
+| MinIO | `minio.minio.svc:9000` | `/minio/v2/metrics/cluster` | in-cluster only (`MINIO_PROMETHEUS_AUTH_TYPE=public`, no token) |
 
 Stack-internal targets (Prometheus, Alertmanager, Grafana, node-exporter, kube-state-metrics, kubelet,
 cAdvisor) are scraped by the chart's own ServiceMonitors — not listed here.
+
+> **Tool-server `/metrics` (B14):** emits `guardrail_verdicts_total` + `guardrail_validator_latency_ms`.
+> Its ServiceMonitor (`weyland-tool-server`) is defined in `k8s/monitoring/servicemonitors.yaml` alongside
+> the other four — `kubectl apply` it to start the scrape. The `guardrail_verdicts` Postgres table is the
+> durable record (and the basis for the future B1 data product); `/metrics` is the live counter view.
 
 > **Prometheus UI is not ingressed** — view targets/PromQL via
 > `kubectl -n monitoring port-forward svc/monitoring-kube-prometheus-prometheus 9090:9090`. Only Grafana is
