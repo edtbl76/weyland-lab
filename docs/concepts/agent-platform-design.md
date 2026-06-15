@@ -202,7 +202,7 @@ per-task choice, not the standing brain.
 ---
 
 ## Related
-- **[b2-hermes-runbook.md](b2-hermes-runbook.md):** operational runbook — CT creation, install, config, model + Ollama tuning, slash-command management, and the bring-up gotchas (PATH, context mismatch, `tool_search`, caching).
+- **[../runbooks/agent-hermes.md](../runbooks/agent-hermes.md):** operational runbook — CT creation, install, config, model + Ollama tuning, slash-command management, and the bring-up gotchas (PATH, context mismatch, `tool_search`, caching).
 - **B14 — Guardrails:** gates the read→act promotion; prompt-injection awareness once agents read untrusted content.
 - **B15 — opencode / Cline:** the powerful-agent expansion that triggers the B17 A2A evaluation.
 - **B17 — A2A evaluation:** the agent↔agent protocol decision (see backlog).

@@ -2,8 +2,8 @@
 
 Operational runbook for the Hermes agent platform: create/access the container, install + configure
 Hermes, the model + Ollama tuning, and the gotchas hit during bring-up. Design rationale (lanes,
-MCP, A2A) lives in [b2-agent-platform-design.md](b2-agent-platform-design.md); model serving is
-[b7-ollama-runbook.md](b7-ollama-runbook.md).
+MCP, A2A) lives in [../concepts/agent-platform-design.md](../concepts/agent-platform-design.md); model serving is
+[model-serving-ollama.md](model-serving-ollama.md).
 
 ---
 
@@ -71,7 +71,7 @@ CPU** → multi-minute turns. Switched to **`qwen3-coder:30b` (30B-A3B MoE, ~3B 
 - Switch model live with `/model qwen3-coder:30b` (a config-file edit only sets the provider default,
   not the *active* selection — `/model` sets the active one).
 
-## Ollama tuning (CT 102 — see [b7-ollama-runbook.md](b7-ollama-runbook.md))
+## Ollama tuning (CT 102 — see [model-serving-ollama.md](model-serving-ollama.md))
 Driven by this agent, applied on the Ollama CT. Two env vars in CT-102's drop-in:
 `OLLAMA_CONTEXT_LENGTH=65536` and `OLLAMA_KEEP_ALIVE=-1`. The first gives room (Ollama's 4K default
 truncated agent turns); the second keeps the model resident so turns stay warm on CPU.

@@ -3,8 +3,8 @@
 Operational runbook for the committed CPU model-serving path (B7 Option B): create/access the
 container, install Ollama, pull + tune models, and the critical thread-count fix. Day-to-day ops.
 
-**Related:** [B7 — Model Serving Hardware (the decision)](b7-model-serving-hardware.md) ·
-[LLM inference CPU vs GPU (the concepts)](b7-llm-inference-cpu-vs-gpu.md).
+**Related:** [B7 — Model Serving Hardware (the decision)](../concepts/model-serving-hardware.md) ·
+[LLM inference CPU vs GPU (the concepts)](../concepts/llm-inference-cpu-vs-gpu.md).
 
 ---
 
@@ -83,7 +83,7 @@ ollama list                        # installed models + sizes
   `OLLAMA_MODEL=gpt-oss:20b` (default since B4 panel; callers override per request via the `model` field).
   `GET /models` lists the choices; `GET /ollama/health` and `/status`→`.llm` report reachability.
   Wired + validated (mother + rogueone) 2026-06-12. Deploy/test recipes:
-  [docs/test.md](test.md) → *Tool Server → LLM / RAG*.
+  [test-commands.md](../validation/test-commands.md) → *Tool Server → LLM / RAG*.
 
 **The `/context/ask` RAG pipeline** — note the **two distinct models** (embedding vs generation):
 
@@ -223,7 +223,7 @@ Prefer **MoE models** (e.g. `qwen3:30b-a3b`) on CPU: token-gen reads only the *a
 
 ## Measured benchmarks
 Ground-truth `eval rate` from `ollama run --verbose` (supersedes the estimated performance-envelope
-tables in [b7-llm-inference-cpu-vs-gpu.md](b7-llm-inference-cpu-vs-gpu.md#performance-envelope--expected-toks-ballpark-q4)).
+tables in [../concepts/llm-inference-cpu-vs-gpu.md](../concepts/llm-inference-cpu-vs-gpu.md#performance-envelope--expected-toks-ballpark-q4)).
 **Note:** all require the `num_thread 8` fix above; the default-16-thread numbers are meaningless
 (spin-wait collapse).
 

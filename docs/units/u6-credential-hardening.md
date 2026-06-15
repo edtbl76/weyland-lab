@@ -5,7 +5,7 @@ Unit U6 (Iteration 1). Change: `validate_required_secrets()` in the tool server
 missing/empty, instead of starting with a blank password and failing later.
 
 Commands run from `mother` unless noted. Canonical rebuild commands live in
-`docs/test.md` (Image Management); repeated here for a runnable sequence.
+`../validation/test-commands.md` (Image Management); repeated here for a runnable sequence.
 
 ---
 

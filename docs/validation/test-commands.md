@@ -150,7 +150,7 @@ curl -s -X POST http://mother:30080/context/ask -H "Content-Type: application/js
 ## Eval (B4)
 
 Drive the eval loop + read the leaderboard via the tool-server — single-path, no kubectl/SQL. Dagster
-/ Postgres internals: docs/b4-eval-runbook.md.
+/ Postgres internals: ../runbooks/eval-harness.md.
 
 ```bash
 curl -s -X POST http://localhost:30080/evals/run | jq      # question-gen + 6-model matrix (~40-60 min CPU)

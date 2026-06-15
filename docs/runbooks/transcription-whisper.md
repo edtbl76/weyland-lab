@@ -4,7 +4,7 @@ Speech-to-text on weyland's CPU via **whisper.cpp** (sibling to the Ollama CT). 
 Exposes its native `/inference` plus an OpenAI-compatible `/v1/audio/transcriptions` shim so
 OpenClaw / the tool server / any OpenAI client can use local whisper instead of a cloud STT.
 
-**Related:** [B7 Ollama runbook](b7-ollama-runbook.md) (same LXC pattern) · code:
+**Related:** [B7 Ollama runbook](model-serving-ollama.md) (same LXC pattern) · code:
 `nodes/weyland/whisper/` (`shim.py`, `whisper-server.service`, `whisper-shim.service`).
 
 ---

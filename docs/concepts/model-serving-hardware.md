@@ -7,16 +7,16 @@ made cold later without re-deriving anything.
 > **This doc was split (2026-06-11) for length.** It now holds only the **decision** (what to buy,
 > options, candidate GPUs, plan). The other two pieces live separately:
 > - **The *why* — inference concepts** (capacity vs bandwidth, CPU vs GPU routing, tiered
->   inference): [b7-llm-inference-cpu-vs-gpu.md](b7-llm-inference-cpu-vs-gpu.md)
+>   inference): [llm-inference-cpu-vs-gpu.md](llm-inference-cpu-vs-gpu.md)
 > - **The *how* — operating Ollama** (container, install, thread fix, measured benchmarks):
->   [b7-ollama-runbook.md](b7-ollama-runbook.md)
+>   [../runbooks/model-serving-ollama.md](../runbooks/model-serving-ollama.md)
 
 ---
 
 ## Decision status — what's settled vs open
 - **Settled / proceeding NOW:** weyland (MS-A2) is the **dedicated large-model host** via
   **Ollama on CPU** — we move forward with this **regardless of any GPU decision**, so there is
-  a **guaranteed CPU path either way** (live; see [runbook](b7-ollama-runbook.md)). rogueone stays
+  a **guaranteed CPU path either way** (live; see [runbook](../runbooks/model-serving-ollama.md)). rogueone stays
   the GPU/vLLM host for small fast models.
 - **Tentative / someday (GPU, low priority — NOT pursued now):** an **OCuLink eGPU** would
   accelerate (~10× on ≤32B), but the lab doesn't need the speed yet, so it's parked at the end of
@@ -38,7 +38,7 @@ is slow). B7 = decide how weyland serves big models.
 
 **For the reasoning behind everything below** — why token speed is bandwidth-bound, when CPU vs
 GPU each make sense, the tiered-inference pattern, and how the lab context weights it all — see
-**[b7-llm-inference-cpu-vs-gpu.md](b7-llm-inference-cpu-vs-gpu.md)**. Short version: **CPU = capacity
+**[llm-inference-cpu-vs-gpu.md](llm-inference-cpu-vs-gpu.md)**. Short version: **CPU = capacity
 (big, cheap, slow); GPU = speed (small, dear, fast).** weyland's CPU path covers capacity now; an
 eGPU would add speed later.
 
@@ -115,7 +115,7 @@ Serves an OpenAI-compatible `/v1` API → the harness points at it now, no clien
 added later. The eGPU (Option A) is **additive** — it accelerates; it never removes this path.
 
 **→ Full operations, the critical thread-count fix, and measured tok/s benchmarks:
-[b7-ollama-runbook.md](b7-ollama-runbook.md).** (Headline: a 30B-A3B MoE runs at **~25 tok/s** on CPU
+[../runbooks/model-serving-ollama.md](../runbooks/model-serving-ollama.md).** (Headline: a 30B-A3B MoE runs at **~25 tok/s** on CPU
 once tuned — genuinely interactive.)
 
 # OPTION C — Cloud GPU  *(no capex, opex + data leaves LAN)*
@@ -160,7 +160,7 @@ speed and 24 GB, ~$700–900.
 ## Plan
 - **Now (committed, live):** Option B — **Ollama on weyland's CPU** (96 GB RAM). Guarantees a CPU
   path and gives the harness a working large-model endpoint regardless of GPU timing.
-  Operating it: [b7-ollama-runbook.md](b7-ollama-runbook.md).
+  Operating it: [../runbooks/model-serving-ollama.md](../runbooks/model-serving-ollama.md).
 - **Deferred upgrade (additive, pending pricing):** Option A — OCuLink eGPU. Lean: used
   **RTX 3090 (24 GB)** (~$900–1000) for 30B-class via vLLM; **RTX A6000 (48 GB)** if 70B@4-bit on
   GPU is a hard requirement. The eGPU *accelerates*; it does **not** remove the Ollama path.

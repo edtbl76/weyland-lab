@@ -12,8 +12,8 @@ Hosts & access users: [hosts.md](hosts.md). `mother` = 192.168.1.243, CTs by IP 
 
 | Service | Host | Endpoint | OpenAI? | Notes |
 |---|---|---|---|---|
-| **Ollama** (LLM) | ollama CT 102 | `http://ollama.weyland.lab:11434/v1` (`192.168.1.244`) | ✅ | 6 models; `num_thread 8`. See [b7-ollama-runbook.md](b7-ollama-runbook.md). |
-| **whisper shim** (STT) | whisper CT 103 | `http://whisper.weyland.lab:9000/v1/audio/transcriptions` (`192.168.1.246`) | ✅ | OpenAI-compatible adapter → whisper.cpp. See [b11-whisper-runbook.md](b11-whisper-runbook.md). |
+| **Ollama** (LLM) | ollama CT 102 | `http://ollama.weyland.lab:11434/v1` (`192.168.1.244`) | ✅ | 6 models; `num_thread 8`. See [runbooks/model-serving-ollama.md](runbooks/model-serving-ollama.md). |
+| **whisper shim** (STT) | whisper CT 103 | `http://whisper.weyland.lab:9000/v1/audio/transcriptions` (`192.168.1.246`) | ✅ | OpenAI-compatible adapter → whisper.cpp. See [runbooks/transcription-whisper.md](runbooks/transcription-whisper.md). |
 | **whisper-server** (STT, native) | whisper CT 103 | `http://whisper.weyland.lab:8080/inference` (`192.168.1.246`) | ✗ | Raw whisper.cpp multipart endpoint. |
 | **vLLM** (LLM, GPU) | rogueone | `http://rogueone:8000/v1` | ✅ | On-demand; serves Qwen. GPU path. |
 
@@ -31,7 +31,7 @@ Hosts & access users: [hosts.md](hosts.md). `mother` = 192.168.1.243, CTs by IP 
 | `/pipeline/trigger` | POST | fire Dagster `launchRun` |
 | `/evals/run` · `/evals/score` | POST | B4: trigger eval matrix / judge-panel scoring |
 | `/evals/runs` · `/evals/leaderboard` | GET | B4: list eval runs / panel-averaged leaderboard (`?run_id=`) |
-| `/mcp` | MCP | **B2 system-view MCP server** (Streamable HTTP via `fastapi-mcp`) — read-only tools for agents: `status`, `context_search`, `context_ask`, `list_models`. Register in an agent as `mcp_servers.weyland.url`. [b2-hermes-runbook.md](b2-hermes-runbook.md) |
+| `/mcp` | MCP | **B2 system-view MCP server** (Streamable HTTP via `fastapi-mcp`) — read-only tools: `status`, `context_search`, `context_ask`, `list_models`. Consumers: **Hermes** (registered in `~/.hermes/config.yaml`), **Claude Code** (registered via `claude mcp add weyland --transport http http://192.168.1.243:30080/mcp`, validated 2026-06-14). [runbooks/agent-hermes.md](runbooks/agent-hermes.md) |
 
 ## Data backends (mother, NodePort)
 
@@ -77,7 +77,7 @@ mkcert wildcard cert; resolve from rogueone (`/etc/hosts`) or via CoreDNS. Share
 
 | Service | Endpoint | Notes |
 |---|---|---|
-| MinIO S3 API | `https://s3.weyland.lab` | S3-compatible; mc on rogueone. See [b6-minio-storage.md](b6-minio-storage.md). |
+| MinIO S3 API | `https://s3.weyland.lab` | S3-compatible; mc on rogueone. See [runbooks/storage-minio.md](runbooks/storage-minio.md). |
 | MinIO console | `https://minio.weyland.lab` | community console stripped — use Filestash instead |
 
 ## Infrastructure

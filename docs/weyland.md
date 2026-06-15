@@ -1,1 +1,1 @@
-/home/edwardmangini/Documents/ObsidianVault/Projects/weyland/weyland.md
+> **Deprecated.** This stub is retired. The RAG source is now the full `docs/` tree (see [README.md](README.md)). Content formerly tracked in the Obsidian note is being migrated into the canonical docs.

@@ -7,7 +7,7 @@ Unit U7 (Iteration 1). Changes (Dockerfile only; `main.py` unchanged):
   `TRANSFORMERS_OFFLINE=1` *after* the build-time model download so runtime never
   reaches the HF hub.
 
-Commands run from `mother` unless noted. Rebuild commands mirror `docs/test.md`.
+Commands run from `mother` unless noted. Rebuild commands mirror `../validation/test-commands.md`.
 
 ---
 

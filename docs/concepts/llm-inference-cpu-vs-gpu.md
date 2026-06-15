@@ -4,8 +4,8 @@ Generalizable background for model-serving hardware decisions: capacity vs speed
 generation is memory-bandwidth-bound, when CPU vs GPU each make sense, and the tiered-inference
 pattern. Pulled out of the B7 decision doc so it stands on its own and outlives any one purchase.
 
-**Related:** [B7 — Model Serving Hardware (the decision)](b7-model-serving-hardware.md) ·
-[Ollama runbook + measured benchmarks](b7-ollama-runbook.md).
+**Related:** [B7 — Model Serving Hardware (the decision)](model-serving-hardware.md) ·
+[Ollama runbook + measured benchmarks](../runbooks/model-serving-ollama.md).
 
 ---
 
@@ -24,7 +24,7 @@ latency. **Quantization moves both axes**: 70B 8-bit→4-bit both *fits smaller*
 faster* (half the bytes per token). Q4 ≈ sweet spot; below Q3 quality degrades.
 
 > **Measured corollary (CPU):** the 1/N "active-params" law is confirmed on weyland — see the
-> [measured-benchmark table](b7-ollama-runbook.md#measured-benchmarks). On CPU, MoE models read only
+> [measured-benchmark table](../runbooks/model-serving-ollama.md#measured-benchmarks). On CPU, MoE models read only
 > their *active* experts per token, so a 30B-total / 3B-active MoE runs at ~3B *speed* with ~30B
 > *capability* — the key to "big models, usable speed" without a GPU.
 
@@ -80,7 +80,7 @@ poking at models to learn. Consequences:
 
 ## Performance envelope — expected tok/s (ballpark, Q4)
 
-> **Measured numbers now live in the [Ollama runbook](b7-ollama-runbook.md#measured-benchmarks).**
+> **Measured numbers now live in the [Ollama runbook](../runbooks/model-serving-ollama.md#measured-benchmarks).**
 > The tables below are the *conceptual* ballpark and the reasoning behind them — kept for the
 > "why," superseded by real data for the "what."
 

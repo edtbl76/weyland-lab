@@ -4,7 +4,7 @@ Persistent, k3s-native evaluation of the tool-server RAG (`/context/ask`) across
 models. Reuses existing infra — **no new DB/cache**: Postgres (storage), Dagster (orchestration),
 Ollama (generator + judge), bge (embeddings).
 
-**Related:** [b7-ollama-runbook.md](b7-ollama-runbook.md) · schema: `scripts/eval-schema.sql` ·
+**Related:** [model-serving-ollama.md](model-serving-ollama.md) · schema: `scripts/eval-schema.sql` ·
 asset: `services/weyland-dagster/weyland_pipeline/assets/eval_testset.py`.
 
 ## Architecture (reuse map)
@@ -95,7 +95,7 @@ tightened to **0.75–0.82** (models are closer than any single judge implied).
 (0.823) but is itself a panel judge (asterisk). The tight spread says retrieval/corpus matter about as
 much as model choice for this RAG.
 
-> **Operational gotchas hit building this** (all fixed, documented in b7-ollama-runbook.md): Ollama
+> **Operational gotchas hit building this** (all fixed, documented in model-serving-ollama.md): Ollama
 > OOM under the 48 GB cgroup (host-memory blindness → `OLLAMA_MAX_LOADED_MODELS=1`); thinking models
 > returning empty content under `json_object` (→ non-thinking generator/judge); the `num_thread`
 > spin-wait fix.
