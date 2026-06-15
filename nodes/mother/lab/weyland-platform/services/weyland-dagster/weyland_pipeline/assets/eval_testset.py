@@ -35,6 +35,7 @@ def _load_corpus(postgres: PostgresResource) -> list[dict]:
                 SELECT d.name, string_agg(c.content, E'\n\n' ORDER BY c.chunk_index)
                 FROM rag_chunks c
                 JOIN rag_documents d ON d.id = c.document_id
+                WHERE d.source_type = 'markdown'   -- evals are over knowledge/docs, not ingested code (B25b)
                 GROUP BY d.id, d.name
                 """
             )

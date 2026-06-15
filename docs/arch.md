@@ -149,7 +149,7 @@ agents/workflows and platform state. Agents call the tool-server, *not* database
 | Component | Endpoint | Purpose |
 |---|---|---|
 | vLLM | `rogueone:8000/v1` | GPU LLM serving (Qwen), on-demand. |
-| Obsidian vault | (local) | the RAG source document(s); read by Dagster over SSH. B25 will replace with git-pull of docs/. |
+| Obsidian vault | (local) | personal notes — **no longer a RAG source** (retired in B25b). The RAG now ingests the GitHub repo (`docs/` + `nodes/`) via Dagster git-pull. |
 | Claude Code | (local CLI) | Dev assistant; MCP client of tool-server `/mcp` (validated 2026-06-14). |
 
 ---

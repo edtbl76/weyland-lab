@@ -46,23 +46,30 @@ def _group_by_source(embeddings: list[dict]) -> dict:
     return grouped
 
 
-@asset(description="Write each changed document's chunks+embeddings to Weaviate with cross-ref linking. No-op if nothing changed.")
+def _stored_source_paths(collection) -> set:
+    """Distinct source_path values currently stored. v4 has no clean 'NOT contains_any',
+    so iterate objects (version-stable) and collect the set ourselves."""
+    paths = set()
+    for obj in collection.iterator(return_properties=["source_path"]):
+        sp = obj.properties.get("source_path")
+        if sp:
+            paths.add(sp)
+    return paths
+
+
+@asset(description="Write each changed document's chunks+embeddings to Weaviate with cross-ref linking. Prunes orphan objects whose source_path is no longer collected.")
 def weaviate_write(
     source_document: list[dict],
     hash_check: dict,
     embeddings: list[dict],
     weaviate: WeaviateResource,
 ) -> Output[dict]:
+    current_paths = {doc["source_path"] for doc in source_document}
+
     client = weaviate.get_client()
 
     try:
         _bootstrap_schema(client)
-
-        if not embeddings:
-            return Output(
-                {"documents_written": 0, "objects_written": 0, "skipped": True},
-                metadata={"skipped_reason": MetadataValue.text("no changed content")},
-            )
 
         chunks_col = client.collections.get("WeylandChunk")
         docs_col = client.collections.get("WeylandDocument")
@@ -71,68 +78,93 @@ def weaviate_write(
         documents_written = 0
         objects_written = 0
         cross_refs_total = 0
+        objects_pruned = 0
 
-        for source_path, doc_chunks in grouped.items():
-            source_name = doc_chunks[0]["source_name"]
+        if embeddings:
+            for source_path, doc_chunks in grouped.items():
+                source_name = doc_chunks[0]["source_name"]
 
-            chunks_col.data.delete_many(
-                where=Filter.by_property("source_path").equal(source_path)
-            )
-            docs_col.data.delete_many(
-                where=Filter.by_property("source_path").equal(source_path)
-            )
+                chunks_col.data.delete_many(
+                    where=Filter.by_property("source_path").equal(source_path)
+                )
+                docs_col.data.delete_many(
+                    where=Filter.by_property("source_path").equal(source_path)
+                )
 
-            doc_uuid = docs_col.data.insert(
-                properties={
-                    "source_path": source_path,
-                    "source_name": source_name,
-                    "name": source_name,
-                }
-            )
-
-            chunk_uuids = []
-            for chunk in doc_chunks:
-                chunk_uuid = chunks_col.data.insert(
+                doc_uuid = docs_col.data.insert(
                     properties={
                         "source_path": source_path,
-                        "chunk_index": chunk["chunk_index"],
-                        "chunk_title": chunk["chunk_title"] or "",
-                        "content": chunk["content"],
-                    },
-                    vector=chunk["embedding"],
-                    references={"hasDocument": doc_uuid},
+                        "source_name": source_name,
+                        "name": source_name,
+                    }
                 )
-                chunk_uuids.append(chunk_uuid)
 
-            for i, chunk_uuid in enumerate(chunk_uuids):
-                if i > 0:
-                    chunks_col.data.reference_add(
-                        from_uuid=chunk_uuid,
-                        from_property="previousChunk",
-                        to=chunk_uuids[i - 1],
+                chunk_uuids = []
+                for chunk in doc_chunks:
+                    chunk_uuid = chunks_col.data.insert(
+                        properties={
+                            "source_path": source_path,
+                            "chunk_index": chunk["chunk_index"],
+                            "chunk_title": chunk["chunk_title"] or "",
+                            "content": chunk["content"],
+                        },
+                        vector=chunk["embedding"],
+                        references={"hasDocument": doc_uuid},
                     )
-                if i < len(chunk_uuids) - 1:
-                    chunks_col.data.reference_add(
-                        from_uuid=chunk_uuid,
-                        from_property="nextChunk",
-                        to=chunk_uuids[i + 1],
-                    )
+                    chunk_uuids.append(chunk_uuid)
 
-            documents_written += 1
-            objects_written += len(chunk_uuids) + 1
-            cross_refs_total += max(0, 2 * len(chunk_uuids) - 2)
+                for i, chunk_uuid in enumerate(chunk_uuids):
+                    if i > 0:
+                        chunks_col.data.reference_add(
+                            from_uuid=chunk_uuid,
+                            from_property="previousChunk",
+                            to=chunk_uuids[i - 1],
+                        )
+                    if i < len(chunk_uuids) - 1:
+                        chunks_col.data.reference_add(
+                            from_uuid=chunk_uuid,
+                            from_property="nextChunk",
+                            to=chunk_uuids[i + 1],
+                        )
+
+                documents_written += 1
+                objects_written += len(chunk_uuids) + 1
+                cross_refs_total += max(0, 2 * len(chunk_uuids) - 2)
+
+        # Orphan prune: runs regardless of changes, but ONLY when sources were
+        # actually collected (empty set => bad run, skip to avoid wiping the collections).
+        if current_paths:
+            stored = _stored_source_paths(chunks_col) | _stored_source_paths(docs_col)
+            orphans = stored - current_paths
+            for orphan in orphans:
+                chunk_res = chunks_col.data.delete_many(
+                    where=Filter.by_property("source_path").equal(orphan)
+                )
+                doc_res = docs_col.data.delete_many(
+                    where=Filter.by_property("source_path").equal(orphan)
+                )
+                objects_pruned += getattr(chunk_res, "successful", 0) + getattr(doc_res, "successful", 0)
+        else:
+            print(
+                "[weaviate_write] WARNING: current_paths is empty "
+                "(no sources collected) — skipping orphan prune."
+            )
+
+        skipped = not embeddings and objects_pruned == 0
 
         return Output(
             {
                 "documents_written": documents_written,
                 "objects_written": objects_written,
                 "cross_refs_linked": cross_refs_total,
-                "skipped": False,
+                "objects_pruned": objects_pruned,
+                "skipped": skipped,
             },
             metadata={
                 "documents_written": MetadataValue.int(documents_written),
                 "objects_written": MetadataValue.int(objects_written),
                 "cross_refs_linked": MetadataValue.int(cross_refs_total),
+                "objects_pruned": MetadataValue.int(objects_pruned),
             },
         )
     finally:
