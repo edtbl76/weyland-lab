@@ -11,9 +11,9 @@ ingestion and query embed identically.
 
 > **Schema provenance:** the `eval_*` tables have committed DDL (`scripts/eval-schema.sql`). The `rag_*`
 > tables do **not** — they're created implicitly by the pipeline. *Gap / follow-up:* add a `rag-schema.sql`
-> for parity. The Postgres `rag_*` columns below are from the pipeline write code; confirm against the live DB
-> with the query at the bottom (also settles the "services table" question — no such table exists in repo
-> code).
+> for parity. `rag_*` columns below are from the pipeline write code, confirmed against the live DB
+> (2026-06-15). **The live DB also holds 4 tables with NO repo DDL — `services`, `machines`, `models`,
+> `memory_facts` — created out-of-band (see §5).**
 
 ---
 
@@ -85,13 +85,34 @@ Reuses the same DB; no new database.
 
 ---
 
-## Confirm against the live Postgres (in-cluster only)
-Run on **mother** to confirm the `rag_*` columns, that `eval-schema.sql` was applied, and that **no `services`
-table exists** (the phantom from B25 planning):
-```
-kubectl exec -n weyland deploy/weyland-postgres -- psql -U weyland -d weyland -c '\dt'
-kubectl exec -n weyland deploy/weyland-postgres -- psql -U weyland -d weyland -c '\d rag_documents'
-kubectl exec -n weyland deploy/weyland-postgres -- psql -U weyland -d weyland -c '\d rag_chunks'
-```
-Expected tables: `rag_documents`, `rag_chunks`, `eval_runs`, `eval_questions`, `eval_results`, `eval_scores`
-(+ `eval_leaderboard` view). If a `services` table appears, it was created out-of-band — reconcile or drop it.
+## 5. Out-of-band inventory schema (live, no repo DDL)
+Live on the DB (confirmed 2026-06-15) but defined **nowhere in the repo**. On inspection these are NOT cruft —
+they're a **deliberately-designed, normalized system-inventory schema** (FKs, unique constraints,
+`set_updated_at` triggers):
+
+- **`machines`** — `name`, `role`, `hostname`, `ip inet`, `notes` (host inventory)
+- **`services`** — `name`, `machine_id`→`machines`, `role`, `endpoint`, `status` (services per machine)
+- **`models`** — `name`, `provider`, `served_by_service_id`→`services`, `role`, `status` (models per service)
+- **`memory_facts`** — `key`, `value jsonb`, `category`, `source` (key/value agent memory)
+
+So `machines → services → models` is a **structured relational mirror of `docs/hosts.md` + `docs/api.md`**, and
+`memory_facts` is an agent long-term memory store. Currently **unpopulated/stale**. **Ownership/intent
+unconfirmed** — OpenClaw references them, but the schema is general infra knowledge, not OpenClaw-specific.
+
+**The DDL is uncommitted** — it's in neither the weyland repo nor the OpenClaw clone (`nodes/openclaw`); it
+exists **only on the live DB** (created ad-hoc, never version-controlled). That's a gap to fix.
+
+**Disposition (confirmed 2026-06-15):**
+- `machines / services / models` → **adopt for the data-mesh system-inventory product (B1)** (user-confirmed
+  useful). **Action:** dump the live DDL into a tracked repo migration, then decide whether `hosts.md`/`api.md`
+  generate *from* this inventory or feed *into* it.
+- `memory_facts` → **orphan.** A generic `key/value/category/source` store that **no code anywhere references**
+  (repo or OpenClaw clone), currently empty, origin unknown. Repurpose as a structured memory store or drop — TBD.
+
+> Corrects three earlier assumptions: `services` is not a phantom; these aren't disposable OpenClaw cruft; and
+> the schema is **not in any source** — uncommitted, live-DB-only.
+
+## Live Postgres state (confirmed 2026-06-15)
+`\dt` → **platform:** `rag_documents`, `rag_chunks` · `eval_runs`, `eval_questions`, `eval_results`,
+`eval_scores` (+ `eval_leaderboard` view). **out-of-band (OpenClaw, §5):** `services`, `machines`, `models`,
+`memory_facts`.

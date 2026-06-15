@@ -240,6 +240,24 @@ curl -s http://localhost:30085/db/data/ | jq
 
 ---
 
+## Postgres / pgvector
+
+In-cluster only (no NodePort). Quick check via `kubectl exec` (on mother):
+```bash
+kubectl exec -n weyland deploy/weyland-postgres -- psql -U weyland -d weyland -c '\dt'
+```
+
+### Browse from a local tool (IntelliJ / DataGrip / psql on rogueone)
+
+Postgres has no external port, so port-forward the service, then point the client at it. Run on **mother**
+and leave it running while connected:
+```bash
+kubectl port-forward -n weyland --address 0.0.0.0 svc/weyland-postgres 5432:5432
+```
+Then connect to `mother:5432`, database `weyland`, user `weyland` (password lives in the `weyland-postgres`
+secret — not stored here). To avoid exposing it on the LAN, drop `--address 0.0.0.0` (binds mother's
+localhost) and use an SSH tunnel (`emangini@mother`) in the client instead.
+
 ## SCP (from rogueone)
 
 Sync changed tool-server files to mother before rebuilding. Run from the repo root on rogueone.
