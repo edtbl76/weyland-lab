@@ -1,4 +1,5 @@
 import uuid
+from collections import defaultdict
 from dagster import asset, Output, MetadataValue
 from qdrant_client.models import Distance, VectorParams, PointStruct, Filter, FieldCondition, MatchValue
 from weyland_pipeline.resources import QdrantResource
@@ -12,21 +13,28 @@ def _point_id(source_path: str, chunk_index: int) -> str:
     return str(uuid.uuid5(_NS, f"{source_path}:{chunk_index}"))
 
 
-@asset(description="Write chunks+embeddings to Qdrant. No-op if content unchanged.")
+def _group_by_source(embeddings: list[dict]) -> dict:
+    grouped: dict = defaultdict(list)
+    for chunk in embeddings:
+        grouped[chunk["source_path"]].append(chunk)
+    for source_path in grouped:
+        grouped[source_path].sort(key=lambda c: c["chunk_index"])
+    return grouped
+
+
+@asset(description="Write each changed document's chunks+embeddings to Qdrant. No-op if nothing changed.")
 def qdrant_write(
-    source_document: dict,
+    source_document: list[dict],
     hash_check: dict,
     embeddings: list[dict],
     qdrant: QdrantResource,
 ) -> Output[dict]:
     if not embeddings:
         return Output(
-            {"points_written": 0, "skipped": True},
-            metadata={"skipped_reason": MetadataValue.text("content unchanged")},
+            {"documents_written": 0, "points_written": 0, "skipped": True},
+            metadata={"skipped_reason": MetadataValue.text("no changed content")},
         )
 
-    source_path = source_document["source_path"]
-    source_name = source_document["source_name"]
     client = qdrant.get_client()
 
     if not client.collection_exists(COLLECTION):
@@ -35,31 +43,43 @@ def qdrant_write(
             vectors_config=VectorParams(size=DIMS, distance=Distance.COSINE),
         )
 
-    client.delete(
-        collection_name=COLLECTION,
-        points_selector=Filter(
-            must=[FieldCondition(key="source_path", match=MatchValue(value=source_path))]
-        ),
-    )
+    grouped = _group_by_source(embeddings)
+    documents_written = 0
+    points_written = 0
 
-    points = [
-        PointStruct(
-            id=_point_id(source_path, chunk["chunk_index"]),
-            vector=chunk["embedding"],
-            payload={
-                "source_path": source_path,
-                "source_name": source_name,
-                "chunk_index": chunk["chunk_index"],
-                "chunk_title": chunk["chunk_title"],
-                "content": chunk["content"],
-            },
+    for source_path, doc_chunks in grouped.items():
+        source_name = doc_chunks[0]["source_name"]
+
+        client.delete(
+            collection_name=COLLECTION,
+            points_selector=Filter(
+                must=[FieldCondition(key="source_path", match=MatchValue(value=source_path))]
+            ),
         )
-        for chunk in embeddings
-    ]
 
-    client.upsert(collection_name=COLLECTION, points=points)
+        points = [
+            PointStruct(
+                id=_point_id(source_path, chunk["chunk_index"]),
+                vector=chunk["embedding"],
+                payload={
+                    "source_path": source_path,
+                    "source_name": source_name,
+                    "chunk_index": chunk["chunk_index"],
+                    "chunk_title": chunk["chunk_title"],
+                    "content": chunk["content"],
+                },
+            )
+            for chunk in doc_chunks
+        ]
+
+        client.upsert(collection_name=COLLECTION, points=points)
+        documents_written += 1
+        points_written += len(points)
 
     return Output(
-        {"points_written": len(points), "skipped": False},
-        metadata={"points_written": MetadataValue.int(len(points))},
+        {"documents_written": documents_written, "points_written": points_written, "skipped": False},
+        metadata={
+            "documents_written": MetadataValue.int(documents_written),
+            "points_written": MetadataValue.int(points_written),
+        },
     )

@@ -2,7 +2,6 @@ dagster
 dagster-postgres
 dagster-webserver
 sentence-transformers
-paramiko
 psycopg2-binary
 qdrant-client
 weaviate-client
