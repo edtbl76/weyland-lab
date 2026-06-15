@@ -98,4 +98,8 @@ certs/
 /CLAUDE.md
 /aidlc-docs/
 
+# Stray secret copies — n8n reads the key from a k8s Secret, not this file.
+# NOTE: already in git history — untrack + rotate the n8n key (security task).
+nodes/mother/lab/weyland-platform/k8s/n8n/encryption-key.txt
+
 
