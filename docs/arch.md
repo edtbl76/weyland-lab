@@ -239,6 +239,9 @@ so Ollama mis-sizes against 96 GB / 16 cores instead of the CT's limits. (Detail
   databases/orchestrators; Ragas rejected for being heavy + broken (see [runbooks/eval-harness.md](runbooks/eval-harness.md)).
 - **Tool-server as the seam:** agents/workflows depend on the tool-server's stable HTTP contract, not
   on databases — so internals can change without breaking consumers.
+- **Build↔runtime anti-corruption layer:** images cross from the build context into the cluster's runtime
+  store only via an explicit `docker save | k3s ctr images import` — a deliberate isolation boundary, not just
+  plumbing. (Why nerdctl's build-straight-into-k3s was declined at B24: it collapses this ACL.)
 - **Measure, don't assume:** the eval harness exists to replace vibes with data (and even revealed that
   single-judge LLM eval is itself untrustworthy -> judge panel).
 
