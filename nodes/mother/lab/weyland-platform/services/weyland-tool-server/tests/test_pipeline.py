@@ -39,3 +39,19 @@ def test_block_mode_returns_block():
     )
     blocked = asyncio.run(pipe.run(Hook.INPUT, request_id="r1", payload={"query": "x"}))
     assert blocked is not None and blocked.decision == Decision.BLOCK
+
+
+def test_actor_threaded_to_record():
+    recorded = []
+    pipe = GuardrailPipeline(
+        validators={"stub": _StubValidator(Decision.PASS)},
+        chain_for=lambda hook: [("stub", Mode.SHADOW)] if hook == Hook.ACT else [],
+        record=lambda **kw: recorded.append(kw),
+    )
+
+    async def go():
+        await pipe.run(Hook.ACT, request_id="r1", payload={"tool": "x"}, actor="hermes")
+        await pipe.drain()
+
+    asyncio.run(go())
+    assert recorded and recorded[0]["actor"] == "hermes"

@@ -214,6 +214,9 @@ All inference speaks the **OpenAI `/v1` shape**, so clients are engine-agnostic.
   grounding). Ships **shadow-mode** (record-only, never blocks; per-validator `off|shadow|flag|block` via
   env); verdicts go to Prometheus (`/metrics`) + the `guardrail_verdicts` Postgres table (a future B1 data
   product). PII deferred (coded, unbaked → B34). Full spec: `aidlc-docs/construction/b14-guardrails-design.md`.
+  The `act` hook (`policy.audit`, shadow) audits the `/mcp-act` action tools (`pipeline/trigger`,
+  `evals/run`, `evals/score`) to `guardrail_verdicts.actor` (trusted `X-Forwarded-Consumer` header, NULL
+  until the B17+B19 gateway). Enforcing policy gate deferred to the B35 pairing.
 - **Deploy model:** manual `scp` -> build on the node -> import to k3s/containerd -> `kubectl rollout`
   (tool-server, Dagster, Open WebUI). No GitOps yet (deliberate, until stable).
 

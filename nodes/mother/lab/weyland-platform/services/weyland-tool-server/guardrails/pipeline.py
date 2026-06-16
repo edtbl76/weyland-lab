@@ -33,24 +33,24 @@ class GuardrailPipeline:
         verdict.latency_ms = int((time.monotonic() - t0) * 1000)
         return verdict
 
-    async def _shadow(self, name: str, payload: dict, hook: Hook, request_id: str) -> None:
+    async def _shadow(self, name: str, payload: dict, hook: Hook, request_id: str, actor: str | None) -> None:
         loop = asyncio.get_event_loop()
         verdict = await loop.run_in_executor(None, self._run_one, name, payload, hook)
-        self._record(hook=hook, mode=Mode.SHADOW, verdict=verdict, request_id=request_id)
+        self._record(hook=hook, mode=Mode.SHADOW, verdict=verdict, request_id=request_id, actor=actor)
 
-    async def run(self, hook: Hook, request_id: str, payload: dict):
+    async def run(self, hook: Hook, request_id: str, payload: dict, actor: str | None = None):
         loop = asyncio.get_event_loop()
         for name, mode in self._chain_for(hook):
             if mode == Mode.OFF:
                 continue
             if mode == Mode.SHADOW:
-                task = asyncio.create_task(self._shadow(name, payload, hook, request_id))
+                task = asyncio.create_task(self._shadow(name, payload, hook, request_id, actor))
                 self._pending.add(task)
                 task.add_done_callback(self._pending.discard)
                 continue
             # FLAG / BLOCK — synchronous (they alter the response, so must complete inline)
             verdict = await loop.run_in_executor(None, self._run_one, name, payload, hook)
-            self._record(hook=hook, mode=mode, verdict=verdict, request_id=request_id)
+            self._record(hook=hook, mode=mode, verdict=verdict, request_id=request_id, actor=actor)
             if mode == Mode.BLOCK and verdict.decision == Decision.BLOCK:
                 return verdict
         return None

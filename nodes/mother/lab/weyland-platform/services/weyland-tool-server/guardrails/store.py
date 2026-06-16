@@ -1,13 +1,13 @@
 from .verdict import Verdict, Hook, Mode
 
 
-def record_verdict(conn, request_id: str, hook: Hook, mode: Mode, verdict: Verdict) -> None:
+def record_verdict(conn, request_id: str, hook: Hook, mode: Mode, verdict: Verdict, actor: str | None = None) -> None:
     with conn.cursor() as cur:
         cur.execute(
             """
             INSERT INTO guardrail_verdicts
-                (request_id, hook, validator, mode, decision, score, reason, latency_ms)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                (request_id, hook, validator, mode, decision, score, reason, latency_ms, actor)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
             """,
             (
                 request_id,
@@ -18,5 +18,6 @@ def record_verdict(conn, request_id: str, hook: Hook, mode: Mode, verdict: Verdi
                 verdict.score,
                 verdict.reason,
                 verdict.latency_ms,
+                actor,
             ),
         )

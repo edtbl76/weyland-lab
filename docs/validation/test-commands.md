@@ -213,6 +213,22 @@ kubectl exec -n monitoring "$(kubectl get pod -n monitoring -l app.kubernetes.io
 kubectl exec -n monitoring "$(kubectl get pod -n monitoring -l app.kubernetes.io/name=prometheus -o name | head -1)" -c prometheus -- promtool query instant http://localhost:9090 'up{job="weyland-tool-server"}'
 ```
 
+### Act tools + audit (B14 read+act)
+
+The three action routes (`/pipeline/trigger`, `/evals/run`, `/evals/score`) are exposed on a separate
+`/mcp-act` MCP mount and every call is audited by the `act` hook (`policy.audit`, shadow). `actor` comes from
+the trusted `X-Forwarded-Consumer` header only (NULL otherwise — the gateway injects it later, B17+B19):
+
+```bash
+curl -s -i http://localhost:30080/mcp-act | head -3                                          # separate act surface responds (not 404)
+curl -s -X POST http://localhost:30080/evals/run > /dev/null                                  # actor NULL (no header)
+curl -s -H 'X-Forwarded-Consumer: hermes' -X POST http://localhost:30080/pipeline/trigger -H 'Content-Type: application/json' -d '{"job_name":"weyland_ingestion_job"}' > /dev/null   # actor=hermes
+kubectl exec -i -n weyland deploy/weyland-postgres -- psql -U weyland -d weyland -c "SELECT hook, validator, decision, actor, left(reason,40) AS reason FROM guardrail_verdicts WHERE hook='act' ORDER BY id DESC LIMIT 5;"
+curl -s http://localhost:30080/metrics | grep 'validator="policy.audit"'
+```
+
+Expect: `hook=act`, `validator=policy.audit`, `decision=pass`; one row `actor=hermes` and one `actor` NULL.
+
 ---
 
 ## Image Management

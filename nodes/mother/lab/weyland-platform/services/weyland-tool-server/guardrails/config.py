@@ -15,7 +15,9 @@ _DEFAULT = {
         ("llm_guard.toxicity", Mode.SHADOW),
         ("grounding.nli", Mode.SHADOW),
     ],
-    Hook.ACT: [],   # reserved for D
+    Hook.ACT: [
+        ("policy.audit", Mode.SHADOW),   # audit-only; enforcing policy gate → B35
+    ],
 }
 
 

@@ -212,6 +212,37 @@ searchable, not pinned — the "0 active" count is normal). OpenClaw later adds 
 **Validated 2026-06-14:** "What's the Weyland system status?" → agent searched the `status` tool,
 called it, returned LIVE backend health (pgvector/qdrant/weaviate/neo4j OK + the 6 live Ollama models).
 
+### Read+act: the `/mcp-act` action surface (B14 read+act — live 2026-06-16)
+
+The three **action** tools (`pipeline/trigger`, `evals/run`, `evals/score`) live on a **separate MCP mount**
+at `/mcp-act` (not `/mcp`). Every call is audited by the guardrail `act` hook (`policy.audit`, shadow) →
+`guardrail_verdicts` (with `actor` from the trusted `X-Forwarded-Consumer` header). Audit-only today — nothing
+blocks; the enforcing policy gate (allowlist/rate-limit) is deferred to the B35 pairing.
+
+**Lane decision (who gets to act):** **Hermes registers `/mcp-act`; Claude Code does NOT — it stays read-only
+on `/mcp`.** Hermes is the *resident operator* (reactive over Telegram when you're away from the keyboard, so it
+needs act tools); Claude Code is the *builder* with you already at the terminal (it hands you `curl`/`kubectl`
+and you run them — no autonomous act tools needed). One actor on the system is the cleaner thing to govern.
+
+**Register the act surface in Hermes** (CT 104) — add a second entry under `mcp_servers` in
+`~/.hermes/config.yaml`:
+```yaml
+mcp_servers:
+  weyland:
+    url: "http://192.168.1.243:30080/mcp"        # read-only (existing)
+  weyland-act:
+    url: "http://192.168.1.243:30080/mcp-act"     # action tools (B14 read+act)
+```
+Then `/reload-mcp` → expect `➕ Added: weyland-act · 🔧 3 tool(s)`. `/tools list` shows both servers.
+
+**Cost caveat:** `evals/run` (~40-60 min CPU) and `evals/score` (~70 min CPU) compete with the single loaded
+Ollama model — the tool descriptions say so (from the route docstrings) so Hermes weights them appropriately.
+`pipeline/trigger` is cheap (hash-gated re-ingestion). Glance at the act audit after the first few days:
+```bash
+kubectl exec -i -n weyland deploy/weyland-postgres -- psql -U weyland -d weyland -c "SELECT created_at, actor, left(reason,50) AS reason FROM guardrail_verdicts WHERE hook='act' ORDER BY id DESC LIMIT 20;"
+```
+Rollback is one line: remove the `weyland-act` block and `/reload-mcp`.
+
 ### Hard-won lessons (don't repeat these)
 - **Transport: `mount_http()` (Streamable HTTP), NOT `mount()`/`mount_sse()`.** Hermes's `url:` client
   POSTs `initialize`; an SSE endpoint is GET-only → **`405 Method Not Allowed` → 0 tools**. A raw

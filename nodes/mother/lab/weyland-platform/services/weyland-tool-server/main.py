@@ -9,7 +9,7 @@ from contextlib import asynccontextmanager
 import httpx
 import psycopg2
 import weaviate
-from fastapi import FastAPI, HTTPException, Query, Response
+from fastapi import Depends, FastAPI, Header, HTTPException, Query, Response
 from fastapi_mcp import FastApiMCP
 from llama_index.embeddings.huggingface import HuggingFaceEmbedding
 from neo4j import GraphDatabase
@@ -110,11 +110,18 @@ _guard_loop: asyncio.AbstractEventLoop | None = None
 _guard_thread: threading.Thread | None = None
 
 
-def _record_verdict(hook, mode, verdict, request_id) -> None:
+def _actor(x_forwarded_consumer: str | None = Header(default=None)) -> str | None:
+    """Caller identity for the audit, taken ONLY from the gateway's trusted header
+    (X-Forwarded-Consumer, injected after the gateway authenticates a consumer — B17+B19). None until a
+    gateway fronts the surface. We deliberately never read a client-supplied identity claim (anti-spoofing)."""
+    return x_forwarded_consumer
+
+
+def _record_verdict(hook, mode, verdict, request_id, actor=None) -> None:
     """Persist a verdict to Prometheus + the guardrail_verdicts table. Telemetry must never
     break a request, so every path is best-effort."""
     try:
-        guard_metrics.observe(hook, mode, verdict)
+        guard_metrics.observe(hook, mode, verdict)   # NOTE: actor is high-cardinality — DB only, never a metric label
     except Exception:
         pass
     try:
@@ -122,7 +129,7 @@ def _record_verdict(hook, mode, verdict, request_id) -> None:
             host=PG_HOST, port=PG_PORT, dbname=PG_DB, user=PG_USER,
             password=PG_PASSWORD, connect_timeout=5,
         ) as conn:
-            guard_store.record_verdict(conn, request_id=request_id, hook=hook, mode=mode, verdict=verdict)
+            guard_store.record_verdict(conn, request_id=request_id, hook=hook, mode=mode, verdict=verdict, actor=actor)
     except Exception:
         pass
 
@@ -133,12 +140,14 @@ def _build_guardrails() -> GuardrailPipeline:
     still run. Imported here (not at module top) so model loads happen at lifespan time."""
     from guardrails.validators.grounding import GroundingValidator
     from guardrails.validators.llm_guard import InjectionValidator, PIIValidator, ToxicityValidator
+    from guardrails.validators.policy import AuditValidator
 
     builders = {
         "llm_guard.injection": InjectionValidator,
         "llm_guard.pii": PIIValidator,
         "llm_guard.toxicity": ToxicityValidator,
         "grounding.nli": GroundingValidator,
+        "policy.audit": AuditValidator,
     }
     validators = {}
     for name, builder in builders.items():
@@ -150,7 +159,7 @@ def _build_guardrails() -> GuardrailPipeline:
     return GuardrailPipeline(validators, hook_chain, _record_verdict)
 
 
-def _guard(hook: Hook, request_id: str, payload: dict):
+def _guard(hook: Hook, request_id: str, payload: dict, actor: str | None = None):
     """Run the validator chain for `hook`. Returns a BLOCK Verdict if an enforcing validator
     blocked the request, else None. Shadow-only chains fire-and-forget (telemetry only, no wait).
     A guard must never break the request — any failure degrades to None (allow)."""
@@ -158,7 +167,7 @@ def _guard(hook: Hook, request_id: str, payload: dict):
         return None
     try:
         fut = asyncio.run_coroutine_threadsafe(
-            guardrails.run(hook, request_id, payload), _guard_loop
+            guardrails.run(hook, request_id, payload, actor), _guard_loop
         )
         enforcing = any(mode in (Mode.FLAG, Mode.BLOCK) for _, mode in hook_chain(hook))
         if enforcing:
@@ -470,14 +479,15 @@ def status():
 
 
 @app.post("/context/search", tags=["mcp"])
-def context_search(request: ContextSearchRequest, backend: str = Query(default="pgvector")):
+def context_search(request: ContextSearchRequest, backend: str = Query(default="pgvector"),
+                   actor: str | None = Depends(_actor)):
     if backend not in VALID_BACKENDS:
         raise HTTPException(
             status_code=400,
             detail=f"Unknown backend '{backend}'. Valid options: {sorted(VALID_BACKENDS)}",
         )
     request_id = str(uuid.uuid4())
-    blocked = _guard(Hook.INPUT, request_id, {"query": request.query})
+    blocked = _guard(Hook.INPUT, request_id, {"query": request.query}, actor)
     if blocked is not None:
         raise HTTPException(status_code=403, detail=f"blocked by {blocked.validator}: {blocked.reason}")
     results = SEARCH_FNS[backend](request.query, request.limit)
@@ -494,7 +504,7 @@ def list_models():
 
 
 @app.post("/context/ask", tags=["mcp"])
-def context_ask(request: AskRequest):
+def context_ask(request: AskRequest, actor: str | None = Depends(_actor)):
     """RAG: retrieve top-k chunks from a backend, then have the local model synthesize a
     grounded answer. `model` is selectable per request (defaults to OLLAMA_MODEL)."""
     if request.backend not in VALID_BACKENDS:
@@ -503,7 +513,7 @@ def context_ask(request: AskRequest):
             detail=f"Unknown backend '{request.backend}'. Valid options: {sorted(VALID_BACKENDS)}",
         )
     request_id = str(uuid.uuid4())
-    blocked = _guard(Hook.INPUT, request_id, {"query": request.query})
+    blocked = _guard(Hook.INPUT, request_id, {"query": request.query}, actor)
     if blocked is not None:
         raise HTTPException(status_code=403, detail=f"blocked by {blocked.validator}: {blocked.reason}")
     model = request.model or OLLAMA_MODEL
@@ -517,7 +527,7 @@ def context_ask(request: AskRequest):
     except httpx.HTTPError as e:
         raise HTTPException(status_code=502, detail=f"LLM call failed ({model}): {e}")
     # OUTPUT hook: grounding (answer vs retrieved chunks) + PII/toxicity on the answer.
-    out_blocked = _guard(Hook.OUTPUT, request_id, {"query": request.query, "answer": answer, "sources": chunks})
+    out_blocked = _guard(Hook.OUTPUT, request_id, {"query": request.query, "answer": answer, "sources": chunks}, actor)
     if out_blocked is not None:
         raise HTTPException(status_code=403, detail=f"blocked by {out_blocked.validator}: {out_blocked.reason}")
     return {
@@ -550,8 +560,10 @@ def _launch_dagster_job(job_name: str) -> dict:
     return {"status": "ok", "run_id": result["run"]["runId"], "job_name": job_name}
 
 
-@app.post("/pipeline/trigger")
-def pipeline_trigger(request: PipelineTriggerRequest):
+@app.post("/pipeline/trigger", tags=["mcp-act"])
+def pipeline_trigger(request: PipelineTriggerRequest, actor: str | None = Depends(_actor)):
+    request_id = str(uuid.uuid4())
+    _guard(Hook.ACT, request_id, {"tool": "pipeline/trigger", "params": {"job_name": request.job_name}}, actor)
     return _launch_dagster_job(request.job_name)
 
 
@@ -562,15 +574,21 @@ def _eval_pg_conn():
     )
 
 
-@app.post("/evals/run")
-def evals_run():
-    """Single-path eval: generate a question set + run the model matrix. Then POST /evals/score."""
+@app.post("/evals/run", tags=["mcp-act"])
+def evals_run(actor: str | None = Depends(_actor)):
+    """Run the eval matrix (generate a question set + run all models). LONG-RUNNING — ~40-60 min of CPU
+    and competes with the single loaded Ollama model; fire deliberately, not casually. Then POST /evals/score."""
+    request_id = str(uuid.uuid4())
+    _guard(Hook.ACT, request_id, {"tool": "evals/run"}, actor)
     return _launch_dagster_job("weyland_eval_job")
 
 
-@app.post("/evals/score")
-def evals_score():
-    """Judge-panel scoring of the latest completed matrix run."""
+@app.post("/evals/score", tags=["mcp-act"])
+def evals_score(actor: str | None = Depends(_actor)):
+    """Judge-panel scoring of the latest completed matrix run. LONG-RUNNING — ~70 min of CPU. Run after
+    /evals/run has completed."""
+    request_id = str(uuid.uuid4())
+    _guard(Hook.ACT, request_id, {"tool": "evals/score"}, actor)
     return _launch_dagster_job("weyland_eval_score_job")
 
 
@@ -649,13 +667,19 @@ def metrics():
     return Response(generate_latest(), media_type=CONTENT_TYPE_LATEST)
 
 
-# --- MCP system-view server (B2) -------------------------------------------------
-# Expose the read-only tools tagged "mcp" (/status, /context/search, /context/ask,
-# /models) as an MCP server over HTTP, mounted at /mcp on this same app + port
-# (8080 -> NodePort 30080). Agents connect by URL (Hermes now, OpenClaw later):
-#   http://<host>:30080/mcp
-# Write/act endpoints (/pipeline/trigger, /evals/run, /evals/score) are deliberately
-# NOT tagged, so they're excluded — read-only v1; the act surface is gated on B14.
+# --- MCP servers -----------------------------------------------------------------
 # Constructed last so every route above is already registered for introspection.
+#
+# READ surface (B2): read-only tools tagged "mcp" (/status, /context/search, /context/ask,
+# /models), mounted at /mcp. Agents connect by URL (Hermes now, OpenClaw later):
+#   http://<host>:30080/mcp
 mcp = FastApiMCP(app, name="weyland-system-view", include_tags=["mcp"])
 mcp.mount_http()   # Streamable HTTP at /mcp — the transport remote agents connect to by URL
+
+# ACT surface (B14 read+act): the action tools tagged "mcp-act" (/pipeline/trigger, /evals/run,
+# /evals/score) on a SEPARATE mount at /mcp-act, so the gateway (B17+B19) can front /mcp-act with
+# auth/policy while /mcp stays open. Agents must register /mcp-act explicitly to gain act tools —
+# read access never implies act access. Every act call is audited by the `act` hook (policy.audit,
+# shadow) → guardrail_verdicts; the enforcing policy gate is deferred to the B35 pairing.
+mcp_act = FastApiMCP(app, name="weyland-act", include_tags=["mcp-act"])
+mcp_act.mount_http(mount_path="/mcp-act")

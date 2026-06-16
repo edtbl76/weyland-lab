@@ -29,10 +29,11 @@ Hosts & access users: [hosts.md](hosts.md). `mother` = 192.168.1.243, CTs by IP 
 | `/context/ask` | POST | **RAG** — retrieve → local LLM answer (per-request `model`); B14 `input` hook (injection) + `output` hook (toxicity, grounding) |
 | `/models` | GET | list selectable Ollama models |
 | `/pgvector/health` `/qdrant/health` `/weaviate/health` `/neo4j/health` `/ollama/health` | GET | per-backend health |
-| `/pipeline/trigger` | POST | fire Dagster `launchRun` |
-| `/evals/run` · `/evals/score` | POST | B4: trigger eval matrix / judge-panel scoring |
+| `/pipeline/trigger` | POST | fire Dagster `launchRun` (B14 `act` hook: audited; exposed via `/mcp-act`) |
+| `/evals/run` · `/evals/score` | POST | B4: trigger eval matrix / judge-panel scoring (B14 `act` hook: audited; exposed via `/mcp-act`) |
 | `/evals/runs` · `/evals/leaderboard` | GET | B4: list eval runs / panel-averaged leaderboard (`?run_id=`) |
 | `/mcp` | MCP | **B2 system-view MCP server** (Streamable HTTP via `fastapi-mcp`) — read-only tools: `status`, `context_search`, `context_ask`, `list_models`. Consumers: **Hermes** (registered in `~/.hermes/config.yaml`), **Claude Code** (registered via `claude mcp add weyland --transport http http://192.168.1.243:30080/mcp`, validated 2026-06-14). [runbooks/agent-hermes.md](runbooks/agent-hermes.md) |
+| `/mcp-act` | MCP | **B14 read+act** act-tool surface (separate mount): `pipeline/trigger`, `evals/run`, `evals/score`. Every call audited by the `act` hook (`policy.audit`, shadow) → `guardrail_verdicts`. **Consumer: Hermes only** (the resident operator); **Claude Code stays read-only on `/mcp`** (builder lane — see [runbooks/agent-hermes.md](runbooks/agent-hermes.md)). Gateway (B17+B19) fronts it with auth (`X-Forwarded-Consumer` → `actor`). |
 
 ## Data backends (mother, NodePort)
 

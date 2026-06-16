@@ -10,7 +10,10 @@ CREATE TABLE IF NOT EXISTS guardrail_verdicts (
     score       DOUBLE PRECISION,
     reason      TEXT,
     latency_ms  INTEGER,
+    actor       TEXT,                          -- B14 read+act: trusted gateway identity (X-Forwarded-Consumer), NULL until gateway
     created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+-- Migration for a pre-existing table (idempotent): add the actor column if it isn't there yet.
+ALTER TABLE guardrail_verdicts ADD COLUMN IF NOT EXISTS actor TEXT;
 CREATE INDEX IF NOT EXISTS idx_guardrail_verdicts_validator ON guardrail_verdicts(validator, created_at);
 CREATE INDEX IF NOT EXISTS idx_guardrail_verdicts_request   ON guardrail_verdicts(request_id);
