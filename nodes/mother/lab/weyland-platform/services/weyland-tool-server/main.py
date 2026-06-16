@@ -5,6 +5,7 @@ import threading
 import urllib.request
 import uuid
 from contextlib import asynccontextmanager
+from typing import Literal
 
 import httpx
 import psycopg2
@@ -14,7 +15,7 @@ from fastapi_mcp import FastApiMCP
 from llama_index.embeddings.huggingface import HuggingFaceEmbedding
 from neo4j import GraphDatabase
 from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 from qdrant_client import QdrantClient
 from weaviate.classes.query import MetadataQuery
 
@@ -219,7 +220,12 @@ class ContextSearchRequest(BaseModel):
 
 
 class PipelineTriggerRequest(BaseModel):
-    job_name: str = Field(default="weyland_ingestion_job", pattern=r"^[A-Za-z_][A-Za-z0-9_]*$")
+    # Constrained to the real Dagster jobs so an agent can't pass a non-existent name (Dagster rejects
+    # those → "Dagster launch failed"). fastapi-mcp surfaces this as an enum in the MCP tool schema, so the
+    # caller sees the valid values instead of guessing.
+    job_name: Literal[
+        "weyland_ingestion_job", "weyland_eval_job", "weyland_eval_score_job"
+    ] = "weyland_ingestion_job"
 
 
 class AskRequest(BaseModel):
@@ -562,6 +568,9 @@ def _launch_dagster_job(job_name: str) -> dict:
 
 @app.post("/pipeline/trigger", tags=["mcp-act"])
 def pipeline_trigger(request: PipelineTriggerRequest, actor: str | None = Depends(_actor)):
+    """Trigger a Dagster job. Default (and usual choice) is `weyland_ingestion_job` — the docs/code
+    ingestion pipeline. `job_name` must be one of the three defined jobs; leave it at the default to
+    re-ingest the knowledge base."""
     request_id = str(uuid.uuid4())
     _guard(Hook.ACT, request_id, {"tool": "pipeline/trigger", "params": {"job_name": request.job_name}}, actor)
     return _launch_dagster_job(request.job_name)
