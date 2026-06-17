@@ -1,0 +1,66 @@
+# B26 — LiteLLM egress proxy. Stateless; the cut-off valve scales this to 0 (see valve.sh).
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: litellm
+  namespace: weyland
+  labels:
+    app: litellm
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: litellm
+  template:
+    metadata:
+      labels:
+        app: litellm
+    spec:
+      containers:
+        - name: litellm
+          image: ghcr.io/berriai/litellm:main-stable   # pin to a digest/tag for prod-grade reproducibility
+          args: ["--config", "/etc/litellm/config.yaml", "--port", "4000"]
+          ports:
+            - name: http
+              containerPort: 4000
+          env:
+            - name: GEMINI_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: litellm-secrets
+                  key: GEMINI_API_KEY
+            - name: OPENROUTER_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: litellm-secrets
+                  key: OPENROUTER_API_KEY
+            - name: LITELLM_MASTER_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: litellm-secrets
+                  key: LITELLM_MASTER_KEY
+          volumeMounts:
+            - name: config
+              mountPath: /etc/litellm
+          livenessProbe:
+            httpGet:
+              path: /health/liveliness
+              port: 4000
+            initialDelaySeconds: 20
+            periodSeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /health/readiness
+              port: 4000
+            initialDelaySeconds: 10
+            periodSeconds: 15
+          resources:
+            requests:
+              cpu: 100m
+              memory: 512Mi
+            limits:
+              memory: 2Gi   # LiteLLM spikes on startup; 512Mi OOMKills (exit 137)
+      volumes:
+        - name: config
+          configMap:
+            name: litellm-config

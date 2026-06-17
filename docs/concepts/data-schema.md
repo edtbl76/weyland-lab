@@ -61,6 +61,20 @@ Reuses the same DB; no new database.
   by `GET /evals/leaderboard`.
 - Indexes: `idx_eval_results_run`, `idx_eval_results_model`, `idx_eval_scores_result`.
 
+### Model catalog (`scripts/model-catalog-schema.sql` — committed DDL, idempotent)
+Hosted-model lookup table, refreshed by the Dagster `model_catalog` asset on a **6h** schedule
+(`weyland_catalog_schedule`). A flat **current-state snapshot** — each run does **replace-by-source**
+(DELETE WHERE source=X, then INSERT), so it never accumulates. Distinct from the normalized `models`
+**inventory** table (§5): this is "what models can I reach + at what price", that is the menu, not the
+infra mirror.
+
+- **`model_catalog`** — `id`, `source` (`openrouter | gemini | ollama`), `model_id` (the id passed through
+  LiteLLM, e.g. `openrouter/deepseek/...:free`), `free` BOOLEAN (NULL = unknown, e.g. Gemini — free tier is
+  account-level), `context_length`, `pricing_prompt`/`pricing_completion` NUMERIC (provider-reported, NULL if
+  unknown), `metadata JSONB`, `updated_at`. `UNIQUE (source, model_id)`; indexes on `source` and `free`.
+- Source independence: each provider fetch is isolated — a rate-limit/missing-key failure logs a warning and
+  the other sources still write. Gemini source needs `GEMINI_API_KEY` in the Dagster env (else skipped).
+
 ---
 
 ## 2. Qdrant — collection `weyland_chunks` *(live-validated)*

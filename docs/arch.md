@@ -127,7 +127,8 @@ agents/workflows and platform state. Agents call the tool-server, *not* database
 | Qdrant | `mother:30083` (HTTP), `:30084` (gRPC) | vector store, collection `weyland_chunks`. |
 | Weaviate | `mother:30087` (gRPC 50051) | vector store, class `WeylandChunk`. |
 | Neo4j | `mother:30085` (HTTP), `:30086` (Bolt) | graph + vector index (GraphRAG foundation), APOC. |
-| Dagster | `dagster.weyland.lab` (3 pods) | ingestion job + eval jobs (`weyland_eval_job`, `weyland_eval_score_job`). |
+| Dagster | `dagster.weyland.lab` (3 pods) | ingestion job + eval jobs (`weyland_eval_job`, `weyland_eval_score_job`) + **model-catalog job** (`weyland_catalog_schedule`, 6h → `model_catalog` table). |
+| LiteLLM model gateway | `mother:30400`, `litellm.weyland.lab` | OpenAI-compatible proxy fronting **all Gemini + OpenRouter** models (wildcard); human-gated off-LAN egress (valve) + spend alerts. [runbooks/model-gateway.md](runbooks/model-gateway.md). |
 | Open WebUI | `chat.weyland.lab` | browser voice/chat -> Ollama (chat) + whisper (STT). |
 | n8n | `n8n.weyland.lab` | workflow automation (ingestion role retired -> Dagster; retained for other automation). |
 | Prometheus + Grafana | `grafana.weyland.lab` (ns `monitoring`) | observability (cluster/node/pod dashboards). |
@@ -164,6 +165,9 @@ agents/workflows and platform state. Agents call the tool-server, *not* database
   (GraphRAG foundation).
 - **MinIO** — S3-compatible object storage (model artifacts, datasets, backups). Filestash is the UI
   (the community console is stripped). See [runbooks/storage-minio.md](runbooks/storage-minio.md).
+- **`model_catalog`** (Postgres) — current-state lookup of reachable hosted models (OpenRouter / Gemini /
+  Ollama, with free flag + pricing + context), refreshed every 6h by Dagster (replace-by-source). Distinct
+  from the normalized `models` infra-inventory table. See [runbooks/model-gateway.md](runbooks/model-gateway.md).
 - **Embeddings** — `BAAI/bge-small-en-v1.5` (384-dim), baked into both the tool-server and Dagster
   images so ingestion and query embed identically.
 
@@ -176,10 +180,12 @@ agents/workflows and platform state. Agents call the tool-server, *not* database
 | **Large LLMs (capacity)** | weyland CT 102 (CPU) | Ollama (llama.cpp/GGUF) | RAG generation, eval, batch — 6 models, ~13-89 s/RAG-call. Prefer MoE (low active params). |
 | **STT** | weyland CT 103 (CPU) | whisper.cpp `large-v3` | voice -> text, faster-than-real-time; OpenAI-shim for drop-in clients. |
 | **Small fast LLMs (speed)** | rogueone (GPU) | vLLM | low-latency utility inference (Qwen), on-demand. |
-| **Reasoning brain** | (cloud) | Claude (via Anthropic API) | high-quality reasoning; used by Claude Code + planned B26 (Hermes+Claude). |
+| **Hosted models (escalation)** | (cloud) via mother **LiteLLM** | Gemini + OpenRouter (free tiers) | stronger-than-local brains on demand; API-key (no subscription/ToS issue); human-gated egress. |
 
 All inference speaks the **OpenAI `/v1` shape**, so clients are engine-agnostic. The eval harness
-(B4) found **gpt-oss:20b** the most defensible RAG model across a 3-judge panel.
+(B4) found **gpt-oss:20b** the most defensible RAG model across a 3-judge panel. **Claude brain note:**
+B26's Hermes+Claude path was *declined* — a Claude Pro/Max subscription via a proxy is a ToS gray area,
+metered API wasn't wanted; Claude-in-lab is instead **you driving Claude Code** (B29, already MCP-wired).
 
 ---
 

@@ -1,0 +1,33 @@
+# B26 — off-LAN hosted-model egress alerts. Lives in `monitoring` ns with release:monitoring
+# (kube-prometheus-stack ruleSelector). Routes to the Weyland Alerts Telegram chat (B5 P2a).
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: litellm-egress
+  namespace: monitoring
+  labels:
+    release: monitoring
+spec:
+  groups:
+    - name: litellm-egress
+      rules:
+        # Gate-open: fires the whole time the proxy is up. kube-state-metrics only —
+        # works even if LiteLLM's /metrics is unavailable. Primary signal.
+        - alert: LiteLLMEgressEnabled
+          expr: kube_deployment_status_replicas{namespace="weyland",deployment="litellm"} > 0
+          for: 2m
+          labels:
+            severity: warning
+          annotations:
+            summary: "LiteLLM hosted-model egress is RUNNING (off-LAN model access enabled)"
+            description: "Close the valve to disable: kubectl scale deploy/litellm -n weyland --replicas=0"
+        # Spend: only meaningful for paid models (free Gemini/OpenRouter routes cost $0).
+        # CONFIRM the metric name from /metrics after deploy (litellm_total_spend / litellm_spend_metric_total).
+        - alert: LiteLLMSpendObserved
+          expr: increase(litellm_total_spend[24h]) > 1
+          for: 0m
+          labels:
+            severity: warning
+          annotations:
+            summary: "LiteLLM reported > $1 spend in 24h"
+            description: "A paid model is being used. Free Gemini/OpenRouter routes should stay at $0."

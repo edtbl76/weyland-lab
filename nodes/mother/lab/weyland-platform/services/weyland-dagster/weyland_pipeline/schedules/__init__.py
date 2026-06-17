@@ -1,9 +1,15 @@
 from dagster import ScheduleDefinition, define_asset_job, AssetSelection
 
-# Ingestion = everything EXCEPT the eval group, so the 15-min schedule never runs eval.
+# Ingestion = everything EXCEPT the eval and catalog groups (they have their own schedules).
 weyland_ingestion_job = define_asset_job(
     name="weyland_ingestion_job",
-    selection=AssetSelection.all() - AssetSelection.groups("eval"),
+    selection=AssetSelection.all() - AssetSelection.groups("eval") - AssetSelection.groups("catalog"),
+)
+
+# Model catalog (hosted-model lookup table) — refreshed on its own 6h cadence, separate from ingestion.
+weyland_catalog_job = define_asset_job(
+    name="weyland_catalog_job",
+    selection=AssetSelection.groups("catalog"),
 )
 
 # Eval (B4), triggered on demand (no schedule). Split so the expensive matrix and the
@@ -21,4 +27,10 @@ weyland_ingestion_schedule = ScheduleDefinition(
     job=weyland_ingestion_job,
     cron_schedule="*/15 * * * *",
     name="weyland_ingestion_schedule",
+)
+
+weyland_catalog_schedule = ScheduleDefinition(
+    job=weyland_catalog_job,
+    cron_schedule="0 */6 * * *",  # every 6h
+    name="weyland_catalog_schedule",
 )

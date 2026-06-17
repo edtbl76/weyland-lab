@@ -68,6 +68,12 @@ spec:
                 secretKeyRef:
                   name: neo4j-secret
                   key: password
+            # model_catalog asset: enables the Gemini source (OpenRouter + Ollama need no key).
+            - name: GEMINI_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: litellm-secrets
+                  key: GEMINI_API_KEY
           volumeMounts:
             - name: dagster-config
               mountPath: /opt/dagster/dagster_home/dagster.yaml

@@ -1,0 +1,19 @@
+# B26 — LiteLLM Service. NodePort 30400 so Hermes (CT 104, off-cluster) reaches it on the LAN:
+#   http://192.168.1.243:30400/v1   (same node as the MCP NodePort 30080)
+# Named port 'http' is what the ServiceMonitor scrapes for /metrics.
+apiVersion: v1
+kind: Service
+metadata:
+  name: litellm
+  namespace: weyland
+  labels:
+    app: litellm
+spec:
+  type: NodePort
+  selector:
+    app: litellm
+  ports:
+    - name: http
+      port: 4000
+      targetPort: 4000
+      nodePort: 30400

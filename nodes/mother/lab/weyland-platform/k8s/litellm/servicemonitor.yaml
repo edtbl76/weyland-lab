@@ -1,0 +1,13 @@
+# B26 — scrape LiteLLM /metrics (B5 Phase 2b pattern; serviceMonitorSelectorNilUsesHelmValues:false).
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: litellm
+  namespace: weyland
+spec:
+  selector:
+    matchLabels:
+      app: litellm
+  endpoints:
+    - port: http
+      path: /metrics

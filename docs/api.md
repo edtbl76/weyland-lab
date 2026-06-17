@@ -16,6 +16,7 @@ Hosts & access users: [hosts.md](hosts.md). `mother` = 192.168.1.243, CTs by IP 
 | **whisper shim** (STT) | whisper CT 103 | `http://whisper.weyland.lab:9000/v1/audio/transcriptions` (`192.168.1.246`) | ✅ | OpenAI-compatible adapter → whisper.cpp. See [runbooks/transcription-whisper.md](runbooks/transcription-whisper.md). |
 | **whisper-server** (STT, native) | whisper CT 103 | `http://whisper.weyland.lab:8080/inference` (`192.168.1.246`) | ✗ | Raw whisper.cpp multipart endpoint. |
 | **vLLM** (LLM, GPU) | rogueone | `http://rogueone:8000/v1` | ✅ | On-demand; serves Qwen. GPU path. |
+| **LiteLLM gateway** (hosted models) | mother (NodePort 30400) | `http://mother:30400/v1` (`192.168.1.243`) | ✅ | Fronts **every Gemini + OpenRouter** model (wildcard) behind one endpoint; Bearer = `LITELLM_MASTER_KEY`. Aliases `gemini-flash`/`gemini-pro`. Human-gated egress (valve) + spend alerts. Catalog of reachable models in Postgres `model_catalog`. See [runbooks/model-gateway.md](runbooks/model-gateway.md). |
 
 ## Tool server (platform service boundary)
 
@@ -60,6 +61,7 @@ mkcert wildcard cert; resolve from rogueone (`/etc/hosts`) or via CoreDNS. Share
 | UI | URL |
 |---|---|
 | **Open WebUI** (voice/chat → Ollama + whisper) | `https://chat.weyland.lab` |
+| **LiteLLM** (model gateway admin UI / `/ui`) | `https://litellm.weyland.lab` |
 | Grafana | `https://grafana.weyland.lab` |
 | Dagster | `https://dagster.weyland.lab` |
 | n8n | `https://n8n.weyland.lab` |
@@ -101,6 +103,7 @@ not meant for direct browsing. ServiceMonitors: `k8s/monitoring/servicemonitors.
 | Weaviate | `weaviate.weyland.svc:2112` | `/metrics` | NodePort auto-assigned (no fixed port) |
 | APISIX | `weyland-apisix.weyland.svc:9091` | `/apisix/prometheus/metrics` | NodePort auto-assigned (no fixed port) |
 | Tool server (B14 guardrails) | `weyland-tool-server.weyland.svc:8080` | `/metrics` | `http://mother:30080/metrics` (NodePort) |
+| LiteLLM gateway | `litellm.weyland.svc:4000` | `/metrics` | `http://mother:30400/metrics` (NodePort) |
 | MinIO | `minio.minio.svc:9000` | `/minio/v2/metrics/cluster` | in-cluster only (`MINIO_PROMETHEUS_AUTH_TYPE=public`, no token) |
 
 Stack-internal targets (Prometheus, Alertmanager, Grafana, node-exporter, kube-state-metrics, kubelet,

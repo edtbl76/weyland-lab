@@ -1,0 +1,36 @@
+# B26 → reframed: LiteLLM as the hosted-model gateway (Gemini + OpenRouter).
+# Wildcards expose EVERY model from each provider — no enumeration. Clients request e.g.
+#   gemini/gemini-2.5-pro  ·  openrouter/deepseek/deepseek-r1:free  ·  openrouter/meta-llama/llama-3.3-70b-instruct:free
+# Add ollama/* later to fold the local box in behind the same endpoint.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: litellm-config
+  namespace: weyland
+data:
+  config.yaml: |
+    model_list:
+      # --- Wildcards: the whole provider, every model, zero enumeration ---
+      - model_name: "gemini/*"
+        litellm_params:
+          model: "gemini/*"
+          api_key: os.environ/GEMINI_API_KEY
+      - model_name: "openrouter/*"
+        litellm_params:
+          model: "openrouter/*"
+          api_key: os.environ/OPENROUTER_API_KEY
+      # --- Friendly aliases (optional convenience names) ---
+      - model_name: gemini-flash
+        litellm_params:
+          model: gemini/gemini-2.5-flash
+          api_key: os.environ/GEMINI_API_KEY
+      - model_name: gemini-pro
+        litellm_params:
+          model: gemini/gemini-2.5-pro
+          api_key: os.environ/GEMINI_API_KEY
+    litellm_settings:
+      callbacks: ["prometheus"]
+      require_auth_for_metrics_endpoint: false   # LAN-only scrape
+      drop_params: true                          # tolerate params a given model doesn't support
+    general_settings:
+      master_key: os.environ/LITELLM_MASTER_KEY

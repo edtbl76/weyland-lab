@@ -10,6 +10,7 @@ from .neo4j_write import neo4j_write
 from .eval_testset import eval_testset
 from .eval_run_matrix import eval_run_matrix
 from .eval_scores import eval_scores
+from .model_catalog import model_catalog
 
 all_assets = [
     source_document,
@@ -24,4 +25,5 @@ all_assets = [
     eval_testset,
     eval_run_matrix,
     eval_scores,
+    model_catalog,
 ]

@@ -1,0 +1,23 @@
+# B26 — optional Traefik TLS ingress for the LiteLLM admin UI (/ui) at litellm.weyland.lab.
+# Hermes does NOT use this — it uses the NodePort (http, LAN). This is operator convenience only.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: litellm
+  namespace: weyland
+spec:
+  tls:
+    - hosts:
+        - litellm.weyland.lab
+      secretName: weyland-wildcard-tls
+  rules:
+    - host: litellm.weyland.lab
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: litellm
+                port:
+                  number: 4000
