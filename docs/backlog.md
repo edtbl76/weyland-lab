@@ -1,0 +1,639 @@
+# Weyland Forward Roadmap — re-prioritized 2026-06-14
+
+Re-ordered per RE-grounded audit (aidlc-docs/inception/backlog-reprioritization.md). Immediate directives: B29 (connect Claude Code to weyland MCP) and B25 (docs IA + git RAG ingestion). Three priority groups: Real Purpose / Extras+Optimization / Hardware-Gated.
+
+> **Agent topology — decided 2026-06-14: OpenClaw is DEPRIORITIZED entirely.** Hermes is the primary and
+> effectively only active agent. OpenClaw was a "play with a powerful tool" lab experiment — fragile, painful
+> to operate (gateway-container only), currently degraded (MCP not surfacing to its brain, no command owner,
+> claude-cli auth expiring, memory search off, plaintext secrets), and nothing depends on it. Its unique edge
+> (Claude brain, skill/channel breadth) is eroded by B26 (Hermes+Claude). **Rehab = B28, much later.** Read all
+> "both agents" references below as **Hermes-now / OpenClaw-when-B28-lands**. See [[openclaw-deprioritized]].
+
+## DONE (repo-verified)
+- **B5** — Prometheus + Grafana observability — ✅ **DONE (2026-06-13)**. Phase 1: stack up,
+  Grafana on TLS (grafana.weyland.lab), cluster/node dashboards. **Phase 2a: native
+  Alertmanager → Telegram** (Weyland Alerts bot `@weyland_alerts_bot`; token in Secret; validated
+  end-to-end; chosen native over n8n — fewer deps in the alert path). **Phase 2b: app ServiceMonitors**
+  — Qdrant / Weaviate / APISIX / CoreDNS all scraped (`serviceMonitorSelectorNilUsesHelmValues:false`;
+  k8s/monitoring/servicemonitors.yaml), 4 targets UP. APISIX needed `export_addr.ip:0.0.0.0` (defaulted
+  to loopback). **Traefik descoped** (k3s-managed load-bearing ingress — blast radius > value in a lab).
+  Runbook docs/runbooks/observability.md.
+- **U12** — tool-server health/status endpoints — ✅ **DONE (2026-06-09)**: /ready, /status, /pgvector/health, probes, v0.2.0 → units-iter1.md
+- **B6** — MinIO object storage — ✅ **DONE (2026-06-11)**: 8TB USB → MinIO on mother VM (raw passthrough), Filestash UI (files.weyland.lab), mc on rogueone. Runbook docs/runbooks/storage-minio.md.
+- **B7** — larger models on weyland via **Ollama (CPU)** — ✅ **DONE (2026-06-11)**: CT 102 live (Ollama, OpenAI `/v1` at 192.168.1.244:11434); `num_thread 8` fix (~160× → ~25 tok/s on 30B-A3B MoE); 6 models benchmarked; docs split → b7-model-serving-hardware / b7-llm-inference-cpu-vs-gpu / b7-ollama-runbook. eGPU → Tentative. **Fully closed 2026-06-12:** IP DHCP-reserved; tool-server wired (v0.3.0 RAG `/context/ask` + per-request model select, `/models`, `/ollama/health`), validated mother + rogueone; deploy/test in docs/validation/test-commands.md.
+- **B11** — Whisper STT (speech→text) — ✅ **SERVICE DONE (2026-06-12)**: whisper.cpp on CT 103 (CPU, `large-v3`); native `/inference` + OpenAI shim `/v1/audio/transcriptions` @ 192.168.1.246:9000; validated rogueone + openclaw VM. Runbook docs/runbooks/transcription-whisper.md.
+- **B13** — Open WebUI — ✅ **DONE (2026-06-12)**: browser voice/chat at https://chat.weyland.lab; chat ← Ollama (6 models auto-listed), voice-in ← whisper shim (validated end-to-end — mic → `POST /v1/audio/transcriptions` on CT 103). mother/k3s, weyland ns, Traefik TLS; manifests k8s/open-webui/.
+- **B4** — LLM eval/observability — ✅ **DONE (2026-06-13)**: full single-path eval pipeline (testset → run-matrix → **3-judge panel** scoring → `eval_leaderboard`) over RAG × 6 models, reusing Postgres/Dagster/Ollama; Ragas rejected (broken+heavy); tool-server **v0.4.0** `/evals/{run,score,runs,leaderboard}`. **gpt-oss:20b the defensible pick**; single-judge proven noisy. Runbook docs/runbooks/eval-harness.md.
+- **B2** — Hermes agent platform (OpenClaw sibling) — **v1 LIVE 2026-06-14**: Hermes CT 104 on `qwen3-coder:30b` (MoE); read-only **system-view MCP server** (4 tools: status/context_search/context_ask/list_models) built into the tool-server via `fastapi-mcp` `mount_http()`, registered in Hermes, **validated end-to-end** (agent → MCP → live backend health). **Telegram gateway front door LIVE 2026-06-14** (allowlisted DM → agent reply). Runbook docs/runbooks/agent-hermes.md · design docs/concepts/agent-platform-design.md.
+- **B23** — Break out `arch.md` component diagrams — ✅ **DONE (2026-06-14)**: created `docs/diagrams/` with full C4 hierarchy (L1 context, L2 container, L3 component × 6: mother/hermes/ollama/whisper/openclaw/rogueone) + 5 Mermaid sequence flow diagrams = 13 files total. arch.md rewritten as narrative + embedded C4Context + links to all diagrams. Note: Mermaid C4 renderer is basic — consider Structurizr at B25 IA overhaul time.
+- **B29** — Connect Claude Code → weyland system-view MCP — ✅ **DONE (2026-06-14)**: registered via `claude mcp add weyland --transport http http://192.168.1.243:30080/mcp`; validated live — `status` tool returned all 4 backends ok + 6 Ollama models. Claude Code is now a first-class MCP consumer alongside Hermes.
+
+---
+
+## Priority — work top-down
+
+### Immediate
+1. **B31** — Codebase audit / restructure (`nodes/`) — **AUDIT DONE 2026-06-15.** Tree is clean: retired 2 dead bootstrap scripts; flagged 1 committed secret (gitignored — needs untrack+rotate, your task); OpenClaw scripts → B28, watcher → B25b. No restructure needed. See detail below.
+2. **B25** — Docs + codebase RAG ingestion — ✅ **DONE 2026-06-15.** B25a (docs restructure) + B25b (Dagster git-pull of `docs/` + `nodes/`, dual chunking) live & validated end-to-end: 40 markdown + 76 code docs in the RAG (was 1), code retrievable via the MCP from Claude Code. Watcher retired. **Orphan reconciliation** (prune sources no longer in the repo across all 4 backends) + **eval-corpus markdown filter** added & validated 2026-06-15 (the old `obsidian` orphan auto-pruned on the next run). See detail below.
+
+### Platform Foundation
+4. **B24** — Evaluate nerdctl — ✅ **EVALUATED 2026-06-15 → DECLINE.** Keep docker + `save|import` as a deliberate build↔runtime anti-corruption layer; nerdctl's only real win (build into k3s's live image store) violates it, and keeping docker alongside would only add daemons. See detail below.
+5. **B14** — Guardrails + Hermes read+act — ✅ **DONE 2026-06-15.** Both halves shipped: guardrail I/O layer (injection/toxicity/grounding on `/context/*`) + read+act (act-tools on `/mcp-act`, `act` hook audits to `guardrail_verdicts` with the `actor` seam), all `mode=shadow` (record-only — the right default for a single-user LAN lab). Shadow plumbing is complete; the enforcement *promotions* are carved out as their own downstream items, not B14 scope: grounding `shadow→flag/block` calibration + act policy gate → **B35**, PII bake → **B34**, gateway auth/actor injection → **B17+B19**. See detail below.
+6. **B26** — Hosted-model gateway (LiteLLM) + model catalog — ✅ **DONE 2026-06-17** (reframed from "Hermes Claude brain"; Claude path declined — ToS gray area). LiteLLM on mother fronts all Gemini+OpenRouter; Dagster `model_catalog` (6h). See detail below.
+7. **B27** — Hermes Kanban skills — autonomous multi-step planning; wants B26's brain. See detail below.
+8. **B8** — Istio evaluation — infrastructure/networking that Backstage will surface; evaluate during or before B3. May absorb into B3 scope. See detail below.
+9. **B3** — IDP / Backstage — big mother infrastructure work; catalogs the full platform including agents. Absorbs B12 (API catalog). Open questions: (1) Backstage on mother or its own platform? (2) exact MCP harness scope. See detail below.
+
+### Data & Automation
+10. **B10+B16** — MLflow (experiment tracking + model registry) — MERGED; MLflow delivers model registry natively. Foundational for data mesh and fine-tuning. See detail below.
+11. **B1** — Data mesh — three concrete data products: (1) model eval product (continuous judge-panel runs, time-series leaderboard); (2) data store inventory product (Data-as-a-Product for each backend); (3) model tuning feed → fine-tuning → custom models. See detail below.
+
+### Maturity / Hardening / Polish
+12. **B15** — Local-model coding agents (opencode / Cline CLI) — hardening agentic capabilities; autonomous unattended coding tasks; full value when Hermes delegates via mesh. See detail below.
+13. **B17+B19** — "Mesh": A2A evaluation + MCP gateway — MERGED; same inflection point (fleet is real, govern it). Triggered after B14+B26+B27 + B3 stable + OpenClaw decision made. See detail below.
+14. **U18** — SSH full lockdown — closes rogueone authorized_keys gap from U11. See detail below.
+15. **B20** — Home Assistant (Hermes tool) — Hermes → HA → Google Home/Alexa/physical devices. Prerequisite: running HA instance. See detail below.
+16. **B28** — OpenClaw rehabilitation (or retire) — Real Purpose; shelved not deleted. Two Qs when we reach it: (1) keep vs retire? (2) if keep, refactor vs rewrite? See detail below.
+17. **U14** — n8n workflow → git — audit active n8n workflows before working on this. See detail below.
+18. **B34** — Evaluate + bake PII guard — promote B14's deferred PII validator (llm_guard `Sensitive` → presidio/spaCy) from coded-but-unbaked to active. Gated on an eval showing PII detection adds real signal in this corpus (and/or a multi-user/export trigger). See detail below.
+19. **B35** — Grounding guard calibration — tune the B14 grounding validator from its guessed `0.5` threshold to a data-driven one (collect shadow `max_entailment` distribution → label grounded vs hallucinated → set threshold), and switch to sentence-level / concatenated-premise scoring if whole-answer-vs-chunk NLI over-flags. Prerequisite to ever moving grounding out of shadow. See detail below.
+
+### Extras / Optimization
+20. **B9** — Python→Go refactor — conditional; revisit when operational pain is real or agents are modifying the codebase. See detail below.
+21. **U13** — Slim sentence-transformers image / ONNX evaluation — deferred decision point: evaluate (a) swap to ONNX only, (b) both sentence-transformers + ONNX, or (c) stay with sentence-transformers. Depends on whether active embedding model experimentation is in progress at the time. See detail below.
+22. **B22** — SearXNG — Extra; Tavily works fine. See detail below.
+23. **B18** — Spotify (Hermes tool) — Extra. See detail below.
+24. **U16** — Weaviate UI — Extra; evaluate whether still needed (native Weaviate UI may suffice). See detail below.
+25. **B30** — Real-time docs ingestion trigger — self-hosted GitHub Actions runner on the LAN fires Dagster `launchRun` on push (NAT-free near-real-time). Deferred; cron fine until 15-min latency bites. See detail below.
+26. **B32** — NeMo Guardrails evaluation — programmable conversational guardrails (Colang DSL: topical/dialog/jailbreak rails). Deferred from B14 (heavy framework + new language; built for dialog mgmt, not I/O scanning). Evaluate for the **Layer-2 agent layer** (Hermes dialog/topical rails), not the tool-server I/O pipeline. See detail below.
+
+### Hardware-Gated
+27. **B21** — Agent media generation (image/video/TTS) — requires eGPU hardware purchase. See detail below.
+28. **B33** — Co-resident / warm-parallel model serving — raise `OLLAMA_MAX_LOADED_MODELS` (now 1, cgroup-bound) to keep a 2nd model warm alongside the main one → eliminates eviction/cold-start for latency-sensitive multi-model workflows (e.g. B14's conversational grounding guard, or guard+generator both warm). Gated on RAM/VRAM headroom (the "weyland box" decision / eGPU). See detail below.
+
+---
+
+## Tentative / someday
+- **weyland eGPU (OCuLink + 24 GB GPU)** — accelerates the Ollama path (~10× on ≤32B models),
+  but **not pursuing now** — CPU/Ollama is sufficient for the lab; user will invest eventually if
+  a workload makes the speed worth it. Full options + (unverified) pricing in
+  docs/concepts/model-serving-hardware.md. Revisit when an actual workload feels too slow.
+- **Evaluate GPUs specifically for music / TTS / audio-generation models** — these are
+  diffusion/audio architectures that **do NOT run under Ollama** and are **GPU-hungry**
+  (slow-to-unusable on CPU): MusicGen / Stable Audio (music), XTTS / Bark / Kokoro (TTS). An
+  audio-generation goal is one of the few workloads that genuinely *justifies* the eGPU above —
+  so if audio becomes a goal, fold its VRAM / throughput needs into that eGPU decision (sizing
+  may differ from LLM needs). **Exception:** Whisper **STT** (speech→text) runs fine on CPU via
+  whisper.cpp — no GPU needed; only *generation* (text→audio) wants the GPU.
+- *(Promoted to numbered units — see detail below: Hermes media-gen tools → **B21**; Home Assistant →
+  **B20**; SearXNG → **B22**. The eGPU + audio-gen-GPU items above remain Tentative as hardware decisions.)*
+- **Benchmark 70B-class models on the Ollama/CPU path** — pull a 70B@Q4 (e.g. `llama3.3:70b`,
+  ~43 GB, fits the 48 GB container cap) and record the real `eval rate` to validate the
+  "batch/async capacity tier" (expect ~1–2 tok/s — kick-off-and-walk-away). Deferred: large
+  download + slow, no need yet. Fills the 70B row in the measured-benchmark table in
+  docs/concepts/model-serving-hardware.md. Requires the `num_thread 8` fix like every model.
+
+---
+
+## B-item and U-item detail sections
+
+### B1 — Build a data mesh
+Domain-oriented data products + federated governance over the backends
+(pgvector/Qdrant/Weaviate/Neo4j + Dagster). Large; needs a concrete definition *for this
+lab*. Depends on B6. **Open:** which domains/products? governance layer?
+
+### B2 — Hermes (agent platform, sibling to OpenClaw)
+**SCOPED 2026-06-13 — full design: docs/concepts/agent-platform-design.md.** Hermes = NousResearch/hermes-agent
+(MIT, MCP-capable, provider-agnostic → runs on local Ollama `/v1`). **Lanes:** Hermes = **primary**
+autonomous system-view/ops agent + single front door (stable, Python/local-inference-native); OpenClaw =
+**contained delegate** for skill breadth/channels, **off the critical path** (firsthand fragility — gateway
+broke twice during B11/B13). **Integration = 3 wires:** (1) both agents' brain → Ollama `/v1`; (2) both →
+**one "Weyland system-view" MCP server** fronting the tool server (RAG, status, observability, later
+workflow actions) — the "view into the system", built once, N+M not N×M; (3) Hermes → OpenClaw gateway as an
+MCP tool (topology 3, **deferred**). **Hosting:** Hermes in its **own isolated LXC CT** (code-exec +
+untrusted-content blast radius; not on mother, not co-located with OpenClaw). **v1 = read-only** (observe:
+RAG/health/metrics); **read+act gated on B14**. **Protocol:** MCP for everything incl. the OpenClaw bridge;
+**A2A deferred → B17** (only for async peer-delegation as the fleet grows). **Validate early:** local-model
+tool-calling reliability (qwen3-coder:30b / qwen3:30b-a3b / mistral-small3.2:24b advertise tools); agentic
+model ≠ B4 RAG winner. **First slice:** isolated CT → Hermes on Ollama → validate tool-calling → minimal MCP
+server (RAG+status) → one chat channel → end-to-end.
+
+**Status (2026-06-14): Hermes scope DONE; OpenClaw descoped → B28.** Tool-server `/mcp` up (406); Telegram
+front door live (confirmed); **Hermes↔MCP confirmed working** (user-confirmed 2026-06-14 — just not yet from
+Claude Code, which is **B29**). The "no weyland MCP / direct-probe" failures were **OpenClaw-gateway-specific**
+(degraded gateway: MCP not surfacing to its brain, no command owner, claude-cli auth expiring, memory search
+off, plaintext secrets) → **all moved to B28 (deprioritized).** The stale **weyland-postgres services
+inventory** → folded into **B25** scope. read+act → B14; A2A stays B17.
+
+### B3 — Internal Developer Platform (IDP)
+Backstage / Port / alternatives — catalog, golden paths, scaffolding. Heavy; revisit when
+service/dev count grows. Pairs with B9.
+
+### B4 — LLM eval / observability
+**IN PROGRESS. DECIDED 2026-06-12 — Ragas REJECTED**: broken in current release (`ragas 0.4.3`
+hard-imports a `langchain_community.chat_models.vertexai` path that `langchain-community 0.4.2`
+deleted → won't import; fix unmerged) **+** ~100-package bloat incl. the Google Cloud AI Platform
+SDK. Receipts + full decision record in **docs/runbooks/eval-harness.md**. Eval uses **direct-prompt
+question-gen + LLM-as-judge scoring** via Ollama (reuses Postgres/Dagster/Ollama/bge). Steps 1–2
+(schema + question-gen) live; run-matrix + scoring + leaderboard remain. Observability (Langfuse,
+slice 2) still open — landscape below.
+
+**Two complementary jobs** (LangSmith bundles them; the self-host world splits them):
+- **Observability / tracing** — watch prompts, responses, tool calls, latency, cost, RAG retrievals:
+  - **Langfuse** ⭐ — go-to self-host LangSmith replacement: tracing + prompt mgmt + eval + datasets;
+    framework-agnostic (works with the OpenAI-compatible Ollama/tool-server); Postgres-backed.
+  - **Arize Phoenix** ⭐ — best for RAG debugging: OpenInference/OTel traces, retrieval/embedding
+    analysis, **native LlamaIndex integration** (already in use). Local container.
+  - Helicone (proxy-style logging/cost/cache); Langtrace / Lunary (OTel alternatives).
+- **Evaluation** — score output quality:
+  - **Ragas** ⭐ — RAG-specific metrics (faithfulness, answer relevancy, context precision/recall) —
+    directly scores `/context/ask`. Also: DeepEval (pytest-style), Promptfoo (CLI + red-team), TruLens.
+
+**Decision:** **LangSmith is SaaS + LangChain-tuned** — data leaves the LAN and our stack is
+LlamaIndex + OpenAI-compatible, so its main edge doesn't apply. **Self-host fits the LAN-lab ethos.**
+**Lean: Langfuse (observability + prompt mgmt) + Ragas (RAG scoring)**, with Phoenix as the
+RAG-trace-focused alternative/complement. Leans on B5 (Grafana already up). **Payoff:** measure
+*which of the 6 Ollama models* answers best through the RAG — turning "they all run" into "this one
+wins for this query type."
+
+### B5 — Prometheus / observability stack
+Prometheus + Grafana (+ Alertmanager). Endpoints already emit (APISIX prometheus plugin,
+CoreDNS `:9153`). **Phase 1 DONE 2026-06-09** via kube-prometheus-stack (release
+`monitoring`, ns `monitoring`): Grafana behind Traefik TLS at grafana.weyland.lab, admin
+via grafana-admin secret (weyland_dev_password), Grafana set strategy:Recreate, Alertmanager
+on. Out-of-box cluster/node/pod dashboards working. Manifests: k8s/monitoring/
+{kube-prometheus-stack-values.yaml, grafana-ingress.yaml}. Runbook docs/runbooks/observability.md.
+**Phase 2 (pending):** ServiceMonitors for app emitters (APISIX, CoreDNS, Traefik, Qdrant,
+Weaviate; may need serviceMonitorSelectorNilUsesHelmValues:false) + Alertmanager receiver
+→ n8n webhook → Telegram. Note: Grafana first-load behind the proxy needs a hard refresh
+(cached partial assets → "Error loading: <panel>").
+
+### B6 — MinIO object storage
+S3-compatible storage for model artifacts, datasets/data-lake, backups, LLM/data-mesh
+artifacts. Foundational (B1/B4/B7). Deploy on mother/k3s (RWO + `strategy: Recreate`,
+see [[k8s-rwo-recreate-strategy]]).
+
+### B7 — Larger models on weyland (the MS-A2)
+**Full decision record: docs/concepts/model-serving-hardware.md.**
+Reality (corrected 2026-06-11): weyland = the **MS-A2** (Ryzen 9 9955HX, 96 GB RAM, **no compute
+GPU**), bought specifically to host large models. rogueone has the only GPU (RTX 5000 Ada Laptop,
+**16 GB** — too small, and it's the personal laptop). **Decided: CPU path via Ollama is COMMITTED
+and BUILDING NOW** (96 GB RAM fits 70B@4-bit; OpenAI-compatible API → drops into the harness with
+no client changes; sweet spot 14–32B, 70B for batch). **Tentative/someday (low priority): an
+OCuLink eGPU** to accelerate (~10× on ≤32B) — see Tentative section. Not pursued now; the lab
+doesn't need the speed yet. Engine: Ollama on CPU now, vLLM if a GPU is ever added.
+
+### B8 — Istio (service mesh) — EVALUATE
+Deferred in U9 (cellular front-door decision). This item = a formal evaluation of concrete
+need (mTLS? traffic policy? observability?) vs weight. Likely "not yet" but decide
+deliberately. See [[architecture-decisions]].
+
+### B9 — Refactor Python scripts → Go binaries
+Foreshadowed in weyland.md ("future Go CLI refactor"). Maintainability/distribution play;
+not urgent. **Open:** which scripts? Go vs alternatives?
+
+### B10 — Model registry
+**MERGED with B16 — see B16 for MLflow detail.**
+
+Central catalog + versioning + **internal distribution** of model artifacts (GGUFs, safetensors,
+fine-tunes) so **rogueone (vLLM) + weyland (Ollama)** pull from internal storage instead of
+re-downloading from the internet each time — and so fine-tunes get versions/metadata/lineage.
+**Builds on B6 (MinIO = the artifact substrate)**; relates to B4 (eval/lineage) and any future
+fine-tuning. **Options:** (a) simple MinIO-bucket convention (lightest); (b) an OCI registry
+(Zot/Harbor) — Ollama models ARE OCI artifacts, and Ollama can pull from a private registry;
+(c) MLflow Model Registry (MinIO+Postgres) if/when doing real fine-tuning + experiment tracking.
+**Not urgent** — Ollama's local store + public pulls suffice while the lab is small. Revisit once
+multiple hosts/models/fine-tunes make re-downloads and version-sprawl annoying.
+
+### B11 — Whisper STT (speech→text) on weyland
+**whisper.cpp** — Georgi Gerganov's C/C++ port of OpenAI's Whisper ASR, on the **same GGML library
+as llama.cpp/Ollama**. Audio **in → text out**: transcription (+ timestamps, SRT/VTT subtitles),
+non-English→English translation, ~99 languages, near-real-time mic streaming. **Runs
+faster-than-real-time on the 9955HX CPU — no GPU** (models are small: `tiny` ~39M → `large-v3`
+~1.5B, plus fast `large-v3-turbo`); STT is the *cheap* direction of audio (generation is the
+GPU-hungry one — see Tentative). **Deploy:** a lightweight LXC on weyland (sibling to the Ollama
+CT 102) running `whisper-server`, which exposes an OpenAI-compatible `/v1/audio/transcriptions`
+endpoint → **voice-input front-end for the harness** (talk to OpenClaw/Hermes), meeting/voice-note
+transcription, subtitle generation. **Open when scoping:** model size (accuracy vs speed), where
+the endpoint sits behind Traefik, mic/streaming vs file-upload only. Pairs with the eGPU-gated
+audio-*generation* item in Tentative (this is the input half you can have now for $0).
+
+### B12 — API catalog / endpoint registry
+**DROPPED — absorbed into B3 (IDP / Backstage).**
+
+A single place to discover/register **every lab API** + interactive docs. **Distinct from the
+gateway** (Traefik/APISIX *route* traffic; they don't *catalog* it). Lightweight first:
+(a) Traefik clean hostnames for all services (`ollama`/`whisper`/`tools.weyland.lab` — pairs with
+the CT DNS work); (b) **one aggregated Swagger/Redoc portal** pulling each service's
+`/openapi.json` — FastAPI services (tool-server, whisper shim) already emit it; OpenAI-compatible
+ones (Ollama, vLLM) use the standard spec; whisper-native `/inference` gets a stub. Live inventory
+lives in **docs/api.md** (the manual precursor). **Defers to B3 (Backstage API catalog)** as the
+heavyweight someday option. Trigger: endpoint sprawl makes "what's the URL again?" a recurring
+annoyance (already starting — Ollama, whisper×2, tool-server, vLLM, 7 UIs).
+
+### B13 — Open WebUI (browser voice/chat front door)
+Self-hosted ChatGPT-style UI as the robust, browser-based consumer of the local models — the
+payoff of **B7 (Ollama) + B11 (whisper)**. **Chat** ← Ollama (native integration); **voice input
+(STT)** ← the whisper shim via Open WebUI's OpenAI-compatible Audio→STT setting
+(`http://192.168.1.246:9000/v1` + dummy key); **TTS** optional later. Deploy on mother/k3s behind
+Traefik → `chat.weyland.lab` (same pattern as the other UIs). **Why over OpenClaw for voice:** Open
+WebUI's STT is a stable, documented setting and **fails *open*** (breaks one panel, not the agent)
+— vs OpenClaw v2026.5.31's `tools.media.audio`, which is undocumented-for-version and **failed
+closed** (took down the whole gateway; see [docs/runbooks/transcription-whisper.md](runbooks/transcription-whisper.md)).
+**Additive — zero impact on OpenClaw/Telegram** (independent consumer of the same shared endpoints).
+**Open when scoping:** auth (LAN/dev-password), persistence (PVC), which Ollama models to surface.
+
+### B14 — Guardrails + Hermes read+act (learning track)
+**✅ Status (2026-06-15) — DONE; both halves shipped in shadow.** The enforcement *promotions* below are
+carved out as their own downstream items (B35 / B34 / B17+B19), not remaining B14 scope. The shadow-mode
+guardrail pipeline is live at the tool-server seam: `input` hook (LLM Guard prompt-injection) + `output` hook
+(LLM Guard toxicity, in-process NLI grounding `cross-encoder/nli-deberta-v3-small`) on `/context/*`; verdicts →
+`/metrics` (Prometheus, ServiceMonitor wired) + `guardrail_verdicts` (Postgres). All `mode=shadow` (record-only,
+never blocks); per-validator `off|shadow|flag|block` via `GUARDRAIL_MODE__*` env. **Read+act also shipped:** the
+three action routes (`/pipeline/trigger`, `/evals/run`, `/evals/score`) are exposed on a separate `/mcp-act` MCP
+mount, audited by the `act` hook (`policy.audit`, shadow) with the `actor` seam (trusted `X-Forwarded-Consumer`
+header → `guardrail_verdicts.actor`, NULL until the gateway). Code: `services/weyland-tool-server/guardrails/`
+(20 tests). Specs/plans: `aidlc-docs/construction/b14-guardrails-{design,plan}.md` + `b14-readact-{design,plan}.md`.
+**Downstream promotions (separate items, not B14 scope):** (1) grounding threshold/method calibration before
+`shadow→flag/block` → **B35**; (2) the enforcing act policy gate (allowlist/rate-limit/`block`) → built with
+**B35**; (3) PII bake → **B34**; (4) gateway auth that injects the `actor` identity → **B17+B19** (handoff
+documented there). The shadow plumbing for all of these is in place — they are promotions, not new infrastructure.
+
+Runtime safety/validation of LLM I/O — **distinct from B4** (which measures quality *offline*). The
+classic drivers (untrusted users, public exposure, compliance, brand safety) **barely apply to a
+single-user LAN lab**, so this is **a learning + agent-prep track, not production hardening** —
+don't over-build it. Worth-it slices even solo: (a) **grounding/faithfulness enforcement** —
+flag/reject RAG answers unsupported by retrieved context (B4's Ragas faithfulness is the
+*measurement* half; this is the runtime *block* on `/context/ask`); (b) **prompt-injection
+awareness** — gets real once **B2 (Hermes/agents)** read untrusted content (Tavily/web results,
+ingested docs). **Tools:** Llama Guard (Meta safety classifier — runs on *your* Ollama), LLM Guard
+(input/output scanners: injection / PII / toxicity), Guardrails AI (structured-output validation for
+agent tool-calls), NeMo Guardrails (programmable rails — heaviest). **Sequenced with B2.** Revisit
+when agents process untrusted input, or for the learning.
+
+**Read+act scope (added 2026-06-14):** B14 now also owns turning on Hermes's **write/act** path — the
+tool-server's currently-untagged action routes (`/pipeline/trigger`, `/evals/run`, `/evals/score`)
+exposed as MCP act-tools (B2 v1 deliberately excluded them, tagging only the 4 read tools). read+act was
+previously *gated on* B14; it's now *part of* it, so the act-tools land **behind** the grounding/injection
+checks above — not before them. This is the read-only-v1 → read+act step for the B2 agents (Hermes first,
+OpenClaw same MCP URL).
+
+### B15 — Local-model coding agents (opencode / Cline CLI)
+Terminal/editor AI coding agents pointed at **weyland's Ollama `/v1`** — code with your *own* local
+models, on-LAN; like Open WebUI (B13) but for coding. **opencode** (SST; open-source, model-agnostic,
+Claude-Code-style TUI) and **Cline** (now has a CLI) both accept an OpenAI-compatible base URL, so
+they drop onto `http://192.168.1.244:11434/v1`. Consumers of B7 — and the real payoff of B4's "best
+coding model" finding (point them at `qwen3-coder:30b` / whatever wins). **Open when scoping:** which
+agent(s), per-repo config, default model, auth. Low lift (client config, no new infra).
+
+### B16 — MLflow (experiment tracking + model registry)
+**MERGED with B10 — this is the canonical MLflow detail section.**
+
+System-of-record for **experiments + model artifacts**. Real value lands once the lab does
+**fine-tuning**: track training runs (params/metrics/artifacts) and register/version the resulting
+models with lineage. **Reuses MinIO** (artifact store) **+ Postgres** (backend store) — fits the
+reuse ethos. **Pairs/overlaps with B10** (model registry): MLflow's Model Registry *could be* B10's
+implementation, or complement it (B10 = serving-side distribution/OCI for Ollama/vLLM pulls; MLflow =
+training/experiment lineage + registry). Also overlaps **B4**: MLflow could host eval-run tracking
+with a standard UI — but we already built a lean Postgres `eval_*` store, so that's not the draw.
+**Not urgent:** until fine-tuning starts, B4's eval store + Ollama's local model store + public pulls
+suffice. **Trigger:** the first real fine-tune, or wanting a standard experiment-tracking UI/lineage
+across training + eval. **Open:** MLflow vs (B10's) lighter MinIO-bucket / OCI-registry options —
+decide when fine-tuning is actually on the table.
+
+### B17 — A2A (agent-to-agent protocol) evaluation
+**MERGED with B19 — see the Mesh item.**
+
+Evaluate **A2A (Agent2Agent)** — or similar (ACP, AGNTCY) — for the **agent↔agent edge only**. Born out of
+B2 scoping (see docs/concepts/agent-platform-design.md §5). **Key framing: A2A is complementary to MCP, not a
+replacement** — MCP = agent↔tools (the system view + acting on the system, *always*); A2A = agent↔agent
+(discovery via Agent Cards, task lifecycle, streaming, long-running peer delegation). **Not needed for
+read+act** — acting on the system is agent→tool (MCP) even when side-effecting. **A2A's actual trigger:**
+**long-running, async, autonomous *cross-agent* delegation**, which becomes real as the agent fleet grows
+powerful — **Hermes + OpenClaw + opencode/Cline (B15)**. **Sequenced with B15.** When evaluating: (a) check
+native A2A support in each platform (cheap if shipped, heavy if we must adapter it); (b) confirm a real
+peer-mesh need vs the cheaper MCP-tool bridge; (c) A2A would sit *alongside* MCP on one edge — nothing in the
+MCP-based B2 build is wasted. **Default until then: MCP for everything, incl. the Hermes→OpenClaw bridge.**
+
+### B18 — Spotify integration (Hermes tool)
+Wire Hermes's `spotify` tool (playback / search / playlists / library) — **wanted: user has concrete use
+cases** (CAPTURE them here — they drive scope + priority). Disabled in B2 v1 (off-theme for a system-view
+agent, and setup-heavy). **Needs:** a Spotify *developer app* (client ID/secret), an **OAuth** flow to
+maintain, and a **Premium** account for playback control; calls go **off-LAN** to Spotify's cloud (low
+sensitivity — music control, not infra data). **Investigate:** Hermes's built-in `spotify` tool vs an MCP
+server vs n8n; token/refresh handling in the CT (`~/.hermes/`, not committed). **Open:** the specific use
+cases (TBD from user); which surface (Hermes tool vs MCP). One-line `hermes tools` enable once configured.
+
+### B19 — MCP gateway evaluation
+**MERGED with B17 — see the Mesh item.**
+
+Evaluate a self-hosted **MCP gateway** (mcpx · MCPJungle · MCP Mesh · Local MCP Gateway · IBM ContextForge)
+to **aggregate multiple MCP servers behind one governed endpoint** with auth/RBAC, audit logging, and
+OpenTelemetry observability. Born from B2 scoping (docs/concepts/agent-platform-design.md §5). **Not needed now** —
+at one MCP server (tool-server `/mcp`) + two agents there's nothing to aggregate; each agent registers the
+one URL directly. **Becomes valuable when** the MCP mesh grows (more servers) AND we want centralized
+auth/policy/observability over MCP traffic — pairs naturally with **B14 (guardrails)** + the cellular-seam
+governance, and is a learning-track fit. **MCP stays the seam regardless**; a gateway *fronts* servers like
+`/mcp`, it doesn't replace them. **Sequenced with B14/B17**, gated on the mesh actually growing.
+
+#### Handoff from B14 read+act (audit slice) — seams already built for the gateway
+The B14 read+act slice (`aidlc-docs/construction/b14-readact-design.md`) deliberately built the *boundaries*
+for this gateway work and left the *enforcement* to it. When B19 starts, these are in place to front/consume —
+don't rebuild them:
+- **`/mcp-act` mount** (`weyland-tool-server/main.py`) — the action tools (`/pipeline/trigger`, `/evals/run`,
+  `/evals/score`, tag `mcp-act`) are on a **separate MCP mount** from the read tools (`/mcp`). The gateway
+  fronts **`/mcp-act` only** with auth/policy; `/mcp` (read) can stay open. The act surface is already an
+  independently-addressable boundary — no need to split read/act here.
+- **`actor` trusted-header convention** — `guardrail_verdicts.actor` (nullable column) is populated on every
+  verdict from the **`X-Forwarded-Consumer`** header *only* (never a client-supplied claim), `NULL` today.
+  The gateway authenticates the consumer and injects that header → verified identity flows into the existing
+  audit rows with **zero tool-server change**. The trust boundary is already coded: the tool-server trusts the
+  header because it will only accept `/mcp-act` traffic from the gateway.
+- **Shadow `act` hook awaiting a policy validator** — `Hook.ACT` runs `policy.audit` (records only, never
+  blocks; `weyland-tool-server/guardrails/`). The gateway's/this-work's job is the **enforcing** policy
+  validator (allowlist of callable tools/jobs, rate-limit, `block`) — it drops into the existing per-hook
+  validator chain (`guardrails/config.py`), no new plumbing. Built alongside **B35** (calibrate-and-enforce
+  pass). Until then, `act` is audit-only.
+- **Decision recorded:** no client-supplied identity is ever trusted (anti-spoofing). Identity is a
+  gateway-asserted header or absent — this work must not loosen that.
+
+### B20 — Home Assistant integration (Hermes tool)
+Enable Hermes's `home_assistant` tool — extend the agent's "system view" from infra to the **physical
+environment** (lights, sensors, switches). **Gated on two things, not GPU:** (1) a running Home Assistant
+instance on the LAN (none yet) + a long-lived token; (2) it's an **act tool with physical side effects**, so
+it belongs in the **read+act phase with B14 guardrails**, not read-only v1. Disabled in B2 v1. One-line
+`hermes tools` enable once HA exists and guardrails are in.
+
+### B21 — Agent media generation (image / video / TTS)
+Enable Hermes's `image_generate`, `video_generate`, `text_to_speech` tools — **gated on the eGPU decision**
+(see Tentative). All are diffusion / GPU-hungry and do **NOT** run on Ollama/CPU, so on the current CPU-only
+box they'd be dead tools eating the agent's context. Disabled in B2 v1. Folds into the eGPU + audio-gen-GPU
+items in Tentative (shared VRAM-diffusion need). `vision_analyze` (image *analysis*, not generation) stays
+on (may run on CPU via `mistral-small3.2`). Re-evaluate when/if the eGPU lands.
+
+### B22 — SearXNG (self-hosted search) — privacy-max
+Optional replacement for **Tavily** (current search backend for OpenClaw + Hermes). Web search is inherently
+off-LAN, but SearXNG removes the **cloud middleman**: queries go from your box straight to search engines —
+self-hosted, free, no key. **Cost:** another service to run + rawer (non-agent-tuned) results vs Tavily's
+clean search+extract. **Not urgent** — Tavily works fine indefinitely. Revisit if the Tavily middleman/quota
+becomes a concern, or for privacy/learning. Both agents re-point at `SEARXNG_URL`.
+
+### B23 — Break out arch.md component diagrams
+`docs/arch.md` has grown into one large file carrying multiple Mermaid diagrams (full LAN topology,
+per-CT subgraphs, the agent sequence diagrams) plus the host/endpoint tables — too large to scan or edit
+comfortably. Split the diagram sections into their own files (e.g. `docs/diagrams/`), keep `arch.md` as the
+narrative + an index linking out, and **validate each Mermaid block renders** after the move (content-
+validation rule). **Near-term — sequenced right after B2.** Pairs with B25 (both reshape `docs/` IA); do the
+diagram split as part of the same IA pass so B25's git-ingestion targets the final structure.
+
+### B24 — Evaluate nerdctl
+**nerdctl** = the Docker-compatible CLI for **containerd** (which k3s already runs). Today images are built
+with `docker build` then shuttled in via `docker save | sudo k3s ctr images import -` (see the tool-server
+deploy in docs/runbooks/agent-hermes.md). nerdctl can build **straight into k3s's containerd namespace**
+(`nerdctl --namespace k8s.io build`), collapsing the save/import hop and dropping the Docker daemon from the
+loop. **Evaluate:** does it simplify build→deploy without breaking the `imagePullPolicy: Never` local-image
+pattern; rootless vs root on the k3s nodes; whether to keep Docker for dev ergonomics. Low-stakes tooling
+eval; no infra commitment.
+
+**DECISION (2026-06-15): DECLINE — keep docker.** The `docker build → docker save | k3s ctr images import`
+flow is an **anti-corruption layer** between two bounded contexts (the build domain and the cluster's runtime
+image store). nerdctl's sole real win is building **directly into k3s's live `k8s.io` store** — which
+*collapses* that ACL, the opposite of what we want. The plumbing checks out (nerdctl
+`--address=/run/k3s/containerd/containerd.sock --namespace=k8s.io`; our no-`FROM`-local-image Dockerfiles
+sidestep the nerdctl #2550 local-base gotcha), so adoption is *feasible* — we decline on **architecture, not
+capability**. Keeping docker *alongside* nerdctl would add daemons (dockerd + buildkitd), not reduce them.
+Tax that sealed it: nerdctl also costs rootful `sudo` builds + a buildkitd daemon to learn + lost ecosystem
+familiarity — none worth surrendering the build/runtime isolation. **No adoption.**
+
+### B25 — Docs IA overhaul + RAG corpus expansion
+**Absorbs U15** (git-based ingestion trigger — replaces inotify-on-Obsidian watcher with a Dagster git-pull
+workflow targeting the full docs/ tree).
+
+Three linked moves: **(1) Deprecate the Obsidian `weyland.md` note** — no longer useful as the primary
+source; migrate ALL still-valid content into the appropriate `docs/` files so nothing is lost, then retire
+it as a RAG source (today Dagster SFTPs that single file from rogueone — see U11). **(2) Restructure the
+`docs/` information architecture** — organize the now-canonical docs into a coherent tree (pairs with B23's
+diagram breakout). **(3) New Dagster ingestion workflow — pull all docs via git** — replace the single-file
+SFTP pull with a job that clones/pulls the repo and ingests the whole `docs/` tree into the RAG, and broaden
+the corpus beyond the one note. **Open:** repo/branch + cadence, doc chunking strategy, how the B23 diagram
+files get ingested (or not), de-dup vs existing RAG content. **(4) ~~Resolve services inventory~~ → MOVED to
+B28** — the `services`/`machines`/`models`/`memory_facts` tables (confirmed live 2026-06-15, no repo DDL) are
+**OpenClaw's** out-of-band state, so disposition rides with the OpenClaw keep/retire decision. **Depends on B23**
+(settle the IA/diagram split first so ingestion targets the final structure).
+
+**Status:** **B25a DONE (2026-06-14/15)** — docs restructured into `concepts/runbooks/units/validation/diagrams`
++ root registries + README; all links fixed; Obsidian symlink retired; `concepts/data-schema.md` migrated and
+**validated against live backends + eval-schema** (caught the missing `eval_*` tables and the 4 OpenClaw orphan
+tables). The note was ~85% overlap/stale → discarded. **B25b** = ONE Dagster git-pull job ingesting **both
+`docs/` AND `nodes/`** (markdown H2-chunking for docs + code-aware chunking for code), retiring the rogueone
+watcher — **gated on B31** (audit the codebase before ingesting it; the repo is the RAG corpus). **[B31 audit]
+Retire `nodes/rogueone/services/weyland-watcher/`** (`watcher.py` + `.service` unit + README) here, when B25b's
+git-pull trigger replaces inotify — it's the live trigger until then.
+
+### B26 — Hosted-model gateway (LiteLLM) + model catalog
+✅ **DONE 2026-06-17.** Runbook: [docs/runbooks/model-gateway.md](runbooks/model-gateway.md).
+Manifests `k8s/litellm/`; asset `model_catalog.py`; DDL `scripts/model-catalog-schema.sql`.
+
+**Reframed from "Hermes Claude brain."** Original goal: give Hermes an on-demand stronger brain. Two roads
+to Claude both rejected: (1) **Anthropic API key** = metered, declined; (2) **Claude Pro/Max subscription via
+a proxy** = ToS gray area (subscription is licensed for use *inside* Anthropic's products; Anthropic has
+broken tools that proxy its OAuth). "Connect Claude Code" isn't a road — Claude Code is a *client*, not a
+model endpoint. **Claude-in-lab = you driving Claude Code** (B29, already MCP-wired); Hermes stays local.
+
+**What shipped instead** — the LiteLLM gateway that was always on the roadmap ("→ LiteLLM (future)" in
+requirements-analysis.md), pointed at **API-key** providers (no ToS issue, free tiers = $0):
+- **LiteLLM** on mother/k3s (`mother:30400/v1`, `litellm.weyland.lab`), **wildcard routing** → every
+  **Gemini + OpenRouter** model behind one OpenAI-compatible endpoint; Bearer = `LITELLM_MASTER_KEY`.
+- **Governed egress:** off-box **cut-off valve** (`valve.sh` — scale to 0; agent can't reach it),
+  `LiteLLMEgressEnabled` + spend Telegram alerts (B5 Alertmanager), `/metrics` scraped.
+- **`model_catalog`** Postgres table — Dagster asset (6h, `weyland_catalog_schedule`) pulls
+  OpenRouter + Gemini + Ollama, **replace-by-source**; first run: openrouter 336 (26 free) / gemini 37 /
+  ollama 6. The guess-free registry of reachable models (the B12-ish model catalog, made real).
+- **Hermes auxiliary lanes pinned local** (safety, was the actual auto-off-LAN hole): `title_generation`,
+  `web_extract`, `compression`, `skills_hub`, `approval` → local Ollama (`vision` left, needs a vision model).
+
+**Remaining/optional:** wire a Hermes `custom` provider at the gateway for on-demand escalation (`/model
+--provider`, default stays local); render a `docs/models.md` view from `model_catalog` if eyeballing is wanted.
+
+### B27 — Enable Hermes Kanban skills
+**Design (finalized 2026-06-17): `aidlc-docs/construction/b27-kanban-design.md`** — scope (a) self-management
++ (b) roadmap co-pilot. **Board = Hermes's native durable SQLite Kanban** (built in, no container, no Postgres —
+richer than anything we'd build: deps, workers-in-isolated-workspaces, dispatcher, swarm, decompose/specify).
+**Planning brain = Gemini free** (`gemini-flash`) via the gateway, pinned to `auxiliary.kanban_decomposer` +
+`triage_specifier` only; default brain + workers stay local `qwen3-coder`. **$0, no paid models.**
+**`backlog.md` → `docs/`** (step 1) feeds the RAG + the one-way roadmap-sync script. Plan-only → autonomous.
+Turn on Hermes's built-in **Kanban** skills — the agent's native task/board/goal-management scaffolding (part
+of the base framework prompt; see docs/runbooks/agent-hermes.md) — so Hermes can **decompose, plan, and track
+multi-step work on its own board** instead of one-shot turns. **Sequenced right after B26 (Claude) by
+design:** autonomous multi-step Kanban planning leans on a stronger brain, so it pays off most once Claude is
+available for the planning turns (local `qwen3-coder` can still drive it, just less reliably). **Possible
+payoff:** point the Kanban at the **weyland roadmap itself** (this backlog) — agent-assisted grooming /
+execution tracking. **Open:** scope (the agent's own task planning vs managing our roadmap); board
+persistence; which brain runs planning turns; read-only vs act (if the board drives real changes, that ties
+to B14 read+act + guardrails).
+
+### B28 — OpenClaw rehabilitation (deprioritized — much later)
+Decision 2026-06-14: OpenClaw is **shelved, not deleted** — a powerful lab toy that's currently more pain than
+payoff. This item is the future cleanup to make it usable again, done **only when there's appetite** (nothing
+depends on it; Hermes carries the agent role). Captured degradation from `openclaw doctor` (2026-06-14) so it
+isn't lost:
+- **weyland MCP not surfacing to the brain** — registered + probes 4 tools at the CLI, but the agent's tool
+  list is empty (gateway MCP runtime stuck "reconnecting"); a container restart didn't clear it.
+- **No command owner** (`commands.ownerAllowFrom` unset) → owner-only / privileged actions + exec approvals
+  can't run; the agent can't self-fix.
+- **Brain auth expiring** — `anthropic:claude-cli` ~8h to expiry; needs re-auth.
+- **Memory search broken** — provider `openai` with no key → semantic recall dead (set key, switch, or disable).
+- **Tool allowlist too narrow** — agent `main` can't even use the `message` tool (likely also gating MCP tools).
+- **Security** (lab/LAN, low urgency): plaintext secrets in `openclaw.json` (telegram token, tavily key,
+  gateway token); gateway bound `0.0.0.0`.
+- **Operability:** reachable only through the gateway Docker container (`docker exec …`) — painful.
+**Two decisions to make when we reach it: (1) keep vs retire? (2) if keep, refactor vs rewrite?**
+**When revisited:** answer (1) first — whether OpenClaw's unique value (plugin/channel breadth) is still wanted
+vs just retiring it; then (2) refactor the existing degraded gateway vs a clean rewrite. If kept, fix roughly
+in order: owner → MCP surfacing → auth → memory → secrets.
+- **Out-of-band Postgres tables (moved here from B25):** OpenClaw created `services`, `machines`, `models`,
+  `memory_facts` in the shared `weyland` DB (confirmed live 2026-06-15; no repo DDL; nothing else reads them).
+  Reconcile or drop them as part of the keep/retire decision. See `docs/concepts/data-schema.md` §5.
+- **OpenClaw helper scripts (deferred here from the B31 codebase audit):** `nodes/openclaw/bin/` —
+  `read-weyland-note` (SSH-cats the now-retired Obsidian note), `weyland-context` (RAG-search CLI),
+  `ask-rogueone-vllm` (→ rogueone vLLM), `weyland-db` (psql wrapper with `services/machines/models/chunks`
+  shortcuts — ties the out-of-band inventory to OpenClaw tooling). Left intact for now; retire or redo with the
+  keep/retire call.
+
+Its prior "both agents" roles (B14 read+act, B18 Spotify, B20 HA, B21 media-gen, B22 SearXNG) are Hermes-now
+until this lands. See [[openclaw-deprioritized]].
+
+### B30 — Real-time docs ingestion trigger (Extras / Optimization)
+Self-hosted **GitHub Actions runner on the LAN** fires the Dagster `launchRun` mutation on push — NAT-free
+near-real-time ingestion without exposing mother. Deferred: the 15-min cron + hash-gate is fine until that
+latency actually bothers us. The trigger contract (`launchRun` to Dagster `:30088`) is unchanged from B25b, so
+this bolts on with zero rework.
+
+### B32 — NeMo Guardrails evaluation (Extras / Optimization)
+**NeMo Guardrails** (NVIDIA) — a *programmable* guardrails framework: rails authored in the **Colang** DSL
+(topical rails = keep on-topic; dialog-flow rails = allowed conversation paths; jailbreak / fact-check rails),
+wrapping the LLM as a conversational control layer. **Deferred from B14** because it's the heaviest option (a
+whole framework + a new language) and built for **dialog management**, not the request/response **I/O scanning**
+B14's tool-server pipeline does (Llama Guard + LLM Guard + grounding judge cover that). **Where it might fit:**
+the **Layer-2 agent layer** (Hermes) for dialog/topical rails — evaluate then. Not the tool-server seam.
+
+### B34 — Evaluate + bake PII guard (Maturity / Hardening / Polish)
+B14 shipped the **PII validator coded but unbaked**: the `PIIValidator` (llm_guard `Sensitive` → presidio
++ spaCy) exists in `guardrails/validators/llm_guard.py` and its config line is present-but-commented in
+`guardrails/config.py`, but the presidio/spaCy model is **not baked into the tool-server image** (Option A at
+build time — the heaviest, lowest-signal-in-this-corpus guard was deferred to keep the image lean and the
+airgap-offline guarantee clean). **B34 promotes it:** (1) **eval** — using the shadow telemetry already
+flowing for injection/toxicity/grounding, confirm PII detection carries real signal on *this* corpus (own
+infra docs: hostnames/IPs/secrets) rather than near-constant PASS noise; a **multi-user / answer-export**
+trigger also promotes it regardless. (2) **bake** — add presidio + a spaCy model (`en_core_web_sm` to stay
+lean, or `_lg` for accuracy) to the Dockerfile *before* the `HF_HUB_OFFLINE` lines, mirroring the injection/
+toxicity/NLI bakes. (3) **enable** — uncomment the `llm_guard.pii` line in `config.py` (ships `Mode.SHADOW`).
+The resilient per-validator loader means it lights up with zero other code changes. **Depends on:** B14 shadow
+data accumulated. **Effort:** small (build + config), modulo presidio/spaCy bake fragility.
+
+### B35 — Grounding guard calibration (Maturity / Hardening / Polish)
+B14's grounding validator (`grounding.nli`, `guardrails/validators/grounding.py`) emits `max_entailment` ∈ [0,1]
+and FLAGs below a **guessed `0.5` threshold** — set before any data existed. First live run already FLAGged a
+*correct* "the context doesn't cover that" answer at `0.295`, i.e. the threshold is uncalibrated and the
+whole-answer-vs-single-chunk NLI method systematically under-scores answers synthesized across multiple chunks.
+**B35 calibrates it:** (1) **collect** — let shadow mode accumulate `max_entailment` across many real
+`/context/ask` queries in `guardrail_verdicts` (happening now). (2) **label** — judge a sample (hand or
+stronger model) as truly grounded vs hallucinated. (3) **separate** — plot the two score distributions; set the
+threshold that best splits them (max F1, or bound the false-flag rate). (4) **fix method if needed** — if no
+threshold separates them, switch from whole-answer-vs-chunk to **sentence-level entailment** (score each
+answer-sentence vs its best chunk, aggregate) or **concatenate top-k chunks into one premise**. This is the
+**prerequisite to ever moving grounding from `shadow` → `flag`/`block`** — enforcing on a guessed threshold
+would block good answers or pass hallucinations. Ties into the B4 eval harness (reuse its judge-panel pattern
+for labeling) and feeds the B1 model-eval data product. **Depends on:** B14 shadow data. **Effort:** small-medium
+(analysis + a possible scoring-method swap).
+
+### B33 — Co-resident / warm-parallel model serving (Hardware-Gated)
+The latency-free way to run a guard (or any second model) alongside the main one is to keep **both resident** —
+`OLLAMA_MAX_LOADED_MODELS=N` + `KEEP_ALIVE=-1` (requests route to the right warm model; nothing cold-starts).
+Surfaced from B14's grounding-guard venue discussion. **Gated on hardware:** CT 102's ~48 GB cgroup is already
+near-full with one 30B-A3B at 64K, so a *second large* model can't co-reside today — this unlocks with RAM
+headroom (the "weyland box" decision) or the eGPU (VRAM). Note: *small* guard models can already co-reside or
+run in a dedicated guard CT / in-process (that's B14's feasible path) — **B33 is specifically the
+keep-big-models-warm-in-parallel capability.** Related: the vLLM **multi-LoRA** hot-swap path (cheap adapter
+swap on a shared warm base) if guards are ever LoRAs of the base model.
+
+### B31 — Codebase audit / restructure (`nodes/`)
+**The repo is the RAG corpus** — "ingest everything we check in" means `nodes/` (code + k8s manifests) gets
+ingested too, so it must be as clean and relevant as the docs were before B25b. **Garbage in the repo = garbage
+in the RAG.** This is the **code analog of B25a**, and a **prerequisite for B25b's ingestion**:
+- **Audit `nodes/` for relevance:** retire dead/stale scripts, bootstrap/one-off helpers, abandoned
+  experiments, and the now-obsolete rogueone watcher (U15).
+- **Audit for structure:** organize what stays so ingestion targets a coherent tree.
+- *(Ingestion mechanics — code-aware chunking, tracked-file selection, the `bge`-on-code caveat — live in
+  **B25b**, the unified docs+code job, not here. `.gitignore` already excludes node_modules / the openclaw
+  clone / aidlc-docs / CLAUDE.md.)*
+
+**Sequence: B31 (this) → B25b** (one Dagster job ingesting the cleaned `docs/` + `nodes/`). Ties into data mesh
+(code/config as a Data-as-a-Product).
+
+**Status (2026-06-15): audit DONE — codebase is clean.** Retired the 2 dead bootstrap RAG scripts
+(`mother/bin/embed-weyland-chunks`, `ingest-weyland-note`). **Security:** `k8s/n8n/encryption-key.txt` is a
+stray committed secret (n8n reads from a k8s Secret, not the file) → gitignored; **untrack + rotate the key is
+a security task for the user** (already in git history). Corrected 2 false-positives: kept
+`weyland-dagster-base/Dockerfile` (used by dagster webserver/daemon as `weyland-dagster-base:local`) and
+`telegram-test-rule.yaml` (documented test fixture in observability.md). Deferred: OpenClaw `nodes/openclaw/bin/*`
+→ B28, `weyland-watcher` → B25b. No structural reorg needed — the `nodes/<host>/…` layout is coherent.
+
+### B29 — Connect Claude Code to the weyland system-view MCP
+Make this Claude Code session a first-class **consumer of the weyland system-view MCP**
+(`http://192.168.1.243:30080/mcp`) — the same URL Hermes uses — so I understand the **live system**
+(`status` / `list_models` + RAG via `context_ask` / `context_search`) directly and deterministically, instead
+of relying on stale git. **MCP, not A2A:** connect to the tool *server*, not to an agent (no lossy LLM
+middleman; matches the B17 framing). Claude Code speaks MCP natively (`.mcp.json` / `claude mcp add`,
+streamable-http transport). **Immediate directive** alongside B25 — and the RAG half scales with B25 (better
+ingested corpus → more useful `context_ask`). Re-confirms the Hermes↔MCP path from a second client. **Open:**
+`30080` reachability from the dev host; read-only now (act later, gated like B14); whether to scope which
+tools load.
+
+### U13 — sentence-transformers image slimming
+- **Running-list item**: 12
+- **Theme**: B — footprint
+- **Scope**: Reduce or split the heavy sentence-transformers Docker image.
+
+### U14 — n8n workflow export to git
+- **Running-list item**: 13
+- **Theme**: D — config-in-git
+- **Scope**: Export the n8n workflow(s) into git now that the structure has stabilized.
+
+### U16 — Weaviate UI (React frontend)
+- **Running-list item**: 15
+- **Theme**: F — deferred
+- **Scope**: Custom React frontend for Weaviate schema browsing, object inspection, and
+  search against the self-hosted instance.
+- **Note**: Referenced as "U6" in older docs (weyland.md / aidlc-state.md); renumbered
+  to U16 under priority order.
+
+### U17 — Migrate platform API routes APISIX→Traefik; APISIX→outliers-only
+**DROPPED — stale; U17 removed from priority list.**
+
+- **Origin**: U9 follow-up (cellular architecture, deferred from U9 scope a)
+- **Theme**: architecture / E
+- **Scope**: Move APISIX's existing platform-API routes (`/context`, `/pipeline` →
+  weyland-tool-server) onto Traefik (the platform front door). Repurpose APISIX to front
+  only the outlier cell (non-k8s assets). Cross-cell path becomes APISIX → Traefik →
+  service (the anti-corruption seam). Requires the non-k8s asset inventory.
+- **Priority**: after U9; user may reprioritize. NOT yet in the numbered running list
+  (which tracks the original 15 items) — added as an architecture-driven follow-up.
+
+### U18 — weyland-lab SSH key full lockdown (rogueone-side)
+- **Origin**: U11 follow-up (deferred option (c), agreed 2026-06-09)
+- **Theme**: E — hardening
+- **Scope**: Tighten the (now single-purpose) weyland-lab key on rogueone's
+  `authorized_keys`: `restrict`, `from="<mother>"`, and a forced `command="cat <file>"`.
+  The forced command requires switching Dagster `source_document.py` from SFTP to
+  `exec_command("cat <file>")`. End state: even if the key leaks it can only read the one
+  source file, from mother, no shell. (Host-key pinning is done separately in U11 (b).)
+- **Requires**: Dagster user-code image rebuild + an ingestion test run; rogueone
+  authorized_keys edit. Touches the active ingestion path — validate carefully.
+
+---
+
+## Iteration 1 follow-ups (banked, see units-iter1.md)
+- **U17** — Migrate platform API routes APISIX→Traefik; APISIX→outliers-only. **DROPPED as stale.**
+- **U18** — weyland-lab SSH full lockdown on rogueone (restrict/from/forced-command;
+  needs source_document SFTP→exec). **Promoted to Maturity / Hardening / Polish above.**

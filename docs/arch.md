@@ -5,7 +5,7 @@ flows through the validated paths. This is the synthesis layer above the registr
 when they disagree, the registries ([hosts.md](hosts.md), [api.md](api.md)) are the source of truth
 for *values*; this doc owns the *picture and the why*. Keep it current as the system evolves.
 
-**Companion docs:** [hosts.md](hosts.md) · [api.md](api.md) · roadmap `aidlc-docs/backlog.md` ·
+**Companion docs:** [hosts.md](hosts.md) · [api.md](api.md) · roadmap [backlog.md](backlog.md) ·
 runbooks: [b6-minio](runbooks/storage-minio.md) · [b7-ollama](runbooks/model-serving-ollama.md) ·
 [b11-whisper](runbooks/transcription-whisper.md) · [b4-eval](runbooks/eval-harness.md) ·
 concepts: [llm-inference-cpu-vs-gpu](concepts/llm-inference-cpu-vs-gpu.md) · ops: [test.md](validation/test-commands.md)
@@ -265,7 +265,7 @@ so Ollama mis-sizes against 96 GB / 16 cores instead of the CT's limits. (Detail
 
 ## 13. Roadmap & maintenance
 
-Forward priorities live in `aidlc-docs/backlog.md`. Immediate: B25 (docs IA + git RAG ingestion), then Platform Foundation (B24/B14/B26/B27/B8/B3).
+Forward priorities live in [backlog.md](backlog.md). Platform Foundation: B27 (Hermes Kanban — next), then B8/B3 (Istio / Backstage IDP). Recently done: B25, B24, B14, B26.
 
 **Maintaining this doc:** update it (and [hosts.md](hosts.md)/[api.md](api.md)) whenever a host,
 service, endpoint, port, DNS name, or major flow changes — same "done" bar as a runbook.
