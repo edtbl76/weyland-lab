@@ -6,23 +6,27 @@ Level 3: components inside the mother k3s container. See [c4-container.md](c4-co
 C4Component
     title mother VM — k3s Components
 
-    Container_Ext(hermes, "hermes CT", "MCP client — queries tool-server /mcp")
-    Container_Ext(rogueone, "rogueone", "Claude Code — MCP client; Dagster SSH source")
+    Container_Ext(hermes, "hermes CT", "MCP client + LiteLLM planning client")
+    Container_Ext(rogueone, "rogueone", "Claude Code — MCP client")
     Container_Ext(ollama_ct, "ollama CT", "LLM inference /v1")
     Container_Ext(whisper_ct, "whisper CT", "STT /v1/audio/transcriptions")
+    Container_Ext(github, "GitHub", "weyland-lab repo — RAG source")
+    System_Ext(hostedmodels, "Gemini / OpenRouter", "hosted LLMs (free tiers)")
     Person_Ext(user, "Edward", "Lab operator — browser UIs")
 
     Container_Boundary(mother, "mother VM vm-101 (.243) — k3s, ns: weyland") {
 
         Component(tool_server, "weyland-tool-server", "FastAPI / Python v0.4.0", "Platform HTTP boundary. RAG retrieval (4 backends), /context/ask (RAG gen), /evals/*, /pipeline/trigger, /health, /ready, /status. Exposes /mcp system-view MCP server (fastapi-mcp, Streamable HTTP, read-only). :30080")
 
-        Component(dagster, "Dagster", "Python / Helm", "Pipeline orchestration. weyland_ingestion_job (SSH read -> chunk -> embed -> 4-backend write). weyland_eval_job + weyland_eval_score_job. dagster.weyland.lab")
+        Component(dagster, "Dagster", "Python / Helm", "Pipeline orchestration. weyland_ingestion_job (git-pull docs/+nodes/ -> chunk -> embed -> 4-backend write). weyland_eval_job + weyland_eval_score_job. weyland_catalog_job (6h -> model_catalog). dagster.weyland.lab")
+
+        Component(litellm, "LiteLLM", "LiteLLM / k8s", "Hosted-model gateway. Gemini + OpenRouter (wildcard) behind OpenAI /v1. Off-box cut-off valve + spend alerts. mother:30400, litellm.weyland.lab")
 
         Component(open_webui, "Open WebUI", "Docker / k8s", "Browser voice/chat UI. chat -> Ollama, STT -> whisper shim. chat.weyland.lab")
 
         Component(n8n, "n8n", "Node.js / k8s", "Workflow automation. Ingestion role retired (-> Dagster). Retained for other automation. n8n.weyland.lab")
 
-        Component(pgvector, "Postgres / pgvector", "PostgreSQL + pgvector", "Primary RAG store: rag_documents + rag_chunks (384-dim bge vectors). Eval tables: eval_runs, eval_questions, eval_results, eval_scores, eval_leaderboard. In-cluster only :5432")
+        Component(pgvector, "Postgres / pgvector", "PostgreSQL + pgvector", "Primary RAG store: rag_documents + rag_chunks (384-dim bge vectors). Eval tables: eval_runs/questions/results/scores + eval_leaderboard. model_catalog (hosted-model lookup, 6h). In-cluster only :5432")
 
         Component(qdrant, "Qdrant", "Qdrant", "Vector store. Collection: weyland_chunks. :30083 (HTTP) :30084 (gRPC)")
 
@@ -55,8 +59,9 @@ C4Component
     Rel(tool_server, neo4j, "retrieve")
     Rel(tool_server, ollama_ct, "RAG generate + eval judge /v1")
     Rel(tool_server, dagster, "POST /pipeline/trigger launchRun")
-    Rel(dagster, rogueone, "SSH/SFTP read Obsidian markdown (paramiko, pinned host key)")
-    Rel(dagster, pgvector, "write rag_documents + rag_chunks")
+    Rel(dagster, github, "git-pull docs/ + nodes/ (B25b — replaced Obsidian SSH)")
+    Rel(dagster, hostedmodels, "model_catalog: fetch OpenRouter/Gemini model lists")
+    Rel(dagster, pgvector, "write rag_documents + rag_chunks + model_catalog")
     Rel(dagster, qdrant, "write weyland_chunks")
     Rel(dagster, weaviate, "write WeylandChunk")
     Rel(dagster, neo4j, "write nodes + edges")
@@ -64,5 +69,8 @@ C4Component
     Rel(open_webui, ollama_ct, "chat completions /v1")
     Rel(open_webui, whisper_ct, "STT /v1/audio/transcriptions")
     Rel(prometheus, tool_server, "scrape /metrics + ServiceMonitors")
+    Rel(prometheus, litellm, "scrape /metrics (request/spend)")
+    Rel(hermes, litellm, "planning turns /v1 (Gemini-free)")
+    Rel(litellm, hostedmodels, "egress: Gemini / OpenRouter")
     Rel(coredns, traefik, "*.weyland.lab wildcard resolution")
 ```

@@ -16,7 +16,8 @@ LAN-only. This `docs/` tree is the canonical, version-controlled source of truth
 - [data-schema.md](concepts/data-schema.md) — RAG (4 backends) + eval store schemas, ground-truth-validated
 
 ## runbooks/ — the *how* (per service)
-- [agent-hermes.md](runbooks/agent-hermes.md) — Hermes agent (CT 104) setup, config, gotchas
+- [agent-hermes.md](runbooks/agent-hermes.md) — Hermes agent (CT 104) setup, config, gotchas, **Kanban (B27)**
+- [model-gateway.md](runbooks/model-gateway.md) — LiteLLM hosted-model gateway (Gemini + OpenRouter) + model catalog
 - [model-serving-ollama.md](runbooks/model-serving-ollama.md) — Ollama (CT 102), models, CPU tuning
 - [transcription-whisper.md](runbooks/transcription-whisper.md) — whisper.cpp STT (CT 103) + OpenAI shim
 - [eval-harness.md](runbooks/eval-harness.md) — LLM eval pipeline, judge panel, leaderboard

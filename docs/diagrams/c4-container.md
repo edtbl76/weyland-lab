@@ -10,8 +10,10 @@ C4Container
 
     Person(user, "Edward", "Lab operator")
     System_Ext(telegram, "Telegram", "Cloud messaging platform")
-    System_Ext(anthropic, "Anthropic API", "Claude cloud models")
-    System_Ext(rogueone, "rogueone", "External laptop: Claude Code, vLLM, Obsidian vault")
+    System_Ext(anthropic, "Anthropic API", "Claude cloud models (OpenClaw only — deprioritized)")
+    System_Ext(hostedmodels, "Gemini / OpenRouter", "Free-tier hosted LLMs — via mother LiteLLM gateway")
+    System_Ext(github, "GitHub", "weyland-lab repo — RAG source (B25b) + roadmap backlog")
+    System_Ext(rogueone, "rogueone", "External laptop: Claude Code, vLLM")
 
     System_Boundary(weyland, "weyland — MS-A2 Proxmox (.232)") {
 
@@ -35,7 +37,10 @@ C4Container
     Rel(hermes, mother, "system-view MCP /mcp (read-only tools)")
     Rel(mother, ollama_ct, "RAG generation + eval judging /v1")
     Rel(mother, whisper_ct, "STT /v1/audio/transcriptions")
-    Rel(mother, rogueone, "Dagster SSH reads Obsidian vault")
+    Rel(mother, github, "Dagster git-pulls docs/ + nodes/ for RAG (B25b)")
+    Rel(mother, hostedmodels, "LiteLLM gateway egress + model_catalog fetch")
+    Rel(hermes, mother, "planning turns via LiteLLM gateway /v1 (Gemini)")
+    Rel(hermes, github, "roadmap-sync pulls backlog.md (6h cron)")
     Rel(openclaw_vm, mother, "RAG context /context/search — DEPRIORITIZED")
     Rel(openclaw_vm, anthropic, "Claude CLI reasoning — DEPRIORITIZED")
     Rel(rogueone, mother, "Claude Code MCP /mcp (read-only tools)")

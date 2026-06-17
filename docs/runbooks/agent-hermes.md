@@ -360,3 +360,57 @@ or desktop app.**
 
 **Validated 2026-06-14:** DM from the allowlisted user → "typing" → agent cold-prefilled (~3.5 min) →
 real reply in Telegram. Gateway `active`, `NRestarts=0`.
+
+## Kanban — self-management + roadmap co-pilot (B27, live 2026-06-17)
+
+Hermes's **native, durable SQLite Kanban** (`hermes kanban`) — boards-per-workstream, task deps, atomic
+claims, profile **workers in isolated workspaces**, `decompose`/`specify`/`swarm`. The dispatcher runs inside
+the existing `hermes-gateway` (no extra daemon, no container, no Postgres). Design:
+[../../aidlc-docs/construction/b27-kanban-design.md](../../aidlc-docs/construction/b27-kanban-design.md).
+
+**Planning brain split:** planning (`decompose`/`specify`) runs on **Gemini free via the gateway**; the
+default brain + the workers that *execute* tasks stay local `qwen3-coder`. Wired by:
+- A `custom` provider **`weyland-model-gateway`** → `http://192.168.1.243:30400/v1`, key = the LiteLLM
+  master key, api_mode chat_completions, model `gemini-flash`. Add via `hermes model`.
+  **⚠ the `hermes model` wizard sets this as the DEFAULT** — revert the default back to local:
+  ```
+  hermes config set model.default qwen3-coder:30b
+  hermes config set model.base_url http://192.168.1.244:11434/v1
+  hermes config set model.api_key ollama
+  ```
+- Pin **only** the two planning aux lanes to the gateway in `~/.hermes/config.yaml` (leave the others local):
+  ```
+  auxiliary.kanban_decomposer:  { provider: custom, model: gemini-flash, base_url: http://192.168.1.243:30400/v1, api_key: <master-key> }
+  auxiliary.triage_specifier:   { provider: custom, model: gemini-flash, base_url: http://192.168.1.243:30400/v1, api_key: <master-key> }
+  ```
+- `hermes kanban init` (creates `kanban.db`), then `systemctl restart hermes-gateway`.
+
+**(b) Roadmap co-pilot — the `weyland-roadmap` board.** One-way mirror of `docs/backlog.md`:
+`nodes/weyland/hermes/roadmap-sync.py` (on CT 104 at `/root/roadmap-sync.py`) `curl`s the raw backlog from the
+public repo, parses each `### B/U —` item + status (top "## DONE" bullets / priority markers), and upserts
+cards (`--idempotency-key <id>` dedups; DONE → `complete`). Cron: `17 */6 * * *`. **The human owns
+`backlog.md`; Hermes annotates the board, never edits the backlog.**
+
+**Safety model (important):** roadmap cards are created **unassigned**. The dispatcher only spawns workers for
+**assigned** tasks (`decompose` assigns; the sync deliberately does not) — so the roadmap board is a **passive
+read mirror**, proven by `running 0` while the `default` worker was busy on assigned tasks. *Note:*
+`--initial-status blocked` does **not** stick (Hermes auto-unblocks a card with no real blocker → it drifts to
+`ready`); the unassigned-never-claimed property is what keeps it safe, not the status.
+
+**⚠ `decompose` autonomously EXECUTES.** A decomposed task fans into children **assigned to a profile**, and
+the dispatcher runs them — planning on Gemini, **shell execution in CT 104 workspaces**. A wiring test
+("backup Postgres to MinIO") really started building it. Only decompose/assign work you actually want done.
+
+**View / operate:**
+```
+hermes kanban --board <slug> ls            # snapshot  (boards: default, weyland-roadmap)
+hermes kanban --board <slug> stats         # per-status counts
+hermes kanban --board <slug> watch         # live event stream
+hermes kanban assignees                    # worker profiles + running/todo counts
+```
+**Kill runaway tasks:** `reclaim` the running ones (releases the worker claim), then `archive`:
+```
+hermes kanban --board default reclaim <id>
+hermes kanban --board default archive <id…>
+hermes kanban --board default gc           # clean archived workspaces/logs (optional)
+```

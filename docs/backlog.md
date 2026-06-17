@@ -6,7 +6,9 @@ Re-ordered per RE-grounded audit (aidlc-docs/inception/backlog-reprioritization.
 > effectively only active agent. OpenClaw was a "play with a powerful tool" lab experiment — fragile, painful
 > to operate (gateway-container only), currently degraded (MCP not surfacing to its brain, no command owner,
 > claude-cli auth expiring, memory search off, plaintext secrets), and nothing depends on it. Its unique edge
-> (Claude brain, skill/channel breadth) is eroded by B26 (Hermes+Claude). **Rehab = B28, much later.** Read all
+> (Claude brain, skill/channel breadth) is eroded by B26 — Hermes gained strong **free hosted brains**
+> (Gemini / OpenRouter via the LiteLLM gateway); the Hermes-Claude path itself was *declined* (ToS/cost).
+> **Rehab = B28, much later.** Read all
 > "both agents" references below as **Hermes-now / OpenClaw-when-B28-lands**. See [[openclaw-deprioritized]].
 
 ## DONE (repo-verified)
@@ -40,7 +42,7 @@ Re-ordered per RE-grounded audit (aidlc-docs/inception/backlog-reprioritization.
 4. **B24** — Evaluate nerdctl — ✅ **EVALUATED 2026-06-15 → DECLINE.** Keep docker + `save|import` as a deliberate build↔runtime anti-corruption layer; nerdctl's only real win (build into k3s's live image store) violates it, and keeping docker alongside would only add daemons. See detail below.
 5. **B14** — Guardrails + Hermes read+act — ✅ **DONE 2026-06-15.** Both halves shipped: guardrail I/O layer (injection/toxicity/grounding on `/context/*`) + read+act (act-tools on `/mcp-act`, `act` hook audits to `guardrail_verdicts` with the `actor` seam), all `mode=shadow` (record-only — the right default for a single-user LAN lab). Shadow plumbing is complete; the enforcement *promotions* are carved out as their own downstream items, not B14 scope: grounding `shadow→flag/block` calibration + act policy gate → **B35**, PII bake → **B34**, gateway auth/actor injection → **B17+B19**. See detail below.
 6. **B26** — Hosted-model gateway (LiteLLM) + model catalog — ✅ **DONE 2026-06-17** (reframed from "Hermes Claude brain"; Claude path declined — ToS gray area). LiteLLM on mother fronts all Gemini+OpenRouter; Dagster `model_catalog` (6h). See detail below.
-7. **B27** — Hermes Kanban skills — autonomous multi-step planning; wants B26's brain. See detail below.
+7. **B27** — Hermes Kanban (self-management + roadmap co-pilot) — ✅ **DONE 2026-06-17.** Native SQLite kanban; planning on Gemini-free via the gateway (`kanban_decomposer`/`triage_specifier` pinned), workers local; `weyland-roadmap` board mirrors this backlog one-way (`roadmap-sync.py`, 6h cron). See detail below + [runbooks/agent-hermes.md](runbooks/agent-hermes.md#kanban--self-management--roadmap-co-pilot-b27-live-2026-06-17).
 8. **B8** — Istio evaluation — infrastructure/networking that Backstage will surface; evaluate during or before B3. May absorb into B3 scope. See detail below.
 9. **B3** — IDP / Backstage — big mother infrastructure work; catalogs the full platform including agents. Absorbs B12 (API catalog). Open questions: (1) Backstage on mother or its own platform? (2) exact MCP harness scope. See detail below.
 
@@ -51,7 +53,7 @@ Re-ordered per RE-grounded audit (aidlc-docs/inception/backlog-reprioritization.
 ### Maturity / Hardening / Polish
 12. **B15** — Local-model coding agents (opencode / Cline CLI) — hardening agentic capabilities; autonomous unattended coding tasks; full value when Hermes delegates via mesh. See detail below.
 13. **B17+B19** — "Mesh": A2A evaluation + MCP gateway — MERGED; same inflection point (fleet is real, govern it). Triggered after B14+B26+B27 + B3 stable + OpenClaw decision made. See detail below.
-14. **U18** — SSH full lockdown — closes rogueone authorized_keys gap from U11. See detail below.
+14. **U18** — ✅ **DONE 2026-06-17 (as KEY RETIREMENT, not lockdown).** B25b removed the SFTP ingestion that U18 was hardening → the `weyland-lab` key had zero consumers (repo grep clean). Retired it instead: deleted rogueone `authorized_keys` line + the orphaned `weyland-lab-ssh-key` k8s Secret. See detail below.
 15. **B20** — Home Assistant (Hermes tool) — Hermes → HA → Google Home/Alexa/physical devices. Prerequisite: running HA instance. See detail below.
 16. **B28** — OpenClaw rehabilitation (or retire) — Real Purpose; shelved not deleted. Two Qs when we reach it: (1) keep vs retire? (2) if keep, refactor vs rewrite? See detail below.
 17. **U14** — n8n workflow → git — audit active n8n workflows before working on this. See detail below.
@@ -621,6 +623,16 @@ tools load.
   (which tracks the original 15 items) — added as an architecture-driven follow-up.
 
 ### U18 — weyland-lab SSH key full lockdown (rogueone-side)
+- **✅ DONE 2026-06-17 — closed as KEY RETIREMENT.** Removed the rogueone `authorized_keys` line and deleted
+  the orphaned `weyland-lab-ssh-key` k8s Secret. The key is fully gone (no public half, no private half).
+- **⛔ Original lockdown scope OBSOLETE (the work below is void) — reframed to retirement (2026-06-17).** B25b replaced the Dagster
+  SFTP-from-rogueone ingestion with a GitHub git-pull — `source_document.py` no longer SSHes rogueone.
+  Repo grep (`weyland-lab|WEYLAND_SSH|paramiko|authorized_keys` over `nodes/` + `k8s/`) finds **zero**
+  consumers — only the repo-name in GitHub URLs. The `weyland-lab` key is **dead access**. The original
+  "lock the key down" scope is void; the residual task is **retire the key** (a deleted key beats a hardened
+  one): (1) remove the `weyland-lab` line from rogueone `~/.ssh/authorized_keys`; (2) drop any orphaned k8s
+  Secret that held the private key (no manifest references it); (3) delete the private key file if any.
+  ~5 min, host-side, no image rebuild. **DROP the lockdown scope below — kept for context only.**
 - **Origin**: U11 follow-up (deferred option (c), agreed 2026-06-09)
 - **Theme**: E — hardening
 - **Scope**: Tighten the (now single-purpose) weyland-lab key on rogueone's
@@ -635,5 +647,5 @@ tools load.
 
 ## Iteration 1 follow-ups (banked, see units-iter1.md)
 - **U17** — Migrate platform API routes APISIX→Traefik; APISIX→outliers-only. **DROPPED as stale.**
-- **U18** — weyland-lab SSH full lockdown on rogueone (restrict/from/forced-command;
-  needs source_document SFTP→exec). **Promoted to Maturity / Hardening / Polish above.**
+- **U18** — weyland-lab SSH key. ✅ **DONE 2026-06-17 as KEY RETIREMENT** (B25b mooted the lockdown — key had
+  no consumers; deleted rogueone `authorized_keys` line + orphaned k8s Secret). See detail above.
