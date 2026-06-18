@@ -1,0 +1,14 @@
+# B8 slice 1 — Istio control plane, minimal profile (istiod only).
+# No ingress/egress gateways — Traefik stays the front door. Tracing enabled (Jaeger added in Task 3;
+# trace-destination wiring verified there — may need a Telemetry resource on Istio 1.30).
+apiVersion: install.istio.io/v1alpha1
+kind: IstioOperator
+metadata:
+  name: weyland-istio
+spec:
+  profile: minimal
+  meshConfig:
+    enableTracing: true
+    defaultConfig:
+      tracing:
+        sampling: 100.0      # lab: trace everything; lower later if noisy

@@ -43,7 +43,7 @@ Re-ordered per RE-grounded audit (aidlc-docs/inception/backlog-reprioritization.
 5. **B14** — Guardrails + Hermes read+act — ✅ **DONE 2026-06-15.** Both halves shipped: guardrail I/O layer (injection/toxicity/grounding on `/context/*`) + read+act (act-tools on `/mcp-act`, `act` hook audits to `guardrail_verdicts` with the `actor` seam), all `mode=shadow` (record-only — the right default for a single-user LAN lab). Shadow plumbing is complete; the enforcement *promotions* are carved out as their own downstream items, not B14 scope: grounding `shadow→flag/block` calibration + act policy gate → **B35**, PII bake → **B34**, gateway auth/actor injection → **B17+B19**. See detail below.
 6. **B26** — Hosted-model gateway (LiteLLM) + model catalog — ✅ **DONE 2026-06-17** (reframed from "Hermes Claude brain"; Claude path declined — ToS gray area). LiteLLM on mother fronts all Gemini+OpenRouter; Dagster `model_catalog` (6h). See detail below.
 7. **B27** — Hermes Kanban (self-management + roadmap co-pilot) — ✅ **DONE 2026-06-17.** Native SQLite kanban; planning on Gemini-free via the gateway (`kanban_decomposer`/`triage_specifier` pinned), workers local; `weyland-roadmap` board mirrors this backlog one-way (`roadmap-sync.py`, 6h cron). See detail below + [runbooks/agent-hermes.md](runbooks/agent-hermes.md#kanban--self-management--roadmap-co-pilot-b27-live-2026-06-17).
-8. **B8** — Istio evaluation — infrastructure/networking that Backstage will surface; evaluate during or before B3. May absorb into B3 scope. See detail below.
+8. **B8** — Istio service mesh — **DECIDED BUILD-NOW 2026-06-17** (all four drivers: mTLS/observability/traffic-mgmt/learning). Design: `aidlc-docs/construction/b8-istio-design.md` — Approach 1 (sidecar, contained tool-server slice, bookinfo warm-up); step-0 mother-headroom gate → pivot to ambient if tight; **slice 1 = PERMISSIVE everywhere** (tool-server serves external NodePort MCP; backends serve un-meshed Dagster) — STRICT enforcement deferred to slice 2 (mesh Dagster); Traefik stays the ingress. See detail below.
 9. **B3** — IDP / Backstage — big mother infrastructure work; catalogs the full platform including agents. Absorbs B12 (API catalog). Open questions: (1) Backstage on mother or its own platform? (2) exact MCP harness scope. See detail below.
 
 ### Data & Automation
@@ -59,6 +59,7 @@ Re-ordered per RE-grounded audit (aidlc-docs/inception/backlog-reprioritization.
 17. **U14** — n8n workflow → git — audit active n8n workflows before working on this. See detail below.
 18. **B34** — Evaluate + bake PII guard — promote B14's deferred PII validator (llm_guard `Sensitive` → presidio/spaCy) from coded-but-unbaked to active. Gated on an eval showing PII detection adds real signal in this corpus (and/or a multi-user/export trigger). See detail below.
 19. **B35** — Grounding guard calibration — tune the B14 grounding validator from its guessed `0.5` threshold to a data-driven one (collect shadow `max_entailment` distribution → label grounded vs hallucinated → set threshold), and switch to sentence-level / concatenated-premise scoring if whole-answer-vs-chunk NLI over-flags. Prerequisite to ever moving grounding out of shadow. See detail below.
+- **B36** — Hermes dashboard performance — ⚠ the Hermes web dashboard (+ Kanban view) is **live** at `https://dashboard.weyland.lab` but is **dog-slow**. Revisit performance. See detail below.
 
 ### Extras / Optimization
 20. **B9** — Python→Go refactor — conditional; revisit when operational pain is real or agents are modifying the codebase. See detail below.
@@ -185,10 +186,23 @@ no client changes; sweet spot 14–32B, 70B for batch). **Tentative/someday (low
 OCuLink eGPU** to accelerate (~10× on ≤32B) — see Tentative section. Not pursued now; the lab
 doesn't need the speed yet. Engine: Ollama on CPU now, vLLM if a GPU is ever added.
 
-### B8 — Istio (service mesh) — EVALUATE
-Deferred in U9 (cellular front-door decision). This item = a formal evaluation of concrete
-need (mTLS? traffic policy? observability?) vs weight. Likely "not yet" but decide
-deliberately. See [[architecture-decisions]].
+### B8 — Istio (service mesh) — BUILD-NOW (decided 2026-06-17)
+Deferred in U9 (cellular front-door decision); re-opened and **decided build-now** — all four drivers apply
+(mTLS/zero-trust, mesh observability, traffic management, hands-on learning). **Design + plan:**
+`aidlc-docs/construction/b8-istio-design.md`. Shape: **Approach 1** — sidecar mode, first slice =
+tool-server + 4 vector backends via per-workload injection (not ns-wide), bookinfo warm-up, **step-0
+mother-headroom gate** (pivot to ambient if tight). Key constraint: **slice 1 = PERMISSIVE everywhere** — the tool-server serves external NodePort MCP clients
+(Hermes + Claude Code) *and* the 4 backends serve un-meshed Dagster (ingestion/eval), so STRICT would break
+either; **STRICT enforcement deferred to slice 2** (mesh Dagster → flip backends STRICT). **Traefik stays the
+ingress** (no Istio gateway in slice 1). Reversible per-workload. See [[architecture-decisions]].
+- **Follow-up (deferred 2026-06-17):** Kiali was pointed at Istio's **bundled addon Prometheus** (one command,
+  zero config) instead of the kube-prometheus-stack — a deliberate deviation from the spec's "reuse existing
+  Prometheus" to avoid a fiddly ConfigMap edit during bring-up. Result: two Prometheis (platform + mesh).
+  **Consolidate later (best done at Task 5 once sidecars emit metrics):** make the kube-prometheus-stack
+  Prometheus scrape Envoy (PodMonitor + confirm `podMonitorSelector` is permissive), point Kiali's
+  `external_services.prometheus.url` at `http://monitoring-kube-prometheus-prometheus.monitoring:9090`, drop
+  the addon Prometheus, **and import the official Istio Grafana dashboards into the existing Grafana**
+  (`grafana.weyland.lab`) — mesh/service/workload/control-plane. (Do NOT deploy the addon Grafana — reuse B5's.)
 
 ### B9 — Refactor Python scripts → Go binaries
 Foreshadowed in weyland.md ("future Go CLI refactor"). Maintainability/distribution play;
@@ -548,6 +562,21 @@ answer-sentence vs its best chunk, aggregate) or **concatenate top-k chunks into
 would block good answers or pass hallucinations. Ties into the B4 eval harness (reuse its judge-panel pattern
 for labeling) and feeds the B1 model-eval data product. **Depends on:** B14 shadow data. **Effort:** small-medium
 (analysis + a possible scoring-method swap).
+
+### B36 — Hermes dashboard performance (Maturity / Hardening / Polish)
+**Context — deployed 2026-06-17 (ad-hoc, out of roadmap order).** The native Hermes web dashboard (config /
+sessions / **Kanban** view) is live: web UI **built on rogueone** (the pip install shipped source only, with
+devDeps omitted → built there, `web_dist` shipped to CT 104), served localhost-only by a systemd unit
+(`hermes-dashboard`, `127.0.0.1:9119`), fronted by **nginx on CT 104** with TLS (wildcard cert) + an **IP
+allowlist** (rogueone only — basic-auth storm-prompted against the SPA's XHR/websockets, so it was dropped).
+DNS: `dashboard.weyland.lab` → CT 104 (CoreDNS block + rogueone `/etc/hosts`). Files:
+`nodes/weyland/hermes/{hermes-dashboard.service,dashboard-nginx.conf}`.
+**The problem:** it **works but is dog-slow.** Suspects to investigate: the dashboard backend on the
+4 vCPU / 6 GB CT 104; likely live polling / heavy SPA; possibly the extra proxy hop. **When revisited:**
+profile what it's doing (network tab + CT load), consider bumping CT resources, disabling polling, or caching;
+decide whether it's worth keeping vs the CLI/Telegram board views. **Docs still owed** (deferred to keep
+momentum on the roadmap): a runbook (`docs/runbooks/`) + `dashboard.weyland.lab` in `api.md`/`hosts.md`/arch —
+fold into this item.
 
 ### B33 — Co-resident / warm-parallel model serving (Hardware-Gated)
 The latency-free way to run a guard (or any second model) alongside the main one is to keep **both resident** —

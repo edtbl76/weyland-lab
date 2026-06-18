@@ -34,6 +34,17 @@ data:
             rcode NOERROR
         }
     }
+    # hermes CT 104 — the Hermes dashboard (+ Kanban) behind nginx (TLS + dev password). NOT k3s/Traefik.
+    dashboard.weyland.lab:53 {
+        errors
+        log
+        template IN A {
+            answer "{{ .Name }} 60 IN A 192.168.1.247"
+        }
+        template IN AAAA {
+            rcode NOERROR
+        }
+    }
     # Authoritative zone for the private lab domain.
     weyland.lab:53 {
         errors

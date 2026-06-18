@@ -1,0 +1,15 @@
+[Unit]
+Description=Hermes Dashboard (localhost-only; LAN access via the nginx reverse proxy on this CT)
+After=network.target hermes-gateway.service
+
+[Service]
+# Bound to 127.0.0.1 deliberately — the dashboard exposes config/API keys, so it must NEVER bind the LAN
+# directly (no --insecure). nginx in front adds TLS + dev-password auth. Serves the prebuilt web_dist
+# (built on rogueone, shipped to /usr/local/lib/hermes-agent/hermes_cli/web_dist).
+ExecStart=/usr/local/bin/hermes dashboard --no-open --host 127.0.0.1 --port 9119 --skip-build
+Environment=PATH=/usr/local/sbin:/usr/local/bin:/usr/bin:/bin
+Restart=on-failure
+User=root
+
+[Install]
+WantedBy=multi-user.target

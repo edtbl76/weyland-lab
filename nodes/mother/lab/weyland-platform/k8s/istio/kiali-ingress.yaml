@@ -1,0 +1,23 @@
+# B8 — Traefik TLS ingress for Kiali (mesh observability UI). Same pattern as grafana/dagster.
+# TLS secret weyland-wildcard-tls must exist in istio-system (copied from the weyland ns — see runbook).
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: kiali
+  namespace: istio-system
+spec:
+  tls:
+    - hosts:
+        - kiali.weyland.lab
+      secretName: weyland-wildcard-tls
+  rules:
+    - host: kiali.weyland.lab
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: kiali
+                port:
+                  number: 20001
