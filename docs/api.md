@@ -62,6 +62,8 @@ mkcert wildcard cert; resolve from rogueone (`/etc/hosts`) or via CoreDNS. Share
 |---|---|
 | **Open WebUI** (voice/chat → Ollama + whisper) | `https://chat.weyland.lab` |
 | **LiteLLM** (model gateway admin UI / `/ui`) | `https://litellm.weyland.lab` |
+| **Kiali** (Istio mesh graph + mTLS, **read-only**, dev-password) | `https://kiali.weyland.lab` |
+| **Jaeger** (distributed tracing UI, dev-password) | `https://jaeger.weyland.lab` |
 | Grafana | `https://grafana.weyland.lab` |
 | Dagster | `https://dagster.weyland.lab` |
 | n8n | `https://n8n.weyland.lab` |

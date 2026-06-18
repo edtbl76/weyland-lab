@@ -9,6 +9,10 @@ spec:
   profile: minimal
   meshConfig:
     enableTracing: true
-    defaultConfig:
-      tracing:
-        sampling: 100.0      # lab: trace everything; lower later if noisy
+    # Tracing PROVIDER: where Envoy ships spans. The addon Jaeger's zipkin collector. (Sampling % is set by
+    # the Telemetry resource — k8s/istio/telemetry.yaml — not here; `sampling` alone never ships spans.)
+    extensionProviders:
+      - name: jaeger
+        zipkin:
+          service: zipkin.istio-system.svc.cluster.local
+          port: 9411

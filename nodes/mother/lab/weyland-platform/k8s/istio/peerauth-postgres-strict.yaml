@@ -1,0 +1,20 @@
+# B8 slice-2 — STRICT mTLS on Postgres (the only backend where it's zero-cost).
+# Clients = weyland-tool-server + the 3 Dagster pods, ALL meshed → mTLS → accepted. Postgres is in-cluster
+# only (no NodePort) and has no Prometheus scrape, so nothing un-meshed needs plaintext. STRICT here REJECTS
+# any non-mTLS inbound (rogue in-cluster pod, etc.).
+#
+# The vector backends (qdrant/weaviate/neo4j) deliberately stay PERMISSIVE: their real traffic is already mTLS
+# (both ends meshed), but they have un-meshed clients that STRICT would break — Prometheus app-metrics scrapes
+# (qdrant's metrics share the data port 6333; weaviate's are on 2112) and NodePort admin access. In a
+# single-user LAN lab the enforcement gain doesn't justify losing metrics + admin access. See B8 detail.
+apiVersion: security.istio.io/v1
+kind: PeerAuthentication
+metadata:
+  name: postgres-strict
+  namespace: weyland
+spec:
+  selector:
+    matchLabels:
+      app: weyland-postgres
+  mtls:
+    mode: STRICT

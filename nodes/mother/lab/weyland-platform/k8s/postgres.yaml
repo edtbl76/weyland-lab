@@ -16,6 +16,7 @@ spec:
     metadata:
       labels:
         app: weyland-postgres
+        sidecar.istio.io/inject: "true"   # B8 — Istio sidecar (per-workload injection; weyland ns is unlabeled)
     spec:
       containers:
         - name: postgres
@@ -44,3 +45,4 @@ spec:
   ports:
     - port: 5432
       targetPort: 5432
+      appProtocol: tcp        # B8 — tell Istio this is opaque TCP (Postgres wire protocol); else sidecar mis-parses as HTTP

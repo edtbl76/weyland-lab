@@ -12,6 +12,7 @@ spec:
     metadata:
       labels:
         app: weyland-tool-server
+        sidecar.istio.io/inject: "true"   # B8 — Istio sidecar (per-workload injection; weyland ns is unlabeled)
     spec:
       enableServiceLinks: false
       containers:

@@ -22,6 +22,7 @@ LAN-only. This `docs/` tree is the canonical, version-controlled source of truth
 - [transcription-whisper.md](runbooks/transcription-whisper.md) — whisper.cpp STT (CT 103) + OpenAI shim
 - [eval-harness.md](runbooks/eval-harness.md) — LLM eval pipeline, judge panel, leaderboard
 - [observability.md](runbooks/observability.md) — Prometheus + Grafana + Alertmanager
+- [service-mesh-istio.md](runbooks/service-mesh-istio.md) — Istio mesh (B8): install, sidecar injection, mTLS, Kiali/Jaeger, TCP-backend fix
 - [storage-minio.md](runbooks/storage-minio.md) — MinIO object storage
 
 ## units/ — task-scoped hardening/setup docs

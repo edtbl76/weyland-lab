@@ -47,24 +47,33 @@ C4Component
         Component(headlamp, "Headlamp", "React / k8s", "Kubernetes UI. Permanent cluster-admin SA token. headlamp.weyland.lab")
     }
 
+    Container_Boundary(istiosystem, "mother VM — k3s, ns: istio-system (Istio service mesh, B8)") {
+
+        Component(istiod, "istiod", "Istio 1.30 / minimal profile", "Mesh control plane. Per-pod sidecar injection (LABEL sidecar.istio.io/inject). Meshed: tool-server + 4 backends + Dagster, PERMISSIVE mTLS; Postgres STRICT.")
+
+        Component(kiali, "Kiali", "Kiali / k8s", "Mesh observability UI: topology graph, mTLS lock status, traces. Read-only + RBAC-tightened. dev-password ingress. kiali.weyland.lab")
+
+        Component(jaeger, "Jaeger", "Jaeger / k8s", "Distributed tracing UI for mesh spans (Telemetry + extensionProvider). dev-password ingress. jaeger.weyland.lab")
+    }
+
     Rel(hermes, tool_server, "MCP /mcp — status, context_search, context_ask, list_models")
     Rel(rogueone, tool_server, "MCP /mcp (Claude Code)")
     Rel(user, open_webui, "browser voice/chat")
     Rel(user, dagster, "pipeline UI")
     Rel(user, prometheus, "observability dashboards")
     Rel(user, headlamp, "k8s management")
-    Rel(tool_server, pgvector, "embed + retrieve rag_chunks")
-    Rel(tool_server, qdrant, "retrieve")
-    Rel(tool_server, weaviate, "retrieve")
-    Rel(tool_server, neo4j, "retrieve")
+    Rel(tool_server, pgvector, "embed + retrieve rag_chunks (mTLS, STRICT)")
+    Rel(tool_server, qdrant, "retrieve (mTLS)")
+    Rel(tool_server, weaviate, "retrieve (mTLS)")
+    Rel(tool_server, neo4j, "retrieve (mTLS)")
     Rel(tool_server, ollama_ct, "RAG generate + eval judge /v1")
     Rel(tool_server, dagster, "POST /pipeline/trigger launchRun")
     Rel(dagster, github, "git-pull docs/ + nodes/ (B25b — replaced Obsidian SSH)")
     Rel(dagster, hostedmodels, "model_catalog: fetch OpenRouter/Gemini model lists")
-    Rel(dagster, pgvector, "write rag_documents + rag_chunks + model_catalog")
-    Rel(dagster, qdrant, "write weyland_chunks")
-    Rel(dagster, weaviate, "write WeylandChunk")
-    Rel(dagster, neo4j, "write nodes + edges")
+    Rel(dagster, pgvector, "write rag_documents + rag_chunks + model_catalog (mTLS, STRICT)")
+    Rel(dagster, qdrant, "write weyland_chunks (mTLS)")
+    Rel(dagster, weaviate, "write WeylandChunk (mTLS)")
+    Rel(dagster, neo4j, "write nodes + edges (mTLS)")
     Rel(dagster, ollama_ct, "eval: generate questions + judge responses")
     Rel(open_webui, ollama_ct, "chat completions /v1")
     Rel(open_webui, whisper_ct, "STT /v1/audio/transcriptions")
@@ -73,4 +82,10 @@ C4Component
     Rel(hermes, litellm, "planning turns /v1 (Gemini-free)")
     Rel(litellm, hostedmodels, "egress: Gemini / OpenRouter")
     Rel(coredns, traefik, "*.weyland.lab wildcard resolution")
+    Rel(user, kiali, "mesh graph + mTLS status (dev-password)")
+    Rel(user, jaeger, "trace UI (dev-password)")
+    Rel(istiod, tool_server, "injects + configures Envoy sidecars")
+    Rel(kiali, prometheus, "Envoy mesh metrics (consolidated onto kube-prometheus-stack)")
+    Rel(kiali, jaeger, "traces :16685")
+    Rel(prometheus, tool_server, "scrape Envoy /stats (PodMonitor)")
 ```

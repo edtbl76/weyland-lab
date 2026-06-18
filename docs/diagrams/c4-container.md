@@ -17,7 +17,7 @@ C4Container
 
     System_Boundary(weyland, "weyland — MS-A2 Proxmox (.232)") {
 
-        Container(mother, "mother VM", "k3s / Kubernetes", "Shared AI platform: all k3s workloads (tool-server, RAG backends, Dagster, UIs, observability, storage, ingress). vm-101 · .243. See c4-component-mother.md")
+        Container(mother, "mother VM", "k3s / Kubernetes", "Shared AI platform: all k3s workloads (tool-server, RAG backends, Dagster, UIs, observability, storage, ingress), wrapped in an Istio service mesh (mTLS). vm-101 · .243. See c4-component-mother.md")
 
         Container(hermes, "hermes CT", "Python / systemd", "Primary AI agent. qwen3-coder brain via Ollama, MCP client of tool-server, Telegram front door. CT 104 · .247. See c4-component-hermes.md")
 

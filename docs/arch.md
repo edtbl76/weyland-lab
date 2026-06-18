@@ -137,6 +137,7 @@ agents/workflows and platform state. Agents call the tool-server, *not* database
 | Headlamp | `headlamp.weyland.lab` | Kubernetes UI. |
 | CoreDNS | `mother:53` | LAN DNS resolver for `weyland.lab`. |
 | Traefik | (ingress) | TLS front door for `*.weyland.lab`. |
+| Istio service mesh (B8 — ✅ done) | `istio-system` ns; Kiali `kiali.weyland.lab`, Jaeger `jaeger.weyland.lab` (both dev-password gated) | Sidecar mesh, minimal profile (no Istio gateway — Traefik stays ingress). Meshed: tool-server + 4 vector/graph backends + Dagster, **PERMISSIVE mTLS**; **Postgres STRICT** (proven enforcing — vector backends stay PERMISSIVE by design, they have un-meshed Prometheus/NodePort clients). TCP backends (neo4j Bolt / Postgres) need `appProtocol: tcp`. Mesh metrics + tracing consolidated onto the kube-prometheus-stack + Grafana (addon Prometheus dropped). Kiali read-only + RBAC-tightened. See [runbooks/service-mesh-istio.md](runbooks/service-mesh-istio.md). |
 
 ### weyland CTs
 | Component | Endpoint | Purpose |
@@ -265,7 +266,7 @@ so Ollama mis-sizes against 96 GB / 16 cores instead of the CT's limits. (Detail
 
 ## 13. Roadmap & maintenance
 
-Forward priorities live in [backlog.md](backlog.md). Platform Foundation: B27 (Hermes Kanban — next), then B8/B3 (Istio / Backstage IDP). Recently done: B25, B24, B14, B26.
+Forward priorities live in [backlog.md](backlog.md). Platform Foundation: B37 (ingest AIDLC knowledge repos → Graph RAG — next), then B3 (Backstage IDP). Recently done: B25, B24, B14, B26, B27, B8 (Istio mesh).
 
 **Maintaining this doc:** update it (and [hosts.md](hosts.md)/[api.md](api.md)) whenever a host,
 service, endpoint, port, DNS name, or major flow changes — same "done" bar as a runbook.

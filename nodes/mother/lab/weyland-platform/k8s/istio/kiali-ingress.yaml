@@ -5,6 +5,8 @@ kind: Ingress
 metadata:
   name: kiali
   namespace: istio-system
+  annotations:
+    traefik.ingress.kubernetes.io/router.middlewares: istio-system-observability-auth@kubernetescrd
 spec:
   tls:
     - hosts:

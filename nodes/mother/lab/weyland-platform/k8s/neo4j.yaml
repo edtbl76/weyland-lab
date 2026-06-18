@@ -31,6 +31,7 @@ spec:
     metadata:
       labels:
         app: neo4j
+        sidecar.istio.io/inject: "true"   # B8 — Istio sidecar (per-workload injection; weyland ns is unlabeled)
     spec:
       enableServiceLinks: false
       containers:
@@ -91,4 +92,5 @@ spec:
     - name: bolt
       port: 7687
       targetPort: 7687
+      appProtocol: tcp        # B8 — tell Istio this is opaque TCP (Bolt); else the sidecar mis-parses it as HTTP
       nodePort: 30086

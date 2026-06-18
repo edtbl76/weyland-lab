@@ -32,6 +32,7 @@ spec:
     metadata:
       labels:
         app: qdrant
+        sidecar.istio.io/inject: "true"   # B8 — Istio sidecar (per-workload injection; weyland ns is unlabeled)
     spec:
       containers:
         - name: qdrant

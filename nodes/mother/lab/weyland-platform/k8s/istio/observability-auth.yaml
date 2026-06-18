@@ -1,0 +1,15 @@
+# B8 follow-up — Traefik basic-auth middleware for the observability UIs (Kiali + Jaeger), which have no auth
+# of their own. Brings them in line with the other dev-password-gated UIs. Referenced by the kiali/jaeger
+# Ingress annotations (router.middlewares: istio-system-observability-auth@kubernetescrd).
+#
+# The Secret is created out-of-band (NOT committed) — on mother:
+#   kubectl create secret generic observability-auth -n istio-system \
+#     --from-literal=users="admin:$(openssl passwd -apr1 weyland_dev_password)"
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: observability-auth
+  namespace: istio-system
+spec:
+  basicAuth:
+    secret: observability-auth

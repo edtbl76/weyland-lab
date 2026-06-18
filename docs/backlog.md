@@ -44,6 +44,7 @@ Re-ordered per RE-grounded audit (aidlc-docs/inception/backlog-reprioritization.
 6. **B26** — Hosted-model gateway (LiteLLM) + model catalog — ✅ **DONE 2026-06-17** (reframed from "Hermes Claude brain"; Claude path declined — ToS gray area). LiteLLM on mother fronts all Gemini+OpenRouter; Dagster `model_catalog` (6h). See detail below.
 7. **B27** — Hermes Kanban (self-management + roadmap co-pilot) — ✅ **DONE 2026-06-17.** Native SQLite kanban; planning on Gemini-free via the gateway (`kanban_decomposer`/`triage_specifier` pinned), workers local; `weyland-roadmap` board mirrors this backlog one-way (`roadmap-sync.py`, 6h cron). See detail below + [runbooks/agent-hermes.md](runbooks/agent-hermes.md#kanban--self-management--roadmap-co-pilot-b27-live-2026-06-17).
 8. **B8** — Istio service mesh — **DECIDED BUILD-NOW 2026-06-17** (all four drivers: mTLS/observability/traffic-mgmt/learning). Design: `aidlc-docs/construction/b8-istio-design.md` — Approach 1 (sidecar, contained tool-server slice, bookinfo warm-up); step-0 mother-headroom gate → pivot to ambient if tight; **slice 1 = PERMISSIVE everywhere** (tool-server serves external NodePort MCP; backends serve un-meshed Dagster) — STRICT enforcement deferred to slice 2 (mesh Dagster); Traefik stays the ingress. See detail below.
+- **B37** ⭐ — **Ingest the AIDLC knowledge repositories into the (Graph) RAG** (517 md: Engineering 397 + Consulting 62 + Industry 58, ~13× the corpus) — the core "make it smarter" play. **RANKED NEXT — after the B8 follow-ups (slice-2 STRICT, observability consolidation, ingress auth), before B3/Backstage.** Sourcing decision first: `.methodaidlc/` is gitignored → not on GitHub. See detail below.
 9. **B3** — IDP / Backstage — big mother infrastructure work; catalogs the full platform including agents. Absorbs B12 (API catalog). Open questions: (1) Backstage on mother or its own platform? (2) exact MCP harness scope. See detail below.
 
 ### Data & Automation
@@ -99,6 +100,37 @@ Re-ordered per RE-grounded audit (aidlc-docs/inception/backlog-reprioritization.
 ---
 
 ## B-item and U-item detail sections
+
+### B37 ⭐ — Ingest the AIDLC knowledge repositories into the (Graph) RAG
+**Goal:** feed the three AIDLC knowledge bases into the multi-backend RAG so the lab can reason with
+*domain knowledge*, not just its own infra docs — "make this bad boy MUCH smarter" (user, 2026-06-18). Consumers:
+Hermes + Claude Code via the system-view MCP `context_ask`/`context_search`, the eval harness, future agents.
+- **Corpus:** `engineering-knowledge-repository` (397 md), `consulting-tools-repository` (62), `industry-vertical-repository`
+  (58) = **~517 markdown files**, ~13× today's `docs/` corpus (40). Each repo is taxonomy-indexed (an `index.md`
+  + entry files keyed by stage / vertical, with cross-references).
+
+**The sourcing problem (decide first):** `.methodaidlc/` is **gitignored** (`.gitignore:97`), so it's **not on
+GitHub**, and the B25b ingestion shallow-clones from GitHub (`source_document.py`) — it can't see these repos.
+Options:
+1. **Un-gitignore + push to GitHub** + extend `source_document.py` to ingest the three repo paths as markdown.
+   Simplest mechanically — but it publishes **third-party AIDLC framework content** to the repo; **check
+   license/appropriateness** before pushing publicly.
+2. **Separate local ingestion source** — a Dagster asset (or one-off loader) that reads the `.methodaidlc/` repos
+   directly. But Dagster runs in-cluster (mother) and these live on rogueone/gitignored → needs a way to get them
+   to mother (a private mirror, an object-store drop, or a local path mount). More plumbing, keeps them private.
+3. **One-time bulk load** — the AIDLC knowledge is fairly static, so a single curated embed run (not the 15-min
+   cron) may be the right cadence; re-run only when the repos update.
+
+**GraphRAG angle (the "smarter" payoff):** these repos are *highly structured* (stage/vertical taxonomies, entry
+IDs, cross-references) — a strong case for **richer Neo4j entity/relationship extraction** (currently the graph is
+just Document/Chunk + sequential edges; entity extraction was deferred). This item naturally **motivates /
+pairs with the GraphRAG-extraction enhancement** so the knowledge is queryable as a graph, not just chunks.
+
+**Open questions:** (a) sourcing mechanism (1/2/3 above) + license check; (b) wholesale vs curated ingest
+(all 517 vs index + selected entries); (c) ingestion cadence (one-off vs scheduled); (d) whether to enhance
+Neo4j extraction now or chunk-ingest first; (e) **eval-corpus impact** — B4 evals run over `docs/` markdown;
+decide whether AIDLC knowledge joins the eval corpus or is scoped out (it would 13× and reshape it); (f) dual
+chunking — markdown H2-split (same as docs/) is fine, but the taxonomy/index files may want special handling.
 
 ### B1 — Build a data mesh
 Domain-oriented data products + federated governance over the backends
@@ -186,7 +218,7 @@ no client changes; sweet spot 14–32B, 70B for batch). **Tentative/someday (low
 OCuLink eGPU** to accelerate (~10× on ≤32B) — see Tentative section. Not pursued now; the lab
 doesn't need the speed yet. Engine: Ollama on CPU now, vLLM if a GPU is ever added.
 
-### B8 — Istio (service mesh) — BUILD-NOW (decided 2026-06-17)
+### B8 — Istio (service mesh) — ✅ DONE 2026-06-18
 Deferred in U9 (cellular front-door decision); re-opened and **decided build-now** — all four drivers apply
 (mTLS/zero-trust, mesh observability, traffic management, hands-on learning). **Design + plan:**
 `aidlc-docs/construction/b8-istio-design.md`. Shape: **Approach 1** — sidecar mode, first slice =
@@ -195,14 +227,42 @@ mother-headroom gate** (pivot to ambient if tight). Key constraint: **slice 1 = 
 (Hermes + Claude Code) *and* the 4 backends serve un-meshed Dagster (ingestion/eval), so STRICT would break
 either; **STRICT enforcement deferred to slice 2** (mesh Dagster → flip backends STRICT). **Traefik stays the
 ingress** (no Istio gateway in slice 1). Reversible per-workload. See [[architecture-decisions]].
-- **Follow-up (deferred 2026-06-17):** Kiali was pointed at Istio's **bundled addon Prometheus** (one command,
-  zero config) instead of the kube-prometheus-stack — a deliberate deviation from the spec's "reuse existing
-  Prometheus" to avoid a fiddly ConfigMap edit during bring-up. Result: two Prometheis (platform + mesh).
-  **Consolidate later (best done at Task 5 once sidecars emit metrics):** make the kube-prometheus-stack
-  Prometheus scrape Envoy (PodMonitor + confirm `podMonitorSelector` is permissive), point Kiali's
-  `external_services.prometheus.url` at `http://monitoring-kube-prometheus-prometheus.monitoring:9090`, drop
-  the addon Prometheus, **and import the official Istio Grafana dashboards into the existing Grafana**
-  (`grafana.weyland.lab`) — mesh/service/workload/control-plane. (Do NOT deploy the addon Grafana — reuse B5's.)
+- **✅ SLICE 1 MESHED & VALIDATED 2026-06-18:** istiod (minimal) + Kiali + Jaeger up; **qdrant + weaviate +
+  weyland-tool-server** meshed (`2/2`), PERMISSIVE, **mTLS locks visible in Kiali** on the tool-server↔backend
+  hops, **MCP intact** through Envoy (initialize handshake + streaming survived), no platform regression.
+  **Injection mechanism correction:** per-pod injection in an *unlabeled* namespace needs the pod **label**
+  `sidecar.istio.io/inject: "true"` (matched by the `object.sidecar-injector` webhook) — the *annotation* is a
+  no-op outside an `istio-injection=enabled` namespace. Rollback = set the label `"false"` + rollout.
+- **✅ Slice 1b DONE 2026-06-18 — neo4j + Postgres meshed.** The TCP-protocol break (Bolt 7687 / pgvector
+  5432 mis-parsed as HTTP — confirmed live on neo4j: `defunct connection`) was fixed by **`appProtocol: tcp`
+  on the neo4j Bolt + Postgres Service ports**, then meshing both with the inject **label**. Validated: both
+  `2/2`, `/status` neo4j + pgvector `ok`, and the **un-meshed Dagster → meshed Postgres write path works**
+  (`psycopg2` from `dagster-user-code` read `rag_chunks: 439`). **All four backends + the tool-server are now
+  meshed (PERMISSIVE).**
+- **✅ Slice 2 (STRICT) DONE 2026-06-18.** Dagster meshed (all 3 pods — gRPC code-location via the named
+  `grpc` port + external egress to Ollama CT 102 / GitHub survived). Client audit: the vector backends have
+  *un-meshed* clients (Prometheus app-metrics — qdrant on the shared `:6333`, weaviate on `:2112` — + NodePort
+  admin access), so **STRICT was scoped to Postgres** (the clean case: in-cluster only, no metrics scrape,
+  clients = tool-server + Dagster, all meshed). `k8s/istio/peerauth-postgres-strict.yaml`. **Proven enforcing:**
+  an un-meshed plaintext `psql` got `server closed the connection` (sidecar reset pre-auth), while meshed
+  clients work over mTLS (`pgvector ok`, `rag_chunks 439`). **qdrant/weaviate/neo4j stay PERMISSIVE by design**
+  — their real traffic is *already* mTLS (both ends meshed); STRICT would only block un-meshed plaintext, not
+  worth losing Prometheus metrics + NodePort admin in a single-user lab.
+- **✅ Observability consolidated 2026-06-18.** (Was: Kiali on the addon Prometheus, a deliberate bring-up
+  shortcut.) Now: a PodMonitor (`k8s/istio/podmonitor-istio.yaml`, labeled `release: monitoring` to match the
+  stack's `podMonitorSelector`) + an istiod ServiceMonitor make the **kube-prometheus-stack scrape Envoy**
+  (verified `count(istio_requests_total)=18`); Kiali's `external_services.prometheus.url` repointed at the
+  stack; **the addon Prometheus dropped**; the **Istio Grafana dashboards** (mesh/service/workload/
+  control-plane, IDs 7639/7636/7630/7645) imported into the existing Grafana (persisted on its PVC — optional
+  later: ConfigMap-provision for IaC). Kiali also wired to **Jaeger** (`tracing.istio-system:16685`) **and
+  Grafana** (`monitoring-grafana.monitoring:80`) — Mesh view all green.
+- **Kiali security follow-up (2026-06-18):** the Istio addon ships demo-grade defaults. Hardened: `view_only_mode:
+  true` (read-only) + ClusterRole read-only on Istio CRDs + non-placeholder signing key. **✅ Ingress auth DONE
+  2026-06-18** — Traefik basicAuth Middleware `observability-auth` (`k8s/istio/observability-auth.yaml`, dev-password,
+  secret created out-of-band) now fronts **both** `kiali.weyland.lab` and `jaeger.weyland.lab` (consistent with the
+  other UIs). Kiali manifest tracked in `k8s/istio/kiali.yaml` (was untracked addon). **Residual (optional, deferred
+  — defense-in-depth, not blocking in a single-user LAN lab):** a NetworkPolicy/AuthorizationPolicy + dropping the
+  remaining workload `patch` verbs from the ClusterRole.
 
 ### B9 — Refactor Python scripts → Go binaries
 Foreshadowed in weyland.md ("future Go CLI refactor"). Maintainability/distribution play;
