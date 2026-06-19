@@ -72,9 +72,11 @@ Re-ordered per RE-grounded audit (aidlc-docs/inception/backlog-reprioritization.
 26. **B32** — NeMo Guardrails evaluation — programmable conversational guardrails (Colang DSL: topical/dialog/jailbreak rails). Deferred from B14 (heavy framework + new language; built for dialog mgmt, not I/O scanning). Evaluate for the **Layer-2 agent layer** (Hermes dialog/topical rails), not the tool-server I/O pipeline. See detail below.
 27. **B38** — **Fuzzy GraphRAG: LLM concept/entity extraction** over the AIDLC KB (and `docs/`) — extract entities + *emergent* relationships from **prose** (beyond the declared frontmatter links) into Neo4j, à la Microsoft GraphRAG. **Deferred from B37**, which ships the deterministic frontmatter graph (`RELATED_TO`/`SURFACES_AT`/`TAGGED`). Why deferred: heavy on local CPU Ollama (517 docs × extraction passes, re-run on change), fuzzy/non-deterministic, needs an entity/relation schema + canonicalization/dedup ("DDD" = "Domain-Driven Design"), and low marginal value while the author-declared frontmatter already yields a high-precision graph for ~free. **Revisit once** B37 proves corpus value AND/OR a bigger model / GPU lands (pairs with B7 eGPU / B33).
 
+28. **B39** — **Design→code workflow (Figma → code)** — stand up a design-to-code pipeline using the **Figma MCP** (already available in-session): pull Figma designs/components into implemented UI code (and optionally code→Figma sync). Gives the lab's UI surfaces — U16 (Weaviate UI), B3 (Backstage), future dashboards — a consistent design system instead of ad-hoc per-tool UIs. $0: Figma has a free tier. **Open:** (1) Figma account + design system/tokens; (2) which UI to target first; (3) where design artifacts live (a `design/` area in the repo?); (4) Figma-MCP auth in headless/cron vs interactive-only.
+
 ### Hardware-Gated
-28. **B21** — Agent media generation (image/video/TTS) — requires eGPU hardware purchase. See detail below.
-29. **B33** — Co-resident / warm-parallel model serving — raise `OLLAMA_MAX_LOADED_MODELS` (now 1, cgroup-bound) to keep a 2nd model warm alongside the main one → eliminates eviction/cold-start for latency-sensitive multi-model workflows (e.g. B14's conversational grounding guard, or guard+generator both warm). Gated on RAM/VRAM headroom (the "weyland box" decision / eGPU). See detail below.
+29. **B21** — Agent media generation (image/video/TTS) — requires eGPU hardware purchase. See detail below.
+30. **B33** — Co-resident / warm-parallel model serving — raise `OLLAMA_MAX_LOADED_MODELS` (now 1, cgroup-bound) to keep a 2nd model warm alongside the main one → eliminates eviction/cold-start for latency-sensitive multi-model workflows (e.g. B14's conversational grounding guard, or guard+generator both warm). Gated on RAM/VRAM headroom (the "weyland box" decision / eGPU). See detail below.
 
 ---
 
@@ -612,7 +614,7 @@ until this lands. See [[openclaw-deprioritized]].
 ### B30 — Real-time docs ingestion trigger (Extras / Optimization)
 Self-hosted **GitHub Actions runner on the LAN** fires the Dagster `launchRun` mutation on push — NAT-free
 near-real-time ingestion without exposing mother. Deferred: the 15-min cron + hash-gate is fine until that
-latency actually bothers us. The trigger contract (`launchRun` to Dagster `:30088`) is unchanged from B25b, so
+latency actually bothers us. The trigger contract (`launchRun` to the Dagster GraphQL endpoint) is unchanged from B25b, so
 this bolts on with zero rework.
 
 ### B32 — NeMo Guardrails evaluation (Extras / Optimization)

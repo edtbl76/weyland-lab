@@ -24,6 +24,7 @@ LAN-only. This `docs/` tree is the canonical, version-controlled source of truth
 - [observability.md](runbooks/observability.md) — Prometheus + Grafana + Alertmanager
 - [service-mesh-istio.md](runbooks/service-mesh-istio.md) — Istio mesh (B8): install, sidecar injection, mTLS, Kiali/Jaeger, TCP-backend fix
 - [storage-minio.md](runbooks/storage-minio.md) — MinIO object storage
+- [aidlc-kb-ingest.md](runbooks/aidlc-kb-ingest.md) — AIDLC knowledge-base ingest (B37): MinIO source + brand scrub, on-demand Dagster job, Neo4j `:Entry` graph + GDS, NeoDash viz
 
 ## units/ — task-scoped hardening/setup docs
 `u6`–`u12` — credential hardening, HF cleanup, Headlamp token, mkcert/CoreDNS/Traefik (U9), SA scoping,

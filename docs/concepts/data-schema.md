@@ -9,6 +9,12 @@ documents are independently upsertable (delete-by-source → re-insert). Embeddi
 **`BAAI/bge-small-en-v1.5`, 384-dim, L2-normalized** — baked into both the tool-server and Dagster images so
 ingestion and query embed identically.
 
+**Two corpora share these stores**, distinguished by `source_path` prefix + a `domain` tag: the `docs/`+`nodes/`
+repo (B25b, `weyland_ingestion_job`) and the **`aidlc-kb/`** AIDLC knowledge base (B37, `weyland_aidlc_kb_job`).
+Each has its own hash-gate and orphan-prune **scoped to its namespace** (pgvector `NOT LIKE`, neo4j `STARTS WITH`,
+weaviate prefix-filter, qdrant `domain` payload), so neither corpus prunes the other. KB rows carry
+`domain="aidlc-kb"` (pgvector `rag_documents.metadata`, qdrant payload, neo4j node prop).
+
 > **Schema provenance:** the `eval_*` tables have committed DDL (`scripts/eval-schema.sql`). The `rag_*`
 > tables do **not** — they're created implicitly by the pipeline. *Gap / follow-up:* add a `rag-schema.sql`
 > for parity. `rag_*` columns below are from the pipeline write code, confirmed against the live DB
@@ -80,7 +86,7 @@ infra mirror.
 ## 2. Qdrant — collection `weyland_chunks` *(live-validated)*
 - **Vectors:** size **384**, distance **Cosine**. HNSW `m=16`, `ef_construct=100`. `on_disk_payload=true`.
 - **Point id:** `uuid5(source_path:chunk_index)` (deterministic → idempotent upsert).
-- **Payload:** `source_path`, `source_name`, `chunk_index`, `chunk_title`, `content`.
+- **Payload:** `source_path`, `source_name`, `chunk_index`, `chunk_title`, `content` (+ `domain` on AIDLC points).
 - Upsert pattern: delete points where `payload.source_path == <doc>`, then upsert the doc's chunks.
 
 ## 3. Weaviate — classes `WeylandChunk` + `WeylandDocument` *(live-validated)*
@@ -90,12 +96,19 @@ infra mirror.
 - **`WeylandDocument`** props: `source_path`, `source_name`, `name`.
 
 ## 4. Neo4j — `Document` + `Chunk` (GraphRAG foundation) *(from pipeline code)*
-- **`Document`** node: `source_path`, `source_name`, `name`, `ingested_at`.
-- **`Chunk`** node: `source_path`, `chunk_index`, `chunk_title`, `content`, `embedding` (array).
+- **`Document`** node: `source_path`, `source_name`, `name`, `ingested_at` (+ `domain` for the AIDLC corpus).
+- **`Chunk`** node: `source_path`, `chunk_index`, `chunk_title`, `content`, `embedding` (array) (+ `domain`).
 - **Relationships:** `(Chunk)-[:BELONGS_TO]->(Document)`; `(Chunk)-[:NEXT]->(Chunk)` (sequential chain).
 - Vector index on `Chunk.embedding` (bootstrap: `scripts/neo4j-vector-index-bootstrap.cypher`).
-- *Not live-validated here (needs Bolt auth) — confirm with a Cypher `CALL db.schema.visualization()` if drift
-  is suspected.*
+
+### 4a. AIDLC frontmatter graph (B37) *(live-validated 2026-06-19: 510 `:Entry`, 2311 `RELATED_TO`)*
+- Each AIDLC KB `Document` is also labeled **`:Entry`** with `entry_id`, `complexity`, `vertical` (from frontmatter).
+- **Relationships** (deterministic, declared in frontmatter — no LLM; fuzzy extraction = B38):
+  `(:Entry)-[:RELATED_TO]->(:Entry)`, `-[:SURFACES_AT]->(:Stage)`, `-[:TAGGED]->(:Tag)`, `-[:IN_VERTICAL]->(:Vertical)`.
+- **GDS** plugin enabled — PageRank/Louvain over the `:Entry` graph. See
+  [runbooks/aidlc-kb-ingest.md](../runbooks/aidlc-kb-ingest.md).
+- Base `Document`/`Chunk` model not separately live-validated here (needs Bolt auth) — confirm with a Cypher
+  `CALL db.schema.visualization()` if drift is suspected.
 
 ---
 
