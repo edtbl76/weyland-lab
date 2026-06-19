@@ -86,9 +86,12 @@ def qdrant_write(
     # actually collected (empty set => bad run, skip to avoid wiping the collection).
     if current_paths:
         # must_not + match_any => points whose source_path is NOT any current path.
+        # Also exclude the aidlc-kb/ corpus (B37): those points carry domain="aidlc-kb" and are
+        # owned by aidlc_kb_ingest's own prune — the docs run must never delete them.
         orphan_selector = Filter(
             must_not=[
-                FieldCondition(key="source_path", match=MatchAny(any=list(current_paths)))
+                FieldCondition(key="source_path", match=MatchAny(any=list(current_paths))),
+                FieldCondition(key="domain", match=MatchValue(value="aidlc-kb")),
             ]
         )
         # Count before deleting (Qdrant filter-delete doesn't report a removed count).

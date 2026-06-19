@@ -18,7 +18,7 @@ C4Component
 
         Component(tool_server, "weyland-tool-server", "FastAPI / Python v0.4.0", "Platform HTTP boundary. RAG retrieval (4 backends), /context/ask (RAG gen), /evals/*, /pipeline/trigger, /health, /ready, /status. Exposes /mcp system-view MCP server (fastapi-mcp, Streamable HTTP, read-only). :30080")
 
-        Component(dagster, "Dagster", "Python / Helm", "Pipeline orchestration. weyland_ingestion_job (git-pull docs/+nodes/ -> chunk -> embed -> 4-backend write). weyland_eval_job + weyland_eval_score_job. weyland_catalog_job (6h -> model_catalog). dagster.weyland.lab")
+        Component(dagster, "Dagster", "Python / Helm", "Pipeline orchestration. weyland_ingestion_job (git-pull docs/+nodes/ -> chunk -> embed -> 4-backend write). weyland_eval_job + weyland_eval_score_job. weyland_catalog_job (6h -> model_catalog). weyland_aidlc_kb_job (on-demand: MinIO AIDLC KB -> 4 backends + frontmatter graph, B37). dagster.weyland.lab")
 
         Component(litellm, "LiteLLM", "LiteLLM / k8s", "Hosted-model gateway. Gemini + OpenRouter (wildcard) behind OpenAI /v1. Off-box cut-off valve + spend alerts. mother:30400, litellm.weyland.lab")
 
@@ -32,7 +32,7 @@ C4Component
 
         Component(weaviate, "Weaviate", "Weaviate", "Vector store. Class: WeylandChunk. :30087")
 
-        Component(neo4j, "Neo4j", "Neo4j + APOC", "Graph + vector index. GraphRAG foundation: Document/Chunk nodes, BELONGS_TO + NEXT edges. :30085 (HTTP) :30086 (Bolt)")
+        Component(neo4j, "Neo4j", "Neo4j + APOC", "Graph + vector index. GraphRAG: Document/Chunk nodes, BELONGS_TO + NEXT edges; B37 AIDLC :Entry graph (RELATED_TO/SURFACES_AT/TAGGED/IN_VERTICAL from frontmatter). GDS plugin (PageRank/Louvain). :30085 (HTTP) :30086 (Bolt)")
 
         Component(minio, "MinIO", "MinIO", "S3-compatible object storage. 8TB USB passthrough. s3.weyland.lab (API) files.weyland.lab (Filestash UI)")
 
@@ -45,6 +45,8 @@ C4Component
         Component(apisix, "APISIX", "APISIX / etcd", "API gateway for external routes. :30090 (data plane) apisix.weyland.lab (dashboard)")
 
         Component(headlamp, "Headlamp", "React / k8s", "Kubernetes UI. Permanent cluster-admin SA token. headlamp.weyland.lab")
+
+        Component(neodash, "NeoDash", "neo4jlabs/neodash / k8s", "Neo4j dashboard/viz UI (free Bloom-alternative). Browser-side Bolt to Neo4j. mother:30088")
     }
 
     Container_Boundary(istiosystem, "mother VM — k3s, ns: istio-system (Istio service mesh, B8)") {
@@ -62,6 +64,8 @@ C4Component
     Rel(user, dagster, "pipeline UI")
     Rel(user, prometheus, "observability dashboards")
     Rel(user, headlamp, "k8s management")
+    Rel(user, neodash, "graph dashboards / viz")
+    Rel(neodash, neo4j, "Bolt :30086 (browser-side)")
     Rel(tool_server, pgvector, "embed + retrieve rag_chunks (mTLS, STRICT)")
     Rel(tool_server, qdrant, "retrieve (mTLS)")
     Rel(tool_server, weaviate, "retrieve (mTLS)")

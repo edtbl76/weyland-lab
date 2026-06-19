@@ -7,3 +7,4 @@ qdrant-client
 weaviate-client
 neo4j
 httpx
+minio

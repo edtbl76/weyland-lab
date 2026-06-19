@@ -135,7 +135,8 @@ def weaviate_write(
         # actually collected (empty set => bad run, skip to avoid wiping the collections).
         if current_paths:
             stored = _stored_source_paths(chunks_col) | _stored_source_paths(docs_col)
-            orphans = stored - current_paths
+            # Exclude the aidlc-kb/ corpus (B37) — owned by aidlc_kb_ingest's own prune.
+            orphans = {p for p in stored if not p.startswith("aidlc-kb/")} - current_paths
             for orphan in orphans:
                 chunk_res = chunks_col.data.delete_many(
                     where=Filter.by_property("source_path").equal(orphan)

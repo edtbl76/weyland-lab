@@ -3,7 +3,10 @@ from dagster import ScheduleDefinition, define_asset_job, AssetSelection
 # Ingestion = everything EXCEPT the eval and catalog groups (they have their own schedules).
 weyland_ingestion_job = define_asset_job(
     name="weyland_ingestion_job",
-    selection=AssetSelection.all() - AssetSelection.groups("eval") - AssetSelection.groups("catalog"),
+    selection=AssetSelection.all()
+    - AssetSelection.groups("eval")
+    - AssetSelection.groups("catalog")
+    - AssetSelection.groups("aidlc_kb"),
 )
 
 # Model catalog (hosted-model lookup table) — refreshed on its own 6h cadence, separate from ingestion.
@@ -21,6 +24,13 @@ weyland_eval_job = define_asset_job(
 weyland_eval_score_job = define_asset_job(
     name="weyland_eval_score_job",  # LLM-as-judge scoring of the latest results
     selection=AssetSelection.assets("eval_scores"),
+)
+
+# AIDLC knowledge-base ingest (B37) — on-demand only (NO schedule): the corpus is static, re-run after
+# re-uploading to MinIO. Kept out of weyland_ingestion_job (the 15-min cron) via the group subtraction above.
+weyland_aidlc_kb_job = define_asset_job(
+    name="weyland_aidlc_kb_job",
+    selection=AssetSelection.groups("aidlc_kb"),
 )
 
 weyland_ingestion_schedule = ScheduleDefinition(

@@ -1,0 +1,51 @@
+# NeoDash — free, open-source dashboard/visualization UI for Neo4j (the Bloom alternative for our
+# Community deployment). Pure client-side app: the BROWSER connects to Neo4j over Bolt directly, so we
+# serve it over plain HTTP on a NodePort to match Neo4j's own HTTP/Bolt NodePorts — an HTTPS (Traefik)
+# NeoDash would be blocked by browser mixed-content rules from talking to the plaintext Bolt port.
+# Stateless (dashboards persist as nodes in Neo4j itself), public image, no sidecar (browser-side Bolt).
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: neodash
+  namespace: weyland
+  labels:
+    app: neodash
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: neodash
+  template:
+    metadata:
+      labels:
+        app: neodash
+    spec:
+      containers:
+        - name: neodash
+          image: neo4jlabs/neodash:latest   # public Docker Hub image; pin a version if you want reproducibility
+          ports:
+            - name: http
+              containerPort: 5005
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              memory: 256Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: neodash
+  namespace: weyland
+  labels:
+    app: neodash
+spec:
+  type: NodePort
+  selector:
+    app: neodash
+  ports:
+    - name: http
+      port: 5005
+      targetPort: 5005
+      nodePort: 30088

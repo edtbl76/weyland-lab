@@ -10,7 +10,7 @@ runbooks: [b6-minio](runbooks/storage-minio.md) · [b7-ollama](runbooks/model-se
 [b11-whisper](runbooks/transcription-whisper.md) · [b4-eval](runbooks/eval-harness.md) ·
 concepts: [llm-inference-cpu-vs-gpu](concepts/llm-inference-cpu-vs-gpu.md) · ops: [test.md](validation/test-commands.md)
 
-**Diagrams:** [C4 Context](diagrams/c4-context.md) · [C4 Container](diagrams/c4-container.md) · Components: [mother](diagrams/c4-component-mother.md) · [hermes](diagrams/c4-component-hermes.md) · [ollama](diagrams/c4-component-ollama.md) · [whisper](diagrams/c4-component-whisper.md) · [openclaw](diagrams/c4-component-openclaw.md) · [rogueone](diagrams/c4-component-rogueone.md) · Flows: [ingestion](diagrams/flow-ingestion.md) · [RAG query](diagrams/flow-rag-query.md) · [voice chat](diagrams/flow-voice-chat.md) · [eval pipeline](diagrams/flow-eval.md) · [agent MCP](diagrams/flow-agent-mcp.md)
+**Diagrams:** [C4 Context](diagrams/c4-context.md) · [C4 Container](diagrams/c4-container.md) · Components: [mother](diagrams/c4-component-mother.md) · [hermes](diagrams/c4-component-hermes.md) · [ollama](diagrams/c4-component-ollama.md) · [whisper](diagrams/c4-component-whisper.md) · [openclaw](diagrams/c4-component-openclaw.md) · [rogueone](diagrams/c4-component-rogueone.md) · Flows (see §9 for the grouped table): [ingestion](diagrams/flow-ingestion.md) · [RAG query](diagrams/flow-rag-query.md) · [backend dispatch](diagrams/flow-backend-dispatch.md) · [voice chat](diagrams/flow-voice-chat.md) · [eval pipeline](diagrams/flow-eval.md) · [eval scoring](diagrams/flow-eval-scoring.md) · [health/status](diagrams/flow-health-status.md) · [pipeline trigger](diagrams/flow-pipeline-trigger.md) · [agent MCP](diagrams/flow-agent-mcp.md) · [mesh mTLS](diagrams/flow-mesh-mtls.md) · [tracing](diagrams/flow-tracing.md) · [guardrails](diagrams/flow-guardrails.md) · [act-tool](diagrams/flow-act-tool.md) · [ingress/TLS](diagrams/flow-ingress-tls.md) · [model gateway](diagrams/flow-model-gateway.md) · [model catalog](diagrams/flow-model-catalog.md) · [roadmap-sync](diagrams/flow-roadmap-sync.md) · [alerting](diagrams/flow-alerting.md) · [deploy](diagrams/flow-deploy.md)
 
 ---
 
@@ -126,8 +126,9 @@ agents/workflows and platform state. Agents call the tool-server, *not* database
 | Postgres + pgvector | `weyland-postgres.weyland.svc:5432` | `rag_documents`/`rag_chunks` (vector 384-dim) + `eval_*` tables. In-cluster only. |
 | Qdrant | `mother:30083` (HTTP), `:30084` (gRPC) | vector store, collection `weyland_chunks`. |
 | Weaviate | `mother:30087` (gRPC 50051) | vector store, class `WeylandChunk`. |
-| Neo4j | `mother:30085` (HTTP), `:30086` (Bolt) | graph + vector index (GraphRAG foundation), APOC. |
-| Dagster | `dagster.weyland.lab` (3 pods) | ingestion job + eval jobs (`weyland_eval_job`, `weyland_eval_score_job`) + **model-catalog job** (`weyland_catalog_schedule`, 6h → `model_catalog` table). |
+| Neo4j | `mother:30085` (HTTP), `:30086` (Bolt) | graph + vector index (GraphRAG foundation), APOC + **GDS** (PageRank/Louvain). B37 **AIDLC `:Entry` graph** (`RELATED_TO`/`SURFACES_AT`/`TAGGED`/`IN_VERTICAL` from frontmatter). |
+| NeoDash | `mother:30088` | Neo4j dashboard/viz UI (free Bloom-alternative; browser connects to Bolt `:30086`). `k8s/neodash.yaml`. |
+| Dagster | `dagster.weyland.lab` (3 pods) | ingestion job + eval jobs (`weyland_eval_job`, `weyland_eval_score_job`) + **model-catalog job** (`weyland_catalog_schedule`, 6h → `model_catalog` table) + **AIDLC-KB ingest** (`weyland_aidlc_kb_job`, on-demand → MinIO `aidlc-kb` → 4 backends + frontmatter graph, B37). |
 | LiteLLM model gateway | `mother:30400`, `litellm.weyland.lab` | OpenAI-compatible proxy fronting **all Gemini + OpenRouter** models (wildcard); human-gated off-LAN egress (valve) + spend alerts. [runbooks/model-gateway.md](runbooks/model-gateway.md). |
 | Open WebUI | `chat.weyland.lab` | browser voice/chat -> Ollama (chat) + whisper (STT). |
 | n8n | `n8n.weyland.lab` | workflow automation (ingestion role retired -> Dagster; retained for other automation). |
@@ -164,6 +165,11 @@ agents/workflows and platform state. Agents call the tool-server, *not* database
 - **Qdrant / Weaviate / Neo4j** — parallel vector/graph backends, all written in the *same* Dagster
   run and all queryable via the tool-server (`?backend=`). Neo4j adds a vector index + graph edges
   (GraphRAG foundation).
+- **AIDLC knowledge corpus (B37)** — ~510 brand-neutral entries from the AIDLC knowledge repos, ingested
+  from a private MinIO bucket by the on-demand `weyland_aidlc_kb_job` into the *same* 4 stores under an
+  `aidlc-kb/` `source_path` namespace (KB-scoped hash-gate + prune; the docs-pipeline prunes are guarded to
+  never touch it). Neo4j also holds a deterministic **frontmatter graph** — `(:Entry)` linked by
+  `RELATED_TO`/`SURFACES_AT`/`TAGGED`/`IN_VERTICAL` (no LLM; fuzzy extraction is deferred to B38).
 - **MinIO** — S3-compatible object storage (model artifacts, datasets, backups). Filestash is the UI
   (the community console is stripped). See [runbooks/storage-minio.md](runbooks/storage-minio.md).
 - **`model_catalog`** (Postgres) — current-state lookup of reachable hosted models (OpenRouter / Gemini /
@@ -192,13 +198,30 @@ metered API wasn't wanted; Claude-in-lab is instead **you driving Claude Code** 
 
 ## 9. Key flows
 
-| Flow | Diagram |
-|---|---|
-| Ingestion (docs -> 4 vector backends) | [diagrams/flow-ingestion.md](diagrams/flow-ingestion.md) |
-| RAG query (`/context/ask`) | [diagrams/flow-rag-query.md](diagrams/flow-rag-query.md) |
-| Voice chat (Open WebUI -> whisper -> Ollama) | [diagrams/flow-voice-chat.md](diagrams/flow-voice-chat.md) |
-| Evaluation pipeline (eval -> panel -> leaderboard) | [diagrams/flow-eval.md](diagrams/flow-eval.md) |
-| Agent system-view (Hermes / Claude Code -> MCP) | [diagrams/flow-agent-mcp.md](diagrams/flow-agent-mcp.md) |
+Grouped by plane. **Data** = the RAG/eval data path; **Security/mesh** = how requests are protected and
+observed; **Control/ops** = scheduled and operational paths.
+
+| Plane | Flow | Diagram |
+|---|---|---|
+| Data | Ingestion (repo -> 4 vector backends) | [flow-ingestion.md](diagrams/flow-ingestion.md) |
+| Data | RAG query (`/context/ask`) | [flow-rag-query.md](diagrams/flow-rag-query.md) |
+| Data | Backend selection / dispatch (one of four) | [flow-backend-dispatch.md](diagrams/flow-backend-dispatch.md) |
+| Data | Voice chat (Open WebUI -> whisper -> Ollama) | [flow-voice-chat.md](diagrams/flow-voice-chat.md) |
+| Data | Evaluation pipeline (run -> panel -> leaderboard) | [flow-eval.md](diagrams/flow-eval.md) |
+| Data | Eval scoring + leaderboard | [flow-eval-scoring.md](diagrams/flow-eval-scoring.md) |
+| Data | Health / status aggregation (U12) | [flow-health-status.md](diagrams/flow-health-status.md) |
+| Data | Pipeline trigger (`/pipeline/trigger` -> Dagster) | [flow-pipeline-trigger.md](diagrams/flow-pipeline-trigger.md) |
+| Security/mesh | Agent system-view (Hermes / Claude Code -> MCP) | [flow-agent-mcp.md](diagrams/flow-agent-mcp.md) |
+| Security/mesh | Service-mesh request path + mTLS (B8) | [flow-mesh-mtls.md](diagrams/flow-mesh-mtls.md) |
+| Security/mesh | Distributed tracing pipeline (B8) | [flow-tracing.md](diagrams/flow-tracing.md) |
+| Security/mesh | Guardrail validation (B14) | [flow-guardrails.md](diagrams/flow-guardrails.md) |
+| Security/mesh | Audited act-tool (`/mcp-act`, B14) | [flow-act-tool.md](diagrams/flow-act-tool.md) |
+| Security/mesh | Ingress / TLS front door | [flow-ingress-tls.md](diagrams/flow-ingress-tls.md) |
+| Control/ops | Model-gateway routing (B26) | [flow-model-gateway.md](diagrams/flow-model-gateway.md) |
+| Control/ops | model_catalog refresh (B26) | [flow-model-catalog.md](diagrams/flow-model-catalog.md) |
+| Control/ops | Roadmap-sync -> Hermes Kanban (B27) | [flow-roadmap-sync.md](diagrams/flow-roadmap-sync.md) |
+| Control/ops | Alerting (B5) | [flow-alerting.md](diagrams/flow-alerting.md) |
+| Control/ops | Deploy / redeploy (build<->runtime isolation) | [flow-deploy.md](diagrams/flow-deploy.md) |
 
 ---
 
@@ -266,7 +289,7 @@ so Ollama mis-sizes against 96 GB / 16 cores instead of the CT's limits. (Detail
 
 ## 13. Roadmap & maintenance
 
-Forward priorities live in [backlog.md](backlog.md). Platform Foundation: B37 (ingest AIDLC knowledge repos → Graph RAG — next), then B3 (Backstage IDP). Recently done: B25, B24, B14, B26, B27, B8 (Istio mesh).
+Forward priorities live in [backlog.md](backlog.md). Platform Foundation: B3 (Backstage IDP — next). Recently done: B26, B27, B8 (Istio mesh), B37 (AIDLC knowledge-base ingest + frontmatter graph). Deferred: B38 (fuzzy LLM GraphRAG extraction).
 
 **Maintaining this doc:** update it (and [hosts.md](hosts.md)/[api.md](api.md)) whenever a host,
 service, endpoint, port, DNS name, or major flow changes — same "done" bar as a runbook.

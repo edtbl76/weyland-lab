@@ -44,7 +44,7 @@ Re-ordered per RE-grounded audit (aidlc-docs/inception/backlog-reprioritization.
 6. **B26** — Hosted-model gateway (LiteLLM) + model catalog — ✅ **DONE 2026-06-17** (reframed from "Hermes Claude brain"; Claude path declined — ToS gray area). LiteLLM on mother fronts all Gemini+OpenRouter; Dagster `model_catalog` (6h). See detail below.
 7. **B27** — Hermes Kanban (self-management + roadmap co-pilot) — ✅ **DONE 2026-06-17.** Native SQLite kanban; planning on Gemini-free via the gateway (`kanban_decomposer`/`triage_specifier` pinned), workers local; `weyland-roadmap` board mirrors this backlog one-way (`roadmap-sync.py`, 6h cron). See detail below + [runbooks/agent-hermes.md](runbooks/agent-hermes.md#kanban--self-management--roadmap-co-pilot-b27-live-2026-06-17).
 8. **B8** — Istio service mesh — **DECIDED BUILD-NOW 2026-06-17** (all four drivers: mTLS/observability/traffic-mgmt/learning). Design: `aidlc-docs/construction/b8-istio-design.md` — Approach 1 (sidecar, contained tool-server slice, bookinfo warm-up); step-0 mother-headroom gate → pivot to ambient if tight; **slice 1 = PERMISSIVE everywhere** (tool-server serves external NodePort MCP; backends serve un-meshed Dagster) — STRICT enforcement deferred to slice 2 (mesh Dagster); Traefik stays the ingress. See detail below.
-- **B37** ⭐ — **Ingest the AIDLC knowledge repositories into the (Graph) RAG** (517 md: Engineering 397 + Consulting 62 + Industry 58, ~13× the corpus) — the core "make it smarter" play. **RANKED NEXT — after the B8 follow-ups (slice-2 STRICT, observability consolidation, ingress auth), before B3/Backstage.** Sourcing decision first: `.methodaidlc/` is gitignored → not on GitHub. See detail below.
+- **B37** — **Ingest the AIDLC knowledge repositories into the (Graph) RAG** — ✅ **DONE 2026-06-19.** ~510 brand-neutral entries ingested from MinIO into all 4 backends (`aidlc-kb/` namespace, KB-scoped hash-gate + prune); RAG answers cite KB files (DDD ← `domain-driven-design.md`/`context-mapping.md`). **Phase 2 graph live:** 510 `:Entry` nodes, 2311 `RELATED_TO` + `SURFACES_AT`/`TAGGED`/`IN_VERTICAL` edges from frontmatter (no LLM). On-demand `weyland_aidlc_kb_job`; runbook [runbooks/aidlc-kb-ingest.md](runbooks/aidlc-kb-ingest.md). Fuzzy LLM extraction → **B38**. See detail below.
 9. **B3** — IDP / Backstage — big mother infrastructure work; catalogs the full platform including agents. Absorbs B12 (API catalog). Open questions: (1) Backstage on mother or its own platform? (2) exact MCP harness scope. See detail below.
 
 ### Data & Automation
@@ -70,10 +70,11 @@ Re-ordered per RE-grounded audit (aidlc-docs/inception/backlog-reprioritization.
 24. **U16** — Weaviate UI — Extra; evaluate whether still needed (native Weaviate UI may suffice). See detail below.
 25. **B30** — Real-time docs ingestion trigger — self-hosted GitHub Actions runner on the LAN fires Dagster `launchRun` on push (NAT-free near-real-time). Deferred; cron fine until 15-min latency bites. See detail below.
 26. **B32** — NeMo Guardrails evaluation — programmable conversational guardrails (Colang DSL: topical/dialog/jailbreak rails). Deferred from B14 (heavy framework + new language; built for dialog mgmt, not I/O scanning). Evaluate for the **Layer-2 agent layer** (Hermes dialog/topical rails), not the tool-server I/O pipeline. See detail below.
+27. **B38** — **Fuzzy GraphRAG: LLM concept/entity extraction** over the AIDLC KB (and `docs/`) — extract entities + *emergent* relationships from **prose** (beyond the declared frontmatter links) into Neo4j, à la Microsoft GraphRAG. **Deferred from B37**, which ships the deterministic frontmatter graph (`RELATED_TO`/`SURFACES_AT`/`TAGGED`). Why deferred: heavy on local CPU Ollama (517 docs × extraction passes, re-run on change), fuzzy/non-deterministic, needs an entity/relation schema + canonicalization/dedup ("DDD" = "Domain-Driven Design"), and low marginal value while the author-declared frontmatter already yields a high-precision graph for ~free. **Revisit once** B37 proves corpus value AND/OR a bigger model / GPU lands (pairs with B7 eGPU / B33).
 
 ### Hardware-Gated
-27. **B21** — Agent media generation (image/video/TTS) — requires eGPU hardware purchase. See detail below.
-28. **B33** — Co-resident / warm-parallel model serving — raise `OLLAMA_MAX_LOADED_MODELS` (now 1, cgroup-bound) to keep a 2nd model warm alongside the main one → eliminates eviction/cold-start for latency-sensitive multi-model workflows (e.g. B14's conversational grounding guard, or guard+generator both warm). Gated on RAM/VRAM headroom (the "weyland box" decision / eGPU). See detail below.
+28. **B21** — Agent media generation (image/video/TTS) — requires eGPU hardware purchase. See detail below.
+29. **B33** — Co-resident / warm-parallel model serving — raise `OLLAMA_MAX_LOADED_MODELS` (now 1, cgroup-bound) to keep a 2nd model warm alongside the main one → eliminates eviction/cold-start for latency-sensitive multi-model workflows (e.g. B14's conversational grounding guard, or guard+generator both warm). Gated on RAM/VRAM headroom (the "weyland box" decision / eGPU). See detail below.
 
 ---
 
@@ -101,7 +102,13 @@ Re-ordered per RE-grounded audit (aidlc-docs/inception/backlog-reprioritization.
 
 ## B-item and U-item detail sections
 
-### B37 ⭐ — Ingest the AIDLC knowledge repositories into the (Graph) RAG
+### B37 — Ingest the AIDLC knowledge repositories into the (Graph) RAG — ✅ DONE 2026-06-19
+**Follow-on (DONE 2026-06-19): Neo4j GDS** — enabled the free Graph Data Science plugin (`NEO4J_PLUGINS` in
+`k8s/neo4j.yaml`) and ran graph algorithms over the `:Entry` graph: **PageRank** surfaces load-bearing concepts
+(event-driven-architecture, ci-cd, microservices, domain-driven-design…), **Louvain** auto-clusters the 510
+entries into ~8 coherent themes. Commands + baseline in the runbook. **Visual: NeoDash deployed**
+(`http://mother:30088`, `k8s/neodash.yaml`) — free Bloom-alternative that works with Community (Bloom itself
+needs Enterprise/Aura; Neo4j Desktop dev-license path was parked).
 **Goal:** feed the three AIDLC knowledge bases into the multi-backend RAG so the lab can reason with
 *domain knowledge*, not just its own infra docs — "make this bad boy MUCH smarter" (user, 2026-06-18). Consumers:
 Hermes + Claude Code via the system-view MCP `context_ask`/`context_search`, the eval harness, future agents.
@@ -109,9 +116,14 @@ Hermes + Claude Code via the system-view MCP `context_ask`/`context_search`, the
   (58) = **~517 markdown files**, ~13× today's `docs/` corpus (40). Each repo is taxonomy-indexed (an `index.md`
   + entry files keyed by stage / vertical, with cross-references).
 
-**The sourcing problem (decide first):** `.methodaidlc/` is **gitignored** (`.gitignore:97`), so it's **not on
-GitHub**, and the B25b ingestion shallow-clones from GitHub (`source_document.py`) — it can't see these repos.
-Options:
+**The sourcing problem — ✅ DECIDED 2026-06-18 → Option 2 via MinIO + brand-neutral.** The content is the
+**user's own IP** (they authored the Method AIDLC + the 3 KBs — *no* license/redistribution issue; the missing
+LICENSE file made it merely *look* third-party). Chosen path: **keep `.methodaidlc/` out of the repo**, scrub
+brand mentions, drop a **brand-neutral copy into a private MinIO bucket (B6)**, and add a Dagster asset that
+reads from S3 — decoupled from the GitHub-clone path. **Option 1 (un-gitignore + push) rejected**: user wants
+brand-neutral output and the methodology kept out of the repo. Original framing + options retained below for
+context. `.methodaidlc/` is **gitignored** (`.gitignore:97`), so it's **not on GitHub**, and the B25b ingestion
+shallow-clones from GitHub (`source_document.py`) — it can't see these repos. Options were:
 1. **Un-gitignore + push to GitHub** + extend `source_document.py` to ingest the three repo paths as markdown.
    Simplest mechanically — but it publishes **third-party AIDLC framework content** to the repo; **check
    license/appropriateness** before pushing publicly.
@@ -126,11 +138,29 @@ IDs, cross-references) — a strong case for **richer Neo4j entity/relationship 
 just Document/Chunk + sequential edges; entity extraction was deferred). This item naturally **motivates /
 pairs with the GraphRAG-extraction enhancement** so the knowledge is queryable as a graph, not just chunks.
 
-**Open questions:** (a) sourcing mechanism (1/2/3 above) + license check; (b) wholesale vs curated ingest
-(all 517 vs index + selected entries); (c) ingestion cadence (one-off vs scheduled); (d) whether to enhance
-Neo4j extraction now or chunk-ingest first; (e) **eval-corpus impact** — B4 evals run over `docs/` markdown;
-decide whether AIDLC knowledge joins the eval corpus or is scoped out (it would 13× and reshape it); (f) dual
-chunking — markdown H2-split (same as docs/) is fine, but the taxonomy/index files may want special handling.
+**Open questions:** (a) ✅ **DECIDED** — sourcing = MinIO + brand-neutral scrub (see above); (b) wholesale vs
+curated ingest (all 517 vs index + selected entries); (c) ingestion cadence (one-off vs scheduled); (d) whether
+to enhance Neo4j extraction now or chunk-ingest first; (e) **eval-corpus impact** — B4 evals run over `docs/`
+markdown; decide whether AIDLC knowledge joins the eval corpus or is scoped out (it would 13× and reshape it);
+(f) ✅ **DECIDED** — H2-split entry files (consistent `## What It Is / When to Use / …` structure), carry
+`tags`/`surfaces-at`/`complexity` frontmatter as chunk metadata, and **do NOT vector-chunk the `index.md`/
+`README` files** (they feed the graph instead); (g) ✅ **DECIDED — strip ALL brand "Method"** (user, brand
+neutrality matters). Measured reality: standalone brand "Method" appears **532× across 430 of 517 files** (the
+user's "there shouldn't be any" was wrong; 0 lowercase common-noun "method/methodology" uses, so no ambiguity
+there). Implemented as a **curated replacement map with a PRESERVE-LIST**, applied to a staging copy (never the
+live `.methodaidlc/` source). **Preserve (technical terms, NOT brand, ~28):** `Template Method` ×15,
+`Factory Method` ×8 (GoF patterns), `USE Method` ×2, `RED Method` ×2 (perf), `…Analysis Method` (ATAM).
+**Strip/genericize (~500):** `Method's`→"our/the", `Method recommends/uses/…`→passive, `Method engagements`→
+"engagements", and the dominant header **`## Method Application` ×61** → e.g. `## In Practice`. A blind
+`s/Method//` is rejected — it would corrupt the GoF pattern names. Review the diff before upload.
+
+**Decided shape (2026-06-18):** Phase 1 chunk-ingest all 4 backends (parity with `docs/`); Phase 2 (same item)
+deterministic Neo4j edges from frontmatter — `(:Entry)-[:RELATED_TO]->(:Entry)`, `-[:SURFACES_AT]->(:Stage)`,
+`-[:TAGGED]->(:Tag)`, industry `vertical` nodes (513/517 entries carry `related`+`surfaces-at`). LLM-based
+concept/entity extraction from prose is **deferred to B38** (Extras/Optimization — cost on local CPU Ollama,
+fuzzy/non-deterministic, diminishing returns given the author-declared frontmatter links). **Deliverable:** an
+on-demand ingest **runbook** `docs/runbooks/aidlc-kb-ingest.md` (scrub → upload to MinIO → trigger Dagster
+asset → verify counts) — on-demand cadence means the steps must be written down.
 
 ### B1 — Build a data mesh
 Domain-oriented data products + federated governance over the backends

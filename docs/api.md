@@ -44,7 +44,8 @@ Hosts & access users: [hosts.md](hosts.md). `mother` = 192.168.1.243, CTs by IP 
 | Qdrant gRPC | `mother:30084` | |
 | Weaviate | `http://mother:30087` | gRPC 50051; class `WeylandChunk` |
 | Neo4j HTTP | `http://mother:30085` | browser/REST |
-| Neo4j Bolt | `neo4j://mother:30086` | APOC enabled |
+| Neo4j Bolt | `neo4j://mother:30086` | APOC + GDS enabled |
+| NeoDash | `http://mother:30088` | Neo4j dashboard/viz UI (connect to Bolt `:30086`); see [runbooks/aidlc-kb-ingest.md](runbooks/aidlc-kb-ingest.md) |
 | Postgres/pgvector | `weyland-postgres.weyland.svc:5432` | **in-cluster only** (no NodePort) |
 
 ## Gateways

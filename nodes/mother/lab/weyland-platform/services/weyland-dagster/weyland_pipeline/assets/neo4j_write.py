@@ -104,10 +104,13 @@ def neo4j_write(
             # Orphan prune: runs regardless of changes, but ONLY when sources were
             # actually collected (empty set => bad run, skip to avoid wiping the graph).
             if current_paths:
+                # Exclude the aidlc-kb/ corpus (B37) — owned by aidlc_kb_ingest's own prune.
                 result = session.run(
                     """
                     MATCH (n)
-                    WHERE (n:Document OR n:Chunk) AND NOT n.source_path IN $current
+                    WHERE (n:Document OR n:Chunk)
+                      AND NOT n.source_path IN $current
+                      AND NOT n.source_path STARTS WITH 'aidlc-kb/'
                     DETACH DELETE n
                     RETURN count(n) AS pruned
                     """,

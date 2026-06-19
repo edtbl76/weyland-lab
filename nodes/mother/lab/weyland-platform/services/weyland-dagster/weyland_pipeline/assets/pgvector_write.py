@@ -81,8 +81,11 @@ def pgvector_write(
             # Orphan prune: runs regardless of changes, but ONLY when sources were
             # actually collected (empty set => bad run, skip to avoid wiping the store).
             if current_paths:
+                # NB: the aidlc-kb/ namespace (B37) is a separate corpus with its own ingest+prune —
+                # never prune it from the docs run.
                 cur.execute(
-                    "DELETE FROM rag_documents WHERE source_path <> ALL(%s)",
+                    "DELETE FROM rag_documents WHERE source_path <> ALL(%s) "
+                    "AND source_path NOT LIKE 'aidlc-kb/%%'",
                     (list(current_paths),),
                 )
                 documents_pruned = cur.rowcount

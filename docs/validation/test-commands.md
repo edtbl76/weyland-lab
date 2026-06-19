@@ -279,7 +279,7 @@ kubectl get pods -n weyland | grep dagster
 ### Open UI
 
 ```
-http://mother:30088
+https://dagster.weyland.lab
 ```
 
 ---

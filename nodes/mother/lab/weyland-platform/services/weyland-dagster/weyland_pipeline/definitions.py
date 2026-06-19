@@ -15,11 +15,12 @@ from weyland_pipeline.schedules import (
     weyland_eval_score_job,
     weyland_catalog_job,
     weyland_catalog_schedule,
+    weyland_aidlc_kb_job,
 )
 
 defs = Definitions(
     assets=all_assets,
-    jobs=[weyland_ingestion_job, weyland_eval_job, weyland_eval_score_job, weyland_catalog_job],
+    jobs=[weyland_ingestion_job, weyland_eval_job, weyland_eval_score_job, weyland_catalog_job, weyland_aidlc_kb_job],
     schedules=[weyland_ingestion_schedule, weyland_catalog_schedule],
     resources={
         "postgres": PostgresResource(
