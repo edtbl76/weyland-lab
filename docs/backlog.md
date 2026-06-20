@@ -48,7 +48,7 @@ Re-ordered per RE-grounded audit (aidlc-docs/inception/backlog-reprioritization.
 9. **B3** — IDP / Backstage — **slices A+B DONE 2026-06-19** (learning project). LIVE at `idp.weyland.lab`: **A** software catalog, **B** TechDocs + Catalog Graph. Self-syncs from the repo (B41). **Slice C** (Scaffolder) **parked → Extra (B42)** — template lists, but execution hits the node-fetch/gzip `Premature close` bug on the GitHub API. See detail below.
 
 ### Data & Automation
-10. **B10+B16** — MLflow (experiment tracking + model registry) — MERGED; MLflow delivers model registry natively. Foundational for data mesh and fine-tuning. See detail below.
+10. **B10+B16** — MLflow (experiment tracking + model registry) — ✅ **DONE 2026-06-19.** Live at `mlflow.weyland.lab` (dev-password): Postgres backend store + MinIO `mlflow` artifact bucket (proxied `--serve-artifacts`), meshed, smoke-tested end-to-end (run + metric + artifact). `k8s/mlflow/`. See detail below.
 11. **B1** — Data mesh — three concrete data products: (1) model eval product (continuous judge-panel runs, time-series leaderboard); (2) data store inventory product (Data-as-a-Product for each backend); (3) model tuning feed → fine-tuning → custom models. See detail below.
 
 ### Maturity / Hardening / Polish
@@ -434,8 +434,8 @@ they drop onto `http://192.168.1.244:11434/v1`. Consumers of B7 — and the real
 coding model" finding (point them at `qwen3-coder:30b` / whatever wins). **Open when scoping:** which
 agent(s), per-repo config, default model, auth. Low lift (client config, no new infra).
 
-### B16 — MLflow (experiment tracking + model registry)
-**MERGED with B10 — this is the canonical MLflow detail section.**
+### B16 — MLflow (experiment tracking + model registry) — ✅ DONE 2026-06-19
+**MERGED with B10 — this is the canonical MLflow detail section.** Live at `mlflow.weyland.lab` (dev-password): MLflow server (`k8s/mlflow/`), **Postgres** backend store (`mlflow` db/role), **MinIO** `mlflow` artifact bucket (proxied `--serve-artifacts`), meshed for STRICT Postgres, pg/s3 drivers pip-installed on start (no custom image). Smoke-tested end-to-end (run + param + metric + artifact → both stores).
 
 System-of-record for **experiments + model artifacts**. Real value lands once the lab does
 **fine-tuning**: track training runs (params/metrics/artifacts) and register/version the resulting
@@ -444,10 +444,7 @@ reuse ethos. **Pairs/overlaps with B10** (model registry): MLflow's Model Regist
 implementation, or complement it (B10 = serving-side distribution/OCI for Ollama/vLLM pulls; MLflow =
 training/experiment lineage + registry). Also overlaps **B4**: MLflow could host eval-run tracking
 with a standard UI — but we already built a lean Postgres `eval_*` store, so that's not the draw.
-**Not urgent:** until fine-tuning starts, B4's eval store + Ollama's local model store + public pulls
-suffice. **Trigger:** the first real fine-tune, or wanting a standard experiment-tracking UI/lineage
-across training + eval. **Open:** MLflow vs (B10's) lighter MinIO-bucket / OCI-registry options —
-decide when fine-tuning is actually on the table.
+**Open:** MLflow vs (B10's) lighter MinIO-bucket / OCI-registry options.
 
 ### B17 — A2A (agent-to-agent protocol) evaluation
 **MERGED with B19 — see the Mesh item.**

@@ -10,7 +10,7 @@ runbooks: [b6-minio](runbooks/storage-minio.md) · [b7-ollama](runbooks/model-se
 [b11-whisper](runbooks/transcription-whisper.md) · [b4-eval](runbooks/eval-harness.md) ·
 concepts: [llm-inference-cpu-vs-gpu](concepts/llm-inference-cpu-vs-gpu.md) · ops: [test.md](validation/test-commands.md)
 
-**Diagrams:** [C4 Context](diagrams/c4-context.md) · [C4 Container](diagrams/c4-container.md) · Components: [mother](diagrams/c4-component-mother.md) · [hermes](diagrams/c4-component-hermes.md) · [ollama](diagrams/c4-component-ollama.md) · [whisper](diagrams/c4-component-whisper.md) · [openclaw](diagrams/c4-component-openclaw.md) · [rogueone](diagrams/c4-component-rogueone.md) · Flows (see §9 for the grouped table): [ingestion](diagrams/flow-ingestion.md) · [RAG query](diagrams/flow-rag-query.md) · [backend dispatch](diagrams/flow-backend-dispatch.md) · [voice chat](diagrams/flow-voice-chat.md) · [eval pipeline](diagrams/flow-eval.md) · [eval scoring](diagrams/flow-eval-scoring.md) · [health/status](diagrams/flow-health-status.md) · [pipeline trigger](diagrams/flow-pipeline-trigger.md) · [agent MCP](diagrams/flow-agent-mcp.md) · [mesh mTLS](diagrams/flow-mesh-mtls.md) · [tracing](diagrams/flow-tracing.md) · [guardrails](diagrams/flow-guardrails.md) · [act-tool](diagrams/flow-act-tool.md) · [ingress/TLS](diagrams/flow-ingress-tls.md) · [model gateway](diagrams/flow-model-gateway.md) · [model catalog](diagrams/flow-model-catalog.md) · [roadmap-sync](diagrams/flow-roadmap-sync.md) · [alerting](diagrams/flow-alerting.md) · [deploy](diagrams/flow-deploy.md)
+**Diagrams:** [C4 Context](diagrams/c4-context.md) · [C4 Container](diagrams/c4-container.md) · Components: [mother](diagrams/c4-component-mother.md) · [hermes](diagrams/c4-component-hermes.md) · [ollama](diagrams/c4-component-ollama.md) · [whisper](diagrams/c4-component-whisper.md) · [openclaw](diagrams/c4-component-openclaw.md) · [rogueone](diagrams/c4-component-rogueone.md) · Flows (see §9 for the grouped table): [ingestion](diagrams/flow-ingestion.md) · [RAG query](diagrams/flow-rag-query.md) · [backend dispatch](diagrams/flow-backend-dispatch.md) · [voice chat](diagrams/flow-voice-chat.md) · [eval pipeline](diagrams/flow-eval.md) · [eval scoring](diagrams/flow-eval-scoring.md) · [health/status](diagrams/flow-health-status.md) · [pipeline trigger](diagrams/flow-pipeline-trigger.md) · [agent MCP](diagrams/flow-agent-mcp.md) · [mesh mTLS](diagrams/flow-mesh-mtls.md) · [tracing](diagrams/flow-tracing.md) · [guardrails](diagrams/flow-guardrails.md) · [act-tool](diagrams/flow-act-tool.md) · [ingress/TLS](diagrams/flow-ingress-tls.md) · [model gateway](diagrams/flow-model-gateway.md) · [model catalog](diagrams/flow-model-catalog.md) · [roadmap-sync](diagrams/flow-roadmap-sync.md) · [alerting](diagrams/flow-alerting.md) · [deploy](diagrams/flow-deploy.md) · [MLflow](diagrams/flow-mlflow.md) · [IDP self-sync](diagrams/flow-idp-sync.md)
 
 ---
 
@@ -137,6 +137,7 @@ agents/workflows and platform state. Agents call the tool-server, *not* database
 | APISIX | `mother:30090` (gateway), `apisix.weyland.lab` (dashboard) | API gateway. |
 | Headlamp | `headlamp.weyland.lab` | Kubernetes UI. |
 | weyland IDP (B3) | `idp.weyland.lab` | Internal Developer Platform — Backstage (tool-neutrally named). Software catalog + TechDocs + Catalog Graph of the platform (slices A+B live; Scaffolder template parked → Extra). Meshed (STRICT Postgres). **Self-syncs from the repo (B41):** catalog read live via `type: url` off public GitHub (no ConfigMap), TechDocs built+published hourly by a Dagster job → MinIO `techdocs` bucket. Config via ConfigMap. `k8s/weyland-idp/`, [runbooks/weyland-idp.md](runbooks/weyland-idp.md). |
+| MLflow (B10+B16) | `mlflow.weyland.lab` | Experiment tracking + model registry. **Postgres** backend store + **MinIO** `mlflow` artifact bucket (proxied via `--serve-artifacts`). Meshed (STRICT Postgres); dev-password ingress. `k8s/mlflow/`. |
 | CoreDNS | `mother:53` | LAN DNS resolver for `weyland.lab`. |
 | Traefik | (ingress) | TLS front door for `*.weyland.lab`. |
 | Istio service mesh (B8 — ✅ done) | `istio-system` ns; Kiali `kiali.weyland.lab`, Jaeger `jaeger.weyland.lab` (both dev-password gated) | Sidecar mesh, minimal profile (no Istio gateway — Traefik stays ingress). Meshed: tool-server + 4 vector/graph backends + Dagster, **PERMISSIVE mTLS**; **Postgres STRICT** (proven enforcing — vector backends stay PERMISSIVE by design, they have un-meshed Prometheus/NodePort clients). TCP backends (neo4j Bolt / Postgres) need `appProtocol: tcp`. Mesh metrics + tracing consolidated onto the kube-prometheus-stack + Grafana (addon Prometheus dropped). Kiali read-only + RBAC-tightened. See [runbooks/service-mesh-istio.md](runbooks/service-mesh-istio.md). |
@@ -212,6 +213,7 @@ observed; **Control/ops** = scheduled and operational paths.
 | Data | Eval scoring + leaderboard | [flow-eval-scoring.md](diagrams/flow-eval-scoring.md) |
 | Data | Health / status aggregation (U12) | [flow-health-status.md](diagrams/flow-health-status.md) |
 | Data | Pipeline trigger (`/pipeline/trigger` -> Dagster) | [flow-pipeline-trigger.md](diagrams/flow-pipeline-trigger.md) |
+| Data | MLflow tracking + artifacts (B10+B16) | [flow-mlflow.md](diagrams/flow-mlflow.md) |
 | Security/mesh | Agent system-view (Hermes / Claude Code -> MCP) | [flow-agent-mcp.md](diagrams/flow-agent-mcp.md) |
 | Security/mesh | Service-mesh request path + mTLS (B8) | [flow-mesh-mtls.md](diagrams/flow-mesh-mtls.md) |
 | Security/mesh | Distributed tracing pipeline (B8) | [flow-tracing.md](diagrams/flow-tracing.md) |
@@ -223,6 +225,7 @@ observed; **Control/ops** = scheduled and operational paths.
 | Control/ops | Roadmap-sync -> Hermes Kanban (B27) | [flow-roadmap-sync.md](diagrams/flow-roadmap-sync.md) |
 | Control/ops | Alerting (B5) | [flow-alerting.md](diagrams/flow-alerting.md) |
 | Control/ops | Deploy / redeploy (build<->runtime isolation) | [flow-deploy.md](diagrams/flow-deploy.md) |
+| Control/ops | Self-syncing IDP (catalog from git + Dagster TechDocs, B41) | [flow-idp-sync.md](diagrams/flow-idp-sync.md) |
 
 ---
 
@@ -290,7 +293,7 @@ so Ollama mis-sizes against 96 GB / 16 cores instead of the CT's limits. (Detail
 
 ## 13. Roadmap & maintenance
 
-Forward priorities live in [backlog.md](backlog.md). Recently done: B3 (Backstage IDP — slices A+B: software catalog + TechDocs + Catalog Graph; Scaffolder parked → Extra), B41 (self-syncing IDP — catalog via git url + hourly Dagster TechDocs publish), B26, B27, B8 (Istio mesh), B37 (AIDLC knowledge-base ingest + frontmatter graph). Deferred: B38 (fuzzy LLM GraphRAG extraction), B40 (Mermaid-in-TechDocs).
+Forward priorities live in [backlog.md](backlog.md). Recently done: B10+B16 (MLflow — experiment tracking + model registry on Postgres + MinIO), B3 (Backstage IDP — slices A+B: software catalog + TechDocs + Catalog Graph; Scaffolder parked → Extra), B41 (self-syncing IDP — catalog via git url + hourly Dagster TechDocs publish), B26, B27, B8 (Istio mesh), B37 (AIDLC knowledge-base ingest + frontmatter graph). Deferred: B38 (fuzzy LLM GraphRAG extraction), B40 (Mermaid-in-TechDocs).
 
 **Maintaining this doc:** update it (and [hosts.md](hosts.md)/[api.md](api.md)) whenever a host,
 service, endpoint, port, DNS name, or major flow changes — same "done" bar as a runbook.

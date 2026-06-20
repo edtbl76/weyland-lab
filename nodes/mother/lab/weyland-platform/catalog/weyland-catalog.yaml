@@ -342,3 +342,20 @@ spec:
   type: url
   targets:
     - ./templates/k8s-service/template.yaml
+---
+# ---------------------------------------------------------------------------------------- MLflow (B10+B16)
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: mlflow
+  description: MLflow — experiment tracking + model registry (Postgres backend, MinIO artifacts). B10+B16.
+  annotations:
+    backstage.io/kubernetes-id: mlflow
+  links:
+    - url: https://mlflow.weyland.lab
+      title: MLflow UI
+spec:
+  type: service
+  lifecycle: production
+  owner: weyland-ops
+  system: model-serving

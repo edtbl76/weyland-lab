@@ -26,6 +26,7 @@ LAN-only. This `docs/` tree is the canonical, version-controlled source of truth
 - [storage-minio.md](runbooks/storage-minio.md) — MinIO object storage
 - [aidlc-kb-ingest.md](runbooks/aidlc-kb-ingest.md) — AIDLC knowledge-base ingest (B37): MinIO source + brand scrub, on-demand Dagster job, Neo4j `:Entry` graph + GDS, NeoDash viz
 - [weyland-idp.md](runbooks/weyland-idp.md) — IDP / Backstage (B3): build-from-git (multi-stage), ConfigMap config, Postgres role, the mesh + guest-auth gotchas
+- [mlflow.md](runbooks/mlflow.md) — MLflow (B10+B16): experiment tracking + model registry, Postgres backend + MinIO artifacts, meshed, dev-password
 
 ## units/ — task-scoped hardening/setup docs
 `u6`–`u12` — credential hardening, HF cleanup, Headlamp token, mkcert/CoreDNS/Traefik (U9), SA scoping,
@@ -40,4 +41,4 @@ C4 [context](diagrams/c4-context.md) · [container](diagrams/c4-container.md) ·
 [ollama](diagrams/c4-component-ollama.md), [whisper](diagrams/c4-component-whisper.md),
 [openclaw](diagrams/c4-component-openclaw.md), [rogueone](diagrams/c4-component-rogueone.md)).
 Flows: [ingestion](diagrams/flow-ingestion.md), [RAG query](diagrams/flow-rag-query.md),
-[voice](diagrams/flow-voice-chat.md), [eval](diagrams/flow-eval.md), [agent MCP](diagrams/flow-agent-mcp.md).
+[voice](diagrams/flow-voice-chat.md), [eval](diagrams/flow-eval.md), [agent MCP](diagrams/flow-agent-mcp.md), [MLflow](diagrams/flow-mlflow.md), [IDP self-sync](diagrams/flow-idp-sync.md).
