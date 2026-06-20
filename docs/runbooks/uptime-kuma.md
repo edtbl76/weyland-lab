@@ -1,8 +1,10 @@
 # Uptime Kuma — runbook (incident-management category, B43)
 
-Uptime monitoring + status page at `kuma.weyland.lab`. **16 monitors** across the platform, each pushing
-status to **Port.io** via webhook (→ `uptime_monitor` blueprint). Has its own built-in auth (set on first
-login). Single container, SQLite state on a PVC.
+Uptime monitoring + status page at `kuma.weyland.lab`. **16 monitors** across the platform. Two notifiers,
+both default-on: **Port.io webhook** (→ `uptime_monitor` blueprint, catalog/status) and **direct Telegram**
+(active paging — reuses the Hermes bot token; sending doesn't conflict with Hermes consuming). Telegram is
+the paging path on purpose — independent of any agent that could itself fail (see B45). Has its own built-in
+auth (set on first login). Single container, SQLite state on a PVC.
 
 - Manifest: `k8s/uptime-kuma/uptime-kuma.yaml` (PVC + Deployment + Service + Ingress, Traefik TLS).
 - Backup (monitors + notification): `scripts/kuma-backup.json` — **gitignored** (inline dev-password basic
@@ -33,6 +35,11 @@ login). Single container, SQLite state on a PVC.
 - In Kuma: Settings → Notifications → Webhook, content type `application/json`, set as **default** so new
   monitors auto-report. Kuma's default payload (`monitor.name`, `monitor.url`, `heartbeat.status`,
   `heartbeat.ping`) maps to the blueprint.
+
+## Telegram paging
+- 2nd notifier (default-on): Telegram, **reusing the Hermes bot token** + your chat ID. Sending is fine
+  alongside Hermes (only *receiving*/getUpdates conflicts — which is why `getUpdates` returns nothing while
+  Hermes owns the bot). Get your chat ID from **@userinfobot** (DM = your numeric user id), not getUpdates.
 
 ## Deploy (first time)
 ```
