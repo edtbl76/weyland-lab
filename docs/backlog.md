@@ -45,7 +45,7 @@ Re-ordered per RE-grounded audit (aidlc-docs/inception/backlog-reprioritization.
 7. **B27** — Hermes Kanban (self-management + roadmap co-pilot) — ✅ **DONE 2026-06-17.** Native SQLite kanban; planning on Gemini-free via the gateway (`kanban_decomposer`/`triage_specifier` pinned), workers local; `weyland-roadmap` board mirrors this backlog one-way (`roadmap-sync.py`, 6h cron). See detail below + [runbooks/agent-hermes.md](runbooks/agent-hermes.md#kanban--self-management--roadmap-co-pilot-b27-live-2026-06-17).
 8. **B8** — Istio service mesh — **DECIDED BUILD-NOW 2026-06-17** (all four drivers: mTLS/observability/traffic-mgmt/learning). Design: `aidlc-docs/construction/b8-istio-design.md` — Approach 1 (sidecar, contained tool-server slice, bookinfo warm-up); step-0 mother-headroom gate → pivot to ambient if tight; **slice 1 = PERMISSIVE everywhere** (tool-server serves external NodePort MCP; backends serve un-meshed Dagster) — STRICT enforcement deferred to slice 2 (mesh Dagster); Traefik stays the ingress. See detail below.
 - **B37** — **Ingest the AIDLC knowledge repositories into the (Graph) RAG** — ✅ **DONE 2026-06-19.** ~510 brand-neutral entries ingested from MinIO into all 4 backends (`aidlc-kb/` namespace, KB-scoped hash-gate + prune); RAG answers cite KB files (DDD ← `domain-driven-design.md`/`context-mapping.md`). **Phase 2 graph live:** 510 `:Entry` nodes, 2311 `RELATED_TO` + `SURFACES_AT`/`TAGGED`/`IN_VERTICAL` edges from frontmatter (no LLM). On-demand `weyland_aidlc_kb_job`; runbook [runbooks/aidlc-kb-ingest.md](runbooks/aidlc-kb-ingest.md). Fuzzy LLM extraction → **B38**. See detail below.
-9. **B3** — IDP / Backstage — ✅ **DONE 2026-06-19** (taken on as a learning project). All three slices LIVE at `idp.weyland.lab`: **A** software catalog, **B** TechDocs + Catalog Graph, **C** Scaffolder golden-path ("new k8s service" → GitHub PR). Self-syncs from the repo (B41). See detail below.
+9. **B3** — IDP / Backstage — **slices A+B DONE 2026-06-19** (learning project). LIVE at `idp.weyland.lab`: **A** software catalog, **B** TechDocs + Catalog Graph. Self-syncs from the repo (B41). **Slice C** (Scaffolder) **parked → Extra (B42)** — template lists, but execution hits the node-fetch/gzip `Premature close` bug on the GitHub API. See detail below.
 
 ### Data & Automation
 10. **B10+B16** — MLflow (experiment tracking + model registry) — MERGED; MLflow delivers model registry natively. Foundational for data mesh and fine-tuning. See detail below.
@@ -78,9 +78,11 @@ Re-ordered per RE-grounded audit (aidlc-docs/inception/backlog-reprioritization.
 
 30. **B41** — **Self-syncing IDP (B3)** — ✅ **DONE 2026-06-19.** The IDP now tracks the repo with no manual republish. **Catalog** read live via `catalog.locations: type: url` off public GitHub (Backstage UrlReader polls ~150s; `integrations.github: [{host: github.com}]` for the unauthenticated public read; the catalog ConfigMap is **deleted** — repo is the only source of truth). **TechDocs** built+published hourly by a Dagster job (`weyland_techdocs_job` / asset `techdocs_publish`: pure-Python `mkdocs build` + `minio` upload → `techdocs` bucket; **no `@techdocs/cli`, no node**). Two mechanisms on purpose: the catalog needs no build (fetch live), TechDocs does (build+publish). Runbook [runbooks/weyland-idp.md](runbooks/weyland-idp.md). Catalog target: `github.com/edtbl76/weyland-lab/blob/main/nodes/mother/lab/weyland-platform/catalog/weyland-catalog.yaml`.
 
+31. **B42** — **IDP Scaffolder execution (B3 slice C)** — the golden-path template **lists** in the IDP but **can't run**: `fetch:template` + `publish:github:pull-request` hit the GitHub **API**, and this Backstage image's **node-fetch v2 throws `ERR_STREAM_PREMATURE_CLOSE` on gzipped responses** (`Gunzip` in the stack). The catalog read works because it uses `raw.githubusercontent.com` (uncompressed); the API path doesn't. **Revisit options:** (a) force `Accept-Encoding: identity` on the github integration fetch; (b) bump/patch Node or node-fetch in the image; (c) **sidestep GitHub** — bake the skeleton into the image (a ConfigMap can't hold the nested tree) + render-to-download, no PR/PAT (also removes the token that took the catalog down tonight). Token reverted, so the catalog is back on unauthenticated read. Files live (uncommitted): `catalog/templates/k8s-service/`.
+
 ### Hardware-Gated
-31. **B21** — Agent media generation (image/video/TTS) — requires eGPU hardware purchase. See detail below.
-32. **B33** — Co-resident / warm-parallel model serving — raise `OLLAMA_MAX_LOADED_MODELS` (now 1, cgroup-bound) to keep a 2nd model warm alongside the main one → eliminates eviction/cold-start for latency-sensitive multi-model workflows (e.g. B14's conversational grounding guard, or guard+generator both warm). Gated on RAM/VRAM headroom (the "weyland box" decision / eGPU). See detail below.
+32. **B21** — Agent media generation (image/video/TTS) — requires eGPU hardware purchase. See detail below.
+33. **B33** — Co-resident / warm-parallel model serving — raise `OLLAMA_MAX_LOADED_MODELS` (now 1, cgroup-bound) to keep a 2nd model warm alongside the main one → eliminates eviction/cold-start for latency-sensitive multi-model workflows (e.g. B14's conversational grounding guard, or guard+generator both warm). Gated on RAM/VRAM headroom (the "weyland box" decision / eGPU). See detail below.
 
 ---
 
@@ -196,7 +198,7 @@ Claude Code, which is **B29**). The "no weyland MCP / direct-probe" failures wer
 off, plaintext secrets) → **all moved to B28 (deprioritized).** The stale **weyland-postgres services
 inventory** → folded into **B25** scope. read+act → B14; A2A stays B17.
 
-### B3 — Internal Developer Platform (IDP) — ✅ DONE 2026-06-19 (all 3 slices live)
+### B3 — Internal Developer Platform (IDP) — slices A+B DONE 2026-06-19 (C parked → B42)
 Backstage / Port / alternatives — catalog, golden paths, scaffolding. Taken on as a deliberate **learning
 project** (not because service/dev count demands it yet). Built tool-neutrally (`weyland-idp`, `idp.weyland.lab`,
 image `weyland-idp:local`) so the IDP tool can be swapped without renaming. Phased: **A** catalog → **B** TechDocs
@@ -223,13 +225,15 @@ image `weyland-idp:local`) so the IDP tool can be swapped without renaming. Phas
   reintroduces the bug — see runbook). Ruled out first, in order: Istio (iptables proved port 7007 + 127.0.0.1
   RETURN'd — loopback bypasses Envoy), Node/OS version (24/trixie→22/bookworm), DNS (`127.0.0.1`/svc-FQDN). It
   was never transport. Mermaid-in-TechDocs parked → **B40**.
-- **✅ Slice C — Scaffolder golden-path template (LIVE 2026-06-19).** "New k8s service" template
+- **⏸ Slice C — Scaffolder golden-path template (BUILT, PARKED → B42).** The "New k8s service" template
   (`catalog/templates/k8s-service/`, `kind: Template` + Nunjucks `skeleton/`) renders a meshed Deployment +
   Service + Ingress (Traefik TLS) + `catalog-info.yaml` + a runbook stub at their real repo paths, then opens a
   **GitHub PR** (`publish:github:pull-request`). Frontend `@backstage/plugin-scaffolder/alpha` wired into
   `App.tsx` (app rebuild); backend scaffolder plugins already present. PR auth = fine-grained PAT
   (`integrations.github[].token: ${GITHUB_TOKEN}`, `weyland-idp-secret`, `optional`). Template self-registers via
-  a `Location` in the catalog → auto-syncs (B41). Output path on merge: `nodes/.../k8s/<name>/`.
+  a `Location` in the catalog → auto-syncs (B41), and the template **lists** in the IDP. **BLOCKED:** execution
+  fails — `fetch:template` + publish call the GitHub **API**, where this image's **node-fetch v2 chokes on gzip**
+  (`Gunzip … Premature close`) — same class as the slice-B internal bug, on the external path. Parked → **B42**.
 - **Later:** the "MCP harness" angle (catalog the agents/MCP as entities); absorbs B12 (API catalog).
 
 ### B4 — LLM eval / observability

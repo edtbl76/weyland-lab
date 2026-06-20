@@ -48,7 +48,7 @@ C4Component
 
         Component(neodash, "NeoDash", "neo4jlabs/neodash / k8s", "Neo4j dashboard/viz UI (free Bloom-alternative). Browser-side Bolt to Neo4j. mother:30088")
 
-        Component(idp, "weyland IDP (B3)", "Backstage / k8s", "Internal Developer Platform — software catalog + TechDocs + Catalog Graph + Scaffolder golden paths (slices A+B+C). TechDocs built externally, served from MinIO; Scaffolder opens GitHub PRs. Meshed (STRICT Postgres). Self-syncs from repo (B41): catalog via type:url off GitHub, TechDocs published hourly by Dagster. Config via ConfigMap. idp.weyland.lab")
+        Component(idp, "weyland IDP (B3)", "Backstage / k8s", "Internal Developer Platform — software catalog + TechDocs + Catalog Graph (slices A+B; Scaffolder template parked → Extra). TechDocs built externally, served from MinIO. Meshed (STRICT Postgres). Self-syncs from repo (B41): catalog via type:url off GitHub, TechDocs published hourly by Dagster. Config via ConfigMap. idp.weyland.lab")
     }
 
     Container_Boundary(istiosystem, "mother VM — k3s, ns: istio-system (Istio service mesh, B8)") {

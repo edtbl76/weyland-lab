@@ -136,7 +136,7 @@ agents/workflows and platform state. Agents call the tool-server, *not* database
 | MinIO | `s3.weyland.lab` (S3), Filestash `files.weyland.lab` (ns `minio`) | object storage (8 TB USB -> mother). |
 | APISIX | `mother:30090` (gateway), `apisix.weyland.lab` (dashboard) | API gateway. |
 | Headlamp | `headlamp.weyland.lab` | Kubernetes UI. |
-| weyland IDP (B3) | `idp.weyland.lab` | Internal Developer Platform — Backstage (tool-neutrally named). Software catalog + TechDocs + Catalog Graph + Scaffolder golden paths of the platform (slices A+B+C live). Meshed (STRICT Postgres). **Self-syncs from the repo (B41):** catalog read live via `type: url` off public GitHub (no ConfigMap), TechDocs built+published hourly by a Dagster job → MinIO `techdocs` bucket. Config via ConfigMap. `k8s/weyland-idp/`, [runbooks/weyland-idp.md](runbooks/weyland-idp.md). |
+| weyland IDP (B3) | `idp.weyland.lab` | Internal Developer Platform — Backstage (tool-neutrally named). Software catalog + TechDocs + Catalog Graph of the platform (slices A+B live; Scaffolder template parked → Extra). Meshed (STRICT Postgres). **Self-syncs from the repo (B41):** catalog read live via `type: url` off public GitHub (no ConfigMap), TechDocs built+published hourly by a Dagster job → MinIO `techdocs` bucket. Config via ConfigMap. `k8s/weyland-idp/`, [runbooks/weyland-idp.md](runbooks/weyland-idp.md). |
 | CoreDNS | `mother:53` | LAN DNS resolver for `weyland.lab`. |
 | Traefik | (ingress) | TLS front door for `*.weyland.lab`. |
 | Istio service mesh (B8 — ✅ done) | `istio-system` ns; Kiali `kiali.weyland.lab`, Jaeger `jaeger.weyland.lab` (both dev-password gated) | Sidecar mesh, minimal profile (no Istio gateway — Traefik stays ingress). Meshed: tool-server + 4 vector/graph backends + Dagster, **PERMISSIVE mTLS**; **Postgres STRICT** (proven enforcing — vector backends stay PERMISSIVE by design, they have un-meshed Prometheus/NodePort clients). TCP backends (neo4j Bolt / Postgres) need `appProtocol: tcp`. Mesh metrics + tracing consolidated onto the kube-prometheus-stack + Grafana (addon Prometheus dropped). Kiali read-only + RBAC-tightened. See [runbooks/service-mesh-istio.md](runbooks/service-mesh-istio.md). |
@@ -290,7 +290,7 @@ so Ollama mis-sizes against 96 GB / 16 cores instead of the CT's limits. (Detail
 
 ## 13. Roadmap & maintenance
 
-Forward priorities live in [backlog.md](backlog.md). Recently done: B3 (Backstage IDP — all 3 slices: software catalog + TechDocs + Catalog Graph + Scaffolder golden paths), B41 (self-syncing IDP — catalog via git url + hourly Dagster TechDocs publish), B26, B27, B8 (Istio mesh), B37 (AIDLC knowledge-base ingest + frontmatter graph). Deferred: B38 (fuzzy LLM GraphRAG extraction), B40 (Mermaid-in-TechDocs).
+Forward priorities live in [backlog.md](backlog.md). Recently done: B3 (Backstage IDP — slices A+B: software catalog + TechDocs + Catalog Graph; Scaffolder parked → Extra), B41 (self-syncing IDP — catalog via git url + hourly Dagster TechDocs publish), B26, B27, B8 (Istio mesh), B37 (AIDLC knowledge-base ingest + frontmatter graph). Deferred: B38 (fuzzy LLM GraphRAG extraction), B40 (Mermaid-in-TechDocs).
 
 **Maintaining this doc:** update it (and [hosts.md](hosts.md)/[api.md](api.md)) whenever a host,
 service, endpoint, port, DNS name, or major flow changes — same "done" bar as a runbook.

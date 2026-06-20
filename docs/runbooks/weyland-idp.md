@@ -2,7 +2,7 @@
 
 Internal Developer Platform — **Backstage** under the hood, but named tool-neutrally (`weyland-idp`,
 `idp.weyland.lab`, image `weyland-idp:local`) so it can be swapped for Port/Roadie/etc. without renaming.
-Slices A (Software Catalog) + B (TechDocs + Catalog Graph) + C (Scaffolder golden-path template) are live.
+Slices A (Software Catalog) + B (TechDocs + Catalog Graph) are live. Slice C (Scaffolder) is built but **parked → B42** — the template lists, but execution hits a node-fetch/gzip `Premature close` bug on the GitHub API.
 
 - App (scaffolded monorepo): `services/weylandidp/` — new frontend + backend system, Backstage CLI ~0.36, Node 22/24, Yarn 4.
 - Catalog (tool-agnostic, lives outside the app): `catalog/weyland-catalog.yaml` (~24 entities: Domain → 3 Systems → Components/Resources/APIs). Read straight from the **public repo** via `catalog.locations: type: url` (B41) — no ConfigMap copy; Backstage polls git and re-ingests on change.
@@ -69,7 +69,12 @@ Both surfaces self-heal from the repo — no manual republish:
 - **TechDocs** → the hourly Dagster `weyland_techdocs_job` above. (Catalog is *fetched* live because it needs no
   build; TechDocs is *built+published* because servable HTML can't live in the repo. Different tools, same goal.)
 
-## Scaffolder — golden-path templates (slice C)
+## Scaffolder — golden-path templates (slice C — PARKED → B42)
+> **Built, not working.** The template lists at `/create`, but running it fails: `fetch:template` + publish
+> call the GitHub **API**, and this image's **node-fetch v2 chokes on gzip** (`Gunzip … Premature close`).
+> The catalog read works because it uses `raw.githubusercontent.com` (uncompressed). Fix options in **B42**.
+> The token was reverted (it took the catalog down once); re-add it only as part of the B42 fix.
+
 "Create" in the IDP runs a **Scaffolder** template that renders a skeleton and opens a **GitHub PR**.
 - **Template:** `catalog/templates/k8s-service/template.yaml` (kind `Template`) + `skeleton/` (Nunjucks
   `${{ values.x }}`). Registered via a `Location` in `weyland-catalog.yaml`, so it auto-syncs with the catalog
