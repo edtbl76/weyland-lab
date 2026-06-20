@@ -136,7 +136,8 @@ agents/workflows and platform state. Agents call the tool-server, *not* database
 | MinIO | `s3.weyland.lab` (S3), Filestash `files.weyland.lab` (ns `minio`) | object storage (8 TB USB -> mother). |
 | APISIX | `mother:30090` (gateway), `apisix.weyland.lab` (dashboard) | API gateway. |
 | Headlamp | `headlamp.weyland.lab` | Kubernetes UI. |
-| weyland IDP (B3) | `idp.weyland.lab` | Internal Developer Platform — Backstage (tool-neutrally named). Software catalog + TechDocs + Catalog Graph of the platform (slices A+B live; Scaffolder template parked → Extra). Meshed (STRICT Postgres). **Self-syncs from the repo (B41):** catalog read live via `type: url` off public GitHub (no ConfigMap), TechDocs built+published hourly by a Dagster job → MinIO `techdocs` bucket. Config via ConfigMap. `k8s/weyland-idp/`, [runbooks/weyland-idp.md](runbooks/weyland-idp.md). |
+| weyland IDP (B3) | `idp.weyland.lab` | **⚠️ DECOMMISSION IN PROGRESS** — Backstage being replaced by Port.io (see below). Currently live (slices A+B: catalog + TechDocs + Catalog Graph). `k8s/weyland-idp/`, [runbooks/weyland-idp.md](runbooks/weyland-idp.md). |
+| **Port.io** (IDP replacement) | `app.port.io` (SaaS, EU org `org_KyCTEN4PVUv1D3TM`) | Internal Developer Platform — zero-maintenance SaaS, replacing Backstage. **Live integrations:** K8s exporter (`weyland-cluster`), GitHub exporter (`github-weyland`, 6 repos), **Uptime Kuma** webhook (`uptime_monitor` blueprint, 16 monitors — [runbooks/uptime-kuma.md](runbooks/uptime-kuma.md)). In-cluster agent: `port-k8s-exporter` ns. **In progress:** code quality (SonarQube CE) + additional categories. |
 | MLflow (B10+B16) | `mlflow.weyland.lab` | Experiment tracking + model registry. **Postgres** backend store + **MinIO** `mlflow` artifact bucket (proxied via `--serve-artifacts`). Meshed (STRICT Postgres); dev-password ingress. `k8s/mlflow/`. |
 | CoreDNS | `mother:53` | LAN DNS resolver for `weyland.lab`. |
 | Traefik | (ingress) | TLS front door for `*.weyland.lab`. |
@@ -293,7 +294,7 @@ so Ollama mis-sizes against 96 GB / 16 cores instead of the CT's limits. (Detail
 
 ## 13. Roadmap & maintenance
 
-Forward priorities live in [backlog.md](backlog.md). Recently done: B10+B16 (MLflow — experiment tracking + model registry on Postgres + MinIO), B3 (Backstage IDP — slices A+B: software catalog + TechDocs + Catalog Graph; Scaffolder parked → Extra), B41 (self-syncing IDP — catalog via git url + hourly Dagster TechDocs publish), B26, B27, B8 (Istio mesh), B37 (AIDLC knowledge-base ingest + frontmatter graph). Deferred: B38 (fuzzy LLM GraphRAG extraction), B40 (Mermaid-in-TechDocs).
+Forward priorities live in [backlog.md](backlog.md). Recently done: B10+B16 (MLflow), B3 (Backstage IDP — slices A+B; **⚠️ decommission in progress → Port.io**), B41 (self-syncing IDP), B26, B27, B8 (Istio mesh), B37 (AIDLC KB ingest). **In progress: Port.io IDP migration** (K8s + GitHub exporters live; incident mgmt/code quality/etc. next). Deferred: B38, B40.
 
 **Maintaining this doc:** update it (and [hosts.md](hosts.md)/[api.md](api.md)) whenever a host,
 service, endpoint, port, DNS name, or major flow changes — same "done" bar as a runbook.

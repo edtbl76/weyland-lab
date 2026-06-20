@@ -1,0 +1,116 @@
+# Uptime Kuma — uptime monitoring + status page (incident management category, B43).
+# Single stateless container; state persists in a SQLite file on a PVC. Traefik TLS at
+# kuma.weyland.lab; Kuma has its own built-in auth (set up on first login).
+# No mesh sidecar — Kuma only reaches external endpoints + the Traefik ingress; it doesn't
+# talk to STRICT-mTLS Postgres.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: uptime-kuma-pvc
+  namespace: weyland
+spec:
+  accessModes: [ReadWriteOnce]
+  resources:
+    requests:
+      storage: 1Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: uptime-kuma
+  namespace: weyland
+  labels:
+    app: uptime-kuma
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: uptime-kuma
+  template:
+    metadata:
+      labels:
+        app: uptime-kuma
+    spec:
+      # Point at the LAN CoreDNS so *.weyland.lab resolves from inside the pod.
+      dnsPolicy: "None"
+      dnsConfig:
+        nameservers:
+          - 192.168.1.243
+        searches:
+          - weyland.lab
+      containers:
+        - name: uptime-kuma
+          image: louislam/uptime-kuma:1
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 3001
+          volumeMounts:
+            - name: data
+              mountPath: /app/data
+            - name: ca-cert
+              mountPath: /usr/local/share/ca-certificates/rootCA.crt
+              subPath: rootCA.pem
+              readOnly: true
+          env:
+            - name: NODE_EXTRA_CA_CERTS
+              value: /usr/local/share/ca-certificates/rootCA.crt
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 3001
+            initialDelaySeconds: 15
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              memory: 256Mi
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: uptime-kuma-pvc
+        - name: ca-cert
+          secret:
+            secretName: weyland-mkcert-ca
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: uptime-kuma
+  namespace: weyland
+  labels:
+    app: uptime-kuma
+spec:
+  type: ClusterIP
+  selector:
+    app: uptime-kuma
+  ports:
+    - name: http
+      port: 3001
+      targetPort: 3001
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: uptime-kuma
+  namespace: weyland
+spec:
+  tls:
+    - hosts:
+        - kuma.weyland.lab
+      secretName: weyland-wildcard-tls
+  rules:
+    - host: kuma.weyland.lab
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: uptime-kuma
+                port:
+                  number: 3001

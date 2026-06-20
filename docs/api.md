@@ -70,8 +70,10 @@ mkcert wildcard cert; resolve from rogueone (`/etc/hosts`) or via CoreDNS. Share
 | n8n | `https://n8n.weyland.lab` |
 | Headlamp (k8s UI) | `https://headlamp.weyland.lab` |
 | Filestash (MinIO browser) | `https://files.weyland.lab` |
-| **weyland IDP** (Backstage — software catalog + TechDocs + Catalog Graph; B3, guest auth) | `https://idp.weyland.lab` — see [runbooks/weyland-idp.md](runbooks/weyland-idp.md) |
+| **weyland IDP** (Backstage — ⚠️ **DECOMMISSION IN PROGRESS**, being replaced by Port.io) | `https://idp.weyland.lab` — see [runbooks/weyland-idp.md](runbooks/weyland-idp.md) |
+| **Port.io** (IDP replacement — SaaS, zero-maintenance) | `https://app.port.io` — EU org; K8s + GitHub exporters live |
 | **MLflow** (experiment tracking + model registry; B10+B16, dev-password) | `https://mlflow.weyland.lab` |
+| **Uptime Kuma** (uptime monitoring + status page; own auth) | `https://kuma.weyland.lab` |
 
 > **Headlamp login** uses a Kubernetes **ServiceAccount bearer token**, *not* the shared dev password.
 > A persistent token is stored in a Secret — retrieve and decode it (on mother):

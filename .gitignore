@@ -102,6 +102,10 @@ certs/
 # NOTE: already in git history — untrack + rotate the n8n key (security task).
 nodes/mother/lab/weyland-platform/k8s/n8n/encryption-key.txt
 
+# Uptime Kuma restore backup — contains inline dev-password (basic auth) + the Port
+# ingest webhook key; can't be templated and still function as a Kuma restore. Local-only.
+nodes/mother/lab/weyland-platform/scripts/kuma-backup.json
+
 # Python artifacts (tool-server + any Python service)
 __pycache__/
 *.py[cod]
