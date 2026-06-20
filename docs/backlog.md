@@ -45,7 +45,7 @@ Re-ordered per RE-grounded audit (aidlc-docs/inception/backlog-reprioritization.
 7. **B27** — Hermes Kanban (self-management + roadmap co-pilot) — ✅ **DONE 2026-06-17.** Native SQLite kanban; planning on Gemini-free via the gateway (`kanban_decomposer`/`triage_specifier` pinned), workers local; `weyland-roadmap` board mirrors this backlog one-way (`roadmap-sync.py`, 6h cron). See detail below + [runbooks/agent-hermes.md](runbooks/agent-hermes.md#kanban--self-management--roadmap-co-pilot-b27-live-2026-06-17).
 8. **B8** — Istio service mesh — **DECIDED BUILD-NOW 2026-06-17** (all four drivers: mTLS/observability/traffic-mgmt/learning). Design: `aidlc-docs/construction/b8-istio-design.md` — Approach 1 (sidecar, contained tool-server slice, bookinfo warm-up); step-0 mother-headroom gate → pivot to ambient if tight; **slice 1 = PERMISSIVE everywhere** (tool-server serves external NodePort MCP; backends serve un-meshed Dagster) — STRICT enforcement deferred to slice 2 (mesh Dagster); Traefik stays the ingress. See detail below.
 - **B37** — **Ingest the AIDLC knowledge repositories into the (Graph) RAG** — ✅ **DONE 2026-06-19.** ~510 brand-neutral entries ingested from MinIO into all 4 backends (`aidlc-kb/` namespace, KB-scoped hash-gate + prune); RAG answers cite KB files (DDD ← `domain-driven-design.md`/`context-mapping.md`). **Phase 2 graph live:** 510 `:Entry` nodes, 2311 `RELATED_TO` + `SURFACES_AT`/`TAGGED`/`IN_VERTICAL` edges from frontmatter (no LLM). On-demand `weyland_aidlc_kb_job`; runbook [runbooks/aidlc-kb-ingest.md](runbooks/aidlc-kb-ingest.md). Fuzzy LLM extraction → **B38**. See detail below.
-9. **B3** — IDP / Backstage — big mother infrastructure work; catalogs the full platform including agents. Absorbs B12 (API catalog). Open questions: (1) Backstage on mother or its own platform? (2) exact MCP harness scope. See detail below.
+9. **B3** — IDP / Backstage — **IN PROGRESS** (taken on as a learning project). **Slice A (software catalog) LIVE** at `idp.weyland.lab`; slices B (TechDocs) + C (Scaffolder template) pending. See detail below.
 
 ### Data & Automation
 10. **B10+B16** — MLflow (experiment tracking + model registry) — MERGED; MLflow delivers model registry natively. Foundational for data mesh and fine-tuning. See detail below.
@@ -74,9 +74,11 @@ Re-ordered per RE-grounded audit (aidlc-docs/inception/backlog-reprioritization.
 
 28. **B39** — **Design→code workflow (Figma → code)** — stand up a design-to-code pipeline using the **Figma MCP** (already available in-session): pull Figma designs/components into implemented UI code (and optionally code→Figma sync). Gives the lab's UI surfaces — U16 (Weaviate UI), B3 (Backstage), future dashboards — a consistent design system instead of ad-hoc per-tool UIs. $0: Figma has a free tier. **Open:** (1) Figma account + design system/tokens; (2) which UI to target first; (3) where design artifacts live (a `design/` area in the repo?); (4) Figma-MCP auth in headless/cron vs interactive-only.
 
+29. **B40** — **Mermaid rendering in TechDocs (B3 IDP)** — our `docs/` mermaid diagrams render as code blocks in the IDP's TechDocs (GitHub renders them fine, so no urgency). No official Backstage Mermaid addon exists. **Revisit approach (user-set):** (1) **try the community frontend plugin first** (`backstage-plugin-techdocs-addon-mermaid`) — interactive client-side render, but wiring it into the **new frontend system** is the risk; (2) **if that fails, fall back to build-time SVG pre-render** (`mkdocs-mermaid-to-svg` + mermaid-cli → static vector SVGs, no frontend change; optionally the official **LightBox** addon for click-to-zoom). Catalog graph + TechDocs themselves already work — this is the one parked polish item.
+
 ### Hardware-Gated
-29. **B21** — Agent media generation (image/video/TTS) — requires eGPU hardware purchase. See detail below.
-30. **B33** — Co-resident / warm-parallel model serving — raise `OLLAMA_MAX_LOADED_MODELS` (now 1, cgroup-bound) to keep a 2nd model warm alongside the main one → eliminates eviction/cold-start for latency-sensitive multi-model workflows (e.g. B14's conversational grounding guard, or guard+generator both warm). Gated on RAM/VRAM headroom (the "weyland box" decision / eGPU). See detail below.
+30. **B21** — Agent media generation (image/video/TTS) — requires eGPU hardware purchase. See detail below.
+31. **B33** — Co-resident / warm-parallel model serving — raise `OLLAMA_MAX_LOADED_MODELS` (now 1, cgroup-bound) to keep a 2nd model warm alongside the main one → eliminates eviction/cold-start for latency-sensitive multi-model workflows (e.g. B14's conversational grounding guard, or guard+generator both warm). Gated on RAM/VRAM headroom (the "weyland box" decision / eGPU). See detail below.
 
 ---
 
@@ -192,9 +194,33 @@ Claude Code, which is **B29**). The "no weyland MCP / direct-probe" failures wer
 off, plaintext secrets) → **all moved to B28 (deprioritized).** The stale **weyland-postgres services
 inventory** → folded into **B25** scope. read+act → B14; A2A stays B17.
 
-### B3 — Internal Developer Platform (IDP)
-Backstage / Port / alternatives — catalog, golden paths, scaffolding. Heavy; revisit when
-service/dev count grows. Pairs with B9.
+### B3 — Internal Developer Platform (IDP) — IN PROGRESS (slice A live 2026-06-19)
+Backstage / Port / alternatives — catalog, golden paths, scaffolding. Taken on as a deliberate **learning
+project** (not because service/dev count demands it yet). Built tool-neutrally (`weyland-idp`, `idp.weyland.lab`,
+image `weyland-idp:local`) so the IDP tool can be swapped without renaming. Phased: **A** catalog → **B** TechDocs
+→ **C** Scaffolder template.
+
+- **✅ Slice A — Software Catalog (LIVE 2026-06-19).** Scaffolded Backstage (`services/weylandidp/`, new
+  frontend+backend system, Node 22/24, Yarn 4). `catalog/weyland-catalog.yaml` = ~24 entities (Domain → 3
+  Systems → 9 Components / 6 Resources / 5 APIs, wired with providesApis/dependsOn). On mother behind Traefik
+  (`idp.weyland.lab`), guest auth, reuses the shared Postgres (`weyland_idp` role, CREATEDB). **Build-from-git:**
+  multi-stage Dockerfile (builds from committed source inside Docker — host needs only Docker). **Config +
+  catalog via ConfigMaps** (no rebuild to change them). Runbook [runbooks/weyland-idp.md](runbooks/weyland-idp.md).
+  Two gotchas solved: pod must be **meshed** for STRICT Postgres (`read ECONNRESET` otherwise — [[postgres-strict-needs-mesh]]),
+  and guest auth needs `dangerouslyAllowOutsideDevelopment: true` in production.
+- **✅ Slice B — TechDocs + Catalog Graph (LIVE 2026-06-19).** `docs/` renders in-app as TechDocs: built
+  externally with `techdocs-cli` (`mkdocs.yml`, techdocs-core) → MinIO `techdocs` bucket → Backstage serves it
+  (`techdocs.builder: external` + awsS3 publisher → MinIO; entity `weyland-docs`). **Catalog Graph** plugin
+  (`@backstage/plugin-catalog-graph/alpha`) added — per-entity relations render. **THE hard-won fix (hours of
+  debug):** the new-backend default `compression()` middleware gzips+chunks responses (no Content-Length), and
+  the internal **node-fetch v2** client (techdocs/search → catalog) throws `ERR_STREAM_PREMATURE_CLOSE` reading
+  chunked bodies (browsers are fine) → every TechDocs page 500'd. Fix = override `rootHttpRouterServiceFactory`
+  in `packages/backend/src/index.ts` to **drop `middleware.compression()`** (a rebuild WITHOUT this silently
+  reintroduces the bug — see runbook). Ruled out first, in order: Istio (iptables proved port 7007 + 127.0.0.1
+  RETURN'd — loopback bypasses Envoy), Node/OS version (24/trixie→22/bookworm), DNS (`127.0.0.1`/svc-FQDN). It
+  was never transport. Mermaid-in-TechDocs parked → **B40**.
+- **Slice C — Scaffolder template** (pending): a golden-path generator (e.g. "new Hermes tool" / "new k8s service").
+- **Later:** the "MCP harness" angle (catalog the agents/MCP as entities); absorbs B12 (API catalog).
 
 ### B4 — LLM eval / observability
 **IN PROGRESS. DECIDED 2026-06-12 — Ragas REJECTED**: broken in current release (`ragas 0.4.3`

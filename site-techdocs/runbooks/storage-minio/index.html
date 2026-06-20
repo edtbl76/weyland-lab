@@ -1,0 +1,2892 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Runbooks, architecture, diagrams, and concepts for the weyland homelab AI platform.">
+      
+      
+      
+      
+        <link rel="prev" href="../service-mesh-istio/">
+      
+      
+        <link rel="next" href="../transcription-whisper/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.6">
+    
+    
+      
+        <title>B6 — MinIO Object Storage (8TB USB → mother VM passthrough) - Weyland Platform Docs</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/stylesheets/main.484c7ddc.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    <body dir="ltr">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#b6-minio-object-storage-8tb-usb-mother-vm-passthrough" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../.." title="Weyland Platform Docs" class="md-header__button md-logo" aria-label="Weyland Platform Docs" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            Weyland Platform Docs
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              B6 — MinIO Object Storage (8TB USB → mother VM passthrough)
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+    
+    
+    
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../.." title="Weyland Platform Docs" class="md-nav__button md-logo" aria-label="Weyland Platform Docs" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    Weyland Platform Docs
+  </label>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Weyland Docs
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Weyland — API &amp; Endpoint Inventory
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../arch/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Weyland — Architecture
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../backlog/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Weyland Forward Roadmap — re-prioritized 2026-06-14
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../hosts/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Weyland — Host Inventory
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../weyland/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Weyland
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_7" >
+        
+          
+          <label class="md-nav__link" for="__nav_7" id="__nav_7_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Concepts
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_7_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_7">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Concepts
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../concepts/agent-platform-design/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    B2 — Agent Platform (Hermes + OpenClaw) — Design
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../concepts/data-schema/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Data Schema — RAG + Eval Stores
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../concepts/llm-inference-cpu-vs-gpu/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    LLM Inference — CPU vs GPU Tradeoffs (the why)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../concepts/model-serving-hardware/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    B7 — Model Serving Hardware (DECISION DEFERRED — pending pricing)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_8" >
+        
+          
+          <label class="md-nav__link" for="__nav_8" id="__nav_8_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Diagrams
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_8_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_8">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Diagrams
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../diagrams/c4-component-hermes/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    C4 Component — hermes CT (CT 104)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../diagrams/c4-component-mother/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    C4 Component — mother VM (k3s)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../diagrams/c4-component-ollama/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    C4 Component — ollama CT (CT 102)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../diagrams/c4-component-openclaw/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    C4 Component — openclaw VM (vm-100)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../diagrams/c4-component-rogueone/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    C4 Component — rogueone (external)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../diagrams/c4-component-whisper/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    C4 Component — whisper CT (CT 103)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../diagrams/c4-container/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    C4 Container — Weyland
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../diagrams/c4-context/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    C4 Context — Weyland
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../diagrams/flow-act-tool/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Flow: Audited Act-Tool (/mcp-act, B14 read+act)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../diagrams/flow-agent-mcp/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Flow: Agent System-View (Hermes / Claude Code -&gt; MCP -&gt; tool-server)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../diagrams/flow-alerting/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Flow: Alerting (B5)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../diagrams/flow-backend-dispatch/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Flow: Backend Selection / Dispatch (detail of RAG retrieval)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../diagrams/flow-deploy/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Flow: Deploy / Redeploy (build↔runtime isolation)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../diagrams/flow-eval-scoring/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Flow: Eval Scoring (weyland_eval_score_job, detail of the eval pipeline)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../diagrams/flow-eval/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Flow: Evaluation Pipeline (single-path eval -&gt; panel -&gt; leaderboard)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../diagrams/flow-guardrails/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Flow: Guardrail Validation (B14, shadow-first)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../diagrams/flow-health-status/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Flow: Health / Status Aggregation (U12)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../diagrams/flow-ingestion/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Flow: Ingestion (repo → 4 vector backends)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../diagrams/flow-ingress-tls/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Flow: Ingress / TLS Front Door
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../diagrams/flow-mesh-mtls/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Flow: Service-Mesh Request Path + mTLS (B8)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../diagrams/flow-model-catalog/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Flow: model_catalog Refresh (B26)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../diagrams/flow-model-gateway/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Flow: Model-Gateway Routing (B26, LiteLLM)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../diagrams/flow-pipeline-trigger/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Flow: Pipeline Trigger (/pipeline/trigger → Dagster)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../diagrams/flow-rag-query/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Flow: RAG Query (/context/ask)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../diagrams/flow-roadmap-sync/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Flow: Roadmap-Sync → Hermes Kanban (B27)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../diagrams/flow-tracing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Flow: Distributed Tracing Pipeline (B8)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../diagrams/flow-voice-chat/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Flow: Voice Chat (Open WebUI -&gt; whisper -&gt; Ollama)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_9" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_9" id="__nav_9_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Runbooks
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_9_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_9">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Runbooks
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../agent-hermes/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    B2 — Hermes Agent Runbook — weyland (CT 104)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../aidlc-kb-ingest/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    B37 — AIDLC Knowledge-Base Ingestion (MinIO → RAG)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../eval-harness/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    B4 — LLM Evaluation Pipeline (runbook)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../model-gateway/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Model Gateway (LiteLLM) + Model Catalog — runbook
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../model-serving-ollama/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Ollama Runbook — weyland (CT 102)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../observability/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    B5 — Observability (kube-prometheus-stack) — Deploy &amp; Validate
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../service-mesh-istio/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Istio service mesh — runbook (B8)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    B6 — MinIO Object Storage (8TB USB → mother VM passthrough)
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    B6 — MinIO Object Storage (8TB USB → mother VM passthrough)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#storage-path-how-the-bytes-flow" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Storage path (how the bytes flow)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#key-decision-raw-partition-passthrough-not-proxmox-managed-storage" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Key decision: raw partition passthrough, NOT Proxmox-managed storage
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Key decision: raw partition passthrough, NOT Proxmox-managed storage">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#options-considered" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Options considered
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#why-passthrough-rationale" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Why passthrough (rationale)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#consequences-accepted" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Consequences accepted
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#hard-dependency-the-uas-quirk-drive-stalls-without-it" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Hard dependency: the UAS quirk (drive stalls without it)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#disk-layout-8tb-repartitioned-2026-06-10-gpt" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Disk layout (8TB repartitioned 2026-06-10, GPT)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#setup-runbook" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Setup runbook
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Setup runbook">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#1-weyland-uas-quirk-see-hard-dependency-above" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1. (weyland) UAS quirk — see "Hard dependency" above
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#2-weyland-partition-format" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2. (weyland) Partition + format
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#3-weyland-mount-the-data-partition-persist" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3. (weyland) Mount the data partition + persist
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#4-weyland-pass-sda1-through-to-the-mother-vm-vm-101" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4. (weyland) Pass sda1 through to the mother VM (vm 101)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#5-mother-mount-the-minio-disk-persist" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5. (mother) Mount the MinIO disk + persist
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#6-mother-deploy-minio-on-k3s" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        6. (mother) Deploy MinIO on k3s
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#7-web-ui-filestash-the-minio-console-is-dead" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7. Web UI — Filestash (the MinIO console is dead)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#access-day-to-day" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Access (day-to-day)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#operational-notes-gotchas" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Operational notes / gotchas
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#provenance" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Provenance
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../transcription-whisper/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    B11 — Whisper STT Runbook — weyland (CT 103)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../weyland-idp/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    weyland IDP — runbook (B3)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_10" >
+        
+          
+          <label class="md-nav__link" for="__nav_10" id="__nav_10_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Units
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_10_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_10">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Units
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../units/u10-sa-scoping/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    U10 — Service Account Scoping (least privilege) — Apply &amp; Validate
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../units/u11-ssh-identity/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    U11 — weyland-lab SSH Identity Review
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../units/u12-health-endpoints/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    U12 — Tool Server Extended Health/Status Endpoints
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../units/u6-credential-hardening/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    U6 — Tool Server DB Credential Hardening — Deploy &amp; Validate
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../units/u7-config-hf-cleanup/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    U7 — Tool Server Config &amp; HF Cache Cleanup — Deploy &amp; Validate
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../units/u8-headlamp-token/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    U8 — Headlamp Permanent Admin Token — Apply &amp; Validate
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../units/u9-cert-mkcert/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    U9 (cert) — mkcert wildcard cert for *.weyland.lab
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../units/u9-dns-coredns/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    U9 (prereq) — CoreDNS LAN Resolver — Deploy &amp; Validate
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../units/u9-traefik-ingress/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    U9 (ingress) — Traefik + TLS for platform UIs
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_11" >
+        
+          
+          <label class="md-nav__link" for="__nav_11" id="__nav_11_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Validation
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_11_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_11">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Validation
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../validation/test-commands/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Weyland Platform Test Commands
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#storage-path-how-the-bytes-flow" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Storage path (how the bytes flow)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#key-decision-raw-partition-passthrough-not-proxmox-managed-storage" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Key decision: raw partition passthrough, NOT Proxmox-managed storage
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Key decision: raw partition passthrough, NOT Proxmox-managed storage">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#options-considered" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Options considered
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#why-passthrough-rationale" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Why passthrough (rationale)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#consequences-accepted" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Consequences accepted
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#hard-dependency-the-uas-quirk-drive-stalls-without-it" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Hard dependency: the UAS quirk (drive stalls without it)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#disk-layout-8tb-repartitioned-2026-06-10-gpt" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Disk layout (8TB repartitioned 2026-06-10, GPT)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#setup-runbook" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Setup runbook
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Setup runbook">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#1-weyland-uas-quirk-see-hard-dependency-above" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1. (weyland) UAS quirk — see "Hard dependency" above
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#2-weyland-partition-format" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2. (weyland) Partition + format
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#3-weyland-mount-the-data-partition-persist" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3. (weyland) Mount the data partition + persist
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#4-weyland-pass-sda1-through-to-the-mother-vm-vm-101" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4. (weyland) Pass sda1 through to the mother VM (vm 101)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#5-mother-mount-the-minio-disk-persist" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5. (mother) Mount the MinIO disk + persist
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#6-mother-deploy-minio-on-k3s" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        6. (mother) Deploy MinIO on k3s
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#7-web-ui-filestash-the-minio-console-is-dead" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7. Web UI — Filestash (the MinIO console is dead)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#access-day-to-day" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Access (day-to-day)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#operational-notes-gotchas" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Operational notes / gotchas
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#provenance" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Provenance
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+
+<h1 id="b6-minio-object-storage-8tb-usb-mother-vm-passthrough">B6 — MinIO Object Storage (8TB USB → mother VM passthrough)<a class="headerlink" href="#b6-minio-object-storage-8tb-usb-mother-vm-passthrough" title="Permanent link">&para;</a></h1>
+<p>S3-compatible object storage for the lab (model artifacts, datasets, backups, LLM/data-mesh
+artifacts). Backed by an <strong>8TB USB drive physically attached to weyland</strong> (the bare-metal
+Proxmox host), with the MinIO partition <strong>passed through to the mother VM</strong> where k3s runs.</p>
+<p>Commands run on <strong>weyland</strong> (Proxmox host) or <strong>mother</strong> (k3s VM) as noted.</p>
+<hr />
+<h2 id="storage-path-how-the-bytes-flow">Storage path (how the bytes flow)<a class="headerlink" href="#storage-path-how-the-bytes-flow" title="Permanent link">&para;</a></h2>
+<div class="language-text highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">1</span>
+<span class="normal">2</span>
+<span class="normal">3</span>
+<span class="normal">4</span>
+<span class="normal">5</span>
+<span class="normal">6</span></pre></div></td><td class="code"><div><pre><span></span><code>Seagate 8TB USB  ──┬─ sda1 (XFS, LABEL=minio)  ──[qm raw passthrough]──►  mother VM: /dev/sda
+   on weyland      │                                                       └─ mount /mnt/minio
+   (Proxmox host)  │                                                          └─ MinIO data dir (k3s local PV)
+                   │
+                   └─ sda2 (ext4, LABEL=data)  ──[stays on host]──►  weyland: /mnt/data
+                                                                       └─ Music/ + linux-backup/
+</code></pre></div></td></tr></table></div>
+<ul>
+<li><code>sda1</code> → MinIO (in the VM). <code>sda2</code> → Music + Linux backups (on the host).</li>
+<li>Only <code>sda1</code> crosses into the VM; <code>sda2</code> stays on weyland so it can later be re-exported
+  (Samba/NFS) for rogueone backups.</li>
+</ul>
+<hr />
+<h2 id="key-decision-raw-partition-passthrough-not-proxmox-managed-storage">Key decision: raw partition passthrough, NOT Proxmox-managed storage<a class="headerlink" href="#key-decision-raw-partition-passthrough-not-proxmox-managed-storage" title="Permanent link">&para;</a></h2>
+<p><strong>Decision (2026-06-10):</strong> the MinIO partition (<code>sda1</code>) is handed to the mother VM as a
+<strong>raw block device</strong> via <code>qm set 101 -scsi0 /dev/disk/by-id/...-part1</code>. Proxmox only records
+the device path — it does <strong>not</strong> wrap the disk in a managed storage (no Directory store, no
+zvol, no disk image). The XFS filesystem we created on the host <em>is</em> the MinIO data store,
+seen directly inside the guest.</p>
+<h3 id="options-considered">Options considered<a class="headerlink" href="#options-considered" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Option</th>
+<th>What it is</th>
+<th>Verdict</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Raw partition passthrough</strong> (chosen)</td>
+<td><code>qm set … /dev/disk/by-id/…-part1</code>; guest gets the bare XFS partition</td>
+<td>✅ Chosen</td>
+</tr>
+<tr>
+<td>Proxmox-managed storage</td>
+<td>Make <code>sda1</code> a Directory/LVM/ZFS storage, allocate a VM disk image on it, attach that</td>
+<td>❌ Rejected for this workload</td>
+</tr>
+</tbody>
+</table>
+<h3 id="why-passthrough-rationale">Why passthrough (rationale)<a class="headerlink" href="#why-passthrough-rationale" title="Permanent link">&para;</a></h3>
+<ol>
+<li><strong>Performance on a slow disk.</strong> This drive sustains only ~24 MB/s on writes (measured
+   during the Music restore). Wrapping it in a Proxmox storage layer (a raw/qcow2 image on a
+   Directory store, or a zvol) stacks a second filesystem/image format on top — more overhead
+   and write amplification on a disk that is already the bottleneck. Passthrough is the leanest
+   path.</li>
+<li><strong>The hypervisor's value-adds are moot or unwanted here.</strong><ul>
+<li><em>Live migration:</em> impossible regardless — the disk is physically USB-attached to weyland,
+   so the VM cannot migrate off weyland with it either way.</li>
+<li><em>Snapshots / vzdump backup:</em> we do <strong>not</strong> want Proxmox snapshotting or backing up a 4 TB
+   object store. MinIO owns its own data; backups belong at the bucket/object layer, not the
+   hypervisor. (The passthrough disk is tagged <code>backup=0</code> so <code>vzdump</code> skips it.)</li>
+<li><em>Thin provisioning:</em> an object store fills with real bytes — little to thin.</li>
+</ul>
+</li>
+<li><strong>Portability.</strong> The XFS filesystem <em>is</em> the MinIO data — unplug the drive and read it on
+   any Linux box. No nested image format to extract.</li>
+</ol>
+<h3 id="consequences-accepted">Consequences accepted<a class="headerlink" href="#consequences-accepted" title="Permanent link">&para;</a></h3>
+<ul>
+<li>This disk is <strong>not</strong> visible/managed in the Proxmox storage UI, gets <strong>no</strong> Proxmox
+  snapshots, and is <strong>not</strong> in <code>vzdump</code> backups. (Acceptable: MinIO data is reproducible
+  artifact storage, backed up at the object layer if needed.)</li>
+<li>The mother VM is effectively <strong>pinned to weyland</strong> while this disk is attached (already true
+  — the drive is USB-local to weyland).</li>
+<li>Storage management is manual (mount + fstab in the guest), documented below.</li>
+</ul>
+<hr />
+<h2 id="hard-dependency-the-uas-quirk-drive-stalls-without-it">Hard dependency: the UAS quirk (drive stalls without it)<a class="headerlink" href="#hard-dependency-the-uas-quirk-drive-stalls-without-it" title="Permanent link">&para;</a></h2>
+<p>The drive is a <strong>Seagate Backup+ Hub</strong> (USB <code>0bc2:ab38</code>, internal disk <code>ST8000DM004</code>,
+WWN <code>0x5000c500c67e302c</code>). On the kernel <code>uas</code> (USB Attached SCSI) driver it <strong>silently
+stalls mid-transfer under sustained load</strong> — the transfer freezes with no error in dmesg or
+app logs, and the process dies. This cost hours of debugging during setup.</p>
+<p><strong>Fix (persistent, applied on weyland):</strong> <code>/etc/modprobe.d/usb-storage-quirks.conf</code>:
+<div class="language-text highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">1</span></pre></div></td><td class="code"><div><pre><span></span><code>options usb-storage quirks=0bc2:ab38:u
+</code></pre></div></td></tr></table></div>
+The <code>u</code> (IGNORE_UAS) flag forces the stable bulk-only <code>usb-storage</code> transport. Confirm a
+healthy bind in dmesg after plugging the drive in:
+<div class="language-bash highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">1</span></pre></div></td><td class="code"><div><pre><span></span><code>dmesg<span class="w"> </span>-T<span class="w"> </span><span class="p">|</span><span class="w"> </span>grep<span class="w"> </span>-i<span class="w"> </span><span class="s1">&#39;uas\|usb-storage&#39;</span><span class="w">   </span><span class="c1"># want: &quot;UAS is ignored for this device, using usb-storage instead&quot;</span>
+</code></pre></div></td></tr></table></div>
+Tradeoff: slower (writes ~24–70 MB/s) but does not stall. If a transfer on this drive ever
+freezes silently, first check it is not on <code>uas</code>. Also watch for
+<code>Cannot enable. Maybe the USB cable is bad?</code> (flaky-link warning — try a different port/cable).</p>
+<hr />
+<h2 id="disk-layout-8tb-repartitioned-2026-06-10-gpt">Disk layout (8TB repartitioned 2026-06-10, GPT)<a class="headerlink" href="#disk-layout-8tb-repartitioned-2026-06-10-gpt" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Partition</th>
+<th>Size</th>
+<th>FS</th>
+<th>LABEL</th>
+<th>UUID</th>
+<th>Role</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>sda1</code></td>
+<td>~3.9 TiB (4000 GiB)</td>
+<td>XFS</td>
+<td><code>minio</code></td>
+<td><code>d25597f5-357f-4722-8dbf-c8f310b1d242</code></td>
+<td>MinIO object store (→ mother VM)</td>
+</tr>
+<tr>
+<td><code>sda2</code></td>
+<td>~3.4 TiB</td>
+<td>ext4</td>
+<td><code>data</code></td>
+<td><code>2d5f4cc1-3525-45ae-9b7d-5e51b81b109f</code></td>
+<td>Music + Linux backups (on weyland host)</td>
+</tr>
+</tbody>
+</table>
+<p><code>sda2</code> ext4 made with <code>-m 1</code> (1% root reserve instead of 5%, reclaiming ~135 GB on a pure
+data volume). <code>/mnt/data</code> holds <code>Music/</code> (~500 GB, static) and <code>linux-backup/</code> (Timeshift +
+DejaDup + rogueone, ~205 GB, hardlink-based).</p>
+<hr />
+<h2 id="setup-runbook">Setup runbook<a class="headerlink" href="#setup-runbook" title="Permanent link">&para;</a></h2>
+<h3 id="1-weyland-uas-quirk-see-hard-dependency-above">1. (weyland) UAS quirk — see "Hard dependency" above<a class="headerlink" href="#1-weyland-uas-quirk-see-hard-dependency-above" title="Permanent link">&para;</a></h3>
+<p>Create the modprobe drop-in, then re-plug the drive (no reboot needed):
+<div class="language-bash highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">1</span>
+<span class="normal">2</span>
+<span class="normal">3</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="nb">echo</span><span class="w"> </span><span class="s1">&#39;options usb-storage quirks=0bc2:ab38:u&#39;</span><span class="w"> </span>&gt;<span class="w"> </span>/etc/modprobe.d/usb-storage-quirks.conf
+<span class="nb">echo</span><span class="w"> </span>0bc2:ab38:u<span class="w"> </span>&gt;<span class="w"> </span>/sys/module/usb_storage/parameters/quirks<span class="w">   </span><span class="c1"># apply to running kernel</span>
+<span class="c1"># physically unplug + replug the drive, then verify it bound to usb-storage (not uas)</span>
+</code></pre></div></td></tr></table></div></p>
+<h3 id="2-weyland-partition-format">2. (weyland) Partition + format<a class="headerlink" href="#2-weyland-partition-format" title="Permanent link">&para;</a></h3>
+<div class="language-bash highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">1</span>
+<span class="normal">2</span>
+<span class="normal">3</span>
+<span class="normal">4</span>
+<span class="normal">5</span>
+<span class="normal">6</span></pre></div></td><td class="code"><div><pre><span></span><code>sgdisk<span class="w"> </span>--zap-all<span class="w"> </span>/dev/sda
+sgdisk<span class="w"> </span>-n<span class="w"> </span><span class="m">1</span>:0:+4000G<span class="w"> </span>-t<span class="w"> </span><span class="m">1</span>:8300<span class="w"> </span>-c<span class="w"> </span><span class="m">1</span>:minio<span class="w"> </span>-n<span class="w"> </span><span class="m">2</span>:0:0<span class="w"> </span>-t<span class="w"> </span><span class="m">2</span>:8300<span class="w"> </span>-c<span class="w"> </span><span class="m">2</span>:data<span class="w"> </span>/dev/sda
+blockdev<span class="w"> </span>--rereadpt<span class="w"> </span>/dev/sda<span class="w">            </span><span class="c1"># partprobe is not installed on this host</span>
+wipefs<span class="w"> </span>-a<span class="w"> </span>/dev/sda1<span class="w"> </span>/dev/sda2
+mkfs.xfs<span class="w">  </span>-f<span class="w"> </span>-L<span class="w"> </span>minio<span class="w"> </span>/dev/sda1
+mkfs.ext4<span class="w"> </span>-F<span class="w"> </span>-m<span class="w"> </span><span class="m">1</span><span class="w"> </span>-L<span class="w"> </span>data<span class="w"> </span>/dev/sda2
+</code></pre></div></td></tr></table></div>
+<h3 id="3-weyland-mount-the-data-partition-persist">3. (weyland) Mount the data partition + persist<a class="headerlink" href="#3-weyland-mount-the-data-partition-persist" title="Permanent link">&para;</a></h3>
+<p><div class="language-bash highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">1</span>
+<span class="normal">2</span>
+<span class="normal">3</span>
+<span class="normal">4</span></pre></div></td><td class="code"><div><pre><span></span><code>mkdir<span class="w"> </span>-p<span class="w"> </span>/mnt/data
+<span class="nb">echo</span><span class="w"> </span><span class="s1">&#39;UUID=2d5f4cc1-3525-45ae-9b7d-5e51b81b109f /mnt/data ext4 defaults,nofail,x-systemd.device-timeout=30 0 2&#39;</span><span class="w"> </span>&gt;&gt;<span class="w"> </span>/etc/fstab
+systemctl<span class="w"> </span>daemon-reload
+mount<span class="w"> </span>/mnt/data
+</code></pre></div></td></tr></table></div>
+<code>nofail</code> is essential for a USB fstab entry — without it a missing/slow drive drops the host
+into emergency mode at boot.</p>
+<h3 id="4-weyland-pass-sda1-through-to-the-mother-vm-vm-101">4. (weyland) Pass sda1 through to the mother VM (vm 101)<a class="headerlink" href="#4-weyland-pass-sda1-through-to-the-mother-vm-vm-101" title="Permanent link">&para;</a></h3>
+<p><div class="language-bash highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">1</span>
+<span class="normal">2</span></pre></div></td><td class="code"><div><pre><span></span><code>qm<span class="w"> </span><span class="nb">set</span><span class="w"> </span><span class="m">101</span><span class="w"> </span>-scsi0<span class="w"> </span>/dev/disk/by-id/wwn-0x5000c500c67e302c-part1,backup<span class="o">=</span><span class="m">0</span>
+qm<span class="w"> </span>config<span class="w"> </span><span class="m">101</span><span class="w"> </span><span class="p">|</span><span class="w"> </span>grep<span class="w"> </span>scsi0<span class="w">   </span><span class="c1"># confirm: scsi0: /dev/disk/by-id/wwn-...-part1,backup=0,size=4000G</span>
+</code></pre></div></td></tr></table></div>
+- Uses the <strong>WWN by-id</strong> path (stable hardware id; avoids the <code>+</code>/<code>:</code> shell-escaping in the
+  <code>usb-Seagate_Backup+_Hub…</code> name). All of <code>wwn-…-part1</code>, <code>ata-ST8000DM004…-part1</code>, and
+  <code>usb-Seagate…-part1</code> point to the same <code>sda1</code>.
+- <code>backup=0</code> keeps <code>vzdump</code> from trying to dump the 4 TB store.
+- VM 101 is <code>virtio-scsi-single</code> with disk hotplug on → the disk appears <strong>live</strong> in the guest,
+  no VM restart. Inside the guest it shows as a whole-device XFS (e.g. <code>/dev/sda</code>, no partition
+  table beneath it) because we passed the host's <em>partition</em> through as a raw disk.</p>
+<h3 id="5-mother-mount-the-minio-disk-persist">5. (mother) Mount the MinIO disk + persist<a class="headerlink" href="#5-mother-mount-the-minio-disk-persist" title="Permanent link">&para;</a></h3>
+<div class="language-bash highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">1</span>
+<span class="normal">2</span>
+<span class="normal">3</span>
+<span class="normal">4</span>
+<span class="normal">5</span>
+<span class="normal">6</span></pre></div></td><td class="code"><div><pre><span></span><code>sudo<span class="w"> </span>mkdir<span class="w"> </span>-p<span class="w"> </span>/mnt/minio
+sudo<span class="w"> </span>blkid<span class="w"> </span>-L<span class="w"> </span>minio<span class="w">                     </span><span class="c1"># confirm the guest sees the XFS (e.g. /dev/sda)</span>
+<span class="nb">echo</span><span class="w"> </span><span class="s1">&#39;UUID=d25597f5-357f-4722-8dbf-c8f310b1d242 /mnt/minio xfs defaults,nofail,x-systemd.device-timeout=30 0 2&#39;</span><span class="w"> </span><span class="p">|</span><span class="w"> </span>sudo<span class="w"> </span>tee<span class="w"> </span>-a<span class="w"> </span>/etc/fstab
+sudo<span class="w"> </span>systemctl<span class="w"> </span>daemon-reload
+sudo<span class="w"> </span>mount<span class="w"> </span>/mnt/minio
+df<span class="w"> </span>-h<span class="w"> </span>/mnt/minio
+</code></pre></div></td></tr></table></div>
+<h3 id="6-mother-deploy-minio-on-k3s">6. (mother) Deploy MinIO on k3s<a class="headerlink" href="#6-mother-deploy-minio-on-k3s" title="Permanent link">&para;</a></h3>
+<p>Manifests: <code>nodes/mother/lab/weyland-platform/k8s/minio/</code> (namespace, pv, pvc, deployment,
+service, ingress). Single-drive MinIO, RWO local PV → <code>/mnt/minio</code>, <code>strategy: Recreate</code>.</p>
+<p><strong>Image:</strong> <code>alpine/minio:RELEASE.2025-10-15T17-29-55Z</code> — upstream <code>minio/minio</code> was archived
+(Oct 2025); <code>alpine/minio</code> is the maintained community rebuild of the same last release.</p>
+<p><strong>Secrets (NOT committed):</strong>
+<div class="language-bash highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">1</span>
+<span class="normal">2</span>
+<span class="normal">3</span>
+<span class="normal">4</span>
+<span class="normal">5</span>
+<span class="normal">6</span></pre></div></td><td class="code"><div><pre><span></span><code>kubectl<span class="w"> </span>apply<span class="w"> </span>-f<span class="w"> </span>~/lab/weyland-platform/k8s/minio/namespace.yaml
+kubectl<span class="w"> </span>create<span class="w"> </span>secret<span class="w"> </span>generic<span class="w"> </span>minio-creds<span class="w"> </span>-n<span class="w"> </span>minio<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--from-literal<span class="o">=</span><span class="nv">MINIO_ROOT_USER</span><span class="o">=</span>admin<span class="w"> </span>--from-literal<span class="o">=</span><span class="nv">MINIO_ROOT_PASSWORD</span><span class="o">=</span>weyland_dev_password
+kubectl<span class="w"> </span>create<span class="w"> </span>secret<span class="w"> </span>tls<span class="w"> </span>weyland-wildcard-tls<span class="w"> </span>-n<span class="w"> </span>minio<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--cert<span class="o">=</span><span class="nv">$HOME</span>/certs/weyland-wildcard.pem<span class="w"> </span>--key<span class="o">=</span><span class="nv">$HOME</span>/certs/weyland-wildcard-key.pem
+kubectl<span class="w"> </span>apply<span class="w"> </span>-f<span class="w"> </span>~/lab/weyland-platform/k8s/minio/
+</code></pre></div></td></tr></table></div></p>
+<p><strong>GOTCHA — non-root write permission:</strong> <code>alpine/minio</code> runs as <strong>UID 1000</strong>, but <code>/mnt/minio</code>
+is <code>root:root</code>, so MinIO CrashLoops with <code>file access denied</code> creating <code>/data/.minio.sys</code>.
+Fix: <code>sudo chown 1000:1000 /mnt/minio</code> on mother (the deployment pins <code>runAsUser: 1000</code>;
+<code>fsGroup</code> does NOT apply to local PVs, so the on-disk chown is required).</p>
+<p><strong>Validate (functional S3 round-trip):</strong>
+<div class="language-bash highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">1</span>
+<span class="normal">2</span>
+<span class="normal">3</span></pre></div></td><td class="code"><div><pre><span></span><code>kubectl<span class="w"> </span>run<span class="w"> </span>mc<span class="w"> </span>-it<span class="w"> </span>--rm<span class="w"> </span>--restart<span class="o">=</span>Never<span class="w"> </span>--image<span class="o">=</span>minio/mc<span class="w"> </span>-n<span class="w"> </span>minio<span class="w"> </span>--command<span class="w"> </span>--<span class="w"> </span>sh
+<span class="c1"># inside: mc alias set lab http://minio.minio.svc.cluster.local:9000 admin weyland_dev_password</span>
+<span class="c1">#         mc mb lab/smoke ; echo hi | mc pipe lab/smoke/o ; mc cat lab/smoke/o ; mc rb --force lab/smoke</span>
+</code></pre></div></td></tr></table></div></p>
+<h3 id="7-web-ui-filestash-the-minio-console-is-dead">7. Web UI — Filestash (the MinIO console is dead)<a class="headerlink" href="#7-web-ui-filestash-the-minio-console-is-dead" title="Permanent link">&para;</a></h3>
+<p><strong>The MinIO community web console was stripped/removed in 2025</strong> — login fails with a
+"network error" by design. Do NOT chase it; <code>minio.weyland.lab</code> (console ingress) is a no-op.
+Manage MinIO via <code>mc</code>/S3 API, and browse via <strong>Filestash</strong> instead.</p>
+<p>Manifest: <code>k8s/minio/filestash.yaml</code> (<code>machines/filestash:latest</code>), at <code>https://files.weyland.lab</code>.
+Reuses the <code>weyland-wildcard-tls</code> secret in the <code>minio</code> namespace. Config persists in the
+<code>filestash-data</code> PVC.</p>
+<p>Post-deploy (one-time, in the Filestash admin UI):
+1. Set a Filestash admin password.
+2. <strong>Storage</strong> → S3 backend; <strong>Authentication Middleware</strong> → <code>passthrough</code> → in the attribute
+   mapping enter: Access Key <code>admin</code>, Secret <code>weyland_dev_password</code>,
+   <strong>Endpoint</strong> <code>http://minio.minio.svc.cluster.local:9000</code>, Region <code>us-east-1</code>.
+   (No path-style checkbox — Filestash auto-uses path-style when a custom Endpoint is set.)</p>
+<p><strong>GOTCHA — scheme-doubled redirect / phantom NXDOMAIN:</strong> do NOT set <code>APPLICATION_URL</code> to a full
+URL, and ensure the persisted config's <code>general.host</code> is a <strong>bare host</strong> (<code>files.weyland.lab</code>,
+no <code>https://</code>). With a scheme included, Filestash builds <code>http://https//files.weyland.lab</code>,
+and the browser then tries to resolve a host literally named <code>https</code> → <code>DNS_PROBE_FINISHED_NXDOMAIN</code>
+(which looks like a DNS problem but is not). The value lives in
+<code>/app/data/state/config/config.json</code> in the PVC (env seeds it once, then the file wins).</p>
+<h2 id="access-day-to-day">Access (day-to-day)<a class="headerlink" href="#access-day-to-day" title="Permanent link">&para;</a></h2>
+<ul>
+<li><strong>CLI (<code>mc</code>) from rogueone:</strong> <code>mc alias set weyland https://s3.weyland.lab admin weyland_dev_password</code>,
+  then <code>mc ls/cp/mirror weyland/&lt;bucket&gt;</code>. (Binary: <code>dl.min.io/client/mc/release/linux-amd64/mc</code>.)</li>
+<li><strong>Web browser:</strong> <code>https://files.weyland.lab</code> (Filestash).</li>
+<li><strong>In-cluster workloads</strong> (Dagster, tool server, etc.): S3 SDK → <code>http://minio.minio.svc.cluster.local:9000</code>.</li>
+<li><strong>External S3 endpoint</strong> (you, from rogueone): <code>https://s3.weyland.lab</code> (TLS, trusted mkcert cert).
+  Both <code>s3.weyland.lab</code> and <code>files.weyland.lab</code> need a <code>192.168.1.243</code> line in rogueone's <code>/etc/hosts</code>.</li>
+</ul>
+<hr />
+<h2 id="operational-notes-gotchas">Operational notes / gotchas<a class="headerlink" href="#operational-notes-gotchas" title="Permanent link">&para;</a></h2>
+<ul>
+<li><strong>After a weyland reboot or drive re-plug:</strong> the UAS quirk persists (modprobe.d), and the
+  host <code>/mnt/data</code> re-mounts via fstab. The passthrough (<code>scsi0</code> in vm 101's config) persists
+  too, so the guest disk returns on the next VM start. If the guest doesn't see it after a live
+  re-plug, rescan in the guest: <code>for h in /sys/class/scsi_host/host*/scan; do echo '- - -' | sudo tee $h; done</code>.</li>
+<li><strong>Do not pass the whole <code>/dev/sda</code></strong> to the VM — only <code>…-part1</code>. The host keeps <code>sda2</code>
+  mounted at <code>/mnt/data</code>; handing the whole disk to the guest would collide with that.</li>
+<li><strong>No Proxmox-level backup/snapshot of MinIO data</strong> (by design — see decision above). Back up
+  at the bucket/object layer if/when needed.</li>
+<li><strong>Slow drive:</strong> ~24 MB/s sustained writes. Keep MinIO throughput expectations modest; this is
+  a homelab artifact/model store, not a high-IOPS tier. Revisit the drive choice if it bites.</li>
+<li><strong>To unwind the passthrough:</strong> <code>qm set 101 --delete scsi0</code> (then the disk is host-only again).</li>
+</ul>
+<hr />
+<h2 id="provenance">Provenance<a class="headerlink" href="#provenance" title="Permanent link">&para;</a></h2>
+<p>Set up 2026-06-10/11. Original drive contents (Music + Linux backups) were staged to
+<code>rpool/usb-stage</code> on weyland, the drive repartitioned, and the data restored to <code>sda2</code>
+(file-count verified). Staging reclaimed 2026-06-11 (<code>zfs destroy rpool/usb-stage</code>) after
+MinIO + Filestash were validated. Data on <code>sda2</code> is adequately protected: Music is also backed
+up to <strong>Google Cloud</strong>, and the Linux backups are redundant (rogueone holds the originals).</p>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+    
+      
+      <nav class="md-footer__inner md-grid" aria-label="Footer" >
+        
+          
+          <a href="../service-mesh-istio/" class="md-footer__link md-footer__link--prev" aria-label="Previous: Istio service mesh — runbook (B8)">
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+            </div>
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                Previous
+              </span>
+              <div class="md-ellipsis">
+                Istio service mesh — runbook (B8)
+              </div>
+            </div>
+          </a>
+        
+        
+          
+          <a href="../transcription-whisper/" class="md-footer__link md-footer__link--next" aria-label="Next: B11 — Whisper STT Runbook — weyland (CT 103)">
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                Next
+              </span>
+              <div class="md-ellipsis">
+                B11 — Whisper STT Runbook — weyland (CT 103)
+              </div>
+            </div>
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M4 11v2h12l-5.5 5.5 1.42 1.42L19.84 12l-7.92-7.92L10.5 5.5 16 11z"/></svg>
+            </div>
+          </a>
+        
+      </nav>
+    
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["navigation.footer", "content.action.edit"], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../../assets/javascripts/bundle.79ae519e.min.js"></script>
+      
+        <script src="../../search/main.js"></script>
+      
+    
+  </body>
+</html>

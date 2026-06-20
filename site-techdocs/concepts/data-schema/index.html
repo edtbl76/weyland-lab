@@ -1,0 +1,2652 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Runbooks, architecture, diagrams, and concepts for the weyland homelab AI platform.">
+      
+      
+      
+      
+        <link rel="prev" href="../agent-platform-design/">
+      
+      
+        <link rel="next" href="../llm-inference-cpu-vs-gpu/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.6">
+    
+    
+      
+        <title>Data Schema — RAG + Eval Stores - Weyland Platform Docs</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/stylesheets/main.484c7ddc.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    <body dir="ltr">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#data-schema-rag-eval-stores" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../.." title="Weyland Platform Docs" class="md-header__button md-logo" aria-label="Weyland Platform Docs" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            Weyland Platform Docs
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Data Schema — RAG + Eval Stores
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+    
+    
+    
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../.." title="Weyland Platform Docs" class="md-nav__button md-logo" aria-label="Weyland Platform Docs" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    Weyland Platform Docs
+  </label>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Weyland Docs
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Weyland — API &amp; Endpoint Inventory
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../arch/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Weyland — Architecture
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../backlog/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Weyland Forward Roadmap — re-prioritized 2026-06-14
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../hosts/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Weyland — Host Inventory
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../weyland/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Weyland
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_7" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_7" id="__nav_7_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Concepts
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_7_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_7">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Concepts
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../agent-platform-design/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    B2 — Agent Platform (Hermes + OpenClaw) — Design
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Data Schema — RAG + Eval Stores
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Data Schema — RAG + Eval Stores
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#1-postgres-pgvector-the-spine" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1. Postgres / pgvector — the spine
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="1. Postgres / pgvector — the spine">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#rag-tables-implicit-ddl-from-pipeline-write-code" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        RAG tables (implicit DDL — from pipeline write code)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#eval-tables-scriptseval-schemasql-b4-committed-ddl-idempotent" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Eval tables (scripts/eval-schema.sql, B4 — committed DDL, idempotent)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#model-catalog-scriptsmodel-catalog-schemasql-committed-ddl-idempotent" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Model catalog (scripts/model-catalog-schema.sql — committed DDL, idempotent)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#2-qdrant-collection-weyland_chunks-live-validated" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2. Qdrant — collection weyland_chunks (live-validated)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#3-weaviate-classes-weylandchunk-weylanddocument-live-validated" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3. Weaviate — classes WeylandChunk + WeylandDocument (live-validated)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#4-neo4j-document-chunk-graphrag-foundation-from-pipeline-code" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4. Neo4j — Document + Chunk (GraphRAG foundation) (from pipeline code)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="4. Neo4j — Document + Chunk (GraphRAG foundation) (from pipeline code)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#4a-aidlc-frontmatter-graph-b37-live-validated-2026-06-19-510-entry-2311-related_to" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4a. AIDLC frontmatter graph (B37) (live-validated 2026-06-19: 510 :Entry, 2311 RELATED_TO)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#5-out-of-band-inventory-schema-live-no-repo-ddl" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5. Out-of-band inventory schema (live, no repo DDL)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#live-postgres-state-confirmed-2026-06-15" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Live Postgres state (confirmed 2026-06-15)
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../llm-inference-cpu-vs-gpu/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    LLM Inference — CPU vs GPU Tradeoffs (the why)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../model-serving-hardware/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    B7 — Model Serving Hardware (DECISION DEFERRED — pending pricing)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_8" >
+        
+          
+          <label class="md-nav__link" for="__nav_8" id="__nav_8_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Diagrams
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_8_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_8">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Diagrams
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../diagrams/c4-component-hermes/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    C4 Component — hermes CT (CT 104)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../diagrams/c4-component-mother/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    C4 Component — mother VM (k3s)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../diagrams/c4-component-ollama/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    C4 Component — ollama CT (CT 102)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../diagrams/c4-component-openclaw/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    C4 Component — openclaw VM (vm-100)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../diagrams/c4-component-rogueone/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    C4 Component — rogueone (external)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../diagrams/c4-component-whisper/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    C4 Component — whisper CT (CT 103)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../diagrams/c4-container/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    C4 Container — Weyland
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../diagrams/c4-context/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    C4 Context — Weyland
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../diagrams/flow-act-tool/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Flow: Audited Act-Tool (/mcp-act, B14 read+act)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../diagrams/flow-agent-mcp/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Flow: Agent System-View (Hermes / Claude Code -&gt; MCP -&gt; tool-server)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../diagrams/flow-alerting/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Flow: Alerting (B5)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../diagrams/flow-backend-dispatch/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Flow: Backend Selection / Dispatch (detail of RAG retrieval)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../diagrams/flow-deploy/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Flow: Deploy / Redeploy (build↔runtime isolation)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../diagrams/flow-eval-scoring/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Flow: Eval Scoring (weyland_eval_score_job, detail of the eval pipeline)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../diagrams/flow-eval/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Flow: Evaluation Pipeline (single-path eval -&gt; panel -&gt; leaderboard)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../diagrams/flow-guardrails/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Flow: Guardrail Validation (B14, shadow-first)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../diagrams/flow-health-status/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Flow: Health / Status Aggregation (U12)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../diagrams/flow-ingestion/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Flow: Ingestion (repo → 4 vector backends)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../diagrams/flow-ingress-tls/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Flow: Ingress / TLS Front Door
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../diagrams/flow-mesh-mtls/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Flow: Service-Mesh Request Path + mTLS (B8)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../diagrams/flow-model-catalog/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Flow: model_catalog Refresh (B26)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../diagrams/flow-model-gateway/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Flow: Model-Gateway Routing (B26, LiteLLM)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../diagrams/flow-pipeline-trigger/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Flow: Pipeline Trigger (/pipeline/trigger → Dagster)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../diagrams/flow-rag-query/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Flow: RAG Query (/context/ask)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../diagrams/flow-roadmap-sync/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Flow: Roadmap-Sync → Hermes Kanban (B27)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../diagrams/flow-tracing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Flow: Distributed Tracing Pipeline (B8)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../diagrams/flow-voice-chat/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Flow: Voice Chat (Open WebUI -&gt; whisper -&gt; Ollama)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_9" >
+        
+          
+          <label class="md-nav__link" for="__nav_9" id="__nav_9_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Runbooks
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_9_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_9">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Runbooks
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../runbooks/agent-hermes/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    B2 — Hermes Agent Runbook — weyland (CT 104)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../runbooks/aidlc-kb-ingest/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    B37 — AIDLC Knowledge-Base Ingestion (MinIO → RAG)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../runbooks/eval-harness/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    B4 — LLM Evaluation Pipeline (runbook)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../runbooks/model-gateway/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Model Gateway (LiteLLM) + Model Catalog — runbook
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../runbooks/model-serving-ollama/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Ollama Runbook — weyland (CT 102)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../runbooks/observability/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    B5 — Observability (kube-prometheus-stack) — Deploy &amp; Validate
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../runbooks/service-mesh-istio/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Istio service mesh — runbook (B8)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../runbooks/storage-minio/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    B6 — MinIO Object Storage (8TB USB → mother VM passthrough)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../runbooks/transcription-whisper/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    B11 — Whisper STT Runbook — weyland (CT 103)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../runbooks/weyland-idp/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    weyland IDP — runbook (B3)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_10" >
+        
+          
+          <label class="md-nav__link" for="__nav_10" id="__nav_10_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Units
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_10_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_10">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Units
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../units/u10-sa-scoping/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    U10 — Service Account Scoping (least privilege) — Apply &amp; Validate
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../units/u11-ssh-identity/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    U11 — weyland-lab SSH Identity Review
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../units/u12-health-endpoints/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    U12 — Tool Server Extended Health/Status Endpoints
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../units/u6-credential-hardening/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    U6 — Tool Server DB Credential Hardening — Deploy &amp; Validate
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../units/u7-config-hf-cleanup/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    U7 — Tool Server Config &amp; HF Cache Cleanup — Deploy &amp; Validate
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../units/u8-headlamp-token/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    U8 — Headlamp Permanent Admin Token — Apply &amp; Validate
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../units/u9-cert-mkcert/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    U9 (cert) — mkcert wildcard cert for *.weyland.lab
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../units/u9-dns-coredns/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    U9 (prereq) — CoreDNS LAN Resolver — Deploy &amp; Validate
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../units/u9-traefik-ingress/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    U9 (ingress) — Traefik + TLS for platform UIs
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_11" >
+        
+          
+          <label class="md-nav__link" for="__nav_11" id="__nav_11_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Validation
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_11_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_11">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Validation
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../validation/test-commands/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Weyland Platform Test Commands
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#1-postgres-pgvector-the-spine" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1. Postgres / pgvector — the spine
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="1. Postgres / pgvector — the spine">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#rag-tables-implicit-ddl-from-pipeline-write-code" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        RAG tables (implicit DDL — from pipeline write code)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#eval-tables-scriptseval-schemasql-b4-committed-ddl-idempotent" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Eval tables (scripts/eval-schema.sql, B4 — committed DDL, idempotent)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#model-catalog-scriptsmodel-catalog-schemasql-committed-ddl-idempotent" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Model catalog (scripts/model-catalog-schema.sql — committed DDL, idempotent)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#2-qdrant-collection-weyland_chunks-live-validated" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2. Qdrant — collection weyland_chunks (live-validated)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#3-weaviate-classes-weylandchunk-weylanddocument-live-validated" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3. Weaviate — classes WeylandChunk + WeylandDocument (live-validated)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#4-neo4j-document-chunk-graphrag-foundation-from-pipeline-code" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4. Neo4j — Document + Chunk (GraphRAG foundation) (from pipeline code)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="4. Neo4j — Document + Chunk (GraphRAG foundation) (from pipeline code)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#4a-aidlc-frontmatter-graph-b37-live-validated-2026-06-19-510-entry-2311-related_to" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4a. AIDLC frontmatter graph (B37) (live-validated 2026-06-19: 510 :Entry, 2311 RELATED_TO)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#5-out-of-band-inventory-schema-live-no-repo-ddl" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5. Out-of-band inventory schema (live, no repo DDL)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#live-postgres-state-confirmed-2026-06-15" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Live Postgres state (confirmed 2026-06-15)
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+
+<h1 id="data-schema-rag-eval-stores">Data Schema — RAG + Eval Stores<a class="headerlink" href="#data-schema-rag-eval-stores" title="Permanent link">&para;</a></h1>
+<p>The schemas behind weyland's retrieval and evaluation stores, in one place. <strong>Validated against ground
+truth</strong> (2026-06-15): live Qdrant + Weaviate APIs, the Dagster pipeline write code, and
+<code>scripts/eval-schema.sql</code> — <em>not</em> the (retired) Obsidian note.</p>
+<p>The same logical chunk is written to <strong>four backends in one Dagster run</strong>, each keyed by <code>source_path</code> so
+documents are independently upsertable (delete-by-source → re-insert). Embeddings are
+<strong><code>BAAI/bge-small-en-v1.5</code>, 384-dim, L2-normalized</strong> — baked into both the tool-server and Dagster images so
+ingestion and query embed identically.</p>
+<p><strong>Two corpora share these stores</strong>, distinguished by <code>source_path</code> prefix + a <code>domain</code> tag: the <code>docs/</code>+<code>nodes/</code>
+repo (B25b, <code>weyland_ingestion_job</code>) and the <strong><code>aidlc-kb/</code></strong> AIDLC knowledge base (B37, <code>weyland_aidlc_kb_job</code>).
+Each has its own hash-gate and orphan-prune <strong>scoped to its namespace</strong> (pgvector <code>NOT LIKE</code>, neo4j <code>STARTS WITH</code>,
+weaviate prefix-filter, qdrant <code>domain</code> payload), so neither corpus prunes the other. KB rows carry
+<code>domain="aidlc-kb"</code> (pgvector <code>rag_documents.metadata</code>, qdrant payload, neo4j node prop).</p>
+<blockquote>
+<p><strong>Schema provenance:</strong> the <code>eval_*</code> tables have committed DDL (<code>scripts/eval-schema.sql</code>). The <code>rag_*</code>
+tables do <strong>not</strong> — they're created implicitly by the pipeline. <em>Gap / follow-up:</em> add a <code>rag-schema.sql</code>
+for parity. <code>rag_*</code> columns below are from the pipeline write code, confirmed against the live DB
+(2026-06-15). <strong>The live DB also holds 4 tables with NO repo DDL — <code>services</code>, <code>machines</code>, <code>models</code>,
+<code>memory_facts</code> — created out-of-band (see §5).</strong></p>
+</blockquote>
+<hr />
+<h2 id="1-postgres-pgvector-the-spine">1. Postgres / pgvector — the spine<a class="headerlink" href="#1-postgres-pgvector-the-spine" title="Permanent link">&para;</a></h2>
+<h3 id="rag-tables-implicit-ddl-from-pipeline-write-code">RAG tables (implicit DDL — from pipeline write code)<a class="headerlink" href="#rag-tables-implicit-ddl-from-pipeline-write-code" title="Permanent link">&para;</a></h3>
+<p><strong><code>rag_documents</code></strong> — one row per source document (keyed by <code>source_path</code>):</p>
+<table>
+<thead>
+<tr>
+<th>column</th>
+<th>type</th>
+<th>notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>id</code></td>
+<td>BIGSERIAL PK</td>
+<td>FK target for chunks</td>
+</tr>
+<tr>
+<td><code>name</code></td>
+<td>TEXT</td>
+<td>= <code>source_name</code> (filename without <code>.md</code>)</td>
+</tr>
+<tr>
+<td><code>source_type</code></td>
+<td>TEXT</td>
+<td><code>"markdown"</code></td>
+</tr>
+<tr>
+<td><code>source_path</code></td>
+<td>TEXT <strong>UNIQUE</strong></td>
+<td>upsert key (<code>ON CONFLICT (source_path)</code>)</td>
+</tr>
+<tr>
+<td><code>content_hash</code></td>
+<td>TEXT</td>
+<td>SHA256 of content — the change-gate</td>
+</tr>
+<tr>
+<td><code>metadata</code></td>
+<td>JSONB</td>
+<td>currently <code>{}</code></td>
+</tr>
+<tr>
+<td><code>updated_at</code></td>
+<td>TIMESTAMPTZ</td>
+<td>bumped on upsert</td>
+</tr>
+</tbody>
+</table>
+<p><strong><code>rag_chunks</code></strong> — H2-split chunks with vectors (old chunks deleted then re-inserted per document):</p>
+<table>
+<thead>
+<tr>
+<th>column</th>
+<th>type</th>
+<th>notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>id</code></td>
+<td>BIGSERIAL PK</td>
+<td></td>
+</tr>
+<tr>
+<td><code>document_id</code></td>
+<td>BIGINT FK → <code>rag_documents(id)</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>chunk_index</code></td>
+<td>INT</td>
+<td>order within document</td>
+</tr>
+<tr>
+<td><code>content</code></td>
+<td>TEXT</td>
+<td>full section (heading + body)</td>
+</tr>
+<tr>
+<td><code>embedding</code></td>
+<td><code>vector(384)</code></td>
+<td>pgvector, bge, normalized</td>
+</tr>
+<tr>
+<td><code>metadata</code></td>
+<td>JSONB</td>
+<td><code>{"title": &lt;chunk_title&gt;}</code> when present</td>
+</tr>
+</tbody>
+</table>
+<h3 id="eval-tables-scriptseval-schemasql-b4-committed-ddl-idempotent">Eval tables (<code>scripts/eval-schema.sql</code>, B4 — committed DDL, idempotent)<a class="headerlink" href="#eval-tables-scriptseval-schemasql-b4-committed-ddl-idempotent" title="Permanent link">&para;</a></h3>
+<p>Reuses the same DB; no new database.</p>
+<ul>
+<li><strong><code>eval_runs</code></strong> — one row per leaderboard run: <code>id</code>, <code>created_at</code>, <code>status</code> (<code>running|complete|failed</code>),
+  <code>models TEXT[]</code>, <code>metrics TEXT[]</code>, <code>question_count</code>, <code>notes</code>.</li>
+<li><strong><code>eval_questions</code></strong> — generated questions per run: <code>id</code>, <code>run_id</code>→eval_runs (CASCADE), <code>question</code>,
+  <code>question_type</code>, <code>reference_answer</code>, <code>reference_contexts JSONB</code>, <code>created_at</code>.</li>
+<li><strong><code>eval_results</code></strong> — one RAG output per (question × model): <code>id</code>, <code>run_id</code>, <code>question_id</code>, <code>model</code>,
+  <code>backend</code> (default <code>pgvector</code>), <code>answer</code>, <code>contexts JSONB</code> (grounding set), <code>latency_ms</code>, <code>error</code>,
+  <code>created_at</code>.</li>
+<li><strong><code>eval_scores</code></strong> — LLM-as-judge score per (result × metric × judge): <code>id</code>, <code>result_id</code>→eval_results
+  (CASCADE), <code>metric</code> (<strong><code>faithfulness | answer_relevancy | context_relevancy</code></strong> — actual metrics; the SQL
+  comment's "ragas" is stale, Ragas was rejected in B4), <code>judge</code> (judge model; <strong>panel of ≥3</strong>), <code>score</code>
+  DOUBLE PRECISION, <code>UNIQUE (result_id, metric, judge)</code>.</li>
+<li><strong><code>eval_leaderboard</code></strong> (VIEW) — <code>AVG(score)</code> per (<code>run_id</code>, <code>model</code>, <code>metric</code>) across judges; read directly
+  by <code>GET /evals/leaderboard</code>.</li>
+<li>Indexes: <code>idx_eval_results_run</code>, <code>idx_eval_results_model</code>, <code>idx_eval_scores_result</code>.</li>
+</ul>
+<h3 id="model-catalog-scriptsmodel-catalog-schemasql-committed-ddl-idempotent">Model catalog (<code>scripts/model-catalog-schema.sql</code> — committed DDL, idempotent)<a class="headerlink" href="#model-catalog-scriptsmodel-catalog-schemasql-committed-ddl-idempotent" title="Permanent link">&para;</a></h3>
+<p>Hosted-model lookup table, refreshed by the Dagster <code>model_catalog</code> asset on a <strong>6h</strong> schedule
+(<code>weyland_catalog_schedule</code>). A flat <strong>current-state snapshot</strong> — each run does <strong>replace-by-source</strong>
+(DELETE WHERE source=X, then INSERT), so it never accumulates. Distinct from the normalized <code>models</code>
+<strong>inventory</strong> table (§5): this is "what models can I reach + at what price", that is the menu, not the
+infra mirror.</p>
+<ul>
+<li><strong><code>model_catalog</code></strong> — <code>id</code>, <code>source</code> (<code>openrouter | gemini | ollama</code>), <code>model_id</code> (the id passed through
+  LiteLLM, e.g. <code>openrouter/deepseek/...:free</code>), <code>free</code> BOOLEAN (NULL = unknown, e.g. Gemini — free tier is
+  account-level), <code>context_length</code>, <code>pricing_prompt</code>/<code>pricing_completion</code> NUMERIC (provider-reported, NULL if
+  unknown), <code>metadata JSONB</code>, <code>updated_at</code>. <code>UNIQUE (source, model_id)</code>; indexes on <code>source</code> and <code>free</code>.</li>
+<li>Source independence: each provider fetch is isolated — a rate-limit/missing-key failure logs a warning and
+  the other sources still write. Gemini source needs <code>GEMINI_API_KEY</code> in the Dagster env (else skipped).</li>
+</ul>
+<hr />
+<h2 id="2-qdrant-collection-weyland_chunks-live-validated">2. Qdrant — collection <code>weyland_chunks</code> <em>(live-validated)</em><a class="headerlink" href="#2-qdrant-collection-weyland_chunks-live-validated" title="Permanent link">&para;</a></h2>
+<ul>
+<li><strong>Vectors:</strong> size <strong>384</strong>, distance <strong>Cosine</strong>. HNSW <code>m=16</code>, <code>ef_construct=100</code>. <code>on_disk_payload=true</code>.</li>
+<li><strong>Point id:</strong> <code>uuid5(source_path:chunk_index)</code> (deterministic → idempotent upsert).</li>
+<li><strong>Payload:</strong> <code>source_path</code>, <code>source_name</code>, <code>chunk_index</code>, <code>chunk_title</code>, <code>content</code> (+ <code>domain</code> on AIDLC points).</li>
+<li>Upsert pattern: delete points where <code>payload.source_path == &lt;doc&gt;</code>, then upsert the doc's chunks.</li>
+</ul>
+<h2 id="3-weaviate-classes-weylandchunk-weylanddocument-live-validated">3. Weaviate — classes <code>WeylandChunk</code> + <code>WeylandDocument</code> <em>(live-validated)</em><a class="headerlink" href="#3-weaviate-classes-weylandchunk-weylanddocument-live-validated" title="Permanent link">&para;</a></h2>
+<ul>
+<li><code>vectorizer: none</code> (we supply bge vectors), HNSW <strong>cosine</strong>, <code>efConstruction=128</code>, <code>maxConnections=32</code>.</li>
+<li><strong><code>WeylandChunk</code></strong> props: <code>source_path</code>, <code>chunk_index</code> (int), <code>chunk_title</code>, <code>content</code>; <strong>references</strong>:
+  <code>hasDocument</code> → WeylandDocument, <code>previousChunk</code>/<code>nextChunk</code> → WeylandChunk (sequential chain).</li>
+<li><strong><code>WeylandDocument</code></strong> props: <code>source_path</code>, <code>source_name</code>, <code>name</code>.</li>
+</ul>
+<h2 id="4-neo4j-document-chunk-graphrag-foundation-from-pipeline-code">4. Neo4j — <code>Document</code> + <code>Chunk</code> (GraphRAG foundation) <em>(from pipeline code)</em><a class="headerlink" href="#4-neo4j-document-chunk-graphrag-foundation-from-pipeline-code" title="Permanent link">&para;</a></h2>
+<ul>
+<li><strong><code>Document</code></strong> node: <code>source_path</code>, <code>source_name</code>, <code>name</code>, <code>ingested_at</code> (+ <code>domain</code> for the AIDLC corpus).</li>
+<li><strong><code>Chunk</code></strong> node: <code>source_path</code>, <code>chunk_index</code>, <code>chunk_title</code>, <code>content</code>, <code>embedding</code> (array) (+ <code>domain</code>).</li>
+<li><strong>Relationships:</strong> <code>(Chunk)-[:BELONGS_TO]-&gt;(Document)</code>; <code>(Chunk)-[:NEXT]-&gt;(Chunk)</code> (sequential chain).</li>
+<li>Vector index on <code>Chunk.embedding</code> (bootstrap: <code>scripts/neo4j-vector-index-bootstrap.cypher</code>).</li>
+</ul>
+<h3 id="4a-aidlc-frontmatter-graph-b37-live-validated-2026-06-19-510-entry-2311-related_to">4a. AIDLC frontmatter graph (B37) <em>(live-validated 2026-06-19: 510 <code>:Entry</code>, 2311 <code>RELATED_TO</code>)</em><a class="headerlink" href="#4a-aidlc-frontmatter-graph-b37-live-validated-2026-06-19-510-entry-2311-related_to" title="Permanent link">&para;</a></h3>
+<ul>
+<li>Each AIDLC KB <code>Document</code> is also labeled <strong><code>:Entry</code></strong> with <code>entry_id</code>, <code>complexity</code>, <code>vertical</code> (from frontmatter).</li>
+<li><strong>Relationships</strong> (deterministic, declared in frontmatter — no LLM; fuzzy extraction = B38):
+  <code>(:Entry)-[:RELATED_TO]-&gt;(:Entry)</code>, <code>-[:SURFACES_AT]-&gt;(:Stage)</code>, <code>-[:TAGGED]-&gt;(:Tag)</code>, <code>-[:IN_VERTICAL]-&gt;(:Vertical)</code>.</li>
+<li><strong>GDS</strong> plugin enabled — PageRank/Louvain over the <code>:Entry</code> graph. See
+  <a href="../../runbooks/aidlc-kb-ingest/">runbooks/aidlc-kb-ingest.md</a>.</li>
+<li>Base <code>Document</code>/<code>Chunk</code> model not separately live-validated here (needs Bolt auth) — confirm with a Cypher
+  <code>CALL db.schema.visualization()</code> if drift is suspected.</li>
+</ul>
+<hr />
+<h2 id="5-out-of-band-inventory-schema-live-no-repo-ddl">5. Out-of-band inventory schema (live, no repo DDL)<a class="headerlink" href="#5-out-of-band-inventory-schema-live-no-repo-ddl" title="Permanent link">&para;</a></h2>
+<p>Live on the DB (confirmed 2026-06-15) but defined <strong>nowhere in the repo</strong>. On inspection these are NOT cruft —
+they're a <strong>deliberately-designed, normalized system-inventory schema</strong> (FKs, unique constraints,
+<code>set_updated_at</code> triggers):</p>
+<ul>
+<li><strong><code>machines</code></strong> — <code>name</code>, <code>role</code>, <code>hostname</code>, <code>ip inet</code>, <code>notes</code> (host inventory)</li>
+<li><strong><code>services</code></strong> — <code>name</code>, <code>machine_id</code>→<code>machines</code>, <code>role</code>, <code>endpoint</code>, <code>status</code> (services per machine)</li>
+<li><strong><code>models</code></strong> — <code>name</code>, <code>provider</code>, <code>served_by_service_id</code>→<code>services</code>, <code>role</code>, <code>status</code> (models per service)</li>
+<li><strong><code>memory_facts</code></strong> — <code>key</code>, <code>value jsonb</code>, <code>category</code>, <code>source</code> (key/value agent memory)</li>
+</ul>
+<p>So <code>machines → services → models</code> is a <strong>structured relational mirror of <code>docs/hosts.md</code> + <code>docs/api.md</code></strong>, and
+<code>memory_facts</code> is an agent long-term memory store. Currently <strong>unpopulated/stale</strong>. <strong>Ownership/intent
+unconfirmed</strong> — OpenClaw references them, but the schema is general infra knowledge, not OpenClaw-specific.</p>
+<p><strong>The DDL is uncommitted</strong> — it's in neither the weyland repo nor the OpenClaw clone (<code>nodes/openclaw</code>); it
+exists <strong>only on the live DB</strong> (created ad-hoc, never version-controlled). That's a gap to fix.</p>
+<p><strong>Disposition (confirmed 2026-06-15):</strong>
+- <code>machines / services / models</code> → <strong>adopt for the data-mesh system-inventory product (B1)</strong> (user-confirmed
+  useful). <strong>Action:</strong> dump the live DDL into a tracked repo migration, then decide whether <code>hosts.md</code>/<code>api.md</code>
+  generate <em>from</em> this inventory or feed <em>into</em> it.
+- <code>memory_facts</code> → <strong>orphan.</strong> A generic <code>key/value/category/source</code> store that <strong>no code anywhere references</strong>
+  (repo or OpenClaw clone), currently empty, origin unknown. Repurpose as a structured memory store or drop — TBD.</p>
+<blockquote>
+<p>Corrects three earlier assumptions: <code>services</code> is not a phantom; these aren't disposable OpenClaw cruft; and
+the schema is <strong>not in any source</strong> — uncommitted, live-DB-only.</p>
+</blockquote>
+<h2 id="live-postgres-state-confirmed-2026-06-15">Live Postgres state (confirmed 2026-06-15)<a class="headerlink" href="#live-postgres-state-confirmed-2026-06-15" title="Permanent link">&para;</a></h2>
+<p><code>\dt</code> → <strong>platform:</strong> <code>rag_documents</code>, <code>rag_chunks</code> · <code>eval_runs</code>, <code>eval_questions</code>, <code>eval_results</code>,
+<code>eval_scores</code> (+ <code>eval_leaderboard</code> view). <strong>out-of-band (OpenClaw, §5):</strong> <code>services</code>, <code>machines</code>, <code>models</code>,
+<code>memory_facts</code>.</p>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+    
+      
+      <nav class="md-footer__inner md-grid" aria-label="Footer" >
+        
+          
+          <a href="../agent-platform-design/" class="md-footer__link md-footer__link--prev" aria-label="Previous: B2 — Agent Platform (Hermes + OpenClaw) — Design">
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+            </div>
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                Previous
+              </span>
+              <div class="md-ellipsis">
+                B2 — Agent Platform (Hermes + OpenClaw) — Design
+              </div>
+            </div>
+          </a>
+        
+        
+          
+          <a href="../llm-inference-cpu-vs-gpu/" class="md-footer__link md-footer__link--next" aria-label="Next: LLM Inference — CPU vs GPU Tradeoffs (the why)">
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                Next
+              </span>
+              <div class="md-ellipsis">
+                LLM Inference — CPU vs GPU Tradeoffs (the why)
+              </div>
+            </div>
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M4 11v2h12l-5.5 5.5 1.42 1.42L19.84 12l-7.92-7.92L10.5 5.5 16 11z"/></svg>
+            </div>
+          </a>
+        
+      </nav>
+    
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["navigation.footer", "content.action.edit"], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../../assets/javascripts/bundle.79ae519e.min.js"></script>
+      
+        <script src="../../search/main.js"></script>
+      
+    
+  </body>
+</html>

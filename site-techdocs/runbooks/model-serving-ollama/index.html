@@ -1,0 +1,2760 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Runbooks, architecture, diagrams, and concepts for the weyland homelab AI platform.">
+      
+      
+      
+      
+        <link rel="prev" href="../model-gateway/">
+      
+      
+        <link rel="next" href="../observability/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.6">
+    
+    
+      
+        <title>Ollama Runbook — weyland (CT 102) - Weyland Platform Docs</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/stylesheets/main.484c7ddc.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    <body dir="ltr">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#ollama-runbook-weyland-ct-102" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../.." title="Weyland Platform Docs" class="md-header__button md-logo" aria-label="Weyland Platform Docs" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            Weyland Platform Docs
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Ollama Runbook — weyland (CT 102)
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+    
+    
+    
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../.." title="Weyland Platform Docs" class="md-nav__button md-logo" aria-label="Weyland Platform Docs" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    Weyland Platform Docs
+  </label>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Weyland Docs
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Weyland — API &amp; Endpoint Inventory
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../arch/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Weyland — Architecture
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../backlog/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Weyland Forward Roadmap — re-prioritized 2026-06-14
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../hosts/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Weyland — Host Inventory
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../weyland/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Weyland
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_7" >
+        
+          
+          <label class="md-nav__link" for="__nav_7" id="__nav_7_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Concepts
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_7_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_7">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Concepts
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../concepts/agent-platform-design/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    B2 — Agent Platform (Hermes + OpenClaw) — Design
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../concepts/data-schema/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Data Schema — RAG + Eval Stores
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../concepts/llm-inference-cpu-vs-gpu/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    LLM Inference — CPU vs GPU Tradeoffs (the why)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../concepts/model-serving-hardware/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    B7 — Model Serving Hardware (DECISION DEFERRED — pending pricing)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_8" >
+        
+          
+          <label class="md-nav__link" for="__nav_8" id="__nav_8_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Diagrams
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_8_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_8">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Diagrams
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../diagrams/c4-component-hermes/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    C4 Component — hermes CT (CT 104)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../diagrams/c4-component-mother/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    C4 Component — mother VM (k3s)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../diagrams/c4-component-ollama/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    C4 Component — ollama CT (CT 102)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../diagrams/c4-component-openclaw/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    C4 Component — openclaw VM (vm-100)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../diagrams/c4-component-rogueone/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    C4 Component — rogueone (external)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../diagrams/c4-component-whisper/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    C4 Component — whisper CT (CT 103)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../diagrams/c4-container/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    C4 Container — Weyland
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../diagrams/c4-context/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    C4 Context — Weyland
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../diagrams/flow-act-tool/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Flow: Audited Act-Tool (/mcp-act, B14 read+act)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../diagrams/flow-agent-mcp/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Flow: Agent System-View (Hermes / Claude Code -&gt; MCP -&gt; tool-server)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../diagrams/flow-alerting/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Flow: Alerting (B5)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../diagrams/flow-backend-dispatch/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Flow: Backend Selection / Dispatch (detail of RAG retrieval)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../diagrams/flow-deploy/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Flow: Deploy / Redeploy (build↔runtime isolation)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../diagrams/flow-eval-scoring/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Flow: Eval Scoring (weyland_eval_score_job, detail of the eval pipeline)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../diagrams/flow-eval/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Flow: Evaluation Pipeline (single-path eval -&gt; panel -&gt; leaderboard)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../diagrams/flow-guardrails/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Flow: Guardrail Validation (B14, shadow-first)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../diagrams/flow-health-status/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Flow: Health / Status Aggregation (U12)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../diagrams/flow-ingestion/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Flow: Ingestion (repo → 4 vector backends)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../diagrams/flow-ingress-tls/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Flow: Ingress / TLS Front Door
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../diagrams/flow-mesh-mtls/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Flow: Service-Mesh Request Path + mTLS (B8)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../diagrams/flow-model-catalog/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Flow: model_catalog Refresh (B26)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../diagrams/flow-model-gateway/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Flow: Model-Gateway Routing (B26, LiteLLM)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../diagrams/flow-pipeline-trigger/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Flow: Pipeline Trigger (/pipeline/trigger → Dagster)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../diagrams/flow-rag-query/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Flow: RAG Query (/context/ask)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../diagrams/flow-roadmap-sync/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Flow: Roadmap-Sync → Hermes Kanban (B27)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../diagrams/flow-tracing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Flow: Distributed Tracing Pipeline (B8)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../diagrams/flow-voice-chat/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Flow: Voice Chat (Open WebUI -&gt; whisper -&gt; Ollama)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_9" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_9" id="__nav_9_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Runbooks
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_9_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_9">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Runbooks
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../agent-hermes/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    B2 — Hermes Agent Runbook — weyland (CT 104)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../aidlc-kb-ingest/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    B37 — AIDLC Knowledge-Base Ingestion (MinIO → RAG)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../eval-harness/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    B4 — LLM Evaluation Pipeline (runbook)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../model-gateway/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Model Gateway (LiteLLM) + Model Catalog — runbook
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Ollama Runbook — weyland (CT 102)
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Ollama Runbook — weyland (CT 102)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#access-get-a-shell-in-the-container" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Access — get a shell in the container
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#create-the-container-on-weyland-host" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Create the container (on weyland host)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#install-ollama-inside-the-container-pct-enter-102" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Install Ollama (inside the container: pct enter 102)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#where-models-are-stored" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Where models are stored
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#run-use" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Run / use
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#consumers-who-calls-this-endpoint" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Consumers — who calls this endpoint
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#performance-tuning-cpu-thread-count-critical-160-fix" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Performance tuning — CPU thread count (CRITICAL — ~160× fix)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#memory-keep-one-model-resident-cgroup-oom" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Memory — keep one model resident (cgroup OOM)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#context-window-keep-alive-added-2026-06-13-for-the-b2-agent" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Context window + keep-alive (added 2026-06-13 for the B2 agent)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#model-architecture-note-matters-on-cpu" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Model architecture note (matters on CPU)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#measured-benchmarks" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Measured benchmarks
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../observability/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    B5 — Observability (kube-prometheus-stack) — Deploy &amp; Validate
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../service-mesh-istio/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Istio service mesh — runbook (B8)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../storage-minio/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    B6 — MinIO Object Storage (8TB USB → mother VM passthrough)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../transcription-whisper/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    B11 — Whisper STT Runbook — weyland (CT 103)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../weyland-idp/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    weyland IDP — runbook (B3)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_10" >
+        
+          
+          <label class="md-nav__link" for="__nav_10" id="__nav_10_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Units
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_10_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_10">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Units
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../units/u10-sa-scoping/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    U10 — Service Account Scoping (least privilege) — Apply &amp; Validate
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../units/u11-ssh-identity/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    U11 — weyland-lab SSH Identity Review
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../units/u12-health-endpoints/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    U12 — Tool Server Extended Health/Status Endpoints
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../units/u6-credential-hardening/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    U6 — Tool Server DB Credential Hardening — Deploy &amp; Validate
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../units/u7-config-hf-cleanup/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    U7 — Tool Server Config &amp; HF Cache Cleanup — Deploy &amp; Validate
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../units/u8-headlamp-token/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    U8 — Headlamp Permanent Admin Token — Apply &amp; Validate
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../units/u9-cert-mkcert/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    U9 (cert) — mkcert wildcard cert for *.weyland.lab
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../units/u9-dns-coredns/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    U9 (prereq) — CoreDNS LAN Resolver — Deploy &amp; Validate
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../units/u9-traefik-ingress/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    U9 (ingress) — Traefik + TLS for platform UIs
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_11" >
+        
+          
+          <label class="md-nav__link" for="__nav_11" id="__nav_11_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Validation
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_11_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_11">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Validation
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../validation/test-commands/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Weyland Platform Test Commands
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#access-get-a-shell-in-the-container" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Access — get a shell in the container
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#create-the-container-on-weyland-host" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Create the container (on weyland host)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#install-ollama-inside-the-container-pct-enter-102" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Install Ollama (inside the container: pct enter 102)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#where-models-are-stored" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Where models are stored
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#run-use" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Run / use
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#consumers-who-calls-this-endpoint" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Consumers — who calls this endpoint
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#performance-tuning-cpu-thread-count-critical-160-fix" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Performance tuning — CPU thread count (CRITICAL — ~160× fix)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#memory-keep-one-model-resident-cgroup-oom" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Memory — keep one model resident (cgroup OOM)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#context-window-keep-alive-added-2026-06-13-for-the-b2-agent" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Context window + keep-alive (added 2026-06-13 for the B2 agent)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#model-architecture-note-matters-on-cpu" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Model architecture note (matters on CPU)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#measured-benchmarks" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Measured benchmarks
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+
+<h1 id="ollama-runbook-weyland-ct-102">Ollama Runbook — weyland (CT 102)<a class="headerlink" href="#ollama-runbook-weyland-ct-102" title="Permanent link">&para;</a></h1>
+<p>Operational runbook for the committed CPU model-serving path (B7 Option B): create/access the
+container, install Ollama, pull + tune models, and the critical thread-count fix. Day-to-day ops.</p>
+<p><strong>Related:</strong> <a href="../../concepts/model-serving-hardware/">B7 — Model Serving Hardware (the decision)</a> ·
+<a href="../../concepts/llm-inference-cpu-vs-gpu/">LLM inference CPU vs GPU (the concepts)</a>.</p>
+<hr />
+<p><strong>Live since 2026-06-11.</strong> Unprivileged LXC <code>ollama</code> (CTID <strong>102</strong>) on the weyland Proxmox host.
+- <strong>Address:</strong> <code>192.168.1.244</code> → API at <strong><code>http://192.168.1.244:11434</code></strong> (OpenAI-compatible <code>/v1</code>).
+- <strong>Spec:</strong> 48 GB RAM cap · 14-core <em>ceiling</em> (time-shared, not reserved — uses cores only while
+  inferring) · 150 GB rootfs on <code>local-zfs</code> (NVMe) · <code>nesting=1</code> (Debian 12 / systemd 252).</p>
+<h2 id="access-get-a-shell-in-the-container">Access — get a shell in the container<a class="headerlink" href="#access-get-a-shell-in-the-container" title="Permanent link">&para;</a></h2>
+<p>The container has <strong>no direct login</strong> from your workstation; you reach it <strong>through the weyland
+Proxmox host</strong>:
+1. <strong>SSH to the host:</strong> <code>ssh emangini@weyland</code>
+2. <strong>Enter the container</strong> (<code>pct</code> is root-only — prefix <code>sudo</code> if you're not already root):
+   - Interactive shell: <code>pct enter 102</code>  → lands you at <code>root@ollama:~#</code>
+   - One-off command without a shell: <code>pct exec 102 -- ollama list</code>
+3. <strong>Leave</strong> the container shell with <code>exit</code> (drops you back on the host).</p>
+<blockquote>
+<p>Convention for the rest of this runbook: every <code>ollama …</code> / <code>printf …</code> command runs <strong>inside the
+container</strong> (after <code>pct enter 102</code>). Anything that must run on the hypervisor is marked
+<strong>"(on weyland host)"</strong>.</p>
+</blockquote>
+<h2 id="create-the-container-on-weyland-host">Create the container (on weyland host)<a class="headerlink" href="#create-the-container-on-weyland-host" title="Permanent link">&para;</a></h2>
+<div class="language-bash highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">1</span>
+<span class="normal">2</span>
+<span class="normal">3</span>
+<span class="normal">4</span>
+<span class="normal">5</span>
+<span class="normal">6</span>
+<span class="normal">7</span>
+<span class="normal">8</span></pre></div></td><td class="code"><div><pre><span></span><code>pveam<span class="w"> </span>update
+pveam<span class="w"> </span>download<span class="w"> </span><span class="nb">local</span><span class="w"> </span>debian-12-standard_12.12-1_amd64.tar.zst
+pct<span class="w"> </span>create<span class="w"> </span><span class="m">102</span><span class="w"> </span>local:vztmpl/debian-12-standard_12.12-1_amd64.tar.zst<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--hostname<span class="w"> </span>ollama<span class="w"> </span>--unprivileged<span class="w"> </span><span class="m">1</span><span class="w"> </span>--rootfs<span class="w"> </span>local-zfs:150
+pct<span class="w"> </span><span class="nb">set</span><span class="w"> </span><span class="m">102</span><span class="w"> </span>--net0<span class="w"> </span><span class="nv">name</span><span class="o">=</span>eth0,bridge<span class="o">=</span>vmbr0,ip<span class="o">=</span>dhcp
+pct<span class="w"> </span><span class="nb">set</span><span class="w"> </span><span class="m">102</span><span class="w"> </span>--cores<span class="w"> </span><span class="m">14</span><span class="w"> </span>--memory<span class="w"> </span><span class="m">49152</span><span class="w"> </span>--swap<span class="w"> </span><span class="m">0</span><span class="w"> </span>--onboot<span class="w"> </span><span class="m">1</span><span class="w"> </span>--features<span class="w"> </span><span class="nv">nesting</span><span class="o">=</span><span class="m">1</span>
+pct<span class="w"> </span>start<span class="w"> </span><span class="m">102</span>
+pct<span class="w"> </span><span class="nb">exec</span><span class="w"> </span><span class="m">102</span><span class="w"> </span>--<span class="w"> </span>hostname<span class="w"> </span>-I<span class="w">        </span><span class="c1"># note the DHCP IP (192.168.1.244)</span>
+</code></pre></div></td></tr></table></div>
+<h2 id="install-ollama-inside-the-container-pct-enter-102">Install Ollama (inside the container: <code>pct enter 102</code>)<a class="headerlink" href="#install-ollama-inside-the-container-pct-enter-102" title="Permanent link">&para;</a></h2>
+<div class="language-bash highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">1</span>
+<span class="normal">2</span>
+<span class="normal">3</span>
+<span class="normal">4</span>
+<span class="normal">5</span>
+<span class="normal">6</span>
+<span class="normal">7</span></pre></div></td><td class="code"><div><pre><span></span><code>apt<span class="w"> </span>update<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>apt<span class="w"> </span>install<span class="w"> </span>-y<span class="w"> </span>curl<span class="w"> </span>zstd<span class="w">     </span><span class="c1"># zstd is required by the installer</span>
+curl<span class="w"> </span>-fsSL<span class="w"> </span>https://ollama.com/install.sh<span class="w"> </span><span class="p">|</span><span class="w"> </span>sh
+<span class="c1"># bind to the LAN (default is 127.0.0.1 only) via a systemd drop-in:</span>
+mkdir<span class="w"> </span>-p<span class="w"> </span>/etc/systemd/system/ollama.service.d
+<span class="nb">printf</span><span class="w"> </span><span class="s1">&#39;[Service]\nEnvironment=&quot;OLLAMA_HOST=0.0.0.0:11434&quot;\n&#39;</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>&gt;<span class="w"> </span>/etc/systemd/system/ollama.service.d/override.conf
+systemctl<span class="w"> </span>daemon-reload<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>systemctl<span class="w"> </span>restart<span class="w"> </span>ollama
+</code></pre></div></td></tr></table></div>
+<h2 id="where-models-are-stored">Where models are stored<a class="headerlink" href="#where-models-are-stored" title="Permanent link">&para;</a></h2>
+<ul>
+<li><strong><code>/usr/share/ollama/.ollama/models</code></strong> — the systemd service runs as the <strong><code>ollama</code> user</strong>, so
+  models land in its home (NOT <code>/root/.ollama</code>). <code>blobs/</code> = weights (content-addressed, dedupes
+  shared layers); <code>manifests/</code> = which blobs make up each <code>model:tag</code>.</li>
+<li>This is on the <strong>150 GB <code>local-zfs</code> rootfs → rpool NVMe</strong> — the <em>right</em> home (fast load; do NOT
+  move to the slow USB/MinIO drive).</li>
+<li><strong>Out of room?</strong> <code>pct resize 102 rootfs +100G</code> (rpool has ~1.5 TB free), or set
+  <code>OLLAMA_MODELS=/path</code> to a separate dataset.</li>
+<li><strong>Orphaned blobs from a cancelled pull:</strong> a killed <code>ollama pull</code> leaves <code>…-partial*</code> files that
+  <code>ollama list</code> can't see (it reads manifests, not disk) but <code>du</code> counts. Find with
+  <code>ls -lhS …/models/blobs</code> and remove by exact hash:
+  <code>rm -f …/models/blobs/sha256-&lt;hash&gt;-partial*</code>.</li>
+</ul>
+<h2 id="run-use">Run / use<a class="headerlink" href="#run-use" title="Permanent link">&para;</a></h2>
+<p><div class="language-bash highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">1</span>
+<span class="normal">2</span>
+<span class="normal">3</span></pre></div></td><td class="code"><div><pre><span></span><code>ollama<span class="w"> </span>pull<span class="w"> </span>qwen3:30b-a3b<span class="w">          </span><span class="c1"># MoE: ~30B quality at ~3B speed — ideal for CPU</span>
+ollama<span class="w"> </span>run<span class="w"> </span>qwen3:30b-a3b<span class="w"> </span>--verbose<span class="w"> </span><span class="s2">&quot;...&quot;</span><span class="w">   </span><span class="c1"># --verbose prints eval rate (tok/s)</span>
+ollama<span class="w"> </span>list<span class="w">                        </span><span class="c1"># installed models + sizes</span>
+</code></pre></div></td></tr></table></div>
+- <strong>⚠️ After every <code>ollama pull</code>, bake in <code>num_thread 8</code></strong> (see <em>Performance tuning</em> below) — a
+  freshly pulled model defaults to 16 threads and crawls (~160× slower) until you do.
+- <strong>Harness / tool-server integration:</strong> point any OpenAI-compatible client at
+  <code>http://192.168.1.244:11434/v1</code> — same API shape as rogueone's vLLM, so client code is
+  engine-agnostic. (Future eGPU → swap Ollama for vLLM, same endpoint.)
+- <strong>Service ops (inside CT):</strong> <code>systemctl status|restart ollama</code>. Enter the CT from the host with
+  <code>pct enter 102</code>.</p>
+<h2 id="consumers-who-calls-this-endpoint">Consumers — who calls this endpoint<a class="headerlink" href="#consumers-who-calls-this-endpoint" title="Permanent link">&para;</a></h2>
+<ul>
+<li><strong>weyland-tool-server</strong> (mother / k3s, <strong>v0.3.0+</strong>) — its <code>/context/ask</code> does RAG against this
+  endpoint: retrieve top-k from a vector backend → synthesize a grounded answer via the local
+  model. Configured by <code>OLLAMA_BASE_URL=http://192.168.1.244:11434/v1</code> and
+  <code>OLLAMA_MODEL=gpt-oss:20b</code> (default since B4 panel; callers override per request via the <code>model</code> field).
+  <code>GET /models</code> lists the choices; <code>GET /ollama/health</code> and <code>/status</code>→<code>.llm</code> report reachability.
+  Wired + validated (mother + rogueone) 2026-06-12. Deploy/test recipes:
+  <a href="../../validation/test-commands/">test-commands.md</a> → <em>Tool Server → LLM / RAG</em>.</li>
+</ul>
+<p><strong>The <code>/context/ask</code> RAG pipeline</strong> — note the <strong>two distinct models</strong> (embedding vs generation):</p>
+<div class="language-text highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">1</span>
+<span class="normal">2</span>
+<span class="normal">3</span>
+<span class="normal">4</span>
+<span class="normal">5</span>
+<span class="normal">6</span>
+<span class="normal">7</span>
+<span class="normal">8</span>
+<span class="normal">9</span></pre></div></td><td class="code"><div><pre><span></span><code>your question
+   │
+   ├─▶ 1. EMBED the question        ← BAAI/bge-small-en-v1.5 (baked into the tool-server)
+   │
+   ├─▶ 2. RETRIEVE top-k chunks     ← one of pgvector / qdrant / weaviate / neo4j
+   │
+   ├─▶ 3. GENERATE grounded answer  ← one of the 6 Ollama models (this endpoint)
+   │
+   └─▶ {answer, model, sources}
+</code></pre></div></td></tr></table></div>
+<ul>
+<li><strong>Generation (step 3)</strong> is any of the 6 Ollama models, selectable per request (the <code>model</code>
+  field; default <code>qwen3:30b-a3b</code>). Switching models changes <em>how the answer is written</em>, not
+  <em>what's retrieved</em>.</li>
+<li><strong>Embedding (step 1)</strong> is a separate, <strong>fixed</strong> model (<code>bge-small</code>, in the tool-server image) —
+  it's what finds the relevant chunks, is <strong>not</strong> one of the 6, and doesn't change when you pick a
+  different generation model. So all 6 reason over the <em>same</em> retrieved context.</li>
+</ul>
+<h2 id="performance-tuning-cpu-thread-count-critical-160-fix">Performance tuning — CPU thread count (CRITICAL — ~160× fix)<a class="headerlink" href="#performance-tuning-cpu-thread-count-critical-160-fix" title="Permanent link">&para;</a></h2>
+<p><strong>Symptom (2026-06-11):</strong> <code>qwen3:30b-a3b</code> generated at <strong>~0.15 tok/s</strong> (6–7 s <em>per token</em>) while
+<code>top</code> showed <strong>1400 % CPU</strong> (all cores pegged). Compute-bound <em>and</em> slow — a contradiction that
+pointed straight at the threading model, not the hardware.</p>
+<p><strong>Root cause — thread oversubscription + spin-wait barriers.</strong> The LXC exposes the <em>host's</em>
+topology (<code>/proc/cpuinfo</code> inside CT 102 shows the full <strong>16-core / 32-thread</strong> 9955HX), so
+llama.cpp auto-set <strong><code>n_threads = 16</code></strong> off the host physical-core count — ignoring the
+container's 14-CPU cpuset (the <code>system_info</code> line read <code>n_threads = 16 ... / 14</code>). llama.cpp
+synchronizes <strong>every model layer with busy-wait barriers</strong>: a worker that reaches the barrier
+early <strong>spins at 100 % CPU</strong> until the others arrive (low-latency by design, assuming one thread
+per dedicated physical core). With 16 threads contending for ~14 (really ~7–8 truly-free) cores,
+the OS constantly deschedules threads, so at each barrier the running threads <strong>spin uselessly
+waiting on a descheduled sibling</strong>. Net effect: <strong>all cores pegged (spinning), almost no matmul
+progress</strong> — the 1400 %-CPU-yet-0.15-tok/s paradox. SMT compounds it: two hyperthreads share one
+AVX-512 vector unit, so packing siblings adds contention, not parallelism. (Confirmed <em>not</em>
+governor — <code>performance</code>, cores boosting to 5 GHz — and <em>not</em> missing kernels — <code>AVX512_VNNI</code>,
+<code>AVX512_BF16</code>, <code>REPACK</code>, <code>LLAMAFILE</code> all <code>= 1</code>.)</p>
+<p><strong>Fix — pin <code>num_thread</code> to ≤ physical cores.</strong> Set <strong><code>num_thread = 8</code></strong>: one thread per physical
+core, comfortably inside the 14-CPU cpuset with headroom so no straggler stalls a barrier.</p>
+<p><strong>Measured (<code>ollama run --verbose</code>, 30B-A3B Q4, 2026-06-11):</strong></p>
+<table>
+<thead>
+<tr>
+<th>Threads</th>
+<th>eval rate</th>
+<th>vs baseline</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>16 (default)</td>
+<td>~0.15 tok/s</td>
+<td>1×</td>
+</tr>
+<tr>
+<td><strong>8 (fixed)</strong></td>
+<td><strong>24.79 tok/s</strong></td>
+<td><strong>~160×</strong></td>
+</tr>
+</tbody>
+</table>
+<p>(prompt eval ~107 tok/s.) <strong>24.79 tok/s on pure CPU for a 30B-A3B MoE is genuinely good</strong> — faster
+than reading speed, usable interactively — and it validates the whole Option B thesis: the
+slowness was a config trap, not the box's ceiling.</p>
+<p><strong>Why 8, not 14/16:</strong> past one-thread-per-physical-core, extra threads only add barrier + SMT
+contention; memory bandwidth saturates first anyway. 8 is proven; 6/10/12 untested — tune later
+if a workload wants it.</p>
+<p><strong>Make it permanent (Modelfile — the <code>/set parameter</code> in <code>ollama run</code> is session-only):</strong>
+<div class="language-bash highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">1</span>
+<span class="normal">2</span>
+<span class="normal">3</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="nb">printf</span><span class="w"> </span><span class="s1">&#39;FROM qwen3:30b-a3b\nPARAMETER num_thread 8\n&#39;</span><span class="w"> </span>&gt;<span class="w"> </span>/root/Modelfile.qwen3-cpu
+ollama<span class="w"> </span>create<span class="w"> </span>qwen3:30b-a3b<span class="w"> </span>-f<span class="w"> </span>/root/Modelfile.qwen3-cpu<span class="w">   </span><span class="c1"># re-tags same name, reuses blobs (no re-download)</span>
+ollama<span class="w"> </span>show<span class="w"> </span>qwen3:30b-a3b<span class="w"> </span>--parameters<span class="w">                     </span><span class="c1"># verify: num_thread 8</span>
+</code></pre></div></td></tr></table></div>
+<strong>Every model you pull needs the same treatment</strong> — <code>num_thread</code> is a <em>per-model</em> parameter and
+there is no reliable global Ollama thread env, so apply this Modelfile pattern to each new model.
+Generic recipe for any <code>&lt;model:tag&gt;</code> (run inside the container):
+<div class="language-bash highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">1</span>
+<span class="normal">2</span>
+<span class="normal">3</span></pre></div></td><td class="code"><div><pre><span></span><code>ollama<span class="w"> </span>pull<span class="w"> </span>&lt;model:tag&gt;
+<span class="nb">printf</span><span class="w"> </span><span class="s1">&#39;FROM &lt;model:tag&gt;\nPARAMETER num_thread 8\n&#39;</span><span class="w"> </span>&gt;<span class="w"> </span>/root/Mf
+ollama<span class="w"> </span>create<span class="w"> </span>&lt;model:tag&gt;<span class="w"> </span>-f<span class="w"> </span>/root/Mf<span class="w">   </span><span class="c1"># re-tags same name + the thread param; reuses blobs</span>
+</code></pre></div></td></tr></table></div></p>
+<h2 id="memory-keep-one-model-resident-cgroup-oom">Memory — keep one model resident (cgroup OOM)<a class="headerlink" href="#memory-keep-one-model-resident-cgroup-oom" title="Permanent link">&para;</a></h2>
+<p><strong>Symptom (2026-06-13):</strong> a multi-model batch (the B4 eval — 6 models in sequence) <strong>OOM-killed
+Ollama</strong> after ~2 big models: <code>ollama.service: A process of this unit has been killed by the OOM
+killer … Failed with result 'oom-kill'</code>. Every <code>/context/ask</code> 502'd from then on.</p>
+<p><strong>Root cause — same blindness as the thread bug: Ollama sizes against the <em>host</em>, not the
+container.</strong> Its memory-fit log read <code>projected to use … vs. 94198 MiB of total host memory … no
+changes needed</code> — i.e. it sized against the host's <strong>94 GB</strong>, not the container's <strong>48 GB</strong> cgroup.
+With <strong><code>OLLAMA_MAX_LOADED_MODELS=0</code></strong> (auto) it kept <em>multiple</em> models resident (2× ~19 GB), blew
+past the 48 GB cap, and the cgroup OOM-killed the process.</p>
+<p><strong>Fix — pin one model resident</strong> so it always evicts before loading the next:
+<div class="language-bash highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">1</span>
+<span class="normal">2</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="nb">printf</span><span class="w"> </span><span class="s1">&#39;[Service]\nEnvironment=&quot;OLLAMA_MAX_LOADED_MODELS=1&quot;\n&#39;</span><span class="w"> </span>&gt;&gt;<span class="w"> </span>/etc/systemd/system/ollama.service.d/override.conf
+systemctl<span class="w"> </span>daemon-reload<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>systemctl<span class="w"> </span>restart<span class="w"> </span>ollama
+</code></pre></div></td></tr></table></div>
+One model (~19 GB max) + KV/compute stays well under 48 GB. Sequential multi-model workloads
+(evals, A/B comparisons) then just <strong>load → serve → evict</strong> per model. Same lesson as the
+thread fix: in an LXC, Ollama can't see the cgroup limits — bound it explicitly.</p>
+<h2 id="context-window-keep-alive-added-2026-06-13-for-the-b2-agent">Context window + keep-alive (added 2026-06-13 for the B2 agent)<a class="headerlink" href="#context-window-keep-alive-added-2026-06-13-for-the-b2-agent" title="Permanent link">&para;</a></h2>
+<p>Two more env vars in the same drop-in, driven by the Hermes agent (B2) but affecting <strong>all</strong>
+consumers (RAG, Open WebUI, evals):</p>
+<div class="language-bash highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">1</span>
+<span class="normal">2</span>
+<span class="normal">3</span>
+<span class="normal">4</span>
+<span class="normal">5</span>
+<span class="normal">6</span>
+<span class="normal">7</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="nb">printf</span><span class="w"> </span><span class="s1">&#39;[Service]\nEnvironment=&quot;OLLAMA_CONTEXT_LENGTH=65536&quot;\nEnvironment=&quot;OLLAMA_KEEP_ALIVE=-1&quot;\n&#39;</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>&gt;&gt;<span class="w"> </span>/etc/systemd/system/ollama.service.d/override.conf
+systemctl<span class="w"> </span>daemon-reload<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>systemctl<span class="w"> </span>restart<span class="w"> </span>ollama
+<span class="c1"># verify: all vars present</span>
+systemctl<span class="w"> </span>show<span class="w"> </span>ollama<span class="w"> </span>-p<span class="w"> </span>Environment
+<span class="c1"># verify the served window (loaded model): CONTEXT column</span>
+ollama<span class="w"> </span>ps
+</code></pre></div></td></tr></table></div>
+<ul>
+<li><strong><code>OLLAMA_CONTEXT_LENGTH</code></strong> — Ollama's default served context is a stingy <strong>4096</strong>. That truncated
+  agent turns (a tool-heavy prompt + answer overflowed 4K → <code>finish_reason=length</code>, 1-token output).
+  Raised to <strong>65536</strong>. <strong>Why not the model's native 262K?</strong> KV-cache RAM grows linearly with the
+  window (~165 MB per 1K tokens for a 30B model): 32K≈20 GB, 64K≈25 GB, 128K≈36 GB, <strong>262K≈~58 GB →
+  OOMs the 48 GB cgroup.</strong> 64K leaves ample conversation room while staying well within the cap. Cost
+  scales with tokens <em>used</em>, not the <em>allocation</em>, so a large window you don't fill is cheap.</li>
+<li><strong><code>OLLAMA_KEEP_ALIVE=-1</code></strong> — default keep-alive is ~5 min, so on CPU the model <strong>unloads between
+  turns</strong> and every prompt after a pause pays a multi-minute cold reload (and can time out the
+  client). <code>-1</code> pins it resident. Bounded by <code>MAX_LOADED_MODELS=1</code> (still one model), so no extra
+  RAM beyond the single resident model.</li>
+<li><strong>Prompt caching (free win):</strong> llama.cpp caches the prompt-prefix KV, so an unchanged system
+  prompt is prefilled <strong>once</strong> — later turns reuse it (we saw turn-2 prefill drop from 13.5K tokens
+  to ~111). The cache <strong>survives a Hermes restart</strong> (it lives here, keyed by prefix + resident model)
+  but <strong>dies on Ollama restart or model eviction</strong> — so don't churn this service if you want warm
+  turns. Any cross-model request (a different model) evicts + cold-loads.</li>
+</ul>
+<blockquote>
+<p><strong>Consumer pairing:</strong> a client's declared context length <strong>must match</strong> <code>OLLAMA_CONTEXT_LENGTH</code>.
+If a client thinks the window is larger (e.g. Hermes auto-detecting the model's 262K), it packs
+past 64K and Ollama <strong>silently drops the overflow</strong>. Keep both equal.</p>
+</blockquote>
+<h2 id="model-architecture-note-matters-on-cpu">Model architecture note (matters on CPU)<a class="headerlink" href="#model-architecture-note-matters-on-cpu" title="Permanent link">&para;</a></h2>
+<p>Prefer <strong>MoE models</strong> (e.g. <code>qwen3:30b-a3b</code>) on CPU: token-gen reads only the <em>active</em> experts
+(~3B) per token, so a 30B-total MoE runs at ~3B <em>speed</em> with ~30B <em>capability</em> — sidestepping the
+"dense large models are slow on CPU" problem. Dense <code>qwen3:14b</code>/<code>32b</code> exist for comparison. The
+<a href="#measured-benchmarks">measured benchmarks</a> below confirm the 1/N active-params law cold.</p>
+<h2 id="measured-benchmarks">Measured benchmarks<a class="headerlink" href="#measured-benchmarks" title="Permanent link">&para;</a></h2>
+<p>Ground-truth <code>eval rate</code> from <code>ollama run --verbose</code> (supersedes the estimated performance-envelope
+tables in <a href="../../concepts/llm-inference-cpu-vs-gpu/#performance-envelope--expected-toks-ballpark-q4">../concepts/llm-inference-cpu-vs-gpu.md</a>).
+<strong>Note:</strong> all require the <code>num_thread 8</code> fix above; the default-16-thread numbers are meaningless
+(spin-wait collapse).</p>
+<p>All <code>num_thread 8</code>, sorted fastest→slowest (2026-06-11):</p>
+<table>
+<thead>
+<tr>
+<th>Model</th>
+<th>Type (active params)</th>
+<th>eval rate</th>
+<th>prompt eval</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>deepseek-coder-v2:16b</code></td>
+<td>MoE 16B / <strong>~2.4B</strong> active</td>
+<td><strong>35.26 tok/s</strong></td>
+<td>131 tok/s</td>
+</tr>
+<tr>
+<td><code>qwen3-coder:30b</code></td>
+<td>MoE 30B / <strong>~3B</strong> active</td>
+<td><strong>25.80 tok/s</strong></td>
+<td>71 tok/s</td>
+</tr>
+<tr>
+<td><code>qwen3:30b-a3b</code></td>
+<td>MoE 30B / <strong>~3B</strong> active</td>
+<td><strong>24.79 tok/s</strong></td>
+<td>~107 tok/s</td>
+</tr>
+<tr>
+<td><code>gpt-oss:20b</code></td>
+<td>MoE ~21B / <strong>~3.6B</strong> active (MXFP4)</td>
+<td><strong>13.66 tok/s</strong></td>
+<td>99 tok/s</td>
+</tr>
+<tr>
+<td><code>qwen3:14b</code></td>
+<td><strong>dense 14B</strong></td>
+<td><strong>5.24 tok/s</strong></td>
+<td>49 tok/s</td>
+</tr>
+<tr>
+<td><code>mistral-small3.2:24b</code></td>
+<td><strong>dense 24B</strong></td>
+<td><strong>3.61 tok/s</strong></td>
+<td>35 tok/s</td>
+</tr>
+</tbody>
+</table>
+<p><strong>What this shows — speed tracks <em>active</em> params at ~1/N (bandwidth-bound), and the MoE trick is
+the whole game on CPU:</strong>
+- <strong>The 1/N law holds across architectures.</strong> Token-gen reads only the active weights, so
+  <code>eval rate ∝ 1 / active-params</code>. From the ~3B-active MoE anchor (~25 tok/s) you can <em>predict</em> the
+  dense models: 14B → 25×3/14 ≈ <strong>5.4</strong> (measured <strong>5.24</strong> ✓); 24B → 25×3/24 ≈ <strong>3.1</strong> (measured
+  <strong>3.61</strong> ✓). Dense pays for <em>every</em> parameter each token; MoE pays only for the active slice.
+- <strong><code>deepseek-coder-v2:16b</code> is the CPU speed king</strong> (35 tok/s) — lowest active count (2.4B) wins.
+  The two ~3B-active coder/MoE qwens tie at ~25. These three are the <strong>interactive</strong> tier for
+  harness/agent work.
+- <strong><code>gpt-oss:20b</code> underperforms its active-param count</strong> — ~3.6B active "should" sit near 20 tok/s
+  but lands at 13.66. Likely <strong>MXFP4 dequant is less CPU-optimized than Q4_K</strong> (or heavier
+  attention/routing). Still usable, just not as fast as the qwens.
+- <strong>Prefill (prompt eval) is healthy (35–131 tok/s),</strong> but note <code>mistral-small3.2</code>'s 515-token
+  prompt (its large multimodal chat template) cost <strong>~15 s before the first token</strong> — the
+  prefill-scales-with-prompt-length tax, in the wild.</p>
+<ul class="task-list">
+<li class="task-list-item"><label class="task-list-control"><input type="checkbox" disabled/><span class="task-list-indicator"></span></label> Benchmark a 70B@Q4 (batch/async tier) once pulled — see Tentative roadmap item in backlog.md.</li>
+</ul>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+    
+      
+      <nav class="md-footer__inner md-grid" aria-label="Footer" >
+        
+          
+          <a href="../model-gateway/" class="md-footer__link md-footer__link--prev" aria-label="Previous: Model Gateway (LiteLLM) + Model Catalog — runbook">
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+            </div>
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                Previous
+              </span>
+              <div class="md-ellipsis">
+                Model Gateway (LiteLLM) + Model Catalog — runbook
+              </div>
+            </div>
+          </a>
+        
+        
+          
+          <a href="../observability/" class="md-footer__link md-footer__link--next" aria-label="Next: B5 — Observability (kube-prometheus-stack) — Deploy &amp;amp; Validate">
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                Next
+              </span>
+              <div class="md-ellipsis">
+                B5 — Observability (kube-prometheus-stack) — Deploy &amp; Validate
+              </div>
+            </div>
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M4 11v2h12l-5.5 5.5 1.42 1.42L19.84 12l-7.92-7.92L10.5 5.5 16 11z"/></svg>
+            </div>
+          </a>
+        
+      </nav>
+    
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["navigation.footer", "content.action.edit"], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../../assets/javascripts/bundle.79ae519e.min.js"></script>
+      
+        <script src="../../search/main.js"></script>
+      
+    
+  </body>
+</html>

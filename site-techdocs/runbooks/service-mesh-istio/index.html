@@ -1,0 +1,2605 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Runbooks, architecture, diagrams, and concepts for the weyland homelab AI platform.">
+      
+      
+      
+      
+        <link rel="prev" href="../observability/">
+      
+      
+        <link rel="next" href="../storage-minio/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.6">
+    
+    
+      
+        <title>Istio service mesh — runbook (B8) - Weyland Platform Docs</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/stylesheets/main.484c7ddc.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    <body dir="ltr">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#istio-service-mesh-runbook-b8" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../.." title="Weyland Platform Docs" class="md-header__button md-logo" aria-label="Weyland Platform Docs" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            Weyland Platform Docs
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Istio service mesh — runbook (B8)
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+    
+    
+    
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../.." title="Weyland Platform Docs" class="md-nav__button md-logo" aria-label="Weyland Platform Docs" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    Weyland Platform Docs
+  </label>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Weyland Docs
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Weyland — API &amp; Endpoint Inventory
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../arch/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Weyland — Architecture
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../backlog/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Weyland Forward Roadmap — re-prioritized 2026-06-14
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../hosts/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Weyland — Host Inventory
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../weyland/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Weyland
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_7" >
+        
+          
+          <label class="md-nav__link" for="__nav_7" id="__nav_7_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Concepts
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_7_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_7">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Concepts
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../concepts/agent-platform-design/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    B2 — Agent Platform (Hermes + OpenClaw) — Design
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../concepts/data-schema/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Data Schema — RAG + Eval Stores
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../concepts/llm-inference-cpu-vs-gpu/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    LLM Inference — CPU vs GPU Tradeoffs (the why)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../concepts/model-serving-hardware/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    B7 — Model Serving Hardware (DECISION DEFERRED — pending pricing)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_8" >
+        
+          
+          <label class="md-nav__link" for="__nav_8" id="__nav_8_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Diagrams
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_8_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_8">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Diagrams
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../diagrams/c4-component-hermes/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    C4 Component — hermes CT (CT 104)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../diagrams/c4-component-mother/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    C4 Component — mother VM (k3s)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../diagrams/c4-component-ollama/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    C4 Component — ollama CT (CT 102)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../diagrams/c4-component-openclaw/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    C4 Component — openclaw VM (vm-100)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../diagrams/c4-component-rogueone/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    C4 Component — rogueone (external)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../diagrams/c4-component-whisper/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    C4 Component — whisper CT (CT 103)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../diagrams/c4-container/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    C4 Container — Weyland
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../diagrams/c4-context/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    C4 Context — Weyland
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../diagrams/flow-act-tool/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Flow: Audited Act-Tool (/mcp-act, B14 read+act)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../diagrams/flow-agent-mcp/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Flow: Agent System-View (Hermes / Claude Code -&gt; MCP -&gt; tool-server)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../diagrams/flow-alerting/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Flow: Alerting (B5)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../diagrams/flow-backend-dispatch/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Flow: Backend Selection / Dispatch (detail of RAG retrieval)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../diagrams/flow-deploy/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Flow: Deploy / Redeploy (build↔runtime isolation)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../diagrams/flow-eval-scoring/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Flow: Eval Scoring (weyland_eval_score_job, detail of the eval pipeline)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../diagrams/flow-eval/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Flow: Evaluation Pipeline (single-path eval -&gt; panel -&gt; leaderboard)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../diagrams/flow-guardrails/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Flow: Guardrail Validation (B14, shadow-first)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../diagrams/flow-health-status/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Flow: Health / Status Aggregation (U12)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../diagrams/flow-ingestion/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Flow: Ingestion (repo → 4 vector backends)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../diagrams/flow-ingress-tls/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Flow: Ingress / TLS Front Door
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../diagrams/flow-mesh-mtls/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Flow: Service-Mesh Request Path + mTLS (B8)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../diagrams/flow-model-catalog/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Flow: model_catalog Refresh (B26)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../diagrams/flow-model-gateway/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Flow: Model-Gateway Routing (B26, LiteLLM)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../diagrams/flow-pipeline-trigger/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Flow: Pipeline Trigger (/pipeline/trigger → Dagster)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../diagrams/flow-rag-query/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Flow: RAG Query (/context/ask)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../diagrams/flow-roadmap-sync/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Flow: Roadmap-Sync → Hermes Kanban (B27)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../diagrams/flow-tracing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Flow: Distributed Tracing Pipeline (B8)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../diagrams/flow-voice-chat/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Flow: Voice Chat (Open WebUI -&gt; whisper -&gt; Ollama)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_9" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_9" id="__nav_9_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Runbooks
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_9_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_9">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Runbooks
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../agent-hermes/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    B2 — Hermes Agent Runbook — weyland (CT 104)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../aidlc-kb-ingest/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    B37 — AIDLC Knowledge-Base Ingestion (MinIO → RAG)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../eval-harness/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    B4 — LLM Evaluation Pipeline (runbook)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../model-gateway/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Model Gateway (LiteLLM) + Model Catalog — runbook
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../model-serving-ollama/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Ollama Runbook — weyland (CT 102)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../observability/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    B5 — Observability (kube-prometheus-stack) — Deploy &amp; Validate
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Istio service mesh — runbook (B8)
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Istio service mesh — runbook (B8)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#install-on-mother-istioctl-on-path" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Install (on mother, istioctl on PATH)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#observability-add-ons" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Observability add-ons
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#tracing-pipeline-the-part-thats-easy-to-get-half-wired" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Tracing pipeline (the part that's easy to get half-wired)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#meshing-a-workload-per-pod-label-one-at-a-time" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Meshing a workload — per-pod LABEL, one at a time
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#tcp-backends-the-landmine-neo4j-bolt-postgres" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TCP backends — the landmine (neo4j Bolt, Postgres)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#verify-mtls-traces" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Verify mTLS + traces
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#security-kialijaeger" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Security (Kiali/Jaeger)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Security (Kiali/Jaeger)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#ingress-auth-dev-password-observability-auth" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Ingress auth (dev-password) — observability-auth
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#observability-consolidated-onto-kube-prometheus-stack" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Observability — consolidated onto kube-prometheus-stack
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#strict-mtls-slice-2-scope-it-dont-blanket-it" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        STRICT mTLS (slice 2) — scope it, don't blanket it
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#gotchas-hit-dont-repeat" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Gotchas hit (don't repeat)
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../storage-minio/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    B6 — MinIO Object Storage (8TB USB → mother VM passthrough)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../transcription-whisper/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    B11 — Whisper STT Runbook — weyland (CT 103)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../weyland-idp/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    weyland IDP — runbook (B3)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_10" >
+        
+          
+          <label class="md-nav__link" for="__nav_10" id="__nav_10_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Units
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_10_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_10">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Units
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../units/u10-sa-scoping/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    U10 — Service Account Scoping (least privilege) — Apply &amp; Validate
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../units/u11-ssh-identity/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    U11 — weyland-lab SSH Identity Review
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../units/u12-health-endpoints/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    U12 — Tool Server Extended Health/Status Endpoints
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../units/u6-credential-hardening/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    U6 — Tool Server DB Credential Hardening — Deploy &amp; Validate
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../units/u7-config-hf-cleanup/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    U7 — Tool Server Config &amp; HF Cache Cleanup — Deploy &amp; Validate
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../units/u8-headlamp-token/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    U8 — Headlamp Permanent Admin Token — Apply &amp; Validate
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../units/u9-cert-mkcert/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    U9 (cert) — mkcert wildcard cert for *.weyland.lab
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../units/u9-dns-coredns/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    U9 (prereq) — CoreDNS LAN Resolver — Deploy &amp; Validate
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../units/u9-traefik-ingress/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    U9 (ingress) — Traefik + TLS for platform UIs
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_11" >
+        
+          
+          <label class="md-nav__link" for="__nav_11" id="__nav_11_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Validation
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_11_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_11">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Validation
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../validation/test-commands/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Weyland Platform Test Commands
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#install-on-mother-istioctl-on-path" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Install (on mother, istioctl on PATH)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#observability-add-ons" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Observability add-ons
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#tracing-pipeline-the-part-thats-easy-to-get-half-wired" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Tracing pipeline (the part that's easy to get half-wired)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#meshing-a-workload-per-pod-label-one-at-a-time" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Meshing a workload — per-pod LABEL, one at a time
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#tcp-backends-the-landmine-neo4j-bolt-postgres" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TCP backends — the landmine (neo4j Bolt, Postgres)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#verify-mtls-traces" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Verify mTLS + traces
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#security-kialijaeger" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Security (Kiali/Jaeger)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Security (Kiali/Jaeger)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#ingress-auth-dev-password-observability-auth" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Ingress auth (dev-password) — observability-auth
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#observability-consolidated-onto-kube-prometheus-stack" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Observability — consolidated onto kube-prometheus-stack
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#strict-mtls-slice-2-scope-it-dont-blanket-it" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        STRICT mTLS (slice 2) — scope it, don't blanket it
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#gotchas-hit-dont-repeat" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Gotchas hit (don't repeat)
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+
+<h1 id="istio-service-mesh-runbook-b8">Istio service mesh — runbook (B8)<a class="headerlink" href="#istio-service-mesh-runbook-b8" title="Permanent link">&para;</a></h1>
+<p>Istio <strong>sidecar</strong> mesh on mother's k3s. <strong>Minimal profile</strong> (istiod only — <strong>no Istio ingress gateway;
+Traefik stays the front door</strong>). First slice meshed: <strong>weyland-tool-server + the 4 vector/graph backends</strong>
+(qdrant, weaviate, neo4j, Postgres), <strong>PERMISSIVE mTLS</strong>. Design/plan: <code>aidlc-docs/construction/b8-istio-{design,plan}.md</code>.
+Manifests: <code>nodes/mother/lab/weyland-platform/k8s/istio/</code>. Istio version: <strong>1.30.1</strong>, Kiali <strong>v2.26</strong>.</p>
+<p><strong>Why PERMISSIVE, not STRICT (slice 1):</strong> two un-meshed clients force it — the tool-server serves external
+<strong>NodePort</strong> MCP clients (Hermes CT 104 + Claude Code), and the backends serve un-meshed <strong>Dagster</strong> (ingestion/
+eval writes). STRICT would reject both. <strong>STRICT = slice 2</strong> (mesh Dagster, mind its egress to Ollama CT 102 +
+GitHub, then flip backends STRICT).</p>
+<hr />
+<h2 id="install-on-mother-istioctl-on-path">Install (on mother, <code>istioctl</code> on PATH)<a class="headerlink" href="#install-on-mother-istioctl-on-path" title="Permanent link">&para;</a></h2>
+<p><div class="language-text highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">1</span>
+<span class="normal">2</span>
+<span class="normal">3</span>
+<span class="normal">4</span>
+<span class="normal">5</span></pre></div></td><td class="code"><div><pre><span></span><code>cd ~ &amp;&amp; curl -L https://istio.io/downloadIstio | sh - &amp;&amp; cd istio-* &amp;&amp; export PATH=$PWD/bin:$PATH
+istioctl x precheck                                  # expect &quot;No issues found&quot;
+istioctl install -f ~/lab/weyland-platform/k8s/istio/istio-install.yaml -y
+kubectl get pods -n istio-system                     # istiod Running
+istioctl version                                     # control plane version appears once istiod is up
+</code></pre></div></td></tr></table></div>
+<code>istio-install.yaml</code> = minimal profile + <code>meshConfig.extensionProviders</code> (the <code>jaeger</code> zipkin provider — see
+Tracing). <code>verify-install</code> was <strong>removed</strong> in 1.30 — use <code>istioctl version</code> / pod status instead.</p>
+<h2 id="observability-add-ons">Observability add-ons<a class="headerlink" href="#observability-add-ons" title="Permanent link">&para;</a></h2>
+<ul>
+<li><strong>Jaeger</strong> (addon): <code>kubectl apply -f ~/istio-*/samples/addons/jaeger.yaml</code> (services: <code>tracing</code> = query
+  UI :80/16685, <code>zipkin</code> = collector :9411).</li>
+<li><strong>Kiali</strong>: tracked at <strong><code>k8s/istio/kiali.yaml</code></strong> (was the un-tracked addon — now committed + hardened).
+  <code>kubectl apply -f k8s/istio/kiali.yaml</code>. Ingress <code>kiali.weyland.lab</code>; Jaeger ingress <code>jaeger.weyland.lab</code>
+  (<code>k8s/istio/{kiali,jaeger}-ingress.yaml</code>). Both reuse <code>weyland-wildcard-tls</code> <strong>copied into <code>istio-system</code></strong>:
+  <div class="language-text highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">1</span></pre></div></td><td class="code"><div><pre><span></span><code>kubectl create secret tls weyland-wildcard-tls -n istio-system --cert=&lt;(kubectl get secret weyland-wildcard-tls -n weyland -o jsonpath=&#39;{.data.tls\.crt}&#39; | base64 -d) --key=&lt;(kubectl get secret weyland-wildcard-tls -n weyland -o jsonpath=&#39;{.data.tls\.key}&#39; | base64 -d)
+</code></pre></div></td></tr></table></div>
+  rogueone needs <code>192.168.1.243 kiali.weyland.lab</code> + <code>… jaeger.weyland.lab</code> in <code>/etc/hosts</code>.</li>
+<li><strong>Prometheus</strong>: Kiali uses Istio's <strong>bundled addon Prometheus</strong> (<code>samples/addons/prometheus.yaml</code>), NOT the
+  kube-prometheus-stack — a deliberate shortcut. <strong>Consolidation + Grafana Istio dashboards = deferred
+  follow-up</strong> (see backlog B8).</li>
+</ul>
+<h2 id="tracing-pipeline-the-part-thats-easy-to-get-half-wired">Tracing pipeline (the part that's easy to get half-wired)<a class="headerlink" href="#tracing-pipeline-the-part-thats-easy-to-get-half-wired" title="Permanent link">&para;</a></h2>
+<p>Sampling alone does <strong>nothing</strong> — it sets <em>how much</em> to trace, not <em>where to send</em> spans. You need a
+<strong>provider</strong> + a <strong>Telemetry</strong> resource:
+- <code>istio-install.yaml</code> → <code>meshConfig.extensionProviders: [{name: jaeger, zipkin: {service: zipkin.istio-system.svc.cluster.local, port: 9411}}]</code>
+- <code>k8s/istio/telemetry.yaml</code> → <code>Telemetry</code> with <code>tracing[].providers: [jaeger]</code>, <code>randomSamplingPercentage: 100</code>.
+- <strong>Sidecars must be restarted</strong> to pick up the tracing bootstrap (<code>kubectl rollout restart deployment … -n weyland</code>).
+- Kiali shows traces via <code>external_services.tracing</code> (gRPC <code>tracing.istio-system:16685</code>, <code>external_url</code> =
+  <code>https://jaeger.weyland.lab</code>).</p>
+<hr />
+<h2 id="meshing-a-workload-per-pod-label-one-at-a-time">Meshing a workload — per-pod LABEL, one at a time<a class="headerlink" href="#meshing-a-workload-per-pod-label-one-at-a-time" title="Permanent link">&para;</a></h2>
+<p>The <code>weyland</code> namespace is <strong>unlabeled</strong>, so the per-pod <strong>annotation does NOT inject</strong> (the injector webhook
+is namespace-scoped). Use the pod <strong>LABEL</strong> <code>sidecar.istio.io/inject: "true"</code> (matched by the
+<code>object.sidecar-injector</code> webhook). The repo deployment manifests now carry this label.
+<div class="language-text highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">1</span>
+<span class="normal">2</span>
+<span class="normal">3</span>
+<span class="normal">4</span></pre></div></td><td class="code"><div><pre><span></span><code>kubectl patch deployment &lt;name&gt; -n weyland -p &#39;{&quot;spec&quot;:{&quot;template&quot;:{&quot;metadata&quot;:{&quot;labels&quot;:{&quot;sidecar.istio.io/inject&quot;:&quot;true&quot;}}}}}&#39;
+kubectl rollout status deploy/&lt;name&gt; -n weyland
+kubectl get pods -n weyland -l app=&lt;name&gt;            # 2/2 = sidecar injected
+curl -s http://mother:30080/status                   # no-regression: the backend still reachable (PERMISSIVE)
+</code></pre></div></td></tr></table></div>
+RWO/<code>Recreate</code> deployments blip briefly on restart — <strong>do them one at a time</strong>, validate between each.</p>
+<p><strong>Rollback (un-mesh a workload):</strong> set the label to <code>"false"</code> (the webhook only injects on <code>"true"</code>) + restart:
+<div class="language-text highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">1</span>
+<span class="normal">2</span></pre></div></td><td class="code"><div><pre><span></span><code>kubectl patch deployment &lt;name&gt; -n weyland -p &#39;{&quot;spec&quot;:{&quot;template&quot;:{&quot;metadata&quot;:{&quot;labels&quot;:{&quot;sidecar.istio.io/inject&quot;:&quot;false&quot;}}}}}&#39;
+kubectl rollout status deploy/&lt;name&gt; -n weyland
+</code></pre></div></td></tr></table></div></p>
+<h2 id="tcp-backends-the-landmine-neo4j-bolt-postgres">TCP backends — the landmine (neo4j Bolt, Postgres)<a class="headerlink" href="#tcp-backends-the-landmine-neo4j-bolt-postgres" title="Permanent link">&para;</a></h2>
+<p>Non-HTTP TCP protocols get <strong>mis-parsed as HTTP by the inbound sidecar</strong> → connection breaks (seen live:
+neo4j <code>Failed to read from defunct connection … 7687</code>). Fix: declare the port TCP on the <strong>Service</strong> <em>before</em>
+meshing the pod:
+<div class="language-text highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">1</span>
+<span class="normal">2</span></pre></div></td><td class="code"><div><pre><span></span><code>kubectl patch svc neo4j -n weyland -p &#39;{&quot;spec&quot;:{&quot;ports&quot;:[{&quot;port&quot;:7687,&quot;appProtocol&quot;:&quot;tcp&quot;}]}}&#39;
+kubectl patch svc weyland-postgres -n weyland -p &#39;{&quot;spec&quot;:{&quot;ports&quot;:[{&quot;port&quot;:5432,&quot;appProtocol&quot;:&quot;tcp&quot;}]}}&#39;
+</code></pre></div></td></tr></table></div>
+(now in the repo Service manifests). Note: the <em>outbound</em> sidecar sniffs TCP fine — only <strong>inbound</strong> (the
+backend's own sidecar) needed this. Validate the un-meshed Dagster→meshed-Postgres write path:
+<div class="language-text highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">1</span></pre></div></td><td class="code"><div><pre><span></span><code>kubectl exec -n weyland deploy/dagster-user-code -- python3 -c &quot;import psycopg2,os; c=psycopg2.connect(host=&#39;weyland-postgres.weyland.svc.cluster.local&#39;,port=5432,dbname=&#39;weyland&#39;,user=&#39;weyland&#39;,password=os.environ[&#39;WEYLAND_PG_PASSWORD&#39;]); cur=c.cursor(); cur.execute(&#39;SELECT count(*) FROM rag_chunks&#39;); print(cur.fetchone()[0])&quot;
+</code></pre></div></td></tr></table></div></p>
+<h2 id="verify-mtls-traces">Verify mTLS + traces<a class="headerlink" href="#verify-mtls-traces" title="Permanent link">&para;</a></h2>
+<ul>
+<li>Kiali → Graph → ns <code>weyland</code>, Display → Security → <strong>lock icons</strong> on tool-server↔backend edges = mTLS.</li>
+<li>Kiali workload → <strong>Traces</strong> tab, or Jaeger (<code>jaeger.weyland.lab</code>) → Service <code>weyland-tool-server</code>.</li>
+<li><code>istioctl x describe pod &lt;pod&gt; -n weyland</code> shows per-pod mTLS.</li>
+</ul>
+<h2 id="security-kialijaeger">Security (Kiali/Jaeger)<a class="headerlink" href="#security-kialijaeger" title="Permanent link">&para;</a></h2>
+<p>The Istio addon ships <strong>demo-grade</strong> defaults. Hardened in <code>k8s/istio/kiali.yaml</code>: <strong><code>view_only_mode: true</code></strong>
+(read-only — anonymous users can't mutate the mesh), <strong>ClusterRole read-only on Istio CRDs</strong>, non-placeholder
+signing key. Kiali stays <code>auth.strategy: anonymous</code> internally; <strong>the password gate is at the ingress</strong> (below).
+<strong>Residual (optional):</strong> NetworkPolicy/AuthorizationPolicy + drop the remaining workload <code>patch</code> verbs.</p>
+<h3 id="ingress-auth-dev-password-observability-auth">Ingress auth (dev-password) — <code>observability-auth</code><a class="headerlink" href="#ingress-auth-dev-password-observability-auth" title="Permanent link">&para;</a></h3>
+<p>Both <code>kiali.weyland.lab</code> and <code>jaeger.weyland.lab</code> were anonymous-read on the LAN. Now gated by a <strong>Traefik
+basicAuth Middleware</strong> (<code>k8s/istio/observability-auth.yaml</code>, <code>traefik.io/v1alpha1</code>), same dev-password posture
+as the other UIs. The htpasswd secret is created <strong>out-of-band</strong> (never committed):
+<div class="language-text highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">1</span></pre></div></td><td class="code"><div><pre><span></span><code>htpasswd -nb admin weyland_dev_password | kubectl create secret generic observability-auth-secret -n istio-system --from-file=users=/dev/stdin
+</code></pre></div></td></tr></table></div>
+Each Ingress opts in via annotation <code>traefik.ingress.kubernetes.io/router.middlewares: istio-system-observability-auth@kubernetescrd</code>
+(see <code>kiali-ingress.yaml</code> / <code>jaeger-ingress.yaml</code>). Apply:
+<div class="language-text highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">1</span></pre></div></td><td class="code"><div><pre><span></span><code>kubectl apply -f k8s/istio/observability-auth.yaml -f k8s/istio/kiali-ingress.yaml -f k8s/istio/jaeger-ingress.yaml
+</code></pre></div></td></tr></table></div></p>
+<h2 id="observability-consolidated-onto-kube-prometheus-stack">Observability — consolidated onto kube-prometheus-stack<a class="headerlink" href="#observability-consolidated-onto-kube-prometheus-stack" title="Permanent link">&para;</a></h2>
+<p>Bring-up shortcut was Istio's <strong>addon Prometheus</strong> (a second Prometheus). Consolidated onto B5's
+kube-prometheus-stack so there's one metrics store:
+- <code>k8s/istio/podmonitor-istio.yaml</code> — the official <strong>envoy-stats PodMonitor</strong> + <strong>istiod ServiceMonitor</strong>. Both
+  carry <code>labels: {release: monitoring}</code> — required to match the stack's <code>podMonitorSelector</code>/<code>serviceMonitorSelector</code>
+  (without it the operator silently ignores them).
+  <div class="language-text highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">1</span></pre></div></td><td class="code"><div><pre><span></span><code>kubectl apply -f k8s/istio/podmonitor-istio.yaml
+</code></pre></div></td></tr></table></div>
+- Verify the scrape: <code>count(istio_requests_total)</code> in Prometheus returns non-zero (was 18).
+- Repoint Kiali at the stack Prometheus (<code>external_services.prometheus.url:
+  http://monitoring-kube-prometheus-prometheus.monitoring:9090</code>) — edit the <strong>repo</strong> <code>k8s/istio/kiali.yaml</code> (never
+  <code>kubectl edit</code> the live ConfigMap — see Gotchas), then push + restart:
+  <div class="language-text highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">1</span>
+<span class="normal">2</span></pre></div></td><td class="code"><div><pre><span></span><code>cp k8s/istio/kiali.yaml /tmp/kiali-addon.yaml   # then scp /tmp/kiali-addon.yaml to mother
+kubectl apply -f /tmp/kiali-addon.yaml &amp;&amp; kubectl rollout restart deploy/kiali -n istio-system
+</code></pre></div></td></tr></table></div>
+  Then <strong>delete the addon Prometheus</strong> (the second one — keep B5's stack):
+  <div class="language-text highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">1</span></pre></div></td><td class="code"><div><pre><span></span><code>kubectl delete deploy,svc,cm,sa prometheus -n istio-system
+</code></pre></div></td></tr></table></div>
+- Grafana: import Istio dashboards <strong>into B5's Grafana</strong> (do NOT deploy the addon Grafana) — IDs
+  <strong>7639</strong> (mesh) / <strong>7636</strong> (service) / <strong>7630</strong> (workload) / <strong>7645</strong> (control-plane). They persist on the
+  Grafana PVC; ConfigMap-provisioning for full IaC is an optional later step.
+- Kiali also wired to Jaeger (<code>tracing.istio-system:16685</code>) and Grafana (<code>monitoring-grafana.monitoring:80</code>) via
+  <code>external_services</code> — the Mesh view then shows all components green.</p>
+<h2 id="strict-mtls-slice-2-scope-it-dont-blanket-it">STRICT mTLS (slice 2) — scope it, don't blanket it<a class="headerlink" href="#strict-mtls-slice-2-scope-it-dont-blanket-it" title="Permanent link">&para;</a></h2>
+<p>Slice 1 is PERMISSIVE (accepts both mTLS and plaintext). STRICT <em>rejects</em> plaintext — so before flipping a
+workload, <strong>audit every client</strong>: a STRICT target with any un-meshed (or out-of-mesh-port) client breaks that
+client. In this lab the vector backends have un-meshed clients (<strong>Prometheus app-metrics</strong> scrapes — qdrant on
+the shared <code>:6333</code>, weaviate on <code>:2112</code> — and <strong>NodePort</strong> admin access), so STRICT there would cost metrics +
+admin for no real security gain (their actual traffic is already mTLS, both ends meshed). <strong>Postgres is the clean
+target:</strong> in-cluster only, no metrics scrape, clients (tool-server + Dagster) all meshed.
+- <code>k8s/istio/peerauth-postgres-strict.yaml</code> — <code>PeerAuthentication</code> selecting <code>app: weyland-postgres</code>, <code>mode: STRICT</code>.
+  <div class="language-text highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">1</span></pre></div></td><td class="code"><div><pre><span></span><code>kubectl apply -f k8s/istio/peerauth-postgres-strict.yaml
+</code></pre></div></td></tr></table></div>
+- <strong>Prove it enforces</strong> (don't trust <code>nc -z</code> — a bare TCP connect succeeds and won't trigger mTLS rejection). From
+  an <strong>un-meshed</strong> pod:
+  <div class="language-text highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">1</span></pre></div></td><td class="code"><div><pre><span></span><code>kubectl run pgtest --rm -i --image=postgres:16 -n default --restart=Never -- psql &quot;postgresql://weyland:nope@weyland-postgres.weyland.svc.cluster.local:5432/weyland?sslmode=disable&quot; -c &quot;select 1&quot;
+</code></pre></div></td></tr></table></div>
+  Enforcing = <strong><code>server closed the connection unexpectedly</code></strong> (sidecar reset <em>pre-auth</em>) — NOT
+  <code>password authentication failed</code> (that would mean the plaintext reached Postgres = STRICT off). Meshed clients
+  keep working (tool-server <code>/status</code> → <code>pgvector ok</code>).</p>
+<h2 id="gotchas-hit-dont-repeat">Gotchas hit (don't repeat)<a class="headerlink" href="#gotchas-hit-dont-repeat" title="Permanent link">&para;</a></h2>
+<ul>
+<li><strong>Annotation ≠ label</strong> for injection in an unlabeled namespace (annotation is a no-op).</li>
+<li><strong>Sampling alone ships no spans</strong> — needs the extensionProvider + Telemetry + sidecar restart.</li>
+<li><strong>TCP backends</strong> break inbound without <code>appProtocol: tcp</code>.</li>
+<li><strong><code>kubectl edit configmap kiali</code></strong> clobbered the YAML (parse error → crashloop) — edit the file + <code>apply</code>,
+  don't hand-edit the live ConfigMap.</li>
+<li><strong>Addon Kiali config is untracked + insecure by default</strong> — it's now tracked + hardened in the repo.</li>
+<li><strong><code>nc -z</code> is a false-negative STRICT test</strong> — a bare TCP connect succeeds; the sidecar only resets once a real
+  protocol handshake starts. Test STRICT with an actual client (psql/grpc), expecting a connection reset pre-auth.</li>
+</ul>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+    
+      
+      <nav class="md-footer__inner md-grid" aria-label="Footer" >
+        
+          
+          <a href="../observability/" class="md-footer__link md-footer__link--prev" aria-label="Previous: B5 — Observability (kube-prometheus-stack) — Deploy &amp;amp; Validate">
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+            </div>
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                Previous
+              </span>
+              <div class="md-ellipsis">
+                B5 — Observability (kube-prometheus-stack) — Deploy &amp; Validate
+              </div>
+            </div>
+          </a>
+        
+        
+          
+          <a href="../storage-minio/" class="md-footer__link md-footer__link--next" aria-label="Next: B6 — MinIO Object Storage (8TB USB → mother VM passthrough)">
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                Next
+              </span>
+              <div class="md-ellipsis">
+                B6 — MinIO Object Storage (8TB USB → mother VM passthrough)
+              </div>
+            </div>
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M4 11v2h12l-5.5 5.5 1.42 1.42L19.84 12l-7.92-7.92L10.5 5.5 16 11z"/></svg>
+            </div>
+          </a>
+        
+      </nav>
+    
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["navigation.footer", "content.action.edit"], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../../assets/javascripts/bundle.79ae519e.min.js"></script>
+      
+        <script src="../../search/main.js"></script>
+      
+    
+  </body>
+</html>

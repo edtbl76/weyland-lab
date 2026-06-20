@@ -1,0 +1,2748 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Runbooks, architecture, diagrams, and concepts for the weyland homelab AI platform.">
+      
+      
+      
+      
+        <link rel="prev" href="../llm-inference-cpu-vs-gpu/">
+      
+      
+        <link rel="next" href="../../diagrams/c4-component-hermes/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.6">
+    
+    
+      
+        <title>B7 — Model Serving Hardware (DECISION DEFERRED — pending pricing) - Weyland Platform Docs</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/stylesheets/main.484c7ddc.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    <body dir="ltr">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#b7-model-serving-hardware-decision-deferred-pending-pricing" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../.." title="Weyland Platform Docs" class="md-header__button md-logo" aria-label="Weyland Platform Docs" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            Weyland Platform Docs
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              B7 — Model Serving Hardware (DECISION DEFERRED — pending pricing)
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+    
+    
+    
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../.." title="Weyland Platform Docs" class="md-nav__button md-logo" aria-label="Weyland Platform Docs" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    Weyland Platform Docs
+  </label>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Weyland Docs
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Weyland — API &amp; Endpoint Inventory
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../arch/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Weyland — Architecture
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../backlog/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Weyland Forward Roadmap — re-prioritized 2026-06-14
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../hosts/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Weyland — Host Inventory
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../weyland/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Weyland
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_7" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_7" id="__nav_7_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Concepts
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_7_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_7">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Concepts
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../agent-platform-design/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    B2 — Agent Platform (Hermes + OpenClaw) — Design
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../data-schema/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Data Schema — RAG + Eval Stores
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../llm-inference-cpu-vs-gpu/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    LLM Inference — CPU vs GPU Tradeoffs (the why)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    B7 — Model Serving Hardware (DECISION DEFERRED — pending pricing)
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    B7 — Model Serving Hardware (DECISION DEFERRED — pending pricing)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#decision-status-whats-settled-vs-open" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Decision status — what's settled vs open
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#current-architecture-settled" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Current architecture (settled)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-problem" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The problem
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#ms-a2-expansion-capability-how-a-gpu-attaches" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        MS-A2 expansion capability (how a GPU attaches)
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_8" >
+        
+          
+          <label class="md-nav__link" for="__nav_8" id="__nav_8_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Diagrams
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_8_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_8">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Diagrams
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../diagrams/c4-component-hermes/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    C4 Component — hermes CT (CT 104)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../diagrams/c4-component-mother/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    C4 Component — mother VM (k3s)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../diagrams/c4-component-ollama/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    C4 Component — ollama CT (CT 102)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../diagrams/c4-component-openclaw/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    C4 Component — openclaw VM (vm-100)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../diagrams/c4-component-rogueone/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    C4 Component — rogueone (external)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../diagrams/c4-component-whisper/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    C4 Component — whisper CT (CT 103)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../diagrams/c4-container/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    C4 Container — Weyland
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../diagrams/c4-context/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    C4 Context — Weyland
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../diagrams/flow-act-tool/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Flow: Audited Act-Tool (/mcp-act, B14 read+act)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../diagrams/flow-agent-mcp/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Flow: Agent System-View (Hermes / Claude Code -&gt; MCP -&gt; tool-server)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../diagrams/flow-alerting/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Flow: Alerting (B5)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../diagrams/flow-backend-dispatch/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Flow: Backend Selection / Dispatch (detail of RAG retrieval)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../diagrams/flow-deploy/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Flow: Deploy / Redeploy (build↔runtime isolation)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../diagrams/flow-eval-scoring/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Flow: Eval Scoring (weyland_eval_score_job, detail of the eval pipeline)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../diagrams/flow-eval/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Flow: Evaluation Pipeline (single-path eval -&gt; panel -&gt; leaderboard)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../diagrams/flow-guardrails/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Flow: Guardrail Validation (B14, shadow-first)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../diagrams/flow-health-status/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Flow: Health / Status Aggregation (U12)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../diagrams/flow-ingestion/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Flow: Ingestion (repo → 4 vector backends)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../diagrams/flow-ingress-tls/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Flow: Ingress / TLS Front Door
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../diagrams/flow-mesh-mtls/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Flow: Service-Mesh Request Path + mTLS (B8)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../diagrams/flow-model-catalog/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Flow: model_catalog Refresh (B26)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../diagrams/flow-model-gateway/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Flow: Model-Gateway Routing (B26, LiteLLM)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../diagrams/flow-pipeline-trigger/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Flow: Pipeline Trigger (/pipeline/trigger → Dagster)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../diagrams/flow-rag-query/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Flow: RAG Query (/context/ask)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../diagrams/flow-roadmap-sync/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Flow: Roadmap-Sync → Hermes Kanban (B27)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../diagrams/flow-tracing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Flow: Distributed Tracing Pipeline (B8)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../diagrams/flow-voice-chat/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Flow: Voice Chat (Open WebUI -&gt; whisper -&gt; Ollama)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_9" >
+        
+          
+          <label class="md-nav__link" for="__nav_9" id="__nav_9_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Runbooks
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_9_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_9">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Runbooks
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../runbooks/agent-hermes/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    B2 — Hermes Agent Runbook — weyland (CT 104)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../runbooks/aidlc-kb-ingest/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    B37 — AIDLC Knowledge-Base Ingestion (MinIO → RAG)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../runbooks/eval-harness/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    B4 — LLM Evaluation Pipeline (runbook)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../runbooks/model-gateway/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Model Gateway (LiteLLM) + Model Catalog — runbook
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../runbooks/model-serving-ollama/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Ollama Runbook — weyland (CT 102)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../runbooks/observability/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    B5 — Observability (kube-prometheus-stack) — Deploy &amp; Validate
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../runbooks/service-mesh-istio/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Istio service mesh — runbook (B8)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../runbooks/storage-minio/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    B6 — MinIO Object Storage (8TB USB → mother VM passthrough)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../runbooks/transcription-whisper/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    B11 — Whisper STT Runbook — weyland (CT 103)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../runbooks/weyland-idp/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    weyland IDP — runbook (B3)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_10" >
+        
+          
+          <label class="md-nav__link" for="__nav_10" id="__nav_10_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Units
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_10_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_10">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Units
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../units/u10-sa-scoping/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    U10 — Service Account Scoping (least privilege) — Apply &amp; Validate
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../units/u11-ssh-identity/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    U11 — weyland-lab SSH Identity Review
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../units/u12-health-endpoints/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    U12 — Tool Server Extended Health/Status Endpoints
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../units/u6-credential-hardening/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    U6 — Tool Server DB Credential Hardening — Deploy &amp; Validate
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../units/u7-config-hf-cleanup/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    U7 — Tool Server Config &amp; HF Cache Cleanup — Deploy &amp; Validate
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../units/u8-headlamp-token/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    U8 — Headlamp Permanent Admin Token — Apply &amp; Validate
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../units/u9-cert-mkcert/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    U9 (cert) — mkcert wildcard cert for *.weyland.lab
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../units/u9-dns-coredns/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    U9 (prereq) — CoreDNS LAN Resolver — Deploy &amp; Validate
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../units/u9-traefik-ingress/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    U9 (ingress) — Traefik + TLS for platform UIs
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_11" >
+        
+          
+          <label class="md-nav__link" for="__nav_11" id="__nav_11_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Validation
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_11_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_11">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Validation
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../validation/test-commands/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Weyland Platform Test Commands
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#decision-status-whats-settled-vs-open" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Decision status — what's settled vs open
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#current-architecture-settled" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Current architecture (settled)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-problem" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The problem
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#ms-a2-expansion-capability-how-a-gpu-attaches" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        MS-A2 expansion capability (how a GPU attaches)
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+
+<h1 id="b7-model-serving-hardware-decision-deferred-pending-pricing">B7 — Model Serving Hardware (DECISION DEFERRED — pending pricing)<a class="headerlink" href="#b7-model-serving-hardware-decision-deferred-pending-pricing" title="Permanent link">&para;</a></h1>
+<p><strong>Status:</strong> 🟡 OPEN. The <em>architecture</em> is settled; the <em>GPU purchase</em> is <strong>deferred</strong> until
+pricing is researched. This doc captures every option + exact hardware so the decision can be
+made cold later without re-deriving anything.</p>
+<blockquote>
+<p><strong>This doc was split (2026-06-11) for length.</strong> It now holds only the <strong>decision</strong> (what to buy,
+options, candidate GPUs, plan). The other two pieces live separately:
+- <strong>The <em>why</em> — inference concepts</strong> (capacity vs bandwidth, CPU vs GPU routing, tiered
+  inference): <a href="../llm-inference-cpu-vs-gpu/">llm-inference-cpu-vs-gpu.md</a>
+- <strong>The <em>how</em> — operating Ollama</strong> (container, install, thread fix, measured benchmarks):
+  <a href="../../runbooks/model-serving-ollama/">../runbooks/model-serving-ollama.md</a></p>
+</blockquote>
+<hr />
+<h2 id="decision-status-whats-settled-vs-open">Decision status — what's settled vs open<a class="headerlink" href="#decision-status-whats-settled-vs-open" title="Permanent link">&para;</a></h2>
+<ul>
+<li><strong>Settled / proceeding NOW:</strong> weyland (MS-A2) is the <strong>dedicated large-model host</strong> via
+  <strong>Ollama on CPU</strong> — we move forward with this <strong>regardless of any GPU decision</strong>, so there is
+  a <strong>guaranteed CPU path either way</strong> (live; see <a href="../../runbooks/model-serving-ollama/">runbook</a>). rogueone stays
+  the GPU/vLLM host for small fast models.</li>
+<li><strong>Tentative / someday (GPU, low priority — NOT pursued now):</strong> an <strong>OCuLink eGPU</strong> would
+  accelerate (~10× on ≤32B), but the lab doesn't need the speed yet, so it's parked at the end of
+  the roadmap as <em>tentative</em>. Will invest eventually if a real workload feels too slow. <strong>The eGPU
+  augments — never replaces — the CPU/Ollama path.</strong> (Options + unverified pricing kept below.)</li>
+</ul>
+<hr />
+<h2 id="current-architecture-settled">Current architecture (settled)<a class="headerlink" href="#current-architecture-settled" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Host</th>
+<th>Hardware</th>
+<th>Role</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>rogueone</strong> (Lenovo ThinkPad P16 Gen 2)</td>
+<td>i9-13950HX · 128 GB RAM · <strong>RTX 5000 Ada Laptop, 16 GB</strong></td>
+<td>GPU / <strong>vLLM</strong>, small fast models; personal + dev laptop</td>
+</tr>
+<tr>
+<td><strong>weyland</strong> (Minisforum MS-A2)</td>
+<td>Ryzen 9 9955HX (16C) · 96 GB RAM · <strong>no compute GPU</strong> (Radeon display iGPU only)</td>
+<td>Proxmox host: <code>vm-100</code> openclaw, <code>vm-101</code> mother (k3s platform + MinIO), <code>ct-102</code> ollama. <strong>The large-model host.</strong></td>
+</tr>
+</tbody>
+</table>
+<h2 id="the-problem">The problem<a class="headerlink" href="#the-problem" title="Permanent link">&para;</a></h2>
+<p>Large models need <strong>VRAM or patience</strong>. 30B@4-bit ≈ 20 GB, 70B@4-bit ≈ 40 GB, 70B fp16 ≈ 140 GB.
+rogueone's 16 GB GPU is too small; weyland has 96 GB RAM but <strong>no GPU</strong> (CPU inference works but
+is slow). B7 = decide how weyland serves big models.</p>
+<p><strong>For the reasoning behind everything below</strong> — why token speed is bandwidth-bound, when CPU vs
+GPU each make sense, the tiered-inference pattern, and how the lab context weights it all — see
+<strong><a href="../llm-inference-cpu-vs-gpu/">llm-inference-cpu-vs-gpu.md</a></strong>. Short version: <strong>CPU = capacity
+(big, cheap, slow); GPU = speed (small, dear, fast).</strong> weyland's CPU path covers capacity now; an
+eGPU would add speed later.</p>
+<hr />
+<h2 id="ms-a2-expansion-capability-how-a-gpu-attaches">MS-A2 expansion capability (how a GPU attaches)<a class="headerlink" href="#ms-a2-expansion-capability-how-a-gpu-attaches" title="Permanent link">&para;</a></h2>
+<ul>
+<li><strong>Internal PCIe slot:</strong> x16 physical @ <strong>x8 Gen4</strong> (splittable to 2× x4). <strong>BUT</strong> physically
+  only fits <strong>single-slot, low-profile</strong> cards (≤ ~16–20 GB class) — too small for big models.</li>
+<li><strong>OCuLink (the real path):</strong> optional <strong>Minisforum OCuLink adapter</strong> takes 4 lanes from the
+  slot to a rear port → an <strong>external eGPU dock</strong> → holds a full-size desktop GPU.</li>
+<li><strong>Kit needed:</strong> OCuLink adapter <strong>+</strong> eGPU dock (<strong>Minisforum DEG1</strong> or <strong>DEG2</strong>, or generic
+  OCuLink dock) <strong>+</strong> an <strong>ATX PSU</strong> sized to the card.</li>
+<li><strong>Link = PCIe 4.0 x4</strong> (~8 GB/s): fine for inference (weights resident in VRAM; only a small
+  model-<em>load</em>-time penalty, not tokens/sec). Matters for training, not single-GPU inference.</li>
+<li><strong>Proxmox:</strong> VFIO-passthrough the eGPU to a model-serving VM. OCuLink is a <em>fixed</em> PCIe link
+  (not Thunderbolt hot-plug), so it presents as a stable PCIe device → reliable passthrough.</li>
+</ul>
+<hr />
+<h1 id="option-a-oculink-egpu-on-weyland-deferred-upgrade-additive-to-ollama">OPTION A — OCuLink eGPU on weyland  <em>(DEFERRED upgrade — additive to Ollama)</em><a class="headerlink" href="#option-a-oculink-egpu-on-weyland-deferred-upgrade-additive-to-ollama" title="Permanent link">&para;</a></h1>
+<p>Kit: OCuLink adapter + DEG1/DEG2 dock + ATX PSU + one GPU below. Serve via <strong>vLLM</strong> (VFIO
+passthrough). <strong>Baseline for comparison = rogueone's laptop RTX 5000 Ada: 16 GB / ~576 GB/s.</strong></p>
+<h3 id="candidate-gpus-exact-models-pick-by-vram-target-budget">Candidate GPUs — exact models (pick by VRAM target + budget)<a class="headerlink" href="#candidate-gpus-exact-models-pick-by-vram-target-budget" title="Permanent link">&para;</a></h3>
+<blockquote>
+<p>⚠️ <strong>PRICES BELOW ARE UNVERIFIED ESTIMATES AND PROVED UNRELIABLE</strong> — the user spot-checked
+them 2026-06-11 and found them off by ~10×. They are AI-recalled guesses, not sourced data.
+<strong>Treat every $ figure as a placeholder; get real current listings before any purchase.</strong> The
+only safe takeaway is the <em>relative</em> ordering (3090 &lt; 4090 &lt; A6000). TODO: replace with sourced
+prices (region + marketplace).
+"BW" = memory bandwidth (sets token-gen speed). Cooling matters in an enclosed dock:
+<strong>blower/workstation</strong> cards exhaust out the back (dock-friendly); <strong>open-air gaming</strong> cards
+dump heat inside the dock.</p>
+</blockquote>
+<h4 id="16-gb-tier-not-recommended-no-vram-gain-over-your-laptop">16 GB tier — ⚠️ NOT recommended (no VRAM gain over your laptop)<a class="headerlink" href="#16-gb-tier-not-recommended-no-vram-gain-over-your-laptop" title="Permanent link">&para;</a></h4>
+<table>
+<thead>
+<tr>
+<th>Exact model</th>
+<th>VRAM</th>
+<th>BW</th>
+<th>CUDA</th>
+<th>Arch</th>
+<th>TDP</th>
+<th>Cooling</th>
+<th>~Price</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>⬅ <strong>RTX 5000 Ada Laptop — YOURS (rogueone)</strong></td>
+<td>16 GB</td>
+<td>576 GB/s</td>
+<td>9728</td>
+<td>Ada (FP8)</td>
+<td>80–175 W</td>
+<td>(in laptop)</td>
+<td>—</td>
+<td><strong>reference point.</strong> Decent speed (~576 GB/s), but 16 GB is the model-size <em>floor</em> — every 24/32/48 GB tier below outranks it for what it can run</td>
+</tr>
+<tr>
+<td>RTX 4060 Ti 16GB</td>
+<td>16 GB</td>
+<td>288 GB/s</td>
+<td>4352</td>
+<td>Ada</td>
+<td>165 W</td>
+<td>open-air</td>
+<td>~$450</td>
+<td>slower BW than your laptop; skip</td>
+</tr>
+<tr>
+<td>RTX 4070 Ti SUPER 16GB</td>
+<td>16 GB</td>
+<td>672 GB/s</td>
+<td>8448</td>
+<td>Ada</td>
+<td>285 W</td>
+<td>open-air</td>
+<td>~$800</td>
+<td>only buy as a cheap <em>dedicated</em> card, not for size</td>
+</tr>
+<tr>
+<td>RTX 5060 Ti 16GB</td>
+<td>16 GB</td>
+<td>448 GB/s</td>
+<td>4608</td>
+<td>Blackwell</td>
+<td>180 W</td>
+<td>open-air</td>
+<td>~$430</td>
+<td>FP4/FP8, but still 16 GB</td>
+</tr>
+</tbody>
+</table>
+<h4 id="24-gb-tier-30b-class-fully-on-gpu-the-practical-large-model">24 GB tier — 30B-class fully on GPU (the practical "large model")<a class="headerlink" href="#24-gb-tier-30b-class-fully-on-gpu-the-practical-large-model" title="Permanent link">&para;</a></h4>
+<table>
+<thead>
+<tr>
+<th>Exact model</th>
+<th>VRAM</th>
+<th>BW</th>
+<th>CUDA</th>
+<th>Arch</th>
+<th>TDP</th>
+<th>Cooling</th>
+<th>~Price</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>RTX 3090</strong> ⭐ value</td>
+<td>24 GB</td>
+<td>936 GB/s</td>
+<td>10496</td>
+<td>Ampere</td>
+<td>350 W</td>
+<td>open-air (3-slot)</td>
+<td><strong>~$700–900 used</strong></td>
+<td>best $/capability; ~1.6× your laptop's token speed</td>
+</tr>
+<tr>
+<td>RTX 3090 Ti</td>
+<td>24 GB</td>
+<td>1008 GB/s</td>
+<td>10752</td>
+<td>Ampere</td>
+<td>450 W</td>
+<td>open-air</td>
+<td>~$900–1100 used</td>
+<td>marginally faster, hotter</td>
+</tr>
+<tr>
+<td>RTX 4090</td>
+<td>24 GB</td>
+<td>1008 GB/s</td>
+<td>16384</td>
+<td>Ada (FP8)</td>
+<td>450 W</td>
+<td>open-air (3–4 slot)</td>
+<td>~$1500–2000</td>
+<td>fastest 24 GB; big physical card</td>
+</tr>
+<tr>
+<td>RTX A5000</td>
+<td>24 GB ECC</td>
+<td>768 GB/s</td>
+<td>8192</td>
+<td>Ampere</td>
+<td>230 W</td>
+<td><strong>blower (2-slot)</strong></td>
+<td>~$1200–1800 used</td>
+<td>dock-friendly: low power + blower</td>
+</tr>
+</tbody>
+</table>
+<h4 id="32-gb-tier-bigger-context-30b-at-higher-quant-not-full-70b4-bit">32 GB tier — bigger context / 30B at higher quant (not full 70B@4-bit)<a class="headerlink" href="#32-gb-tier-bigger-context-30b-at-higher-quant-not-full-70b4-bit" title="Permanent link">&para;</a></h4>
+<table>
+<thead>
+<tr>
+<th>Exact model</th>
+<th>VRAM</th>
+<th>BW</th>
+<th>CUDA</th>
+<th>Arch</th>
+<th>TDP</th>
+<th>Cooling</th>
+<th>~Price</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>RTX 5090</td>
+<td>32 GB</td>
+<td>~1792 GB/s</td>
+<td>21760</td>
+<td>Blackwell</td>
+<td>575 W</td>
+<td>open-air</td>
+<td>~$2000–3000+</td>
+<td>fastest here; heavy power draw</td>
+</tr>
+<tr>
+<td>RTX 5000 Ada (desktop)</td>
+<td>32 GB ECC</td>
+<td>576 GB/s</td>
+<td>12800</td>
+<td>Ada (FP8)</td>
+<td>250 W</td>
+<td><strong>blower (2-slot)</strong></td>
+<td>~$3500–4000</td>
+<td>desktop sibling of your laptop card; efficient</td>
+</tr>
+</tbody>
+</table>
+<h4 id="48-gb-tier-70b-4-bit-fully-on-gpu">48 GB tier — 70B @ 4-bit fully on GPU<a class="headerlink" href="#48-gb-tier-70b-4-bit-fully-on-gpu" title="Permanent link">&para;</a></h4>
+<table>
+<thead>
+<tr>
+<th>Exact model</th>
+<th>VRAM</th>
+<th>BW</th>
+<th>CUDA</th>
+<th>Arch</th>
+<th>TDP</th>
+<th>Cooling</th>
+<th>~Price</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>RTX A6000</strong> ⭐ 70B value</td>
+<td>48 GB ECC</td>
+<td>768 GB/s</td>
+<td>10752</td>
+<td>Ampere</td>
+<td>300 W</td>
+<td><strong>blower (2-slot)</strong></td>
+<td>~$3000–4500 (used ~$2800)</td>
+<td>the homelab 70B card; dock-friendly</td>
+</tr>
+<tr>
+<td>RTX 6000 Ada</td>
+<td>48 GB ECC</td>
+<td>960 GB/s</td>
+<td>18176</td>
+<td>Ada (FP8)</td>
+<td>300 W</td>
+<td><strong>blower (2-slot)</strong></td>
+<td>~$6000–7000</td>
+<td>premium; fastest 48 GB</td>
+</tr>
+<tr>
+<td>2× RTX 3090 (tensor-parallel)</td>
+<td>48 GB</td>
+<td>936 GB/s ea</td>
+<td>10496 ea</td>
+<td>Ampere</td>
+<td>350 W ea</td>
+<td>open-air</td>
+<td>~$1400–1800 used</td>
+<td>cheapest 48 GB, but needs <strong>dual-GPU dock / 2× OCuLink</strong> + TP config — most complex</td>
+</tr>
+</tbody>
+</table>
+<h3 id="option-a-bill-of-materials-example-24-gb-path">Option A bill of materials (example, 24 GB path)<a class="headerlink" href="#option-a-bill-of-materials-example-24-gb-path" title="Permanent link">&para;</a></h3>
+<p>MS-A2 <strong>OCuLink adapter</strong> + <strong>Minisforum DEG1/DEG2</strong> dock + <strong>~650–750 W ATX PSU</strong> +
+<strong>used RTX 3090 (24 GB)</strong> ≈ <strong>~$900–1000 all-in</strong>. (A6000 48 GB path ≈ ~$3,200–4,700 all-in.)</p>
+<hr />
+<h1 id="option-b-cpu-inference-on-weyland-via-ollama-committed-live-0">OPTION B — CPU inference on weyland via Ollama  ✅ <strong>COMMITTED (live, $0)</strong><a class="headerlink" href="#option-b-cpu-inference-on-weyland-via-ollama-committed-live-0" title="Permanent link">&para;</a></h1>
+<p><strong>The decided baseline — proceeding regardless of the GPU decision, so there's a guaranteed CPU
+path.</strong> <code>ollama</code> (wraps <code>llama.cpp</code>) on the 96 GB RAM; fits <strong>70B @ 4-bit (~40 GB)</strong> comfortably.
+Serves an OpenAI-compatible <code>/v1</code> API → the harness points at it now, no client change if a GPU is
+added later. The eGPU (Option A) is <strong>additive</strong> — it accelerates; it never removes this path.</p>
+<p><strong>→ Full operations, the critical thread-count fix, and measured tok/s benchmarks:
+<a href="../../runbooks/model-serving-ollama/">../runbooks/model-serving-ollama.md</a>.</strong> (Headline: a 30B-A3B MoE runs at <strong>~25 tok/s</strong> on CPU
+once tuned — genuinely interactive.)</p>
+<h1 id="option-c-cloud-gpu-no-capex-opex-data-leaves-lan">OPTION C — Cloud GPU  <em>(no capex, opex + data leaves LAN)</em><a class="headerlink" href="#option-c-cloud-gpu-no-capex-opex-data-leaves-lan" title="Permanent link">&para;</a></h1>
+<p>Rent on demand (RunPod / Vast.ai / Lambda) for occasional heavy 70B runs. Against the LAN-lab
+ethos for always-on use, and recurring cost — but zero hardware and instantly any size.</p>
+<hr />
+<h2 id="pecking-order-where-your-laptop-card-sits-frame-of-reference">Pecking order — where your laptop card sits (frame of reference)<a class="headerlink" href="#pecking-order-where-your-laptop-card-sits-frame-of-reference" title="Permanent link">&para;</a></h2>
+<p>LLM inference ranks on two axes: <strong>VRAM = what you can run</strong> (dominant) and <strong>bandwidth = how
+fast</strong>. Your <strong>RTX 5000 Ada Laptop (16 GB / 576 GB/s)</strong> lands:
+- <strong>By capacity (VRAM): the floor</strong> — every candidate is 24/32/48 GB, i.e. all run <em>bigger</em>
+  models than your laptop. This is the axis that matters for B7.
+- <strong>By speed (bandwidth): mid-pack</strong> — see the order below.
+- <strong>Fun reference:</strong> the <strong>desktop RTX 5000 Ada (32 GB)</strong> is literally your laptop card's desktop
+  sibling — same ~576 GB/s, but <strong>2× the VRAM</strong> and more cores.</p>
+<p>Ordered by <strong>memory bandwidth</strong> (≈ token-gen speed), your card marked ⬅:</p>
+<table>
+<thead>
+<tr>
+<th>Rank</th>
+<th>GPU</th>
+<th>VRAM</th>
+<th>BW</th>
+<th>≈ speed vs yours</th>
+<th>~Price</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td>RTX 5090</td>
+<td>32 GB</td>
+<td>~1792 GB/s</td>
+<td>~3.1×</td>
+<td>~$2000–3000</td>
+</tr>
+<tr>
+<td>2</td>
+<td>RTX 4090</td>
+<td>24 GB</td>
+<td>1008 GB/s</td>
+<td>~1.75×</td>
+<td>~$1500–2000</td>
+</tr>
+<tr>
+<td>2</td>
+<td>RTX 3090 Ti</td>
+<td>24 GB</td>
+<td>1008 GB/s</td>
+<td>~1.75×</td>
+<td>~$900–1100</td>
+</tr>
+<tr>
+<td>4</td>
+<td>RTX 6000 Ada</td>
+<td>48 GB</td>
+<td>960 GB/s</td>
+<td>~1.7×</td>
+<td>~$6000–7000</td>
+</tr>
+<tr>
+<td>5</td>
+<td>RTX 3090</td>
+<td>24 GB</td>
+<td>936 GB/s</td>
+<td>~1.6×</td>
+<td>~$700–900</td>
+</tr>
+<tr>
+<td>6</td>
+<td>RTX A6000</td>
+<td>48 GB</td>
+<td>768 GB/s</td>
+<td>~1.3×</td>
+<td>~$3000–4500</td>
+</tr>
+<tr>
+<td>6</td>
+<td>RTX A5000</td>
+<td>24 GB</td>
+<td>768 GB/s</td>
+<td>~1.3×</td>
+<td>~$1200–1800</td>
+</tr>
+<tr>
+<td>8</td>
+<td>RTX 4070 Ti SUPER</td>
+<td>16 GB</td>
+<td>672 GB/s</td>
+<td>~1.2×</td>
+<td>~$800</td>
+</tr>
+<tr>
+<td><strong>9</strong></td>
+<td>⬅ <strong>RTX 5000 Ada Laptop — YOURS</strong></td>
+<td><strong>16 GB</strong></td>
+<td><strong>576 GB/s</strong></td>
+<td><strong>1.0× (baseline)</strong></td>
+<td>—</td>
+</tr>
+<tr>
+<td>9</td>
+<td>RTX 5000 Ada (desktop)</td>
+<td>32 GB</td>
+<td>576 GB/s</td>
+<td>1.0×</td>
+<td>~$3500–4000</td>
+</tr>
+<tr>
+<td>11</td>
+<td>RTX 5060 Ti 16GB</td>
+<td>16 GB</td>
+<td>448 GB/s</td>
+<td>~0.8×</td>
+<td>~$430</td>
+</tr>
+<tr>
+<td>12</td>
+<td>RTX 4060 Ti 16GB</td>
+<td>16 GB</td>
+<td>288 GB/s</td>
+<td>~0.5×</td>
+<td>~$450</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Takeaway:</strong> your laptop card is upper-bottom on <em>speed</em> and at the <em>floor</em> on <em>capacity</em>. The
+limit for B7 is VRAM (16 GB), not speed — so every 24 GB+ card is an upgrade for the real goal
+(running 30B/70B), and most are faster too. The 3090 (rank 5) is the value pick: ~1.6× your
+speed and 24 GB, ~$700–900.</p>
+<hr />
+<h2 id="plan">Plan<a class="headerlink" href="#plan" title="Permanent link">&para;</a></h2>
+<ul>
+<li><strong>Now (committed, live):</strong> Option B — <strong>Ollama on weyland's CPU</strong> (96 GB RAM). Guarantees a CPU
+  path and gives the harness a working large-model endpoint regardless of GPU timing.
+  Operating it: <a href="../../runbooks/model-serving-ollama/">../runbooks/model-serving-ollama.md</a>.</li>
+<li><strong>Deferred upgrade (additive, pending pricing):</strong> Option A — OCuLink eGPU. Lean: used
+  <strong>RTX 3090 (24 GB)</strong> (~$900–1000) for 30B-class via vLLM; <strong>RTX A6000 (48 GB)</strong> if 70B@4-bit on
+  GPU is a hard requirement. The eGPU <em>accelerates</em>; it does <strong>not</strong> remove the Ollama path.</li>
+</ul>
+<h2 id="to-research-before-deciding-the-deferred-bits">To research before deciding (the deferred bits)<a class="headerlink" href="#to-research-before-deciding-the-deferred-bits" title="Permanent link">&para;</a></h2>
+<ul class="task-list">
+<li class="task-list-item"><label class="task-list-control"><input type="checkbox" disabled/><span class="task-list-indicator"></span></label> Current pricing: MS-A2 OCuLink adapter, <strong>DEG1 vs DEG2</strong> dock, ATX PSU, and the candidate
+      cards (used market for 3090 / A6000).</li>
+<li class="task-list-item"><label class="task-list-control"><input type="checkbox" disabled/><span class="task-list-indicator"></span></label> Confirm the exact <strong>MS-A2 OCuLink adapter</strong> part (not all Minisforum minis share one).</li>
+<li class="task-list-item"><label class="task-list-control"><input type="checkbox" disabled/><span class="task-list-indicator"></span></label> Dock <strong>cooling</strong> for the chosen card (blower workstation vs open-air gaming).</li>
+<li class="task-list-item"><label class="task-list-control"><input type="checkbox" disabled/><span class="task-list-indicator"></span></label> Pin the <strong>target model size</strong> (30B vs 70B) → sets the VRAM tier.</li>
+<li class="task-list-item"><label class="task-list-control"><input type="checkbox" disabled/><span class="task-list-indicator"></span></label> Power budget / physical space for dock + ATX PSU next to the MS-A2.</li>
+</ul>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+    
+      
+      <nav class="md-footer__inner md-grid" aria-label="Footer" >
+        
+          
+          <a href="../llm-inference-cpu-vs-gpu/" class="md-footer__link md-footer__link--prev" aria-label="Previous: LLM Inference — CPU vs GPU Tradeoffs (the why)">
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+            </div>
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                Previous
+              </span>
+              <div class="md-ellipsis">
+                LLM Inference — CPU vs GPU Tradeoffs (the why)
+              </div>
+            </div>
+          </a>
+        
+        
+          
+          <a href="../../diagrams/c4-component-hermes/" class="md-footer__link md-footer__link--next" aria-label="Next: C4 Component — hermes CT (CT 104)">
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                Next
+              </span>
+              <div class="md-ellipsis">
+                C4 Component — hermes CT (CT 104)
+              </div>
+            </div>
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M4 11v2h12l-5.5 5.5 1.42 1.42L19.84 12l-7.92-7.92L10.5 5.5 16 11z"/></svg>
+            </div>
+          </a>
+        
+      </nav>
+    
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["navigation.footer", "content.action.edit"], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../../assets/javascripts/bundle.79ae519e.min.js"></script>
+      
+        <script src="../../search/main.js"></script>
+      
+    
+  </body>
+</html>

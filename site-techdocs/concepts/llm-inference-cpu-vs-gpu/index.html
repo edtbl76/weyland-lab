@@ -1,0 +1,2639 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Runbooks, architecture, diagrams, and concepts for the weyland homelab AI platform.">
+      
+      
+      
+      
+        <link rel="prev" href="../data-schema/">
+      
+      
+        <link rel="next" href="../model-serving-hardware/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.6">
+    
+    
+      
+        <title>LLM Inference — CPU vs GPU Tradeoffs (the why) - Weyland Platform Docs</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/stylesheets/main.484c7ddc.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    <body dir="ltr">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#llm-inference-cpu-vs-gpu-tradeoffs-the-why" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../.." title="Weyland Platform Docs" class="md-header__button md-logo" aria-label="Weyland Platform Docs" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            Weyland Platform Docs
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              LLM Inference — CPU vs GPU Tradeoffs (the why)
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+    
+    
+    
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../.." title="Weyland Platform Docs" class="md-nav__button md-logo" aria-label="Weyland Platform Docs" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    Weyland Platform Docs
+  </label>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Weyland Docs
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Weyland — API &amp; Endpoint Inventory
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../arch/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Weyland — Architecture
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../backlog/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Weyland Forward Roadmap — re-prioritized 2026-06-14
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../hosts/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Weyland — Host Inventory
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../weyland/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Weyland
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_7" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_7" id="__nav_7_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Concepts
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_7_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_7">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Concepts
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../agent-platform-design/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    B2 — Agent Platform (Hermes + OpenClaw) — Design
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../data-schema/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Data Schema — RAG + Eval Stores
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    LLM Inference — CPU vs GPU Tradeoffs (the why)
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    LLM Inference — CPU vs GPU Tradeoffs (the why)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#the-inference-tradeoff" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The inference tradeoff
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="The inference tradeoff">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#two-independent-axes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Two independent axes
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#why-token-speed-is-bandwidth-bound" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Why token speed is bandwidth-bound
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#gpu-vs-cpu-are-opposite-corners-the-economic-core" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        GPU vs CPU are opposite corners — the economic core
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#when-each-makes-sense-workload-routing-applies-anywhere" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        When each makes sense (workload routing — applies anywhere)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#the-pattern-this-produces-tiered-inference" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The pattern this produces (tiered inference)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#lab-context-weights-everything-above" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Lab context — weights everything above
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#performance-envelope-expected-toks-ballpark-q4" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Performance envelope — expected tok/s (ballpark, Q4)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Performance envelope — expected tok/s (ballpark, Q4)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#cpu-vs-gpu-same-model-the-10-gap-and-where-the-gpu-doesnt-help" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        CPU vs GPU — same model, the ~10× gap (and where the GPU doesn't help)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#runtime-note-engine-follows-the-hardware" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Runtime note (engine follows the hardware)
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../model-serving-hardware/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    B7 — Model Serving Hardware (DECISION DEFERRED — pending pricing)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_8" >
+        
+          
+          <label class="md-nav__link" for="__nav_8" id="__nav_8_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Diagrams
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_8_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_8">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Diagrams
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../diagrams/c4-component-hermes/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    C4 Component — hermes CT (CT 104)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../diagrams/c4-component-mother/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    C4 Component — mother VM (k3s)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../diagrams/c4-component-ollama/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    C4 Component — ollama CT (CT 102)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../diagrams/c4-component-openclaw/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    C4 Component — openclaw VM (vm-100)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../diagrams/c4-component-rogueone/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    C4 Component — rogueone (external)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../diagrams/c4-component-whisper/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    C4 Component — whisper CT (CT 103)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../diagrams/c4-container/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    C4 Container — Weyland
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../diagrams/c4-context/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    C4 Context — Weyland
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../diagrams/flow-act-tool/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Flow: Audited Act-Tool (/mcp-act, B14 read+act)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../diagrams/flow-agent-mcp/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Flow: Agent System-View (Hermes / Claude Code -&gt; MCP -&gt; tool-server)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../diagrams/flow-alerting/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Flow: Alerting (B5)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../diagrams/flow-backend-dispatch/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Flow: Backend Selection / Dispatch (detail of RAG retrieval)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../diagrams/flow-deploy/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Flow: Deploy / Redeploy (build↔runtime isolation)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../diagrams/flow-eval-scoring/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Flow: Eval Scoring (weyland_eval_score_job, detail of the eval pipeline)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../diagrams/flow-eval/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Flow: Evaluation Pipeline (single-path eval -&gt; panel -&gt; leaderboard)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../diagrams/flow-guardrails/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Flow: Guardrail Validation (B14, shadow-first)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../diagrams/flow-health-status/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Flow: Health / Status Aggregation (U12)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../diagrams/flow-ingestion/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Flow: Ingestion (repo → 4 vector backends)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../diagrams/flow-ingress-tls/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Flow: Ingress / TLS Front Door
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../diagrams/flow-mesh-mtls/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Flow: Service-Mesh Request Path + mTLS (B8)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../diagrams/flow-model-catalog/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Flow: model_catalog Refresh (B26)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../diagrams/flow-model-gateway/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Flow: Model-Gateway Routing (B26, LiteLLM)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../diagrams/flow-pipeline-trigger/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Flow: Pipeline Trigger (/pipeline/trigger → Dagster)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../diagrams/flow-rag-query/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Flow: RAG Query (/context/ask)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../diagrams/flow-roadmap-sync/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Flow: Roadmap-Sync → Hermes Kanban (B27)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../diagrams/flow-tracing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Flow: Distributed Tracing Pipeline (B8)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../diagrams/flow-voice-chat/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Flow: Voice Chat (Open WebUI -&gt; whisper -&gt; Ollama)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_9" >
+        
+          
+          <label class="md-nav__link" for="__nav_9" id="__nav_9_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Runbooks
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_9_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_9">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Runbooks
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../runbooks/agent-hermes/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    B2 — Hermes Agent Runbook — weyland (CT 104)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../runbooks/aidlc-kb-ingest/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    B37 — AIDLC Knowledge-Base Ingestion (MinIO → RAG)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../runbooks/eval-harness/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    B4 — LLM Evaluation Pipeline (runbook)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../runbooks/model-gateway/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Model Gateway (LiteLLM) + Model Catalog — runbook
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../runbooks/model-serving-ollama/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Ollama Runbook — weyland (CT 102)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../runbooks/observability/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    B5 — Observability (kube-prometheus-stack) — Deploy &amp; Validate
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../runbooks/service-mesh-istio/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Istio service mesh — runbook (B8)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../runbooks/storage-minio/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    B6 — MinIO Object Storage (8TB USB → mother VM passthrough)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../runbooks/transcription-whisper/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    B11 — Whisper STT Runbook — weyland (CT 103)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../runbooks/weyland-idp/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    weyland IDP — runbook (B3)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_10" >
+        
+          
+          <label class="md-nav__link" for="__nav_10" id="__nav_10_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Units
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_10_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_10">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Units
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../units/u10-sa-scoping/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    U10 — Service Account Scoping (least privilege) — Apply &amp; Validate
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../units/u11-ssh-identity/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    U11 — weyland-lab SSH Identity Review
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../units/u12-health-endpoints/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    U12 — Tool Server Extended Health/Status Endpoints
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../units/u6-credential-hardening/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    U6 — Tool Server DB Credential Hardening — Deploy &amp; Validate
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../units/u7-config-hf-cleanup/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    U7 — Tool Server Config &amp; HF Cache Cleanup — Deploy &amp; Validate
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../units/u8-headlamp-token/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    U8 — Headlamp Permanent Admin Token — Apply &amp; Validate
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../units/u9-cert-mkcert/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    U9 (cert) — mkcert wildcard cert for *.weyland.lab
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../units/u9-dns-coredns/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    U9 (prereq) — CoreDNS LAN Resolver — Deploy &amp; Validate
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../units/u9-traefik-ingress/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    U9 (ingress) — Traefik + TLS for platform UIs
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_11" >
+        
+          
+          <label class="md-nav__link" for="__nav_11" id="__nav_11_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Validation
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_11_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_11">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Validation
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../validation/test-commands/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Weyland Platform Test Commands
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#the-inference-tradeoff" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The inference tradeoff
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="The inference tradeoff">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#two-independent-axes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Two independent axes
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#why-token-speed-is-bandwidth-bound" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Why token speed is bandwidth-bound
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#gpu-vs-cpu-are-opposite-corners-the-economic-core" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        GPU vs CPU are opposite corners — the economic core
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#when-each-makes-sense-workload-routing-applies-anywhere" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        When each makes sense (workload routing — applies anywhere)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#the-pattern-this-produces-tiered-inference" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The pattern this produces (tiered inference)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#lab-context-weights-everything-above" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Lab context — weights everything above
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#performance-envelope-expected-toks-ballpark-q4" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Performance envelope — expected tok/s (ballpark, Q4)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Performance envelope — expected tok/s (ballpark, Q4)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#cpu-vs-gpu-same-model-the-10-gap-and-where-the-gpu-doesnt-help" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        CPU vs GPU — same model, the ~10× gap (and where the GPU doesn't help)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#runtime-note-engine-follows-the-hardware" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Runtime note (engine follows the hardware)
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+
+<h1 id="llm-inference-cpu-vs-gpu-tradeoffs-the-why">LLM Inference — CPU vs GPU Tradeoffs (the <em>why</em>)<a class="headerlink" href="#llm-inference-cpu-vs-gpu-tradeoffs-the-why" title="Permanent link">&para;</a></h1>
+<p>Generalizable background for model-serving hardware decisions: capacity vs speed, why token
+generation is memory-bandwidth-bound, when CPU vs GPU each make sense, and the tiered-inference
+pattern. Pulled out of the B7 decision doc so it stands on its own and outlives any one purchase.</p>
+<p><strong>Related:</strong> <a href="../model-serving-hardware/">B7 — Model Serving Hardware (the decision)</a> ·
+<a href="../../runbooks/model-serving-ollama/">Ollama runbook + measured benchmarks</a>.</p>
+<hr />
+<h2 id="the-inference-tradeoff">The inference tradeoff<a class="headerlink" href="#the-inference-tradeoff" title="Permanent link">&para;</a></h2>
+<h3 id="two-independent-axes">Two independent axes<a class="headerlink" href="#two-independent-axes" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>VRAM/RAM = capacity = <em>what</em> you can run.</strong> A <strong>hard wall</strong>: weights + KV cache must fit, or
+  it won't load (or spills to slow CPU offload). 24 GB clears 30B@4-bit; 48 GB clears 70B@4-bit.</li>
+<li><strong>Memory bandwidth = speed = <em>how fast</em> once it fits.</strong> A <strong>dial</strong>, not a wall.</li>
+</ul>
+<h3 id="why-token-speed-is-bandwidth-bound">Why token speed is bandwidth-bound<a class="headerlink" href="#why-token-speed-is-bandwidth-bound" title="Permanent link">&para;</a></h3>
+<p>Generating each token reads <strong>every weight once</strong>, so <strong>tokens/sec ≈ bandwidth ÷ model-size</strong>.
+A 30B@4-bit (~18 GB) on a 3090 (936 GB/s) ≈ 936÷18 ≈ 52 theoretical (~25–40 real). CUDA cores
+barely affect <em>generation</em> — they affect <strong>prefill</strong> (digesting the prompt), the other half of
+latency. <strong>Quantization moves both axes</strong>: 70B 8-bit→4-bit both <em>fits smaller</em> and <em>runs ~2×
+faster</em> (half the bytes per token). Q4 ≈ sweet spot; below Q3 quality degrades.</p>
+<blockquote>
+<p><strong>Measured corollary (CPU):</strong> the 1/N "active-params" law is confirmed on weyland — see the
+<a href="../../runbooks/model-serving-ollama/#measured-benchmarks">measured-benchmark table</a>. On CPU, MoE models read only
+their <em>active</em> experts per token, so a 30B-total / 3B-active MoE runs at ~3B <em>speed</em> with ~30B
+<em>capability</em> — the key to "big models, usable speed" without a GPU.</p>
+</blockquote>
+<h3 id="gpu-vs-cpu-are-opposite-corners-the-economic-core">GPU vs CPU are opposite corners — the economic core<a class="headerlink" href="#gpu-vs-cpu-are-opposite-corners-the-economic-core" title="Permanent link">&para;</a></h3>
+<p><strong>VRAM is fast + expensive; RAM is slow + cheap (~50–100×/GB).</strong> So: buy a <em>little</em> fast memory
+(GPU) for what runs <strong>constantly/interactively</strong>, lean on <em>lots</em> of cheap slow memory (CPU) for
+what runs <strong>occasionally/in bulk</strong>. Same logic as cache vs RAM vs disk.</p>
+<table>
+<thead>
+<tr>
+<th></th>
+<th>Capacity</th>
+<th>Bandwidth</th>
+<th>Best for</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>GPU</strong></td>
+<td>small (16–48 GB VRAM)</td>
+<td>high (576–1800 GB/s)</td>
+<td><strong>fast &amp; fits</strong>: interactive, long-prompt/prefill, high-volume</td>
+</tr>
+<tr>
+<td><strong>CPU</strong></td>
+<td>large (96 GB+ RAM)</td>
+<td>low (~85 GB/s DDR5)</td>
+<td><strong>big or batch</strong>: too-big-for-VRAM, latency-tolerant, occasional</td>
+</tr>
+</tbody>
+</table>
+<h3 id="when-each-makes-sense-workload-routing-applies-anywhere">When each makes sense (workload routing — applies anywhere)<a class="headerlink" href="#when-each-makes-sense-workload-routing-applies-anywhere" title="Permanent link">&para;</a></h3>
+<p><strong>GPU when:</strong> a human / tight agent loop is <strong>waiting</strong> (latency compounds across turns) · long
+prompts / RAG / big code context (prefill is compute-bound — CPU can take <em>minutes</em> on 30K
+tokens) · high concurrency/batching · the model <strong>fits VRAM</strong> and speed matters at all.
+<strong>CPU when:</strong> the model <strong>doesn't fit VRAM</strong> (the capacity escape hatch — run 70B+ that no
+affordable GPU holds) · <strong>nothing is waiting</strong> (overnight eval, bulk processing, async steps) ·
+you need the big model <strong>rarely</strong> (don't justify GPU capex) · embeddings/small models that are
+"fast enough."</p>
+<p><strong>Decision as gates:</strong> (1) Fits VRAM? No → CPU/offload. (2) Something waiting? Yes → GPU.
+(3) Long prompts / high volume? Yes → GPU.</p>
+<p><strong>Middle ground — hybrid offload:</strong> llama.cpp can split a model <em>N layers on GPU, rest on CPU</em>
+— for a model that <em>almost</em> fits (70B on 24 GB). Speed lands between the two, bottlenecked by
+the CPU half. The "make it fit, claw back some speed" lever.</p>
+<h3 id="the-pattern-this-produces-tiered-inference">The pattern this produces (tiered inference)<a class="headerlink" href="#the-pattern-this-produces-tiered-inference" title="Permanent link">&para;</a></h3>
+<blockquote>
+<p>Run a <strong>fast, fits-in-VRAM model as the interactive daily driver on GPU</strong>, and keep a
+<strong>bigger, smarter model on CPU for the occasional latency-tolerant "max capability" call.</strong>
+Route by <em>"is someone waiting?"</em> and <em>"does it fit?"</em> — <strong>not</strong> by which model is "best."</p>
+</blockquote>
+<p>An <strong>agent harness is exactly this workload</strong>: most steps are quick reasoning/tool-calls (GPU),
+with the occasional hard problem worth waiting on (CPU). Which is why weyland's CPU/Ollama path
+(capacity) + a future 24 GB eGPU (speed) is a <em>complete</em> answer, not a compromise — each axis
+covered by the corner that's cheap at it. The 48 GB premium buys capacity you <em>already have</em> on
+the CPU, not speed (A6000 bandwidth ≈ a 24 GB card), so it only pays off if you need 70B <strong>fast
+and often</strong> — uncommon for harness dev.</p>
+<h3 id="lab-context-weights-everything-above">Lab context — weights everything above<a class="headerlink" href="#lab-context-weights-everything-above" title="Permanent link">&para;</a></h3>
+<p><strong>This is a homelab for experimentation/learning, not production.</strong> That softens the "is someone
+waiting?" gate <em>across the board</em> — there's no SLA, you're usually the only user, and you're
+poking at models to learn. Consequences:
+- <strong>CPU/Ollama covers more than it would in prod</strong> — slow is fine when nothing's waiting; 70B at
+  ~1–2 tok/s is genuinely useful for a lab. The committed CPU path is <em>enough</em> for most work.
+- <strong>The eGPU is quality-of-life, not required</strong> — it makes the interactive loop pleasant; no
+  experiment is blocked without it. Add it when a workload actually annoys you, not preemptively.
+- <strong>Don't over-spend / over-engineer:</strong> a used 3090 (24 GB) is peak-homelab; $3k+ workstation
+  cards (A6000/6000 Ada) are production economics — skip unless a specific experiment needs
+  fast-70B. The CPU "slowness" is itself instructive (teaches bandwidth/quant tradeoffs).</p>
+<h2 id="performance-envelope-expected-toks-ballpark-q4">Performance envelope — expected tok/s (ballpark, Q4)<a class="headerlink" href="#performance-envelope-expected-toks-ballpark-q4" title="Permanent link">&para;</a></h2>
+<blockquote>
+<p><strong>Measured numbers now live in the <a href="../../runbooks/model-serving-ollama/#measured-benchmarks">Ollama runbook</a>.</strong>
+The tables below are the <em>conceptual</em> ballpark and the reasoning behind them — kept for the
+"why," superseded by real data for the "what."</p>
+</blockquote>
+<p>weyland CPU ceiling ≈ <strong>~70–80 GB/s</strong> DDR5 (dual-channel ~5600). Reading speed anchor ≈ 7–10 tok/s.
+These were estimates <em>before</em> benchmarking — note the real MoE numbers beat the dense estimates
+because MoE only pays for active params.</p>
+<table>
+<thead>
+<tr>
+<th>Model (Q4)</th>
+<th>Size in RAM</th>
+<th>weyland <strong>CPU</strong> gen</th>
+<th>Feel (CPU)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>7–8B</td>
+<td>~5 GB</td>
+<td>~10–14 tok/s</td>
+<td>real-time, fine interactively</td>
+</tr>
+<tr>
+<td>14B</td>
+<td>~9 GB</td>
+<td>~6–8 tok/s</td>
+<td>just under reading speed — usable</td>
+</tr>
+<tr>
+<td>32B</td>
+<td>~20 GB</td>
+<td>~3–3.5 tok/s</td>
+<td>slow; non-interactive</td>
+</tr>
+<tr>
+<td>70B</td>
+<td>~42 GB</td>
+<td>~1.5–2 tok/s</td>
+<td>kick off &amp; walk away (batch/async)</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Hidden cost = prefill (prompt digestion), not generation.</strong> Prefill is compute-bound; on CPU a
+long prompt (big RAG context, several code files) adds <strong>tens of seconds → minutes</strong> before the
+first token. Negligible for short prompts; the main pain for long ones. (A GPU fixes this most.)</p>
+<h3 id="cpu-vs-gpu-same-model-the-10-gap-and-where-the-gpu-doesnt-help">CPU vs GPU — same model, the ~10× gap (and where the GPU <em>doesn't</em> help)<a class="headerlink" href="#cpu-vs-gpu-same-model-the-10-gap-and-where-the-gpu-doesnt-help" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Model (Q4)</th>
+<th>weyland <strong>CPU</strong></th>
+<th><strong>24 GB</strong> 3090</th>
+<th><strong>48 GB</strong> A6000</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>8B</td>
+<td>~12 tok/s</td>
+<td>~100+</td>
+<td>~80+</td>
+</tr>
+<tr>
+<td>14B</td>
+<td>~6–8</td>
+<td>~60–80</td>
+<td>~50</td>
+</tr>
+<tr>
+<td>32B</td>
+<td>~3</td>
+<td>~30–40</td>
+<td>~25–30</td>
+</tr>
+<tr>
+<td>70B</td>
+<td>~1.5–2</td>
+<td>❌ doesn't fit → offload, ~3–5</td>
+<td>~10–15</td>
+</tr>
+</tbody>
+</table>
+<ul>
+<li><strong>For models that FIT, the GPU is ~10× on gen + far more on prefill</strong> (32B: ~3 → ~35 tok/s =
+  batch-tool → interactive). Not marginal.</li>
+<li><strong>The "GPU barely helps" case is exactly one: 70B on a 24 GB card</strong> — doesn't fit, spills to
+  CPU, lands back near CPU speed. A 24 GB card transforms ≤32B; only a 48 GB card makes 70B fast.</li>
+<li><strong>Two different comparisons:</strong> "~1.6×" was 3090 vs the <em>laptop GPU</em>; vs weyland's <strong>CPU</strong> (where
+  it runs today) a 3090 is <strong>~10×</strong>. weyland is CPU-only now → the 10× is the relevant figure.</li>
+<li><strong>Lab reconciliation:</strong> CPU is <em>sufficient</em> (nothing blocked), but the GPU is a real ~10×
+  <em>experience</em> upgrade for 8–32B. "Not needed" ≠ "not impactful." Size the card to a model that
+  fits it (24 GB → 32B); 70B-fast (48 GB) is the rare thing a lab seldom needs.</li>
+</ul>
+<h2 id="runtime-note-engine-follows-the-hardware">Runtime note (engine follows the hardware)<a class="headerlink" href="#runtime-note-engine-follows-the-hardware" title="Permanent link">&para;</a></h2>
+<ul>
+<li><strong>GPU path → vLLM</strong> (preferred — PagedAttention, OpenAI-compatible API).</li>
+<li><strong>CPU path → llama.cpp / ollama</strong> (GGUF quant fits big models in RAM; also serves an
+  OpenAI-compatible <code>/v1</code> API, so harness code is engine-agnostic). vLLM <em>has</em> a CPU backend
+  but it's immature and fp16-leaning (70B won't fit 96 GB) → <strong>not</strong> recommended for CPU.</li>
+</ul>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+    
+      
+      <nav class="md-footer__inner md-grid" aria-label="Footer" >
+        
+          
+          <a href="../data-schema/" class="md-footer__link md-footer__link--prev" aria-label="Previous: Data Schema — RAG + Eval Stores">
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+            </div>
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                Previous
+              </span>
+              <div class="md-ellipsis">
+                Data Schema — RAG + Eval Stores
+              </div>
+            </div>
+          </a>
+        
+        
+          
+          <a href="../model-serving-hardware/" class="md-footer__link md-footer__link--next" aria-label="Next: B7 — Model Serving Hardware (DECISION DEFERRED — pending pricing)">
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                Next
+              </span>
+              <div class="md-ellipsis">
+                B7 — Model Serving Hardware (DECISION DEFERRED — pending pricing)
+              </div>
+            </div>
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M4 11v2h12l-5.5 5.5 1.42 1.42L19.84 12l-7.92-7.92L10.5 5.5 16 11z"/></svg>
+            </div>
+          </a>
+        
+      </nav>
+    
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["navigation.footer", "content.action.edit"], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../../assets/javascripts/bundle.79ae519e.min.js"></script>
+      
+        <script src="../../search/main.js"></script>
+      
+    
+  </body>
+</html>

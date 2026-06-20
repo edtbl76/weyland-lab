@@ -1,0 +1,144 @@
+# B3 — weyland IDP (Backstage under the hood, named tool-neutrally so it can be swapped).
+# Stateless backend (state lives in Postgres); the platform catalog is mounted from a ConfigMap so it
+# updates without an image rebuild. Behind Traefik TLS at idp.weyland.lab; LAN-only + Backstage guest auth.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: weyland-idp
+  namespace: weyland
+  labels:
+    app: weyland-idp
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: weyland-idp
+  template:
+    metadata:
+      labels:
+        app: weyland-idp
+        # Join the Istio mesh — required to reach STRICT-mTLS Postgres (B37). Without the sidecar the
+        # plaintext DB connection is reset by Postgres's Envoy (read ECONNRESET). Inbound from Traefik
+        # stays fine (PERMISSIVE default on this workload).
+        sidecar.istio.io/inject: "true"
+      annotations:
+        # Exclude the app's own port from INBOUND Envoy interception. Backstage makes internal HTTP
+        # calls to itself (techdocs/search -> localhost:7007/api/catalog/...) with streamed responses,
+        # which Envoy was cutting mid-body (ERR_STREAM_PREMATURE_CLOSE -> techdocs 500, broken search).
+        # This only affects port 7007 (Traefik + the app's self-calls go direct); OUTBOUND to Postgres
+        # (5432) stays meshed, so STRICT mTLS is preserved. Both directions excluded because the self-call
+        # (localhost:7007 -> pod IP) is grabbed on the OUTBOUND path, not inbound.
+        traffic.sidecar.istio.io/excludeInboundPorts: "7007"
+        traffic.sidecar.istio.io/excludeOutboundPorts: "7007"
+    spec:
+      containers:
+        - name: weyland-idp
+          image: weyland-idp:local
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 7007
+          env:
+            - name: POSTGRES_HOST
+              value: weyland-postgres.weyland.svc.cluster.local
+            - name: POSTGRES_PORT
+              value: "5432"
+            - name: POSTGRES_USER
+              valueFrom:
+                secretKeyRef:
+                  name: weyland-idp-secret
+                  key: POSTGRES_USER
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: weyland-idp-secret
+                  key: POSTGRES_PASSWORD
+            - name: BACKEND_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: weyland-idp-secret
+                  key: BACKEND_SECRET
+            # TechDocs (slice B) S3 publisher → MinIO. Reuses the B37 MinIO secret in this ns.
+            - name: MINIO_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: aidlc-kb-minio-secret
+                  key: access_key
+            - name: MINIO_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: aidlc-kb-minio-secret
+                  key: secret_key
+            # Force IPv4 loopback. Backstage calls itself at http://localhost:7007 (techdocs/search ->
+            # catalog); modern Node resolves localhost to IPv6 ::1 first, and the Istio sidecar captures
+            # that ::1 self-call and cuts the streamed response (ERR_STREAM_PREMATURE_CLOSE). With ipv4first
+            # the self-call hits 127.0.0.1, which Envoy leaves on the loopback (not intercepted). Keeps the
+            # pod fully meshed — Postgres mTLS unaffected. (--no-node-snapshot retained from the image.)
+            - name: NODE_OPTIONS
+              value: "--no-node-snapshot --dns-result-order=ipv4first"
+          volumeMounts:
+            - name: catalog
+              mountPath: /catalog
+              readOnly: true
+            # Override the image-baked app-config.production.yaml with a ConfigMap (subPath = single file).
+            # Lets us iterate on IDP config with a ConfigMap update + restart — no image rebuild.
+            - name: prodconfig
+              mountPath: /app/app-config.production.yaml
+              subPath: app-config.production.yaml
+              readOnly: true
+          readinessProbe:
+            tcpSocket:
+              port: 7007
+            initialDelaySeconds: 20
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              memory: 1Gi
+      volumes:
+        - name: catalog
+          configMap:
+            name: weyland-idp-catalog
+        - name: prodconfig
+          configMap:
+            name: weyland-idp-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: weyland-idp
+  namespace: weyland
+  labels:
+    app: weyland-idp
+spec:
+  type: ClusterIP
+  selector:
+    app: weyland-idp
+  ports:
+    - name: http
+      port: 7007
+      targetPort: 7007
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: weyland-idp
+  namespace: weyland
+spec:
+  tls:
+    - hosts:
+        - idp.weyland.lab
+      secretName: weyland-wildcard-tls
+  rules:
+    - host: idp.weyland.lab
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: weyland-idp
+                port:
+                  number: 7007

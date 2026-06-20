@@ -1,0 +1,4161 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Runbooks, architecture, diagrams, and concepts for the weyland homelab AI platform.">
+      
+      
+      
+      
+        <link rel="prev" href="../arch/">
+      
+      
+        <link rel="next" href="../hosts/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.6">
+    
+    
+      
+        <title>Weyland Forward Roadmap — re-prioritized 2026-06-14 - Weyland Platform Docs</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.484c7ddc.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    <body dir="ltr">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#weyland-forward-roadmap-re-prioritized-2026-06-14" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href=".." title="Weyland Platform Docs" class="md-header__button md-logo" aria-label="Weyland Platform Docs" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            Weyland Platform Docs
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Weyland Forward Roadmap — re-prioritized 2026-06-14
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+    
+    
+    
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href=".." title="Weyland Platform Docs" class="md-nav__button md-logo" aria-label="Weyland Platform Docs" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    Weyland Platform Docs
+  </label>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href=".." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Weyland Docs
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../api/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Weyland — API &amp; Endpoint Inventory
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../arch/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Weyland — Architecture
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Weyland Forward Roadmap — re-prioritized 2026-06-14
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Weyland Forward Roadmap — re-prioritized 2026-06-14
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#done-repo-verified" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        DONE (repo-verified)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#priority-work-top-down" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Priority — work top-down
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Priority — work top-down">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#immediate" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Immediate
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#platform-foundation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Platform Foundation
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#data-automation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Data &amp; Automation
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#maturity-hardening-polish" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Maturity / Hardening / Polish
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#extras-optimization" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Extras / Optimization
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#hardware-gated" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Hardware-Gated
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#tentative-someday" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Tentative / someday
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#b-item-and-u-item-detail-sections" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        B-item and U-item detail sections
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="B-item and U-item detail sections">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#b37-ingest-the-aidlc-knowledge-repositories-into-the-graph-rag-done-2026-06-19" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        B37 — Ingest the AIDLC knowledge repositories into the (Graph) RAG — ✅ DONE 2026-06-19
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#b1-build-a-data-mesh" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        B1 — Build a data mesh
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#b2-hermes-agent-platform-sibling-to-openclaw" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        B2 — Hermes (agent platform, sibling to OpenClaw)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#b3-internal-developer-platform-idp-in-progress-slice-a-live-2026-06-19" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        B3 — Internal Developer Platform (IDP) — IN PROGRESS (slice A live 2026-06-19)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#b4-llm-eval-observability" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        B4 — LLM eval / observability
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#b5-prometheus-observability-stack" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        B5 — Prometheus / observability stack
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#b6-minio-object-storage" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        B6 — MinIO object storage
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#b7-larger-models-on-weyland-the-ms-a2" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        B7 — Larger models on weyland (the MS-A2)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#b8-istio-service-mesh-done-2026-06-18" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        B8 — Istio (service mesh) — ✅ DONE 2026-06-18
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#b9-refactor-python-scripts-go-binaries" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        B9 — Refactor Python scripts → Go binaries
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#b10-model-registry" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        B10 — Model registry
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#b11-whisper-stt-speechtext-on-weyland" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        B11 — Whisper STT (speech→text) on weyland
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#b12-api-catalog-endpoint-registry" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        B12 — API catalog / endpoint registry
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#b13-open-webui-browser-voicechat-front-door" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        B13 — Open WebUI (browser voice/chat front door)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#b14-guardrails-hermes-readact-learning-track" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        B14 — Guardrails + Hermes read+act (learning track)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#b15-local-model-coding-agents-opencode-cline-cli" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        B15 — Local-model coding agents (opencode / Cline CLI)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#b16-mlflow-experiment-tracking-model-registry" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        B16 — MLflow (experiment tracking + model registry)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#b17-a2a-agent-to-agent-protocol-evaluation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        B17 — A2A (agent-to-agent protocol) evaluation
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#b18-spotify-integration-hermes-tool" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        B18 — Spotify integration (Hermes tool)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#b19-mcp-gateway-evaluation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        B19 — MCP gateway evaluation
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="B19 — MCP gateway evaluation">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#handoff-from-b14-readact-audit-slice-seams-already-built-for-the-gateway" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Handoff from B14 read+act (audit slice) — seams already built for the gateway
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#b20-home-assistant-integration-hermes-tool" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        B20 — Home Assistant integration (Hermes tool)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#b21-agent-media-generation-image-video-tts" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        B21 — Agent media generation (image / video / TTS)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#b22-searxng-self-hosted-search-privacy-max" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        B22 — SearXNG (self-hosted search) — privacy-max
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#b23-break-out-archmd-component-diagrams" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        B23 — Break out arch.md component diagrams
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#b24-evaluate-nerdctl" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        B24 — Evaluate nerdctl
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#b25-docs-ia-overhaul-rag-corpus-expansion" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        B25 — Docs IA overhaul + RAG corpus expansion
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#b26-hosted-model-gateway-litellm-model-catalog" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        B26 — Hosted-model gateway (LiteLLM) + model catalog
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#b27-enable-hermes-kanban-skills" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        B27 — Enable Hermes Kanban skills
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#b28-openclaw-rehabilitation-deprioritized-much-later" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        B28 — OpenClaw rehabilitation (deprioritized — much later)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#b30-real-time-docs-ingestion-trigger-extras-optimization" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        B30 — Real-time docs ingestion trigger (Extras / Optimization)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#b32-nemo-guardrails-evaluation-extras-optimization" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        B32 — NeMo Guardrails evaluation (Extras / Optimization)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#b34-evaluate-bake-pii-guard-maturity-hardening-polish" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        B34 — Evaluate + bake PII guard (Maturity / Hardening / Polish)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#b35-grounding-guard-calibration-maturity-hardening-polish" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        B35 — Grounding guard calibration (Maturity / Hardening / Polish)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#b36-hermes-dashboard-performance-maturity-hardening-polish" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        B36 — Hermes dashboard performance (Maturity / Hardening / Polish)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#b33-co-resident-warm-parallel-model-serving-hardware-gated" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        B33 — Co-resident / warm-parallel model serving (Hardware-Gated)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#b31-codebase-audit-restructure-nodes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        B31 — Codebase audit / restructure (nodes/)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#b29-connect-claude-code-to-the-weyland-system-view-mcp" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        B29 — Connect Claude Code to the weyland system-view MCP
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#u13-sentence-transformers-image-slimming" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        U13 — sentence-transformers image slimming
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#u14-n8n-workflow-export-to-git" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        U14 — n8n workflow export to git
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#u16-weaviate-ui-react-frontend" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        U16 — Weaviate UI (React frontend)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#u17-migrate-platform-api-routes-apisixtraefik-apisixoutliers-only" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        U17 — Migrate platform API routes APISIX→Traefik; APISIX→outliers-only
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#u18-weyland-lab-ssh-key-full-lockdown-rogueone-side" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        U18 — weyland-lab SSH key full lockdown (rogueone-side)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#iteration-1-follow-ups-banked-see-units-iter1md" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Iteration 1 follow-ups (banked, see units-iter1.md)
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../hosts/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Weyland — Host Inventory
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../weyland/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Weyland
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_7" >
+        
+          
+          <label class="md-nav__link" for="__nav_7" id="__nav_7_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Concepts
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_7_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_7">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Concepts
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../concepts/agent-platform-design/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    B2 — Agent Platform (Hermes + OpenClaw) — Design
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../concepts/data-schema/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Data Schema — RAG + Eval Stores
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../concepts/llm-inference-cpu-vs-gpu/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    LLM Inference — CPU vs GPU Tradeoffs (the why)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../concepts/model-serving-hardware/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    B7 — Model Serving Hardware (DECISION DEFERRED — pending pricing)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_8" >
+        
+          
+          <label class="md-nav__link" for="__nav_8" id="__nav_8_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Diagrams
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_8_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_8">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Diagrams
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../diagrams/c4-component-hermes/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    C4 Component — hermes CT (CT 104)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../diagrams/c4-component-mother/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    C4 Component — mother VM (k3s)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../diagrams/c4-component-ollama/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    C4 Component — ollama CT (CT 102)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../diagrams/c4-component-openclaw/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    C4 Component — openclaw VM (vm-100)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../diagrams/c4-component-rogueone/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    C4 Component — rogueone (external)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../diagrams/c4-component-whisper/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    C4 Component — whisper CT (CT 103)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../diagrams/c4-container/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    C4 Container — Weyland
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../diagrams/c4-context/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    C4 Context — Weyland
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../diagrams/flow-act-tool/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Flow: Audited Act-Tool (/mcp-act, B14 read+act)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../diagrams/flow-agent-mcp/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Flow: Agent System-View (Hermes / Claude Code -&gt; MCP -&gt; tool-server)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../diagrams/flow-alerting/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Flow: Alerting (B5)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../diagrams/flow-backend-dispatch/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Flow: Backend Selection / Dispatch (detail of RAG retrieval)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../diagrams/flow-deploy/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Flow: Deploy / Redeploy (build↔runtime isolation)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../diagrams/flow-eval-scoring/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Flow: Eval Scoring (weyland_eval_score_job, detail of the eval pipeline)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../diagrams/flow-eval/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Flow: Evaluation Pipeline (single-path eval -&gt; panel -&gt; leaderboard)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../diagrams/flow-guardrails/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Flow: Guardrail Validation (B14, shadow-first)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../diagrams/flow-health-status/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Flow: Health / Status Aggregation (U12)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../diagrams/flow-ingestion/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Flow: Ingestion (repo → 4 vector backends)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../diagrams/flow-ingress-tls/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Flow: Ingress / TLS Front Door
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../diagrams/flow-mesh-mtls/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Flow: Service-Mesh Request Path + mTLS (B8)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../diagrams/flow-model-catalog/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Flow: model_catalog Refresh (B26)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../diagrams/flow-model-gateway/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Flow: Model-Gateway Routing (B26, LiteLLM)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../diagrams/flow-pipeline-trigger/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Flow: Pipeline Trigger (/pipeline/trigger → Dagster)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../diagrams/flow-rag-query/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Flow: RAG Query (/context/ask)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../diagrams/flow-roadmap-sync/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Flow: Roadmap-Sync → Hermes Kanban (B27)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../diagrams/flow-tracing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Flow: Distributed Tracing Pipeline (B8)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../diagrams/flow-voice-chat/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Flow: Voice Chat (Open WebUI -&gt; whisper -&gt; Ollama)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_9" >
+        
+          
+          <label class="md-nav__link" for="__nav_9" id="__nav_9_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Runbooks
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_9_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_9">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Runbooks
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../runbooks/agent-hermes/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    B2 — Hermes Agent Runbook — weyland (CT 104)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../runbooks/aidlc-kb-ingest/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    B37 — AIDLC Knowledge-Base Ingestion (MinIO → RAG)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../runbooks/eval-harness/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    B4 — LLM Evaluation Pipeline (runbook)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../runbooks/model-gateway/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Model Gateway (LiteLLM) + Model Catalog — runbook
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../runbooks/model-serving-ollama/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Ollama Runbook — weyland (CT 102)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../runbooks/observability/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    B5 — Observability (kube-prometheus-stack) — Deploy &amp; Validate
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../runbooks/service-mesh-istio/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Istio service mesh — runbook (B8)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../runbooks/storage-minio/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    B6 — MinIO Object Storage (8TB USB → mother VM passthrough)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../runbooks/transcription-whisper/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    B11 — Whisper STT Runbook — weyland (CT 103)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../runbooks/weyland-idp/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    weyland IDP — runbook (B3)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_10" >
+        
+          
+          <label class="md-nav__link" for="__nav_10" id="__nav_10_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Units
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_10_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_10">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Units
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../units/u10-sa-scoping/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    U10 — Service Account Scoping (least privilege) — Apply &amp; Validate
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../units/u11-ssh-identity/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    U11 — weyland-lab SSH Identity Review
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../units/u12-health-endpoints/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    U12 — Tool Server Extended Health/Status Endpoints
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../units/u6-credential-hardening/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    U6 — Tool Server DB Credential Hardening — Deploy &amp; Validate
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../units/u7-config-hf-cleanup/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    U7 — Tool Server Config &amp; HF Cache Cleanup — Deploy &amp; Validate
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../units/u8-headlamp-token/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    U8 — Headlamp Permanent Admin Token — Apply &amp; Validate
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../units/u9-cert-mkcert/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    U9 (cert) — mkcert wildcard cert for *.weyland.lab
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../units/u9-dns-coredns/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    U9 (prereq) — CoreDNS LAN Resolver — Deploy &amp; Validate
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../units/u9-traefik-ingress/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    U9 (ingress) — Traefik + TLS for platform UIs
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_11" >
+        
+          
+          <label class="md-nav__link" for="__nav_11" id="__nav_11_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Validation
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_11_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_11">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Validation
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../validation/test-commands/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Weyland Platform Test Commands
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#done-repo-verified" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        DONE (repo-verified)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#priority-work-top-down" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Priority — work top-down
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Priority — work top-down">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#immediate" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Immediate
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#platform-foundation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Platform Foundation
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#data-automation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Data &amp; Automation
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#maturity-hardening-polish" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Maturity / Hardening / Polish
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#extras-optimization" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Extras / Optimization
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#hardware-gated" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Hardware-Gated
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#tentative-someday" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Tentative / someday
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#b-item-and-u-item-detail-sections" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        B-item and U-item detail sections
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="B-item and U-item detail sections">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#b37-ingest-the-aidlc-knowledge-repositories-into-the-graph-rag-done-2026-06-19" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        B37 — Ingest the AIDLC knowledge repositories into the (Graph) RAG — ✅ DONE 2026-06-19
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#b1-build-a-data-mesh" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        B1 — Build a data mesh
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#b2-hermes-agent-platform-sibling-to-openclaw" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        B2 — Hermes (agent platform, sibling to OpenClaw)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#b3-internal-developer-platform-idp-in-progress-slice-a-live-2026-06-19" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        B3 — Internal Developer Platform (IDP) — IN PROGRESS (slice A live 2026-06-19)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#b4-llm-eval-observability" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        B4 — LLM eval / observability
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#b5-prometheus-observability-stack" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        B5 — Prometheus / observability stack
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#b6-minio-object-storage" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        B6 — MinIO object storage
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#b7-larger-models-on-weyland-the-ms-a2" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        B7 — Larger models on weyland (the MS-A2)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#b8-istio-service-mesh-done-2026-06-18" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        B8 — Istio (service mesh) — ✅ DONE 2026-06-18
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#b9-refactor-python-scripts-go-binaries" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        B9 — Refactor Python scripts → Go binaries
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#b10-model-registry" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        B10 — Model registry
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#b11-whisper-stt-speechtext-on-weyland" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        B11 — Whisper STT (speech→text) on weyland
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#b12-api-catalog-endpoint-registry" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        B12 — API catalog / endpoint registry
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#b13-open-webui-browser-voicechat-front-door" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        B13 — Open WebUI (browser voice/chat front door)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#b14-guardrails-hermes-readact-learning-track" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        B14 — Guardrails + Hermes read+act (learning track)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#b15-local-model-coding-agents-opencode-cline-cli" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        B15 — Local-model coding agents (opencode / Cline CLI)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#b16-mlflow-experiment-tracking-model-registry" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        B16 — MLflow (experiment tracking + model registry)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#b17-a2a-agent-to-agent-protocol-evaluation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        B17 — A2A (agent-to-agent protocol) evaluation
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#b18-spotify-integration-hermes-tool" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        B18 — Spotify integration (Hermes tool)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#b19-mcp-gateway-evaluation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        B19 — MCP gateway evaluation
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="B19 — MCP gateway evaluation">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#handoff-from-b14-readact-audit-slice-seams-already-built-for-the-gateway" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Handoff from B14 read+act (audit slice) — seams already built for the gateway
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#b20-home-assistant-integration-hermes-tool" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        B20 — Home Assistant integration (Hermes tool)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#b21-agent-media-generation-image-video-tts" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        B21 — Agent media generation (image / video / TTS)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#b22-searxng-self-hosted-search-privacy-max" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        B22 — SearXNG (self-hosted search) — privacy-max
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#b23-break-out-archmd-component-diagrams" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        B23 — Break out arch.md component diagrams
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#b24-evaluate-nerdctl" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        B24 — Evaluate nerdctl
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#b25-docs-ia-overhaul-rag-corpus-expansion" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        B25 — Docs IA overhaul + RAG corpus expansion
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#b26-hosted-model-gateway-litellm-model-catalog" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        B26 — Hosted-model gateway (LiteLLM) + model catalog
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#b27-enable-hermes-kanban-skills" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        B27 — Enable Hermes Kanban skills
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#b28-openclaw-rehabilitation-deprioritized-much-later" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        B28 — OpenClaw rehabilitation (deprioritized — much later)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#b30-real-time-docs-ingestion-trigger-extras-optimization" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        B30 — Real-time docs ingestion trigger (Extras / Optimization)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#b32-nemo-guardrails-evaluation-extras-optimization" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        B32 — NeMo Guardrails evaluation (Extras / Optimization)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#b34-evaluate-bake-pii-guard-maturity-hardening-polish" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        B34 — Evaluate + bake PII guard (Maturity / Hardening / Polish)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#b35-grounding-guard-calibration-maturity-hardening-polish" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        B35 — Grounding guard calibration (Maturity / Hardening / Polish)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#b36-hermes-dashboard-performance-maturity-hardening-polish" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        B36 — Hermes dashboard performance (Maturity / Hardening / Polish)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#b33-co-resident-warm-parallel-model-serving-hardware-gated" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        B33 — Co-resident / warm-parallel model serving (Hardware-Gated)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#b31-codebase-audit-restructure-nodes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        B31 — Codebase audit / restructure (nodes/)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#b29-connect-claude-code-to-the-weyland-system-view-mcp" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        B29 — Connect Claude Code to the weyland system-view MCP
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#u13-sentence-transformers-image-slimming" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        U13 — sentence-transformers image slimming
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#u14-n8n-workflow-export-to-git" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        U14 — n8n workflow export to git
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#u16-weaviate-ui-react-frontend" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        U16 — Weaviate UI (React frontend)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#u17-migrate-platform-api-routes-apisixtraefik-apisixoutliers-only" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        U17 — Migrate platform API routes APISIX→Traefik; APISIX→outliers-only
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#u18-weyland-lab-ssh-key-full-lockdown-rogueone-side" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        U18 — weyland-lab SSH key full lockdown (rogueone-side)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#iteration-1-follow-ups-banked-see-units-iter1md" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Iteration 1 follow-ups (banked, see units-iter1.md)
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+
+<h1 id="weyland-forward-roadmap-re-prioritized-2026-06-14">Weyland Forward Roadmap — re-prioritized 2026-06-14<a class="headerlink" href="#weyland-forward-roadmap-re-prioritized-2026-06-14" title="Permanent link">&para;</a></h1>
+<p>Re-ordered per RE-grounded audit (aidlc-docs/inception/backlog-reprioritization.md). Immediate directives: B29 (connect Claude Code to weyland MCP) and B25 (docs IA + git RAG ingestion). Three priority groups: Real Purpose / Extras+Optimization / Hardware-Gated.</p>
+<blockquote>
+<p><strong>Agent topology — decided 2026-06-14: OpenClaw is DEPRIORITIZED entirely.</strong> Hermes is the primary and
+effectively only active agent. OpenClaw was a "play with a powerful tool" lab experiment — fragile, painful
+to operate (gateway-container only), currently degraded (MCP not surfacing to its brain, no command owner,
+claude-cli auth expiring, memory search off, plaintext secrets), and nothing depends on it. Its unique edge
+(Claude brain, skill/channel breadth) is eroded by B26 — Hermes gained strong <strong>free hosted brains</strong>
+(Gemini / OpenRouter via the LiteLLM gateway); the Hermes-Claude path itself was <em>declined</em> (ToS/cost).
+<strong>Rehab = B28, much later.</strong> Read all
+"both agents" references below as <strong>Hermes-now / OpenClaw-when-B28-lands</strong>. See [[openclaw-deprioritized]].</p>
+</blockquote>
+<h2 id="done-repo-verified">DONE (repo-verified)<a class="headerlink" href="#done-repo-verified" title="Permanent link">&para;</a></h2>
+<ul>
+<li><strong>B5</strong> — Prometheus + Grafana observability — ✅ <strong>DONE (2026-06-13)</strong>. Phase 1: stack up,
+  Grafana on TLS (grafana.weyland.lab), cluster/node dashboards. <strong>Phase 2a: native
+  Alertmanager → Telegram</strong> (Weyland Alerts bot <code>@weyland_alerts_bot</code>; token in Secret; validated
+  end-to-end; chosen native over n8n — fewer deps in the alert path). <strong>Phase 2b: app ServiceMonitors</strong>
+  — Qdrant / Weaviate / APISIX / CoreDNS all scraped (<code>serviceMonitorSelectorNilUsesHelmValues:false</code>;
+  k8s/monitoring/servicemonitors.yaml), 4 targets UP. APISIX needed <code>export_addr.ip:0.0.0.0</code> (defaulted
+  to loopback). <strong>Traefik descoped</strong> (k3s-managed load-bearing ingress — blast radius &gt; value in a lab).
+  Runbook docs/runbooks/observability.md.</li>
+<li><strong>U12</strong> — tool-server health/status endpoints — ✅ <strong>DONE (2026-06-09)</strong>: /ready, /status, /pgvector/health, probes, v0.2.0 → units-iter1.md</li>
+<li><strong>B6</strong> — MinIO object storage — ✅ <strong>DONE (2026-06-11)</strong>: 8TB USB → MinIO on mother VM (raw passthrough), Filestash UI (files.weyland.lab), mc on rogueone. Runbook docs/runbooks/storage-minio.md.</li>
+<li><strong>B7</strong> — larger models on weyland via <strong>Ollama (CPU)</strong> — ✅ <strong>DONE (2026-06-11)</strong>: CT 102 live (Ollama, OpenAI <code>/v1</code> at 192.168.1.244:11434); <code>num_thread 8</code> fix (~160× → ~25 tok/s on 30B-A3B MoE); 6 models benchmarked; docs split → b7-model-serving-hardware / b7-llm-inference-cpu-vs-gpu / b7-ollama-runbook. eGPU → Tentative. <strong>Fully closed 2026-06-12:</strong> IP DHCP-reserved; tool-server wired (v0.3.0 RAG <code>/context/ask</code> + per-request model select, <code>/models</code>, <code>/ollama/health</code>), validated mother + rogueone; deploy/test in docs/validation/test-commands.md.</li>
+<li><strong>B11</strong> — Whisper STT (speech→text) — ✅ <strong>SERVICE DONE (2026-06-12)</strong>: whisper.cpp on CT 103 (CPU, <code>large-v3</code>); native <code>/inference</code> + OpenAI shim <code>/v1/audio/transcriptions</code> @ 192.168.1.246:9000; validated rogueone + openclaw VM. Runbook docs/runbooks/transcription-whisper.md.</li>
+<li><strong>B13</strong> — Open WebUI — ✅ <strong>DONE (2026-06-12)</strong>: browser voice/chat at <a href="https://chat.weyland.lab">https://chat.weyland.lab</a>; chat ← Ollama (6 models auto-listed), voice-in ← whisper shim (validated end-to-end — mic → <code>POST /v1/audio/transcriptions</code> on CT 103). mother/k3s, weyland ns, Traefik TLS; manifests k8s/open-webui/.</li>
+<li><strong>B4</strong> — LLM eval/observability — ✅ <strong>DONE (2026-06-13)</strong>: full single-path eval pipeline (testset → run-matrix → <strong>3-judge panel</strong> scoring → <code>eval_leaderboard</code>) over RAG × 6 models, reusing Postgres/Dagster/Ollama; Ragas rejected (broken+heavy); tool-server <strong>v0.4.0</strong> <code>/evals/{run,score,runs,leaderboard}</code>. <strong>gpt-oss:20b the defensible pick</strong>; single-judge proven noisy. Runbook docs/runbooks/eval-harness.md.</li>
+<li><strong>B2</strong> — Hermes agent platform (OpenClaw sibling) — <strong>v1 LIVE 2026-06-14</strong>: Hermes CT 104 on <code>qwen3-coder:30b</code> (MoE); read-only <strong>system-view MCP server</strong> (4 tools: status/context_search/context_ask/list_models) built into the tool-server via <code>fastapi-mcp</code> <code>mount_http()</code>, registered in Hermes, <strong>validated end-to-end</strong> (agent → MCP → live backend health). <strong>Telegram gateway front door LIVE 2026-06-14</strong> (allowlisted DM → agent reply). Runbook docs/runbooks/agent-hermes.md · design docs/concepts/agent-platform-design.md.</li>
+<li><strong>B23</strong> — Break out <code>arch.md</code> component diagrams — ✅ <strong>DONE (2026-06-14)</strong>: created <code>docs/diagrams/</code> with full C4 hierarchy (L1 context, L2 container, L3 component × 6: mother/hermes/ollama/whisper/openclaw/rogueone) + 5 Mermaid sequence flow diagrams = 13 files total. arch.md rewritten as narrative + embedded C4Context + links to all diagrams. Note: Mermaid C4 renderer is basic — consider Structurizr at B25 IA overhaul time.</li>
+<li><strong>B29</strong> — Connect Claude Code → weyland system-view MCP — ✅ <strong>DONE (2026-06-14)</strong>: registered via <code>claude mcp add weyland --transport http http://192.168.1.243:30080/mcp</code>; validated live — <code>status</code> tool returned all 4 backends ok + 6 Ollama models. Claude Code is now a first-class MCP consumer alongside Hermes.</li>
+</ul>
+<hr />
+<h2 id="priority-work-top-down">Priority — work top-down<a class="headerlink" href="#priority-work-top-down" title="Permanent link">&para;</a></h2>
+<h3 id="immediate">Immediate<a class="headerlink" href="#immediate" title="Permanent link">&para;</a></h3>
+<ol>
+<li><strong>B31</strong> — Codebase audit / restructure (<code>nodes/</code>) — <strong>AUDIT DONE 2026-06-15.</strong> Tree is clean: retired 2 dead bootstrap scripts; flagged 1 committed secret (gitignored — needs untrack+rotate, your task); OpenClaw scripts → B28, watcher → B25b. No restructure needed. See detail below.</li>
+<li><strong>B25</strong> — Docs + codebase RAG ingestion — ✅ <strong>DONE 2026-06-15.</strong> B25a (docs restructure) + B25b (Dagster git-pull of <code>docs/</code> + <code>nodes/</code>, dual chunking) live &amp; validated end-to-end: 40 markdown + 76 code docs in the RAG (was 1), code retrievable via the MCP from Claude Code. Watcher retired. <strong>Orphan reconciliation</strong> (prune sources no longer in the repo across all 4 backends) + <strong>eval-corpus markdown filter</strong> added &amp; validated 2026-06-15 (the old <code>obsidian</code> orphan auto-pruned on the next run). See detail below.</li>
+</ol>
+<h3 id="platform-foundation">Platform Foundation<a class="headerlink" href="#platform-foundation" title="Permanent link">&para;</a></h3>
+<ol>
+<li><strong>B24</strong> — Evaluate nerdctl — ✅ <strong>EVALUATED 2026-06-15 → DECLINE.</strong> Keep docker + <code>save|import</code> as a deliberate build↔runtime anti-corruption layer; nerdctl's only real win (build into k3s's live image store) violates it, and keeping docker alongside would only add daemons. See detail below.</li>
+<li><strong>B14</strong> — Guardrails + Hermes read+act — ✅ <strong>DONE 2026-06-15.</strong> Both halves shipped: guardrail I/O layer (injection/toxicity/grounding on <code>/context/*</code>) + read+act (act-tools on <code>/mcp-act</code>, <code>act</code> hook audits to <code>guardrail_verdicts</code> with the <code>actor</code> seam), all <code>mode=shadow</code> (record-only — the right default for a single-user LAN lab). Shadow plumbing is complete; the enforcement <em>promotions</em> are carved out as their own downstream items, not B14 scope: grounding <code>shadow→flag/block</code> calibration + act policy gate → <strong>B35</strong>, PII bake → <strong>B34</strong>, gateway auth/actor injection → <strong>B17+B19</strong>. See detail below.</li>
+<li><strong>B26</strong> — Hosted-model gateway (LiteLLM) + model catalog — ✅ <strong>DONE 2026-06-17</strong> (reframed from "Hermes Claude brain"; Claude path declined — ToS gray area). LiteLLM on mother fronts all Gemini+OpenRouter; Dagster <code>model_catalog</code> (6h). See detail below.</li>
+<li><strong>B27</strong> — Hermes Kanban (self-management + roadmap co-pilot) — ✅ <strong>DONE 2026-06-17.</strong> Native SQLite kanban; planning on Gemini-free via the gateway (<code>kanban_decomposer</code>/<code>triage_specifier</code> pinned), workers local; <code>weyland-roadmap</code> board mirrors this backlog one-way (<code>roadmap-sync.py</code>, 6h cron). See detail below + <a href="../runbooks/agent-hermes/#kanban--self-management--roadmap-co-pilot-b27-live-2026-06-17">runbooks/agent-hermes.md</a>.</li>
+<li><strong>B8</strong> — Istio service mesh — <strong>DECIDED BUILD-NOW 2026-06-17</strong> (all four drivers: mTLS/observability/traffic-mgmt/learning). Design: <code>aidlc-docs/construction/b8-istio-design.md</code> — Approach 1 (sidecar, contained tool-server slice, bookinfo warm-up); step-0 mother-headroom gate → pivot to ambient if tight; <strong>slice 1 = PERMISSIVE everywhere</strong> (tool-server serves external NodePort MCP; backends serve un-meshed Dagster) — STRICT enforcement deferred to slice 2 (mesh Dagster); Traefik stays the ingress. See detail below.
+- <strong>B37</strong> — <strong>Ingest the AIDLC knowledge repositories into the (Graph) RAG</strong> — ✅ <strong>DONE 2026-06-19.</strong> ~510 brand-neutral entries ingested from MinIO into all 4 backends (<code>aidlc-kb/</code> namespace, KB-scoped hash-gate + prune); RAG answers cite KB files (DDD ← <code>domain-driven-design.md</code>/<code>context-mapping.md</code>). <strong>Phase 2 graph live:</strong> 510 <code>:Entry</code> nodes, 2311 <code>RELATED_TO</code> + <code>SURFACES_AT</code>/<code>TAGGED</code>/<code>IN_VERTICAL</code> edges from frontmatter (no LLM). On-demand <code>weyland_aidlc_kb_job</code>; runbook <a href="../runbooks/aidlc-kb-ingest/">runbooks/aidlc-kb-ingest.md</a>. Fuzzy LLM extraction → <strong>B38</strong>. See detail below.</li>
+<li><strong>B3</strong> — IDP / Backstage — <strong>IN PROGRESS</strong> (taken on as a learning project). <strong>Slice A (software catalog) LIVE</strong> at <code>idp.weyland.lab</code>; slices B (TechDocs) + C (Scaffolder template) pending. See detail below.</li>
+</ol>
+<h3 id="data-automation">Data &amp; Automation<a class="headerlink" href="#data-automation" title="Permanent link">&para;</a></h3>
+<ol>
+<li><strong>B10+B16</strong> — MLflow (experiment tracking + model registry) — MERGED; MLflow delivers model registry natively. Foundational for data mesh and fine-tuning. See detail below.</li>
+<li><strong>B1</strong> — Data mesh — three concrete data products: (1) model eval product (continuous judge-panel runs, time-series leaderboard); (2) data store inventory product (Data-as-a-Product for each backend); (3) model tuning feed → fine-tuning → custom models. See detail below.</li>
+</ol>
+<h3 id="maturity-hardening-polish">Maturity / Hardening / Polish<a class="headerlink" href="#maturity-hardening-polish" title="Permanent link">&para;</a></h3>
+<ol>
+<li><strong>B15</strong> — Local-model coding agents (opencode / Cline CLI) — hardening agentic capabilities; autonomous unattended coding tasks; full value when Hermes delegates via mesh. See detail below.</li>
+<li><strong>B17+B19</strong> — "Mesh": A2A evaluation + MCP gateway — MERGED; same inflection point (fleet is real, govern it). Triggered after B14+B26+B27 + B3 stable + OpenClaw decision made. See detail below.</li>
+<li><strong>U18</strong> — ✅ <strong>DONE 2026-06-17 (as KEY RETIREMENT, not lockdown).</strong> B25b removed the SFTP ingestion that U18 was hardening → the <code>weyland-lab</code> key had zero consumers (repo grep clean). Retired it instead: deleted rogueone <code>authorized_keys</code> line + the orphaned <code>weyland-lab-ssh-key</code> k8s Secret. See detail below.</li>
+<li><strong>B20</strong> — Home Assistant (Hermes tool) — Hermes → HA → Google Home/Alexa/physical devices. Prerequisite: running HA instance. See detail below.</li>
+<li><strong>B28</strong> — OpenClaw rehabilitation (or retire) — Real Purpose; shelved not deleted. Two Qs when we reach it: (1) keep vs retire? (2) if keep, refactor vs rewrite? See detail below.</li>
+<li><strong>U14</strong> — n8n workflow → git — audit active n8n workflows before working on this. See detail below.</li>
+<li><strong>B34</strong> — Evaluate + bake PII guard — promote B14's deferred PII validator (llm_guard <code>Sensitive</code> → presidio/spaCy) from coded-but-unbaked to active. Gated on an eval showing PII detection adds real signal in this corpus (and/or a multi-user/export trigger). See detail below.</li>
+<li><strong>B35</strong> — Grounding guard calibration — tune the B14 grounding validator from its guessed <code>0.5</code> threshold to a data-driven one (collect shadow <code>max_entailment</code> distribution → label grounded vs hallucinated → set threshold), and switch to sentence-level / concatenated-premise scoring if whole-answer-vs-chunk NLI over-flags. Prerequisite to ever moving grounding out of shadow. See detail below.
+- <strong>B36</strong> — Hermes dashboard performance — ⚠ the Hermes web dashboard (+ Kanban view) is <strong>live</strong> at <code>https://dashboard.weyland.lab</code> but is <strong>dog-slow</strong>. Revisit performance. See detail below.</li>
+</ol>
+<h3 id="extras-optimization">Extras / Optimization<a class="headerlink" href="#extras-optimization" title="Permanent link">&para;</a></h3>
+<ol>
+<li><strong>B9</strong> — Python→Go refactor — conditional; revisit when operational pain is real or agents are modifying the codebase. See detail below.</li>
+<li><strong>U13</strong> — Slim sentence-transformers image / ONNX evaluation — deferred decision point: evaluate (a) swap to ONNX only, (b) both sentence-transformers + ONNX, or &copy; stay with sentence-transformers. Depends on whether active embedding model experimentation is in progress at the time. See detail below.</li>
+<li><strong>B22</strong> — SearXNG — Extra; Tavily works fine. See detail below.</li>
+<li><strong>B18</strong> — Spotify (Hermes tool) — Extra. See detail below.</li>
+<li><strong>U16</strong> — Weaviate UI — Extra; evaluate whether still needed (native Weaviate UI may suffice). See detail below.</li>
+<li><strong>B30</strong> — Real-time docs ingestion trigger — self-hosted GitHub Actions runner on the LAN fires Dagster <code>launchRun</code> on push (NAT-free near-real-time). Deferred; cron fine until 15-min latency bites. See detail below.</li>
+<li><strong>B32</strong> — NeMo Guardrails evaluation — programmable conversational guardrails (Colang DSL: topical/dialog/jailbreak rails). Deferred from B14 (heavy framework + new language; built for dialog mgmt, not I/O scanning). Evaluate for the <strong>Layer-2 agent layer</strong> (Hermes dialog/topical rails), not the tool-server I/O pipeline. See detail below.</li>
+<li>
+<p><strong>B38</strong> — <strong>Fuzzy GraphRAG: LLM concept/entity extraction</strong> over the AIDLC KB (and <code>docs/</code>) — extract entities + <em>emergent</em> relationships from <strong>prose</strong> (beyond the declared frontmatter links) into Neo4j, à la Microsoft GraphRAG. <strong>Deferred from B37</strong>, which ships the deterministic frontmatter graph (<code>RELATED_TO</code>/<code>SURFACES_AT</code>/<code>TAGGED</code>). Why deferred: heavy on local CPU Ollama (517 docs × extraction passes, re-run on change), fuzzy/non-deterministic, needs an entity/relation schema + canonicalization/dedup ("DDD" = "Domain-Driven Design"), and low marginal value while the author-declared frontmatter already yields a high-precision graph for ~free. <strong>Revisit once</strong> B37 proves corpus value AND/OR a bigger model / GPU lands (pairs with B7 eGPU / B33).</p>
+</li>
+<li>
+<p><strong>B39</strong> — <strong>Design→code workflow (Figma → code)</strong> — stand up a design-to-code pipeline using the <strong>Figma MCP</strong> (already available in-session): pull Figma designs/components into implemented UI code (and optionally code→Figma sync). Gives the lab's UI surfaces — U16 (Weaviate UI), B3 (Backstage), future dashboards — a consistent design system instead of ad-hoc per-tool UIs. $0: Figma has a free tier. <strong>Open:</strong> (1) Figma account + design system/tokens; (2) which UI to target first; (3) where design artifacts live (a <code>design/</code> area in the repo?); (4) Figma-MCP auth in headless/cron vs interactive-only.</p>
+</li>
+</ol>
+<h3 id="hardware-gated">Hardware-Gated<a class="headerlink" href="#hardware-gated" title="Permanent link">&para;</a></h3>
+<ol>
+<li><strong>B21</strong> — Agent media generation (image/video/TTS) — requires eGPU hardware purchase. See detail below.</li>
+<li><strong>B33</strong> — Co-resident / warm-parallel model serving — raise <code>OLLAMA_MAX_LOADED_MODELS</code> (now 1, cgroup-bound) to keep a 2<sup>nd</sup> model warm alongside the main one → eliminates eviction/cold-start for latency-sensitive multi-model workflows (e.g. B14's conversational grounding guard, or guard+generator both warm). Gated on RAM/VRAM headroom (the "weyland box" decision / eGPU). See detail below.</li>
+</ol>
+<hr />
+<h2 id="tentative-someday">Tentative / someday<a class="headerlink" href="#tentative-someday" title="Permanent link">&para;</a></h2>
+<ul>
+<li><strong>weyland eGPU (OCuLink + 24 GB GPU)</strong> — accelerates the Ollama path (~10× on ≤32B models),
+  but <strong>not pursuing now</strong> — CPU/Ollama is sufficient for the lab; user will invest eventually if
+  a workload makes the speed worth it. Full options + (unverified) pricing in
+  docs/concepts/model-serving-hardware.md. Revisit when an actual workload feels too slow.</li>
+<li><strong>Evaluate GPUs specifically for music / TTS / audio-generation models</strong> — these are
+  diffusion/audio architectures that <strong>do NOT run under Ollama</strong> and are <strong>GPU-hungry</strong>
+  (slow-to-unusable on CPU): MusicGen / Stable Audio (music), XTTS / Bark / Kokoro (TTS). An
+  audio-generation goal is one of the few workloads that genuinely <em>justifies</em> the eGPU above —
+  so if audio becomes a goal, fold its VRAM / throughput needs into that eGPU decision (sizing
+  may differ from LLM needs). <strong>Exception:</strong> Whisper <strong>STT</strong> (speech→text) runs fine on CPU via
+  whisper.cpp — no GPU needed; only <em>generation</em> (text→audio) wants the GPU.</li>
+<li><em>(Promoted to numbered units — see detail below: Hermes media-gen tools → <strong>B21</strong>; Home Assistant →
+  <strong>B20</strong>; SearXNG → <strong>B22</strong>. The eGPU + audio-gen-GPU items above remain Tentative as hardware decisions.)</em></li>
+<li><strong>Benchmark 70B-class models on the Ollama/CPU path</strong> — pull a 70B@Q4 (e.g. <code>llama3.3:70b</code>,
+  ~43 GB, fits the 48 GB container cap) and record the real <code>eval rate</code> to validate the
+  "batch/async capacity tier" (expect ~1–2 tok/s — kick-off-and-walk-away). Deferred: large
+  download + slow, no need yet. Fills the 70B row in the measured-benchmark table in
+  docs/concepts/model-serving-hardware.md. Requires the <code>num_thread 8</code> fix like every model.</li>
+</ul>
+<hr />
+<h2 id="b-item-and-u-item-detail-sections">B-item and U-item detail sections<a class="headerlink" href="#b-item-and-u-item-detail-sections" title="Permanent link">&para;</a></h2>
+<h3 id="b37-ingest-the-aidlc-knowledge-repositories-into-the-graph-rag-done-2026-06-19">B37 — Ingest the AIDLC knowledge repositories into the (Graph) RAG — ✅ DONE 2026-06-19<a class="headerlink" href="#b37-ingest-the-aidlc-knowledge-repositories-into-the-graph-rag-done-2026-06-19" title="Permanent link">&para;</a></h3>
+<p><strong>Follow-on (DONE 2026-06-19): Neo4j GDS</strong> — enabled the free Graph Data Science plugin (<code>NEO4J_PLUGINS</code> in
+<code>k8s/neo4j.yaml</code>) and ran graph algorithms over the <code>:Entry</code> graph: <strong>PageRank</strong> surfaces load-bearing concepts
+(event-driven-architecture, ci-cd, microservices, domain-driven-design…), <strong>Louvain</strong> auto-clusters the 510
+entries into ~8 coherent themes. Commands + baseline in the runbook. <strong>Visual: NeoDash deployed</strong>
+(<code>http://mother:30088</code>, <code>k8s/neodash.yaml</code>) — free Bloom-alternative that works with Community (Bloom itself
+needs Enterprise/Aura; Neo4j Desktop dev-license path was parked).
+<strong>Goal:</strong> feed the three AIDLC knowledge bases into the multi-backend RAG so the lab can reason with
+<em>domain knowledge</em>, not just its own infra docs — "make this bad boy MUCH smarter" (user, 2026-06-18). Consumers:
+Hermes + Claude Code via the system-view MCP <code>context_ask</code>/<code>context_search</code>, the eval harness, future agents.
+- <strong>Corpus:</strong> <code>engineering-knowledge-repository</code> (397 md), <code>consulting-tools-repository</code> (62), <code>industry-vertical-repository</code>
+  (58) = <strong>~517 markdown files</strong>, ~13× today's <code>docs/</code> corpus (40). Each repo is taxonomy-indexed (an <code>index.md</code>
+  + entry files keyed by stage / vertical, with cross-references).</p>
+<p><strong>The sourcing problem — ✅ DECIDED 2026-06-18 → Option 2 via MinIO + brand-neutral.</strong> The content is the
+<strong>user's own IP</strong> (they authored the Method AIDLC + the 3 KBs — <em>no</em> license/redistribution issue; the missing
+LICENSE file made it merely <em>look</em> third-party). Chosen path: <strong>keep <code>.methodaidlc/</code> out of the repo</strong>, scrub
+brand mentions, drop a <strong>brand-neutral copy into a private MinIO bucket (B6)</strong>, and add a Dagster asset that
+reads from S3 — decoupled from the GitHub-clone path. <strong>Option 1 (un-gitignore + push) rejected</strong>: user wants
+brand-neutral output and the methodology kept out of the repo. Original framing + options retained below for
+context. <code>.methodaidlc/</code> is <strong>gitignored</strong> (<code>.gitignore:97</code>), so it's <strong>not on GitHub</strong>, and the B25b ingestion
+shallow-clones from GitHub (<code>source_document.py</code>) — it can't see these repos. Options were:
+1. <strong>Un-gitignore + push to GitHub</strong> + extend <code>source_document.py</code> to ingest the three repo paths as markdown.
+   Simplest mechanically — but it publishes <strong>third-party AIDLC framework content</strong> to the repo; <strong>check
+   license/appropriateness</strong> before pushing publicly.
+2. <strong>Separate local ingestion source</strong> — a Dagster asset (or one-off loader) that reads the <code>.methodaidlc/</code> repos
+   directly. But Dagster runs in-cluster (mother) and these live on rogueone/gitignored → needs a way to get them
+   to mother (a private mirror, an object-store drop, or a local path mount). More plumbing, keeps them private.
+3. <strong>One-time bulk load</strong> — the AIDLC knowledge is fairly static, so a single curated embed run (not the 15-min
+   cron) may be the right cadence; re-run only when the repos update.</p>
+<p><strong>GraphRAG angle (the "smarter" payoff):</strong> these repos are <em>highly structured</em> (stage/vertical taxonomies, entry
+IDs, cross-references) — a strong case for <strong>richer Neo4j entity/relationship extraction</strong> (currently the graph is
+just Document/Chunk + sequential edges; entity extraction was deferred). This item naturally <strong>motivates /
+pairs with the GraphRAG-extraction enhancement</strong> so the knowledge is queryable as a graph, not just chunks.</p>
+<p><strong>Open questions:</strong> (a) ✅ <strong>DECIDED</strong> — sourcing = MinIO + brand-neutral scrub (see above); (b) wholesale vs
+curated ingest (all 517 vs index + selected entries); &copy; ingestion cadence (one-off vs scheduled); (d) whether
+to enhance Neo4j extraction now or chunk-ingest first; (e) <strong>eval-corpus impact</strong> — B4 evals run over <code>docs/</code>
+markdown; decide whether AIDLC knowledge joins the eval corpus or is scoped out (it would 13× and reshape it);
+(f) ✅ <strong>DECIDED</strong> — H2-split entry files (consistent <code>## What It Is / When to Use / …</code> structure), carry
+<code>tags</code>/<code>surfaces-at</code>/<code>complexity</code> frontmatter as chunk metadata, and <strong>do NOT vector-chunk the <code>index.md</code>/
+<code>README</code> files</strong> (they feed the graph instead); (g) ✅ <strong>DECIDED — strip ALL brand "Method"</strong> (user, brand
+neutrality matters). Measured reality: standalone brand "Method" appears <strong>532× across 430 of 517 files</strong> (the
+user's "there shouldn't be any" was wrong; 0 lowercase common-noun "method/methodology" uses, so no ambiguity
+there). Implemented as a <strong>curated replacement map with a PRESERVE-LIST</strong>, applied to a staging copy (never the
+live <code>.methodaidlc/</code> source). <strong>Preserve (technical terms, NOT brand, ~28):</strong> <code>Template Method</code> ×15,
+<code>Factory Method</code> ×8 (GoF patterns), <code>USE Method</code> ×2, <code>RED Method</code> ×2 (perf), <code>…Analysis Method</code> (ATAM).
+<strong>Strip/genericize (~500):</strong> <code>Method's</code>→"our/the", <code>Method recommends/uses/…</code>→passive, <code>Method engagements</code>→
+"engagements", and the dominant header <strong><code>## Method Application</code> ×61</strong> → e.g. <code>## In Practice</code>. A blind
+<code>s/Method//</code> is rejected — it would corrupt the GoF pattern names. Review the diff before upload.</p>
+<p><strong>Decided shape (2026-06-18):</strong> Phase 1 chunk-ingest all 4 backends (parity with <code>docs/</code>); Phase 2 (same item)
+deterministic Neo4j edges from frontmatter — <code>(:Entry)-[:RELATED_TO]-&gt;(:Entry)</code>, <code>-[:SURFACES_AT]-&gt;(:Stage)</code>,
+<code>-[:TAGGED]-&gt;(:Tag)</code>, industry <code>vertical</code> nodes (513/517 entries carry <code>related</code>+<code>surfaces-at</code>). LLM-based
+concept/entity extraction from prose is <strong>deferred to B38</strong> (Extras/Optimization — cost on local CPU Ollama,
+fuzzy/non-deterministic, diminishing returns given the author-declared frontmatter links). <strong>Deliverable:</strong> an
+on-demand ingest <strong>runbook</strong> <code>docs/runbooks/aidlc-kb-ingest.md</code> (scrub → upload to MinIO → trigger Dagster
+asset → verify counts) — on-demand cadence means the steps must be written down.</p>
+<h3 id="b1-build-a-data-mesh">B1 — Build a data mesh<a class="headerlink" href="#b1-build-a-data-mesh" title="Permanent link">&para;</a></h3>
+<p>Domain-oriented data products + federated governance over the backends
+(pgvector/Qdrant/Weaviate/Neo4j + Dagster). Large; needs a concrete definition <em>for this
+lab</em>. Depends on B6. <strong>Open:</strong> which domains/products? governance layer?</p>
+<h3 id="b2-hermes-agent-platform-sibling-to-openclaw">B2 — Hermes (agent platform, sibling to OpenClaw)<a class="headerlink" href="#b2-hermes-agent-platform-sibling-to-openclaw" title="Permanent link">&para;</a></h3>
+<p><strong>SCOPED 2026-06-13 — full design: docs/concepts/agent-platform-design.md.</strong> Hermes = NousResearch/hermes-agent
+(MIT, MCP-capable, provider-agnostic → runs on local Ollama <code>/v1</code>). <strong>Lanes:</strong> Hermes = <strong>primary</strong>
+autonomous system-view/ops agent + single front door (stable, Python/local-inference-native); OpenClaw =
+<strong>contained delegate</strong> for skill breadth/channels, <strong>off the critical path</strong> (firsthand fragility — gateway
+broke twice during B11/B13). <strong>Integration = 3 wires:</strong> (1) both agents' brain → Ollama <code>/v1</code>; (2) both →
+<strong>one "Weyland system-view" MCP server</strong> fronting the tool server (RAG, status, observability, later
+workflow actions) — the "view into the system", built once, N+M not N×M; (3) Hermes → OpenClaw gateway as an
+MCP tool (topology 3, <strong>deferred</strong>). <strong>Hosting:</strong> Hermes in its <strong>own isolated LXC CT</strong> (code-exec +
+untrusted-content blast radius; not on mother, not co-located with OpenClaw). <strong>v1 = read-only</strong> (observe:
+RAG/health/metrics); <strong>read+act gated on B14</strong>. <strong>Protocol:</strong> MCP for everything incl. the OpenClaw bridge;
+<strong>A2A deferred → B17</strong> (only for async peer-delegation as the fleet grows). <strong>Validate early:</strong> local-model
+tool-calling reliability (qwen3-coder:30b / qwen3:30b-a3b / mistral-small3.2:24b advertise tools); agentic
+model ≠ B4 RAG winner. <strong>First slice:</strong> isolated CT → Hermes on Ollama → validate tool-calling → minimal MCP
+server (RAG+status) → one chat channel → end-to-end.</p>
+<p><strong>Status (2026-06-14): Hermes scope DONE; OpenClaw descoped → B28.</strong> Tool-server <code>/mcp</code> up (406); Telegram
+front door live (confirmed); <strong>Hermes↔MCP confirmed working</strong> (user-confirmed 2026-06-14 — just not yet from
+Claude Code, which is <strong>B29</strong>). The "no weyland MCP / direct-probe" failures were <strong>OpenClaw-gateway-specific</strong>
+(degraded gateway: MCP not surfacing to its brain, no command owner, claude-cli auth expiring, memory search
+off, plaintext secrets) → <strong>all moved to B28 (deprioritized).</strong> The stale <strong>weyland-postgres services
+inventory</strong> → folded into <strong>B25</strong> scope. read+act → B14; A2A stays B17.</p>
+<h3 id="b3-internal-developer-platform-idp-in-progress-slice-a-live-2026-06-19">B3 — Internal Developer Platform (IDP) — IN PROGRESS (slice A live 2026-06-19)<a class="headerlink" href="#b3-internal-developer-platform-idp-in-progress-slice-a-live-2026-06-19" title="Permanent link">&para;</a></h3>
+<p>Backstage / Port / alternatives — catalog, golden paths, scaffolding. Taken on as a deliberate <strong>learning
+project</strong> (not because service/dev count demands it yet). Built tool-neutrally (<code>weyland-idp</code>, <code>idp.weyland.lab</code>,
+image <code>weyland-idp:local</code>) so the IDP tool can be swapped without renaming. Phased: <strong>A</strong> catalog → <strong>B</strong> TechDocs
+→ <strong>C</strong> Scaffolder template.</p>
+<ul>
+<li><strong>✅ Slice A — Software Catalog (LIVE 2026-06-19).</strong> Scaffolded Backstage (<code>services/weylandidp/</code>, new
+  frontend+backend system, Node 22/24, Yarn 4). <code>catalog/weyland-catalog.yaml</code> = ~24 entities (Domain → 3
+  Systems → 9 Components / 6 Resources / 5 APIs, wired with providesApis/dependsOn). On mother behind Traefik
+  (<code>idp.weyland.lab</code>), guest auth, reuses the shared Postgres (<code>weyland_idp</code> role, CREATEDB). <strong>Build-from-git:</strong>
+  multi-stage Dockerfile (builds from committed source inside Docker — host needs only Docker). <strong>Config +
+  catalog via ConfigMaps</strong> (no rebuild to change them). Runbook <a href="../runbooks/weyland-idp/">runbooks/weyland-idp.md</a>.
+  Two gotchas solved: pod must be <strong>meshed</strong> for STRICT Postgres (<code>read ECONNRESET</code> otherwise — [[postgres-strict-needs-mesh]]),
+  and guest auth needs <code>dangerouslyAllowOutsideDevelopment: true</code> in production.</li>
+<li><strong>Slice B — TechDocs</strong> (pending): render <code>docs/</code> as in-app technical docs (MkDocs). Note the slice-A search
+  indexer <code>Premature close</code> error to resolve here.</li>
+<li><strong>Slice C — Scaffolder template</strong> (pending): a golden-path generator (e.g. "new Hermes tool" / "new k8s service").</li>
+<li><strong>Later:</strong> the "MCP harness" angle (catalog the agents/MCP as entities); absorbs B12 (API catalog).</li>
+</ul>
+<h3 id="b4-llm-eval-observability">B4 — LLM eval / observability<a class="headerlink" href="#b4-llm-eval-observability" title="Permanent link">&para;</a></h3>
+<p><strong>IN PROGRESS. DECIDED 2026-06-12 — Ragas REJECTED</strong>: broken in current release (<code>ragas 0.4.3</code>
+hard-imports a <code>langchain_community.chat_models.vertexai</code> path that <code>langchain-community 0.4.2</code>
+deleted → won't import; fix unmerged) <strong>+</strong> ~100-package bloat incl. the Google Cloud AI Platform
+SDK. Receipts + full decision record in <strong>docs/runbooks/eval-harness.md</strong>. Eval uses <strong>direct-prompt
+question-gen + LLM-as-judge scoring</strong> via Ollama (reuses Postgres/Dagster/Ollama/bge). Steps 1–2
+(schema + question-gen) live; run-matrix + scoring + leaderboard remain. Observability (Langfuse,
+slice 2) still open — landscape below.</p>
+<p><strong>Two complementary jobs</strong> (LangSmith bundles them; the self-host world splits them):
+- <strong>Observability / tracing</strong> — watch prompts, responses, tool calls, latency, cost, RAG retrievals:
+  - <strong>Langfuse</strong> ⭐ — go-to self-host LangSmith replacement: tracing + prompt mgmt + eval + datasets;
+    framework-agnostic (works with the OpenAI-compatible Ollama/tool-server); Postgres-backed.
+  - <strong>Arize Phoenix</strong> ⭐ — best for RAG debugging: OpenInference/OTel traces, retrieval/embedding
+    analysis, <strong>native LlamaIndex integration</strong> (already in use). Local container.
+  - Helicone (proxy-style logging/cost/cache); Langtrace / Lunary (OTel alternatives).
+- <strong>Evaluation</strong> — score output quality:
+  - <strong>Ragas</strong> ⭐ — RAG-specific metrics (faithfulness, answer relevancy, context precision/recall) —
+    directly scores <code>/context/ask</code>. Also: DeepEval (pytest-style), Promptfoo (CLI + red-team), TruLens.</p>
+<p><strong>Decision:</strong> <strong>LangSmith is SaaS + LangChain-tuned</strong> — data leaves the LAN and our stack is
+LlamaIndex + OpenAI-compatible, so its main edge doesn't apply. <strong>Self-host fits the LAN-lab ethos.</strong>
+<strong>Lean: Langfuse (observability + prompt mgmt) + Ragas (RAG scoring)</strong>, with Phoenix as the
+RAG-trace-focused alternative/complement. Leans on B5 (Grafana already up). <strong>Payoff:</strong> measure
+<em>which of the 6 Ollama models</em> answers best through the RAG — turning "they all run" into "this one
+wins for this query type."</p>
+<h3 id="b5-prometheus-observability-stack">B5 — Prometheus / observability stack<a class="headerlink" href="#b5-prometheus-observability-stack" title="Permanent link">&para;</a></h3>
+<p>Prometheus + Grafana (+ Alertmanager). Endpoints already emit (APISIX prometheus plugin,
+CoreDNS <code>:9153</code>). <strong>Phase 1 DONE 2026-06-09</strong> via kube-prometheus-stack (release
+<code>monitoring</code>, ns <code>monitoring</code>): Grafana behind Traefik TLS at grafana.weyland.lab, admin
+via grafana-admin secret (weyland_dev_password), Grafana set strategy:Recreate, Alertmanager
+on. Out-of-box cluster/node/pod dashboards working. Manifests: k8s/monitoring/
+{kube-prometheus-stack-values.yaml, grafana-ingress.yaml}. Runbook docs/runbooks/observability.md.
+<strong>Phase 2 (pending):</strong> ServiceMonitors for app emitters (APISIX, CoreDNS, Traefik, Qdrant,
+Weaviate; may need serviceMonitorSelectorNilUsesHelmValues:false) + Alertmanager receiver
+→ n8n webhook → Telegram. Note: Grafana first-load behind the proxy needs a hard refresh
+(cached partial assets → "Error loading: <panel>").</p>
+<h3 id="b6-minio-object-storage">B6 — MinIO object storage<a class="headerlink" href="#b6-minio-object-storage" title="Permanent link">&para;</a></h3>
+<p>S3-compatible storage for model artifacts, datasets/data-lake, backups, LLM/data-mesh
+artifacts. Foundational (B1/B4/B7). Deploy on mother/k3s (RWO + <code>strategy: Recreate</code>,
+see [[k8s-rwo-recreate-strategy]]).</p>
+<h3 id="b7-larger-models-on-weyland-the-ms-a2">B7 — Larger models on weyland (the MS-A2)<a class="headerlink" href="#b7-larger-models-on-weyland-the-ms-a2" title="Permanent link">&para;</a></h3>
+<p><strong>Full decision record: docs/concepts/model-serving-hardware.md.</strong>
+Reality (corrected 2026-06-11): weyland = the <strong>MS-A2</strong> (Ryzen 9 9955HX, 96 GB RAM, <strong>no compute
+GPU</strong>), bought specifically to host large models. rogueone has the only GPU (RTX 5000 Ada Laptop,
+<strong>16 GB</strong> — too small, and it's the personal laptop). <strong>Decided: CPU path via Ollama is COMMITTED
+and BUILDING NOW</strong> (96 GB RAM fits 70B@4-bit; OpenAI-compatible API → drops into the harness with
+no client changes; sweet spot 14–32B, 70B for batch). <strong>Tentative/someday (low priority): an
+OCuLink eGPU</strong> to accelerate (~10× on ≤32B) — see Tentative section. Not pursued now; the lab
+doesn't need the speed yet. Engine: Ollama on CPU now, vLLM if a GPU is ever added.</p>
+<h3 id="b8-istio-service-mesh-done-2026-06-18">B8 — Istio (service mesh) — ✅ DONE 2026-06-18<a class="headerlink" href="#b8-istio-service-mesh-done-2026-06-18" title="Permanent link">&para;</a></h3>
+<p>Deferred in U9 (cellular front-door decision); re-opened and <strong>decided build-now</strong> — all four drivers apply
+(mTLS/zero-trust, mesh observability, traffic management, hands-on learning). <strong>Design + plan:</strong>
+<code>aidlc-docs/construction/b8-istio-design.md</code>. Shape: <strong>Approach 1</strong> — sidecar mode, first slice =
+tool-server + 4 vector backends via per-workload injection (not ns-wide), bookinfo warm-up, <strong>step-0
+mother-headroom gate</strong> (pivot to ambient if tight). Key constraint: <strong>slice 1 = PERMISSIVE everywhere</strong> — the tool-server serves external NodePort MCP clients
+(Hermes + Claude Code) <em>and</em> the 4 backends serve un-meshed Dagster (ingestion/eval), so STRICT would break
+either; <strong>STRICT enforcement deferred to slice 2</strong> (mesh Dagster → flip backends STRICT). <strong>Traefik stays the
+ingress</strong> (no Istio gateway in slice 1). Reversible per-workload. See [[architecture-decisions]].
+- <strong>✅ SLICE 1 MESHED &amp; VALIDATED 2026-06-18:</strong> istiod (minimal) + Kiali + Jaeger up; <strong>qdrant + weaviate +
+  weyland-tool-server</strong> meshed (<code>2/2</code>), PERMISSIVE, <strong>mTLS locks visible in Kiali</strong> on the tool-server↔backend
+  hops, <strong>MCP intact</strong> through Envoy (initialize handshake + streaming survived), no platform regression.
+  <strong>Injection mechanism correction:</strong> per-pod injection in an <em>unlabeled</em> namespace needs the pod <strong>label</strong>
+  <code>sidecar.istio.io/inject: "true"</code> (matched by the <code>object.sidecar-injector</code> webhook) — the <em>annotation</em> is a
+  no-op outside an <code>istio-injection=enabled</code> namespace. Rollback = set the label <code>"false"</code> + rollout.
+- <strong>✅ Slice 1b DONE 2026-06-18 — neo4j + Postgres meshed.</strong> The TCP-protocol break (Bolt 7687 / pgvector
+  5432 mis-parsed as HTTP — confirmed live on neo4j: <code>defunct connection</code>) was fixed by <strong><code>appProtocol: tcp</code>
+  on the neo4j Bolt + Postgres Service ports</strong>, then meshing both with the inject <strong>label</strong>. Validated: both
+  <code>2/2</code>, <code>/status</code> neo4j + pgvector <code>ok</code>, and the <strong>un-meshed Dagster → meshed Postgres write path works</strong>
+  (<code>psycopg2</code> from <code>dagster-user-code</code> read <code>rag_chunks: 439</code>). <strong>All four backends + the tool-server are now
+  meshed (PERMISSIVE).</strong>
+- <strong>✅ Slice 2 (STRICT) DONE 2026-06-18.</strong> Dagster meshed (all 3 pods — gRPC code-location via the named
+  <code>grpc</code> port + external egress to Ollama CT 102 / GitHub survived). Client audit: the vector backends have
+  <em>un-meshed</em> clients (Prometheus app-metrics — qdrant on the shared <code>:6333</code>, weaviate on <code>:2112</code> — + NodePort
+  admin access), so <strong>STRICT was scoped to Postgres</strong> (the clean case: in-cluster only, no metrics scrape,
+  clients = tool-server + Dagster, all meshed). <code>k8s/istio/peerauth-postgres-strict.yaml</code>. <strong>Proven enforcing:</strong>
+  an un-meshed plaintext <code>psql</code> got <code>server closed the connection</code> (sidecar reset pre-auth), while meshed
+  clients work over mTLS (<code>pgvector ok</code>, <code>rag_chunks 439</code>). <strong>qdrant/weaviate/neo4j stay PERMISSIVE by design</strong>
+  — their real traffic is <em>already</em> mTLS (both ends meshed); STRICT would only block un-meshed plaintext, not
+  worth losing Prometheus metrics + NodePort admin in a single-user lab.
+- <strong>✅ Observability consolidated 2026-06-18.</strong> (Was: Kiali on the addon Prometheus, a deliberate bring-up
+  shortcut.) Now: a PodMonitor (<code>k8s/istio/podmonitor-istio.yaml</code>, labeled <code>release: monitoring</code> to match the
+  stack's <code>podMonitorSelector</code>) + an istiod ServiceMonitor make the <strong>kube-prometheus-stack scrape Envoy</strong>
+  (verified <code>count(istio_requests_total)=18</code>); Kiali's <code>external_services.prometheus.url</code> repointed at the
+  stack; <strong>the addon Prometheus dropped</strong>; the <strong>Istio Grafana dashboards</strong> (mesh/service/workload/
+  control-plane, IDs 7639/7636/7630/7645) imported into the existing Grafana (persisted on its PVC — optional
+  later: ConfigMap-provision for IaC). Kiali also wired to <strong>Jaeger</strong> (<code>tracing.istio-system:16685</code>) <strong>and
+  Grafana</strong> (<code>monitoring-grafana.monitoring:80</code>) — Mesh view all green.
+- <strong>Kiali security follow-up (2026-06-18):</strong> the Istio addon ships demo-grade defaults. Hardened: <code>view_only_mode:
+  true</code> (read-only) + ClusterRole read-only on Istio CRDs + non-placeholder signing key. <strong>✅ Ingress auth DONE
+  2026-06-18</strong> — Traefik basicAuth Middleware <code>observability-auth</code> (<code>k8s/istio/observability-auth.yaml</code>, dev-password,
+  secret created out-of-band) now fronts <strong>both</strong> <code>kiali.weyland.lab</code> and <code>jaeger.weyland.lab</code> (consistent with the
+  other UIs). Kiali manifest tracked in <code>k8s/istio/kiali.yaml</code> (was untracked addon). <strong>Residual (optional, deferred
+  — defense-in-depth, not blocking in a single-user LAN lab):</strong> a NetworkPolicy/AuthorizationPolicy + dropping the
+  remaining workload <code>patch</code> verbs from the ClusterRole.</p>
+<h3 id="b9-refactor-python-scripts-go-binaries">B9 — Refactor Python scripts → Go binaries<a class="headerlink" href="#b9-refactor-python-scripts-go-binaries" title="Permanent link">&para;</a></h3>
+<p>Foreshadowed in weyland.md ("future Go CLI refactor"). Maintainability/distribution play;
+not urgent. <strong>Open:</strong> which scripts? Go vs alternatives?</p>
+<h3 id="b10-model-registry">B10 — Model registry<a class="headerlink" href="#b10-model-registry" title="Permanent link">&para;</a></h3>
+<p><strong>MERGED with B16 — see B16 for MLflow detail.</strong></p>
+<p>Central catalog + versioning + <strong>internal distribution</strong> of model artifacts (GGUFs, safetensors,
+fine-tunes) so <strong>rogueone (vLLM) + weyland (Ollama)</strong> pull from internal storage instead of
+re-downloading from the internet each time — and so fine-tunes get versions/metadata/lineage.
+<strong>Builds on B6 (MinIO = the artifact substrate)</strong>; relates to B4 (eval/lineage) and any future
+fine-tuning. <strong>Options:</strong> (a) simple MinIO-bucket convention (lightest); (b) an OCI registry
+(Zot/Harbor) — Ollama models ARE OCI artifacts, and Ollama can pull from a private registry;
+&copy; MLflow Model Registry (MinIO+Postgres) if/when doing real fine-tuning + experiment tracking.
+<strong>Not urgent</strong> — Ollama's local store + public pulls suffice while the lab is small. Revisit once
+multiple hosts/models/fine-tunes make re-downloads and version-sprawl annoying.</p>
+<h3 id="b11-whisper-stt-speechtext-on-weyland">B11 — Whisper STT (speech→text) on weyland<a class="headerlink" href="#b11-whisper-stt-speechtext-on-weyland" title="Permanent link">&para;</a></h3>
+<p><strong>whisper.cpp</strong> — Georgi Gerganov's C/C++ port of OpenAI's Whisper ASR, on the <strong>same GGML library
+as llama.cpp/Ollama</strong>. Audio <strong>in → text out</strong>: transcription (+ timestamps, SRT/VTT subtitles),
+non-English→English translation, ~99 languages, near-real-time mic streaming. <strong>Runs
+faster-than-real-time on the 9955HX CPU — no GPU</strong> (models are small: <code>tiny</code> ~39M → <code>large-v3</code>
+~1.5B, plus fast <code>large-v3-turbo</code>); STT is the <em>cheap</em> direction of audio (generation is the
+GPU-hungry one — see Tentative). <strong>Deploy:</strong> a lightweight LXC on weyland (sibling to the Ollama
+CT 102) running <code>whisper-server</code>, which exposes an OpenAI-compatible <code>/v1/audio/transcriptions</code>
+endpoint → <strong>voice-input front-end for the harness</strong> (talk to OpenClaw/Hermes), meeting/voice-note
+transcription, subtitle generation. <strong>Open when scoping:</strong> model size (accuracy vs speed), where
+the endpoint sits behind Traefik, mic/streaming vs file-upload only. Pairs with the eGPU-gated
+audio-<em>generation</em> item in Tentative (this is the input half you can have now for $0).</p>
+<h3 id="b12-api-catalog-endpoint-registry">B12 — API catalog / endpoint registry<a class="headerlink" href="#b12-api-catalog-endpoint-registry" title="Permanent link">&para;</a></h3>
+<p><strong>DROPPED — absorbed into B3 (IDP / Backstage).</strong></p>
+<p>A single place to discover/register <strong>every lab API</strong> + interactive docs. <strong>Distinct from the
+gateway</strong> (Traefik/APISIX <em>route</em> traffic; they don't <em>catalog</em> it). Lightweight first:
+(a) Traefik clean hostnames for all services (<code>ollama</code>/<code>whisper</code>/<code>tools.weyland.lab</code> — pairs with
+the CT DNS work); (b) <strong>one aggregated Swagger/Redoc portal</strong> pulling each service's
+<code>/openapi.json</code> — FastAPI services (tool-server, whisper shim) already emit it; OpenAI-compatible
+ones (Ollama, vLLM) use the standard spec; whisper-native <code>/inference</code> gets a stub. Live inventory
+lives in <strong>docs/api.md</strong> (the manual precursor). <strong>Defers to B3 (Backstage API catalog)</strong> as the
+heavyweight someday option. Trigger: endpoint sprawl makes "what's the URL again?" a recurring
+annoyance (already starting — Ollama, whisper×2, tool-server, vLLM, 7 UIs).</p>
+<h3 id="b13-open-webui-browser-voicechat-front-door">B13 — Open WebUI (browser voice/chat front door)<a class="headerlink" href="#b13-open-webui-browser-voicechat-front-door" title="Permanent link">&para;</a></h3>
+<p>Self-hosted ChatGPT-style UI as the robust, browser-based consumer of the local models — the
+payoff of <strong>B7 (Ollama) + B11 (whisper)</strong>. <strong>Chat</strong> ← Ollama (native integration); <strong>voice input
+(STT)</strong> ← the whisper shim via Open WebUI's OpenAI-compatible Audio→STT setting
+(<code>http://192.168.1.246:9000/v1</code> + dummy key); <strong>TTS</strong> optional later. Deploy on mother/k3s behind
+Traefik → <code>chat.weyland.lab</code> (same pattern as the other UIs). <strong>Why over OpenClaw for voice:</strong> Open
+WebUI's STT is a stable, documented setting and <strong>fails <em>open</em></strong> (breaks one panel, not the agent)
+— vs OpenClaw v2026.5.31's <code>tools.media.audio</code>, which is undocumented-for-version and <strong>failed
+closed</strong> (took down the whole gateway; see <a href="../runbooks/transcription-whisper/">docs/runbooks/transcription-whisper.md</a>).
+<strong>Additive — zero impact on OpenClaw/Telegram</strong> (independent consumer of the same shared endpoints).
+<strong>Open when scoping:</strong> auth (LAN/dev-password), persistence (PVC), which Ollama models to surface.</p>
+<h3 id="b14-guardrails-hermes-readact-learning-track">B14 — Guardrails + Hermes read+act (learning track)<a class="headerlink" href="#b14-guardrails-hermes-readact-learning-track" title="Permanent link">&para;</a></h3>
+<p><strong>✅ Status (2026-06-15) — DONE; both halves shipped in shadow.</strong> The enforcement <em>promotions</em> below are
+carved out as their own downstream items (B35 / B34 / B17+B19), not remaining B14 scope. The shadow-mode
+guardrail pipeline is live at the tool-server seam: <code>input</code> hook (LLM Guard prompt-injection) + <code>output</code> hook
+(LLM Guard toxicity, in-process NLI grounding <code>cross-encoder/nli-deberta-v3-small</code>) on <code>/context/*</code>; verdicts →
+<code>/metrics</code> (Prometheus, ServiceMonitor wired) + <code>guardrail_verdicts</code> (Postgres). All <code>mode=shadow</code> (record-only,
+never blocks); per-validator <code>off|shadow|flag|block</code> via <code>GUARDRAIL_MODE__*</code> env. <strong>Read+act also shipped:</strong> the
+three action routes (<code>/pipeline/trigger</code>, <code>/evals/run</code>, <code>/evals/score</code>) are exposed on a separate <code>/mcp-act</code> MCP
+mount, audited by the <code>act</code> hook (<code>policy.audit</code>, shadow) with the <code>actor</code> seam (trusted <code>X-Forwarded-Consumer</code>
+header → <code>guardrail_verdicts.actor</code>, NULL until the gateway). Code: <code>services/weyland-tool-server/guardrails/</code>
+(20 tests). Specs/plans: <code>aidlc-docs/construction/b14-guardrails-{design,plan}.md</code> + <code>b14-readact-{design,plan}.md</code>.
+<strong>Downstream promotions (separate items, not B14 scope):</strong> (1) grounding threshold/method calibration before
+<code>shadow→flag/block</code> → <strong>B35</strong>; (2) the enforcing act policy gate (allowlist/rate-limit/<code>block</code>) → built with
+<strong>B35</strong>; (3) PII bake → <strong>B34</strong>; (4) gateway auth that injects the <code>actor</code> identity → <strong>B17+B19</strong> (handoff
+documented there). The shadow plumbing for all of these is in place — they are promotions, not new infrastructure.</p>
+<p>Runtime safety/validation of LLM I/O — <strong>distinct from B4</strong> (which measures quality <em>offline</em>). The
+classic drivers (untrusted users, public exposure, compliance, brand safety) <strong>barely apply to a
+single-user LAN lab</strong>, so this is <strong>a learning + agent-prep track, not production hardening</strong> —
+don't over-build it. Worth-it slices even solo: (a) <strong>grounding/faithfulness enforcement</strong> —
+flag/reject RAG answers unsupported by retrieved context (B4's Ragas faithfulness is the
+<em>measurement</em> half; this is the runtime <em>block</em> on <code>/context/ask</code>); (b) <strong>prompt-injection
+awareness</strong> — gets real once <strong>B2 (Hermes/agents)</strong> read untrusted content (Tavily/web results,
+ingested docs). <strong>Tools:</strong> Llama Guard (Meta safety classifier — runs on <em>your</em> Ollama), LLM Guard
+(input/output scanners: injection / PII / toxicity), Guardrails AI (structured-output validation for
+agent tool-calls), NeMo Guardrails (programmable rails — heaviest). <strong>Sequenced with B2.</strong> Revisit
+when agents process untrusted input, or for the learning.</p>
+<p><strong>Read+act scope (added 2026-06-14):</strong> B14 now also owns turning on Hermes's <strong>write/act</strong> path — the
+tool-server's currently-untagged action routes (<code>/pipeline/trigger</code>, <code>/evals/run</code>, <code>/evals/score</code>)
+exposed as MCP act-tools (B2 v1 deliberately excluded them, tagging only the 4 read tools). read+act was
+previously <em>gated on</em> B14; it's now <em>part of</em> it, so the act-tools land <strong>behind</strong> the grounding/injection
+checks above — not before them. This is the read-only-v1 → read+act step for the B2 agents (Hermes first,
+OpenClaw same MCP URL).</p>
+<h3 id="b15-local-model-coding-agents-opencode-cline-cli">B15 — Local-model coding agents (opencode / Cline CLI)<a class="headerlink" href="#b15-local-model-coding-agents-opencode-cline-cli" title="Permanent link">&para;</a></h3>
+<p>Terminal/editor AI coding agents pointed at <strong>weyland's Ollama <code>/v1</code></strong> — code with your <em>own</em> local
+models, on-LAN; like Open WebUI (B13) but for coding. <strong>opencode</strong> (SST; open-source, model-agnostic,
+Claude-Code-style TUI) and <strong>Cline</strong> (now has a CLI) both accept an OpenAI-compatible base URL, so
+they drop onto <code>http://192.168.1.244:11434/v1</code>. Consumers of B7 — and the real payoff of B4's "best
+coding model" finding (point them at <code>qwen3-coder:30b</code> / whatever wins). <strong>Open when scoping:</strong> which
+agent(s), per-repo config, default model, auth. Low lift (client config, no new infra).</p>
+<h3 id="b16-mlflow-experiment-tracking-model-registry">B16 — MLflow (experiment tracking + model registry)<a class="headerlink" href="#b16-mlflow-experiment-tracking-model-registry" title="Permanent link">&para;</a></h3>
+<p><strong>MERGED with B10 — this is the canonical MLflow detail section.</strong></p>
+<p>System-of-record for <strong>experiments + model artifacts</strong>. Real value lands once the lab does
+<strong>fine-tuning</strong>: track training runs (params/metrics/artifacts) and register/version the resulting
+models with lineage. <strong>Reuses MinIO</strong> (artifact store) <strong>+ Postgres</strong> (backend store) — fits the
+reuse ethos. <strong>Pairs/overlaps with B10</strong> (model registry): MLflow's Model Registry <em>could be</em> B10's
+implementation, or complement it (B10 = serving-side distribution/OCI for Ollama/vLLM pulls; MLflow =
+training/experiment lineage + registry). Also overlaps <strong>B4</strong>: MLflow could host eval-run tracking
+with a standard UI — but we already built a lean Postgres <code>eval_*</code> store, so that's not the draw.
+<strong>Not urgent:</strong> until fine-tuning starts, B4's eval store + Ollama's local model store + public pulls
+suffice. <strong>Trigger:</strong> the first real fine-tune, or wanting a standard experiment-tracking UI/lineage
+across training + eval. <strong>Open:</strong> MLflow vs (B10's) lighter MinIO-bucket / OCI-registry options —
+decide when fine-tuning is actually on the table.</p>
+<h3 id="b17-a2a-agent-to-agent-protocol-evaluation">B17 — A2A (agent-to-agent protocol) evaluation<a class="headerlink" href="#b17-a2a-agent-to-agent-protocol-evaluation" title="Permanent link">&para;</a></h3>
+<p><strong>MERGED with B19 — see the Mesh item.</strong></p>
+<p>Evaluate <strong>A2A (Agent2Agent)</strong> — or similar (ACP, AGNTCY) — for the <strong>agent↔agent edge only</strong>. Born out of
+B2 scoping (see docs/concepts/agent-platform-design.md §5). <strong>Key framing: A2A is complementary to MCP, not a
+replacement</strong> — MCP = agent↔tools (the system view + acting on the system, <em>always</em>); A2A = agent↔agent
+(discovery via Agent Cards, task lifecycle, streaming, long-running peer delegation). <strong>Not needed for
+read+act</strong> — acting on the system is agent→tool (MCP) even when side-effecting. <strong>A2A's actual trigger:</strong>
+<strong>long-running, async, autonomous <em>cross-agent</em> delegation</strong>, which becomes real as the agent fleet grows
+powerful — <strong>Hermes + OpenClaw + opencode/Cline (B15)</strong>. <strong>Sequenced with B15.</strong> When evaluating: (a) check
+native A2A support in each platform (cheap if shipped, heavy if we must adapter it); (b) confirm a real
+peer-mesh need vs the cheaper MCP-tool bridge; &copy; A2A would sit <em>alongside</em> MCP on one edge — nothing in the
+MCP-based B2 build is wasted. <strong>Default until then: MCP for everything, incl. the Hermes→OpenClaw bridge.</strong></p>
+<h3 id="b18-spotify-integration-hermes-tool">B18 — Spotify integration (Hermes tool)<a class="headerlink" href="#b18-spotify-integration-hermes-tool" title="Permanent link">&para;</a></h3>
+<p>Wire Hermes's <code>spotify</code> tool (playback / search / playlists / library) — <strong>wanted: user has concrete use
+cases</strong> (CAPTURE them here — they drive scope + priority). Disabled in B2 v1 (off-theme for a system-view
+agent, and setup-heavy). <strong>Needs:</strong> a Spotify <em>developer app</em> (client ID/secret), an <strong>OAuth</strong> flow to
+maintain, and a <strong>Premium</strong> account for playback control; calls go <strong>off-LAN</strong> to Spotify's cloud (low
+sensitivity — music control, not infra data). <strong>Investigate:</strong> Hermes's built-in <code>spotify</code> tool vs an MCP
+server vs n8n; token/refresh handling in the CT (<code>~/.hermes/</code>, not committed). <strong>Open:</strong> the specific use
+cases (TBD from user); which surface (Hermes tool vs MCP). One-line <code>hermes tools</code> enable once configured.</p>
+<h3 id="b19-mcp-gateway-evaluation">B19 — MCP gateway evaluation<a class="headerlink" href="#b19-mcp-gateway-evaluation" title="Permanent link">&para;</a></h3>
+<p><strong>MERGED with B17 — see the Mesh item.</strong></p>
+<p>Evaluate a self-hosted <strong>MCP gateway</strong> (mcpx · MCPJungle · MCP Mesh · Local MCP Gateway · IBM ContextForge)
+to <strong>aggregate multiple MCP servers behind one governed endpoint</strong> with auth/RBAC, audit logging, and
+OpenTelemetry observability. Born from B2 scoping (docs/concepts/agent-platform-design.md §5). <strong>Not needed now</strong> —
+at one MCP server (tool-server <code>/mcp</code>) + two agents there's nothing to aggregate; each agent registers the
+one URL directly. <strong>Becomes valuable when</strong> the MCP mesh grows (more servers) AND we want centralized
+auth/policy/observability over MCP traffic — pairs naturally with <strong>B14 (guardrails)</strong> + the cellular-seam
+governance, and is a learning-track fit. <strong>MCP stays the seam regardless</strong>; a gateway <em>fronts</em> servers like
+<code>/mcp</code>, it doesn't replace them. <strong>Sequenced with B14/B17</strong>, gated on the mesh actually growing.</p>
+<h4 id="handoff-from-b14-readact-audit-slice-seams-already-built-for-the-gateway">Handoff from B14 read+act (audit slice) — seams already built for the gateway<a class="headerlink" href="#handoff-from-b14-readact-audit-slice-seams-already-built-for-the-gateway" title="Permanent link">&para;</a></h4>
+<p>The B14 read+act slice (<code>aidlc-docs/construction/b14-readact-design.md</code>) deliberately built the <em>boundaries</em>
+for this gateway work and left the <em>enforcement</em> to it. When B19 starts, these are in place to front/consume —
+don't rebuild them:
+- <strong><code>/mcp-act</code> mount</strong> (<code>weyland-tool-server/main.py</code>) — the action tools (<code>/pipeline/trigger</code>, <code>/evals/run</code>,
+  <code>/evals/score</code>, tag <code>mcp-act</code>) are on a <strong>separate MCP mount</strong> from the read tools (<code>/mcp</code>). The gateway
+  fronts <strong><code>/mcp-act</code> only</strong> with auth/policy; <code>/mcp</code> (read) can stay open. The act surface is already an
+  independently-addressable boundary — no need to split read/act here.
+- <strong><code>actor</code> trusted-header convention</strong> — <code>guardrail_verdicts.actor</code> (nullable column) is populated on every
+  verdict from the <strong><code>X-Forwarded-Consumer</code></strong> header <em>only</em> (never a client-supplied claim), <code>NULL</code> today.
+  The gateway authenticates the consumer and injects that header → verified identity flows into the existing
+  audit rows with <strong>zero tool-server change</strong>. The trust boundary is already coded: the tool-server trusts the
+  header because it will only accept <code>/mcp-act</code> traffic from the gateway.
+- <strong>Shadow <code>act</code> hook awaiting a policy validator</strong> — <code>Hook.ACT</code> runs <code>policy.audit</code> (records only, never
+  blocks; <code>weyland-tool-server/guardrails/</code>). The gateway's/this-work's job is the <strong>enforcing</strong> policy
+  validator (allowlist of callable tools/jobs, rate-limit, <code>block</code>) — it drops into the existing per-hook
+  validator chain (<code>guardrails/config.py</code>), no new plumbing. Built alongside <strong>B35</strong> (calibrate-and-enforce
+  pass). Until then, <code>act</code> is audit-only.
+- <strong>Decision recorded:</strong> no client-supplied identity is ever trusted (anti-spoofing). Identity is a
+  gateway-asserted header or absent — this work must not loosen that.</p>
+<h3 id="b20-home-assistant-integration-hermes-tool">B20 — Home Assistant integration (Hermes tool)<a class="headerlink" href="#b20-home-assistant-integration-hermes-tool" title="Permanent link">&para;</a></h3>
+<p>Enable Hermes's <code>home_assistant</code> tool — extend the agent's "system view" from infra to the <strong>physical
+environment</strong> (lights, sensors, switches). <strong>Gated on two things, not GPU:</strong> (1) a running Home Assistant
+instance on the LAN (none yet) + a long-lived token; (2) it's an <strong>act tool with physical side effects</strong>, so
+it belongs in the <strong>read+act phase with B14 guardrails</strong>, not read-only v1. Disabled in B2 v1. One-line
+<code>hermes tools</code> enable once HA exists and guardrails are in.</p>
+<h3 id="b21-agent-media-generation-image-video-tts">B21 — Agent media generation (image / video / TTS)<a class="headerlink" href="#b21-agent-media-generation-image-video-tts" title="Permanent link">&para;</a></h3>
+<p>Enable Hermes's <code>image_generate</code>, <code>video_generate</code>, <code>text_to_speech</code> tools — <strong>gated on the eGPU decision</strong>
+(see Tentative). All are diffusion / GPU-hungry and do <strong>NOT</strong> run on Ollama/CPU, so on the current CPU-only
+box they'd be dead tools eating the agent's context. Disabled in B2 v1. Folds into the eGPU + audio-gen-GPU
+items in Tentative (shared VRAM-diffusion need). <code>vision_analyze</code> (image <em>analysis</em>, not generation) stays
+on (may run on CPU via <code>mistral-small3.2</code>). Re-evaluate when/if the eGPU lands.</p>
+<h3 id="b22-searxng-self-hosted-search-privacy-max">B22 — SearXNG (self-hosted search) — privacy-max<a class="headerlink" href="#b22-searxng-self-hosted-search-privacy-max" title="Permanent link">&para;</a></h3>
+<p>Optional replacement for <strong>Tavily</strong> (current search backend for OpenClaw + Hermes). Web search is inherently
+off-LAN, but SearXNG removes the <strong>cloud middleman</strong>: queries go from your box straight to search engines —
+self-hosted, free, no key. <strong>Cost:</strong> another service to run + rawer (non-agent-tuned) results vs Tavily's
+clean search+extract. <strong>Not urgent</strong> — Tavily works fine indefinitely. Revisit if the Tavily middleman/quota
+becomes a concern, or for privacy/learning. Both agents re-point at <code>SEARXNG_URL</code>.</p>
+<h3 id="b23-break-out-archmd-component-diagrams">B23 — Break out arch.md component diagrams<a class="headerlink" href="#b23-break-out-archmd-component-diagrams" title="Permanent link">&para;</a></h3>
+<p><code>docs/arch.md</code> has grown into one large file carrying multiple Mermaid diagrams (full LAN topology,
+per-CT subgraphs, the agent sequence diagrams) plus the host/endpoint tables — too large to scan or edit
+comfortably. Split the diagram sections into their own files (e.g. <code>docs/diagrams/</code>), keep <code>arch.md</code> as the
+narrative + an index linking out, and <strong>validate each Mermaid block renders</strong> after the move (content-
+validation rule). <strong>Near-term — sequenced right after B2.</strong> Pairs with B25 (both reshape <code>docs/</code> IA); do the
+diagram split as part of the same IA pass so B25's git-ingestion targets the final structure.</p>
+<h3 id="b24-evaluate-nerdctl">B24 — Evaluate nerdctl<a class="headerlink" href="#b24-evaluate-nerdctl" title="Permanent link">&para;</a></h3>
+<p><strong>nerdctl</strong> = the Docker-compatible CLI for <strong>containerd</strong> (which k3s already runs). Today images are built
+with <code>docker build</code> then shuttled in via <code>docker save | sudo k3s ctr images import -</code> (see the tool-server
+deploy in docs/runbooks/agent-hermes.md). nerdctl can build <strong>straight into k3s's containerd namespace</strong>
+(<code>nerdctl --namespace k8s.io build</code>), collapsing the save/import hop and dropping the Docker daemon from the
+loop. <strong>Evaluate:</strong> does it simplify build→deploy without breaking the <code>imagePullPolicy: Never</code> local-image
+pattern; rootless vs root on the k3s nodes; whether to keep Docker for dev ergonomics. Low-stakes tooling
+eval; no infra commitment.</p>
+<p><strong>DECISION (2026-06-15): DECLINE — keep docker.</strong> The <code>docker build → docker save | k3s ctr images import</code>
+flow is an <strong>anti-corruption layer</strong> between two bounded contexts (the build domain and the cluster's runtime
+image store). nerdctl's sole real win is building <strong>directly into k3s's live <code>k8s.io</code> store</strong> — which
+<em>collapses</em> that ACL, the opposite of what we want. The plumbing checks out (nerdctl
+<code>--address=/run/k3s/containerd/containerd.sock --namespace=k8s.io</code>; our no-<code>FROM</code>-local-image Dockerfiles
+sidestep the nerdctl #2550 local-base gotcha), so adoption is <em>feasible</em> — we decline on <strong>architecture, not
+capability</strong>. Keeping docker <em>alongside</em> nerdctl would add daemons (dockerd + buildkitd), not reduce them.
+Tax that sealed it: nerdctl also costs rootful <code>sudo</code> builds + a buildkitd daemon to learn + lost ecosystem
+familiarity — none worth surrendering the build/runtime isolation. <strong>No adoption.</strong></p>
+<h3 id="b25-docs-ia-overhaul-rag-corpus-expansion">B25 — Docs IA overhaul + RAG corpus expansion<a class="headerlink" href="#b25-docs-ia-overhaul-rag-corpus-expansion" title="Permanent link">&para;</a></h3>
+<p><strong>Absorbs U15</strong> (git-based ingestion trigger — replaces inotify-on-Obsidian watcher with a Dagster git-pull
+workflow targeting the full docs/ tree).</p>
+<p>Three linked moves: <strong>(1) Deprecate the Obsidian <code>weyland.md</code> note</strong> — no longer useful as the primary
+source; migrate ALL still-valid content into the appropriate <code>docs/</code> files so nothing is lost, then retire
+it as a RAG source (today Dagster SFTPs that single file from rogueone — see U11). <strong>(2) Restructure the
+<code>docs/</code> information architecture</strong> — organize the now-canonical docs into a coherent tree (pairs with B23's
+diagram breakout). <strong>(3) New Dagster ingestion workflow — pull all docs via git</strong> — replace the single-file
+SFTP pull with a job that clones/pulls the repo and ingests the whole <code>docs/</code> tree into the RAG, and broaden
+the corpus beyond the one note. <strong>Open:</strong> repo/branch + cadence, doc chunking strategy, how the B23 diagram
+files get ingested (or not), de-dup vs existing RAG content. <strong>(4) <del>Resolve services inventory</del> → MOVED to
+B28</strong> — the <code>services</code>/<code>machines</code>/<code>models</code>/<code>memory_facts</code> tables (confirmed live 2026-06-15, no repo DDL) are
+<strong>OpenClaw's</strong> out-of-band state, so disposition rides with the OpenClaw keep/retire decision. <strong>Depends on B23</strong>
+(settle the IA/diagram split first so ingestion targets the final structure).</p>
+<p><strong>Status:</strong> <strong>B25a DONE (2026-06-14/15)</strong> — docs restructured into <code>concepts/runbooks/units/validation/diagrams</code>
++ root registries + README; all links fixed; Obsidian symlink retired; <code>concepts/data-schema.md</code> migrated and
+<strong>validated against live backends + eval-schema</strong> (caught the missing <code>eval_*</code> tables and the 4 OpenClaw orphan
+tables). The note was ~85% overlap/stale → discarded. <strong>B25b</strong> = ONE Dagster git-pull job ingesting <strong>both
+<code>docs/</code> AND <code>nodes/</code></strong> (markdown H2-chunking for docs + code-aware chunking for code), retiring the rogueone
+watcher — <strong>gated on B31</strong> (audit the codebase before ingesting it; the repo is the RAG corpus). <strong>[B31 audit]
+Retire <code>nodes/rogueone/services/weyland-watcher/</code></strong> (<code>watcher.py</code> + <code>.service</code> unit + README) here, when B25b's
+git-pull trigger replaces inotify — it's the live trigger until then.</p>
+<h3 id="b26-hosted-model-gateway-litellm-model-catalog">B26 — Hosted-model gateway (LiteLLM) + model catalog<a class="headerlink" href="#b26-hosted-model-gateway-litellm-model-catalog" title="Permanent link">&para;</a></h3>
+<p>✅ <strong>DONE 2026-06-17.</strong> Runbook: <a href="../runbooks/model-gateway/">docs/runbooks/model-gateway.md</a>.
+Manifests <code>k8s/litellm/</code>; asset <code>model_catalog.py</code>; DDL <code>scripts/model-catalog-schema.sql</code>.</p>
+<p><strong>Reframed from "Hermes Claude brain."</strong> Original goal: give Hermes an on-demand stronger brain. Two roads
+to Claude both rejected: (1) <strong>Anthropic API key</strong> = metered, declined; (2) <strong>Claude Pro/Max subscription via
+a proxy</strong> = ToS gray area (subscription is licensed for use <em>inside</em> Anthropic's products; Anthropic has
+broken tools that proxy its OAuth). "Connect Claude Code" isn't a road — Claude Code is a <em>client</em>, not a
+model endpoint. <strong>Claude-in-lab = you driving Claude Code</strong> (B29, already MCP-wired); Hermes stays local.</p>
+<p><strong>What shipped instead</strong> — the LiteLLM gateway that was always on the roadmap ("→ LiteLLM (future)" in
+requirements-analysis.md), pointed at <strong>API-key</strong> providers (no ToS issue, free tiers = $0):
+- <strong>LiteLLM</strong> on mother/k3s (<code>mother:30400/v1</code>, <code>litellm.weyland.lab</code>), <strong>wildcard routing</strong> → every
+  <strong>Gemini + OpenRouter</strong> model behind one OpenAI-compatible endpoint; Bearer = <code>LITELLM_MASTER_KEY</code>.
+- <strong>Governed egress:</strong> off-box <strong>cut-off valve</strong> (<code>valve.sh</code> — scale to 0; agent can't reach it),
+  <code>LiteLLMEgressEnabled</code> + spend Telegram alerts (B5 Alertmanager), <code>/metrics</code> scraped.
+- <strong><code>model_catalog</code></strong> Postgres table — Dagster asset (6h, <code>weyland_catalog_schedule</code>) pulls
+  OpenRouter + Gemini + Ollama, <strong>replace-by-source</strong>; first run: openrouter 336 (26 free) / gemini 37 /
+  ollama 6. The guess-free registry of reachable models (the B12-ish model catalog, made real).
+- <strong>Hermes auxiliary lanes pinned local</strong> (safety, was the actual auto-off-LAN hole): <code>title_generation</code>,
+  <code>web_extract</code>, <code>compression</code>, <code>skills_hub</code>, <code>approval</code> → local Ollama (<code>vision</code> left, needs a vision model).</p>
+<p><strong>Remaining/optional:</strong> wire a Hermes <code>custom</code> provider at the gateway for on-demand escalation (<code>/model
+--provider</code>, default stays local); render a <code>docs/models.md</code> view from <code>model_catalog</code> if eyeballing is wanted.</p>
+<h3 id="b27-enable-hermes-kanban-skills">B27 — Enable Hermes Kanban skills<a class="headerlink" href="#b27-enable-hermes-kanban-skills" title="Permanent link">&para;</a></h3>
+<p><strong>Design (finalized 2026-06-17): <code>aidlc-docs/construction/b27-kanban-design.md</code></strong> — scope (a) self-management
++ (b) roadmap co-pilot. <strong>Board = Hermes's native durable SQLite Kanban</strong> (built in, no container, no Postgres —
+richer than anything we'd build: deps, workers-in-isolated-workspaces, dispatcher, swarm, decompose/specify).
+<strong>Planning brain = Gemini free</strong> (<code>gemini-flash</code>) via the gateway, pinned to <code>auxiliary.kanban_decomposer</code> +
+<code>triage_specifier</code> only; default brain + workers stay local <code>qwen3-coder</code>. <strong>$0, no paid models.</strong>
+<strong><code>backlog.md</code> → <code>docs/</code></strong> (step 1) feeds the RAG + the one-way roadmap-sync script. Plan-only → autonomous.
+Turn on Hermes's built-in <strong>Kanban</strong> skills — the agent's native task/board/goal-management scaffolding (part
+of the base framework prompt; see docs/runbooks/agent-hermes.md) — so Hermes can <strong>decompose, plan, and track
+multi-step work on its own board</strong> instead of one-shot turns. <strong>Sequenced right after B26 (Claude) by
+design:</strong> autonomous multi-step Kanban planning leans on a stronger brain, so it pays off most once Claude is
+available for the planning turns (local <code>qwen3-coder</code> can still drive it, just less reliably). <strong>Possible
+payoff:</strong> point the Kanban at the <strong>weyland roadmap itself</strong> (this backlog) — agent-assisted grooming /
+execution tracking. <strong>Open:</strong> scope (the agent's own task planning vs managing our roadmap); board
+persistence; which brain runs planning turns; read-only vs act (if the board drives real changes, that ties
+to B14 read+act + guardrails).</p>
+<h3 id="b28-openclaw-rehabilitation-deprioritized-much-later">B28 — OpenClaw rehabilitation (deprioritized — much later)<a class="headerlink" href="#b28-openclaw-rehabilitation-deprioritized-much-later" title="Permanent link">&para;</a></h3>
+<p>Decision 2026-06-14: OpenClaw is <strong>shelved, not deleted</strong> — a powerful lab toy that's currently more pain than
+payoff. This item is the future cleanup to make it usable again, done <strong>only when there's appetite</strong> (nothing
+depends on it; Hermes carries the agent role). Captured degradation from <code>openclaw doctor</code> (2026-06-14) so it
+isn't lost:
+- <strong>weyland MCP not surfacing to the brain</strong> — registered + probes 4 tools at the CLI, but the agent's tool
+  list is empty (gateway MCP runtime stuck "reconnecting"); a container restart didn't clear it.
+- <strong>No command owner</strong> (<code>commands.ownerAllowFrom</code> unset) → owner-only / privileged actions + exec approvals
+  can't run; the agent can't self-fix.
+- <strong>Brain auth expiring</strong> — <code>anthropic:claude-cli</code> ~8h to expiry; needs re-auth.
+- <strong>Memory search broken</strong> — provider <code>openai</code> with no key → semantic recall dead (set key, switch, or disable).
+- <strong>Tool allowlist too narrow</strong> — agent <code>main</code> can't even use the <code>message</code> tool (likely also gating MCP tools).
+- <strong>Security</strong> (lab/LAN, low urgency): plaintext secrets in <code>openclaw.json</code> (telegram token, tavily key,
+  gateway token); gateway bound <code>0.0.0.0</code>.
+- <strong>Operability:</strong> reachable only through the gateway Docker container (<code>docker exec …</code>) — painful.
+<strong>Two decisions to make when we reach it: (1) keep vs retire? (2) if keep, refactor vs rewrite?</strong>
+<strong>When revisited:</strong> answer (1) first — whether OpenClaw's unique value (plugin/channel breadth) is still wanted
+vs just retiring it; then (2) refactor the existing degraded gateway vs a clean rewrite. If kept, fix roughly
+in order: owner → MCP surfacing → auth → memory → secrets.
+- <strong>Out-of-band Postgres tables (moved here from B25):</strong> OpenClaw created <code>services</code>, <code>machines</code>, <code>models</code>,
+  <code>memory_facts</code> in the shared <code>weyland</code> DB (confirmed live 2026-06-15; no repo DDL; nothing else reads them).
+  Reconcile or drop them as part of the keep/retire decision. See <code>docs/concepts/data-schema.md</code> §5.
+- <strong>OpenClaw helper scripts (deferred here from the B31 codebase audit):</strong> <code>nodes/openclaw/bin/</code> —
+  <code>read-weyland-note</code> (SSH-cats the now-retired Obsidian note), <code>weyland-context</code> (RAG-search CLI),
+  <code>ask-rogueone-vllm</code> (→ rogueone vLLM), <code>weyland-db</code> (psql wrapper with <code>services/machines/models/chunks</code>
+  shortcuts — ties the out-of-band inventory to OpenClaw tooling). Left intact for now; retire or redo with the
+  keep/retire call.</p>
+<p>Its prior "both agents" roles (B14 read+act, B18 Spotify, B20 HA, B21 media-gen, B22 SearXNG) are Hermes-now
+until this lands. See [[openclaw-deprioritized]].</p>
+<h3 id="b30-real-time-docs-ingestion-trigger-extras-optimization">B30 — Real-time docs ingestion trigger (Extras / Optimization)<a class="headerlink" href="#b30-real-time-docs-ingestion-trigger-extras-optimization" title="Permanent link">&para;</a></h3>
+<p>Self-hosted <strong>GitHub Actions runner on the LAN</strong> fires the Dagster <code>launchRun</code> mutation on push — NAT-free
+near-real-time ingestion without exposing mother. Deferred: the 15-min cron + hash-gate is fine until that
+latency actually bothers us. The trigger contract (<code>launchRun</code> to the Dagster GraphQL endpoint) is unchanged from B25b, so
+this bolts on with zero rework.</p>
+<h3 id="b32-nemo-guardrails-evaluation-extras-optimization">B32 — NeMo Guardrails evaluation (Extras / Optimization)<a class="headerlink" href="#b32-nemo-guardrails-evaluation-extras-optimization" title="Permanent link">&para;</a></h3>
+<p><strong>NeMo Guardrails</strong> (NVIDIA) — a <em>programmable</em> guardrails framework: rails authored in the <strong>Colang</strong> DSL
+(topical rails = keep on-topic; dialog-flow rails = allowed conversation paths; jailbreak / fact-check rails),
+wrapping the LLM as a conversational control layer. <strong>Deferred from B14</strong> because it's the heaviest option (a
+whole framework + a new language) and built for <strong>dialog management</strong>, not the request/response <strong>I/O scanning</strong>
+B14's tool-server pipeline does (Llama Guard + LLM Guard + grounding judge cover that). <strong>Where it might fit:</strong>
+the <strong>Layer-2 agent layer</strong> (Hermes) for dialog/topical rails — evaluate then. Not the tool-server seam.</p>
+<h3 id="b34-evaluate-bake-pii-guard-maturity-hardening-polish">B34 — Evaluate + bake PII guard (Maturity / Hardening / Polish)<a class="headerlink" href="#b34-evaluate-bake-pii-guard-maturity-hardening-polish" title="Permanent link">&para;</a></h3>
+<p>B14 shipped the <strong>PII validator coded but unbaked</strong>: the <code>PIIValidator</code> (llm_guard <code>Sensitive</code> → presidio
++ spaCy) exists in <code>guardrails/validators/llm_guard.py</code> and its config line is present-but-commented in
+<code>guardrails/config.py</code>, but the presidio/spaCy model is <strong>not baked into the tool-server image</strong> (Option A at
+build time — the heaviest, lowest-signal-in-this-corpus guard was deferred to keep the image lean and the
+airgap-offline guarantee clean). <strong>B34 promotes it:</strong> (1) <strong>eval</strong> — using the shadow telemetry already
+flowing for injection/toxicity/grounding, confirm PII detection carries real signal on <em>this</em> corpus (own
+infra docs: hostnames/IPs/secrets) rather than near-constant PASS noise; a <strong>multi-user / answer-export</strong>
+trigger also promotes it regardless. (2) <strong>bake</strong> — add presidio + a spaCy model (<code>en_core_web_sm</code> to stay
+lean, or <code>_lg</code> for accuracy) to the Dockerfile <em>before</em> the <code>HF_HUB_OFFLINE</code> lines, mirroring the injection/
+toxicity/NLI bakes. (3) <strong>enable</strong> — uncomment the <code>llm_guard.pii</code> line in <code>config.py</code> (ships <code>Mode.SHADOW</code>).
+The resilient per-validator loader means it lights up with zero other code changes. <strong>Depends on:</strong> B14 shadow
+data accumulated. <strong>Effort:</strong> small (build + config), modulo presidio/spaCy bake fragility.</p>
+<h3 id="b35-grounding-guard-calibration-maturity-hardening-polish">B35 — Grounding guard calibration (Maturity / Hardening / Polish)<a class="headerlink" href="#b35-grounding-guard-calibration-maturity-hardening-polish" title="Permanent link">&para;</a></h3>
+<p>B14's grounding validator (<code>grounding.nli</code>, <code>guardrails/validators/grounding.py</code>) emits <code>max_entailment</code> ∈ [0,1]
+and FLAGs below a <strong>guessed <code>0.5</code> threshold</strong> — set before any data existed. First live run already FLAGged a
+<em>correct</em> "the context doesn't cover that" answer at <code>0.295</code>, i.e. the threshold is uncalibrated and the
+whole-answer-vs-single-chunk NLI method systematically under-scores answers synthesized across multiple chunks.
+<strong>B35 calibrates it:</strong> (1) <strong>collect</strong> — let shadow mode accumulate <code>max_entailment</code> across many real
+<code>/context/ask</code> queries in <code>guardrail_verdicts</code> (happening now). (2) <strong>label</strong> — judge a sample (hand or
+stronger model) as truly grounded vs hallucinated. (3) <strong>separate</strong> — plot the two score distributions; set the
+threshold that best splits them (max F1, or bound the false-flag rate). (4) <strong>fix method if needed</strong> — if no
+threshold separates them, switch from whole-answer-vs-chunk to <strong>sentence-level entailment</strong> (score each
+answer-sentence vs its best chunk, aggregate) or <strong>concatenate top-k chunks into one premise</strong>. This is the
+<strong>prerequisite to ever moving grounding from <code>shadow</code> → <code>flag</code>/<code>block</code></strong> — enforcing on a guessed threshold
+would block good answers or pass hallucinations. Ties into the B4 eval harness (reuse its judge-panel pattern
+for labeling) and feeds the B1 model-eval data product. <strong>Depends on:</strong> B14 shadow data. <strong>Effort:</strong> small-medium
+(analysis + a possible scoring-method swap).</p>
+<h3 id="b36-hermes-dashboard-performance-maturity-hardening-polish">B36 — Hermes dashboard performance (Maturity / Hardening / Polish)<a class="headerlink" href="#b36-hermes-dashboard-performance-maturity-hardening-polish" title="Permanent link">&para;</a></h3>
+<p><strong>Context — deployed 2026-06-17 (ad-hoc, out of roadmap order).</strong> The native Hermes web dashboard (config /
+sessions / <strong>Kanban</strong> view) is live: web UI <strong>built on rogueone</strong> (the pip install shipped source only, with
+devDeps omitted → built there, <code>web_dist</code> shipped to CT 104), served localhost-only by a systemd unit
+(<code>hermes-dashboard</code>, <code>127.0.0.1:9119</code>), fronted by <strong>nginx on CT 104</strong> with TLS (wildcard cert) + an <strong>IP
+allowlist</strong> (rogueone only — basic-auth storm-prompted against the SPA's XHR/websockets, so it was dropped).
+DNS: <code>dashboard.weyland.lab</code> → CT 104 (CoreDNS block + rogueone <code>/etc/hosts</code>). Files:
+<code>nodes/weyland/hermes/{hermes-dashboard.service,dashboard-nginx.conf}</code>.
+<strong>The problem:</strong> it <strong>works but is dog-slow.</strong> Suspects to investigate: the dashboard backend on the
+4 vCPU / 6 GB CT 104; likely live polling / heavy SPA; possibly the extra proxy hop. <strong>When revisited:</strong>
+profile what it's doing (network tab + CT load), consider bumping CT resources, disabling polling, or caching;
+decide whether it's worth keeping vs the CLI/Telegram board views. <strong>Docs still owed</strong> (deferred to keep
+momentum on the roadmap): a runbook (<code>docs/runbooks/</code>) + <code>dashboard.weyland.lab</code> in <code>api.md</code>/<code>hosts.md</code>/arch —
+fold into this item.</p>
+<h3 id="b33-co-resident-warm-parallel-model-serving-hardware-gated">B33 — Co-resident / warm-parallel model serving (Hardware-Gated)<a class="headerlink" href="#b33-co-resident-warm-parallel-model-serving-hardware-gated" title="Permanent link">&para;</a></h3>
+<p>The latency-free way to run a guard (or any second model) alongside the main one is to keep <strong>both resident</strong> —
+<code>OLLAMA_MAX_LOADED_MODELS=N</code> + <code>KEEP_ALIVE=-1</code> (requests route to the right warm model; nothing cold-starts).
+Surfaced from B14's grounding-guard venue discussion. <strong>Gated on hardware:</strong> CT 102's ~48 GB cgroup is already
+near-full with one 30B-A3B at 64K, so a <em>second large</em> model can't co-reside today — this unlocks with RAM
+headroom (the "weyland box" decision) or the eGPU (VRAM). Note: <em>small</em> guard models can already co-reside or
+run in a dedicated guard CT / in-process (that's B14's feasible path) — <strong>B33 is specifically the
+keep-big-models-warm-in-parallel capability.</strong> Related: the vLLM <strong>multi-LoRA</strong> hot-swap path (cheap adapter
+swap on a shared warm base) if guards are ever LoRAs of the base model.</p>
+<h3 id="b31-codebase-audit-restructure-nodes">B31 — Codebase audit / restructure (<code>nodes/</code>)<a class="headerlink" href="#b31-codebase-audit-restructure-nodes" title="Permanent link">&para;</a></h3>
+<p><strong>The repo is the RAG corpus</strong> — "ingest everything we check in" means <code>nodes/</code> (code + k8s manifests) gets
+ingested too, so it must be as clean and relevant as the docs were before B25b. <strong>Garbage in the repo = garbage
+in the RAG.</strong> This is the <strong>code analog of B25a</strong>, and a <strong>prerequisite for B25b's ingestion</strong>:
+- <strong>Audit <code>nodes/</code> for relevance:</strong> retire dead/stale scripts, bootstrap/one-off helpers, abandoned
+  experiments, and the now-obsolete rogueone watcher (U15).
+- <strong>Audit for structure:</strong> organize what stays so ingestion targets a coherent tree.
+- <em>(Ingestion mechanics — code-aware chunking, tracked-file selection, the <code>bge</code>-on-code caveat — live in
+  <strong>B25b</strong>, the unified docs+code job, not here. <code>.gitignore</code> already excludes node_modules / the openclaw
+  clone / aidlc-docs / CLAUDE.md.)</em></p>
+<p><strong>Sequence: B31 (this) → B25b</strong> (one Dagster job ingesting the cleaned <code>docs/</code> + <code>nodes/</code>). Ties into data mesh
+(code/config as a Data-as-a-Product).</p>
+<p><strong>Status (2026-06-15): audit DONE — codebase is clean.</strong> Retired the 2 dead bootstrap RAG scripts
+(<code>mother/bin/embed-weyland-chunks</code>, <code>ingest-weyland-note</code>). <strong>Security:</strong> <code>k8s/n8n/encryption-key.txt</code> is a
+stray committed secret (n8n reads from a k8s Secret, not the file) → gitignored; <strong>untrack + rotate the key is
+a security task for the user</strong> (already in git history). Corrected 2 false-positives: kept
+<code>weyland-dagster-base/Dockerfile</code> (used by dagster webserver/daemon as <code>weyland-dagster-base:local</code>) and
+<code>telegram-test-rule.yaml</code> (documented test fixture in observability.md). Deferred: OpenClaw <code>nodes/openclaw/bin/*</code>
+→ B28, <code>weyland-watcher</code> → B25b. No structural reorg needed — the <code>nodes/&lt;host&gt;/…</code> layout is coherent.</p>
+<h3 id="b29-connect-claude-code-to-the-weyland-system-view-mcp">B29 — Connect Claude Code to the weyland system-view MCP<a class="headerlink" href="#b29-connect-claude-code-to-the-weyland-system-view-mcp" title="Permanent link">&para;</a></h3>
+<p>Make this Claude Code session a first-class <strong>consumer of the weyland system-view MCP</strong>
+(<code>http://192.168.1.243:30080/mcp</code>) — the same URL Hermes uses — so I understand the <strong>live system</strong>
+(<code>status</code> / <code>list_models</code> + RAG via <code>context_ask</code> / <code>context_search</code>) directly and deterministically, instead
+of relying on stale git. <strong>MCP, not A2A:</strong> connect to the tool <em>server</em>, not to an agent (no lossy LLM
+middleman; matches the B17 framing). Claude Code speaks MCP natively (<code>.mcp.json</code> / <code>claude mcp add</code>,
+streamable-http transport). <strong>Immediate directive</strong> alongside B25 — and the RAG half scales with B25 (better
+ingested corpus → more useful <code>context_ask</code>). Re-confirms the Hermes↔MCP path from a second client. <strong>Open:</strong>
+<code>30080</code> reachability from the dev host; read-only now (act later, gated like B14); whether to scope which
+tools load.</p>
+<h3 id="u13-sentence-transformers-image-slimming">U13 — sentence-transformers image slimming<a class="headerlink" href="#u13-sentence-transformers-image-slimming" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>Running-list item</strong>: 12</li>
+<li><strong>Theme</strong>: B — footprint</li>
+<li><strong>Scope</strong>: Reduce or split the heavy sentence-transformers Docker image.</li>
+</ul>
+<h3 id="u14-n8n-workflow-export-to-git">U14 — n8n workflow export to git<a class="headerlink" href="#u14-n8n-workflow-export-to-git" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>Running-list item</strong>: 13</li>
+<li><strong>Theme</strong>: D — config-in-git</li>
+<li><strong>Scope</strong>: Export the n8n workflow(s) into git now that the structure has stabilized.</li>
+</ul>
+<h3 id="u16-weaviate-ui-react-frontend">U16 — Weaviate UI (React frontend)<a class="headerlink" href="#u16-weaviate-ui-react-frontend" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>Running-list item</strong>: 15</li>
+<li><strong>Theme</strong>: F — deferred</li>
+<li><strong>Scope</strong>: Custom React frontend for Weaviate schema browsing, object inspection, and
+  search against the self-hosted instance.</li>
+<li><strong>Note</strong>: Referenced as "U6" in older docs (weyland.md / aidlc-state.md); renumbered
+  to U16 under priority order.</li>
+</ul>
+<h3 id="u17-migrate-platform-api-routes-apisixtraefik-apisixoutliers-only">U17 — Migrate platform API routes APISIX→Traefik; APISIX→outliers-only<a class="headerlink" href="#u17-migrate-platform-api-routes-apisixtraefik-apisixoutliers-only" title="Permanent link">&para;</a></h3>
+<p><strong>DROPPED — stale; U17 removed from priority list.</strong></p>
+<ul>
+<li><strong>Origin</strong>: U9 follow-up (cellular architecture, deferred from U9 scope a)</li>
+<li><strong>Theme</strong>: architecture / E</li>
+<li><strong>Scope</strong>: Move APISIX's existing platform-API routes (<code>/context</code>, <code>/pipeline</code> →
+  weyland-tool-server) onto Traefik (the platform front door). Repurpose APISIX to front
+  only the outlier cell (non-k8s assets). Cross-cell path becomes APISIX → Traefik →
+  service (the anti-corruption seam). Requires the non-k8s asset inventory.</li>
+<li><strong>Priority</strong>: after U9; user may reprioritize. NOT yet in the numbered running list
+  (which tracks the original 15 items) — added as an architecture-driven follow-up.</li>
+</ul>
+<h3 id="u18-weyland-lab-ssh-key-full-lockdown-rogueone-side">U18 — weyland-lab SSH key full lockdown (rogueone-side)<a class="headerlink" href="#u18-weyland-lab-ssh-key-full-lockdown-rogueone-side" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>✅ DONE 2026-06-17 — closed as KEY RETIREMENT.</strong> Removed the rogueone <code>authorized_keys</code> line and deleted
+  the orphaned <code>weyland-lab-ssh-key</code> k8s Secret. The key is fully gone (no public half, no private half).</li>
+<li><strong>⛔ Original lockdown scope OBSOLETE (the work below is void) — reframed to retirement (2026-06-17).</strong> B25b replaced the Dagster
+  SFTP-from-rogueone ingestion with a GitHub git-pull — <code>source_document.py</code> no longer SSHes rogueone.
+  Repo grep (<code>weyland-lab|WEYLAND_SSH|paramiko|authorized_keys</code> over <code>nodes/</code> + <code>k8s/</code>) finds <strong>zero</strong>
+  consumers — only the repo-name in GitHub URLs. The <code>weyland-lab</code> key is <strong>dead access</strong>. The original
+  "lock the key down" scope is void; the residual task is <strong>retire the key</strong> (a deleted key beats a hardened
+  one): (1) remove the <code>weyland-lab</code> line from rogueone <code>~/.ssh/authorized_keys</code>; (2) drop any orphaned k8s
+  Secret that held the private key (no manifest references it); (3) delete the private key file if any.
+  ~5 min, host-side, no image rebuild. <strong>DROP the lockdown scope below — kept for context only.</strong></li>
+<li><strong>Origin</strong>: U11 follow-up (deferred option &copy;, agreed 2026-06-09)</li>
+<li><strong>Theme</strong>: E — hardening</li>
+<li><strong>Scope</strong>: Tighten the (now single-purpose) weyland-lab key on rogueone's
+  <code>authorized_keys</code>: <code>restrict</code>, <code>from="&lt;mother&gt;"</code>, and a forced <code>command="cat &lt;file&gt;"</code>.
+  The forced command requires switching Dagster <code>source_document.py</code> from SFTP to
+  <code>exec_command("cat &lt;file&gt;")</code>. End state: even if the key leaks it can only read the one
+  source file, from mother, no shell. (Host-key pinning is done separately in U11 (b).)</li>
+<li><strong>Requires</strong>: Dagster user-code image rebuild + an ingestion test run; rogueone
+  authorized_keys edit. Touches the active ingestion path — validate carefully.</li>
+</ul>
+<hr />
+<h2 id="iteration-1-follow-ups-banked-see-units-iter1md">Iteration 1 follow-ups (banked, see units-iter1.md)<a class="headerlink" href="#iteration-1-follow-ups-banked-see-units-iter1md" title="Permanent link">&para;</a></h2>
+<ul>
+<li><strong>U17</strong> — Migrate platform API routes APISIX→Traefik; APISIX→outliers-only. <strong>DROPPED as stale.</strong></li>
+<li><strong>U18</strong> — weyland-lab SSH key. ✅ <strong>DONE 2026-06-17 as KEY RETIREMENT</strong> (B25b mooted the lockdown — key had
+  no consumers; deleted rogueone <code>authorized_keys</code> line + orphaned k8s Secret). See detail above.</li>
+</ul>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+    
+      
+      <nav class="md-footer__inner md-grid" aria-label="Footer" >
+        
+          
+          <a href="../arch/" class="md-footer__link md-footer__link--prev" aria-label="Previous: Weyland — Architecture">
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+            </div>
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                Previous
+              </span>
+              <div class="md-ellipsis">
+                Weyland — Architecture
+              </div>
+            </div>
+          </a>
+        
+        
+          
+          <a href="../hosts/" class="md-footer__link md-footer__link--next" aria-label="Next: Weyland — Host Inventory">
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                Next
+              </span>
+              <div class="md-ellipsis">
+                Weyland — Host Inventory
+              </div>
+            </div>
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M4 11v2h12l-5.5 5.5 1.42 1.42L19.84 12l-7.92-7.92L10.5 5.5 16 11z"/></svg>
+            </div>
+          </a>
+        
+      </nav>
+    
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["navigation.footer", "content.action.edit"], "search": "../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.79ae519e.min.js"></script>
+      
+        <script src="../search/main.js"></script>
+      
+    
+  </body>
+</html>

@@ -1,0 +1,2778 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Runbooks, architecture, diagrams, and concepts for the weyland homelab AI platform.">
+      
+      
+      
+      
+        <link rel="prev" href="../../weyland/">
+      
+      
+        <link rel="next" href="../data-schema/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.6">
+    
+    
+      
+        <title>B2 — Agent Platform (Hermes + OpenClaw) — Design - Weyland Platform Docs</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/stylesheets/main.484c7ddc.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    <body dir="ltr">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#b2-agent-platform-hermes-openclaw-design" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../.." title="Weyland Platform Docs" class="md-header__button md-logo" aria-label="Weyland Platform Docs" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            Weyland Platform Docs
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              B2 — Agent Platform (Hermes + OpenClaw) — Design
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+    
+    
+    
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../.." title="Weyland Platform Docs" class="md-nav__button md-logo" aria-label="Weyland Platform Docs" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    Weyland Platform Docs
+  </label>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Weyland Docs
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Weyland — API &amp; Endpoint Inventory
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../arch/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Weyland — Architecture
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../backlog/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Weyland Forward Roadmap — re-prioritized 2026-06-14
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../hosts/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Weyland — Host Inventory
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../weyland/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Weyland
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_7" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_7" id="__nav_7_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Concepts
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_7_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_7">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Concepts
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    B2 — Agent Platform (Hermes + OpenClaw) — Design
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    B2 — Agent Platform (Hermes + OpenClaw) — Design
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#1-the-two-agents-complementary-not-competing" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1. The two agents — complementary, not competing
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="1. The two agents — complementary, not competing">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#why-hermes-is-primary-and-on-the-critical-path" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Why Hermes is primary (and on the critical path)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#why-openclaw-is-off-the-critical-path" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Why OpenClaw is off the critical path
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#2-architecture-three-layers-one-seam" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2. Architecture — three layers, one seam
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="2. Architecture — three layers, one seam">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#why-the-system-view-is-a-platform-capability-not-an-agent-feature" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Why the system view is a platform capability, not an agent feature
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#why-mcp-is-the-seam" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Why MCP is the seam
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#3-hosting-isolation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3. Hosting &amp; isolation
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#4-v1-scope-read-only-observe" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4. v1 scope — read-only "observe"
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#5-protocol-mcp-now-a2a-as-a-gated-future-b17" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5. Protocol: MCP now, A2A as a gated future (→ B17)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#6-open-items-to-validate-beforeduring-the-build" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        6. Open items to validate (before/during the build)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#7-first-slice-build-sequence-read-only-v1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7. First-slice build sequence (read-only v1)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#8-decision-log" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        8. Decision log
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#related" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Related
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../data-schema/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Data Schema — RAG + Eval Stores
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../llm-inference-cpu-vs-gpu/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    LLM Inference — CPU vs GPU Tradeoffs (the why)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../model-serving-hardware/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    B7 — Model Serving Hardware (DECISION DEFERRED — pending pricing)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_8" >
+        
+          
+          <label class="md-nav__link" for="__nav_8" id="__nav_8_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Diagrams
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_8_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_8">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Diagrams
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../diagrams/c4-component-hermes/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    C4 Component — hermes CT (CT 104)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../diagrams/c4-component-mother/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    C4 Component — mother VM (k3s)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../diagrams/c4-component-ollama/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    C4 Component — ollama CT (CT 102)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../diagrams/c4-component-openclaw/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    C4 Component — openclaw VM (vm-100)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../diagrams/c4-component-rogueone/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    C4 Component — rogueone (external)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../diagrams/c4-component-whisper/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    C4 Component — whisper CT (CT 103)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../diagrams/c4-container/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    C4 Container — Weyland
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../diagrams/c4-context/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    C4 Context — Weyland
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../diagrams/flow-act-tool/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Flow: Audited Act-Tool (/mcp-act, B14 read+act)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../diagrams/flow-agent-mcp/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Flow: Agent System-View (Hermes / Claude Code -&gt; MCP -&gt; tool-server)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../diagrams/flow-alerting/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Flow: Alerting (B5)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../diagrams/flow-backend-dispatch/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Flow: Backend Selection / Dispatch (detail of RAG retrieval)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../diagrams/flow-deploy/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Flow: Deploy / Redeploy (build↔runtime isolation)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../diagrams/flow-eval-scoring/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Flow: Eval Scoring (weyland_eval_score_job, detail of the eval pipeline)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../diagrams/flow-eval/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Flow: Evaluation Pipeline (single-path eval -&gt; panel -&gt; leaderboard)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../diagrams/flow-guardrails/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Flow: Guardrail Validation (B14, shadow-first)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../diagrams/flow-health-status/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Flow: Health / Status Aggregation (U12)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../diagrams/flow-ingestion/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Flow: Ingestion (repo → 4 vector backends)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../diagrams/flow-ingress-tls/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Flow: Ingress / TLS Front Door
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../diagrams/flow-mesh-mtls/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Flow: Service-Mesh Request Path + mTLS (B8)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../diagrams/flow-model-catalog/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Flow: model_catalog Refresh (B26)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../diagrams/flow-model-gateway/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Flow: Model-Gateway Routing (B26, LiteLLM)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../diagrams/flow-pipeline-trigger/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Flow: Pipeline Trigger (/pipeline/trigger → Dagster)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../diagrams/flow-rag-query/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Flow: RAG Query (/context/ask)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../diagrams/flow-roadmap-sync/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Flow: Roadmap-Sync → Hermes Kanban (B27)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../diagrams/flow-tracing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Flow: Distributed Tracing Pipeline (B8)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../diagrams/flow-voice-chat/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Flow: Voice Chat (Open WebUI -&gt; whisper -&gt; Ollama)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_9" >
+        
+          
+          <label class="md-nav__link" for="__nav_9" id="__nav_9_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Runbooks
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_9_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_9">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Runbooks
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../runbooks/agent-hermes/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    B2 — Hermes Agent Runbook — weyland (CT 104)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../runbooks/aidlc-kb-ingest/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    B37 — AIDLC Knowledge-Base Ingestion (MinIO → RAG)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../runbooks/eval-harness/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    B4 — LLM Evaluation Pipeline (runbook)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../runbooks/model-gateway/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Model Gateway (LiteLLM) + Model Catalog — runbook
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../runbooks/model-serving-ollama/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Ollama Runbook — weyland (CT 102)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../runbooks/observability/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    B5 — Observability (kube-prometheus-stack) — Deploy &amp; Validate
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../runbooks/service-mesh-istio/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Istio service mesh — runbook (B8)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../runbooks/storage-minio/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    B6 — MinIO Object Storage (8TB USB → mother VM passthrough)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../runbooks/transcription-whisper/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    B11 — Whisper STT Runbook — weyland (CT 103)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../runbooks/weyland-idp/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    weyland IDP — runbook (B3)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_10" >
+        
+          
+          <label class="md-nav__link" for="__nav_10" id="__nav_10_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Units
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_10_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_10">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Units
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../units/u10-sa-scoping/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    U10 — Service Account Scoping (least privilege) — Apply &amp; Validate
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../units/u11-ssh-identity/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    U11 — weyland-lab SSH Identity Review
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../units/u12-health-endpoints/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    U12 — Tool Server Extended Health/Status Endpoints
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../units/u6-credential-hardening/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    U6 — Tool Server DB Credential Hardening — Deploy &amp; Validate
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../units/u7-config-hf-cleanup/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    U7 — Tool Server Config &amp; HF Cache Cleanup — Deploy &amp; Validate
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../units/u8-headlamp-token/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    U8 — Headlamp Permanent Admin Token — Apply &amp; Validate
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../units/u9-cert-mkcert/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    U9 (cert) — mkcert wildcard cert for *.weyland.lab
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../units/u9-dns-coredns/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    U9 (prereq) — CoreDNS LAN Resolver — Deploy &amp; Validate
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../units/u9-traefik-ingress/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    U9 (ingress) — Traefik + TLS for platform UIs
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_11" >
+        
+          
+          <label class="md-nav__link" for="__nav_11" id="__nav_11_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Validation
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_11_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_11">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Validation
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../validation/test-commands/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Weyland Platform Test Commands
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#1-the-two-agents-complementary-not-competing" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1. The two agents — complementary, not competing
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="1. The two agents — complementary, not competing">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#why-hermes-is-primary-and-on-the-critical-path" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Why Hermes is primary (and on the critical path)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#why-openclaw-is-off-the-critical-path" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Why OpenClaw is off the critical path
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#2-architecture-three-layers-one-seam" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2. Architecture — three layers, one seam
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="2. Architecture — three layers, one seam">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#why-the-system-view-is-a-platform-capability-not-an-agent-feature" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Why the system view is a platform capability, not an agent feature
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#why-mcp-is-the-seam" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Why MCP is the seam
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#3-hosting-isolation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3. Hosting &amp; isolation
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#4-v1-scope-read-only-observe" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4. v1 scope — read-only "observe"
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#5-protocol-mcp-now-a2a-as-a-gated-future-b17" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5. Protocol: MCP now, A2A as a gated future (→ B17)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#6-open-items-to-validate-beforeduring-the-build" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        6. Open items to validate (before/during the build)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#7-first-slice-build-sequence-read-only-v1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7. First-slice build sequence (read-only v1)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#8-decision-log" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        8. Decision log
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#related" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Related
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+
+<h1 id="b2-agent-platform-hermes-openclaw-design">B2 — Agent Platform (Hermes + OpenClaw) — Design<a class="headerlink" href="#b2-agent-platform-hermes-openclaw-design" title="Permanent link">&para;</a></h1>
+<p><strong>Status:</strong> Scoped 2026-06-13 (design approved; first slice not yet built).
+<strong>Goal:</strong> Give the lab a conversational <strong>"view into the system"</strong> through autonomous agents — query
+knowledge, watch health/observability, and (later) drive workflows — without data leaving the LAN.</p>
+<p>This doc captures the architecture and the decisions (with rationale) reached while scoping B2. It is the
+reference for the build slices that follow.</p>
+<hr />
+<h2 id="1-the-two-agents-complementary-not-competing">1. The two agents — complementary, not competing<a class="headerlink" href="#1-the-two-agents-complementary-not-competing" title="Permanent link">&para;</a></h2>
+<p>We run <strong>two</strong> agent runtimes, deliberately. They are <strong>complementary specialists</strong>, not redundant
+assistants — which is what makes "have both" a strategy rather than indulgence.</p>
+<table>
+<thead>
+<tr>
+<th></th>
+<th><strong>Hermes</strong> (NousResearch/hermes-agent, MIT)</th>
+<th><strong>OpenClaw</strong> (v2026.5.31, on the <code>openclaw</code> VM)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Lane</strong></td>
+<td><strong>Primary</strong> — autonomous system-view / ops workhorse <strong>and the single front door</strong></td>
+<td><strong>Contained delegate</strong> — tapped for skill breadth / extra channels</td>
+</tr>
+<tr>
+<td><strong>Strength</strong></td>
+<td>Always-on, learns recurring tasks, self-improving skills, <strong>Python-native + strong local-inference fit</strong>, lean &amp; <strong>stable</strong></td>
+<td>Multi-agent orchestration, multi-channel comms, <strong>thousands of community skills</strong>, Node.js I/O-heavy gateway</td>
+</tr>
+<tr>
+<td><strong>On the critical path?</strong></td>
+<td><strong>Yes</strong> — front door + daily driver</td>
+<td><strong>No</strong> — its breakage must never block the way in</td>
+</tr>
+</tbody>
+</table>
+<h3 id="why-hermes-is-primary-and-on-the-critical-path">Why Hermes is primary (and on the critical path)<a class="headerlink" href="#why-hermes-is-primary-and-on-the-critical-path" title="Permanent link">&para;</a></h3>
+<p>Not because it's a superset — they're orthogonal — but on <strong>stability + local-inference fit</strong>. For an
+always-on homelab system-view agent you want the lean, doesn't-break-on-update one at the front door.</p>
+<h3 id="why-openclaw-is-off-the-critical-path">Why OpenClaw is off the critical path<a class="headerlink" href="#why-openclaw-is-off-the-critical-path" title="Permanent link">&para;</a></h3>
+<p>We have <strong>firsthand evidence OpenClaw is the fragile one</strong>: during the B11/B13 work it broke its gateway
+<strong>twice</strong> (<code>tools.media.audio</code> rejected → fails closed; <code>openclaw doctor --fix</code> clobbered <code>gateway.mode</code>).
+The comparison literature's "prone to breaking during platform updates" is, for us, a logged outage. You
+never put the component you've watched fail at the single entry point. OpenClaw's durable value is its
+<strong>skill library + channel reach</strong> — things you reach <em>for</em>, not things that must be <em>up</em>.</p>
+<hr />
+<h2 id="2-architecture-three-layers-one-seam">2. Architecture — three layers, one seam<a class="headerlink" href="#2-architecture-three-layers-one-seam" title="Permanent link">&para;</a></h2>
+<div class="language-text highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"> 1</span>
+<span class="normal"> 2</span>
+<span class="normal"> 3</span>
+<span class="normal"> 4</span>
+<span class="normal"> 5</span>
+<span class="normal"> 6</span>
+<span class="normal"> 7</span>
+<span class="normal"> 8</span>
+<span class="normal"> 9</span>
+<span class="normal">10</span>
+<span class="normal">11</span>
+<span class="normal">12</span>
+<span class="normal">13</span>
+<span class="normal">14</span>
+<span class="normal">15</span></pre></div></td><td class="code"><div><pre><span></span><code>            ┌─────────── chat channel (single front door) ───────────┐
+            ▼
+   ┌─────────────┐   MCP    ┌──────────────────────┐   REST   ┌───────────────┐
+   │   Hermes    │─────────▶│  Weyland system-view  │─────────▶│  tool server  │
+   │ (primary,   │          │      MCP server       │          │ (RAG, status, │
+   │  isolated   │          │  (ONE server, both    │          │  pipelines,   │
+   │     CT)     │◀────┐    │   agents consume)     │          │  observ., …)  │
+   └──────┬──────┘     │    └──────────────────────┘          └───────┬───────┘
+          │ gateway    │ MCP                                          │
+          │ (deferred) │    ┌──────────────┐                          ▼
+          ▼            └────│   OpenClaw   │                  Ollama /v1 + Qdrant/
+   ┌─────────────┐         │  (delegate)  │                  Weaviate/Neo4j/PG +
+   │  OpenClaw   │         └──────────────┘                  Prometheus/Dagster
+   └─────────────┘
+          ▲ both agents&#39; model backend ──▶ Ollama /v1 (192.168.1.244:11434)
+</code></pre></div></td></tr></table></div>
+<p>Three wires, in priority order:</p>
+<ol>
+<li><strong>Brain (inference)</strong> — both agents' model backend → <strong>Ollama <code>/v1</code></strong> (<code>192.168.1.244:11434</code>). Hermes via
+   <code>hermes model</code>; OpenClaw via its provider config. "Your own endpoint" path — no cloud keys, nothing
+   leaves the LAN.</li>
+<li><strong>Eyes &amp; hands (the system view)</strong> — both agents → the <strong>Weyland system-view MCP server</strong>, which fronts
+   the existing <strong>tool server</strong>. This is the heart of the "view into the system" goal.</li>
+<li><strong>Collaboration &amp; front door (deferred)</strong> — Hermes on a chat channel = the single entry point; Hermes
+   calls OpenClaw's gateway <strong>as an MCP tool</strong> when breadth helps (topology 3, asymmetric).</li>
+</ol>
+<h3 id="why-the-system-view-is-a-platform-capability-not-an-agent-feature">Why the system view is a <em>platform</em> capability, not an agent feature<a class="headerlink" href="#why-the-system-view-is-a-platform-capability-not-an-agent-feature" title="Permanent link">&para;</a></h3>
+<p>The view lives in the <strong>tool server / MCP</strong>, consumed equally by both agents — never baked into one. Two
+consequences:
+- <strong>Co-location buys nothing.</strong> Both agents see the <em>identical</em> view whether they share a host or sit at
+  opposite ends of the LAN. So isolation (below) costs zero "shared system-ness."
+- <strong>The single entry point is a front-layer concern, not a host concern.</strong> It's independent of where the
+  agents run.</p>
+<h3 id="why-mcp-is-the-seam">Why MCP is the seam<a class="headerlink" href="#why-mcp-is-the-seam" title="Permanent link">&para;</a></h3>
+<p>Hermes supports MCP ("connect any MCP server"); OpenClaw's MCP support is to be confirmed at its wiring
+slice. Building the system view <strong>once</strong> as an MCP server turns integration from <strong>N×M into N+M</strong>: write
+Weyland's view once, each agent (now and future) adds one line to register it — instead of hand-building
+Weyland skills inside every agent separately.</p>
+<hr />
+<h2 id="3-hosting-isolation">3. Hosting &amp; isolation<a class="headerlink" href="#3-hosting-isolation" title="Permanent link">&para;</a></h2>
+<p><strong>Hermes runs in its own isolated LXC CT</strong> (sibling to the Ollama CT 102 / whisper CT 103), <strong>not</strong>
+co-located with OpenClaw, and <strong>not</strong> on <code>mother</code>.</p>
+<p>Rationale: Hermes does <strong>sandboxed code execution, browser automation, and reads untrusted web content</strong> —
+the exact attack surface B14 (Guardrails) exists for. Isolation bounds the blast radius of a compromised or
+prompt-injected agent. <code>mother</code> is the platform/data plane and is disqualified outright; co-locating two
+code-executing agents on the <code>openclaw</code> VM would merge their blast radius for no benefit (the shared view is
+already at the platform layer).</p>
+<hr />
+<h2 id="4-v1-scope-read-only-observe">4. v1 scope — read-only "observe"<a class="headerlink" href="#4-v1-scope-read-only-observe" title="Permanent link">&para;</a></h2>
+<p>The first slice is <strong>read-only</strong>: the agent can <em>tell</em> you about the system but cannot change it.</p>
+<ul>
+<li><strong>In v1:</strong> query knowledge (RAG: <code>/context/ask</code>, <code>/context/search</code>), health/status (<code>/status</code>,
+  per-backend health), observability (PromQL proxy + recent alerts — B5 made these real).</li>
+<li><strong>Not in v1:</strong> any side-effecting action (triggering Dagster, evals, restarts).</li>
+</ul>
+<p>Rationale: prove the whole loop (agent → MCP → tool server → system) safely. A read-only agent has <strong>zero
+blast radius even if a model misfires or gets prompt-injected</strong> — so we de-risk the mechanics before adding
+power. Promotion to <strong>read + act</strong> is a later slice, gated on <strong>B14 guardrails</strong> being in place (an agent
+that reads untrusted content <em>and</em> can fire pipelines is precisely what B14 guards).</p>
+<hr />
+<h2 id="5-protocol-mcp-now-a2a-as-a-gated-future-b17">5. Protocol: MCP now, A2A as a gated future (→ B17)<a class="headerlink" href="#5-protocol-mcp-now-a2a-as-a-gated-future-b17" title="Permanent link">&para;</a></h2>
+<p><strong>MCP for everything now, including the OpenClaw bridge.</strong> A2A (Agent2Agent) is <strong>not</strong> a competitor to MCP
+— they're complementary:</p>
+<ul>
+<li><strong>MCP = agent ↔ tools/context.</strong> Other end is a capability provider. Request/response. <em>Acting on the
+  system is always this</em> — even side-effecting actions are agent→tool, not agent→agent. <strong>A2A is never
+  required to act on the system.</strong></li>
+<li><strong>A2A = agent ↔ agent.</strong> Other end is an autonomous peer — discovery (Agent Cards), task lifecycle,
+  streaming, long-running delegation, negotiation.</li>
+</ul>
+<p>Our designed relationship (asymmetric: Hermes primary, OpenClaw a <em>bounded</em> delegate; symmetric peering
+<em>rejected</em>) is <strong>tool-shaped</strong>, so MCP models it perfectly: wrap OpenClaw's gateway behind a thin MCP server
+(<code>ask_openclaw</code>, <code>run_openclaw_skill</code>). Keeping the whole stack on <strong>one protocol Hermes already speaks</strong>
+means one mental model and one chokepoint for B14 guardrails.</p>
+<p><strong>A2A earns its place only when</strong> (any of): (a) we want true symmetric peer collaboration; (b) a <strong>third+
+powerful agent</strong> joins that needs discovery/coordination — this is the real trigger, arriving with <strong>B15
+(opencode + Cline)</strong> as the agent fleet grows capable; &copy; one platform ships A2A natively (making the
+semantically-correct option nearly free). The pull is specifically <strong>long-running, async, autonomous
+cross-agent delegation</strong> — not "the agent gained write access." Even then, <strong>A2A sits alongside MCP on the
+one agent↔agent edge; MCP is never replaced, and nothing built now is wasted.</strong> Tracked as <strong>B17</strong>,
+sequenced with B15.</p>
+<hr />
+<h2 id="6-open-items-to-validate-beforeduring-the-build">6. Open items to validate (before/during the build)<a class="headerlink" href="#6-open-items-to-validate-beforeduring-the-build" title="Permanent link">&para;</a></h2>
+<ol>
+<li><strong>Local-model tool-calling reliability.</strong> MCP + function-calling are confirmed for Hermes, but <strong>not
+   specifically with Ollama models</strong> — and local tool-calling quality varies a lot by model. Smoke-test
+   that our tool-capable models (<code>qwen3-coder:30b</code>, <code>qwen3:30b-a3b</code>, <code>mistral-small3.2:24b</code> all advertise
+   tools) actually fire an MCP tool through Hermes <strong>before</strong> building much on top.</li>
+<li><strong>Agent model — DECIDED 2026-06-13: <code>qwen3-coder:30b</code> (measured + validated).</strong> Started with
+   <code>mistral-small3.2:24b</code> (non-thinking, B4-proven structured output) — but it's <strong>dense 24B → ~30 tok/s
+   prefill on CPU</strong>, which made turns multi-minute. Switched to <code>qwen3-coder:30b</code> (<strong>30B-A3B MoE, ~3B active
+   params</strong>) and measured the difference: <strong>~4.4× faster prefill</strong> (154 vs 35 tok/s @ 1k tokens), <strong>no
+   <code>&lt;think&gt;</code> blocks</strong> (the qwen3 <em>thinking</em> models' empty-output risk doesn't bite the Coder variant), and
+   <strong>tool-calling validated</strong> — it fired the <code>terminal</code> tool and returned real <code>uname -a</code> output, not a
+   hallucination. It's also the agentic/tool-tuned variant, so it's the right brain on <em>both</em> speed and
+   capability. <code>gpt-oss:20b</code> remains the B4 RAG pick — a separate axis. <strong>Key lesson: on CPU, <em>active</em> params
+   (MoE), not total size, set speed — the "bigger" 30B beat the 24B by 4.4×.</strong></li>
+<li><strong>OpenClaw MCP support</strong> — confirm at the (deferred) OpenClaw-wiring slice.</li>
+<li><strong>Chat channel — DECIDED 2026-06-13: Telegram, via a NEW dedicated bot</strong> (separate from
+   <code>@weyland_alerts_bot</code>). One channel for v1. Rationale: lowest-friction proven path in this lab (BotFather);
+   a distinct bot keeps two-way agent conversation out of the one-way alert firehose, and coexists fine with
+   OpenClaw's Telegram presence. Token lives in the CT's <code>~/.hermes/</code> config (not in the repo → out of git).
+   More platforms can be added later, but v1 is Telegram-only.</li>
+</ol>
+<hr />
+<h2 id="7-first-slice-build-sequence-read-only-v1">7. First-slice build sequence (read-only v1)<a class="headerlink" href="#7-first-slice-build-sequence-read-only-v1" title="Permanent link">&para;</a></h2>
+<ol>
+<li>Provision an isolated <strong><code>hermes</code> LXC CT</strong> on weyland; install Hermes (<code>install.sh</code>); <code>hermes setup</code>.</li>
+<li>Point Hermes's model backend at <strong>Ollama <code>/v1</code></strong>; validate basic chat.</li>
+<li><strong>Validate tool-calling</strong> with the candidate models (open item #1) — pick the agentic model.</li>
+<li>Build a minimal <strong>Weyland system-view MCP server</strong> fronting the tool server — start with <strong>RAG + status</strong>;
+   add <strong>observability (PromQL/alerts)</strong> next.</li>
+<li>Register the MCP server in Hermes; wire <strong>one chat channel</strong> as the front door.</li>
+<li>Validate end-to-end: ask Hermes a system question → it calls an MCP tool → answers from live state.
+   <strong>Also verify the effective context window here</strong> (this is where truncation shows up): agent loops
+   accumulate system prompt + tool defs + tool results + history fast. The effective window is gated by
+   <strong>Ollama's <code>num_ctx</code> on CT 102</strong>, <em>not</em> the model's ~128k max or Hermes's setting — if the agent silently
+   "forgets" earlier context, raise <code>num_ctx</code> (Modelfile or request options) to ≥16k–32k.</li>
+</ol>
+<p><strong>Deferred slices:</strong> OpenClaw MCP registration · Hermes→OpenClaw delegation (topology 3) · read+act
+promotion (gated on B14) · A2A evaluation (B17) · <strong>Anthropic (or other cloud) as an optional <em>secondary</em>
+provider</strong> — a "use the smarter model for hard problems" escape hatch via <code>hermes model</code>. <strong>Opt-in, never the
+default</strong>: it departs from local-only (system state would leave the LAN + per-use cost), so it's a conscious
+per-task choice, not the standing brain.</p>
+<hr />
+<h2 id="8-decision-log">8. Decision log<a class="headerlink" href="#8-decision-log" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Decision</th>
+<th>Rationale</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Run <strong>both</strong> Hermes + OpenClaw</td>
+<td>Complementary specialists (autonomous doer vs connector/orchestrator), not redundant.</td>
+</tr>
+<tr>
+<td><strong>Hermes primary</strong> + front door</td>
+<td>Stability + local-inference fit; the lean always-on one belongs on the critical path.</td>
+</tr>
+<tr>
+<td><strong>OpenClaw off critical path</strong></td>
+<td>Firsthand fragility (gateway broke twice this session); value is skill breadth/channels, reached <em>for</em> not depended <em>on</em>.</td>
+</tr>
+<tr>
+<td><strong>System view = platform/MCP</strong>, not in an agent</td>
+<td>Identical view for all agents; decouples "shared view" from host placement.</td>
+</tr>
+<tr>
+<td><strong>One MCP server</strong>, both consume</td>
+<td>N+M not N×M integration; future agents add one registration line.</td>
+</tr>
+<tr>
+<td><strong>Hermes in its own isolated CT</strong></td>
+<td>Code-exec + untrusted-content blast radius; <code>mother</code> disqualified; no benefit to co-locating two executors.</td>
+</tr>
+<tr>
+<td><strong>Read-only v1</strong></td>
+<td>Prove the loop with zero blast radius; promote to act only behind B14.</td>
+</tr>
+<tr>
+<td><strong>MCP for the OpenClaw bridge too</strong></td>
+<td>Relationship is asymmetric/tool-shaped; one protocol, one guardrail chokepoint.</td>
+</tr>
+<tr>
+<td><strong>A2A deferred → B17, with B15</strong></td>
+<td>Gated on async peer-delegation / a powerful multi-agent fleet; additive to MCP, never a replacement.</td>
+</tr>
+<tr>
+<td><strong>Local Ollama is the brain; cloud (Anthropic) is opt-in only</strong></td>
+<td>Always-on agent with system access shouldn't ship infra state off-LAN or incur per-use cost by default; cloud is a conscious per-task escape hatch via <code>hermes model</code>, never the standing default.</td>
+</tr>
+<tr>
+<td><strong>Agent model = <code>qwen3-coder:30b</code></strong> (was mistral-small3.2:24b)</td>
+<td>Dense 24B mistral = ~30 tok/s prefill on CPU (multi-min turns). <code>qwen3-coder</code> is 30B-A3B <strong>MoE</strong> → <em>measured</em> ~4.4× faster prefill (154 vs 35 tok/s), no think-aloud, tool-calling validated (real <code>uname -a</code>). MoE <em>active</em> params, not total size, set CPU speed. <code>gpt-oss:20b</code> stays the B4 RAG pick (separate axis).</td>
+</tr>
+<tr>
+<td><strong>Ollama CPU tuning for the agent (CT 102)</strong></td>
+<td><code>OLLAMA_CONTEXT_LENGTH=65536</code> + <code>OLLAMA_KEEP_ALIVE=-1</code>. Prefix caching works (turn-2 prefill 111 tokens vs ~17k base) <strong>but is fragile</strong>: <code>OLLAMA_MAX_LOADED_MODELS=1</code> means any other model request (RAG/WebUI/evals) evicts qwen3-coder and kills its cache → next agent turn pays full cold prefill. Don't churn Ollama.</td>
+</tr>
+<tr>
+<td><strong>Context window = 64K (<code>65536</code>), Hermes==Ollama</strong></td>
+<td>Model's native 262K is off the table on CPU — KV cache ~165 MB/1k tokens → 262K ≈ 58 GB → OOMs the 48 GB cgroup; 64K ≈ 25 GB, fits, leaves ~47K above the 17K base prompt. Hermes auto-detects the native 262K (via <code>model_catalog</code>) and silently truncates past what Ollama serves unless <code>context_length</code> is pinned to match (and <code>model_catalog</code> disabled if it overrides).</td>
+</tr>
+<tr>
+<td><strong>MCP transport = HTTP (Option A confirmed 2026-06-13)</strong></td>
+<td>Hermes supports remote <strong>HTTP</strong> MCP servers (<code>mcp_servers:</code> block, <code>url</code> key, optional <code>headers</code>/<code>auth: oauth</code>/mTLS) — not just stdio. So we build <strong>one</strong> HTTP MCP server fronting the tool-server and <em>both</em> agents connect by URL (the N+M design), rather than a per-agent stdio adapter.</td>
+</tr>
+<tr>
+<td><strong>Toolset size is a no-op — <code>tool_search</code> is on</strong></td>
+<td><em>Measured bidirectionally</em> (disable skills→0, disable vision→0, enable spotify→0): tools live in a searchable registry, <strong>not</strong> the system prompt. The ~17k context is Hermes's irreducible <strong>base framework prompt</strong>, not tool schemas. So enable any <em>functional</em> tool freely (cost-free); the only reason to disable a tool is if it can't function (no backend). There is no "trim tools for speed" lever.</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="related">Related<a class="headerlink" href="#related" title="Permanent link">&para;</a></h2>
+<ul>
+<li><strong><a href="../../runbooks/agent-hermes/">../runbooks/agent-hermes.md</a>:</strong> operational runbook — CT creation, install, config, model + Ollama tuning, slash-command management, and the bring-up gotchas (PATH, context mismatch, <code>tool_search</code>, caching).</li>
+<li><strong>B14 — Guardrails:</strong> gates the read→act promotion; prompt-injection awareness once agents read untrusted content.</li>
+<li><strong>B15 — opencode / Cline:</strong> the powerful-agent expansion that triggers the B17 A2A evaluation.</li>
+<li><strong>B17 — A2A evaluation:</strong> the agent↔agent protocol decision (see backlog).</li>
+<li>Platform context: <a href="arch.md">arch.md</a> · endpoint inventory: <a href="api.md">api.md</a> · hosts: <a href="hosts.md">hosts.md</a>.</li>
+</ul>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+    
+      
+      <nav class="md-footer__inner md-grid" aria-label="Footer" >
+        
+          
+          <a href="../../weyland/" class="md-footer__link md-footer__link--prev" aria-label="Previous: Weyland">
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+            </div>
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                Previous
+              </span>
+              <div class="md-ellipsis">
+                Weyland
+              </div>
+            </div>
+          </a>
+        
+        
+          
+          <a href="../data-schema/" class="md-footer__link md-footer__link--next" aria-label="Next: Data Schema — RAG + Eval Stores">
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                Next
+              </span>
+              <div class="md-ellipsis">
+                Data Schema — RAG + Eval Stores
+              </div>
+            </div>
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M4 11v2h12l-5.5 5.5 1.42 1.42L19.84 12l-7.92-7.92L10.5 5.5 16 11z"/></svg>
+            </div>
+          </a>
+        
+      </nav>
+    
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["navigation.footer", "content.action.edit"], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../../assets/javascripts/bundle.79ae519e.min.js"></script>
+      
+        <script src="../../search/main.js"></script>
+      
+    
+  </body>
+</html>

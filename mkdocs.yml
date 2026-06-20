@@ -1,0 +1,7 @@
+site_name: Weyland Platform Docs
+site_description: >-
+  Runbooks, architecture, diagrams, and concepts for the weyland homelab AI
+  platform.
+docs_dir: docs
+plugins:
+  - techdocs-core

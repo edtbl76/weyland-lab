@@ -47,6 +47,8 @@ C4Component
         Component(headlamp, "Headlamp", "React / k8s", "Kubernetes UI. Permanent cluster-admin SA token. headlamp.weyland.lab")
 
         Component(neodash, "NeoDash", "neo4jlabs/neodash / k8s", "Neo4j dashboard/viz UI (free Bloom-alternative). Browser-side Bolt to Neo4j. mother:30088")
+
+        Component(idp, "weyland IDP (B3)", "Backstage / k8s", "Internal Developer Platform — software catalog of the platform (slice A). Meshed (STRICT Postgres). Config/catalog via ConfigMaps. idp.weyland.lab")
     }
 
     Container_Boundary(istiosystem, "mother VM — k3s, ns: istio-system (Istio service mesh, B8)") {
@@ -66,6 +68,8 @@ C4Component
     Rel(user, headlamp, "k8s management")
     Rel(user, neodash, "graph dashboards / viz")
     Rel(neodash, neo4j, "Bolt :30086 (browser-side)")
+    Rel(user, idp, "developer portal / catalog")
+    Rel(idp, pgvector, "catalog + plugin DBs (mTLS, STRICT)")
     Rel(tool_server, pgvector, "embed + retrieve rag_chunks (mTLS, STRICT)")
     Rel(tool_server, qdrant, "retrieve (mTLS)")
     Rel(tool_server, weaviate, "retrieve (mTLS)")

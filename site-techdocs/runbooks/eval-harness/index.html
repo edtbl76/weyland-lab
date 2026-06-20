@@ -1,0 +1,2648 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Runbooks, architecture, diagrams, and concepts for the weyland homelab AI platform.">
+      
+      
+      
+      
+        <link rel="prev" href="../aidlc-kb-ingest/">
+      
+      
+        <link rel="next" href="../model-gateway/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.6">
+    
+    
+      
+        <title>B4 — LLM Evaluation Pipeline (runbook) - Weyland Platform Docs</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/stylesheets/main.484c7ddc.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    <body dir="ltr">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#b4-llm-evaluation-pipeline-runbook" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../.." title="Weyland Platform Docs" class="md-header__button md-logo" aria-label="Weyland Platform Docs" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            Weyland Platform Docs
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              B4 — LLM Evaluation Pipeline (runbook)
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+    
+    
+    
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../.." title="Weyland Platform Docs" class="md-nav__button md-logo" aria-label="Weyland Platform Docs" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    Weyland Platform Docs
+  </label>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Weyland Docs
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Weyland — API &amp; Endpoint Inventory
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../arch/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Weyland — Architecture
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../backlog/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Weyland Forward Roadmap — re-prioritized 2026-06-14
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../hosts/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Weyland — Host Inventory
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../weyland/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Weyland
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_7" >
+        
+          
+          <label class="md-nav__link" for="__nav_7" id="__nav_7_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Concepts
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_7_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_7">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Concepts
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../concepts/agent-platform-design/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    B2 — Agent Platform (Hermes + OpenClaw) — Design
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../concepts/data-schema/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Data Schema — RAG + Eval Stores
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../concepts/llm-inference-cpu-vs-gpu/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    LLM Inference — CPU vs GPU Tradeoffs (the why)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../concepts/model-serving-hardware/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    B7 — Model Serving Hardware (DECISION DEFERRED — pending pricing)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_8" >
+        
+          
+          <label class="md-nav__link" for="__nav_8" id="__nav_8_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Diagrams
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_8_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_8">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Diagrams
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../diagrams/c4-component-hermes/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    C4 Component — hermes CT (CT 104)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../diagrams/c4-component-mother/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    C4 Component — mother VM (k3s)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../diagrams/c4-component-ollama/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    C4 Component — ollama CT (CT 102)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../diagrams/c4-component-openclaw/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    C4 Component — openclaw VM (vm-100)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../diagrams/c4-component-rogueone/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    C4 Component — rogueone (external)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../diagrams/c4-component-whisper/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    C4 Component — whisper CT (CT 103)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../diagrams/c4-container/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    C4 Container — Weyland
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../diagrams/c4-context/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    C4 Context — Weyland
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../diagrams/flow-act-tool/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Flow: Audited Act-Tool (/mcp-act, B14 read+act)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../diagrams/flow-agent-mcp/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Flow: Agent System-View (Hermes / Claude Code -&gt; MCP -&gt; tool-server)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../diagrams/flow-alerting/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Flow: Alerting (B5)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../diagrams/flow-backend-dispatch/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Flow: Backend Selection / Dispatch (detail of RAG retrieval)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../diagrams/flow-deploy/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Flow: Deploy / Redeploy (build↔runtime isolation)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../diagrams/flow-eval-scoring/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Flow: Eval Scoring (weyland_eval_score_job, detail of the eval pipeline)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../diagrams/flow-eval/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Flow: Evaluation Pipeline (single-path eval -&gt; panel -&gt; leaderboard)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../diagrams/flow-guardrails/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Flow: Guardrail Validation (B14, shadow-first)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../diagrams/flow-health-status/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Flow: Health / Status Aggregation (U12)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../diagrams/flow-ingestion/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Flow: Ingestion (repo → 4 vector backends)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../diagrams/flow-ingress-tls/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Flow: Ingress / TLS Front Door
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../diagrams/flow-mesh-mtls/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Flow: Service-Mesh Request Path + mTLS (B8)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../diagrams/flow-model-catalog/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Flow: model_catalog Refresh (B26)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../diagrams/flow-model-gateway/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Flow: Model-Gateway Routing (B26, LiteLLM)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../diagrams/flow-pipeline-trigger/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Flow: Pipeline Trigger (/pipeline/trigger → Dagster)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../diagrams/flow-rag-query/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Flow: RAG Query (/context/ask)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../diagrams/flow-roadmap-sync/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Flow: Roadmap-Sync → Hermes Kanban (B27)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../diagrams/flow-tracing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Flow: Distributed Tracing Pipeline (B8)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../diagrams/flow-voice-chat/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Flow: Voice Chat (Open WebUI -&gt; whisper -&gt; Ollama)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_9" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_9" id="__nav_9_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Runbooks
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_9_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_9">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Runbooks
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../agent-hermes/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    B2 — Hermes Agent Runbook — weyland (CT 104)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../aidlc-kb-ingest/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    B37 — AIDLC Knowledge-Base Ingestion (MinIO → RAG)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    B4 — LLM Evaluation Pipeline (runbook)
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    B4 — LLM Evaluation Pipeline (runbook)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#architecture-reuse-map" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Architecture (reuse map)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#pipeline-steps" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Pipeline steps
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#first-results-run-3-10-questions-2026-06-13" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        First results (run 3 — 10 questions, 2026-06-13)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="First results (run 3 — 10 questions, 2026-06-13)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#panel-results-definitive-3-judge-average-run-3" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Panel results (definitive — 3-judge average, run 3)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#deploy-schema" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Deploy &amp; schema
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#operating-trigger-query" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Operating — trigger &amp; query
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#decision-record-ragas-rejected-2026-06-12" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Decision Record — Ragas REJECTED (2026-06-12)
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../model-gateway/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Model Gateway (LiteLLM) + Model Catalog — runbook
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../model-serving-ollama/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Ollama Runbook — weyland (CT 102)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../observability/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    B5 — Observability (kube-prometheus-stack) — Deploy &amp; Validate
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../service-mesh-istio/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Istio service mesh — runbook (B8)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../storage-minio/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    B6 — MinIO Object Storage (8TB USB → mother VM passthrough)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../transcription-whisper/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    B11 — Whisper STT Runbook — weyland (CT 103)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../weyland-idp/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    weyland IDP — runbook (B3)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_10" >
+        
+          
+          <label class="md-nav__link" for="__nav_10" id="__nav_10_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Units
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_10_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_10">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Units
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../units/u10-sa-scoping/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    U10 — Service Account Scoping (least privilege) — Apply &amp; Validate
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../units/u11-ssh-identity/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    U11 — weyland-lab SSH Identity Review
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../units/u12-health-endpoints/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    U12 — Tool Server Extended Health/Status Endpoints
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../units/u6-credential-hardening/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    U6 — Tool Server DB Credential Hardening — Deploy &amp; Validate
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../units/u7-config-hf-cleanup/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    U7 — Tool Server Config &amp; HF Cache Cleanup — Deploy &amp; Validate
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../units/u8-headlamp-token/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    U8 — Headlamp Permanent Admin Token — Apply &amp; Validate
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../units/u9-cert-mkcert/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    U9 (cert) — mkcert wildcard cert for *.weyland.lab
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../units/u9-dns-coredns/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    U9 (prereq) — CoreDNS LAN Resolver — Deploy &amp; Validate
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../units/u9-traefik-ingress/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    U9 (ingress) — Traefik + TLS for platform UIs
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_11" >
+        
+          
+          <label class="md-nav__link" for="__nav_11" id="__nav_11_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Validation
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_11_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_11">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Validation
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../validation/test-commands/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Weyland Platform Test Commands
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#architecture-reuse-map" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Architecture (reuse map)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#pipeline-steps" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Pipeline steps
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#first-results-run-3-10-questions-2026-06-13" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        First results (run 3 — 10 questions, 2026-06-13)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="First results (run 3 — 10 questions, 2026-06-13)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#panel-results-definitive-3-judge-average-run-3" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Panel results (definitive — 3-judge average, run 3)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#deploy-schema" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Deploy &amp; schema
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#operating-trigger-query" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Operating — trigger &amp; query
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#decision-record-ragas-rejected-2026-06-12" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Decision Record — Ragas REJECTED (2026-06-12)
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+
+<h1 id="b4-llm-evaluation-pipeline-runbook">B4 — LLM Evaluation Pipeline (runbook)<a class="headerlink" href="#b4-llm-evaluation-pipeline-runbook" title="Permanent link">&para;</a></h1>
+<p>Persistent, k3s-native evaluation of the tool-server RAG (<code>/context/ask</code>) across the local Ollama
+models. Reuses existing infra — <strong>no new DB/cache</strong>: Postgres (storage), Dagster (orchestration),
+Ollama (generator + judge), bge (embeddings).</p>
+<p><strong>Related:</strong> <a href="../model-serving-ollama/">model-serving-ollama.md</a> · schema: <code>scripts/eval-schema.sql</code> ·
+asset: <code>services/weyland-dagster/weyland_pipeline/assets/eval_testset.py</code>.</p>
+<h2 id="architecture-reuse-map">Architecture (reuse map)<a class="headerlink" href="#architecture-reuse-map" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Need</th>
+<th>Reuse</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Orchestration</td>
+<td><strong>Dagster</strong> — eval = <code>weyland_eval_job</code> (asset group <code>eval</code>, isolated from the 15-min ingestion schedule); triggered via the tool-server <code>/pipeline/trigger</code> path</td>
+</tr>
+<tr>
+<td>Storage / leaderboard</td>
+<td><strong>weyland-postgres</strong> — <code>eval_runs / eval_questions / eval_results / eval_scores</code> + <code>eval_leaderboard</code> view (<code>scripts/eval-schema.sql</code>)</td>
+</tr>
+<tr>
+<td>Question generation</td>
+<td><strong>Ollama</strong> (<code>qwen3:30b-a3b</code>) over the rag corpus — direct prompt, JSON-constrained</td>
+</tr>
+<tr>
+<td>Scoring (planned)</td>
+<td><strong>LLM-as-judge</strong> via Ollama — <strong>not Ragas</strong> (see Decision Record)</td>
+</tr>
+<tr>
+<td>Embeddings</td>
+<td><strong>bge-small</strong> (baked in the Dagster user-code image)</td>
+</tr>
+</tbody>
+</table>
+<h2 id="pipeline-steps">Pipeline steps<a class="headerlink" href="#pipeline-steps" title="Permanent link">&para;</a></h2>
+<ol>
+<li>✅ <strong>Schema</strong> — <code>eval_*</code> tables + <code>eval_leaderboard</code> view (<code>scripts/eval-schema.sql</code>).</li>
+<li>✅ <strong>Question generation</strong> — <code>eval_testset</code> asset → <code>eval_questions</code>. Pulls corpus from
+   <code>rag_chunks</code> → <code>qwen3:30b-a3b</code> writes questions answerable from it (<code>question_type = direct</code>).
+   10 questions live (grounded in the same corpus the RAG serves).</li>
+<li>✅ <strong>Run matrix</strong> — <code>eval_run_matrix</code> (job <code>weyland_eval_job</code>): each question × 6 models via
+   <code>/context/ask</code> → <code>eval_results</code>. Run 3: 60 results, 0 errors.</li>
+<li>✅ <strong>Scoring</strong> — <code>eval_scores</code> (job <code>weyland_eval_score_job</code>, <strong>separate</strong> so re-scoring needs no
+   matrix re-run): LLM-as-judge via Ollama (default judge <code>deepseek-coder-v2:16b</code>) → <code>eval_scores</code>.</li>
+<li>⏳ <strong>Judge-panel scoring</strong> — score each result with <strong>≥3 judges and average</strong> (single-judge
+   rankings swing wildly — see Results). The leaderboard should be panel-based.</li>
+<li>✅ <strong>/evals endpoints</strong> — tool-server <strong>v0.4.0</strong>: <code>/evals/run</code> (single-path trigger), <code>/evals/score</code>,
+   <code>/evals/runs</code>, <code>/evals/leaderboard</code> (panel-averaged, <code>?run_id=</code>; reports <code>judges</code> count). Documented
+   in api.md + test.md. <strong>B4 core complete.</strong></li>
+</ol>
+<h2 id="first-results-run-3-10-questions-2026-06-13">First results (run 3 — 10 questions, 2026-06-13)<a class="headerlink" href="#first-results-run-3-10-questions-2026-06-13" title="Permanent link">&para;</a></h2>
+<p>Scored <strong>twice with two different judges</strong> to test judge sensitivity. The result is the headline.</p>
+<p><strong>Judge: deepseek-coder-v2:16b (fast)</strong> — faithful / answer_rel / context_rel
+| model | faithful | answer_rel | context_rel |
+|---|---|---|---|
+| gpt-oss:20b | 0.750 | 0.850 | 0.770 |
+| mistral-small3.2:24b | 0.700 | 0.770 | 0.745 |
+| qwen3-coder:30b | 0.685 | 0.750 | 0.790 |
+| qwen3:14b | 0.625 | 0.655 | 0.740 |
+| qwen3:30b-a3b | 0.610 | 0.729 | 0.760 |
+| deepseek-coder-v2:16b | 0.565 | 0.695 | 0.770 |</p>
+<p><strong>Judge: mistral-small3.2:24b (slower, more nuanced)</strong>
+| model | faithful | answer_rel | context_rel |
+|---|---|---|---|
+| qwen3:30b-a3b | 0.990 | 1.000 | 0.800 |
+| gpt-oss:20b | 0.960 | 0.970 | 0.800 |
+| deepseek-coder-v2:16b | 0.920 | 0.780 | 0.770 |
+| qwen3-coder:30b | 0.900 | 0.960 | 0.800 |
+| mistral-small3.2:24b | 0.790 | 0.870 | 0.710 |
+| qwen3:14b | 0.750 | 0.880 | 0.750 |</p>
+<p><strong>KEY FINDING — the ranking is highly judge-dependent.</strong> <code>qwen3:30b-a3b</code> went <strong>5<sup>th</sup> (0.61) → 1<sup>st</sup>
+(0.99)</strong> purely by swapping the judge; <code>deepseek-coder</code> went last → 3<sup>rd</sup>. Mistral also scores higher
+and more compressed (0.75–0.99) than deepseek (0.57–0.75) — judges have very different strictness.</p>
+<p><strong>Methodology takeaways:</strong>
+- <strong>Single-judge LLM-as-judge is noisy.</strong> A trustworthy ranking needs a <strong>judge panel</strong> (average ≥3
+  judges) and/or more questions. One judge × 10 Q is <em>directional only</em> — do not over-trust it.
+- <strong>No self-bias under either judge:</strong> each judge ranked <em>itself</em> low (deepseek last under itself,
+  mistral 5<sup>th</sup> under itself). Reassuring — the judges weren't self-serving.
+- <strong><code>context_relevancy</code> stayed ~flat (0.71–0.80) under both</strong> — confirms retrieval is consistent and
+  the metric measures the right thing (same chunks for every model).
+- <strong>Robust read:</strong> <code>gpt-oss:20b</code> is the only model <strong>top-2 under both judges</strong> → the safest RAG-default
+  pick. <code>qwen3:30b-a3b</code> <em>might</em> be best, but its swing makes that judge-dependent.</p>
+<h3 id="panel-results-definitive-3-judge-average-run-3">Panel results (definitive — 3-judge average, run 3)<a class="headerlink" href="#panel-results-definitive-3-judge-average-run-3" title="Permanent link">&para;</a></h3>
+<p>Re-scored with a <strong>3-judge panel</strong> (mistral-small3.2 · deepseek-coder-v2 · qwen3-coder); the swing collapses:</p>
+<table>
+<thead>
+<tr>
+<th>model</th>
+<th>faithful</th>
+<th>answer_rel</th>
+<th>context_rel</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>mistral-small3.2:24b</td>
+<td>0.823</td>
+<td>0.903</td>
+<td>0.822</td>
+</tr>
+<tr>
+<td>gpt-oss:20b</td>
+<td>0.820</td>
+<td>0.882</td>
+<td>0.807</td>
+</tr>
+<tr>
+<td>qwen3:14b</td>
+<td>0.775</td>
+<td>0.850</td>
+<td>0.783</td>
+</tr>
+<tr>
+<td>deepseek-coder-v2:16b</td>
+<td>0.760</td>
+<td>0.811</td>
+<td>0.773</td>
+</tr>
+<tr>
+<td>qwen3-coder:30b</td>
+<td>0.756</td>
+<td>0.836</td>
+<td>0.843</td>
+</tr>
+<tr>
+<td>qwen3:30b-a3b</td>
+<td>0.752</td>
+<td>0.765</td>
+<td>0.710</td>
+</tr>
+</tbody>
+</table>
+<p><strong>The panel worked:</strong> <code>qwen3:30b-a3b</code>'s 5<sup>th</sup>↔1<sup>st</sup> whiplash settled to a stable 6<sup>th</sup> (0.752); the field
+tightened to <strong>0.75–0.82</strong> (models are closer than any single judge implied).</p>
+<p><strong>Per-judge faithfulness (why one judge can't be trusted):</strong>
+| judge | range | tendency |
+|---|---|---|
+| deepseek-coder-v2 | 0.47–0.70 | harsh |
+| mistral-small3.2 | 0.78–0.97 | generous |
+| qwen3-coder | 0.705–0.93 | generous; <strong>ranked <em>itself</em> #1 (self-bias)</strong> |</p>
+<p><strong>Defensible conclusion:</strong> <strong><code>gpt-oss:20b</code></strong> is the best RAG pick — top-2 under <em>every</em> configuration
+(deepseek-only, mistral-only, panel) <strong>and it is not a judge → zero self-bias.</strong> <code>mistral</code> ties it
+(0.823) but is itself a panel judge (asterisk). The tight spread says retrieval/corpus matter about as
+much as model choice for this RAG.</p>
+<blockquote>
+<p><strong>Operational gotchas hit building this</strong> (all fixed, documented in model-serving-ollama.md): Ollama
+OOM under the 48 GB cgroup (host-memory blindness → <code>OLLAMA_MAX_LOADED_MODELS=1</code>); thinking models
+returning empty content under <code>json_object</code> (→ non-thinking generator/judge); the <code>num_thread</code>
+spin-wait fix.</p>
+</blockquote>
+<hr />
+<h2 id="deploy-schema">Deploy &amp; schema<a class="headerlink" href="#deploy-schema" title="Permanent link">&para;</a></h2>
+<p><strong>Apply the schema</strong> (once, or after editing <code>scripts/eval-schema.sql</code>) — from mother:
+<div class="language-bash highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">1</span></pre></div></td><td class="code"><div><pre><span></span><code>kubectl<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>-i<span class="w"> </span>-n<span class="w"> </span>weyland<span class="w"> </span>deploy/weyland-postgres<span class="w"> </span>--<span class="w"> </span>sh<span class="w"> </span>-c<span class="w"> </span><span class="s1">&#39;PGPASSWORD=$POSTGRES_PASSWORD psql -U &quot;$POSTGRES_USER&quot; -d &quot;$POSTGRES_DB&quot; -v ON_ERROR_STOP=1&#39;</span><span class="w"> </span>&lt;<span class="w"> </span>~/lab/weyland-platform/scripts/eval-schema.sql
+</code></pre></div></td></tr></table></div></p>
+<p><strong>Deploy eval code</strong> (assets live in the Dagster user-code image) — rogueone → mother:
+<div class="language-bash highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">1</span>
+<span class="normal">2</span>
+<span class="normal">3</span>
+<span class="normal">4</span>
+<span class="normal">5</span>
+<span class="normal">6</span>
+<span class="normal">7</span>
+<span class="normal">8</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="c1"># rogueone (repo root):</span>
+scp<span class="w"> </span>-r<span class="w"> </span>nodes/mother/lab/weyland-platform/services/weyland-dagster<span class="w"> </span>emangini@mother:~/lab/weyland-platform/services/
+<span class="c1"># mother:</span>
+docker<span class="w"> </span>build<span class="w"> </span>-t<span class="w"> </span>weyland-dagster-user-code:local<span class="w"> </span>~/lab/weyland-platform/services/weyland-dagster/
+docker<span class="w"> </span>save<span class="w"> </span>weyland-dagster-user-code:local<span class="w"> </span><span class="p">|</span><span class="w"> </span>sudo<span class="w"> </span>k3s<span class="w"> </span>ctr<span class="w"> </span>images<span class="w"> </span>import<span class="w"> </span>-
+docker<span class="w"> </span>image<span class="w"> </span>prune<span class="w"> </span>-f
+kubectl<span class="w"> </span>rollout<span class="w"> </span>restart<span class="w"> </span>deployment/dagster-user-code<span class="w"> </span>deployment/dagster-webserver<span class="w"> </span>deployment/dagster-daemon<span class="w"> </span>-n<span class="w"> </span>weyland
+kubectl<span class="w"> </span>rollout<span class="w"> </span>status<span class="w"> </span>deployment/dagster-user-code<span class="w"> </span>-n<span class="w"> </span>weyland
+</code></pre></div></td></tr></table></div>
+Restart webserver+daemon too when a <strong>new job</strong> is added (so it registers for <code>/pipeline/trigger</code>).</p>
+<h2 id="operating-trigger-query">Operating — trigger &amp; query<a class="headerlink" href="#operating-trigger-query" title="Permanent link">&para;</a></h2>
+<p>Postgres queries use this wrapper (substitute the <code>&lt;SQL&gt;</code>):
+<div class="language-bash highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">1</span></pre></div></td><td class="code"><div><pre><span></span><code>kubectl<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>-n<span class="w"> </span>weyland<span class="w"> </span>deploy/weyland-postgres<span class="w"> </span>--<span class="w"> </span>sh<span class="w"> </span>-c<span class="w"> </span><span class="s1">&#39;PGPASSWORD=$POSTGRES_PASSWORD psql -U &quot;$POSTGRES_USER&quot; -d &quot;$POSTGRES_DB&quot; -c &quot;&lt;SQL&gt;&quot;&#39;</span>
+</code></pre></div></td></tr></table></div>
+Jobs are triggered via the tool-server (reuses <code>/pipeline/trigger</code>):
+<div class="language-bash highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">1</span></pre></div></td><td class="code"><div><pre><span></span><code>curl<span class="w"> </span>-s<span class="w"> </span>-X<span class="w"> </span>POST<span class="w"> </span>http://localhost:30080/pipeline/trigger<span class="w"> </span>-H<span class="w"> </span><span class="s2">&quot;Content-Type: application/json&quot;</span><span class="w"> </span>-d<span class="w"> </span><span class="s1">&#39;{&quot;job_name&quot;:&quot;&lt;job&gt;&quot;}&#39;</span>
+</code></pre></div></td></tr></table></div>
+- <strong><code>weyland_eval_job</code></strong> — question-gen + run-matrix (fresh run; ~40–60 min on CPU, 10 Q × 6 models).
+- <strong><code>weyland_eval_score_job</code></strong> — LLM-as-judge scoring of the latest run (~15 min w/ deepseek, ~45–60 w/ mistral).</p>
+<p><strong>Progress checks:</strong>
+<div class="language-sql highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">1</span>
+<span class="normal">2</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">SELECT</span><span class="w"> </span><span class="n">id</span><span class="p">,</span><span class="w"> </span><span class="n">status</span><span class="p">,</span><span class="w"> </span><span class="n">question_count</span><span class="p">,</span><span class="w"> </span><span class="n">notes</span><span class="w"> </span><span class="k">FROM</span><span class="w"> </span><span class="n">eval_runs</span><span class="w"> </span><span class="k">ORDER</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="n">id</span><span class="w"> </span><span class="k">DESC</span><span class="p">;</span>
+<span class="k">SELECT</span><span class="w"> </span><span class="n">run_id</span><span class="p">,</span><span class="w"> </span><span class="n">model</span><span class="p">,</span><span class="w"> </span><span class="k">count</span><span class="p">(</span><span class="o">*</span><span class="p">)</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">n</span><span class="p">,</span><span class="w"> </span><span class="n">round</span><span class="p">(</span><span class="k">avg</span><span class="p">(</span><span class="n">latency_ms</span><span class="p">))</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">avg_ms</span><span class="p">,</span><span class="w"> </span><span class="k">count</span><span class="p">(</span><span class="n">error</span><span class="p">)</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">errs</span><span class="w"> </span><span class="k">FROM</span><span class="w"> </span><span class="n">eval_results</span><span class="w"> </span><span class="k">GROUP</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="n">run_id</span><span class="p">,</span><span class="w"> </span><span class="n">model</span><span class="w"> </span><span class="k">ORDER</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="n">run_id</span><span class="w"> </span><span class="k">DESC</span><span class="p">,</span><span class="w"> </span><span class="n">model</span><span class="p">;</span>
+</code></pre></div></td></tr></table></div></p>
+<p><strong>Leaderboard (model × metric, one run)</strong> — replace <code>&lt;RUN_ID&gt;</code>:
+<div class="language-sql highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">1</span>
+<span class="normal">2</span>
+<span class="normal">3</span>
+<span class="normal">4</span>
+<span class="normal">5</span>
+<span class="normal">6</span>
+<span class="normal">7</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">SELECT</span><span class="w"> </span><span class="n">model</span><span class="p">,</span>
+<span class="w">  </span><span class="n">round</span><span class="p">(</span><span class="k">avg</span><span class="p">(</span><span class="n">score</span><span class="p">)</span><span class="w"> </span><span class="n">FILTER</span><span class="w"> </span><span class="p">(</span><span class="k">WHERE</span><span class="w"> </span><span class="n">metric</span><span class="o">=</span><span class="s1">&#39;faithfulness&#39;</span><span class="p">)::</span><span class="nb">numeric</span><span class="p">,</span><span class="mi">3</span><span class="p">)</span><span class="w">      </span><span class="k">AS</span><span class="w"> </span><span class="n">faithful</span><span class="p">,</span>
+<span class="w">  </span><span class="n">round</span><span class="p">(</span><span class="k">avg</span><span class="p">(</span><span class="n">score</span><span class="p">)</span><span class="w"> </span><span class="n">FILTER</span><span class="w"> </span><span class="p">(</span><span class="k">WHERE</span><span class="w"> </span><span class="n">metric</span><span class="o">=</span><span class="s1">&#39;answer_relevancy&#39;</span><span class="p">)::</span><span class="nb">numeric</span><span class="p">,</span><span class="mi">3</span><span class="p">)</span><span class="w">  </span><span class="k">AS</span><span class="w"> </span><span class="n">answer_rel</span><span class="p">,</span>
+<span class="w">  </span><span class="n">round</span><span class="p">(</span><span class="k">avg</span><span class="p">(</span><span class="n">score</span><span class="p">)</span><span class="w"> </span><span class="n">FILTER</span><span class="w"> </span><span class="p">(</span><span class="k">WHERE</span><span class="w"> </span><span class="n">metric</span><span class="o">=</span><span class="s1">&#39;context_relevancy&#39;</span><span class="p">)::</span><span class="nb">numeric</span><span class="p">,</span><span class="mi">3</span><span class="p">)</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">context_rel</span>
+<span class="k">FROM</span><span class="w"> </span><span class="n">eval_results</span><span class="w"> </span><span class="n">r</span><span class="w"> </span><span class="k">JOIN</span><span class="w"> </span><span class="n">eval_scores</span><span class="w"> </span><span class="n">s</span><span class="w"> </span><span class="k">ON</span><span class="w"> </span><span class="n">s</span><span class="p">.</span><span class="n">result_id</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">r</span><span class="p">.</span><span class="n">id</span>
+<span class="k">WHERE</span><span class="w"> </span><span class="n">r</span><span class="p">.</span><span class="n">run_id</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="o">&lt;</span><span class="n">RUN_ID</span><span class="o">&gt;</span>
+<span class="k">GROUP</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="n">model</span><span class="w"> </span><span class="k">ORDER</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="n">faithful</span><span class="w"> </span><span class="k">DESC</span><span class="w"> </span><span class="n">NULLS</span><span class="w"> </span><span class="k">LAST</span><span class="p">;</span>
+</code></pre></div></td></tr></table></div>
+Long-format view: <code>SELECT * FROM eval_leaderboard WHERE run_id = &lt;RUN_ID&gt; ORDER BY metric, avg_score DESC;</code></p>
+<blockquote>
+<p><strong>Shell-escaping note:</strong> the <code>FILTER (WHERE metric='faithfulness')</code> single-quotes must be escaped
+when passed through the <code>kubectl exec … -c "…"</code> wrapper (<code>'"'"'faithfulness'"'"'</code>), or just run
+the SQL from a <code>psql</code> shell / <code>kubectl exec -it … psql</code>.</p>
+</blockquote>
+<p><strong>Re-score a run with a different judge</strong> (the split-job payoff — no matrix re-run):
+<div class="language-bash highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">1</span>
+<span class="normal">2</span>
+<span class="normal">3</span>
+<span class="normal">4</span>
+<span class="normal">5</span>
+<span class="normal">6</span>
+<span class="normal">7</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="c1"># 1. clear existing scores for the run (scoring skips already-scored rows)</span>
+<span class="c1">#    DELETE FROM eval_scores WHERE result_id IN (SELECT id FROM eval_results WHERE run_id=&lt;RUN_ID&gt;);</span>
+<span class="c1"># 2. swap the judge (no rebuild — kubectl set env rolls the pod), then wait</span>
+kubectl<span class="w"> </span><span class="nb">set</span><span class="w"> </span>env<span class="w"> </span>deployment/dagster-user-code<span class="w"> </span>-n<span class="w"> </span>weyland<span class="w"> </span><span class="nv">EVAL_JUDGE_MODEL</span><span class="o">=</span>mistral-small3.2:24b
+kubectl<span class="w"> </span>rollout<span class="w"> </span>status<span class="w"> </span>deployment/dagster-user-code<span class="w"> </span>-n<span class="w"> </span>weyland
+<span class="c1"># 3. re-run scoring</span>
+curl<span class="w"> </span>-s<span class="w"> </span>-X<span class="w"> </span>POST<span class="w"> </span>http://localhost:30080/pipeline/trigger<span class="w"> </span>-H<span class="w"> </span><span class="s2">&quot;Content-Type: application/json&quot;</span><span class="w"> </span>-d<span class="w"> </span><span class="s1">&#39;{&quot;job_name&quot;:&quot;weyland_eval_score_job&quot;}&#39;</span>
+</code></pre></div></td></tr></table></div>
+Judges: <code>deepseek-coder-v2:16b</code> (default, fast) · <code>mistral-small3.2:24b</code> (slower, more nuanced).
+<code>EVAL_TEST_SIZE</code>, <code>EVAL_GENERATOR_MODEL</code>, <code>EVAL_BACKEND</code>, <code>EVAL_ASK_LIMIT</code> are similarly env-tunable.</p>
+<h2 id="decision-record-ragas-rejected-2026-06-12">Decision Record — Ragas REJECTED (2026-06-12)<a class="headerlink" href="#decision-record-ragas-rejected-2026-06-12" title="Permanent link">&para;</a></h2>
+<p><strong>Decision:</strong> Do <strong>not</strong> use Ragas — neither for test-set generation nor for scoring. Use
+<strong>direct-prompt generation + LLM-as-judge scoring</strong> via Ollama instead.</p>
+<p><strong>Context:</strong> B4 originally planned to "use Ragas to auto-generate" questions and use its metrics for
+scoring. Before committing, we chose to <strong>validate the cost with evidence instead of assuming it</strong>
+(the earlier framing of "slow/heavy" was an unvalidated prior). We tested on rogueone in a throwaway
+venv.</p>
+<p><strong>Evidence — measured, not assumed:</strong></p>
+<ol>
+<li>
+<p><strong>It is broken in the current release.</strong> With the latest resolved versions
+   (<code>ragas 0.4.3</code>, <code>langchain 1.3.9</code>, <code>langchain-community 0.4.2</code>, <code>langchain-core 1.4.7</code>),
+   <code>import ragas</code> fails immediately:
+   <div class="language-text highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">1</span>
+<span class="normal">2</span>
+<span class="normal">3</span></pre></div></td><td class="code"><div><pre><span></span><code>ragas/llms/base.py&quot;, line 12, in &lt;module&gt;
+    from langchain_community.chat_models.vertexai import ChatVertexAI
+ModuleNotFoundError: No module named &#39;langchain_community.chat_models.vertexai&#39;
+</code></pre></div></td></tr></table></div>
+   Ragas hard-imports a module path that recent <code>langchain-community</code> <strong>deleted</strong> (Vertex AI moved
+   to the separate <code>langchain-google-vertexai</code> package). So the current Ragas release <strong>cannot even
+   import</strong> next to current LangChain. Installing <code>langchain-google-vertexai</code> does <strong>not</strong> fix it —
+   it provides <code>langchain_google_vertexai.ChatVertexAI</code>, not the old <code>langchain_community...</code> path
+   Ragas demands. The fix sits in <strong>unmerged</strong> PRs (explodinggradients/ragas #2739, #2746; issue
+   #2741, ~3 weeks old at time of writing).</p>
+</li>
+<li>
+<p><strong>It is enormous.</strong> Installing <code>ragas</code> (+ the <code>langchain-google-vertexai</code> we tried) pulled
+   <strong>~100 packages</strong>, including <strong>Google Cloud's entire AI Platform SDK</strong> —
+   <code>google-cloud-aiplatform</code>, <code>-bigquery</code>, <code>-storage</code>, <code>-vectorsearch</code>, <code>google-genai</code> — plus
+   <code>pyarrow</code>, <code>datasets</code>, <code>langgraph</code>, <code>pandas</code>, <code>scipy</code>, <code>scikit-network</code>. To generate <strong>text
+   questions</strong> in a single-user LAN lab that will never touch Vertex AI. That bloat would land in
+   the Dagster user-code image.</p>
+</li>
+<li>
+<p><strong>Speed: unmeasured</strong> — it never ran (blocked by #1). Getting a speed number would require
+   version-archaeology pins or a <code>sys.modules</code> monkeypatch hack. Two of three axes (weight +
+   fragility) were already conclusive, so we stopped.</p>
+</li>
+</ol>
+<p><strong>Why the lean path wins here:</strong> LLM-as-judge <strong>is what Ragas does internally</strong> — it's an
+LLM-as-judge framework. We get ~the same metrics (faithfulness, answer/context relevancy) from a
+few direct, JSON-constrained Ollama prompts: <strong>zero dependency constellation, fully on-LAN,
+reproducible, no version roulette.</strong> Ragas earns its keep at <em>production scale</em> — standardized,
+citable metrics across teams/CI — which is exactly the driver this lab does not have
+(see [[feedback-its-a-lab]]). The direct-prompt path already <strong>out-performed</strong> Ragas in practice:
+it generated 10 solid, corpus-grounded questions while Ragas couldn't load.</p>
+<p><strong>Cost of this decision:</strong> none. We keep the 10 generated questions; Steps 3–5 need no Ragas; and
+we drop <code>ragas</code> / <code>langchain*</code> from the Dagster image to slim it back to its pre-B4 footprint.</p>
+<p><strong>Revisit if:</strong> the Ragas fix ships (PRs merge) <strong>and</strong> you specifically want canonical, citable
+metric definitions for sharing/comparison. Until both are true, the lean path is strictly better
+for this lab.</p>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+    
+      
+      <nav class="md-footer__inner md-grid" aria-label="Footer" >
+        
+          
+          <a href="../aidlc-kb-ingest/" class="md-footer__link md-footer__link--prev" aria-label="Previous: B37 — AIDLC Knowledge-Base Ingestion (MinIO → RAG)">
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+            </div>
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                Previous
+              </span>
+              <div class="md-ellipsis">
+                B37 — AIDLC Knowledge-Base Ingestion (MinIO → RAG)
+              </div>
+            </div>
+          </a>
+        
+        
+          
+          <a href="../model-gateway/" class="md-footer__link md-footer__link--next" aria-label="Next: Model Gateway (LiteLLM) + Model Catalog — runbook">
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                Next
+              </span>
+              <div class="md-ellipsis">
+                Model Gateway (LiteLLM) + Model Catalog — runbook
+              </div>
+            </div>
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M4 11v2h12l-5.5 5.5 1.42 1.42L19.84 12l-7.92-7.92L10.5 5.5 16 11z"/></svg>
+            </div>
+          </a>
+        
+      </nav>
+    
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["navigation.footer", "content.action.edit"], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../../assets/javascripts/bundle.79ae519e.min.js"></script>
+      
+        <script src="../../search/main.js"></script>
+      
+    
+  </body>
+</html>
