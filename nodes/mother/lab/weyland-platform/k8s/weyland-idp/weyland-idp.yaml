@@ -1,6 +1,7 @@
 # B3 — weyland IDP (Backstage under the hood, named tool-neutrally so it can be swapped).
-# Stateless backend (state lives in Postgres); the platform catalog is mounted from a ConfigMap so it
-# updates without an image rebuild. Behind Traefik TLS at idp.weyland.lab; LAN-only + Backstage guest auth.
+# Stateless backend (state lives in Postgres). The platform catalog is read straight from the public repo
+# (catalog.locations type: url, B41) — no catalog ConfigMap. TechDocs are published to MinIO by a Dagster
+# job (B41). Behind Traefik TLS at idp.weyland.lab; LAN-only + Backstage guest auth.
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -58,6 +59,14 @@ spec:
                 secretKeyRef:
                   name: weyland-idp-secret
                   key: BACKEND_SECRET
+            # Scaffolder PR step (B3 slice C) — fine-grained GitHub PAT (Contents + PR: write on
+            # edtbl76/weyland-lab). Add the GITHUB_TOKEN key to weyland-idp-secret out-of-band.
+            - name: GITHUB_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: weyland-idp-secret
+                  key: GITHUB_TOKEN
+                  optional: true   # IDP boots without it (catalog/TechDocs fine); only the PR step needs it
             # TechDocs (slice B) S3 publisher → MinIO. Reuses the B37 MinIO secret in this ns.
             - name: MINIO_ACCESS_KEY
               valueFrom:
@@ -77,9 +86,6 @@ spec:
             - name: NODE_OPTIONS
               value: "--no-node-snapshot --dns-result-order=ipv4first"
           volumeMounts:
-            - name: catalog
-              mountPath: /catalog
-              readOnly: true
             # Override the image-baked app-config.production.yaml with a ConfigMap (subPath = single file).
             # Lets us iterate on IDP config with a ConfigMap update + restart — no image rebuild.
             - name: prodconfig
@@ -98,9 +104,6 @@ spec:
             limits:
               memory: 1Gi
       volumes:
-        - name: catalog
-          configMap:
-            name: weyland-idp-catalog
         - name: prodconfig
           configMap:
             name: weyland-idp-config

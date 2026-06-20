@@ -8,3 +8,4 @@ weaviate-client
 neo4j
 httpx
 minio
+mkdocs-techdocs-core

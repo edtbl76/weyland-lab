@@ -1,6 +1,7 @@
 # Production overrides for the weyland IDP (B3). Loaded after app-config.yaml (Dockerfile CMD passes both).
-# Tool-agnostic on purpose — nothing says "backstage". The platform catalog is mounted from a k8s ConfigMap
-# at /catalog, so updating it is a ConfigMap change + restart (no image rebuild) and it stays outside the app.
+# Tool-agnostic on purpose — nothing says "backstage". The platform catalog is read straight from the public
+# repo (catalog.locations type: url, B41) — Backstage's UrlReader polls it and re-ingests on change, so there
+# is no catalog ConfigMap copy to keep in sync. TechDocs are auto-published to MinIO by a Dagster job (B41).
 app:
   # Same as backend.baseUrl when using the app-backend plugin (single origin behind Traefik TLS).
   baseUrl: https://idp.weyland.lab
@@ -45,9 +46,13 @@ discovery:
         external: https://idp.weyland.lab/api/{{pluginId}}
       plugins: [catalog]
 
-# Drop the base GitHub integration in prod (no github catalog discovery → no GITHUB_TOKEN needed).
+# github.com integration. The catalog read (below) is public/unauthenticated, but the Scaffolder PR step
+# (B3 slice C, publish:github:pull-request) needs a write token — a fine-grained PAT scoped to
+# edtbl76/weyland-lab with Contents + Pull requests: write, injected from the weyland-idp-secret.
 integrations:
-  github: []
+  github:
+    - host: github.com
+      token: ${GITHUB_TOKEN}
 
 auth:
   providers:
@@ -59,12 +64,13 @@ auth:
 catalog:
   rules:
     - allow: [Component, System, API, Resource, Location, Domain, Template]
-  # Replaces the base example locations with the real platform catalog (mounted ConfigMap at /catalog).
+  # Read the catalog straight from the public repo (B41). Backstage's UrlReader polls this (~150s) and
+  # re-ingests on change — the catalog stays in sync with git with no ConfigMap copy and no restart.
   locations:
-    - type: file
-      target: /catalog/weyland-catalog.yaml
+    - type: url
+      target: https://github.com/edtbl76/weyland-lab/blob/main/nodes/mother/lab/weyland-platform/catalog/weyland-catalog.yaml
       rules:
-        - allow: [Component, System, API, Resource, Location, Domain, User, Group]
+        - allow: [Component, System, API, Resource, Location, Domain, User, Group, Template]
 
 # TechDocs (B3 slice B) — docs are built externally (techdocs-cli) and published to the MinIO `techdocs`
 # bucket; Backstage just serves them (no mkdocs/Docker in the pod). MinIO is the in-cluster S3 endpoint.

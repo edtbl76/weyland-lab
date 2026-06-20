@@ -2,10 +2,10 @@
 
 Internal Developer Platform — **Backstage** under the hood, but named tool-neutrally (`weyland-idp`,
 `idp.weyland.lab`, image `weyland-idp:local`) so it can be swapped for Port/Roadie/etc. without renaming.
-Slices A (Software Catalog) + B (TechDocs + Catalog Graph) are live; slice C (Scaffolder template) is pending.
+Slices A (Software Catalog) + B (TechDocs + Catalog Graph) + C (Scaffolder golden-path template) are live.
 
 - App (scaffolded monorepo): `services/weylandidp/` — new frontend + backend system, Backstage CLI ~0.36, Node 22/24, Yarn 4.
-- Catalog (tool-agnostic, lives outside the app): `catalog/weyland-catalog.yaml` (~24 entities: Domain → 3 Systems → Components/Resources/APIs).
+- Catalog (tool-agnostic, lives outside the app): `catalog/weyland-catalog.yaml` (~24 entities: Domain → 3 Systems → Components/Resources/APIs). Read straight from the **public repo** via `catalog.locations: type: url` (B41) — no ConfigMap copy; Backstage polls git and re-ingests on change.
 - k8s: `k8s/weyland-idp/weyland-idp.yaml` (Deployment + Service + Ingress). DB: a `weyland_idp` role in the shared Postgres.
 
 ## Build — from git, reproducible
@@ -20,16 +20,17 @@ Ship to k3s (no registry): `docker save weyland-idp:local -o /tmp/weyland-idp.ta
 `sudo k3s ctr images import ~/weyland-idp.tar`. (Piping `docker save | ssh 'sudo …'` fails — sudo has no TTY.)
 
 ## Config — ConfigMap, not baked
-Both the **catalog** and the **production app-config** are mounted from ConfigMaps, so changes are a
-ConfigMap-update + `rollout restart` — **no image rebuild**:
-- `weyland-idp-catalog` ← `catalog/weyland-catalog.yaml`, mounted at `/catalog`.
+The **production app-config** is mounted from a ConfigMap, so a config change is a ConfigMap-update +
+`rollout restart` — **no image rebuild**. (The catalog is no longer a ConfigMap — it's read from the repo via
+`type: url`, see below.)
 - `weyland-idp-config` ← `services/weylandidp/app-config.production.yaml`, **subPath-mounted over**
   `/app/app-config.production.yaml` (overrides the image-baked copy).
 ```
-kubectl create configmap weyland-idp-catalog -n weyland --from-file=weyland-catalog.yaml   # run from the catalog/ dir
-kubectl create configmap weyland-idp-config  -n weyland --from-file=app-config.production.yaml=$HOME/lab/weyland-platform/app-config.production.yaml
+kubectl create configmap weyland-idp-config -n weyland --from-file=app-config.production.yaml=$HOME/lab/weyland-platform/app-config.production.yaml
 ```
 > Tilde trap: `--from-file=key=~/path` does NOT expand `~` (mid-argument) — use `$HOME` or `cd` into the dir.
+> The `catalog.locations` target points at the public repo:
+> `https://github.com/edtbl76/weyland-lab/blob/main/nodes/mother/lab/weyland-platform/catalog/weyland-catalog.yaml`.
 
 ## Postgres
 Reuses the shared Postgres; Backstage creates its own `backstage_plugin_*` DBs, so the role needs `CREATEDB`:
@@ -51,14 +52,38 @@ machine resolving via `/etc/hosts` needs a `192.168.1.243 idp.weyland.lab` line.
   (`backstage.io/techdocs-ref: dir:.`).
 - `app-config.production.yaml`: `techdocs.builder: external` + `publisher.type: awsS3` → MinIO
   (`minio.minio.svc:9000`, bucket `techdocs`, creds from `aidlc-kb-minio-secret`).
-- Build + publish (rogueone): `python3 -m venv /tmp/tdvenv && /tmp/tdvenv/bin/pip install mkdocs-techdocs-core`,
-  then `PATH="/tmp/tdvenv/bin:$PATH" npx @techdocs/cli generate --source-dir . --output-dir ./site-techdocs --no-docker`,
-  `mc mb weyland/techdocs`, then
-  `NODE_EXTRA_CA_CERTS="$(mkcert -CAROOT)/rootCA.pem" AWS_ACCESS_KEY_ID=admin AWS_SECRET_ACCESS_KEY=weyland_dev_password AWS_REGION=us-east-1 npx @techdocs/cli publish --publisher-type awsS3 --storage-name techdocs --entity default/Component/weyland-docs --directory ./site-techdocs --awsEndpoint https://s3.weyland.lab --awsS3ForcePathStyle`.
-  (Publish needs the mkcert CA via `NODE_EXTRA_CA_CERTS`; the Backstage backend reads MinIO over in-cluster HTTP.)
+- **Auto-published by Dagster (B41).** The `weyland_techdocs_job` (asset `techdocs_publish`, group `techdocs`,
+  **hourly** `weyland_techdocs_schedule`) clones the repo, runs `mkdocs build`, and uploads the site to the
+  `techdocs` bucket under `default/component/weyland-docs/`. Pure Python (`mkdocs-techdocs-core` + the `minio`
+  client) — **no `@techdocs/cli`, no node** in the Dagster image; reuses the pod's existing `GIT_*` + `MINIO_*`
+  env. To force a refresh now, materialize the job in Dagit (`dagster.weyland.lab` → `weyland_techdocs_job`).
 - **Catalog Graph:** `@backstage/plugin-catalog-graph/alpha` added to `packages/app/src/App.tsx` `features`.
   The standalone nav page is empty without a root entity — the useful view is the per-entity Catalog Graph card.
 - **Mermaid** diagrams render as code (no official addon) → parked, **B40**.
+
+## Keeping the IDP in sync (B41)
+Both surfaces self-heal from the repo — no manual republish:
+- **Catalog** → `catalog.locations: type: url` off public GitHub; Backstage's UrlReader polls (~150s) and
+  re-ingests on change. `integrations.github: [{host: github.com}]` enables the unauthenticated public read
+  (no token). The catalog ConfigMap is **gone** — the repo is the only source of truth.
+- **TechDocs** → the hourly Dagster `weyland_techdocs_job` above. (Catalog is *fetched* live because it needs no
+  build; TechDocs is *built+published* because servable HTML can't live in the repo. Different tools, same goal.)
+
+## Scaffolder — golden-path templates (slice C)
+"Create" in the IDP runs a **Scaffolder** template that renders a skeleton and opens a **GitHub PR**.
+- **Template:** `catalog/templates/k8s-service/template.yaml` (kind `Template`) + `skeleton/` (Nunjucks
+  `${{ values.x }}`). Registered via a `Location` in `weyland-catalog.yaml`, so it auto-syncs with the catalog
+  (B41) — **no separate config**. The "new k8s service" template renders a meshed Deployment + Service +
+  Ingress (Traefik TLS) + `catalog-info.yaml` + a runbook stub, at their real repo paths.
+- **Frontend:** `@backstage/plugin-scaffolder/alpha` added to `packages/app/src/App.tsx` `features` (needs an
+  **app image rebuild** — the dep was already in `package.json`, just unwired).
+- **Backend:** `plugin-scaffolder-backend` + `-module-github` were already in `index.ts` (no rebuild for those).
+- **PR auth:** `integrations.github[].token: ${GITHUB_TOKEN}` — a **fine-grained PAT** scoped to
+  `edtbl76/weyland-lab` (Contents + Pull requests: **write**), added to `weyland-idp-secret` as key
+  `GITHUB_TOKEN` (secretKeyRef is `optional: true`, so the IDP boots without it — only the PR step fails).
+  Create the PAT + add the key out-of-band; never commit it.
+- **Flow:** Create → pick "New k8s service" → fill name/image/port/namespace → Scaffolder renders + pushes
+  branch `scaffold/<name>` + opens a PR. Review/merge; the new service then catalog-syncs in via B41.
 
 ## Gotchas hit (don't repeat)
 - **STRICT-Postgres needs the mesh.** The pod MUST carry `sidecar.istio.io/inject: "true"` or every plugin dies

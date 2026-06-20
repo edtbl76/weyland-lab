@@ -329,3 +329,16 @@ spec:
   system: model-serving
   definition: |
     /v1/audio/transcriptions (OpenAI shim) + native /inference. See docs/runbooks/transcription-whisper.md.
+---
+# ---------------------------------------------------------------------------------------- scaffolder templates
+# B3 slice C — register the golden-path Scaffolder templates. Relative target resolves against this file's
+# own location URL (the GitHub url Backstage polls), so it self-syncs with the rest of the catalog (B41).
+apiVersion: backstage.io/v1alpha1
+kind: Location
+metadata:
+  name: weyland-scaffolder-templates
+  description: Golden-path Scaffolder templates for the weyland platform.
+spec:
+  type: url
+  targets:
+    - ./templates/k8s-service/template.yaml

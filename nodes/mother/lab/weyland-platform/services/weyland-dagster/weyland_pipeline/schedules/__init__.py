@@ -6,7 +6,8 @@ weyland_ingestion_job = define_asset_job(
     selection=AssetSelection.all()
     - AssetSelection.groups("eval")
     - AssetSelection.groups("catalog")
-    - AssetSelection.groups("aidlc_kb"),
+    - AssetSelection.groups("aidlc_kb")
+    - AssetSelection.groups("techdocs"),
 )
 
 # Model catalog (hosted-model lookup table) — refreshed on its own 6h cadence, separate from ingestion.
@@ -33,6 +34,14 @@ weyland_aidlc_kb_job = define_asset_job(
     selection=AssetSelection.groups("aidlc_kb"),
 )
 
+# TechDocs publish (B41) — clones the repo, runs `mkdocs build`, uploads the site to the MinIO `techdocs`
+# bucket so the IDP self-syncs on docs/ changes. Own hourly cadence (a full mkdocs build is heavier than a
+# RAG no-op), kept off the 15-min ingestion cron via the group subtraction above.
+weyland_techdocs_job = define_asset_job(
+    name="weyland_techdocs_job",
+    selection=AssetSelection.groups("techdocs"),
+)
+
 weyland_ingestion_schedule = ScheduleDefinition(
     job=weyland_ingestion_job,
     cron_schedule="*/15 * * * *",
@@ -43,4 +52,10 @@ weyland_catalog_schedule = ScheduleDefinition(
     job=weyland_catalog_job,
     cron_schedule="0 */6 * * *",  # every 6h
     name="weyland_catalog_schedule",
+)
+
+weyland_techdocs_schedule = ScheduleDefinition(
+    job=weyland_techdocs_job,
+    cron_schedule="0 * * * *",  # hourly
+    name="weyland_techdocs_schedule",
 )

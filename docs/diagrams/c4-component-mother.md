@@ -48,7 +48,7 @@ C4Component
 
         Component(neodash, "NeoDash", "neo4jlabs/neodash / k8s", "Neo4j dashboard/viz UI (free Bloom-alternative). Browser-side Bolt to Neo4j. mother:30088")
 
-        Component(idp, "weyland IDP (B3)", "Backstage / k8s", "Internal Developer Platform — software catalog of the platform (slice A). Meshed (STRICT Postgres). Config/catalog via ConfigMaps. idp.weyland.lab")
+        Component(idp, "weyland IDP (B3)", "Backstage / k8s", "Internal Developer Platform — software catalog + TechDocs + Catalog Graph + Scaffolder golden paths (slices A+B+C). TechDocs built externally, served from MinIO; Scaffolder opens GitHub PRs. Meshed (STRICT Postgres). Self-syncs from repo (B41): catalog via type:url off GitHub, TechDocs published hourly by Dagster. Config via ConfigMap. idp.weyland.lab")
     }
 
     Container_Boundary(istiosystem, "mother VM — k3s, ns: istio-system (Istio service mesh, B8)") {
@@ -70,6 +70,7 @@ C4Component
     Rel(neodash, neo4j, "Bolt :30086 (browser-side)")
     Rel(user, idp, "developer portal / catalog")
     Rel(idp, pgvector, "catalog + plugin DBs (mTLS, STRICT)")
+    Rel(idp, minio, "TechDocs static site (S3, techdocs bucket)")
     Rel(tool_server, pgvector, "embed + retrieve rag_chunks (mTLS, STRICT)")
     Rel(tool_server, qdrant, "retrieve (mTLS)")
     Rel(tool_server, weaviate, "retrieve (mTLS)")
@@ -82,6 +83,7 @@ C4Component
     Rel(dagster, qdrant, "write weyland_chunks (mTLS)")
     Rel(dagster, weaviate, "write WeylandChunk (mTLS)")
     Rel(dagster, neo4j, "write nodes + edges (mTLS)")
+    Rel(dagster, minio, "publish TechDocs site, hourly (B41 -> techdocs bucket)")
     Rel(dagster, ollama_ct, "eval: generate questions + judge responses")
     Rel(open_webui, ollama_ct, "chat completions /v1")
     Rel(open_webui, whisper_ct, "STT /v1/audio/transcriptions")
