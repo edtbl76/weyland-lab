@@ -75,6 +75,26 @@ grafana:
     # 256Mi was too tight — Grafana + its 2 sidecars run ~310Mi and OOMKilled (→502s).
     requests: { cpu: 50m, memory: 256Mi }
     limits: { memory: 512Mi }
+  # Surface the already-running Jaeger + Alertmanager INSIDE Grafana (no new services).
+  # The Prometheus datasource is auto-provisioned by the chart; these are additions.
+  additionalDataSources:
+    # Istio's Jaeger (B8) — query service `tracing` in istio-system, port 80 → 16686.
+    # The addon serves the query UI/API under base path `/jaeger`, so the HTTP API is at
+    # /jaeger/api/* — without the suffix Grafana hits the SPA index.html ('<' unmarshal error).
+    - name: Jaeger
+      type: jaeger
+      uid: jaeger
+      access: proxy
+      url: http://tracing.istio-system.svc.cluster.local:80/jaeger
+    # kube-prometheus-stack Alertmanager — view firing alerts in Grafana (routing stays Alertmanager→Telegram).
+    - name: Alertmanager
+      type: alertmanager
+      uid: alertmanager
+      access: proxy
+      url: http://monitoring-kube-prometheus-alertmanager.monitoring.svc.cluster.local:9093
+      jsonData:
+        implementation: prometheus
+        handleGrafanaManagedAlerts: false
 
 prometheus:
   prometheusSpec:

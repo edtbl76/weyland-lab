@@ -151,6 +151,28 @@ Expect four lines starting `up` for `serviceMonitor/weyland/{qdrant,weaviate,wey
 A `down` line's `lastError` is the diagnosis (`connection refused` = wrong bind addr/port; `404` = wrong path).
 From rogueone's browser instead: `https://grafana.weyland.lab` → Explore → `up{namespace="weyland"}`.
 
+## Phase 3 — Grafana datasources (Jaeger + Alertmanager) + Proxmox metrics ✅ (2026-06-20)
+
+**Surface the already-running tools INSIDE Grafana** (no new services) — two provisioned datasources in the values
+file under `grafana.additionalDataSources`; the datasource sidecar reloads on the version-pinned `helm upgrade`.
+- **Jaeger** `url: http://tracing.istio-system.svc.cluster.local:80/jaeger` — the Istio addon serves the query API
+  under base path **`/jaeger`**; without the suffix Grafana hits the SPA `index.html` ("invalid character '<'" on
+  Test). View traces via **Explore → Jaeger → Search** — NOT the Drilldown app (Tempo-only).
+- **Alertmanager** `url: http://monitoring-kube-prometheus-alertmanager.monitoring.svc:9093`,
+  `jsonData.implementation: prometheus` — firing alerts visible in Grafana (routing stays Alertmanager→Telegram).
+
+**Proxmox metrics — `prometheus-pve-exporter`** (`k8s/monitoring/pve-exporter.yaml`, ns `monitoring`, NOT meshed):
+scrapes the PVE API (read-only `PVEAuditor` token `pve-exporter@pve!monitoring` in Secret `pve-exporter-secret`)
+for per-node/VM/CT CPU/mem/disk. Multi-target — ServiceMonitor scrapes `/pve?target=192.168.1.232`. Grafana
+dashboard import **#10347**. Token: `pveum user add pve-exporter@pve; pveum aclmod / -user pve-exporter@pve -role
+PVEAuditor; pveum user token add pve-exporter@pve monitoring --privsep 0` (copy the `value` UUID — shown once).
+Verify: `kubectl exec -n monitoring deploy/pve-exporter -- wget -qO- 'http://localhost:9221/pve?target=192.168.1.232' | grep pve_up`.
+
+### Deferred — next observability slice (after Code Quality)
+**Tempo** (trace backend → unified Grafana Drilldown) + **Loki** (logs — there is currently NO log aggregation,
+only `kubectl logs`). Both are new standing services. The Jaeger datasource covers traces-in-Grafana via Explore
+until then.
+
 ---
 
 ## Operational reference

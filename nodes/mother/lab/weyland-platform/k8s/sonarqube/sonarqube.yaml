@@ -1,0 +1,149 @@
+# Code Quality (Port category) — SonarQube CE static analysis. Server + Postgres backend; the SCANNER runs
+# on-demand (CI/Dagster/CLI) and pushes results here. STEP 1 = always-on (replicas 1, direct ingress) to
+# validate boot + DB + login. STEP 2 (separate) wraps it in a KEDA HTTPScaledObject (min 0) so it sleeps and
+# wakes on first request. Meshed — SonarQube reaches STRICT-mTLS Postgres (read ECONNRESET otherwise; DATABASE
+# TLS is Istio's job). Host prereq: vm.max_map_count>=524288 on mother (SonarQube's embedded Elasticsearch
+# refuses to start otherwise). Own login (admin/admin → forced change on first login) so no Traefik basicAuth.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: sonarqube-data
+  namespace: weyland
+spec:
+  accessModes: ["ReadWriteOnce"]
+  storageClassName: local-path
+  resources:
+    requests:
+      storage: 5Gi
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: sonarqube-extensions
+  namespace: weyland
+spec:
+  accessModes: ["ReadWriteOnce"]
+  storageClassName: local-path
+  resources:
+    requests:
+      storage: 2Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: sonarqube
+  namespace: weyland
+  labels:
+    app: sonarqube
+spec:
+  replicas: 1
+  # Single-instance + RWO PVCs -> Recreate (also the right strategy when KEDA flips replicas 0<->1).
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: sonarqube
+  template:
+    metadata:
+      labels:
+        app: sonarqube
+        # Join the mesh — required to reach STRICT-mTLS Postgres.
+        sidecar.istio.io/inject: "true"
+    spec:
+      # SonarQube runs as uid 1000; fsGroup makes the local-path PVCs writable by it.
+      securityContext:
+        fsGroup: 1000
+      containers:
+        - name: sonarqube
+          image: sonarqube:26.6.0.123539-community
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 9000
+          env:
+            - name: SONAR_JDBC_URL
+              value: jdbc:postgresql://weyland-postgres.weyland.svc.cluster.local:5432/sonarqube
+            - name: SONAR_JDBC_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: sonarqube-secret
+                  key: SONAR_JDBC_USERNAME
+            - name: SONAR_JDBC_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: sonarqube-secret
+                  key: SONAR_JDBC_PASSWORD
+          volumeMounts:
+            - name: data
+              mountPath: /opt/sonarqube/data
+            - name: extensions
+              mountPath: /opt/sonarqube/extensions
+          # SonarQube boot is slow (ES + web + compute engine) — give it up to ~5 min before failing.
+          startupProbe:
+            httpGet:
+              path: /api/system/status
+              port: 9000
+            failureThreshold: 30
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /api/system/status
+              port: 9000
+            periodSeconds: 15
+          livenessProbe:
+            httpGet:
+              path: /api/system/status
+              port: 9000
+            initialDelaySeconds: 120
+            periodSeconds: 30
+          resources:
+            requests:
+              cpu: 500m
+              memory: 2Gi
+            limits:
+              memory: 4Gi
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: sonarqube-data
+        - name: extensions
+          persistentVolumeClaim:
+            claimName: sonarqube-extensions
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: sonarqube
+  namespace: weyland
+  labels:
+    app: sonarqube
+spec:
+  type: ClusterIP
+  selector:
+    app: sonarqube
+  ports:
+    - name: http
+      port: 9000
+      targetPort: 9000
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: sonarqube
+  namespace: weyland
+spec:
+  tls:
+    - hosts:
+        - sonarqube.weyland.lab
+      secretName: weyland-wildcard-tls
+  rules:
+    - host: sonarqube.weyland.lab
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: sonarqube
+                port:
+                  number: 9000

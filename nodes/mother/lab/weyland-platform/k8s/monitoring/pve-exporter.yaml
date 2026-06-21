@@ -1,0 +1,79 @@
+# Proxmox VE metrics → Prometheus/Grafana. Scrapes the PVE API (read-only PVEAuditor token) for per-node/VM/CT
+# CPU, memory, disk, I/O. Multi-target exporter: Prometheus hits /pve?target=<pve-host>; the token (in the
+# Secret) authenticates, the target says which PVE host to query. Lives in `monitoring` ns alongside Prometheus
+# (NOT meshed — talks to the LAN PVE API at 192.168.1.232:8006, scraped in-cluster). Self-signed PVE cert →
+# PVE_VERIFY_SSL=false. Secret `pve-exporter-secret` created out-of-band (holds the token value), never committed.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: pve-exporter
+  namespace: monitoring
+  labels:
+    app: pve-exporter
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: pve-exporter
+  template:
+    metadata:
+      labels:
+        app: pve-exporter
+    spec:
+      containers:
+        - name: pve-exporter
+          image: prompve/prometheus-pve-exporter:3.9.0
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 9221
+          envFrom:
+            - secretRef:
+                name: pve-exporter-secret
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 9221
+            initialDelaySeconds: 10
+            periodSeconds: 15
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              memory: 128Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: pve-exporter
+  namespace: monitoring
+  labels:
+    app: pve-exporter
+spec:
+  type: ClusterIP
+  selector:
+    app: pve-exporter
+  ports:
+    - name: http
+      port: 9221
+      targetPort: 9221
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: pve-exporter
+  namespace: monitoring
+spec:
+  selector:
+    matchLabels:
+      app: pve-exporter
+  endpoints:
+    # Multi-target: scrape the exporter's /pve endpoint, telling it which PVE host to query.
+    - port: http
+      path: /pve
+      interval: 60s
+      params:
+        target: ["192.168.1.232"]   # weyland — the Proxmox bare-metal host
+        cluster: ["1"]
+        node: ["1"]

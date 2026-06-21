@@ -1,0 +1,115 @@
+# Category 4 (Port migration) — Feature Management = Unleash (OSS, self-hosted; LaunchDarkly is SaaS, breaks $0).
+# Stateless: all state in the shared Postgres, so no PVC and rolling updates are fine. Meshed because Postgres is
+# STRICT mTLS — the sidecar wraps the plaintext psql connection (DATABASE_SSL=false; Istio does the TLS, not the app).
+# Unleash has its OWN login (default admin/unleash4all → change to weyland_dev_password on first login), so no Traefik
+# basicAuth middleware. CHECK_VERSION/SEND_TELEMETRY disabled — LAN-only, $0, no phone-home. Secrets (DATABASE_URL +
+# init API tokens) live in the `unleash-secret` Secret, created out-of-band (see runbooks/unleash.md), never committed.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: unleash
+  namespace: weyland
+  labels:
+    app: unleash
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: unleash
+  template:
+    metadata:
+      labels:
+        app: unleash
+        # Join the mesh — required to reach STRICT-mTLS Postgres (read ECONNRESET otherwise).
+        sidecar.istio.io/inject: "true"
+    spec:
+      containers:
+        - name: unleash
+          image: unleashorg/unleash-server:8.0.1
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 4242
+          env:
+            # DATABASE_URL + INIT_ADMIN_API_TOKENS + INIT_BACKEND_API_TOKENS — from the Secret.
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: unleash-secret
+                  key: DATABASE_URL
+            # Admin token → AIDLC/Claude/Hermes can create+flip flags via the API.
+            - name: INIT_ADMIN_API_TOKENS
+              valueFrom:
+                secretKeyRef:
+                  name: unleash-secret
+                  key: INIT_ADMIN_API_TOKENS
+            # Backend (SDK read) token → lab services resolve flags at runtime.
+            - name: INIT_BACKEND_API_TOKENS
+              valueFrom:
+                secretKeyRef:
+                  name: unleash-secret
+                  key: INIT_BACKEND_API_TOKENS
+            # Istio terminates mTLS; the app talks plaintext to its sidecar.
+            - name: DATABASE_SSL
+              value: "false"
+            # LAN-only, $0 lab — no phone-home / telemetry.
+            - name: CHECK_VERSION
+              value: "false"
+            - name: SEND_TELEMETRY
+              value: "false"
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 4242
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 4242
+            initialDelaySeconds: 60
+            periodSeconds: 30
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              memory: 768Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: unleash
+  namespace: weyland
+  labels:
+    app: unleash
+spec:
+  type: ClusterIP
+  selector:
+    app: unleash
+  ports:
+    - name: http
+      port: 4242
+      targetPort: 4242
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: unleash
+  namespace: weyland
+spec:
+  tls:
+    - hosts:
+        - unleash.weyland.lab
+      secretName: weyland-wildcard-tls
+  rules:
+    - host: unleash.weyland.lab
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: unleash
+                port:
+                  number: 4242

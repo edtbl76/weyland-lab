@@ -71,10 +71,12 @@ mkcert wildcard cert; resolve from rogueone (`/etc/hosts`) or via CoreDNS. Share
 | Headlamp (k8s UI) | `https://headlamp.weyland.lab` |
 | Filestash (MinIO browser) | `https://files.weyland.lab` |
 | **weyland IDP** (Backstage — ⚠️ **DECOMMISSION IN PROGRESS**, being replaced by Port.io) | `https://idp.weyland.lab` — see [runbooks/weyland-idp.md](runbooks/weyland-idp.md) |
-| **Port.io** (IDP replacement — SaaS, zero-maintenance) | `https://app.port.io` — EU org; K8s + GitHub exporters live |
+| **Port.io** (IDP replacement — SaaS, zero-maintenance) | `https://app.port.io` — EU org; live: K8s, Istio, GitHub, Uptime Kuma, Linear, Unleash (`feature_flag`), SonarQube (`code_quality`), Trivy+Semgrep (`security_scan`) |
 | **MLflow** (experiment tracking + model registry; B10+B16, dev-password) | `https://mlflow.weyland.lab` |
 | **Uptime Kuma** (uptime monitoring + status page; own auth; → Port webhook + Telegram paging) | `https://kuma.weyland.lab` |
 | **Linear** (roadmap/task board — SaaS; Claude via MCP, Port ingests for status) | `https://linear.app/emangini` — projects: Weyland Lab / Stud.IO / Service Transformation |
+| **Unleash** (feature flags; OSS self-hosted, own login admin/dev-pass; → Port `feature_flag` webhook) | `https://unleash.weyland.lab` — Python SDK for tool-server/Hermes; see [runbooks/unleash.md](runbooks/unleash.md) |
+| **SonarQube** (code quality / static analysis; own login; → Port `code_quality` webhook) | `https://sonarqube.weyland.lab` — meshed Postgres backend; on-demand scan Jobs (+ Trivy/Semgrep). See [runbooks/code-quality.md](runbooks/code-quality.md) |
 
 > **Headlamp login** uses a Kubernetes **ServiceAccount bearer token**, *not* the shared dev password.
 > A persistent token is stored in a Secret — retrieve and decode it (on mother):
@@ -113,6 +115,7 @@ not meant for direct browsing. ServiceMonitors: `k8s/monitoring/servicemonitors.
 | Tool server (B14 guardrails) | `weyland-tool-server.weyland.svc:8080` | `/metrics` | `http://mother:30080/metrics` (NodePort) |
 | LiteLLM gateway | `litellm.weyland.svc:4000` | `/metrics` | `http://mother:30400/metrics` (NodePort) |
 | MinIO | `minio.minio.svc:9000` | `/minio/v2/metrics/cluster` | in-cluster only (`MINIO_PROMETHEUS_AUTH_TYPE=public`, no token) |
+| Proxmox VE (pve-exporter) | `pve-exporter.monitoring.svc:9221` | `/pve?target=192.168.1.232` | per-node/VM/CT metrics; read-only PVEAuditor token. Grafana dashboard #10347. See [runbooks/observability.md](runbooks/observability.md) |
 
 Stack-internal targets (Prometheus, Alertmanager, Grafana, node-exporter, kube-state-metrics, kubelet,
 cAdvisor) are scraped by the chart's own ServiceMonitors — not listed here.
