@@ -168,10 +168,30 @@ dashboard import **#10347**. Token: `pveum user add pve-exporter@pve; pveum aclm
 PVEAuditor; pveum user token add pve-exporter@pve monitoring --privsep 0` (copy the `value` UUID — shown once).
 Verify: `kubectl exec -n monitoring deploy/pve-exporter -- wget -qO- 'http://localhost:9221/pve?target=192.168.1.232' | grep pve_up`.
 
-### Deferred — next observability slice (after Code Quality)
-**Tempo** (trace backend → unified Grafana Drilldown) + **Loki** (logs — there is currently NO log aggregation,
-only `kubectl logs`). Both are new standing services. The Jaeger datasource covers traces-in-Grafana via Explore
-until then.
+## Phase 4 — Loki (logs) + Tempo (traces) → unified Grafana; Jaeger retired ✅ (2026-06-21, B48)
+
+Completes the LGTM stack. All three pillars now in Grafana (metrics + logs + traces).
+- **Loki** (logs): `grafana/loki` 6.55.0, **SingleBinary**, storage → MinIO (`loki-chunks`/`loki-ruler`),
+  `k8s/loki/loki-values.yaml`. Collector = **Alloy** DaemonSet (`grafana/alloy` 1.10.0, `k8s/loki/alloy-values.yaml`)
+  → pushes pod logs to `loki:3100`. Grafana **Loki** datasource. View: Explore / **Logs Drilldown**.
+- **Tempo** (traces): `grafana/tempo` 1.24.4, monolithic, storage → MinIO (`tempo-traces`), `k8s/tempo/tempo-values.yaml`.
+  **zipkin receiver** :9411 ← Istio mesh tracing. Grafana **Tempo** datasource (:3200). View: Explore / **Traces Drilldown**.
+- **Istio → Tempo:** repointed the mesh tracing provider (`istio-install.yaml` extensionProvider `tempo` →
+  `tempo.monitoring.svc:9411` + `telemetry.yaml`). Apply with `istioctl install -f istio-install.yaml -y` (grab
+  istioctl: `curl -sL https://istio.io/downloadIstio | ISTIO_VERSION=1.30.1 sh -`).
+- **Kiali → Tempo:** `kiali.yaml` tracing `provider: tempo`, `internal_url: http://tempo.monitoring.svc:3200`, `use_grpc: false`.
+- **Jaeger retired:** deleted the addon (`kubectl delete deploy,svc,sa,cm -n istio-system -l app=jaeger`) + ingress +
+  the Jaeger Grafana datasource. `jaeger.weyland.lab` is gone.
+
+### Gotchas
+- **MinIO creds:** Loki/Tempo S3 creds via env from Secret `loki-minio` (copy from the working `aidlc-kb-minio-secret` —
+  a wrong key → `InvalidAccessKeyId` crashloop). Loki uses the AWS-SDK env fallback; Tempo uses `config.expand-env=true`
+  + `${AWS_*}`.
+- **Loki SingleBinary:** `loki.commonConfig.replication_factor: 1` is mandatory (chart default 3 crashes); memberlist
+  warnings are harmless.
+- **Tempo "empty ring" query error** in the Drilldown Rate/Error panels = the **metrics-generator** isn't enabled
+  (span-metrics/service-graph need Tempo→Prometheus remote-write). Traces themselves work. Deferred — see backlog.
+- **istioctl** isn't on mother by default — download it (matching the mesh version, 1.30.1) to apply meshConfig changes.
 
 ---
 

@@ -1,0 +1,80 @@
+# B48 — Loki (logs) SingleBinary/monolithic, storage → MinIO (S3). Lab-sized: 1 replica, no SSD split, no
+# memcached caches, no bundled minio, no gateway (Grafana hits the loki svc directly). Chart: grafana/loki 6.55.0.
+# Creds via AWS_* env from Secret `loki-minio` (NOT inline). Collector = Alloy DaemonSet (separate release).
+deploymentMode: SingleBinary
+
+loki:
+  auth_enabled: false            # single-tenant lab
+  commonConfig:
+    replication_factor: 1        # MUST be 1 for SingleBinary (chart default 3 fails)
+  schemaConfig:
+    configs:
+      - from: "2024-04-01"
+        store: tsdb
+        object_store: s3
+        schema: v13
+        index:
+          prefix: loki_index_
+          period: 24h
+  storage:
+    type: s3
+    bucketNames:
+      chunks: loki-chunks
+      ruler: loki-ruler
+    s3:
+      endpoint: http://minio.minio.svc.cluster.local:9000
+      region: us-east-1
+      s3ForcePathStyle: true     # MinIO needs path-style
+      insecure: true             # plain http to in-cluster MinIO
+      # accessKeyId/secretAccessKey intentionally omitted → AWS SDK reads the env vars below
+  limits_config:
+    retention_period: 168h       # 7d
+  compactor:
+    retention_enabled: true
+    delete_request_store: s3
+  pattern_ingester:
+    enabled: false
+
+singleBinary:
+  replicas: 1
+  extraEnv:
+    - name: AWS_ACCESS_KEY_ID
+      valueFrom:
+        secretKeyRef:
+          name: loki-minio
+          key: access_key
+    - name: AWS_SECRET_ACCESS_KEY
+      valueFrom:
+        secretKeyRef:
+          name: loki-minio
+          key: secret_key
+  persistence:
+    enabled: true
+    storageClass: local-path
+    size: 10Gi
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      memory: 1Gi
+
+# Lab trims — everything below SingleBinary off
+minio:
+  enabled: false
+gateway:
+  enabled: false
+read:
+  replicas: 0
+write:
+  replicas: 0
+backend:
+  replicas: 0
+chunksCache:
+  enabled: false
+resultsCache:
+  enabled: false
+lokiCanary:
+  enabled: false
+test:
+  enabled: false

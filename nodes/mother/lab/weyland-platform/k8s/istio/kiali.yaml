@@ -155,10 +155,10 @@ data:
         url: "http://monitoring-kube-prometheus-prometheus.monitoring:9090"   # B8 follow-up: use the kube-prometheus-stack, not the addon
       tracing:
         enabled: true
-        provider: "jaeger"
-        use_grpc: true
-        internal_url: "http://tracing.istio-system:16685"
-        external_url: "https://jaeger.weyland.lab"
+        provider: "tempo"
+        use_grpc: false
+        internal_url: "http://tempo.monitoring.svc.cluster.local:3200"
+        external_url: "https://grafana.weyland.lab"
     identity:
       cert_file: ""
       private_key_file: ""

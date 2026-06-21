@@ -21,7 +21,7 @@ LAN-only. This `docs/` tree is the canonical, version-controlled source of truth
 - [model-serving-ollama.md](runbooks/model-serving-ollama.md) — Ollama (CT 102), models, CPU tuning
 - [transcription-whisper.md](runbooks/transcription-whisper.md) — whisper.cpp STT (CT 103) + OpenAI shim
 - [eval-harness.md](runbooks/eval-harness.md) — LLM eval pipeline, judge panel, leaderboard
-- [observability.md](runbooks/observability.md) — Prometheus + Grafana + Alertmanager
+- [observability.md](runbooks/observability.md) — **full LGTM**: Prometheus + Grafana + Alertmanager (metrics/alerts), **Loki + Alloy** (logs), **Tempo** (traces, Jaeger retired), Proxmox pve-exporter; all in Grafana Explore/Drilldown
 - [service-mesh-istio.md](runbooks/service-mesh-istio.md) — Istio mesh (B8): install, sidecar injection, mTLS, Kiali/Jaeger, TCP-backend fix
 - [storage-minio.md](runbooks/storage-minio.md) — MinIO object storage
 - [aidlc-kb-ingest.md](runbooks/aidlc-kb-ingest.md) — AIDLC knowledge-base ingest (B37): MinIO source + brand scrub, on-demand Dagster job, Neo4j `:Entry` graph + GDS, NeoDash viz

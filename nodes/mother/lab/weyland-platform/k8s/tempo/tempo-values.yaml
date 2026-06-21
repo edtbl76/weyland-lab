@@ -1,0 +1,48 @@
+# B48 — Tempo (traces) monolithic, storage → MinIO (S3). Replaces Jaeger as the single trace backend; Grafana
+# Tempo datasource unlocks the trace Drilldown, Kiali repoints here too. Chart: grafana/tempo 1.24.4 (app 2.9.0).
+# Receivers: zipkin (Istio's mesh tracing provider points here) + otlp (future). Creds via env-expansion from the
+# loki-minio Secret (config.expand-env=true → ${AWS_*}); no inline secrets. Bucket: tempo-traces.
+tempo:
+  reportingEnabled: false        # no phone-home ($0/LAN)
+  storage:
+    trace:
+      backend: s3
+      s3:
+        bucket: tempo-traces
+        endpoint: minio.minio.svc.cluster.local:9000
+        access_key: "${AWS_ACCESS_KEY_ID}"
+        secret_key: "${AWS_SECRET_ACCESS_KEY}"
+        insecure: true            # plain http to in-cluster MinIO
+  receivers:
+    zipkin:
+      endpoint: 0.0.0.0:9411      # Istio mesh tracing → here
+    otlp:
+      protocols:
+        grpc:
+          endpoint: 0.0.0.0:4317
+        http:
+          endpoint: 0.0.0.0:4318
+  extraArgs:
+    "config.expand-env": "true"   # expand ${AWS_*} in the rendered config
+  extraEnv:
+    - name: AWS_ACCESS_KEY_ID
+      valueFrom:
+        secretKeyRef:
+          name: loki-minio
+          key: access_key
+    - name: AWS_SECRET_ACCESS_KEY
+      valueFrom:
+        secretKeyRef:
+          name: loki-minio
+          key: secret_key
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      memory: 1Gi
+
+persistence:
+  enabled: true
+  storageClassName: local-path
+  size: 5Gi

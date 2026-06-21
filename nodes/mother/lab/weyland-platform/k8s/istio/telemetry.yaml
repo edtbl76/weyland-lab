@@ -1,5 +1,5 @@
-# B8 — mesh-wide tracing: send 100% of spans to the `jaeger` extensionProvider (defined in istio-install.yaml).
-# Pairs with the provider; together they actually ship spans to Jaeger's zipkin collector.
+# B8/B48 — mesh-wide tracing: send 100% of spans to the `tempo` extensionProvider (defined in istio-install.yaml).
+# Pairs with the provider; together they ship spans to Tempo's zipkin receiver (was Jaeger, retired in B48).
 apiVersion: telemetry.istio.io/v1
 kind: Telemetry
 metadata:
@@ -8,5 +8,5 @@ metadata:
 spec:
   tracing:
     - providers:
-        - name: jaeger
+        - name: tempo
       randomSamplingPercentage: 100.0

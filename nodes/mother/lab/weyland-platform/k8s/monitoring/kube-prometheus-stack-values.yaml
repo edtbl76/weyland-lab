@@ -75,17 +75,9 @@ grafana:
     # 256Mi was too tight — Grafana + its 2 sidecars run ~310Mi and OOMKilled (→502s).
     requests: { cpu: 50m, memory: 256Mi }
     limits: { memory: 512Mi }
-  # Surface the already-running Jaeger + Alertmanager INSIDE Grafana (no new services).
-  # The Prometheus datasource is auto-provisioned by the chart; these are additions.
+  # Surface already-running backends INSIDE Grafana (no new services). Prometheus is auto-provisioned by the
+  # chart; these are additions. (Jaeger removed — replaced by Tempo in B48.)
   additionalDataSources:
-    # Istio's Jaeger (B8) — query service `tracing` in istio-system, port 80 → 16686.
-    # The addon serves the query UI/API under base path `/jaeger`, so the HTTP API is at
-    # /jaeger/api/* — without the suffix Grafana hits the SPA index.html ('<' unmarshal error).
-    - name: Jaeger
-      type: jaeger
-      uid: jaeger
-      access: proxy
-      url: http://tracing.istio-system.svc.cluster.local:80/jaeger
     # kube-prometheus-stack Alertmanager — view firing alerts in Grafana (routing stays Alertmanager→Telegram).
     - name: Alertmanager
       type: alertmanager
@@ -95,6 +87,18 @@ grafana:
       jsonData:
         implementation: prometheus
         handleGrafanaManagedAlerts: false
+    # Loki (logs, B48) — SingleBinary svc, no gateway. View via Explore → Loki / Logs Drilldown.
+    - name: Loki
+      type: loki
+      uid: loki
+      access: proxy
+      url: http://loki.monitoring.svc.cluster.local:3100
+    # Tempo (traces, B48) — replaces Jaeger as the trace backend; HTTP API :3200. Unlocks the trace Drilldown.
+    - name: Tempo
+      type: tempo
+      uid: tempo
+      access: proxy
+      url: http://tempo.monitoring.svc.cluster.local:3200
 
 prometheus:
   prometheusSpec:
