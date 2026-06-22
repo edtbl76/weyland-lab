@@ -1,7 +1,5 @@
-# Bucket ① apps whose manifests are LOOSE files in k8s/ root (not their own subdir) → Application points at the
-# k8s/ dir with recurse:false + an include-glob so each owns only its files. OBSERVE-ONLY (no automated sync).
-# The skipped loose files (headlamp-*, coredns-lan, rbac-default-sa-noautomount — bucket ③) are simply not
-# included by any glob, so nothing manages them.
+# Bucket ① apps whose manifests are LOOSE files in k8s/ root → Application at the k8s/ dir, recurse:false +
+# an include-glob so each owns only its files. AUTO-SYNC (selfHeal + prune) — git matches what's running.
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
@@ -19,6 +17,8 @@ spec:
   destination:
     server: https://kubernetes.default.svc
     namespace: weyland
+  syncPolicy:
+    automated: { selfHeal: true, prune: true }
 ---
 apiVersion: argoproj.io/v1alpha1
 kind: Application
@@ -37,6 +37,8 @@ spec:
   destination:
     server: https://kubernetes.default.svc
     namespace: weyland
+  syncPolicy:
+    automated: { selfHeal: true, prune: true }
 ---
 apiVersion: argoproj.io/v1alpha1
 kind: Application
@@ -55,6 +57,8 @@ spec:
   destination:
     server: https://kubernetes.default.svc
     namespace: weyland
+  syncPolicy:
+    automated: { selfHeal: true, prune: true }
 ---
 apiVersion: argoproj.io/v1alpha1
 kind: Application
@@ -73,6 +77,8 @@ spec:
   destination:
     server: https://kubernetes.default.svc
     namespace: weyland
+  syncPolicy:
+    automated: { selfHeal: true, prune: true }
 ---
 apiVersion: argoproj.io/v1alpha1
 kind: Application
@@ -91,6 +97,8 @@ spec:
   destination:
     server: https://kubernetes.default.svc
     namespace: weyland
+  syncPolicy:
+    automated: { selfHeal: true, prune: true }
 ---
 apiVersion: argoproj.io/v1alpha1
 kind: Application
@@ -109,6 +117,8 @@ spec:
   destination:
     server: https://kubernetes.default.svc
     namespace: weyland
+  syncPolicy:
+    automated: { selfHeal: true, prune: true }
 ---
 apiVersion: argoproj.io/v1alpha1
 kind: Application
@@ -127,3 +137,5 @@ spec:
   destination:
     server: https://kubernetes.default.svc
     namespace: weyland
+  syncPolicy:
+    automated: { selfHeal: true, prune: true }
