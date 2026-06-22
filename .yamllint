@@ -1,0 +1,6 @@
+# yamllint config for the Woodpecker `yaml-syntax` check. Extends the relaxed preset (keeps the rules that
+# catch genuinely broken YAML — syntax errors, trailing spaces, duplicate keys) but DISABLES line-length:
+# k8s manifests with inline comments routinely run past 80 cols and that's fine, not a defect.
+extends: relaxed
+rules:
+  line-length: disable

@@ -16,5 +16,6 @@ steps:
   - name: yaml-syntax
     image: pipelinecomponents/yamllint:latest
     commands:
-      # Relaxed = syntax/correctness only (no style nags). Catches genuinely broken manifest YAML.
-      - yamllint -d relaxed nodes/mother/lab/weyland-platform/k8s/
+      # Uses .yamllint at the repo root (relaxed + line-length disabled). Catches broken YAML / trailing
+      # spaces / dup keys without the 80-col noise that's meaningless for commented k8s manifests.
+      - yamllint nodes/mother/lab/weyland-platform/k8s/
