@@ -19,3 +19,19 @@ steps:
       # Uses .yamllint at the repo root (relaxed + line-length disabled). Catches broken YAML / trailing
       # spaces / dup keys without the 80-col noise that's meaningless for commented k8s manifests.
       - yamllint nodes/mother/lab/weyland-platform/k8s/
+
+  # Report build status → Port (CI/CD category). Runs on success AND failure. The Port ingest URL comes from a
+  # Woodpecker repo secret (port_ingest_url) so the key stays OUT of this public repo. printf builds the JSON
+  # cleanly (no quote-escaping). Maps to the `ci_pipeline` blueprint.
+  - name: notify-port
+    image: curlimages/curl:latest
+    when:
+      - status: [success, failure]
+    environment:
+      PORT_INGEST_URL:
+        from_secret: port_ingest_url
+    commands:
+      - |
+        printf '{"number":%s,"status":"%s","repo":"%s","branch":"%s","commit":"%s","event":"%s","url":"%s"}' \
+          "$CI_PIPELINE_NUMBER" "$CI_PIPELINE_STATUS" "$CI_REPO" "$CI_COMMIT_BRANCH" "$CI_COMMIT_SHA" "$CI_PIPELINE_EVENT" "$CI_PIPELINE_URL" > /tmp/port.json
+        curl -sf -X POST "$PORT_INGEST_URL" -H "Content-Type: application/json" -d @/tmp/port.json
