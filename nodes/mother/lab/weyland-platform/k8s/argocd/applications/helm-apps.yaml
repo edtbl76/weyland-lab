@@ -1,8 +1,12 @@
 # Bucket ② helm-installed apps → Argo multi-source Applications (chart from its helm repo + values from git via
 # $values). Chart versions pinned to what's DEPLOYED (helm list -A); releaseName pinned to the LIVE release name
-# so chart-templated resource names match (else Argo would create duplicates). OBSERVE-ONLY. NOTE: these show a
-# BIGGER diff than the raw apps — adopting a release from Helm→Argo swaps Helm's `managed-by` metadata for Argo's
-# tracking, so expect more than just the tracking annotation. Safe under observe-only; review before syncing.
+# so chart-templated resource names match. OBSERVE-ONLY (no `automated`) — sync each deliberately.
+#
+# ServerSideApply=true on ALL of them: several charts bundle LARGE CRDs (keda `scaledjobs`, kube-prometheus-stack
+# `prometheuses`/`alertmanagers`). Client-side apply stuffs the whole CRD into the last-applied-configuration
+# annotation → exceeds the 256KB cap → "metadata.annotations: Too long". SSA avoids that annotation entirely.
+#
+# These show a BIGGER diff than the raw apps (Helm→Argo metadata migration). Safe under observe-only; review first.
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
@@ -24,6 +28,9 @@ spec:
   destination:
     server: https://kubernetes.default.svc
     namespace: monitoring
+  syncPolicy:
+    syncOptions:
+      - ServerSideApply=true
 ---
 apiVersion: argoproj.io/v1alpha1
 kind: Application
@@ -46,6 +53,9 @@ spec:
   destination:
     server: https://kubernetes.default.svc
     namespace: monitoring
+  syncPolicy:
+    syncOptions:
+      - ServerSideApply=true
 ---
 apiVersion: argoproj.io/v1alpha1
 kind: Application
@@ -68,6 +78,9 @@ spec:
   destination:
     server: https://kubernetes.default.svc
     namespace: monitoring
+  syncPolicy:
+    syncOptions:
+      - ServerSideApply=true
 ---
 apiVersion: argoproj.io/v1alpha1
 kind: Application
@@ -90,6 +103,9 @@ spec:
   destination:
     server: https://kubernetes.default.svc
     namespace: monitoring
+  syncPolicy:
+    syncOptions:
+      - ServerSideApply=true
 ---
 apiVersion: argoproj.io/v1alpha1
 kind: Application
@@ -112,6 +128,9 @@ spec:
   destination:
     server: https://kubernetes.default.svc
     namespace: opencost
+  syncPolicy:
+    syncOptions:
+      - ServerSideApply=true
 ---
 apiVersion: argoproj.io/v1alpha1
 kind: Application
@@ -134,6 +153,9 @@ spec:
   destination:
     server: https://kubernetes.default.svc
     namespace: woodpecker
+  syncPolicy:
+    syncOptions:
+      - ServerSideApply=true
 ---
 # KEDA + its HTTP add-on were installed with DEFAULT values (no values file in the repo) → chart-only, single source.
 apiVersion: argoproj.io/v1alpha1
@@ -152,6 +174,9 @@ spec:
   destination:
     server: https://kubernetes.default.svc
     namespace: keda
+  syncPolicy:
+    syncOptions:
+      - ServerSideApply=true       # the scaledjobs.keda.sh CRD is what hit the 256KB annotation cap
 ---
 apiVersion: argoproj.io/v1alpha1
 kind: Application
@@ -165,7 +190,10 @@ spec:
     chart: keda-add-ons-http
     targetRevision: 0.15.0
     helm:
-      releaseName: http-add-on        # live release name
+      releaseName: http-add-on
   destination:
     server: https://kubernetes.default.svc
     namespace: keda
+  syncPolicy:
+    syncOptions:
+      - ServerSideApply=true
