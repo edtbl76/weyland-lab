@@ -1,0 +1,139 @@
+# Bucket ① raw-manifest apps that live in their own k8s/ subdir → one Application each, OBSERVE-ONLY (no
+# automated sync) for the brownfield-safe onboard. They'll show Healthy + OutOfSync (just the tracking
+# annotation, like open-webui); flip each to auto-sync once you've eyeballed the diff. No resources-finalizer.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: dagster
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/edtbl76/weyland-lab.git
+    targetRevision: main
+    path: nodes/mother/lab/weyland-platform/k8s/dagster
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: weyland
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: glitchtip
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/edtbl76/weyland-lab.git
+    targetRevision: main
+    path: nodes/mother/lab/weyland-platform/k8s/glitchtip
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: weyland
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: minio
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/edtbl76/weyland-lab.git
+    targetRevision: main
+    path: nodes/mother/lab/weyland-platform/k8s/minio
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: minio
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: mlflow
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/edtbl76/weyland-lab.git
+    targetRevision: main
+    path: nodes/mother/lab/weyland-platform/k8s/mlflow
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: weyland
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: n8n
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/edtbl76/weyland-lab.git
+    targetRevision: main
+    path: nodes/mother/lab/weyland-platform/k8s/n8n
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: n8n
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: sonarqube
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/edtbl76/weyland-lab.git
+    targetRevision: main
+    path: nodes/mother/lab/weyland-platform/k8s/sonarqube
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: weyland
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: unleash
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/edtbl76/weyland-lab.git
+    targetRevision: main
+    path: nodes/mother/lab/weyland-platform/k8s/unleash
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: weyland
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: uptime-kuma
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/edtbl76/weyland-lab.git
+    targetRevision: main
+    path: nodes/mother/lab/weyland-platform/k8s/uptime-kuma
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: weyland
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: litellm
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/edtbl76/weyland-lab.git
+    targetRevision: main
+    path: nodes/mother/lab/weyland-platform/k8s/litellm
+    directory:
+      exclude: 'secret.example.yaml'        # example file, not a real manifest
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: weyland                       # servicemonitor/prometheusrule carry their own ns (monitoring)

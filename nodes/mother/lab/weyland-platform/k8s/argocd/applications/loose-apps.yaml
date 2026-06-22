@@ -1,0 +1,129 @@
+# Bucket ① apps whose manifests are LOOSE files in k8s/ root (not their own subdir) → Application points at the
+# k8s/ dir with recurse:false + an include-glob so each owns only its files. OBSERVE-ONLY (no automated sync).
+# The skipped loose files (headlamp-*, coredns-lan, rbac-default-sa-noautomount — bucket ③) are simply not
+# included by any glob, so nothing manages them.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: postgres
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/edtbl76/weyland-lab.git
+    targetRevision: main
+    path: nodes/mother/lab/weyland-platform/k8s
+    directory:
+      recurse: false
+      include: '{postgres.yaml,postgres-pvc.yaml}'
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: weyland
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: qdrant
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/edtbl76/weyland-lab.git
+    targetRevision: main
+    path: nodes/mother/lab/weyland-platform/k8s
+    directory:
+      recurse: false
+      include: 'qdrant.yaml'
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: weyland
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: weaviate
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/edtbl76/weyland-lab.git
+    targetRevision: main
+    path: nodes/mother/lab/weyland-platform/k8s
+    directory:
+      recurse: false
+      include: 'weaviate.yaml'
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: weyland
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: neo4j
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/edtbl76/weyland-lab.git
+    targetRevision: main
+    path: nodes/mother/lab/weyland-platform/k8s
+    directory:
+      recurse: false
+      include: 'neo4j.yaml'
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: weyland
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: neodash
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/edtbl76/weyland-lab.git
+    targetRevision: main
+    path: nodes/mother/lab/weyland-platform/k8s
+    directory:
+      recurse: false
+      include: 'neodash.yaml'
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: weyland
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: weyland-tool-server
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/edtbl76/weyland-lab.git
+    targetRevision: main
+    path: nodes/mother/lab/weyland-platform/k8s
+    directory:
+      recurse: false
+      include: 'weyland-tool-server.yaml'
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: weyland
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: apisix
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/edtbl76/weyland-lab.git
+    targetRevision: main
+    path: nodes/mother/lab/weyland-platform/k8s
+    directory:
+      recurse: false
+      include: '{apisix.yaml,apisix-etcd.yaml,apisix-dashboard.yaml}'
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: weyland

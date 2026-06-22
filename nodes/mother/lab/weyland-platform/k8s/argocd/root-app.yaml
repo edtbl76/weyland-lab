@@ -1,0 +1,25 @@
+# app-of-apps ROOT — Argo watches k8s/argocd/applications/ and creates one Application per doc there.
+# Auto-sync + selfHeal so pushing a new Application file onboards it automatically; PRUNE OFF on purpose, and
+# the child Applications carry NO resources-finalizer → removing a child file never cascade-deletes a real app.
+# The children themselves are OBSERVE-ONLY (no automated sync) until you trust + flip each. Apply this once;
+# after that, GitOps: commit an Application to applications/ → it appears in Argo.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: weyland-root
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/edtbl76/weyland-lab.git
+    targetRevision: main
+    path: nodes/mother/lab/weyland-platform/k8s/argocd/applications
+    directory:
+      recurse: false
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: argocd
+  syncPolicy:
+    automated:
+      selfHeal: true
+      prune: false        # never remove a child Application (and thus its app) just because a file vanished

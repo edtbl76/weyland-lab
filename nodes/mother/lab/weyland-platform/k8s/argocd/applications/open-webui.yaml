@@ -16,4 +16,7 @@ spec:
   destination:
     server: https://kubernetes.default.svc
     namespace: weyland
-  # No `syncPolicy.automated` and no `prune` on purpose → observe-only.
+  syncPolicy:
+    automated:        # the first onboard — adopted + flipped to auto-sync live; git now matches that state.
+      selfHeal: true  # revert out-of-band drift back to git
+      prune: true     # remove resources deleted from git
