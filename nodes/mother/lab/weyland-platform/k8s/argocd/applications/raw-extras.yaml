@@ -1,0 +1,55 @@
+# Raw manifests that live alongside helm values in the helm dirs → their own Applications (include/exclude globs
+# so they don't collide with the helm Applications, which only consume the *-values.yaml). OBSERVE-ONLY.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: loki-rules
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/edtbl76/weyland-lab.git
+    targetRevision: main
+    path: nodes/mother/lab/weyland-platform/k8s/loki
+    directory:
+      recurse: false
+      include: 'loki-rules-configmap.yaml'      # the Loki ruler rules (B51); the *-values.yaml are helm, not manifests
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: monitoring
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: monitoring-extras
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/edtbl76/weyland-lab.git
+    targetRevision: main
+    path: nodes/mother/lab/weyland-platform/k8s/monitoring
+    directory:
+      recurse: false
+      exclude: 'kube-prometheus-stack-values.yaml'   # that's helm values; the rest are raw (ServiceMonitors, grafana-ingress, telegram-test-rule, pve-exporter)
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: monitoring
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: opencost-ingress
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/edtbl76/weyland-lab.git
+    targetRevision: main
+    path: nodes/mother/lab/weyland-platform/k8s/opencost
+    directory:
+      recurse: false
+      include: 'opencost-ingress.yaml'           # the helm Application owns opencost-values.yaml
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: opencost

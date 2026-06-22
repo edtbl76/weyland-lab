@@ -1,0 +1,171 @@
+# Bucket ② helm-installed apps → Argo multi-source Applications (chart from its helm repo + values from git via
+# $values). Chart versions pinned to what's DEPLOYED (helm list -A); releaseName pinned to the LIVE release name
+# so chart-templated resource names match (else Argo would create duplicates). OBSERVE-ONLY. NOTE: these show a
+# BIGGER diff than the raw apps — adopting a release from Helm→Argo swaps Helm's `managed-by` metadata for Argo's
+# tracking, so expect more than just the tracking annotation. Safe under observe-only; review before syncing.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: loki
+  namespace: argocd
+spec:
+  project: default
+  sources:
+    - repoURL: https://grafana.github.io/helm-charts
+      chart: loki
+      targetRevision: 6.55.0
+      helm:
+        releaseName: loki
+        valueFiles:
+          - $values/nodes/mother/lab/weyland-platform/k8s/loki/loki-values.yaml
+    - repoURL: https://github.com/edtbl76/weyland-lab.git
+      targetRevision: main
+      ref: values
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: monitoring
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: alloy
+  namespace: argocd
+spec:
+  project: default
+  sources:
+    - repoURL: https://grafana.github.io/helm-charts
+      chart: alloy
+      targetRevision: 1.10.0
+      helm:
+        releaseName: alloy
+        valueFiles:
+          - $values/nodes/mother/lab/weyland-platform/k8s/loki/alloy-values.yaml
+    - repoURL: https://github.com/edtbl76/weyland-lab.git
+      targetRevision: main
+      ref: values
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: monitoring
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: tempo
+  namespace: argocd
+spec:
+  project: default
+  sources:
+    - repoURL: https://grafana.github.io/helm-charts
+      chart: tempo
+      targetRevision: 1.24.4
+      helm:
+        releaseName: tempo
+        valueFiles:
+          - $values/nodes/mother/lab/weyland-platform/k8s/tempo/tempo-values.yaml
+    - repoURL: https://github.com/edtbl76/weyland-lab.git
+      targetRevision: main
+      ref: values
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: monitoring
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: kube-prometheus-stack
+  namespace: argocd
+spec:
+  project: default
+  sources:
+    - repoURL: https://prometheus-community.github.io/helm-charts
+      chart: kube-prometheus-stack
+      targetRevision: 86.2.2
+      helm:
+        releaseName: monitoring        # live release is named "monitoring", NOT kube-prometheus-stack
+        valueFiles:
+          - $values/nodes/mother/lab/weyland-platform/k8s/monitoring/kube-prometheus-stack-values.yaml
+    - repoURL: https://github.com/edtbl76/weyland-lab.git
+      targetRevision: main
+      ref: values
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: monitoring
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: opencost
+  namespace: argocd
+spec:
+  project: default
+  sources:
+    - repoURL: https://opencost.github.io/opencost-helm-chart
+      chart: opencost
+      targetRevision: 2.5.23
+      helm:
+        releaseName: opencost
+        valueFiles:
+          - $values/nodes/mother/lab/weyland-platform/k8s/opencost/opencost-values.yaml
+    - repoURL: https://github.com/edtbl76/weyland-lab.git
+      targetRevision: main
+      ref: values
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: opencost
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: woodpecker
+  namespace: argocd
+spec:
+  project: default
+  sources:
+    - repoURL: https://woodpecker-ci.org
+      chart: woodpecker
+      targetRevision: 3.6.4
+      helm:
+        releaseName: woodpecker
+        valueFiles:
+          - $values/nodes/mother/lab/weyland-platform/k8s/woodpecker/woodpecker-values.yaml
+    - repoURL: https://github.com/edtbl76/weyland-lab.git
+      targetRevision: main
+      ref: values
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: woodpecker
+---
+# KEDA + its HTTP add-on were installed with DEFAULT values (no values file in the repo) → chart-only, single source.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: keda
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://kedacore.github.io/charts
+    chart: keda
+    targetRevision: 2.20.1
+    helm:
+      releaseName: keda
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: keda
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: keda-http-add-on
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://kedacore.github.io/charts
+    chart: keda-add-ons-http
+    targetRevision: 0.15.0
+    helm:
+      releaseName: http-add-on        # live release name
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: keda
