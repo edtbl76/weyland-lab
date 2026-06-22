@@ -1,0 +1,13 @@
+# OpenTofu local artifacts — state lives in MinIO, never on disk; the lock file IS committed.
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfvars
+crash.log
+crash.*.log
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+.terraformrc
+terraform.rc
