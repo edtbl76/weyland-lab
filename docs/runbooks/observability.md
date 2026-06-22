@@ -239,3 +239,36 @@ The ingress controller is **not** scraped. This is a risk/value call specific to
 **To add it later:** drop a `HelmChartConfig` overriding the k3s Traefik chart values, then a ServiceMonitor
 selecting the `traefik` service in `kube-system`. Validate the values before letting the helm-controller
 reconcile (it's the front door for every UI).
+
+## Phase 5 — log alerts via the Loki ruler (B51) ✅ (2026-06-21)
+
+Alert on **log patterns** (not just metrics) by enabling Loki's **ruler** → the **same Alertmanager → Telegram**
+pipeline as Phase 2a. One alert system for metrics + logs (shared routing/silencing/grouping); no second
+alerting stack. Chosen over Grafana-managed alerts precisely to keep one pipeline.
+
+### 1. Ruler config + rules mount (in `k8s/loki/loki-values.yaml`)
+- `loki.rulerConfig`: `storage.type: local` + `storage.local.directory: /rules`, `rule_path: /tmp/loki-rules`,
+  `alertmanager_url: http://monitoring-kube-prometheus-alertmanager.monitoring.svc.cluster.local:9093`,
+  `enable_alertmanager_v2: true`.
+- `singleBinary.extraVolumes`/`extraVolumeMounts`: mount the `loki-rules` ConfigMap at **`/rules/fake`** — the
+  single-tenant dir the ruler scans (`auth_enabled: false` → tenant literally `fake`). The chart's own
+  rules-sidecar path in SingleBinary is fiddly; mounting our own ConfigMap is deterministic.
+
+### 2. Rules (in `k8s/loki/loki-rules-configmap.yaml`)
+Prometheus-style alerting rules with **LogQL** exprs, e.g. `WeylandErrorLogSpike`:
+`sum(count_over_time({namespace="weyland"} |~ ` + "`(?i)(error|exception|traceback)`" + ` [5m])) > 100`.
+Threshold is a tunable noise floor (a busy debug session hit ~114 — start at 100, adjust to your baseline).
+
+### 3. Apply
+```bash
+kubectl apply -f ~/lab/weyland-platform/k8s/loki/loki-rules-configmap.yaml
+helm upgrade loki grafana/loki -n monitoring -f ~/lab/weyland-platform/k8s/loki/loki-values.yaml --version 6.55.0
+kubectl rollout restart statefulset/loki -n monitoring     # forces an immediate rule reload
+```
+
+### 4. Validate
+`kubectl logs -n monitoring loki-0 -c loki | grep -iE 'ruler|rule file|alertmanager'` → expect
+`ruler up and running` + `updating rule file file=/tmp/loki-rules/fake/<file>` + the query executing. A firing
+rule reaches the **Weyland Alerts** Telegram chat (same receiver as metric alerts); it auto-**resolves** when
+the count falls back under threshold (a resolved ping confirms the resolution path too). Add rules under
+`groups:` → re-apply + restart.

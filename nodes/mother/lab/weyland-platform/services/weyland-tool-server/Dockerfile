@@ -36,6 +36,10 @@ RUN python -c "from sentence_transformers import CrossEncoder; CrossEncoder('cro
 ENV HF_HUB_OFFLINE=1 \
     TRANSFORMERS_OFFLINE=1
 
+# B51 — error tracking SDK (GlitchTip/Sentry). Installed AFTER the model bakes so it doesn't invalidate the
+# expensive HF/guardrail download layers (this stays a fast incremental rebuild).
+RUN pip install --no-cache-dir sentry-sdk
+
 COPY main.py /app/main.py
 COPY guardrails /app/guardrails
 

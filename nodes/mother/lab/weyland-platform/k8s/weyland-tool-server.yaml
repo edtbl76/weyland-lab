@@ -77,6 +77,13 @@ spec:
             # IP is DHCP-reserved; default model is overridable per request via /context/ask.
             - name: OLLAMA_BASE_URL
               value: http://192.168.1.244:11434/v1
+            # B51 — error tracking → GlitchTip. Internal-service DSN (in-cluster apps can't resolve the
+            # *.weyland.lab ingress); empty/unset DSN = SDK no-op.
+            - name: SENTRY_DSN
+              valueFrom:
+                secretKeyRef:
+                  name: tool-server-sentry
+                  key: SENTRY_DSN
             - name: OLLAMA_MODEL
               value: gpt-oss:20b   # B4 panel-validated most-faithful RAG model (2026-06-13)
 ---

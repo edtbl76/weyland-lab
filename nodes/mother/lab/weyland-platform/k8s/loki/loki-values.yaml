@@ -34,6 +34,18 @@ loki:
     delete_request_store: s3
   pattern_ingester:
     enabled: false
+  # B51 — ruler: evaluate LogQL alert rules → existing Alertmanager → Telegram (one alert pipeline for metrics +
+  # logs). Rules are mounted from the `loki-rules` ConfigMap at /rules/fake (the single-tenant "fake" dir the
+  # ruler scans); rule_path is the ruler's writable working copy.
+  rulerConfig:
+    storage:
+      type: local
+      local:
+        directory: /rules
+    rule_path: /tmp/loki-rules
+    alertmanager_url: http://monitoring-kube-prometheus-alertmanager.monitoring.svc.cluster.local:9093
+    enable_alertmanager_v2: true
+    enable_api: true
 
 singleBinary:
   replicas: 1
@@ -58,6 +70,14 @@ singleBinary:
       memory: 256Mi
     limits:
       memory: 1Gi
+  # B51 — mount the alert-rules ConfigMap at the ruler's single-tenant dir (read-only; ruler copies to rule_path).
+  extraVolumes:
+    - name: loki-rules
+      configMap:
+        name: loki-rules
+  extraVolumeMounts:
+    - name: loki-rules
+      mountPath: /rules/fake
 
 # Lab trims — everything below SingleBinary off
 minio:

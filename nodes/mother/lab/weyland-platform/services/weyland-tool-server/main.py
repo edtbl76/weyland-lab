@@ -9,6 +9,7 @@ from typing import Literal
 
 import httpx
 import psycopg2
+import sentry_sdk
 import weaviate
 from fastapi import Depends, FastAPI, Header, HTTPException, Query, Response
 from fastapi_mcp import FastApiMCP
@@ -24,6 +25,15 @@ from guardrails import store as guard_store
 from guardrails.config import hook_chain
 from guardrails.pipeline import GuardrailPipeline
 from guardrails.verdict import Hook, Mode
+
+# B51 — error tracking → GlitchTip (Sentry SDK). DSN from env; empty DSN = disabled (no-op), so the image
+# still runs standalone for dev. FastAPI/Starlette are auto-instrumented by the SDK on init.
+sentry_sdk.init(
+    dsn=os.getenv("SENTRY_DSN", ""),
+    environment=os.getenv("SENTRY_ENVIRONMENT", "weyland"),
+    traces_sample_rate=0.0,
+    send_default_pii=False,
+)
 
 MODEL_NAME = "BAAI/bge-small-en-v1.5"
 VERSION = "0.4.0"

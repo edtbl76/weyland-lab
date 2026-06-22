@@ -9,3 +9,4 @@ neo4j
 httpx
 minio
 mkdocs-techdocs-core
+sentry-sdk

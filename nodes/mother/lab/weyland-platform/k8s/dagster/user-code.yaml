@@ -93,6 +93,12 @@ spec:
                 secretKeyRef:
                   name: aidlc-kb-minio-secret
                   key: secret_key
+            # B51 — error tracking → GlitchTip (internal-service DSN). Empty/unset = SDK no-op.
+            - name: SENTRY_DSN
+              valueFrom:
+                secretKeyRef:
+                  name: dagster-sentry
+                  key: SENTRY_DSN
           volumeMounts:
             - name: dagster-config
               mountPath: /opt/dagster/dagster_home/dagster.yaml

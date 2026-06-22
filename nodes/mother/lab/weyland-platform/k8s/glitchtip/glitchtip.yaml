@@ -1,0 +1,217 @@
+# B51 — GlitchTip (error tracking, Sentry-SDK-compatible). web + celery worker + a small Valkey (6.2's cache
+# backend `django_vcache` is REQUIRED — the allauth rate-limiter uses it, so without it every auth request 500s;
+# Valkey also serves as the Celery broker). Meshed for STRICT-mTLS Postgres (db/role `glitchtip`). GlitchTip does
+# NOT auto-migrate → migrate initContainer. Own login (admin via createsuperuser). Apps send via the Sentry SDK.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: glitchtip-valkey
+  namespace: weyland
+  labels:
+    app: glitchtip-valkey
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: glitchtip-valkey
+  template:
+    metadata:
+      labels:
+        app: glitchtip-valkey
+    spec:
+      containers:
+        - name: valkey
+          image: valkey/valkey:8-alpine
+          ports:
+            - containerPort: 6379
+          resources:
+            requests:
+              cpu: 25m
+              memory: 32Mi
+            limits:
+              memory: 128Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: glitchtip-valkey
+  namespace: weyland
+  labels:
+    app: glitchtip-valkey
+spec:
+  selector:
+    app: glitchtip-valkey
+  ports:
+    - port: 6379
+      targetPort: 6379
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: glitchtip-web
+  namespace: weyland
+  labels:
+    app: glitchtip-web
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: glitchtip-web
+  template:
+    metadata:
+      labels:
+        app: glitchtip-web
+        sidecar.istio.io/inject: "true"   # STRICT Postgres
+    spec:
+      # GlitchTip does NOT auto-migrate — run it before web starts (native Istio sidecar is up first in 1.30, so
+      # this reaches STRICT Postgres; if a fresh deploy fails here, run `./manage.py migrate` manually).
+      initContainers:
+        - name: migrate
+          image: glitchtip/glitchtip:6.2.0
+          command: ["./manage.py", "migrate", "--noinput"]
+          env:
+            - name: SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: glitchtip-secret
+                  key: SECRET_KEY
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: glitchtip-secret
+                  key: DATABASE_URL
+      containers:
+        - name: glitchtip
+          image: glitchtip/glitchtip:6.2.0
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8000
+          env:
+            - name: PORT
+              value: "8000"
+            - name: GLITCHTIP_DOMAIN
+              value: https://glitchtip.weyland.lab
+            - name: ALLOWED_HOSTS
+              value: "*"   # k8s readiness probe hits the pod IP — a restricted host list 400s it. LAN-only behind Traefik.
+            - name: REDIS_URL
+              value: redis://glitchtip-valkey:6379/0
+            - name: VALKEY_URL
+              value: valkey://glitchtip-valkey:6379/0
+            - name: EMAIL_URL
+              value: consolemail://
+            - name: DEFAULT_FROM_EMAIL
+              value: glitchtip@weyland.lab
+            - name: ENABLE_USER_REGISTRATION
+              value: "false"   # locked — admin created via createsuperuser; open registration 500s anyway
+            - name: SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: glitchtip-secret
+                  key: SECRET_KEY
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: glitchtip-secret
+                  key: DATABASE_URL
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 8000
+            initialDelaySeconds: 30
+            periodSeconds: 15
+          resources:
+            requests:
+              cpu: 100m
+              memory: 384Mi
+            limits:
+              memory: 768Mi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: glitchtip-worker
+  namespace: weyland
+  labels:
+    app: glitchtip-worker
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: glitchtip-worker
+  template:
+    metadata:
+      labels:
+        app: glitchtip-worker
+        sidecar.istio.io/inject: "true"
+    spec:
+      containers:
+        - name: glitchtip
+          image: glitchtip/glitchtip:6.2.0
+          imagePullPolicy: IfNotPresent
+          command: ["./bin/run-celery-with-beat.sh"]
+          env:
+            - name: GLITCHTIP_DOMAIN
+              value: https://glitchtip.weyland.lab
+            - name: REDIS_URL
+              value: redis://glitchtip-valkey:6379/0
+            - name: VALKEY_URL
+              value: valkey://glitchtip-valkey:6379/0
+            - name: EMAIL_URL
+              value: consolemail://
+            - name: DEFAULT_FROM_EMAIL
+              value: glitchtip@weyland.lab
+            - name: SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: glitchtip-secret
+                  key: SECRET_KEY
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: glitchtip-secret
+                  key: DATABASE_URL
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              memory: 512Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: glitchtip
+  namespace: weyland
+  labels:
+    app: glitchtip-web
+spec:
+  type: ClusterIP
+  selector:
+    app: glitchtip-web
+  ports:
+    - name: http
+      port: 8000
+      targetPort: 8000
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: glitchtip
+  namespace: weyland
+spec:
+  tls:
+    - hosts:
+        - glitchtip.weyland.lab
+      secretName: weyland-wildcard-tls
+  rules:
+    - host: glitchtip.weyland.lab
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: glitchtip
+                port:
+                  number: 8000

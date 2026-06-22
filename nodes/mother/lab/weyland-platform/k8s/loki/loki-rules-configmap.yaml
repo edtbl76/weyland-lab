@@ -1,0 +1,28 @@
+# B51 — Loki ruler alert rules (LogQL). Mounted into the Loki SingleBinary at /rules/fake (the single-tenant
+# "fake" dir the ruler scans). Alerts fire to the existing Alertmanager (rulerConfig.alertmanager_url) → Telegram,
+# so log alerts share the same pipeline as metric alerts. Add more rules under `groups:`; re-apply + restart loki.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: loki-rules
+  namespace: monitoring
+  labels:
+    app: loki
+data:
+  weyland.yaml: |
+    groups:
+      - name: weyland-log-alerts
+        rules:
+          # Error/exception log spike across the weyland namespace (catches storms, not single errors).
+          # Threshold 100/5m is a starting baseline (an active debug session hit ~114) — tune to your noise floor:
+          # lower if real incidents slip under it, raise if it cries wolf. A level-aware rule would be more precise
+          # but needs consistent structured logging across apps (deferred).
+          - alert: WeylandErrorLogSpike
+            expr: sum(count_over_time({namespace="weyland"} |~ `(?i)(error|exception|traceback)` [5m])) > 100
+            for: 2m
+            labels:
+              severity: warning
+              source: loki
+            annotations:
+              summary: "Weyland error-log spike (logs)"
+              description: "{{ $value }} error/exception log lines in the last 5m in namespace weyland."

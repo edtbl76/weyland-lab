@@ -64,7 +64,8 @@ mkcert wildcard cert; resolve from rogueone (`/etc/hosts`) or via CoreDNS. Share
 | **Open WebUI** (voice/chat → Ollama + whisper) | `https://chat.weyland.lab` |
 | **LiteLLM** (model gateway admin UI / `/ui`) | `https://litellm.weyland.lab` |
 | **Kiali** (Istio mesh graph + mTLS, **read-only**, dev-password; traces from Tempo) | `https://kiali.weyland.lab` |
-| Grafana (metrics + logs (Loki) + traces (Tempo) + alerts (Alertmanager) — Explore/Drilldown) | `https://grafana.weyland.lab` |
+| Grafana (metrics + logs (Loki) + traces (Tempo) + alerts (Alertmanager, incl. **Loki-ruler log alerts**) — Explore/Drilldown) | `https://grafana.weyland.lab` |
+| **GlitchTip** (error tracking — Sentry-SDK-compatible; own login) | `https://glitchtip.weyland.lab` |
 | Dagster | `https://dagster.weyland.lab` |
 | n8n | `https://n8n.weyland.lab` |
 | Headlamp (k8s UI) | `https://headlamp.weyland.lab` |
@@ -72,7 +73,7 @@ mkcert wildcard cert; resolve from rogueone (`/etc/hosts`) or via CoreDNS. Share
 | **weyland IDP** (Backstage — ⚠️ **DECOMMISSION IN PROGRESS**, being replaced by Port.io) | `https://idp.weyland.lab` — see [runbooks/weyland-idp.md](runbooks/weyland-idp.md) |
 | **Port.io** (IDP — SaaS; **launcher/catalog**, not status board) | `https://app.port.io` — EU org; **Launcher** dashboard (`endpoint` bp). Integrations: K8s, Istio, GitHub, Linear, Unleash (`feature_flag`), SonarQube (`code_quality`), Trivy+Semgrep (`security_scan`) |
 | **MLflow** (experiment tracking + model registry; B10+B16, dev-password) | `https://mlflow.weyland.lab` |
-| **Uptime Kuma** (live status board — own auth; **23 monitors**, Telegram paging; Port webhook retired) | `https://kuma.weyland.lab` |
+| **Uptime Kuma** (live status board — own auth; **24 monitors**, Telegram paging; Port webhook retired) | `https://kuma.weyland.lab` |
 | **Linear** (roadmap/task board — SaaS; Claude via MCP, Port ingests for status) | `https://linear.app/emangini` — projects: Weyland Lab / Stud.IO / Service Transformation |
 | **Unleash** (feature flags; OSS self-hosted, own login admin/dev-pass; → Port `feature_flag` webhook) | `https://unleash.weyland.lab` — Python SDK for tool-server/Hermes; see [runbooks/unleash.md](runbooks/unleash.md) |
 | **SonarQube** (code quality / static analysis; own login; → Port `code_quality` webhook) | `https://sonarqube.weyland.lab` — meshed Postgres backend; on-demand scan Jobs (+ Trivy/Semgrep). See [runbooks/code-quality.md](runbooks/code-quality.md) |
