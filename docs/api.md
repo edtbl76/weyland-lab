@@ -68,6 +68,7 @@ mkcert wildcard cert; resolve from rogueone (`/etc/hosts`) or via CoreDNS. Share
 | **GlitchTip** (error tracking — Sentry-SDK-compatible; own login) | `https://glitchtip.weyland.lab` |
 | **OpenCost** (k8s cost allocation — custom on-prem pricing; LAN-only) | `https://opencost.weyland.lab` |
 | **Woodpecker CI** (CI/CD — GitHub OAuth login; k8s backend; manual/cron triggers) | `https://woodpecker.weyland.lab` |
+| **Argo CD** (GitOps CD — local admin; app-of-apps, 28 apps) | `https://argocd.weyland.lab` |
 | Dagster | `https://dagster.weyland.lab` |
 | n8n | `https://n8n.weyland.lab` |
 | Headlamp (k8s UI) | `https://headlamp.weyland.lab` |
