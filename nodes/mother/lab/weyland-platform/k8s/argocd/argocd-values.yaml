@@ -1,0 +1,13 @@
+# Argo CD — GitOps for the weyland k8s apps (IaC track). Reconciles PULL-based from the public weyland-lab repo
+# (no inbound webhook needed → LAN-safe). Behind Traefik TLS; the server runs INSECURE internally so Traefik
+# terminates TLS without Argo's own TLS causing a redirect loop. LAN-only at argocd.weyland.lab. Local admin login
+# for now (SSO via Keycloak comes with B1). Apps onboarded scoped + prune-OFF first (brownfield-safe).
+global:
+  domain: argocd.weyland.lab
+configs:
+  params:
+    server.insecure: true        # Traefik does HTTPS; Argo serves HTTP internally
+dex:
+  enabled: false                 # no SSO yet (local admin); Keycloak/OIDC later (B1)
+notifications:
+  enabled: false                 # add later if we want Argo→Telegram

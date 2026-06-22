@@ -1,0 +1,19 @@
+# First Argo CD onboard — open-webui (non-critical chat UI, weyland ns). OBSERVE-ONLY: no syncPolicy.automated
+# → manual sync; no prune. Argo SHOWS Synced/OutOfSync + health and touches nothing until you click Sync.
+# Brownfield-safe proof. Source = the public weyland-lab repo (Argo pulls — LAN-safe). Once trusted, this
+# Application moves into a git-managed clusters/weyland/ path (app-of-apps) and gets automated sync.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: open-webui
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/edtbl76/weyland-lab.git
+    targetRevision: main
+    path: nodes/mother/lab/weyland-platform/k8s/open-webui
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: weyland
+  # No `syncPolicy.automated` and no `prune` on purpose → observe-only.

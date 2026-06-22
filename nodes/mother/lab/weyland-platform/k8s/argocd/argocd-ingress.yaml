@@ -1,0 +1,24 @@
+# Argo CD UI via Traefik TLS at argocd.weyland.lab. Reuses the mkcert wildcard cert (copy weyland-wildcard-tls
+# into the argocd ns once). Server is `server.insecure: true`, so route to argocd-server:80 (HTTP) — Traefik
+# terminates TLS. CoreDNS wildcard resolves this to mother; rogueone needs an explicit /etc/hosts line.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: argocd-server
+  namespace: argocd
+spec:
+  tls:
+    - hosts:
+        - argocd.weyland.lab
+      secretName: weyland-wildcard-tls
+  rules:
+    - host: argocd.weyland.lab
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: argocd-server
+                port:
+                  number: 80
