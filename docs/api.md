@@ -66,6 +66,7 @@ mkcert wildcard cert; resolve from rogueone (`/etc/hosts`) or via CoreDNS. Share
 | **Kiali** (Istio mesh graph + mTLS, **read-only**, dev-password; traces from Tempo) | `https://kiali.weyland.lab` |
 | Grafana (metrics + logs (Loki) + traces (Tempo) + alerts (Alertmanager, incl. **Loki-ruler log alerts**) — Explore/Drilldown) | `https://grafana.weyland.lab` |
 | **GlitchTip** (error tracking — Sentry-SDK-compatible; own login) | `https://glitchtip.weyland.lab` |
+| **OpenCost** (k8s cost allocation — custom on-prem pricing; LAN-only) | `https://opencost.weyland.lab` |
 | Dagster | `https://dagster.weyland.lab` |
 | n8n | `https://n8n.weyland.lab` |
 | Headlamp (k8s UI) | `https://headlamp.weyland.lab` |

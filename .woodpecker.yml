@@ -1,0 +1,20 @@
+# Woodpecker CI — weyland (CI/CD category). Runs on the kubernetes backend: each step is a pod in the cluster.
+# LAN-only: GitHub can't reach woodpecker.weyland.lab to deliver push webhooks, so trigger via "Run pipeline"
+# (manual) or cron. The `manual`/`cron` events below are what actually fire here; push/pull_request are kept
+# for the day this (or a repo) is reachable. First pipeline = prove the mechanism + one real check.
+when:
+  - event: [manual, cron, push, pull_request]
+
+steps:
+  - name: info
+    image: alpine
+    commands:
+      - echo "Woodpecker CI on weyland — this step is running as a pod IN the cluster (k8s backend)."
+      - echo "commit ${CI_COMMIT_SHA} on branch ${CI_COMMIT_BRANCH}"
+      - ls -la
+
+  - name: yaml-syntax
+    image: pipelinecomponents/yamllint:latest
+    commands:
+      # Relaxed = syntax/correctness only (no style nags). Catches genuinely broken manifest YAML.
+      - yamllint -d relaxed nodes/mother/lab/weyland-platform/k8s/

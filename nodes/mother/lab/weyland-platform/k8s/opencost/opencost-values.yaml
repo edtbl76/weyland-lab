@@ -1,0 +1,46 @@
+# B55 — OpenCost: k8s cost allocation → Port Cloud Cost category. Reads the existing kube-prometheus-stack
+# Prometheus (monitoring ns) for resource usage. Bare-metal MS-A2 = no cloud bill → custom on-prem pricing
+# (set in step 2 via a pricing ConfigMap). UI exposed via Traefik in a later step. Chart: opencost/opencost.
+opencost:
+  exporter:
+    defaultClusterId: weyland-cluster
+    # No cloud provider → OpenCost falls back to the custom pricing model (step 2). Empty key = on-prem mode.
+    cloudProviderApiKey: ""
+    resources:
+      requests:
+        cpu: 50m
+        memory: 128Mi
+      limits:
+        memory: 256Mi
+  prometheus:
+    # Point at the in-cluster kube-prometheus-stack Prometheus (NOT the bundled one).
+    internal:
+      enabled: true
+      serviceName: monitoring-kube-prometheus-prometheus
+      namespaceName: monitoring
+      port: 9090
+  ui:
+    enabled: true
+  metrics:
+    serviceMonitor:
+      enabled: true        # let the existing Prometheus scrape OpenCost's own cost metrics
+      additionalLabels:
+        release: monitoring
+  # B55 — custom on-prem pricing (bare metal, no cloud bill). Box: MS-A2, Ryzen 9 9955HX, 32 vCPU / 96 GB.
+  #   hardware: $2500 / 5yr (60mo) = $41.67/mo · power: ~55W avg × 730h × $0.16/kWh (Wilmington MA = RMLD) = $6.42/mo
+  #   → total $48.09/mo, split 50/50 CPU:RAM over the FULL box → per-core-hr + per-GB-hr below. k3s slice ≈ $14/mo.
+  #   Re-tune any input (watts/$kWh/years/price) → recompute these three rates + `helm upgrade`.
+  customPricing:
+    enabled: true
+    createConfigmap: true
+    costModel:
+      description: "weyland on-prem — MS-A2 (Ryzen 9 9955HX, 32 vCPU / 96GB); $2500/5yr + ~55W @ $0.16/kWh; 50/50 CPU:RAM"
+      CPU: "0.001029"
+      spotCPU: "0.001029"
+      RAM: "0.000343"
+      spotRAM: "0.000343"
+      GPU: "0"
+      storage: "0.0000004"
+      zoneNetworkEgress: "0"
+      regionNetworkEgress: "0"
+      internetNetworkEgress: "0"

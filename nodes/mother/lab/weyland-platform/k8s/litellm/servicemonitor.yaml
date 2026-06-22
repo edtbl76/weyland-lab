@@ -10,4 +10,4 @@ spec:
       app: litellm
   endpoints:
     - port: http
-      path: /metrics
+      path: /metrics/   # B55: LiteLLM 307-redirects /metrics → /metrics/; scrape the slashed path to avoid the bounce

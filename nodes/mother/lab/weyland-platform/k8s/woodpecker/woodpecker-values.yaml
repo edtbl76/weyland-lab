@@ -1,0 +1,50 @@
+# CI/CD category — Woodpecker CI on k3s. Server (UI + orchestration) + agent (KUBERNETES backend: pipeline
+# steps run as pods IN the cluster, so pipelines can build/deploy the weyland apps). LAN-only
+# (woodpecker.weyland.lab); GitHub OAuth login; manual/cron triggers (GitHub can't reach the LAN for push
+# webhooks). Intended as the shared build farm — Stud.IO migrates onto it later. Chart: woodpecker-ci/woodpecker.
+agent:
+  env:
+    WOODPECKER_SERVER: 'woodpecker-server:9000'
+    WOODPECKER_BACKEND: kubernetes
+    WOODPECKER_BACKEND_K8S_NAMESPACE: woodpecker
+    WOODPECKER_BACKEND_K8S_STORAGE_CLASS: local-path
+    WOODPECKER_BACKEND_K8S_VOLUME_SIZE: 5G
+    WOODPECKER_BACKEND_K8S_STORAGE_RWX: false        # single-node k3s → local-path is RWO; steps run sequentially
+    WOODPECKER_CONNECT_RETRY_COUNT: '3'
+  persistence:
+    enabled: false
+  serviceAccount:
+    create: true                                     # + chart RBAC: lets the agent spawn step pods/PVCs in ns woodpecker
+
+server:
+  enabled: true
+  env:
+    WOODPECKER_HOST: 'https://woodpecker.weyland.lab'
+    WOODPECKER_ADMIN: 'edtbl76'                       # GitHub username → first admin
+    WOODPECKER_GITHUB: 'true'                         # forge = GitHub
+    WOODPECKER_OPEN: 'false'                          # no open registration (admin-gated)
+  # GitHub OAuth client + secret live in the woodpecker-secret you create (WOODPECKER_GITHUB_CLIENT/SECRET).
+  extraSecretNamesForEnvFrom:
+    - woodpecker-secret
+  createAgentSecret: true                             # chart makes woodpecker-default-agent-secret (server + agent share it)
+  persistentVolume:
+    enabled: true
+    size: 5Gi
+    storageClass: local-path                          # SQLite DB at /var/lib/woodpecker
+  service:
+    type: ClusterIP
+    port: 80
+  ingress:
+    enabled: true
+    ingressClassName: traefik
+    hosts:
+      - host: woodpecker.weyland.lab
+        paths:
+          - path: /
+            backend:
+              serviceName: woodpecker-server
+              servicePort: 80
+    tls:
+      - secretName: weyland-wildcard-tls
+        hosts:
+          - woodpecker.weyland.lab

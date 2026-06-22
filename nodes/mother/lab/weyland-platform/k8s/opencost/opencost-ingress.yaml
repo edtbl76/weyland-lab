@@ -1,0 +1,25 @@
+# B55 — OpenCost UI via Traefik TLS at opencost.weyland.lab. Reuses the mkcert wildcard cert
+# (weyland-wildcard-tls — must exist in the opencost ns; copy it from the weyland ns once). The UI
+# service is opencost:9090 (the cost-model API is on 9003). CoreDNS *.weyland.lab wildcard already
+# resolves this to mother; rogueone needs an explicit /etc/hosts line (it doesn't use CoreDNS).
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: opencost
+  namespace: opencost
+spec:
+  tls:
+    - hosts:
+        - opencost.weyland.lab
+      secretName: weyland-wildcard-tls
+  rules:
+    - host: opencost.weyland.lab
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: opencost
+                port:
+                  number: 9090

@@ -21,10 +21,10 @@ spec:
           annotations:
             summary: "LiteLLM hosted-model egress is RUNNING (off-LAN model access enabled)"
             description: "Close the valve to disable: kubectl scale deploy/litellm -n weyland --replicas=0"
-        # Spend: only meaningful for paid models (free Gemini/OpenRouter routes cost $0).
-        # CONFIRM the metric name from /metrics after deploy (litellm_total_spend / litellm_spend_metric_total).
+        # Spend: only meaningful for paid models (free Gemini/OpenRouter routes cost $0). Metric name CONFIRMED
+        # from /metrics (B55): litellm_spend_metric_total (counter; series materializes once a request logs spend).
         - alert: LiteLLMSpendObserved
-          expr: increase(litellm_total_spend[24h]) > 1
+          expr: increase(litellm_spend_metric_total[24h]) > 1
           for: 0m
           labels:
             severity: warning
