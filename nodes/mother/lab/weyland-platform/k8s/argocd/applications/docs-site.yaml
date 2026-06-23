@@ -1,0 +1,17 @@
+# docs-site — standalone MkDocs Material docs site (B59, TechDocs parity). Auto-sync (new clean app).
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: docs-site
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/edtbl76/weyland-lab.git
+    targetRevision: main
+    path: nodes/mother/lab/weyland-platform/k8s/docs-site
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: weyland
+  syncPolicy:
+    automated: { selfHeal: true, prune: true }

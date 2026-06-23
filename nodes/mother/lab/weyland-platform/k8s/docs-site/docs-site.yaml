@@ -1,0 +1,83 @@
+# docs-site — standalone MkDocs Material site for docs/ (B59 — TechDocs parity, replaces Backstage's render).
+# An initContainer clones the public repo + builds the material site (Mermaid renders natively — the unsolved
+# B40); nginx serves the static output from a shared emptyDir. Self-contained: no MinIO/Dagster coupling.
+# Refresh after docs change: `kubectl -n weyland rollout restart deploy/docs-site` (a daily CronJob can automate).
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: docs-site
+  namespace: weyland
+  labels:
+    app: docs-site
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: docs-site
+  template:
+    metadata:
+      labels:
+        app: docs-site
+    spec:
+      initContainers:
+        - name: build
+          image: squidfunk/mkdocs-material:9
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              set -eu
+              apk add --no-cache git
+              git clone --depth 1 https://github.com/edtbl76/weyland-lab.git /src
+              cd /src
+              mkdocs build -f mkdocs-site.yml -d /site
+          volumeMounts:
+            - name: site
+              mountPath: /site
+      containers:
+        - name: nginx
+          image: nginx:1.27-alpine
+          ports:
+            - containerPort: 80
+          volumeMounts:
+            - name: site
+              mountPath: /usr/share/nginx/html
+              readOnly: true
+      volumes:
+        - name: site
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: docs-site
+  namespace: weyland
+spec:
+  selector:
+    app: docs-site
+  ports:
+    - port: 80
+      targetPort: 80
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: docs-site
+  namespace: weyland
+  annotations:
+    traefik.ingress.kubernetes.io/router.entrypoints: websecure
+spec:
+  tls:
+    - hosts:
+        - docs.weyland.lab
+      secretName: weyland-wildcard-tls
+  rules:
+    - host: docs.weyland.lab
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: docs-site
+                port:
+                  number: 80

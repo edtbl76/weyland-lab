@@ -1,0 +1,41 @@
+# Standalone docs site (B59 — TechDocs parity, replaces Backstage's techdocs-core render).
+# mkdocs-material → full nav + client-side search + Mermaid rendering (the long-unsolved B40). Built + served by
+# the docs-site Deployment (initContainer runs `mkdocs build -f mkdocs-site.yml`; nginx serves the result).
+# NOTE: mkdocs.yml stays on techdocs-core for Backstage until it's retired — this is the parallel material build.
+site_name: Weyland Platform Docs
+site_description: >-
+  Runbooks, architecture, diagrams, and concepts for the weyland homelab AI platform.
+docs_dir: docs
+theme:
+  name: material
+  features:
+    - navigation.instant
+    - navigation.tracking
+    - navigation.sections
+    - navigation.indexes
+    - navigation.top
+    - search.suggest
+    - search.highlight
+    - content.code.copy
+    - toc.follow
+  palette:
+    - scheme: slate
+      primary: blue grey
+      accent: light blue
+plugins:
+  - search
+markdown_extensions:
+  - admonition
+  - pymdownx.details
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - tables
+  - toc:
+      permalink: true

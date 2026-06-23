@@ -3,7 +3,6 @@
 
 # __generated__ by OpenTofu from "security_scan"
 resource "port_blueprint" "security_scan" {
-  provider                    = port-labs
   calculation_properties      = null
   create_catalog_page         = true
   description                 = null
@@ -136,7 +135,6 @@ resource "port_blueprint" "security_scan" {
 
 # __generated__ by OpenTofu from "glitchtip_issue"
 resource "port_blueprint" "glitchtip_issue" {
-  provider                    = port-labs
   calculation_properties      = null
   create_catalog_page         = true
   description                 = null
@@ -312,7 +310,6 @@ resource "port_blueprint" "glitchtip_issue" {
 
 # __generated__ by OpenTofu from "feature_flag"
 resource "port_blueprint" "feature_flag" {
-  provider                    = port-labs
   calculation_properties      = null
   create_catalog_page         = true
   description                 = null
@@ -455,7 +452,6 @@ resource "port_blueprint" "feature_flag" {
 
 # __generated__ by OpenTofu from "code_quality"
 resource "port_blueprint" "code_quality" {
-  provider                    = port-labs
   calculation_properties      = null
   create_catalog_page         = true
   description                 = null
@@ -566,7 +562,6 @@ resource "port_blueprint" "code_quality" {
 
 # __generated__ by OpenTofu from "endpoint"
 resource "port_blueprint" "endpoint" {
-  provider                    = port-labs
   calculation_properties      = null
   create_catalog_page         = true
   description                 = null
@@ -681,7 +676,6 @@ resource "port_blueprint" "endpoint" {
 
 # __generated__ by OpenTofu from "ci_pipeline"
 resource "port_blueprint" "ci_pipeline" {
-  provider                    = port-labs
   calculation_properties      = null
   create_catalog_page         = true
   description                 = null
