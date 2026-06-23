@@ -48,7 +48,7 @@ C4Component
 
         Component(neodash, "NeoDash", "neo4jlabs/neodash / k8s", "Neo4j dashboard/viz UI (free Bloom-alternative). Browser-side Bolt to Neo4j. mother:30088")
 
-        Component(idp, "weyland IDP (B3)", "Backstage / k8s", "Internal Developer Platform — software catalog + TechDocs + Catalog Graph (slices A+B; Scaffolder template parked → Extra). TechDocs built externally, served from MinIO. Meshed (STRICT Postgres). Self-syncs from repo (B41): catalog via type:url off GitHub, TechDocs published hourly by Dagster. Config via ConfigMap. idp.weyland.lab")
+        Component(docs_site, "Platform Docs (B59)", "MkDocs Material / nginx / k8s", "Standalone docs site — runbooks/architecture/concepts; browsable + searchable + Mermaid. initContainer builds from the repo, nginx serves. Replaced the retired Backstage IDP/TechDocs. docs.weyland.lab")
         Component(mlflow, "MLflow (B10+B16)", "MLflow / k8s", "Experiment tracking + model registry. Postgres backend store + MinIO artifact store (proxied via --serve-artifacts). Meshed (STRICT Postgres). dev-password. mlflow.weyland.lab")
     }
 
@@ -69,9 +69,7 @@ C4Component
     Rel(user, headlamp, "k8s management")
     Rel(user, neodash, "graph dashboards / viz")
     Rel(neodash, neo4j, "Bolt :30086 (browser-side)")
-    Rel(user, idp, "developer portal / catalog")
-    Rel(idp, pgvector, "catalog + plugin DBs (mTLS, STRICT)")
-    Rel(idp, minio, "TechDocs static site (S3, techdocs bucket)")
+    Rel(user, docs_site, "browse platform docs")
     Rel(user, mlflow, "experiments + model registry UI")
     Rel(mlflow, pgvector, "backend store: runs/params/metrics (mTLS, STRICT)")
     Rel(mlflow, minio, "artifact store (S3, mlflow bucket)")

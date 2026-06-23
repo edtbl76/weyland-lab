@@ -12,7 +12,6 @@ from .eval_run_matrix import eval_run_matrix
 from .eval_scores import eval_scores
 from .model_catalog import model_catalog
 from .aidlc_kb import aidlc_kb_ingest
-from .techdocs import techdocs_publish
 
 all_assets = [
     source_document,
@@ -29,5 +28,4 @@ all_assets = [
     eval_scores,
     model_catalog,
     aidlc_kb_ingest,
-    techdocs_publish,
 ]

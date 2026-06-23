@@ -19,9 +19,12 @@ direct CI→CD wire; git is the seam.
 - `.gitignore` ignores `.terraform/`, `*.tfstate*`, `*.tfvars`; the **lock file IS committed**.
 
 ## Port lane (done) — `tofu/port/`
-All **7 blueprints codified** (`cost`, `ci_pipeline`, `glitchtip_issue`, `feature_flag`, `code_quality`,
-`security_scan`, `endpoint`) — `tofu plan` is a clean no-op. Brought in brownfield via **CLI import** (state in
-MinIO, live Port unchanged). NOT yet codified: Port entities (data, not schema), dashboards, actions, scorecards.
+All **7 webhook/category blueprints** (`cost`, `ci_pipeline`, `glitchtip_issue`, `feature_flag`, `code_quality`,
+`security_scan`, `endpoint`) PLUS the **B59 software catalog** — 5 blueprints (`domain`/`system`/`component`/
+`resource`/`api`) + **26 entities** (`catalog.tf`), all CLI-imported, `tofu plan` clean no-op. State in MinIO,
+live Port unchanged. **`port_entity` codify gotcha:** generate-config-out emits the `provider = port-labs` phantom
+AND read-only fields (`id`/`created_at`/`updated_at`/`updated_by`) → `sed`-strip BOTH before CLI import, else a
+perpetual "to change". Entity import ID = `<blueprint>:<identifier>`. NOT codified: dashboards, actions, scorecards.
 
 ## THE gotcha — port-labs provider + generated config = phantom `hashicorp/port-labs`
 The provider's **source type (`port-labs`) ≠ its resource prefix (`port_`)**. Two failure modes fall out:

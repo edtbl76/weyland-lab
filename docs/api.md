@@ -69,11 +69,12 @@ mkcert wildcard cert; resolve from rogueone (`/etc/hosts`) or via CoreDNS. Share
 | **OpenCost** (k8s cost allocation — custom on-prem pricing; LAN-only) | `https://opencost.weyland.lab` |
 | **Woodpecker CI** (CI/CD — GitHub OAuth login; k8s backend; manual/cron triggers) | `https://woodpecker.weyland.lab` |
 | **Argo CD** (GitOps CD — local admin; app-of-apps, 28 apps) | `https://argocd.weyland.lab` |
+| **Platform Docs** (MkDocs Material — runbooks/architecture/concepts; browsable+searchable, Mermaid; B59, replaced Backstage TechDocs) | `https://docs.weyland.lab` |
 | Dagster | `https://dagster.weyland.lab` |
 | n8n | `https://n8n.weyland.lab` |
 | Headlamp (k8s UI) | `https://headlamp.weyland.lab` |
 | Filestash (MinIO browser) | `https://files.weyland.lab` |
-| **weyland IDP** (Backstage — ⚠️ **DECOMMISSION IN PROGRESS**, being replaced by Port.io) | `https://idp.weyland.lab` — see [runbooks/weyland-idp.md](runbooks/weyland-idp.md) |
+| ~~weyland IDP (Backstage, `idp.weyland.lab`)~~ — **RETIRED 2026-06-22 (B59)**; replaced by **Port.io** catalog + **`docs.weyland.lab`** | — |
 | **Port.io** (IDP — SaaS; **launcher/catalog**, not status board) | `https://app.port.io` — EU org; **Launcher** dashboard (`endpoint` bp). Integrations: K8s, Istio, GitHub, Linear, Unleash (`feature_flag`), SonarQube (`code_quality`), Trivy+Semgrep (`security_scan`) |
 | **MLflow** (experiment tracking + model registry; B10+B16, dev-password) | `https://mlflow.weyland.lab` |
 | **Uptime Kuma** (live status board — own auth; **25 monitors**, Telegram paging; Port webhook retired) | `https://kuma.weyland.lab` |
