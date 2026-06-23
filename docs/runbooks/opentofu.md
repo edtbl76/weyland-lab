@@ -19,12 +19,15 @@ direct CI→CD wire; git is the seam.
 - `.gitignore` ignores `.terraform/`, `*.tfstate*`, `*.tfvars`; the **lock file IS committed**.
 
 ## Port lane (done) — `tofu/port/`
-All **7 webhook/category blueprints** (`cost`, `ci_pipeline`, `glitchtip_issue`, `feature_flag`, `code_quality`,
-`security_scan`, `endpoint`) PLUS the **B59 software catalog** — 5 blueprints (`domain`/`system`/`component`/
-`resource`/`api`) + **26 entities** (`catalog.tf`), all CLI-imported, `tofu plan` clean no-op. State in MinIO,
-live Port unchanged. **`port_entity` codify gotcha:** generate-config-out emits the `provider = port-labs` phantom
-AND read-only fields (`id`/`created_at`/`updated_at`/`updated_by`) → `sed`-strip BOTH before CLI import, else a
-perpetual "to change". Entity import ID = `<blueprint>:<identifier>`. NOT codified: dashboards, actions, scorecards.
+**12 blueprints codified** in `catalog.tf` — 7 webhook/category (`cost`, `ci_pipeline`, `glitchtip_issue`,
+`feature_flag`, `code_quality`, `security_scan`, `endpoint`) + 5 software-catalog (`domain`/`system`/`component`/
+`resource`/`api`). CLI-imported, `tofu plan` clean no-op, state in MinIO. **Entities are NOT codified** — B60
+decoupled them: **blueprints = schema (tofu, drift-checked); entities = data (MCP + integrations, free to evolve)**.
+Codifying actively-edited entity data caused constant sync friction; entities rebuild from the docs via MCP. To
+un-codify entities: `tofu state list | grep '^port_entity\.' | xargs tofu state rm` + trim the entity blocks.
+**Gotcha (only if you ever DO codify an entity):** generate-config-out emits the `provider = port-labs` phantom
+AND read-only fields (`id`/`created_at`/`updated_at`/`updated_by`) → `sed`-strip BOTH before CLI import. Entity
+import ID = `<blueprint>:<identifier>`. NOT codified: entities, dashboards, actions, scorecards.
 
 ## THE gotcha — port-labs provider + generated config = phantom `hashicorp/port-labs`
 The provider's **source type (`port-labs`) ≠ its resource prefix (`port_`)**. Two failure modes fall out:
