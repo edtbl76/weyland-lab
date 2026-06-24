@@ -33,6 +33,9 @@ spec:
             - { name: COOKIE_DOMAIN, value: weyland.lab }
             - { name: SSL_CERT_FILE, value: /mkcert/rootCA.pem }   # Go trusts Keycloak's mkcert cert (sole HTTPS target)
             - { name: LOG_LEVEL, value: info }
+            # Logout: hitting auth.weyland.lab/_oauth/logout clears the forward-auth cookie, then bounces to
+            # Keycloak's end-session endpoint to kill the SSO session too (else the next app re-auths silently).
+            - { name: LOGOUT_REDIRECT, value: https://keycloak.weyland.lab/realms/weyland/protocol/openid-connect/logout }
           volumeMounts:
             - { name: mkcert-ca, mountPath: /mkcert, readOnly: true }
           resources:
