@@ -55,17 +55,31 @@ Hosts & access users: [hosts.md](hosts.md). `mother` = 192.168.1.243, CTs by IP 
 | APISIX gateway | `http://mother:30090` | API gateway data plane |
 | APISIX dashboard | `https://apisix.weyland.lab` | via Traefik TLS |
 
+## Identity / SSO (Keycloak — B1.1, 2026-06-24)
+
+Central IdP for the lab — replaced the scattered dev-password / per-app logins. **Keycloak** (`keycloak.weyland.lab`, `weyland` realm, k8s + meshed Postgres) is the OIDC provider; realm + clients codified in `tofu/keycloak/`. Apps connect two ways:
+- **OIDC (native):** Grafana, GlitchTip, Open WebUI — hold a Keycloak client + speak OIDC directly. (MinIO's console is OIDC-capable but its community build is stripped → not used.)
+- **Forward-auth (gate):** MLflow, Kiali, filestash — no native OIDC, so **traefik-forward-auth** (`auth.weyland.lab`) gates the ingress; one Keycloak session covers all of them (`COOKIE_DOMAIN=weyland.lab`). Cross-namespace Traefik middleware refs are blocked, so each protected ns (istio-system, minio) gets a local `traefik-forward-auth` Middleware pointing at the shared service.
+- **Left out by design:** Woodpecker (forge-based auth = GitHub, no generic OIDC).
+
+| Service | URL | Notes |
+|---|---|---|
+| **Keycloak** (IdP) | `https://keycloak.weyland.lab` | `weyland` realm; bootstrap admin `admin`. End-session: `/realms/weyland/protocol/openid-connect/logout` |
+| **traefik-forward-auth** (forward-auth gate) | `https://auth.weyland.lab` | Gates MLflow/Kiali/filestash. **Single logout** for all forward-auth apps: `https://auth.weyland.lab/_oauth/logout` (clears the forward-auth cookie *and* ends the KC session) |
+
+> **Login:** `emangini` / `weyland_dev_password` (the operator user; Google email `ed@timberbacklabs.com`). A *new* `*.weyland.lab` subdomain (e.g. `auth.weyland.lab`) needs an `/etc/hosts` line on the workstation until it's pointed at the wildcard LAN DNS — the browser resolves per-host, not via the wildcard.
+
 ## Web UIs (Traefik TLS, `*.weyland.lab` → mother `192.168.1.243`)
 
-mkcert wildcard cert; resolve from rogueone (`/etc/hosts`) or via CoreDNS. Shared dev creds.
+mkcert wildcard cert; resolve from rogueone (`/etc/hosts`) or via CoreDNS. **Most UIs are now Keycloak SSO** (see *Identity / SSO* above) — the old shared dev-password logins are retired for those apps.
 
 | UI | URL |
 |---|---|
-| **Open WebUI** (voice/chat → Ollama + whisper) | `https://chat.weyland.lab` |
+| **Open WebUI** (voice/chat → Ollama + whisper) — **Keycloak SSO** (OIDC) | `https://chat.weyland.lab` |
 | **LiteLLM** (model gateway admin UI / `/ui`) | `https://litellm.weyland.lab` |
-| **Kiali** (Istio mesh graph + mTLS, **read-only**, dev-password; traces from Tempo) | `https://kiali.weyland.lab` |
-| Grafana (metrics + logs (Loki) + traces (Tempo) + alerts (Alertmanager, incl. **Loki-ruler log alerts**) — Explore/Drilldown) | `https://grafana.weyland.lab` |
-| **GlitchTip** (error tracking — Sentry-SDK-compatible; own login) | `https://glitchtip.weyland.lab` |
+| **Kiali** (Istio mesh graph + mTLS, **read-only**; traces from Tempo) — **Keycloak SSO** (forward-auth) | `https://kiali.weyland.lab` |
+| Grafana (metrics + logs (Loki) + traces (Tempo) + alerts (Alertmanager, incl. **Loki-ruler log alerts**) — Explore/Drilldown) — **Keycloak SSO** (OIDC, CA-verified back-channel) | `https://grafana.weyland.lab` |
+| **GlitchTip** (error tracking — Sentry-SDK-compatible) — **Keycloak SSO** (OIDC; via a DB-precreated social link — see [[glitchtip-allauth-sso-link]]) | `https://glitchtip.weyland.lab` |
 | **OpenCost** (k8s cost allocation — custom on-prem pricing; LAN-only) | `https://opencost.weyland.lab` |
 | **Woodpecker CI** (CI/CD — GitHub OAuth login; k8s backend; manual/cron triggers) | `https://woodpecker.weyland.lab` |
 | **Argo CD** (GitOps CD — local admin; app-of-apps, 28 apps) | `https://argocd.weyland.lab` |
@@ -73,10 +87,10 @@ mkcert wildcard cert; resolve from rogueone (`/etc/hosts`) or via CoreDNS. Share
 | Dagster | `https://dagster.weyland.lab` |
 | n8n | `https://n8n.weyland.lab` |
 | Headlamp (k8s UI) | `https://headlamp.weyland.lab` |
-| Filestash (MinIO browser) | `https://files.weyland.lab` |
+| Filestash (MinIO browser — replaces the stripped community console) — **Keycloak SSO** (forward-auth; auto-connects to S3 behind the gate) | `https://files.weyland.lab` |
 | ~~weyland IDP (Backstage, `idp.weyland.lab`)~~ — **RETIRED 2026-06-22 (B59)**; replaced by **Port.io** catalog + **`docs.weyland.lab`** | — |
 | **Port.io** (IDP — SaaS; **launcher/catalog**, not status board) | `https://app.port.io` — EU org; **Launcher** dashboard (`endpoint` bp). Integrations: K8s, Istio, GitHub, Linear, Unleash (`feature_flag`), SonarQube (`code_quality`), Trivy+Semgrep (`security_scan`) |
-| **MLflow** (experiment tracking + model registry; B10+B16, dev-password) | `https://mlflow.weyland.lab` |
+| **MLflow** (experiment tracking + model registry; B10+B16) — **Keycloak SSO** (forward-auth) | `https://mlflow.weyland.lab` |
 | **Uptime Kuma** (live status board — own auth; **25 monitors**, Telegram paging; Port webhook retired) | `https://kuma.weyland.lab` |
 | **Linear** (roadmap/task board — SaaS; Claude via MCP, Port ingests for status) | `https://linear.app/emangini` — projects: Weyland Lab / Stud.IO / Service Transformation |
 | **Unleash** (feature flags; OSS self-hosted, own login admin/dev-pass; → Port `feature_flag` webhook) | `https://unleash.weyland.lab` — Python SDK for tool-server/Hermes; see [runbooks/unleash.md](runbooks/unleash.md) |
