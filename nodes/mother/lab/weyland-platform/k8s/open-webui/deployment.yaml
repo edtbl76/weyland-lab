@@ -23,6 +23,14 @@ spec:
     spec:
       enableServiceLinks: false
       automountServiceAccountToken: false   # no k8s API access needed (U10 least-privilege)
+      # B1.1 — combined CA bundle (system + mkcert root) so the OIDC back-channel verifies Keycloak's cert.
+      initContainers:
+        - name: ca-bundle
+          image: ghcr.io/open-webui/open-webui:main
+          command: ["sh", "-c", "cat /etc/ssl/certs/ca-certificates.crt /mkcert/rootCA.pem > /cabundle/ca-bundle.crt"]
+          volumeMounts:
+            - { name: mkcert-ca, mountPath: /mkcert, readOnly: true }
+            - { name: ca-bundle, mountPath: /cabundle }
       containers:
         - name: open-webui
           image: ghcr.io/open-webui/open-webui:main   # TODO: pin to a release tag for reproducibility
@@ -45,9 +53,35 @@ spec:
               value: whisper-1
             - name: WEBUI_NAME
               value: "Weyland AI"
+            # --- B1.1 Keycloak SSO (OIDC) — pure env, the clean cutover ---
+            - name: WEBUI_URL
+              value: https://chat.weyland.lab
+            - name: ENABLE_OAUTH_SIGNUP
+              value: "true"
+            - name: OAUTH_MERGE_ACCOUNTS_BY_EMAIL
+              value: "true"
+            - name: OAUTH_PROVIDER_NAME
+              value: Keycloak
+            - name: OPENID_PROVIDER_URL
+              value: https://keycloak.weyland.lab/realms/weyland/.well-known/openid-configuration
+            - name: OAUTH_SCOPES
+              value: "openid email profile"
+            - name: OAUTH_CLIENT_ID
+              value: open-webui
+            - name: OAUTH_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef: { name: open-webui-oauth, key: OAUTH_CLIENT_SECRET }
+            # OIDC back-channel trusts Keycloak via the mkcert-inclusive bundle built by the initContainer.
+            - name: REQUESTS_CA_BUNDLE
+              value: /cabundle/ca-bundle.crt
+            - name: SSL_CERT_FILE
+              value: /cabundle/ca-bundle.crt
           volumeMounts:
             - name: data
               mountPath: /app/backend/data
+            - name: ca-bundle
+              mountPath: /cabundle
+              readOnly: true
           # First run does DB migrations (+ may fetch a default embedding model) — be patient.
           readinessProbe:
             httpGet: { path: /health, port: 8080 }
@@ -66,3 +100,8 @@ spec:
         - name: data
           persistentVolumeClaim:
             claimName: open-webui-data
+        - name: mkcert-ca
+          secret:
+            secretName: weyland-mkcert-ca
+        - name: ca-bundle
+          emptyDir: {}
