@@ -1,0 +1,117 @@
+# B1.1 — Keycloak SSO (Phase 1: stand up the server). Raw Deployment (chosen over Operator/Helm — fits the
+# Argo raw-manifest pattern; the `weyland` realm + clients come from OpenTofu in Phase 2). Reuses the shared
+# Postgres as its store — Postgres is STRICT mTLS, so the pod MUST carry the sidecar label or JDBC gets a
+# connection reset. Production mode behind Traefik: Traefik terminates TLS, so KC serves HTTP internally
+# (KC_HTTP_ENABLED) and trusts the forwarded headers (KC_PROXY_HEADERS). v1 runs `start`, which auto-builds
+# providers on boot (~30-60s slower start); bake a `kc.sh build` + `start --optimized` image later if restarts
+# get painful (same pattern as the MLflow note).
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: keycloak
+  namespace: weyland
+  labels:
+    app: keycloak
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate          # single instance on a shared DB — don't let two pods race the schema/build
+  selector:
+    matchLabels:
+      app: keycloak
+  template:
+    metadata:
+      labels:
+        app: keycloak
+        # Join the mesh — required to reach STRICT-mTLS Postgres (JDBC reset otherwise).
+        sidecar.istio.io/inject: "true"
+    spec:
+      containers:
+        - name: keycloak
+          image: quay.io/keycloak/keycloak:26.1.0
+          args: ["start"]
+          env:
+            - name: KC_DB
+              value: postgres
+            - name: KC_DB_URL
+              value: "jdbc:postgresql://weyland-postgres.weyland.svc.cluster.local:5432/keycloak"
+            - name: KC_DB_USERNAME
+              valueFrom:
+                secretKeyRef: { name: keycloak-secret, key: KC_DB_USERNAME }
+            - name: KC_DB_PASSWORD
+              valueFrom:
+                secretKeyRef: { name: keycloak-secret, key: KC_DB_PASSWORD }
+            # Hostname v2 + reverse proxy: Traefik terminates TLS → KC serves HTTP and trusts X-Forwarded-*.
+            - name: KC_HOSTNAME
+              value: "https://keycloak.weyland.lab"
+            - name: KC_PROXY_HEADERS
+              value: "xforwarded"
+            - name: KC_HTTP_ENABLED
+              value: "true"
+            - name: KC_HEALTH_ENABLED
+              value: "true"
+            # Initial admin (KC 26 renamed KEYCLOAK_ADMIN → KC_BOOTSTRAP_ADMIN_*). Secure after first login.
+            - name: KC_BOOTSTRAP_ADMIN_USERNAME
+              valueFrom:
+                secretKeyRef: { name: keycloak-secret, key: KC_BOOTSTRAP_ADMIN_USERNAME }
+            - name: KC_BOOTSTRAP_ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef: { name: keycloak-secret, key: KC_BOOTSTRAP_ADMIN_PASSWORD }
+          ports:
+            - name: http
+              containerPort: 8080
+            - name: management
+              containerPort: 9000     # health + metrics live on the management port in KC 25+
+          readinessProbe:
+            httpGet: { path: /health/ready, port: 9000 }
+            initialDelaySeconds: 45
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: { path: /health/live, port: 9000 }
+            initialDelaySeconds: 90
+            periodSeconds: 15
+          resources:
+            requests:
+              cpu: 250m
+              memory: 768Mi
+            limits:
+              memory: 1536Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: keycloak
+  namespace: weyland
+  labels:
+    app: keycloak
+spec:
+  type: ClusterIP
+  selector:
+    app: keycloak
+  ports:
+    - name: http
+      port: 8080
+      targetPort: 8080
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: keycloak
+  namespace: weyland
+  # No auth middleware — Keycloak IS the auth (unlike MLflow/Kiali which lean on the Traefik basicAuth gate).
+spec:
+  tls:
+    - hosts:
+        - keycloak.weyland.lab
+      secretName: weyland-wildcard-tls
+  rules:
+    - host: keycloak.weyland.lab
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: keycloak
+                port:
+                  number: 8080

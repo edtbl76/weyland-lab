@@ -155,3 +155,23 @@ spec:
     namespace: weyland
   syncPolicy:
     automated: { selfHeal: true, prune: true }
+---
+# B1.1 — Keycloak SSO. secret.example.yaml excluded (real keycloak-secret applied out-of-band).
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: keycloak
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/edtbl76/weyland-lab.git
+    targetRevision: main
+    path: nodes/mother/lab/weyland-platform/k8s/keycloak
+    directory:
+      exclude: 'secret.example.yaml'
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: weyland
+  syncPolicy:
+    automated: { selfHeal: true, prune: true }
