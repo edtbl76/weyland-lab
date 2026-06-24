@@ -66,6 +66,16 @@ spec:
       # GlitchTip does NOT auto-migrate — run it before web starts (native Istio sidecar is up first in 1.30, so
       # this reaches STRICT Postgres; if a fresh deploy fails here, run `./manage.py migrate` manually).
       initContainers:
+        # B1.1 — build a combined CA bundle (system trust + mkcert root) so the allauth OIDC back-channel can
+        # VERIFY Keycloak's cert. requests ignores the system store unless REQUESTS_CA_BUNDLE points at a bundle;
+        # concat keeps public CAs working too. (If this initContainer errors on the cat path, the image's CA
+        # bundle lives elsewhere — adjust /etc/ssl/certs/ca-certificates.crt.)
+        - name: ca-bundle
+          image: glitchtip/glitchtip:6.2.0
+          command: ["sh", "-c", "cat /etc/ssl/certs/ca-certificates.crt /mkcert/rootCA.pem > /cabundle/ca-bundle.crt"]
+          volumeMounts:
+            - { name: mkcert-ca, mountPath: /mkcert, readOnly: true }
+            - { name: ca-bundle, mountPath: /cabundle }
         - name: migrate
           image: glitchtip/glitchtip:6.2.0
           command: ["./manage.py", "migrate", "--noinput"]
@@ -114,6 +124,13 @@ spec:
                 secretKeyRef:
                   name: glitchtip-secret
                   key: DATABASE_URL
+            # B1.1 — point Python/requests at the combined CA bundle so the OIDC back-channel trusts Keycloak.
+            - name: REQUESTS_CA_BUNDLE
+              value: /cabundle/ca-bundle.crt
+            - name: SSL_CERT_FILE
+              value: /cabundle/ca-bundle.crt
+          volumeMounts:
+            - { name: ca-bundle, mountPath: /cabundle, readOnly: true }
           readinessProbe:
             httpGet:
               path: /
@@ -126,6 +143,12 @@ spec:
               memory: 384Mi
             limits:
               memory: 768Mi
+      volumes:
+        - name: mkcert-ca
+          secret:
+            secretName: weyland-mkcert-ca
+        - name: ca-bundle
+          emptyDir: {}
 ---
 apiVersion: apps/v1
 kind: Deployment
