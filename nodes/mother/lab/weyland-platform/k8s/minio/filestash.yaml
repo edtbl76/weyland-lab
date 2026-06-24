@@ -92,11 +92,28 @@ spec:
       port: 8334
       targetPort: http
 ---
+# B1.1 — forward-auth Middleware local to the minio ns (cross-ns middleware refs are blocked), targeting the
+# shared traefik-forward-auth service in weyland. Gates files.weyland.lab behind a Keycloak session — reuses
+# the existing proxy, so no new client/secret. (Filestash's own admin/S3 login still sits behind this gate.)
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: traefik-forward-auth
+  namespace: minio
+spec:
+  forwardAuth:
+    address: http://traefik-forward-auth.weyland.svc.cluster.local:4181
+    trustForwardHeader: true
+    authResponseHeaders:
+      - X-Forwarded-User
+---
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: filestash
   namespace: minio
+  annotations:
+    traefik.ingress.kubernetes.io/router.middlewares: minio-traefik-forward-auth@kubernetescrd
 spec:
   tls:
     - hosts:
