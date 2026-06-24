@@ -1,0 +1,20 @@
+# Teach the k3s CLUSTER CoreDNS (kube-system) to resolve the LAN domain weyland.lab.
+# In-cluster pods resolve via kube-dns (10.43.0.10), which doesn't know weyland.lab — so any pod
+# calling a public *.weyland.lab host fails with "no such host" (first hit: Grafana's OIDC back-channel
+# to keycloak.weyland.lab during SSO). We forward just the weyland.lab zone to the standalone
+# weyland-lan-dns resolver on mother (192.168.1.243:53), which is already authoritative for it.
+# k3s auto-imports coredns-custom/*.server into the cluster Corefile (no Corefile edit needed).
+#
+# NOT Argo-managed (kube-system / k3s territory) — apply with kubectl; committed for version control only.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: coredns-custom
+  namespace: kube-system
+data:
+  weyland.server: |
+    weyland.lab:53 {
+        errors
+        forward . 192.168.1.243
+        cache 30
+    }

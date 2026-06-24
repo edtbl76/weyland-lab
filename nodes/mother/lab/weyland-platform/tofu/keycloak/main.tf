@@ -34,8 +34,9 @@ provider "keycloak" {
   username  = var.kc_admin_username
   password  = var.kc_admin_password
   url       = "https://keycloak.weyland.lab"
-  # LAN lab with an internal-CA cert — skip TLS verify if rogueone doesn't trust the mkcert root.
-  tls_insecure_skip_verify = true
+  # TLS verified against rogueone's system trust store — the mkcert root is installed there (it's how you
+  # browse *.weyland.lab). If `tofu plan` ever throws an x509 "unknown authority" error, run `mkcert -install`
+  # on rogueone to (re)add the root to the system store.
 }
 
 variable "kc_admin_username" {

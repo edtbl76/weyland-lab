@@ -71,6 +71,14 @@ grafana:
   # B1.1 Phase 3 — inject the Keycloak OIDC client secret as GF_AUTH_GENERIC_OAUTH_CLIENT_SECRET.
   # Secret created out-of-band (grafana-oauth, monitoring ns) — never committed. Must exist BEFORE this rolls.
   envFromSecret: grafana-oauth
+  # B1.1 harden — mount the mkcert root CA so Grafana VERIFIES Keycloak's cert (replaces the TLS skip).
+  # ConfigMap created out-of-band (mkcert-root-ca, monitoring ns) from rootCA.pem — must exist before this rolls.
+  extraConfigmapMounts:
+    - name: mkcert-root-ca
+      configMap: mkcert-root-ca
+      mountPath: /etc/grafana/mkcert-rootCA.pem
+      subPath: rootCA.pem
+      readOnly: true
   grafana.ini:
     server:
       root_url: https://grafana.weyland.lab
@@ -84,7 +92,7 @@ grafana:
       token_url: https://keycloak.weyland.lab/realms/weyland/protocol/openid-connect/token
       api_url: https://keycloak.weyland.lab/realms/weyland/protocol/openid-connect/userinfo
       role_attribute_path: "'Admin'"   # single-operator lab — every SSO login lands as Org Admin
-      tls_skip_verify_insecure: true   # Grafana → Keycloak rides the internal-CA cert
+      tls_client_ca: /etc/grafana/mkcert-rootCA.pem   # verify Keycloak's cert against the mounted mkcert root
   resources:
     # 256Mi was too tight — Grafana + its 2 sidecars run ~310Mi and OOMKilled (→502s).
     requests: { cpu: 50m, memory: 256Mi }
