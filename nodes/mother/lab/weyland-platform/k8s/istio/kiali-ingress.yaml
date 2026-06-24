@@ -1,12 +1,26 @@
 # B8 — Traefik TLS ingress for Kiali (mesh observability UI). Same pattern as grafana/dagster.
 # TLS secret weyland-wildcard-tls must exist in istio-system (copied from the weyland ns — see runbook).
+# B1.1 — forward-auth Middleware local to istio-system (Traefik blocks cross-namespace middleware refs by
+# default, so Kiali can't reference the weyland one). It targets the same traefik-forward-auth service in weyland.
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: traefik-forward-auth
+  namespace: istio-system
+spec:
+  forwardAuth:
+    address: http://traefik-forward-auth.weyland.svc.cluster.local:4181
+    trustForwardHeader: true
+    authResponseHeaders:
+      - X-Forwarded-User
+---
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: kiali
   namespace: istio-system
   annotations:
-    traefik.ingress.kubernetes.io/router.middlewares: istio-system-observability-auth@kubernetescrd
+    traefik.ingress.kubernetes.io/router.middlewares: istio-system-traefik-forward-auth@kubernetescrd
 spec:
   tls:
     - hosts:
