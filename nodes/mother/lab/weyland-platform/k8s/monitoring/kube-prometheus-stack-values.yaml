@@ -68,9 +68,23 @@ grafana:
   # We front Grafana with our own Ingress for TLS consistency — disable the chart's.
   ingress:
     enabled: false
+  # B1.1 Phase 3 — inject the Keycloak OIDC client secret as GF_AUTH_GENERIC_OAUTH_CLIENT_SECRET.
+  # Secret created out-of-band (grafana-oauth, monitoring ns) — never committed. Must exist BEFORE this rolls.
+  envFromSecret: grafana-oauth
   grafana.ini:
     server:
       root_url: https://grafana.weyland.lab
+    # B1.1 Phase 3 — Keycloak SSO (first OIDC cutover). Non-secret config only; client_secret comes from the env above.
+    auth.generic_oauth:
+      enabled: true
+      name: Keycloak
+      client_id: grafana
+      scopes: openid email profile
+      auth_url: https://keycloak.weyland.lab/realms/weyland/protocol/openid-connect/auth
+      token_url: https://keycloak.weyland.lab/realms/weyland/protocol/openid-connect/token
+      api_url: https://keycloak.weyland.lab/realms/weyland/protocol/openid-connect/userinfo
+      role_attribute_path: "'Admin'"   # single-operator lab — every SSO login lands as Org Admin
+      tls_skip_verify_insecure: true   # Grafana → Keycloak rides the internal-CA cert
   resources:
     # 256Mi was too tight — Grafana + its 2 sidecars run ~310Mi and OOMKilled (→502s).
     requests: { cpu: 50m, memory: 256Mi }
