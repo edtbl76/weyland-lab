@@ -72,10 +72,11 @@ grafana:
   # Secret created out-of-band (grafana-oauth, monitoring ns) — never committed. Must exist BEFORE this rolls.
   envFromSecret: grafana-oauth
   # B1.1 harden — mount the mkcert root CA so Grafana VERIFIES Keycloak's cert (replaces the TLS skip).
-  # ConfigMap created out-of-band (mkcert-root-ca, monitoring ns) from rootCA.pem — must exist before this rolls.
-  extraConfigmapMounts:
+  # Reuses the existing weyland-mkcert-ca secret (the same CA Uptime Kuma trusts), copied into the monitoring
+  # ns out-of-band — must exist before this rolls.
+  extraSecretMounts:
     - name: mkcert-root-ca
-      configMap: mkcert-root-ca
+      secretName: weyland-mkcert-ca
       mountPath: /etc/grafana/mkcert-rootCA.pem
       subPath: rootCA.pem
       readOnly: true
