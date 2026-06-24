@@ -106,7 +106,7 @@ metadata:
   name: mlflow
   namespace: weyland
   annotations:
-    traefik.ingress.kubernetes.io/router.middlewares: weyland-mlflow-auth@kubernetescrd
+    traefik.ingress.kubernetes.io/router.middlewares: weyland-traefik-forward-auth@kubernetescrd
 spec:
   tls:
     - hosts:

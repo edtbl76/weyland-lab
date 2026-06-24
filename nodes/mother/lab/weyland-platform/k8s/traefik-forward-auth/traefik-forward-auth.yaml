@@ -1,0 +1,92 @@
+# B1.1 — traefik-forward-auth: SSO gate for the non-OIDC apps (MLflow / NeoDash / Kiali + any future *.weyland.lab
+# UI). Chosen over oauth2-proxy: purpose-built for Traefik forwardAuth — native 302 redirect to Keycloak (no
+# 401->302 Errors-middleware hack), and a central AUTH_HOST + COOKIE_DOMAIN=weyland.lab = one client, one callback,
+# SSO across every subdomain. It ONLY calls keycloak.weyland.lab, so SSL_CERT_FILE = just the mkcert root (no bundle
+# needed — Go trusts exactly that one CA, which is fine since Keycloak is its only HTTPS target).
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: traefik-forward-auth
+  namespace: weyland
+  labels: { app: traefik-forward-auth }
+spec:
+  replicas: 1
+  selector: { matchLabels: { app: traefik-forward-auth } }
+  template:
+    metadata:
+      labels: { app: traefik-forward-auth }
+    spec:
+      containers:
+        - name: traefik-forward-auth
+          image: thomseddon/traefik-forward-auth:2
+          ports:
+            - { name: http, containerPort: 4181 }
+          env:
+            - { name: DEFAULT_PROVIDER, value: oidc }
+            - { name: PROVIDERS_OIDC_ISSUER_URL, value: https://keycloak.weyland.lab/realms/weyland }
+            - { name: PROVIDERS_OIDC_CLIENT_ID, value: traefik-forward-auth }
+            - name: PROVIDERS_OIDC_CLIENT_SECRET
+              valueFrom: { secretKeyRef: { name: traefik-forward-auth-secret, key: client-secret } }
+            - name: SECRET   # cookie-signing secret
+              valueFrom: { secretKeyRef: { name: traefik-forward-auth-secret, key: cookie-secret } }
+            - { name: AUTH_HOST, value: auth.weyland.lab }
+            - { name: COOKIE_DOMAIN, value: weyland.lab }
+            - { name: SSL_CERT_FILE, value: /mkcert/rootCA.pem }   # Go trusts Keycloak's mkcert cert (sole HTTPS target)
+            - { name: LOG_LEVEL, value: info }
+          volumeMounts:
+            - { name: mkcert-ca, mountPath: /mkcert, readOnly: true }
+          resources:
+            requests: { cpu: 25m, memory: 32Mi }
+            limits: { memory: 64Mi }
+      volumes:
+        - name: mkcert-ca
+          secret: { secretName: weyland-mkcert-ca }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: traefik-forward-auth
+  namespace: weyland
+  labels: { app: traefik-forward-auth }
+spec:
+  selector: { app: traefik-forward-auth }
+  ports:
+    - { name: http, port: 4181, targetPort: 4181 }
+---
+# The forwardAuth middleware — every protected ingress references weyland-traefik-forward-auth@kubernetescrd
+# (cross-namespace works: Kiali's ingress in istio-system can reference it the same way).
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: traefik-forward-auth
+  namespace: weyland
+spec:
+  forwardAuth:
+    address: http://traefik-forward-auth.weyland.svc.cluster.local:4181
+    trustForwardHeader: true
+    authResponseHeaders:
+      - X-Forwarded-User
+---
+# Auth-host ingress — Keycloak redirects back to auth.weyland.lab/_oauth; this routes it to the proxy, and it
+# carries the forward-auth middleware itself so the proxy sees + completes the callback.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: traefik-forward-auth
+  namespace: weyland
+  annotations:
+    traefik.ingress.kubernetes.io/router.middlewares: weyland-traefik-forward-auth@kubernetescrd
+spec:
+  tls:
+    - hosts: [auth.weyland.lab]
+      secretName: weyland-wildcard-tls
+  rules:
+    - host: auth.weyland.lab
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: traefik-forward-auth
+                port: { number: 4181 }
