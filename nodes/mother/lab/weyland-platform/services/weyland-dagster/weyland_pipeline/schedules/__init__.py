@@ -6,7 +6,8 @@ weyland_ingestion_job = define_asset_job(
     selection=AssetSelection.all()
     - AssetSelection.groups("eval")
     - AssetSelection.groups("catalog")
-    - AssetSelection.groups("aidlc_kb"),
+    - AssetSelection.groups("aidlc_kb")
+    - AssetSelection.groups("ai_session"),
 )
 
 # Model catalog (hosted-model lookup table) — refreshed on its own 6h cadence, separate from ingestion.
@@ -33,6 +34,13 @@ weyland_aidlc_kb_job = define_asset_job(
     selection=AssetSelection.groups("aidlc_kb"),
 )
 
+# B62 — AI-dev usage data product: ingest session summaries from MinIO -> Port. Scheduled (sessions
+# keep updating, unlike the static aidlc-kb corpus); also runnable on demand.
+weyland_ai_session_job = define_asset_job(
+    name="weyland_ai_session_job",
+    selection=AssetSelection.groups("ai_session"),
+)
+
 weyland_ingestion_schedule = ScheduleDefinition(
     job=weyland_ingestion_job,
     cron_schedule="*/15 * * * *",
@@ -43,4 +51,10 @@ weyland_catalog_schedule = ScheduleDefinition(
     job=weyland_catalog_job,
     cron_schedule="0 */6 * * *",  # every 6h
     name="weyland_catalog_schedule",
+)
+
+weyland_ai_session_schedule = ScheduleDefinition(
+    job=weyland_ai_session_job,
+    cron_schedule="0 */4 * * *",  # every 4h
+    name="weyland_ai_session_schedule",
 )

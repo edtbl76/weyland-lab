@@ -12,6 +12,7 @@ from .eval_run_matrix import eval_run_matrix
 from .eval_scores import eval_scores
 from .model_catalog import model_catalog
 from .aidlc_kb import aidlc_kb_ingest
+from .ai_session import ai_session_ingest
 
 all_assets = [
     source_document,
@@ -28,4 +29,5 @@ all_assets = [
     eval_scores,
     model_catalog,
     aidlc_kb_ingest,
+    ai_session_ingest,
 ]

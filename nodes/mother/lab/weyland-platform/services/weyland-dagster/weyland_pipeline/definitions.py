@@ -16,12 +16,14 @@ from weyland_pipeline.schedules import (
     weyland_catalog_job,
     weyland_catalog_schedule,
     weyland_aidlc_kb_job,
+    weyland_ai_session_job,
+    weyland_ai_session_schedule,
 )
 
 defs = Definitions(
     assets=all_assets,
-    jobs=[weyland_ingestion_job, weyland_eval_job, weyland_eval_score_job, weyland_catalog_job, weyland_aidlc_kb_job],
-    schedules=[weyland_ingestion_schedule, weyland_catalog_schedule],
+    jobs=[weyland_ingestion_job, weyland_eval_job, weyland_eval_score_job, weyland_catalog_job, weyland_aidlc_kb_job, weyland_ai_session_job],
+    schedules=[weyland_ingestion_schedule, weyland_catalog_schedule, weyland_ai_session_schedule],
     resources={
         "postgres": PostgresResource(
             host=os.environ.get("WEYLAND_PG_HOST", "weyland-postgres.weyland.svc.cluster.local"),
