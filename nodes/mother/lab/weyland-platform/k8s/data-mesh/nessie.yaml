@@ -9,6 +9,7 @@ metadata:
   labels: { app: nessie }
 spec:
   replicas: 1
+  strategy: { type: Recreate }   # kill the old pod before starting the new — clean single-pod roll, no 1/2 limbo
   selector: { matchLabels: { app: nessie } }
   template:
     metadata:
@@ -40,12 +41,15 @@ spec:
             - { name: NESSIE_CATALOG_SERVICE_S3_DEFAULT_OPTIONS_REGION, value: us-east-1 }
             - { name: NESSIE_CATALOG_SERVICE_S3_DEFAULT_OPTIONS_PATH_STYLE_ACCESS, value: "true" }
             - { name: NESSIE_CATALOG_SERVICE_S3_DEFAULT_OPTIONS_AUTH_TYPE, value: STATIC }
-            # Static MinIO creds set DIRECTLY on the access-key object (.name = access-key-id, .secret = secret-key).
-            # The urn:nessie-secret indirection needs an external secrets-manager provider (not configured) → it
-            # threw "Missing access key and secret for STATIC authentication mode". Direct values just work.
-            - name: NESSIE_CATALOG_SERVICE_S3_DEFAULT_OPTIONS_ACCESS_KEY_NAME
+            # `access-key` is a flat secret-reference URN; the literal creds live at the REFERENCED name's config
+            # prefix. The `quarkus` secrets provider is always registered (no external mgr needed). CRITICAL: the
+            # secret name must be HYPHEN-FREE — env vars can't express a hyphen (SmallRye maps S3_CREDS_NAME →
+            # s3.creds.name, NOT s3-creds.name). So name it `s3creds`: S3CREDS_NAME → s3creds.name, S3CREDS_SECRET
+            # → s3creds.secret, which the URN urn:nessie-secret:quarkus:s3creds resolves. (Upstream issue #11759.)
+            - { name: NESSIE_CATALOG_SERVICE_S3_DEFAULT_OPTIONS_ACCESS_KEY, value: "urn:nessie-secret:quarkus:s3creds" }
+            - name: S3CREDS_NAME
               valueFrom: { secretKeyRef: { name: nessie-secret, key: s3-access-key } }
-            - name: NESSIE_CATALOG_SERVICE_S3_DEFAULT_OPTIONS_ACCESS_KEY_SECRET
+            - name: S3CREDS_SECRET
               valueFrom: { secretKeyRef: { name: nessie-secret, key: s3-secret-key } }
           readinessProbe:
             httpGet: { path: /q/health/ready, port: 9000 }
