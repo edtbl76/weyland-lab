@@ -1,12 +1,13 @@
 # Bucket ② helm-installed apps → Argo multi-source Applications (chart from its helm repo + values from git via
 # $values). Chart versions pinned to what's DEPLOYED (helm list -A); releaseName pinned to the LIVE release name
-# so chart-templated resource names match. OBSERVE-ONLY (no `automated`) — sync each deliberately.
+# so chart-templated resource names match. AUTO-SYNC (selfHeal + prune) as of B1.3 — the B58 Helm→Argo
+# migration has settled, so push = deploy (no manual sync). Charts are git-pinned, so auto-sync only acts on a pushed change.
 #
 # ServerSideApply=true on ALL of them: several charts bundle LARGE CRDs (keda `scaledjobs`, kube-prometheus-stack
 # `prometheuses`/`alertmanagers`). Client-side apply stuffs the whole CRD into the last-applied-configuration
 # annotation → exceeds the 256KB cap → "metadata.annotations: Too long". SSA avoids that annotation entirely.
 #
-# These show a BIGGER diff than the raw apps (Helm→Argo metadata migration). Safe under observe-only; review first.
+# (History: these were observe-only post-B58 because the Helm→Argo metadata migration showed a big diff; settled now.)
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
@@ -29,6 +30,7 @@ spec:
     server: https://kubernetes.default.svc
     namespace: monitoring
   syncPolicy:
+    automated: { selfHeal: true, prune: true }
     syncOptions:
       - ServerSideApply=true
 ---
@@ -54,6 +56,7 @@ spec:
     server: https://kubernetes.default.svc
     namespace: monitoring
   syncPolicy:
+    automated: { selfHeal: true, prune: true }
     syncOptions:
       - ServerSideApply=true
 ---
@@ -79,6 +82,7 @@ spec:
     server: https://kubernetes.default.svc
     namespace: monitoring
   syncPolicy:
+    automated: { selfHeal: true, prune: true }
     syncOptions:
       - ServerSideApply=true
 ---
@@ -104,6 +108,7 @@ spec:
     server: https://kubernetes.default.svc
     namespace: monitoring
   syncPolicy:
+    automated: { selfHeal: true, prune: true }
     syncOptions:
       - ServerSideApply=true
 ---
@@ -129,6 +134,7 @@ spec:
     server: https://kubernetes.default.svc
     namespace: opencost
   syncPolicy:
+    automated: { selfHeal: true, prune: true }
     syncOptions:
       - ServerSideApply=true
 ---
@@ -154,6 +160,7 @@ spec:
     server: https://kubernetes.default.svc
     namespace: woodpecker
   syncPolicy:
+    automated: { selfHeal: true, prune: true }
     syncOptions:
       - ServerSideApply=true
 ---
@@ -175,6 +182,7 @@ spec:
     server: https://kubernetes.default.svc
     namespace: keda
   syncPolicy:
+    automated: { selfHeal: true, prune: true }
     syncOptions:
       - ServerSideApply=true       # the scaledjobs.keda.sh CRD is what hit the 256KB annotation cap
 ---
@@ -195,6 +203,7 @@ spec:
     server: https://kubernetes.default.svc
     namespace: keda
   syncPolicy:
+    automated: { selfHeal: true, prune: true }
     syncOptions:
       - ServerSideApply=true
 ---
@@ -221,6 +230,7 @@ spec:
     server: https://kubernetes.default.svc
     namespace: opensearch
   syncPolicy:
+    automated: { selfHeal: true, prune: true }
     syncOptions:
       - ServerSideApply=true
       - CreateNamespace=true
@@ -248,6 +258,7 @@ spec:
     server: https://kubernetes.default.svc
     namespace: opensearch
   syncPolicy:
+    automated: { selfHeal: true, prune: true }
     syncOptions:
       - ServerSideApply=true
 ---
@@ -274,5 +285,6 @@ spec:
     server: https://kubernetes.default.svc
     namespace: data-mesh
   syncPolicy:
+    automated: { selfHeal: true, prune: true }
     syncOptions:
       - ServerSideApply=true
