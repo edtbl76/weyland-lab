@@ -16,7 +16,8 @@ config:
     server.host: "0.0.0.0"
     server.name: opensearch-dashboards
     opensearch.hosts: ["http://opensearch-cluster-master.opensearch.svc.cluster.local:9200"]
-    opensearch_security.enabled: false
+    # NOTE: no opensearch_security.* keys — the security dashboards plugin is removed
+    # (DISABLE_SECURITY_DASHBOARDS_PLUGIN below), so those keys are unknown and fatal.
 
 extraEnvs:
   - name: DISABLE_SECURITY_DASHBOARDS_PLUGIN
