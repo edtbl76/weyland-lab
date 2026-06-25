@@ -86,12 +86,14 @@ datahub-frontend:
   extraVolumeMounts:
     - name: truststore
       mountPath: /trust
+  # The frontend image is a trimmed JRE (no keytool, JAVA_HOME unset), so build the truststore in a JDK
+  # image instead. The PKCS12/JKS cacerts format is portable — the frontend JVM just reads it via JAVA_TOOL_OPTIONS.
   extraInitContainers:
     - name: build-truststore
-      image: acryldata/datahub-frontend-react:v1.6.0
+      image: eclipse-temurin:21-jdk
       command: ["sh", "-c"]
       args:
-        - cp "$JAVA_HOME/lib/security/cacerts" /trust/cacerts && "$JAVA_HOME/bin/keytool" -importcert -noprompt -alias mkcert -file /ca/rootCA.pem -keystore /trust/cacerts -storepass changeit && echo "truststore built"
+        - cp "$JAVA_HOME/lib/security/cacerts" /trust/cacerts && keytool -importcert -noprompt -alias mkcert -file /ca/rootCA.pem -keystore /trust/cacerts -storepass changeit && echo "truststore built"
       volumeMounts:
         - name: truststore
           mountPath: /trust
