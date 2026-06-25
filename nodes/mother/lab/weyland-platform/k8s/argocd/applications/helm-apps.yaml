@@ -288,3 +288,31 @@ spec:
     automated: { selfHeal: true, prune: true }
     syncOptions:
       - ServerSideApply=true
+---
+# B1.3 — DataHub (GMS + frontend + actions + systemUpdate). Search/graph on the bundled OpenSearch 2.19.5,
+# metadata in Postgres (datahub DB), meshed for STRICT Postgres. OIDC added in a follow-up.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: datahub
+  namespace: argocd
+spec:
+  project: default
+  sources:
+    - repoURL: https://helm.datahubproject.io
+      chart: datahub
+      targetRevision: 1.0.1
+      helm:
+        releaseName: datahub
+        valueFiles:
+          - $values/nodes/mother/lab/weyland-platform/k8s/data-mesh/datahub-values.yaml
+    - repoURL: https://github.com/edtbl76/weyland-lab.git
+      targetRevision: main
+      ref: values
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: data-mesh
+  syncPolicy:
+    automated: { selfHeal: true, prune: true }
+    syncOptions:
+      - ServerSideApply=true
