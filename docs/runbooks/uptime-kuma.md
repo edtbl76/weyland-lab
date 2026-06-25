@@ -7,6 +7,8 @@ the paging path on purpose — independent of any agent that could itself fail (
 auth (set on first login). Single container, SQLite state on a PVC.
 
 - Manifest: `k8s/uptime-kuma/uptime-kuma.yaml` (PVC + Deployment + Service + Ingress, Traefik TLS).
+- **UI access:** `kuma.weyland.lab` is now **Keycloak SSO gated via `traefik-forward-auth`** (forward-auth →
+  Keycloak, in front of Kuma's own built-in login). The backup-script auth below is a separate API path, unaffected.
 - Backup (monitors + notification): `scripts/kuma-backup.json` — **gitignored** (inline dev-password basic
   auth + the Port ingest key). Local-only.
 

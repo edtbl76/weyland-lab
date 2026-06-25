@@ -1,6 +1,6 @@
 # MLflow — runbook (B10+B16)
 
-Experiment tracking + model registry at `mlflow.weyland.lab` (dev-password). Reuses the shared **Postgres**
+Experiment tracking + model registry at `mlflow.weyland.lab` (Keycloak SSO via `traefik-forward-auth`). Reuses the shared **Postgres**
 (backend store) and **MinIO** (artifact store, proxied) — fits the lab's reuse ethos.
 
 - Manifest: `k8s/mlflow/mlflow.yaml` (Middleware + Deployment + Service + Ingress).
@@ -29,6 +29,8 @@ kubectl exec -n weyland deploy/mlflow -- python -c "import mlflow; mlflow.set_tr
 - **pip-on-start (v1).** The container installs `psycopg2-binary` + `boto3` on every start (no custom image),
   so first/restart boot is ~1–2 min and needs egress. If restarts get slow/flaky, bake a small
   `FROM ghcr.io/mlflow/mlflow:v2.18.0` + `pip install` image and drop the install from the command.
-- **No native auth** — the dev-password is a Traefik `basicAuth` Middleware (`mlflow-auth`), like Kiali/Jaeger.
+- **No native auth** — access is gated by **Keycloak SSO** via the shared `traefik-forward-auth` Middleware
+  (forward-auth → Keycloak, SSO across `*.weyland.lab`), like Kiali. The old `mlflow-auth` basicAuth dev-password
+  Middleware is retired/superseded by the forward-auth gate.
 - **Clients:** point `MLFLOW_TRACKING_URI=https://mlflow.weyland.lab` with `MLFLOW_TRACKING_USERNAME=admin` /
   `MLFLOW_TRACKING_PASSWORD=weyland_dev_password`. Proxied artifacts mean no MinIO creds needed client-side.

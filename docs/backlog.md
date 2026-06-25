@@ -822,6 +822,12 @@ tools load.
 - **Priority**: after U9; user may reprioritize. NOT yet in the numbered running list
   (which tracks the original 15 items) — added as an architecture-driven follow-up.
 
+### B64 — Diagram tooling: migrate docs diagrams off Mermaid (Polish — AFTER B1 data mesh)
+**Added 2026-06-25.** Mermaid's autolayout cramps + crosses edges past ~10 nodes and renders too small (no real zoom) — the `c4-component-mother` diagram is unreadable. Migrate to a better code-as-diagram tool with scalable SVG output.
+- **Options** (all free / self-hostable / code-in-repo): **D2** (recommended — far better autolayout via ELK/dagre, clean scalable SVG, MkDocs plugin, free layouts; no paid TALA needed) · **Structurizr** (purpose-built C4 — define the model once → auto-generate layered context/container/component views, structurally kills the "one giant diagram" problem) · **PlantUML + C4-PlantUML** (mature, C4 macros, SVG). Optional infra: **Kroki** (one self-hosted render service for all of them → embed SVG in MkDocs; fits the lab's self-host pattern).
+- **Also**: split the overloaded `c4-component-mother` into focused views (data/RAG plane · platform+auth · data-mesh · mesh/observability) — a better renderer alone won't fix one 22-component diagram.
+- **Sequencing**: AFTER B1 (data mesh). Keep Mermaid fresh + accurate until then (content over polish). Pilot D2 on `component-mother` first to compare before committing.
+
 ### U18 — weyland-lab SSH key full lockdown (rogueone-side)
 - **✅ DONE 2026-06-17 — closed as KEY RETIREMENT.** Removed the rogueone `authorized_keys` line and deleted
   the orphaned `weyland-lab-ssh-key` k8s Secret. The key is fully gone (no public half, no private half).

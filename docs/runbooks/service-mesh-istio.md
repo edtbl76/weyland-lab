@@ -91,18 +91,17 @@ The Istio addon ships **demo-grade** defaults. Hardened in `k8s/istio/kiali.yaml
 signing key. Kiali stays `auth.strategy: anonymous` internally; **the password gate is at the ingress** (below).
 **Residual (optional):** NetworkPolicy/AuthorizationPolicy + drop the remaining workload `patch` verbs.
 
-### Ingress auth (dev-password) — `observability-auth`
-Both `kiali.weyland.lab` and `jaeger.weyland.lab` were anonymous-read on the LAN. Now gated by a **Traefik
-basicAuth Middleware** (`k8s/istio/observability-auth.yaml`, `traefik.io/v1alpha1`), same dev-password posture
-as the other UIs. The htpasswd secret is created **out-of-band** (never committed):
-```
-htpasswd -nb admin weyland_dev_password | kubectl create secret generic observability-auth-secret -n istio-system --from-file=users=/dev/stdin
-```
-Each Ingress opts in via annotation `traefik.ingress.kubernetes.io/router.middlewares: istio-system-observability-auth@kubernetescrd`
-(see `kiali-ingress.yaml` / `jaeger-ingress.yaml`). Apply:
-```
-kubectl apply -f k8s/istio/observability-auth.yaml -f k8s/istio/kiali-ingress.yaml -f k8s/istio/jaeger-ingress.yaml
-```
+### Ingress auth (Keycloak SSO) — `traefik-forward-auth`
+`kiali.weyland.lab` was anonymous-read on the LAN. Now gated by **Keycloak SSO via `traefik-forward-auth`**
+(forward-auth → Keycloak, SSO across `*.weyland.lab`). The old `observability-auth` basicAuth dev-password
+Middleware is superseded by the forward-auth gate.
+
+**Local middleware required in `istio-system`.** Traefik blocks cross-namespace Middleware references, so the
+shared `traefik-forward-auth` Middleware can't be referenced from another namespace — Kiali needs a **local
+`traefik-forward-auth` Middleware in `istio-system`** (a `forwardAuth` Middleware pointing at the shared
+forward-auth service). The Ingress opts in via annotation
+`traefik.ingress.kubernetes.io/router.middlewares: istio-system-traefik-forward-auth@kubernetescrd`
+(see `kiali-ingress.yaml`).
 
 ## Observability — consolidated onto kube-prometheus-stack
 Bring-up shortcut was Istio's **addon Prometheus** (a second Prometheus). Consolidated onto B5's

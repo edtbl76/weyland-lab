@@ -4,7 +4,9 @@ Three on-demand scanners → Port. **SonarQube** (server, always-on) + **Trivy**
 LaunchDarkly-style SaaS avoided; all OSS/$0. Findings surface in Port as `code_quality` + `security_scan` entities.
 
 - SonarQube server: `k8s/sonarqube/sonarqube.yaml` — `sonarqube.weyland.lab`, **meshed** (STRICT Postgres backend,
-  db/role `sonarqube`), own login (`admin`/`admin` → forced change). Stateless-ish: data + extensions on RWO PVCs.
+  db/role `sonarqube`). Auth is **double-login**: a **Keycloak forward-auth gate** (`traefik-forward-auth`) sits
+  **in front of** SonarQube's own login (`admin`/`admin` → forced change) — Keycloak SSO first, then SonarQube's
+  own login. Stateless-ish: data + extensions on RWO PVCs.
 - Scan Jobs (clone → scan → push): `k8s/sonarqube/sonar-scan-job.yaml`, `k8s/code-quality/trivy-scan-job.yaml`,
   `k8s/code-quality/semgrep-scan-job.yaml`. Re-run: `kubectl delete job <name> -n weyland` then re-apply.
 - Always-on (NOT KEDA scale-to-zero): the 32GB RAM bump made the cost moot; scale-to-zero would need the KEDA
