@@ -7,6 +7,9 @@ global:
   # Native sidecars (enabled on istiod) let the Job's sidecar terminate so the Job completes.
   podLabels:
     sidecar.istio.io/inject: "true"
+  # Node CPU requests run ~98% committed; istio-proxy defaults to 100m. Shrink the sidecar reservation.
+  podAnnotations:
+    sidecar.istio.io/proxyCPU: "25m"
 
   # Metadata store = the shared Postgres, datahub DB, dedicated `datahub` role (password in datahub-secret).
   sql:
@@ -103,3 +106,13 @@ acryl-datahub-actions:
       memory: "256Mi"
     limits:
       memory: "512Mi"
+
+# system-update bootstrap Job (runs as a hook on every sync) — trim its default 300m CPU so it schedules
+# on the CPU-tight node. Memory left roomy (it does ES index + Postgres schema work).
+datahubSystemUpdate:
+  resources:
+    requests:
+      cpu: "50m"
+      memory: "512Mi"
+    limits:
+      memory: "1Gi"

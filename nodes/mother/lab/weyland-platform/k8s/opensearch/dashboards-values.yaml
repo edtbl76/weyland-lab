@@ -6,7 +6,7 @@ replicaCount: 1
 
 resources:
   requests:
-    cpu: "100m"
+    cpu: "25m"           # node CPU requests run hot; playground UI, near-idle
     memory: "512Mi"
   limits:
     memory: "768Mi"

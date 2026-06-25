@@ -14,6 +14,17 @@ spec:
         # never exits, so meshed Jobs hang at 1/2 forever. The data mesh runs many meshed Jobs (DataHub
         # systemUpdate, Dagster ops, Trino, dbt, Soda) → enable cluster-wide. Affects newly-created pods only.
         ENABLE_NATIVE_SIDECARS: "true"
+    global:
+      # B1.3 — the istio-proxy default request (100m CPU) × ~15 meshed pods reserved ~1.4 vCPU while each
+      # sidecar idles at ~5m, pinning the single node at 98% CPU requests. Drop to 15m; limit unchanged.
+      proxy:
+        resources:
+          requests:
+            cpu: "15m"
+            memory: "128Mi"
+          limits:
+            cpu: "2000m"
+            memory: "1024Mi"
   meshConfig:
     enableTracing: true
     # Tracing PROVIDER: where Envoy ships spans → Tempo's zipkin receiver (B48; was the addon Jaeger, now retired).
