@@ -1,0 +1,38 @@
+# Single-node OpenSearch 3.x — LAN-internal exposed search/log playground (B1.3).
+# NOT used by DataHub (DataHub runs its own bundled Elasticsearch 7.x). Security plugin OFF.
+clusterName: opensearch-cluster
+nodeGroup: master
+singleNode: true
+replicas: 1
+roles:
+  - master
+  - ingest
+  - data
+  - remote_cluster_client
+
+# 1 GB heap — two search instances on the node now, keep it lean.
+opensearchJavaOpts: "-Xms1g -Xmx1g"
+
+resources:
+  requests:
+    cpu: "500m"
+    memory: "2Gi"
+  limits:
+    memory: "3Gi"        # heap must be <= 50% of this
+
+persistence:
+  enabled: true
+  size: 20Gi             # storageClass omitted -> k3s default local-path
+
+config:
+  opensearch.yml: |
+    cluster.name: opensearch-cluster
+    network.host: 0.0.0.0
+    discovery.type: single-node
+    plugins.security.disabled: true
+
+extraEnvs:
+  - name: DISABLE_INSTALL_DEMO_CONFIG
+    value: "true"
+  - name: DISABLE_SECURITY_PLUGIN
+    value: "true"

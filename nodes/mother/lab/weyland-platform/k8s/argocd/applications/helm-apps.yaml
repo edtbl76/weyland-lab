@@ -197,3 +197,30 @@ spec:
   syncPolicy:
     syncOptions:
       - ServerSideApply=true
+---
+# B1.3 — exposed OpenSearch 3.x search/log playground (standalone; NOT used by DataHub).
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: opensearch
+  namespace: argocd
+spec:
+  project: default
+  sources:
+    - repoURL: https://opensearch-project.github.io/helm-charts
+      chart: opensearch
+      targetRevision: 3.7.0
+      helm:
+        releaseName: opensearch
+        valueFiles:
+          - $values/nodes/mother/lab/weyland-platform/k8s/opensearch/opensearch-values.yaml
+    - repoURL: https://github.com/edtbl76/weyland-lab.git
+      targetRevision: main
+      ref: values
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: opensearch
+  syncPolicy:
+    syncOptions:
+      - ServerSideApply=true
+      - CreateNamespace=true
