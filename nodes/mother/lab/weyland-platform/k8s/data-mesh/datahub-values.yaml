@@ -11,6 +11,15 @@ global:
   podAnnotations:
     sidecar.istio.io/proxyCPU: "25m"
 
+  datahub:
+    # The chart's autoGenerate REGENERATES datahub-auth-secrets on every render → GMS/frontend end up with
+    # different system-client-secret + token-signing-key (frontend's system token → 401 at GMS, "Failed to
+    # provision user"), AND selfHeal sees the churning secret as perpetual drift → GMS never reports Healthy
+    # → syncs hang. Pin it: we create datahub-auth-secrets ourselves (fixed values, out of git).
+    metadata_service_authentication:
+      provisionSecrets:
+        enabled: false
+
   # Metadata store = the shared Postgres, datahub DB, dedicated `datahub` role (password in datahub-secret).
   sql:
     datasource:
