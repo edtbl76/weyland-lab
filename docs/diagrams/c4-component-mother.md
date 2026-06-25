@@ -59,6 +59,13 @@ C4Component
         Component(kiali, "Kiali", "Kiali / k8s", "Mesh observability UI: topology graph, mTLS lock status, traces (Tempo). Read-only + RBAC-tightened. Keycloak SSO (forward-auth). kiali.weyland.lab")
     }
 
+    Container_Boundary(datamesh, "mother VM — k3s, ns: data-mesh (B1.2 — L1 storage foundation)") {
+
+        Component(nessie, "Nessie", "Nessie / k8s", "Iceberg catalog + git-branch table versioning. Postgres version store, MinIO warehouse, Iceberg REST /iceberg. Meshed (STRICT Postgres). Keycloak SSO (forward-auth). nessie.weyland.lab :19120")
+
+        Component(lakefs, "lakeFS", "lakeFS / k8s", "Git-style versioning for file/dataset products (corpora, ML datasets, model artifacts). Postgres metadata + MinIO blockstore. Meshed (STRICT Postgres). Keycloak SSO (forward-auth). lakefs.weyland.lab :8000")
+    }
+
     Rel(hermes, tool_server, "MCP /mcp — status, context_search, context_ask, list_models")
     Rel(rogueone, tool_server, "MCP /mcp (Claude Code)")
     Rel(user, open_webui, "browser voice/chat")
@@ -100,4 +107,10 @@ C4Component
     Rel(istiod, tool_server, "injects + configures Envoy sidecars")
     Rel(kiali, prometheus, "Envoy mesh metrics (consolidated onto kube-prometheus-stack)")
     Rel(prometheus, tool_server, "scrape Envoy /stats (PodMonitor)")
+    Rel(user, nessie, "Iceberg catalog UI (Keycloak SSO)")
+    Rel(user, lakefs, "file/dataset versioning UI (Keycloak SSO)")
+    Rel(nessie, pgvector, "version store (mTLS, STRICT)")
+    Rel(nessie, minio, "Iceberg warehouse s3://warehouse")
+    Rel(lakefs, pgvector, "metadata (mTLS, STRICT)")
+    Rel(lakefs, minio, "blockstore s3://lakefs")
 ```

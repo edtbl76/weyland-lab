@@ -59,10 +59,10 @@ Hosts & access users: [hosts.md](hosts.md). `mother` = 192.168.1.243, CTs by IP 
 
 ## Identity / SSO (Keycloak — B1.1, 2026-06-24)
 
-Central IdP for the lab — replaced the scattered dev-password / per-app logins. **Keycloak** (`keycloak.weyland.lab`, `weyland` realm, k8s + meshed Postgres) is the OIDC provider; realm + clients codified in `tofu/keycloak/`. Apps connect two ways:
-- **OIDC (native):** Grafana, GlitchTip, Open WebUI — hold a Keycloak client + speak OIDC directly. (MinIO's console is OIDC-capable but its community build is stripped → not used.)
-- **Forward-auth (gate):** MLflow, Kiali, filestash — no native OIDC, so **traefik-forward-auth** (`auth.weyland.lab`) gates the ingress; one Keycloak session covers all of them (`COOKIE_DOMAIN=weyland.lab`). Cross-namespace Traefik middleware refs are blocked, so each protected ns (istio-system, minio) gets a local `traefik-forward-auth` Middleware pointing at the shared service.
-- **Left out by design:** Woodpecker (forge-based auth = GitHub, no generic OIDC).
+Central IdP for the lab — replaced the scattered dev-password / per-app logins. **Keycloak** (`keycloak.weyland.lab`, `weyland` realm, k8s + meshed Postgres) is the OIDC provider; realm + clients codified in `tofu/keycloak/`. Apps fall into three buckets:
+- **OIDC (native, true single login):** Grafana, GlitchTip, Open WebUI — hold a Keycloak client + speak OIDC directly. (MinIO's console is OIDC-capable but its community build is stripped → not used.)
+- **Forward-auth (Keycloak gate in front) — EVERY other browser UI** (extended 2026-06-25): MLflow, Kiali, filestash, Nessie, lakeFS, Unleash, SonarQube, Uptime-Kuma, Dagster, LiteLLM-UI, docs-site, APISIX-dashboard, OpenCost, n8n, Woodpecker, Argo CD, Headlamp. `traefik-forward-auth` (`auth.weyland.lab`) gates the ingress; one Keycloak session covers all (`COOKIE_DOMAIN=weyland.lab`). Cross-ns middleware refs are blocked, so each protected ns gets a local `traefik-forward-auth` Middleware. **Caveat:** forward-auth gates *access* — it does NOT replace an app's own login, so own-login apps (Unleash, SonarQube, n8n, Woodpecker…) are **double-login** (Keycloak *then* their login); apps with no own login (Dagster, OpenCost, filestash) are clean single-login.
+- **NOT Keycloak-gated by design** (API/DB clients, not browsers — you can't browser-SSO a database/API call): the **S3 API** (`s3.weyland.lab`), the **data backends** (qdrant/weaviate/neo4j NodePorts), and the **APISIX gateway** (`mother:30090`). These auth at the API/DB layer. Keycloak itself + `auth.weyland.lab` stay open too (they *are* the gate). Woodpecker keeps its GitHub-forge login *behind* the new Keycloak gate.
 
 | Service | URL | Notes |
 |---|---|---|
@@ -95,8 +95,8 @@ mkcert wildcard cert; resolve from rogueone (`/etc/hosts`) or via CoreDNS. **Mos
 | **MLflow** (experiment tracking + model registry; B10+B16) — **Keycloak SSO** (forward-auth) | `https://mlflow.weyland.lab` |
 | **Uptime Kuma** (live status board — own auth; **25 monitors**, Telegram paging; Port webhook retired) | `https://kuma.weyland.lab` |
 | **Linear** (roadmap/task board — SaaS; Claude via MCP, Port ingests for status) | `https://linear.app/emangini` — projects: Weyland Lab / Stud.IO / Service Transformation |
-| **Unleash** (feature flags; OSS self-hosted, own login admin/dev-pass; → Port `feature_flag` webhook) | `https://unleash.weyland.lab` — Python SDK for tool-server/Hermes; see [runbooks/unleash.md](runbooks/unleash.md) |
-| **SonarQube** (code quality / static analysis; own login; → Port `code_quality` webhook) | `https://sonarqube.weyland.lab` — meshed Postgres backend; on-demand scan Jobs (+ Trivy/Semgrep). See [runbooks/code-quality.md](runbooks/code-quality.md) |
+| **Unleash** (feature flags; OSS self-hosted; → Port `feature_flag` webhook) — **Keycloak SSO** (forward-auth; own login behind = double) | `https://unleash.weyland.lab` — Python SDK for tool-server/Hermes; see [runbooks/unleash.md](runbooks/unleash.md) |
+| **SonarQube** (code quality / static analysis; → Port `code_quality` webhook) — **Keycloak SSO** (forward-auth; own login behind = double; native OIDC possible later) | `https://sonarqube.weyland.lab` — meshed Postgres backend; on-demand scan Jobs (+ Trivy/Semgrep). See [runbooks/code-quality.md](runbooks/code-quality.md) |
 | **Nessie** (data-mesh **B1.2** — Iceberg catalog + table versioning) — **Keycloak SSO** (forward-auth) | `https://nessie.weyland.lab` — UI + Iceberg REST `/iceberg` + API `/api/v2`. Programmatic: `nessie.data-mesh.svc.cluster.local:19120` (in-cluster, no gate) |
 | **lakeFS** (data-mesh **B1.2** — file/dataset versioning) — **Keycloak SSO** (forward-auth; own access-key auth behind) | `https://lakefs.weyland.lab` — Programmatic: `lakefs.data-mesh.svc.cluster.local:8000` (in-cluster, no gate — forward-auth is browser-only, so CLI/pipelines use the svc directly) |
 
