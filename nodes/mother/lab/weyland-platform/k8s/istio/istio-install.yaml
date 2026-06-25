@@ -7,6 +7,13 @@ metadata:
   name: weyland-istio
 spec:
   profile: minimal
+  values:
+    pilot:
+      env:
+        # B1.3 — k8s-native init-container sidecars (k8s 1.35 supports them). Without this, an Envoy sidecar
+        # never exits, so meshed Jobs hang at 1/2 forever. The data mesh runs many meshed Jobs (DataHub
+        # systemUpdate, Dagster ops, Trino, dbt, Soda) → enable cluster-wide. Affects newly-created pods only.
+        ENABLE_NATIVE_SIDECARS: "true"
   meshConfig:
     enableTracing: true
     # Tracing PROVIDER: where Envoy ships spans → Tempo's zipkin receiver (B48; was the addon Jaeger, now retired).

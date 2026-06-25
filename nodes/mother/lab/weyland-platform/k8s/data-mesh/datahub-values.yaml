@@ -1,0 +1,65 @@
+# B1.3 — DataHub (chart 1.0.1 / DataHub v1.6.0). Core-first; Keycloak OIDC added in a follow-up step.
+# Search/graph = the bundled OpenSearch 2.19.5 (chart defaults already point at opensearch-cluster-master,
+# AUTO_DETECT, INTERNAL schema registry, embedded consumers) — so only sql + mesh + ingress + lean CPU here.
+
+global:
+  # Mesh every DataHub pod so GMS + the systemUpdate Job can reach STRICT-mTLS Postgres.
+  # Native sidecars (enabled on istiod) let the Job's sidecar terminate so the Job completes.
+  podLabels:
+    sidecar.istio.io/inject: "true"
+
+  # Metadata store = the shared Postgres, datahub DB, dedicated `datahub` role (password in datahub-secret).
+  sql:
+    datasource:
+      host: "weyland-postgres.weyland.svc.cluster.local:5432"
+      hostForpostgresqlClient: "weyland-postgres.weyland.svc.cluster.local"
+      port: "5432"
+      url: "jdbc:postgresql://weyland-postgres.weyland.svc.cluster.local:5432/datahub"
+      driver: "org.postgresql.Driver"
+      database: "datahub"
+      username: "datahub"
+      password:
+        secretRef: datahub-secret
+        secretKey: postgres-password
+
+# GMS — core backend. Lean CPU (node CPU requests run hot).
+datahub-gms:
+  resources:
+    requests:
+      cpu: "25m"
+      memory: "1Gi"
+    limits:
+      memory: "2Gi"
+
+# Frontend — React UI + ingress. OIDC env added in the follow-up step (default DataHub login until then).
+datahub-frontend:
+  enabled: true
+  resources:
+    requests:
+      cpu: "25m"
+      memory: "512Mi"
+    limits:
+      memory: "1400Mi"
+  ingress:
+    enabled: true
+    annotations:
+      traefik.ingress.kubernetes.io/router.entrypoints: websecure
+      traefik.ingress.kubernetes.io/router.tls: "true"
+    pathType: Prefix
+    hosts:
+      - host: datahub.weyland.lab
+        paths:
+          - "/"
+    tls:
+      - secretName: weyland-wildcard-tls
+        hosts:
+          - datahub.weyland.lab
+
+# Actions framework — trim its default 300m CPU request.
+acryl-datahub-actions:
+  resources:
+    requests:
+      cpu: "25m"
+      memory: "256Mi"
+    limits:
+      memory: "512Mi"

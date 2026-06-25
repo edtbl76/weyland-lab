@@ -15,7 +15,7 @@ opensearchJavaOpts: "-Xms1g -Xmx1g"
 
 resources:
   requests:
-    cpu: "500m"
+    cpu: "50m"           # low reservation — playground, near-idle; node CPU requests run ~98% committed
     memory: "2Gi"
   limits:
     memory: "3Gi"        # heap must be <= 50% of this
