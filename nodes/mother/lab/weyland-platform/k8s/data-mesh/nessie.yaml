@@ -40,10 +40,12 @@ spec:
             - { name: NESSIE_CATALOG_SERVICE_S3_DEFAULT_OPTIONS_REGION, value: us-east-1 }
             - { name: NESSIE_CATALOG_SERVICE_S3_DEFAULT_OPTIONS_PATH_STYLE_ACCESS, value: "true" }
             - { name: NESSIE_CATALOG_SERVICE_S3_DEFAULT_OPTIONS_AUTH_TYPE, value: STATIC }
-            - { name: NESSIE_CATALOG_SERVICE_S3_DEFAULT_OPTIONS_ACCESS_KEY, value: "urn:nessie-secret:quarkus:s3-creds" }
-            - name: S3_CREDS_NAME      # the urn:nessie-secret 's3-creds.name' = MinIO access key
+            # Static MinIO creds set DIRECTLY on the access-key object (.name = access-key-id, .secret = secret-key).
+            # The urn:nessie-secret indirection needs an external secrets-manager provider (not configured) → it
+            # threw "Missing access key and secret for STATIC authentication mode". Direct values just work.
+            - name: NESSIE_CATALOG_SERVICE_S3_DEFAULT_OPTIONS_ACCESS_KEY_NAME
               valueFrom: { secretKeyRef: { name: nessie-secret, key: s3-access-key } }
-            - name: S3_CREDS_SECRET    # 's3-creds.secret' = MinIO secret key
+            - name: NESSIE_CATALOG_SERVICE_S3_DEFAULT_OPTIONS_ACCESS_KEY_SECRET
               valueFrom: { secretKeyRef: { name: nessie-secret, key: s3-secret-key } }
           readinessProbe:
             httpGet: { path: /q/health/ready, port: 9000 }
