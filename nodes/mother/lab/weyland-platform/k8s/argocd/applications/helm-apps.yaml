@@ -250,3 +250,29 @@ spec:
   syncPolicy:
     syncOptions:
       - ServerSideApply=true
+---
+# B1.3 — DataHub prerequisites: bundled OpenSearch 2.19.5 + single-pod KRaft Kafka (DataHub-internal).
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: datahub-prerequisites
+  namespace: argocd
+spec:
+  project: default
+  sources:
+    - repoURL: https://helm.datahubproject.io
+      chart: datahub-prerequisites
+      targetRevision: 0.3.0
+      helm:
+        releaseName: prerequisites
+        valueFiles:
+          - $values/nodes/mother/lab/weyland-platform/k8s/data-mesh/datahub-prerequisites-values.yaml
+    - repoURL: https://github.com/edtbl76/weyland-lab.git
+      targetRevision: main
+      ref: values
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: data-mesh
+  syncPolicy:
+    syncOptions:
+      - ServerSideApply=true

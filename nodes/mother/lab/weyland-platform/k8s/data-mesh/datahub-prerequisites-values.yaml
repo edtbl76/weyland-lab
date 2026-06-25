@@ -1,0 +1,27 @@
+# B1.3 — DataHub prerequisites (chart 0.3.0): bundled OpenSearch 2.19.5 + single-pod KRaft Kafka.
+# DataHub uses its OWN bundled OpenSearch here (Apache-2.0, engine OPENSEARCH_2) — NOT the
+# opensearch-ns 3.x playground. MySQL off (DataHub metadata store = the shared Postgres / datahub DB);
+# neo4j off (graph rides OpenSearch). Kafka left at chart default (single-pod KRaft, no Zookeeper).
+
+opensearch:
+  enabled: true              # chart default — bundled OpenSearch 2.19.5 (security plugin already disabled)
+  singleNode: true
+  opensearchJavaOpts: "-Xms1g -Xmx1g"
+  resources:
+    requests:
+      cpu: "250m"
+      memory: "2Gi"
+    limits:
+      memory: "2Gi"          # heap must be <= 50% of this
+
+elasticsearch:
+  enabled: false             # chart default — superseded by the bundled OpenSearch above
+
+mysql:
+  enabled: false             # DataHub metadata store = the shared Postgres (datahub DB)
+
+neo4j:
+  enabled: false             # graph rides OpenSearch, no Neo4j
+
+kafka:
+  enabled: true              # chart default: single-pod KRaft, no Zookeeper
