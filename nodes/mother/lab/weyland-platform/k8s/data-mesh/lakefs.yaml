@@ -1,0 +1,84 @@
+# B1.2 — lakeFS: git-style versioning for NON-tabular/file data products (raw corpora, ML datasets, model
+# artifacts). Postgres metadata + MinIO blockstore. Meshed (sidecar) for STRICT Postgres. GOTCHAS baked in:
+# FORCE_PATH_STYLE + DISCOVER_BUCKET_REGION=false are mandatory for MinIO; AUTH_ENCRYPT_SECRET_KEY must stay
+# stable across restarts (changing it invalidates all stored creds). First run = interactive setup wizard
+# (the LAKEFS_INSTALLATION_* headless vars only work with a local DB, NOT Postgres — capture admin keys then).
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: lakefs
+  namespace: data-mesh
+  labels: { app: lakefs }
+spec:
+  replicas: 1
+  selector: { matchLabels: { app: lakefs } }
+  template:
+    metadata:
+      labels:
+        app: lakefs
+        sidecar.istio.io/inject: "true"   # reach STRICT-mTLS Postgres
+    spec:
+      containers:
+        - name: lakefs
+          image: treeverse/lakefs:1.67.0
+          args: ["run"]
+          ports:
+            - { name: http, containerPort: 8000 }
+          env:
+            - { name: LAKEFS_DATABASE_TYPE, value: postgres }
+            - name: LAKEFS_DATABASE_POSTGRES_CONNECTION_STRING
+              valueFrom: { secretKeyRef: { name: lakefs-secret, key: database-connection-string } }
+            - { name: LAKEFS_BLOCKSTORE_TYPE, value: s3 }
+            - { name: LAKEFS_BLOCKSTORE_S3_ENDPOINT, value: "http://minio.minio.svc.cluster.local:9000" }
+            - { name: LAKEFS_BLOCKSTORE_S3_FORCE_PATH_STYLE, value: "true" }       # mandatory for MinIO
+            - { name: LAKEFS_BLOCKSTORE_S3_REGION, value: us-east-1 }
+            - { name: LAKEFS_BLOCKSTORE_S3_DISCOVER_BUCKET_REGION, value: "false" } # MinIO has no region-discovery API
+            - name: LAKEFS_BLOCKSTORE_S3_CREDENTIALS_ACCESS_KEY_ID
+              valueFrom: { secretKeyRef: { name: lakefs-secret, key: s3-access-key } }
+            - name: LAKEFS_BLOCKSTORE_S3_CREDENTIALS_SECRET_ACCESS_KEY
+              valueFrom: { secretKeyRef: { name: lakefs-secret, key: s3-secret-key } }
+            - name: LAKEFS_AUTH_ENCRYPT_SECRET_KEY
+              valueFrom: { secretKeyRef: { name: lakefs-secret, key: encrypt-key } }
+          readinessProbe:
+            httpGet: { path: /_health, port: 8000 }
+            initialDelaySeconds: 15
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: { path: /_health, port: 8000 }
+            initialDelaySeconds: 30
+            periodSeconds: 20
+          resources:
+            requests: { cpu: 100m, memory: 256Mi }
+            limits: { memory: 1Gi }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: lakefs
+  namespace: data-mesh
+  labels: { app: lakefs }
+spec:
+  type: ClusterIP
+  selector: { app: lakefs }
+  ports:
+    - { name: http, port: 8000, targetPort: 8000 }
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: lakefs
+  namespace: data-mesh
+  annotations:
+    traefik.ingress.kubernetes.io/router.middlewares: data-mesh-traefik-forward-auth@kubernetescrd
+spec:
+  tls:
+    - hosts: [lakefs.weyland.lab]
+      secretName: weyland-wildcard-tls
+  rules:
+    - host: lakefs.weyland.lab
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service: { name: lakefs, port: { number: 8000 } }
