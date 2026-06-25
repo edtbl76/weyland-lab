@@ -9,7 +9,7 @@ opensearch:
   opensearchJavaOpts: "-Xms1g -Xmx1g"
   resources:
     requests:
-      cpu: "250m"
+      cpu: "50m"             # low reservation — node CPU requests are ~98% committed (actual use ~5%); bursts under limit
       memory: "2Gi"
     limits:
       memory: "2Gi"          # heap must be <= 50% of this
