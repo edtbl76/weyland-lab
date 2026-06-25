@@ -1,0 +1,23 @@
+# OpenSearch Dashboards 3.x — UI for the exposed search/log playground (B1.3).
+# Cluster runs with the security plugin OFF, so Dashboards' security plugin is disabled too;
+# access is gated at the Traefik ingress via Keycloak forward-auth (no Dashboards-native auth).
+opensearchHosts: "http://opensearch-cluster-master.opensearch.svc.cluster.local:9200"
+replicaCount: 1
+
+resources:
+  requests:
+    cpu: "100m"
+    memory: "512Mi"
+  limits:
+    memory: "768Mi"
+
+config:
+  opensearch_dashboards.yml: |
+    server.host: "0.0.0.0"
+    server.name: opensearch-dashboards
+    opensearch.hosts: ["http://opensearch-cluster-master.opensearch.svc.cluster.local:9200"]
+    opensearch_security.enabled: false
+
+extraEnvs:
+  - name: DISABLE_SECURITY_DASHBOARDS_PLUGIN
+    value: "true"
