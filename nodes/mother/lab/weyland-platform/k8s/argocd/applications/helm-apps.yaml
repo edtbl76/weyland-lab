@@ -224,3 +224,29 @@ spec:
     syncOptions:
       - ServerSideApply=true
       - CreateNamespace=true
+---
+# B1.3 — OpenSearch Dashboards 3.x (UI for the playground). Gated at the ingress via Keycloak forward-auth.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: opensearch-dashboards
+  namespace: argocd
+spec:
+  project: default
+  sources:
+    - repoURL: https://opensearch-project.github.io/helm-charts
+      chart: opensearch-dashboards
+      targetRevision: 3.7.0
+      helm:
+        releaseName: opensearch-dashboards
+        valueFiles:
+          - $values/nodes/mother/lab/weyland-platform/k8s/opensearch/dashboards-values.yaml
+    - repoURL: https://github.com/edtbl76/weyland-lab.git
+      targetRevision: main
+      ref: values
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: opensearch
+  syncPolicy:
+    syncOptions:
+      - ServerSideApply=true

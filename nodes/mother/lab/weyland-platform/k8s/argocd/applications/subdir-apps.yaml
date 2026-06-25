@@ -216,3 +216,25 @@ spec:
   syncPolicy:
     automated: { selfHeal: true, prune: true }
     syncOptions: [CreateNamespace=true]
+---
+# B1.3 — raw manifests for the OpenSearch playground ns (forward-auth Middleware + Dashboards Ingress).
+# *-values.yaml are Helm values (consumed by the opensearch / opensearch-dashboards Helm apps) — exclude them.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: opensearch-extras
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/edtbl76/weyland-lab.git
+    targetRevision: main
+    path: nodes/mother/lab/weyland-platform/k8s/opensearch
+    directory:
+      exclude: '*-values.yaml'
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: opensearch
+  syncPolicy:
+    automated: { selfHeal: true, prune: true }
+    syncOptions: [CreateNamespace=true]

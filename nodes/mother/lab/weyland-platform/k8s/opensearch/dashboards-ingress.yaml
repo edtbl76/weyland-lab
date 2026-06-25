@@ -1,0 +1,20 @@
+# B1.3 — Ingress for OpenSearch Dashboards, gated behind Keycloak via the local forward-auth Middleware.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: opensearch-dashboards
+  namespace: opensearch
+  annotations:
+    traefik.ingress.kubernetes.io/router.middlewares: opensearch-traefik-forward-auth@kubernetescrd
+spec:
+  tls:
+    - hosts: [opensearch.weyland.lab]
+      secretName: weyland-wildcard-tls
+  rules:
+    - host: opensearch.weyland.lab
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service: { name: opensearch-dashboards, port: { number: 5601 } }
