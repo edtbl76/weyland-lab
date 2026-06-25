@@ -36,6 +36,10 @@ global:
 
 # GMS — core backend. Lean CPU (node CPU requests run hot).
 datahub-gms:
+  # In-cluster only — default LoadBalancer stays <pending> on k3s, which pins Argo's sync op to "waiting for
+  # healthy state of Service" forever (perpetual Progressing, blocked syncs). ClusterIP is instantly healthy.
+  service:
+    type: ClusterIP
   resources:
     requests:
       cpu: "25m"
@@ -46,6 +50,9 @@ datahub-gms:
 # Frontend — React UI + ingress + native Keycloak OIDC.
 datahub-frontend:
   enabled: true
+  # Exposed via the Ingress below, not a LoadBalancer — ClusterIP (same pending-LB reason as GMS).
+  service:
+    type: ClusterIP
   resources:
     requests:
       cpu: "25m"
