@@ -37,6 +37,10 @@ server:
   ingress:
     enabled: true
     ingressClassName: traefik
+    # Keycloak SSO gate (forward-auth). NOTE: woodpecker also has its own GitHub-forge login, so this is
+    # double-auth (Keycloak THEN GitHub) — gated per "everything behind Keycloak"; drop it if the double-login grates.
+    annotations:
+      traefik.ingress.kubernetes.io/router.middlewares: woodpecker-traefik-forward-auth@kubernetescrd
     hosts:
       - host: woodpecker.weyland.lab
         paths:

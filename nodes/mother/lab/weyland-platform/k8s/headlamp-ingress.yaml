@@ -2,11 +2,28 @@
 # (headlamp chart, namespace headlamp); this Ingress is a separate object Helm does
 # not own, so no chart-schema guessing and no drift on Helm-managed resources.
 # TLS uses the shared wildcard cert — the Secret must exist in the headlamp namespace.
+# Keycloak SSO gate — local forward-auth Middleware (cross-ns middleware refs are blocked), targets the shared
+# traefik-forward-auth service in weyland.
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: traefik-forward-auth
+  namespace: headlamp
+spec:
+  forwardAuth:
+    address: http://traefik-forward-auth.weyland.svc.cluster.local:4181
+    trustForwardHeader: true
+    authResponseHeaders:
+      - X-Forwarded-User
+---
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: headlamp
   namespace: headlamp
+  # Keycloak SSO gate (forward-auth) on top of Headlamp's SA-token login — all UIs behind Keycloak.
+  annotations:
+    traefik.ingress.kubernetes.io/router.middlewares: headlamp-traefik-forward-auth@kubernetescrd
 spec:
   tls:
     - hosts:

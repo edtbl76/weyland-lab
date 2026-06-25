@@ -98,6 +98,9 @@ kind: Ingress
 metadata:
   name: uptime-kuma
   namespace: weyland
+  # Keycloak SSO gate (forward-auth) — all UIs behind Keycloak.
+  annotations:
+    traefik.ingress.kubernetes.io/router.middlewares: weyland-traefik-forward-auth@kubernetescrd
 spec:
   tls:
     - hosts:

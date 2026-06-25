@@ -88,11 +88,28 @@ spec:
 # Traefik picks this up as the k3s default ingress controller. Plain Ingress (no
 # IngressRoute CRD) for portability. TLS terminated by Traefik using the shared
 # wildcard cert; the Secret must live in THIS namespace (n8n).
+# Keycloak SSO gate — local forward-auth Middleware (cross-ns middleware refs are blocked), targets the shared
+# traefik-forward-auth service in weyland.
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: traefik-forward-auth
+  namespace: n8n
+spec:
+  forwardAuth:
+    address: http://traefik-forward-auth.weyland.svc.cluster.local:4181
+    trustForwardHeader: true
+    authResponseHeaders:
+      - X-Forwarded-User
+---
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: n8n
   namespace: n8n
+  # Keycloak SSO gate (forward-auth) — all UIs behind Keycloak.
+  annotations:
+    traefik.ingress.kubernetes.io/router.middlewares: n8n-traefik-forward-auth@kubernetescrd
 spec:
   tls:
     - hosts:

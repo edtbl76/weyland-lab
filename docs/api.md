@@ -48,11 +48,13 @@ Hosts & access users: [hosts.md](hosts.md). `mother` = 192.168.1.243, CTs by IP 
 | NeoDash | `http://mother:30088` | Neo4j dashboard/viz UI (connect to Bolt `:30086`); see [runbooks/aidlc-kb-ingest.md](runbooks/aidlc-kb-ingest.md) |
 | Postgres/pgvector | `weyland-postgres.weyland.svc:5432` | **in-cluster only** (no NodePort) |
 
+> **Not behind Traefik, not Keycloak-gated** — these are databases/APIs reached by code (the tool-server, clients), not browsers. They're exposed via **NodePort + the APISIX gateway**, auth'd at the API/DB layer (Neo4j login, Qdrant/Weaviate keys/network). Keycloak SSO gates browser UIs only.
+
 ## Gateways
 
 | Service | Endpoint | Notes |
 |---|---|---|
-| APISIX gateway | `http://mother:30090` | API gateway data plane |
+| APISIX gateway | `http://mother:30090` | **Active API/data-plane gateway** — live routes front the tool-server `/context` + `/pipeline` and the qdrant/weaviate/neo4j backends (same backends the NodePorts expose directly). **Not Keycloak-gated** — API-client front door, auth at the gateway/API layer, not browser SSO. |
 | APISIX dashboard | `https://apisix.weyland.lab` | via Traefik TLS |
 
 ## Identity / SSO (Keycloak — B1.1, 2026-06-24)
@@ -95,6 +97,8 @@ mkcert wildcard cert; resolve from rogueone (`/etc/hosts`) or via CoreDNS. **Mos
 | **Linear** (roadmap/task board — SaaS; Claude via MCP, Port ingests for status) | `https://linear.app/emangini` — projects: Weyland Lab / Stud.IO / Service Transformation |
 | **Unleash** (feature flags; OSS self-hosted, own login admin/dev-pass; → Port `feature_flag` webhook) | `https://unleash.weyland.lab` — Python SDK for tool-server/Hermes; see [runbooks/unleash.md](runbooks/unleash.md) |
 | **SonarQube** (code quality / static analysis; own login; → Port `code_quality` webhook) | `https://sonarqube.weyland.lab` — meshed Postgres backend; on-demand scan Jobs (+ Trivy/Semgrep). See [runbooks/code-quality.md](runbooks/code-quality.md) |
+| **Nessie** (data-mesh **B1.2** — Iceberg catalog + table versioning) — **Keycloak SSO** (forward-auth) | `https://nessie.weyland.lab` — UI + Iceberg REST `/iceberg` + API `/api/v2`. Programmatic: `nessie.data-mesh.svc.cluster.local:19120` (in-cluster, no gate) |
+| **lakeFS** (data-mesh **B1.2** — file/dataset versioning) — **Keycloak SSO** (forward-auth; own access-key auth behind) | `https://lakefs.weyland.lab` — Programmatic: `lakefs.data-mesh.svc.cluster.local:8000` (in-cluster, no gate — forward-auth is browser-only, so CLI/pipelines use the svc directly) |
 
 > **Headlamp login** uses a Kubernetes **ServiceAccount bearer token**, *not* the shared dev password.
 > A persistent token is stored in a Secret — retrieve and decode it (on mother):

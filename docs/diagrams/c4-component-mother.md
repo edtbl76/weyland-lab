@@ -42,23 +42,21 @@ C4Component
 
         Component(coredns, "CoreDNS", "CoreDNS", "LAN DNS. *.weyland.lab wildcard -> mother (Traefik). CT-specific zones: ollama.weyland.lab -> .244, whisper.weyland.lab -> .246. :53")
 
-        Component(apisix, "APISIX", "APISIX / etcd", "API gateway for external routes. :30090 (data plane) apisix.weyland.lab (dashboard)")
+        Component(apisix, "APISIX", "APISIX / etcd", "Active API/data-plane gateway. Routes front tool-server /context + /pipeline and the qdrant/weaviate/neo4j backends. :30090 (data plane) apisix.weyland.lab (dashboard, Keycloak SSO)")
 
         Component(headlamp, "Headlamp", "React / k8s", "Kubernetes UI. Permanent cluster-admin SA token. headlamp.weyland.lab")
 
         Component(neodash, "NeoDash", "neo4jlabs/neodash / k8s", "Neo4j dashboard/viz UI (free Bloom-alternative). Browser-side Bolt to Neo4j. mother:30088")
 
         Component(docs_site, "Platform Docs (B59)", "MkDocs Material / nginx / k8s", "Standalone docs site — runbooks/architecture/concepts; browsable + searchable + Mermaid. initContainer builds from the repo, nginx serves. Replaced the retired Backstage IDP/TechDocs. docs.weyland.lab")
-        Component(mlflow, "MLflow (B10+B16)", "MLflow / k8s", "Experiment tracking + model registry. Postgres backend store + MinIO artifact store (proxied via --serve-artifacts). Meshed (STRICT Postgres). dev-password. mlflow.weyland.lab")
+        Component(mlflow, "MLflow (B10+B16)", "MLflow / k8s", "Experiment tracking + model registry. Postgres backend store + MinIO artifact store (proxied via --serve-artifacts). Meshed (STRICT Postgres). Keycloak SSO (forward-auth). mlflow.weyland.lab")
     }
 
     Container_Boundary(istiosystem, "mother VM — k3s, ns: istio-system (Istio service mesh, B8)") {
 
         Component(istiod, "istiod", "Istio 1.30 / minimal profile", "Mesh control plane. Per-pod sidecar injection (LABEL sidecar.istio.io/inject). Meshed: tool-server + 4 backends + Dagster, PERMISSIVE mTLS; Postgres STRICT.")
 
-        Component(kiali, "Kiali", "Kiali / k8s", "Mesh observability UI: topology graph, mTLS lock status, traces. Read-only + RBAC-tightened. dev-password ingress. kiali.weyland.lab")
-
-        Component(jaeger, "Jaeger", "Jaeger / k8s", "Distributed tracing UI for mesh spans (Telemetry + extensionProvider). dev-password ingress. jaeger.weyland.lab")
+        Component(kiali, "Kiali", "Kiali / k8s", "Mesh observability UI: topology graph, mTLS lock status, traces (Tempo). Read-only + RBAC-tightened. Keycloak SSO (forward-auth). kiali.weyland.lab")
     }
 
     Rel(hermes, tool_server, "MCP /mcp — status, context_search, context_ask, list_models")
@@ -94,10 +92,12 @@ C4Component
     Rel(hermes, litellm, "planning turns /v1 (Gemini-free)")
     Rel(litellm, hostedmodels, "egress: Gemini / OpenRouter")
     Rel(coredns, traefik, "*.weyland.lab wildcard resolution")
-    Rel(user, kiali, "mesh graph + mTLS status (dev-password)")
-    Rel(user, jaeger, "trace UI (dev-password)")
+    Rel(apisix, tool_server, "API/data-plane gateway routes: /context, /pipeline")
+    Rel(apisix, qdrant, "gateway route")
+    Rel(apisix, weaviate, "gateway route")
+    Rel(apisix, neo4j, "gateway route")
+    Rel(user, kiali, "mesh graph + mTLS status (Keycloak SSO)")
     Rel(istiod, tool_server, "injects + configures Envoy sidecars")
     Rel(kiali, prometheus, "Envoy mesh metrics (consolidated onto kube-prometheus-stack)")
-    Rel(kiali, jaeger, "traces :16685")
     Rel(prometheus, tool_server, "scrape Envoy /stats (PodMonitor)")
 ```

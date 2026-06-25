@@ -5,6 +5,9 @@ kind: Ingress
 metadata:
   name: litellm
   namespace: weyland
+  # Keycloak SSO gate (forward-auth) — all UIs behind Keycloak. (Hermes uses the NodePort, not this ingress.)
+  annotations:
+    traefik.ingress.kubernetes.io/router.middlewares: weyland-traefik-forward-auth@kubernetescrd
 spec:
   tls:
     - hosts:

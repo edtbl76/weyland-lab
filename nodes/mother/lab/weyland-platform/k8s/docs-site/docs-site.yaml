@@ -65,6 +65,7 @@ metadata:
   namespace: weyland
   annotations:
     traefik.ingress.kubernetes.io/router.entrypoints: websecure
+    traefik.ingress.kubernetes.io/router.middlewares: weyland-traefik-forward-auth@kubernetescrd  # Keycloak SSO gate
 spec:
   tls:
     - hosts:
