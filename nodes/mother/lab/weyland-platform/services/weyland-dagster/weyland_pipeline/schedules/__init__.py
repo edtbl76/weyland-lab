@@ -1,13 +1,22 @@
 from dagster import ScheduleDefinition, define_asset_job, AssetSelection, DefaultScheduleStatus
 
 # Ingestion = everything EXCEPT the eval and catalog groups (they have their own schedules).
+# `datasets` (B72) is excluded too: it must NOT run on the 15-min cron — datasets_land re-downloads
+# external sources (incl. FMA's ~342 MB zip), so it's on-demand + sensor-triggered only.
 weyland_ingestion_job = define_asset_job(
     name="weyland_ingestion_job",
     selection=AssetSelection.all()
     - AssetSelection.groups("eval")
     - AssetSelection.groups("catalog")
     - AssetSelection.groups("aidlc_kb")
-    - AssetSelection.groups("ai_session"),
+    - AssetSelection.groups("ai_session")
+    - AssetSelection.groups("datasets"),
+)
+
+# B72 — the fan-out transform alone; triggered by the datasets_raw S3 sensor on new raw writes.
+weyland_datasets_transform_job = define_asset_job(
+    name="weyland_datasets_transform_job",
+    selection=AssetSelection.assets("datasets_transform"),
 )
 
 # Model catalog (hosted-model lookup table) — refreshed on its own 6h cadence, separate from ingestion.

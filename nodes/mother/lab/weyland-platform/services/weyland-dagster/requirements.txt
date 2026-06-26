@@ -19,3 +19,8 @@ pyarrow
 mlflow-skinny
 # B72 — dlt EL (datasets_land.py): pull public datasets → MinIO filesystem destination (bronze raw zone).
 dlt[filesystem]
+# B72 — fan-out transform (datasets_transform.py): pandas for FMA's multi-row-header CSVs; lance + fastavro
+# for the Lance/Avro silver formats (Parquet/Arrow via pyarrow, Iceberg via pyiceberg — both already above).
+pandas
+pylance
+fastavro

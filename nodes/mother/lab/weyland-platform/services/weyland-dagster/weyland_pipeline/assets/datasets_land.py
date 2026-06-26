@@ -29,6 +29,47 @@ def _spotify_rows():
     yield from csvmod.DictReader(io.StringIO(text))
 
 
+# FMA metadata — the zip is downloaded once to /tmp and shared by all FMA resources. Its CSVs ship with
+# multi-row headers (pandas multi-index), so they're read with pandas at the right header depth and the
+# columns flattened to single names. genres.csv is flat; tracks/echonest are multi-level. features.csv
+# (~1 GB) is intentionally skipped. <table> -> (zip member, pandas header rows).
+FMA_METADATA_URL = "https://os.unil.cloud.switch.ch/fma/fma_metadata.zip"
+_FMA_ZIP = "/tmp/fma_metadata.zip"
+_FMA_FILES = {
+    "fma_tracks": ("tracks.csv", [0, 1]),
+    "fma_genres": ("genres.csv", 0),
+    "fma_echonest": ("echonest.csv", [0, 1, 2]),
+}
+
+
+def _fma_records(member, header):
+    import zipfile
+    import numpy as np
+    import pandas as pd
+
+    if not os.path.exists(_FMA_ZIP):
+        urllib.request.urlretrieve(FMA_METADATA_URL, _FMA_ZIP)  # ~342 MB, once
+    with zipfile.ZipFile(_FMA_ZIP) as z:
+        name = next(n for n in z.namelist() if n.endswith(member))
+        with z.open(name) as f:
+            df = pd.read_csv(f, index_col=0, header=header, low_memory=False)
+    if hasattr(df.columns, "levels"):  # flatten MultiIndex columns to single names
+        df.columns = [
+            "_".join(str(x) for x in col if str(x) and not str(x).startswith("Unnamed"))
+            for col in df.columns
+        ]
+    df = df.reset_index().replace({np.nan: None})
+    return df.to_dict("records")
+
+
+def _fma_resource(table_name, member, header):
+    @dlt.resource(name=table_name, write_disposition="replace")
+    def _rows():
+        yield from _fma_records(member, header)
+
+    return _rows
+
+
 def _filesystem_dest():
     return filesystem(
         bucket_url=os.environ.get("DATASETS_BUCKET_URL", "s3://datasets"),
@@ -44,7 +85,7 @@ def _filesystem_dest():
 
 @asset(
     group_name="datasets",
-    description="dlt EL — pull public music datasets into MinIO datasets/raw/ (bronze). Spotify wired; FMA next.",
+    description="dlt EL — pull Spotify + FMA public music datasets into MinIO datasets/raw/ (bronze).",
 )
 def datasets_land(context) -> Output[dict]:
     # dlt gzips loader files by default → keep raw source-faithful + downstream-friendly (plain .csv,
@@ -55,9 +96,12 @@ def datasets_land(context) -> Output[dict]:
         destination=_filesystem_dest(),
         dataset_name="raw",  # → s3://datasets/raw/<table>/
     )
-    info = pipeline.run(_spotify_rows(), loader_file_format="csv")
+    sources = [_spotify_rows()]
+    for _table, (_member, _header) in _FMA_FILES.items():
+        sources.append(_fma_resource(_table, _member, _header)())
+    info = pipeline.run(sources, loader_file_format="csv")
     context.log.info(f"dlt load info: {info}")
     return Output(
-        {"pipeline": "music_datasets", "load_info": str(info)},
+        {"pipeline": "music_datasets", "tables": ["spotify_tracks", *_FMA_FILES], "load_info": str(info)},
         metadata={"destination": MetadataValue.text("s3://datasets/raw/")},
     )
