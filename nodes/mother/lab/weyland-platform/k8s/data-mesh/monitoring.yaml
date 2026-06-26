@@ -1,0 +1,76 @@
+# B1 / B69 data-mesh-now — Prometheus scrape + alerting for the data-mesh services.
+# Prometheus picks these up automatically (serviceMonitorSelectorNilUsesHelmValues=false).
+# Down-alerts use kube-state-metrics (always available) so they fire even if an app's own
+# /metrics is absent. Alerts route to Telegram via the existing Alertmanager severity routing.
+# NOTE: selector labels assume `app: <name>` — verify against the live pod/service labels
+# (`kubectl -n data-mesh get pod --show-labels`) and adjust if different.
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: nessie
+  namespace: data-mesh
+spec:
+  selector:
+    matchLabels:
+      app: nessie
+  podMetricsEndpoints:
+    - port: mgmt # containerPort 9000 (Quarkus management)
+      path: /q/metrics
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: lakefs
+  namespace: data-mesh
+spec:
+  selector:
+    matchLabels:
+      app: lakefs
+  endpoints:
+    - port: http # 8000
+      path: /metrics
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: minio
+  namespace: minio
+spec:
+  selector:
+    matchLabels:
+      app: minio
+  endpoints:
+    - port: api # 9000 (MINIO_PROMETHEUS_AUTH_TYPE is set, so scrapable)
+      path: /minio/v2/metrics/cluster
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: data-mesh-alerts
+  namespace: data-mesh
+spec:
+  groups:
+    - name: data-mesh.rules
+      rules:
+        - alert: DataMeshComponentDown
+          expr: kube_deployment_status_replicas_available{namespace="data-mesh", deployment=~"nessie|lakefs|datahub-.*"} == 0
+          for: 5m
+          labels: { severity: critical }
+          annotations:
+            summary: "data-mesh: {{ $labels.deployment }} has 0 available replicas"
+            description: "{{ $labels.deployment }} in namespace data-mesh has been down for 5m."
+        - alert: MinioDown
+          expr: kube_deployment_status_replicas_available{namespace="minio", deployment="minio"} == 0
+          for: 5m
+          labels: { severity: critical }
+          annotations:
+            summary: "MinIO (data-mesh object store) has 0 available replicas"
+            description: "MinIO is down — Iceberg warehouse, lakeFS data, and aidlc-kb are unreachable."
+        - alert: DataMeshBackupFailed
+          expr: kube_job_status_failed{namespace="data-mesh", job_name=~"(minio|pg)-backup.*"} > 0
+          for: 10m
+          labels: { severity: warning }
+          annotations:
+            summary: "data-mesh backup job {{ $labels.job_name }} failed"
+            description: "A data-mesh backup CronJob failed — data products / catalog metadata may be unprotected."

@@ -18,11 +18,11 @@ data:
           # lower if real incidents slip under it, raise if it cries wolf. A level-aware rule would be more precise
           # but needs consistent structured logging across apps (deferred).
           - alert: WeylandErrorLogSpike
-            expr: sum(count_over_time({namespace="weyland"} |~ `(?i)(error|exception|traceback)` [5m])) > 100
+            expr: sum by (namespace) (count_over_time({namespace=~"weyland|data-mesh"} |~ `(?i)(error|exception|traceback)` [5m])) > 100
             for: 2m
             labels:
               severity: warning
               source: loki
             annotations:
-              summary: "Weyland error-log spike (logs)"
-              description: "{{ $value }} error/exception log lines in the last 5m in namespace weyland."
+              summary: "Error-log spike (logs) in {{ $labels.namespace }}"
+              description: "{{ $value }} error/exception log lines in the last 5m in namespace {{ $labels.namespace }}."
