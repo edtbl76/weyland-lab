@@ -182,6 +182,21 @@ agents/workflows and platform state. Agents call the tool-server, *not* database
   `RELATED_TO`/`SURFACES_AT`/`TAGGED`/`IN_VERTICAL` (no LLM; fuzzy extraction is deferred to B38).
 - **MinIO** — S3-compatible object storage (model artifacts, datasets, backups). Filestash is the UI
   (the community console is stripped). See [runbooks/storage-minio.md](runbooks/storage-minio.md).
+- **Datasets lake (B72)** — a **bronze→silver→gold** pipeline over public datasets (music: Spotify audio
+  features + FMA metadata) in MinIO's `datasets` bucket. **dlt** extracts → `raw/` (CSV, bronze); a
+  **brokered** Dagster fan-out — *one asset per format, each process-isolated* so a single bad writer
+  can't sink the rest — produces the silver/gold formats. **Each format is chosen for a distinct
+  workload, not redundancy:**
+  - **Parquet** — batch columnar analytics (Trino / DuckDB / Spark). The default query format.
+  - **Lance** — ML / vector: fast random access, versioning, LanceDB. (Native AVX-512 — required the
+    `cpu: host` Proxmox fix; see [[proxmox-vm-cpu-host-avx]].)
+  - **Avro** — row-oriented + schema-evolution: the format you'd stream through **Kafka**.
+  - **Arrow / Feather** — in-memory / IPC, zero-copy loads. *Transport format, not a storage layer —
+    kept for fast local loads + learning.*
+  - **Iceberg** — ACID **gold** table (time-travel, schema evolution) over Parquet, in Nessie.
+
+  Cataloged in DataHub via the **s3 source** (CSV/Parquet/Avro) + **iceberg source** (gold tables);
+  Arrow/Lance have no DataHub connector. Full design + diagram: [runbooks/datasets-lake.md](runbooks/datasets-lake.md).
 - **`model_catalog`** (Postgres) — current-state lookup of reachable hosted models (OpenRouter / Gemini /
   Ollama, with free flag + pricing + context), refreshed every 6h by Dagster (replace-by-source). Distinct
   from the normalized `models` infra-inventory table. See [runbooks/model-gateway.md](runbooks/model-gateway.md).
