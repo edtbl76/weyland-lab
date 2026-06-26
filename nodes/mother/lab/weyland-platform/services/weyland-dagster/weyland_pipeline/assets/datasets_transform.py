@@ -34,6 +34,17 @@ def _put(client, bucket, key, data: bytes):
     client.put_object(bucket, key, io.BytesIO(data), length=len(data), content_type="application/octet-stream")
 
 
+def _catalog_file(platform, table, location, schema, producer):
+    """Best-effort custom-emit to DataHub — Arrow/Lance have NO native connector, so they're catalogued
+    here. A DataHub hiccup must NOT fail the file write that already succeeded."""
+    try:
+        from weyland_pipeline.datahub_emit import emit_file_dataset
+
+        emit_file_dataset(platform, table, location, schema, producer)
+    except Exception as e:  # noqa: BLE001 — catalog is best-effort; the bytes are already written
+        print(f"[datasets] DataHub emit {platform}/{table} failed (file written OK): {e}")
+
+
 _PARSE = pacsv.ParseOptions(newlines_in_values=True)  # FMA/Spotify cells contain embedded newlines
 
 
@@ -70,6 +81,7 @@ def _write_arrow(client, bucket, table, name, t):
     sink = pa.BufferOutputStream()
     feather.write_feather(t, sink)
     _put(client, bucket, f"arrow/{table}/{name}.arrow", sink.getvalue().to_pybytes())
+    _catalog_file("arrow", table, f"s3://{bucket}/arrow/{table}/", t.schema, "datasets_arrow")
 
 
 _AVRO_TYPE = {"int64": "long", "int32": "int", "double": "double", "float": "float",
@@ -107,6 +119,7 @@ def _write_lance(client, bucket, table, name, t):
         "region": "us-east-1",
     }
     lance.write_dataset(t, uri, mode="overwrite", storage_options=storage_options)
+    _catalog_file("lance", table, uri, t.schema, "datasets_lance")
 
 
 def _hydrate_iceberg(client, bucket, table, name, t):

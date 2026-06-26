@@ -23,9 +23,16 @@ from datahub.emitter.mce_builder import make_dataset_urn, make_tag_urn
 from datahub.emitter.mcp import MetadataChangeProposalWrapper
 from datahub.emitter.rest_emitter import DatahubRestEmitter
 from datahub.metadata.schema_classes import (
+    BooleanTypeClass,
     DatasetLineageTypeClass,
     DatasetPropertiesClass,
     GlobalTagsClass,
+    NumberTypeClass,
+    OtherSchemaClass,
+    SchemaFieldClass,
+    SchemaFieldDataTypeClass,
+    SchemaMetadataClass,
+    StringTypeClass,
     TagAssociationClass,
     UpstreamClass,
     UpstreamLineageClass,
@@ -104,6 +111,62 @@ def build_mcps() -> List[MetadataChangeProposalWrapper]:
                 )
             )
     return mcps
+
+
+def _field_type(arrow_type) -> SchemaFieldDataTypeClass:
+    s = str(arrow_type)
+    if s.startswith(("int", "uint", "double", "float", "decimal", "halffloat")):
+        return SchemaFieldDataTypeClass(type=NumberTypeClass())
+    if s == "bool":
+        return SchemaFieldDataTypeClass(type=BooleanTypeClass())
+    return SchemaFieldDataTypeClass(type=StringTypeClass())
+
+
+def emit_file_dataset(platform, table, location, arrow_schema, producer_asset, group="datasets") -> str:
+    """Custom-emit a Dataset for a silver file format (Arrow/Lance) that has NO native DataHub connector.
+
+    Emits dataset properties (format + S3 location), the COLUMN SCHEMA from the Arrow schema (so the
+    schema tab populates), a group tag, and an UpstreamLineage edge to the producing Dagster asset
+    (which datahub_emit catalogs on the dagster platform). Best-effort: callers wrap it so a DataHub
+    hiccup never fails the underlying file write. Returns the dataset URN.
+    """
+    server = os.environ.get(
+        "DATAHUB_GMS_URL", "http://datahub-datahub-gms.data-mesh.svc.cluster.local:8080"
+    )
+    emitter = DatahubRestEmitter(gms_server=server, token=os.environ.get("DATAHUB_GMS_TOKEN", ""))
+    urn = make_dataset_urn(platform=platform, name=f"datasets.{table}", env=ENV)
+    fields = [
+        SchemaFieldClass(fieldPath=f.name, type=_field_type(f.type), nativeDataType=str(f.type))
+        for f in arrow_schema
+    ]
+    aspects = [
+        DatasetPropertiesClass(
+            name=f"datasets.{table}",
+            description=f"{platform} silver format of '{table}' at {location} "
+            f"(B72; custom-emitted — no native DataHub connector for {platform}).",
+            customProperties={"format": platform, "location": location, "dagster_group": group},
+        ),
+        SchemaMetadataClass(
+            schemaName=f"datasets.{table}",
+            platform=f"urn:li:dataPlatform:{platform}",
+            version=0,
+            hash="",
+            platformSchema=OtherSchemaClass(rawSchema=""),
+            fields=fields,
+        ),
+        GlobalTagsClass(tags=[TagAssociationClass(tag=make_tag_urn(group))]),
+        UpstreamLineageClass(
+            upstreams=[
+                UpstreamClass(
+                    dataset=make_dataset_urn(platform=PLATFORM, name=producer_asset, env=ENV),
+                    type=DatasetLineageTypeClass.TRANSFORMED,
+                )
+            ]
+        ),
+    ]
+    for aspect in aspects:
+        emitter.emit(MetadataChangeProposalWrapper(entityUrn=urn, aspect=aspect))
+    return urn
 
 
 def emit() -> int:

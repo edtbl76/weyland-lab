@@ -15,8 +15,8 @@ source:
       aws_secret_access_key: "${MINIO_SECRET_KEY}"
       aws_region: "us-east-1"
     # CSV (bronze) + Parquet + Avro (silver). The s3 source supports CSV/Parquet/JSON/Avro only —
-    # Arrow/Feather and Lance have NO s3-source support, so those two zones aren't catalogued here
-    # (custom-emit a dataset entry if they need to appear). Iceberg gold tables = the iceberg source.
+    # Arrow/Feather and Lance have NO s3-source support, so those two zones are catalogued separately by
+    # datasets_arrow / datasets_lance via datahub_emit.emit_file_dataset. Iceberg gold = the iceberg source.
     path_specs:
       - include: "s3://datasets/raw/{table}/*.csv"
       - include: "s3://datasets/parquet/{table}/*.parquet"
