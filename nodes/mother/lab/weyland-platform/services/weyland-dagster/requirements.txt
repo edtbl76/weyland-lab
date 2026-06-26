@@ -9,3 +9,6 @@ neo4j
 httpx
 minio
 sentry-sdk
+# DataHub catalog/lineage emit (datahub_emit.py). Core SDK only — the acryl-datahub-dagster-plugin
+# sensor is dead on Dagster 1.13 (run_status_sensor broken, dagster#21526), so we emit directly.
+acryl-datahub

@@ -65,7 +65,7 @@ Re-ordered per RE-grounded audit (aidlc-docs/inception/backlog-reprioritization.
 13. **B17+B19** — "Mesh": A2A evaluation + MCP gateway — MERGED; same inflection point (fleet is real, govern it). Triggered after B14+B26+B27 + B3 stable + OpenClaw decision made. See detail below.
 14. **U18** — ✅ **DONE 2026-06-17 (as KEY RETIREMENT, not lockdown).** B25b removed the SFTP ingestion that U18 was hardening → the `weyland-lab` key had zero consumers (repo grep clean). Retired it instead: deleted rogueone `authorized_keys` line + the orphaned `weyland-lab-ssh-key` k8s Secret. See detail below.
 15. **B20** — Home Assistant (Hermes tool) — Hermes → HA → Google Home/Alexa/physical devices. Prerequisite: running HA instance. See detail below.
-16. **B28** — OpenClaw rehabilitation (or retire) — Real Purpose; shelved not deleted. Two Qs when we reach it: (1) keep vs retire? (2) if keep, refactor vs rewrite? See detail below.
+16. **B28** — OpenClaw rehabilitation (or retire) — **✅ RESOLVED 2026-06-25: SUPERSEDED by B66.** The keep/retire/reuse decision is no longer standalone — it's the "base agent" workstream of the consolidated [B66] Operator Agent Platform (Hermes-base vs reuse-OpenClaw's-responsiveness, decided at B66 build time). OpenClaw is NOT auto-retired (reuse candidate). Both original Qs (keep-vs-retire, refactor-vs-rewrite) move to B66.
 17. **U14** — n8n workflow → git — audit active n8n workflows before working on this. See detail below.
 18. **B34** — Evaluate + bake PII guard — promote B14's deferred PII validator (llm_guard `Sensitive` → presidio/spaCy) from coded-but-unbaked to active. Gated on an eval showing PII detection adds real signal in this corpus (and/or a multi-user/export trigger). See detail below.
 19. **B35** — Grounding guard calibration — tune the B14 grounding validator from its guessed `0.5` threshold to a data-driven one (collect shadow `max_entailment` distribution → label grounded vs hallucinated → set threshold), and switch to sentence-level / concatenated-premise scoring if whole-answer-vs-chunk NLI over-flags. Prerequisite to ever moving grounding out of shadow. See detail below.
@@ -827,6 +827,59 @@ tools load.
 - **Options** (all free / self-hostable / code-in-repo): **D2** (recommended — far better autolayout via ELK/dagre, clean scalable SVG, MkDocs plugin, free layouts; no paid TALA needed) · **Structurizr** (purpose-built C4 — define the model once → auto-generate layered context/container/component views, structurally kills the "one giant diagram" problem) · **PlantUML + C4-PlantUML** (mature, C4 macros, SVG). Optional infra: **Kroki** (one self-hosted render service for all of them → embed SVG in MkDocs; fits the lab's self-host pattern).
 - **Also**: split the overloaded `c4-component-mother` into focused views (data/RAG plane · platform+auth · data-mesh · mesh/observability) — a better renderer alone won't fix one 22-component diagram.
 - **Sequencing**: AFTER B1 (data mesh). Keep Mermaid fresh + accurate until then (content over polish). Pilot D2 on `component-mother` first to compare before committing.
+
+### B65 — DataHub catalog integration: the datastore set in 3 tiers (B1.3 — repurposed from the candidate list)
+**Restructured 2026-06-25.** B65 is now the **datastore-integration tracker** for the B1.3 "catalog every source" work (moved under B1, in progress). Every datastore sorted into 3 tiers.
+
+**Tier 1 — HAVE → integrate now** (already running; just catalog via DataHub connectors):
+Dagster · Grafana · Iceberg/Nessie · Kafka · MLflow · Neo4j · Postgres · S3/MinIO · Qdrant · Weaviate · OpenSearch (playground) · lakeFS. _(CSV moved out → [B68], Maturity/Polish, blocked on finding Google Drive sheets.)_
+_(Low-catalog-value / optional: Valkey-Redis cache; Prometheus/Loki/Tempo — observability stores surfaced via Grafana, not typical catalog targets.)_
+
+**Tier 2 — IMPLEMENT → integrate now** (committed in the B1 design; stand up, then catalog):
+Trino · DuckDB · TimescaleDB (B1.4) · dbt Core · Flink (B1.5) · ClickHouse · Cassandra · CockroachDB · MySQL · MongoDB · Superset (B1.7) · Feast (B1.8).
+_(KEDA on-demand for the heavy/occasional ones per the run-mode tiers.)_
+
+**Tier 3 — KEEPERS → re-eval AFTER Tiers 1+2, BEFORE any resource change** (the additive / zero-local-cost keeps from the candidate cull):
+Doris (OLAP variety, on-demand) · Spark (big-data compute, on-demand) · RDF/triplestore (semantic-web, lightweight) · Okta · BigQuery · DynamoDB (cloud SaaS — zero local cost). Dropped candidates → [B67].
+
+**Sequencing gate (the point of the tiers):** do Tier 1 + Tier 2 → **measure the actual always-on / on-demand RAM footprint** → THEN re-evaluate Tier 3 keepers AND size the mother vCPU/RAM resize to the *real* numbers. **No resource changes before that measurement** (proposed targets in chat: mother 44/16, ollama 32/8, OpenClaw kept 6/2 — but confirm against measured footprint).
+
+**⚠️ Dagster (Tier 1) — BLOCKED, both standard paths dead on Dagster 1.13.10 (finding 2026-06-26):**
+- **OpenLineage-dagster:** supports Dagster **≤ 1.6.9**, removed from the OpenLineage repo in 2025. Dead.
+- **acryl-datahub-dagster-plugin** (`datahub_sensor`): fully deployed (plugin in user-code image, `make_datahub_sensor` in Definitions, `datahub-token` PAT secret, GMS reachable). Sensor **loads + evals every 30s + runs succeed** — but it's built on Dagster's `run_status_sensor`, **broken since 1.7.3** ([dagster#21526](https://github.com/dagster-io/dagster/issues/21526)) and overwhelm-prone with the cursor-fix removed ([dagster#19224](https://github.com/dagster-io/dagster/issues/19224)). Symptom: daemon logs `Checking for new runs… skipped` **every tick even with all schedules OFF + a single manual run** (volume ruled out) → `dataflow/datajob/dataset` indices stay at **0**. Not config/auth/connection — confirmed dead.
+- **Real path = custom DataHub emitter in the asset code** (emit dataset/lineage aspects via the `datahub` SDK directly in the Dagster assets / a materialization hook — no `run_status_sensor`). Reliable + version-proof. **This is the B1.6 Dagster-lineage approach.** Sensor code is shipped but toggled OFF; remove it from Definitions when the emitter is built.
+
+### B66 — Operator Agent Platform (consolidation — supersedes 13 fragmented agent items)
+**Added 2026-06-25.** Folds the scattered Hermes/OpenClaw work into ONE effort: a **Claude-brained, multi-ingress operator agent**. **Thesis:** the agents' real value is *remote/mobile ingress that acts on the lab* (text it from anywhere → it acts); the failure is the **brain** — Hermes on weak free/local models is slow/unhelpful, OpenClaw "feels" better. Fix = give the agent a **Claude brain via the $0 subscription-headless path** (`claude -p` / Agent SDK with the Max-subscription auth — NOT the paid Claude API, which is exactly why the Claude-brain path was *declined* at B26). Keep the existing ingress + act (`/mcp-act`) + tool plumbing.
+- **Workstreams (each absorbs an old item):**
+  - **Brain** — Claude via subscription-headless ($0); revisits the B26-declined decision with the new path.
+  - **Base agent** — pick **Hermes vs OpenClaw** as the gateway (**resolves B28**): Hermes = blessed/stable but slow; OpenClaw = fast/responsive but deprioritized/fragile. Decide reuse-OpenClaw-responsiveness vs Hermes-base at build time; **do NOT decommission OpenClaw until decided** (now a reuse candidate, not an auto-retire).
+  - **Ingress** — Telegram (live) + other channels (Whisper voice, web).
+  - **Act + incident** — act tools (`/mcp-act`, live) + **B45** (agent enriches/acts on incidents, off the critical alert path).
+  - **Tools** — **B20** (Home Assistant), **B18** (Spotify), **B21** (media-gen).
+  - **Guardrails** — **B32** (NeMo dialog/topical rails for the agent layer).
+  - **Mesh / delegation** — **B17+B19** (A2A + MCP gateway), **B15** (local coding agents Hermes delegates to).
+  - **Ops** — **B36** (dashboard perf), **B52** (Hermes error tracking).
+- **Split into two efforts (2026-06-25, mirrors Linear):** **B66 = core** (brain, base agent, ingress, act, mesh — keeps B15, B17+B19, B20, B36, B28) · **"Operator Agent Platform (Enhancements)"** (Linear EMA-56, sibling, Low) = the agent extras **B18** (Spotify), **B32** (NeMo dialog rails), **B45** (incident-response), **B52** (error tracking).
+- **Done base (context, not re-scoped):** B2 (platform), B26 (LiteLLM brain), B27 (kanban).
+- **Resource note:** OpenClaw's 8 GB/4 CPU retirement (floated in the reallocation plan) is now **contingent on the base-agent decision** — if OpenClaw is reused, it stays.
+- **Sequencing:** its own design (brainstorm) when reached; orthogonal to the data mesh. Big-rock effort.
+
+### B67 — Dropped datastore candidates (Extras — re-evaluate later)
+**Added 2026-06-25.** Cut from the B1.3 "ingest every source" connector pass as **redundant with the table-stakes WILL-DO set** (not for lack of merit). KEDA solves the *resource* cost of redundancy but not the maintenance / catalog-clutter / learning-overlap, so these were dropped on purpose. Parked to re-evaluate if a concrete need emerges.
+- **Druid** — real-time OLAP, but the **heaviest** on the list (coordinator + overlord + broker + historical + middlemanager + ZooKeeper + deep storage + metadata DB) and pure overlap with **ClickHouse** (committed). Worst ROI.
+- **Vertica** — redundant OLAP; community edition capped (1 TB / 3 nodes) + enterprise baggage.
+- **Dremio** — overlaps **Trino** (federation) + **Cube** (semantic); its edge (reflections/acceleration) doesn't justify a second federation engine. **The closest "keep" call — reprieve this first if any get reconsidered.**
+- **Airbyte** — overlaps **dlt + Debezium** (committed EL/CDC); heavy (server + workers + Temporal + Postgres + UI); its 300-connector catalog only matters for external-SaaS pulls (rare on a LAN lab).
+- **Airflow** — pure duplicate of **Dagster** (the committed orchestrator).
+- **Metabase** — overlaps **Superset + Lightdash** (committed BI); the design already said "No Metabase."
+- **Re-eval trigger:** a concrete need the committed stack can't meet (real-time-OLAP gap ClickHouse/Doris don't fill → Druid/Vertica; an external-SaaS EL need → Airbyte; a Trino-acceleration gap → Dremio). KEPT instead (additive/new capability or zero-local-cost SaaS): Doris, Spark, RDF, Okta, BigQuery, DynamoDB.
+
+### B68 — CSV / Google Sheets ingestion (DataHub) — Maturity / Polish
+**Added 2026-06-25.** Deferred from B65 Tier 1 to the **Maturity / Polish** tier (between Core and Extras). **BLOCKED:** find suitable spreadsheets in Google Drive first. Two paths, decided once the sheets are picked:
+- **csv-enricher** — bulk-**enrich** existing entities with metadata (`tags`/`glossary_terms`/`owners`/`ownership_type`/`description`/`domain`/`subresource` for column-level/`classification`), keyed by `resource` = entity URN; arrays `|`-delimited; `write_semantics` PATCH (append) vs OVERRIDE. **Requires entities already ingested** (B65 Tier 1 sources) so there's something to enrich.
+- **File/S3 source** — **catalog** the CSV rows as a *dataset*: export Sheet → CSV → MinIO → DataHub S3 source infers the schema.
+- Doc: https://docs.datahub.com/docs/generated/ingestion/sources/csv-enricher
 
 ### U18 — weyland-lab SSH key full lockdown (rogueone-side)
 - **✅ DONE 2026-06-17 — closed as KEY RETIREMENT.** Removed the rogueone `authorized_keys` line and deleted

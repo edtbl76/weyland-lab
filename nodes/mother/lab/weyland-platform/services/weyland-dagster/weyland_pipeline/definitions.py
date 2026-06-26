@@ -1,5 +1,5 @@
 import os
-from dagster import Definitions
+from dagster import Definitions, ScheduleDefinition, job, op
 from weyland_pipeline.assets import all_assets
 from weyland_pipeline.resources import (
     PostgresResource,
@@ -20,10 +20,29 @@ from weyland_pipeline.schedules import (
     weyland_ai_session_schedule,
 )
 
+# DataHub catalog emitter — walks the asset graph and pushes datasets + lineage to GMS via
+# the datahub SDK (see datahub_emit.py). Replaces the acryl run_status_sensor, which is dead
+# on Dagster 1.13 (dagster#21526). Idempotent; scheduled hourly. Reads DATAHUB_GMS_TOKEN.
+@op
+def emit_datahub_catalog_op():
+    from weyland_pipeline.datahub_emit import emit
+
+    emit()
+
+
+@job
+def datahub_catalog_emit_job():
+    emit_datahub_catalog_op()
+
+
+datahub_catalog_emit_schedule = ScheduleDefinition(
+    job=datahub_catalog_emit_job, cron_schedule="0 * * * *"
+)
+
 defs = Definitions(
     assets=all_assets,
-    jobs=[weyland_ingestion_job, weyland_eval_job, weyland_eval_score_job, weyland_catalog_job, weyland_aidlc_kb_job, weyland_ai_session_job],
-    schedules=[weyland_ingestion_schedule, weyland_catalog_schedule, weyland_ai_session_schedule],
+    jobs=[weyland_ingestion_job, weyland_eval_job, weyland_eval_score_job, weyland_catalog_job, weyland_aidlc_kb_job, weyland_ai_session_job, datahub_catalog_emit_job],
+    schedules=[weyland_ingestion_schedule, weyland_catalog_schedule, weyland_ai_session_schedule, datahub_catalog_emit_schedule],
     resources={
         "postgres": PostgresResource(
             host=os.environ.get("WEYLAND_PG_HOST", "weyland-postgres.weyland.svc.cluster.local"),
