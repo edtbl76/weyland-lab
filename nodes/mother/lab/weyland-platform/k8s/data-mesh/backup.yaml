@@ -1,6 +1,10 @@
 # B1 / B69 data-mesh-now — backups of the data products + catalog metadata to mother's NVMe
 # (local-path storageClass), so a failure of the single USB disk (/mnt/minio) doesn't lose data.
 # Daily, with rotation. Disk-failure protection (not host loss) — the $0 single-node win.
+#
+# Namespacing: each backup lives in the namespace of the secrets/data it needs (secretKeyRef can't
+# cross namespaces) — pg backup in data-mesh (nessie/lakefs secrets), MinIO backup in minio
+# (minio-creds). Both PVCs are local-path = the NVMe, not the USB.
 ---
 apiVersion: v1
 kind: PersistentVolumeClaim
@@ -9,7 +13,19 @@ metadata:
   namespace: data-mesh
 spec:
   accessModes: [ReadWriteOnce]
-  storageClassName: local-path # NVMe (mother root), NOT the USB (minio-local)
+  storageClassName: local-path
+  resources:
+    requests:
+      storage: 20Gi
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: minio-backup
+  namespace: minio
+spec:
+  accessModes: [ReadWriteOnce]
+  storageClassName: local-path
   resources:
     requests:
       storage: 50Gi
@@ -20,7 +36,7 @@ apiVersion: batch/v1
 kind: CronJob
 metadata:
   name: minio-backup
-  namespace: data-mesh
+  namespace: minio
 spec:
   schedule: "30 2 * * *" # 02:30 local
   concurrencyPolicy: Forbid
@@ -54,7 +70,7 @@ spec:
                 - { name: backup, mountPath: /backup }
           volumes:
             - name: backup
-              persistentVolumeClaim: { claimName: data-mesh-backup }
+              persistentVolumeClaim: { claimName: minio-backup }
 ---
 # Postgres: pg_dump the nessie + lakefs DBs (Iceberg commit history / lakeFS branch refs — losing them
 # orphans the warehouse). Meshed so it reaches STRICT-mTLS weyland-postgres; native sidecars let the Job exit.
