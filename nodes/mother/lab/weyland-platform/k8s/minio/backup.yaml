@@ -1,0 +1,57 @@
+# B1 / B69 data-mesh-now — MinIO data-product backup. Lives here (k8s/minio, owned by the `minio`
+# Argo app → minio ns) so it's same-namespace with minio-creds + the data (secretKeyRef can't cross
+# namespaces). Mirrors the product buckets to mother's NVMe (local-path), so a USB (/mnt/minio)
+# failure doesn't lose data. Daily; idempotent (--remove keeps the mirror in sync). The Postgres
+# (nessie/lakefs) backup is the sibling in k8s/data-mesh/backup.yaml.
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: minio-backup
+  namespace: minio
+spec:
+  accessModes: [ReadWriteOnce]
+  storageClassName: local-path # NVMe (mother root), NOT the USB (minio-local)
+  resources:
+    requests:
+      storage: 50Gi
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: minio-backup
+  namespace: minio
+spec:
+  schedule: "30 2 * * *" # 02:30 local
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 1
+      template:
+        spec:
+          restartPolicy: Never
+          containers:
+            - name: mc
+              image: minio/mc:latest
+              command: ["/bin/sh", "-c"]
+              args:
+                - |
+                  set -e
+                  mc alias set src http://minio.minio.svc.cluster.local:9000 "$MC_USER" "$MC_PASS"
+                  for b in warehouse lakefs aidlc-kb; do
+                    echo "mirroring $b ..."
+                    mc mirror --overwrite --remove "src/$b" "/backup/minio/$b"
+                  done
+                  echo "minio backup complete: $(date -u)"
+              env:
+                - name: MC_USER
+                  valueFrom: { secretKeyRef: { name: minio-creds, key: MINIO_ROOT_USER } }
+                - name: MC_PASS
+                  valueFrom: { secretKeyRef: { name: minio-creds, key: MINIO_ROOT_PASSWORD } }
+              volumeMounts:
+                - { name: backup, mountPath: /backup }
+          volumes:
+            - name: backup
+              persistentVolumeClaim: { claimName: minio-backup }
