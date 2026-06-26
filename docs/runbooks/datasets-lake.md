@@ -43,9 +43,11 @@ HF / FMA ──▶ dlt (EL, in Dagster) ──▶ MinIO  datasets/raw/{table}/  
 - **Catalog:** DataHub **s3 source** (the file zones, schema inferred) + **iceberg source** (the gold tables).
 
 ## Build status (2026-06-26)
-- [ ] Step 1 — dlt EL → `raw/`
-- [ ] Step 2 — pyarrow multi-format transform (parquet/arrow/avro/lance + Iceberg)
-- [ ] Step 3 — S3 `@sensor` trigger (new raw → transform)
-- [ ] Step 4 — catalog (s3 + iceberg sources)
+- [x] Step 1 — dlt EL → `raw/` · `datasets_land.py`. **Spotify proven** (plain CSV lands); FMA added (multi-header via pandas) — *verify on next run*.
+- [x] Step 2 — fan-out transform · `datasets_transform.py`. Parquet/Arrow/Avro/Lance + Iceberg, per-format resilient — *verify which formats land on first run (Lance S3 opts + Avro schema are the iteration risks)*.
+- [x] Step 3 — S3 `@sensor` · `sensors/__init__.py`. Ships **STOPPED** — enable in Dagster UI after steps 1+2 are green.
+- [ ] Step 4 — catalog (s3 source `s3.recipe.yaml` ready; iceberg source covers `datasets.*` gold tables).
+
+**Ops notes:** the `datasets` group is excluded from the 15-min ingestion cron (datasets_land re-downloads external sources). `datasets_land` = on-demand; `datasets_transform` = sensor-triggered (or `deps` chain). FMA zip cached at `/tmp/fma_metadata.zip` in the pod.
 
 > Diagram is ASCII for now; a renderer migration (D2/Mermaid) is tracked in B64.
