@@ -106,6 +106,15 @@ def _hydrate_iceberg(table, t):
 def datasets_transform(context) -> Output[dict]:
     bucket = os.environ.get("DATASETS_BUCKET", "datasets")
     client = _minio()
+    # First-run isolation: Lance is a native Rust lib that can HARD-crash the process (uncatchable by
+    # try/except), so it's benched by default. Re-enable via the DATASETS_FORMATS env (comma-sep) once
+    # its S3 storage_options are proven, e.g. DATASETS_FORMATS=parquet,arrow,avro,lance,iceberg.
+    enabled = {
+        f.strip()
+        for f in os.environ.get("DATASETS_FORMATS", "parquet,arrow,avro,iceberg").split(",")
+        if f.strip()
+    }
+    context.log.info(f"datasets_transform formats enabled: {sorted(enabled)}")
     results: dict = {}
     for obj in client.list_objects(bucket, prefix="raw/", recursive=True):
         if not obj.object_name.endswith(".csv"):
@@ -121,14 +130,18 @@ def datasets_transform(context) -> Output[dict]:
             resp.release_conn()
 
         status: dict = {"rows": t.num_rows, "cols": t.num_columns}
+        # rock-solid (pyarrow/pyiceberg) first so they persist before any risky writer; Lance last.
         writers = (
             ("parquet", lambda: _write_parquet(client, bucket, table, name, t)),
             ("arrow", lambda: _write_arrow(client, bucket, table, name, t)),
+            ("iceberg", lambda: _hydrate_iceberg(table, t)),
             ("avro", lambda: _write_avro(client, bucket, table, name, t)),
             ("lance", lambda: _write_lance(table, t)),
-            ("iceberg", lambda: _hydrate_iceberg(table, t)),
         )
         for fmt, fn in writers:
+            if fmt not in enabled:
+                status[fmt] = "skipped"
+                continue
             try:
                 fn()
                 status[fmt] = "ok"
