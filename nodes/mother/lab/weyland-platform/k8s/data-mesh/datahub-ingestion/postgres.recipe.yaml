@@ -1,17 +1,21 @@
-# DataHub managed-ingestion recipe — Postgres (the `weyland` application DB).
-# Source-of-record only (UI-configured). WEYLAND_PG_PASSWORD is a DataHub Secret, value =
-# dagster-postgres-secret/password (the `weyland` role). Connects over the mesh to STRICT-mTLS
-# weyland-postgres — the executor is meshed (it already reaches its own `datahub` DB here), so plain
-# host:port works; the sidecar does mTLS. Scoped to `weyland` only — the box's other DBs
-# (datahub/keycloak/sonarqube/unleash/glitchtip/nessie/lakefs/mlflow/dagster) are app plumbing.
-# Catalogs tables/views/columns (+ view lineage). Flip profiling.enabled to true for row counts +
-# column stats (the rich part) once the basic scan is confirmed. Schedule: daily.
+# DataHub managed-ingestion recipe — Postgres (ALL databases on weyland-postgres).
+# Source-of-record only (UI-configured). Connects over the mesh to STRICT-mTLS weyland-postgres (the
+# executor is meshed). Omitting `database` ingests EVERY DB on the instance — weyland, dagster, mlflow,
+# nessie, lakefs, datahub, keycloak, sonarqube, glitchtip, unleash — so it needs a role that can read
+# them all = the Postgres SUPERUSER (POSTGRES_USER in weyland-postgres-secret). If that superuser IS
+# `weyland`, username below is correct and the password is dagster-postgres-secret/password
+# (= weyland-postgres-secret/POSTGRES_PASSWORD). If it's a different superuser, set username to it and
+# point the DataHub Secret at weyland-postgres-secret/POSTGRES_PASSWORD.
+# Catalogs tables/views/columns (+ view lineage) across all DBs. database_pattern trims the noise.
+# Schedule: daily.
 source:
   type: postgres
   config:
     host_port: "weyland-postgres.weyland.svc.cluster.local:5432"
-    database: "weyland"
     username: "weyland"
     password: "${WEYLAND_PG_PASSWORD}"
+    database_pattern:
+      deny:
+        - "^template[0-9]$"
     profiling:
       enabled: false
