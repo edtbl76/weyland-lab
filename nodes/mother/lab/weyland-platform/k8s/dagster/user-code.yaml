@@ -106,6 +106,19 @@ spec:
                 secretKeyRef:
                   name: datahub-token
                   key: token
+            # Iceberg data products (iceberg_export assets → Nessie warehouse on MinIO). Nessie/MinIO URLs
+            # have code defaults; only the MinIO creds are required. Mirror nessie-secret's S3 creds into
+            # THIS ns as `iceberg-s3-secret` (secretKeyRef can't cross namespaces).
+            - name: ICEBERG_S3_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: iceberg-s3-secret
+                  key: access_key
+            - name: ICEBERG_S3_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: iceberg-s3-secret
+                  key: secret_key
           volumeMounts:
             - name: dagster-config
               mountPath: /opt/dagster/dagster_home/dagster.yaml

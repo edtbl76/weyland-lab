@@ -12,3 +12,6 @@ sentry-sdk
 # DataHub catalog/lineage emit (datahub_emit.py). Core SDK only — the acryl-datahub-dagster-plugin
 # sensor is dead on Dagster 1.13 (run_status_sensor broken, dagster#21526), so we emit directly.
 acryl-datahub
+# Iceberg table data products (iceberg_publish.py): read Postgres → write Iceberg via Nessie REST + MinIO.
+pyiceberg[s3fs]
+pyarrow
