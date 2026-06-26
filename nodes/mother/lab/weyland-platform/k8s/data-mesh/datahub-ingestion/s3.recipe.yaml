@@ -14,6 +14,11 @@ source:
       aws_access_key_id: "${MINIO_ACCESS_KEY}"
       aws_secret_access_key: "${MINIO_SECRET_KEY}"
       aws_region: "us-east-1"
+      # MinIO needs path-style addressing (boto3 defaults to virtual-host bucket.minio… → fails).
+      # aws_advanced_config is passed straight to botocore.config.Config.
+      aws_advanced_config:
+        s3:
+          addressing_style: path
     # CSV (bronze) + Parquet + Avro (silver). The s3 source supports CSV/Parquet/JSON/Avro only —
     # Arrow/Feather and Lance have NO s3-source support, so those two zones are catalogued separately by
     # datasets_arrow / datasets_lance via datahub_emit.emit_file_dataset. Iceberg gold = the iceberg source.
