@@ -1,0 +1,10 @@
+# DataHub managed-ingestion recipe — Grafana (in-cluster service, NOT the gated ingress).
+# Source-of-record only (the live source is UI-configured). GRAFANA_SA_TOKEN is a DataHub
+# Secret; mint it via the Grafana admin API (grafana-admin secret → POST /api/serviceaccounts
+# → /tokens) — see docs/runbooks + the datahub-ingest-gated-services pattern. Schedule: 02:00 daily.
+source:
+  type: grafana
+  config:
+    url: "http://monitoring-grafana.monitoring.svc.cluster.local"
+    service_account_token: "${GRAFANA_SA_TOKEN}"
+    verify_ssl: false

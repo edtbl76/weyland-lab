@@ -17,10 +17,19 @@ import psycopg2
 import pyarrow as pa
 from pyiceberg.catalog.rest import RestCatalog
 
-# (iceberg namespace, iceberg table, postgres query)
+from datahub.emitter.mce_builder import make_dataset_urn
+from datahub.emitter.mcp import MetadataChangeProposalWrapper
+from datahub.emitter.rest_emitter import DatahubRestEmitter
+from datahub.metadata.schema_classes import (
+    DatasetLineageTypeClass,
+    UpstreamClass,
+    UpstreamLineageClass,
+)
+
+# (iceberg namespace, iceberg table, postgres query, dagster asset that publishes it)
 PRODUCTS = [
-    ("catalog", "model_catalog", "SELECT * FROM model_catalog"),
-    ("eval", "eval_scores", "SELECT * FROM eval_scores"),
+    ("catalog", "model_catalog", "SELECT * FROM model_catalog", "iceberg_model_catalog"),
+    ("eval", "eval_scores", "SELECT * FROM eval_scores", "iceberg_eval_scores"),
 ]
 
 
@@ -84,7 +93,33 @@ def _query_to_arrow(query: str) -> pa.Table:
     return pa.table(arrays)
 
 
-def publish_table(namespace: str, table: str, query: str) -> int:
+def _emit_lineage(namespace: str, table: str, dagster_asset: str) -> None:
+    """Cross-platform lineage: the iceberg dataset <- the dagster asset that publishes it.
+
+    Connects the Dagster asset graph (platform=dagster, emitted by datahub_emit.py) to the
+    iceberg-platform dataset the DataHub Iceberg source catalogs — completing the
+    Postgres -> Dagster -> Iceberg chain in the catalog. Non-fatal: skipped if no DataHub
+    token is present (the table write has already succeeded).
+    """
+    token = os.environ.get("DATAHUB_GMS_TOKEN")
+    if not token:
+        return
+    server = os.environ.get(
+        "DATAHUB_GMS_URL", "http://datahub-datahub-gms.data-mesh.svc.cluster.local:8080"
+    )
+    iceberg_urn = make_dataset_urn("iceberg", f"{namespace}.{table}", "PROD")
+    dagster_urn = make_dataset_urn("dagster", dagster_asset, "PROD")
+    DatahubRestEmitter(gms_server=server, token=token).emit(
+        MetadataChangeProposalWrapper(
+            entityUrn=iceberg_urn,
+            aspect=UpstreamLineageClass(
+                upstreams=[UpstreamClass(dataset=dagster_urn, type=DatasetLineageTypeClass.TRANSFORMED)]
+            ),
+        )
+    )
+
+
+def publish_table(namespace: str, table: str, query: str, dagster_asset: str) -> int:
     arrow = _query_to_arrow(query)
     catalog = _catalog()
     try:
@@ -93,11 +128,12 @@ def publish_table(namespace: str, table: str, query: str) -> int:
         pass  # already exists
     iceberg_table = catalog.create_table_if_not_exists(f"{namespace}.{table}", schema=arrow.schema)
     iceberg_table.overwrite(arrow)
+    _emit_lineage(namespace, table, dagster_asset)
     return arrow.num_rows
 
 
 def publish_all() -> Dict[str, int]:
-    return {f"{ns}.{tbl}": publish_table(ns, tbl, q) for ns, tbl, q in PRODUCTS}
+    return {f"{ns}.{tbl}": publish_table(ns, tbl, q, asset) for ns, tbl, q, asset in PRODUCTS}
 
 
 if __name__ == "__main__":

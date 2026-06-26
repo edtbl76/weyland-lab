@@ -7,8 +7,11 @@ even at zero run volume, indices stay at 0. This instead walks the asset graph d
 and pushes Dataset (name + description + group) + UpstreamLineage + a group tag to GMS via
 the REST emitter. No sensor, no cursor, version-proof. Idempotent (DataHub upserts).
 
-Note: Dagster assets carry no TableSchema metadata here, so we emit no column schema — the
-assets aren't tabular (embeddings, vector/graph writes), so there's nothing to map.
+Note: most Dagster assets aren't tabular (embeddings, vector/graph writes) and carry no
+TableSchema, so we emit no column schema for the dagster-platform datasets. The two tabular
+products (model_catalog, eval_scores) get real column schemas on their *iceberg*-platform
+datasets via the DataHub Iceberg source; iceberg_publish.py emits the cross-platform lineage
+edge that links the dagster asset to its iceberg table.
 
 Run standalone:  python -m weyland_pipeline.datahub_emit
 """
