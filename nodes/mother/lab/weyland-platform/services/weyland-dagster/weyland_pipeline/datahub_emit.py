@@ -4,21 +4,26 @@ Replaces the acryl-datahub-dagster-plugin sensor: its `datahub_sensor` is built 
 Dagster's `run_status_sensor`, which is broken on Dagster 1.7.3+ (dagster#21526) and so
 never emits on our 1.13.10 — confirmed: "Checking for new runs... skipped" every tick
 even at zero run volume, indices stay at 0. This instead walks the asset graph directly
-and pushes Dataset + UpstreamLineage to GMS via the REST emitter. No sensor, no cursor,
-version-proof. Idempotent (DataHub upserts), so safe to run on a schedule or on demand.
+and pushes Dataset (name + description + group) + UpstreamLineage + a group tag to GMS via
+the REST emitter. No sensor, no cursor, version-proof. Idempotent (DataHub upserts).
+
+Note: Dagster assets carry no TableSchema metadata here, so we emit no column schema — the
+assets aren't tabular (embeddings, vector/graph writes), so there's nothing to map.
 
 Run standalone:  python -m weyland_pipeline.datahub_emit
 """
 import os
-from typing import Dict, List, Set
+from typing import Dict, List, NamedTuple, Optional, Set
 
 from dagster import AssetKey
-from datahub.emitter.mce_builder import make_dataset_urn
+from datahub.emitter.mce_builder import make_dataset_urn, make_tag_urn
 from datahub.emitter.mcp import MetadataChangeProposalWrapper
 from datahub.emitter.rest_emitter import DatahubRestEmitter
 from datahub.metadata.schema_classes import (
     DatasetLineageTypeClass,
     DatasetPropertiesClass,
+    GlobalTagsClass,
+    TagAssociationClass,
     UpstreamClass,
     UpstreamLineageClass,
 )
@@ -29,45 +34,66 @@ PLATFORM = "dagster"
 ENV = "PROD"
 
 
+class AssetInfo(NamedTuple):
+    deps: Set[AssetKey]
+    description: Optional[str]
+    group: Optional[str]
+
+
 def _name(key: AssetKey) -> str:
     return ".".join(key.path)
 
 
-def _dep_map() -> Dict[AssetKey, Set[AssetKey]]:
-    """asset_key -> set of upstream asset_keys, walking every AssetsDefinition.
-
-    Degrades gracefully: if a def has no per-key deps (e.g. a SourceAsset), its keys are
-    still recorded with empty upstreams so the dataset is cataloged without lineage.
-    """
-    deps: Dict[AssetKey, Set[AssetKey]] = {}
+def _asset_info() -> Dict[AssetKey, AssetInfo]:
+    """asset_key -> (upstream keys, description, group), walking every AssetsDefinition."""
+    info: Dict[AssetKey, AssetInfo] = {}
     for ad in all_assets:
-        per_key = getattr(ad, "asset_deps", None)
-        if per_key:
-            for key, ups in per_key.items():
-                deps.setdefault(key, set()).update(ups)
-        else:
-            for key in getattr(ad, "keys", []) or []:
-                deps.setdefault(key, set())
-    return deps
+        per_key = getattr(ad, "asset_deps", None) or {}
+        descs = getattr(ad, "descriptions_by_key", {}) or {}
+        groups = getattr(ad, "group_names_by_key", {}) or {}
+        keys = set(per_key.keys()) | set(getattr(ad, "keys", []) or [])
+        for key in keys:
+            cur = info.get(key, AssetInfo(set(), None, None))
+            cur.deps.update(per_key.get(key, set()))
+            info[key] = AssetInfo(
+                deps=cur.deps,
+                description=descs.get(key) or cur.description,
+                group=groups.get(key) or cur.group,
+            )
+    return info
 
 
 def build_mcps() -> List[MetadataChangeProposalWrapper]:
-    deps = _dep_map()
+    info = _asset_info()
     mcps: List[MetadataChangeProposalWrapper] = []
-    for key, ups in deps.items():
+    for key, ai in info.items():
         urn = make_dataset_urn(platform=PLATFORM, name=_name(key), env=ENV)
         mcps.append(
             MetadataChangeProposalWrapper(
-                entityUrn=urn, aspect=DatasetPropertiesClass(name=_name(key))
+                entityUrn=urn,
+                aspect=DatasetPropertiesClass(
+                    name=_name(key),
+                    description=ai.description,
+                    customProperties={"dagster_group": ai.group} if ai.group else {},
+                ),
             )
         )
-        if ups:
+        if ai.group:
+            mcps.append(
+                MetadataChangeProposalWrapper(
+                    entityUrn=urn,
+                    aspect=GlobalTagsClass(
+                        tags=[TagAssociationClass(tag=make_tag_urn(ai.group))]
+                    ),
+                )
+            )
+        if ai.deps:
             upstreams = [
                 UpstreamClass(
                     dataset=make_dataset_urn(platform=PLATFORM, name=_name(u), env=ENV),
                     type=DatasetLineageTypeClass.TRANSFORMED,
                 )
-                for u in sorted(ups, key=_name)
+                for u in sorted(ai.deps, key=_name)
             ]
             mcps.append(
                 MetadataChangeProposalWrapper(
