@@ -43,9 +43,9 @@ HF / FMA ──▶ dlt (EL, in Dagster) ──▶ MinIO  datasets/raw/{table}/  
 - **Catalog:** DataHub **s3 source** (CSV/Parquet/Avro, schema inferred) + **iceberg source** (gold tables). **Arrow + Lance** have no native connector → **custom-emitted** by `datasets_arrow`/`datasets_lance` via `datahub_emit.emit_file_dataset` (column schema + lineage to the producing asset). All five formats land in the catalog.
 
 ## Build status (2026-06-26)
-- [x] Step 1 — dlt EL → `raw/` · `datasets_land.py`. **Spotify proven** (plain CSV lands); FMA added (multi-header via pandas) — *verify on next run*.
-- [x] Step 2 — **brokered** fan-out · `datasets_transform.py`. One asset per format (`datasets_parquet/_arrow/_avro/_lance/_iceberg`), each isolated in its own process so one failure can't sink the rest. Read fixed with `newlines_in_values=True`. *Lance S3 opts are the remaining iteration risk — isolated to `datasets_lance`.*
-- [x] Step 3 — S3 `@sensor` · `sensors/__init__.py`. Ships **STOPPED** — enable in Dagster UI after steps 1+2 are green.
+- [x] Step 1 — dlt EL → `raw/` · `datasets_land.py`. ✅ Spotify + all 3 FMA tables (multi-header via pandas) land as plain CSV.
+- [x] Step 2 — **brokered** fan-out · `datasets_transform.py`. ✅ All five formats green. One asset per format, each isolated in its own process. Read fixed with `newlines_in_values=True`. *(Lance needed AVX-512 → the `cpu: host` Proxmox fix, [[proxmox-vm-cpu-host-avx]].)*
+- [x] Step 3 — S3 `@sensor` · `sensors/__init__.py`. ✅ **Enabled + proven** — materializing `datasets_land` auto-fires `weyland_datasets_transform_job` (the five). Hands-off bronze→silver→gold.
 - [ ] Step 4 — catalog: s3 source (CSV/Parquet/Avro) + iceberg source (`datasets.*` gold) + Arrow/Lance custom-emit (`emit_file_dataset`, fires from the transform). All five formats in the catalog.
 
 **Ops notes:** the `datasets` group is excluded from the 15-min ingestion cron (datasets_land re-downloads external sources). `datasets_land` = on-demand; `datasets_transform` = sensor-triggered (or `deps` chain). FMA zip cached at `/tmp/fma_metadata.zip` in the pod.
