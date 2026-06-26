@@ -1,0 +1,17 @@
+# DataHub managed-ingestion recipe — Postgres (the `weyland` application DB).
+# Source-of-record only (UI-configured). WEYLAND_PG_PASSWORD is a DataHub Secret, value =
+# dagster-postgres-secret/password (the `weyland` role). Connects over the mesh to STRICT-mTLS
+# weyland-postgres — the executor is meshed (it already reaches its own `datahub` DB here), so plain
+# host:port works; the sidecar does mTLS. Scoped to `weyland` only — the box's other DBs
+# (datahub/keycloak/sonarqube/unleash/glitchtip/nessie/lakefs/mlflow/dagster) are app plumbing.
+# Catalogs tables/views/columns (+ view lineage). Flip profiling.enabled to true for row counts +
+# column stats (the rich part) once the basic scan is confirmed. Schedule: daily.
+source:
+  type: postgres
+  config:
+    host_port: "weyland-postgres.weyland.svc.cluster.local:5432"
+    database: "weyland"
+    username: "weyland"
+    password: "${WEYLAND_PG_PASSWORD}"
+    profiling:
+      enabled: false
