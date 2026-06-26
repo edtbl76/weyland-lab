@@ -832,7 +832,7 @@ tools load.
 **Restructured 2026-06-25.** B65 is now the **datastore-integration tracker** for the B1.3 "catalog every source" work (moved under B1, in progress). Every datastore sorted into 3 tiers.
 
 **Tier 1 — HAVE → integrate now** (already running; just catalog via DataHub connectors):
-**Dagster ✅** (custom emitter) · **Grafana ✅** (UI pull connector 2026-06-26; recipe codified `k8s/data-mesh/datahub-ingestion/grafana.recipe.yaml`, SA token via DataHub Secret — full secret reproducibility → B69) · **Iceberg/Nessie ✅** (+ Dagster→Iceberg lineage) · Kafka · MLflow · Neo4j · Postgres · S3/MinIO · Qdrant · Weaviate · OpenSearch (playground) · lakeFS. _(CSV moved out → [B68], Maturity/Polish, blocked on finding Google Drive sheets.)_
+**Dagster ✅** (custom emitter) · **Grafana ✅** (recipe codified, SA token via DataHub Secret → B69) · **Iceberg/Nessie ✅** (+ Dagster→Iceberg lineage) · **MLflow ✅** (+ eval→MLflow tracking, `eval_mlflow_log` → `weyland_rag_eval`) · **Neo4j ✅** (graph schema via apoc) · **Postgres ✅** (ALL DBs, `weyland` superuser, profiling on) · Kafka · S3/MinIO · Qdrant · Weaviate · OpenSearch (playground) · lakeFS. _(CSV moved out → [B68].)_ Recipes codified in `k8s/data-mesh/datahub-ingestion/`. **6 of 12 done (2026-06-26); remaining HAVE: Kafka, MinIO, Qdrant, Weaviate, OpenSearch, lakeFS.**
 _(Low-catalog-value / optional: Valkey-Redis cache; Prometheus/Loki/Tempo — observability stores surfaced via Grafana, not typical catalog targets.)_
 
 **REUSABLE PATTERN for gated/SSO Tier-1 sources (from Grafana, 2026-06-26):** every browser UI is forward-auth gated, so a DataHub UI pull connector must (a) point at the **in-cluster service URL** (`http://<svc>.<ns>.svc.cluster.local:<port>`), NOT the `*.weyland.lab` ingress (that bounces the API call to Keycloak → 401), and (b) authenticate with a **service-specific token**. Where SSO-mapped roles can't mint that token in the UI (e.g. a non-admin Grafana role hides Service Accounts), **mint it via the service's admin API using its admin secret** — Grafana: `kubectl get secret grafana-admin` (keys `admin-user`/`admin-password`) → `POST /api/serviceaccounts` (role Admin) → `POST /api/serviceaccounts/{id}/tokens` from an in-cluster curl pod. The DataHub executor is meshed/PERMISSIVE so it reaches in-cluster services; for STRICT-mTLS targets (Postgres) the meshed executor still connects. Expect this for MLflow / Nessie / lakeFS / etc.
@@ -899,6 +899,13 @@ Doris (OLAP variety, on-demand) · Spark (big-data compute, on-demand) · RDF/tr
 - **Feeds B66** (Operator Agent Platform) — doubles as a LangGraph spike for the agent-framework decision.
 - **Location:** a new agentic path in `weyland-tool-server` (or a sibling service). Note the tool-server image is `:local`/`imagePullPolicy:Never` → mind the **B69** reproducibility gap on rebuild.
 - **Completeness gate** applies on build (trigger / lineage / GitOps / monitoring / docs).
+
+### B71 — DataHub domains + ownership (governance pass)
+**Added 2026-06-26.** The catalog has datasets but **no domains, no ownership** — and domain-oriented ownership is the *organizing principle* of the data mesh (part of B1's governance layer alongside Keycloak/Ranger/OPA/Soda). Promote the existing **Dagster groups** (already emitted as `dagster_group` tags: default/RAG, eval, catalog, aidlc_kb, ai_session) into real DataHub **Domains** (likely consolidated — *RAG Platform · Eval · Model Catalog · Knowledge Base*), and assign **ownership** (a "Weyland" group / emangini as Technical Owner). Apply three ways (mix):
+1. **Ingestion recipes** — `domain:` (pattern→domain) + `owners:` config so the pull sources (Postgres/Grafana/Neo4j/MLflow/Iceberg) auto-file on every run.
+2. **`datahub_emit.py`** — extend to emit Domain + Ownership for the Dagster assets (the group→domain mapping is half-built since we already emit the group tag).
+3. **csv-enricher ([B68])** — bulk-assign domains/owners/tags to existing entities from a CSV/Sheet. A **URN → domain → owner** mapping *is* the "sheets" B68 was blocked on — so B71 unblocks/uses B68.
+- Makes everything cataloged this session (Dagster/Grafana/Iceberg/MLflow/Neo4j/Postgres) navigable. Strong candidate to do next.
 
 ### U18 — weyland-lab SSH key full lockdown (rogueone-side)
 - **✅ DONE 2026-06-17 — closed as KEY RETIREMENT.** Removed the rogueone `authorized_keys` line and deleted
