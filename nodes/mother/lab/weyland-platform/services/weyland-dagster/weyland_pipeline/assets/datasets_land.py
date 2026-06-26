@@ -47,6 +47,9 @@ def _filesystem_dest():
     description="dlt EL — pull public music datasets into MinIO datasets/raw/ (bronze). Spotify wired; FMA next.",
 )
 def datasets_land(context) -> Output[dict]:
+    # dlt gzips loader files by default → keep raw source-faithful + downstream-friendly (plain .csv,
+    # matches the s3 source *.csv path_spec and the pyarrow transform).
+    os.environ["DATA_WRITER__DISABLE_COMPRESSION"] = "true"
     pipeline = dlt.pipeline(
         pipeline_name="music_datasets",
         destination=_filesystem_dest(),
