@@ -17,3 +17,5 @@ pyiceberg[s3fs]
 pyarrow
 # eval → MLflow experiment tracking (eval_mlflow.py). Skinny client (no server deps); metrics/params only.
 mlflow-skinny
+# B72 — dlt EL (datasets_land.py): pull public datasets → MinIO filesystem destination (bronze raw zone).
+dlt[filesystem]
