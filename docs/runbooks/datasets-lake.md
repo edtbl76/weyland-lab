@@ -38,13 +38,13 @@ HF / FMA ──▶ dlt (EL, in Dagster) ──▶ MinIO  datasets/raw/{table}/  
 ## Components
 - **Extract (EL):** **dlt** run inside Dagster — pulls Spotify (HuggingFace, no auth) + FMA (CC-licensed zip). Public HTTPS, no creds, no legwork.
 - **Storage:** **MinIO** (`datasets` bucket) — same object store as the Iceberg warehouse + lakeFS.
-- **Transform:** a **Dagster asset**, **pyarrow** engine — reads raw once into an Arrow Table, writes all five outputs from it.
+- **Transform (brokered):** **one Dagster asset per format** (`datasets_parquet` / `_arrow` / `_avro` / `_lance` / `_iceberg`), all `deps=[datasets_land]`. The asset graph is the broker — Dagster's multiprocess executor runs each in its own child process, so a failure (even a *native* Lance crash) is isolated to that format; the rest still land. pyarrow engine; raw read with `newlines_in_values=True`, bad files skipped not fatal.
 - **Trigger:** a plain Dagster **`@sensor`** polling MinIO `raw/` for new objects → launches the transform. NOT a `run_status_sensor` (that's dead on Dagster 1.13 — dagster#21526; see [[dagster-datahub-1.13-blocked]]).
 - **Catalog:** DataHub **s3 source** (the file zones, schema inferred) + **iceberg source** (the gold tables).
 
 ## Build status (2026-06-26)
 - [x] Step 1 — dlt EL → `raw/` · `datasets_land.py`. **Spotify proven** (plain CSV lands); FMA added (multi-header via pandas) — *verify on next run*.
-- [x] Step 2 — fan-out transform · `datasets_transform.py`. Parquet/Arrow/Avro/Lance + Iceberg, per-format resilient — *verify which formats land on first run (Lance S3 opts + Avro schema are the iteration risks)*.
+- [x] Step 2 — **brokered** fan-out · `datasets_transform.py`. One asset per format (`datasets_parquet/_arrow/_avro/_lance/_iceberg`), each isolated in its own process so one failure can't sink the rest. Read fixed with `newlines_in_values=True`. *Lance S3 opts are the remaining iteration risk — isolated to `datasets_lance`.*
 - [x] Step 3 — S3 `@sensor` · `sensors/__init__.py`. Ships **STOPPED** — enable in Dagster UI after steps 1+2 are green.
 - [ ] Step 4 — catalog (s3 source `s3.recipe.yaml` ready; iceberg source covers `datasets.*` gold tables).
 

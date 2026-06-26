@@ -13,10 +13,11 @@ weyland_ingestion_job = define_asset_job(
     - AssetSelection.groups("datasets"),
 )
 
-# B72 — the fan-out transform alone; triggered by the datasets_raw S3 sensor on new raw writes.
+# B72 — the brokered fan-out (all five per-format assets, each isolated in its own process);
+# triggered by the datasets_raw S3 sensor on new raw writes. = the datasets group minus the loader.
 weyland_datasets_transform_job = define_asset_job(
     name="weyland_datasets_transform_job",
-    selection=AssetSelection.assets("datasets_transform"),
+    selection=AssetSelection.groups("datasets") - AssetSelection.assets("datasets_land"),
 )
 
 # Model catalog (hosted-model lookup table) — refreshed on its own 6h cadence, separate from ingestion.

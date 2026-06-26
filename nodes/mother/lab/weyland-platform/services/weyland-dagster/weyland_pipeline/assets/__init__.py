@@ -16,7 +16,13 @@ from .ai_session import ai_session_ingest
 from .iceberg_export import iceberg_model_catalog, iceberg_eval_scores
 from .eval_mlflow import eval_mlflow_log
 from .datasets_land import datasets_land
-from .datasets_transform import datasets_transform
+from .datasets_transform import (
+    datasets_parquet,
+    datasets_arrow,
+    datasets_avro,
+    datasets_lance,
+    datasets_iceberg,
+)
 
 all_assets = [
     source_document,
@@ -38,5 +44,9 @@ all_assets = [
     iceberg_eval_scores,
     eval_mlflow_log,
     datasets_land,
-    datasets_transform,
+    datasets_parquet,
+    datasets_arrow,
+    datasets_avro,
+    datasets_lance,
+    datasets_iceberg,
 ]

@@ -1,14 +1,14 @@
-"""B72 step 2 — fan-out transform (silver + gold).
+"""B72 — fan-out transform (silver + gold), BROKERED as one asset PER format.
 
-For each raw CSV under datasets/raw/<table>/, load it ONCE into a pyarrow Table, then write:
-  - parquet/<table>/  (pyarrow)        — batch columnar
-  - arrow/<table>/    (pyarrow feather) — IPC / zero-copy
-  - avro/<table>/     (fastavro)        — row-oriented / streaming
-  - lance/<table>     (pylance → S3)    — ML / vector
-  - Iceberg datasets.<table> (pyiceberg → Nessie) — ACID gold table
+Rather than one monolith (where a single bad source read sinks every format), each output format is
+its own Dagster asset — datasets_parquet / _arrow / _avro / _lance / _iceberg — all depending on
+datasets_land. Dagster's multiprocess executor runs each in its OWN child process, so a failure —
+even a NATIVE crash (e.g. Lance's Rust S3 writer) — is isolated to that format's asset; the others
+still land. The asset graph IS the broker.
 
-Each writer is wrapped independently: a failing format reports its error and the rest still land.
-Depends on datasets_land (lineage) and is what the datasets_raw S3 sensor triggers.
+Source CSVs are read once per asset with newlines_in_values=True (FMA/Spotify cells carry embedded
+newlines), and an unreadable file is skipped, not fatal. (Each asset re-reads raw/ — cheap on the LAN
+and the price of full process isolation; passing big Arrow tables between assets would lose it.)
 """
 import io
 import os
@@ -30,10 +30,36 @@ def _minio() -> Minio:
     )
 
 
-def _put(client: Minio, bucket: str, key: str, data: bytes) -> None:
+def _put(client, bucket, key, data: bytes):
     client.put_object(bucket, key, io.BytesIO(data), length=len(data), content_type="application/octet-stream")
 
 
+_PARSE = pacsv.ParseOptions(newlines_in_values=True)  # FMA/Spotify cells contain embedded newlines
+
+
+def _iter_raw_tables(client, bucket, log):
+    """Yield (table, name, arrow_table) for each raw CSV; an unreadable file is skipped, not fatal."""
+    for obj in client.list_objects(bucket, prefix="raw/", recursive=True):
+        if not obj.object_name.endswith(".csv"):
+            continue
+        rel = obj.object_name[len("raw/"):]      # <table>/<file>.csv
+        table = rel.split("/")[0]
+        name = os.path.basename(rel)[:-4]
+        resp = client.get_object(bucket, obj.object_name)
+        try:
+            data = resp.read()
+        finally:
+            resp.close()
+            resp.release_conn()
+        try:
+            t = pacsv.read_csv(io.BytesIO(data), parse_options=_PARSE)
+        except Exception as e:  # noqa: BLE001 — one unreadable source must not sink the format
+            log.error(f"skip raw/{rel}: CSV parse failed: {e}")
+            continue
+        yield table, name, t
+
+
+# --- format writers (uniform signature so the broker calls them interchangeably) ---
 def _write_parquet(client, bucket, table, name, t):
     buf = io.BytesIO()
     pq.write_table(t, buf)
@@ -46,23 +72,18 @@ def _write_arrow(client, bucket, table, name, t):
     _put(client, bucket, f"arrow/{table}/{name}.arrow", sink.getvalue().to_pybytes())
 
 
-_AVRO_TYPE = {
-    "int64": "long", "int32": "int", "double": "double", "float": "float",
-    "bool": "boolean", "string": "string", "large_string": "string",
-}
+_AVRO_TYPE = {"int64": "long", "int32": "int", "double": "double", "float": "float",
+              "bool": "boolean", "string": "string", "large_string": "string"}
 
 
 def _write_avro(client, bucket, table, name, t):
     import fastavro
 
-    fields = [
-        {"name": f.name, "type": ["null", _AVRO_TYPE.get(str(f.type), "string")], "default": None}
-        for f in t.schema
-    ]
+    fields = [{"name": f.name, "type": ["null", _AVRO_TYPE.get(str(f.type), "string")], "default": None}
+              for f in t.schema]
     schema = fastavro.parse_schema({"type": "record", "name": f"{table}_record", "fields": fields})
-    # any column whose arrow type we mapped to avro string must be stringified to match the schema
-    str_cols = {f.name for f in t.schema if _AVRO_TYPE.get(str(f.type), "string") == "string"
-                and str(f.type) not in ("string", "large_string")}
+    str_cols = {f.name for f in t.schema
+                if _AVRO_TYPE.get(str(f.type), "string") == "string" and str(f.type) not in ("string", "large_string")}
     records = t.to_pylist()
     if str_cols:
         for r in records:
@@ -74,10 +95,9 @@ def _write_avro(client, bucket, table, name, t):
     _put(client, bucket, f"avro/{table}/{name}.avro", buf.getvalue())
 
 
-def _write_lance(table, t):
+def _write_lance(client, bucket, table, name, t):
     import lance
 
-    bucket = os.environ.get("DATASETS_BUCKET", "datasets")
     uri = f"s3://{bucket}/lance/{table}"
     storage_options = {
         "access_key_id": os.environ["MINIO_ACCESS_KEY"],
@@ -89,7 +109,7 @@ def _write_lance(table, t):
     lance.write_dataset(t, uri, mode="overwrite", storage_options=storage_options)
 
 
-def _hydrate_iceberg(table, t):
+def _hydrate_iceberg(client, bucket, table, name, t):
     from weyland_pipeline.iceberg_publish import _catalog
 
     cat = _catalog()
@@ -98,59 +118,49 @@ def _hydrate_iceberg(table, t):
     ice.overwrite(t)
 
 
-@asset(
-    group_name="datasets",
-    deps=["datasets_land"],
-    description="Fan-out transform: raw CSV → Parquet/Arrow/Avro/Lance (silver) + Iceberg (gold). Per-format resilient.",
-)
-def datasets_transform(context) -> Output[dict]:
-    bucket = os.environ.get("DATASETS_BUCKET", "datasets")
+def _run_format(context, write_one) -> Output:
     client = _minio()
-    # First-run isolation: Lance is a native Rust lib that can HARD-crash the process (uncatchable by
-    # try/except), so it's benched by default. Re-enable via the DATASETS_FORMATS env (comma-sep) once
-    # its S3 storage_options are proven, e.g. DATASETS_FORMATS=parquet,arrow,avro,lance,iceberg.
-    enabled = {
-        f.strip()
-        for f in os.environ.get("DATASETS_FORMATS", "parquet,arrow,avro,iceberg").split(",")
-        if f.strip()
-    }
-    context.log.info(f"datasets_transform formats enabled: {sorted(enabled)}")
-    results: dict = {}
-    for obj in client.list_objects(bucket, prefix="raw/", recursive=True):
-        if not obj.object_name.endswith(".csv"):
-            continue
-        rel = obj.object_name[len("raw/"):]      # <table>/<file>.csv
-        table = rel.split("/")[0]
-        name = os.path.basename(rel)[:-4]
-        resp = client.get_object(bucket, obj.object_name)
+    bucket = os.environ.get("DATASETS_BUCKET", "datasets")
+    out: dict = {}
+    for table, name, t in _iter_raw_tables(client, bucket, context.log):
+        key = f"{table}/{name}"
         try:
-            t = pacsv.read_csv(io.BytesIO(resp.read()))
-        finally:
-            resp.close()
-            resp.release_conn()
+            write_one(client, bucket, table, name, t)
+            out[key] = f"ok ({t.num_rows}r x {t.num_columns}c)"
+        except Exception as e:  # noqa: BLE001 — per-table resilience within a format
+            out[key] = f"ERROR {type(e).__name__}: {e}"
+            context.log.error(f"{key}: {e}")
+    if not out:
+        context.log.warning("no raw CSVs under datasets/raw/ — run datasets_land first")
+    return Output(out, metadata={
+        "ok": MetadataValue.int(sum(1 for v in out.values() if v.startswith("ok"))),
+        "detail": MetadataValue.json(out),
+    })
 
-        status: dict = {"rows": t.num_rows, "cols": t.num_columns}
-        # rock-solid (pyarrow/pyiceberg) first so they persist before any risky writer; Lance last.
-        writers = (
-            ("parquet", lambda: _write_parquet(client, bucket, table, name, t)),
-            ("arrow", lambda: _write_arrow(client, bucket, table, name, t)),
-            ("iceberg", lambda: _hydrate_iceberg(table, t)),
-            ("avro", lambda: _write_avro(client, bucket, table, name, t)),
-            ("lance", lambda: _write_lance(table, t)),
-        )
-        for fmt, fn in writers:
-            if fmt not in enabled:
-                status[fmt] = "skipped"
-                continue
-            try:
-                fn()
-                status[fmt] = "ok"
-            except Exception as e:  # noqa: BLE001 — one bad format must not block the rest
-                status[fmt] = f"ERROR {type(e).__name__}: {e}"
-                context.log.error(f"{table}/{name} [{fmt}] failed: {e}")
-        results[f"{table}/{name}"] = status
-        context.log.info(f"{table}/{name}: {status}")
 
-    if not results:
-        context.log.warning("no CSVs under datasets/raw/ — run datasets_land first")
-    return Output(results, metadata={"files": MetadataValue.int(len(results)), "detail": MetadataValue.json(results)})
+_COMMON = dict(group_name="datasets", deps=["datasets_land"])
+
+
+@asset(**_COMMON, description="Silver — Parquet (batch columnar) for each raw table.")
+def datasets_parquet(context) -> Output[dict]:
+    return _run_format(context, _write_parquet)
+
+
+@asset(**_COMMON, description="Silver — Arrow/Feather (IPC) for each raw table.")
+def datasets_arrow(context) -> Output[dict]:
+    return _run_format(context, _write_arrow)
+
+
+@asset(**_COMMON, description="Silver — Avro (row-oriented / streaming) for each raw table.")
+def datasets_avro(context) -> Output[dict]:
+    return _run_format(context, _write_avro)
+
+
+@asset(**_COMMON, description="Silver — Lance (ML/vector) for each raw table. Native Rust S3 writer — isolated.")
+def datasets_lance(context) -> Output[dict]:
+    return _run_format(context, _write_lance)
+
+
+@asset(**_COMMON, description="Gold — Iceberg table (Nessie) for each raw table.")
+def datasets_iceberg(context) -> Output[dict]:
+    return _run_format(context, _hydrate_iceberg)
