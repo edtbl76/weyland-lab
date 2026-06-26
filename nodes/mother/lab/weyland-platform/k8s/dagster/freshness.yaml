@@ -1,0 +1,46 @@
+# B1 / B69 data-mesh-now — Dagster pipeline freshness watchdog.
+# The native run_status_sensor is broken on Dagster 1.13 (dagster#21526), so we monitor EXTERNALLY:
+# query the dagster instance's runs table for the last SUCCESSful run; if it's older than the threshold
+# (ingestion runs every 15m), fire an Alertmanager alert -> Telegram. Catches the *silent* failure mode
+# (a stopped/stuck pipeline that throws no exception, so GlitchTip/Sentry never sees it).
+# Meshed for STRICT-mTLS Postgres; in the weyland ns (same ns as dagster + its PG secret).
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: dagster-freshness-check
+  namespace: weyland
+spec:
+  schedule: "*/30 * * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 2
+  failedJobsHistoryLimit: 2
+  jobTemplate:
+    spec:
+      backoffLimit: 0
+      template:
+        metadata:
+          labels:
+            sidecar.istio.io/inject: "true"
+        spec:
+          restartPolicy: Never
+          containers:
+            - name: check
+              image: postgres:17-alpine # psql + busybox wget
+              command: ["/bin/sh", "-c"]
+              args:
+                - |
+                  set -e
+                  THRESHOLD=5400   # 90 min (ingestion schedule = every 15m)
+                  AGE=$(PGPASSWORD="$DAGSTER_PG_PASSWORD" psql -t -A \
+                    -h weyland-postgres.weyland.svc.cluster.local -U weyland -d dagster \
+                    -c "SELECT COALESCE(EXTRACT(EPOCH FROM (now() - max(update_timestamp)))::int, 999999) FROM runs WHERE status='SUCCESS';")
+                  echo "seconds since last successful dagster run: $AGE (threshold $THRESHOLD)"
+                  if [ "$AGE" -gt "$THRESHOLD" ]; then
+                    echo "STALE — firing Alertmanager alert"
+                    wget -q -O- --header='Content-Type: application/json' \
+                      --post-data="[{\"labels\":{\"alertname\":\"DagsterPipelineStale\",\"severity\":\"warning\",\"namespace\":\"weyland\",\"source\":\"freshness-check\"},\"annotations\":{\"summary\":\"Dagster: no successful run in ${AGE}s (> ${THRESHOLD}s)\",\"description\":\"The Dagster pipeline appears stalled/stopped — last successful run was ${AGE}s ago. Check the schedules and the daemon.\"}}]" \
+                      http://monitoring-kube-prometheus-alertmanager.monitoring.svc.cluster.local:9093/api/v2/alerts
+                  fi
+              env:
+                - name: DAGSTER_PG_PASSWORD
+                  valueFrom: { secretKeyRef: { name: dagster-postgres-secret, key: password } }

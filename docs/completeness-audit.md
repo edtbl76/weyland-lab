@@ -10,7 +10,19 @@ artifacts that "run once" but aren't operationally complete. Graded each against
 
 ---
 
-## DATA-MESH — SOLVE NOW (bucket = data-mesh-now)
+## DATA-MESH — SOLVE NOW (bucket = data-mesh-now) — ✅ RESOLVED 2026-06-26
+
+All 14 closed inline with B1: iceberg trigger wired (`weyland_eval_score_job`); all schedules
+`default_status=RUNNING`; `iceberg_publish` env hardened; Dagster→Iceberg lineage edge emitted
+(verified end-to-end); recipes codified (`k8s/data-mesh/datahub-ingestion/`); MinIO + Postgres
+backups to NVMe (CronJobs, tested green); ServiceMonitors/PodMonitor + down-alerts; Loki rule
+broadened to `data-mesh`; Dagster freshness watchdog (`k8s/dagster/freshness.yaml`, external —
+the run_status_sensor is dead on 1.13); secrets runbook + lakeFS encrypt-key escrow
+(`docs/runbooks/data-mesh-secrets.md`); storage→DataHub assessed (s3 for aidlc-kb only, rest
+redundant/no-connector); docs corrected. **Deferred to B69 (cross-cutting):** the full
+SealedSecrets/External-Secrets mechanism for all imperative secrets.
+
+
 
 ### High
 - **[trigger] `iceberg_eval_scores` orphaned from every job & schedule** — `assets/iceberg_export.py` (group "eval") + `schedules/__init__.py` (eval jobs select named assets only; ingestion subtracts group "eval") — Fix: add `iceberg_eval_scores` to `weyland_eval_score_job`'s selection (`AssetSelection.assets("eval_scores","iceberg_eval_scores")`).
