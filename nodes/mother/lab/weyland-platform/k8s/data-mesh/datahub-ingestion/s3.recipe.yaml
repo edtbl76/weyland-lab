@@ -1,20 +1,22 @@
-# DataHub managed-ingestion recipe — S3 (MinIO) for the aidlc-kb RAG corpus bucket.
+# DataHub managed-ingestion recipe — S3 (MinIO) datasets lake. ONE source, many datasets.
 # Source-of-record only (UI-configured). MINIO_ACCESS_KEY/SECRET are DataHub Secrets.
 #
-# Scope note (storage→DataHub completeness): only `aidlc-kb` is cataloged here. The `warehouse`
-# bucket is already cataloged structurally by the Iceberg source (tables + schema), and the
-# Dagster assets represent the pipeline outputs — so an s3 raw-file pass over those is redundant.
-# `lakefs` is lakeFS-internal storage and lakeFS has no native DataHub connector — intentionally skipped.
+# Catalogs the bronze→silver `datasets` lake (B72): raw CSVs + their converted Parquet, one dataset
+# per {table} folder, schema inferred. The s3 source only handles STRUCTURED files (CSV/Parquet/
+# JSON/Avro) — it SKIPS Markdown, so the aidlc-kb corpus is NOT here (it's represented via the Dagster
+# aidlc_kb_ingest asset). The warehouse bucket is cataloged by the Iceberg source, not s3 (redundant).
+# Profiling needs Spark → left off. Schedule: daily.
 source:
   type: s3
   config:
-    platform: s3
     aws_config:
       aws_endpoint_url: "http://minio.minio.svc.cluster.local:9000"
       aws_access_key_id: "${MINIO_ACCESS_KEY}"
       aws_secret_access_key: "${MINIO_SECRET_KEY}"
       aws_region: "us-east-1"
     path_specs:
-      - include: "s3://aidlc-kb/**/*.md"
-    use_s3_bucket_tags: false
-    use_s3_object_tags: false
+      - include: "s3://datasets/raw/{table}/*.csv"
+      - include: "s3://datasets/parquet/{table}/*.parquet"
+    env: "PROD"
+    profiling:
+      enabled: false

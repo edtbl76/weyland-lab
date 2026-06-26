@@ -15,6 +15,7 @@ from .aidlc_kb import aidlc_kb_ingest
 from .ai_session import ai_session_ingest
 from .iceberg_export import iceberg_model_catalog, iceberg_eval_scores
 from .eval_mlflow import eval_mlflow_log
+from .csv_to_parquet import csv_to_parquet
 
 all_assets = [
     source_document,
@@ -35,4 +36,5 @@ all_assets = [
     iceberg_model_catalog,
     iceberg_eval_scores,
     eval_mlflow_log,
+    csv_to_parquet,
 ]
