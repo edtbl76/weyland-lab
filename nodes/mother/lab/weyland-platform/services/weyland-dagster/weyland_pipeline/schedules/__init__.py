@@ -1,4 +1,4 @@
-from dagster import ScheduleDefinition, define_asset_job, AssetSelection
+from dagster import ScheduleDefinition, define_asset_job, AssetSelection, DefaultScheduleStatus
 
 # Ingestion = everything EXCEPT the eval and catalog groups (they have their own schedules).
 weyland_ingestion_job = define_asset_job(
@@ -23,8 +23,8 @@ weyland_eval_job = define_asset_job(
     selection=AssetSelection.assets("eval_testset", "eval_run_matrix"),
 )
 weyland_eval_score_job = define_asset_job(
-    name="weyland_eval_score_job",  # LLM-as-judge scoring of the latest results
-    selection=AssetSelection.assets("eval_scores"),
+    name="weyland_eval_score_job",  # LLM-as-judge scoring of the latest results + Iceberg publish
+    selection=AssetSelection.assets("eval_scores", "iceberg_eval_scores"),
 )
 
 # AIDLC knowledge-base ingest (B37) — on-demand only (NO schedule): the corpus is static, re-run after
@@ -45,16 +45,19 @@ weyland_ingestion_schedule = ScheduleDefinition(
     job=weyland_ingestion_job,
     cron_schedule="*/15 * * * *",
     name="weyland_ingestion_schedule",
+    default_status=DefaultScheduleStatus.RUNNING,
 )
 
 weyland_catalog_schedule = ScheduleDefinition(
     job=weyland_catalog_job,
     cron_schedule="0 */6 * * *",  # every 6h
     name="weyland_catalog_schedule",
+    default_status=DefaultScheduleStatus.RUNNING,
 )
 
 weyland_ai_session_schedule = ScheduleDefinition(
     job=weyland_ai_session_job,
     cron_schedule="0 */4 * * *",  # every 4h
     name="weyland_ai_session_schedule",
+    default_status=DefaultScheduleStatus.RUNNING,
 )

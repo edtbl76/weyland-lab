@@ -884,6 +884,16 @@ Doris (OLAP variety, on-demand) · Spark (big-data compute, on-demand) · RDF/tr
 - **File/S3 source** — **catalog** the CSV rows as a *dataset*: export Sheet → CSV → MinIO → DataHub S3 source infers the schema.
 - Doc: https://docs.datahub.com/docs/generated/ingestion/sources/csv-enricher
 
+### B69 — Platform completeness / gap remediation (post-B1)
+**Added 2026-06-26.** Output of the multi-agent completeness audit (`docs/completeness-audit.md`) — artifacts that "run once" but aren't operationally complete (trigger / lineage / GitOps-reproducibility / monitoring / docs). **Data-mesh-scoped gaps (14) are solved inline as part of B1**; this item is the **platform-wide set (28: 9 high / 14 med / 5 low)**, to clear **immediately after B1 lands**. Full register: `docs/completeness-audit.md`. Highlights (high):
+- **Secrets management** — ~25 imperative-only cluster secrets, nothing restores them → adopt SealedSecrets/External-Secrets/SOPS (or commit `*-secret.example.yaml` shapes + `runbooks/secrets.md`).
+- **No dead-man's-switch** — Alertmanager Watchdog routed to `null`; a total alerting-pipeline failure is silent → external heartbeat.
+- **Always-firing `telegram-test` alert** committed + Argo-synced (`expr: vector(1)`) → pages every 4h; delete from git.
+- **Ollama / Hermes / tool-server** — no monitoring + not reproducible from git (image `:local`/Never → ErrImageNeverPull on rebuild).
+- **Istio set not onboarded to Argo** (incl. STRICT mTLS PeerAuthentication — load-bearing).
+- **Kuma monitors only in SQLite**, LGTM doesn't monitor itself, forward-auth is a SPOF with no probes.
+- Plus medium/low: eval-leaderboard frozen, uncodified crons (roadmap-sync, ai_session, docs-site rebuild, code scans), loose `k8s/` root files not in Argo, several stale backlog "done"/count claims.
+
 ### U18 — weyland-lab SSH key full lockdown (rogueone-side)
 - **✅ DONE 2026-06-17 — closed as KEY RETIREMENT.** Removed the rogueone `authorized_keys` line and deleted
   the orphaned `weyland-lab-ssh-key` k8s Secret. The key is fully gone (no public half, no private half).

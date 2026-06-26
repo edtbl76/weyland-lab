@@ -1,5 +1,5 @@
 import os
-from dagster import Definitions, ScheduleDefinition, job, op
+from dagster import Definitions, ScheduleDefinition, job, op, DefaultScheduleStatus
 from weyland_pipeline.assets import all_assets
 from weyland_pipeline.resources import (
     PostgresResource,
@@ -36,7 +36,9 @@ def datahub_catalog_emit_job():
 
 
 datahub_catalog_emit_schedule = ScheduleDefinition(
-    job=datahub_catalog_emit_job, cron_schedule="0 * * * *"
+    job=datahub_catalog_emit_job,
+    cron_schedule="0 * * * *",
+    default_status=DefaultScheduleStatus.RUNNING,
 )
 
 defs = Definitions(

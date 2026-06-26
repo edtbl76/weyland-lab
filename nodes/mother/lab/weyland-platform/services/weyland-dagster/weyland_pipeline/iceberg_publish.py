@@ -25,6 +25,15 @@ PRODUCTS = [
 
 
 def _catalog() -> RestCatalog:
+    access = os.environ.get("ICEBERG_S3_ACCESS_KEY")
+    secret = os.environ.get("ICEBERG_S3_SECRET_KEY")
+    if not access or not secret:
+        raise ValueError(
+            "ICEBERG_S3_ACCESS_KEY / ICEBERG_S3_SECRET_KEY are unset. The dagster-user-code pod needs "
+            "the `iceberg-s3-secret` env (k8s/dagster/user-code.yaml) — mirror nessie-secret's S3 creds "
+            "into the weyland ns: kubectl -n weyland create secret generic iceberg-s3-secret "
+            "--from-literal=access_key=... --from-literal=secret_key=..."
+        )
     return RestCatalog(
         "nessie",
         **{
@@ -36,8 +45,8 @@ def _catalog() -> RestCatalog:
             "s3.endpoint": os.environ.get(
                 "ICEBERG_S3_ENDPOINT", "http://minio.minio.svc.cluster.local:9000"
             ),
-            "s3.access-key-id": os.environ["ICEBERG_S3_ACCESS_KEY"],
-            "s3.secret-access-key": os.environ["ICEBERG_S3_SECRET_KEY"],
+            "s3.access-key-id": access,
+            "s3.secret-access-key": secret,
             "s3.region": "us-east-1",
             "s3.path-style-access": "true",
         },
