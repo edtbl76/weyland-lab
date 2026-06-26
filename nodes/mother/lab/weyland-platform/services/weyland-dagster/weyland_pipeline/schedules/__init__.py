@@ -24,7 +24,7 @@ weyland_eval_job = define_asset_job(
 )
 weyland_eval_score_job = define_asset_job(
     name="weyland_eval_score_job",  # LLM-as-judge scoring of the latest results + Iceberg publish
-    selection=AssetSelection.assets("eval_scores", "iceberg_eval_scores"),
+    selection=AssetSelection.assets("eval_scores", "iceberg_eval_scores", "eval_mlflow_log"),
 )
 
 # AIDLC knowledge-base ingest (B37) — on-demand only (NO schedule): the corpus is static, re-run after

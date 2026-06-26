@@ -15,3 +15,5 @@ acryl-datahub
 # Iceberg table data products (iceberg_publish.py): read Postgres → write Iceberg via Nessie REST + MinIO.
 pyiceberg[s3fs]
 pyarrow
+# eval → MLflow experiment tracking (eval_mlflow.py). Skinny client (no server deps); metrics/params only.
+mlflow-skinny

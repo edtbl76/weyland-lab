@@ -119,6 +119,9 @@ spec:
                 secretKeyRef:
                   name: iceberg-s3-secret
                   key: secret_key
+            # eval → MLflow experiment tracking (eval_mlflow_log). In-cluster MLflow (no native auth).
+            - name: MLFLOW_TRACKING_URI
+              value: http://mlflow.weyland.svc.cluster.local:5000
           volumeMounts:
             - name: dagster-config
               mountPath: /opt/dagster/dagster_home/dagster.yaml

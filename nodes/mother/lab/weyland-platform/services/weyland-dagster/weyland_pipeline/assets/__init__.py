@@ -14,6 +14,7 @@ from .model_catalog import model_catalog
 from .aidlc_kb import aidlc_kb_ingest
 from .ai_session import ai_session_ingest
 from .iceberg_export import iceberg_model_catalog, iceberg_eval_scores
+from .eval_mlflow import eval_mlflow_log
 
 all_assets = [
     source_document,
@@ -33,4 +34,5 @@ all_assets = [
     ai_session_ingest,
     iceberg_model_catalog,
     iceberg_eval_scores,
+    eval_mlflow_log,
 ]

@@ -1,0 +1,10 @@
+# DataHub managed-ingestion recipe — MLflow (in-cluster, NOT the gated ingress).
+# Source-of-record only (the live source is UI-configured). No auth needed: our MLflow has no native
+# auth (gated only at the Traefik ingress via forward-auth + basicAuth), so the in-cluster service is open.
+# Catalogs registered models (MlModelGroup), versions (MlModel), experiments (Container), runs
+# (DataProcessInstance) + params/metrics. Schedule: daily.
+source:
+  type: mlflow
+  config:
+    tracking_uri: "http://mlflow.weyland.svc.cluster.local:5000"
+    env: PROD
