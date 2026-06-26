@@ -1,0 +1,12 @@
+# DataHub managed-ingestion recipe — Neo4j (in-cluster bolt, NOT the gated NeoDash/browser).
+# Source-of-record only (UI-configured). NEO4J_PASSWORD is a DataHub Secret, value = neo4j-secret/password.
+# Plain bolt:// (no SSL) — the Istio mesh handles mTLS transparently (PERMISSIVE); the executor reaches it
+# the same way the Dagster neo4j_write asset does. Catalogs node labels + relationship types as datasets
+# (via apoc.meta.schema — APOC is installed). Schedule: daily.
+source:
+  type: neo4j
+  config:
+    uri: "bolt://neo4j.weyland.svc.cluster.local:7687"
+    username: "neo4j"
+    password: "${NEO4J_PASSWORD}"
+    env: PROD

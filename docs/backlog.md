@@ -894,6 +894,12 @@ Doris (OLAP variety, on-demand) · Spark (big-data compute, on-demand) · RDF/tr
 - **Kuma monitors only in SQLite**, LGTM doesn't monitor itself, forward-auth is a SPOF with no probes.
 - Plus medium/low: eval-leaderboard frozen, uncodified crons (roadmap-sync, ai_session, docs-site rebuild, code scans), loose `k8s/` root files not in Argo, several stale backlog "done"/count claims.
 
+### B70 — Agentic RAG on LangGraph + MLflow tracing
+**Added 2026-06-26.** Bring **LangChain/LangGraph** into the stack (lab experimentation + a real capability, not a reskin). Build a **LangGraph agentic-RAG control loop** — retrieve → reason → *reflect / re-retrieve if weak* → answer — over the existing vector backends (pgvector/Qdrant/Weaviate/Neo4j), more capable than the current single-shot LlamaIndex `/context/ask`. Instrument with **`mlflow.langchain.autolog()`** → MLflow **Traces** tab (per-step LLM/tool/retrieval spans = GenAI observability Tempo's mesh traces can't give: prompt/context/answer per step).
+- **Feeds B66** (Operator Agent Platform) — doubles as a LangGraph spike for the agent-framework decision.
+- **Location:** a new agentic path in `weyland-tool-server` (or a sibling service). Note the tool-server image is `:local`/`imagePullPolicy:Never` → mind the **B69** reproducibility gap on rebuild.
+- **Completeness gate** applies on build (trigger / lineage / GitOps / monitoring / docs).
+
 ### U18 — weyland-lab SSH key full lockdown (rogueone-side)
 - **✅ DONE 2026-06-17 — closed as KEY RETIREMENT.** Removed the rogueone `authorized_keys` line and deleted
   the orphaned `weyland-lab-ssh-key` k8s Secret. The key is fully gone (no public half, no private half).
