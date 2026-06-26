@@ -195,10 +195,11 @@ agents/workflows and platform state. Agents call the tool-server, *not* database
     kept for fast local loads + learning.*
   - **Iceberg** — ACID **gold** table (time-travel, schema evolution) over Parquet, in Nessie.
 
-  Cataloged in DataHub via the **s3 source** (CSV/Parquet/Avro) + **iceberg source** (gold tables);
-  **Arrow/Lance** have no native connector, so they're **custom-emitted** (`datahub_emit.emit_file_dataset`
-  — column schema from the Arrow schema + a lineage edge to their producing asset). All five formats
-  appear in the catalog. Full design + diagram: [runbooks/datasets-lake.md](runbooks/datasets-lake.md).
+  Cataloged in DataHub by **custom-emit** — every transform asset calls `datahub_emit.emit_file_dataset`
+  (typed schema from the Arrow schema + lineage to the producing asset) for raw CSV + all four silver
+  formats; the **iceberg source** handles the gold tables. The DataHub **s3 source is unusable** in this
+  build (it forces a PySpark run that crashes on the executor JDK — `Subject.getSubject` gone in Java 18+),
+  so one emit path covers everything. Full design + diagram: [runbooks/datasets-lake.md](runbooks/datasets-lake.md).
 - **`model_catalog`** (Postgres) — current-state lookup of reachable hosted models (OpenRouter / Gemini /
   Ollama, with free flag + pricing + context), refreshed every 6h by Dagster (replace-by-source). Distinct
   from the normalized `models` infra-inventory table. See [runbooks/model-gateway.md](runbooks/model-gateway.md).

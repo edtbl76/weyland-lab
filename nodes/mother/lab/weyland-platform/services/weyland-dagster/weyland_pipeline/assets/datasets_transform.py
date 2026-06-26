@@ -75,6 +75,10 @@ def _write_parquet(client, bucket, table, name, t):
     buf = io.BytesIO()
     pq.write_table(t, buf)
     _put(client, bucket, f"parquet/{table}/{name}.parquet", buf.getvalue())
+    _catalog_file("parquet", table, f"s3://{bucket}/parquet/{table}/", t.schema, "datasets_parquet")
+    # also catalog the BRONZE raw CSV here (it has the same schema, read once) — the DataHub s3 source
+    # that would have done this is unusable (its PySpark crashes on the executor's JDK), so we emit it.
+    _catalog_file("s3", table, f"s3://{bucket}/raw/{table}/", t.schema, "datasets_land")
 
 
 def _write_arrow(client, bucket, table, name, t):
@@ -105,6 +109,7 @@ def _write_avro(client, bucket, table, name, t):
     buf = io.BytesIO()
     fastavro.writer(buf, schema, records)
     _put(client, bucket, f"avro/{table}/{name}.avro", buf.getvalue())
+    _catalog_file("avro", table, f"s3://{bucket}/avro/{table}/", t.schema, "datasets_avro")
 
 
 def _write_lance(client, bucket, table, name, t):
