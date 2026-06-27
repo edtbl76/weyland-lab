@@ -74,8 +74,10 @@ def _filesystem_dest():
     # Write THROUGH the lakeFS S3 gateway (not MinIO directly) so the raw zone is versioned: the bucket
     # is the lakeFS REPO, and dataset_name carries the BRANCH prefix (→ s3://<repo>/<branch>/raw/<table>).
     # lakeFS still stores the bytes in MinIO under its own namespace; it just adds version tracking.
+    # branch goes in the bucket_url (lakeFS reads <repo>/<ref> from the path); dlt sanitizes "/" out of
+    # dataset_name, so a branch there becomes ref="main_raw" (404). → s3://<repo>/<branch>.
     return filesystem(
-        bucket_url=f"s3://{os.environ.get('LAKEFS_REPO', 'music')}",
+        bucket_url=f"s3://{os.environ.get('LAKEFS_REPO', 'music')}/{os.environ.get('LAKEFS_BRANCH', 'main')}",
         credentials={
             "aws_access_key_id": os.environ["LAKEFS_ACCESS_KEY_ID"],
             "aws_secret_access_key": os.environ["LAKEFS_SECRET_ACCESS_KEY"],
@@ -95,7 +97,7 @@ def datasets_land(context) -> Output[dict]:
     pipeline = dlt.pipeline(
         pipeline_name="music_datasets",
         destination=_filesystem_dest(),
-        dataset_name=f"{os.environ.get('LAKEFS_BRANCH', 'main')}/raw",  # → s3://<repo>/<branch>/raw/<table>/
+        dataset_name="raw",  # branch is in bucket_url; slash-free here → s3://<repo>/<branch>/raw/<table>/
     )
     sources = [_spotify_rows()]
     for _table, (_member, _header) in _FMA_FILES.items():
