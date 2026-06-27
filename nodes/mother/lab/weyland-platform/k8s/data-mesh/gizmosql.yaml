@@ -21,6 +21,11 @@ metadata:
     app: gizmosql
 spec:
   replicas: 1
+  # Recreate (not RollingUpdate): terminate the old pod BEFORE creating the new one. The node runs ~98%
+  # CPU-committed, so a rolling update double-books the CPU request and the new pod can never schedule
+  # while the old (even crashing) one still holds its slot. Kill-old-first frees the slot for the new.
+  strategy:
+    type: Recreate
   selector:
     matchLabels:
       app: gizmosql
