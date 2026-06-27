@@ -43,7 +43,7 @@ configOverrides:
     import os
     SQLALCHEMY_DATABASE_URI = (
         f"postgresql://superset:{os.environ.get('DB_PASS')}"
-        "@weyland-postgres.weyland.svc.cluster.local:5432/superset"
+        "@weyland-postgres.weyland.svc.cluster.local:5432/superset?sslmode=disable"
     )
     # SECRET_KEY from the secret (envFromSecret → SUPERSET_SECRET_KEY); without this Superset boots on the
     # insecure default key and refuses to start.
