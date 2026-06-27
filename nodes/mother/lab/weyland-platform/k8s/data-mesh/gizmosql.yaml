@@ -46,6 +46,12 @@ spec:
           envFrom:
             - secretRef:
                 name: gizmosql-secret
+          env:
+            # Run PLAINTEXT so Istio mTLS (slice-2 mesh) provides transport security instead of the app's
+            # ephemeral self-signed cert — this is what lets the clients drop TLS_SKIP_VERIFY. UNVERIFIED
+            # that GizmoSQL honours "0"; confirm in the boot log (grpc:// vs grpc+tls://) before meshing.
+            - name: TLS_ENABLED
+              value: "0"
           ports:
             - name: flightsql
               containerPort: 31337
