@@ -19,6 +19,9 @@ data:
     discovery.uri=http://localhost:8080
     query.max-memory=1GB
     query.max-memory-per-node=1GB
+    # Behind Traefik + Istio, which add X-Forwarded-* headers; Trino's Jetty rejects forwarded requests
+    # by default (406 "does not allow processing of the X-Forwarded-For header"). Trust the proxy.
+    http-server.process-forwarded=true
   jvm.config: |
     -server
     -Xmx2G
