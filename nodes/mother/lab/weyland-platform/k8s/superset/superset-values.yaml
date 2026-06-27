@@ -15,6 +15,8 @@ redis:
 # env (superset-env → DB_PASS) and the real SQLALCHEMY_DATABASE_URI is built in configOverrides below so the
 # password never lands in git.
 supersetNode:
+  podAnnotations:
+    sidecar.istio.io/inject: "true"
   # Recreate, not RollingUpdate: kill the old pod before creating the new one. On this ~tight node a rolling
   # update double-books CPU/RAM and the old (even crashing) pod blocks the new from scheduling.
   strategy:
@@ -31,6 +33,8 @@ supersetNode:
 
 # Same Recreate strategy on the Celery worker.
 supersetWorker:
+  podAnnotations:
+    sidecar.istio.io/inject: "true"
   strategy:
     type: Recreate
 
@@ -46,8 +50,6 @@ configOverrides:
         f"postgresql://superset:{os.environ.get('DB_PASS')}"
         "@weyland-postgres.weyland.svc.cluster.local:5432/superset?sslmode=disable"
     )
-    # SECRET_KEY from the secret (envFromSecret → SUPERSET_SECRET_KEY); without this Superset boots on the
-    # insecure default key and refuses to start.
     SECRET_KEY = os.environ["SUPERSET_SECRET_KEY"]
 
 # Fallback local admin (break-glass; OIDC is the real login). Dev password — low-sensitivity, LAN-only.
