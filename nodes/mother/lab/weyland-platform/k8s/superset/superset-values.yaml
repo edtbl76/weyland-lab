@@ -50,8 +50,11 @@ init:
 # Install the Trino SQLAlchemy driver at startup (the connection itself is added in step 4).
 bootstrapScript: |
   #!/bin/bash
-  pip install trino
-  if [ ! -f ~/bootstrap ]; then echo "Superset bootstrapped (trino driver)" > ~/bootstrap; fi
+  # psycopg2-binary: the metadata-DB (Postgres) driver — the 6.1.0 image doesn't bundle it. trino: the query
+  # connector (step 4). Both need PyPI egress at pod start; a custom image baking them in is the cleaner
+  # long-term fix.
+  pip install psycopg2-binary trino
+  if [ ! -f ~/bootstrap ]; then echo "Superset bootstrapped (psycopg2 + trino)" > ~/bootstrap; fi
 
 ingress:
   enabled: true
