@@ -97,7 +97,7 @@ spec:
             - { name: catalogs, mountPath: /etc/trino/catalog }
             - { name: data, mountPath: /data/trino }
           resources:
-            requests: { cpu: "500m", memory: 2Gi }
+            requests: { cpu: "150m", memory: 2Gi }   # right-sized 2026-06-27: actual usage ~30m
             limits: { memory: 3Gi }
       volumes:
         - { name: config, configMap: { name: trino-config } }

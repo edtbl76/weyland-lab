@@ -98,7 +98,7 @@ spec:
             periodSeconds: 30
           resources:
             requests:
-              cpu: 500m
+              cpu: 150m          # right-sized 2026-06-27: actual usage ~28m
               memory: 2Gi
             limits:
               memory: 4Gi
