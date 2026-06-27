@@ -27,9 +27,10 @@ from weyland_pipeline.sensors import datasets_raw_sensor
 # on Dagster 1.13 (dagster#21526). Idempotent; scheduled hourly. Reads DATAHUB_GMS_TOKEN.
 @op
 def emit_datahub_catalog_op():
-    from weyland_pipeline.datahub_emit import emit
+    from weyland_pipeline.datahub_emit import emit, emit_stores
 
-    emit()
+    emit()        # the Dagster asset graph (datasets + lineage)
+    emit_stores()  # external vector stores (Qdrant, Weaviate) with lineage ← their *_write assets
 
 
 @job

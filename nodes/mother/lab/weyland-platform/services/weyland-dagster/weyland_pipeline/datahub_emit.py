@@ -113,13 +113,132 @@ def build_mcps() -> List[MetadataChangeProposalWrapper]:
     return mcps
 
 
-def _field_type(arrow_type) -> SchemaFieldDataTypeClass:
-    s = str(arrow_type)
-    if s.startswith(("int", "uint", "double", "float", "decimal", "halffloat")):
+def _field_type(type_str) -> SchemaFieldDataTypeClass:
+    # substring match (lowercased) so it handles pyarrow ("int64", "double"), Weaviate ("DataType.INT",
+    # "DataType.TEXT"), and similar type strings uniformly.
+    s = str(type_str).lower()
+    if any(t in s for t in ("int", "double", "float", "decimal", "number")):
         return SchemaFieldDataTypeClass(type=NumberTypeClass())
-    if s == "bool":
+    if "bool" in s:
         return SchemaFieldDataTypeClass(type=BooleanTypeClass())
     return SchemaFieldDataTypeClass(type=StringTypeClass())
+
+
+def _field_type_from_value(v) -> SchemaFieldDataTypeClass:
+    if isinstance(v, bool):
+        return SchemaFieldDataTypeClass(type=BooleanTypeClass())
+    if isinstance(v, (int, float)):
+        return SchemaFieldDataTypeClass(type=NumberTypeClass())
+    return SchemaFieldDataTypeClass(type=StringTypeClass())
+
+
+def _store_aspects(name, platform, description, fields, producer_asset, props=None):
+    """Common aspect set for a custom-emitted store dataset: props + (schema) + group tag + lineage."""
+    aspects = [
+        DatasetPropertiesClass(name=name, description=description, customProperties=props or {}),
+        GlobalTagsClass(tags=[TagAssociationClass(tag=make_tag_urn("default"))]),
+        UpstreamLineageClass(
+            upstreams=[
+                UpstreamClass(
+                    dataset=make_dataset_urn(platform=PLATFORM, name=producer_asset, env=ENV),
+                    type=DatasetLineageTypeClass.TRANSFORMED,
+                )
+            ]
+        ),
+    ]
+    if fields:
+        aspects.insert(
+            1,
+            SchemaMetadataClass(
+                schemaName=name, platform=f"urn:li:dataPlatform:{platform}", version=0, hash="",
+                platformSchema=OtherSchemaClass(rawSchema=""), fields=fields,
+            ),
+        )
+    return aspects
+
+
+def emit_qdrant(emitter) -> int:
+    """Custom-emit one DataHub Dataset per Qdrant collection (props + a payload schema sampled from one
+    point) with lineage ← qdrant_write. DataHub's qdrant connector gives no pipeline lineage."""
+    from qdrant_client import QdrantClient
+
+    client = QdrantClient(
+        host=os.environ.get("QDRANT_HOST", "qdrant.weyland.svc.cluster.local"),
+        port=int(os.environ.get("QDRANT_PORT", "6333")),
+    )
+    n = 0
+    for coll in client.get_collections().collections:
+        name = coll.name
+        props, fields = {}, []
+        try:
+            info = client.get_collection(name)
+            props["points_count"] = str(info.points_count)
+            vec = info.config.params.vectors
+            if hasattr(vec, "size"):
+                props["vector_size"], props["distance"] = str(vec.size), str(vec.distance)
+        except Exception:  # noqa: BLE001
+            pass
+        try:
+            pts, _ = client.scroll(collection_name=name, limit=1, with_payload=True, with_vectors=False)
+            if pts and pts[0].payload:
+                fields = [
+                    SchemaFieldClass(fieldPath=k, type=_field_type_from_value(v), nativeDataType=type(v).__name__)
+                    for k, v in pts[0].payload.items()
+                ]
+        except Exception:  # noqa: BLE001
+            pass
+        urn = make_dataset_urn(platform="qdrant", name=name, env=ENV)
+        for aspect in _store_aspects(name, "qdrant", "Qdrant vector collection (RAG dense backend).",
+                                     fields, "qdrant_write", props):
+            emitter.emit(MetadataChangeProposalWrapper(entityUrn=urn, aspect=aspect))
+        n += 1
+    return n
+
+
+def emit_weaviate(emitter) -> int:
+    """Custom-emit one DataHub Dataset per Weaviate collection/class (class properties as schema) with
+    lineage ← weaviate_write. No real native DataHub connector for Weaviate."""
+    import weaviate
+
+    host = os.environ.get("WEAVIATE_HOST", "weaviate.weyland.svc.cluster.local")
+    client = weaviate.connect_to_custom(
+        http_host=host, http_port=int(os.environ.get("WEAVIATE_PORT", "8080")), http_secure=False,
+        grpc_host=host, grpc_port=int(os.environ.get("WEAVIATE_GRPC_PORT", "50051")), grpc_secure=False,
+    )
+    n = 0
+    try:
+        for cfg in client.collections.list_all().values():
+            name = cfg.name
+            fields = [
+                SchemaFieldClass(fieldPath=p.name, type=_field_type(p.data_type), nativeDataType=str(p.data_type))
+                for p in (cfg.properties or [])
+            ]
+            urn = make_dataset_urn(platform="weaviate", name=name, env=ENV)
+            for aspect in _store_aspects(name, "weaviate", "Weaviate vector class (RAG dense backend).",
+                                         fields, "weaviate_write"):
+                emitter.emit(MetadataChangeProposalWrapper(entityUrn=urn, aspect=aspect))
+            n += 1
+    finally:
+        client.close()
+    return n
+
+
+def emit_stores() -> int:
+    """Custom-emit external vector stores (Qdrant, Weaviate) to DataHub with lineage to their producing
+    Dagster assets. DataHub has no/weak native connectors for these, and the value is the pipeline
+    lineage (corpus → chunks → vectors). Best-effort per store. OpenSearch + lakeFS to follow once they
+    hold real data. Called from the hourly catalog-emit op."""
+    server = os.environ.get("DATAHUB_GMS_URL", "http://datahub-datahub-gms.data-mesh.svc.cluster.local:8080")
+    emitter = DatahubRestEmitter(gms_server=server, token=os.environ.get("DATAHUB_GMS_TOKEN", ""))
+    total = 0
+    for label, fn in (("qdrant", emit_qdrant), ("weaviate", emit_weaviate)):
+        try:
+            c = fn(emitter)
+            print(f"[stores] emitted {c} {label} dataset(s)")
+            total += c
+        except Exception as e:  # noqa: BLE001 — one store down must not block the others
+            print(f"[stores] {label} emit FAILED (others continue): {e}")
+    return total
 
 
 def emit_file_dataset(platform, table, location, arrow_schema, producer_asset, group="datasets") -> str:
