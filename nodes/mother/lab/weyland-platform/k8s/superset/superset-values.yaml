@@ -54,6 +54,43 @@ configOverrides:
         "@weyland-postgres.weyland.svc.cluster.local:5432/superset?sslmode=disable"
     )
     SECRET_KEY = os.environ["SUPERSET_SECRET_KEY"]
+  oidc: |
+    from flask_appbuilder.security.manager import AUTH_OAUTH
+    AUTH_TYPE = AUTH_OAUTH
+    AUTH_USER_REGISTRATION = True
+    AUTH_USER_REGISTRATION_ROLE = "Admin"
+    OAUTH_PROVIDERS = [{
+        "name": "keycloak",
+        "icon": "fa-key",
+        "token_key": "access_token",
+        "remote_app": {
+            "client_id": "superset",
+            "client_secret": os.environ["OIDC_CLIENT_SECRET"],
+            "api_base_url": "https://keycloak.weyland.lab/realms/weyland/protocol/openid-connect",
+            "client_kwargs": {"scope": "openid email profile"},
+            "access_token_url": "https://keycloak.weyland.lab/realms/weyland/protocol/openid-connect/token",
+            "authorize_url": "https://keycloak.weyland.lab/realms/weyland/protocol/openid-connect/auth",
+            "jwks_uri": "https://keycloak.weyland.lab/realms/weyland/protocol/openid-connect/certs",
+            "server_metadata_url": "https://keycloak.weyland.lab/realms/weyland/.well-known/openid-configuration",
+        },
+    }]
+    from superset.security import SupersetSecurityManager
+    import logging
+    class KeycloakSecurityManager(SupersetSecurityManager):
+        def oauth_user_info(self, provider, response=None):
+            if provider == "keycloak":
+                me = self.appbuilder.sm.oauth_remoteapp.userinfo()
+                return {
+                    "username": me.get("preferred_username", me.get("sub")),
+                    "first_name": me.get("given_name", ""),
+                    "last_name": me.get("family_name", ""),
+                    "email": me.get("email", ""),
+                    "role_keys": me.get("groups", []),
+                }
+            return super().oauth_user_info(provider, response)
+    CUSTOM_SECURITY_MANAGER = KeycloakSecurityManager
+    import os
+    os.environ["REQUESTS_CA_BUNDLE"] = "/etc/ssl/certs/ca-certificates.crt"
 
 # Fallback local admin (break-glass; OIDC is the real login). Dev password — low-sensitivity, LAN-only.
 init:
