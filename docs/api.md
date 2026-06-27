@@ -47,6 +47,7 @@ Hosts & access users: [hosts.md](hosts.md). `mother` = 192.168.1.243, CTs by IP 
 | Neo4j Bolt | `neo4j://mother:30086` | APOC + GDS enabled |
 | NeoDash | `http://mother:30088` | Neo4j dashboard/viz UI (connect to Bolt `:30086`); see [runbooks/aidlc-kb-ingest.md](runbooks/aidlc-kb-ingest.md) |
 | Postgres/pgvector | `weyland-postgres.weyland.svc:5432` | **in-cluster only** (no NodePort) |
+| Trino (federation query) | `jdbc:trino://trino.data-mesh.svc:8080` (in-cluster); UI `trino.weyland.lab` | **B65 Tier-2** — native-Nessie `iceberg` + `postgresql` catalogs; user any / no password; IntelliJ via k8s port-forward; web UI is monitoring-only. See [runbooks/trino.md](runbooks/trino.md). |
 
 > **Not behind Traefik, not Keycloak-gated** — these are databases/APIs reached by code (the tool-server, clients), not browsers. They're exposed via **NodePort + the APISIX gateway**, auth'd at the API/DB layer (Neo4j login, Qdrant/Weaviate keys/network). Keycloak SSO gates browser UIs only.
 

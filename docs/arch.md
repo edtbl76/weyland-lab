@@ -200,6 +200,13 @@ agents/workflows and platform state. Agents call the tool-server, *not* database
   formats; the **iceberg source** handles the gold tables. The DataHub **s3 source is unusable** in this
   build (it forces a PySpark run that crashes on the executor JDK — `Subject.getSubject` gone in Java 18+),
   so one emit path covers everything. Full design + diagram: [runbooks/datasets-lake.md](runbooks/datasets-lake.md).
+- **Trino (B65 Tier-2, 1st)** — single-node **federation query engine** in `data-mesh`; the keystone
+  Superset / dbt / the B73 "use the data" work ride on. Catalogs: **`iceberg`** (the Nessie lake — via
+  Trino's *native* Nessie connector, `iceberg.catalog.type=nessie`, NOT the generic REST which 403s
+  [[trino-nessie-native-catalog]]) + **`postgresql`** (weyland DB, over the mesh). Query via CLI /
+  IntelliJ (`jdbc:trino://…:8080`) / Superset; the web UI (`trino.weyland.lab`) is monitoring-only.
+  Cataloged in DataHub as the query layer with sibling/upstream lineage to iceberg.
+  [runbooks/trino.md](runbooks/trino.md).
 - **`model_catalog`** (Postgres) — current-state lookup of reachable hosted models (OpenRouter / Gemini /
   Ollama, with free flag + pricing + context), refreshed every 6h by Dagster (replace-by-source). Distinct
   from the normalized `models` infra-inventory table. See [runbooks/model-gateway.md](runbooks/model-gateway.md).
