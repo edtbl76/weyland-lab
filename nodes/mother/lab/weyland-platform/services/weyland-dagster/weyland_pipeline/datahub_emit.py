@@ -157,16 +157,22 @@ def _store_aspects(name, platform, description, fields, producer_asset, props=No
     return aspects
 
 
-def emit_qdrant(emitter) -> int:
+def _gms_emitter() -> DatahubRestEmitter:
+    server = os.environ.get("DATAHUB_GMS_URL", "http://datahub-datahub-gms.data-mesh.svc.cluster.local:8080")
+    return DatahubRestEmitter(gms_server=server, token=os.environ.get("DATAHUB_GMS_TOKEN", ""))
+
+
+def emit_qdrant():
     """Custom-emit one DataHub Dataset per Qdrant collection (props + a payload schema sampled from one
-    point) with lineage ← qdrant_write. DataHub's qdrant connector gives no pipeline lineage."""
+    point) with lineage ← qdrant_write. Returns (count, [collection names])."""
     from qdrant_client import QdrantClient
 
+    emitter = _gms_emitter()
     client = QdrantClient(
         host=os.environ.get("QDRANT_HOST", "qdrant.weyland.svc.cluster.local"),
         port=int(os.environ.get("QDRANT_PORT", "6333")),
     )
-    n = 0
+    names = []
     for coll in client.get_collections().collections:
         name = coll.name
         props, fields = {}, []
@@ -191,21 +197,22 @@ def emit_qdrant(emitter) -> int:
         for aspect in _store_aspects(name, "qdrant", "Qdrant vector collection (RAG dense backend).",
                                      fields, "qdrant_write", props):
             emitter.emit(MetadataChangeProposalWrapper(entityUrn=urn, aspect=aspect))
-        n += 1
-    return n
+        names.append(name)
+    return len(names), names
 
 
-def emit_weaviate(emitter) -> int:
+def emit_weaviate():
     """Custom-emit one DataHub Dataset per Weaviate collection/class (class properties as schema) with
-    lineage ← weaviate_write. No real native DataHub connector for Weaviate."""
+    lineage ← weaviate_write. Returns (count, [class names])."""
     import weaviate
 
+    emitter = _gms_emitter()
     host = os.environ.get("WEAVIATE_HOST", "weaviate.weyland.svc.cluster.local")
     client = weaviate.connect_to_custom(
         http_host=host, http_port=int(os.environ.get("WEAVIATE_PORT", "8080")), http_secure=False,
         grpc_host=host, grpc_port=int(os.environ.get("WEAVIATE_GRPC_PORT", "50051")), grpc_secure=False,
     )
-    n = 0
+    names = []
     try:
         for cfg in client.collections.list_all().values():
             name = cfg.name
@@ -217,28 +224,10 @@ def emit_weaviate(emitter) -> int:
             for aspect in _store_aspects(name, "weaviate", "Weaviate vector class (RAG dense backend).",
                                          fields, "weaviate_write"):
                 emitter.emit(MetadataChangeProposalWrapper(entityUrn=urn, aspect=aspect))
-            n += 1
+            names.append(name)
     finally:
         client.close()
-    return n
-
-
-def emit_stores() -> int:
-    """Custom-emit external vector stores (Qdrant, Weaviate) to DataHub with lineage to their producing
-    Dagster assets. DataHub has no/weak native connectors for these, and the value is the pipeline
-    lineage (corpus → chunks → vectors). Best-effort per store. OpenSearch + lakeFS to follow once they
-    hold real data. Called from the hourly catalog-emit op."""
-    server = os.environ.get("DATAHUB_GMS_URL", "http://datahub-datahub-gms.data-mesh.svc.cluster.local:8080")
-    emitter = DatahubRestEmitter(gms_server=server, token=os.environ.get("DATAHUB_GMS_TOKEN", ""))
-    total = 0
-    for label, fn in (("qdrant", emit_qdrant), ("weaviate", emit_weaviate)):
-        try:
-            c = fn(emitter)
-            print(f"[stores] emitted {c} {label} dataset(s)")
-            total += c
-        except Exception as e:  # noqa: BLE001 — one store down must not block the others
-            print(f"[stores] {label} emit FAILED (others continue): {e}")
-    return total
+    return len(names), names
 
 
 def emit_file_dataset(platform, table, location, arrow_schema, producer_asset, group="datasets") -> str:

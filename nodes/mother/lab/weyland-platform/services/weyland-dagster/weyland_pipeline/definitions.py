@@ -25,17 +25,36 @@ from weyland_pipeline.sensors import datasets_raw_sensor
 # DataHub catalog emitter — walks the asset graph and pushes datasets + lineage to GMS via
 # the datahub SDK (see datahub_emit.py). Replaces the acryl run_status_sensor, which is dead
 # on Dagster 1.13 (dagster#21526). Idempotent; scheduled hourly. Reads DATAHUB_GMS_TOKEN.
+# One op per emitter so each shows as its own step in the Dagster run graph + logs (via context.log →
+# structured run log, NOT print → stdout tab) exactly what landed in DataHub and where.
 @op
-def emit_datahub_catalog_op():
-    from weyland_pipeline.datahub_emit import emit, emit_stores
+def emit_dagster_assets_op(context):
+    from weyland_pipeline.datahub_emit import emit
 
-    emit()        # the Dagster asset graph (datasets + lineage)
-    emit_stores()  # external vector stores (Qdrant, Weaviate) with lineage ← their *_write assets
+    context.log.info(f"✓ Dagster assets → DataHub: {emit()} datasets (platform=dagster)")
+
+
+@op
+def emit_qdrant_op(context):
+    from weyland_pipeline.datahub_emit import emit_qdrant
+
+    n, names = emit_qdrant()
+    context.log.info(f"✓ Qdrant → DataHub: {n} collection(s) {names} (platform=qdrant, lineage ← qdrant_write)")
+
+
+@op
+def emit_weaviate_op(context):
+    from weyland_pipeline.datahub_emit import emit_weaviate
+
+    n, names = emit_weaviate()
+    context.log.info(f"✓ Weaviate → DataHub: {n} class(es) {names} (platform=weaviate, lineage ← weaviate_write)")
 
 
 @job
 def datahub_catalog_emit_job():
-    emit_datahub_catalog_op()
+    emit_dagster_assets_op()
+    emit_qdrant_op()
+    emit_weaviate_op()
 
 
 datahub_catalog_emit_schedule = ScheduleDefinition(
