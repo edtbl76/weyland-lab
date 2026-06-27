@@ -44,12 +44,8 @@ envFromSecret: superset-env
 # Build the metadata URI from the env password (configOverrides append to the END of superset_config.py,
 # so this wins over the chart default).
 configOverrides:
-  db_uri: |
+  secret_key: |
     import os
-    SQLALCHEMY_DATABASE_URI = (
-        f"postgresql://superset:{os.environ.get('DB_PASS')}"
-        "@weyland-postgres.weyland.svc.cluster.local:5432/superset?sslmode=disable"
-    )
     SECRET_KEY = os.environ["SUPERSET_SECRET_KEY"]
 
 # Fallback local admin (break-glass; OIDC is the real login). Dev password — low-sensitivity, LAN-only.
