@@ -13,36 +13,13 @@ resource "keycloak_openid_client" "superset" {
   web_origins         = ["https://superset.weyland.lab"]
 }
 
-# Realm role → mapped to Superset's built-in "Admin" via AUTH_ROLES_MAPPING in superset_config.py.
-resource "keycloak_role" "superset_admin" {
-  realm_id = keycloak_realm.weyland.id
-  name     = "Superset_Admin"
-}
-
-# Put the user's realm roles into a "roles" claim so Superset's custom SECURITY_MANAGER can read them
-# (Keycloak doesn't surface realm roles to the userinfo endpoint without this mapper).
-resource "keycloak_openid_user_realm_role_protocol_mapper" "superset_roles" {
-  realm_id    = keycloak_realm.weyland.id
-  client_id   = keycloak_openid_client.superset.id
-  name        = "realm-roles"
-  claim_name  = "roles"
-  multivalued = true
-}
-
-# emangini → Superset_Admin. exclusive=false is CRITICAL: additive, so this never wipes emangini's other realm roles.
-data "keycloak_user" "emangini" {
-  realm_id = keycloak_realm.weyland.id
-  username = "emangini"
-}
-
-resource "keycloak_user_roles" "emangini_superset_admin" {
-  realm_id  = keycloak_realm.weyland.id
-  user_id   = data.keycloak_user.emangini.id
-  role_ids  = [keycloak_role.superset_admin.id]
-  exclusive = false
-}
-
 output "superset_client_secret" {
   value     = keycloak_openid_client.superset.client_secret
   sensitive = true
 }
+
+# NOTE — admin grant is handled in superset_config.py via AUTH_USER_REGISTRATION_ROLE = "Admin": for a solo
+# lab behind the Keycloak gate, the only OIDC user (emangini) lands as Admin. Provider v5.8.0's
+# keycloak_user_roles is authoritative-only (would wipe a user's other realm roles), so role-based mapping
+# (a Superset_Admin role + AUTH_ROLES_MAPPING) is deferred to a multi-user upgrade (needs a provider bump or
+# an additive `kcadm add-roles`, not a one-shot tofu wipe).
