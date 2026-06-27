@@ -69,6 +69,8 @@ spec:
       labels:
         app: trino
         sidecar.istio.io/inject: "true"   # STRICT-mTLS Postgres + mesh to Nessie/MinIO
+      annotations:
+        proxy.istio.io/config: '{"accessLogFile": "/dev/stdout"}'   # sidecar access logs (debug + ops visibility)
     spec:
       containers:
         - name: trino
