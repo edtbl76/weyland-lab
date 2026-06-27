@@ -45,6 +45,9 @@ configOverrides:
         f"postgresql://superset:{os.environ.get('DB_PASS')}"
         "@weyland-postgres.weyland.svc.cluster.local:5432/superset"
     )
+    # SECRET_KEY from the secret (envFromSecret → SUPERSET_SECRET_KEY); without this Superset boots on the
+    # insecure default key and refuses to start.
+    SECRET_KEY = os.environ["SUPERSET_SECRET_KEY"]
 
 # Fallback local admin (break-glass; OIDC is the real login). Dev password — low-sensitivity, LAN-only.
 init:
