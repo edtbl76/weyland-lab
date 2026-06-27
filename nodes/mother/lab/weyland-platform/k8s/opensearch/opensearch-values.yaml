@@ -30,9 +30,6 @@ config:
     network.host: 0.0.0.0
     discovery.type: single-node
     plugins.security.disabled: true
-    # Report ES 7.10.2 at the root endpoint so Elasticsearch clients (DataGrip's driver) accept the
-    # connection — OpenSearch's own version string is version-gated out. Static node setting (not dynamic).
-    compatibility.override_main_response_version: true
 
 extraEnvs:
   - name: DISABLE_INSTALL_DEMO_CONFIG
