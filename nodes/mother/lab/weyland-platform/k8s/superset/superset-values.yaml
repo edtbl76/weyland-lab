@@ -38,6 +38,9 @@ supersetWorker:
   strategy:
     type: Recreate
 
+extraSecretEnv:
+  SUPERSET_SECRET_KEY: weyland_dev_secret_key_for_superset_not_in_prod
+
 # SECRET_KEY + DB_PASS from the secret (created imperatively).
 envFromSecret: superset-env
 
