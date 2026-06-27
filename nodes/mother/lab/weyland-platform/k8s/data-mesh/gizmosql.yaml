@@ -29,6 +29,10 @@ spec:
       labels:
         app: gizmosql
     spec:
+      # k8s injects Docker-link service env vars (GIZMOSQL_PORT=tcp://<ip>:31337, …) for the same-named
+      # Service into the pod — and GizmoSQL reads its own GIZMOSQL_PORT config var as an int, so the
+      # injected URL crashes it on boot. Disable the injection (GizmoSQL then uses its default port 31337).
+      enableServiceLinks: false
       containers:
         - name: gizmosql
           image: gizmodata/gizmosql:latest
