@@ -15,6 +15,10 @@ redis:
 # env (superset-env → DB_PASS) and the real SQLALCHEMY_DATABASE_URI is built in configOverrides below so the
 # password never lands in git.
 supersetNode:
+  # Recreate, not RollingUpdate: kill the old pod before creating the new one. On this ~tight node a rolling
+  # update double-books CPU/RAM and the old (even crashing) pod blocks the new from scheduling.
+  strategy:
+    type: Recreate
   connections:
     db_type: postgresql
     db_host: weyland-postgres.weyland.svc.cluster.local
@@ -23,6 +27,11 @@ supersetNode:
     db_name: superset
     redis_host: valkey.data-mesh.svc.cluster.local   # the shared data-mesh Valkey
     redis_port: "6379"
+
+# Same Recreate strategy on the Celery worker.
+supersetWorker:
+  strategy:
+    type: Recreate
 
 # SECRET_KEY + DB_PASS from the secret (created imperatively).
 envFromSecret: superset-env
