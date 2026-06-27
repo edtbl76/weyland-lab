@@ -111,6 +111,17 @@ spec:
                 secretKeyRef:
                   name: lakefs-creds
                   key: LAKEFS_SECRET_ACCESS_KEY
+            # B65 Tier-2 — emit_duckdb() catalogs the GizmoSQL/DuckDB Flight SQL views. URI/user are plain;
+            # password = the shared dev password (same dagster-postgres-secret value GizmoSQL was created with).
+            - name: GIZMOSQL_URI
+              value: grpc+tls://gizmosql.data-mesh.svc.cluster.local:31337
+            - name: GIZMOSQL_USERNAME
+              value: weyland
+            - name: GIZMOSQL_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: dagster-postgres-secret
+                  key: password
             # B51 — error tracking → GlitchTip (internal-service DSN). Empty/unset = SDK no-op.
             - name: SENTRY_DSN
               valueFrom:

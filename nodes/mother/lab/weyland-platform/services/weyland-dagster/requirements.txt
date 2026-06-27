@@ -27,3 +27,6 @@ fastavro
 # B72 lakeFS write-through — datasets_land/transform write THROUGH the lakeFS S3 gateway (versioned),
 # datasets_commit calls the lakeFS API to commit each pipeline run as a version.
 lakefs
+# B65 Tier-2 DuckDB — emit_duckdb() queries the GizmoSQL Arrow Flight SQL server to catalog its views.
+adbc-driver-flightsql
+adbc-driver-manager

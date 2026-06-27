@@ -66,6 +66,14 @@ def emit_opensearch_op(context):
     context.log.info(f"✓ OpenSearch → DataHub: {n} index(es) {names} (platform=opensearch)")
 
 
+@op
+def emit_duckdb_op(context):
+    from weyland_pipeline.datahub_emit import emit_duckdb
+
+    n, names = emit_duckdb()
+    context.log.info(f"✓ DuckDB → DataHub: {n} view(s) {names} (platform=duckdb, lineage ← parquet)")
+
+
 @job
 def datahub_catalog_emit_job():
     emit_dagster_assets_op()
@@ -73,6 +81,7 @@ def datahub_catalog_emit_job():
     emit_weaviate_op()
     emit_lakefs_op()
     emit_opensearch_op()
+    emit_duckdb_op()
 
 
 datahub_catalog_emit_schedule = ScheduleDefinition(

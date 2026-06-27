@@ -305,6 +305,62 @@ def emit_opensearch():
     return len(names), names
 
 
+def emit_duckdb():
+    """Custom-emit the GizmoSQL/DuckDB Flight SQL views as DataHub Datasets (platform duckdb) with schema
+    (from information_schema) + lineage ← the parquet datasets they read. Connects to the live GizmoSQL
+    server over Arrow Flight SQL (TLS, self-signed → skip verify). Returns (count, names)."""
+    import adbc_driver_flightsql.dbapi as flight_sql
+    from adbc_driver_flightsql import DatabaseOptions
+
+    conn = flight_sql.connect(
+        os.environ.get("GIZMOSQL_URI", "grpc+tls://gizmosql.data-mesh.svc.cluster.local:31337"),
+        db_kwargs={
+            "username": os.environ.get("GIZMOSQL_USERNAME", "weyland"),
+            "password": os.environ["GIZMOSQL_PASSWORD"],
+            DatabaseOptions.TLS_SKIP_VERIFY.value: "true",
+        },
+    )
+    emitter = _gms_emitter()
+    names = []
+    try:
+        cur = conn.cursor()
+        # our views live in the in-memory db's main schema; skip GizmoSQL's internal/system views.
+        cur.execute("SELECT view_name FROM duckdb_views() WHERE schema_name = 'main' AND NOT internal")
+        views = [r[0] for r in cur.fetchall() if not r[0].startswith(("_", "gizmosql"))]
+        for v in views:
+            cur.execute(
+                "SELECT column_name, data_type FROM information_schema.columns "
+                f"WHERE table_name = '{v}' ORDER BY ordinal_position"
+            )
+            fields = [
+                SchemaFieldClass(fieldPath=c[0], type=_field_type(c[1]), nativeDataType=c[1])
+                for c in cur.fetchall()
+            ]
+            urn = make_dataset_urn(platform="duckdb", name=v, env=ENV)
+            aspects = [
+                DatasetPropertiesClass(
+                    name=v,
+                    description="DuckDB view served over Arrow Flight SQL (GizmoSQL); reads the lakeFS Parquet.",
+                    customProperties={},
+                ),
+                GlobalTagsClass(tags=[TagAssociationClass(tag=make_tag_urn("default"))]),
+                # lineage ← the parquet dataset of the same name (emitted by datasets_parquet)
+                UpstreamLineageClass(upstreams=[UpstreamClass(
+                    dataset=make_dataset_urn(platform="parquet", name=v, env=ENV),
+                    type=DatasetLineageTypeClass.TRANSFORMED)]),
+            ]
+            if fields:
+                aspects.insert(1, SchemaMetadataClass(
+                    schemaName=v, platform="urn:li:dataPlatform:duckdb", version=0, hash="",
+                    platformSchema=OtherSchemaClass(rawSchema=""), fields=fields))
+            for aspect in aspects:
+                emitter.emit(MetadataChangeProposalWrapper(entityUrn=urn, aspect=aspect))
+            names.append(v)
+    finally:
+        conn.close()
+    return len(names), names
+
+
 def emit_file_dataset(platform, table, location, arrow_schema, producer_asset, group="datasets") -> str:
     """Custom-emit a Dataset for a silver file format (Arrow/Lance) that has NO native DataHub connector.
 
