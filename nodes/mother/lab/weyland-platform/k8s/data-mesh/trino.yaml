@@ -111,6 +111,28 @@ spec:
   ports:
     - { name: http, port: 8080, targetPort: 8080 }
 ---
+# Trino exposes OpenMetrics at /metrics on the HTTP port (built-in since Trino 424). Prometheus
+# auto-discovers this ServiceMonitor (serviceMonitorSelectorNilUsesHelmValues:false); query in
+# Grafana Explore (PromQL: trino_*) once scraping. data-mesh is PERMISSIVE mesh → plaintext scrape OK.
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: trino
+  namespace: data-mesh
+  labels: { app: trino }
+spec:
+  selector:
+    matchLabels: { app: trino }
+  endpoints:
+    - port: http
+      path: /metrics
+      interval: 30s
+      # Trino's /metrics wants Basic auth (WWW-Authenticate: Basic realm="Trino"); in no-auth mode it
+      # accepts ANY username and ignores the password. Creds from trino-metrics-auth (data-mesh, imperative).
+      basicAuth:
+        username: { name: trino-metrics-auth, key: username }
+        password: { name: trino-metrics-auth, key: password }
+---
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
