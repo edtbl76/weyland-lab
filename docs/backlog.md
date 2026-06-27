@@ -902,6 +902,7 @@ Doris (OLAP variety, on-demand) · Spark (big-data compute, on-demand) · RDF/tr
 - **Ollama / Hermes / tool-server** — no monitoring + not reproducible from git (image `:local`/Never → ErrImageNeverPull on rebuild).
 - **Istio set not onboarded to Argo** (incl. STRICT mTLS PeerAuthentication — load-bearing).
 - **Kuma monitors only in SQLite**, LGTM doesn't monitor itself, forward-auth is a SPOF with no probes.
+- **Prometheus scrape coverage is sparse (surfaced 2026-06-27).** Most pre-B65 services have **no ServiceMonitor** — the monitoring gate was never applied *retroactively*, so only the newer components (data-mesh, Trino) are scraped + alerted. **Audit:** `count(up) by (job)` lists every live scrape target → anything absent has no ServiceMonitor. Remediation = add ServiceMonitor + a PrometheusRule (down/error alert → Alertmanager → Telegram) per gap, prioritizing the load-bearing services. The completeness gate keeps every *new* store covered going forward; this is the retroactive backfill.
 - Plus medium/low: eval-leaderboard frozen, uncodified crons (roadmap-sync, ai_session, docs-site rebuild, code scans), loose `k8s/` root files not in Argo, several stale backlog "done"/count claims.
 
 ### B70 — Agentic RAG on LangGraph + MLflow tracing
