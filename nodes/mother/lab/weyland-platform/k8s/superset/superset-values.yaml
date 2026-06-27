@@ -65,7 +65,7 @@ bootstrapScript: |
   # psycopg2-binary: the metadata-DB (Postgres) driver — the 6.1.0 image doesn't bundle it. trino: the query
   # connector (step 4). Both need PyPI egress at pod start; a custom image baking them in is the cleaner
   # long-term fix.
-  python3 -m pip install --target /app/.venv/lib/python3.10/site-packages psycopg2-binary trino
+  pip install --target /app/.venv/lib/python3.10/site-packages psycopg2-binary trino
   if [ ! -f ~/bootstrap ]; then echo "Superset bootstrapped (psycopg2 + trino)" > ~/bootstrap; fi
 
 ingress:
