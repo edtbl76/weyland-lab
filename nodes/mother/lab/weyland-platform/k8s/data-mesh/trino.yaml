@@ -1,0 +1,126 @@
+# B65 Tier-2 — Trino: single-node federation query engine (the keystone Superset/dbt/B73 sit on).
+# RUN MODE: always-on (~2GB heap) — revisit KEDA scale-to-zero at the footprint gate (cold start ~min).
+# DATA: federates EXISTING real stores — iceberg (Nessie REST + MinIO: the datasets.* music gold + eval)
+#   and postgres (weyland DB). No data of its own.
+# Meshed (sidecar) → reaches STRICT-mTLS Postgres + PERMISSIVE Nessie/MinIO. In-cluster clients hit the
+# svc directly (ungated); the web UI is forward-auth gated at the ingress. Creds from trino-secret
+# (data-mesh ns, imperative — MINIO_ACCESS_KEY/MINIO_SECRET_KEY/WEYLAND_PG_PASSWORD). Deployed by the
+# data-mesh Argo app (push → sync). Image pinned to 468 — bump to latest stable as desired.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: trino-config
+  namespace: data-mesh
+data:
+  config.properties: |
+    coordinator=true
+    node-scheduler.include-coordinator=true
+    http-server.http.port=8080
+    discovery.uri=http://localhost:8080
+    query.max-memory=1GB
+    query.max-memory-per-node=1GB
+  jvm.config: |
+    -server
+    -Xmx2G
+    -XX:+UseG1GC
+    -XX:G1HeapRegionSize=32M
+    -XX:+ExitOnOutOfMemoryError
+    -XX:-OmitStackTraceInFastThrow
+    -Djdk.attach.allowAttachSelf=true
+  node.properties: |
+    node.environment=production
+    node.data-dir=/data/trino
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: trino-catalogs
+  namespace: data-mesh
+data:
+  iceberg.properties: |
+    connector.name=iceberg
+    iceberg.catalog.type=rest
+    iceberg.rest-catalog.uri=http://nessie.data-mesh.svc.cluster.local:19120/iceberg
+    iceberg.rest-catalog.warehouse=warehouse
+    fs.native-s3.enabled=true
+    s3.endpoint=http://minio.minio.svc.cluster.local:9000
+    s3.path-style-access=true
+    s3.region=us-east-1
+    s3.aws-access-key=${ENV:MINIO_ACCESS_KEY}
+    s3.aws-secret-key=${ENV:MINIO_SECRET_KEY}
+  postgresql.properties: |
+    connector.name=postgresql
+    connection-url=jdbc:postgresql://weyland-postgres.weyland.svc.cluster.local:5432/weyland
+    connection-user=weyland
+    connection-password=${ENV:WEYLAND_PG_PASSWORD}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: trino
+  namespace: data-mesh
+  labels: { app: trino }
+spec:
+  replicas: 1
+  strategy: { type: Recreate }
+  selector: { matchLabels: { app: trino } }
+  template:
+    metadata:
+      labels:
+        app: trino
+        sidecar.istio.io/inject: "true"   # STRICT-mTLS Postgres + mesh to Nessie/MinIO
+    spec:
+      containers:
+        - name: trino
+          image: trinodb/trino:468
+          ports:
+            - { name: http, containerPort: 8080 }
+          envFrom:
+            - secretRef: { name: trino-secret }
+          readinessProbe:
+            httpGet: { path: /v1/info, port: 8080 }
+            initialDelaySeconds: 20
+            periodSeconds: 10
+          volumeMounts:
+            - { name: config, mountPath: /etc/trino/config.properties, subPath: config.properties }
+            - { name: config, mountPath: /etc/trino/jvm.config, subPath: jvm.config }
+            - { name: config, mountPath: /etc/trino/node.properties, subPath: node.properties }
+            - { name: catalogs, mountPath: /etc/trino/catalog }
+            - { name: data, mountPath: /data/trino }
+          resources:
+            requests: { cpu: "500m", memory: 2Gi }
+            limits: { memory: 3Gi }
+      volumes:
+        - { name: config, configMap: { name: trino-config } }
+        - { name: catalogs, configMap: { name: trino-catalogs } }
+        - { name: data, emptyDir: {} }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: trino
+  namespace: data-mesh
+spec:
+  selector: { app: trino }
+  ports:
+    - { name: http, port: 8080, targetPort: 8080 }
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: trino
+  namespace: data-mesh
+  annotations:
+    traefik.ingress.kubernetes.io/router.middlewares: data-mesh-traefik-forward-auth@kubernetescrd
+spec:
+  tls:
+    - hosts: [trino.weyland.lab]
+      secretName: weyland-wildcard-tls
+  rules:
+    - host: trino.weyland.lab
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service: { name: trino, port: { number: 8080 } }
