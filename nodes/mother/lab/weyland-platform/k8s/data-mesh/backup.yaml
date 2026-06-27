@@ -13,7 +13,9 @@ spec:
   storageClassName: local-path
   resources:
     requests:
-      storage: 20Gi
+      # local-path reports the underlying disk capacity (50Gi) as status.capacity, and a PVC request
+      # can't be LESS than that → must be >= 50Gi or Argo sync fails "field can not be less than capacity".
+      storage: 50Gi
 ---
 # pg_dump the nessie + lakefs DBs (Iceberg commit history / lakeFS branch refs — losing them orphans
 # the warehouse). Meshed so it reaches STRICT-mTLS weyland-postgres; native sidecars let the Job exit.
