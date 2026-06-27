@@ -230,6 +230,39 @@ def emit_weaviate():
     return len(names), names
 
 
+def emit_lakefs():
+    """Custom-emit a DataHub Dataset per lakeFS repository (storage namespace + default branch + latest
+    commit, with lineage ← datasets_commit). No native DataHub connector for lakeFS. Returns (count, names)."""
+    import lakefs
+
+    client = lakefs.Client(
+        host=os.environ.get("LAKEFS_ENDPOINT", "http://lakefs.data-mesh.svc.cluster.local:8000"),
+        username=os.environ["LAKEFS_ACCESS_KEY_ID"],
+        password=os.environ["LAKEFS_SECRET_ACCESS_KEY"],
+    )
+    emitter = _gms_emitter()
+    names = []
+    for repo in lakefs.repositories(client=client):
+        rid = repo.id
+        props = {}
+        try:
+            rp = repo.properties
+            props["storage_namespace"] = rp.storage_namespace
+            props["default_branch"] = rp.default_branch
+            head = repo.branch(rp.default_branch).head.get_commit()
+            props["latest_commit"] = head.id[:12]
+            props["latest_message"] = head.message or ""
+        except Exception:  # noqa: BLE001
+            pass
+        urn = make_dataset_urn(platform="lakefs", name=rid, env=ENV)
+        for aspect in _store_aspects(rid, "lakefs",
+                                     "lakeFS repository (git-for-data: versioned object store over MinIO).",
+                                     [], "datasets_commit", props):
+            emitter.emit(MetadataChangeProposalWrapper(entityUrn=urn, aspect=aspect))
+        names.append(rid)
+    return len(names), names
+
+
 def emit_file_dataset(platform, table, location, arrow_schema, producer_asset, group="datasets") -> str:
     """Custom-emit a Dataset for a silver file format (Arrow/Lance) that has NO native DataHub connector.
 

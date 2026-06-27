@@ -50,11 +50,20 @@ def emit_weaviate_op(context):
     context.log.info(f"✓ Weaviate → DataHub: {n} class(es) {names} (platform=weaviate, lineage ← weaviate_write)")
 
 
+@op
+def emit_lakefs_op(context):
+    from weyland_pipeline.datahub_emit import emit_lakefs
+
+    n, names = emit_lakefs()
+    context.log.info(f"✓ lakeFS → DataHub: {n} repo(s) {names} (platform=lakefs, lineage ← datasets_commit)")
+
+
 @job
 def datahub_catalog_emit_job():
     emit_dagster_assets_op()
     emit_qdrant_op()
     emit_weaviate_op()
+    emit_lakefs_op()
 
 
 datahub_catalog_emit_schedule = ScheduleDefinition(
