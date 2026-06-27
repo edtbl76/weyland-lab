@@ -1,0 +1,64 @@
+# B65 Tier-2 — Apache Superset: BI / SQL exploration over the query layer (Trino). ns data-mesh.
+# Metadata = the lab Postgres `superset` DB (postgresql.enabled=false); bundled Redis for cache + Celery.
+# Sensitive values (SECRET_KEY, DB password) come from the imperatively-created `superset-env` secret —
+# NOT in git. OIDC (Keycloak) + the Trino *connection* are added in steps 3-4; this gets it UP first.
+#
+# Not meshed on the first cut (keeps the OIDC/ingress bring-up clean; Trino is PERMISSIVE so plaintext
+# reaches it). Mesh in a follow-up.
+
+postgresql:
+  enabled: false   # use the lab Postgres (superset DB created in step 1)
+redis:
+  enabled: false   # use the SHARED data-mesh Valkey (k8s/data-mesh/valkey.yaml), not a bundled per-app Redis
+
+# db_host/port/user/name drive the init job's wait-for-db + the default URI; the PASSWORD is injected via
+# env (superset-env → DB_PASS) and the real SQLALCHEMY_DATABASE_URI is built in configOverrides below so the
+# password never lands in git.
+supersetNode:
+  connections:
+    db_type: postgresql
+    db_host: weyland-postgres.weyland.svc.cluster.local
+    db_port: "5432"
+    db_user: superset
+    db_name: superset
+    redis_host: valkey.data-mesh.svc.cluster.local   # the shared data-mesh Valkey
+    redis_port: "6379"
+
+# SECRET_KEY + DB_PASS from the secret (created imperatively).
+envFromSecret: superset-env
+
+# Build the metadata URI from the env password (configOverrides append to the END of superset_config.py,
+# so this wins over the chart default).
+configOverrides:
+  db_uri: |
+    import os
+    SQLALCHEMY_DATABASE_URI = (
+        f"postgresql://superset:{os.environ.get('DB_PASS')}"
+        "@weyland-postgres.weyland.svc.cluster.local:5432/superset"
+    )
+
+# Fallback local admin (break-glass; OIDC is the real login). Dev password — low-sensitivity, LAN-only.
+init:
+  createAdmin: true
+  adminUser:
+    username: admin
+    firstname: Superset
+    lastname: Admin
+    email: admin@weyland.lab
+    password: weyland_dev_password
+
+# Install the Trino SQLAlchemy driver at startup (the connection itself is added in step 4).
+bootstrapScript: |
+  #!/bin/bash
+  pip install trino
+  if [ ! -f ~/bootstrap ]; then echo "Superset bootstrapped (trino driver)" > ~/bootstrap; fi
+
+ingress:
+  enabled: true
+  ingressClassName: traefik
+  hosts:
+    - superset.weyland.lab
+  tls:
+    - secretName: weyland-wildcard-tls   # reused in data-mesh (Trino uses it too)
+      hosts:
+        - superset.weyland.lab

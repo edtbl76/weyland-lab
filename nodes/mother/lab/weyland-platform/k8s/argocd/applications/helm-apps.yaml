@@ -316,3 +316,31 @@ spec:
     automated: { selfHeal: true, prune: true }
     syncOptions:
       - ServerSideApply=true
+---
+# B65 Tier-2 — Apache Superset (BI / SQL exploration over the query layer; connects to Trino). ns data-mesh.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: superset
+  namespace: argocd
+spec:
+  project: default
+  sources:
+    - repoURL: https://apache.github.io/superset
+      chart: superset
+      targetRevision: 0.17.2   # Superset app 6.1.0
+      helm:
+        releaseName: superset
+        valueFiles:
+          - $values/nodes/mother/lab/weyland-platform/k8s/superset/superset-values.yaml
+    - repoURL: https://github.com/edtbl76/weyland-lab.git
+      targetRevision: main
+      ref: values
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: data-mesh
+  syncPolicy:
+    automated: { selfHeal: true, prune: true }
+    syncOptions:
+      - ServerSideApply=true
+      - CreateNamespace=true
