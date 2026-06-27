@@ -24,3 +24,6 @@ dlt[filesystem]
 pandas
 pylance
 fastavro
+# B72 lakeFS write-through — datasets_land/transform write THROUGH the lakeFS S3 gateway (versioned),
+# datasets_commit calls the lakeFS API to commit each pipeline run as a version.
+lakefs

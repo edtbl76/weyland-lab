@@ -93,6 +93,24 @@ spec:
                 secretKeyRef:
                   name: aidlc-kb-minio-secret
                   key: secret_key
+            # B72 lakeFS write-through — datasets_land/transform write THROUGH the lakeFS S3 gateway (versioned),
+            # datasets_commit versions each run. Endpoint/repo/branch are plain; creds from lakefs-creds (THIS ns).
+            - name: LAKEFS_ENDPOINT
+              value: http://lakefs.data-mesh.svc.cluster.local:8000
+            - name: LAKEFS_REPO
+              value: music
+            - name: LAKEFS_BRANCH
+              value: main
+            - name: LAKEFS_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  name: lakefs-creds
+                  key: LAKEFS_ACCESS_KEY_ID
+            - name: LAKEFS_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: lakefs-creds
+                  key: LAKEFS_SECRET_ACCESS_KEY
             # B51 — error tracking → GlitchTip (internal-service DSN). Empty/unset = SDK no-op.
             - name: SENTRY_DSN
               valueFrom:

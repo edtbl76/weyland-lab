@@ -22,6 +22,7 @@ from .datasets_transform import (
     datasets_avro,
     datasets_lance,
     datasets_iceberg,
+    datasets_commit,
 )
 
 all_assets = [
@@ -49,4 +50,5 @@ all_assets = [
     datasets_avro,
     datasets_lance,
     datasets_iceberg,
+    datasets_commit,
 ]
