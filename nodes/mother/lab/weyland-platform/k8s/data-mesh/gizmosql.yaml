@@ -33,6 +33,8 @@ spec:
     metadata:
       labels:
         app: gizmosql
+        sidecar.istio.io/inject: "true"   # slice-2 mesh: Istio mTLS secures the in-cluster hop → GizmoSQL
+                                           # runs plaintext (TLS_ENABLED=0) + clients drop TLS_SKIP_VERIFY.
     spec:
       # k8s injects Docker-link service env vars (GIZMOSQL_PORT=tcp://<ip>:31337, …) for the same-named
       # Service into the pod — and GizmoSQL reads its own GIZMOSQL_PORT config var as an int, so the
@@ -47,13 +49,13 @@ spec:
             - secretRef:
                 name: gizmosql-secret
           env:
-            # Run PLAINTEXT so Istio mTLS (slice-2 mesh) provides transport security instead of the app's
-            # ephemeral self-signed cert — this is what lets the clients drop TLS_SKIP_VERIFY. UNVERIFIED
-            # that GizmoSQL honours "0"; confirm in the boot log (grpc:// vs grpc+tls://) before meshing.
+            # Run PLAINTEXT so Istio mTLS (the sidecar above) provides transport security instead of the
+            # app's ephemeral self-signed cert — this is what lets the clients drop TLS_SKIP_VERIFY.
+            # CONFIRMED honoured: boot log shows "TLS is disabled … will listen on grpc+tcp://".
             - name: TLS_ENABLED
               value: "0"
           ports:
-            - name: flightsql
+            - name: tcp-flightsql        # tcp- → Istio TCP passthrough (mTLS at L4; gRPC rides inside)
               containerPort: 31337
           readinessProbe:
             tcpSocket:
@@ -79,7 +81,7 @@ spec:
   selector:
     app: gizmosql
   ports:
-    - name: flightsql
+    - name: tcp-flightsql
       port: 31337
       targetPort: 31337
       nodePort: 31337

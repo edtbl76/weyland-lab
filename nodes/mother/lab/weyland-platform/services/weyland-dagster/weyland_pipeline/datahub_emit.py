@@ -310,14 +310,14 @@ def emit_duckdb():
     (from information_schema) + lineage ← the parquet datasets they read. Connects to the live GizmoSQL
     server over Arrow Flight SQL (TLS, self-signed → skip verify). Returns (count, names)."""
     import adbc_driver_flightsql.dbapi as flight_sql
-    from adbc_driver_flightsql import DatabaseOptions
 
+    # Plaintext grpc+tcp: GizmoSQL runs TLS-off and Istio mTLS secures the in-cluster hop (both pods meshed),
+    # so there's no app TLS to skip-verifying. GIZMOSQL_URI in the pod env must also be grpc+tcp.
     conn = flight_sql.connect(
-        os.environ.get("GIZMOSQL_URI", "grpc+tls://gizmosql.data-mesh.svc.cluster.local:31337"),
+        os.environ.get("GIZMOSQL_URI", "grpc+tcp://gizmosql.data-mesh.svc.cluster.local:31337"),
         db_kwargs={
             "username": os.environ.get("GIZMOSQL_USERNAME", "weyland"),
             "password": os.environ["GIZMOSQL_PASSWORD"],
-            DatabaseOptions.TLS_SKIP_VERIFY.value: "true",
         },
     )
     emitter = _gms_emitter()

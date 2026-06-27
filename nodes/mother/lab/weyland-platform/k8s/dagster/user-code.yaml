@@ -114,7 +114,7 @@ spec:
             # B65 Tier-2 — emit_duckdb() catalogs the GizmoSQL/DuckDB Flight SQL views. URI/user are plain;
             # password = the shared dev password (same dagster-postgres-secret value GizmoSQL was created with).
             - name: GIZMOSQL_URI
-              value: grpc+tls://gizmosql.data-mesh.svc.cluster.local:31337
+              value: grpc+tcp://gizmosql.data-mesh.svc.cluster.local:31337
             - name: GIZMOSQL_USERNAME
               value: weyland
             - name: GIZMOSQL_PASSWORD
