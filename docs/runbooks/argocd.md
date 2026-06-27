@@ -48,9 +48,24 @@ Proxmox, SaaS). Part of the IaC track (B58).
 - **`server.insecure: true`** behind Traefik (TLS terminated at the ingress) — else redirect loops.
 - **Config must be on GitHub**, not just local — Argo reads the repo head (a local-only file → "nothing to sync").
 
-## Operate
+## Operate (CLI — programmatic; use this, NOT the UI)
+Drive Argo with the `argocd` CLI on mother — never hand-patch the Application CRD with `kubectl patch` (the
+`operation:null` / label-selector tricks silently no-op) and never fall back to UI click-paths.
+- **Login** (server runs HTTP behind Traefik → `--insecure --grpc-web`):
+  `argocd login argocd.weyland.lab --username admin --password "$(kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath='{.data.password}' | base64 -d)" --insecure --grpc-web`
+- **Status / diff:** `argocd app get <app>` · `argocd app diff <app>`
+- **Refresh (re-pull git head) + sync:** `argocd app sync <app>` (add `--prune` to remove orphans)
+- **Unwedge a stuck sync** — symptom: SYNC STATUS sits on *"waiting for healthy state of …"* and a changed
+  Secret/configmap shows **OutOfSync** but never applies, because a deployment that can't go healthy blocks the
+  running operation, and `another operation is already in progress` rejects any new sync. Fix:
+  `argocd app terminate-op <app>` then `argocd app sync <app> --replace --prune --force`.
+  `terminate-op` clears the blocking operation; `--replace` **recreates** resources (so the deployment re-rolls
+  against the new Secret checksum instead of a no-op patch). This is the canonical "remove the blocker FIRST"
+  move — do NOT just re-sync on top of a wedged op.
+
+## Operate (other)
 - Admin password: `kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath='{.data.password}' | base64 -d`
-- Onboard: drop an Application in `k8s/argocd/applications/`, push → `weyland-root` creates it (REFRESH to pull now).
+- Onboard: drop an Application in `k8s/argocd/applications/`, push → `weyland-root` creates it (`argocd app get weyland-root --refresh` to pull now).
 - Pin chart versions to deployed (`helm list -A`) when writing a helm Application.
 
 ## Pointers
