@@ -39,9 +39,13 @@ metadata:
 data:
   iceberg.properties: |
     connector.name=iceberg
-    iceberg.catalog.type=rest
-    iceberg.rest-catalog.uri=http://nessie.data-mesh.svc.cluster.local:19120/iceberg
-    iceberg.rest-catalog.warehouse=warehouse
+    # Trino's NATIVE Nessie catalog (Nessie API v2), not the generic REST client — the generic
+    # iceberg.catalog.type=rest path 403'd against Nessie's /iceberg endpoint (client-side, infra proven
+    # clean: curl from the pod → Nessie returns 200). Reads the same `main` ref pyiceberg writes to.
+    iceberg.catalog.type=nessie
+    iceberg.nessie-catalog.uri=http://nessie.data-mesh.svc.cluster.local:19120/api/v2
+    iceberg.nessie-catalog.ref=main
+    iceberg.nessie-catalog.default-warehouse-dir=s3://warehouse
     fs.native-s3.enabled=true
     s3.endpoint=http://minio.minio.svc.cluster.local:9000
     s3.path-style-access=true
