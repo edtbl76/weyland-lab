@@ -24,6 +24,7 @@ supersetNode:
     db_host: weyland-postgres.weyland.svc.cluster.local
     db_port: "5432"
     db_user: superset
+    db_pass: weyland_dev_password
     db_name: superset
     redis_host: valkey.data-mesh.svc.cluster.local   # the shared data-mesh Valkey
     redis_port: "6379"
