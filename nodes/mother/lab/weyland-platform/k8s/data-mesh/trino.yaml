@@ -136,6 +136,26 @@ spec:
         username: { name: trino-metrics-auth, key: username }
         password: { name: trino-metrics-auth, key: password }
 ---
+# Alert must FIRE, not just sit on a dashboard → Alertmanager → Telegram. Trino down = no query engine
+# for Superset/dbt/B73. kube_deployment_status_replicas_available is from kube-state-metrics (always scraped),
+# so this fires even if Trino's own /metrics scrape is broken.
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: trino-alerts
+  namespace: data-mesh
+  labels: { app: trino }
+spec:
+  groups:
+    - name: trino
+      rules:
+        - alert: TrinoDown
+          expr: kube_deployment_status_replicas_available{namespace="data-mesh", deployment="trino"} == 0
+          for: 5m
+          labels: { severity: warning }
+          annotations:
+            summary: "Trino has 0 available replicas — the federation query engine is down (Superset/dbt/B73 blocked)."
+---
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
