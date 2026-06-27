@@ -85,3 +85,23 @@ spec:
       port: 31337
       targetPort: 31337
       nodePort: 31337
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: gizmosql-alerts
+  namespace: data-mesh
+  labels: { app: gizmosql }
+spec:
+  groups:
+    - name: gizmosql
+      rules:
+        # GizmoSQL exposes no /metrics + Flight SQL is gRPC (no HTTP page) — so the down signal is the
+        # k8s deployment availability (kube-state-metrics), same as TrinoDown. A Kuma TCP monitor on the
+        # NodePort (mother:31337) is the optional shallow LAN ping (Kuma can't resolve cluster svc names).
+        - alert: GizmosqlDown
+          expr: kube_deployment_status_replicas_available{namespace="data-mesh", deployment="gizmosql"} == 0
+          for: 5m
+          labels: { severity: warning }
+          annotations:
+            summary: "GizmoSQL has 0 available replicas — the DuckDB Flight SQL query engine is down (IDEA + emit_duckdb blocked)."
