@@ -117,7 +117,7 @@ def _field_type(type_str) -> SchemaFieldDataTypeClass:
     # substring match (lowercased) so it handles pyarrow ("int64", "double"), Weaviate ("DataType.INT",
     # "DataType.TEXT"), and similar type strings uniformly.
     s = str(type_str).lower()
-    if any(t in s for t in ("int", "double", "float", "decimal", "number")):
+    if any(t in s for t in ("int", "long", "short", "byte", "double", "float", "decimal", "number")):
         return SchemaFieldDataTypeClass(type=NumberTypeClass())
     if "bool" in s:
         return SchemaFieldDataTypeClass(type=BooleanTypeClass())
@@ -260,6 +260,48 @@ def emit_lakefs():
                                      [], "datasets_commit", props):
             emitter.emit(MetadataChangeProposalWrapper(entityUrn=urn, aspect=aspect))
         names.append(rid)
+    return len(names), names
+
+
+def emit_opensearch():
+    """Custom-emit a DataHub Dataset per OpenSearch index (mapping → schema). The standalone instance runs
+    with security DISABLED, so plain HTTP, no creds. Skips system indices. Sample/external indices have no
+    pipeline lineage (a future corpus index would get lineage ← its writer). Returns (count, names)."""
+    import json
+    import urllib.request
+
+    base = os.environ.get("OPENSEARCH_ENDPOINT", "http://opensearch-cluster-master.opensearch.svc.cluster.local:9200")
+    emitter = _gms_emitter()
+    with urllib.request.urlopen(f"{base}/_cat/indices?format=json&h=index", timeout=30) as r:
+        indices = [d["index"] for d in json.load(r)]
+    names = []
+    for idx in indices:
+        if idx.startswith((".", "security", "opensearch_dashboards")):
+            continue  # system / internal / built-in sample-data (opensearch_dashboards_sample_*) indices
+        fields = []
+        try:
+            with urllib.request.urlopen(f"{base}/{idx}/_mapping", timeout=30) as r:
+                mp = json.load(r).get(idx, {}).get("mappings", {}).get("properties", {})
+            fields = [
+                SchemaFieldClass(fieldPath=k, type=_field_type(v.get("type", "object")),
+                                 nativeDataType=v.get("type", "object"))
+                for k, v in mp.items()
+            ]
+        except Exception:  # noqa: BLE001
+            pass
+        urn = make_dataset_urn(platform="opensearch", name=idx, env=ENV)
+        aspects = [
+            DatasetPropertiesClass(name=idx, description="OpenSearch index (lexical/BM25 search backend).",
+                                   customProperties={}),
+            GlobalTagsClass(tags=[TagAssociationClass(tag=make_tag_urn("default"))]),
+        ]
+        if fields:
+            aspects.insert(1, SchemaMetadataClass(
+                schemaName=idx, platform="urn:li:dataPlatform:opensearch", version=0, hash="",
+                platformSchema=OtherSchemaClass(rawSchema=""), fields=fields))
+        for aspect in aspects:
+            emitter.emit(MetadataChangeProposalWrapper(entityUrn=urn, aspect=aspect))
+        names.append(idx)
     return len(names), names
 
 

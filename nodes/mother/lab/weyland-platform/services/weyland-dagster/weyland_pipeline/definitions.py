@@ -58,12 +58,21 @@ def emit_lakefs_op(context):
     context.log.info(f"✓ lakeFS → DataHub: {n} repo(s) {names} (platform=lakefs, lineage ← datasets_commit)")
 
 
+@op
+def emit_opensearch_op(context):
+    from weyland_pipeline.datahub_emit import emit_opensearch
+
+    n, names = emit_opensearch()
+    context.log.info(f"✓ OpenSearch → DataHub: {n} index(es) {names} (platform=opensearch)")
+
+
 @job
 def datahub_catalog_emit_job():
     emit_dagster_assets_op()
     emit_qdrant_op()
     emit_weaviate_op()
     emit_lakefs_op()
+    emit_opensearch_op()
 
 
 datahub_catalog_emit_schedule = ScheduleDefinition(

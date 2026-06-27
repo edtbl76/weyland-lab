@@ -7,6 +7,7 @@ from .pgvector_write import pgvector_write
 from .qdrant_write import qdrant_write
 from .weaviate_write import weaviate_write
 from .neo4j_write import neo4j_write
+from .opensearch_write import opensearch_write
 from .eval_testset import eval_testset
 from .eval_run_matrix import eval_run_matrix
 from .eval_scores import eval_scores
@@ -35,6 +36,7 @@ all_assets = [
     qdrant_write,
     weaviate_write,
     neo4j_write,
+    opensearch_write,
     eval_testset,
     eval_run_matrix,
     eval_scores,
