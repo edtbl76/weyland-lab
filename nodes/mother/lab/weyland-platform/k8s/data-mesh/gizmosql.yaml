@@ -1,0 +1,70 @@
+# B65 Tier-2 — DuckDB served over Arrow Flight SQL (GizmoSQL).
+#
+# WHY: DataGrip's native DuckDB driver is embedded-only (jdbc:duckdb:<file>, no host:port) — you cannot
+# point it at a cluster DuckDB. GizmoSQL fronts an in-process DuckDB with an Arrow Flight SQL *server*
+# (a real host:port), so DataGrip connects with the Arrow Flight SQL JDBC driver (+ SSH tunnel to mother).
+#
+# Being IN-CLUSTER, its DuckDB reads the CURRENT lakeFS Parquet via the gateway (s3://music/main/parquet)
+# — the versioned data, which rogueone-direct couldn't reach (lakeFS ingress is forward-auth gated).
+#
+# Creds + init SQL are NOT here (they carry the lakeFS keys) — create `gizmosql-secret` imperatively
+# (see runbook). First cut: NO Istio sidecar (omit the inject label) to keep the Flight SQL path clean;
+# mesh it in slice 2 once it's proven. TLS off — the LAN + the SSH tunnel handle transport.
+#
+# gizmosql-secret keys: GIZMOSQL_USERNAME · GIZMOSQL_PASSWORD · INIT_SQL_COMMANDS
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gizmosql
+  namespace: data-mesh
+  labels:
+    app: gizmosql
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: gizmosql
+  template:
+    metadata:
+      labels:
+        app: gizmosql
+    spec:
+      containers:
+        - name: gizmosql
+          image: gizmodata/gizmosql:latest
+          # No DATABASE_FILENAME → in-memory DuckDB; INIT_SQL_COMMANDS re-creates httpfs + the S3 secret +
+          # the views on every start (cheap, and keeps the lakeFS creds out of any persisted db file).
+          envFrom:
+            - secretRef:
+                name: gizmosql-secret
+          ports:
+            - name: flightsql
+              containerPort: 31337
+          readinessProbe:
+            tcpSocket:
+              port: 31337
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "512Mi"
+            limits:
+              memory: "1Gi"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: gizmosql
+  namespace: data-mesh
+spec:
+  # NodePort so DataGrip on rogueone reaches it at mother:31337 (direct, or via the DataGrip SSH tunnel
+  # to mother → localhost:31337). 31337 is inside the 30000-32767 NodePort range.
+  type: NodePort
+  selector:
+    app: gizmosql
+  ports:
+    - name: flightsql
+      port: 31337
+      targetPort: 31337
+      nodePort: 31337
