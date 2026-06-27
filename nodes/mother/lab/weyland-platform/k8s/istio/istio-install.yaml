@@ -25,6 +25,15 @@ spec:
           limits:
             cpu: "2000m"
             memory: "1024Mi"
+  # istiod (pilot) right-sized 2026-06-27: the helm default reserved 500m CPU but it idles at ~15m. Mem
+  # kept at 2Gi (it uses it). istio is NOT in Argo (B69) → re-apply with `istioctl install -f`.
+  components:
+    pilot:
+      k8s:
+        resources:
+          requests:
+            cpu: "200m"
+            memory: "2Gi"
   meshConfig:
     enableTracing: true
     # Tracing PROVIDER: where Envoy ships spans → Tempo's zipkin receiver (B48; was the addon Jaeger, now retired).
