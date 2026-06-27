@@ -207,11 +207,69 @@ agents/workflows and platform state. Agents call the tool-server, *not* database
   IntelliJ (`jdbc:trino://…:8080`) / Superset; the web UI (`trino.weyland.lab`) is monitoring-only.
   Cataloged in DataHub as the query layer with sibling/upstream lineage to iceberg.
   [runbooks/trino.md](runbooks/trino.md).
+- **DuckDB via GizmoSQL (B65 Tier-2, 2nd)** — DuckDB served over **Arrow Flight SQL** by **GizmoSQL**, in
+  `data-mesh`. This exists because DuckDB's own JDBC is **embedded-only** (`jdbc:duckdb:<file>`, no
+  `host:port`), so there's nothing for a client to connect to — GizmoSQL wraps the in-process engine in a
+  Flight SQL *server*. In-memory DuckDB; `INIT_SQL` wires `httpfs` + a lakeFS S3 secret + **views over the
+  current lakeFS Parquet** (read through the gateway). Embedded **single-node OLAP** — fast on columnar
+  files (Parquet/Arrow/Lance) + the pyarrow bridge for the B72 formats; the IDE/notebook analytics engine.
+  Meshed (Istio **mTLS**; the app runs `TLS_ENABLED=0` plaintext so clients drop `TLS_SKIP_VERIFY` — the
+  mesh provides transport security). IDEA connects via the Arrow Flight SQL JDBC driver
+  (`jdbc:arrow-flight-sql://mother:31337`). Cataloged in DataHub (platform `duckdb`, lineage ← `parquet`)
+  by `emit_duckdb`. Runbook + gRPC-TLS ingress for external clients land at gate-close.
 - **`model_catalog`** (Postgres) — current-state lookup of reachable hosted models (OpenRouter / Gemini /
   Ollama, with free flag + pricing + context), refreshed every 6h by Dagster (replace-by-source). Distinct
   from the normalized `models` infra-inventory table. See [runbooks/model-gateway.md](runbooks/model-gateway.md).
 - **Embeddings** — `BAAI/bge-small-en-v1.5` (384-dim), baked into both the tool-server and Dagster
   images so ingestion and query embed identically.
+
+### 7a. Query layer — Trino vs DuckDB (`data-mesh`)
+
+Two SQL engines sit over the same lakehouse; they are **not redundant** — each owns a different job, and
+picking the wrong one is slow or impossible:
+
+| | **Trino** | **DuckDB (GizmoSQL)** |
+|---|---|---|
+| Shape | Distributed MPP (coordinator + workers) | Embedded single-node OLAP |
+| Superpower | **Federation** — join *across* sources in one query | **Speed** on columnar files, one node |
+| Reaches | Iceberg/Nessie **+** Postgres (+ more catalogs) | lakeFS Parquet via `httpfs` (+ Arrow/Lance/Avro via pyarrow) |
+| Run mode | Always-on service | In-memory, lightweight, served via Flight SQL |
+| Client URL | `jdbc:trino://…:8080` · Superset · CLI | `jdbc:arrow-flight-sql://…:31337` |
+| Reach for it when… | cross-source joins, big federated scans, BI | fast single-node file analytics, the B72 format playground |
+
+**Rule of thumb:** *need to federate many sources →* **Trino**; *need to go fast on the lake's files (or the
+Lance/Avro/Arrow formats) →* **DuckDB**. Both live in `data-mesh`, both are cataloged in DataHub, and both
+read the same MinIO-backed storage — they differ in *how* they reach it and *what* they're good at.
+
+```mermaid
+flowchart TB
+  subgraph Clients
+    IDEA["IntelliJ / DataGrip"]
+    SS["Superset / BI"]
+    NB["Notebooks / pyarrow"]
+  end
+  subgraph Engines["Query engines · data-mesh"]
+    TR["Trino — MPP federation"]
+    DK["DuckDB — GizmoSQL (Flight SQL)"]
+  end
+  subgraph Catalogs
+    NES["Nessie — Iceberg catalog"]
+    PG["Postgres (weyland)"]
+  end
+  subgraph Storage
+    LF["lakeFS — versioned files"]
+    MIN["MinIO — Parquet / Iceberg / Lance"]
+  end
+  IDEA --> TR
+  IDEA --> DK
+  SS --> TR
+  NB --> DK
+  TR --> NES
+  TR --> PG
+  DK --> LF
+  NES --> MIN
+  LF --> MIN
+```
 
 ---
 
