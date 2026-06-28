@@ -10,7 +10,8 @@ weyland_ingestion_job = define_asset_job(
     - AssetSelection.groups("catalog")
     - AssetSelection.groups("aidlc_kb")
     - AssetSelection.groups("ai_session")
-    - AssetSelection.groups("datasets"),
+    - AssetSelection.groups("datasets")
+    - AssetSelection.groups("timeseries"),
 )
 
 # B72 — the brokered fan-out (all five per-format assets, each isolated in its own process);
@@ -69,5 +70,19 @@ weyland_ai_session_schedule = ScheduleDefinition(
     job=weyland_ai_session_job,
     cron_schedule="0 */4 * * *",  # every 4h
     name="weyland_ai_session_schedule",
+    default_status=DefaultScheduleStatus.RUNNING,
+)
+
+# B65 Tier-2 — TimescaleDB time-series writes: sync eval/guardrail/dagster/unleash/datahub → hypertables.
+# Hourly is sufficient — these are analytical feeds, not real-time.
+weyland_timeseries_job = define_asset_job(
+    name="weyland_timeseries_job",
+    selection=AssetSelection.groups("timeseries"),
+)
+
+weyland_timeseries_schedule = ScheduleDefinition(
+    job=weyland_timeseries_job,
+    cron_schedule="0 * * * *",  # hourly
+    name="weyland_timeseries_schedule",
     default_status=DefaultScheduleStatus.RUNNING,
 )

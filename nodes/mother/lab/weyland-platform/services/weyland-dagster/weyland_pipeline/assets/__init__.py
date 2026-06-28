@@ -25,6 +25,13 @@ from .datasets_transform import (
     datasets_iceberg,
     datasets_commit,
 )
+from .timescaledb_write import (
+    ts_eval_scores,
+    ts_guardrail_verdicts,
+    ts_dagster_runs,
+    ts_unleash_metrics,
+    ts_datahub_ingestion,
+)
 
 all_assets = [
     source_document,
@@ -53,4 +60,9 @@ all_assets = [
     datasets_lance,
     datasets_iceberg,
     datasets_commit,
+    ts_eval_scores,
+    ts_guardrail_verdicts,
+    ts_dagster_runs,
+    ts_unleash_metrics,
+    ts_datahub_ingestion,
 ]
