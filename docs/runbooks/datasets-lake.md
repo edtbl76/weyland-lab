@@ -50,4 +50,14 @@ HF / FMA ──▶ dlt (EL, in Dagster) ──▶ MinIO  datasets/raw/{table}/  
 
 **Ops notes:** the `datasets` group is excluded from the 15-min ingestion cron (datasets_land re-downloads external sources). `datasets_land` = on-demand; `datasets_transform` = sensor-triggered (or `deps` chain). FMA zip cached at `/tmp/fma_metadata.zip` in the pod.
 
+## Storage restructure (2026-06-28)
+
+MinIO and lakeFS were restructured from a flat layout to a domain-prefixed layout:
+- MinIO: `datasets/` bucket with `datasets/music/` and `datasets/health/` domain subfolders
+- lakeFS repo `music` storage namespace changed from `s3://datasets/` → `s3://datasets/music/`
+- Sensor updated to poll `{domain}/raw/` prefix (env `DATASETS_DOMAIN=music`)
+
+**Nessie/Trino nested namespace gotcha (confirmed broken, Trino 468):**
+Nessie supports nested namespaces (`datasets` → `music`), but Trino's `catalog.type=nessie` connector does NOT expose them. `TrinoNessieCatalog.listSchemas()` only returns top-level namespaces — there is no config flag to enable recursion. The `type=rest` fix (Trino 463, PR #23453) does NOT apply to `type=nessie`. Querying `iceberg."datasets.music".table` also fails ("schema doesn't exist"). **Workaround: flat underscore-prefixed namespaces** — `datasets_music`, `datasets_health` etc. — which are single-level and fully visible in Trino + IntelliJ.
+
 > Diagram is ASCII for now; a renderer migration (D2/Mermaid) is tracked in B64.
