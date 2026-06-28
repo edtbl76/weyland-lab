@@ -14,7 +14,6 @@ Hypertables:
 """
 import os
 import json
-import urllib.request
 from datetime import datetime, timezone
 
 import psycopg2
@@ -180,15 +179,21 @@ def ts_unleash_metrics():
 
 @asset(group_name="timeseries", description="Sync DataHub ingestion run history → TimescaleDB hypertable datahub_ingestion_runs")
 def ts_datahub_ingestion():
+    import requests as req_lib
+
     gms = os.environ.get("DATAHUB_GMS_URL", "http://datahub-datahub-gms.data-mesh.svc.cluster.local:8080")
     token = os.environ.get("DATAHUB_GMS_TOKEN", "")
     dst = _tsdb_conn()
     rows = []
     try:
-        req = urllib.request.Request(
-            f"{gms}/api/v2/graphql",
-            data=json.dumps({"query": """
-                { listIngestionSources(input:{count:50}) {
+        headers = {"Content-Type": "application/json"}
+        if token:
+            headers["Authorization"] = f"Bearer {token}"
+        resp = req_lib.post(
+            f"{gms}/api/graphql",
+            json={"query": """
+                { listIngestionSources(input:{count:50, start:0}) {
+                    total
                     ingestionSources {
                         urn type
                         lastExecRequest {
@@ -197,12 +202,14 @@ def ts_datahub_ingestion():
                         }
                     }
                 } }
-            """}).encode(),
-            headers={"Content-Type": "application/json", "Authorization": f"Bearer {token}"},
+            """},
+            headers=headers,
+            timeout=30,
         )
-        with urllib.request.urlopen(req, timeout=30) as r:
-            data = json.load(r)
-        sources = data.get("data", {}).get("listIngestionSources", {}).get("ingestionSources", [])
+        resp.raise_for_status()
+        data = resp.json()
+        gql_data = data.get("data") or {}
+        sources = (gql_data.get("listIngestionSources") or {}).get("ingestionSources") or []
         for s in sources:
             exec_req = s.get("lastExecRequest") or {}
             result = exec_req.get("result") or {}
