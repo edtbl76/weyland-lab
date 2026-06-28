@@ -142,13 +142,13 @@ def _hydrate_iceberg(client, bucket, table, name, t):
     from weyland_pipeline.iceberg_publish import _catalog
 
     cat = _catalog()
-    cat.create_namespace_if_not_exists("datasets")
-    ice = cat.create_table_if_not_exists(f"datasets.{table}", schema=t.schema)
+    cat.create_namespace_if_not_exists("music")
+    ice = cat.create_table_if_not_exists(f"music.{table}", schema=t.schema)
     # Absorb any columns the source has gained since the table was created (FMA's flattened multi-header
     # schema can grow run to run) — pyiceberg's overwrite rejects wider data without this. Idempotent.
     with ice.update_schema() as update:
         update.union_by_name(t.schema)
-    ice = cat.load_table(f"datasets.{table}")  # reload so overwrite sees the evolved schema
+    ice = cat.load_table(f"music.{table}")  # reload so overwrite sees the evolved schema
     ice.overwrite(t)
 
 
@@ -165,7 +165,7 @@ def _run_format(context, write_one) -> Output:
             out[key] = f"ERROR {type(e).__name__}: {e}"
             context.log.error(f"{key}: {e}")
     if not out:
-        context.log.warning("no raw CSVs under datasets/raw/ — run datasets_land first")
+        context.log.warning("no raw CSVs under music/raw/ — run datasets_land first")
     return Output(out, metadata={
         "ok": MetadataValue.int(sum(1 for v in out.values() if v.startswith("ok"))),
         "detail": MetadataValue.json(out),
