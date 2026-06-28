@@ -76,6 +76,14 @@ def emit_duckdb_op(context):
     context.log.info(f"✓ DuckDB → DataHub: {n} view(s) {names} (platform=duckdb, lineage ← parquet)")
 
 
+@op
+def emit_timescaledb_op(context):
+    from weyland_pipeline.datahub_emit import emit_timescaledb
+
+    n, names = emit_timescaledb()
+    context.log.info(f"✓ TimescaleDB → DataHub: {n} hypertable(s) {names} (platform=timescaledb, lineage ← source tables)")
+
+
 @job
 def datahub_catalog_emit_job():
     emit_dagster_assets_op()
@@ -84,6 +92,7 @@ def datahub_catalog_emit_job():
     emit_lakefs_op()
     emit_opensearch_op()
     emit_duckdb_op()
+    emit_timescaledb_op()
 
 
 datahub_catalog_emit_schedule = ScheduleDefinition(

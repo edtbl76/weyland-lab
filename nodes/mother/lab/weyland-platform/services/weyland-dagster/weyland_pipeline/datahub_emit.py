@@ -361,6 +361,70 @@ def emit_duckdb():
     return len(names), names
 
 
+def emit_timescaledb():
+    """Custom-emit the TimescaleDB hypertables as DataHub Datasets (platform timescaledb) with schema
+    (from information_schema) + lineage ← the source Dagster assets that write to them. Returns (count, names)."""
+    import psycopg2
+
+    conn = psycopg2.connect(
+        host=os.environ.get("TIMESCALEDB_HOST", "timescaledb.data-mesh.svc.cluster.local"),
+        port=int(os.environ.get("TIMESCALEDB_PORT", "5432")),
+        dbname=os.environ.get("TIMESCALEDB_DB", "timeseries"),
+        user=os.environ.get("TIMESCALEDB_USER", "weyland"),
+        password=os.environ.get("TIMESCALEDB_PASSWORD", "weyland_dev_password"),
+    )
+    emitter = _gms_emitter()
+    names = []
+    lineage_map = {
+        "eval_scores_ts": "eval_scores",
+        "guardrail_verdicts_ts": "guardrail_verdicts",
+        "dagster_run_durations": "runs",
+        "unleash_feature_metrics": "client_metrics_env",
+        "datahub_ingestion_runs": None,
+    }
+    try:
+        cur = conn.cursor()
+        cur.execute("""
+            SELECT table_name FROM information_schema.tables
+            WHERE table_schema = 'public' AND table_type = 'BASE TABLE'
+            AND table_name NOT LIKE '\\_\\_%'
+        """)
+        tables = [r[0] for r in cur.fetchall()]
+        for t in tables:
+            cur.execute(
+                "SELECT column_name, data_type FROM information_schema.columns "
+                f"WHERE table_schema = 'public' AND table_name = '{t}' ORDER BY ordinal_position"
+            )
+            fields = [
+                SchemaFieldClass(fieldPath=c[0], type=_field_type(c[1]), nativeDataType=c[1])
+                for c in cur.fetchall()
+            ]
+            urn = make_dataset_urn(platform="timescaledb", name=t, env=ENV)
+            aspects = [
+                DatasetPropertiesClass(
+                    name=t,
+                    description=f"TimescaleDB hypertable — time-series feed for the {t} data product.",
+                    customProperties={"platform": "timescaledb"},
+                ),
+                GlobalTagsClass(tags=[TagAssociationClass(tag=make_tag_urn("timeseries"))]),
+            ]
+            if fields:
+                aspects.insert(1, SchemaMetadataClass(
+                    schemaName=t, platform="urn:li:dataPlatform:timescaledb", version=0, hash="",
+                    platformSchema=OtherSchemaClass(rawSchema=""), fields=fields))
+            src = lineage_map.get(t)
+            if src:
+                aspects.append(UpstreamLineageClass(upstreams=[UpstreamClass(
+                    dataset=make_dataset_urn(platform="postgres", name=f"weyland.public.{src}", env=ENV),
+                    type=DatasetLineageTypeClass.COPY)]))
+            for aspect in aspects:
+                emitter.emit(MetadataChangeProposalWrapper(entityUrn=urn, aspect=aspect))
+            names.append(t)
+    finally:
+        conn.close()
+    return len(names), names
+
+
 def emit_file_dataset(platform, table, location, arrow_schema, producer_asset, group="datasets") -> str:
     """Custom-emit a Dataset for a silver file format (Arrow/Lance) that has NO native DataHub connector.
 
