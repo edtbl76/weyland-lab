@@ -192,13 +192,14 @@ def ts_datahub_ingestion():
         resp = req_lib.post(
             f"{gms}/api/graphql",
             json={"query": """
-                { listIngestionSources(input:{count:50, start:0}) {
-                    total
+                { listIngestionSources(input:{count:50,start:0}) {
                     ingestionSources {
                         urn type
-                        lastExecRequest {
-                            id status
-                            result { startTimeMs durationMs numSucceeded numFailed }
+                        executions(start:0, count:1) {
+                            executionRequests {
+                                id
+                                result { status startTimeMs durationMs }
+                            }
                         }
                     }
                 } }
@@ -208,22 +209,22 @@ def ts_datahub_ingestion():
         )
         resp.raise_for_status()
         data = resp.json()
-        gql_data = data.get("data") or {}
-        sources = (gql_data.get("listIngestionSources") or {}).get("ingestionSources") or []
+        sources = (data.get("data") or {}).get("listIngestionSources", {}).get("ingestionSources") or []
         for s in sources:
-            exec_req = s.get("lastExecRequest") or {}
-            result = exec_req.get("result") or {}
-            start_ms = result.get("startTimeMs")
-            if not start_ms:
-                continue
-            rows.append((
-                datetime.fromtimestamp(start_ms / 1000, tz=timezone.utc),
-                s.get("type", "unknown"),
-                s.get("urn", ""),
-                exec_req.get("status", "unknown"),
-                (result.get("durationMs") or 0) / 1000.0,
-                (result.get("numSucceeded") or 0),
-            ))
+            exec_reqs = (s.get("executions") or {}).get("executionRequests") or []
+            for er in exec_reqs:
+                result = er.get("result") or {}
+                start_ms = result.get("startTimeMs")
+                if not start_ms:
+                    continue
+                rows.append((
+                    datetime.fromtimestamp(start_ms / 1000, tz=timezone.utc),
+                    s.get("type", "unknown"),
+                    s.get("urn", ""),
+                    result.get("status", "unknown"),
+                    (result.get("durationMs") or 0) / 1000.0,
+                    0,
+                ))
         with dst.cursor() as cur:
             psycopg2.extras.execute_values(cur, """
                 INSERT INTO datahub_ingestion_runs (time, source_type, source_name, status, duration_seconds, records_written)
