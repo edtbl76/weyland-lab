@@ -1,0 +1,22 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: superset-alerts
+  namespace: data-mesh
+  labels: { app: superset }
+spec:
+  groups:
+    - name: superset
+      rules:
+        - alert: SupersetDown
+          expr: kube_deployment_status_replicas_available{namespace="data-mesh", deployment="superset"} == 0
+          for: 5m
+          labels: { severity: warning }
+          annotations:
+            summary: "Superset has 0 available replicas — the BI / SQL exploration layer is down (superset.weyland.lab unreachable)."
+        - alert: SupersetWorkerDown
+          expr: kube_deployment_status_replicas_available{namespace="data-mesh", deployment="superset-worker"} == 0
+          for: 5m
+          labels: { severity: warning }
+          annotations:
+            summary: "Superset Celery worker has 0 available replicas — async queries and scheduled reports are blocked."
