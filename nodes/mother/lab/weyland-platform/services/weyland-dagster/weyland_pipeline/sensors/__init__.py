@@ -26,9 +26,10 @@ def datasets_raw_sensor(context):
         secure=os.environ.get("MINIO_SECURE", "false").lower() == "true",
     )
     bucket = os.environ.get("DATASETS_BUCKET", "datasets")
+    domain = os.environ.get("DATASETS_DOMAIN", "music")
 
     latest = None  # the newest raw CSV write seen this poll (max last_modified)
-    for obj in client.list_objects(bucket, prefix="raw/", recursive=True):
+    for obj in client.list_objects(bucket, prefix=f"{domain}/raw/", recursive=True):
         if not obj.object_name.endswith(".csv"):
             continue
         stamp = obj.last_modified.isoformat() if obj.last_modified else obj.object_name
