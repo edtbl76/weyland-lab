@@ -41,6 +41,16 @@ supersetWorker:
 extraSecretEnv:
   SUPERSET_SECRET_KEY: weyland_dev_secret_key_for_superset_not_in_prod
 
+extraVolumes:
+  - name: weyland-ca
+    secret:
+      secretName: weyland-mkcert-ca
+
+extraVolumeMounts:
+  - name: weyland-ca
+    mountPath: /etc/ssl/weyland-ca
+    readOnly: true
+
 # SECRET_KEY + DB_PASS from the secret (created imperatively).
 envFromSecret: superset-env
 
@@ -75,7 +85,7 @@ configOverrides:
             "server_metadata_url": "https://keycloak.weyland.lab/realms/weyland/.well-known/openid-configuration",
         },
     }]
-    os.environ["REQUESTS_CA_BUNDLE"] = "/etc/ssl/certs/ca-certificates.crt"
+    os.environ["REQUESTS_CA_BUNDLE"] = "/etc/ssl/weyland-ca/rootCA.pem"
     PREFERRED_URL_SCHEME = "https"
     WTF_CSRF_SSL_STRICT = False
     ENABLE_PROXY_FIX = True
