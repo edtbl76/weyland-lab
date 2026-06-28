@@ -8,15 +8,15 @@ import os
 
 from dagster import DefaultSensorStatus, RunRequest, SkipReason, sensor
 
-from weyland_pipeline.schedules import weyland_datasets_transform_job
+from weyland_pipeline.schedules import weyland_datasets_music_transform_job
 
 
 @sensor(
-    job=weyland_datasets_transform_job,
+    job=weyland_datasets_music_transform_job,
     minimum_interval_seconds=60,
     default_status=DefaultSensorStatus.STOPPED,
 )
-def datasets_raw_sensor(context):
+def datasets_music_raw_sensor(context):
     from minio import Minio
 
     client = Minio(

@@ -10,15 +10,15 @@ weyland_ingestion_job = define_asset_job(
     - AssetSelection.groups("catalog")
     - AssetSelection.groups("aidlc_kb")
     - AssetSelection.groups("ai_session")
-    - AssetSelection.groups("datasets")
+    - AssetSelection.groups("datasets_music")
     - AssetSelection.groups("timeseries"),
 )
 
-# B72 — the brokered fan-out (all five per-format assets, each isolated in its own process);
-# triggered by the datasets_raw S3 sensor on new raw writes. = the datasets group minus the loader.
-weyland_datasets_transform_job = define_asset_job(
-    name="weyland_datasets_transform_job",
-    selection=AssetSelection.groups("datasets") - AssetSelection.assets("datasets_land"),
+# B72 — the brokered fan-out (all per-format assets, each isolated in its own process);
+# triggered by the datasets_music_raw_sensor on new raw writes.
+weyland_datasets_music_transform_job = define_asset_job(
+    name="weyland_datasets_music_transform_job",
+    selection=AssetSelection.groups("datasets_music") - AssetSelection.assets("datasets_music_land"),
 )
 
 # Model catalog (hosted-model lookup table) — refreshed on its own 6h cadence, separate from ingestion.
