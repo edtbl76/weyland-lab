@@ -55,6 +55,7 @@ configOverrides:
     )
     SECRET_KEY = os.environ["SUPERSET_SECRET_KEY"]
   oidc: |
+    import os
     from flask_appbuilder.security.manager import AUTH_OAUTH
     AUTH_TYPE = AUTH_OAUTH
     AUTH_USER_REGISTRATION = True
@@ -74,22 +75,6 @@ configOverrides:
             "server_metadata_url": "https://keycloak.weyland.lab/realms/weyland/.well-known/openid-configuration",
         },
     }]
-    from superset.security import SupersetSecurityManager
-    import logging
-    class KeycloakSecurityManager(SupersetSecurityManager):
-        def oauth_user_info(self, provider, response=None):
-            if provider == "keycloak":
-                me = self.appbuilder.sm.oauth_remoteapp.userinfo()
-                return {
-                    "username": me.get("preferred_username", me.get("sub")),
-                    "first_name": me.get("given_name", ""),
-                    "last_name": me.get("family_name", ""),
-                    "email": me.get("email", ""),
-                    "role_keys": me.get("groups", []),
-                }
-            return super().oauth_user_info(provider, response)
-    CUSTOM_SECURITY_MANAGER = KeycloakSecurityManager
-    import os
     os.environ["REQUESTS_CA_BUNDLE"] = "/etc/ssl/certs/ca-certificates.crt"
     PREFERRED_URL_SCHEME = "https"
     WTF_CSRF_SSL_STRICT = False
