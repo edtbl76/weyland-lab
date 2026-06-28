@@ -23,6 +23,7 @@ spec:
           image: pgvector/pgvector:pg16
           ports:
             - containerPort: 5432
+          args: ["-c", "max_connections=200"]
           envFrom:
             - secretRef:
                 name: weyland-postgres-secret

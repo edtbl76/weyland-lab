@@ -904,7 +904,7 @@ Doris (OLAP variety, on-demand) · Spark (big-data compute, on-demand) · RDF/tr
 
 ### B69 — Platform completeness / gap remediation (post-B1)
 **Added 2026-06-26.** Output of the multi-agent completeness audit (`docs/completeness-audit.md`) — artifacts that "run once" but aren't operationally complete (trigger / lineage / GitOps-reproducibility / monitoring / docs). **Data-mesh-scoped gaps (14) are solved inline as part of B1**; this item is the **platform-wide set (28: 9 high / 14 med / 5 low)**, to clear **immediately after B1 lands**. Full register: `docs/completeness-audit.md`. Highlights (high):
-- **Secrets management** — ~25 imperative-only cluster secrets, nothing restores them → adopt SealedSecrets/External-Secrets/SOPS (or commit `*-secret.example.yaml` shapes + `runbooks/secrets.md`).
+- **Secrets management** — ~25 imperative-only cluster secrets, nothing restores them → adopt SealedSecrets/External-Secrets/SOPS (or commit `*-secret.example.yaml` shapes + `runbooks/secrets.md`). **DataHub-specific: DataHub Secrets (NEO4J_PASSWORD, MINIO_ACCESS_KEY, MINIO_SECRET_KEY, GRAFANA_SA_TOKEN) are wiped on every GMS restart** — they live in GMS memory, not Postgres. Must be re-entered after every GMS pod restart. Fix = configure DataHub to persist secrets to the Postgres backend, or pre-seed them via the GMS API on startup.
 - **No dead-man's-switch** — Alertmanager Watchdog routed to `null`; a total alerting-pipeline failure is silent → external heartbeat.
 - **Always-firing `telegram-test` alert** committed + Argo-synced (`expr: vector(1)`) → pages every 4h; delete from git.
 - **Ollama / Hermes / tool-server** — no monitoring + not reproducible from git (image `:local`/Never → ErrImageNeverPull on rebuild).
