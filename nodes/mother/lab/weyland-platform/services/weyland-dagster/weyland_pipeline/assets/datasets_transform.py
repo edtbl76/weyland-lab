@@ -142,14 +142,19 @@ def _hydrate_iceberg(client, bucket, table, name, t):
     from weyland_pipeline.iceberg_publish import _catalog
 
     cat = _catalog()
-    cat.create_namespace_if_not_exists("datasets")
-    cat.create_namespace_if_not_exists("datasets.music")
-    ice = cat.create_table_if_not_exists(f"datasets.music.{table}", schema=t.schema)
+    # Namespace convention: datasets_<domain> (flat, underscore-separated).
+    # Nessie nested namespaces (datasets → music) are NOT visible in Trino catalog.type=nessie —
+    # TrinoNessieCatalog.listSchemas() only returns top-level namespaces and there is no config flag
+    # to enable recursion (the type=rest fix in Trino 463 does NOT apply to type=nessie). Confirmed
+    # broken on Trino 468. SHOW SCHEMAS hides them and queries against "datasets.music" error.
+    # Workaround: flat prefixed namespaces (datasets_music, datasets_health) in Nessie/Trino.
+    cat.create_namespace_if_not_exists("datasets_music")
+    ice = cat.create_table_if_not_exists(f"datasets_music.{table}", schema=t.schema)
     # Absorb any columns the source has gained since the table was created (FMA's flattened multi-header
     # schema can grow run to run) — pyiceberg's overwrite rejects wider data without this. Idempotent.
     with ice.update_schema() as update:
         update.union_by_name(t.schema)
-    ice = cat.load_table(f"datasets.music.{table}")  # reload so overwrite sees the evolved schema
+    ice = cat.load_table(f"datasets_music.{table}")  # reload so overwrite sees the evolved schema
     ice.overwrite(t)
 
 
