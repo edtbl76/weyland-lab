@@ -1,0 +1,97 @@
+# B65 Tier-2 — TimescaleDB: time-series extension on Postgres for the lab's temporal data.
+# Dedicated instance (not the shared weyland-postgres) so time-series workloads are isolated.
+# Image: timescale/timescaledb-ha:pg16 (includes TimescaleDB + pgvector).
+# Always-on: receives continuous writes from Dagster (eval/guardrail/run metrics) + Prometheus remote-write.
+# Meshed → reaches STRICT-mTLS Postgres peers; Grafana + Superset connect via in-cluster svc.
+# Creds: timescaledb-secret (imperative, not in git) — POSTGRES_USER/PASSWORD/DB.
+# IntelliJ: standard Postgres JDBC via k8s port-forward (DataGrip "PostgreSQL" datasource).
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: timescaledb-data
+  namespace: data-mesh
+spec:
+  accessModes: [ReadWriteOnce]
+  resources:
+    requests:
+      storage: 10Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: timescaledb
+  namespace: data-mesh
+  labels:
+    app: timescaledb
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate   # single-instance RWO PVC — kill old before new (no storage lock contention)
+  selector:
+    matchLabels:
+      app: timescaledb
+  template:
+    metadata:
+      labels:
+        app: timescaledb
+        sidecar.istio.io/inject: "true"
+    spec:
+      containers:
+        - name: timescaledb
+          image: timescale/timescaledb-ha:pg16
+          ports:
+            - name: tcp-postgres
+              containerPort: 5432
+          envFrom:
+            - secretRef:
+                name: timescaledb-secret
+          args: ["-c", "max_connections=200"]
+          readinessProbe:
+            exec:
+              command: ["pg_isready", "-U", "weyland", "-d", "timeseries"]
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "512Mi"
+            limits:
+              memory: "2Gi"
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql/data
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: timescaledb-data
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: timescaledb
+  namespace: data-mesh
+spec:
+  selector:
+    app: timescaledb
+  ports:
+    - name: tcp-postgres
+      port: 5432
+      targetPort: 5432
+      appProtocol: tcp   # tell Istio this is opaque TCP (Postgres wire protocol)
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: timescaledb-alerts
+  namespace: data-mesh
+  labels: { app: timescaledb }
+spec:
+  groups:
+    - name: timescaledb
+      rules:
+        - alert: TimescaleDBDown
+          expr: kube_deployment_status_replicas_available{namespace="data-mesh", deployment="timescaledb"} == 0
+          for: 5m
+          labels: { severity: warning }
+          annotations:
+            summary: "TimescaleDB has 0 available replicas — time-series data ingestion is blocked."
