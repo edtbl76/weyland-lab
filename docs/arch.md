@@ -8,6 +8,8 @@ for *values*; this doc owns the *picture and the why*. Keep it current as the sy
 **Companion docs:** [hosts.md](hosts.md) · [api.md](api.md) · roadmap [backlog.md](backlog.md) ·
 runbooks: [b6-minio](runbooks/storage-minio.md) · [b7-ollama](runbooks/model-serving-ollama.md) ·
 [b11-whisper](runbooks/transcription-whisper.md) · [b4-eval](runbooks/eval-harness.md) ·
+[trino](runbooks/trino.md) · [gizmosql](runbooks/gizmosql.md) · [superset](runbooks/superset.md) ·
+[timescaledb](runbooks/timescaledb.md) · [datasets-lake](runbooks/datasets-lake.md) · [argocd](runbooks/argocd.md) ·
 concepts: [llm-inference-cpu-vs-gpu](concepts/llm-inference-cpu-vs-gpu.md) · ops: [test.md](validation/test-commands.md)
 
 **Diagrams:** [C4 Context](diagrams/c4-context.md) · [C4 Container](diagrams/c4-container.md) · Components: [mother](diagrams/c4-component-mother.md) · [hermes](diagrams/c4-component-hermes.md) · [ollama](diagrams/c4-component-ollama.md) · [whisper](diagrams/c4-component-whisper.md) · [openclaw](diagrams/c4-component-openclaw.md) · [rogueone](diagrams/c4-component-rogueone.md) · Flows (see §9 for the grouped table): [ingestion](diagrams/flow-ingestion.md) · [RAG query](diagrams/flow-rag-query.md) · [backend dispatch](diagrams/flow-backend-dispatch.md) · [voice chat](diagrams/flow-voice-chat.md) · [eval pipeline](diagrams/flow-eval.md) · [eval scoring](diagrams/flow-eval-scoring.md) · [health/status](diagrams/flow-health-status.md) · [pipeline trigger](diagrams/flow-pipeline-trigger.md) · [agent MCP](diagrams/flow-agent-mcp.md) · [mesh mTLS](diagrams/flow-mesh-mtls.md) · [tracing](diagrams/flow-tracing.md) · [guardrails](diagrams/flow-guardrails.md) · [act-tool](diagrams/flow-act-tool.md) · [ingress/TLS](diagrams/flow-ingress-tls.md) · [model gateway](diagrams/flow-model-gateway.md) · [model catalog](diagrams/flow-model-catalog.md) · [roadmap-sync](diagrams/flow-roadmap-sync.md) · [alerting](diagrams/flow-alerting.md) · [deploy](diagrams/flow-deploy.md) · [MLflow](diagrams/flow-mlflow.md)
@@ -145,6 +147,10 @@ agents/workflows and platform state. Agents call the tool-server, *not* database
 | **Port.io** (IDP replacement) | `app.port.io` (SaaS, EU org `org_KyCTEN4PVUv1D3TM`) | Internal Developer Platform — zero-maintenance SaaS; **replaced Backstage (retired 2026-06-22, B59)**. **Live integrations:** K8s exporter (`weyland-cluster`), Istio (Gateway/VirtualService CRDs), GitHub exporter (`github-weyland`, 6 repos), **Linear** (roadmap — status tracking; issues/teams/labels), **Unleash** webhook (`feature_flag` blueprint — OSS feature flags, `unleash.weyland.lab`, [runbooks/unleash.md](runbooks/unleash.md)), **SonarQube/Trivy/Semgrep** webhooks (`code_quality` + `security_scan` blueprints — code quality + SAST/IaC, [runbooks/code-quality.md](runbooks/code-quality.md)). **Port = launcher/catalog, not a status board:** the `endpoint` blueprint (31 entities) + a **Launcher** dashboard give one-click access to every UI/API; the `uptime_monitor` flow was **retired** (status went stale event-only) — **Uptime Kuma** (`kuma.weyland.lab`, 25 monitors, Telegram paging) is the live status board. In-cluster agent: `port-k8s-exporter` ns. **Roadmap split:** `docs/backlog.md` = design/rationale (git, ordered source); **Linear** (`emangini` workspace, projects Weyland Lab/Stud.IO/Service Transformation) = task status; Claude updates Linear via MCP ad-hoc (no auto-sync); Port ingests Linear for catalog tracking. **Categories wired (all of B43):** Kubernetes, Istio, GitHub, Incident Mgmt (Kuma), Project Mgmt (Linear), Feature Mgmt (Unleash), Code Quality (SonarQube/Trivy/Semgrep), **Cloud Cost (OpenCost, B55), CI/CD (Woodpecker, B56), Error Tracking (GlitchTip, B51)**. **Deploy/IaC:** Argo CD GitOps + OpenTofu (B58) codify the platform. **Catalog parity DONE (B59):** the Backstage catalog is mirrored into Port (domain/systems/components/resources/APIs + live `k8s_workload` links, codified in `tofu/port/catalog.tf`); **Backstage retired 2026-06-22**, docs now at `docs.weyland.lab` (standalone MkDocs Material). **B60 buildout (2026-06-24):** sidebar audited + pruned (9 redundant stock scorecards, the empty AI-Adoption dashboard, a dead Slack automation); **6 `service` entities** (all your repos) owned by **Weyland Team**; `production_readiness` scorecard **customized for a public lab** (B61); **`ai_session` "AI-Dev Usage" data product** (B62 — Claude Code telemetry via a B37-pattern Dagster pipeline: rogueone producer → MinIO → `ai_session_ingest`). **Decision: Port = the "see" layer, Hermes = the "do" layer** — self-service actions + workflows deferred (Port's cloud can't reach the LAN, and Hermes already does ops). |
 | **Keycloak** (B1.1 — IdP / SSO) | `keycloak.weyland.lab` · `auth.weyland.lab` | **Central identity** — replaced the scattered dev-password logins (2026-06-24). k8s + meshed Postgres, `weyland` realm; realm + OIDC clients codified in `tofu/keycloak/`. **Every browser UI is behind it** (extended 2026-06-25): OIDC native (Grafana, GlitchTip, Open WebUI — true single login) + **forward-auth** via `traefik-forward-auth` (`auth.weyland.lab`) for everything else (MLflow, Kiali, filestash, Nessie, lakeFS, Unleash, SonarQube, Uptime-Kuma, Dagster, LiteLLM, docs-site, APISIX-dashboard, OpenCost, n8n, Woodpecker, Argo CD, Headlamp; cookie domain `weyland.lab`, single logout `/_oauth/logout`). Forward-auth gates *access* but keeps each app's own login (double-login on own-login apps). **NOT gated by design** (API-auth, not browser SSO): the S3 API, the data backends (qdrant/weaviate/neo4j NodePorts), and the APISIX gateway. Gotchas: Python OIDC apps need a combined CA bundle (system + mkcert root) for the back-channel; cross-ns Traefik middleware refs are blocked (local Middleware per ns); in-cluster pods reach `*.weyland.lab` via the `coredns-custom` forward; GlitchTip's allauth fought it → SSO via a DB-precreated social link (see memory). |
 | **Data mesh — L1 storage** (B1.2) | `nessie.weyland.lab` · `lakefs.weyland.lab` | **Lakehouse storage foundation** (2026-06-25), ns `data-mesh`. **Nessie** = Iceberg catalog + git-branch table versioning (Postgres `nessie`, warehouse = MinIO `warehouse`, Iceberg REST `/iceberg`). **lakeFS** = git-style versioning for file/dataset products (Postgres `lakefs`, blockstore = MinIO `lakefs`). Both meshed to STRICT Postgres; forward-auth UIs, but pipelines/CLI hit the in-cluster svc directly (forward-auth is browser-only). Iceberg itself = the table format (no service; lands with Trino/Dagster writes). `k8s/data-mesh/`. Gotcha: Nessie STATIC S3 creds = flat URN ref + hyphen-free secret name — see memory `data-mesh-b1.2-storage`. |
+| **Superset** (B65 Tier-2 #3) | `superset.weyland.lab` | **BI / SQL exploration** — Helm 0.17.2 / Superset 6.1.0, ns `data-mesh`. Keycloak OIDC (native, not forward-auth). Shared Valkey cache (Celery broker + results). Connected to: Trino (primary query engine), 11 Postgres databases, TimescaleDB. 48 datasets + charts + "Weyland Platform Overview" dashboard. DataHub native source ingestion. `k8s/superset/`. See [runbooks/superset.md](runbooks/superset.md). |
+| **Valkey** (shared cache) | `valkey.data-mesh.svc:6379` | BSD open-source Redis fork (post-2024 SSPL relicense). Shared data-mesh cache — Superset Celery broker + results backend. Ephemeral (no persistence). RESP-compatible (DataGrip "Redis" datasource via port-forward). `k8s/data-mesh/valkey.yaml`. |
+| **TimescaleDB** (B65 Tier-2 #4) | `timescaledb.data-mesh.svc:5432` | **Time-series** Postgres extension (`timescale/timescaledb-ha:pg16`), ns `data-mesh`. db `timeseries`. 5 hypertables fed hourly by Dagster `weyland_timeseries_job`: `eval_scores_ts` ← eval_scores, `guardrail_verdicts_ts` ← guardrail_verdicts, `dagster_run_durations` ← Dagster runs, `unleash_feature_metrics` ← client_metrics_env, `datahub_ingestion_runs` ← DataHub GMS GraphQL. Grafana datasource + Superset 10 charts. DataHub `emit_timescaledb`. `k8s/data-mesh/timescaledb.yaml`. See [runbooks/timescaledb.md](runbooks/timescaledb.md). |
+| **MySQL** (B65 Tier-2 #5) | `mysql.data-mesh.svc:3306` | **Health, wellness, and personality** datasets, ns `data-mesh`. MySQL 8.4. 9 databases: `nhanes` (nutrition/biomarkers), `big_five` (OCEAN personality profiling), `who_gho` (population health), `cdc_physical_activity`, `brfss` (health behaviors), `myfitnesspal` (food/exercise logging), `uk_biobank` (health/genetics), `usda_fooddata` (nutrition facts), `open_food_facts` (packaged food nutrition). Fed by Dagster `health_land` assets (planned). `k8s/data-mesh/mysql.yaml`. |
 | MLflow (B10+B16) | `mlflow.weyland.lab` | Experiment tracking + model registry. **Postgres** backend store + **MinIO** `mlflow` artifact bucket (proxied via `--serve-artifacts`). Meshed (STRICT Postgres); **Keycloak SSO** (forward-auth, B1.1). `k8s/mlflow/`. |
 | CoreDNS | `mother:53` | LAN DNS resolver for `weyland.lab`. |
 | Traefik | (ingress) | TLS front door for `*.weyland.lab`. |
@@ -223,6 +229,22 @@ agents/workflows and platform state. Agents call the tool-server, *not* database
 - **Embeddings** — `BAAI/bge-small-en-v1.5` (384-dim), baked into both the tool-server and Dagster
   images so ingestion and query embed identically.
 
+- **Superset (B65 Tier-2 #3)** — BI/SQL exploration at `superset.weyland.lab`. Connects to Trino
+  (primary), 11 Postgres databases, and TimescaleDB. 48 datasets, charts, and the "Weyland Platform
+  Overview" dashboard. Keycloak OIDC (not forward-auth — avoids double-login). Shared Valkey cache.
+  See [runbooks/superset.md](runbooks/superset.md).
+- **TimescaleDB (B65 Tier-2 #4)** — time-series Postgres extension in `data-mesh`. 5 hypertables
+  for temporal analysis of platform operational data (eval performance trends, guardrail decision
+  rates, pipeline run durations, feature flag usage, catalog ingestion health). Fed hourly by the
+  `weyland_timeseries_job` Dagster schedule. Grafana datasource registered; Superset has 10 charts.
+  See [runbooks/timescaledb.md](runbooks/timescaledb.md).
+- **MySQL (B65 Tier-2 #5)** — relational store for health, wellness, and personality profiling
+  datasets in `data-mesh`. 9 databases covering nutrition (NHANES, USDA FoodData, Open Food Facts),
+  health behaviors (BRFSS, CDC Physical Activity, WHO GHO), fitness logging (MyFitnessPal), clinical
+  data (UK Biobank), and personality profiling (Big Five IPIP/Open Psychometrics). The goal: join
+  personality profiles against dietary patterns and health behaviors to model lifestyle adaptation.
+  Data loaded via Dagster `health_land` assets (in progress).
+
 ### 7a. Query layer — Trino vs DuckDB (`data-mesh`)
 
 Two SQL engines sit over the same lakehouse; they are **not redundant** — each owns a different job, and
@@ -247,28 +269,94 @@ flowchart TB
     IDEA["IntelliJ / DataGrip"]
     SS["Superset / BI"]
     NB["Notebooks / pyarrow"]
+    DH["DataHub catalog"]
   end
   subgraph Engines["Query engines · data-mesh"]
     TR["Trino — MPP federation"]
     DK["DuckDB — GizmoSQL (Flight SQL)"]
   end
   subgraph Catalogs
-    NES["Nessie — Iceberg catalog"]
-    PG["Postgres (weyland)"]
+    NES["Nessie — Iceberg catalog\n(datasets_music.* · catalog.* · eval.*)"]
+    PG["Postgres (weyland)\n+ TimescaleDB + MySQL"]
   end
   subgraph Storage
-    LF["lakeFS — versioned files"]
-    MIN["MinIO — Parquet / Iceberg / Lance"]
+    LF["lakeFS — versioned files\n(s3://datasets/music/)"]
+    MIN["MinIO — datasets/ bucket\nParquet / Iceberg / Lance / Arrow / Avro"]
   end
   IDEA --> TR
   IDEA --> DK
   SS --> TR
+  SS --> PG
   NB --> DK
+  DH --> TR
+  DH --> PG
   TR --> NES
   TR --> PG
   DK --> LF
   NES --> MIN
   LF --> MIN
+```
+
+### 7b. Data domain structure
+
+Weyland organizes data into **domain-scoped stores** — music, health, and future domains each own
+their own storage path, lakeFS repo, and Nessie namespace. The `datasets/` MinIO bucket is the
+top-level envelope; domain data lives in subfolders.
+
+**MinIO layout:**
+```
+datasets/              ← top-level bucket (domain envelope)
+  music/               ← lakeFS repo `music` (s3://datasets/music/)
+    raw/               ← bronze: source CSVs (dlt → Spotify, FMA)
+    parquet/           ← silver: columnar analytics (Trino / DuckDB)
+    arrow/             ← silver: in-memory IPC / zero-copy
+    avro/              ← silver: row-oriented, schema-evolution (Kafka-ready)
+    lance/             ← silver: ML / vector (LanceDB, fast random access)
+  health/              ← lakeFS repo `health` (future, s3://datasets/health/)
+    raw/               ← bronze: source CSVs (NHANES, BRFSS, Big Five, etc.)
+    parquet/           ← silver
+    ...
+
+warehouse/             ← Nessie Iceberg warehouse (separate bucket, all domains)
+  datasets_music/      ← Iceberg gold tables (fma_tracks, spotify_tracks, ...)
+  datasets_health/     ← Iceberg gold tables (future)
+  catalog/             ← model_catalog
+  eval/                ← eval_scores (Iceberg data product)
+```
+
+**Iceberg namespace convention:** flat underscore-prefixed (`datasets_music`, `datasets_health`).
+Trino's native Nessie connector (`catalog.type=nessie`) does **not** expose nested namespaces —
+`TrinoNessieCatalog.listSchemas()` only returns top-level entries and there is no config flag to
+enable recursion. The Trino 463 nested-namespace fix applies only to `catalog.type=rest`.
+Workaround: flat underscore prefixes keep the domain signal without nesting.
+
+```mermaid
+flowchart LR
+  subgraph MinIO["MinIO — datasets/ bucket"]
+    MUS["music/\nraw · parquet · arrow · avro · lance"]
+    HLT["health/\nraw · parquet · ... (planned)"]
+  end
+  subgraph LakeFS["lakeFS (versioned gateway)"]
+    LM["repo: music\ns3://datasets/music/"]
+    LH["repo: health\ns3://datasets/health/ (planned)"]
+  end
+  subgraph Nessie["Nessie — Iceberg catalog (warehouse/)"]
+    NM["datasets_music.*\nfma_tracks · spotify_tracks · fma_genres · fma_echonest"]
+    NH["datasets_health.* (planned)\nnhanes · brfss · big_five · ..."]
+    NC["catalog.* · eval.*"]
+  end
+  subgraph MySQL["MySQL — data-mesh"]
+    MY["nhanes · big_five · who_gho\nbrfss · myfitnesspal · uk_biobank\nusda_fooddata · open_food_facts\ncdc_physical_activity"]
+  end
+  subgraph TSDB["TimescaleDB — data-mesh"]
+    TS["eval_scores_ts\nguardrail_verdicts_ts\ndagster_run_durations\nunleash_feature_metrics\ndatahub_ingestion_runs"]
+  end
+  MUS --> LM --> NM
+  HLT --> LH --> NH
+  Dagster["Dagster\n(health_land assets)"] --> MySQL
+  Dagster --> TSDB
+  Dagster --> LM
+  Dagster --> LH
 ```
 
 ---
@@ -385,7 +473,7 @@ so Ollama mis-sizes against 96 GB / 16 cores instead of the CT's limits. (Detail
 
 ## 13. Roadmap & maintenance
 
-Forward priorities live in [backlog.md](backlog.md). Recently done: B10+B16 (MLflow), B3 (Backstage IDP — slices A+B; **⚠️ decommission in progress → Port.io**), B41 (self-syncing IDP), B26, B27, B8 (Istio mesh), B37 (AIDLC KB ingest). **Port.io IDP — DONE** (B43/B59 migration; B60 full buildout 2026-06-24): catalog + 6 services + scorecards customized for a public lab + the `ai_session` AI-Dev Usage data product; **Port = "see", Hermes = "do"** (self-service actions deferred). Backstage retired. **B48 done: full LGTM observability** — Loki (logs) + Alloy + Tempo (traces) on MinIO, all in Grafana (Explore/Drilldown); Istio + Kiali repointed to Tempo; **Jaeger retired**. Also added: **KEDA**, **Proxmox metrics** (pve-exporter → Grafana), mother raised to 32GB/8vCPU. **B1.1 done (2026-06-24): Keycloak SSO** — central IdP replacing the dev-password logins; **6 apps cut over** initially (OIDC: Grafana/GlitchTip/Open WebUI; forward-auth: MLflow/Kiali/filestash), then **extended 2026-06-25 to EVERY browser UI** (forward-auth added to Unleash/SonarQube/Uptime-Kuma/Dagster/n8n/Woodpecker/Argo CD/Headlamp/OpenCost/LiteLLM/docs-site/APISIX-dash + Nessie/lakeFS). The data/API plane (S3 API, NodePort backends, APISIX gateway) stays API-auth'd — can't browser-SSO it. B1 data mesh **sequenced into slices B1.1–B1.9** (see backlog); **B1.2 done (2026-06-25): L1 storage foundation** — Nessie (Iceberg catalog + table versioning) + lakeFS (file/dataset versioning) in ns `data-mesh`, on MinIO + Postgres. Deferred: B38, B40, Tempo metrics-generator (span-metrics/service-graph).
+Forward priorities live in [backlog.md](backlog.md). Recently done: B10+B16 (MLflow), B3 (Backstage IDP — slices A+B; **⚠️ decommission in progress → Port.io**), B41 (self-syncing IDP), B26, B27, B8 (Istio mesh), B37 (AIDLC KB ingest). **Port.io IDP — DONE** (B43/B59 migration; B60 full buildout 2026-06-24): catalog + 6 services + scorecards customized for a public lab + the `ai_session` AI-Dev Usage data product; **Port = "see", Hermes = "do"** (self-service actions deferred). Backstage retired. **B48 done: full LGTM observability** — Loki (logs) + Alloy + Tempo (traces) on MinIO, all in Grafana (Explore/Drilldown); Istio + Kiali repointed to Tempo; **Jaeger retired**. Also added: **KEDA**, **Proxmox metrics** (pve-exporter → Grafana), mother raised to 44GB/12vCPU (2026-06-28). **B1.1 done (2026-06-24): Keycloak SSO** — central IdP replacing the dev-password logins; **6 apps cut over** initially (OIDC: Grafana/GlitchTip/Open WebUI; forward-auth: MLflow/Kiali/filestash), then **extended 2026-06-25 to EVERY browser UI** (forward-auth added to Unleash/SonarQube/Uptime-Kuma/Dagster/n8n/Woodpecker/Argo CD/Headlamp/OpenCost/LiteLLM/docs-site/APISIX-dash + Nessie/lakeFS). The data/API plane (S3 API, NodePort backends, APISIX gateway) stays API-auth'd — can't browser-SSO it. B1 data mesh **sequenced into slices B1.1–B1.9** (see backlog); **B1.2 done (2026-06-25): L1 storage foundation** — Nessie (Iceberg catalog + table versioning) + lakeFS (file/dataset versioning) in ns `data-mesh`, on MinIO + Postgres. **B65 Tier-2 datastores (2026-06-27/28, in progress):** Trino ✅ · DuckDB/GizmoSQL ✅ · Superset ✅ · TimescaleDB ✅ · MySQL (health/wellness, hydration in progress). **Data domain restructure (2026-06-28):** MinIO `datasets/` bucket reorganized to domain subfolders (`datasets/music/`, `datasets/health/`); lakeFS `music` repo moved to `s3://datasets/music/`; Iceberg namespace renamed to `datasets_music` (Trino native Nessie connector limitation — nested namespaces not surfaced). Deferred: B38, B40, Tempo metrics-generator (span-metrics/service-graph).
 
 **Maintaining this doc:** update it (and [hosts.md](hosts.md)/[api.md](api.md)) whenever a host,
 service, endpoint, port, DNS name, or major flow changes — same "done" bar as a runbook.
