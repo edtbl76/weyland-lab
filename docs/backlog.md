@@ -928,6 +928,14 @@ Doris (OLAP variety, on-demand) · Spark (big-data compute, on-demand) · RDF/tr
 3. **csv-enricher ([B68])** — bulk-assign domains/owners/tags to existing entities from a CSV/Sheet. A **URN → domain → owner** mapping *is* the "sheets" B68 was blocked on — so B71 unblocks/uses B68.
 - Makes everything cataloged this session (Dagster/Grafana/Iceberg/MLflow/Neo4j/Postgres) navigable. Strong candidate to do next.
 
+### B75 — Additional music datasources (Core — data expansion)
+**Added 2026-06-28.** Four additional music datasets to ingest into the `music` lakeFS repo alongside the existing Spotify/FMA data:
+- **Million Song Dataset (MSD)** — 1M tracks, audio features, lyrics, tags. HuggingFace.
+- **Last.fm** — user listening history, artist tags, play counts. Free API.
+- **Spotify Charts** — weekly top charts by country. CSV downloads.
+- **MusicBrainz** — open music encyclopedia (artists, releases, recordings). Postgres dump available.
+All land in lakeFS → Parquet → Iceberg → Trino/DuckDB queryable. Sequence after B65 Tier-2 engines are stable.
+
 ### U18 — weyland-lab SSH key full lockdown (rogueone-side)
 - **✅ DONE 2026-06-17 — closed as KEY RETIREMENT.** Removed the rogueone `authorized_keys` line and deleted
   the orphaned `weyland-lab-ssh-key` k8s Secret. The key is fully gone (no public half, no private half).

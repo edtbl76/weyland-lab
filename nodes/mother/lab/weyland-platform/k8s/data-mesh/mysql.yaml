@@ -1,0 +1,99 @@
+# B65 Tier-2 — MySQL: health, fitness, and personality profiling datasets.
+# Hosts 7 public datasets: NHANES, Big Five (IPIP), WHO GHO, CDC Physical Activity,
+# BRFSS, MyFitnessPal public data, UK Biobank (where accessible).
+# Always-on (stateful DB; data-mesh ns). Meshed → Trino postgresql catalog federates it.
+# Creds: mysql-secret (imperative, not in git) — MYSQL_ROOT_PASSWORD / MYSQL_USER / MYSQL_PASSWORD / MYSQL_DATABASE.
+# IntelliJ: standard MySQL JDBC via k8s port-forward (DataGrip "MySQL" datasource).
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: mysql-data
+  namespace: data-mesh
+spec:
+  accessModes: [ReadWriteOnce]
+  resources:
+    requests:
+      storage: 20Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mysql
+  namespace: data-mesh
+  labels:
+    app: mysql
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate   # single-instance RWO PVC
+  selector:
+    matchLabels:
+      app: mysql
+  template:
+    metadata:
+      labels:
+        app: mysql
+        sidecar.istio.io/inject: "true"
+    spec:
+      containers:
+        - name: mysql
+          image: mysql:8.4
+          ports:
+            - name: tcp-mysql
+              containerPort: 3306
+          envFrom:
+            - secretRef:
+                name: mysql-secret
+          args:
+            - --max_connections=200
+            - --character-set-server=utf8mb4
+            - --collation-server=utf8mb4_unicode_ci
+          readinessProbe:
+            exec:
+              command: ["mysqladmin", "ping", "-h", "localhost", "-u", "weyland", "--password=weyland_dev_password"]
+            initialDelaySeconds: 20
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "512Mi"
+            limits:
+              memory: "2Gi"
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/mysql
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: mysql-data
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mysql
+  namespace: data-mesh
+spec:
+  selector:
+    app: mysql
+  ports:
+    - name: tcp-mysql
+      port: 3306
+      targetPort: 3306
+      appProtocol: tcp
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: mysql-alerts
+  namespace: data-mesh
+  labels: { app: mysql }
+spec:
+  groups:
+    - name: mysql
+      rules:
+        - alert: MySQLDown
+          expr: kube_deployment_status_replicas_available{namespace="data-mesh", deployment="mysql"} == 0
+          for: 5m
+          labels: { severity: warning }
+          annotations:
+            summary: "MySQL has 0 available replicas — health/wellness dataset store is down."
