@@ -93,6 +93,8 @@ configOverrides:
     os.environ["REQUESTS_CA_BUNDLE"] = "/etc/ssl/certs/ca-certificates.crt"
     PREFERRED_URL_SCHEME = "https"
     WTF_CSRF_SSL_STRICT = False
+    ENABLE_PROXY_FIX = True
+    PROXY_FIX_CONFIG = {"x_for": 1, "x_proto": 1, "x_host": 1, "x_prefix": 1}
 
 # Fallback local admin (break-glass; OIDC is the real login). Dev password — low-sensitivity, LAN-only.
 init:
