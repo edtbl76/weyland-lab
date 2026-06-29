@@ -52,6 +52,14 @@ from .datasets_health_brfss_land import datasets_health_brfss_land
 from .datasets_health_nhis_land import datasets_health_nhis_land
 from .datasets_health_usda_fooddata_land import datasets_health_usda_fooddata_land
 from .datasets_health_open_food_facts_land import datasets_health_open_food_facts_land
+from .datasets_health_transform import (
+    datasets_health_parquet,
+    datasets_health_arrow,
+    datasets_health_avro,
+    datasets_health_lance,
+    datasets_health_iceberg,
+    datasets_health_commit,
+)
 
 all_assets = [
     source_document,
@@ -108,4 +116,11 @@ all_assets = [
     datasets_health_nhis_land,
     datasets_health_usda_fooddata_land,
     datasets_health_open_food_facts_land,
+    # Health domain — transform (silver + gold)
+    datasets_health_parquet,
+    datasets_health_arrow,
+    datasets_health_avro,
+    datasets_health_lance,
+    datasets_health_iceberg,
+    datasets_health_commit,
 ]

@@ -108,9 +108,27 @@ weyland_datasets_music_land_job = define_asset_job(
 
 # B65 Tier-2 — health domain: land all 8 health/wellness/personality datasets.
 # Assets self-regulate via check_source_freshness — daily schedule is safe (skips fresh assets).
+# Explicit list (NOT the whole group) — the group now also holds the transform/commit assets.
+_HEALTH_LAND_ASSETS = (
+    "datasets_health_nhanes_land",
+    "datasets_health_big_five_land",
+    "datasets_health_who_gho_land",
+    "datasets_health_cdc_physical_activity_land",
+    "datasets_health_brfss_land",
+    "datasets_health_nhis_land",
+    "datasets_health_usda_fooddata_land",
+    "datasets_health_open_food_facts_land",
+)
 weyland_datasets_health_land_job = define_asset_job(
     name="weyland_datasets_health_land_job",
-    selection=AssetSelection.groups("datasets_health"),
+    selection=AssetSelection.assets(*_HEALTH_LAND_ASSETS),
+)
+
+# Health transform (silver + gold) — everything in the group EXCEPT the land assets:
+# datasets_health_parquet / _arrow / _avro / _lance / _iceberg / _commit. On-demand.
+weyland_datasets_health_transform_job = define_asset_job(
+    name="weyland_datasets_health_transform_job",
+    selection=AssetSelection.groups("datasets_health") - AssetSelection.assets(*_HEALTH_LAND_ASSETS),
 )
 
 weyland_datasets_music_land_schedule = ScheduleDefinition(

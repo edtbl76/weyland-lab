@@ -156,12 +156,36 @@ def _hydrate_iceberg(client, bucket, table, name, t):
     ice.overwrite(t)
 
 
-def _run_format(context, write_one) -> Output:
+# --- per-format allowlists (source of truth: docs/data-domain-storage-grid.csv) ---
+# Keyed by the raw/ folder name (= rel.split("/")[0]). A table not in a format's allowlist is SKIPPED
+# for that format. Parquet/Arrow/Avro/Iceberg are "Y" for every music dataset; Lance is selective —
+# the grid marks fma_genres, lastfm, musicbrainz, lp_musiccaps_mc/mtt as N (row-heavy / no embedding
+# value — Lance-encoding lastfm's ~14M rows is pure waste). The allowlist also fences out stale raw/
+# folders (e.g. the renamed-away msd/, spotify_charts/) so they never leak into the silver/gold layers.
+_MUSIC_ALL = {
+    "spotify_tracks", "fma_tracks", "fma_genres", "fma_echonest", "fma_features",
+    "uci_year_prediction", "lastfm", "musicbrainz", "gtzan",
+    "lp_musiccaps_mc", "lp_musiccaps_mtt", "audioset",
+}
+_PARQUET_ALLOW = _MUSIC_ALL
+_ARROW_ALLOW = _MUSIC_ALL
+_AVRO_ALLOW = _MUSIC_ALL
+_ICEBERG_ALLOW = _MUSIC_ALL
+_LANCE_ALLOW = {
+    "spotify_tracks", "fma_tracks", "fma_echonest", "fma_features",
+    "uci_year_prediction", "gtzan", "audioset",
+}
+
+
+def _run_format(context, write_one, allow) -> Output:
     client = _minio()
     bucket = _REPO
     out: dict = {}
     for table, name, t in _iter_raw_tables(client, bucket, context.log):
         key = f"{table}/{name}"
+        if table not in allow:
+            out[key] = "skipped (not in allowlist)"
+            continue
         try:
             write_one(client, bucket, table, name, t)
             out[key] = f"ok ({t.num_rows}r x {t.num_columns}c)"
@@ -172,6 +196,7 @@ def _run_format(context, write_one) -> Output:
         context.log.warning("no raw CSVs under music/raw/ — run datasets_music_land first")
     return Output(out, metadata={
         "ok": MetadataValue.int(sum(1 for v in out.values() if v.startswith("ok"))),
+        "skipped": MetadataValue.int(sum(1 for v in out.values() if v.startswith("skipped"))),
         "detail": MetadataValue.json(out),
     })
 
@@ -181,27 +206,27 @@ _COMMON = dict(group_name="datasets_music", deps=["datasets_music_spotify_land",
 
 @asset(**_COMMON, description="Silver — Parquet (batch columnar) for each music raw table.")
 def datasets_music_parquet(context) -> Output[dict]:
-    return _run_format(context, _write_parquet)
+    return _run_format(context, _write_parquet, _PARQUET_ALLOW)
 
 
 @asset(**_COMMON, description="Silver — Arrow/Feather (IPC) for each music raw table.")
 def datasets_music_arrow(context) -> Output[dict]:
-    return _run_format(context, _write_arrow)
+    return _run_format(context, _write_arrow, _ARROW_ALLOW)
 
 
 @asset(**_COMMON, description="Silver — Avro (row-oriented / streaming) for each music raw table.")
 def datasets_music_avro(context) -> Output[dict]:
-    return _run_format(context, _write_avro)
+    return _run_format(context, _write_avro, _AVRO_ALLOW)
 
 
-@asset(**_COMMON, description="Silver — Lance (ML/vector) for each music raw table. Native Rust S3 writer — isolated.")
+@asset(**_COMMON, description="Silver — Lance (ML/vector) for each music raw table — allowlisted per grid. Native Rust S3 writer — isolated.")
 def datasets_music_lance(context) -> Output[dict]:
-    return _run_format(context, _write_lance)
+    return _run_format(context, _write_lance, _LANCE_ALLOW)
 
 
 @asset(**_COMMON, description="Gold — Iceberg table (Nessie, datasets_music.*) for each music raw table.")
 def datasets_music_iceberg(context) -> Output[dict]:
-    return _run_format(context, _hydrate_iceberg)
+    return _run_format(context, _hydrate_iceberg, _ICEBERG_ALLOW)
 
 
 @asset(
