@@ -19,7 +19,16 @@ weyland_ingestion_job = define_asset_job(
 # triggered by the datasets_music_raw_sensor on new raw writes.
 weyland_datasets_music_transform_job = define_asset_job(
     name="weyland_datasets_music_transform_job",
-    selection=AssetSelection.groups("datasets_music") - AssetSelection.assets("datasets_music_land"),
+    selection=AssetSelection.groups("datasets_music") - AssetSelection.assets(
+        "datasets_music_spotify_land",
+        "datasets_music_fma_tracks_land",
+        "datasets_music_fma_genres_land",
+        "datasets_music_fma_echonest_land",
+        "datasets_music_msd_land",
+        "datasets_music_lastfm_land",
+        "datasets_music_spotify_charts_land",
+        "datasets_music_musicbrainz_land",
+    ),
 )
 
 # Model catalog (hosted-model lookup table) — refreshed on its own 6h cadence, separate from ingestion.
