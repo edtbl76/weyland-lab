@@ -11,6 +11,7 @@ weyland_ingestion_job = define_asset_job(
     - AssetSelection.groups("aidlc_kb")
     - AssetSelection.groups("ai_session")
     - AssetSelection.groups("datasets_music")
+    - AssetSelection.groups("datasets_health")
     - AssetSelection.groups("timeseries"),
 )
 

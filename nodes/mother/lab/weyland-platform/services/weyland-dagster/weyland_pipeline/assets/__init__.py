@@ -32,6 +32,7 @@ from .timescaledb_write import (
     ts_unleash_metrics,
     ts_datahub_ingestion,
 )
+from .health_land import health_land
 
 all_assets = [
     source_document,
@@ -65,4 +66,5 @@ all_assets = [
     ts_dagster_runs,
     ts_unleash_metrics,
     ts_datahub_ingestion,
+    health_land,
 ]
