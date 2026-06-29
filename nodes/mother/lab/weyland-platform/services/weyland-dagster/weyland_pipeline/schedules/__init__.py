@@ -24,10 +24,14 @@ weyland_datasets_music_transform_job = define_asset_job(
         "datasets_music_fma_tracks_land",
         "datasets_music_fma_genres_land",
         "datasets_music_fma_echonest_land",
+        "datasets_music_fma_features_land",
         "datasets_music_msd_land",
         "datasets_music_lastfm_land",
-        "datasets_music_spotify_charts_land",
         "datasets_music_musicbrainz_land",
+        "datasets_music_gtzan_land",
+        "datasets_music_lp_musiccaps_mc_land",
+        "datasets_music_lp_musiccaps_mtt_land",
+        "datasets_music_audioset_land",
     ),
 )
 
@@ -91,10 +95,14 @@ weyland_datasets_music_land_job = define_asset_job(
         "datasets_music_fma_tracks_land",
         "datasets_music_fma_genres_land",
         "datasets_music_fma_echonest_land",
+        "datasets_music_fma_features_land",
         "datasets_music_msd_land",
         "datasets_music_lastfm_land",
-        "datasets_music_spotify_charts_land",
         "datasets_music_musicbrainz_land",
+        "datasets_music_gtzan_land",
+        "datasets_music_lp_musiccaps_mc_land",
+        "datasets_music_lp_musiccaps_mtt_land",
+        "datasets_music_audioset_land",
     ),
 )
 

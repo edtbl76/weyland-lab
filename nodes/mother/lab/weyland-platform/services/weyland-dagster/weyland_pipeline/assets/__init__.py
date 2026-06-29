@@ -32,8 +32,11 @@ from .datasets_music_fma_land import (
 )
 from .datasets_music_msd_land import datasets_music_msd_land
 from .datasets_music_lastfm_land import datasets_music_lastfm_land
-from .datasets_music_spotify_charts_land import datasets_music_spotify_charts_land
 from .datasets_music_musicbrainz_land import datasets_music_musicbrainz_land
+from .datasets_music_fma_features_land import datasets_music_fma_features_land
+from .datasets_music_gtzan_land import datasets_music_gtzan_land
+from .datasets_music_lp_musiccaps_land import datasets_music_lp_musiccaps_mc_land, datasets_music_lp_musiccaps_mtt_land
+from .datasets_music_audioset_land import datasets_music_audioset_land
 from .timescaledb_write import (
     ts_eval_scores,
     ts_guardrail_verdicts,
@@ -77,8 +80,12 @@ all_assets = [
     datasets_music_fma_echonest_land,
     datasets_music_msd_land,
     datasets_music_lastfm_land,
-    datasets_music_spotify_charts_land,
     datasets_music_musicbrainz_land,
+    datasets_music_fma_features_land,
+    datasets_music_gtzan_land,
+    datasets_music_lp_musiccaps_mc_land,
+    datasets_music_lp_musiccaps_mtt_land,
+    datasets_music_audioset_land,
     # Music domain — transform (silver + gold)
     datasets_music_parquet,
     datasets_music_arrow,
