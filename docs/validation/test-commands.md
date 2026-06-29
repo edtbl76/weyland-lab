@@ -284,7 +284,13 @@ https://dagster.weyland.lab
 
 ### Rebuild and redeploy user-code image
 
-Run from **rogueone** (scp changed files first), then on **mother**:
+Run from **rogueone** — sync the full pipeline directory first (one password prompt, no per-file scp):
+
+```bash
+rsync -av /home/edwardmangini/IdeaProjects/weyland/nodes/mother/lab/weyland-platform/services/weyland-dagster/weyland_pipeline/ emangini@mother:~/lab/weyland-platform/services/weyland-dagster/weyland_pipeline/
+```
+
+Then on **mother**:
 
 ```bash
 docker build -t weyland-dagster-user-code:local ~/lab/weyland-platform/services/weyland-dagster/
