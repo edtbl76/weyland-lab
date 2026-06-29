@@ -929,25 +929,36 @@ Doris (OLAP variety, on-demand) · Spark (big-data compute, on-demand) · RDF/tr
 - Makes everything cataloged this session (Dagster/Grafana/Iceberg/MLflow/Neo4j/Postgres) navigable. Strong candidate to do next.
 
 ### B75 — Additional music datasources (Core — data expansion)
-**Added 2026-06-28.** Four additional music datasets to ingest into the `music` lakeFS repo alongside the existing Spotify/FMA data:
-- **MSD** — using UCI YearPredictionMSD subset (515k songs, 90 audio features) as substitute. Full 1M song MSD requires AWS snapshot or university data agreement — see B76.
-- **Last.fm** ✅ — `matthewfranglen/lastfm-360k` (HuggingFace, 13.9M rows).
-- **Spotify Charts** — no free public source found (Kaggle requires login). Deferred.
+**Added 2026-06-28. Updated 2026-06-29.** Music datasets added to the `music` lakeFS repo:
+- **MSD (UCI subset)** ✅ — UCI YearPredictionMSD (515k songs, 90 audio features). Full MSD → B76.
+- **Last.fm** ✅ — `matthewfranglen/lastfm-360k` (HuggingFace, 13.9M rows, user listening history).
 - **MusicBrainz** ✅ — `seungheondoh/music-wiki` (HuggingFace, 11 entity configs: artist/release/genre/etc.).
-All land in lakeFS → Parquet → Iceberg → Trino/DuckDB queryable.
+- **GTZAN** ✅ — `marsyas/gtzan` (HuggingFace, 1k songs, 10 genres, genre classification benchmark).
+- **LP-MusicCaps-MC** ✅ — `seungheondoh/LP-MusicCaps-MC` (HuggingFace, 5.5k rows, music captioning).
+- **LP-MusicCaps-MTT** ✅ — `seungheondoh/LP-MusicCaps-MTT` (HuggingFace, 22k audio/88k captions, audio tagging).
+- **AudioSet (balanced)** ✅ — `agkphysics/AudioSet` balanced (HuggingFace, 35k clips, 527 audio event labels, CC-BY-4.0).
+- **Spotify Charts** — removed (Kaggle requires login, no free public source).
+All land in lakeFS → Parquet → Iceberg → Trino/DuckDB queryable. Gated datasets → B76.
 
-### B76 — Full Million Song Dataset via AWS snapshot (Core — data expansion)
-**Added 2026-06-29.** The full MSD (1M songs, audio features, lyrics, tags, metadata) is available as an AWS public dataset snapshot. Currently using the UCI 515k-song subset as a substitute.
+### B76 — Full MSD + Music4All + MTG-Jamendo (Core — data expansion)
+**Added 2026-06-29.** Three gated/large music datasets to pursue when access is available:
 
-**AWS snapshot workflow:**
-1. Launch an EC2 instance in `us-east-1` (same region as the MSD snapshot)
-2. The MSD is available at `s3://millionsongdataset/` (AWS Open Data)
-3. Use `aws s3 sync` to pull the HDF5 files → convert to Parquet → upload to lab MinIO
-4. Alternatively: rent a spot instance for a few hours (~$5) to do the bulk copy
+**Million Song Dataset (full 1M songs) via AWS snapshot:**
+- Currently using UCI 515k-song subset as a substitute
+- Full MSD available as AWS public dataset snapshot (~300GB)
+- AWS snapshot workflow: (1) Launch EC2 in `us-east-1`; (2) `aws s3 sync s3://millionsongdataset/ .`; (3) convert HDF5 → Parquet → upload to lab MinIO. Spot instance ~$5 for the copy.
+- University copies: Drexel, Ithaca College, QMUL, NYU, UCSD, UPF have institutional copies
+- Prereq: AWS account + ~300GB temporary storage
 
-**University copies:** Drexel, Ithaca College, QMUL, NYU, UCSD, UPF have institutional copies — contact their data stewards if AWS snapshot access proves difficult.
+**Music4All (109k songs, Spotify audio features + lyrics + metadata):**
+- HuggingFace: `m-a-p/Music4All` — gated, requires approved access request
+- Most similar to MSD in scope; request access at huggingface.co/datasets/m-a-p/Music4All
 
-**Prereq:** AWS account + ~300GB temporary S3/local storage for the conversion step.
+**MTG-Jamendo (55k Creative Commons songs, 195 tags):**
+- Official HuggingFace: `MTG/mtg-jamendo-dataset` — gated
+- Community mirror: `rkstgr/mtg-jamendo` — public but 118GB audio
+- From the Music Technology Group at UPF (same institution with MSD copy)
+- Practical path: metadata-only CSV from `mtg-jamendo.com/data/` (no audio download needed)
 
 ### U18 — weyland-lab SSH key full lockdown (rogueone-side)
 - **✅ DONE 2026-06-17 — closed as KEY RETIREMENT.** Removed the rogueone `authorized_keys` line and deleted
