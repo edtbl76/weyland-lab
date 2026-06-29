@@ -74,6 +74,13 @@ weyland_ai_session_schedule = ScheduleDefinition(
     default_status=DefaultScheduleStatus.RUNNING,
 )
 
+# B65 Tier-2 — health domain: land all 8 health/wellness/personality datasets (on-demand, not scheduled —
+# downloads are large and sources are static/annual).
+weyland_health_land_job = define_asset_job(
+    name="weyland_health_land_job",
+    selection=AssetSelection.groups("datasets_health"),
+)
+
 # B65 Tier-2 — TimescaleDB time-series writes: sync eval/guardrail/dagster/unleash/datahub → hypertables.
 # Hourly is sufficient — these are analytical feeds, not real-time.
 weyland_timeseries_job = define_asset_job(

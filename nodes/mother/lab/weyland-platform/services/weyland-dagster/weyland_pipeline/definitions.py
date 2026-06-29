@@ -19,6 +19,7 @@ from weyland_pipeline.schedules import (
     weyland_ai_session_job,
     weyland_ai_session_schedule,
     weyland_datasets_music_transform_job,
+    weyland_health_land_job,
     weyland_timeseries_job,
     weyland_timeseries_schedule,
 )
@@ -103,7 +104,7 @@ datahub_catalog_emit_schedule = ScheduleDefinition(
 
 defs = Definitions(
     assets=all_assets,
-    jobs=[weyland_ingestion_job, weyland_eval_job, weyland_eval_score_job, weyland_catalog_job, weyland_aidlc_kb_job, weyland_ai_session_job, datahub_catalog_emit_job, weyland_datasets_music_transform_job, weyland_timeseries_job],
+    jobs=[weyland_ingestion_job, weyland_eval_job, weyland_eval_score_job, weyland_catalog_job, weyland_aidlc_kb_job, weyland_ai_session_job, datahub_catalog_emit_job, weyland_datasets_music_transform_job, weyland_health_land_job, weyland_timeseries_job],
     schedules=[weyland_ingestion_schedule, weyland_catalog_schedule, weyland_ai_session_schedule, datahub_catalog_emit_schedule, weyland_timeseries_schedule],
     sensors=[datasets_music_raw_sensor],
     resources={
