@@ -3,10 +3,8 @@ from dagster import MetadataValue, Output, asset
 from .health_common import health_minio, health_put, health_download
 
 DATASETS = {
-    "brfss_2022": "https://data.cdc.gov/api/views/dttw-5yxu/rows.csv?accessType=DOWNLOAD",
-    "brfss_2021": "https://data.cdc.gov/api/views/8953-7fz5/rows.csv?accessType=DOWNLOAD",
-    "brfss_2020": "https://data.cdc.gov/api/views/j32a-sa6u/rows.csv?accessType=DOWNLOAD",
-    "brfss_selected_metro": "https://data.cdc.gov/api/views/j32a-sa6u/rows.csv?accessType=DOWNLOAD",
+    "brfss_prevalence_2011_present": "https://data.cdc.gov/api/views/dttw-5yxu/rows.csv?accessType=DOWNLOAD",
+    "brfss_smart_metro_2011_present": "https://data.cdc.gov/api/views/j32a-sa6u/rows.csv?accessType=DOWNLOAD",
 }
 
 
