@@ -30,7 +30,7 @@ from .datasets_music_fma_land import (
     datasets_music_fma_genres_land,
     datasets_music_fma_echonest_land,
 )
-from .datasets_music_msd_land import datasets_music_msd_land
+from .datasets_music_uci_year_prediction_land import datasets_music_uci_year_prediction_land
 from .datasets_music_lastfm_land import datasets_music_lastfm_land
 from .datasets_music_musicbrainz_land import datasets_music_musicbrainz_land
 from .datasets_music_fma_features_land import datasets_music_fma_features_land
@@ -78,7 +78,7 @@ all_assets = [
     datasets_music_fma_tracks_land,
     datasets_music_fma_genres_land,
     datasets_music_fma_echonest_land,
-    datasets_music_msd_land,
+    datasets_music_uci_year_prediction_land,
     datasets_music_lastfm_land,
     datasets_music_musicbrainz_land,
     datasets_music_fma_features_land,

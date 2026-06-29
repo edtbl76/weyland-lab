@@ -4,7 +4,7 @@ Music,FMA Tracks,N,N,N,N,N,N,Y,Y,N,Y (track/artist search),Y (genre graph),Y,Y,Y
 Music,FMA Genres,N,N,N,N,N,N,Y,Y,N,N,Y (genre taxonomy graph),N,N,Y,Y,N,N,N,N,Y
 Music,FMA Echonest,N,N,N,N,N,N,Y,Y,N,N,N,Y (audio embeddings),Y (audio embeddings),Y,Y,Y,Y (embedding source),Y (audio features),Y,Y
 Music,FMA Features (518 features),N,N,N,N,N,N,Y,Y,Y (OLAP feature queries),N,N,Y,Y,Y,Y,Y,Y (embedding source),Y (feature store),Y,Y
-Music,MSD — UCI 515k subset (B75/B76),N,N,N,N,N,Y,Y,Y,Y (OLAP),Y (song/artist search),Y (artist graph),Y,Y,Y,Y,Y,Y,Y,Y,Y
+Music,UCI Year Prediction (B75/B76),N,N,N,N,N,Y,Y,Y,Y (OLAP),Y (song/artist search),Y (artist graph),Y,Y,Y,Y,Y,Y,Y,Y,Y
 Music,Last.fm (B75),N,N,Y (listening trends),N,N,Y (user listen streams),Y,Y,N,N,Y (artist/tag graph),N,N,Y,Y (Kafka stream),N,N,N,Y,Y
 Music,MusicBrainz (B75),N,Y (native Postgres dump),N,N,N,N,Y,Y,N,Y (artist/recording search),Y (music knowledge graph),N,N,Y,Y,N,N,N,N,Y
 Music,GTZAN (B75),N,N,N,N,N,N,Y,Y,N,N,N,Y (genre embeddings),Y (genre embeddings),Y,Y,Y,Y,Y (genre features),Y,Y
