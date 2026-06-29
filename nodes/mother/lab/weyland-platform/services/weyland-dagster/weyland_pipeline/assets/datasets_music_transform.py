@@ -111,14 +111,19 @@ def _write_avro(client, bucket, table, name, t):
     schema = fastavro.parse_schema({"type": "record", "name": f"{table}_record", "fields": fields})
     str_cols = {f.name for f in t.schema
                 if _AVRO_TYPE.get(str(f.type), "string") == "string" and str(f.type) not in ("string", "large_string")}
-    records = t.to_pylist()
-    if str_cols:
-        for r in records:
-            for c in str_cols:
-                if r.get(c) is not None:
-                    r[c] = str(r[c])
+
+    def _records():
+        # Stream record batches so only ~50k rows of Python dicts exist at once. t.to_pylist() on the
+        # whole table (lastfm ~14M rows) was a multi-GB spike — a top contributor to the node OOM.
+        for batch in t.to_batches(max_chunksize=50_000):
+            for r in batch.to_pylist():
+                for c in str_cols:
+                    if r.get(c) is not None:
+                        r[c] = str(r[c])
+                yield r
+
     buf = io.BytesIO()
-    fastavro.writer(buf, schema, records)
+    fastavro.writer(buf, schema, _records())
     _put(client, bucket, f"avro/{table}/{name}.avro", buf.getvalue())
     _catalog_file("avro", table, f"lakefs://{bucket}/{_BRANCH}/avro/{table}/", t.schema, "datasets_music_avro")
 

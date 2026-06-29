@@ -1,5 +1,10 @@
 from dagster import ScheduleDefinition, define_asset_job, AssetSelection, DefaultScheduleStatus
 
+# Serialize the dataset transforms: each format step re-reads ALL of raw/ into memory, so running the
+# 5 formats concurrently meant 5× peak memory → node-level OOMKilled (no container mem limit; ~43GiB
+# node already heavily committed). max_concurrent=1 runs the formats one at a time → 1× peak. (2026-06-29)
+_SERIAL_EXEC = {"execution": {"config": {"multiprocess": {"max_concurrent": 1}}}}
+
 # Ingestion = everything EXCEPT the eval and catalog groups (they have their own schedules).
 # `datasets` (B72) is excluded too: it must NOT run on the 15-min cron — datasets_land re-downloads
 # external sources (incl. FMA's ~342 MB zip), so it's on-demand + sensor-triggered only.
@@ -19,6 +24,7 @@ weyland_ingestion_job = define_asset_job(
 # triggered by the datasets_music_raw_sensor on new raw writes.
 weyland_datasets_music_transform_job = define_asset_job(
     name="weyland_datasets_music_transform_job",
+    config=_SERIAL_EXEC,
     selection=AssetSelection.groups("datasets_music") - AssetSelection.assets(
         "datasets_music_spotify_land",
         "datasets_music_fma_tracks_land",
@@ -128,6 +134,7 @@ weyland_datasets_health_land_job = define_asset_job(
 # datasets_health_parquet / _arrow / _avro / _lance / _iceberg / _commit. On-demand.
 weyland_datasets_health_transform_job = define_asset_job(
     name="weyland_datasets_health_transform_job",
+    config=_SERIAL_EXEC,
     selection=AssetSelection.groups("datasets_health") - AssetSelection.assets(*_HEALTH_LAND_ASSETS),
 )
 
