@@ -9,7 +9,7 @@ import numpy as np
 import pandas as pd
 
 from dagster import MetadataValue, Output, asset
-from .music_common import music_minio, music_put
+from .music_common import music_minio, music_put, check_source_freshness
 
 FMA_METADATA_URL = "https://os.unil.cloud.switch.ch/fma/fma_metadata.zip"
 _FMA_ZIP = "/tmp/fma_metadata.zip"
@@ -37,6 +37,8 @@ def _fma_records(member, header):
 
 @asset(group_name="datasets_music", description="Land FMA tracks CSV → music/raw/fma_tracks/.")
 def datasets_music_fma_tracks_land(context) -> Output[dict]:
+    if check_source_freshness(context, FMA_METADATA_URL):
+        return Output({"skipped": True}, metadata={"skipped": MetadataValue.bool(True)})
     client = music_minio()
     context.log.info("FMA Tracks: downloading")
     df = _fma_records("tracks.csv", [0, 1])
@@ -48,6 +50,8 @@ def datasets_music_fma_tracks_land(context) -> Output[dict]:
 
 @asset(group_name="datasets_music", description="Land FMA genres CSV → music/raw/fma_genres/.")
 def datasets_music_fma_genres_land(context) -> Output[dict]:
+    if check_source_freshness(context, FMA_METADATA_URL):
+        return Output({"skipped": True}, metadata={"skipped": MetadataValue.bool(True)})
     client = music_minio()
     context.log.info("FMA Genres: downloading")
     df = _fma_records("genres.csv", 0)
@@ -59,6 +63,8 @@ def datasets_music_fma_genres_land(context) -> Output[dict]:
 
 @asset(group_name="datasets_music", description="Land FMA echonest audio features CSV → music/raw/fma_echonest/.")
 def datasets_music_fma_echonest_land(context) -> Output[dict]:
+    if check_source_freshness(context, FMA_METADATA_URL):
+        return Output({"skipped": True}, metadata={"skipped": MetadataValue.bool(True)})
     client = music_minio()
     context.log.info("FMA Echonest: downloading")
     df = _fma_records("echonest.csv", [0, 1, 2])

@@ -4,7 +4,7 @@ import io
 import urllib.request
 
 from dagster import MetadataValue, Output, asset
-from .music_common import music_minio, music_put, music_download
+from .music_common import music_minio, music_put, music_download, check_source_freshness
 
 SPOTIFY_CSV_URL = (
     "https://huggingface.co/datasets/maharshipandya/spotify-tracks-dataset/resolve/main/dataset.csv"
@@ -13,6 +13,8 @@ SPOTIFY_CSV_URL = (
 
 @asset(group_name="datasets_music", description="Land Spotify tracks CSV → music/raw/spotify_tracks/.")
 def datasets_music_spotify_land(context) -> Output[dict]:
+    if check_source_freshness(context, SPOTIFY_CSV_URL):
+        return Output({"skipped": True}, metadata={"skipped": MetadataValue.bool(True)})
     client = music_minio()
     context.log.info("Spotify: downloading CSV")
     data = music_download(SPOTIFY_CSV_URL, timeout=180)

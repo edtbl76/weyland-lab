@@ -3,11 +3,13 @@ Source: matthewfranglen/lastfm-360k (13.9M rows: user, artist, play_count)."""
 import io
 import csv as csvmod
 from dagster import MetadataValue, Output, asset
-from .music_common import music_minio, music_put
+from .music_common import music_minio, music_put, is_fresh_local
 
 
 @asset(group_name="datasets_music", description="Land Last.fm 360k listening data → music/raw/lastfm/.")
 def datasets_music_lastfm_land(context) -> Output[dict]:
+    if is_fresh_local(context, max_age_days=30):
+        return Output({"skipped": True}, metadata={"skipped": MetadataValue.bool(True)})
     from datasets import load_dataset
     client = music_minio()
     context.log.info("Last.fm: loading matthewfranglen/lastfm-360k from HuggingFace (~13.9M rows)")

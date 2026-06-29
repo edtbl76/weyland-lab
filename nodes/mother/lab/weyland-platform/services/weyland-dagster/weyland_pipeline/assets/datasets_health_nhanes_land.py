@@ -2,7 +2,7 @@
 Key components from the 2017-2020 and 2015-2016 cycles as XPT (SAS transport) files.
 """
 from dagster import MetadataValue, Output, asset
-from .health_common import health_minio, health_put, health_download
+from .health_common import health_minio, health_put, health_download, check_source_freshness
 
 NHANES_FILES = [
     ("2017-2020/DEMO_J.XPT",   "https://wwwn.cdc.gov/Nchs/Nhanes/2017-2018/DEMO_J.XPT"),
@@ -23,6 +23,8 @@ NHANES_FILES = [
 
 @asset(group_name="datasets_health", description="Land NHANES XPT files (2015-2020 cycles) → health/raw/nhanes/.")
 def datasets_health_nhanes_land(context) -> Output[dict]:
+    if check_source_freshness(context, NHANES_FILES[0][1]):
+        return Output({"skipped": True}, metadata={"skipped": MetadataValue.bool(True)})
     client = health_minio()
     out = {}
     for local_name, url in NHANES_FILES:

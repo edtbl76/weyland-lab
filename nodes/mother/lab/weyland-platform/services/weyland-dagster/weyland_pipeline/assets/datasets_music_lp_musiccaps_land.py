@@ -6,11 +6,13 @@ Two public configs:
 import io
 import csv as csvmod
 from dagster import MetadataValue, Output, asset
-from .music_common import music_minio, music_put
+from .music_common import music_minio, music_put, is_fresh_local
 
 
 @asset(group_name="datasets_music", description="Land LP-MusicCaps-MC (5.5k captions) → music/raw/lp_musiccaps_mc/.")
 def datasets_music_lp_musiccaps_mc_land(context) -> Output[dict]:
+    if is_fresh_local(context, max_age_days=30):
+        return Output({"skipped": True}, metadata={"skipped": MetadataValue.bool(True)})
     from datasets import load_dataset
     client = music_minio()
     context.log.info("LP-MusicCaps-MC: loading seungheondoh/LP-MusicCaps-MC")
@@ -36,6 +38,8 @@ def datasets_music_lp_musiccaps_mc_land(context) -> Output[dict]:
 
 @asset(group_name="datasets_music", description="Land LP-MusicCaps-MTT (22k audio/88k captions) → music/raw/lp_musiccaps_mtt/.")
 def datasets_music_lp_musiccaps_mtt_land(context) -> Output[dict]:
+    if is_fresh_local(context, max_age_days=30):
+        return Output({"skipped": True}, metadata={"skipped": MetadataValue.bool(True)})
     from datasets import load_dataset
     client = music_minio()
     context.log.info("LP-MusicCaps-MTT: loading seungheondoh/LP-MusicCaps-MTT")

@@ -1,7 +1,7 @@
 """NHIS — National Health Interview Survey (CDC). Annual zip/CSV files.
 Public alternative to UK Biobank — ~100k US adults/year, health + lifestyle + demographics."""
 from dagster import MetadataValue, Output, asset
-from .health_common import health_minio, health_download_zip
+from .health_common import health_minio, health_download_zip, check_source_freshness
 
 DATASETS = {
     "nhis_adult_2022": "https://ftp.cdc.gov/pub/Health_Statistics/NCHS/Datasets/NHIS/2022/adult22csv.zip",
@@ -12,6 +12,9 @@ DATASETS = {
 
 @asset(group_name="datasets_health", description="Land NHIS annual survey CSVs → health/raw/nhis/.")
 def datasets_health_nhis_land(context) -> Output[dict]:
+    first_url = next(iter(DATASETS.values()))
+    if check_source_freshness(context, first_url):
+        return Output({"skipped": True}, metadata={"skipped": MetadataValue.bool(True)})
     client = health_minio()
     out = {}
     for name, url in DATASETS.items():

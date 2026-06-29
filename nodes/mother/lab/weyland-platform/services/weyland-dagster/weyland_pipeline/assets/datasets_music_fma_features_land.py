@@ -10,7 +10,7 @@ import pandas as pd
 import numpy as np
 
 from dagster import MetadataValue, Output, asset
-from .music_common import music_minio, music_put
+from .music_common import music_minio, music_put, check_source_freshness
 
 FMA_METADATA_URL = "https://os.unil.cloud.switch.ch/fma/fma_metadata.zip"
 _FMA_ZIP = "/tmp/fma_metadata.zip"
@@ -18,6 +18,8 @@ _FMA_ZIP = "/tmp/fma_metadata.zip"
 
 @asset(group_name="datasets_music", description="Land FMA 518 audio features CSV → music/raw/fma_features/.")
 def datasets_music_fma_features_land(context) -> Output[dict]:
+    if check_source_freshness(context, FMA_METADATA_URL):
+        return Output({"skipped": True}, metadata={"skipped": MetadataValue.bool(True)})
     client = music_minio()
     if not os.path.exists(_FMA_ZIP):
         context.log.info("FMA Features: downloading metadata zip (~342MB)")

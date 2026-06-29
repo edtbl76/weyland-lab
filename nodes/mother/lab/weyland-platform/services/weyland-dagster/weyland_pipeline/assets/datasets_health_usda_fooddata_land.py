@@ -1,12 +1,14 @@
 """USDA FoodData Central — bulk CSV download (~400MB zip, ~2GB extracted)."""
 from dagster import MetadataValue, Output, asset
-from .health_common import health_minio, health_download_zip
+from .health_common import health_minio, health_download_zip, check_source_freshness
 
 
 @asset(group_name="datasets_health", description="Land USDA FoodData Central CSVs → health/raw/usda_fooddata/.")
 def datasets_health_usda_fooddata_land(context) -> Output[dict]:
     client = health_minio()
     url = "https://fdc.nal.usda.gov/fdc-datasets/FoodData_Central_csv_2024-10-31.zip"
+    if check_source_freshness(context, url):
+        return Output({"skipped": True}, metadata={"skipped": MetadataValue.bool(True)})
     context.log.info("USDA FoodData: downloading bulk zip (~400MB)")
     try:
         count = health_download_zip(client, url, "usda_fooddata", context.log, timeout=1800)

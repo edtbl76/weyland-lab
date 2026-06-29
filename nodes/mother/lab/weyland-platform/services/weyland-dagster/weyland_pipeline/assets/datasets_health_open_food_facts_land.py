@@ -1,12 +1,14 @@
 """Open Food Facts — full product database (gzipped CSV, ~1.2GB compressed / ~9GB extracted)."""
 from dagster import MetadataValue, Output, asset
-from .health_common import health_minio, health_put, health_download
+from .health_common import health_minio, health_put, health_download, check_source_freshness
 
 
 @asset(group_name="datasets_health", description="Land Open Food Facts gzipped CSV → health/raw/open_food_facts/.")
 def datasets_health_open_food_facts_land(context) -> Output[dict]:
     client = health_minio()
     url = "https://static.openfoodfacts.org/data/en.openfoodfacts.org.products.csv.gz"
+    if check_source_freshness(context, url):
+        return Output({"skipped": True}, metadata={"skipped": MetadataValue.bool(True)})
     context.log.info("Open Food Facts: streaming download (~1.2GB compressed)")
     try:
         data = health_download(url, timeout=3600)

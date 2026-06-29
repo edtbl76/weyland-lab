@@ -1,6 +1,6 @@
 """WHO Global Health Observatory — 10 key indicators via the GHO OData REST API."""
 from dagster import MetadataValue, Output, asset
-from .health_common import health_minio, health_put, health_download
+from .health_common import health_minio, health_put, health_download, check_source_freshness
 
 INDICATORS = {
     "life_expectancy":          "WHOSIS_000001",
@@ -18,6 +18,8 @@ INDICATORS = {
 
 @asset(group_name="datasets_health", description="Land WHO GHO indicators (JSON) → health/raw/who_gho/.")
 def datasets_health_who_gho_land(context) -> Output[dict]:
+    if check_source_freshness(context, f"https://ghoapi.azureedge.net/api/WHOSIS_000001?$format=json"):
+        return Output({"skipped": True}, metadata={"skipped": MetadataValue.bool(True)})
     client = health_minio()
     out = {}
     for name, code in INDICATORS.items():

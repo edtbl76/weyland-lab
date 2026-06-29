@@ -106,10 +106,25 @@ weyland_datasets_music_land_job = define_asset_job(
     ),
 )
 
-# B65 Tier-2 — health domain: land all 8 health/wellness/personality datasets (on-demand).
+# B65 Tier-2 — health domain: land all 8 health/wellness/personality datasets.
+# Assets self-regulate via check_source_freshness — daily schedule is safe (skips fresh assets).
 weyland_datasets_health_land_job = define_asset_job(
     name="weyland_datasets_health_land_job",
     selection=AssetSelection.groups("datasets_health"),
+)
+
+weyland_datasets_music_land_schedule = ScheduleDefinition(
+    job=weyland_datasets_music_land_job,
+    cron_schedule="0 3 * * *",  # 3 AM daily — assets self-skip if fresh (30-day window)
+    name="weyland_datasets_music_land_schedule",
+    default_status=DefaultScheduleStatus.STOPPED,  # enable when ready for automation
+)
+
+weyland_datasets_health_land_schedule = ScheduleDefinition(
+    job=weyland_datasets_health_land_job,
+    cron_schedule="0 4 * * *",  # 4 AM daily — assets self-skip if fresh (7-day window)
+    name="weyland_datasets_health_land_schedule",
+    default_status=DefaultScheduleStatus.STOPPED,  # enable when ready for automation
 )
 
 # B65 Tier-2 — TimescaleDB time-series writes: sync eval/guardrail/dagster/unleash/datahub → hypertables.

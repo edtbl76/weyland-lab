@@ -1,13 +1,15 @@
 """Big Five personality traits — Open Psychometrics IPIP-NEO dataset (N≈1M responses)."""
 import io, zipfile
 from dagster import MetadataValue, Output, asset
-from .health_common import health_minio, health_put, health_download
+from .health_common import health_minio, health_put, health_download, check_source_freshness
 
 
 @asset(group_name="datasets_health", description="Land Big Five IPIP personality data → health/raw/big_five/.")
 def datasets_health_big_five_land(context) -> Output[dict]:
     client = health_minio()
     url = "https://openpsychometrics.org/_rawdata/BIG5.zip"
+    if check_source_freshness(context, url):
+        return Output({"skipped": True}, metadata={"skipped": MetadataValue.bool(True)})
     context.log.info("Big Five: downloading zip")
     data = health_download(url)
     out = {}

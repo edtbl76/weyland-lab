@@ -3,7 +3,7 @@ Multiple configs: artist, release, release_group, work, genre, instrument, label
 import io
 import csv as csvmod
 from dagster import MetadataValue, Output, asset
-from .music_common import music_minio, music_put
+from .music_common import music_minio, music_put, is_fresh_local
 
 
 SPLITS = [
@@ -16,6 +16,8 @@ SPLITS = [
 
 @asset(group_name="datasets_music", description="Land MusicBrainz entities → music/raw/musicbrainz/.")
 def datasets_music_musicbrainz_land(context) -> Output[dict]:
+    if is_fresh_local(context, max_age_days=30):
+        return Output({"skipped": True}, metadata={"skipped": MetadataValue.bool(True)})
     from datasets import load_dataset
     client = music_minio()
     out = {}

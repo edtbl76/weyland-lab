@@ -12,7 +12,7 @@ Source: https://archive.ics.uci.edu/ml/machine-learning-databases/00203/YearPred
 import io
 import zipfile
 from dagster import MetadataValue, Output, asset
-from .music_common import music_minio, music_put, music_download
+from .music_common import music_minio, music_put, music_download, check_source_freshness
 
 UCI_MSD_URL = "https://archive.ics.uci.edu/ml/machine-learning-databases/00203/YearPredictionMSD.txt.zip"
 
@@ -25,6 +25,8 @@ COLUMN_NAMES = (
 
 @asset(group_name="datasets_music", description="Land MSD UCI subset (515k songs, 90 audio features) → music/raw/uci_year_prediction/.")
 def datasets_music_uci_year_prediction_land(context) -> Output[dict]:
+    if check_source_freshness(context, UCI_MSD_URL):
+        return Output({"skipped": True}, metadata={"skipped": MetadataValue.bool(True)})
     client = music_minio()
     context.log.info("MSD UCI subset: downloading YearPredictionMSD.txt.zip (~200MB)")
     data = music_download(UCI_MSD_URL, timeout=600)

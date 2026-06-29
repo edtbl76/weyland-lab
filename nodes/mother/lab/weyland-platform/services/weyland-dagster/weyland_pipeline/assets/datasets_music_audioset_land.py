@@ -4,11 +4,13 @@ Source: agkphysics/AudioSet on HuggingFace (balanced config)."""
 import io
 import csv as csvmod
 from dagster import MetadataValue, Output, asset
-from .music_common import music_minio, music_put
+from .music_common import music_minio, music_put, is_fresh_local
 
 
 @asset(group_name="datasets_music", description="Land AudioSet balanced (35k clips, 527 labels) → music/raw/audioset/.")
 def datasets_music_audioset_land(context) -> Output[dict]:
+    if is_fresh_local(context, max_age_days=30):
+        return Output({"skipped": True}, metadata={"skipped": MetadataValue.bool(True)})
     from datasets import load_dataset
     client = music_minio()
     context.log.info("AudioSet: loading agkphysics/AudioSet (balanced)")

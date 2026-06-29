@@ -1,6 +1,6 @@
 """CDC Physical Activity datasets from the CDC open data portal."""
 from dagster import MetadataValue, Output, asset
-from .health_common import health_minio, health_put, health_download
+from .health_common import health_minio, health_put, health_download, check_source_freshness
 
 DATASETS = {
     "physical_activity_adults":             "https://data.cdc.gov/api/views/ivfh-b3de/rows.csv?accessType=DOWNLOAD",
@@ -11,6 +11,9 @@ DATASETS = {
 
 @asset(group_name="datasets_health", description="Land CDC Physical Activity CSVs → health/raw/cdc_physical_activity/.")
 def datasets_health_cdc_physical_activity_land(context) -> Output[dict]:
+    first_url = next(iter(DATASETS.values()))
+    if check_source_freshness(context, first_url):
+        return Output({"skipped": True}, metadata={"skipped": MetadataValue.bool(True)})
     client = health_minio()
     out = {}
     for name, url in DATASETS.items():

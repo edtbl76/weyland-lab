@@ -4,11 +4,13 @@ marsyas/gtzan requires a custom loading script which is an RCE risk — avoided.
 import io
 import csv as csvmod
 from dagster import MetadataValue, Output, asset
-from .music_common import music_minio, music_put
+from .music_common import music_minio, music_put, is_fresh_local
 
 
 @asset(group_name="datasets_music", description="Land GTZAN genre dataset → music/raw/gtzan/.")
 def datasets_music_gtzan_land(context) -> Output[dict]:
+    if is_fresh_local(context, max_age_days=30):
+        return Output({"skipped": True}, metadata={"skipped": MetadataValue.bool(True)})
     from datasets import load_dataset
     client = music_minio()
     context.log.info("GTZAN: loading confit/gtzan-parquet from HuggingFace")
