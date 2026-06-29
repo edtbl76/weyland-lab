@@ -289,7 +289,7 @@ Run from **rogueone** (scp changed files first), then on **mother**:
 ```bash
 docker build -t weyland-dagster-user-code:local ~/lab/weyland-platform/services/weyland-dagster/
 docker save weyland-dagster-user-code:local | sudo k3s ctr images import -
-docker image prune -f   # CRITICAL — reclaim dangling builds; 153GB accumulated and caused DiskPressure taint (2026-06-29)
+docker image prune -f --filter "until=24h"   # reclaim dangling builds older than 24h; keeps layer cache for fast rebuilds. Full prune caused 153GB accumulation + DiskPressure taint (2026-06-29)
 kubectl -n weyland rollout restart deployment/dagster-user-code
 ```
 
