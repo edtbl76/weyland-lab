@@ -294,10 +294,31 @@ Then on **mother**:
 
 ```bash
 docker build -t weyland-dagster-user-code:local ~/lab/weyland-platform/services/weyland-dagster/
-docker save weyland-dagster-user-code:local | sudo k3s ctr images import -
+sudo k3s ctr -n k8s.io images rm docker.io/library/weyland-dagster-user-code:local   # MUST remove the stale tag first — import will NOT overwrite an existing tag (see below)
+docker save weyland-dagster-user-code:local | sudo k3s ctr -n k8s.io images import -
 docker image prune -f --filter "until=24h"   # reclaim dangling builds older than 24h; keeps layer cache for fast rebuilds. Full prune caused 153GB accumulation + DiskPressure taint (2026-06-29)
 kubectl -n weyland rollout restart deployment/dagster-user-code
+kubectl -n weyland rollout status deployment/dagster-user-code
 ```
+
+Then **verify the live pod is running the new code** — never trust "rollout succeeded" alone:
+
+```bash
+kubectl -n weyland exec deploy/dagster-user-code -- python -c "import weyland_pipeline; print('import OK')"
+```
+
+> **TAG: always `:local`, never `:latest`.** The deployment runs `weyland-dagster-user-code:local` with
+> `imagePullPolicy: Never`. A `:latest` build imports into containerd fine but **nothing mounts it** —
+> the pod keeps serving the old `:local`. Cost us ~1h on 2026-06-29.
+>
+> **Import will NOT overwrite an existing tag.** `k3s ctr images import` silently keeps the old manifest
+> if `docker.io/library/weyland-dagster-user-code:local` already exists — so the `images rm` line above is
+> mandatory. Confirm the swap took with `sudo k3s ctr -n k8s.io images ls | grep weyland-dagster-user-code`
+> (the `:local` digest must change). Fast alternative when the clean image is already in containerd under
+> another tag: `sudo k3s ctr -n k8s.io images rm …:local && sudo k3s ctr -n k8s.io images tag …:latest …:local`
+> (instant retag, no 10GB `docker save`).
+>
+> Use the explicit `-n k8s.io` namespace — that's the one Kubernetes/CRI reads from.
 
 > `docker image prune -f` is mandatory after every build+import. Skipping it caused k3s to apply
 > a `node.kubernetes.io/disk-pressure:NoSchedule` taint that blocked all pod scheduling on mother.
