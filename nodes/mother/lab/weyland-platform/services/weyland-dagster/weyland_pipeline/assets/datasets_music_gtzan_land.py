@@ -11,26 +11,15 @@ from .music_common import music_minio, music_put
 def datasets_music_gtzan_land(context) -> Output[dict]:
     from datasets import load_dataset
     client = music_minio()
-    candidates = [
-        "ccmusic-database/GTZAN",
-        "rudraparmar123/GTZAN-Music-Genre",
-        "nazimali/music-genres-dataset",
-    ]
-    for candidate in candidates:
-        try:
-            context.log.info(f"GTZAN: trying {candidate}")
-            ds = load_dataset(candidate, split="train")
-            cols = [c for c in ds.column_names if c != "audio"]
-            buf = io.StringIO()
-            writer = csvmod.DictWriter(buf, fieldnames=cols)
-            writer.writeheader()
-            for row in ds:
-                writer.writerow({k: str(v) for k, v in row.items() if k in cols})
-            data = buf.getvalue().encode("utf-8")
-            music_put(client, "gtzan/gtzan.csv", data, "text/csv")
-            context.log.info(f"gtzan/gtzan.csv ({candidate}): {len(ds):,} rows → {len(data):,} bytes")
-            return Output({"rows": len(ds), "source": candidate}, metadata={"rows": MetadataValue.int(len(ds))})
-        except Exception as e:
-            context.log.warning(f"GTZAN {candidate}: {e}")
-    context.log.warning("GTZAN: no script-free dataset found")
-    return Output({"rows": 0}, metadata={"rows": MetadataValue.int(0)})
+    context.log.info("GTZAN: loading confit/gtzan-parquet from HuggingFace")
+    ds = load_dataset("confit/gtzan-parquet", split="train")
+    cols = [c for c in ds.column_names if c not in ("audio", "file")]
+    buf = io.StringIO()
+    writer = csvmod.DictWriter(buf, fieldnames=cols)
+    writer.writeheader()
+    for row in ds:
+        writer.writerow({k: str(v) for k, v in row.items() if k in cols})
+    data = buf.getvalue().encode("utf-8")
+    music_put(client, "gtzan/gtzan.csv", data, "text/csv")
+    context.log.info(f"gtzan/gtzan.csv: {len(ds):,} rows → {len(data):,} bytes")
+    return Output({"rows": len(ds), "source": "confit/gtzan-parquet"}, metadata={"rows": MetadataValue.int(len(ds))})
