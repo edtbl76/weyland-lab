@@ -16,15 +16,12 @@ def datasets_music_audioset_land(context) -> Output[dict]:
     for split in ["train", "test"]:
         try:
             ds = load_dataset("agkphysics/AudioSet", name="balanced", split=split)
-            # Remove audio/video columns BEFORE iteration to avoid torchcodec decode attempt
-            audio_cols = [c for c in ds.column_names if c in ("audio", "video")]
-            if audio_cols:
-                ds = ds.remove_columns(audio_cols)
-            cols = ds.column_names
+            skip_cols = {"audio", "video", "file"}
+            cols = [c for c in ds.column_names if c not in skip_cols]
             buf = io.StringIO()
             writer = csvmod.DictWriter(buf, fieldnames=cols)
             writer.writeheader()
-            for row in ds:
+            for row in ds.select_columns(cols):
                 writer.writerow({k: str(v) for k, v in row.items()})
             data = buf.getvalue().encode("utf-8")
             music_put(client, f"audioset/{split}.csv", data, "text/csv")
