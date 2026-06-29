@@ -282,6 +282,20 @@ kubectl get pods -n weyland | grep dagster
 https://dagster.weyland.lab
 ```
 
+### Rebuild and redeploy user-code image
+
+Run from **rogueone** (scp changed files first), then on **mother**:
+
+```bash
+docker build -t weyland-dagster-user-code:local ~/lab/weyland-platform/services/weyland-dagster/
+docker save weyland-dagster-user-code:local | sudo k3s ctr images import -
+docker image prune -f   # CRITICAL — reclaim dangling builds; 153GB accumulated and caused DiskPressure taint (2026-06-29)
+kubectl -n weyland rollout restart deployment/dagster-user-code
+```
+
+> `docker image prune -f` is mandatory after every build+import. Skipping it caused k3s to apply
+> a `node.kubernetes.io/disk-pressure:NoSchedule` taint that blocked all pod scheduling on mother.
+
 ---
 
 ## Qdrant
