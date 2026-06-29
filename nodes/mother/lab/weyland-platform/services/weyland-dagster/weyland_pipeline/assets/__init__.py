@@ -32,7 +32,14 @@ from .timescaledb_write import (
     ts_unleash_metrics,
     ts_datahub_ingestion,
 )
-from .health_land import health_land
+from .health_nhanes_land import nhanes_land
+from .health_big_five_land import big_five_land
+from .health_who_gho_land import who_gho_land
+from .health_cdc_physical_activity_land import cdc_physical_activity_land
+from .health_brfss_land import brfss_land
+from .health_nhis_land import nhis_land
+from .health_usda_fooddata_land import usda_fooddata_land
+from .health_open_food_facts_land import open_food_facts_land
 
 all_assets = [
     source_document,
@@ -66,5 +73,12 @@ all_assets = [
     ts_dagster_runs,
     ts_unleash_metrics,
     ts_datahub_ingestion,
-    health_land,
+    nhanes_land,
+    big_five_land,
+    who_gho_land,
+    cdc_physical_activity_land,
+    brfss_land,
+    nhis_land,
+    usda_fooddata_land,
+    open_food_facts_land,
 ]

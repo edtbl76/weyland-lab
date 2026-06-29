@@ -1,16 +1,15 @@
 """B65 Tier-2 MySQL / health domain — Step 1: land public health, wellness, and personality datasets
 into the lakeFS `health` repo (s3://datasets/health/main/raw/<dataset>/) as raw files (bronze).
 
-9 datasets:
-  nhanes            — NHANES (CDC) nutrition/biomarkers/fitness, all available cycles
+8 datasets:
+  nhanes            — NHANES (CDC) nutrition/biomarkers/fitness, key components (XPT format)
   big_five          — Big Five personality traits (Open Psychometrics IPIP, N=1M+)
-  who_gho           — WHO Global Health Observatory (selected indicators via REST API)
+  who_gho           — WHO Global Health Observatory (10 key indicators via REST API)
   cdc_physical_activity — CDC Physical Activity data
-  brfss             — Behavioral Risk Factor Surveillance System (CDC, all available years)
-  myfitnesspal      — MyFitnessPal public dataset (HuggingFace)
-  uk_biobank        — UK Biobank public subset (HuggingFace)
-  usda_fooddata     — USDA FoodData Central (bulk CSV download)
-  open_food_facts   — Open Food Facts (CSV, ~9GB — full dataset)
+  brfss             — Behavioral Risk Factor Surveillance System (CDC, annual CSV)
+  nhis              — NHIS (National Health Interview Survey, CDC, ~100k adults/year)
+  usda_fooddata     — USDA FoodData Central (bulk CSV download, ~2GB)
+  open_food_facts   — Open Food Facts (gzipped CSV, ~1.2GB compressed)
 
 All land via the lakeFS S3 gateway (versioned). Large files are streamed to avoid OOM.
 """
@@ -183,38 +182,6 @@ def _land_brfss(client, log):
     return count
 
 
-def _land_myfitnesspal(client, log):
-    """MyFitnessPal nutrition facts from HuggingFace datasets."""
-    from datasets import load_dataset
-    import csv as csvmod
-
-    # Try multiple known public MyFitnessPal-derived datasets on HuggingFace
-    candidates = [
-        ("nreimers/myfitnesspal", "train"),
-        ("juliensimon/myfitnesspal-nutrition", "train"),
-        ("food-dataset/myfitnesspal", "train"),
-    ]
-    for dataset_name, split in candidates:
-        try:
-            log.info(f"MyFitnessPal: trying HuggingFace dataset {dataset_name}")
-            ds = load_dataset(dataset_name, split=split)
-            buf = io.StringIO()
-            writer = csvmod.DictWriter(buf, fieldnames=ds.column_names)
-            writer.writeheader()
-            for row in ds:
-                writer.writerow(row)
-            data = buf.getvalue().encode("utf-8")
-            _put(client, "myfitnesspal/myfitnesspal.csv", data, "text/csv")
-            log.info(f"MyFitnessPal ({dataset_name}): {len(ds)} rows → {len(data):,} bytes")
-            return 1
-        except Exception as e:
-            log.warning(f"MyFitnessPal {dataset_name}: {e}")
-
-    # Fallback: Open Food Facts already covers nutrition facts comprehensively.
-    # MyFitnessPal's public meal log data requires scraping — defer to B75.
-    log.warning("MyFitnessPal: no public HuggingFace dataset found — skipping (Open Food Facts covers nutrition)")
-    return 0
-
 
 def _land_nhis(client, log):
     """NHIS (National Health Interview Survey) — CDC, annual surveys covering health status,
@@ -297,9 +264,6 @@ def health_land(context) -> Output[dict]:
 
     context.log.info("Landing BRFSS...")
     results["brfss"] = _land_brfss(client, context.log)
-
-    context.log.info("Landing MyFitnessPal...")
-    results["myfitnesspal"] = _land_myfitnesspal(client, context.log)
 
     context.log.info("Landing NHIS (National Health Interview Survey)...")
     results["nhis"] = _land_nhis(client, context.log)
