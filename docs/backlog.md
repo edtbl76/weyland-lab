@@ -930,11 +930,24 @@ Doris (OLAP variety, on-demand) · Spark (big-data compute, on-demand) · RDF/tr
 
 ### B75 — Additional music datasources (Core — data expansion)
 **Added 2026-06-28.** Four additional music datasets to ingest into the `music` lakeFS repo alongside the existing Spotify/FMA data:
-- **Million Song Dataset (MSD)** — 1M tracks, audio features, lyrics, tags. HuggingFace.
-- **Last.fm** — user listening history, artist tags, play counts. Free API.
-- **Spotify Charts** — weekly top charts by country. CSV downloads.
-- **MusicBrainz** — open music encyclopedia (artists, releases, recordings). Postgres dump available.
-All land in lakeFS → Parquet → Iceberg → Trino/DuckDB queryable. Sequence after B65 Tier-2 engines are stable.
+- **MSD** — using UCI YearPredictionMSD subset (515k songs, 90 audio features) as substitute. Full 1M song MSD requires AWS snapshot or university data agreement — see B76.
+- **Last.fm** ✅ — `matthewfranglen/lastfm-360k` (HuggingFace, 13.9M rows).
+- **Spotify Charts** — no free public source found (Kaggle requires login). Deferred.
+- **MusicBrainz** ✅ — `seungheondoh/music-wiki` (HuggingFace, 11 entity configs: artist/release/genre/etc.).
+All land in lakeFS → Parquet → Iceberg → Trino/DuckDB queryable.
+
+### B76 — Full Million Song Dataset via AWS snapshot (Core — data expansion)
+**Added 2026-06-29.** The full MSD (1M songs, audio features, lyrics, tags, metadata) is available as an AWS public dataset snapshot. Currently using the UCI 515k-song subset as a substitute.
+
+**AWS snapshot workflow:**
+1. Launch an EC2 instance in `us-east-1` (same region as the MSD snapshot)
+2. The MSD is available at `s3://millionsongdataset/` (AWS Open Data)
+3. Use `aws s3 sync` to pull the HDF5 files → convert to Parquet → upload to lab MinIO
+4. Alternatively: rent a spot instance for a few hours (~$5) to do the bulk copy
+
+**University copies:** Drexel, Ithaca College, QMUL, NYU, UCSD, UPF have institutional copies — contact their data stewards if AWS snapshot access proves difficult.
+
+**Prereq:** AWS account + ~300GB temporary S3/local storage for the conversion step.
 
 ### U18 — weyland-lab SSH key full lockdown (rogueone-side)
 - **✅ DONE 2026-06-17 — closed as KEY RETIREMENT.** Removed the rogueone `authorized_keys` line and deleted
