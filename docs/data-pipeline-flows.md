@@ -30,14 +30,15 @@ FMA Echonest ──► land ──► lakeFS raw ──► Parquet ──► Ice
                                      ├──► Lance ──► LanceDB ──► Qdrant/Weaviate (audio embeddings)
                                      └──► DuckDB (live)
 
-MSD ──► land ──► lakeFS raw ──► Parquet ──► Iceberg/Trino
-                            ├──► Arrow ──► JupyterHub/polars
-                            ├──► Avro ──► Kafka (future)
-                            ├──► Lance ──► LanceDB ──► Qdrant/Weaviate
-                            ├──► Neo4j (artist graph)
-                            ├──► OpenSearch (song/artist search)
-                            ├──► Cassandra (1M song writes)
-                            └──► DuckDB (live)
+MSD (UCI 515k subset) ──► land ──► lakeFS raw ──► Parquet ──► Iceberg/Trino
+                                               ├──► Arrow ──► JupyterHub/polars
+                                               ├──► Avro ──► Kafka (future)
+                                               ├──► Lance ──► LanceDB ──► Qdrant/Weaviate
+                                               ├──► Neo4j (artist graph)
+                                               ├──► OpenSearch (song/artist search)
+                                               ├──► Cassandra (song feature writes at scale)
+                                               └──► DuckDB (live)
+                                               [Full 1M MSD via AWS snapshot → B76]
 
 Last.fm ──► land ──► lakeFS raw ──► Parquet ──► Iceberg/Trino
                                 ├──► Arrow ──► JupyterHub/polars

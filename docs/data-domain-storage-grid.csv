@@ -3,7 +3,7 @@ Music,Spotify Tracks,N,N,N,N,N,N,Y,Y,N,N,Y (audio feature similarity),Y (audio f
 Music,FMA Tracks,N,N,N,N,N,N,Y,Y,Y (track/artist search),Y (genre graph),Y,Y,Y,Y,Y
 Music,FMA Genres,N,N,N,N,N,N,Y,Y,N,Y (genre taxonomy graph),N,N,Y,Y,N
 Music,FMA Echonest,N,N,N,N,N,N,Y,Y,N,N,Y (audio embeddings),Y (audio embeddings),Y,Y,Y
-Music,MSD (B75),N,N,N,N,N,Y (1M song writes),Y,Y,Y (song/artist search),Y (artist graph),Y,Y,Y,Y,Y
+Music,MSD — UCI 515k subset (B75/B76),N,N,N,N,N,Y (song feature writes),Y,Y,Y (song/artist search),Y (artist graph),Y,Y,Y,Y,Y
 Music,Last.fm (B75),N,N,Y (listening trends),N,N,Y (user listen streams),Y,Y,N,Y (artist/tag graph),N,N,Y,Y,N
 Music,Spotify Charts (B75),N,N,Y (weekly chart trends),N,N,N,Y,Y,N,N,N,N,Y,Y,N
 Music,MusicBrainz (B75),N,Y (native Postgres dump),N,N,N,N,Y,Y,Y (artist/recording search),Y (music knowledge graph),N,N,Y,Y,N
