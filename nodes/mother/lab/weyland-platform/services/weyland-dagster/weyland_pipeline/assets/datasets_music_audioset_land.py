@@ -28,7 +28,8 @@ def datasets_music_audioset_land(context) -> Output[dict]:
             results[split] = len(ds)
             context.log.info(f"audioset/{split}.csv: {len(ds):,} rows → {len(data):,} bytes")
         except Exception as e:
+            import traceback
             results[split] = f"ERROR: {e}"
-            context.log.warning(f"AudioSet {split}: {e}")
+            context.log.error(f"AudioSet {split} FAILED: {e}\n{traceback.format_exc()}")
     total = sum(v for v in results.values() if isinstance(v, int))
     return Output(results, metadata={"total_rows": MetadataValue.int(total)})
