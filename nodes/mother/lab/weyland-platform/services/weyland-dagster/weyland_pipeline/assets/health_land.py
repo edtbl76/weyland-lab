@@ -184,19 +184,20 @@ def _land_brfss(client, log):
 
 
 def _land_myfitnesspal(client, log):
-    """MyFitnessPal nutrition data from HuggingFace (andrewmvd/myfitnesspal-nutrition-facts)."""
+    """MyFitnessPal nutrition facts from HuggingFace datasets."""
     from datasets import load_dataset
     import csv as csvmod
 
+    # Try multiple known public MyFitnessPal-derived datasets on HuggingFace
     candidates = [
-        "andrewmvd/myfitnesspal-nutrition-facts",
-        "prasertcbs/myfitnesspal",
-        "Chrithon/myfitnesspal",
+        ("nreimers/myfitnesspal", "train"),
+        ("juliensimon/myfitnesspal-nutrition", "train"),
+        ("food-dataset/myfitnesspal", "train"),
     ]
-    for candidate in candidates:
+    for dataset_name, split in candidates:
         try:
-            log.info(f"MyFitnessPal: trying {candidate}")
-            ds = load_dataset(candidate, split="train")
+            log.info(f"MyFitnessPal: trying HuggingFace dataset {dataset_name}")
+            ds = load_dataset(dataset_name, split=split)
             buf = io.StringIO()
             writer = csvmod.DictWriter(buf, fieldnames=ds.column_names)
             writer.writeheader()
@@ -204,19 +205,21 @@ def _land_myfitnesspal(client, log):
                 writer.writerow(row)
             data = buf.getvalue().encode("utf-8")
             _put(client, "myfitnesspal/myfitnesspal.csv", data, "text/csv")
-            log.info(f"MyFitnessPal ({candidate}): {len(ds)} rows → {len(data):,} bytes")
+            log.info(f"MyFitnessPal ({dataset_name}): {len(ds)} rows → {len(data):,} bytes")
             return 1
         except Exception as e:
-            log.warning(f"MyFitnessPal {candidate}: {e}")
+            log.warning(f"MyFitnessPal {dataset_name}: {e}")
+
+    # Fallback: Open Food Facts already covers nutrition facts comprehensively.
+    # MyFitnessPal's public meal log data requires scraping — defer to B75.
+    log.warning("MyFitnessPal: no public HuggingFace dataset found — skipping (Open Food Facts covers nutrition)")
     return 0
 
 
-def _land_uk_biobank(client, log):
-    """UK Biobank — full application required; use NHIS (National Health Interview Survey)
-    as a publicly accessible alternative with similar scope (health + lifestyle + demographics).
-    NHIS is a major CDC survey covering ~100k adults/year, fully public."""
-    import csv as csvmod
-
+def _land_nhis(client, log):
+    """NHIS (National Health Interview Survey) — CDC, annual surveys covering health status,
+    conditions, behaviors, and demographics (~100k US adults/year). Fully public.
+    Note: UK Biobank requires a formal application — NHIS is the publicly accessible alternative."""
     nhis_datasets = {
         "nhis_adult_2022": "https://ftp.cdc.gov/pub/Health_Statistics/NCHS/Datasets/NHIS/2022/adult22csv.zip",
         "nhis_adult_2021": "https://ftp.cdc.gov/pub/Health_Statistics/NCHS/Datasets/NHIS/2021/adult21csv.zip",
@@ -225,12 +228,12 @@ def _land_uk_biobank(client, log):
     count = 0
     for name, url in nhis_datasets.items():
         try:
-            log.info(f"NHIS (UK Biobank alt): downloading {name}")
+            log.info(f"NHIS: downloading {name}")
             data = _download(url, timeout=600)
             with zipfile.ZipFile(io.BytesIO(data)) as z:
                 for fname in z.namelist():
                     content = z.read(fname)
-                    _put(client, f"uk_biobank/{name}/{fname}", content, "text/csv")
+                    _put(client, f"nhis/{name}/{fname}", content, "text/csv")
                     log.info(f"NHIS: {name}/{fname} → {len(content):,} bytes")
             count += 1
         except Exception as e:
@@ -298,8 +301,8 @@ def health_land(context) -> Output[dict]:
     context.log.info("Landing MyFitnessPal...")
     results["myfitnesspal"] = _land_myfitnesspal(client, context.log)
 
-    context.log.info("Landing UK Biobank...")
-    results["uk_biobank"] = _land_uk_biobank(client, context.log)
+    context.log.info("Landing NHIS (National Health Interview Survey)...")
+    results["nhis"] = _land_nhis(client, context.log)
 
     context.log.info("Landing USDA FoodData Central...")
     results["usda_fooddata"] = _land_usda_fooddata(client, context.log)
