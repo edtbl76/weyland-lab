@@ -1,0 +1,17 @@
+Domain,Dataset,MySQL,Postgres,TimescaleDB,MongoDB,CockroachDB,Cassandra,Iceberg/Trino,DuckDB/GizmoSQL,OpenSearch,Neo4j,Qdrant,Weaviate,Arrow,Avro,Lance
+Music,Spotify Tracks,N,N,N,N,N,N,Y,Y,N,N,Y (audio feature similarity),Y (audio feature similarity),Y,Y,Y
+Music,FMA Tracks,N,N,N,N,N,N,Y,Y,Y (track/artist search),Y (genre graph),Y,Y,Y,Y,Y
+Music,FMA Genres,N,N,N,N,N,N,Y,Y,N,Y (genre taxonomy graph),N,N,Y,Y,N
+Music,FMA Echonest,N,N,N,N,N,N,Y,Y,N,N,Y (audio embeddings),Y (audio embeddings),Y,Y,Y
+Music,MSD (B75),N,N,N,N,N,Y (1M song writes),Y,Y,Y (song/artist search),Y (artist graph),Y,Y,Y,Y,Y
+Music,Last.fm (B75),N,N,Y (listening trends),N,N,Y (user listen streams),Y,Y,N,Y (artist/tag graph),N,N,Y,Y,N
+Music,Spotify Charts (B75),N,N,Y (weekly chart trends),N,N,N,Y,Y,N,N,N,N,Y,Y,N
+Music,MusicBrainz (B75),N,Y (native Postgres dump),N,N,N,N,Y,Y,Y (artist/recording search),Y (music knowledge graph),N,N,Y,Y,N
+Health,NHANES,Y,N,N,N,N,N,Y,Y,N,N,N,N,Y,Y,N
+Health,Big Five,Y,N,N,N,N,Y,Y,Y,N,Y (personality graph),Y (profile similarity),Y (profile similarity),Y,Y,Y
+Health,WHO GHO,Y,N,Y,Y (nested JSON),N,Y (country/year series),Y,Y,N,N,N,N,Y,Y,N
+Health,CDC Physical Activity,Y,N,N,N,N,N,Y,Y,N,N,N,N,Y,Y,N
+Health,BRFSS,Y,N,N,N,Y (geo-partitioned),N,Y,Y,N,N,N,N,Y,Y,N
+Health,NHIS,Y,N,N,N,Y (geo-partitioned),N,Y,Y,N,N,N,N,Y,Y,N
+Health,USDA FoodData,N,N,N,N,N,N,Y,Y,Y (food/nutrient search),N,N,N,Y,Y,Y (food embeddings)
+Health,Open Food Facts,N,N,N,Y (doc per product),N,N,Y,Y,Y (product/ingredient search),N,Y (product similarity),Y (product similarity),Y,Y,Y (product embeddings)
