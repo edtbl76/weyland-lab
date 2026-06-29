@@ -1,34 +1,46 @@
-"""MusicBrainz — open music encyclopedia (artists, releases, recordings).
-Uses HuggingFace datasets of MusicBrainz extracts (full Postgres dump is 10GB+)."""
+"""MusicBrainz — open music encyclopedia via seungheondoh/music-wiki (HuggingFace).
+Multiple configs: artist, release, release_group, work, genre, instrument, label, place, area, event, series."""
 import io
 import csv as csvmod
 from dagster import MetadataValue, Output, asset
 from .music_common import music_minio, music_put
 
 
-@asset(group_name="datasets_music", description="Land MusicBrainz data → music/raw/musicbrainz/.")
+CONFIGS = [
+    "musicbrainz_artist",
+    "musicbrainz_release",
+    "musicbrainz_release_group",
+    "musicbrainz_work",
+    "musicbrainz_genre",
+    "musicbrainz_instrument",
+    "musicbrainz_label",
+    "musicbrainz_place",
+    "musicbrainz_area",
+    "musicbrainz_event",
+    "musicbrainz_series",
+]
+
+
+@asset(group_name="datasets_music", description="Land MusicBrainz entities → music/raw/musicbrainz/.")
 def datasets_music_musicbrainz_land(context) -> Output[dict]:
     from datasets import load_dataset
     client = music_minio()
-    candidates = [
-        "jackshendriks/musicbrainz",
-        "sander-wood/musicbrainz",
-        "chendralegend/musicbrainz-artists",
-    ]
-    for candidate in candidates:
+    out = {}
+    for config in CONFIGS:
         try:
-            context.log.info(f"MusicBrainz: trying {candidate}")
-            ds = load_dataset(candidate, split="train")
+            context.log.info(f"MusicBrainz: loading {config}")
+            ds = load_dataset("seungheondoh/music-wiki", config, split="train")
             buf = io.StringIO()
             writer = csvmod.DictWriter(buf, fieldnames=ds.column_names)
             writer.writeheader()
             for row in ds:
                 writer.writerow(row)
             data = buf.getvalue().encode("utf-8")
-            music_put(client, "musicbrainz/musicbrainz.csv", data, "text/csv")
-            context.log.info(f"MusicBrainz ({candidate}): {len(ds)} rows → {len(data):,} bytes")
-            return Output({"rows": len(ds), "source": candidate}, metadata={"rows": MetadataValue.int(len(ds))})
+            music_put(client, f"musicbrainz/{config}.csv", data, "text/csv")
+            out[config] = len(ds)
+            context.log.info(f"musicbrainz/{config}.csv: {len(ds):,} rows → {len(data):,} bytes")
         except Exception as e:
-            context.log.warning(f"MusicBrainz {candidate}: {e}")
-    context.log.warning("MusicBrainz: no public HuggingFace dataset found")
-    return Output({"rows": 0}, metadata={"rows": MetadataValue.int(0)})
+            out[config] = f"ERROR: {e}"
+            context.log.warning(f"MusicBrainz {config}: {e}")
+    total = sum(v for v in out.values() if isinstance(v, int))
+    return Output(out, metadata={"total_rows": MetadataValue.int(total), "detail": MetadataValue.json(out)})
