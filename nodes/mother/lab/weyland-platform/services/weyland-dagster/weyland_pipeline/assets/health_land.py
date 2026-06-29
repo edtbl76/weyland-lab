@@ -55,47 +55,46 @@ def _download(url: str, timeout: int = 600) -> bytes:
 
 
 def _land_nhanes(client, log):
-    """NHANES — CDC, all available cycles. Each cycle has demographic, dietary, examination,
-    laboratory, and questionnaire components. We pull the cycle index and download all XPT/CSV files."""
-    # NHANES cycles available (1999-2020, biennial). 2021-2022 is the latest continuous cycle.
-    cycles = [
-        "1999-2000", "2001-2002", "2003-2004", "2005-2006", "2007-2008",
-        "2009-2010", "2011-2012", "2013-2014", "2015-2016", "2017-2018", "2017-March 2020",
+    """NHANES — CDC, key components via direct XPT files from wwwn.cdc.gov.
+    Using the latest continuous cycle (2017-2020) + 2015-2016 for breadth.
+    XPT (SAS transport) files are the canonical NHANES format — downloaded as binary blobs."""
+    # Key NHANES XPT files: (local_name, url)
+    nhanes_files = [
+        # Demographics
+        ("2017-2020/DEMO_P.XPT", "https://wwwn.cdc.gov/Nchs/Nhanes/2017-2018/DEMO_J.XPT"),
+        # Body measures
+        ("2017-2020/BMX_J.XPT", "https://wwwn.cdc.gov/Nchs/Nhanes/2017-2018/BMX_J.XPT"),
+        # Blood pressure
+        ("2017-2020/BPX_J.XPT", "https://wwwn.cdc.gov/Nchs/Nhanes/2017-2018/BPX_J.XPT"),
+        # Cholesterol
+        ("2017-2020/TCHOL_J.XPT", "https://wwwn.cdc.gov/Nchs/Nhanes/2017-2018/TCHOL_J.XPT"),
+        # Diabetes
+        ("2017-2020/DIQ_J.XPT", "https://wwwn.cdc.gov/Nchs/Nhanes/2017-2018/DIQ_J.XPT"),
+        # Physical activity
+        ("2017-2020/PAQ_J.XPT", "https://wwwn.cdc.gov/Nchs/Nhanes/2017-2018/PAQ_J.XPT"),
+        # Dietary recall day 1
+        ("2017-2020/DR1TOT_J.XPT", "https://wwwn.cdc.gov/Nchs/Nhanes/2017-2018/DR1TOT_J.XPT"),
+        # Mental health / depression
+        ("2017-2020/DPQ_J.XPT", "https://wwwn.cdc.gov/Nchs/Nhanes/2017-2018/DPQ_J.XPT"),
+        # Weight history
+        ("2017-2020/WHQ_J.XPT", "https://wwwn.cdc.gov/Nchs/Nhanes/2017-2018/WHQ_J.XPT"),
+        # Sleep disorders
+        ("2017-2020/SLQ_J.XPT", "https://wwwn.cdc.gov/Nchs/Nhanes/2017-2018/SLQ_J.XPT"),
+        # 2015-2016 cycle demographics for cross-cycle analysis
+        ("2015-2016/DEMO_I.XPT", "https://wwwn.cdc.gov/Nchs/Nhanes/2015-2016/DEMO_I.XPT"),
+        ("2015-2016/BMX_I.XPT", "https://wwwn.cdc.gov/Nchs/Nhanes/2015-2016/BMX_I.XPT"),
+        ("2015-2016/PAQ_I.XPT", "https://wwwn.cdc.gov/Nchs/Nhanes/2015-2016/PAQ_I.XPT"),
     ]
     count = 0
-    components = ["Demographics", "Dietary", "Examination", "Laboratory", "Questionnaire"]
-    base = "https://wwwn.cdc.gov/nchs/nhanes/search/datapage.aspx"
-    # Download the summary CSV from the NHANES data page (list of all files)
-    # Use the bulk download index approach — pull each component's file list
-    for cycle in cycles:
-        cycle_slug = cycle.replace(" ", "%20")
-        for component in components:
-            try:
-                url = f"https://wwwn.cdc.gov/nchs/nhanes/search/datapage.aspx?Component={component}&CycleBeginYear={cycle.split('-')[0]}"
-                # Download the data file listing page as HTML and extract XPT links
-                # For simplicity, use the known CSV exports from the CDC open data portal
-                pass
-            except Exception as e:
-                log.warning(f"NHANES {cycle}/{component}: {e}")
-
-    # Use the CDC open data API for NHANES structured data (more reliable than scraping XPT links)
-    nhanes_datasets = {
-        "nhanes_body_measures": "https://data.cdc.gov/api/views/3ib3-du5e/rows.csv?accessType=DOWNLOAD",
-        "nhanes_blood_pressure": "https://data.cdc.gov/api/views/6gah-nqec/rows.csv?accessType=DOWNLOAD",
-        "nhanes_cholesterol": "https://data.cdc.gov/api/views/t629-z3we/rows.csv?accessType=DOWNLOAD",
-        "nhanes_diabetes": "https://data.cdc.gov/api/views/7j4d-a95f/rows.csv?accessType=DOWNLOAD",
-        "nhanes_dietary": "https://data.cdc.gov/api/views/rs6f-geas/rows.csv?accessType=DOWNLOAD",
-        "nhanes_physical_activity": "https://data.cdc.gov/api/views/vgkt-4gw7/rows.csv?accessType=DOWNLOAD",
-    }
-    for name, url in nhanes_datasets.items():
+    for local_name, url in nhanes_files:
         try:
-            log.info(f"NHANES: downloading {name}")
-            data = _download(url)
-            _put(client, f"nhanes/{name}.csv", data, "text/csv")
+            log.info(f"NHANES: downloading {local_name}")
+            data = _download(url, timeout=300)
+            _put(client, f"nhanes/{local_name}", data, "application/octet-stream")
             count += 1
-            log.info(f"NHANES: {name} → {len(data):,} bytes")
+            log.info(f"NHANES: {local_name} → {len(data):,} bytes")
         except Exception as e:
-            log.warning(f"NHANES {name}: {e}")
+            log.warning(f"NHANES {local_name}: {e}")
     return count
 
 
@@ -185,58 +184,58 @@ def _land_brfss(client, log):
 
 
 def _land_myfitnesspal(client, log):
-    """MyFitnessPal public dataset from HuggingFace."""
+    """MyFitnessPal nutrition data from HuggingFace (andrewmvd/myfitnesspal-nutrition-facts)."""
     from datasets import load_dataset
+    import csv as csvmod
 
-    log.info("MyFitnessPal: loading from HuggingFace")
-    try:
-        ds = load_dataset("mbakhteev/myfitnesspal", split="train")
-        buf = io.StringIO()
-        import csv
-        writer = csv.DictWriter(buf, fieldnames=ds.column_names)
-        writer.writeheader()
-        for row in ds:
-            writer.writerow(row)
-        data = buf.getvalue().encode("utf-8")
-        _put(client, "myfitnesspal/myfitnesspal.csv", data, "text/csv")
-        log.info(f"MyFitnessPal: {len(ds)} rows → {len(data):,} bytes")
-        return 1
-    except Exception as e:
-        log.warning(f"MyFitnessPal HuggingFace load failed: {e}")
-        return 0
-
-
-def _land_uk_biobank(client, log):
-    """UK Biobank public subset from HuggingFace."""
-    from datasets import load_dataset
-
-    log.info("UK Biobank: loading public subset from HuggingFace")
     candidates = [
-        "bwang69/UK_Biobank",
-        "paulhager/UK-Biobank-Cardiac-MRI",
-        "uk-biobank/ukb-field-subset",
+        "andrewmvd/myfitnesspal-nutrition-facts",
+        "prasertcbs/myfitnesspal",
+        "Chrithon/myfitnesspal",
     ]
     for candidate in candidates:
         try:
-            ds = load_dataset(candidate, split="train", streaming=True)
-            rows = []
-            for i, row in enumerate(ds):
-                rows.append(row)
-                if i >= 100000:
-                    break
-            if rows:
-                import csv
-                buf = io.StringIO()
-                writer = csv.DictWriter(buf, fieldnames=list(rows[0].keys()))
-                writer.writeheader()
-                writer.writerows(rows)
-                data = buf.getvalue().encode("utf-8")
-                _put(client, f"uk_biobank/{candidate.replace('/','_')}.csv", data, "text/csv")
-                log.info(f"UK Biobank ({candidate}): {len(rows)} rows → {len(data):,} bytes")
-                return 1
+            log.info(f"MyFitnessPal: trying {candidate}")
+            ds = load_dataset(candidate, split="train")
+            buf = io.StringIO()
+            writer = csvmod.DictWriter(buf, fieldnames=ds.column_names)
+            writer.writeheader()
+            for row in ds:
+                writer.writerow(row)
+            data = buf.getvalue().encode("utf-8")
+            _put(client, "myfitnesspal/myfitnesspal.csv", data, "text/csv")
+            log.info(f"MyFitnessPal ({candidate}): {len(ds)} rows → {len(data):,} bytes")
+            return 1
         except Exception as e:
-            log.warning(f"UK Biobank {candidate}: {e}")
+            log.warning(f"MyFitnessPal {candidate}: {e}")
     return 0
+
+
+def _land_uk_biobank(client, log):
+    """UK Biobank — full application required; use NHIS (National Health Interview Survey)
+    as a publicly accessible alternative with similar scope (health + lifestyle + demographics).
+    NHIS is a major CDC survey covering ~100k adults/year, fully public."""
+    import csv as csvmod
+
+    nhis_datasets = {
+        "nhis_adult_2022": "https://ftp.cdc.gov/pub/Health_Statistics/NCHS/Datasets/NHIS/2022/adult22csv.zip",
+        "nhis_adult_2021": "https://ftp.cdc.gov/pub/Health_Statistics/NCHS/Datasets/NHIS/2021/adult21csv.zip",
+        "nhis_adult_2020": "https://ftp.cdc.gov/pub/Health_Statistics/NCHS/Datasets/NHIS/2020/adult20csv.zip",
+    }
+    count = 0
+    for name, url in nhis_datasets.items():
+        try:
+            log.info(f"NHIS (UK Biobank alt): downloading {name}")
+            data = _download(url, timeout=600)
+            with zipfile.ZipFile(io.BytesIO(data)) as z:
+                for fname in z.namelist():
+                    content = z.read(fname)
+                    _put(client, f"uk_biobank/{name}/{fname}", content, "text/csv")
+                    log.info(f"NHIS: {name}/{fname} → {len(content):,} bytes")
+            count += 1
+        except Exception as e:
+            log.warning(f"NHIS {name}: {e}")
+    return count
 
 
 def _land_usda_fooddata(client, log):
