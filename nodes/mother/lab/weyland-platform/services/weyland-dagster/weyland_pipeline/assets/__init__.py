@@ -16,7 +16,6 @@ from .aidlc_kb import aidlc_kb_ingest
 from .ai_session import ai_session_ingest
 from .iceberg_export import iceberg_model_catalog, iceberg_eval_scores
 from .eval_mlflow import eval_mlflow_log
-from .datasets_music_land import datasets_music_land
 from .datasets_music_transform import (
     datasets_music_parquet,
     datasets_music_arrow,
@@ -25,6 +24,16 @@ from .datasets_music_transform import (
     datasets_music_iceberg,
     datasets_music_commit,
 )
+from .datasets_music_spotify_land import datasets_music_spotify_land
+from .datasets_music_fma_land import (
+    datasets_music_fma_tracks_land,
+    datasets_music_fma_genres_land,
+    datasets_music_fma_echonest_land,
+)
+from .datasets_music_msd_land import datasets_music_msd_land
+from .datasets_music_lastfm_land import datasets_music_lastfm_land
+from .datasets_music_spotify_charts_land import datasets_music_spotify_charts_land
+from .datasets_music_musicbrainz_land import datasets_music_musicbrainz_land
 from .timescaledb_write import (
     ts_eval_scores,
     ts_guardrail_verdicts,
@@ -32,14 +41,14 @@ from .timescaledb_write import (
     ts_unleash_metrics,
     ts_datahub_ingestion,
 )
-from .health_nhanes_land import nhanes_land
-from .health_big_five_land import big_five_land
-from .health_who_gho_land import who_gho_land
-from .health_cdc_physical_activity_land import cdc_physical_activity_land
-from .health_brfss_land import brfss_land
-from .health_nhis_land import nhis_land
-from .health_usda_fooddata_land import usda_fooddata_land
-from .health_open_food_facts_land import open_food_facts_land
+from .datasets_health_nhanes_land import datasets_health_nhanes_land
+from .datasets_health_big_five_land import datasets_health_big_five_land
+from .datasets_health_who_gho_land import datasets_health_who_gho_land
+from .datasets_health_cdc_physical_activity_land import datasets_health_cdc_physical_activity_land
+from .datasets_health_brfss_land import datasets_health_brfss_land
+from .datasets_health_nhis_land import datasets_health_nhis_land
+from .datasets_health_usda_fooddata_land import datasets_health_usda_fooddata_land
+from .datasets_health_open_food_facts_land import datasets_health_open_food_facts_land
 
 all_assets = [
     source_document,
@@ -61,24 +70,35 @@ all_assets = [
     iceberg_model_catalog,
     iceberg_eval_scores,
     eval_mlflow_log,
-    datasets_music_land,
+    # Music domain — per-dataset land assets
+    datasets_music_spotify_land,
+    datasets_music_fma_tracks_land,
+    datasets_music_fma_genres_land,
+    datasets_music_fma_echonest_land,
+    datasets_music_msd_land,
+    datasets_music_lastfm_land,
+    datasets_music_spotify_charts_land,
+    datasets_music_musicbrainz_land,
+    # Music domain — transform (silver + gold)
     datasets_music_parquet,
     datasets_music_arrow,
     datasets_music_avro,
     datasets_music_lance,
     datasets_music_iceberg,
     datasets_music_commit,
+    # TimescaleDB time-series feeds
     ts_eval_scores,
     ts_guardrail_verdicts,
     ts_dagster_runs,
     ts_unleash_metrics,
     ts_datahub_ingestion,
-    nhanes_land,
-    big_five_land,
-    who_gho_land,
-    cdc_physical_activity_land,
-    brfss_land,
-    nhis_land,
-    usda_fooddata_land,
-    open_food_facts_land,
+    # Health domain — per-dataset land assets
+    datasets_health_nhanes_land,
+    datasets_health_big_five_land,
+    datasets_health_who_gho_land,
+    datasets_health_cdc_physical_activity_land,
+    datasets_health_brfss_land,
+    datasets_health_nhis_land,
+    datasets_health_usda_fooddata_land,
+    datasets_health_open_food_facts_land,
 ]

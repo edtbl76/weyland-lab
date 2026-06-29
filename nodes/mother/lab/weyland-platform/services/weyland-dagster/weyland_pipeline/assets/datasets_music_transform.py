@@ -176,7 +176,7 @@ def _run_format(context, write_one) -> Output:
     })
 
 
-_COMMON = dict(group_name="datasets_music", deps=["datasets_music_land"])
+_COMMON = dict(group_name="datasets_music", deps=["datasets_music_spotify_land", "datasets_music_fma_tracks_land", "datasets_music_fma_genres_land", "datasets_music_fma_echonest_land"])
 
 
 @asset(**_COMMON, description="Silver — Parquet (batch columnar) for each music raw table.")

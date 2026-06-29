@@ -74,10 +74,24 @@ weyland_ai_session_schedule = ScheduleDefinition(
     default_status=DefaultScheduleStatus.RUNNING,
 )
 
-# B65 Tier-2 — health domain: land all 8 health/wellness/personality datasets (on-demand, not scheduled —
-# downloads are large and sources are static/annual).
-weyland_health_land_job = define_asset_job(
-    name="weyland_health_land_job",
+# Music domain — land all music datasets (on-demand; FMA zip is ~342MB, new B75 sources vary).
+weyland_datasets_music_land_job = define_asset_job(
+    name="weyland_datasets_music_land_job",
+    selection=AssetSelection.assets(
+        "datasets_music_spotify_land",
+        "datasets_music_fma_tracks_land",
+        "datasets_music_fma_genres_land",
+        "datasets_music_fma_echonest_land",
+        "datasets_music_msd_land",
+        "datasets_music_lastfm_land",
+        "datasets_music_spotify_charts_land",
+        "datasets_music_musicbrainz_land",
+    ),
+)
+
+# B65 Tier-2 — health domain: land all 8 health/wellness/personality datasets (on-demand).
+weyland_datasets_health_land_job = define_asset_job(
+    name="weyland_datasets_health_land_job",
     selection=AssetSelection.groups("datasets_health"),
 )
 
