@@ -11,7 +11,7 @@ def datasets_music_gtzan_land(context) -> Output[dict]:
     from datasets import load_dataset
     client = music_minio()
     context.log.info("GTZAN: loading marsyas/gtzan from HuggingFace")
-    ds = load_dataset("marsyas/gtzan", split="train")
+    ds = load_dataset("marsyas/gtzan", split="train", trust_remote_code=True)
     buf = io.StringIO()
     # Write metadata only (not audio bytes) — genre label + file path
     writer = csvmod.DictWriter(buf, fieldnames=[c for c in ds.column_names if c != "audio"])
