@@ -24,7 +24,11 @@ from weyland_pipeline.schedules import (
     weyland_timeseries_job,
     weyland_timeseries_schedule,
 )
-from weyland_pipeline.sensors import datasets_music_raw_sensor
+from weyland_pipeline.sensors import (
+    datasets_music_raw_sensor,
+    datasets_music_freshness_sensor,
+    datasets_health_freshness_sensor,
+)
 
 # DataHub catalog emitter — walks the asset graph and pushes datasets + lineage to GMS via
 # the datahub SDK (see datahub_emit.py). Replaces the acryl run_status_sensor, which is dead
@@ -107,7 +111,7 @@ defs = Definitions(
     assets=all_assets,
     jobs=[weyland_ingestion_job, weyland_eval_job, weyland_eval_score_job, weyland_catalog_job, weyland_aidlc_kb_job, weyland_ai_session_job, datahub_catalog_emit_job, weyland_datasets_music_transform_job, weyland_datasets_music_land_job, weyland_datasets_health_land_job, weyland_timeseries_job],
     schedules=[weyland_ingestion_schedule, weyland_catalog_schedule, weyland_ai_session_schedule, datahub_catalog_emit_schedule, weyland_timeseries_schedule],
-    sensors=[datasets_music_raw_sensor],
+    sensors=[datasets_music_raw_sensor, datasets_music_freshness_sensor, datasets_health_freshness_sensor],
     resources={
         "postgres": PostgresResource(
             host=os.environ.get("WEYLAND_PG_HOST", "weyland-postgres.weyland.svc.cluster.local"),

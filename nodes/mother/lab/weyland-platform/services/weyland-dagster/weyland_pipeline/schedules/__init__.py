@@ -68,7 +68,7 @@ weyland_ai_session_job = define_asset_job(
 
 weyland_ingestion_schedule = ScheduleDefinition(
     job=weyland_ingestion_job,
-    cron_schedule="*/15 * * * *",
+    cron_schedule="0 * * * *",  # hourly (was */15 — too aggressive, competed with land jobs)
     name="weyland_ingestion_schedule",
     default_status=DefaultScheduleStatus.RUNNING,
 )
