@@ -23,7 +23,7 @@ COLUMN_NAMES = (
 )
 
 
-@asset(group_name="datasets_music", description="Land MSD UCI subset (515k songs, 90 audio features) → music/raw/msd/.")
+@asset(group_name="datasets_music", description="Land MSD UCI subset (515k songs, 90 audio features) → music/raw/uci_year_prediction/.")
 def datasets_music_uci_year_prediction_land(context) -> Output[dict]:
     client = music_minio()
     context.log.info("MSD UCI subset: downloading YearPredictionMSD.txt.zip (~200MB)")
@@ -35,7 +35,7 @@ def datasets_music_uci_year_prediction_land(context) -> Output[dict]:
     # Add header row — file has no column names
     header = ",".join(COLUMN_NAMES) + "\n"
     csv_data = header.encode("utf-8") + content
-    music_put(client, "msd/msd_year_prediction.csv", csv_data, "text/csv")
+    music_put(client, "uci_year_prediction/uci_year_prediction.csv", csv_data, "text/csv")
     rows = content.count(b"\n")
-    context.log.info(f"msd/msd_year_prediction.csv: {rows:,} rows → {len(csv_data):,} bytes")
+    context.log.info(f"uci_year_prediction/uci_year_prediction.csv: {rows:,} rows → {len(csv_data):,} bytes")
     return Output({"rows": rows, "source": "UCI YearPredictionMSD"}, metadata={"rows": MetadataValue.int(rows)})
