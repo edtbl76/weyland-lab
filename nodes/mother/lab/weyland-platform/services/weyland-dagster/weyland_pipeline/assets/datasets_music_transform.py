@@ -69,14 +69,19 @@ def _sanitize_columns(t):
     return t.rename_columns([n if (n and n.strip()) else f"column_{i}" for i, n in enumerate(names)])
 
 
-def _iter_raw_tables(client, bucket, log):
-    """Yield (table, name, arrow_table) for each raw CSV; an unreadable file is skipped, not fatal."""
+def _iter_raw_tables(client, bucket, log, allow):
+    """Yield (table, name, arrow_table) for each raw CSV whose table is in `allow`. Tables outside the
+    allowlist are skipped BEFORE the (possibly large) download+read — gating only the write would still
+    pay the read cost (e.g. re-reading lastfm's 14M rows per format just to skip Lance, or a 9GB deferred
+    source). An unreadable file is skipped, not fatal."""
     raw_prefix = _k("raw/")
     for obj in client.list_objects(bucket, prefix=raw_prefix, recursive=True):
         if not obj.object_name.endswith(".csv"):
             continue
         rel = obj.object_name[len(raw_prefix):]      # <table>/<file>.csv
         table = rel.split("/")[0]
+        if table not in allow:
+            continue
         name = os.path.basename(rel)[:-4]
         resp = client.get_object(bucket, obj.object_name)
         try:
@@ -195,11 +200,8 @@ def _run_format(context, write_one, allow) -> Output:
     client = _minio()
     bucket = _REPO
     out: dict = {}
-    for table, name, t in _iter_raw_tables(client, bucket, context.log):
+    for table, name, t in _iter_raw_tables(client, bucket, context.log, allow):
         key = f"{table}/{name}"
-        if table not in allow:
-            out[key] = "skipped (not in allowlist)"
-            continue
         try:
             write_one(client, bucket, table, name, t)
             out[key] = f"ok ({t.num_rows}r x {t.num_columns}c)"
@@ -207,10 +209,9 @@ def _run_format(context, write_one, allow) -> Output:
             out[key] = f"ERROR {type(e).__name__}: {e}"
             context.log.error(f"{key}: {e}")
     if not out:
-        context.log.warning("no raw CSVs under music/raw/ — run datasets_music_land first")
+        context.log.warning("no allowlisted raw tables under music/raw/ — run datasets_music_land first")
     return Output(out, metadata={
         "ok": MetadataValue.int(sum(1 for v in out.values() if v.startswith("ok"))),
-        "skipped": MetadataValue.int(sum(1 for v in out.values() if v.startswith("skipped"))),
         "detail": MetadataValue.json(out),
     })
 

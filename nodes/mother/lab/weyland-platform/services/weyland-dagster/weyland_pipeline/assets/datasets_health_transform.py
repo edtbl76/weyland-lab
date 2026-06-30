@@ -112,14 +112,18 @@ def _read_to_table(rel, data, log):
     return None
 
 
-def _iter_raw_tables(client, bucket, log):
-    """Yield (table, name, arrow_table) for each readable raw object. table = top-level folder;
-    name = path within the table (slashes → underscores, extension stripped) so NHANES' nested
-    cycle folders (2017-2020/DEMO_J.XPT) stay distinct."""
+def _iter_raw_tables(client, bucket, log, allow):
+    """Yield (table, name, arrow_table) for each readable raw object whose table is in `allow`. Tables
+    outside the allowlist are skipped BEFORE the download+read — critical for deferred big sources like
+    open_food_facts (~9GB .csv.gz) which must never be read here. table = top-level folder; name = path
+    within the table (slashes → underscores, extension stripped) so NHANES' nested cycle folders
+    (2017-2020/DEMO_J.XPT) stay distinct."""
     raw_prefix = _k("raw/")
     for obj in client.list_objects(bucket, prefix=raw_prefix, recursive=True):
         rel = obj.object_name[len(raw_prefix):]      # <table>/<...>/<file>.<ext>
         table = rel.split("/")[0]
+        if table not in allow:
+            continue
         resp = client.get_object(bucket, obj.object_name)
         try:
             data = resp.read()
@@ -227,11 +231,8 @@ def _run_format(context, write_one, allow) -> Output:
     client = _minio()
     bucket = _REPO
     out: dict = {}
-    for table, name, t in _iter_raw_tables(client, bucket, context.log):
+    for table, name, t in _iter_raw_tables(client, bucket, context.log, allow):
         key = f"{table}/{name}"
-        if table not in allow:
-            out[key] = "skipped (not in allowlist)"
-            continue
         try:
             write_one(client, bucket, table, name, t)
             out[key] = f"ok ({t.num_rows}r x {t.num_columns}c)"
@@ -239,10 +240,9 @@ def _run_format(context, write_one, allow) -> Output:
             out[key] = f"ERROR {type(e).__name__}: {e}"
             context.log.error(f"{key}: {e}")
     if not out:
-        context.log.warning("no readable raw under health/raw/ — run datasets_health_*_land first")
+        context.log.warning("no allowlisted readable raw under health/raw/ — run datasets_health_*_land first")
     return Output(out, metadata={
         "ok": MetadataValue.int(sum(1 for v in out.values() if v.startswith("ok"))),
-        "skipped": MetadataValue.int(sum(1 for v in out.values() if v.startswith("skipped"))),
         "detail": MetadataValue.json(out),
     })
 
