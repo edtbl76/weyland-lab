@@ -65,6 +65,15 @@ _PARSE = pacsv.ParseOptions(newlines_in_values=True)
 _EXT_RE = re.compile(r"\.(csv\.gz|csv|xpt|json)$", re.IGNORECASE)
 
 
+def _sanitize_columns(t):
+    """Rename empty/blank column names to column_<i>. DataHub's GMS 422-rejects a schemaMetadata aspect
+    with an empty field path. Rename only — no column is dropped."""
+    names = t.column_names
+    if all(n and n.strip() for n in names):
+        return t
+    return t.rename_columns([n if (n and n.strip()) else f"column_{i}" for i, n in enumerate(names)])
+
+
 def _read_to_table(rel, data, log):
     """Read one raw object into an Arrow table, dispatching on extension. Returns None to skip
     (unknown extension or unreadable) — one bad source must not sink the whole format."""
@@ -122,7 +131,7 @@ def _iter_raw_tables(client, bucket, log):
             continue
         inner = rel[len(table) + 1:]
         name = _EXT_RE.sub("", inner).replace("/", "_")
-        yield table, name, t
+        yield table, name, _sanitize_columns(t)
 
 
 # --- format writers (uniform signature so the broker calls them interchangeably) ---
@@ -199,15 +208,19 @@ def _hydrate_iceberg(client, bucket, table, name, t):
 
 
 # --- per-format allowlists (source of truth: docs/data-domain-storage-grid.csv) ---
+# open_food_facts is DEFERRED from the inline broker: its raw is a ~9GB .csv.gz, and reading it whole-file
+# hung the arrow step past the 1h run timeout (2026-06-29). It needs a dedicated chunked/streaming asset
+# (backlog). To re-enable once that exists, drop it from _DEFERRED.
+_DEFERRED = {"open_food_facts"}
 _HEALTH_ALL = {
     "nhanes", "big_five", "who_gho", "cdc_physical_activity",
     "brfss", "nhis", "usda_fooddata", "open_food_facts",
-}
+} - _DEFERRED
 _PARQUET_ALLOW = _HEALTH_ALL
 _ARROW_ALLOW = _HEALTH_ALL
 _AVRO_ALLOW = _HEALTH_ALL
 _ICEBERG_ALLOW = _HEALTH_ALL
-_LANCE_ALLOW = {"big_five", "usda_fooddata", "open_food_facts"}
+_LANCE_ALLOW = {"big_five", "usda_fooddata", "open_food_facts"} - _DEFERRED
 
 
 def _run_format(context, write_one, allow) -> Output:

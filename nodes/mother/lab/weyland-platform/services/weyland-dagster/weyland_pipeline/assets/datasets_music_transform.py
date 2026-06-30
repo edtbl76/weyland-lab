@@ -60,6 +60,15 @@ def _catalog_file(platform, table, location, schema, producer):
 _PARSE = pacsv.ParseOptions(newlines_in_values=True)  # FMA/Spotify cells contain embedded newlines
 
 
+def _sanitize_columns(t):
+    """Rename empty/blank column names (e.g. an unnamed CSV index column → "") to column_<i>. DataHub's
+    GMS 422-rejects a schemaMetadata aspect with an empty field path. Rename only — no column is dropped."""
+    names = t.column_names
+    if all(n and n.strip() for n in names):
+        return t
+    return t.rename_columns([n if (n and n.strip()) else f"column_{i}" for i, n in enumerate(names)])
+
+
 def _iter_raw_tables(client, bucket, log):
     """Yield (table, name, arrow_table) for each raw CSV; an unreadable file is skipped, not fatal."""
     raw_prefix = _k("raw/")
@@ -80,7 +89,7 @@ def _iter_raw_tables(client, bucket, log):
         except Exception as e:  # noqa: BLE001 — one unreadable source must not sink the format
             log.error(f"skip raw/{rel}: CSV parse failed: {e}")
             continue
-        yield table, name, t
+        yield table, name, _sanitize_columns(t)
 
 
 # --- format writers (uniform signature so the broker calls them interchangeably) ---
