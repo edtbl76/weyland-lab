@@ -30,5 +30,9 @@ lakefs
 # B65 Tier-2 DuckDB — emit_duckdb() queries the GizmoSQL Arrow Flight SQL server to catalog its views.
 adbc-driver-flightsql
 adbc-driver-manager
-# B65 Tier-2 MySQL / health domain — health_land.py downloads from HuggingFace for MyFitnessPal + UK Biobank.
+# health_land.py downloads health datasets from HuggingFace / CDC / Socrata.
 datasets
+# Store hydration (data-store-mageddon) — build_store_load_assets reads silver Parquet → relational stores.
+# SQLAlchemy + PyMySQL power pandas.to_sql() for the MySQL loader (parquet file → table, batched).
+SQLAlchemy
+PyMySQL

@@ -6,6 +6,7 @@ produces datasets_health_parquet/_arrow/_avro/_lance/_iceberg + _commit."""
 from .datasets_lib.broker import build_transform_assets
 from .datasets_lib.checks import build_asset_checks
 from .datasets_lib.config import DomainConfig
+from .datasets_lib.loaders import build_store_load_assets
 
 # open_food_facts is DEFERRED from the inline broker: its raw is a ~9GB .csv.gz, and reading it whole-file
 # hung the arrow step past the 1h timeout. It needs a dedicated chunked/streaming asset (backlog). Drop it
@@ -29,6 +30,8 @@ HEALTH_CFG = DomainConfig(
     ),
     parquet_allow=_ALL, arrow_allow=_ALL, avro_allow=_ALL, iceberg_allow=_ALL,
     lance_allow=_LANCE,
+    # Store hydration (grid MySQL=Y): the 6 health datasets MySQL targets (usda/open_food_facts are N).
+    mysql_allow=frozenset({"nhanes", "big_five", "who_gho", "cdc_physical_activity", "brfss", "nhis"}),
 )
 
 (
@@ -37,3 +40,4 @@ HEALTH_CFG = DomainConfig(
 ) = build_transform_assets(HEALTH_CFG)
 
 datasets_health_checks = build_asset_checks(HEALTH_CFG)
+datasets_health_store_assets = build_store_load_assets(HEALTH_CFG)

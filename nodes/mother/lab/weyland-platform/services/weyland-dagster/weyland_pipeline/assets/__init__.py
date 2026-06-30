@@ -61,6 +61,7 @@ from .datasets_health_transform import (
     datasets_health_iceberg,
     datasets_health_commit,
     datasets_health_checks,
+    datasets_health_store_assets,
 )
 
 all_assets = [
@@ -125,7 +126,9 @@ all_assets = [
     datasets_health_lance,
     datasets_health_iceberg,
     datasets_health_commit,
+    # Health domain — store hydration (data-store-mageddon)
+    *datasets_health_store_assets,
 ]
 
-# Pre-hydration quality gate (build_asset_checks per domain — the third datasets_lib factory)
+# Pre-hydration quality gate (build_asset_checks per domain — the second datasets_lib factory)
 all_asset_checks = [*datasets_music_checks, *datasets_health_checks]

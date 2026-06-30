@@ -19,6 +19,11 @@ class DomainConfig:
     lance_allow: frozenset = field(default_factory=frozenset)
     iceberg_allow: frozenset = field(default_factory=frozenset)
 
+    # --- store hydration allowlists (data-store-mageddon) — which datasets target which Tier-2 store.
+    # Explicit per the grid's store columns (a store gets a loader asset only when its allowlist is
+    # non-empty). One field added per store as it's built.
+    mysql_allow: frozenset = field(default_factory=frozenset)
+
     @property
     def producer(self) -> str:
         return f"datasets_{self.domain}"

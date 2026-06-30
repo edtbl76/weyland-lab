@@ -172,6 +172,16 @@ spec:
               value: weyland
             - name: TIMESCALEDB_PASSWORD
               value: weyland_dev_password
+            # Store hydration (data-store-mageddon) — MySQL loader (build_store_load_assets reads silver
+            # Parquet → MySQL). Always-on store in data-mesh; in-cluster svc; shared dev password.
+            - name: MYSQL_HOST
+              value: mysql.data-mesh.svc.cluster.local
+            - name: MYSQL_PORT
+              value: "3306"
+            - name: MYSQL_USER
+              value: weyland
+            - name: MYSQL_PASSWORD
+              value: weyland_dev_password
           volumeMounts:
             - name: dagster-config
               mountPath: /opt/dagster/dagster_home/dagster.yaml
