@@ -1,6 +1,6 @@
 import os
 from dagster import Definitions, ScheduleDefinition, job, op, DefaultScheduleStatus
-from weyland_pipeline.assets import all_assets
+from weyland_pipeline.assets import all_assets, all_asset_checks
 from weyland_pipeline.resources import (
     PostgresResource,
     SentenceTransformerResource,
@@ -108,6 +108,7 @@ datahub_catalog_emit_schedule = ScheduleDefinition(
 
 defs = Definitions(
     assets=all_assets,
+    asset_checks=all_asset_checks,
     jobs=[weyland_ingestion_job, weyland_eval_job, weyland_eval_score_job, weyland_catalog_job, weyland_aidlc_kb_job, weyland_ai_session_job, datahub_catalog_emit_job, weyland_datasets_music_transform_job, weyland_datasets_music_land_job, weyland_datasets_health_land_job, weyland_datasets_health_transform_job, weyland_timeseries_job],
     schedules=[weyland_ingestion_schedule, weyland_catalog_schedule, weyland_ai_session_schedule, datahub_catalog_emit_schedule, weyland_timeseries_schedule, weyland_datasets_music_land_schedule, weyland_datasets_health_land_schedule],
     sensors=[datasets_music_raw_sensor],

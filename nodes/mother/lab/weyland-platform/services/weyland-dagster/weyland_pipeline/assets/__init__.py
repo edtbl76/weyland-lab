@@ -23,6 +23,7 @@ from .datasets_music_transform import (
     datasets_music_lance,
     datasets_music_iceberg,
     datasets_music_commit,
+    datasets_music_checks,
 )
 from .datasets_music_spotify_land import datasets_music_spotify_land
 from .datasets_music_fma_land import (
@@ -59,6 +60,7 @@ from .datasets_health_transform import (
     datasets_health_lance,
     datasets_health_iceberg,
     datasets_health_commit,
+    datasets_health_checks,
 )
 
 all_assets = [
@@ -124,3 +126,6 @@ all_assets = [
     datasets_health_iceberg,
     datasets_health_commit,
 ]
+
+# Pre-hydration quality gate (build_asset_checks per domain — the third datasets_lib factory)
+all_asset_checks = [*datasets_music_checks, *datasets_health_checks]

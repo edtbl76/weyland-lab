@@ -5,6 +5,7 @@ read-gated allowlists, commit) lives in datasets_lib. This file declares which r
 format for the music domain; build_transform_assets() turns that into datasets_music_parquet/_arrow/
 _avro/_lance/_iceberg + _commit. Allowlists are explicit (the storage grid is a guideline, not config)."""
 from .datasets_lib.broker import build_transform_assets
+from .datasets_lib.checks import build_asset_checks
 from .datasets_lib.config import DomainConfig
 
 # parquet/arrow/avro/iceberg cover every music dataset; lance is selective (grid: skip fma_genres, lastfm,
@@ -37,3 +38,5 @@ MUSIC_CFG = DomainConfig(
     datasets_music_parquet, datasets_music_arrow, datasets_music_avro,
     datasets_music_lance, datasets_music_iceberg, datasets_music_commit,
 ) = build_transform_assets(MUSIC_CFG)
+
+datasets_music_checks = build_asset_checks(MUSIC_CFG)

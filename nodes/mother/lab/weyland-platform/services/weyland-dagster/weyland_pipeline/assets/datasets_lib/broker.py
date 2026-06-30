@@ -18,11 +18,13 @@ def build_transform_assets(cfg):
     def run_format(context, write_one, allow):
         mc = io.client()
         out: dict = {}
+        schemas: dict = {}  # per-table column names, for the asset checks (cheap — we have the Arrow table)
         for table, name, t in iter_raw_tables(mc, cfg.repo, allow, context.log):
             key = f"{table}/{name}"
             try:
                 write_one(mc, cfg, table, name, t)
                 out[key] = f"ok ({t.num_rows}r x {t.num_columns}c)"
+                schemas[key] = list(t.column_names)
             except SkipTable as sk:
                 out[key] = f"deferred: {sk}"
                 context.log.warning(f"{key}: deferred — {sk}")
@@ -34,6 +36,7 @@ def build_transform_assets(cfg):
         return Output(out, metadata={
             "ok": MetadataValue.int(sum(1 for v in out.values() if v.startswith("ok"))),
             "deferred": MetadataValue.int(sum(1 for v in out.values() if v.startswith("deferred"))),
+            "schemas": MetadataValue.json(schemas),
             "detail": MetadataValue.json(out),
         })
 

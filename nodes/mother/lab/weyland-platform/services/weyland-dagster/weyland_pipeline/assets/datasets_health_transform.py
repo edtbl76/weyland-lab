@@ -4,6 +4,7 @@ Same mechanism as music (datasets_lib): the only health specifics are the repo, 
 reader (the shared reader already dispatches .xpt/.json/.csv.gz), and the allowlists. build_transform_assets()
 produces datasets_health_parquet/_arrow/_avro/_lance/_iceberg + _commit."""
 from .datasets_lib.broker import build_transform_assets
+from .datasets_lib.checks import build_asset_checks
 from .datasets_lib.config import DomainConfig
 
 # open_food_facts is DEFERRED from the inline broker: its raw is a ~9GB .csv.gz, and reading it whole-file
@@ -34,3 +35,5 @@ HEALTH_CFG = DomainConfig(
     datasets_health_parquet, datasets_health_arrow, datasets_health_avro,
     datasets_health_lance, datasets_health_iceberg, datasets_health_commit,
 ) = build_transform_assets(HEALTH_CFG)
+
+datasets_health_checks = build_asset_checks(HEALTH_CFG)
