@@ -215,9 +215,19 @@ def _ice_ident(table, name):
     return ident if ident and not ident[0].isdigit() else f"t_{ident}"
 
 
+def _coerce_null_cols(t):
+    """Iceberg format-v2 rejects all-null (pa.null()) columns — pyarrow types an entirely-empty source
+    column as null (WHO GHO unused Dim*Type, NHIS unused flags, some usda cols). Cast them to string
+    (values stay null) so the table is writable. Iceberg-only; parquet/arrow/avro handle null natively."""
+    fields = [pa.field(f.name, pa.string()) if pa.types.is_null(f.type) else f for f in t.schema]
+    new = pa.schema(fields)
+    return t.cast(new) if new != t.schema else t
+
+
 def _hydrate_iceberg(client, bucket, table, name, t):
     if t.num_rows > _ICEBERG_MAX_ROWS:
         raise _SkipTable(f"{t.num_rows:,} rows > {_ICEBERG_MAX_ROWS:,} cap — deferred from inline Iceberg")
+    t = _coerce_null_cols(t)
     from weyland_pipeline.iceberg_publish import _catalog
 
     cat = _catalog()
