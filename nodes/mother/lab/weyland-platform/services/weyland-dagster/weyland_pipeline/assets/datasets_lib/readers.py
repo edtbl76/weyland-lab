@@ -16,14 +16,34 @@ _PARSE = pacsv.ParseOptions(newlines_in_values=True)  # FMA/Spotify/etc. cells c
 _EXT_RE = re.compile(r"\.(csv\.gz|csv|xpt|json)$", re.IGNORECASE)
 
 
+_INVALID_NAME = re.compile(r"[^0-9A-Za-z_]")
+
+
 def sanitize_columns(t):
-    """Rename empty/blank column names (e.g. an unnamed CSV index column → "") to column_<i>. DataHub's
-    GMS 422-rejects a schemaMetadata aspect with an empty field path, and avro rejects an empty name.
-    Rename only — no column is dropped."""
+    """Normalize every column name to a valid identifier so all formats accept the schema. Names that are
+    empty (an unnamed CSV index column → "") or carry characters outside [A-Za-z0-9_] break the strict
+    writers: avro rejects empty/special names, Lance rejects '.' (seen on an FMA header where a URL leaked
+    into a column name — album_url_http://…), and Iceberg's avro-encoded manifests reject empty. DataHub's
+    GMS also 422-rejects an empty field path. Replace invalid chars with '_', guard leading digits, fill
+    blanks with column_<i>, and de-duplicate collisions. Rename only — no data is dropped."""
     names = t.column_names
-    if all(n and n.strip() for n in names):
-        return t
-    return t.rename_columns([n if (n and n.strip()) else f"column_{i}" for i, n in enumerate(names)])
+    fixed = []
+    for i, n in enumerate(names):
+        s = _INVALID_NAME.sub("_", n or "").strip("_")
+        if not s:
+            s = f"column_{i}"
+        elif s[0].isdigit():
+            s = f"col_{s}"
+        fixed.append(s)
+    seen, out = {}, []  # de-dup any collisions introduced by normalization
+    for s in fixed:
+        if s in seen:
+            seen[s] += 1
+            out.append(f"{s}_{seen[s]}")
+        else:
+            seen[s] = 0
+            out.append(s)
+    return t if out == names else t.rename_columns(out)
 
 
 def coerce_null_cols(t):
