@@ -5,7 +5,12 @@ transform's recorded materialization metadata (detail = per-table status; schema
 names) — no data re-read.
 
 v1: no_failures (block, per format) · expected_tables_present (block, parquet) · valid_column_names
-(warn, parquet). The heavier Great Expectations → DataHub Assertions governance is the B77 tail."""
+(warn, parquet). The heavier Great Expectations → DataHub Assertions governance is the B77 tail.
+
+NOTE: @asset_check reads the function signature and treats EVERY parameter as an asset input, so the only
+parameter may be `context` — per-check values (asset key, allowlist) are captured via closures (factory
+functions), never default args.
+"""
 import re
 
 from dagster import AssetCheckResult, AssetCheckSeverity, AssetKey, MetadataValue, asset_check
@@ -26,14 +31,13 @@ def build_asset_checks(cfg):
     d = cfg.domain
     checks = []
 
-    # no_failures — per format: the transform recorded no ERROR and no 0-row "ok" table. The core gate.
-    for fmt in _FORMATS:
+    def _make_no_failures(fmt):
         akey = AssetKey(f"datasets_{d}_{fmt}")
 
         @asset_check(asset=akey, name="no_failures", blocking=True,
-                     description=f"No per-table ERROR or empty (0-row) output in datasets_{d}_{fmt}.")
-        def _no_failures(context, _akey=akey):
-            detail = _latest_meta(context, _akey).get("detail") or {}
+                     description=f"No per-table ERROR / empty (0-row) output in datasets_{d}_{fmt}.")
+        def _chk(context):
+            detail = _latest_meta(context, akey).get("detail") or {}
             errors = {k: v for k, v in detail.items() if isinstance(v, str) and v.startswith("ERROR")}
             empty = {k: v for k, v in detail.items() if isinstance(v, str) and v.startswith("ok (0r ")}
             return AssetCheckResult(
@@ -46,17 +50,20 @@ def build_asset_checks(cfg):
                 },
             )
 
-        checks.append(_no_failures)
+        return _chk
+
+    for fmt in _FORMATS:
+        checks.append(_make_no_failures(fmt))
 
     parquet_key = AssetKey(f"datasets_{d}_parquet")
     expected = sorted(cfg.parquet_allow)
 
     @asset_check(asset=parquet_key, name="expected_tables_present", blocking=True,
                  description="Every allowlisted dataset produced at least one parquet table (catches a silently-missing source).")
-    def _expected(context, _key=parquet_key, _exp=expected):
-        detail = _latest_meta(context, _key).get("detail") or {}
+    def _expected(context):
+        detail = _latest_meta(context, parquet_key).get("detail") or {}
         present = {k.split("/")[0] for k in detail}
-        missing = sorted(set(_exp) - present)
+        missing = sorted(set(expected) - present)
         return AssetCheckResult(
             passed=not missing,
             severity=AssetCheckSeverity.ERROR,
@@ -67,8 +74,8 @@ def build_asset_checks(cfg):
 
     @asset_check(asset=parquet_key, name="valid_column_names", blocking=False,
                  description="All silver column names are valid identifiers [A-Za-z0-9_] — a tripwire; sanitize_columns should already have normalized them.")
-    def _names(context, _key=parquet_key):
-        schemas = _latest_meta(context, _key).get("schemas") or {}
+    def _names(context):
+        schemas = _latest_meta(context, parquet_key).get("schemas") or {}
         bad = {k: [c for c in cols if not _VALID.match(c)] for k, cols in schemas.items()}
         bad = {k: v for k, v in bad.items() if v}
         return AssetCheckResult(
