@@ -299,30 +299,36 @@ flowchart TB
 
 ### 7b. Data domain structure
 
-Weyland organizes data into **domain-scoped stores** — music, health, and future domains each own
-their own storage path, lakeFS repo, and Nessie namespace. The `datasets/` MinIO bucket is the
-top-level envelope; domain data lives in subfolders.
+Weyland organizes data into **domain-scoped stores** — **music** and **health** (both live;
+bronze→silver→gold), plus future domains, each own their own storage path, lakeFS repo, and Nessie
+namespace. The `datasets/` MinIO bucket is the top-level envelope; domain data lives in subfolders.
+
+Both domains run on a shared **`datasets_lib`** platform (`weyland_pipeline/assets/datasets_lib/`): a
+per-dataset **land** asset writes lakeFS `raw/` (bronze), then `build_transform_assets(cfg)` — an asset
+factory — fans each raw table out to five silver formats + Iceberg gold. A domain is a `DomainConfig`
+(repo, namespace, per-format allowlists), not a new module. See [runbooks/datasets-lake.md](runbooks/datasets-lake.md).
 
 **MinIO layout:**
 ```
 datasets/              ← top-level bucket (domain envelope)
-  music/               ← lakeFS repo `music` (s3://datasets/music/)
-    raw/               ← bronze: source CSVs (dlt → Spotify, FMA)
-    parquet/           ← silver: columnar analytics (Trino / DuckDB)
-    arrow/             ← silver: in-memory IPC / zero-copy
-    avro/              ← silver: row-oriented, schema-evolution (Kafka-ready)
-    lance/             ← silver: ML / vector (LanceDB, fast random access)
-  health/              ← lakeFS repo `health` (future, s3://datasets/health/)
-    raw/               ← bronze: source CSVs (NHANES, BRFSS, Big Five, etc.)
-    parquet/           ← silver
-    ...
+  music/               ← lakeFS repo `music` (s3://datasets/music/) — 12 datasets
+    raw/               ← bronze: per-dataset land assets (HF, FMA zip, CSV) — csv
+    parquet/ arrow/ avro/ lance/  ← silver: <table>/<file> per source file
+  health/              ← lakeFS repo `health` (s3://datasets/health/) — 8 datasets (LIVE)
+    raw/               ← bronze: NHANES (.xpt), WHO GHO (.json), Open Food Facts (.csv.gz), BRFSS/NHIS/… (.csv)
+    parquet/ arrow/ avro/ lance/  ← silver (multi-format reader: csv / csv.gz / xpt / json)
 
 warehouse/             ← Nessie Iceberg warehouse (separate bucket, all domains)
-  datasets_music/      ← Iceberg gold tables (fma_tracks, spotify_tracks, ...)
-  datasets_health/     ← Iceberg gold tables (future)
+  datasets_music/      ← Iceberg gold — per-file tables (spotify_tracks, audioset_train, musicbrainz_artist, …)
+  datasets_health/     ← Iceberg gold — per-file tables (nhanes_2017_2020_DEMO_J, who_gho_life_expectancy, …)
   catalog/             ← model_catalog
   eval/                ← eval_scores (Iceberg data product)
 ```
+
+**Iceberg tables are named per source file** (`ice_ident`: `<table>` for single-file folders, `<table>_<file>`
+otherwise). Naming by folder alone made multi-file folders (usda's 30 CSVs, musicbrainz splits, audioset
+train/test) overwrite one table. Oversized tables (>15M rows, e.g. usda `food_nutrient` ~24M) are *deferred*
+from Iceberg (they'd stall the warehouse write) but still land in the file formats.
 
 **Iceberg namespace convention:** flat underscore-prefixed (`datasets_music`, `datasets_health`).
 Trino's native Nessie connector (`catalog.type=nessie`) does **not** expose nested namespaces —
@@ -332,31 +338,35 @@ Workaround: flat underscore prefixes keep the domain signal without nesting.
 
 ```mermaid
 flowchart LR
-  subgraph MinIO["MinIO — datasets/ bucket"]
-    MUS["music/\nraw · parquet · arrow · avro · lance"]
-    HLT["health/\nraw · parquet · ... (planned)"]
+  LAND["per-dataset land assets\nmusic ×12 · health ×8\n(freshness-gated)"]
+  subgraph LakeFS["lakeFS — raw/ (bronze)"]
+    LM["repo music\ns3://datasets/music/"]
+    LH["repo health\ns3://datasets/health/"]
   end
-  subgraph LakeFS["lakeFS (versioned gateway)"]
-    LM["repo: music\ns3://datasets/music/"]
-    LH["repo: health\ns3://datasets/health/ (planned)"]
+  BROKER["datasets_lib broker\nbuild_transform_assets(cfg)\nserialized · per-file · allowlisted"]
+  subgraph Silver["silver (lakeFS)"]
+    PQ["parquet"]
+    AR["arrow"]
+    AV["avro (streamed)"]
+    LN["lance"]
   end
-  subgraph Nessie["Nessie — Iceberg catalog (warehouse/)"]
-    NM["datasets_music.*\nfma_tracks · spotify_tracks · fma_genres · fma_echonest"]
-    NH["datasets_health.* (planned)\nnhanes · brfss · big_five · ..."]
-    NC["catalog.* · eval.*"]
+  subgraph Nessie["Nessie — Iceberg gold (warehouse/)"]
+    NM["datasets_music.*"]
+    NH["datasets_health.*"]
   end
-  subgraph MySQL["MySQL — data-mesh"]
-    MY["nhanes · big_five · who_gho\nbrfss · myfitnesspal · uk_biobank\nusda_fooddata · open_food_facts\ncdc_physical_activity"]
-  end
-  subgraph TSDB["TimescaleDB — data-mesh"]
-    TS["eval_scores_ts\nguardrail_verdicts_ts\ndagster_run_durations\nunleash_feature_metrics\ndatahub_ingestion_runs"]
-  end
-  MUS --> LM --> NM
-  HLT --> LH --> NH
-  Dagster["Dagster\n(health_land assets)"] --> MySQL
-  Dagster --> TSDB
-  Dagster --> LM
-  Dagster --> LH
+  STORES["Tier-2 stores — PLANNED (data-store-mageddon)\nMySQL · Mongo · ClickHouse · Cassandra · CockroachDB\nNeo4j · OpenSearch · Qdrant · Weaviate · Feast"]
+  LAND --> LM
+  LAND --> LH
+  LM --> BROKER
+  LH --> BROKER
+  BROKER --> PQ
+  BROKER --> AR
+  BROKER --> AV
+  BROKER --> LN
+  BROKER --> NM
+  BROKER --> NH
+  PQ -. planned .-> STORES
+  LN -. planned .-> STORES
 ```
 
 ---

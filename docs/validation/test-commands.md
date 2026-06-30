@@ -323,6 +323,54 @@ kubectl -n weyland exec deploy/dagster-user-code -- python -c "import weyland_pi
 > `docker image prune -f` is mandatory after every build+import. Skipping it caused k3s to apply
 > a `node.kubernetes.io/disk-pressure:NoSchedule` taint that blocked all pod scheduling on mother.
 
+### Datasets pipeline — diagnostics & cleanup
+
+Transform jobs are launched from the Dagster UI (`weyland_datasets_<domain>_transform_job`, serialized).
+After a run, the `_parquet`/`_iceberg` asset `detail` metadata is the per-table result map. Useful in-pod one-liners:
+
+```bash
+# List Iceberg tables for a domain (spot stale clobber/twin cruft)
+kubectl -n weyland exec deploy/dagster-user-code -- python -c "from weyland_pipeline.iceberg_publish import _catalog; print(sorted(t[-1] for t in _catalog().list_tables('datasets_music')))"
+
+# Drop a stale Iceberg table (regenerates from raw on the next iceberg run) — needed after a schema fix,
+# since union_by_name can't reconcile a bad field baked into an existing table
+kubectl -n weyland exec deploy/dagster-user-code -- python -c "
+from weyland_pipeline.iceberg_publish import _catalog
+c=_catalog()
+for t in ['datasets_music.spotify_tracks']:
+    try: c.drop_table(t); print('DROPPED', t)
+    except Exception as e: print('skip', t, '|', type(e).__name__, e)
+"
+
+# Inspect a raw object's first bytes (e.g. verify NHANES .XPT is real XPORT, not an HTML error page)
+kubectl -n weyland exec deploy/dagster-user-code -- python -c "import os; from minio import Minio; ep=os.environ['LAKEFS_ENDPOINT'].replace('http://','').replace('https://',''); c=Minio(ep, access_key=os.environ['LAKEFS_ACCESS_KEY_ID'], secret_key=os.environ['LAKEFS_SECRET_ACCESS_KEY'], secure=False); r=c.get_object('health','main/raw/nhanes/2017-2020/DEMO_J.XPT'); print(repr(r.read(40))); r.close()"
+
+# Is a long-running step working or stalled? (metrics-server is absent — sample CPU over 1s from /proc)
+kubectl -n weyland exec deploy/dagster-user-code -- python -c "
+import os,time
+def s():
+ d={}
+ for p in os.listdir('/proc'):
+  if p.isdigit():
+   try: x=open('/proc/%s/stat'%p).read().split(); d[p]=int(x[13])+int(x[14])
+   except: pass
+ return d
+a=s(); time.sleep(1); b=s(); hz=os.sysconf('SC_CLK_TCK'); r=[]
+for p,v in b.items():
+ dv=v-a.get(p,v)
+ if dv>0: r.append((dv*100.0/hz,p))
+r.sort(reverse=True)
+print('\n'.join('%5.1f%% pid=%s'%(c,p) for c,p in r[:5]) or 'NO BUSY PROCESS = STALLED')
+"
+
+# Why did the user-code pod restart? (OOMKilled = a heavy run; the pod has a 12Gi limit so it's pod-scoped)
+kubectl -n weyland get pod $(kubectl -n weyland get pods -o name | grep user-code | head -1 | cut -d/ -f2) -o jsonpath='restarts={.status.containerStatuses[0].restartCount} reason={.status.containerStatuses[0].lastState.terminated.reason}{"\n"}'
+```
+
+> **Force a re-land** (bypass the freshness skip without wiping materializations): materialize the land
+> asset from the launchpad with config `{"force": true}` (`RefreshConfig`). The old way — wiping the
+> asset's materialization history in the UI — still works but is destructive.
+
 ---
 
 ## Qdrant

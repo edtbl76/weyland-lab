@@ -3,6 +3,13 @@
 End-to-end ingestion pipelines for all datasets. Each source lands in lakeFS, transforms to silver/gold
 formats, then loads into the appropriate stores. Read paths are shown per format.
 
+> **Status (2026-06-30):** the **land → silver (Parquet/Arrow/Avro/Lance) → Iceberg gold** legs are
+> **built and green** for both domains (via the `datasets_lib` broker — see
+> [runbooks/datasets-lake.md](runbooks/datasets-lake.md)). The **store loaders below** (MySQL, Mongo,
+> ClickHouse, Cassandra, CockroachDB, Neo4j, OpenSearch, Qdrant/Weaviate, Feast, dbt, Kafka, DuckDB) are
+> the **planned target** (the storage grid) — next phase, "data-store-mageddon". This file is the map for
+> that work, not current state. Deferred: `open_food_facts` (~9GB), usda `food_nutrient` (~24M rows).
+
 ---
 
 ## Music Domain
@@ -43,7 +50,7 @@ FMA Features (518) ──► land ──► lakeFS raw ──► Parquet ──�
                                           ├──► Feast (rich audio feature store)
                                           └──► DuckDB (live)
 
-MSD (UCI 515k subset) ──► land ──► lakeFS raw ──► Parquet ──► Iceberg/Trino ──► dbt
+UCI Year Prediction (515k) ──► land ──► lakeFS raw ──► Parquet ──► Iceberg/Trino ──► dbt
                                                ├──► Arrow ──► JupyterHub/polars
                                                ├──► Avro ──► Kafka → consumers
                                                ├──► Lance ──► LanceDB ──► Qdrant/Weaviate
