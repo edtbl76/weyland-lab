@@ -4,20 +4,23 @@ Key components from the 2017-2020 and 2015-2016 cycles as XPT (SAS transport) fi
 from dagster import MetadataValue, Output, asset
 from .health_common import health_minio, health_put, health_download, check_source_freshness
 
+# CDC reorganized wwwn.cdc.gov: the old /Nchs/Nhanes/<cycle>/<FILE>.XPT URLs now 302 to an HTML homepage
+# (so the land step was silently saving HTML — verified 2026-06-30). Current pattern is
+# /Nchs/Data/Nhanes/Public/<firstYear>/DataFiles/<FILE>.xpt (lowercase ext). 2017-18 = "2017", 2015-16 = "2015".
 NHANES_FILES = [
-    ("2017-2020/DEMO_J.XPT",   "https://wwwn.cdc.gov/Nchs/Nhanes/2017-2018/DEMO_J.XPT"),
-    ("2017-2020/BMX_J.XPT",    "https://wwwn.cdc.gov/Nchs/Nhanes/2017-2018/BMX_J.XPT"),
-    ("2017-2020/BPX_J.XPT",    "https://wwwn.cdc.gov/Nchs/Nhanes/2017-2018/BPX_J.XPT"),
-    ("2017-2020/TCHOL_J.XPT",  "https://wwwn.cdc.gov/Nchs/Nhanes/2017-2018/TCHOL_J.XPT"),
-    ("2017-2020/DIQ_J.XPT",    "https://wwwn.cdc.gov/Nchs/Nhanes/2017-2018/DIQ_J.XPT"),
-    ("2017-2020/PAQ_J.XPT",    "https://wwwn.cdc.gov/Nchs/Nhanes/2017-2018/PAQ_J.XPT"),
-    ("2017-2020/DR1TOT_J.XPT", "https://wwwn.cdc.gov/Nchs/Nhanes/2017-2018/DR1TOT_J.XPT"),
-    ("2017-2020/DPQ_J.XPT",    "https://wwwn.cdc.gov/Nchs/Nhanes/2017-2018/DPQ_J.XPT"),
-    ("2017-2020/WHQ_J.XPT",    "https://wwwn.cdc.gov/Nchs/Nhanes/2017-2018/WHQ_J.XPT"),
-    ("2017-2020/SLQ_J.XPT",    "https://wwwn.cdc.gov/Nchs/Nhanes/2017-2018/SLQ_J.XPT"),
-    ("2015-2016/DEMO_I.XPT",   "https://wwwn.cdc.gov/Nchs/Nhanes/2015-2016/DEMO_I.XPT"),
-    ("2015-2016/BMX_I.XPT",    "https://wwwn.cdc.gov/Nchs/Nhanes/2015-2016/BMX_I.XPT"),
-    ("2015-2016/PAQ_I.XPT",    "https://wwwn.cdc.gov/Nchs/Nhanes/2015-2016/PAQ_I.XPT"),
+    ("2017-2020/DEMO_J.XPT",   "https://wwwn.cdc.gov/Nchs/Data/Nhanes/Public/2017/DataFiles/DEMO_J.xpt"),
+    ("2017-2020/BMX_J.XPT",    "https://wwwn.cdc.gov/Nchs/Data/Nhanes/Public/2017/DataFiles/BMX_J.xpt"),
+    ("2017-2020/BPX_J.XPT",    "https://wwwn.cdc.gov/Nchs/Data/Nhanes/Public/2017/DataFiles/BPX_J.xpt"),
+    ("2017-2020/TCHOL_J.XPT",  "https://wwwn.cdc.gov/Nchs/Data/Nhanes/Public/2017/DataFiles/TCHOL_J.xpt"),
+    ("2017-2020/DIQ_J.XPT",    "https://wwwn.cdc.gov/Nchs/Data/Nhanes/Public/2017/DataFiles/DIQ_J.xpt"),
+    ("2017-2020/PAQ_J.XPT",    "https://wwwn.cdc.gov/Nchs/Data/Nhanes/Public/2017/DataFiles/PAQ_J.xpt"),
+    ("2017-2020/DR1TOT_J.XPT", "https://wwwn.cdc.gov/Nchs/Data/Nhanes/Public/2017/DataFiles/DR1TOT_J.xpt"),
+    ("2017-2020/DPQ_J.XPT",    "https://wwwn.cdc.gov/Nchs/Data/Nhanes/Public/2017/DataFiles/DPQ_J.xpt"),
+    ("2017-2020/WHQ_J.XPT",    "https://wwwn.cdc.gov/Nchs/Data/Nhanes/Public/2017/DataFiles/WHQ_J.xpt"),
+    ("2017-2020/SLQ_J.XPT",    "https://wwwn.cdc.gov/Nchs/Data/Nhanes/Public/2017/DataFiles/SLQ_J.xpt"),
+    ("2015-2016/DEMO_I.XPT",   "https://wwwn.cdc.gov/Nchs/Data/Nhanes/Public/2015/DataFiles/DEMO_I.xpt"),
+    ("2015-2016/BMX_I.XPT",    "https://wwwn.cdc.gov/Nchs/Data/Nhanes/Public/2015/DataFiles/BMX_I.xpt"),
+    ("2015-2016/PAQ_I.XPT",    "https://wwwn.cdc.gov/Nchs/Data/Nhanes/Public/2015/DataFiles/PAQ_I.xpt"),
 ]
 
 

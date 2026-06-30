@@ -12,6 +12,7 @@ and the price of full process isolation; passing big Arrow tables between assets
 """
 import io
 import os
+import re
 
 import pyarrow as pa
 import pyarrow.csv as pacsv
@@ -157,7 +158,30 @@ def _write_lance(client, bucket, table, name, t):
     _catalog_file("lance", table, f"lakefs://{bucket}/{_BRANCH}/lance/{table}/", t.schema, "datasets_music_lance")
 
 
+# Tables above this skip the inline pyiceberg overwrite — writing a huge table's parquet to the warehouse
+# stalls on a network wait with no timeout (usda food_nutrient ~24M rows hung the step for 30m, CPU=0).
+# Oversized tables are DEFERRED (still present in parquet/arrow/avro/lance); a dedicated large-table writer
+# is the follow-up. 15M clears lastfm (~14M, which committed fine) but defers the genuine monsters. Tune up
+# as the warehouse path improves.
+_ICEBERG_MAX_ROWS = 15_000_000
+
+
+class _SkipTable(Exception):
+    """Raised by a writer to skip ONE table without marking the whole format errored (e.g. oversized iceberg)."""
+
+
+def _ice_ident(table, name):
+    """Per-file Iceberg table id. The writer used to name the table by FOLDER only, so every file in a
+    multi-file folder (usda's 30 CSVs, musicbrainz's 12 splits, audioset train/test) overwrote one table —
+    only the last survived. Now each file gets its own table; single-file folders stay as just the folder."""
+    base = table if name == table else f"{table}_{name}"
+    ident = re.sub(r"[^0-9a-zA-Z]+", "_", base).strip("_").lower()
+    return ident if ident and not ident[0].isdigit() else f"t_{ident}"
+
+
 def _hydrate_iceberg(client, bucket, table, name, t):
+    if t.num_rows > _ICEBERG_MAX_ROWS:
+        raise _SkipTable(f"{t.num_rows:,} rows > {_ICEBERG_MAX_ROWS:,} cap — deferred from inline Iceberg")
     from weyland_pipeline.iceberg_publish import _catalog
 
     cat = _catalog()
@@ -168,10 +192,11 @@ def _hydrate_iceberg(client, bucket, table, name, t):
     # broken on Trino 468. SHOW SCHEMAS hides them and queries against "datasets.music" error.
     # Workaround: flat prefixed namespaces (datasets_music, datasets_health) in Nessie/Trino.
     cat.create_namespace_if_not_exists("datasets_music")
-    ice = cat.create_table_if_not_exists(f"datasets_music.{table}", schema=t.schema)
+    full = f"datasets_music.{_ice_ident(table, name)}"
+    ice = cat.create_table_if_not_exists(full, schema=t.schema)
     with ice.update_schema() as update:
         update.union_by_name(t.schema)
-    ice = cat.load_table(f"datasets_music.{table}")
+    ice = cat.load_table(full)
     ice.overwrite(t)
 
 
@@ -205,6 +230,9 @@ def _run_format(context, write_one, allow) -> Output:
         try:
             write_one(client, bucket, table, name, t)
             out[key] = f"ok ({t.num_rows}r x {t.num_columns}c)"
+        except _SkipTable as sk:
+            out[key] = f"deferred: {sk}"
+            context.log.warning(f"{key}: deferred — {sk}")
         except Exception as e:  # noqa: BLE001 — per-table resilience within a format
             out[key] = f"ERROR {type(e).__name__}: {e}"
             context.log.error(f"{key}: {e}")
@@ -212,6 +240,7 @@ def _run_format(context, write_one, allow) -> Output:
         context.log.warning("no allowlisted raw tables under music/raw/ — run datasets_music_land first")
     return Output(out, metadata={
         "ok": MetadataValue.int(sum(1 for v in out.values() if v.startswith("ok"))),
+        "deferred": MetadataValue.int(sum(1 for v in out.values() if v.startswith("deferred"))),
         "detail": MetadataValue.json(out),
     })
 

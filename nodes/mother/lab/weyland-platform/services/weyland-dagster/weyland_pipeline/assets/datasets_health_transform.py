@@ -197,17 +197,38 @@ def _write_lance(client, bucket, table, name, t):
     _catalog_file("lance", table, f"lakefs://{bucket}/{_BRANCH}/lance/{table}/", t.schema, "datasets_health_lance")
 
 
+# See datasets_music_transform.py for the rationale. usda food_nutrient (~24M rows) hung the iceberg step
+# for 30m (CPU=0, stalled writing parquet to the warehouse). Oversized tables defer; still in the file formats.
+_ICEBERG_MAX_ROWS = 15_000_000
+
+
+class _SkipTable(Exception):
+    """Raised by a writer to skip ONE table without marking the whole format errored (e.g. oversized iceberg)."""
+
+
+def _ice_ident(table, name):
+    """Per-file Iceberg table id. The writer used to name the table by FOLDER only, so every file in a
+    multi-file folder (usda's 30 CSVs, nhanes cycles) overwrote one table — only the last survived. Now
+    each file gets its own table; single-file folders stay as just the folder."""
+    base = table if name == table else f"{table}_{name}"
+    ident = re.sub(r"[^0-9a-zA-Z]+", "_", base).strip("_").lower()
+    return ident if ident and not ident[0].isdigit() else f"t_{ident}"
+
+
 def _hydrate_iceberg(client, bucket, table, name, t):
+    if t.num_rows > _ICEBERG_MAX_ROWS:
+        raise _SkipTable(f"{t.num_rows:,} rows > {_ICEBERG_MAX_ROWS:,} cap — deferred from inline Iceberg")
     from weyland_pipeline.iceberg_publish import _catalog
 
     cat = _catalog()
     # Flat prefixed namespace (datasets_health) — Nessie nested namespaces are invisible to Trino
     # catalog.type=nessie (see datasets_music_transform.py for the full rationale).
     cat.create_namespace_if_not_exists("datasets_health")
-    ice = cat.create_table_if_not_exists(f"datasets_health.{table}", schema=t.schema)
+    full = f"datasets_health.{_ice_ident(table, name)}"
+    ice = cat.create_table_if_not_exists(full, schema=t.schema)
     with ice.update_schema() as update:
         update.union_by_name(t.schema)
-    ice = cat.load_table(f"datasets_health.{table}")
+    ice = cat.load_table(full)
     ice.overwrite(t)
 
 
@@ -236,6 +257,9 @@ def _run_format(context, write_one, allow) -> Output:
         try:
             write_one(client, bucket, table, name, t)
             out[key] = f"ok ({t.num_rows}r x {t.num_columns}c)"
+        except _SkipTable as sk:
+            out[key] = f"deferred: {sk}"
+            context.log.warning(f"{key}: deferred — {sk}")
         except Exception as e:  # noqa: BLE001 — per-table resilience within a format
             out[key] = f"ERROR {type(e).__name__}: {e}"
             context.log.error(f"{key}: {e}")
@@ -243,6 +267,7 @@ def _run_format(context, write_one, allow) -> Output:
         context.log.warning("no allowlisted readable raw under health/raw/ — run datasets_health_*_land first")
     return Output(out, metadata={
         "ok": MetadataValue.int(sum(1 for v in out.values() if v.startswith("ok"))),
+        "deferred": MetadataValue.int(sum(1 for v in out.values() if v.startswith("deferred"))),
         "detail": MetadataValue.json(out),
     })
 
