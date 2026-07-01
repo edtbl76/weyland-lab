@@ -81,12 +81,27 @@ constraint) — a `mysqld-exporter` is the follow-up. Same 7-point gate applies 
 - **Asset:** `datasets_health_mysql_load` — materialize it (or run the future hydrate job) after the health
   transform is green.
 
+## TimescaleDB (store #2 — WHO GHO hypertables, 2026-07-01)
+
+- **Target (grid `TimescaleDB=Y`):** `who_gho` only. Last.fm is `Y` in the grid but **skipped** — its silver is
+  lifetime user↔artist playcounts with no per-listen timestamps, so it isn't a time-series (only `signup_date`
+  is temporal; forcing it in would be square-peg cruft). Recorded in the `timescale_allow` comment.
+- **Loader:** `datasets_health_timescaledb_load` (the `timescale_allow={"who_gho": "TimeDim"}` arm of
+  `build_store_load_assets`). Each WHO GHO indicator parquet → a **hypertable** in db `timeseries`, named
+  `who_gho_<indicator>` (dataset-prefixed — TimescaleDB is one flat db). Time axis: a derived `ts` timestamptz
+  = `TimeDim` (the year) → Jan 1; rows with no usable year are dropped (a hypertable's time column must be non-null).
+  `to_sql` then `create_hypertable(..., migrate_data => TRUE, if_not_exists => TRUE)`.
+- **Connection:** the existing `TIMESCALEDB_*` defaults (`timescaledb.data-mesh.svc:5432`, db `timeseries`,
+  `weyland`/dev pw) — no new env. Runs in `weyland_datasets_health_hydrate_job` (same `datasets_health_stores` group).
+- **Gate:** Loaded ✅ · Runnable ✅ · Gated ✅ (parquet dep) · Cataloged ✅ (`emit_timescaledb` scans all
+  hypertables) · Monitored ✅ (rides the hydrate-failure Loki rule) · Documented ✅ · Pushed ▢.
+
 ## Store roadmap (the grid's Tier-2 targets)
 
 | Store | Deployed? | Loader | Grid targets (datasets) |
 |---|---|---|---|
 | **MySQL** | ✅ always-on | ✅ **done** | health: nhanes, big_five, who_gho, cdc_physical_activity, brfss, nhis |
-| TimescaleDB | ✅ | ▢ | lastfm (listening trends), who_gho (country/year) |
+| TimescaleDB | ✅ | ✅ **done** | who_gho (country/year → 8 hypertables). Last.fm **skipped** — its silver is lifetime playcounts, no per-listen timestamps (not a real time-series) |
 | Neo4j | ✅ (RAG) | ▢ | graphs: fma_genres, fma_tracks, uci, lastfm, musicbrainz, audioset, big_five |
 | OpenSearch | ✅ (RAG) | ▢ | search: fma_tracks, uci, musicbrainz, lp_musiccaps_*, audioset, usda, open_food_facts |
 | Qdrant / Weaviate | ✅ (RAG) | ▢ | vector similarity (the Lance-allowlisted sets) |

@@ -388,6 +388,9 @@ def emit_timescaledb():
         "unleash_feature_metrics": "client_metrics_env",
         "datahub_ingestion_runs": None,
     }
+    # dataset-hydrated hypertables (data-store-mageddon): upstream is the silver parquet of the SAME name
+    # (who_gho_adult_obesity ← parquet who_gho_adult_obesity), not a Postgres source table. Prefix-matched.
+    dataset_hypertable_prefixes = ("who_gho_",)
     try:
         cur = conn.cursor()
         cur.execute("""
@@ -423,6 +426,10 @@ def emit_timescaledb():
                 aspects.append(UpstreamLineageClass(upstreams=[UpstreamClass(
                     dataset=make_dataset_urn(platform="postgres", name=f"weyland.public.{src}", env=ENV),
                     type=DatasetLineageTypeClass.COPY)]))
+            elif t.startswith(dataset_hypertable_prefixes):
+                aspects.append(UpstreamLineageClass(upstreams=[UpstreamClass(
+                    dataset=make_dataset_urn(platform="parquet", name=t, env=ENV),
+                    type=DatasetLineageTypeClass.TRANSFORMED)]))
             for aspect in aspects:
                 emitter.emit(MetadataChangeProposalWrapper(entityUrn=urn, aspect=aspect))
             names.append(t)
