@@ -53,5 +53,17 @@ spec:
               mountPath: /media/dbdump    # createdb.sh -fetch downloads + extracts the dump tarballs here
       volumes:
         - name: dbdump
-          emptyDir:
-            sizeLimit: 60Gi
+          persistentVolumeClaim:
+            claimName: musicbrainz-dbdump   # persist the downloaded dumps across retries (createdb.sh reuses
+                                            # "existing dumps" instead of re-fetching ~15GB every run)
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: musicbrainz-dbdump
+  namespace: data-mesh
+spec:
+  accessModes: ["ReadWriteOnce"]
+  resources:
+    requests:
+      storage: 40Gi
