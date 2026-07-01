@@ -22,6 +22,11 @@ spec:
     metadata:
       labels:
         app: musicbrainz-import
+      annotations:
+        # data-mesh auto-injects Istio; a sidecar never exits, so a Job pod would run forever after the import
+        # finishes and never register Complete. Disable it — the import connects to the (un-meshed) instance
+        # directly, so it needs no sidecar anyway.
+        sidecar.istio.io/inject: "false"
     spec:
       restartPolicy: Never
       containers:
