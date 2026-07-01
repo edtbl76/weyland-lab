@@ -22,23 +22,27 @@
 
 ## Deploy
 
-GitOps: `k8s/data-mesh/gizmosql.yaml` (Deployment + **`gizmosql-duckdb` PVC** + NodePort Service + `GizmosqlDown` PrometheusRule). The **secret is imperative** (carries the lakeFS keys — not in git). `INIT_SQL_COMMANDS` is now **minimal**: it does NOT build the catalog (the tables persist on the PVC + are materialised separately), only `INSTALL httpfs` and cap DuckDB's memory (default is node-RAM-sized → would OOM the 4Gi container):
-
-```
-kubectl -n data-mesh create secret generic gizmosql-secret --from-literal=GIZMOSQL_USERNAME=weyland --from-literal=GIZMOSQL_PASSWORD=weyland_dev_password --from-literal=INIT_SQL_COMMANDS="INSTALL httpfs; LOAD httpfs; SET memory_limit='3GB';" --dry-run=client -o yaml | kubectl apply -f -
-```
+GitOps: `k8s/data-mesh/gizmosql.yaml` (Deployment + **`gizmosql-duckdb` PVC** + NodePort Service + `GizmosqlDown` PrometheusRule + a `startupProbe` for the slow first boot). The **secret is imperative** (carries the lakeFS keys — not in git). `INIT_SQL_COMMANDS` is the **generated materialise SQL** (schema + secret + `CREATE TABLE IF NOT EXISTS … AS SELECT read_parquet(...)` per file) — see below; don't hand-write it.
 
 ## Materialise / refresh the store
 
-The catalog is **not** in `INIT_SQL` anymore — it's a one-shot (and the refresh after any dataset change). `gen_gizmosql_init.py tables` runs in the user-code pod (which has both `LAKEFS_*` to LIST Parquet and `GIZMOSQL_*` to connect), connects over Flight SQL, and `CREATE OR REPLACE TABLE`s one persisted table per current silver Parquet file into `datasets_music`/`datasets_health`. Per-table try/except → one bad file logs + is skipped, not aborting the run.
+The catalog **is** in `INIT_SQL` — that's deliberate. GizmoSQL runs each *client* Flight SQL statement in an isolated session, so driving the DDL from a client fails ("Schema … does not exist" — the client's `CREATE SCHEMA`/`CREATE SECRET` isn't visible to the next `CREATE TABLE`). `INIT_SQL` runs the whole block in **one shared startup session** — the only place schema + secret + table DDL coexist. On the persisted DB, `CREATE TABLE IF NOT EXISTS` materialises **once on first boot** and is a no-op on every restart after.
+
+Generate the SQL (in the user-code pod, which has `LAKEFS_*` + reaches the gateway), patch the secret from it, restart:
 
 ```
-kubectl -n weyland exec -i deploy/dagster-user-code -- python - tables < nodes/mother/lab/weyland-platform/scripts/gen_gizmosql_init.py
+kubectl -n weyland exec -i deploy/dagster-user-code -- python - tables < scripts/gen_gizmosql_init.py > /tmp/gizmo-init.sql
+```
+```
+kubectl -n data-mesh create secret generic gizmosql-secret --from-literal=GIZMOSQL_USERNAME=weyland --from-literal=GIZMOSQL_PASSWORD=weyland_dev_password --from-file=INIT_SQL_COMMANDS=/tmp/gizmo-init.sql --dry-run=client -o yaml | kubectl apply -f -
+```
+```
+kubectl -n data-mesh rollout restart deploy/gizmosql
 ```
 
-- **Refresh** (silver changed): re-run the same command — `CREATE OR REPLACE` swaps each table in place.
-- **Full reset**: `kubectl -n data-mesh delete pvc gizmosql-duckdb` + let it recreate, restart gizmosql, re-materialise.
-- **First materialise is the slow one** (reads every Parquet); restarts after are instant (tables are on the PVC).
+- **First boot is the slow one** (CTAS reads every Parquet, incl. usda ~26M rows) — the `startupProbe` (20 min) covers it. Restarts after are instant (`IF NOT EXISTS` skips the persisted tables).
+- **Refresh** (silver changed): `IF NOT EXISTS` won't update a table whose data changed. Simplest = **full reset**: `kubectl -n data-mesh delete pvc gizmosql-duckdb`, let it recreate, restart → re-materialise. Targeted = drop the stale table then restart (INIT_SQL recreates just it).
+- **`SET memory_limit='3GB'`** leads the INIT_SQL — DuckDB otherwise sizes to node RAM and OOMs the 4Gi container during CTAS.
 
 ## Gotchas (every one cost us a cycle)
 

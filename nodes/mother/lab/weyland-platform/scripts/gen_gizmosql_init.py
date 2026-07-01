@@ -1,27 +1,24 @@
-"""Build the GizmoSQL silver catalog over the lakeFS Parquet, across both domains (music, health).
+"""Build GizmoSQL's INIT_SQL_COMMANDS over the lakeFS Parquet, across both domains (music, health).
 
-Two modes (argv[1], default `views`):
-  views  — print CREATE VIEW SQL to stdout. LEGACY path (patched into the imperative gizmosql-secret's
-           INIT_SQL_COMMANDS). Kept for reference; NOT how the store is served anymore.
-  tables — connect to GizmoSQL over Arrow Flight SQL and MATERIALISE each Parquet file as a *persisted*
-           DuckDB TABLE (CREATE OR REPLACE, schema-per-domain). This is the store form, because:
-             • GizmoSQL's Flight SQL GetTables surfaces base TABLES but NOT views → tables show up and
-               browse in DataGrip / IntelliJ; views are queryable by name yet invisible to the IDE tree.
-             • queries hit native DuckDB columnar storage instead of re-reading Parquet each time.
-           Requires GizmoSQL to run with a persisted DATABASE_FILENAME on a PVC (k8s/data-mesh/gizmosql.yaml)
-           so the tables survive restarts (an in-memory db would re-materialise all of them every boot).
+Two modes (argv[1], default `views`) — BOTH print SQL to stdout for the imperative `gizmosql-secret`:
+  views  — `CREATE OR REPLACE VIEW` per Parquet file. LEGACY: views are queryable by name but GizmoSQL's
+           Flight SQL GetTables does NOT surface them, so they're invisible in the DataGrip/IntelliJ tree.
+  tables — `CREATE TABLE IF NOT EXISTS … AS SELECT` per Parquet file, schema-per-domain. This is the store
+           form: base tables ARE surfaced by GetTables → they show up + browse in the IDE tree, and queries
+           hit native DuckDB columnar storage instead of re-reading Parquet.
 
-Run in the user-code pod — it has LAKEFS_* (to LIST Parquet) AND GIZMOSQL_* (to connect), and reaches both
-the lakeFS gateway and gizmosql.data-mesh.svc:
+WHY INIT_SQL (not driving the DDL over a client): GizmoSQL runs each Flight SQL statement in an ISOLATED
+session, so a client's `CREATE SCHEMA`/`CREATE SECRET` isn't visible to the next `CREATE TABLE` (fails with
+"Schema … does not exist"). INIT_SQL runs the whole block in ONE session at server startup — the only place
+schema + secret + table DDL coexist. On a PERSISTED DuckDB (DATABASE_FILENAME on a PVC — see gizmosql.yaml),
+`IF NOT EXISTS` materialises the tables once on first boot and skips on every restart after (no re-read).
 
-    # materialise / refresh the store (re-run after any dataset land+transform changes its silver):
-    kubectl -n weyland exec -i deploy/dagster-user-code -- python - tables < scripts/gen_gizmosql_init.py
+Run in the user-code pod (it has LAKEFS_* to LIST Parquet + reaches the gateway); capture stdout locally:
+    kubectl -n weyland exec -i deploy/dagster-user-code -- python - tables < scripts/gen_gizmosql_init.py > /tmp/gizmo-init.sql
+Then patch gizmosql-secret's INIT_SQL_COMMANDS with that file and restart gizmosql (see runbooks/gizmosql.md).
 
-    # or just print the legacy view SQL:
-    kubectl -n weyland exec -i deploy/dagster-user-code -- python - < scripts/gen_gizmosql_init.py
-
-NOTE (views mode): stdout carries the lakeFS keys (DuckDB CREATE SECRET needs literals) — pipe it straight
-into the Secret, don't paste it around. tables mode keeps the keys in-session (never persisted to the db file).
+NOTE: stdout carries the lakeFS keys (DuckDB CREATE SECRET needs literals) — pipe it straight into the Secret,
+don't paste it around.
 """
 import os
 import re
@@ -70,56 +67,34 @@ def _secret_sql() -> str:
             f"ENDPOINT '{HOSTPORT}', URL_STYLE 'path', USE_SSL false, REGION 'us-east-1');")
 
 
-def print_views(rows):
-    lines = ["INSTALL httpfs; LOAD httpfs;", _secret_sql()]
+def build_init_sql(rows, mode):
+    lines = []
+    if mode == "tables":
+        # cap DuckDB (defaults to node-RAM-sized → OOMs the container) BEFORE the CTAS materialise runs.
+        lines.append("SET memory_limit='3GB';")
+    lines += ["INSTALL httpfs; LOAD httpfs;", _secret_sql()]
     for schema in sorted({s for s, _, _ in rows}):
         lines.append(f"CREATE SCHEMA IF NOT EXISTS {schema};")
     for schema, ident, path in rows:
-        lines.append(f"CREATE OR REPLACE VIEW {schema}.{ident} AS SELECT * FROM read_parquet('{path}');")
-    print("\n".join(lines))
-    print(f"-- generated {len(rows)} views across {REPOS}", file=sys.stderr)
-
-
-def materialize_tables(rows):
-    """Connect to GizmoSQL and CREATE OR REPLACE each Parquet file as a persisted DuckDB table. Per-table
-    try/except so one bad file logs + is skipped instead of aborting the whole refresh (same discipline as
-    the store loaders). Creds come from the pod's own GIZMOSQL_* env (same as datahub_emit.emit_duckdb)."""
-    import adbc_driver_flightsql.dbapi as flight_sql
-
-    conn = flight_sql.connect(
-        os.environ.get("GIZMOSQL_URI", "grpc+tcp://gizmosql.data-mesh.svc.cluster.local:31337"),
-        db_kwargs={
-            "username": os.environ.get("GIZMOSQL_USERNAME", "weyland"),
-            "password": os.environ["GIZMOSQL_PASSWORD"],
-        },
-    )
-    ok, failed = 0, []
-    try:
-        cur = conn.cursor()
-        cur.execute("INSTALL httpfs")          # one statement per execute — Flight SQL isn't multi-statement
-        cur.execute("LOAD httpfs")
-        cur.execute(_secret_sql())             # temporary (session) secret — never persisted to the db file
-        for schema in sorted({s for s, _, _ in rows}):
-            cur.execute(f"CREATE SCHEMA IF NOT EXISTS {schema}")
-        for schema, ident, path in rows:
-            try:
-                cur.execute(f"CREATE OR REPLACE TABLE {schema}.{ident} AS SELECT * FROM read_parquet('{path}')")
-                ok += 1
-                print(f"  ✓ {schema}.{ident}", file=sys.stderr)
-            except Exception as exc:           # noqa: BLE001 — one bad file must not abort the rest
-                failed.append((f"{schema}.{ident}", str(exc).splitlines()[0]))
-                print(f"  ✗ {schema}.{ident}: {str(exc).splitlines()[0]}", file=sys.stderr)
-    finally:
-        conn.close()
-    print(f"-- materialised {ok}/{len(rows)} tables across {REPOS}"
-          + (f"; {len(failed)} FAILED: {failed}" if failed else ""), file=sys.stderr)
+        if mode == "tables":
+            # IF NOT EXISTS: materialise once on first boot, skip on restart (persisted DB survives it).
+            lines.append(
+                f"CREATE TABLE IF NOT EXISTS {schema}.{ident} AS SELECT * FROM read_parquet('{path}');")
+        else:
+            lines.append(
+                f"CREATE OR REPLACE VIEW {schema}.{ident} AS SELECT * FROM read_parquet('{path}');")
+    return lines
 
 
 def main():
     mode = (sys.argv[1] if len(sys.argv) > 1 else "views").lower()
+    if mode not in ("views", "tables"):
+        sys.exit(f"usage: gen_gizmosql_init.py [views|tables]  (got {mode!r})")
     mc = Minio(HOSTPORT, access_key=KEY, secret_key=SECRET, secure=ENDPOINT.startswith("https://"))
     rows = _catalog(mc)
-    (materialize_tables if mode == "tables" else print_views)(rows)
+    print("\n".join(build_init_sql(rows, mode)))
+    kind = "tables (CREATE TABLE IF NOT EXISTS)" if mode == "tables" else "views"
+    print(f"-- generated {len(rows)} {kind} across {REPOS}", file=sys.stderr)
 
 
 if __name__ == "__main__":
