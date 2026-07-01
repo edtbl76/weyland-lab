@@ -56,8 +56,11 @@ def _load_dataset_to_mysql(mc, cfg, dataset, engine_for, log) -> dict:
             n, first = 0, True
             for batch in pq.ParquetFile(_io.BytesIO(data)).iter_batches(batch_size=_MYSQL_BATCH):
                 df = batch.to_pandas()
+                # default method (executemany), NOT method="multi": a multi-row INSERT compiles
+                # chunksize×columns bind params, which is pathologically slow on wide tables (big_five's
+                # 57 cols × 5000 = 285k params hung the compile until the run was killed).
                 df.to_sql(table, engine, if_exists="replace" if first else "append",
-                          index=False, chunksize=5_000, method="multi")
+                          index=False, chunksize=1_000)
                 first, n = False, n + len(df)
             out[f"{dataset}.{table}"] = n
             log.info(f"mysql {dataset}.{table}: {n:,} rows")
