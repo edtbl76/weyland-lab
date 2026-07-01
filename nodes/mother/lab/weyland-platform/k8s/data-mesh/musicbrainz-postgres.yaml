@@ -34,7 +34,8 @@ spec:
     spec:
       containers:
         - name: postgres
-          image: postgres:16    # official image bundles contrib (cube, earthdistance) that the MB schema needs
+          image: postgres:18    # MB's current server requires PostgreSQL 18+ (InitDb enforces it); the official
+                                # image bundles the contrib extensions (cube, earthdistance) the MB schema needs
           envFrom:
             - secretRef:
                 name: musicbrainz-postgres-secret   # imperative (POSTGRES_PASSWORD = superuser) — not in git
