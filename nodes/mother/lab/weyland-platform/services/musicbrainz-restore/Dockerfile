@@ -9,7 +9,10 @@ FROM python:3.12-slim
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
         postgresql-client bzip2 ca-certificates git curl \
+        libpq-dev gcc python3-dev \
     && rm -rf /var/lib/apt/lists/*
+# libpq-dev (pg_config) + gcc + python3-dev: mbslave pins source psycopg2 (not -binary), which compiles at
+# install. libpq-dev also pulls libpq5 (the runtime shared lib psycopg2 needs to import).
 
 # Pin to a ref once the smoke test proves a working commit — @main for the first pass.
 RUN pip install --no-cache-dir "git+https://github.com/acoustid/mbslave.git@main"
