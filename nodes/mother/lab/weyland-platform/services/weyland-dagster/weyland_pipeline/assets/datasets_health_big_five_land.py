@@ -8,14 +8,14 @@ import zipfile
 
 import pyarrow.csv as pacsv
 from dagster import MetadataValue, Output, asset
-from .health_common import health_minio, health_put, health_download, check_source_freshness
+from .health_common import health_minio, health_put, health_download, should_skip, RefreshConfig
 
 
 @asset(group_name="datasets_health", description="Land Big Five IPIP personality data → health/raw/big_five/ (TSV→CSV).")
-def datasets_health_big_five_land(context) -> Output[dict]:
+def datasets_health_big_five_land(context, config: RefreshConfig) -> Output[dict]:
     client = health_minio()
     url = "https://openpsychometrics.org/_rawdata/BIG5.zip"
-    if check_source_freshness(context, url):
+    if should_skip(context, config, url=url):  # materialize with {"force": true} to bypass freshness
         return Output({"skipped": True}, metadata={"skipped": MetadataValue.bool(True)})
     context.log.info("Big Five: downloading zip")
     data = health_download(url)
