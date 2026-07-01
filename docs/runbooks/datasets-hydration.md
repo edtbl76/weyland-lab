@@ -31,7 +31,33 @@ Before building any store's loader, answer two questions (and gate on them):
 The loader asset `deps` on `datasets_<domain>_parquet`, so it runs after silver exists and the parquet
 **`no_failures`** blocking check gates it — bad silver never hydrates.
 
-## MySQL (store #1 — DONE)
+## Completeness gate — run after EVERY store (not "it ran once")
+
+A store is not done when the loader goes green once. Before marking a store complete, verify all seven —
+and record the result (the gate exists to surface the gaps a single successful run hides):
+
+| # | Check | How |
+|---|---|---|
+| 1 | **Loaded** — every target dataset present, row counts sane | `information_schema` counts vs the `<store>_allow` set |
+| 2 | **Runnable** — a hydrate **job** (schedulable), not just a materializable asset | `define_asset_job` selecting the store loader |
+| 3 | **Gated** — the parquet `no_failures` check gates the load (bad silver can't hydrate) | loader `deps` on `datasets_<domain>_parquet` |
+| 4 | **Cataloged** — DataHub lineage silver → store | emit from the loader (or a native store source) |
+| 5 | **Monitored** — store health + load-failure alert | Uptime Kuma monitor + Loki/Alertmanager rule |
+| 6 | **Documented** — runbook + arch/hosts/api | this file + arch.md §7 + hosts.md/api.md |
+| 7 | **Pushed** — code + manifests (GitOps) | git push; Argo for k8s manifests |
+
+### MySQL — gate result (2026-07-01)
+- ✅ **1 Loaded** (32 tables, all 6 DBs) · ✅ **6 Documented** · ~ **3 Gated** (loader deps on parquet, but the
+  load is a separate materialization — tighter gating comes with the job in #2)
+- ✗ **2 Runnable** — no hydrate *job* yet, only the materializable `datasets_health_mysql_load` asset → TODO
+- ✗ **4 Cataloged** — the loader doesn't emit to DataHub; no silver→MySQL lineage → TODO
+- ✗ **5 Monitored** — no load-failure alert; confirm MySQL is in Uptime Kuma → TODO
+- ▢ **7 Pushed** — pending
+
+**So MySQL is _loaded_, not _complete_.** Punch-list before it fully closes: a **hydrate job** (+ schedule),
+**DataHub lineage** from the loader, and **monitoring/alerting**. Same gate applies to every store after.
+
+## MySQL (store #1 — loaded; completeness punch-list open)
 
 - **Deploy:** `mysql.data-mesh.svc:3306`, **always-on** (`deployment.apps/mysql`, no ScaledObject), user
   `weyland` / shared dev password. 6 databases pre-created, empty, matching the grid.
@@ -77,9 +103,16 @@ image (the `:local` procedure in [validation/test-commands.md](../validation/tes
 kubectl -n data-mesh exec deploy/mysql -- sh -c 'mysql -uweyland -pweyland_dev_password -e "SELECT table_schema db, COUNT(*) tables FROM information_schema.tables WHERE table_schema IN (\"nhanes\",\"big_five\",\"who_gho\",\"cdc_physical_activity\",\"brfss\",\"nhis\") GROUP BY table_schema;"' 2>/dev/null
 ```
 
-## Status (2026-06-30)
+## Status (2026-07-01)
 
-- ✅ **MySQL loader built** — `build_store_load_assets` + the 6 health DBs. Pending first run + verify.
+- ✅ **MySQL — LOADED + verified** (completeness punch-list open: job, DataHub lineage, monitoring — see the
+  completeness gate above). `datasets_health_mysql_load` hydrated all 6 DBs: **32 tables** (nhanes 13,
+  who_gho 8, brfss 6, nhis 3, cdc 1, big_five 1). Proved the full vertical: land → silver → quality checks →
+  hydration. Two fixes surfaced and were made at the right layers: **big_five's TSV** (fixed at *land* —
+  `data.csv` is tab-separated → convert to comma-CSV; flowed through every format + store for free) and the
+  **`to_sql` insert method** (`method="multi"` compiles chunksize×columns bind params → hung on big_five's
+  57 columns → switched to the default `executemany`). `RefreshConfig.force` was wired into big_five for a
+  wipe-free re-land.
 - ▢ Remaining stores per the roadmap table. Deploy-gated ones (ClickHouse/Cassandra/CockroachDB/Mongo/Feast)
   need standing up before their loader.
 - ▢ Quality gate wiring (B77 native checks already gate via the parquet dep; GE → DataHub Assertions = later).

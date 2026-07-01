@@ -18,7 +18,7 @@ C4Component
 
         Component(tool_server, "weyland-tool-server", "FastAPI / Python v0.4.0", "Platform HTTP boundary. RAG retrieval (4 backends), /context/ask (RAG gen), /evals/*, /pipeline/trigger, /health, /ready, /status. Exposes /mcp system-view MCP server (fastapi-mcp, Streamable HTTP, read-only). :30080")
 
-        Component(dagster, "Dagster", "Python / Helm", "Pipeline orchestration. weyland_ingestion_job (git-pull docs/+nodes/ -> chunk -> embed -> 4-backend write). weyland_eval_job + weyland_eval_score_job. weyland_catalog_job (6h -> model_catalog). weyland_aidlc_kb_job (on-demand: MinIO AIDLC KB -> 4 backends + frontmatter graph, B37). dagster.weyland.lab")
+        Component(dagster, "Dagster", "Python / Helm", "Pipeline orchestration. RAG: weyland_ingestion_job (git-pull -> chunk -> embed -> 4-backend write), eval, catalog (6h), aidlc_kb (B37). DATASETS LAKEHOUSE (datasets_lib, B72/B75): per-dataset land -> lakeFS raw; brokered transform -> silver (parquet/arrow/avro/lance) + Iceberg gold; asset-check quality gate; build_store_load_assets hydrates Tier-2 stores (MySQL done). dagster.weyland.lab")
 
         Component(litellm, "LiteLLM", "LiteLLM / k8s", "Hosted-model gateway. Gemini + OpenRouter (wildcard) behind OpenAI /v1. Off-box cut-off valve + spend alerts. mother:30400, litellm.weyland.lab")
 
@@ -59,11 +59,21 @@ C4Component
         Component(kiali, "Kiali", "Kiali / k8s", "Mesh observability UI: topology graph, mTLS lock status, traces (Tempo). Read-only + RBAC-tightened. Keycloak SSO (forward-auth). kiali.weyland.lab")
     }
 
-    Container_Boundary(datamesh, "mother VM — k3s, ns: data-mesh (B1.2 — L1 storage foundation)") {
+    Container_Boundary(datamesh, "mother VM — k3s, ns: data-mesh (B1.2 storage + B65 Tier-2 stores)") {
 
         Component(nessie, "Nessie", "Nessie / k8s", "Iceberg catalog + git-branch table versioning. Postgres version store, MinIO warehouse, Iceberg REST /iceberg. Meshed (STRICT Postgres). Keycloak SSO (forward-auth). nessie.weyland.lab :19120")
 
-        Component(lakefs, "lakeFS", "lakeFS / k8s", "Git-style versioning for file/dataset products (corpora, ML datasets, model artifacts). Postgres metadata + MinIO blockstore. Meshed (STRICT Postgres). Keycloak SSO (forward-auth). lakefs.weyland.lab :8000")
+        Component(lakefs, "lakeFS", "lakeFS / k8s", "Git-style versioning for file/dataset products. The datasets lakehouse writes silver THROUGH its S3 gateway (versioned, per-run commits). Postgres metadata + MinIO blockstore. lakefs.weyland.lab :8000")
+
+        Component(trino, "Trino", "Trino / k8s", "Federation query engine — iceberg (native Nessie) + postgresql catalogs. Superset/dbt ride on it. trino.weyland.lab")
+
+        Component(gizmosql, "GizmoSQL (DuckDB)", "Arrow Flight SQL / k8s", "DuckDB served over Flight SQL; views over the lakeFS Parquet. mother:31337")
+
+        Component(superset, "Superset", "Superset / k8s", "BI/SQL exploration over Trino + Postgres + TimescaleDB. superset.weyland.lab")
+
+        Component(timescaledb, "TimescaleDB", "TimescaleDB / k8s", "Time-series hypertables (operational metrics); hourly Dagster feed. Tier-2 dataset target (lastfm, who_gho). :5432")
+
+        Component(mysql, "MySQL", "MySQL 8.4 / k8s", "Health datasets — 6 DBs / 32 tables, hydrated from silver Parquet by datasets_health_mysql_load. :3306")
     }
 
     Rel(hermes, tool_server, "MCP /mcp — status, context_search, context_ask, list_models")
@@ -113,4 +123,11 @@ C4Component
     Rel(nessie, minio, "Iceberg warehouse s3://warehouse")
     Rel(lakefs, pgvector, "metadata (mTLS, STRICT)")
     Rel(lakefs, minio, "blockstore s3://lakefs")
+    Rel(dagster, lakefs, "datasets: write silver (parquet/arrow/avro/lance) + commit, via S3 gateway")
+    Rel(dagster, nessie, "datasets: hydrate Iceberg gold (per-file tables)")
+    Rel(dagster, mysql, "hydrate health datasets: silver Parquet -> tables")
+    Rel(dagster, timescaledb, "weyland_timeseries_job -> hypertables (hourly)")
+    Rel(superset, trino, "primary query engine")
+    Rel(trino, nessie, "iceberg catalog (native Nessie)")
+    Rel(gizmosql, lakefs, "views over the lakeFS Parquet")
 ```

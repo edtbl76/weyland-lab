@@ -150,7 +150,7 @@ agents/workflows and platform state. Agents call the tool-server, *not* database
 | **Superset** (B65 Tier-2 #3) | `superset.weyland.lab` | **BI / SQL exploration** — Helm 0.17.2 / Superset 6.1.0, ns `data-mesh`. Keycloak OIDC (native, not forward-auth). Shared Valkey cache (Celery broker + results). Connected to: Trino (primary query engine), 11 Postgres databases, TimescaleDB. 48 datasets + charts + "Weyland Platform Overview" dashboard. DataHub native source ingestion. `k8s/superset/`. See [runbooks/superset.md](runbooks/superset.md). |
 | **Valkey** (shared cache) | `valkey.data-mesh.svc:6379` | BSD open-source Redis fork (post-2024 SSPL relicense). Shared data-mesh cache — Superset Celery broker + results backend. Ephemeral (no persistence). RESP-compatible (DataGrip "Redis" datasource via port-forward). `k8s/data-mesh/valkey.yaml`. |
 | **TimescaleDB** (B65 Tier-2 #4) | `timescaledb.data-mesh.svc:5432` | **Time-series** Postgres extension (`timescale/timescaledb-ha:pg16`), ns `data-mesh`. db `timeseries`. 5 hypertables fed hourly by Dagster `weyland_timeseries_job`: `eval_scores_ts` ← eval_scores, `guardrail_verdicts_ts` ← guardrail_verdicts, `dagster_run_durations` ← Dagster runs, `unleash_feature_metrics` ← client_metrics_env, `datahub_ingestion_runs` ← DataHub GMS GraphQL. Grafana datasource + Superset 10 charts. DataHub `emit_timescaledb`. `k8s/data-mesh/timescaledb.yaml`. See [runbooks/timescaledb.md](runbooks/timescaledb.md). |
-| **MySQL** (B65 Tier-2 #5) | `mysql.data-mesh.svc:3306` | **Health, wellness, and personality** datasets, ns `data-mesh`. MySQL 8.4. 9 databases: `nhanes` (nutrition/biomarkers), `big_five` (OCEAN personality profiling), `who_gho` (population health), `cdc_physical_activity`, `brfss` (health behaviors), `myfitnesspal` (food/exercise logging), `uk_biobank` (health/genetics), `usda_fooddata` (nutrition facts), `open_food_facts` (packaged food nutrition). Fed by Dagster `health_land` assets (planned). `k8s/data-mesh/mysql.yaml`. |
+| **MySQL** (B65 Tier-2 #5) | `mysql.data-mesh.svc:3306` | **Health** datasets, ns `data-mesh`. **Hydrated 2026-07-01** from silver Parquet by `datasets_health_mysql_load` — **6 databases** (grid `MySQL=Y`): `nhanes` (biomarkers), `big_five` (OCEAN personality), `who_gho` (population health), `cdc_physical_activity`, `brfss` (health behaviors), `nhis` — **32 tables** (dataset→db, parquet file→table). `k8s/data-mesh/mysql.yaml`. See [runbooks/datasets-hydration.md](runbooks/datasets-hydration.md). |
 | MLflow (B10+B16) | `mlflow.weyland.lab` | Experiment tracking + model registry. **Postgres** backend store + **MinIO** `mlflow` artifact bucket (proxied via `--serve-artifacts`). Meshed (STRICT Postgres); **Keycloak SSO** (forward-auth, B1.1). `k8s/mlflow/`. |
 | CoreDNS | `mother:53` | LAN DNS resolver for `weyland.lab`. |
 | Traefik | (ingress) | TLS front door for `*.weyland.lab`. |
@@ -188,24 +188,30 @@ agents/workflows and platform state. Agents call the tool-server, *not* database
   `RELATED_TO`/`SURFACES_AT`/`TAGGED`/`IN_VERTICAL` (no LLM; fuzzy extraction is deferred to B38).
 - **MinIO** — S3-compatible object storage (model artifacts, datasets, backups). Filestash is the UI
   (the community console is stripped). See [runbooks/storage-minio.md](runbooks/storage-minio.md).
-- **Datasets lake (B72)** — a **bronze→silver→gold** pipeline over public datasets (music: Spotify audio
-  features + FMA metadata) in MinIO's `datasets` bucket. **dlt** extracts → `raw/` (CSV, bronze); a
-  **brokered** Dagster fan-out — *one asset per format, each process-isolated* so a single bad writer
-  can't sink the rest — produces the silver/gold formats. **Each format is chosen for a distinct
-  workload, not redundancy:**
-  - **Parquet** — batch columnar analytics (Trino / DuckDB / Spark). The default query format.
+- **Datasets lakehouse (B72/B75)** — a **bronze→silver→gold→stores** lakehouse over public **music** (12
+  datasets) and **health** (8 datasets) sources, on a shared **`datasets_lib`** platform: a domain is a
+  `DomainConfig` + three asset factories (`build_transform_assets` → `build_asset_checks` →
+  `build_store_load_assets`). Per-dataset **land** assets write lakeFS `raw/` (bronze); a **brokered**
+  fan-out — *one asset per format, process-isolated*, serialized (memory) — produces silver/gold. The
+  reader dispatches on extension (csv · csv.gz · xpt · json), column names normalize + null-types coerce,
+  tables are **per-file** (multi-file folders don't clobber), oversized tables **defer**. **Each format
+  earns a distinct workload, not redundancy:**
+  - **Parquet** — batch columnar analytics (Trino / DuckDB). The default query format.
   - **Lance** — ML / vector: fast random access, versioning, LanceDB. (Native AVX-512 — required the
     `cpu: host` Proxmox fix; see [[proxmox-vm-cpu-host-avx]].)
-  - **Avro** — row-oriented + schema-evolution: the format you'd stream through **Kafka**.
-  - **Arrow / Feather** — in-memory / IPC, zero-copy loads. *Transport format, not a storage layer —
-    kept for fast local loads + learning.*
-  - **Iceberg** — ACID **gold** table (time-travel, schema evolution) over Parquet, in Nessie.
+  - **Avro** — row-oriented + schema-evolution: the (streamed) format you'd push through **Kafka**.
+  - **Arrow / Feather** — in-memory / IPC, zero-copy loads. *Transport, not a storage layer — kept for
+    fast local loads + learning.*
+  - **Iceberg** — ACID **gold** table (time-travel, schema evolution) over Parquet, in Nessie; per-file tables.
 
-  Cataloged in DataHub by **custom-emit** — every transform asset calls `datahub_emit.emit_file_dataset`
-  (typed schema from the Arrow schema + lineage to the producing asset) for raw CSV + all four silver
-  formats; the **iceberg source** handles the gold tables. The DataHub **s3 source is unusable** in this
-  build (it forces a PySpark run that crashes on the executor JDK — `Subject.getSubject` gone in Java 18+),
-  so one emit path covers everything. Full design + diagram: [runbooks/datasets-lake.md](runbooks/datasets-lake.md).
+  A **quality gate** (`build_asset_checks` — native `@asset_check`: no-failures / expected-tables /
+  valid-column-names) runs with the transform; **`build_store_load_assets`** then hydrates the grid's Tier-2
+  stores (**MySQL done** — 6 health DBs, 32 tables; roadmap in
+  [runbooks/datasets-hydration.md](runbooks/datasets-hydration.md)). Cataloged in DataHub by **custom-emit**
+  (`emit_file_dataset` — typed Arrow schema + lineage) for raw + the four silver formats; the **iceberg
+  source** handles gold. The DataHub **s3 source is unusable** here (PySpark run crashes on the executor JDK
+  — `Subject.getSubject` gone in Java 18+), so one emit path covers everything. Full design:
+  [runbooks/datasets-lake.md](runbooks/datasets-lake.md).
 - **Trino (B65 Tier-2, 1st)** — single-node **federation query engine** in `data-mesh`; the keystone
   Superset / dbt / the B73 "use the data" work ride on. Catalogs: **`iceberg`** (the Nessie lake — via
   Trino's *native* Nessie connector, `iceberg.catalog.type=nessie`, NOT the generic REST which 403s
@@ -238,12 +244,12 @@ agents/workflows and platform state. Agents call the tool-server, *not* database
   rates, pipeline run durations, feature flag usage, catalog ingestion health). Fed hourly by the
   `weyland_timeseries_job` Dagster schedule. Grafana datasource registered; Superset has 10 charts.
   See [runbooks/timescaledb.md](runbooks/timescaledb.md).
-- **MySQL (B65 Tier-2 #5)** — relational store for health, wellness, and personality profiling
-  datasets in `data-mesh`. 9 databases covering nutrition (NHANES, USDA FoodData, Open Food Facts),
-  health behaviors (BRFSS, CDC Physical Activity, WHO GHO), fitness logging (MyFitnessPal), clinical
-  data (UK Biobank), and personality profiling (Big Five IPIP/Open Psychometrics). The goal: join
-  personality profiles against dietary patterns and health behaviors to model lifestyle adaptation.
-  Data loaded via Dagster `health_land` assets (in progress).
+- **MySQL (B65 Tier-2 #5)** — relational store for health/wellness/personality datasets in `data-mesh`,
+  **hydrated 2026-07-01** from silver Parquet by `datasets_health_mysql_load` (the first
+  `build_store_load_assets` arm). **6 databases** = the grid `MySQL=Y` set — NHANES, Big Five, WHO GHO, CDC
+  Physical Activity, BRFSS, NHIS — **32 tables** (dataset→database, parquet file→table; USDA + Open Food
+  Facts are `MySQL=N`, NHIS replaced UK Biobank). The intent: join personality profiles against dietary
+  patterns and health behaviors. See [runbooks/datasets-hydration.md](runbooks/datasets-hydration.md).
 
 ### 7a. Query layer — Trino vs DuckDB (`data-mesh`)
 
@@ -483,7 +489,7 @@ so Ollama mis-sizes against 96 GB / 16 cores instead of the CT's limits. (Detail
 
 ## 13. Roadmap & maintenance
 
-Forward priorities live in [backlog.md](backlog.md). Recently done: B10+B16 (MLflow), B3 (Backstage IDP — slices A+B; **⚠️ decommission in progress → Port.io**), B41 (self-syncing IDP), B26, B27, B8 (Istio mesh), B37 (AIDLC KB ingest). **Port.io IDP — DONE** (B43/B59 migration; B60 full buildout 2026-06-24): catalog + 6 services + scorecards customized for a public lab + the `ai_session` AI-Dev Usage data product; **Port = "see", Hermes = "do"** (self-service actions deferred). Backstage retired. **B48 done: full LGTM observability** — Loki (logs) + Alloy + Tempo (traces) on MinIO, all in Grafana (Explore/Drilldown); Istio + Kiali repointed to Tempo; **Jaeger retired**. Also added: **KEDA**, **Proxmox metrics** (pve-exporter → Grafana), mother raised to 44GB/12vCPU (2026-06-28). **B1.1 done (2026-06-24): Keycloak SSO** — central IdP replacing the dev-password logins; **6 apps cut over** initially (OIDC: Grafana/GlitchTip/Open WebUI; forward-auth: MLflow/Kiali/filestash), then **extended 2026-06-25 to EVERY browser UI** (forward-auth added to Unleash/SonarQube/Uptime-Kuma/Dagster/n8n/Woodpecker/Argo CD/Headlamp/OpenCost/LiteLLM/docs-site/APISIX-dash + Nessie/lakeFS). The data/API plane (S3 API, NodePort backends, APISIX gateway) stays API-auth'd — can't browser-SSO it. B1 data mesh **sequenced into slices B1.1–B1.9** (see backlog); **B1.2 done (2026-06-25): L1 storage foundation** — Nessie (Iceberg catalog + table versioning) + lakeFS (file/dataset versioning) in ns `data-mesh`, on MinIO + Postgres. **B65 Tier-2 datastores (2026-06-27/28, in progress):** Trino ✅ · DuckDB/GizmoSQL ✅ · Superset ✅ · TimescaleDB ✅ · MySQL (health/wellness, hydration in progress). **Data domain restructure (2026-06-28):** MinIO `datasets/` bucket reorganized to domain subfolders (`datasets/music/`, `datasets/health/`); lakeFS `music` repo moved to `s3://datasets/music/`; Iceberg namespace renamed to `datasets_music` (Trino native Nessie connector limitation — nested namespaces not surfaced). Deferred: B38, B40, Tempo metrics-generator (span-metrics/service-graph).
+Forward priorities live in [backlog.md](backlog.md). Recently done: B10+B16 (MLflow), B3 (Backstage IDP — slices A+B; **⚠️ decommission in progress → Port.io**), B41 (self-syncing IDP), B26, B27, B8 (Istio mesh), B37 (AIDLC KB ingest). **Port.io IDP — DONE** (B43/B59 migration; B60 full buildout 2026-06-24): catalog + 6 services + scorecards customized for a public lab + the `ai_session` AI-Dev Usage data product; **Port = "see", Hermes = "do"** (self-service actions deferred). Backstage retired. **B48 done: full LGTM observability** — Loki (logs) + Alloy + Tempo (traces) on MinIO, all in Grafana (Explore/Drilldown); Istio + Kiali repointed to Tempo; **Jaeger retired**. Also added: **KEDA**, **Proxmox metrics** (pve-exporter → Grafana), mother raised to 44GB/12vCPU (2026-06-28). **B1.1 done (2026-06-24): Keycloak SSO** — central IdP replacing the dev-password logins; **6 apps cut over** initially (OIDC: Grafana/GlitchTip/Open WebUI; forward-auth: MLflow/Kiali/filestash), then **extended 2026-06-25 to EVERY browser UI** (forward-auth added to Unleash/SonarQube/Uptime-Kuma/Dagster/n8n/Woodpecker/Argo CD/Headlamp/OpenCost/LiteLLM/docs-site/APISIX-dash + Nessie/lakeFS). The data/API plane (S3 API, NodePort backends, APISIX gateway) stays API-auth'd — can't browser-SSO it. B1 data mesh **sequenced into slices B1.1–B1.9** (see backlog); **B1.2 done (2026-06-25): L1 storage foundation** — Nessie (Iceberg catalog + table versioning) + lakeFS (file/dataset versioning) in ns `data-mesh`, on MinIO + Postgres. **B65 Tier-2 datastores (2026-06-27/28, in progress):** Trino ✅ · DuckDB/GizmoSQL ✅ · Superset ✅ · TimescaleDB ✅ · MySQL ✅ (health, **hydrated 2026-07-01** — `datasets_lib` `build_store_load_assets`, the start of data-store-mageddon; 6 DBs / 32 tables). **Datasets platform refactor (2026-06-30/07-01):** the two domain transforms collapsed onto a shared **`datasets_lib`** (3 factories: transform → asset-checks → store-load); health domain fully landed; musicbrainz via parquet-direct. **Data domain restructure (2026-06-28):** MinIO `datasets/` bucket reorganized to domain subfolders (`datasets/music/`, `datasets/health/`); lakeFS `music` repo moved to `s3://datasets/music/`; Iceberg namespace renamed to `datasets_music` (Trino native Nessie connector limitation — nested namespaces not surfaced). Deferred: B38, B40, Tempo metrics-generator (span-metrics/service-graph).
 
 **Maintaining this doc:** update it (and [hosts.md](hosts.md)/[api.md](api.md)) whenever a host,
 service, endpoint, port, DNS name, or major flow changes — same "done" bar as a runbook.
