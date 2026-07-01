@@ -32,6 +32,10 @@ HEALTH_CFG = DomainConfig(
     lance_allow=_LANCE,
     # Store hydration (grid MySQL=Y): the 6 health datasets MySQL targets (usda/open_food_facts are N).
     mysql_allow=frozenset({"nhanes", "big_five", "who_gho", "cdc_physical_activity", "brfss", "nhis"}),
+    # TimescaleDB (grid): WHO GHO only — country/year series. Time axis derived from TimeDim (the year).
+    # Last.fm (grid=Y "listening trends") is intentionally SKIPPED: its silver is lifetime user↔artist
+    # playcounts with no per-listen timestamps, so it isn't a real time-series (only signup_date is temporal).
+    timescale_allow={"who_gho": "TimeDim"},
 )
 
 (

@@ -70,6 +70,53 @@ def _load_dataset_to_mysql(mc, cfg, dataset, engine_for, log) -> dict:
     return out
 
 
+def _tsdb_engine():
+    import sqlalchemy
+
+    host = os.environ.get("TIMESCALEDB_HOST", "timescaledb.data-mesh.svc.cluster.local")
+    port = os.environ.get("TIMESCALEDB_PORT", "5432")
+    db = os.environ.get("TIMESCALEDB_DB", "timeseries")
+    user = os.environ.get("TIMESCALEDB_USER", "weyland")
+    pw = urllib.parse.quote_plus(os.environ.get("TIMESCALEDB_PASSWORD", "weyland_dev_password"))
+    return sqlalchemy.create_engine(f"postgresql+psycopg2://{user}:{pw}@{host}:{port}/{db}")
+
+
+def _load_dataset_to_timescale(mc, cfg, dataset, time_col, engine, log) -> dict:
+    """Each silver parquet file under parquet/<dataset>/ → a TimescaleDB hypertable in db `timeseries`,
+    partitioned on a derived `ts` timestamptz. WHO GHO's TimeDim is a year → Jan 1 of that year. Rows with
+    no usable year are dropped (a hypertable's time column must be non-null). Table name is dataset-prefixed
+    (who_gho_<indicator>) since TimescaleDB is one flat db — mirrors the Iceberg/DuckDB per-file naming."""
+    import pandas as pd
+    import sqlalchemy
+
+    prefix = f"{io.branch()}/parquet/{dataset}/"
+    out = {}
+    for obj in mc.list_objects(cfg.repo, prefix=prefix, recursive=True):
+        if not obj.object_name.endswith(".parquet"):
+            continue
+        fname = obj.object_name.split("/")[-1][: -len(".parquet")]
+        table = _sql_ident(dataset if fname == dataset else f"{dataset}_{fname}")
+        try:
+            data = io.fetch(mc, cfg.repo, obj.object_name)
+            df = pq.ParquetFile(_io.BytesIO(data)).read().to_pandas()
+            if time_col not in df.columns:
+                raise KeyError(f"time column {time_col!r} not in {list(df.columns)[:10]}")
+            df["ts"] = pd.to_datetime(df[time_col], format="%Y", errors="coerce", utc=True)
+            df = df[df["ts"].notna()]
+            df.to_sql(table, engine, if_exists="replace", index=False, chunksize=5_000)
+            # to_sql made a plain table (dropping any prior hypertable); (re)promote it. migrate_data moves
+            # the just-loaded rows into chunks; if_not_exists keeps it idempotent across re-runs.
+            with engine.begin() as conn:
+                conn.execute(sqlalchemy.text(
+                    f"SELECT create_hypertable('{table}', 'ts', if_not_exists => TRUE, migrate_data => TRUE)"))
+            out[table] = int(len(df))
+            log.info(f"timescaledb {table}: {len(df):,} rows → hypertable on ts (from {time_col})")
+        except Exception as e:  # noqa: BLE001 — per-table resilience
+            out[table] = f"ERROR: {e}"
+            log.error(f"timescaledb {table}: {e}")
+    return out
+
+
 def build_store_load_assets(cfg):
     """Return the per-store loader assets this domain needs (only stores with a non-empty allowlist)."""
     assets = []
@@ -96,5 +143,27 @@ def build_store_load_assets(cfg):
             })
 
         assets.append(_mysql_load)
+
+    if cfg.timescale_allow:
+        @asset(
+            name=f"datasets_{d}_timescaledb_load",
+            group_name=f"datasets_{d}_stores",   # same stores group → runs in the hydrate job, not the transform
+            deps=[f"datasets_{d}_parquet"],       # gated by the parquet no_failures check
+            description=f"Hydrate TimescaleDB hypertables from silver Parquet ({len(cfg.timescale_allow)} dataset(s)).",
+        )
+        def _timescale_load(context):
+            mc = io.client()
+            engine = _tsdb_engine()
+            out = {}
+            for dataset, time_col in sorted(cfg.timescale_allow.items()):
+                out.update(_load_dataset_to_timescale(mc, cfg, dataset, time_col, engine, context.log))
+            ok = sum(1 for v in out.values() if isinstance(v, int))
+            return Output(out, metadata={
+                "hypertables_loaded": MetadataValue.int(ok),
+                "rows_total": MetadataValue.int(sum(v for v in out.values() if isinstance(v, int))),
+                "detail": MetadataValue.json(out),
+            })
+
+        assets.append(_timescale_load)
 
     return assets

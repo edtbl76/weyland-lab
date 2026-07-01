@@ -1,21 +1,21 @@
-Domain,Dataset,TimescaleDB,MongoDB,CockroachDB,Cassandra,ClickHouse,OpenSearch,Neo4j,Qdrant,Weaviate,Avro/Kafka,LanceDB,Feast,MLflow,dbt,Arrow,Lance,MySQL,Iceberg/Trino,DuckDB/GizmoSQL,Postgres
-Music,Spotify Tracks,N,N,N,N,N,N,N,Y (audio feature similarity),Y (audio feature similarity),Y,Y (embedding source),Y (audio features),Y (experiment tracking),Y (transforms),Y,Y,N,Y,Y,N
-Music,FMA Tracks,N,N,N,N,N,Y (track/artist search),Y (genre graph),Y,Y,Y,Y,Y,Y,Y,Y,Y,N,Y,Y,N
-Music,FMA Genres,N,N,N,N,N,N,Y (genre taxonomy graph),N,N,Y,N,N,N,Y,Y,N,N,Y,Y,N
-Music,FMA Echonest,N,N,N,N,N,N,N,Y (audio embeddings),Y (audio embeddings),Y,Y (embedding source),Y (audio features),Y,Y,Y,Y,N,Y,Y,N
-Music,FMA Features (518 features),N,N,N,N,Y (OLAP feature queries),N,N,Y,Y,Y,Y (embedding source),Y (feature store),Y,Y,Y,Y,N,Y,Y,N
-Music,UCI Year Prediction (B75/B76),N,N,N,Y,Y (OLAP),Y (song/artist search),Y (artist graph),Y,Y,Y,Y,Y,Y,Y,Y,Y,N,Y,Y,N
-Music,Last.fm (B75),Y (listening trends),N,N,Y (user listen streams),N,N,Y (artist/tag graph),N,N,Y (Kafka stream),N,N,Y,Y,Y,N,N,Y,Y,N
-Music,MusicBrainz (B75),N,N,N,N,N,Y (artist/recording search),Y (music knowledge graph),N,N,Y,N,N,N,Y,Y,N,N,Y,Y,Y (native Postgres dump)
-Music,GTZAN (B75),N,N,N,N,N,N,N,Y (genre embeddings),Y (genre embeddings),Y,Y,Y (genre features),Y,Y,Y,Y,N,Y,Y,N
-Music,LP-MusicCaps-MC (B75),N,N,N,N,N,Y (caption search),N,Y,Y,Y,N,N,N,Y,Y,N,N,Y,Y,N
-Music,LP-MusicCaps-MTT (B75),N,N,N,N,N,Y (tag/caption search),N,Y,Y,Y,N,N,N,Y,Y,N,N,Y,Y,N
-Music,AudioSet balanced (B75),N,N,N,N,Y (OLAP event queries),Y (audio event search),Y (event graph),Y,Y,Y,Y,Y (audio features),Y,Y,Y,Y,N,Y,Y,N
-Health,NHANES,N,N,N,N,N,N,N,N,N,Y,N,Y (biomarker features),Y,Y,Y,N,Y,Y,Y,N
-Health,Big Five,N,N,N,Y,N,N,Y (personality graph),Y (profile similarity),Y (profile similarity),Y (survey stream),Y (personality features),Y (profile features),Y,Y,Y,Y,Y,Y,Y,N
-Health,WHO GHO,Y,Y (nested JSON),N,Y (country/year series),Y (OLAP),N,N,N,N,Y,N,N,N,Y,Y,N,Y,Y,Y,N
-Health,CDC Physical Activity,N,N,N,N,N,N,N,N,N,Y,N,Y (activity features),N,Y,Y,N,Y,Y,Y,N
-Health,BRFSS,N,N,Y (geo-partitioned),N,Y (OLAP),N,N,N,N,Y (survey stream),N,Y (health risk features),N,Y,Y,N,Y,Y,Y,N
-Health,NHIS,N,N,Y (geo-partitioned),N,Y (OLAP),N,N,N,N,Y (survey stream),N,Y (health features),N,Y,Y,N,Y,Y,Y,N
-Health,USDA FoodData,N,N,N,N,Y (OLAP food queries),Y (food/nutrient search),N,N,N,Y,Y (embedding source),Y (nutrition features),N,Y,Y,Y (food embeddings),N,Y,Y,N
-Health,Open Food Facts,N,Y (doc per product),N,N,Y (OLAP),Y (product/ingredient search),N,Y (product similarity),Y (product similarity),Y,Y,Y (product features),N,Y,Y,Y (product embeddings),N,Y,Y,N
+Domain,Dataset,MongoDB,CockroachDB,Cassandra,ClickHouse,OpenSearch,Neo4j,Qdrant,Weaviate,Avro/Kafka,LanceDB,Feast,MLflow,dbt,Arrow,Lance,MySQL,Iceberg/Trino,DuckDB/GizmoSQL,Postgres,TimescaleDB
+Music,Spotify Tracks,N,N,N,N,N,N,Y (audio feature similarity),Y (audio feature similarity),Y,Y (embedding source),Y (audio features),Y (experiment tracking),Y (transforms),Y,Y,N,Y,Y,N,N
+Music,FMA Tracks,N,N,N,N,Y (track/artist search),Y (genre graph),Y,Y,Y,Y,Y,Y,Y,Y,Y,N,Y,Y,N,N
+Music,FMA Genres,N,N,N,N,N,Y (genre taxonomy graph),N,N,Y,N,N,N,Y,Y,N,N,Y,Y,N,N
+Music,FMA Echonest,N,N,N,N,N,N,Y (audio embeddings),Y (audio embeddings),Y,Y (embedding source),Y (audio features),Y,Y,Y,Y,N,Y,Y,N,N
+Music,FMA Features (518 features),N,N,N,Y (OLAP feature queries),N,N,Y,Y,Y,Y (embedding source),Y (feature store),Y,Y,Y,Y,N,Y,Y,N,N
+Music,UCI Year Prediction (B75/B76),N,N,Y,Y (OLAP),Y (song/artist search),Y (artist graph),Y,Y,Y,Y,Y,Y,Y,Y,Y,N,Y,Y,N,N
+Music,Last.fm (B75),N,N,Y (user listen streams),N,N,Y (artist/tag graph),N,N,Y (Kafka stream),N,N,Y,Y,Y,N,N,Y,Y,N,N
+Music,MusicBrainz (B75),N,N,N,N,Y (artist/recording search),Y (music knowledge graph),N,N,Y,N,N,N,Y,Y,N,N,Y,Y,Y (native Postgres dump),N
+Music,GTZAN (B75),N,N,N,N,N,N,Y (genre embeddings),Y (genre embeddings),Y,Y,Y (genre features),Y,Y,Y,Y,N,Y,Y,N,N
+Music,LP-MusicCaps-MC (B75),N,N,N,N,Y (caption search),N,Y,Y,Y,N,N,N,Y,Y,N,N,Y,Y,N,N
+Music,LP-MusicCaps-MTT (B75),N,N,N,N,Y (tag/caption search),N,Y,Y,Y,N,N,N,Y,Y,N,N,Y,Y,N,N
+Music,AudioSet balanced (B75),N,N,N,Y (OLAP event queries),Y (audio event search),Y (event graph),Y,Y,Y,Y,Y (audio features),Y,Y,Y,Y,N,Y,Y,N,N
+Health,NHANES,N,N,N,N,N,N,N,N,Y,N,Y (biomarker features),Y,Y,Y,N,Y,Y,Y,N,N
+Health,Big Five,N,N,Y,N,N,Y (personality graph),Y (profile similarity),Y (profile similarity),Y (survey stream),Y (personality features),Y (profile features),Y,Y,Y,Y,Y,Y,Y,N,N
+Health,WHO GHO,Y (nested JSON),N,Y (country/year series),Y (OLAP),N,N,N,N,Y,N,N,N,Y,Y,N,Y,Y,Y,N,Y
+Health,CDC Physical Activity,N,N,N,N,N,N,N,N,Y,N,Y (activity features),N,Y,Y,N,Y,Y,Y,N,N
+Health,BRFSS,N,Y (geo-partitioned),N,Y (OLAP),N,N,N,N,Y (survey stream),N,Y (health risk features),N,Y,Y,N,Y,Y,Y,N,N
+Health,NHIS,N,Y (geo-partitioned),N,Y (OLAP),N,N,N,N,Y (survey stream),N,Y (health features),N,Y,Y,N,Y,Y,Y,N,N
+Health,USDA FoodData,N,N,N,Y (OLAP food queries),Y (food/nutrient search),N,N,N,Y,Y (embedding source),Y (nutrition features),N,Y,Y,Y (food embeddings),N,Y,Y,N,N
+Health,Open Food Facts,Y (doc per product),N,N,Y (OLAP),Y (product/ingredient search),N,Y (product similarity),Y (product similarity),Y,Y,Y (product features),N,Y,Y,Y (product embeddings),N,Y,Y,N,N

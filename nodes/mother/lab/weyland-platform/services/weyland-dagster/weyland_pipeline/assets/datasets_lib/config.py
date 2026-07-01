@@ -23,6 +23,9 @@ class DomainConfig:
     # Explicit per the grid's store columns (a store gets a loader asset only when its allowlist is
     # non-empty). One field added per store as it's built.
     mysql_allow: frozenset = field(default_factory=frozenset)
+    # TimescaleDB: {dataset: time_column} — the source column a hypertable's time axis is derived from
+    # (e.g. WHO GHO {"who_gho": "TimeDim"} — TimeDim is the year). One hypertable per parquet file.
+    timescale_allow: dict = field(default_factory=dict)
 
     @property
     def producer(self) -> str:
