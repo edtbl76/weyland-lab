@@ -1,47 +1,49 @@
-# mbslave restore Job — runs `mbslave init` against the dedicated musicbrainz-postgres instance.
+# MusicBrainz DB import Job — runs musicbrainz-docker's OWN importer (createdb.sh -fetch) against our dedicated
+# musicbrainz-postgres instance. mbdocker is MB's official tooling, so the schema ALWAYS matches the current
+# dump — the fidelity that community mbslave (stuck on 2024's schema 29) couldn't give.
 #
-# SMOKE TEST today: `kubectl apply` this, watch the logs (schema + first COPYs = mbslave works). Same manifest
-# becomes the production restore, later triggered by a Dagster op instead of a hand-applied kubectl (and the
-# dump source swapped from mbslave-fetch to a MinIO-staged path — one env change). Nothing here gets thrown away.
+# WHY not compose: mbdocker is compose-native, but we only need its IMAGE, not its stack. We build the image
+# once on mother (docker compose build) → import to containerd → run the importer as this k8s Job pointed at
+# our external instance (MUSICBRAINZ_POSTGRES_SERVER). No compose stack, no snowflake; refresh = re-run this Job
+# (a CronJob later). The instance holds the data; this Job is the transient importer.
+#
+# The importer connects as musicbrainz/musicbrainz (mbdocker's postgres.env default) — provisioned as a
+# SUPERUSER in the instance so createdb.sh can create the DB + the cube/earthdistance extensions.
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name: musicbrainz-restore
+  name: musicbrainz-import
   namespace: data-mesh
   labels:
-    app: musicbrainz-restore
+    app: musicbrainz-import
 spec:
-  backoffLimit: 0        # a multi-hour import must NOT silently auto-retry — inspect + rerun deliberately
+  backoffLimit: 0        # a multi-hour 100GB import must NOT silently auto-retry — inspect + rerun deliberately
   template:
     metadata:
       labels:
-        app: musicbrainz-restore
+        app: musicbrainz-import
     spec:
       restartPolicy: Never
       containers:
-        - name: mbslave
-          image: musicbrainz-mbslave:local
-          imagePullPolicy: Never            # built locally + imported into containerd, like the user-code image
-          args: ["init", "--create-user", "--create-database"]
+        - name: musicbrainz
+          image: musicbrainz-mb-import:local
+          imagePullPolicy: Never          # built on mother + imported into containerd (docker save | ctr import)
+          # `args` (not `command`) mirrors `docker compose run musicbrainz createdb.sh -fetch`: pass the command
+          # to the image's existing entrypoint. -fetch downloads the latest dump, then imports it.
+          args: ["createdb.sh", "-fetch"]
           env:
-            - name: MBSLAVE_DB_HOST
+            - name: MUSICBRAINZ_POSTGRES_SERVER
               value: musicbrainz-postgres.data-mesh.svc.cluster.local
-            - name: MBSLAVE_DB_PORT
-              value: "5432"
-            - name: MBSLAVE_DB_NAME
+            - name: MUSICBRAINZ_POSTGRES_READONLY_SERVER
+              value: musicbrainz-postgres.data-mesh.svc.cluster.local
+            - name: POSTGRES_USER
               value: musicbrainz
-            - name: MBSLAVE_DB_USER
+            - name: POSTGRES_PASSWORD
               value: musicbrainz
-            - name: MBSLAVE_DB_ADMIN_USER
-              value: postgres
-          # MBSLAVE_DB_PASSWORD + MBSLAVE_DB_ADMIN_PASSWORD come from the instance Secret.
-          envFrom:
-            - secretRef:
-                name: musicbrainz-postgres-secret
           volumeMounts:
-            - name: scratch
-              mountPath: /tmp/mbslave       # dump download + extracted TSVs (on the node VM disk — same prereq)
+            - name: dbdump
+              mountPath: /media/dbdump    # createdb.sh -fetch downloads + extracts the dump tarballs here
       volumes:
-        - name: scratch
+        - name: dbdump
           emptyDir:
-            sizeLimit: 40Gi
+            sizeLimit: 60Gi
