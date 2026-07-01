@@ -31,14 +31,17 @@ spec:
         - name: musicbrainz
           image: musicbrainz-mb-import:local
           imagePullPolicy: Never          # built on mother + imported into containerd (docker save | ctr import)
+          # recreatedb.sh (not createdb.sh): DROPs + recreates musicbrainz_db first, so it's idempotent — a
+          # re-run starts clean instead of erroring "schema/collation already exists". This is also the right
+          # tool for the eventual periodic refresh.
           # fetch-dump.sh prompts interactively ("commercial or non-commercial?") and dies on EOF in a non-TTY
           # container. It skips the prompt if a marker file exists — so pre-touch the non-commercial one
-          # (homelab use) in the shared dbdump volume, then exec the real import. `sh -c` runs under the image's
-          # docker-entrypoint (which sets up local::lib), so createdb.sh keeps its Perl env.
+          # (homelab use) in the shared dbdump volume, then exec the import. `sh -c` runs under the image's
+          # docker-entrypoint (which sets up local::lib), so the script keeps its Perl env.
           args:
             - sh
             - -c
-            - touch /media/dbdump/.for-non-commercial-use && exec createdb.sh -fetch
+            - touch /media/dbdump/.for-non-commercial-use && exec recreatedb.sh -fetch
           env:
             - name: MUSICBRAINZ_POSTGRES_SERVER
               value: musicbrainz-postgres.data-mesh.svc.cluster.local
