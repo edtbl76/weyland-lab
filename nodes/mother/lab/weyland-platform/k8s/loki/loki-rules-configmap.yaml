@@ -26,3 +26,15 @@ data:
             annotations:
               summary: "Error-log spike (logs) in {{ $labels.namespace }}"
               description: "{{ $value }} error/exception log lines in the last 5m in namespace {{ $labels.namespace }}."
+          # data-store-mageddon: a store-load table/dataset failed inside a datasets hydrate job. Catches even a
+          # single per-table failure the loader swallows (it logs `<store> <db>.<table>: <exc>` at ERROR but keeps
+          # going) — the "don't silently drop a table" signal. Generalizes to every store's hydrate job.
+          - alert: WeylandDatasetHydrationFailure
+            expr: sum (count_over_time({namespace="weyland"} |~ `hydrate_job` |~ `(?i)(error|exception|traceback)` [10m])) > 0
+            for: 1m
+            labels:
+              severity: warning
+              source: loki
+            annotations:
+              summary: "Dataset store hydration failure"
+              description: "{{ $value }} error line(s) during a datasets hydrate job in the last 10m — a store-load failed. See runbooks/datasets-hydration.md."

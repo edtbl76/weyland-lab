@@ -46,16 +46,23 @@ and record the result (the gate exists to surface the gaps a single successful r
 | 6 | **Documented** — runbook + arch/hosts/api | this file + arch.md §7 + hosts.md/api.md |
 | 7 | **Pushed** — code + manifests (GitOps) | git push; Argo for k8s manifests |
 
-### MySQL — gate result (2026-07-01)
-- ✅ **1 Loaded** (32 tables, all 6 DBs) · ✅ **6 Documented** · ~ **3 Gated** (loader deps on parquet, but the
-  load is a separate materialization — tighter gating comes with the job in #2)
-- ✗ **2 Runnable** — no hydrate *job* yet, only the materializable `datasets_health_mysql_load` asset → TODO
-- ✗ **4 Cataloged** — the loader doesn't emit to DataHub; no silver→MySQL lineage → TODO
-- ✗ **5 Monitored** — no load-failure alert; confirm MySQL is in Uptime Kuma → TODO
-- ▢ **7 Pushed** — pending
+### MySQL — gate result (2026-07-01, punch-list closed → pending deploy+verify)
+- ✅ **1 Loaded** — 32 tables, all 6 DBs.
+- ✅ **2 Runnable** — `weyland_datasets_health_hydrate_job` (group `datasets_health_stores`; loaders live in
+  their own group so the transform job never runs them).
+- ✅ **3 Gated** — the loader `deps` on `datasets_health_parquet`; its blocking `no_failures` check gates hydration.
+- ✅ **4 Cataloged** — `emit_mysql()` (platform `mysql`, schema from information_schema, lineage ← the
+  `datasets.<db>` parquet silver) wired into the hourly `datahub_catalog_emit_job`.
+- ~ **5 Monitored** — Loki **`WeylandDatasetHydrationFailure`** rule → Alertmanager → Telegram (catches even
+  a single swallowed per-table failure). Store-*up* monitoring via Uptime Kuma is blocked by Kuma's LAN-DNS
+  (can't resolve `*.svc.cluster.local`, see [[kuma-lan-dns-monitors]]); MySQL is always-on + meshed, so a
+  proper up-monitor = a Prometheus `mysqld-exporter` (deferred — noted, not silently skipped).
+- ✅ **6 Documented** — this runbook + arch.md §7 + hosts.md/api.md + `flow-datasets-lakehouse.md`.
+- ▢ **7 Pushed** — pending (code + `k8s/loki/loki-rules-configmap.yaml`).
 
-**So MySQL is _loaded_, not _complete_.** Punch-list before it fully closes: a **hydrate job** (+ schedule),
-**DataHub lineage** from the loader, and **monitoring/alerting**. Same gate applies to every store after.
+**MySQL closes the gate once deployed + verified** (hydrate job runs green as a job; DataHub shows the
+mysql datasets + lineage; the alert rule loads). The one accepted gap is store-up monitoring (Kuma LAN-DNS
+constraint) — a `mysqld-exporter` is the follow-up. Same 7-point gate applies to every store after.
 
 ## MySQL (store #1 — loaded; completeness punch-list open)
 

@@ -425,6 +425,55 @@ def emit_timescaledb():
     return len(names), names
 
 
+def emit_mysql():
+    """Custom-emit the hydrated MySQL health tables as DataHub Datasets (platform mysql) with schema
+    (information_schema) + lineage ← the silver Parquet they were loaded from (data-store-mageddon).
+    Returns (count, names)."""
+    import pymysql
+
+    dbs = ["nhanes", "big_five", "who_gho", "cdc_physical_activity", "brfss", "nhis"]
+    conn = pymysql.connect(
+        host=os.environ.get("MYSQL_HOST", "mysql.data-mesh.svc.cluster.local"),
+        port=int(os.environ.get("MYSQL_PORT", "3306")),
+        user=os.environ.get("MYSQL_USER", "weyland"),
+        password=os.environ.get("MYSQL_PASSWORD", "weyland_dev_password"),
+    )
+    emitter = _gms_emitter()
+    names = []
+    try:
+        cur = conn.cursor()
+        for db in dbs:
+            cur.execute("SELECT table_name FROM information_schema.tables "
+                        "WHERE table_schema=%s AND table_type='BASE TABLE'", (db,))
+            for (t,) in cur.fetchall():
+                cur.execute("SELECT column_name, data_type FROM information_schema.columns "
+                            "WHERE table_schema=%s AND table_name=%s ORDER BY ordinal_position", (db, t))
+                fields = [SchemaFieldClass(fieldPath=c[0], type=_field_type(c[1]), nativeDataType=c[1])
+                          for c in cur.fetchall()]
+                name = f"{db}.{t}"
+                urn = make_dataset_urn(platform="mysql", name=name, env=ENV)
+                aspects = [
+                    DatasetPropertiesClass(name=name,
+                                           description=f"MySQL health table — {db} dataset, hydrated from silver Parquet.",
+                                           customProperties={"platform": "mysql", "database": db}),
+                    GlobalTagsClass(tags=[TagAssociationClass(tag=make_tag_urn("datasets_health"))]),
+                ]
+                if fields:
+                    aspects.insert(1, SchemaMetadataClass(
+                        schemaName=name, platform="urn:li:dataPlatform:mysql", version=0, hash="",
+                        platformSchema=OtherSchemaClass(rawSchema=""), fields=fields))
+                # lineage ← the folder-level parquet silver dataset (datasets.<db>) the loader read
+                aspects.append(UpstreamLineageClass(upstreams=[UpstreamClass(
+                    dataset=make_dataset_urn(platform="parquet", name=f"datasets.{db}", env=ENV),
+                    type=DatasetLineageTypeClass.COPY)]))
+                for aspect in aspects:
+                    emitter.emit(MetadataChangeProposalWrapper(entityUrn=urn, aspect=aspect))
+                names.append(name)
+    finally:
+        conn.close()
+    return len(names), names
+
+
 def emit_file_dataset(platform, table, location, arrow_schema, producer_asset, group="datasets") -> str:
     """Custom-emit a Dataset for a silver file format (Arrow/Lance) that has NO native DataHub connector.
 

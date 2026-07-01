@@ -22,6 +22,7 @@ from weyland_pipeline.schedules import (
     weyland_datasets_music_land_job,
     weyland_datasets_health_land_job,
     weyland_datasets_health_transform_job,
+    weyland_datasets_health_hydrate_job,
     weyland_datasets_music_land_schedule,
     weyland_datasets_health_land_schedule,
     weyland_timeseries_job,
@@ -89,6 +90,14 @@ def emit_timescaledb_op(context):
     context.log.info(f"✓ TimescaleDB → DataHub: {n} hypertable(s) {names} (platform=timescaledb, lineage ← source tables)")
 
 
+@op
+def emit_mysql_op(context):
+    from weyland_pipeline.datahub_emit import emit_mysql
+
+    n, _ = emit_mysql()
+    context.log.info(f"✓ MySQL → DataHub: {n} table(s) (platform=mysql, lineage ← parquet silver)")
+
+
 @job
 def datahub_catalog_emit_job():
     emit_dagster_assets_op()
@@ -98,6 +107,7 @@ def datahub_catalog_emit_job():
     emit_opensearch_op()
     emit_duckdb_op()
     emit_timescaledb_op()
+    emit_mysql_op()
 
 
 datahub_catalog_emit_schedule = ScheduleDefinition(
@@ -109,7 +119,7 @@ datahub_catalog_emit_schedule = ScheduleDefinition(
 defs = Definitions(
     assets=all_assets,
     asset_checks=all_asset_checks,
-    jobs=[weyland_ingestion_job, weyland_eval_job, weyland_eval_score_job, weyland_catalog_job, weyland_aidlc_kb_job, weyland_ai_session_job, datahub_catalog_emit_job, weyland_datasets_music_transform_job, weyland_datasets_music_land_job, weyland_datasets_health_land_job, weyland_datasets_health_transform_job, weyland_timeseries_job],
+    jobs=[weyland_ingestion_job, weyland_eval_job, weyland_eval_score_job, weyland_catalog_job, weyland_aidlc_kb_job, weyland_ai_session_job, datahub_catalog_emit_job, weyland_datasets_music_transform_job, weyland_datasets_music_land_job, weyland_datasets_health_land_job, weyland_datasets_health_transform_job, weyland_datasets_health_hydrate_job, weyland_timeseries_job],
     schedules=[weyland_ingestion_schedule, weyland_catalog_schedule, weyland_ai_session_schedule, datahub_catalog_emit_schedule, weyland_timeseries_schedule, weyland_datasets_music_land_schedule, weyland_datasets_health_land_schedule],
     sensors=[datasets_music_raw_sensor],
     resources={

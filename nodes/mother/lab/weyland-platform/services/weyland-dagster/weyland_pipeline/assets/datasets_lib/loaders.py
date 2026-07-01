@@ -78,7 +78,7 @@ def build_store_load_assets(cfg):
     if cfg.mysql_allow:
         @asset(
             name=f"datasets_{d}_mysql_load",
-            group_name=cfg.group_name,
+            group_name=f"datasets_{d}_stores",  # own group — NOT the transform group, so the transform job won't run it
             deps=[f"datasets_{d}_parquet"],  # reads silver after it exists; parquet's no_failures check gates it
             description=f"Hydrate MySQL from silver Parquet — db per dataset, table per file ({len(cfg.mysql_allow)} datasets).",
         )

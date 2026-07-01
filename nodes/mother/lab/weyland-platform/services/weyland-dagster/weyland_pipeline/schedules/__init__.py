@@ -138,6 +138,13 @@ weyland_datasets_health_transform_job = define_asset_job(
     selection=AssetSelection.groups("datasets_health") - AssetSelection.assets(*_HEALTH_LAND_ASSETS),
 )
 
+# Store hydration (data-store-mageddon) — silver Parquet → Tier-2 stores. Own group (datasets_health_stores)
+# so the transform job never runs it; gated by the parquet no_failures check (loader deps on _parquet).
+weyland_datasets_health_hydrate_job = define_asset_job(
+    name="weyland_datasets_health_hydrate_job",
+    selection=AssetSelection.groups("datasets_health_stores"),
+)
+
 weyland_datasets_music_land_schedule = ScheduleDefinition(
     job=weyland_datasets_music_land_job,
     cron_schedule="0 3 * * *",  # 3 AM daily — assets self-skip if fresh (30-day window)
