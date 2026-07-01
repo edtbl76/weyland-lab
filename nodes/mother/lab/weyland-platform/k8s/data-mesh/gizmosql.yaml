@@ -43,8 +43,12 @@ spec:
       containers:
         - name: gizmosql
           image: gizmodata/gizmosql:latest
-          # No DATABASE_FILENAME → in-memory DuckDB; INIT_SQL_COMMANDS re-creates httpfs + the S3 secret +
-          # the views on every start (cheap, and keeps the lakeFS creds out of any persisted db file).
+          # DATABASE_FILENAME → a PERSISTED DuckDB on the PVC below: the silver is materialised as DuckDB
+          # *tables* (scripts/gen_gizmosql_init.py tables) that survive restarts. Tables not views because
+          # GizmoSQL's Flight SQL GetTables surfaces base tables but NOT views — so tables show up + browse
+          # in DataGrip/IntelliJ (views are queryable by name yet invisible to the IDE tree), and queries hit
+          # native columnar storage instead of re-reading Parquet. INIT_SQL_COMMANDS is now MINIMAL (httpfs +
+          # `SET memory_limit`) — it does NOT create the tables; that's the one-shot/refresh materialise step.
           envFrom:
             - secretRef:
                 name: gizmosql-secret
@@ -54,6 +58,11 @@ spec:
             # CONFIRMED honoured: boot log shows "TLS is disabled … will listen on grpc+tcp://".
             - name: TLS_ENABLED
               value: "0"
+            - name: DATABASE_FILENAME       # persisted DuckDB on the PVC → materialised tables survive restarts
+              value: /data/weyland.duckdb
+          volumeMounts:
+            - name: duckdb
+              mountPath: /data
           ports:
             - name: tcp-flightsql        # tcp- → Istio TCP passthrough (mTLS at L4; gRPC rides inside)
               containerPort: 31337
@@ -67,7 +76,14 @@ spec:
               cpu: "100m"
               memory: "512Mi"
             limits:
-              memory: "1Gi"
+              # Bumped for the materialise: CREATE TABLE AS SELECT read_parquet on the big silver files
+              # (usda ~26M rows, lastfm ~14M) needs headroom. INIT_SQL caps DuckDB at memory_limit=3GB and
+              # DuckDB spills to the PVC, so 4Gi container leaves margin over that.
+              memory: "4Gi"
+      volumes:
+        - name: duckdb
+          persistentVolumeClaim:
+            claimName: gizmosql-duckdb
 ---
 apiVersion: v1
 kind: Service
@@ -85,6 +101,20 @@ spec:
       port: 31337
       targetPort: 31337
       nodePort: 31337
+---
+# Persisted DuckDB store for GizmoSQL (RWO + Recreate strategy above — single instance). DuckDB compresses
+# the silver well but this duplicates it, so 20Gi headroom. Refresh = re-run `gen_gizmosql_init.py tables`
+# (CREATE OR REPLACE, in place); a full reset = delete this PVC + re-materialise.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: gizmosql-duckdb
+  namespace: data-mesh
+spec:
+  accessModes: ["ReadWriteOnce"]
+  resources:
+    requests:
+      storage: 20Gi
 ---
 apiVersion: monitoring.coreos.com/v1
 kind: PrometheusRule

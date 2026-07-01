@@ -222,9 +222,13 @@ agents/workflows and platform state. Agents call the tool-server, *not* database
 - **DuckDB via GizmoSQL (B65 Tier-2, 2nd)** — DuckDB served over **Arrow Flight SQL** by **GizmoSQL**, in
   `data-mesh`. This exists because DuckDB's own JDBC is **embedded-only** (`jdbc:duckdb:<file>`, no
   `host:port`), so there's nothing for a client to connect to — GizmoSQL wraps the in-process engine in a
-  Flight SQL *server*. In-memory DuckDB; `INIT_SQL` wires `httpfs` + a lakeFS S3 secret + **views over the
-  current lakeFS Parquet** (read through the gateway). Embedded **single-node OLAP** — fast on columnar
-  files (Parquet/Arrow/Lance) + the pyarrow bridge for the B72 formats; the IDE/notebook analytics engine.
+  Flight SQL *server*. **Persisted DuckDB** on a PVC (`DATABASE_FILENAME`); the silver is materialised as
+  **base tables** — one per current lakeFS Parquet file, schema-per-domain (`datasets_music`/`datasets_health`)
+  — by `scripts/gen_gizmosql_init.py tables`. Tables not views because GizmoSQL's Flight SQL **`GetTables`
+  surfaces base tables but NOT views** → tables browse in DataGrip/IntelliJ (views were queryable-by-name but
+  invisible to the IDE tree), and queries hit native columnar storage instead of re-reading Parquet. Embedded
+  **single-node OLAP** — fast on columnar files (Parquet/Arrow/Lance) + the pyarrow bridge for the B72 formats;
+  the IDE/notebook analytics engine.
   Meshed (Istio **mTLS**; the app runs `TLS_ENABLED=0` plaintext so clients drop `TLS_SKIP_VERIFY` — the
   mesh provides transport security). IDEA connects via the Arrow Flight SQL JDBC driver
   (`jdbc:arrow-flight-sql://mother:31337`). Cataloged in DataHub (platform `duckdb`, lineage ← `parquet`)

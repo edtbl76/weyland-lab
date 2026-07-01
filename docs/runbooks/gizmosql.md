@@ -4,7 +4,9 @@
 
 **Why GizmoSQL at all:** DuckDB's own JDBC driver is **embedded-only** (`jdbc:duckdb:<file>` — no `host:port`), so a remote client (IntelliJ/DataGrip) has nothing to connect to. GizmoSQL fronts the engine with a real Flight SQL `host:port`. Confirmed in DataGrip: its native DuckDB driver shows *"Unable to find remote host or port in the URL"* — there is no server mode.
 
-**Data:** in-memory DuckDB; `INIT_SQL_COMMANDS` runs on every start to `INSTALL httpfs` + create an S3 secret for the **lakeFS gateway** + `CREATE VIEW`s over the **current lakeFS Parquet** (`s3://music/main/parquet/<table>`). Being in-cluster, it reads the *versioned* lakeFS data via the gateway — which rogueone-direct can't (lakeFS ingress is forward-auth gated).
+**Data:** a **persisted DuckDB** on a PVC (`DATABASE_FILENAME=/data/weyland.duckdb`). The silver is materialised as **base tables** — one per current lakeFS Parquet file, in a **schema per domain** (`datasets_music.<ident>`, `datasets_health.<ident>`) — by `scripts/gen_gizmosql_init.py tables`. They read the *versioned* lakeFS data via the in-cluster gateway (which rogueone-direct can't — lakeFS ingress is forward-auth gated), then persist to the PVC so they survive restarts.
+
+**Why tables, not views (the fix that mattered):** GizmoSQL's Flight SQL **`GetTables` surfaces base tables but NOT views**. DataGrip/IntelliJ build their tree from `getTables`, so DuckDB *views* were queryable-by-name yet **invisible in the IDE tree** (schemas showed, expanded to nothing). Materialising as tables makes them browsable *and* makes queries hit native columnar storage instead of re-reading Parquet every time. `INIT_SQL_COMMANDS` therefore no longer builds the catalog — it's minimal (httpfs + a DuckDB `memory_limit`); the tables are a separate one-shot/refresh materialise (below).
 
 ---
 
@@ -15,22 +17,35 @@
   jdbc:arrow-flight-sql://mother:31337?useEncryption=false&user=weyland&password=weyland_dev_password
   ```
   No SSH tunnel/SSL (the NodePort is LAN-reachable; the app is plaintext — see security below). Creds are passed as **URL params** (the driver has no separate cred fields).
-- **emit_duckdb (DataHub catalog):** the Dagster pod connects via ADBC Flight SQL (`grpc+tcp://gizmosql.data-mesh.svc:31337`) and catalogs the views (platform `duckdb`, lineage ← `parquet`). Runs in `datahub_catalog_emit_job`.
+- **emit_duckdb (DataHub catalog):** the Dagster pod connects via ADBC Flight SQL (`grpc+tcp://gizmosql.data-mesh.svc:31337`) and catalogs the tables in the `datasets_*` schemas (platform `duckdb`, lineage ← `parquet`). Runs in `datahub_catalog_emit_job`.
+- **CLI (in-pod, ad-hoc):** `datasets_music`/`datasets_health` tables browse in the IDE tree once materialised. To list them from SQL: `SELECT table_schema, table_name FROM information_schema.tables WHERE table_schema LIKE 'datasets_%';`.
 
 ## Deploy
 
-GitOps: `k8s/data-mesh/gizmosql.yaml` (Deployment + NodePort Service + `GizmosqlDown` PrometheusRule). The **secret is imperative** (carries the lakeFS keys + the init SQL — not in git):
+GitOps: `k8s/data-mesh/gizmosql.yaml` (Deployment + **`gizmosql-duckdb` PVC** + NodePort Service + `GizmosqlDown` PrometheusRule). The **secret is imperative** (carries the lakeFS keys — not in git). `INIT_SQL_COMMANDS` is now **minimal**: it does NOT build the catalog (the tables persist on the PVC + are materialised separately), only `INSTALL httpfs` and cap DuckDB's memory (default is node-RAM-sized → would OOM the 4Gi container):
 
 ```
-kubectl -n data-mesh create secret generic gizmosql-secret --from-literal=GIZMOSQL_USERNAME=weyland --from-literal=GIZMOSQL_PASSWORD=weyland_dev_password --from-literal=INIT_SQL_COMMANDS="INSTALL httpfs; LOAD httpfs; CREATE SECRET lakefs (TYPE S3, KEY_ID '<lakefs-key>', SECRET '<lakefs-secret>', REGION 'us-east-1', ENDPOINT 'lakefs.data-mesh.svc.cluster.local:8000', URL_STYLE 'path', USE_SSL false); CREATE VIEW spotify_tracks AS SELECT * FROM read_parquet('s3://music/main/parquet/spotify_tracks/*.parquet', union_by_name=true); CREATE VIEW fma_tracks AS SELECT * FROM read_parquet('s3://music/main/parquet/fma_tracks/*.parquet', union_by_name=true); CREATE VIEW fma_genres AS SELECT * FROM read_parquet('s3://music/main/parquet/fma_genres/*.parquet', union_by_name=true); CREATE VIEW fma_echonest AS SELECT * FROM read_parquet('s3://music/main/parquet/fma_echonest/*.parquet', union_by_name=true);" --dry-run=client -o yaml | kubectl apply -f -
+kubectl -n data-mesh create secret generic gizmosql-secret --from-literal=GIZMOSQL_USERNAME=weyland --from-literal=GIZMOSQL_PASSWORD=weyland_dev_password --from-literal=INIT_SQL_COMMANDS="INSTALL httpfs; LOAD httpfs; SET memory_limit='3GB';" --dry-run=client -o yaml | kubectl apply -f -
 ```
+
+## Materialise / refresh the store
+
+The catalog is **not** in `INIT_SQL` anymore — it's a one-shot (and the refresh after any dataset change). `gen_gizmosql_init.py tables` runs in the user-code pod (which has both `LAKEFS_*` to LIST Parquet and `GIZMOSQL_*` to connect), connects over Flight SQL, and `CREATE OR REPLACE TABLE`s one persisted table per current silver Parquet file into `datasets_music`/`datasets_health`. Per-table try/except → one bad file logs + is skipped, not aborting the run.
+
+```
+kubectl -n weyland exec -i deploy/dagster-user-code -- python - tables < nodes/mother/lab/weyland-platform/scripts/gen_gizmosql_init.py
+```
+
+- **Refresh** (silver changed): re-run the same command — `CREATE OR REPLACE` swaps each table in place.
+- **Full reset**: `kubectl -n data-mesh delete pvc gizmosql-duckdb` + let it recreate, restart gizmosql, re-materialise.
+- **First materialise is the slow one** (reads every Parquet); restarts after are instant (tables are on the PVC).
 
 ## Gotchas (every one cost us a cycle)
 
 1. **`GIZMOSQL_PORT … not a valid integer` → CrashLoop.** k8s injects Docker-link service env vars (`GIZMOSQL_PORT=tcp://<ip>:31337`) for the same-named Service, colliding with GizmoSQL's own `GIZMOSQL_PORT` config var. Fix: **`enableServiceLinks: false`** on the pod.
 2. **New pod can't schedule (Pending) after a fix.** The node runs ~98% CPU-committed, so a RollingUpdate double-books the CPU request and the new pod never schedules while the old (even crashing) one holds its slot. Fix: **`strategy: { type: Recreate }`** — kill old before new. (See [[k8s-rwo-recreate-strategy]].)
 3. **`HTTP 400 … No region is provided`** reading the lake. DuckDB's S3 signature needs a region even against lakeFS. Add **`REGION 'us-east-1'`** to the `CREATE SECRET`.
-4. **`schema mismatch in glob`** on `fma_echonest`/`fma_tracks`. Each transform run writes a *new* parquet file and FMA's flattened schema drifts run-to-run. Fix: **`read_parquet(..., union_by_name=true)`**. (Caveat: those dirs accumulate multiple runs' files → the views carry **duplicate rows**. Proper fix = the transform writing one deterministic file per table — B73/transform-cleanup.)
+4. **`schema mismatch in glob`** on `fma_echonest`/`fma_tracks` (historical). Old view SQL globbed a whole dir (`.../<table>/*.parquet, union_by_name=true`), and accumulated multi-run files → **duplicate rows** + schema drift. **Resolved**: the transform now writes one deterministic file per table (silver is clean), and `gen_gizmosql_init.py` materialises **one table per current Parquet file** (no glob, no `union_by_name`) — so no dup rows and no drift.
 5. **`UNAVAILABLE: Network closed`** from the client. GizmoSQL **auto-generates a self-signed cert and serves TLS by default** (`grpc+tls://`). Either connect with TLS (and the client must skip verify), or run plaintext (below).
 
 ## Security model

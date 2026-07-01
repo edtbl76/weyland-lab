@@ -306,9 +306,10 @@ def emit_opensearch():
 
 
 def emit_duckdb():
-    """Custom-emit the GizmoSQL/DuckDB Flight SQL views as DataHub Datasets (platform duckdb) with schema
-    (from information_schema) + lineage ← the parquet datasets they read. Connects to the live GizmoSQL
-    server over Arrow Flight SQL (TLS, self-signed → skip verify). Returns (count, names)."""
+    """Custom-emit the GizmoSQL/DuckDB Flight SQL silver TABLES as DataHub Datasets (platform duckdb) with
+    schema (from information_schema) + lineage ← the parquet datasets they materialise. Connects to the live
+    GizmoSQL server over Arrow Flight SQL. The silver lives as persisted tables in the per-domain schemas
+    (datasets_music / datasets_health), not views in main — see scripts/gen_gizmosql_init.py. Returns (count, names)."""
     import adbc_driver_flightsql.dbapi as flight_sql
 
     # Plaintext grpc+tcp: GizmoSQL runs TLS-off and Istio mTLS secures the in-cluster hop (both pods meshed),
@@ -324,13 +325,17 @@ def emit_duckdb():
     names = []
     try:
         cur = conn.cursor()
-        # our views live in the in-memory db's main schema; skip GizmoSQL's internal/system views.
-        cur.execute("SELECT view_name FROM duckdb_views() WHERE schema_name = 'main' AND NOT internal")
-        views = [r[0] for r in cur.fetchall() if not r[0].startswith(("_", "gizmosql"))]
-        for v in views:
+        # the silver is materialised as base TABLES in the per-domain schemas (datasets_music/_health);
+        # skip main + GizmoSQL's internal/system schemas.
+        cur.execute(
+            "SELECT table_schema, table_name FROM information_schema.tables "
+            "WHERE table_schema LIKE 'datasets_%' ORDER BY table_schema, table_name"
+        )
+        tables = [(r[0], r[1]) for r in cur.fetchall()]
+        for schema, v in tables:
             cur.execute(
                 "SELECT column_name, data_type FROM information_schema.columns "
-                f"WHERE table_name = '{v}' ORDER BY ordinal_position"
+                f"WHERE table_schema = '{schema}' AND table_name = '{v}' ORDER BY ordinal_position"
             )
             fields = [
                 SchemaFieldClass(fieldPath=c[0], type=_field_type(c[1]), nativeDataType=c[1])
@@ -340,7 +345,8 @@ def emit_duckdb():
             aspects = [
                 DatasetPropertiesClass(
                     name=v,
-                    description="DuckDB view served over Arrow Flight SQL (GizmoSQL); reads the lakeFS Parquet.",
+                    description=f"DuckDB table ({schema}) served over Arrow Flight SQL (GizmoSQL); "
+                                "materialised from the lakeFS Parquet silver.",
                     customProperties={},
                 ),
                 GlobalTagsClass(tags=[TagAssociationClass(tag=make_tag_urn("default"))]),

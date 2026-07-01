@@ -79,7 +79,7 @@ def emit_duckdb_op(context):
     from weyland_pipeline.datahub_emit import emit_duckdb
 
     n, names = emit_duckdb()
-    context.log.info(f"✓ DuckDB → DataHub: {n} view(s) {names} (platform=duckdb, lineage ← parquet)")
+    context.log.info(f"✓ DuckDB → DataHub: {n} table(s) {names} (platform=duckdb, lineage ← parquet)")
 
 
 @op
