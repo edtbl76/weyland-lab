@@ -1,0 +1,47 @@
+# mbslave restore Job — runs `mbslave init` against the dedicated musicbrainz-postgres instance.
+#
+# SMOKE TEST today: `kubectl apply` this, watch the logs (schema + first COPYs = mbslave works). Same manifest
+# becomes the production restore, later triggered by a Dagster op instead of a hand-applied kubectl (and the
+# dump source swapped from mbslave-fetch to a MinIO-staged path — one env change). Nothing here gets thrown away.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: musicbrainz-restore
+  namespace: data-mesh
+  labels:
+    app: musicbrainz-restore
+spec:
+  backoffLimit: 0        # a multi-hour import must NOT silently auto-retry — inspect + rerun deliberately
+  template:
+    metadata:
+      labels:
+        app: musicbrainz-restore
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: mbslave
+          image: musicbrainz-mbslave:local
+          imagePullPolicy: Never            # built locally + imported into containerd, like the user-code image
+          args: ["init", "--create-user", "--create-database"]
+          env:
+            - name: MBSLAVE_DB_HOST
+              value: musicbrainz-postgres.data-mesh.svc.cluster.local
+            - name: MBSLAVE_DB_PORT
+              value: "5432"
+            - name: MBSLAVE_DB_NAME
+              value: musicbrainz
+            - name: MBSLAVE_DB_USER
+              value: musicbrainz
+            - name: MBSLAVE_DB_ADMIN_USER
+              value: postgres
+          # MBSLAVE_DB_PASSWORD + MBSLAVE_DB_ADMIN_PASSWORD come from the instance Secret.
+          envFrom:
+            - secretRef:
+                name: musicbrainz-postgres-secret
+          volumeMounts:
+            - name: scratch
+              mountPath: /tmp/mbslave       # dump download + extracted TSVs (on the node VM disk — same prereq)
+      volumes:
+        - name: scratch
+          emptyDir:
+            sizeLimit: 40Gi

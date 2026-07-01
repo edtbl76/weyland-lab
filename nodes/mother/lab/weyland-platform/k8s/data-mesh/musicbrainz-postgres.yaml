@@ -1,0 +1,90 @@
+# Dedicated MusicBrainz Postgres instance (data-mesh Tier-2, "Postgres" grid cell — the ONLY Postgres target).
+#
+# WHY a separate instance (not the core weyland Postgres): the native MusicBrainz `mbdump` is a full ~200-table
+# normalized mirror (tens of GB with indexes). It has no business sharing the DB that Keycloak/Nessie/lakeFS/
+# GlitchTip depend on — a heavy import or a fat table there is an outage risk. Isolated instance, isolated blast
+# radius. Loaded by mbslave (see services/musicbrainz-restore/) via `mbslave init`.
+#
+# EVOLVABLE: this instance is permanent from smoke-test → production. Start un-meshed (like gizmosql's first
+# cut); add the Istio sidecar + a DataHub emit when we wire it into the mesh/catalog. The restore Job and the
+# future Dagster land job (dump → MinIO, freshness-gated) grow around THIS, they don't replace it.
+#
+# PREREQ (hard gate): the PVC below lives on mother's VM filesystem via local-path — NOT the raw Proxmox pool.
+# Confirm mother's virtual disk has headroom (or grow it: Proxmox disk resize + in-guest growpart/resize2fs)
+# BEFORE applying, or the PVC pends / a full import fills the VM disk and taints the node (as the Docker-image
+# blowup did, 2026-06-29). "Plenty on Proxmox" only counts once it's given to the VM.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: musicbrainz-postgres
+  namespace: data-mesh
+  labels:
+    app: musicbrainz-postgres
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate            # single-instance RWO — kill-old-before-new (see [[k8s-rwo-recreate-strategy]])
+  selector:
+    matchLabels:
+      app: musicbrainz-postgres
+  template:
+    metadata:
+      labels:
+        app: musicbrainz-postgres
+    spec:
+      containers:
+        - name: postgres
+          image: postgres:16    # official image bundles contrib (cube, earthdistance) that the MB schema needs
+          envFrom:
+            - secretRef:
+                name: musicbrainz-postgres-secret   # imperative (POSTGRES_PASSWORD = superuser) — not in git
+          env:
+            - name: PGDATA
+              value: /var/lib/postgresql/data/pgdata   # subdir → avoids the lost+found-in-mountpoint initdb error
+          ports:
+            - name: postgres
+              containerPort: 5432
+          readinessProbe:
+            exec:
+              command: ["pg_isready", "-U", "postgres"]
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: "250m"
+              memory: "512Mi"
+            limits:
+              memory: "4Gi"     # import + index build wants headroom; the node has RAM to spare
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql/data
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: musicbrainz-pg-data
+---
+# Full mbdump mirror + indexes is tens of GB — sized generously since storage isn't the constraint (gate on the
+# VM-disk prereq above). local-path RWO.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: musicbrainz-pg-data
+  namespace: data-mesh
+spec:
+  accessModes: ["ReadWriteOnce"]
+  resources:
+    requests:
+      storage: 80Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: musicbrainz-postgres
+  namespace: data-mesh
+spec:
+  selector:
+    app: musicbrainz-postgres
+  ports:
+    - name: postgres
+      port: 5432
+      targetPort: 5432
