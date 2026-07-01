@@ -88,9 +88,6 @@ spec:
               cpu: "100m"
               memory: "512Mi"
             limits:
-              # Bumped for the materialise: CREATE TABLE AS SELECT read_parquet on the big silver files
-              # (usda ~26M rows, lastfm ~14M) needs headroom. INIT_SQL caps DuckDB at memory_limit=3GB and
-              # DuckDB spills to the PVC, so 4Gi container leaves margin over that.
               memory: "4Gi"
       volumes:
         - name: duckdb

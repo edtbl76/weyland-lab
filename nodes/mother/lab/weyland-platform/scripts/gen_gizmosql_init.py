@@ -1,11 +1,13 @@
 """Build GizmoSQL's INIT_SQL_COMMANDS over the lakeFS Parquet, across both domains (music, health).
 
-Two modes (argv[1], default `views`) — BOTH print SQL to stdout for the imperative `gizmosql-secret`:
-  views  — `CREATE OR REPLACE VIEW` per Parquet file. LEGACY: views are queryable by name but GizmoSQL's
-           Flight SQL GetTables does NOT surface them, so they're invisible in the DataGrip/IntelliJ tree.
-  tables — `CREATE TABLE IF NOT EXISTS … AS SELECT` per Parquet file, schema-per-domain. This is the store
-           form: base tables ARE surfaced by GetTables → they show up + browse in the IDE tree, and queries
-           hit native DuckDB columnar storage instead of re-reading Parquet.
+Three modes (argv[1], default `views`) — all print to stdout:
+  tables  — `CREATE TABLE IF NOT EXISTS … AS SELECT` per Parquet file, schema-per-domain → INIT_SQL for the
+            persisted store. Fast native columnar storage vs re-reading Parquet. THE current form.
+  views   — `CREATE OR REPLACE VIEW` per file. Legacy always-live form (no PVC); kept as a fallback.
+  queries — a `SELECT * … LIMIT 100` per table for a local `sql/` file. Browse workaround: DataGrip's Flight
+            SQL introspection can't expand non-default schemas in the tree (server metadata is fine — proven
+            via ADBC GetObjects; it's a DataGrip/JDBC-driver limitation, NOT the object type), so you open the
+            file and run the statement under the cursor to see a table's columns.
 
 WHY INIT_SQL (not driving the DDL over a client): GizmoSQL runs each Flight SQL statement in an ISOLATED
 session, so a client's `CREATE SCHEMA`/`CREATE SECRET` isn't visible to the next `CREATE TABLE` (fails with
@@ -67,6 +69,21 @@ def _secret_sql() -> str:
             f"ENDPOINT '{HOSTPORT}', URL_STYLE 'path', USE_SSL false, REGION 'us-east-1');")
 
 
+def build_queries(rows):
+    """Browse-workaround: a `SELECT *` per table, grouped by schema. DataGrip's Flight SQL introspection
+    can't expand non-default schemas in the tree (server metadata is fine — proven via ADBC GetObjects),
+    so this is how you eyeball a table's columns: open the file, run the statement under the cursor."""
+    lines = ["-- GizmoSQL browse workaround — run the statement under your cursor to see a table's columns.",
+             "-- Regenerate after dataset changes: gen_gizmosql_init.py queries > sql/gizmosql_browse.sql", ""]
+    last = None
+    for schema, ident, _ in rows:
+        if schema != last:
+            lines += ["", f"-- {schema}"]
+            last = schema
+        lines.append(f"SELECT * FROM {schema}.{ident} LIMIT 100;")
+    return lines
+
+
 def build_init_sql(rows, mode):
     lines = []
     if mode == "tables":
@@ -88,12 +105,14 @@ def build_init_sql(rows, mode):
 
 def main():
     mode = (sys.argv[1] if len(sys.argv) > 1 else "views").lower()
-    if mode not in ("views", "tables"):
-        sys.exit(f"usage: gen_gizmosql_init.py [views|tables]  (got {mode!r})")
+    if mode not in ("views", "tables", "queries"):
+        sys.exit(f"usage: gen_gizmosql_init.py [views|tables|queries]  (got {mode!r})")
     mc = Minio(HOSTPORT, access_key=KEY, secret_key=SECRET, secure=ENDPOINT.startswith("https://"))
     rows = _catalog(mc)
-    print("\n".join(build_init_sql(rows, mode)))
-    kind = "tables (CREATE TABLE IF NOT EXISTS)" if mode == "tables" else "views"
+    lines = build_queries(rows) if mode == "queries" else build_init_sql(rows, mode)
+    print("\n".join(lines))
+    kind = {"tables": "tables (CREATE TABLE IF NOT EXISTS)", "views": "views",
+            "queries": "SELECT * browse queries"}[mode]
     print(f"-- generated {len(rows)} {kind} across {REPOS}", file=sys.stderr)
 
 
