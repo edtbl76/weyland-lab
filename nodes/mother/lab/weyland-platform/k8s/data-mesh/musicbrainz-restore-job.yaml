@@ -22,10 +22,8 @@ spec:
     metadata:
       labels:
         app: musicbrainz-import
-      annotations:
-        # data-mesh auto-injects Istio; a sidecar never exits, so a Job pod would run forever after the import
-        # finishes and never register Complete. Disable it — the import connects to the (un-meshed) instance
-        # directly, so it needs no sidecar anyway.
+        # Disable Istio injection via the LABEL (data-mesh uses revision-based injection, which ignores the
+        # annotation form). The import talks to the un-meshed instance directly, so it needs no sidecar.
         sidecar.istio.io/inject: "false"
     spec:
       restartPolicy: Never
@@ -33,9 +31,14 @@ spec:
         - name: musicbrainz
           image: musicbrainz-mb-import:local
           imagePullPolicy: Never          # built on mother + imported into containerd (docker save | ctr import)
-          # `args` (not `command`) mirrors `docker compose run musicbrainz createdb.sh -fetch`: pass the command
-          # to the image's existing entrypoint. -fetch downloads the latest dump, then imports it.
-          args: ["createdb.sh", "-fetch"]
+          # fetch-dump.sh prompts interactively ("commercial or non-commercial?") and dies on EOF in a non-TTY
+          # container. It skips the prompt if a marker file exists — so pre-touch the non-commercial one
+          # (homelab use) in the shared dbdump volume, then exec the real import. `sh -c` runs under the image's
+          # docker-entrypoint (which sets up local::lib), so createdb.sh keeps its Perl env.
+          args:
+            - sh
+            - -c
+            - touch /media/dbdump/.for-non-commercial-use && exec createdb.sh -fetch
           env:
             - name: MUSICBRAINZ_POSTGRES_SERVER
               value: musicbrainz-postgres.data-mesh.svc.cluster.local
