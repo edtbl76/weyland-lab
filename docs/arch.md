@@ -151,6 +151,7 @@ agents/workflows and platform state. Agents call the tool-server, *not* database
 | **Valkey** (shared cache) | `valkey.data-mesh.svc:6379` | BSD open-source Redis fork (post-2024 SSPL relicense). Shared data-mesh cache — Superset Celery broker + results backend. Ephemeral (no persistence). RESP-compatible (DataGrip "Redis" datasource via port-forward). `k8s/data-mesh/valkey.yaml`. |
 | **TimescaleDB** (B65 Tier-2 #4) | `timescaledb.data-mesh.svc:5432` | **Time-series** Postgres extension (`timescale/timescaledb-ha:pg16`), ns `data-mesh`. db `timeseries`. 5 hypertables fed hourly by Dagster `weyland_timeseries_job`: `eval_scores_ts` ← eval_scores, `guardrail_verdicts_ts` ← guardrail_verdicts, `dagster_run_durations` ← Dagster runs, `unleash_feature_metrics` ← client_metrics_env, `datahub_ingestion_runs` ← DataHub GMS GraphQL. Grafana datasource + Superset 10 charts. DataHub `emit_timescaledb`. `k8s/data-mesh/timescaledb.yaml`. See [runbooks/timescaledb.md](runbooks/timescaledb.md). |
 | **MySQL** (B65 Tier-2 #5) | `mysql.data-mesh.svc:3306` | **Health** datasets, ns `data-mesh`. **Hydrated 2026-07-01** from silver Parquet by `datasets_health_mysql_load` — **6 databases** (grid `MySQL=Y`): `nhanes` (biomarkers), `big_five` (OCEAN personality), `who_gho` (population health), `cdc_physical_activity`, `brfss` (health behaviors), `nhis` — **32 tables** (dataset→db, parquet file→table). `k8s/data-mesh/mysql.yaml`. See [runbooks/datasets-hydration.md](runbooks/datasets-hydration.md). |
+| **MusicBrainz Postgres** (B65 Tier-2 #6) | `musicbrainz-postgres.data-mesh.svc:5432` | Grid **Postgres** cell (MusicBrainz only). Dedicated **`postgres:18`**, ns `data-mesh`, db `musicbrainz_db` / schema `musicbrainz`. **Loaded 2026-07-01** with the **full native `mbdump`** (2.9M artists / 39.3M recordings / 1.1M links) via **musicbrainz-docker's** importer as a k8s Job (`recreatedb.sh -fetch`), NOT stale mbslave. Isolated from core weyland Postgres. `k8s/data-mesh/musicbrainz-postgres.yaml`. See [runbooks/musicbrainz-postgres.md](runbooks/musicbrainz-postgres.md). |
 | MLflow (B10+B16) | `mlflow.weyland.lab` | Experiment tracking + model registry. **Postgres** backend store + **MinIO** `mlflow` artifact bucket (proxied via `--serve-artifacts`). Meshed (STRICT Postgres); **Keycloak SSO** (forward-auth, B1.1). `k8s/mlflow/`. |
 | CoreDNS | `mother:53` | LAN DNS resolver for `weyland.lab`. |
 | Traefik | (ingress) | TLS front door for `*.weyland.lab`. |
@@ -254,6 +255,13 @@ agents/workflows and platform state. Agents call the tool-server, *not* database
   Physical Activity, BRFSS, NHIS — **32 tables** (dataset→database, parquet file→table; USDA + Open Food
   Facts are `MySQL=N`, NHIS replaced UK Biobank). The intent: join personality profiles against dietary
   patterns and health behaviors. See [runbooks/datasets-hydration.md](runbooks/datasets-hydration.md).
+- **MusicBrainz Postgres (B65 Tier-2 #6)** — the grid's **Postgres** cell (MusicBrainz only), a **dedicated
+  `postgres:18`** instance in `data-mesh`, **loaded 2026-07-01** with the **full native `mbdump`** (2.9M
+  artists / 39.3M recordings / 1.1M `link` rows — the real normalized relational graph, not the flat HF
+  silver). Isolated from the core weyland Postgres. Loaded by **musicbrainz-docker's own importer** run as a
+  k8s Job (`recreatedb.sh -fetch`), *not* community mbslave (stale — stuck on 2024's schema, can't ingest
+  current dumps). This is the one store where relational fidelity + FKs are the point. See
+  [runbooks/musicbrainz-postgres.md](runbooks/musicbrainz-postgres.md).
 
 ### 7a. Query layer — Trino vs DuckDB (`data-mesh`)
 
