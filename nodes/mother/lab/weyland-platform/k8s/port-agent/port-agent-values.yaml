@@ -23,7 +23,10 @@ env:
 
 secret:
   useExistingSecret: true
-  name: port-agent-creds                     # keys: PORT_CLIENT_ID, PORT_CLIENT_SECRET
+  # MUST be ORGANIZATION credentials (Port → Credentials → Organization tab), NOT Personal.
+  # Personal creds (Client ID = your email) authenticate + manage the catalog (tofu uses them), but 403
+  # on /v1/actions/runs/claim-pending — claiming org run execution is an org-scoped op. Org creds fix it.
+  name: port-agent-creds                     # keys: PORT_CLIENT_ID, PORT_CLIENT_SECRET (org-level)
 
 # Control-the-payload: forward every self-service action run to the store-scaler as a plain JSON POST.
 # `enabled: true` because this is currently the ONLY action backend — when you add more Port actions,
