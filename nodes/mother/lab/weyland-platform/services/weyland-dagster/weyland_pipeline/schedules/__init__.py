@@ -10,6 +10,11 @@ _SERIAL_EXEC = {"execution": {"config": {"multiprocess": {"max_concurrent": 1}}}
 # external sources (incl. FMA's ~342 MB zip), so it's on-demand + sensor-triggered only.
 weyland_ingestion_job = define_asset_job(
     name="weyland_ingestion_job",
+    # SERIALIZE (max_concurrent=1): the RAG pipeline embeds (loads the sentence-transformer) AND fans out to
+    # 5 retrieval backends (pgvector/qdrant/weaviate/neo4j/opensearch). Running those in parallel in the
+    # user-code pod spiked memory hard enough to swap-thrash mother into NodeNotReady. One step at a time →
+    # lower peak (longer wall-clock is fine at 02:17 daily). Same fix as the transform jobs.
+    config=_SERIAL_EXEC,
     selection=AssetSelection.all()
     - AssetSelection.groups("eval")
     - AssetSelection.groups("catalog")
