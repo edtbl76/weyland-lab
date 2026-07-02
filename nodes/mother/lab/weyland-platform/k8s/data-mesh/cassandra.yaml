@@ -1,0 +1,89 @@
+# Cassandra (B65 Tier-2 #9) — grid "Cassandra" cell. Single-node, wide-column store for the four
+# Cassandra=Y datasets (music: uci_year_prediction, lastfm; health: big_five, who_gho). Heap capped
+# (this is the heaviest Tier-2 store — a JVM; mother was bumped 44→50Gi to fit it). StatefulSet =
+# idiomatic for Cassandra (stable identity + volumeClaimTemplates). Sidecar disabled — CQL is TCP and
+# the meshed Dagster loader reaches a non-meshed Cassandra over plain 9042 fine (PERMISSIVE client).
+# See docs/runbooks/datasets-hydration.md.
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: cassandra
+  namespace: data-mesh
+  labels:
+    app: cassandra
+spec:
+  clusterIP: None          # headless — StatefulSet stable DNS; clients use cassandra.data-mesh.svc:9042
+  selector:
+    app: cassandra
+  ports:
+    - name: cql
+      port: 9042
+    - name: intra-node
+      port: 7000
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: cassandra
+  namespace: data-mesh
+spec:
+  serviceName: cassandra
+  replicas: 1
+  selector:
+    matchLabels:
+      app: cassandra
+  template:
+    metadata:
+      labels:
+        app: cassandra
+      annotations:
+        sidecar.istio.io/inject: "false"
+    spec:
+      terminationGracePeriodSeconds: 120   # let Cassandra drain/flush on stop
+      containers:
+        - name: cassandra
+          image: cassandra:5.0
+          ports:
+            - containerPort: 9042
+              name: cql
+            - containerPort: 7000
+              name: intra-node
+          env:
+            - name: CASSANDRA_CLUSTER_NAME
+              value: weyland
+            - name: CASSANDRA_ENDPOINT_SNITCH
+              value: SimpleSnitch          # single-node — no DC/rack topology
+            - name: MAX_HEAP_SIZE
+              value: 2G                     # capped: JVM store on a shared node
+            - name: HEAP_NEWSIZE
+              value: 400M
+          resources:
+            requests:
+              cpu: 250m
+              memory: 2Gi
+            limits:
+              memory: 4Gi                   # heap 2G + off-heap (memtables/caches) + overhead
+          readinessProbe:
+            exec:
+              command: ["/bin/sh", "-c", "nodetool status | grep -q '^UN'"]
+            initialDelaySeconds: 60
+            periodSeconds: 15
+            timeoutSeconds: 10
+            failureThreshold: 10
+          startupProbe:
+            exec:
+              command: ["/bin/sh", "-c", "nodetool status | grep -q '^UN'"]
+            periodSeconds: 15
+            failureThreshold: 20            # up to ~5 min for first boot
+          volumeMounts:
+            - name: cassandra-data
+              mountPath: /var/lib/cassandra
+  volumeClaimTemplates:
+    - metadata:
+        name: cassandra-data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: 20Gi
