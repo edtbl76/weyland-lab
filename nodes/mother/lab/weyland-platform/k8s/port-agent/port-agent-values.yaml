@@ -12,10 +12,11 @@ image:
 env:
   normal:
     PORT_ORG_ID: "org_KyCTEN4PVUv1D3TM"     # EU org (from tofu/port/main.tf) — non-secret identifier
-    STREAMER_NAME: "KAFKA"
-    KAFKA_CONSUMER_GROUP_ID: "weyland-port-agent"
-    # PORT_API_BASE_URL defaults to https://api.getport.io. If the agent can't reach Kafka (EU org),
-    # that's the first knob to check.
+    # POLLING, not KAFKA: this org has no Kafka credentials provisioned (get_kafka_credentials → None,
+    # crashloop). The agent instead POLLS the Port API for action runs (outbound, every 10s by default).
+    # Any STREAMER_NAME != "KAFKA" selects the PollingStreamer; no Kafka/consumer-group config needed.
+    STREAMER_NAME: "POLLING"
+    # PORT_API_BASE_URL defaults to https://api.getport.io (auth already works for this org here).
 
 secret:
   useExistingSecret: true
