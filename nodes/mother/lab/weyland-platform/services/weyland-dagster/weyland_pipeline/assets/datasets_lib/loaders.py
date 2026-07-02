@@ -278,13 +278,19 @@ def _load_dataset_to_cassandra(session, mc, cfg, dataset, partition_raw, log) ->
                 continue
             peek = next(pf.iter_batches(batch_size=256)).to_pandas()   # dtypes + column order
             cols = [_sql_ident(c) for c in peek.columns]
-            cql_types, casters = zip(*[_cql_col(peek[c].dtype) for c in peek.columns])
+            cql_types, casters = map(list, zip(*[_cql_col(peek[c].dtype) for c in peek.columns]))
 
             partition = _sql_ident(partition_raw) if partition_raw else None
             if partition and partition not in cols:
                 log.warning(f"cassandra {ks}.{table}: partition col {partition!r} not present in "
                             f"{cols[:12]} — falling back to row_id-only key (plain dump)")
                 partition = None
+            if partition:
+                # A partition key can't be null/empty ("Key may not be empty" — one blank fails the batch).
+                # Force it to text + a sentinel for null/NaN/"" so every row lands and stays queryable.
+                pi = cols.index(partition)
+                cql_types[pi] = "text"
+                casters[pi] = lambda v: "__UNKNOWN__" if (v is None or v != v or str(v) == "") else str(v)
             pk = f'PRIMARY KEY (("{partition}"), row_id)' if partition else "PRIMARY KEY (row_id)"
 
             col_defs = ", ".join(f'"{c}" {t}' for c, t in zip(cols, cql_types))

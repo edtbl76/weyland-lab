@@ -78,6 +78,12 @@ def ts_eval_scores():
             """)
             rows = cur.fetchall()
         with dst.cursor() as cur:
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS eval_scores_ts (
+                    time timestamptz NOT NULL, run_id text, model text, metric text, judge text, score double precision
+                )
+            """)
+            cur.execute("SELECT create_hypertable('eval_scores_ts', 'time', if_not_exists => TRUE)")
             psycopg2.extras.execute_values(cur, """
                 INSERT INTO eval_scores_ts (time, run_id, model, metric, judge, score)
                 VALUES %s
@@ -105,6 +111,12 @@ def ts_guardrail_verdicts():
             """)
             rows = cur.fetchall()
         with dst.cursor() as cur:
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS guardrail_verdicts_ts (
+                    time timestamptz NOT NULL, validator text, hook text, decision text, actor text, latency_ms double precision
+                )
+            """)
+            cur.execute("SELECT create_hypertable('guardrail_verdicts_ts', 'time', if_not_exists => TRUE)")
             psycopg2.extras.execute_values(cur, """
                 INSERT INTO guardrail_verdicts_ts (time, validator, hook, decision, actor, latency_ms)
                 VALUES %s
@@ -138,6 +150,15 @@ def ts_dagster_runs():
             """)
             rows = cur.fetchall()
         with dst.cursor() as cur:
+            # Self-create the hypertable (idempotent) — the op assumed it pre-existed, so a missing table
+            # (never created / TimescaleDB reset) hard-failed the whole timeseries job.
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS dagster_run_durations (
+                    time timestamptz NOT NULL, pipeline_name text, status text,
+                    duration_seconds double precision, run_id text
+                )
+            """)
+            cur.execute("SELECT create_hypertable('dagster_run_durations', 'time', if_not_exists => TRUE)")
             psycopg2.extras.execute_values(cur, """
                 INSERT INTO dagster_run_durations (time, pipeline_name, status, duration_seconds, run_id)
                 VALUES %s
@@ -165,6 +186,12 @@ def ts_unleash_metrics():
             """)
             rows = cur.fetchall()
         with dst.cursor() as cur:
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS unleash_feature_metrics (
+                    time timestamptz NOT NULL, feature_name text, environment text, yes bigint, no bigint
+                )
+            """)
+            cur.execute("SELECT create_hypertable('unleash_feature_metrics', 'time', if_not_exists => TRUE)")
             psycopg2.extras.execute_values(cur, """
                 INSERT INTO unleash_feature_metrics (time, feature_name, environment, yes, no)
                 VALUES %s
@@ -226,6 +253,13 @@ def ts_datahub_ingestion():
                     0,
                 ))
         with dst.cursor() as cur:
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS datahub_ingestion_runs (
+                    time timestamptz NOT NULL, source_type text, source_name text, status text,
+                    duration_seconds double precision, records_written bigint
+                )
+            """)
+            cur.execute("SELECT create_hypertable('datahub_ingestion_runs', 'time', if_not_exists => TRUE)")
             psycopg2.extras.execute_values(cur, """
                 INSERT INTO datahub_ingestion_runs (time, source_type, source_name, status, duration_seconds, records_written)
                 VALUES %s
