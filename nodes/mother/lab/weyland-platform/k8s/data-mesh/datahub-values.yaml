@@ -117,9 +117,10 @@ datahub-frontend:
           mountPath: /ca
 
 # Actions framework — trim its default 300m CPU request. This pod ALSO runs managed-ingestion; 512Mi
-# OOM-killed (exit 137) every Postgres/MusicBrainz profiling run → hung ingestions. Ceiling raised to
-# 1Gi for burst headroom; request stays low (256Mi) so it reserves little on the tight node — it only
-# uses the extra while an ingestion is active. Also disable SQL-source profiling (UI) to cut the spike.
+# OOM-killed (exit 137) on profiling-enabled Postgres/MusicBrainz runs → hung ingestions. Ceiling raised
+# to 1Gi for burst headroom; request stays low (256Mi) so it reserves little on the tight node — it only
+# uses the extra while an ingestion is active. Profiling kept ON (we want the stats) — if a big profiling
+# run still exit-137s, bump further (1.5–2Gi) or sleep the idle data stores (store-scaler) to free node RAM.
 acryl-datahub-actions:
   resources:
     requests:
