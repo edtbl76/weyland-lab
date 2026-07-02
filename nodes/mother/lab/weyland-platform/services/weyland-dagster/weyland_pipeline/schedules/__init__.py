@@ -82,6 +82,7 @@ weyland_ingestion_schedule = ScheduleDefinition(
     cron_schedule="17 2 * * *",  # daily 02:17 (was hourly — the RAG corpus barely changes, and 3 jobs at :00
                                  # every hour stampeded mother). Odd minute to never collide with the others.
     name="weyland_ingestion_schedule",
+    execution_timezone="America/New_York",  # crons read in NY time (else UTC) — see docs/schedules.md
     default_status=DefaultScheduleStatus.RUNNING,
 )
 
@@ -89,6 +90,7 @@ weyland_catalog_schedule = ScheduleDefinition(
     job=weyland_catalog_job,
     cron_schedule="50 */6 * * *",  # every 6h at :50 (nudged off :00 to de-stampede)
     name="weyland_catalog_schedule",
+    execution_timezone="America/New_York",
     default_status=DefaultScheduleStatus.RUNNING,
 )
 
@@ -96,6 +98,7 @@ weyland_ai_session_schedule = ScheduleDefinition(
     job=weyland_ai_session_job,
     cron_schedule="0 */4 * * *",  # every 4h
     name="weyland_ai_session_schedule",
+    execution_timezone="America/New_York",
     default_status=DefaultScheduleStatus.RUNNING,
 )
 
@@ -155,6 +158,7 @@ weyland_datasets_music_land_schedule = ScheduleDefinition(
     job=weyland_datasets_music_land_job,
     cron_schedule="0 3 * * *",  # 3 AM daily — assets self-skip if fresh (30-day window)
     name="weyland_datasets_music_land_schedule",
+    execution_timezone="America/New_York",
     default_status=DefaultScheduleStatus.STOPPED,  # enable when ready for automation
 )
 
@@ -162,6 +166,7 @@ weyland_datasets_health_land_schedule = ScheduleDefinition(
     job=weyland_datasets_health_land_job,
     cron_schedule="0 4 * * *",  # 4 AM daily — assets self-skip if fresh (7-day window)
     name="weyland_datasets_health_land_schedule",
+    execution_timezone="America/New_York",
     default_status=DefaultScheduleStatus.STOPPED,  # enable when ready for automation
 )
 
@@ -176,5 +181,6 @@ weyland_timeseries_schedule = ScheduleDefinition(
     job=weyland_timeseries_job,
     cron_schedule="25 */4 * * *",  # every 4h at :25 (was hourly-on-:00 — part of the stampede)
     name="weyland_timeseries_schedule",
+    execution_timezone="America/New_York",
     default_status=DefaultScheduleStatus.RUNNING,
 )
