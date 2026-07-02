@@ -175,10 +175,10 @@ def _cockroach_engine_factory():
     user = os.environ.get("COCKROACH_USER", "root")
     cache = {}
 
-    def engine_for(db):  # pg-wire; insecure single-node → no password, sslmode disabled
-        if db not in cache:
+    def engine_for(db):  # cockroachdb dialect (NOT plain postgres — the pg dialect can't parse Cockroach's
+        if db not in cache:  # version string). Insecure single-node → user root, no password, sslmode disabled.
             cache[db] = sqlalchemy.create_engine(
-                f"postgresql+psycopg2://{user}@{host}:{port}/{db}?sslmode=disable")
+                f"cockroachdb://{user}@{host}:{port}/{db}?sslmode=disable")
         return cache[db]
 
     return engine_for
