@@ -96,6 +96,28 @@ constraint) — a `mysqld-exporter` is the follow-up. Same 7-point gate applies 
 - **Gate:** Loaded ✅ · Runnable ✅ · Gated ✅ (parquet dep) · Cataloged ✅ (`emit_timescaledb` scans all
   hypertables) · Monitored ✅ (rides the hydrate-failure Loki rule) · Documented ✅ · Pushed ▢.
 
+## MongoDB (store #3 — document store, 2026-07-02)
+
+- **Targets (grid `MongoDB=Y`):** `who_gho` (nested JSON) + `open_food_facts` (doc per product). **Plus aidlc-kb**
+  (the methodology corpus — NOT a grid dataset; added because scanning it BY FRONTMATTER is a real consumer
+  that the vector RAG (semantic) and Neo4j (relationships) don't serve).
+- **Deploy:** always-on `mongo:8` (`mongodb.data-mesh.svc:27017`, `k8s/data-mesh/mongodb.yaml`), user
+  `weyland`/dev-pw, **authSource `admin`** (root user lives there — omitting it is the classic auth trap).
+- **Loaders:** two paths →
+  - `datasets_health_mongodb_load` (the `mongo_allow` arm) — silver parquet → collection per file in db
+    `datasets_health` (who_gho_*, open_food_facts). **Memory-safe**: the parquet is **downloaded to a temp
+    file** (not `io.fetch`-into-RAM) and read in **20k-row batches** → `insert_many`. The naive whole-file +
+    50k-dict-batch approach **OOMKilled** user-code at ~3.9M/4.5M OFF docs (exit 137); temp-file + smaller
+    batch fixed it. OFF's silver comes from the streamed asset, so the loader deps on it via `streamed_parquet`.
+  - `aidlc_kb_mongo` (in `aidlc_kb.py`, reuses `_read_minio_docs`/`_parse_frontmatter`) — corpus markdown →
+    `aidlc_kb.entries`, frontmatter flattened to top-level queryable fields + body. Empty-read guard (won't
+    drop the collection on a MinIO failure). Runs in `weyland_aidlc_kb_job`.
+- **Prereqs:** `pymongo` (requirements) + `MONGO_*` env on user-code (defaults match, so it works pre-push).
+- **Cataloged:** DataHub **native MongoDB source** (recipe scoped to `datasets_health`+`aidlc_kb`, schema
+  inference by sampling) — root source, no parquet lineage (same as the MusicBrainz native source).
+- **Gate:** Loaded ✅ (4.5M OFF + 8 who_gho + 511 aidlc-kb) · Runnable ✅ · Gated ✅ · Monitored ✅ (`MongodbDown`) ·
+  Cataloged ✅ · Documented ✅ · Pushed ▢.
+
 ## Store roadmap (the grid's Tier-2 targets)
 
 | Store | Deployed? | Loader | Grid targets (datasets) |
@@ -108,7 +130,7 @@ constraint) — a `mysqld-exporter` is the follow-up. Same 7-point gate applies 
 | ClickHouse | ▢ deploy first | ▢ | OLAP: fma_features, uci, audioset, who_gho, brfss, nhis, usda, open_food_facts |
 | Cassandra | ▢ deploy first | ▢ | uci, lastfm, big_five, who_gho |
 | CockroachDB | ▢ deploy first | ▢ | brfss, nhis (geo-partitioned) |
-| MongoDB | ▢ deploy first | ▢ | who_gho (nested JSON), open_food_facts (doc per product) |
+| MongoDB | ✅ always-on | ✅ **done** | who_gho (8 collections) + open_food_facts (4.5M docs) + aidlc-kb (511 frontmatter docs) |
 | Feast | ▢ deploy first | ▢ | feature store (audio/health features) |
 
 Each new store = a `<store>_allow` field on `DomainConfig` + a writer arm in `loaders.py` + (if not

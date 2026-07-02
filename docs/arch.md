@@ -152,6 +152,7 @@ agents/workflows and platform state. Agents call the tool-server, *not* database
 | **TimescaleDB** (B65 Tier-2 #4) | `timescaledb.data-mesh.svc:5432` | **Time-series** Postgres extension (`timescale/timescaledb-ha:pg16`), ns `data-mesh`. db `timeseries`. 5 hypertables fed hourly by Dagster `weyland_timeseries_job`: `eval_scores_ts` ← eval_scores, `guardrail_verdicts_ts` ← guardrail_verdicts, `dagster_run_durations` ← Dagster runs, `unleash_feature_metrics` ← client_metrics_env, `datahub_ingestion_runs` ← DataHub GMS GraphQL. **+ 8 `who_gho_*` dataset hypertables** (WHO GHO country/year, hydrated 2026-07-01 by `datasets_health_timescaledb_load`; time axis derived from `TimeDim`/year; Last.fm skipped — no per-listen timestamps). Grafana datasource + Superset 10 charts. DataHub `emit_timescaledb`. `k8s/data-mesh/timescaledb.yaml`. See [runbooks/timescaledb.md](runbooks/timescaledb.md). |
 | **MySQL** (B65 Tier-2 #5) | `mysql.data-mesh.svc:3306` | **Health** datasets, ns `data-mesh`. **Hydrated 2026-07-01** from silver Parquet by `datasets_health_mysql_load` — **6 databases** (grid `MySQL=Y`): `nhanes` (biomarkers), `big_five` (OCEAN personality), `who_gho` (population health), `cdc_physical_activity`, `brfss` (health behaviors), `nhis` — **32 tables** (dataset→db, parquet file→table). `k8s/data-mesh/mysql.yaml`. See [runbooks/datasets-hydration.md](runbooks/datasets-hydration.md). |
 | **MusicBrainz Postgres** (B65 Tier-2 #6) | `musicbrainz-postgres.data-mesh.svc:5432` | Grid **Postgres** cell (MusicBrainz only). Dedicated **`postgres:18`**, ns `data-mesh`, db `musicbrainz_db` / schema `musicbrainz`. **Loaded 2026-07-01** with the **full native `mbdump`** (2.9M artists / 39.3M recordings / 1.1M links) via **musicbrainz-docker's** importer as a k8s Job (`recreatedb.sh -fetch`), NOT stale mbslave. Isolated from core weyland Postgres. `k8s/data-mesh/musicbrainz-postgres.yaml`. See [runbooks/musicbrainz-postgres.md](runbooks/musicbrainz-postgres.md). |
+| **MongoDB** (B65 Tier-2 #7) | `mongodb.data-mesh.svc:27017` | Grid **MongoDB** cell — document store. Always-on `mongo:8`, ns `data-mesh`, authSource `admin`. **Loaded 2026-07-02**: `who_gho` (8 collections) + `open_food_facts` (4.5M docs) from silver Parquet by `datasets_health_mongodb_load` (temp-file + 20k batches — memory-safe after a whole-file OOM), **plus aidlc-kb** (511 frontmatter docs, `aidlc_kb_mongo`) so the methodology is queryable by frontmatter. DataHub native Mongo source. `k8s/data-mesh/mongodb.yaml`. See [runbooks/datasets-hydration.md](runbooks/datasets-hydration.md). |
 | MLflow (B10+B16) | `mlflow.weyland.lab` | Experiment tracking + model registry. **Postgres** backend store + **MinIO** `mlflow` artifact bucket (proxied via `--serve-artifacts`). Meshed (STRICT Postgres); **Keycloak SSO** (forward-auth, B1.1). `k8s/mlflow/`. |
 | CoreDNS | `mother:53` | LAN DNS resolver for `weyland.lab`. |
 | Traefik | (ingress) | TLS front door for `*.weyland.lab`. |
@@ -262,6 +263,14 @@ agents/workflows and platform state. Agents call the tool-server, *not* database
   k8s Job (`recreatedb.sh -fetch`), *not* community mbslave (stale — stuck on 2024's schema, can't ingest
   current dumps). This is the one store where relational fidelity + FKs are the point. See
   [runbooks/musicbrainz-postgres.md](runbooks/musicbrainz-postgres.md).
+- **MongoDB (B65 Tier-2 #7)** — the grid's **document store** cell, always-on `mongo:8` in `data-mesh`,
+  **loaded 2026-07-02**: `who_gho` (nested JSON, 8 collections) + `open_food_facts` (doc-per-product, 4.5M) from
+  the silver Parquet, **plus the aidlc-kb methodology corpus** (511 docs, frontmatter flattened to queryable
+  fields — the structured-lookup the vector RAG and Neo4j graph don't serve). Two enabling pieces landed here:
+  a **streamed transform** for OFF (its ~9GB TSV OOMed the whole-table broker — `datasets_health_open_food_facts_parquet`
+  streams it to parquet, which also unblocked OFF for DuckDB), and a **memory-safe loader** (temp-file +
+  20k-row batches, after the naive whole-file approach OOMKilled user-code). See
+  [runbooks/datasets-hydration.md](runbooks/datasets-hydration.md).
 
 ### 7a. Query layer — Trino vs DuckDB (`data-mesh`)
 
