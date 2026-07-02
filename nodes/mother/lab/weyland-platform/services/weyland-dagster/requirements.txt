@@ -36,3 +36,5 @@ datasets
 # SQLAlchemy + PyMySQL power pandas.to_sql() for the MySQL loader (parquet file → table, batched).
 SQLAlchemy
 PyMySQL
+# pymongo — MongoDB loader (silver Parquet → documents; aidlc-kb frontmatter → queryable docs).
+pymongo

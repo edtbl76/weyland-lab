@@ -38,6 +38,10 @@ HEALTH_CFG = DomainConfig(
     # Last.fm (grid=Y "listening trends") is intentionally SKIPPED: its silver is lifetime user↔artist
     # playcounts with no per-listen timestamps, so it isn't a real time-series (only signup_date is temporal).
     timescale_allow={"who_gho": "TimeDim"},
+    # MongoDB (grid): WHO GHO (nested JSON) + Open Food Facts (doc per product). OFF's silver comes from
+    # the streamed asset (below), so the Mongo loader deps on it via streamed_parquet.
+    mongo_allow=frozenset({"who_gho", "open_food_facts"}),
+    streamed_parquet=frozenset({"open_food_facts"}),
 )
 
 (

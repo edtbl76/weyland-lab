@@ -12,7 +12,7 @@ from .eval_testset import eval_testset
 from .eval_run_matrix import eval_run_matrix
 from .eval_scores import eval_scores
 from .model_catalog import model_catalog
-from .aidlc_kb import aidlc_kb_ingest
+from .aidlc_kb import aidlc_kb_ingest, aidlc_kb_mongo
 from .ai_session import ai_session_ingest
 from .iceberg_export import iceberg_model_catalog, iceberg_eval_scores
 from .eval_mlflow import eval_mlflow_log
@@ -81,6 +81,7 @@ all_assets = [
     eval_scores,
     model_catalog,
     aidlc_kb_ingest,
+    aidlc_kb_mongo,
     ai_session_ingest,
     iceberg_model_catalog,
     iceberg_eval_scores,

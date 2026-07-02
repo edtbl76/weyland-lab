@@ -117,6 +117,45 @@ def _load_dataset_to_timescale(mc, cfg, dataset, time_col, engine, log) -> dict:
     return out
 
 
+def _mongo_client():
+    from pymongo import MongoClient
+
+    host = os.environ.get("MONGO_HOST", "mongodb.data-mesh.svc.cluster.local")
+    port = os.environ.get("MONGO_PORT", "27017")
+    user = urllib.parse.quote_plus(os.environ.get("MONGO_USER", "weyland"))
+    pw = urllib.parse.quote_plus(os.environ.get("MONGO_PASSWORD", "weyland_dev_password"))
+    return MongoClient(f"mongodb://{user}:{pw}@{host}:{port}/?authSource=admin")
+
+
+def _load_dataset_to_mongo(mc, cfg, dataset, client, log) -> dict:
+    """Each silver parquet file under parquet/<dataset>/ → a Mongo collection in db datasets_<domain>,
+    doc per row. Batched (pyarrow iter_batches → to_pylist → insert_many) so OFF (~4.5M docs) stays
+    memory-bounded. Collection dropped + reloaded each run (idempotent). Names mirror the per-file convention."""
+    db = client[f"datasets_{cfg.domain}"]
+    prefix = f"{io.branch()}/parquet/{dataset}/"
+    out = {}
+    for obj in mc.list_objects(cfg.repo, prefix=prefix, recursive=True):
+        if not obj.object_name.endswith(".parquet"):
+            continue
+        fname = obj.object_name.split("/")[-1][: -len(".parquet")]
+        coll = _sql_ident(dataset if fname == dataset else f"{dataset}_{fname}")
+        try:
+            db[coll].drop()
+            data = io.fetch(mc, cfg.repo, obj.object_name)
+            n = 0
+            for batch in pq.ParquetFile(_io.BytesIO(data)).iter_batches(batch_size=_MYSQL_BATCH):
+                docs = batch.to_pylist()
+                if docs:
+                    db[coll].insert_many(docs, ordered=False)
+                    n += len(docs)
+            out[coll] = n
+            log.info(f"mongo datasets_{cfg.domain}.{coll}: {n:,} docs")
+        except Exception as e:  # noqa: BLE001 — per-collection resilience
+            out[coll] = f"ERROR: {e}"
+            log.error(f"mongo {coll}: {e}")
+    return out
+
+
 def build_store_load_assets(cfg):
     """Return the per-store loader assets this domain needs (only stores with a non-empty allowlist)."""
     assets = []
@@ -165,5 +204,34 @@ def build_store_load_assets(cfg):
             })
 
         assets.append(_timescale_load)
+
+    if cfg.mongo_allow:
+        # datasets from the broker's parquet + any that come from a dedicated streamed asset (OFF)
+        _mongo_deps = [f"datasets_{d}_parquet"] + [
+            f"datasets_{d}_{ds}_parquet" for ds in sorted(cfg.mongo_allow & cfg.streamed_parquet)]
+
+        @asset(
+            name=f"datasets_{d}_mongodb_load",
+            group_name=f"datasets_{d}_stores",
+            deps=_mongo_deps,
+            description=f"Hydrate MongoDB collections from silver Parquet ({len(cfg.mongo_allow)} datasets).",
+        )
+        def _mongo_load(context):
+            mc = io.client()
+            client = _mongo_client()
+            out = {}
+            try:
+                for dataset in sorted(cfg.mongo_allow):
+                    out.update(_load_dataset_to_mongo(mc, cfg, dataset, client, context.log))
+            finally:
+                client.close()
+            ok = sum(1 for v in out.values() if isinstance(v, int))
+            return Output(out, metadata={
+                "collections_loaded": MetadataValue.int(ok),
+                "docs_total": MetadataValue.int(sum(v for v in out.values() if isinstance(v, int))),
+                "detail": MetadataValue.json(out),
+            })
+
+        assets.append(_mongo_load)
 
     return assets

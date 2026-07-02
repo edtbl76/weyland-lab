@@ -440,3 +440,34 @@ def aidlc_kb_ingest(
             "weaviate": wv["objects_pruned"], "neo4j": n4["nodes_pruned"],
         }),
     })
+
+
+@asset(
+    group_name="aidlc_kb",
+    description="Load the AIDLC knowledge corpus into MongoDB (db aidlc_kb, collection entries) — one doc per "
+                "markdown file with its frontmatter flattened to top-level queryable fields + the body. Enables "
+                "scanning the methodology BY FRONTMATTER (type/stage/vertical/…) — the structured-lookup the "
+                "vector RAG (semantic) and Neo4j (relationships) don't serve. Drop + reload (idempotent).",
+)
+def aidlc_kb_mongo(context) -> Output[dict]:
+    from .datasets_lib.loaders import _mongo_client
+
+    log = context.log
+    docs = _read_minio_docs(log)
+    if not docs:
+        # Empty read = likely MinIO/auth failure — don't drop the collection.
+        log.warning("aidlc_kb_mongo: 0 docs read from MinIO — skipping (protecting existing collection).")
+        return Output({"skipped": True}, metadata={"docs": 0, "skipped": MetadataValue.bool(True)})
+    mongo_docs = [
+        {**d["fm"], "name": d["source_name"], "path": d["source_path"], "kind": d["kind"], "content": d["content"]}
+        for d in docs
+    ]
+    client = _mongo_client()
+    try:
+        coll = client["aidlc_kb"]["entries"]
+        coll.drop()
+        coll.insert_many(mongo_docs, ordered=False)
+    finally:
+        client.close()
+    log.info("aidlc_kb_mongo: wrote %d docs to aidlc_kb.entries", len(mongo_docs))
+    return Output({"docs": len(mongo_docs)}, metadata={"docs": MetadataValue.int(len(mongo_docs))})
