@@ -118,6 +118,24 @@ constraint) — a `mysqld-exporter` is the follow-up. Same 7-point gate applies 
 - **Gate:** Loaded ✅ (4.5M OFF + 8 who_gho + 511 aidlc-kb) · Runnable ✅ · Gated ✅ · Monitored ✅ (`MongodbDown`) ·
   Cataloged ✅ · Documented ✅ · Pushed ▢.
 
+## CockroachDB (store #4 — distributed SQL, 2026-07-02)
+
+- **Targets (grid `CockroachDB=Y`):** `brfss` + `nhis` (US health survey — "geo-partitioned" intent).
+  **Single-node lab can't actually geo-partition** (needs a multi-node/region cluster) — this loads the tables
+  + demonstrates the store + pg-wire + the built-in Admin UI; geo-partitioning is aspirational (not a data
+  mismatch, the data fits).
+- **Deploy:** single-node `cockroachdb/cockroach:v24.2.4` **insecure** (`start-single-node --insecure` — no
+  TLS/auth, LAN + in-cluster only), always-on (`cockroachdb.data-mesh.svc:26257` SQL, `:8080` UI). Admin UI at
+  **`cockroachdb.weyland.lab`** behind Keycloak forward-auth (the insecure UI has no login of its own, so
+  forward-auth IS the gate). `k8s/data-mesh/cockroachdb.yaml`.
+- **Loader:** `datasets_health_cockroachdb_load` (`cockroach_allow={brfss, nhis}`) — DB per dataset, table per
+  file via `to_sql`, memory-safe temp-file read (BRFSS ~3M). **Dialect gotcha:** Cockroach is pg-*wire* but the
+  plain SQLAlchemy postgres dialect **AssertionErrors parsing its version string** (`CockroachDB CCL v24…`) →
+  use the **`cockroachdb://` dialect** (`sqlalchemy-cockroachdb`), not `postgresql+psycopg2://`.
+- **Cataloged:** `emit_cockroach` (raw **psycopg2** — a DataHub native postgres source hits the same
+  version-parse error; raw psycopg2 doesn't) → platform `cockroachdb`, lineage ← parquet. In `datahub_catalog_emit_job`.
+- **Gate:** Loaded ✅ · Runnable ✅ · Gated ✅ · Monitored ✅ (`CockroachdbDown`) · Cataloged ✅ · Documented ✅ · Pushed ▢.
+
 ## Store roadmap (the grid's Tier-2 targets)
 
 | Store | Deployed? | Loader | Grid targets (datasets) |
@@ -129,7 +147,7 @@ constraint) — a `mysqld-exporter` is the follow-up. Same 7-point gate applies 
 | Qdrant / Weaviate | ✅ (RAG) | ▢ | vector similarity (the Lance-allowlisted sets) |
 | ClickHouse | ▢ deploy first | ▢ | OLAP: fma_features, uci, audioset, who_gho, brfss, nhis, usda, open_food_facts |
 | Cassandra | ▢ deploy first | ▢ | uci, lastfm, big_five, who_gho |
-| CockroachDB | ▢ deploy first | ▢ | brfss, nhis (geo-partitioned) |
+| CockroachDB | ✅ always-on | ✅ **done** | brfss (6 tables, ~3M rows) + nhis — db per dataset, pg-wire |
 | MongoDB | ✅ always-on | ✅ **done** | who_gho (8 collections) + open_food_facts (4.5M docs) + aidlc-kb (511 frontmatter docs) |
 | Feast | ▢ deploy first | ▢ | feature store (audio/health features) |
 

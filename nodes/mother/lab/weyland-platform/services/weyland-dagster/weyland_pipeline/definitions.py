@@ -98,6 +98,14 @@ def emit_mysql_op(context):
     context.log.info(f"✓ MySQL → DataHub: {n} table(s) (platform=mysql, lineage ← parquet silver)")
 
 
+@op
+def emit_cockroach_op(context):
+    from weyland_pipeline.datahub_emit import emit_cockroach
+
+    n, _ = emit_cockroach()
+    context.log.info(f"✓ CockroachDB → DataHub: {n} table(s) (platform=cockroachdb, lineage ← parquet silver)")
+
+
 @job
 def datahub_catalog_emit_job():
     emit_dagster_assets_op()
@@ -108,6 +116,7 @@ def datahub_catalog_emit_job():
     emit_duckdb_op()
     emit_timescaledb_op()
     emit_mysql_op()
+    emit_cockroach_op()
 
 
 datahub_catalog_emit_schedule = ScheduleDefinition(
