@@ -30,11 +30,17 @@ resource "port_action" "scale_data_mesh_store" {
     }
   }
 
-  # agent = true → Port pushes the run to Kafka for the self-hosted port-agent instead of calling the URL
-  # directly (which the LAN would block). The agent's controlThePayloadConfig sets the real request.
+  # agent = true → Port hands the run to the self-hosted port-agent (LAN can't receive Port's outbound
+  # webhook). WITHOUT a body, Port forwards only the invocationMethod stub — the user inputs never leave
+  # Port (store/action arrived null). The body templates the inputs in; the agent forwards it (body: ".")
+  # and the scaler's _find_inputs pulls {store, action} out.
   webhook_method = {
     url    = "http://store-scaler.data-mesh.svc.cluster.local/scale"
     method = "POST"
     agent  = true
+    body = jsonencode({
+      store  = "{{ .inputs.store }}"
+      action = "{{ .inputs.action }}"
+    })
   }
 }
