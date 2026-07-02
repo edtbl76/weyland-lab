@@ -116,14 +116,17 @@ datahub-frontend:
         - name: mkcert-ca
           mountPath: /ca
 
-# Actions framework — trim its default 300m CPU request.
+# Actions framework — trim its default 300m CPU request. This pod ALSO runs managed-ingestion; 512Mi
+# OOM-killed (exit 137) every Postgres/MusicBrainz profiling run → hung ingestions. Ceiling raised to
+# 1Gi for burst headroom; request stays low (256Mi) so it reserves little on the tight node — it only
+# uses the extra while an ingestion is active. Also disable SQL-source profiling (UI) to cut the spike.
 acryl-datahub-actions:
   resources:
     requests:
       cpu: "25m"
       memory: "256Mi"
     limits:
-      memory: "512Mi"
+      memory: "1Gi"
 
 # system-update bootstrap Job (runs as a hook on every sync) — trim its default 300m CPU so it schedules
 # on the CPU-tight node. Memory left roomy (it does ES index + Postgres schema work).
