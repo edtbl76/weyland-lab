@@ -16,7 +16,10 @@ env:
     # crashloop). The agent instead POLLS the Port API for action runs (outbound, every 10s by default).
     # Any STREAMER_NAME != "KAFKA" selects the PollingStreamer; no Kafka/consumer-group config needed.
     STREAMER_NAME: "POLLING"
-    # PORT_API_BASE_URL defaults to https://api.getport.io (auth already works for this org here).
+    # EU region: this org lives on api.port.io. The agent defaults to api.getport.io (legacy US), where
+    # the claim-pending endpoints 403 (runs are region-pinned to EU). tofu/metadata route cross-region,
+    # the agent's run-claiming does NOT. US region would be https://api.us.port.io.
+    PORT_API_BASE_URL: "https://api.port.io"
 
 secret:
   useExistingSecret: true
