@@ -8,6 +8,7 @@ LAN-only. This `docs/` tree is the canonical, version-controlled source of truth
 - [arch.md](arch.md) — architecture: topology, components, validated flows, the *picture and the why*
 - [hosts.md](hosts.md) — host/container inventory (IPs, access, roles)
 - [api.md](api.md) — live endpoint registry
+- [schedules.md](schedules.md) — master timetable: all Dagster + DataHub cron jobs, TZ-normalized
 
 ## concepts/ — the *why*
 - [llm-inference-cpu-vs-gpu.md](concepts/llm-inference-cpu-vs-gpu.md) — CPU=capacity vs GPU=speed
