@@ -55,15 +55,15 @@ spec:
             - name: CASSANDRA_ENDPOINT_SNITCH
               value: SimpleSnitch          # single-node — no DC/rack topology
             - name: MAX_HEAP_SIZE
-              value: 2G                     # capped: JVM store on a shared node
+              value: 3G                     # bumped from 2G — the 17M-row Last.fm load pushed 4Gi (mother has RAM now)
             - name: HEAP_NEWSIZE
-              value: 400M
+              value: 600M
           resources:
             requests:
               cpu: 250m
-              memory: 2Gi
+              memory: 3Gi
             limits:
-              memory: 4Gi                   # heap 2G + off-heap (memtables/caches) + overhead
+              memory: 6Gi                   # heap 3G + off-heap (memtables/caches under heavy write) + overhead
           readinessProbe:
             exec:
               command: ["/bin/sh", "-c", "nodetool status | grep -q '^UN'"]

@@ -37,7 +37,7 @@ MUSIC_CFG = DomainConfig(
     # Partition key = a natural column (query-first): uci by year (the prediction target), lastfm by user
     # (lifetime user↔artist playcounts — no timestamps, so partition-by-user, not a time series). Guesses
     # fall back to a row_id dump + a logged column list if the silver column name differs.
-    cassandra_allow={"uci_year_prediction": "year", "lastfm": "user"},
+    cassandra_allow={"uci_year_prediction": "year", "lastfm": "user_id"},
 )
 
 (
