@@ -213,30 +213,9 @@ spec:
   destination:
     server: https://kubernetes.default.svc
     namespace: data-mesh
-  ignoreDifferences:
-    # The store-scaler / Port "wake–sleep" button sets replicas on these stores out-of-band. Without this,
-    # Argo selfHeal reverts them straight back to the manifest's replicas:1 (the store "never sleeps").
-    # Ignore replica drift AND (via RespectIgnoreDifferences below) don't re-apply it on sync — cede the
-    # replica count to the scaler. See services/store-scaler + docs/schedules.md.
-    - group: apps
-      kind: Deployment
-      name: cockroachdb
-      jsonPointers: ["/spec/replicas"]
-    - group: apps
-      kind: Deployment
-      name: mongodb
-      jsonPointers: ["/spec/replicas"]
-    - group: apps
-      kind: Deployment
-      name: mysql
-      jsonPointers: ["/spec/replicas"]
-    - group: apps
-      kind: Deployment
-      name: gizmosql
-      jsonPointers: ["/spec/replicas"]
   syncPolicy:
     automated: { selfHeal: true, prune: true }
-    syncOptions: [CreateNamespace=true, RespectIgnoreDifferences=true]
+    syncOptions: [CreateNamespace=true]
 ---
 # B1.3 — raw manifests for the OpenSearch playground ns (forward-auth Middleware + Dashboards Ingress).
 # *-values.yaml are Helm values (consumed by the opensearch / opensearch-dashboards Helm apps) — exclude them.
