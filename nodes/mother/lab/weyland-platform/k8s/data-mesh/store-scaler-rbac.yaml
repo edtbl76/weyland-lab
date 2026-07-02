@@ -1,0 +1,39 @@
+# Scoped permissions for the "easy button" store scaler.
+# A least-privilege ServiceAccount that can ONLY flip replica counts on data-mesh deployments —
+# nothing else. Reused by the store-scaler service (which the Port self-service action calls) so
+# manual wake/sleep can spin the rarely-used data stores up and down during the day, freeing RAM
+# to push the system. Overnight the stores stay up for the scheduled DataHub/Dagster work.
+# See docs/schedules.md.
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: store-scaler
+  namespace: data-mesh
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: store-scaler
+  namespace: data-mesh
+rules:
+  - apiGroups: ["apps"]
+    resources: ["deployments"]
+    verbs: ["get", "list"]
+  - apiGroups: ["apps"]
+    resources: ["deployments/scale"]
+    verbs: ["get", "patch", "update"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: store-scaler
+  namespace: data-mesh
+subjects:
+  - kind: ServiceAccount
+    name: store-scaler
+    namespace: data-mesh
+roleRef:
+  kind: Role
+  name: store-scaler
+  apiGroup: rbac.authorization.k8s.io
