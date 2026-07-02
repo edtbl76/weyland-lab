@@ -41,3 +41,5 @@ pymongo
 # sqlalchemy-cockroachdb — the CockroachDB loader's dialect (plain postgres dialect can't parse Cockroach's
 # version string; cockroachdb:// handles it + Cockroach quirks). Uses psycopg2 underneath.
 sqlalchemy-cockroachdb
+# cassandra-driver — Cassandra loader (silver Parquet → wide-column tables; prepared INSERT + execute_concurrent).
+cassandra-driver

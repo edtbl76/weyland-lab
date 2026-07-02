@@ -22,6 +22,10 @@ weyland_ingestion_job = define_asset_job(
     - AssetSelection.groups("ai_session")
     - AssetSelection.groups("datasets_music")
     - AssetSelection.groups("datasets_health")
+    # Store hydration is ON-DEMAND (the hydrate jobs) — static data, and a nightly re-load of every Tier-2
+    # store (Cassandra 515k rows, Cockroach ~3M, Mongo 4.5M …) is exactly the ingestion weight we cut.
+    - AssetSelection.groups("datasets_health_stores")
+    - AssetSelection.groups("datasets_music_stores")
     - AssetSelection.groups("timeseries"),
 )
 
@@ -152,6 +156,13 @@ weyland_datasets_health_transform_job = define_asset_job(
 weyland_datasets_health_hydrate_job = define_asset_job(
     name="weyland_datasets_health_hydrate_job",
     selection=AssetSelection.groups("datasets_health_stores"),
+)
+
+# Music store hydration — silver Parquet → Tier-2 stores (currently Cassandra: uci_year_prediction + lastfm).
+# Own group (datasets_music_stores) so the music transform job never runs it. On-demand.
+weyland_datasets_music_hydrate_job = define_asset_job(
+    name="weyland_datasets_music_hydrate_job",
+    selection=AssetSelection.groups("datasets_music_stores"),
 )
 
 weyland_datasets_music_land_schedule = ScheduleDefinition(

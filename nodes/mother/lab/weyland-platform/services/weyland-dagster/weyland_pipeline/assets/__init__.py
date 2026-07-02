@@ -24,6 +24,7 @@ from .datasets_music_transform import (
     datasets_music_iceberg,
     datasets_music_commit,
     datasets_music_checks,
+    datasets_music_store_assets,
 )
 from .datasets_music_spotify_land import datasets_music_spotify_land
 from .datasets_music_fma_land import (
@@ -131,6 +132,7 @@ all_assets = [
     datasets_health_open_food_facts_parquet,   # streamed silver (broker can't read the 9GB TSV whole)
     # Health domain — store hydration (data-store-mageddon)
     *datasets_health_store_assets,
+    *datasets_music_store_assets,
 ]
 
 # Pre-hydration quality gate (build_asset_checks per domain — the second datasets_lib factory)
