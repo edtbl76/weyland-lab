@@ -132,8 +132,7 @@ constraint) — a `mysqld-exporter` is the follow-up. Same 7-point gate applies 
   file via `to_sql`, memory-safe temp-file read (BRFSS ~3M). **Dialect gotcha:** Cockroach is pg-*wire* but the
   plain SQLAlchemy postgres dialect **AssertionErrors parsing its version string** (`CockroachDB CCL v24…`) →
   use the **`cockroachdb://` dialect** (`sqlalchemy-cockroachdb`), not `postgresql+psycopg2://`.
-- **Cataloged:** `emit_cockroach` (raw **psycopg2** — a DataHub native postgres source hits the same
-  version-parse error; raw psycopg2 doesn't) → platform `cockroachdb`, lineage ← parquet. In `datahub_catalog_emit_job`.
+- **Cataloged:** DataHub native source (platform `cockroachdb`), like the MusicBrainz/Mongo native sources.
 - **Gate:** Loaded ✅ · Runnable ✅ · Gated ✅ · Monitored ✅ (`CockroachdbDown`) · Cataloged ✅ · Documented ✅ · Pushed ▢.
 
 ## Store roadmap (the grid's Tier-2 targets)

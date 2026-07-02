@@ -35,75 +35,62 @@ from weyland_pipeline.sensors import datasets_music_raw_sensor
 # on Dagster 1.13 (dagster#21526). Idempotent; scheduled hourly. Reads DATAHUB_GMS_TOKEN.
 # One op per emitter so each shows as its own step in the Dagster run graph + logs (via context.log →
 # structured run log, NOT print → stdout tab) exactly what landed in DataHub and where.
+def _safe_emit(context, label, emit_fn):
+    """Run one store's emitter, swallowing failures so a single flaky store (Qdrant timing out, a store
+    restarting) logs a WARNING and is skipped — the whole nightly catalog run doesn't fail, and the other
+    stores still emit. Was the missing piece: one Qdrant read-timeout failed the entire catalog job."""
+    try:
+        context.log.info(f"✓ {label} → DataHub: {emit_fn()}")
+    except Exception as e:  # noqa: BLE001 — one flaky store must not sink the catalog run
+        context.log.warning(f"⚠ {label} → DataHub emit SKIPPED (failed, run continues): {e}")
+
+
 @op
 def emit_dagster_assets_op(context):
     from weyland_pipeline.datahub_emit import emit
-
-    context.log.info(f"✓ Dagster assets → DataHub: {emit()} datasets (platform=dagster)")
+    _safe_emit(context, "Dagster assets", emit)
 
 
 @op
 def emit_qdrant_op(context):
     from weyland_pipeline.datahub_emit import emit_qdrant
-
-    n, names = emit_qdrant()
-    context.log.info(f"✓ Qdrant → DataHub: {n} collection(s) {names} (platform=qdrant, lineage ← qdrant_write)")
+    _safe_emit(context, "Qdrant", emit_qdrant)
 
 
 @op
 def emit_weaviate_op(context):
     from weyland_pipeline.datahub_emit import emit_weaviate
-
-    n, names = emit_weaviate()
-    context.log.info(f"✓ Weaviate → DataHub: {n} class(es) {names} (platform=weaviate, lineage ← weaviate_write)")
+    _safe_emit(context, "Weaviate", emit_weaviate)
 
 
 @op
 def emit_lakefs_op(context):
     from weyland_pipeline.datahub_emit import emit_lakefs
-
-    n, names = emit_lakefs()
-    context.log.info(f"✓ lakeFS → DataHub: {n} repo(s) {names} (platform=lakefs, lineage ← datasets_commit)")
+    _safe_emit(context, "lakeFS", emit_lakefs)
 
 
 @op
 def emit_opensearch_op(context):
     from weyland_pipeline.datahub_emit import emit_opensearch
-
-    n, names = emit_opensearch()
-    context.log.info(f"✓ OpenSearch → DataHub: {n} index(es) {names} (platform=opensearch)")
+    _safe_emit(context, "OpenSearch", emit_opensearch)
 
 
 @op
 def emit_duckdb_op(context):
     from weyland_pipeline.datahub_emit import emit_duckdb
-
-    n, names = emit_duckdb()
-    context.log.info(f"✓ DuckDB → DataHub: {n} table(s) {names} (platform=duckdb, lineage ← parquet)")
+    _safe_emit(context, "DuckDB", emit_duckdb)
 
 
 @op
 def emit_timescaledb_op(context):
     from weyland_pipeline.datahub_emit import emit_timescaledb
-
-    n, names = emit_timescaledb()
-    context.log.info(f"✓ TimescaleDB → DataHub: {n} hypertable(s) {names} (platform=timescaledb, lineage ← source tables)")
+    _safe_emit(context, "TimescaleDB", emit_timescaledb)
 
 
 @op
 def emit_mysql_op(context):
     from weyland_pipeline.datahub_emit import emit_mysql
-
-    n, _ = emit_mysql()
-    context.log.info(f"✓ MySQL → DataHub: {n} table(s) (platform=mysql, lineage ← parquet silver)")
-
-
-@op
-def emit_cockroach_op(context):
-    from weyland_pipeline.datahub_emit import emit_cockroach
-
-    n, _ = emit_cockroach()
-    context.log.info(f"✓ CockroachDB → DataHub: {n} table(s) (platform=cockroachdb, lineage ← parquet silver)")
+    _safe_emit(context, "MySQL", emit_mysql)
 
 
 @job
@@ -116,12 +103,11 @@ def datahub_catalog_emit_job():
     emit_duckdb_op()
     emit_timescaledb_op()
     emit_mysql_op()
-    emit_cockroach_op()
 
 
 datahub_catalog_emit_schedule = ScheduleDefinition(
     job=datahub_catalog_emit_job,
-    cron_schedule="0 * * * *",
+    cron_schedule="40 */6 * * *",  # every 6h at :40 (was hourly-on-:00 — stampeded mother with the other jobs)
     default_status=DefaultScheduleStatus.RUNNING,
 )
 

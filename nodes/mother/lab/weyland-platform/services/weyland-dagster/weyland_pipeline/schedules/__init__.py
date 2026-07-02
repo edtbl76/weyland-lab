@@ -74,14 +74,15 @@ weyland_ai_session_job = define_asset_job(
 
 weyland_ingestion_schedule = ScheduleDefinition(
     job=weyland_ingestion_job,
-    cron_schedule="0 * * * *",  # hourly (was */15 — too aggressive, competed with land jobs)
+    cron_schedule="17 2 * * *",  # daily 02:17 (was hourly — the RAG corpus barely changes, and 3 jobs at :00
+                                 # every hour stampeded mother). Odd minute to never collide with the others.
     name="weyland_ingestion_schedule",
     default_status=DefaultScheduleStatus.RUNNING,
 )
 
 weyland_catalog_schedule = ScheduleDefinition(
     job=weyland_catalog_job,
-    cron_schedule="0 */6 * * *",  # every 6h
+    cron_schedule="50 */6 * * *",  # every 6h at :50 (nudged off :00 to de-stampede)
     name="weyland_catalog_schedule",
     default_status=DefaultScheduleStatus.RUNNING,
 )
@@ -168,7 +169,7 @@ weyland_timeseries_job = define_asset_job(
 
 weyland_timeseries_schedule = ScheduleDefinition(
     job=weyland_timeseries_job,
-    cron_schedule="0 * * * *",  # hourly
+    cron_schedule="25 */4 * * *",  # every 4h at :25 (was hourly-on-:00 — part of the stampede)
     name="weyland_timeseries_schedule",
     default_status=DefaultScheduleStatus.RUNNING,
 )

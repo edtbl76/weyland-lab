@@ -487,53 +487,6 @@ def emit_mysql():
     return len(names), names
 
 
-def emit_cockroach():
-    """Custom-emit the hydrated CockroachDB tables as DataHub Datasets (platform cockroachdb) with schema
-    (information_schema) + lineage ← the silver Parquet. Uses RAW psycopg2 (Cockroach is pg-wire) rather than
-    a DataHub native postgres source / SQLAlchemy, whose pg dialect can't parse Cockroach's version string.
-    Returns (count, names)."""
-    import psycopg2
-
-    dbs = ["brfss", "nhis"]
-    host = os.environ.get("COCKROACH_HOST", "cockroachdb.data-mesh.svc.cluster.local")
-    port = int(os.environ.get("COCKROACH_PORT", "26257"))
-    user = os.environ.get("COCKROACH_USER", "root")
-    emitter = _gms_emitter()
-    names = []
-    for db in dbs:
-        conn = psycopg2.connect(host=host, port=port, dbname=db, user=user, sslmode="disable")
-        try:
-            cur = conn.cursor()
-            cur.execute("SELECT table_name FROM information_schema.tables "
-                        "WHERE table_schema='public' AND table_type='BASE TABLE'")
-            for (t,) in cur.fetchall():
-                cur.execute("SELECT column_name, data_type FROM information_schema.columns "
-                            "WHERE table_schema='public' AND table_name=%s ORDER BY ordinal_position", (t,))
-                fields = [SchemaFieldClass(fieldPath=c[0], type=_field_type(c[1]), nativeDataType=c[1])
-                          for c in cur.fetchall()]
-                name = f"{db}.{t}"
-                urn = make_dataset_urn(platform="cockroachdb", name=name, env=ENV)
-                aspects = [
-                    DatasetPropertiesClass(name=name,
-                                           description=f"CockroachDB table — {db} dataset, hydrated from silver Parquet.",
-                                           customProperties={"platform": "cockroachdb", "database": db}),
-                    GlobalTagsClass(tags=[TagAssociationClass(tag=make_tag_urn("datasets_health"))]),
-                ]
-                if fields:
-                    aspects.insert(1, SchemaMetadataClass(
-                        schemaName=name, platform="urn:li:dataPlatform:cockroachdb", version=0, hash="",
-                        platformSchema=OtherSchemaClass(rawSchema=""), fields=fields))
-                aspects.append(UpstreamLineageClass(upstreams=[UpstreamClass(
-                    dataset=make_dataset_urn(platform="parquet", name=f"datasets.{db}", env=ENV),
-                    type=DatasetLineageTypeClass.COPY)]))
-                for aspect in aspects:
-                    emitter.emit(MetadataChangeProposalWrapper(entityUrn=urn, aspect=aspect))
-                names.append(name)
-        finally:
-            conn.close()
-    return len(names), names
-
-
 def emit_file_dataset(platform, table, location, arrow_schema, producer_asset, group="datasets") -> str:
     """Custom-emit a Dataset for a silver file format (Arrow/Lance) that has NO native DataHub connector.
 
