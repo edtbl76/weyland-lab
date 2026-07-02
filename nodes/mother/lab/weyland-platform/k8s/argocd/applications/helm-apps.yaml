@@ -164,6 +164,36 @@ spec:
     syncOptions:
       - ServerSideApply=true
 ---
+# Port execution agent — outbound-only relay for Port self-service actions in the LAN (Port cloud can't
+# push inbound). Forwards the "Scale data-mesh store" action to the in-cluster store-scaler → k8s scale.
+# Creds via existing Secret `port-agent-creds` in ns port-agent (created out-of-band, NOT committed).
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: port-agent
+  namespace: argocd
+spec:
+  project: default
+  sources:
+    - repoURL: https://port-labs.github.io/helm-charts
+      chart: port-agent
+      targetRevision: 0.8.15
+      helm:
+        releaseName: port-agent
+        valueFiles:
+          - $values/nodes/mother/lab/weyland-platform/k8s/port-agent/port-agent-values.yaml
+    - repoURL: https://github.com/edtbl76/weyland-lab.git
+      targetRevision: main
+      ref: values
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: port-agent
+  syncPolicy:
+    automated: { selfHeal: true, prune: true }
+    syncOptions:
+      - ServerSideApply=true
+      - CreateNamespace=true
+---
 # KEDA + its HTTP add-on were installed with DEFAULT values (no values file in the repo) → chart-only, single source.
 apiVersion: argoproj.io/v1alpha1
 kind: Application

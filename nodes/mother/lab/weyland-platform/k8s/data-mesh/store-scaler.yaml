@@ -1,0 +1,69 @@
+# store-scaler service — executor for the Port wake/sleep easy button.
+# Receives the forwarded Port action from the port-agent, patches deployments/scale in data-mesh.
+# Runs as the least-privilege store-scaler SA (see store-scaler-rbac.yaml). Reusable for any future
+# "run X in the cluster from a Port button" action.
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: store-scaler
+  namespace: data-mesh
+  labels:
+    app: store-scaler
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: store-scaler
+  template:
+    metadata:
+      labels:
+        app: store-scaler
+      annotations:
+        # Stay out of the mesh: the port-agent (ns port-agent, no sidecar) calls this over plain
+        # HTTP, and the only outbound is to the kube-apiserver (handled by the k8s client, not mesh).
+        # Avoids STRICT-mTLS rejection of the cross-namespace call.
+        sidecar.istio.io/inject: "false"
+    spec:
+      serviceAccountName: store-scaler
+      containers:
+        - name: store-scaler
+          image: store-scaler:local   # built on mother + imported to containerd (see deploy steps)
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8080
+          env:
+            - name: SCALER_NAMESPACE
+              value: data-mesh
+            - name: SCALER_ALLOWED_STORES
+              value: cockroachdb,mongodb,mysql,gizmosql
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 8080
+            initialDelaySeconds: 3
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 20
+          resources:
+            requests:
+              cpu: 10m
+              memory: 64Mi
+            limits:
+              memory: 128Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: store-scaler
+  namespace: data-mesh
+spec:
+  selector:
+    app: store-scaler
+  ports:
+    - port: 80
+      targetPort: 8080

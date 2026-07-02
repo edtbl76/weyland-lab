@@ -1,0 +1,45 @@
+# Helm values for the port-labs/port-agent chart (Argo app: port-agent). NON-SECRET config only.
+# PORT_CLIENT_ID / PORT_CLIENT_SECRET come from an existing Secret `port-agent-creds` (created
+# out-of-band, never committed) via secret.useExistingSecret. See docs/schedules.md + services/store-scaler.
+#
+# WHY the agent exists: Port is SaaS and the lab is LAN-only, so Port's cloud can't push inbound to
+# the cluster. The agent connects OUTBOUND to Port's Kafka, pulls self-service action runs, and
+# forwards them to the in-cluster store-scaler. Reusable for any future Port→cluster action.
+image:
+  repository: ghcr.io/port-labs/port-agent
+  # tag "" → chart appVersion (v0.8.10)
+
+env:
+  normal:
+    PORT_ORG_ID: "org_KyCTEN4PVUv1D3TM"     # EU org (from tofu/port/main.tf) — non-secret identifier
+    STREAMER_NAME: "KAFKA"
+    KAFKA_CONSUMER_GROUP_ID: "weyland-port-agent"
+    # PORT_API_BASE_URL defaults to https://api.getport.io. If the agent can't reach Kafka (EU org),
+    # that's the first knob to check.
+
+secret:
+  useExistingSecret: true
+  name: port-agent-creds                     # keys: PORT_CLIENT_ID, PORT_CLIENT_SECRET
+
+# Control-the-payload: forward every self-service action run to the store-scaler as a plain JSON POST.
+# `enabled: true` because this is currently the ONLY action backend — when you add more Port actions,
+# gate this with an `enabled` JQ on the action identifier so unrelated actions don't hit the scaler.
+# JQ context: .payload.properties.* = user inputs, .context.runId, .response.* = the scaler's reply.
+controlThePayloadConfig: |
+  [
+    {
+      "enabled": true,
+      "url": "\"http://store-scaler.data-mesh.svc.cluster.local/scale\"",
+      "method": "\"POST\"",
+      "headers": { "Content-Type": "\"application/json\"" },
+      "body": {
+        "store": ".payload.properties.store",
+        "action": ".payload.properties.action",
+        "runId": ".context.runId"
+      },
+      "report": {
+        "status": "if .response.statusCode == 200 then \"SUCCESS\" else \"FAILURE\" end",
+        "summary": ".response.json.status // .response.text"
+      }
+    }
+  ]
