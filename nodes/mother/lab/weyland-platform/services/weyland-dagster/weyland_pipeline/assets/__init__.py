@@ -60,6 +60,7 @@ from .datasets_health_transform import (
     datasets_health_lance,
     datasets_health_iceberg,
     datasets_health_commit,
+    datasets_health_open_food_facts_parquet,
     datasets_health_checks,
     datasets_health_store_assets,
 )
@@ -126,6 +127,7 @@ all_assets = [
     datasets_health_lance,
     datasets_health_iceberg,
     datasets_health_commit,
+    datasets_health_open_food_facts_parquet,   # streamed silver (broker can't read the 9GB TSV whole)
     # Health domain — store hydration (data-store-mageddon)
     *datasets_health_store_assets,
 ]

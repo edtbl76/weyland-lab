@@ -7,10 +7,12 @@ from .datasets_lib.broker import build_transform_assets
 from .datasets_lib.checks import build_asset_checks
 from .datasets_lib.config import DomainConfig
 from .datasets_lib.loaders import build_store_load_assets
+from .datasets_lib.streaming import build_streamed_parquet_asset
 
-# open_food_facts is DEFERRED from the inline broker: its raw is a ~9GB .csv.gz, and reading it whole-file
-# hung the arrow step past the 1h timeout. It needs a dedicated chunked/streaming asset (backlog). Drop it
-# from _DEFERRED to re-enable.
+# open_food_facts is DEFERRED from the inline broker (its ~9GB-decompressed, 211-column TSV OOMs the whole-
+# table read). It gets its silver PARQUET from a dedicated STREAMING asset instead
+# (datasets_health_open_food_facts_parquet, below); the broker's other formats (arrow/avro/lance/iceberg)
+# stay deferred for a source this size — parquet is what the store loaders read.
 _DEFERRED = frozenset({"open_food_facts"})
 _ALL = frozenset({
     "nhanes", "big_five", "who_gho", "cdc_physical_activity",
@@ -42,6 +44,10 @@ HEALTH_CFG = DomainConfig(
     datasets_health_parquet, datasets_health_arrow, datasets_health_avro,
     datasets_health_lance, datasets_health_iceberg, datasets_health_commit,
 ) = build_transform_assets(HEALTH_CFG)
+
+# open_food_facts silver parquet via the streamed path (broker can't read the 211-col TSV whole).
+datasets_health_open_food_facts_parquet = build_streamed_parquet_asset(
+    HEALTH_CFG, "open_food_facts", "products.csv.gz", sep="\t")
 
 datasets_health_checks = build_asset_checks(HEALTH_CFG)
 datasets_health_store_assets = build_store_load_assets(HEALTH_CFG)

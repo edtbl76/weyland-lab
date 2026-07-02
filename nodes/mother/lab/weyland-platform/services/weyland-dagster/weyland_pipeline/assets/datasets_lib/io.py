@@ -42,6 +42,13 @@ def fput_raw(mc, repo: str, key: str, file_path: str, content_type: str = "text/
     mc.fput_object(repo, f"{branch()}/raw/{key}", file_path, content_type=content_type)
 
 
+def fput(mc, repo: str, key: str, file_path: str, content_type: str = "application/octet-stream"):
+    """Upload a file from disk (streamed in parts) at <branch>/<key> — for silver too large to hold in
+    memory (key already includes any sub-prefix like 'parquet/…'). The put() variant reads the whole file
+    into bytes; use this when that would OOM (the streamed open_food_facts parquet)."""
+    mc.fput_object(repo, f"{branch()}/{key}", file_path, content_type=content_type)
+
+
 def raw_prefix() -> str:
     return f"{branch()}/raw/"
 
