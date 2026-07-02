@@ -191,6 +191,13 @@ spec:
               value: weyland
             - name: MONGO_PASSWORD
               value: weyland_dev_password
+            # CockroachDB loader (pg-wire, insecure single-node → user root, no password). Always-on, data-mesh.
+            - name: COCKROACH_HOST
+              value: cockroachdb.data-mesh.svc.cluster.local
+            - name: COCKROACH_PORT
+              value: "26257"
+            - name: COCKROACH_USER
+              value: root
           volumeMounts:
             - name: dagster-config
               mountPath: /opt/dagster/dagster_home/dagster.yaml

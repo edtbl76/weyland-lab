@@ -167,6 +167,61 @@ def _load_dataset_to_mongo(mc, cfg, dataset, client, log) -> dict:
     return out
 
 
+def _cockroach_engine_factory():
+    import sqlalchemy
+
+    host = os.environ.get("COCKROACH_HOST", "cockroachdb.data-mesh.svc.cluster.local")
+    port = os.environ.get("COCKROACH_PORT", "26257")
+    user = os.environ.get("COCKROACH_USER", "root")
+    cache = {}
+
+    def engine_for(db):  # pg-wire; insecure single-node → no password, sslmode disabled
+        if db not in cache:
+            cache[db] = sqlalchemy.create_engine(
+                f"postgresql+psycopg2://{user}@{host}:{port}/{db}?sslmode=disable")
+        return cache[db]
+
+    return engine_for
+
+
+def _load_dataset_to_cockroach(mc, cfg, dataset, engine_for, log) -> dict:
+    """Each silver parquet file under parquet/<dataset>/ → a table in CockroachDB db <dataset> (created if
+    absent). pg-wire, so pandas.to_sql (default executemany, NOT method='multi'). MEMORY-SAFE: parquet
+    downloaded to a temp FILE + read in batches (brfss ~3M rows). Table replaced each run (idempotent)."""
+    import tempfile
+    import sqlalchemy
+
+    with engine_for("defaultdb").connect() as conn:   # CREATE DATABASE from Cockroach's default db
+        conn.execute(sqlalchemy.text(f'CREATE DATABASE IF NOT EXISTS "{dataset}"'))
+        conn.commit()
+    engine = engine_for(dataset)
+    prefix = f"{io.branch()}/parquet/{dataset}/"
+    out = {}
+    for obj in mc.list_objects(cfg.repo, prefix=prefix, recursive=True):
+        if not obj.object_name.endswith(".parquet"):
+            continue
+        table = _sql_ident(obj.object_name.split("/")[-1][: -len(".parquet")])
+        tmp = tempfile.NamedTemporaryFile(suffix=".parquet", delete=False)
+        tmp.close()
+        try:
+            mc.fget_object(cfg.repo, obj.object_name, tmp.name)   # streamed download to disk
+            n, first = 0, True
+            for batch in pq.ParquetFile(tmp.name).iter_batches(batch_size=_MYSQL_BATCH):
+                df = batch.to_pandas()
+                df.to_sql(table, engine, if_exists="replace" if first else "append",
+                          index=False, chunksize=1_000)
+                first, n = False, n + len(df)
+                del batch, df
+            out[f"{dataset}.{table}"] = n
+            log.info(f"cockroach {dataset}.{table}: {n:,} rows")
+        except Exception as e:  # noqa: BLE001 — per-table resilience
+            out[f"{dataset}.{table}"] = f"ERROR: {e}"
+            log.error(f"cockroach {dataset}.{table}: {e}")
+        finally:
+            os.unlink(tmp.name)
+    return out
+
+
 def build_store_load_assets(cfg):
     """Return the per-store loader assets this domain needs (only stores with a non-empty allowlist)."""
     assets = []
@@ -244,5 +299,30 @@ def build_store_load_assets(cfg):
             })
 
         assets.append(_mongo_load)
+
+    if cfg.cockroach_allow:
+        _cr_deps = [f"datasets_{d}_parquet"] + [
+            f"datasets_{d}_{ds}_parquet" for ds in sorted(cfg.cockroach_allow & cfg.streamed_parquet)]
+
+        @asset(
+            name=f"datasets_{d}_cockroachdb_load",
+            group_name=f"datasets_{d}_stores",
+            deps=_cr_deps,
+            description=f"Hydrate CockroachDB (db per dataset, table per file) from silver Parquet ({len(cfg.cockroach_allow)} datasets).",
+        )
+        def _cockroach_load(context):
+            mc = io.client()
+            engine_for = _cockroach_engine_factory()
+            out = {}
+            for dataset in sorted(cfg.cockroach_allow):
+                out.update(_load_dataset_to_cockroach(mc, cfg, dataset, engine_for, context.log))
+            ok = sum(1 for v in out.values() if isinstance(v, int))
+            return Output(out, metadata={
+                "tables_loaded": MetadataValue.int(ok),
+                "rows_total": MetadataValue.int(sum(v for v in out.values() if isinstance(v, int))),
+                "detail": MetadataValue.json(out),
+            })
+
+        assets.append(_cockroach_load)
 
     return assets

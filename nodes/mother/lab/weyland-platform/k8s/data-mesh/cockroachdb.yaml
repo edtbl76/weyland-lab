@@ -94,3 +94,26 @@ spec:
           labels: { severity: warning }
           annotations:
             summary: "CockroachDB has 0 available replicas — the distributed-SQL store is down (BRFSS/NHIS queries blocked)."
+---
+# Admin UI at cockroachdb.weyland.lab — behind traefik-forward-auth (Keycloak SSO), which is essential here:
+# insecure-mode CockroachDB serves the UI with NO login of its own, so forward-auth is the only gate. Mirrors
+# the Trino/Superset ingress (shared data-mesh forward-auth middleware + wildcard cert).
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: cockroachdb
+  namespace: data-mesh
+  annotations:
+    traefik.ingress.kubernetes.io/router.middlewares: data-mesh-traefik-forward-auth@kubernetescrd
+spec:
+  tls:
+    - hosts: [cockroachdb.weyland.lab]
+      secretName: weyland-wildcard-tls
+  rules:
+    - host: cockroachdb.weyland.lab
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service: { name: cockroachdb, port: { number: 8080 } }

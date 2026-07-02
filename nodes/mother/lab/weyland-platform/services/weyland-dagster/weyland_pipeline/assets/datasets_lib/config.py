@@ -28,6 +28,8 @@ class DomainConfig:
     timescale_allow: dict = field(default_factory=dict)
     # MongoDB: datasets to load as document collections (doc per parquet row), db datasets_<domain>.
     mongo_allow: frozenset = field(default_factory=frozenset)
+    # CockroachDB: datasets to load as tables (pg-wire, db per dataset). Distributed SQL.
+    cockroach_allow: frozenset = field(default_factory=frozenset)
     # Datasets whose silver parquet comes from a dedicated STREAMED asset (datasets_<domain>_<ds>_parquet)
     # instead of the broker's datasets_<domain>_parquet — so store loaders can add it to their deps.
     streamed_parquet: frozenset = field(default_factory=frozenset)

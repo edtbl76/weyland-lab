@@ -42,6 +42,9 @@ HEALTH_CFG = DomainConfig(
     # the streamed asset (below), so the Mongo loader deps on it via streamed_parquet.
     mongo_allow=frozenset({"who_gho", "open_food_facts"}),
     streamed_parquet=frozenset({"open_food_facts"}),
+    # CockroachDB (grid): BRFSS + NHIS (US health survey — "geo-partitioned" intent; single-node lab loads
+    # the tables, real geo-partitioning would need a multi-node cluster).
+    cockroach_allow=frozenset({"brfss", "nhis"}),
 )
 
 (
