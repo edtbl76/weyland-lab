@@ -39,11 +39,7 @@ controlThePayloadConfig: |
       "url": "\"http://store-scaler.data-mesh.svc.cluster.local/scale\"",
       "method": "\"POST\"",
       "headers": { "Content-Type": "\"application/json\"" },
-      "body": {
-        "store": ".payload.properties.store",
-        "action": ".payload.properties.action",
-        "runId": ".context.runId"
-      },
+      "body": ".",
       "report": {
         "status": "if .response.statusCode == 200 then \"SUCCESS\" else \"FAILURE\" end",
         "summary": ".response.json.status // .response.text"

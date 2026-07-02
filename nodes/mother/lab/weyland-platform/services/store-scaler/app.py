@@ -6,6 +6,7 @@ API. The k8s client uses the in-cluster ServiceAccount (store-scaler), so auth/T
 natively — the agent just does a dumb POST. Reusable for any future "do X in the cluster from Port"
 button. See docs/schedules.md and k8s/data-mesh/store-scaler-rbac.yaml.
 """
+import json
 import logging
 import os
 
@@ -33,12 +34,31 @@ app = FastAPI(title="store-scaler")
 _ACTION_TO_REPLICAS = {"wake": 1, "up": 1, "sleep": 0, "down": 0}
 
 
+def _find_inputs(obj):
+    """Recursively locate the action-inputs dict — the one holding BOTH 'store' and 'action'. The Port
+    polling payload nests inputs unpredictably (not the Kafka doc's .payload.properties), so we search
+    for them. Requiring both keys together avoids colliding with the action's own 'action' identifier."""
+    if isinstance(obj, dict):
+        if "store" in obj and "action" in obj:
+            return obj
+        for v in obj.values():
+            hit = _find_inputs(v)
+            if hit is not None:
+                return hit
+    elif isinstance(obj, list):
+        for v in obj:
+            hit = _find_inputs(v)
+            if hit is not None:
+                return hit
+    return None
+
+
 def _extract(payload: dict):
-    """Pull (store, replicas, action) from either a simple {store, …} body OR a full Port action run
-    payload (…/payload/properties/…), so the agent mapping can stay minimal and robust."""
+    """Pull (store, replicas, action) from either a simple {store, …} body (curl test) OR a full Port
+    run payload (inputs found by recursive search wherever the polling message nests them)."""
     if "store" in payload:
         return payload.get("store"), payload.get("replicas"), payload.get("action")
-    props = (payload.get("payload") or {}).get("properties") or {}
+    props = _find_inputs(payload) or {}
     return props.get("store"), props.get("replicas"), props.get("action")
 
 
@@ -50,6 +70,7 @@ def healthz():
 @app.post("/scale")
 async def scale(request: Request):
     payload = await request.json()
+    log.info("received payload: %s", json.dumps(payload)[:2000])  # reveals the real Port message shape
     store, replicas, action = _extract(payload)
 
     if store not in ALLOWED_STORES:
