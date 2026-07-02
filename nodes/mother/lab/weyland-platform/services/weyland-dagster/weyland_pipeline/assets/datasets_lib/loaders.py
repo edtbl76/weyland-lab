@@ -17,6 +17,9 @@ from dagster import MetadataValue, Output, asset
 from . import io
 
 _MYSQL_BATCH = 50_000
+# Mongo docs are Python dicts (heavy — OFF is 211 all-string cols), so a smaller batch than MySQL's, and
+# the parquet is read from a temp FILE (not held in RAM) — the 50k+whole-file approach OOMKilled user-code.
+_MONGO_BATCH = 20_000
 
 
 def _sql_ident(name: str) -> str:
@@ -129,8 +132,11 @@ def _mongo_client():
 
 def _load_dataset_to_mongo(mc, cfg, dataset, client, log) -> dict:
     """Each silver parquet file under parquet/<dataset>/ → a Mongo collection in db datasets_<domain>,
-    doc per row. Batched (pyarrow iter_batches → to_pylist → insert_many) so OFF (~4.5M docs) stays
-    memory-bounded. Collection dropped + reloaded each run (idempotent). Names mirror the per-file convention."""
+    doc per row. MEMORY-SAFE: the parquet is DOWNLOADED TO A TEMP FILE (not held in RAM — OFF is 1.63GB and
+    io.fetch-whole OOMKilled the pod) and read in row batches → insert_many, freeing each batch. Collection
+    dropped + reloaded each run (idempotent). Names mirror the per-file convention."""
+    import tempfile
+
     db = client[f"datasets_{cfg.domain}"]
     prefix = f"{io.branch()}/parquet/{dataset}/"
     out = {}
@@ -139,20 +145,25 @@ def _load_dataset_to_mongo(mc, cfg, dataset, client, log) -> dict:
             continue
         fname = obj.object_name.split("/")[-1][: -len(".parquet")]
         coll = _sql_ident(dataset if fname == dataset else f"{dataset}_{fname}")
+        tmp = tempfile.NamedTemporaryFile(suffix=".parquet", delete=False)
+        tmp.close()
         try:
             db[coll].drop()
-            data = io.fetch(mc, cfg.repo, obj.object_name)
+            mc.fget_object(cfg.repo, obj.object_name, tmp.name)   # streamed download to disk, not RAM
             n = 0
-            for batch in pq.ParquetFile(_io.BytesIO(data)).iter_batches(batch_size=_MYSQL_BATCH):
+            for batch in pq.ParquetFile(tmp.name).iter_batches(batch_size=_MONGO_BATCH):
                 docs = batch.to_pylist()
                 if docs:
                     db[coll].insert_many(docs, ordered=False)
                     n += len(docs)
+                del batch, docs
             out[coll] = n
             log.info(f"mongo datasets_{cfg.domain}.{coll}: {n:,} docs")
         except Exception as e:  # noqa: BLE001 — per-collection resilience
             out[coll] = f"ERROR: {e}"
             log.error(f"mongo {coll}: {e}")
+        finally:
+            os.unlink(tmp.name)
     return out
 
 
