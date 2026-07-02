@@ -34,7 +34,11 @@ data:
       module: dagster.core.run_coordinator
       class: QueuedRunCoordinator
       config:
-        max_concurrent_runs: 2
+        # 1, not 2: runs execute IN the user-code pod (DefaultRunLauncher + gRPC code server), so two heavy
+        # runs at once (all-asset ingestion + all-store emit) OOM/exhaust it and can take the code server down.
+        # Serialize on a resource-constrained node; the crons are now spread so queueing is rare. Raise when
+        # mother has headroom. The 1h run-monitoring timeout below bounds a stuck run blocking the queue.
+        max_concurrent_runs: 1
     run_monitoring:
       enabled: true
       max_resume_run_attempts: 0
