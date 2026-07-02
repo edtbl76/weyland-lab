@@ -72,6 +72,7 @@ SELECT * FROM datasets_health.nhanes_2017_2020_whq_j LIMIT 100;
 SELECT * FROM datasets_health.nhis_nhis_adult_2020_adult20 LIMIT 100;
 SELECT * FROM datasets_health.nhis_nhis_adult_2021_adult21 LIMIT 100;
 SELECT * FROM datasets_health.nhis_nhis_adult_2022_adult22 LIMIT 100;
+SELECT * FROM datasets_health.open_food_facts LIMIT 100;
 SELECT * FROM datasets_health.usda_fooddata_fooddata_central_csv_2024_10_31_acquisition_samples LIMIT 100;
 SELECT * FROM datasets_health.usda_fooddata_fooddata_central_csv_2024_10_31_agricultural_samples LIMIT 100;
 SELECT * FROM datasets_health.usda_fooddata_fooddata_central_csv_2024_10_31_branded_food LIMIT 100;

@@ -1,0 +1,91 @@
+# MongoDB (data-mesh Tier-2) — document store for the grid's MongoDB=Y datasets (WHO GHO — nested JSON;
+# Open Food Facts — doc per product) + the aidlc-kb methodology corpus (frontmatter → queryable fields).
+# Always-on (like the other data-mesh stores); single instance, RWO + Recreate. Un-meshed first cut (loaders
+# connect from the user-code pod); add the Istio sidecar + a DataHub source when meshing/cataloging.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mongodb
+  namespace: data-mesh
+  labels:
+    app: mongodb
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate            # single-instance RWO — kill-old-before-new ([[k8s-rwo-recreate-strategy]])
+  selector:
+    matchLabels:
+      app: mongodb
+  template:
+    metadata:
+      labels:
+        app: mongodb
+    spec:
+      containers:
+        - name: mongodb
+          image: mongo:8
+          envFrom:
+            - secretRef:
+                name: mongodb-secret   # MONGO_INITDB_ROOT_USERNAME / _PASSWORD — imperative, not in git
+          ports:
+            - name: mongodb
+              containerPort: 27017
+          readinessProbe:
+            exec:
+              command: ["mongosh", "--quiet", "--eval", "db.adminCommand('ping')"]
+            initialDelaySeconds: 15
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "512Mi"
+            limits:
+              memory: "4Gi"     # OFF is ~3M docs; give the working set + index builds headroom
+          volumeMounts:
+            - name: data
+              mountPath: /data/db
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: mongodb-data
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: mongodb-data
+  namespace: data-mesh
+spec:
+  accessModes: ["ReadWriteOnce"]
+  resources:
+    requests:
+      storage: 30Gi          # OFF ~3M product docs + who_gho + aidlc-kb, with headroom
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mongodb
+  namespace: data-mesh
+spec:
+  selector:
+    app: mongodb
+  ports:
+    - name: mongodb
+      port: 27017
+      targetPort: 27017
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: mongodb-alerts
+  namespace: data-mesh
+  labels: { app: mongodb }
+spec:
+  groups:
+    - name: mongodb
+      rules:
+        - alert: MongodbDown
+          expr: kube_deployment_status_replicas_available{namespace="data-mesh", deployment="mongodb"} == 0
+          for: 5m
+          labels: { severity: warning }
+          annotations:
+            summary: "MongoDB has 0 available replicas — the document store is down (OFF/WHO-GHO/aidlc-kb queries blocked)."
