@@ -1,0 +1,96 @@
+# CockroachDB (data-mesh Tier-2) — distributed-SQL store; grid CockroachDB=Y = BRFSS + NHIS (US health
+# survey data, "geo-partitioned" in intent). SINGLE-NODE, insecure dev mode: a single-node lab can't do real
+# geo-partitioning (needs a multi-node/region cluster), so this demonstrates the store + its Postgres wire +
+# the built-in Admin UI; geo-partitioning is aspirational. Always-on, RWO + Recreate. Un-meshed first cut
+# (loaders connect from the user-code pod over pg-wire); insecure = no TLS/auth, LAN + in-cluster only.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cockroachdb
+  namespace: data-mesh
+  labels:
+    app: cockroachdb
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate            # single-instance RWO — kill-old-before-new ([[k8s-rwo-recreate-strategy]])
+  selector:
+    matchLabels:
+      app: cockroachdb
+  template:
+    metadata:
+      labels:
+        app: cockroachdb
+    spec:
+      containers:
+        - name: cockroachdb
+          image: cockroachdb/cockroach:v24.2.4
+          args: ["start-single-node", "--insecure", "--store=/cockroach/cockroach-data"]
+          ports:
+            - name: sql
+              containerPort: 26257
+            - name: http
+              containerPort: 8080     # built-in Admin UI (port-forward to reach it)
+          readinessProbe:
+            httpGet:
+              path: /health?ready=1
+              port: 8080
+            initialDelaySeconds: 15
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: "250m"
+              memory: "1Gi"
+            limits:
+              memory: "4Gi"
+          volumeMounts:
+            - name: data
+              mountPath: /cockroach/cockroach-data
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: cockroachdb-data
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: cockroachdb-data
+  namespace: data-mesh
+spec:
+  accessModes: ["ReadWriteOnce"]
+  resources:
+    requests:
+      storage: 20Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: cockroachdb
+  namespace: data-mesh
+spec:
+  selector:
+    app: cockroachdb
+  ports:
+    - name: sql
+      port: 26257
+      targetPort: 26257
+    - name: http
+      port: 8080
+      targetPort: 8080
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: cockroachdb-alerts
+  namespace: data-mesh
+  labels: { app: cockroachdb }
+spec:
+  groups:
+    - name: cockroachdb
+      rules:
+        - alert: CockroachdbDown
+          expr: kube_deployment_status_replicas_available{namespace="data-mesh", deployment="cockroachdb"} == 0
+          for: 5m
+          labels: { severity: warning }
+          annotations:
+            summary: "CockroachDB has 0 available replicas — the distributed-SQL store is down (BRFSS/NHIS queries blocked)."
