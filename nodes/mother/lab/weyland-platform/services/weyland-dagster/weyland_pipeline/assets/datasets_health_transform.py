@@ -45,6 +45,10 @@ HEALTH_CFG = DomainConfig(
     # CockroachDB (grid): BRFSS + NHIS (US health survey — "geo-partitioned" intent; single-node lab loads
     # the tables, real geo-partitioning would need a multi-node cluster).
     cockroach_allow=frozenset({"brfss", "nhis"}),
+    # Cassandra (grid=Y): big_five + who_gho. Partition key = a natural column (query-first): who_gho by
+    # SpatialDim (country) — the country/year series; big_five by country. Names are sanitized to match the
+    # silver columns; if a guess is wrong the loader falls back to a row_id dump and logs the real columns.
+    cassandra_allow={"big_five": "country", "who_gho": "SpatialDim"},
 )
 
 (

@@ -7,6 +7,7 @@ _avro/_lance/_iceberg + _commit. Allowlists are explicit (the storage grid is a 
 from .datasets_lib.broker import build_transform_assets
 from .datasets_lib.checks import build_asset_checks
 from .datasets_lib.config import DomainConfig
+from .datasets_lib.loaders import build_store_load_assets
 
 # parquet/arrow/avro/iceberg cover every music dataset; lance is selective (grid: skip fma_genres, lastfm,
 # musicbrainz, lp_musiccaps_* — row-heavy / no embedding value). The allowlist also fences out any stale
@@ -32,6 +33,11 @@ MUSIC_CFG = DomainConfig(
     ),
     parquet_allow=_ALL, arrow_allow=_ALL, avro_allow=_ALL, iceberg_allow=_ALL,
     lance_allow=_LANCE,
+    # Cassandra (grid=Y): uci_year_prediction + lastfm — the music domain's first Tier-2 store loaders.
+    # Partition key = a natural column (query-first): uci by year (the prediction target), lastfm by user
+    # (lifetime user↔artist playcounts — no timestamps, so partition-by-user, not a time series). Guesses
+    # fall back to a row_id dump + a logged column list if the silver column name differs.
+    cassandra_allow={"uci_year_prediction": "year", "lastfm": "user"},
 )
 
 (
@@ -40,3 +46,4 @@ MUSIC_CFG = DomainConfig(
 ) = build_transform_assets(MUSIC_CFG)
 
 datasets_music_checks = build_asset_checks(MUSIC_CFG)
+datasets_music_store_assets = build_store_load_assets(MUSIC_CFG)

@@ -30,6 +30,11 @@ class DomainConfig:
     mongo_allow: frozenset = field(default_factory=frozenset)
     # CockroachDB: datasets to load as tables (pg-wire, db per dataset). Distributed SQL.
     cockroach_allow: frozenset = field(default_factory=frozenset)
+    # Cassandra: {dataset: partition_column_or_None}. Wide-column store — table per parquet file in
+    # keyspace datasets_<domain>. The partition column (a natural key, e.g. who_gho → SpatialDim) makes it
+    # query-first; a synthetic `row_id uuid` clustering col always guarantees row uniqueness. If the named
+    # column isn't in the silver parquet, the loader falls back to a row_id-only key (plain dump) + logs.
+    cassandra_allow: dict = field(default_factory=dict)
     # Datasets whose silver parquet comes from a dedicated STREAMED asset (datasets_<domain>_<ds>_parquet)
     # instead of the broker's datasets_<domain>_parquet — so store loaders can add it to their deps.
     streamed_parquet: frozenset = field(default_factory=frozenset)

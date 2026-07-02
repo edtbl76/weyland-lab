@@ -222,6 +222,100 @@ def _load_dataset_to_cockroach(mc, cfg, dataset, engine_for, log) -> dict:
     return out
 
 
+_CQL_BATCH = 5_000
+
+
+def _cassandra_cluster():
+    from cassandra.cluster import Cluster
+
+    hosts = os.environ.get("CASSANDRA_HOSTS", "cassandra.data-mesh.svc.cluster.local").split(",")
+    port = int(os.environ.get("CASSANDRA_PORT", "9042"))
+    return Cluster(hosts, port=port)
+
+
+def _cql_col(dtype):
+    """Map a pandas dtype → (CQL type, value caster to a Cassandra-safe python native — NaN → None,
+    numpy scalars → int/float/str so the driver's type codecs accept them)."""
+    import pandas as pd
+
+    if pd.api.types.is_bool_dtype(dtype):
+        return "boolean", lambda v: None if pd.isna(v) else bool(v)
+    if pd.api.types.is_integer_dtype(dtype):
+        return "bigint", lambda v: None if pd.isna(v) else int(v)
+    if pd.api.types.is_float_dtype(dtype):
+        return "double", lambda v: None if pd.isna(v) else float(v)
+    if pd.api.types.is_datetime64_any_dtype(dtype):
+        return "timestamp", lambda v: None if pd.isna(v) else v.to_pydatetime()
+    return "text", lambda v: None if v is None or (isinstance(v, float) and pd.isna(v)) else str(v)
+
+
+def _load_dataset_to_cassandra(session, mc, cfg, dataset, partition_raw, log) -> dict:
+    """Each silver parquet file under parquet/<dataset>/ → a table in keyspace datasets_<domain>. Partition
+    key = the configured natural column when present in the data (query-first — e.g. who_gho by country);
+    otherwise a synthetic row_id (plain dump). A `row_id uuid` clustering column ALWAYS guarantees row
+    uniqueness so nothing upserts away on a shared key. MEMORY-SAFE: temp file + row batches; a prepared
+    INSERT fanned out with execute_concurrent. Table dropped + recreated each run (idempotent)."""
+    import tempfile
+    import uuid
+
+    from cassandra.concurrent import execute_concurrent_with_args
+
+    ks = f"datasets_{cfg.domain}"
+    prefix = f"{io.branch()}/parquet/{dataset}/"
+    out = {}
+    for obj in mc.list_objects(cfg.repo, prefix=prefix, recursive=True):
+        if not obj.object_name.endswith(".parquet"):
+            continue
+        fname = obj.object_name.split("/")[-1][: -len(".parquet")]
+        table = _sql_ident(dataset if fname == dataset else f"{dataset}_{fname}")
+        tmp = tempfile.NamedTemporaryFile(suffix=".parquet", delete=False)
+        tmp.close()
+        try:
+            mc.fget_object(cfg.repo, obj.object_name, tmp.name)   # streamed download to disk
+            pf = pq.ParquetFile(tmp.name)
+            if pf.metadata.num_rows == 0:
+                out[f"{ks}.{table}"] = 0
+                continue
+            peek = next(pf.iter_batches(batch_size=256)).to_pandas()   # dtypes + column order
+            cols = [_sql_ident(c) for c in peek.columns]
+            cql_types, casters = zip(*[_cql_col(peek[c].dtype) for c in peek.columns])
+
+            partition = _sql_ident(partition_raw) if partition_raw else None
+            if partition and partition not in cols:
+                log.warning(f"cassandra {ks}.{table}: partition col {partition!r} not present in "
+                            f"{cols[:12]} — falling back to row_id-only key (plain dump)")
+                partition = None
+            pk = f'PRIMARY KEY (("{partition}"), row_id)' if partition else "PRIMARY KEY (row_id)"
+
+            col_defs = ", ".join(f'"{c}" {t}' for c, t in zip(cols, cql_types))
+            session.execute(f"DROP TABLE IF EXISTS {ks}.{table}")
+            session.execute(f'CREATE TABLE {ks}.{table} ({col_defs}, row_id uuid, {pk})')
+
+            quoted = ", ".join(f'"{c}"' for c in cols)
+            marks = ", ".join(["?"] * (len(cols) + 1))
+            ins = session.prepare(f'INSERT INTO {ks}.{table} ({quoted}, row_id) VALUES ({marks})')
+
+            n = 0
+            for batch in pf.iter_batches(batch_size=_CQL_BATCH):
+                df = batch.to_pandas()
+                params = [
+                    tuple(casters[i](v) for i, v in enumerate(rec)) + (uuid.uuid4(),)
+                    for rec in df.itertuples(index=False, name=None)
+                ]
+                execute_concurrent_with_args(session, ins, params, concurrency=64)
+                n += len(params)
+                del batch, df, params
+            out[f"{ks}.{table}"] = n
+            log.info(f"cassandra {ks}.{table}: {n:,} rows"
+                     + (f" (partition={partition})" if partition else " (row_id key)"))
+        except Exception as e:  # noqa: BLE001 — per-table resilience
+            out[f"{ks}.{table}"] = f"ERROR: {e}"
+            log.error(f"cassandra {table}: {e}")
+        finally:
+            os.unlink(tmp.name)
+    return out
+
+
 def build_store_load_assets(cfg):
     """Return the per-store loader assets this domain needs (only stores with a non-empty allowlist)."""
     assets = []
@@ -324,5 +418,38 @@ def build_store_load_assets(cfg):
             })
 
         assets.append(_cockroach_load)
+
+    if cfg.cassandra_allow:
+        _ca_deps = [f"datasets_{d}_parquet"] + [
+            f"datasets_{d}_{ds}_parquet" for ds in sorted(set(cfg.cassandra_allow) & cfg.streamed_parquet)]
+
+        @asset(
+            name=f"datasets_{d}_cassandra_load",
+            group_name=f"datasets_{d}_stores",
+            deps=_ca_deps,
+            description=f"Hydrate Cassandra (keyspace datasets_{d}, table per file) from silver Parquet ({len(cfg.cassandra_allow)} datasets).",
+        )
+        def _cassandra_load(context):
+            mc = io.client()
+            cluster = _cassandra_cluster()
+            session = cluster.connect()
+            session.default_timeout = 60
+            session.execute(
+                f"CREATE KEYSPACE IF NOT EXISTS datasets_{d} "
+                "WITH replication = {'class': 'SimpleStrategy', 'replication_factor': 1}")
+            out = {}
+            try:
+                for dataset, partition_col in sorted(cfg.cassandra_allow.items()):
+                    out.update(_load_dataset_to_cassandra(session, mc, cfg, dataset, partition_col, context.log))
+            finally:
+                cluster.shutdown()
+            ok = sum(1 for v in out.values() if isinstance(v, int))
+            return Output(out, metadata={
+                "tables_loaded": MetadataValue.int(ok),
+                "rows_total": MetadataValue.int(sum(v for v in out.values() if isinstance(v, int))),
+                "detail": MetadataValue.json(out),
+            })
+
+        assets.append(_cassandra_load)
 
     return assets
