@@ -62,7 +62,8 @@ MUSIC_CFG = DomainConfig(
                        "dst": ("Genre", "genre_id", "genre_parent_id"),
                        "props": []}],
         },
-        # bipartite listen graph — (:User)-[:PLAYS {play_count}]->(:Artist); the count is an EDGE property
+        # bipartite listen graph — (:User)-[:PLAYS {play_count}]->(:Artist); the count is an EDGE property.
+        # Full ~17M PLAYS (no cap) — needs the 4h run timeout + 2G neo4j pagecache to complete.
         "lastfm": {
             "nodes": [
                 {"label": "User", "key": "user_id", "props": ["gender", "age", "country"]},

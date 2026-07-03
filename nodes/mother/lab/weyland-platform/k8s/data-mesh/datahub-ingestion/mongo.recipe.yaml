@@ -6,12 +6,9 @@
 source:
   type: mongodb
   config:
-    connect_uri: "mongodb://mongodb.data-mesh.svc.cluster.local:27017"
-    username: "weyland"
-    password: "${MONGO_PASSWORD}"
-    authMechanism: "DEFAULT"
-    options:
-      authSource: "admin"
+    # Creds embedded IN the URI (with authSource=admin) — the separate username/password fields didn't
+    # authenticate ("Command listDatabases requires authentication"). ${MONGO_PASSWORD} is pod env (durable).
+    connect_uri: "mongodb://weyland:${MONGO_PASSWORD}@mongodb.data-mesh.svc.cluster.local:27017/?authSource=admin"
     enableSchemaInference: true
     useRandomSampling: true
     maxSchemaSize: 300

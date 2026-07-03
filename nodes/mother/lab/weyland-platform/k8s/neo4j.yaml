@@ -59,13 +59,13 @@ spec:
             - name: NEO4J_server_memory_heap_max__size
               value: 2G
             - name: NEO4J_server_memory_pagecache_size
-              value: 1G
+              value: 2G   # holds the lastfm store (~17M edges) hot → CREATE isn't disk-thrashing
           resources:
             requests:
               memory: 1Gi
               cpu: 250m
             limits:
-              memory: 4Gi   # 2G heap + 1G pagecache + JVM/off-heap overhead
+              memory: 5Gi   # 2G heap + 2G pagecache + JVM/off-heap overhead
           volumeMounts:
             - name: neo4j-storage
               mountPath: /data
