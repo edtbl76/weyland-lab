@@ -423,7 +423,7 @@ def _load_dataset_to_clickhouse(client, mc, cfg, dataset, log) -> dict:
     return out
 
 
-_NEO4J_BATCH = 10_000
+_NEO4J_BATCH = 25_000   # fewer round-trips; a batch is one tx (node MERGEs + edge CREATEs)
 # Neo4j RANGE indexes (which uniqueness constraints build) reject keys over ~8KB. A key column can carry a
 # corrupt/oversized value (lastfm had a 120KB "artist name") that would abort the whole batch tx, so MERGE
 # filters skip any row whose key stringifies longer than this. Chars (not bytes) × ≤4 bytes/char stays under
@@ -448,8 +448,11 @@ def _bt(name) -> str:
 def _neo4j_queries(spec):
     """Compile a GraphSpec into (constraint_cyphers, node_cyphers, edge_cyphers) — built ONCE, reused for every
     batch. node = {label, key, col?, props?}; edge = {rel, src:(label,key,col), dst:(label,key,col), props?}.
-    Each query is an UNWIND $rows MERGE so a whole batch commits in one round-trip. A uniqueness constraint per
-    (label, key) is emitted first — the index it creates is what keeps MERGE fast at scale."""
+    Nodes are UNWIND+MERGE (index-backed, dedup-safe). Edges are UNWIND+MATCH-both-endpoints+CREATE: MERGE'ing
+    a relationship into a supernode is O(degree) per row (it scans the node's existing rels to dedup) — death
+    at scale (radiohead has ~40k listeners). CREATE is O(1); silver has one row per pair so no dup risk. MATCH
+    (not MERGE) the endpoints means every edge endpoint label MUST also be a node spec (so the node load
+    creates it first) — a self-ref root whose parent isn't present just matches nothing and stays a root."""
     constraints, seen = [], set()
 
     def _constrain(label, key):
@@ -477,9 +480,9 @@ def _neo4j_queries(spec):
         q = (f"UNWIND $rows AS row WITH row "
              f"WHERE row.{_bt(sc)} IS NOT NULL AND size(toString(row.{_bt(sc)})) <= {_KEY_MAXLEN} "
              f"AND row.{_bt(dc)} IS NOT NULL AND size(toString(row.{_bt(dc)})) <= {_KEY_MAXLEN} "
-             f"MERGE (a:{_bt(sl)} {{{_bt(sk)}: row.{_bt(sc)}}}) "
-             f"MERGE (b:{_bt(dl)} {{{_bt(dk)}: row.{_bt(dc)}}}) "
-             f"MERGE (a)-[r:{_bt(ed['rel'])}]->(b)")
+             f"MATCH (a:{_bt(sl)} {{{_bt(sk)}: row.{_bt(sc)}}}) "
+             f"MATCH (b:{_bt(dl)} {{{_bt(dk)}: row.{_bt(dc)}}}) "
+             f"CREATE (a)-[r:{_bt(ed['rel'])}]->(b)")
         if ed.get("props"):
             q += " SET " + ", ".join(f"r.{_bt(p)} = row.{_bt(p)}" for p in ed["props"])
         edge_q.append(q)
@@ -497,9 +500,16 @@ def _load_dataset_to_neo4j(driver, mc, cfg, dataset, spec, log) -> dict:
     import tempfile
 
     constraints, node_q, edge_q = _neo4j_queries(spec)
+    labels = [nd["label"] for nd in spec.get("nodes", [])]
     with driver.session() as s:
         for c in constraints:
             s.run(c)
+        # clean rebuild — edges are CREATE'd (no dedup), so a re-run MUST start empty or it doubles
+        # relationships. Batched DETACH DELETE (CALL {} IN TRANSACTIONS) keeps the wipe memory-bounded on big
+        # graphs. Labels are dataset-exclusive (Genre/User/Artist — not the RAG/AIDLC graph), so this is scoped.
+        for label in labels:
+            log.info(f"neo4j {dataset}: clearing existing (:{label}) for clean rebuild")
+            s.run(f"MATCH (n:{_bt(label)}) CALL {{ WITH n DETACH DELETE n }} IN TRANSACTIONS OF 10000 ROWS")
 
     prefix = f"{io.branch()}/parquet/{dataset}/"
     out = {}
