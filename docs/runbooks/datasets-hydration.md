@@ -154,6 +154,30 @@ constraint) — a `mysqld-exporter` is the follow-up. Same 7-point gate applies 
   `profile_pattern.deny` — a Cassandra `COUNT` is a full-partition scan). Weekly Sun 04:15 ([../schedules.md](../schedules.md)).
 - **Gate:** Loaded ✅ · Runnable ✅ · Always-on ✅ · Monitored ✅ (`CassandraDown`) · Cataloged ✅ · Documented ✅ · Pushed ▢.
 
+## ClickHouse (store #10 — columnar OLAP, 2026-07-02)
+
+- **Targets (grid `ClickHouse=Y`):** music `fma_tracks`, `uci_year_prediction`, `musicbrainz` (HF subset — NOT
+  the full mirror), `lp_musiccaps_mc/mtt`, `audioset`; health `usda_fooddata`, `open_food_facts`. Db per domain.
+- **Deploy:** single-node `clickhouse/clickhouse-server:24.8`, ns `data-mesh`, always-on. **8Gi limit** (4Gi
+  OOM'd the OFF ingest — 211 cols × 4.5M). `/play` web UI at `clickhouse.weyland.lab` (Keycloak forward-auth;
+  loader + DataGrip use the in-cluster svc `:8123`/`:9000`). `k8s/data-mesh/clickhouse.yaml`.
+- **Loader:** `datasets_{music,health}_clickhouse_load` (`clickhouse_allow`) — **native `s3()` ingest**: ClickHouse
+  reads the silver parquet straight from the **lakeFS S3 gateway** (`CREATE TABLE … MergeTree ORDER BY tuple() AS
+  SELECT * FROM s3(url, key, secret, 'Parquet')`), schema inferred, columnar-fast (`food_nutrient` 26.8M in
+  seconds — the anti-Cassandra). No Python row loop.
+- **Gotchas:** ① wide-table ingests are memory-heavy → bump the container (OFF needed 8Gi). ② all-null parquet
+  columns break schema inference (`Unsupported Parquet type 'null'`) → the loader sets
+  `input_format_parquet_skip_columns_with_unsupported_types_in_schema_inference = 1` (drops the empty column,
+  lossless). ③ **DataHub's clickhouse-sqlalchemy CANNOT do no-auth** — it sends an empty password that a
+  `no_password` user rejects (516) → `default` was given a password via a `users.d` **Secret** (`replace="replace"`
+  to override the base), loader reads `CLICKHOUSE_PASSWORD`. ④ IntelliJ/DataGrip throws `[08000] databaseTerm/
+  session_id` → **add** `databaseTerm=schema` in Advanced (don't remove it, don't downgrade the driver). ⑤ DataHub
+  recipe: HTTP `:8123`, `password` set, `database_pattern` allow the two dbs (profiling cheap — columnar counts).
+- **Cataloged:** DataHub native `clickhouse` source. Weekly Sun 04:30 ([../schedules.md](../schedules.md)).
+- **KNOWN GAP:** `fma_tracks` silver has 3 accumulated copies (canonical + dup + shards) → duplicate/fragmented
+  ClickHouse tables. Silver-hygiene cleanup pending (don't glob — it'd triple-count).
+- **Gate:** Loaded ✅ · Runnable ✅ · Always-on ✅ · Monitored ✅ (`ClickhouseDown`) · Cataloged ✅ · Documented ✅ · Pushed ▢.
+
 ## Store roadmap (the grid's Tier-2 targets)
 
 | Store | Deployed? | Loader | Grid targets (datasets) |
@@ -163,7 +187,7 @@ constraint) — a `mysqld-exporter` is the follow-up. Same 7-point gate applies 
 | Neo4j | ✅ (RAG) | ▢ | graphs: fma_genres, fma_tracks, uci, lastfm, musicbrainz, audioset, big_five |
 | OpenSearch | ✅ (RAG) | ▢ | search: fma_tracks, uci, musicbrainz, lp_musiccaps_*, audioset, usda, open_food_facts |
 | Qdrant / Weaviate | ✅ (RAG) | ▢ | vector similarity (the Lance-allowlisted sets) |
-| ClickHouse | ▢ deploy first | ▢ | OLAP: fma_features, uci, audioset, who_gho, brfss, nhis, usda, open_food_facts |
+| ClickHouse | ✅ always-on | ✅ **done** | music: fma_tracks, uci, musicbrainz-subset, lp_musiccaps, audioset · health: usda, open_food_facts (native s3() ingest) |
 | Cassandra | ✅ always-on | ✅ **done** | music: uci, lastfm (~17M, by user_id) · health: big_five, who_gho |
 | CockroachDB | ✅ always-on | ✅ **done** | brfss (6 tables, ~3M rows) + nhis — db per dataset, pg-wire |
 | MongoDB | ✅ always-on | ✅ **done** | who_gho (8 collections) + open_food_facts (4.5M docs) + aidlc-kb (511 frontmatter docs) |
