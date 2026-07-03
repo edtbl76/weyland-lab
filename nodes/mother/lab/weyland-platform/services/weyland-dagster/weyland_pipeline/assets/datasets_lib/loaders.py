@@ -356,7 +356,10 @@ def _load_dataset_to_clickhouse(client, mc, cfg, dataset, log) -> dict:
             client.command(f"DROP TABLE IF EXISTS `{db}`.`{table}`")
             client.command(
                 f"CREATE TABLE `{db}`.`{table}` ENGINE = MergeTree ORDER BY tuple() AS "
-                "SELECT * FROM s3({url:String}, {k:String}, {s:String}, 'Parquet')",
+                "SELECT * FROM s3({url:String}, {k:String}, {s:String}, 'Parquet') "
+                # skip all-null parquet columns (Parquet 'null' type → ClickHouse can't schema-infer it);
+                # they carry no data, so dropping them is lossless (3 usda tables had one each).
+                "SETTINGS input_format_parquet_skip_columns_with_unsupported_types_in_schema_inference = 1",
                 parameters={"url": s3url, "k": key, "s": secret},
             )
             n = int(client.command(f"SELECT count() FROM `{db}`.`{table}`"))
