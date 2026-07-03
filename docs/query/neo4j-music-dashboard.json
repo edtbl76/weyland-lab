@@ -1,0 +1,123 @@
+{
+  "title": "Weyland — Music Graph",
+  "version": "2.4",
+  "settings": {
+    "pagenumber": 0,
+    "editable": true,
+    "fullscreenEnabled": false,
+    "parameters": {},
+    "downloadImageEnabled": true
+  },
+  "pages": [
+    {
+      "title": "Music",
+      "reports": [
+        {
+          "id": "music-plays",
+          "title": "PLAYS edges",
+          "query": "MATCH ()-[r:PLAYS]->() RETURN count(r) AS plays\n",
+          "width": 3, "height": 2, "x": 0, "y": 0,
+          "type": "value",
+          "selection": {},
+          "settings": {},
+          "schema": []
+        },
+        {
+          "id": "music-artists",
+          "title": "Artists",
+          "query": "MATCH (a:Artist) RETURN count(a) AS artists\n",
+          "width": 3, "height": 2, "x": 3, "y": 0,
+          "type": "value",
+          "selection": {},
+          "settings": {},
+          "schema": []
+        },
+        {
+          "id": "music-users",
+          "title": "Users",
+          "query": "MATCH (u:User) RETURN count(u) AS users\n",
+          "width": 3, "height": 2, "x": 6, "y": 0,
+          "type": "value",
+          "selection": {},
+          "settings": {},
+          "schema": []
+        },
+        {
+          "id": "music-genres",
+          "title": "Genres",
+          "query": "MATCH (g:Genre) RETURN count(g) AS genres\n",
+          "width": 3, "height": 2, "x": 9, "y": 0,
+          "type": "value",
+          "selection": {},
+          "settings": {},
+          "schema": []
+        },
+        {
+          "id": "music-top-listeners",
+          "title": "Top artists by listeners",
+          "query": "MATCH (:User)-[:PLAYS]->(a:Artist) RETURN a.name AS artist, count(*) AS listeners ORDER BY listeners DESC LIMIT 15\n",
+          "width": 6, "height": 4, "x": 0, "y": 2,
+          "type": "bar",
+          "selection": { "index": "artist", "value": "listeners", "key": "(none)" },
+          "settings": {},
+          "schema": []
+        },
+        {
+          "id": "music-top-plays",
+          "title": "Top artists by total plays",
+          "query": "MATCH (:User)-[r:PLAYS]->(a:Artist) RETURN a.name AS artist, sum(r.play_count) AS plays ORDER BY plays DESC LIMIT 15\n",
+          "width": 6, "height": 4, "x": 6, "y": 2,
+          "type": "bar",
+          "selection": { "index": "artist", "value": "plays", "key": "(none)" },
+          "settings": {},
+          "schema": []
+        },
+        {
+          "id": "music-genre-tree",
+          "title": "Genre taxonomy tree",
+          "query": "MATCH p=(:Genre)-[:SUBGENRE_OF]->(:Genre) RETURN p\n",
+          "width": 6, "height": 5, "x": 0, "y": 6,
+          "type": "graph",
+          "selection": { "Genre": "genre_title" },
+          "settings": { "nodeColorScheme": "set2", "relLabelFontSize": 3 },
+          "schema": []
+        },
+        {
+          "id": "music-fans-also",
+          "title": "Fans of radiohead also listen to (edit the name)",
+          "query": "MATCH (a:Artist {name:'radiohead'})<-[:PLAYS]-(u:User)-[:PLAYS]->(rec:Artist)\nWHERE rec <> a RETURN rec.name AS also_listened, count(DISTINCT u) AS shared_fans ORDER BY shared_fans DESC LIMIT 15\n",
+          "width": 6, "height": 5, "x": 6, "y": 6,
+          "type": "table",
+          "selection": {},
+          "settings": {},
+          "schema": []
+        },
+        {
+          "id": "music-country",
+          "title": "Listeners by country",
+          "query": "MATCH (u:User)-[:PLAYS]->() RETURN u.country AS country, count(DISTINCT u) AS users ORDER BY users DESC LIMIT 20\n",
+          "width": 6, "height": 4, "x": 0, "y": 11,
+          "type": "bar",
+          "selection": { "index": "country", "value": "users", "key": "(none)" },
+          "settings": {},
+          "schema": []
+        },
+        {
+          "id": "music-artist-hood",
+          "title": "radiohead listener neighborhood (edit the name)",
+          "query": "MATCH p=(:User)-[:PLAYS]->(a:Artist {name:'radiohead'}) RETURN p LIMIT 75\n",
+          "width": 6, "height": 4, "x": 6, "y": 11,
+          "type": "graph",
+          "selection": { "User": "user_id", "Artist": "name" },
+          "settings": { "nodeColorScheme": "set2" },
+          "schema": []
+        }
+      ]
+    }
+  ],
+  "parameters": {},
+  "extensions": {
+    "active": true,
+    "activeReducers": []
+  }
+}

@@ -15,6 +15,7 @@
 Graphs here: the **AIDLC methodology** graph (B37), the **RAG/GraphRAG** graph, and the **dataset graphs** (B1 —
 music: `fma_genres` genre tree + `lastfm` ~13.85M listen edges; fma_tracks/musicbrainz/audioset are follow-ons).
 Importable Browser favorites: [AIDLC](neo4j-aidlc-favorites.csv) · [Music](neo4j-music-favorites.csv).
+Importable NeoDash dashboard: [Music graph](neo4j-music-dashboard.json) (NeoDash → Load dashboard → paste/upload).
 
 ## Explore
 ```cypher
