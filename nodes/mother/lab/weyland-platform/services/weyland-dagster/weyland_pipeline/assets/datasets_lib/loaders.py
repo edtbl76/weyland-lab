@@ -423,7 +423,7 @@ def _load_dataset_to_clickhouse(client, mc, cfg, dataset, log) -> dict:
     return out
 
 
-_NEO4J_BATCH = 25_000        # load: fewer round-trips; a batch is one tx (node MERGEs + edge CREATEs)
+_NEO4J_BATCH = 50_000        # load: fewer round-trips; a batch is one tx (node MERGEs + edge CREATEs)
 _NEO4J_CLEAR_BATCH = 1_000   # clear: DETACH DELETE drags each node's edges into the tx, so keep batches small
 # Neo4j RANGE indexes (which uniqueness constraints build) reject keys over ~8KB. A key column can carry a
 # corrupt/oversized value (lastfm had a 120KB "artist name") that would abort the whole batch tx, so MERGE
@@ -527,6 +527,7 @@ def _load_dataset_to_neo4j(driver, mc, cfg, dataset, spec, log) -> dict:
             pf = pq.ParquetFile(tmp.name)
             log.info(f"neo4j {dataset}: columns {list(pf.schema_arrow.names)[:24]}")
             n = 0
+            milestone = 0
             with driver.session() as s:
                 for batch in pf.iter_batches(batch_size=_NEO4J_BATCH):
                     rows = batch.to_pylist()
@@ -535,6 +536,9 @@ def _load_dataset_to_neo4j(driver, mc, cfg, dataset, spec, log) -> dict:
                     for q in edge_q:
                         s.run(q, rows=rows)
                     n += len(rows)
+                    if n // 1_000_000 > milestone:   # progress heartbeat every ~1M rows
+                        milestone = n // 1_000_000
+                        log.info(f"neo4j {key}: {n:,} rows loaded so far")
                     del batch, rows
             out[key] = n
             log.info(f"neo4j {key}: {n:,} rows → {len(spec.get('nodes', []))} node type(s), "
