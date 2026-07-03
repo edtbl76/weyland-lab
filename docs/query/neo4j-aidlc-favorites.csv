@@ -1,0 +1,17 @@
+id,name,query,parentId,isFolder
+aidlc,AIDLC,,,true
+q01,Total entries,"MATCH (e:Entry) RETURN count(e) AS entries",aidlc,false
+q02,Entry link web (RELATED_TO),"MATCH p=(:Entry)-[:RELATED_TO]->(:Entry) RETURN p",aidlc,false
+q03,Full frontmatter graph,"MATCH p=(:Entry)-[:SURFACES_AT|TAGGED|IN_VERTICAL]->() RETURN p LIMIT 500",aidlc,false
+q04,Entries per vertical,"MATCH (e:Entry)-[:IN_VERTICAL]->(v:Vertical) RETURN v.name AS vertical, count(e) AS entries ORDER BY entries DESC",aidlc,false
+q05,Entries per lifecycle stage,"MATCH (e:Entry)-[:SURFACES_AT]->(s:Stage) RETURN s.name AS stage, count(e) AS entries ORDER BY entries DESC",aidlc,false
+q06,Top tags,"MATCH (e:Entry)-[:TAGGED]->(t:Tag) RETURN t.name AS tag, count(e) AS entries ORDER BY entries DESC LIMIT 25",aidlc,false
+q07,Most-referenced entries,"MATCH (e:Entry)<-[:RELATED_TO]-(x) RETURN e.entry_id AS entry, count(x) AS references ORDER BY references DESC LIMIT 20",aidlc,false
+q08,Entries by complexity,"MATCH (e:Entry) RETURN coalesce(e.complexity, '(none)') AS complexity, count(*) AS entries ORDER BY entries DESC",aidlc,false
+q09,Gaps - no vertical,"MATCH (e:Entry) WHERE NOT (e)-[:IN_VERTICAL]->() RETURN e.entry_id AS entry ORDER BY entry",aidlc,false
+q10,Gaps - orphan entries,"MATCH (e:Entry) WHERE NOT (e)-[:RELATED_TO]-() RETURN e.entry_id AS entry ORDER BY entry",aidlc,false
+q11,One entry neighborhood (edit id),"MATCH p=(e:Entry {entry_id: 'CHANGE_ME'})-[*1..2]-(x) RETURN p",aidlc,false
+q12,GDS 1 - project RELATED_TO graph,"CALL gds.graph.project('aidlc_rel', 'Entry', 'RELATED_TO') YIELD graphName",aidlc,false
+q13,GDS 2 - PageRank (central entries),"CALL gds.pageRank.stream('aidlc_rel') YIELD nodeId, score RETURN gds.util.asNode(nodeId).entry_id AS entry, score ORDER BY score DESC LIMIT 20",aidlc,false
+q14,GDS 3 - Louvain communities,"CALL gds.louvain.stream('aidlc_rel') YIELD nodeId, communityId RETURN communityId, collect(gds.util.asNode(nodeId).entry_id) AS entries ORDER BY size(entries) DESC",aidlc,false
+q15,GDS 4 - drop projected graph,"CALL gds.graph.drop('aidlc_rel') YIELD graphName",aidlc,false

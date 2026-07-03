@@ -13,6 +13,7 @@ syntax demos.
 | MySQL | [mysql.md](mysql.md) | 6 health DBs — nhanes, big_five, who_gho, cdc, brfss, nhis |
 | TimescaleDB | [timescaledb.md](timescaledb.md) | hypertables — platform metrics + who_gho time series |
 | MusicBrainz PG | [musicbrainz-postgres.md](musicbrainz-postgres.md) | full native mbdump — artists/recordings/links |
+| Neo4j | [neo4j.md](neo4j.md) | graphs — AIDLC methodology (`:Entry`) + RAG (`Document`/`Chunk`) + GDS; [importable Browser favorites](neo4j-aidlc-favorites.csv) |
 
 **Connecting:** each store's access (svc / ingress / port-forward / creds) is in its runbook and
 [../hosts.md](../hosts.md). Most are reachable from IntelliJ via the k8s-plugin port-forward, or in-pod via

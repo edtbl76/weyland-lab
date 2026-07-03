@@ -1,0 +1,79 @@
+# Neo4j — query cookbook
+
+**Connect:**
+- **Neo4j Browser** — `http://mother:30085` (HTTP NodePort), connect `bolt://mother:30086`, **encryption off**,
+  `neo4j` / the Neo4j password (`neo4j-secret`). Import ready-made favorites: Favorites (★) → ⋮ → Import →
+  [`neo4j-aidlc-favorites.csv`](neo4j-aidlc-favorites.csv) (lands in an "AIDLC" folder).
+- **NeoDash** — `http://mother:30088`, same `bolt://mother:30086` / no-encryption. Dashboards persist as nodes in Neo4j.
+- **In-pod** — `kubectl -n weyland exec -it deploy/neo4j -- cypher-shell -u neo4j -p <pw>`.
+- **IntelliJ** — Neo4j driver, `bolt://mother:30086`.
+
+> **Browser-side Bolt gotcha:** NeoDash/Browser connect from *your browser*, so use `bolt://mother:30086`
+> (the NodePort) — NOT `neo4j.weyland.svc:7687` (unreachable from the LAN) — and encryption **off** (no TLS on
+> the NodePort). Wrong host or encryption-on = "never connects".
+
+Two graphs live here today (the dataset graphs — fma_genres/lastfm/musicbrainz per the grid — are **pending the
+Neo4j loader**, `▢`):
+
+## Explore
+```cypher
+CALL db.labels();
+CALL db.relationshipTypes();
+MATCH (n) RETURN labels(n) AS label, count(*) AS n ORDER BY n DESC;
+CALL db.schema.visualization();
+```
+
+## AIDLC methodology graph (B37)
+`(:Entry {entry_id, complexity, vertical}) -[:RELATED_TO]-> (:Entry)`, and out to `:Stage` (`-[:SURFACES_AT]->`),
+`:Tag` (`-[:TAGGED]->`), `:Vertical` (`-[:IN_VERTICAL]->`). Author-declared from frontmatter (no LLM).
+```cypher
+-- the internal cross-reference web (a NeoDash graph card)
+MATCH p=(:Entry)-[:RELATED_TO]->(:Entry) RETURN p;
+
+-- entries per vertical / stage / tag
+MATCH (e:Entry)-[:IN_VERTICAL]->(v:Vertical) RETURN v.name AS vertical, count(e) AS n ORDER BY n DESC;
+MATCH (e:Entry)-[:SURFACES_AT]->(s:Stage)    RETURN s.name AS stage,   count(e) AS n ORDER BY n DESC;
+MATCH (e:Entry)-[:TAGGED]->(t:Tag)           RETURN t.name AS tag,     count(e) AS n ORDER BY n DESC LIMIT 25;
+
+-- most-referenced entries (RELATED_TO in-degree)
+MATCH (e:Entry)<-[:RELATED_TO]-(x) RETURN e.entry_id, count(x) AS refs ORDER BY refs DESC LIMIT 20;
+
+-- gaps: entries with no vertical, or orphaned from the RELATED_TO web
+MATCH (e:Entry) WHERE NOT (e)-[:IN_VERTICAL]->() RETURN e.entry_id;
+MATCH (e:Entry) WHERE NOT (e)-[:RELATED_TO]-()   RETURN e.entry_id;
+```
+The full set (+ GDS) is in [`neo4j-aidlc-favorites.csv`](neo4j-aidlc-favorites.csv) — importable as Browser favorites.
+
+## RAG / GraphRAG graph
+`(c:Chunk)-[:BELONGS_TO]->(d:Document)` with `(c1:Chunk)-[:NEXT]->(c2:Chunk)` chaining chunks in order. This is
+the retrieval backbone the tool-server queries.
+```cypher
+-- documents by chunk count
+MATCH (d:Document)<-[:BELONGS_TO]-(c:Chunk)
+RETURN d.name, count(c) AS chunks ORDER BY chunks DESC LIMIT 20;
+
+-- a document's chunk chain in order (swap source_path)
+MATCH p=(c:Chunk {source_path: '<path>'})-[:NEXT*]->(:Chunk) RETURN p;
+
+-- Entry nodes are ALSO Documents (B37 promotes them) — so bridge RAG ↔ methodology
+MATCH (e:Entry)<-[:BELONGS_TO]-(c:Chunk) RETURN e.entry_id, count(c) AS chunks ORDER BY chunks DESC;
+```
+
+## GDS (graph data science — plugin installed)
+```cypher
+-- most CENTRAL methodology entries in the RELATED_TO web (project → score → drop)
+CALL gds.graph.project('aidlc_rel', 'Entry', 'RELATED_TO');
+CALL gds.pageRank.stream('aidlc_rel') YIELD nodeId, score
+  RETURN gds.util.asNode(nodeId).entry_id AS entry, score ORDER BY score DESC LIMIT 20;
+-- communities of related entries
+CALL gds.louvain.stream('aidlc_rel') YIELD nodeId, communityId
+  RETURN communityId, collect(gds.util.asNode(nodeId).entry_id) AS entries ORDER BY size(entries) DESC;
+CALL gds.graph.drop('aidlc_rel');   -- cleanup (the projection is in-memory)
+```
+
+## Neo4j-isms
+- **NeoDash graph cards** render any query returning a path (`RETURN p`). Table/bar cards want scalar columns.
+- GDS projections live in memory — `project` → run algos → `drop`. Don't leave them around.
+- APOC + GDS are both installed (`CALL apoc.help('')`, `CALL gds.list()`).
+- Dashboards + favorites persist *in Neo4j itself* (`:_Neodash_Dashboard` nodes / Browser localStorage), so
+  they survive restarts.
