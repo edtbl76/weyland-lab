@@ -18,7 +18,7 @@ C4Component
 
         Component(tool_server, "weyland-tool-server", "FastAPI / Python v0.4.0", "Platform HTTP boundary. RAG retrieval (4 backends), /context/ask (RAG gen), /evals/*, /pipeline/trigger, /health, /ready, /status. Exposes /mcp system-view MCP server (fastapi-mcp, Streamable HTTP, read-only). :30080")
 
-        Component(dagster, "Dagster", "Python / Helm", "Pipeline orchestration. RAG: weyland_ingestion_job (git-pull -> chunk -> embed -> 4-backend write), eval, catalog (6h), aidlc_kb (B37). DATASETS LAKEHOUSE (datasets_lib, B72/B75): per-dataset land -> lakeFS raw; brokered transform -> silver (parquet/arrow/avro/lance) + Iceberg gold; asset-check quality gate; build_store_load_assets hydrates Tier-2 stores (MySQL done). dagster.weyland.lab")
+        Component(dagster, "Dagster", "Python / Helm", "Pipeline orchestration. RAG: weyland_ingestion_job (git-pull -> chunk -> embed -> 4-backend write), eval, catalog (6h), aidlc_kb (B37). DATASETS LAKEHOUSE (datasets_lib, B72/B75): per-dataset land -> lakeFS raw; brokered transform -> silver (parquet/arrow/avro/lance) + Iceberg gold; asset-check quality gate; build_store_load_assets hydrates Tier-2 stores (MySQL/Timescale/Mongo/Cockroach/Cassandra/ClickHouse/OpenSearch done; ClickHouse via native s3() from lakeFS). dagster.weyland.lab")
 
         Component(litellm, "LiteLLM", "LiteLLM / k8s", "Hosted-model gateway. Gemini + OpenRouter (wildcard) behind OpenAI /v1. Off-box cut-off valve + spend alerts. mother:30400, litellm.weyland.lab")
 
@@ -67,13 +67,19 @@ C4Component
 
         Component(trino, "Trino", "Trino / k8s", "Federation query engine — iceberg (native Nessie) + postgresql catalogs. Superset/dbt ride on it. trino.weyland.lab")
 
-        Component(gizmosql, "GizmoSQL (DuckDB)", "Arrow Flight SQL / k8s", "DuckDB served over Flight SQL; views over the lakeFS Parquet. mother:31337")
+        Component(gizmosql, "GizmoSQL (DuckDB)", "Arrow Flight SQL / k8s", "DuckDB served over Flight SQL; PERSISTED tables materialised from lakeFS Parquet (schema-per-domain). mother:31337")
 
-        Component(superset, "Superset", "Superset / k8s", "BI/SQL exploration over Trino + Postgres + TimescaleDB. superset.weyland.lab")
+        Component(superset, "Superset", "Superset / k8s", "BI/SQL exploration over Trino + Postgres + TimescaleDB + ClickHouse. superset.weyland.lab")
 
-        Component(timescaledb, "TimescaleDB", "TimescaleDB / k8s", "Time-series hypertables (operational metrics); hourly Dagster feed. Tier-2 dataset target (lastfm, who_gho). :5432")
+        Component(timescaledb, "TimescaleDB", "TimescaleDB / k8s", "Time-series hypertables (operational metrics + who_gho dataset series); Dagster feed. lastfm skipped (no per-listen timestamps). :5432")
 
         Component(mysql, "MySQL", "MySQL 8.4 / k8s", "Health datasets — 6 DBs / 32 tables, hydrated from silver Parquet by datasets_health_mysql_load. :3306")
+
+        Component(tier2, "Tier-2 dataset stores", "k8s (data-mesh + opensearch ns)", "Hydrated from silver Parquet by build_store_load_assets: MongoDB (docs) · CockroachDB (distributed SQL) · Cassandra (wide-column) · ClickHouse (columnar OLAP, native s3() ingest) · OpenSearch (search, ns opensearch) · MusicBrainz-Postgres (full native mbdump). Valkey = shared cache.")
+
+        Component(datahub, "DataHub", "DataHub / k8s", "Metadata catalog + lineage. Native ingestion sources (Mongo/Cockroach/ClickHouse/Cassandra/MusicBrainz) + custom emitters (MySQL/Timescale/DuckDB/OpenSearch) via the 6h catalog job. OpenSearch + Kafka backend.")
+
+        Component(portaction, "Port actions → cluster", "port-agent (ns port-agent) + store-scaler", "Port self-service action → outbound-polling port-agent → in-cluster store-scaler → k8s deployments/scale (wake/sleep the idle data stores).")
     }
 
     Rel(hermes, tool_server, "MCP /mcp — status, context_search, context_ask, list_models")
@@ -129,5 +135,8 @@ C4Component
     Rel(dagster, timescaledb, "weyland_timeseries_job -> hypertables (hourly)")
     Rel(superset, trino, "primary query engine")
     Rel(trino, nessie, "iceberg catalog (native Nessie)")
-    Rel(gizmosql, lakefs, "views over the lakeFS Parquet")
+    Rel(gizmosql, lakefs, "materialises tables from the lakeFS Parquet")
+    Rel(dagster, tier2, "hydrate Tier-2 stores: silver Parquet -> store (ClickHouse via native s3)")
+    Rel(dagster, datahub, "catalog emit (6h) + native ingestion sources")
+    Rel(superset, tier2, "ClickHouse OLAP queries")
 ```

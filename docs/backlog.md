@@ -989,6 +989,14 @@ All land in lakeFS → Parquet → Iceberg → Trino/DuckDB queryable. Gated dat
 - **U18** — weyland-lab SSH key. ✅ **DONE 2026-06-17 as KEY RETIREMENT** (B25b mooted the lockdown — key had
   no consumers; deleted rogueone `authorized_keys` line + orphaned k8s Secret). See detail above.
 
+## Viz / BI (open)
+- **VIZ-1 (2026-07-03)** — Build Superset charts + dashboards across ALL connected databases (Trino, the 11
+  Postgres, TimescaleDB, and now **ClickHouse** with its bulk-registered `datasets_*` tables — plus future
+  stores). Today only the "Weyland Platform Overview" dashboard exists; the Tier-2 dataset stores are
+  connected/registered but un-visualized. A dedicated BI pass: a dashboard per domain (music/health) +
+  cross-store exploration. Datasets are registered (see `scripts/superset_bulk_clickhouse.py`) — this is the
+  chart/dashboard authoring on top.
+
 ## Tech-debt / Security (open)
 - **SEC-1 (2026-07-03)** — Migrate Tier-2 store creds off inline `weyland_dev_password` in
   `k8s/dagster/user-code.yaml` (`TIMESCALEDB_/MYSQL_/MONGO_/CLICKHOUSE_PASSWORD`) → a k8s Secret + `secretKeyRef`,
