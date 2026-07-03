@@ -84,8 +84,26 @@ MUSIC_CFG = DomainConfig(
                        "dst": ("Label", "name", "human_labels"),
                        "dst_list": True}],
         },
-        # NOT modeled: musicbrainz (flat mbid/text/entity_type dictionary — no inter-row relationships → grid N),
-        # fma_tracks (silver columns corrupted by a broken multi-header parse — backlog an upstream fix first).
+        # track graph — (:Track)-[:BY]->(:Artist) and -[:ON]->(:Album). Artist is keyed by name so tracks
+        # attach to the SAME :Artist nodes lastfm created (unifying the two music graphs). clear_labels omits
+        # Artist so a fma_tracks rebuild never wipes lastfm's PLAYS graph (DETACH DELETE Track still clears its
+        # own BY/ON edges). Genre linkage (track_genres is a stringified list-of-dicts) is a phase-2 add.
+        "fma_tracks": {
+            "clear_labels": ["Track", "Album"],
+            "nodes": [
+                {"label": "Track", "key": "track_id",
+                 "props": ["track_title", "track_listens", "track_favorites", "track_duration"]},
+                {"label": "Artist", "key": "name", "col": "artist_name"},
+                {"label": "Album", "key": "album_id", "props": ["album_title"]},
+            ],
+            "edges": [
+                {"rel": "BY", "src": ("Track", "track_id", "track_id"),
+                 "dst": ("Artist", "name", "artist_name")},
+                {"rel": "ON", "src": ("Track", "track_id", "track_id"),
+                 "dst": ("Album", "album_id", "album_id")},
+            ],
+        },
+        # NOT modeled: musicbrainz (flat mbid/text/entity_type dictionary — no inter-row relationships → grid N).
     },
 )
 

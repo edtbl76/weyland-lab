@@ -1,6 +1,6 @@
 Domain,Dataset,Qdrant,Weaviate,Avro/Kafka,LanceDB,Feast,MLflow,dbt,Arrow,Lance,MySQL,Iceberg/Trino,DuckDB/GizmoSQL,Postgres,TimescaleDB,MongoDB,CockroachDB,Cassandra,ClickHouse,OpenSearch,Neo4j
 Music,Spotify Tracks,Y (audio feature similarity),Y (audio feature similarity),Y,Y (embedding source),Y (audio features),Y (experiment tracking),Y (transforms),Y,Y,N,Y,Y,N,N,N,N,N,N,N,N
-Music,FMA Tracks,Y,Y,Y,Y,Y,Y,Y,Y,Y,N,Y,Y,N,N,N,N,N,N,Y (track/artist search),Y (genre graph)
+Music,FMA Tracks,Y,Y,Y,Y,Y,Y,Y,Y,Y,N,Y,Y,N,N,N,N,N,N,Y (track/artist search),Y (track/artist/album graph)
 Music,FMA Genres,N,N,Y,N,N,N,Y,Y,N,N,Y,Y,N,N,N,N,N,N,N,Y (genre taxonomy graph)
 Music,FMA Echonest,Y (audio embeddings),Y (audio embeddings),Y,Y (embedding source),Y (audio features),Y,Y,Y,Y,N,Y,Y,N,N,N,N,N,N,N,N
 Music,FMA Features (518 features),Y,Y,Y,Y (embedding source),Y (feature store),Y,Y,Y,Y,N,Y,Y,N,N,N,N,N,Y (OLAP feature queries),N,N

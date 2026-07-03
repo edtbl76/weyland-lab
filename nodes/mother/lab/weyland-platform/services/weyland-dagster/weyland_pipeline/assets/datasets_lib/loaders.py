@@ -555,8 +555,10 @@ def _load_dataset_to_neo4j(driver, mc, cfg, dataset, spec, log) -> dict:
             s.run(c)
         # clean rebuild — edges are CREATE'd (no dedup), so a re-run MUST start empty or it doubles
         # relationships. Batched DETACH DELETE (CALL {} IN TRANSACTIONS) keeps the wipe memory-bounded on big
-        # graphs. Labels are dataset-exclusive (Genre/User/Artist — not the RAG/AIDLC graph), so this is scoped.
-        for label in labels:
+        # graphs. Defaults to every node label, but a spec can override `clear_labels` to protect a label it
+        # SHARES with another dataset (fma_tracks reuses lastfm's :Artist — clearing it would wipe the PLAYS
+        # graph; it clears only Track/Album, and DETACH DELETE Track still removes this dataset's BY/ON edges).
+        for label in spec.get("clear_labels", labels):
             log.info(f"neo4j {dataset}: clearing existing (:{label}) for clean rebuild")
             s.run(f"MATCH (n:{_bt(label)}) CALL {{ WITH n DETACH DELETE n }} "
                   f"IN TRANSACTIONS OF {_NEO4J_CLEAR_BATCH} ROWS")
