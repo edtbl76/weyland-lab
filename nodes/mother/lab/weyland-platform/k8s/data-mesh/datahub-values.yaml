@@ -122,6 +122,28 @@ datahub-frontend:
 # uses the extra while an ingestion is active. Profiling kept ON (we want the stats) — if a big profiling
 # run still exit-137s, bump further (1.5–2Gi) or sleep the idle data stores (store-scaler) to free node RAM.
 acryl-datahub-actions:
+  # DURABLE managed-ingestion creds. Recipe ${VAR} refs resolve from this pod's ENV (ingestion runs as a
+  # subprocess here), so injecting them from a k8s Secret makes them survive GMS/system-DB resets — which
+  # WIPE UI-entered DataHub Secrets (the recurring "no password supplied" failures). The k8s Secret
+  # (data-mesh/datahub-ingestion-secrets) + this value are durable/GitOps'd; create the Secret ONCE
+  # out-of-band with values pulled from the source secrets in `weyland`. optional:true → a key we haven't
+  # populated yet just leaves its var unset (pod still starts), so this list can lead the Secret's contents.
+  extraEnvs:
+    - name: WEYLAND_PG_PASSWORD          # postgres.recipe.yaml — weyland-postgres-secret/POSTGRES_PASSWORD
+      valueFrom:
+        secretKeyRef: { name: datahub-ingestion-secrets, key: WEYLAND_PG_PASSWORD, optional: true }
+    - name: NEO4J_PASSWORD               # neo4j.recipe.yaml — neo4j-secret/auth (part after "neo4j/")
+      valueFrom:
+        secretKeyRef: { name: datahub-ingestion-secrets, key: NEO4J_PASSWORD, optional: true }
+    - name: GRAFANA_SA_TOKEN             # grafana.recipe.yaml
+      valueFrom:
+        secretKeyRef: { name: datahub-ingestion-secrets, key: GRAFANA_SA_TOKEN, optional: true }
+    - name: MINIO_ACCESS_KEY             # iceberg.recipe.yaml
+      valueFrom:
+        secretKeyRef: { name: datahub-ingestion-secrets, key: MINIO_ACCESS_KEY, optional: true }
+    - name: MINIO_SECRET_KEY             # iceberg.recipe.yaml
+      valueFrom:
+        secretKeyRef: { name: datahub-ingestion-secrets, key: MINIO_SECRET_KEY, optional: true }
   resources:
     requests:
       cpu: "25m"
