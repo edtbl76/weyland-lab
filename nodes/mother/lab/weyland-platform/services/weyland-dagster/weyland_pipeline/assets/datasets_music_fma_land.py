@@ -14,7 +14,10 @@ from .music_common import music_minio, music_put, check_source_freshness
 FMA_METADATA_URL = "https://os.unil.cloud.switch.ch/fma/fma_metadata.zip"
 _FMA_ZIP = "/tmp/fma_metadata.zip"
 _FMA_FILES = {
-    "fma_tracks":   ("tracks.csv",   [0, 1]),
+    # tracks.csv in this fma_metadata.zip is a FLATTENED single-header file (track_id,album_id,artist_name,
+    # …,track_title,…), NOT the classic 2-level FMA header. Reading it header=[0,1] ate the first data row as
+    # a header level → corrupt names like album_id_1 / artist_name_AWOL / track_title_Food. header=0 is correct.
+    "fma_tracks":   ("tracks.csv",   0),
     "fma_genres":   ("genres.csv",   0),
     "fma_echonest": ("echonest.csv", [0, 1, 2]),
 }
@@ -41,7 +44,7 @@ def datasets_music_fma_tracks_land(context) -> Output[dict]:
         return Output({"skipped": True}, metadata={"skipped": MetadataValue.bool(True)})
     client = music_minio()
     context.log.info("FMA Tracks: downloading")
-    df = _fma_records("tracks.csv", [0, 1])
+    df = _fma_records("tracks.csv", 0)   # single-header (see _FMA_FILES note) — [0,1] corrupted the columns
     data = df.to_csv(index=False).encode("utf-8")
     music_put(client, "fma_tracks/fma_tracks.csv", data, "text/csv")
     context.log.info(f"fma_tracks/fma_tracks.csv → {len(data):,} bytes")
