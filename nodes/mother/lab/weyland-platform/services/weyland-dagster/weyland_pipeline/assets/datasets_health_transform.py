@@ -51,6 +51,8 @@ HEALTH_CFG = DomainConfig(
     cassandra_allow={"big_five": "country", "who_gho": "SpatialDim"},
     # ClickHouse (grid=Y, "search"/analytics): usda_fooddata + open_food_facts (OFF's silver = streamed asset).
     clickhouse_allow=frozenset({"usda_fooddata", "open_food_facts"}),
+    # OpenSearch (grid=Y, similarity search): big_five (profile) + open_food_facts (product). Doc-per-row index.
+    opensearch_allow=frozenset({"big_five", "open_food_facts"}),
 )
 
 (

@@ -30,6 +30,9 @@ class DomainConfig:
     mongo_allow: frozenset = field(default_factory=frozenset)
     # CockroachDB: datasets to load as tables (pg-wire, db per dataset). Distributed SQL.
     cockroach_allow: frozenset = field(default_factory=frozenset)
+    # OpenSearch: datasets to bulk-index (index per parquet file, doc per row) into the standalone cluster
+    # (ns opensearch, security OFF → no auth). Searchable; vector/kNN similarity is a later enhancement.
+    opensearch_allow: frozenset = field(default_factory=frozenset)
     # ClickHouse: datasets to load as MergeTree tables (table per parquet file, db datasets_<domain>).
     # Columnar OLAP — ingested NATIVELY: ClickHouse reads the parquet from the lakeFS S3 gateway via the
     # s3() table function (schema inferred, no Python row loop). frozenset (no per-dataset knobs needed).

@@ -322,6 +322,55 @@ def _load_dataset_to_cassandra(session, mc, cfg, dataset, partition_raw, log) ->
     return out
 
 
+_OS_BATCH = 5_000
+
+
+def _opensearch_client():
+    from opensearchpy import OpenSearch
+
+    host = os.environ.get("OPENSEARCH_HOST", "opensearch-cluster-master.opensearch.svc.cluster.local")
+    port = int(os.environ.get("OPENSEARCH_PORT", "9200"))
+    # standalone playground has the security plugin OFF → plain HTTP, no auth.
+    return OpenSearch(hosts=[{"host": host, "port": port}], use_ssl=False, verify_certs=False, http_compress=True)
+
+
+def _load_dataset_to_opensearch(client, mc, cfg, dataset, log) -> dict:
+    """Each silver parquet file → an OpenSearch index (doc per row) — searchable. MEMORY-SAFE: temp file + row
+    batches → helpers.bulk. Index dropped + recreated each run (idempotent). Index name = sanitized file name
+    (OpenSearch requires lowercase/no special chars — _sql_ident already does that)."""
+    import tempfile
+
+    from opensearchpy import helpers
+
+    prefix = f"{io.branch()}/parquet/{dataset}/"
+    out = {}
+    for obj in mc.list_objects(cfg.repo, prefix=prefix, recursive=True):
+        if not obj.object_name.endswith(".parquet"):
+            continue
+        fname = obj.object_name.split("/")[-1][: -len(".parquet")]
+        index = _sql_ident(dataset if fname == dataset else f"{dataset}_{fname}")
+        tmp = tempfile.NamedTemporaryFile(suffix=".parquet", delete=False)
+        tmp.close()
+        try:
+            client.indices.delete(index=index, ignore=[404])
+            mc.fget_object(cfg.repo, obj.object_name, tmp.name)   # streamed download to disk
+            n = 0
+            for batch in pq.ParquetFile(tmp.name).iter_batches(batch_size=_OS_BATCH):
+                actions = ({"_index": index, "_source": doc} for doc in batch.to_pylist())
+                ok, _errs = helpers.bulk(client, actions, chunk_size=_OS_BATCH, raise_on_error=False)
+                n += ok
+                del batch
+            client.indices.refresh(index=index)
+            out[index] = n
+            log.info(f"opensearch {index}: {n:,} docs")
+        except Exception as e:  # noqa: BLE001 — per-index resilience
+            out[index] = f"ERROR: {e}"
+            log.error(f"opensearch {index}: {e}")
+        finally:
+            os.unlink(tmp.name)
+    return out
+
+
 def _clickhouse_client(database="default"):
     import clickhouse_connect
 
@@ -509,6 +558,31 @@ def build_store_load_assets(cfg):
             })
 
         assets.append(_cassandra_load)
+
+    if cfg.opensearch_allow:
+        _os_deps = [f"datasets_{d}_parquet"] + [
+            f"datasets_{d}_{ds}_parquet" for ds in sorted(cfg.opensearch_allow & cfg.streamed_parquet)]
+
+        @asset(
+            name=f"datasets_{d}_opensearch_load",
+            group_name=f"datasets_{d}_stores",
+            deps=_os_deps,
+            description=f"Bulk-index into OpenSearch (index per file, doc per row) from silver Parquet ({len(cfg.opensearch_allow)} datasets).",
+        )
+        def _opensearch_load(context):
+            mc = io.client()
+            client = _opensearch_client()
+            out = {}
+            for dataset in sorted(cfg.opensearch_allow):
+                out.update(_load_dataset_to_opensearch(client, mc, cfg, dataset, context.log))
+            ok = sum(1 for v in out.values() if isinstance(v, int))
+            return Output(out, metadata={
+                "indices_loaded": MetadataValue.int(ok),
+                "docs_total": MetadataValue.int(sum(v for v in out.values() if isinstance(v, int))),
+                "detail": MetadataValue.json(out),
+            })
+
+        assets.append(_opensearch_load)
 
     if cfg.clickhouse_allow:
         _ch_deps = [f"datasets_{d}_parquet"] + [

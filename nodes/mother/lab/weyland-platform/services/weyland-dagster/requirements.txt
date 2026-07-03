@@ -45,3 +45,5 @@ sqlalchemy-cockroachdb
 cassandra-driver
 # clickhouse-connect — ClickHouse loader (issues CREATE TABLE … AS SELECT FROM s3() — native parquet ingest).
 clickhouse-connect
+# opensearch-py — OpenSearch loader (silver Parquet → bulk-indexed documents; the standalone playground cluster).
+opensearch-py

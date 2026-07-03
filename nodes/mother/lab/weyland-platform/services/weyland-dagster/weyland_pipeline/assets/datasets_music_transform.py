@@ -43,6 +43,11 @@ MUSIC_CFG = DomainConfig(
         "fma_tracks", "uci_year_prediction", "musicbrainz",
         "lp_musiccaps_mc", "lp_musiccaps_mtt", "audioset",
     }),
+    # OpenSearch (grid=Y, similarity/embedding search): the audio-feature + caption sets. Doc-per-row index.
+    opensearch_allow=frozenset({
+        "spotify_tracks", "fma_tracks", "fma_echonest", "fma_features", "uci_year_prediction",
+        "gtzan", "lp_musiccaps_mc", "lp_musiccaps_mtt", "audioset",
+    }),
 )
 
 (

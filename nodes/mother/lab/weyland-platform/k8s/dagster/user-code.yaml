@@ -210,6 +210,13 @@ spec:
               value: default
             - name: CLICKHOUSE_PASSWORD
               value: weyland_dev_password
+            # OpenSearch loader (silver Parquet → bulk-indexed docs). Standalone playground (ns opensearch,
+            # security plugin OFF → plain HTTP, no auth — nothing secret here). Cross-namespace svc DNS.
+            # VERIFY the host: `kubectl -n opensearch get svc` — set to whatever exposes HTTP :9200.
+            - name: OPENSEARCH_HOST
+              value: opensearch-cluster-master.opensearch.svc.cluster.local
+            - name: OPENSEARCH_PORT
+              value: "9200"
           volumeMounts:
             - name: dagster-config
               mountPath: /opt/dagster/dagster_home/dagster.yaml
