@@ -30,6 +30,10 @@ class DomainConfig:
     mongo_allow: frozenset = field(default_factory=frozenset)
     # CockroachDB: datasets to load as tables (pg-wire, db per dataset). Distributed SQL.
     cockroach_allow: frozenset = field(default_factory=frozenset)
+    # ClickHouse: datasets to load as MergeTree tables (table per parquet file, db datasets_<domain>).
+    # Columnar OLAP — ingested NATIVELY: ClickHouse reads the parquet from the lakeFS S3 gateway via the
+    # s3() table function (schema inferred, no Python row loop). frozenset (no per-dataset knobs needed).
+    clickhouse_allow: frozenset = field(default_factory=frozenset)
     # Cassandra: {dataset: partition_column_or_None}. Wide-column store — table per parquet file in
     # keyspace datasets_<domain>. The partition column (a natural key, e.g. who_gho → SpatialDim) makes it
     # query-first; a synthetic `row_id uuid` clustering col always guarantees row uniqueness. If the named

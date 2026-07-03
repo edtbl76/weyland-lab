@@ -49,6 +49,8 @@ HEALTH_CFG = DomainConfig(
     # SpatialDim (country) — the country/year series; big_five by country. Names are sanitized to match the
     # silver columns; if a guess is wrong the loader falls back to a row_id dump and logs the real columns.
     cassandra_allow={"big_five": "country", "who_gho": "SpatialDim"},
+    # ClickHouse (grid=Y, "search"/analytics): usda_fooddata + open_food_facts (OFF's silver = streamed asset).
+    clickhouse_allow=frozenset({"usda_fooddata", "open_food_facts"}),
 )
 
 (

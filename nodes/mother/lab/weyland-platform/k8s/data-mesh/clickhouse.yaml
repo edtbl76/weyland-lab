@@ -1,0 +1,118 @@
+# ClickHouse (data-mesh Tier-2 #10) — columnar OLAP store. Grid ClickHouse=Y: music (fma_tracks, uci,
+# musicbrainz, lp_musiccaps_mc/mtt, audioset) + health (usda_fooddata, open_food_facts) — "search"/analytics
+# intent. Single-node, always-on, RWO + Recreate. Un-meshed first cut (the Dagster loader connects over the
+# native/HTTP protocol from the user-code pod). No ClickHouse auth (LAN + in-cluster); the /play web UI is
+# gated at the ingress by Keycloak forward-auth. See docs/runbooks/datasets-hydration.md.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: clickhouse
+  namespace: data-mesh
+  labels:
+    app: clickhouse
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate            # single-instance RWO — kill-old-before-new ([[k8s-rwo-recreate-strategy]])
+  selector:
+    matchLabels:
+      app: clickhouse
+  template:
+    metadata:
+      labels:
+        app: clickhouse
+    spec:
+      containers:
+        - name: clickhouse
+          image: clickhouse/clickhouse-server:24.8
+          ports:
+            - name: http
+              containerPort: 8123    # HTTP interface + /play web UI
+            - name: native
+              containerPort: 9000    # native TCP protocol (clickhouse-connect / DataGrip)
+          readinessProbe:
+            httpGet:
+              path: /ping
+              port: 8123
+            initialDelaySeconds: 15
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: "250m"
+              memory: "1Gi"
+            limits:
+              memory: "4Gi"          # ClickHouse reads the cgroup limit → auto-caps its server memory
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/clickhouse
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: clickhouse-data
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: clickhouse-data
+  namespace: data-mesh
+spec:
+  accessModes: ["ReadWriteOnce"]
+  resources:
+    requests:
+      storage: 20Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: clickhouse
+  namespace: data-mesh
+spec:
+  selector:
+    app: clickhouse
+  ports:
+    - name: http
+      port: 8123
+      targetPort: 8123
+    - name: native
+      port: 9000
+      targetPort: 9000
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: clickhouse-alerts
+  namespace: data-mesh
+  labels: { app: clickhouse }
+spec:
+  groups:
+    - name: clickhouse
+      rules:
+        - alert: ClickhouseDown
+          expr: kube_deployment_status_replicas_available{namespace="data-mesh", deployment="clickhouse"} == 0
+          for: 5m
+          labels: { severity: warning }
+          annotations:
+            summary: "ClickHouse has 0 available replicas — the OLAP store is down (music/health analytics queries blocked)."
+---
+# /play web UI at clickhouse.weyland.lab — behind traefik-forward-auth (Keycloak SSO). ClickHouse serves the
+# HTTP interface with no login of its own here, so forward-auth is the gate (mirrors cockroachdb / Trino / Superset).
+# The loader + DataGrip use the in-cluster svc (clickhouse.data-mesh.svc:9000/8123), which is NOT forward-auth'd.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: clickhouse
+  namespace: data-mesh
+  annotations:
+    traefik.ingress.kubernetes.io/router.middlewares: data-mesh-traefik-forward-auth@kubernetescrd
+spec:
+  tls:
+    - hosts: [clickhouse.weyland.lab]
+      secretName: weyland-wildcard-tls
+  rules:
+    - host: clickhouse.weyland.lab
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service: { name: clickhouse, port: { number: 8123 } }

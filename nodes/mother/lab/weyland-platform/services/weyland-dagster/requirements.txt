@@ -43,3 +43,5 @@ pymongo
 sqlalchemy-cockroachdb
 # cassandra-driver — Cassandra loader (silver Parquet → wide-column tables; prepared INSERT + execute_concurrent).
 cassandra-driver
+# clickhouse-connect — ClickHouse loader (issues CREATE TABLE … AS SELECT FROM s3() — native parquet ingest).
+clickhouse-connect

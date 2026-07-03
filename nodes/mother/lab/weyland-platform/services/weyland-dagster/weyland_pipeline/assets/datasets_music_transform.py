@@ -38,6 +38,11 @@ MUSIC_CFG = DomainConfig(
     # (lifetime user↔artist playcounts — no timestamps, so partition-by-user, not a time series). Guesses
     # fall back to a row_id dump + a logged column list if the silver column name differs.
     cassandra_allow={"uci_year_prediction": "year", "lastfm": "user_id"},
+    # ClickHouse (grid=Y, "search"/analytics): fma_tracks, uci, musicbrainz, lp_musiccaps_mc/mtt, audioset.
+    clickhouse_allow=frozenset({
+        "fma_tracks", "uci_year_prediction", "musicbrainz",
+        "lp_musiccaps_mc", "lp_musiccaps_mtt", "audioset",
+    }),
 )
 
 (

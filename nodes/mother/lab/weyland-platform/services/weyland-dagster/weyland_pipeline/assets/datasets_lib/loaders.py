@@ -322,6 +322,52 @@ def _load_dataset_to_cassandra(session, mc, cfg, dataset, partition_raw, log) ->
     return out
 
 
+def _clickhouse_client(database="default"):
+    import clickhouse_connect
+
+    host = os.environ.get("CLICKHOUSE_HOST", "clickhouse.data-mesh.svc.cluster.local")
+    port = int(os.environ.get("CLICKHOUSE_PORT", "8123"))
+    user = os.environ.get("CLICKHOUSE_USER", "default")
+    pw = os.environ.get("CLICKHOUSE_PASSWORD", "")
+    return clickhouse_connect.get_client(host=host, port=port, username=user, password=pw, database=database)
+
+
+def _load_dataset_to_clickhouse(client, mc, cfg, dataset, log) -> dict:
+    """Each silver parquet file → a MergeTree table in db datasets_<domain>. NATIVE ingest: ClickHouse reads
+    the parquet straight from the lakeFS S3 gateway via the s3() table function (schema inferred, columnar,
+    memory-bounded server-side) — CREATE TABLE … ORDER BY tuple() AS SELECT * FROM s3(…). Fast even for
+    musicbrainz/OFF (no Python row loop). Table dropped + recreated each run (idempotent). lakeFS creds are
+    passed as bound params so the secret stays out of the query text/logs."""
+    db = f"datasets_{cfg.domain}"
+    ep = io.endpoint()
+    host = ep.replace("https://", "").replace("http://", "")
+    scheme = "https" if ep.startswith("https://") else "http"
+    key = os.environ["LAKEFS_ACCESS_KEY_ID"]
+    secret = os.environ["LAKEFS_SECRET_ACCESS_KEY"]
+    prefix = f"{io.branch()}/parquet/{dataset}/"
+    out = {}
+    for obj in mc.list_objects(cfg.repo, prefix=prefix, recursive=True):
+        if not obj.object_name.endswith(".parquet"):
+            continue
+        fname = obj.object_name.split("/")[-1][: -len(".parquet")]
+        table = _sql_ident(dataset if fname == dataset else f"{dataset}_{fname}")
+        s3url = f"{scheme}://{host}/{cfg.repo}/{obj.object_name}"   # lakeFS S3 gateway URL for s3()
+        try:
+            client.command(f"DROP TABLE IF EXISTS `{db}`.`{table}`")
+            client.command(
+                f"CREATE TABLE `{db}`.`{table}` ENGINE = MergeTree ORDER BY tuple() AS "
+                "SELECT * FROM s3({url:String}, {k:String}, {s:String}, 'Parquet')",
+                parameters={"url": s3url, "k": key, "s": secret},
+            )
+            n = int(client.command(f"SELECT count() FROM `{db}`.`{table}`"))
+            out[f"{db}.{table}"] = n
+            log.info(f"clickhouse {db}.{table}: {n:,} rows (native s3 ingest)")
+        except Exception as e:  # noqa: BLE001 — per-table resilience
+            out[f"{db}.{table}"] = f"ERROR: {e}"
+            log.error(f"clickhouse {table}: {e}")
+    return out
+
+
 def build_store_load_assets(cfg):
     """Return the per-store loader assets this domain needs (only stores with a non-empty allowlist)."""
     assets = []
@@ -457,5 +503,34 @@ def build_store_load_assets(cfg):
             })
 
         assets.append(_cassandra_load)
+
+    if cfg.clickhouse_allow:
+        _ch_deps = [f"datasets_{d}_parquet"] + [
+            f"datasets_{d}_{ds}_parquet" for ds in sorted(cfg.clickhouse_allow & cfg.streamed_parquet)]
+
+        @asset(
+            name=f"datasets_{d}_clickhouse_load",
+            group_name=f"datasets_{d}_stores",
+            deps=_ch_deps,
+            description=f"Hydrate ClickHouse (db datasets_{d}, MergeTree per file, native s3 ingest) from silver Parquet ({len(cfg.clickhouse_allow)} datasets).",
+        )
+        def _clickhouse_load(context):
+            mc = io.client()
+            client = _clickhouse_client()
+            out = {}
+            try:
+                client.command(f"CREATE DATABASE IF NOT EXISTS `datasets_{d}`")
+                for dataset in sorted(cfg.clickhouse_allow):
+                    out.update(_load_dataset_to_clickhouse(client, mc, cfg, dataset, context.log))
+            finally:
+                client.close()
+            ok = sum(1 for v in out.values() if isinstance(v, int))
+            return Output(out, metadata={
+                "tables_loaded": MetadataValue.int(ok),
+                "rows_total": MetadataValue.int(sum(v for v in out.values() if isinstance(v, int))),
+                "detail": MetadataValue.json(out),
+            })
+
+        assets.append(_clickhouse_load)
 
     return assets
