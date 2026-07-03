@@ -4,7 +4,7 @@ Music,FMA Tracks,Y (genre graph),Y,Y,Y,Y,Y,Y,Y,Y,Y,N,Y,Y,N,N,N,N,N,N,Y (track/ar
 Music,FMA Genres,Y (genre taxonomy graph),N,N,Y,N,N,N,Y,Y,N,N,Y,Y,N,N,N,N,N,N,N
 Music,FMA Echonest,N,Y (audio embeddings),Y (audio embeddings),Y,Y (embedding source),Y (audio features),Y,Y,Y,Y,N,Y,Y,N,N,N,N,N,N,N
 Music,FMA Features (518 features),N,Y,Y,Y,Y (embedding source),Y (feature store),Y,Y,Y,Y,N,Y,Y,N,N,N,N,N,Y (OLAP feature queries),N
-Music,UCI Year Prediction (B75/B76),Y (artist graph),Y,Y,Y,Y,Y,Y,Y,Y,Y,N,Y,Y,N,N,N,N,Y,Y (OLAP),Y (song/artist search)
+Music,UCI Year Prediction (B75/B76),N,Y,Y,Y,Y,Y,Y,Y,Y,Y,N,Y,Y,N,N,N,N,Y,Y (OLAP),Y (song/artist search)
 Music,Last.fm (B75),Y (artist/tag graph),N,N,Y (Kafka stream),N,N,Y,Y,Y,N,N,Y,Y,N,N,N,N,Y (user listen streams),N,N
 Music,MusicBrainz (B75),Y (music knowledge graph),N,N,Y,N,N,N,Y,Y,N,N,Y,Y,Y (native Postgres dump),N,N,N,N,N,Y (artist/recording search)
 Music,GTZAN (B75),N,Y (genre embeddings),Y (genre embeddings),Y,Y,Y (genre features),Y,Y,Y,Y,N,Y,Y,N,N,N,N,N,N,N
@@ -12,7 +12,7 @@ Music,LP-MusicCaps-MC (B75),N,Y,Y,Y,N,N,N,Y,Y,N,N,Y,Y,N,N,N,N,N,N,Y (caption sea
 Music,LP-MusicCaps-MTT (B75),N,Y,Y,Y,N,N,N,Y,Y,N,N,Y,Y,N,N,N,N,N,N,Y (tag/caption search)
 Music,AudioSet balanced (B75),Y (event graph),Y,Y,Y,Y,Y (audio features),Y,Y,Y,Y,N,Y,Y,N,N,N,N,N,Y (OLAP event queries),Y (audio event search)
 Health,NHANES,N,N,N,Y,N,Y (biomarker features),Y,Y,Y,N,Y,Y,Y,N,N,N,N,N,N,N
-Health,Big Five,Y (personality graph),Y (profile similarity),Y (profile similarity),Y (survey stream),Y (personality features),Y (profile features),Y,Y,Y,Y,Y,Y,Y,N,N,N,N,Y,N,N
+Health,Big Five,N,Y (profile similarity),Y (profile similarity),Y (survey stream),Y (personality features),Y (profile features),Y,Y,Y,Y,Y,Y,Y,N,N,N,N,Y,N,N
 Health,WHO GHO,N,N,N,Y,N,N,N,Y,Y,N,Y,Y,Y,N,Y,Y (nested JSON),N,Y (country/year series),Y (OLAP),N
 Health,CDC Physical Activity,N,N,N,Y,N,Y (activity features),N,Y,Y,N,Y,Y,Y,N,N,N,N,N,N,N
 Health,BRFSS,N,N,N,Y (survey stream),N,Y (health risk features),N,Y,Y,N,Y,Y,Y,N,N,N,Y (geo-partitioned),N,Y (OLAP),N

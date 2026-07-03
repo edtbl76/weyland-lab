@@ -30,6 +30,11 @@ class DomainConfig:
     mongo_allow: frozenset = field(default_factory=frozenset)
     # CockroachDB: datasets to load as tables (pg-wire, db per dataset). Distributed SQL.
     cockroach_allow: frozenset = field(default_factory=frozenset)
+    # Neo4j: {dataset: GraphSpec} — SELECTIVE + MODELED (grid Neo4j=Y = the 5 relationship-shaped music sets;
+    # flat datasets are skipped, they live in the tabular/OLAP stores). A GraphSpec declares nodes + edges from
+    # parquet columns; the loader creates unique constraints (MERGE without an index is catastrophic) then
+    # batch-UNWIND-MERGEs. node = {label, key, col?, props}; edge = {rel, src:(label,key,col), dst:(...), props}.
+    neo4j_allow: dict = field(default_factory=dict)
     # OpenSearch: datasets to bulk-index (index per parquet file, doc per row) into the standalone cluster
     # (ns opensearch, security OFF → no auth). Searchable; vector/kNN similarity is a later enhancement.
     opensearch_allow: frozenset = field(default_factory=frozenset)

@@ -423,6 +423,110 @@ def _load_dataset_to_clickhouse(client, mc, cfg, dataset, log) -> dict:
     return out
 
 
+_NEO4J_BATCH = 10_000
+
+
+def _neo4j_driver():
+    from neo4j import GraphDatabase
+
+    uri = os.environ.get("NEO4J_URI", "bolt://neo4j.weyland.svc.cluster.local:7687")
+    user = os.environ.get("NEO4J_USER", "neo4j")
+    pw = os.environ["NEO4J_PASSWORD"]   # secretKeyRef → neo4j-secret; no default (fail loud, no secret in code)
+    return GraphDatabase.driver(uri, auth=(user, pw))
+
+
+def _bt(name) -> str:
+    """Backtick-quote a Cypher identifier (label / rel type / property / map key)."""
+    return "`" + str(name).replace("`", "``") + "`"
+
+
+def _neo4j_queries(spec):
+    """Compile a GraphSpec into (constraint_cyphers, node_cyphers, edge_cyphers) — built ONCE, reused for every
+    batch. node = {label, key, col?, props?}; edge = {rel, src:(label,key,col), dst:(label,key,col), props?}.
+    Each query is an UNWIND $rows MERGE so a whole batch commits in one round-trip. A uniqueness constraint per
+    (label, key) is emitted first — the index it creates is what keeps MERGE fast at scale."""
+    constraints, seen = [], set()
+
+    def _constrain(label, key):
+        if (label, key) not in seen:
+            seen.add((label, key))
+            constraints.append(
+                f"CREATE CONSTRAINT IF NOT EXISTS FOR (n:{_bt(label)}) REQUIRE n.{_bt(key)} IS UNIQUE")
+
+    node_q = []
+    for nd in spec.get("nodes", []):
+        label, key, col = nd["label"], nd["key"], nd.get("col", nd["key"])
+        _constrain(label, key)
+        q = (f"UNWIND $rows AS row WITH row WHERE row.{_bt(col)} IS NOT NULL "
+             f"MERGE (n:{_bt(label)} {{{_bt(key)}: row.{_bt(col)}}})")
+        if nd.get("props"):
+            q += " SET " + ", ".join(f"n.{_bt(p)} = row.{_bt(p)}" for p in nd["props"])
+        node_q.append(q)
+
+    edge_q = []
+    for ed in spec.get("edges", []):
+        (sl, sk, sc), (dl, dk, dc) = ed["src"], ed["dst"]
+        _constrain(sl, sk)
+        _constrain(dl, dk)
+        q = (f"UNWIND $rows AS row WITH row WHERE row.{_bt(sc)} IS NOT NULL AND row.{_bt(dc)} IS NOT NULL "
+             f"MERGE (a:{_bt(sl)} {{{_bt(sk)}: row.{_bt(sc)}}}) "
+             f"MERGE (b:{_bt(dl)} {{{_bt(dk)}: row.{_bt(dc)}}}) "
+             f"MERGE (a)-[r:{_bt(ed['rel'])}]->(b)")
+        if ed.get("props"):
+            q += " SET " + ", ".join(f"r.{_bt(p)} = row.{_bt(p)}" for p in ed["props"])
+        edge_q.append(q)
+
+    return constraints, node_q, edge_q
+
+
+def _load_dataset_to_neo4j(driver, mc, cfg, dataset, spec, log) -> dict:
+    """Build a graph from silver Parquet per the GraphSpec — nodes + edges MERGE'd (idempotent; re-runs dedupe
+    on the key, no drop needed). Uniqueness constraints are created FIRST (MERGE without the backing index is
+    O(n) per row → catastrophic on lastfm's ~17M). MEMORY-SAFE: temp file + row batches (to_pylist → plain
+    dicts of Python scalars the driver accepts) fed to batched UNWIND MERGE. One spec covers every parquet file
+    under parquet/<dataset>/ (they share the schema). Columns are logged so a spec/column mismatch is visible
+    (a wrong key column → WHERE ... IS NOT NULL filters every row out → 0 loaded, not a crash)."""
+    import tempfile
+
+    constraints, node_q, edge_q = _neo4j_queries(spec)
+    with driver.session() as s:
+        for c in constraints:
+            s.run(c)
+
+    prefix = f"{io.branch()}/parquet/{dataset}/"
+    out = {}
+    for obj in mc.list_objects(cfg.repo, prefix=prefix, recursive=True):
+        if not obj.object_name.endswith(".parquet"):
+            continue
+        fname = obj.object_name.split("/")[-1][: -len(".parquet")]
+        key = dataset if fname == dataset else f"{dataset}/{fname}"
+        tmp = tempfile.NamedTemporaryFile(suffix=".parquet", delete=False)
+        tmp.close()
+        try:
+            mc.fget_object(cfg.repo, obj.object_name, tmp.name)   # streamed download to disk
+            pf = pq.ParquetFile(tmp.name)
+            log.info(f"neo4j {dataset}: columns {list(pf.schema_arrow.names)[:24]}")
+            n = 0
+            with driver.session() as s:
+                for batch in pf.iter_batches(batch_size=_NEO4J_BATCH):
+                    rows = batch.to_pylist()
+                    for q in node_q:
+                        s.run(q, rows=rows)
+                    for q in edge_q:
+                        s.run(q, rows=rows)
+                    n += len(rows)
+                    del batch, rows
+            out[key] = n
+            log.info(f"neo4j {key}: {n:,} rows → {len(spec.get('nodes', []))} node type(s), "
+                     f"{len(spec.get('edges', []))} edge type(s)")
+        except Exception as e:  # noqa: BLE001 — per-dataset resilience
+            out[key] = f"ERROR: {e}"
+            log.error(f"neo4j {dataset}: {e}")
+        finally:
+            os.unlink(tmp.name)
+    return out
+
+
 def build_store_load_assets(cfg):
     """Return the per-store loader assets this domain needs (only stores with a non-empty allowlist)."""
     assets = []
@@ -612,5 +716,33 @@ def build_store_load_assets(cfg):
             })
 
         assets.append(_clickhouse_load)
+
+    if cfg.neo4j_allow:
+        _neo_deps = [f"datasets_{d}_parquet"] + [
+            f"datasets_{d}_{ds}_parquet" for ds in sorted(set(cfg.neo4j_allow) & cfg.streamed_parquet)]
+
+        @asset(
+            name=f"datasets_{d}_neo4j_load",
+            group_name=f"datasets_{d}_stores",
+            deps=_neo_deps,
+            description=f"Build Neo4j graphs (nodes + edges per GraphSpec) from silver Parquet ({len(cfg.neo4j_allow)} datasets).",
+        )
+        def _neo4j_load(context):
+            mc = io.client()
+            driver = _neo4j_driver()
+            out = {}
+            try:
+                for dataset, spec in sorted(cfg.neo4j_allow.items()):
+                    out.update(_load_dataset_to_neo4j(driver, mc, cfg, dataset, spec, context.log))
+            finally:
+                driver.close()
+            ok = sum(1 for v in out.values() if isinstance(v, int))
+            return Output(out, metadata={
+                "graphs_loaded": MetadataValue.int(ok),
+                "rows_total": MetadataValue.int(sum(v for v in out.values() if isinstance(v, int))),
+                "detail": MetadataValue.json(out),
+            })
+
+        assets.append(_neo4j_load)
 
     return assets

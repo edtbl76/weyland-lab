@@ -48,6 +48,30 @@ MUSIC_CFG = DomainConfig(
         "spotify_tracks", "fma_tracks", "fma_echonest", "fma_features", "uci_year_prediction",
         "gtzan", "lp_musiccaps_mc", "lp_musiccaps_mtt", "audioset",
     }),
+    # Neo4j (grid=Y): the relationship-shaped music sets — MODELED as graphs, not flat dumps. Starting with the
+    # two cleanest; fma_tracks / musicbrainz / audioset are follow-on GraphSpecs. Column guesses fall back to a
+    # logged column list + 0 rows if the silver name differs (the loader logs columns on every dataset).
+    neo4j_allow={
+        # genre taxonomy tree — one label, self-referential edge (child.genre_id → parent.parent)
+        "fma_genres": {
+            "nodes": [{"label": "Genre", "key": "genre_id", "props": ["title", "top_level"]}],
+            "edges": [{"rel": "SUBGENRE_OF",
+                       "src": ("Genre", "genre_id", "genre_id"),
+                       "dst": ("Genre", "genre_id", "parent"),
+                       "props": []}],
+        },
+        # bipartite listen graph — (:User)-[:PLAYS {play_count}]->(:Artist); the count is an EDGE property
+        "lastfm": {
+            "nodes": [
+                {"label": "User", "key": "user_id", "props": ["gender", "age", "country"]},
+                {"label": "Artist", "key": "name", "col": "artist_name", "props": []},
+            ],
+            "edges": [{"rel": "PLAYS",
+                       "src": ("User", "user_id", "user_id"),
+                       "dst": ("Artist", "name", "artist_name"),
+                       "props": ["play_count"]}],
+        },
+    },
 )
 
 (
