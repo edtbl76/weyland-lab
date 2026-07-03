@@ -328,6 +328,9 @@ def _clickhouse_client(database="default"):
     host = os.environ.get("CLICKHOUSE_HOST", "clickhouse.data-mesh.svc.cluster.local")
     port = int(os.environ.get("CLICKHOUSE_PORT", "8123"))
     user = os.environ.get("CLICKHOUSE_USER", "default")
+    # ClickHouse now requires a password (set via the users.d Secret — DataHub's clickhouse-sqlalchemy can't
+    # do no-auth). Password comes from CLICKHOUSE_PASSWORD (secretKeyRef in user-code.yaml → clickhouse-secret),
+    # NOT a hardcoded default — empty fallback fails auth loudly rather than embedding the real secret in code.
     pw = os.environ.get("CLICKHOUSE_PASSWORD", "")
     return clickhouse_connect.get_client(host=host, port=port, username=user, password=pw, database=database)
 

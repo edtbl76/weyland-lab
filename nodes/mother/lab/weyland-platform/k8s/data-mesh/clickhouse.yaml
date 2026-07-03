@@ -45,10 +45,20 @@ spec:
           volumeMounts:
             - name: data
               mountPath: /var/lib/clickhouse
+            - name: users
+              # users.d/*.xml is read on every start (not just init) → sets the default user's password on the
+              # EXISTING install. `replace="replace"` in the XML fully replaces the base <default> (no auth
+              # conflict). Needed because DataHub's clickhouse-sqlalchemy can't auth against a no-password user.
+              mountPath: /etc/clickhouse-server/users.d/weyland-users.xml
+              subPath: weyland-users.xml
+              readOnly: true
       volumes:
         - name: data
           persistentVolumeClaim:
             claimName: clickhouse-data
+        - name: users
+          secret:
+            secretName: clickhouse-users   # created out-of-band (dev password not committed)
 ---
 apiVersion: v1
 kind: PersistentVolumeClaim

@@ -198,6 +198,18 @@ spec:
               value: "26257"
             - name: COCKROACH_USER
               value: root
+            # ClickHouse loader (native s3() ingest → MergeTree). Always-on, data-mesh. The default user has a
+            # password (set via the users.d Secret — DataHub's clickhouse-sqlalchemy can't do no-auth); the
+            # loader reads it here (empty default in code fails loudly). Same shared dev-password pattern as
+            # the mysql/mongo/timescale envs above — migrating all Tier-2 store creds to Secrets is a backlog item.
+            - name: CLICKHOUSE_HOST
+              value: clickhouse.data-mesh.svc.cluster.local
+            - name: CLICKHOUSE_PORT
+              value: "8123"
+            - name: CLICKHOUSE_USER
+              value: default
+            - name: CLICKHOUSE_PASSWORD
+              value: weyland_dev_password
           volumeMounts:
             - name: dagster-config
               mountPath: /opt/dagster/dagster_home/dagster.yaml
