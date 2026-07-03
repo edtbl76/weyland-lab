@@ -51,10 +51,21 @@ spec:
                   key: auth
             - name: NEO4J_PLUGINS
               value: '["apoc","graph-data-science"]'
-            - name: NEO4J_dbms_memory_heap_initial__size
-              value: 256m
-            - name: NEO4J_dbms_memory_heap_max__size
-              value: 512m
+            # Bumped from 256m/512m — the RAG + AIDLC graph was tiny, but the lastfm dataset graph is ~17M
+            # PLAYS edges. Neo4j caps per-tx memory at ~70% of heap, so 512m OOM'd even on a batched DETACH
+            # DELETE. neo4j 5 canonical `server.memory.*` names (the old `dbms.memory.*` are deprecated).
+            - name: NEO4J_server_memory_heap_initial__size
+              value: 1G
+            - name: NEO4J_server_memory_heap_max__size
+              value: 2G
+            - name: NEO4J_server_memory_pagecache_size
+              value: 1G
+          resources:
+            requests:
+              memory: 1Gi
+              cpu: 250m
+            limits:
+              memory: 4Gi   # 2G heap + 1G pagecache + JVM/off-heap overhead
           volumeMounts:
             - name: neo4j-storage
               mountPath: /data

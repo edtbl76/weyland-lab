@@ -423,7 +423,8 @@ def _load_dataset_to_clickhouse(client, mc, cfg, dataset, log) -> dict:
     return out
 
 
-_NEO4J_BATCH = 25_000   # fewer round-trips; a batch is one tx (node MERGEs + edge CREATEs)
+_NEO4J_BATCH = 25_000        # load: fewer round-trips; a batch is one tx (node MERGEs + edge CREATEs)
+_NEO4J_CLEAR_BATCH = 1_000   # clear: DETACH DELETE drags each node's edges into the tx, so keep batches small
 # Neo4j RANGE indexes (which uniqueness constraints build) reject keys over ~8KB. A key column can carry a
 # corrupt/oversized value (lastfm had a 120KB "artist name") that would abort the whole batch tx, so MERGE
 # filters skip any row whose key stringifies longer than this. Chars (not bytes) × ≤4 bytes/char stays under
@@ -509,7 +510,8 @@ def _load_dataset_to_neo4j(driver, mc, cfg, dataset, spec, log) -> dict:
         # graphs. Labels are dataset-exclusive (Genre/User/Artist — not the RAG/AIDLC graph), so this is scoped.
         for label in labels:
             log.info(f"neo4j {dataset}: clearing existing (:{label}) for clean rebuild")
-            s.run(f"MATCH (n:{_bt(label)}) CALL {{ WITH n DETACH DELETE n }} IN TRANSACTIONS OF 10000 ROWS")
+            s.run(f"MATCH (n:{_bt(label)}) CALL {{ WITH n DETACH DELETE n }} "
+                  f"IN TRANSACTIONS OF {_NEO4J_CLEAR_BATCH} ROWS")
 
     prefix = f"{io.branch()}/parquet/{dataset}/"
     out = {}
