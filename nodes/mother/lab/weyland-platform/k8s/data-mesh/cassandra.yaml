@@ -87,3 +87,21 @@ spec:
         resources:
           requests:
             storage: 20Gi
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: cassandra-alerts
+  namespace: data-mesh
+  labels: { app: cassandra }
+spec:
+  groups:
+    - name: cassandra
+      rules:
+        # StatefulSet metric (not deployment_status like the other stores — Cassandra is a StatefulSet).
+        - alert: CassandraDown
+          expr: kube_statefulset_status_replicas_ready{namespace="data-mesh", statefulset="cassandra"} == 0
+          for: 5m
+          labels: { severity: warning }
+          annotations:
+            summary: "Cassandra StatefulSet has 0 ready replicas — the wide-column store is down (datasets_music/datasets_health queries blocked)."

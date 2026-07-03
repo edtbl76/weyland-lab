@@ -135,6 +135,25 @@ constraint) — a `mysqld-exporter` is the follow-up. Same 7-point gate applies 
 - **Cataloged:** DataHub native source (platform `cockroachdb`), like the MusicBrainz/Mongo native sources.
 - **Gate:** Loaded ✅ · Runnable ✅ · Gated ✅ · Monitored ✅ (`CockroachdbDown`) · Cataloged ✅ · Documented ✅ · Pushed ▢.
 
+## Cassandra (store #9 — wide-column, 2026-07-02)
+
+- **Targets (grid `Cassandra=Y`):** music `uci_year_prediction` + `lastfm` (~17M user↔artist playcounts);
+  health `big_five` + `who_gho`. Keyspace per domain (`datasets_music`, `datasets_health`).
+- **Deploy:** single-node `cassandra:5.0` **StatefulSet** (headless svc, PVC), **3G heap / 6Gi limit** — the
+  heaviest Tier-2 store (a JVM). mother bumped 44→50Gi to fit it (RAM reclaimed by stopping the shelved
+  `openclaw` VM — the Proxmox host was near-full, and a *stopped VM* releases its reservation; LXC caps aren't
+  reservable). No auth (AllowAllAuthenticator). `k8s/data-mesh/cassandra.yaml`.
+- **Loader:** `datasets_{music,health}_cassandra_load` (`cassandra_allow={dataset: partition_col}`) — table per
+  file, prepared INSERT + `execute_concurrent`, temp-file streaming. **Query-first:** partition = a natural
+  column + synthetic `row_id uuid` clustering (nothing collides).
+- **Gotchas:** ① partition keys can't be null/empty (`Key may not be empty` fails the whole batch) → force the
+  partition col to `text` + a `__UNKNOWN__` sentinel. ② wrong partition col → falls back to a row_id dump + logs
+  the real columns (that's how lastfm's real key `user_id`, not `user`, surfaced). ③ the **headless** svc only
+  has DNS when the pod is Ready — loading during a restart → `UnresolvableContactPoints: {}`; wait for `1/1`.
+- **Cataloged:** DataHub native `cassandra` source (no auth; profiling table-level but **lastfm excluded** via
+  `profile_pattern.deny` — a Cassandra `COUNT` is a full-partition scan). Weekly Sun 04:15 ([../schedules.md](../schedules.md)).
+- **Gate:** Loaded ✅ · Runnable ✅ · Always-on ✅ · Monitored ✅ (`CassandraDown`) · Cataloged ✅ · Documented ✅ · Pushed ▢.
+
 ## Store roadmap (the grid's Tier-2 targets)
 
 | Store | Deployed? | Loader | Grid targets (datasets) |
@@ -145,7 +164,7 @@ constraint) — a `mysqld-exporter` is the follow-up. Same 7-point gate applies 
 | OpenSearch | ✅ (RAG) | ▢ | search: fma_tracks, uci, musicbrainz, lp_musiccaps_*, audioset, usda, open_food_facts |
 | Qdrant / Weaviate | ✅ (RAG) | ▢ | vector similarity (the Lance-allowlisted sets) |
 | ClickHouse | ▢ deploy first | ▢ | OLAP: fma_features, uci, audioset, who_gho, brfss, nhis, usda, open_food_facts |
-| Cassandra | ▢ deploy first | ▢ | uci, lastfm, big_five, who_gho |
+| Cassandra | ✅ always-on | ✅ **done** | music: uci, lastfm (~17M, by user_id) · health: big_five, who_gho |
 | CockroachDB | ✅ always-on | ✅ **done** | brfss (6 tables, ~3M rows) + nhis — db per dataset, pg-wire |
 | MongoDB | ✅ always-on | ✅ **done** | who_gho (8 collections) + open_food_facts (4.5M docs) + aidlc-kb (511 frontmatter docs) |
 | Feast | ▢ deploy first | ▢ | feature store (audio/health features) |
