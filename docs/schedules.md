@@ -41,6 +41,7 @@ Heavy = embeds/writes or large scans (guard the node's RAM). Light = metadata/re
 | **03:30** | DataHub | **CockroachDB** | weekly (Sun) | med |
 | 03:45 | DataHub | MongoDB | weekly (Sun) | med |
 | 04:15 | DataHub | Cassandra (datasets_music + datasets_health) | weekly (Sun) | med — profiling excl. lastfm |
+| 04:30 | DataHub | ClickHouse (datasets_music + datasets_health) | weekly (Sun) | med — profiling cheap (columnar) |
 | 04:45 | DataHub | Postgres — MusicBrainz | weekly (Sun) | **heavy scan** |
 
 **Ordering note:** the `02:00` scale-down takes cockroach/mongo/mysql/gizmosql to 0 for the night.
@@ -74,6 +75,8 @@ scaled down — they back live services or the mesh.
 
 ## Change log
 
+- 2026-07-02 — Added ClickHouse (Tier-2 #10) DataHub ingestion → Sun 04:30 (weekly; profiling on — columnar
+  counts are cheap, unlike Cassandra).
 - 2026-07-02 — Added Cassandra (Tier-2 #9) DataHub ingestion → Sun 04:15 (weekly, static data; profiling
   table-level but lastfm excluded — a 17M-row Cassandra COUNT would hammer the single node).
 - 2026-07-02 — Pinned all Dagster schedules to `America/New_York` (were UTC). Added the `02:00`
