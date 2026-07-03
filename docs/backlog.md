@@ -988,3 +988,10 @@ All land in lakeFS → Parquet → Iceberg → Trino/DuckDB queryable. Gated dat
 - **U17** — Migrate platform API routes APISIX→Traefik; APISIX→outliers-only. **DROPPED as stale.**
 - **U18** — weyland-lab SSH key. ✅ **DONE 2026-06-17 as KEY RETIREMENT** (B25b mooted the lockdown — key had
   no consumers; deleted rogueone `authorized_keys` line + orphaned k8s Secret). See detail above.
+
+## Tech-debt / Security (open)
+- **SEC-1 (2026-07-03)** — Migrate Tier-2 store creds off inline `weyland_dev_password` in
+  `k8s/dagster/user-code.yaml` (`TIMESCALEDB_/MYSQL_/MONGO_/CLICKHOUSE_PASSWORD`) → a k8s Secret + `secretKeyRef`,
+  and **rotate** the value. Flagged twice by the automated security review. Low-risk on the LAN, but the password
+  is committed in git. Do **all four at once** — piecemeal (ClickHouse-only) is inconsistent and gives no real
+  benefit while the other three stay inline. Also the ClickHouse `users.d` Secret is already out-of-band (good).

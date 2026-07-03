@@ -105,10 +105,11 @@ init:
 bootstrapScript: |
   #!/bin/bash
   # psycopg2-binary: the metadata-DB (Postgres) driver — the 6.1.0 image doesn't bundle it. trino: the query
-  # connector (step 4). Both need PyPI egress at pod start; a custom image baking them in is the cleaner
+  # connector. clickhouse-connect: the ClickHouse dialect (clickhousedb:// + Superset engine spec) for the
+  # data-mesh OLAP store. Both need PyPI egress at pod start; a custom image baking them in is the cleaner
   # long-term fix.
-  pip install --target /app/.venv/lib/python3.10/site-packages psycopg2-binary trino authlib
-  if [ ! -f ~/bootstrap ]; then echo "Superset bootstrapped (psycopg2 + trino)" > ~/bootstrap; fi
+  pip install --target /app/.venv/lib/python3.10/site-packages psycopg2-binary trino authlib clickhouse-connect
+  if [ ! -f ~/bootstrap ]; then echo "Superset bootstrapped (psycopg2 + trino + clickhouse)" > ~/bootstrap; fi
 
 ingress:
   enabled: true
