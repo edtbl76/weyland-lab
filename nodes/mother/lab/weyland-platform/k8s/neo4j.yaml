@@ -31,7 +31,7 @@ spec:
     metadata:
       labels:
         app: neo4j
-        sidecar.istio.io/inject: "true"   # B8 — Istio sidecar (per-workload injection; weyland ns is unlabeled)
+        sidecar.istio.io/inject: "true"   # B8 — Istio sidecar (per-workload injection; weyland ns is unlabeled). The DestinationRule below adds TCP keepalive so Envoy resets a stale long-lived Bolt connection instead of half-closing it (which hung the ~17M lastfm bulk load).
     spec:
       enableServiceLinks: false
       containers:
@@ -105,3 +105,22 @@ spec:
       targetPort: 7687
       appProtocol: tcp        # B8 — tell Istio this is opaque TCP (Bolt); else the sidecar mis-parses it as HTTP
       nodePort: 30086
+---
+# TCP keepalive for Bolt — a long-lived bulk-load connection (the ~17M lastfm graph) can go half-open behind
+# Envoy; without keepalive probes Envoy never notices, leaving the driver blocked on a dead socket forever.
+# With this, Envoy probes idle connections and RESETs a dead one, so the driver gets an error it can retry
+# (the loader wraps each batch in an auto-retried managed transaction) instead of hanging. Keeps neo4j meshed.
+apiVersion: networking.istio.io/v1beta1
+kind: DestinationRule
+metadata:
+  name: neo4j-bolt
+  namespace: weyland
+spec:
+  host: neo4j.weyland.svc.cluster.local
+  trafficPolicy:
+    connectionPool:
+      tcp:
+        tcpKeepalive:
+          time: 30s
+          interval: 10s
+          probes: 3

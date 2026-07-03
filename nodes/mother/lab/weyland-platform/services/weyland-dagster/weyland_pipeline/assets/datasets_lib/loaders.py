@@ -423,7 +423,7 @@ def _load_dataset_to_clickhouse(client, mc, cfg, dataset, log) -> dict:
     return out
 
 
-_NEO4J_BATCH = 50_000        # load: fewer round-trips; a batch is one tx (node MERGEs + edge CREATEs)
+_NEO4J_BATCH = 25_000        # load: one managed tx per batch (node MERGEs + edge CREATEs commit atomically)
 _NEO4J_CLEAR_BATCH = 1_000   # clear: DETACH DELETE drags each node's edges into the tx, so keep batches small
 # Neo4j RANGE indexes (which uniqueness constraints build) reject keys over ~8KB. A key column can carry a
 # corrupt/oversized value (lastfm had a 120KB "artist name") that would abort the whole batch tx, so MERGE
@@ -438,7 +438,11 @@ def _neo4j_driver():
     uri = os.environ.get("NEO4J_URI", "bolt://neo4j.weyland.svc.cluster.local:7687")
     user = os.environ.get("NEO4J_USER", "neo4j")
     pw = os.environ["NEO4J_PASSWORD"]   # secretKeyRef → neo4j-secret; no default (fail loud, no secret in code)
-    return GraphDatabase.driver(uri, auth=(user, pw))
+    # Resilience for the mesh: keep_alive + a short connection lifetime so stale Bolt connections are recycled,
+    # and a generous transaction retry window so execute_write can re-establish a connection Envoy reset
+    # (TCP-keepalive on the neo4j DestinationRule) mid-load instead of the load erroring out.
+    return GraphDatabase.driver(uri, auth=(user, pw), keep_alive=True, max_connection_lifetime=120,
+                                connection_acquisition_timeout=60, max_transaction_retry_time=180)
 
 
 def _bt(name) -> str:
@@ -491,6 +495,16 @@ def _neo4j_queries(spec):
     return constraints, node_q, edge_q
 
 
+def _write_neo4j_batch(tx, node_q, edge_q, rows):
+    """One batch = one managed transaction: node MERGEs + edge CREATEs commit together (atomic — so an
+    execute_write RETRY after a dropped connection re-does the whole batch cleanly and never double-CREATEs
+    edges). Passed to session.execute_write, which retries it on transient/connection errors."""
+    for q in node_q:
+        tx.run(q, rows=rows)
+    for q in edge_q:
+        tx.run(q, rows=rows)
+
+
 def _load_dataset_to_neo4j(driver, mc, cfg, dataset, spec, log) -> dict:
     """Build a graph from silver Parquet per the GraphSpec — nodes + edges MERGE'd (idempotent; re-runs dedupe
     on the key, no drop needed). Uniqueness constraints are created FIRST (MERGE without the backing index is
@@ -531,10 +545,9 @@ def _load_dataset_to_neo4j(driver, mc, cfg, dataset, spec, log) -> dict:
             with driver.session() as s:
                 for batch in pf.iter_batches(batch_size=_NEO4J_BATCH):
                     rows = batch.to_pylist()
-                    for q in node_q:
-                        s.run(q, rows=rows)
-                    for q in edge_q:
-                        s.run(q, rows=rows)
+                    # one auto-retried managed transaction per batch — recovers from a Bolt connection Envoy
+                    # reset mid-load (no infinite hang), and atomicity means the retry can't double-CREATE.
+                    s.execute_write(_write_neo4j_batch, node_q, edge_q, rows)
                     n += len(rows)
                     if n // 1_000_000 > milestone:   # progress heartbeat every ~1M rows
                         milestone = n // 1_000_000
