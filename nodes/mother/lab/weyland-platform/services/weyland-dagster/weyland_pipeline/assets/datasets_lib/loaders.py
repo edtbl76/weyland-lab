@@ -483,18 +483,28 @@ def _neo4j_queries(spec):
         _constrain(sl, sk)
         _constrain(dl, dk)
         if ed.get("dst_list"):
-            # dst column is a multi-value list (audioset human_labels) — PARSED to a real list in Python first
-            # (_parse_list; the raw value is a stringified list "['Speech', 'Inside, small room']" whose labels
-            # can themselves contain commas, so a Cypher split would shatter them). UNWIND it into one edge per
-            # element; dst is MERGE'd (not a single-value node spec); rel CREATE'd; src MATCH'd. No edge props.
-            q = (f"UNWIND $rows AS row WITH row "
-                 f"WHERE row.{_bt(sc)} IS NOT NULL AND size(toString(row.{_bt(sc)})) <= {_KEY_MAXLEN} "
-                 f"AND row.{_bt(dc)} IS NOT NULL "
-                 f"MATCH (a:{_bt(sl)} {{{_bt(sk)}: row.{_bt(sc)}}}) "
-                 f"UNWIND row.{_bt(dc)} AS _raw "
-                 f"WITH a, trim(toString(_raw)) AS _dv WHERE _dv <> '' AND size(_dv) <= {_KEY_MAXLEN} "
-                 f"MERGE (b:{_bt(dl)} {{{_bt(dk)}: _dv}}) "
-                 f"CREATE (a)-[r:{_bt(ed['rel'])}]->(b)")
+            # dst column is a multi-value list, PARSED to a real list in Python first (_parse_list). UNWIND it
+            # into one edge per element; dst is MERGE'd (not a single-value node spec); rel CREATE'd; src MATCH'd.
+            # Two shapes: dst_list_key (track_genres → genre_id) keeps the real key type (int) so it MATCHes the
+            # int-keyed :Genre nodes — DON'T toString it; a plain scalar list (audioset human_labels) is
+            # toString'd + trimmed + size-guarded.
+            if ed.get("dst_list_key"):
+                q = (f"UNWIND $rows AS row WITH row "
+                     f"WHERE row.{_bt(sc)} IS NOT NULL AND size(toString(row.{_bt(sc)})) <= {_KEY_MAXLEN} "
+                     f"AND row.{_bt(dc)} IS NOT NULL "
+                     f"MATCH (a:{_bt(sl)} {{{_bt(sk)}: row.{_bt(sc)}}}) "
+                     f"UNWIND row.{_bt(dc)} AS _dv WITH a, _dv WHERE _dv IS NOT NULL "
+                     f"MERGE (b:{_bt(dl)} {{{_bt(dk)}: _dv}}) "
+                     f"CREATE (a)-[r:{_bt(ed['rel'])}]->(b)")
+            else:
+                q = (f"UNWIND $rows AS row WITH row "
+                     f"WHERE row.{_bt(sc)} IS NOT NULL AND size(toString(row.{_bt(sc)})) <= {_KEY_MAXLEN} "
+                     f"AND row.{_bt(dc)} IS NOT NULL "
+                     f"MATCH (a:{_bt(sl)} {{{_bt(sk)}: row.{_bt(sc)}}}) "
+                     f"UNWIND row.{_bt(dc)} AS _raw "
+                     f"WITH a, trim(toString(_raw)) AS _dv WHERE _dv <> '' AND size(_dv) <= {_KEY_MAXLEN} "
+                     f"MERGE (b:{_bt(dl)} {{{_bt(dk)}: _dv}}) "
+                     f"CREATE (a)-[r:{_bt(ed['rel'])}]->(b)")
         else:
             q = (f"UNWIND $rows AS row WITH row "
                  f"WHERE row.{_bt(sc)} IS NOT NULL AND size(toString(row.{_bt(sc)})) <= {_KEY_MAXLEN} "
@@ -509,23 +519,36 @@ def _neo4j_queries(spec):
     return constraints, node_q, edge_q
 
 
-def _parse_list(v):
-    """Parse a multi-value cell into a list of strings. Handles a real list/tuple, or a stringified Python-list
-    literal like "['Speech', 'Inside, small room']" (ast.literal_eval keeps commas that are INSIDE a label
-    intact). Falls back to a bracket/quote-stripped comma split if it isn't valid literal syntax."""
+def _parse_list(v, key=None):
+    """Parse a multi-value cell into a list. Handles a real list/tuple, or a stringified Python-list literal
+    (ast.literal_eval keeps commas that are INSIDE an element intact, e.g. "['Speech', 'Inside, small room']").
+    key: when the elements are dicts (fma_tracks track_genres = "[{'genre_id': '21', ...}]"), extract this
+    field from each; numeric-string ids are coerced to int so they MATCH int node keys (the :Genre genre_id)."""
     if v is None:
         return []
     if isinstance(v, (list, tuple)):
-        return [str(x) for x in v]
-    s = str(v).strip()
-    if not s:
-        return []
-    try:
-        import ast
-        parsed = ast.literal_eval(s)
-        return [str(x) for x in parsed] if isinstance(parsed, (list, tuple)) else [str(parsed)]
-    except (ValueError, SyntaxError):
-        return [p.strip(" '\"[]") for p in s.strip("[]").split(",") if p.strip(" '\"[]")]
+        items = list(v)
+    else:
+        s = str(v).strip()
+        if not s:
+            return []
+        try:
+            import ast
+            parsed = ast.literal_eval(s)
+            items = list(parsed) if isinstance(parsed, (list, tuple)) else [parsed]
+        except (ValueError, SyntaxError):
+            if key is not None:
+                return []   # can't bracket-split into dicts
+            return [p.strip(" '\"[]") for p in s.strip("[]").split(",") if p.strip(" '\"[]")]
+    if key is not None:
+        out = []
+        for el in items:
+            val = el.get(key) if isinstance(el, dict) else None
+            if val is None:
+                continue
+            out.append(int(val) if isinstance(val, str) and val.lstrip("-").isdigit() else val)
+        return out
+    return [str(x) for x in items]
 
 
 def _write_neo4j_batch(tx, node_q, edge_q, rows):
@@ -549,7 +572,7 @@ def _load_dataset_to_neo4j(driver, mc, cfg, dataset, spec, log) -> dict:
 
     constraints, node_q, edge_q = _neo4j_queries(spec)
     labels = [nd["label"] for nd in spec.get("nodes", [])]
-    list_cols = [ed["dst"][2] for ed in spec.get("edges", []) if ed.get("dst_list")]  # cols to parse per batch
+    list_cols = [(ed["dst"][2], ed.get("dst_list_key")) for ed in spec.get("edges", []) if ed.get("dst_list")]
     with driver.session() as s:
         for c in constraints:
             s.run(c)
@@ -581,9 +604,9 @@ def _load_dataset_to_neo4j(driver, mc, cfg, dataset, spec, log) -> dict:
             with driver.session() as s:
                 for batch in pf.iter_batches(batch_size=_NEO4J_BATCH):
                     rows = batch.to_pylist()
-                    for lc in list_cols:                       # parse stringified-list cols to real lists
+                    for lc, lkey in list_cols:                 # parse stringified-list cols to real lists
                         for r in rows:
-                            r[lc] = _parse_list(r.get(lc))
+                            r[lc] = _parse_list(r.get(lc), key=lkey)
                     # one auto-retried managed transaction per batch — recovers from a Bolt connection Envoy
                     # reset mid-load (no infinite hang), and atomicity means the retry can't double-CREATE.
                     s.execute_write(_write_neo4j_batch, node_q, edge_q, rows)

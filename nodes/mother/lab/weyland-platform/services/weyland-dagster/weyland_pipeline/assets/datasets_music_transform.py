@@ -84,10 +84,11 @@ MUSIC_CFG = DomainConfig(
                        "dst": ("Label", "name", "human_labels"),
                        "dst_list": True}],
         },
-        # track graph — (:Track)-[:BY]->(:Artist) and -[:ON]->(:Album). Artist is keyed by name so tracks
-        # attach to the SAME :Artist nodes lastfm created (unifying the two music graphs). clear_labels omits
-        # Artist so a fma_tracks rebuild never wipes lastfm's PLAYS graph (DETACH DELETE Track still clears its
-        # own BY/ON edges). Genre linkage (track_genres is a stringified list-of-dicts) is a phase-2 add.
+        # track graph — (:Track)-[:BY]->(:Artist), -[:ON]->(:Album), -[:IN_GENRE]->(:Genre). Artist is keyed by
+        # name so tracks attach to the SAME :Artist nodes lastfm created (unifying the graphs); IN_GENRE links
+        # into the fma_genres :Genre tree (track_genres is a stringified list-of-dicts → dst_list_key pulls each
+        # genre_id, coerced to int to match the tree's node key). clear_labels omits Artist AND Genre so a
+        # rebuild never wipes lastfm's PLAYS graph or the genre tree (DETACH DELETE Track clears its own edges).
         "fma_tracks": {
             "clear_labels": ["Track", "Album"],
             "nodes": [
@@ -101,6 +102,9 @@ MUSIC_CFG = DomainConfig(
                  "dst": ("Artist", "name", "artist_name")},
                 {"rel": "ON", "src": ("Track", "track_id", "track_id"),
                  "dst": ("Album", "album_id", "album_id")},
+                {"rel": "IN_GENRE", "src": ("Track", "track_id", "track_id"),
+                 "dst": ("Genre", "genre_id", "track_genres"),
+                 "dst_list": True, "dst_list_key": "genre_id"},
             ],
         },
         # NOT modeled: musicbrainz (flat mbid/text/entity_type dictionary — no inter-row relationships → grid N).
