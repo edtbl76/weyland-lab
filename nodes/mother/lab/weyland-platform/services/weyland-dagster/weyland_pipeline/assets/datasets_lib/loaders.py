@@ -482,14 +482,27 @@ def _neo4j_queries(spec):
         (sl, sk, sc), (dl, dk, dc) = ed["src"], ed["dst"]
         _constrain(sl, sk)
         _constrain(dl, dk)
-        q = (f"UNWIND $rows AS row WITH row "
-             f"WHERE row.{_bt(sc)} IS NOT NULL AND size(toString(row.{_bt(sc)})) <= {_KEY_MAXLEN} "
-             f"AND row.{_bt(dc)} IS NOT NULL AND size(toString(row.{_bt(dc)})) <= {_KEY_MAXLEN} "
-             f"MATCH (a:{_bt(sl)} {{{_bt(sk)}: row.{_bt(sc)}}}) "
-             f"MATCH (b:{_bt(dl)} {{{_bt(dk)}: row.{_bt(dc)}}}) "
-             f"CREATE (a)-[r:{_bt(ed['rel'])}]->(b)")
-        if ed.get("props"):
-            q += " SET " + ", ".join(f"r.{_bt(p)} = row.{_bt(p)}" for p in ed["props"])
+        if ed.get("dst_split"):
+            # dst column is a delimited multi-value list (e.g. audioset human_labels "Speech, Music, Guitar"):
+            # explode it into one edge per element. The dst node is MERGE'd here (it's not a single-value node
+            # spec); the rel is still CREATE'd (O(1)); src is MATCH'd (created by its node spec). No edge props.
+            q = (f"UNWIND $rows AS row WITH row "
+                 f"WHERE row.{_bt(sc)} IS NOT NULL AND size(toString(row.{_bt(sc)})) <= {_KEY_MAXLEN} "
+                 f"AND row.{_bt(dc)} IS NOT NULL "
+                 f"MATCH (a:{_bt(sl)} {{{_bt(sk)}: row.{_bt(sc)}}}) "
+                 f"UNWIND split(toString(row.{_bt(dc)}), {ed['dst_split']!r}) AS _raw "
+                 f"WITH a, trim(_raw) AS _dv WHERE _dv <> '' AND size(_dv) <= {_KEY_MAXLEN} "
+                 f"MERGE (b:{_bt(dl)} {{{_bt(dk)}: _dv}}) "
+                 f"CREATE (a)-[r:{_bt(ed['rel'])}]->(b)")
+        else:
+            q = (f"UNWIND $rows AS row WITH row "
+                 f"WHERE row.{_bt(sc)} IS NOT NULL AND size(toString(row.{_bt(sc)})) <= {_KEY_MAXLEN} "
+                 f"AND row.{_bt(dc)} IS NOT NULL AND size(toString(row.{_bt(dc)})) <= {_KEY_MAXLEN} "
+                 f"MATCH (a:{_bt(sl)} {{{_bt(sk)}: row.{_bt(sc)}}}) "
+                 f"MATCH (b:{_bt(dl)} {{{_bt(dk)}: row.{_bt(dc)}}}) "
+                 f"CREATE (a)-[r:{_bt(ed['rel'])}]->(b)")
+            if ed.get("props"):
+                q += " SET " + ", ".join(f"r.{_bt(p)} = row.{_bt(p)}" for p in ed["props"])
         edge_q.append(q)
 
     return constraints, node_q, edge_q

@@ -74,6 +74,17 @@ MUSIC_CFG = DomainConfig(
                        "dst": ("Artist", "name", "artist_name"),
                        "props": ["play_count"]}],
         },
+        # audio-event graph — (:Clip)-[:HAS_LABEL]->(:Label). human_labels is a multi-value column
+        # ("Speech, Music, Guitar"), so dst_split explodes it into one edge per label (dst MERGE'd per element).
+        "audioset": {
+            "nodes": [{"label": "Clip", "key": "video_id"}],
+            "edges": [{"rel": "HAS_LABEL",
+                       "src": ("Clip", "video_id", "video_id"),
+                       "dst": ("Label", "name", "human_labels"),
+                       "dst_split": ","}],
+        },
+        # NOT modeled: musicbrainz (flat mbid/text/entity_type dictionary — no inter-row relationships → grid N),
+        # fma_tracks (silver columns corrupted by a broken multi-header parse — backlog an upstream fix first).
     },
 )
 
