@@ -12,8 +12,9 @@
 > (the NodePort) — NOT `neo4j.weyland.svc:7687` (unreachable from the LAN) — and encryption **off** (no TLS on
 > the NodePort). Wrong host or encryption-on = "never connects".
 
-Two graphs live here today (the dataset graphs — fma_genres/lastfm/musicbrainz per the grid — are **pending the
-Neo4j loader**, `▢`):
+Graphs here: the **AIDLC methodology** graph (B37), the **RAG/GraphRAG** graph, and the **dataset graphs** (B1 —
+music: `fma_genres` genre tree + `lastfm` ~13.85M listen edges; fma_tracks/musicbrainz/audioset are follow-ons).
+Importable Browser favorites: [AIDLC](neo4j-aidlc-favorites.csv) · [Music](neo4j-music-favorites.csv).
 
 ## Explore
 ```cypher
@@ -43,6 +44,25 @@ MATCH (e:Entry) WHERE NOT (e)-[:IN_VERTICAL]->() RETURN e.entry_id;
 MATCH (e:Entry) WHERE NOT (e)-[:RELATED_TO]-()   RETURN e.entry_id;
 ```
 The full set (+ GDS) is in [`neo4j-aidlc-favorites.csv`](neo4j-aidlc-favorites.csv) — importable as Browser favorites.
+
+## Dataset graphs — music (B1)
+`(:Genre)-[:SUBGENRE_OF]->(:Genre)` (FMA genre taxonomy) and `(:User)-[:PLAYS {play_count}]->(:Artist)` (lastfm —
+the count is an edge property). The full favorites set is [`neo4j-music-favorites.csv`](neo4j-music-favorites.csv).
+```cypher
+-- genre taxonomy tree (a NeoDash graph card)
+MATCH p=(:Genre)-[:SUBGENRE_OF]->(:Genre) RETURN p;
+
+-- top artists by listeners / by total plays
+MATCH (:User)-[:PLAYS]->(a:Artist) RETURN a.name, count(*) AS listeners ORDER BY listeners DESC LIMIT 25;
+MATCH (:User)-[r:PLAYS]->(a:Artist) RETURN a.name, sum(r.play_count) AS plays ORDER BY plays DESC LIMIT 25;
+
+-- graph-native collaborative filtering: fans of X also listen to…
+MATCH (a:Artist {name:'radiohead'})<-[:PLAYS]-(u:User)-[:PLAYS]->(rec:Artist)
+WHERE rec <> a RETURN rec.name, count(DISTINCT u) AS shared_fans ORDER BY shared_fans DESC LIMIT 20;
+```
+> Edges are `CREATE`'d (not `MERGE`'d) into supernodes — MERGE-relationship is O(degree) and never finishes at
+> this scale. And neo4j stays meshed via the `neo4j-bolt` DestinationRule (TCP keepalive) so long bulk-load
+> Bolt connections don't half-open and hang.
 
 ## RAG / GraphRAG graph
 `(c:Chunk)-[:BELONGS_TO]->(d:Document)` with `(c1:Chunk)-[:NEXT]->(c2:Chunk)` chaining chunks in order. This is
