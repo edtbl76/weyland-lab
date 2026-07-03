@@ -1,0 +1,21 @@
+# DataHub managed-ingestion recipe — MongoDB (datasets_* collections + aidlc-kb).
+# Source-of-record only (the live source is UI-configured). MONGO_PASSWORD is injected as pod ENV on the
+# acryl-datahub-actions pod (data-mesh/datahub-ingestion-secrets) — NOT a UI-entered DataHub Secret — so it
+# survives GMS resets. Value = weyland_dev_password (the shared lab dev cred). Mongo is meshed; the executor
+# reaches it over the cluster svc. Schema inferred by sampling (Mongo is schemaless). Schedule: daily.
+source:
+  type: mongodb
+  config:
+    connect_uri: "mongodb://mongodb.data-mesh.svc.cluster.local:27017"
+    username: "weyland"
+    password: "${MONGO_PASSWORD}"
+    authMechanism: "DEFAULT"
+    options:
+      authSource: "admin"
+    enableSchemaInference: true
+    useRandomSampling: true
+    maxSchemaSize: 300
+    database_pattern:
+      deny:
+        - "^(admin|config|local)$"
+    env: PROD
