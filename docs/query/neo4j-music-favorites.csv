@@ -13,3 +13,5 @@ m09,One artist's listener graph (edit),"MATCH p=(:User)-[:PLAYS]->(:Artist {name
 m10,Listeners by country,"MATCH (u:User)-[:PLAYS]->() RETURN u.country AS country, count(DISTINCT u) AS users ORDER BY users DESC LIMIT 25",music,false
 m11,Listeners by gender,"MATCH (u:User)-[:PLAYS]->() RETURN u.gender AS gender, count(DISTINCT u) AS users ORDER BY users DESC",music,false
 m12,Artists a user loves (edit user_id),"MATCH (u:User {user_id:'CHANGE_ME'})-[r:PLAYS]->(a:Artist) RETURN a.name AS artist, r.play_count AS plays ORDER BY plays DESC LIMIT 25",music,false
+m14,AudioSet - top event labels,"MATCH (:Clip)-[:HAS_LABEL]->(l:Label) RETURN l.name AS label, count(*) AS clips ORDER BY clips DESC LIMIT 20",music,false
+m15,AudioSet - co-occurring labels (edit),"MATCH (l:Label {name:'Music'})<-[:HAS_LABEL]-(:Clip)-[:HAS_LABEL]->(other:Label) WHERE other <> l RETURN other.name AS co_label, count(*) AS together ORDER BY together DESC LIMIT 15",music,false
