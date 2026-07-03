@@ -3,7 +3,8 @@ music,Music,,,true
 m01,Genre tree,"MATCH p=(:Genre)-[:SUBGENRE_OF]->(:Genre) RETURN p",music,false
 m02,Top-level genres (roots),"MATCH (g:Genre) WHERE NOT (g)-[:SUBGENRE_OF]->() RETURN g.genre_title AS genre ORDER BY genre",music,false
 m03,Subgenres per genre,"MATCH (g:Genre)<-[:SUBGENRE_OF]-(c:Genre) RETURN g.genre_title AS genre, count(c) AS subgenres ORDER BY subgenres DESC",music,false
-m04,Graph counts,"MATCH (n) RETURN labels(n) AS label, count(*) AS n ORDER BY n DESC",music,false
+m04,Graph counts (nodes),"MATCH (n) RETURN labels(n) AS label, count(*) AS n ORDER BY n DESC",music,false
+m13,Graph counts (relationships),"MATCH ()-[r]->() RETURN type(r) AS rel, count(*) AS n ORDER BY n DESC",music,false
 m05,Top artists by listeners,"MATCH (:User)-[:PLAYS]->(a:Artist) RETURN a.name AS artist, count(*) AS listeners ORDER BY listeners DESC LIMIT 25",music,false
 m06,Top artists by total plays,"MATCH (:User)-[r:PLAYS]->(a:Artist) RETURN a.name AS artist, sum(r.play_count) AS total_plays ORDER BY total_plays DESC LIMIT 25",music,false
 m07,Fans also listen to (edit artist),"MATCH (a:Artist {name:'radiohead'})<-[:PLAYS]-(u:User)-[:PLAYS]->(rec:Artist) WHERE rec <> a RETURN rec.name AS also_listened, count(DISTINCT u) AS shared_fans ORDER BY shared_fans DESC LIMIT 20",music,false
