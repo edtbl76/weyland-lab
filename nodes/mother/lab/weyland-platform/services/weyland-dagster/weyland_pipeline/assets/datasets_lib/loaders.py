@@ -424,6 +424,11 @@ def _load_dataset_to_clickhouse(client, mc, cfg, dataset, log) -> dict:
 
 
 _NEO4J_BATCH = 10_000
+# Neo4j RANGE indexes (which uniqueness constraints build) reject keys over ~8KB. A key column can carry a
+# corrupt/oversized value (lastfm had a 120KB "artist name") that would abort the whole batch tx, so MERGE
+# filters skip any row whose key stringifies longer than this. Chars (not bytes) × ≤4 bytes/char stays under
+# the limit; real ids/names/titles are tiny, so this only ever drops garbage.
+_KEY_MAXLEN = 1000
 
 
 def _neo4j_driver():
@@ -457,7 +462,8 @@ def _neo4j_queries(spec):
     for nd in spec.get("nodes", []):
         label, key, col = nd["label"], nd["key"], nd.get("col", nd["key"])
         _constrain(label, key)
-        q = (f"UNWIND $rows AS row WITH row WHERE row.{_bt(col)} IS NOT NULL "
+        q = (f"UNWIND $rows AS row WITH row "
+             f"WHERE row.{_bt(col)} IS NOT NULL AND size(toString(row.{_bt(col)})) <= {_KEY_MAXLEN} "
              f"MERGE (n:{_bt(label)} {{{_bt(key)}: row.{_bt(col)}}})")
         if nd.get("props"):
             q += " SET " + ", ".join(f"n.{_bt(p)} = row.{_bt(p)}" for p in nd["props"])
@@ -468,7 +474,9 @@ def _neo4j_queries(spec):
         (sl, sk, sc), (dl, dk, dc) = ed["src"], ed["dst"]
         _constrain(sl, sk)
         _constrain(dl, dk)
-        q = (f"UNWIND $rows AS row WITH row WHERE row.{_bt(sc)} IS NOT NULL AND row.{_bt(dc)} IS NOT NULL "
+        q = (f"UNWIND $rows AS row WITH row "
+             f"WHERE row.{_bt(sc)} IS NOT NULL AND size(toString(row.{_bt(sc)})) <= {_KEY_MAXLEN} "
+             f"AND row.{_bt(dc)} IS NOT NULL AND size(toString(row.{_bt(dc)})) <= {_KEY_MAXLEN} "
              f"MERGE (a:{_bt(sl)} {{{_bt(sk)}: row.{_bt(sc)}}}) "
              f"MERGE (b:{_bt(dl)} {{{_bt(dk)}: row.{_bt(dc)}}}) "
              f"MERGE (a)-[r:{_bt(ed['rel'])}]->(b)")
