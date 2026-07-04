@@ -7,7 +7,8 @@ import csv as csvmod
 import io
 import numpy as np
 from dagster import MetadataValue, Output, asset
-from .music_common import music_minio, music_put, is_fresh_local
+from .music_common import music_minio, music_put
+from .datasets_lib.freshness import RefreshConfig, should_skip
 
 
 def _to_mono(y):
@@ -48,13 +49,15 @@ def _gtzan_features(y, sr):
 
 
 @asset(group_name="datasets_music", description="Land GTZAN + extract librosa audio features → music/raw/gtzan/.")
-def datasets_music_gtzan_land(context) -> Output[dict]:
-    if is_fresh_local(context, max_age_days=30):
+def datasets_music_gtzan_land(context, config: RefreshConfig) -> Output[dict]:
+    if should_skip(context, config, max_age_days=30):   # materialize with {"force": true} to re-extract
         return Output({"skipped": True}, metadata={"skipped": MetadataValue.bool(True)})
-    from datasets import load_dataset
+    from datasets import Audio, load_dataset
     client = music_minio()
     context.log.info("GTZAN: loading confit/gtzan-parquet + extracting librosa features (~1k clips)")
-    ds = load_dataset("confit/gtzan-parquet", split="train")
+    # decode=False → HF hands us raw audio bytes instead of invoking its Audio decoder, which now demands the
+    # heavy torchcodec/torch dep. We decode the bytes ourselves with soundfile in _decode (its bytes fallback).
+    ds = load_dataset("confit/gtzan-parquet", split="train").cast_column("audio", Audio(decode=False))
     label_cols = [c for c in ds.column_names if c not in {"audio", "video", "file"}]
     rows, ok = [], 0
     for i, row in enumerate(ds):
