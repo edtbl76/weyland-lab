@@ -392,7 +392,7 @@ flowchart LR
     NM["datasets_music.*"]
     NH["datasets_health.*"]
   end
-  STORES["Tier-2 stores (data-store-mageddon)\nDONE: MySQL · Timescale · Mongo · Cockroach · Cassandra\nClickHouse · OpenSearch · Neo4j (graph)\nNEXT: Qdrant · Weaviate · Feast"]
+  STORES["Tier-2 stores (data-store-mageddon)\nDONE: MySQL · Timescale · Mongo · Cockroach · Cassandra · ClickHouse\nOpenSearch · Neo4j (graph) · Qdrant + Weaviate (vector)\nNEXT: Feast"]
   LAND --> LM
   LAND --> LH
   LM --> BROKER
@@ -419,6 +419,20 @@ only its own `clear_labels` (protecting shared labels), then batch-loads nodes `
 meshed via a `neo4j-bolt` DestinationRule (TCP keepalive — long Bolt bulk-load connections half-open behind
 Envoy otherwise). Full data model: [diagrams/graph-music-model.md](diagrams/graph-music-model.md); queries:
 [query/neo4j.md](query/neo4j.md). (The same DB also holds the RAG `:Document`/`:Chunk` and AIDLC `:Entry` graphs.)
+
+**Qdrant + Weaviate — the vector stores (grid=Y, identical sets, B1).** Where Neo4j models *relationships*, these
+hold the **feature** slice — one vector per row, similarity-searchable — so they're near-complementary to the
+graph, not redundant. Both backends get the **same** vectors (built once, upserted to each: collection per
+dataset in Qdrant, class per dataset in Weaviate; dims differ so separate spaces). The `datasets_lib` vector
+loader's `vector_spec` is either **numeric** (assemble feature columns, **z-score normalized** — raw features
+span wild scales, so cosine similarity is meaningless without it) or **text** (concat columns → embed with
+bge-small, 384-dim, the same model the RAG uses). Loaded (9): audio-feature vectors — fma_features (518d),
+fma_echonest (~244d), uci (90d), spotify (11d), **gtzan** (~53d, after fixing its land to extract librosa
+features — the silver was label-only); text vectors — lp_musiccaps ×2, audioset (`human_labels`); big_five (50
+OCEAN items). fma_tracks dropped (metadata, not features — sound-similarity is fma_features/echonest via
+`track_id`); open_food_facts → B78 (4.5M docs, capped). Queries: [query/qdrant.md](query/qdrant.md) ·
+[query/weaviate.md](query/weaviate.md). The FMA family literally **splits by file** — `tracks`/`genres` → graph,
+`features`/`echonest` → vector, joined by `track_id`.
 
 ---
 

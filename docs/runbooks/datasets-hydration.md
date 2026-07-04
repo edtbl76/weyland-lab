@@ -204,6 +204,29 @@ constraint) — a `mysqld-exporter` is the follow-up. Same 7-point gate applies 
   NeoDash; importable favorites + dashboard in [../query/](../query/neo4j.md).
 - **Gate:** Loaded ✅ · Runnable ✅ · Always-on ✅ · Monitored ✅ (neo4j liveness) · Cataloged N/A · Documented ✅ · Pushed ▢.
 
+## Qdrant + Weaviate (stores #12/#13 — VECTOR, B1 2026-07-03)
+
+- **Targets (grid `Qdrant=Y` = `Weaviate=Y` — identical sets):** audio-feature + text sets — fma_features,
+  fma_echonest, uci, spotify_tracks, gtzan, lp_musiccaps_mc/mtt, audioset (music) + big_five (health). fma_tracks
+  DROPPED (metadata not features — sound-sim is fma_features/echonest via track_id); open_food_facts → B78 (4.5M capped).
+- **Deploy:** the existing always-on Qdrant + Weaviate (the RAG backends, ns `weyland`). No new deploy.
+- **Loader:** `datasets_{d}_qdrant_load` + `datasets_{d}_weaviate_load` (`vector_allow = {dataset: vector_spec}`).
+  A **shared `_build_vectors`** builds each dataset's vectors ONCE — numeric specs assemble feature cols
+  **z-scored** (raw scales differ wildly → cosine meaningless otherwise); text specs concat cols + embed with
+  **bge-small** (384-d, the RAG's model) — then each backend's arm upserts (Qdrant collection / Weaviate class
+  per dataset; dims differ → separate spaces). SEPARATE assets (not one) → independent rerun; the double
+  vectorize is negligible at these sizes. Env (`QDRANT_*`/`WEAVIATE_*`) already on the pod.
+- **gtzan land fix (prereq):** its silver was `(label, genre)` only — the old land skipped the audio column.
+  Rewrote it to **decode the clips + extract librosa features** (chroma/mfcc/spectral/zcr/tempo mean+var, ~53-d).
+  Gotcha: HF `datasets` Audio decode now demands the heavy `torchcodec`/torch → use `Audio(decode=False)` +
+  soundfile instead. (librosa + soundfile added to requirements.)
+- **Gotchas:** ① point ids are sequential ints (Qdrant) / auto-UUIDs (Weaviate) — the real id is payload
+  `row_id`. ② BYO vectors (Weaviate `Vectorizer.none()`) — search by vector/object, not raw text; embed text
+  queries with bge yourself. ③ payloads stringified (JSON/GraphQL-safe). ④ genre-NN on the tiny 443-clip gtzan is
+  fuzzy (disco↔hiphop↔reggae rhythmic confusion — normal for feature-NN, not a bug).
+- **Cataloged:** ✅ existing DataHub custom-emit (`emit_qdrant`/`emit_weaviate`). Queries: [../query/qdrant.md](../query/qdrant.md) · [../query/weaviate.md](../query/weaviate.md).
+- **Gate:** Loaded ✅ (9 collections/classes each) · Runnable ✅ · Always-on ✅ · Monitored ✅ · Cataloged ✅ · Documented ✅ · Pushed ▢.
+
 ## Store roadmap (the grid's Tier-2 targets)
 
 | Store | Deployed? | Loader | Grid targets (datasets) |
@@ -212,7 +235,7 @@ constraint) — a `mysqld-exporter` is the follow-up. Same 7-point gate applies 
 | TimescaleDB | ✅ | ✅ **done** | who_gho (country/year → 8 hypertables). Last.fm **skipped** — its silver is lifetime playcounts, no per-listen timestamps (not a real time-series) |
 | **Neo4j** | ✅ always-on | ✅ **done** | GRAPH (music): fma_genres tree · lastfm ~13.85M PLAYS · fma_tracks (BY/ON/IN_GENRE) · audioset (HAS_LABEL). musicbrainz/uci/big_five → N (flat, no edges) |
 | OpenSearch | ✅ (RAG) | ▢ | search: fma_tracks, uci, musicbrainz, lp_musiccaps_*, audioset, usda, open_food_facts |
-| Qdrant / Weaviate | ✅ (RAG) | ▢ | vector similarity (the Lance-allowlisted sets) |
+| **Qdrant + Weaviate** | ✅ always-on | ✅ **done** | VECTOR (9 each, one build → both): fma_features/echonest/uci/spotify/gtzan (z-scored audio features) · lp_musiccaps×2/audioset (bge text) · big_five (OCEAN). fma_tracks dropped · OFF → B78 |
 | ClickHouse | ✅ always-on | ✅ **done** | music: fma_tracks, uci, musicbrainz-subset, lp_musiccaps, audioset · health: usda, open_food_facts (native s3() ingest) |
 | Cassandra | ✅ always-on | ✅ **done** | music: uci, lastfm (~17M, by user_id) · health: big_five, who_gho |
 | CockroachDB | ✅ always-on | ✅ **done** | brfss (6 tables, ~3M rows) + nhis — db per dataset, pg-wire |
