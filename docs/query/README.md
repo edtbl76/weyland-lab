@@ -14,6 +14,8 @@ syntax demos.
 | TimescaleDB | [timescaledb.md](timescaledb.md) | hypertables — platform metrics + who_gho time series |
 | MusicBrainz PG | [musicbrainz-postgres.md](musicbrainz-postgres.md) | full native mbdump — artists/recordings/links |
 | Neo4j | [neo4j.md](neo4j.md) | graphs — music datasets (genre tree, lastfm listens) + AIDLC methodology (`:Entry`) + RAG (`Document`/`Chunk`) + GDS; importable favorites: [AIDLC](neo4j-aidlc-favorites.csv) / [Music](neo4j-music-favorites.csv) |
+| Qdrant | [qdrant.md](qdrant.md) | vector similarity — audio-feature + caption vectors (fma_features/echonest, uci, spotify, gtzan, lp_musiccaps, audioset, big_five); collection per dataset |
+| Weaviate | [weaviate.md](weaviate.md) | same dataset vectors as Qdrant (class per dataset, BYO vectors) — two backends |
 
 **Connecting:** each store's access (svc / ingress / port-forward / creds) is in its runbook and
 [../hosts.md](../hosts.md). Most are reachable from IntelliJ via the k8s-plugin port-forward, or in-pod via

@@ -23,7 +23,7 @@ kubectl -n weyland rollout status deploy/dagster-user-code --timeout=180s
 
 echo "==> [4/4] verify the store-loader deps import inside the new pod"
 kubectl -n weyland exec deploy/dagster-user-code -- \
-  python -c "import clickhouse_connect, cassandra, pymongo, sqlalchemy_cockroachdb, opensearchpy, neo4j; print('store-loader imports OK')" \
+  python -c "import clickhouse_connect, cassandra, pymongo, sqlalchemy_cockroachdb, opensearchpy, neo4j, qdrant_client, weaviate, sentence_transformers, librosa; print('store-loader imports OK')" \
   || echo "!! import check failed — inspect the pod (does not fail the deploy)"
 
 echo "==> done."

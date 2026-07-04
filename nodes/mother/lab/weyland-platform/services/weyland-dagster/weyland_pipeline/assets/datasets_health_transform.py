@@ -53,6 +53,12 @@ HEALTH_CFG = DomainConfig(
     clickhouse_allow=frozenset({"usda_fooddata", "open_food_facts"}),
     # OpenSearch (grid=Y, similarity search): big_five (profile) + open_food_facts (product). Doc-per-row index.
     opensearch_allow=frozenset({"big_five", "open_food_facts"}),
+    # Qdrant + Weaviate (grid=Y): big_five personality vector — the 50 OCEAN items (E*/N*/A*/C*/O*), z-scored;
+    # demographics excluded. open_food_facts → B78 (4.5M docs, capped embed = maturity/polish).
+    vector_allow={
+        "big_five": {"numeric_exclude": ["race", "age", "engnat", "gender", "hand", "source"],
+                     "payload": ["country"]},
+    },
 )
 
 (

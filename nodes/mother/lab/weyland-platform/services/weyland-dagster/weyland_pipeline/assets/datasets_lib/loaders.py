@@ -626,6 +626,132 @@ def _load_dataset_to_neo4j(driver, mc, cfg, dataset, spec, log) -> dict:
     return out
 
 
+_VEC_UPSERT_BATCH = 1_000
+_EMBEDDER = None
+
+
+def _qdrant_client():
+    from qdrant_client import QdrantClient
+
+    host = os.environ.get("QDRANT_HOST", "qdrant.weyland.svc.cluster.local")
+    port = int(os.environ.get("QDRANT_PORT", "6333"))
+    return QdrantClient(host=host, port=port, timeout=300)   # 300s for the heavy one-time collection rewrites
+
+
+def _weaviate_client():
+    import weaviate
+
+    host = os.environ.get("WEAVIATE_HOST", "weaviate.weyland.svc.cluster.local")
+    return weaviate.connect_to_custom(
+        http_host=host, http_port=int(os.environ.get("WEAVIATE_PORT", "8080")), http_secure=False,
+        grpc_host=host, grpc_port=int(os.environ.get("WEAVIATE_GRPC_PORT", "50051")), grpc_secure=False)
+
+
+def _embedder():
+    """bge-small-en-v1.5 — the same model the RAG uses; loaded once per process."""
+    global _EMBEDDER
+    if _EMBEDDER is None:
+        from sentence_transformers import SentenceTransformer
+
+        _EMBEDDER = SentenceTransformer(os.environ.get("EMBED_MODEL", "BAAI/bge-small-en-v1.5"))
+    return _EMBEDDER
+
+
+def _weaviate_class(domain, dataset):
+    return "".join(p.capitalize() for p in f"datasets_{domain}_{dataset}".split("_"))
+
+
+def _build_vectors(mc, cfg, dataset, spec, log):
+    """Build (dim, records) for a dataset from silver Parquet — the SHARED step both vector backends consume.
+    records = [{id, vector, payload}]. Numeric specs assemble feature columns z-score-normalized (raw features
+    span wild scales → cosine similarity is meaningless without it); text specs concat the columns and embed
+    with bge-small (already unit-normalized). Payload values are stringified (JSON/GraphQL-safe)."""
+    import tempfile
+    import numpy as np
+    import pandas as pd
+
+    prefix = f"{io.branch()}/parquet/{dataset}/"
+    frames = []
+    for obj in mc.list_objects(cfg.repo, prefix=prefix, recursive=True):
+        if not obj.object_name.endswith(".parquet"):
+            continue
+        tmp = tempfile.NamedTemporaryFile(suffix=".parquet", delete=False)
+        tmp.close()
+        try:
+            mc.fget_object(cfg.repo, obj.object_name, tmp.name)
+            frames.append(pd.read_parquet(tmp.name))
+        finally:
+            os.unlink(tmp.name)
+    if not frames:
+        return 0, []
+    df = pd.concat(frames, ignore_index=True) if len(frames) > 1 else frames[0]
+
+    if spec.get("text"):
+        cols = [c for c in spec["text"] if c in df.columns]
+        texts = df[cols].fillna("").astype(str).agg(" ".join, axis=1).tolist()
+        vecs = _embedder().encode(texts, normalize_embeddings=True, batch_size=64, show_progress_bar=False)
+        vectors = [v.tolist() for v in vecs]
+        dim = len(vectors[0]) if vectors else 384
+        log.info(f"{dataset}: text vectors dim={dim} from {cols} ({len(df):,} rows)")
+    else:
+        if spec.get("numeric"):
+            cols = [c for c in spec["numeric"] if c in df.columns]
+        else:
+            excl = set(spec.get("numeric_exclude", [])) | ({spec["id"]} if spec.get("id") else set())
+            cols = [c for c in df.columns if c not in excl and pd.api.types.is_numeric_dtype(df[c])]
+        mat = df[cols].apply(pd.to_numeric, errors="coerce").fillna(0.0).to_numpy(dtype=float)
+        mu, sd = mat.mean(axis=0), mat.std(axis=0)
+        sd[sd == 0] = 1.0
+        mat = np.nan_to_num((mat - mu) / sd, nan=0.0, posinf=0.0, neginf=0.0)
+        vectors = mat.tolist()
+        dim = len(cols)
+        log.info(f"{dataset}: numeric vectors dim={dim} (z-scored) from {cols[:6]}… ({len(df):,} rows)")
+
+    id_col = spec.get("id")
+    ids = df[id_col].astype(str).tolist() if id_col and id_col in df.columns else [str(i) for i in range(len(df))]
+    pcols = [p for p in spec.get("payload", []) if p in df.columns]
+    payloads = df[pcols].fillna("").astype(str).to_dict("records") if pcols else [{} for _ in range(len(df))]
+    records = [{"id": ids[i], "vector": vectors[i], "payload": {"row_id": ids[i], **payloads[i]}}
+               for i in range(len(df))]
+    return dim, records
+
+
+def _load_dataset_to_qdrant(client, dim, records, coll, log) -> int:
+    """Recreate the collection (cosine) and upsert every record. Point id = sequential int (Qdrant ids must be
+    int/UUID); the original id lives in the payload's row_id."""
+    from qdrant_client.models import Distance, PointStruct, VectorParams
+
+    client.recreate_collection(coll, vectors_config=VectorParams(size=dim, distance=Distance.COSINE))
+    n = 0
+    for s in range(0, len(records), _VEC_UPSERT_BATCH):
+        chunk = records[s:s + _VEC_UPSERT_BATCH]
+        pts = [PointStruct(id=s + j, vector=r["vector"], payload=r["payload"]) for j, r in enumerate(chunk)]
+        client.upsert(collection_name=coll, points=pts)
+        n += len(pts)
+    log.info(f"qdrant {coll}: {n:,} points (dim {dim})")
+    return n
+
+
+def _load_dataset_to_weaviate(client, dim, records, cls, log) -> int:
+    """Drop + recreate the class (BYO vectors, vectorizer none) and batch-insert. Payload keys → TEXT props."""
+    from weaviate.classes.config import Configure, DataType, Property
+
+    if cls in {c.name for c in client.collections.list_all().values()}:
+        client.collections.delete(cls)
+    keys = list(records[0]["payload"].keys()) if records else ["row_id"]
+    client.collections.create(
+        name=cls, vectorizer_config=Configure.Vectorizer.none(),
+        properties=[Property(name=k, data_type=DataType.TEXT) for k in keys])
+    col = client.collections.get(cls)
+    n = 0
+    with col.batch.dynamic() as batch:
+        for r in records:
+            batch.add_object(properties=r["payload"], vector=r["vector"])
+            n += 1
+    log.info(f"weaviate {cls}: {n:,} objects (dim {dim})")
+    return n
+
+
 def build_store_load_assets(cfg):
     """Return the per-store loader assets this domain needs (only stores with a non-empty allowlist)."""
     assets = []
@@ -843,5 +969,69 @@ def build_store_load_assets(cfg):
             })
 
         assets.append(_neo4j_load)
+
+    if cfg.vector_allow:
+        _vec_deps = [f"datasets_{d}_parquet"] + [
+            f"datasets_{d}_{ds}_parquet" for ds in sorted(set(cfg.vector_allow) & cfg.streamed_parquet)]
+
+        @asset(
+            name=f"datasets_{d}_qdrant_load",
+            group_name=f"datasets_{d}_stores",
+            deps=_vec_deps,
+            description=f"Vectorize silver → Qdrant (collection per dataset, cosine) for {len(cfg.vector_allow)} datasets.",
+        )
+        def _qdrant_load(context):
+            mc = io.client()
+            client = _qdrant_client()
+            out = {}
+            try:
+                for dataset, spec in sorted(cfg.vector_allow.items()):
+                    try:
+                        dim, records = _build_vectors(mc, cfg, dataset, spec, context.log)
+                        coll = f"datasets_{d}_{dataset}"
+                        out[coll] = _load_dataset_to_qdrant(client, dim, records, coll, context.log) if records else 0
+                    except Exception as e:  # noqa: BLE001 — per-dataset resilience
+                        out[dataset] = f"ERROR: {e}"
+                        context.log.error(f"qdrant {dataset}: {e}")
+            finally:
+                client.close()
+            ok = sum(1 for v in out.values() if isinstance(v, int))
+            return Output(out, metadata={
+                "collections_loaded": MetadataValue.int(ok),
+                "vectors_total": MetadataValue.int(sum(v for v in out.values() if isinstance(v, int))),
+                "detail": MetadataValue.json(out),
+            })
+
+        assets.append(_qdrant_load)
+
+        @asset(
+            name=f"datasets_{d}_weaviate_load",
+            group_name=f"datasets_{d}_stores",
+            deps=_vec_deps,
+            description=f"Vectorize silver → Weaviate (class per dataset, BYO vectors) for {len(cfg.vector_allow)} datasets.",
+        )
+        def _weaviate_load(context):
+            mc = io.client()
+            client = _weaviate_client()
+            out = {}
+            try:
+                for dataset, spec in sorted(cfg.vector_allow.items()):
+                    try:
+                        dim, records = _build_vectors(mc, cfg, dataset, spec, context.log)
+                        cls = _weaviate_class(d, dataset)
+                        out[cls] = _load_dataset_to_weaviate(client, dim, records, cls, context.log) if records else 0
+                    except Exception as e:  # noqa: BLE001 — per-dataset resilience
+                        out[dataset] = f"ERROR: {e}"
+                        context.log.error(f"weaviate {dataset}: {e}")
+            finally:
+                client.close()
+            ok = sum(1 for v in out.values() if isinstance(v, int))
+            return Output(out, metadata={
+                "classes_loaded": MetadataValue.int(ok),
+                "objects_total": MetadataValue.int(sum(v for v in out.values() if isinstance(v, int))),
+                "detail": MetadataValue.json(out),
+            })
+
+        assets.append(_weaviate_load)
 
     return assets

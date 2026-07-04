@@ -47,6 +47,14 @@ class DomainConfig:
     # query-first; a synthetic `row_id uuid` clustering col always guarantees row uniqueness. If the named
     # column isn't in the silver parquet, the loader falls back to a row_id-only key (plain dump) + logs.
     cassandra_allow: dict = field(default_factory=dict)
+    # Qdrant + Weaviate (both grid=Y for the SAME sets): {dataset: vector_spec}. The vector is built ONCE per
+    # dataset and upserted to BOTH backends (Qdrant collection + Weaviate class per dataset — dims differ, so
+    # separate spaces). vector_spec is one of:
+    #   {"numeric_exclude": [cols]}  → assemble ALL numeric cols except these into the vector, z-score normalized
+    #   {"numeric": [cols]}          → assemble exactly these numeric cols, z-score normalized
+    #   {"text": [cols]}             → concat these text cols per row + embed with bge-small (384-dim, unit-norm)
+    # plus optional {"id": col} (point ref, else row index) and {"payload": [cols]} (stored for filter/display).
+    vector_allow: dict = field(default_factory=dict)
     # Datasets whose silver parquet comes from a dedicated STREAMED asset (datasets_<domain>_<ds>_parquet)
     # instead of the broker's datasets_<domain>_parquet — so store loaders can add it to their deps.
     streamed_parquet: frozenset = field(default_factory=frozenset)

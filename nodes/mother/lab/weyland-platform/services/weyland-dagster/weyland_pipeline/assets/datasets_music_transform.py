@@ -109,6 +109,23 @@ MUSIC_CFG = DomainConfig(
         },
         # NOT modeled: musicbrainz (flat mbid/text/entity_type dictionary — no inter-row relationships → grid N).
     },
+    # Qdrant + Weaviate (grid=Y, identical sets): audio-feature vectors (z-scored) + caption text vectors (bge).
+    # Dropped: fma_tracks (metadata, not features — audio-sim is fma_features/echonest via track_id), gtzan was
+    # fixed to a real feature matrix (librosa extraction in the land). open_food_facts → B78 (4.5M, capped).
+    vector_allow={
+        "fma_features": {"numeric_exclude": ["track_id"], "id": "track_id"},                       # 518-dim
+        "fma_echonest": {"numeric_exclude": ["track_id"], "id": "track_id",                        # ~244-dim
+                         "payload": ["echonest_metadata_artist_name", "echonest_metadata_album_name"]},
+        "uci_year_prediction": {"numeric_exclude": ["year"], "payload": ["year"]},                 # 90-dim timbre
+        "spotify_tracks": {"numeric": ["danceability", "energy", "key", "loudness", "mode", "speechiness",
+                                       "acousticness", "instrumentalness", "liveness", "valence", "tempo"],
+                           "id": "track_id", "payload": ["track_name", "artists", "track_genre"]},   # 11-dim
+        "gtzan": {"numeric_exclude": ["label"], "payload": ["genre"]},                              # ~53-dim librosa
+        "lp_musiccaps_mc": {"text": ["caption_ground_truth"], "id": "ytid",
+                            "payload": ["caption_summary", "aspect_list"]},                          # 384-dim bge
+        "lp_musiccaps_mtt": {"text": ["caption_writing"], "payload": ["title", "artist_name", "tag_top50"]},
+        "audioset": {"text": ["human_labels"], "id": "video_id"},
+    },
 )
 
 (
