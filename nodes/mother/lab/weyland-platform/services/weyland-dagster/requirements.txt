@@ -47,3 +47,6 @@ cassandra-driver
 clickhouse-connect
 # opensearch-py — OpenSearch loader (silver Parquet → bulk-indexed documents; the standalone playground cluster).
 opensearch-py
+# librosa + soundfile — GTZAN land audio-feature extraction (decode clips → chroma/mfcc/spectral/tempo features).
+librosa
+soundfile
