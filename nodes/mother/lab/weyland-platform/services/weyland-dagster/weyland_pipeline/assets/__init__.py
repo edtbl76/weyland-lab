@@ -25,6 +25,7 @@ from .datasets_music_transform import (
     datasets_music_commit,
     datasets_music_checks,
     datasets_music_store_assets,
+    datasets_music_stream_assets,
 )
 from .datasets_music_spotify_land import datasets_music_spotify_land
 from .datasets_music_fma_land import (
@@ -64,6 +65,7 @@ from .datasets_health_transform import (
     datasets_health_open_food_facts_parquet,
     datasets_health_checks,
     datasets_health_store_assets,
+    datasets_health_stream_assets,
 )
 
 all_assets = [
@@ -133,6 +135,8 @@ all_assets = [
     # Health domain — store hydration (data-store-mageddon)
     *datasets_health_store_assets,
     *datasets_music_store_assets,
+    *datasets_health_stream_assets,
+    *datasets_music_stream_assets,
 ]
 
 # Pre-hydration quality gate (build_asset_checks per domain — the second datasets_lib factory)

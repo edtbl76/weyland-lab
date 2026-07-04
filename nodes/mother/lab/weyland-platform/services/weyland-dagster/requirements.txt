@@ -50,3 +50,6 @@ opensearch-py
 # librosa + soundfile — GTZAN land audio-feature extraction (decode clips → chroma/mfcc/spectral/tempo features).
 librosa
 soundfile
+# confluent-kafka — Redpanda Avro producer (B1.5 streaming): Confluent wire-format serialization + Schema
+# Registry client so Console + standard consumers decode the messages. Wheels bundle librdkafka (no system dep).
+confluent-kafka[avro]

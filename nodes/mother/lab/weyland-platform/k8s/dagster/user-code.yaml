@@ -217,6 +217,12 @@ spec:
               value: opensearch-cluster-master.opensearch.svc.cluster.local
             - name: OPENSEARCH_PORT
               value: "9200"
+            # Redpanda (B1.5 streaming) — the Avro event-stream producer. Bootstrap = the headless svc (clients
+            # get the advertised pod DNS on connect); Schema Registry is the broker's built-in one on :8081.
+            - name: REDPANDA_BOOTSTRAP
+              value: redpanda.data-mesh.svc.cluster.local:9092
+            - name: SCHEMA_REGISTRY_URL
+              value: http://redpanda.data-mesh.svc.cluster.local:8081
           volumeMounts:
             - name: dagster-config
               mountPath: /opt/dagster/dagster_home/dagster.yaml

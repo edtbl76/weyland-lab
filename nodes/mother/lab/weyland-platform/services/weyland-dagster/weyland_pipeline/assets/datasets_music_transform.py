@@ -8,6 +8,7 @@ from .datasets_lib.broker import build_transform_assets
 from .datasets_lib.checks import build_asset_checks
 from .datasets_lib.config import DomainConfig
 from .datasets_lib.loaders import build_store_load_assets
+from .datasets_lib.streaming_producer import build_stream_produce_assets
 
 # parquet/arrow/avro/iceberg cover every music dataset; lance is selective (grid: skip fma_genres, lastfm,
 # musicbrainz, lp_musiccaps_* — row-heavy / no embedding value). The allowlist also fences out any stale
@@ -126,6 +127,11 @@ MUSIC_CFG = DomainConfig(
         "lp_musiccaps_mtt": {"text": ["caption_writing"], "payload": ["title", "artist_name", "tag_top50"]},
         "audioset": {"text": ["human_labels"], "id": "video_id"},
     },
+    # Redpanda (grid=Y, stream-shaped): lastfm listen events → Avro topic, keyed by user_id (same-user events
+    # land on one partition). ~14M rows capped to 100k for the demo replay ("Avro in motion", not a bulk dump).
+    stream_allow={
+        "lastfm": {"key": "user_id", "cap": 100_000},
+    },
 )
 
 (
@@ -135,3 +141,4 @@ MUSIC_CFG = DomainConfig(
 
 datasets_music_checks = build_asset_checks(MUSIC_CFG)
 datasets_music_store_assets = build_store_load_assets(MUSIC_CFG)
+datasets_music_stream_assets = build_stream_produce_assets(MUSIC_CFG)

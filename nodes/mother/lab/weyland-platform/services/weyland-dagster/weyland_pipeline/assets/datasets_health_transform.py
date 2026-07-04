@@ -8,6 +8,7 @@ from .datasets_lib.checks import build_asset_checks
 from .datasets_lib.config import DomainConfig
 from .datasets_lib.loaders import build_store_load_assets
 from .datasets_lib.streaming import build_streamed_parquet_asset
+from .datasets_lib.streaming_producer import build_stream_produce_assets
 
 # open_food_facts is DEFERRED from the inline broker (its ~9GB-decompressed, 211-column TSV OOMs the whole-
 # table read). It gets its silver PARQUET from a dedicated STREAMING asset instead
@@ -59,6 +60,13 @@ HEALTH_CFG = DomainConfig(
         "big_five": {"numeric_exclude": ["race", "age", "engnat", "gender", "hand", "source"],
                      "payload": ["country"]},
     },
+    # Redpanda (grid=Y, survey streams): big_five / brfss / nhis survey responses → Avro topics. No natural key
+    # (round-robin partitions). big_five is small (~20k, no cap); brfss/nhis are big → capped 100k for the demo.
+    stream_allow={
+        "big_five": {"key": None, "cap": None},
+        "brfss": {"key": None, "cap": 100_000},
+        "nhis": {"key": None, "cap": 100_000},
+    },
 )
 
 (
@@ -72,3 +80,4 @@ datasets_health_open_food_facts_parquet = build_streamed_parquet_asset(
 
 datasets_health_checks = build_asset_checks(HEALTH_CFG)
 datasets_health_store_assets = build_store_load_assets(HEALTH_CFG)
+datasets_health_stream_assets = build_stream_produce_assets(HEALTH_CFG)

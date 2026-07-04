@@ -55,6 +55,12 @@ class DomainConfig:
     #   {"text": [cols]}             → concat these text cols per row + embed with bge-small (384-dim, unit-norm)
     # plus optional {"id": col} (point ref, else row index) and {"payload": [cols]} (stored for filter/display).
     vector_allow: dict = field(default_factory=dict)
+    # Redpanda (B1.5 streaming): {dataset: stream_spec} — the STREAM-shaped sets only (event/survey data, not
+    # static bulk). Replays silver Parquet as Avro events into topic `datasets.<domain>.<dataset>`, schema
+    # registered in the built-in Schema Registry (Confluent wire format). stream_spec: {"key": col_or_None,
+    # "cap": int_or_None} — key = message key (partition/compaction), cap = max rows to replay (bound the huge
+    # ones; a demo/"Avro in motion", not a bulk dump — genuinely event-driven change data comes via Debezium CDC).
+    stream_allow: dict = field(default_factory=dict)
     # Datasets whose silver parquet comes from a dedicated STREAMED asset (datasets_<domain>_<ds>_parquet)
     # instead of the broker's datasets_<domain>_parquet — so store loaders can add it to their deps.
     streamed_parquet: frozenset = field(default_factory=frozenset)
