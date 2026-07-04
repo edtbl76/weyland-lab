@@ -224,7 +224,10 @@ constraint) — a `mysqld-exporter` is the follow-up. Same 7-point gate applies 
   `row_id`. ② BYO vectors (Weaviate `Vectorizer.none()`) — search by vector/object, not raw text; embed text
   queries with bge yourself. ③ payloads stringified (JSON/GraphQL-safe). ④ genre-NN on the tiny 443-clip gtzan is
   fuzzy (disco↔hiphop↔reggae rhythmic confusion — normal for feature-NN, not a bug).
-- **Cataloged:** ✅ existing DataHub custom-emit (`emit_qdrant`/`emit_weaviate`). Queries: [../query/qdrant.md](../query/qdrant.md) · [../query/weaviate.md](../query/weaviate.md).
+- **Cataloged:** `emit_qdrant`/`emit_weaviate` iterate ALL collections, but were **extended** (2026-07-04) to
+  detect the `datasets_*` ones and label them as dataset vector stores with lineage ← their loader
+  (`datasets_<dom>_<backend>_load`) instead of the RAG `qdrant_write`/`weaviate_write`. Runs in the 6h
+  `datahub_catalog_emit_job`. Queries: [../query/qdrant.md](../query/qdrant.md) · [../query/weaviate.md](../query/weaviate.md).
 - **Gate:** Loaded ✅ (9 collections/classes each) · Runnable ✅ · Always-on ✅ · Monitored ✅ · Cataloged ✅ · Documented ✅ · Pushed ▢.
 
 ## Store roadmap (the grid's Tier-2 targets)

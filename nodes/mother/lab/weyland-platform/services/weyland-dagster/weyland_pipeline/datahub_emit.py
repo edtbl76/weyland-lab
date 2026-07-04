@@ -162,9 +162,24 @@ def _gms_emitter() -> DatahubRestEmitter:
     return DatahubRestEmitter(gms_server=server, token=os.environ.get("DATAHUB_GMS_TOKEN", ""))
 
 
+def _vector_dataset_meta(name, backend):
+    """If this is a datasets_* vector collection/class (not a RAG one), return (description, producer_asset) so
+    it's cataloged as a dataset-domain vector store with lineage ← its loader (datasets_<dom>_<backend>_load);
+    else None → the RAG defaults. Qdrant names are `datasets_<dom>_<ds>`, Weaviate classes `Datasets<Dom>…`."""
+    low = name.lower()
+    for dom in ("music", "health"):
+        if low.startswith(f"datasets_{dom}") or low.startswith(f"datasets{dom}"):
+            kind = "collection" if backend == "qdrant" else "class"
+            return (f"{dom.capitalize()} dataset vector {kind} ({backend}) — similarity search over silver "
+                    f"features/text (datasets_lib vector loader).",
+                    f"datasets_{dom}_{backend}_load")
+    return None
+
+
 def emit_qdrant():
-    """Custom-emit one DataHub Dataset per Qdrant collection (props + a payload schema sampled from one
-    point) with lineage ← qdrant_write. Returns (count, [collection names])."""
+    """Custom-emit one DataHub Dataset per Qdrant collection (props + a payload schema sampled from one point).
+    RAG collections get lineage ← qdrant_write; datasets_* collections ← their vector loader. Returns
+    (count, [collection names])."""
     from qdrant_client import QdrantClient
 
     emitter = _gms_emitter()
@@ -194,8 +209,9 @@ def emit_qdrant():
         except Exception:  # noqa: BLE001
             pass
         urn = make_dataset_urn(platform="qdrant", name=name, env=ENV)
-        for aspect in _store_aspects(name, "qdrant", "Qdrant vector collection (RAG dense backend).",
-                                     fields, "qdrant_write", props):
+        meta = _vector_dataset_meta(name, "qdrant")
+        desc, producer = meta if meta else ("Qdrant vector collection (RAG dense backend).", "qdrant_write")
+        for aspect in _store_aspects(name, "qdrant", desc, fields, producer, props):
             emitter.emit(MetadataChangeProposalWrapper(entityUrn=urn, aspect=aspect))
         names.append(name)
     return len(names), names
@@ -221,8 +237,9 @@ def emit_weaviate():
                 for p in (cfg.properties or [])
             ]
             urn = make_dataset_urn(platform="weaviate", name=name, env=ENV)
-            for aspect in _store_aspects(name, "weaviate", "Weaviate vector class (RAG dense backend).",
-                                         fields, "weaviate_write"):
+            meta = _vector_dataset_meta(name, "weaviate")
+            desc, producer = meta if meta else ("Weaviate vector class (RAG dense backend).", "weaviate_write")
+            for aspect in _store_aspects(name, "weaviate", desc, fields, producer):
                 emitter.emit(MetadataChangeProposalWrapper(entityUrn=urn, aspect=aspect))
             names.append(name)
     finally:
