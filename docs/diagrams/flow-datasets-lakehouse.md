@@ -32,8 +32,8 @@ flowchart TB
   GOLD[("Iceberg GOLD — Nessie<br/>datasets_&lt;domain&gt;.&lt;table&gt; per-file")]
 
   subgraph STORES["Tier-2 stores — silver Parquet → store"]
-    DONE["DONE (7): MySQL · TimescaleDB · MongoDB · CockroachDB<br/>Cassandra · ClickHouse (native s3) · OpenSearch"]
-    PLAN["PLANNED: Neo4j · Qdrant · Weaviate · Feast"]
+    DONE["DONE (8): MySQL · TimescaleDB · MongoDB · CockroachDB<br/>Cassandra · ClickHouse (native s3) · OpenSearch<br/>Neo4j (graph — nodes+edges, GraphSpec)"]
+    PLAN["NEXT: Qdrant · Weaviate · Feast"]
   end
 
   DH["DataHub<br/>emit_file_dataset · iceberg source"]

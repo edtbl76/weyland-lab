@@ -29,3 +29,35 @@ kubectl -n data-mesh get secret lakefs-secret -o jsonpath='{.data.encrypt-key}' 
 ```
 — into a password manager. The pg/MinIO backup CronJobs back up the *data*, not k8s secrets, so this
 key is not otherwise protected until B69 (SealedSecrets) puts the secret shape (sealed) in git.
+
+## DataHub ingestion secrets — durable via pod ENV (not UI Secrets)
+
+**Problem:** DataHub UI-entered Secrets live in the GMS metadata store — **any GMS/system-DB reset wipes them**,
+and every secret-backed managed-ingestion source then fails at once (`connection … no password supplied`,
+`requires authentication`). The tell: postgres/neo4j/grafana/mongo all red while trino/mlflow (no secret refs)
+stay green.
+
+**Durable fix:** recipe `${VAR}` refs resolve from the **`acryl-datahub-actions` pod ENV** (ingestion runs as
+its subprocess), not only UI Secrets. So inject the creds as `extraEnvs` (`secretKeyRef`, `optional: true`) on
+`acryl-datahub-actions` in `k8s/data-mesh/datahub-values.yaml`, from a k8s Secret
+**`data-mesh/datahub-ingestion-secrets`** (created out-of-band — a k8s object survives GMS resets). Keys:
+`WEYLAND_PG_PASSWORD` / `NEO4J_PASSWORD` / `MONGO_PASSWORD` (all = `weyland_dev_password`) + `GRAFANA_SA_TOKEN` +
+`MINIO_ACCESS_KEY`/`MINIO_SECRET_KEY`. The `.recipe.yaml` files in `k8s/data-mesh/datahub-ingestion/` are the
+source-of-record → after a wipe, re-paste the recipe into the UI source and creds auto-resolve from env, **no
+secret re-entry**.
+
+```
+kubectl -n data-mesh create secret generic datahub-ingestion-secrets \
+  --from-literal=WEYLAND_PG_PASSWORD='weyland_dev_password' \
+  --from-literal=NEO4J_PASSWORD='weyland_dev_password' \
+  --from-literal=MONGO_PASSWORD='weyland_dev_password' \
+  --from-literal=GRAFANA_SA_TOKEN='<glsa_…>' \
+  --dry-run=client -o yaml | kubectl apply -f -
+```
+
+**Gotchas:** ① **Mongo** — the DataHub mongodb source needs creds IN the connect_uri
+(`mongodb://weyland:${MONGO_PASSWORD}@mongodb.data-mesh.svc.cluster.local:27017/?authSource=admin`), and you must
+**edit the live UI source** — re-running ≠ applying the recipe file. ② **Grafana** — the SA token is shown once
+and unrecoverable; SSO hides the UI token page, so mint via the local-admin API in a throwaway curl pod
+(`grafana-admin` secret → `POST /api/serviceaccounts` → `/tokens`). ③ verify with
+`kubectl -n data-mesh exec deploy/datahub-acryl-datahub-actions -- printenv WEYLAND_PG_PASSWORD NEO4J_PASSWORD MONGO_PASSWORD GRAFANA_SA_TOKEN`.

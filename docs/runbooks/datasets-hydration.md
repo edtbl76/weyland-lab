@@ -174,9 +174,35 @@ constraint) — a `mysqld-exporter` is the follow-up. Same 7-point gate applies 
   session_id` → **add** `databaseTerm=schema` in Advanced (don't remove it, don't downgrade the driver). ⑤ DataHub
   recipe: HTTP `:8123`, `password` set, `database_pattern` allow the two dbs (profiling cheap — columnar counts).
 - **Cataloged:** DataHub native `clickhouse` source. Weekly Sun 04:30 ([../schedules.md](../schedules.md)).
-- **KNOWN GAP:** `fma_tracks` silver has 3 accumulated copies (canonical + dup + shards) → duplicate/fragmented
-  ClickHouse tables. Silver-hygiene cleanup pending (don't glob — it'd triple-count).
+- **fma_tracks fixed (2026-07-03):** its silver was corrupt (the FMA land read a single-header `tracks.csv` with
+  `header=[0,1]`, baking row-0 data into the column names) → the ClickHouse table was junk. Root-caused + fixed
+  at the land (`header=0`), re-transformed, and **reloaded clean** (109,727 rows, native s3()).
 - **Gate:** Loaded ✅ · Runnable ✅ · Always-on ✅ · Monitored ✅ (`ClickhouseDown`) · Cataloged ✅ · Documented ✅ · Pushed ▢.
+
+## Neo4j (store #11 — GRAPH, B1 2026-07-03)
+
+- **Targets (grid `Neo4j=Y`):** the relationship-shaped MUSIC sets only — `fma_genres` (genre tree), `lastfm`
+  (user↔artist plays), `fma_tracks` (track↔artist/album/genre), `audioset` (clip↔labels). musicbrainz → N (flat
+  mbid dictionary, no edges); UCI/Big Five dropped (grid said "graph" but the data has no relationships).
+- **Deploy:** the existing always-on neo4j (ns `weyland`, +APOC/GDS) — the RAG/AIDLC graph host, now ALSO the
+  dataset graph store. Bumped **2G heap / 2G pagecache / 5Gi** for the ~14M-edge lastfm load. Stays MESHED via a
+  `neo4j-bolt` DestinationRule (TCP keepalive). `k8s/neo4j.yaml`.
+- **Loader:** `datasets_music_neo4j_load` (`neo4j_allow = {dataset: GraphSpec}`). A GraphSpec declares
+  `nodes[] + edges[]` from parquet columns; loader creates a uniqueness constraint per key, clean-rebuilds only
+  its `clear_labels`, then batches nodes MERGE + edges MATCH…CREATE. Model: [../diagrams/graph-music-model.md](../diagrams/graph-music-model.md).
+- **Gotchas:** ① **CREATE not MERGE for edges** — MERGE-rel into a supernode (radiohead ~40k listeners) is
+  O(degree) → never finishes; silver has unique pairs so CREATE is safe. ② **key-size guard** — a 120KB garbage
+  artist_name blew the RANGE index → keys >1000 chars skipped. ③ **Bolt half-open stall** — one long-lived Bolt
+  connection through the Istio sidecar half-closes mid-load → driver hangs forever (both pods idle, no txn); fix
+  = the DestinationRule keepalive + per-batch auto-retried `execute_write` (do NOT pull neo4j from the mesh). ④
+  **shared labels** — `:Artist`/`:Genre` span datasets → `clear_labels` omits them so a fma_tracks reload can't
+  wipe lastfm's PLAYS. ⑤ **multi-value cols** — `dst_list` (audioset human_labels) / `dst_list_key` (fma_tracks
+  track_genres list-of-dicts → genre_id, int-coerced to match the tree).
+- **Load ONE dataset** (without re-clearing lastfm's 13.85M): call `loaders._load_dataset_to_neo4j(...)` directly
+  in the dagster-user-code pod — materializing the whole asset re-does every dataset.
+- **Cataloged:** N/A — DataHub has no native source for an arbitrary node/edge model. Browse via Neo4j Browser /
+  NeoDash; importable favorites + dashboard in [../query/](../query/neo4j.md).
+- **Gate:** Loaded ✅ · Runnable ✅ · Always-on ✅ · Monitored ✅ (neo4j liveness) · Cataloged N/A · Documented ✅ · Pushed ▢.
 
 ## Store roadmap (the grid's Tier-2 targets)
 
@@ -184,7 +210,7 @@ constraint) — a `mysqld-exporter` is the follow-up. Same 7-point gate applies 
 |---|---|---|---|
 | **MySQL** | ✅ always-on | ✅ **done** | health: nhanes, big_five, who_gho, cdc_physical_activity, brfss, nhis |
 | TimescaleDB | ✅ | ✅ **done** | who_gho (country/year → 8 hypertables). Last.fm **skipped** — its silver is lifetime playcounts, no per-listen timestamps (not a real time-series) |
-| Neo4j | ✅ (RAG) | ▢ | graphs: fma_genres, fma_tracks, uci, lastfm, musicbrainz, audioset, big_five |
+| **Neo4j** | ✅ always-on | ✅ **done** | GRAPH (music): fma_genres tree · lastfm ~13.85M PLAYS · fma_tracks (BY/ON/IN_GENRE) · audioset (HAS_LABEL). musicbrainz/uci/big_five → N (flat, no edges) |
 | OpenSearch | ✅ (RAG) | ▢ | search: fma_tracks, uci, musicbrainz, lp_musiccaps_*, audioset, usda, open_food_facts |
 | Qdrant / Weaviate | ✅ (RAG) | ▢ | vector similarity (the Lance-allowlisted sets) |
 | ClickHouse | ✅ always-on | ✅ **done** | music: fma_tracks, uci, musicbrainz-subset, lp_musiccaps, audioset · health: usda, open_food_facts (native s3() ingest) |

@@ -392,7 +392,7 @@ flowchart LR
     NM["datasets_music.*"]
     NH["datasets_health.*"]
   end
-  STORES["Tier-2 stores — PLANNED (data-store-mageddon)\nMySQL · Mongo · ClickHouse · Cassandra · CockroachDB\nNeo4j · OpenSearch · Qdrant · Weaviate · Feast"]
+  STORES["Tier-2 stores (data-store-mageddon)\nDONE: MySQL · Timescale · Mongo · Cockroach · Cassandra\nClickHouse · OpenSearch · Neo4j (graph)\nNEXT: Qdrant · Weaviate · Feast"]
   LAND --> LM
   LAND --> LH
   LM --> BROKER
@@ -403,9 +403,22 @@ flowchart LR
   BROKER --> LN
   BROKER --> NM
   BROKER --> NH
-  PQ -. planned .-> STORES
-  LN -. planned .-> STORES
+  PQ --> STORES
 ```
+
+**Neo4j — the graph store (grid Neo4j=Y, B1).** Every other Tier-2 store is one-file-one-container; Neo4j is
+**selective + modeled** — only relationship-shaped datasets become graphs, and they *share node labels* so
+separate datasets fuse into one connected graph rather than four islands. The `datasets_lib` **GraphSpec**
+loader (per-dataset `neo4j_allow`: `nodes[] + edges[]`) creates a uniqueness constraint per key, clean-rebuilds
+only its own `clear_labels` (protecting shared labels), then batch-loads nodes `MERGE` + edges `MATCH…CREATE`
+(MERGE-relationship into a supernode is O(degree) — fatal at lastfm's ~14M edges). Loaded: **lastfm**
+`(:User)-[:PLAYS {play_count}]->(:Artist)` ~13.85M, **fma_genres** `:Genre` taxonomy tree, **fma_tracks**
+`(:Track)-[:BY]->(:Artist)`/`-[:ON]->(:Album)`/`-[:IN_GENRE]->(:Genre)`, **audioset** `(:Clip)-[:HAS_LABEL]->(:Label)`.
+`:Artist` (lastfm ↔ fma_tracks) and `:Genre` (tree ↔ fma_tracks) are the fusion points → one graph:
+*listeners → artists ← tracks → albums, tracks → genre tree*. musicbrainz is N (flat, no edges). Neo4j stays
+meshed via a `neo4j-bolt` DestinationRule (TCP keepalive — long Bolt bulk-load connections half-open behind
+Envoy otherwise). Full data model: [diagrams/graph-music-model.md](diagrams/graph-music-model.md); queries:
+[query/neo4j.md](query/neo4j.md). (The same DB also holds the RAG `:Document`/`:Chunk` and AIDLC `:Entry` graphs.)
 
 ---
 
