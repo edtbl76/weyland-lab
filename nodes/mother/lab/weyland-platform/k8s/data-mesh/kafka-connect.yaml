@@ -57,6 +57,22 @@ spec:
           resources:
             requests: { cpu: 100m, memory: 256Mi }
             limits: { memory: 1Gi }
+          volumeMounts:
+            - name: confluent-avro
+              mountPath: /kafka/connect/confluent-avro   # Connect discovers the converter here (it's on plugin.path)
+      # Stage the Confluent Avro converter into the plugin path — the debezium/connect image doesn't bundle
+      # io.confluent.connect.avro.AvroConverter. cp-kafka-connect's kafka-serde-tools IS the self-contained
+      # avro-converter + schema-registry-client bundle; copy it into the shared volume so Connect loads it.
+      initContainers:
+        - name: install-avro-converter
+          image: confluentinc/cp-kafka-connect:7.7.0
+          command: ["sh", "-c", "cp -a /usr/share/java/kafka-serde-tools/. /confluent-avro/ && echo 'avro converter staged'"]
+          volumeMounts:
+            - name: confluent-avro
+              mountPath: /confluent-avro
+      volumes:
+        - name: confluent-avro
+          emptyDir: {}
 ---
 apiVersion: v1
 kind: Service
