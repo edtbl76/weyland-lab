@@ -1,0 +1,89 @@
+# Kafka Connect worker (B1.5 CDC) — the Debezium runtime. Debezium connectors ARE Kafka Connect plugins, so
+# CDC = this worker + a Postgres connector (registered via its REST API). Talks to Redpanda as its Kafka
+# (BOOTSTRAP) — one broker serves streaming + CDC, no separate Apache Kafka. Sidecar OFF: Connect holds
+# long-lived connections to both Redpanda and Postgres (opaque TCP) — a meshed client → non-meshed here is fine
+# under PERMISSIVE, and it dodges the half-open-behind-Envoy stall class. JSON converter for v1 (proves the
+# pipeline; Avro-via-Confluent-converter against Redpanda's registry is a follow-on needing converter jars).
+# Internal topics RF=1 (single-node Redpanda). REST on 8083. See docs/runbooks (redpanda/cdc) + backlog B1.5.
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kafka-connect
+  namespace: data-mesh
+  labels:
+    app: kafka-connect
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: kafka-connect
+  template:
+    metadata:
+      labels:
+        app: kafka-connect
+      annotations:
+        sidecar.istio.io/inject: "false"
+    spec:
+      containers:
+        - name: connect
+          image: quay.io/debezium/connect:3.0.0.Final    # Debezium 3.x — Java 17; bump if PG18 needs a newer build
+          ports:
+            - { containerPort: 8083, name: rest }
+          env:
+            - name: BOOTSTRAP_SERVERS
+              value: redpanda.data-mesh.svc.cluster.local:9092
+            - name: GROUP_ID
+              value: weyland-connect
+            - name: CONFIG_STORAGE_TOPIC
+              value: _connect_configs
+            - name: OFFSET_STORAGE_TOPIC
+              value: _connect_offsets
+            - name: STATUS_STORAGE_TOPIC
+              value: _connect_statuses
+            # single-node Redpanda → internal topics MUST be RF=1 (default 3 would fail to create)
+            - { name: CONFIG_STORAGE_REPLICATION_FACTOR, value: "1" }
+            - { name: OFFSET_STORAGE_REPLICATION_FACTOR, value: "1" }
+            - { name: STATUS_STORAGE_REPLICATION_FACTOR, value: "1" }
+            - name: KEY_CONVERTER
+              value: org.apache.kafka.connect.json.JsonConverter
+            - name: VALUE_CONVERTER
+              value: org.apache.kafka.connect.json.JsonConverter
+          readinessProbe:
+            httpGet: { path: /connectors, port: 8083 }
+            initialDelaySeconds: 20
+            periodSeconds: 10
+            failureThreshold: 6
+          resources:
+            requests: { cpu: 100m, memory: 256Mi }
+            limits: { memory: 1Gi }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: kafka-connect
+  namespace: data-mesh
+  labels:
+    app: kafka-connect
+spec:
+  selector:
+    app: kafka-connect
+  ports:
+    - { name: rest, port: 8083 }
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: kafka-connect-alerts
+  namespace: data-mesh
+  labels: { app: kafka-connect }
+spec:
+  groups:
+    - name: kafka-connect
+      rules:
+        - alert: KafkaConnectDown
+          expr: kube_deployment_status_replicas_available{namespace="data-mesh", deployment="kafka-connect"} == 0
+          for: 5m
+          labels: { severity: warning }
+          annotations:
+            summary: "Kafka Connect (Debezium) has 0 available replicas — CDC is down (Postgres change events not flowing)."
