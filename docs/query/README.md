@@ -16,6 +16,7 @@ syntax demos.
 | Neo4j | [neo4j.md](neo4j.md) | graphs — music datasets (genre tree, lastfm listens) + AIDLC methodology (`:Entry`) + RAG (`Document`/`Chunk`) + GDS; importable favorites: [AIDLC](neo4j-aidlc-favorites.csv) / [Music](neo4j-music-favorites.csv) |
 | Qdrant | [qdrant.md](qdrant.md) | vector similarity — audio-feature + caption vectors (fma_features/echonest, uci, spotify, gtzan, lp_musiccaps, audioset, big_five); collection per dataset |
 | Weaviate | [weaviate.md](weaviate.md) | same dataset vectors as Qdrant (class per dataset, BYO vectors) — two backends |
+| Redpanda | [redpanda.md](redpanda.md) | streaming — Avro event topics (`datasets.*`) + Debezium CDC (`cdc.*`); rpk/consume, schema registry, CDC envelope |
 
 **Connecting:** each store's access (svc / ingress / port-forward / creds) is in its runbook and
 [../hosts.md](../hosts.md). Most are reachable from IntelliJ via the k8s-plugin port-forward, or in-pod via

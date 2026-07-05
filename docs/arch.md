@@ -434,6 +434,29 @@ OCEAN items). fma_tracks dropped (metadata, not features — sound-similarity is
 [query/weaviate.md](query/weaviate.md). The FMA family literally **splits by file** — `tracks`/`genres` → graph,
 `features`/`echonest` → vector, joined by `track_id`.
 
+### 7c. Streaming (Redpanda / CDC, B1.5)
+
+The other stores hold **state** (silver → table/collection/graph); the streaming tier holds **events** (topics).
+**Redpanda** (`redpanda.data-mesh.svc`, single-node, KRaft, sidecar off) is the Kafka-wire broker + a built-in
+Confluent-compatible **Schema Registry** in one binary — chosen over Strimzi/Apache-Kafka for lab weight, and
+kept isolated from DataHub's *internal* Kafka (its metadata bus) so a DataHub reset can't nuke our topics
+(mirrors the "ES as its own service" B1.3 call). Two producers feed it, both Avro in **Confluent wire format**
+(5-byte magic-byte + schema-id prefix → schema by reference, not embedded):
+
+- **Event replay** — `datasets_<dom>_stream_produce` (Dagster) replays stream-shaped silver (lastfm, big_five,
+  brfss, nhis) → `datasets.<dom>.<ds>` topics via confluent-kafka's AvroSerializer.
+- **CDC** — a **Debezium** Postgres connector on a **Kafka Connect** worker captures `musicbrainz-postgres`
+  changes (`public.cdc_demo`) → `cdc.musicbrainz.public.cdc_demo`, streaming insert/update/delete with full
+  before/after images. Safety rests on `wal_level=logical` + the `max_slot_wal_keep_size=4GB` **seatbelt** (a
+  stalled slot self-invalidates instead of filling the disk) + `REPLICA IDENTITY FULL` (complete old-row image);
+  CDC runs only on the *isolated, reproducible* MusicBrainz instance, never the core control-plane Postgres.
+
+**DataHub** catalogs it via the native `kafka` source pointed at Redpanda (topics + registered schemas — closed
+the last B65 target). Diagrams: [diagrams/flow-streaming.md](diagrams/flow-streaming.md) (producer + CDC +
+catalog) · [diagrams/flow-cdc.md](diagrams/flow-cdc.md) (the CDC internals). Runbook:
+[runbooks/streaming.md](runbooks/streaming.md). Queries: [query/redpanda.md](query/redpanda.md). Follow-ons:
+Strimzi on-demand learning lane + a KEDA consumer-lag scaler (recorded, not built).
+
 ---
 
 ## 8. Model serving

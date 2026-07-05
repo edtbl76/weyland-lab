@@ -61,6 +61,11 @@ flowchart TB
   GOLD --> DH
 ```
 
+**Streaming sink (B1.5):** beyond the batch store hydration, silver also feeds the **streaming** tier — the
+`datasets_<dom>_stream_produce` assets replay stream-shaped silver (lastfm, big_five, brfss, nhis) as **Avro
+events** into Redpanda topics, and Debezium streams Postgres CDC alongside. That's a separate flow (events, not
+tables): [flow-streaming.md](flow-streaming.md) · [flow-cdc.md](flow-cdc.md).
+
 **Layers:** land (bronze) → transform (silver + gold) → quality gate → store hydration. Cleaning
 (name-normalize, null-coerce, delimiter fixes) lives in the transform/land; the checks *validate* (they
 don't mutate); a bad silver blocks hydration via the `no_failures` check on parquet.
