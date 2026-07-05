@@ -247,6 +247,41 @@ def emit_weaviate():
     return len(names), names
 
 
+def emit_lancedb():
+    """Custom-emit LanceDB tables as DataHub Datasets (platform lancedb) with schema (vector col + payload) +
+    lineage ← datasets_<dom>_lancedb_load. LanceDB is EMBEDDED (no server) — we connect in-process per domain
+    over the lakeFS S3 gateway (same as the loader) and read each table's Arrow schema. Returns (count, names)."""
+    from weyland_pipeline.assets.datasets_lib.loaders import _lancedb_connect
+    from weyland_pipeline.assets.datasets_health_transform import HEALTH_CFG
+    from weyland_pipeline.assets.datasets_music_transform import MUSIC_CFG
+
+    emitter = _gms_emitter()
+    names = []
+    for cfg in (MUSIC_CFG, HEALTH_CFG):
+        if not (cfg.lancedb_allow or cfg.vector_allow):
+            continue
+        db = _lancedb_connect(cfg)
+        lt = db.list_tables()
+        table_names = lt.tables if hasattr(lt, "tables") else list(lt)
+        for table in table_names:
+            schema = db.open_table(table).schema
+            fields = [
+                SchemaFieldClass(fieldPath=f.name, type=_field_type(str(f.type)), nativeDataType=str(f.type))
+                for f in schema
+            ]
+            name = f"datasets_{cfg.domain}_{table}"
+            urn = make_dataset_urn(platform="lancedb", name=name, env=ENV)
+            for aspect in _store_aspects(
+                name, "lancedb",
+                f"LanceDB table ({cfg.domain}) — embedded, Lance-native vector store on the lakeFS S3 gateway "
+                "(ANN search in-process, no server).",
+                fields, f"datasets_{cfg.domain}_lancedb_load",
+            ):
+                emitter.emit(MetadataChangeProposalWrapper(entityUrn=urn, aspect=aspect))
+            names.append(name)
+    return len(names), names
+
+
 def emit_lakefs():
     """Custom-emit a DataHub Dataset per lakeFS repository (storage namespace + default branch + latest
     commit, with lineage ← datasets_commit). No native DataHub connector for lakeFS. Returns (count, names)."""

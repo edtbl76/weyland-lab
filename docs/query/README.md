@@ -17,6 +17,7 @@ syntax demos.
 | Qdrant | [qdrant.md](qdrant.md) | vector similarity — audio-feature + caption vectors (fma_features/echonest, uci, spotify, gtzan, lp_musiccaps, audioset, big_five); collection per dataset |
 | Weaviate | [weaviate.md](weaviate.md) | same dataset vectors as Qdrant (class per dataset, BYO vectors) — two backends |
 | Redpanda | [redpanda.md](redpanda.md) | streaming — Avro event topics (`datasets.*`) + Debezium CDC (`cdc.*`); rpk/consume, schema registry, CDC envelope |
+| LanceDB | [lancedb.md](lancedb.md) | embedded/serverless vector store (Lance-native, on object storage) — same vectors as Qdrant/Weaviate, queried in-process |
 
 **Connecting:** each store's access (svc / ingress / port-forward / creds) is in its runbook and
 [../hosts.md](../hosts.md). Most are reachable from IntelliJ via the k8s-plugin port-forward, or in-pod via
