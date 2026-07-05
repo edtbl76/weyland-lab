@@ -1,0 +1,24 @@
+# Weyland Feast feature store (grid Feast). All-Postgres offline + Valkey online — the most reliable combo for
+# a lab (no S3-endpoint / Trino-contrib fiddliness). Registry + offline source tables live in the `feast` DB on
+# weyland-postgres; online serving in Valkey (Redis-compatible, already up). Two feature views (see
+# definitions.py): a STATIC track_audio_features (registry + online serving) and a TIME-VARYING
+# state_health_risk (point-in-time joins). Passwords come from env (${VAR}) — set on the dagster pod + the
+# feast-server pod. See docs/runbooks (feast) + backlog B1.8.
+project: weyland
+provider: local
+registry:
+  registry_type: sql
+  path: postgresql://weyland:${WEYLAND_PG_PASSWORD}@weyland-postgres.weyland.svc.cluster.local:5432/feast
+  cache_ttl_seconds: 60
+offline_store:
+  type: postgres
+  host: weyland-postgres.weyland.svc.cluster.local
+  port: 5432
+  database: feast
+  db_schema: public
+  user: weyland
+  password: ${WEYLAND_PG_PASSWORD}
+online_store:
+  type: redis
+  connection_string: valkey.data-mesh.svc.cluster.local:6379
+entity_key_serialization_version: 2

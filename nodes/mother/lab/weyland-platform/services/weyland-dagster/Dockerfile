@@ -13,6 +13,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 RUN python -c "from sentence_transformers import SentenceTransformer; SentenceTransformer('BAAI/bge-small-en-v1.5')"
 
 COPY weyland_pipeline/ ./weyland_pipeline/
+COPY feast_repo/ ./feast_repo/
 
 EXPOSE 4000
 

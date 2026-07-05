@@ -59,3 +59,6 @@ lancedb
 # kubernetes — the lancedb_sync sensor launches the mc-mirror Job in data-mesh (from the lancedb-sync CronJob
 # template) when a lancedb load materializes → event-triggered viewer sync (in-cluster API).
 kubernetes
+# feast — feature store (grid Feast): Postgres registry + offline, Valkey(redis) online. Capability = low-latency
+# feature serving by entity key + point-in-time-correct training retrieval. Repo in feast_repo/.
+feast[redis,postgres]
