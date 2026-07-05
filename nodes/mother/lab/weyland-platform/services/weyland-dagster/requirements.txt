@@ -56,3 +56,6 @@ confluent-kafka[avro]
 # lancedb — embedded, Lance-format-native vector DB (grid LanceDB). Serverless (no pod) — writes tables to the
 # lakeFS S3 gateway + does ANN search in-process; the object-storage-native counterpart to Qdrant/Weaviate.
 lancedb
+# kubernetes — the lancedb_sync sensor launches the mc-mirror Job in data-mesh (from the lancedb-sync CronJob
+# template) when a lancedb load materializes → event-triggered viewer sync (in-cluster API).
+kubernetes

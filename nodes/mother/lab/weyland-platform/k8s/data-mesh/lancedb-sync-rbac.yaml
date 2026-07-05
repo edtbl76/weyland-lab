@@ -1,0 +1,30 @@
+# RBAC for the event-triggered LanceDB viewer sync. The Dagster `lancedb_sync_sensor` (running as the `default`
+# SA in the `weyland` ns) reads the `lancedb-sync` CronJob template and creates a mc-mirror Job in `data-mesh`
+# when a lancedb load materializes. A RoleBinding in data-mesh can bind a subject SA from another namespace.
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: lancedb-sync-launcher
+  namespace: data-mesh
+rules:
+  - apiGroups: ["batch"]
+    resources: ["cronjobs"]
+    verbs: ["get"]
+  - apiGroups: ["batch"]
+    resources: ["jobs"]
+    verbs: ["create", "get", "list"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: lancedb-sync-launcher
+  namespace: data-mesh
+subjects:
+  - kind: ServiceAccount
+    name: default
+    namespace: weyland          # the dagster user-code pod's SA (cross-namespace subject)
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: lancedb-sync-launcher
