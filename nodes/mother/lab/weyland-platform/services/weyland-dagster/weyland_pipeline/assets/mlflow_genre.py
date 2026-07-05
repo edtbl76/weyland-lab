@@ -58,17 +58,20 @@ def _train_and_log(df, source, log) -> dict:
     Xtr, Xte, ytr, yte = train_test_split(X, y, test_size=0.2, random_state=42, stratify=y)
     mlflow.set_tracking_uri(_MLFLOW)
     mlflow.set_experiment("genre-classifier")
-    log.info(f"[{source}] training RandomForest (200 trees) on {len(Xtr):,} rows × {len(_AUDIO)} features, "
-             f"{df['track_genre'].nunique()} classes — verbose, watch stdout for per-tree progress…")
+    log.info(f"[{source}] training RandomForest (100 trees, max_depth 20) on {len(Xtr):,} rows × {len(_AUDIO)} "
+             f"features, {df['track_genre'].nunique()} classes — verbose, watch stdout for per-tree progress…")
     with mlflow.start_run(run_name=f"genre-{source}"):
-        # verbose=2 → sklearn prints per-tree build progress to stdout (Dagster compute logs) so a long fit
-        # narrates itself instead of showing "Started" in silence.
-        clf = RandomForestClassifier(n_estimators=200, random_state=42, n_jobs=-1, verbose=2).fit(Xtr, ytr)
+        # BOUNDED: n_estimators + max_depth cap the forest's memory — the UNBOUNDED default (200 deep trees ×
+        # 113-class value arrays) OOM-killed the pod (exit 137). verbose=2 → per-tree progress to stdout so the
+        # fit narrates itself (Dagster UI doesn't surface these logs here — tail the pod).
+        clf = RandomForestClassifier(n_estimators=100, max_depth=20, random_state=42,
+                                     n_jobs=-1, verbose=2).fit(Xtr, ytr)
         log.info(f"[{source}] fit complete — scoring + logging the model to MLflow…")
         pred = clf.predict(Xte)
         acc, f1 = float(accuracy_score(yte, pred)), float(f1_score(yte, pred, average="macro"))
-        mlflow.log_params({"model": "RandomForestClassifier", "n_estimators": 200, "feature_source": source,
-                           "n_features": len(_AUDIO), "n_classes": int(df["track_genre"].nunique()), "n_rows": len(df)})
+        mlflow.log_params({"model": "RandomForestClassifier", "n_estimators": 100, "max_depth": 20,
+                           "feature_source": source, "n_features": len(_AUDIO),
+                           "n_classes": int(df["track_genre"].nunique()), "n_rows": len(df)})
         mlflow.log_metrics({"accuracy": acc, "f1_macro": f1})
         mlflow.sklearn.log_model(clf, "model", registered_model_name="genre_classifier")
     log.info(f"genre-{source}: acc={acc:.3f} f1={f1:.3f} over {df['track_genre'].nunique()} genres, {len(df)} rows")
