@@ -39,8 +39,8 @@ spec:
             initialDelaySeconds: 15
             periodSeconds: 10
           resources:
-            requests: { cpu: 100m, memory: 256Mi }
-            limits: { memory: 512Mi }
+            requests: { cpu: 100m, memory: 512Mi }
+            limits: { memory: 1536Mi }   # feast serve imports the full feast stack in the heavy dagster image — 512Mi OOM'd
 ---
 apiVersion: v1
 kind: Service
