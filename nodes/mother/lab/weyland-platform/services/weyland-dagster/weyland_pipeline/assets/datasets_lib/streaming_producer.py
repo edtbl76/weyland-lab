@@ -67,7 +67,7 @@ def _produce_dataset(cfg, dataset, spec, log) -> dict:
         tmp = tempfile.NamedTemporaryFile(suffix=".parquet", delete=False)
         tmp.close()
         try:
-            mc.fget_object(cfg.repo, obj.object_name, tmp.name)
+            mc.fget_object(cfg.repo, obj, tmp.name)   # obj is already the object_name string
             pf = pq.ParquetFile(tmp.name)
             if ser is None:   # schema from the first file (all files share it)
                 schema_str, str_cols = _avro_schema(pf.schema_arrow, f"datasets_{cfg.domain}_{dataset}_record")
