@@ -1,0 +1,152 @@
+# Lance Data Viewer (grid LanceDB — the browse UI) + its sync job. LanceDB is EMBEDDED and our tables live on
+# the lakeFS S3 gateway, but the viewer (github.com/lance-format/lance-data-viewer) is FILESYSTEM-ONLY (mounts a
+# folder at /data, no S3). So a CronJob `mc mirror`s the Lance tables from lakeFS → a PVC the viewer reads RO.
+# Keeps the S3 backing as source-of-truth (loader/emit/query unchanged); the viewer is a read-only mirror.
+# Single-node k3s → the sync pod (RW, brief) + viewer pod (RO, continuous) both mount the RWO PVC on the one node.
+# UI at lancedb.weyland.lab (forward-auth). See docs/runbooks/datasets-hydration.md + query/lancedb.md.
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: lancedb-viewer-data
+  namespace: data-mesh
+spec:
+  accessModes: ["ReadWriteOnce"]
+  storageClassName: local-path
+  resources:
+    requests:
+      storage: 10Gi
+---
+# Mirror the Lance tables from both domains' lakeFS dbs into one flat folder (table names don't collide across
+# music/health). No --remove (two sources → one dir), so a dropped dataset lingers until manual cleanup — fine.
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: lancedb-sync
+  namespace: data-mesh
+spec:
+  schedule: "0 */6 * * *"          # every 6h — data changes only on the on-demand lancedb loads
+  timeZone: America/New_York
+  concurrencyPolicy: Forbid
+  jobTemplate:
+    spec:
+      template:
+        metadata:
+          annotations:
+            sidecar.istio.io/inject: "false"
+        spec:
+          restartPolicy: OnFailure
+          containers:
+            - name: mc
+              image: minio/mc:latest
+              env:
+                - name: LAKEFS_ACCESS_KEY_ID
+                  valueFrom: { secretKeyRef: { name: lakefs-creds, key: LAKEFS_ACCESS_KEY_ID } }
+                - name: LAKEFS_SECRET_ACCESS_KEY
+                  valueFrom: { secretKeyRef: { name: lakefs-creds, key: LAKEFS_SECRET_ACCESS_KEY } }
+              command: ["sh", "-c"]
+              args:
+                - |
+                  set -e
+                  mc alias set lakefs http://lakefs.data-mesh.svc.cluster.local:8000 "$LAKEFS_ACCESS_KEY_ID" "$LAKEFS_SECRET_ACCESS_KEY"
+                  mc mirror --overwrite lakefs/music/main/lancedb /data
+                  mc mirror --overwrite lakefs/health/main/lancedb /data
+                  echo "lancedb sync done:"; ls -1 /data
+              volumeMounts:
+                - name: data
+                  mountPath: /data
+          volumes:
+            - name: data
+              persistentVolumeClaim:
+                claimName: lancedb-viewer-data
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: lancedb-viewer
+  namespace: data-mesh
+  labels:
+    app: lancedb-viewer
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate            # single RWO PVC — kill-old-before-new
+  selector:
+    matchLabels:
+      app: lancedb-viewer
+  template:
+    metadata:
+      labels:
+        app: lancedb-viewer
+      annotations:
+        sidecar.istio.io/inject: "false"
+    spec:
+      containers:
+        - name: viewer
+          image: ghcr.io/lance-format/lance-data-viewer:lancedb-0.33.0
+          ports:
+            - { containerPort: 8080, name: http }
+          env:
+            - { name: DATA_PATH, value: /data }
+            - { name: PORT, value: "8080" }
+          volumeMounts:
+            - name: data
+              mountPath: /data
+              readOnly: true
+          resources:
+            requests: { cpu: 50m, memory: 128Mi }
+            limits: { memory: 512Mi }
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: lancedb-viewer-data
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: lancedb-viewer
+  namespace: data-mesh
+  labels:
+    app: lancedb-viewer
+spec:
+  selector:
+    app: lancedb-viewer
+  ports:
+    - { name: http, port: 8080 }
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: lancedb-viewer
+  namespace: data-mesh
+  annotations:
+    traefik.ingress.kubernetes.io/router.middlewares: data-mesh-traefik-forward-auth@kubernetescrd
+spec:
+  tls:
+    - hosts: [lancedb.weyland.lab]
+      secretName: weyland-wildcard-tls
+  rules:
+    - host: lancedb.weyland.lab
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service: { name: lancedb-viewer, port: { number: 8080 } }
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: lancedb-viewer-alerts
+  namespace: data-mesh
+  labels: { app: lancedb-viewer }
+spec:
+  groups:
+    - name: lancedb-viewer
+      rules:
+        - alert: LanceDBViewerDown
+          expr: kube_deployment_status_replicas_available{namespace="data-mesh", deployment="lancedb-viewer"} == 0
+          for: 10m
+          labels: { severity: warning }
+          annotations:
+            summary: "Lance Data Viewer has 0 available replicas — the LanceDB browse UI is down (data still intact on lakeFS)."
