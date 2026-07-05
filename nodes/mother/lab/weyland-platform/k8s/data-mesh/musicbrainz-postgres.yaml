@@ -36,6 +36,19 @@ spec:
         - name: postgres
           image: postgres:18    # MB's current server requires PostgreSQL 18+ (InitDb enforces it); the official
                                 # image bundles the contrib extensions (cube, earthdistance) the MB schema needs
+          # CDC (B1.5 Debezium): wal_level=logical enables logical replication (the Debezium source). The
+          # SEATBELT is max_slot_wal_keep_size=4GB — if a stalled Debezium slot exceeds it, Postgres INVALIDATES
+          # the slot instead of retaining WAL until the disk fills (worst case = "CDC stops", never "DB down").
+          # (postgres entrypoint prepends `postgres` when the first arg starts with `-`, so these are server flags.)
+          args:
+            - "-c"
+            - "wal_level=logical"
+            - "-c"
+            - "max_slot_wal_keep_size=4GB"
+            - "-c"
+            - "max_wal_senders=10"
+            - "-c"
+            - "max_replication_slots=10"
           envFrom:
             - secretRef:
                 name: musicbrainz-postgres-secret   # imperative (POSTGRES_PASSWORD = superuser) — not in git
