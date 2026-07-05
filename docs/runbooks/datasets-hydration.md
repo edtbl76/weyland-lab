@@ -249,6 +249,32 @@ constraint) — a `mysqld-exporter` is the follow-up. Same 7-point gate applies 
   **imperatively** (not in git); recreate on a data-mesh rebuild. See [[datahub-ingestion-secrets-durable]] class.
 - **Gate:** Loaded ✅ · Queryable ✅ · Cataloged ✅ · Browsable ✅ (viewer) · Auto-synced ✅ (sensor) · Pushed ▢.
 
+## Feast (feature store, B1.8, 2026-07-05)
+
+- **What:** a feature store — same feature *defined once*, served online (low-latency by entity key, Valkey) +
+  offline (point-in-time training retrieval, Postgres), with a Postgres registry. A NEW access pattern, not a
+  data copy (vector=similarity, OLAP=aggregate, Feast=point-serving-by-key + leakage-free training).
+- **Views (2, honest cut from the grid's 14):** `track_audio_features` (entity `track`, spotify 11 audio
+  features — static/serving half) + `state_health_risk` (entity `state`, BRFSS diabetes/asthma/COPD/depression
+  crude-prevalence % per year — time-varying/point-in-time half). Dropped the rest (static matrices = redundant
+  KV; per-respondent sets = no time entity). One real measure per condition (NOT a mean of heterogeneous
+  Data_value — that'd be nonsense).
+- **Stores:** registry + offline = Postgres `feast` DB; online = **Valkey**. Repo = `services/weyland-dagster/
+  feast_repo/` (`feature_store.yaml` + `definitions.py`, baked into the image via the Dockerfile COPY).
+- **Build:** `scripts/feast_setup.py` (dagster pod) — ensure `feast` DB → shape silver → offline tables →
+  `feast apply` → `feast materialize-incremental`. Re-run after silver changes.
+- **Serve:** `feast-server` (`k8s/data-mesh/feast-server.yaml`) — `feast serve` REST :6566 at `feast.weyland.lab`
+  (NO forward-auth — API not browser; `/docs` = auto Swagger). **Slim feast image** (`Dockerfile.feast` — NOT
+  the fat dagster one; it OOM'd). In **data-mesh** (istio-injected → MESHED → mTLS to STRICT weyland-postgres;
+  unmeshed = ECONNRESET). `holdApplicationUntilProxyStarts` (feast serve one-shot-connects at startup → must not
+  race Envoy). psycopg3 needs `sslmode=disable`.
+- **Gotcha:** the sync/serve needs `dagster-postgres-secret` in data-mesh — **copied imperatively** (not in git);
+  recreate on a data-mesh rebuild (`kubectl get secret dagster-postgres-secret -n weyland -o yaml | sed
+  's/namespace: weyland/namespace: data-mesh/' | kubectl apply -f -`). Same class as [[datahub-ingestion-secrets-durable]].
+- **Query:** [../query/feast.md](../query/feast.md) (REST curl + SDK + point-in-time). Cataloged: N/A (no native
+  DataHub source; a custom emit is possible but not built).
+- **Gate:** Online-serving ✅ (SDK+REST) · Point-in-time ✅ · Registry ✅ · Meshed ✅ · UI (Swagger `/docs`) ✅ · Pushed ▢.
+
 ## Store roadmap (the grid's Tier-2 targets)
 
 | Store | Deployed? | Loader | Grid targets (datasets) |
@@ -259,6 +285,7 @@ constraint) — a `mysqld-exporter` is the follow-up. Same 7-point gate applies 
 | OpenSearch | ✅ (RAG) | ▢ | search: fma_tracks, uci, musicbrainz, lp_musiccaps_*, audioset, usda, open_food_facts |
 | **Qdrant + Weaviate** | ✅ always-on | ✅ **done** | VECTOR (9 each, one build → both): fma_features/echonest/uci/spotify/gtzan (z-scored audio features) · lp_musiccaps×2/audioset (bge text) · big_five (OCEAN). fma_tracks dropped · OFF → B78 |
 | **LanceDB** | ✅ embedded | ✅ **done** | embedded/Lance-native vectors on lakeFS (same 9 sets); in-process query, `emit_lancedb`, Lance Data Viewer UI + event-sync sensor |
+| **Feast** | ✅ data-mesh | ✅ **done** | feature store — online (Valkey) + point-in-time (Postgres); 2 views (spotify audio / brfss prevalence); feast-server REST at feast.weyland.lab + Swagger |
 | ClickHouse | ✅ always-on | ✅ **done** | music: fma_tracks, uci, musicbrainz-subset, lp_musiccaps, audioset · health: usda, open_food_facts (native s3() ingest) |
 | Cassandra | ✅ always-on | ✅ **done** | music: uci, lastfm (~17M, by user_id) · health: big_five, who_gho |
 | CockroachDB | ✅ always-on | ✅ **done** | brfss (6 tables, ~3M rows) + nhis — db per dataset, pg-wire |

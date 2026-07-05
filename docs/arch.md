@@ -443,6 +443,20 @@ natural future home for OFF. Query is **in-process** (`scripts/lancedb_query.py`
 `mc mirror` (lakeFS → a viewer PVC) whenever a `lancedb_load` materializes (6h CronJob as backstop). Full flow:
 [diagrams/flow-lancedb.md](diagrams/flow-lancedb.md); queries: [query/lancedb.md](query/lancedb.md).
 
+**Feast (grid Feast) — the feature store.** Not another copy of the data — a *new access pattern*: the same
+feature *defined once*, served **online** (low-latency by entity key, from Valkey) and **offline**
+(point-in-time-correct training retrieval, from Postgres), with a **registry** (Postgres) of definitions.
+Capabilities nothing else provides — vector stores do *similarity*, OLAP does *aggregates*; Feast does "give me
+THIS entity's features, fast" + "build a leakage-free training set." Two views exercise both halves:
+`track_audio_features` (entity `track`, Spotify audio features — the serving half) and `state_health_risk`
+(entity `state`, BRFSS chronic-condition prevalence per year — the point-in-time half, where CA-2013 ≠ CA-2019).
+Stores: registry + offline = Postgres (`feast` DB), online = Valkey. `scripts/feast_setup.py` shapes silver →
+offline tables → `feast apply` → `feast materialize`. Served over REST by **feast-server** (`feast.weyland.lab`,
+`/docs` Swagger; slim image, **meshed** in data-mesh for STRICT-mTLS Postgres). Diagram:
+[diagrams/flow-feast.md](diagrams/flow-feast.md); queries: [query/feast.md](query/feast.md). (Built as a
+capability — like Redpanda gave streaming before the streaming apps — the consuming model, e.g. Stud.IO
+recommendation, is the future extension.)
+
 ### 7c. Streaming (Redpanda / CDC, B1.5)
 
 The other stores hold **state** (silver → table/collection/graph); the streaming tier holds **events** (topics).
