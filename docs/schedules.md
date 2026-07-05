@@ -36,6 +36,7 @@ Heavy = embeds/writes or large scans (guard the node's RAM). Light = metadata/re
 | 01:15 | DataHub | Iceberg (Nessie) | daily | light |
 | 01:30 | DataHub | MLflow | daily | light |
 | 01:45 | DataHub | Superset | daily | light |
+| 02:15 | DataHub | Kafka (Redpanda `datasets.*` topics + Avro schemas) | daily | light — metadata scan, no profiling |
 | 03:00 | DataHub | Neo4j | daily | light |
 | 03:15 | DataHub | Postgres (weyland core) | daily | med |
 | **03:30** | DataHub | **CockroachDB** | weekly (Sun) | med |
@@ -75,6 +76,8 @@ scaled down — they back live services or the mesh.
 
 ## Change log
 
+- 2026-07-04 — Added Kafka (Redpanda B1.5) DataHub ingestion → 02:15 daily (light metadata scan of the
+  `datasets.*` event topics + their Avro schemas; closes the last B65 catalog target).
 - 2026-07-02 — Added ClickHouse (Tier-2 #10) DataHub ingestion → Sun 04:30 (weekly; profiling on — columnar
   counts are cheap, unlike Cassandra).
 - 2026-07-02 — Added Cassandra (Tier-2 #9) DataHub ingestion → Sun 04:15 (weekly, static data; profiling
