@@ -30,6 +30,11 @@ spec:
         app: mlflow
         # Join the mesh — required to reach STRICT-mTLS Postgres (read ECONNRESET otherwise).
         sidecar.istio.io/inject: "true"
+      annotations:
+        # ...but carve MinIO (9000) OUT of the sidecar: boto3's multipart PUT (Expect: 100-continue)
+        # to the artifact store stalls forever through Envoy → gunicorn WORKER TIMEOUT → 500 on
+        # log_model. Postgres (5432) still rides the mesh (mTLS intact); only the S3 upload goes direct.
+        traffic.sidecar.istio.io/excludeOutboundPorts: "9000"
     spec:
       containers:
         - name: mlflow
