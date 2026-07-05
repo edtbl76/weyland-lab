@@ -17,6 +17,10 @@ pyiceberg[s3fs]
 pyarrow
 # eval → MLflow experiment tracking (eval_mlflow.py). Skinny client (no server deps); metrics/params only.
 mlflow-skinny
+# scikit-learn + FULL mlflow — the genre-classifier training assets (mlflow_genre.py): mlflow.sklearn.log_model
+# + the model registry need the sklearn flavor, which mlflow-skinny lacks. Grid MLflow "experiment tracking".
+scikit-learn
+mlflow
 # B72 — dlt EL (datasets_land.py): pull public datasets → MinIO filesystem destination (bronze raw zone).
 dlt[filesystem]
 # B72 — fan-out transform (datasets_transform.py): pandas for FMA's multi-row-header CSVs; lance + fastavro

@@ -16,6 +16,7 @@ from .aidlc_kb import aidlc_kb_ingest, aidlc_kb_mongo
 from .ai_session import ai_session_ingest
 from .iceberg_export import iceberg_model_catalog, iceberg_eval_scores
 from .eval_mlflow import eval_mlflow_log
+from .mlflow_genre import mlflow_genre_from_silver, mlflow_genre_from_feast
 from .datasets_music_transform import (
     datasets_music_parquet,
     datasets_music_arrow,
@@ -89,6 +90,8 @@ all_assets = [
     iceberg_model_catalog,
     iceberg_eval_scores,
     eval_mlflow_log,
+    mlflow_genre_from_silver,
+    mlflow_genre_from_feast,
     # Music domain — per-dataset land assets
     datasets_music_spotify_land,
     datasets_music_fma_tracks_land,
