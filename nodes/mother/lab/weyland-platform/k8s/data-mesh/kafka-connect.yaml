@@ -66,7 +66,8 @@ spec:
       initContainers:
         - name: install-avro-converter
           image: confluentinc/cp-kafka-connect:7.7.0
-          command: ["sh", "-c", "cp -a /usr/share/java/kafka-serde-tools/. /confluent-avro/ && echo 'avro converter staged'"]
+          # cp -r (NOT -a): the emptyDir mount rejects preserve-times ("Operation not permitted") → -a exits non-zero.
+          command: ["sh", "-c", "cp -r /usr/share/java/kafka-serde-tools/. /confluent-avro/ && echo 'avro converter staged'"]
           volumeMounts:
             - name: confluent-avro
               mountPath: /confluent-avro
