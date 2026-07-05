@@ -1,0 +1,73 @@
+# Feast feature server (grid Feast) — the SERVED capability: an HTTP/REST online-feature endpoint so a
+# non-Python consumer (a Hermes tool, Stud.IO) can fetch features by entity key, not just the Python SDK.
+# Reuses the dagster image (has feast + /app/feast_repo baked in) + the same WEYLAND_PG_PASSWORD secret. weyland
+# ns, no sidecar — matches the dagster pod, which reaches weyland-postgres (registry) + valkey.data-mesh (online)
+# fine unmeshed. `feast serve` reads feast_repo/feature_store.yaml (registry=Postgres, online=Valkey). REST 6566.
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: feast-server
+  namespace: weyland
+  labels:
+    app: feast-server
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: feast-server
+  template:
+    metadata:
+      labels:
+        app: feast-server
+    spec:
+      containers:
+        - name: feast-server
+          image: weyland-dagster-user-code:local
+          imagePullPolicy: IfNotPresent
+          command: ["feast", "-c", "/app/feast_repo", "serve", "-h", "0.0.0.0", "-p", "6566"]
+          ports:
+            - { containerPort: 6566, name: http }
+          env:
+            - name: WEYLAND_PG_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: dagster-postgres-secret
+                  key: password
+          readinessProbe:
+            tcpSocket: { port: 6566 }
+            initialDelaySeconds: 15
+            periodSeconds: 10
+          resources:
+            requests: { cpu: 100m, memory: 256Mi }
+            limits: { memory: 512Mi }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: feast-server
+  namespace: weyland
+  labels:
+    app: feast-server
+spec:
+  selector:
+    app: feast-server
+  ports:
+    - { name: http, port: 6566 }
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: feast-server-alerts
+  namespace: weyland
+  labels: { app: feast-server }
+spec:
+  groups:
+    - name: feast-server
+      rules:
+        - alert: FeastServerDown
+          expr: kube_deployment_status_replicas_available{namespace="weyland", deployment="feast-server"} == 0
+          for: 10m
+          labels: { severity: warning }
+          annotations:
+            summary: "Feast feature server has 0 available replicas — online feature serving (REST :6566) is down."
