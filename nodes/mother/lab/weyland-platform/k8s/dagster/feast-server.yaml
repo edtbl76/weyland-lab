@@ -55,6 +55,27 @@ spec:
   ports:
     - { name: http, port: 6566 }
 ---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: feast-server
+  namespace: weyland
+  # NO forward-auth. This is an API (REST POST /get-online-features), reached by code, not a browser — same as
+  # the qdrant/weaviate data backends (api.md: reached by code, not Keycloak-gated). forward-auth = browser SSO
+  # would break programmatic consumers (they can't do the OIDC redirect). LAN-only, so open ingress is fine.
+spec:
+  tls:
+    - hosts: [feast.weyland.lab]
+      secretName: weyland-wildcard-tls
+  rules:
+    - host: feast.weyland.lab
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service: { name: feast-server, port: { number: 6566 } }
+---
 apiVersion: monitoring.coreos.com/v1
 kind: PrometheusRule
 metadata:
