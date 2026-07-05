@@ -1,0 +1,17 @@
+# DataHub managed-ingestion recipe — Kafka (the Redpanda streaming data plane). CLOSES the one open B65
+# catalog target ("Kafka — deferred"). Points at OUR Redpanda (data-mesh), NOT DataHub's internal metadata
+# Kafka — so it catalogs the dataset event topics + their registered Avro schemas, not DataHub's MCL/MAE bus.
+# Source-of-record only (the live source is UI-configured; re-paste after a GMS reset — no secret, Redpanda is
+# plaintext/no-auth on the LAN). The schema_registry_url is Redpanda's built-in Confluent-compatible registry,
+# so DataHub's default ConfluentSchemaRegistry decodes each topic's Avro schema into dataset fields.
+# topic_patterns fences to our `datasets.*` topics (excludes _schemas / __consumer_offsets). Schedule: daily.
+source:
+  type: kafka
+  config:
+    connection:
+      bootstrap: "redpanda.data-mesh.svc.cluster.local:9092"
+      schema_registry_url: "http://redpanda.data-mesh.svc.cluster.local:8081"
+    topic_patterns:
+      allow:
+        - "^datasets\\..*"
+    env: PROD
