@@ -1,14 +1,16 @@
-# Feast feature server (grid Feast) — the SERVED capability: an HTTP/REST online-feature endpoint so a
-# non-Python consumer (a Hermes tool, Stud.IO) can fetch features by entity key, not just the Python SDK.
-# Reuses the dagster image (has feast + /app/feast_repo baked in) + the same WEYLAND_PG_PASSWORD secret. weyland
-# ns, no sidecar — matches the dagster pod, which reaches weyland-postgres (registry) + valkey.data-mesh (online)
-# fine unmeshed. `feast serve` reads feast_repo/feature_store.yaml (registry=Postgres, online=Valkey). REST 6566.
+# Feast feature server (grid Feast) — the SERVED capability: HTTP/REST online-feature retrieval by entity key,
+# for non-Python consumers (Hermes tools, Stud.IO). In DATA-MESH (with the other stores) — and critically,
+# data-mesh is istio-injected, so this pod is MESHED → mTLS to STRICT weyland-postgres (the registry) works
+# (an unmeshed pod gets ECONNRESET — the postgres-strict-needs-mesh lesson). Slim feast image (not the fat
+# dagster one → no OOM). `feast serve` reads feast_repo/feature_store.yaml. REST 6566 at feast.weyland.lab
+# (NO forward-auth — it's an API reached by code, not a browser UI). Needs the PG password secret in data-mesh
+# (copy dagster-postgres-secret across). See docs/runbooks (feast) + backlog B1.8.
 ---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: feast-server
-  namespace: weyland
+  namespace: data-mesh
   labels:
     app: feast-server
 spec:
@@ -20,33 +22,36 @@ spec:
     metadata:
       labels:
         app: feast-server
+      annotations:
+        # feast serve does a one-shot Postgres connect at startup + exits on failure — so it must not race the
+        # Envoy sidecar. Hold the app container until the proxy is ready.
+        proxy.istio.io/config: '{"holdApplicationUntilProxyStarts": true}'
     spec:
       containers:
         - name: feast-server
-          image: weyland-dagster-user-code:local
+          image: feast-server:local
           imagePullPolicy: IfNotPresent
-          command: ["feast", "-c", "/app/feast_repo", "serve", "-h", "0.0.0.0", "-p", "6566"]
           ports:
             - { containerPort: 6566, name: http }
           env:
             - name: WEYLAND_PG_PASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: dagster-postgres-secret
+                  name: dagster-postgres-secret   # copied into data-mesh (see runbook)
                   key: password
           readinessProbe:
             tcpSocket: { port: 6566 }
             initialDelaySeconds: 15
             periodSeconds: 10
           resources:
-            requests: { cpu: 100m, memory: 512Mi }
-            limits: { memory: 1536Mi }   # feast serve imports the full feast stack in the heavy dagster image — 512Mi OOM'd
+            requests: { cpu: 100m, memory: 256Mi }
+            limits: { memory: 768Mi }   # slim image — feast serve + uvicorn is light
 ---
 apiVersion: v1
 kind: Service
 metadata:
   name: feast-server
-  namespace: weyland
+  namespace: data-mesh
   labels:
     app: feast-server
 spec:
@@ -59,10 +64,8 @@ apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: feast-server
-  namespace: weyland
-  # NO forward-auth. This is an API (REST POST /get-online-features), reached by code, not a browser — same as
-  # the qdrant/weaviate data backends (api.md: reached by code, not Keycloak-gated). forward-auth = browser SSO
-  # would break programmatic consumers (they can't do the OIDC redirect). LAN-only, so open ingress is fine.
+  namespace: data-mesh
+  # NO forward-auth — REST API reached by code, not a browser (api.md data-backend convention). LAN-only open.
 spec:
   tls:
     - hosts: [feast.weyland.lab]
@@ -80,14 +83,14 @@ apiVersion: monitoring.coreos.com/v1
 kind: PrometheusRule
 metadata:
   name: feast-server-alerts
-  namespace: weyland
+  namespace: data-mesh
   labels: { app: feast-server }
 spec:
   groups:
     - name: feast-server
       rules:
         - alert: FeastServerDown
-          expr: kube_deployment_status_replicas_available{namespace="weyland", deployment="feast-server"} == 0
+          expr: kube_deployment_status_replicas_available{namespace="data-mesh", deployment="feast-server"} == 0
           for: 10m
           labels: { severity: warning }
           annotations:

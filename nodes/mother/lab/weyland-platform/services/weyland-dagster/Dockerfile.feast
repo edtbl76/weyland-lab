@@ -1,0 +1,11 @@
+# Slim Feast feature-server image — just feast + the repo, NOT the fat dagster stack (torch/sentence-transformers/
+# the baked bge model), which OOM'd `feast serve` at 512Mi and is wasteful for a REST server. ~300MB.
+# Build + import on mother (like redeploy.sh):
+#   docker build -f Dockerfile.feast -t feast-server:local .
+#   docker save feast-server:local | sudo ctr -n k8s.io images import -
+FROM python:3.11-slim
+WORKDIR /app
+RUN pip install --no-cache-dir "feast[redis,postgres]"
+COPY feast_repo/ ./feast_repo/
+EXPOSE 6566
+CMD ["feast", "-c", "/app/feast_repo", "serve", "-h", "0.0.0.0", "-p", "6566"]
