@@ -37,6 +37,7 @@ Heavy = embeds/writes or large scans (guard the node's RAM). Light = metadata/re
 | 01:30 | DataHub | MLflow | daily | light |
 | 01:45 | DataHub | Superset | daily | light |
 | 02:15 | DataHub | Kafka (Redpanda `datasets.*` topics + Avro schemas) | daily | light — metadata scan, no profiling |
+| `0 */6 * * *` | k8s CronJob | `lancedb-sync` (mc mirror lakeFS Lance tables → viewer PVC) | every 6h | light — **backstop** only; the real trigger is the Dagster `lancedb_sync_sensor` (fires on each `lancedb_load` materialization) |
 | 03:00 | DataHub | Neo4j | daily | light |
 | 03:15 | DataHub | Postgres (weyland core) | daily | med |
 | **03:30** | DataHub | **CockroachDB** | weekly (Sun) | med |

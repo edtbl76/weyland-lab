@@ -47,8 +47,10 @@ db.open_table("big_five").count_rows()
 ```
 
 ## LanceDB-isms
-- **Embedded — no server/port/JDBC.** Query in-process (Python `lancedb`); there's no dashboard/Console like
-  Qdrant/Weaviate. See the runbook for the IntelliJ-browse option via DuckDB.
+- **Embedded — no server/port/JDBC.** Query in-process (Python `lancedb`). For a **browse UI** there's the
+  **Lance Data Viewer** at `lancedb.weyland.lab` (read-only web UI — schema, data, vector viz), fed by an
+  event-triggered `mc mirror` of the tables to a PVC (it's filesystem-only). See
+  [../diagrams/flow-lancedb.md](../diagrams/flow-lancedb.md).
 - **ANN index only when ≥2000 rows** (the loader builds `create_index(metric="cosine")`); smaller tables do
   exact search transparently — results are the same, just slower at scale.
 - **Object-storage-native** — tables are Lance datasets on the lakeFS S3 gateway; LanceDB streams from storage,

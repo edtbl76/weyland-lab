@@ -891,7 +891,7 @@ Doris (OLAP variety, on-demand) · Spark (big-data compute, on-demand) · RDF/tr
 ### B73 — Find/build uses for the datasets-lake formats (Maturity / Polish)
 **Added 2026-06-26.** B72 produced the music data (Spotify audio features + FMA metadata) in **five formats** (Parquet · Lance · Avro · Arrow · Iceberg) + raw CSV — but they're currently **inert** silver/gold artifacts sitting in MinIO + the catalog. Build a **real use case per format** that exercises its specific strength, so each earns its keep and the format choices are validated *by use*, not just by the rationale in [datasets-lake.md](runbooks/datasets-lake.md):
 - **Parquet** → analytics queries via **Trino / DuckDB** (Tier-2) — genre/feature aggregations over the Spotify set.
-- **Lance** → **vector / similarity search** (LanceDB) — music recommendation / nearest-neighbour over the audio-feature vectors (ties to **Stud.IO** + the Spotify Hermes tool [B18]).
+- **Lance** → **vector / similarity search** (LanceDB) — ✅ **DONE 2026-07-05.** LanceDB store built (embedded, Lance-native, on the lakeFS S3 gateway; same 9 vector sets as Qdrant/Weaviate via `_build_vectors`); in-process query + `emit_lancedb` catalog + **Lance Data Viewer** UI (`lancedb.weyland.lab`) fed by an event-triggered `mc mirror` (Dagster `lancedb_sync_sensor`). Nearest-neighbour over audio features works (gtzan genre-clusters). Runbook: datasets-hydration.md; diagram: flow-lancedb.md.
 - **Avro** → **stream through Kafka** (producer → consumer) — the row/schema-evolution format in motion.
 - **Arrow** → **zero-copy load** into polars/pandas for fast EDA — prove the IPC/transport story.
 - **Iceberg** → **time-travel / schema-evolution / ACID** demo via Trino — the gold-table capabilities.

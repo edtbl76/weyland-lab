@@ -434,6 +434,15 @@ OCEAN items). fma_tracks dropped (metadata, not features — sound-similarity is
 [query/weaviate.md](query/weaviate.md). The FMA family literally **splits by file** — `tracks`/`genres` → graph,
 `features`/`echonest` → vector, joined by `track_id`.
 
+**LanceDB (grid LanceDB) — the embedded vector store.** A *third* backend over the same `_build_vectors` output,
+but architecturally distinct from server-based Qdrant/Weaviate: **embedded** (a library, no pod), **Lance-format
+-native**, backed by the **lakeFS S3 gateway** (object storage, not RAM) — so it scales past memory and is the
+natural future home for OFF. Query is **in-process** (`scripts/lancedb_query.py` + cookbook), cataloged via the
+`emit_lancedb` custom emitter. Because there's no server, browsing needs the **Lance Data Viewer**
+(`lancedb.weyland.lab`, filesystem-only) fed by an **event-triggered mirror**: a Dagster multi-asset sensor fires
+`mc mirror` (lakeFS → a viewer PVC) whenever a `lancedb_load` materializes (6h CronJob as backstop). Full flow:
+[diagrams/flow-lancedb.md](diagrams/flow-lancedb.md); queries: [query/lancedb.md](query/lancedb.md).
+
 ### 7c. Streaming (Redpanda / CDC, B1.5)
 
 The other stores hold **state** (silver → table/collection/graph); the streaming tier holds **events** (topics).

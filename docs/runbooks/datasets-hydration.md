@@ -230,6 +230,25 @@ constraint) — a `mysqld-exporter` is the follow-up. Same 7-point gate applies 
   `datahub_catalog_emit_job`. Queries: [../query/qdrant.md](../query/qdrant.md) · [../query/weaviate.md](../query/weaviate.md).
 - **Gate:** Loaded ✅ (9 collections/classes each) · Runnable ✅ · Always-on ✅ · Monitored ✅ · Cataloged ✅ · Documented ✅ · Pushed ▢.
 
+## LanceDB (embedded vector store + viewer, 2026-07-05)
+
+- **What:** a THIRD vector backend reusing `_build_vectors` + the same specs — but **embedded** (no server),
+  **Lance-native**, on the **lakeFS S3 gateway** (`datasets_<dom>_lancedb_load`; `_lancedb_connect` opens
+  `s3://<repo>/main/lancedb` via object_store S3 opts + LAKEFS creds). ANN index when ≥2000 rows; else exact.
+  Distinct value = object-storage-native / larger-than-memory (the natural OFF home).
+- **Query:** in-process — `scripts/lancedb_query.py` + [../query/lancedb.md](../query/lancedb.md) (no server/port).
+- **Catalog:** `emit_lancedb` custom emitter (platform `lancedb`) in the 6h `datahub_catalog_emit_job`.
+- **UI — Lance Data Viewer** (`lancedb.weyland.lab`, forward-auth): the viewer is **filesystem-only** (mounts
+  `/data`, no S3), so a job **`mc mirror`s** the tables from lakeFS → a `lancedb-viewer-data` PVC it reads RO.
+  lakeFS stays source of truth. `k8s/data-mesh/lancedb-viewer.yaml`. Pin the viewer image tag to the Lance
+  format version our `lancedb` writes (started `lancedb-0.33.0`).
+- **Event-sync:** a Dagster **multi-asset sensor** (`lancedb_sync_sensor`) fires the mirror **Job** (from the
+  `lancedb-sync` CronJob template, via cross-namespace RBAC `lancedb-sync-rbac.yaml`) whenever a `lancedb_load`
+  materializes — no polling. 6h CronJob = backstop.
+- **Gotcha:** the sync runs in `data-mesh` but `lakefs-creds` lives in `weyland` → copied into `data-mesh`
+  **imperatively** (not in git); recreate on a data-mesh rebuild. See [[datahub-ingestion-secrets-durable]] class.
+- **Gate:** Loaded ✅ · Queryable ✅ · Cataloged ✅ · Browsable ✅ (viewer) · Auto-synced ✅ (sensor) · Pushed ▢.
+
 ## Store roadmap (the grid's Tier-2 targets)
 
 | Store | Deployed? | Loader | Grid targets (datasets) |
@@ -239,6 +258,7 @@ constraint) — a `mysqld-exporter` is the follow-up. Same 7-point gate applies 
 | **Neo4j** | ✅ always-on | ✅ **done** | GRAPH (music): fma_genres tree · lastfm ~13.85M PLAYS · fma_tracks (BY/ON/IN_GENRE) · audioset (HAS_LABEL). musicbrainz/uci/big_five → N (flat, no edges) |
 | OpenSearch | ✅ (RAG) | ▢ | search: fma_tracks, uci, musicbrainz, lp_musiccaps_*, audioset, usda, open_food_facts |
 | **Qdrant + Weaviate** | ✅ always-on | ✅ **done** | VECTOR (9 each, one build → both): fma_features/echonest/uci/spotify/gtzan (z-scored audio features) · lp_musiccaps×2/audioset (bge text) · big_five (OCEAN). fma_tracks dropped · OFF → B78 |
+| **LanceDB** | ✅ embedded | ✅ **done** | embedded/Lance-native vectors on lakeFS (same 9 sets); in-process query, `emit_lancedb`, Lance Data Viewer UI + event-sync sensor |
 | ClickHouse | ✅ always-on | ✅ **done** | music: fma_tracks, uci, musicbrainz-subset, lp_musiccaps, audioset · health: usda, open_food_facts (native s3() ingest) |
 | Cassandra | ✅ always-on | ✅ **done** | music: uci, lastfm (~17M, by user_id) · health: big_five, who_gho |
 | CockroachDB | ✅ always-on | ✅ **done** | brfss (6 tables, ~3M rows) + nhis — db per dataset, pg-wire |
