@@ -55,6 +55,11 @@ class DomainConfig:
     #   {"text": [cols]}             → concat these text cols per row + embed with bge-small (384-dim, unit-norm)
     # plus optional {"id": col} (point ref, else row index) and {"payload": [cols]} (stored for filter/display).
     vector_allow: dict = field(default_factory=dict)
+    # LanceDB (grid LanceDB): same vector_spec shape — the embedded/Lance-native/object-storage-backed vector
+    # store (no server, unlike Qdrant/Weaviate). Defaults to reusing vector_allow (same feature vectors, third
+    # backend); set explicitly only to target a DIFFERENT set (e.g. add the larger-than-memory OFF that the
+    # server DBs can't hold — LanceDB reads from object storage so it can).
+    lancedb_allow: dict = field(default_factory=dict)
     # Redpanda (B1.5 streaming): {dataset: stream_spec} — the STREAM-shaped sets only (event/survey data, not
     # static bulk). Replays silver Parquet as Avro events into topic `datasets.<domain>.<dataset>`, schema
     # registered in the built-in Schema Registry (Confluent wire format). stream_spec: {"key": col_or_None,

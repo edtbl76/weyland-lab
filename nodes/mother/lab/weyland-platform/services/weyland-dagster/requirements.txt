@@ -53,3 +53,6 @@ soundfile
 # confluent-kafka — Redpanda Avro producer (B1.5 streaming): Confluent wire-format serialization + Schema
 # Registry client so Console + standard consumers decode the messages. Wheels bundle librdkafka (no system dep).
 confluent-kafka[avro]
+# lancedb — embedded, Lance-format-native vector DB (grid LanceDB). Serverless (no pod) — writes tables to the
+# lakeFS S3 gateway + does ANN search in-process; the object-storage-native counterpart to Qdrant/Weaviate.
+lancedb

@@ -752,6 +752,50 @@ def _load_dataset_to_weaviate(client, dim, records, cls, log) -> int:
     return n
 
 
+def _lancedb_connect(cfg):
+    """Open a LanceDB database on the lakeFS S3 gateway (proven creds/endpoint already on the pod). LanceDB is
+    EMBEDDED — no server; it reads/writes Lance datasets straight from object storage and does ANN in-process.
+    One db per domain at s3://<repo>/<branch>/lancedb/, a table per dataset."""
+    import lancedb
+
+    ep = io.endpoint()
+    scheme = "https" if ep.startswith("https") else "http"
+    host = ep.replace("https://", "").replace("http://", "")
+    uri = f"s3://{cfg.repo}/{io.branch()}/lancedb"
+    storage_options = {
+        "aws_endpoint": f"{scheme}://{host}",
+        "aws_access_key_id": os.environ["LAKEFS_ACCESS_KEY_ID"],
+        "aws_secret_access_key": os.environ["LAKEFS_SECRET_ACCESS_KEY"],
+        "aws_region": "us-east-1",
+        "aws_allow_http": "true" if scheme == "http" else "false",
+        "aws_virtual_hosted_style_request": "false",   # path-style — lakeFS/MinIO S3 gateway
+    }
+    return lancedb.connect(uri, storage_options=storage_options)
+
+
+def _load_dataset_to_lancedb(db, dim, records, table, log) -> int:
+    """Drop + recreate a LanceDB table from the shared _build_vectors output (row_id + vector + payload). Builds
+    an ANN index when the table is large enough (small tables do exact search fine). Fixed-size vector column so
+    the index is buildable."""
+    import pyarrow as pa
+
+    if table in db.table_names():
+        db.drop_table(table)
+    keys = list(records[0]["payload"].keys()) if records else ["row_id"]
+    flat = pa.array([x for r in records for x in r["vector"]], type=pa.float32())
+    arrays = {"vector": pa.FixedSizeListArray.from_arrays(flat, dim)}
+    for k in keys:
+        arrays[k] = pa.array([str(r["payload"].get(k, "")) for r in records], type=pa.string())
+    tbl = db.create_table(table, pa.table(arrays))
+    try:
+        if len(records) >= 2_000:   # IVF index only pays off past a few thousand rows
+            tbl.create_index(metric="cosine", vector_column_name="vector")
+    except Exception as e:  # noqa: BLE001 — index is an optimization; exact search works without it
+        log.warning(f"lancedb {table}: index skipped ({e})")
+    log.info(f"lancedb {table}: {len(records):,} rows (dim {dim})")
+    return len(records)
+
+
 def build_store_load_assets(cfg):
     """Return the per-store loader assets this domain needs (only stores with a non-empty allowlist)."""
     assets = []
@@ -1033,5 +1077,36 @@ def build_store_load_assets(cfg):
             })
 
         assets.append(_weaviate_load)
+
+    _lancedb_specs = cfg.lancedb_allow or cfg.vector_allow   # defaults to the same vectors as Qdrant/Weaviate
+    if _lancedb_specs:
+        _lc_deps = [f"datasets_{d}_parquet"] + [
+            f"datasets_{d}_{ds}_parquet" for ds in sorted(set(_lancedb_specs) & cfg.streamed_parquet)]
+
+        @asset(
+            name=f"datasets_{d}_lancedb_load",
+            group_name=f"datasets_{d}_stores",
+            deps=_lc_deps,
+            description=f"Build LanceDB tables (embedded, Lance-native, on object storage) for {len(_lancedb_specs)} datasets.",
+        )
+        def _lancedb_load(context):
+            mc = io.client()
+            db = _lancedb_connect(cfg)
+            out = {}
+            for dataset, spec in sorted(_lancedb_specs.items()):
+                try:
+                    dim, records = _build_vectors(mc, cfg, dataset, spec, context.log)
+                    out[dataset] = _load_dataset_to_lancedb(db, dim, records, dataset, context.log) if records else 0
+                except Exception as e:  # noqa: BLE001 — per-dataset resilience
+                    out[dataset] = f"ERROR: {e}"
+                    context.log.error(f"lancedb {dataset}: {e}")
+            ok = sum(1 for v in out.values() if isinstance(v, int))
+            return Output(out, metadata={
+                "tables_loaded": MetadataValue.int(ok),
+                "rows_total": MetadataValue.int(sum(v for v in out.values() if isinstance(v, int))),
+                "detail": MetadataValue.json(out),
+            })
+
+        assets.append(_lancedb_load)
 
     return assets
