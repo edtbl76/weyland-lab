@@ -70,7 +70,9 @@ spec:
             # CRITICAL: without this the registry redirects blob GETs to *presigned MinIO URLs* pointing at
             # minio.minio.svc:9000 — which external clients (rogueone) can't reach. Disabling redirect makes the
             # registry PROXY blob bytes through the ingress, so clients never need direct MinIO access.
-            - name: REGISTRY_STORAGE_S3_REDIRECT_DISABLE
+            # NOTE: `redirect.disable` is a SIBLING of `s3` under `storage` (storage.redirect.disable), NOT a key
+            # inside s3 — so the env var is REGISTRY_STORAGE_REDIRECT_DISABLE (a _S3_ prefix here is ignored).
+            - name: REGISTRY_STORAGE_REDIRECT_DISABLE
               value: "true"
             - name: REGISTRY_STORAGE_DELETE_ENABLED     # allow image deletes + GC
               value: "true"
