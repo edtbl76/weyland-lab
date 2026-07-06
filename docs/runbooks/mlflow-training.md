@@ -6,9 +6,16 @@ demonstrates **three distinct, documentable use cases**. The whole point: **the 
 architecture decision, not an accuracy one** — same task, same features, same result; different plumbing with
 different guarantees.
 
-Assets: `mlflow_genre_from_silver`, `mlflow_genre_from_feast` (group `datasets_music_ml`,
-`weyland_pipeline/assets/mlflow_genre.py`). MLflow: `mlflow.weyland.lab`, experiment `genre-classifier`,
-registered model `genre_classifier`. Diagram context: [../diagrams/flow-feast.md](../diagrams/flow-feast.md).
+**Where it runs:** training executes **remotely on rogueone** (RAM + GPU), pulled from the registry as a
+self-contained container — **not** in-cluster. Full mechanics + gotchas: **[remote-training.md](remote-training.md)**;
+build/run: **[services/genre-trainer/README.md](../../nodes/mother/lab/weyland-platform/services/genre-trainer/README.md)**.
+MLflow: `mlflow.weyland.lab`, experiment `genre-classifier`, registered model `genre_classifier`. Diagram
+context: [../diagrams/flow-feast.md](../diagrams/flow-feast.md).
+
+> The first attempt was two in-cluster Dagster assets (`weyland_pipeline/assets/mlflow_genre.py`) — but training
+> a GB-scale model in the 1Gi dagster pod (fit OOM) and pushing the artifact through MLflow's serve-artifacts
+> proxy (upload timeout) both failed. The lesson *was* the pivot: training belongs on rogueone, and artifacts go
+> **direct to MinIO**. The `genre-trainer` container is that realization.
 
 ---
 
@@ -16,9 +23,10 @@ registered model `genre_classifier`. Diagram context: [../diagrams/flow-feast.md
 
 **What:** predict a track's `track_genre` from its Spotify **audio features** (`danceability, energy, key,
 loudness, mode, speechiness, acousticness, instrumentalness, liveness, valence, tempo`). A standard supervised
-classification problem — `RandomForestClassifier`, 200 trees, an 80/20 stratified split, scored on **accuracy**
-and **macro-F1**. Genres with < 20 samples are dropped so the stratified split and per-class metrics are
-well-defined.
+classification problem — `RandomForestClassifier` (100 trees, `max_depth=20` — bounded so the 113-class model
+stays a sane size), an 80/20 stratified split, scored on **accuracy** and **macro-F1**. Genres with < 20 samples
+are dropped so the stratified split and per-class metrics are well-defined (89,741 tracks / 113 genres after
+cleaning).
 
 **What MLflow captures** (the "experiment tracking" the grid means): every run logs **params** (model type,
 `n_estimators`, `feature_source`, `n_features`, `n_classes`, `n_rows`), **metrics** (`accuracy`, `f1_macro`), the
@@ -26,12 +34,17 @@ well-defined.
 versioned `genre_classifier` in the Model Registry. So every experiment is reproducible, comparable, and the
 model is retrievable — not a number in a log that scrolls away.
 
-> Accuracy is **modest by nature** (audio features → genre across many genres is genuinely hard). That's the
-> honest task — the value here is the *tracking + registry + comparison*, not a leaderboard score.
+> **Measured (silver source):** `accuracy = 0.321`, `f1_macro = 0.305`. Modest **by nature** — audio features →
+> genre across 113 genres is genuinely hard — but 32% top-1 where random is 0.9% (1/113) is a real signal. The
+> value here is the *tracking + registry + comparison*, not a leaderboard score.
 
 ---
 
-## Use case 2 — FEAST as the feature source (`mlflow_genre_from_feast`)
+## Use case 2 — FEAST as the feature source (`--source feast`)
+
+> **Status: next iteration.** The silver path is live; the feast source in `genre-trainer` is stubbed (same
+> MLflow logging, only the feature retrieval changes — it needs the feast repo baked into the image + reach to
+> Postgres/Valkey). The *why* below is the point it will demonstrate.
 
 **How:** the training set's **features come from the feature store** — `FeatureStore.get_historical_features()`
 pulls `track_audio_features` for each track (a **point-in-time** join), and the `track_genre` label is joined
@@ -52,10 +65,11 @@ from silver. Train on that.
 
 ---
 
-## Use case 3 — SILVER-DIRECT (`mlflow_genre_from_silver`)
+## Use case 3 — SILVER-DIRECT (`--source silver`)  ✅ live
 
 **How:** read the **lakehouse silver Parquet** (`spotify_tracks`) straight from lakeFS, take the audio-feature
-columns + `track_genre`, train. No feature store in the path at all.
+columns + `track_genre`, train. No feature store in the path at all. (This is the path that produced the measured
+numbers above and registered `genre_classifier` v1.)
 
 **Why you'd do this:**
 - **Simplicity** — one hop (read Parquet → train). No registry, no materialization, no online store, no extra
@@ -80,24 +94,26 @@ the feature-store machinery would be pure overhead. Most notebooks start here.
 | Setup / infra on the path | heavier (registry + online + materialize) | minimal (read Parquet) |
 | Best for | **served / time-varying / shared** models | **exploratory / batch / one-off** models |
 
-**The teaching point:** run both and the accuracy is ~identical (same features). So you *don't* pick Feast for a
-better model — you pick it when you need **point-in-time correctness, train/serve consistency, or reuse**. If
-none of those apply, silver-direct is the simpler, honest choice. Same destination, different guarantees.
+**The teaching point:** both sources feed the *same features*, so the accuracy will be ~identical — silver is
+measured at `0.321`, and feast (once wired) should match. So you *don't* pick Feast for a better model — you pick
+it when you need **point-in-time correctness, train/serve consistency, or reuse**. If none of those apply,
+silver-direct is the simpler, honest choice. Same destination, different guarantees.
 
 ---
 
 ## View it in MLflow
 
-`mlflow.weyland.lab` → Experiments → **`genre-classifier`**: two runs (`genre-silver`, `genre-feast`) side by
-side — compare `accuracy` / `f1_macro`, filter/group by the `feature_source` param. → Models →
-**`genre_classifier`**: two registered versions (one per source). Load a version back with
-`mlflow.sklearn.load_model("models:/genre_classifier/<version>")`.
+`mlflow.weyland.lab` → Experiments → **`genre-classifier`**: the runs (`genre-silver` today; `genre-feast` once
+wired) — compare `accuracy` / `f1_macro`, filter/group by the `feature_source` param. → Models →
+**`genre_classifier`**: the registered versions (one per source/run). Load one back with
+`mlflow.sklearn.load_model("models:/genre_classifier/<version>")` (needs `MLFLOW_S3_ENDPOINT_URL` + MinIO creds,
+since the artifact lives in `s3://mlflow/…`).
 
 ## Reproduce
 
-Materialize the assets (Dagster UI, group `datasets_music_ml`) or:
+Run the trainer on rogueone (see [services/genre-trainer/README.md](../../nodes/mother/lab/weyland-platform/services/genre-trainer/README.md)):
 ```
-kubectl -n weyland exec deploy/dagster-user-code -- dagster asset materialize --select mlflow_genre_from_silver,mlflow_genre_from_feast -m weyland_pipeline.definitions
+docker run --rm -v $HOME/.kube/config:/root/.kube/config:ro --add-host mother:192.168.1.243 registry.weyland.lab/genre-trainer:v3 --source silver
 ```
-Re-run after the Spotify silver or the Feast `track_audio_features` view changes — each run is a new tracked
-experiment + a new registered model version.
+Re-run after the Spotify silver changes — each run is a new tracked experiment run + a new registered model
+version. Swap `--source feast` once that path is wired.

@@ -99,6 +99,7 @@ mkcert wildcard cert; resolve from rogueone (`/etc/hosts`) or via CoreDNS. **Mos
 | ~~weyland IDP (Backstage, `idp.weyland.lab`)~~ — **RETIRED 2026-06-22 (B59)**; replaced by **Port.io** catalog + **`docs.weyland.lab`** | — |
 | **Port.io** (IDP — SaaS; **launcher/catalog**, not status board) | `https://app.port.io` — EU org; **Launcher** dashboard (`endpoint` bp). Integrations: K8s, Istio, GitHub, Linear, Unleash (`feature_flag`), SonarQube (`code_quality`), Trivy+Semgrep (`security_scan`) |
 | **MLflow** (experiment tracking + model registry; B10+B16) — **Keycloak SSO** (forward-auth) | `https://mlflow.weyland.lab` |
+| **Container registry** (MinIO-backed OCI registry; remote-training capability) — **no auth** (LAN-only) | `https://registry.weyland.lab` — Docker API only (no web UI; browse `/v2/_catalog`). Blobs in MinIO `registry` bucket. See [runbooks/remote-training.md](runbooks/remote-training.md) |
 | **Uptime Kuma** (live status board — own auth; **25 monitors**, Telegram paging; Port webhook retired) | `https://kuma.weyland.lab` |
 | **Linear** (roadmap/task board — SaaS; Claude via MCP, Port ingests for status) | `https://linear.app/emangini` — projects: Weyland Lab / Stud.IO / Service Transformation |
 | **Unleash** (feature flags; OSS self-hosted; → Port `feature_flag` webhook) — **Keycloak SSO** (forward-auth; own login behind = double) | `https://unleash.weyland.lab` — Python SDK for tool-server/Hermes; see [runbooks/unleash.md](runbooks/unleash.md) |
