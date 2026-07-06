@@ -31,7 +31,7 @@ spec:
       dnsPolicy: ClusterFirstWithHostNet
       containers:
         - name: ray-head
-          image: registry.weyland.lab/ray-head:v2   # base Ray + trainer deps (services/ray-head/)
+          image: registry.weyland.lab/ray-head:v3   # base Ray + trainer deps (services/ray-head/)
           command: ["/bin/bash", "-lc"]
           # --num-cpus=0 → the head only COORDINATES; the driver runs here but trials schedule onto the worker
           # (rogueone). --block keeps `ray start` foreground as PID 1.
@@ -49,10 +49,15 @@ spec:
           # Submitted jobs INHERIT this env — in-cluster the trainer needs no port-forwards/kubeconfig, just the
           # svc-DNS endpoints + creds. (mlflow/lakefs inbound are PERMISSIVE, so an unmeshed head reaches them.)
           env:
+            # LAN endpoints (not svc DNS) so the values, captured by the driver and shipped into worker tasks,
+            # work on the EXTERNAL worker too. MLflow = the NodePort; MinIO = the LAN S3 ingress (IGNORE_TLS: its
+            # mkcert cert isn't in the worker's trust). lakeFS stays svc DNS — only the in-cluster driver reads it.
             - name: MLFLOW_TRACKING_URI
-              value: http://mlflow.weyland.svc.cluster.local:5000
+              value: http://192.168.1.243:30500
             - name: MLFLOW_S3_ENDPOINT_URL
-              value: http://minio.minio.svc.cluster.local:9000
+              value: https://s3.weyland.lab
+            - name: MLFLOW_S3_IGNORE_TLS
+              value: "true"
             - name: LAKEFS_ENDPOINT
               value: http://lakefs.data-mesh.svc.cluster.local:8000
             - name: LAKEFS_BRANCH

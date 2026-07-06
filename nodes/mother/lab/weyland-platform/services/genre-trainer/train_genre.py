@@ -167,31 +167,36 @@ def _tune(args, splits, n_classes, n_rows):
     log(f"[tune] Ray up ({where}) — {int(ray.cluster_resources().get('CPU', 0))} CPUs. Sweeping {args.trials} "
         f"trials (4 CPUs each → ~8 concurrent), each its own MLflow run…")
     data_ref = ray.put((Xtr, Xte, ytr, yte))
-    tracking_uri, experiment, source = os.environ["MLFLOW_TRACKING_URI"], args.experiment, args.source
+    experiment, source, registered, trials_n, n_feat = (args.experiment, args.source,
+                                                        args.registered_model, args.trials, len(AUDIO))
+    # Endpoints + creds a WORKER task needs to reach MLflow + MinIO (both LAN-reachable now — see ray-head.yaml).
+    # Captured from the head/driver env and shipped into the tasks (the external worker's own env has neither).
+    # IGNORE_TLS: MinIO's LAN ingress serves the mkcert wildcard cert the worker's boto3 doesn't trust.
+    wenv = {k: os.environ[k] for k in ("MLFLOW_TRACKING_URI", "MLFLOW_S3_ENDPOINT_URL",
+                                       "AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY")}
+    wenv["AWS_DEFAULT_REGION"] = os.environ.get("AWS_DEFAULT_REGION", "us-east-1")
+    wenv["MLFLOW_S3_IGNORE_TLS"] = "true"
+    _pk = ("n_estimators", "max_depth", "max_features", "min_samples_leaf")
 
     def trainable(config):
+        import os as o
         import mlflow as m
         import ray as r
         from sklearn.ensemble import RandomForestClassifier as RF
         from sklearn.metrics import accuracy_score as acc_s, f1_score as f1_s
+        o.environ.update(wenv)
         a_tr, a_te, y_tr, y_te = r.get(data_ref)
-        clf = RF(n_estimators=config["n_estimators"], max_depth=config["max_depth"],
-                 max_features=config["max_features"], min_samples_leaf=config["min_samples_leaf"],
-                 random_state=42, n_jobs=4).fit(a_tr, y_tr)
+        clf = RF(random_state=42, n_jobs=4, **{k: config[k] for k in _pk}).fit(a_tr, y_tr)
         pred = clf.predict(a_te)
         acc, f1 = float(acc_s(y_te, pred)), float(f1_s(y_te, pred, average="macro"))
-        try:
-            # Best-effort: an EXTERNAL Ray worker (rogueone) can't reach the in-cluster MLflow (svc DNS is
-            # cluster-only, the ingress is SSO-gated). The sweep + the best-model registration (done on the
-            # in-cluster driver) don't depend on per-trial runs, so a failure here is non-fatal.
-            m.set_tracking_uri(tracking_uri)
+        try:                                             # each trial = its own MLflow run (params + metrics only)
+            m.set_tracking_uri(wenv["MLFLOW_TRACKING_URI"])
             m.set_experiment(experiment)
             with m.start_run(run_name="tune-trial"):
-                m.log_params({k: config[k] for k in ("n_estimators", "max_depth", "max_features", "min_samples_leaf")})
-                m.log_params({"feature_source": source, "mode": "ray-tune"})
+                m.log_params({**{k: config[k] for k in _pk}, "feature_source": source, "mode": "ray-tune"})
                 m.log_metrics({"accuracy": acc, "f1_macro": f1})
-        except Exception:
-            pass
+        except Exception as e:
+            print(f"[trainable] mlflow log skipped: {e}", flush=True)
         train.report({"accuracy": acc, "f1_macro": f1})
 
     space = {                                        # bounded so 113-class forests stay memory-sane under a sweep
@@ -209,17 +214,35 @@ def _tune(args, splits, n_classes, n_rows):
     bc = best.config
     log(f"[tune] best f1_macro={best.metrics['f1_macro']:.3f} acc={best.metrics['accuracy']:.3f} — "
         f"n_estimators={bc['n_estimators']} max_depth={bc['max_depth']} max_features={bc['max_features']} "
-        f"min_samples_leaf={bc['min_samples_leaf']}. Retraining the winner on the full split + registering…")
+        f"min_samples_leaf={bc['min_samples_leaf']}. Retraining the winner ON A WORKER + registering…")
 
-    clf = RandomForestClassifier(n_estimators=bc["n_estimators"], max_depth=bc["max_depth"],
-                                 max_features=bc["max_features"], min_samples_leaf=bc["min_samples_leaf"],
-                                 random_state=42, n_jobs=-1).fit(Xtr, ytr)
-    pred = clf.predict(Xte)
-    acc, f1 = float(accuracy_score(yte, pred)), float(f1_score(yte, pred, average="macro"))
-    _register(clf, source, {"n_estimators": bc["n_estimators"], "max_depth": bc["max_depth"],
-                            "max_features": bc["max_features"], "min_samples_leaf": bc["min_samples_leaf"],
-                            "mode": "ray-tune-best", "tune_trials": args.trials},
-              acc, f1, n_classes, n_rows, f"genre-{source}-tuned", args.registered_model)
+    @ray.remote(num_cpus=4)
+    def retrain_register(config):
+        # Runs on a WORKER (rogueone) — it has the RAM for the full winning model and reaches MLflow+MinIO over the
+        # LAN, so the head/driver never holds the multi-GB model (no head OOM — the exit-137 that hit before).
+        import os as o
+        import mlflow
+        import mlflow.sklearn
+        import ray as r
+        from sklearn.ensemble import RandomForestClassifier as RF
+        from sklearn.metrics import accuracy_score as acc_s, f1_score as f1_s
+        o.environ.update(wenv)
+        a_tr, a_te, y_tr, y_te = r.get(data_ref)
+        clf = RF(random_state=42, n_jobs=-1, **{k: config[k] for k in _pk}).fit(a_tr, y_tr)
+        pred = clf.predict(a_te)
+        acc, f1 = float(acc_s(y_te, pred)), float(f1_s(y_te, pred, average="macro"))
+        mlflow.set_tracking_uri(wenv["MLFLOW_TRACKING_URI"])
+        mlflow.set_experiment(experiment)
+        with mlflow.start_run(run_name=f"genre-{source}-tuned"):
+            mlflow.log_params({"model": "RandomForestClassifier", "feature_source": source, "n_features": n_feat,
+                               "n_classes": int(n_classes), "n_rows": int(n_rows), "mode": "ray-tune-best",
+                               "tune_trials": trials_n, **{k: config[k] for k in _pk}})
+            mlflow.log_metrics({"accuracy": acc, "f1_macro": f1})
+            mlflow.sklearn.log_model(clf, "model", registered_model_name=registered)
+        return acc, f1
+
+    acc, f1 = ray.get(retrain_register.remote(bc))
+    log(f"winner registered as {registered!r} (retrained on a worker) — acc={acc:.3f} f1_macro={f1:.3f}")
     ray.shutdown()
 
 
