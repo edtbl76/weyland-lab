@@ -154,9 +154,12 @@ def _tune(args, splits, n_classes, n_rows):
     from ray import train, tune
 
     Xtr, Xte, ytr, yte = splits
-    ray.init(include_dashboard=False, ignore_reinit_error=True)
-    log(f"[tune] Ray up — {int(ray.cluster_resources().get('CPU', 0))} CPUs. Sweeping {args.trials} trials "
-        f"(4 CPUs each → ~8 concurrent) → each trial is its own MLflow run…")
+    # dashboard_host=0.0.0.0 is required for `-p` to reach it (Docker publishes to the container's eth0, not its
+    # loopback). The Ray Dashboard has NO auth and its Jobs API = RCE, so it must NOT be published on the host's
+    # 0.0.0.0 — run with `-p 127.0.0.1:8265:8265` so only rogueone (localhost) can reach it, never the LAN.
+    ray.init(include_dashboard=True, dashboard_host="0.0.0.0", ignore_reinit_error=True)
+    log(f"[tune] Ray up — {int(ray.cluster_resources().get('CPU', 0))} CPUs. Dashboard → http://localhost:8265 "
+        f"(run with -p 8265:8265). Sweeping {args.trials} trials (4 CPUs each → ~8 concurrent), each an MLflow run…")
     data_ref = ray.put((Xtr, Xte, ytr, yte))
     tracking_uri, experiment, source = os.environ["MLFLOW_TRACKING_URI"], args.experiment, args.source
 
