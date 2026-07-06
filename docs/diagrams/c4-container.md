@@ -13,7 +13,7 @@ C4Container
     System_Ext(anthropic, "Anthropic API", "Claude cloud models (OpenClaw only — deprioritized)")
     System_Ext(hostedmodels, "Gemini / OpenRouter", "Free-tier hosted LLMs — via mother LiteLLM gateway")
     System_Ext(github, "GitHub", "weyland-lab repo — RAG source (B25b) + roadmap backlog")
-    System_Ext(rogueone, "rogueone", "External laptop: Claude Code, vLLM")
+    System_Ext(rogueone, "rogueone", "External laptop: Claude Code, vLLM, Ray training edge worker")
 
     System_Boundary(weyland, "weyland — MS-A2 Proxmox (.232)") {
 

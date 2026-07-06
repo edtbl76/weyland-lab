@@ -6,16 +6,19 @@ demonstrates **three distinct, documentable use cases**. The whole point: **the 
 architecture decision, not an accuracy one** — same task, same features, same result; different plumbing with
 different guarantees.
 
-**Where it runs:** training executes **remotely on rogueone** (RAM + GPU), pulled from the registry as a
-self-contained container — **not** in-cluster. Full mechanics + gotchas: **[remote-training.md](remote-training.md)**;
+**Where it runs:** training executes **remotely on rogueone** (RAM + GPU), **not** in-cluster — either submitted
+to the **persistent Ray cluster** (`ray job submit` to the always-on head at `ray.weyland.lab`; rogueone joins as
+a native edge worker) or as a standalone container pulled from the registry. Full mechanics + gotchas:
+**[remote-training.md](remote-training.md)**;
 build/run: **[services/genre-trainer/README.md](../../nodes/mother/lab/weyland-platform/services/genre-trainer/README.md)**.
 MLflow: `mlflow.weyland.lab`, experiment `genre-classifier`, registered model `genre_classifier`. Diagram
 context: [../diagrams/flow-feast.md](../diagrams/flow-feast.md).
 
 > The first attempt was two in-cluster Dagster assets (`weyland_pipeline/assets/mlflow_genre.py`) — but training
 > a GB-scale model in the 1Gi dagster pod (fit OOM) and pushing the artifact through MLflow's serve-artifacts
-> proxy (upload timeout) both failed. The lesson *was* the pivot: training belongs on rogueone, and artifacts go
-> **direct to MinIO**. The `genre-trainer` container is that realization.
+> proxy (upload timeout) both failed. Those assets are now **fully superseded** — not a live or alternate path.
+> The lesson *was* the pivot: training belongs on rogueone, and artifacts go **direct to MinIO**. The
+> `genre-trainer` container + the persistent Ray cluster are that realization.
 
 ---
 
@@ -34,9 +37,10 @@ cleaning).
 versioned `genre_classifier` in the Model Registry. So every experiment is reproducible, comparable, and the
 model is retrievable — not a number in a log that scrolls away.
 
-> **Measured (silver source):** single fit `accuracy = 0.321`, `f1_macro = 0.305` (`genre_classifier` v1). A
-> **Ray Tune** sweep (`--tune`, 24 trials — see [remote-training.md](remote-training.md)) beat it: `0.329 / 0.312`,
-> registered as **v2**. Modest **by nature** — audio → genre across 113 genres is hard — but 32% top-1 where random
+> **Measured (silver source):** single fit `accuracy = 0.321`, `f1_macro = 0.305`. A **Ray Tune** sweep
+> (`--tune`, 24 trials **across the cluster** — see [remote-training.md](remote-training.md)) beat it: best
+> **f1_macro ~0.308 / acc ~0.327**, retrained + registered **on the worker** as the current `genre_classifier`
+> (~**v6** after repeated sweeps). Modest **by nature** — audio → genre across 113 genres is hard — but 32% top-1 where random
 > is 0.9% (1/113) is real signal. The value is the *tracking + registry + comparison + sweep*, not a leaderboard.
 
 ---
@@ -108,11 +112,15 @@ silver-direct is the simpler, honest choice. Same destination, different guarant
 wired) — compare `accuracy` / `f1_macro`, filter/group by the `feature_source` param. → Models →
 **`genre_classifier`**: the registered versions (one per source/run). Load one back with
 `mlflow.sklearn.load_model("models:/genre_classifier/<version>")` (needs `MLFLOW_S3_ENDPOINT_URL` + MinIO creds,
-since the artifact lives in `s3://mlflow/…`).
+plus `AWS_CA_BUNDLE` = the mkcert root to verify `s3.weyland.lab` TLS, since the artifact lives in `s3://mlflow/…`).
 
 ## Reproduce
 
-Run the trainer on rogueone (see [services/genre-trainer/README.md](../../nodes/mother/lab/weyland-platform/services/genre-trainer/README.md)):
+Submit to the persistent Ray cluster (primary — see [remote-training.md](remote-training.md)):
+```
+kubectl -n weyland exec deploy/ray-head -- ray job submit --address http://localhost:8265 -- python /home/ray/train_genre.py --source silver --tune --trials 24
+```
+Or run the standalone container on rogueone (see [services/genre-trainer/README.md](../../nodes/mother/lab/weyland-platform/services/genre-trainer/README.md)):
 ```
 docker run --rm -v $HOME/.kube/config:/root/.kube/config:ro --add-host mother:192.168.1.243 registry.weyland.lab/genre-trainer:v3 --source silver
 ```

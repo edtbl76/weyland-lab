@@ -10,7 +10,7 @@ C4Context
 
     System(weyland, "weyland", "Home AI lab running on a Minisforum MS-A2. Local LLM inference, RAG, STT, eval harness, observability, object storage, and AI agents. LAN-only, no public access.")
 
-    System_Ext(rogueone, "rogueone", "External laptop (RTX 5000 Ada 16GB). GPU inference via vLLM, dev workstation, Claude Code CLI.")
+    System_Ext(rogueone, "rogueone", "External laptop (RTX 5000 Ada 16GB, 128GB RAM). GPU inference via vLLM, dev workstation, Claude Code CLI, and remote model training (native Ray edge worker → mother's Ray head).")
 
     System_Ext(telegram, "Telegram", "Cloud messaging platform. Delivers inbound DMs to the Hermes agent and receives Alertmanager notifications.")
     System_Ext(github, "GitHub", "weyland-lab repo. RAG corpus source (docs/ + nodes/, B25b) and the roadmap backlog Hermes mirrors.")

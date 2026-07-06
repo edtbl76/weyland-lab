@@ -7,7 +7,7 @@ C4Component
     title mother VM — k3s Components
 
     Container_Ext(hermes, "hermes CT", "MCP client + LiteLLM planning client")
-    Container_Ext(rogueone, "rogueone", "Claude Code — MCP client")
+    Container_Ext(rogueone, "rogueone", "Claude Code (MCP client) + native Ray edge worker + genre-trainer")
     Container_Ext(ollama_ct, "ollama CT", "LLM inference /v1")
     Container_Ext(whisper_ct, "whisper CT", "STT /v1/audio/transcriptions")
     Container_Ext(github, "GitHub", "weyland-lab repo — RAG source")
@@ -49,7 +49,9 @@ C4Component
         Component(neodash, "NeoDash", "neo4jlabs/neodash / k8s", "Neo4j dashboard/viz UI (free Bloom-alternative). Browser-side Bolt to Neo4j. mother:30088")
 
         Component(docs_site, "Platform Docs (B59)", "MkDocs Material / nginx / k8s", "Standalone docs site — runbooks/architecture/concepts; browsable + searchable + Mermaid. initContainer builds from the repo, nginx serves. Replaced the retired Backstage IDP/TechDocs. docs.weyland.lab")
-        Component(mlflow, "MLflow (B10+B16)", "MLflow / k8s", "Experiment tracking + model registry. Postgres backend store + MinIO artifact store (proxied via --serve-artifacts). Meshed (STRICT Postgres). Keycloak SSO (forward-auth). mlflow.weyland.lab")
+        Component(mlflow, "MLflow (B10+B16)", "MLflow / k8s", "Experiment tracking + model registry. Postgres backend store + MinIO artifact store. Two-plane: metadata via server, big-model artifacts DIRECT to MinIO (serve-artifacts proxy times multi-GB models out). Meshed (STRICT Postgres). Keycloak SSO (forward-auth) + LAN NodePort :30500 (mlflow-lan, iptables-pinned to rogueone) for the external Ray worker. mlflow.weyland.lab")
+        Component(registry, "Container registry", "distribution/registry / k8s", "MinIO-backed OCI registry (blobs in MinIO registry bucket, stateless, no PVC). No auth (LAN-only). The platform's private Docker registry (B57's in-cluster registry). registry.weyland.lab (Docker API only, no web UI)")
+        Component(ray_head, "Ray head", "Ray 2.37 / k8s", "Persistent Ray cluster you submit training/HP-sweep jobs to. Always-on head (plain Ray not KubeRay, hostNetwork, --num-cpus=0 coordinator). rogueone joins as a native edge worker; the winner retrains+registers on the worker. Keycloak SSO (forward-auth). ray.weyland.lab · GCS :6379 · Jobs API :8265")
     }
 
     Container_Boundary(istiosystem, "mother VM — k3s, ns: istio-system (Istio service mesh, B8)") {
@@ -93,7 +95,11 @@ C4Component
     Rel(user, docs_site, "browse platform docs")
     Rel(user, mlflow, "experiments + model registry UI")
     Rel(mlflow, pgvector, "backend store: runs/params/metrics (mTLS, STRICT)")
-    Rel(mlflow, minio, "artifact store (S3, mlflow bucket)")
+    Rel(mlflow, minio, "artifact store (S3, mlflow bucket) — big models DIRECT (two-plane)")
+    Rel(rogueone, ray_head, "native Ray worker joins GCS :6379; jobs submitted to head")
+    Rel(rogueone, registry, "docker pull genre-trainer image")
+    Rel(rogueone, mlflow, "log runs :30500 + artifact direct to MinIO")
+    Rel(registry, minio, "image blobs (registry bucket)")
     Rel(tool_server, pgvector, "embed + retrieve rag_chunks (mTLS, STRICT)")
     Rel(tool_server, qdrant, "retrieve (mTLS)")
     Rel(tool_server, weaviate, "retrieve (mTLS)")

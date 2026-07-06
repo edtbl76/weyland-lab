@@ -3,12 +3,15 @@
 End-to-end ingestion pipelines for all datasets. Each source lands in lakeFS, transforms to silver/gold
 formats, then loads into the appropriate stores. Read paths are shown per format.
 
-> **Status (2026-06-30):** the **land → silver (Parquet/Arrow/Avro/Lance) → Iceberg gold** legs are
+> **Status (updated 2026-07-06):** the **land → silver (Parquet/Arrow/Avro/Lance) → Iceberg gold** legs are
 > **built and green** for both domains (via the `datasets_lib` broker — see
-> [runbooks/datasets-lake.md](runbooks/datasets-lake.md)). The **store loaders below** (MySQL, Mongo,
-> ClickHouse, Cassandra, CockroachDB, Neo4j, OpenSearch, Qdrant/Weaviate, Feast, dbt, Kafka, DuckDB) are
-> the **planned target** (the storage grid) — next phase, "data-store-mageddon". This file is the map for
-> that work, not current state. Deferred: `open_food_facts` (~9GB), usda `food_nutrient` (~24M rows).
+> [runbooks/datasets-lake.md](runbooks/datasets-lake.md)), and **"data-store-mageddon" is now DONE** — the
+> store loaders below (MySQL, Mongo, ClickHouse, Cassandra, CockroachDB, Neo4j, OpenSearch,
+> Qdrant/Weaviate/LanceDB, Feast, Redpanda/Kafka, TimescaleDB, DuckDB/GizmoSQL) were **hydrated 2026-07-01/02**
+> (see [hosts.md](hosts.md), [schedules.md](schedules.md), [query/](query/)). **Still unbuilt:** `dbt` (B1.5
+> transform tier) and `JupyterHub`/polars (B1.8, deferred) — the diagrams below show those as *target*
+> read-paths, not live. Earlier caps now resolved: `open_food_facts` (~4.5M docs, capped) + usda
+> `food_nutrient` (26.8M rows, in ClickHouse).
 
 ---
 

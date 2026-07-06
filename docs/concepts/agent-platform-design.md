@@ -206,4 +206,4 @@ per-task choice, not the standing brain.
 - **B14 — Guardrails:** gates the read→act promotion; prompt-injection awareness once agents read untrusted content.
 - **B15 — opencode / Cline:** the powerful-agent expansion that triggers the B17 A2A evaluation.
 - **B17 — A2A evaluation:** the agent↔agent protocol decision (see backlog).
-- Platform context: [arch.md](arch.md) · endpoint inventory: [api.md](api.md) · hosts: [hosts.md](hosts.md).
+- Platform context: [../arch.md](../arch.md) · endpoint inventory: [../api.md](../api.md) · hosts: [../hosts.md](../hosts.md).

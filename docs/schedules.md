@@ -46,14 +46,14 @@ Heavy = embeds/writes or large scans (guard the node's RAM). Light = metadata/re
 | 04:30 | DataHub | ClickHouse (datasets_music + datasets_health) | weekly (Sun) | med — profiling cheap (columnar) |
 | 04:45 | DataHub | Postgres — MusicBrainz | weekly (Sun) | **heavy scan** |
 
-**Ordering note:** the `02:00` scale-down takes cockroach/mongo/mysql/gizmosql to 0 for the night.
-The DataHub ingestions that read them (Cockroach 03:30, Mongo 03:45) are **weekly (Sun)** — on the
-night they run they must fire *before* 02:00 or *wake the store first*. Simplest: put the weekly
-DataHub store-ingestions at **01:xx Sunday** (before scale-down), or exclude those stores from the
-scale-down on Sunday. Current placement (03:30/03:45) runs *after* the store is down → **move the
-three weekly store-ingestions to a Sunday 01:xx slot** when you wire them, or they'll ingest a
-scaled-to-zero store. (MusicBrainz-Postgres and core-Postgres are NOT in the scale-down set, so 04:45
-is fine for MusicBrainz.)
+**Ordering note (risk currently DORMANT):** a nightly `02:00` scale-down *would* take
+cockroach/mongo/mysql/gizmosql to 0, and the DataHub ingestions that read them (Cockroach 03:30, Mongo
+03:45, both **weekly Sun**) would then hit a scaled-to-zero store. **But the auto sleep/scale-down is
+PARKED** — Argo `selfHeal` reverts `replicas:0` (see [runbooks/port-agent-easy-button.md](runbooks/port-agent-easy-button.md)
+and [[store-scaler-easy-button]]), pending KEDA-in-Argo. Stores stay up overnight, so 03:30/03:45 are
+fine **today**. **When sleep is un-parked:** move the two affected weekly ingestions (Cockroach, Mongo) to
+a **Sunday 01:xx** slot (before scale-down), or exclude those stores from the Sunday scale-down.
+(MusicBrainz-Postgres and core-Postgres are NOT in the scale-down set, so 04:45 is fine for MusicBrainz.)
 
 ## The "easy button" — manual up, automatic down
 

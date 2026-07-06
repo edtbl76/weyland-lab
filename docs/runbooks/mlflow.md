@@ -1,11 +1,11 @@
 # MLflow — runbook (B10+B16)
 
 Experiment tracking + model registry at `mlflow.weyland.lab` (Keycloak SSO via `traefik-forward-auth`). Reuses the shared **Postgres**
-(backend store) and **MinIO** (artifact store, proxied) — fits the lab's reuse ethos.
+(backend store) and **MinIO** (artifact store — **two-plane**: small artifacts proxied, big models direct) — fits the lab's reuse ethos.
 
 - Manifest: `k8s/mlflow/mlflow.yaml` (Middleware + Deployment + Service + Ingress).
 - Backend store: Postgres `mlflow` db owned by the `mlflow` role.
-- Artifact store: MinIO `mlflow` bucket, served **through** MLflow (`--serve-artifacts`) so clients never touch MinIO directly.
+- Artifact store: MinIO `mlflow` bucket. **Two-plane:** small artifacts proxy **through** MLflow (`--serve-artifacts`); **big models upload DIRECT to MinIO** (experiment `artifact_location=s3://mlflow/…`) because the proxy times a multi-GB `model.pkl` out through the 1Gi pod. See [remote-training.md](remote-training.md) / [mlflow-training.md](mlflow-training.md).
 - **Meshed:** the pod carries `sidecar.istio.io/inject: "true"` — STRICT-mTLS Postgres resets a non-meshed client (`read ECONNRESET`). See [[postgres-strict-needs-mesh]].
 
 ## Deploy (first time)
@@ -32,5 +32,11 @@ kubectl exec -n weyland deploy/mlflow -- python -c "import mlflow; mlflow.set_tr
 - **No native auth** — access is gated by **Keycloak SSO** via the shared `traefik-forward-auth` Middleware
   (forward-auth → Keycloak, SSO across `*.weyland.lab`), like Kiali. The old `mlflow-auth` basicAuth dev-password
   Middleware is retired/superseded by the forward-auth gate.
-- **Clients:** point `MLFLOW_TRACKING_URI=https://mlflow.weyland.lab` with `MLFLOW_TRACKING_USERNAME=admin` /
-  `MLFLOW_TRACKING_PASSWORD=weyland_dev_password`. Proxied artifacts mean no MinIO creds needed client-side.
+- **Clients:** browser UI = `https://mlflow.weyland.lab` (Keycloak SSO). **Programmatic clients can't use the SSO
+  ingress** (forward-auth is browser-only) → they use the **LAN NodePort**
+  `MLFLOW_TRACKING_URI=http://192.168.1.243:30500` (`mlflow-lan`, unauth). The two-plane artifact path means
+  clients **do** need MinIO creds + `AWS_CA_BUNDLE` (mkcert root) for the direct upload to `s3.weyland.lab`.
+- **LAN NodePort (`mlflow-lan`, :30500).** Added for the external Ray training worker (svc DNS is cluster-only,
+  the ingress is browser-SSO). Unauthenticated MLflow API on the LAN — `externalTrafficPolicy: Local` preserves
+  the source IP so a host firewall can pin it to the worker: `sudo iptables -I INPUT 1 -p tcp --dport 30500 ! -s
+  192.168.1.230 -j DROP` (on mother; not yet reboot-persistent). See [remote-training.md](remote-training.md).
