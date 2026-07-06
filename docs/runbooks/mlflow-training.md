@@ -34,9 +34,10 @@ cleaning).
 versioned `genre_classifier` in the Model Registry. So every experiment is reproducible, comparable, and the
 model is retrievable — not a number in a log that scrolls away.
 
-> **Measured (silver source):** `accuracy = 0.321`, `f1_macro = 0.305`. Modest **by nature** — audio features →
-> genre across 113 genres is genuinely hard — but 32% top-1 where random is 0.9% (1/113) is a real signal. The
-> value here is the *tracking + registry + comparison*, not a leaderboard score.
+> **Measured (silver source):** single fit `accuracy = 0.321`, `f1_macro = 0.305` (`genre_classifier` v1). A
+> **Ray Tune** sweep (`--tune`, 24 trials — see [remote-training.md](remote-training.md)) beat it: `0.329 / 0.312`,
+> registered as **v2**. Modest **by nature** — audio → genre across 113 genres is hard — but 32% top-1 where random
+> is 0.9% (1/113) is real signal. The value is the *tracking + registry + comparison + sweep*, not a leaderboard.
 
 ---
 

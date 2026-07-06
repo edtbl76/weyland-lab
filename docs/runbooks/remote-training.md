@@ -107,6 +107,36 @@ the DB URI alone defaults tracking to `file:///mlruns` and errors.)
 
 ---
 
+## Hyperparameter sweeps — Ray Tune (`--tune`)
+
+`--tune` runs a **Ray Tune** sweep on a **local Ray cluster** (rogueone's cores) instead of a single fit. Each
+trial trains an RF with a sampled config, logs its **own MLflow run** (params + metrics, no artifact), and reports
+`f1_macro` to Tune; the **best config** is retrained on the full split and registered as a new `genre_classifier`
+version. So one sweep = N comparable experiment runs + **1** registered winner (not N GB-scale artifacts).
+
+Search space (bounded so 113-class forests stay memory-sane under parallelism): `n_estimators ∈ {100,200}`,
+`max_depth ∈ {12,16,20}`, `max_features ∈ {sqrt,log2}`, `min_samples_leaf ∈ {1,2,4}`; 4 CPUs/trial → ~8 concurrent
+on 32. **Measured:** the sweep (24 trials) beat the single fit — **f1 0.312 / acc 0.329** vs **0.305 / 0.321** —
+and registered the winner as `genre_classifier` v2. Run: append `--tune` (and `--trials N`, default 24).
+
+**Why plain Ray on rogueone, not KubeRay:** KubeRay schedules Ray pods onto k8s nodes → mother (32 GB, no GPU),
+the box training was moved *off*; rogueone is external + not-always-on (a flaky k3s node). So the sweep runs a
+local Ray cluster **inside the same container** — real Ray + Tune, on the muscle box. KubeRay earns its place when
+there's an **always-on / autoscaling / multi-node** need (e.g. a *persistent* dashboard — see below); the image
+then drops in as a Ray job unchanged.
+
+### Ray Dashboard
+
+`--tune` starts the Ray Dashboard (live trials, per-trial logs, CPU/GPU usage). It is published to **rogueone's
+loopback only** — `-p 127.0.0.1:8265:8265` — because the dashboard has **no auth and its Jobs API is an RCE
+surface**, so it must never land on the host's `0.0.0.0` (the container binds `0.0.0.0` so `-p` can reach it; the
+security boundary is the *host* publish). Open `http://localhost:8265` on rogueone **while the job runs** — it's
+**ephemeral** (the cluster + dashboard live only for the `docker run`). For a persistent trial view, use MLflow.
+
+> **Persistent dashboard = a persistent Ray cluster** — a long-running head (on always-on mother, dashboard at
+> `ray.weyland.lab`) that rogueone joins as a worker when up, with `ray job submit`. That's the **KubeRay follow-up**
+> — a deliberate build, not a flag; logged, not done.
+
 ## The gotcha gauntlet (the full trail)
 
 | # | Symptom | Root cause | Fix |
@@ -120,6 +150,8 @@ the DB URI alone defaults tracking to `file:///mlruns` and errors.)
 | 7 | `--network host` container can't reach `localhost:8000` forwards | Docker Desktop `--network host` = the *VM's* loopback | in-container port-forwards (own localhost), bridge networking |
 | 8 | `connection refused` to `mother:6443` on the bridge | `--add-host` pointed at rogueone's `.230`, not mother's `.243` | correct IP |
 | 9 | `pip` crash resolving `aiohttp` | the k8s Python client's dep tree + old pip | drop the client (use `kubectl`), upgrade pip |
+| 10 | Ray Tune trials OOM at **15.6 GB** on a 128 GB box | **Docker Desktop caps the container's memory** (its VM allocation) — rogueone's 128 GB is invisible | raise Docker Desktop → Resources → Memory; + fewer concurrent trials (4 CPU each) |
+| 11 | Ray Dashboard = **unauth RCE** on the LAN | `-p 8265:8265` publishes on the host's `0.0.0.0` | publish loopback-only: `-p 127.0.0.1:8265:8265` |
 
 ---
 

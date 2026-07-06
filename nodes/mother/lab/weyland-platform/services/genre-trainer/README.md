@@ -79,6 +79,21 @@ Expected output:
 
 View it at `mlflow.weyland.lab` → experiment **`genre-classifier`**, registered model **`genre_classifier`**.
 
+## Hyperparameter sweep (Ray Tune)
+
+Append `--tune` for a **Ray Tune** sweep on a local Ray cluster (rogueone's cores): `--trials` trials (default 24),
+each its own MLflow run, the best config retrained + registered. Publish the Ray Dashboard **loopback-only** (it's
+unauthenticated → its Jobs API is RCE):
+```
+docker run --rm --shm-size=2g -p 127.0.0.1:8265:8265 -v $HOME/.kube/config:/root/.kube/config:ro --add-host mother:192.168.1.243 registry.weyland.lab/genre-trainer:v6 --source silver --tune --trials 100
+```
+Watch at `http://localhost:8265` (rogueone, while it runs) + MLflow `genre-classifier` (persistent). Measured: the
+sweep beat the single fit — **f1 0.312 / acc 0.329** vs 0.305 / 0.321.
+
+> **Docker Desktop memory cap:** a container only sees Docker Desktop's VM RAM (a fraction of rogueone's 128 GB by
+> default), so a parallel sweep OOMs at ~15 GB. Raise it under **Settings → Resources → Memory** — this is the one
+> setting that silently defeats "rogueone has the RAM."
+
 ## Sources (`--source`)
 
 - **`silver`** — read `spotify_tracks` silver straight from lakeFS. **Implemented.**
@@ -97,6 +112,10 @@ endpoint/cred override (env wins over the kubeconfig fetch).
   real resolver and ignores `--add-host`.)
 - **No `--network host`.** On Docker Desktop it shares the *VM's* loopback, so the container can't reach
   rogueone's `127.0.0.1` (IntelliJ forwards) anyway — the in-container forwards sidestep the whole problem.
+- **Docker Desktop caps container memory** (`--tune`) — the container sees the VM's RAM, not rogueone's 128 GB;
+  raise Docker Desktop → Resources → Memory or a parallel sweep OOMs at ~15 GB.
+- **Ray Dashboard is unauthenticated (Jobs API = RCE)** — publish it loopback-only (`-p 127.0.0.1:8265:8265`),
+  never `-p 8265:8265` (that's the host's `0.0.0.0` → LAN-reachable).
 - **MLflow client pinned to `2.18.0`** = the deployed server version. An unpinned 3.x client calls
   `/api/2.0/mlflow/logged-models` (404 on the 2.x server).
 - **`RandomForest` is bounded** (`n_estimators=100, max_depth=20`). Unbounded × 113 classes made the pickle
