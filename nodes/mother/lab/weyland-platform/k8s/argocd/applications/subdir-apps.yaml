@@ -87,6 +87,24 @@ spec:
   syncPolicy:
     automated: { selfHeal: true, prune: true }
 ---
+# Persistent Ray head (ray.weyland.lab) — the standing cluster jobs are submitted to (remote-training Phase 1).
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: ray
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/edtbl76/weyland-lab.git
+    targetRevision: main
+    path: nodes/mother/lab/weyland-platform/k8s/ray
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: weyland
+  syncPolicy:
+    automated: { selfHeal: true, prune: true }
+---
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:

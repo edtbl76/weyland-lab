@@ -1,0 +1,103 @@
+# Persistent Ray head — the standing cluster you SUBMIT jobs to (Ray Dashboard "Submit Job" + a Port action),
+# instead of docker-run-per-job. Phase 1: a normal in-cluster pod on mother; jobs run on the head itself (light
+# sweeps only — real compute arrives in Phase 2 when rogueone joins as an edge worker). Plain Ray, NOT KubeRay
+# (KubeRay only manages in-cluster POD workers; edge/external nodes need a plain `ray start` cluster).
+#
+# NOT hostNetwork yet: keeps Ray's ports OFF the LAN (the dashboard's Jobs API is unauthenticated = RCE). The
+# dashboard is reachable ONLY via the Keycloak-gated ingress; the Jobs API only via cluster DNS (the port-agent).
+# Phase 2 flips hostNetwork on (so edge workers can reach mother's real IP) + adds the DMZ firewall.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ray-head
+  namespace: weyland
+  labels:
+    app: ray-head
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate            # single Ray head — never two GCS at once
+  selector:
+    matchLabels:
+      app: ray-head
+  template:
+    metadata:
+      labels:
+        app: ray-head
+    spec:
+      containers:
+        - name: ray-head
+          image: rayproject/ray:2.37.0-py311
+          command: ["/bin/bash", "-lc"]
+          # --block keeps `ray start` in the foreground as PID 1; num-cpus kept low so head jobs don't starve k3s.
+          args:
+            - >
+              ray start --head --dashboard-host=0.0.0.0 --dashboard-port=8265 --port=6379
+              --num-cpus=2 --disable-usage-stats --block
+          ports:
+            - name: dashboard
+              containerPort: 8265     # dashboard UI + Jobs API (submit)
+            - name: gcs
+              containerPort: 6379     # GCS (Phase 2 edge workers dial this)
+            - name: client
+              containerPort: 10001    # Ray Client
+          readinessProbe:
+            httpGet:
+              path: /api/version       # dashboard API — 200 once the head is up
+              port: 8265
+            initialDelaySeconds: 15
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: 250m
+              memory: 1Gi
+            limits:
+              memory: 4Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ray-head
+  namespace: weyland
+  labels:
+    app: ray-head
+spec:
+  type: ClusterIP
+  selector:
+    app: ray-head
+  ports:
+    - name: dashboard
+      port: 8265
+      targetPort: 8265
+    - name: gcs
+      port: 6379
+      targetPort: 6379
+    - name: client
+      port: 10001
+      targetPort: 10001
+---
+# Dashboard UI at ray.weyland.lab — Keycloak forward-auth (browser SSO), like the other UIs. The Jobs API used by
+# the Port action is reached in-cluster via ray-head.weyland.svc:8265 (NOT this gated ingress).
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: ray-dashboard
+  namespace: weyland
+  annotations:
+    traefik.ingress.kubernetes.io/router.middlewares: weyland-traefik-forward-auth@kubernetescrd
+spec:
+  tls:
+    - hosts:
+        - ray.weyland.lab
+      secretName: weyland-wildcard-tls
+  rules:
+    - host: ray.weyland.lab
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: ray-head
+                port:
+                  number: 8265
