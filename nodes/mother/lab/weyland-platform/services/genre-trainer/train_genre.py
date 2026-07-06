@@ -156,7 +156,7 @@ def _tune(args, splits, n_classes, n_rows):
     Xtr, Xte, ytr, yte = splits
     ray.init(include_dashboard=False, ignore_reinit_error=True)
     log(f"[tune] Ray up — {int(ray.cluster_resources().get('CPU', 0))} CPUs. Sweeping {args.trials} trials "
-        f"(2 CPUs each) → each trial is its own MLflow run…")
+        f"(4 CPUs each → ~8 concurrent) → each trial is its own MLflow run…")
     data_ref = ray.put((Xtr, Xte, ytr, yte))
     tracking_uri, experiment, source = os.environ["MLFLOW_TRACKING_URI"], args.experiment, args.source
 
@@ -168,7 +168,7 @@ def _tune(args, splits, n_classes, n_rows):
         a_tr, a_te, y_tr, y_te = r.get(data_ref)
         clf = RF(n_estimators=config["n_estimators"], max_depth=config["max_depth"],
                  max_features=config["max_features"], min_samples_leaf=config["min_samples_leaf"],
-                 random_state=42, n_jobs=2).fit(a_tr, y_tr)
+                 random_state=42, n_jobs=4).fit(a_tr, y_tr)
         pred = clf.predict(a_te)
         acc, f1 = float(acc_s(y_te, pred)), float(f1_s(y_te, pred, average="macro"))
         m.set_tracking_uri(tracking_uri)
@@ -179,14 +179,14 @@ def _tune(args, splits, n_classes, n_rows):
             m.log_metrics({"accuracy": acc, "f1_macro": f1})
         train.report({"accuracy": acc, "f1_macro": f1})
 
-    space = {
-        "n_estimators": tune.choice([100, 200, 300]),
-        "max_depth": tune.choice([10, 15, 20, 25]),
+    space = {                                        # bounded so 113-class forests stay memory-sane under a sweep
+        "n_estimators": tune.choice([100, 200]),
+        "max_depth": tune.choice([12, 16, 20]),
         "max_features": tune.choice(["sqrt", "log2"]),
         "min_samples_leaf": tune.choice([1, 2, 4]),
     }
     tuner = tune.Tuner(
-        tune.with_resources(trainable, {"cpu": 2}),
+        tune.with_resources(trainable, {"cpu": 4}),
         param_space=space,
         tune_config=tune.TuneConfig(num_samples=args.trials, metric="f1_macro", mode="max"),
     )
