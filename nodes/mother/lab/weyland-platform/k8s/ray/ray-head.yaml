@@ -25,15 +25,20 @@ spec:
       labels:
         app: ray-head
     spec:
+      # hostNetwork so an EXTERNAL worker (rogueone) can reach the head's GCS on mother's real IP (.243). Exposes
+      # the unauth dashboard on the LAN → revert / firewall :8265 after the validation; the DMZ is the Phase-2 fix.
+      hostNetwork: true
+      dnsPolicy: ClusterFirstWithHostNet
       containers:
         - name: ray-head
-          image: registry.weyland.lab/ray-head:v1   # base Ray + trainer deps (services/ray-head/)
+          image: registry.weyland.lab/ray-head:v2   # base Ray + trainer deps (services/ray-head/)
           command: ["/bin/bash", "-lc"]
-          # --block keeps `ray start` in the foreground as PID 1; num-cpus kept low so head jobs don't starve k3s.
+          # --num-cpus=0 → the head only COORDINATES; the driver runs here but trials schedule onto the worker
+          # (rogueone). --block keeps `ray start` foreground as PID 1.
           args:
             - >
-              ray start --head --dashboard-host=0.0.0.0 --dashboard-port=8265 --port=6379
-              --num-cpus=4 --disable-usage-stats --block
+              ray start --head --node-ip-address=192.168.1.243 --dashboard-host=0.0.0.0 --dashboard-port=8265
+              --port=6379 --num-cpus=0 --disable-usage-stats --block
           ports:
             - name: dashboard
               containerPort: 8265     # dashboard UI + Jobs API (submit)

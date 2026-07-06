@@ -180,12 +180,18 @@ def _tune(args, splits, n_classes, n_rows):
                  random_state=42, n_jobs=4).fit(a_tr, y_tr)
         pred = clf.predict(a_te)
         acc, f1 = float(acc_s(y_te, pred)), float(f1_s(y_te, pred, average="macro"))
-        m.set_tracking_uri(tracking_uri)
-        m.set_experiment(experiment)
-        with m.start_run(run_name="tune-trial"):
-            m.log_params({k: config[k] for k in ("n_estimators", "max_depth", "max_features", "min_samples_leaf")})
-            m.log_params({"feature_source": source, "mode": "ray-tune"})
-            m.log_metrics({"accuracy": acc, "f1_macro": f1})
+        try:
+            # Best-effort: an EXTERNAL Ray worker (rogueone) can't reach the in-cluster MLflow (svc DNS is
+            # cluster-only, the ingress is SSO-gated). The sweep + the best-model registration (done on the
+            # in-cluster driver) don't depend on per-trial runs, so a failure here is non-fatal.
+            m.set_tracking_uri(tracking_uri)
+            m.set_experiment(experiment)
+            with m.start_run(run_name="tune-trial"):
+                m.log_params({k: config[k] for k in ("n_estimators", "max_depth", "max_features", "min_samples_leaf")})
+                m.log_params({"feature_source": source, "mode": "ray-tune"})
+                m.log_metrics({"accuracy": acc, "f1_macro": f1})
+        except Exception:
+            pass
         train.report({"accuracy": acc, "f1_macro": f1})
 
     space = {                                        # bounded so 113-class forests stay memory-sane under a sweep
