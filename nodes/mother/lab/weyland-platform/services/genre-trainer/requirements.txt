@@ -1,6 +1,6 @@
 # Trainer deps — deliberately minimal (this image is pulled + run ephemerally on rogueone).
 scikit-learn
-mlflow==2.18.0        # PINNED to the deployed MLflow server (ghcr.io/mlflow/mlflow:v2.18.0)
+mlflow==3.11.1        # PINNED to the deployed MLflow server (ghcr.io/mlflow/mlflow:v2.18.0)
 pandas
 pyarrow               # read_parquet for the lakeFS silver
 minio                 # lakeFS S3-gateway client (silver read)
