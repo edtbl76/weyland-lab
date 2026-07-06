@@ -5,5 +5,6 @@ pandas
 pyarrow               # read_parquet for the lakeFS silver
 minio                 # lakeFS S3-gateway client (silver read)
 boto3                 # mlflow's S3 artifact upload → MinIO (direct, s3://)
+ray[tune]==2.37.0     # --tune: hyperparameter sweep on a local Ray cluster (rogueone's cores)
 # (creds + port-forwards are handled by entrypoint.sh via the kubectl binary, so no k8s Python client needed)
 

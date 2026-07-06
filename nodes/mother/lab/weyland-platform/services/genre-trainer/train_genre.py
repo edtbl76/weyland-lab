@@ -1,9 +1,14 @@
 #!/usr/bin/env python3
 """Genre-classifier trainer — the weyland platform's REMOTE training job.
 
-Runs on rogueone (training COMPUTE), NOT on the weyland k3s cluster. Reads spotify_tracks silver DIRECT from
-the lakeFS S3 gateway, trains a RandomForest genre classifier, and logs params/metrics + the registered model
-to the weyland MLflow server.
+Runs on rogueone (training COMPUTE — 128 GB / 32 cores / RTX 5000 Ada), NOT the weyland k3s cluster. Reads
+spotify_tracks silver DIRECT from the lakeFS S3 gateway, trains a RandomForest genre classifier, and logs
+params/metrics + the registered model to weyland MLflow.
+
+Two modes:
+  * default (single fit)  — one RandomForest, one MLflow run, model registered.
+  * --tune (Ray Tune)     — a hyperparameter sweep on a local Ray cluster (rogueone's cores); every trial is its
+                            own MLflow run (params/metrics), and the BEST config is retrained + registered.
 
 The key design point — TWO MLflow planes:
   * metadata (params, metrics, registry entry) → the MLflow tracking server → Postgres. Small, always fine.
@@ -11,15 +16,10 @@ The key design point — TWO MLflow planes:
     s3://mlflow/… (not the mlflow-artifacts:/ proxy). This BYPASSES MLflow's --serve-artifacts relay, so a
     large model.pkl never has to squeeze through the 1Gi MLflow pod (which timed out relaying it).
 
-Self-contained: no weyland_pipeline dependency (that's why it re-implements the silver read). Config is entirely
-via env so the same image runs anywhere it can reach the three endpoints (see README.md):
-  LAKEFS_ENDPOINT / LAKEFS_ACCESS_KEY_ID / LAKEFS_SECRET_ACCESS_KEY / LAKEFS_BRANCH   — silver read (lakeFS gw)
-  MLFLOW_TRACKING_URI                                                                  — tracking + registry
-  MLFLOW_S3_ENDPOINT_URL / AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY                    — direct artifact write
-
-Creds (LAKEFS_* / AWS_*) and endpoints are supplied by entrypoint.sh, which — given only a mounted kubeconfig —
-reads the Secrets (lakefs-creds, aidlc-kb-minio-secret) and opens the mlflow/minio/lakefs port-forwards, both via
-kubectl. So this module stays pure training: it just reads its config from env. Nothing secret touches the CLI.
+Self-contained: no weyland_pipeline dependency. Creds (LAKEFS_* / AWS_*) and endpoints are supplied by
+entrypoint.sh, which — given only a mounted kubeconfig — reads the Secrets (lakefs-creds, aidlc-kb-minio-secret)
+and opens the mlflow/minio/lakefs port-forwards via kubectl. So this module stays pure training: it reads its
+config from env (LAKEFS_ENDPOINT/…, MLFLOW_TRACKING_URI, MLFLOW_S3_ENDPOINT_URL/AWS_*). Nothing secret on the CLI.
 """
 import argparse
 import os
@@ -83,19 +83,26 @@ def read_features(source: str) -> pd.DataFrame:
     if source == "silver":
         return _read_spotify_silver()
     if source == "feast":
-        # NEXT ITERATION — source features from Feast (get_historical_features, point-in-time). Needs the feast
-        # repo baked in + reach to Postgres (offline) + Valkey (online). The MLflow logging below is identical;
-        # only the feature retrieval changes. Keeping it a hard stop (not a silent fallback) until wired.
-        sys.exit("feast source not yet implemented — silver first to prove the remote-training path, feast next")
+        # NEXT ITERATION — features from Feast (get_historical_features, point-in-time). Same logging below;
+        # only the feature retrieval changes. Hard stop (not a silent fallback) until wired.
+        sys.exit("feast source not yet implemented — silver first to prove the path, feast next")
     sys.exit(f"unknown --source {source!r}")
+
+
+def _prep(source: str):
+    df = read_features(source)
+    X, y = df[AUDIO].to_numpy(), df["track_genre"].to_numpy()
+    n_classes = int(df["track_genre"].nunique())
+    Xtr, Xte, ytr, yte = train_test_split(X, y, test_size=0.2, random_state=42, stratify=y)
+    return (Xtr, Xte, ytr, yte), n_classes, len(df)
 
 
 # --- mlflow ------------------------------------------------------------------------------------------------
 
 def ensure_experiment(client: MlflowClient, name: str) -> None:
     """Guarantee the experiment writes artifacts DIRECT to MinIO (s3://), not through the serve-artifacts proxy.
-    If it already exists with a proxy (non-s3) location — e.g. the old polluted experiment from the in-cluster
-    attempts — STOP with a clear message instead of silently uploading through the proxy (which times out)."""
+    If it already exists with a proxy (non-s3) location, STOP with a clear message rather than silently uploading
+    through the proxy (which times out on a big model)."""
     loc = os.environ.get("MLFLOW_ARTIFACT_LOCATION", f"s3://mlflow/{name}")
     exp = client.get_experiment_by_name(name)
     if exp is None:
@@ -108,6 +115,103 @@ def ensure_experiment(client: MlflowClient, name: str) -> None:
         log(f"experiment {name!r} → artifacts at {exp.artifact_location}")
 
 
+def _register(clf, source, params, acc, f1, n_classes, n_rows, run_name, registered_model):
+    """One MLflow run: log params + metrics + the fitted model (artifact DIRECT to MinIO) and register it."""
+    with mlflow.start_run(run_name=run_name):
+        mlflow.log_params({"model": "RandomForestClassifier", "feature_source": source, "n_features": len(AUDIO),
+                           "n_classes": int(n_classes), "n_rows": int(n_rows), **params})
+        mlflow.log_metrics({"accuracy": acc, "f1_macro": f1})
+        t0 = time.time()
+        mlflow.sklearn.log_model(clf, "model", registered_model_name=registered_model)
+        log(f"model logged + registered as {registered_model!r} in {time.time() - t0:.1f}s "
+            f"— acc={acc:.3f} f1_macro={f1:.3f}")
+
+
+# --- single fit --------------------------------------------------------------------------------------------
+
+def _single(args, splits, n_classes, n_rows):
+    Xtr, Xte, ytr, yte = splits
+    log(f"[{args.source}] training RandomForest ({args.n_estimators} trees, max_depth {args.max_depth}) on "
+        f"{len(Xtr):,} rows × {len(AUDIO)} features, {n_classes} classes…")
+    t0 = time.time()
+    clf = RandomForestClassifier(n_estimators=args.n_estimators, max_depth=args.max_depth,
+                                 random_state=42, n_jobs=-1).fit(Xtr, ytr)
+    log(f"[{args.source}] fit complete in {time.time() - t0:.1f}s — scoring…")
+    pred = clf.predict(Xte)
+    acc, f1 = float(accuracy_score(yte, pred)), float(f1_score(yte, pred, average="macro"))
+    log(f"[{args.source}] acc={acc:.3f} f1_macro={f1:.3f}")
+    _register(clf, args.source, {"n_estimators": args.n_estimators, "max_depth": args.max_depth, "mode": "single"},
+              acc, f1, n_classes, n_rows, f"genre-{args.source}", args.registered_model)
+
+
+# --- ray tune sweep ----------------------------------------------------------------------------------------
+
+def _tune(args, splits, n_classes, n_rows):
+    """Ray Tune hyperparameter sweep on a local Ray cluster (rogueone's cores). Each trial trains an RF with a
+    sampled config, logs its own MLflow run (params + metrics, no artifact), and reports f1_macro to Tune. The
+    best config is then retrained on the full train split and registered — one heavyweight artifact, not N."""
+    import ray
+    from ray import train, tune
+
+    Xtr, Xte, ytr, yte = splits
+    ray.init(include_dashboard=False, ignore_reinit_error=True)
+    log(f"[tune] Ray up — {int(ray.cluster_resources().get('CPU', 0))} CPUs. Sweeping {args.trials} trials "
+        f"(2 CPUs each) → each trial is its own MLflow run…")
+    data_ref = ray.put((Xtr, Xte, ytr, yte))
+    tracking_uri, experiment, source = os.environ["MLFLOW_TRACKING_URI"], args.experiment, args.source
+
+    def trainable(config):
+        import mlflow as m
+        import ray as r
+        from sklearn.ensemble import RandomForestClassifier as RF
+        from sklearn.metrics import accuracy_score as acc_s, f1_score as f1_s
+        a_tr, a_te, y_tr, y_te = r.get(data_ref)
+        clf = RF(n_estimators=config["n_estimators"], max_depth=config["max_depth"],
+                 max_features=config["max_features"], min_samples_leaf=config["min_samples_leaf"],
+                 random_state=42, n_jobs=2).fit(a_tr, y_tr)
+        pred = clf.predict(a_te)
+        acc, f1 = float(acc_s(y_te, pred)), float(f1_s(y_te, pred, average="macro"))
+        m.set_tracking_uri(tracking_uri)
+        m.set_experiment(experiment)
+        with m.start_run(run_name="tune-trial"):
+            m.log_params({k: config[k] for k in ("n_estimators", "max_depth", "max_features", "min_samples_leaf")})
+            m.log_params({"feature_source": source, "mode": "ray-tune"})
+            m.log_metrics({"accuracy": acc, "f1_macro": f1})
+        train.report({"accuracy": acc, "f1_macro": f1})
+
+    space = {
+        "n_estimators": tune.choice([100, 200, 300]),
+        "max_depth": tune.choice([10, 15, 20, 25]),
+        "max_features": tune.choice(["sqrt", "log2"]),
+        "min_samples_leaf": tune.choice([1, 2, 4]),
+    }
+    tuner = tune.Tuner(
+        tune.with_resources(trainable, {"cpu": 2}),
+        param_space=space,
+        tune_config=tune.TuneConfig(num_samples=args.trials, metric="f1_macro", mode="max"),
+    )
+    best = tuner.fit().get_best_result(metric="f1_macro", mode="max")
+    bc = best.config
+    log(f"[tune] best f1_macro={best.metrics['f1_macro']:.3f} acc={best.metrics['accuracy']:.3f} — "
+        f"n_estimators={bc['n_estimators']} max_depth={bc['max_depth']} max_features={bc['max_features']} "
+        f"min_samples_leaf={bc['min_samples_leaf']}. Retraining the winner on the full split + registering…")
+
+    clf = RandomForestClassifier(n_estimators=bc["n_estimators"], max_depth=bc["max_depth"],
+                                 max_features=bc["max_features"], min_samples_leaf=bc["min_samples_leaf"],
+                                 random_state=42, n_jobs=-1).fit(Xtr, ytr)
+    pred = clf.predict(Xte)
+    acc, f1 = float(accuracy_score(yte, pred)), float(f1_score(yte, pred, average="macro"))
+    _register(clf, source, {"n_estimators": bc["n_estimators"], "max_depth": bc["max_depth"],
+                            "max_features": bc["max_features"], "min_samples_leaf": bc["min_samples_leaf"],
+                            "mode": "ray-tune-best", "tune_trials": args.trials},
+              acc, f1, n_classes, n_rows, f"genre-{source}-tuned", args.registered_model)
+    ray.shutdown()
+
+
+def _envflag(name):
+    return os.environ.get(name, "").lower() in ("1", "true", "yes")
+
+
 def main():
     ap = argparse.ArgumentParser(description="Remote genre-classifier trainer → weyland MLflow")
     ap.add_argument("--source", default=os.environ.get("SOURCE", "silver"), choices=["silver", "feast"])
@@ -115,36 +219,18 @@ def main():
     ap.add_argument("--max-depth", type=int, default=int(os.environ.get("MAX_DEPTH", "20")))
     ap.add_argument("--experiment", default=os.environ.get("EXPERIMENT", "genre-classifier"))
     ap.add_argument("--registered-model", default=os.environ.get("REGISTERED_MODEL", "genre_classifier"))
+    ap.add_argument("--tune", action="store_true", default=_envflag("TUNE"),
+                    help="Ray Tune hyperparameter sweep (local Ray cluster) instead of a single fit")
+    ap.add_argument("--trials", type=int, default=int(os.environ.get("TRIALS", "24")))
     args = ap.parse_args()
 
-    df = read_features(args.source)
-    X, y = df[AUDIO].to_numpy(), df["track_genre"].to_numpy()
-    n_classes = df["track_genre"].nunique()
-    Xtr, Xte, ytr, yte = train_test_split(X, y, test_size=0.2, random_state=42, stratify=y)
-
-    log(f"[{args.source}] training RandomForest ({args.n_estimators} trees, max_depth {args.max_depth}) on "
-        f"{len(Xtr):,} rows × {len(AUDIO)} features, {n_classes} classes…")
-    t0 = time.time()
-    clf = RandomForestClassifier(n_estimators=args.n_estimators, max_depth=args.max_depth,
-                                 random_state=42, n_jobs=-1, verbose=1).fit(Xtr, ytr)
-    log(f"[{args.source}] fit complete in {time.time() - t0:.1f}s — scoring…")
-    pred = clf.predict(Xte)
-    acc, f1 = float(accuracy_score(yte, pred)), float(f1_score(yte, pred, average="macro"))
-    log(f"[{args.source}] acc={acc:.3f} f1_macro={f1:.3f}")
-
+    splits, n_classes, n_rows = _prep(args.source)
     mlflow.set_tracking_uri(os.environ["MLFLOW_TRACKING_URI"])
-    client = MlflowClient()
-    ensure_experiment(client, args.experiment)
+    ensure_experiment(MlflowClient(), args.experiment)
     mlflow.set_experiment(args.experiment)
-    log(f"logging to MLflow ({os.environ['MLFLOW_TRACKING_URI']}) — artifact uploads DIRECT to MinIO…")
-    with mlflow.start_run(run_name=f"genre-{args.source}"):
-        mlflow.log_params({"model": "RandomForestClassifier", "n_estimators": args.n_estimators,
-                           "max_depth": args.max_depth, "feature_source": args.source,
-                           "n_features": len(AUDIO), "n_classes": int(n_classes), "n_rows": int(len(df))})
-        mlflow.log_metrics({"accuracy": acc, "f1_macro": f1})
-        t0 = time.time()
-        mlflow.sklearn.log_model(clf, "model", registered_model_name=args.registered_model)
-        log(f"model logged + registered as {args.registered_model!r} in {time.time() - t0:.1f}s")
+    log(f"logging to MLflow ({os.environ['MLFLOW_TRACKING_URI']}) — artifacts DIRECT to MinIO"
+        f"{' — Ray Tune mode' if args.tune else ''}…")
+    (_tune if args.tune else _single)(args, splits, n_classes, n_rows)
     log("done.")
 
 
