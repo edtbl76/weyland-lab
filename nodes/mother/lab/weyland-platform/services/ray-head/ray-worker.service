@@ -15,10 +15,10 @@ Wants=network-online.target
 Type=simple
 User=edwardmangini
 # The mkcert root -> boto3 VERIFIES TLS to s3.weyland.lab (this is what lets us drop MLFLOW_S3_IGNORE_TLS).
-Environment=AWS_CA_BUNDLE=%h/.local/share/mkcert/rootCA.pem
+Environment=AWS_CA_BUNDLE=/home/edwardmangini/.local/share/mkcert/rootCA.pem
 # --block runs the raylet in the foreground; on GCS disconnect it exits and systemd restarts it (auto-rejoin).
-ExecStart=%h/ray-worker/bin/ray start --address=192.168.1.243:6379 --node-ip-address=192.168.1.230 --block
-ExecStop=%h/ray-worker/bin/ray stop --force
+ExecStart=/home/edwardmangini/ray-worker/bin/ray start --address=192.168.1.243:6379 --node-ip-address=192.168.1.230 --block
+ExecStop=/home/edwardmangini/ray-worker/bin/ray stop --force
 Restart=always
 RestartSec=10
 
