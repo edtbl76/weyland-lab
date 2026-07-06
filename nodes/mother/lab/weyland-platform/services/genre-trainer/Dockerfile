@@ -12,7 +12,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends curl bash ca-ce
 
 WORKDIR /app
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir --upgrade pip && pip install --no-cache-dir -r requirements.txt
 COPY train_genre.py entrypoint.sh ./
 RUN chmod +x entrypoint.sh
 
