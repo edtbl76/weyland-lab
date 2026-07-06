@@ -1,24 +1,13 @@
 # MinIO-backed OCI registry (distribution/registry) — the platform's private Docker registry. Image blobs live
 # in MinIO (bucket `registry`), so this pod is STATELESS (no PVC). Fronted by Traefik at registry.weyland.lab
-# (wildcard TLS so Docker gets HTTPS) with basic-auth (docker login) — forward-auth/SSO can't be used because the
-# docker CLI only speaks Basic. Reuses the weyland-ns MinIO creds (aidlc-kb-minio-secret), same as MLflow.
+# (wildcard TLS so Docker gets HTTPS). NO AUTH — a LAN-only registry on a trusted LAN; open push/pull is the
+# frictionless choice. (Traefik basic-auth was tried and dropped: its 401 lacked the Docker-Distribution-Api-
+# Version header, so IntelliJ rejected the registry as "Unsupported" — the docker CLI tolerated it, GUI clients
+# don't.) Reuses the weyland-ns MinIO creds (aidlc-kb-minio-secret), same as MLflow.
 #
-# TWO out-of-band prerequisites (NOT committed), on mother:
-#   1. bucket:  mc mb <minio-alias>/registry            (or via the MinIO console)
-#   2. auth secret:
-#      kubectl create secret generic registry-auth -n weyland \
-#        --from-literal=users="admin:$(openssl passwd -apr1 weyland_dev_password)"
-#
-# Then on rogueone:  docker login registry.weyland.lab -u admin -p weyland_dev_password
----
-apiVersion: traefik.io/v1alpha1
-kind: Middleware
-metadata:
-  name: registry-auth
-  namespace: weyland
-spec:
-  basicAuth:
-    secret: registry-auth
+# ONE out-of-band prerequisite (NOT committed), on mother — the bucket:
+#   mc mb <minio-alias>/registry            (or via the MinIO console)
+# The earlier registry-auth secret is now unused: kubectl -n weyland delete secret registry-auth
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -88,7 +77,7 @@ spec:
                   key: secret_key
           readinessProbe:
             httpGet:
-              path: /v2/            # authless at the pod (basic-auth is at Traefik) → 200
+              path: /v2/            # no auth → 200
               port: 5000
             initialDelaySeconds: 10
             periodSeconds: 10
@@ -120,8 +109,6 @@ kind: Ingress
 metadata:
   name: registry
   namespace: weyland
-  annotations:
-    traefik.ingress.kubernetes.io/router.middlewares: weyland-registry-auth@kubernetescrd
 spec:
   tls:
     - hosts:
