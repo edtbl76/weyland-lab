@@ -118,6 +118,7 @@ metadata:
     app: mlflow
 spec:
   type: NodePort
+  externalTrafficPolicy: Local   # preserve the client source IP so the host nft rule can pin :30500 to rogueone
   selector:
     app: mlflow
   ports:

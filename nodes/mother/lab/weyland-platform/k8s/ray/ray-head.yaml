@@ -31,7 +31,7 @@ spec:
       dnsPolicy: ClusterFirstWithHostNet
       containers:
         - name: ray-head
-          image: registry.weyland.lab/ray-head:v3   # base Ray + trainer deps (services/ray-head/)
+          image: registry.weyland.lab/ray-head:v4   # base Ray + trainer deps (services/ray-head/)
           command: ["/bin/bash", "-lc"]
           # --num-cpus=0 → the head only COORDINATES; the driver runs here but trials schedule onto the worker
           # (rogueone). --block keeps `ray start` foreground as PID 1.
@@ -56,8 +56,6 @@ spec:
               value: http://192.168.1.243:30500
             - name: MLFLOW_S3_ENDPOINT_URL
               value: https://s3.weyland.lab
-            - name: MLFLOW_S3_IGNORE_TLS
-              value: "true"
             - name: LAKEFS_ENDPOINT
               value: http://lakefs.data-mesh.svc.cluster.local:8000
             - name: LAKEFS_BRANCH

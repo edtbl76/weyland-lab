@@ -1,0 +1,26 @@
+# Ray worker unit for the rogueone edge node — joins the always-on mother Ray head.
+# Install (on rogueone):
+#   sudo cp ray-worker.service /etc/systemd/system/ray-worker.service   # (edit User=/paths if yours differ)
+#   sudo systemctl daemon-reload && sudo systemctl enable --now ray-worker
+# Verify the CA path first:  ls "$(mkcert -CAROOT)/rootCA.pem"   (adjust AWS_CA_BUNDLE below if it differs)
+#
+# "Permanent" != "always-up": rogueone is a laptop. On sleep/poweroff the node just drops from the cluster and
+# submitted jobs queue; on wake/boot the raylet exits on GCS-disconnect and systemd restarts it -> auto-rejoin.
+[Unit]
+Description=Ray worker (weyland genre-trainer edge node) -> mother Ray head
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=edwardmangini
+# The mkcert root -> boto3 VERIFIES TLS to s3.weyland.lab (this is what lets us drop MLFLOW_S3_IGNORE_TLS).
+Environment=AWS_CA_BUNDLE=%h/.local/share/mkcert/rootCA.pem
+# --block runs the raylet in the foreground; on GCS disconnect it exits and systemd restarts it (auto-rejoin).
+ExecStart=%h/ray-worker/bin/ray start --address=192.168.1.243:6379 --node-ip-address=192.168.1.230 --block
+ExecStop=%h/ray-worker/bin/ray stop --force
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target

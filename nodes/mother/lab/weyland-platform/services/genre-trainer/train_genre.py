@@ -175,7 +175,8 @@ def _tune(args, splits, n_classes, n_rows):
     wenv = {k: os.environ[k] for k in ("MLFLOW_TRACKING_URI", "MLFLOW_S3_ENDPOINT_URL",
                                        "AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY")}
     wenv["AWS_DEFAULT_REGION"] = os.environ.get("AWS_DEFAULT_REGION", "us-east-1")
-    wenv["MLFLOW_S3_IGNORE_TLS"] = "true"
+    # TLS to s3.weyland.lab is now VERIFIED via the worker's AWS_CA_BUNDLE (the mkcert root, set in its systemd
+    # unit) — so we do NOT set MLFLOW_S3_IGNORE_TLS, and don't clobber AWS_CA_BUNDLE (wenv omits it).
     _pk = ("n_estimators", "max_depth", "max_features", "min_samples_leaf")
 
     def trainable(config):
