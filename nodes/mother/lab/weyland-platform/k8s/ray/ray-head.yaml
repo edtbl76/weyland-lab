@@ -27,13 +27,13 @@ spec:
     spec:
       containers:
         - name: ray-head
-          image: rayproject/ray:2.37.0-py311
+          image: registry.weyland.lab/ray-head:v1   # base Ray + trainer deps (services/ray-head/)
           command: ["/bin/bash", "-lc"]
           # --block keeps `ray start` in the foreground as PID 1; num-cpus kept low so head jobs don't starve k3s.
           args:
             - >
               ray start --head --dashboard-host=0.0.0.0 --dashboard-port=8265 --port=6379
-              --num-cpus=2 --disable-usage-stats --block
+              --num-cpus=4 --disable-usage-stats --block
           ports:
             - name: dashboard
               containerPort: 8265     # dashboard UI + Jobs API (submit)
@@ -41,6 +41,31 @@ spec:
               containerPort: 6379     # GCS (Phase 2 edge workers dial this)
             - name: client
               containerPort: 10001    # Ray Client
+          # Submitted jobs INHERIT this env — in-cluster the trainer needs no port-forwards/kubeconfig, just the
+          # svc-DNS endpoints + creds. (mlflow/lakefs inbound are PERMISSIVE, so an unmeshed head reaches them.)
+          env:
+            - name: MLFLOW_TRACKING_URI
+              value: http://mlflow.weyland.svc.cluster.local:5000
+            - name: MLFLOW_S3_ENDPOINT_URL
+              value: http://minio.minio.svc.cluster.local:9000
+            - name: LAKEFS_ENDPOINT
+              value: http://lakefs.data-mesh.svc.cluster.local:8000
+            - name: LAKEFS_BRANCH
+              value: main
+            - name: AWS_DEFAULT_REGION
+              value: us-east-1
+            - name: LAKEFS_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef: { name: lakefs-creds, key: LAKEFS_ACCESS_KEY_ID }
+            - name: LAKEFS_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef: { name: lakefs-creds, key: LAKEFS_SECRET_ACCESS_KEY }
+            - name: AWS_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef: { name: aidlc-kb-minio-secret, key: access_key }
+            - name: AWS_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef: { name: aidlc-kb-minio-secret, key: secret_key }
           readinessProbe:
             httpGet:
               path: /api/version       # dashboard API — 200 once the head is up

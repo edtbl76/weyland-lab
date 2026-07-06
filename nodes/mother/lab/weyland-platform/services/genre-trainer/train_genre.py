@@ -154,12 +154,18 @@ def _tune(args, splits, n_classes, n_rows):
     from ray import train, tune
 
     Xtr, Xte, ytr, yte = splits
-    # dashboard_host=0.0.0.0 is required for `-p` to reach it (Docker publishes to the container's eth0, not its
-    # loopback). The Ray Dashboard has NO auth and its Jobs API = RCE, so it must NOT be published on the host's
-    # 0.0.0.0 — run with `-p 127.0.0.1:8265:8265` so only rogueone (localhost) can reach it, never the LAN.
-    ray.init(include_dashboard=True, dashboard_host="0.0.0.0", ignore_reinit_error=True)
-    log(f"[tune] Ray up — {int(ray.cluster_resources().get('CPU', 0))} CPUs. Dashboard → http://localhost:8265 "
-        f"(run with -p 8265:8265). Sweeping {args.trials} trials (4 CPUs each → ~8 concurrent), each an MLflow run…")
+    # Two ways this runs: SUBMITTED to the persistent head (`ray job submit` sets RAY_ADDRESS) → connect to it and
+    # let its SSO-gated dashboard (ray.weyland.lab) show the job; or STANDALONE in a local container (docker run)
+    # → start a private cluster + dashboard. The local dashboard is unauth (Jobs API = RCE) so it must be
+    # published loopback-only (`-p 127.0.0.1:8265:8265`), never the host's 0.0.0.0.
+    if os.environ.get("RAY_ADDRESS"):
+        ray.init(address="auto")
+        where = "submitted to the Ray head"
+    else:
+        ray.init(include_dashboard=True, dashboard_host="0.0.0.0", ignore_reinit_error=True)
+        where = "local cluster (dashboard http://localhost:8265, publish -p 127.0.0.1:8265:8265)"
+    log(f"[tune] Ray up ({where}) — {int(ray.cluster_resources().get('CPU', 0))} CPUs. Sweeping {args.trials} "
+        f"trials (4 CPUs each → ~8 concurrent), each its own MLflow run…")
     data_ref = ray.put((Xtr, Xte, ytr, yte))
     tracking_uri, experiment, source = os.environ["MLFLOW_TRACKING_URI"], args.experiment, args.source
 
