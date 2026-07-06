@@ -16,6 +16,10 @@ via env so the same image runs anywhere it can reach the three endpoints (see RE
   LAKEFS_ENDPOINT / LAKEFS_ACCESS_KEY_ID / LAKEFS_SECRET_ACCESS_KEY / LAKEFS_BRANCH   — silver read (lakeFS gw)
   MLFLOW_TRACKING_URI                                                                  — tracking + registry
   MLFLOW_S3_ENDPOINT_URL / AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY                    — direct artifact write
+
+The creds (LAKEFS_* / AWS_*) may be OMITTED from env: if unset, ensure_creds() reads them from the k8s Secrets
+(lakefs-creds, aidlc-kb-minio-secret) via a mounted kubeconfig (mount ~/.kube/config), so nothing secret needs
+to touch the env or the command line. The endpoints stay in env because they're deployment-specific, not secret.
 """
 import argparse
 import os
@@ -38,6 +42,36 @@ AUDIO = ["danceability", "energy", "key", "loudness", "mode", "speechiness",
 
 def log(msg):
     print(f"[trainer] {msg}", flush=True)
+
+
+# --- credentials -------------------------------------------------------------------------------------------
+
+def ensure_creds():
+    """Fill any MISSING cred env var from the k8s Secrets, using a mounted kubeconfig (rogueone already has
+    ~/.kube/config — the one IntelliJ connects with). This lets the container run with ZERO creds in its
+    env/command: it reads lakefs-creds + aidlc-kb-minio-secret from the cluster itself. Env vars, if already
+    set, win (k8s is only the fallback), so the image still works anywhere creds are supplied directly."""
+    needed = {                                       # env var → (secret name, key within the secret)
+        "LAKEFS_ACCESS_KEY_ID": ("lakefs-creds", "LAKEFS_ACCESS_KEY_ID"),
+        "LAKEFS_SECRET_ACCESS_KEY": ("lakefs-creds", "LAKEFS_SECRET_ACCESS_KEY"),
+        "AWS_ACCESS_KEY_ID": ("aidlc-kb-minio-secret", "access_key"),
+        "AWS_SECRET_ACCESS_KEY": ("aidlc-kb-minio-secret", "secret_key"),
+    }
+    missing = {e: sk for e, sk in needed.items() if not os.environ.get(e)}
+    if not missing:
+        return
+    import base64
+    from kubernetes import client, config
+    config.load_kube_config()                        # KUBECONFIG or ~/.kube/config (the mounted file)
+    ns = os.environ.get("WEYLAND_SECRET_NS", "weyland")
+    log(f"fetching {len(missing)} missing cred(s) from k8s Secrets in ns '{ns}' (mounted kubeconfig)…")
+    v1 = client.CoreV1Api()
+    data = {}
+    for env_name, (secret, key) in missing.items():
+        if secret not in data:
+            data[secret] = v1.read_namespaced_secret(secret, ns).data
+        os.environ[env_name] = base64.b64decode(data[secret][key]).decode()
+        log(f"  {env_name} ← secret/{secret}[{key}]")
 
 
 # --- feature sources ---------------------------------------------------------------------------------------
@@ -113,6 +147,7 @@ def main():
     ap.add_argument("--registered-model", default=os.environ.get("REGISTERED_MODEL", "genre_classifier"))
     args = ap.parse_args()
 
+    ensure_creds()                                   # fill missing LAKEFS_*/AWS_* from k8s Secrets if needed
     df = read_features(args.source)
     X, y = df[AUDIO].to_numpy(), df["track_genre"].to_numpy()
     n_classes = df["track_genre"].nunique()

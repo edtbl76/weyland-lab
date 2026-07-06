@@ -5,3 +5,5 @@ pandas
 pyarrow               # read_parquet for the lakeFS silver
 minio                 # lakeFS S3-gateway client (silver read)
 boto3                 # mlflow's S3 artifact upload → MinIO (direct, s3://)
+kubernetes            # ensure_creds(): read lakefs-creds / aidlc-kb-minio-secret via the mounted kubeconfig
+
