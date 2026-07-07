@@ -222,6 +222,25 @@ graphs / stack traces for a running trial.
 
 ---
 
+## Observability (Prometheus + Grafana)
+
+Ray metrics flow into the kube-prometheus-stack. **Both nodes** export `ray start --metrics-export-port=8080`:
+the head (`k8s/ray/servicemonitor.yaml` scrapes it) AND the rogueone worker — because the **task/actor/node
+`ray_*` metrics live on the WORKER** (the head is a `--num-cpus=0` coordinator with none), a head-only scrape
+leaves those Grafana panels empty ("No data"). The off-cluster worker is scraped via a **static target** in the
+kube-prometheus values (`additionalScrapeConfigs` → `192.168.1.230:8080`; a ServiceMonitor can't reach
+off-cluster). Ray's shipped Grafana dashboards are imported as a ConfigMap
+(`k8s/monitoring/ray-grafana-dashboards.yaml`, `grafana_dashboard` sidecar label) — which needs
+**`ServerSideApply`** (`argocd.argoproj.io/sync-options: ServerSideApply=true`), since ~465 KB of dashboard JSON
+blows past the 256 KB last-applied-annotation limit. The Ray dashboard's Metrics-tab **embed** works
+(`RAY_PROMETHEUS_HOST`/`RAY_GRAFANA_HOST`/`RAY_GRAFANA_IFRAME_HOST` on the head + Grafana `allow_embedding: true`;
+`ray`+`grafana.weyland.lab` are the same site so the SSO cookie carries into the iframe) — but it's a heavy
+iframe-per-panel swarm (hangs the browser, worst while dashboards aren't imported and each `d-solo` 404 reloads
+full Grafana). **Read the metrics natively at `grafana.weyland.lab → Dashboards → Ray`** — the in-tab embed is
+eye-candy. Firewall `.230:8080` when the DMZ lands.
+
+---
+
 ## The gotcha gauntlet (the full trail)
 
 | # | Symptom | Root cause | Fix | Path |

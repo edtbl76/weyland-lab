@@ -68,3 +68,9 @@ the point-in-time half).
   connect, so `holdApplicationUntilProxyStarts` avoids the Envoy race. Slim feast image (not the fat dagster one
   → no OOM). psycopg3 requires `sslmode=disable` (weyland-postgres has TLS off).
 - **Don't browse Valkey directly** — features are stored in Feast's binary encoding (serialized keys + protobuf).
+- **feast UI (`feast-ui.weyland.lab`) needs a `registry.json` dump, not the REST base.** feast 0.58's bundled UI
+  frontend *predates* its own REST backend: it does a single `GET registryPath` expecting a `registry.json` dump,
+  but feast hardcodes `registryPath=/api/v1` (served only piecemeal) → **empty UI**. A ConfigMap launcher
+  (`k8s/data-mesh/feast-ui.yaml`) runs `feast ui`, then overwrites `projects-list.json` → `/registry.json` and
+  generates that dump (`MessageToJson(registry.proto())`) into the served UI dir, refreshed on an interval. Also
+  needs `grpcio grpcio-health-checking grpcio-reflection` in the feast image. See backlog **B-RT #5**.
