@@ -68,7 +68,7 @@ shim asks whisper for plain text and builds the JSON itself — no stray fields.
 **Deploy (3 files from `nodes/weyland/whisper/`).** On rogueone (repo root), stage to the host
 (**weyland is accessed as `root`**, unlike mother which is `emangini`):
 ```bash
-scp nodes/weyland/whisper/shim.py nodes/weyland/whisper/whisper-server.service nodes/weyland/whisper/whisper-shim.service root@weyland:~/
+rsync -a nodes/weyland/whisper/shim.py nodes/weyland/whisper/whisper-server.service nodes/weyland/whisper/whisper-shim.service root@weyland:~/
 ```
 On the weyland host, push into CT 103:
 ```bash

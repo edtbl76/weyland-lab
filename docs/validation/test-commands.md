@@ -172,7 +172,7 @@ Pluggable validators at the tool-server seam: `input` hook (injection) on `/cont
 ### One-time: schema + ServiceMonitor
 
 ```bash
-scp nodes/mother/lab/weyland-platform/scripts/guardrail-schema.sql emangini@mother:~/   # from repo on rogueone
+rsync -a nodes/mother/lab/weyland-platform/scripts/guardrail-schema.sql emangini@mother:~/   # from repo on rogueone
 kubectl exec -i -n weyland deploy/weyland-postgres -- psql -U weyland -d weyland < ~/guardrail-schema.sql
 kubectl apply -f ~/lab/weyland-platform/k8s/weyland-tool-server.yaml          # Service now has labels + named port
 kubectl apply -f ~/lab/weyland-platform/k8s/monitoring/servicemonitors.yaml   # adds the weyland-tool-server ServiceMonitor
@@ -181,11 +181,12 @@ kubectl apply -f ~/lab/weyland-platform/k8s/monitoring/servicemonitors.yaml   # 
 ### Redeploy the guard code (see also Image Management below)
 
 The image bakes 3 guard models (injection, toxicity, NLI grounding); the build is heavy but layer-cached
-after the first. **Verify the source actually landed on mother before building** — `scp -r` into the
-existing dir can leave stale source (cost a full debug loop once):
+after the first. **Verify the source actually landed on mother before building** — `rsync -a` into the
+existing dir does not remove stale files unless you use `--delete` or copy changed files by explicit path
+(cost a full debug loop once):
 
 ```bash
-scp nodes/mother/lab/weyland-platform/services/weyland-tool-server/main.py emangini@mother:~/lab/weyland-platform/services/weyland-tool-server/main.py
+rsync -a nodes/mother/lab/weyland-platform/services/weyland-tool-server/main.py emangini@mother:~/lab/weyland-platform/services/weyland-tool-server/main.py
 grep -c "def metrics" ~/lab/weyland-platform/services/weyland-tool-server/main.py   # expect 1, NOT 0
 find ~/lab/weyland-platform/services/weyland-tool-server -name __pycache__ -type d -exec rm -rf {} +
 # then build / import / rollout (Image Management section)
@@ -284,7 +285,7 @@ https://dagster.weyland.lab
 
 ### Rebuild and redeploy user-code image
 
-Run from **rogueone** — sync the full pipeline directory first (one password prompt, no per-file scp):
+Run from **rogueone** — sync the full pipeline directory first (one password prompt, no per-file copy):
 
 ```bash
 rsync -av /home/edwardmangini/IdeaProjects/weyland/nodes/mother/lab/weyland-platform/services/weyland-dagster/weyland_pipeline/ emangini@mother:~/lab/weyland-platform/services/weyland-dagster/weyland_pipeline/
@@ -416,22 +417,22 @@ Then connect to `mother:5432`, database `weyland`, user `weyland` (password live
 secret — not stored here). To avoid exposing it on the LAN, drop `--address 0.0.0.0` (binds mother's
 localhost) and use an SSH tunnel (`emangini@mother`) in the client instead.
 
-## SCP (from rogueone)
+## rsync (from rogueone)
 
 Sync changed tool-server files to mother before rebuilding. Run from the repo root on rogueone.
-Only scp what actually changed.
+Only rsync what actually changed.
 
 main.py — code (almost every change):
 ```bash
-scp nodes/mother/lab/weyland-platform/services/weyland-tool-server/main.py emangini@mother:~/lab/weyland-platform/services/weyland-tool-server/main.py
+rsync -a nodes/mother/lab/weyland-platform/services/weyland-tool-server/main.py emangini@mother:~/lab/weyland-platform/services/weyland-tool-server/main.py
 ```
 
 Manifest — only when k8s/env changed (e.g. the B7 `OLLAMA_*` vars); pair with `kubectl apply`:
 ```bash
-scp nodes/mother/lab/weyland-platform/k8s/weyland-tool-server.yaml emangini@mother:~/lab/weyland-platform/k8s/weyland-tool-server.yaml
+rsync -a nodes/mother/lab/weyland-platform/k8s/weyland-tool-server.yaml emangini@mother:~/lab/weyland-platform/k8s/weyland-tool-server.yaml
 ```
 
 Dockerfile — only when dependencies changed:
 ```bash
-scp nodes/mother/lab/weyland-platform/services/weyland-tool-server/Dockerfile emangini@mother:~/lab/weyland-platform/services/weyland-tool-server/Dockerfile
+rsync -a nodes/mother/lab/weyland-platform/services/weyland-tool-server/Dockerfile emangini@mother:~/lab/weyland-platform/services/weyland-tool-server/Dockerfile
 ```

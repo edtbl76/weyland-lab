@@ -20,9 +20,9 @@ Get rogueone's host key: `ssh-keyscan -t ed25519 rogueone` (the `AAAA…` blob).
 
 ```bash
 # from repo box: sync code + manifest
-scp nodes/mother/lab/weyland-platform/services/weyland-dagster/weyland_pipeline/assets/source_document.py \
+rsync -a nodes/mother/lab/weyland-platform/services/weyland-dagster/weyland_pipeline/assets/source_document.py \
   emangini@mother:~/lab/weyland-platform/services/weyland-dagster/weyland_pipeline/assets/source_document.py
-scp nodes/mother/lab/weyland-platform/k8s/dagster/user-code.yaml \
+rsync -a nodes/mother/lab/weyland-platform/k8s/dagster/user-code.yaml \
   emangini@mother:~/lab/weyland-platform/k8s/dagster/user-code.yaml
 
 # on mother: rebuild user-code image, import, prune, redeploy

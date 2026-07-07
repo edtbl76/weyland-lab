@@ -14,7 +14,7 @@ Commands run from `mother` unless noted. Rebuild commands mirror `../validation/
 ## 1. Sync source to mother
 
 ```bash
-scp nodes/mother/lab/weyland-platform/services/weyland-tool-server/Dockerfile \
+rsync -a nodes/mother/lab/weyland-platform/services/weyland-tool-server/Dockerfile \
   emangini@mother:~/lab/weyland-platform/services/weyland-tool-server/Dockerfile
 ```
 

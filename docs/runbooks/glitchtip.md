@@ -16,7 +16,7 @@ Roadmap: B51. Apps push errors via the Sentry SDK; issues fan out to Port via a 
   broker. **Not optional** (see gotchas).
 - **Postgres** — the shared `weyland-postgres` (STRICT mTLS) → the web/worker pods must be **meshed**.
 
-Manifests: `k8s/glitchtip/glitchtip.yaml` (raw, single file). Deploy = scp to mother → `kubectl apply` →
+Manifests: `k8s/glitchtip/glitchtip.yaml` (raw, single file). Deploy = rsync to mother → `kubectl apply` →
 `kubectl rollout restart deploy/glitchtip-web -n weyland` (and `-worker`).
 
 ## Bring-up gotchas (hard-won — don't re-derive)

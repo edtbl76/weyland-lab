@@ -1,7 +1,7 @@
 # IaC — Argo CD (GitOps) Runbook — weyland
 
 GitOps CD for the weyland **k8s** layer: Argo CD reconciles cluster state from the public `weyland-lab` repo.
-The deploy flow is now **edit → push to GitHub → Argo reconciles** (the scp-to-mother loop is retired for
+The deploy flow is now **edit → push to GitHub → Argo reconciles** (the rsync-to-mother loop is retired for
 onboarded apps). UI at `argocd.weyland.lab`. ns `argocd`. Pairs with OpenTofu (which owns the non-k8s lanes —
 Proxmox, SaaS). Part of the IaC track (B58).
 

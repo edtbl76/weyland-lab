@@ -112,7 +112,7 @@ kubectl exec -i -n weyland deploy/weyland-postgres -- sh -c 'PGPASSWORD=$POSTGRE
 **Deploy eval code** (assets live in the Dagster user-code image) — rogueone → mother:
 ```bash
 # rogueone (repo root):
-scp -r nodes/mother/lab/weyland-platform/services/weyland-dagster emangini@mother:~/lab/weyland-platform/services/
+rsync -a nodes/mother/lab/weyland-platform/services/weyland-dagster emangini@mother:~/lab/weyland-platform/services/
 # mother:
 docker build -t weyland-dagster-user-code:local ~/lab/weyland-platform/services/weyland-dagster/
 docker save weyland-dagster-user-code:local | sudo k3s ctr images import -

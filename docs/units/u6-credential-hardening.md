@@ -14,7 +14,7 @@ Commands run from `mother` unless noted. Canonical rebuild commands live in
 Run from the repo checkout:
 
 ```bash
-scp nodes/mother/lab/weyland-platform/services/weyland-tool-server/main.py \
+rsync -a nodes/mother/lab/weyland-platform/services/weyland-tool-server/main.py \
   emangini@mother:~/lab/weyland-platform/services/weyland-tool-server/main.py
 ```
 

@@ -9,10 +9,10 @@ Files: services/weyland-tool-server/main.py, k8s/weyland-tool-server.yaml.
 
 On rogueone (repo checkout) — sync code + manifest:
 ```bash
-scp nodes/mother/lab/weyland-platform/services/weyland-tool-server/main.py emangini@mother:~/lab/weyland-platform/services/weyland-tool-server/main.py
+rsync -a nodes/mother/lab/weyland-platform/services/weyland-tool-server/main.py emangini@mother:~/lab/weyland-platform/services/weyland-tool-server/main.py
 ```
 ```bash
-scp nodes/mother/lab/weyland-platform/k8s/weyland-tool-server.yaml emangini@mother:~/lab/weyland-platform/k8s/weyland-tool-server.yaml
+rsync -a nodes/mother/lab/weyland-platform/k8s/weyland-tool-server.yaml emangini@mother:~/lab/weyland-platform/k8s/weyland-tool-server.yaml
 ```
 
 On mother — build, import, prune, apply (probes), restart:

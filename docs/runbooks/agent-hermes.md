@@ -186,8 +186,8 @@ routes carrying a `tags=["mcp"]` decorator. The write/act routes (`/pipeline/tri
 local k3s image, no registry; built with **docker** on mother — *this process was previously undocumented*):
 ```bash
 # [on rogueone] ship changed files to mother
-scp services/weyland-tool-server/main.py services/weyland-tool-server/Dockerfile emangini@mother:~/lab/weyland-platform/services/weyland-tool-server/
-# [on mother] VERIFY the shipped file BEFORE building (catches a stale scp — see lessons)
+rsync -a services/weyland-tool-server/main.py services/weyland-tool-server/Dockerfile emangini@mother:~/lab/weyland-platform/services/weyland-tool-server/
+# [on mother] VERIFY the shipped file BEFORE building (catches stale source — see lessons)
 grep -n 'mcp.mount' ~/lab/weyland-platform/services/weyland-tool-server/main.py    # expect mount_http()
 # [on mother] build, import into k3s containerd, roll out
 cd ~/lab/weyland-platform/services/weyland-tool-server
@@ -248,8 +248,8 @@ Rollback is one line: remove the `weyland-act` block and `/reload-mcp`.
   POSTs `initialize`; an SSE endpoint is GET-only → **`405 Method Not Allowed` → 0 tools**. A raw
   `curl /mcp` that streams `event: endpoint` + `: ping` does **not** prove it works (GET is valid for
   SSE) — only the agent handshake does.
-- **Stale-scp trap: `grep` the shipped file on mother BEFORE `docker build`.** Our first build
-  deployed old `mount()` code because the scp pre-dated the edit; the image "worked" on curl but
+- **Stale-source trap: `grep` the shipped file on mother BEFORE `docker build`.** Our first build
+  deployed old `mount()` code because the rsync pre-dated the edit; the image "worked" on curl but
   Hermes 405'd. The build is only as correct as the file that actually arrived.
 
 ## OpenClaw — the delegate (Docker on vm-100) + MCP registration

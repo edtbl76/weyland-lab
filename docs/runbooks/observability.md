@@ -31,7 +31,7 @@ kubectl create secret tls weyland-wildcard-tls -n monitoring \
 ### 3. Install the stack
 ```bash
 # from repo box: sync values
-scp nodes/mother/lab/weyland-platform/k8s/monitoring/kube-prometheus-stack-values.yaml \
+rsync -a nodes/mother/lab/weyland-platform/k8s/monitoring/kube-prometheus-stack-values.yaml \
   emangini@mother:~/lab/weyland-platform/k8s/monitoring/kube-prometheus-stack-values.yaml
 # on mother: release name "monitoring" (-> service monitoring-grafana)
 helm install monitoring prometheus-community/kube-prometheus-stack \
@@ -43,7 +43,7 @@ kubectl get pods -n monitoring
 ### 4. Grafana Ingress + DNS
 ```bash
 # from repo box:
-scp nodes/mother/lab/weyland-platform/k8s/monitoring/grafana-ingress.yaml \
+rsync -a nodes/mother/lab/weyland-platform/k8s/monitoring/grafana-ingress.yaml \
   emangini@mother:~/lab/weyland-platform/k8s/monitoring/grafana-ingress.yaml
 # on mother:
 kubectl apply -f ~/lab/weyland-platform/k8s/monitoring/grafana-ingress.yaml
@@ -88,7 +88,7 @@ liveness alert never notifies); `telegram_configs` uses
 ### 3. Apply — version-pinned upgrade (never bump the chart unintentionally)
 ```
 helm list -n monitoring
-scp nodes/mother/lab/weyland-platform/k8s/monitoring/kube-prometheus-stack-values.yaml emangini@mother:~/lab/weyland-platform/k8s/monitoring/kube-prometheus-stack-values.yaml
+rsync -a nodes/mother/lab/weyland-platform/k8s/monitoring/kube-prometheus-stack-values.yaml emangini@mother:~/lab/weyland-platform/k8s/monitoring/kube-prometheus-stack-values.yaml
 helm upgrade monitoring prometheus-community/kube-prometheus-stack -n monitoring -f ~/lab/weyland-platform/k8s/monitoring/kube-prometheus-stack-values.yaml --version <CHART_VERSION>
 kubectl get pods -n monitoring | grep alertmanager
 ```
@@ -132,8 +132,8 @@ no release label, and any future SM is picked up automatically.
 
 ### 1. Apply — version-pinned upgrade (values change) + manifests
 ```
-scp nodes/mother/lab/weyland-platform/k8s/monitoring/kube-prometheus-stack-values.yaml nodes/mother/lab/weyland-platform/k8s/monitoring/servicemonitors.yaml emangini@mother:~/lab/weyland-platform/k8s/monitoring/
-scp nodes/mother/lab/weyland-platform/k8s/weaviate.yaml nodes/mother/lab/weyland-platform/k8s/apisix.yaml nodes/mother/lab/weyland-platform/k8s/coredns-lan.yaml emangini@mother:~/lab/weyland-platform/k8s/
+rsync -a nodes/mother/lab/weyland-platform/k8s/monitoring/kube-prometheus-stack-values.yaml nodes/mother/lab/weyland-platform/k8s/monitoring/servicemonitors.yaml emangini@mother:~/lab/weyland-platform/k8s/monitoring/
+rsync -a nodes/mother/lab/weyland-platform/k8s/weaviate.yaml nodes/mother/lab/weyland-platform/k8s/apisix.yaml nodes/mother/lab/weyland-platform/k8s/coredns-lan.yaml emangini@mother:~/lab/weyland-platform/k8s/
 helm upgrade monitoring prometheus-community/kube-prometheus-stack -n monitoring -f ~/lab/weyland-platform/k8s/monitoring/kube-prometheus-stack-values.yaml --version "$(helm list -n monitoring -o json | jq -r '.[]|select(.name=="monitoring").chart|sub("kube-prometheus-stack-";"")')"
 kubectl apply -f ~/lab/weyland-platform/k8s/weaviate.yaml -f ~/lab/weyland-platform/k8s/apisix.yaml -f ~/lab/weyland-platform/k8s/coredns-lan.yaml
 kubectl apply -f ~/lab/weyland-platform/k8s/monitoring/servicemonitors.yaml

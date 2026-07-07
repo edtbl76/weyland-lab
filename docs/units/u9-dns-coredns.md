@@ -30,7 +30,7 @@ Report what's on :53 before applying — don't fight an existing binder.
 ## 1. Sync + apply
 
 ```bash
-scp nodes/mother/lab/weyland-platform/k8s/coredns-lan.yaml \
+rsync -a nodes/mother/lab/weyland-platform/k8s/coredns-lan.yaml \
   emangini@mother:~/lab/weyland-platform/k8s/coredns-lan.yaml
 
 kubectl apply -f ~/lab/weyland-platform/k8s/coredns-lan.yaml

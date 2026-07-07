@@ -52,7 +52,7 @@ mkdir -p ~/certs
 From rogueone (ship the pair):
 
 ```bash
-scp ~/weyland-certs/weyland-wildcard.pem ~/weyland-certs/weyland-wildcard-key.pem \
+rsync -a ~/weyland-certs/weyland-wildcard.pem ~/weyland-certs/weyland-wildcard-key.pem \
   emangini@mother:~/certs/
 ```
 

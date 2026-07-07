@@ -56,7 +56,7 @@ kubectl create secret generic aidlc-kb-minio-secret -n weyland --from-literal=ac
 ```
 
 **Rebuild + redeploy the user-code image** (the asset needs the `minio` dep + MinIO env in `user-code.yaml`).
-Copy changed source to mother by explicit path (avoid stale `scp -r` trees), then on mother in
+Copy changed source to mother by explicit path (rsync into an existing dir leaves stale files unless you use `--delete`), then on mother in
 `~/lab/weyland-platform/services/weyland-dagster`:
 ```
 docker build -t weyland-dagster-user-code:local .

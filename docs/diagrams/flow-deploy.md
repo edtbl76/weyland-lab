@@ -1,9 +1,9 @@
 # Flow: Deploy / Redeploy (build↔runtime isolation)
 
-Manual scp-based redeploy (no Compose/Ansible automation yet — deliberate until the platform stabilizes).
+Manual rsync-based redeploy (no Compose/Ansible automation yet — deliberate until the platform stabilizes).
 Images cross the build→runtime gap **only by explicit ACL** (`docker save | k3s ctr images import`) — there
-is no direct build-to-runtime push. Redeploy gotcha: `scp -r` into an existing dir leaves stale source, so
-verify on the box (`grep`) and copy changed files by explicit path.
+is no direct build-to-runtime push. Redeploy gotcha: `rsync -a` into an existing dir leaves stale files
+unless you use `--delete`, so verify on the box (`grep`) and copy changed files by explicit path.
 
 ```mermaid
 sequenceDiagram
@@ -12,7 +12,7 @@ sequenceDiagram
     participant Img as Docker build
     participant K3s as k3s containerd (ctr)
     participant Dep as Deployment (kubectl)
-    Dev->>Src: scp changed source by explicit path
+    Dev->>Src: rsync changed source by explicit path
     Dev->>Src: grep to confirm source landed (no stale tree)
     Src->>Img: docker build -t image:tag
     Img->>K3s: docker save | k3s ctr images import (ACL'd handoff)

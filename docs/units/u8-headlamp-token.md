@@ -18,7 +18,7 @@ Commands run from `mother` unless noted.
 
 ```bash
 # on the repo box: sync
-scp nodes/mother/lab/weyland-platform/k8s/headlamp-admin-token.yaml \
+rsync -a nodes/mother/lab/weyland-platform/k8s/headlamp-admin-token.yaml \
   emangini@mother:~/lab/weyland-platform/k8s/headlamp-admin-token.yaml
 
 # on mother: apply

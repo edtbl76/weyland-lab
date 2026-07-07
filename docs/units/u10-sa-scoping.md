@@ -16,7 +16,7 @@ Manifest: `k8s/rbac-default-sa-noautomount.yaml`. Commands on mother unless note
 
 ```bash
 # from repo box:
-scp nodes/mother/lab/weyland-platform/k8s/rbac-default-sa-noautomount.yaml \
+rsync -a nodes/mother/lab/weyland-platform/k8s/rbac-default-sa-noautomount.yaml \
   emangini@mother:~/lab/weyland-platform/k8s/rbac-default-sa-noautomount.yaml
 # on mother:
 kubectl apply -f ~/lab/weyland-platform/k8s/rbac-default-sa-noautomount.yaml

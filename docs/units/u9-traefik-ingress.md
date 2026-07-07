@@ -27,7 +27,7 @@ kubectl get secret weyland-wildcard-tls -n n8n
 
 ```bash
 # from repo box:
-scp nodes/mother/lab/weyland-platform/k8s/n8n/n8n.yaml \
+rsync -a nodes/mother/lab/weyland-platform/k8s/n8n/n8n.yaml \
   emangini@mother:~/lab/weyland-platform/k8s/n8n/n8n.yaml
 
 # on mother:

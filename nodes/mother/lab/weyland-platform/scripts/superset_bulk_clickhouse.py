@@ -4,7 +4,7 @@
 Runs IN-CLUSTER (reaches superset + clickhouse svcs directly, bypassing the ingress OIDC via the /security/login
 DB provider). Pipe it into the Dagster user-code pod (it has requests + clickhouse-connect + cross-ns svc DNS):
 
-    [rogueone] scp .../scripts/superset_bulk_clickhouse.py emangini@mother:~/superset_bulk_clickhouse.py
+    [rogueone] rsync -a .../scripts/superset_bulk_clickhouse.py emangini@mother:~/superset_bulk_clickhouse.py
     [mother]   kubectl -n weyland exec -i deploy/dagster-user-code -- python - < ~/superset_bulk_clickhouse.py
 
 Override creds via env if the defaults are wrong: SUPERSET_USER / SUPERSET_PASSWORD.

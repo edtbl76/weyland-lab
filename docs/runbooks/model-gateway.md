@@ -97,12 +97,12 @@ Keeps the `model_catalog` table fresh: OpenRouter (free flag from pricing) + Gem
 
 **Deploy the asset** (it's baked into the `weyland-dagster-user-code:local` image):
 ```
-# [rogueone] ship the whole package dir (preserves subdirs — scp of a single nested file drops its parent dir)
-scp -r services/weyland-dagster/weyland_pipeline emangini@mother:~/lab/weyland-platform/services/weyland-dagster/
-scp k8s/dagster/user-code.yaml emangini@mother:~/lab/weyland-platform/k8s/dagster/
+# [rogueone] ship the whole package dir (rsync -a preserves subdirs)
+rsync -a services/weyland-dagster/weyland_pipeline emangini@mother:~/lab/weyland-platform/services/weyland-dagster/
+rsync -a k8s/dagster/user-code.yaml emangini@mother:~/lab/weyland-platform/k8s/dagster/
 ```
 ```
-# [mother] verify the shipped files BEFORE building (stale-scp guard)
+# [mother] verify the shipped files BEFORE building (stale-source guard)
 grep -c weyland_catalog_job ~/lab/weyland-platform/services/weyland-dagster/weyland_pipeline/schedules/__init__.py   # expect 3
 cat ~/lab/weyland-platform/services/weyland-dagster/weyland_pipeline/__init__.py                                     # expect: from weyland_pipeline.definitions import defs
 ```
@@ -167,9 +167,9 @@ pct exec 104 -- bash -lc "journalctl -u hermes-gateway --no-pager -n 80 | grep -
   free pools are shared/flaky. Retry, pick another free slug (from the catalog query above), or add a little
   OpenRouter credit for priority.
 - **Dagster user-code `ImportError` after deploy (e.g. `cannot import name 'weyland_catalog_job'`):**
-  stale-scp — a single-file `scp .../schedules/__init__.py dest/weyland_pipeline/` lands as
-  `weyland_pipeline/__init__.py` (scp uses the basename), so it both misses the target and clobbers the
-  package init. Use `scp -r weyland_pipeline …` (preserves structure) and `grep`-verify on mother before
+  stale source — `rsync -a` preserves directory structure (no basename/parent-dir clobber), but rsync into
+  an existing dir does NOT remove stale files unless you pass `--delete` or copy changed files by explicit
+  path. So sync the whole `weyland_pipeline` dir with `rsync -a` and `grep`-verify on mother before
   building.
 
 ## Privacy / cost

@@ -117,7 +117,7 @@ kube-prometheus-stack so there's one metrics store:
   http://monitoring-kube-prometheus-prometheus.monitoring:9090`) — edit the **repo** `k8s/istio/kiali.yaml` (never
   `kubectl edit` the live ConfigMap — see Gotchas), then push + restart:
   ```
-  cp k8s/istio/kiali.yaml /tmp/kiali-addon.yaml   # then scp /tmp/kiali-addon.yaml to mother
+  cp k8s/istio/kiali.yaml /tmp/kiali-addon.yaml   # then rsync /tmp/kiali-addon.yaml to mother
   kubectl apply -f /tmp/kiali-addon.yaml && kubectl rollout restart deploy/kiali -n istio-system
   ```
   Then **delete the addon Prometheus** (the second one — keep B5's stack):
