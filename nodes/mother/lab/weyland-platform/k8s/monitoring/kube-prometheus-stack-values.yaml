@@ -83,6 +83,11 @@ grafana:
   grafana.ini:
     server:
       root_url: https://grafana.weyland.lab
+    security:
+      # Allow Grafana panels to be <iframe>-embedded (the Ray dashboard's Metrics tab embeds d-solo panels).
+      # ray.weyland.lab + grafana.weyland.lab are the same site (weyland.lab), so the Keycloak SSO cookie carries
+      # into the iframe — no anonymous access or cookie_samesite change needed, just lift the X-Frame-Options deny.
+      allow_embedding: true
     # B1.1 Phase 3 — Keycloak SSO (first OIDC cutover). Non-secret config only; client_secret comes from the env above.
     auth.generic_oauth:
       enabled: true

@@ -73,19 +73,37 @@ def genre_feast_training_set(context):
     # track_audio_features is static (synthetic event_timestamp) → any as-of time returns the one value per track;
     # the point-in-time machinery is exercised, it just doesn't bite for a static feature (state_health_risk is
     # where time-travel actually matters — a future second consumer).
+    # carry the track_genre label THROUGH the point-in-time join (entity_df passthrough) so both the SavedDataset
+    # and the training set get features + label in one shot — no post-merge needed.
     edf = pd.DataFrame({"track_id": labels["track_id"],
-                        "event_timestamp": pd.Timestamp("2024-01-01", tz="UTC")})
+                        "event_timestamp": pd.Timestamp("2024-01-01", tz="UTC"),
+                        "track_genre": labels["track_genre"]})
     context.log.info(f"Feast get_historical_features — point-in-time join over {len(edf):,} track entities "
                      "(the SLOW step; Feast emits no per-row progress; minutes at scale)…")
-    feats = fs.get_historical_features(
-        entity_df=edf, features=[f"track_audio_features:{c}" for c in _AUDIO]).to_df()
+    job = fs.get_historical_features(entity_df=edf, features=[f"track_audio_features:{c}" for c in _AUDIO])
+    # Register the retrieval as a feast SavedDataset — fills the feast UI "Datasets" tab and gives the training
+    # set real feast lineage (a tracked feast artifact, materialized to the feast Postgres). Best-effort: a
+    # SavedDataset hiccup must never fail the training-set production the trainer depends on.
+    try:
+        from feast.infra.offline_stores.contrib.postgres_offline_store.postgres_source import (
+            SavedDatasetPostgreSQLStorage,
+        )
+        saved = fs.create_saved_dataset(
+            from_=job, name="genre_feast_training",
+            storage=SavedDatasetPostgreSQLStorage(table_ref="genre_feast_training_saved"),
+            allow_overwrite=True, tags={"producer": "dagster:genre_feast_training_set"})
+        feats = saved.to_df()
+        context.log.info("registered feast SavedDataset 'genre_feast_training' (feast UI → Datasets)")
+    except Exception as e:  # noqa: BLE001 — SavedDataset is additive; never fail the training set on it
+        context.log.warning(f"SavedDataset registration skipped ({e}); using the retrieval directly")
+        feats = fs.get_historical_features(
+            entity_df=edf, features=[f"track_audio_features:{c}" for c in _AUDIO]).to_df()
     feats["track_id"] = feats["track_id"].astype(str)
     for c in _AUDIO:
         feats[c] = pd.to_numeric(feats[c], errors="coerce")
-    df = (feats.merge(labels, on="track_id")
-                .dropna(subset=_AUDIO + ["track_genre"])
+    df = (feats.dropna(subset=_AUDIO + ["track_genre"])
                 .drop_duplicates("track_id"))[["track_id", *_AUDIO, "track_genre"]]
-    context.log.info(f"Feast returned {len(feats):,} feature rows → {len(df):,} training rows after label merge")
+    context.log.info(f"Feast returned {len(feats):,} feature rows → {len(df):,} training rows")
 
     # write parquet THROUGH the lakeFS gateway, then commit (one version per run — the silver-broker pattern)
     buf = _bio.BytesIO()

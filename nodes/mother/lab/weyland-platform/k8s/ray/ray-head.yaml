@@ -76,6 +76,19 @@ spec:
             - name: AWS_SECRET_ACCESS_KEY
               valueFrom:
                 secretKeyRef: { name: aidlc-kb-minio-secret, key: secret_key }
+            # --- Ray dashboard Metrics tab (embeds Grafana panels backed by our kube-prometheus-stack) ---
+            # Server-side (the dashboard backend queries these in-cluster; hostNetwork + ClusterFirstWithHostNet
+            # resolves svc DNS): Prometheus for the metric queries, Grafana for a health check.
+            - name: RAY_PROMETHEUS_HOST
+              value: http://monitoring-kube-prometheus-prometheus.monitoring.svc.cluster.local:9090
+            - name: RAY_PROMETHEUS_NAME
+              value: Prometheus                       # the Grafana datasource name (chart default)
+            - name: RAY_GRAFANA_HOST
+              value: http://monitoring-grafana.monitoring.svc.cluster.local
+            # Browser-facing Grafana URL for the <iframe> panels (same weyland.lab site → the Keycloak SSO cookie
+            # carries into the iframe; Grafana needs allow_embedding=true, set in the kube-prometheus-stack values).
+            - name: RAY_GRAFANA_IFRAME_HOST
+              value: https://grafana.weyland.lab
           readinessProbe:
             httpGet:
               path: /api/version       # dashboard API — 200 once the head is up
