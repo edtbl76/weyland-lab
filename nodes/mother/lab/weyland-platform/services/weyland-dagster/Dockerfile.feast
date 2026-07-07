@@ -5,7 +5,9 @@
 #   docker save feast-server:local | sudo ctr -n k8s.io images import -
 FROM python:3.11-slim
 WORKDIR /app
-RUN pip install --no-cache-dir "feast[redis,postgres]"
+# grpcio: `feast ui` (0.58 REST mode) imports feast.registry_server → `import grpc`, which feast[redis,postgres]
+# omits (feast serve doesn't need it, feast ui does). Harmless to feast-server; shared image stays single-source.
+RUN pip install --no-cache-dir "feast[redis,postgres]" grpcio
 COPY feast_repo/ ./feast_repo/
 EXPOSE 6566
 CMD ["feast", "-c", "/app/feast_repo", "serve", "-h", "0.0.0.0", "-p", "6566"]
