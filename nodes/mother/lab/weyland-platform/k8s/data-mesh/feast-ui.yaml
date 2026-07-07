@@ -1,9 +1,64 @@
 # Feast UI — the registry BROWSER (feature views / entities / feature services / lineage, read-only). A face for
-# the feature store: today only feast-server (REST online serving) is exposed; this adds `feast ui`. Same slim
-# `feast-server:local` image, just a different command (`feast ui` on :8888). MESHED (data-mesh is istio-injected)
-# so it reaches the STRICT-mTLS `feast` Postgres SQL registry — an unmeshed pod gets ECONNRESET
-# (postgres-strict-needs-mesh). Browser UI → Keycloak forward-auth (unlike feast-server's open REST API). Picked
-# up by the existing `data-mesh` Argo app. See docs/diagrams/flow-feast.md + query/feast.md.
+# the feature store; today only feast-server (REST online serving) is exposed. Same slim `feast-server:local`
+# image (which now carries the grpc* deps `feast ui`'s REST mode imports). MESHED (data-mesh is istio-injected)
+# so it reaches the STRICT-mTLS `feast` Postgres SQL registry. Browser UI → Keycloak forward-auth.
+#
+# WHY THE LAUNCHER (not just `feast ui`): feast 0.58's `feast ui` hands the bundled React frontend
+# registryPath="/api/v1" (the REST base), but THAT frontend actually wants a `registry.json` dump (its own docs
+# example: "registryPath": "/registry.json") and parses it client-side. With a SQL registry feast never writes
+# that dump → the UI loads but shows nothing (bare GET /api/v1 → 404). The launcher runs `feast ui` (serves the
+# SPA + REST + writes its own projects-list.json), then OVERWRITES projects-list.json to point at /registry.json
+# and generates that dump — proto3-JSON of registry.proto(), the exact format the frontend parses — into the
+# served UI dir, refreshed every 5 min. Deterministic, same feast version, no frontend/version guessing.
+# Picked up by the existing `data-mesh` Argo app. See docs/diagrams/flow-feast.md + query/feast.md.
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: feast-ui-launch
+  namespace: data-mesh
+  labels:
+    app: feast-ui
+data:
+  launch.sh: |
+    #!/bin/sh
+    # start feast ui (serves the SPA + writes its own — wrong — projects-list.json), then take over the registry
+    # data the bundled frontend actually wants (a /registry.json dump). See the header of feast-ui.yaml.
+    feast -c /app/feast_repo ui -h 0.0.0.0 -p 8888 &
+    FPID=$!
+    sleep 10   # let feast's get_app write its projects-list.json first, so ours wins
+    while kill -0 "$FPID" 2>/dev/null; do
+      python /scripts/dump.py || echo "feast-ui: registry dump failed (will retry in 5m)"
+      sleep 300
+    done
+    echo "feast-ui: feast ui process exited — failing so k8s restarts the pod"
+    exit 1
+  dump.py: |
+    """Write the registry as a /registry.json dump (proto3-JSON) + a projects-list.json that points the bundled
+    feast UI frontend at it — fixing feast 0.58's SQL-registry empty-UI bug (registryPath hardcoded to /api/v1)."""
+    import json
+    import os
+
+    import feast
+    from google.protobuf.json_format import MessageToJson
+
+    uidir = os.path.join(os.path.dirname(feast.__file__), "ui", "build")
+    fs = feast.FeatureStore("/app/feast_repo")
+    # proto3-JSON of the whole RegistryProto — the exact shape the frontend parses (same camelCase as /api/v1/*).
+    with open(os.path.join(uidir, "registry.json"), "w") as f:
+        f.write(MessageToJson(fs.registry.proto()))
+    projects = [
+        {
+            "name": p.name.replace("_", " ").title(),
+            "description": p.description or f"Project: {p.name}",
+            "id": p.name,
+            "registryPath": "/registry.json",   # <-- the fix: point at the dump, not /api/v1
+        }
+        for p in fs.registry.list_projects(allow_cache=True)
+    ]
+    with open(os.path.join(uidir, "projects-list.json"), "w") as f:
+        f.write(json.dumps({"projects": projects}))
+    print(f"feast-ui: wrote registry.json + projects-list.json ({len(projects)} project(s))")
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -22,16 +77,15 @@ spec:
       labels:
         app: feast-ui
       annotations:
-        # feast ui reads the SQL registry (Postgres) at startup, same one-shot-connect race as feast serve →
-        # hold the app until the Envoy sidecar is up.
+        # feast ui + the dump both connect to the SQL registry (Postgres) at startup → hold the app until the
+        # Envoy sidecar is up (the one-shot-connect race feast-server hits too).
         proxy.istio.io/config: '{"holdApplicationUntilProxyStarts": true}'
     spec:
       containers:
         - name: feast-ui
           image: feast-server:local
           imagePullPolicy: IfNotPresent
-          # override the image CMD (feast serve) → the registry-browser UI
-          command: ["feast", "-c", "/app/feast_repo", "ui", "-h", "0.0.0.0", "-p", "8888"]
+          command: ["sh", "/scripts/launch.sh"]
           ports:
             - { containerPort: 8888, name: http }
           env:
@@ -40,13 +94,21 @@ spec:
                 secretKeyRef:
                   name: dagster-postgres-secret   # copied into data-mesh (same as feast-server)
                   key: password
+          volumeMounts:
+            - name: launch
+              mountPath: /scripts
           readinessProbe:
-            httpGet: { path: /, port: 8888 }
-            initialDelaySeconds: 15
+            # ready only once the dump exists (data is browsable), not just when the SPA serves.
+            httpGet: { path: /registry.json, port: 8888 }
+            initialDelaySeconds: 25
             periodSeconds: 10
           resources:
             requests: { cpu: 50m, memory: 256Mi }
             limits: { memory: 768Mi }
+      volumes:
+        - name: launch
+          configMap:
+            name: feast-ui-launch
 ---
 apiVersion: v1
 kind: Service
