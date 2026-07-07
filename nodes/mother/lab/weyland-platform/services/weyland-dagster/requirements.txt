@@ -19,10 +19,9 @@ pyarrow
 # PINNED to the deployed server version (ghcr.io/mlflow/mlflow:v2.18.0) — an unpinned 3.x client calls the
 # /api/2.0/mlflow/logged-models endpoint that the 2.x server lacks → 404 on log_model.
 mlflow-skinny==2.18.0
-# scikit-learn + FULL mlflow (also pinned to 2.18.0) — the genre-classifier training assets (mlflow_genre.py):
-# mlflow.sklearn.log_model + the model registry need the sklearn flavor, which mlflow-skinny lacks.
-scikit-learn
-mlflow==2.18.0
+# (scikit-learn + FULL mlflow removed 2026-07-06 — the in-cluster genre-training assets moved to the remote
+#  genre-trainer on rogueone. The only remaining Dagster mlflow user is eval_mlflow.py, which makes tracking-only
+#  calls (log_params/metrics/tags) that mlflow-skinny covers; the Feast retrieval asset needs neither.)
 # B72 — dlt EL (datasets_land.py): pull public datasets → MinIO filesystem destination (bronze raw zone).
 dlt[filesystem]
 # B72 — fan-out transform (datasets_transform.py): pandas for FMA's multi-row-header CSVs; lance + fastavro

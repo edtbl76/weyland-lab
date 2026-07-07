@@ -79,13 +79,45 @@ def _read_spotify_silver() -> pd.DataFrame:
     return df
 
 
+def _read_feast_training() -> pd.DataFrame:
+    """Read the Feast-retrieved training set (produced IN-CLUSTER + MESHED by the Dagster
+    `genre_feast_training_set` asset). The point-in-time join runs THERE because Feast's offline store is the
+    STRICT-mTLS `feast` Postgres — unreachable from this external trainer — so it lands here as lakeFS parquet
+    (track_id + the 11 audio features + track_genre) and we fit it exactly like the silver path."""
+    branch = os.environ.get("LAKEFS_BRANCH", "main")
+    mc = _lakefs_client()
+    log(f"reading Feast training set from lakeFS ({branch}/parquet/genre_feast_training/)…")
+    frames = []
+    for obj in mc.list_objects("music", prefix=f"{branch}/parquet/genre_feast_training/", recursive=True):
+        if not obj.object_name.endswith(".parquet"):
+            continue
+        t = tempfile.NamedTemporaryFile(suffix=".parquet", delete=False); t.close()
+        try:
+            mc.fget_object("music", obj.object_name, t.name)
+            frames.append(pd.read_parquet(t.name))
+        finally:
+            os.unlink(t.name)
+    if not frames:
+        sys.exit("no Feast training set in lakeFS (music/parquet/genre_feast_training/). Materialize the Dagster "
+                 "`genre_feast_training_set` asset first — it runs the meshed get_historical_features retrieval.")
+    df = pd.concat(frames, ignore_index=True) if len(frames) > 1 else frames[0]
+    df["track_id"] = df["track_id"].astype(str)
+    for c in AUDIO:
+        df[c] = pd.to_numeric(df[c], errors="coerce")
+    df = df.dropna(subset=["track_id", "track_genre"] + AUDIO).drop_duplicates("track_id")
+    keep = df["track_genre"].value_counts()
+    df = df[df["track_genre"].isin(keep[keep >= 20].index)]
+    log(f"Feast training set: {len(df):,} rows / {df['track_genre'].nunique()} genres")
+    return df
+
+
 def read_features(source: str) -> pd.DataFrame:
     if source == "silver":
         return _read_spotify_silver()
     if source == "feast":
-        # NEXT ITERATION — features from Feast (get_historical_features, point-in-time). Same logging below;
-        # only the feature retrieval changes. Hard stop (not a silent fallback) until wired.
-        sys.exit("feast source not yet implemented — silver first to prove the path, feast next")
+        # Features via Feast's point-in-time retrieval — materialized to lakeFS by the meshed Dagster
+        # `genre_feast_training_set` asset (its offline store is STRICT-mTLS Postgres, unreachable from here).
+        return _read_feast_training()
     sys.exit(f"unknown --source {source!r}")
 
 
