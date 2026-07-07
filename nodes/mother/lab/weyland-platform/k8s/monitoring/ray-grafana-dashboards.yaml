@@ -12716,6 +12716,8 @@ data:
     }
 kind: ConfigMap
 metadata:
+  annotations:
+    argocd.argoproj.io/sync-options: ServerSideApply=true
   labels:
     grafana_dashboard: "1"
   name: ray-grafana-dashboards
