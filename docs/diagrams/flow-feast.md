@@ -36,6 +36,8 @@ flowchart TB
   REGISTRY -.->|"read on every init"| REST
   REGISTRY -.-> HIST
   REST --> CONSUMER["consumers<br/>Hermes tool · Stud.IO (future)"]
+  HIST -->|"materialize (meshed Dagster asset<br/>genre_feast_training_set)"| TRAINSET[("lakeFS<br/>music/parquet/genre_feast_training/")]
+  TRAINSET -->|"--source feast"| TRAINER["genre-trainer on the Ray worker (rogueone)<br/>→ MLflow (genre_classifier v7)"]
 
   classDef truth fill:#2d6a4f,stroke:#95d5b2,color:#fff;
   class REGISTRY truth;
@@ -46,7 +48,11 @@ flowchart TB
 1. **Low-latency serving by entity key** — `get_online_features(state=CA)` → prevalences in ms from Valkey.
    Vector stores do *similarity*, OLAP does *aggregates*; neither does "give me THIS entity's features, fast."
 2. **Point-in-time training retrieval** — `get_historical_features` joins each label **as of its own timestamp**
-   (CA-2013 ≠ CA-2019 — no leakage from future surveys). The thing a naive batch join gets wrong.
+   (CA-2013 ≠ CA-2019 — no leakage from future surveys). The thing a naive batch join gets wrong. **Now a live
+   consumer:** the meshed Dagster asset `genre_feast_training_set` retrieves the genre-classifier's features this
+   way → lakeFS → the external Ray trainer fits it (`--source feast` → `genre_classifier` v7). Feast's offline
+   store is STRICT-mTLS Postgres, so this retrieval MUST run in-cluster/meshed — the external trainer can't reach
+   it. See [../runbooks/mlflow-training.md](../runbooks/mlflow-training.md) UC2.
 3. **Registry + train/serve consistency** — one feature definition serves both paths, so training and serving
    can't drift (a `FeatureService` like `recommender_v1` is the unit a consumer requests).
 

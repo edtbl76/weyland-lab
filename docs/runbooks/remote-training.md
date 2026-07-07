@@ -261,3 +261,15 @@ docker push registry.weyland.lab/genre-trainer:v3
 docker run --rm -v $HOME/.kube/config:/root/.kube/config:ro --add-host mother:192.168.1.243 registry.weyland.lab/genre-trainer:v3 --source silver
 ```
 Then `mlflow.weyland.lab` → experiment `genre-classifier`, model `genre_classifier`.
+
+### Feature sources (`--source`)
+
+- **`--source silver`** (default) — read spotify silver Parquet direct from lakeFS. One hop, no feature store.
+- **`--source feast`** — train from Feast's **point-in-time** features. Because Feast's offline store is the
+  STRICT-mTLS `feast` Postgres (unreachable from this external trainer / the `hostNetwork` head), the retrieval
+  runs IN-CLUSTER + MESHED as the Dagster asset **`genre_feast_training_set`** (`get_historical_features` over
+  `track_audio_features` → lakeFS `music/parquet/genre_feast_training/`); the trainer then reads that parquet and
+  fits it identically. **Prereq:** materialize `genre_feast_training_set` first (on-demand). Same features →
+  ~same accuracy (v7 f1 0.314 ≈ silver) — Feast buys point-in-time correctness + train/serve consistency, not a
+  better model. Full contrast: [mlflow-training.md](mlflow-training.md) UC2; diagram
+  [../diagrams/flow-feast.md](../diagrams/flow-feast.md).

@@ -45,11 +45,19 @@ model is retrievable — not a number in a log that scrolls away.
 
 ---
 
-## Use case 2 — FEAST as the feature source (`--source feast`)
+## Use case 2 — FEAST as the feature source (`--source feast`)  ✅ live
 
-> **Status: next iteration.** The silver path is live; the feast source in `genre-trainer` is stubbed (same
-> MLflow logging, only the feature retrieval changes — it needs the feast repo baked into the image + reach to
-> Postgres/Valkey). The *why* below is the point it will demonstrate.
+> **Status: ✅ LIVE (2026-07-06).** `--source feast` trains from a **Feast point-in-time retrieval**. Because
+> Feast's offline store is the STRICT-mTLS `feast` Postgres — unreachable from the external trainer or the
+> `hostNetwork` Ray head — the retrieval runs IN-CLUSTER + MESHED as the Dagster asset
+> **`genre_feast_training_set`**: entity_df from silver → `get_historical_features` over `track_audio_features`
+> → merge the `track_genre` label → write `music/parquet/genre_feast_training/` to lakeFS (+ commit). The
+> trainer's `--source feast` then reads that parquet and fits it *exactly* like silver, so the only difference
+> between the two paths is where the features came from. **Measured:** a Ray Tune sweep over the Feast set
+> registered `genre_classifier` **v7** at **f1_macro 0.314 / acc 0.329** — ~parity with silver, as expected.
+> **On-demand prereq:** materialize `genre_feast_training_set` before a `--source feast` run (it depends on
+> spotify silver + the Feast offline table from `feast_setup.py`; re-materialize if either changes). Interaction
+> detail: [remote-training.md](remote-training.md), diagram [../diagrams/flow-feast.md](../diagrams/flow-feast.md).
 
 **How:** the training set's **features come from the feature store** — `FeatureStore.get_historical_features()`
 pulls `track_audio_features` for each track (a **point-in-time** join), and the `track_genre` label is joined
@@ -99,8 +107,8 @@ the feature-store machinery would be pure overhead. Most notebooks start here.
 | Setup / infra on the path | heavier (registry + online + materialize) | minimal (read Parquet) |
 | Best for | **served / time-varying / shared** models | **exploratory / batch / one-off** models |
 
-**The teaching point:** both sources feed the *same features*, so the accuracy will be ~identical — silver is
-measured at `0.321`, and feast (once wired) should match. So you *don't* pick Feast for a better model — you pick
+**The teaching point:** both sources feed the *same features*, so the accuracy is ~identical — silver measured
+~0.31 and **feast now measures f1 0.314 / acc 0.329 (v7)**, parity confirmed. So you *don't* pick Feast for a better model — you pick
 it when you need **point-in-time correctness, train/serve consistency, or reuse**. If none of those apply,
 silver-direct is the simpler, honest choice. Same destination, different guarantees.
 
@@ -125,4 +133,5 @@ Or run the standalone container on rogueone (see [services/genre-trainer/README.
 docker run --rm -v $HOME/.kube/config:/root/.kube/config:ro --add-host mother:192.168.1.243 registry.weyland.lab/genre-trainer:v3 --source silver
 ```
 Re-run after the Spotify silver changes — each run is a new tracked experiment run + a new registered model
-version. Swap `--source feast` once that path is wired.
+version. For `--source feast`, first materialize the Dagster `genre_feast_training_set` asset (the meshed
+point-in-time retrieval), then swap `--source silver` → `--source feast` in either command above.
