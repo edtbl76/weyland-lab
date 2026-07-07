@@ -17,7 +17,10 @@ User=edwardmangini
 # The mkcert root -> boto3 VERIFIES TLS to s3.weyland.lab (this is what lets us drop MLFLOW_S3_IGNORE_TLS).
 Environment=AWS_CA_BUNDLE=/home/edwardmangini/.local/share/mkcert/rootCA.pem
 # --block runs the raylet in the foreground; on GCS disconnect it exits and systemd restarts it (auto-rejoin).
-ExecStart=/home/edwardmangini/ray-worker/bin/ray start --address=192.168.1.243:6379 --node-ip-address=192.168.1.230 --block
+# --metrics-export-port=8080: expose this worker's Prometheus metrics (ray_* task/actor/node) on .230:8080, where
+# the real work runs — the head is a --num-cpus=0 coordinator, so its scrape has no task/actor series. The
+# in-cluster Prometheus scrapes this via a static target (kube-prometheus-stack additionalScrapeConfigs).
+ExecStart=/home/edwardmangini/ray-worker/bin/ray start --address=192.168.1.243:6379 --node-ip-address=192.168.1.230 --metrics-export-port=8080 --block
 ExecStop=/home/edwardmangini/ray-worker/bin/ray stop --force
 Restart=always
 RestartSec=10

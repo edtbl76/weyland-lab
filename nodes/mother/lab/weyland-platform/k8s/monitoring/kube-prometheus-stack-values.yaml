@@ -132,6 +132,16 @@ prometheus:
   prometheusSpec:
     # Phase 2b: discover ALL ServiceMonitors cluster-wide, not just release-labelled ones.
     serviceMonitorSelectorNilUsesHelmValues: false
+    # Static scrape of the EXTERNAL rogueone Ray worker (off-cluster → no ServiceMonitor; it exposes
+    # --metrics-export-port=8080 on .230). This is where the task/actor/node ray_* metrics actually live — the
+    # head is a --num-cpus=0 coordinator with no work. Not-always-up (laptop) → the target flaps down on sleep,
+    # which is expected. Rides the edge posture (B-RT #4c); firewall when the DMZ lands.
+    additionalScrapeConfigs:
+      - job_name: ray-worker-rogueone
+        static_configs:
+          - targets: ['192.168.1.230:8080']
+            labels:
+              ray_node_type: worker
     retention: 15d
     storageSpec:
       volumeClaimTemplate:
