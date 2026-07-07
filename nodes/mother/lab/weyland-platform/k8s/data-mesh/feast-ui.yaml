@@ -1,0 +1,82 @@
+# Feast UI — the registry BROWSER (feature views / entities / feature services / lineage, read-only). A face for
+# the feature store: today only feast-server (REST online serving) is exposed; this adds `feast ui`. Same slim
+# `feast-server:local` image, just a different command (`feast ui` on :8888). MESHED (data-mesh is istio-injected)
+# so it reaches the STRICT-mTLS `feast` Postgres SQL registry — an unmeshed pod gets ECONNRESET
+# (postgres-strict-needs-mesh). Browser UI → Keycloak forward-auth (unlike feast-server's open REST API). Picked
+# up by the existing `data-mesh` Argo app. See docs/diagrams/flow-feast.md + query/feast.md.
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: feast-ui
+  namespace: data-mesh
+  labels:
+    app: feast-ui
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: feast-ui
+  template:
+    metadata:
+      labels:
+        app: feast-ui
+      annotations:
+        # feast ui reads the SQL registry (Postgres) at startup, same one-shot-connect race as feast serve →
+        # hold the app until the Envoy sidecar is up.
+        proxy.istio.io/config: '{"holdApplicationUntilProxyStarts": true}'
+    spec:
+      containers:
+        - name: feast-ui
+          image: feast-server:local
+          imagePullPolicy: IfNotPresent
+          # override the image CMD (feast serve) → the registry-browser UI
+          command: ["feast", "-c", "/app/feast_repo", "ui", "-h", "0.0.0.0", "-p", "8888"]
+          ports:
+            - { containerPort: 8888, name: http }
+          env:
+            - name: WEYLAND_PG_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: dagster-postgres-secret   # copied into data-mesh (same as feast-server)
+                  key: password
+          readinessProbe:
+            httpGet: { path: /, port: 8888 }
+            initialDelaySeconds: 15
+            periodSeconds: 10
+          resources:
+            requests: { cpu: 50m, memory: 256Mi }
+            limits: { memory: 768Mi }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: feast-ui
+  namespace: data-mesh
+  labels:
+    app: feast-ui
+spec:
+  selector:
+    app: feast-ui
+  ports:
+    - { name: http, port: 8888 }
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: feast-ui
+  namespace: data-mesh
+  annotations:
+    traefik.ingress.kubernetes.io/router.middlewares: data-mesh-traefik-forward-auth@kubernetescrd
+spec:
+  tls:
+    - hosts: [feast-ui.weyland.lab]
+      secretName: weyland-wildcard-tls
+  rules:
+    - host: feast-ui.weyland.lab
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service: { name: feast-ui, port: { number: 8888 } }

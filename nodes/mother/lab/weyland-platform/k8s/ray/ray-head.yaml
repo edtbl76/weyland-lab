@@ -38,7 +38,7 @@ spec:
           args:
             - >
               ray start --head --node-ip-address=192.168.1.243 --dashboard-host=0.0.0.0 --dashboard-port=8265
-              --port=6379 --num-cpus=0 --disable-usage-stats --block
+              --port=6379 --num-cpus=0 --metrics-export-port=8080 --disable-usage-stats --block
           ports:
             - name: dashboard
               containerPort: 8265     # dashboard UI + Jobs API (submit)
@@ -46,6 +46,8 @@ spec:
               containerPort: 6379     # GCS (Phase 2 edge workers dial this)
             - name: client
               containerPort: 10001    # Ray Client
+            - name: metrics
+              containerPort: 8080      # Prometheus metrics (ray_* + autoscaler) — scraped by the ServiceMonitor
           # Submitted jobs INHERIT this env — in-cluster the trainer needs no port-forwards/kubeconfig, just the
           # svc-DNS endpoints + creds. (mlflow/lakefs inbound are PERMISSIVE, so an unmeshed head reaches them.)
           env:
@@ -108,6 +110,9 @@ spec:
     - name: client
       port: 10001
       targetPort: 10001
+    - name: metrics
+      port: 8080
+      targetPort: 8080
 ---
 # Dashboard UI at ray.weyland.lab — Keycloak forward-auth (browser SSO), like the other UIs. The Jobs API used by
 # the Port action is reached in-cluster via ray-head.weyland.svc:8265 (NOT this gated ingress).

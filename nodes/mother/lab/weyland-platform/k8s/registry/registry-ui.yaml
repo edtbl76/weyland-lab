@@ -1,0 +1,98 @@
+# Web UI for the MinIO-backed OCI registry — a face for registry.weyland.lab (which is Docker-API-only). joxit's
+# nginx runs in PROXY mode (NGINX_PROXY_PASS_URL → the in-cluster registry svc), so the browser only ever talks to
+# registry-ui.weyland.lab (same origin) — no CORS headers needed on the registry, and the UI's /v2/ calls are
+# proxied server-side. Browser UI → gated behind Keycloak forward-auth (unlike the registry's Docker API, which is
+# open on the LAN for docker pull/push). Picked up by the existing `registry` Argo app (directory app on k8s/registry/).
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: registry-ui
+  namespace: weyland
+  labels:
+    app: registry-ui
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: registry-ui
+  template:
+    metadata:
+      labels:
+        app: registry-ui
+      # NOT meshed: static UI + nginx proxy to the (plain-HTTP, unmeshed) registry svc. No STRICT-mTLS in the path.
+    spec:
+      containers:
+        - name: registry-ui
+          image: joxit/docker-registry-ui:2.5.7
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 80
+          env:
+            - name: SINGLE_REGISTRY          # one registry, no registry-switcher UI
+              value: "true"
+            - name: REGISTRY_TITLE
+              value: "Weyland Registry"
+            - name: NGINX_PROXY_PASS_URL     # proxy mode → the in-cluster registry Service (no CORS needed)
+              value: "http://registry.weyland.svc.cluster.local:5000"
+            - name: DELETE_IMAGES            # registry has REGISTRY_STORAGE_DELETE_ENABLED=true
+              value: "true"
+            - name: SHOW_CONTENT_DIGEST
+              value: "true"
+            - name: SHOW_CATALOG_NB_TAGS
+              value: "true"
+            - name: CATALOG_ELEMENTS_LIMIT
+              value: "1000"
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 80
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              memory: 128Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: registry-ui
+  namespace: weyland
+  labels:
+    app: registry-ui
+spec:
+  type: ClusterIP
+  selector:
+    app: registry-ui
+  ports:
+    - name: http
+      port: 80
+      targetPort: 80
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: registry-ui
+  namespace: weyland
+  annotations:
+    traefik.ingress.kubernetes.io/router.middlewares: weyland-traefik-forward-auth@kubernetescrd
+spec:
+  tls:
+    - hosts:
+        - registry-ui.weyland.lab
+      secretName: weyland-wildcard-tls
+  rules:
+    - host: registry-ui.weyland.lab
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: registry-ui
+                port:
+                  number: 80

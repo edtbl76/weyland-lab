@@ -1,0 +1,20 @@
+# Scrape the Ray head's Prometheus metrics (ray_* task/actor/node + autoscaler) into the kube-prometheus-stack.
+# Discovered via serviceMonitorSelectorNilUsesHelmValues=false (no release label needed — same as the other app
+# ServiceMonitors). The head is a coordinator (--num-cpus=0), so these are cluster/driver + autoscaler metrics;
+# the EXTERNAL rogueone worker's node metrics are off-cluster (a static-target scrape on .230 — the edge wrinkle,
+# backlog B-RT follow-up #4). Query in Grafana Explore (Prometheus) with `ray_` / import Ray's shipped dashboards.
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: ray-head
+  namespace: weyland
+  labels:
+    app: ray-head
+spec:
+  selector:
+    matchLabels:
+      app: ray-head
+  endpoints:
+    - port: metrics          # :8080 (ray start --metrics-export-port=8080)
+      path: /metrics
+      interval: 30s
