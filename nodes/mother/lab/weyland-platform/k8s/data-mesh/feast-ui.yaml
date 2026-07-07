@@ -26,10 +26,16 @@ data:
     # data the bundled frontend actually wants (a /registry.json dump). See the header of feast-ui.yaml.
     feast -c /app/feast_repo ui -h 0.0.0.0 -p 8888 &
     FPID=$!
-    sleep 10   # let feast's get_app write its projects-list.json first, so ours wins
+    # Write the dump ASAP, retrying fast until the registry is reachable — so there's no empty-UI window after a
+    # (re)start. feast's get_app writes its own projects-list.json synchronously before serving, so ours (written
+    # here, after the port is up) always wins. Then refresh every 5 min to track registry changes.
+    until python /scripts/dump.py; do
+      kill -0 "$FPID" 2>/dev/null || { echo "feast-ui: feast ui exited during startup"; exit 1; }
+      echo "feast-ui: registry not ready yet — retry in 5s"; sleep 5
+    done
     while kill -0 "$FPID" 2>/dev/null; do
-      python /scripts/dump.py || echo "feast-ui: registry dump failed (will retry in 5m)"
       sleep 300
+      python /scripts/dump.py || echo "feast-ui: refresh dump failed (keeping last good)"
     done
     echo "feast-ui: feast ui process exited — failing so k8s restarts the pod"
     exit 1
