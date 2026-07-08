@@ -1,0 +1,37 @@
+# DataHub managed-ingestion recipe — dbt (the B1.5 transform tier).
+# Source-of-record only (UI-configured: Ingestion → Sources → Create → paste this recipe).
+#
+# Emits the dbt models, their TESTS (as DataHub assertions), model/column docs, and model→model +
+# source→model (+ column-level) lineage — the richer view the hand-rolled `datahub_emit.emit_dbt`
+# can't produce. With `target_platform: trino` the models are siblinged onto the SAME Trino dataset
+# URNs the marts already have (`iceberg.<schema>.<table>`, e.g. iceberg.dbt.mart_spotify_audio), so
+# the dbt-platform node and the trino-platform node merge into one entity in the catalog. The dbt
+# `source.*` nodes resolve to the Iceberg gold tables (also trino URNs) → full gold → staging → mart
+# lineage with tests attached.
+#
+# Artifacts are read over HTTP from the IN-CLUSTER dbt-docs Service (not the forward-auth
+# `dbt-docs.weyland.lab` ingress, which 401s API calls). dbt-docs runs `dbt docs generate` on start,
+# so manifest.json + catalog.json are served at its web root; the meshed DataHub executor reaches it.
+# Refresh the artifacts = rollout restart the dbt-docs deployment (regenerates against current marts),
+# then re-run this ingestion. No DataHub Secret needed (the svc is unauthenticated in-cluster).
+# Schedule: daily (after the weekly dbt build; a daily re-ingest is cheap and keeps tests fresh).
+source:
+  type: dbt
+  config:
+    manifest_path: "http://dbt-docs.weyland.svc.cluster.local:8080/manifest.json"
+    catalog_path: "http://dbt-docs.weyland.svc.cluster.local:8080/catalog.json"
+    # the marts are Iceberg tables queried through Trino — same platform the marts are cataloged under,
+    # so dbt models sibling onto iceberg.dbt.mart_* instead of creating a parallel set of nodes.
+    target_platform: trino
+    # tests → assertions, and column-level lineage parsed from the compiled model SQL.
+    include_column_lineage: true
+    entities_enabled:
+      test_results: Yes
+      test_definitions: Yes
+      models: Yes
+      sources: Yes
+      seeds: Yes
+      snapshots: Yes
+    stateful_ingestion:
+      enabled: true
+      remove_stale_metadata: true

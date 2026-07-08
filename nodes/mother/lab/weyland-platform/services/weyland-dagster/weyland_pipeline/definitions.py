@@ -108,6 +108,12 @@ def emit_dbt_op(context):
     _safe_emit(context, "dbt marts", emit_dbt)
 
 
+@op
+def emit_feast_op(context):
+    from weyland_pipeline.datahub_emit import emit_feast
+    _safe_emit(context, "Feast sources (mart lineage)", emit_feast)
+
+
 @job
 def datahub_catalog_emit_job():
     emit_dagster_assets_op()
@@ -120,6 +126,7 @@ def datahub_catalog_emit_job():
     emit_mysql_op()
     emit_lancedb_op()
     emit_dbt_op()
+    emit_feast_op()
 
 
 datahub_catalog_emit_schedule = ScheduleDefinition(

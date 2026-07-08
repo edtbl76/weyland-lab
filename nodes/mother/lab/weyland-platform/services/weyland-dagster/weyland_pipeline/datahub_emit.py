@@ -244,6 +244,40 @@ def emit_dbt():
     return len(marts), marts
 
 
+# Feast offline source table (feast Postgres DB) ← the dbt mart it's loaded from (feast_setup._load_offline_sources).
+# The dbt connector can't draw this (cross-system, downstream of the marts); the postgres recipe catalogs the
+# `feast` DB's columns → this adds the missing UpstreamLineage so DataHub shows gold → mart → Feast source.
+_FEAST_SOURCES = {
+    "track_audio_features": "mart_spotify_audio",
+    "state_health_risk": "mart_state_health_trends",
+}
+
+
+def emit_feast():
+    """Emit the mart → Feast-source lineage edge. Each Feast offline source is a table in the `feast` Postgres DB
+    (`feast.public.<table>`, cataloged by the postgres recipe); this points its UpstreamLineage at the dbt mart
+    that feast_setup loads it from (`iceberg.dbt.<mart>` on Trino) + a `feast` tag, completing gold → mart → Feast
+    in one graph. Returns (count, [table names])."""
+    emitter = _gms_emitter()
+    names = []
+    for table, mart in _FEAST_SOURCES.items():
+        urn = make_dataset_urn(platform="postgres", name=f"feast.public.{table}", env=ENV)
+        mart_urn = make_dataset_urn(platform="trino", name=f"iceberg.dbt.{mart}", env=ENV)
+        aspects = [
+            DatasetPropertiesClass(name=table,
+                                   description=f"Feast offline source — loaded from the dbt mart {mart} by "
+                                               f"feast_setup._load_offline_sources; read by Feast via "
+                                               f"PostgreSQLSource. The dbt mart is the source of truth."),
+            GlobalTagsClass(tags=[TagAssociationClass(tag=make_tag_urn("feast"))]),
+            UpstreamLineageClass(upstreams=[
+                UpstreamClass(dataset=mart_urn, type=DatasetLineageTypeClass.TRANSFORMED)]),
+        ]
+        for aspect in aspects:
+            emitter.emit(MetadataChangeProposalWrapper(entityUrn=urn, aspect=aspect))
+        names.append(table)
+    return len(names), names
+
+
 def _gms_emitter() -> DatahubRestEmitter:
     server = os.environ.get("DATAHUB_GMS_URL", "http://datahub-datahub-gms.data-mesh.svc.cluster.local:8080")
     return DatahubRestEmitter(gms_server=server, token=os.environ.get("DATAHUB_GMS_TOKEN", ""))
