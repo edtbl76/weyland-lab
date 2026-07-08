@@ -5,8 +5,9 @@ reads it at import time. dbt only issues SQL to Trino — Trino owns the Nessie/
 reaches `trino.data-mesh.svc` via the profile).
 
 After `build`, the asset also runs `dbt docs generate` (fresh manifest + catalog against LIVE Trino — reliable HERE,
-unlike the dbt-docs pod's boot-time generate) and PUBLISHES both to MinIO (`s3://warehouse/dbt/`) so the DataHub dbt
-connector reads them via `s3://` — decoupled from the dbt-docs pod lifecycle. See datahub-ingestion/dbt.recipe.yaml."""
+unlike the dbt-docs pod's boot-time generate) and PUBLISHES both to MinIO (`s3://warehouse/_dbt_artifacts/`) so the
+DataHub dbt connector reads them via `s3://` — decoupled from the dbt-docs pod lifecycle. See
+datahub-ingestion/dbt.recipe.yaml."""
 import os
 import subprocess
 from pathlib import Path
@@ -19,11 +20,13 @@ dbt_manifest_path = DBT_PROJECT_DIR / "target" / "manifest.json"
 
 dbt_resource = DbtCliResource(project_dir=str(DBT_PROJECT_DIR), profiles_dir=str(DBT_PROJECT_DIR))
 
-# Publish target: the Iceberg warehouse bucket (already exists) under a `dbt/` prefix. We write with the pod's
-# ICEBERG_S3_* creds = the same nessie-secret S3 creds the DataHub executor reads the warehouse with → guaranteed
-# same-bucket read access, no new secret. Overridable via env.
+# Publish target: the Iceberg warehouse bucket (already exists) under a DEDICATED `_dbt_artifacts/` prefix — NOT
+# `dbt/`, which is where the Iceberg `dbt` schema writes its table data (parking JSON there mixed the artifacts in
+# with the schema's parquet/metadata). The leading underscore keeps it out of the way of any schema named `dbt`.
+# We write with the pod's ICEBERG_S3_* creds = the same nessie-secret S3 creds the DataHub executor reads the
+# warehouse with → guaranteed same-bucket read access, no new secret. Overridable via env.
 _ARTIFACT_BUCKET = os.environ.get("DBT_ARTIFACTS_BUCKET", "warehouse")
-_ARTIFACT_PREFIX = os.environ.get("DBT_ARTIFACTS_PREFIX", "dbt")
+_ARTIFACT_PREFIX = os.environ.get("DBT_ARTIFACTS_PREFIX", "_dbt_artifacts")
 
 
 def publish_dbt_artifacts(log=print):
