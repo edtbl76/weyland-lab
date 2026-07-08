@@ -19,7 +19,9 @@ data:
         location / {
           proxy_pass http://trino.data-mesh.svc.cluster.local:8080;
           proxy_set_header Authorization "";        # strip Basic auth → Trino sees no-auth (X-Trino-User only)
-          proxy_set_header Host $host;
+          # DO NOT override Host: nginx defaults it to the proxy_pass target (trino.data-mesh.svc), which is the
+          # :authority Istio's Envoy routes the outbound hop on. Setting Host to the incoming `trino-noauth` host
+          # made Envoy fail to route → 503. (Confirmed: a direct wget with Host=trino… returns 200.)
           proxy_http_version 1.1;
           proxy_set_header Connection "";
         }
