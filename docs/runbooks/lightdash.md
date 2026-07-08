@@ -42,11 +42,16 @@ password from this exact key, Bitnami convention, NOT `password`) and `LIGHTDASH
 ```
 kubectl -n data-mesh create secret generic lightdash-secret \
   --from-literal=postgresql-password='weyland_dev_password' \
-  --from-literal=LIGHTDASH_SECRET="$(openssl rand -hex 32)"
+  --from-literal=LIGHTDASH_SECRET="$(openssl rand -hex 32)" \
+  --from-literal=S3_ACCESS_KEY='admin' \
+  --from-literal=S3_SECRET_KEY='weyland_dev_password'
 ```
 
-Create it directly (do NOT commit; it's the SealedSecrets/External-Secrets gap under B69). Verify the base64
-round-trips clean — paste-mangling has bitten other secrets here ([[feedback-verify-secret-after-create]]).
+`S3_ACCESS_KEY`/`S3_SECRET_KEY` = the MinIO creds — Lightdash needs S3 (MinIO) for query-results storage +
+pagination and CSV/image exports (the non-sensitive `S3_ENDPOINT`/`S3_BUCKET`/`S3_REGION`/`S3_FORCE_PATH_STYLE`
+live in `lightdash-values.yaml`). **Create the `lightdash` MinIO bucket first** (`S3_BUCKET`). Create the Secret
+directly (do NOT commit; SealedSecrets/External-Secrets gap under B69). Verify the base64 round-trips clean —
+paste-mangling has bitten other secrets here ([[feedback-verify-secret-after-create]]).
 
 ## 4. Argo Application
 

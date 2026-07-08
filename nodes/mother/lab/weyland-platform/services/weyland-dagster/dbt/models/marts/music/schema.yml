@@ -9,6 +9,7 @@ models:
     columns:
       - name: track_id
         description: "Spotify track id — unique after dedup."
+        meta: {metrics: {track_count: {type: count_distinct, label: "Tracks"}}}
         tests:
           - unique
           - not_null
@@ -17,25 +18,43 @@ models:
         tests:
           - not_null
       - name: danceability
+        meta: {metrics: {avg_danceability: {type: average}}}
         tests:
           - dbt_expectations.expect_column_values_to_be_between:
               min_value: 0
               max_value: 1
       - name: energy
+        meta: {metrics: {avg_energy: {type: average}}}
         tests:
           - dbt_expectations.expect_column_values_to_be_between:
               min_value: 0
               max_value: 1
       - name: valence
+        meta: {metrics: {avg_valence: {type: average}}}
         tests:
           - dbt_expectations.expect_column_values_to_be_between:
               min_value: 0
               max_value: 1
       - name: tempo
+        meta: {metrics: {avg_tempo: {type: average}}}
         tests:
           - dbt_expectations.expect_column_values_to_be_between:
               min_value: 0
               max_value: 300
+      - name: key
+        description: "Estimated musical key (0-11)."
+      - name: loudness
+        meta: {metrics: {avg_loudness: {type: average}}}
+      - name: mode
+        description: "Major (1) / minor (0)."
+      - name: speechiness
+        meta: {metrics: {avg_speechiness: {type: average}}}
+      - name: acousticness
+        meta: {metrics: {avg_acousticness: {type: average}}}
+      - name: instrumentalness
+        meta: {metrics: {avg_instrumentalness: {type: average}}}
+      - name: liveness
+        meta: {metrics: {avg_liveness: {type: average}}}
 
   - name: mart_genre_audio_profile
     description: >
@@ -44,26 +63,56 @@ models:
     columns:
       - name: track_genre
         description: "Genre — one row per genre (unique)."
+        meta: {metrics: {genre_count: {type: count_distinct, label: "Genres"}}}
         tests:
           - unique
           - not_null
       - name: n_tracks
         description: "Tracks contributing to the genre's profile (>= 20 by construction)."
+        meta: {metrics: {total_tracks: {type: sum, label: "Total tracks"}}}
         tests:
           - dbt_expectations.expect_column_values_to_be_between:
               min_value: 20
+      - name: danceability_mean
+      - name: danceability_std
+      - name: energy_mean
+      - name: energy_std
+      - name: key_mean
+      - name: key_std
+      - name: loudness_mean
+      - name: loudness_std
+      - name: mode_mean
+      - name: mode_std
+      - name: speechiness_mean
+      - name: speechiness_std
+      - name: acousticness_mean
+      - name: acousticness_std
+      - name: instrumentalness_mean
+      - name: instrumentalness_std
+      - name: liveness_mean
+      - name: liveness_std
+      - name: valence_mean
+      - name: valence_std
+      - name: tempo_mean
+      - name: tempo_std
 
   - name: mart_fma_genre_tree
     description: >
       FMA genre taxonomy dimension — genre_id, title, parent (id + title), and a top-level flag. One row per genre.
     columns:
       - name: genre_id
+        meta: {metrics: {genre_count: {type: count_distinct, label: "Genres"}}}
         tests:
           - unique
           - not_null
       - name: genre_title
         tests:
           - not_null
+      - name: parent_id
+        description: "Parent genre id (null / 0 for top-level)."
+      - name: parent_title
+      - name: is_top_level
+        description: "True for root genres."
 
   - name: mart_artist_popularity
     description: >
@@ -71,10 +120,19 @@ models:
       best-effort MusicBrainz URL joined on mbid.
     columns:
       - name: artist_name
+        meta: {metrics: {artist_count: {type: count_distinct, label: "Artists"}}}
         tests:
           - unique
           - not_null
       - name: total_plays
+        description: "Sum of Last.fm play counts for the artist."
+        meta: {metrics: {total_plays: {type: sum, label: "Total plays"}, avg_plays: {type: average}, max_plays: {type: max}}}
         tests:
           - dbt_expectations.expect_column_values_to_be_between:
               min_value: 0
+      - name: n_listeners
+        description: "Approx-distinct listeners (HyperLogLog)."
+        meta: {metrics: {total_listeners: {type: sum, label: "Total listeners"}, avg_listeners: {type: average}}}
+      - name: mbid
+        description: "MusicBrainz artist id (mbid)."
+      - name: musicbrainz_url

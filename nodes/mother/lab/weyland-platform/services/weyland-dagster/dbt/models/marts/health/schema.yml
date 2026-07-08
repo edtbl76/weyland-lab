@@ -11,6 +11,7 @@ models:
     columns:
       - name: state
         description: "US state / territory abbreviation (BRFSS locationabbr)."
+        meta: {metrics: {state_count: {type: count_distinct, label: "States"}}}
         tests:
           - not_null
       - name: year
@@ -18,11 +19,19 @@ models:
           - not_null
       - name: diabetes_pct
         description: "Crude prevalence % of diagnosed diabetes."
+        meta: {metrics: {avg_diabetes_pct: {type: average, label: "Avg diabetes %"}, max_diabetes_pct: {type: max}}}
         tests:
           - dbt_expectations.expect_column_values_to_be_between:
               min_value: 0
               max_value: 100
+      - name: asthma_pct
+        description: "Crude prevalence % of current asthma."
+        meta: {metrics: {avg_asthma_pct: {type: average, label: "Avg asthma %"}, max_asthma_pct: {type: max}}}
+      - name: copd_pct
+        description: "Crude prevalence % of COPD."
+        meta: {metrics: {avg_copd_pct: {type: average, label: "Avg COPD %"}, max_copd_pct: {type: max}}}
       - name: depression_pct
+        meta: {metrics: {avg_depression_pct: {type: average, label: "Avg depression %"}, max_depression_pct: {type: max}}}
         tests:
           - dbt_expectations.expect_column_values_to_be_between:
               min_value: 0
@@ -37,16 +46,32 @@ models:
           combination_of_columns: [country, year]
     columns:
       - name: country
+        meta: {metrics: {country_count: {type: count_distinct, label: "Countries"}}}
         tests:
           - not_null
       - name: year
         tests:
           - not_null
       - name: life_expectancy
+        meta: {metrics: {avg_life_expectancy: {type: average, label: "Avg life expectancy"}}}
         tests:
           - dbt_expectations.expect_column_values_to_be_between:
               min_value: 0
               max_value: 120
+      - name: healthy_life_expectancy
+        meta: {metrics: {avg_healthy_life_expectancy: {type: average}}}
+      - name: diabetes_prevalence
+        meta: {metrics: {avg_diabetes_prevalence: {type: average}}}
+      - name: adult_obesity
+        meta: {metrics: {avg_adult_obesity: {type: average}}}
+      - name: hypertension
+        meta: {metrics: {avg_hypertension: {type: average}}}
+      - name: alcohol_consumption
+        meta: {metrics: {avg_alcohol_consumption: {type: average}}}
+      - name: tobacco_smoking
+        meta: {metrics: {avg_tobacco_smoking: {type: average}}}
+      - name: mental_health_disorders
+        meta: {metrics: {avg_mental_health_disorders: {type: average}}}
 
   - name: mart_personality_by_country
     description: >
@@ -54,15 +79,27 @@ models:
       >= 30 respondents). One row per country.
     columns:
       - name: country
+        meta: {metrics: {country_count: {type: count_distinct, label: "Countries"}}}
         tests:
           - unique
           - not_null
+      - name: n_respondents
+        description: "Respondents contributing to the country's trait means (>= 30 by construction)."
+        meta: {metrics: {total_respondents: {type: sum, label: "Total respondents"}}}
       - name: extraversion
+        meta: {metrics: {avg_extraversion: {type: average, label: "Avg extraversion"}}}
         tests:
           - dbt_expectations.expect_column_values_to_be_between:
               min_value: 1
               max_value: 5
+      - name: neuroticism
+        meta: {metrics: {avg_neuroticism: {type: average}}}
+      - name: agreeableness
+        meta: {metrics: {avg_agreeableness: {type: average}}}
+      - name: conscientiousness
+        meta: {metrics: {avg_conscientiousness: {type: average}}}
       - name: openness
+        meta: {metrics: {avg_openness: {type: average, label: "Avg openness"}}}
         tests:
           - dbt_expectations.expect_column_values_to_be_between:
               min_value: 1
