@@ -374,3 +374,33 @@ spec:
     syncOptions:
       - ServerSideApply=true
       - CreateNamespace=true
+---
+# dbt-native BI (metrics/explores from the dbt project over the marts) — complements Superset's ad-hoc SQL.
+# Metadata in the lab Postgres `lightdash` DB (bundled PG off); browserless/NATS off for the tight node.
+# Prereqs (out-of-band): the `lightdash` DB/role on weyland-postgres + Secret `lightdash-secret` in data-mesh.
+# Post-deploy: connect the GitHub dbt project + Trino in the UI — see runbooks/lightdash.md.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: lightdash
+  namespace: argocd
+spec:
+  project: default
+  sources:
+    - repoURL: https://lightdash.github.io/helm-charts
+      chart: lightdash
+      targetRevision: 2.9.1   # Lightdash app 0.2248.0
+      helm:
+        releaseName: lightdash
+        valueFiles:
+          - $values/nodes/mother/lab/weyland-platform/k8s/lightdash/lightdash-values.yaml
+    - repoURL: https://github.com/edtbl76/weyland-lab.git
+      targetRevision: main
+      ref: values
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: data-mesh
+  syncPolicy:
+    automated: { selfHeal: true, prune: true }
+    syncOptions:
+      - ServerSideApply=true
