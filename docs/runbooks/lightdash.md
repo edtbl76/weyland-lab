@@ -36,9 +36,17 @@ CREATE DATABASE lightdash OWNER lightdash;
 
 ## 3. Secret (`lightdash-secret`, ns data-mesh)
 
-Two keys: `password` (the `lightdash` PG role's password from step 2) and `LIGHTDASH_SECRET` (a random session
-key). Create it directly (do NOT commit; it's the SealedSecrets/External-Secrets gap under B69). Verify the
-base64 round-trips clean — paste-mangling has bitten other secrets here ([[feedback-verify-secret-after-create]]).
+Keys: **`postgresql-password`** (the `lightdash` PG role's password from step 2 — the chart reads the external-DB
+password from this exact key, Bitnami convention, NOT `password`) and `LIGHTDASH_SECRET` (a random session key).
+
+```
+kubectl -n data-mesh create secret generic lightdash-secret \
+  --from-literal=postgresql-password='weyland_dev_password' \
+  --from-literal=LIGHTDASH_SECRET="$(openssl rand -hex 32)"
+```
+
+Create it directly (do NOT commit; it's the SealedSecrets/External-Secrets gap under B69). Verify the base64
+round-trips clean — paste-mangling has bitten other secrets here ([[feedback-verify-secret-after-create]]).
 
 ## 4. Argo Application
 

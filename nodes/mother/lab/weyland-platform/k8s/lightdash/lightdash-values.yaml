@@ -23,7 +23,8 @@ externalDatabase:
   port: 5432
   user: lightdash
   database: lightdash
-  existingSecret: lightdash-secret        # key: password (the `lightdash` PG role's password)
+  existingSecret: lightdash-secret        # the chart reads the DB password from key `postgresql-password` (Bitnami
+                                          # convention) — the Secret MUST have that key, not `password`.
 
 # App secrets (LIGHTDASH_SECRET = session signing key) also come from the same Secret.
 existingSecret: lightdash-secret
