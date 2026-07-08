@@ -36,3 +36,19 @@ models:
           - dbt_expectations.expect_column_values_to_be_between:
               min_value: 0
               max_value: 300
+
+  - name: mart_genre_audio_profile
+    description: >
+      Per-genre audio signature: mean + stddev of the 11 audio features + track count, one row per genre.
+      Built on mart_spotify_audio — the interpretable baseline for the genre classifier.
+    columns:
+      - name: track_genre
+        description: "Genre — one row per genre (unique)."
+        tests:
+          - unique
+          - not_null
+      - name: n_tracks
+        description: "Tracks contributing to the genre's profile (>= 20 by construction)."
+        tests:
+          - dbt_expectations.expect_column_values_to_be_between:
+              min_value: 20
