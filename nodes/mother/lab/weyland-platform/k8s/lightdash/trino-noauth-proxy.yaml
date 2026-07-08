@@ -1,0 +1,67 @@
+# Auth-stripping proxy for Lightdash → Trino. Lightdash's Trino connector REQUIRES a password, so it sends HTTP
+# Basic auth. Trino has NO authenticator (deliberate LAN no-auth — dbt/DataHub/Superset connect passwordless), and
+# Trino returns 401 "Basic authentication is not enabled" for ANY Authorization header. This nginx clears the
+# Authorization header and forwards to trino:8080, so Trino sees only X-Trino-User (which the client always sends)
+# = the same no-auth path dbt uses. Point Lightdash's warehouse Host at `trino-noauth.data-mesh.svc.cluster.local`.
+# Contained: touches nothing else. Picked up by the `lightdash` Argo app? No — this is a raw manifest; add it to a
+# directory Argo app or apply directly. (Alternative to enabling Trino auth, which would break every other client.)
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: trino-noauth-proxy
+  namespace: data-mesh
+data:
+  nginx.conf: |
+    events {}
+    http {
+      server {
+        listen 8080;
+        location / {
+          proxy_pass http://trino.data-mesh.svc.cluster.local:8080;
+          proxy_set_header Authorization "";        # strip Basic auth → Trino sees no-auth (X-Trino-User only)
+          proxy_set_header Host $host;
+          proxy_http_version 1.1;
+          proxy_set_header Connection "";
+        }
+      }
+    }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: trino-noauth-proxy
+  namespace: data-mesh
+  labels: { app: trino-noauth-proxy }
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: trino-noauth-proxy }
+  template:
+    metadata:
+      labels:
+        app: trino-noauth-proxy
+        sidecar.istio.io/inject: "true"
+    spec:
+      containers:
+        - name: nginx
+          image: nginx:1.27-alpine
+          ports:
+            - containerPort: 8080
+          volumeMounts:
+            - { name: conf, mountPath: /etc/nginx/nginx.conf, subPath: nginx.conf }
+          resources:
+            requests: { cpu: 10m, memory: 16Mi }
+            limits: { memory: 64Mi }
+      volumes:
+        - name: conf
+          configMap: { name: trino-noauth-proxy }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: trino-noauth
+  namespace: data-mesh
+spec:
+  selector: { app: trino-noauth-proxy }
+  ports:
+    - { name: http, port: 8080, targetPort: 8080 }
