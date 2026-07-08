@@ -157,6 +157,93 @@ def _store_aspects(name, platform, description, fields, producer_asset, props=No
     return aspects
 
 
+DBT_MANIFEST = os.environ.get("DBT_MANIFEST", "/app/dbt/target/manifest.json")
+
+
+def _iceberg_name(node) -> str:
+    """`iceberg.<schema>.<table>` — the fully-qualified Trino/Iceberg name for a dbt node (mart or source),
+    matching how the marts materialize (database=iceberg, schema=dbt) and how the gold sources are read."""
+    db = node.get("database") or "iceberg"
+    schema = node.get("schema") or "dbt"
+    ident = node.get("identifier") or node.get("alias") or node.get("name")
+    return f"{db}.{schema}.{ident}"
+
+
+def emit_dbt():
+    """Custom-emit the dbt transform tier from the baked `manifest.json` (no Trino/DB connection needed).
+    Each materialized mart → a Trino/Iceberg Dataset (`iceberg.dbt.mart_*`) carrying its description, per-column
+    docs, a `dbt` tag, and UpstreamLineage to the gold source tables it reads (walking THROUGH the ephemeral
+    staging models to the real `source.*` nodes). The gold sources are emitted too (thin props + a `gold` tag) so
+    the lineage nodes aren't bare stubs. Returns (n_marts, [mart names]). Mirrors the DataHub dbt source but
+    stays offline + version-proof, like the other custom emitters here."""
+    import json
+
+    with open(DBT_MANIFEST) as f:
+        manifest = json.load(f)
+    nodes, sources = manifest.get("nodes", {}), manifest.get("sources", {})
+
+    def _source_ancestors(uid, seen=None):
+        """All `source.*` unique_ids reachable from `uid` by walking depends_on through ephemeral models."""
+        seen = seen if seen is not None else set()
+        node = nodes.get(uid)
+        if not node:
+            return set()
+        found = set()
+        for dep in node.get("depends_on", {}).get("nodes", []):
+            if dep in seen:
+                continue
+            seen.add(dep)
+            if dep.startswith("source."):
+                found.add(dep)
+            elif dep in nodes:
+                found |= _source_ancestors(dep, seen)
+        return found
+
+    emitter = _gms_emitter()
+    emitted_sources = set()
+    marts = []
+    for uid, node in nodes.items():
+        if node.get("resource_type") != "model" or node.get("config", {}).get("materialized") == "ephemeral":
+            continue  # skip ephemeral staging — only real (materialized) marts get their own Iceberg table
+        name = _iceberg_name(node)
+        urn = make_dataset_urn(platform="trino", name=name, env=ENV)
+        fields = [
+            SchemaFieldClass(fieldPath=col, type=_field_type(meta.get("data_type") or "string"),
+                             nativeDataType=str(meta.get("data_type") or "unknown"),
+                             description=meta.get("description") or None)
+            for col, meta in node.get("columns", {}).items()
+        ]
+        aspects = [
+            DatasetPropertiesClass(name=node["name"], description=node.get("description") or "dbt mart",
+                                   customProperties={"materialized": node.get("config", {}).get("materialized", ""),
+                                                     "dbt_unique_id": uid}),
+            GlobalTagsClass(tags=[TagAssociationClass(tag=make_tag_urn("dbt"))]),
+        ]
+        if fields:
+            aspects.append(SchemaMetadataClass(
+                schemaName=name, platform="urn:li:dataPlatform:trino", version=0, hash="",
+                platformSchema=OtherSchemaClass(rawSchema=""), fields=fields))
+        upstreams = []
+        for src_uid in _source_ancestors(uid):
+            src = sources.get(src_uid)
+            if not src:
+                continue
+            src_urn = make_dataset_urn(platform="trino", name=_iceberg_name(src), env=ENV)
+            upstreams.append(UpstreamClass(dataset=src_urn, type=DatasetLineageTypeClass.TRANSFORMED))
+            if src_uid not in emitted_sources:  # thin catalog entry for the gold source so it's not a bare stub
+                for asp in (DatasetPropertiesClass(name=src["name"],
+                                                   description=src.get("description") or "Iceberg gold table (dbt source)"),
+                            GlobalTagsClass(tags=[TagAssociationClass(tag=make_tag_urn("gold"))])):
+                    emitter.emit(MetadataChangeProposalWrapper(entityUrn=src_urn, aspect=asp))
+                emitted_sources.add(src_uid)
+        if upstreams:
+            aspects.append(UpstreamLineageClass(upstreams=upstreams))
+        for aspect in aspects:
+            emitter.emit(MetadataChangeProposalWrapper(entityUrn=urn, aspect=aspect))
+        marts.append(node["name"])
+    return len(marts), marts
+
+
 def _gms_emitter() -> DatahubRestEmitter:
     server = os.environ.get("DATAHUB_GMS_URL", "http://datahub-datahub-gms.data-mesh.svc.cluster.local:8080")
     return DatahubRestEmitter(gms_server=server, token=os.environ.get("DATAHUB_GMS_TOKEN", ""))

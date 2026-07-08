@@ -17,6 +17,7 @@ from .ai_session import ai_session_ingest
 from .iceberg_export import iceberg_model_catalog, iceberg_eval_scores
 from .eval_mlflow import eval_mlflow_log
 from .genre_feast_training import genre_feast_training_set
+from .mart_export import mart_spotify_audio_export
 from .datasets_music_transform import (
     datasets_music_parquet,
     datasets_music_arrow,
@@ -91,6 +92,7 @@ all_assets = [
     iceberg_eval_scores,
     eval_mlflow_log,
     genre_feast_training_set,
+    mart_spotify_audio_export,
     # Music domain — per-dataset land assets
     datasets_music_spotify_land,
     datasets_music_fma_tracks_land,

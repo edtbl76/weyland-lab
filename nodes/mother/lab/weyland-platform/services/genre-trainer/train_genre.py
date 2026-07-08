@@ -111,6 +111,38 @@ def _read_feast_training() -> pd.DataFrame:
     return df
 
 
+def _read_mart_training() -> pd.DataFrame:
+    """Read the dbt mart training set (produced IN-CLUSTER + MESHED by the Dagster `mart_spotify_audio_export`
+    asset). The mart lives in Trino, whose LAN ingress is forward-auth gated + this trainer is external, so the
+    privileged read runs THERE and lands here as lakeFS parquet (track_id + 11 audio features + track_genre,
+    ALREADY deduped/cleaned/rare-genre-filtered in dbt). We fit it exactly like the silver/feast paths — the only
+    difference is the source: the TESTED dbt mart instead of hand-cleaned silver."""
+    branch = os.environ.get("LAKEFS_BRANCH", "main")
+    mc = _lakefs_client()
+    log(f"reading dbt mart training set from lakeFS ({branch}/parquet/mart_spotify_audio/)…")
+    frames = []
+    for obj in mc.list_objects("music", prefix=f"{branch}/parquet/mart_spotify_audio/", recursive=True):
+        if not obj.object_name.endswith(".parquet"):
+            continue
+        t = tempfile.NamedTemporaryFile(suffix=".parquet", delete=False); t.close()
+        try:
+            mc.fget_object("music", obj.object_name, t.name)
+            frames.append(pd.read_parquet(t.name))
+        finally:
+            os.unlink(t.name)
+    if not frames:
+        sys.exit("no dbt mart training set in lakeFS (music/parquet/mart_spotify_audio/). Materialize the Dagster "
+                 "`mart_spotify_audio_export` asset first — it reads iceberg.dbt.mart_spotify_audio via Trino.")
+    df = pd.concat(frames, ignore_index=True) if len(frames) > 1 else frames[0]
+    df["track_id"] = df["track_id"].astype(str)
+    for c in AUDIO:
+        df[c] = pd.to_numeric(df[c], errors="coerce")
+    # cleaning/dedup/rare-genre filtering already done in dbt (mart_spotify_audio) — just guard against nulls
+    df = df.dropna(subset=["track_id", "track_genre"] + AUDIO).drop_duplicates("track_id")
+    log(f"dbt mart training set: {len(df):,} rows / {df['track_genre'].nunique()} genres")
+    return df
+
+
 def read_features(source: str) -> pd.DataFrame:
     if source == "silver":
         return _read_spotify_silver()
@@ -118,6 +150,10 @@ def read_features(source: str) -> pd.DataFrame:
         # Features via Feast's point-in-time retrieval — materialized to lakeFS by the meshed Dagster
         # `genre_feast_training_set` asset (its offline store is STRICT-mTLS Postgres, unreachable from here).
         return _read_feast_training()
+    if source == "mart":
+        # Features from the TESTED dbt mart — materialized to lakeFS by the meshed Dagster
+        # `mart_spotify_audio_export` asset (the mart lives in forward-auth-gated Trino, unreachable from here).
+        return _read_mart_training()
     sys.exit(f"unknown --source {source!r}")
 
 
@@ -285,7 +321,7 @@ def _envflag(name):
 
 def main():
     ap = argparse.ArgumentParser(description="Remote genre-classifier trainer → weyland MLflow")
-    ap.add_argument("--source", default=os.environ.get("SOURCE", "silver"), choices=["silver", "feast"])
+    ap.add_argument("--source", default=os.environ.get("SOURCE", "silver"), choices=["silver", "feast", "mart"])
     ap.add_argument("--n-estimators", type=int, default=int(os.environ.get("N_ESTIMATORS", "100")))
     ap.add_argument("--max-depth", type=int, default=int(os.environ.get("MAX_DEPTH", "20")))
     ap.add_argument("--experiment", default=os.environ.get("EXPERIMENT", "genre-classifier"))

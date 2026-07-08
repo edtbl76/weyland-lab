@@ -57,36 +57,46 @@ def _read_silver(mc, repo, dataset):
     return pd.concat(frames, ignore_index=True) if len(frames) > 1 else frames[0]
 
 
-def _load_offline_sources():
-    mc = io.client()
-    eng = sqlalchemy.create_engine(_pg_url("feast"))
+def _trino_conn():
+    """Read the dbt marts straight from Trino (iceberg.dbt) — the dagster pod is meshed, so it reaches the
+    in-cluster Trino coordinator. dbt-trino already installs the `trino` client."""
+    import trino
 
-    sp = _read_silver(mc, "music", "spotify_tracks")
-    cols = ["track_id"] + [c for c in _AUDIO if c in sp.columns]
-    t = sp[cols].dropna(subset=["track_id"]).drop_duplicates("track_id").copy()
+    return trino.dbapi.connect(
+        host=os.environ.get("TRINO_HOST", "trino.data-mesh.svc.cluster.local"),
+        port=8080, user="feast", catalog="iceberg", schema="dbt", http_scheme="http",
+    )
+
+
+def _load_offline_sources():
+    """Load Feast's offline source tables FROM the dbt marts (the tested source of truth) instead of re-cleaning
+    silver here. The cleaning/aggregation now lives ONCE in dbt (mart_spotify_audio / mart_state_health_trends);
+    this just reads those marts + adds Feast's event_timestamp. Run `dbt build` first so the marts exist."""
+    eng = sqlalchemy.create_engine(_pg_url("feast"))
+    conn = _trino_conn()
+
+    # track_audio_features <- mart_spotify_audio (deduped, cleaned, rare genres dropped — all done in dbt now)
+    t = pd.read_sql("SELECT track_id, " + ", ".join(_AUDIO) + " FROM iceberg.dbt.mart_spotify_audio", conn)
     t["track_id"] = t["track_id"].astype(str)
     for c in _AUDIO:
-        if c in t.columns:
-            t[c] = pd.to_numeric(t[c], errors="coerce").astype("float32")
+        t[c] = pd.to_numeric(t[c], errors="coerce").astype("float32")
     t["event_timestamp"] = pd.Timestamp("2020-01-01", tz="UTC")
     t.to_sql("track_audio_features", eng, if_exists="replace", index=False)
-    print(f"track_audio_features: {len(t)} rows")
+    print(f"track_audio_features: {len(t)} rows (from dbt iceberg.dbt.mart_spotify_audio)")
 
-    b = _read_silver(mc, "health", "brfss")
-    b = b[b["Break_Out"] == "Overall"].copy()
-    b["Data_value"] = pd.to_numeric(b["Data_value"], errors="coerce")
-    parts = []
-    for col, (topic, resp) in _CONDS.items():
-        sub = b[(b["Topic"] == topic) & (b["Response"] == resp)]
-        parts.append(sub.groupby(["Locationabbr", "Year"])["Data_value"].mean().rename(col))
-    hr = pd.concat(parts, axis=1).reset_index().rename(columns={"Locationabbr": "state"})
+    # state_health_risk <- mart_state_health_trends (the BRFSS Overall/Yes pivot now lives in dbt, not this script)
+    hr = pd.read_sql(
+        "SELECT state, year, diabetes_pct, asthma_pct, copd_pct, depression_pct "
+        "FROM iceberg.dbt.mart_state_health_trends", conn)
     hr["state"] = hr["state"].astype(str)
-    hr["event_timestamp"] = pd.to_datetime(hr["Year"].astype(int).astype(str) + "-01-01", utc=True)
-    hr = hr.drop(columns=["Year"])
+    hr["event_timestamp"] = pd.to_datetime(hr["year"].astype(int).astype(str) + "-01-01", utc=True)
+    hr = hr.drop(columns=["year"])
     for col in _CONDS:
-        hr[col] = hr[col].astype("float32")
+        hr[col] = pd.to_numeric(hr[col], errors="coerce").astype("float32")
     hr.to_sql("state_health_risk", eng, if_exists="replace", index=False)
-    print(f"state_health_risk: {len(hr)} rows ({hr['state'].nunique()} states)")
+    print(f"state_health_risk: {len(hr)} rows ({hr['state'].nunique()} states) (from dbt mart_state_health_trends)")
+
+    conn.close()
     eng.dispose()
 
 
