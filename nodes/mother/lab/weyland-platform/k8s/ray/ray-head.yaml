@@ -31,7 +31,7 @@ spec:
       dnsPolicy: ClusterFirstWithHostNet
       containers:
         - name: ray-head
-          image: registry.weyland.lab/ray-head:v5   # base Ray + trainer deps (services/ray-head/) — v5: --source feast
+          image: registry.weyland.lab/ray-head:v6   # base Ray + trainer deps (services/ray-head/) — v6: --source mart
           command: ["/bin/bash", "-lc"]
           # --num-cpus=0 → the head only COORDINATES; the driver runs here but trials schedule onto the worker
           # (rogueone). --block keeps `ray start` foreground as PID 1.
