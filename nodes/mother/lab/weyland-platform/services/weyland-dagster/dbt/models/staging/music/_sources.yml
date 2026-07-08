@@ -8,3 +8,10 @@ sources:
     tables:
       - name: spotify_tracks
         description: "Spotify audio-features dataset: per-track audio descriptors + track_genre."
+      - name: fma_genres
+        description: "FMA genre taxonomy: genre_id / genre_parent_id / genre_title hierarchy."
+      - name: lastfm
+        description: "Last.fm listen streams: user x artist play_count (carries musicbrainz_artist_id + artist_name)."
+      - name: musicbrainz_artist
+        identifier: musicbrainz_musicbrainz_artist
+        description: "MusicBrainz artist entities (mbid, entity, url)."

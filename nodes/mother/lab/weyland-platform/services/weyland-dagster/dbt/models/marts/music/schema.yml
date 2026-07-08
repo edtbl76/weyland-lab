@@ -52,3 +52,29 @@ models:
         tests:
           - dbt_expectations.expect_column_values_to_be_between:
               min_value: 20
+
+  - name: mart_fma_genre_tree
+    description: >
+      FMA genre taxonomy dimension — genre_id, title, parent (id + title), and a top-level flag. One row per genre.
+    columns:
+      - name: genre_id
+        tests:
+          - unique
+          - not_null
+      - name: genre_title
+        tests:
+          - not_null
+
+  - name: mart_artist_popularity
+    description: >
+      Per-artist Last.fm popularity — total plays + distinct listeners, one row per artist_name, with a
+      best-effort MusicBrainz URL joined on mbid.
+    columns:
+      - name: artist_name
+        tests:
+          - unique
+          - not_null
+      - name: total_plays
+        tests:
+          - dbt_expectations.expect_column_values_to_be_between:
+              min_value: 0
