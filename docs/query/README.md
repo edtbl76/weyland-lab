@@ -6,16 +6,21 @@ syntax demos.
 
 | Store | File | What's in it |
 |---|---|---|
+| Trino / Iceberg | [trino.md](trino.md) | the federated query layer — gold Iceberg (`iceberg.datasets_music/health.*`), cross-catalog joins, time-travel |
+| dbt marts | [dbt-marts.md](dbt-marts.md) | the 7 tested marts (`iceberg.dbt.mart_*`) — the curated, source-of-truth analytics tables |
+| GizmoSQL / DuckDB | [gizmosql.md](gizmosql.md) | embedded OLAP over persisted DuckDB tables via Arrow Flight SQL (music + health datasets) |
 | ClickHouse | [clickhouse.md](clickhouse.md) | OLAP — usda (food/nutrients), OFF, fma, uci, musicbrainz-subset, audioset |
 | Cassandra | [cassandra.md](cassandra.md) | wide-column — who_gho, big_five, lastfm, uci (partition-key queries) |
 | CockroachDB | [cockroachdb.md](cockroachdb.md) | distributed SQL — brfss, nhis |
 | MongoDB | [mongodb.md](mongodb.md) | documents — who_gho, open_food_facts, aidlc-kb |
 | MySQL | [mysql.md](mysql.md) | 6 health DBs — nhanes, big_five, who_gho, cdc, brfss, nhis |
 | TimescaleDB | [timescaledb.md](timescaledb.md) | hypertables — platform metrics + who_gho time series |
+| weyland Postgres | [postgres.md](postgres.md) | general platform PG — RAG corpus (pgvector) + LLM-eval harness (`weyland` DB), Feast offline sources (`feast` DB) |
 | MusicBrainz PG | [musicbrainz-postgres.md](musicbrainz-postgres.md) | full native mbdump — artists/recordings/links |
 | Neo4j | [neo4j.md](neo4j.md) | graphs — music datasets (genre tree, lastfm listens) + AIDLC methodology (`:Entry`) + RAG (`Document`/`Chunk`) + GDS; importable favorites: [AIDLC](neo4j-aidlc-favorites.csv) / [Music](neo4j-music-favorites.csv) |
 | Qdrant | [qdrant.md](qdrant.md) | vector similarity — audio-feature + caption vectors (fma_features/echonest, uci, spotify, gtzan, lp_musiccaps, audioset, big_five); collection per dataset |
 | Weaviate | [weaviate.md](weaviate.md) | same dataset vectors as Qdrant (class per dataset, BYO vectors) — two backends |
+| OpenSearch | [opensearch.md](opensearch.md) | lexical/BM25 search — `weyland_chunks` RAG corpus + per-row dataset indices (curl / Dev Tools) |
 | Redpanda | [redpanda.md](redpanda.md) | streaming — Avro event topics (`datasets.*`) + Debezium CDC (`cdc.*`); rpk/consume, schema registry, CDC envelope |
 | LanceDB | [lancedb.md](lancedb.md) | embedded/serverless vector store (Lance-native, on object storage) — same vectors as Qdrant/Weaviate, queried in-process |
 | Feast | [feast.md](feast.md) | feature store — online serving by entity key (REST/SDK) + point-in-time training retrieval; `feast.weyland.lab` (+ `/docs` Swagger) |
