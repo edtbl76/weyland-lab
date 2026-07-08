@@ -1,0 +1,69 @@
+version: 2
+
+models:
+  - name: mart_state_health_trends
+    description: >
+      Chronic-condition prevalence (% "Yes", "Overall" break-out) by US state x year from BRFSS: diabetes,
+      asthma, COPD, depression. The tested source for Feast state_health_risk. One row per (state, year).
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns: [state, year]
+    columns:
+      - name: state
+        description: "US state / territory abbreviation (BRFSS locationabbr)."
+        tests:
+          - not_null
+      - name: year
+        tests:
+          - not_null
+      - name: diabetes_pct
+        description: "Crude prevalence % of diagnosed diabetes."
+        tests:
+          - dbt_expectations.expect_column_values_to_be_between:
+              min_value: 0
+              max_value: 100
+      - name: depression_pct
+        tests:
+          - dbt_expectations.expect_column_values_to_be_between:
+              min_value: 0
+              max_value: 100
+
+  - name: mart_country_health
+    description: >
+      WHO GHO population-health indicators by country x year — 8 indicators pivoted, country-total
+      disaggregation. One row per (country, year).
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns: [country, year]
+    columns:
+      - name: country
+        tests:
+          - not_null
+      - name: year
+        tests:
+          - not_null
+      - name: life_expectancy
+        tests:
+          - dbt_expectations.expect_column_values_to_be_between:
+              min_value: 0
+              max_value: 120
+
+  - name: mart_personality_by_country
+    description: >
+      Big Five OCEAN traits aggregated to country level (mean of the 10 Likert items per trait; countries with
+      >= 30 respondents). One row per country.
+    columns:
+      - name: country
+        tests:
+          - unique
+          - not_null
+      - name: extraversion
+        tests:
+          - dbt_expectations.expect_column_values_to_be_between:
+              min_value: 1
+              max_value: 5
+      - name: openness
+        tests:
+          - dbt_expectations.expect_column_values_to_be_between:
+              min_value: 1
+              max_value: 5

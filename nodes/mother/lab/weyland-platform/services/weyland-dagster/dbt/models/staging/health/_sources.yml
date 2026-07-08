@@ -1,0 +1,23 @@
+version: 2
+
+sources:
+  - name: datasets_health
+    description: "Iceberg gold (Nessie `main`) for the health domain — produced by the datasets_lib pipeline. dbt reads these; it does not write them."
+    database: iceberg          # Trino catalog
+    schema: datasets_health    # flat Nessie namespace
+    tables:
+      # logical name -> real table (the gold uses <dataset>_<file> naming)
+      - name: brfss_prevalence
+        identifier: brfss_brfss_prevalence_2011_present
+        description: "CDC BRFSS 2011-present prevalence: condition prevalence by state/year/response/break-out."
+      # WHO GHO — one table per indicator; shared shape (spatialdim=country, timedim=year, numericvalue=value, dim1=disaggregation).
+      - { name: who_gho_diabetes, identifier: who_gho_diabetes_prevalence }
+      - { name: who_gho_obesity, identifier: who_gho_adult_obesity }
+      - { name: who_gho_hypertension, identifier: who_gho_hypertension }
+      - { name: who_gho_life_expectancy, identifier: who_gho_life_expectancy }
+      - { name: who_gho_healthy_life_expectancy, identifier: who_gho_healthy_life_expectancy }
+      - { name: who_gho_alcohol, identifier: who_gho_alcohol_consumption }
+      - { name: who_gho_tobacco, identifier: who_gho_tobacco_smoking }
+      - { name: who_gho_mental_health, identifier: who_gho_mental_health_disorders }
+      # Big Five — per-respondent OCEAN survey (item answers e1..o10, 1-5); country-level aggregate in mart_personality_by_country.
+      - { name: big_five, identifier: big_five_big5_data }
