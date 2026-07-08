@@ -137,6 +137,24 @@ not-always-on laptop. A plain `ray start` cluster can. So the head is a normal D
 native `ray start --address`. (This is the reverse of the earlier "local Ray inside the container" stage — the
 cluster is now standing and shared.)
 
+### Rebuild the ray-head image (after a trainer change, e.g. a new `--source`)
+
+`train_genre.py` is **baked into the image**, so any trainer change needs a fresh tag. **Build + push ON ROGUEONE**
+— it has the repo checkout AND its docker trusts the `registry.weyland.lab` mkcert CA. **mother's build-docker does
+NOT trust it** (`docker push` from mother → `x509: certificate signed by unknown authority`). Do NOT rsync the repo
+to rogueone — it's already there. From the repo's `weyland-platform/` dir on rogueone (the Dockerfile single-sources
+`train_genre.py` via the `services/genre-trainer` build context):
+
+```
+# [rogueone] build + push the new tag
+docker build -f services/ray-head/Dockerfile -t registry.weyland.lab/ray-head:vN services/genre-trainer
+docker push registry.weyland.lab/ray-head:vN
+```
+
+Then bump the tag in `k8s/ray/ray-head.yaml` (`vN`) and **push** — Argo rolls the head (mother's containerd pulls
+the image fine; only the *build*-docker trust differs). Version log: **v5 = `--source feast`, v6 = `--source mart`**.
+`ray job submit` (below) then runs the new trainer. No rsync anywhere in this loop.
+
 **Edge worker — rogueone, native, systemd.** `services/ray-head/ray-worker.service`:
 ```
 ExecStart=/home/edwardmangini/ray-worker/bin/ray start --address=192.168.1.243:6379 --node-ip-address=192.168.1.230 --block
