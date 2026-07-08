@@ -1,5 +1,7 @@
 from dagster import ScheduleDefinition, define_asset_job, AssetSelection, DefaultScheduleStatus
 
+from weyland_pipeline.dbt_assets import weyland_dbt_assets
+
 # Serialize the dataset transforms: each format step re-reads ALL of raw/ into memory, so running the
 # 5 formats concurrently meant 5× peak memory → node-level OOMKilled (no container mem limit; ~43GiB
 # node already heavily committed). max_concurrent=1 runs the formats one at a time → 1× peak. (2026-06-29)
@@ -192,6 +194,21 @@ weyland_timeseries_schedule = ScheduleDefinition(
     job=weyland_timeseries_job,
     cron_schedule="25 */4 * * *",  # every 4h at :25 (was hourly-on-:00 — part of the stampede)
     name="weyland_timeseries_schedule",
+    execution_timezone="America/New_York",
+    default_status=DefaultScheduleStatus.RUNNING,
+)
+
+# dbt transform tier (B1.5) — rebuild + re-test the 7 marts (dbt-trino → Iceberg iceberg.dbt.*) from the gold.
+# Weekly, Sunday 06:00: the Iceberg gold is refreshed by the on-demand transform jobs and changes rarely, so a
+# weekly re-materialize + test is enough; runnable on demand any time from the Dagster UI. 06:00 is clear of the
+# other crons (ingestion 02:17, catalog :50/6h, timeseries :25/4h). NOTE: this rebuilds the mart TABLES; the
+# DataHub dbt connector's catalog.json comes from the dbt-docs pod, which only regenerates on RESTART — so after
+# a schema-changing build, rollout-restart dbt-docs to refresh what the connector ingests.
+weyland_dbt_job = define_asset_job("weyland_dbt_job", selection=[weyland_dbt_assets])
+weyland_dbt_schedule = ScheduleDefinition(
+    job=weyland_dbt_job,
+    cron_schedule="0 6 * * 0",
+    name="weyland_dbt_schedule",
     execution_timezone="America/New_York",
     default_status=DefaultScheduleStatus.RUNNING,
 )
