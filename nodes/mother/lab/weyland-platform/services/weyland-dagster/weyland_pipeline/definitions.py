@@ -1,5 +1,5 @@
 import os
-from dagster import Definitions, ScheduleDefinition, job, op, DefaultScheduleStatus
+from dagster import Definitions, ScheduleDefinition, job, op, DefaultScheduleStatus, define_asset_job
 from weyland_pipeline.assets import all_assets, all_asset_checks
 from weyland_pipeline.dbt_assets import weyland_dbt_assets, dbt_resource
 from weyland_pipeline.resources import (
@@ -122,11 +122,20 @@ datahub_catalog_emit_schedule = ScheduleDefinition(
     default_status=DefaultScheduleStatus.RUNNING,
 )
 
+weyland_dbt_job = define_asset_job("weyland_dbt_job", selection=[weyland_dbt_assets])
+weyland_dbt_schedule = ScheduleDefinition(
+    job=weyland_dbt_job,
+    cron_schedule="0 6 * * 0",   # weekly, Sunday 06:00 — rebuild + re-test the marts (the Iceberg gold is mostly static)
+    execution_timezone="America/New_York",
+    default_status=DefaultScheduleStatus.RUNNING,
+)
+
+
 defs = Definitions(
     assets=[*all_assets, weyland_dbt_assets],
     asset_checks=all_asset_checks,
-    jobs=[weyland_ingestion_job, weyland_eval_job, weyland_eval_score_job, weyland_catalog_job, weyland_aidlc_kb_job, weyland_ai_session_job, datahub_catalog_emit_job, weyland_datasets_music_transform_job, weyland_datasets_music_land_job, weyland_datasets_health_land_job, weyland_datasets_health_transform_job, weyland_datasets_health_hydrate_job, weyland_datasets_music_hydrate_job, weyland_timeseries_job, weyland_lancedb_sync_job],
-    schedules=[weyland_ingestion_schedule, weyland_catalog_schedule, weyland_ai_session_schedule, datahub_catalog_emit_schedule, weyland_timeseries_schedule, weyland_datasets_music_land_schedule, weyland_datasets_health_land_schedule],
+    jobs=[weyland_ingestion_job, weyland_eval_job, weyland_eval_score_job, weyland_catalog_job, weyland_aidlc_kb_job, weyland_ai_session_job, datahub_catalog_emit_job, weyland_datasets_music_transform_job, weyland_datasets_music_land_job, weyland_datasets_health_land_job, weyland_datasets_health_transform_job, weyland_datasets_health_hydrate_job, weyland_datasets_music_hydrate_job, weyland_timeseries_job, weyland_lancedb_sync_job, weyland_dbt_job],
+    schedules=[weyland_ingestion_schedule, weyland_catalog_schedule, weyland_ai_session_schedule, datahub_catalog_emit_schedule, weyland_timeseries_schedule, weyland_datasets_music_land_schedule, weyland_datasets_health_land_schedule, weyland_dbt_schedule],
     sensors=[datasets_music_raw_sensor, lancedb_sync_sensor],
     resources={
         "postgres": PostgresResource(

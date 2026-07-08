@@ -1,0 +1,87 @@
+# dbt docs — the model DAG / lineage / test-coverage UI (dbt Core's built-in). Reuses the dagster image
+# (weyland-dagster-user-code:local) which already carries the dbt project + dbt-trino, so no new image. On start
+# it runs `dbt docs generate` (queries Trino for column stats — best-effort, `|| true` so a Trino hiccup doesn't
+# stop it) then `dbt docs serve` (static site). MESHED so it reaches trino.data-mesh.svc; browser UI behind
+# Keycloak forward-auth at dbt-docs.weyland.lab. Refresh = rollout restart (regenerates against the current marts).
+# Picked up by the `dagster` Argo app (directory app on k8s/dagster/).
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dbt-docs
+  namespace: weyland
+  labels:
+    app: dbt-docs
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: dbt-docs
+  template:
+    metadata:
+      labels:
+        app: dbt-docs
+        sidecar.istio.io/inject: "true"   # mesh → reach Trino (data-mesh, PERMISSIVE)
+    spec:
+      containers:
+        - name: dbt-docs
+          image: weyland-dagster-user-code:local
+          imagePullPolicy: Never
+          command: ["sh", "-c"]
+          args:
+            - >
+              cd /app/dbt &&
+              DBT_PROFILES_DIR=/app/dbt dbt docs generate || echo "dbt docs generate had issues — serving what we have";
+              DBT_PROFILES_DIR=/app/dbt exec dbt docs serve --host 0.0.0.0 --port 8080 --no-browser
+          ports:
+            - name: http
+              containerPort: 8080
+          readinessProbe:
+            httpGet: { path: /, port: 8080 }
+            initialDelaySeconds: 40
+            periodSeconds: 15
+          resources:
+            requests: { cpu: 50m, memory: 384Mi }
+            limits: { memory: 1Gi }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: dbt-docs
+  namespace: weyland
+  labels:
+    app: dbt-docs
+spec:
+  type: ClusterIP
+  selector:
+    app: dbt-docs
+  ports:
+    - name: http
+      port: 8080
+      targetPort: 8080
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: dbt-docs
+  namespace: weyland
+  annotations:
+    traefik.ingress.kubernetes.io/router.middlewares: weyland-traefik-forward-auth@kubernetescrd
+spec:
+  tls:
+    - hosts:
+        - dbt-docs.weyland.lab
+      secretName: weyland-wildcard-tls
+  rules:
+    - host: dbt-docs.weyland.lab
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: dbt-docs
+                port:
+                  number: 8080

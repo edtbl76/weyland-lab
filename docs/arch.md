@@ -228,7 +228,15 @@ agents/workflows and platform state. Agents call the tool-server, *not* database
   Trino's *native* Nessie connector, `iceberg.catalog.type=nessie`, NOT the generic REST which 403s
   [[trino-nessie-native-catalog]]) + **`postgresql`** (weyland DB, over the mesh). Query via CLI /
   IntelliJ (`jdbc:trino://…:8080`) / Superset; the web UI (`trino.weyland.lab`) is monitoring-only.
-  Cataloged in DataHub as the query layer with sibling/upstream lineage to iceberg.
+  Cataloged in DataHub as the query layer with sibling/upstream lineage to iceberg. **dbt-trino WRITES to it**
+  (materializes marts as Iceberg tables in `iceberg.dbt` on Nessie `main`) — bumped to a **4G heap / 6Gi limit**
+  (2026-07-08; the old 2G + `-XX:+ExitOnOutOfMemoryError` OOM-crashlooped under dbt's aggregations).
+- **dbt Core (B1.5 L3 Transform — ✅ 2026-07-08)** — the analytics-engineering layer ON the Iceberg gold (does
+  NOT re-ingest; `datasets_lib` does land→silver→gold). `dbt-trino` compiles SQL → Trino writes **7 tested marts**
+  (`iceberg.dbt.mart_*` — music: spotify_audio/genre_audio_profile/fma_genre_tree/artist_popularity; health:
+  state_health_trends/country_health/personality_by_country) to Nessie; **`dagster-dbt`** orchestrates
+  (`weyland_dbt_assets`, manifest baked at image build); tested with dbt-utils/dbt-expectations. Staging is
+  ephemeral; sources = the gold tables. Project `services/weyland-dagster/dbt/`. See [[dbt-transform-tier]].
   [runbooks/trino.md](runbooks/trino.md).
 - **DuckDB via GizmoSQL (B65 Tier-2, 2nd)** — DuckDB served over **Arrow Flight SQL** by **GizmoSQL**, in
   `data-mesh`. This exists because DuckDB's own JDBC is **embedded-only** (`jdbc:duckdb:<file>`, no
