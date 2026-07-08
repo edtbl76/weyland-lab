@@ -299,13 +299,14 @@ agents/workflows and platform state. Agents call the tool-server, *not* database
   (primary), 11 Postgres databases, and TimescaleDB. 48 datasets, charts, and the "Weyland Platform
   Overview" dashboard. Keycloak OIDC (not forward-auth — avoids double-login). Shared Valkey cache.
   See [runbooks/superset.md](runbooks/superset.md).
-- **Lightdash (first-cut, pending)** — the **dbt-native** BI face, complementing Superset: where Superset does
+- **Lightdash (deployed 2026-07-08)** — the **dbt-native** BI face, complementing Superset: where Superset does
   ad-hoc SQL over any Trino catalog, Lightdash builds its dimensions + metrics **from the dbt project** so it
   surfaces the tested marts (`iceberg.dbt.mart_*`) and any `meta.metrics` declared in the dbt `schema.yml` —
-  the governed/curated side of the same lakehouse. Planned as an Argo multi-source Helm app in `data-mesh`
-  (same shape as Superset: bring it up on its own login, connect the dbt project + Trino in the UI after),
-  metadata in the lab Postgres `lightdash` DB. **Not yet deployed** — first cut; runbook drafted at
-  [runbooks/lightdash.md](runbooks/lightdash.md).
+  the governed/curated side of the same lakehouse. Argo multi-source Helm app in `data-mesh` (helm 2.9.1),
+  metadata in the lab Postgres `lightdash` DB, own login; dbt project pulled from the git repo via a PAT.
+  **Trino wrinkle:** Lightdash's connector forces a password → HTTP Basic auth, which no-auth Trino 401s, so
+  Lightdash connects through a small **`trino-noauth` nginx proxy** that strips the `Authorization` header
+  (`k8s/lightdash/trino-noauth-proxy.yaml`). See [runbooks/lightdash.md](runbooks/lightdash.md).
 - **TimescaleDB (B65 Tier-2 #4)** — time-series Postgres extension in `data-mesh`. 5 hypertables
   for temporal analysis of platform operational data (eval performance trends, guardrail decision
   rates, pipeline run durations, feature flag usage, catalog ingestion health). Fed hourly by the
