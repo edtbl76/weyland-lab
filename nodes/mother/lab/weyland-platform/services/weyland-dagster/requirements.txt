@@ -67,3 +67,8 @@ kubernetes
 # feast — feature store (grid Feast): Postgres registry + offline, Valkey(redis) online. Capability = low-latency
 # feature serving by entity key + point-in-time-correct training retrieval. Repo in feast_repo/.
 feast[redis,postgres]
+# dbt (B1.5 Transform) — dbt-core + the Trino adapter (materialize Iceberg via Trino→Nessie), orchestrated by
+# dagster-dbt (unpinned to track the unpinned dagster above; dbt-trino pulls a compatible dbt-core). The dbt
+# project lives in dbt/ and is parsed at image build (dbt parse → dbt/target/manifest.json for @dbt_assets).
+dagster-dbt
+dbt-trino

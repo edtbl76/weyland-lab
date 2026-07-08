@@ -1,0 +1,10 @@
+version: 2
+
+sources:
+  - name: datasets_music
+    description: "Iceberg gold (Nessie `main`, warehouse s3://warehouse) for the music domain — produced by the datasets_lib land→silver→gold pipeline. dbt reads these; it does not write them."
+    database: iceberg          # Trino catalog
+    schema: datasets_music     # flat Nessie namespace
+    tables:
+      - name: spotify_tracks
+        description: "Spotify audio-features dataset: per-track audio descriptors + track_genre."

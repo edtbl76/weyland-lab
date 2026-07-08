@@ -15,6 +15,12 @@ RUN python -c "from sentence_transformers import SentenceTransformer; SentenceTr
 COPY weyland_pipeline/ ./weyland_pipeline/
 COPY feast_repo/ ./feast_repo/
 
+# dbt project — parse at build → dbt/target/manifest.json (required by @dbt_assets at import time). `deps` pulls
+# dbt_utils/dbt_expectations from the dbt hub; `parse` builds the manifest but does NOT connect (no Trino needed
+# at build). DBT_PROFILES_DIR points at the in-project profiles.yml (env-var defaults render offline).
+COPY dbt/ ./dbt/
+RUN cd /app/dbt && DBT_PROFILES_DIR=/app/dbt dbt deps && DBT_PROFILES_DIR=/app/dbt dbt parse
+
 EXPOSE 4000
 
 CMD ["dagster", "api", "grpc", "-h", "0.0.0.0", "-p", "4000", "-m", "weyland_pipeline.definitions"]

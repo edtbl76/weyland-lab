@@ -1,0 +1,22 @@
+name: weyland
+version: 1.0.0
+config-version: 2
+profile: weyland
+
+model-paths: ["models"]
+macro-paths: ["macros"]
+target-path: "target"
+clean-targets: ["target", "dbt_packages"]
+
+# The analytics-engineering layer on TOP of the Iceberg gold (datasets_lib does land→silver→gold; dbt does not
+# re-ingest). Materializes via dbt-trino → Trino writes Iceberg tables to the Nessie `main` ref. Staging = views
+# (thin clean/cast over the gold), marts = tables (materialized, cataloged in DataHub via the dbt connector).
+models:
+  weyland:
+    staging:
+      # ephemeral (inlined into the mart, no DB object) — Trino's iceberg-on-Nessie catalog may not support
+      # views, and CREATE TABLE is the proven write path. Promote to view/table later if a staging model needs
+      # to be shared/tested on its own.
+      +materialized: ephemeral
+    marts:
+      +materialized: table

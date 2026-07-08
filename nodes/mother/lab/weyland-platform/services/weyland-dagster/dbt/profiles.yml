@@ -1,0 +1,17 @@
+# dbt-trino → the in-cluster Trino coordinator (data-mesh, meshed). Trino's :8080 query interface takes any
+# username and no password on the LAN, so method=none. `database` = the Trino CATALOG (iceberg = native-Nessie on
+# the main ref); `schema` = the flat Nessie namespace dbt writes its models into (kept flat — Trino's native
+# Nessie catalog can't see nested namespaces). Host/user overridable by env for local runs.
+weyland:
+  target: prod
+  outputs:
+    prod:
+      type: trino
+      method: none
+      user: "{{ env_var('DBT_TRINO_USER', 'dbt') }}"
+      host: "{{ env_var('DBT_TRINO_HOST', 'trino.data-mesh.svc.cluster.local') }}"
+      port: 8080
+      http_scheme: http
+      database: iceberg
+      schema: dbt
+      threads: 4
