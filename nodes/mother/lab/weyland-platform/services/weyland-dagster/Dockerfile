@@ -21,6 +21,10 @@ COPY feast_repo/ ./feast_repo/
 COPY dbt/ ./dbt/
 RUN cd /app/dbt && DBT_PROFILES_DIR=/app/dbt dbt deps && DBT_PROFILES_DIR=/app/dbt dbt parse
 
+# Ops scripts (feast_setup.py etc.) — run via `kubectl exec … python /app/scripts/<name>`. Last COPY so it never
+# invalidates the cached dbt/deps layer above.
+COPY scripts/ ./scripts/
+
 EXPOSE 4000
 
 CMD ["dagster", "api", "grpc", "-h", "0.0.0.0", "-p", "4000", "-m", "weyland_pipeline.definitions"]
