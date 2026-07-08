@@ -1,21 +1,21 @@
 Domain,Dataset,dbt,Arrow,Lance,MySQL,Iceberg/Trino,DuckDB/GizmoSQL,Postgres,TimescaleDB,MongoDB,CockroachDB,Cassandra,ClickHouse,OpenSearch,Qdrant,Neo4j,Weaviate,Redpanda (replaced Strimzi / Kafka),Avro/Kafka,LanceDB,Feast,MLflow
-Music,Spotify Tracks,Y (transforms),Y,Y,N,Y,Y,N,N,N,N,N,N,N,Y (audio feature similarity),N,Y (audio feature similarity),N,Y,Y (embedding source),Y (audio features),Y (experiment tracking)
-Music,FMA Tracks,Y,Y,Y,N,Y,Y,N,N,N,N,N,N,N,Y,Y (track/artist/album graph),Y,N,Y,Y,N,N
-Music,FMA Genres,Y,Y,N,N,Y,Y,N,N,N,N,N,N,N,N,Y (genre taxonomy graph),N,N,Y,N,N,N
-Music,FMA Echonest,Y,Y,Y,N,Y,Y,N,N,N,N,N,N,N,Y (audio embeddings),N,Y (audio embeddings),N,Y,Y (embedding source),N,N
-Music,FMA Features (518 features),Y,Y,Y,N,Y,Y,N,N,N,N,N,Y (OLAP feature queries),N,Y,N,Y,N,Y,Y (embedding source),N,N
-Music,UCI Year Prediction (B75/B76),Y,Y,Y,N,Y,Y,N,N,N,N,Y,Y (OLAP),N,Y,N,Y,N,Y,Y,N,N
-Music,Last.fm (B75),Y,Y,N,N,Y,Y,N,N,N,N,Y (user listen streams),N,N,N,Y (artist/tag graph),N,Y (listen event stream),Y (Kafka stream),N,N,N
-Music,MusicBrainz (B75),Y,Y,N,N,Y,Y,Y (native Postgres dump),N,N,N,N,N,N,N,Y (music knowledge graph),N,N,Y,N,N,N
-Music,GTZAN (B75),Y,Y,Y,N,Y,Y,N,N,N,N,N,N,N,Y (genre embeddings),N,Y (genre embeddings),N,Y,Y,N,N
-Music,LP-MusicCaps-MC (B75),Y,Y,N,N,Y,Y,N,N,N,N,N,N,N,Y,N,Y,N,Y,N,N,N
-Music,LP-MusicCaps-MTT (B75),Y,Y,N,N,Y,Y,N,N,N,N,N,N,N,Y,N,Y,N,Y,N,N,N
-Music,AudioSet balanced (B75),Y,Y,Y,N,Y,Y,N,N,N,N,N,Y (OLAP event queries),N,Y,Y (event graph),Y,N,Y,Y,N,N
-Health,NHANES,Y,Y,N,Y,Y,Y,N,N,N,N,N,N,N,N,N,N,N,Y,N,N,N
-Health,Big Five,Y,Y,Y,Y,Y,Y,N,N,N,N,Y,N,N,Y (profile similarity),N,Y (profile similarity),Y (survey stream),Y (survey stream),Y (personality features),N,N
-Health,WHO GHO,Y,Y,N,Y,Y,Y,N,Y,Y (nested JSON),N,Y (country/year series),Y (OLAP),N,N,N,N,N,Y,N,N,N
-Health,CDC Physical Activity,Y,Y,N,Y,Y,Y,N,N,N,N,N,N,N,N,N,N,N,Y,N,N,N
-Health,BRFSS,Y,Y,N,Y,Y,Y,N,N,N,Y (geo-partitioned),N,Y (OLAP),N,N,N,N,Y (survey stream),Y (survey stream),N,Y (health risk features),N
-Health,NHIS,Y,Y,N,Y,Y,Y,N,N,N,Y (geo-partitioned),N,Y (OLAP),N,N,N,N,Y (survey stream),Y (survey stream),N,N,N
-Health,USDA FoodData,Y,Y,Y (food embeddings),N,Y,Y,N,N,N,N,N,Y (OLAP food queries),N,N,N,N,N,Y,Y (embedding source),N,N
-Health,Open Food Facts,Y,Y,Y (product embeddings),N,Y,Y,N,N,Y (doc per product),N,N,Y (OLAP),N,Y (product similarity),N,Y (product similarity),N,Y,Y,N,N
+Music,Spotify Tracks,Y (mart_spotify_audio + genre_audio_profile),Y,Y,N,Y,Y,N,N,N,N,N,N,N,Y (audio feature similarity),N,Y (audio feature similarity),N,Y,Y (embedding source),Y (audio features),Y (experiment tracking)
+Music,FMA Tracks,N,Y,Y,N,Y,Y,N,N,N,N,N,N,N,Y,Y (track/artist/album graph),Y,N,Y,Y,N,N
+Music,FMA Genres,Y (mart_fma_genre_tree),Y,N,N,Y,Y,N,N,N,N,N,N,N,N,Y (genre taxonomy graph),N,N,Y,N,N,N
+Music,FMA Echonest,N,Y,Y,N,Y,Y,N,N,N,N,N,N,N,Y (audio embeddings),N,Y (audio embeddings),N,Y,Y (embedding source),N,N
+Music,FMA Features (518 features),N,Y,Y,N,Y,Y,N,N,N,N,N,Y (OLAP feature queries),N,Y,N,Y,N,Y,Y (embedding source),N,N
+Music,UCI Year Prediction (B75/B76),N,Y,Y,N,Y,Y,N,N,N,N,Y,Y (OLAP),N,Y,N,Y,N,Y,Y,N,N
+Music,Last.fm (B75),Y (mart_artist_popularity),Y,N,N,Y,Y,N,N,N,N,Y (user listen streams),N,N,N,Y (artist/tag graph),N,Y (listen event stream),Y (Kafka stream),N,N,N
+Music,MusicBrainz (B75),Y (mart_artist_popularity),Y,N,N,Y,Y,Y (native Postgres dump),N,N,N,N,N,N,N,Y (music knowledge graph),N,N,Y,N,N,N
+Music,GTZAN (B75),N,Y,Y,N,Y,Y,N,N,N,N,N,N,N,Y (genre embeddings),N,Y (genre embeddings),N,Y,Y,N,N
+Music,LP-MusicCaps-MC (B75),N,Y,N,N,Y,Y,N,N,N,N,N,N,N,Y,N,Y,N,Y,N,N,N
+Music,LP-MusicCaps-MTT (B75),N,Y,N,N,Y,Y,N,N,N,N,N,N,N,Y,N,Y,N,Y,N,N,N
+Music,AudioSet balanced (B75),N,Y,Y,N,Y,Y,N,N,N,N,N,Y (OLAP event queries),N,Y,Y (event graph),Y,N,Y,Y,N,N
+Health,NHANES,N,Y,N,Y,Y,Y,N,N,N,N,N,N,N,N,N,N,N,Y,N,N,N
+Health,Big Five,Y (mart_personality_by_country),Y,Y,Y,Y,Y,N,N,N,N,Y,N,N,Y (profile similarity),N,Y (profile similarity),Y (survey stream),Y (survey stream),Y (personality features),N,N
+Health,WHO GHO,Y (mart_country_health),Y,N,Y,Y,Y,N,Y,Y (nested JSON),N,Y (country/year series),Y (OLAP),N,N,N,N,N,Y,N,N,N
+Health,CDC Physical Activity,N,Y,N,Y,Y,Y,N,N,N,N,N,N,N,N,N,N,N,Y,N,N,N
+Health,BRFSS,Y (mart_state_health_trends),Y,N,Y,Y,Y,N,N,N,Y (geo-partitioned),N,Y (OLAP),N,N,N,N,Y (survey stream),Y (survey stream),N,Y (health risk features),N
+Health,NHIS,N,Y,N,Y,Y,Y,N,N,N,Y (geo-partitioned),N,Y (OLAP),N,N,N,N,Y (survey stream),Y (survey stream),N,N,N
+Health,USDA FoodData,N,Y,Y (food embeddings),N,Y,Y,N,N,N,N,N,Y (OLAP food queries),N,N,N,N,N,Y,Y (embedding source),N,N
+Health,Open Food Facts,N,Y,Y (product embeddings),N,Y,Y,N,N,Y (doc per product),N,N,Y (OLAP),N,Y (product similarity),N,Y (product similarity),N,Y,Y,N,N

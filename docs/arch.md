@@ -186,6 +186,11 @@ agents/workflows and platform state. Agents call the tool-server, *not* database
 
 ## 7. Data stores
 
+> **Companion:** [data-mesh-guide.md](data-mesh-guide.md) is the single-page navigational map of the ~20
+> data technologies — every store's role, a "I need to…" decision matrix, and the workflows that move data
+> between them. This section is the *architecture* (the why + the wiring); the guide is the *index* (which
+> store do I reach for). Read the guide to orient, this section to go deep.
+
 - **Postgres / pgvector** — the spine. `rag_documents` + `rag_chunks` (384-dim `bge` vectors) is the
   primary RAG store; `eval_runs / eval_questions / eval_results / eval_scores` + `eval_leaderboard`
   view back the eval harness (B4). Reused (not a new DB) for evals by design.
@@ -238,6 +243,38 @@ agents/workflows and platform state. Agents call the tool-server, *not* database
   (`weyland_dbt_assets`, manifest baked at image build); tested with dbt-utils/dbt-expectations. Staging is
   ephemeral; sources = the gold tables. Project `services/weyland-dagster/dbt/`. See [[dbt-transform-tier]].
   [runbooks/trino.md](runbooks/trino.md).
+- **Cataloging the dbt tier — two complementary paths (2026-07-08).** The marts are surfaced in DataHub two
+  ways that *converge onto the same URNs* rather than duplicate. **(a) The custom emitter** `emit_dbt`
+  (`weyland_pipeline/datahub_emit.py`, run by the Dagster `datahub_catalog_emit_job`) walks the baked
+  `manifest.json` — no live DB needed — and emits each of the 7 marts as a Trino/Iceberg dataset
+  `iceberg.dbt.mart_*` with a `dbt` tag and an `UpstreamLineage` that walks *through* the ephemeral staging
+  models to the real `gold` source tables (emitted too, as thin tagged stubs, so the lineage nodes aren't
+  bare). This is the offline, version-proof baseline — it always draws the gold→mart edge even if the native
+  connector is down. **(b) The native DataHub dbt source recipe** (`k8s/data-mesh/datahub-ingestion/dbt.recipe.yaml`)
+  reads `manifest.json` **+** `catalog.json` from `s3://warehouse/_dbt_artifacts/` and, with
+  `target_platform: trino`, **siblings** the dbt-platform nodes onto the *same* `iceberg.dbt.mart_*` Trino URNs
+  the custom emitter created — merging into one entity while adding what the hand-rolled path can't: dbt
+  **tests-as-assertions**, model/column docs, and **column-level** lineage. Those artifacts are published by
+  the `weyland_dbt_assets` run (`publish_dbt_artifacts`, `dbt_assets.py`): it runs `dbt docs generate` against
+  **live Trino** then uploads both files with the pod's `ICEBERG_S3_*` creds. Gotcha history baked into the
+  recipe comments: `catalog.json` *can't* come from the dbt-docs pod (its boot-time generate races Trino →
+  the connector died on a missing catalog / JSONDecodeError), so it is published from the asset instead; the
+  read needs the shared `MINIO_ACCESS_KEY/SECRET` DataHub Secrets (the nessie-secret S3 creds that own the
+  `warehouse` bucket) and **path-style** S3 addressing (MinIO has no virtual-host DNS). A second custom
+  emitter, `emit_feast`, adds the **cross-system** edge the dbt connector can't draw — it points each Feast
+  offline source table's `UpstreamLineage` at the mart `feast_setup` loads it from:
+  `feast.public.track_audio_features ← iceberg.dbt.mart_spotify_audio` (and `state_health_risk ←
+  mart_state_health_trends`), plus a `feast` tag. Net effect: gold → dbt mart → Feast source is one connected
+  lineage graph in the catalog.
+- **The marts are the source of truth — cleaning lives once.** The whole point of the transform tier is that
+  three downstream consumers all read the *tested* `iceberg.dbt.mart_*` tables instead of each re-cleaning
+  silver: **(1) Feast** offline sources — `feast_setup` reads the marts straight from Trino (the meshed
+  Dagster pod reaches the in-cluster coordinator) and just adds Feast's `event_timestamp`; **(2) the genre
+  trainer** — `train_genre.py --source mart` consumes the `mart_spotify_audio_export` asset (which reads
+  `iceberg.dbt.mart_spotify_audio` via Trino and writes a training set to lakeFS, since the forward-auth-gated
+  Trino is unreachable from the external trainer); **(3) DataHub** — via the two paths above. So the
+  dedup/aggregation logic is defined once in dbt and the lineage graph reads gold → dbt mart → {Feast source,
+  trainer, DataHub}.
 - **DuckDB via GizmoSQL (B65 Tier-2, 2nd)** — DuckDB served over **Arrow Flight SQL** by **GizmoSQL**, in
   `data-mesh`. This exists because DuckDB's own JDBC is **embedded-only** (`jdbc:duckdb:<file>`, no
   `host:port`), so there's nothing for a client to connect to — GizmoSQL wraps the in-process engine in a
@@ -262,6 +299,13 @@ agents/workflows and platform state. Agents call the tool-server, *not* database
   (primary), 11 Postgres databases, and TimescaleDB. 48 datasets, charts, and the "Weyland Platform
   Overview" dashboard. Keycloak OIDC (not forward-auth — avoids double-login). Shared Valkey cache.
   See [runbooks/superset.md](runbooks/superset.md).
+- **Lightdash (first-cut, pending)** — the **dbt-native** BI face, complementing Superset: where Superset does
+  ad-hoc SQL over any Trino catalog, Lightdash builds its dimensions + metrics **from the dbt project** so it
+  surfaces the tested marts (`iceberg.dbt.mart_*`) and any `meta.metrics` declared in the dbt `schema.yml` —
+  the governed/curated side of the same lakehouse. Planned as an Argo multi-source Helm app in `data-mesh`
+  (same shape as Superset: bring it up on its own login, connect the dbt project + Trino in the UI after),
+  metadata in the lab Postgres `lightdash` DB. **Not yet deployed** — first cut; runbook drafted at
+  [runbooks/lightdash.md](runbooks/lightdash.md).
 - **TimescaleDB (B65 Tier-2 #4)** — time-series Postgres extension in `data-mesh`. 5 hypertables
   for temporal analysis of platform operational data (eval performance trends, guardrail decision
   rates, pipeline run durations, feature flag usage, catalog ingestion health). Fed hourly by the

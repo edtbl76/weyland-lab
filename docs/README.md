@@ -6,9 +6,15 @@ LAN-only. This `docs/` tree is the canonical, version-controlled source of truth
 
 ## Start here
 - [arch.md](arch.md) — architecture: topology, components, validated flows, the *picture and the why*
+- [data-mesh-guide.md](data-mesh-guide.md) — **the single source**: what every data store is *for*, a when-to-use-which decision matrix, and the workflow map
 - [hosts.md](hosts.md) — host/container inventory (IPs, access, roles)
 - [api.md](api.md) — live endpoint registry
 - [schedules.md](schedules.md) — master timetable: all Dagster + DataHub cron jobs, TZ-normalized
+
+## query/ — copy-paste queries, one file per store
+[query/README.md](query/README.md) — real dataset-specific queries for every store (Trino/Iceberg, dbt marts,
+GizmoSQL, ClickHouse, Cassandra, Cockroach, Mongo, MySQL, Timescale, Postgres, Neo4j, Qdrant/Weaviate, OpenSearch,
+LanceDB, Redpanda, Feast). Which dataset lives where: [data-domain-storage-grid.csv](data-domain-storage-grid.csv).
 
 ## concepts/ — the *why*
 - [llm-inference-cpu-vs-gpu.md](concepts/llm-inference-cpu-vs-gpu.md) — CPU=capacity vs GPU=speed

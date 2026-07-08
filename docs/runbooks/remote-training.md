@@ -270,6 +270,8 @@ eye-candy. Firewall `.230:8080` when the DMZ lands.
 # ensure the worker is up (rogueone):  systemctl status ray-worker
 # submit from mother (or the ray.weyland.lab dashboard / a Port action):
 kubectl -n weyland exec deploy/ray-head -- ray job submit --address http://localhost:8265 -- python /home/ray/train_genre.py --source silver --tune --trials 24
+# or from the TESTED dbt mart (materialize mart_spotify_audio_export first — see Feature sources):
+kubectl -n weyland exec deploy/ray-head -- ray job submit --address http://localhost:8265 -- python /home/ray/train_genre.py --source mart --tune --trials 24
 ```
 
 **Standalone-container path (one-off fit):** see
@@ -292,3 +294,17 @@ Then `mlflow.weyland.lab` → experiment `genre-classifier`, model `genre_classi
   ~same accuracy (v7 f1 0.314 ≈ silver) — Feast buys point-in-time correctness + train/serve consistency, not a
   better model. Full contrast: [mlflow-training.md](mlflow-training.md) UC2; diagram
   [../diagrams/flow-feast.md](../diagrams/flow-feast.md).
+- **`--source mart`** — train from the **TESTED dbt mart** (`iceberg.dbt.mart_spotify_audio`). The
+  dedup / clean / rare-genre-filter now lives **ONCE in dbt** (no longer duplicated inline in the trainer), so the
+  mart — not hand-cleaned silver — is the **source of truth**. Because Trino's only LAN ingress
+  (`trino.weyland.lab`) is Keycloak forward-auth gated (unreachable from this external trainer / the `hostNetwork`
+  head), the privileged Trino read runs IN-CLUSTER + MESHED as the Dagster asset **`mart_spotify_audio_export`**
+  (`SELECT … FROM iceberg.dbt.mart_spotify_audio` via the meshed Trino coordinator → lakeFS
+  `music/parquet/mart_spotify_audio/`); the trainer then reads that parquet and fits it identically. This is the
+  **third instance of the "cross-a-security-boundary-once" bridge pattern** (same as `genre_feast_training_set` —
+  only the source differs: dbt mart vs Feast point-in-time join). **Prereq:** materialize
+  `mart_spotify_audio_export` first — from the Dagster UI, or:
+  ```
+  kubectl -n weyland exec deploy/dagster-user-code -- dagster asset materialize --select mart_spotify_audio_export -m weyland_pipeline.definitions
+  ```
+  Full contrast: [../query/dbt-marts.md](../query/dbt-marts.md).
