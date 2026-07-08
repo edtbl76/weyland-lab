@@ -1,0 +1,69 @@
+# Lightdash — dbt-native BI / metrics layer over the marts (Trino). ns data-mesh.
+# Deployed as an Argo multi-source Helm app (chart from the lightdash helm repo + THESE values from git), the same
+# shape as Superset (k8s/superset/). Unlike Superset (ad-hoc SQL BI), Lightdash builds its dimensions + metrics
+# FROM the dbt project — so it surfaces the tested marts (iceberg.dbt.mart_*) and any `meta.metrics` we define in
+# the dbt schema.yml. That makes it the "dbt as source of truth" BI face.
+#
+# FIRST CUT = get it UP with Lightdash's own login; the dbt project (GitHub) + the Trino warehouse connection are
+# added in the Lightdash UI AFTER (like Superset's deferred Trino connection). See k8s/lightdash/README.md.
+#
+# LEAN for the tight mother node (see [[hardware-topology]] — heavily committed): bundled Postgres OFF (use the lab
+# Postgres `lightdash` DB), browserless-chrome OFF (no PDF/image exports yet), NATS workers OFF (they default to
+# multi-Gi). Re-enable browserless later if we want scheduled deliveries/exports.
+#
+# ⚠ VERIFY BEFORE DEPLOY: the chart's value schema evolves — run `helm repo add lightdash
+# https://lightdash.github.io/helm-charts && helm show values lightdash/lightdash` and reconcile the key names
+# below (esp. the externalDatabase/existingSecret wiring) + pin the chart version in the Argo Application.
+
+postgresql:
+  enabled: false            # use the lab Postgres (create the `lightdash` DB first — see README step 1)
+
+externalDatabase:
+  host: weyland-postgres.weyland.svc.cluster.local
+  port: 5432
+  user: lightdash
+  database: lightdash
+  existingSecret: lightdash-secret        # key: password (the `lightdash` PG role's password)
+
+# App secrets (LIGHTDASH_SECRET = session signing key) also come from the same Secret.
+existingSecret: lightdash-secret
+
+configMap:
+  SITE_URL: "https://lightdash.weyland.lab"
+  SECURE_COOKIES: "true"
+  TRUST_PROXY: "true"        # behind Traefik
+  PORT: "8080"
+
+# Heavy optional components OFF for the first cut / constrained node.
+browserless-chrome:
+  enabled: false
+nats:
+  enabled: false
+
+image:
+  repository: lightdash/lightdash
+  pullPolicy: IfNotPresent
+  tag: ""                    # defaults to chart appVersion — pin explicitly once verified
+
+resources:
+  requests: { cpu: 100m, memory: 512Mi }
+  limits: { memory: 1536Mi }
+scheduler:
+  resources:
+    requests: { cpu: 50m, memory: 256Mi }
+    limits: { memory: 768Mi }
+
+ingress:
+  enabled: true
+  className: traefik
+  # NO forward-auth middleware here: Lightdash manages its own login/sessions (OIDC-to-Keycloak can be added
+  # later via its auth env). LAN-only, so its built-in auth behind the wildcard TLS is fine for the first cut.
+  hosts:
+    - host: lightdash.weyland.lab
+      paths:
+        - path: /
+          pathType: Prefix
+  tls:
+    - secretName: weyland-wildcard-tls
+      hosts:
+        - lightdash.weyland.lab
