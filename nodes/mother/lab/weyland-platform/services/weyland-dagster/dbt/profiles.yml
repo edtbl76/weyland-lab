@@ -14,4 +14,4 @@ weyland:
       http_scheme: http
       database: iceberg
       schema: dbt
-      threads: 4
+      threads: 2   # single-node Trino has a tight 2GB heap (+ExitOnOutOfMemoryError → crash) — don't hit it with 4 concurrent heavy queries

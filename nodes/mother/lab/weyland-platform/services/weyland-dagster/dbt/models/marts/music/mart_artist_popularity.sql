@@ -18,7 +18,10 @@ artist_agg as (
         artist_name,
         max(mbid) as mbid,
         sum(play_count) as total_plays,
-        count(distinct user_id) as n_listeners
+        -- approx_distinct (HyperLogLog) not exact count(distinct): exact distinct over ~14M rows blows Trino's
+        -- 2GB heap (which -XX:+ExitOnOutOfMemoryError turns into a pod crash). "distinct listeners" as a
+        -- popularity signal doesn't need to be exact.
+        approx_distinct(user_id) as n_listeners
     from plays
     group by artist_name
 ),
