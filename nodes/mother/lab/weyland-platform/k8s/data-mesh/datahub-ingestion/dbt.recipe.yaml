@@ -9,21 +9,37 @@
 # `source.*` nodes resolve to the Iceberg gold tables (also trino URNs) → full gold → staging → mart
 # lineage with tests attached.
 #
-# Artifacts are read over HTTP from the IN-CLUSTER dbt-docs Service (not the forward-auth
-# `dbt-docs.weyland.lab` ingress, which 401s API calls). dbt-docs runs `dbt docs generate` on start,
-# so manifest.json + catalog.json are served at its web root; the meshed DataHub executor reaches it.
-# Refresh the artifacts = rollout restart the dbt-docs deployment (regenerates against current marts),
-# then re-run this ingestion. No DataHub Secret needed (the svc is unauthenticated in-cluster).
-# Schedule: daily (after the weekly dbt build; a daily re-ingest is cheap and keeps tests fresh).
+# Artifacts are read from MinIO (`s3://warehouse/dbt/`), published by the weyland_dbt_assets run (which runs
+# `dbt docs generate` against a LIVE Trino — reliable, unlike the dbt-docs pod's boot-time generate that left
+# catalog.json missing → the connector died on JSONDecodeError). This decouples the connector from the dbt-docs
+# pod lifecycle and gives it BOTH manifest + catalog (so column TYPES/STATS land, not just lineage).
+#
+# BOOTSTRAP: the s3:// objects only exist after a publish — run once before the first ingestion:
+#   kubectl -n weyland exec deploy/dagster-user-code -- python /app/scripts/publish_dbt_artifacts.py
+# thereafter the weekly weyland_dbt_assets run refreshes them.
+#
+# Creds: MINIO_ACCESS_KEY/SECRET are the SAME DataHub Secrets the iceberg recipe uses (nessie-secret S3 creds),
+# which own the `warehouse` bucket. path-style addressing is required for MinIO (no virtual-host DNS).
+# FALLBACK if the s3 read misbehaves: revert to manifest-only over HTTP —
+#   manifest_path: "http://dbt-docs.weyland.svc.cluster.local:8080/manifest.json"  (drop catalog_path + aws_connection)
+# Schedule: daily.
 source:
   type: dbt
   config:
-    manifest_path: "http://dbt-docs.weyland.svc.cluster.local:8080/manifest.json"
-    catalog_path: "http://dbt-docs.weyland.svc.cluster.local:8080/catalog.json"
+    manifest_path: "s3://warehouse/dbt/manifest.json"
+    catalog_path: "s3://warehouse/dbt/catalog.json"
+    aws_connection:
+      aws_endpoint_url: "http://minio.minio.svc.cluster.local:9000"
+      aws_access_key_id: "${MINIO_ACCESS_KEY}"
+      aws_secret_access_key: "${MINIO_SECRET_KEY}"
+      aws_region: "us-east-1"
+      aws_advanced_config:
+        s3:
+          addressing_style: path   # MinIO needs path-style (bucket in path, not virtual-host)
     # the marts are Iceberg tables queried through Trino — same platform the marts are cataloged under,
     # so dbt models sibling onto iceberg.dbt.mart_* instead of creating a parallel set of nodes.
     target_platform: trino
-    # tests → assertions, and column-level lineage parsed from the compiled model SQL.
+    # column-level lineage parsed from the compiled model SQL in the manifest.
     include_column_lineage: true
     entities_enabled:
       test_results: Yes

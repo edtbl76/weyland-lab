@@ -12,7 +12,7 @@ to SealedSecrets/External-Secrets under B69.
 |---|---|---|---|
 | Iceberg (Nessie REST + MinIO) | `iceberg.recipe.yaml` | daily | `MINIO_ACCESS_KEY`, `MINIO_SECRET_KEY` |
 | Grafana (in-cluster) | `grafana.recipe.yaml` | 02:00 daily | `GRAFANA_SA_TOKEN` |
-| dbt (transform tier) | `dbt.recipe.yaml` | daily | none (reads dbt-docs svc over HTTP) |
+| dbt (transform tier) | `dbt.recipe.yaml` | daily | `MINIO_ACCESS_KEY`, `MINIO_SECRET_KEY` (reads `s3://warehouse/dbt/`) |
 
 Connectivity note: every source points at the **in-cluster service** (not the forward-auth
 `*.weyland.lab` ingress, which 401s API calls). The DataHub executor is meshed/PERMISSIVE so
