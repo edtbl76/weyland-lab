@@ -41,6 +41,8 @@ from datahub.metadata.schema_classes import (
     DomainsClass,
     DatasetPropertiesClass,
     GlobalTagsClass,
+    GlossaryNodeInfoClass,
+    GlossaryTermInfoClass,
     NumberTypeClass,
     OtherSchemaClass,
     SchemaFieldClass,
@@ -468,6 +470,41 @@ def emit_data_products():
         n_p += 1
         n_a += len(assets)
     return n_p, n_a
+
+
+def emit_glossary():
+    """Publish the AIDLC KB taxonomy as a DataHub Business Glossary — the browsable answer to 'how do I find every
+    industry vertical / consulting tool / delivery stage / engineering concept the KB is organized around?'. Domains
+    and Data Products are asset-level; this sub-structure is ROW-level inside the shared RAG datasets, so it lives as
+    glossary term groups + terms (independent of any single asset) instead. Nodes = the term groups (Industry
+    Verticals, Consulting Tools, AIDLC Stages, Engineering Knowledge + its 12 tag-derived category sub-groups); terms
+    = every leaf value with its REAL title + definition. Baked from .methodaidlc at build time into
+    aidlc_glossary.GLOSSARY (the source files aren't in the dagster image). Idempotent — re-run adopts new/edited
+    entries when the module is regenerated. Returns (n_nodes, n_terms)."""
+    from weyland_pipeline.aidlc_glossary import GLOSSARY
+
+    emitter = _gms_emitter()
+
+    def _node_urn(nid):
+        return f"urn:li:glossaryNode:{nid}"
+
+    # Nodes first (GLOSSARY["nodes"] is already ordered parent-before-child), then terms reference them.
+    n_nodes = 0
+    for node in GLOSSARY["nodes"]:
+        parent = _node_urn(node["parent"]) if node.get("parent") else None
+        emitter.emit(MetadataChangeProposalWrapper(
+            entityUrn=_node_urn(node["id"]),
+            aspect=GlossaryNodeInfoClass(definition=node["definition"], name=node["name"], parentNode=parent)))
+        n_nodes += 1
+
+    n_terms = 0
+    for term in GLOSSARY["terms"]:
+        emitter.emit(MetadataChangeProposalWrapper(
+            entityUrn=f"urn:li:glossaryTerm:{term['id']}",
+            aspect=GlossaryTermInfoClass(definition=term["definition"], name=term["name"],
+                                         termSource="INTERNAL", parentNode=_node_urn(term["parent"]))))
+        n_terms += 1
+    return n_nodes, n_terms
 
 
 def _gms_emitter() -> DatahubRestEmitter:
