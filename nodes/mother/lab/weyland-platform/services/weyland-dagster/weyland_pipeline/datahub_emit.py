@@ -19,11 +19,15 @@ import os
 from typing import Dict, List, NamedTuple, Optional, Set
 
 from dagster import AssetKey
-from datahub.emitter.mce_builder import make_dataset_urn, make_tag_urn
+from datahub.emitter.mce_builder import make_chart_urn, make_dashboard_urn, make_dataset_urn, make_tag_urn
 from datahub.emitter.mcp import MetadataChangeProposalWrapper
 from datahub.emitter.rest_emitter import DatahubRestEmitter
 from datahub.metadata.schema_classes import (
+    AuditStampClass,
     BooleanTypeClass,
+    ChangeAuditStampsClass,
+    ChartInfoClass,
+    DashboardInfoClass,
     DatasetLineageTypeClass,
     DatasetPropertiesClass,
     GlobalTagsClass,
@@ -276,6 +280,68 @@ def emit_feast():
             emitter.emit(MetadataChangeProposalWrapper(entityUrn=urn, aspect=aspect))
         names.append(table)
     return len(names), names
+
+
+def emit_lightdash():
+    """Custom-emit Lightdash dashboards + charts to DataHub (this DataHub has NO UI managed-ingestion, so the BI
+    layer is cataloged here like the stores). Each saved chart → a DataHub Chart with lineage to its dbt mart
+    (`iceberg.dbt.<tableName>` on the `trino` platform — the SAME URN emit_dbt emits, so chart→mart links up);
+    each dashboard → a DataHub Dashboard listing its charts. Completes gold → dbt mart → Lightdash chart in the
+    graph. No-ops (returns (0, 0)) if LIGHTDASH_API_KEY is unset. Returns (n_charts, n_dashboards)."""
+    import time
+
+    import requests
+
+    key = os.environ.get("LIGHTDASH_API_KEY", "")
+    if not key:
+        return 0, 0
+    base = os.environ.get("LIGHTDASH_URL", "http://lightdash.data-mesh.svc.cluster.local:8080").rstrip("/")
+    s = requests.Session()
+    s.headers.update({"Authorization": f"ApiKey {key}"})
+
+    def g(path):
+        r = s.get(f"{base}{path}", timeout=30)
+        r.raise_for_status()
+        return r.json()["results"]
+
+    emitter = _gms_emitter()
+    now = int(time.time() * 1000)
+    stamp = ChangeAuditStampsClass(created=AuditStampClass(time=now, actor="urn:li:corpuser:datahub"),
+                                   lastModified=AuditStampClass(time=now, actor="urn:li:corpuser:datahub"))
+    proj = g("/api/v1/org/projects")[0]["projectUuid"]
+    chart_urn, n_c, n_d = {}, 0, 0
+    for sp in g(f"/api/v1/projects/{proj}/spaces"):
+        space_name = sp.get("name", "")
+        for q in sp.get("queries", []):
+            cid = q["uuid"]
+            cname = q.get("name") or cid
+            try:
+                table = g(f"/api/v1/saved/{cid}").get("tableName")
+            except Exception:  # noqa: BLE001 — a chart lookup failing must not sink the whole emit
+                table = None
+            inputs = [make_dataset_urn(platform="trino", name=f"iceberg.dbt.{table}", env=ENV)] if table else []
+            urn = make_chart_urn("lightdash", cid)
+            chart_urn[cid] = urn
+            emitter.emit(MetadataChangeProposalWrapper(entityUrn=urn, aspect=ChartInfoClass(
+                title=cname, description=space_name, lastModified=stamp,
+                chartUrl=f"{base}/projects/{proj}/saved/{cid}/view", inputs=inputs)))
+            n_c += 1
+        for d in sp.get("dashboards", []):
+            did = d["uuid"]
+            dname = d.get("name") or did
+            try:
+                tiles = g(f"/api/v1/dashboards/{did}").get("tiles", [])
+                cids = [t["properties"]["savedChartUuid"] for t in tiles
+                        if t.get("type") == "saved_chart" and t.get("properties", {}).get("savedChartUuid")]
+            except Exception:  # noqa: BLE001
+                cids = []
+            emitter.emit(MetadataChangeProposalWrapper(
+                entityUrn=make_dashboard_urn("lightdash", did),
+                aspect=DashboardInfoClass(title=dname, description=space_name, lastModified=stamp,
+                                          charts=[chart_urn[c] for c in cids if c in chart_urn],
+                                          dashboardUrl=f"{base}/projects/{proj}/dashboards/{did}/view")))
+            n_d += 1
+    return n_c, n_d
 
 
 def _gms_emitter() -> DatahubRestEmitter:

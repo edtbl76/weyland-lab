@@ -19,7 +19,6 @@ to SealedSecrets/External-Secrets under B69.
 | Neo4j | `neo4j.recipe.yaml` | daily | — |
 | Kafka / Redpanda (`datasets.*` + Avro schemas) | `kafka.recipe.yaml` | daily | — |
 | MLflow | `mlflow.recipe.yaml` | daily | — |
-| Lightdash (dbt-native BI) | `lightdash.recipe.yaml` | daily | `LIGHTDASH_API_KEY` (pod env) — **NEW ingestion** (paste + create the UI source) |
 | Superset (BI) | `superset.recipe.yaml` | daily | `SUPERSET_PASSWORD` (pod env) |
 | Cassandra | `cassandra.recipe.yaml` | weekly (Sun) | — (no-auth) |
 | ClickHouse | `clickhouse.recipe.yaml` | weekly (Sun) | `CLICKHOUSE_PASSWORD` (pod env) |

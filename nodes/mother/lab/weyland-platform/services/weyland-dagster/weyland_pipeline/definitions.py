@@ -116,6 +116,12 @@ def emit_feast_op(context):
     _safe_emit(context, "Feast sources (mart lineage)", emit_feast)
 
 
+@op
+def emit_lightdash_op(context):
+    from weyland_pipeline.datahub_emit import emit_lightdash
+    _safe_emit(context, "Lightdash (BI charts + dashboards)", emit_lightdash)
+
+
 @job
 def datahub_catalog_emit_job():
     emit_dagster_assets_op()
@@ -129,6 +135,7 @@ def datahub_catalog_emit_job():
     emit_lancedb_op()
     emit_dbt_op()
     emit_feast_op()
+    emit_lightdash_op()
 
 
 datahub_catalog_emit_schedule = ScheduleDefinition(

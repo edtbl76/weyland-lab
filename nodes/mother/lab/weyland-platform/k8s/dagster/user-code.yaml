@@ -145,6 +145,17 @@ spec:
                 secretKeyRef:
                   name: datahub-token
                   key: token
+            # Lightdash → DataHub custom emitter (emit_lightdash): catalogs BI charts/dashboards + chart→mart
+            # lineage. URL has a code default (in-cluster svc); the PAT is optional — emit_lightdash no-ops if
+            # unset. Create secret `lightdash-api-token` (key `token`) in THIS ns with a Lightdash PAT to enable.
+            - name: LIGHTDASH_URL
+              value: http://lightdash.data-mesh.svc.cluster.local:8080
+            - name: LIGHTDASH_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: lightdash-api-token
+                  key: token
+                  optional: true
             # Iceberg data products (iceberg_export assets → Nessie warehouse on MinIO). Nessie/MinIO URLs
             # have code defaults; only the MinIO creds are required. Mirror nessie-secret's S3 creds into
             # THIS ns as `iceberg-s3-secret` (secretKeyRef can't cross namespaces).
