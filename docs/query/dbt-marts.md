@@ -2,8 +2,11 @@
 
 The dbt transform tier (B1.5) materializes **7 tested marts** as Iceberg tables in the **`iceberg.dbt`** schema on
 the Nessie `main` ref. Query them via Trino — IntelliJ (`jdbc:trino://trino.weyland.lab` or the svc `:8080`), the
-Trino CLI, or **Superset** (they're plain tables on the Trino connection). Built by `dagster-dbt` from the Iceberg
-gold; models in `services/weyland-dagster/dbt/models/`, background in `[[dbt-transform-tier]]`.
+Trino CLI, **Superset** (ad-hoc SQL — plain tables on the Trino connection), or **Lightdash** (dbt-native governed
+metrics/explores — see [../runbooks/lightdash.md](../runbooks/lightdash.md)). The model DAG / lineage / test UI is
+**dbt-docs.weyland.lab**. Built by `dagster-dbt` from the Iceberg gold; models in
+`services/weyland-dagster/dbt/models/`, operate via [../runbooks/dbt.md](../runbooks/dbt.md), background in
+`[[dbt-transform-tier]]`.
 
 ## The marts
 
@@ -88,5 +91,7 @@ ORDER BY extraversion DESC LIMIT 10;
   (`dagster.weyland.lab`) or `dbt build` in the dagster pod — see `[[dbt-transform-tier]]`.
 - Every mart is tested (dbt-utils `unique`/`unique_combination` + dbt-expectations ranges) — see each model's
   `schema.yml`.
+- **Metrics layer:** the marts' `schema.yml` also carry **44 `meta.metrics`** (`avg_*`, `total_*_sum`, `*_count`)
+  — Lightdash surfaces them as first-class governed metrics/explores over these same tables.
 - Trino is a single node with a 4G heap; heavy ad-hoc queries can still pressure it. `mart_artist_popularity`
   uses `approx_distinct` for listeners so it doesn't OOM the aggregation.

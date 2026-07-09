@@ -13,6 +13,12 @@ to SealedSecrets/External-Secrets under B69.
 | Iceberg (Nessie REST + MinIO) | `iceberg.recipe.yaml` | daily | `MINIO_ACCESS_KEY`, `MINIO_SECRET_KEY` |
 | Grafana (in-cluster) | `grafana.recipe.yaml` | 02:00 daily | `GRAFANA_SA_TOKEN` |
 | dbt (transform tier) | `dbt.recipe.yaml` | daily | `MINIO_ACCESS_KEY`, `MINIO_SECRET_KEY` (reads `s3://warehouse/_dbt_artifacts/`) |
+| Postgres (all DBs on weyland-postgres) | `postgres.recipe.yaml` | daily (MusicBrainz weekly) | `WEYLAND_PG_PASSWORD` |
+| Trino (federation query layer) | `trino.recipe.yaml` | daily | — (Trino is no-auth in-cluster) |
+| MongoDB | `mongo.recipe.yaml` | weekly (Sun) | `MONGO_PASSWORD` |
+| Neo4j | `neo4j.recipe.yaml` | daily | — |
+| Kafka / Redpanda (`datasets.*` + Avro schemas) | `kafka.recipe.yaml` | daily | — |
+| MLflow | `mlflow.recipe.yaml` | daily | — |
 
 Connectivity note: every source points at the **in-cluster service** (not the forward-auth
 `*.weyland.lab` ingress, which 401s API calls). The DataHub executor is meshed/PERMISSIVE so

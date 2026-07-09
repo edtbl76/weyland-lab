@@ -5,7 +5,7 @@
 # the dbt schema.yml. That makes it the "dbt as source of truth" BI face.
 #
 # FIRST CUT = get it UP with Lightdash's own login; the dbt project (GitHub) + the Trino warehouse connection are
-# added in the Lightdash UI AFTER (like Superset's deferred Trino connection). See k8s/lightdash/README.md.
+# added in the Lightdash UI AFTER (like Superset's deferred Trino connection). See docs/runbooks/lightdash.md.
 #
 # LEAN for the tight mother node (see [[hardware-topology]] — heavily committed): bundled Postgres OFF (use the lab
 # Postgres `lightdash` DB), browserless-chrome OFF (no PDF/image exports yet), NATS workers OFF (they default to
@@ -16,7 +16,7 @@
 # below (esp. the externalDatabase/existingSecret wiring) + pin the chart version in the Argo Application.
 
 postgresql:
-  enabled: false            # use the lab Postgres (create the `lightdash` DB first — see README step 1)
+  enabled: false            # use the lab Postgres (create the `lightdash` DB first — see runbooks/lightdash.md §2)
 
 externalDatabase:
   host: weyland-postgres.weyland.svc.cluster.local

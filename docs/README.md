@@ -37,6 +37,10 @@ LanceDB, Redpanda, Feast). Which dataset lives where: [data-domain-storage-grid.
 - [unleash.md](runbooks/unleash.md) — Unleash (B43, feature-mgmt): OSS feature flags, meshed Postgres, → Port `feature_flag` webhook; secret-paste + inotify gotchas
 - [code-quality.md](runbooks/code-quality.md) — SonarQube + Trivy + Semgrep (B43): on-demand scans → Port `code_quality`/`security_scan`; vm.max_map_count, Port webhook-wizard + paste-mangling gotchas
 - [keda.md](runbooks/keda.md) — KEDA (autoscaling/run-mode engine for the data mesh): core + HTTP add-on, single-node replica gotcha
+- [dbt.md](runbooks/dbt.md) — dbt transform tier (B1.5): 7 tested marts via dbt-trino → Iceberg, artifact publish, DataHub cataloging, Trino-OOM guard
+- [lightdash.md](runbooks/lightdash.md) — Lightdash dbt-native BI: trino-noauth proxy, PAT dbt project, metrics-as-code, S3, seed/content-as-code
+- [superset.md](runbooks/superset.md) — Superset (B65 Tier-2 #3): ad-hoc BI/SQL over Trino, Keycloak OIDC
+- [trino.md](runbooks/trino.md) — Trino federation query engine (native-Nessie iceberg + postgresql catalogs)
 
 ## units/ — task-scoped hardening/setup docs
 `u6`–`u12` — credential hardening, HF cleanup, Headlamp token, mkcert/CoreDNS/Traefik (U9), SA scoping,

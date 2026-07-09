@@ -6,6 +6,10 @@ its dimensions + metrics **from the dbt project**, so it surfaces the tested mar
 app** (chart from the lightdash helm repo + values from git), the same shape as Superset. Values:
 `k8s/lightdash/lightdash-values.yaml`. UI: `https://lightdash.weyland.lab`.
 
+**Status: DEPLOYED 2026-07-08 — chart `2.9.1` / app `0.2248.0`.** Connected to Trino via the `trino-noauth` proxy
+(§5), dbt project pulled from GitHub via PAT, 44 metrics-as-code live, S3/MinIO wired, charts seeded (§7). The
+step-by-step below is the reproducible bring-up.
+
 Design: **get it UP first with Lightdash's own login, connect the dbt project + Trino in the UI after** — exactly
 how Superset defers its Trino connection. Metadata lives in the lab Postgres `lightdash` DB (bundled Postgres off);
 browserless-chrome + NATS workers are off on the first cut to spare the tight mother node ([[hardware-topology]]).
@@ -69,10 +73,10 @@ Add to `k8s/argocd/applications/helm-apps.yaml` (pin `targetRevision` to the ver
     sources:
       - repoURL: https://lightdash.github.io/helm-charts
         chart: lightdash
-        targetRevision: <CHART_VERSION>        # from `helm search repo lightdash/lightdash`
+        targetRevision: 2.9.1                   # app 0.2248.0 (from `helm search repo lightdash/lightdash`)
         helm:
           releaseName: lightdash
-          valueFiles: [$values/k8s/lightdash/lightdash-values.yaml]
+          valueFiles: [$values/nodes/mother/lab/weyland-platform/k8s/lightdash/lightdash-values.yaml]
       - repoURL: https://github.com/edtbl76/weyland-lab.git
         targetRevision: main
         ref: values
@@ -81,7 +85,7 @@ Add to `k8s/argocd/applications/helm-apps.yaml` (pin `targetRevision` to the ver
       namespace: data-mesh
     syncPolicy:
       automated: { selfHeal: true, prune: true }
-      syncOptions: [ServerSideApply=true, CreateNamespace=false]
+      syncOptions: [ServerSideApply=true]
 ```
 
 ## 5. Trino auth-strip proxy (REQUIRED — Lightdash can't talk to no-auth Trino directly)
@@ -115,8 +119,39 @@ It's a raw manifest (not an Argo app) — `kubectl apply` it, restart the pod on
    directly), User `lightdash`, Password `weyland_dev_password` (throwaway — the proxy strips it), DB name `iceberg`
    (catalog), Port `8080`, SSL mode `http`, Schema `dbt`.
 4. Lightdash compiles the dbt project against Trino and surfaces `mart_spotify_audio`, `mart_state_health_trends`,
-   etc. as explores (only the columns declared in each mart's `schema.yml` become dimensions). Add `meta.metrics`
-   to the dbt `schema.yml` later for first-class Lightdash metrics.
+   etc. as explores (only the columns declared in each mart's `schema.yml` become dimensions). The **44
+   `meta.metrics` already declared** across the mart schemas surface as first-class Lightdash metrics on refresh.
+
+## 7. Metrics-as-code + seed charts + content-as-code
+
+**Metrics-as-code:** the marts' `schema.yml` carry **44 `meta.metrics`** (`meta: {metrics: {avg_x: {type:
+average}}}`) — Lightdash surfaces them on a dbt refresh, version-controlled in the repo (no UI-defined metrics).
+**Gotcha:** a metric name must NOT equal a column/dimension name (a `total_plays` metric on the `total_plays`
+column errored ⚠ → renamed `total_plays_sum`). Lightdash field IDs are `<model>_<column-or-metric-name>`.
+
+**Seed charts programmatically:** `scripts/lightdash_seed.py` creates 12 bar/line charts + a Music and a Health
+dashboard via the REST API — no UI clicking. Mint a Lightdash personal-access-token (Settings → Personal access
+tokens), then:
+
+```
+LIGHTDASH_TOKEN=<pat> python3 /home/edwardmangini/IdeaProjects/weyland/nodes/mother/lab/weyland-platform/scripts/lightdash_seed.py
+```
+
+It auths `Authorization: ApiKey <pat>`, verifies TLS against the mkcert CA (`~/.local/share/mkcert/rootCA.pem`),
+and builds cartesian charts (`chartConfig.type: cartesian` with `layout` + `eChartsConfig.series`; `flipAxes` for
+horizontal-bar rankings). Requires the dbt refresh (metrics live) first, or field IDs 400.
+
+**Content-as-code (`lightdash download`):** codify the UI/seeded charts + dashboards to YAML in the repo. From a
+box that reaches `lightdash.weyland.lab` (node/npm):
+
+```
+npm install -g @lightdash/cli
+NODE_EXTRA_CA_CERTS=/home/edwardmangini/.local/share/mkcert/rootCA.pem lightdash login https://lightdash.weyland.lab --token <pat>
+cd /home/edwardmangini/IdeaProjects/weyland/nodes/mother/lab/weyland-platform/services/weyland-dagster/dbt && NODE_EXTRA_CA_CERTS=/home/edwardmangini/.local/share/mkcert/rootCA.pem lightdash download
+```
+
+This writes `dbt/lightdash/{charts,dashboards}/*.yml` (committed) — the reverse is `lightdash upload` (push local
+YAML edits back). So charts are version-controlled + cloneable as files.
 
 ## Notes
 

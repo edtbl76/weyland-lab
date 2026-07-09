@@ -65,7 +65,7 @@ flowchart TD
 | **Nessie** | Iceberg catalog — git-for-tables (native REST) | Table-level branching/versioning of the gold layer | [trino runbook](runbooks/trino.md) |
 | **Iceberg** | Open table format for the gold layer | Big analytical tables with schema evolution + time-travel | [trino cookbook](query/trino.md) |
 | **Trino** | Federated SQL engine over all catalogs | Ad-hoc SQL, cross-catalog joins, the BI backend | [cookbook](query/trino.md) |
-| **dbt** | Transform tier — SQL → tested marts (Iceberg) | The curated, tested, source-of-truth analytics tables | [cookbook](query/dbt-marts.md) · [[dbt-transform-tier]] |
+| **dbt** | Transform tier — SQL → tested marts (Iceberg) | The curated, tested, source-of-truth analytics tables | [cookbook](query/dbt-marts.md) · [runbook](runbooks/dbt.md) |
 | **GizmoSQL / DuckDB** | Embedded OLAP served over Arrow Flight SQL | Fast local analytics, ADBC clients, no cluster round-trip | [cookbook](query/gizmosql.md) · [runbook](runbooks/gizmosql.md) |
 
 ### Serving / Tier-2 (hydrated from silver + gold)

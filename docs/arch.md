@@ -306,7 +306,9 @@ agents/workflows and platform state. Agents call the tool-server, *not* database
   metadata in the lab Postgres `lightdash` DB, own login; dbt project pulled from the git repo via a PAT.
   **Trino wrinkle:** Lightdash's connector forces a password → HTTP Basic auth, which no-auth Trino 401s, so
   Lightdash connects through a small **`trino-noauth` nginx proxy** that strips the `Authorization` header
-  (`k8s/lightdash/trino-noauth-proxy.yaml`). See [runbooks/lightdash.md](runbooks/lightdash.md).
+  (`k8s/lightdash/trino-noauth-proxy.yaml`). The marts' 44 `meta.metrics` (schema.yml) surface as governed
+  metrics; starter charts/dashboards are seeded via `scripts/lightdash_seed.py` and codified via
+  `lightdash download`. See [runbooks/lightdash.md](runbooks/lightdash.md).
 - **TimescaleDB (B65 Tier-2 #4)** — time-series Postgres extension in `data-mesh`. 5 hypertables
   for temporal analysis of platform operational data (eval performance trends, guardrail decision
   rates, pipeline run durations, feature flag usage, catalog ingestion health). Fed hourly by the
