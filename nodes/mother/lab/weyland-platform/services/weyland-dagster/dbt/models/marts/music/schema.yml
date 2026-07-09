@@ -126,7 +126,7 @@ models:
           - not_null
       - name: total_plays
         description: "Sum of Last.fm play counts for the artist."
-        meta: {metrics: {total_plays: {type: sum, label: "Total plays"}, avg_plays: {type: average}, max_plays: {type: max}}}
+        meta: {metrics: {total_plays_sum: {type: sum, label: "Total plays"}, avg_plays: {type: average}, max_plays: {type: max}}}
         tests:
           - dbt_expectations.expect_column_values_to_be_between:
               min_value: 0
