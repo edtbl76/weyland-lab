@@ -140,6 +140,12 @@ def emit_glossary_op(context):
     _safe_emit(context, "Business Glossary (AIDLC KB taxonomy)", emit_glossary)
 
 
+@op
+def emit_mesh_glossary_op(context):
+    from weyland_pipeline.datahub_emit import emit_mesh_glossary
+    _safe_emit(context, "Mesh Glossary (data vocab + field attach)", emit_mesh_glossary)
+
+
 @job
 def datahub_catalog_emit_job():
     emit_dagster_assets_op()
@@ -157,6 +163,7 @@ def datahub_catalog_emit_job():
     emit_domains_op()
     emit_data_products_op()
     emit_glossary_op()
+    emit_mesh_glossary_op()
 
 
 datahub_catalog_emit_schedule = ScheduleDefinition(

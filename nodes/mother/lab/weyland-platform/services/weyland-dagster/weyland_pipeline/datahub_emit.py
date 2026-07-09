@@ -40,9 +40,13 @@ from datahub.metadata.schema_classes import (
     DomainPropertiesClass,
     DomainsClass,
     DatasetPropertiesClass,
+    EditableSchemaMetadataClass,
+    EditableSchemaFieldInfoClass,
     GlobalTagsClass,
     GlossaryNodeInfoClass,
     GlossaryTermInfoClass,
+    GlossaryTermsClass,
+    GlossaryTermAssociationClass,
     NumberTypeClass,
     OtherSchemaClass,
     SchemaFieldClass,
@@ -505,6 +509,119 @@ def emit_glossary():
                                          termSource="INTERNAL", parentNode=_node_urn(term["parent"]))))
         n_terms += 1
     return n_nodes, n_terms
+
+
+import re as _re
+
+_STAT_SUFFIXES = ("_mean", "_std", "_sum", "_avg", "_min", "_max", "_count", "_median", "_p50", "_p95")
+
+
+def _field_leaf(field_path):
+    """Leaf name from a DataHub v2 fieldPath, stripping '[version=…].[type=…]' annotations.
+    e.g. '[version=2.0].[type=struct].[type=double].danceability' -> 'danceability'."""
+    parts = [p for p in _re.sub(r"\[[^\]]*\]", "", field_path).split(".") if p]
+    return (parts[-1] if parts else field_path).lower()
+
+
+def _mesh_term_index():
+    """{field-name pattern -> glossaryTerm urn} from mesh_vocabulary.TERMS. Exact-match keyed; the
+    stat-suffix base (danceability_mean -> danceability) is resolved at match time, so 'entity0' and
+    'entity0_credit' stay distinct terms (no greedy startswith)."""
+    from weyland_pipeline.mesh_vocabulary import TERMS
+    idx = {}
+    for tid, _name, _parent, _defn, attach in TERMS:
+        for pat in attach:
+            idx[pat.lower()] = f"urn:li:glossaryTerm:{tid}"
+    return idx
+
+
+def emit_mesh_glossary(attach=True):
+    """Surface 1 — publish the authored Data-Mesh business vocabulary (mesh_vocabulary) as a second glossary root
+    'Data Mesh', then (attach=True) walk every cataloged dataset's schema and attach each term to matching fields
+    via 'define once, attach everywhere' — collapsing the 22k duplicated ambiguous fields. Field terms live in
+    editableSchemaMetadata, which is a FULL-REPLACE aspect, so we READ-MERGE: existing field info + our term
+    associations, re-emit. Idempotent. Returns (n_nodes, n_terms, n_fields_tagged, n_datasets_touched)."""
+    import time
+
+    from weyland_pipeline.mesh_vocabulary import NODES, TERMS
+
+    emitter = _gms_emitter()
+
+    def _nurn(nid):
+        return f"urn:li:glossaryNode:{nid}"
+
+    n_nodes = 0
+    for nid, name, parent, defn in NODES:
+        emitter.emit(MetadataChangeProposalWrapper(
+            entityUrn=_nurn(nid),
+            aspect=GlossaryNodeInfoClass(definition=defn, name=name, parentNode=_nurn(parent) if parent else None)))
+        n_nodes += 1
+
+    n_terms = 0
+    for tid, name, parent, defn, _attach in TERMS:
+        emitter.emit(MetadataChangeProposalWrapper(
+            entityUrn=f"urn:li:glossaryTerm:{tid}",
+            aspect=GlossaryTermInfoClass(definition=defn, name=name, termSource="INTERNAL",
+                                         parentNode=_nurn(parent))))
+        n_terms += 1
+
+    if not attach:
+        return n_nodes, n_terms, 0, 0
+
+    from datahub.ingestion.graph.client import DataHubGraph, DatahubClientConfig
+    server = os.environ.get("DATAHUB_GMS_URL", "http://datahub-datahub-gms.data-mesh.svc.cluster.local:8080")
+    token = os.environ.get("DATAHUB_GMS_TOKEN", "")
+    graph = DataHubGraph(DatahubClientConfig(server=server, token=token))
+
+    idx = _mesh_term_index()
+    now = int(time.time() * 1000)
+    stamp = AuditStampClass(time=now, actor="urn:li:corpuser:datahub")
+
+    def _match(leaf):
+        if leaf in idx:
+            return idx[leaf]
+        for suf in _STAT_SUFFIXES:
+            if leaf.endswith(suf) and leaf[: -len(suf)] in idx:
+                return idx[leaf[: -len(suf)]]
+        return None
+
+    n_fields = n_ds = 0
+    for urn in graph.get_urns_by_filter(entity_types=["dataset"]):
+        sm = graph.get_aspect(urn, SchemaMetadataClass)
+        if not sm or not sm.fields:
+            continue
+        # per-field term matches for this dataset
+        want = {}  # fieldPath -> term urn
+        for f in sm.fields:
+            t = _match(_field_leaf(f.fieldPath))
+            if t:
+                want[f.fieldPath] = t
+        if not want:
+            continue
+        # READ-MERGE the existing editable overlay so we don't clobber descriptions/other terms
+        esm = graph.get_aspect(urn, EditableSchemaMetadataClass)
+        infos = {i.fieldPath: i for i in (esm.editableSchemaFieldInfo if esm else [])}
+        touched = 0
+        for fp, term_urn in want.items():
+            info = infos.get(fp) or EditableSchemaFieldInfoClass(fieldPath=fp)
+            existing = list(info.glossaryTerms.terms) if info.glossaryTerms else []
+            if any(a.urn == term_urn for a in existing):
+                infos[fp] = info
+                continue
+            existing.append(GlossaryTermAssociationClass(urn=term_urn))
+            info.glossaryTerms = GlossaryTermsClass(terms=existing, auditStamp=stamp)
+            infos[fp] = info
+            touched += 1
+        if not touched:
+            continue
+        emitter.emit(MetadataChangeProposalWrapper(
+            entityUrn=urn,
+            aspect=EditableSchemaMetadataClass(
+                created=(esm.created if esm else stamp), lastModified=stamp,
+                editableSchemaFieldInfo=list(infos.values()))))
+        n_fields += touched
+        n_ds += 1
+    return n_nodes, n_terms, n_fields, n_ds
 
 
 def _gms_emitter() -> DatahubRestEmitter:
