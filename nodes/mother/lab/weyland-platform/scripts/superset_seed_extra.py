@@ -41,8 +41,14 @@ def post(path, body):
     return r.json()
 
 
-# --- resolve existing ClickHouse dataset ids by table_name ---
-allds = S.get(f"{BASE}/api/v1/dataset/?q=(page_size:1000)").json()["result"]
+# --- resolve existing ClickHouse dataset ids by table_name (page through — Superset caps page_size ~100) ---
+allds, _page = [], 0
+while True:
+    _res = S.get(f"{BASE}/api/v1/dataset/?q=(page:{_page},page_size:100)").json()["result"]
+    allds += _res
+    if len(_res) < 100:
+        break
+    _page += 1
 
 
 def find(tbl, dbhint="click"):
