@@ -15,6 +15,7 @@ models:
         tests:
           - not_null
       - name: year
+        description: "BRFSS survey year."
         tests:
           - not_null
       - name: diabetes_pct
@@ -31,6 +32,7 @@ models:
         description: "Crude prevalence % of COPD."
         meta: {metrics: {avg_copd_pct: {type: average, label: "Avg COPD %"}, max_copd_pct: {type: max}}}
       - name: depression_pct
+        description: "Crude prevalence % of diagnosed depression."
         meta: {metrics: {avg_depression_pct: {type: average, label: "Avg depression %"}, max_depression_pct: {type: max}}}
         tests:
           - dbt_expectations.expect_column_values_to_be_between:
@@ -46,31 +48,41 @@ models:
           combination_of_columns: [country, year]
     columns:
       - name: country
+        description: "Country name (WHO GHO)."
         meta: {metrics: {country_count: {type: count_distinct, label: "Countries"}}}
         tests:
           - not_null
       - name: year
+        description: "Reporting year."
         tests:
           - not_null
       - name: life_expectancy
+        description: "Life expectancy at birth, in years."
         meta: {metrics: {avg_life_expectancy: {type: average, label: "Avg life expectancy"}}}
         tests:
           - dbt_expectations.expect_column_values_to_be_between:
               min_value: 0
               max_value: 120
       - name: healthy_life_expectancy
+        description: "Healthy life expectancy at birth (HALE), in years."
         meta: {metrics: {avg_healthy_life_expectancy: {type: average}}}
       - name: diabetes_prevalence
+        description: "Diabetes prevalence among adults (%)."
         meta: {metrics: {avg_diabetes_prevalence: {type: average}}}
       - name: adult_obesity
+        description: "Adult obesity prevalence (%)."
         meta: {metrics: {avg_adult_obesity: {type: average}}}
       - name: hypertension
+        description: "Raised blood pressure / hypertension prevalence among adults (%)."
         meta: {metrics: {avg_hypertension: {type: average}}}
       - name: alcohol_consumption
+        description: "Total alcohol consumption per capita, in litres of pure alcohol."
         meta: {metrics: {avg_alcohol_consumption: {type: average}}}
       - name: tobacco_smoking
+        description: "Tobacco smoking prevalence among adults (%)."
         meta: {metrics: {avg_tobacco_smoking: {type: average}}}
       - name: mental_health_disorders
+        description: "Mental-health disorder prevalence (%)."
         meta: {metrics: {avg_mental_health_disorders: {type: average}}}
 
   - name: mart_personality_by_country
@@ -79,6 +91,7 @@ models:
       >= 30 respondents). One row per country.
     columns:
       - name: country
+        description: "Country (unique)."
         meta: {metrics: {country_count: {type: count_distinct, label: "Countries"}}}
         tests:
           - unique
@@ -87,18 +100,23 @@ models:
         description: "Respondents contributing to the country's trait means (>= 30 by construction)."
         meta: {metrics: {total_respondents: {type: sum, label: "Total respondents"}}}
       - name: extraversion
+        description: "Mean Extraversion (OCEAN), 1–5 Likert scale."
         meta: {metrics: {avg_extraversion: {type: average, label: "Avg extraversion"}}}
         tests:
           - dbt_expectations.expect_column_values_to_be_between:
               min_value: 1
               max_value: 5
       - name: neuroticism
+        description: "Mean Neuroticism (OCEAN), 1–5 Likert scale."
         meta: {metrics: {avg_neuroticism: {type: average}}}
       - name: agreeableness
+        description: "Mean Agreeableness (OCEAN), 1–5 Likert scale."
         meta: {metrics: {avg_agreeableness: {type: average}}}
       - name: conscientiousness
+        description: "Mean Conscientiousness (OCEAN), 1–5 Likert scale."
         meta: {metrics: {avg_conscientiousness: {type: average}}}
       - name: openness
+        description: "Mean Openness (OCEAN), 1–5 Likert scale."
         meta: {metrics: {avg_openness: {type: average, label: "Avg openness"}}}
         tests:
           - dbt_expectations.expect_column_values_to_be_between:
