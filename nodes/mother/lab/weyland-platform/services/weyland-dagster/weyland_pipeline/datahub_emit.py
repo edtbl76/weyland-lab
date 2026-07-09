@@ -724,6 +724,89 @@ def emit_structured_properties():
     return n_props, n_ds
 
 
+# Surface 4 — Documentation Links: point each dataset OUT to its doc-site runbook (single source of truth on
+# docs.weyland.lab; DataHub is the discovery layer, not a second copy of the prose). Base URL + pattern maps.
+_DOCS_BASE = "https://docs.weyland.lab"
+_PLATFORM_RUNBOOK = {
+    "clickhouse": ("runbooks/datasets-hydration", "Tier-2 hydration runbook"),
+    "cassandra": ("runbooks/datasets-hydration", "Tier-2 hydration runbook"),
+    "mysql": ("runbooks/datasets-hydration", "Tier-2 hydration runbook"),
+    "mongodb": ("runbooks/datasets-hydration", "Tier-2 hydration runbook"),
+    "cockroachdb": ("runbooks/datasets-hydration", "Tier-2 hydration runbook"),
+    "opensearch": ("runbooks/datasets-hydration", "Tier-2 hydration runbook"),
+    "qdrant": ("runbooks/datasets-hydration", "Vector store hydration runbook"),
+    "weaviate": ("runbooks/datasets-hydration", "Vector store hydration runbook"),
+    "lance": ("runbooks/datasets-hydration", "Vector store hydration runbook"),
+    "lancedb": ("runbooks/datasets-hydration", "Vector store hydration runbook"),
+    "neo4j": ("runbooks/datasets-hydration", "Graph store hydration runbook"),
+    "timescaledb": ("runbooks/timescaledb", "TimescaleDB runbook"),
+    "duckdb": ("runbooks/gizmosql", "GizmoSQL / DuckDB runbook"),
+    "trino": ("runbooks/trino", "Trino runbook"),
+    "iceberg": ("runbooks/datasets-lake", "Lakehouse runbook"),
+    "dbt": ("runbooks/dbt", "dbt transform runbook"),
+    "s3": ("runbooks/storage-minio", "MinIO storage runbook"),
+    "parquet": ("runbooks/datasets-lake", "Lakehouse runbook"),
+    "lakefs": ("runbooks/datasets-lake", "lakeFS runbook"),
+    "kafka": ("runbooks/streaming", "Streaming runbook"),
+    "avro": ("runbooks/streaming", "Streaming runbook"),
+    "arrow": ("runbooks/streaming", "Streaming runbook"),
+    "mlflow": ("runbooks/mlflow", "MLflow runbook"),
+    "superset": ("runbooks/superset", "Superset runbook"),
+}
+# ordered name-substring rules (first match adds its runbook, in addition to the platform one).
+_NAME_RUNBOOK = [
+    ("musicbrainz", ("runbooks/musicbrainz-postgres", "MusicBrainz Postgres runbook")),
+    ("aidlc", ("runbooks/aidlc-kb-ingest", "AIDLC KB ingest runbook")),
+    ("lightdash", ("runbooks/lightdash", "Lightdash runbook")),
+    ("feast", ("runbooks/dbt", "dbt marts (Feast source) runbook")),
+]
+# appended to every dataset that matched at least one runbook — the mesh overview + the tools launchpad.
+_COMMON_DOCS = [("data-mesh-guide", "Weyland Data Mesh guide"), ("tools", "Tools launchpad")]
+
+
+def emit_docs_links():
+    """Surface 4 — attach doc-site Links (institutionalMemory) to each dataset: its runbook(s) by platform/name +
+    the mesh guide + the tools launchpad. DataHub becomes the discovery layer that points home to the canonical
+    docs (docs.weyland.lab, git-backed) — no prose duplicated into DataHub. institutionalMemory is full-replace and
+    we're its sole writer, so no merge. Returns (n_datasets_linked, n_links)."""
+    import time
+
+    from datahub.metadata.schema_classes import InstitutionalMemoryClass, InstitutionalMemoryMetadataClass
+    from datahub.ingestion.graph.client import DataHubGraph, DatahubClientConfig
+
+    emitter = _gms_emitter()
+    server = os.environ.get("DATAHUB_GMS_URL", "http://datahub-datahub-gms.data-mesh.svc.cluster.local:8080")
+    token = os.environ.get("DATAHUB_GMS_TOKEN", "")
+    graph = DataHubGraph(DatahubClientConfig(server=server, token=token))
+    stamp = AuditStampClass(time=int(time.time() * 1000), actor="urn:li:corpuser:datahub")
+    plat = lambda u: (_re.search(r"dataPlatform:([^,]+),", u) or [None, "?"])[1]
+
+    n_ds = n_links = 0
+    for urn in graph.get_urns_by_filter(entity_types=["dataset"]):
+        low = urn.lower()
+        picks = []  # (path, label) — deduped by path below
+        rb = _PLATFORM_RUNBOOK.get(plat(urn))
+        if rb:
+            picks.append(rb)
+        for sub, nr in _NAME_RUNBOOK:
+            if sub in low:
+                picks.append(nr)
+        if not picks:
+            continue  # no runbook match → don't spam the dataset with only generic links
+        picks.extend(_COMMON_DOCS)
+        seen, elements = set(), []
+        for path, label in picks:
+            if path in seen:
+                continue
+            seen.add(path)
+            elements.append(InstitutionalMemoryMetadataClass(
+                url=f"{_DOCS_BASE}/{path}/", description=label, createStamp=stamp))
+        emitter.emit(MetadataChangeProposalWrapper(entityUrn=urn, aspect=InstitutionalMemoryClass(elements=elements)))
+        n_ds += 1
+        n_links += len(elements)
+    return n_ds, n_links
+
+
 def _gms_emitter() -> DatahubRestEmitter:
     server = os.environ.get("DATAHUB_GMS_URL", "http://datahub-datahub-gms.data-mesh.svc.cluster.local:8080")
     return DatahubRestEmitter(gms_server=server, token=os.environ.get("DATAHUB_GMS_TOKEN", ""))

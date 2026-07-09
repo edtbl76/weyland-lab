@@ -152,6 +152,12 @@ def emit_structured_properties_op(context):
     _safe_emit(context, "Structured Properties (layer/source/tier facets)", emit_structured_properties)
 
 
+@op
+def emit_docs_links_op(context):
+    from weyland_pipeline.datahub_emit import emit_docs_links
+    _safe_emit(context, "Docs Links (dataset → runbook + tools)", emit_docs_links)
+
+
 @job
 def datahub_catalog_emit_job():
     emit_dagster_assets_op()
@@ -171,6 +177,7 @@ def datahub_catalog_emit_job():
     emit_glossary_op()
     emit_mesh_glossary_op()
     emit_structured_properties_op()
+    emit_docs_links_op()
 
 
 datahub_catalog_emit_schedule = ScheduleDefinition(
