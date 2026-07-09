@@ -19,7 +19,13 @@ import os
 from typing import Dict, List, NamedTuple, Optional, Set
 
 from dagster import AssetKey
-from datahub.emitter.mce_builder import make_chart_urn, make_dashboard_urn, make_dataset_urn, make_tag_urn
+from datahub.emitter.mce_builder import (
+    make_chart_urn,
+    make_dashboard_urn,
+    make_dataset_urn,
+    make_domain_urn,
+    make_tag_urn,
+)
 from datahub.emitter.mcp import MetadataChangeProposalWrapper
 from datahub.emitter.rest_emitter import DatahubRestEmitter
 from datahub.metadata.schema_classes import (
@@ -29,6 +35,8 @@ from datahub.metadata.schema_classes import (
     ChartInfoClass,
     DashboardInfoClass,
     DatasetLineageTypeClass,
+    DomainPropertiesClass,
+    DomainsClass,
     DatasetPropertiesClass,
     GlobalTagsClass,
     NumberTypeClass,
@@ -344,6 +352,64 @@ def emit_lightdash():
                                           dashboardUrl=f"{base}/projects/{proj}/dashboards/{did}/view")))
             n_d += 1
     return n_c, n_d
+
+
+# Domain definitions + assignment rules. Each cataloged asset (dataset/chart/dashboard) is assigned to the FIRST
+# domain whose substring patterns match its (lowercased) URN — so order matters (specific → general; Platform is
+# the catch-all last). Brand-neutral names (no "Method"). Row-level KB sub-structure (engineering/consulting/
+# industry verticals) is NOT modelable as domains — it lives inside shared RAG datasets; that's a Data Product +
+# glossary-term job (follow-up).
+_DOMAINS = {
+    "Music": "Music domain — datasets, dbt marts, Tier-2 stores, vectors, graph, Feast features, and BI.",
+    "Health": "Health / wellness / personality domain — datasets, dbt marts, stores, Feast features, and BI.",
+    "AIDLC Knowledge": "The AIDLC knowledge base — engineering-knowledge, consulting-tools, and industry-vertical repositories.",
+    "Docs & RAG": "The platform documentation corpus and its retrieval stores (pgvector / OpenSearch / graph).",
+    "Platform & Ops": "Operational, observability, and governance data — eval, guardrails, pipelines, CI, alerting, catalog.",
+    "ML & Modeling": "Model registry and trained models.",
+}
+_DOMAIN_RULES = [
+    ("Music", ("datasets_music", "mart_spotify_audio", "mart_genre_audio_profile", "mart_fma_genre_tree",
+               "mart_artist_popularity", "track_audio_features", "spotify", "fma_", "lastfm", "musicbrainz",
+               "gtzan", "audioset", "lp_musiccaps", "uci_year_prediction")),
+    ("Health", ("datasets_health", "mart_state_health_trends", "mart_country_health", "mart_personality_by_country",
+                "state_health_risk", "brfss", "nhanes", "nhis", "who_gho", "big_five", "cdc_physical", "usda",
+                "open_food_facts")),
+    ("AIDLC Knowledge", ("aidlc", ":entry", "entry,prod")),
+    ("Docs & RAG", ("rag_documents", "rag_chunks", "weyland_chunks", "weylandchunk", "document,prod", "chunk,prod")),
+    ("ML & Modeling", ("mlflow", "genre_classifier", "model_catalog", "registered_model", "model_version",
+                       "latest_metrics")),
+    ("Platform & Ops", ("eval", "guardrail", "dagster", "datahub", "unleash", "glitchtip", "sonarqube",
+                        "timescaledb", "ai_session", "run_durations", "ingestion_runs", "event_log")),
+]
+
+
+def emit_domains():
+    """Create the 6 DataHub domains + assign every cataloged dataset/chart/dashboard to one by URN pattern (first
+    match wins). Runs each catalog cycle → new assets self-assign; brand-neutral (no 'Method'). Returns
+    (n_domains, n_assigned)."""
+    from datahub.ingestion.graph.client import DataHubGraph, DatahubClientConfig
+
+    emitter = _gms_emitter()
+    server = os.environ.get("DATAHUB_GMS_URL", "http://datahub-datahub-gms.data-mesh.svc.cluster.local:8080")
+    token = os.environ.get("DATAHUB_GMS_TOKEN", "")
+
+    durn = {}
+    for name, desc in _DOMAINS.items():
+        u = make_domain_urn(name.lower().replace(" & ", "-").replace(" ", "-"))
+        durn[name] = u
+        emitter.emit(MetadataChangeProposalWrapper(entityUrn=u, aspect=DomainPropertiesClass(name=name, description=desc)))
+
+    graph = DataHubGraph(DatahubClientConfig(server=server, token=token))
+    assigned = 0
+    for etype in ("dataset", "chart", "dashboard"):
+        for urn in graph.get_urns_by_filter(entity_types=[etype]):
+            low = urn.lower()
+            for dname, pats in _DOMAIN_RULES:
+                if any(p in low for p in pats):
+                    emitter.emit(MetadataChangeProposalWrapper(entityUrn=urn, aspect=DomainsClass(domains=[durn[dname]])))
+                    assigned += 1
+                    break
+    return len(_DOMAINS), assigned
 
 
 def _gms_emitter() -> DatahubRestEmitter:
