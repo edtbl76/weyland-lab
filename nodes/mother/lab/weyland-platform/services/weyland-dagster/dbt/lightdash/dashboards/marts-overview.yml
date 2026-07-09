@@ -1,0 +1,71 @@
+description: Starter charts over the dbt marts.
+filters:
+  dimensions: []
+  metrics: []
+  tableCalculations: []
+name: Marts overview
+slug: marts-overview
+spaceSlug: shared
+tabs: []
+tiles:
+  - h: 9
+    properties:
+      chartName: Top artists by plays
+      chartSlug: top-artists-by-plays
+      hideTitle: false
+      title: ""
+    tabUuid: null
+    tileSlug: top-artists-by-plays
+    type: saved_chart
+    w: 18
+    x: 0
+    "y": 0
+  - h: 9
+    properties:
+      chartName: Genre audio profile
+      chartSlug: genre-audio-profile
+      hideTitle: false
+      title: ""
+    tabUuid: null
+    tileSlug: genre-audio-profile
+    type: saved_chart
+    w: 18
+    x: 18
+    "y": 0
+  - h: 9
+    properties:
+      chartName: State diabetes prevalence
+      chartSlug: state-diabetes-prevalence
+      hideTitle: false
+      title: ""
+    tabUuid: null
+    tileSlug: state-diabetes-prevalence
+    type: saved_chart
+    w: 18
+    x: 0
+    "y": 9
+  - h: 9
+    properties:
+      chartName: Country life expectancy
+      chartSlug: country-life-expectancy
+      hideTitle: false
+      title: ""
+    tabUuid: null
+    tileSlug: country-life-expectancy
+    type: saved_chart
+    w: 18
+    x: 18
+    "y": 9
+  - h: 9
+    properties:
+      chartName: Personality by country
+      chartSlug: personality-by-country
+      hideTitle: false
+      title: ""
+    tabUuid: null
+    tileSlug: personality-by-country
+    type: saved_chart
+    w: 18
+    x: 0
+    "y": 18
+version: 1

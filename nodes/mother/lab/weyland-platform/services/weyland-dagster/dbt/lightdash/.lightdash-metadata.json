@@ -1,0 +1,27 @@
+{
+  "version": 1,
+  "charts": {
+    "country-life-expectancy": "2026-07-09T02:40:40.619Z",
+    "top-artists-by-plays": "2026-07-09T02:40:40.619Z",
+    "genre-audio-profile": "2026-07-09T02:40:40.619Z",
+    "personality-by-country": "2026-07-09T02:40:40.619Z",
+    "state-diabetes-prevalence": "2026-07-09T02:40:40.619Z",
+    "top-20-artists-by-plays": "2026-07-09T02:40:40.619Z",
+    "top-20-artists-by-listeners": "2026-07-09T02:40:40.619Z",
+    "tracks-per-genre-top-20": "2026-07-09T02:40:40.619Z",
+    "genre-energy-vs-danceability": "2026-07-09T02:40:40.619Z",
+    "genre-acousticness-vs-valence": "2026-07-09T02:40:40.619Z",
+    "us-chronic-conditions-over-time": "2026-07-09T02:40:40.619Z",
+    "diabetes-prevalence-by-state-top-20": "2026-07-09T02:40:40.619Z",
+    "life-expectancy-over-time-global": "2026-07-09T02:40:40.619Z",
+    "top-20-countries-by-life-expectancy": "2026-07-09T02:40:40.619Z",
+    "obesity-vs-diabetes-prevalence-by-country": "2026-07-09T02:40:40.619Z",
+    "smoking-vs-alcohol-by-country": "2026-07-09T02:40:40.619Z",
+    "personality-ocean-by-country": "2026-07-09T02:40:40.619Z"
+  },
+  "dashboards": {
+    "marts-overview": "2026-07-09T02:40:40.766Z",
+    "music-marts-overview": "2026-07-09T02:40:40.766Z",
+    "health-marts-overview": "2026-07-09T02:40:40.766Z"
+  }
+}

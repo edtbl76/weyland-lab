@@ -1,0 +1,50 @@
+chartConfig:
+  config:
+    eChartsConfig:
+      series:
+        - encode:
+            xRef:
+              field: mart_country_health_year
+            yRef:
+              field: mart_country_health_avg_life_expectancy
+          type: line
+        - encode:
+            xRef:
+              field: mart_country_health_year
+            yRef:
+              field: mart_country_health_avg_healthy_life_expectancy
+          type: line
+    layout:
+      flipAxes: false
+      xField: mart_country_health_year
+      yField:
+        - mart_country_health_avg_life_expectancy
+        - mart_country_health_avg_healthy_life_expectancy
+  type: cartesian
+description: null
+metricQuery:
+  additionalMetrics: []
+  customDimensions: []
+  dimensions:
+    - mart_country_health_year
+  exploreName: mart_country_health
+  filters: {}
+  limit: 500
+  metricOverrides: {}
+  metrics:
+    - mart_country_health_avg_life_expectancy
+    - mart_country_health_avg_healthy_life_expectancy
+  sorts:
+    - descending: false
+      fieldId: mart_country_health_year
+  tableCalculations: []
+name: Life expectancy over time (global)
+slug: life-expectancy-over-time-global
+spaceSlug: shared
+tableConfig:
+  columnOrder:
+    - mart_country_health_year
+    - mart_country_health_avg_life_expectancy
+    - mart_country_health_avg_healthy_life_expectancy
+tableName: mart_country_health
+version: 1

@@ -1,0 +1,59 @@
+chartConfig:
+  config:
+    eChartsConfig:
+      series:
+        - encode:
+            xRef:
+              field: mart_personality_by_country_country
+            yRef:
+              field: mart_personality_by_country_avg_extraversion
+          type: bar
+        - encode:
+            xRef:
+              field: mart_personality_by_country_country
+            yRef:
+              field: mart_personality_by_country_avg_openness
+          type: bar
+        - encode:
+            xRef:
+              field: mart_personality_by_country_country
+            yRef:
+              field: mart_personality_by_country_avg_conscientiousness
+          type: bar
+    layout:
+      flipAxes: false
+      xField: mart_personality_by_country_country
+      yField:
+        - mart_personality_by_country_avg_extraversion
+        - mart_personality_by_country_avg_openness
+        - mart_personality_by_country_avg_conscientiousness
+  type: cartesian
+description: null
+metricQuery:
+  additionalMetrics: []
+  customDimensions: []
+  dimensions:
+    - mart_personality_by_country_country
+  exploreName: mart_personality_by_country
+  filters: {}
+  limit: 20
+  metricOverrides: {}
+  metrics:
+    - mart_personality_by_country_avg_extraversion
+    - mart_personality_by_country_avg_openness
+    - mart_personality_by_country_avg_conscientiousness
+  sorts:
+    - descending: true
+      fieldId: mart_personality_by_country_avg_extraversion
+  tableCalculations: []
+name: Personality (OCEAN) by country
+slug: personality-ocean-by-country
+spaceSlug: shared
+tableConfig:
+  columnOrder:
+    - mart_personality_by_country_country
+    - mart_personality_by_country_avg_extraversion
+    - mart_personality_by_country_avg_openness
+    - mart_personality_by_country_avg_conscientiousness
+tableName: mart_personality_by_country
+version: 1

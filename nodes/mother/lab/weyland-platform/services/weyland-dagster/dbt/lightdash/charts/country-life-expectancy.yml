@@ -1,0 +1,29 @@
+chartConfig:
+  config:
+    showTableNames: false
+  type: table
+description: null
+metricQuery:
+  additionalMetrics: []
+  customDimensions: []
+  dimensions:
+    - mart_country_health_country
+  exploreName: mart_country_health
+  filters: {}
+  limit: 25
+  metricOverrides: {}
+  metrics:
+    - mart_country_health_avg_life_expectancy
+  sorts:
+    - descending: true
+      fieldId: mart_country_health_avg_life_expectancy
+  tableCalculations: []
+name: Country life expectancy
+slug: country-life-expectancy
+spaceSlug: shared
+tableConfig:
+  columnOrder:
+    - mart_country_health_country
+    - mart_country_health_avg_life_expectancy
+tableName: mart_country_health
+version: 1

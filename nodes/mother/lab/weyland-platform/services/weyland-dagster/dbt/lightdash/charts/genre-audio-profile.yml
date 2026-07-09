@@ -1,0 +1,33 @@
+chartConfig:
+  config:
+    showTableNames: false
+  type: table
+description: null
+metricQuery:
+  additionalMetrics: []
+  customDimensions: []
+  dimensions:
+    - mart_spotify_audio_track_genre
+  exploreName: mart_spotify_audio
+  filters: {}
+  limit: 25
+  metricOverrides: {}
+  metrics:
+    - mart_spotify_audio_track_count
+    - mart_spotify_audio_avg_energy
+    - mart_spotify_audio_avg_danceability
+  sorts:
+    - descending: true
+      fieldId: mart_spotify_audio_track_count
+  tableCalculations: []
+name: Genre audio profile
+slug: genre-audio-profile
+spaceSlug: shared
+tableConfig:
+  columnOrder:
+    - mart_spotify_audio_track_genre
+    - mart_spotify_audio_track_count
+    - mart_spotify_audio_avg_energy
+    - mart_spotify_audio_avg_danceability
+tableName: mart_spotify_audio
+version: 1

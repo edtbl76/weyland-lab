@@ -1,0 +1,29 @@
+chartConfig:
+  config:
+    showTableNames: false
+  type: table
+description: null
+metricQuery:
+  additionalMetrics: []
+  customDimensions: []
+  dimensions:
+    - mart_personality_by_country_country
+  exploreName: mart_personality_by_country
+  filters: {}
+  limit: 25
+  metricOverrides: {}
+  metrics:
+    - mart_personality_by_country_avg_extraversion
+    - mart_personality_by_country_avg_openness
+  sorts: []
+  tableCalculations: []
+name: Personality by country
+slug: personality-by-country
+spaceSlug: shared
+tableConfig:
+  columnOrder:
+    - mart_personality_by_country_country
+    - mart_personality_by_country_avg_extraversion
+    - mart_personality_by_country_avg_openness
+tableName: mart_personality_by_country
+version: 1

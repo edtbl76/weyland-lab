@@ -1,0 +1,50 @@
+chartConfig:
+  config:
+    eChartsConfig:
+      series:
+        - encode:
+            xRef:
+              field: mart_country_health_country
+            yRef:
+              field: mart_country_health_avg_adult_obesity
+          type: bar
+        - encode:
+            xRef:
+              field: mart_country_health_country
+            yRef:
+              field: mart_country_health_avg_diabetes_prevalence
+          type: bar
+    layout:
+      flipAxes: false
+      xField: mart_country_health_country
+      yField:
+        - mart_country_health_avg_adult_obesity
+        - mart_country_health_avg_diabetes_prevalence
+  type: cartesian
+description: null
+metricQuery:
+  additionalMetrics: []
+  customDimensions: []
+  dimensions:
+    - mart_country_health_country
+  exploreName: mart_country_health
+  filters: {}
+  limit: 20
+  metricOverrides: {}
+  metrics:
+    - mart_country_health_avg_adult_obesity
+    - mart_country_health_avg_diabetes_prevalence
+  sorts:
+    - descending: true
+      fieldId: mart_country_health_avg_adult_obesity
+  tableCalculations: []
+name: Obesity vs diabetes prevalence by country
+slug: obesity-vs-diabetes-prevalence-by-country
+spaceSlug: shared
+tableConfig:
+  columnOrder:
+    - mart_country_health_country
+    - mart_country_health_avg_adult_obesity
+    - mart_country_health_avg_diabetes_prevalence
+tableName: mart_country_health
+version: 1

@@ -1,0 +1,68 @@
+chartConfig:
+  config:
+    eChartsConfig:
+      series:
+        - encode:
+            xRef:
+              field: mart_state_health_trends_year
+            yRef:
+              field: mart_state_health_trends_avg_diabetes_pct
+          type: line
+        - encode:
+            xRef:
+              field: mart_state_health_trends_year
+            yRef:
+              field: mart_state_health_trends_avg_asthma_pct
+          type: line
+        - encode:
+            xRef:
+              field: mart_state_health_trends_year
+            yRef:
+              field: mart_state_health_trends_avg_copd_pct
+          type: line
+        - encode:
+            xRef:
+              field: mart_state_health_trends_year
+            yRef:
+              field: mart_state_health_trends_avg_depression_pct
+          type: line
+    layout:
+      flipAxes: false
+      xField: mart_state_health_trends_year
+      yField:
+        - mart_state_health_trends_avg_diabetes_pct
+        - mart_state_health_trends_avg_asthma_pct
+        - mart_state_health_trends_avg_copd_pct
+        - mart_state_health_trends_avg_depression_pct
+  type: cartesian
+description: null
+metricQuery:
+  additionalMetrics: []
+  customDimensions: []
+  dimensions:
+    - mart_state_health_trends_year
+  exploreName: mart_state_health_trends
+  filters: {}
+  limit: 500
+  metricOverrides: {}
+  metrics:
+    - mart_state_health_trends_avg_diabetes_pct
+    - mart_state_health_trends_avg_asthma_pct
+    - mart_state_health_trends_avg_copd_pct
+    - mart_state_health_trends_avg_depression_pct
+  sorts:
+    - descending: false
+      fieldId: mart_state_health_trends_year
+  tableCalculations: []
+name: US chronic conditions over time
+slug: us-chronic-conditions-over-time
+spaceSlug: shared
+tableConfig:
+  columnOrder:
+    - mart_state_health_trends_year
+    - mart_state_health_trends_avg_diabetes_pct
+    - mart_state_health_trends_avg_asthma_pct
+    - mart_state_health_trends_avg_copd_pct
+    - mart_state_health_trends_avg_depression_pct
+tableName: mart_state_health_trends
+version: 1

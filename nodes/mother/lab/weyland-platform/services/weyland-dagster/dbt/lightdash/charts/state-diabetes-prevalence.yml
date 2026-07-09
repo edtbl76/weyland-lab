@@ -1,0 +1,29 @@
+chartConfig:
+  config:
+    showTableNames: false
+  type: table
+description: null
+metricQuery:
+  additionalMetrics: []
+  customDimensions: []
+  dimensions:
+    - mart_state_health_trends_state
+  exploreName: mart_state_health_trends
+  filters: {}
+  limit: 25
+  metricOverrides: {}
+  metrics:
+    - mart_state_health_trends_avg_diabetes_pct
+  sorts:
+    - descending: true
+      fieldId: mart_state_health_trends_avg_diabetes_pct
+  tableCalculations: []
+name: State diabetes prevalence
+slug: state-diabetes-prevalence
+spaceSlug: shared
+tableConfig:
+  columnOrder:
+    - mart_state_health_trends_state
+    - mart_state_health_trends_avg_diabetes_pct
+tableName: mart_state_health_trends
+version: 1

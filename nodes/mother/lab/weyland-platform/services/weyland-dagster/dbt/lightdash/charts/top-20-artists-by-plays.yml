@@ -1,0 +1,41 @@
+chartConfig:
+  config:
+    eChartsConfig:
+      series:
+        - encode:
+            xRef:
+              field: mart_artist_popularity_artist_name
+            yRef:
+              field: mart_artist_popularity_total_plays_sum
+          type: bar
+    layout:
+      flipAxes: true
+      xField: mart_artist_popularity_artist_name
+      yField:
+        - mart_artist_popularity_total_plays_sum
+  type: cartesian
+description: null
+metricQuery:
+  additionalMetrics: []
+  customDimensions: []
+  dimensions:
+    - mart_artist_popularity_artist_name
+  exploreName: mart_artist_popularity
+  filters: {}
+  limit: 20
+  metricOverrides: {}
+  metrics:
+    - mart_artist_popularity_total_plays_sum
+  sorts:
+    - descending: true
+      fieldId: mart_artist_popularity_total_plays_sum
+  tableCalculations: []
+name: Top 20 artists by plays
+slug: top-20-artists-by-plays
+spaceSlug: shared
+tableConfig:
+  columnOrder:
+    - mart_artist_popularity_artist_name
+    - mart_artist_popularity_total_plays_sum
+tableName: mart_artist_popularity
+version: 1

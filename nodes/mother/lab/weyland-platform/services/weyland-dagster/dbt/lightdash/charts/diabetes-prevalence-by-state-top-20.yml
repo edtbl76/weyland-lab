@@ -1,0 +1,41 @@
+chartConfig:
+  config:
+    eChartsConfig:
+      series:
+        - encode:
+            xRef:
+              field: mart_state_health_trends_state
+            yRef:
+              field: mart_state_health_trends_avg_diabetes_pct
+          type: bar
+    layout:
+      flipAxes: true
+      xField: mart_state_health_trends_state
+      yField:
+        - mart_state_health_trends_avg_diabetes_pct
+  type: cartesian
+description: null
+metricQuery:
+  additionalMetrics: []
+  customDimensions: []
+  dimensions:
+    - mart_state_health_trends_state
+  exploreName: mart_state_health_trends
+  filters: {}
+  limit: 20
+  metricOverrides: {}
+  metrics:
+    - mart_state_health_trends_avg_diabetes_pct
+  sorts:
+    - descending: true
+      fieldId: mart_state_health_trends_avg_diabetes_pct
+  tableCalculations: []
+name: Diabetes prevalence by state (top 20)
+slug: diabetes-prevalence-by-state-top-20
+spaceSlug: shared
+tableConfig:
+  columnOrder:
+    - mart_state_health_trends_state
+    - mart_state_health_trends_avg_diabetes_pct
+tableName: mart_state_health_trends
+version: 1

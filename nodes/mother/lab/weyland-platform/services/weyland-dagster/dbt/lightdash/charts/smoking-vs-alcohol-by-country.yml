@@ -1,0 +1,50 @@
+chartConfig:
+  config:
+    eChartsConfig:
+      series:
+        - encode:
+            xRef:
+              field: mart_country_health_country
+            yRef:
+              field: mart_country_health_avg_tobacco_smoking
+          type: bar
+        - encode:
+            xRef:
+              field: mart_country_health_country
+            yRef:
+              field: mart_country_health_avg_alcohol_consumption
+          type: bar
+    layout:
+      flipAxes: false
+      xField: mart_country_health_country
+      yField:
+        - mart_country_health_avg_tobacco_smoking
+        - mart_country_health_avg_alcohol_consumption
+  type: cartesian
+description: null
+metricQuery:
+  additionalMetrics: []
+  customDimensions: []
+  dimensions:
+    - mart_country_health_country
+  exploreName: mart_country_health
+  filters: {}
+  limit: 20
+  metricOverrides: {}
+  metrics:
+    - mart_country_health_avg_tobacco_smoking
+    - mart_country_health_avg_alcohol_consumption
+  sorts:
+    - descending: true
+      fieldId: mart_country_health_avg_tobacco_smoking
+  tableCalculations: []
+name: Smoking vs alcohol by country
+slug: smoking-vs-alcohol-by-country
+spaceSlug: shared
+tableConfig:
+  columnOrder:
+    - mart_country_health_country
+    - mart_country_health_avg_tobacco_smoking
+    - mart_country_health_avg_alcohol_consumption
+tableName: mart_country_health
+version: 1

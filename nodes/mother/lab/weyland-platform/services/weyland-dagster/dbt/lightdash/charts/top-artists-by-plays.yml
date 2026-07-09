@@ -1,0 +1,29 @@
+chartConfig:
+  config:
+    showTableNames: false
+  type: table
+description: null
+metricQuery:
+  additionalMetrics: []
+  customDimensions: []
+  dimensions:
+    - mart_artist_popularity_artist_name
+  exploreName: mart_artist_popularity
+  filters: {}
+  limit: 25
+  metricOverrides: {}
+  metrics:
+    - mart_artist_popularity_total_plays_sum
+  sorts:
+    - descending: true
+      fieldId: mart_artist_popularity_total_plays_sum
+  tableCalculations: []
+name: Top artists by plays
+slug: top-artists-by-plays
+spaceSlug: shared
+tableConfig:
+  columnOrder:
+    - mart_artist_popularity_artist_name
+    - mart_artist_popularity_total_plays_sum
+tableName: mart_artist_popularity
+version: 1

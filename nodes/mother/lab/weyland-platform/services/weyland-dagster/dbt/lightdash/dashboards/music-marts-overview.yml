@@ -1,0 +1,71 @@
+description: Artist popularity + genre audio signatures over the dbt marts.
+filters:
+  dimensions: []
+  metrics: []
+  tableCalculations: []
+name: Music — marts overview
+slug: music-marts-overview
+spaceSlug: shared
+tabs: []
+tiles:
+  - h: 9
+    properties:
+      chartName: Top 20 artists by plays
+      chartSlug: top-20-artists-by-plays
+      hideTitle: false
+      title: ""
+    tabUuid: null
+    tileSlug: top-20-artists-by-plays
+    type: saved_chart
+    w: 18
+    x: 0
+    "y": 0
+  - h: 9
+    properties:
+      chartName: Top 20 artists by listeners
+      chartSlug: top-20-artists-by-listeners
+      hideTitle: false
+      title: ""
+    tabUuid: null
+    tileSlug: top-20-artists-by-listeners
+    type: saved_chart
+    w: 18
+    x: 18
+    "y": 0
+  - h: 9
+    properties:
+      chartName: Tracks per genre (top 20)
+      chartSlug: tracks-per-genre-top-20
+      hideTitle: false
+      title: ""
+    tabUuid: null
+    tileSlug: tracks-per-genre-top-20
+    type: saved_chart
+    w: 18
+    x: 0
+    "y": 9
+  - h: 9
+    properties:
+      chartName: Genre energy vs danceability
+      chartSlug: genre-energy-vs-danceability
+      hideTitle: false
+      title: ""
+    tabUuid: null
+    tileSlug: genre-energy-vs-danceability
+    type: saved_chart
+    w: 18
+    x: 18
+    "y": 9
+  - h: 9
+    properties:
+      chartName: Genre acousticness vs valence
+      chartSlug: genre-acousticness-vs-valence
+      hideTitle: false
+      title: ""
+    tabUuid: null
+    tileSlug: genre-acousticness-vs-valence
+    type: saved_chart
+    w: 18
+    x: 0
+    "y": 18
+version: 1

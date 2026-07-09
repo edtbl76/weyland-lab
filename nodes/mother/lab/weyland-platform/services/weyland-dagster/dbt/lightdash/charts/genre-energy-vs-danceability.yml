@@ -1,0 +1,50 @@
+chartConfig:
+  config:
+    eChartsConfig:
+      series:
+        - encode:
+            xRef:
+              field: mart_spotify_audio_track_genre
+            yRef:
+              field: mart_spotify_audio_avg_energy
+          type: bar
+        - encode:
+            xRef:
+              field: mart_spotify_audio_track_genre
+            yRef:
+              field: mart_spotify_audio_avg_danceability
+          type: bar
+    layout:
+      flipAxes: false
+      xField: mart_spotify_audio_track_genre
+      yField:
+        - mart_spotify_audio_avg_energy
+        - mart_spotify_audio_avg_danceability
+  type: cartesian
+description: null
+metricQuery:
+  additionalMetrics: []
+  customDimensions: []
+  dimensions:
+    - mart_spotify_audio_track_genre
+  exploreName: mart_spotify_audio
+  filters: {}
+  limit: 20
+  metricOverrides: {}
+  metrics:
+    - mart_spotify_audio_avg_energy
+    - mart_spotify_audio_avg_danceability
+  sorts:
+    - descending: true
+      fieldId: mart_spotify_audio_avg_energy
+  tableCalculations: []
+name: Genre energy vs danceability
+slug: genre-energy-vs-danceability
+spaceSlug: shared
+tableConfig:
+  columnOrder:
+    - mart_spotify_audio_track_genre
+    - mart_spotify_audio_avg_energy
+    - mart_spotify_audio_avg_danceability
+tableName: mart_spotify_audio
+version: 1

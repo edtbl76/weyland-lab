@@ -1,0 +1,95 @@
+description: Chronic-condition trends, country health indicators, and personality.
+filters:
+  dimensions: []
+  metrics: []
+  tableCalculations: []
+name: Health — marts overview
+slug: health-marts-overview
+spaceSlug: shared
+tabs: []
+tiles:
+  - h: 9
+    properties:
+      chartName: US chronic conditions over time
+      chartSlug: us-chronic-conditions-over-time
+      hideTitle: false
+      title: ""
+    tabUuid: null
+    tileSlug: us-chronic-conditions-over-time
+    type: saved_chart
+    w: 18
+    x: 0
+    "y": 0
+  - h: 9
+    properties:
+      chartName: Diabetes prevalence by state (top 20)
+      chartSlug: diabetes-prevalence-by-state-top-20
+      hideTitle: false
+      title: ""
+    tabUuid: null
+    tileSlug: diabetes-prevalence-by-state-top-20
+    type: saved_chart
+    w: 18
+    x: 18
+    "y": 0
+  - h: 9
+    properties:
+      chartName: Life expectancy over time (global)
+      chartSlug: life-expectancy-over-time-global
+      hideTitle: false
+      title: ""
+    tabUuid: null
+    tileSlug: life-expectancy-over-time-global
+    type: saved_chart
+    w: 18
+    x: 0
+    "y": 9
+  - h: 9
+    properties:
+      chartName: Top 20 countries by life expectancy
+      chartSlug: top-20-countries-by-life-expectancy
+      hideTitle: false
+      title: ""
+    tabUuid: null
+    tileSlug: top-20-countries-by-life-expectancy
+    type: saved_chart
+    w: 18
+    x: 18
+    "y": 9
+  - h: 9
+    properties:
+      chartName: Obesity vs diabetes prevalence by country
+      chartSlug: obesity-vs-diabetes-prevalence-by-country
+      hideTitle: false
+      title: ""
+    tabUuid: null
+    tileSlug: obesity-vs-diabetes-prevalence-by-country
+    type: saved_chart
+    w: 18
+    x: 0
+    "y": 18
+  - h: 9
+    properties:
+      chartName: Smoking vs alcohol by country
+      chartSlug: smoking-vs-alcohol-by-country
+      hideTitle: false
+      title: ""
+    tabUuid: null
+    tileSlug: smoking-vs-alcohol-by-country
+    type: saved_chart
+    w: 18
+    x: 18
+    "y": 18
+  - h: 9
+    properties:
+      chartName: Personality (OCEAN) by country
+      chartSlug: personality-ocean-by-country
+      hideTitle: false
+      title: ""
+    tabUuid: null
+    tileSlug: personality-ocean-by-country
+    type: saved_chart
+    w: 18
+    x: 0
+    "y": 27
+version: 1
