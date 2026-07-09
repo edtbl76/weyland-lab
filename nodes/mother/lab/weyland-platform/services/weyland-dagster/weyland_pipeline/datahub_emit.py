@@ -624,6 +624,106 @@ def emit_mesh_glossary(attach=True):
     return n_nodes, n_terms, n_fields, n_ds
 
 
+# Surface 2 — Structured Properties: typed, filterable facets. (qualifiedName, displayName, description,
+# [(value, value-description)]). qualifiedName doubles as the URN id: urn:li:structuredProperty:<qualifiedName>.
+_SP_DATASET_ET = "urn:li:entityType:datahub.dataset"
+_SP_STRING = "urn:li:dataType:datahub.string"
+_STRUCT_PROPS = {
+    "weyland.data_layer": ("Data Layer", "Medallion / lakehouse layer of this dataset.", [
+        ("raw", "Source data landed unmodified"), ("bronze", "Raw ingested layer"),
+        ("silver", "Cleaned, conformed layer"), ("gold", "Business-level aggregates"),
+        ("mart", "Curated, tested subject mart"), ("feature", "ML feature view / serving"),
+        ("serving", "Retrieval / RAG serving corpus")]),
+    "weyland.source_system": ("Source System", "Upstream system the data originates from.", [
+        ("spotify", "Spotify audio features"), ("lastfm", "Last.fm plays/listeners"),
+        ("musicbrainz", "MusicBrainz"), ("fma", "Free Music Archive"), ("gtzan", "GTZAN audio"),
+        ("brfss", "CDC BRFSS survey"), ("who_gho", "WHO Global Health Observatory"),
+        ("personality", "Big Five personality"), ("platform_docs", "Weyland docs / RAG"),
+        ("aidlc_kb", "AIDLC knowledge base"), ("ai_dev", "AI-dev usage telemetry"),
+        ("ops", "Platform / ops telemetry")]),
+    "weyland.store_tier": ("Store Tier", "Which grid store physically holds this copy.", [
+        ("lakehouse", "Iceberg / Trino / dbt / files"), ("tier2", "Tier-2 OLAP/doc/KV store"),
+        ("vector", "Vector store"), ("graph", "Graph store"), ("streaming", "Kafka / Avro stream"),
+        ("operational", "Operational RDBMS"), ("bi", "BI tool"), ("ml", "ML tracking / registry")]),
+}
+
+_STORE_TIER_BY_PLATFORM = {
+    "trino": "lakehouse", "iceberg": "lakehouse", "dbt": "lakehouse", "s3": "lakehouse",
+    "parquet": "lakehouse", "lakefs": "lakehouse", "duckdb": "lakehouse",
+    "clickhouse": "tier2", "cassandra": "tier2", "mysql": "tier2", "mongodb": "tier2",
+    "cockroachdb": "tier2", "opensearch": "tier2", "timescaledb": "tier2",
+    "qdrant": "vector", "weaviate": "vector", "lance": "vector", "lancedb": "vector",
+    "neo4j": "graph", "kafka": "streaming", "avro": "streaming", "arrow": "streaming",
+    "postgres": "operational", "superset": "bi", "grafana": "bi", "mlflow": "ml",
+}
+# ordered (substring, source_system) — first match wins; specific before generic.
+_SOURCE_RULES = [
+    ("musicbrainz", "musicbrainz"), ("mbid", "musicbrainz"), ("spotify", "spotify"),
+    ("lastfm", "lastfm"), ("last_fm", "lastfm"), ("gtzan", "gtzan"), ("fma", "fma"),
+    ("brfss", "brfss"), ("state_health", "brfss"), ("health_trends", "brfss"),
+    ("gho", "who_gho"), ("country_health", "who_gho"), ("personality", "personality"),
+    ("ocean", "personality"), ("aidlc", "aidlc_kb"), ("ai_session", "ai_dev"), ("ai_dev", "ai_dev"),
+    ("rag", "platform_docs"), ("weyland_chunks", "platform_docs"), ("docs", "platform_docs"),
+    ("uptime", "ops"), ("kuma", "ops"), ("grafana", "ops"),
+]
+
+
+def _infer_layer(low):
+    for key, val in (("mart_", "mart"), ("silver", "silver"), ("bronze", "bronze"), ("gold", "gold"),
+                     ("feast", "feature"), ("feature", "feature"), ("chunk", "serving"), ("rag_", "serving")):
+        if key in low:
+            return val
+    return None
+
+
+def _infer_source(low):
+    for sub, val in _SOURCE_RULES:
+        if sub in low:
+            return val
+    return None
+
+
+def emit_structured_properties():
+    """Surface 2 — define the typed facets (data_layer / source_system / store_tier) and assign each cataloged
+    dataset by URN pattern. Makes the catalog queryable (Domain=owner, Product=bundle, these=filter facets). Both
+    the definitions and assignments come from git (UI-defined structured properties die on a DataHub rebuild).
+    Returns (n_props_defined, n_datasets_assigned)."""
+    from datahub.metadata.schema_classes import (
+        PropertyValueClass, StructuredPropertiesClass, StructuredPropertyDefinitionClass,
+        StructuredPropertyValueAssignmentClass)
+    from datahub.ingestion.graph.client import DataHubGraph, DatahubClientConfig
+
+    emitter = _gms_emitter()
+    server = os.environ.get("DATAHUB_GMS_URL", "http://datahub-datahub-gms.data-mesh.svc.cluster.local:8080")
+    token = os.environ.get("DATAHUB_GMS_TOKEN", "")
+
+    n_props = 0
+    for qname, (disp, desc, allowed) in _STRUCT_PROPS.items():
+        emitter.emit(MetadataChangeProposalWrapper(
+            entityUrn=f"urn:li:structuredProperty:{qname}",
+            aspect=StructuredPropertyDefinitionClass(
+                qualifiedName=qname, displayName=disp, description=desc, valueType=_SP_STRING,
+                cardinality="SINGLE", entityTypes=[_SP_DATASET_ET],
+                allowedValues=[PropertyValueClass(value=v, description=d) for v, d in allowed])))
+        n_props += 1
+
+    plat = lambda u: (_re.search(r"dataPlatform:([^,]+),", u) or [None, "?"])[1]
+    graph = DataHubGraph(DatahubClientConfig(server=server, token=token))
+    n_ds = 0
+    for urn in graph.get_urns_by_filter(entity_types=["dataset"]):
+        low = urn.lower()
+        vals = {"weyland.data_layer": _infer_layer(low),
+                "weyland.source_system": _infer_source(low),
+                "weyland.store_tier": _STORE_TIER_BY_PLATFORM.get(plat(urn))}
+        assigns = [StructuredPropertyValueAssignmentClass(propertyUrn=f"urn:li:structuredProperty:{q}", values=[v])
+                   for q, v in vals.items() if v]
+        if not assigns:
+            continue
+        emitter.emit(MetadataChangeProposalWrapper(entityUrn=urn, aspect=StructuredPropertiesClass(properties=assigns)))
+        n_ds += 1
+    return n_props, n_ds
+
+
 def _gms_emitter() -> DatahubRestEmitter:
     server = os.environ.get("DATAHUB_GMS_URL", "http://datahub-datahub-gms.data-mesh.svc.cluster.local:8080")
     return DatahubRestEmitter(gms_server=server, token=os.environ.get("DATAHUB_GMS_TOKEN", ""))
