@@ -1,0 +1,19 @@
+# DataHub managed-ingestion recipe — CockroachDB (Tier-2 distributed SQL: brfss + nhis, db-per-dataset).
+# Source-of-record for the ALREADY-LIVE UI-configured source (no committed recipe before → non-durable).
+# Single-node INSECURE cockroach (user `root`, no password). In-cluster svc :26257.
+#
+# WRINKLE ([[cockroachdb-pg-wire-not-dialect]]): Cockroach is pg-WIRE not pg-DIALECT — the plain DataHub
+# `postgres` source AssertionErrors on Cockroach's version string. Use `type: cockroachdb` (DataHub's Cockroach
+# source, a postgres subclass that tolerates the version banner). If the deployed DataHub lacks that source type,
+# the live UI source may instead be a `sqlalchemy` generic source with a `cockroachdb://` connect_uri — reconcile
+# this file against whatever the live source actually is. Schedule: weekly (Sun).
+source:
+  type: cockroachdb
+  config:
+    host_port: "cockroachdb.data-mesh.svc.cluster.local:26257"
+    username: "root"
+    database_pattern:
+      deny:
+        - "^(system|defaultdb|postgres)$"
+    profiling:
+      enabled: false

@@ -1,0 +1,19 @@
+# DataHub managed-ingestion recipe — MusicBrainz Postgres (the DEDICATED postgres:18 instance, NOT covered by
+# postgres.recipe.yaml which points at weyland-postgres). Source-of-record for the ALREADY-LIVE UI-configured
+# source (no committed recipe before → non-durable). Full native mbdump (2.9M artists / 39.3M recordings / 1.1M
+# links) in db `musicbrainz_db`, schema `musicbrainz`. In-cluster svc :5432. user `musicbrainz` (superuser).
+# ${MUSICBRAINZ_PG_PASSWORD} = pod ENV on acryl-datahub-actions (data-mesh/datahub-ingestion-secrets, durable)
+# = musicbrainz. Profiling OFF — 39.3M recordings makes a full profile a heavy scan. Schedule: weekly (Sun).
+# See [[musicbrainz-postgres-native-mirror]].
+source:
+  type: postgres
+  config:
+    host_port: "musicbrainz-postgres.data-mesh.svc.cluster.local:5432"
+    database: "musicbrainz_db"
+    username: "musicbrainz"
+    password: "${MUSICBRAINZ_PG_PASSWORD}"
+    schema_pattern:
+      allow:
+        - "musicbrainz"
+    profiling:
+      enabled: false

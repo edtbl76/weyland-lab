@@ -1,0 +1,13 @@
+# DataHub managed-ingestion recipe — Superset (ad-hoc BI over Trino + the marts).
+# Source-of-record for the ALREADY-LIVE UI-configured source (there was no committed recipe → it would die on a
+# GMS rebuild; this captures it). Catalogs Superset dashboards/charts/datasets + chart→table lineage.
+# In-cluster svc (`superset.data-mesh.svc:8088`, NOT the Keycloak-OIDC ingress). Auth = the Superset DB admin
+# (provider=db, the helm-bootstrapped `admin`, separate from OIDC). ${SUPERSET_PASSWORD} = pod ENV on the
+# acryl-datahub-actions pod (data-mesh/datahub-ingestion-secrets, durable) = weyland_dev_password. Schedule: daily.
+source:
+  type: superset
+  config:
+    connect_uri: "http://superset.data-mesh.svc.cluster.local:8088"
+    username: "admin"
+    password: "${SUPERSET_PASSWORD}"
+    provider: db

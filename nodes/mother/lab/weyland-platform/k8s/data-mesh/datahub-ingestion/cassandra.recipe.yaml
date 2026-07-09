@@ -1,0 +1,15 @@
+# DataHub managed-ingestion recipe — Cassandra (Tier-2 wide-column: datasets_music + datasets_health keyspaces).
+# Source-of-record for the ALREADY-LIVE UI-configured source (no committed recipe before → non-durable on a GMS
+# rebuild). Single-node, AllowAll auth (no creds on the LAN). In-cluster svc. Profiling OFF — a full profile is a
+# COUNT scan over every table and lastfm is ~17M rows (see [[cassandra-tier2-hydration]]). Schedule: weekly (Sun).
+source:
+  type: cassandra
+  config:
+    contact_point: "cassandra.data-mesh.svc.cluster.local"
+    port: 9042
+    keyspace_pattern:
+      allow:
+        - "datasets_music"
+        - "datasets_health"
+    profiling:
+      enabled: false
