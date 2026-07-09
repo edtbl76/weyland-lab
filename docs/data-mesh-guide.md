@@ -145,8 +145,19 @@ Registry); consumers read `cdc.*` / `datasets.*` topics. See [runbook](runbooks/
 the Dagster/store side, native source recipes (iceberg, postgres, trino, dbt, …) for the rest — so gold → mart →
 Feast/trainer lineage is one graph. See [`datahub-ingestion/`](../nodes/mother/lab/weyland-platform/k8s/data-mesh/datahub-ingestion/README.md).
 
+**7 · Governance & discovery (DataHub).** On top of datasets + lineage sits a full governance layer, all emitted
+from git via `datahub_emit.py` (Dagster `datahub_catalog_emit_job`, every 6h) — each surface answers a different
+question: **Domains** (who owns it — 6 areas, ~2,330 assets auto-classified), **Data Products** (what bundle — 9
+mesh products), **Glossaries** (what a concept means — AIDLC KB 480 terms + Data Mesh 44 authored terms attached
+to ~1,968 fields), **Structured Properties** (filter facets — `data_layer`/`source_system`/`store_tier`), **field
+descriptions** (this specific column — authored upstream in dbt `schema.yml`), and **Documentation Links** (where's
+the doc — ~1,386 datasets link out to their runbook + this guide + the [Tools launchpad](tools.md)). Two rules:
+*define once, attach everywhere* (one term/facet attached to every matching field across the ~15 store copies) and
+*everything lives in git* (DataHub's UI layer isn't durable). Full detail in [`arch.md`](arch.md#7b-data-domain-structure).
+
 ## See also
 
+- [Tools launchpad](tools.md) — clickable directory of every running tool UI
 - [query cookbooks](query/README.md) — one file per store, real copy-paste queries
 - [runbooks](runbooks/) — how each store is deployed/operated
 - [`data-domain-storage-grid.csv`](data-domain-storage-grid.csv) — dataset × store coverage

@@ -275,6 +275,43 @@ agents/workflows and platform state. Agents call the tool-server, *not* database
   Trino is unreachable from the external trainer); **(3) DataHub** — via the two paths above. So the
   dedup/aggregation logic is defined once in dbt and the lineage graph reads gold → dbt mart → {Feast source,
   trainer, DataHub}.
+- **DataHub governance & discovery layer (2026-07-09).** On top of the raw catalog (datasets + lineage), a full
+  governance model was built — all of it emitted from git, none of it hand-typed in the UI. Each piece is a
+  function in `weyland_pipeline/datahub_emit.py`, wired into the Dagster `datahub_catalog_emit_job` (every 6h),
+  and picks the DataHub surface that matches the *question a user is asking*:
+    - **Domains** (`emit_domains`) — 6 brand-neutral business areas (Music, Health, AIDLC Knowledge, Docs & RAG,
+      Platform & Ops, ML & Modeling). Every dataset/chart/dashboard **auto-assigns** to one by URN pattern
+      (first-match-wins) → ~2,330 assets classified; new assets self-classify each run. Answers *"who owns this?"*
+    - **Data Products** (`emit_data_products`) — 9 mesh bundles (Spotify Audio, Artist Popularity, Chronic Health
+      Trends, Genre Classifier…), each gathering its assets by URN pattern and filed under its domain. Answers
+      *"what shippable bundle is this part of?"*
+    - **Two Glossaries.** *AIDLC KB* (`emit_glossary` + `aidlc_glossary.py`): 17 nodes / 480 terms **generated at
+      build time** from the `.methodaidlc` source repos (industry verticals, consulting tools, AIDLC stages, and
+      396 engineering entries nested by frontmatter tag) — the source files aren't in the image, so the taxonomy
+      is baked into a data module. *Data Mesh* (`emit_mesh_glossary` + `mesh_vocabulary.py`): 6 nodes / 44
+      **hand-authored** terms with canonical definitions (11 Spotify audio features, Big-Five/OCEAN, medallion
+      layers, cryptic source-schema columns — MusicBrainz `entity0_credit`/`gid`, WHO GHO `dim1`, CDC `op`).
+      Answers *"what does this concept mean?"*
+    - **Structured Properties** (`emit_structured_properties`) — typed enum facets `data_layer`
+      (bronze/silver/gold/mart/…), `source_system` (spotify/musicbrainz/brfss/…), `store_tier`
+      (lakehouse/tier2/vector/…), inferred per dataset from its URN and assigned as **search filters**. Answers
+      *"let me filter/report by this facet."* (Domain = owner, Product = bundle, these = the filter facets.)
+    - **Field descriptions** — the ~70 mart columns are described **upstream in dbt `schema.yml`** (source of
+      truth); `dbt parse` bakes them into the manifest and `emit_dbt` lifts them onto the `iceberg.dbt.mart_*`
+      datasets. Answers *"what is this specific column?"*
+    - **Documentation Links** (`emit_docs_links`) — `institutionalMemory` links each of ~1,386 datasets **out** to
+      its doc-site runbook + the Data Mesh guide + the **Tools launchpad** (`docs.weyland.lab/tools/`). DataHub is
+      the discovery layer that points **home** to the canonical (git-backed) docs — prose is never duplicated into
+      DataHub. DataHub "Documents" is deliberately left empty: it's UI-authored with no git emit path, so it can't
+      obey the durability rule.
+  Two principles run through all of it. **(1) Define once, attach everywhere.** The catalog re-materializes the
+  same logical data across ~15 stores, so 50k schema fields are only a few hundred distinct names (`id` ×1,253,
+  `danceability` ×13…). A glossary term or structured-property value is defined once and **attached to every
+  matching field/dataset by name** — 44 mesh terms collapsed onto 1,968 field occurrences across 666 datasets;
+  attaching read-merges `editableSchemaMetadata` so overlays don't clobber each other. **(2) Everything lives in
+  git.** This DataHub has **no durable UI layer** (managed-ingestion, UI field-edits, and Documents all die on a
+  GMS rebuild), so every governance aspect is either authored upstream (dbt) or emitted from a committed function
+  — reproducible from source, re-applied each catalog cycle.
 - **DuckDB via GizmoSQL (B65 Tier-2, 2nd)** — DuckDB served over **Arrow Flight SQL** by **GizmoSQL**, in
   `data-mesh`. This exists because DuckDB's own JDBC is **embedded-only** (`jdbc:duckdb:<file>`, no
   `host:port`), so there's nothing for a client to connect to — GizmoSQL wraps the in-process engine in a
