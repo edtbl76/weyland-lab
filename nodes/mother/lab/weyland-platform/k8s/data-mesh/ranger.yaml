@@ -33,10 +33,10 @@ data:
     db_password=weyland_dev_password
     is_override_db_connection_string=false
     db_override_connection_string=
-    rangerAdmin_password=weyland_dev_password
-    rangerTagsync_password=weyland_dev_password
-    rangerUsersync_password=weyland_dev_password
-    keyadmin_password=weyland_dev_password
+    rangerAdmin_password=Weyland_dev_password1
+    rangerTagsync_password=Weyland_dev_password1
+    rangerUsersync_password=Weyland_dev_password1
+    keyadmin_password=Weyland_dev_password1
     audit_store=
     audit_elasticsearch_urls=
     audit_elasticsearch_port=
