@@ -310,7 +310,9 @@ def emit_lightdash():
                                    lastModified=AuditStampClass(time=now, actor="urn:li:corpuser:datahub"))
     proj = g("/api/v1/org/projects")[0]["projectUuid"]
     chart_urn, n_c, n_d = {}, 0, 0
-    for sp in g(f"/api/v1/projects/{proj}/spaces"):
+    for summary in g(f"/api/v1/projects/{proj}/spaces"):
+        # the /spaces list is summaries (counts only) — fetch the full space for its queries + dashboards.
+        sp = g(f"/api/v1/projects/{proj}/spaces/{summary['uuid']}")
         space_name = sp.get("name", "")
         for q in sp.get("queries", []):
             cid = q["uuid"]
