@@ -34,6 +34,8 @@ from datahub.metadata.schema_classes import (
     ChangeAuditStampsClass,
     ChartInfoClass,
     DashboardInfoClass,
+    DataProductAssociationClass,
+    DataProductPropertiesClass,
     DatasetLineageTypeClass,
     DomainPropertiesClass,
     DomainsClass,
@@ -410,6 +412,62 @@ def emit_domains():
                     assigned += 1
                     break
     return len(_DOMAINS), assigned
+
+
+# Data Products — mesh bundles: (name, domain, description, url patterns). Each bundles the cataloged assets whose
+# URN matches a pattern, and is filed under its domain. The AIDLC KB is ONE product (its engineering/consulting/
+# industry sub-structure is row-level inside shared RAG datasets — a glossary-term refinement, not separate assets).
+_PRODUCTS = [
+    ("Spotify Audio", "Music", "Track audio features + genre, the per-genre signature, and the Feast online view "
+     "— the classifier's tested source of truth.", ("mart_spotify_audio", "mart_genre_audio_profile",
+                                                     "track_audio_features")),
+    ("Artist Popularity", "Music", "Last.fm plays + listeners per artist, joined to MusicBrainz.",
+     ("mart_artist_popularity",)),
+    ("Genre Taxonomy", "Music", "FMA genre hierarchy.", ("mart_fma_genre_tree",)),
+    ("Chronic Health Trends", "Health", "BRFSS chronic-condition prevalence by state x year + the Feast online "
+     "view.", ("mart_state_health_trends", "state_health_risk")),
+    ("Global Health Indicators", "Health", "WHO GHO population-health indicators by country x year.",
+     ("mart_country_health",)),
+    ("Personality Profiles", "Health", "Big Five OCEAN traits by country.", ("mart_personality_by_country",)),
+    ("Weyland Docs", "Docs & RAG", "The platform documentation retrieval corpus.",
+     ("rag_documents", "rag_chunks", "weyland_chunks")),
+    ("AIDLC Knowledge Base", "AIDLC Knowledge", "The AIDLC KB — engineering-knowledge, consulting-tools, and "
+     "industry-vertical repositories (sub-structure lives in source_path / :Entry frontmatter).",
+     ("aidlc", ":entry", "entry,prod")),
+    ("Genre Classifier", "ML & Modeling", "The trained genre-classification model.", ("genre_classifier",)),
+]
+
+
+def emit_data_products():
+    """Create the mesh Data Products + attach cataloged assets by URN pattern + file each under its domain.
+    Returns (n_products, n_asset_links)."""
+    import time
+
+    from datahub.ingestion.graph.client import DataHubGraph, DatahubClientConfig
+
+    emitter = _gms_emitter()
+    server = os.environ.get("DATAHUB_GMS_URL", "http://datahub-datahub-gms.data-mesh.svc.cluster.local:8080")
+    token = os.environ.get("DATAHUB_GMS_TOKEN", "")
+    graph = DataHubGraph(DatahubClientConfig(server=server, token=token))
+    now = int(time.time() * 1000)
+    made = AuditStampClass(time=now, actor="urn:li:corpuser:datahub")
+
+    urns = []
+    for etype in ("dataset", "chart", "dashboard"):
+        urns += list(graph.get_urns_by_filter(entity_types=[etype]))
+
+    n_p = n_a = 0
+    for pname, domain, desc, pats in _PRODUCTS:
+        assets = [DataProductAssociationClass(destinationUrn=u, created=made)
+                  for u in urns if any(p in u.lower() for p in pats)]
+        purn = f"urn:li:dataProduct:{pname.lower().replace(' ', '-')}"
+        emitter.emit(MetadataChangeProposalWrapper(entityUrn=purn, aspect=DataProductPropertiesClass(
+            name=pname, description=desc, assets=assets)))
+        emitter.emit(MetadataChangeProposalWrapper(entityUrn=purn, aspect=DomainsClass(
+            domains=[make_domain_urn(domain.lower().replace(" & ", "-").replace(" ", "-"))])))
+        n_p += 1
+        n_a += len(assets)
+    return n_p, n_a
 
 
 def _gms_emitter() -> DatahubRestEmitter:

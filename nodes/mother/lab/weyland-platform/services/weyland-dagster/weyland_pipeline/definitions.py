@@ -128,6 +128,12 @@ def emit_domains_op(context):
     _safe_emit(context, "Domains (create + auto-assign)", emit_domains)
 
 
+@op
+def emit_data_products_op(context):
+    from weyland_pipeline.datahub_emit import emit_data_products
+    _safe_emit(context, "Data Products (mesh bundles)", emit_data_products)
+
+
 @job
 def datahub_catalog_emit_job():
     emit_dagster_assets_op()
@@ -143,6 +149,7 @@ def datahub_catalog_emit_job():
     emit_feast_op()
     emit_lightdash_op()
     emit_domains_op()
+    emit_data_products_op()
 
 
 datahub_catalog_emit_schedule = ScheduleDefinition(
