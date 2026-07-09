@@ -134,6 +134,28 @@ data:
     sqlanywhere_audit_file=db/sqlanywhere/xa_audit_db_sqlanywhere.sql
     cred_keystore_filename=$app_home/WEB-INF/classes/conf/.jceks/rangeradmin.jceks
 ---
+# The image expects /opt/mr3-run/ranger/conf/ (normally mounted by the MR3 helm chart) — start-ranger.sh cp's
+# krb5.conf + ranger-log4j.properties from here and sed-appends ranger-admin-site.xml.append. Minimal, no-Kerberos.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ranger-admin-conf
+  namespace: data-mesh
+data:
+  krb5.conf: |
+    [libdefaults]
+        default_realm = WEYLAND.LAB
+        dns_lookup_realm = false
+        dns_lookup_kdc = false
+  ranger-admin-site.xml.append: |
+    <!-- no extra ranger-admin-site properties (authentication_method=NONE) -->
+  ranger-log4j.properties: |
+    log4j.rootLogger=INFO,console
+    log4j.appender.console=org.apache.log4j.ConsoleAppender
+    log4j.appender.console.target=System.out
+    log4j.appender.console.layout=org.apache.log4j.PatternLayout
+    log4j.appender.console.layout.ConversionPattern=%d{ISO8601} [%t] %-5p %c{2} - %m%n
+---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -173,12 +195,14 @@ spec:
             periodSeconds: 15
             failureThreshold: 20
           volumeMounts:
-            - name: install
-              mountPath: /opt/mr3-run/ranger/ranger-admin/install.properties
-              subPath: install.properties
+            # install.properties lives in the key/ dir (RANGER_ADMIN_CONF); conf/ holds krb5/log4j/append.
+            - { name: key, mountPath: /opt/mr3-run/ranger/key }
+            - { name: conf, mountPath: /opt/mr3-run/ranger/conf }
       volumes:
-        - name: install
+        - name: key
           configMap: { name: ranger-admin-install }
+        - name: conf
+          configMap: { name: ranger-admin-conf }
 ---
 apiVersion: v1
 kind: Service
