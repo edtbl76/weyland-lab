@@ -191,15 +191,14 @@ spec:
       terminationGracePeriodSeconds: 5   # the sleep-infinity pod ignores SIGTERM; don't wait 30s under Recreate
       containers:
         - name: ranger-admin
-          image: mr3project/ranger:2.6.0
+          image: weyland/ranger:2.6.0-py3   # baked = mr3project/ranger:2.6.0 + python3 (services/ranger/Dockerfile)
+          imagePullPolicy: Never            # local ctr-imported image (same pattern as the dagster image)
           command: ["/bin/bash", "-c"]
           args:
             - |
               set -e
-              # This image ships only python2.7; Ranger 2.6 setup (db_setup.py) is python3 — install it (idempotent).
-              # TODO(durability): bake python3 into a thin image FROM mr3project/ranger:2.6.0 so boot doesn't apt each time.
-              command -v python3 >/dev/null 2>&1 || { apt-get update -qq && apt-get install -y --no-install-recommends -qq python3; }
-              # Drop the unconditional MySQL-connector wget (we're on Postgres + LAN; dev.mysql.com would hang).
+              # python3 is baked into the image now (Ranger 2.6 setup needs it; base ships only python2.7). Just strip
+              # the unconditional MySQL-connector wget (we're on Postgres + LAN; dev.mysql.com would hang) and run.
               sed -i '/wget https:\/\/dev.mysql.com/,+2d' /opt/mr3-run/ranger/start-ranger.sh
               exec /opt/mr3-run/ranger/start-ranger.sh
           ports:
