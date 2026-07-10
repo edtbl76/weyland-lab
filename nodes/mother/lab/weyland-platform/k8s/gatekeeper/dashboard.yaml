@@ -1,0 +1,46 @@
+# Grafana dashboard for Gatekeeper (L5 Slice B). ConfigMap in the `monitoring` ns with the `grafana_dashboard`
+# label → the kube-prometheus-stack Grafana sidecar auto-imports it (Dashboards → OPA Gatekeeper). Metrics come
+# from the ServiceMonitor in metrics.yaml. NOTE: `gatekeeper_violations` is aggregate (by enforcement_action) —
+# for per-resource "which pod violates what" drill-down, use Policy Reporter, not this. This is the trend/health view.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: gatekeeper-dashboard
+  namespace: monitoring
+  labels:
+    grafana_dashboard: "1"
+data:
+  gatekeeper.json: |
+    {
+      "title": "OPA Gatekeeper",
+      "uid": "gatekeeper-l5",
+      "schemaVersion": 39,
+      "editable": true,
+      "time": { "from": "now-6h", "to": "now" },
+      "refresh": "30s",
+      "templating": { "list": [
+        { "name": "datasource", "type": "datasource", "query": "prometheus", "current": {}, "hide": 0 }
+      ] },
+      "panels": [
+        { "id": 1, "title": "Total Violations", "type": "stat", "gridPos": {"h":4,"w":6,"x":0,"y":0},
+          "datasource": {"type":"prometheus","uid":"${datasource}"},
+          "targets": [{"expr":"sum(gatekeeper_violations)","refId":"A"}],
+          "fieldConfig": {"defaults":{"thresholds":{"steps":[{"color":"green","value":null},{"color":"yellow","value":1},{"color":"red","value":50}]}}} },
+        { "id": 2, "title": "Constraints", "type": "stat", "gridPos": {"h":4,"w":6,"x":6,"y":0},
+          "datasource": {"type":"prometheus","uid":"${datasource}"},
+          "targets": [{"expr":"sum(gatekeeper_constraints)","refId":"A"}] },
+        { "id": 3, "title": "Constraint Templates", "type": "stat", "gridPos": {"h":4,"w":6,"x":12,"y":0},
+          "datasource": {"type":"prometheus","uid":"${datasource}"},
+          "targets": [{"expr":"sum(gatekeeper_constraint_templates)","refId":"A"}] },
+        { "id": 4, "title": "Audit Duration (s)", "type": "stat", "gridPos": {"h":4,"w":6,"x":18,"y":0},
+          "datasource": {"type":"prometheus","uid":"${datasource}"},
+          "targets": [{"expr":"max(gatekeeper_audit_duration_seconds)","refId":"A"}],
+          "fieldConfig": {"defaults":{"unit":"s"}} },
+        { "id": 5, "title": "Violations by Enforcement Action", "type": "timeseries", "gridPos": {"h":9,"w":12,"x":0,"y":4},
+          "datasource": {"type":"prometheus","uid":"${datasource}"},
+          "targets": [{"expr":"sum by (enforcement_action) (gatekeeper_violations)","legendFormat":"{{enforcement_action}}","refId":"A"}] },
+        { "id": 6, "title": "Webhook Request Rate (req/s)", "type": "timeseries", "gridPos": {"h":9,"w":12,"x":12,"y":4},
+          "datasource": {"type":"prometheus","uid":"${datasource}"},
+          "targets": [{"expr":"sum(rate(gatekeeper_validation_request_count[5m]))","legendFormat":"validation req/s","refId":"A"}] }
+      ]
+    }

@@ -1,0 +1,122 @@
+# Gatekeeper Policy Manager (GPM) — the read-only Gatekeeper UI (L5 Slice B). Reads Gatekeeper's own CRDs
+# (ConstraintTemplates + Rego, Constraints + status.violations, Config) and renders a Report view of every
+# violation. This is the per-resource triage UI (the browsable version of the kubectl violation dumps).
+# gatekeeper.weyland.lab, forward-auth (like Ranger). In gatekeeper-system (excluded from our own constraints).
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: gatekeeper-policy-manager
+  namespace: gatekeeper-system
+---
+# Read-only access to Gatekeeper's CRDs (+ CRD discovery to enumerate the generated constraint kinds) + namespaces.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: gatekeeper-policy-manager-readonly
+rules:
+  - apiGroups: ["templates.gatekeeper.sh", "constraints.gatekeeper.sh", "config.gatekeeper.sh", "status.gatekeeper.sh", "expansion.gatekeeper.sh", "mutations.gatekeeper.sh"]
+    resources: ["*"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["apiextensions.k8s.io"]
+    resources: ["customresourcedefinitions"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: [""]
+    resources: ["namespaces"]
+    verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: gatekeeper-policy-manager-readonly
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: gatekeeper-policy-manager-readonly
+subjects:
+  - kind: ServiceAccount
+    name: gatekeeper-policy-manager
+    namespace: gatekeeper-system
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gatekeeper-policy-manager
+  namespace: gatekeeper-system
+  labels: { app: gatekeeper-policy-manager }
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: gatekeeper-policy-manager }
+  template:
+    metadata:
+      labels: { app: gatekeeper-policy-manager }
+    spec:
+      serviceAccountName: gatekeeper-policy-manager
+      containers:
+        - name: gpm
+          image: quay.io/sighup/gatekeeper-policy-manager:v1.1.1
+          ports:
+            - { name: http, containerPort: 8080 }
+          env:
+            - { name: GPM_PREFERRED_URL_SCHEME, value: https }   # generate https links behind TLS (avoids the Ranger downgrade)
+            - { name: GPM_SECRET_KEY, value: weyland_dev_gpm_secret }
+            - { name: GPM_LOG_LEVEL, value: INFO }
+          resources:
+            requests: { memory: 96Mi, cpu: 50m }
+            limits: { memory: 256Mi }
+          readinessProbe:
+            httpGet: { path: /health, port: 8080 }
+            initialDelaySeconds: 10
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: gatekeeper-policy-manager
+  namespace: gatekeeper-system
+  labels: { app: gatekeeper-policy-manager }
+spec:
+  selector: { app: gatekeeper-policy-manager }
+  ports:
+    - { name: http, port: 80, targetPort: 8080 }
+---
+# Local middleware copies (Traefik blocks cross-ns middleware refs) — https-upgrade + forward-auth, chained on the ingress.
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: redirect-https
+  namespace: gatekeeper-system
+spec:
+  redirectScheme: { scheme: https, permanent: false }
+---
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: traefik-forward-auth
+  namespace: gatekeeper-system
+spec:
+  forwardAuth:
+    address: http://traefik-forward-auth.weyland.svc.cluster.local:4181
+    trustForwardHeader: true
+    authResponseHeaders: [X-Forwarded-User]
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: gatekeeper-policy-manager
+  namespace: gatekeeper-system
+  annotations:
+    traefik.ingress.kubernetes.io/router.middlewares: gatekeeper-system-redirect-https@kubernetescrd,gatekeeper-system-traefik-forward-auth@kubernetescrd
+spec:
+  tls:
+    - hosts: [gatekeeper.weyland.lab]
+      secretName: weyland-wildcard-tls
+  rules:
+    - host: gatekeeper.weyland.lab
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: gatekeeper-policy-manager
+                port: { number: 80 }

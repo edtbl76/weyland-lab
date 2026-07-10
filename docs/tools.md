@@ -15,6 +15,7 @@ this page) links to the live tool.
 |---|---|---|
 | **DataHub** | <https://datahub.weyland.lab> | Metadata catalog — datasets, lineage, glossary, domains, data products, structured properties |
 | **Ranger** | <https://ranger.weyland.lab> | Data-plane authz — Trino column/row masking, tag policies, access audit |
+| **Gatekeeper Policy Manager** | <https://gatekeeper.weyland.lab> | Control-plane authz — OPA/Gatekeeper constraints + per-resource violation report |
 | **Port** | <https://app.port.io> | Internal Developer Platform / catalog + self-service actions (SaaS, EU org) |
 | **Keycloak** | <https://keycloak.weyland.lab> | Central IdP / SSO admin (the `weyland` realm behind every UI) |
 

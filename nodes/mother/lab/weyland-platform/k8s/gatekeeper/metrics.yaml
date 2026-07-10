@@ -1,0 +1,31 @@
+# Gatekeeper → Prometheus (L5 Slice B observability). The chart ships no metrics Service (only the webhook one),
+# so this headless Service fronts BOTH pods (controller-manager + audit, labeled gatekeeper.sh/system=yes) on their
+# :8888 metrics port, and the ServiceMonitor scrapes each. kube-prometheus-stack auto-discovers ServiceMonitors
+# (serviceMonitorSelectorNilUsesHelmValues: false) — no release label needed. Dashboard in dashboard.yaml.
+apiVersion: v1
+kind: Service
+metadata:
+  name: gatekeeper-metrics
+  namespace: gatekeeper-system
+  labels: { app: gatekeeper-metrics }
+spec:
+  clusterIP: None            # headless → ServiceMonitor scrapes every matching pod (controller + audit)
+  selector:
+    gatekeeper.sh/system: "yes"
+  ports:
+    - name: metrics
+      port: 8888
+      targetPort: metrics
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: gatekeeper
+  namespace: gatekeeper-system
+spec:
+  selector:
+    matchLabels: { app: gatekeeper-metrics }
+  endpoints:
+    - port: metrics
+      path: /metrics
+      interval: 30s
