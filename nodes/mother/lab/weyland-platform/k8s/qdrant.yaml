@@ -36,7 +36,7 @@ spec:
     spec:
       containers:
         - name: qdrant
-          image: qdrant/qdrant:latest
+          image: qdrant/qdrant@sha256:75eab8c4ba42096724fdcfde8b4de0b5713d529dde32f285a1f86fdcb2c9e50c  # pinned from :latest 2026-07-10
           imagePullPolicy: IfNotPresent
           resources:
             requests: { memory: 256Mi, cpu: 100m }

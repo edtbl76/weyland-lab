@@ -26,6 +26,9 @@ spec:
           containers:
             - name: check
               image: postgres:17-alpine # psql + busybox wget
+              resources:
+                requests: { memory: 64Mi, cpu: 50m }
+                limits: { memory: 256Mi }
               command: ["/bin/sh", "-c"]
               args:
                 - |

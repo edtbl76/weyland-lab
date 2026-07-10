@@ -30,6 +30,9 @@ spec:
       containers:
         - name: musicbrainz
           image: musicbrainz-mb-import:local
+          resources:
+            requests: { memory: 512Mi, cpu: 250m }
+            limits: { memory: 2Gi }   # heavy native mbdump import
           imagePullPolicy: Never          # built on mother + imported into containerd (docker save | ctr import)
           # recreatedb.sh (not createdb.sh): DROPs + recreates musicbrainz_db first, so it's idempotent — a
           # re-run starts clean instead of erroring "schema/collation already exists". This is also the right

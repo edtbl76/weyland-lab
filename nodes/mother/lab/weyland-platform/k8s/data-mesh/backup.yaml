@@ -41,6 +41,9 @@ spec:
           containers:
             - name: pgdump
               image: postgres:17-alpine # pg_dump >= server version; bump if a version mismatch surfaces
+              resources:
+                requests: { memory: 128Mi, cpu: 100m }
+                limits: { memory: 512Mi }
               command: ["/bin/sh", "-c"]
               args:
                 - |

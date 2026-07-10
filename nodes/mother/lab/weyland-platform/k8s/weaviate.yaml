@@ -35,7 +35,7 @@ spec:
     spec:
       containers:
         - name: weaviate
-          image: semitechnologies/weaviate:latest
+          image: semitechnologies/weaviate@sha256:47ce6a83f3bd1bc39b8baa7e06c42b57f6589a21400a33b482194bd5123c02a5  # pinned from :latest 2026-07-10
           imagePullPolicy: IfNotPresent
           resources:
             requests: { memory: 1Gi, cpu: 250m }

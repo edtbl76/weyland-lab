@@ -22,7 +22,7 @@ spec:
     spec:
       containers:
         - name: neodash
-          image: neo4jlabs/neodash:latest   # public Docker Hub image; pin a version if you want reproducibility
+          image: neo4jlabs/neodash@sha256:04ead957355d11b3c3687465a7ae4622df24a0c3f8266bbd4f0fdfaab5be09ad  # pinned from :latest 2026-07-10
           ports:
             - name: http
               containerPort: 5005

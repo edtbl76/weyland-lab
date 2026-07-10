@@ -108,6 +108,9 @@ init:
     lastname: Admin
     email: admin@weyland.lab
     password: weyland_dev_password
+  resources:
+    requests: { memory: 128Mi, cpu: 100m }
+    limits: { memory: 512Mi }
 
 # Install the Trino SQLAlchemy driver at startup (the connection itself is added in step 4).
 bootstrapScript: |
