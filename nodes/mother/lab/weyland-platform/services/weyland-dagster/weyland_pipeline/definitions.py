@@ -158,6 +158,40 @@ def emit_docs_links_op(context):
     _safe_emit(context, "Docs Links (dataset → runbook + tools)", emit_docs_links)
 
 
+@op
+def soda_scan_op(context):
+    """L5 Slice C — data quality. Shell out to the isolated /opt/soda-venv (soda-core's pins can't co-exist with
+    dagster/dbt in the main env) and run an independent contract scan over the 7 published marts. Soda exit codes:
+    0 = all pass, 1 = warnings, 2 = check failures, 3 = execution error. Fail the op on >= 2 so a broken data
+    contract surfaces as a red Dagster run; warnings just log."""
+    import subprocess
+    from dagster import Failure
+    cmd = [
+        "/opt/soda-venv/bin/soda", "scan",
+        "-d", "weyland",
+        "-c", "/app/soda/configuration.yml",
+        "/app/soda/checks/music.yml",
+        "/app/soda/checks/health.yml",
+    ]
+    context.log.info("Running: " + " ".join(cmd))
+    result = subprocess.run(cmd, capture_output=True, text=True)
+    if result.stdout:
+        context.log.info(result.stdout)
+    if result.stderr:
+        context.log.warning(result.stderr)
+    if result.returncode >= 2:
+        raise Failure(
+            description=f"Soda scan failed (exit {result.returncode}) — a mart violated its data contract.",
+            metadata={"soda_output": result.stdout[-4000:]},
+        )
+    return result.returncode
+
+
+@job
+def soda_quality_job():
+    soda_scan_op()
+
+
 @job
 def datahub_catalog_emit_job():
     emit_dagster_assets_op()
@@ -187,11 +221,20 @@ datahub_catalog_emit_schedule = ScheduleDefinition(
     default_status=DefaultScheduleStatus.RUNNING,
 )
 
+# L5 Slice C — daily data-quality scan of the marts. STOPPED by default: enable it in the Dagster UI once a
+# manual soda_quality_job run passes, so it doesn't red-flag nightly before the marts/connection are verified.
+soda_quality_schedule = ScheduleDefinition(
+    job=soda_quality_job,
+    cron_schedule="30 5 * * *",  # daily 05:30, after the nightly dbt build has republished the marts
+    execution_timezone="America/New_York",
+    default_status=DefaultScheduleStatus.STOPPED,
+)
+
 defs = Definitions(
     assets=[*all_assets, weyland_dbt_assets],
     asset_checks=all_asset_checks,
-    jobs=[weyland_ingestion_job, weyland_eval_job, weyland_eval_score_job, weyland_catalog_job, weyland_aidlc_kb_job, weyland_ai_session_job, datahub_catalog_emit_job, weyland_datasets_music_transform_job, weyland_datasets_music_land_job, weyland_datasets_health_land_job, weyland_datasets_health_transform_job, weyland_datasets_health_hydrate_job, weyland_datasets_music_hydrate_job, weyland_timeseries_job, weyland_lancedb_sync_job, weyland_dbt_job],
-    schedules=[weyland_ingestion_schedule, weyland_catalog_schedule, weyland_ai_session_schedule, datahub_catalog_emit_schedule, weyland_timeseries_schedule, weyland_datasets_music_land_schedule, weyland_datasets_health_land_schedule, weyland_dbt_schedule],
+    jobs=[weyland_ingestion_job, weyland_eval_job, weyland_eval_score_job, weyland_catalog_job, weyland_aidlc_kb_job, weyland_ai_session_job, datahub_catalog_emit_job, weyland_datasets_music_transform_job, weyland_datasets_music_land_job, weyland_datasets_health_land_job, weyland_datasets_health_transform_job, weyland_datasets_health_hydrate_job, weyland_datasets_music_hydrate_job, weyland_timeseries_job, weyland_lancedb_sync_job, weyland_dbt_job, soda_quality_job],
+    schedules=[weyland_ingestion_schedule, weyland_catalog_schedule, weyland_ai_session_schedule, datahub_catalog_emit_schedule, weyland_timeseries_schedule, weyland_datasets_music_land_schedule, weyland_datasets_health_land_schedule, weyland_dbt_schedule, soda_quality_schedule],
     sensors=[datasets_music_raw_sensor, lancedb_sync_sensor],
     resources={
         "postgres": PostgresResource(

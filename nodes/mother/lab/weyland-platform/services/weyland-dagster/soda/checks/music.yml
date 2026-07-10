@@ -1,0 +1,33 @@
+# Soda data-quality checks — music domain marts (iceberg.dbt). Mirror the dbt schema.yml contracts as an
+# INDEPENDENT post-publish scan: row presence, key uniqueness/completeness, and value-range bounds. Thresholds
+# match the dbt_expectations ranges so a Soda failure and a dbt test failure mean the same thing.
+
+checks for mart_spotify_audio:
+  - row_count > 0
+  - duplicate_count(track_id) = 0
+  - missing_count(track_genre) = 0
+  - min(danceability) >= 0
+  - max(danceability) <= 1
+  - min(energy) >= 0
+  - max(energy) <= 1
+  - min(valence) >= 0
+  - max(valence) <= 1
+  - min(tempo) >= 0
+  - max(tempo) <= 300
+
+checks for mart_genre_audio_profile:
+  - row_count > 0
+  - duplicate_count(track_genre) = 0
+  - missing_count(track_genre) = 0
+  - min(n_tracks) >= 20            # every genre profile is built from >= 20 tracks by construction
+
+checks for mart_fma_genre_tree:
+  - row_count > 0
+  - duplicate_count(genre_id) = 0
+  - missing_count(genre_title) = 0
+
+checks for mart_artist_popularity:
+  - row_count > 0
+  - duplicate_count(artist_name) = 0
+  - missing_count(artist_name) = 0
+  - min(total_plays) >= 0

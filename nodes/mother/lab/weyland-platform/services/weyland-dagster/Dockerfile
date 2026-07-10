@@ -21,6 +21,13 @@ COPY feast_repo/ ./feast_repo/
 COPY dbt/ ./dbt/
 RUN cd /app/dbt && DBT_PROFILES_DIR=/app/dbt dbt deps && DBT_PROFILES_DIR=/app/dbt dbt parse
 
+# Soda Core (B1.6 L5 Slice C — data quality) in an ISOLATED venv: soda-core pins opentelemetry/click/ruamel at
+# versions that clash with dagster+dbt+datahub in the main env, so it lives in its own /opt/soda-venv and is
+# invoked as a subprocess by soda_scan_op. soda-core-trino pulls soda-core + the Trino connector. The venv is a
+# heavy layer, so it precedes COPY soda/ — editing checks won't rebuild it.
+RUN python -m venv /opt/soda-venv && /opt/soda-venv/bin/pip install --no-cache-dir soda-core-trino
+COPY soda/ ./soda/
+
 # Ops scripts (feast_setup.py etc.) — run via `kubectl exec … python /app/scripts/<name>`. Last COPY so it never
 # invalidates the cached dbt/deps layer above.
 COPY scripts/ ./scripts/

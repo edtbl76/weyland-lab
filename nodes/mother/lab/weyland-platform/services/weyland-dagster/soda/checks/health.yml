@@ -1,0 +1,30 @@
+# Soda data-quality checks — health domain marts (iceberg.dbt). Prevalence percentages are bounded 0–100;
+# OCEAN personality traits are 1–5 Likert means. Composite grain (state,year)/(country,year) uniqueness mirrors
+# the dbt_utils.unique_combination_of_columns tests.
+
+checks for mart_state_health_trends:
+  - row_count > 0
+  - duplicate_count(state, year) = 0
+  - missing_count(state) = 0
+  - missing_count(year) = 0
+  - min(diabetes_pct) >= 0
+  - max(diabetes_pct) <= 100
+  - min(depression_pct) >= 0
+  - max(depression_pct) <= 100
+
+checks for mart_country_health:
+  - row_count > 0
+  - duplicate_count(country, year) = 0
+  - missing_count(country) = 0
+  - missing_count(year) = 0
+  - min(life_expectancy) >= 0
+  - max(life_expectancy) <= 120
+
+checks for mart_personality_by_country:
+  - row_count > 0
+  - duplicate_count(country) = 0
+  - missing_count(country) = 0
+  - min(extraversion) >= 1
+  - max(extraversion) <= 5
+  - min(openness) >= 1
+  - max(openness) <= 5
