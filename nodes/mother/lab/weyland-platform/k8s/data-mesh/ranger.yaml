@@ -232,3 +232,28 @@ spec:
   selector: { app: ranger-admin }
   ports:
     - { name: http, port: 6080, targetPort: 6080 }
+---
+# ranger.weyland.lab — Policy Manager UI behind traefik-forward-auth (Keycloak SSO), mirroring the
+# clickhouse/cockroach/trino data-mesh UIs. Ranger keeps its own admin login too, so this is a double gate
+# (Keycloak perimeter → Ranger admin login); native Ranger↔Keycloak SSO is a later refinement.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: ranger-admin
+  namespace: data-mesh
+  annotations:
+    traefik.ingress.kubernetes.io/router.middlewares: data-mesh-traefik-forward-auth@kubernetescrd
+spec:
+  tls:
+    - hosts: [ranger.weyland.lab]
+      secretName: weyland-wildcard-tls
+  rules:
+    - host: ranger.weyland.lab
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: ranger-admin
+                port: { number: 6080 }
