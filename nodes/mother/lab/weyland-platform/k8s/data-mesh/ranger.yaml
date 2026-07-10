@@ -233,6 +233,19 @@ spec:
   ports:
     - { name: http, port: 6080, targetPort: 6080 }
 ---
+# Ranger's Tomcat ignores X-Forwarded-Proto and emits absolute http:// redirects (→ /login.jsp), downgrading the
+# browser off https before forward-auth sees it, so forward-auth builds an http redirect_uri Keycloak rejects.
+# This middleware upgrades any http hop back to https (no-op when already https) — chained BEFORE forward-auth.
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: redirect-https
+  namespace: data-mesh
+spec:
+  redirectScheme:
+    scheme: https
+    permanent: false
+---
 # ranger.weyland.lab — Policy Manager UI behind traefik-forward-auth (Keycloak SSO), mirroring the
 # clickhouse/cockroach/trino data-mesh UIs. Ranger keeps its own admin login too, so this is a double gate
 # (Keycloak perimeter → Ranger admin login); native Ranger↔Keycloak SSO is a later refinement.
@@ -242,7 +255,7 @@ metadata:
   name: ranger-admin
   namespace: data-mesh
   annotations:
-    traefik.ingress.kubernetes.io/router.middlewares: data-mesh-traefik-forward-auth@kubernetescrd
+    traefik.ingress.kubernetes.io/router.middlewares: data-mesh-redirect-https@kubernetescrd,data-mesh-traefik-forward-auth@kubernetescrd
 spec:
   tls:
     - hosts: [ranger.weyland.lab]
