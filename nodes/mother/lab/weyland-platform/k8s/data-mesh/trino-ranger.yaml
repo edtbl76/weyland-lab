@@ -11,7 +11,7 @@ data:
   access-control.properties: |
     access-control.name=ranger
     ranger.service.name=trino
-    ranger.plugin.config.resource=ranger-trino-security.xml,ranger-trino-audit.xml
+    ranger.plugin.config.resource=/etc/trino/ranger-trino-security.xml,/etc/trino/ranger-trino-audit.xml
   # Points the plugin at the in-cluster Ranger Admin (http, no forward-auth). service.name must match the
   # Ranger service created in A2.1. Policies refresh every 30s.
   ranger-trino-security.xml: |
