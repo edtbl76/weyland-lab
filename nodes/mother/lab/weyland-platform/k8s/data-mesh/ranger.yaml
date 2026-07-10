@@ -60,7 +60,7 @@ data:
     audit_cloudwatch_region=
     audit_cloudwatch_log_group=
     audit_cloudwatch_log_stream_prefix=
-    policymgr_external_url=http://ranger.weyland.lab
+    policymgr_external_url=https://ranger.weyland.lab
     policymgr_http_enabled=true
     policymgr_https_keystore_file=
     policymgr_https_keystore_keyalias=rangeradmin
