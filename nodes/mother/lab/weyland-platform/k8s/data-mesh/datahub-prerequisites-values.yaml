@@ -25,3 +25,7 @@ neo4j:
 
 kafka:
   enabled: true              # chart default: single-pod KRaft, no Zookeeper
+  controller:
+    resources:
+      requests: { memory: 1Gi, cpu: 250m }
+      limits: { memory: 2Gi }   # actual ~1Gi; KRaft controller JVM heap must stay under this

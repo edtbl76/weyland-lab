@@ -37,6 +37,9 @@ spec:
         - name: weaviate
           image: semitechnologies/weaviate:latest
           imagePullPolicy: IfNotPresent
+          resources:
+            requests: { memory: 1Gi, cpu: 250m }
+            limits: { memory: 3Gi }   # actual ~1.7Gi (fattest vector store) — headroom for growth
           ports:
             - name: http
               containerPort: 8080

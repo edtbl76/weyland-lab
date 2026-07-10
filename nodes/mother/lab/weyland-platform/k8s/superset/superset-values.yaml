@@ -37,6 +37,14 @@ supersetWorker:
     sidecar.istio.io/inject: "true"
   strategy:
     type: Recreate
+  resources:
+    requests: { memory: 1Gi, cpu: 200m }
+    limits: { memory: 3Gi }     # celery worker — actual ~1.5Gi (the fat one)
+
+# superset web / frontend node
+resources:
+  requests: { memory: 256Mi, cpu: 100m }
+  limits: { memory: 1Gi }       # actual ~357Mi
 
 extraSecretEnv:
   SUPERSET_SECRET_KEY: weyland_dev_secret_key_for_superset_not_in_prod
