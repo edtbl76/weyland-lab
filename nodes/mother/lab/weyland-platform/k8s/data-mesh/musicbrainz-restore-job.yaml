@@ -30,9 +30,9 @@ spec:
       containers:
         - name: musicbrainz
           image: musicbrainz-mb-import:local
-          resources:
-            requests: { memory: 512Mi, cpu: 250m }
-            limits: { memory: 2Gi }   # heavy native mbdump import
+          # NOTE: no resources here on purpose — this is a completed one-off Job (immutable; Argo can't patch it,
+          # and recreating it re-runs the multi-hour mbdump import). Its Gatekeeper mem-limit violation is a
+          # leftover-pod artifact that ages out with Job history.
           imagePullPolicy: Never          # built on mother + imported into containerd (docker save | ctr import)
           # recreatedb.sh (not createdb.sh): DROPs + recreates musicbrainz_db first, so it's idempotent — a
           # re-run starts clean instead of erroring "schema/collation already exists". This is also the right

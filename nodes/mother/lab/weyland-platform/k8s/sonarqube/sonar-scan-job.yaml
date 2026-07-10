@@ -23,10 +23,7 @@ spec:
               mountPath: /usr/src
       containers:
         - name: scanner
-          image: sonarsource/sonar-scanner-cli@sha256:23ca0f137965d9dff2198074043fd48d386280bc5d0ccac8c8349cea4cf096a9  # pinned from :latest 2026-07-10
-          resources:
-            requests: { memory: 512Mi, cpu: 250m }
-            limits: { memory: 2Gi }
+          image: sonarsource/sonar-scanner-cli:latest   # on-demand scan Job: immutable once created — don't pin/limit (Argo can't patch it)
           env:
             - name: SONAR_HOST_URL
               value: http://sonarqube.weyland.svc.cluster.local:9000
