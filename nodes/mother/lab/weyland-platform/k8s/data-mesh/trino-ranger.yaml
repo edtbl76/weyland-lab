@@ -1,0 +1,53 @@
+# A2 — Trino 468 native Ranger access control. These files mount into the Trino coordinator's /etc/trino/.
+# DO NOT apply the trino.yaml mount + restart until the `trino` service + a permissive base policy exist in
+# Ranger (A2.1) — the plugin is DEFAULT-DENY and would lock every consumer out of Trino otherwise.
+# Rollback: remove the access-control.properties mount from trino.yaml + restart Trino.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: trino-ranger
+  namespace: data-mesh
+data:
+  access-control.properties: |
+    access-control.name=ranger
+    ranger.service.name=trino
+    ranger.plugin.config.resource=ranger-trino-security.xml,ranger-trino-audit.xml
+  # Points the plugin at the in-cluster Ranger Admin (http, no forward-auth). service.name must match the
+  # Ranger service created in A2.1. Policies refresh every 30s.
+  ranger-trino-security.xml: |
+    <?xml version="1.0" encoding="UTF-8"?>
+    <configuration>
+        <property>
+            <name>ranger.plugin.trino.service.name</name>
+            <value>trino</value>
+        </property>
+        <property>
+            <name>ranger.plugin.trino.policy.rest.url</name>
+            <value>http://ranger-admin.data-mesh.svc.cluster.local:6080</value>
+        </property>
+        <property>
+            <name>ranger.plugin.trino.policy.source.impl</name>
+            <value>org.apache.ranger.admin.client.RangerAdminRESTClient</value>
+        </property>
+        <property>
+            <name>ranger.plugin.trino.policy.cache.dir</name>
+            <value>/tmp/ranger/trino/policycache</value>
+        </property>
+        <property>
+            <name>ranger.plugin.trino.policy.pollIntervalMs</name>
+            <value>30000</value>
+        </property>
+        <property>
+            <name>ranger.plugin.trino.access.cluster.name</name>
+            <value>weyland</value>
+        </property>
+    </configuration>
+  # Audit off for now (no Solr/ES sink) — Slice A refinement wires the shared ES later.
+  ranger-trino-audit.xml: |
+    <?xml version="1.0" encoding="UTF-8"?>
+    <configuration>
+        <property>
+            <name>xasecure.audit.is.enabled</name>
+            <value>false</value>
+        </property>
+    </configuration>
