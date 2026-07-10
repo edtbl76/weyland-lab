@@ -59,7 +59,10 @@ spec:
             - { name: http, containerPort: 8080 }
           env:
             - { name: GPM_PREFERRED_URL_SCHEME, value: https }   # generate https links behind TLS (avoids the Ranger downgrade)
-            - { name: GPM_SECRET_KEY, value: weyland_dev_gpm_secret }
+            # Flask session secret — out-of-band Secret, never committed (create with: openssl rand -hex 32).
+            - name: GPM_SECRET_KEY
+              valueFrom:
+                secretKeyRef: { name: gpm-secret, key: secret-key }
             - { name: GPM_LOG_LEVEL, value: INFO }
           resources:
             requests: { memory: 96Mi, cpu: 50m }
