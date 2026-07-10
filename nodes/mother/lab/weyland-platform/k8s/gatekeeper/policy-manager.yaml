@@ -52,9 +52,18 @@ spec:
       labels: { app: gatekeeper-policy-manager }
     spec:
       serviceAccountName: gatekeeper-policy-manager
+      # gatekeeper-system enforces PodSecurity `restricted` — the pod is rejected at admission without these.
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        seccompProfile: { type: RuntimeDefault }
       containers:
         - name: gpm
           image: quay.io/sighup/gatekeeper-policy-manager:v1.1.1
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities: { drop: ["ALL"] }
           ports:
             - { name: http, containerPort: 8080 }
           env:
