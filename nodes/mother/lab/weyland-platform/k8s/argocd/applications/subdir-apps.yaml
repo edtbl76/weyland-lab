@@ -274,3 +274,26 @@ spec:
   syncPolicy:
     automated: { selfHeal: true, prune: true }
     syncOptions: [CreateNamespace=true]
+---
+# Gatekeeper constraints (L5 Slice B) — the dryrun ConstraintTemplates + Constraints. Dir-sync of k8s/gatekeeper
+# EXCLUDING the helm values file (consumed by the gatekeeper helm app). Argo retries through the apply-order race
+# (constraint CRs need the chart's CRDs + the template-generated constraint CRDs) until it converges.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: gatekeeper-constraints
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/edtbl76/weyland-lab.git
+    targetRevision: main
+    path: nodes/mother/lab/weyland-platform/k8s/gatekeeper
+    directory:
+      exclude: '*-values.yaml'
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: gatekeeper-system
+  syncPolicy:
+    automated: { selfHeal: true, prune: true }
+    syncOptions: [ServerSideApply=true]

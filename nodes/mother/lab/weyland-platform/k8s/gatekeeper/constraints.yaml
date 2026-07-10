@@ -43,6 +43,15 @@ spec:
     kinds:
       - apiGroups: [""]
         kinds: ["Namespace"]
+    # Don't demand ownership of k8s's own / infra namespaces — only our app namespaces.
+    excludedNamespaces:
+      - kube-system
+      - kube-public
+      - kube-node-lease
+      - default
+      - gatekeeper-system
+      - istio-system
+      - argocd
   parameters:
     labels: ["owner"]
 ---
