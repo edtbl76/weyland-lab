@@ -34,13 +34,13 @@ data:
           "targets": [{"expr":"sum(gatekeeper_constraint_templates)","refId":"A"}] },
         { "id": 4, "title": "Audit Duration (s)", "type": "stat", "gridPos": {"h":4,"w":6,"x":18,"y":0},
           "datasource": {"type":"prometheus","uid":"${datasource}"},
-          "targets": [{"expr":"max(gatekeeper_audit_duration_seconds)","refId":"A"}],
+          "targets": [{"expr":"sum(gatekeeper_audit_duration_seconds_sum) / sum(gatekeeper_audit_duration_seconds_count)","refId":"A"}],
           "fieldConfig": {"defaults":{"unit":"s"}} },
         { "id": 5, "title": "Violations by Enforcement Action", "type": "timeseries", "gridPos": {"h":9,"w":12,"x":0,"y":4},
           "datasource": {"type":"prometheus","uid":"${datasource}"},
           "targets": [{"expr":"sum by (enforcement_action) (gatekeeper_violations)","legendFormat":"{{enforcement_action}}","refId":"A"}] },
         { "id": 6, "title": "Webhook Request Rate (req/s)", "type": "timeseries", "gridPos": {"h":9,"w":12,"x":12,"y":4},
           "datasource": {"type":"prometheus","uid":"${datasource}"},
-          "targets": [{"expr":"sum(rate(gatekeeper_validation_request_count[5m]))","legendFormat":"validation req/s","refId":"A"}] }
+          "targets": [{"expr":"sum(rate(gatekeeper_validation_request_count_total[5m]))","legendFormat":"validation req/s","refId":"A"}] }
       ]
     }
