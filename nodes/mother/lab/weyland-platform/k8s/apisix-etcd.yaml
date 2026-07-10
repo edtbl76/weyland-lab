@@ -17,6 +17,9 @@ spec:
       containers:
         - name: etcd
           image: quay.io/coreos/etcd:v3.5.31
+          resources:
+            requests: { memory: 64Mi, cpu: 50m }
+            limits: { memory: 256Mi }
           command:
             - etcd
             - --name=weyland-apisix-etcd

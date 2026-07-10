@@ -18,6 +18,9 @@ spec:
       containers:
         - name: weyland-tool-server
           image: weyland-tool-server:local
+          resources:
+            requests: { memory: 512Mi, cpu: 250m }
+            limits: { memory: 2Gi }   # actual ~929Mi (loads embedding models) — headroom
           imagePullPolicy: Never
           ports:
             - containerPort: 8080
