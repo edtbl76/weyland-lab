@@ -404,3 +404,33 @@ spec:
     automated: { selfHeal: true, prune: true }
     syncOptions:
       - ServerSideApply=true
+---
+# OPA Gatekeeper — L5 Slice B: control-plane authz (policy-as-code admission control). CRDs (ConstraintTemplate,
+# constraints) come from the chart; the actual Constraints live in k8s/gatekeeper/constraints.yaml (dryrun-first),
+# applied after this app establishes the CRDs.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: gatekeeper
+  namespace: argocd
+spec:
+  project: default
+  sources:
+    - repoURL: https://open-policy-agent.github.io/gatekeeper/charts
+      chart: gatekeeper
+      targetRevision: 3.17.1
+      helm:
+        releaseName: gatekeeper
+        valueFiles:
+          - $values/nodes/mother/lab/weyland-platform/k8s/gatekeeper/gatekeeper-values.yaml
+    - repoURL: https://github.com/edtbl76/weyland-lab.git
+      targetRevision: main
+      ref: values
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: gatekeeper-system
+  syncPolicy:
+    automated: { selfHeal: true, prune: true }
+    syncOptions:
+      - ServerSideApply=true
+      - CreateNamespace=true

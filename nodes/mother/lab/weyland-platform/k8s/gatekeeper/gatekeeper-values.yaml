@@ -1,0 +1,27 @@
+# OPA Gatekeeper — L5 Slice B: control-plane authz (policy-as-code admission control for the cluster itself,
+# complementing Ranger's data-plane authz on Trino). Trimmed for the tight node: single replicas, modest limits.
+# ns gatekeeper-system. Constraints live in k8s/gatekeeper/constraints.yaml and start in dryrun (see that file).
+
+replicas: 1            # controller-manager (chart default 3 → 1; no HA need in a single-node lab)
+
+controllerManager:
+  resources:
+    requests: { cpu: 100m, memory: 256Mi }
+    limits: { memory: 512Mi }
+
+audit:
+  replicas: 1
+  resources:
+    requests: { cpu: 100m, memory: 256Mi }
+    limits: { memory: 512Mi }
+  # audit every 5 min (default 60s is chatty for a lab)
+  auditInterval: 300
+
+# We only do validation (deny) constraints — no mutation. Keeps the mutating webhook out of the admission path.
+disableMutation: true
+
+# Keep the namespace-labeling post-install hook ENABLED — it stamps kube-system + gatekeeper-system with
+# admission.gatekeeper.sh/ignore so Gatekeeper never validates (and can't deadlock) its own / the API's namespaces.
+postInstall:
+  labelNamespace:
+    enabled: true

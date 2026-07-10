@@ -1,0 +1,114 @@
+# OPA Gatekeeper constraints (L5 Slice B) — policy-as-code for the cluster control-plane.
+# ALL start in enforcementAction: dryrun — violations are audited (kubectl get <kind> -o yaml → status.violations)
+# but NOTHING is blocked. Review the audit, then flip the safe ones to `deny`. Apply AFTER the gatekeeper chart
+# has established its CRDs (ConstraintTemplate + the constraint kinds below).
+#
+#   kubectl apply -f constraints.yaml
+#   kubectl get constrainttemplates ; kubectl get k8srequiredlabels,k8snolatesttag,k8srequirememlimit
+#   kubectl get k8snolatesttag no-latest-images -o jsonpath='{.status.totalViolations}{"\n"}'
+#
+# ── 1. require an `owner` label on namespaces ────────────────────────────────
+apiVersion: templates.gatekeeper.sh/v1
+kind: ConstraintTemplate
+metadata:
+  name: k8srequiredlabels
+spec:
+  crd:
+    spec:
+      names: { kind: K8sRequiredLabels }
+      validation:
+        openAPIV3Schema:
+          type: object
+          properties:
+            labels: { type: array, items: { type: string } }
+  targets:
+    - target: admission.k8s.gatekeeper.sh
+      rego: |
+        package k8srequiredlabels
+        violation[{"msg": msg}] {
+          provided := {label | input.review.object.metadata.labels[label]}
+          required := {label | label := input.parameters.labels[_]}
+          missing := required - provided
+          count(missing) > 0
+          msg := sprintf("namespace <%v> missing required label(s): %v", [input.review.object.metadata.name, missing])
+        }
+---
+apiVersion: constraints.gatekeeper.sh/v1beta1
+kind: K8sRequiredLabels
+metadata:
+  name: ns-must-have-owner
+spec:
+  enforcementAction: dryrun
+  match:
+    kinds:
+      - apiGroups: [""]
+        kinds: ["Namespace"]
+  parameters:
+    labels: ["owner"]
+---
+# ── 2. disallow the :latest image tag on pods ────────────────────────────────
+apiVersion: templates.gatekeeper.sh/v1
+kind: ConstraintTemplate
+metadata:
+  name: k8snolatesttag
+spec:
+  crd:
+    spec:
+      names: { kind: K8sNoLatestTag }
+  targets:
+    - target: admission.k8s.gatekeeper.sh
+      rego: |
+        package k8snolatesttag
+        violation[{"msg": msg}] {
+          container := input.review.object.spec.containers[_]
+          endswith(container.image, ":latest")
+          msg := sprintf("container <%v> uses the :latest tag (%v) — pin a version", [container.name, container.image])
+        }
+        violation[{"msg": msg}] {
+          container := input.review.object.spec.containers[_]
+          not contains(container.image, ":")
+          msg := sprintf("container <%v> has no image tag (%v) — pin a version", [container.name, container.image])
+        }
+---
+apiVersion: constraints.gatekeeper.sh/v1beta1
+kind: K8sNoLatestTag
+metadata:
+  name: no-latest-images
+spec:
+  enforcementAction: dryrun
+  match:
+    kinds:
+      - apiGroups: [""]
+        kinds: ["Pod"]
+    excludedNamespaces: ["kube-system", "gatekeeper-system"]
+---
+# ── 3. require a memory limit on data-mesh / weyland pods (the OOM-hygiene one) ──
+apiVersion: templates.gatekeeper.sh/v1
+kind: ConstraintTemplate
+metadata:
+  name: k8srequirememlimit
+spec:
+  crd:
+    spec:
+      names: { kind: K8sRequireMemLimit }
+  targets:
+    - target: admission.k8s.gatekeeper.sh
+      rego: |
+        package k8srequirememlimit
+        violation[{"msg": msg}] {
+          container := input.review.object.spec.containers[_]
+          not container.resources.limits.memory
+          msg := sprintf("container <%v> has no memory limit — unbounded pods can OOM the node", [container.name])
+        }
+---
+apiVersion: constraints.gatekeeper.sh/v1beta1
+kind: K8sRequireMemLimit
+metadata:
+  name: require-mem-limits
+spec:
+  enforcementAction: dryrun
+  match:
+    kinds:
+      - apiGroups: [""]
+        kinds: ["Pod"]
+    namespaces: ["data-mesh", "weyland"]
