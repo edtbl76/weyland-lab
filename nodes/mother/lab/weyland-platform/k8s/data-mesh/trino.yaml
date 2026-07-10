@@ -95,6 +95,11 @@ spec:
             - { name: config, mountPath: /etc/trino/jvm.config, subPath: jvm.config }
             - { name: config, mountPath: /etc/trino/node.properties, subPath: node.properties }
             - { name: catalogs, mountPath: /etc/trino/catalog }
+            # A2 — native Ranger access control (default-deny; the trino Ranger service has public-allow policies).
+            # Rollback = remove these 3 mounts + the ranger volume, restart Trino.
+            - { name: ranger, mountPath: /etc/trino/access-control.properties, subPath: access-control.properties }
+            - { name: ranger, mountPath: /etc/trino/ranger-trino-security.xml, subPath: ranger-trino-security.xml }
+            - { name: ranger, mountPath: /etc/trino/ranger-trino-audit.xml, subPath: ranger-trino-audit.xml }
             - { name: data, mountPath: /data/trino }
           resources:
             requests: { cpu: "150m", memory: 3Gi }
@@ -104,6 +109,7 @@ spec:
       volumes:
         - { name: config, configMap: { name: trino-config } }
         - { name: catalogs, configMap: { name: trino-catalogs } }
+        - { name: ranger, configMap: { name: trino-ranger } }
         - { name: data, emptyDir: {} }
 ---
 apiVersion: v1
