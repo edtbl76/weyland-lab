@@ -150,18 +150,18 @@ data:
   # NOTE: start-ranger.sh deletes the original </configuration> and splices this in — so it MUST set
   # ranger.service.host (else Tomcat: "Host name is required") AND re-close the <configuration> block.
   ranger-admin-site.xml.append: |
-        <property>
-            <name>ranger.service.host</name>
-            <value>0.0.0.0</value>
-        </property>
-        <property>
-            <name>ranger.service.http.port</name>
-            <value>6080</value>
-        </property>
-        <property>
-            <name>ranger.service.http.enabled</name>
-            <value>true</value>
-        </property>
+    <property>
+        <name>ranger.service.host</name>
+        <value>0.0.0.0</value>
+    </property>
+    <property>
+        <name>ranger.service.http.port</name>
+        <value>6080</value>
+    </property>
+    <property>
+        <name>ranger.service.http.enabled</name>
+        <value>true</value>
+    </property>
     </configuration>
   ranger-log4j.properties: |
     log4j.rootLogger=INFO,console
