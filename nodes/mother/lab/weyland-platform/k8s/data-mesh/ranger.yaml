@@ -147,8 +147,22 @@ data:
         default_realm = WEYLAND.LAB
         dns_lookup_realm = false
         dns_lookup_kdc = false
+  # NOTE: start-ranger.sh deletes the original </configuration> and splices this in — so it MUST set
+  # ranger.service.host (else Tomcat: "Host name is required") AND re-close the <configuration> block.
   ranger-admin-site.xml.append: |
-    <!-- no extra ranger-admin-site properties (authentication_method=NONE) -->
+        <property>
+            <name>ranger.service.host</name>
+            <value>0.0.0.0</value>
+        </property>
+        <property>
+            <name>ranger.service.http.port</name>
+            <value>6080</value>
+        </property>
+        <property>
+            <name>ranger.service.http.enabled</name>
+            <value>true</value>
+        </property>
+    </configuration>
   ranger-log4j.properties: |
     log4j.rootLogger=INFO,console
     log4j.appender.console=org.apache.log4j.ConsoleAppender
