@@ -7,6 +7,11 @@ metadata:
     app: dagster-user-code
 spec:
   replicas: 1
+  # Recreate (not RollingUpdate): this node is ~98% committed, so a RollingUpdate can't schedule the new pod
+  # alongside the old (Insufficient memory) and the rollout deadlocks. Terminate old → then create new. Brief
+  # code-server blip on redeploy is acceptable for a single-replica gRPC server.
+  strategy:
+    type: Recreate
   selector:
     matchLabels:
       app: dagster-user-code
