@@ -579,6 +579,64 @@ Strimzi on-demand learning lane + a KEDA consumer-lag scaler (recorded, not buil
 
 ---
 
+### 7d. Governance & security — the L5 enforcement layer (B1.6)
+
+The DataHub layer (§7, "governance & discovery") is **descriptive** — it records *who owns* a dataset and *what a
+column means*. L5 is **enforcement** — it decides *who may read* data, *what may run*, and *whether the data is
+even correct*. Three independent planes, deliberately kept separate because they fail differently and are operated
+by different roles:
+
+| Plane | Tool (slice) | Enforces | Enforcement point | Default posture | UI |
+|---|---|---|---|---|---|
+| **Control-plane authz** | OPA / **Gatekeeper** (B) | *what workloads may exist* (no `:latest`, mem-limits, owner labels) | k8s **admission webhook** | dry-run (audit-only) | GPM Report `gatekeeper.weyland.lab` + Grafana |
+| **Data-plane authz** | Apache **Ranger** (A) | *who may read which column/row* | **Trino** native plugin (per-query) | **default-deny** | `ranger.weyland.lab` |
+| **Data quality** | **Soda** (C) | *whether published data honors its contract* | post-publish **scan** over marts | fail-closed (op fails on breach) | Dagster logs + DataHub **Assertions** |
+
+Two more planes were already standing before B1.6 and complete the picture: **PodSecurity Admission** (the built-in
+`restricted` floor every namespace enforces — a *different, complementary* engine to Gatekeeper: PSA is the baked-in
+pod-hardening baseline, Gatekeeper is custom org policy) and **Keycloak SSO / forward-auth** (identity at the edge,
+§10). L5 layers authz-and-quality *on top of* identity.
+
+**Slice A — Ranger (data-plane authz).** `mr3project/ranger:2.6.0` (Admin on `weyland-postgres`), driving Trino
+468's **native** `access-control.name=ranger` plugin — every query is authorized per-catalog/schema/column against
+Ranger policies. The engine runs **default-deny**, which is the whole point (a data lake that's open-by-default
+isn't governed) but is also its sharpest edge: enabling the plugin **locked out every existing client** (dbt,
+Lightdash, Superset, DataHub all connect as different users) until `public` was added to Trino's 13 default
+policies *before* flipping enforcement on. Column **masking** is proven (`MASK_NULL` → an `analyst` user sees
+`NULL` where `dbt` sees the value). Bring-up is codified in `scripts/ranger_setup.py` (idempotent REST). Runbook:
+[runbooks/ranger.md](runbooks/ranger.md).
+
+**Slice B — OPA / Gatekeeper (control-plane authz).** Gatekeeper 3.17 (Argo helm app) admission-controls the
+cluster with three **dry-run** ConstraintTemplates + Constraints — *disallow `:latest`*, *require memory limits*,
+*require an owner label* — chosen as the highest-signal hygiene rules. Dry-run (audit, not deny) is the right lab
+posture: it surfaces the ~14 existing violations without wedging deploys. The audit drove a real **remediation
+pass** (every always-on pod now carries mem-limits + digest-pinned images + owner labels; standalone Jobs left
+immutable). Two read surfaces: **Gatekeeper Policy Manager** (`gatekeeper.weyland.lab`, the per-resource violation
+Report) and a 6-panel **Grafana** dashboard (violation trend / audit duration / webhook rate, off a ServiceMonitor).
+Gotcha worth remembering: GPM's own pod was **rejected by PodSecurity** (`restricted`) until given a compliant
+`securityContext` — the policy engine's UI had to obey a *different* policy engine.
+
+**Slice C — Soda (data quality).** An **independent** contract scan over the 7 dbt marts — 53 checks (row presence,
+key uniqueness/completeness, value-range bounds, plus per-column *emptiness tripwires*). Two architecture calls
+carry it: (1) **isolated venv** — `soda-core`'s pins (opentelemetry/click/ruamel) can't co-exist with
+dagster+dbt+datahub, so it lives in `/opt/soda-venv` and `soda_scan_op` **shells out** to it; (2) it reaches Trino
+through the **`trino-noauth` proxy** (Soda's connector forces HTTP Basic auth, which Trino rejects over plaintext —
+the same proxy Lightdash needed). Results emit to **DataHub Assertions** (`emit_soda_assertions`, one `_NATIVE_`
+assertion + run-event per check on the mart's Trino URN) → a green/red Quality tab next to each mart's
+schema/lineage, without paying for Soda Cloud.
+
+The **payoff** of an independent scan (its reason to exist alongside dbt's in-transform tests): on its first real
+run Soda caught **7 all-NULL columns** in `mart_country_health` that dbt's range tests passed **vacuously** —
+`expect_column_values_to_be_between` null-filters before checking, so an empty column trivially "passes." Root
+cause was a **code-vs-label** mismatch: the mart filtered WHO GHO `dim1` by human labels (`'both sexes'`) but WHO
+stores **codes** — `SEX_BTSX` (sex-split indicators) and `ALCOHOLTYPE_SA_TOTAL` (alcohol, which disaggregates by
+*beverage type*, not sex). The design lesson is baked into the check suite: **"build correctly" (dbt row-level
+tests) and "verify the output" (Soda aggregate scan) are different jobs** — a `min`/`missing_percent(col) < 100`
+aggregate is a cheap emptiness tripwire that catches what row-level range checks structurally cannot. Runbook:
+[runbooks/soda.md](runbooks/soda.md).
+
+---
+
 ## 8. Model serving
 
 | Path | Where | Engine | Use |
