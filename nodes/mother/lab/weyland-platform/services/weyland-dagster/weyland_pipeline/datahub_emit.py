@@ -529,36 +529,71 @@ import re as _re
 
 _STAT_SUFFIXES = ("_mean", "_std", "_sum", "_avg", "_min", "_max", "_count", "_median", "_p50", "_p95")
 
-# Field-classification tags — a broad category applied per field by name pattern (define-once, alongside the term).
+# Field-classification — a broad category assigned per field by name pattern. Drives BOTH a field tag AND (where no
+# specific glossary term matched) a class-level field description, so no CLASSIFIABLE column is left blank. The
+# truly domain-specific long tail (e.g. OFF's nutrition columns) stays honestly blank — meaning lives in the
+# curated glossary vocabulary + the dbt marts, not in per-column filler.
 _FIELD_CLASS_TAGS = {
-    "identifier": "Field classification: an identifier / key column.",
-    "temporal": "Field classification: a date / time / timestamp column.",
-    "measure": "Field classification: a numeric measure / metric column.",
+    "identifier": "Field classification: identifier / key column.",
+    "temporal": "Field classification: date / time / timestamp column.",
+    "measure": "Field classification: numeric measure / metric.",
+    "dimension": "Field classification: categorical dimension (group / filter).",
+    "text": "Field classification: free-text / descriptive string.",
+    "geo": "Field classification: geographic location.",
+    "boolean": "Field classification: boolean flag.",
 }
-_FIELD_CLASS_EXACT = {
-    "identifier": {"id", "gid", "uuid", "key", "seqn", "fdc_id", "track_id", "mbid", "monitor_id",
-                   "organization_id", "project_id", "issue_id", "event_id", "release_id", "span_id",
-                   "trace_id", "indicatorcode"},
-    "temporal": {"timestamp", "date", "datetime", "time", "created_at", "created", "last_updated",
-                 "updated_at", "modified", "year", "timedim", "start_check"},
-    "measure": {"value", "numericvalue", "data_value", "count", "sample_size", "response_time",
-                "total_plays", "n_listeners"},
+_FIELD_CLASS_DESC = {
+    "identifier": "An identifier / key column.",
+    "temporal": "A date, time, or timestamp column.",
+    "measure": "A numeric measure or metric value.",
+    "dimension": "A categorical dimension used to group or filter.",
+    "text": "A free-text / descriptive string column.",
+    "geo": "A geographic location column.",
+    "boolean": "A boolean flag.",
+}
+_FC_EXACT = {
+    "geo": {"geolocation", "latitude", "longitude", "lat", "lon", "lng", "coordinates", "geo"},
+    "identifier": {"id", "gid", "uuid", "key", "code", "isbn", "ean", "upc", "seqn", "fdc_id", "mbid",
+                   "track_id", "monitor_id", "organization_id", "project_id", "issue_id", "event_id",
+                   "release_id", "span_id", "trace_id", "indicatorcode"},
+    "temporal": {"timestamp", "date", "datetime", "time", "year", "month", "day", "week", "quarter",
+                 "created", "modified", "updated", "timedim", "start_check"},
+    "measure": {"value", "numericvalue", "data_value", "count", "sample_size", "response_time", "amount",
+                "total", "score", "rate", "ratio", "pct", "percent", "quantity", "n_listeners", "total_plays"},
+    "dimension": {"country", "state", "region", "city", "genre", "track_genre", "class", "topic", "question",
+                  "category", "type", "kind", "status", "label", "group", "level", "sex", "gender", "age",
+                  "race", "source", "datasource", "brand", "brands", "spatialdim", "spatialdimtype",
+                  "timedimtype", "locationabbr", "locationdesc", "locationid", "parentlocation",
+                  "classid", "topicid", "questionid"},
+    "text": {"description", "url", "text", "body", "comment", "comments", "notes", "note", "title", "name",
+             "message", "reason", "summary", "content", "abstract", "definition", "product_name"},
 }
 
 
 def _field_class(leaf):
-    """Broad field category (identifier / temporal / measure) from a leaf column name — a define-once field tag.
-    Exact-set match, then suffix rules for the long tail (*_id/_key → identifier, *_at/_date/_ts → temporal,
-    *_pct/_mean/_std/_count → measure)."""
-    for cls, exact in _FIELD_CLASS_EXACT.items():
-        if leaf in exact:
+    """Broad field category from a leaf column name — drives a define-once field tag + class-level description.
+    Ordered: boolean prefix, then exact-set (geo/id/temporal/measure/dimension/text), then suffix rules for the
+    long tail. First match wins; identifier `_id` is checked before the dimension/text suffixes."""
+    l = leaf
+    if l.startswith(("is_", "has_", "can_", "should_")):
+        return "boolean"
+    for cls, exact in _FC_EXACT.items():
+        if l in exact:
             return cls
-    if leaf.endswith(("_id", "_key", "_uuid")):
+    if l.endswith(("_id", "_key", "_uuid", "_code", "_pk", "_fk", "_gid")):
         return "identifier"
-    if leaf.endswith(("_at", "_date", "_time", "_ts")):
+    if (l.endswith(("_at", "_date", "_time", "_ts", "_timestamp", "_datetime", "_year", "_t"))
+            or "timestamp" in l or "datetime" in l or l.startswith(("created", "modified", "updated", "last_"))):
         return "temporal"
-    if leaf.endswith(("_pct", "_mean", "_std", "_count", "_sum", "_avg", "_rate")):
+    if l.endswith(("_pct", "_percent", "_mean", "_std", "_count", "_sum", "_avg", "_rate", "_ratio",
+                   "_amount", "_total", "_score", "_n", "_num", "_value", "_min", "_max")):
         return "measure"
+    if l.endswith(("_lat", "_lon", "_lng")):
+        return "geo"
+    if l.endswith(("_type", "_category", "_class", "_status", "_group", "_cat")):
+        return "dimension"
+    if l.endswith(("_name", "_text", "_desc", "_description", "_comment", "_note", "_title", "_url", "_message")):
+        return "text"
     return None
 
 
@@ -653,13 +688,14 @@ def emit_mesh_glossary(attach=True):
         for fp, (m, cls) in want.items():
             info = infos.get(fp) or EditableSchemaFieldInfoClass(fieldPath=fp)
             changed = False
+            # description: prefer the SPECIFIC glossary-term definition, else fall back to the class-level role
+            # description so every classified field is described (not just term matches). Never clobber a real one.
+            new_desc = (m[1] if m else None) or (_FIELD_CLASS_DESC.get(cls) if cls else None)
+            if new_desc and not info.description:
+                info.description = new_desc
+                changed = True
             if m:
-                term_urn, defn = m
-                # define-once description: fill from the term definition, but NEVER clobber a real one (dbt marts
-                # carry their own). So a plain `id`/`span_id`/`created_at` field gets the term AND a description.
-                if not info.description:
-                    info.description = defn
-                    changed = True
+                term_urn = m[0]
                 existing = list(info.glossaryTerms.terms) if info.glossaryTerms else []
                 if not any(a.urn == term_urn for a in existing):
                     existing.append(GlossaryTermAssociationClass(urn=term_urn))
