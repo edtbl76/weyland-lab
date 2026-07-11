@@ -412,11 +412,12 @@ def emit_domains():
     for etype in ("dataset", "chart", "dashboard"):
         for urn in graph.get_urns_by_filter(entity_types=[etype]):
             low = urn.lower()
-            for dname, pats in _DOMAIN_RULES:
-                if any(p in low for p in pats):
-                    emitter.emit(MetadataChangeProposalWrapper(entityUrn=urn, aspect=DomainsClass(domains=[durn[dname]])))
-                    assigned += 1
-                    break
+            match = next((dname for dname, pats in _DOMAIN_RULES if any(p in low for p in pats)), None)
+            # Fallback: everything unmatched (Grafana datasources, app-internal DBs, infra/observability data) is a
+            # Platform & Ops concern → no dataset is left domainless. Business data still resolves its own domain above.
+            emitter.emit(MetadataChangeProposalWrapper(
+                entityUrn=urn, aspect=DomainsClass(domains=[durn[match or "Platform & Ops"]])))
+            assigned += 1
     return len(_DOMAINS), assigned
 
 
@@ -961,6 +962,95 @@ def emit_data_contracts(scan_results: dict):
         )))
         emitter.emit(MetadataChangeProposalWrapper(
             entityUrn=dc_urn, aspect=DataContractStatusClass(state="ACTIVE")))
+        n += 1
+    return n
+
+
+_TAGS = {
+    "bronze": "Medallion **bronze** layer — raw landed data (as ingested, unmodified).",
+    "silver": "Medallion **silver** layer — cleaned, conformed, type-cast data.",
+    "gold": "Medallion **gold** layer — curated, query-ready domain tables (the dbt sources).",
+    "mart": "A dbt **mart** — the tested, published contract tables (`iceberg.dbt.mart_*`).",
+    "feast": "Materialized into the **Feast** feature store (online Valkey + offline Postgres).",
+}
+
+
+def emit_tags():
+    """#1 tag audit fix — MATERIALIZE the data-mesh tags as first-class entities (name + description). We apply
+    these via GlobalTags everywhere, but never emitted the tag entity, so they showed on datasets yet weren't
+    searchable/documented. This makes gold/silver/bronze/mart/feast real, described Tag entities."""
+    from datahub.metadata.schema_classes import TagPropertiesClass
+    emitter = _gms_emitter()
+    for name, desc in _TAGS.items():
+        emitter.emit(MetadataChangeProposalWrapper(
+            entityUrn=make_tag_urn(name), aspect=TagPropertiesClass(name=name, description=desc)))
+    return len(_TAGS)
+
+
+def emit_ownership():
+    """#9 ownership fix — solo lab: the `weyland` group is Technical Owner of every dataset. Creates the CorpGroup
+    entity, then stamps Ownership across all datasets so the 'No owners yet' governance gap clears cluster-wide."""
+    from datahub.ingestion.graph.client import DataHubGraph, DatahubClientConfig
+    from datahub.metadata.schema_classes import (
+        CorpGroupInfoClass,
+        OwnerClass,
+        OwnershipClass,
+        OwnershipTypeClass,
+    )
+    emitter = _gms_emitter()
+    server = os.environ.get("DATAHUB_GMS_URL", "http://datahub-datahub-gms.data-mesh.svc.cluster.local:8080")
+    token = os.environ.get("DATAHUB_GMS_TOKEN", "")
+    group_urn = "urn:li:corpGroup:weyland"
+    emitter.emit(MetadataChangeProposalWrapper(entityUrn=group_urn, aspect=CorpGroupInfoClass(
+        admins=[], members=[], groups=[], displayName="Weyland", description="Weyland lab data owners.")))
+    ownership = OwnershipClass(owners=[OwnerClass(owner=group_urn, type=OwnershipTypeClass.TECHNICAL_OWNER)])
+    graph = DataHubGraph(DatahubClientConfig(server=server, token=token))
+    n = 0
+    for urn in graph.get_urns_by_filter(entity_types=["dataset"]):
+        emitter.emit(MetadataChangeProposalWrapper(entityUrn=urn, aspect=ownership))
+        n += 1
+    return n
+
+
+_MART_QUERIES = {
+    "mart_spotify_audio": "-- Genre audio signature: mean danceability/energy per genre\nSELECT track_genre, count(*) AS tracks, avg(danceability) AS avg_danceability, avg(energy) AS avg_energy\nFROM iceberg.dbt.mart_spotify_audio\nGROUP BY track_genre\nORDER BY avg_danceability DESC",
+    "mart_genre_audio_profile": "-- Most danceable genres by their profile\nSELECT track_genre, n_tracks, danceability_mean, energy_mean, valence_mean\nFROM iceberg.dbt.mart_genre_audio_profile\nORDER BY danceability_mean DESC\nLIMIT 20",
+    "mart_fma_genre_tree": "-- Top-level FMA genres and their children count\nSELECT parent_title, count(*) AS subgenres\nFROM iceberg.dbt.mart_fma_genre_tree\nWHERE parent_title IS NOT NULL\nGROUP BY parent_title\nORDER BY subgenres DESC",
+    "mart_artist_popularity": "-- Most-played Last.fm artists\nSELECT artist_name, total_plays, n_listeners\nFROM iceberg.dbt.mart_artist_popularity\nORDER BY total_plays DESC\nLIMIT 25",
+    "mart_state_health_trends": "-- Diabetes prevalence trend for the latest year\nSELECT state, year, diabetes_pct, depression_pct\nFROM iceberg.dbt.mart_state_health_trends\nWHERE year = (SELECT max(year) FROM iceberg.dbt.mart_state_health_trends)\nORDER BY diabetes_pct DESC",
+    "mart_country_health": "-- Life-expectancy leaders (both-sexes total)\nSELECT country, year, life_expectancy, healthy_life_expectancy, diabetes_prevalence\nFROM iceberg.dbt.mart_country_health\nWHERE year = (SELECT max(year) FROM iceberg.dbt.mart_country_health)\nORDER BY life_expectancy DESC\nLIMIT 25",
+    "mart_personality_by_country": "-- OCEAN openness vs extraversion by country\nSELECT country, n_respondents, openness, extraversion, conscientiousness\nFROM iceberg.dbt.mart_personality_by_country\nORDER BY openness DESC\nLIMIT 25",
+}
+
+
+def emit_queries():
+    """#4 queries fix — git-emit one canonical example Query per mart (statement + subject = the mart) so the
+    empty Queries tab shows a runnable, reproducible starting query instead of 'No highlighted queries yet'."""
+    import hashlib
+    import time
+    from datahub.metadata.schema_classes import (
+        QueryLanguageClass,
+        QueryPropertiesClass,
+        QuerySourceClass,
+        QueryStatementClass,
+        QuerySubjectClass,
+        QuerySubjectsClass,
+    )
+    emitter = _gms_emitter()
+    stamp = AuditStampClass(time=int(time.time() * 1000), actor="urn:li:corpuser:__datahub_system")
+    n = 0
+    for mart, sql in _MART_QUERIES.items():
+        mart_urn = make_dataset_urn(platform="trino", name=f"iceberg.dbt.{mart}", env=ENV)
+        q_urn = f"urn:li:query:{hashlib.md5(('example:' + mart).encode()).hexdigest()}"
+        emitter.emit(MetadataChangeProposalWrapper(entityUrn=q_urn, aspect=QueryPropertiesClass(
+            statement=QueryStatementClass(value=sql, language=QueryLanguageClass.SQL),
+            source=QuerySourceClass.MANUAL,
+            name=f"Example — {mart}",
+            description="Canonical starter query (git-emitted).",
+            created=stamp, lastModified=stamp,
+        )))
+        emitter.emit(MetadataChangeProposalWrapper(
+            entityUrn=q_urn, aspect=QuerySubjectsClass(subjects=[QuerySubjectClass(entity=mart_urn)])))
         n += 1
     return n
 

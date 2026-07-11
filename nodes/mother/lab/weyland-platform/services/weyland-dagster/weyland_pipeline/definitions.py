@@ -159,6 +159,24 @@ def emit_docs_links_op(context):
 
 
 @op
+def emit_tags_op(context):
+    from weyland_pipeline.datahub_emit import emit_tags
+    _safe_emit(context, "Tags (materialize layer/feast tag entities)", emit_tags)
+
+
+@op
+def emit_ownership_op(context):
+    from weyland_pipeline.datahub_emit import emit_ownership
+    _safe_emit(context, "Ownership (weyland group → all datasets)", emit_ownership)
+
+
+@op
+def emit_queries_op(context):
+    from weyland_pipeline.datahub_emit import emit_queries
+    _safe_emit(context, "Example queries (per mart)", emit_queries)
+
+
+@op
 def soda_scan_op(context):
     """L5 Slice C — data quality. Shell out to the isolated /opt/soda-venv (soda-core's pins can't co-exist with
     dagster/dbt in the main env) and run an independent contract scan over the 7 published marts. Soda exit codes:
@@ -230,6 +248,9 @@ def datahub_catalog_emit_job():
     emit_mesh_glossary_op()
     emit_structured_properties_op()
     emit_docs_links_op()
+    emit_tags_op()
+    emit_ownership_op()
+    emit_queries_op()
 
 
 datahub_catalog_emit_schedule = ScheduleDefinition(
