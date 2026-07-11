@@ -874,6 +874,97 @@ def emit_soda_assertions(scan_results: dict):
     return n
 
 
+def emit_soda_profiles(scan_results: dict):
+    """L5 Slice C → DataHub **Stats**: reuse the numbers Soda already computed (`metrics` in the -srf JSON) as a
+    `DatasetProfile` per mart — rowCount + per-column nullCount/min/max — so the greyed-out Stats tab populates
+    without a separate profiling ingestion. Soda metric identities are `metric-Soda Core CLI-weyland-<table>-<col>-
+    <metricName>` (table/col/metric names are underscore-delimited, so `-` cleanly separates the three parts)."""
+    import time
+    from datahub.metadata.schema_classes import DatasetFieldProfileClass, DatasetProfileClass
+    emitter = _gms_emitter()
+    ts = int(time.time() * 1000)
+    prefix = "metric-Soda Core CLI-weyland-"
+    tables: dict = {}
+    for m in scan_results.get("metrics", []):
+        ident = m.get("identity", "")
+        if not ident.startswith(prefix):
+            continue
+        rest = ident[len(prefix):]
+        mn, val = m.get("metricName"), m.get("value")
+        if val is None:
+            continue
+        table = rest.split("-")[0]
+        if rest == f"{table}-{mn}":
+            column = None
+        elif rest.endswith(f"-{mn}"):
+            column = rest[len(table) + 1: -(len(mn) + 1)]
+        else:
+            column = None  # e.g. duplicate_count-<hash> — table-level, skip for field profiles
+        t = tables.setdefault(table, {"rowCount": None, "fields": {}})
+        if mn == "row_count" and column is None:
+            t["rowCount"] = int(val)
+        elif column:
+            f = t["fields"].setdefault(column, {})
+            if mn == "missing_count":
+                f["nullCount"] = int(val)
+            elif mn == "min":
+                f["min"] = str(val)
+            elif mn == "max":
+                f["max"] = str(val)
+    n = 0
+    for table, t in tables.items():
+        mart_urn = make_dataset_urn(platform="trino", name=f"iceberg.dbt.{table}", env=ENV)
+        fps = []
+        for col, f in t["fields"].items():
+            null_prop = None
+            if f.get("nullCount") is not None and t["rowCount"]:
+                null_prop = round(f["nullCount"] / t["rowCount"], 4)
+            fps.append(DatasetFieldProfileClass(
+                fieldPath=col, nullCount=f.get("nullCount"), nullProportion=null_prop,
+                min=f.get("min"), max=f.get("max"),
+            ))
+        emitter.emit(MetadataChangeProposalWrapper(entityUrn=mart_urn, aspect=DatasetProfileClass(
+            timestampMillis=ts, rowCount=t["rowCount"],
+            columnCount=len(t["fields"]) or None, fieldProfiles=fps or None,
+        )))
+        n += 1
+    return n
+
+
+def emit_data_contracts(scan_results: dict):
+    """L5 Slice C → DataHub **Data Contract**: one `DataContract` per mart that bundles its Soda checks as the
+    dataQuality contract — referencing the SAME assertion URNs `emit_soda_assertions` mints (stable md5(table:check)).
+    The mart *is* the contract: publishing it means those checks must hold. Populates the mart's Data Contract tab."""
+    import hashlib
+    from datahub.emitter.mce_builder import make_assertion_urn
+    from datahub.metadata.schema_classes import (
+        DataContractPropertiesClass,
+        DataContractStatusClass,
+        DataQualityContractClass,
+    )
+    emitter = _gms_emitter()
+    by_table: dict = {}
+    for check in scan_results.get("checks", []):
+        table = check.get("table") or (check.get("location") or {}).get("table")
+        if not table:
+            continue
+        name = check.get("name") or check.get("definition") or "soda check"
+        aurn = make_assertion_urn(hashlib.md5(f"{table}:{name}".encode()).hexdigest())
+        by_table.setdefault(table, []).append(aurn)
+    n = 0
+    for table, aurns in by_table.items():
+        mart_urn = make_dataset_urn(platform="trino", name=f"iceberg.dbt.{table}", env=ENV)
+        dc_urn = f"urn:li:dataContract:{hashlib.md5(table.encode()).hexdigest()}"
+        emitter.emit(MetadataChangeProposalWrapper(entityUrn=dc_urn, aspect=DataContractPropertiesClass(
+            entity=mart_urn,
+            dataQuality=[DataQualityContractClass(assertion=a) for a in aurns],
+        )))
+        emitter.emit(MetadataChangeProposalWrapper(
+            entityUrn=dc_urn, aspect=DataContractStatusClass(state="ACTIVE")))
+        n += 1
+    return n
+
+
 def _gms_emitter() -> DatahubRestEmitter:
     server = os.environ.get("DATAHUB_GMS_URL", "http://datahub-datahub-gms.data-mesh.svc.cluster.local:8080")
     return DatahubRestEmitter(gms_server=server, token=os.environ.get("DATAHUB_GMS_TOKEN", ""))

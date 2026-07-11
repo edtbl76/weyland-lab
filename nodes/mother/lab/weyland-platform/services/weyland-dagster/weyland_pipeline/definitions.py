@@ -187,11 +187,16 @@ def soda_scan_op(context):
     try:
         with open(results_file) as f:
             scan_results = json.load(f)
-        from weyland_pipeline.datahub_emit import emit_soda_assertions
-        n = emit_soda_assertions(scan_results)
-        context.log.info(f"Emitted {n} Soda assertions to DataHub")
+        from weyland_pipeline.datahub_emit import (
+            emit_data_contracts,
+            emit_soda_assertions,
+            emit_soda_profiles,
+        )
+        context.log.info(f"DataHub: {emit_soda_assertions(scan_results)} assertions, "
+                         f"{emit_soda_profiles(scan_results)} dataset profiles (Stats), "
+                         f"{emit_data_contracts(scan_results)} data contracts")
     except Exception as e:
-        context.log.warning(f"DataHub assertion emit skipped (non-fatal): {e}")
+        context.log.warning(f"DataHub quality emit skipped (non-fatal): {e}")
     if result.returncode >= 2:
         raise Failure(
             description=f"Soda scan failed (exit {result.returncode}) — a mart violated its data contract.",
