@@ -29,6 +29,8 @@ checks for mart_country_health:
   - missing_percent(adult_obesity) < 100
   - missing_percent(hypertension) < 100
   - missing_percent(tobacco_smoking) < 100
+  - missing_percent(alcohol_consumption) < 100
+  - missing_percent(mental_health_disorders) < 100
 
 checks for mart_personality_by_country:
   - row_count > 0

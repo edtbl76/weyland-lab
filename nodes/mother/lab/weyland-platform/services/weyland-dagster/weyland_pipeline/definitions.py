@@ -164,12 +164,15 @@ def soda_scan_op(context):
     dagster/dbt in the main env) and run an independent contract scan over the 7 published marts. Soda exit codes:
     0 = all pass, 1 = warnings, 2 = check failures, 3 = execution error. Fail the op on >= 2 so a broken data
     contract surfaces as a red Dagster run; warnings just log."""
+    import json
     import subprocess
     from dagster import Failure
+    results_file = "/tmp/soda_results.json"
     cmd = [
         "/opt/soda-venv/bin/soda", "scan",
         "-d", "weyland",
         "-c", "/app/soda/configuration.yml",
+        "-srf", results_file,   # scan-results JSON — the bridge to the main-env DataHub emitter (isolated venv)
         "/app/soda/checks/music.yml",
         "/app/soda/checks/health.yml",
     ]
@@ -179,6 +182,16 @@ def soda_scan_op(context):
         context.log.info(result.stdout)
     if result.stderr:
         context.log.warning(result.stderr)
+    # Push results to DataHub Assertions (catalog-native quality UI) BEFORE the fail check, so failing checks still
+    # surface in the catalog. Non-fatal: a DataHub hiccup must not mask a data-quality failure.
+    try:
+        with open(results_file) as f:
+            scan_results = json.load(f)
+        from weyland_pipeline.datahub_emit import emit_soda_assertions
+        n = emit_soda_assertions(scan_results)
+        context.log.info(f"Emitted {n} Soda assertions to DataHub")
+    except Exception as e:
+        context.log.warning(f"DataHub assertion emit skipped (non-fatal): {e}")
     if result.returncode >= 2:
         raise Failure(
             description=f"Soda scan failed (exit {result.returncode}) — a mart violated its data contract.",

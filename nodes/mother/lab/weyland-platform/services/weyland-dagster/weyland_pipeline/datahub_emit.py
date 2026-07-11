@@ -807,6 +807,73 @@ def emit_docs_links():
     return n_ds, n_links
 
 
+def emit_soda_assertions(scan_results: dict):
+    """L5 Slice C → DataHub: turn a Soda scan-results JSON into per-check Assertions on the mart datasets, so the
+    catalog's Assertions tab shows a green/red data-quality panel next to each mart's schema/glossary/lineage (the
+    closest thing to a Soda UI without paying for Soda Cloud). Each check → a _NATIVE_ assertion (the check text IS
+    the logic — no per-operator mapping) + an AssertionRunEvent carrying this run's pass/fail. Idempotent: the
+    assertion URN is a stable hash of (table, check) so re-runs update the same assertion and append a run result.
+    Called by soda_scan_op AFTER the scan; failures here are logged, never fatal (data quality > catalog cosmetics).
+    """
+    import hashlib
+    import time
+    from datahub.emitter.mce_builder import make_assertion_urn, make_schema_field_urn
+    from datahub.metadata.schema_classes import (
+        AssertionInfoClass,
+        AssertionResultClass,
+        AssertionResultTypeClass,
+        AssertionRunEventClass,
+        AssertionRunStatusClass,
+        AssertionStdAggregationClass,
+        AssertionStdOperatorClass,
+        AssertionTypeClass,
+        DatasetAssertionInfoClass,
+        DatasetAssertionScopeClass,
+    )
+    emitter = _gms_emitter()
+    ts = int(time.time() * 1000)
+    run_id = f"soda-{ts}"
+    n = 0
+    for check in scan_results.get("checks", []):
+        loc = check.get("location") or {}
+        table = check.get("table") or loc.get("table")
+        if not table:
+            continue
+        name = check.get("name") or check.get("definition") or "soda check"
+        column = check.get("column")
+        outcome = (check.get("outcome") or "").lower()
+        mart_urn = make_dataset_urn(platform="trino", name=f"iceberg.dbt.{table}", env=ENV)
+        assertion_urn = make_assertion_urn(hashlib.md5(f"{table}:{name}".encode()).hexdigest())
+        info = AssertionInfoClass(
+            type=AssertionTypeClass.DATASET,
+            datasetAssertion=DatasetAssertionInfoClass(
+                dataset=mart_urn,
+                scope=DatasetAssertionScopeClass.DATASET_COLUMN if column else DatasetAssertionScopeClass.DATASET_ROWS,
+                fields=[make_schema_field_urn(mart_urn, column)] if column else [],
+                aggregation=AssertionStdAggregationClass._NATIVE_,
+                operator=AssertionStdOperatorClass._NATIVE_,
+                nativeType=name,
+            ),
+            customProperties={"source": "soda", "check": name},
+            description=name,
+        )
+        emitter.emit(MetadataChangeProposalWrapper(entityUrn=assertion_urn, aspect=info))
+        result_type = AssertionResultTypeClass.SUCCESS if outcome == "pass" else AssertionResultTypeClass.FAILURE
+        emitter.emit(MetadataChangeProposalWrapper(
+            entityUrn=assertion_urn,
+            aspect=AssertionRunEventClass(
+                timestampMillis=ts,
+                runId=run_id,
+                assertionUrn=assertion_urn,
+                asserteeUrn=mart_urn,
+                status=AssertionRunStatusClass.COMPLETE,
+                result=AssertionResultClass(type=result_type),
+            ),
+        ))
+        n += 1
+    return n
+
+
 def _gms_emitter() -> DatahubRestEmitter:
     server = os.environ.get("DATAHUB_GMS_URL", "http://datahub-datahub-gms.data-mesh.svc.cluster.local:8080")
     return DatahubRestEmitter(gms_server=server, token=os.environ.get("DATAHUB_GMS_TOKEN", ""))
