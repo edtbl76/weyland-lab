@@ -608,6 +608,23 @@ def _field_class(leaf):
     return None
 
 
+def _type_class(field):
+    """Fallback field class from the SCHEMA TYPE when the column name doesn't classify — Number → measure,
+    Date/Time → temporal, Boolean → boolean, String → dimension. Type-derived tags are honest (a numeric field IS
+    a measure). Used for TAGS only (not descriptions — those come from real source docs / the name classifier)."""
+    t = getattr(getattr(field, "type", None), "type", None)
+    n = type(t).__name__ if t is not None else ""
+    if "Number" in n:
+        return "measure"
+    if "Date" in n or "Time" in n:
+        return "temporal"
+    if "Boolean" in n:
+        return "boolean"
+    if "String" in n:
+        return "dimension"
+    return None
+
+
 def _field_leaf(field_path):
     """Leaf name from a DataHub v2 fieldPath, stripping '[version=…].[type=…]' annotations.
     e.g. '[version=2.0].[type=struct].[type=double].danceability' -> 'danceability'."""
@@ -687,26 +704,28 @@ def emit_mesh_glossary(attach=True):
         sm = graph.get_aspect(urn, SchemaMetadataClass)
         if not sm or not sm.fields:
             continue
-        # per-field term matches for this dataset
-        want = {}  # fieldPath -> (term-tuple-or-None, field-class-or-None)
+        # per-field term/class matches. name_cls (from the column name) drives DESCRIPTION + tag; tag_cls falls
+        # back to the SCHEMA TYPE for the tag only (so every typed field is classified) but never a description.
+        want = {}  # fieldPath -> (term-tuple-or-None, name_cls-or-None, tag_cls-or-None)
         for f in sm.fields:
             leaf = _field_leaf(f.fieldPath)
             m = _match(leaf)
-            cls = _field_class(leaf)
-            if m or cls:
-                want[f.fieldPath] = (m, cls)
+            name_cls = _field_class(leaf)
+            tag_cls = name_cls or _type_class(f)
+            if m or tag_cls:
+                want[f.fieldPath] = (m, name_cls, tag_cls)
         if not want:
             continue
         # READ-MERGE the existing editable overlay so we don't clobber descriptions / other terms / other tags
         esm = graph.get_aspect(urn, EditableSchemaMetadataClass)
         infos = {i.fieldPath: i for i in (esm.editableSchemaFieldInfo if esm else [])}
         touched = 0
-        for fp, (m, cls) in want.items():
+        for fp, (m, name_cls, tag_cls) in want.items():
             info = infos.get(fp) or EditableSchemaFieldInfoClass(fieldPath=fp)
             changed = False
-            # description: prefer the SPECIFIC glossary-term definition, else fall back to the class-level role
-            # description so every classified field is described (not just term matches). Never clobber a real one.
-            new_desc = (m[1] if m else None) or (_FIELD_CLASS_DESC.get(cls) if cls else None)
+            # description: the SPECIFIC glossary-term definition, else the name-class role description (NOT the
+            # type fallback — a bare "measure" isn't a meaning). Never clobber a real one (source docs / dbt).
+            new_desc = (m[1] if m else None) or (_FIELD_CLASS_DESC.get(name_cls) if name_cls else None)
             if new_desc and not info.description:
                 info.description = new_desc
                 changed = True
@@ -717,8 +736,8 @@ def emit_mesh_glossary(attach=True):
                     existing.append(GlossaryTermAssociationClass(urn=term_urn))
                     info.glossaryTerms = GlossaryTermsClass(terms=existing, auditStamp=stamp)
                     changed = True
-            if cls:
-                ctag = make_tag_urn(cls)
+            if tag_cls:
+                ctag = make_tag_urn(tag_cls)
                 etags = list(info.globalTags.tags) if info.globalTags else []
                 if not any(a.tag == ctag for a in etags):
                     etags.append(TagAssociationClass(tag=ctag))
