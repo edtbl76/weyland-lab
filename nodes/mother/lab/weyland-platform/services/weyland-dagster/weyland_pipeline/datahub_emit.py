@@ -1095,6 +1095,19 @@ def _vector_dataset_meta(name, backend):
     return None
 
 
+def _emit_profile(emitter, urn, row_count, column_count=None):
+    """B80 Stats-wide: emit a rowCount-only DatasetProfile (timeseries aspect) so a custom-emitted store dataset's
+    Stats tab populates — the cheap, table-level equivalent of the ingestion profiling we enabled for the recipe
+    stores (no per-column scans). Callers guard the count fetch; a None row_count is a no-op."""
+    if row_count is None:
+        return 0
+    import time
+    from datahub.metadata.schema_classes import DatasetProfileClass
+    emitter.emit(MetadataChangeProposalWrapper(entityUrn=urn, aspect=DatasetProfileClass(
+        timestampMillis=int(time.time() * 1000), rowCount=int(row_count), columnCount=column_count)))
+    return 1
+
+
 def emit_qdrant():
     """Custom-emit one DataHub Dataset per Qdrant collection (props + a payload schema sampled from one point).
     RAG collections get lineage ← qdrant_write; datasets_* collections ← their vector loader. Returns
@@ -1109,9 +1122,10 @@ def emit_qdrant():
     names = []
     for coll in client.get_collections().collections:
         name = coll.name
-        props, fields = {}, []
+        props, fields, rows = {}, [], None
         try:
             info = client.get_collection(name)
+            rows = info.points_count
             props["points_count"] = str(info.points_count)
             vec = info.config.params.vectors
             if hasattr(vec, "size"):
@@ -1132,6 +1146,7 @@ def emit_qdrant():
         desc, producer = meta if meta else ("Qdrant vector collection (RAG dense backend).", "qdrant_write")
         for aspect in _store_aspects(name, "qdrant", desc, fields, producer, props):
             emitter.emit(MetadataChangeProposalWrapper(entityUrn=urn, aspect=aspect))
+        _emit_profile(emitter, urn, rows, len(fields) or None)
         names.append(name)
     return len(names), names
 
@@ -1160,6 +1175,12 @@ def emit_weaviate():
             desc, producer = meta if meta else ("Weaviate vector class (RAG dense backend).", "weaviate_write")
             for aspect in _store_aspects(name, "weaviate", desc, fields, producer):
                 emitter.emit(MetadataChangeProposalWrapper(entityUrn=urn, aspect=aspect))
+            rows = None
+            try:
+                rows = client.collections.get(name).aggregate.over_all(total_count=True).total_count
+            except Exception:  # noqa: BLE001
+                pass
+            _emit_profile(emitter, urn, rows, len(fields) or None)
             names.append(name)
     finally:
         client.close()
@@ -1183,7 +1204,8 @@ def emit_lancedb():
         lt = db.list_tables()
         table_names = lt.tables if hasattr(lt, "tables") else list(lt)
         for table in table_names:
-            schema = db.open_table(table).schema
+            tbl = db.open_table(table)
+            schema = tbl.schema
             fields = [
                 SchemaFieldClass(fieldPath=f.name, type=_field_type(str(f.type)), nativeDataType=str(f.type))
                 for f in schema
@@ -1197,6 +1219,12 @@ def emit_lancedb():
                 fields, f"datasets_{cfg.domain}_lancedb_load",
             ):
                 emitter.emit(MetadataChangeProposalWrapper(entityUrn=urn, aspect=aspect))
+            rows = None
+            try:
+                rows = tbl.count_rows()
+            except Exception:  # noqa: BLE001
+                pass
+            _emit_profile(emitter, urn, rows, len(fields) or None)
             names.append(name)
     return len(names), names
 
@@ -1272,6 +1300,13 @@ def emit_opensearch():
                 platformSchema=OtherSchemaClass(rawSchema=""), fields=fields))
         for aspect in aspects:
             emitter.emit(MetadataChangeProposalWrapper(entityUrn=urn, aspect=aspect))
+        rows = None
+        try:
+            with urllib.request.urlopen(f"{base}/{idx}/_count", timeout=30) as r:
+                rows = json.load(r).get("count")
+        except Exception:  # noqa: BLE001
+            pass
+        _emit_profile(emitter, urn, rows, len(fields) or None)
         names.append(idx)
     return len(names), names
 
@@ -1332,6 +1367,13 @@ def emit_duckdb():
                     platformSchema=OtherSchemaClass(rawSchema=""), fields=fields))
             for aspect in aspects:
                 emitter.emit(MetadataChangeProposalWrapper(entityUrn=urn, aspect=aspect))
+            rows = None
+            try:
+                cur.execute(f'SELECT count(*) FROM "{schema}"."{v}"')
+                rows = cur.fetchone()[0]
+            except Exception:  # noqa: BLE001
+                pass
+            _emit_profile(emitter, urn, rows, len(fields) or None)
             names.append(v)
     finally:
         conn.close()
@@ -1403,6 +1445,13 @@ def emit_timescaledb():
                     type=DatasetLineageTypeClass.TRANSFORMED)]))
             for aspect in aspects:
                 emitter.emit(MetadataChangeProposalWrapper(entityUrn=urn, aspect=aspect))
+            rows = None
+            try:
+                cur.execute(f"""SELECT approximate_row_count('public."{t}"')""")
+                rows = cur.fetchone()[0]
+            except Exception:  # noqa: BLE001
+                conn.rollback()   # a failed query aborts the psycopg2 txn — reset so later SELECTs still work
+            _emit_profile(emitter, urn, rows, len(fields) or None)
             names.append(t)
     finally:
         conn.close()
@@ -1452,6 +1501,13 @@ def emit_mysql():
                     type=DatasetLineageTypeClass.COPY)]))
                 for aspect in aspects:
                     emitter.emit(MetadataChangeProposalWrapper(entityUrn=urn, aspect=aspect))
+                rows = None
+                try:
+                    cur.execute(f"SELECT count(*) FROM `{db}`.`{t}`")
+                    rows = cur.fetchone()[0]
+                except Exception:  # noqa: BLE001
+                    pass
+                _emit_profile(emitter, urn, rows, len(fields) or None)
                 names.append(name)
     finally:
         conn.close()
