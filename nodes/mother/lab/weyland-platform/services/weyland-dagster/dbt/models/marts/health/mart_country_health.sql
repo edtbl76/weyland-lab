@@ -23,10 +23,12 @@ with gho as (
         numericvalue as val
     from {{ source('datasets_health', src) }}
     where numericvalue is not null
-      -- WHO GHO stores Dim1 as CODES, not labels: SEX_BTSX = both sexes (SEX_MLE/SEX_FMLE = male/female). The old
-      -- filter matched the label 'both sexes' and so dropped EVERY sex-disaggregated indicator (life_expectancy et
-      -- al.) to null. Match the both-sexes code; indicators with no sex breakdown carry dim1 = null.
-      and (dim1 is null or dim1 = 'SEX_BTSX')
+      -- WHO GHO stores Dim1 as CODES, not labels, and different indicators disaggregate on different dimensions —
+      -- so pick each indicator's "total" row: SEX_BTSX (both sexes) for the sex-split indicators, ALCOHOLTYPE_SA_TOTAL
+      -- (all beverage types) for alcohol, and dim1 = null for indicators with no breakdown. The old label filter
+      -- ('both sexes'/'total') matched none of these codes, nulling 7 columns. Each code touches only its own
+      -- indicator's rows, so this whitelist can't cross-contaminate.
+      and (dim1 is null or dim1 in ('SEX_BTSX', 'ALCOHOLTYPE_SA_TOTAL'))
     {% if not loop.last %}union all{% endif %}
     {% endfor %}
 ),
