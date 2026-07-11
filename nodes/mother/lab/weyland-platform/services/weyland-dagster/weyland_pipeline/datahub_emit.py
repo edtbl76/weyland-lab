@@ -594,6 +594,17 @@ def _field_class(leaf):
         return "dimension"
     if l.endswith(("_name", "_text", "_desc", "_description", "_comment", "_note", "_title", "_url", "_message")):
         return "text"
+    # domain-specific high-frequency patterns (from the unclassified-field audit)
+    if l.startswith(("value_", "confidence")) or l.endswith(("_order", "_duration", "_bps", "_pps", "_ops", "_bytes")) or l == "duration":
+        return "measure"
+    if "timedimension" in l:
+        return "temporal"
+    if l.startswith("caption") or l in ("link", "editor", "track_composer", "abstract"):
+        return "text"
+    if l.endswith("_bucket") or l in ("parent", "labels", "release", "entity", "break_out", "pseudo_attribute"):
+        return "dimension"
+    if l == "guid":
+        return "identifier"
     return None
 
 
@@ -664,6 +675,11 @@ def emit_mesh_glossary(attach=True):
         for suf in _STAT_SUFFIXES:
             if leaf.endswith(suf) and leaf[: -len(suf)] in idx:
                 return idx[leaf[: -len(suf)]]
+        # PREFIX: a pattern matches a field starting with `<pattern>_` (data_value → data_value_unit/_footnote).
+        # len>=4 guard so short patterns (id/op/gid) don't greedily swallow unrelated columns.
+        for pat, val in idx.items():
+            if len(pat) >= 4 and leaf.startswith(pat + "_"):
+                return val
         return None
 
     n_fields = n_ds = 0
