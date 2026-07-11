@@ -285,6 +285,118 @@ GLOBAL_COLS = {
     "_dlt_load_id": "dlt internal load id — the pipeline run that loaded this row.",
 }
 
+# ── Big Five (IPIP-50 OCEAN personality survey) ──────────────────────────────
+BIG_FIVE = {
+    "age": "Age of the respondent (years).",
+    "gender": "Gender of the respondent (1 = male, 2 = female, 3 = other).",
+    "country": "Country of the respondent.",
+    "engnat": "Whether English is the respondent's native language (1 = yes, 2 = no).",
+    "hand": "Handedness of the respondent (1 = right, 2 = left, 3 = both).",
+    "race": "Race / ethnicity of the respondent.",
+    "source": "How the respondent found the test.",
+}
+BIG_FIVE.update({
+    f"{p}{i}": f"{t} (OCEAN) — IPIP personality item {i}, 1–5 Likert response."
+    for p, t in (("e", "Extraversion"), ("n", "Neuroticism"), ("a", "Agreeableness"),
+                 ("c", "Conscientiousness"), ("o", "Openness"))
+    for i in range(1, 11)
+})
+
+# ── Last.fm (user × artist play counts + user demographics) ──────────────────
+LASTFM = {
+    "user_id": "Last.fm user identifier.", "user_index": "Internal user index.",
+    "artist_name": "Artist name.", "artist_index": "Internal artist index.",
+    "musicbrainz_artist_id": "MusicBrainz artist MBID.",
+    "play_count": "Number of times the user played the artist.",
+    "age": "Age of the user.", "gender": "Gender of the user.", "country": "Country of the user.",
+    "signup_date": "Date the user signed up to Last.fm.",
+}
+
+# ── CDC surveillance schema (BRFSS + CDC physical-activity — shared columns) ──
+CDC_SURVEILLANCE = {
+    "class": "CDC surveillance class — top level of the measure taxonomy.",
+    "classid": "Stable code for the class.",
+    "topic": "Topic within the class.", "topicid": "Stable code for the topic.",
+    "question": "Survey question / measure.", "questionid": "Stable code for the question.",
+    "data_value": "The measured value.", "data_value_alt": "Alternate representation of the measured value.",
+    "data_value_type": "Type of the measure (crude prevalence, age-adjusted, …).",
+    "data_value_unit": "Unit of the measured value.", "datavaluetypeid": "Stable code for the data-value type.",
+    "data_value_footnote": "Footnote qualifying the value.", "data_value_footnote_symbol": "Footnote symbol.",
+    "low_confidence_limit": "Lower bound of the 95% confidence interval.",
+    "high_confidence_limit": "Upper bound of the 95% confidence interval.",
+    "confidence_limit_low": "Lower bound of the 95% confidence interval.",
+    "confidence_limit_high": "Upper bound of the 95% confidence interval.",
+    "locationabbr": "State / territory abbreviation.", "locationdesc": "Full location name.",
+    "locationid": "FIPS-style location code.", "geolocation": "Latitude / longitude of the location.",
+    "sample_size": "Number of respondents behind the estimate.", "datasource": "Data source.",
+    "yearstart": "Start year of the reporting period.", "yearend": "End year of the reporting period.",
+    "year": "Reporting year.", "state": "US state.", "rowid": "Row identifier.",
+    "sex": "Sex of the respondent group.",
+    "age_years": "Age (years) of the respondent group.", "age(years)": "Age (years) of the respondent group.",
+    "education": "Education level of the respondent group.", "income": "Income level of the respondent group.",
+    "race_ethnicity": "Race / ethnicity of the respondent group.",
+    "race/ethnicity": "Race / ethnicity of the respondent group.",
+    "total": "Whether the row is the overall total (not disaggregated).",
+    "stratification1": "Stratification (break-out) value.", "stratificationcategory1": "Stratification category.",
+    "stratificationid1": "Stable code for the stratification value.",
+    "stratificationcategoryid1": "Stable code for the stratification category.",
+    "break_out": "Break-out (disaggregation) value.", "break_out_category": "Break-out category.",
+    "breakoutid": "Stable code for the break-out value.",
+    "breakoutcategoryid": "Stable code for the break-out category.",
+    "response": "Survey response option.", "responseid": "Stable code for the response option.",
+    "display_order": "Display ordering of the row.",
+}
+
+# ── MusicBrainz (relational schema — core entities + systematic patterns) ────
+MUSICBRAINZ = {
+    "id": "Row identifier (primary key).", "gid": "Row-level MusicBrainz UUID (MBID).", "mbid": "MusicBrainz ID.",
+    "name": "Name of the entity.", "sort_name": "Sortable form of the name.",
+    "comment": "Disambiguation comment.", "edits_pending": "Count of open community edits awaiting application.",
+    "type": "Type of the entity.", "type_id": "Foreign key to the entity type.", "types": "Entity types.",
+    "area": "Geographic area.", "begin_area": "Area where the entity began.", "end_area": "Area where the entity ended.",
+    "artist": "Artist.", "artist_credit": "Artist credit (how the artist is credited on a release).",
+    "artist_count": "Number of artists.", "release": "Release.", "release_group": "Release group.",
+    "recording": "Recording.", "work": "Work.", "label": "Label.", "place": "Place.", "event": "Event.",
+    "series": "Series.", "instrument": "Instrument.", "genre": "Genre.", "medium": "Medium (disc) of a release.",
+    "track": "Track.", "track_count": "Number of tracks.", "url": "URL.", "length": "Length in milliseconds.",
+    "position": "Position / ordering.", "number": "Number.", "ordering": "Ordering.", "ordering_type": "Ordering type.",
+    "begin_date_year": "Begin-date year.", "begin_date_month": "Begin-date month.", "begin_date_day": "Begin-date day.",
+    "end_date_year": "End-date year.", "end_date_month": "End-date month.", "end_date_day": "End-date day.",
+    "first_release_date_year": "First-release-date year.", "first_release_date_month": "First-release-date month.",
+    "first_release_date_day": "First-release-date day.", "first_release_date": "First release date.",
+    "date_year": "Date year.", "date_month": "Date month.", "date_day": "Date day.",
+    "ended": "Whether the entity has ended.", "barcode": "Release barcode.", "catalog_number": "Catalog number.",
+    "format": "Medium format.", "medium_format": "Medium format.", "packaging": "Release packaging.",
+    "primary_type": "Primary release-group type.", "secondary_type": "Secondary release-group type.",
+    "secondary_types": "Secondary release-group types.", "script": "Writing script.", "language": "Language.",
+    "isrc": "ISRC recording code.", "iswc": "ISWC work code.", "ipi": "IPI code (interested party).",
+    "isni": "ISNI code.", "discid": "Disc ID.", "freedb_id": "FreeDB disc id.", "quality": "Data quality flag.",
+    "rating": "Community rating.", "rating_count": "Number of ratings.", "tag": "Community tag.",
+    "count": "Count.", "code": "Code.", "label_code": "Label code (LC).", "country": "Country.",
+    "country_code": "Country code.", "iso_number": "ISO number.", "bio": "Biography text.",
+    "annotation": "Annotation text.", "description": "Description.", "coordinates": "Geographic coordinates.",
+    "address": "Address.", "video": "Whether the recording is a video.", "cdtoc": "CD table of contents.",
+    "join_phrase": "Artist-credit join phrase.", "link": "Relationship link.", "link_order": "Order of the link.",
+    "link_phrase": "Relationship link phrase.", "link_type": "Relationship link type.",
+    "direction": "Relationship direction.", "entity_type": "Entity type of a relationship endpoint.",
+    "entity0": "First entity of a relationship.", "entity1": "Second entity of a relationship.",
+    "entity0_credit": "Credited name of the first relationship endpoint.",
+    "entity1_credit": "Credited name of the second relationship endpoint.",
+    "root": "Root of a hierarchy.", "child_order": "Order among siblings.", "sequence": "Sequence.",
+    "revision": "Revision.", "credited_as": "Credited-as name.", "table_name": "Source table name (CDC/change).",
+    "op": "Change operation (Debezium: c/u/d/r).", "created": "Creation timestamp.", "last_updated": "Last-updated timestamp.",
+    "primary_for_locale": "Whether primary for the locale.", "locale": "Locale.", "text": "Text value.",
+    "value": "Value.", "weight": "Weight.", "root_id": "Root id.", "day": "Day.", "month": "Month.", "year": "Year.",
+    "gender": "Gender.", "sort": "Sort key.",
+}
+MUSICBRAINZ_SUFFIX = {
+    "_attribute_type_allowed_value": "Allowed value for a relationship attribute type.",
+    "_attribute_text": "Free-text value of a relationship attribute.",
+    "_attribute_type": "Relationship attribute type.",
+    "_date_year": "Year component of the date.", "_date_month": "Month component of the date.",
+    "_date_day": "Day component of the date.",
+}
+
 FIELD_DOCS = {
     "open_food_facts": OPEN_FOOD_FACTS,
     "usda": USDA_FDC,
@@ -293,6 +405,11 @@ FIELD_DOCS = {
     "musiccaps": MUSICCAPS,
     "gtzan": GTZAN,
     "uci_": UCI_YEAR,
+    "big_five": BIG_FIVE,
+    "lastfm": LASTFM,
+    "brfss": CDC_SURVEILLANCE,
+    "cdc_physical": CDC_SURVEILLANCE,
+    "musicbrainz": MUSICBRAINZ,
 }
 FIELD_DOCS_PREFIX = {
     "fma": FMA_PREFIX,
@@ -301,4 +418,5 @@ FIELD_DOCS_PREFIX = {
 }
 FIELD_DOCS_SUFFIX = {
     "open_food_facts": OPEN_FOOD_FACTS_SUFFIX,
+    "musicbrainz": MUSICBRAINZ_SUFFIX,
 }
