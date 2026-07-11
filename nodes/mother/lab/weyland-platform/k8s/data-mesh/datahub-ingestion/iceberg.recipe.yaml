@@ -16,5 +16,5 @@ source:
         s3.access-key-id: "${MINIO_ACCESS_KEY}"
         s3.secret-access-key: "${MINIO_SECRET_KEY}"
     profiling:
-      enabled: true
-      profile_table_level_only: true   # B80 Stats-wide: row count + size only — cheap, no per-column histogram scans
+      enabled: false   # IcebergSourceConfig rejects `profile_table_level_only` (sqlalchemy-only); Soda already
+                       # profiles the iceberg.dbt marts + gold, so leave iceberg ingestion profiling off.
