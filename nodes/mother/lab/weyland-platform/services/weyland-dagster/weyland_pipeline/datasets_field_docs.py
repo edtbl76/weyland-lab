@@ -196,9 +196,108 @@ USDA_FDC = {
 }
 
 
+# ── FMA (Free Music Archive: track metadata + librosa audio features + Echo Nest) ────────────────────────────
+FMA = {
+    "track_id": "FMA track identifier.", "album_id": "FMA album identifier.", "artist_id": "FMA artist identifier.",
+    "genre_id": "FMA genre identifier.", "genre_title": "Genre name.", "genre_handle": "Genre URL handle.",
+    "genre_color": "Genre display colour.", "genre_parent_id": "Parent genre id.", "parent_id": "Parent genre id.",
+    "parent_title": "Parent genre name.", "is_top_level": "Whether the genre is a top-level (root) genre.",
+    "track_number": "Track number on the album.", "track_disc_number": "Disc number.",
+    "track_composer": "Composer.", "track_lyricist": "Lyricist.", "track_publisher": "Publisher.",
+    "track_information": "Track information / notes.", "track_language_code": "Language code of the track.",
+    "track_genre": "Track genre.", "index": "Row index.", "tags": "Track tags.",
+}
+FMA_PREFIX = {
+    "chroma_cens_": "Chroma CENS (energy-normalized chroma) audio feature — a librosa statistic of one of 12 pitch-class energy coefficients.",
+    "chroma_cqt_": "Chroma CQT (constant-Q chromagram) audio feature — a statistic of a pitch-class coefficient.",
+    "chroma_stft_": "Chroma STFT (short-time Fourier chromagram) audio feature — a statistic of a pitch-class coefficient.",
+    "mfcc_": "MFCC (mel-frequency cepstral coefficient) audio feature — a statistic of one of 20 cepstral coefficients.",
+    "spectral_contrast_": "Spectral-contrast audio feature — a statistic per frequency sub-band.",
+    "spectral_bandwidth_": "Spectral-bandwidth audio feature (statistic).",
+    "spectral_centroid_": "Spectral-centroid audio feature (statistic).",
+    "spectral_rolloff_": "Spectral roll-off frequency audio feature (statistic).",
+    "tonnetz_": "Tonnetz (tonal-centroid) audio feature — a statistic of one of 6 tonal dimensions.",
+    "rmse_": "RMS-energy audio feature (statistic).",
+    "zcr_": "Zero-crossing-rate audio feature (statistic).",
+    "echonest_temporal_features_": "Echo Nest temporal audio feature (one of 224 timbre/rhythm descriptors).",
+    "echonest_audio_features_": "Echo Nest high-level audio feature (acousticness, danceability, energy, …).",
+    "echonest_social_features_": "Echo Nest social feature (artist/song popularity signal).",
+    "echonest_ranks_": "Echo Nest popularity rank (artist/song).",
+    "echonest_metadata_": "Echo Nest track metadata (album, artist, release, location).",
+    "album_title": "Album title.", "album_url": "Album page URL.",
+    "artist_name": "Artist name.", "artist_url": "Artist page URL.", "artist_website": "Artist website URL.",
+    "license_image_file": "URL of the license badge image.", "license_url": "License URL.",
+    "license_title": "License name.", "license_parent_id": "Parent license id.",
+    "track_url": "Track page URL.", "track_image_file": "Track image URL.", "track_file": "Path to the track audio file.",
+    "track_genres": "Track genres (embedded id/title/url).", "track_title": "Track title.",
+    "track_bit_rate": "Audio bit rate.", "track_comments": "Number of comments.",
+    "track_date_created": "Date the track record was created.", "track_date_recorded": "Date the track was recorded.",
+    "track_duration": "Track duration.", "track_explicit": "Explicit-content flag / notes.",
+    "track_favorites": "Number of favourites.", "track_instrumental": "Instrumental flag.",
+    "track_interest": "Interest count.", "track_listens": "Number of listens.",
+}
+AUDIOSET = {
+    "video_id": "YouTube video id of the 10-second audio clip.",
+    "labels": "AudioSet ontology label ids for the clip.",
+    "human_labels": "Human-readable AudioSet label names for the clip.",
+}
+MUSICCAPS = {
+    "ytid": "YouTube video id of the music clip.",
+    "start_s": "Clip start time in the source video (seconds).",
+    "end_s": "Clip end time in the source video (seconds).",
+    "audioset_positive_labels": "AudioSet positive label ids for the clip.",
+    "aspect_list": "List of musical aspects annotated for the clip.",
+    "caption_ground_truth": "Human-written ground-truth caption of the music.",
+    "caption_summary": "Summary caption of the music.",
+    "caption_writing": "Free-form written caption.",
+    "caption_paraphrase": "Paraphrased caption.",
+    "caption_attribute_prediction": "Attribute-prediction caption.",
+    "pseudo_attribute": "Pseudo-labelled musical attributes.",
+    "author_id": "Annotator id.", "is_balanced_subset": "Whether the clip is in the balanced eval subset.",
+    "is_audioset_eval": "Whether the clip is in the AudioSet eval split.",
+    "is_crawled": "Whether the audio was successfully crawled.",
+    "title": "Title of the source video.", "artist_name": "Artist name.",
+    "tag_top50": "Top-50 music tags.", "tag_top188": "Top-188 music tags.",
+    "release": "Release name.", "fname": "Audio file name.", "path": "Audio file path.",
+    "track_id": "Track identifier.",
+}
+GTZAN = {
+    "genre": "GTZAN music genre of the clip.", "label": "Genre label.", "tempo": "Estimated tempo (BPM).",
+    "rms_mean": "Mean RMS energy.", "rms_var": "Variance of RMS energy.",
+    "rolloff_mean": "Mean spectral roll-off.", "rolloff_var": "Variance of spectral roll-off.",
+    "chroma_stft_mean": "Mean chroma STFT.", "chroma_stft_var": "Variance of chroma STFT.",
+    "zero_crossing_rate_mean": "Mean zero-crossing rate.", "zero_crossing_rate_var": "Variance of zero-crossing rate.",
+    "spectral_centroid_mean": "Mean spectral centroid.", "spectral_centroid_var": "Variance of spectral centroid.",
+    "spectral_bandwidth_mean": "Mean spectral bandwidth.", "spectral_bandwidth_var": "Variance of spectral bandwidth.",
+}
+GTZAN_PREFIX = {"mfcc": "MFCC (mel-frequency cepstral coefficient) audio feature (mean/variance of a coefficient)."}
+UCI_YEAR = {"year": "Release year of the song (target for the year-prediction task)."}
+UCI_YEAR_PREFIX = {
+    "timbre_avg_": "Average of a timbre feature (Million Song Dataset audio analysis).",
+    "timbre_cov_": "Covariance of timbre features (Million Song Dataset audio analysis).",
+}
+
+# Cross-dataset technical columns produced by the datasets_lib loaders — applied to every documented dataset.
+GLOBAL_COLS = {
+    "vector": "Embedding vector for the row (dense representation for similarity search).",
+    "row_id": "Synthetic row identifier assigned during loading.",
+    "_dlt_id": "dlt internal row id (load lineage).",
+    "_dlt_load_id": "dlt internal load id — the pipeline run that loaded this row.",
+}
+
 FIELD_DOCS = {
     "open_food_facts": OPEN_FOOD_FACTS,
     "usda": USDA_FDC,
+    "fma": FMA,
+    "audioset": AUDIOSET,
+    "musiccaps": MUSICCAPS,
+    "gtzan": GTZAN,
+    "uci_": UCI_YEAR,
+}
+FIELD_DOCS_PREFIX = {
+    "fma": FMA_PREFIX,
+    "gtzan": GTZAN_PREFIX,
+    "uci_": UCI_YEAR_PREFIX,
 }
 FIELD_DOCS_SUFFIX = {
     "open_food_facts": OPEN_FOOD_FACTS_SUFFIX,

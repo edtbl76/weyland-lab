@@ -1154,7 +1154,12 @@ def emit_field_docs():
     import time
 
     from datahub.ingestion.graph.client import DataHubGraph, DatahubClientConfig
-    from weyland_pipeline.datasets_field_docs import FIELD_DOCS, FIELD_DOCS_SUFFIX
+    from weyland_pipeline.datasets_field_docs import (
+        FIELD_DOCS,
+        FIELD_DOCS_PREFIX,
+        FIELD_DOCS_SUFFIX,
+        GLOBAL_COLS,
+    )
 
     emitter = _gms_emitter()
     server = os.environ.get("DATAHUB_GMS_URL", "http://datahub-datahub-gms.data-mesh.svc.cluster.local:8080")
@@ -1167,7 +1172,9 @@ def emit_field_docs():
         key = next((k for k in FIELD_DOCS if k in low), None)
         if not key:
             continue
-        exact, suffix = FIELD_DOCS[key], FIELD_DOCS_SUFFIX.get(key, {})
+        exact = {**GLOBAL_COLS, **FIELD_DOCS[key]}
+        prefix = sorted(FIELD_DOCS_PREFIX.get(key, {}).items(), key=lambda kv: -len(kv[0]))
+        suffix = FIELD_DOCS_SUFFIX.get(key, {})
         sm = graph.get_aspect(urn, SchemaMetadataClass)
         if not sm or not sm.fields:
             continue
@@ -1176,7 +1183,9 @@ def emit_field_docs():
         touched = 0
         for f in sm.fields:
             leaf = _field_leaf(f.fieldPath)
-            desc = (exact.get(leaf) or exact.get(leaf.replace(" ", "_"))
+            lu = leaf.replace(" ", "_")
+            desc = (exact.get(leaf) or exact.get(lu)
+                    or next((d for p, d in prefix if lu.startswith(p)), None)
                     or next((d for suf, d in suffix.items() if leaf.endswith(suf)), None))
             if not desc:
                 continue
