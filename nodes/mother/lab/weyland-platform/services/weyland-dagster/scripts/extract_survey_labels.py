@@ -28,12 +28,9 @@ NHANES_URLS = [
     "https://wwwn.cdc.gov/Nchs/Data/Nhanes/Public/2015/DataFiles/PAQ_I.xpt",
 ]
 
-# NHIS ships a SAS-format data file (embeds variable labels) alongside the CSV — `adult<YY>.zip` (not the *csv.zip).
-NHIS_ZIP = {
-    "2022": "https://ftp.cdc.gov/pub/Health_Statistics/NCHS/Datasets/NHIS/2022/adult22.zip",
-    "2021": "https://ftp.cdc.gov/pub/Health_Statistics/NCHS/Datasets/NHIS/2021/adult21.zip",
-    "2020": "https://ftp.cdc.gov/pub/Health_Statistics/NCHS/Datasets/NHIS/2020/adult20.zip",
-}
+# NHIS has no machine-readable input program — labels live in the PDF codebook. Each variable is a block:
+#   Variable: <NAME> … Description: <label> … Recode:  → parse that out.
+NHIS_CODEBOOK = "https://ftp.cdc.gov/pub/Health_Statistics/NCHS/Dataset_Documentation/NHIS/2022/Adult-nofreq-codebook.pdf"
 
 
 def _get(url, timeout=180):
@@ -61,29 +58,23 @@ def nhanes_labels():
 
 def nhis_labels():
     import io
-    import os
-    import tempfile
-    import zipfile
 
-    import pyreadstat
+    import pypdf
     out = {}
-    for year, url in NHIS_ZIP.items():
-        try:
-            z = zipfile.ZipFile(io.BytesIO(_get(url, timeout=600)))
-            member = next((m for m in z.namelist() if m.lower().endswith((".sas7bdat", ".xpt"))), None)
-            if not member:
-                print(f"# NHIS {year}: no SAS/XPT file in zip: {z.namelist()}")
-                continue
-            with tempfile.TemporaryDirectory() as td:
-                z.extract(member, td)
-                path = os.path.join(td, member)
-                reader = pyreadstat.read_xport if path.lower().endswith(".xpt") else pyreadstat.read_sas7bdat
-                _df, meta = reader(path, metadataonly=True)  # header only — no data parse
-                for name, lab in zip(meta.column_names, meta.column_labels or []):
-                    if lab and name:
-                        out.setdefault(name.lower(), lab.strip())
-        except Exception as e:  # noqa: BLE001
-            print(f"# NHIS ERR {url}: {e}")
+    try:
+        reader = pypdf.PdfReader(io.BytesIO(_get(NHIS_CODEBOOK, timeout=600)))
+        text = "\n".join((p.extract_text() or "") for p in reader.pages)
+    except Exception as e:  # noqa: BLE001
+        print(f"# NHIS ERR {NHIS_CODEBOOK}: {e}")
+        return out
+    # each variable block: "Variable: <NAME> … Description: <label> Recode:"; skip "Universe Description:".
+    for m in re.finditer(r"Variable:\s*(\S+)(.*?)(?=Variable:|\Z)", text, re.DOTALL):
+        var, block = m.group(1), m.group(2)
+        dm = re.search(r"(?<!Universe )Description:\s*(.+?)\s*Recode:", block, re.DOTALL)
+        if dm:
+            lab = " ".join(dm.group(1).split())
+            if var and lab:
+                out.setdefault(var.lower(), lab)
     return out
 
 
