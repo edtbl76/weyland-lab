@@ -543,9 +543,9 @@ def _mesh_term_index():
     'entity0_credit' stay distinct terms (no greedy startswith)."""
     from weyland_pipeline.mesh_vocabulary import TERMS
     idx = {}
-    for tid, _name, _parent, _defn, attach in TERMS:
+    for tid, _name, _parent, defn, attach in TERMS:
         for pat in attach:
-            idx[pat.lower()] = f"urn:li:glossaryTerm:{tid}"
+            idx[pat.lower()] = (f"urn:li:glossaryTerm:{tid}", defn)
     return idx
 
 
@@ -605,27 +605,33 @@ def emit_mesh_glossary(attach=True):
         if not sm or not sm.fields:
             continue
         # per-field term matches for this dataset
-        want = {}  # fieldPath -> term urn
+        want = {}  # fieldPath -> (term urn, definition)
         for f in sm.fields:
-            t = _match(_field_leaf(f.fieldPath))
-            if t:
-                want[f.fieldPath] = t
+            m = _match(_field_leaf(f.fieldPath))
+            if m:
+                want[f.fieldPath] = m
         if not want:
             continue
         # READ-MERGE the existing editable overlay so we don't clobber descriptions/other terms
         esm = graph.get_aspect(urn, EditableSchemaMetadataClass)
         infos = {i.fieldPath: i for i in (esm.editableSchemaFieldInfo if esm else [])}
         touched = 0
-        for fp, term_urn in want.items():
+        for fp, (term_urn, defn) in want.items():
             info = infos.get(fp) or EditableSchemaFieldInfoClass(fieldPath=fp)
+            changed = False
+            # define-once description: fill from the term definition, but NEVER clobber a real one (dbt marts carry
+            # their own). So a plain `id`/`span_id`/`created_at` field gets both the glossary term AND a description.
+            if not info.description:
+                info.description = defn
+                changed = True
             existing = list(info.glossaryTerms.terms) if info.glossaryTerms else []
-            if any(a.urn == term_urn for a in existing):
-                infos[fp] = info
-                continue
-            existing.append(GlossaryTermAssociationClass(urn=term_urn))
-            info.glossaryTerms = GlossaryTermsClass(terms=existing, auditStamp=stamp)
+            if not any(a.urn == term_urn for a in existing):
+                existing.append(GlossaryTermAssociationClass(urn=term_urn))
+                info.glossaryTerms = GlossaryTermsClass(terms=existing, auditStamp=stamp)
+                changed = True
             infos[fp] = info
-            touched += 1
+            if changed:
+                touched += 1
         if not touched:
             continue
         emitter.emit(MetadataChangeProposalWrapper(
