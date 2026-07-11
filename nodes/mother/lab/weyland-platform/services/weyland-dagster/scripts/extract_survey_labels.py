@@ -67,14 +67,21 @@ def nhis_labels():
     except Exception as e:  # noqa: BLE001
         print(f"# NHIS ERR {NHIS_CODEBOOK}: {e}")
         return out
-    # each variable block: "Variable: <NAME> … Description: <label> Recode:"; skip "Universe Description:".
+    # 1) primary — the compact summary line above each value table: "NAME   <label>\nCode  Description"
+    for m in re.finditer(r"\n([A-Za-z][\w]*)\s{2,}(.+?)\s*\n\s*Code\s+Description", text):
+        lab = " ".join(m.group(2).split())
+        if lab:
+            out.setdefault(m.group(1).lower(), lab)
+    # 2) fallback — the block's Description field (skip "Universe Description:")
     for m in re.finditer(r"Variable:\s*(\S+)(.*?)(?=Variable:|\Z)", text, re.DOTALL):
-        var, block = m.group(1), m.group(2)
-        dm = re.search(r"(?<!Universe )Description:\s*(.+?)\s*Recode:", block, re.DOTALL)
+        var = m.group(1).lower()
+        if var in out:
+            continue
+        dm = re.search(r"(?<!Universe )Description:\s*(.+?)\s*Recode:", m.group(2), re.DOTALL)
         if dm:
             lab = " ".join(dm.group(1).split())
-            if var and lab:
-                out.setdefault(var.lower(), lab)
+            if lab:
+                out.setdefault(var, lab)
     return out
 
 
