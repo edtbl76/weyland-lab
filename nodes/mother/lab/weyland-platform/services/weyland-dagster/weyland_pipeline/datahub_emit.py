@@ -1176,7 +1176,8 @@ def emit_field_docs():
         touched = 0
         for f in sm.fields:
             leaf = _field_leaf(f.fieldPath)
-            desc = exact.get(leaf) or next((d for suf, d in suffix.items() if leaf.endswith(suf)), None)
+            desc = (exact.get(leaf) or exact.get(leaf.replace(" ", "_"))
+                    or next((d for suf, d in suffix.items() if leaf.endswith(suf)), None))
             if not desc:
                 continue
             info = infos.get(f.fieldPath) or EditableSchemaFieldInfoClass(fieldPath=f.fieldPath)
