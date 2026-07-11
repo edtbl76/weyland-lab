@@ -67,6 +67,9 @@ def nhis_labels():
     except Exception as e:  # noqa: BLE001
         print(f"# NHIS ERR {NHIS_CODEBOOK}: {e}")
         return out
+    _i = text.find("ANGEV")   # DEBUG: show the real extracted layout around a variable the Description pass missed
+    if _i >= 0:
+        print("# DEBUG raw text around ANGEV:", repr(text[max(0, _i - 60):_i + 400]))
     # 1) primary — the compact summary line above each value table: "NAME   <label>\nCode  Description"
     for m in re.finditer(r"\n([A-Za-z][\w]*)\s{2,}(.+?)\s*\n\s*Code\s+Description", text):
         lab = " ".join(m.group(2).split())
