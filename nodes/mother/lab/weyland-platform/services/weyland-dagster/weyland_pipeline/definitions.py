@@ -147,6 +147,12 @@ def emit_mesh_glossary_op(context):
 
 
 @op
+def emit_field_docs_op(context):
+    from weyland_pipeline.datahub_emit import emit_field_docs
+    _safe_emit(context, "Field docs (source field dictionaries → per-column descriptions)", emit_field_docs)
+
+
+@op
 def emit_structured_properties_op(context):
     from weyland_pipeline.datahub_emit import emit_structured_properties
     _safe_emit(context, "Structured Properties (layer/source/tier facets)", emit_structured_properties)
@@ -256,6 +262,7 @@ def datahub_catalog_emit_job():
     emit_data_products_op()
     emit_glossary_op()
     emit_mesh_glossary_op()
+    emit_field_docs_op()
     emit_structured_properties_op()
     emit_docs_links_op()
     emit_tags_op()

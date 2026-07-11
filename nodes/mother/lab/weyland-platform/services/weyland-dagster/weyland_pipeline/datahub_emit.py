@@ -1145,6 +1145,54 @@ def emit_tag_assignments():
     return n
 
 
+def emit_field_docs():
+    """#3 real field meaning — attach per-column descriptions transcribed from each dataset's SOURCE field
+    dictionary (datasets_field_docs.FIELD_DOCS). Match a dataset by name substring, describe each field by its
+    exact column doc or a suffix rule (`*_100g` etc.), and attach to EVERY store copy (read-merge, never clobbers
+    an existing description). This is the meaning that pattern-classification can't give the domain-specific
+    columns. Returns (datasets touched, fields described)."""
+    import time
+
+    from datahub.ingestion.graph.client import DataHubGraph, DatahubClientConfig
+    from weyland_pipeline.datasets_field_docs import FIELD_DOCS, FIELD_DOCS_SUFFIX
+
+    emitter = _gms_emitter()
+    server = os.environ.get("DATAHUB_GMS_URL", "http://datahub-datahub-gms.data-mesh.svc.cluster.local:8080")
+    token = os.environ.get("DATAHUB_GMS_TOKEN", "")
+    graph = DataHubGraph(DatahubClientConfig(server=server, token=token))
+    stamp = AuditStampClass(time=int(time.time() * 1000), actor="urn:li:corpuser:datahub")
+    n_ds = n_f = 0
+    for urn in graph.get_urns_by_filter(entity_types=["dataset"]):
+        low = urn.lower()
+        key = next((k for k in FIELD_DOCS if k in low), None)
+        if not key:
+            continue
+        exact, suffix = FIELD_DOCS[key], FIELD_DOCS_SUFFIX.get(key, {})
+        sm = graph.get_aspect(urn, SchemaMetadataClass)
+        if not sm or not sm.fields:
+            continue
+        esm = graph.get_aspect(urn, EditableSchemaMetadataClass)
+        infos = {i.fieldPath: i for i in (esm.editableSchemaFieldInfo if esm else [])}
+        touched = 0
+        for f in sm.fields:
+            leaf = _field_leaf(f.fieldPath)
+            desc = exact.get(leaf) or next((d for suf, d in suffix.items() if leaf.endswith(suf)), None)
+            if not desc:
+                continue
+            info = infos.get(f.fieldPath) or EditableSchemaFieldInfoClass(fieldPath=f.fieldPath)
+            if not info.description:
+                info.description = desc
+                infos[f.fieldPath] = info
+                touched += 1
+        if touched:
+            emitter.emit(MetadataChangeProposalWrapper(entityUrn=urn, aspect=EditableSchemaMetadataClass(
+                created=(esm.created if esm else stamp), lastModified=stamp,
+                editableSchemaFieldInfo=list(infos.values()))))
+            n_ds += 1
+            n_f += touched
+    return n_ds, n_f
+
+
 def emit_ownership():
     """#9 ownership fix — solo lab: the `weyland` group is Technical Owner of every dataset. Creates the CorpGroup
     entity, then stamps Ownership across all datasets so the 'No owners yet' governance gap clears cluster-wide."""
