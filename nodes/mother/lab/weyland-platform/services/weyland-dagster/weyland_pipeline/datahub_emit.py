@@ -1514,6 +1514,41 @@ def emit_mysql():
     return len(names), names
 
 
+def emit_cockroachdb_profiles():
+    """B80 Stats-wide: the DataHub cockroachdb ingestion profiler emits no DatasetProfile (0/9 despite `profiling`
+    enabled), so custom-emit rowCount profiles onto the cockroach datasets it DID catalog. Cockroach is db-per-
+    dataset (brfss, nhis); the ingestion URN name is `<db>.<table>`. Connect per database (information_schema is
+    current-db-scoped), count each public base table, emit a profile on the matching URN. Insecure single-node →
+    user root, sslmode disable (Cockroach is pg-WIRE, so psycopg2 connects fine). Returns profiles emitted."""
+    import psycopg2
+    emitter = _gms_emitter()
+    host = os.environ.get("COCKROACHDB_HOST", "cockroachdb.data-mesh.svc.cluster.local")
+    port = int(os.environ.get("COCKROACHDB_PORT", "26257"))
+    user = os.environ.get("COCKROACHDB_USER", "root")
+    n = 0
+    for db in ("brfss", "nhis"):
+        try:
+            conn = psycopg2.connect(host=host, port=port, dbname=db, user=user, sslmode="disable")
+        except Exception:  # noqa: BLE001
+            continue
+        try:
+            cur = conn.cursor()
+            cur.execute("SELECT table_name FROM information_schema.tables "
+                        "WHERE table_schema='public' AND table_type='BASE TABLE'")
+            for (t,) in cur.fetchall():
+                urn = make_dataset_urn(platform="cockroachdb", name=f"{db}.{t}", env=ENV)
+                rows = None
+                try:
+                    cur.execute(f'SELECT count(*) FROM public."{t}"')
+                    rows = cur.fetchone()[0]
+                except Exception:  # noqa: BLE001
+                    conn.rollback()
+                n += _emit_profile(emitter, urn, rows)
+        finally:
+            conn.close()
+    return n
+
+
 def emit_file_dataset(platform, table, location, arrow_schema, producer_asset, group="datasets") -> str:
     """Custom-emit a Dataset for a silver file format (Arrow/Lance) that has NO native DataHub connector.
 

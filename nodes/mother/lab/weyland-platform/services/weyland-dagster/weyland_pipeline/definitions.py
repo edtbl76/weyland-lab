@@ -177,6 +177,12 @@ def emit_queries_op(context):
 
 
 @op
+def emit_cockroachdb_profiles_op(context):
+    from weyland_pipeline.datahub_emit import emit_cockroachdb_profiles
+    _safe_emit(context, "CockroachDB stats (rowCount profiles — ingestion profiler emits none)", emit_cockroachdb_profiles)
+
+
+@op
 def soda_scan_op(context):
     """L5 Slice C — data quality. Shell out to the isolated /opt/soda-venv (soda-core's pins can't co-exist with
     dagster/dbt in the main env) and run independent contract scans over the 7 published marts AND the WHO/BRFSS
@@ -249,6 +255,7 @@ def datahub_catalog_emit_job():
     emit_tags_op()
     emit_ownership_op()
     emit_queries_op()
+    emit_cockroachdb_profiles_op()
 
 
 datahub_catalog_emit_schedule = ScheduleDefinition(
