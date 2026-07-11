@@ -28,11 +28,11 @@ NHANES_URLS = [
     "https://wwwn.cdc.gov/Nchs/Data/Nhanes/Public/2015/DataFiles/PAQ_I.xpt",
 ]
 
-# NHIS SAS input statements (label VAR = "…";). Candidate locations — the script tries each per year.
-NHIS_SAS = {
-    "2022": ["https://ftp.cdc.gov/pub/Health_Statistics/NCHS/Program_Code/NHIS/2022/adult22.sas"],
-    "2021": ["https://ftp.cdc.gov/pub/Health_Statistics/NCHS/Program_Code/NHIS/2021/adult21.sas"],
-    "2020": ["https://ftp.cdc.gov/pub/Health_Statistics/NCHS/Program_Code/NHIS/2020/adult20.sas"],
+# NHIS ships a SAS-format data file (embeds variable labels) alongside the CSV — `adult<YY>.zip` (not the *csv.zip).
+NHIS_ZIP = {
+    "2022": "https://ftp.cdc.gov/pub/Health_Statistics/NCHS/Datasets/NHIS/2022/adult22.zip",
+    "2021": "https://ftp.cdc.gov/pub/Health_Statistics/NCHS/Datasets/NHIS/2021/adult21.zip",
+    "2020": "https://ftp.cdc.gov/pub/Health_Statistics/NCHS/Datasets/NHIS/2020/adult20.zip",
 }
 
 
@@ -60,17 +60,30 @@ def nhanes_labels():
 
 
 def nhis_labels():
+    import io
+    import os
+    import tempfile
+    import zipfile
+
+    import pyreadstat
     out = {}
-    for year, urls in NHIS_SAS.items():
-        for url in urls:
-            try:
-                txt = _get(url).decode("latin-1", "replace")
-            except Exception as e:  # noqa: BLE001
-                print(f"# NHIS ERR {url}: {e}")
+    for year, url in NHIS_ZIP.items():
+        try:
+            z = zipfile.ZipFile(io.BytesIO(_get(url, timeout=600)))
+            member = next((m for m in z.namelist() if m.lower().endswith((".sas7bdat", ".xpt"))), None)
+            if not member:
+                print(f"# NHIS {year}: no SAS/XPT file in zip: {z.namelist()}")
                 continue
-            for var, lab in re.findall(r'label\s+(\w+)\s*=\s*"([^"]*)"', txt, re.IGNORECASE):
-                out.setdefault(var.lower(), lab.strip())
-            break
+            with tempfile.TemporaryDirectory() as td:
+                z.extract(member, td)
+                path = os.path.join(td, member)
+                reader = pyreadstat.read_xport if path.lower().endswith(".xpt") else pyreadstat.read_sas7bdat
+                _df, meta = reader(path, metadataonly=True)  # header only — no data parse
+                for name, lab in zip(meta.column_names, meta.column_labels or []):
+                    if lab and name:
+                        out.setdefault(name.lower(), lab.strip())
+        except Exception as e:  # noqa: BLE001
+            print(f"# NHIS ERR {url}: {e}")
     return out
 
 
@@ -83,8 +96,13 @@ def _dump(name, d):
 
 
 if __name__ == "__main__":
-    nh = nhanes_labels()
-    ni = nhis_labels()
-    print(f"# NHANES: {len(nh)} labels  |  NHIS: {len(ni)} labels")
-    _dump("NHANES", nh)
-    _dump("NHIS", ni)
+    import sys
+    only = sys.argv[1].lower() if len(sys.argv) > 1 else ""  # "" = both, "nhis" / "nhanes" = one
+    if only != "nhis":
+        nh = nhanes_labels()
+        print(f"# NHANES: {len(nh)} labels")
+        _dump("NHANES", nh)
+    if only != "nhanes":
+        ni = nhis_labels()
+        print(f"# NHIS: {len(ni)} labels")
+        _dump("NHIS", ni)
