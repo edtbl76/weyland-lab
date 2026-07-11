@@ -16,4 +16,5 @@ source:
       allow:
         - "musicbrainz"
     profiling:
-      enabled: false
+      enabled: true
+      profile_table_level_only: true   # B80 Stats-wide: row count + size only — cheap, no per-column histogram scans
