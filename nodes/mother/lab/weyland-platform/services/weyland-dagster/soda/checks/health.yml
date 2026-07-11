@@ -19,6 +19,16 @@ checks for mart_country_health:
   - missing_count(year) = 0
   - min(life_expectancy) >= 0
   - max(life_expectancy) <= 120
+  - min(healthy_life_expectancy) >= 0
+  - max(healthy_life_expectancy) <= 120
+  # Emptiness tripwires — fail only if an indicator column is 100% NULL (the WHO Dim1 code-vs-label bug class).
+  # A min/max range check passes vacuously on an all-null column; these do not.
+  - missing_percent(life_expectancy) < 100
+  - missing_percent(healthy_life_expectancy) < 100
+  - missing_percent(diabetes_prevalence) < 100
+  - missing_percent(adult_obesity) < 100
+  - missing_percent(hypertension) < 100
+  - missing_percent(tobacco_smoking) < 100
 
 checks for mart_personality_by_country:
   - row_count > 0

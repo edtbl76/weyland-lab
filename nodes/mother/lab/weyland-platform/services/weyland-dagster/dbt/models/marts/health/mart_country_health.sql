@@ -23,7 +23,10 @@ with gho as (
         numericvalue as val
     from {{ source('datasets_health', src) }}
     where numericvalue is not null
-      and (dim1 is null or lower(trim(dim1)) in ('both sexes', 'total'))
+      -- WHO GHO stores Dim1 as CODES, not labels: SEX_BTSX = both sexes (SEX_MLE/SEX_FMLE = male/female). The old
+      -- filter matched the label 'both sexes' and so dropped EVERY sex-disaggregated indicator (life_expectancy et
+      -- al.) to null. Match the both-sexes code; indicators with no sex breakdown carry dim1 = null.
+      and (dim1 is null or dim1 = 'SEX_BTSX')
     {% if not loop.last %}union all{% endif %}
     {% endfor %}
 ),

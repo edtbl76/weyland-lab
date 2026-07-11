@@ -1,11 +1,12 @@
-# Soda Core data source → the in-cluster Trino coordinator (data-mesh, meshed). Same passwordless path dbt uses:
-# no `password` → the trino client sends X-Trino-User only (no Authorization), so Soda presents as user `dbt`, which
-# Ranger already authorizes on iceberg.dbt (dbt owns the marts). `http_scheme: http` mirrors profiles.yml — Trino's
-# :8080 is plaintext on the LAN (Istio mTLS wraps it transparently between the meshed pods). This is L5 Slice C:
-# an INDEPENDENT contract scan over the published marts, complementary to dbt's in-transform tests.
+# Soda Core data source → Trino via the `trino-noauth` nginx proxy (data-mesh, meshed). Soda's Trino connector
+# ALWAYS sends HTTP Basic auth (like Lightdash's), and Trino — which runs no authenticator — rejects a password over
+# plaintext ("Password not allowed for insecure authentication"). The proxy clears the Authorization header so Trino
+# sees only X-Trino-User: dbt (the same no-auth path dbt uses; Ranger authorizes `dbt` on iceberg.dbt). Do NOT point
+# this at trino.data-mesh directly — it 401s. `http_scheme: http` = plaintext on the LAN (Istio mTLS wraps the hop).
+# L5 Slice C: an INDEPENDENT contract scan over the published marts, complementary to dbt's in-transform tests.
 data_source weyland:
   type: trino
-  host: trino.data-mesh.svc.cluster.local
+  host: trino-noauth.data-mesh.svc.cluster.local
   port: 8080
   http_scheme: http
   username: dbt
