@@ -12,3 +12,16 @@ data_source weyland:
   username: dbt
   catalog: iceberg
   schema: dbt
+
+# #8 — gold source coverage: the health-domain gold Iceberg tables (WHO GHO + BRFSS) that FEED the marts. Asserting
+# them catches source drift at the origin (this is where the WHO dim1 code-vs-label bug lived). Same passwordless
+# proxy path; user `dbt` reads datasets_health (it's a dbt source). The emitters map `weyland_health` →
+# iceberg.datasets_health, so assertions/profiles/contracts attach to the gold datasets, not the marts.
+data_source weyland_health:
+  type: trino
+  host: trino-noauth.data-mesh.svc.cluster.local
+  port: 8080
+  http_scheme: http
+  username: dbt
+  catalog: iceberg
+  schema: datasets_health

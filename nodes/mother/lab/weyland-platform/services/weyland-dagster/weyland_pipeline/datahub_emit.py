@@ -63,6 +63,19 @@ from weyland_pipeline.assets import all_assets
 PLATFORM = "dagster"
 ENV = "PROD"
 
+# Soda data-source name → Trino catalog.schema prefix. The Soda emitters (assertions/profiles/contracts) build the
+# dataset URN from this, so scanning a gold schema attaches to the right entity instead of the hardcoded dbt marts.
+_SODA_DS_SCHEMA = {
+    "weyland": "iceberg.dbt",
+    "weyland_health": "iceberg.datasets_health",
+    "weyland_music": "iceberg.datasets_music",
+}
+
+
+def _soda_dataset_urn(datasource: str, table: str) -> str:
+    prefix = _SODA_DS_SCHEMA.get(datasource, "iceberg.dbt")
+    return make_dataset_urn(platform="trino", name=f"{prefix}.{table}", env=ENV)
+
 
 class AssetInfo(NamedTuple):
     deps: Set[AssetKey]
@@ -843,7 +856,7 @@ def emit_soda_assertions(scan_results: dict):
         name = check.get("name") or check.get("definition") or "soda check"
         column = check.get("column")
         outcome = (check.get("outcome") or "").lower()
-        mart_urn = make_dataset_urn(platform="trino", name=f"iceberg.dbt.{table}", env=ENV)
+        mart_urn = _soda_dataset_urn(check.get("dataSource", "weyland"), table)
         assertion_urn = make_assertion_urn(hashlib.md5(f"{table}:{name}".encode()).hexdigest())
         info = AssertionInfoClass(
             type=AssertionTypeClass.DATASET,
@@ -884,13 +897,15 @@ def emit_soda_profiles(scan_results: dict):
     from datahub.metadata.schema_classes import DatasetFieldProfileClass, DatasetProfileClass
     emitter = _gms_emitter()
     ts = int(time.time() * 1000)
-    prefix = "metric-Soda Core CLI-weyland-"
+    prefix = "metric-Soda Core CLI-"
     tables: dict = {}
     for m in scan_results.get("metrics", []):
         ident = m.get("identity", "")
         if not ident.startswith(prefix):
             continue
-        rest = ident[len(prefix):]
+        body = ident[len(prefix):]        # <datasource>-<table>-<col>-<metric>
+        ds = body.split("-")[0]           # datasource name (underscore-safe, no hyphens)
+        rest = body[len(ds) + 1:]         # <table>-<col>-<metric>
         mn, val = m.get("metricName"), m.get("value")
         if val is None:
             continue
@@ -901,7 +916,7 @@ def emit_soda_profiles(scan_results: dict):
             column = rest[len(table) + 1: -(len(mn) + 1)]
         else:
             column = None  # e.g. duplicate_count-<hash> — table-level, skip for field profiles
-        t = tables.setdefault(table, {"rowCount": None, "fields": {}})
+        t = tables.setdefault((ds, table), {"rowCount": None, "fields": {}})
         if mn == "row_count" and column is None:
             t["rowCount"] = int(val)
         elif column:
@@ -913,8 +928,8 @@ def emit_soda_profiles(scan_results: dict):
             elif mn == "max":
                 f["max"] = str(val)
     n = 0
-    for table, t in tables.items():
-        mart_urn = make_dataset_urn(platform="trino", name=f"iceberg.dbt.{table}", env=ENV)
+    for (ds, table), t in tables.items():
+        mart_urn = _soda_dataset_urn(ds, table)
         fps = []
         for col, f in t["fields"].items():
             null_prop = None
@@ -951,10 +966,10 @@ def emit_data_contracts(scan_results: dict):
             continue
         name = check.get("name") or check.get("definition") or "soda check"
         aurn = make_assertion_urn(hashlib.md5(f"{table}:{name}".encode()).hexdigest())
-        by_table.setdefault(table, []).append(aurn)
+        by_table.setdefault((check.get("dataSource", "weyland"), table), []).append(aurn)
     n = 0
-    for table, aurns in by_table.items():
-        mart_urn = make_dataset_urn(platform="trino", name=f"iceberg.dbt.{table}", env=ENV)
+    for (ds, table), aurns in by_table.items():
+        mart_urn = _soda_dataset_urn(ds, table)
         dc_urn = f"urn:li:dataContract:{hashlib.md5(table.encode()).hexdigest()}"
         emitter.emit(MetadataChangeProposalWrapper(entityUrn=dc_urn, aspect=DataContractPropertiesClass(
             entity=mart_urn,

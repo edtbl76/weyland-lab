@@ -12,9 +12,9 @@ Priority-ordered. Each item DONE only when its DataHub surface actually populate
 - [~] #4 **Queries** — `emit_queries()` — 7 canonical example `Query` entities (one per mart).
 - [~] #1 **Tag audit** — `emit_tags()` — materialize gold/silver/bronze/mart/feast as first-class Tag entities (found: they were referenced but never entity-emitted).
 
-## Phase 3 — coverage sweep  [AFTER verifying 1+2 — genuinely iterative, schema-aware]
-- [ ] #3 / #6 **Field desc/terms/tags** — extend `mesh_vocabulary` for gold-source + Tier-2 columns (big_five `e1..o10`, etc.). Needs an unmatched-field recon first.
-- [ ] #8 **Assertions on more tables** — expand Soda beyond the 7 marts. BLOCKED on: the emit funcs hardcode `iceberg.dbt.{table}` URNs — gold tables are `iceberg.datasets_*.{table}`, so the emit must become schema/dataSource-aware first.
+## Phase 3 — coverage sweep  [CODE DONE — pending rebuild+verify]
+- [~] #3 / #6 **Field desc/terms/tags** — added 15 `mesh_vocabulary` terms for the HIGH-FREQUENCY unmapped clusters (WHO GHO spatialdim/timedim/numericvalue/indicatorcode/parentlocation/datasourcedim; CDC BRFSS location/taxonomy/data_value/sample_size/geolocation; NHANES seqn; USDA fdc_id; year; track_id). Generic id/value/text left unmapped on purpose. NOTE: big_five raw OCEAN items (single-dataset long tail, uncertain col names) left — the mart's trait columns carry the OCEAN terms.
+- [~] #8 **Assertions on more tables** — made the Soda emitters SCHEMA-AWARE (`_SODA_DS_SCHEMA` dataSource→schema map). Added `weyland_health` data source + `health_gold.yml` (WHO GHO + BRFSS gold, row_count + numericvalue emptiness tripwire). `soda_scan_op` now runs both scans (marts + gold) and emits each.
 
 ## Notes / decisions
 - big_five is a GOLD SOURCE (`iceberg.datasets_health`), not a mart — assertions/contracts target the 7 marts, gold gaps are partly by-design.

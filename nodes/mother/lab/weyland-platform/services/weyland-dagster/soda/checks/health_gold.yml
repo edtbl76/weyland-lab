@@ -1,0 +1,38 @@
+# #8 — gold source data-quality (data source: weyland_health = iceberg.datasets_health). The WHO GHO + BRFSS gold
+# tables that feed the health marts. Conservative checks (row presence + the measured value isn't 100% NULL) — this
+# is where the WHO dim1 code-vs-label bug originated, so an emptiness tripwire on numericvalue guards the source.
+
+checks for who_gho_life_expectancy:
+  - row_count > 0
+  - missing_percent(numericvalue) < 100
+
+checks for who_gho_healthy_life_expectancy:
+  - row_count > 0
+  - missing_percent(numericvalue) < 100
+
+checks for who_gho_diabetes_prevalence:
+  - row_count > 0
+  - missing_percent(numericvalue) < 100
+
+checks for who_gho_adult_obesity:
+  - row_count > 0
+  - missing_percent(numericvalue) < 100
+
+checks for who_gho_hypertension:
+  - row_count > 0
+  - missing_percent(numericvalue) < 100
+
+checks for who_gho_alcohol_consumption:
+  - row_count > 0
+  - missing_percent(numericvalue) < 100
+
+checks for who_gho_tobacco_smoking:
+  - row_count > 0
+  - missing_percent(numericvalue) < 100
+
+checks for who_gho_mental_health_disorders:
+  - row_count > 0
+  - missing_percent(numericvalue) < 100
+
+checks for brfss_brfss_prevalence_2011_present:
+  - row_count > 0

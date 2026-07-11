@@ -179,48 +179,46 @@ def emit_queries_op(context):
 @op
 def soda_scan_op(context):
     """L5 Slice C — data quality. Shell out to the isolated /opt/soda-venv (soda-core's pins can't co-exist with
-    dagster/dbt in the main env) and run an independent contract scan over the 7 published marts. Soda exit codes:
-    0 = all pass, 1 = warnings, 2 = check failures, 3 = execution error. Fail the op on >= 2 so a broken data
-    contract surfaces as a red Dagster run; warnings just log."""
+    dagster/dbt in the main env) and run independent contract scans over the 7 published marts AND the WHO/BRFSS
+    gold sources (each is a separate Soda data source → separate `-d` invocation). Each scan's results emit to
+    DataHub (assertions/profiles/contracts). Soda exit codes: 0 = all pass, 1 = warnings, 2 = check failures,
+    3 = execution error. Fail the op if ANY scan is >= 2 so a broken contract surfaces as a red Dagster run."""
     import json
     import subprocess
     from dagster import Failure
-    results_file = "/tmp/soda_results.json"
-    cmd = [
-        "/opt/soda-venv/bin/soda", "scan",
-        "-d", "weyland",
-        "-c", "/app/soda/configuration.yml",
-        "-srf", results_file,   # scan-results JSON — the bridge to the main-env DataHub emitter (isolated venv)
-        "/app/soda/checks/music.yml",
-        "/app/soda/checks/health.yml",
+    from weyland_pipeline.datahub_emit import (
+        emit_data_contracts,
+        emit_soda_assertions,
+        emit_soda_profiles,
+    )
+    # (data source, results file, [check files]) — the emitters map the data source name → the right Trino schema.
+    scans = [
+        ("weyland", "/tmp/soda_marts.json", ["/app/soda/checks/music.yml", "/app/soda/checks/health.yml"]),
+        ("weyland_health", "/tmp/soda_gold.json", ["/app/soda/checks/health_gold.yml"]),
     ]
-    context.log.info("Running: " + " ".join(cmd))
-    result = subprocess.run(cmd, capture_output=True, text=True)
-    if result.stdout:
-        context.log.info(result.stdout)
-    if result.stderr:
-        context.log.warning(result.stderr)
-    # Push results to DataHub Assertions (catalog-native quality UI) BEFORE the fail check, so failing checks still
-    # surface in the catalog. Non-fatal: a DataHub hiccup must not mask a data-quality failure.
-    try:
-        with open(results_file) as f:
-            scan_results = json.load(f)
-        from weyland_pipeline.datahub_emit import (
-            emit_data_contracts,
-            emit_soda_assertions,
-            emit_soda_profiles,
-        )
-        context.log.info(f"DataHub: {emit_soda_assertions(scan_results)} assertions, "
-                         f"{emit_soda_profiles(scan_results)} dataset profiles (Stats), "
-                         f"{emit_data_contracts(scan_results)} data contracts")
-    except Exception as e:
-        context.log.warning(f"DataHub quality emit skipped (non-fatal): {e}")
-    if result.returncode >= 2:
-        raise Failure(
-            description=f"Soda scan failed (exit {result.returncode}) — a mart violated its data contract.",
-            metadata={"soda_output": result.stdout[-4000:]},
-        )
-    return result.returncode
+    worst = 0
+    for ds, results_file, check_files in scans:
+        cmd = ["/opt/soda-venv/bin/soda", "scan", "-d", ds, "-c", "/app/soda/configuration.yml",
+               "-srf", results_file, *check_files]
+        context.log.info("Running: " + " ".join(cmd))
+        result = subprocess.run(cmd, capture_output=True, text=True)
+        if result.stdout:
+            context.log.info(result.stdout)
+        if result.stderr:
+            context.log.warning(result.stderr)
+        worst = max(worst, result.returncode)
+        # Emit BEFORE the fail check so failing checks still surface in the catalog. Non-fatal per scan.
+        try:
+            with open(results_file) as f:
+                scan_results = json.load(f)
+            context.log.info(f"DataHub [{ds}]: {emit_soda_assertions(scan_results)} assertions, "
+                             f"{emit_soda_profiles(scan_results)} profiles (Stats), "
+                             f"{emit_data_contracts(scan_results)} contracts")
+        except Exception as e:
+            context.log.warning(f"DataHub quality emit skipped for {ds} (non-fatal): {e}")
+    if worst >= 2:
+        raise Failure(description=f"Soda scan failed (exit {worst}) — a table violated its data contract.")
+    return worst
 
 
 @job

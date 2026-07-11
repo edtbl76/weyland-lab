@@ -141,4 +141,48 @@ TERMS = [
     # Source schemas: CDC ----------------------------------------------------
     ("cdc-op", "CDC Operation (op)", "source-schemas",
      "Debezium change-event operation: c=create, u=update, d=delete, r=snapshot read.", ["op"]),
+    # Source schemas: WHO GHO OData indicator columns ------------------------
+    ("gho-spatialdim", "Spatial Dimension (spatialDim)", "source-schemas",
+     "WHO GHO geography of a value — spatialDim is the area code (usually an ISO-3 country code), spatialDimType "
+     "names the geography level (COUNTRY, REGION, …).", ["spatialdim", "spatialdimtype"]),
+    ("gho-timedim", "Time Dimension (timeDim)", "source-schemas",
+     "WHO GHO reporting period of a value — timeDim is the year, timeDimType the period granularity.",
+     ["timedim", "timedimtype"]),
+    ("gho-numericvalue", "Numeric Value (numericValue)", "source-schemas",
+     "The measured value of a WHO GHO indicator for a given spatial / time / disaggregation combination.",
+     ["numericvalue"]),
+    ("gho-indicatorcode", "Indicator Code", "source-schemas",
+     "The WHO GHO indicator identifier (e.g. WHOSIS_000001 = life expectancy at birth).", ["indicatorcode"]),
+    ("gho-parentlocation", "Parent Location", "source-schemas",
+     "The WHO region a country rolls up to — parentLocation is the name, parentLocationCode the code.",
+     ["parentlocation", "parentlocationcode"]),
+    ("gho-datasourcedim", "Data Source Dimension", "source-schemas",
+     "The data source behind a WHO GHO value — datasourceDim is the code, datasourceDimType the type.",
+     ["datasourcedim", "datasourcedimtype"]),
+    # Source schemas: CDC BRFSS / surveillance -------------------------------
+    ("cdc-location", "Location (locationAbbr / locationDesc)", "source-schemas",
+     "Geography of a CDC surveillance row — locationAbbr is the state/territory abbreviation, locationDesc the full "
+     "name, locationId the FIPS-style code.", ["locationabbr", "locationdesc", "locationid"]),
+    ("cdc-taxonomy", "Survey Taxonomy (class / topic / question)", "source-schemas",
+     "The CDC survey hierarchy for a measure — Class > Topic > Question; the *Id columns are their stable codes.",
+     ["class", "classid", "topic", "topicid", "question", "questionid"]),
+    ("cdc-data-value", "Data Value", "source-schemas",
+     "A CDC surveillance measure plus qualifiers — data_value_unit/type give units and measure type; "
+     "data_value_footnote(_symbol) flags suppressed/unstable estimates.", ["data_value"]),
+    ("cdc-sample-size", "Sample Size", "source-schemas",
+     "Number of respondents behind a CDC surveillance estimate.", ["sample_size"]),
+    ("cdc-geolocation", "Geolocation", "source-schemas",
+     "Latitude/longitude point for a CDC surveillance location.", ["geolocation"]),
+    # Source schemas: NHANES / USDA ------------------------------------------
+    ("nhanes-seqn", "Respondent Sequence (SEQN)", "source-schemas",
+     "NHANES respondent sequence number — the unique participant id that joins the NHANES component files.",
+     ["seqn"]),
+    ("usda-fdc-id", "FoodData Central ID (fdc_id)", "source-schemas",
+     "USDA FoodData Central identifier — the unique food-item id joining the FDC nutrient / portion tables.",
+     ["fdc_id"]),
+    # Cross-domain dimensions ------------------------------------------------
+    ("dim-year", "Year", "data-platform",
+     "Calendar-year dimension of a time series (the reporting / survey year).", ["year"]),
+    ("music-track-id", "Track ID", "music-concepts",
+     "Identifier for a music track (Spotify track id / dataset track key).", ["track_id"]),
 ]
