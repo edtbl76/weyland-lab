@@ -161,7 +161,13 @@ def emit_docs_links_op(context):
 @op
 def emit_tags_op(context):
     from weyland_pipeline.datahub_emit import emit_tags
-    _safe_emit(context, "Tags (materialize layer/feast tag entities)", emit_tags)
+    _safe_emit(context, "Tags (materialize layer/tier/source/field-class tag entities)", emit_tags)
+
+
+@op
+def emit_tag_assignments_op(context):
+    from weyland_pipeline.datahub_emit import emit_tag_assignments
+    _safe_emit(context, "Tag assignments (layer/tier/source → datasets)", emit_tag_assignments)
 
 
 @op
@@ -253,6 +259,7 @@ def datahub_catalog_emit_job():
     emit_structured_properties_op()
     emit_docs_links_op()
     emit_tags_op()
+    emit_tag_assignments_op()
     emit_ownership_op()
     emit_queries_op()
     emit_cockroachdb_profiles_op()

@@ -529,6 +529,38 @@ import re as _re
 
 _STAT_SUFFIXES = ("_mean", "_std", "_sum", "_avg", "_min", "_max", "_count", "_median", "_p50", "_p95")
 
+# Field-classification tags — a broad category applied per field by name pattern (define-once, alongside the term).
+_FIELD_CLASS_TAGS = {
+    "identifier": "Field classification: an identifier / key column.",
+    "temporal": "Field classification: a date / time / timestamp column.",
+    "measure": "Field classification: a numeric measure / metric column.",
+}
+_FIELD_CLASS_EXACT = {
+    "identifier": {"id", "gid", "uuid", "key", "seqn", "fdc_id", "track_id", "mbid", "monitor_id",
+                   "organization_id", "project_id", "issue_id", "event_id", "release_id", "span_id",
+                   "trace_id", "indicatorcode"},
+    "temporal": {"timestamp", "date", "datetime", "time", "created_at", "created", "last_updated",
+                 "updated_at", "modified", "year", "timedim", "start_check"},
+    "measure": {"value", "numericvalue", "data_value", "count", "sample_size", "response_time",
+                "total_plays", "n_listeners"},
+}
+
+
+def _field_class(leaf):
+    """Broad field category (identifier / temporal / measure) from a leaf column name — a define-once field tag.
+    Exact-set match, then suffix rules for the long tail (*_id/_key → identifier, *_at/_date/_ts → temporal,
+    *_pct/_mean/_std/_count → measure)."""
+    for cls, exact in _FIELD_CLASS_EXACT.items():
+        if leaf in exact:
+            return cls
+    if leaf.endswith(("_id", "_key", "_uuid")):
+        return "identifier"
+    if leaf.endswith(("_at", "_date", "_time", "_ts")):
+        return "temporal"
+    if leaf.endswith(("_pct", "_mean", "_std", "_count", "_sum", "_avg", "_rate")):
+        return "measure"
+    return None
+
 
 def _field_leaf(field_path):
     """Leaf name from a DataHub v2 fieldPath, stripping '[version=…].[type=…]' annotations.
@@ -605,30 +637,41 @@ def emit_mesh_glossary(attach=True):
         if not sm or not sm.fields:
             continue
         # per-field term matches for this dataset
-        want = {}  # fieldPath -> (term urn, definition)
+        want = {}  # fieldPath -> (term-tuple-or-None, field-class-or-None)
         for f in sm.fields:
-            m = _match(_field_leaf(f.fieldPath))
-            if m:
-                want[f.fieldPath] = m
+            leaf = _field_leaf(f.fieldPath)
+            m = _match(leaf)
+            cls = _field_class(leaf)
+            if m or cls:
+                want[f.fieldPath] = (m, cls)
         if not want:
             continue
-        # READ-MERGE the existing editable overlay so we don't clobber descriptions/other terms
+        # READ-MERGE the existing editable overlay so we don't clobber descriptions / other terms / other tags
         esm = graph.get_aspect(urn, EditableSchemaMetadataClass)
         infos = {i.fieldPath: i for i in (esm.editableSchemaFieldInfo if esm else [])}
         touched = 0
-        for fp, (term_urn, defn) in want.items():
+        for fp, (m, cls) in want.items():
             info = infos.get(fp) or EditableSchemaFieldInfoClass(fieldPath=fp)
             changed = False
-            # define-once description: fill from the term definition, but NEVER clobber a real one (dbt marts carry
-            # their own). So a plain `id`/`span_id`/`created_at` field gets both the glossary term AND a description.
-            if not info.description:
-                info.description = defn
-                changed = True
-            existing = list(info.glossaryTerms.terms) if info.glossaryTerms else []
-            if not any(a.urn == term_urn for a in existing):
-                existing.append(GlossaryTermAssociationClass(urn=term_urn))
-                info.glossaryTerms = GlossaryTermsClass(terms=existing, auditStamp=stamp)
-                changed = True
+            if m:
+                term_urn, defn = m
+                # define-once description: fill from the term definition, but NEVER clobber a real one (dbt marts
+                # carry their own). So a plain `id`/`span_id`/`created_at` field gets the term AND a description.
+                if not info.description:
+                    info.description = defn
+                    changed = True
+                existing = list(info.glossaryTerms.terms) if info.glossaryTerms else []
+                if not any(a.urn == term_urn for a in existing):
+                    existing.append(GlossaryTermAssociationClass(urn=term_urn))
+                    info.glossaryTerms = GlossaryTermsClass(terms=existing, auditStamp=stamp)
+                    changed = True
+            if cls:
+                ctag = make_tag_urn(cls)
+                etags = list(info.globalTags.tags) if info.globalTags else []
+                if not any(a.tag == ctag for a in etags):
+                    etags.append(TagAssociationClass(tag=ctag))
+                    info.globalTags = GlobalTagsClass(tags=etags)
+                    changed = True
             infos[fp] = info
             if changed:
                 touched += 1
@@ -997,15 +1040,57 @@ _TAGS = {
 
 
 def emit_tags():
-    """#1 tag audit fix — MATERIALIZE the data-mesh tags as first-class entities (name + description). We apply
-    these via GlobalTags everywhere, but never emitted the tag entity, so they showed on datasets yet weren't
-    searchable/documented. This makes gold/silver/bronze/mart/feast real, described Tag entities."""
+    """#1 tag layer — MATERIALIZE the full data-mesh tag vocabulary as first-class Tag entities (name + description):
+    medallion layers + feast, the store-tier + source-system values (mirrored from the structured-property
+    vocabulary so tag == facet), and the field-classification tags. Applied to datasets by emit_tag_assignments and
+    to fields by emit_mesh_glossary. Returns the count of tag entities defined."""
     from datahub.metadata.schema_classes import TagPropertiesClass
     emitter = _gms_emitter()
-    for name, desc in _TAGS.items():
+    tags = dict(_TAGS)                       # medallion + feast
+    for _q, (_disp, _desc, allowed) in _STRUCT_PROPS.items():   # layer / source / store-tier values → tags
+        for val, vdesc in allowed:
+            tags.setdefault(val, vdesc)
+    tags.update(_FIELD_CLASS_TAGS)           # identifier / temporal / measure
+    for name, desc in tags.items():
         emitter.emit(MetadataChangeProposalWrapper(
             entityUrn=make_tag_urn(name), aspect=TagPropertiesClass(name=name, description=desc)))
-    return len(_TAGS)
+    return len(tags)
+
+
+def emit_tag_assignments():
+    """#1/#3 tag layer — apply DATASET tags cluster-wide by URN pattern (READ-MERGE — never clobbers existing
+    default/group tags): the medallion **layer** (_infer_layer; Tier-2/vector/graph copies default to silver), the
+    **store-tier** (_STORE_TIER_BY_PLATFORM by platform), and the **source-system** (_infer_source). Same
+    classifiers as the structured-property facets, surfaced as filterable tags. Returns datasets tagged."""
+    from datahub.ingestion.graph.client import DataHubGraph, DatahubClientConfig
+    from datahub.metadata.schema_classes import GlobalTagsClass
+    emitter = _gms_emitter()
+    server = os.environ.get("DATAHUB_GMS_URL", "http://datahub-datahub-gms.data-mesh.svc.cluster.local:8080")
+    token = os.environ.get("DATAHUB_GMS_TOKEN", "")
+    graph = DataHubGraph(DatahubClientConfig(server=server, token=token))
+    plat = lambda u: (_re.search(r"dataPlatform:([^,]+),", u) or [None, "?"])[1]
+    n = 0
+    for urn in graph.get_urns_by_filter(entity_types=["dataset"]):
+        low = urn.lower()
+        tier = _STORE_TIER_BY_PLATFORM.get(plat(urn))
+        layer = _infer_layer(low) or ("silver" if tier in ("tier2", "vector", "graph") else None)
+        source = _infer_source(low)
+        want = {t for t in (layer, tier, source) if t}
+        if not want:
+            continue
+        gt = graph.get_aspect(urn, GlobalTagsClass)
+        merged = list(gt.tags) if gt and gt.tags else []
+        have = {a.tag for a in merged}
+        added = False
+        for t in want:
+            tu = make_tag_urn(t)
+            if tu not in have:
+                merged.append(TagAssociationClass(tag=tu))
+                added = True
+        if added:
+            emitter.emit(MetadataChangeProposalWrapper(entityUrn=urn, aspect=GlobalTagsClass(tags=merged)))
+            n += 1
+    return n
 
 
 def emit_ownership():
