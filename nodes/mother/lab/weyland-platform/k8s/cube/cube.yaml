@@ -113,10 +113,11 @@ spec:
             - { name: api, containerPort: 4000 }
             - { name: sql, containerPort: 15432 }
           env:
-            # Production mode: headless (no Playground — that heavy client-side SPA froze browsers). Cube is a
-            # serving API; consume it via Superset/Lightdash → SQL API, or REST. Flip to "true" to get the
-            # Playground back for schema exploration.
-            - { name: CUBEJS_DEV_MODE, value: "false" }
+            # DEV MODE stays ON — it bundles Cube Store (cache/queue) so a single-node lab "just works". Production
+            # mode requires an EXTERNAL Cube Store deployment (CUBEJS_CUBESTORE_HOST) — pure overhead here since we
+            # run LIVE Trino queries with no pre-aggregations. The server is tiny (~214Mi); the only heavy thing was
+            # the Playground *in the browser*, and only when opened — we consume via Superset/API, so it's a non-issue.
+            - { name: CUBEJS_DEV_MODE, value: "true" }
             - { name: CUBEJS_DB_TYPE, value: trino }
             - { name: CUBEJS_DB_HOST, value: trino-noauth.data-mesh.svc.cluster.local }
             - { name: CUBEJS_DB_PORT, value: "8080" }
