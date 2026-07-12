@@ -26,11 +26,22 @@ hub:
         secretKeyRef:
           name: jupyterhub-oidc
           key: client_secret
+  extraVolumes:
+    - name: mkcert-ca
+      secret:
+        secretName: weyland-mkcert-ca
+  extraVolumeMounts:
+    - name: mkcert-ca
+      mountPath: /etc/mkcert
+      readOnly: true
   extraConfig:
     # keep the client secret out of git — inject it from the k8s Secret (tofu output → jupyterhub-oidc)
     oidc-secret: |
       import os
       c.GenericOAuthenticator.client_secret = os.environ["OAUTH_CLIENT_SECRET"]
+      # the hub's SERVER-SIDE token/userinfo calls to keycloak.weyland.lab use the mkcert cert (libcurl won't
+      # trust it by default → HTTP 599 SSL error). Point the OAuthenticator's HTTP client at the mkcert root.
+      c.GenericOAuthenticator.http_request_kwargs = {"ca_certs": "/etc/mkcert/rootCA.pem"}
   resources:
     requests: { cpu: 50m, memory: 256Mi }
     limits: { memory: 512Mi }
