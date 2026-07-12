@@ -1,0 +1,88 @@
+# B1.7 MetricFlow — the dbt Semantic Layer: metrics defined ONCE in the dbt project, queried via `mf query` (and
+# servable by BI/Cube). Scoped to the time-shaped health marts (they carry a `year`, which MetricFlow needs as its
+# time axis — the music marts are categorical-only and aren't a natural MetricFlow fit). year (int) → a real DATE
+# via a Trino expr so MetricFlow can bucket by it.
+semantic_models:
+  - name: country_health_sm
+    model: ref('mart_country_health')
+    defaults:
+      agg_time_dimension: obs_date
+    entities:
+      - name: ch_row
+        type: primary
+        expr: "concat(country, '-', cast(year as varchar))"
+    dimensions:
+      - name: country
+        type: categorical
+      - name: obs_date
+        type: time
+        type_params:
+          time_granularity: year
+        expr: "date(concat(cast(year as varchar), '-01-01'))"
+    measures:
+      - name: avg_life_expectancy
+        agg: average
+        expr: life_expectancy
+      - name: avg_healthy_life_expectancy
+        agg: average
+        expr: healthy_life_expectancy
+      - name: avg_diabetes_prevalence
+        agg: average
+        expr: diabetes_prevalence
+      - name: countries_reporting
+        agg: count_distinct
+        expr: country
+
+  - name: state_health_sm
+    model: ref('mart_state_health_trends')
+    defaults:
+      agg_time_dimension: obs_date
+    entities:
+      - name: sh_row
+        type: primary
+        expr: "concat(state, '-', cast(year as varchar))"
+    dimensions:
+      - name: state
+        type: categorical
+      - name: obs_date
+        type: time
+        type_params:
+          time_granularity: year
+        expr: "date(concat(cast(year as varchar), '-01-01'))"
+    measures:
+      - name: avg_diabetes_pct
+        agg: average
+        expr: diabetes_pct
+      - name: avg_depression_pct
+        agg: average
+        expr: depression_pct
+      - name: states_reporting
+        agg: count_distinct
+        expr: state
+
+metrics:
+  - name: life_expectancy
+    label: "Life expectancy (avg, both sexes)"
+    type: simple
+    type_params:
+      measure: avg_life_expectancy
+  - name: healthy_life_expectancy
+    label: "Healthy life expectancy (avg)"
+    type: simple
+    type_params:
+      measure: avg_healthy_life_expectancy
+  - name: diabetes_prevalence
+    label: "Diabetes prevalence (avg, country)"
+    type: simple
+    type_params:
+      measure: avg_diabetes_prevalence
+  - name: state_diabetes_pct
+    label: "Diabetes % (avg, US state)"
+    type: simple
+    type_params:
+      measure: avg_diabetes_pct
+  - name: state_depression_pct
+    label: "Depression % (avg, US state)"
+    type: simple
+    type_params:
+      measure: avg_depression_pct

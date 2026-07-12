@@ -346,6 +346,15 @@ agents/workflows and platform state. Agents call the tool-server, *not* database
   (`k8s/lightdash/trino-noauth-proxy.yaml`). The marts' 44 `meta.metrics` (schema.yml) surface as governed
   metrics; starter charts/dashboards are seeded via `scripts/lightdash_seed.py` and codified via
   `lightdash download`. See [runbooks/lightdash.md](runbooks/lightdash.md).
+- **Cube (B1.7 L6 — deployed 2026-07-12)** — the **serving semantic / metrics layer**. Where Lightdash/Superset
+  are BI *UIs* for humans, Cube is a headless **API**: metrics defined once as *cubes* over the marts, served over
+  **SQL (`:15432` pg-wire) + REST + GraphQL (`:4000`)**. Its distinctive value vs the rest of the stack is a
+  *governed metrics API for non-BI consumers* — an app, an **agent (Hermes)**, or an LLM gets the same governed
+  number a dashboard would, which BI UIs can't provide; plus Cube-Store pre-aggregation. Overlaps dbt-marts +
+  Lightdash's dbt-native metrics + MetricFlow by design (the design doc keeps Cube + dbt-SL side by side). Connects
+  through the same **`trino-noauth`** proxy (catalog `iceberg`, user `dbt`); 7 cubes over `iceberg.dbt.mart_*`;
+  `cube.weyland.lab` behind Keycloak forward-auth. Playground is a dev tool (heavy client-side) — headless SQL/REST
+  is the real surface. Manifests `k8s/cube/cube.yaml`. See [runbooks/cube.md](runbooks/cube.md).
 - **TimescaleDB (B65 Tier-2 #4)** — time-series Postgres extension in `data-mesh`. 5 hypertables
   for temporal analysis of platform operational data (eval performance trends, guardrail decision
   rates, pipeline run durations, feature flag usage, catalog ingestion health). Fed hourly by the
