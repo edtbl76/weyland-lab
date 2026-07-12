@@ -84,7 +84,14 @@ ingress:
     - hosts: [jupyter.weyland.lab]
       secretName: weyland-wildcard-tls
 
-# no dummy/placeholder auth, no bundled cloud metadata
 scheduling:
   userScheduler:
     enabled: false             # single node — no need for the spread scheduler
+
+# no image pre-pulling — it adds a hook Job + a continuous-image-puller DaemonSet pod (extra pod slots on a node
+# already near the 110-pod cap). Cost: the FIRST notebook spawn pulls the image (slow once), then it's cached.
+prePuller:
+  hook:
+    enabled: false
+  continuous:
+    enabled: false
