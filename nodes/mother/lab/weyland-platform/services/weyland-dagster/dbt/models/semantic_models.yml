@@ -2,6 +2,16 @@
 # servable by BI/Cube). Scoped to the time-shaped health marts (they carry a `year`, which MetricFlow needs as its
 # time axis — the music marts are categorical-only and aren't a natural MetricFlow fit). year (int) → a real DATE
 # via a Trino expr so MetricFlow can bucket by it.
+
+# The MetricFlow time spine (calendar) — required for any time-based semantic-layer query.
+models:
+  - name: metricflow_time_spine
+    time_spine:
+      standard_granularity_column: date_day
+    columns:
+      - name: date_day
+        granularity: day
+
 semantic_models:
   - name: country_health_sm
     model: ref('mart_country_health')
