@@ -127,7 +127,10 @@ spec:
             - name: CUBEJS_API_SECRET
               valueFrom: { secretKeyRef: { name: cube-secret, key: CUBEJS_API_SECRET } }
           volumeMounts:
-            - { name: model, mountPath: /cube/conf/model }
+            # subPath mounts just the single file — a bare ConfigMap dir mount also exposes the ..data/ symlink,
+            # which Cube's model globber loads too → "duplicate cube name". (Trade-off: no hot-reload on CM change;
+            # redeploy to update the model — fine for the lab.)
+            - { name: model, mountPath: /cube/conf/model/marts.yml, subPath: marts.yml }
           resources:
             requests: { cpu: 100m, memory: 256Mi }
             limits: { memory: 768Mi }
