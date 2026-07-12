@@ -1,0 +1,148 @@
+# B1.7 L6 — Cube: the serving semantic layer over the dbt marts (Trino/Iceberg). Connects through the SAME
+# trino-noauth proxy Soda/Lightdash use (Cube's Trino driver sends Basic auth like they do; the proxy strips it so
+# Trino sees only X-Trino-User: dbt). Dev mode ON = the Playground UI + hot model reload (lab-friendly). Model is
+# mounted from the cube-model ConfigMap; grows via git. SQL API (Postgres-wire :15432) + REST + GraphQL on :4000.
+apiVersion: v1
+kind: Secret
+metadata:
+  name: cube-secret
+  namespace: data-mesh
+type: Opaque
+stringData:
+  # JWT signing secret for the Cube API. LAN-only lab; rotate if ever exposed.
+  CUBEJS_API_SECRET: weyland_cube_dev_secret
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cube-model
+  namespace: data-mesh
+data:
+  marts.yml: |
+    cubes:
+      - name: spotify_audio
+        sql_table: dbt.mart_spotify_audio
+        measures:
+          - { name: count, type: count }
+          - { name: avg_danceability, sql: danceability, type: avg }
+          - { name: avg_energy, sql: energy, type: avg }
+          - { name: avg_valence, sql: valence, type: avg }
+          - { name: avg_tempo, sql: tempo, type: avg }
+        dimensions:
+          - { name: track_id, sql: track_id, type: string, primary_key: true }
+          - { name: track_genre, sql: track_genre, type: string }
+
+      - name: genre_audio_profile
+        sql_table: dbt.mart_genre_audio_profile
+        measures:
+          - { name: count, type: count }
+          - { name: avg_danceability_mean, sql: danceability_mean, type: avg }
+          - { name: avg_energy_mean, sql: energy_mean, type: avg }
+          - { name: total_tracks, sql: n_tracks, type: sum }
+        dimensions:
+          - { name: track_genre, sql: track_genre, type: string, primary_key: true }
+
+      - name: fma_genre_tree
+        sql_table: dbt.mart_fma_genre_tree
+        measures:
+          - { name: count, type: count }
+        dimensions:
+          - { name: genre_id, sql: genre_id, type: number, primary_key: true }
+          - { name: genre_title, sql: genre_title, type: string }
+          - { name: parent_title, sql: parent_title, type: string }
+
+      - name: artist_popularity
+        sql_table: dbt.mart_artist_popularity
+        measures:
+          - { name: count, type: count }
+          - { name: total_plays_sum, sql: total_plays, type: sum }
+          - { name: avg_listeners, sql: n_listeners, type: avg }
+        dimensions:
+          - { name: artist_name, sql: artist_name, type: string, primary_key: true }
+
+      - name: state_health_trends
+        sql_table: dbt.mart_state_health_trends
+        measures:
+          - { name: count, type: count }
+          - { name: avg_diabetes_pct, sql: diabetes_pct, type: avg }
+          - { name: avg_depression_pct, sql: depression_pct, type: avg }
+        dimensions:
+          - { name: state, sql: state, type: string }
+          - { name: year, sql: year, type: number }
+
+      - name: country_health
+        sql_table: dbt.mart_country_health
+        measures:
+          - { name: count, type: count }
+          - { name: avg_life_expectancy, sql: life_expectancy, type: avg }
+          - { name: avg_healthy_life_expectancy, sql: healthy_life_expectancy, type: avg }
+          - { name: avg_diabetes_prevalence, sql: diabetes_prevalence, type: avg }
+        dimensions:
+          - { name: country, sql: country, type: string }
+          - { name: year, sql: year, type: number }
+
+      - name: personality_by_country
+        sql_table: dbt.mart_personality_by_country
+        measures:
+          - { name: count, type: count }
+          - { name: total_respondents, sql: n_respondents, type: sum }
+          - { name: avg_openness, sql: openness, type: avg }
+          - { name: avg_extraversion, sql: extraversion, type: avg }
+          - { name: avg_conscientiousness, sql: conscientiousness, type: avg }
+        dimensions:
+          - { name: country, sql: country, type: string, primary_key: true }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cube
+  namespace: data-mesh
+  labels: { app: cube, owner: weyland }
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: cube }
+  template:
+    metadata:
+      labels: { app: cube, owner: weyland }
+    spec:
+      containers:
+        - name: cube
+          image: cubejs/cube:latest   # TODO pin to a digest once verified (OPA no-latest = dry-run/warn)
+          ports:
+            - { name: api, containerPort: 4000 }
+            - { name: sql, containerPort: 15432 }
+          env:
+            - { name: CUBEJS_DEV_MODE, value: "true" }
+            - { name: CUBEJS_DB_TYPE, value: trino }
+            - { name: CUBEJS_DB_HOST, value: trino-noauth.data-mesh.svc.cluster.local }
+            - { name: CUBEJS_DB_PORT, value: "8080" }
+            - { name: CUBEJS_DB_USER, value: dbt }
+            - { name: CUBEJS_DB_PRESTO_CATALOG, value: iceberg }
+            - { name: CUBEJS_DB_SSL, value: "false" }
+            # SQL API (Postgres-wire) — lets BI tools / psql query the semantic layer.
+            - { name: CUBEJS_PG_SQL_PORT, value: "15432" }
+            - { name: CUBEJS_SQL_USER, value: cube }
+            - { name: CUBEJS_SQL_PASSWORD, value: weyland_dev_password }
+            - name: CUBEJS_API_SECRET
+              valueFrom: { secretKeyRef: { name: cube-secret, key: CUBEJS_API_SECRET } }
+          volumeMounts:
+            - { name: model, mountPath: /cube/conf/model }
+          resources:
+            requests: { cpu: 100m, memory: 256Mi }
+            limits: { memory: 768Mi }
+      volumes:
+        - name: model
+          configMap: { name: cube-model }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: cube
+  namespace: data-mesh
+  labels: { app: cube }
+spec:
+  selector: { app: cube }
+  ports:
+    - { name: api, port: 4000, targetPort: 4000 }
+    - { name: sql, port: 15432, targetPort: 15432 }

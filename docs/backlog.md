@@ -237,7 +237,8 @@ Amundsen, ODM, Marquez, InfluxDB, Metabase.
 **Next:** sequence into slices (storage → catalog/governance → query → transform → consumption); map onto the
 3 data products (model-eval first — MLflow + eval store already exist). Picks may swap at implementation.
 
-### B79 — Migrate Ollama + vLLM inference to rogueone (free weyland 32 GB → grow mother) — IMMEDIATELY AFTER B1
+### B79 — Migrate Ollama + vLLM inference to rogueone (free weyland 32 GB → grow mother) — ✅ DONE 2026-07-12
+**✅ DONE 2026-07-12.** Ollama moved to rogueone (`192.168.1.230`): upgraded rogueone's stale Ollama (couldn't pull qwen3-coder — 412), pulled the 3 consumed judge models (`mistral-small3.2:24b`, `deepseek-coder-v2:16b`, `qwen3-coder:30b`), set `OLLAMA_HOST=0.0.0.0` (systemd drop-in) for LAN reach, cleaned ~140 GB of junk models. Repointed consumers `.244`→`.230` (CoreDNS `ollama.weyland.lab`, weyland-tool-server, open-webui, Dagster eval defaults in eval_scores/eval_testset/model_catalog + tool-server main.py). Hermes was the only LIVE consumer (accepted it barfs). Stopped CT-102 → freed 32 GB → `qm set 101 -memory 65536` (mother **52→64 GB**, conservative; host has room to go higher later). Result: node memory **97%→79%, ~58 GB free** — the tight-node/OOM wall that dogged all of B1 is GONE. vLLM untouched (already rogueone's GPU-inference/training node; the 6 Ollama models are Ollama's role, not vLLM's).
 **Decided 2026-07-10** (tentative sequencing: do it right after B1 completes; if the B1 tail gets stuck on the
 tight node, pull forward). Move LLM inference off the weyland MS-A2 (CT-102 Ollama, 32 GB, CPU-bound on the weak
 iGPU) onto **rogueone** (RTX 5000 Ada 16 GB, 128 GB RAM — already the vLLM/GPU-inference + Ray-training node). Two
