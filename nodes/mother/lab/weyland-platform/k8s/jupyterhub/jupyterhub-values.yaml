@@ -81,6 +81,12 @@ singleuser:
       exec:
         # drop the seed notebook into the user's home on spawn (the PVC hides anything baked at /home/jovyan)
         command: ["sh", "-c", "cp -n /opt/examples/*.ipynb /home/jovyan/ 2>/dev/null || true"]
+  networkPolicy:
+    # Z2JH's default singleuser NetworkPolicy BLOCKS egress to private cluster IPs (a security default). But the
+    # whole point here is notebooks querying the data mesh (lakeFS / Trino / Cube), which are private ClusterIPs —
+    # so allow privateIPs. The cloud-metadata block (block-cloud-metadata init) stays.
+    egressAllowRules:
+      privateIPs: true
 
 # idle-culler → scale singleuser pods to zero (run-mode tiering)
 cull:
