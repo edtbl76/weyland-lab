@@ -7,5 +7,8 @@
 for each dataset T:
   datasets:
     - include %
+    - exclude %__dbt_tmp       # transient dbt build artifacts — Soda catches them mid-build; they are never
+    - exclude %__dbt_backup    # cataloged as datasets, so a contract/assertion on them dangles (breaks the
+    - exclude %__dbt_backup%   # dataContract GraphQL listing with a null entity ref)
   checks:
     - row_count > 0

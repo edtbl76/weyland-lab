@@ -1287,12 +1287,15 @@ def emit_data_contracts(scan_results: dict):
     The mart *is* the contract: publishing it means those checks must hold. Populates the mart's Data Contract tab."""
     import hashlib
     from datahub.emitter.mce_builder import make_assertion_urn
+    from datahub.ingestion.graph.client import DataHubGraph, DatahubClientConfig
     from datahub.metadata.schema_classes import (
         DataContractPropertiesClass,
         DataContractStatusClass,
         DataQualityContractClass,
     )
     emitter = _gms_emitter()
+    server = os.environ.get("DATAHUB_GMS_URL", "http://datahub-datahub-gms.data-mesh.svc.cluster.local:8080")
+    graph = DataHubGraph(DatahubClientConfig(server=server, token=os.environ.get("DATAHUB_GMS_TOKEN", "")))
     by_table: dict = {}
     for check in scan_results.get("checks", []):
         table = check.get("table") or (check.get("location") or {}).get("table")
@@ -1304,6 +1307,11 @@ def emit_data_contracts(scan_results: dict):
     n = 0
     for (ds, table), aurns in by_table.items():
         mart_urn = _soda_dataset_urn(ds, table)
+        # NEVER emit a contract for a dataset that isn't cataloged (dbt tmp/backup, renamed table): a
+        # DataContract.entity pointing at a non-existent dataset is a null non-null ref that breaks the entire
+        # dataContract GraphQL listing (NullValueInNonNullableField). Guard is cheap vs a poisoned Contracts tab.
+        if not graph.exists(mart_urn):
+            continue
         dc_urn = f"urn:li:dataContract:{hashlib.md5(table.encode()).hexdigest()}"
         emitter.emit(MetadataChangeProposalWrapper(entityUrn=dc_urn, aspect=DataContractPropertiesClass(
             entity=mart_urn,
