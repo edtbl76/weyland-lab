@@ -16,8 +16,9 @@ Catalog: 3282 datasets, 51,703 fields. Measure surfaces at the RIGHT granularity
     the nofreq General codebook). Operational-postgres app columns that don't classify. → the last ~31%.
 
 ## PARTIAL — the "lot to do"
-- [ ] **Field TAGS** — ~27% (identifier/temporal/measure/dimension/text/geo/boolean via `_field_class`). The 14
-      source-doc datasets got DESCRIPTIONS but many of those fields still lack a class TAG. Widen + apply.
+- [x] **Field TAGS** — **98%** (50718/51703) via name-class (`_field_class`) + SCHEMA-TYPE fallback (`_type_class`):
+      every typed field gets a class tag even when the name doesn't classify. Residual ~2% = untyped/null-type
+      fields with no name match. DONE 2026-07-11.
 - [ ] **Field TERMS (glossary)** — 24% (mesh_vocabulary linked terms). Descriptions ≠ linked glossary terms; the
       curated vocab could grow, but true meaning now lives in descriptions. Decide how far to push linked terms.
 - [ ] **NHIS full** — the disease/condition question vars need the topic-module OR frequency codebook (Adult-codebook.pdf

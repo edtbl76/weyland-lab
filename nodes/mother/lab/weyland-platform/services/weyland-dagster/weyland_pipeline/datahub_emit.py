@@ -758,6 +758,220 @@ def emit_mesh_glossary(attach=True):
     return n_nodes, n_terms, n_fields, n_ds
 
 
+# ---- Surface 1b: external source citations + description-based term attach ------------------------------------
+# The name-matched attach in emit_mesh_glossary leaves ~74% of fields term-less: many carry a real DESCRIPTION
+# (source dicts / class fallback) whose concept already has — or deserves — a term, but whose column NAME the
+# attach patterns miss (e.g. chroma_cens_04_mean shares one description with hundreds of siblings but no common
+# name pattern). Here we (a) stamp external source citations onto the terms whose authoritative definition lives
+# in an external standard, (b) define the audio-DSP / nutrition terms the vocab lacked, and (c) attach a term to
+# every field whose DESCRIPTION matches a known concept. Idempotent (read-merge overlay).
+_SRC_WHO = ("WHO Global Health Observatory OData API", "https://www.who.int/data/gho/info/gho-odata-api")
+_SRC_CDC = ("CDC BRFSS / PLACES surveillance", "https://www.cdc.gov/brfss/")
+_SRC_DEBEZIUM = ("Debezium change-event format", "https://debezium.io/documentation/reference/stable/connectors/postgresql.html")
+_SRC_MB = ("MusicBrainz Database Schema", "https://musicbrainz.org/doc/MusicBrainz_Database/Schema")
+_SRC_OTEL = ("OpenTelemetry Semantic Conventions", "https://opentelemetry.io/docs/specs/semconv/")
+_SRC_SENTRY = ("Sentry event payload docs", "https://develop.sentry.dev/sdk/event-payloads/")
+_SRC_USDA = ("USDA FoodData Central", "https://fdc.nal.usda.gov/")
+_SRC_LIBROSA = ("librosa feature extraction", "https://librosa.org/doc/latest/feature.html")
+_SRC_MSD = ("Million Song Dataset field list", "http://millionsongdataset.com/pages/field-list/")
+_SRC_OFF = ("Open Food Facts data fields", "https://world.openfoodfacts.org/data/data-fields.txt")
+
+# existing mesh_vocabulary term id -> external source citation (re-emit that term as EXTERNAL with the sourceUrl,
+# reading its name/parent/definition back from mesh_vocabulary so the definition stays single-sourced).
+_TERM_SOURCES = {
+    "gho-dim": _SRC_WHO, "gho-bounds": _SRC_WHO, "gho-spatialdim": _SRC_WHO, "gho-timedim": _SRC_WHO,
+    "gho-numericvalue": _SRC_WHO, "gho-indicatorcode": _SRC_WHO, "gho-parentlocation": _SRC_WHO,
+    "gho-datasourcedim": _SRC_WHO,
+    "cdc-location": _SRC_CDC, "cdc-taxonomy": _SRC_CDC, "cdc-data-value": _SRC_CDC,
+    "cdc-sample-size": _SRC_CDC, "cdc-geolocation": _SRC_CDC, "cdc-op": _SRC_DEBEZIUM,
+    "mbid": _SRC_MB, "mb-gid": _SRC_MB, "mb-entity": _SRC_MB, "mb-entity-credit": _SRC_MB,
+    "mb-edits-pending": _SRC_MB,
+    "obs-span-id": _SRC_OTEL, "obs-trace-id": _SRC_OTEL, "obs-transaction": _SRC_OTEL,
+    "col-severity": _SRC_OTEL, "col-environment": _SRC_OTEL, "col-host": _SRC_OTEL, "col-service": _SRC_OTEL,
+    "obs-org-id": _SRC_SENTRY, "obs-project-id": _SRC_SENTRY, "obs-issue-id": _SRC_SENTRY,
+    "obs-event-id": _SRC_SENTRY, "obs-release-id": _SRC_SENTRY,
+    "usda-fdc-id": _SRC_USDA,
+}
+
+# NEW external terms the name-matched vocab lacked: (tid, name, parent-node, definition, source)
+_NEW_TERMS = [
+    ("echonest-timbre", "Echo Nest Timbre / Rhythm Descriptor", "audio-feature",
+     "One of 224 low-level timbre/rhythm descriptors from the Echo Nest audio analyzer for a track (segment-level "
+     "timbre and rhythm statistics), as distributed in the Million Song Dataset.", _SRC_MSD),
+    ("mfcc", "MFCC (Mel-Frequency Cepstral Coefficient)", "audio-feature",
+     "A coefficient of the mel-frequency cepstrum — a compact representation of a signal's short-term power "
+     "spectrum on the perceptual mel scale, the standard timbral audio feature. Columns are per-coefficient "
+     "summary statistics (librosa).", _SRC_LIBROSA),
+    ("timbre-covariance", "Timbre Covariance", "audio-feature",
+     "An entry of the covariance matrix of a track's Echo Nest timbre vectors (Million Song Dataset) — how the "
+     "timbre dimensions co-vary across the track.", _SRC_MSD),
+    ("chroma-cens", "Chroma CENS", "audio-feature",
+     "Chroma Energy Normalized Statistics — a smoothed, energy-normalized 12-bin pitch-class chroma feature "
+     "robust to dynamics and timbre (librosa). Columns are per-bin statistics.", _SRC_LIBROSA),
+    ("chroma-cqt", "Chroma CQT", "audio-feature",
+     "A 12-bin pitch-class chromagram from a constant-Q transform (librosa). Columns are per-bin statistics.",
+     _SRC_LIBROSA),
+    ("chroma-stft", "Chroma STFT", "audio-feature",
+     "A 12-bin pitch-class chromagram from a short-time Fourier transform (librosa). Columns are per-bin "
+     "statistics.", _SRC_LIBROSA),
+    ("spectral-contrast", "Spectral Contrast", "audio-feature",
+     "The level difference between spectral peaks and valleys in each of several frequency sub-bands (librosa) — "
+     "captures spectral shape / harmonicity. Columns are per-band statistics.", _SRC_LIBROSA),
+    ("tonnetz", "Tonnetz (Tonal Centroid)", "audio-feature",
+     "The six tonal-centroid features projecting chroma onto a harmonic (tonal-network) space (librosa) — "
+     "captures tonal/harmonic relationships. Columns are per-dimension statistics.", _SRC_LIBROSA),
+    ("echonest-highlevel", "Echo Nest High-Level Audio Feature", "audio-feature",
+     "An Echo Nest high-level, perceptually-meaningful audio attribute of a track (acousticness, danceability, "
+     "energy, …), typically normalized to [0.0, 1.0].", _SRC_MSD),
+    ("timbre-average", "Timbre Average", "audio-feature",
+     "The mean of one of a track's Echo Nest timbre dimensions across its segments (Million Song Dataset).",
+     _SRC_MSD),
+    ("echonest-social", "Echo Nest Social / Popularity Signal", "music-concepts",
+     "An Echo Nest social or popularity signal for an artist or song (familiarity, hotttnesss, popularity rank) "
+     "derived from web and listening activity.", _SRC_MSD),
+    ("echonest-track-metadata", "Echo Nest Track Metadata", "music-concepts",
+     "Descriptive track metadata from the Echo Nest / Million Song Dataset — album, artist, release and location "
+     "fields.", _SRC_MSD),
+    ("nutrient-per-100g", "Nutrient Content (per 100 g / 100 ml)", "health-concepts",
+     "The amount of a nutrient or component per 100 grams or 100 ml of a food product — the normalized basis "
+     "Open Food Facts uses for nutrient comparison.", _SRC_OFF),
+]
+
+# ordered (distinctive description substring -> term id); first match wins. Deliberately omits the super-generic
+# class fallbacks (identifier / dimension / measure / date / boolean / text) — a bare "measure" isn't worth a term.
+_DESC_TERM_RULES = [
+    ("Echo Nest temporal audio feature", "echonest-timbre"),
+    ("MFCC (mel-frequency", "mfcc"),
+    ("Covariance of timbre features", "timbre-covariance"),
+    ("Chroma CENS", "chroma-cens"),
+    ("Chroma CQT", "chroma-cqt"),
+    ("Chroma STFT", "chroma-stft"),
+    ("Spectral-contrast audio feature", "spectral-contrast"),
+    ("Tonnetz (tonal-centroid)", "tonnetz"),
+    ("Echo Nest high-level audio feature", "echonest-highlevel"),
+    ("Average of a timbre feature", "timbre-average"),
+    ("Echo Nest social feature", "echonest-social"),
+    ("Echo Nest popularity rank", "echonest-social"),
+    ("Echo Nest track metadata", "echonest-track-metadata"),
+    ("Nutrient / component content per 100", "nutrient-per-100g"),
+    ("Sentry/GlitchTip organization identifier", "obs-org-id"),
+    ("Sentry/GlitchTip project", "obs-project-id"),
+    ("Sentry/GlitchTip issue", "obs-issue-id"),
+    ("Sentry/GlitchTip individual error-event", "obs-event-id"),
+    ("The release / version an event", "obs-release-id"),
+    ("OpenTelemetry / Sentry span id", "obs-span-id"),
+    ("OpenTelemetry / Sentry trace id", "obs-trace-id"),
+    ("Sentry transaction name", "obs-transaction"),
+    ("Severity or log level", "col-severity"),
+    ("Deployment environment", "col-environment"),
+    ("Service / component the record", "col-service"),
+    ("Host / node the record", "col-host"),
+    ("WHO GHO breakdown dimensions", "gho-dim"),
+    ("uncertainty interval around a GHO", "gho-bounds"),
+    ("WHO GHO geography of a value", "gho-spatialdim"),
+    ("WHO region a country rolls up to", "gho-parentlocation"),
+    ("WHO GHO reporting period", "gho-timedim"),
+    ("data source behind a WHO GHO value", "gho-datasourcedim"),
+    ("WHO GHO indicator identifier", "gho-indicatorcode"),
+    ("CDC survey hierarchy for a measure", "cdc-taxonomy"),
+    ("CDC surveillance measure plus qualifiers", "cdc-data-value"),
+    ("Geography of a CDC surveillance row", "cdc-location"),
+    ("Debezium change-event operation", "cdc-op"),
+    ("two entities a MusicBrainz relationship", "mb-entity"),
+    ("credited name for a relationship endpoint", "mb-entity-credit"),
+    ("Count of open community edits", "mb-edits-pending"),
+    ("MusicBrainz row-level UUID", "mbid"),
+    ("USDA FoodData Central identifier", "usda-fdc-id"),
+    ("Identifier for a music track", "music-track-id"),
+    ("A category of musical style", "genre"),
+    ("Estimated key as a pitch class", "audio-key"),
+    ("Uptime Kuma monitor identifier", "kuma-monitor-id"),
+    ("Uptime Kuma measured response time", "kuma-response-time"),
+    ("Uptime Kuma up/down flag", "kuma-is-up"),
+    ("Uptime Kuma flag: this heartbeat changed", "kuma-is-change"),
+]
+
+
+def emit_source_terms():
+    """Surface 1b — external source citations + description-based term attach. (a) Re-emit the external-standard
+    terms as termSource=EXTERNAL with sourceRef/sourceUrl (name/parent/definition read from mesh_vocabulary so the
+    definition stays single-sourced); (b) define the audio-DSP / nutrition terms the name-matched vocab lacked;
+    (c) walk every field and attach a term wherever its DESCRIPTION matches a known concept — the gap the
+    name-attach leaves. Read-merge (never clobber existing desc/tags/terms), idempotent.
+    Returns (n_cited, n_new, n_fields_attached, n_datasets_touched)."""
+    import time
+    from weyland_pipeline.mesh_vocabulary import TERMS
+
+    emitter = _gms_emitter()
+    node_urn = lambda nid: f"urn:li:glossaryNode:{nid}"
+    term_urn = lambda tid: f"urn:li:glossaryTerm:{tid}"
+    by_id = {t[0]: t for t in TERMS}  # tid -> (tid, name, parent, defn, attach)
+
+    n_cited = 0
+    for tid, (ref, url) in _TERM_SOURCES.items():
+        t = by_id.get(tid)
+        if not t:
+            continue
+        emitter.emit(MetadataChangeProposalWrapper(entityUrn=term_urn(tid), aspect=GlossaryTermInfoClass(
+            definition=t[3], name=t[1], parentNode=node_urn(t[2]), termSource="EXTERNAL",
+            sourceRef=ref, sourceUrl=url)))
+        n_cited += 1
+
+    n_new = 0
+    for tid, name, parent, defn, (ref, url) in _NEW_TERMS:
+        emitter.emit(MetadataChangeProposalWrapper(entityUrn=term_urn(tid), aspect=GlossaryTermInfoClass(
+            definition=defn, name=name, parentNode=node_urn(parent), termSource="EXTERNAL",
+            sourceRef=ref, sourceUrl=url)))
+        n_new += 1
+
+    from datahub.ingestion.graph.client import DataHubGraph, DatahubClientConfig
+    server = os.environ.get("DATAHUB_GMS_URL", "http://datahub-datahub-gms.data-mesh.svc.cluster.local:8080")
+    token = os.environ.get("DATAHUB_GMS_TOKEN", "")
+    graph = DataHubGraph(DatahubClientConfig(server=server, token=token))
+    now = int(time.time() * 1000)
+    stamp = AuditStampClass(time=now, actor="urn:li:corpuser:datahub")
+
+    def _term_for(desc):
+        for sub, tid in _DESC_TERM_RULES:
+            if sub in desc:
+                return tid
+        return None
+
+    n_fields = n_ds = 0
+    for urn in graph.get_urns_by_filter(entity_types=["dataset"]):
+        sm = graph.get_aspect(urn, SchemaMetadataClass)
+        if not sm or not sm.fields:
+            continue
+        esm = graph.get_aspect(urn, EditableSchemaMetadataClass)
+        infos = {i.fieldPath: i for i in (esm.editableSchemaFieldInfo if esm else [])}
+        touched = 0
+        for f in sm.fields:
+            info = infos.get(f.fieldPath)
+            desc = (info.description if info and info.description else None) or f.description
+            if not desc:
+                continue
+            tid = _term_for(desc)
+            if not tid:
+                continue
+            turn = term_urn(tid)
+            info = info or EditableSchemaFieldInfoClass(fieldPath=f.fieldPath)
+            existing = list(info.glossaryTerms.terms) if info.glossaryTerms else []
+            infos[f.fieldPath] = info
+            if any(a.urn == turn for a in existing):
+                continue
+            existing.append(GlossaryTermAssociationClass(urn=turn))
+            info.glossaryTerms = GlossaryTermsClass(terms=existing, auditStamp=stamp)
+            touched += 1
+        if not touched:
+            continue
+        emitter.emit(MetadataChangeProposalWrapper(entityUrn=urn, aspect=EditableSchemaMetadataClass(
+            created=(esm.created if esm else stamp), lastModified=stamp,
+            editableSchemaFieldInfo=list(infos.values()))))
+        n_fields += touched
+        n_ds += 1
+    return n_cited, n_new, n_fields, n_ds
+
+
 # Surface 2 — Structured Properties: typed, filterable facets. (qualifiedName, displayName, description,
 # [(value, value-description)]). qualifiedName doubles as the URN id: urn:li:structuredProperty:<qualifiedName>.
 _SP_DATASET_ET = "urn:li:entityType:datahub.dataset"
