@@ -90,6 +90,13 @@ resolved from available columns". Dimensions select normally; measures go throug
   Playground) and consume via the SQL API from Superset/Lightdash, or via REST from apps.
 - **`:latest` bundles Cube Store** (rocksdb metastore + cachestore, constant background checkpointing). Fine, but
   pin the image (OPA no-latest = dry-run/warn) once verified.
+- **KEEP dev mode on a single node.** Dev mode bundles Cube Store so it "just works". **Production mode
+  (`CUBEJS_DEV_MODE=false`) requires an EXTERNAL Cube Store** (`CUBEJS_CUBESTORE_HOST`) — without it the SQL API
+  errors "Cube Store was specified as queue/cache driver". That's pure overhead here (we run live Trino queries, no
+  pre-aggs). The *server* is tiny (~214Mi); only the browser Playground is heavy, and only when opened — so dev mode
+  + not-opening-the-Playground is the right lab setup. Deploy a standalone Cube Store only if you add pre-aggregations.
+- **Consumed by Superset** via the SQL API (add DB `postgresql://cube:…@cube.data-mesh.svc:15432/cube`). Chart cubes
+  with **virtual datasets** (SQL Lab, `MEASURE(...)`) — Superset's auto-generated `AVG()` SQL is rejected by Cube.
 
 ---
 
