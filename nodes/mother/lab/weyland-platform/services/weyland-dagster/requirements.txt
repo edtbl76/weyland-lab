@@ -72,3 +72,6 @@ feast[redis,postgres]
 # project lives in dbt/ and is parsed at image build (dbt parse → dbt/target/manifest.json for @dbt_assets).
 dagster-dbt
 dbt-trino
+# MetricFlow (dbt Semantic Layer, B1.7) — `mf query` compiles metrics (models/semantic_models.yml) to Trino SQL,
+# spined by models/metricflow_time_spine.sql. Uses the dbt-trino adapter above.
+dbt-metricflow
