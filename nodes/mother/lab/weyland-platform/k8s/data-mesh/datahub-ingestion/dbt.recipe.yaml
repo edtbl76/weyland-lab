@@ -28,6 +28,9 @@ source:
   config:
     manifest_path: "s3://warehouse/_dbt_artifacts/manifest.json"
     catalog_path: "s3://warehouse/_dbt_artifacts/catalog.json"
+    # run_results.json = the dbt TEST results (pass/fail) — required for test_results below to actually attach
+    # assertions to the marts. Published alongside manifest/catalog by publish_dbt_artifacts after `dbt build`.
+    run_results_paths: ["s3://warehouse/_dbt_artifacts/run_results.json"]
     aws_connection:
       aws_endpoint_url: "http://minio.minio.svc.cluster.local:9000"
       aws_access_key_id: "${MINIO_ACCESS_KEY}"

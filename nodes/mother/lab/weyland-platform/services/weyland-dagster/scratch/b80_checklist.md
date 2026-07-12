@@ -35,13 +35,17 @@ Catalog: 3282 datasets, 51,703 fields. Measure surfaces at the RIGHT granularity
       (grafana 373, dagster 93, file-formats 103, neo4j 26, dbt 23, kafka 4) — won't fake a rowCount; ~185
       lakehouse iceberg/trino tables (Trino count(*) emit would reach ~78%) — DECLINED as not worth it; 27 stale
       ghosts (opensearch 19 / timescale 8) → soft-delete cleanup, tracked below.
-- [ ] **Data Contracts** — 16, BUT the dataContract entity query throws GraphQL NullValueInNonNullableField →
-      dangling references (contract points at assertion/entity URNs that changed/removed). DEFERRED (Soda/quality
-      revisit): fix dangling refs + widen via dbt-tests → native DataHub assertions/contracts. `emit_data_contracts`
-      keys contract URN on md5(table); assertion URNs on md5(table:check) — verify both stay stable across runs.
-- [ ] **Assertions / Tests** — 99 (all on ~16 Soda marts/gold; empty on the other ~3266). DEFERRED (Soda/quality
-      revisit): PRIMARY breadth engine = **dbt tests + dbt-expectations** (native DataHub dbt-source assertion
-      ingestion, versioned, $0, rides existing dbt build); Soda fills non-dbt stores. GX considered, too heavy.
+- [x] **Data Contracts** — **99 across the lakehouse** (was 16), all clean (primary store == OpenSearch index, 0
+      orphans). Per-dataset Contract tab WORKS. Soda `for each dataset` baseline → one contract per lakehouse table.
+      Hardened `emit_data_contracts` with a `graph.exists(mart_urn)` guard (never emit a contract for a
+      non-cataloged dataset — that was the dbt `__dbt_tmp` dangling ref that poisoned the browse; purged + guarded).
+      KNOWN DATAHUB LIMITATION (not our data): the global "browse all Data Contracts" scrollAcrossEntities resolver
+      returns null `entity` for EVERY dataContract hit in this DataHub version (confirmed with a minimal
+      `entity{urn}` query on pristine 99==99 data). Fixable only by a DataHub upgrade/patch. PARKED.
+- [x] **Assertions / Tests** — **183** (was 99): `row_count > 0` baseline across every music/health-gold/mart
+      lakehouse table + the specific mart/gold bounds, via Soda `for each dataset` include %. Emitters attach to the
+      right schema via _SODA_DS_SCHEMA (weyland_music added). Future depth: dbt-expectations (already in packages),
+      GX = B77 post-B79. Soda schedule ENABLED.
 - [x] **Queries** — **281 schema-aware starters across 211 lakehouse datasets** (`emit_dataset_queries`: preview +
       dim/measure aggregate, iceberg/trino, marts keep their 7 curated) + 7 curated marts. DONE 2026-07-11.
 

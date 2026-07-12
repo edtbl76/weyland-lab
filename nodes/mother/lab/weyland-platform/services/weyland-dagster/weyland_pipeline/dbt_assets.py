@@ -45,8 +45,14 @@ def publish_dbt_artifacts(log=print):
         secret_key=os.environ["ICEBERG_S3_SECRET_KEY"],
         secure=os.environ.get("MINIO_SECURE", "false").lower() == "true",
     )
-    for fn in ("manifest.json", "catalog.json"):
+    # run_results.json carries the dbt TEST results (pass/fail per test) — only written by `dbt build`/`dbt test`,
+    # NOT by `dbt docs generate` alone, so upload it only when present. Without it the DataHub dbt source has test
+    # DEFINITIONS but no results → the marts' Quality tab shows no dbt assertions.
+    for fn in ("manifest.json", "catalog.json", "run_results.json"):
         src = DBT_PROJECT_DIR / "target" / fn
+        if not src.exists():
+            log(f"skip {fn} (not in target/ — run `dbt build`/`dbt test` first)")
+            continue
         mc.fput_object(_ARTIFACT_BUCKET, f"{_ARTIFACT_PREFIX}/{fn}", str(src), content_type="application/json")
         log(f"published dbt {fn} → s3://{_ARTIFACT_BUCKET}/{_ARTIFACT_PREFIX}/{fn}")
 
