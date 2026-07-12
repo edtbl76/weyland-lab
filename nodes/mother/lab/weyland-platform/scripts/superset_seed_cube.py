@@ -80,7 +80,13 @@ def M(col, label=None):
             "aggregate": "AVG", "label": label or col, "optionName": f"m_{col}".lower()}
 
 
+_charts = {c["slice_name"]: c["id"] for c in S.get(f"{BASE}/api/v1/chart/?q=(page_size:500)").json()["result"]}
+
+
 def chart(name, ds, x, metrics, limit=25):
+    if name in _charts:
+        print(f"  chart '{name}' (exists) -> {_charts[name]}")
+        return _charts[name]
     params = {"viz_type": "echarts_timeseries_bar", "x_axis": x, "metrics": metrics,
               "groupby": [], "row_limit": limit, "order_desc": True}
     cid = post("/api/v1/chart/", {"slice_name": name, "viz_type": "echarts_timeseries_bar",
@@ -120,9 +126,20 @@ def dashboard(title, chart_ids):
                     "meta": {"background": "BACKGROUND_TRANSPARENT"}}
         rows.append(rid)
     pos["GRID_ID"]["children"] = rows
-    did = post("/api/v1/dashboard/",
-               {"dashboard_title": title, "position_json": json.dumps(pos), "published": True})["id"]
-    print(f"dashboard '{title}' -> {did}")
+    body = {"dashboard_title": title, "position_json": json.dumps(pos), "published": True}
+    # find-or-update by title (idempotent — don't pile up broken dashboards on re-run)
+    dash = next((d for d in S.get(f"{BASE}/api/v1/dashboard/?q=(page_size:200)").json()["result"]
+                 if d["dashboard_title"] == title), None)
+    if dash:
+        did = dash["id"]
+        S.put(f"{BASE}/api/v1/dashboard/{did}", json=body)
+    else:
+        did = post("/api/v1/dashboard/", body)["id"]
+    # CRITICAL: set each chart's dashboards relationship — position_json chartId alone doesn't associate them in
+    # Superset 6.x, so the frontend renders "no chart definition associated". This is the actual link.
+    for cid in chart_ids:
+        S.put(f"{BASE}/api/v1/chart/{cid}", json={"dashboards": [did]})
+    print(f"dashboard '{title}' -> {did} (linked {len(chart_ids)} charts)")
     return did
 
 
