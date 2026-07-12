@@ -97,6 +97,9 @@ resolved from available columns". Dimensions select normally; measures go throug
   + not-opening-the-Playground is the right lab setup. Deploy a standalone Cube Store only if you add pre-aggregations.
 - **Consumed by Superset** via the SQL API (add DB `postgresql://cube:…@cube.data-mesh.svc:15432/cube`). Chart cubes
   with **virtual datasets** (SQL Lab, `MEASURE(...)`) — Superset's auto-generated `AVG()` SQL is rejected by Cube.
+  Seeded reproducibly by `scripts/superset_seed_cube.py` (5 virtual datasets + 5 charts + the **"Weyland — Cube
+  Semantic Layer"** dashboard). Gotcha: a chart needs its `dashboards` relationship set via the API — a `position_json`
+  chartId alone renders "no chart definition associated" in Superset 6.x.
 
 ---
 

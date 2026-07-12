@@ -434,3 +434,32 @@ spec:
     syncOptions:
       - ServerSideApply=true
       - CreateNamespace=true
+---
+# jupyterhub — B1.8 L8 notebooks (Zero-to-JupyterHub). Hub+proxy tiny always-on; singleuser pods on-demand
+# (KubeSpawner + idle-culler). Keycloak OIDC. Chart pinned; bump if the version doesn't resolve.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: jupyterhub
+  namespace: argocd
+spec:
+  project: default
+  sources:
+    - repoURL: https://hub.jupyter.org/helm-chart/
+      chart: jupyterhub
+      targetRevision: 3.3.8
+      helm:
+        releaseName: jupyterhub
+        valueFiles:
+          - $values/nodes/mother/lab/weyland-platform/k8s/jupyterhub/jupyterhub-values.yaml
+    - repoURL: https://github.com/edtbl76/weyland-lab.git
+      targetRevision: main
+      ref: values
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: jupyterhub
+  syncPolicy:
+    automated: { selfHeal: true, prune: true }
+    syncOptions:
+      - ServerSideApply=true
+      - CreateNamespace=true

@@ -1,0 +1,79 @@
+# B1.8 L8 — JupyterHub (Zero-to-JupyterHub chart). Hub + proxy always-on (tiny); per-user notebook pods on-demand
+# via KubeSpawner, idle-culled → scale-to-zero. Auth = Keycloak OIDC (GenericOAuthenticator). First cut uses sqlite
+# (hub PVC) + the public scipy-notebook image; swap singleuser.image for the custom polars/lakeFS image once built.
+hub:
+  db:
+    type: sqlite-pvc          # first cut — no Postgres-mesh plumbing; migrate to the lab Postgres later
+  config:
+    JupyterHub:
+      authenticator_class: generic-oauth
+    GenericOAuthenticator:
+      client_id: jupyterhub
+      oauth_callback_url: https://jupyter.weyland.lab/hub/oauth_callback
+      authorize_url: https://keycloak.weyland.lab/realms/weyland/protocol/openid-connect/auth
+      token_url: https://keycloak.weyland.lab/realms/weyland/protocol/openid-connect/token
+      userdata_url: https://keycloak.weyland.lab/realms/weyland/protocol/openid-connect/userinfo
+      username_claim: preferred_username
+      scope:
+        - openid
+        - profile
+        - email
+    Authenticator:
+      allow_all: true          # solo lab — any weyland-realm user (i.e. the operator) may log in
+  extraEnv:
+    OAUTH_CLIENT_SECRET:
+      valueFrom:
+        secretKeyRef:
+          name: jupyterhub-oidc
+          key: client_secret
+  extraConfig:
+    # keep the client secret out of git — inject it from the k8s Secret (tofu output → jupyterhub-oidc)
+    oidc-secret: |
+      import os
+      c.GenericOAuthenticator.client_secret = os.environ["OAUTH_CLIENT_SECRET"]
+  resources:
+    requests: { cpu: 50m, memory: 256Mi }
+    limits: { memory: 512Mi }
+
+proxy:
+  service:
+    type: ClusterIP            # exposed via the Traefik ingress below, not a LoadBalancer
+  chp:
+    resources:
+      requests: { cpu: 50m, memory: 128Mi }
+      limits: { memory: 256Mi }
+
+singleuser:
+  image:
+    name: quay.io/jupyter/scipy-notebook
+    tag: latest                # TODO swap for registry.weyland.lab/weyland-jupyter (polars/lakeFS) once built
+    pullPolicy: IfNotPresent
+  storage:
+    capacity: 2Gi
+  cpu:
+    limit: 2
+    guarantee: 0.1
+  memory:
+    limit: 2G
+    guarantee: 256M
+  defaultUrl: /lab            # JupyterLab, not the classic tree
+
+# idle-culler → scale singleuser pods to zero (run-mode tiering)
+cull:
+  enabled: true
+  timeout: 3600               # cull after 1h idle
+  every: 300
+
+ingress:
+  enabled: true
+  ingressClassName: traefik
+  hosts:
+    - jupyter.weyland.lab
+  tls:
+    - hosts: [jupyter.weyland.lab]
+      secretName: weyland-wildcard-tls
+
+# no dummy/placeholder auth, no bundled cloud metadata
+scheduling:
+  userScheduler:
+    enabled: false             # single node — no need for the spread scheduler
