@@ -1790,8 +1790,10 @@ def emit_opensearch():
         indices = [d["index"] for d in json.load(r)]
     names = []
     for idx in indices:
-        if idx.startswith((".", "security", "opensearch_dashboards")):
-            continue  # system / internal / built-in sample-data (opensearch_dashboards_sample_*) indices
+        if idx.startswith((".", "security", "opensearch_dashboards", "top_queries", "ss4o_")):
+            continue  # system / internal indices: security, dashboards samples, ss4o_* OTel samples, and the
+            # query-insights `top_queries-YYYY.MM.DD-*` indices that ROTATE DAILY (cataloging them = churn: a new
+            # entity every day + a stale one orphaned — skip so reconcile also soft-deletes the ones already there)
         fields = []
         try:
             with urllib.request.urlopen(f"{base}/{idx}/_mapping", timeout=30) as r:

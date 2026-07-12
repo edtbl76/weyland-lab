@@ -35,13 +35,23 @@ Catalog: 3282 datasets, 51,703 fields. Measure surfaces at the RIGHT granularity
       (grafana 373, dagster 93, file-formats 103, neo4j 26, dbt 23, kafka 4) — won't fake a rowCount; ~185
       lakehouse iceberg/trino tables (Trino count(*) emit would reach ~78%) — DECLINED as not worth it; 27 stale
       ghosts (opensearch 19 / timescale 8) → soft-delete cleanup, tracked below.
-- [~] **Data Contracts** — 16 (marts + gold, referencing Soda assertions). Expand Soda scope to widen.
-- [~] **Assertions** — 16 (marts + gold via Soda). Expand Soda scope to widen.
-- [ ] **Queries** — 7 (marts, example queries). Extend to more datasets (low value for operational).
+- [ ] **Data Contracts** — 16, BUT the dataContract entity query throws GraphQL NullValueInNonNullableField →
+      dangling references (contract points at assertion/entity URNs that changed/removed). DEFERRED (Soda/quality
+      revisit): fix dangling refs + widen via dbt-tests → native DataHub assertions/contracts. `emit_data_contracts`
+      keys contract URN on md5(table); assertion URNs on md5(table:check) — verify both stay stable across runs.
+- [ ] **Assertions / Tests** — 99 (all on ~16 Soda marts/gold; empty on the other ~3266). DEFERRED (Soda/quality
+      revisit): PRIMARY breadth engine = **dbt tests + dbt-expectations** (native DataHub dbt-source assertion
+      ingestion, versioned, $0, rides existing dbt build); Soda fills non-dbt stores. GX considered, too heavy.
+- [x] **Queries** — **281 schema-aware starters across 211 lakehouse datasets** (`emit_dataset_queries`: preview +
+      dim/measure aggregate, iceberg/trino, marts keep their 7 curated) + 7 curated marts. DONE 2026-07-11.
 
 ## Also open
-- [ ] Stale-entry cleanup (opensearch 19, timescale 8 = dropped store objects lingering) → soft-delete.
-- [ ] GPM UI (gatekeeper.weyland.lab) live-check; enable soda_quality_schedule.
+- [x] **Ghost cleanup** — `_reconcile_platform` in emit_opensearch + emit_timescaledb: soft-deletes catalog
+      datasets with no live index/table (self-healing). Removed 20 opensearch (9 temp load ghosts + 11 rotating
+      top_queries) + 8 timescale (dropped who_gho hypertables). ALSO now skip top_queries/ss4o_ in the emitter so
+      the daily-rotating system indices aren't cataloged at all (was churn). DONE 2026-07-11.
+- [x] Soda schedule — ENABLED (was wrongly noted STOPPED).
+- [ ] GPM UI (gatekeeper.weyland.lab) live-check.
 
 ## Mechanisms (reusable)
 - `datahub_emit.py`: emit_domains/ownership/tags/tag_assignments/mesh_glossary/field_docs/queries; soda emit
