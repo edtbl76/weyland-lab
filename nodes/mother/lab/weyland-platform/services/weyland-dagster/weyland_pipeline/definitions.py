@@ -222,9 +222,14 @@ def soda_scan_op(context):
         emit_soda_profiles,
     )
     # (data source, results file, [check files]) — the emitters map the data source name → the right Trino schema.
+    # B80 breadth: baseline.yml (row_count>0 for-each-dataset) fans across every table in each schema; the specific
+    # mart/gold check files layer richer bounds on top. weyland_music added so the music silver/gold datasets get
+    # covered too — not just the 4 marts.
+    _bl = "/app/soda/checks/baseline.yml"
     scans = [
-        ("weyland", "/tmp/soda_marts.json", ["/app/soda/checks/music.yml", "/app/soda/checks/health.yml"]),
-        ("weyland_health", "/tmp/soda_gold.json", ["/app/soda/checks/health_gold.yml"]),
+        ("weyland", "/tmp/soda_marts.json", ["/app/soda/checks/music.yml", "/app/soda/checks/health.yml", _bl]),
+        ("weyland_music", "/tmp/soda_music.json", [_bl]),
+        ("weyland_health", "/tmp/soda_gold.json", ["/app/soda/checks/health_gold.yml", _bl]),
     ]
     worst = 0
     for ds, results_file, check_files in scans:

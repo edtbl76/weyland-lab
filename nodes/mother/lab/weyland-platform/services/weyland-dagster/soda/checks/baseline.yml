@@ -1,0 +1,11 @@
+# B80 breadth — the ONE baseline data-quality check that applies to every table, generated dynamically so we don't
+# hand-write a block per table. `for each dataset` + `include %` fans `row_count > 0` across EVERY table in the
+# scan's data-source schema (dbt / datasets_music / datasets_health). "Is the data actually there?" is the single
+# highest-value DQ assertion — it catches empty tables and failed loads — and on Iceberg it's a metadata-cheap
+# count (no heavy GROUP BY, so no Trino OOM). The specific mart/gold checks (music.yml/health.yml/health_gold.yml)
+# layer richer bounds on top; this guarantees a floor of coverage on the whole lakehouse.
+for each dataset T:
+  datasets:
+    - include %
+  checks:
+    - row_count > 0

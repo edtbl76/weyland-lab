@@ -25,3 +25,14 @@ data_source weyland_health:
   username: dbt
   catalog: iceberg
   schema: datasets_health
+
+# B80 breadth — the music-domain gold Iceberg tables (silver/gold datasets_music) so the baseline non-empty scan
+# reaches every music dataset, not just the 4 marts. Emitters map `weyland_music` → iceberg.datasets_music.
+data_source weyland_music:
+  type: trino
+  host: trino-noauth.data-mesh.svc.cluster.local
+  port: 8080
+  http_scheme: http
+  username: dbt
+  catalog: iceberg
+  schema: datasets_music
