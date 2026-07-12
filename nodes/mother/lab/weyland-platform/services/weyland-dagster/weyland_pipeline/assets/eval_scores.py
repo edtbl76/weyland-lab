@@ -17,7 +17,7 @@ from dagster import Output, MetadataValue, asset
 
 from weyland_pipeline.resources import PostgresResource
 
-OLLAMA_BASE_URL = os.environ.get("OLLAMA_BASE_URL", "http://192.168.1.244:11434/v1")
+OLLAMA_BASE_URL = os.environ.get("OLLAMA_BASE_URL", "http://192.168.1.230:11434/v1")
 # Panel of non-thinking judges (reliable JSON); the eval_leaderboard view averages across them.
 JUDGES = [
     j.strip()

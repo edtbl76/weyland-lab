@@ -20,7 +20,7 @@ from weyland_pipeline.resources import PostgresResource
 
 OPENROUTER_MODELS_URL = "https://openrouter.ai/api/v1/models"
 GEMINI_MODELS_URL = "https://generativelanguage.googleapis.com/v1beta/models"
-OLLAMA_BASE_URL = os.environ.get("OLLAMA_BASE_URL", "http://192.168.1.244:11434/v1")
+OLLAMA_BASE_URL = os.environ.get("OLLAMA_BASE_URL", "http://192.168.1.230:11434/v1")
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
 
 DDL = """

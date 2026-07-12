@@ -18,7 +18,7 @@ data:
         errors
         log
         template IN A {
-            answer "{{ .Name }} 60 IN A 192.168.1.244"
+            answer "{{ .Name }} 60 IN A 192.168.1.230"
         }
         template IN AAAA {
             rcode NOERROR

@@ -79,7 +79,7 @@ spec:
             # B7: local model serving (Ollama on weyland CT 102, OpenAI-compatible /v1).
             # IP is DHCP-reserved; default model is overridable per request via /context/ask.
             - name: OLLAMA_BASE_URL
-              value: http://192.168.1.244:11434/v1
+              value: http://192.168.1.230:11434/v1
             # B51 — error tracking → GlitchTip. Internal-service DSN (in-cluster apps can't resolve the
             # *.weyland.lab ingress); empty/unset DSN = SDK no-op.
             - name: SENTRY_DSN

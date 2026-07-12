@@ -22,7 +22,7 @@ EVAL_MODELS = os.environ.get(
 # json_object constraint (the <think> block eats the generation). mistral is reliable for JSON.
 EVAL_GENERATOR_MODEL = os.environ.get("EVAL_GENERATOR_MODEL", "mistral-small3.2:24b")
 EVAL_TEST_SIZE = int(os.environ.get("EVAL_TEST_SIZE", "10"))
-OLLAMA_BASE_URL = os.environ.get("OLLAMA_BASE_URL", "http://192.168.1.244:11434/v1")
+OLLAMA_BASE_URL = os.environ.get("OLLAMA_BASE_URL", "http://192.168.1.230:11434/v1")
 EVAL_METRICS = ["faithfulness", "answer_relevancy", "context_relevancy"]
 
 

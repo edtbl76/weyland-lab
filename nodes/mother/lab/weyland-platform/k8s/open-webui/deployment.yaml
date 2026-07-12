@@ -39,7 +39,7 @@ spec:
           env:
             # --- Chat: native Ollama integration (CT 102) ---
             - name: OLLAMA_BASE_URL
-              value: http://192.168.1.244:11434
+              value: http://192.168.1.230:11434
             - name: ENABLE_OPENAI_API          # don't reach OpenAI cloud for chat — Ollama only
               value: "false"
             # --- Voice input (STT) -> whisper shim (CT 103, B11), OpenAI-compatible ---
