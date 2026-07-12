@@ -1504,6 +1504,64 @@ def emit_queries():
     return n
 
 
+def emit_dataset_queries():
+    """B80 Queries breadth — a schema-aware, RUNNABLE starter query per lakehouse table (iceberg / trino platform)
+    so the Queries tab shows a real preview instead of 'No highlighted queries yet'. When the schema has both a
+    numeric measure (by schema type) and a categorical dimension (by name class), also emit an aggregate. The 7
+    curated mart queries (emit_queries) take precedence — skipped here. SQL-only platforms; vector/graph/kafka/
+    file datasets are left alone (a SQL query there would be filler). Idempotent. Returns (n_queries, n_datasets)."""
+    import hashlib
+    import time
+    from datahub.ingestion.graph.client import DataHubGraph, DatahubClientConfig
+    from datahub.metadata.schema_classes import (
+        QueryLanguageClass,
+        QueryPropertiesClass,
+        QuerySourceClass,
+        QueryStatementClass,
+        QuerySubjectClass,
+        QuerySubjectsClass,
+    )
+    emitter = _gms_emitter()
+    server = os.environ.get("DATAHUB_GMS_URL", "http://datahub-datahub-gms.data-mesh.svc.cluster.local:8080")
+    token = os.environ.get("DATAHUB_GMS_TOKEN", "")
+    graph = DataHubGraph(DatahubClientConfig(server=server, token=token))
+    stamp = AuditStampClass(time=int(time.time() * 1000), actor="urn:li:corpuser:__datahub_system")
+    curated = set(_MART_QUERIES)
+    nq = nds = 0
+    for urn in graph.get_urns_by_filter(entity_types=["dataset"]):
+        m = _re.search(r"dataPlatform:(iceberg|trino),(.+),[A-Z]+\)$", urn)
+        if not m:
+            continue
+        plat, name = m.group(1), m.group(2)
+        table = name.split(".")[-1]
+        if table in curated:
+            continue  # already has a hand-written query
+        sm = graph.get_aspect(urn, SchemaMetadataClass)
+        if not sm or not sm.fields:
+            continue
+        frm = f"iceberg.{name}" if plat == "iceberg" else name  # trino names are already catalog-qualified
+        leaves = [_field_leaf(f.fieldPath) for f in sm.fields]
+        stmts = [("preview", f"-- Preview {table}\nSELECT {', '.join(leaves[:8])}\nFROM {frm}\nLIMIT 100")]
+        dim = next((_field_leaf(f.fieldPath) for f in sm.fields
+                    if _field_class(_field_leaf(f.fieldPath)) in ("dimension", "geo")), None)
+        meas = next((_field_leaf(f.fieldPath) for f in sm.fields if _type_class(f) == "measure"), None)
+        if dim and meas and dim != meas:
+            stmts.append(("agg", f"-- {table} by {dim}\nSELECT {dim}, count(*) AS n, avg({meas}) AS avg_{meas}\n"
+                                 f"FROM {frm}\nGROUP BY {dim}\nORDER BY n DESC\nLIMIT 20"))
+        for kind, sql in stmts:
+            q_urn = f"urn:li:query:{hashlib.md5(f'{kind}:{plat}:{name}'.encode()).hexdigest()}"
+            emitter.emit(MetadataChangeProposalWrapper(entityUrn=q_urn, aspect=QueryPropertiesClass(
+                statement=QueryStatementClass(value=sql, language=QueryLanguageClass.SQL),
+                source=QuerySourceClass.MANUAL,
+                name=f"{'Preview' if kind == 'preview' else 'Aggregate'} — {table}",
+                description="Schema-generated starter query (git-emitted).", created=stamp, lastModified=stamp)))
+            emitter.emit(MetadataChangeProposalWrapper(
+                entityUrn=q_urn, aspect=QuerySubjectsClass(subjects=[QuerySubjectClass(entity=urn)])))
+            nq += 1
+        nds += 1
+    return nq, nds
+
+
 def _gms_emitter() -> DatahubRestEmitter:
     server = os.environ.get("DATAHUB_GMS_URL", "http://datahub-datahub-gms.data-mesh.svc.cluster.local:8080")
     return DatahubRestEmitter(gms_server=server, token=os.environ.get("DATAHUB_GMS_TOKEN", ""))
@@ -1534,6 +1592,35 @@ def _emit_profile(emitter, urn, row_count, column_count=None):
     emitter.emit(MetadataChangeProposalWrapper(entityUrn=urn, aspect=DatasetProfileClass(
         timestampMillis=int(time.time() * 1000), rowCount=int(row_count), columnCount=column_count)))
     return 1
+
+
+def _reconcile_platform(emitter, platform, live_names):
+    """B80 ghost cleanup: soft-delete (Status.removed=True) any cataloged dataset of `platform` whose name is no
+    longer in the live set. The custom store emitters only ever ADD, so when an index/table is dropped (temp load
+    indices, rotated system indices, one-off hydrations) its DataHub entity orphans. Running this at the end of
+    each store emit makes it self-healing — ghosts never accumulate. Soft-delete only (reversible; the entity and
+    its history survive, it's just hidden from search/browse). Returns the list of soft-deleted names."""
+    from datahub.ingestion.graph.client import DataHubGraph, DatahubClientConfig
+    from datahub.metadata.schema_classes import StatusClass
+    server = os.environ.get("DATAHUB_GMS_URL", "http://datahub-datahub-gms.data-mesh.svc.cluster.local:8080")
+    token = os.environ.get("DATAHUB_GMS_TOKEN", "")
+    graph = DataHubGraph(DatahubClientConfig(server=server, token=token))
+    live = set(live_names)
+    pref = f"dataPlatform:{platform},"
+    removed = []
+    for urn in graph.get_urns_by_filter(entity_types=["dataset"]):
+        if pref not in urn:
+            continue
+        m = _re.search(r"dataPlatform:[^,]+,(.+),[A-Z]+\)$", urn)
+        name = m.group(1) if m else None
+        if not name or name in live:
+            continue
+        st = graph.get_aspect(urn, StatusClass)
+        if st and st.removed:
+            continue  # already soft-deleted
+        emitter.emit(MetadataChangeProposalWrapper(entityUrn=urn, aspect=StatusClass(removed=True)))
+        removed.append(name)
+    return removed
 
 
 def emit_qdrant():
@@ -1736,7 +1823,8 @@ def emit_opensearch():
             pass
         _emit_profile(emitter, urn, rows, len(fields) or None)
         names.append(idx)
-    return len(names), names
+    removed = _reconcile_platform(emitter, "opensearch", names)
+    return {"live": len(names), "soft_deleted": removed}
 
 
 def emit_duckdb():
@@ -1883,7 +1971,8 @@ def emit_timescaledb():
             names.append(t)
     finally:
         conn.close()
-    return len(names), names
+    removed = _reconcile_platform(emitter, "timescaledb", names)
+    return {"live": len(names), "soft_deleted": removed}
 
 
 def emit_mysql():

@@ -195,6 +195,12 @@ def emit_queries_op(context):
 
 
 @op
+def emit_dataset_queries_op(context):
+    from weyland_pipeline.datahub_emit import emit_dataset_queries
+    _safe_emit(context, "Dataset queries (schema-aware starters, lakehouse)", emit_dataset_queries)
+
+
+@op
 def emit_cockroachdb_profiles_op(context):
     from weyland_pipeline.datahub_emit import emit_cockroachdb_profiles
     _safe_emit(context, "CockroachDB stats (rowCount profiles — ingestion profiler emits none)", emit_cockroachdb_profiles)
@@ -276,6 +282,7 @@ def datahub_catalog_emit_job():
     emit_tag_assignments_op()
     emit_ownership_op()
     emit_queries_op()
+    emit_dataset_queries_op()
     emit_cockroachdb_profiles_op()
 
 

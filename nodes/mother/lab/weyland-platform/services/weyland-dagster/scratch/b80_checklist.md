@@ -19,15 +19,22 @@ Catalog: 3282 datasets, 51,703 fields. Measure surfaces at the RIGHT granularity
 - [x] **Field TAGS** — **98%** (50718/51703) via name-class (`_field_class`) + SCHEMA-TYPE fallback (`_type_class`):
       every typed field gets a class tag even when the name doesn't classify. Residual ~2% = untyped/null-type
       fields with no name match. DONE 2026-07-11.
-- [ ] **Field TERMS (glossary)** — 24% (mesh_vocabulary linked terms). Descriptions ≠ linked glossary terms; the
-      curated vocab could grow, but true meaning now lives in descriptions. Decide how far to push linked terms.
+- [x] **Field TERMS (glossary)** — **48%** (24865/51703) up from 26%. `emit_source_terms`: (a) 13 NEW audio-DSP/
+      nutrition terms the name-vocab lacked (MFCC, chroma CENS/CQT/STFT, tonnetz, spectral-contrast, echonest
+      timbre/social/highlevel/track-meta, timbre avg/cov, nutrient-per-100g); (b) EXTERNAL source citations
+      (sourceRef+sourceUrl) on 32 existing terms (WHO/CDC/MusicBrainz/OTel/Sentry/USDA); (c) DESCRIPTION-based
+      attach (11101 fields) — the name-attach missed them. Remaining 52% = generic class-fallback columns,
+      DELIBERATELY skipped (a bare "measure" isn't worth a term). DONE 2026-07-11.
 - [ ] **NHIS full** — the disease/condition question vars need the topic-module OR frequency codebook (Adult-codebook.pdf
       w/ frequencies) — a follow-up extraction.
 
 ## CURATED / BOUNDED (can't auto-populate 3282 — by nature)
-- [~] **Stats** — 2397/3262 (73%). Ingestion profiling (postgres/clickhouse/cassandra) + custom-emit (qdrant/weaviate/
-      lancedb/opensearch/duckdb/mysql/timescaledb) + cockroach custom. Residual = non-row-bearing (grafana/kafka/
-      file-formats/dagster/neo4j/mongo). Reachable tail: mongo/cassandra profiling.
+- [x] **Stats** — **2417/3282 (73%) — ACCEPTED CEILING** (2026-07-11). Ingestion profiling (postgres 2076/2096,
+      clickhouse, cassandra) + custom-emit (qdrant/weaviate/lancedb/opensearch/duckdb/mysql/timescaledb) +
+      cockroach custom — all row-bearing recipe/custom stores are lit. The 865 missing: ~622 genuinely non-tabular
+      (grafana 373, dagster 93, file-formats 103, neo4j 26, dbt 23, kafka 4) — won't fake a rowCount; ~185
+      lakehouse iceberg/trino tables (Trino count(*) emit would reach ~78%) — DECLINED as not worth it; 27 stale
+      ghosts (opensearch 19 / timescale 8) → soft-delete cleanup, tracked below.
 - [~] **Data Contracts** — 16 (marts + gold, referencing Soda assertions). Expand Soda scope to widen.
 - [~] **Assertions** — 16 (marts + gold via Soda). Expand Soda scope to widen.
 - [ ] **Queries** — 7 (marts, example queries). Extend to more datasets (low value for operational).
