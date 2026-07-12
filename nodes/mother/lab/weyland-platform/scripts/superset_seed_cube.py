@@ -13,6 +13,7 @@ Env: SUPERSET_URL (default https://superset.weyland.lab), SUPERSET_USER (admin),
 import json
 import os
 import sys
+import urllib.parse
 import uuid
 
 import requests
@@ -62,16 +63,30 @@ DATASETS = {
     "cube_personality": "SELECT country, MEASURE(avg_openness) AS openness, MEASURE(avg_extraversion) AS extraversion, "
                         "MEASURE(avg_conscientiousness) AS conscientiousness FROM personality_by_country GROUP BY country",
 }
-existing = {d["table_name"]: d["id"] for d in S.get(f"{BASE}/api/v1/dataset/?q=(page_size:500)").json()["result"]}
+def dataset_id_by_name(name):
+    q = urllib.parse.quote(f"(filters:!((col:table_name,opr:eq,value:'{name}')),page_size:5)")
+    res = S.get(f"{BASE}/api/v1/dataset/?q={q}").json().get("result", [])
+    return res[0]["id"] if res else None
+
+
 ds_id = {}
 for name, sql in DATASETS.items():
-    if name in existing:
-        ds_id[name] = existing[name]
-        print(f"  dataset {name} (exists) -> {ds_id[name]}")
-    else:
-        ds_id[name] = post("/api/v1/dataset/",
-                           {"database": cube_id, "schema": "public", "table_name": name, "sql": sql})["id"]
+    did = dataset_id_by_name(name)
+    if did:
+        ds_id[name] = did
+        print(f"  dataset {name} (exists) -> {did}")
+        continue
+    r = S.post(f"{BASE}/api/v1/dataset/",
+               json={"database": cube_id, "schema": "public", "table_name": name, "sql": sql})
+    if r.ok:
+        ds_id[name] = r.json()["id"]
         print(f"  dataset {name} -> {ds_id[name]}")
+    else:  # list-miss race: it exists — look it up rather than die
+        did = dataset_id_by_name(name)
+        if not did:
+            sys.exit(f"dataset {name} -> {r.status_code}: {r.text[:300]}")
+        ds_id[name] = did
+        print(f"  dataset {name} (found post-422) -> {did}")
 
 
 def M(col, label=None):
