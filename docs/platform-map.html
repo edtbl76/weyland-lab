@@ -1,0 +1,420 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Weyland Platform Map</title>
+<style>html,body{margin:0;padding:0}body{background:#0f1319}@media (prefers-color-scheme:light){body{background:#f4f5f2}}</style>
+</head>
+<body>
+<style>
+  :root{
+    --bg:#f4f5f2; --panel:#ffffff; --chip:#eef0eb; --chip-ink:#232830;
+    --ink:#20252c; --muted:#5c6572; --faint:#8b93a0;
+    --line:#dcded8; --line-strong:#c7cabf;
+    --accent:#b17d1c; --accent-soft:#e8d3a2;
+    --live:#3f8d68; --plan:#8a8f98;
+    --rail:#c99a3a;
+    --sans:"Helvetica Neue",Helvetica,-apple-system,system-ui,Arial,sans-serif;
+    --mono:ui-monospace,"SF Mono","JetBrains Mono","Cascadia Code",Menlo,Consolas,monospace;
+  }
+  @media (prefers-color-scheme:dark){
+    :root{
+      --bg:#0f1319; --panel:#161b22; --chip:#1b222c; --chip-ink:#d3d9e1;
+      --ink:#d6dbe2; --muted:#929cab; --faint:#6b7482;
+      --line:#242c37; --line-strong:#323b47;
+      --accent:#d9a441; --accent-soft:#3a2f18;
+      --live:#5fa37e; --plan:#727a86;
+      --rail:#d9a441;
+    }
+  }
+  :root[data-theme="dark"]{
+    --bg:#0f1319; --panel:#161b22; --chip:#1b222c; --chip-ink:#d3d9e1;
+    --ink:#d6dbe2; --muted:#929cab; --faint:#6b7482;
+    --line:#242c37; --line-strong:#323b47;
+    --accent:#d9a441; --accent-soft:#3a2f18;
+    --live:#5fa37e; --plan:#727a86; --rail:#d9a441;
+  }
+  :root[data-theme="light"]{
+    --bg:#f4f5f2; --panel:#ffffff; --chip:#eef0eb; --chip-ink:#232830;
+    --ink:#20252c; --muted:#5c6572; --faint:#8b93a0;
+    --line:#dcded8; --line-strong:#c7cabf;
+    --accent:#b17d1c; --accent-soft:#e8d3a2;
+    --live:#3f8d68; --plan:#8a8f98; --rail:#c99a3a;
+  }
+
+  *{box-sizing:border-box}
+  .wy{
+    background:var(--bg); color:var(--ink); font-family:var(--sans);
+    line-height:1.5; -webkit-font-smoothing:antialiased;
+    padding:clamp(20px,5vw,64px) clamp(16px,4vw,40px);
+  }
+  .wrap{max-width:1140px; margin:0 auto}
+  .wy a{color:inherit}
+
+  /* ---- header ---- */
+  .eyebrow{
+    font-family:var(--mono); font-size:12px; letter-spacing:.22em; text-transform:uppercase;
+    color:var(--accent); margin:0 0 18px;
+  }
+  h1.title{
+    font-size:clamp(30px,5.4vw,52px); line-height:1.02; letter-spacing:-.02em;
+    margin:0 0 20px; font-weight:800; text-wrap:balance; max-width:16ch;
+  }
+  h1.title .fade{color:var(--muted); font-weight:600}
+  .lede{
+    font-size:clamp(15px,1.7vw,18px); color:var(--muted); max-width:64ch; margin:0 0 30px;
+    text-wrap:pretty;
+  }
+  .lede b{color:var(--ink); font-weight:600}
+
+  .meta{
+    display:flex; flex-wrap:wrap; gap:0; border:1px solid var(--line);
+    border-radius:4px; overflow:hidden; margin-bottom:14px; background:var(--panel);
+  }
+  .meta div{
+    flex:1 1 150px; padding:14px 18px; border-right:1px solid var(--line);
+  }
+  .meta div:last-child{border-right:0}
+  .meta .n{font-family:var(--mono); font-size:22px; font-weight:700; letter-spacing:-.01em; font-variant-numeric:tabular-nums}
+  .meta .l{font-family:var(--mono); font-size:11px; letter-spacing:.1em; text-transform:uppercase; color:var(--faint); margin-top:3px}
+
+  .legend{
+    display:flex; flex-wrap:wrap; gap:20px; align-items:center;
+    font-family:var(--mono); font-size:12px; color:var(--muted); margin-bottom:42px;
+  }
+  .legend span{display:inline-flex; align-items:center; gap:8px}
+  .dot{width:9px; height:9px; border-radius:50%; flex:none}
+  .dot.live{background:var(--live)}
+  .dot.plan{background:transparent; border:1.5px dashed var(--plan)}
+
+  /* ---- spine ---- */
+  .spine{position:relative; margin-left:6px; padding-left:clamp(20px,4vw,40px); border-left:2px solid var(--line-strong)}
+  .stage{position:relative; padding:8px 0 40px}
+  .stage:last-child{padding-bottom:8px}
+  .stage .num{
+    position:absolute; left:calc(-1 * clamp(20px,4vw,40px) - 20px); top:4px;
+    width:38px; height:38px; border-radius:50%; background:var(--bg);
+    border:2px solid var(--rail); color:var(--accent);
+    font-family:var(--mono); font-weight:700; font-size:14px;
+    display:flex; align-items:center; justify-content:center; font-variant-numeric:tabular-nums;
+  }
+  .stage-head{display:flex; align-items:baseline; gap:14px; flex-wrap:wrap; margin-bottom:4px}
+  .stage-head h2{font-size:clamp(19px,2.3vw,24px); font-weight:700; letter-spacing:-.01em; margin:0}
+  .stage-head .role{font-family:var(--mono); font-size:12.5px; color:var(--muted)}
+  .stage > .sub{color:var(--muted); font-size:14px; margin:0 0 18px; max-width:60ch}
+
+  /* ---- groups + chips ---- */
+  .grp{margin-top:16px}
+  .grp-l{
+    font-family:var(--mono); font-size:11px; letter-spacing:.14em; text-transform:uppercase;
+    color:var(--faint); margin-bottom:10px;
+  }
+  .chips{display:flex; flex-wrap:wrap; gap:8px}
+  .chip{
+    display:inline-flex; align-items:center; gap:9px;
+    background:var(--panel); border:1px solid var(--line); border-radius:4px;
+    padding:8px 12px 8px 11px; min-height:38px;
+  }
+  .chip .cdot{width:7px; height:7px; border-radius:50%; flex:none; background:var(--live)}
+  .chip.plan{border-style:dashed; background:transparent}
+  .chip.plan .cdot{background:transparent; border:1.5px dashed var(--plan)}
+  .chip .nm{font-family:var(--mono); font-weight:600; font-size:13px; color:var(--chip-ink); letter-spacing:-.01em}
+  .chip .rl{font-size:11.5px; color:var(--muted); border-left:1px solid var(--line); padding-left:9px}
+  .chip.plan .nm{color:var(--muted)}
+
+  /* ---- planes (cross-cutting) ---- */
+  .planes{margin-top:52px; display:grid; gap:1px; background:var(--line); border:1px solid var(--line); border-radius:6px; overflow:hidden}
+  .plane{background:var(--bg); padding:clamp(20px,3vw,30px)}
+  .plane .eyebrow{margin-bottom:6px}
+  .plane h3{font-size:20px; font-weight:700; letter-spacing:-.01em; margin:0 0 4px}
+  .plane .psub{color:var(--muted); font-size:13.5px; margin:0 0 18px; max-width:66ch}
+
+  .sectionlabel{
+    font-family:var(--mono); font-size:11px; letter-spacing:.2em; text-transform:uppercase;
+    color:var(--faint); margin:56px 0 8px; padding-top:22px; border-top:1px solid var(--line);
+  }
+
+  footer.wf{
+    margin-top:48px; padding-top:22px; border-top:1px solid var(--line);
+    font-family:var(--mono); font-size:12px; color:var(--faint); line-height:1.7;
+  }
+  footer.wf b{color:var(--muted); font-weight:600}
+
+  @media (max-width:560px){
+    .stage .num{position:static; margin-bottom:12px}
+    .spine{padding-left:16px}
+    .chip .rl{display:none}
+  }
+  @media (prefers-reduced-motion:no-preference){
+    .stage,.plane{opacity:0; transform:translateY(8px); animation:rise .5s ease forwards}
+    .stage:nth-child(2){animation-delay:.04s}.stage:nth-child(3){animation-delay:.08s}
+    .stage:nth-child(4){animation-delay:.12s}.stage:nth-child(5){animation-delay:.16s}
+    .stage:nth-child(6){animation-delay:.2s}.stage:nth-child(7){animation-delay:.24s}
+    @keyframes rise{to{opacity:1; transform:none}}
+  }
+</style>
+
+<div class="wy">
+<div class="wrap">
+
+  <p class="eyebrow">Weyland · Platform Map · 2026-07</p>
+  <h1 class="title">One box, <span class="fade">the whole</span> data → ML → AI factory.</h1>
+  <p class="lede">A homelab where a governed <b>lakehouse</b> is the substrate and two agent lanes close the loop — <b>Claude Code</b> builds, <b>Hermes</b> operates. Every technology below runs on a single bare-metal Minisforum MS-A2 (plus one GPU laptop), LAN-only, on a $0 budget. The spine is the value path: raw data becomes governed <b>data products</b>; the planes underneath keep it running, observable, and controllable from your phone.</p>
+
+  <div class="meta">
+    <div><div class="n">~90</div><div class="l">Integrations</div></div>
+    <div><div class="n">6</div><div class="l">Flow stages</div></div>
+    <div><div class="n">3</div><div class="l">Platform planes</div></div>
+    <div><div class="n">14</div><div class="l">Data stores</div></div>
+    <div><div class="n">1</div><div class="l">Bare-metal node</div></div>
+  </div>
+  <div class="legend">
+    <span><i class="dot live"></i> Live — integrated &amp; running</span>
+    <span><i class="dot plan"></i> Next — designed, on the roadmap</span>
+  </div>
+
+  <div class="sectionlabel">The value path — raw data to data products</div>
+  <div class="spine">
+
+    <!-- 01 -->
+    <section class="stage">
+      <div class="num">01</div>
+      <div class="stage-head"><h2>Ingest &amp; Land</h2><span class="role">raw → silver → gold + event streams</span></div>
+      <p class="sub">Datasets land in object storage and flow through Dagster into versioned Iceberg gold; live events flow into a Kafka-wire broker.</p>
+      <div class="grp">
+        <div class="grp-l">Lakehouse storage (L1)</div>
+        <div class="chips">
+          <span class="chip"><i class="cdot"></i><span class="nm">MinIO</span><span class="rl">object store · 8 TB</span></span>
+          <span class="chip"><i class="cdot"></i><span class="nm">Iceberg</span><span class="rl">table format</span></span>
+          <span class="chip"><i class="cdot"></i><span class="nm">Nessie</span><span class="rl">Iceberg catalog · branch versioning</span></span>
+          <span class="chip"><i class="cdot"></i><span class="nm">lakeFS</span><span class="rl">dataset git-versioning</span></span>
+          <span class="chip"><i class="cdot"></i><span class="nm">Filestash</span><span class="rl">object browser</span></span>
+        </div>
+      </div>
+      <div class="grp">
+        <div class="grp-l">Orchestration &amp; streaming</div>
+        <div class="chips">
+          <span class="chip"><i class="cdot"></i><span class="nm">Dagster</span><span class="rl">pipeline orchestration</span></span>
+          <span class="chip"><i class="cdot"></i><span class="nm">Redpanda</span><span class="rl">Kafka broker · schema registry</span></span>
+          <span class="chip"><i class="cdot"></i><span class="nm">Debezium</span><span class="rl">change-data-capture</span></span>
+          <span class="chip"><i class="cdot"></i><span class="nm">Avro</span><span class="rl">event serialization</span></span>
+          <span class="chip plan"><i class="cdot"></i><span class="nm">dlt</span><span class="rl">declarative EL</span></span>
+        </div>
+      </div>
+    </section>
+
+    <!-- 02 -->
+    <section class="stage">
+      <div class="num">02</div>
+      <div class="stage-head"><h2>Transform</h2><span class="role">tested marts + real-time processing</span></div>
+      <p class="sub">Batch analytics-engineering on the gold, with streaming processing as the next half of the tier.</p>
+      <div class="grp">
+        <div class="grp-l">Batch &amp; semantic-as-code</div>
+        <div class="chips">
+          <span class="chip"><i class="cdot"></i><span class="nm">dbt</span><span class="rl">7 tested marts (dbt-trino)</span></span>
+          <span class="chip"><i class="cdot"></i><span class="nm">MetricFlow</span><span class="rl">dbt semantic metrics</span></span>
+        </div>
+      </div>
+      <div class="grp">
+        <div class="grp-l">Stream processing</div>
+        <div class="chips">
+          <span class="chip plan"><i class="cdot"></i><span class="nm">Flink</span><span class="rl">windowed aggs · CDC materialize</span></span>
+          <span class="chip plan"><i class="cdot"></i><span class="nm">SQLMesh</span><span class="rl">transform (evaluate-later)</span></span>
+        </div>
+      </div>
+    </section>
+
+    <!-- 03 -->
+    <section class="stage">
+      <div class="num">03</div>
+      <div class="stage-head"><h2>Govern &amp; Catalog</h2><span class="role">the trust plane (L5)</span></div>
+      <p class="sub">Everything is cataloged with column- and run-level lineage, quality-checked, access-controlled, and identity-gated — all emitted from git.</p>
+      <div class="grp">
+        <div class="grp-l">Catalog · lineage · quality</div>
+        <div class="chips">
+          <span class="chip"><i class="cdot"></i><span class="nm">DataHub</span><span class="rl">catalog · lineage · assertions</span></span>
+          <span class="chip"><i class="cdot"></i><span class="nm">OpenLineage</span><span class="rl">dbt column + run lineage</span></span>
+          <span class="chip"><i class="cdot"></i><span class="nm">Soda</span><span class="rl">data-quality contracts</span></span>
+        </div>
+      </div>
+      <div class="grp">
+        <div class="grp-l">Access &amp; identity</div>
+        <div class="chips">
+          <span class="chip"><i class="cdot"></i><span class="nm">Ranger</span><span class="rl">data-plane authz · masking</span></span>
+          <span class="chip"><i class="cdot"></i><span class="nm">OPA / Gatekeeper</span><span class="rl">admission control</span></span>
+          <span class="chip"><i class="cdot"></i><span class="nm">Keycloak</span><span class="rl">SSO / IdP · every UI</span></span>
+        </div>
+      </div>
+    </section>
+
+    <!-- 04 -->
+    <section class="stage">
+      <div class="num">04</div>
+      <div class="stage-head"><h2>Serve</h2><span class="role">federation · features · 14 stores</span></div>
+      <p class="sub">One query engine federates the lake and every store; features and governed metrics get their own serving layers. Each store shape earns its place.</p>
+      <div class="grp">
+        <div class="grp-l">Query · federation · semantic</div>
+        <div class="chips">
+          <span class="chip"><i class="cdot"></i><span class="nm">Trino</span><span class="rl">federated engine · native Nessie</span></span>
+          <span class="chip"><i class="cdot"></i><span class="nm">DuckDB</span><span class="rl">embedded OLAP</span></span>
+          <span class="chip"><i class="cdot"></i><span class="nm">GizmoSQL</span><span class="rl">Arrow Flight SQL</span></span>
+          <span class="chip"><i class="cdot"></i><span class="nm">Cube</span><span class="rl">headless semantic API</span></span>
+          <span class="chip"><i class="cdot"></i><span class="nm">Feast</span><span class="rl">feature store · online + PIT</span></span>
+        </div>
+      </div>
+      <div class="grp">
+        <div class="grp-l">Operational stores (relational · OLAP · time-series · doc)</div>
+        <div class="chips">
+          <span class="chip"><i class="cdot"></i><span class="nm">Postgres + pgvector</span><span class="rl">RAG + eval core</span></span>
+          <span class="chip"><i class="cdot"></i><span class="nm">MySQL</span><span class="rl">health datasets</span></span>
+          <span class="chip"><i class="cdot"></i><span class="nm">MusicBrainz PG</span><span class="rl">full native mbdump</span></span>
+          <span class="chip"><i class="cdot"></i><span class="nm">CockroachDB</span><span class="rl">distributed SQL</span></span>
+          <span class="chip"><i class="cdot"></i><span class="nm">ClickHouse</span><span class="rl">columnar OLAP</span></span>
+          <span class="chip"><i class="cdot"></i><span class="nm">TimescaleDB</span><span class="rl">time-series</span></span>
+          <span class="chip"><i class="cdot"></i><span class="nm">MongoDB</span><span class="rl">document store</span></span>
+          <span class="chip"><i class="cdot"></i><span class="nm">Cassandra</span><span class="rl">wide-column</span></span>
+          <span class="chip"><i class="cdot"></i><span class="nm">Valkey</span><span class="rl">cache · Feast online</span></span>
+        </div>
+      </div>
+      <div class="grp">
+        <div class="grp-l">Vector · graph · search</div>
+        <div class="chips">
+          <span class="chip"><i class="cdot"></i><span class="nm">Qdrant</span><span class="rl">vector similarity</span></span>
+          <span class="chip"><i class="cdot"></i><span class="nm">Weaviate</span><span class="rl">vector store</span></span>
+          <span class="chip"><i class="cdot"></i><span class="nm">LanceDB</span><span class="rl">embedded vectors</span></span>
+          <span class="chip"><i class="cdot"></i><span class="nm">Neo4j</span><span class="rl">graph · GDS · APOC</span></span>
+          <span class="chip"><i class="cdot"></i><span class="nm">OpenSearch</span><span class="rl">lexical / BM25</span></span>
+        </div>
+      </div>
+    </section>
+
+    <!-- 05 -->
+    <section class="stage">
+      <div class="num">05</div>
+      <div class="stage-head"><h2>Consume</h2><span class="role">humans · ML · AI</span></div>
+      <p class="sub">The marts and features feed BI, notebooks, model training, and a guardrailed RAG stack served by local GPUs.</p>
+      <div class="grp">
+        <div class="grp-l">BI &amp; notebooks</div>
+        <div class="chips">
+          <span class="chip"><i class="cdot"></i><span class="nm">Superset</span><span class="rl">BI · SQL Lab</span></span>
+          <span class="chip"><i class="cdot"></i><span class="nm">Lightdash</span><span class="rl">dbt-native BI</span></span>
+          <span class="chip"><i class="cdot"></i><span class="nm">NeoDash</span><span class="rl">graph dashboards</span></span>
+          <span class="chip"><i class="cdot"></i><span class="nm">JupyterHub</span><span class="rl">on-demand notebooks</span></span>
+        </div>
+      </div>
+      <div class="grp">
+        <div class="grp-l">ML training &amp; registry</div>
+        <div class="chips">
+          <span class="chip"><i class="cdot"></i><span class="nm">MLflow</span><span class="rl">tracking + model registry</span></span>
+          <span class="chip"><i class="cdot"></i><span class="nm">Ray</span><span class="rl">distributed training · Tune</span></span>
+          <span class="chip"><i class="cdot"></i><span class="nm">genre-trainer</span><span class="rl">first ML consumer</span></span>
+        </div>
+      </div>
+      <div class="grp">
+        <div class="grp-l">RAG &amp; LLM serving</div>
+        <div class="chips">
+          <span class="chip"><i class="cdot"></i><span class="nm">tool-server</span><span class="rl">RAG · /context/ask · MCP</span></span>
+          <span class="chip"><i class="cdot"></i><span class="nm">LlamaIndex</span><span class="rl">retrieval</span></span>
+          <span class="chip"><i class="cdot"></i><span class="nm">LLM Guard</span><span class="rl">injection · toxicity · grounding</span></span>
+          <span class="chip"><i class="cdot"></i><span class="nm">Eval harness</span><span class="rl">judge-panel leaderboard</span></span>
+          <span class="chip"><i class="cdot"></i><span class="nm">Ollama</span><span class="rl">GPU LLM serving</span></span>
+          <span class="chip"><i class="cdot"></i><span class="nm">vLLM</span><span class="rl">GPU LLM serving</span></span>
+          <span class="chip"><i class="cdot"></i><span class="nm">whisper.cpp</span><span class="rl">speech-to-text</span></span>
+          <span class="chip"><i class="cdot"></i><span class="nm">LiteLLM</span><span class="rl">hosted-model gateway</span></span>
+          <span class="chip"><i class="cdot"></i><span class="nm">Open WebUI</span><span class="rl">voice / chat front door</span></span>
+        </div>
+      </div>
+    </section>
+
+    <!-- 06 -->
+    <section class="stage">
+      <div class="num">06</div>
+      <div class="stage-head"><h2>Data products</h2><span class="role">the output the mesh exists for</span></div>
+      <p class="sub">Consumable products that ride the platform below — not the build, the payoff.</p>
+      <div class="grp">
+        <div class="chips">
+          <span class="chip"><i class="cdot"></i><span class="nm">Model-eval leaderboard</span><span class="rl">judge-panel scoring</span></span>
+          <span class="chip"><i class="cdot"></i><span class="nm">AI-Dev usage</span><span class="rl">Claude Code telemetry → Port</span></span>
+          <span class="chip plan"><i class="cdot"></i><span class="nm">Store-inventory</span><span class="rl">lineage / observability</span></span>
+          <span class="chip plan"><i class="cdot"></i><span class="nm">Model-tuning feed</span><span class="rl">Feast → MLflow fine-tuning</span></span>
+        </div>
+      </div>
+    </section>
+
+  </div><!-- /spine -->
+
+  <div class="sectionlabel">The planes underneath — what keeps it running</div>
+  <div class="planes">
+
+    <section class="plane">
+      <p class="eyebrow">Substrate</p>
+      <h3>Platform &amp; Infrastructure</h3>
+      <p class="psub">The single node, the mesh, the gateways, and the IaC that reconciles it all from git.</p>
+      <div class="chips">
+        <span class="chip"><i class="cdot"></i><span class="nm">Proxmox</span><span class="rl">bare-metal hypervisor</span></span>
+        <span class="chip"><i class="cdot"></i><span class="nm">k3s</span><span class="rl">Kubernetes</span></span>
+        <span class="chip"><i class="cdot"></i><span class="nm">Istio</span><span class="rl">service mesh · mTLS</span></span>
+        <span class="chip"><i class="cdot"></i><span class="nm">Kiali</span><span class="rl">mesh observability</span></span>
+        <span class="chip"><i class="cdot"></i><span class="nm">Traefik</span><span class="rl">ingress · TLS front door</span></span>
+        <span class="chip"><i class="cdot"></i><span class="nm">APISIX</span><span class="rl">API / data-plane gateway</span></span>
+        <span class="chip"><i class="cdot"></i><span class="nm">CoreDNS</span><span class="rl">LAN DNS · weyland.lab</span></span>
+        <span class="chip"><i class="cdot"></i><span class="nm">mkcert</span><span class="rl">wildcard TLS</span></span>
+        <span class="chip"><i class="cdot"></i><span class="nm">Argo CD</span><span class="rl">GitOps · k8s lane</span></span>
+        <span class="chip"><i class="cdot"></i><span class="nm">OpenTofu</span><span class="rl">IaC · non-k8s lane</span></span>
+        <span class="chip"><i class="cdot"></i><span class="nm">Woodpecker CI</span><span class="rl">CI/CD</span></span>
+        <span class="chip"><i class="cdot"></i><span class="nm">OCI registry</span><span class="rl">MinIO-backed images</span></span>
+        <span class="chip"><i class="cdot"></i><span class="nm">Headlamp</span><span class="rl">Kubernetes UI</span></span>
+        <span class="chip"><i class="cdot"></i><span class="nm">n8n</span><span class="rl">workflow automation</span></span>
+      </div>
+    </section>
+
+    <section class="plane">
+      <p class="eyebrow">Control plane</p>
+      <h3>Observability &amp; Delivery</h3>
+      <p class="psub">Metrics, logs, traces, errors, uptime, cost — and the IDP that turns it into one catalog with DORA and scorecards.</p>
+      <div class="chips">
+        <span class="chip"><i class="cdot"></i><span class="nm">Prometheus</span><span class="rl">metrics</span></span>
+        <span class="chip"><i class="cdot"></i><span class="nm">Grafana</span><span class="rl">dashboards</span></span>
+        <span class="chip"><i class="cdot"></i><span class="nm">Loki</span><span class="rl">logs</span></span>
+        <span class="chip"><i class="cdot"></i><span class="nm">Tempo</span><span class="rl">traces</span></span>
+        <span class="chip"><i class="cdot"></i><span class="nm">Alertmanager</span><span class="rl">→ Telegram paging</span></span>
+        <span class="chip"><i class="cdot"></i><span class="nm">GlitchTip</span><span class="rl">error tracking</span></span>
+        <span class="chip"><i class="cdot"></i><span class="nm">Uptime Kuma</span><span class="rl">status board</span></span>
+        <span class="chip"><i class="cdot"></i><span class="nm">OpenCost</span><span class="rl">cost allocation</span></span>
+        <span class="chip"><i class="cdot"></i><span class="nm">Port.io</span><span class="rl">IDP · catalog · DORA</span></span>
+        <span class="chip"><i class="cdot"></i><span class="nm">Linear</span><span class="rl">roadmap / status</span></span>
+        <span class="chip"><i class="cdot"></i><span class="nm">Unleash</span><span class="rl">feature flags</span></span>
+        <span class="chip"><i class="cdot"></i><span class="nm">SonarQube</span><span class="rl">code quality</span></span>
+        <span class="chip"><i class="cdot"></i><span class="nm">Trivy</span><span class="rl">image / IaC scan</span></span>
+        <span class="chip"><i class="cdot"></i><span class="nm">Semgrep</span><span class="rl">SAST</span></span>
+      </div>
+    </section>
+
+    <section class="plane">
+      <p class="eyebrow">Interfaces</p>
+      <h3>Agents &amp; Access</h3>
+      <p class="psub">Two agent lanes — Claude Code <b>builds</b> (read-only <code>/mcp</code>), Hermes <b>operates</b> (audited <code>/mcp-act</code>) — reachable from anywhere via Telegram. The Operator Agent consolidation gives Hermes a Claude brain next.</p>
+      <div class="chips">
+        <span class="chip"><i class="cdot"></i><span class="nm">Hermes</span><span class="rl">operator agent · Telegram</span></span>
+        <span class="chip"><i class="cdot"></i><span class="nm">Claude Code</span><span class="rl">builder agent</span></span>
+        <span class="chip"><i class="cdot"></i><span class="nm">MCP</span><span class="rl">/mcp read · /mcp-act do</span></span>
+        <span class="chip"><i class="cdot"></i><span class="nm">Telegram</span><span class="rl">remote ingress</span></span>
+        <span class="chip plan"><i class="cdot"></i><span class="nm">Operator Agent</span><span class="rl">Claude-brained · multi-ingress</span></span>
+        <span class="chip plan"><i class="cdot"></i><span class="nm">MCP gateway · A2A</span><span class="rl">govern the fleet</span></span>
+      </div>
+    </section>
+
+  </div><!-- /planes -->
+
+  <footer class="wf">
+    <b>The loop:</b> intent (Port + roadmap) → data product → operation (agents) → telemetry (Grafana/Port) → new intent.<br>
+    <b>Constraints as design:</b> one Minisforum MS-A2 + one RTX-5000 laptop · LAN-only · $0 budget · self-hosted first · heavy tiers on-demand.<br>
+    <b>Two lanes:</b> Claude Code sees &amp; builds · Hermes sees &amp; does — never crossed.
+  </footer>
+
+</div>
+</div>
+
+</body>
+</html>
