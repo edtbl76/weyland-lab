@@ -464,10 +464,11 @@ spec:
       - ServerSideApply=true
       - CreateNamespace=true
 ---
-# Flink Kubernetes Operator (B83 — streaming-processing tier). Chart from the Apache per-version helm repo;
-# webhook OFF (no cert-manager) via the values file. Installs the FlinkDeployment / FlinkSessionJob CRDs the
-# session cluster (step 2) + jobs will use. ⚠️ targetRevision must be a CURRENT operator release — downloads.apache.org
-# only serves current versions (older move to archive.apache.org); bump if Argo can't pull the chart.
+# Flink Kubernetes Operator (B83 — streaming-processing tier). Chart from Apache's ARCHIVE (permanent — every
+# release stays; downloads.apache.org only serves CURRENT and 404s old versions, which bit us once). Operator 1.13
+# (recent, supports the Flink 1.20 runtime we deploy in step 2 — kept on 1.20 for Iceberg-connector maturity;
+# newest operators 1.14/1.15 lean Flink 2.x). Webhook OFF (no cert-manager) via the values file. Installs the
+# FlinkDeployment / FlinkSessionJob CRDs the session cluster + jobs use.
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
@@ -476,9 +477,9 @@ metadata:
 spec:
   project: default
   sources:
-    - repoURL: https://downloads.apache.org/flink/flink-kubernetes-operator-1.10.0/
+    - repoURL: https://archive.apache.org/dist/flink/flink-kubernetes-operator-1.13.0/
       chart: flink-kubernetes-operator
-      targetRevision: 1.10.0
+      targetRevision: 1.13.0
       helm:
         releaseName: flink-kubernetes-operator
         valueFiles:
