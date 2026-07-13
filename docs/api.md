@@ -12,7 +12,7 @@ Hosts & access users: [hosts.md](hosts.md). `mother` = 192.168.1.243, CTs by IP 
 
 | Service | Host | Endpoint | OpenAI? | Notes |
 |---|---|---|---|---|
-| **Ollama** (LLM) | ollama CT 102 | `http://ollama.weyland.lab:11434/v1` (`192.168.1.244`) | ✅ | 6 models; `num_thread 8`. See [runbooks/model-serving-ollama.md](runbooks/model-serving-ollama.md). |
+| **Ollama** (LLM, **B79 → rogueone**) | rogueone (GPU) | `http://ollama.weyland.lab:11434/v1` (`192.168.1.230`) | ✅ | **Moved off CT-102 2026-07-12** (freed 32 GB → mother 50→64 GB); 6 models on the RTX 5000 Ada; `OLLAMA_HOST=0.0.0.0`. See [runbooks/model-serving-ollama.md](runbooks/model-serving-ollama.md). |
 | **whisper shim** (STT) | whisper CT 103 | `http://whisper.weyland.lab:9000/v1/audio/transcriptions` (`192.168.1.246`) | ✅ | OpenAI-compatible adapter → whisper.cpp. See [runbooks/transcription-whisper.md](runbooks/transcription-whisper.md). |
 | **whisper-server** (STT, native) | whisper CT 103 | `http://whisper.weyland.lab:8080/inference` (`192.168.1.246`) | ✗ | Raw whisper.cpp multipart endpoint. |
 | **vLLM** (LLM, GPU) | rogueone | `http://rogueone:8000/v1` | ✅ | On-demand; serves Qwen. GPU path. |
@@ -52,6 +52,8 @@ Hosts & access users: [hosts.md](hosts.md). `mother` = 192.168.1.243, CTs by IP 
 | Superset (BI) | `https://superset.weyland.lab` (UI + API); `http://superset.data-mesh.svc:8088` (in-cluster) | **B65 Tier-2 #3** — BI/SQL exploration over Trino + Postgres. Keycloak OIDC login. Shared Valkey cache. DataHub native source ingestion. See [runbooks/superset.md](runbooks/superset.md). |
 | dbt docs (marts DAG/lineage) | `https://dbt-docs.weyland.lab` (forward-auth) | **B1.5** — the dbt model DAG, lineage, and test-coverage UI over the 7 marts (`iceberg.dbt.*`). Reuses the dagster image, meshed → Trino. Refresh = rollout restart. See [query/dbt-marts.md](query/dbt-marts.md), [[dbt-transform-tier]]. |
 | Lightdash (dbt-native BI) | `https://lightdash.weyland.lab` (own login) | dbt-native BI: metrics/explores from the dbt project over the marts. Connects to Trino **via the `trino-noauth` auth-strip proxy** (Lightdash forces a password; no-auth Trino 401s Basic auth). See [runbooks/lightdash.md](runbooks/lightdash.md). |
+| **Cube** (semantic/metrics layer, **B1.7 L6**) | SQL `postgresql://cube:…@cube.data-mesh.svc:15432/cube` · REST/GraphQL `https://cube.weyland.lab` (`:4000`) | Headless **semantic API** over the 7 marts (via `trino-noauth`). ⚠️ **SQL API requires `MEASURE(measure)`** — plain `AVG()` is rejected; Superset consumes it via `MEASURE()` **virtual datasets**. Keycloak forward-auth on the UI (dev-mode Playground; run headless in prod). See [runbooks/cube.md](runbooks/cube.md), [query/cube.md](query/cube.md). |
+| **MetricFlow** (dbt Semantic Layer, **B1.7**) | CLI `mf query` (in the dagster image) | Metrics defined in `dbt/models/semantic_models.yml` compile to Trino, spined by `metricflow_time_spine`; e.g. `mf query --metrics life_expectancy --group-by metric_time__year`. Fits the time-shaped marts. See [query/cube.md](query/cube.md). |
 | Valkey (shared cache) | `valkey.data-mesh.svc:6379` (in-cluster only) | Shared data-mesh cache (BSD Redis fork). Used by Superset (cache + Celery). IntelliJ via k8s port-forward + DataGrip "Redis" data source. |
 | TimescaleDB (time-series) | `timescaledb.data-mesh.svc:5432` (in-cluster); IntelliJ via k8s port-forward | **B65 Tier-2 #4** — Postgres extension for time-series; 5 hypertables (eval_scores_ts, guardrail_verdicts_ts, dagster_run_durations, unleash_feature_metrics, datahub_ingestion_runs); db `timeseries`, user `weyland` / dev password. See [runbooks/timescaledb.md](runbooks/timescaledb.md). |
 | MySQL (health/wellness) | `mysql.data-mesh.svc:3306` (in-cluster); IntelliJ via k8s port-forward | **B65 Tier-2 #5** — health datasets, hydrated from silver Parquet (data-store-mageddon, 2026-07-01). 6 databases = the grid `MySQL=Y` set: NHANES, Big Five, WHO GHO, CDC Physical Activity, BRFSS, NHIS (USDA + Open Food Facts are `MySQL=N`; NHIS replaced UK Biobank). 32 tables (dataset→db, parquet file→table). user `weyland` / dev password. See [runbooks/datasets-hydration.md](runbooks/datasets-hydration.md). |
@@ -86,6 +88,8 @@ mkcert wildcard cert; resolve from rogueone (`/etc/hosts`) or via CoreDNS. **Mos
 | UI | URL |
 |---|---|
 | **Open WebUI** (voice/chat → Ollama + whisper) — **Keycloak SSO** (OIDC) | `https://chat.weyland.lab` |
+| **JupyterHub** (B1.8 L8 data-science notebooks; on-demand JupyterLab pods) — **Keycloak SSO** (OIDC) | `https://jupyter.weyland.lab` |
+| **Cube** (B1.7 L6 semantic layer — Playground/API) — **Keycloak** forward-auth | `https://cube.weyland.lab` |
 | **LiteLLM** (model gateway admin UI / `/ui`) | `https://litellm.weyland.lab` |
 | **Kiali** (Istio mesh graph + mTLS, **read-only**; traces from Tempo) — **Keycloak SSO** (forward-auth) | `https://kiali.weyland.lab` |
 | Grafana (metrics + logs (Loki) + traces (Tempo) + alerts (Alertmanager, incl. **Loki-ruler log alerts**) — Explore/Drilldown) — **Keycloak SSO** (OIDC, CA-verified back-channel) | `https://grafana.weyland.lab` |
