@@ -117,6 +117,14 @@ def emit_feast_op(context):
 
 
 @op
+def emit_dbt_openlineage_op(context):
+    # dbt RUN-HISTORY (OpenLineage → DataHub DataFlow/DataJob/DataProcessInstance). Reads the BUILD run_results the
+    # dbt asset preserved to MinIO (run_results_build.json); no-op if a build hasn't published one yet.
+    from weyland_pipeline.datahub_emit import emit_dbt_openlineage
+    _safe_emit(context, "dbt run-history (OpenLineage)", lambda: emit_dbt_openlineage(dry_run=False))
+
+
+@op
 def emit_lightdash_op(context):
     from weyland_pipeline.datahub_emit import emit_lightdash
     _safe_emit(context, "Lightdash (BI charts + dashboards)", emit_lightdash)
@@ -273,6 +281,7 @@ def datahub_catalog_emit_job():
     emit_mysql_op()
     emit_lancedb_op()
     emit_dbt_op()
+    emit_dbt_openlineage_op()
     emit_feast_op()
     emit_lightdash_op()
     emit_domains_op()
