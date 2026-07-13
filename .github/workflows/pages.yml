@@ -35,6 +35,8 @@ jobs:
           cp docs/platform-map.html _site/index.html
           cp docs/platform-map.html _site/platform-map.html
       - uses: actions/configure-pages@v5
+        with:
+          enablement: true   # turn Pages on via the API so no manual Settings→Pages toggle is needed
       - uses: actions/upload-pages-artifact@v3
         with:
           path: _site
