@@ -143,7 +143,7 @@ Registry); consumers read `cdc.*` / `datasets.*` topics. See [runbook](runbooks/
 
 **6 · Cataloging (cross-cutting).** Every store emits datasets + lineage to **DataHub** — custom REST emitters for
 the Dagster/store side, native source recipes (iceberg, postgres, trino, dbt, …) for the rest — so gold → mart →
-Feast/trainer lineage is one graph. See [`datahub-ingestion/`](../nodes/mother/lab/weyland-platform/k8s/data-mesh/datahub-ingestion/README.md).
+Feast/trainer lineage is one graph. See [`datahub-ingestion/`](https://github.com/edtbl76/weyland-lab/blob/main/nodes/mother/lab/weyland-platform/k8s/data-mesh/datahub-ingestion/README.md).
 
 **7 · Governance & discovery (DataHub).** On top of datasets + lineage sits a full governance layer, all emitted
 from git via `datahub_emit.py` (Dagster `datahub_catalog_emit_job`, every 6h) — each surface answers a different
