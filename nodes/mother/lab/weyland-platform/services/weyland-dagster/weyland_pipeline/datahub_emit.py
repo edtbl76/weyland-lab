@@ -480,6 +480,10 @@ def emit_dbt():
 
 
 OL_ENDPOINT_PATH = "openapi/openlineage/api/v1/lineage"  # DataHub's native OpenLineage ingestion endpoint (probed live)
+# DataHub's OpenLineageToDataHub.getOrchestrator parses the event PRODUCER for an `/integration/<name>` segment to
+# pick the DataFlow orchestrator platform; anything it can't map → 500 "Unable to determine orchestrator". Verified
+# live: `.../integration/dbt` and `.../integration/spark` → 200; our own repo URL / bare keywords / airflow → 500.
+OL_PRODUCER = "https://github.com/OpenLineage/OpenLineage/tree/1.51.0/integration/dbt"
 
 
 def _fetch_dbt_artifacts_local(target_dir="/app/dbt/target"):
@@ -526,7 +530,7 @@ def emit_dbt_openlineage(dry_run=True, use_local_target=False):
                   f"(it preserves run_results_build.json); no run events")
             return 0
     processor = DbtLocalArtifactProcessor(
-        producer="https://github.com/edtbl76/weyland-lab",
+        producer=OL_PRODUCER,  # must carry an /integration/<name> DataHub recognizes, else 500 (see OL_PRODUCER)
         job_namespace="weyland",
         project_dir="/app/dbt",
         profile_name="weyland",
