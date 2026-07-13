@@ -479,6 +479,85 @@ def emit_dbt():
     return len(marts), marts, n_col_edges
 
 
+OL_ENDPOINT_PATH = "openapi/openlineage/api/v1/lineage"  # DataHub's native OpenLineage ingestion endpoint (probed live)
+
+
+def _fetch_dbt_artifacts_local(target_dir="/app/dbt/target"):
+    """Download the published dbt artifacts (manifest/run_results/catalog) from MinIO into a local target/ dir so
+    DbtLocalArtifactProcessor can read them. run_results.json is the one that carries the actual model RUN outcomes
+    (only written by `dbt build`/`test`); without it there are no run events. Returns the set of files landed."""
+    import json as _json
+    os.makedirs(target_dir, exist_ok=True)
+    landed = set()
+    try:
+        from minio import Minio
+        bucket = os.environ.get("DBT_ARTIFACTS_BUCKET", "warehouse")
+        prefix = os.environ.get("DBT_ARTIFACTS_PREFIX", "_dbt_artifacts")
+        mc = Minio(os.environ.get("MINIO_ENDPOINT", "minio.minio.svc.cluster.local:9000"),
+                   access_key=os.environ["ICEBERG_S3_ACCESS_KEY"], secret_key=os.environ["ICEBERG_S3_SECRET_KEY"],
+                   secure=os.environ.get("MINIO_SECURE", "false").lower() == "true")
+        for fn in ("manifest.json", "run_results.json", "catalog.json"):
+            try:
+                mc.fget_object(bucket, f"{prefix}/{fn}", os.path.join(target_dir, fn))
+                landed.add(fn)
+            except Exception:
+                pass
+    except Exception:
+        pass
+    return landed
+
+
+def emit_dbt_openlineage(dry_run=True):
+    """Piece 2 of the OpenLineage tail (B1): emit REAL OpenLineage RunEvents for the dbt build — operational run
+    history (which models ran, pass/fail) + OL-native column lineage — to DataHub's OpenLineage endpoint, parsed
+    from the published dbt artifacts by DbtLocalArtifactProcessor (no second dbt run). `dry_run` PARSES + prints the
+    event shape and the dataset namespaces/names the events carry (so we can see the URNs DataHub would create, and
+    judge the dbt-platform sibling overlap) WITHOUT sending. Set dry_run=False to actually POST."""
+    from openlineage.common.provider.dbt.local import DbtLocalArtifactProcessor
+
+    landed = _fetch_dbt_artifacts_local()
+    if "run_results.json" not in landed:
+        print(f"no run_results.json in MinIO (landed={sorted(landed)}) — run the dbt build/publish first; no run events")
+        return 0
+    processor = DbtLocalArtifactProcessor(
+        producer="https://github.com/edtbl76/weyland-lab",
+        job_namespace="weyland",
+        project_dir="/app/dbt",
+        profile_name="weyland",
+        target="prod",
+        skip_errors=True,
+    )
+    result = processor.parse()
+    if hasattr(result, "events"):
+        evs = result.events() if callable(getattr(result, "events")) else result.events
+    else:
+        evs = result
+    evs = list(evs)
+
+    if dry_run:
+        print(f"[dry-run] parsed {len(evs)} OpenLineage events ({type(result).__name__})")
+        for e in evs[:4]:
+            job = getattr(e, "job", None)
+            ins = [(getattr(d, "namespace", None), getattr(d, "name", None)) for d in (getattr(e, "inputs", []) or [])]
+            outs = [(getattr(d, "namespace", None), getattr(d, "name", None)) for d in (getattr(e, "outputs", []) or [])]
+            print(f"  {getattr(e, 'eventType', '?'):9} job={getattr(job,'namespace','?')}/{getattr(job,'name','?')}")
+            print(f"     inputs={ins[:3]} outputs={outs[:2]}")
+        return len(evs)
+
+    from openlineage.client import OpenLineageClient
+    from openlineage.client.transport.http import HttpConfig, HttpTransport, ApiKeyTokenProvider
+    base = os.environ.get("DATAHUB_GMS_URL", "http://datahub-datahub-gms.data-mesh.svc.cluster.local:8080")
+    tok = os.environ.get("DATAHUB_GMS_TOKEN", "")
+    cfg = HttpConfig(url=f"{base}/openapi/openlineage", endpoint="api/v1/lineage",
+                     auth=ApiKeyTokenProvider({"api_key": tok}) if tok else None)
+    client = OpenLineageClient(transport=HttpTransport(cfg))
+    sent = 0
+    for e in evs:
+        client.emit(e)
+        sent += 1
+    return sent
+
+
 # Feast offline source table (feast Postgres DB) ← the dbt mart it's loaded from (feast_setup._load_offline_sources).
 # The dbt connector can't draw this (cross-system, downstream of the marts); the postgres recipe catalogs the
 # `feast` DB's columns → this adds the missing UpstreamLineage so DataHub shows gold → mart → Feast source.
