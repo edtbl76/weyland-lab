@@ -57,10 +57,41 @@ def publish_dbt_artifacts(log=print):
         log(f"published dbt {fn} → s3://{_ARTIFACT_BUCKET}/{_ARTIFACT_PREFIX}/{fn}")
 
 
+def upload_build_run_results(log=print):
+    """Preserve the BUILD `run_results.json` (which=build → real model-execution outcomes) to MinIO as
+    `run_results_build.json` BEFORE `dbt docs generate` overwrites it with a `generate`-command one. OpenLineage's
+    dbt processor only accepts run/build/test/seed/snapshot — the generate results are unusable for run events, so
+    this is the artifact `datahub_emit.emit_dbt_openlineage` reads. Best-effort; only uploads a supported command."""
+    import json
+    from minio import Minio
+
+    src = DBT_PROJECT_DIR / "target" / "run_results.json"
+    if not src.exists():
+        log("no run_results.json to preserve (build wrote none?)")
+        return
+    which = (json.loads(src.read_text()).get("args", {}) or {}).get("which", "")
+    if which not in ("build", "test", "run", "seed", "snapshot"):
+        log(f"run_results which={which!r} — not a run command, skipping OL capture")
+        return
+    mc = Minio(
+        os.environ.get("MINIO_ENDPOINT", "minio.minio.svc.cluster.local:9000"),
+        access_key=os.environ["ICEBERG_S3_ACCESS_KEY"], secret_key=os.environ["ICEBERG_S3_SECRET_KEY"],
+        secure=os.environ.get("MINIO_SECURE", "false").lower() == "true",
+    )
+    mc.fput_object(_ARTIFACT_BUCKET, f"{_ARTIFACT_PREFIX}/run_results_build.json", str(src),
+                   content_type="application/json")
+    log(f"preserved BUILD run_results (which={which}) → s3://{_ARTIFACT_BUCKET}/{_ARTIFACT_PREFIX}/run_results_build.json")
+
+
 @dbt_assets(manifest=dbt_manifest_path)
 def weyland_dbt_assets(context: AssetExecutionContext, dbt: DbtCliResource):
     # `build` = run models THEN run tests (unique/not-null + dbt-expectations ranges) — fail-fast on bad data.
     yield from dbt.cli(["build"], context=context).stream()
+    # Preserve the build run_results for OpenLineage BEFORE docs-generate clobbers it. Best-effort.
+    try:
+        upload_build_run_results(log=context.log.info)
+    except Exception as e:  # noqa: BLE001
+        context.log.warning(f"OL run_results capture skipped: {e}")
     # Publish fresh artifacts for the DataHub dbt connector. Best-effort: a docs/MinIO hiccup must NOT fail the
     # materialization — the marts + tests (the real product) already succeeded above.
     try:
