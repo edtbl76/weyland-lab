@@ -293,7 +293,7 @@ kubectl -n weyland exec deploy/ray-head -- ray job submit --address http://local
 ```
 
 **Standalone-container path (one-off fit):** see
-**[services/genre-trainer/README.md](../../nodes/mother/lab/weyland-platform/services/genre-trainer/README.md)**.
+**[services/genre-trainer/README.md](https://github.com/edtbl76/weyland-lab/blob/main/nodes/mother/lab/weyland-platform/services/genre-trainer/README.md)**.
 ```
 docker build -t registry.weyland.lab/genre-trainer:v3 <path-to-genre-trainer>
 docker push registry.weyland.lab/genre-trainer:v3
