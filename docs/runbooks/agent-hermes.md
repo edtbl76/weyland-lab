@@ -366,7 +366,7 @@ real reply in Telegram. Gateway `active`, `NRestarts=0`.
 Hermes's **native, durable SQLite Kanban** (`hermes kanban`) — boards-per-workstream, task deps, atomic
 claims, profile **workers in isolated workspaces**, `decompose`/`specify`/`swarm`. The dispatcher runs inside
 the existing `hermes-gateway` (no extra daemon, no container, no Postgres). Design:
-[../../aidlc-docs/construction/b27-kanban-design.md](../../aidlc-docs/construction/b27-kanban-design.md).
+`aidlc-docs/construction/b27-kanban-design.md` (repo-local; not published to the docs site).
 
 **Planning brain split:** planning (`decompose`/`specify`) runs on **Gemini free via the gateway**; the
 default brain + the workers that *execute* tasks stay local `qwen3-coder`. Wired by:

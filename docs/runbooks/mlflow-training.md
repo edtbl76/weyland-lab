@@ -10,7 +10,7 @@ different guarantees.
 to the **persistent Ray cluster** (`ray job submit` to the always-on head at `ray.weyland.lab`; rogueone joins as
 a native edge worker) or as a standalone container pulled from the registry. Full mechanics + gotchas:
 **[remote-training.md](remote-training.md)**;
-build/run: **[services/genre-trainer/README.md](../../nodes/mother/lab/weyland-platform/services/genre-trainer/README.md)**.
+build/run: **[services/genre-trainer/README.md](https://github.com/edtbl76/weyland-lab/blob/main/nodes/mother/lab/weyland-platform/services/genre-trainer/README.md)**.
 MLflow: `mlflow.weyland.lab`, experiment `genre-classifier`, registered model `genre_classifier`. Diagram
 context: [../diagrams/flow-feast.md](../diagrams/flow-feast.md).
 
@@ -128,7 +128,7 @@ Submit to the persistent Ray cluster (primary — see [remote-training.md](remot
 ```
 kubectl -n weyland exec deploy/ray-head -- ray job submit --address http://localhost:8265 -- python /home/ray/train_genre.py --source silver --tune --trials 24
 ```
-Or run the standalone container on rogueone (see [services/genre-trainer/README.md](../../nodes/mother/lab/weyland-platform/services/genre-trainer/README.md)):
+Or run the standalone container on rogueone (see [services/genre-trainer/README.md](https://github.com/edtbl76/weyland-lab/blob/main/nodes/mother/lab/weyland-platform/services/genre-trainer/README.md)):
 ```
 docker run --rm -v $HOME/.kube/config:/root/.kube/config:ro --add-host mother:192.168.1.243 registry.weyland.lab/genre-trainer:v3 --source silver
 ```
