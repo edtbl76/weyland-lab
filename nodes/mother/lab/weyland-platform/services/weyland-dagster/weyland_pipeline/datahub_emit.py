@@ -513,6 +513,19 @@ def _fetch_dbt_artifacts_local(target_dir="/app/dbt/target"):
     return landed
 
 
+def _strip_ol_schema_facets(e):
+    """Drop the `schema` facet from every input/output dataset of an OpenLineage event before sending to DataHub.
+    Two reasons: (1) dbt's manifest carries no data_type for computed MODEL columns, so those facet fields have a
+    null `type` → DataHub's OpenLineageToDataHub.getSchemaMetadata NPEs on setNativeDataType(null) → 500; (2) even
+    typed, DataHub would ASSERT that schema and clobber the real trino column types our emit_dbt already publishes.
+    Run history + lineage don't need it. Mutates + returns the event."""
+    for ds in (list(getattr(e, "inputs", None) or []) + list(getattr(e, "outputs", None) or [])):
+        fac = getattr(ds, "facets", None)
+        if fac is not None and hasattr(fac, "pop"):
+            fac.pop("schema", None)
+    return e
+
+
 def emit_dbt_openlineage(dry_run=True, use_local_target=False):
     """Piece 2 of the OpenLineage tail (B1): emit REAL OpenLineage RunEvents for the dbt build — operational run
     history (which models ran, pass/fail) + OL-native column lineage — to DataHub's OpenLineage endpoint, parsed
@@ -563,11 +576,15 @@ def emit_dbt_openlineage(dry_run=True, use_local_target=False):
     cfg = HttpConfig(url=base, endpoint=OL_ENDPOINT_PATH,
                      auth=ApiKeyTokenProvider({"api_key": tok}) if tok else None)
     client = OpenLineageClient(transport=HttpTransport(cfg))
-    sent = 0
+    ok = bad = 0
     for e in evs:
-        client.emit(e)
-        sent += 1
-    return sent
+        try:
+            client.emit(_strip_ol_schema_facets(e))
+            ok += 1
+        except Exception as ex:  # noqa: BLE001 — one bad event must not sink the rest
+            bad += 1
+            print(f"OL emit failed ({type(ex).__name__}) for {getattr(e, 'eventType', '?')}")
+    return {"sent": ok, "failed": bad}
 
 
 # Feast offline source table (feast Postgres DB) ← the dbt mart it's loaded from (feast_setup._load_offline_sources).
