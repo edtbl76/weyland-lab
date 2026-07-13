@@ -463,3 +463,34 @@ spec:
     syncOptions:
       - ServerSideApply=true
       - CreateNamespace=true
+---
+# Flink Kubernetes Operator (B83 — streaming-processing tier). Chart from the Apache per-version helm repo;
+# webhook OFF (no cert-manager) via the values file. Installs the FlinkDeployment / FlinkSessionJob CRDs the
+# session cluster (step 2) + jobs will use. ⚠️ targetRevision must be a CURRENT operator release — downloads.apache.org
+# only serves current versions (older move to archive.apache.org); bump if Argo can't pull the chart.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: flink-operator
+  namespace: argocd
+spec:
+  project: default
+  sources:
+    - repoURL: https://downloads.apache.org/flink/flink-kubernetes-operator-1.10.0/
+      chart: flink-kubernetes-operator
+      targetRevision: 1.10.0
+      helm:
+        releaseName: flink-kubernetes-operator
+        valueFiles:
+          - $values/nodes/mother/lab/weyland-platform/k8s/flink/flink-operator-values.yaml
+    - repoURL: https://github.com/edtbl76/weyland-lab.git
+      targetRevision: main
+      ref: values
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: data-mesh
+  syncPolicy:
+    automated: { selfHeal: true, prune: true }
+    syncOptions:
+      - ServerSideApply=true
+      - CreateNamespace=true

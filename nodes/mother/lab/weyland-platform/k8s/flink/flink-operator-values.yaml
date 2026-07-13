@@ -1,0 +1,26 @@
+# Flink Kubernetes Operator — values for the Argo helm app (B83, streaming-processing tier).
+# WEBHOOK OFF: the admission webhook needs cert-manager (not installed here) and only validates FlinkDeployment
+# specs — safe to skip in a lab. This removes the cert-manager dependency entirely.
+# Watches `data-mesh`, where the session-cluster FlinkDeployment + FlinkSessionJobs live (alongside Redpanda/Nessie).
+watchNamespaces:
+  - data-mesh
+
+webhook:
+  create: false
+
+# Modest footprint — the operator is a lightweight controller (mother has headroom post-B79, but stay tidy).
+operatorPod:
+  resources:
+    requests:
+      cpu: 100m
+      memory: 512Mi
+    limits:
+      memory: 1Gi
+
+# Cluster-wide Flink defaults applied to every FlinkDeployment (checkpoint/HA come per-cluster in step 2).
+defaultConfiguration:
+  create: true
+  append: true
+  flink-conf.yaml: |
+    kubernetes.operator.reconcile.interval: 60 s
+    kubernetes.operator.observer.progress-check.interval: 10 s
