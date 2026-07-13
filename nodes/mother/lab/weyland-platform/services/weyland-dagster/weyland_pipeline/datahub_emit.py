@@ -42,6 +42,9 @@ from datahub.metadata.schema_classes import (
     DatasetPropertiesClass,
     EditableSchemaMetadataClass,
     EditableSchemaFieldInfoClass,
+    FineGrainedLineageClass,
+    FineGrainedLineageDownstreamTypeClass,
+    FineGrainedLineageUpstreamTypeClass,
     GlobalTagsClass,
     GlossaryNodeInfoClass,
     GlossaryTermInfoClass,
@@ -193,6 +196,26 @@ def _store_aspects(name, platform, description, fields, producer_asset, props=No
 DBT_MANIFEST = os.environ.get("DBT_MANIFEST", "/app/dbt/target/manifest.json")
 
 
+def _load_dbt_manifest():
+    """Return the parsed dbt manifest, preferring the COMPILED one published to MinIO by publish_dbt_artifacts
+    (`s3://<bucket>/_dbt_artifacts/manifest.json` — `dbt docs generate` against live Trino, so it carries
+    `compiled_code`, which sqlglot column-lineage needs). The local baked manifest is `dbt parse` only — it has
+    `depends_on` (table lineage) but NO compiled SQL. Falls back to that local manifest if MinIO is unreachable or
+    the artifact isn't published yet (column lineage then comes up empty, table lineage still stands)."""
+    import json
+    try:
+        from minio import Minio
+        bucket = os.environ.get("DBT_ARTIFACTS_BUCKET", "warehouse")
+        prefix = os.environ.get("DBT_ARTIFACTS_PREFIX", "_dbt_artifacts")
+        mc = Minio(os.environ.get("MINIO_ENDPOINT", "minio.minio.svc.cluster.local:9000"),
+                   access_key=os.environ["ICEBERG_S3_ACCESS_KEY"], secret_key=os.environ["ICEBERG_S3_SECRET_KEY"],
+                   secure=os.environ.get("MINIO_SECURE", "false").lower() == "true")
+        return json.loads(mc.get_object(bucket, f"{prefix}/manifest.json").read())
+    except Exception:
+        with open(DBT_MANIFEST) as f:
+            return json.load(f)
+
+
 def _iceberg_name(node) -> str:
     """`iceberg.<schema>.<table>` — the fully-qualified Trino/Iceberg name for a dbt node (mart or source),
     matching how the marts materialize (database=iceberg, schema=dbt) and how the gold sources are read."""
@@ -202,17 +225,110 @@ def _iceberg_name(node) -> str:
     return f"{db}.{schema}.{ident}"
 
 
+def _schema_field_urn(dataset_urn: str, col: str) -> str:
+    return f"urn:li:schemaField:({dataset_urn},{col})"
+
+
+def _trace_dbt_columns(node, source_names):
+    """Core column tracer (sqlglot). For each output column of a dbt mart, walk its compiled SQL back to the leaf
+    columns of the gold sources it derives from. Staging models are ephemeral → dbt inlines them as CTEs, so the
+    parse reaches the base tables directly. `source_names` is the set of normalized `catalog.schema.table` we
+    catalog as upstreams; a leaf counts only if its table is one of them (never invent an edge to an uncatalogued
+    table). Returns {out_col: {(source_name, leaf_col), …}}. Best-effort: a parse failure just drops that column."""
+    from sqlglot import exp
+    from sqlglot.lineage import lineage as _sqlglot_lineage
+
+    sql = node.get("compiled_code") or node.get("compiled_sql")
+    out = {}
+    if not sql:
+        return out
+    for out_col in node.get("columns", {}).keys():
+        try:
+            root = _sqlglot_lineage(out_col, sql, dialect="trino")
+        except Exception:
+            continue
+        ups = set()
+        for n in root.walk():
+            if n.downstream:                       # not a leaf — keep descending toward the base tables
+                continue
+            src = getattr(n, "source", None)
+            table = src if isinstance(src, exp.Table) else (
+                src.find(exp.Table) if isinstance(src, exp.Expression) else None)
+            if table is None:
+                continue
+            name = ".".join(p for p in (table.catalog, table.db, table.name) if p).lower().replace('"', "")
+            if name not in source_names:
+                continue
+            leaf_col = n.name.split(".")[-1].lower().replace('"', "")
+            if leaf_col and leaf_col != "*":
+                ups.add((name, leaf_col))
+        if ups:
+            out[out_col] = ups
+    return out
+
+
+def _dbt_column_lineage(node, mart_urn, source_urns):
+    """COLUMN-level lineage for a dbt mart (the OpenLineage tail, B1) → a list of FineGrainedLineageClass, built from
+    `_trace_dbt_columns`. `source_urns` maps normalized `catalog.schema.table` → the trino Dataset URN we already
+    emit as a table-level upstream, so the field edges land on the SAME URNs we catalog (no dbt-platform sibling
+    mismatch). Empty when nothing traces — the table-level lineage always stands on its own."""
+    traced = _trace_dbt_columns(node, set(source_urns))
+    fine = []
+    for out_col, ups in traced.items():
+        fine.append(FineGrainedLineageClass(
+            upstreamType=FineGrainedLineageUpstreamTypeClass.FIELD_SET,
+            upstreams=[_schema_field_urn(source_urns[name], col) for name, col in sorted(ups)],
+            downstreamType=FineGrainedLineageDownstreamTypeClass.FIELD,
+            downstreams=[_schema_field_urn(mart_urn, out_col)],
+        ))
+    return fine
+
+
+def debug_dbt_column_lineage(mart=None):
+    """No-emit validation entrypoint: print the parsed column-lineage pairs per mart so we can eyeball sqlglot's
+    tracing BEFORE trusting the emit. `mart` filters to one model name. Run in the dagster pod:
+    `python -c "import weyland_pipeline.datahub_emit as d; d.debug_dbt_column_lineage('mart_spotify_audio')"`."""
+    manifest = _load_dbt_manifest()
+    nodes, sources = manifest.get("nodes", {}), manifest.get("sources", {})
+    print(f"[manifest: {'COMPILED (has compiled_code)' if any(n.get('compiled_code') for n in nodes.values()) else 'PARSE-ONLY — no compiled SQL, column lineage will be empty; run the dbt build/publish first'}]")
+
+    def _src_anc(uid, seen=None):
+        seen = seen if seen is not None else set()
+        found = set()
+        for dep in (nodes.get(uid) or {}).get("depends_on", {}).get("nodes", []):
+            if dep in seen:
+                continue
+            seen.add(dep)
+            if dep.startswith("source."):
+                found.add(dep)
+            elif dep in nodes:
+                found |= _src_anc(dep, seen)
+        return found
+
+    for uid, node in nodes.items():
+        if node.get("resource_type") != "model" or node.get("config", {}).get("materialized") == "ephemeral":
+            continue
+        if mart and node["name"] != mart:
+            continue
+        source_names = {_iceberg_name(sources[su]).lower().replace('"', "")
+                        for su in _src_anc(uid) if su in sources}
+        traced = _trace_dbt_columns(node, source_names)
+        n_edges = sum(len(v) for v in traced.values())
+        print(f"\n{node['name']}: {len(traced)}/{len(node.get('columns', {}))} cols traced, "
+              f"{n_edges} field edges (sources: {sorted(source_names)})")
+        for out_col, ups in sorted(traced.items()):
+            print(f"  {out_col:24s} <- " + ", ".join(f"{col}@{name.split('.')[-1]}" for name, col in sorted(ups)))
+
+
 def emit_dbt():
     """Custom-emit the dbt transform tier from the baked `manifest.json` (no Trino/DB connection needed).
     Each materialized mart → a Trino/Iceberg Dataset (`iceberg.dbt.mart_*`) carrying its description, per-column
     docs, a `dbt` tag, and UpstreamLineage to the gold source tables it reads (walking THROUGH the ephemeral
     staging models to the real `source.*` nodes). The gold sources are emitted too (thin props + a `gold` tag) so
     the lineage nodes aren't bare stubs. Returns (n_marts, [mart names]). Mirrors the DataHub dbt source but
-    stays offline + version-proof, like the other custom emitters here."""
-    import json
-
-    with open(DBT_MANIFEST) as f:
-        manifest = json.load(f)
+    stays offline + version-proof, like the other custom emitters here. Reads the COMPILED manifest (MinIO) so the
+    per-mart FineGrainedLineage (column lineage) has SQL to parse; falls back to the baked parse-manifest."""
+    manifest = _load_dbt_manifest()
     nodes, sources = manifest.get("nodes", {}), manifest.get("sources", {})
 
     def _source_ancestors(uid, seen=None):
@@ -235,6 +351,7 @@ def emit_dbt():
     emitter = _gms_emitter()
     emitted_sources = set()
     marts = []
+    n_col_edges = 0
     for uid, node in nodes.items():
         if node.get("resource_type") != "model" or node.get("config", {}).get("materialized") == "ephemeral":
             continue  # skip ephemeral staging — only real (materialized) marts get their own Iceberg table
@@ -257,12 +374,14 @@ def emit_dbt():
                 schemaName=name, platform="urn:li:dataPlatform:trino", version=0, hash="",
                 platformSchema=OtherSchemaClass(rawSchema=""), fields=fields))
         upstreams = []
+        source_urns = {}  # normalized `catalog.schema.table` -> trino URN, for column-lineage resolution
         for src_uid in _source_ancestors(uid):
             src = sources.get(src_uid)
             if not src:
                 continue
             src_urn = make_dataset_urn(platform="trino", name=_iceberg_name(src), env=ENV)
             upstreams.append(UpstreamClass(dataset=src_urn, type=DatasetLineageTypeClass.TRANSFORMED))
+            source_urns[_iceberg_name(src).lower().replace('"', "")] = src_urn
             if src_uid not in emitted_sources:  # thin catalog entry for the gold source so it's not a bare stub
                 for asp in (DatasetPropertiesClass(name=src["name"],
                                                    description=src.get("description") or "Iceberg gold table (dbt source)"),
@@ -270,11 +389,13 @@ def emit_dbt():
                     emitter.emit(MetadataChangeProposalWrapper(entityUrn=src_urn, aspect=asp))
                 emitted_sources.add(src_uid)
         if upstreams:
-            aspects.append(UpstreamLineageClass(upstreams=upstreams))
+            fine = _dbt_column_lineage(node, urn, source_urns)  # COLUMN-level lineage (sqlglot); [] if it can't parse
+            n_col_edges += sum(len(f.upstreams) for f in fine)
+            aspects.append(UpstreamLineageClass(upstreams=upstreams, fineGrainedLineages=fine or None))
         for aspect in aspects:
             emitter.emit(MetadataChangeProposalWrapper(entityUrn=urn, aspect=aspect))
         marts.append(node["name"])
-    return len(marts), marts
+    return len(marts), marts, n_col_edges
 
 
 # Feast offline source table (feast Postgres DB) ← the dbt mart it's loaded from (feast_setup._load_offline_sources).

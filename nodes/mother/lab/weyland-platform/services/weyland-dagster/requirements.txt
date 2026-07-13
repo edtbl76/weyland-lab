@@ -75,3 +75,10 @@ dbt-trino
 # MetricFlow (dbt Semantic Layer, B1.7) — `mf query` compiles metrics (models/semantic_models.yml) to Trino SQL,
 # spined by models/metricflow_time_spine.sql. Uses the dbt-trino adapter above.
 dbt-metricflow
+# sqlglot — SQL parser for COLUMN-level lineage (OpenLineage tail, B1). datahub_emit._dbt_column_lineage parses each
+# mart's compiled SQL (staging is ephemeral → inlined as CTEs, so it traces straight to the gold-source columns) and
+# emits FineGrainedLineage onto the trino-platform mart URNs we already catalog. Trino dialect.
+sqlglot
+# openlineage-dbt — the `dbt-ol` wrapper emits real OpenLineage RunEvents (run history + column lineage) to DataHub
+# GMS's native OpenLineage REST endpoint after `dbt build`. The operational-lineage half of the B1 OpenLineage tail.
+openlineage-dbt
