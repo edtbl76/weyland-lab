@@ -1,0 +1,42 @@
+# Publish the Weyland Platform Map to GitHub Pages.
+# Deploys ONLY docs/platform-map.html (self-contained, zero external requests) — a clean public share of the map,
+# NOT the internal runbooks/hosts docs. Runs on GitHub's cloud runners (no LAN dependency, unlike Woodpecker).
+# One-time setup: repo Settings → Pages → Source = "GitHub Actions". URL: https://edtbl76.github.io/weyland-lab/
+name: Deploy platform map to Pages
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - docs/platform-map.html
+      - .github/workflows/pages.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Assemble site (map only)
+        run: |
+          mkdir -p _site
+          cp docs/platform-map.html _site/index.html
+          cp docs/platform-map.html _site/platform-map.html
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+      - id: deploy
+        uses: actions/deploy-pages@v4
