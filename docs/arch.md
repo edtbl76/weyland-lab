@@ -251,7 +251,18 @@ agents/workflows and platform state. Agents call the tool-server, *not* database
   `iceberg.dbt.mart_*` with a `dbt` tag and an `UpstreamLineage` that walks *through* the ephemeral staging
   models to the real `gold` source tables (emitted too, as thin tagged stubs, so the lineage nodes aren't
   bare). This is the offline, version-proof baseline — it always draws the gold→mart edge even if the native
-  connector is down. **(b) The native DataHub dbt source recipe** (`k8s/data-mesh/datahub-ingestion/dbt.recipe.yaml`)
+  connector is down. **As of 2026-07-13 the custom path also owns column + run lineage** (the OpenLineage tail —
+  the last B1 item): `emit_dbt` attaches **FineGrainedLineage** (per-column mart→gold edges) by parsing each mart's
+  *compiled* SQL with **sqlglot** (compiled manifest + `catalog.json` pulled from MinIO), landing on the same Trino
+  URNs — no dbt-platform sibling needed. Ephemeral staging inlines as CTEs so it traces straight to the gold
+  columns; mart-on-mart reads resolve *transitively*; a **>3-source guard** drops the `mart_country_health`
+  union/pivot hairball a SQL parser can't disambiguate (6/7 marts, ~107 clean field edges). Separately,
+  **`emit_dbt_openlineage`** posts real **OpenLineage** RunEvents (dbt-ol `DbtLocalArtifactProcessor` → DataHub's
+  `/openapi/openlineage/api/v1/lineage`) → a **dbt DataFlow + per-model DataJobs + DataProcessInstances** (run
+  history), whose input/output datasets are the same Trino marts. Three DataHub-OL 500 traps cracked: the event
+  `producer` must carry an `/integration/<name>` DataHub's `getOrchestrator` knows; the whole path goes in the OL
+  transport `endpoint` (its `urljoin` drops multi-segment `url` tails); and the null-typed dbt `schema` facet is
+  stripped (else `setNativeDataType(null)` NPEs). **(b) The native DataHub dbt source recipe** (`k8s/data-mesh/datahub-ingestion/dbt.recipe.yaml`)
   reads `manifest.json` **+** `catalog.json` from `s3://warehouse/_dbt_artifacts/` and, with
   `target_platform: trino`, **siblings** the dbt-platform nodes onto the *same* `iceberg.dbt.mart_*` Trino URNs
   the custom emitter created — merging into one entity while adding what the hand-rolled path can't: dbt
