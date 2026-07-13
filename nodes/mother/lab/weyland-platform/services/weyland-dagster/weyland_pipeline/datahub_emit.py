@@ -554,7 +554,9 @@ def emit_dbt_openlineage(dry_run=True, use_local_target=False):
     from openlineage.client.transport.http import HttpConfig, HttpTransport, ApiKeyTokenProvider
     base = os.environ.get("DATAHUB_GMS_URL", "http://datahub-datahub-gms.data-mesh.svc.cluster.local:8080")
     tok = os.environ.get("DATAHUB_GMS_TOKEN", "")
-    cfg = HttpConfig(url=f"{base}/openapi/openlineage", endpoint="api/v1/lineage",
+    # url = bare base, whole path in endpoint: OL's HttpTransport joins with urljoin(), which would otherwise drop
+    # the last path segment of a multi-segment url (…/openapi/openlineage + api/v1/lineage → …/openapi/api/v1/lineage).
+    cfg = HttpConfig(url=base, endpoint=OL_ENDPOINT_PATH,
                      auth=ApiKeyTokenProvider({"api_key": tok}) if tok else None)
     client = OpenLineageClient(transport=HttpTransport(cfg))
     sent = 0
