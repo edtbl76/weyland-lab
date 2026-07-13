@@ -483,10 +483,10 @@ OL_ENDPOINT_PATH = "openapi/openlineage/api/v1/lineage"  # DataHub's native Open
 
 
 def _fetch_dbt_artifacts_local(target_dir="/app/dbt/target"):
-    """Download the published dbt artifacts (manifest/run_results/catalog) from MinIO into a local target/ dir so
-    DbtLocalArtifactProcessor can read them. run_results.json is the one that carries the actual model RUN outcomes
-    (only written by `dbt build`/`test`); without it there are no run events. Returns the set of files landed."""
-    import json as _json
+    """Download the dbt artifacts DbtLocalArtifactProcessor needs into a local target/ dir. The run_results comes
+    from `run_results_build.json` — the BUILD outcomes preserved by dbt_assets.upload_build_run_results before
+    docs-generate overwrites the plain run_results.json with an (OL-unusable) `generate` one — saved locally AS
+    `run_results.json` (the name the processor expects). Returns the set of local files landed."""
     os.makedirs(target_dir, exist_ok=True)
     landed = set()
     try:
@@ -496,10 +496,12 @@ def _fetch_dbt_artifacts_local(target_dir="/app/dbt/target"):
         mc = Minio(os.environ.get("MINIO_ENDPOINT", "minio.minio.svc.cluster.local:9000"),
                    access_key=os.environ["ICEBERG_S3_ACCESS_KEY"], secret_key=os.environ["ICEBERG_S3_SECRET_KEY"],
                    secure=os.environ.get("MINIO_SECURE", "false").lower() == "true")
-        for fn in ("manifest.json", "run_results.json", "catalog.json"):
+        for remote, local in (("manifest.json", "manifest.json"),
+                              ("run_results_build.json", "run_results.json"),
+                              ("catalog.json", "catalog.json")):
             try:
-                mc.fget_object(bucket, f"{prefix}/{fn}", os.path.join(target_dir, fn))
-                landed.add(fn)
+                mc.fget_object(bucket, f"{prefix}/{remote}", os.path.join(target_dir, local))
+                landed.add(local)
             except Exception:
                 pass
     except Exception:
@@ -507,18 +509,22 @@ def _fetch_dbt_artifacts_local(target_dir="/app/dbt/target"):
     return landed
 
 
-def emit_dbt_openlineage(dry_run=True):
+def emit_dbt_openlineage(dry_run=True, use_local_target=False):
     """Piece 2 of the OpenLineage tail (B1): emit REAL OpenLineage RunEvents for the dbt build — operational run
     history (which models ran, pass/fail) + OL-native column lineage — to DataHub's OpenLineage endpoint, parsed
-    from the published dbt artifacts by DbtLocalArtifactProcessor (no second dbt run). `dry_run` PARSES + prints the
-    event shape and the dataset namespaces/names the events carry (so we can see the URNs DataHub would create, and
-    judge the dbt-platform sibling overlap) WITHOUT sending. Set dry_run=False to actually POST."""
+    from the dbt artifacts by DbtLocalArtifactProcessor (no second dbt run). `use_local_target` reads /app/dbt/target
+    directly (for the in-asset call, right after `dbt build`, when run_results.json IS the build one); otherwise it
+    pulls the preserved build artifacts from MinIO (for the exec-pod dry-run + the decoupled catalog job). `dry_run`
+    PARSES + prints the event shape + the dataset namespaces/names the events carry (so we can judge the
+    dbt-platform sibling overlap) WITHOUT sending. Set dry_run=False to actually POST."""
     from openlineage.common.provider.dbt.local import DbtLocalArtifactProcessor
 
-    landed = _fetch_dbt_artifacts_local()
-    if "run_results.json" not in landed:
-        print(f"no run_results.json in MinIO (landed={sorted(landed)}) — run the dbt build/publish first; no run events")
-        return 0
+    if not use_local_target:
+        landed = _fetch_dbt_artifacts_local()
+        if "run_results.json" not in landed:
+            print(f"no build run_results in MinIO (landed={sorted(landed)}) — materialize the dbt build asset first "
+                  f"(it preserves run_results_build.json); no run events")
+            return 0
     processor = DbtLocalArtifactProcessor(
         producer="https://github.com/edtbl76/weyland-lab",
         job_namespace="weyland",
