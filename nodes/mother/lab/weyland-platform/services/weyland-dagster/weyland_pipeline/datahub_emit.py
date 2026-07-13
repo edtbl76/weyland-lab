@@ -308,20 +308,69 @@ def _trace_dbt_columns(node, source_names, schema=None):
     return out
 
 
-def _dbt_column_lineage(node, mart_urn, source_urns, schema=None):
-    """COLUMN-level lineage for a dbt mart (the OpenLineage tail, B1) → a list of FineGrainedLineageClass, built from
-    `_trace_dbt_columns`. `source_urns` maps normalized `catalog.schema.table` → the trino Dataset URN we already
-    emit as a table-level upstream, so the field edges land on the SAME URNs we catalog (no dbt-platform sibling
-    mismatch). Empty when nothing traces — the table-level lineage always stands on its own."""
-    traced = _trace_dbt_columns(node, set(source_urns), schema=schema)
+def _dbt_column_lineage_all(nodes, sources, schema, max_source_tables=3):
+    """Resolved COLUMN lineage for EVERY dbt mart (the OpenLineage tail, B1). Two passes:
+    (1) RAW trace — each mart's output columns → leaf columns of its DIRECT tabular inputs, where a target may be a
+        gold SOURCE or another materialized MART (staging is ephemeral/inlined, but marts are real tables so sqlglot
+        sees them by name);
+    (2) TRANSITIVE resolve — expand any (mart, col) target through that mart's own raw trace until every target is a
+        gold source, so a mart-on-mart read (genre_audio_profile ← mart_spotify_audio) lands on the ORIGINAL source
+        columns and the flattened marts→source graph stays consistent (cycle-guarded via `seen`).
+    Finally DROP any output column that still resolves to more than `max_source_tables` distinct sources — the
+    union/pivot signature (country_health maps every measure to all 8 WHO tables) that a SQL parser can't
+    disambiguate; better no column edge than a misleading hairball (table lineage still stands).
+    Returns ({mart_uid: {out_col: {(source_name, leaf_col), …}}}, {source_name: trino_urn})."""
+    source_names = {_iceberg_name(s).lower().replace('"', "") for s in sources.values()}
+    marts = {}  # normalized iceberg name -> uid, for the materialized marts
+    for uid, node in nodes.items():
+        if node.get("resource_type") == "model" and node.get("config", {}).get("materialized") != "ephemeral":
+            marts[_iceberg_name(node).lower().replace('"', "")] = uid
+    allowed = source_names | set(marts)
+    raw = {uid: _trace_dbt_columns(nodes[uid], allowed, schema=schema) for uid in marts.values()}
+
+    def _resolve(name, col, seen):
+        if name in source_names:
+            return {(name, col)}
+        muid = marts.get(name)
+        if not muid:
+            return set()
+        acc = set()
+        for tn, tc in raw.get(muid, {}).get(col, set()):
+            if (tn, tc) in seen:
+                continue
+            acc |= _resolve(tn, tc, seen | {(tn, tc)})
+        return acc
+
+    resolved = {}
+    for name, uid in marts.items():
+        out = {}
+        for out_col, ups in raw.get(uid, {}).items():
+            acc = set()
+            for tn, tc in ups:
+                acc |= _resolve(tn, tc, {(tn, tc)})
+            if acc and len({s for s, _ in acc}) <= max_source_tables:  # guard: drop union/pivot hairballs
+                out[out_col] = acc
+        resolved[uid] = out
+
+    source_urn_by_name = {_iceberg_name(s).lower().replace('"', ""): make_dataset_urn(
+        platform="trino", name=_iceberg_name(s), env=ENV) for s in sources.values()}
+    return resolved, source_urn_by_name
+
+
+def _fine_from_traced(mart_urn, traced, source_urn_by_name):
+    """Build FineGrainedLineageClass list from a resolved {out_col: {(source_name, col)}} trace. Field edges land on
+    the SAME trino URNs we emit as table-level upstreams (no dbt-platform sibling mismatch)."""
     fine = []
     for out_col, ups in traced.items():
-        fine.append(FineGrainedLineageClass(
-            upstreamType=FineGrainedLineageUpstreamTypeClass.FIELD_SET,
-            upstreams=[_schema_field_urn(source_urns[name], col) for name, col in sorted(ups)],
-            downstreamType=FineGrainedLineageDownstreamTypeClass.FIELD,
-            downstreams=[_schema_field_urn(mart_urn, out_col)],
-        ))
+        urns = [_schema_field_urn(source_urn_by_name[name], col)
+                for name, col in sorted(ups) if name in source_urn_by_name]
+        if urns:
+            fine.append(FineGrainedLineageClass(
+                upstreamType=FineGrainedLineageUpstreamTypeClass.FIELD_SET,
+                upstreams=urns,
+                downstreamType=FineGrainedLineageDownstreamTypeClass.FIELD,
+                downstreams=[_schema_field_urn(mart_urn, out_col)],
+            ))
     return fine
 
 
@@ -334,31 +383,18 @@ def debug_dbt_column_lineage(mart=None):
     col_schema = _sqlglot_schema_from_catalog(_load_dbt_catalog())
     print(f"[manifest: {'COMPILED (has compiled_code)' if any(n.get('compiled_code') for n in nodes.values()) else 'PARSE-ONLY — no compiled SQL, column lineage will be empty; run the dbt build/publish first'}]")
     print(f"[catalog schema: {sum(len(t) for db in col_schema.values() for t in db.values())} tables]")
-
-    def _src_anc(uid, seen=None):
-        seen = seen if seen is not None else set()
-        found = set()
-        for dep in (nodes.get(uid) or {}).get("depends_on", {}).get("nodes", []):
-            if dep in seen:
-                continue
-            seen.add(dep)
-            if dep.startswith("source."):
-                found.add(dep)
-            elif dep in nodes:
-                found |= _src_anc(dep, seen)
-        return found
+    resolved, _ = _dbt_column_lineage_all(nodes, sources, col_schema)  # same path the emit uses (transitive + guard)
 
     for uid, node in nodes.items():
         if node.get("resource_type") != "model" or node.get("config", {}).get("materialized") == "ephemeral":
             continue
         if mart and node["name"] != mart:
             continue
-        source_names = {_iceberg_name(sources[su]).lower().replace('"', "")
-                        for su in _src_anc(uid) if su in sources}
-        traced = _trace_dbt_columns(node, source_names, schema=col_schema)
+        traced = resolved.get(uid, {})
         n_edges = sum(len(v) for v in traced.values())
+        srcs = sorted({name for ups in traced.values() for name, _ in ups})
         print(f"\n{node['name']}: {len(traced)}/{len(node.get('columns', {}))} cols traced, "
-              f"{n_edges} field edges (sources: {sorted(source_names)})")
+              f"{n_edges} field edges (sources: {srcs})")
         for out_col, ups in sorted(traced.items()):
             print(f"  {out_col:24s} <- " + ", ".join(f"{col}@{name.split('.')[-1]}" for name, col in sorted(ups)))
 
@@ -374,6 +410,7 @@ def emit_dbt():
     manifest = _load_dbt_manifest()
     nodes, sources = manifest.get("nodes", {}), manifest.get("sources", {})
     col_schema = _sqlglot_schema_from_catalog(_load_dbt_catalog())  # for sqlglot star-expansion / join disambiguation
+    col_lineage, col_source_urns = _dbt_column_lineage_all(nodes, sources, col_schema)  # resolved column lineage per mart
 
     def _source_ancestors(uid, seen=None):
         """All `source.*` unique_ids reachable from `uid` by walking depends_on through ephemeral models."""
@@ -433,7 +470,7 @@ def emit_dbt():
                     emitter.emit(MetadataChangeProposalWrapper(entityUrn=src_urn, aspect=asp))
                 emitted_sources.add(src_uid)
         if upstreams:
-            fine = _dbt_column_lineage(node, urn, source_urns, schema=col_schema)  # COLUMN lineage (sqlglot); [] if unparsable
+            fine = _fine_from_traced(urn, col_lineage.get(uid, {}), col_source_urns)  # resolved COLUMN lineage
             n_col_edges += sum(len(f.upstreams) for f in fine)
             aspects.append(UpstreamLineageClass(upstreams=upstreams, fineGrainedLineages=fine or None))
         for aspect in aspects:
