@@ -216,6 +216,44 @@ def _load_dbt_manifest():
             return json.load(f)
 
 
+def _load_dbt_catalog():
+    """Return the dbt `catalog.json` (real per-table column lists from live-Trino introspection), published to MinIO
+    alongside the manifest by publish_dbt_artifacts. Used to build a sqlglot schema so column lineage can expand
+    `select *` and attribute columns to the right joined table. Returns {} if unavailable (column lineage then only
+    resolves the marts that select explicit columns)."""
+    import json
+    try:
+        from minio import Minio
+        bucket = os.environ.get("DBT_ARTIFACTS_BUCKET", "warehouse")
+        prefix = os.environ.get("DBT_ARTIFACTS_PREFIX", "_dbt_artifacts")
+        mc = Minio(os.environ.get("MINIO_ENDPOINT", "minio.minio.svc.cluster.local:9000"),
+                   access_key=os.environ["ICEBERG_S3_ACCESS_KEY"], secret_key=os.environ["ICEBERG_S3_SECRET_KEY"],
+                   secure=os.environ.get("MINIO_SECURE", "false").lower() == "true")
+        return json.loads(mc.get_object(bucket, f"{prefix}/catalog.json").read())
+    except Exception:
+        try:
+            with open(os.path.join(os.path.dirname(DBT_MANIFEST), "catalog.json")) as f:
+                return json.load(f)
+        except Exception:
+            return {}
+
+
+def _sqlglot_schema_from_catalog(catalog):
+    """Build a nested sqlglot schema {catalog: {db: {table: {col: type}}}} from dbt catalog.json (sources + models),
+    so `_trace_dbt_columns` can expand `select *` and pin each column to its real table."""
+    schema = {}
+    for section in ("sources", "nodes"):
+        for entry in (catalog.get(section) or {}).values():
+            md = entry.get("metadata", {}) or {}
+            db = (md.get("database") or "iceberg").lower()
+            sch = (md.get("schema") or "").lower()
+            tbl = (md.get("name") or "").lower()
+            cols = {c.lower(): (col.get("type") or "varchar") for c, col in (entry.get("columns") or {}).items()}
+            if tbl and cols:
+                schema.setdefault(db, {}).setdefault(sch, {})[tbl] = cols
+    return schema
+
+
 def _iceberg_name(node) -> str:
     """`iceberg.<schema>.<table>` — the fully-qualified Trino/Iceberg name for a dbt node (mart or source),
     matching how the marts materialize (database=iceberg, schema=dbt) and how the gold sources are read."""
@@ -229,12 +267,15 @@ def _schema_field_urn(dataset_urn: str, col: str) -> str:
     return f"urn:li:schemaField:({dataset_urn},{col})"
 
 
-def _trace_dbt_columns(node, source_names):
+def _trace_dbt_columns(node, source_names, schema=None):
     """Core column tracer (sqlglot). For each output column of a dbt mart, walk its compiled SQL back to the leaf
     columns of the gold sources it derives from. Staging models are ephemeral → dbt inlines them as CTEs, so the
-    parse reaches the base tables directly. `source_names` is the set of normalized `catalog.schema.table` we
-    catalog as upstreams; a leaf counts only if its table is one of them (never invent an edge to an uncatalogued
-    table). Returns {out_col: {(source_name, leaf_col), …}}. Best-effort: a parse failure just drops that column."""
+    parse reaches the base tables directly. A `schema` (from catalog.json) lets sqlglot expand `select *` and pin a
+    joined column to the right table — without it, star-select marts trace nothing and joins over-trace to every
+    candidate. `source_names` is the set of normalized `catalog.schema.table` we catalog as upstreams; a leaf counts
+    only if its table is one of them (never invent an edge to an uncatalogued table) and its name is a real column
+    (literals like `0` from `coalesce(x,0)` are dropped). Returns {out_col: {(source_name, leaf_col), …}}.
+    Best-effort: a parse failure just drops that column."""
     from sqlglot import exp
     from sqlglot.lineage import lineage as _sqlglot_lineage
 
@@ -244,7 +285,7 @@ def _trace_dbt_columns(node, source_names):
         return out
     for out_col in node.get("columns", {}).keys():
         try:
-            root = _sqlglot_lineage(out_col, sql, dialect="trino")
+            root = _sqlglot_lineage(out_col, sql, schema=schema, dialect="trino")
         except Exception:
             continue
         ups = set()
@@ -260,19 +301,19 @@ def _trace_dbt_columns(node, source_names):
             if name not in source_names:
                 continue
             leaf_col = n.name.split(".")[-1].lower().replace('"', "")
-            if leaf_col and leaf_col != "*":
+            if leaf_col and leaf_col != "*" and not leaf_col.isdigit():  # drop stars + numeric literals
                 ups.add((name, leaf_col))
         if ups:
             out[out_col] = ups
     return out
 
 
-def _dbt_column_lineage(node, mart_urn, source_urns):
+def _dbt_column_lineage(node, mart_urn, source_urns, schema=None):
     """COLUMN-level lineage for a dbt mart (the OpenLineage tail, B1) → a list of FineGrainedLineageClass, built from
     `_trace_dbt_columns`. `source_urns` maps normalized `catalog.schema.table` → the trino Dataset URN we already
     emit as a table-level upstream, so the field edges land on the SAME URNs we catalog (no dbt-platform sibling
     mismatch). Empty when nothing traces — the table-level lineage always stands on its own."""
-    traced = _trace_dbt_columns(node, set(source_urns))
+    traced = _trace_dbt_columns(node, set(source_urns), schema=schema)
     fine = []
     for out_col, ups in traced.items():
         fine.append(FineGrainedLineageClass(
@@ -290,7 +331,9 @@ def debug_dbt_column_lineage(mart=None):
     `python -c "import weyland_pipeline.datahub_emit as d; d.debug_dbt_column_lineage('mart_spotify_audio')"`."""
     manifest = _load_dbt_manifest()
     nodes, sources = manifest.get("nodes", {}), manifest.get("sources", {})
+    col_schema = _sqlglot_schema_from_catalog(_load_dbt_catalog())
     print(f"[manifest: {'COMPILED (has compiled_code)' if any(n.get('compiled_code') for n in nodes.values()) else 'PARSE-ONLY — no compiled SQL, column lineage will be empty; run the dbt build/publish first'}]")
+    print(f"[catalog schema: {sum(len(t) for db in col_schema.values() for t in db.values())} tables]")
 
     def _src_anc(uid, seen=None):
         seen = seen if seen is not None else set()
@@ -312,7 +355,7 @@ def debug_dbt_column_lineage(mart=None):
             continue
         source_names = {_iceberg_name(sources[su]).lower().replace('"', "")
                         for su in _src_anc(uid) if su in sources}
-        traced = _trace_dbt_columns(node, source_names)
+        traced = _trace_dbt_columns(node, source_names, schema=col_schema)
         n_edges = sum(len(v) for v in traced.values())
         print(f"\n{node['name']}: {len(traced)}/{len(node.get('columns', {}))} cols traced, "
               f"{n_edges} field edges (sources: {sorted(source_names)})")
@@ -330,6 +373,7 @@ def emit_dbt():
     per-mart FineGrainedLineage (column lineage) has SQL to parse; falls back to the baked parse-manifest."""
     manifest = _load_dbt_manifest()
     nodes, sources = manifest.get("nodes", {}), manifest.get("sources", {})
+    col_schema = _sqlglot_schema_from_catalog(_load_dbt_catalog())  # for sqlglot star-expansion / join disambiguation
 
     def _source_ancestors(uid, seen=None):
         """All `source.*` unique_ids reachable from `uid` by walking depends_on through ephemeral models."""
@@ -389,7 +433,7 @@ def emit_dbt():
                     emitter.emit(MetadataChangeProposalWrapper(entityUrn=src_urn, aspect=asp))
                 emitted_sources.add(src_uid)
         if upstreams:
-            fine = _dbt_column_lineage(node, urn, source_urns)  # COLUMN-level lineage (sqlglot); [] if it can't parse
+            fine = _dbt_column_lineage(node, urn, source_urns, schema=col_schema)  # COLUMN lineage (sqlglot); [] if unparsable
             n_col_edges += sum(len(f.upstreams) for f in fine)
             aspects.append(UpstreamLineageClass(upstreams=upstreams, fineGrainedLineages=fine or None))
         for aspect in aspects:
