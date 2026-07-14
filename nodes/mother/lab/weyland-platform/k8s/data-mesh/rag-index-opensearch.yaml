@@ -1,0 +1,42 @@
+# rag-index consumer — opensearch (B-RAG-STREAM step 5). Own consumer group, replays rag.chunks from earliest.
+# SIDECAR OFF: streaming plane (Kafka) + OpenSearch runs security-disabled plain HTTP → no mesh needed.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: rag-index-opensearch
+  namespace: data-mesh
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: rag-index-opensearch
+  template:
+    metadata:
+      labels:
+        app: rag-index-opensearch
+      annotations:
+        sidecar.istio.io/inject: "false"
+    spec:
+      containers:
+        - name: rag-index
+          image: weyland-rag-index:local
+          imagePullPolicy: Never
+          env:
+            - name: STORE
+              value: opensearch
+            - name: GROUP_ID
+              value: rag-index-opensearch
+            - name: REDPANDA_BOOTSTRAP
+              value: redpanda.data-mesh.svc.cluster.local:9092
+            - name: SCHEMA_REGISTRY_URL
+              value: http://redpanda.data-mesh.svc.cluster.local:8081
+            - name: OPENSEARCH_URL
+              value: http://opensearch-cluster-master.opensearch.svc.cluster.local:9200
+          resources:
+            requests:
+              cpu: 25m
+              memory: 128Mi
+            limits:
+              memory: 512Mi

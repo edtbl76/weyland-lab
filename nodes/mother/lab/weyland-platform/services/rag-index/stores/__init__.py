@@ -6,4 +6,7 @@ def get_handler(store: str):
     if store == "qdrant":
         from stores.qdrant_store import QdrantHandler
         return QdrantHandler()
-    raise ValueError(f"unknown STORE={store!r} (implemented: qdrant)")
+    if store == "opensearch":
+        from stores.opensearch_store import OpensearchHandler
+        return OpensearchHandler()
+    raise ValueError(f"unknown STORE={store!r} (implemented: qdrant, opensearch)")
