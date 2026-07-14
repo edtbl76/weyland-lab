@@ -1,0 +1,73 @@
+# B83 — Flink session cluster (weyland-flink) + JobManager UI ingress. Managed by the Flink K8s Operator.
+# Custom image weyland-flink:local (ctr-imported → imagePullPolicy Never). SIDECAR OFF on the JM/TM pods (the
+# streaming plane — long-lived Kafka TCP would risk the Envoy half-open stall). S3 for BOTH checkpoints and the
+# Iceberg warehouse comes from AWS_* env (nessie-secret) via the default Hadoop/S3FileIO credential chain — reusing
+# the `warehouse` bucket (under an `_flink/` prefix) so no new bucket/policy. The Iceberg REST catalog → Nessie
+# /iceberg is created per-session inside the SQL jobs (step 3), not here.
+apiVersion: flink.apache.org/v1beta1
+kind: FlinkDeployment
+metadata:
+  name: weyland-flink
+  namespace: data-mesh
+spec:
+  image: weyland-flink:local
+  imagePullPolicy: Never
+  flinkVersion: v1_20
+  serviceAccount: flink            # created by the operator chart in watched namespaces; verify on deploy
+  podTemplate:
+    metadata:
+      annotations:
+        sidecar.istio.io/inject: "false"
+    spec:
+      containers:
+        - name: flink-main-container   # the operator's fixed main-container name — env merges into JM + TM
+          env:
+            - name: AWS_ACCESS_KEY_ID
+              valueFrom: { secretKeyRef: { name: nessie-secret, key: s3-access-key } }
+            - name: AWS_SECRET_ACCESS_KEY
+              valueFrom: { secretKeyRef: { name: nessie-secret, key: s3-secret-key } }
+            - name: AWS_REGION
+              value: us-east-1
+  flinkConfiguration:
+    taskmanager.numberOfTaskSlots: "4"
+    # State + checkpoints on MinIO (warehouse bucket, _flink/ prefix — nessie-secret creds already grant it).
+    state.backend: rocksdb
+    state.checkpoints.dir: s3://warehouse/_flink/checkpoints
+    state.savepoints.dir: s3://warehouse/_flink/savepoints
+    execution.checkpointing.interval: "60000"
+    execution.checkpointing.min-pause: "30000"
+    # Kubernetes HA → the JobManager recovers RUNNING jobs across restarts (critical for the CDC materializer).
+    high-availability.type: kubernetes
+    high-availability.storageDir: s3://warehouse/_flink/ha
+    # S3 filesystem (flink-s3-fs-hadoop) → MinIO; creds via AWS_* env (default hadoop chain), so no plaintext here.
+    s3.endpoint: http://minio.minio.svc.cluster.local:9000
+    s3.path.style.access: "true"
+  jobManager:
+    resource:
+      memory: "1600m"
+      cpu: 1
+  taskManager:
+    resource:
+      memory: "2048m"
+      cpu: 1
+  # session mode = NO `job:` block — jobs are submitted separately as FlinkSessionJobs (steps 3–5).
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: flink
+  namespace: data-mesh
+  annotations:
+    traefik.ingress.kubernetes.io/router.middlewares: data-mesh-traefik-forward-auth@kubernetescrd
+spec:
+  tls:
+    - hosts: [flink.weyland.lab]
+      secretName: weyland-wildcard-tls
+  rules:
+    - host: flink.weyland.lab
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service: { name: weyland-flink-rest, port: { number: 8081 } }
