@@ -43,7 +43,9 @@ RAGCHUNK_SCHEMA = """
 """
 
 TOPIC = "rag.chunks"
-EMBED_URL = os.environ.get("EMBED_URL", "http://rogueone.weyland.lab:8900")
+# rogueone by IP: the `*.weyland.lab` wildcard resolves rogueone.weyland.lab to the ingress (.243), which resets
+# :8900. Ray hits the box by raw IP for the same reason. Proper fix later = a real A-record .230 in LAN DNS.
+EMBED_URL = os.environ.get("EMBED_URL", "http://192.168.1.230:8900")
 EMBED_BATCH = int(os.environ.get("EMBED_BATCH", "64"))
 KB_PREFIX = "aidlc-kb/"
 
