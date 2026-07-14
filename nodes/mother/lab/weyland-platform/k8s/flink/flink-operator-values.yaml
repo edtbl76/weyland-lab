@@ -9,7 +9,11 @@ webhook:
   create: false
 
 # Modest footprint — the operator is a lightweight controller (mother has headroom post-B79, but stay tidy).
+# Sidecar OFF: the operator only talks to the k8s API — meshing buys nothing and causes an istio startup-probe
+# race (health 500 before Envoy iptables is ready). Keeps it on the un-meshed streaming plane like Redpanda et al.
 operatorPod:
+  annotations:
+    sidecar.istio.io/inject: "false"
   resources:
     requests:
       cpu: 100m
