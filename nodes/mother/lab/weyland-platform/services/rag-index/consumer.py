@@ -79,10 +79,12 @@ def main() -> None:
                     handler.on_upsert(rec)
                 else:
                     print(f"[rag-index/{STORE}] unknown op {rec['op']!r} — skipping", file=sys.stderr, flush=True)
-                consumer.commit(msg)   # sync commit AFTER apply
-            except Exception as e:  # noqa: BLE001 — surface + do NOT commit, so the record is retried
+            except Exception as e:  # noqa: BLE001 — NEVER commit over a failed apply: crash so the restart
+                # resumes from THIS record (commits are cumulative, so continuing would skip it permanently).
                 print(f"[rag-index/{STORE}] apply failed for {rec.get('source_path')}: {e}",
                       file=sys.stderr, flush=True)
+                raise
+            consumer.commit(msg)   # commit ONLY after a successful apply
     finally:
         consumer.close()
 
