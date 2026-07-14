@@ -1,5 +1,5 @@
 import os
-from dagster import Definitions, ScheduleDefinition, job, op, DefaultScheduleStatus
+from dagster import Definitions, ScheduleDefinition, job, op, DefaultScheduleStatus, in_process_executor
 from weyland_pipeline.assets import all_assets, all_asset_checks
 from weyland_pipeline.dbt_assets import weyland_dbt_assets, dbt_resource
 from weyland_pipeline.resources import (
@@ -269,7 +269,11 @@ def soda_quality_job():
     soda_scan_op()
 
 
-@job
+# in_process_executor: 27 dependency-free emit ops otherwise fan out under the default multiprocess executor,
+# each op-subprocess re-importing the full ~1.1 GB definitions → N-concurrent × 1.1 GB OOM'd the 12 Gi pod even
+# though every emit function is individually cheap (~1.24 GB cumulative). One process, one import, ops run
+# sequentially → ~1.3 GB peak, and faster (no per-op subprocess spawn + re-import).
+@job(executor_def=in_process_executor)
 def datahub_catalog_emit_job():
     emit_dagster_assets_op()
     emit_qdrant_op()
