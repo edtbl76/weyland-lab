@@ -306,7 +306,7 @@ def datahub_catalog_emit_job():
 
 datahub_catalog_emit_schedule = ScheduleDefinition(
     job=datahub_catalog_emit_job,
-    cron_schedule="40 */6 * * *",  # every 6h at :40 (was hourly-on-:00 — stampeded mother with the other jobs)
+    cron_schedule="40 */6 * * *",  # every 6h at :40 — per docs/schedules.md
     execution_timezone="America/New_York",
     default_status=DefaultScheduleStatus.RUNNING,
 )
