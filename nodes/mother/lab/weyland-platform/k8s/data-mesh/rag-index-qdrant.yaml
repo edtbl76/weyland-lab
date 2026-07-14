@@ -1,0 +1,45 @@
+# rag-index consumer — qdrant (B-RAG-STREAM step 3). One replica, its own consumer group.
+# SIDECAR OFF: streaming plane (long-lived Kafka connection to un-meshed Redpanda — the Flink/Redpanda lesson).
+# Qdrant (weyland ns) is permissive-meshed, so plaintext from an un-meshed pod reaches it fine. The pgvector
+# consumer (step 5) is the ONE that must be meshed (Postgres strict mTLS) — handled separately there.
+# Local image: build on mother + `sudo k3s ctr images import` → imagePullPolicy Never (Flink/Dagster pattern).
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: rag-index-qdrant
+  namespace: data-mesh
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: rag-index-qdrant
+  template:
+    metadata:
+      labels:
+        app: rag-index-qdrant
+      annotations:
+        sidecar.istio.io/inject: "false"
+    spec:
+      containers:
+        - name: rag-index
+          image: weyland-rag-index:local
+          imagePullPolicy: Never
+          env:
+            - name: STORE
+              value: qdrant
+            - name: GROUP_ID
+              value: rag-index-qdrant
+            - name: REDPANDA_BOOTSTRAP
+              value: redpanda.data-mesh.svc.cluster.local:9092
+            - name: SCHEMA_REGISTRY_URL
+              value: http://redpanda.data-mesh.svc.cluster.local:8081
+            - name: QDRANT_URL
+              value: http://qdrant.weyland.svc.cluster.local:6333
+          resources:
+            requests:
+              cpu: 25m
+              memory: 128Mi
+            limits:
+              memory: 512Mi
