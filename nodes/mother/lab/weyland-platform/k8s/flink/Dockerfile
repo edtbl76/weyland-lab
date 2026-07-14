@@ -28,9 +28,16 @@ RUN mkdir -p /opt/flink/plugins/s3-fs-hadoop && \
 # plugin's Hadoop is isolated in a plugin classloader and doesn't count. This uber jar is package-shaded to coexist
 # with Flink (only org.apache.hadoop stays un-relocated), so it's the safe single-jar fix.
 ARG HADOOP_UBER_VER=2.8.3-10.0
+# NESSIE_VER matches what iceberg-nessie 1.7.1 was built against (Iceberg 1.7.x → Nessie 0.99.x); a 0.99 client
+# talks fine to the 0.107.9 server (Nessie keeps the v2 API compatible). Native NessieCatalog uses Nessie's /api/v2
+# via the nessie-client lib — bypasses the generic Iceberg REST client that 403s against Nessie (the Trino lesson).
+ARG NESSIE_VER=0.99.0
 RUN set -eux; cd /opt/flink/lib; \
     curl -fLO ${MAVEN}/org/apache/iceberg/iceberg-flink-runtime-1.20/${ICEBERG_VER}/iceberg-flink-runtime-1.20-${ICEBERG_VER}.jar; \
     curl -fLO ${MAVEN}/org/apache/iceberg/iceberg-aws-bundle/${ICEBERG_VER}/iceberg-aws-bundle-${ICEBERG_VER}.jar; \
+    curl -fLO ${MAVEN}/org/apache/iceberg/iceberg-nessie/${ICEBERG_VER}/iceberg-nessie-${ICEBERG_VER}.jar; \
+    curl -fLO ${MAVEN}/org/projectnessie/nessie/nessie-client/${NESSIE_VER}/nessie-client-${NESSIE_VER}.jar; \
+    curl -fLO ${MAVEN}/org/projectnessie/nessie/nessie-model/${NESSIE_VER}/nessie-model-${NESSIE_VER}.jar; \
     curl -fLO ${MAVEN}/org/apache/flink/flink-sql-connector-kafka/${KAFKA_CONN_VER}/flink-sql-connector-kafka-${KAFKA_CONN_VER}.jar; \
     curl -fLO ${MAVEN}/org/apache/flink/flink-sql-avro-confluent-registry/${FLINK_VER}/flink-sql-avro-confluent-registry-${FLINK_VER}.jar; \
     curl -fLO ${MAVEN}/org/apache/flink/flink-shaded-hadoop-2-uber/${HADOOP_UBER_VER}/flink-shaded-hadoop-2-uber-${HADOOP_UBER_VER}.jar

@@ -7,12 +7,15 @@
 
 SET 'pipeline.name' = 'rta-trending-artists';
 
--- Iceberg catalog → Nessie's /iceberg REST endpoint (in-cluster svc; forward-auth is browser-only).
+-- Native NessieCatalog → Nessie's /api/v2 (the proven Trino path; the generic Iceberg REST client 403s on Nessie).
+-- S3FileIO → MinIO via AWS_* env; warehouse = the same s3://warehouse Trino/dbt use, ref = main.
 CREATE CATALOG nessie WITH (
   'type' = 'iceberg',
-  'catalog-type' = 'rest',
-  'uri' = 'http://nessie.data-mesh.svc.cluster.local:19120/iceberg',
-  'warehouse' = 'warehouse',
+  'catalog-impl' = 'org.apache.iceberg.nessie.NessieCatalog',
+  'uri' = 'http://nessie.data-mesh.svc.cluster.local:19120/api/v2',
+  'ref' = 'main',
+  'warehouse' = 's3://warehouse',
+  'io-impl' = 'org.apache.iceberg.aws.s3.S3FileIO',
   's3.endpoint' = 'http://minio.minio.svc.cluster.local:9000',
   's3.path-style-access' = 'true'
 );
