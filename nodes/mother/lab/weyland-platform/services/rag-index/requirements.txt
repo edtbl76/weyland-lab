@@ -3,3 +3,6 @@ confluent-kafka[avro]
 fastavro
 qdrant-client
 httpx
+psycopg2-binary
+neo4j
+weaviate-client

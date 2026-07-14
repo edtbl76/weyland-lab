@@ -9,4 +9,13 @@ def get_handler(store: str):
     if store == "opensearch":
         from stores.opensearch_store import OpensearchHandler
         return OpensearchHandler()
-    raise ValueError(f"unknown STORE={store!r} (implemented: qdrant, opensearch)")
+    if store == "pgvector":
+        from stores.pgvector_store import PgvectorHandler
+        return PgvectorHandler()
+    if store == "neo4j":
+        from stores.neo4j_store import Neo4jHandler
+        return Neo4jHandler()
+    if store == "weaviate":
+        from stores.weaviate_store import WeaviateHandler
+        return WeaviateHandler()
+    raise ValueError(f"unknown STORE={store!r} (implemented: qdrant, opensearch, pgvector, neo4j, weaviate)")

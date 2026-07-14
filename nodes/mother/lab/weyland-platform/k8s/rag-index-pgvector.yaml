@@ -1,0 +1,56 @@
+# rag-index consumer — pgvector (B-RAG-STREAM step 5). Runs in weyland ns (with Postgres + its secret).
+# SIDECAR ON: Postgres is STRICT mTLS, so this consumer must be meshed to reach it. Kafka + schema-registry
+# ports are EXCLUDED from the sidecar so the Redpanda connection bypasses Envoy while Postgres (5432) goes
+# through the mesh. Password from dagster-postgres-secret (the same secret the Dagster user-code uses).
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: rag-index-pgvector
+  namespace: weyland
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: rag-index-pgvector
+  template:
+    metadata:
+      labels:
+        app: rag-index-pgvector
+      annotations:
+        sidecar.istio.io/inject: "true"
+        traffic.sidecar.istio.io/excludeOutboundPorts: "9092,8081"
+    spec:
+      containers:
+        - name: rag-index
+          image: weyland-rag-index:local
+          imagePullPolicy: Never
+          env:
+            - name: STORE
+              value: pgvector
+            - name: GROUP_ID
+              value: rag-index-pgvector
+            - name: REDPANDA_BOOTSTRAP
+              value: redpanda.data-mesh.svc.cluster.local:9092
+            - name: SCHEMA_REGISTRY_URL
+              value: http://redpanda.data-mesh.svc.cluster.local:8081
+            - name: WEYLAND_PG_HOST
+              value: weyland-postgres.weyland.svc.cluster.local
+            - name: WEYLAND_PG_PORT
+              value: "5432"
+            - name: WEYLAND_PG_DB
+              value: weyland
+            - name: WEYLAND_PG_USER
+              value: weyland
+            - name: WEYLAND_PG_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: dagster-postgres-secret
+                  key: password
+          resources:
+            requests:
+              cpu: 25m
+              memory: 128Mi
+            limits:
+              memory: 512Mi

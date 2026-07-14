@@ -1,0 +1,52 @@
+# rag-index consumer — neo4j (B-RAG-STREAM step 5). Runs in weyland ns (with neo4j + its secret).
+# SIDECAR ON: neo4j Bolt is meshed (the neo4j-bolt DestinationRule adds the keepalive). Kafka + schema-registry
+# ports are EXCLUDED from the sidecar so the long-lived Redpanda connection bypasses Envoy (no half-open stall)
+# while Bolt (7687) still goes through the mesh (mTLS).
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: rag-index-neo4j
+  namespace: weyland
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: rag-index-neo4j
+  template:
+    metadata:
+      labels:
+        app: rag-index-neo4j
+      annotations:
+        sidecar.istio.io/inject: "true"
+        traffic.sidecar.istio.io/excludeOutboundPorts: "9092,8081"
+    spec:
+      containers:
+        - name: rag-index
+          image: weyland-rag-index:local
+          imagePullPolicy: Never
+          env:
+            - name: STORE
+              value: neo4j
+            - name: GROUP_ID
+              value: rag-index-neo4j
+            - name: REDPANDA_BOOTSTRAP
+              value: redpanda.data-mesh.svc.cluster.local:9092
+            - name: SCHEMA_REGISTRY_URL
+              value: http://redpanda.data-mesh.svc.cluster.local:8081
+            - name: NEO4J_URI
+              value: bolt://neo4j.weyland.svc.cluster.local:7687
+            - name: NEO4J_USER
+              value: neo4j
+            - name: NEO4J_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: neo4j-secret
+                  key: password
+          resources:
+            requests:
+              cpu: 25m
+              memory: 128Mi
+            limits:
+              memory: 512Mi
