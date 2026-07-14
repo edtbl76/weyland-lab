@@ -10,7 +10,7 @@ import os
 import sys
 import time
 
-from confluent_kafka import DeserializingConsumer
+from confluent_kafka import DeserializingConsumer, KafkaError, KafkaException
 from confluent_kafka.admin import AdminClient, NewTopic
 from confluent_kafka.error import ConsumeError
 from confluent_kafka.schema_registry import SchemaRegistryClient
@@ -34,8 +34,8 @@ def _ensure_topic() -> None:
     fut = admin.create_topics([NewTopic(TOPIC, num_partitions=3, replication_factor=1)])[TOPIC]
     try:
         fut.result()
-    except Exception as e:  # noqa: BLE001 — already-exists is fine
-        if "already exists" not in str(e).lower():
+    except KafkaException as e:  # already-created is fine (message wording varies by broker → check the code)
+        if e.args[0].code() != KafkaError.TOPIC_ALREADY_EXISTS:
             raise
 
 

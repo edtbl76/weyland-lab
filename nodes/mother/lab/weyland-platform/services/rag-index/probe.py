@@ -9,7 +9,7 @@ Uses the exact serializer/topic conventions as the dataset streaming_producer (C
 import os
 import sys
 
-from confluent_kafka import SerializingProducer
+from confluent_kafka import KafkaError, KafkaException, SerializingProducer
 from confluent_kafka.admin import AdminClient, NewTopic
 from confluent_kafka.schema_registry import SchemaRegistryClient
 from confluent_kafka.schema_registry.avro import AvroSerializer
@@ -27,8 +27,8 @@ def _ensure_topic():
     fut = admin.create_topics([NewTopic(TOPIC, num_partitions=3, replication_factor=1)])[TOPIC]
     try:
         fut.result()
-    except Exception as e:  # noqa: BLE001 — already-exists is fine
-        if "already exists" not in str(e).lower():
+    except KafkaException as e:  # already-created is fine (check the code, not the message wording)
+        if e.args[0].code() != KafkaError.TOPIC_ALREADY_EXISTS:
             raise
 
 
