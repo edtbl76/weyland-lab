@@ -1882,7 +1882,9 @@ def emit_dataset_queries():
 
 def _gms_emitter() -> DatahubRestEmitter:
     server = os.environ.get("DATAHUB_GMS_URL", "http://datahub-datahub-gms.data-mesh.svc.cluster.local:8080")
-    return DatahubRestEmitter(gms_server=server, token=os.environ.get("DATAHUB_GMS_TOKEN", ""))
+    # timeouts so a slow/down GMS fails fast instead of hanging the whole (serial, in-process) emit run
+    return DatahubRestEmitter(gms_server=server, token=os.environ.get("DATAHUB_GMS_TOKEN", ""),
+                              connect_timeout_sec=10, read_timeout_sec=30)
 
 
 def _vector_dataset_meta(name, backend):
@@ -2397,7 +2399,8 @@ def emit_file_dataset(platform, table, location, arrow_schema, producer_asset, g
     server = os.environ.get(
         "DATAHUB_GMS_URL", "http://datahub-datahub-gms.data-mesh.svc.cluster.local:8080"
     )
-    emitter = DatahubRestEmitter(gms_server=server, token=os.environ.get("DATAHUB_GMS_TOKEN", ""))
+    emitter = DatahubRestEmitter(gms_server=server, token=os.environ.get("DATAHUB_GMS_TOKEN", ""),
+                                 connect_timeout_sec=10, read_timeout_sec=30)
     urn = make_dataset_urn(platform=platform, name=f"datasets.{table}", env=ENV)
     fields = [
         SchemaFieldClass(fieldPath=f.name, type=_field_type(f.type), nativeDataType=str(f.type))
@@ -2439,7 +2442,8 @@ def emit() -> int:
         "http://datahub-datahub-gms.data-mesh.svc.cluster.local:8080",
     )
     token = os.environ.get("DATAHUB_GMS_TOKEN", "")
-    emitter = DatahubRestEmitter(gms_server=server, token=token)
+    emitter = DatahubRestEmitter(gms_server=server, token=token,
+                                 connect_timeout_sec=10, read_timeout_sec=30)
     emitter.test_connection()
     mcps = build_mcps()
     for mcp in mcps:

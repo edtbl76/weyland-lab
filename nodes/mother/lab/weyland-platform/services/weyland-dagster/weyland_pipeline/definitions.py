@@ -273,7 +273,7 @@ def soda_quality_job():
 # each op-subprocess re-importing the full ~1.1 GB definitions → N-concurrent × 1.1 GB OOM'd the 12 Gi pod even
 # though every emit function is individually cheap (~1.24 GB cumulative). One process, one import, ops run
 # sequentially → ~1.3 GB peak, and faster (no per-op subprocess spawn + re-import).
-@job(executor_def=in_process_executor)
+@job(executor_def=in_process_executor, tags={"dagster/max_runtime": 1800})
 def datahub_catalog_emit_job():
     emit_dagster_assets_op()
     emit_qdrant_op()
