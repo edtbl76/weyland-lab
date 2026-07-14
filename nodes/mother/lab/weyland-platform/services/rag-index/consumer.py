@@ -72,6 +72,12 @@ def main() -> None:
                 print(f"[rag-index/{STORE}] consume error: {msg.error()}", file=sys.stderr, flush=True)
                 continue
             rec = msg.value()
+            # Strip NUL (0x00) from text fields — a few source files carry it; Postgres rejects NUL in text,
+            # and it's junk everywhere. Sanitize once here so every store gets clean strings.
+            for _k in ("source_path", "source_name", "chunk_title", "chunk_text"):
+                _v = rec.get(_k)
+                if isinstance(_v, str) and "\x00" in _v:
+                    rec[_k] = _v.replace("\x00", "")
             try:
                 if rec["op"] == "delete":
                     handler.on_delete(rec["source_path"])
