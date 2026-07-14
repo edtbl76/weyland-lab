@@ -18,9 +18,10 @@ spec:
     metadata:
       labels:
         app: rag-index-neo4j
+        sidecar.istio.io/inject: "true"   # LABEL, not annotation — this cluster's injector keys on the label
       annotations:
-        sidecar.istio.io/inject: "true"
         traffic.sidecar.istio.io/excludeOutboundPorts: "9092,8081"
+        proxy.istio.io/config: '{"holdApplicationUntilProxyStarts": true}'   # wait for Envoy before connecting
     spec:
       containers:
         - name: rag-index
