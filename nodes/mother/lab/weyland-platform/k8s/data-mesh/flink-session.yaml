@@ -45,11 +45,11 @@ spec:
   jobManager:
     resource:
       memory: "1600m"
-      cpu: 1
+      cpu: 0.25          # node CPU-requests are saturated; JM is coordination-only, runs fine throttled (lab)
   taskManager:
     resource:
       memory: "2048m"
-      cpu: 1
+      cpu: 0.5           # the worker — bounded streams, 0.5 core is plenty here
   # session mode = NO `job:` block — jobs are submitted separately as FlinkSessionJobs (steps 3–5).
 ---
 apiVersion: networking.k8s.io/v1
