@@ -3,11 +3,17 @@ No vectors: OpenSearch analyzes `content` for BM25. Standalone instance runs sec
 no creds. Idempotent: upsert = index by deterministic _id `{source_path}:{chunk_index}`; delete = delete-by-query
 on source_path (the streaming form of the asset's per-doc clear + orphan prune). aidlc-kb (its own domain, own
 source_paths) is never matched by a docs delete."""
+import hashlib
 import os
 
 import httpx
 
 INDEX = "weyland_chunks"
+
+
+def _doc_id(source_path: str, chunk_index: int) -> str:
+    # Deterministic + slash-free: source_path has '/', which would break the _doc URL path (400).
+    return hashlib.md5(f"{source_path}:{chunk_index}".encode()).hexdigest()
 _MAPPING = {
     "mappings": {
         "properties": {
@@ -37,7 +43,7 @@ class OpensearchHandler:
 
     def on_upsert(self, rec: dict):
         self.client.put(
-            f"/{INDEX}/_doc/{rec['source_path']}:{rec['chunk_index']}",
+            f"/{INDEX}/_doc/{_doc_id(rec['source_path'], rec['chunk_index'])}",
             json={
                 "source_path": rec["source_path"],
                 "source_name": rec.get("source_name"),
