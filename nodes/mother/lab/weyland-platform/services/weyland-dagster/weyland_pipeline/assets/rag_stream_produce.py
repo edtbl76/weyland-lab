@@ -8,6 +8,7 @@ I2, I3, I6). Change-detection + prune state live in `rag_manifest` (this op's ow
 pgvector store's `rag_documents` (see design §3.2b). aidlc-kb is structurally out of scope: source_document
 never yields aidlc-kb/ paths and the manifest query excludes them, so the KB corpus can never be tombstoned.
 """
+import hashlib
 import os
 
 import httpx
@@ -19,6 +20,7 @@ from confluent_kafka.serialization import StringSerializer
 from dagster import MetadataValue, Output, asset
 
 from weyland_pipeline.assets.chunks import _code_chunks, _markdown_chunks
+from weyland_pipeline.assets.source_document import collect_source_documents
 from weyland_pipeline.resources import PostgresResource
 
 # Keep in sync with services/rag-index/schema.py (RAGCHUNK_SCHEMA) — same subject on the registry.
@@ -88,9 +90,13 @@ def _rec(source_path: str, op: str, run_id: str, **kw) -> dict:
     description="Streaming RAG producer: chunk+embed CHANGED docs, publish upserts+tombstones to rag.chunks. "
                 "rag_manifest = change-detection + prune state; embedding is done on the rogueone GPU service.",
 )
-def rag_stream_produce(context, source_document: list[dict], content_hash: dict,
-                       postgres: PostgresResource) -> Output[dict]:
+def rag_stream_produce(context, postgres: PostgresResource) -> Output[dict]:
     run_id = context.run_id
+    # Self-contained: collect + hash inline instead of taking source_document/content_hash as asset inputs,
+    # so a standalone materialization never fails loading upstream from the ephemeral fs IO manager.
+    source_document = collect_source_documents()
+    content_hash = {d["source_path"]: hashlib.sha256(d["content"].encode("utf-8")).hexdigest()
+                    for d in source_document}
     bootstrap = os.environ["REDPANDA_BOOTSTRAP"]
     sr = SchemaRegistryClient({"url": os.environ["SCHEMA_REGISTRY_URL"]})
     _ensure_topic(bootstrap)

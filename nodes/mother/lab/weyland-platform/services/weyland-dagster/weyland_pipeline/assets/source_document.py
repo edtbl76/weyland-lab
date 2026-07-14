@@ -71,11 +71,7 @@ def _included_kind(rel_posix: str, abs_path: str) -> str | None:
     return None
 
 
-@asset(
-    retry_policy=RetryPolicy(max_retries=2, delay=30),
-    description="Shallow-clone the weyland repo from GitHub and collect docs/ + nodes/ source files.",
-)
-def source_document() -> list[dict]:
+def collect_source_documents() -> list[dict]:
     log = get_dagster_logger()
     repo_url = os.environ["GIT_REPO_URL"]            # e.g. https://github.com/<org>/weyland.git
     git_ref = os.environ.get("GIT_REF", "").strip()  # branch/tag; empty -> default branch
@@ -146,3 +142,13 @@ def source_document() -> list[dict]:
         return documents
     finally:
         shutil.rmtree(tmp_dir, ignore_errors=True)
+
+
+@asset(
+    retry_policy=RetryPolicy(max_retries=2, delay=30),
+    description="Shallow-clone the weyland repo from GitHub and collect docs/ + nodes/ source files.",
+)
+def source_document() -> list[dict]:
+    """Asset wrapper. The reusable collector is collect_source_documents() so rag_stream_produce can call it
+    directly — no fs-IO-manager cross-run input load, which fails when the producer is materialized alone."""
+    return collect_source_documents()
