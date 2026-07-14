@@ -42,6 +42,9 @@ CREATE TEMPORARY TABLE lastfm_src (
   'properties.bootstrap.servers' = 'redpanda.data-mesh.svc.cluster.local:9092',
   'properties.group.id' = 'flink-rta-trending',
   'scan.startup.mode' = 'earliest-offset',
+  -- BOUNDED: lastfm is a bounded REPLAY (not a live feed). Reading earliest→latest then stopping makes Flink emit
+  -- a MAX watermark on end-of-input, so every tumbling window CLOSES and commits. Drop this line for a live stream.
+  'scan.bounded.mode' = 'latest-offset',
   'format' = 'avro-confluent',
   'avro-confluent.url' = 'http://redpanda.data-mesh.svc.cluster.local:8081'
 );
