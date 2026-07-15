@@ -13,6 +13,12 @@ WORKDIR /build
 COPY sql-runner/ .
 RUN mvn -q -B -DskipTests package
 
+# Stage 1b (B83): build the Java DataStream health job (shaded fat jar - bundles the Kafka connector + Avro).
+FROM maven:3.9-eclipse-temurin-17 AS healthjob
+WORKDIR /build
+COPY health-job/ .
+RUN mvn -q -B -DskipTests package
+
 # Stage 2: the Flink session-cluster image.
 FROM flink:1.20.1-java17
 
@@ -59,6 +65,7 @@ RUN mkdir -p /opt/flink/plugins/metrics-prometheus && \
 # B83: the in-repo SQL runner jar (from stage 1) + the SQL scripts, baked in. FlinkSessionJobs reference the jar
 # via jarURI local:///opt/flink/usrlib/sql-runner.jar and pass a /opt/flink/sql/*.sql path as the arg.
 COPY --from=sqlrunner /build/target/sql-runner.jar /opt/flink/usrlib/sql-runner.jar
+COPY --from=healthjob /build/target/health-job.jar /opt/flink/usrlib/health-job.jar
 COPY sql/ /opt/flink/sql/
 
 USER flink

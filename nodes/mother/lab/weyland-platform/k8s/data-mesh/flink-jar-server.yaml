@@ -25,7 +25,7 @@ spec:
         - name: copy-jar
           image: weyland-flink:local
           imagePullPolicy: Never
-          command: ["sh", "-c", "cp /opt/flink/usrlib/sql-runner.jar /jars/sql-runner.jar"]
+          command: ["sh", "-c", "cp /opt/flink/usrlib/*.jar /jars/"]   # serves sql-runner.jar + health-job.jar
           volumeMounts:
             - name: jars
               mountPath: /jars

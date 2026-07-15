@@ -1,0 +1,17 @@
+# B83 Job 3 - Java DataStream (health) as a declarative FlinkSessionJob. Reads datasets.health.brfss, keyed
+# running mean of data_value per state -> analytics.health.state_risk. CONTINUOUS (stays running). jarURI over
+# http from the jar server (which now serves every /opt/flink/usrlib/*.jar). Fat jar bundles the Kafka connector
+# + Confluent-Avro registry format, so no entryClass arg reads a file - the mainClass is in the jar manifest,
+# but we set it explicitly too.
+apiVersion: flink.apache.org/v1beta1
+kind: FlinkSessionJob
+metadata:
+  name: health-state-risk
+  namespace: data-mesh
+spec:
+  deploymentName: weyland-flink
+  job:
+    jarURI: http://flink-jars.data-mesh.svc.cluster.local/health-job.jar
+    entryClass: lab.weyland.flink.HealthStateRisk
+    parallelism: 1
+    upgradeMode: stateless
