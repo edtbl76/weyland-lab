@@ -1,0 +1,48 @@
+# B83 Job 4 - PyFlink (music) as an APPLICATION-MODE FlinkDeployment (its own cluster), NOT a FlinkSessionJob.
+# Application mode lets the operator run a local:// entry (the flink-python driver jar baked in the dist) - unlike
+# session mode, which forced the http jar-server for the SQL/Java jobs. Isolated image weyland-flink-py:local keeps
+# the ~1GB python+pyflink runtime off the shared session cluster and its running CDC job. Bounded job: it reads the
+# lastfm replay to completion, then FINISHES - delete this FlinkDeployment afterward (no steady-state cost).
+# SIDECAR OFF (streaming plane, long-lived Kafka TCP). No S3/AWS env - the sink is upsert-kafka, not Iceberg.
+apiVersion: flink.apache.org/v1beta1
+kind: FlinkDeployment
+metadata:
+  name: flink-pyflink
+  namespace: data-mesh
+spec:
+  image: weyland-flink-py:local
+  imagePullPolicy: Never
+  flinkVersion: v1_20
+  serviceAccount: flink
+  podTemplate:
+    metadata:
+      annotations:
+        sidecar.istio.io/inject: "false"
+  flinkConfiguration:
+    taskmanager.numberOfTaskSlots: "1"
+    # Prometheus reporter, same as the session cluster - JM+TM expose /metrics on :9249 (B83 observability).
+    metrics.reporter.prom.factory.class: org.apache.flink.metrics.prometheus.PrometheusReporterFactory
+    metrics.reporter.prom.port: "9249"
+  jobManager:
+    resource:
+      memory: "1024m"
+      cpu: 0.25
+  taskManager:
+    resource:
+      memory: "1600m"      # extra headroom over the Java jobs: the PyFlink worker runs a separate python process
+      cpu: 0.5
+  job:
+    # The python driver jar ships in the dist; application mode runs it locally on the app JobManager. PythonDriver
+    # compiles music_tier.py into a job graph and submits it. -pyclientexec/-pyexec pin BOTH the graph-compile
+    # python (JM) and the per-row worker python (TM) to the image's interpreter.
+    jarURI: local:///opt/flink/opt/flink-python-1.20.1.jar
+    entryClass: org.apache.flink.client.python.PythonDriver
+    args:
+      - "-pyclientexec"
+      - "/usr/bin/python3"
+      - "-pyexec"
+      - "/usr/bin/python3"
+      - "-py"
+      - "/opt/flink/usrlib/music_tier.py"
+    parallelism: 1
+    upgradeMode: stateless

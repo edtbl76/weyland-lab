@@ -1,0 +1,29 @@
+# weyland-flink-py - Flink 1.20 PyFlink image (B83 Job 4). SEPARATE from the session image on purpose: PyFlink
+# needs python + the apache-flink pip package (~1GB), so it lives in its own application-mode FlinkDeployment
+# instead of bloating the shared session cluster (and its running CDC job). Only the Kafka connector + Confluent
+# Avro format are needed here (source = lastfm, sink = upsert-kafka JSON) - NO Iceberg/Nessie/Hadoop, since this
+# job writes Kafka, not the lakehouse. Build on mother + `ctr import` into k3s (single node), like the other images.
+FROM flink:1.20.1-java17
+
+ARG KAFKA_CONN_VER=3.3.0-1.20
+ARG FLINK_VER=1.20.1
+ARG MAVEN=https://repo1.maven.org/maven2
+
+USER root
+RUN apt-get update && apt-get install -y --no-install-recommends curl python3 python3-pip python3-dev && \
+    ln -sf /usr/bin/python3 /usr/bin/python && rm -rf /var/lib/apt/lists/*
+
+# PyFlink runtime - version pinned to the Flink dist (1.20.1) so the Python API + py4j gateway agree with the Java
+# runtime. --break-system-packages: the base is Debian bookworm (PEP 668 externally-managed), and this is a
+# single-purpose job image, so installing into the system interpreter is fine.
+RUN pip3 install --no-cache-dir --break-system-packages apache-flink==${FLINK_VER}
+
+# Connectors/formats on the classpath: Kafka SQL connector (source + upsert-kafka sink) + Confluent-Avro (source).
+RUN set -eux; cd /opt/flink/lib; \
+    curl -fLO ${MAVEN}/org/apache/flink/flink-sql-connector-kafka/${KAFKA_CONN_VER}/flink-sql-connector-kafka-${KAFKA_CONN_VER}.jar; \
+    curl -fLO ${MAVEN}/org/apache/flink/flink-sql-avro-confluent-registry/${FLINK_VER}/flink-sql-avro-confluent-registry-${FLINK_VER}.jar
+
+# The PyFlink job script (application mode reads it via local:// - no jar-server needed).
+COPY pyflink/music_tier.py /opt/flink/usrlib/music_tier.py
+
+USER flink
