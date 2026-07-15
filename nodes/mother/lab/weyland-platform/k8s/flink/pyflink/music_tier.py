@@ -1,22 +1,25 @@
 # B83 Job 4 - PyFlink (music). The one surface the SQL jobs (Table API in SQL) and the Java job (DataStream keyed
 # state) do not cover: a real PYTHON UDF executed per row by the Python worker. Reads the bounded
-# datasets.music.lastfm replay, aggregates plays per artist, and a Python UDF buckets each play-count into a
-# human popularity tier -> upsert-kafka analytics.music.artist_tier.
+# datasets.music.lastfm replay (lastfm-360K: each row = a user's TOTAL plays of an artist, in play_count), sums
+# play_count per artist, and a Python UDF buckets that total into a human popularity tier ->
+# upsert-kafka analytics.music.artist_tier.
 from pyflink.table import EnvironmentSettings, TableEnvironment, DataTypes
 from pyflink.table.udf import udf
 
 
 # The point of the whole job: arbitrary Python that Flink SQL can't express, run per row via the Python worker
-# (Flink ships rows to a python process over the py4j/Beam boundary). Buckets a play-count into a popularity tier.
+# (Flink ships rows to a python process over the py4j/Beam boundary). Buckets an artist's TOTAL play_count (summed
+# across all users) into a popularity tier. Thresholds are illustrative for lastfm-360K total-play magnitudes; if
+# the run lands everything in one bucket, retune.
 @udf(result_type=DataTypes.STRING())
 def popularity_tier(plays):
     if plays is None:
         return "unknown"
-    if plays >= 500:
+    if plays >= 1_000_000:
         return "viral"
-    if plays >= 100:
+    if plays >= 100_000:
         return "popular"
-    if plays >= 20:
+    if plays >= 10_000:
         return "rising"
     return "niche"
 
@@ -36,8 +39,8 @@ def main():
     # via the Redpanda schema registry. Field names match the producer's registered schema (lowercase for lastfm).
     t_env.execute_sql("""
       CREATE TEMPORARY TABLE lastfm_src (
-        user_id     STRING,
-        artist_name STRING
+        artist_name STRING,
+        play_count  BIGINT
       ) WITH (
         'connector' = 'kafka',
         'topic' = 'datasets.music.lastfm',
@@ -71,7 +74,7 @@ def main():
       INSERT INTO artist_tier
       SELECT artist_name, plays, popularity_tier(plays) AS tier
       FROM (
-        SELECT artist_name, COUNT(*) AS plays
+        SELECT artist_name, SUM(play_count) AS plays
         FROM lastfm_src
         GROUP BY artist_name
       )
