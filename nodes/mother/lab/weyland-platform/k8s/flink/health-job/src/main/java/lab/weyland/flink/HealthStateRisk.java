@@ -20,9 +20,9 @@ import org.apache.flink.util.Collector;
 
 /**
  * B83 Job 3 - Java DataStream example (health). Reads the BRFSS survey stream (Confluent-Avro), keys by US
- * state (locationabbr), and maintains a per-state running mean of data_value in keyed state, emitting the
- * updated (state, n, mean_risk) as JSON to analytics.health.state_risk. This proves the Java DataStream + keyed
- * state surface (the SQL jobs prove the Table API; PyFlink is job 4). Java fits health here per the design.
+ * state (Locationdesc, the state name), and maintains a per-state running mean of Data_value in keyed state,
+ * emitting the updated (state, n, mean_risk) as JSON to analytics.health.state_risk. This proves the Java
+ * DataStream + keyed state surface (the SQL jobs prove the Table API; PyFlink is job 4).
  */
 public final class HealthStateRisk {
 
@@ -31,12 +31,15 @@ public final class HealthStateRisk {
     private static final String SRC_TOPIC = "datasets.health.brfss";
     private static final String SINK_TOPIC = "analytics.health.state_risk";
 
-    // Minimal reader schema: only the two fields we need. data_value is a union superset (["null","string",
-    // "double"]) so Avro schema resolution reads it whether the producer typed the column string OR double.
+    // Minimal reader schema: only the two fields we need. Field names are CASE-SENSITIVE and must match the
+    // producer's registered schema EXACTLY - it capitalizes (Locationdesc, Data_value). A mismatched reader field
+    // is silently filled with its default (null), which would drop every record. Locationdesc is the state name
+    // ("California"); Locationabbr in this dataset is a numeric long code, so the name is the better key. Data_value
+    // is a double; the union stays a superset (["null","string","double"]) to tolerate other health streams.
     private static final String READER_SCHEMA =
             "{\"type\":\"record\",\"name\":\"BrfssRow\",\"namespace\":\"weyland.health\",\"fields\":["
-          + "{\"name\":\"locationabbr\",\"type\":[\"null\",\"string\"],\"default\":null},"
-          + "{\"name\":\"data_value\",\"type\":[\"null\",\"string\",\"double\"],\"default\":null}]}";
+          + "{\"name\":\"Locationdesc\",\"type\":[\"null\",\"string\"],\"default\":null},"
+          + "{\"name\":\"Data_value\",\"type\":[\"null\",\"string\",\"double\"],\"default\":null}]}";
 
     public static void main(String[] args) throws Exception {
         StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
@@ -62,7 +65,7 @@ public final class HealthStateRisk {
 
         DataStream<GenericRecord> in = env.fromSource(source, WatermarkStrategy.noWatermarks(), "brfss-src");
 
-        in.keyBy(r -> str(r.get("locationabbr")))
+        in.keyBy(r -> str(r.get("Locationdesc")))
           .flatMap(new RunningMean())
           .sinkTo(sink);
 
@@ -86,7 +89,7 @@ public final class HealthStateRisk {
 
         @Override
         public void flatMap(GenericRecord r, Collector<String> out) throws Exception {
-            Object dv = r.get("data_value");
+            Object dv = r.get("Data_value");
             if (dv == null) {
                 return;
             }
@@ -103,7 +106,7 @@ public final class HealthStateRisk {
             n.update(count);
             sum.update(total);
             out.collect(String.format("{\"state\":\"%s\",\"n\":%d,\"mean_risk\":%.4f}",
-                    str(r.get("locationabbr")), count, total / count));
+                    str(r.get("Locationdesc")), count, total / count));
         }
     }
 
