@@ -21,6 +21,16 @@ spec:
           volumeMounts:
             - name: src
               mountPath: /usr/src
+        # Compile the Flink Java modules so the SonarQube Java analyzer has classes to bind rules against
+        # (sonar.java.binaries below). Java analysis is bytecode-aware and hard-fails on bare source. `compile`
+        # phase only (no shade/fat-jar) -> just target/classes, fast. Runs after clone, shares the /usr/src volume.
+        - name: build-java
+          image: maven:3.9-eclipse-temurin-17
+          workingDir: /usr/src
+          command: ["sh", "-c", "mvn -q -B -f nodes/mother/lab/weyland-platform/k8s/flink/health-job/pom.xml compile && mvn -q -B -f nodes/mother/lab/weyland-platform/k8s/flink/sql-runner/pom.xml compile"]
+          volumeMounts:
+            - name: src
+              mountPath: /usr/src
       containers:
         - name: scanner
           image: sonarsource/sonar-scanner-cli:latest   # on-demand scan Job: immutable once created — don't pin/limit (Argo can't patch it)
@@ -36,6 +46,8 @@ spec:
             - -Dsonar.projectKey=weyland-lab
             - -Dsonar.sources=.
             - -Dsonar.exclusions=**/node_modules/**,**/.yarn/**,**/.git/**,**/openclaw/**,site-techdocs/**
+            # Compiled classes from the build-java initContainer, so the Java analyzer binds instead of failing.
+            - -Dsonar.java.binaries=nodes/mother/lab/weyland-platform/k8s/flink/health-job/target/classes,nodes/mother/lab/weyland-platform/k8s/flink/sql-runner/target/classes
           volumeMounts:
             - name: src
               mountPath: /usr/src

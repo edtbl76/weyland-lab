@@ -28,7 +28,12 @@ weyland_ingestion_job = define_asset_job(
     # store (Cassandra 515k rows, Cockroach ~3M, Mongo 4.5M …) is exactly the ingestion weight we cut.
     - AssetSelection.groups("datasets_health_stores")
     - AssetSelection.groups("datasets_music_stores")
-    - AssetSelection.groups("timeseries"),
+    - AssetSelection.groups("timeseries")
+    # dbt has its OWN weekly schedule (weyland_dbt_job, Sun 06:00). all() swept it into the nightly ingestion too,
+    # so every night it rebuilt all 37 marts against Trino — and 503'd whenever a heavy aggregation model
+    # (mart_genre_audio_profile) pressured Trino into OOM/unavailability, failing the whole ingestion run. Exclude
+    # it here; marts are built weekly, and nothing in the nightly ingestion depends on fresh marts. [[dbt-transform-tier]]
+    - AssetSelection.assets(weyland_dbt_assets),
 )
 
 # B72 — the brokered fan-out (all per-format assets, each isolated in its own process);
