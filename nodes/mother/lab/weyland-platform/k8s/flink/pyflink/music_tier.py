@@ -9,17 +9,18 @@ from pyflink.table.udf import udf
 
 # The point of the whole job: arbitrary Python that Flink SQL can't express, run per row via the Python worker
 # (Flink ships rows to a python process over the py4j/Beam boundary). Buckets an artist's TOTAL play_count (summed
-# across all users) into a popularity tier. Thresholds are calibrated to THIS sampled topic's real distribution
-# (measured: max 442, p90 10, p50 2) so the tiers actually spread across artists rather than all landing in one.
+# across all users) into a popularity tier. Thresholds anchored to the real SUM(play_count) distribution measured
+# on this topic (22502 artists: max 210458, p99 14309, p90 1758, p50 170) so viral is the exclusive top ~1% (the
+# household names) rather than diluted. viral~=p99, popular~=p90, rising~=p50.
 @udf(result_type=DataTypes.STRING())
 def popularity_tier(plays):
     if plays is None:
         return "unknown"
-    if plays >= 100:
+    if plays >= 15000:
         return "viral"
-    if plays >= 30:
+    if plays >= 1800:
         return "popular"
-    if plays >= 8:
+    if plays >= 170:
         return "rising"
     return "niche"
 
