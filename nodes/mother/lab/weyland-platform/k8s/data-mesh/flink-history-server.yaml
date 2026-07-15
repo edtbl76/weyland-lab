@@ -1,0 +1,85 @@
+# Flink History Server (B83 observability) - standalone, NOT operator-managed. Reads the archive dir the
+# session cluster writes finished jobs to (jobmanager.archive.fs.dir) and serves ALL completed jobs, forever,
+# independent of the session cluster (survives JM restarts / session churn - the in-memory job store does not).
+# Same weyland-flink:local image (has the s3-fs-hadoop plugin); the base flink entrypoint's `history-server`
+# arg runs bin/historyserver.sh, and FLINK_PROPERTIES is merged into the flink config. SIDECAR OFF (streaming
+# plane). S3 creds via AWS_* env from nessie-secret, like the session cluster.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: flink-history
+  namespace: data-mesh
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: flink-history
+  template:
+    metadata:
+      labels:
+        app: flink-history
+      annotations:
+        sidecar.istio.io/inject: "false"
+    spec:
+      containers:
+        - name: history
+          image: weyland-flink:local
+          imagePullPolicy: Never
+          args: ["history-server"]
+          env:
+            - name: FLINK_PROPERTIES
+              value: |
+                historyserver.web.address: 0.0.0.0
+                historyserver.web.port: 8082
+                historyserver.archive.fs.dir: s3://warehouse/_flink/completed-jobs
+                historyserver.archive.fs.refresh-interval: 10000
+                s3.endpoint: http://minio.minio.svc.cluster.local:9000
+                s3.path.style.access: true
+            - name: AWS_ACCESS_KEY_ID
+              valueFrom: { secretKeyRef: { name: nessie-secret, key: s3-access-key } }
+            - name: AWS_SECRET_ACCESS_KEY
+              valueFrom: { secretKeyRef: { name: nessie-secret, key: s3-secret-key } }
+            - name: AWS_REGION
+              value: us-east-1
+          ports:
+            - containerPort: 8082
+              name: web
+          resources:
+            requests:
+              cpu: 100m
+              memory: 512Mi
+            limits:
+              memory: 1Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: flink-history
+  namespace: data-mesh
+spec:
+  selector:
+    app: flink-history
+  ports:
+    - port: 8082
+      targetPort: 8082
+      name: web
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: flink-history
+  namespace: data-mesh
+  annotations:
+    traefik.ingress.kubernetes.io/router.middlewares: data-mesh-traefik-forward-auth@kubernetescrd
+spec:
+  tls:
+    - hosts: [flink-history.weyland.lab]
+      secretName: weyland-wildcard-tls
+  rules:
+    - host: flink-history.weyland.lab
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service: { name: flink-history, port: { number: 8082 } }
