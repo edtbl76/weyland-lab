@@ -28,6 +28,8 @@ def popularity_tier(plays):
 def main():
     t_env = TableEnvironment.create(EnvironmentSettings.in_streaming_mode())
     t_env.get_config().set("python.executable", "/usr/bin/python3")
+    # Named so the History Server / JM UI list it as "music-popularity-tier" (not an auto-generated insert-into_...).
+    t_env.get_config().set("pipeline.name", "music-popularity-tier")
     # Mini-batch: a non-windowed GROUP BY on a streaming source emits an update PER input row (retract + new). On a
     # multi-million-row replay that is a flood of intermediate upserts. Mini-batch buffers and folds them, so the
     # sink sees far fewer updates and the final tier per artist still lands.

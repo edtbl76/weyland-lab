@@ -22,6 +22,12 @@ RUN set -eux; cd /opt/flink/lib; \
     curl -fLO ${MAVEN}/org/apache/flink/flink-sql-connector-kafka/${KAFKA_CONN_VER}/flink-sql-connector-kafka-${KAFKA_CONN_VER}.jar; \
     curl -fLO ${MAVEN}/org/apache/flink/flink-sql-avro-confluent-registry/${FLINK_VER}/flink-sql-avro-confluent-registry-${FLINK_VER}.jar
 
+# Enable the built-in S3 filesystem (Hadoop) as a plugin so the JobManager can archive the FINISHED bounded job to
+# s3://warehouse/_flink/completed-jobs (the same dir the session cluster archives to), making this app-mode run
+# show up in the shared History Server. The jar ships in /opt/flink/opt; creds come from AWS_* env (nessie-secret).
+RUN mkdir -p /opt/flink/plugins/s3-fs-hadoop && \
+    cp /opt/flink/opt/flink-s3-fs-hadoop-*.jar /opt/flink/plugins/s3-fs-hadoop/
+
 # The PyFlink job script (application mode reads it via local:// - no jar-server needed).
 COPY pyflink/music_tier.py /opt/flink/usrlib/music_tier.py
 

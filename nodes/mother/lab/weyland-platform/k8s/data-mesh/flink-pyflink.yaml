@@ -18,11 +18,29 @@ spec:
     metadata:
       annotations:
         sidecar.istio.io/inject: "false"
+    spec:
+      containers:
+        # AWS_* creds for the S3 archive write (job history -> MinIO). Same nessie-secret + region the session
+        # cluster uses; the default Hadoop/S3FileIO credential chain reads them. Merges into JM + TM.
+        - name: flink-main-container
+          env:
+            - name: AWS_ACCESS_KEY_ID
+              valueFrom: { secretKeyRef: { name: nessie-secret, key: s3-access-key } }
+            - name: AWS_SECRET_ACCESS_KEY
+              valueFrom: { secretKeyRef: { name: nessie-secret, key: s3-secret-key } }
+            - name: AWS_REGION
+              value: us-east-1
   flinkConfiguration:
     taskmanager.numberOfTaskSlots: "1"
     # Prometheus reporter, same as the session cluster - JM+TM expose /metrics on :9249 (B83 observability).
     metrics.reporter.prom.factory.class: org.apache.flink.metrics.prometheus.PrometheusReporterFactory
     metrics.reporter.prom.port: "9249"
+    # Archive the FINISHED bounded job to the SAME dir the session cluster uses, so the shared History Server
+    # (flink-history.weyland.lab) lists this app-mode run too. Needs the s3-fs-hadoop plugin (in the image) + the
+    # AWS_* env above. s3.path.style.access for MinIO.
+    jobmanager.archive.fs.dir: s3://warehouse/_flink/completed-jobs
+    s3.endpoint: http://minio.minio.svc.cluster.local:9000
+    s3.path.style.access: "true"
   jobManager:
     resource:
       memory: "1024m"
