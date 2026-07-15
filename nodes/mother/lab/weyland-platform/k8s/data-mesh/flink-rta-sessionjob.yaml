@@ -12,7 +12,7 @@ metadata:
 spec:
   deploymentName: weyland-flink       # must match the FlinkDeployment (the session cluster)
   job:
-    jarURI: local:///opt/flink/usrlib/sql-runner.jar
+    jarURI: http://flink-jars.data-mesh.svc.cluster.local/sql-runner.jar   # operator fetches it (local:// is not fetchable for session jobs)
     entryClass: lab.weyland.flink.SqlRunner
     args:
       - /opt/flink/sql/rta_trending.sql

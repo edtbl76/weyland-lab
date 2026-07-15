@@ -1,0 +1,61 @@
+# B83 - HTTP jar server for FlinkSessionJobs. A local:// jar baked in the flink image is NOT fetchable by the
+# operator for SESSION mode (the operator uploads the jar to the running cluster, so it must read it from an
+# http/s3 URI - local:// only works for application-mode FlinkDeployments). So: an initContainer copies the
+# sql-runner jar out of weyland-flink:local, nginx serves it, and FlinkSessionJobs use
+# jarURI: http://flink-jars.data-mesh.svc.cluster.local/sql-runner.jar. Internal only (no ingress). Restart this
+# deploy after rebuilding the sql-runner to refresh the served jar.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: flink-jars
+  namespace: data-mesh
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: flink-jars
+  template:
+    metadata:
+      labels:
+        app: flink-jars
+      annotations:
+        sidecar.istio.io/inject: "false"
+    spec:
+      initContainers:
+        - name: copy-jar
+          image: weyland-flink:local
+          imagePullPolicy: Never
+          command: ["sh", "-c", "cp /opt/flink/usrlib/sql-runner.jar /jars/sql-runner.jar"]
+          volumeMounts:
+            - name: jars
+              mountPath: /jars
+      containers:
+        - name: nginx
+          image: nginx:1.27-alpine
+          ports:
+            - containerPort: 80
+          volumeMounts:
+            - name: jars
+              mountPath: /usr/share/nginx/html
+              readOnly: true
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              memory: 64Mi
+      volumes:
+        - name: jars
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: flink-jars
+  namespace: data-mesh
+spec:
+  selector:
+    app: flink-jars
+  ports:
+    - port: 80
+      targetPort: 80
