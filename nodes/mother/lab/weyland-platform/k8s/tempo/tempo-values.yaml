@@ -38,9 +38,10 @@ tempo:
   resources:
     requests:
       cpu: 100m
-      memory: 256Mi
+      memory: 512Mi
     limits:
-      memory: 1Gi
+      memory: 2Gi   # 1Gi OOM'd (exit 137, 155 restarts) ~9s in, completing a vParquet4 block; monolithic Tempo
+                    # builds blocks in memory before the S3 flush and needs ~2Gi. Node has request headroom (85%).
 
 persistence:
   enabled: true
