@@ -72,6 +72,19 @@
             <phase>package</phase>
             <goals><goal>shade</goal></goals>
             <configuration>
+              <!-- The Flink dist ships flink-sql-avro-confluent-registry in /opt/flink/lib for the SQL jobs; it
+                   contains the SAME org.apache.flink.formats.avro.* classes but with Avro shaded. Flink loads
+                   org.apache.flink.* PARENT-FIRST (classloader.parent-first-patterns.default), so the dist copy
+                   shadows ours and forGeneric(org.apache.avro.Schema, String) is NoSuchMethod (its Schema is the
+                   shaded type). Relocate our copy to a private package so there is no name collision and our
+                   plain-Avro version loads. org.apache.avro stays un-relocated: the dist has no plain Avro on its
+                   parent classpath, so it loads child-first from this jar with no conflict. -->
+              <relocations>
+                <relocation>
+                  <pattern>org.apache.flink.formats.avro</pattern>
+                  <shadedPattern>lab.weyland.shaded.flinkavro</shadedPattern>
+                </relocation>
+              </relocations>
               <transformers>
                 <transformer implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
                   <mainClass>lab.weyland.flink.HealthStateRisk</mainClass>
