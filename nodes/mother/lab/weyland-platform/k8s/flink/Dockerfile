@@ -42,4 +42,10 @@ RUN set -eux; cd /opt/flink/lib; \
     curl -fLO ${MAVEN}/org/apache/flink/flink-sql-avro-confluent-registry/${FLINK_VER}/flink-sql-avro-confluent-registry-${FLINK_VER}.jar; \
     curl -fLO ${MAVEN}/org/apache/flink/flink-shaded-hadoop-2-uber/${HADOOP_UBER_VER}/flink-shaded-hadoop-2-uber-${HADOOP_UBER_VER}.jar
 
+# Prometheus metrics reporter (B83 observability) as a plugin: JM+TM then expose /metrics on :9249 for the
+# monitoring stack to scrape. The jar ships in /opt/flink/opt (no download). Placed LAST so it doesn't invalidate
+# the expensive jar-download layer cache above.
+RUN mkdir -p /opt/flink/plugins/metrics-prometheus && \
+    cp /opt/flink/opt/flink-metrics-prometheus-*.jar /opt/flink/plugins/metrics-prometheus/
+
 USER flink

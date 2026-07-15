@@ -18,7 +18,7 @@ C4Component
 
         Component(tool_server, "weyland-tool-server", "FastAPI / Python v0.4.0", "Platform HTTP boundary. RAG retrieval (4 backends), /context/ask (RAG gen), /evals/*, /pipeline/trigger, /health, /ready, /status. Exposes /mcp system-view MCP server (fastapi-mcp, Streamable HTTP, read-only). :30080")
 
-        Component(dagster, "Dagster", "Python / Helm", "Pipeline orchestration. RAG: weyland_ingestion_job (git-pull -> chunk -> embed -> 4-backend write), eval, catalog (6h), aidlc_kb (B37). DATASETS LAKEHOUSE (datasets_lib, B72/B75): per-dataset land -> lakeFS raw; brokered transform -> silver (parquet/arrow/avro/lance) + Iceberg gold; asset-check quality gate; build_store_load_assets hydrates Tier-2 stores (MySQL/Timescale/Mongo/Cockroach/Cassandra/ClickHouse/OpenSearch done; ClickHouse via native s3() from lakeFS). dagster.weyland.lab")
+        Component(dagster, "Dagster", "Python / Helm", "Pipeline orchestration. RAG: rag_stream_produce (B-RAG-STREAM streaming producer -> rag-embed GPU -> Redpanda rag.chunks; replaced the in-process weyland_ingestion_job chunk/embed/4-backend-write chain), eval, catalog (6h), aidlc_kb (B37). DATASETS LAKEHOUSE (datasets_lib, B72/B75): per-dataset land -> lakeFS raw; brokered transform -> silver (parquet/arrow/avro/lance) + Iceberg gold; asset-check quality gate; build_store_load_assets hydrates Tier-2 stores (MySQL/Timescale/Mongo/Cockroach/Cassandra/ClickHouse/OpenSearch done; ClickHouse via native s3() from lakeFS). dagster.weyland.lab")
 
         Component(litellm, "LiteLLM", "LiteLLM / k8s", "Hosted-model gateway. Gemini + OpenRouter (wildcard) behind OpenAI /v1. Off-box cut-off valve + spend alerts. mother:30400, litellm.weyland.lab")
 
@@ -82,6 +82,10 @@ C4Component
         Component(datahub, "DataHub", "DataHub / k8s", "Metadata catalog + lineage. Native ingestion sources (Mongo/Cockroach/ClickHouse/Cassandra/MusicBrainz) + custom emitters (MySQL/Timescale/DuckDB/OpenSearch) via the 6h catalog job. OpenSearch + Kafka backend.")
 
         Component(portaction, "Port actions → cluster", "port-agent (ns port-agent) + store-scaler", "Port self-service action → outbound-polling port-agent → in-cluster store-scaler → k8s deployments/scale (wake/sleep the idle data stores).")
+
+        Component(redpanda, "Redpanda", "Redpanda / KRaft / k8s", "Kafka-wire broker + built-in Confluent-compatible schema registry, single-node. Topic rag.chunks (B-RAG-STREAM - Avro, key source_path, upsert + delete-tombstone) alongside datasets.* event topics + cdc.* (Debezium). :9092 / registry :8081. redpanda.weyland.lab (Console)")
+
+        Component(rag_index, "rag-index consumers", "k8s (data-mesh + weyland)", "B-RAG-STREAM streaming fan-out. 5 Deployments off ONE image (weyland-rag-index:local, STORE env), one consumer group each: rag-index-{qdrant,weaviate,opensearch} ns data-mesh (sidecar OFF) + rag-index-{pgvector,neo4j} ns weyland (meshed, Kafka ports 9092/8081 sidecar-excluded). Each replays rag.chunks into its store (upsert + delete-tombstone), commits offsets independently.")
     }
 
     Rel(hermes, tool_server, "MCP /mcp — status, context_search, context_ask, list_models")
@@ -145,4 +149,13 @@ C4Component
     Rel(dagster, tier2, "hydrate Tier-2 stores: silver Parquet -> store (ClickHouse via native s3)")
     Rel(dagster, datahub, "catalog emit (6h) + native ingestion sources")
     Rel(superset, tier2, "ClickHouse OLAP queries")
+    Rel(dagster, rogueone, "rag_stream_produce: POST /embed :8900 (rag-embed, warm GPU)")
+    Rel(dagster, redpanda, "publish rag.chunks (Avro upsert + tombstone)")
+    Rel(dagster, pgvector, "rag_manifest: change-detection + prune state (mTLS, STRICT)")
+    Rel(rag_index, redpanda, "consume rag.chunks (5 groups)")
+    Rel(rag_index, qdrant, "upsert / delete weyland_chunks")
+    Rel(rag_index, weaviate, "upsert / delete WeylandChunk")
+    Rel(rag_index, neo4j, "MERGE Document / Chunk (BELONGS_TO, NEXT)")
+    Rel(rag_index, pgvector, "upsert rag_documents / rag_chunks (mTLS, STRICT)")
+    Rel(rag_index, tier2, "opensearch: index weyland_chunks (BM25)")
 ```

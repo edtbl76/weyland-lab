@@ -40,11 +40,33 @@ kubectl delete pods -n weyland --field-selector=status.phase=Succeeded
 
 ---
 
+## Docs Site (docs.weyland.lab, MkDocs Material)
+
+The site is rebuilt by the pod's initContainer, which **clones the PUBLIC GitHub repo** and runs
+`mkdocs build -f mkdocs-site.yml`. So the refresh workflow is: **push docs to GitHub first**, then restart the
+pod so it re-clones and rebuilds. Mermaid renders natively.
+
+Refresh after a docs change (on mother):
+
+```bash
+kubectl -n weyland rollout restart deploy/docs-site
+kubectl -n weyland rollout status deploy/docs-site
+```
+
+Then open `https://docs.weyland.lab` (Keycloak SSO). If a page 404s or is stale, the build failed or the repo
+was not pushed. Check the build initContainer:
+
+```bash
+kubectl -n weyland logs deploy/docs-site -c build
+```
+
+---
+
 ## Tool Server
 
 > **Host to target:** from mother use `http://localhost:30080`; from **rogueone / any other LAN
 > host** use `http://mother:30080` (NodePort 30080 on mother = 192.168.1.243). Testing from
-> rogueone is the real client path — it also proves the pod's own egress to Ollama (192.168.1.244)
+> rogueone is the real client path - it also proves the pod's own egress to Ollama (192.168.1.244)
 > works end-to-end, not just from the node.
 
 ### Confirm running image
@@ -82,7 +104,7 @@ curl -s http://localhost:30080/weaviate/health | jq
 curl -s http://localhost:30080/neo4j/health | jq
 ```
 
-### Context search — all backends
+### Context search - all backends
 
 ```bash
 curl -s -X POST http://localhost:30080/context/search \
@@ -110,9 +132,9 @@ curl -s -X POST http://localhost:30080/pipeline/trigger \
   -d '{"job_name": "weyland_ingestion_job"}' | jq
 ```
 
-### LLM / RAG (B7 — Ollama at 192.168.1.244)
+### LLM / RAG (B7 - Ollama at 192.168.1.244)
 
-Check reachability first — `.llm.status` confirms pod → 192.168.1.244 routing:
+Check reachability first - `.llm.status` confirms pod → 192.168.1.244 routing:
 
 ```bash
 curl -s http://localhost:30080/status | jq '.llm, .status'
@@ -120,7 +142,7 @@ curl -s http://localhost:30080/ollama/health | jq
 curl -s http://localhost:30080/models | jq
 ```
 
-RAG ask — default model (`qwen3:30b-a3b`), then a per-request model override:
+RAG ask - default model (`qwen3:30b-a3b`), then a per-request model override:
 
 ```bash
 curl -s -X POST http://localhost:30080/context/ask -H "Content-Type: application/json" -d '{"query": "What is the Weyland platform architecture?", "limit": 3}' | jq '{model, answer}'
@@ -128,10 +150,10 @@ curl -s -X POST http://localhost:30080/context/ask -H "Content-Type: application
 ```
 
 > First `/context/ask` after a deploy can take 10–60 s (model load + CPU generation + qwen3's
-> thinking block) — that's expected, not a hang. The 300 s server-side timeout covers it; the
+> thinking block) - that's expected, not a hang. The 300 s server-side timeout covers it; the
 > model then stays resident ~5 min (`OLLAMA_KEEP_ALIVE`) so follow-up calls are fast.
 
-#### From rogueone (external client — the real consumption path)
+#### From rogueone (external client - the real consumption path)
 
 Same calls, swap `localhost` → `mother` (NodePort on 192.168.1.243). This validates the full chain
 a harness client uses: rogueone → mother NodePort → pod → Ollama (192.168.1.244).
@@ -149,7 +171,7 @@ curl -s -X POST http://mother:30080/context/ask -H "Content-Type: application/js
 
 ## Eval (B4)
 
-Drive the eval loop + read the leaderboard via the tool-server — single-path, no kubectl/SQL. Dagster
+Drive the eval loop + read the leaderboard via the tool-server - single-path, no kubectl/SQL. Dagster
 / Postgres internals: ../runbooks/eval-harness.md.
 
 ```bash
@@ -162,7 +184,7 @@ curl -s "http://localhost:30080/evals/leaderboard?run_id=3" | jq   # a specific 
 
 ---
 
-## Guardrails (B14 — shadow mode)
+## Guardrails (B14 - shadow mode)
 
 Pluggable validators at the tool-server seam: `input` hook (injection) on `/context/*`, `output` hook
 (toxicity + NLI grounding) on `/context/ask`. Shadow = record-only, never blocks. Verdicts → `/metrics`
@@ -181,7 +203,7 @@ kubectl apply -f ~/lab/weyland-platform/k8s/monitoring/servicemonitors.yaml   # 
 ### Redeploy the guard code (see also Image Management below)
 
 The image bakes 3 guard models (injection, toxicity, NLI grounding); the build is heavy but layer-cached
-after the first. **Verify the source actually landed on mother before building** — `rsync -a` into the
+after the first. **Verify the source actually landed on mother before building** - `rsync -a` into the
 existing dir does not remove stale files unless you use `--delete` or copy changed files by explicit path
 (cost a full debug loop once):
 
@@ -205,7 +227,7 @@ kubectl exec -i -n weyland deploy/weyland-postgres -- psql -U weyland -d weyland
 
 Confirm Prometheus is scraping it (after the ServiceMonitor applies):
 
-The Prometheus image has no wget/curl — use the in-image `promtool` to query its own TSDB. Querying a
+The Prometheus image has no wget/curl - use the in-image `promtool` to query its own TSDB. Querying a
 guardrail metric proves the whole chain (ServiceMonitor → scrape → store); empty means not scraped yet
 (wait a scrape interval after applying the ServiceMonitor):
 
@@ -218,7 +240,7 @@ kubectl exec -n monitoring "$(kubectl get pod -n monitoring -l app.kubernetes.io
 
 The three action routes (`/pipeline/trigger`, `/evals/run`, `/evals/score`) are exposed on a separate
 `/mcp-act` MCP mount and every call is audited by the `act` hook (`policy.audit`, shadow). `actor` comes from
-the trusted `X-Forwarded-Consumer` header only (NULL otherwise — the gateway injects it later, B17+B19):
+the trusted `X-Forwarded-Consumer` header only (NULL otherwise - the gateway injects it later, B17+B19):
 
 ```bash
 curl -s -i http://localhost:30080/mcp-act | head -3                                          # separate act surface responds (not 404)
@@ -257,14 +279,14 @@ kubectl rollout restart deployment/weyland-tool-server -n weyland
 kubectl rollout status deployment/weyland-tool-server -n weyland
 ```
 
-> Note: mother runs workloads in k3s/containerd, NOT docker — docker here is only a
+> Note: mother runs workloads in k3s/containerd, NOT docker - docker here is only a
 > build tool. Every `save | ctr import` leaves the prior docker image dangling, so the
 > `docker image prune -f` above keeps `/var/lib/docker` from ballooning (it hit 88% once).
 > containerd self-GCs unreferenced images, so no manual cleanup needed there.
 >
 > The `kubectl apply` is only needed when the **manifest** changed (e.g. the B7 `OLLAMA_*`
 > env). For a code-only change (`main.py`), `rollout restart` alone re-pulls the freshly
-> imported image. `rollout restart` does NOT re-read the manifest — so don't skip the apply
+> imported image. `rollout restart` does NOT re-read the manifest - so don't skip the apply
 > when env/probes changed.
 
 ---
@@ -285,7 +307,7 @@ https://dagster.weyland.lab
 
 ### Rebuild and redeploy user-code image
 
-Run from **rogueone** — sync the full pipeline directory first (one password prompt, no per-file copy):
+Run from **rogueone** - sync the full pipeline directory first (one password prompt, no per-file copy):
 
 ```bash
 rsync -av /home/edwardmangini/IdeaProjects/weyland/nodes/mother/lab/weyland-platform/services/weyland-dagster/weyland_pipeline/ emangini@mother:~/lab/weyland-platform/services/weyland-dagster/weyland_pipeline/
@@ -295,36 +317,36 @@ Then on **mother**:
 
 ```bash
 docker build -t weyland-dagster-user-code:local ~/lab/weyland-platform/services/weyland-dagster/
-sudo k3s ctr -n k8s.io images rm docker.io/library/weyland-dagster-user-code:local   # MUST remove the stale tag first — import will NOT overwrite an existing tag (see below)
+sudo k3s ctr -n k8s.io images rm docker.io/library/weyland-dagster-user-code:local   # MUST remove the stale tag first - import will NOT overwrite an existing tag (see below)
 docker save weyland-dagster-user-code:local | sudo k3s ctr -n k8s.io images import -
 docker image prune -f --filter "until=24h"   # reclaim dangling builds older than 24h; keeps layer cache for fast rebuilds. Full prune caused 153GB accumulation + DiskPressure taint (2026-06-29)
 kubectl -n weyland rollout restart deployment/dagster-user-code
 kubectl -n weyland rollout status deployment/dagster-user-code
 ```
 
-Then **verify the live pod is running the new code** — never trust "rollout succeeded" alone:
+Then **verify the live pod is running the new code** - never trust "rollout succeeded" alone:
 
 ```bash
 kubectl -n weyland exec deploy/dagster-user-code -- python -c "import weyland_pipeline; print('import OK')"
 ```
 
 > **TAG: always `:local`, never `:latest`.** The deployment runs `weyland-dagster-user-code:local` with
-> `imagePullPolicy: Never`. A `:latest` build imports into containerd fine but **nothing mounts it** —
+> `imagePullPolicy: Never`. A `:latest` build imports into containerd fine but **nothing mounts it** -
 > the pod keeps serving the old `:local`. Cost us ~1h on 2026-06-29.
 >
 > **Import will NOT overwrite an existing tag.** `k3s ctr images import` silently keeps the old manifest
-> if `docker.io/library/weyland-dagster-user-code:local` already exists — so the `images rm` line above is
+> if `docker.io/library/weyland-dagster-user-code:local` already exists - so the `images rm` line above is
 > mandatory. Confirm the swap took with `sudo k3s ctr -n k8s.io images ls | grep weyland-dagster-user-code`
 > (the `:local` digest must change). Fast alternative when the clean image is already in containerd under
 > another tag: `sudo k3s ctr -n k8s.io images rm …:local && sudo k3s ctr -n k8s.io images tag …:latest …:local`
 > (instant retag, no 10GB `docker save`).
 >
-> Use the explicit `-n k8s.io` namespace — that's the one Kubernetes/CRI reads from.
+> Use the explicit `-n k8s.io` namespace - that's the one Kubernetes/CRI reads from.
 
 > `docker image prune -f` is mandatory after every build+import. Skipping it caused k3s to apply
 > a `node.kubernetes.io/disk-pressure:NoSchedule` taint that blocked all pod scheduling on mother.
 
-### Datasets pipeline — diagnostics & cleanup
+### Datasets pipeline - diagnostics & cleanup
 
 Transform jobs are launched from the Dagster UI (`weyland_datasets_<domain>_transform_job`, serialized).
 After a run, the `_parquet`/`_iceberg` asset `detail` metadata is the per-table result map. Useful in-pod one-liners:
@@ -333,7 +355,7 @@ After a run, the `_parquet`/`_iceberg` asset `detail` metadata is the per-table 
 # List Iceberg tables for a domain (spot stale clobber/twin cruft)
 kubectl -n weyland exec deploy/dagster-user-code -- python -c "from weyland_pipeline.iceberg_publish import _catalog; print(sorted(t[-1] for t in _catalog().list_tables('datasets_music')))"
 
-# Drop a stale Iceberg table (regenerates from raw on the next iceberg run) — needed after a schema fix,
+# Drop a stale Iceberg table (regenerates from raw on the next iceberg run) - needed after a schema fix,
 # since union_by_name can't reconcile a bad field baked into an existing table
 kubectl -n weyland exec deploy/dagster-user-code -- python -c "
 from weyland_pipeline.iceberg_publish import _catalog
@@ -346,7 +368,7 @@ for t in ['datasets_music.spotify_tracks']:
 # Inspect a raw object's first bytes (e.g. verify NHANES .XPT is real XPORT, not an HTML error page)
 kubectl -n weyland exec deploy/dagster-user-code -- python -c "import os; from minio import Minio; ep=os.environ['LAKEFS_ENDPOINT'].replace('http://','').replace('https://',''); c=Minio(ep, access_key=os.environ['LAKEFS_ACCESS_KEY_ID'], secret_key=os.environ['LAKEFS_SECRET_ACCESS_KEY'], secure=False); r=c.get_object('health','main/raw/nhanes/2017-2020/DEMO_J.XPT'); print(repr(r.read(40))); r.close()"
 
-# Is a long-running step working or stalled? (metrics-server is absent — sample CPU over 1s from /proc)
+# Is a long-running step working or stalled? (metrics-server is absent - sample CPU over 1s from /proc)
 kubectl -n weyland exec deploy/dagster-user-code -- python -c "
 import os,time
 def s():
@@ -369,8 +391,8 @@ kubectl -n weyland get pod $(kubectl -n weyland get pods -o name | grep user-cod
 ```
 
 > **Force a re-land** (bypass the freshness skip without wiping materializations): materialize the land
-> asset from the launchpad with config `{"force": true}` (`RefreshConfig`). The old way — wiping the
-> asset's materialization history in the UI — still works but is destructive.
+> asset from the launchpad with config `{"force": true}` (`RefreshConfig`). The old way - wiping the
+> asset's materialization history in the UI - still works but is destructive.
 
 ---
 
@@ -414,7 +436,7 @@ and leave it running while connected:
 kubectl port-forward -n weyland --address 0.0.0.0 svc/weyland-postgres 5432:5432
 ```
 Then connect to `mother:5432`, database `weyland`, user `weyland` (password lives in the `weyland-postgres`
-secret — not stored here). To avoid exposing it on the LAN, drop `--address 0.0.0.0` (binds mother's
+secret - not stored here). To avoid exposing it on the LAN, drop `--address 0.0.0.0` (binds mother's
 localhost) and use an SSH tunnel (`emangini@mother`) in the client instead.
 
 ## rsync (from rogueone)
@@ -422,17 +444,140 @@ localhost) and use an SSH tunnel (`emangini@mother`) in the client instead.
 Sync changed tool-server files to mother before rebuilding. Run from the repo root on rogueone.
 Only rsync what actually changed.
 
-main.py — code (almost every change):
+main.py - code (almost every change):
 ```bash
 rsync -a nodes/mother/lab/weyland-platform/services/weyland-tool-server/main.py emangini@mother:~/lab/weyland-platform/services/weyland-tool-server/main.py
 ```
 
-Manifest — only when k8s/env changed (e.g. the B7 `OLLAMA_*` vars); pair with `kubectl apply`:
+Manifest - only when k8s/env changed (e.g. the B7 `OLLAMA_*` vars); pair with `kubectl apply`:
 ```bash
 rsync -a nodes/mother/lab/weyland-platform/k8s/weyland-tool-server.yaml emangini@mother:~/lab/weyland-platform/k8s/weyland-tool-server.yaml
 ```
 
-Dockerfile — only when dependencies changed:
+Dockerfile - only when dependencies changed:
 ```bash
 rsync -a nodes/mother/lab/weyland-platform/services/weyland-tool-server/Dockerfile emangini@mother:~/lab/weyland-platform/services/weyland-tool-server/Dockerfile
 ```
+
+---
+
+## Platform coverage index
+
+Every subsystem built on the platform, with a real one-liner health check plus links to its runbook and
+demo. Commands run from `mother` unless a row says otherwise (kubectl always on mother). Namespaces come
+from [hosts.md](../hosts.md) / [api.md](../api.md): the data-mesh stores/streaming/governance live in ns
+`data-mesh`, the RAG/core stores in ns `weyland`, the LGTM stack in ns `monitoring`, MinIO in ns `minio`,
+OpenSearch in ns `opensearch`. A `-` means no matching file exists. `TODO: verify` flags a check I could
+not confirm from the docs. The `\|` inside a cell is a shell pipe (escaped for the table).
+
+### Already detailed above
+
+These have full sections earlier on this page:
+[tool-server](#tool-server) · [dagster](#dagster) · [qdrant](#qdrant) · [weaviate](#weaviate) ·
+[neo4j](#neo4j) · [postgres / pgvector](#postgres--pgvector) ·
+[docs-site](#docs-site-docsweylandlab-mkdocs-material). Eval, guardrails, and image management are covered
+above too.
+
+### Data-mesh Tier-2 stores (ns `data-mesh`, except OpenSearch = ns `opensearch`)
+
+| Subsystem | Health check | Runbook | Demo |
+|---|---|---|---|
+| OpenSearch (BM25 / lexical) | `kubectl -n opensearch exec opensearch-cluster-master-0 -- curl -s localhost:9200/_cluster/health` | [datasets-hydration](../runbooks/datasets-hydration.md) | [datasets-lakehouse](../demos/datasets-lakehouse.md) |
+| ClickHouse (columnar OLAP) | `kubectl -n data-mesh get pods \| grep clickhouse` | [datasets-hydration](../runbooks/datasets-hydration.md) | [datasets-lakehouse](../demos/datasets-lakehouse.md) |
+| Cassandra (wide-column) | `kubectl -n data-mesh get pods \| grep cassandra` | [datasets-hydration](../runbooks/datasets-hydration.md) | [datasets-lakehouse](../demos/datasets-lakehouse.md) |
+| CockroachDB (distributed SQL) | `kubectl -n data-mesh get pods \| grep cockroach` | [datasets-hydration](../runbooks/datasets-hydration.md) | [datasets-lakehouse](../demos/datasets-lakehouse.md) |
+| MongoDB (document store) | `kubectl -n data-mesh get pods \| grep mongo` | [datasets-hydration](../runbooks/datasets-hydration.md) | [datasets-lakehouse](../demos/datasets-lakehouse.md) |
+| MySQL (health datasets) | `kubectl -n data-mesh get pods \| grep mysql` | [datasets-hydration](../runbooks/datasets-hydration.md) | [datasets-lakehouse](../demos/datasets-lakehouse.md) |
+| TimescaleDB (time-series) | `kubectl -n data-mesh get pods \| grep timescale` | [timescaledb](../runbooks/timescaledb.md) | - |
+| MusicBrainz Postgres (grid cell) | `kubectl -n data-mesh get pods \| grep musicbrainz` | [musicbrainz-postgres](../runbooks/musicbrainz-postgres.md) | - |
+| GizmoSQL (DuckDB Flight SQL) | `kubectl -n data-mesh get pods \| grep gizmosql` | [gizmosql](../runbooks/gizmosql.md) | - |
+| LanceDB (embedded vector + viewer UI) | `kubectl -n data-mesh get pods \| grep lancedb` | [datasets-hydration](../runbooks/datasets-hydration.md) | [lancedb](../demos/lancedb.md) |
+| Valkey (shared cache) | `kubectl -n data-mesh get pods \| grep valkey` | - | - |
+
+### Storage foundation (ns `data-mesh`, MinIO = ns `minio`)
+
+| Subsystem | Health check | Runbook | Demo |
+|---|---|---|---|
+| Nessie (Iceberg catalog + versioning) | `kubectl -n data-mesh get pods \| grep nessie` | [data-mesh-secrets](../runbooks/data-mesh-secrets.md) | [datasets-lakehouse](../demos/datasets-lakehouse.md) |
+| lakeFS (file/dataset versioning) | `kubectl -n data-mesh get pods \| grep lakefs` | [datasets-lake](../runbooks/datasets-lake.md) | [datasets-lakehouse](../demos/datasets-lakehouse.md) |
+| MinIO (S3 object store) | `kubectl -n minio get pods \| grep minio` | [storage-minio](../runbooks/storage-minio.md) | - |
+
+### Transform / query / serve (ns `data-mesh`)
+
+| Subsystem | Health check | Runbook | Demo |
+|---|---|---|---|
+| Trino (federation query engine) | `kubectl -n data-mesh get pods \| grep trino` | [trino](../runbooks/trino.md) | - |
+| dbt (transform tier, 7 marts) | `kubectl -n weyland get pods \| grep dagster-user-code` | [dbt](../runbooks/dbt.md) | [dbt](../demos/dbt.md) |
+| Cube (semantic / metrics layer) | `kubectl -n data-mesh get pods \| grep cube` | [cube](../runbooks/cube.md) | [semantic-consumption](../demos/semantic-consumption.md) |
+| Feast (feature store) | `kubectl -n data-mesh get pods \| grep feast` | - | [feast](../demos/feast.md) |
+| Superset (BI / SQL) | `kubectl -n data-mesh get pods \| grep superset` | [superset](../runbooks/superset.md) | - |
+| Lightdash (dbt-native BI) | `kubectl -n data-mesh get pods \| grep lightdash` | [lightdash](../runbooks/lightdash.md) | - |
+
+### Streaming (ns `data-mesh`)
+
+| Subsystem | Health check | Runbook | Demo |
+|---|---|---|---|
+| Redpanda (Kafka broker + registry) | `kubectl -n data-mesh exec redpanda-0 -- rpk cluster health` | [streaming](../runbooks/streaming.md) | [streaming](../demos/streaming.md) |
+| CDC / Debezium (Kafka Connect) | `kubectl -n data-mesh get pods \| grep kafka-connect` | [streaming](../runbooks/streaming.md) | [cdc](../demos/cdc.md) |
+| Flink (streaming-processing tier) | `kubectl -n data-mesh get flinkdeployment weyland-flink` | - | [flink](../demos/flink.md) |
+
+### Governance / catalog (ns `data-mesh`)
+
+| Subsystem | Health check | Runbook | Demo |
+|---|---|---|---|
+| DataHub (catalog + lineage) | `kubectl -n data-mesh get pods \| grep datahub` | - | [catalog-emit](../demos/catalog-emit.md) |
+| Ranger (Trino data-plane authz) | `kubectl -n data-mesh get pods \| grep ranger` | [ranger](../runbooks/ranger.md) | - |
+| Soda (data-quality scan; no standing pod) | `kubectl -n weyland exec deploy/dagster-user-code -- /opt/soda-venv/bin/soda --version` | [soda](../runbooks/soda.md) | - |
+
+### ML / training
+
+| Subsystem | Health check | Runbook | Demo |
+|---|---|---|---|
+| MLflow (tracking + registry, ns `weyland`) | `kubectl -n weyland get pods \| grep mlflow` | [mlflow](../runbooks/mlflow.md) | [mlflow](../demos/mlflow.md) |
+| Ray + remote training (head ns `weyland`, worker on rogueone) | `kubectl -n weyland get pods \| grep ray-head` | [remote-training](../runbooks/remote-training.md) | [remote-training](../demos/remote-training.md) |
+
+### RAG streaming indexer (B-RAG-STREAM)
+
+| Subsystem | Health check | Runbook | Demo |
+|---|---|---|---|
+| rag-embed (rogueone GPU service) | `curl -s http://192.168.1.230:8900/health` | - | [rag-stream](../demos/rag-stream.md) |
+| rag_stream_produce (producer, Dagster op) | `kubectl -n weyland get pods \| grep dagster-user-code` | - | [rag-stream](../demos/rag-stream.md) |
+| rag-index-qdrant (consumer) | `kubectl -n data-mesh get pods \| grep rag-index-qdrant` | - | [rag-stream](../demos/rag-stream.md) |
+| rag-index-weaviate (consumer) | `kubectl -n data-mesh get pods \| grep rag-index-weaviate` | - | [rag-stream](../demos/rag-stream.md) |
+| rag-index-opensearch (consumer) | `kubectl -n data-mesh get pods \| grep rag-index-opensearch` | - | [rag-stream](../demos/rag-stream.md) |
+| rag-index-pgvector (consumer, meshed) | `kubectl -n weyland get pods \| grep rag-index-pgvector` | - | [rag-stream](../demos/rag-stream.md) |
+| rag-index-neo4j (consumer, meshed) | `kubectl -n weyland get pods \| grep rag-index-neo4j` | - | [rag-stream](../demos/rag-stream.md) |
+
+### Model serving / gateway
+
+| Subsystem | Health check | Runbook | Demo |
+|---|---|---|---|
+| Ollama (LLM, rogueone GPU) | `curl -s http://192.168.1.230:11434/api/tags` | [model-serving-ollama](../runbooks/model-serving-ollama.md) | [voice-chat](../demos/voice-chat.md) |
+| LiteLLM gateway (hosted models, NodePort 30400) | `curl -s http://mother:30400/health/liveliness` | [model-gateway](../runbooks/model-gateway.md) | [model-gateway](../demos/model-gateway.md) |
+| whisper (STT, CT 103) | `TODO: verify` (native `:8080/inference` is POST-only; no health route) | [transcription-whisper](../runbooks/transcription-whisper.md) | [voice-chat](../demos/voice-chat.md) |
+
+### Platform / ops
+
+| Subsystem | Health check | Runbook | Demo |
+|---|---|---|---|
+| Keycloak (IdP / SSO, ns `weyland`) | `kubectl -n weyland get pods \| grep keycloak` | - | [ingress-tls](../demos/ingress-tls.md) |
+| Argo CD (GitOps CD, ns `argocd`) | `kubectl -n argocd get pods` | [argocd](../runbooks/argocd.md) | [deploy](../demos/deploy.md) |
+| Port agent (Port to cluster, ns `port-agent`) | `kubectl -n port-agent get pods` | [port-agent-easy-button](../runbooks/port-agent-easy-button.md) | [store-scaler](../demos/store-scaler.md) |
+| KEDA (autoscaling engine, ns `keda`) | `kubectl -n keda get pods` | [keda](../runbooks/keda.md) | [store-scaler](../demos/store-scaler.md) |
+| Unleash (feature flags, ns `weyland`) | `kubectl -n weyland get pods \| grep unleash` | [unleash](../runbooks/unleash.md) | - |
+| SonarQube (code quality, ns `weyland`) | `kubectl -n weyland get pods \| grep sonarqube` | [code-quality](../runbooks/code-quality.md) | - |
+| JupyterHub (notebooks, ns `jupyterhub`) | `kubectl -n jupyterhub get pods \| grep hub` | [jupyterhub](../runbooks/jupyterhub.md) | - |
+| Istio (service mesh, ns `istio-system`) | `kubectl -n istio-system get pods \| grep istiod` | [service-mesh-istio](../runbooks/service-mesh-istio.md) | [mesh-mtls](../demos/mesh-mtls.md) |
+| OpenTofu (non-k8s IaC lane) | `TODO: verify` (no runtime pod; run `tofu -chdir=tofu/port plan`, state in MinIO) | [opentofu](../runbooks/opentofu.md) | - |
+
+### Observability (LGTM stack, ns `monitoring`)
+
+| Subsystem | Health check | Runbook | Demo |
+|---|---|---|---|
+| Prometheus (metrics) | `kubectl -n monitoring get pods \| grep prometheus` | [observability](../runbooks/observability.md) | [alerting](../demos/alerting.md) |
+| Grafana (dashboards) | `kubectl -n monitoring get pods \| grep grafana` | [observability](../runbooks/observability.md) | - |
+| Loki (logs) | `kubectl -n monitoring get pods \| grep loki` | [observability](../runbooks/observability.md) | - |
+| Tempo (traces) | `kubectl -n monitoring get pods \| grep tempo` | [observability](../runbooks/observability.md) | [tracing](../demos/tracing.md) |
+| GlitchTip (error tracking, ns `weyland`) | `kubectl -n weyland get pods \| grep glitchtip` | [glitchtip](../runbooks/glitchtip.md) | [alerting](../demos/alerting.md) |
+| Uptime Kuma (status board, ns `weyland`) | `kubectl -n weyland get pods \| grep kuma` | [uptime-kuma](../runbooks/uptime-kuma.md) | [alerting](../demos/alerting.md) |
+| OpenCost (cost allocation, ns `opencost`) | `kubectl -n opencost get pods` | [opencost](../runbooks/opencost.md) | - |

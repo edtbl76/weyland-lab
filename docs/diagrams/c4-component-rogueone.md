@@ -25,6 +25,8 @@ C4Component
 
         Component(genre_trainer, "genre-trainer", "Docker Desktop / Python", "Remote model-training container (services/genre-trainer/), pulled from registry.weyland.lab. Reads lakeFS silver, trains genre_classifier, logs to MLflow (:30500) with the artifact DIRECT to MinIO. --tune = Ray Tune sweep; winner retrains+registers on the worker.")
 
+        Component(rag_embed, "rag-embed", "systemd / FastAPI / CUDA", "B-RAG-STREAM warm embedding service (services/rag-embed/, rag-embed.service). bge-small-en-v1.5 (384-dim) resident on the RTX 5000 Ada; model + CUDA context load ONCE at startup so every request is warm (invariants I1, I6). GET /health + POST /embed (L2-normalized vectors). :8900. LAN-only. Sole client = the Dagster rag_stream_produce producer on mother.")
+
         Component(obsidian, "Obsidian Vault", "Markdown files", "Personal notes/docs. RETIRED as RAG source (B25b) — the RAG now ingests the GitHub repo (docs/ + nodes/) via Dagster git-pull, not this vault.")
 
         Component(weyland_repo, "weyland git repo", "git / IdeaProjects", "/home/edwardmangini/IdeaProjects/weyland. Canonical source of truth for all infra, k8s manifests, services, and docs. Pushed to GitHub, where Dagster git-pulls docs/ + nodes/ for the RAG (B25b — done).")
@@ -42,4 +44,5 @@ C4Component
     Rel(genre_trainer, registry, "docker pull image")
     Rel(genre_trainer, mlflow, "log run/metrics :30500 + artifact direct to MinIO")
     Rel(ray_worker, mlflow, "log trials + register winner")
+    Rel(dagster, rag_embed, "POST /embed :8900 (rag_stream_produce, warm GPU embed)")
 ```

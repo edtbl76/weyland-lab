@@ -1,5 +1,12 @@
 # Flow: Ingestion (repo → 4 vector backends)
 
+> **SUPERSEDED 2026-07-14 by [flow-rag-stream](flow-rag-stream.md).** The in-process fan-out to the vector
+> backends shown below is RETIRED. The write path is now a streaming producer (`rag_stream_produce`) that
+> publishes to Redpanda `rag.chunks`, consumed by 5 independent store consumers (B-RAG-STREAM). The clone +
+> per-file hash-gate + chunk + embed steps are retained (now inside `rag_stream_produce`, embedding on the
+> rogueone GPU service). Walkthrough: [demos/rag-stream.md](../demos/rag-stream.md). This diagram is kept for
+> history only.
+
 **Live since 2026-06-15 (B25b).** Dagster shallow-clones the **GitHub repo** each run and ingests the whole
 `docs/` tree (markdown) **+** `nodes/` code/manifests — decoupled from any one workstation. Per-file hash-gate;
 markdown chunks by H2, code by fixed-size+overlap. (Replaced the old SSH/SFTP single-Obsidian-note source + the

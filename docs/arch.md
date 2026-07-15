@@ -12,7 +12,7 @@ runbooks: [b6-minio](runbooks/storage-minio.md) · [b7-ollama](runbooks/model-se
 [timescaledb](runbooks/timescaledb.md) · [datasets-lake](runbooks/datasets-lake.md) · [argocd](runbooks/argocd.md) ·
 concepts: [llm-inference-cpu-vs-gpu](concepts/llm-inference-cpu-vs-gpu.md) · ops: [test.md](validation/test-commands.md)
 
-**Diagrams:** [C4 Context](diagrams/c4-context.md) · [C4 Container](diagrams/c4-container.md) · Components: [mother](diagrams/c4-component-mother.md) · [hermes](diagrams/c4-component-hermes.md) · [ollama](diagrams/c4-component-ollama.md) · [whisper](diagrams/c4-component-whisper.md) · [openclaw](diagrams/c4-component-openclaw.md) · [rogueone](diagrams/c4-component-rogueone.md) · Flows (see §9 for the grouped table): [ingestion](diagrams/flow-ingestion.md) · [RAG query](diagrams/flow-rag-query.md) · [backend dispatch](diagrams/flow-backend-dispatch.md) · [voice chat](diagrams/flow-voice-chat.md) · [eval pipeline](diagrams/flow-eval.md) · [eval scoring](diagrams/flow-eval-scoring.md) · [semantic/consumption](diagrams/flow-semantic-consumption.md) · [health/status](diagrams/flow-health-status.md) · [pipeline trigger](diagrams/flow-pipeline-trigger.md) · [agent MCP](diagrams/flow-agent-mcp.md) · [mesh mTLS](diagrams/flow-mesh-mtls.md) · [tracing](diagrams/flow-tracing.md) · [guardrails](diagrams/flow-guardrails.md) · [act-tool](diagrams/flow-act-tool.md) · [ingress/TLS](diagrams/flow-ingress-tls.md) · [model gateway](diagrams/flow-model-gateway.md) · [model catalog](diagrams/flow-model-catalog.md) · [roadmap-sync](diagrams/flow-roadmap-sync.md) · [alerting](diagrams/flow-alerting.md) · [deploy](diagrams/flow-deploy.md) · [MLflow](diagrams/flow-mlflow.md)
+**Diagrams:** [C4 Context](diagrams/c4-context.md) · [C4 Container](diagrams/c4-container.md) · Components: [mother](diagrams/c4-component-mother.md) · [hermes](diagrams/c4-component-hermes.md) · [ollama](diagrams/c4-component-ollama.md) · [whisper](diagrams/c4-component-whisper.md) · [openclaw](diagrams/c4-component-openclaw.md) · [rogueone](diagrams/c4-component-rogueone.md) · Flows (see §9 for the grouped table): [ingestion](diagrams/flow-ingestion.md) · [RAG query](diagrams/flow-rag-query.md) · [RAG stream indexer](diagrams/flow-rag-stream.md) · [backend dispatch](diagrams/flow-backend-dispatch.md) · [voice chat](diagrams/flow-voice-chat.md) · [eval pipeline](diagrams/flow-eval.md) · [eval scoring](diagrams/flow-eval-scoring.md) · [semantic/consumption](diagrams/flow-semantic-consumption.md) · [health/status](diagrams/flow-health-status.md) · [pipeline trigger](diagrams/flow-pipeline-trigger.md) · [agent MCP](diagrams/flow-agent-mcp.md) · [mesh mTLS](diagrams/flow-mesh-mtls.md) · [tracing](diagrams/flow-tracing.md) · [guardrails](diagrams/flow-guardrails.md) · [act-tool](diagrams/flow-act-tool.md) · [ingress/TLS](diagrams/flow-ingress-tls.md) · [model gateway](diagrams/flow-model-gateway.md) · [model catalog](diagrams/flow-model-catalog.md) · [roadmap-sync](diagrams/flow-roadmap-sync.md) · [alerting](diagrams/flow-alerting.md) · [deploy](diagrams/flow-deploy.md) · [MLflow](diagrams/flow-mlflow.md)
 
 ---
 
@@ -658,6 +658,106 @@ aggregate is a cheap emptiness tripwire that catches what row-level range checks
 
 ---
 
+### 7e. RAG streaming indexer (B-RAG-STREAM)
+
+The RAG index (the `rag_documents`/`rag_chunks` spine from the top of this section, plus the parallel
+Qdrant/Weaviate/Neo4j/OpenSearch copies) is now built by a **streaming fan-out**, not an in-process Dagster asset
+chain. It is the same "streaming tier carries events" principle as §7c, applied to the RAG **write** path. Design:
+[../aidlc-docs/construction/rag-streaming-indexer-design.md](../aidlc-docs/construction/rag-streaming-indexer-design.md);
+flow: [diagrams/flow-rag-stream.md](diagrams/flow-rag-stream.md); demo: [demos/rag-stream.md](demos/rag-stream.md).
+
+**What it replaced, and why streaming won.** The old path was an in-process chain
+(`source_document -> chunks -> embeddings -> {qdrant,weaviate,pgvector,neo4j,opensearch}_write`). `embeddings` was
+a single `list[dict]` holding **every** chunk's text and its 384-dim vector; Dagster's IO manager pickled it whole
+and re-loaded it into RAM **once per writer**. The sentence-transformer plus the full vector set lived inside the
+orchestrator process, so the `dagster-user-code` pod OOMKilled during ingestion (and, under a single concurrency
+slot, starved the cheap catalog-emit run queued behind it). The root cause was a **category error**: Dagster is a
+control plane (trigger, schedule, lineage, retry, observe), but the bulk chunks and vectors were flowing *through*
+it as a data plane. Batching the payload shrinks the symptom; only moving the data plane **out** of the
+orchestrator removes the cause.
+
+| Aspect | Retired in-process chain | Streaming reference-boundary |
+|---|---|---|
+| Where embedding runs | in the orchestrator process (model loaded per run) | warm GPU service `rag-embed` (loaded once) |
+| Payload path | pickled `list[dict]`, re-read 5x | one batch in flight, published then dropped |
+| Peak memory | the whole corpus of vectors | bounded by one batch |
+| Fan-out | 5 `*_write` assets in one run | 5 independent consumers, own consumer groups |
+| One store fails | fails the whole run | isolated; reset that group's offset to rebuild it |
+| Prune | per-writer whole-state scan | replayable tombstone records |
+| Dagster carries | chunks + vectors (data plane) | only the manifest (control plane) |
+
+**The six invariants (the design's acceptance criteria) and how the streaming design meets each:**
+
+| # | Invariant | How it is met |
+|---|---|---|
+| I1 | **Embed exactly once** | the producer embeds each batch once via `rag-embed`; vectors travel as records and are never re-embedded per store |
+| I2 | **Stream, never materialize whole** | one batch is in flight at a time; vectors are published then dropped, so peak memory is constant regardless of corpus size |
+| I3 | **Reference boundary at the orchestrator** | Dagster carries only the manifest (paths + hashes + current-path set); no chunk or vector crosses it |
+| I4 | **Per-store failure isolation + independent retry** | one consumer group per store, committing offsets independently; rebuild-one-store = reset that group's offset |
+| I5 | **Whole-state orphan prune** | the producer diffs the current-path set against `rag_manifest` and emits one tombstone per removed doc; each consumer deletes-by-`source_path`, so there is no per-store scan |
+| I6 | **Warm model** | `rag-embed` holds `bge-small-en-v1.5` resident on the GPU; model + CUDA context load once at startup, so every request is warm |
+
+**The pieces.**
+- **Producer** = the Dagster op/asset `rag_stream_produce` (self-contained: clone + hash + chunk with LlamaIndex
+  primitives -> embed via `rag-embed` -> publish). For each changed `source_path` it publishes a delete-clear then
+  one upsert per chunk; for each removed path, a tombstone. **`rag_manifest`** (`source_path` PRIMARY KEY +
+  `content_hash`, its **own** small Postgres table) is its change-detection + prune state, **decoupled** from the
+  pgvector store's `rag_documents` so it never races the pgvector consumer (design §3.2b). Because `source_document`
+  never yields `aidlc-kb/` paths **and** the manifest query filters `source_path NOT LIKE 'aidlc-kb/%'`, the
+  producer **structurally cannot** tombstone the KB corpus - the old prune-exclusion guard is now a property of the
+  data model, not a runtime check.
+- **Embed** = **`rag-embed`**, a warm native systemd GPU service on **rogueone** (`192.168.1.230:8900`,
+  `bge-small-en-v1.5`, `POST /embed` returning L2-normalized 384-dim vectors). ~1-1.5 GB VRAM reserved warm next to
+  Ollama; the standing reservation is the only real cost.
+- **Bus** = the Redpanda topic **`rag.chunks`** (Confluent-Avro via Redpanda's built-in schema registry, subject
+  `rag.chunks-value` = the `RagChunk` record; partition key `source_path` so a doc's chunks are ordered and its
+  tombstone is ordered after its upserts). One schema, two record types via an `op` discriminator: `upsert` (text +
+  vector + metadata) and `delete` (tombstone / replace-clear). At-least-once delivery + idempotent keys
+  (`(source_path, chunk_index)` for upserts, delete-by-`source_path` for tombstones) = **effectively-once**, with no
+  Kafka transactions to operate.
+- **Consumers** = five independent Deployments off **one image** (`weyland-rag-index:local`, `STORE` env dispatch),
+  one consumer group each: `rag-index-{qdrant,weaviate,opensearch}` in ns **`data-mesh`** (**sidecar OFF** - the
+  long-lived Kafka connection is to the un-meshed Redpanda, and the permissive-meshed stores accept plaintext) and
+  `rag-index-{pgvector,neo4j}` in ns **`weyland`** (**sidecar ON** - Postgres is STRICT mTLS and neo4j Bolt is
+  meshed - with Kafka + registry ports `9092,8081` excluded from the sidecar so the Redpanda connection bypasses
+  Envoy). The consumer ensures the topic on startup, so a fresh store can replay-rebuild from the retained topic.
+
+**Dagster keeps** the sensor/hash incrementality, run history, lineage (now derived from the returned
+manifest/counts, with `rag.chunks` as the fan-out hub in place of the old `embeddings` node - arguably a truer
+lineage picture: one source stream to five stores), scheduling, and retry of the producer trigger. **Retired**:
+the in-process `chunks` / `embeddings` / `hash_check` assets and the five `*_write` assets, plus the
+in-orchestrator sentence-transformer load.
+
+```mermaid
+flowchart TB
+  CH["changed / removed docs"]
+  subgraph CP["Control plane - Dagster (reference boundary)"]
+    PROD["rag_stream_produce op\nchunk (LlamaIndex) then embed then publish\none batch in flight"]
+    MAN["rag_manifest (Postgres)\nsource_path PK + content_hash\nchange-detection + prune state\ndecoupled from rag_documents"]
+  end
+  EMB["rag-embed - rogueone GPU (warm)\nbge-small-en-v1.5 :8900\nPOST /embed then 384-dim vectors"]
+  TOPIC["Redpanda topic rag.chunks\nConfluent-Avro, key = source_path\nupsert + delete (tombstone)"]
+  subgraph CONS["5 independent consumers - one image, one group each"]
+    Q["rag-index-qdrant\n(data-mesh, sidecar off)"]
+    W["rag-index-weaviate\n(data-mesh, sidecar off)"]
+    O["rag-index-opensearch\n(data-mesh, sidecar off)"]
+    P["rag-index-pgvector\n(weyland, meshed)"]
+    N["rag-index-neo4j\n(weyland, meshed)"]
+  end
+  CH --> PROD
+  PROD <--> MAN
+  PROD -->|texts| EMB
+  EMB -->|vectors| PROD
+  PROD -->|"records (Avro)"| TOPIC
+  TOPIC --> Q
+  TOPIC --> W
+  TOPIC --> O
+  TOPIC --> P
+  TOPIC --> N
+```
+
+---
+
 ## 8. Model serving
 
 | Path | Where | Engine | Use |
@@ -683,6 +783,7 @@ observed; **Control/ops** = scheduled and operational paths.
 |---|---|---|
 | Data | Ingestion (repo -> 4 vector backends) | [flow-ingestion.md](diagrams/flow-ingestion.md) |
 | Data | RAG query (`/context/ask`) | [flow-rag-query.md](diagrams/flow-rag-query.md) |
+| Data | RAG streaming indexer (B-RAG-STREAM) | [flow-rag-stream.md](diagrams/flow-rag-stream.md) |
 | Data | Backend selection / dispatch (one of four) | [flow-backend-dispatch.md](diagrams/flow-backend-dispatch.md) |
 | Data | Voice chat (Open WebUI -> whisper -> Ollama) | [flow-voice-chat.md](diagrams/flow-voice-chat.md) |
 | Data | Evaluation pipeline (run -> panel -> leaderboard) | [flow-eval.md](diagrams/flow-eval.md) |

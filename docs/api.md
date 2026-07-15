@@ -16,7 +16,14 @@ Hosts & access users: [hosts.md](hosts.md). `mother` = 192.168.1.243, CTs by IP 
 | **whisper shim** (STT) | whisper CT 103 | `http://whisper.weyland.lab:9000/v1/audio/transcriptions` (`192.168.1.246`) | ✅ | OpenAI-compatible adapter → whisper.cpp. See [runbooks/transcription-whisper.md](runbooks/transcription-whisper.md). |
 | **whisper-server** (STT, native) | whisper CT 103 | `http://whisper.weyland.lab:8080/inference` (`192.168.1.246`) | ✗ | Raw whisper.cpp multipart endpoint. |
 | **vLLM** (LLM, GPU) | rogueone | `http://rogueone:8000/v1` | ✅ | On-demand; serves Qwen. GPU path. |
+| **rag-embed** (embeddings, GPU) | rogueone (GPU) | `http://192.168.1.230:8900` | ✗ | **B-RAG-STREAM** warm embedding service - native systemd unit `rag-embed.service` holding `bge-small-en-v1.5` (384-dim) resident on the RTX 5000 Ada. `GET /health` → `{status,model,dim,device}`; `POST /embed {"texts":[str,...]}` → `{"vectors":[[float,...],...],"dim":384,"model":"BAAI/bge-small-en-v1.5"}` (L2-normalized, cosine-ready). Sole client = the Dagster `rag_stream_produce` producer. LAN-only. See [diagrams/flow-rag-stream.md](diagrams/flow-rag-stream.md), [demos/rag-stream.md](demos/rag-stream.md). |
 | **LiteLLM gateway** (hosted models) | mother (NodePort 30400) | `http://mother:30400/v1` (`192.168.1.243`) | ✅ | Fronts **every Gemini + OpenRouter** model (wildcard) behind one endpoint; Bearer = `LITELLM_MASTER_KEY`. Aliases `gemini-flash`/`gemini-pro`. Human-gated egress (valve) + spend alerts. Catalog of reachable models in Postgres `model_catalog`. See [runbooks/model-gateway.md](runbooks/model-gateway.md). |
+
+> **B-RAG-STREAM has no other HTTP surface.** `rag-embed` (above) is the only served API. The **producer** is a
+> Dagster op/asset (`rag_stream_produce`) triggered via Dagster, not an HTTP endpoint; the **five consumers**
+> (`rag-index-{qdrant,weaviate,opensearch}` in ns `data-mesh`, `rag-index-{pgvector,neo4j}` in ns `weyland`) are
+> headless Kafka consumers of the Redpanda topic `rag.chunks` (no listening port). See [arch.md §7e](arch.md) +
+> [demos/rag-stream.md](demos/rag-stream.md).
 
 ## Tool server (platform service boundary)
 
