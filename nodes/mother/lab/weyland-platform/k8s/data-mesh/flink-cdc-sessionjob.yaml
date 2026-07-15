@@ -1,0 +1,18 @@
+# B83 - CDC -> Iceberg upsert as a CONTINUOUS declarative FlinkSessionJob. Debezium (musicbrainz public.cdc_demo)
+# -> nessie.datasets_music.cdc_demo_live. Runs forever (live source), so it fills the JM UI with slots/tasks and
+# is the target for the flame graphs. jarURI over http (the operator can't fetch local:// for session jobs); the
+# SQL is baked in the flink image at /opt/flink/sql/.
+apiVersion: flink.apache.org/v1beta1
+kind: FlinkSessionJob
+metadata:
+  name: cdc-demo-live
+  namespace: data-mesh
+spec:
+  deploymentName: weyland-flink
+  job:
+    jarURI: http://flink-jars.data-mesh.svc.cluster.local/sql-runner.jar
+    entryClass: lab.weyland.flink.SqlRunner
+    args:
+      - /opt/flink/sql/cdc_upsert.sql
+    parallelism: 1
+    upgradeMode: stateless   # idempotent upsert; a stateless restart re-reads from earliest and reconverges
