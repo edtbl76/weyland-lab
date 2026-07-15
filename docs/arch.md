@@ -600,6 +600,47 @@ Strimzi on-demand learning lane + a KEDA consumer-lag scaler (recorded, not buil
 
 ---
 
+### 7c′. Stream processing — Flink (B83)
+
+Redpanda + Debezium (7c) *produce* events; nothing *consumed* them. **Apache Flink 1.20** on the **Flink
+Kubernetes Operator** is the processing engine — chosen over Kafka Streams (JVM-library-only, no SQL/Python, no
+managed lifecycle) and Spark Structured Streaming (micro-batch, heavier, and Spark's executor-JDK problems already
+bit the DataHub s3 source) for its true event-at-a-time model, first-class **Iceberg** sink onto the *same* Nessie
+catalog Trino/dbt use, and four authoring surfaces from one runtime. One long-lived **session cluster**
+(`weyland-flink`, ns `data-mesh`, sidecar off, JM+TM, state/checkpoints/HA on MinIO `s3://warehouse/_flink`) hosts
+the submitted jobs; the operator handles reconcile + Kubernetes-HA (running jobs survive JM restarts — the
+continuous CDC materializer depends on it). Four jobs, one per surface:
+
+- **RTA — trending artists** (Flink SQL, bounded): `datasets.music.lastfm` → 1-min tumbling window → **append**
+  Iceberg `analytics.trending_artists`. Bounded replay emits a MAX watermark on end-of-input so every window
+  closes.
+- **CDC → lakehouse** (Flink SQL, continuous): `cdc.musicbrainz.public.cdc_demo` → **upsert** (Iceberg v2
+  equality-deletes) `datasets_music.cdc_demo_live` — the Debezium changelog materialized into a queryable mirror.
+- **health — state risk** (Java DataStream + keyed state): `datasets.health.brfss` → per-state running mean →
+  Kafka `analytics.health.state_risk`. Proves the DataStream/keyed-state surface.
+- **music — popularity tier** (PyFlink + Python UDF): `datasets.music.lastfm` → `SUM(play_count)`/artist → a
+  Python UDF buckets the total into a tier → upsert-kafka `analytics.music.artist_tier`.
+
+**Two architectural calls.** (1) **Session vs application mode.** Jobs 1–3 run as declarative `FlinkSessionJob`s
+on the shared cluster; a session-mode jarURI must be operator-fetchable (**http/s3, never `local://`**), so a tiny
+nginx **jar server** (`flink-jars`) serves `sql-runner.jar` (runs the SQL files) + `health-job.jar` (the shaded
+Java fat jar) out of the image. Job 4 runs in its **own application-mode `FlinkDeployment`** (`weyland-flink-py`
+image) — PyFlink's ~1 GB python + `apache-flink` runtime would otherwise bloat the shared image and force a
+restart of the running CDC job; application mode also lets it use `local://` (no jar server). (2) **Classpath
+isolation.** The Java DataStream job must **relocate** its bundled `flink-avro-confluent-registry` (Flink loads
+`org.apache.flink.*` parent-first, so the dist's shaded-Avro SQL variant otherwise shadows it → `NoSuchMethodError`).
+
+**Observability:** Prometheus reporter on `:9249` (JM+TM, scraped via the `weyland-flink` `ServiceMonitor`), a
+standalone **History Server** (`flink-history.weyland.lab`, archives to `s3://warehouse/_flink/completed-jobs`,
+serves at `/jobs/overview`) so finished bounded jobs stay investigable, plus per-operator flame graphs +
+async-profiler. The two SQL jobs' Iceberg outputs are auto-cataloged by DataHub's iceberg source and queryable in
+Trino/Superset; the analytics Kafka topics are read with `rpk`. Diagram:
+[diagrams/flow-flink.md](diagrams/flow-flink.md). Demo: [demos/flink.md](demos/flink.md). Runbook:
+[runbooks/flink.md](runbooks/flink.md). Design:
+[../aidlc-docs/construction/flink-streaming-design.md](../aidlc-docs/construction/flink-streaming-design.md).
+
+---
+
 ### 7d. Governance & security — the L5 enforcement layer (B1.6)
 
 The DataHub layer (§7, "governance & discovery") is **descriptive** — it records *who owns* a dataset and *what a

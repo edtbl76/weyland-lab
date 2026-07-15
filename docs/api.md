@@ -122,6 +122,8 @@ mkcert wildcard cert; resolve from rogueone (`/etc/hosts`) or via CoreDNS. **Mos
 | **SonarQube** (code quality / static analysis; → Port `code_quality` webhook) — **Keycloak SSO** (forward-auth; own login behind = double; native OIDC possible later) | `https://sonarqube.weyland.lab` — meshed Postgres backend; on-demand scan Jobs (+ Trivy/Semgrep). See [runbooks/code-quality.md](runbooks/code-quality.md) |
 | **Nessie** (data-mesh **B1.2** — Iceberg catalog + table versioning) — **Keycloak SSO** (forward-auth) | `https://nessie.weyland.lab` — UI + Iceberg REST `/iceberg` + API `/api/v2`. Programmatic: `nessie.data-mesh.svc.cluster.local:19120` (in-cluster, no gate) |
 | **lakeFS** (data-mesh **B1.2** — file/dataset versioning) — **Keycloak SSO** (forward-auth; own access-key auth behind) | `https://lakefs.weyland.lab` — Programmatic: `lakefs.data-mesh.svc.cluster.local:8000` (in-cluster, no gate — forward-auth is browser-only, so CLI/pipelines use the svc directly) |
+| **Flink** (data-mesh **B83** stream-processing — JobManager UI: live jobs/slots, checkpoints, backpressure, per-operator flame graphs) — **Keycloak SSO** (forward-auth) | `https://flink.weyland.lab` — REST/UI `weyland-flink-rest.data-mesh.svc:8081` (in-cluster). Jobs 1–3 submit as `FlinkSessionJob`s (jars served by `flink-jars` nginx); job 4 (PyFlink) is app-mode `weyland-flink-py`. See [demos/flink.md](demos/flink.md) · [runbooks/flink.md](runbooks/flink.md) |
+| **Flink History Server** (**B83** — finished/archived jobs, survives JM restarts) — **Keycloak SSO** (forward-auth) | `https://flink-history.weyland.lab` — job list at `/jobs/overview` (root `/overview` 404s); archives in MinIO `s3://warehouse/_flink/completed-jobs` |
 
 > **Headlamp login** uses a Kubernetes **ServiceAccount bearer token**, *not* the shared dev password.
 > A persistent token is stored in a Secret — retrieve and decode it (on mother):
@@ -158,6 +160,7 @@ not meant for direct browsing. ServiceMonitors: `k8s/monitoring/servicemonitors.
 | Weaviate | `weaviate.weyland.svc:2112` | `/metrics` | NodePort auto-assigned (no fixed port) |
 | APISIX | `weyland-apisix.weyland.svc:9091` | `/apisix/prometheus/metrics` | NodePort auto-assigned (no fixed port) |
 | Tool server (B14 guardrails) | `weyland-tool-server.weyland.svc:8080` | `/metrics` | `http://mother:30080/metrics` (NodePort) |
+| Flink (B83 JM+TM) | `weyland-flink-metrics.data-mesh.svc:9249` (headless → each JM/TM pod) | `/metrics` | via ServiceMonitor `weyland-flink` (`k8s/data-mesh/flink-metrics.yaml`); `flink_jobmanager_*` / `flink_taskmanager_*` |
 | LiteLLM gateway | `litellm.weyland.svc:4000` | `/metrics` | `http://mother:30400/metrics` (NodePort) |
 | MinIO | `minio.minio.svc:9000` | `/minio/v2/metrics/cluster` | in-cluster only (`MINIO_PROMETHEUS_AUTH_TYPE=public`, no token) |
 | Proxmox VE (pve-exporter) | `pve-exporter.monitoring.svc:9221` | `/pve?target=192.168.1.232` | per-node/VM/CT metrics; read-only PVEAuditor token. Grafana dashboard #10347. See [runbooks/observability.md](runbooks/observability.md) |
