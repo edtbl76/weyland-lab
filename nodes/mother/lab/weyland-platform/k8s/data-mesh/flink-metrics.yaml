@@ -1,0 +1,39 @@
+# B83 observability - scrape the Flink session cluster's Prometheus reporter (:9249 on JM + TM, configured in
+# flink-session.yaml as metrics.reporter.prom.*). The operator-created rest Service only exposes 8081, so this adds
+# a HEADLESS Service targeting :9249 (headless -> Endpoints = every JM/TM pod, each scraped individually) plus a
+# ServiceMonitor the cluster Prometheus auto-discovers (serviceMonitorSelectorNilUsesHelmValues=false).
+#
+# The selector `app: weyland-flink` is the Flink K8s Operator's standard pod label (deployment name); it matches
+# BOTH the jobmanager and taskmanager pods. VERIFY on deploy against live labels
+# (`kubectl -n data-mesh get pod -l app=weyland-flink --show-labels`) and adjust if the operator version differs.
+# The PyFlink app-mode job (flink-pyflink) is run-once/bounded, so it is intentionally NOT scraped here.
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: weyland-flink-metrics
+  namespace: data-mesh
+  labels:
+    app: weyland-flink-metrics   # the ServiceMonitor selects THIS service label
+spec:
+  clusterIP: None                # headless: Endpoints span all JM/TM pods, so Prometheus scrapes each pod's :9249
+  selector:
+    app: weyland-flink           # operator pod label (JM + TM)
+  ports:
+    - name: metrics
+      port: 9249
+      targetPort: 9249
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: weyland-flink
+  namespace: data-mesh
+spec:
+  selector:
+    matchLabels:
+      app: weyland-flink-metrics
+  endpoints:
+    - port: metrics
+      path: /metrics
+      interval: 30s
