@@ -14,9 +14,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends curl python3 py
     ln -sf /usr/bin/python3 /usr/bin/python && rm -rf /var/lib/apt/lists/*
 
 # PyFlink runtime - version pinned to the Flink dist (1.20.1) so the Python API + py4j gateway agree with the Java
-# runtime. --break-system-packages: the base is Debian bookworm (PEP 668 externally-managed), and this is a
-# single-purpose job image, so installing into the system interpreter is fine.
-RUN pip3 install --no-cache-dir --break-system-packages apache-flink==${FLINK_VER}
+# runtime. The base image's pip predates PEP 668, so no --break-system-packages needed (or supported).
+RUN pip3 install --no-cache-dir apache-flink==${FLINK_VER}
 
 # Connectors/formats on the classpath: Kafka SQL connector (source + upsert-kafka sink) + Confluent-Avro (source).
 RUN set -eux; cd /opt/flink/lib; \
