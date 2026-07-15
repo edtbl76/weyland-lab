@@ -7,6 +7,13 @@
 #
 # VERSIONS = the validate-points. If a curl 404s at build, the coordinate/version is wrong — bump the ARG.
 #   Flink 1.20.1 · Iceberg 1.7.1 · Kafka connector 3.3.0-1.20 · avro-confluent format tracks Flink (1.20.1).
+# Stage 1 (B83): build the tiny in-repo SQL runner jar so FlinkSessionJobs can run declarative Flink SQL.
+FROM maven:3.9-eclipse-temurin-17 AS sqlrunner
+WORKDIR /build
+COPY sql-runner/ .
+RUN mvn -q -B -DskipTests package
+
+# Stage 2: the Flink session-cluster image.
 FROM flink:1.20.1-java17
 
 ARG ICEBERG_VER=1.7.1
@@ -48,5 +55,10 @@ RUN set -eux; cd /opt/flink/lib; \
 RUN mkdir -p /opt/flink/plugins/metrics-prometheus && \
     curl -fL -o /opt/flink/plugins/metrics-prometheus/flink-metrics-prometheus-${FLINK_VER}.jar \
       ${MAVEN}/org/apache/flink/flink-metrics-prometheus/${FLINK_VER}/flink-metrics-prometheus-${FLINK_VER}.jar
+
+# B83: the in-repo SQL runner jar (from stage 1) + the SQL scripts, baked in. FlinkSessionJobs reference the jar
+# via jarURI local:///opt/flink/usrlib/sql-runner.jar and pass a /opt/flink/sql/*.sql path as the arg.
+COPY --from=sqlrunner /build/target/sql-runner.jar /opt/flink/usrlib/sql-runner.jar
+COPY sql/ /opt/flink/sql/
 
 USER flink
