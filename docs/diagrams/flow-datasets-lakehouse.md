@@ -69,3 +69,35 @@ tables): [flow-streaming.md](flow-streaming.md) · [flow-cdc.md](flow-cdc.md).
 **Layers:** land (bronze) → transform (silver + gold) → quality gate → store hydration. Cleaning
 (name-normalize, null-coerce, delimiter fixes) lives in the transform/land; the checks *validate* (they
 don't mutate); a bad silver blocks hydration via the `no_failures` check on parquet.
+
+## Sequence
+
+The runtime order for one dataset through the three factories. Demo: [demos/datasets-lakehouse.md](../demos/datasets-lakehouse.md).
+
+```mermaid
+sequenceDiagram
+    actor User
+    participant Dagster as Dagster<br/>(dagster.weyland.lab)
+    participant UC as dagster-user-code
+    participant Src as public source
+    participant Lake as lakeFS
+    participant Ice as Iceberg / Nessie
+    participant DH as DataHub
+
+    User->>Dagster: materialize LAND asset<br/>(config {"force": true})
+    Dagster->>UC: launchRun (land, freshness-gated)
+    UC->>Src: fetch source files
+    UC->>Lake: put raw/<table>/<file> (BRONZE)
+    User->>Dagster: run weyland_datasets_<domain>_transform_job
+    Dagster->>UC: launchRun (serialized, max_concurrent=1)
+    UC->>Lake: read raw/<table>
+    par one asset per format (broker)
+        UC->>Lake: write parquet / arrow / avro / lance (SILVER)
+    and gold
+        UC->>Ice: overwrite datasets_<domain>.<table> (GOLD)
+    end
+    UC->>Lake: _commit (version lakeFS)
+    UC->>UC: build_asset_checks (no_failures gate on parquet)
+    UC->>Lake: build_store_load_assets → Tier-2 stores (batched)
+    UC->>DH: emit_file_dataset (silver) + iceberg source (gold)
+```

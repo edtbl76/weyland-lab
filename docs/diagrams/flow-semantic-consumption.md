@@ -72,3 +72,40 @@ consumer, so the semantic layers (Cube, MetricFlow) and BI tools all connect to 
 `trino-noauth` auth-strip proxy, since both force a password that no-auth Trino would 401). JupyterHub is the one
 consumer that can *also* bypass Trino and read the lakeFS object store directly — useful when you want the raw file,
 not a query result.
+
+## Sequence
+
+A governed metric served two ways (Cube API, MetricFlow) and a BI face — all compiling to Trino over the marts.
+Demo: [demos/semantic-consumption.md](../demos/semantic-consumption.md).
+
+```mermaid
+sequenceDiagram
+    actor User
+    participant Cube as Cube<br/>(SQL :15432 / REST :4000)
+    participant MF as MetricFlow (mf query)
+    participant Proxy as trino-noauth proxy
+    participant Trino as Trino
+    participant Marts as dbt marts<br/>(iceberg.dbt.mart_*)
+    participant LD as Lightdash
+
+    Note over User,Marts: Cube — governed metric API
+    User->>Cube: SELECT track_genre, MEASURE(avg_danceability) FROM spotify_audio
+    Cube->>Proxy: compiled SQL (Basic-auth header)
+    Proxy->>Trino: strip Authorization → X-Trino-User: dbt
+    Trino->>Marts: read mart_spotify_audio
+    Trino-->>Cube: rows
+    Cube-->>User: governed metric value
+
+    Note over User,Marts: MetricFlow — dbt Semantic Layer
+    User->>MF: mf query --metrics life_expectancy --group-by metric_time__year
+    MF->>Trino: compiled Trino SQL (time-spined)
+    Trino->>Marts: read mart_country_health
+    Trino-->>MF: rows
+    MF-->>User: metric by year
+
+    Note over User,LD: BI face (dbt-native)
+    User->>LD: open explore / metric
+    LD->>Proxy: dbt-compiled SQL
+    Proxy->>Trino: forward
+    Trino-->>LD: rows → chart
+```

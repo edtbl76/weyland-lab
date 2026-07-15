@@ -61,3 +61,27 @@ events; see [flow-cdc.md](flow-cdc.md)).
 Streaming *our* data through it would couple the pipeline to DataHub's churn (a GMS reset would nuke our
 topics + CDC offsets). Dedicated Redpanda keeps the data plane isolated — same call as the "ES as its own
 service" B1.3 decision. DataHub instead just *reads* Redpanda via the native `kafka` source (the catalog arrow).
+
+## Sequence
+
+The event-replay path (`datasets_<dom>_stream_produce`); the CDC path has its own in
+[flow-cdc.md](flow-cdc.md). See [../demos/streaming.md](../demos/streaming.md).
+
+```mermaid
+sequenceDiagram
+    participant SILVER as lakeFS silver Parquet
+    participant PROD as Dagster stream_produce
+    participant SR as Redpanda Schema Registry
+    participant RP as Redpanda topic datasets.dom.ds
+    participant DH as DataHub kafka source
+    participant CON as Redpanda Console
+
+    PROD->>SILVER: read stream-shaped rows (iter_batches, capped)
+    PROD->>SR: register Avro schema (subject topic-value)
+    SR-->>PROD: schema id
+    PROD->>RP: produce Avro events (magic byte + schema id)
+    DH->>RP: consume topics (02:15 daily)
+    DH->>SR: resolve schema by id
+    CON->>SR: fetch schema to decode
+    CON->>RP: browse decoded Avro messages
+```

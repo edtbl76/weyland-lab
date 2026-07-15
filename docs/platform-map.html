@@ -114,7 +114,7 @@
 
   <p class="eyebrow">Weyland · Platform Map · 2026-07</p>
   <h1 class="title">One box. <span class="fade">Every tool,</span> and what it's for.</h1>
-  <p class="lede">A homelab where a governed <b>lakehouse</b> is the substrate and two agent lanes close the loop — <b>Claude Code</b> builds, <b>Hermes</b> operates. Every technology below runs on a single bare-metal Minisforum MS-A2 (plus one GPU laptop), LAN-only, on a $0 budget. This is the full inventory — the numbered spine is the value path (raw data → data products); each row shows the tool, its job, and a <b>real example of it in use</b>.</p>
+  <p class="lede">A homelab where a governed <b>lakehouse</b> is the substrate and two agent lanes close the loop - <b>Claude Code</b> builds, <b>Hermes</b> operates. Every technology below runs on a single bare-metal Minisforum MS-A2 (plus one GPU laptop), LAN-only, on a $0 budget. This is the full inventory - the numbered spine is the value path (raw data → data products); each row shows the tool, its job, and a <b>real example of it in use</b>.</p>
 
   <div class="meta">
     <div><div class="n">130+</div><div class="l">Integrations</div></div>
@@ -125,12 +125,12 @@
   </div>
   <div class="legend">
     <span><i class="dot live"></i> Live</span>
-    <span><i class="dot part"></i> Partial — shadow / audit-only / on-demand</span>
-    <span><i class="dot plan"></i> Next — on the roadmap</span>
+    <span><i class="dot part"></i> Partial - shadow / audit-only / on-demand</span>
+    <span><i class="dot plan"></i> Next - on the roadmap</span>
   </div>
-  <p class="hint"><span class="ar">›</span> each row carries a real usage example — a query, a pipeline, a command, grounded in the actual music &amp; health datasets.</p>
+  <p class="hint"><span class="ar">›</span> each row carries a real usage example - a query, a pipeline, a command, grounded in the actual music &amp; health datasets.</p>
 
-  <div class="sectionlabel">The value path — raw data to data products</div>
+  <div class="sectionlabel">The value path - raw data to data products</div>
   <div class="spine">
 
     <!-- 01 -->
@@ -150,7 +150,7 @@
         <div class="row"><span class="nm"><i class="cdot"></i>mc</span><div><div class="rl">MinIO client CLI</div><span class="ex">mc mirror lakeFS → LanceDB-viewer PVC on lancedb_load</span></div></div>
         <div class="row"><span class="nm"><i class="cdot"></i>musicbrainz-docker</span><div><div class="rl">native mbdump importer (k8s Job)</div><span class="ex">recreatedb.sh -fetch loads 2.9M artists / 39.3M recordings</span></div></div>
         <div class="row"><span class="nm"><i class="cdot"></i>n8n</span><div><div class="rl">workflow automation</div><span class="ex">retained automation after ingestion role moved to Dagster</span></div></div>
-        <div class="row plan"><span class="nm"><i class="cdot"></i>dlt</span><div><div class="rl">declarative extract-load</div><span class="ex">B1.5 EL lane — recorded, not built</span></div></div>
+        <div class="row plan"><span class="nm"><i class="cdot"></i>dlt</span><div><div class="rl">declarative extract-load</div><span class="ex">B1.5 EL lane - recorded, not built</span></div></div>
       </div>
     </section>
 
@@ -162,13 +162,13 @@
         <div class="row"><span class="nm"><i class="cdot"></i>Iceberg</span><div><div class="rl">ACID gold table format</div><span class="ex">per-file gold: iceberg.datasets_music.spotify_tracks</span></div></div>
         <div class="row"><span class="nm"><i class="cdot"></i>Nessie</span><div><div class="rl">Iceberg catalog + branch versioning</div><span class="ex">Trino native catalog.type=nessie, gold on ref main</span></div></div>
         <div class="row"><span class="nm"><i class="cdot"></i>Dagster</span><div><div class="rl">pipeline orchestrator</div><span class="ex">weyland_datasets_health_transform_job fans raw → silver ×4 formats</span></div></div>
-        <div class="row"><span class="nm"><i class="cdot"></i>datasets_lib</span><div><div class="rl">domain transform factories</div><span class="ex">build_transform_assets(cfg) — per-file fan-out (music×12, health×8)</span></div></div>
+        <div class="row"><span class="nm"><i class="cdot"></i>datasets_lib</span><div><div class="rl">domain transform factories</div><span class="ex">build_transform_assets(cfg) - per-file fan-out (music×12, health×8)</span></div></div>
         <div class="row"><span class="nm"><i class="cdot"></i>dbt Core</span><div><div class="rl">analytics-engineering marts</div><span class="ex">dbt-trino materializes mart_spotify_audio → iceberg.dbt</span></div></div>
         <div class="row"><span class="nm"><i class="cdot"></i>dagster-dbt</span><div><div class="rl">dbt orchestration</div><span class="ex">weyland_dbt_assets builds the 7 tested marts</span></div></div>
         <div class="row"><span class="nm"><i class="cdot"></i>dbt-utils / expectations</span><div><div class="rl">dbt test packages</div><span class="ex">row-level range / uniqueness tests on the marts</span></div></div>
         <div class="row"><span class="nm"><i class="cdot"></i>sqlglot</span><div><div class="rl">SQL parser for column lineage</div><span class="ex">emit_dbt parses compiled mart SQL → FineGrainedLineage mart → gold</span></div></div>
         <div class="row"><span class="nm"><i class="cdot"></i>MetricFlow</span><div><div class="rl">metrics-as-code (dbt Semantic Layer)</div><span class="ex">mf query --metrics life_expectancy --group-by metric_time__year</span></div></div>
-        <div class="row"><span class="nm"><i class="cdot"></i>Parquet · Arrow · Avro · Lance</span><div><div class="rl">the 4 silver formats</div><span class="ex">columnar · zero-copy IPC · Kafka-row · ML/vector — one write each</span></div></div>
+        <div class="row"><span class="nm"><i class="cdot"></i>Parquet · Arrow · Avro · Lance</span><div><div class="rl">the 4 silver formats</div><span class="ex">columnar · zero-copy IPC · Kafka-row · ML/vector - one write each</span></div></div>
         <div class="row"><span class="nm"><i class="cdot"></i>polars · pyarrow · pandas</span><div><div class="rl">dataframe readers</div><span class="ex">seed notebook + broker read all 4 silver formats</span></div></div>
         <div class="row plan"><span class="nm"><i class="cdot"></i>Flink</span><div><div class="rl">stream processing</div><span class="ex">on-demand Flink Operator → Redpanda (windowed aggs / CDC materialize)</span></div></div>
         <div class="row plan"><span class="nm"><i class="cdot"></i>SQLMesh</span><div><div class="rl">SQL modeling</div><span class="ex">B1.5 evaluate-later</span></div></div>
@@ -191,7 +191,7 @@
         <div class="row"><span class="nm"><i class="cdot"></i>traefik-forward-auth</span><div><div class="rl">edge forward-auth gate</div><span class="ex">auth.weyland.lab gates MLflow / Nessie / lakeFS / Dagster</span></div></div>
         <div class="row part"><span class="nm"><i class="cdot"></i>LLM Guard</span><div><div class="rl">prompt-injection + toxicity (shadow)</div><span class="ex">input/output hooks on /context/* → guardrail_verdicts</span></div></div>
         <div class="row part"><span class="nm"><i class="cdot"></i>NLI grounding</span><div><div class="rl">answer-grounding check (shadow)</div><span class="ex">grounding.nli emits max_entailment ∈ [0,1]</span></div></div>
-        <div class="row plan"><span class="nm"><i class="cdot"></i>Presidio · NeMo Guardrails</span><div><div class="rl">PII redaction · dialog rails</div><span class="ex">coded / evaluated, not baked in — B34 / B32</span></div></div>
+        <div class="row plan"><span class="nm"><i class="cdot"></i>Presidio · NeMo Guardrails</span><div><div class="rl">PII redaction · dialog rails</div><span class="ex">coded / evaluated, not baked in - B34 / B32</span></div></div>
       </div>
     </section>
 
@@ -216,7 +216,7 @@
         <div class="row"><span class="nm"><i class="cdot"></i>Valkey</span><div><div class="rl">Redis-fork cache + online store</div><span class="ex">Superset Celery broker + Feast online store</span></div></div>
       </div>
 
-      <div class="grp-l">Operational stores — relational · OLAP · time-series · document</div>
+      <div class="grp-l">Operational stores - relational · OLAP · time-series · document</div>
       <div class="rows">
         <div class="row"><span class="nm"><i class="cdot"></i>Postgres + pgvector</span><div><div class="rl">RAG spine + eval tables</div><span class="ex">rag_chunks 384-dim vectors + eval_leaderboard</span></div></div>
         <div class="row"><span class="nm"><i class="cdot"></i>MusicBrainz Postgres</span><div><div class="rl">native relational graph</div><span class="ex">most-prolific artists by recording count via artist_credit</span></div></div>
@@ -233,16 +233,16 @@
         <div class="row"><span class="nm"><i class="cdot"></i>Qdrant</span><div><div class="rl">vector store (collection per dataset)</div><span class="ex">query_points(lp_musiccaps, "upbeat acoustic guitar")</span></div></div>
         <div class="row"><span class="nm"><i class="cdot"></i>Weaviate</span><div><div class="rl">vector store (class per dataset)</div><span class="ex">near_vector("mellow lo-fi beat")</span></div></div>
         <div class="row"><span class="nm"><i class="cdot"></i>LanceDB</span><div><div class="rl">embedded vector store (object-store)</div><span class="ex">open_table("lp_musiccaps").search("mellow acoustic guitar")</span></div></div>
-        <div class="row"><span class="nm"><i class="cdot"></i>Neo4j</span><div><div class="rl">graph + vector index store</div><span class="ex">(:User)-[:PLAYS]-&gt;(:Artist) — lastfm ~13.85M edges</span></div></div>
+        <div class="row"><span class="nm"><i class="cdot"></i>Neo4j</span><div><div class="rl">graph + vector index store</div><span class="ex">(:User)-[:PLAYS]-&gt;(:Artist) - lastfm ~13.85M edges</span></div></div>
         <div class="row"><span class="nm"><i class="cdot"></i>Neo4j GDS · APOC</span><div><div class="rl">graph data science + procedures</div><span class="ex">PageRank / Louvain over the fused music graph</span></div></div>
-        <div class="row"><span class="nm"><i class="cdot"></i>OpenSearch</span><div><div class="rl">BM25 lexical search</div><span class="ex">weyland_chunks/_search — lexical RAG backend</span></div></div>
+        <div class="row"><span class="nm"><i class="cdot"></i>OpenSearch</span><div><div class="rl">BM25 lexical search</div><span class="ex">weyland_chunks/_search - lexical RAG backend</span></div></div>
       </div>
 
       <div class="grp-l">Model serving &amp; embeddings</div>
       <div class="rows">
         <div class="row"><span class="nm"><i class="cdot"></i>Ollama</span><div><div class="rl">local GPU LLM serving (rogueone)</div><span class="ex">serves eval-judge panel + Hermes on .230:11434/v1</span></div></div>
         <div class="row"><span class="nm"><i class="cdot"></i>vLLM</span><div><div class="rl">GPU LLM serving (Qwen)</div><span class="ex">low-latency utility inference at rogueone:8000/v1</span></div></div>
-        <div class="row"><span class="nm"><i class="cdot"></i>whisper.cpp</span><div><div class="rl">CPU speech-to-text (large-v3)</div><span class="ex">whisper.weyland.lab:8080/inference — voice → text</span></div></div>
+        <div class="row"><span class="nm"><i class="cdot"></i>whisper.cpp</span><div><div class="rl">CPU speech-to-text (large-v3)</div><span class="ex">whisper.weyland.lab:8080/inference - voice → text</span></div></div>
         <div class="row"><span class="nm"><i class="cdot"></i>LiteLLM</span><div><div class="rl">OpenAI-compatible model gateway</div><span class="ex">fronts all Gemini + OpenRouter, human-gated egress valve</span></div></div>
         <div class="row"><span class="nm"><i class="cdot"></i>sentence-transformers</span><div><div class="rl">bge-small-en-v1.5, 384-dim embeddings</div><span class="ex">encodes queries + chunks; baked into tool-server + Dagster images</span></div></div>
       </div>
@@ -279,7 +279,7 @@
 
   </div><!-- /spine -->
 
-  <div class="sectionlabel">The planes underneath — what keeps it running</div>
+  <div class="sectionlabel">The planes underneath - what keeps it running</div>
 
   <section class="plane">
     <h2>Platform &amp; Infrastructure<span class="role">the node, the mesh, the gateways, the IaC</span></h2>
@@ -330,8 +330,8 @@
       <div class="row"><span class="nm"><i class="cdot"></i>MCP</span><div><div class="rl">/mcp read · /mcp-act do</div><span class="ex">fastapi-mcp system-view + audited act tools (pipeline/evals)</span></div></div>
       <div class="row"><span class="nm"><i class="cdot"></i>Telegram</span><div><div class="rl">remote ingress + alerts</div><span class="ex">allowlisted DM → Hermes reply; Alertmanager paging</span></div></div>
       <div class="row"><span class="nm"><i class="cdot"></i>Anthropic Claude API</span><div><div class="rl">cloud reasoning brain</div><span class="ex">Claude Code drives builds over the metered API</span></div></div>
-      <div class="row"><span class="nm"><i class="cdot"></i>Open WebUI</span><div><div class="rl">browser chat / voice front end</div><span class="ex">chat.weyland.lab — chat ← Ollama, voice ← whisper shim</span></div></div>
-      <div class="row plan"><span class="nm"><i class="cdot"></i>Operator Agent</span><div><div class="rl">Claude-brained multi-ingress</div><span class="ex">B66 consolidation — gives Hermes a Claude brain, +voice/web</span></div></div>
+      <div class="row"><span class="nm"><i class="cdot"></i>Open WebUI</span><div><div class="rl">browser chat / voice front end</div><span class="ex">chat.weyland.lab - chat ← Ollama, voice ← whisper shim</span></div></div>
+      <div class="row plan"><span class="nm"><i class="cdot"></i>Operator Agent</span><div><div class="rl">Claude-brained multi-ingress</div><span class="ex">B66 consolidation - gives Hermes a Claude brain, +voice/web</span></div></div>
       <div class="row plan"><span class="nm"><i class="cdot"></i>OpenClaw</span><div><div class="rl">deprioritized agent</div><span class="ex">superseded by Hermes; rehab = B28</span></div></div>
     </div>
   </section>
@@ -356,7 +356,7 @@
   <footer class="wf">
     <b>The loop:</b> intent (Port + roadmap) → data product → operation (agents) → telemetry (Grafana / Port) → new intent.<br>
     <b>Constraints as design:</b> one Minisforum MS-A2 + one RTX-5000 laptop · LAN-only · $0 budget · self-hosted first · heavy tiers on-demand.<br>
-    <b>Two lanes:</b> Claude Code sees &amp; builds · Hermes sees &amp; does — never crossed. · <b>Retired/declined:</b> Backstage, Jaeger, Strimzi, Airbyte, Airflow, KubeRay.
+    <b>Two lanes:</b> Claude Code sees &amp; builds · Hermes sees &amp; does - never crossed. · <b>Retired/declined:</b> Backstage, Jaeger, Strimzi, Airbyte, Airflow, KubeRay.
   </footer>
 
 </div>

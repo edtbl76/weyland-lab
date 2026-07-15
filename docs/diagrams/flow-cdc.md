@@ -60,3 +60,28 @@ capture — that's why CDC exists. `source` carries the exact `lsn`/`txId`, so a
 **Plugin / publication:** `pgoutput` is Postgres's built-in logical-decoding output (no wal2json install);
 `publication.autocreate.mode=filtered` scopes the publication to the one captured table (not `FOR ALL TABLES`,
 which would need broader privilege + drag in the 39M-row tables).
+
+## Sequence
+
+A single row change in `public.cdc_demo` becoming an event. See [../demos/cdc.md](../demos/cdc.md).
+
+```mermaid
+sequenceDiagram
+    participant APP as SQL client
+    participant PG as musicbrainz-postgres
+    participant WAL as WAL (wal_level=logical)
+    participant SLOT as slot debezium_cdc
+    participant DBZ as Debezium (Kafka Connect)
+    participant SR as Redpanda Schema Registry
+    participant TOPIC as cdc.musicbrainz.public.cdc_demo
+    participant CON as consumer
+
+    APP->>PG: INSERT / UPDATE / DELETE on public.cdc_demo
+    PG->>WAL: log change (REPLICA IDENTITY FULL)
+    WAL->>SLOT: retain WAL until consumer reads
+    DBZ->>SLOT: logical decode via pgoutput (snapshot then stream)
+    DBZ->>SR: register Avro schema (Confluent wire format)
+    DBZ->>TOPIC: envelope (op / before / after / source lsn,txId)
+    CON->>SR: resolve schema to decode
+    CON->>TOPIC: consume, resume precisely by LSN
+```

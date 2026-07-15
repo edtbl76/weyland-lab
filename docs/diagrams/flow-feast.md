@@ -74,3 +74,34 @@ the point-in-time half).
   (`k8s/data-mesh/feast-ui.yaml`) runs `feast ui`, then overwrites `projects-list.json` → `/registry.json` and
   generates that dump (`MessageToJson(registry.proto())`) into the served UI dir, refreshed on an interval. Also
   needs `grpcio grpcio-health-checking grpcio-reflection` in the feast image. See backlog **B-RT #5**.
+
+## Sequence
+
+Build/materialize, then the two retrieval paths (online by key, point-in-time historical). Demo: [demos/feast.md](../demos/feast.md).
+
+```mermaid
+sequenceDiagram
+    actor User
+    participant UC as dagster-user-code
+    participant Lake as lakeFS silver
+    participant PG as Postgres feast DB<br/>(offline + registry)
+    participant Valkey as Valkey (online)
+    participant Server as feast-server REST<br/>(feast.weyland.lab :6566)
+
+    User->>UC: run scripts/feast_setup.py
+    UC->>Lake: read spotify_tracks / brfss silver
+    UC->>PG: shape → offline tables
+    UC->>PG: feast apply (write registry)
+    UC->>Valkey: feast materialize-incremental (offline → online)
+
+    Note over User,Server: online — low-latency by entity key
+    User->>Server: POST /get-online-features {state:[CA,NY,TX]}
+    Server->>PG: read registry (defs)
+    Server->>Valkey: fetch latest per key
+    Server-->>User: diabetes_pct / asthma_pct / copd_pct
+
+    Note over User,PG: historical — point-in-time (leakage-free)
+    User->>UC: get_historical_features(entity_df + timestamps)
+    UC->>PG: read registry + as-of join offline
+    PG-->>UC: features as of each row's timestamp
+```

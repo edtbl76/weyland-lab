@@ -57,3 +57,32 @@ flowchart TB
 **Gotcha:** the sync Job runs in `data-mesh` and needs `lakefs-creds` there — that secret lives in `weyland`, so
 it's copied into `data-mesh` **imperatively** (not in git). If `data-mesh` is rebuilt, recreate it
 (`kubectl get secret lakefs-creds -n weyland -o yaml | sed 's/namespace: weyland/namespace: data-mesh/' | kubectl apply -f -`).
+
+## Sequence
+
+Build → in-process query, and the event-triggered mirror that keeps the browse UI fresh. Demo: [demos/lancedb.md](../demos/lancedb.md).
+
+```mermaid
+sequenceDiagram
+    actor User
+    participant Dagster as Dagster
+    participant UC as dagster-user-code
+    participant Lake as lakeFS S3 gateway<br/>(s3://<repo>/main/lancedb)
+    participant Sensor as lancedb_sync_sensor
+    participant Job as lancedb-sync Job
+    participant PVC as lancedb-viewer PVC
+    participant Viewer as Lance Data Viewer<br/>(lancedb.weyland.lab)
+
+    User->>Dagster: materialize datasets_<dom>_lancedb_load
+    Dagster->>UC: launchRun
+    UC->>UC: _build_vectors (z-score numeric / bge text)
+    UC->>Lake: write Lance tables + ANN index (>=2000 rows)
+    UC->>Dagster: emit_lancedb (DataHub catalog)
+    UC-->>Sensor: materialization event
+    Sensor->>Job: create Job (cross-ns RBAC)
+    Lake->>Job: mc mirror Lance tables
+    Job->>PVC: write /data
+    PVC->>Viewer: mount /data (read-only)
+    User->>Lake: lancedb.connect(s3://...).open_table().search(v)
+    Lake-->>User: nearest rows (in-process)
+```
