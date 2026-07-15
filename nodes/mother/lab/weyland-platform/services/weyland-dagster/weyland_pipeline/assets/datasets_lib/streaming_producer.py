@@ -30,14 +30,18 @@ def _avro_schema(arrow_schema, record_name):
 
 
 def _ensure_topic(bootstrap, topic):
+    from confluent_kafka import KafkaError, KafkaException
     from confluent_kafka.admin import AdminClient, NewTopic
 
     admin = AdminClient({"bootstrap.servers": bootstrap})
     fut = admin.create_topics([NewTopic(topic, num_partitions=3, replication_factor=1)])[topic]
     try:
         fut.result()   # blocks until created
-    except Exception as e:  # noqa: BLE001 — "already exists" is fine; anything else surfaces on produce
-        if "already exists" not in str(e).lower():
+    except KafkaException as e:
+        # already-created is fine. Check the CODE, not the message wording: Redpanda returns "already been
+        # created" (not "already exists"), so the old string check re-raised and silently killed every
+        # re-produce of an existing topic. Same bug that bit the rag-index consumer.
+        if e.args[0].code() != KafkaError.TOPIC_ALREADY_EXISTS:
             raise
 
 
