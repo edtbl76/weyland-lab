@@ -36,6 +36,14 @@
       <scope>provided</scope>
     </dependency>
     <dependency>
+      <!-- DeliveryGuarantee + connector base classes; the kafka connector declares this provided, so pull it
+           explicitly for compile. It's in the Flink dist at runtime. -->
+      <groupId>org.apache.flink</groupId>
+      <artifactId>flink-connector-base</artifactId>
+      <version>${flink.version}</version>
+      <scope>provided</scope>
+    </dependency>
+    <dependency>
       <groupId>org.apache.flink</groupId>
       <artifactId>flink-connector-kafka</artifactId>
       <version>${kafka.connector.version}</version>
