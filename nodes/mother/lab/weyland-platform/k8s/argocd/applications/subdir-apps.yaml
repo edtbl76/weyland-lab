@@ -245,7 +245,9 @@ spec:
     targetRevision: main
     path: nodes/mother/lab/weyland-platform/k8s/data-mesh
     directory:
-      exclude: '*secret.example.yaml'
+      # flink-pyflink.yaml is a run-once BOUNDED app-mode FlinkDeployment we kubectl-delete after each demo;
+      # excluding it keeps the manifest in git but stops selfHeal from resurrecting (and re-running) it.
+      exclude: '{*secret.example.yaml,flink-pyflink.yaml}'
   destination:
     server: https://kubernetes.default.svc
     namespace: data-mesh
