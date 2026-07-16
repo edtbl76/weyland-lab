@@ -16,9 +16,10 @@ Wants=network-online.target
 
 [Service]
 Type=simple
-# ClusterFirst kubeconfig is the user's default (~/.kube/config). port-forward drops on GCS/API blips or sleep;
-# Restart=always re-establishes it (same auto-rejoin idea as ray-worker.service).
-ExecStart=/usr/bin/kubectl port-forward -n data-mesh svc/lakefs 8000:8000
+# kubectl is a SNAP on rogueone (/snap/bin/kubectl) — use the FULL path: systemd user services don't inherit the
+# shell PATH, so a bare `kubectl` (or /usr/bin/kubectl) fails with status=203/EXEC. kubeconfig = the user default
+# (~/.kube/config). port-forward drops on GCS/API blips or sleep; Restart=always re-establishes it.
+ExecStart=/snap/bin/kubectl port-forward -n data-mesh svc/lakefs 8000:8000
 Restart=always
 RestartSec=5
 
