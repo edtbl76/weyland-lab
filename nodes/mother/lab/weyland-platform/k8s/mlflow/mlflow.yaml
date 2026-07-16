@@ -38,7 +38,7 @@ spec:
     spec:
       containers:
         - name: mlflow
-          image: ghcr.io/mlflow/mlflow:v2.18.0  # nosemgrep: yaml.kubernetes.security.run-as-non-root.run-as-non-root
+          image: ghcr.io/mlflow/mlflow:v3.14.0  # nosemgrep: yaml.kubernetes.security.run-as-non-root.run-as-non-root  (B47: 2.18.0 -> 3.14.0 clears the 2025/2026 mlflow RCE CVEs)
           imagePullPolicy: IfNotPresent
           # B47 hardening: drop priv-esc + seccomp (see arch)
           securityContext:
@@ -47,8 +47,12 @@ spec:
               type: RuntimeDefault
           command: ["sh", "-c"]
           args:
+            # B47: `mlflow db upgrade` applies the 3.x Alembic migrations to the backend store BEFORE the server
+            # starts (2->3 changes the schema; the 3.x server refuses to start on a 2.x DB otherwise). Idempotent —
+            # a no-op once migrated, so it's safe on every pod restart. BACK UP the mlflow DB before first rollout.
             - >
               pip install --quiet --no-cache-dir psycopg2-binary boto3 &&
+              mlflow db upgrade "postgresql://$(POSTGRES_USER):$(POSTGRES_PASSWORD)@weyland-postgres.weyland.svc.cluster.local:5432/mlflow" &&
               mlflow server --host 0.0.0.0 --port 5000
               --backend-store-uri "postgresql://$(POSTGRES_USER):$(POSTGRES_PASSWORD)@weyland-postgres.weyland.svc.cluster.local:5432/mlflow"
               --artifacts-destination s3://mlflow/ --serve-artifacts
