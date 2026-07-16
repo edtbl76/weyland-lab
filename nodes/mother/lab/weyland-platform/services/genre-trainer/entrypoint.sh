@@ -14,6 +14,10 @@ export LAKEFS_ACCESS_KEY_ID=${LAKEFS_ACCESS_KEY_ID:-$(get_secret weyland lakefs-
 export LAKEFS_SECRET_ACCESS_KEY=${LAKEFS_SECRET_ACCESS_KEY:-$(get_secret weyland lakefs-creds LAKEFS_SECRET_ACCESS_KEY)}
 export AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID:-$(get_secret weyland aidlc-kb-minio-secret access_key)}
 export AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY:-$(get_secret weyland aidlc-kb-minio-secret secret_key)}
+# B47: Ray token auth — the trainer connects to the head's authed cluster (ray.init address=auto), so it needs the
+# shared token. Read it from the same ray-auth Secret the head + rogueone worker use.
+export RAY_AUTH_MODE=token
+export RAY_AUTH_TOKEN=${RAY_AUTH_TOKEN:-$(get_secret weyland ray-auth token)}
 
 start_pf() {  # namespace svc localport remoteport
   kubectl port-forward -n "$1" "svc/$2" "$3:$4" >/dev/null 2>&1 &

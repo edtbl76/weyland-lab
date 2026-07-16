@@ -1,0 +1,17 @@
+# Trivy accepted findings (B47). Each entry is a DOCUMENTED, deliberate exception — not blanket suppression.
+# Consumed by the trivy-scan-job via --ignorefile /src/.trivyignore.
+
+# ShadowRay — Ray Jobs API executes submitted code. DISPUTED by Anyscale as by-design (it's the product feature,
+# not a bug); no Ray version patches it. Mitigated here by (1) network isolation — dashboard behind Keycloak
+# forward-auth, Jobs API reachable only via cluster DNS, never the LAN — AND (2) Ray 2.56 built-in token auth
+# (RAY_AUTH_MODE=token), enforced (a no-token request 401s). See k8s/ray/ray-head.yaml.
+CVE-2023-48022
+
+# Public GitHub repository is INTENTIONAL — this is a public homelab reference repo (weyland-lab). GIT-0001 flags
+# "repo shouldn't be public"; that's the deliberate design, not a leak.
+GIT-0001
+
+# "Manage all resources" RBAC (KSV-0046) on Gatekeeper (OPA admission controller) + Kiali (Istio mesh viewer):
+# both REQUIRE broad read/watch across resources to do their job (admission review / mesh topology). Scoped-down
+# RBAC would break them. Accepted for a single-tenant LAN lab.
+KSV-0046

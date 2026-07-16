@@ -39,6 +39,10 @@ spec:
             - /out/trivy.json
             - --skip-dirs
             - "**/node_modules,**/.yarn,**/openclaw,site-techdocs"
+            # B47: documented accepted findings (ShadowRay disputed+isolated, public-repo intentional, gatekeeper/
+            # kiali RBAC required). Repo clones to /src, so the .trivyignore lives at /src/.trivyignore.
+            - --ignorefile
+            - /src/.trivyignore
             - /src
           volumeMounts:
             - name: src
