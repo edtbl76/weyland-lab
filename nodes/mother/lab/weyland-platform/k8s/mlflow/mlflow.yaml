@@ -102,8 +102,10 @@ spec:
               cpu: 100m
               memory: 512Mi
             limits:
-              # MLflow 3.x (FastAPI/uvicorn) is heavier than 2.x (gunicorn) — 1Gi OOMKilled (exit 137). 2Gi holds.
-              memory: 2Gi
+              # MLflow 3.x is a much larger package than 2.x (absorbed the GenAI/tracing/eval stack); importing the
+              # full server app spikes past 2Gi at startup (OOMKilled exit 137 even with --workers 1). 4Gi clears
+              # the import peak; steady-state is lower — tune down after observing actual usage.
+              memory: 4Gi
 ---
 apiVersion: v1
 kind: Service
