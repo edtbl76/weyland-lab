@@ -21,6 +21,11 @@ metadata:
     app: mlflow
 spec:
   replicas: 1
+  # Recreate (not RollingUpdate): single replica + a DB migration on startup. RollingUpdate would run the new 3.x
+  # pod (which migrates the schema) alongside the old 2.18 pod on the SAME backend DB — the old server breaks when
+  # the schema moves under it. Recreate terminates old first, then the new pod migrates + starts. Brief downtime OK.
+  strategy:
+    type: Recreate
   selector:
     matchLabels:
       app: mlflow
