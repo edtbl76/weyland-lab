@@ -61,6 +61,7 @@ spec:
               mlflow server --host 0.0.0.0 --port 5000
               --backend-store-uri "postgresql://$(POSTGRES_USER):$(POSTGRES_PASSWORD)@weyland-postgres.weyland.svc.cluster.local:5432/mlflow"
               --artifacts-destination s3://mlflow/ --serve-artifacts
+              --allowed-hosts '*' --cors-allowed-origins '*'
           ports:
             - name: http
               containerPort: 5000
@@ -99,9 +100,10 @@ spec:
           resources:
             requests:
               cpu: 100m
-              memory: 256Mi
+              memory: 512Mi
             limits:
-              memory: 1Gi
+              # MLflow 3.x (FastAPI/uvicorn) is heavier than 2.x (gunicorn) — 1Gi OOMKilled (exit 137). 2Gi holds.
+              memory: 2Gi
 ---
 apiVersion: v1
 kind: Service
