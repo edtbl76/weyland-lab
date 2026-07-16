@@ -66,10 +66,8 @@ def read_avro() -> pl.DataFrame:
 def read_lance() -> pl.DataFrame:
     import lance
 
-    # write_lance writes a per-name subdir …/lance/<table>/<name>/ (a Lance dataset dir), so opening the PARENT
-    # …/lance/<table>/ as a dataset 403s (no _versions/ there). Resolve the first subdir and open THAT.
-    subdir = _fs.ls(f"{REPO}/{BRANCH}/lance/{TABLE}")[0]
-    ds = lance.dataset(f"s3://{subdir}", storage_options=SO)
+    # The Lance dataset is at …/lance/<table>/ directly (it contains _versions/, _transactions/, data/).
+    ds = lance.dataset(f"s3://{REPO}/{BRANCH}/lance/{TABLE}", storage_options=SO)
     return pl.from_arrow(ds.to_table())
 
 
