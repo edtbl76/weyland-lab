@@ -30,9 +30,12 @@ spec:
         - name: store-scaler
           image: store-scaler:local   # built on mother + imported to containerd (see deploy steps)
           imagePullPolicy: IfNotPresent
-          # B47 hardening: non-root (image runs as uid 10001) + drop all caps + no priv-esc + seccomp default.
+          # B47 hardening: non-root + drop all caps + no priv-esc + seccomp default. runAsUser: 10001 is REQUIRED
+          # alongside runAsNonRoot because the image's USER is a NAME (appuser); the kubelet needs the numeric uid
+          # to verify non-root at admission (else CreateContainerConfigError).
           securityContext:
             runAsNonRoot: true
+            runAsUser: 10001
             allowPrivilegeEscalation: false
             capabilities:
               drop: ["ALL"]
