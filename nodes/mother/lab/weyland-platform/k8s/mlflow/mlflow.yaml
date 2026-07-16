@@ -61,7 +61,7 @@ spec:
               mlflow server --host 0.0.0.0 --port 5000
               --backend-store-uri "postgresql://$(POSTGRES_USER):$(POSTGRES_PASSWORD)@weyland-postgres.weyland.svc.cluster.local:5432/mlflow"
               --artifacts-destination s3://mlflow/ --serve-artifacts
-              --allowed-hosts '*' --cors-allowed-origins '*'
+              --allowed-hosts '*' --cors-allowed-origins '*' --workers 1
           ports:
             - name: http
               containerPort: 5000
