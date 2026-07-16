@@ -22,6 +22,38 @@ This is **B1.8's Ray / data-science tier** (plain Ray, not KubeRay — see below
 
 ---
 
+## Upgrades — MLflow 3.14 + Ray 2.56 + token auth (B47, 2026-07-16)
+
+Security-driven (Trivy CVEs). This **supersedes** the 2.18/2.37 version details further down. Gotchas in memory
+[[cve-remediation-mlflow3-ray256]].
+
+**MLflow 2.18 → 3.14** (server `ghcr.io/mlflow/mlflow:v3.14.0`; clients: genre-trainer `mlflow==3.14.0`, dagster
+`mlflow-skinny==3.14.0`). 2→3 is a MAJOR jump:
+- The k8s startup command now runs `mlflow db upgrade "<uri>" &&` before `mlflow server` (Alembic schema migration;
+  idempotent). **Back up the mlflow Postgres DB first** (`pg_dump -U "$POSTGRES_USER" mlflow`).
+- 3.x = FastAPI/uvicorn (was gunicorn) + bundles the GenAI/tracing stack → import spikes >2Gi at startup → limit is
+  now **4Gi** (steady ~1.5Gi), `--workers 1`, `strategy: Recreate`.
+- 3.x security middleware defaults **localhost-only** → `--allowed-hosts '*' --cors-allowed-origins '*'` or cluster
+  clients (Trino/DataHub/trainer) 403.
+
+**Ray 2.37 → 2.56** (head image `registry.weyland.lab/ray-head:v7` = `rayproject/ray:2.56.0-py311`; worker venv rebuilt):
+- Ray enforces an EXACT match of ray version AND the **full python version incl. PATCH**. The head's `py311` base is
+  **Python 3.11.14**, so the rogueone worker venv MUST be 3.11.14 (a 3.11.12 worker was **rejected**). Rebuild via
+  pyenv: `pyenv install 3.11.14`; `"$(pyenv root)/versions/3.11.14/bin/python" -m venv ~/ray-worker`.
+- The head's `pip freeze` is **unusable** for the worker (rayproject/ray is conda → `@ file:///home/conda/...` build
+  paths). Install deps explicitly: `ray[default,tune]==2.56.0 scikit-learn mlflow==3.14.0 pandas pyarrow minio boto3`.
+
+**Ray token auth** (`RAY_AUTH_MODE=token`, Ray 2.52+ — defense-in-depth on top of the network isolation):
+- Shared token in k8s Secret `ray-auth` (out-of-band, not committed). Head env `RAY_AUTH_TOKEN` ← the Secret;
+  rogueone worker reads `~/.ray/auth_token` (write the SAME value, `chmod 600`) + `RAY_AUTH_MODE=token` in the unit;
+  genre-trainer entrypoint pulls the same Secret. **Enforced**: a no-token request to `:8265/api/jobs/` → **401**.
+- The head's readiness probe is an **`exec`** probe (a kubelet `httpGet` can't inject the Secret token) that reads
+  `$RAY_AUTH_TOKEN` and sends the `Authorization` header.
+- **Dashboard** (`ray.weyland.lab`): paste the token when prompted (30-day cookie). Retrieve it:
+  `kubectl -n weyland get secret ray-auth -o jsonpath='{.data.token}' | base64 -d`.
+- **Clients that submit jobs need the token too** — genre-trainer (done, via the Secret); a Port Ray-job action
+  would need it added Port-side. **Rotate** = regenerate → update the Secret + `~/.ray/auth_token` + restart head & worker.
+
 ## Architecture — the persistent Ray cluster
 
 ```

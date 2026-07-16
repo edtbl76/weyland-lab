@@ -48,3 +48,29 @@ LaunchDarkly-style SaaS avoided; all OSS/$0. Findings surface in Port as `code_q
 - Semgrep: 48 (2 high / 26 med / 20 low) — dynamic `urllib` in `tool-server/main.py` + `hermes/roadmap-sync.py`,
   H2C smuggling in `hermes/dashboard-nginx.conf`, same Dockerfile-root issue.
 - Low-risk on a LAN-only lab, but real hardening. Dockerfile `USER` is the easy win.
+
+## B47 — triage + scanner fixes (2026-07-16)
+
+**Scanner fixes (both were broken):**
+- **SonarQube** hard-failed once Flink added `.java` — the Java analyzer needs compiled classes. Fix: a `build-java`
+  initContainer (`maven:3.9-eclipse-temurin-17`) `mvn compile`s the Flink modules; scanner passes
+  `-Dsonar.java.binaries=…/target/classes`. `k8s/sonarqube/sonar-scan-job.yaml`.
+- **Trivy** `FATAL 429` — the new Flink `pom.xml` made it fetch transitive POMs from Maven Central, rate-limiting
+  mother's IP. Fix: `--offline-scan`. `k8s/code-quality/trivy-scan-job.yaml`.
+- Both scan jobs' report containers now **print each finding** (`[SEV] file id :: title`) to the pod log, not just
+  counts to Port. Pull with `--tail=-1` (a label selector defaults to `--tail=10`!):
+  `kubectl -n weyland logs -l job-name=<trivy|semgrep>-scan-weyland -c report --tail=-1 | grep -E '^\[CRITICAL\]'`.
+
+**Semgrep: high 14 → 0.** 4 Dockerfiles made non-root (`rag-index`, `store-scaler`, `genre-trainer`,
+`weyland-tool-server` — the last needs `HOME=/app` so HF caches read as the non-root user); `weyland-dagster` +
+`ranger` root-required, documented `# nosemgrep` (rule-id only, NOT prose — prose after `nosemgrep:` suppresses
+nothing). 8 SQL findings: `_safe_ident()` allowlist on interpolated identifiers + bare `# nosemgrep`. **securityContext
+sweep** on ~34 manifests (`allowPrivilegeEscalation:false`+seccomp everywhere; `runAsNonRoot:true` **+ `runAsUser:10001`**
+— the numeric uid is REQUIRED, a named USER 401s admission — only on our non-root images).
+
+**Trivy: critical 12 → 0.** All real CVEs were `genre-trainer/requirements.txt`: mlflow (2.18→**3.14**) + ray
+(2.37→**2.56** + token auth). ShadowRay (`CVE-2023-48022`, disputed) + public-repo (`GIT-0001`) + gatekeeper/kiali
+RBAC (`KSV-0046`) → `/.trivyignore` (each documented). See [[cve-remediation-mlflow3-ray256]], [remote-training.md](remote-training.md).
+
+**Accepted residuals:** `KSV-0118`/`KSV-0014` (readOnlyRootFilesystem, ~195 high) + `run-as-non-root` on root
+third-party images — systemic, blanket-applying breaks writers; documented, not per-item fixed.
