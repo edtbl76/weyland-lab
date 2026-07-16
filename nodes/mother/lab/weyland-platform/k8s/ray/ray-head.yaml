@@ -31,7 +31,7 @@ spec:
       dnsPolicy: ClusterFirstWithHostNet
       containers:
         - name: ray-head
-          image: registry.weyland.lab/ray-head:v6   # base Ray + trainer deps (services/ray-head/) — v6: --source mart  # nosemgrep: yaml.kubernetes.security.run-as-non-root.run-as-non-root
+          image: registry.weyland.lab/ray-head:v7   # base Ray + trainer deps (services/ray-head/) — v7: Ray 2.56 + mlflow 3.14 (B47)  # nosemgrep: yaml.kubernetes.security.run-as-non-root.run-as-non-root
           # B47 hardening: drop priv-esc + seccomp (see arch)
           securityContext:
             allowPrivilegeEscalation: false
