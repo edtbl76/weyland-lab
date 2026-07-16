@@ -16,9 +16,14 @@ RUN pip install --no-cache-dir \
     llm-guard \
     sentence-transformers
 
-# Pin the Hugging Face cache so the build-time download and the runtime load
-# resolve to the same path (default would be /root/.cache/huggingface).
-ENV HF_HOME=/app/.cache/huggingface
+# Pin ALL model/home caches under /app so (a) the build-time bake (as root) and the runtime load (as appuser,
+# B47) resolve to the SAME path, and (b) the `chown -R appuser /app` below makes every cached file readable by the
+# non-root user. HOME=/app is the key: HF_HOME alone doesn't override libs that cache to $HOME/.cache, and that
+# mismatch (root baked to /root/.cache; appuser looked in /home/appuser/.cache) crash-looped the non-root pod
+# with "couldn't find them in the cached files" under HF_HUB_OFFLINE.
+ENV HOME=/app \
+    HF_HOME=/app/.cache/huggingface \
+    XDG_CACHE_HOME=/app/.cache
 
 # Bake the public embedding model into the image at build time (no HF token needed).
 RUN python -c "from llama_index.embeddings.huggingface import HuggingFaceEmbedding; HuggingFaceEmbedding(model_name='BAAI/bge-small-en-v1.5')"
