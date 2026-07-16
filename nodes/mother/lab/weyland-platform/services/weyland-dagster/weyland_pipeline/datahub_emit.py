@@ -2218,7 +2218,7 @@ def emit_duckdb():
                 emitter.emit(MetadataChangeProposalWrapper(entityUrn=urn, aspect=aspect))
             rows = None
             try:
-                cur.execute(f'SELECT count(*) FROM "{_safe_ident(schema)}"."{_safe_ident(v)}"')  # nosemgrep: identifiers validated by _safe_ident; SQL identifiers can't be parameterized
+                cur.execute(f'SELECT count(*) FROM "{_safe_ident(schema)}"."{_safe_ident(v)}"')  # nosemgrep
                 rows = cur.fetchone()[0]
             except Exception:  # noqa: BLE001
                 pass
@@ -2296,7 +2296,7 @@ def emit_timescaledb():
                 emitter.emit(MetadataChangeProposalWrapper(entityUrn=urn, aspect=aspect))
             rows = None
             try:
-                cur.execute(f"""SELECT approximate_row_count('public."{_safe_ident(t)}"')""")  # nosemgrep: identifier validated by _safe_ident
+                cur.execute(f"""SELECT approximate_row_count('public."{_safe_ident(t)}"')""")  # nosemgrep
                 rows = cur.fetchone()[0]
             except Exception:  # noqa: BLE001
                 conn.rollback()   # a failed query aborts the psycopg2 txn — reset so later SELECTs still work
@@ -2353,7 +2353,7 @@ def emit_mysql():
                     emitter.emit(MetadataChangeProposalWrapper(entityUrn=urn, aspect=aspect))
                 rows = None
                 try:
-                    cur.execute(f"SELECT count(*) FROM `{_safe_ident(db)}`.`{_safe_ident(t)}`")  # nosemgrep: identifiers validated by _safe_ident
+                    cur.execute(f"SELECT count(*) FROM `{_safe_ident(db)}`.`{_safe_ident(t)}`")  # nosemgrep
                     rows = cur.fetchone()[0]
                 except Exception:  # noqa: BLE001
                     pass
@@ -2389,7 +2389,7 @@ def emit_cockroachdb_profiles():
                 urn = make_dataset_urn(platform="cockroachdb", name=f"{db}.{t}", env=ENV)
                 rows = None
                 try:
-                    cur.execute(f'SELECT count(*) FROM public."{_safe_ident(t)}"')  # nosemgrep: identifier validated by _safe_ident
+                    cur.execute(f'SELECT count(*) FROM public."{_safe_ident(t)}"')  # nosemgrep
                     rows = cur.fetchone()[0]
                 except Exception:  # noqa: BLE001
                     conn.rollback()
