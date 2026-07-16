@@ -30,6 +30,14 @@ spec:
         - name: store-scaler
           image: store-scaler:local   # built on mother + imported to containerd (see deploy steps)
           imagePullPolicy: IfNotPresent
+          # B47 hardening: non-root (image runs as uid 10001) + drop all caps + no priv-esc + seccomp default.
+          securityContext:
+            runAsNonRoot: true
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+            seccompProfile:
+              type: RuntimeDefault
           ports:
             - containerPort: 8080
           env:
