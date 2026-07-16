@@ -63,6 +63,22 @@ spec:
   ports:
     - { name: http, port: 8000, targetPort: 8000 }
 ---
+# LAN NodePort for the lakeFS S3 gateway (mirrors mlflow-lan). Lets rogueone + any LAN client reach lakeFS at
+# http://192.168.1.243:30800 with NO kubectl port-forward — the datasets-format tools (scripts/query_datasets_
+# formats.py, the JupyterHub-seed reads) point here. lakeFS's own access-key auth (SigV4 with LAKEFS_ACCESS_KEY_ID/
+# SECRET) gates it, so it's app-authenticated even on the LAN — same posture as the S3 API / data backends.
+apiVersion: v1
+kind: Service
+metadata:
+  name: lakefs-lan
+  namespace: data-mesh
+  labels: { app: lakefs }
+spec:
+  type: NodePort
+  selector: { app: lakefs }
+  ports:
+    - { name: http, port: 8000, targetPort: 8000, nodePort: 30800 }
+---
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:

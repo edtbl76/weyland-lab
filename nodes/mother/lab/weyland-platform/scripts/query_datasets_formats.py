@@ -4,7 +4,8 @@ Reads each format of the music datasets straight from the **lakeFS S3 gateway** 
 proving every format is queryable from one tool. This is the **seed for the future JupyterHub notebooks**;
 DuckDB (+ the pyarrow bridge) lands next as the SQL store over these same files.
 
-Run on **rogueone** with lakeFS port-forwarded to localhost:8000 (IntelliJ k8s plugin → svc `lakefs` :8000):
+Run from any LAN host — reaches lakeFS via the **LAN NodePort** `http://192.168.1.243:30800` (`lakefs-lan`,
+k8s/data-mesh/lakefs.yaml). No kubectl/IntelliJ port-forward needed; override with LAKEFS_ENDPOINT if elsewhere:
 
     python -m venv .venv && . .venv/bin/activate
     pip install polars pylance s3fs
@@ -20,7 +21,7 @@ import os
 import polars as pl
 import s3fs
 
-LAKEFS_ENDPOINT = os.environ.get("LAKEFS_ENDPOINT", "http://localhost:8000")
+LAKEFS_ENDPOINT = os.environ.get("LAKEFS_ENDPOINT", "http://192.168.1.243:30800")
 KEY = os.environ["LAKEFS_ACCESS_KEY_ID"]
 SECRET = os.environ["LAKEFS_SECRET_ACCESS_KEY"]
 REPO, BRANCH, TABLE = "music", "main", "spotify_tracks"
