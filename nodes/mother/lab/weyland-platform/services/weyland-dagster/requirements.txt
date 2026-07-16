@@ -16,9 +16,10 @@ acryl-datahub
 pyiceberg[s3fs]
 pyarrow
 # eval → MLflow experiment tracking (eval_mlflow.py). Skinny client (no server deps); metrics/params only.
-# PINNED to the deployed server version (ghcr.io/mlflow/mlflow:v2.18.0) — an unpinned 3.x client calls the
-# /api/2.0/mlflow/logged-models endpoint that the 2.x server lacks → 404 on log_model.
-mlflow-skinny==2.18.0
+# PINNED to the deployed server version (ghcr.io/mlflow/mlflow:v3.14.0). The old 2.18 pin existed because a 3.x
+# client hits /api/2.0/mlflow/logged-models which the 2.x server lacked (404 on log_model) — moot now the server
+# is 3.x. B47: also clears the 2025/2026 mlflow RCE CVEs.
+mlflow-skinny==3.14.0
 # (scikit-learn + FULL mlflow removed 2026-07-06 — the in-cluster genre-training assets moved to the remote
 #  genre-trainer on rogueone. The only remaining Dagster mlflow user is eval_mlflow.py, which makes tracking-only
 #  calls (log_params/metrics/tags) that mlflow-skinny covers; the Feast retrieval asset needs neither.)
