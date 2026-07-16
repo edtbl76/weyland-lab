@@ -65,6 +65,8 @@ spec:
                   k = m.get(sev)
                   if k:
                       c[k] += 1
+                  print(f"[{sev}] {f.get('path','')}:{(f.get('start') or {}).get('line','')} "
+                        f"{f.get('check_id','')} :: {((f.get('extra') or {}).get('message') or '')[:100]}")
               p = {'tool': 'semgrep', 'target': 'weyland-lab',
                    'critical': c['critical'], 'high': c['high'],
                    'medium': c['medium'], 'low': c['low'], 'total': sum(c.values()),

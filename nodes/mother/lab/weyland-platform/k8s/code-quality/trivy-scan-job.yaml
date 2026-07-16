@@ -57,11 +57,14 @@ spec:
               d = json.load(open('/out/trivy.json'))
               c = {'CRITICAL': 0, 'HIGH': 0, 'MEDIUM': 0, 'LOW': 0}
               for r in (d.get('Results') or []):
+                  tgt = r.get('Target', '')
                   for k in ('Vulnerabilities', 'Misconfigurations', 'Secrets'):
                       for f in (r.get(k) or []):
                           s = (f.get('Severity') or '').upper()
                           if s in c:
                               c[s] += 1
+                          idv = f.get('ID') or f.get('AVDID') or f.get('RuleID') or ''
+                          print(f"[{s}] {tgt} {idv} :: {(f.get('Title') or f.get('Description') or '')[:100]}")
               p = {'tool': 'trivy', 'target': 'weyland-lab',
                    'critical': c['CRITICAL'], 'high': c['HIGH'],
                    'medium': c['MEDIUM'], 'low': c['LOW'], 'total': sum(c.values()),
