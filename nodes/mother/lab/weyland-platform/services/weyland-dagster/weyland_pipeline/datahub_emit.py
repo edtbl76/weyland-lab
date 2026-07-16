@@ -193,6 +193,17 @@ def _store_aspects(name, platform, description, fields, producer_asset, props=No
     return aspects
 
 
+def _safe_ident(name):
+    """B47 hardening: validate a SQL identifier (schema/table/db/column) is bare alnum+underscore before it is
+    interpolated into a statement. SQL identifiers can't be bound as parameters, so this allowlist is the guard —
+    anything with quotes/semicolons/whitespace raises instead of reaching the DB. Every call site passes names
+    from the driver's own information_schema, so this never fires in practice; it's defense-in-depth."""
+    n = str(name)
+    if n and all(c.isalnum() or c == "_" for c in n):
+        return n
+    raise ValueError(f"unsafe SQL identifier: {name!r}")
+
+
 DBT_MANIFEST = os.environ.get("DBT_MANIFEST", "/app/dbt/target/manifest.json")
 
 
@@ -2207,7 +2218,7 @@ def emit_duckdb():
                 emitter.emit(MetadataChangeProposalWrapper(entityUrn=urn, aspect=aspect))
             rows = None
             try:
-                cur.execute(f'SELECT count(*) FROM "{schema}"."{v}"')
+                cur.execute(f'SELECT count(*) FROM "{_safe_ident(schema)}"."{_safe_ident(v)}"')  # nosemgrep: identifiers validated by _safe_ident; SQL identifiers can't be parameterized
                 rows = cur.fetchone()[0]
             except Exception:  # noqa: BLE001
                 pass
@@ -2285,7 +2296,7 @@ def emit_timescaledb():
                 emitter.emit(MetadataChangeProposalWrapper(entityUrn=urn, aspect=aspect))
             rows = None
             try:
-                cur.execute(f"""SELECT approximate_row_count('public."{t}"')""")
+                cur.execute(f"""SELECT approximate_row_count('public."{_safe_ident(t)}"')""")  # nosemgrep: identifier validated by _safe_ident
                 rows = cur.fetchone()[0]
             except Exception:  # noqa: BLE001
                 conn.rollback()   # a failed query aborts the psycopg2 txn — reset so later SELECTs still work
@@ -2342,7 +2353,7 @@ def emit_mysql():
                     emitter.emit(MetadataChangeProposalWrapper(entityUrn=urn, aspect=aspect))
                 rows = None
                 try:
-                    cur.execute(f"SELECT count(*) FROM `{db}`.`{t}`")
+                    cur.execute(f"SELECT count(*) FROM `{_safe_ident(db)}`.`{_safe_ident(t)}`")  # nosemgrep: identifiers validated by _safe_ident
                     rows = cur.fetchone()[0]
                 except Exception:  # noqa: BLE001
                     pass
@@ -2378,7 +2389,7 @@ def emit_cockroachdb_profiles():
                 urn = make_dataset_urn(platform="cockroachdb", name=f"{db}.{t}", env=ENV)
                 rows = None
                 try:
-                    cur.execute(f'SELECT count(*) FROM public."{t}"')
+                    cur.execute(f'SELECT count(*) FROM public."{_safe_ident(t)}"')  # nosemgrep: identifier validated by _safe_ident
                     rows = cur.fetchone()[0]
                 except Exception:  # noqa: BLE001
                     conn.rollback()

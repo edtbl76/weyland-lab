@@ -16,5 +16,11 @@ RUN pip install --no-cache-dir --upgrade pip && pip install --no-cache-dir -r re
 COPY train_genre.py entrypoint.sh ./
 RUN chmod +x entrypoint.sh
 
+# B47: run as non-root. HOME=/app (owned by appuser) so kubectl config + HF model cache are writable at runtime;
+# the ephemeral run mounts a kubeconfig read-only and its in-container port-forwards use unprivileged ports.
+RUN useradd -u 10001 -m appuser && chown -R appuser /app
+ENV HOME=/app
+USER appuser
+
 # Args after the image name flow through entrypoint.sh to the script, e.g. `… genre-trainer --source silver`.
 ENTRYPOINT ["./entrypoint.sh"]

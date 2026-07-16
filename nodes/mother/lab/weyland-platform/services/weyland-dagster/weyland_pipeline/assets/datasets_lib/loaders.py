@@ -16,6 +16,22 @@ from dagster import MetadataValue, Output, asset
 
 from . import io
 
+
+def _safe_ident(name):
+    """B47 hardening: allowlist a bare SQL identifier (db/keyspace/table from dataset config) before it is
+    interpolated into a statement — identifiers can't be bound as params. Raises on anything with quotes/
+    semicolons/whitespace. Call sites pass config-defined snake_case names, so this never fires in practice."""
+    n = str(name)
+    if n and all(c.isalnum() or c == "_" for c in n):
+        return n
+    raise ValueError(f"unsafe SQL identifier: {name!r}")
+
+
+def _q(name):
+    """B47: escape a double-quoted SQL identifier (dataset COLUMN names, which can vary) by doubling quotes."""
+    return str(name).replace('"', '""')
+
+
 _MYSQL_BATCH = 50_000
 # Mongo docs are Python dicts (heavy — OFF is 211 all-string cols), so a smaller batch than MySQL's, and
 # the parquet is read from a temp FILE (not held in RAM) — the 50k+whole-file approach OOMKilled user-code.
@@ -110,8 +126,7 @@ def _load_dataset_to_timescale(mc, cfg, dataset, time_col, engine, log) -> dict:
             # to_sql made a plain table (dropping any prior hypertable); (re)promote it. migrate_data moves
             # the just-loaded rows into chunks; if_not_exists keeps it idempotent across re-runs.
             with engine.begin() as conn:
-                conn.execute(sqlalchemy.text(
-                    f"SELECT create_hypertable('{table}', 'ts', if_not_exists => TRUE, migrate_data => TRUE)"))
+                conn.execute(sqlalchemy.text(f"SELECT create_hypertable('{_safe_ident(table)}', 'ts', if_not_exists => TRUE, migrate_data => TRUE)"))  # nosemgrep: identifier validated by _safe_ident
             out[table] = int(len(df))
             log.info(f"timescaledb {table}: {len(df):,} rows → hypertable on ts (from {time_col})")
         except Exception as e:  # noqa: BLE001 — per-table resilience
@@ -192,7 +207,7 @@ def _load_dataset_to_cockroach(mc, cfg, dataset, engine_for, log) -> dict:
     import sqlalchemy
 
     with engine_for("defaultdb").connect() as conn:   # CREATE DATABASE from Cockroach's default db
-        conn.execute(sqlalchemy.text(f'CREATE DATABASE IF NOT EXISTS "{dataset}"'))
+        conn.execute(sqlalchemy.text(f'CREATE DATABASE IF NOT EXISTS "{_safe_ident(dataset)}"'))  # nosemgrep: identifier validated by _safe_ident
         conn.commit()
     engine = engine_for(dataset)
     prefix = f"{io.branch()}/parquet/{dataset}/"
@@ -291,13 +306,13 @@ def _load_dataset_to_cassandra(session, mc, cfg, dataset, partition_raw, log) ->
                 pi = cols.index(partition)
                 cql_types[pi] = "text"
                 casters[pi] = lambda v: "__UNKNOWN__" if (v is None or v != v or str(v) == "") else str(v)
-            pk = f'PRIMARY KEY (("{partition}"), row_id)' if partition else "PRIMARY KEY (row_id)"
+            pk = f'PRIMARY KEY (("{_q(partition)}"), row_id)' if partition else "PRIMARY KEY (row_id)"
 
-            col_defs = ", ".join(f'"{c}" {t}' for c, t in zip(cols, cql_types))
-            session.execute(f"DROP TABLE IF EXISTS {ks}.{table}")
-            session.execute(f'CREATE TABLE {ks}.{table} ({col_defs}, row_id uuid, {pk})')
+            col_defs = ", ".join(f'"{_q(c)}" {t}' for c, t in zip(cols, cql_types))
+            session.execute(f"DROP TABLE IF EXISTS {_safe_ident(ks)}.{_safe_ident(table)}")  # nosemgrep: identifiers validated by _safe_ident
+            session.execute(f'CREATE TABLE {_safe_ident(ks)}.{_safe_ident(table)} ({col_defs}, row_id uuid, {pk})')  # nosemgrep: identifiers validated by _safe_ident
 
-            quoted = ", ".join(f'"{c}"' for c in cols)
+            quoted = ", ".join(f'"{_q(c)}"' for c in cols)
             marks = ", ".join(["?"] * (len(cols) + 1))
             ins = session.prepare(f'INSERT INTO {ks}.{table} ({quoted}, row_id) VALUES ({marks})')
 

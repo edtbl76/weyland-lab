@@ -7,6 +7,9 @@
 #   docker build -t weyland/ranger:2.6.0-py3 services/ranger
 #   docker save weyland/ranger:2.6.0-py3 | sudo ctr -n k8s.io images import -
 FROM mr3project/ranger:2.6.0
+# nosemgrep: dockerfile.security.last-user-is-root.last-user-is-root -- ROOT REQUIRED (B47 accepted exception): the
+# mr3project/ranger base runs tomcat + db_setup as root; this USER root is for the apt layer and matches the base's
+# runtime user. Forcing non-root risks breaking L5 Trino authz (painful bring-up). Pod securityContext mitigates.
 USER root
 RUN apt-get update \
     && apt-get install -y --no-install-recommends python3 \

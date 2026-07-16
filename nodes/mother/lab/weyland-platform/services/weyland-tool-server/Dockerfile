@@ -43,6 +43,11 @@ RUN pip install --no-cache-dir sentry-sdk
 COPY main.py /app/main.py
 COPY guardrails /app/guardrails
 
+# B47: run as non-root. The HF/guardrail models were baked to /app/.cache as root above; chown /app so appuser can
+# read them for the offline load (HF_HUB_OFFLINE=1) and own the workdir. Port 8080 is unprivileged.
+RUN useradd -u 10001 -m appuser && chown -R appuser /app
+USER appuser
+
 # Runtime config (DB / backend / Dagster URLs + secrets) is supplied by the k8s
 # deployment env — see k8s/weyland-tool-server.yaml, the single source of truth.
 # main.py keeps in-cluster DNS defaults so the image still runs standalone for dev.

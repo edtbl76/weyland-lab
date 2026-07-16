@@ -34,4 +34,8 @@ COPY scripts/ ./scripts/
 
 EXPOSE 4000
 
+# nosemgrep: dockerfile.security.missing-user.missing-user -- ROOT REQUIRED (B47 accepted exception): the embedding
+# model is baked to /root/.cache at build, dbt writes /app/dbt/target at runtime, and the K8sRunLauncher spawns
+# every pipeline run-pod FROM this image. Non-root means re-validating the whole platform for ~zero LAN-lab gain;
+# the pod securityContext (allowPrivilegeEscalation:false + drop caps) provides the real mitigation instead.
 CMD ["dagster", "api", "grpc", "-h", "0.0.0.0", "-p", "4000", "-m", "weyland_pipeline.definitions"]
