@@ -16,6 +16,10 @@ Type=simple
 User=edwardmangini
 # The mkcert root -> boto3 VERIFIES TLS to s3.weyland.lab (this is what lets us drop MLFLOW_S3_IGNORE_TLS).
 Environment=AWS_CA_BUNDLE=/home/edwardmangini/.local/share/mkcert/rootCA.pem
+# B47: Ray token auth. The worker reads the SHARED token from ~/.ray/auth_token (the default path;
+# /home/edwardmangini/.ray/auth_token here). Write it out-of-band with the SAME value as the k8s `ray-auth`
+# Secret used by the head: `mkdir -p ~/.ray && printf %s "<TOKEN>" > ~/.ray/auth_token && chmod 600 ~/.ray/auth_token`
+Environment=RAY_AUTH_MODE=token
 # --block runs the raylet in the foreground; on GCS disconnect it exits and systemd restarts it (auto-rejoin).
 # --metrics-export-port=8080: expose this worker's Prometheus metrics (ray_* task/actor/node) on .230:8080, where
 # the real work runs — the head is a --num-cpus=0 coordinator, so its scrape has no task/actor series. The

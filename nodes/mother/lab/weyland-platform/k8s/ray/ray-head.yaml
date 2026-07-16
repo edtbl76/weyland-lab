@@ -81,6 +81,14 @@ spec:
             - name: AWS_SECRET_ACCESS_KEY
               valueFrom:
                 secretKeyRef: { name: aidlc-kb-minio-secret, key: secret_key }
+            # B47: Ray 2.52+ token auth (defense-in-depth on top of the network isolation) for the dashboard + Jobs
+            # API. RAY_AUTH_TOKEN = the shared token (Secret ray-auth), the SAME value the rogueone worker + clients
+            # use. `ray start` reads RAY_AUTH_MODE from the env. See runbooks/remote-training.md.
+            - name: RAY_AUTH_MODE
+              value: token
+            - name: RAY_AUTH_TOKEN
+              valueFrom:
+                secretKeyRef: { name: ray-auth, key: token }
             # --- Ray dashboard Metrics tab (embeds Grafana panels backed by our kube-prometheus-stack) ---
             # Server-side (the dashboard backend queries these in-cluster; hostNetwork + ClusterFirstWithHostNet
             # resolves svc DNS): Prometheus for the metric queries, Grafana for a health check.
@@ -95,9 +103,11 @@ spec:
             - name: RAY_GRAFANA_IFRAME_HOST
               value: https://grafana.weyland.lab
           readinessProbe:
-            httpGet:
-              path: /api/version       # dashboard API — 200 once the head is up
-              port: 8265
+            # B47: token auth may 401 an unauth'd httpGet probe, and a kubelet httpGet can't inject the Secret
+            # token — so probe via python with the Authorization header from RAY_AUTH_TOKEN (works whether or not
+            # /api/version is auth-exempt). Non-2xx raises → probe fails; 2xx → ready.
+            exec:
+              command: ["python", "-c", "import os,urllib.request; urllib.request.urlopen(urllib.request.Request('http://localhost:8265/api/version', headers={'Authorization':'Bearer '+os.environ.get('RAY_AUTH_TOKEN','')}))"]
             initialDelaySeconds: 15
             periodSeconds: 10
           resources:
