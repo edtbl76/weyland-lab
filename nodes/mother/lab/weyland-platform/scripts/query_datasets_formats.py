@@ -66,8 +66,12 @@ def read_avro() -> pl.DataFrame:
 def read_lance() -> pl.DataFrame:
     import lance
 
-    # The Lance dataset is at …/lance/<table>/ directly (it contains _versions/, _transactions/, data/).
-    ds = lance.dataset(f"s3://{REPO}/{BRANCH}/lance/{TABLE}", storage_options=SO)
+    # The Lance dataset is at …/lance/<table>/ directly (it contains _versions/, _transactions/, data/). Current
+    # pylance's object_store only reads the S3 opts in object_store's **`aws_`-prefixed** form — the generic
+    # `access_key_id` keys (which write_lance + s3fs use) are silently ignored → anonymous request → lakeFS 403.
+    so = {"aws_access_key_id": KEY, "aws_secret_access_key": SECRET, "aws_endpoint": LAKEFS_ENDPOINT,
+          "aws_allow_http": "true", "aws_region": "us-east-1", "aws_virtual_hosted_style_request": "false"}
+    ds = lance.dataset(f"s3://{REPO}/{BRANCH}/lance/{TABLE}", storage_options=so)
     return pl.from_arrow(ds.to_table())
 
 
