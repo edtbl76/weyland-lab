@@ -51,8 +51,10 @@ def read_parquet() -> pl.DataFrame:
 
 
 def read_arrow() -> pl.DataFrame:
-    # Arrow / Feather == Arrow IPC; polars reads it via read_ipc.
-    return pl.read_ipc(f"s3://{_first('arrow', '.arrow')}", storage_options=SO)
+    # Arrow/Feather == Arrow IPC. polars `read_ipc` with storage_options routes through fsspec/s3fs (which rejects
+    # the object_store keys → `AioSession … access_key_id`), so pull the bytes through s3fs like read_avro does.
+    with _fs.open(_first("arrow", ".arrow"), "rb") as f:
+        return pl.read_ipc(io.BytesIO(f.read()))
 
 
 def read_avro() -> pl.DataFrame:
@@ -64,7 +66,10 @@ def read_avro() -> pl.DataFrame:
 def read_lance() -> pl.DataFrame:
     import lance
 
-    ds = lance.dataset(f"s3://{REPO}/{BRANCH}/lance/{TABLE}", storage_options=SO)
+    # write_lance writes a per-name subdir …/lance/<table>/<name>/ (a Lance dataset dir), so opening the PARENT
+    # …/lance/<table>/ as a dataset 403s (no _versions/ there). Resolve the first subdir and open THAT.
+    subdir = _fs.ls(f"{REPO}/{BRANCH}/lance/{TABLE}")[0]
+    ds = lance.dataset(f"s3://{subdir}", storage_options=SO)
     return pl.from_arrow(ds.to_table())
 
 

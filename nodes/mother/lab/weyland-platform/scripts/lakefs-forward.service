@@ -1,0 +1,26 @@
+# Persistent lakeFS S3-gateway port-forward on rogueone (localhost:8000). The datasets-format tools
+# (scripts/query_datasets_formats.py, the JupyterHub-seed polars/Lance reads) hit the lakeFS S3 gateway at
+# localhost:8000; an IntelliJ port-forward is session-bound and easy to forget. This USER service keeps it up +
+# auto-reconnects (Restart=always) so the endpoint is just always there.
+#
+# Install (on rogueone, once):
+#   mkdir -p ~/.config/systemd/user
+#   cp scripts/lakefs-forward.service ~/.config/systemd/user/lakefs-forward.service
+#   systemctl --user daemon-reload && systemctl --user enable --now lakefs-forward
+#   loginctl enable-linger edwardmangini      # run even when you're not logged in
+# Verify:  systemctl --user status lakefs-forward   +   curl -s localhost:8000/_health   (lakeFS liveness)
+[Unit]
+Description=lakeFS S3 gateway port-forward (localhost:8000) for the datasets-format tools
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+# ClusterFirst kubeconfig is the user's default (~/.kube/config). port-forward drops on GCS/API blips or sleep;
+# Restart=always re-establishes it (same auto-rejoin idea as ray-worker.service).
+ExecStart=/usr/bin/kubectl port-forward -n data-mesh svc/lakefs 8000:8000
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=default.target
