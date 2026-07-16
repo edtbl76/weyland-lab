@@ -24,6 +24,10 @@ spec:
           image: aquasec/trivy:latest
           args:
             - fs
+            # --offline-scan: do NOT resolve dependencies over the network. The Flink pom.xml files (B83) made Trivy
+            # fetch transitive POMs from Maven Central, which 429-rate-limited and blocked mother's IP for 30 min.
+            # Offline still does Dockerfile/k8s misconfig + secret + local lockfile scanning — just no Maven fetch.
+            - --offline-scan
             - --scanners
             - vuln,secret,misconfig
             - --severity
