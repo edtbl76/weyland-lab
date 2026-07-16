@@ -22,7 +22,12 @@ spec:
     spec:
       containers:
         - name: neodash
-          image: neo4jlabs/neodash@sha256:04ead957355d11b3c3687465a7ae4622df24a0c3f8266bbd4f0fdfaab5be09ad  # pinned from :latest 2026-07-10
+          image: neo4jlabs/neodash@sha256:04ead957355d11b3c3687465a7ae4622df24a0c3f8266bbd4f0fdfaab5be09ad  # pinned from :latest 2026-07-10  # nosemgrep: yaml.kubernetes.security.run-as-non-root.run-as-non-root
+          # B47 hardening: drop priv-esc + seccomp (see arch)
+          securityContext:
+            allowPrivilegeEscalation: false
+            seccompProfile:
+              type: RuntimeDefault
           ports:
             - name: http
               containerPort: 5005

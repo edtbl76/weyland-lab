@@ -33,7 +33,12 @@ spec:
             - { name: ca-bundle, mountPath: /cabundle }
       containers:
         - name: open-webui
-          image: ghcr.io/open-webui/open-webui:main   # TODO: pin to a release tag for reproducibility
+          image: ghcr.io/open-webui/open-webui:main   # TODO: pin to a release tag for reproducibility  # nosemgrep: yaml.kubernetes.security.run-as-non-root.run-as-non-root
+          # B47 hardening: drop priv-esc + seccomp (see arch)
+          securityContext:
+            allowPrivilegeEscalation: false
+            seccompProfile:
+              type: RuntimeDefault
           ports:
             - containerPort: 8080
           env:

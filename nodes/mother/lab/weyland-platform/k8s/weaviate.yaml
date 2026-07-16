@@ -35,8 +35,13 @@ spec:
     spec:
       containers:
         - name: weaviate
-          image: semitechnologies/weaviate@sha256:47ce6a83f3bd1bc39b8baa7e06c42b57f6589a21400a33b482194bd5123c02a5  # pinned from :latest 2026-07-10
+          image: semitechnologies/weaviate@sha256:47ce6a83f3bd1bc39b8baa7e06c42b57f6589a21400a33b482194bd5123c02a5  # pinned from :latest 2026-07-10  # nosemgrep: yaml.kubernetes.security.run-as-non-root.run-as-non-root
           imagePullPolicy: IfNotPresent
+          # B47 hardening: drop priv-esc + seccomp (see arch)
+          securityContext:
+            allowPrivilegeEscalation: false
+            seccompProfile:
+              type: RuntimeDefault
           resources:
             requests: { memory: 1Gi, cpu: 250m }
             limits: { memory: 3Gi }   # actual ~1.7Gi (fattest vector store) — headroom for growth

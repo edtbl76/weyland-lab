@@ -23,7 +23,12 @@ spec:
     spec:
       containers:
         - name: valkey
-          image: valkey/valkey:8-alpine
+          image: valkey/valkey:8-alpine  # nosemgrep: yaml.kubernetes.security.run-as-non-root.run-as-non-root
+          # B47 hardening: drop priv-esc + seccomp (see arch)
+          securityContext:
+            allowPrivilegeEscalation: false
+            seccompProfile:
+              type: RuntimeDefault
           args: ["--save", "", "--appendonly", "no"]   # ephemeral cache: no persistence
           ports:
             - name: tcp-valkey

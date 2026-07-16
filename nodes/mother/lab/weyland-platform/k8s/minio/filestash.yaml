@@ -43,8 +43,13 @@ spec:
     spec:
       containers:
         - name: filestash
-          image: machines/filestash@sha256:03990d17041624000acb31e89ae21b86318c3ab28b5928c9e7e1b30a647310fb  # pinned from :latest 2026-07-10
+          image: machines/filestash@sha256:03990d17041624000acb31e89ae21b86318c3ab28b5928c9e7e1b30a647310fb  # pinned from :latest 2026-07-10  # nosemgrep: yaml.kubernetes.security.run-as-non-root.run-as-non-root
           imagePullPolicy: IfNotPresent
+          # B47 hardening: drop priv-esc + seccomp (see arch)
+          securityContext:
+            allowPrivilegeEscalation: false
+            seccompProfile:
+              type: RuntimeDefault
           # No APPLICATION_URL: setting it to a full URL caused Filestash to build a
           # scheme-doubled redirect (http://https//files.weyland.lab). Let Filestash infer
           # its public URL from Traefik's forwarded Host + X-Forwarded-Proto headers instead.

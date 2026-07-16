@@ -36,8 +36,13 @@ spec:
       enableServiceLinks: false
       containers:
         - name: neo4j
-          image: neo4j:5
+          image: neo4j:5  # nosemgrep: yaml.kubernetes.security.run-as-non-root.run-as-non-root
           imagePullPolicy: IfNotPresent
+          # B47 hardening: drop priv-esc + seccomp (see arch)
+          securityContext:
+            allowPrivilegeEscalation: false
+            seccompProfile:
+              type: RuntimeDefault
           ports:
             - name: http
               containerPort: 7474

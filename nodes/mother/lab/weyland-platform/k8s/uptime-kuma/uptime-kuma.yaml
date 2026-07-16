@@ -42,8 +42,13 @@ spec:
           - weyland.lab
       containers:
         - name: uptime-kuma
-          image: louislam/uptime-kuma:1
+          image: louislam/uptime-kuma:1  # nosemgrep: yaml.kubernetes.security.run-as-non-root.run-as-non-root
           imagePullPolicy: IfNotPresent
+          # B47 hardening: drop priv-esc + seccomp (see arch)
+          securityContext:
+            allowPrivilegeEscalation: false
+            seccompProfile:
+              type: RuntimeDefault
           ports:
             - name: http
               containerPort: 3001

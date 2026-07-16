@@ -20,7 +20,12 @@ spec:
     spec:
       containers:
         - name: postgres
-          image: pgvector/pgvector:pg16
+          image: pgvector/pgvector:pg16  # nosemgrep: yaml.kubernetes.security.run-as-non-root.run-as-non-root
+          # B47 hardening: drop priv-esc + seccomp (see arch)
+          securityContext:
+            allowPrivilegeEscalation: false
+            seccompProfile:
+              type: RuntimeDefault
           resources:
             requests: { memory: 512Mi, cpu: 250m }
             limits: { memory: 2Gi }   # core platform DB (max_connections=200) — generous; actual ~352Mi

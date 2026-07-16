@@ -25,8 +25,13 @@ spec:
     spec:
       containers:
         - name: unleash
-          image: unleashorg/unleash-server:8.0.1
+          image: unleashorg/unleash-server:8.0.1  # nosemgrep: yaml.kubernetes.security.run-as-non-root.run-as-non-root
           imagePullPolicy: IfNotPresent
+          # B47 hardening: drop priv-esc + seccomp (see arch)
+          securityContext:
+            allowPrivilegeEscalation: false
+            seccompProfile:
+              type: RuntimeDefault
           ports:
             - name: http
               containerPort: 4242

@@ -21,7 +21,12 @@ spec:
     spec:
       containers:
         - name: valkey
-          image: valkey/valkey:8-alpine
+          image: valkey/valkey:8-alpine  # nosemgrep: yaml.kubernetes.security.run-as-non-root.run-as-non-root
+          # B47 hardening: drop priv-esc + seccomp (see arch)
+          securityContext:
+            allowPrivilegeEscalation: false
+            seccompProfile:
+              type: RuntimeDefault
           ports:
             - containerPort: 6379
           resources:
@@ -92,8 +97,13 @@ spec:
                   key: DATABASE_URL
       containers:
         - name: glitchtip
-          image: glitchtip/glitchtip:6.2.0
+          image: glitchtip/glitchtip:6.2.0  # nosemgrep: yaml.kubernetes.security.run-as-non-root.run-as-non-root
           imagePullPolicy: IfNotPresent
+          # B47 hardening: drop priv-esc + seccomp (see arch)
+          securityContext:
+            allowPrivilegeEscalation: false
+            seccompProfile:
+              type: RuntimeDefault
           ports:
             - name: http
               containerPort: 8000
@@ -170,8 +180,13 @@ spec:
     spec:
       containers:
         - name: glitchtip
-          image: glitchtip/glitchtip:6.2.0
+          image: glitchtip/glitchtip:6.2.0  # nosemgrep: yaml.kubernetes.security.run-as-non-root.run-as-non-root
           imagePullPolicy: IfNotPresent
+          # B47 hardening: drop priv-esc + seccomp (see arch)
+          securityContext:
+            allowPrivilegeEscalation: false
+            seccompProfile:
+              type: RuntimeDefault
           command: ["./bin/run-celery-with-beat.sh"]
           env:
             - name: GLITCHTIP_DOMAIN

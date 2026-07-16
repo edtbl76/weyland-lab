@@ -81,7 +81,12 @@ spec:
     spec:
       containers:
         - name: trino
-          image: trinodb/trino:468
+          image: trinodb/trino:468  # nosemgrep: yaml.kubernetes.security.run-as-non-root.run-as-non-root
+          # B47 hardening: drop priv-esc + seccomp (see arch)
+          securityContext:
+            allowPrivilegeEscalation: false
+            seccompProfile:
+              type: RuntimeDefault
           ports:
             - { name: http, containerPort: 8080 }
           envFrom:

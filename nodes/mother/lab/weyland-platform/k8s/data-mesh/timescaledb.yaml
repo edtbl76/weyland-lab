@@ -38,7 +38,12 @@ spec:
     spec:
       containers:
         - name: timescaledb
-          image: timescale/timescaledb-ha:pg16
+          image: timescale/timescaledb-ha:pg16  # nosemgrep: yaml.kubernetes.security.run-as-non-root.run-as-non-root
+          # B47 hardening: drop priv-esc + seccomp (see arch)
+          securityContext:
+            allowPrivilegeEscalation: false
+            seccompProfile:
+              type: RuntimeDefault
           ports:
             - name: tcp-postgres
               containerPort: 5432

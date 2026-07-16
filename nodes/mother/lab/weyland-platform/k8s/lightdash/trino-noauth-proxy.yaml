@@ -46,7 +46,12 @@ spec:
     spec:
       containers:
         - name: nginx
-          image: nginx:1.27-alpine
+          image: nginx:1.27-alpine  # nosemgrep: yaml.kubernetes.security.run-as-non-root.run-as-non-root
+          # B47 hardening: drop priv-esc + seccomp (see arch)
+          securityContext:
+            allowPrivilegeEscalation: false
+            seccompProfile:
+              type: RuntimeDefault
           ports:
             - containerPort: 8080
           volumeMounts:

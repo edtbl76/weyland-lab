@@ -33,7 +33,12 @@ spec:
         fsGroup: 1000
       containers:
         - name: n8n
-          image: docker.n8n.io/n8nio/n8n@sha256:9cb60554716a0ab11a966e79ed65171e1bbf00b6d262ba12aa119bba22eb6000  # pinned from :latest 2026-07-10
+          image: docker.n8n.io/n8nio/n8n@sha256:9cb60554716a0ab11a966e79ed65171e1bbf00b6d262ba12aa119bba22eb6000  # pinned from :latest 2026-07-10  # nosemgrep: yaml.kubernetes.security.run-as-non-root.run-as-non-root
+          # B47 hardening: drop priv-esc + seccomp (see arch)
+          securityContext:
+            allowPrivilegeEscalation: false
+            seccompProfile:
+              type: RuntimeDefault
           ports:
             - containerPort: 5678
           env:

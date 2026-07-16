@@ -26,6 +26,15 @@ spec:
         - name: rag-index
           image: weyland-rag-index:local
           imagePullPolicy: Never
+          # B47 hardening: non-root uid 10001 + drop caps + no priv-esc + seccomp
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 10001
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+            seccompProfile:
+              type: RuntimeDefault
           env:
             - name: STORE
               value: qdrant

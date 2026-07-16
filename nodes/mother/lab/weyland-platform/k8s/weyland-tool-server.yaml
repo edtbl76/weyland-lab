@@ -22,6 +22,15 @@ spec:
             requests: { memory: 512Mi, cpu: 250m }
             limits: { memory: 2Gi }   # actual ~929Mi (loads embedding models) — headroom
           imagePullPolicy: Never
+          # B47 hardening: non-root uid 10001 + drop caps + no priv-esc + seccomp
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 10001
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+            seccompProfile:
+              type: RuntimeDefault
           ports:
             - containerPort: 8080
           # Liveness = process up (/health); Readiness = model loaded + pgvector (/ready).

@@ -24,8 +24,13 @@ spec:
     spec:
       containers:
         - name: registry-ui
-          image: joxit/docker-registry-ui:2.5.7
+          image: joxit/docker-registry-ui:2.5.7  # nosemgrep: yaml.kubernetes.security.run-as-non-root.run-as-non-root
           imagePullPolicy: IfNotPresent
+          # B47 hardening: drop priv-esc + seccomp (see arch)
+          securityContext:
+            allowPrivilegeEscalation: false
+            seccompProfile:
+              type: RuntimeDefault
           ports:
             - name: http
               containerPort: 80

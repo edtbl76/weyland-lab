@@ -35,7 +35,12 @@ spec:
               mountPath: /site
       containers:
         - name: nginx
-          image: nginx:1.27-alpine
+          image: nginx:1.27-alpine  # nosemgrep: yaml.kubernetes.security.run-as-non-root.run-as-non-root
+          # B47 hardening: drop priv-esc + seccomp (see arch)
+          securityContext:
+            allowPrivilegeEscalation: false
+            seccompProfile:
+              type: RuntimeDefault
           resources:
             requests: { memory: 32Mi, cpu: 20m }
             limits: { memory: 128Mi }

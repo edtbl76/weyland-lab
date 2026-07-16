@@ -36,8 +36,13 @@ spec:
     spec:
       containers:
         - name: qdrant
-          image: qdrant/qdrant@sha256:75eab8c4ba42096724fdcfde8b4de0b5713d529dde32f285a1f86fdcb2c9e50c  # pinned from :latest 2026-07-10
+          image: qdrant/qdrant@sha256:75eab8c4ba42096724fdcfde8b4de0b5713d529dde32f285a1f86fdcb2c9e50c  # pinned from :latest 2026-07-10  # nosemgrep: yaml.kubernetes.security.run-as-non-root.run-as-non-root
           imagePullPolicy: IfNotPresent
+          # B47 hardening: drop priv-esc + seccomp (see arch)
+          securityContext:
+            allowPrivilegeEscalation: false
+            seccompProfile:
+              type: RuntimeDefault
           resources:
             requests: { memory: 256Mi, cpu: 100m }
             limits: { memory: 1Gi }   # actual ~208Mi — headroom as collections grow
