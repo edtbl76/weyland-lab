@@ -1049,6 +1049,14 @@ All land in lakeFS → Parquet → Iceberg → Trino/DuckDB queryable. Gated dat
 
 **Recommendation:** graduate **RDF / Fuseki** to a real build when a semantic-graph / SPARQL need surfaces (the KB taxonomy is the natural trigger); keep **Ignite / Tarantool / Derby / Firebird** parked-but-recorded (available, not committed); treat the **✗** and **~** buckets as **closed with rationale** so they aren't re-litigated. **Re-eval trigger** (as B67): a concrete need the committed stack can't meet.
 
+### B86 — Evaluate spec-driven dev frameworks: OpenSpec · Spec Kit · BMAD · Kiro (vs the Method/AIDLC)
+**Added 2026-07-17.** Compare four external **spec-driven / agentic-development** approaches against the project's own AIDLC **Method** (`.methodaidlc/`, the user's own IP — see [[methodaidlc-user-authored]]):
+- **OpenSpec** — open spec format + workflow for spec-first AI coding (change proposals → specs → implementation, agent-agnostic).
+- **GitHub Spec Kit** (`spec-kit`) — GitHub's spec-driven toolkit (`/specify` → `/plan` → `/tasks`), agent-agnostic CLI.
+- **BMAD-METHOD** — "Breakthrough Method of Agile AI-Driven Development": role-agents (analyst / PM / architect / dev / QA) + sharded PRD/story docs, two-phase (planning → dev cycle).
+- **Kiro** — AWS's agentic IDE with a built-in spec flow (requirements → design → tasks) + steering files + agent hooks.
+**Goal:** map what each does, where they overlap/diverge from the Method's stages (validated-intent → requirements → design → construction → operations), and whether any patterns/artifacts/tooling are worth adopting into — or cross-pollinating with — the Method. **Output** = a comparison doc + decision matrix (`docs/concepts/` or `aidlc-docs/`). Research/maturity item — evaluate first, no commitment to adopt. All four are free/OSS or free-tier, so $0-friendly to trial.
+
 ---
 
 ## Iteration 1 follow-ups (banked, see units-iter1.md)
