@@ -50,7 +50,7 @@ SealedSecrets/External-Secrets mechanism for all imperative secrets.
 
 ### High
 - **[gitops] No secrets-management mechanism; ~25 cluster secrets are imperative-only** — `neo4j-secret`, `tool-server-sentry`, `weyland-alerts-telegram`, grafana-admin/oauth, all SSO client secrets — Fix: adopt External Secrets/SealedSecrets/SOPS, or minimally commit a `*-secret.example.yaml` per secret + `docs/runbooks/secrets.md` index (name→keys→regen).
-- **[monitoring] Ollama (sole generation backend) has no Prometheus/Alertmanager coverage** — CT 102 `192.168.1.244:11434` — Fix: Kuma HTTP monitor on `/api/tags` (Telegram) + blackbox probe + PrometheusRule.
+- **[monitoring] Ollama (sole generation backend) has no Prometheus/Alertmanager coverage** **(RESOLVED B79 — moved to rogueone GPU)** — CT 102 `192.168.1.244:11434` — Fix: Kuma HTTP monitor on `/api/tags` (Telegram) + blackbox probe + PrometheusRule.
 - **[monitoring] Hermes gateway has zero failure monitoring** — `uptime-kuma.md:27` — Fix: Kuma push heartbeat from a CT 104 systemd timer gated on `systemctl is-active hermes-gateway`.
 - **[gitops] Hermes agent runtime not reproducible from git** — `hermes.tf` is CT shell only — Fix: versioned bootstrap script under `nodes/weyland/hermes/` (config.yaml + mcp_servers + pinned `python-telegram-bot[webhooks]==22.6` + kanban init + templated `.env`).
 - **[gitops] tool-server MCP image (`weyland-tool-server:local`) not reconstructible** — `imagePullPolicy: Never`, hand-built → ErrImageNeverPull on rebuild → `/mcp`+`/mcp-act` never start — Fix: push to `registry.weyland.lab` (**now exists, B-RT** — the local-registry fix is unblocked) / Woodpecker pipeline / committed bootstrap. (Still open: the tool-server image itself hasn't been migrated off `:local`/`Never` yet.)
@@ -73,7 +73,7 @@ SealedSecrets/External-Secrets mechanism for all imperative secrets.
 - **[monitoring] LGTM stack does not monitor itself** — no ServiceMonitor on loki/tempo/alloy — Fix: enable `monitoring.serviceMonitor` + `LokiDown`/`AlloyDaemonSetNotReady` rules.
 - **[monitoring] traefik-forward-auth is a single-replica SPOF with no probes** — gates ~18 UIs — Fix: liveness+readiness on :4181 + synthetic monitor on `auth.weyland.lab/_oauth` + Keycloak `/health/ready`.
 - **[docs] Live `dashboard.weyland.lab` absent from hosts.md/api.md/arch** — Fix: add host + UI-table rows + runbook section.
-- **[gitops] OpenClaw degraded/unreproducible but listed ✅ healthy** — `hosts.md:13` — Fix: flag degraded/deprioritized (or retire + tear down vm-100); codify compose if kept.
+- **[gitops] OpenClaw degraded/unreproducible but listed ✅ healthy** **(OBSOLETE B28 — OpenClaw dropped 2026-07-17)** — `hosts.md:13` — Fix: flag degraded/deprioritized (or retire + tear down vm-100); codify compose if kept.
 
 ### Low
 - **[gitops] LiteLLM pinned to mutable `main-stable` under selfHeal** — Fix: pin to immutable tag/digest.

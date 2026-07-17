@@ -1,8 +1,8 @@
 # B11 — Whisper STT Runbook — weyland (CT 103)
 
-Speech-to-text on weyland's CPU via **whisper.cpp** (sibling to the Ollama CT). Pure CPU, no GPU.
+Speech-to-text on weyland's CPU via **whisper.cpp**. Pure CPU, no GPU.
 Exposes its native `/inference` plus an OpenAI-compatible `/v1/audio/transcriptions` shim so
-OpenClaw / the tool server / any OpenAI client can use local whisper instead of a cloud STT.
+the tool server / any OpenAI client can use local whisper instead of a cloud STT.
 
 **Related:** [B7 Ollama runbook](model-serving-ollama.md) (same LXC pattern) · code:
 `nodes/weyland/whisper/` (`shim.py`, `whisper-server.service`, `whisper-shim.service`).
@@ -10,7 +10,7 @@ OpenClaw / the tool server / any OpenAI client can use local whisper instead of 
 ---
 
 **Live since 2026-06-12.** Unprivileged LXC `whisper` (CTID **103**) on the weyland Proxmox host.
-- **Address:** `192.168.1.246` (DHCP — reserve like CT 102's `.244`).
+- **Address:** `192.168.1.246` (DHCP-reserved).
   - `/inference` (native whisper.cpp) → `http://192.168.1.246:8080/inference`
   - `/v1/audio/transcriptions` (OpenAI shim) → `http://192.168.1.246:9000/v1`
 - **Spec:** 8 cores · 8 GB RAM · 15 GB rootfs on `local-zfs` (NVMe) · `nesting=1` (Debian 12).
@@ -38,7 +38,7 @@ cmake -B build
 cmake --build build -j --config Release      # -> build/bin/{whisper-server,whisper-cli}
 sh ./models/download-ggml-model.sh large-v3   # ~3 GB -> models/ggml-large-v3.bin
 ```
-cmake auto-detects AVX-512/FMA on the 9955HX (same fast kernels Ollama used). `ffmpeg` lets the
+cmake auto-detects AVX-512/FMA on the 9955HX. `ffmpeg` lets the
 server accept mp3/m4a/etc. (whisper wants 16 kHz mono WAV internally).
 
 ## Quick CLI transcription (one-off, no server)
@@ -62,8 +62,8 @@ curl 127.0.0.1:8080/inference -F file=@samples/jfk.wav -F response_format=json
 ## OpenAI-compatible shim (/v1/audio/transcriptions)
 Code: `nodes/weyland/whisper/shim.py` — a ~40-line FastAPI adapter that forwards uploads to
 `/inference` and returns a **strict** OpenAI response (`{"text": ...}`). Strictness matters:
-OpenClaw's `baseUrl` override falls back *silently* on shape drift (openclaw/openclaw#9494), so the
-shim asks whisper for plain text and builds the JSON itself — no stray fields.
+some OpenAI clients fall back *silently* on response-shape drift, so the shim asks whisper for plain
+text and builds the JSON itself — no stray fields.
 
 **Deploy (3 files from `nodes/weyland/whisper/`).** On rogueone (repo root), stage to the host
 (**weyland is accessed as `root`**, unlike mother which is `emangini`):
@@ -105,28 +105,9 @@ voice-in** via Open WebUI's OpenAI-compatible Audio→STT setting (base URL
 `https://chat.weyland.lab` (mic → shim `POST /v1/audio/transcriptions` confirmed). Manifests:
 `nodes/mother/lab/weyland-platform/k8s/open-webui/`. See backlog B13.
 
-### OpenClaw — DEFERRED (2026-06-12)
-Goal: OpenClaw transcribes Telegram voice notes through this shim (on-LAN/zero-cost —
-openclaw/openclaw#18424). **The approach below DID NOT WORK and is kept as a warning, not a recipe:**
-
-> ⚠️ **`tools.media.audio` is WRONG for OpenClaw v2026.5.31.** Adding it to
-> `~/.openclaw/openclaw.json` makes the gateway reject the *entire* config (`tools.web: Invalid
-> input`) and **fail closed — text stops working too.** `openclaw doctor --fix` made it worse
-> (clobbered `gateway.mode`: "missing gateway.mode … clobbered config"). **Recovery:** restore the
-> `.bak` (`cp ~/.openclaw/openclaw.json.bak ~/.openclaw/openclaw.json`) → `./oc restart openclaw-gateway`.
->
-> Why it failed: the generic-docs `tools.media.audio` schema doesn't match this build, which loads a
-> **`talk-voice`** plugin — STT almost certainly configures there. **Correct v2026.5.31 schema is
-> TBD.** When retrying: (1) find the real schema for the running version first; (2) prefer
-> **`openclaw config set`** (validates, won't clobber) over hand-editing JSON; (3) **`jq` the file
-> before every `oc restart`** (`jq . openclaw.json && echo OK`). #9494 (baseUrl silent-fallback) is a
-> *separate* downstream risk to test only once the config is even accepted.
->
-> **Fallback (bypasses the whole config fight):** OpenClaw auto-detects a *local* `whisper-cli` —
-> install whisper.cpp on the openclaw VM itself, no HTTP/baseUrl config at all.
+> OpenClaw removed 2026-07-17, to be revisited (B28).
 
 ## TODO / tuning
 - [x] DHCP-reserve `192.168.1.246` on the router (done 2026-06-12).
 - [x] CoreDNS + rogueone `/etc/hosts`: `whisper.weyland.lab` → 192.168.1.246 (done 2026-06-12).
 - [ ] Benchmark real-time-factor on a long clip; tune `-t` in `whisper-server.service` if useful.
-- [ ] **Deferred:** OpenClaw STT wiring — needs the correct v2026.5.31 schema (see *Consumers* above). Primary consumer is now **Open WebUI (B13)**.

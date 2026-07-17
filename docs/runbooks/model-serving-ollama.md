@@ -10,7 +10,7 @@ models, the critical thread-count fix, and smoke tests. Day-to-day ops.
 
 **Moved to rogueone 2026-07-12 (B79).** Ollama runs natively on **rogueone** (Lenovo ThinkPad P16,
 RTX 5000 Ada 16 GB, 128 GB RAM). It was originally the committed CPU path on the weyland Proxmox
-host (unprivileged LXC `ollama`, CTID 102, `192.168.1.244`); **B79 decommissioned CT-102 and re-homed
+host (unprivileged LXC `ollama`, CTID 102); **B79 decommissioned CT-102 and re-homed
 Ollama to rogueone's GPU**, which freed 32 GB on weyland to grow mother 50 → 64 GB. The thread-tuning
 and CPU benchmark sections below were measured on the original CT-102 CPU deployment and are kept as
 reference — they still apply to the CPU-offloaded portion of any model that overflows the 16 GB VRAM.

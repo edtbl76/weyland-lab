@@ -1,4 +1,4 @@
-# B2 — Agent Platform (Hermes + OpenClaw) — Design
+# B2 — Agent Platform (Hermes) — Design
 
 **Status:** Scoped 2026-06-13 (design approved; first slice not yet built).
 **Goal:** Give the lab a conversational **"view into the system"** through autonomous agents — query
@@ -9,27 +9,20 @@ reference for the build slices that follow.
 
 ---
 
-## 1. The two agents — complementary, not competing
+## 1. The agent — Hermes
 
-We run **two** agent runtimes, deliberately. They are **complementary specialists**, not redundant
-assistants — which is what makes "have both" a strategy rather than indulgence.
+We run **Hermes** (NousResearch/hermes-agent, MIT) as the lab's single active agent: the autonomous
+system-view / ops workhorse **and the single front door**.
 
-| | **Hermes** (NousResearch/hermes-agent, MIT) | **OpenClaw** (v2026.5.31, on the `openclaw` VM) |
-|---|---|---|
-| **Lane** | **Primary** — autonomous system-view / ops workhorse **and the single front door** | **Contained delegate** — tapped for skill breadth / extra channels |
-| **Strength** | Always-on, learns recurring tasks, self-improving skills, **Python-native + strong local-inference fit**, lean & **stable** | Multi-agent orchestration, multi-channel comms, **thousands of community skills**, Node.js I/O-heavy gateway |
-| **On the critical path?** | **Yes** — front door + daily driver | **No** — its breakage must never block the way in |
+- **Strength:** always-on, learns recurring tasks, self-improving skills, **Python-native + strong
+  local-inference fit**, lean & **stable**.
+- **On the critical path:** yes — front door + daily driver.
 
-### Why Hermes is primary (and on the critical path)
-Not because it's a superset — they're orthogonal — but on **stability + local-inference fit**. For an
-always-on homelab system-view agent you want the lean, doesn't-break-on-update one at the front door.
+### Why Hermes
+For an always-on homelab system-view agent you want the lean, doesn't-break-on-update one at the front
+door — **stability + local-inference fit**.
 
-### Why OpenClaw is off the critical path
-We have **firsthand evidence OpenClaw is the fragile one**: during the B11/B13 work it broke its gateway
-**twice** (`tools.media.audio` rejected → fails closed; `openclaw doctor --fix` clobbered `gateway.mode`).
-The comparison literature's "prone to breaking during platform updates" is, for us, a logged outage. You
-never put the component you've watched fail at the single entry point. OpenClaw's durable value is its
-**skill library + channel reach** — things you reach *for*, not things that must be *up*.
+> OpenClaw (a second, delegate agent) was scoped here originally but removed 2026-07-17, to be revisited (B28).
 
 ---
 
@@ -41,54 +34,48 @@ never put the component you've watched fail at the single entry point. OpenClaw'
    ┌─────────────┐   MCP    ┌──────────────────────┐   REST   ┌───────────────┐
    │   Hermes    │─────────▶│  Weyland system-view  │─────────▶│  tool server  │
    │ (primary,   │          │      MCP server       │          │ (RAG, status, │
-   │  isolated   │          │  (ONE server, both    │          │  pipelines,   │
-   │     CT)     │◀────┐    │   agents consume)     │          │  observ., …)  │
-   └──────┬──────┘     │    └──────────────────────┘          └───────┬───────┘
-          │ gateway    │ MCP                                          │
-          │ (deferred) │    ┌──────────────┐                          ▼
-          ▼            └────│   OpenClaw   │                  Ollama /v1 + Qdrant/
-   ┌─────────────┐         │  (delegate)  │                  Weaviate/Neo4j/PG +
-   │  OpenClaw   │         └──────────────┘                  Prometheus/Dagster
-   └─────────────┘
-          ▲ both agents' model backend ──▶ Ollama /v1 (192.168.1.244:11434)
+   │  isolated   │          │      (Hermes          │          │  pipelines,   │
+   │     CT)     │          │       consumes)       │          │  observ., …)  │
+   └─────────────┘          └──────────────────────┘          └───────┬───────┘
+                                                                       │
+                                                                       ▼
+                                                               Ollama /v1 + Qdrant/
+                                                               Weaviate/Neo4j/PG +
+                                                               Prometheus/Dagster
+
+   Hermes's model backend ──▶ Ollama /v1 (192.168.1.230:11434, on rogueone)
 ```
 
 Three wires, in priority order:
 
-1. **Brain (inference)** — both agents' model backend → **Ollama `/v1`** (`192.168.1.244:11434`). Hermes via
-   `hermes model`; OpenClaw via its provider config. "Your own endpoint" path — no cloud keys, nothing
-   leaves the LAN.
-2. **Eyes & hands (the system view)** — both agents → the **Weyland system-view MCP server**, which fronts
+1. **Brain (inference)** — Hermes's model backend → **Ollama `/v1`** (`192.168.1.230:11434`, on rogueone),
+   via `hermes model`. "Your own endpoint" path — no cloud keys, nothing leaves the LAN.
+2. **Eyes & hands (the system view)** — Hermes → the **Weyland system-view MCP server**, which fronts
    the existing **tool server**. This is the heart of the "view into the system" goal.
-3. **Collaboration & front door (deferred)** — Hermes on a chat channel = the single entry point; Hermes
-   calls OpenClaw's gateway **as an MCP tool** when breadth helps (topology 3, asymmetric).
+3. **Front door** — Hermes on a chat channel = the single entry point.
 
 ### Why the system view is a *platform* capability, not an agent feature
-The view lives in the **tool server / MCP**, consumed equally by both agents — never baked into one. Two
-consequences:
-- **Co-location buys nothing.** Both agents see the *identical* view whether they share a host or sit at
-  opposite ends of the LAN. So isolation (below) costs zero "shared system-ness."
+The view lives in the **tool server / MCP**, not baked into the agent — so any future agent consumes the
+*identical* view by registering one URL. Two consequences:
+- **Co-location buys nothing.** An agent sees the same view whether it shares a host with the platform or
+  sits at the opposite end of the LAN. So isolation (below) costs zero "shared system-ness."
 - **The single entry point is a front-layer concern, not a host concern.** It's independent of where the
-  agents run.
+  agent runs.
 
 ### Why MCP is the seam
-Hermes supports MCP ("connect any MCP server"); OpenClaw's MCP support is to be confirmed at its wiring
-slice. Building the system view **once** as an MCP server turns integration from **N×M into N+M**: write
-Weyland's view once, each agent (now and future) adds one line to register it — instead of hand-building
-Weyland skills inside every agent separately.
+Hermes supports MCP ("connect any MCP server"). Building the system view **once** as an MCP server turns
+integration from **N×M into N+M**: write Weyland's view once, each agent (now and future) adds one line to
+register it — instead of hand-building Weyland skills inside every agent separately.
 
 ---
 
 ## 3. Hosting & isolation
 
-**Hermes runs in its own isolated LXC CT** (sibling to the Ollama CT 102 / whisper CT 103), **not**
-co-located with OpenClaw, and **not** on `mother`.
+**Hermes runs in its own isolated LXC CT** (sibling to the whisper CT 103), **not** on `mother`.
 
 Rationale: Hermes does **sandboxed code execution, browser automation, and reads untrusted web content** —
 the exact attack surface B14 (Guardrails) exists for. Isolation bounds the blast radius of a compromised or
-prompt-injected agent. `mother` is the platform/data plane and is disqualified outright; co-locating two
-code-executing agents on the `openclaw` VM would merge their blast radius for no benefit (the shared view is
-already at the platform layer).
+prompt-injected agent. `mother` is the platform/data plane and is disqualified outright.
 
 ---
 
@@ -109,8 +96,7 @@ that reads untrusted content *and* can fire pipelines is precisely what B14 guar
 
 ## 5. Protocol: MCP now, A2A as a gated future (→ B17)
 
-**MCP for everything now, including the OpenClaw bridge.** A2A (Agent2Agent) is **not** a competitor to MCP
-— they're complementary:
+**MCP for everything now.** A2A (Agent2Agent) is **not** a competitor to MCP — they're complementary:
 
 - **MCP = agent ↔ tools/context.** Other end is a capability provider. Request/response. *Acting on the
   system is always this* — even side-effecting actions are agent→tool, not agent→agent. **A2A is never
@@ -118,13 +104,13 @@ that reads untrusted content *and* can fire pipelines is precisely what B14 guar
 - **A2A = agent ↔ agent.** Other end is an autonomous peer — discovery (Agent Cards), task lifecycle,
   streaming, long-running delegation, negotiation.
 
-Our designed relationship (asymmetric: Hermes primary, OpenClaw a *bounded* delegate; symmetric peering
-*rejected*) is **tool-shaped**, so MCP models it perfectly: wrap OpenClaw's gateway behind a thin MCP server
-(`ask_openclaw`, `run_openclaw_skill`). Keeping the whole stack on **one protocol Hermes already speaks**
-means one mental model and one chokepoint for B14 guardrails.
+Today there's a single agent, so no agent↔agent edge exists yet. If a second agent is ever added, the
+relationship is expected to be **tool-shaped** (one agent calling another's capability), which MCP models
+directly — keeping the whole stack on **one protocol Hermes already speaks** means one mental model and one
+chokepoint for B14 guardrails.
 
-**A2A earns its place only when** (any of): (a) we want true symmetric peer collaboration; (b) a **third+
-powerful agent** joins that needs discovery/coordination — this is the real trigger, arriving with **B15
+**A2A earns its place only when** (any of): (a) we want true symmetric peer collaboration; (b) **additional
+powerful agents** join that need discovery/coordination — this is the real trigger, arriving with **B15
 (opencode + Cline)** as the agent fleet grows capable; (c) one platform ships A2A natively (making the
 semantically-correct option nearly free). The pull is specifically **long-running, async, autonomous
 cross-agent delegation** — not "the agent gained write access." Even then, **A2A sits alongside MCP on the
@@ -148,12 +134,10 @@ sequenced with B15.
    hallucination. It's also the agentic/tool-tuned variant, so it's the right brain on *both* speed and
    capability. `gpt-oss:20b` remains the B4 RAG pick — a separate axis. **Key lesson: on CPU, *active* params
    (MoE), not total size, set speed — the "bigger" 30B beat the 24B by 4.4×.**
-3. **OpenClaw MCP support** — confirm at the (deferred) OpenClaw-wiring slice.
-4. **Chat channel — DECIDED 2026-06-13: Telegram, via a NEW dedicated bot** (separate from
+3. **Chat channel — DECIDED 2026-06-13: Telegram, via a NEW dedicated bot** (separate from
    `@weyland_alerts_bot`). One channel for v1. Rationale: lowest-friction proven path in this lab (BotFather);
-   a distinct bot keeps two-way agent conversation out of the one-way alert firehose, and coexists fine with
-   OpenClaw's Telegram presence. Token lives in the CT's `~/.hermes/` config (not in the repo → out of git).
-   More platforms can be added later, but v1 is Telegram-only.
+   a distinct bot keeps two-way agent conversation out of the one-way alert firehose. Token lives in the CT's
+   `~/.hermes/` config (not in the repo → out of git). More platforms can be added later, but v1 is Telegram-only.
 
 ---
 
@@ -168,11 +152,10 @@ sequenced with B15.
 6. Validate end-to-end: ask Hermes a system question → it calls an MCP tool → answers from live state.
    **Also verify the effective context window here** (this is where truncation shows up): agent loops
    accumulate system prompt + tool defs + tool results + history fast. The effective window is gated by
-   **Ollama's `num_ctx` on CT 102**, *not* the model's ~128k max or Hermes's setting — if the agent silently
+   **Ollama's `num_ctx` (on rogueone)**, *not* the model's ~128k max or Hermes's setting — if the agent silently
    "forgets" earlier context, raise `num_ctx` (Modelfile or request options) to ≥16k–32k.
 
-**Deferred slices:** OpenClaw MCP registration · Hermes→OpenClaw delegation (topology 3) · read+act
-promotion (gated on B14) · A2A evaluation (B17) · **Anthropic (or other cloud) as an optional *secondary*
+**Deferred slices:** read+act promotion (gated on B14) · A2A evaluation (B17) · **Anthropic (or other cloud) as an optional *secondary*
 provider** — a "use the smarter model for hard problems" escape hatch via `hermes model`. **Opt-in, never the
 default**: it departs from local-only (system state would leave the LAN + per-use cost), so it's a conscious
 per-task choice, not the standing brain.
@@ -183,20 +166,17 @@ per-task choice, not the standing brain.
 
 | Decision | Rationale |
 |---|---|
-| Run **both** Hermes + OpenClaw | Complementary specialists (autonomous doer vs connector/orchestrator), not redundant. |
-| **Hermes primary** + front door | Stability + local-inference fit; the lean always-on one belongs on the critical path. |
-| **OpenClaw off critical path** | Firsthand fragility (gateway broke twice this session); value is skill breadth/channels, reached *for* not depended *on*. |
-| **System view = platform/MCP**, not in an agent | Identical view for all agents; decouples "shared view" from host placement. |
-| **One MCP server**, both consume | N+M not N×M integration; future agents add one registration line. |
-| **Hermes in its own isolated CT** | Code-exec + untrusted-content blast radius; `mother` disqualified; no benefit to co-locating two executors. |
+| **Hermes as the single active agent** + front door | Stability + local-inference fit; the lean always-on one belongs on the critical path. |
+| **System view = platform/MCP**, not in an agent | Identical view for any agent; decouples "shared view" from host placement. |
+| **One MCP server** | N+M not N×M integration; future agents add one registration line. |
+| **Hermes in its own isolated CT** | Code-exec + untrusted-content blast radius; `mother` disqualified. |
 | **Read-only v1** | Prove the loop with zero blast radius; promote to act only behind B14. |
-| **MCP for the OpenClaw bridge too** | Relationship is asymmetric/tool-shaped; one protocol, one guardrail chokepoint. |
 | **A2A deferred → B17, with B15** | Gated on async peer-delegation / a powerful multi-agent fleet; additive to MCP, never a replacement. |
 | **Local Ollama is the brain; cloud (Anthropic) is opt-in only** | Always-on agent with system access shouldn't ship infra state off-LAN or incur per-use cost by default; cloud is a conscious per-task escape hatch via `hermes model`, never the standing default. |
 | **Agent model = `qwen3-coder:30b`** (was mistral-small3.2:24b) | Dense 24B mistral = ~30 tok/s prefill on CPU (multi-min turns). `qwen3-coder` is 30B-A3B **MoE** → *measured* ~4.4× faster prefill (154 vs 35 tok/s), no think-aloud, tool-calling validated (real `uname -a`). MoE *active* params, not total size, set CPU speed. `gpt-oss:20b` stays the B4 RAG pick (separate axis). |
-| **Ollama CPU tuning for the agent (CT 102)** | `OLLAMA_CONTEXT_LENGTH=65536` + `OLLAMA_KEEP_ALIVE=-1`. Prefix caching works (turn-2 prefill 111 tokens vs ~17k base) **but is fragile**: `OLLAMA_MAX_LOADED_MODELS=1` means any other model request (RAG/WebUI/evals) evicts qwen3-coder and kills its cache → next agent turn pays full cold prefill. Don't churn Ollama. |
+| **Ollama CPU tuning for the agent (rogueone)** | `OLLAMA_CONTEXT_LENGTH=65536` + `OLLAMA_KEEP_ALIVE=-1`. Prefix caching works (turn-2 prefill 111 tokens vs ~17k base) **but is fragile**: `OLLAMA_MAX_LOADED_MODELS=1` means any other model request (RAG/WebUI/evals) evicts qwen3-coder and kills its cache → next agent turn pays full cold prefill. Don't churn Ollama. |
 | **Context window = 64K (`65536`), Hermes==Ollama** | Model's native 262K is off the table on CPU — KV cache ~165 MB/1k tokens → 262K ≈ 58 GB → OOMs the 48 GB cgroup; 64K ≈ 25 GB, fits, leaves ~47K above the 17K base prompt. Hermes auto-detects the native 262K (via `model_catalog`) and silently truncates past what Ollama serves unless `context_length` is pinned to match (and `model_catalog` disabled if it overrides). |
-| **MCP transport = HTTP (Option A confirmed 2026-06-13)** | Hermes supports remote **HTTP** MCP servers (`mcp_servers:` block, `url` key, optional `headers`/`auth: oauth`/mTLS) — not just stdio. So we build **one** HTTP MCP server fronting the tool-server and *both* agents connect by URL (the N+M design), rather than a per-agent stdio adapter. |
+| **MCP transport = HTTP (Option A confirmed 2026-06-13)** | Hermes supports remote **HTTP** MCP servers (`mcp_servers:` block, `url` key, optional `headers`/`auth: oauth`/mTLS) — not just stdio. So we build **one** HTTP MCP server fronting the tool-server and the agent connects by URL (the N+M design; future agents add one line), rather than a per-agent stdio adapter. |
 | **Toolset size is a no-op — `tool_search` is on** | *Measured bidirectionally* (disable skills→0, disable vision→0, enable spotify→0): tools live in a searchable registry, **not** the system prompt. The ~17k context is Hermes's irreducible **base framework prompt**, not tool schemas. So enable any *functional* tool freely (cost-free); the only reason to disable a tool is if it can't function (no backend). There is no "trim tools for speed" lever. |
 
 ---

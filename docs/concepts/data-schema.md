@@ -124,22 +124,22 @@ they're a **deliberately-designed, normalized system-inventory schema** (FKs, un
 
 So `machines → services → models` is a **structured relational mirror of `docs/hosts.md` + `docs/api.md`**, and
 `memory_facts` is an agent long-term memory store. Currently **unpopulated/stale**. **Ownership/intent
-unconfirmed** — OpenClaw references them, but the schema is general infra knowledge, not OpenClaw-specific.
+unconfirmed** — the schema is general infra knowledge, not tied to any one agent.
 
-**The DDL is uncommitted** — it's in neither the weyland repo nor the OpenClaw clone (`nodes/openclaw`); it
-exists **only on the live DB** (created ad-hoc, never version-controlled). That's a gap to fix.
+**The DDL is uncommitted** — it's not in the weyland repo; it exists **only on the live DB** (created ad-hoc,
+never version-controlled). That's a gap to fix.
 
 **Disposition (confirmed 2026-06-15):**
 - `machines / services / models` → **adopt for the data-mesh system-inventory product (B1)** (user-confirmed
   useful). **Action:** dump the live DDL into a tracked repo migration, then decide whether `hosts.md`/`api.md`
   generate *from* this inventory or feed *into* it.
-- `memory_facts` → **orphan.** A generic `key/value/category/source` store that **no code anywhere references**
-  (repo or OpenClaw clone), currently empty, origin unknown. Repurpose as a structured memory store or drop — TBD.
+- `memory_facts` → **orphan.** A generic `key/value/category/source` store that **no code anywhere references**,
+  currently empty, origin unknown. Repurpose as a structured memory store or drop — TBD.
 
-> Corrects three earlier assumptions: `services` is not a phantom; these aren't disposable OpenClaw cruft; and
-> the schema is **not in any source** — uncommitted, live-DB-only.
+> Corrects two earlier assumptions: `services` is not a phantom; and the schema is **not in any source** —
+> uncommitted, live-DB-only.
 
 ## Live Postgres state (confirmed 2026-06-15)
 `\dt` → **platform:** `rag_documents`, `rag_chunks` · `eval_runs`, `eval_questions`, `eval_results`,
-`eval_scores` (+ `eval_leaderboard` view). **out-of-band (OpenClaw, §5):** `services`, `machines`, `models`,
+`eval_scores` (+ `eval_leaderboard` view). **out-of-band (§5):** `services`, `machines`, `models`,
 `memory_facts`.

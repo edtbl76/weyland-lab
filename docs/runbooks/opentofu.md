@@ -53,8 +53,8 @@ The provider's **source type (`port-labs`) ≠ its resource prefix (`port_`)**. 
 - New lane: new `tofu/<lane>/` dir + its own `backend "s3"` key.
 
 ## Proxmox lane (done) — `tofu/proxmox/`
-All **5 guests imported** (brownfield CLI `tofu import <addr> <node>/<vmid>`, e.g. `weyland/102`): CTs ollama (102),
-whisper (103), hermes (104) = `proxmox_virtual_environment_container`; VMs openclaw (100), mother (101) =
+All **3 guests imported** (brownfield CLI `tofu import <addr> <node>/<vmid>`, e.g. `weyland/103`): CTs
+whisper (103), hermes (104) = `proxmox_virtual_environment_container`; VM mother (101) =
 `proxmox_virtual_environment_vm`. Auth: API token — `PROXMOX_VE_API_TOKEN='root@pam!tofu=<uuid>'` (create in
 Datacenter→Permissions→API Tokens, **Privilege Separation OFF**) + `PROXMOX_VE_ENDPOINT='https://weyland:8006/'`;
 provider `insecure = true` (self-signed cert). No phantom here — bpg's source type (`proxmox`) == resource prefix.
