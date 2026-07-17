@@ -20,11 +20,22 @@ alertmanager:
       group_interval: 5m
       repeat_interval: 4h
       routes:
-        - receiver: 'null'            # Watchdog = always-firing liveness alert; never notify on it
+        # B69 dead-man's-switch: the always-firing Watchdog pings hc-ping.com every 5m. If the pings STOP
+        # (Prometheus/Alertmanager/the whole cluster is dead), healthchecks.io alerts you EXTERNALLY — the one
+        # thing an in-cluster monitor can't do.
+        - receiver: 'healthchecks-watchdog'
           matchers:
             - alertname = "Watchdog"
+          group_wait: 0s
+          group_interval: 5m
+          repeat_interval: 5m
     receivers:
       - name: 'null'
+      - name: 'healthchecks-watchdog'
+        webhook_configs:
+          # URL lives in a Secret (repo is PUBLIC — a plaintext ping URL anyone could hit would defeat the switch).
+          - url_file: /etc/alertmanager/secrets/watchdog-healthcheck/url
+            send_resolved: false
       - name: telegram
         telegram_configs:
           - bot_token_file: /etc/alertmanager/secrets/weyland-alerts-telegram/bot-token
@@ -38,6 +49,7 @@ alertmanager:
     # Operator mounts this Secret at /etc/alertmanager/secrets/weyland-alerts-telegram/
     secrets:
       - weyland-alerts-telegram
+      - watchdog-healthcheck   # B69 dead-man's-switch: hc-ping.com URL (key `url`), created out-of-band
     storage:
       volumeClaimTemplate:
         spec:
