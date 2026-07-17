@@ -74,7 +74,7 @@ Confirm the chat backend (Ollama) is reachable from the LAN:
 ## Expected result
 
 - Shim returns strict `{"text":" And so my fellow Americans, ask not what your country can do for
-  you..."}` (the shim builds the JSON itself so OpenClaw/Open WebUI never see shape drift).
+  you..."}` (the shim builds the JSON itself so Open WebUI never sees shape drift).
 - In the browser, spoken input becomes composer text, and the local model replies — the voice→text→
   chat loop closes with nothing leaving the LAN.
 

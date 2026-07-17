@@ -40,32 +40,11 @@ ones via vLLM. See [concepts/llm-inference-cpu-vs-gpu.md](concepts/llm-inference
 
 ## 2. System context (C4 Level 1)
 
-```mermaid
-C4Context
-    title Weyland — System Context
-
-    Person(user, "User", "Lab operator — Edward")
-    Person_Ext(nobody, "Public", "No public access — LAN only")
-
-    System(weyland_sys, "weyland", "Home AI lab: local LLM inference, RAG, STT, eval harness, observability, object storage, AI agents")
-
-    System_Ext(telegram, "Telegram", "Messaging platform — inbound DMs to Hermes agent + alert delivery from Alertmanager")
-    System_Ext(anthropic, "Anthropic API", "Claude — cloud reasoning brain (OpenClaw / Claude Code); metered, off-LAN")
-    System_Ext(tavily, "Tavily", "Web search API (OpenClaw skill)")
-    System_Ext(hf, "Hugging Face Hub", "Model weight source: bge-small-en-v1.5, GGUF models pulled at setup")
-    System_Ext(ollama_registry, "Ollama model registry", "GGUF model pulls (one-time at CT setup)")
-
-    Rel(user, weyland_sys, "operates via Telegram DM / Claude Code / browser UIs")
-    Rel(weyland_sys, telegram, "agent replies + Alertmanager alerts")
-    Rel(weyland_sys, anthropic, "Claude CLI reasoning (OpenClaw, deprioritized) + Claude Code MCP")
-    Rel(weyland_sys, tavily, "web search (OpenClaw skill)")
-    Rel(weyland_sys, hf, "model weight pulls (setup only)")
-    Rel(weyland_sys, ollama_registry, "GGUF pulls (setup only)")
-    Rel(telegram, weyland_sys, "inbound DMs -> Hermes agent")
-    Rel_Back(nobody, weyland_sys, "no public access")
+```likec4-view
+index
 ```
 
-For the full internal container breakdown see [diagrams/c4-container.md](diagrams/c4-container.md). For component detail see the component diagrams linked above.
+Interactive (B64) — drag to pan, scroll to zoom, click to inspect; full explorer at [likec4.weyland.lab](https://likec4.weyland.lab). For the node topology and per-plane component views see [C4 Container](diagrams/c4-container.md) / [C4 Component — mother](diagrams/c4-component-mother.md).
 
 ---
 
@@ -77,7 +56,6 @@ LXC containers:
 
 ```text
 weyland (MS-A2, Proxmox, 192.168.1.232)
-├── vm-100  openclaw   192.168.1.169   agent control plane (Docker) — DEPRIORITIZED (B28)
 ├── vm-101  mother     192.168.1.243   k3s AI platform
 ├── ct-102  ollama     RETIRED (B79 → moved to rogueone; 32 GB reclaimed → mother 50→64 GB)
 ├── ct-103  whisper    192.168.1.246   whisper.cpp CPU STT
@@ -93,7 +71,6 @@ rogueone (laptop, 192.168.1.230, RTX 5000 Ada 16 GB) — external; vLLM + dev + 
 |---|---|---|---|---|
 | **weyland** | MS-A2, Proxmox bare-metal (Ryzen 9 9955HX 16C, 96 GB) | .232 | `root@weyland` | The iron: VM/CT lifecycle, snapshots, storage. *Stays infrastructure* — no app sprawl. |
 | **mother** | VM vm-101, k3s | .243 | `emangini@mother` | Shared AI platform: tool-server, vector/graph stores, Dagster, UIs, observability, MinIO, DNS, ingress. |
-| **openclaw** | VM vm-100, Docker | .169 | `emangini@openclaw` | DEPRIORITIZED (B28). Was interaction/control plane: OpenClaw + Telegram; Claude CLI brain. |
 | **rogueone** | Laptop, RTX 5000 Ada 16 GB | .230 | `edwardmangini@rogueone` | GPU inference (vLLM) + **Ollama** (B79 — moved off CT-102 2026-07-12; `:11434` LAN-bound, serves the eval-judge panel + tool-server/open-webui/Hermes) + dev workstation + Claude Code (MCP client) + **permanent native Ray edge worker** (`ray-worker.service` → mother's Ray head) + remote model training (`genre-trainer`). Not always-on. |
 | ~~**ollama** (CT 102)~~ **RETIRED B79** | — | — | — | Moved to rogueone (`.230:11434`, 2026-07-12) → 32 GB reclaimed → mother 50→64 GB. |
 | **whisper** | LXC CT 103 | .246 | via `weyland` host | CPU STT (whisper.cpp + OpenAI shim). |
@@ -110,10 +87,10 @@ agents/workflows and platform state. Agents call the tool-server, *not* database
 - **One flat LAN** (`192.168.1.0/24`). All hosts/CTs are first-class on it (CTs bridge `vmbr0`).
 - **CoreDNS** (on mother `:53`) is authoritative for **`weyland.lab`**: a wildcard maps `*.weyland.lab`
   -> mother (Traefik), with specific zones overriding it for the standalone CTs
-  (`ollama.weyland.lab` -> .244, `whisper.weyland.lab` -> .246). Everything else forwards to 1.1.1.1/9.9.9.9.
+  (`ollama.weyland.lab` -> .230 (rogueone, B79), `whisper.weyland.lab` -> .246). Everything else forwards to 1.1.1.1/9.9.9.9.
 - **Traefik** (k3s ingress) terminates **TLS** for the `*.weyland.lab` UIs using an mkcert wildcard cert.
 - **rogueone** also keeps `/etc/hosts` entries for `*.weyland.lab` (it isn't pointed at CoreDNS).
-- **DHCP reservations** pin the CTs (`.244`, `.246`) so endpoint URLs stay stable.
+- **DHCP reservations** pin whisper CT (`.246`) + rogueone (`.230`) so endpoint URLs stay stable.
 - **Addressing convention:** k3s services -> `mother:<NodePort>` or `*.weyland.lab` (Traefik);
   standalone CTs -> reserved IP / `*.weyland.lab`; in-cluster-only -> `*.weyland.svc`.
 
@@ -803,7 +780,7 @@ flowchart TB
 
 | Path | Where | Engine | Use |
 |---|---|---|---|
-| **Large LLMs (capacity)** | weyland CT 102 (CPU) | Ollama (llama.cpp/GGUF) | RAG generation, eval, batch — 6 models, ~13-89 s/RAG-call. Prefer MoE (low active params). |
+| **Large LLMs (capacity)** | rogueone (GPU) | Ollama (GGUF) | RAG generation, eval-judge, batch — 6 models; moved off the retired CT-102 CPU (B79), now GPU-served. Prefer MoE (low active params). |
 | **STT** | weyland CT 103 (CPU) | whisper.cpp `large-v3` | voice -> text, faster-than-real-time; OpenAI-shim for drop-in clients. |
 | **Small fast LLMs (speed)** | rogueone (GPU) | vLLM | low-latency utility inference (Qwen), on-demand. |
 | **Hosted models (escalation)** | (cloud) via mother **LiteLLM** | Gemini + OpenRouter (free tiers) | stronger-than-local brains on demand; API-key (no subscription/ToS issue); human-gated egress. |

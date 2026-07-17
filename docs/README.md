@@ -19,7 +19,7 @@ LanceDB, Redpanda, Feast). Which dataset lives where: [data-domain-storage-grid.
 ## concepts/ — the *why*
 - [llm-inference-cpu-vs-gpu.md](concepts/llm-inference-cpu-vs-gpu.md) — CPU=capacity vs GPU=speed
 - [model-serving-hardware.md](concepts/model-serving-hardware.md) — MS-A2 sizing, model throughput, context windows
-- [agent-platform-design.md](concepts/agent-platform-design.md) — Hermes/OpenClaw lanes, MCP seam, A2A
+- [agent-platform-design.md](concepts/agent-platform-design.md) — Hermes agent design, MCP seam, A2A
 - [data-schema.md](concepts/data-schema.md) — RAG (4 backends) + eval store schemas, ground-truth-validated
 
 ## runbooks/ — the *how* (per service)

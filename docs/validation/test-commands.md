@@ -66,7 +66,7 @@ kubectl -n weyland logs deploy/docs-site -c build
 
 > **Host to target:** from mother use `http://localhost:30080`; from **rogueone / any other LAN
 > host** use `http://mother:30080` (NodePort 30080 on mother = 192.168.1.243). Testing from
-> rogueone is the real client path - it also proves the pod's own egress to Ollama (192.168.1.244)
+> rogueone is the real client path - it also proves the pod's own egress to Ollama (192.168.1.230)
 > works end-to-end, not just from the node.
 
 ### Confirm running image
@@ -132,9 +132,9 @@ curl -s -X POST http://localhost:30080/pipeline/trigger \
   -d '{"job_name": "weyland_ingestion_job"}' | jq
 ```
 
-### LLM / RAG (B7 - Ollama at 192.168.1.244)
+### LLM / RAG (B7 - Ollama at 192.168.1.230)
 
-Check reachability first - `.llm.status` confirms pod → 192.168.1.244 routing:
+Check reachability first - `.llm.status` confirms pod → 192.168.1.230 routing:
 
 ```bash
 curl -s http://localhost:30080/status | jq '.llm, .status'
@@ -149,14 +149,14 @@ curl -s -X POST http://localhost:30080/context/ask -H "Content-Type: application
 curl -s -X POST http://localhost:30080/context/ask -H "Content-Type: application/json" -d '{"query": "summarize the tool server", "limit": 3, "model": "deepseek-coder-v2:16b"}' | jq '{model, answer}'
 ```
 
-> First `/context/ask` after a deploy can take 10–60 s (model load + CPU generation + qwen3's
+> First `/context/ask` after a deploy can take 10–60 s (model load + GPU generation + qwen3's
 > thinking block) - that's expected, not a hang. The 300 s server-side timeout covers it; the
 > model then stays resident ~5 min (`OLLAMA_KEEP_ALIVE`) so follow-up calls are fast.
 
 #### From rogueone (external client - the real consumption path)
 
 Same calls, swap `localhost` → `mother` (NodePort on 192.168.1.243). This validates the full chain
-a harness client uses: rogueone → mother NodePort → pod → Ollama (192.168.1.244).
+a harness client uses: rogueone → mother NodePort → pod → Ollama (192.168.1.230).
 
 ```bash
 curl -s http://mother:30080/status | jq '.llm, .status'
