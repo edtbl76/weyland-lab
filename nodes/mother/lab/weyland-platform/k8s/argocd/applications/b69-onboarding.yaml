@@ -1,9 +1,13 @@
-# Bucket ① apps whose manifests are LOOSE files in k8s/ root → Application at the k8s/ dir, recurse:false +
-# an include-glob so each owns only its files. AUTO-SYNC (selfHeal + prune) — git matches what's running.
+# B69 — Argo-onboard the dirs/files that were reconciled by 0 Applications (silent-drift gaps). Discovered by
+# the app-of-apps like every other file in this dir. The LOAD-BEARING ones (coredns DNS, istio mesh) are
+# MANUAL-sync first: review the Argo diff (git vs live) before enforcing, then flip to `automated` once they
+# match. The safe ones (rag-index, rbac, code-quality) are auto-sync.
+---
+# coredns-custom — LOAD-BEARING LAN DNS (weyland.lab → LAN resolver; kube-system ConfigMap). MANUAL-first.
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: postgres
+  name: coredns-custom
   namespace: argocd
 spec:
   project: default
@@ -13,17 +17,58 @@ spec:
     path: nodes/mother/lab/weyland-platform/k8s
     directory:
       recurse: false
-      include: '{postgres.yaml,postgres-pvc.yaml,postgres-backup.yaml}'  # B69: +full-instance pg_dumpall backup
+      include: 'coredns-custom.yaml'
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: kube-system
+  syncPolicy: {} # manual — review diff, then add `automated: { selfHeal: true, prune: true }`
+---
+# coredns-lan (weyland ns — ConfigMap + Deployment + Service). LOAD-BEARING DNS. MANUAL-first.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: coredns-lan
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/edtbl76/weyland-lab.git
+    targetRevision: main
+    path: nodes/mother/lab/weyland-platform/k8s
+    directory:
+      recurse: false
+      include: 'coredns-lan.yaml'
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: weyland
+  syncPolicy: {} # manual — review diff first
+---
+# rag-index consumers (weyland ns) — the two loose ones not under the data-mesh app. Safe → auto.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: rag-index-weyland
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/edtbl76/weyland-lab.git
+    targetRevision: main
+    path: nodes/mother/lab/weyland-platform/k8s
+    directory:
+      recurse: false
+      include: '{rag-index-neo4j.yaml,rag-index-pgvector.yaml}'
   destination:
     server: https://kubernetes.default.svc
     namespace: weyland
   syncPolicy:
     automated: { selfHeal: true, prune: true }
 ---
+# default-SA no-automount hardening (ServiceAccounts self-specify weyland + n8n ns). Safe → auto.
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: qdrant
+  name: rbac-noautomount
   namespace: argocd
 spec:
   project: default
@@ -33,109 +78,53 @@ spec:
     path: nodes/mother/lab/weyland-platform/k8s
     directory:
       recurse: false
-      include: 'qdrant.yaml'
+      include: 'rbac-default-sa-noautomount.yaml'
   destination:
     server: https://kubernetes.default.svc
     namespace: weyland
   syncPolicy:
     automated: { selfHeal: true, prune: true }
 ---
+# code-quality scan Jobs (weyland ns). Safe → auto. Converting to weekly CronJobs is Wave 4.
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: weaviate
+  name: code-quality
   namespace: argocd
 spec:
   project: default
   source:
     repoURL: https://github.com/edtbl76/weyland-lab.git
     targetRevision: main
-    path: nodes/mother/lab/weyland-platform/k8s
+    path: nodes/mother/lab/weyland-platform/k8s/code-quality
     directory:
       recurse: false
-      include: 'weaviate.yaml'
   destination:
     server: https://kubernetes.default.svc
     namespace: weyland
   syncPolicy:
     automated: { selfHeal: true, prune: true }
 ---
+# Istio MESH CONFIG (STRICT-mTLS PeerAuthentication, Telemetry, Kiali, VirtualServices, PodMonitor). MANUAL-first
+# (mesh blast radius) + ServerSideApply for the CRD-bearing / large objects + prune:false so Argo NEVER deletes a
+# mesh resource. The install CR (istio-install.yaml, IstioOperator) is EXCLUDED — istioctl-managed, not Argo's.
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: neo4j
+  name: istio-config
   namespace: argocd
 spec:
   project: default
   source:
     repoURL: https://github.com/edtbl76/weyland-lab.git
     targetRevision: main
-    path: nodes/mother/lab/weyland-platform/k8s
+    path: nodes/mother/lab/weyland-platform/k8s/istio
     directory:
       recurse: false
-      include: 'neo4j.yaml'
+      exclude: 'istio-install.yaml'
   destination:
     server: https://kubernetes.default.svc
-    namespace: weyland
-  syncPolicy:
-    automated: { selfHeal: true, prune: true }
----
-apiVersion: argoproj.io/v1alpha1
-kind: Application
-metadata:
-  name: neodash
-  namespace: argocd
-spec:
-  project: default
-  source:
-    repoURL: https://github.com/edtbl76/weyland-lab.git
-    targetRevision: main
-    path: nodes/mother/lab/weyland-platform/k8s
-    directory:
-      recurse: false
-      include: 'neodash.yaml'
-  destination:
-    server: https://kubernetes.default.svc
-    namespace: weyland
-  syncPolicy:
-    automated: { selfHeal: true, prune: true }
----
-apiVersion: argoproj.io/v1alpha1
-kind: Application
-metadata:
-  name: weyland-tool-server
-  namespace: argocd
-spec:
-  project: default
-  source:
-    repoURL: https://github.com/edtbl76/weyland-lab.git
-    targetRevision: main
-    path: nodes/mother/lab/weyland-platform/k8s
-    directory:
-      recurse: false
-      include: 'weyland-tool-server.yaml'
-  destination:
-    server: https://kubernetes.default.svc
-    namespace: weyland
-  syncPolicy:
-    automated: { selfHeal: true, prune: true }
----
-apiVersion: argoproj.io/v1alpha1
-kind: Application
-metadata:
-  name: apisix
-  namespace: argocd
-spec:
-  project: default
-  source:
-    repoURL: https://github.com/edtbl76/weyland-lab.git
-    targetRevision: main
-    path: nodes/mother/lab/weyland-platform/k8s
-    directory:
-      recurse: false
-      include: '{apisix.yaml,apisix-etcd.yaml,apisix-dashboard.yaml}'
-  destination:
-    server: https://kubernetes.default.svc
-    namespace: weyland
-  syncPolicy:
-    automated: { selfHeal: true, prune: true }
+    namespace: istio-system
+  syncPolicy: # manual — review diff first; then add `automated: { selfHeal: true, prune: false }`
+    syncOptions:
+      - ServerSideApply=true

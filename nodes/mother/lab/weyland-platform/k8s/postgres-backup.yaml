@@ -1,0 +1,68 @@
+# B69 — full-instance backup of weyland-postgres (ALL 12 DBs + global roles) via pg_dumpall. The
+# k8s/data-mesh/backup.yaml sibling only dumps nessie+lakefs; this covers the IRREPLACEABLE rest —
+# keycloak (realm/users/clients), superset (dashboards), weyland core (eval_leaderboard / model_catalog /
+# guardrail_verdicts), + the reproducible-but-nice dagster/datahub/feast/mlflow/sonarqube/ranger DBs.
+# In the weyland ns (co-located with the weyland-postgres-secret superuser envFrom); meshed to reach the
+# STRICT-mTLS Postgres (native sidecars let the Job terminate). Onboarded via the `postgres` loose-app.
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: postgres-backup
+  namespace: weyland
+spec:
+  accessModes: [ReadWriteOnce]
+  storageClassName: local-path # NVMe (mother root), NOT the USB
+  resources:
+    requests:
+      # local-path reports the underlying disk capacity (50Gi) as status.capacity; a request must be >= it.
+      storage: 50Gi
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: postgres-backup
+  namespace: weyland
+spec:
+  schedule: "30 3 * * *" # 03:30 local (after the data-mesh nessie/lakefs pg-backup at 03:00)
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 1
+      template:
+        metadata:
+          labels:
+            sidecar.istio.io/inject: "true" # reach STRICT-mTLS weyland-postgres
+        spec:
+          restartPolicy: Never
+          containers:
+            - name: pgdumpall
+              image: postgres:17-alpine # pg_dumpall >= server version; bump if a mismatch surfaces
+              securityContext:
+                allowPrivilegeEscalation: false
+                seccompProfile:
+                  type: RuntimeDefault
+              resources:
+                requests: { memory: 128Mi, cpu: 100m }
+                limits: { memory: 512Mi }
+              command: ["/bin/sh", "-c"]
+              args:
+                - |
+                  set -e
+                  TS=$(date -u +%Y%m%d)
+                  mkdir -p /backup/pg
+                  echo "pg_dumpall weyland-postgres (all DBs + roles) ..."
+                  PGPASSWORD="$POSTGRES_PASSWORD" pg_dumpall -h weyland-postgres.weyland.svc.cluster.local -U "$POSTGRES_USER" > "/backup/pg/weyland-all-$TS.sql"
+                  gzip -f "/backup/pg/weyland-all-$TS.sql"
+                  # rotation: keep the 7 most recent
+                  ls -1t /backup/pg/weyland-all-*.sql.gz | tail -n +8 | xargs -r rm -f
+                  echo "full pg backup complete: $(date -u)"
+              envFrom:
+                - secretRef: { name: weyland-postgres-secret } # provides POSTGRES_USER (superuser) + POSTGRES_PASSWORD
+              volumeMounts:
+                - { name: backup, mountPath: /backup }
+          volumes:
+            - name: backup
+              persistentVolumeClaim: { claimName: postgres-backup }
