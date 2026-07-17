@@ -44,6 +44,7 @@ Legend: ✅ done · ⬜ missing · 🟡 exists but stale/partial · — not appl
 | 29 | Alerting | ✅ `flow-alerting` | ✅ `alerting.md` | ✅ test rule apply+delete |
 | 30 | Health status (Uptime Kuma) | ✅ (authored) | ✅ `health-status.md` | — |
 | 31 | Roadmap sync (Linear) | ✅ (authored) | ✅ `roadmap-sync.md` | ✅ Linear issues |
+| 32 | Architecture diagrams (LikeC4, B64) | — (the C4 views ARE the diagram) | ✅ `likec4.md` | — read-only |
 
 ## Outstanding (before any row is truly 100%)
 

@@ -277,74 +277,74 @@ views {
   }
 
   view topology of weyland {
-    title "weyland — node topology (MS-A2)"
+    title "weyland — node topology"
     include *
   }
 
   view rogueoneView of rogueone {
-    title "rogueone — GPU inference + training edge"
+    title "rogueone — GPU edge"
     include *
   }
 
   view mother of weyland.mother {
-    title "mother VM — the three planes"
+    title "mother — the three planes"
     include *
   }
 
   view aiPlane of weyland.mother.ai {
-    title "AI / RAG serving plane"
+    title "AI plane"
     include *
   }
 
-  // ---- mesh plane: overview + one view per sub-zone ----
+  // ---- "Data mesh /" folder in the explorer nav (overview + one per sub-zone) ----
   view meshPlane of weyland.mother.mesh {
-    title "Data mesh — the sub-zones"
+    title "Data mesh / overview"
     include *
   }
   view meshStorage of weyland.mother.mesh.storage {
-    title "Data mesh — storage + catalog"
+    title "Data mesh / storage + catalog"
     include *
   }
   view meshQuery of weyland.mother.mesh.query {
-    title "Data mesh — query / BI / semantic"
+    title "Data mesh / query + BI"
     include *
   }
   view meshStream of weyland.mother.mesh.stream {
-    title "Data mesh — streaming"
+    title "Data mesh / streaming"
     include *
   }
   view meshStores of weyland.mother.mesh.stores {
-    title "Data mesh — Tier-2 stores"
+    title "Data mesh / Tier-2 stores"
     include *
   }
   view meshMl of weyland.mother.mesh.ml {
-    title "Data mesh — feature store + ML"
+    title "Data mesh / feature store + ML"
     include *
   }
   view meshGov of weyland.mother.mesh.gov {
-    title "Data mesh — governance"
+    title "Data mesh / governance"
     include *
   }
 
-  // ---- ops plane: overview + one view per sub-zone ----
+  // ---- "Ops /" folder in the explorer nav (overview + one per sub-zone) ----
   view opsPlane of weyland.mother.ops {
-    title "Platform / ops — the sub-zones"
+    title "Ops / overview"
     include *
   }
   view opsEdge of weyland.mother.ops.edge {
-    title "Ops — ingress + SSO + DNS"
+    title "Ops / ingress + SSO + DNS"
     include *
   }
   view opsObs of weyland.mother.ops.obs {
-    title "Ops — observability"
+    title "Ops / observability"
     include *
   }
   view opsPlatform of weyland.mother.ops.platform {
-    title "Ops — delivery + governance"
+    title "Ops / delivery + governance"
     include *
   }
   view opsInfra of weyland.mother.ops.infra {
-    title "Ops — infra + tooling"
+    title "Ops / infra + tooling"
     include *
   }
 }
