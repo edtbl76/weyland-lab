@@ -32,7 +32,7 @@ Proxmox, SaaS). Part of the IaC track (B58).
 - **Helm** (8, multi-source — chart from helm repo + values from git via `$values`): `loki`, `alloy`, `tempo`,
   `kube-prometheus-stack`, `opencost`, `woodpecker`, `keda`, `keda-http-add-on`. File: `applications/helm-apps.yaml`.
 - **NOT onboarded (deliberate — still running, just not GitOps-tracked):** istio (istioctl), argocd (self),
-  port-k8s-exporter (Port agent), traefik/coredns/rbac (k3s system), code-quality (run-once Jobs); **headlamp deferred**.
+  port-agent (Port outbound-polling action agent), traefik/coredns/rbac (k3s system), code-quality (run-once Jobs); **headlamp deferred**.
 
 ## Hard-won gotchas
 - **Server-Side Apply for big CRDs.** keda `scaledjobs` + kube-prometheus-stack `prometheuses`/`alertmanagers`

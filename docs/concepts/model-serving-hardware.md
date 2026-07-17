@@ -32,7 +32,7 @@ re-deriving anything.
 | Host | Hardware | Role |
 |---|---|---|
 | **rogueone** (Lenovo ThinkPad P16 Gen 2) | i9-13950HX · 128 GB RAM · **RTX 5000 Ada Laptop, 16 GB** | GPU / **vLLM** (small fast models) **+ Ollama** (B79, `192.168.1.230:11434` / `ollama.weyland.lab` — moved off CT-102; **the large-model host now**, GPU + 128 GB RAM offload); personal + dev laptop |
-| **weyland** (Minisforum MS-A2) | Ryzen 9 9955HX (16C) · 96 GB RAM · **no compute GPU** (Radeon display iGPU only) | Proxmox host: `vm-100` openclaw, `vm-101` mother (k3s platform + MinIO). `ct-102` ollama **RETIRED (B79)** — the freed 32 GB grew mother 50 → 64 GB. |
+| **weyland** (Minisforum MS-A2) | Ryzen 9 9955HX (16C) · 96 GB RAM · **no compute GPU** (Radeon display iGPU only) | Proxmox host: `vm-101` mother (k3s platform + MinIO). `ct-102` ollama **RETIRED (B79)** — the freed 32 GB grew mother 50 → 64 GB. |
 
 ## The problem
 Large models need **VRAM or patience**. 30B@4-bit ≈ 20 GB, 70B@4-bit ≈ 40 GB, 70B fp16 ≈ 140 GB.

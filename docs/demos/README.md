@@ -45,12 +45,19 @@ Legend: ✅ done · ⬜ missing · 🟡 exists but stale/partial · — not appl
 | 30 | Health status (Uptime Kuma) | ✅ (authored) | ✅ `health-status.md` | — |
 | 31 | Roadmap sync (Linear) | ✅ (authored) | ✅ `roadmap-sync.md` | ✅ Linear issues |
 | 32 | Architecture diagrams (LikeC4, B64) | — (the C4 views ARE the diagram) | ✅ `likec4.md` | — read-only |
-| **End-to-end walkthroughs** (cross-system) | | | | |
-| E1 | RAG end-to-end (doc change → index → retrieve → eval) | ✅ (inline, threads 4 flows) | 🟡 `rag-e2e.md` — **authored, pending live validation run** | ✅ eval run/scores (per leg) |
-| E2 | Soda data-quality → DataHub Assertions | ✅ (inline) | 🟡 `soda-dq.md` — **authored, pending live validation run** | — read-only + idempotent upserts |
-| E3 | Ranger column masking (masked vs unmasked) | ✅ (inline) | 🟡 `ranger-masking.md` — **authored, pending live validation run** | — read-only |
-| E4 | Governance end-to-end (lineage + DQ + masking on one dataset) | ✅ (inline, stitches E2+E3+catalog-emit) | 🟡 `governance-e2e.md` — **authored, pending live validation run** | — non-destructive |
-| E5 | ML lifecycle end-to-end (silver → Feast → Ray → MLflow → serve/consume) | ✅ (inline, threads 4 flows) | 🟡 `ml-lifecycle-e2e.md` — **authored, pending live validation run** | ✅ MLflow version/artifact (per leg) |
+| **End-to-end walkthroughs** (cross-system) — all 🟡 authored, pending a live validation run | | | | |
+| E1 | RAG (doc change → index → retrieve → eval) | ✅ `flow-e2e-rag` | 🟡 `rag-e2e.md` | ✅ eval run/scores (per leg) |
+| E2 | Soda data-quality → DataHub Assertions | ✅ `flow-e2e-soda` | 🟡 `soda-dq.md` | — read-only + idempotent upserts |
+| E3 | Ranger column masking (masked vs unmasked) | ✅ `flow-e2e-ranger` | 🟡 `ranger-masking.md` | — read-only |
+| E4 | Governance (lineage + DQ + masking on one dataset) | ✅ `flow-e2e-governance` | 🟡 `governance-e2e.md` | — non-destructive |
+| E5 | ML lifecycle (silver → Feast → Ray → MLflow → serve/consume) | ✅ `flow-e2e-ml` | 🟡 `ml-lifecycle-e2e.md` | ✅ MLflow version/artifact (per leg) |
+| E6 | Lakehouse (land → lakeFS → Iceberg → dbt marts → BI + Tier-2) | ✅ `flow-e2e-lakehouse` | 🟡 `lakehouse-e2e.md` | ✅ idempotent overwrites |
+| E7 | Streaming + CDC (produce/Debezium → Redpanda → Flink → Iceberg → Trino) | ✅ `flow-e2e-streaming-cdc` | 🟡 `streaming-cdc-e2e.md` | ✅ topics + Iceberg `analytics.*` |
+| E8 | Deploy (git push → Argo sync → rollout → verify) | ✅ `flow-e2e-deploy` | 🟡 `deploy-e2e.md` | — GitOps reconcile |
+| E9 | Observability (app → Prom/Loki/Tempo → Grafana → Alertmanager → Telegram) | ✅ `flow-e2e-observability` | 🟡 `observability-e2e.md` | ✅ test alert apply+delete |
+| E10 | SSO (browser → forward-auth → Keycloak → app, one login) | ✅ `flow-e2e-sso` | 🟡 `sso-e2e.md` | — read-only |
+| E11 | Agent (Telegram → Hermes → LiteLLM/Ollama → MCP → tool-server → reply) | ✅ `flow-e2e-agent` | 🟡 `agent-e2e.md` | — read-only |
+| E12 | Store wake/sleep (Port action → port-agent → store-scaler → k8s scale) | ✅ `flow-e2e-store-scale` | 🟡 `store-scale-e2e.md` | — replicas only |
 
 > **E-rows are 🟡 authored — pending live validation run.** Commands are real (pulled from the component
 > demos/runbooks, no placeholders, host-labeled), but per the demos DoD a demo is not ✅ until executed
@@ -69,15 +76,15 @@ Legend: ✅ done · ⬜ missing · 🟡 exists but stale/partial · — not appl
   `psql` on the trino image · in-pod `dagster asset materialize -m` invocation · `cdc_demo` columns + mb-pg
   workload name · pgvector/neo4j consumer-group deletion via `redpanda-0` · `/context/search` body ·
   roadmap field mapping.
-- **Doc discrepancy to reconcile:** Uptime Kuma monitor count — `runbooks/uptime-kuma.md` says 16,
-  `hosts.md` says 25.
+- **Uptime Kuma monitor count RECONCILED** — the live SQLite count is **37** (2026-07-17); fixed in both
+  `runbooks/uptime-kuma.md` and `hosts.md` (were 16 / 25).
 
 All 28 component demos + all sequence diagrams are written; the items above are the residual verifications, not
 gaps in coverage.
 
-**Cross-system coverage (new):** 5 end-to-end walkthroughs (E1–E5) now thread the component demos into full
-workflows — RAG (doc→index→retrieve→eval), Soda DQ, Ranger masking, governance stitch, and the ML lifecycle
-(silver→Feast→Ray→MLflow→serve/consume, closing the previously-missing consume leg). All 5 are **🟡 authored —
-pending a live end-to-end validation run**, and prev/next chain pointers were added to the component demos
-(`rag-stream`↔`rag-query`; `streaming`/`cdc`→`flink`; `datasets-lakehouse`→`dbt`→`semantic-consumption`) so the
-seams are explicit.
+**Cross-system coverage:** 12 end-to-end walkthroughs (E1–E12) thread the component demos into full workflows
+across every plane — RAG · Soda DQ · Ranger masking · governance · ML lifecycle · lakehouse · streaming/CDC ·
+deploy · observability · SSO · agent · store wake/sleep — each with its own `flow-e2e-*` sequence diagram. All 12
+are **🟡 authored — pending a live end-to-end validation run** (the last mile: run each straight through to flip
+🟡 → ✅, which also resolves the `TODO: verify` markers). Prev/next chain pointers link the component demos
+(`rag-stream`↔`rag-query`; `streaming`/`cdc`→`flink`; `datasets-lakehouse`→`dbt`→`semantic-consumption`).
