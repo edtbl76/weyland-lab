@@ -1,49 +1,110 @@
 #!/usr/bin/env bash
-# B69 Wave 2 — seal the imperative cluster secrets into git-safe SealedSecret CRs.
-# Run on MOTHER (needs kubectl cluster access + kubeseal + the sealed-secrets controller in kube-system + jq).
+# B69 Wave 2 — seal the IMPERATIVE cluster secrets into git-safe SealedSecret CRs.
+# Run on MOTHER (needs kubectl cluster access + kubeseal + the sealed-secrets controller in kube-system).
 #
-#   ./seal-secrets.sh            # DRY RUN — prints every secret it WOULD seal (review this first)
-#   ./seal-secrets.sh --seal     # actually annotate-managed + seal each → writes CRs to $OUT
+#   ./seal-secrets.sh            # DRY RUN — validates each allow-list entry exists (flags typos as MISSING)
+#   ./seal-secrets.sh --seal     # annotate-managed + seal each -> writes CRs to $OUT
 #
 # Then: rsync "$OUT"/  ->  repo k8s/sealed-secrets/sealed/ , commit + push -> Argo applies them.
 # The controller adopts the EXISTING secret (via the `sealedsecrets.bitnami.com/managed` annotation we add) and
-# reconciles it to the sealed value — which is identical to the live value, so nothing is disrupted.
+# reconciles it to the sealed value — identical to the live value, so nothing is disrupted.
 #
-# What it seals: type Opaque secrets we created IMPERATIVELY — i.e. NOT already sealed, NOT operator-owned
-# (no ownerReferences), NOT Helm/operator-managed (no `app.kubernetes.io/managed-by` label, no Helm release
-# annotation). Those excludes drop prometheus-operator / gatekeeper / jupyterhub-hub / kafka-prereq / superset /
-# lightdash / datahub-chart secrets, which regenerate or rotate and would fight a pinned SealedSecret. TLS/CA
-# (kubernetes.io/tls + weyland-mkcert-ca) are ALSO skipped — mkcert-regenerable, replicated, and they expire;
-# handle TLS separately. SA-token/helm-release secrets are other types → already out.
+# EXPLICIT ALLOW-LIST (curated from the full cluster inventory 2026-07-17). We seal ONLY secrets created
+# IMPERATIVELY — nothing else recreates them, so they must live in git to be restorable. We deliberately DO NOT
+# seal:
+#   - operator-owned / operator-rotated secrets: all prometheus-operator + alertmanager-*/prometheus-* secrets,
+#     monitoring-kube-prometheus-admission, gatekeeper-webhook-server-cert (rotating webhook certs).
+#   - Helm/chart-generated secrets (the chart recreates them on install, so no sealing needed): datahub-gms-secret,
+#     datahub-auth-secrets, datahub-encryption-secrets, datahub-secret, superset-config, superset-env,
+#     lightdash / lightdash-secret, jupyterhub `hub`, prerequisites-kafka-*.
+#   - TLS/CA: weyland-wildcard-tls, weyland-mkcert-ca — mkcert-regenerable, replicated across namespaces, expire.
+# (Revisit the chart-generated DataHub/Superset secrets only if PATs/signing keys must survive a full rebuild.)
 set -euo pipefail
 OUT="${OUT:-$HOME/sealed-out}"
-NAMESPACES="${NAMESPACES:-weyland data-mesh monitoring minio n8n jupyterhub gatekeeper-system}"
 SEAL=0; [ "${1:-}" = "--seal" ] && SEAL=1
 
+SECRETS=(
+  # --- weyland (25) ---
+  weyland/aidlc-kb-minio-secret
+  weyland/apisix-secret
+  weyland/dagster-postgres-secret
+  weyland/dagster-sentry
+  weyland/datahub-token
+  weyland/glitchtip-secret            # ⚠ bricking: Django SECRET_KEY — also escrow off-cluster
+  weyland/iceberg-s3-secret
+  weyland/keycloak-secret
+  weyland/lakefs-creds
+  weyland/lightdash-api-token
+  weyland/litellm-secrets
+  weyland/mlflow-auth
+  weyland/mlflow-secret
+  weyland/neo4j-secret
+  weyland/open-webui-oauth
+  weyland/port-creds
+  weyland/port-ingest-url
+  weyland/ray-auth
+  weyland/registry-auth
+  weyland/sonarqube-scan-token
+  weyland/sonarqube-secret
+  weyland/tool-server-sentry
+  weyland/traefik-forward-auth-secret
+  weyland/unleash-secret
+  weyland/weyland-postgres-secret
+  # --- data-mesh (15) ---
+  data-mesh/clickhouse-users
+  data-mesh/cube-secret
+  data-mesh/dagster-postgres-secret
+  data-mesh/datahub-ingestion-secrets
+  data-mesh/datahub-oidc
+  data-mesh/gizmosql-secret
+  data-mesh/lakefs-creds
+  data-mesh/lakefs-secret             # ⚠ bricking: AUTH_ENCRYPT_SECRET_KEY — also escrow off-cluster
+  data-mesh/mongodb-secret
+  data-mesh/musicbrainz-postgres-secret
+  data-mesh/mysql-secret
+  data-mesh/nessie-secret
+  data-mesh/timescaledb-secret
+  data-mesh/trino-metrics-auth
+  data-mesh/trino-secret
+  # --- monitoring (6) ---
+  monitoring/grafana-admin
+  monitoring/grafana-oauth
+  monitoring/loki-minio
+  monitoring/pve-exporter-secret
+  monitoring/watchdog-healthcheck
+  monitoring/weyland-alerts-telegram
+  # --- minio (2) ---
+  minio/minio-creds
+  minio/minio-oidc
+  # --- n8n (2) ---
+  n8n/n8n-secret                      # ⚠ bricking: N8N_ENCRYPTION_KEY — also escrow off-cluster
+  n8n/weyland-lab-ssh-key
+  # --- jupyterhub (2) ---
+  jupyterhub/jupyterhub-oidc
+  jupyterhub/lakefs-creds
+  # --- gatekeeper-system (1) ---
+  gatekeeper-system/gpm-secret
+)
+
 command -v kubeseal >/dev/null || { echo "kubeseal not found"; exit 1; }
-command -v jq       >/dev/null || { echo "jq not found (apt install jq)"; exit 1; }
+[ "$SEAL" = 1 ] && { mkdir -p "$OUT"; echo "sealing ${#SECRETS[@]} secrets -> $OUT"; } \
+                || echo "DRY RUN — ${#SECRETS[@]} secrets in allow-list. Add --seal to write CRs."
 
-[ "$SEAL" = 1 ] && { mkdir -p "$OUT"; echo "sealing -> $OUT"; } || echo "DRY RUN — nothing sealed. Add --seal to write CRs."
-
-count=0
-for ns in $NAMESPACES; do
-  kubectl -n "$ns" get secrets -o json 2>/dev/null | jq -r '.items[]
-    | select(.type=="Opaque")
-    | select((.metadata.annotations["sealedsecrets.bitnami.com/managed"] // "") != "true")
-    | select(((.metadata.ownerReferences // []) | length) == 0)
-    | select((.metadata.labels["app.kubernetes.io/managed-by"] // "") == "")
-    | select((.metadata.annotations["meta.helm.sh/release-name"] // "") == "")
-    | select(.metadata.name != "weyland-mkcert-ca")
-    | .metadata.name' | while read -r name; do
-      if [ "$SEAL" = 1 ]; then
-        kubectl -n "$ns" annotate secret "$name" sealedsecrets.bitnami.com/managed=true --overwrite >/dev/null
-        kubectl -n "$ns" get secret "$name" -o yaml | kubeseal --format yaml > "$OUT/${ns}__${name}.yaml"
-        echo "  sealed      $ns/$name"
-      else
-        echo "  would seal  $ns/$name"
-      fi
-  done
+miss=0
+for entry in "${SECRETS[@]}"; do
+  ns="${entry%%/*}"; name="${entry#*/}"
+  if ! kubectl -n "$ns" get secret "$name" >/dev/null 2>&1; then
+    echo "  MISSING     $ns/$name  (not in cluster — check the name)"; miss=$((miss+1)); continue
+  fi
+  if [ "$SEAL" = 1 ]; then
+    kubectl -n "$ns" annotate secret "$name" sealedsecrets.bitnami.com/managed=true --overwrite >/dev/null
+    kubectl -n "$ns" get secret "$name" -o yaml | kubeseal --format yaml > "$OUT/${ns}__${name}.yaml"
+    echo "  sealed      $ns/$name"
+  else
+    echo "  ok          $ns/$name"
+  fi
 done
 echo "---"
+[ "$miss" -gt 0 ] && echo "⚠ $miss MISSING — fix the name(s) before --seal."
 [ "$SEAL" = 1 ] && echo "Done. rsync '$OUT/' -> repo k8s/sealed-secrets/sealed/ , then commit + push (Argo applies)." \
-                || echo "Review the list above. Re-run with --seal when it looks right."
+                || echo "Allow-list validated above. Re-run with --seal when it looks right."
