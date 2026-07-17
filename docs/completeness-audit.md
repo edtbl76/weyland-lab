@@ -36,6 +36,7 @@ Fresh 3-agent sweep (secrets+gitops · monitoring · backup/trigger/docs) graded
 
 ### Wave 5 — docs-drift
 - Argo app count 28→**48** (backlog); strike Backstage/Jaeger/OpenClaw from the backlog BODY (retired/dropped, still referenced as live); reconcile DataHub dataset counts (3255 vs 3282 vs 3256); MinIO console SSO sweep.
+- **Refresh `docs/platform-map.html`** — the hand-authored visual map has drifted from the live component set (openclaw card removed 2026-07-17; likely more ghosts/omissions — e.g. the full B1 data-mesh, LikeC4). Audit it card-by-card against `hosts.md` + the LikeC4 model and reconcile. (Now a standing DoD item — see [[completion-criteria]] pillar 1.)
 
 **Biggest live risks:** unloaded data-mesh alerts (believed-working, dead) · no dead-man's-switch · irreplaceable stores unbacked (core Postgres, mlflow models, tofu-state) · ~45 unmanaged secrets (one node loss = unrecoverable). Wave 1 removes most of the *immediate* danger cheaply.
 
