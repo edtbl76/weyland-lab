@@ -7,6 +7,13 @@ pattern. Pulled out of the B7 decision doc so it stands on its own and outlives 
 **Related:** [B7 — Model Serving Hardware (the decision)](model-serving-hardware.md) ·
 [Ollama runbook + measured benchmarks](../runbooks/model-serving-ollama.md).
 
+> **Serving location (2026-07-12, B79):** large-model serving now runs on **rogueone's GPU**
+> (RTX 5000 Ada 16 GB + 128 GB RAM offload), **not** weyland's CPU (the CT-102 CPU LXC was
+> retired). This doc keeps the CPU-vs-GPU reasoning that motivated the original weyland-CPU
+> path (and the still-deferred *dedicated* weyland eGPU) — where the text below frames
+> inference as running "on weyland's CPU today," read that as the pre-B79 baseline. Current
+> state: [model-serving-hardware.md](model-serving-hardware.md).
+
 ---
 
 ## The inference tradeoff
@@ -111,8 +118,9 @@ first token. Negligible for short prompts; the main pain for long ones. (A GPU f
   batch-tool → interactive). Not marginal.
 - **The "GPU barely helps" case is exactly one: 70B on a 24 GB card** — doesn't fit, spills to
   CPU, lands back near CPU speed. A 24 GB card transforms ≤32B; only a 48 GB card makes 70B fast.
-- **Two different comparisons:** "~1.6×" was 3090 vs the *laptop GPU*; vs weyland's **CPU** (where
-  it runs today) a 3090 is **~10×**. weyland is CPU-only now → the 10× is the relevant figure.
+- **Two different comparisons:** "~1.6×" was 3090 vs the *laptop GPU*; vs a **CPU-only** baseline a
+  3090 is **~10×**. (weyland served on CPU until **B79** re-homed Ollama to rogueone's GPU — so the
+  10× is the conceptual CPU-vs-eGPU figure, not a claim about where serving runs now.)
 - **Lab reconciliation:** CPU is *sufficient* (nothing blocked), but the GPU is a real ~10×
   *experience* upgrade for 8–32B. "Not needed" ≠ "not impactful." Size the card to a model that
   fits it (24 GB → 32B); 70B-fast (48 GB) is the rare thing a lab seldom needs.

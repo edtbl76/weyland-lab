@@ -14,30 +14,7 @@ all-NULL columns that dbt range checks pass vacuously. Grounded in [../runbooks/
 - **Dagster** run logs (`soda_quality_job`) — the `[PASSED]/[FAILED]` breakdown.
 - **DataHub → each mart → Quality / Validations tab** — one assertion per check (via `emit_soda_assertions`).
 
-## Sequence diagram
-
-```mermaid
-sequenceDiagram
-    actor User
-    participant Dag as Dagster soda_quality_job
-    participant Soda as Soda venv (/opt/soda-venv, subprocess)
-    participant Proxy as trino-noauth proxy
-    participant Trino as Trino
-    participant Marts as iceberg.dbt.mart_*
-    participant Emit as emit_soda_assertions
-    participant DH as DataHub GMS
-
-    User->>Dag: launch soda_quality_job
-    Dag->>Soda: soda scan -d weyland -srf results.json
-    Soda->>Proxy: SodaCL checks (Basic-auth header)
-    Proxy->>Trino: strip Authorization → X-Trino-User: dbt
-    Trino->>Marts: aggregate checks (row count, uniqueness, ranges, missing_percent)
-    Marts-->>Soda: pass/fail per check
-    Soda-->>Dag: -srf scan-results JSON (venv ↔ main-env bridge)
-    Dag->>Emit: read results JSON
-    Emit->>DH: upsert _NATIVE_ assertion (md5(table:check)) + AssertionRunEvent
-    DH-->>User: mart → Quality tab shows pass/fail
-```
+**Sequence:** [flow-e2e-soda.md](../diagrams/flow-e2e-soda.md)
 
 ## Prerequisites
 

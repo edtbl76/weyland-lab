@@ -66,7 +66,7 @@ ORDER BY c.embedding <=> seed.embedding LIMIT 10;
 
 ## `weyland` DB — LLM eval harness (B4)
 The RAG leaderboard tables (see `scripts/eval-schema.sql`, runbook **[[eval-harness]]**). One `eval_runs` row per
-leaderboard execution → `eval_questions` (ragas-generated) → `eval_results` (one answer per question × model) →
+leaderboard execution → `eval_questions` (LLM-generated) → `eval_results` (one answer per question × model) →
 `eval_scores` (judge-**panel** LLM-as-judge, ≥3 judges × 3 metrics per result). `eval_leaderboard` is a view
 that averages across judges.
 ```sql

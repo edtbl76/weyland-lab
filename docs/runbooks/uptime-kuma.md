@@ -1,6 +1,6 @@
 # Uptime Kuma — runbook (incident-management category, B43)
 
-Uptime monitoring + status page at `kuma.weyland.lab`. **16 monitors** across the platform. Two notifiers,
+Uptime monitoring + status page at `kuma.weyland.lab`. **37 monitors** across the platform (live count, 2026-07-17). Two notifiers,
 both default-on: **Port.io webhook** (→ `uptime_monitor` blueprint, catalog/status) and **direct Telegram**
 (active paging — reuses the Hermes bot token; sending doesn't conflict with Hermes consuming). Telegram is
 the paging path on purpose — independent of any agent that could itself fail (see B45). Has its own built-in

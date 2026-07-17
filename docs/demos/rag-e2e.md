@@ -20,36 +20,7 @@ per-step detail; this file is the connective tissue and the single before/after 
 the retired CT-102 in B79. The embedding service `rag-embed` is a separate native systemd unit on the same box
 (`:8900`).
 
-## Sequence diagram
-
-```mermaid
-sequenceDiagram
-    actor Author
-    participant DAG as Dagster rag_stream_produce
-    participant EMB as rag-embed (rogueone :8900)
-    participant TOPIC as rag.chunks (Redpanda)
-    participant STORE as 5 store consumers (qdrant/weaviate/pgvector/neo4j/opensearch)
-    participant TS as tool-server /context (mother :30080)
-    participant OLL as Ollama (rogueone :11434)
-    participant PG as Postgres eval_*
-
-    Author->>DAG: edit a doc, then materialize rag_stream_produce
-    DAG->>EMB: POST /embed (changed chunks, batch 64)
-    EMB-->>DAG: 384-dim vectors
-    DAG->>TOPIC: delete-clear + upsert per chunk
-    STORE->>TOPIC: consume, apply to each store (lag → 0)
-    Author->>TS: POST /context/ask (question that hits the edit)
-    TS->>STORE: vector/graph retrieve top-k
-    TS->>OLL: synthesize grounded answer
-    OLL-->>Author: answer + sources (cites the edited doc)
-    Author->>TS: POST /evals/run (10 Q × 6 models)
-    TS->>PG: eval_questions + eval_results (60 rows)
-    Author->>TS: POST /evals/score (LLM-judge panel)
-    TS->>OLL: judge faithfulness / relevancy
-    TS->>PG: eval_scores
-    Author->>TS: GET /evals/leaderboard
-    TS-->>Author: panel-averaged leaderboard number
-```
+**Sequence:** [flow-e2e-rag.md](../diagrams/flow-e2e-rag.md)
 
 ## Prerequisites
 

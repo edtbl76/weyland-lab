@@ -18,33 +18,7 @@ close — **consuming the registered model**:
 (mother) is the control plane (MLflow tracking + registry, MinIO artifacts, lakeFS silver). Ray head is a
 coordinator (`--num-cpus=0`); trials schedule onto the rogueone worker.
 
-## Sequence diagram
-
-```mermaid
-sequenceDiagram
-    actor Op as Operator (mother)
-    participant Bridge as genre_feast_training_set (Dagster, meshed)
-    participant Feast as Feast (offline PG, point-in-time)
-    participant Lake as lakeFS (training parquet)
-    participant Head as Ray head (coordinator, num-cpus=0)
-    participant Wk as Ray worker (rogueone, 32 cores)
-    participant ML as MLflow (registry + NodePort :30500)
-    participant S3 as MinIO (s3://mlflow)
-    participant Cons as Consumer (load models:/genre_classifier/latest)
-
-    Op->>Bridge: materialize genre_feast_training_set
-    Bridge->>Feast: get_historical_features (as-of join)
-    Bridge->>Lake: write music/parquet/genre_feast_training/
-    Op->>Head: ray job submit train_genre.py --source feast --tune --trials 24
-    Head->>Wk: schedule trials
-    Wk->>ML: log params/metrics per trial
-    Wk->>Wk: retrain winner (@ray.remote task)
-    Wk->>S3: PUT model.pkl DIRECT (TLS via AWS_CA_BUNDLE)
-    Wk->>ML: register genre_classifier version
-    Cons->>ML: resolve models:/genre_classifier/latest → artifact URI
-    Cons->>S3: fetch model.pkl
-    Cons-->>Op: predict(sample) → genre label
-```
+**Sequence:** [flow-e2e-ml.md](../diagrams/flow-e2e-ml.md)
 
 ## Prerequisites
 

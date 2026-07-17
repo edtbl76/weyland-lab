@@ -15,26 +15,7 @@ This is a **stitch**, not new mechanism — read the three component demos for p
 one and the same dataset carries lineage, a quality verdict, and an access policy at once, and all three are
 visible from the mart's DataHub page (plus the Trino query for the mask's real-world effect).
 
-## Sequence diagram
-
-```mermaid
-sequenceDiagram
-    actor User
-    participant Emit as datahub_catalog_emit_job
-    participant Soda as soda_quality_job
-    participant Ranger as Ranger (Trino plugin)
-    participant Trino as Trino
-    participant Mart as iceberg.dbt.mart_state_health_trends
-    participant DH as DataHub (mart page)
-
-    Emit->>DH: emit dataset + gold→mart lineage (Lineage tab)
-    Soda->>Trino: aggregate DQ checks over the mart
-    Soda->>DH: upsert _NATIVE_ assertions + run events (Quality tab)
-    User->>Trino: SELECT depression_pct (user=analyst vs dbt)
-    Ranger->>Trino: enforce column mask for analyst
-    Trino-->>User: analyst → NULL, dbt → real value
-    User->>DH: open mart → Lineage + Quality both populated
-```
+**Sequence:** [flow-e2e-governance.md](../diagrams/flow-e2e-governance.md)
 
 ## Prerequisites
 

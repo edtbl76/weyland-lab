@@ -13,29 +13,7 @@ Trino federates. Grounded in [../runbooks/ranger.md](../runbooks/ranger.md).
 468 has a **native** Ranger access-control plugin (`access-control.name=ranger`) that pulls policies from Ranger
 Admin every 30s and enforces them on every query.
 
-## Sequence diagram
-
-```mermaid
-sequenceDiagram
-    actor User
-    participant Setup as ranger_setup.py
-    participant RA as Ranger Admin (:6080)
-    participant PG as weyland-postgres (ranger DB)
-    participant Trino as Trino (native ranger plugin)
-    participant Marts as iceberg.dbt.mart_state_health_trends
-
-    Setup->>RA: create trino service + 13 default policies (+ group public) + mask policy + ensure_user(analyst)
-    RA->>PG: persist policies
-    Trino->>RA: poll policies every 30s
-    User->>Trino: SELECT depression_pct ... (user=analyst)
-    Trino->>RA: evaluate — mask policy matches analyst
-    Trino->>Marts: read, apply column mask
-    Trino-->>User: depression_pct = NULL (masked)
-    User->>Trino: SELECT depression_pct ... (user=dbt)
-    Trino->>RA: evaluate — no mask for dbt
-    Trino->>Marts: read
-    Trino-->>User: depression_pct = real value (unmasked)
-```
+**Sequence:** [flow-e2e-ranger.md](../diagrams/flow-e2e-ranger.md)
 
 ## Prerequisites
 
