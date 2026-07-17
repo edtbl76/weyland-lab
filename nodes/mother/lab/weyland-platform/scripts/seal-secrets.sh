@@ -9,8 +9,12 @@
 # The controller adopts the EXISTING secret (via the `sealedsecrets.bitnami.com/managed` annotation we add) and
 # reconciles it to the sealed value — which is identical to the live value, so nothing is disrupted.
 #
-# What it seals: type Opaque + kubernetes.io/tls, in the app namespaces below, that aren't already sealed-managed.
-# (SA-token and helm-release secrets are a different type → auto-excluded. kube-system / istio SA tokens skipped.)
+# What it seals: type Opaque secrets we created IMPERATIVELY — i.e. NOT already sealed, NOT operator-owned
+# (no ownerReferences), NOT Helm/operator-managed (no `app.kubernetes.io/managed-by` label, no Helm release
+# annotation). Those excludes drop prometheus-operator / gatekeeper / jupyterhub-hub / kafka-prereq / superset /
+# lightdash / datahub-chart secrets, which regenerate or rotate and would fight a pinned SealedSecret. TLS/CA
+# (kubernetes.io/tls + weyland-mkcert-ca) are ALSO skipped — mkcert-regenerable, replicated, and they expire;
+# handle TLS separately. SA-token/helm-release secrets are other types → already out.
 set -euo pipefail
 OUT="${OUT:-$HOME/sealed-out}"
 NAMESPACES="${NAMESPACES:-weyland data-mesh monitoring minio n8n jupyterhub gatekeeper-system}"
@@ -24,8 +28,12 @@ command -v jq       >/dev/null || { echo "jq not found (apt install jq)"; exit 1
 count=0
 for ns in $NAMESPACES; do
   kubectl -n "$ns" get secrets -o json 2>/dev/null | jq -r '.items[]
-    | select(.type=="Opaque" or .type=="kubernetes.io/tls")
-    | select(.metadata.annotations["sealedsecrets.bitnami.com/managed"] != "true")
+    | select(.type=="Opaque")
+    | select((.metadata.annotations["sealedsecrets.bitnami.com/managed"] // "") != "true")
+    | select(((.metadata.ownerReferences // []) | length) == 0)
+    | select((.metadata.labels["app.kubernetes.io/managed-by"] // "") == "")
+    | select((.metadata.annotations["meta.helm.sh/release-name"] // "") == "")
+    | select(.metadata.name != "weyland-mkcert-ca")
     | .metadata.name' | while read -r name; do
       if [ "$SEAL" = 1 ]; then
         kubectl -n "$ns" annotate secret "$name" sealedsecrets.bitnami.com/managed=true --overwrite >/dev/null
