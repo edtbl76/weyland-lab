@@ -7,8 +7,8 @@ Manifests: `nodes/mother/lab/weyland-platform/k8s/istio/`. Istio version: **1.30
 
 **Why PERMISSIVE, not STRICT (slice 1):** two un-meshed clients force it — the tool-server serves external
 **NodePort** MCP clients (Hermes CT 104 + Claude Code), and the backends serve un-meshed **Dagster** (ingestion/
-eval writes). STRICT would reject both. **STRICT = slice 2** (mesh Dagster, mind its egress to Ollama CT 102 +
-GitHub, then flip backends STRICT).
+eval writes). STRICT would reject both. **STRICT = slice 2** (mesh Dagster, mind its egress to Ollama on
+rogueone + GitHub, then flip backends STRICT).
 
 ---
 
@@ -20,19 +20,20 @@ istioctl install -f ~/lab/weyland-platform/k8s/istio/istio-install.yaml -y
 kubectl get pods -n istio-system                     # istiod Running
 istioctl version                                     # control plane version appears once istiod is up
 ```
-`istio-install.yaml` = minimal profile + `meshConfig.extensionProviders` (the `jaeger` zipkin provider — see
+`istio-install.yaml` = minimal profile + `meshConfig.extensionProviders` (the `tempo` zipkin provider — see
 Tracing). `verify-install` was **removed** in 1.30 — use `istioctl version` / pod status instead.
 
 ## Observability add-ons
-- **Jaeger** (addon): `kubectl apply -f ~/istio-*/samples/addons/jaeger.yaml` (services: `tracing` = query
-  UI :80/16685, `zipkin` = collector :9411).
+- **Tracing = Tempo** (part of the LGTM stack in ns `monitoring`, B48). No Istio tracing addon — Istio ships
+  spans to **Tempo's zipkin receiver** and traces are read in **Grafana** (Tempo datasource) and via **Kiali**.
+  Jaeger was **retired (B48)**.
 - **Kiali**: tracked at **`k8s/istio/kiali.yaml`** (was the un-tracked addon — now committed + hardened).
-  `kubectl apply -f k8s/istio/kiali.yaml`. Ingress `kiali.weyland.lab`; Jaeger ingress `jaeger.weyland.lab`
-  (`k8s/istio/{kiali,jaeger}-ingress.yaml`). Both reuse `weyland-wildcard-tls` **copied into `istio-system`**:
+  `kubectl apply -f k8s/istio/kiali.yaml`. Ingress `kiali.weyland.lab` (`k8s/istio/kiali-ingress.yaml`),
+  reusing `weyland-wildcard-tls` **copied into `istio-system`**:
   ```
   kubectl create secret tls weyland-wildcard-tls -n istio-system --cert=<(kubectl get secret weyland-wildcard-tls -n weyland -o jsonpath='{.data.tls\.crt}' | base64 -d) --key=<(kubectl get secret weyland-wildcard-tls -n weyland -o jsonpath='{.data.tls\.key}' | base64 -d)
   ```
-  rogueone needs `192.168.1.243 kiali.weyland.lab` + `… jaeger.weyland.lab` in `/etc/hosts`.
+  rogueone needs `192.168.1.243 kiali.weyland.lab` in `/etc/hosts`.
 - **Prometheus**: Kiali uses Istio's **bundled addon Prometheus** (`samples/addons/prometheus.yaml`), NOT the
   kube-prometheus-stack — a deliberate shortcut. **Consolidation + Grafana Istio dashboards = deferred
   follow-up** (see backlog B8).
@@ -40,11 +41,11 @@ Tracing). `verify-install` was **removed** in 1.30 — use `istioctl version` / 
 ## Tracing pipeline (the part that's easy to get half-wired)
 Sampling alone does **nothing** — it sets *how much* to trace, not *where to send* spans. You need a
 **provider** + a **Telemetry** resource:
-- `istio-install.yaml` → `meshConfig.extensionProviders: [{name: jaeger, zipkin: {service: zipkin.istio-system.svc.cluster.local, port: 9411}}]`
-- `k8s/istio/telemetry.yaml` → `Telemetry` with `tracing[].providers: [jaeger]`, `randomSamplingPercentage: 100`.
+- `istio-install.yaml` → `meshConfig.extensionProviders: [{name: tempo, zipkin: {service: tempo.monitoring.svc.cluster.local, port: 9411}}]` (Tempo's zipkin receiver)
+- `k8s/istio/telemetry.yaml` → `Telemetry` with `tracing[].providers: [tempo]`, `randomSamplingPercentage: 100`.
 - **Sidecars must be restarted** to pick up the tracing bootstrap (`kubectl rollout restart deployment … -n weyland`).
-- Kiali shows traces via `external_services.tracing` (gRPC `tracing.istio-system:16685`, `external_url` =
-  `https://jaeger.weyland.lab`).
+- Kiali reads traces from Tempo via `external_services.tracing` (points at the Tempo query API in
+  ns `monitoring`); the full trace view lives in **Grafana** (Tempo datasource).
 
 ---
 
@@ -82,10 +83,10 @@ kubectl exec -n weyland deploy/dagster-user-code -- python3 -c "import psycopg2,
 
 ## Verify mTLS + traces
 - Kiali → Graph → ns `weyland`, Display → Security → **lock icons** on tool-server↔backend edges = mTLS.
-- Kiali workload → **Traces** tab, or Jaeger (`jaeger.weyland.lab`) → Service `weyland-tool-server`.
+- Kiali workload → **Traces** tab, or Grafana → **Explore** (Tempo datasource) → Service `weyland-tool-server`.
 - `istioctl x describe pod <pod> -n weyland` shows per-pod mTLS.
 
-## Security (Kiali/Jaeger)
+## Security (Kiali)
 The Istio addon ships **demo-grade** defaults. Hardened in `k8s/istio/kiali.yaml`: **`view_only_mode: true`**
 (read-only — anonymous users can't mutate the mesh), **ClusterRole read-only on Istio CRDs**, non-placeholder
 signing key. Kiali stays `auth.strategy: anonymous` internally; **the password gate is at the ingress** (below).
@@ -127,7 +128,7 @@ kube-prometheus-stack so there's one metrics store:
 - Grafana: import Istio dashboards **into B5's Grafana** (do NOT deploy the addon Grafana) — IDs
   **7639** (mesh) / **7636** (service) / **7630** (workload) / **7645** (control-plane). They persist on the
   Grafana PVC; ConfigMap-provisioning for full IaC is an optional later step.
-- Kiali also wired to Jaeger (`tracing.istio-system:16685`) and Grafana (`monitoring-grafana.monitoring:80`) via
+- Kiali also wired to Tempo (traces, ns `monitoring`) and Grafana (`monitoring-grafana.monitoring:80`) via
   `external_services` — the Mesh view then shows all components green.
 
 ## STRICT mTLS (slice 2) — scope it, don't blanket it

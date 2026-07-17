@@ -27,14 +27,11 @@ C4Component
 
         Component(rag_embed, "rag-embed", "systemd / FastAPI / CUDA", "B-RAG-STREAM warm embedding service (services/rag-embed/, rag-embed.service). bge-small-en-v1.5 (384-dim) resident on the RTX 5000 Ada; model + CUDA context load ONCE at startup so every request is warm (invariants I1, I6). GET /health + POST /embed (L2-normalized vectors). :8900. LAN-only. Sole client = the Dagster rag_stream_produce producer on mother.")
 
-        Component(obsidian, "Obsidian Vault", "Markdown files", "Personal notes/docs. RETIRED as RAG source (B25b) — the RAG now ingests the GitHub repo (docs/ + nodes/) via Dagster git-pull, not this vault.")
-
         Component(weyland_repo, "weyland git repo", "git / IdeaProjects", "/home/edwardmangini/IdeaProjects/weyland. Canonical source of truth for all infra, k8s manifests, services, and docs. Pushed to GitHub, where Dagster git-pulls docs/ + nodes/ for the RAG (B25b — done).")
     }
 
     Rel(user, claude_code, "primary dev interface")
     Rel(user, vllm, "on-demand GPU inference")
-    Rel(user, obsidian, "writes lab notes")
     Rel(claude_code, tool_server, "MCP /mcp (status, context_search, context_ask, list_models)")
     Rel(claude_code, anthropic, "LLM reasoning (cloud)")
     Rel(weyland_repo, github, "git push")

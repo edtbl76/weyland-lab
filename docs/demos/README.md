@@ -14,11 +14,11 @@ Legend: ✅ done · ⬜ missing · 🟡 exists but stale/partial · — not appl
 | **Data mesh / pipelines** | | | | |
 | 1 | RAG streaming indexer (B-RAG-STREAM: produce → 5 store consumers) | ✅ `flow-rag-stream` | ✅ `rag-stream.md` | ✅ probe teardown (full run writes the LIVE index — destructive) |
 | 2 | RAG query / retrieval | ✅ `flow-rag-query` | ✅ `rag-query.md` | — read-only |
-| 3 | RAG ingestion (in-process) | 🟡 `flow-ingestion` — **STALE, retire → #1** | — | — |
+| 3 | RAG ingestion (in-process) | 🟡 `flow-ingestion` — **SUPERSEDED by #1** (`flow-rag-stream`) | — | — |
 | 4 | Datasets → lakehouse | ✅ (seq added) | ✅ `datasets-lakehouse.md` | ✅ idempotent overwrites |
 | 5 | Streaming (Redpanda + Avro) | ✅ (seq added) | ✅ `streaming.md` | ✅ topics |
 | 6 | CDC (Debezium → topics) | ✅ (seq added) | ✅ `cdc.md` | ✅ CDC topics |
-| 7 | Flink streaming tier | ✅ `flow-flink` | 🟡 `flink.md` — **PENDING** (job empty; no FlinkSessionJob yet) | ✅ Iceberg analytics.* |
+| 7 | Flink streaming tier | ✅ `flow-flink` | ✅ `flink.md` (all 4 jobs validated 2026-07-15) | ✅ Iceberg analytics.* |
 | 8 | LanceDB sync | ✅ (seq added) | ✅ `lancedb.md` | ✅ Lance tables |
 | 9 | Feast feature store | ✅ (seq added) | ✅ `feast.md` | read-only serving |
 | 10 | Semantic consumption (Cube/MetricFlow) | ✅ (seq added) | ✅ `semantic-consumption.md` | — read-only |
@@ -47,14 +47,14 @@ Legend: ✅ done · ⬜ missing · 🟡 exists but stale/partial · — not appl
 
 ## Outstanding (before any row is truly 100%)
 
-- **Flink demo (#7) is PENDING** — matches reality: the RTA job finished/empty, and no `FlinkSessionJob`
-  manifest exists yet. Completes when the B83 build resumes (re-produce lastfm → declarative FlinkSessionJob →
-  History Server). Flip to ✅ then.
-- **`flow-ingestion` is stale** — it diagrams the retired in-process RAG chain. Retire or redirect it to
-  `flow-rag-stream` / `rag-stream.md`.
+- **Flink demo (#7) is DONE** — all 4 jobs (RTA / CDC / health / PyFlink) validated end-to-end 2026-07-15
+  (B83): declarative `FlinkSessionJob`s + History Server, results in Iceberg `analytics.*` and Kafka. Row flipped
+  to ✅.
+- **`flow-ingestion` is SUPERSEDED** — it diagrams the retired in-process RAG chain; the live path is
+  `flow-rag-stream` / `rag-stream.md` (#1). Marked SUPERSEDED here rather than deleted for history.
 - **`TODO: verify` markers to resolve** (honest unknowns left by the generators, none fabricated):
   eval FK column · `valve.sh` path · guardrail dotted-validator env var · datahub emit-token secret name ·
-  `model_catalog` columns · Ollama model tags · MLflow 2.18 delete CLI · `datasets_lib._catalog` signature ·
+  `model_catalog` columns · Ollama model tags · MLflow 3.14 delete CLI · `datasets_lib._catalog` signature ·
   `psql` on the trino image · in-pod `dagster asset materialize -m` invocation · `cdc_demo` columns + mb-pg
   workload name · pgvector/neo4j consumer-group deletion via `redpanda-0` · `/context/search` body ·
   roadmap field mapping.

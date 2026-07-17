@@ -19,7 +19,7 @@ auth (set on first login). Single container, SQLite state on a PVC.
 2. **TLS — self-signed mkcert CA.** Kuma (Node) rejects the `*.weyland.lab` certs unless it trusts the mkcert
    root. Mount it: secret `weyland-mkcert-ca` (from `$(mkcert -CAROOT)/rootCA.pem`) → `NODE_EXTRA_CA_CERTS`.
    Created out-of-band: `kubectl create secret generic weyland-mkcert-ca -n weyland --from-file=rootCA.pem=...`.
-3. **Basic-auth monitors** (kiali, jaeger, mlflow — Traefik `basicAuth` middleware): user `admin`, pass
+3. **Basic-auth monitors** (kiali, mlflow — Traefik `basicAuth` middleware): user `admin`, pass
    `weyland_dev_password`. **No trailing period** — the apr1 hash legitimately ends in `.`; do NOT copy the
    password from prose where it sits before a sentence-ending period. A stray `.` → silent 401.
 4. **whisper** — `GET /inference` returns `404` (the route is POST-only); the server is still up, so accept

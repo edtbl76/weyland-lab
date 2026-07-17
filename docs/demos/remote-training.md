@@ -100,7 +100,7 @@ the MLflow UI (run → **Delete**). Then GC the orphaned artifacts (the DB URI f
 
 [mother] `kubectl -n weyland exec deploy/mlflow -c mlflow -- sh -c 'B="postgresql://$POSTGRES_USER:$POSTGRES_PASSWORD@weyland-postgres.weyland.svc.cluster.local:5432/mlflow"; MLFLOW_TRACKING_URI=http://localhost:5000 mlflow gc --backend-store-uri "$B" --artifacts-destination s3://mlflow/'`
 
-> The `mlflow models delete-version` invocation is `TODO: verify` against the pinned MLflow 2.18.0
+> The `mlflow models delete-version` invocation is `TODO: verify` against the pinned MLflow 3.14
 > CLI; the UI path (Models → `genre_classifier` → version → **Delete**) is the always-available
 > equivalent. Do not delete the whole `genre_classifier` model unless you intend to drop every
 > version. The Ray worker + head are long-lived infrastructure — leave them running (submitted jobs

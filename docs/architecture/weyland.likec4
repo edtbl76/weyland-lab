@@ -26,7 +26,6 @@ model {
   anthropic = ext "Anthropic API" "Claude — Claude Code reasoning on rogueone"
   hostedModels = ext "Gemini / OpenRouter" "Hosted LLMs fronted by LiteLLM (gated egress)"
   huggingface = ext "Hugging Face Hub" "Model weights (bge-small, GGUF) at setup"
-  tavily = ext "Tavily" "Web search (OpenClaw — deprioritized)"
   port = ext "Port.io" "IDP / catalog + self-service actions (SaaS)"
   linear = ext "Linear" "Roadmap / task status (ingested by Port)"
 
@@ -162,7 +161,6 @@ model {
 
     hermes = node "hermes CT" "Python/systemd (CT 104, .247) — primary agent, MCP client, Telegram front door"
     whisper = node "whisper CT" "whisper.cpp (CT 103, .246) — CPU STT"
-    openclaw = node "openclaw VM" "DEPRIORITIZED (B28) — shelved (vm-100, .169)"
   }
 
   // ================= Relationships =================
@@ -270,7 +268,6 @@ model {
   weyland.mother.ops.platform.portExporter -> port "catalog sync"
   port -> linear "roadmap ingest"
   weyland.mother.ai.dagster -> huggingface "model weights (setup)"
-  weyland.openclaw -> tavily "web search (deprioritized)"
 }
 
 views {

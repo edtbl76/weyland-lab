@@ -145,7 +145,7 @@ in `~/.hermes/config.yaml` so nothing background ever leaves the LAN:
 ```
     provider: custom
     model: qwen3-coder:30b
-    base_url: http://192.168.1.244:11434/v1
+    base_url: http://192.168.1.230:11434/v1
     api_key: ollama
 ```
 `vision` is the one unpinned lane (needs a local *vision* model). Verify no off-LAN auxiliary calls:

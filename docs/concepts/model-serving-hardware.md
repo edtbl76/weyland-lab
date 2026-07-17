@@ -1,8 +1,10 @@
-# B7 — Model Serving Hardware (DECISION DEFERRED — pending pricing)
+# B7 — Model Serving Hardware (GPU-served on rogueone; weyland eGPU purchase deferred)
 
-**Status:** 🟡 OPEN. The *architecture* is settled; the *GPU purchase* is **deferred** until
-pricing is researched. This doc captures every option + exact hardware so the decision can be
-made cold later without re-deriving anything.
+**Status:** 🟢 Large-model serving is **live on GPU** — B79 (2026-07-12) moved Ollama off the weyland
+CPU LXC (CT-102, now retired) onto **rogueone's existing RTX 5000 Ada** (16 GB). The remaining open
+item is the *dedicated weyland eGPU purchase*, which stays **deferred** until pricing is researched.
+This doc captures every option + exact hardware so that purchase can be made cold later without
+re-deriving anything.
 
 > **This doc was split (2026-06-11) for length.** It now holds only the **decision** (what to buy,
 > options, candidate GPUs, plan). The other two pieces live separately:
@@ -14,22 +16,23 @@ made cold later without re-deriving anything.
 ---
 
 ## Decision status — what's settled vs open
-- **Settled / proceeding NOW:** weyland (MS-A2) is the **dedicated large-model host** via
-  **Ollama on CPU** — we move forward with this **regardless of any GPU decision**, so there is
-  a **guaranteed CPU path either way** (live; see [runbook](../runbooks/model-serving-ollama.md)). rogueone stays
-  the GPU/vLLM host for small fast models.
-- **Tentative / someday (GPU, low priority — NOT pursued now):** an **OCuLink eGPU** would
-  accelerate (~10× on ≤32B), but the lab doesn't need the speed yet, so it's parked at the end of
-  the roadmap as *tentative*. Will invest eventually if a real workload feels too slow. **The eGPU
-  augments — never replaces — the CPU/Ollama path.** (Options + unverified pricing kept below.)
+- **Settled / live NOW:** large-model serving runs **Ollama on rogueone's GPU** (RTX 5000 Ada 16 GB;
+  overflow layers offload to its 128 GB RAM). B79 (2026-07-12) moved it off the weyland CPU LXC
+  (CT-102, retired), freeing 32 GB to grow mother 50 → 64 GB (see
+  [runbook](../runbooks/model-serving-ollama.md)). rogueone also stays the vLLM host for small fast
+  models.
+- **Tentative / someday (dedicated weyland eGPU, low priority — NOT pursued now):** an **OCuLink
+  eGPU** on the MS-A2 would give weyland its own accelerator (and larger VRAM than rogueone's 16 GB),
+  but the lab doesn't need it yet, so it's parked at the end of the roadmap as *tentative*. Will
+  invest eventually if a real workload feels too slow. (Options + unverified pricing kept below.)
 
 ---
 
 ## Current architecture (settled)
 | Host | Hardware | Role |
 |---|---|---|
-| **rogueone** (Lenovo ThinkPad P16 Gen 2) | i9-13950HX · 128 GB RAM · **RTX 5000 Ada Laptop, 16 GB** | GPU / **vLLM**, small fast models; personal + dev laptop |
-| **weyland** (Minisforum MS-A2) | Ryzen 9 9955HX (16C) · 96 GB RAM · **no compute GPU** (Radeon display iGPU only) | Proxmox host: `vm-100` openclaw, `vm-101` mother (k3s platform + MinIO), `ct-102` ollama. **The large-model host.** |
+| **rogueone** (Lenovo ThinkPad P16 Gen 2) | i9-13950HX · 128 GB RAM · **RTX 5000 Ada Laptop, 16 GB** | GPU / **vLLM** (small fast models) **+ Ollama** (B79, `192.168.1.230:11434` / `ollama.weyland.lab` — moved off CT-102; **the large-model host now**, GPU + 128 GB RAM offload); personal + dev laptop |
+| **weyland** (Minisforum MS-A2) | Ryzen 9 9955HX (16C) · 96 GB RAM · **no compute GPU** (Radeon display iGPU only) | Proxmox host: `vm-100` openclaw, `vm-101` mother (k3s platform + MinIO). `ct-102` ollama **RETIRED (B79)** — the freed 32 GB grew mother 50 → 64 GB. |
 
 ## The problem
 Large models need **VRAM or patience**. 30B@4-bit ≈ 20 GB, 70B@4-bit ≈ 40 GB, 70B fp16 ≈ 140 GB.
@@ -108,15 +111,21 @@ MS-A2 **OCuLink adapter** + **Minisforum DEG1/DEG2** dock + **~650–750 W ATX P
 
 ---
 
-# OPTION B — CPU inference on weyland via Ollama  ✅ **COMMITTED (live, $0)**
-**The decided baseline — proceeding regardless of the GPU decision, so there's a guaranteed CPU
-path.** `ollama` (wraps `llama.cpp`) on the 96 GB RAM; fits **70B @ 4-bit (~40 GB)** comfortably.
-Serves an OpenAI-compatible `/v1` API → the harness points at it now, no client change if a GPU is
-added later. The eGPU (Option A) is **additive** — it accelerates; it never removes this path.
+# OPTION B — Ollama on rogueone's GPU  ✅ **LIVE ($0)**
+**The current serving path.** `ollama` (wraps `llama.cpp`) runs on **rogueone** (RTX 5000 Ada 16 GB +
+128 GB RAM). Models that fit in VRAM run fully on GPU; larger ones (30B/70B) offload the overflow
+layers to the 128 GB RAM. Serves an OpenAI-compatible `/v1` API at `192.168.1.230:11434` — the harness
+points at it now, no client change if the weyland eGPU (Option A) is added later.
 
-**→ Full operations, the critical thread-count fix, and measured tok/s benchmarks:
-[../runbooks/model-serving-ollama.md](../runbooks/model-serving-ollama.md).** (Headline: a 30B-A3B MoE runs at **~25 tok/s** on CPU
-once tuned — genuinely interactive.)
+> **History:** Option B originally ran as **CPU inference on weyland** (LXC CT-102, 96 GB RAM, $0) — the
+> committed baseline that guaranteed a serving path regardless of any GPU decision. B79 (2026-07-12)
+> retired CT-102 and re-homed Ollama to rogueone's GPU, freeing 32 GB to grow mother 50 → 64 GB.
+
+**→ Full operations, the critical thread-count fix (still applies to CPU-offloaded layers), and
+measured tok/s benchmarks:
+[../runbooks/model-serving-ollama.md](../runbooks/model-serving-ollama.md).** (Headline: a 30B-A3B MoE
+ran at **~25 tok/s** on pure CPU once tuned; GPU offload on rogueone lifts models that fit VRAM well
+above that.)
 
 # OPTION C — Cloud GPU  *(no capex, opex + data leaves LAN)*
 Rent on demand (RunPod / Vast.ai / Lambda) for occasional heavy 70B runs. Against the LAN-lab
@@ -158,12 +167,12 @@ speed and 24 GB, ~$700–900.
 ---
 
 ## Plan
-- **Now (committed, live):** Option B — **Ollama on weyland's CPU** (96 GB RAM). Guarantees a CPU
-  path and gives the harness a working large-model endpoint regardless of GPU timing.
+- **Now (live):** Option B — **Ollama on rogueone's GPU** (RTX 5000 Ada 16 GB + 128 GB RAM offload).
+  Gives the harness a working large-model endpoint at `192.168.1.230:11434`.
   Operating it: [../runbooks/model-serving-ollama.md](../runbooks/model-serving-ollama.md).
-- **Deferred upgrade (additive, pending pricing):** Option A — OCuLink eGPU. Lean: used
-  **RTX 3090 (24 GB)** (~$900–1000) for 30B-class via vLLM; **RTX A6000 (48 GB)** if 70B@4-bit on
-  GPU is a hard requirement. The eGPU *accelerates*; it does **not** remove the Ollama path.
+- **Deferred upgrade (dedicated weyland accelerator, pending pricing):** Option A — OCuLink eGPU on
+  the MS-A2. Lean: used **RTX 3090 (24 GB)** (~$900–1000) for 30B-class via vLLM; **RTX A6000 (48 GB)**
+  if 70B@4-bit fully on GPU (larger VRAM than rogueone's 16 GB) is a hard requirement.
 
 ## To research before deciding (the deferred bits)
 - [ ] Current pricing: MS-A2 OCuLink adapter, **DEG1 vs DEG2** dock, ATX PSU, and the candidate

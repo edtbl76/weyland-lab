@@ -3,6 +3,12 @@
 Experiment tracking + model registry at `mlflow.weyland.lab` (Keycloak SSO via `traefik-forward-auth`). Reuses the shared **Postgres**
 (backend store) and **MinIO** (artifact store — **two-plane**: small artifacts proxied, big models direct) — fits the lab's reuse ethos.
 
+> **B47 upgrade (2.18 → 3.14).** MLflow 3.x replaces the Flask/gunicorn server with **FastAPI/uvicorn**.
+> The Postgres backend schema was migrated with **`mlflow db upgrade <backend-store-uri>`** (run once
+> against the `mlflow` db). The 3.x server needs an explicit **`--allowed-hosts`** (host allow-list; set
+> to the LAN/ingress hosts or the API 400s on `Host`), and the pod memory `limits` were raised to **4Gi**
+> (3.x boots heavier — the old 1Gi OOM'd on start).
+
 - Manifest: `k8s/mlflow/mlflow.yaml` (Middleware + Deployment + Service + Ingress).
 - Backend store: Postgres `mlflow` db owned by the `mlflow` role.
 - Artifact store: MinIO `mlflow` bucket. **Two-plane:** small artifacts proxy **through** MLflow (`--serve-artifacts`); **big models upload DIRECT to MinIO** (experiment `artifact_location=s3://mlflow/…`) because the proxy times a multi-GB `model.pkl` out through the 1Gi pod. See [remote-training.md](remote-training.md) / [mlflow-training.md](mlflow-training.md).
@@ -28,7 +34,7 @@ kubectl exec -n weyland deploy/mlflow -- python -c "import mlflow; mlflow.set_tr
 ## Gotchas
 - **pip-on-start (v1).** The container installs `psycopg2-binary` + `boto3` on every start (no custom image),
   so first/restart boot is ~1–2 min and needs egress. If restarts get slow/flaky, bake a small
-  `FROM ghcr.io/mlflow/mlflow:v2.18.0` + `pip install` image and drop the install from the command.
+  `FROM ghcr.io/mlflow/mlflow:v3.14.0` + `pip install` image and drop the install from the command.
 - **No native auth** — access is gated by **Keycloak SSO** via the shared `traefik-forward-auth` Middleware
   (forward-auth → Keycloak, SSO across `*.weyland.lab`), like Kiali. The old `mlflow-auth` basicAuth dev-password
   Middleware is retired/superseded by the forward-auth gate.

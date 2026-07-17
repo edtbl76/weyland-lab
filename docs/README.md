@@ -25,11 +25,11 @@ LanceDB, Redpanda, Feast). Which dataset lives where: [data-domain-storage-grid.
 ## runbooks/ — the *how* (per service)
 - [agent-hermes.md](runbooks/agent-hermes.md) — Hermes agent (CT 104) setup, config, gotchas, **Kanban (B27)**
 - [model-gateway.md](runbooks/model-gateway.md) — LiteLLM hosted-model gateway (Gemini + OpenRouter) + model catalog
-- [model-serving-ollama.md](runbooks/model-serving-ollama.md) — Ollama (CT 102), models, CPU tuning
+- [model-serving-ollama.md](runbooks/model-serving-ollama.md) — Ollama on rogueone (GPU, B79), models, tuning
 - [transcription-whisper.md](runbooks/transcription-whisper.md) — whisper.cpp STT (CT 103) + OpenAI shim
 - [eval-harness.md](runbooks/eval-harness.md) — LLM eval pipeline, judge panel, leaderboard
 - [observability.md](runbooks/observability.md) — **full LGTM**: Prometheus + Grafana + Alertmanager (metrics/alerts), **Loki + Alloy** (logs), **Tempo** (traces, Jaeger retired), Proxmox pve-exporter; all in Grafana Explore/Drilldown
-- [service-mesh-istio.md](runbooks/service-mesh-istio.md) — Istio mesh (B8): install, sidecar injection, mTLS, Kiali/Jaeger, TCP-backend fix
+- [service-mesh-istio.md](runbooks/service-mesh-istio.md) — Istio mesh (B8): install, sidecar injection, mTLS, Kiali (traces → Tempo), TCP-backend fix
 - [storage-minio.md](runbooks/storage-minio.md) — MinIO object storage
 - [aidlc-kb-ingest.md](runbooks/aidlc-kb-ingest.md) — AIDLC knowledge-base ingest (B37): MinIO source + brand scrub, on-demand Dagster job, Neo4j `:Entry` graph + GDS, NeoDash viz
 - [mlflow.md](runbooks/mlflow.md) — MLflow (B10+B16): experiment tracking + model registry, Postgres backend + MinIO artifacts, meshed, dev-password
@@ -50,9 +50,8 @@ SSH identity, health endpoints. (Numbered to backlog units; see `aidlc-docs/`.)
 - [test-commands.md](validation/test-commands.md) — end-to-end validation commands
 
 ## diagrams/ — C4 + flows
-C4 [context](diagrams/c4-context.md) · [container](diagrams/c4-container.md) · components
-([mother](diagrams/c4-component-mother.md), [hermes](diagrams/c4-component-hermes.md),
-[ollama](diagrams/c4-component-ollama.md), [whisper](diagrams/c4-component-whisper.md),
-[openclaw](diagrams/c4-component-openclaw.md), [rogueone](diagrams/c4-component-rogueone.md)).
-Flows: [ingestion](diagrams/flow-ingestion.md), [RAG query](diagrams/flow-rag-query.md),
+**Architecture (C4)** is now interactive **LikeC4** (B64) — explore at [likec4.weyland.lab](https://likec4.weyland.lab)
+or embedded: [context](diagrams/c4-context.md) · [node topology](diagrams/c4-container.md) ·
+[components (mother, sliced into planes)](diagrams/c4-component-mother.md). Model: `architecture/weyland.likec4`.
+Flows (Mermaid): [RAG query](diagrams/flow-rag-query.md),
 [voice](diagrams/flow-voice-chat.md), [eval](diagrams/flow-eval.md), [agent MCP](diagrams/flow-agent-mcp.md), [MLflow](diagrams/flow-mlflow.md).

@@ -1,62 +1,52 @@
-# Ollama Runbook — weyland (CT 102)
+# Ollama Runbook — rogueone (GPU)
 
-Operational runbook for the committed CPU model-serving path (B7 Option B): create/access the
-container, install Ollama, pull + tune models, and the critical thread-count fix. Day-to-day ops.
+Operational runbook for the Ollama model-serving path: install/access on rogueone, pull + tune
+models, the critical thread-count fix, and smoke tests. Day-to-day ops.
 
 **Related:** [B7 — Model Serving Hardware (the decision)](../concepts/model-serving-hardware.md) ·
 [LLM inference CPU vs GPU (the concepts)](../concepts/llm-inference-cpu-vs-gpu.md).
 
 ---
 
-**Live since 2026-06-11.** Unprivileged LXC `ollama` (CTID **102**) on the weyland Proxmox host.
-- **Address:** `192.168.1.244` → API at **`http://192.168.1.244:11434`** (OpenAI-compatible `/v1`).
-- **Spec:** 48 GB RAM cap · 14-core *ceiling* (time-shared, not reserved — uses cores only while
-  inferring) · 150 GB rootfs on `local-zfs` (NVMe) · `nesting=1` (Debian 12 / systemd 252).
+**Moved to rogueone 2026-07-12 (B79).** Ollama runs natively on **rogueone** (Lenovo ThinkPad P16,
+RTX 5000 Ada 16 GB, 128 GB RAM). It was originally the committed CPU path on the weyland Proxmox
+host (unprivileged LXC `ollama`, CTID 102, `192.168.1.244`); **B79 decommissioned CT-102 and re-homed
+Ollama to rogueone's GPU**, which freed 32 GB on weyland to grow mother 50 → 64 GB. The thread-tuning
+and CPU benchmark sections below were measured on the original CT-102 CPU deployment and are kept as
+reference — they still apply to the CPU-offloaded portion of any model that overflows the 16 GB VRAM.
 
-## Access — get a shell in the container
-The container has **no direct login** from your workstation; you reach it **through the weyland
-Proxmox host**:
-1. **SSH to the host:** `ssh emangini@weyland`
-2. **Enter the container** (`pct` is root-only — prefix `sudo` if you're not already root):
-   - Interactive shell: `pct enter 102`  → lands you at `root@ollama:~#`
-   - One-off command without a shell: `pct exec 102 -- ollama list`
-3. **Leave** the container shell with `exit` (drops you back on the host).
+- **Address:** `192.168.1.230` → API at **`http://192.168.1.230:11434`** (OpenAI-compatible `/v1`),
+  DNS **`ollama.weyland.lab`**. LAN-bound via `OLLAMA_HOST=0.0.0.0:11434`.
+- **Hardware:** RTX 5000 Ada (16 GB VRAM) + 128 GB RAM. Models that fit in VRAM run fully on GPU;
+  larger models (e.g. 30B@Q4 ≈ 20 GB) offload the overflow layers to CPU/RAM.
+- **Serves:** the eval-judge panel, weyland-tool-server RAG (`/context/ask`), Open WebUI, and Hermes.
 
-> Convention for the rest of this runbook: every `ollama …` / `printf …` command runs **inside the
-> container** (after `pct enter 102`). Anything that must run on the hypervisor is marked
-> **"(on weyland host)"**.
+## Access — get a shell on rogueone
+rogueone is a first-class LAN host with a normal login (no `pct` — that was the CT-102 era):
+1. **SSH to rogueone:** `ssh edwardmangini@rogueone`
+2. **Service ops:** `systemctl status|restart ollama`; one-off commands run directly, e.g. `ollama list`.
 
-## Create the container (on weyland host)
+> Convention for the rest of this runbook: every `ollama …` / `printf …` command runs **on rogueone**
+> (after `ssh edwardmangini@rogueone`).
+
+## Install Ollama (on rogueone)
 ```bash
-pveam update
-pveam download local debian-12-standard_12.12-1_amd64.tar.zst
-pct create 102 local:vztmpl/debian-12-standard_12.12-1_amd64.tar.zst \
-  --hostname ollama --unprivileged 1 --rootfs local-zfs:150
-pct set 102 --net0 name=eth0,bridge=vmbr0,ip=dhcp
-pct set 102 --cores 14 --memory 49152 --swap 0 --onboot 1 --features nesting=1
-pct start 102
-pct exec 102 -- hostname -I        # note the DHCP IP (192.168.1.244)
-```
-
-## Install Ollama (inside the container: `pct enter 102`)
-```bash
-apt update && apt install -y curl zstd     # zstd is required by the installer
 curl -fsSL https://ollama.com/install.sh | sh
 # bind to the LAN (default is 127.0.0.1 only) via a systemd drop-in:
-mkdir -p /etc/systemd/system/ollama.service.d
+sudo mkdir -p /etc/systemd/system/ollama.service.d
 printf '[Service]\nEnvironment="OLLAMA_HOST=0.0.0.0:11434"\n' \
-  > /etc/systemd/system/ollama.service.d/override.conf
-systemctl daemon-reload && systemctl restart ollama
+  | sudo tee /etc/systemd/system/ollama.service.d/override.conf
+sudo systemctl daemon-reload && sudo systemctl restart ollama
 ```
+The installer detects the RTX 5000 Ada and pulls the CUDA runtime automatically — `ollama ps` shows a
+`PROCESSOR` column (`GPU` / `CPU` / split) per loaded model.
 
 ## Where models are stored
 - **`/usr/share/ollama/.ollama/models`** — the systemd service runs as the **`ollama` user**, so
   models land in its home (NOT `/root/.ollama`). `blobs/` = weights (content-addressed, dedupes
   shared layers); `manifests/` = which blobs make up each `model:tag`.
-- This is on the **150 GB `local-zfs` rootfs → rpool NVMe** — the *right* home (fast load; do NOT
-  move to the slow USB/MinIO drive).
-- **Out of room?** `pct resize 102 rootfs +100G` (rpool has ~1.5 TB free), or set
-  `OLLAMA_MODELS=/path` to a separate dataset.
+- rogueone has 128 GB RAM and ample local NVMe — keep models on fast local disk (do NOT move to the
+  slow USB/MinIO drive). Set `OLLAMA_MODELS=/path` to relocate to a bigger dataset if needed.
 - **Orphaned blobs from a cancelled pull:** a killed `ollama pull` leaves `…-partial*` files that
   `ollama list` can't see (it reads manifests, not disk) but `du` counts. Find with
   `ls -lhS …/models/blobs` and remove by exact hash:
@@ -64,25 +54,24 @@ systemctl daemon-reload && systemctl restart ollama
 
 ## Run / use
 ```bash
-ollama pull qwen3:30b-a3b          # MoE: ~30B quality at ~3B speed — ideal for CPU
+ollama pull qwen3:30b-a3b          # MoE: ~30B quality at ~3B speed
 ollama run qwen3:30b-a3b --verbose "..."   # --verbose prints eval rate (tok/s)
 ollama list                        # installed models + sizes
 ```
-- **⚠️ After every `ollama pull`, bake in `num_thread 8`** (see *Performance tuning* below) — a
-  freshly pulled model defaults to 16 threads and crawls (~160× slower) until you do.
+- **⚠️ For CPU-offloaded models, bake in `num_thread 8`** (see *Performance tuning* below) — a freshly
+  pulled model defaults to 16 threads and the CPU-offloaded layers crawl until you do.
 - **Harness / tool-server integration:** point any OpenAI-compatible client at
-  `http://192.168.1.244:11434/v1` — same API shape as rogueone's vLLM, so client code is
-  engine-agnostic. (Future eGPU → swap Ollama for vLLM, same endpoint.)
-- **Service ops (inside CT):** `systemctl status|restart ollama`. Enter the CT from the host with
-  `pct enter 102`.
+  `http://192.168.1.230:11434/v1` — same API shape as rogueone's vLLM, so client code is
+  engine-agnostic.
+- **Service ops:** `systemctl status|restart ollama`.
 
 ## Consumers — who calls this endpoint
 - **weyland-tool-server** (mother / k3s, **v0.3.0+**) — its `/context/ask` does RAG against this
   endpoint: retrieve top-k from a vector backend → synthesize a grounded answer via the local
-  model. Configured by `OLLAMA_BASE_URL=http://192.168.1.244:11434/v1` and
+  model. Configured by `OLLAMA_BASE_URL=http://192.168.1.230:11434/v1` and
   `OLLAMA_MODEL=gpt-oss:20b` (default since B4 panel; callers override per request via the `model` field).
   `GET /models` lists the choices; `GET /ollama/health` and `/status`→`.llm` report reachability.
-  Wired + validated (mother + rogueone) 2026-06-12. Deploy/test recipes:
+  Deploy/test recipes:
   [test-commands.md](../validation/test-commands.md) → *Tool Server → LLM / RAG*.
 
 **The `/context/ask` RAG pipeline** — note the **two distinct models** (embedding vs generation):
@@ -106,14 +95,17 @@ your question
   it's what finds the relevant chunks, is **not** one of the 6, and doesn't change when you pick a
   different generation model. So all 6 reason over the *same* retrieved context.
 
-## Performance tuning — CPU thread count (CRITICAL — ~160× fix)
+## Performance tuning — CPU thread count (CRITICAL for CPU-offloaded layers — ~160× fix)
+
+> Measured on the original **CT-102 CPU deployment** (2026-06-11), kept as reference. Still applies to
+> the CPU-offloaded portion of any model too large for the 16 GB VRAM on rogueone.
 
 **Symptom (2026-06-11):** `qwen3:30b-a3b` generated at **~0.15 tok/s** (6–7 s *per token*) while
 `top` showed **1400 % CPU** (all cores pegged). Compute-bound *and* slow — a contradiction that
 pointed straight at the threading model, not the hardware.
 
-**Root cause — thread oversubscription + spin-wait barriers.** The LXC exposes the *host's*
-topology (`/proc/cpuinfo` inside CT 102 shows the full **16-core / 32-thread** 9955HX), so
+**Root cause — thread oversubscription + spin-wait barriers.** The LXC exposed the *host's*
+topology (`/proc/cpuinfo` inside CT 102 showed the full **16-core / 32-thread** 9955HX), so
 llama.cpp auto-set **`n_threads = 16`** off the host physical-core count — ignoring the
 container's 14-CPU cpuset (the `system_info` line read `n_threads = 16 ... / 14`). llama.cpp
 synchronizes **every model layer with busy-wait barriers**: a worker that reaches the barrier
@@ -127,9 +119,9 @@ governor — `performance`, cores boosting to 5 GHz — and *not* missing kernel
 `AVX512_BF16`, `REPACK`, `LLAMAFILE` all `= 1`.)
 
 **Fix — pin `num_thread` to ≤ physical cores.** Set **`num_thread = 8`**: one thread per physical
-core, comfortably inside the 14-CPU cpuset with headroom so no straggler stalls a barrier.
+core with headroom so no straggler stalls a barrier.
 
-**Measured (`ollama run --verbose`, 30B-A3B Q4, 2026-06-11):**
+**Measured (`ollama run --verbose`, 30B-A3B Q4, 2026-06-11, CT-102 CPU):**
 
 | Threads | eval rate | vs baseline |
 |---|---|---|
@@ -137,7 +129,7 @@ core, comfortably inside the 14-CPU cpuset with headroom so no straggler stalls 
 | **8 (fixed)** | **24.79 tok/s** | **~160×** |
 
 (prompt eval ~107 tok/s.) **24.79 tok/s on pure CPU for a 30B-A3B MoE is genuinely good** — faster
-than reading speed, usable interactively — and it validates the whole Option B thesis: the
+than reading speed, usable interactively — and it validated the whole Option B thesis: the
 slowness was a config trap, not the box's ceiling.
 
 **Why 8, not 14/16:** past one-thread-per-physical-core, extra threads only add barrier + SMT
@@ -146,39 +138,36 @@ if a workload wants it.
 
 **Make it permanent (Modelfile — the `/set parameter` in `ollama run` is session-only):**
 ```bash
-printf 'FROM qwen3:30b-a3b\nPARAMETER num_thread 8\n' > /root/Modelfile.qwen3-cpu
-ollama create qwen3:30b-a3b -f /root/Modelfile.qwen3-cpu   # re-tags same name, reuses blobs (no re-download)
-ollama show qwen3:30b-a3b --parameters                     # verify: num_thread 8
+printf 'FROM qwen3:30b-a3b\nPARAMETER num_thread 8\n' > ~/Modelfile.qwen3-cpu
+ollama create qwen3:30b-a3b -f ~/Modelfile.qwen3-cpu   # re-tags same name, reuses blobs (no re-download)
+ollama show qwen3:30b-a3b --parameters                 # verify: num_thread 8
 ```
-**Every model you pull needs the same treatment** — `num_thread` is a *per-model* parameter and
-there is no reliable global Ollama thread env, so apply this Modelfile pattern to each new model.
-Generic recipe for any `<model:tag>` (run inside the container):
+**Every CPU-offloaded model you pull needs the same treatment** — `num_thread` is a *per-model*
+parameter and there is no reliable global Ollama thread env, so apply this Modelfile pattern to each
+new model. Generic recipe for any `<model:tag>` (run on rogueone):
 ```bash
 ollama pull <model:tag>
-printf 'FROM <model:tag>\nPARAMETER num_thread 8\n' > /root/Mf
-ollama create <model:tag> -f /root/Mf   # re-tags same name + the thread param; reuses blobs
+printf 'FROM <model:tag>\nPARAMETER num_thread 8\n' > ~/Mf
+ollama create <model:tag> -f ~/Mf   # re-tags same name + the thread param; reuses blobs
 ```
 
-## Memory — keep one model resident (cgroup OOM)
+## Memory — keep one model resident
 
-**Symptom (2026-06-13):** a multi-model batch (the B4 eval — 6 models in sequence) **OOM-killed
-Ollama** after ~2 big models: `ollama.service: A process of this unit has been killed by the OOM
-killer … Failed with result 'oom-kill'`. Every `/context/ask` 502'd from then on.
+**Symptom (2026-06-13, CT-102):** a multi-model batch (the B4 eval — 6 models in sequence)
+**OOM-killed Ollama** after ~2 big models: `ollama.service: A process of this unit has been killed by
+the OOM killer … Failed with result 'oom-kill'`. Every `/context/ask` 502'd from then on.
 
-**Root cause — same blindness as the thread bug: Ollama sizes against the *host*, not the
-container.** Its memory-fit log read `projected to use … vs. 94198 MiB of total host memory … no
-changes needed` — i.e. it sized against the host's **94 GB**, not the container's **48 GB** cgroup.
-With **`OLLAMA_MAX_LOADED_MODELS=0`** (auto) it kept *multiple* models resident (2× ~19 GB), blew
-past the 48 GB cap, and the cgroup OOM-killed the process.
+**Root cause — Ollama sized against the *host*, not the container's 48 GB cgroup.** With
+**`OLLAMA_MAX_LOADED_MODELS=0`** (auto) it kept *multiple* models resident (2× ~19 GB), blew past the
+cap, and the cgroup OOM-killed the process. rogueone's 128 GB gives far more headroom, but pinning one
+model resident is still the right default for sequential multi-model workloads.
 
 **Fix — pin one model resident** so it always evicts before loading the next:
 ```bash
-printf '[Service]\nEnvironment="OLLAMA_MAX_LOADED_MODELS=1"\n' >> /etc/systemd/system/ollama.service.d/override.conf
-systemctl daemon-reload && systemctl restart ollama
+printf '[Service]\nEnvironment="OLLAMA_MAX_LOADED_MODELS=1"\n' | sudo tee -a /etc/systemd/system/ollama.service.d/override.conf
+sudo systemctl daemon-reload && sudo systemctl restart ollama
 ```
-One model (~19 GB max) + KV/compute stays well under 48 GB. Sequential multi-model workloads
-(evals, A/B comparisons) then just **load → serve → evict** per model. Same lesson as the
-thread fix: in an LXC, Ollama can't see the cgroup limits — bound it explicitly.
+Sequential multi-model workloads (evals, A/B comparisons) then just **load → serve → evict** per model.
 
 ## Context window + keep-alive (added 2026-06-13 for the B2 agent)
 
@@ -187,8 +176,8 @@ consumers (RAG, Open WebUI, evals):
 
 ```bash
 printf '[Service]\nEnvironment="OLLAMA_CONTEXT_LENGTH=65536"\nEnvironment="OLLAMA_KEEP_ALIVE=-1"\n' \
-  >> /etc/systemd/system/ollama.service.d/override.conf
-systemctl daemon-reload && systemctl restart ollama
+  | sudo tee -a /etc/systemd/system/ollama.service.d/override.conf
+sudo systemctl daemon-reload && sudo systemctl restart ollama
 # verify: all vars present
 systemctl show ollama -p Environment
 # verify the served window (loaded model): CONTEXT column
@@ -198,13 +187,13 @@ ollama ps
 - **`OLLAMA_CONTEXT_LENGTH`** — Ollama's default served context is a stingy **4096**. That truncated
   agent turns (a tool-heavy prompt + answer overflowed 4K → `finish_reason=length`, 1-token output).
   Raised to **65536**. **Why not the model's native 262K?** KV-cache RAM grows linearly with the
-  window (~165 MB per 1K tokens for a 30B model): 32K≈20 GB, 64K≈25 GB, 128K≈36 GB, **262K≈~58 GB →
-  OOMs the 48 GB cgroup.** 64K leaves ample conversation room while staying well within the cap. Cost
-  scales with tokens *used*, not the *allocation*, so a large window you don't fill is cheap.
-- **`OLLAMA_KEEP_ALIVE=-1`** — default keep-alive is ~5 min, so on CPU the model **unloads between
-  turns** and every prompt after a pause pays a multi-minute cold reload (and can time out the
-  client). `-1` pins it resident. Bounded by `MAX_LOADED_MODELS=1` (still one model), so no extra
-  RAM beyond the single resident model.
+  window (~165 MB per 1K tokens for a 30B model): 32K≈20 GB, 64K≈25 GB, 128K≈36 GB, 262K≈~58 GB. 64K
+  leaves ample conversation room. Cost scales with tokens *used*, not the *allocation*, so a large
+  window you don't fill is cheap.
+- **`OLLAMA_KEEP_ALIVE=-1`** — default keep-alive is ~5 min, so the model **unloads between turns**
+  and every prompt after a pause pays a cold reload (and can time out the client). `-1` pins it
+  resident. Bounded by `MAX_LOADED_MODELS=1` (still one model), so no extra RAM beyond the single
+  resident model.
 - **Prompt caching (free win):** llama.cpp caches the prompt-prefix KV, so an unchanged system
   prompt is prefilled **once** — later turns reuse it (we saw turn-2 prefill drop from 13.5K tokens
   to ~111). The cache **survives a Hermes restart** (it lives here, keyed by prefix + resident model)
@@ -215,19 +204,21 @@ ollama ps
 > If a client thinks the window is larger (e.g. Hermes auto-detecting the model's 262K), it packs
 > past 64K and Ollama **silently drops the overflow**. Keep both equal.
 
-## Model architecture note (matters on CPU)
-Prefer **MoE models** (e.g. `qwen3:30b-a3b`) on CPU: token-gen reads only the *active* experts
+## Model architecture note (matters when CPU-offloaded)
+Prefer **MoE models** (e.g. `qwen3:30b-a3b`): token-gen reads only the *active* experts
 (~3B) per token, so a 30B-total MoE runs at ~3B *speed* with ~30B *capability* — sidestepping the
-"dense large models are slow on CPU" problem. Dense `qwen3:14b`/`32b` exist for comparison. The
-[measured benchmarks](#measured-benchmarks) below confirm the 1/N active-params law cold.
+"dense large models are slow on CPU" problem for the layers that spill out of VRAM. Dense
+`qwen3:14b`/`32b` exist for comparison. The [measured benchmarks](#measured-benchmarks) below confirm
+the 1/N active-params law cold.
 
 ## Measured benchmarks
-Ground-truth `eval rate` from `ollama run --verbose` (supersedes the estimated performance-envelope
-tables in [../concepts/llm-inference-cpu-vs-gpu.md](../concepts/llm-inference-cpu-vs-gpu.md#performance-envelope--expected-toks-ballpark-q4)).
+Ground-truth `eval rate` from `ollama run --verbose`, measured on the **original CT-102 CPU
+deployment** (supersedes the estimated performance-envelope tables in
+[../concepts/llm-inference-cpu-vs-gpu.md](../concepts/llm-inference-cpu-vs-gpu.md#performance-envelope--expected-toks-ballpark-q4)).
 **Note:** all require the `num_thread 8` fix above; the default-16-thread numbers are meaningless
-(spin-wait collapse).
+(spin-wait collapse). GPU offload on rogueone lifts models that fit VRAM well above these figures.
 
-All `num_thread 8`, sorted fastest→slowest (2026-06-11):
+All `num_thread 8`, sorted fastest→slowest (2026-06-11, CT-102 CPU):
 
 | Model | Type (active params) | eval rate | prompt eval |
 |---|---|---|---|
@@ -254,4 +245,4 @@ the whole game on CPU:**
   prompt (its large multimodal chat template) cost **~15 s before the first token** — the
   prefill-scales-with-prompt-length tax, in the wild.
 
-- [ ] Benchmark a 70B@Q4 (batch/async tier) once pulled — see Tentative roadmap item in backlog.md.
+- [ ] Re-benchmark the interactive tier on rogueone's GPU offload — see backlog.md.

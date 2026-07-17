@@ -14,6 +14,7 @@ this page) links to the live tool.
 | Tool | Link | What it's for |
 |---|---|---|
 | **DataHub** | <https://datahub.weyland.lab> | Metadata catalog — datasets, lineage, glossary, domains, data products, structured properties |
+| **LikeC4** | <https://likec4.weyland.lab> | Interactive architecture (C4) explorer — pan/zoom/drill the whole platform model (B64) |
 | **Ranger** | <https://ranger.weyland.lab> | Data-plane authz — Trino column/row masking, tag policies, access audit |
 | **Gatekeeper Policy Manager** | <https://gatekeeper.weyland.lab> | Control-plane authz — OPA/Gatekeeper constraints + per-resource violation report |
 | **Port** | <https://app.port.io> | Internal Developer Platform / catalog + self-service actions (SaaS, EU org) |
