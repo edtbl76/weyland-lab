@@ -1,0 +1,80 @@
+# Definition of Done
+
+The weyland Definition of Done — the hard gate every body of work passes before it's "done." This page is the
+**canonical, published** version (the RAG corpus + the shared reference); it supersedes any private note. A
+capability is **NOT done** until ALL six pillars hold. "Ran once" ≠ done.
+
+> Added 2026-07-14; grown through B64 (render-verify) and B69 (operational completeness). Applies retroactively
+> and going forward.
+
+## 1. Documentation sweep (every batch)
+
+- **arch.md** — a **substantial** entry: comparative placement (why this vs the alternatives), a decision
+  matrix/tradeoffs, and diagrams. Not a one-line entry — `arch.md` is a deliverable.
+- **api.md + hosts.md** — updated for EVERY endpoint / host / IP / DNS / subdomain change.
+- **schedules.md** — updated for any new timer.
+- **Runbook** — `docs/runbooks/<x>.md` with the real operational commands.
+- **Query cookbook** — `docs/query/<x>.md` if the workflow adds a queryable surface.
+- **platform-map** — `docs/platform-map.html` refreshed for any component add / remove / rename / status change
+  (the visual map iframe'd by `platform-map.md`). It drifts silently — a removed service leaves a ghost card.
+- **Port catalog** — the Port.io catalog (blueprints + entities: `component` / `resource` / `k8s_workload`
+  links, integrations) reflects the change. Port is the "see" layer; if it claims an integration/entity that
+  isn't real (or misses one that is), that's **drift** — reconcile it, don't let it accumulate.
+- **Relevance sweep — EVERY docs-site section, every batch** (not just the new page): check `runbooks/` ·
+  `demos/` · `diagrams/` (C4 **and** `flow-*`) · `query/` · `concepts/` · `validation/` · `units/` · top-level
+  (`arch`/`hosts`/`api`/`tools`/`schedules`/`README`/`platform-map`). Renaming/retiring one thing stales others.
+
+## 2. Diagrams
+
+- **Architecture (C4)** — the LikeC4 model (`docs/architecture/weyland.likec4`) updated to place the new
+  component; explorer at `likec4.weyland.lab`, embedded in the C4 doc pages.
+- **Sequence diagram** — every end-to-end workflow as a `docs/diagrams/flow-*.md` sequence diagram (real
+  participants, ordered messages). An inline diagram in a demo does **not** satisfy this.
+
+## 3. Demos — `docs/demos/` (exhaustive, not sampled) — AND the demo IS the test
+
+- A demo per workflow, with **both** a **UI walkthrough** (real URLs) and a **CLI walkthrough** (real commands,
+  host-labeled, no placeholders). `docs/demos/README.md` is the ledger.
+- **The demo IS the validation** — it must be **RUN end-to-end against live infra**. There are no separate
+  test-instruction files; the demo's CLI steps + expected output ARE the test. A demo written but not executed
+  is **not done** (🟡, not ✅). This is the anti-fabrication guarantee.
+
+## 4. Cleanup / teardown
+
+- Any demo that CREATES data ships a teardown that removes it. Read-only demos say so.
+
+## 5. Close-out / tracking (the unit isn't done until the tracker says so)
+
+- **Linear** — flip the tracked issue (`EMA-*`) to Done with a completion comment (what shipped, gotchas, links).
+- **backlog.md** — flip the item to ✅ DONE with a substantial summary (backlog = ordered source; Linear = status).
+- **Memory** — capture any durable, non-obvious lesson.
+
+## 6. Operational completeness (deployed capabilities must be DURABLE, not "runs once")
+
+Grade every deployed capability against the 5 gap types (see [completeness-audit.md](completeness-audit.md)). ANY
+open gap = not done:
+
+- **Reproducible from git (GitOps)** — the workload + config rebuild from the repo: Argo-onboarded, image on
+  `registry.weyland.lab` (no `:local` / `imagePullPolicy: Never`), no un-codified crontab / systemd / UI-only config.
+- **Secrets restorable** — no imperative-only secret: SealedSecrets/ESO/SOPS, or a committed
+  `<name>-secret.example.yaml` + `runbooks/secrets.md` index; bricking keys (e.g. lakeFS `AUTH_ENCRYPT_SECRET_KEY`)
+  escrowed.
+- **Monitored + alerted** — health scrape + a down/failure alert routed to Telegram; the alert path has a
+  **dead-man's-switch** (Watchdog → external heartbeat, not `null`).
+- **Backed up (if stateful)** — any PVC/DB/object store with non-reproducible data has a **tested** backup
+  (CronJob + rotation); reproducible stores say so.
+- **Triggered** — anything that must stay fresh has a schedule/sensor + a freshness signal, not manual-only.
+
+## Cross-cutting: verify the render, sweep for drift
+
+A green build is **not** proof of done — **verify the actual rendered output** the user sees after each step,
+page by page. And **re-audit prior pages for drift** after each step: moving/renaming/retiring things silently
+stales docs, diagrams, the platform-map, and the Port catalog. Sweep every time; don't assume earlier-verified
+surfaces are still correct.
+
+## Why
+
+Every capability must be **placed** (arch/diagrams), **operable** (runbook/api/hosts), **demonstrable** (UI+CLI
+demo, executed), **investigable** (sequence diagram + history), **reversible** (cleanup), **closed out** (Linear +
+backlog), and **operationally durable** (reproducible / secret-restorable / monitored / backed-up / triggered).
+Add all six pillars as explicit acceptance criteria in every design/plan doc.

@@ -10,6 +10,7 @@ LAN-only. This `docs/` tree is the canonical, version-controlled source of truth
 - [hosts.md](hosts.md) — host/container inventory (IPs, access, roles)
 - [api.md](api.md) — live endpoint registry
 - [schedules.md](schedules.md) — master timetable: all Dagster + DataHub cron jobs, TZ-normalized
+- [definition-of-done.md](definition-of-done.md) — **the DoD**: the 6-pillar gate every body of work passes (docs · diagrams · demos · cleanup · close-out · operational-completeness)
 
 ## query/ — copy-paste queries, one file per store
 [query/README.md](query/README.md) — real dataset-specific queries for every store (Trino/Iceberg, dbt marts,

@@ -27,6 +27,7 @@ Fresh 3-agent sweep (secrets+gitops · monitoring · backup/trigger/docs) graded
 
 ### Wave 3 — reproducibility (images off `:local`)
 - **[gitops] ~20 `:local` / `imagePullPolicy: Never` images** (tool-server · 5× rag-index · 4× flink · feast×2 · 4× dagster · store-scaler · ranger · musicbrainz-import) → `ErrImageNeverPull` on any rebuild. Build+push to `registry.weyland.lab` (now exists), repoint tags, drop `Never`; wire a Woodpecker/B57 pipeline.
+- Note: the failing **`weyland` MCP** (`http://192.168.1.243:30080/mcp`, the tool-server system-view MCP) is restored by this same fix — if the tool-server pod ever rescheduled, its `:local`/`Never` image → `ErrImageNeverPull` → pod down → MCP unreachable. Migrating the image off `:local` fixes both.
 
 ### Wave 4 — monitoring / probes / triggers
 - **[monitoring] SPOFs unmonitored** — Keycloak + traefik-forward-auth (single replica, no probes, gate ~18 UIs) → liveness/readiness + down-alerts + Kuma synthetic. Cube/JupyterHub/Ranger/Valkey no ServiceMonitor/alert. Gatekeeper/Flink/Ray scrape-but-no-down-alert. LGTM doesn't monitor itself (no loki/tempo/alloy SM + Down rules).
@@ -37,6 +38,7 @@ Fresh 3-agent sweep (secrets+gitops · monitoring · backup/trigger/docs) graded
 ### Wave 5 — docs-drift
 - Argo app count 28→**48** (backlog); strike Backstage/Jaeger/OpenClaw from the backlog BODY (retired/dropped, still referenced as live); reconcile DataHub dataset counts (3255 vs 3282 vs 3256); MinIO console SSO sweep.
 - **Refresh `docs/platform-map.html`** — the hand-authored visual map has drifted from the live component set (openclaw card removed 2026-07-17; likely more ghosts/omissions — e.g. the full B1 data-mesh, LikeC4). Audit it card-by-card against `hosts.md` + the LikeC4 model and reconcile. (Now a standing DoD item — see [[completion-criteria]] pillar 1.)
+- **Audit the Port.io catalog for drift** — reconcile what Port CLAIMS is integrated vs live reality (a standing DoD item now, pillar 1). Live evidence: the backlog/arch present the **K8s exporter (`weyland-cluster`) as a live integration**, but no in-cluster exporter is deployed — the `k8s_workload` links are MCP-maintained. Resolve it: either deploy the exporter (outbound, LAN-OK) or correct the claim + own the MCP-maintained model. Also **revisit the failing `port` MCP here** (`npx mcp-remote https://mcp.port.io/v1` re-prompts OAuth every session and currently fails to connect — remove it from the Claude Code config, or fix token persistence).
 
 **Biggest live risks:** unloaded data-mesh alerts (believed-working, dead) · no dead-man's-switch · irreplaceable stores unbacked (core Postgres, mlflow models, tofu-state) · ~45 unmanaged secrets (one node loss = unrecoverable). Wave 1 removes most of the *immediate* danger cheaply.
 
