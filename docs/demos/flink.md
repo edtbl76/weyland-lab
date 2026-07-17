@@ -19,6 +19,8 @@ bloat the session image and force a restart of the running CDC job. State + chec
 Diagram: [../diagrams/flow-flink.md](../diagrams/flow-flink.md). Runbook:
 [../runbooks/flink.md](../runbooks/flink.md).
 
+> **Chain:** prev ← [streaming.md](streaming.md) / [cdc.md](cdc.md) (produce the source topics this consumes).
+
 > **State (2026-07-15):** all four jobs validated end-to-end. RTA appended to `analytics.trending_artists`
 > (queried in Trino); CDC runs continuously (upsert proven with insert+delete); health emitted **95,456** records
 > to `analytics.health.state_risk`; PyFlink produced **22,502** artist tiers (211 `viral`, top = the beatles at

@@ -7,6 +7,8 @@ Semantic Layer queried with `mf query`. Both compile to Trino (via the `trino-no
 [../runbooks/cube.md](../runbooks/cube.md), [../runbooks/lightdash.md](../runbooks/lightdash.md),
 [../query/cube.md](../query/cube.md), and [../diagrams/flow-semantic-consumption.md](../diagrams/flow-semantic-consumption.md).
 
+> **Chain:** prev ← [dbt.md](dbt.md) (builds the marts this serves as governed metrics).
+
 ## Sequence diagram
 
 ```mermaid

@@ -45,6 +45,16 @@ Legend: ✅ done · ⬜ missing · 🟡 exists but stale/partial · — not appl
 | 30 | Health status (Uptime Kuma) | ✅ (authored) | ✅ `health-status.md` | — |
 | 31 | Roadmap sync (Linear) | ✅ (authored) | ✅ `roadmap-sync.md` | ✅ Linear issues |
 | 32 | Architecture diagrams (LikeC4, B64) | — (the C4 views ARE the diagram) | ✅ `likec4.md` | — read-only |
+| **End-to-end walkthroughs** (cross-system) | | | | |
+| E1 | RAG end-to-end (doc change → index → retrieve → eval) | ✅ (inline, threads 4 flows) | 🟡 `rag-e2e.md` — **authored, pending live validation run** | ✅ eval run/scores (per leg) |
+| E2 | Soda data-quality → DataHub Assertions | ✅ (inline) | 🟡 `soda-dq.md` — **authored, pending live validation run** | — read-only + idempotent upserts |
+| E3 | Ranger column masking (masked vs unmasked) | ✅ (inline) | 🟡 `ranger-masking.md` — **authored, pending live validation run** | — read-only |
+| E4 | Governance end-to-end (lineage + DQ + masking on one dataset) | ✅ (inline, stitches E2+E3+catalog-emit) | 🟡 `governance-e2e.md` — **authored, pending live validation run** | — non-destructive |
+| E5 | ML lifecycle end-to-end (silver → Feast → Ray → MLflow → serve/consume) | ✅ (inline, threads 4 flows) | 🟡 `ml-lifecycle-e2e.md` — **authored, pending live validation run** | ✅ MLflow version/artifact (per leg) |
+
+> **E-rows are 🟡 authored — pending live validation run.** Commands are real (pulled from the component
+> demos/runbooks, no placeholders, host-labeled), but per the demos DoD a demo is not ✅ until executed
+> straight through against live infra. Each E-file carries a "> Pending live end-to-end validation run" note.
 
 ## Outstanding (before any row is truly 100%)
 
@@ -62,5 +72,12 @@ Legend: ✅ done · ⬜ missing · 🟡 exists but stale/partial · — not appl
 - **Doc discrepancy to reconcile:** Uptime Kuma monitor count — `runbooks/uptime-kuma.md` says 16,
   `hosts.md` says 25.
 
-All 28 demos + all sequence diagrams are written; the items above are the residual verifications, not gaps in
-coverage.
+All 28 component demos + all sequence diagrams are written; the items above are the residual verifications, not
+gaps in coverage.
+
+**Cross-system coverage (new):** 5 end-to-end walkthroughs (E1–E5) now thread the component demos into full
+workflows — RAG (doc→index→retrieve→eval), Soda DQ, Ranger masking, governance stitch, and the ML lifecycle
+(silver→Feast→Ray→MLflow→serve/consume, closing the previously-missing consume leg). All 5 are **🟡 authored —
+pending a live end-to-end validation run**, and prev/next chain pointers were added to the component demos
+(`rag-stream`↔`rag-query`; `streaming`/`cdc`→`flink`; `datasets-lakehouse`→`dbt`→`semantic-consumption`) so the
+seams are explicit.

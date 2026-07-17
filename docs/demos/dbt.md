@@ -5,6 +5,9 @@ Trino, and **Trino writes** the 7 tested marts as Iceberg tables in the `iceberg
 ref. It does not re-ingest — `datasets_lib` owns land → silver → gold. Grounded in
 [../runbooks/dbt.md](../runbooks/dbt.md) and [../query/dbt-marts.md](../query/dbt-marts.md).
 
+> **Chain:** prev ← [datasets-lakehouse.md](datasets-lakehouse.md) (lands the gold dbt reads); next →
+> [semantic-consumption.md](semantic-consumption.md) (serves these marts as governed metrics).
+
 ## Sequence diagram
 
 ```mermaid

@@ -9,6 +9,8 @@ cross the orchestrator (design invariants I1–I3, I6). Diagram:
 [../diagrams/flow-rag-stream.md](../diagrams/flow-rag-stream.md). Design:
 [../../aidlc-docs/construction/rag-streaming-indexer-design.md](../../aidlc-docs/construction/rag-streaming-indexer-design.md).
 
+> **Chain:** next → [rag-query.md](rag-query.md) (retrieves what this indexes). Full arc: [rag-e2e.md](rag-e2e.md).
+
 ## Sequence diagram
 
 ```mermaid

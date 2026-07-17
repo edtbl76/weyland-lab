@@ -142,7 +142,6 @@ model {
           unleash = component "Unleash" "Feature flags -> Port"
           opencost = component "OpenCost" "k8s cost allocation -> Port"
           portAgent = component "Port agent" "Outbound polling — runs Port self-service actions"
-          portExporter = component "Port k8s-exporter" "In-cluster catalog agent -> Port"
         }
 
         infra = zone "Infra + tooling" {
@@ -265,7 +264,6 @@ model {
   weyland.mother.ops.platform.opencost -> weyland.mother.ops.obs.grafana "cost metrics"
   weyland.mother.ops.platform.portAgent -> port "claim action runs"
   weyland.mother.ops.platform.portAgent -> weyland.mother.mesh.gov.storeScaler "run store scale"
-  weyland.mother.ops.platform.portExporter -> port "catalog sync"
   port -> linear "roadmap ingest"
   weyland.mother.ai.dagster -> huggingface "model weights (setup)"
 }

@@ -30,6 +30,11 @@ LanceDB, Redpanda, Feast). Which dataset lives where: [data-domain-storage-grid.
 - [eval-harness.md](runbooks/eval-harness.md) — LLM eval pipeline, judge panel, leaderboard
 - [observability.md](runbooks/observability.md) — **full LGTM**: Prometheus + Grafana + Alertmanager (metrics/alerts), **Loki + Alloy** (logs), **Tempo** (traces, Jaeger retired), Proxmox pve-exporter; all in Grafana Explore/Drilldown
 - [service-mesh-istio.md](runbooks/service-mesh-istio.md) — Istio mesh (B8): install, sidecar injection, mTLS, Kiali (traces → Tempo), TCP-backend fix
+- [keycloak.md](runbooks/keycloak.md) — Keycloak IdP/SSO (B1.1): the `weyland` realm, native-OIDC vs forward-auth (auth-host mode, one redirect_uri, `/_oauth/logout`), mkcert CA back-channel, adding a gated subdomain
+- [datahub.md](runbooks/datahub.md) — DataHub metadata catalog (B1.3): native recipe ingestion vs custom git-emit (`datahub_catalog_emit_job`), durable-secrets trap, GMS/token
+- [nessie.md](runbooks/nessie.md) — Nessie Iceberg REST catalog + table versioning (B1.2): Postgres version store + MinIO warehouse, native-Nessie catalog for Trino/dbt/Flink, branch/commit basics
+- [gatekeeper.md](runbooks/gatekeeper.md) — OPA/Gatekeeper admission control (B1.6 L5 Slice B): no-latest/mem-limit/owner constraints, dryrun→deny, Policy Manager UI + Grafana dashboard
+- [port.md](runbooks/port.md) — Port.io IDP/catalog (B43/B58/B60): blueprints-as-code (tofu) vs MCP-managed entities, port-provider gotchas, "Port = see / Hermes = do" (action path → port-agent-easy-button)
 - [storage-minio.md](runbooks/storage-minio.md) — MinIO object storage
 - [aidlc-kb-ingest.md](runbooks/aidlc-kb-ingest.md) — AIDLC knowledge-base ingest (B37): MinIO source + brand scrub, on-demand Dagster job, Neo4j `:Entry` graph + GDS, NeoDash viz
 - [mlflow.md](runbooks/mlflow.md) — MLflow (B10+B16): experiment tracking + model registry, Postgres backend + MinIO artifacts, meshed, dev-password

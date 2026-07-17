@@ -8,6 +8,8 @@ registry. This is the bounded "Avro in motion" demo (loaded: lastfm, big_five, b
 [../runbooks/streaming.md](../runbooks/streaming.md). Diagram:
 [../diagrams/flow-streaming.md](../diagrams/flow-streaming.md).
 
+> **Chain:** next → [flink.md](flink.md) (stream-processes these `datasets.*` topics).
+
 ## Sequence diagram
 
 ```mermaid

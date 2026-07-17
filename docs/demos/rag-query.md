@@ -5,6 +5,8 @@ top-k chunks from one backend; `/context/ask` runs the full RAG loop (embed → 
 local Ollama synthesizes a grounded answer). The valid backends are **`pgvector`**, **`qdrant`**,
 **`weaviate`** (vector), and **`neo4j`** (graph). This is a read-only flow — it creates no data.
 
+> **Chain:** prev ← [rag-stream.md](rag-stream.md) (indexes what this retrieves). Full arc: [rag-e2e.md](rag-e2e.md).
+
 ## Sequence diagram
 
 Reuse the existing diagram: **[../diagrams/flow-rag-query.md](../diagrams/flow-rag-query.md)**

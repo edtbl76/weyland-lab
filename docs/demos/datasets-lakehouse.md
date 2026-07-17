@@ -6,6 +6,8 @@ public source into lakeFS `raw/` (bronze); the shared **transform broker** fans 
 [../runbooks/datasets-lake.md](../runbooks/datasets-lake.md) and
 [../diagrams/flow-datasets-lakehouse.md](../diagrams/flow-datasets-lakehouse.md).
 
+> **Chain:** next → [dbt.md](dbt.md) (builds tested marts on the Iceberg gold this lands).
+
 ## Sequence diagram
 
 ```mermaid

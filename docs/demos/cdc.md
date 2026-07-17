@@ -8,6 +8,8 @@ musicbrainz-postgres because it is **isolated** (nothing depends on it) and **re
 weyland-postgres. Runbook: [../runbooks/streaming.md](../runbooks/streaming.md). Diagram:
 [../diagrams/flow-cdc.md](../diagrams/flow-cdc.md).
 
+> **Chain:** next → [flink.md](flink.md) (the CDC → lakehouse Flink job consumes this topic into Iceberg).
+
 ## Sequence diagram
 
 ```mermaid
