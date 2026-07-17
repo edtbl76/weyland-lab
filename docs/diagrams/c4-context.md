@@ -31,9 +31,3 @@ C4Context
     Rel(weyland, hf, "model weight pulls at setup time only")
 ```
 
-## Same view in D2 (B64 evaluation)
-
-Pre-rendered to SVG at build time from [`c4-context.d2`](c4-context.d2) (d2 `dagre` layout; the docs-site initContainer runs `d2` over `docs/diagrams/*.d2`). Compare legibility/layout with the Mermaid above. If this reads well, the structural diagrams (C4 + flowcharts) migrate to D2; the sequence diagrams stay in Mermaid.
-
-![C4 context — weyland in the world (D2 render)](c4-context.svg)
-

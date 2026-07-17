@@ -24,8 +24,6 @@ theme:
       accent: light blue
 plugins:
   - search
-# B64 — D2 diagrams are pre-rendered to SVG in the docs-site initContainer (d2 over docs/diagrams/*.d2) and
-# embedded as images; no mkdocs-d2 plugin (it fought the existing pymdownx.superfences mermaid custom_fence).
 markdown_extensions:
   - admonition
   - pymdownx.details
