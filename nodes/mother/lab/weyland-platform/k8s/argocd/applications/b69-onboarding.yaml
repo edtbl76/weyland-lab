@@ -179,4 +179,26 @@ spec:
     namespace: weyland
   syncPolicy:
     automated: { selfHeal: true, prune: false }
+---
+# B69 Wave 3 — Traefik readTimeout=0 override (HelmChartConfig; k3s helm-controller reconciles it). Fixes the 60s
+# request-read deadline that guillotined multi-GB image pushes to registry.weyland.lab (proven: `time docker push`
+# died at exactly 1m0.5s). Auto-sync (verified working); prune would revert Traefik to the 60s default.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: traefik-config
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/edtbl76/weyland-lab.git
+    targetRevision: main
+    path: nodes/mother/lab/weyland-platform/k8s/traefik
+    directory:
+      recurse: false
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: kube-system
+  syncPolicy:
+    automated: { selfHeal: true, prune: true }
 
