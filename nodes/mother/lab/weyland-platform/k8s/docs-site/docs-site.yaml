@@ -26,13 +26,16 @@ spec:
           args:
             - |
               set -eu
-              apk add --no-cache git curl make
+              apk add --no-cache git curl
               # B64: D2 diagram renderer. Mermaid renders in-browser; D2 renders to SVG at BUILD time, so the
               # d2 binary + mkdocs-d2-plugin must exist here. Pinned to v0.7.1 for GitOps reproducibility.
+              # The v0.7.1 tarball carries macOS AppleDouble (._*) entries, so don't trust the first tar entry as
+              # the dir — extract, then FIND the real bin/d2 and copy it (no make/build needed).
               curl -fsSL https://github.com/terrastruct/d2/releases/download/v0.7.1/d2-v0.7.1-linux-amd64.tar.gz -o /tmp/d2.tar.gz
-              tar -xzf /tmp/d2.tar.gz -C /tmp
-              d2dir=$(tar -tzf /tmp/d2.tar.gz | head -1 | cut -d/ -f1)
-              make -C "/tmp/$d2dir" install PREFIX=/usr/local
+              mkdir -p /tmp/d2x
+              tar -xzf /tmp/d2.tar.gz -C /tmp/d2x
+              d2bin=$(find /tmp/d2x -type f -path '*/bin/d2' ! -name '._*' | head -1)
+              install -m 0755 "$d2bin" /usr/local/bin/d2
               d2 --version
               pip install --no-cache-dir mkdocs-d2-plugin
               git clone --depth 1 https://github.com/edtbl76/weyland-lab.git /src
