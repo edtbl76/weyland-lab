@@ -1,0 +1,29 @@
+# k3s bundles Traefik and reconciles it via its built-in helm-controller. To override the bundled chart's values
+# we apply a HelmChartConfig named `traefik` in kube-system — the helm-controller MERGES valuesContent over the
+# chart defaults and redeploys Traefik.
+#
+# B69 Wave 3 — ROOT CAUSE (proven 2026-07-17): Traefik v3's default `readTimeout` (60s) bounds reading the ENTIRE
+# request body. Pushing weyland-tool-server (a single ~3GB layer) to registry.weyland.lab streams for >60s, so
+# Traefik guillotined the request at exactly 60s → HTTP 499, and the registry pod never received the blob.
+# Evidence: `time docker push …` → `real 1m0.5s` every time; registry logs showed zero blob-upload activity;
+# ray-head (smaller per-layer requests) always finished under 60s and pushed fine.
+#
+# Fix: readTimeout=0 removes the read deadline on the shared HTTPS entrypoint (and HTTP, for completeness).
+# writeTimeout/idleTimeout keep their defaults. Acceptable here — LAN-only lab, no untrusted clients, and image
+# pushes are legitimately long-running. Scoped to entrypoint timeouts only; nothing else about Traefik changes.
+apiVersion: helm.cattle.io/v1
+kind: HelmChartConfig
+metadata:
+  name: traefik
+  namespace: kube-system
+spec:
+  valuesContent: |-
+    ports:
+      websecure:
+        transport:
+          respondingTimeouts:
+            readTimeout: "0s"
+      web:
+        transport:
+          respondingTimeouts:
+            readTimeout: "0s"
