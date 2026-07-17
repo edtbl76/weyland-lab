@@ -1,0 +1,76 @@
+# B64 spike — LikeC4 interactive architecture site. An initContainer (node) installs the likec4 CLI, clones the
+# public repo, and `likec4 build`s the model in likec4/ into a static interactive SPA; nginx serves it.
+# NodePort (LAN, no auth) for the spike — http://192.168.1.243:30124 — so we can judge the INTERACTIVE output
+# (pan/zoom/drill) fast, before deciding on ingress + Keycloak forward-auth. Not yet an Argo app: apply directly.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: likec4
+  namespace: weyland
+  labels:
+    app: likec4
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: likec4
+  template:
+    metadata:
+      labels:
+        app: likec4
+    spec:
+      initContainers:
+        - name: build
+          image: node:22-alpine
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              set -eu
+              apk add --no-cache git
+              npm i -g likec4
+              likec4 --version
+              git clone --depth 1 https://github.com/edtbl76/weyland-lab.git /src
+              cd /src/likec4
+              # --use-hash-history: routes live under /#/... so plain nginx needs no SPA rewrite rules.
+              likec4 build -o /site --base / --use-hash-history
+          resources:
+            requests: { cpu: 250m, memory: 512Mi }
+            limits: { memory: 2Gi }
+          volumeMounts:
+            - name: site
+              mountPath: /site
+      containers:
+        - name: nginx
+          image: nginx:1.27-alpine  # nosemgrep: yaml.kubernetes.security.run-as-non-root.run-as-non-root
+          securityContext:
+            allowPrivilegeEscalation: false
+            seccompProfile:
+              type: RuntimeDefault
+          resources:
+            requests: { memory: 32Mi, cpu: 20m }
+            limits: { memory: 128Mi }
+          ports:
+            - containerPort: 80
+          volumeMounts:
+            - name: site
+              mountPath: /usr/share/nginx/html
+              readOnly: true
+      volumes:
+        - name: site
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: likec4
+  namespace: weyland
+  labels:
+    app: likec4
+spec:
+  type: NodePort
+  selector:
+    app: likec4
+  ports:
+    - port: 80
+      targetPort: 80
+      nodePort: 30124

@@ -1,0 +1,148 @@
+// B64 spike — weyland architecture as a LikeC4 model. Define elements ONCE; the views below auto-generate
+// scoped diagrams (landscape -> planes -> per-plane components), so the old 104-node c4-component-mother is
+// never one dumped image. Interactive pan/zoom/drill in the built site. Source of truth: docs/diagrams/*.
+specification {
+  element actor {
+    style { shape person }
+  }
+  element system
+  element container
+  element component
+  element store {
+    style { shape cylinder }
+  }
+  element gateway
+  element ext
+}
+
+model {
+  edward = actor "Edward" "Lab operator — sole user"
+
+  // External systems / nodes (outside the mother k3s boundary)
+  rogueone = ext "rogueone" "RTX 5000 Ada laptop — vLLM GPU, Claude Code, native Ray edge worker"
+  hermes = ext "hermes CT" "MCP client + LiteLLM planning client"
+  ollama = ext "ollama CT" "LLM inference /v1"
+  whisper = ext "whisper CT" "STT /v1/audio/transcriptions"
+  github = ext "GitHub" "weyland-lab repo — RAG corpus source"
+  hostedmodels = ext "Gemini / OpenRouter" "Free-tier hosted LLMs via LiteLLM"
+
+  weyland = system "weyland" "Home AI lab on a Minisforum MS-A2 (k3s). LAN-only." {
+
+    ai = container "AI / RAG serving plane" "ns: weyland" {
+      tool = component "weyland-tool-server" "FastAPI — RAG retrieval (4 backends), /context/ask, /evals, /mcp system-view"
+      dag = component "Dagster" "Pipeline orchestration — RAG stream, eval, catalog, datasets lakehouse"
+      litellm = gateway "LiteLLM" "Hosted-model gateway (Gemini/OpenRouter behind /v1)"
+      webui = component "Open WebUI" "Browser voice/chat UI"
+      pg = store "Postgres / pgvector" "Primary RAG store + eval tables + model_catalog"
+      qdrant = store "Qdrant" "Vector store — weyland_chunks"
+      weav = store "Weaviate" "Vector store — WeylandChunk"
+      neo = store "Neo4j" "Graph + vector index (GraphRAG)"
+      ragidx = component "rag-index consumers" "Streaming fan-out — 5 consumers replay rag.chunks into each store"
+    }
+
+    mesh = container "Data mesh / lakehouse plane" "ns: data-mesh" {
+      nessie = component "Nessie" "Iceberg catalog + git-branch table versioning"
+      lakefs = component "lakeFS" "File/dataset versioning — silver written through the S3 gateway"
+      trino = component "Trino" "Federation query engine — Iceberg (native Nessie) + Postgres"
+      duck = component "GizmoSQL (DuckDB)" "DuckDB over Arrow Flight SQL"
+      superset = component "Superset" "BI over Trino + stores"
+      mysql = store "MySQL" "Health datasets — 6 DBs / 32 tables"
+      tsdb = store "TimescaleDB" "Time-series hypertables"
+      tier2 = store "Tier-2 stores" "Mongo · Cockroach · Cassandra · ClickHouse · OpenSearch · MusicBrainz-PG · Valkey"
+      datahub = component "DataHub" "Metadata catalog + lineage"
+      redpanda = component "Redpanda" "Kafka-wire broker + schema registry (rag.chunks, datasets.*, cdc.*)"
+    }
+
+    ops = container "Platform / ops plane" "ns: weyland + istio-system" {
+      traefik = gateway "Traefik" "TLS ingress for *.weyland.lab"
+      apisix = gateway "APISIX" "API/data-plane gateway"
+      coredns = component "CoreDNS" "LAN DNS — *.weyland.lab wildcard"
+      prom = component "Prometheus + Grafana" "Observability + Alertmanager -> Telegram"
+      istiod = component "istiod" "Istio mesh control plane (PERMISSIVE; Postgres STRICT)"
+      kiali = component "Kiali" "Mesh observability UI"
+      mlflow = component "MLflow" "Experiment tracking + model registry"
+      ray = component "Ray head" "Persistent Ray cluster — training / HP-sweep jobs"
+      registry = component "Container registry" "MinIO-backed OCI registry"
+      minio = store "MinIO" "S3 object storage — 8TB USB passthrough"
+      docs = component "Platform Docs" "MkDocs Material site"
+      headlamp = component "Headlamp" "Kubernetes UI"
+    }
+  }
+
+  // --- Relationships (full dotted paths for nested elements) ---
+  edward -> weyland "operates via Telegram, browser UIs, Claude Code"
+  edward -> weyland.ops.prom "observability dashboards"
+  edward -> weyland.mesh.superset "BI exploration"
+  edward -> weyland.ops.mlflow "experiments + model registry"
+
+  hermes -> weyland.ai.tool "MCP /mcp"
+  hermes -> weyland.ai.litellm "planning turns /v1"
+  rogueone -> weyland.ai.tool "MCP /mcp (Claude Code)"
+  rogueone -> weyland.ops.ray "native Ray worker joins; jobs submitted"
+  rogueone -> weyland.ops.mlflow "log runs + artifacts"
+
+  weyland.ai.tool -> weyland.ai.pg "embed + retrieve rag_chunks"
+  weyland.ai.tool -> weyland.ai.qdrant "retrieve"
+  weyland.ai.tool -> weyland.ai.weav "retrieve"
+  weyland.ai.tool -> weyland.ai.neo "retrieve"
+  weyland.ai.tool -> ollama "RAG generate + eval judge /v1"
+  weyland.ai.tool -> weyland.ai.dag "POST /pipeline/trigger"
+  weyland.ai.litellm -> hostedmodels "egress: Gemini / OpenRouter"
+  weyland.ai.webui -> ollama "chat completions /v1"
+  weyland.ai.webui -> whisper "STT /v1/audio/transcriptions"
+
+  weyland.ai.dag -> github "git-pull docs/ + nodes/ (RAG source)"
+  weyland.ai.dag -> weyland.mesh.redpanda "publish rag.chunks (Avro)"
+  weyland.ai.ragidx -> weyland.mesh.redpanda "consume rag.chunks (5 groups)"
+  weyland.ai.ragidx -> weyland.ai.qdrant "upsert / delete"
+  weyland.ai.ragidx -> weyland.ai.weav "upsert / delete"
+  weyland.ai.ragidx -> weyland.ai.neo "MERGE nodes / edges"
+  weyland.ai.ragidx -> weyland.ai.pg "upsert rag_documents / rag_chunks"
+  weyland.ai.ragidx -> weyland.mesh.tier2 "OpenSearch BM25 index"
+
+  weyland.ai.dag -> weyland.mesh.lakefs "write silver (parquet/arrow/avro/lance) + commit"
+  weyland.ai.dag -> weyland.mesh.nessie "hydrate Iceberg gold"
+  weyland.ai.dag -> weyland.mesh.mysql "hydrate health datasets"
+  weyland.ai.dag -> weyland.mesh.tsdb "hourly hypertables"
+  weyland.ai.dag -> weyland.mesh.tier2 "hydrate Tier-2 stores"
+  weyland.ai.dag -> weyland.mesh.datahub "catalog emit (6h)"
+  weyland.mesh.trino -> weyland.mesh.nessie "iceberg catalog (native Nessie)"
+  weyland.mesh.superset -> weyland.mesh.trino "primary query engine"
+  weyland.mesh.duck -> weyland.mesh.lakefs "materialize tables from Parquet"
+  weyland.mesh.nessie -> weyland.ops.minio "Iceberg warehouse"
+  weyland.mesh.lakefs -> weyland.ops.minio "blockstore"
+
+  weyland.ops.mlflow -> weyland.ops.minio "artifact store (big models direct)"
+  weyland.ops.registry -> weyland.ops.minio "image blobs"
+  weyland.ops.istiod -> weyland.ai.tool "injects Envoy sidecars"
+  weyland.ops.prom -> weyland.ai.tool "scrape /metrics + ServiceMonitors"
+  weyland.ops.apisix -> weyland.ai.tool "gateway routes: /context, /pipeline"
+  weyland.ops.coredns -> weyland.ops.traefik "*.weyland.lab wildcard resolution"
+}
+
+views {
+  view index {
+    title "weyland — system landscape"
+    include *
+  }
+
+  view planes of weyland {
+    title "weyland — the three planes"
+    include *
+  }
+
+  view aiPlane of weyland.ai {
+    title "AI / RAG serving plane"
+    include *
+  }
+
+  view meshPlane of weyland.mesh {
+    title "Data mesh / lakehouse plane"
+    include *
+  }
+
+  view opsPlane of weyland.ops {
+    title "Platform / ops plane"
+    include *
+  }
+}
