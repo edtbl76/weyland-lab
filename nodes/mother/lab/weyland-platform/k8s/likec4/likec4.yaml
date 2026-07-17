@@ -1,7 +1,7 @@
-# B64 spike — LikeC4 interactive architecture site. An initContainer (node) installs the likec4 CLI, clones the
-# public repo, and `likec4 build`s the model in likec4/ into a static interactive SPA; nginx serves it.
-# NodePort (LAN, no auth) for the spike — http://192.168.1.243:30124 — so we can judge the INTERACTIVE output
-# (pan/zoom/drill) fast, before deciding on ingress + Keycloak forward-auth. Not yet an Argo app: apply directly.
+# B64 — LikeC4 standalone interactive architecture explorer (likec4.weyland.lab). An initContainer (node)
+# installs the likec4 CLI, clones the public repo, and `likec4 build`s the model in likec4/ into a static
+# interactive SPA (pan/zoom/drill); nginx serves it. Keycloak forward-auth gated like the other UIs.
+# Single source of truth = likec4/weyland.likec4 (same model the docs embed via mkdocs-likec4).
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -67,10 +67,34 @@ metadata:
   labels:
     app: likec4
 spec:
-  type: NodePort
+  type: ClusterIP
   selector:
     app: likec4
   ports:
     - port: 80
       targetPort: 80
-      nodePort: 30124
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: likec4
+  namespace: weyland
+  annotations:
+    traefik.ingress.kubernetes.io/router.entrypoints: websecure
+    traefik.ingress.kubernetes.io/router.middlewares: weyland-traefik-forward-auth@kubernetescrd  # Keycloak SSO gate
+spec:
+  tls:
+    - hosts:
+        - likec4.weyland.lab
+      secretName: weyland-wildcard-tls
+  rules:
+    - host: likec4.weyland.lab
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: likec4
+                port:
+                  number: 80

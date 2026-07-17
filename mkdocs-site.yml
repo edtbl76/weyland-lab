@@ -24,6 +24,7 @@ theme:
       accent: light blue
 plugins:
   - search
+  - likec4   # B64 — embed interactive LikeC4 views in-page via ```likec4-view <id>``` fences (renders at build via the likec4 CLI; model in likec4/).
 markdown_extensions:
   - admonition
   - pymdownx.details

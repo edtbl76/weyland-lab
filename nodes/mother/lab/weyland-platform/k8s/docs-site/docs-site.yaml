@@ -26,7 +26,11 @@ spec:
           args:
             - |
               set -eu
-              apk add --no-cache git
+              apk add --no-cache git nodejs npm
+              # B64: LikeC4 in-page diagrams. The mkdocs-likec4 plugin shells out to the likec4 CLI at build time
+              # to render the ```likec4-view <id>``` fences embedded in the docs. Model + config live in likec4/.
+              npm i -g likec4
+              pip install --no-cache-dir mkdocs-likec4
               git clone --depth 1 https://github.com/edtbl76/weyland-lab.git /src
               cd /src
               mkdocs build -f mkdocs-site.yml -d /site
