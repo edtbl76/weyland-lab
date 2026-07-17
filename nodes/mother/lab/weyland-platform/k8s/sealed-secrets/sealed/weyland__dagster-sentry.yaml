@@ -1,0 +1,16 @@
+---
+apiVersion: bitnami.com/v1alpha1
+kind: SealedSecret
+metadata:
+  name: dagster-sentry
+  namespace: weyland
+spec:
+  encryptedData:
+    SENTRY_DSN: AgBwnH2ENaz6WCdbUJdJRBcQYwi/0OdhzsiuDH9rCT8cX7oYFa3upU0dJd4E7nV+K7PonrAoKqjyjjj0lYHILNCBqXq/x8+HHlRiYAXVvSbo3rbK2NLziocVf/GeKgdM63RJznW5HBFdhU7pEJMkTHpLpo6Tiu1+07sYyEZpBtQVQCzBR2AZDxUI89sRmd7doqRYY4ZplC9hrZ0PmdYHpvYppkSfUOqQpFXQRhcesHUBa5opULEQQGE7uwB3lwyU+zhkDUE+rorOxb4QvVRAtyLOuKHsv0Tm5nzvYEwRSVhYOb835A7xeP9EOz7YR3PSZqEN6Kg04X/B8qbxPY+ziuvz9IGFS3Z8OnTNZE5u1taDRvoYSKAwudtYRBzJgkxRUl58nP/TnEEj5ZObtOGalGVV7lREmVHV6nHmBbd98kGDBpMrBwvW7rksfrXD4Lt2aKpTdKx6GHxoNgGbjjUJQ8AWyGOQ74LP9h+ApLbnQM0mTF7Iirw3zJ7MAt8TuQk4nmjcISdeHCHArgeFQsgCCB0aWYeVZYXPqTMr1+gskWKHWG+ZDVy4MskN82E4oAnq+rf1BPwmyj0zQ6rrJmkb1Hi4epmbmcR98lOjLLl2BXMuXmTGpt+CmQbTGJqTC6GzBLkCQXZ2gbS+VDeCQb25z0CT0u/BFNEr80Te9RI+PKo0gZUZz4oziYzQLimCpPy5UEeowFP6wwoNKJn3/5Sr8X7N74FYY/kfbBOOxanPRV3hMAq8chcxrMSrr+eDT4V1geJx4EJfGSvlgwnI+ENyjcdgf72YaV2W0hMNnEdrzaPKxOGO
+  template:
+    metadata:
+      annotations:
+        sealedsecrets.bitnami.com/managed: "true"
+      name: dagster-sentry
+      namespace: weyland
+    type: Opaque

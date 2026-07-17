@@ -1,0 +1,16 @@
+---
+apiVersion: bitnami.com/v1alpha1
+kind: SealedSecret
+metadata:
+  name: tool-server-sentry
+  namespace: weyland
+spec:
+  encryptedData:
+    SENTRY_DSN: AgBNdKRyGCjWXGpAbecVnS7lOm1NWt0hE4nCEC9Ntn7GJg8Orlko61A22aJVlNQvmhC/tIfYREUR2ywlDxrNVkVitm/nQ4kZgw3txuxwYS0Hu+pBJTcvEfehMcN0euJI3rYKLFXo1WSsIserZW5Yg5DWSs6EEtJrkTvewHlN4syBc2L9GP5J20e5zFGFtH533pvJ1SKP/xPDduhrnSSiVnwkPV93h3jTsE0x6eW6VIou1fMEWNiR+ozXvztDZGrfwh4EZbuvvFkwMhqJM0hCq1imnu0+lRH2EYaZ4gAzR5iPX2e42fuXfhrIp+I4UvtbmLxYhcJeqprp8vy43WcNe1d1Inblvelx2T3MpD2w0t7gF9u0bzEA3sAxVwb/MgVk1gFS5a6IDXWLisud3MCAtcqLe4YiXulHba+XL1estmkwESbubFOahYVPKGZRXLtxp0/uflFUGBntZ6vTMFKbiLNGvIvOZH6FIFbxKy28ar+KtnGKgjsx6Pjr4bk4vC7E0cFm/QcN1Yj4oy2n6btxVjG21LwuNgxUFM4RzfYxUe6QyV0u/Bo+a29RcgeAiwYQ+cau5zcaPeIFmBj7boWZrbcdSx9w5DNqYBUEs5+/e/1iIYs+tU08UQft6+VxcAzYMTUuV0c55efqi5cdL68Tj08sJendJzma61XckQwC1Y6DGviqzbuFlX6iM1nOdKlm6SbVwJxfciZgNkkAoAPaAm5pyVYvzbEX9Ev9OmAghL2yiozh7RJPshBU36xCmLuHuC6O7Iu6lMytiBEs7OHQAofqSlI8SP60xw4QaWQ6tgaU7Gd9
+  template:
+    metadata:
+      annotations:
+        sealedsecrets.bitnami.com/managed: "true"
+      name: tool-server-sentry
+      namespace: weyland
+    type: Opaque

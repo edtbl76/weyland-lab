@@ -1,0 +1,16 @@
+---
+apiVersion: bitnami.com/v1alpha1
+kind: SealedSecret
+metadata:
+  name: open-webui-oauth
+  namespace: weyland
+spec:
+  encryptedData:
+    OAUTH_CLIENT_SECRET: AgCBNI4UGS69Mq/qc33BLJrV/yuMVmYreCcjm4HRVGankUXTTh4tGSkSt+B1fDTqtMOO0NwDwI+dINtdfJB51VPyUD3WgnEXkdKlm0gkOUM8uMmSk4qmKaKlCBEsIzWgtGvWwETCykbX41Upc20KtD78Xv4wr7XMHMn6mNILoXU7AadrC6gs3FYtEfNfw1kvYAWBMWSJ96/G4VzMGmaHT6NavTj6dCRUOMOQXhxo7rKR9SUHNPBkcb6JQHdeFGGXWLtaP5VbzWKG4govyjZnptMdO1iZiXvuoicUyVwlOlHRBd45xp1jEdMMtp+l8jWQWR0+gG6t3z3dJKZrHIVXF4/HgBMTS7nGM9ZnRGH7mlon9J5P3gps5f+LrLEhJaUs239fgowMmvKgj0ZPznmVPMpD1GPnj3uBDbNIP9W2ib6lEwh04V6x6dA+FbXBLqqMvPm9fuyR+taXZwvyzyj4BoGpG2fKR6DfkfC0GNhMqmfjrDTHKJKunj60uwmhTneXJ7MchCCt71+qGZWhUr5UegjdAHVhF/EZ6VQZZmO+0iu3WKC9nSpuyJf29ARdEVs9AH8V8hAIZCGWPnPolFbQuZYpcTs5+Ky9/dXnqzuH9l45PSt+BgDTrTjyyDAB42e3Al7YtiFUe3JBsoLOW6erDhDxI9t1qU1O4ClVi102gS7k1RHH/AFifyo+ufRdeMHIAM8uPg3yzezUa/BkyHDx5X2kOt/5S0Boy4GhjP8SOdj/5g==
+  template:
+    metadata:
+      annotations:
+        sealedsecrets.bitnami.com/managed: "true"
+      name: open-webui-oauth
+      namespace: weyland
+    type: Opaque

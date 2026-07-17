@@ -1,0 +1,16 @@
+---
+apiVersion: bitnami.com/v1alpha1
+kind: SealedSecret
+metadata:
+  name: registry-auth
+  namespace: weyland
+spec:
+  encryptedData:
+    users: AgCyPwU9xXlmOBhUliknGrdC9DHfchbNnhZPayWif1onmHMpqOCPU21lUfF4HAyE1fzQnEMSkdRfowM91uHDuaQvC8o34gb56RebwOTLqXgY09JBs9TA3Sw6IU7/LfMxAH9pPzWG/6utFhM5WSqKUYGX8dKCT/PMsJ5VV0mJhoefIy3Eea5+Dt+olOVhDYYCYIzsQlpc7tUA9cDecYxXBjcBuh5w0KqWldrpNt5fJhPOl4tWgVpYEfgrccZeXbFQrrCkG5z5C+NJc6lkM/KrC6G6ltcevAfMrocq9mWyeJ7d17l7OxXFMyuOjfDgHPraZwNXHSUMfLkvQAAYYhEY7zH5MxmRk8xRuEQdaiN7/OySH93aHznxa/auhllA52aT9rvh3nxrmefK9AjI6P0MVKpJue6uQ5GSHHlN2gAqPQI8y8DtWiUWviJ36VRO6MbPVAXz7L4XKsQUSNwPsF+CwLzJZe9C3ZCHlj1lrGZty7hccO/gSVnRXk3Grbb/E1cK0X9xhKYHGchJKCYVoWeuBYm5kttdZixJtMYXm52XsUZsLUL4m4skWl2cNSc+2OgWfAnpU9wDmSZODpKrd8c7picDb2JkVJExquHfkky7At5N/1AiwjXEd9ivb99rFeUJEAbGSMBa8FavwNio6jR6N0zilYxnfOIPY9TREPshoKnj2PrbKylzMmBbcJ1RH8vywDqpaMlnxjiUvYKiBWLBSMgvksv7Ogf7uVs71valNaI/q5pX4BmQ3DLgREBe
+  template:
+    metadata:
+      annotations:
+        sealedsecrets.bitnami.com/managed: "true"
+      name: registry-auth
+      namespace: weyland
+    type: Opaque

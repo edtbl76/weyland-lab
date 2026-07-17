@@ -1,0 +1,16 @@
+---
+apiVersion: bitnami.com/v1alpha1
+kind: SealedSecret
+metadata:
+  name: sonarqube-scan-token
+  namespace: weyland
+spec:
+  encryptedData:
+    SONAR_TOKEN: AgAmLAI5fJnEjyrW/SQmFaSNt9hFgcEPJBo6jlWk1STAmNxY37JbiBSZBgYsF2HRqUrX8SqNKX13vnxqZCVgnoI3VaxEoyPMwoFQIKLy/7f7h/95jdsloGLXcy4xIIuO+o/So72+4Zbk4bA4V0kZ4GSODigLLqEJsVOev72cM03qsPYs/GvBXJh4IEeL3oE0Tvrrl/IlgoSPk/Y8Cdi67etYzrhYWlguTVmUjzP80BaxPUz0AqGsxmi79zVrSVufjfcEN+MxJnBHCx+gek76EF+CiwYT76m9TWVeQnhWLdWfo0Zw+nZRFUi/CqbDz3VGishhnSWVGQUrKLhUkG4eqwFPLV6cxTF41ARTHPPDswEsdvBnQw/nuiaH/LSEAzGMqPJb1KGYBLLJBKazJ3xb+YdE2ShFJJctC0vJguFNiqp3BdeloDM3dA9x5bYSa1HjLIDMFGgFqSlEef5Bwm9pnnGenNmcab5d4XhvZUaCIAfGcm25jOcGQE2Wt+IqhxdArTVreGqFVVul5wiYlOEWMbDnTvonkUGXJFbwO+bUYncIM76UWV7pgWOWFKS1lTwi/lyaDap25+WrRpc/TnF+7GaMPlNxmdf4KG7/Pp/xe9xg20v/chYfwPcu5GHG9tl12oUB64XpZ+rFAVEVi2aE5VkVOYtcj9uCmF6bq3dFvbEPga7b0havxl42jS6D8jy9nhUYu02T3gFYPzAYnSYRue1bT1VL+73ZjSrP3cFMwWA5Ovy/PiySgXADC01VFw==
+  template:
+    metadata:
+      annotations:
+        sealedsecrets.bitnami.com/managed: "true"
+      name: sonarqube-scan-token
+      namespace: weyland
+    type: Opaque

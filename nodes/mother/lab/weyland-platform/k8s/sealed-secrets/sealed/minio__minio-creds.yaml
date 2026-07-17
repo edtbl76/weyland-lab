@@ -1,0 +1,17 @@
+---
+apiVersion: bitnami.com/v1alpha1
+kind: SealedSecret
+metadata:
+  name: minio-creds
+  namespace: minio
+spec:
+  encryptedData:
+    MINIO_ROOT_PASSWORD: AgCBSaXVbGkZDeggCyrRXSEDQegrKykZf5zMjUdJaLWiZwRhDMk/VmpbL6v5f2UOa9g+Hl76i+0JbtxZdGcgZBiF4KYQCa353ETENjjWU4YSorL8p5Cbzc4n2Q6u8dc+Tk0x/V6bcP+U3qA8e+IrQ7r8rzkfngHq086w5VVCERIMrXxh0/hmO7nwNRAMOj2zALoEet922A/mk4EcPRt7uiN3Vcc31hTljmneUrkde0lfkCeeAFcSWymxGHpnUeuwMEgpPklnTrgK0pw/AESZgamb/Qso/JXn7/Yfc3ihEtmfIz/wDg1/KY8ZdH7YsJofaqEWrHXhcilkIXb/bqdTzZdg1GD2aM+AdmssHarZo7EGbShj11OFQ2V6VXXBux28exdtw8a4k8fz/aRwVQko+IAT7bHHkkeyDIoYr55PWYbnzMIVHoqHCjnaFqNApqb+hyTBbPklhLGw6Gl/dQVjALRE7VmySL74FywKRSluciPqYco11BXDRlUPCnfUO1tuLzy5Sa2qjWAhTuP946LF7RMhe4TARkHp3iDuVrg7UuosScRnExknTjy+VeItOQaUdCf8EGU/Jjbi2LYJ6vIYXNECaRFiPelR2xssdN8IAos5btzp13hC9htwvSlg20y7TH9pixwFh6T8SCfpPwZWh+Rqvd/Q3W2TfWQo3tTUhggzzdvohThH0O6fXQYv5uYDHQlWCNi0eDbTBVMmUq3dVqJ2TH50qA==
+    MINIO_ROOT_USER: AgB4VumdqMGSjfQ+SL/3jAt3Ldu5njQ0FkHjFiac6nrz/9kiL8H0w7shXwGya2YQDwoCLv4oM5z3z2mHp8Lkll4NNixCSMWwXIF1HMae86Nk9kByqDxoPHXfdkNgtVBMz5mxG0+dGaVrB9MBX3Ias9sqI1opvuMn/tqRPEuv4eEBegsBysIQbW4Z/qnplGaAabuIgiRGBw/31ugpi/RGTicFrMkuB8ZpTG/gDXeU/AhTISuxHwFPDfsgU4sZsacJPhK4Wph3R+34k0e8bPX3FgeXO2JC7oBJcM5tWU3/DrEJfp4P/lqyAfeSxkMF/g6UOsqkvKYOu2l8bJwPNpn9ksOv2ya7c2Miab+BT7GtPm6uVDfeN5QuPHfalf/mUIfwzg5ouscRHBr9Lzg8LGaSCl5ENJ50uFketfjuPfW4RP3qdaqb4Ia+wHqpwAdBJYP/8BSXyvyrReDE95bZ39ZjzKdOau9OAm30zt1wIx9/8fJtjuoryGTSyzjXjGGGHgua9NN7NnDIAy04qc0Uw5DwmI/zmUc2I65QjLpaB7G4D4pcpF/ay2JbgHyxVmaQMyT0zrlvSNxnJmueV1s1WzcfwazhkPD1ro+yjkdimzZshud1CSKLcZTzaV0rsmeF06oGlsp7sV3kdl7r9RvkOXrcB37STzTIN3GlvttIFicotZDlOZde22dlifikETbM/7GraYF0tLw/Sw==
+  template:
+    metadata:
+      annotations:
+        sealedsecrets.bitnami.com/managed: "true"
+      name: minio-creds
+      namespace: minio
+    type: Opaque

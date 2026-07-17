@@ -1,0 +1,16 @@
+---
+apiVersion: bitnami.com/v1alpha1
+kind: SealedSecret
+metadata:
+  name: minio-oidc
+  namespace: minio
+spec:
+  encryptedData:
+    client-secret: AgClbH6+LaWneA536y7TUabo6lCylhvqys4MW68y6FJU3i9ZvRLm2FPzUFjgkx53ghuRSIRjRNPSkPQ2f6rD2e728yYmSEXmktqMsbFVBv8AJ4KgN/LxLsCYtrdWOjvp0gbN5mHKYUwPOEvaZtTvbPVjPIRJGHl7i89ESqbyFeuGTYj7ZToB3ACcadXYNPNjgLd6Kp/mQq4ymv54pj4ZADkFi5l7tV8k+CU1QING7Z1e8UYri6DgZ1o+ZqjU4999/MAdFS1VLHJtXs/fti7VmOmYGIzvVb6HvapVNtEynQRZQIDUknQROzBB8+JJZXKZN6ptWkJ9908RiAR612zK5onmq5U89w5EVG8bb9pikWmO2Qmq9xPAkgptu4TTSM2D3XQzJxd56JMUnSRS7SQiV/48E7lSalaFoD/yiS218S0CLO7iN3jYevHwPXy+sIsH6raVFhipUT1dz1BPcfNGAqaHQhuI0msuGhGEld4nYnVnZZRYnz/hhxURXA9AMppNpXS1IB9Wemc47l051Mi2qaoJ9Wwwsjl3LizzXNMNYwa+aexSA0nqu/cPiAlQeTZnqY9V95Q9z/MRPm2u813XwJNdtLdZD+0Jw5UXL+Gw4Isee8AP3YqylVkvXG7R2w1TdXkPkNbB+8MFZfLBCvex/srPBXKGhdayLfBGpvpVnxTSYe+GrJZ0IRw5I2Fjpi67em4/YrVNIX43RUetuvJBWbuMSNILwQ0bQJCNDCFhdXpcqw==
+  template:
+    metadata:
+      annotations:
+        sealedsecrets.bitnami.com/managed: "true"
+      name: minio-oidc
+      namespace: minio
+    type: Opaque

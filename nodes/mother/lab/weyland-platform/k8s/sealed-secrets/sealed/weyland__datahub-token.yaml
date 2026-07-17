@@ -1,0 +1,16 @@
+---
+apiVersion: bitnami.com/v1alpha1
+kind: SealedSecret
+metadata:
+  name: datahub-token
+  namespace: weyland
+spec:
+  encryptedData:
+    token: AgCBRdqf7pEauqrZpIHVPtiOG5bpFenKe5SqLq8jNzezxaIcj6a2gPSYJxqEL6zS7SUntQXqkj6Yd0ktEclDqivu0UG/dH0me6BQUv47M9z++aJkDFsVsCUqgGuZZEdHJQ1cQQgKnOkF+allE6BzuaPOk1YfnYirRxQ1MS+km1GOgggt5X7IKacbVONs6tWJSOYIb13AKEWNnXonvKqilIO3wLbI5I1hbt2xUurGdGMdUhiKmNISziJkwtdUzOgVnzWNneu9Ja+u1m2FhQRfgiu11Y92qpjdPpFfvT2FaOwBd/sPzEoIWAMDf0tG3mJVPNmD0QPi0eAGOucyGMBmB8d+c3XvsTLmhGLp9gWqePOqzKwAGWT+afIfJXoNwyzuXDSIyFFrFU2vlw8G3IxRzBx65rrckWZUL1T8nb9wIsZDhTUH0LcMTXsiXdRPwOqsSkja1Iu/vbqJdXNbAODGfr6om9OLvyf7MdSVSKmiQFqOPdTAmbJOMDhw7ujfAh2bLx6Fx6fat2wXlmh4vt0kd1DvKY10ycJ4KhqHuMsEbF0Wc/7p4AFd86Cny4jB34VH9aqVRXJJRaTmHubApCA9kD0nUYUYBTHjrSaYBFwASQe20rF1zM5WNSIhThP8bNbYg1auqMb8VVwskEi4cu+J4MefXIr74hbNkv6Qu1LxBreEH7FKN6L45GiCqO7+fSOMpX5tc1lMvjnplXZrGRvILL0FAp7FMHcmPLdvGKDH1Qk1NfXDZw9zQ2keWZKxmJx62tYDw6boQvOwPaA3HrD6v6uCl+uMwlURBLxAA4uOBZb8Zh6BYfSOgdRTVjID45XL2tz9P/yQ0vrULgT99d0/WtdS81VKYoJoYqjb8GczkbVhHh3qFPnkch5IuGX+Ja4eSrNzKHqkA/Ri8a4TfzvbfaHulGN/gtNtfPzylBxSXlD6UTX6CF097CX+5KoB7EJeVB2CVMDxoT0wv/cuhoIsSnXMn3Z8+VctlQ1VUpU85zvfAVdPmWko2BIVONihf77M7VCZS2Xj6PbMFPIKuUzjvJ/t1HBCCTxVtjxfmCvtQ8t3u0tI9DXWkrN6n95OrspoqX6z
+  template:
+    metadata:
+      annotations:
+        sealedsecrets.bitnami.com/managed: "true"
+      name: datahub-token
+      namespace: weyland
+    type: Opaque

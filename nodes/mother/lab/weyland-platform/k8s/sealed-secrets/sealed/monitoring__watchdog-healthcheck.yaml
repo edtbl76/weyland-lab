@@ -1,0 +1,16 @@
+---
+apiVersion: bitnami.com/v1alpha1
+kind: SealedSecret
+metadata:
+  name: watchdog-healthcheck
+  namespace: monitoring
+spec:
+  encryptedData:
+    url: AgAwlZj7/Y9aDWrac7e4Z6MTTo6G5wHoQmSJGrFpHjzyLmUOGHCq1kNecb3pMlmUj/+JS8/T+lvQp7HiwTXsUNtx0C+K2B1RVQBml1hABWgf+ECm+Ib8BQBbwpEaEOs9474zEKKQ+YvKnUgqazFBKp6bGWqVSsV+6o68XfpzeDWWgXa5jx4M3NGLjG8svu7qo2ngc924R9WDK0sStlyyD+OMFfwOJGBjkpMzVe0WKKZl9nS1B8oMfGnQY3/tks8+GhPIEsTkyMW2RlrjilnnhHlxZt92TBggrMM8VdzoTSPpF+VETREkMsdTsAV3n9aHlYE1lJCRhBX6oWSgyWBPWNaB6nfTLonJyirtzw9TWIrZ8w6NSZkcLCAEO2RqFEN7ebkOdyQvuNnpw8cbYanvRSAJB44xN8Vst583ZemWmiCtOrwAZduDQGZ0roWrmxKyIGH4WK4BYqYL+ykg0YwhazhogjApPc1vFYfsBzdDg4jrjdWwXik5n+JRVoIkUOh805TafW0zxkcN1ijjM7aGSjn27ANk8OhOdp3e/kUU5/CrJ4kF9g8vABjMJlMQkASh6cWYHjWxyCyRrvKTygjXuSslGcwaT1INMaOAraIBUanqavuXAm6SxyAR3V3LfNUUC2sovfuRHkUROw2XOlfGqUHoozM4PtHJ0Rxm3A5yB6vN5YuuNreWji4mXsWOu9zEz4dQqLh97rIwCs2QsOzYxKJ3iT9U2UTvOcZ9EOlpi/8zlMMDYwrw/gRoAxNTrncp+dT3tXRF8rHtyA==
+  template:
+    metadata:
+      annotations:
+        sealedsecrets.bitnami.com/managed: "true"
+      name: watchdog-healthcheck
+      namespace: monitoring
+    type: Opaque

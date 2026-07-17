@@ -1,0 +1,16 @@
+---
+apiVersion: bitnami.com/v1alpha1
+kind: SealedSecret
+metadata:
+  name: port-ingest-url
+  namespace: weyland
+spec:
+  encryptedData:
+    url: AgBHDfUELqb/nav6Is0FZH04AW76FT3knDhgOONKpF/7XfJnH1xzSiMNESanF98zDdeYai6o7L2LZAm/pczAhFfS/+oQeftSsijTFyvgpcL616nV3460kK3b4LDxVaNAk/Q0PCXRoQV+7lIv/gpI297F2uQ5yk/TRfYVmF0dYzbldcjlI9WO8gJz07Kj/GGSPz/17Vgpx8Nfgah2swH3avWJ6AkEIDU7JdxWzzJn4HapetpUq7fJUuTfAlVc5RPM7Ksmp9PM3utf7Th12hyhmjbjbTZ+HlA2AWDgp+pDVIoqzoEYiqpUJpnL6ON2T75OJQMSQ1x2dE+819JXwunck2s7izwvdDQUb4dtQC66rV+vb+j0G0FDUBzZN+3kDH3KhqxvAZCtLJFL23eWoZNE3JucNVLTjo7ISqjmz/QkH+oOs78tQXQ7VYuOkCGQjcvpa0ym0qenEb99RNdQ/bKDEiqoWoGFKLl/FccnFek+KaAA8qWJpfG1uESoRDPT19eEI8FmeH/RtNyin7nEOmCH88f+SqKGaLfEtBPxlUPpV49UfZ597HH2c13yTlPQelxV7XHAv5sTZuWJ2XiWz5kG2e3G3WK2doLc9FZKj+iT4AqyAobWhMDrGfAAc0UDTuyxie6W/Z4VBF1MmCNBU0dYPE8JEguX48CgATf8zEYqsEn6mzX0wrix8ZfshGBd8rDMVEB69hRS6rlaKN5UCwfZzGSDLjRIfuMhUnwTLLTcpTWvLIpmN1nU1Gzonuk=
+  template:
+    metadata:
+      annotations:
+        sealedsecrets.bitnami.com/managed: "true"
+      name: port-ingest-url
+      namespace: weyland
+    type: Opaque

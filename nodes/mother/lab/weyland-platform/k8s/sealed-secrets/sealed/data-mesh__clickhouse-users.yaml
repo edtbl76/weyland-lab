@@ -1,0 +1,16 @@
+---
+apiVersion: bitnami.com/v1alpha1
+kind: SealedSecret
+metadata:
+  name: clickhouse-users
+  namespace: data-mesh
+spec:
+  encryptedData:
+    weyland-users.xml: AgBY87gkuWMwrg2XWGUwZG/u9E/QqZsnuA+xaVL+JDEfO7N5hiS+ZcNR+PZojzrzHd5TvboxNnxEDhoXhzob3O3tXFWno4cK/b2ag2i/3+wjP7r4pVeObE+5DmcnaXEboLykBCCTuUhE3oPKCbRbOCi0hKDPTdSYvjuUWHyu9Sc2XuxMbdmfkilDlLASWSiiTdExD/7ckXeZUIzI07RBDueZ7eAMOMCs/6IDU1LcS7Ip5qZqJQv1r6wLxrXTt2AitAXGa+EfZSOKgwgT2klkfpsCubuc2c3PKPN2pY3Dar3epVxBldVxEDY7NIooxPrfdrWOyaBwhRw1bdq7epxQv9Ul/TKVO3AEvBKrziVV/Yb4o/lRRI4UTaSFzV+uRNfnfWlH7lWAPTTgxcVFGDJq2NmcqdTHi04ZQkAm60o/OYntP1wgri5FXHLeAg95sAVcXOde0QdoKRJnFkF7vyK/dOfnX6HmhFy1inSHGwCqe/hnvIX9zCZQDxSuZJSYBS3O6fbq5cGMlbmC9JS3vP163zQl+Ghw/tOVxPG5AV/BiFw9wad6fDrSTnDgqdj/FapUNYdjguQIc4kBRQD2eZrUumakOY/RwP+qkefG9JILXz20bUCnDZI5nLvBtTeMa7gr+SD7WLjUXHd+/lmpjxk5MajF1nNEtHQxAVebKMtDq15mrhtcvMrC5iOemh3kF0IrADk3olUGzHJJAmwES2T6isGfAXmtLNv6YoXar29XF6CAMeJ1Ed8Azlnl6/kEgaThNZxITnWuUDGXmfQoGeCElF4pFACb2Q3zUuJlEFMWLtsbTzYvCxFXnwytX5NGSDxz8XDIygfX9akAib/YyHv+yelL1nAOKyAgVBXS4GrayySGZIFhxIrI26++xUHwg3jmuZ3OQC8STm+W+6UbYqfYIXUTv0cwwNJ/Lv3P543yEV41E2HOuST2c09DPrM1Xtjiopw/dRtzJFRO7w==
+  template:
+    metadata:
+      annotations:
+        sealedsecrets.bitnami.com/managed: "true"
+      name: clickhouse-users
+      namespace: data-mesh
+    type: Opaque

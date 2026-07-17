@@ -1,0 +1,16 @@
+---
+apiVersion: bitnami.com/v1alpha1
+kind: SealedSecret
+metadata:
+  name: jupyterhub-oidc
+  namespace: jupyterhub
+spec:
+  encryptedData:
+    client_secret: AgAMj5Pk9G2ILzwbp+t9lBE1x5mVJ8J3BTaNXxsYSkHkUyYSligQqtf6XMLO8iYtqB5vA97kH9t/66SaYrBS+Ck3b52asRIiyvOKYeHfgU5BTWNITe8Qf+EN35SQE8LA6HO9pSjNgfaqVzrA9aj8uiRbbV4t4yTXJblUBrQIwdUi9117Ir9a9Rm9lE2j+DQXsaBe0/lUHZ9Ib2o/mLqZxruzmJaeXY0c+VhCyRN4He776gFZPzdsVm9tR79r9ZA5ohzg+h4/b6pb6jXOgpJvL9TRW0HGI0btWcswBAI9Dp1/F4tDfQskzTT0qoPN3fvgBaPiKAwuy+xLkdfY4jNySt2vgx9iktbRMaD1ZPneegvW9nFruFuwrdsf6sB23rzZNJsJF/BgcS+pvaCbg2inQoFJv0Dt+nY3XOR91FFUrIo43cGiyoCAgeQ0sx8Yqv6uUJenpFLlW0r5w4xyEUkucfZU0FJjldWFQxgwwSZcBECDVDzQCuV3WKJL7JIaEug0xztQgpd86ESlHSFPORqydqNtxIQ8rvRk/Kii+6UXXUIfzA+p0ZdOs032robkHc/xqJvhs+vpMZJJzCSvfYsKGv48YJWhzqCS4Z9goYYMuYaY+AUkOYPWa+pHMLMfhvubJZ/UWf0qDL1ydWkdqJmao6X8lShW1FkxTbwmCHUmJRcDn+gaKwjNKzZegOUlifKJ1cjh9Fp8heknPkXxaQ/MtRl4Wva1lWVUVrLM4pg14bl4Iw==
+  template:
+    metadata:
+      annotations:
+        sealedsecrets.bitnami.com/managed: "true"
+      name: jupyterhub-oidc
+      namespace: jupyterhub
+    type: Opaque

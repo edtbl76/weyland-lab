@@ -1,0 +1,16 @@
+---
+apiVersion: bitnami.com/v1alpha1
+kind: SealedSecret
+metadata:
+  name: weyland-alerts-telegram
+  namespace: monitoring
+spec:
+  encryptedData:
+    bot-token: AgBU1rxgIYL+5BiEKvG3vQ/wVdiNyBWvnj2Uk40B4s9y7sILo0EIMwuJ8yZ3TijKHczcjqjMTVYB6DCGnlt1CuV/tWqyfI8xYy/dcyB7/BOQxXpJ60CCmDhmkamjjH79yQHYMCSeUKWfV6VZp/6rnmRNvHXauUDGdhpksl6npiMBbZro0290jyggJuEdLS30zr/NhFOPSHVx0KcAA4O+74jxBQkuuCySZZLvWsk5weM9HRP35sEpYtDfd/oryroIlVzCBSpRltNSaCK5rtuUVz2hnm1+NQe1/8YXAEKmUDKsoNbhDlIhl+PCLQZXVVVGtf0ozMdsbg/AFBx/z7HPLjj5VJwPOA6HBm6rQ49zS7A17OzcXyRpIrorNa5M4d7ZsEiUBkGPjn1LrKE6yfS9jliVgf9+40W62w5dKzfbTjeJW3KyBnebzP3mDvq12ilfoeZ3f0CzVR4gqWIgC7wHj27KULXOn7zLDfYW4OqAr2fSxZNfDx61/q2G2/pcISBX+D0xCjL8O0uYioborPi/9QHh4bh1oknw7a9+TeoLLOlp80QDlNblCdUuM8AoHPeKb78omp4I41uM1JfI7Zq3xhu8/VE/5DM4EFywQxhOw9xSLf+h4TBOiP0YGtaMiNAinM5qELB19C94GYTo/36nMdRh9z/3Iq+CIytxOroL5eh7Mc3FwB+FdfZVmsaMc05cwbg136m+nr+GF4MLtifdQKyg8Qy1/ZWRNAY4YtPKfcY2KNFiqR2JmBeXPAwm2rgE
+  template:
+    metadata:
+      annotations:
+        sealedsecrets.bitnami.com/managed: "true"
+      name: weyland-alerts-telegram
+      namespace: monitoring
+    type: Opaque

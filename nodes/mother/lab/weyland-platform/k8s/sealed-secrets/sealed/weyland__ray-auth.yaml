@@ -1,0 +1,16 @@
+---
+apiVersion: bitnami.com/v1alpha1
+kind: SealedSecret
+metadata:
+  name: ray-auth
+  namespace: weyland
+spec:
+  encryptedData:
+    token: AgCjF14XIWvHWFc9uh+doStMS4rO0+9u76VCRg5Ef4/G1pRl49nvUByDV6lJchvkIxqZcT1MWcmlnyf/vROGTHrsdO4AY+Q7H2WxRt8h0Vx9vGnVlEoBVAYQS7SVdm7lFWqwCyF0IBtl4d1ruIPeAeR7Rl3KbufBZlj5vb7S+QN1MAzDfGIjUtvfiqdkw7DHaRuaeol8wtd7LfFgJHZfkOkWFHkkK3p25jHGUiY/KGHN7XhQ9NNULskX74Kde/7pIBI1asxcSPg8M2WuIEozetEna8vYGN3tYp4JueNyC8oH91rWlCGLaz8s7K9mL/kyByjIkUjzs0NgdrGEUobto4WLXOjW9msnb0dWON+bV3XtewVPhKZh/EACtjmdgQUkIvVnV7qAkKCD03CVqvXoLftXIkiiKF5nZ57KeKw+aWjcbZdGR3UoUDQB1ElltXId2BiwVyskEOTEG//5UZ+V5IcvqreGCPgqui2tNgUL2kOsGjZ2WkWICZrhpVyubqjzZtPhcz7Ut/lTKKbwLRUuIHlnFKKli6VhRPz/s1wQyEKsvk+2qvjqrA25Fhiq+IY9LXgoll6wC0TW1gbVB+G/CZjX3xOiq18zpvO5ic+3cN4g+1Sws5JBgMgd3F2MMHEoS4Y5bZgVkev6b72YLgzbdXFXPADtPAVsW8EJ/XD6tJEzH5WSYU1eO5N4kcJ0zbr0IwaDOnd1DaQmjW8gRG+99BvyfCUTC/pmK0xJ9YTUlbDryHHTkPBnzIOpBiZBVlUQn32WUD+9bEruYV/m8zPY3SW+
+  template:
+    metadata:
+      annotations:
+        sealedsecrets.bitnami.com/managed: "true"
+      name: ray-auth
+      namespace: weyland
+    type: Opaque

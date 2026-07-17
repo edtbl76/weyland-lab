@@ -1,0 +1,16 @@
+---
+apiVersion: bitnami.com/v1alpha1
+kind: SealedSecret
+metadata:
+  name: datahub-oidc
+  namespace: data-mesh
+spec:
+  encryptedData:
+    client-secret: AgCf50WATqaNYfSuHbWR/NHzD1+S0djEp0ORba66rnFfhIVO1Nsnf9VIOAGb4tqYkHbEGWQsXGLLBBtq4pP5/k/Xktr/bvf3Nj4I/xXzcEHUgZ7KEEgJpzVYeBvWovS6WJuHbkQLg+7qhhSv4F++9BRQZtoR72SBIEpTB4YKzvVE8YeoEP4WtXOl5o72AOu3zKU3Ndj+ZBj6HfIfsojahJSPWxRxCi7VJityPbWuu+auUEZVWjyqx1T0fDoHCpU/xDM8o7VhK8Xh3+X0YR1lEPhL23fwADM0ZrnVLnbrOMTteK6gIpvfUyw0u3/g7iAgQGRVa2ak8QVLwrrxp9SJRT0QpkFGb3lIHY28ouG/DjZvv5HR0xHcxY9Vq/uyYOzH2ooZd7vzXFtc4BzKns3wVR/zkckFtNjT/8k4PkDx0i9lUnHBoL0WoaNFVQqkbDhqLj5YOP6zDuqt3mAvM88MwZgf0M7MgK+nmR71amfkVQyw9IzB/lP/zeNG5XYXRvj+Z0jOMuT4dNH0uLrKLfBm0w9GcZZQ2R++zWiVMgUyc3wlWWWHPAkGZKHXafDHPAKerRnxAeQBvbbdKDy8Ud/sKA5Jryh1ik2TlPss4fLeqqm3M2SXyUTRhzGrveLJAQme79KO4r5xUyq5+F3r4bX8mMLyNKgr8ZNs+NhRb7wPplOht0A7Ys16NCvmvh5rKyc87etSTbAas6Grzzjttou2lXFPVGGwUfZjMmHr7b9kDSi61g==
+  template:
+    metadata:
+      annotations:
+        sealedsecrets.bitnami.com/managed: "true"
+      name: datahub-oidc
+      namespace: data-mesh
+    type: Opaque

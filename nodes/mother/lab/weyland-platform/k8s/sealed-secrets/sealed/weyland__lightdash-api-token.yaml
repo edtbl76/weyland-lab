@@ -1,0 +1,16 @@
+---
+apiVersion: bitnami.com/v1alpha1
+kind: SealedSecret
+metadata:
+  name: lightdash-api-token
+  namespace: weyland
+spec:
+  encryptedData:
+    token: AgAR5cF/my+0o7Clv+qjd73dCvC529DMJ/zrRacEa4H9TImigpvH4zCbdBAZhYI85pEd2MT2+GfI/RhRUweuK29Y1my6y0e9vuXOxeoFRc2Gbz9a/55jyE2uT47eF2P+IIsfiTFjODlWUtozv5XtPh2fVFM3bE6lDdWwqxRrfe74hLSIhsNnQF7dnvNkjl06orUI/dATa9w8aP8uML1b5WAEqb2zu1Jkx17z6OIgvBLH48bvZ3WNqWOoz/Q3R7Vb/zqZ/A3xdEpz4CftQnJi5C4HsMeYvZpWKyOimubcPCEdll8AkKkY2lMb+VyP1+0/zaIx8e4QEk8JDrwXyfpGiEvhwG2c6rIlhFyzS6F2mccr+1vyMdCOlk2qxbG/L/OmFDryoxtfAaOGz5Xj9zZO0/PlMZc1thmvaw5/454+MD+rf9rZWIVrnQWMGRnKIdvyYqiUZcUS7A4KFZAU/GGUY3qq+Vzjg1FqxCOfa2JviRNmbCAjm/cVLsOw6/bT0MLJYSDGS68PcfwdESTEPVwCQqNAv281eYy+ZHZTqmJiQXRI17Sd4SPIil+qiXa5jOKaTBUiEdN9Z5nd9XrINEKko12Snq1WCCmawAtCjtYVVSK7lEFXeM++3LtCCeDp9k0Qd1uWiyJGkgL+B5kW7zx1XORLRWEenQLFuuLkQPpuwTYroMLv/fTBscRzDDU0vsb2ie0PmFxWpeaGKuLNFNqPtl2LGaGjy8WM3zh8FRv+V1TMUbeB4RZDvA==
+  template:
+    metadata:
+      annotations:
+        sealedsecrets.bitnami.com/managed: "true"
+      name: lightdash-api-token
+      namespace: weyland
+    type: Opaque

@@ -1,0 +1,17 @@
+---
+apiVersion: bitnami.com/v1alpha1
+kind: SealedSecret
+metadata:
+  name: lakefs-creds
+  namespace: data-mesh
+spec:
+  encryptedData:
+    LAKEFS_ACCESS_KEY_ID: AgAUX9yawBatznh+L6QxNlB9ThjtgQ2FA0mqTQ14oskpVAsWmrXBPwFFFBt7ffsiFEcuQhoEd8lDcuGk7hD8bWOsM+MPAtl+AVIgtlhcAbELeSDNVtnDo3cFx/2b2BgEb5TQlfRz9UCKYqfsgx3Kpydy14sCDfZR2dEsihVvVXchlzngtj8x+IeVDVv0G8WhMZVSQlBTfWzC7gHEWyxZbJGu7e2isZg0zP9i/bcmmGbkoJ66x4Ohsz2g7QGcF7X9evEsf2tfVkN/68BRjZzwLkuhlKuKwTvSVWtRTkvZ7oAxkumg3r7cm6O7Nx5IjGI6Vvaq5R5F0gpkM6UP5vFofEDx+RYJSg5oK0bWEN7MG2ncRe1uXRuY2NlEBLL8hYpFPH+UzEueFxHW2hBqAA/ZT2eM80Ifq/Ok+SuygSHWHwgcVg9plOniFWmkJ/1+/LgRE6VMhfpRy2EHbdoA+2mU6iiLULYkudUhjgiO+flBhFQUsI/uay3ZXOl/RvwPrE4csW9ePrso7tt4Sryud+UoDhl2O8XqqdyB7AWo55beUULjMI8b+gzZrw6+lRIa4XjUgWCei9R6wIW7lc+R3UK1eBhJwr6iHquOJHUBPudJzfrynjteTC1cW3uB7DPyeCWoKe7Lua412/6rnDL92RXFB1VDsPhCZ5m4TVypfg3xfvaFpSogebH6rJFO70b3dCGx6/WXgoslZPEoGN0+qGJPlXPPtJl24w==
+    LAKEFS_SECRET_ACCESS_KEY: AgB2QDG0mNfgKvyTcRoz++ZJETOCzTya5jqcc7ULjs0/oupTCKfOD0OsGbn4nff2pLiwwsmLL4gDu/VR6DRf01a0XGSGD2okUfdpK1jrZ6e5JDTjdXGAWVHZAu4gJZ/1d3IsxQt606V3YY5h1o8yhkYFcxIGf4MRIxyb8tV94pHBSfD53AFG0hh6pFCxiBq7fQ3fazqkComb9OW3Btuf85kLjEbKA9PxE6iFk05pyM6vbJXnnmjbZralYgDB3YZP/jXY32ZBNIMoyL3Du+huIBUBcdSjQF1uc2frL0QrHbjl1IzQtMO3PC/+qpnbzhqTgH4ToNUcLtOvuL+xrNxuhbW6vLP0vux7O9Czd/fqGzIYfWWW7oKSWIoOkMX68UPR/+SLUaAulhHGGD3D57hg4wJiNAEKB2H68X1qPJZA1QGtfMiF7uA3AhFC9aTszrkYByib1DnjlrsHNiv1/uHgH8WEAH+Sr6jHhdwqW8M/qvs16TBe9wB+fHwuAdwwU/+MTjUVjtWfAAZloRQX9sRTED7chF0C7yFdRFJz5ANUymP8f5Od4voqW9btnzDpD/fY8AZBeJ38PjBaqk/8omz0NEdzLSULBvgLg8gWT0CQdR5XbmK7RL+X7xXTdTYTAc6dGMAwvjWAfk3Z0NV2pV9yeI3C12qDqj+nZ7hoCURT2h10rWdsZI+g9HvuO/JIyGyD7UA3D4tUCHhDv2x1JB/pifETMLi3v3p0EC+xoi6xjvKoaw6bujEYbB42
+  template:
+    metadata:
+      annotations:
+        sealedsecrets.bitnami.com/managed: "true"
+      name: lakefs-creds
+      namespace: data-mesh
+    type: Opaque

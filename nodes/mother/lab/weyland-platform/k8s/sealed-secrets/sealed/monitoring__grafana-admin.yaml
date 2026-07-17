@@ -1,0 +1,17 @@
+---
+apiVersion: bitnami.com/v1alpha1
+kind: SealedSecret
+metadata:
+  name: grafana-admin
+  namespace: monitoring
+spec:
+  encryptedData:
+    admin-password: AgCLiCSuWQdcoPcdzn+gx9oCdpfzjUM3vrs14ba/54fMZBthxHB5wPSnAiHSLfKeAz5rwNBL2LQviqB0NvdQLoMV2Mju+lBF9ETwyGCwyyY5mfZwT12MYyTNJkh5hwtePiSMErKlbJVtEHJ+LZBcjn/3U9lOtC3yQT5VzzSGH1V/pDWrAANCjb7EDjxqE+4rfbX0LurlAcGwu7at0qNlk1wyi8T7cpx2MndBTp5dra/xmA6yofTkIXSriKCsqAWVDVDxI31njDcITiC8RgOYOWcTdtqjXzUS1T1si8Eyvz0K9Wf49I3Aqi/P1KJytANmJXwu+6U15yqGwFziBGTzui5JSvTQdB+S9wqNlNGfJo5jLbwBa3mGlGXHkn5klTL9f9B9LakZC77nhTMhzsSZDZBz6u0nZRVXuM0yscc/dLB1cTVPMSHQwKBIf5LYTqgrds+QyTAb0kK/e2Idxb4MtpP1fvqZMGBaNFpgs/ftBIxoGS2G/0GZCEcjDtAH4//mhhBtGBpTMZ8C21GC4zSeSHoas5v44sakeb2YlSmh8frUdDzV0Ig8hPAyQJp+kW9xgGv/RClzViS8YLOSvpCey93b/0skA+LP3uS412UukvKLLCR8/muZOcVZaMYPRAplKXiWBKrSudp8suICmBzqjxBabDUOOQOnsQXoHvVmkUjjpl6s2v9Y9Bd0rLy3hKbcXCrAByOqCIwmicGzUnHV+nm4u39WZw==
+    admin-user: AgCwxAX4EIdFPRvV+UQIIpz9V/O3KY8EuEaZo+k1lSOLdkoelvS3aP8hvv9NgZZf5hfmgcLBeT7Dhi2X+AiLy56pWhng9Hocs3F69qfb+Zhd8Fucu8iQ5lVllVX4RTPauyYfeeHmEPyEo/fh+0X96Fy133f5Qha1qxKT6736Cbs2LPWX8EOsiEz5UIm5/h8ckMpM/OTn+z98xDmoMAT458+P1gVwEFhCy30TaJNgrsKH1TFObQDM4lw/wS2GdLpw1vlzRrl9sWdDZlOxeFjWdBXpMGYUK6VqUTogNP4hl5EoUDHIAFeR/Eos7ql71p+rDh+IxOQ3nzJaJly2sgWR0h/bvw54gEYUH8ZdUjnTQh6dfG3rif/GyaWyjVy7ZvdNlSjlk/+zeZYE09I3S7OjCQtertt4/aj55QSVU8OHqkAQvRjfnKwyn2Bm0gtIWJDm73opBTtvf0RyA2StxLuZzO0nSLdzZ8u7Xfq8Jlh5sz4li5+7GaXax4NxlPBeQw6HcDnAkKzsVC5I63doPgirqm73PR/buHL6lTmYdFBSzbMUAFvsVWW8wAXsC3VVBpVRaLHmWofpdPGcip8e9h4TkRIjDPeTJrOS0y6+VaTOgJTDOIVuf3/ZH7GzCJ5SLxEyYMZL5eIpMEfDL2aaIoyM0hFGME/CVv2WAKkqzCvC8gPn6svG66Vte6y1mS6LrTwdXPl+ScmQAQ==
+  template:
+    metadata:
+      annotations:
+        sealedsecrets.bitnami.com/managed: "true"
+      name: grafana-admin
+      namespace: monitoring
+    type: Opaque

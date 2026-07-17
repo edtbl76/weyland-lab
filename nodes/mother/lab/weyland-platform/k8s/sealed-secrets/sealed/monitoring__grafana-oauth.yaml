@@ -1,0 +1,16 @@
+---
+apiVersion: bitnami.com/v1alpha1
+kind: SealedSecret
+metadata:
+  name: grafana-oauth
+  namespace: monitoring
+spec:
+  encryptedData:
+    GF_AUTH_GENERIC_OAUTH_CLIENT_SECRET: AgAnXz71ItXhW2xnJLv4Ul7Yluw5aCBxBxbaQ1Y+6rximjWc+c+Xlass066/NNt7soptt4BdGQtlkv7PF5iYpDyR6ibOH16PIl9NaQ9rZj+QV6tJLQjjJ0sX1bab1zHkZeixvRM8SONs7jfRYMK+Rv8lCSi2V6ixg0TNZgmhPMN8/wixLef9mSgCoXzUiaFyrf+7GjYqdh/4Yl1sTHExdd3nZ3C1HFMs8mxxD5INeTDC6pcPUyBN45krQ+P31gccQpcPfjgDUP5+pk9o5Gdb3aBjIMCxmYIadV+/Ln4F8cvi3d6fH0cQcP8Mrz8uv/DIPd269CZrVXs2TgCJ+YEtnDAtOUHsz9rp/i7imEWa46MEs7iYuj26sV5n+QOgFoNM5UxmLxJIHE9CgFzKusQjvcvkaKt/DSEkKeOcVGx80GdyGqV0ZmkYHU1QRYiHMhxkCHqi2hN42Kn5feW955BnJNrRPDLFAXlGF3Wn8WJj6oN0ftWczgqMLlq9t9040t0OWnuawsb0vzaQuJtxkyFFH4bbtZk5B6cVEG7iaIvwEjOunB22uMoCK4wWIHI+C5/fjhWuNCxKEIzLzz5SpUQkoM9Io5BcklhOdTkQHvRXGayj45m/NKxjHwXvQIU2yvXa4oX53lU+9Za8548lASIDKaLhbf2WJpYD6kJmRvQVkp5Z2swzNuxZTawvNgv8TBzi77F3Cucxpo3Ki6Pz4lDkee8dl06mMocOlYMdE6mkEXyN0A==
+  template:
+    metadata:
+      annotations:
+        sealedsecrets.bitnami.com/managed: "true"
+      name: grafana-oauth
+      namespace: monitoring
+    type: Opaque
