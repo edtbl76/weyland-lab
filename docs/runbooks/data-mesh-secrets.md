@@ -1,9 +1,10 @@
 # Data-mesh secrets — shapes, regeneration, and escrow
 
-Interim record until SealedSecrets/External-Secrets lands (**B69**). These secrets are created
-imperatively (`kubectl create secret …`) and are **not** restored by git — so a cluster rebuild
-needs this page. Example *shapes* are committed (`k8s/data-mesh/*-secret.example.yaml`); the
-*values* are not. Most can be regenerated; **one cannot** — see the ⚠️ below.
+**SealedSecrets landed in B69** — these secrets are now sealed into git and restored by Argo. See
+[secrets.md](secrets.md) for the sealing/restore/rotation *mechanism*; this page remains the reference for the
+**shapes** of each secret and how to **regenerate individual values** (still needed when rotating a credential or
+reconstructing one from its source system). Most values can be regenerated; the ⚠️ ones cannot and are also
+raw-escrowed off-cluster.
 
 | Secret (ns) | Keys | Regenerate? | How |
 |---|---|---|---|
