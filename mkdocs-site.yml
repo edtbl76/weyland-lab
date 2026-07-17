@@ -24,7 +24,8 @@ theme:
       accent: light blue
 plugins:
   - search
-  - d2   # B64 — build-time D2 diagram render (SVG). Mermaid is client-side; D2 needs the d2 binary at build (see docs-site.yaml initContainer). Default layout: dagre (free).
+# B64 — D2 diagrams are pre-rendered to SVG in the docs-site initContainer (d2 over docs/diagrams/*.d2) and
+# embedded as images; no mkdocs-d2 plugin (it fought the existing pymdownx.superfences mermaid custom_fence).
 markdown_extensions:
   - admonition
   - pymdownx.details

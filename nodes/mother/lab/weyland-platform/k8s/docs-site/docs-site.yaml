@@ -37,9 +37,12 @@ spec:
               d2bin=$(find /tmp/d2x -type f -path '*/bin/d2' ! -name '._*' | head -1)
               install -m 0755 "$d2bin" /usr/local/bin/d2
               d2 --version
-              pip install --no-cache-dir mkdocs-d2-plugin
               git clone --depth 1 https://github.com/edtbl76/weyland-lab.git /src
               cd /src
+              # B64: pre-render every D2 source to SVG (dagre default). The d2 binary is authoritative — this
+              # avoids the mkdocs-d2 plugin vs pymdownx.superfences custom_fence conflict. mkdocs then copies
+              # the generated .svg into the site alongside the .md that references it.
+              for f in docs/diagrams/*.d2; do [ -e "$f" ] || continue; echo "d2 render: $f"; d2 "$f" "${f%.d2}.svg"; done
               mkdocs build -f mkdocs-site.yml -d /site
           volumeMounts:
             - name: site
