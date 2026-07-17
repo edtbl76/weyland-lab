@@ -17,11 +17,11 @@ spec:
       enableServiceLinks: false
       containers:
         - name: weyland-tool-server
-          image: weyland-tool-server:local
+          image: registry.weyland.lab/weyland-tool-server:v1
           resources:
             requests: { memory: 512Mi, cpu: 250m }
             limits: { memory: 2Gi }   # actual ~929Mi (loads embedding models) — headroom
-          imagePullPolicy: Never
+          imagePullPolicy: IfNotPresent
           # B47 hardening: non-root uid 10001 + drop caps + no priv-esc + seccomp
           securityContext:
             runAsNonRoot: true

@@ -23,8 +23,8 @@ spec:
     spec:
       containers:
         - name: history
-          image: weyland-flink:local
-          imagePullPolicy: Never
+          image: registry.weyland.lab/weyland-flink:v1
+          imagePullPolicy: IfNotPresent
           args: ["history-server"]
           env:
             - name: FLINK_PROPERTIES

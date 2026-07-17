@@ -29,6 +29,10 @@ spec:
       restartPolicy: Never
       containers:
         - name: musicbrainz
+          # B69 Wave 3 EXCEPTION: deliberately left `:local`/Never. Built from the external musicbrainz-docker repo
+          # (no in-weyland-repo Dockerfile), and this is a completed one-off restore Job — it only re-pulls on a
+          # manual re-run, when you'd rebuild the image anyway. Not a rescheduling service, so ErrImageNeverPull
+          # risk is nil. Revisit only if the MusicBrainz mirror moves to a repo-built image.
           image: musicbrainz-mb-import:local
           # NOTE: no resources here on purpose — this is a completed one-off Job (immutable; Argo can't patch it,
           # and recreating it re-runs the multi-hour mbdump import). Its Gatekeeper mem-limit violation is a

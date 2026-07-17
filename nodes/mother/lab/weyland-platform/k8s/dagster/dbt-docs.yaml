@@ -27,8 +27,8 @@ spec:
     spec:
       containers:
         - name: dbt-docs
-          image: weyland-dagster-user-code:local
-          imagePullPolicy: Never
+          image: registry.weyland.lab/weyland-dagster-user-code:v1
+          imagePullPolicy: IfNotPresent
           command: ["sh", "-c"]
           args:
             - >

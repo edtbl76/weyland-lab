@@ -192,7 +192,7 @@ spec:
       containers:
         - name: ranger-admin
           image: weyland/ranger:2.6.0-py3   # baked = mr3project/ranger:2.6.0 + python3 (services/ranger/Dockerfile)
-          imagePullPolicy: Never            # local ctr-imported image (same pattern as the dagster image)
+          imagePullPolicy: IfNotPresent            # local ctr-imported image (same pattern as the dagster image)
           command: ["/bin/bash", "-c"]
           args:
             - |

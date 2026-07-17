@@ -17,8 +17,8 @@ spec:
     spec:
       containers:
         - name: dagster-webserver
-          image: weyland-dagster-base:local
-          imagePullPolicy: Never
+          image: registry.weyland.lab/weyland-dagster-base:v1
+          imagePullPolicy: IfNotPresent
           resources:
             requests: { memory: 256Mi, cpu: 100m }
             limits: { memory: 768Mi }

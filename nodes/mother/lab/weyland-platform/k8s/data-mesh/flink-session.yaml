@@ -10,8 +10,8 @@ metadata:
   name: weyland-flink
   namespace: data-mesh
 spec:
-  image: weyland-flink:local
-  imagePullPolicy: Never
+  image: registry.weyland.lab/weyland-flink:v1
+  imagePullPolicy: IfNotPresent
   flinkVersion: v1_20
   serviceAccount: flink            # created by the operator chart in watched namespaces; verify on deploy
   podTemplate:
