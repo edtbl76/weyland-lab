@@ -88,10 +88,13 @@ spec:
             periodSeconds: 10
           resources:
             requests:
-              cpu: 50m
-              memory: 128Mi
+              cpu: 100m
+              memory: 256Mi
+            # B69 Wave 3: redirect is disabled, so the pod PROXIES every blob byte (docker→registry→MinIO). 512Mi
+            # stalled ~5 concurrent multi-GB layer pushes (weyland-tool-server) → client-side 499. 2Gi gives the
+            # concurrent multipart buffers headroom. Actual idle usage stays ~50Mi.
             limits:
-              memory: 512Mi
+              memory: 2Gi
 ---
 apiVersion: v1
 kind: Service
