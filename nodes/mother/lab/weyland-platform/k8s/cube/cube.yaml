@@ -2,16 +2,11 @@
 # trino-noauth proxy Soda/Lightdash use (Cube's Trino driver sends Basic auth like they do; the proxy strips it so
 # Trino sees only X-Trino-User: dbt). Dev mode ON = the Playground UI + hot model reload (lab-friendly). Model is
 # mounted from the cube-model ConfigMap; grows via git. SQL API (Postgres-wire :15432) + REST + GraphQL on :4000.
-apiVersion: v1
-kind: Secret
-metadata:
-  name: cube-secret
-  namespace: data-mesh
-type: Opaque
-stringData:
-  # JWT signing secret for the Cube API. LAN-only lab; rotate if ever exposed.
-  CUBEJS_API_SECRET: weyland_cube_dev_secret
----
+# B69: `cube-secret` (the `CUBEJS_API_SECRET` JWT signing key) is NO LONGER committed here — a live signing key
+# in plaintext git is a leak. It's now an imperative secret (rotated), to be sealed in Wave 2. Recreate:
+#   kubectl -n data-mesh delete secret cube-secret --ignore-not-found \
+#     && kubectl -n data-mesh create secret generic cube-secret --from-literal=CUBEJS_API_SECRET="$(openssl rand -hex 32)"
+# The Deployment below already reads it via secretKeyRef. (CUBEJS_SQL_PASSWORD stays the shared LAN dev password.)
 apiVersion: v1
 kind: ConfigMap
 metadata:

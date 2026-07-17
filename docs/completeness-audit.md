@@ -10,6 +10,37 @@ artifacts that "run once" but aren't operationally complete. Graded each against
 
 ---
 
+## B69 CURRENT REGISTER — re-audit 2026-07-17 (supersedes the 2026-06-26 snapshot below)
+
+Fresh 3-agent sweep (secrets+gitops · monitoring · backup/trigger/docs) graded against the DoD **operational-completeness** pillar (reproducible · secret-restorable · monitored · backed-up · triggered). The 2026-06-26 register below is kept for history; several items are now RESOLVED (data-mesh backups, all schedules `RUNNING`, Kuma backup committed, Grafana recipe codified) or OBSOLETE (Ollama→rogueone B79, OpenClaw dropped). Current open gaps, prioritized into waves:
+
+### Wave 1 — quick high-value fixes (small edits, real safety)
+- **[monitoring] data-mesh alert rules NOT loaded** — all 17 `k8s/data-mesh/*.yaml` PrometheusRules are labeled `app:` not `release: monitoring`, and the stack sets no `ruleSelectorNilUsesHelmValues: false`. Every data-mesh down-alert (Nessie/lakeFS/DataHub/MinIO/Trino/GizmoSQL/Feast/Superset/all 10 Tier-2) is **silently dead**. Fix: add `release: monitoring` to each (or set the selector). Confirm live: `kubectl get prometheusrule -A -l release=monitoring`.
+- **[monitoring] no dead-man's-switch** — Alertmanager Watchdog → `receiver: 'null'`. Route to an external heartbeat (healthchecks.io / Kuma push) so a dead Prometheus/Alertmanager is noticed.
+- **[secrets] cube JWT signing key in PLAINTEXT in git** — `k8s/cube/cube.yaml` (`CUBEJS_API_SECRET: weyland_cube_dev_secret`). Move to a sealed/imperative secret.
+- **[monitoring] `telegram-test` always-firing alert** — `k8s/monitoring/telegram-test-rule.yaml` (`expr: vector(1)`), self-healed by `monitoring-extras`; pages every 4h forever. Delete / exclude.
+- **[backup] extend the two backup CronJobs** — add `mlflow` + `tofu-state` (+`registry`) to `k8s/minio/backup.yaml` mc-mirror (IRREPLACEABLE: trained models, all IaC state); extend `k8s/data-mesh/backup.yaml` to `pg_dumpall` the FULL `weyland-postgres` (only nessie/lakefs of its 12 DBs are dumped — keycloak realm/superset/weyland-core are irreplaceable and unbacked).
+- **[gitops] Argo-onboard the un-reconciled dirs** — `k8s/istio/` (8 manifests incl STRICT-mTLS PeerAuthentication), `k8s/code-quality/`, and the loose root files (`coredns-custom.yaml` = load-bearing LAN DNS, `coredns-lan.yaml`, `rbac-default-sa-noautomount`, headlamp trio, `rag-index-{neo4j,pgvector}.yaml`) — currently in 0 Applications.
+
+### Wave 2 — secrets management (the big rock)
+- **[secrets] no managed mechanism; ~45 imperative-only secrets.** Adopt **SealedSecrets** (GitOps-native, $0, single-cluster fit): seal all ~45 → commit; write `docs/runbooks/secrets.md` (name → ns → keys → regen); **escrow bricking keys** off-cluster — lakeFS `AUTH_ENCRYPT_SECRET_KEY` (done), n8n encryption key, glitchtip `SECRET`, cube JWT. Also no cert-manager → `weyland-wildcard-tls` (45 ingresses) + mkcert CA are single imperative secrets.
+
+### Wave 3 — reproducibility (images off `:local`)
+- **[gitops] ~20 `:local` / `imagePullPolicy: Never` images** (tool-server · 5× rag-index · 4× flink · feast×2 · 4× dagster · store-scaler · ranger · musicbrainz-import) → `ErrImageNeverPull` on any rebuild. Build+push to `registry.weyland.lab` (now exists), repoint tags, drop `Never`; wire a Woodpecker/B57 pipeline.
+
+### Wave 4 — monitoring / probes / triggers
+- **[monitoring] SPOFs unmonitored** — Keycloak + traefik-forward-auth (single replica, no probes, gate ~18 UIs) → liveness/readiness + down-alerts + Kuma synthetic. Cube/JupyterHub/Ranger/Valkey no ServiceMonitor/alert. Gatekeeper/Flink/Ray scrape-but-no-down-alert. LGTM doesn't monitor itself (no loki/tempo/alloy SM + Down rules).
+- **[monitoring] Hermes gateway** (CT 104) no failure monitoring → systemd heartbeat gated on `systemctl is-active` → Kuma push.
+- **[trigger] manual-only → schedule + freshness** — docs-site rebuild (CronJob), code-quality scans (weekly CronJob + Argo), eval harness/leaderboard (weekly or freshness), roadmap-sync (`.timer`), ai_session producer (commit the rogueone crontab).
+- **[gitops] reproducibility misc** — Hermes runtime bootstrap, Ollama perf/Modelfile config, LiteLLM mutable `main-stable`→digest, headlamp Helm→Argo Application, n8n workflows→git, DataHub recipes UI→reconciled.
+
+### Wave 5 — docs-drift
+- Argo app count 28→**48** (backlog); strike Backstage/Jaeger/OpenClaw from the backlog BODY (retired/dropped, still referenced as live); reconcile DataHub dataset counts (3255 vs 3282 vs 3256); MinIO console SSO sweep.
+
+**Biggest live risks:** unloaded data-mesh alerts (believed-working, dead) · no dead-man's-switch · irreplaceable stores unbacked (core Postgres, mlflow models, tofu-state) · ~45 unmanaged secrets (one node loss = unrecoverable). Wave 1 removes most of the *immediate* danger cheaply.
+
+---
+
 ## DATA-MESH — SOLVE NOW (bucket = data-mesh-now) — ✅ RESOLVED 2026-06-26
 
 All 14 closed inline with B1: iceberg trigger wired (`weyland_eval_score_job`); all schedules
