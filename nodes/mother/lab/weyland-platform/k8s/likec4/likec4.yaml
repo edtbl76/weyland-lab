@@ -30,8 +30,9 @@ spec:
               npm i -g likec4
               likec4 --version
               git clone --depth 1 https://github.com/edtbl76/weyland-lab.git /src
-              cd /src/likec4
-              # --use-hash-history: routes live under /#/... so plain nginx needs no SPA rewrite rules.
+              cd /src/docs
+              # Model + likec4.config.json live under docs/ (so the mkdocs-likec4 plugin discovers the same
+              # project). --use-hash-history: routes under /#/... so plain nginx needs no SPA rewrite rules.
               likec4 build -o /site --base / --use-hash-history
           resources:
             requests: { cpu: 250m, memory: 512Mi }

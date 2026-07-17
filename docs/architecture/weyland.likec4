@@ -1,0 +1,286 @@
+// B64 — weyland architecture as a single LikeC4 model (source of truth). Rebuilt 2026-07-16 from the live k8s
+// manifests + hosts.md/arch.md, NOT the stale Mermaid C4 diagrams. Views below auto-generate the whole C4
+// hierarchy (landscape -> node topology -> mother's planes -> per-plane components) + rogueone. Powers the
+// standalone explorer (likec4.weyland.lab) AND the in-page docs embeds (mkdocs-likec4).
+specification {
+  element actor {
+    style { shape person }
+  }
+  element system
+  element node          // physical deployment unit (VM / LXC / laptop)
+  element zone          // logical grouping (a "plane") inside a node
+  element component
+  element store {
+    style { shape cylinder }
+  }
+  element gateway
+  element ext
+}
+
+model {
+  edward = actor "Edward" "Lab operator — sole user"
+
+  // ---- External clouds / SaaS ----
+  telegram = ext "Telegram" "Cloud messaging — Hermes DMs in, Alertmanager + Kuma alerts out"
+  github = ext "GitHub" "weyland-lab repo — RAG source (Dagster git-pull) + Argo/Woodpecker/Port"
+  anthropic = ext "Anthropic API" "Claude — Claude Code reasoning on rogueone"
+  hostedModels = ext "Gemini / OpenRouter" "Hosted LLMs fronted by the LiteLLM gateway (gated egress)"
+  huggingface = ext "Hugging Face Hub" "Model weights (bge-small, GGUF) at setup"
+  tavily = ext "Tavily" "Web search (OpenClaw skill — deprioritized)"
+  port = ext "Port.io" "IDP / catalog + self-service actions (EU SaaS)"
+  linear = ext "Linear" "Roadmap / task status (ingested by Port)"
+
+  // ---- rogueone: external laptop, not always-on ----
+  rogueone = node "rogueone" "RTX 5000 Ada laptop (.230) — GPU inference + training edge. Not always-on." {
+    ollama = component "Ollama" "CPU/GPU LLM serving — ollama.weyland.lab :11434 (moved here B79)"
+    vllm = component "vLLM" "GPU inference :8000/v1"
+    rayWorker = component "Ray edge worker" "Native worker — joins mother's Ray head :6379 (token auth)"
+    genreTrainer = component "genre-trainer" "Dockerized trainer — reads silver, logs to MLflow"
+    ragEmbed = component "rag-embed" "bge-small embed service :8900 (warm GPU)"
+    claudeCode = component "Claude Code" "MCP client of tool-server; Claude brain"
+  }
+
+  weyland = system "weyland" "Home AI lab on a Minisforum MS-A2 (Proxmox bare-metal, .232). LAN-only." {
+
+    mother = node "mother VM" "k3s (vm-101, .243) — 64GB/12vCPU. Istio-meshed. The shared AI platform." {
+
+      // ============ AI / RAG serving plane ============
+      ai = zone "AI / RAG serving plane" {
+        toolServer = component "weyland-tool-server" "FastAPI boundary — RAG retrieval (4 backends), /context/ask, /evals, /pipeline, /mcp, guardrails"
+        dagster = component "Dagster" "Orchestrator (cross-cutting) — RAG stream, evals, catalog, datasets_lib, store hydration, dbt, DataHub emit"
+        litellm = gateway "LiteLLM" "Model gateway — Gemini + OpenRouter behind OpenAI /v1 (gated egress)"
+        openWebui = component "Open WebUI" "Browser voice/chat — chat -> Ollama, STT -> whisper"
+        pg = store "Postgres + pgvector" "Spine store — rag_chunks, eval_*, model_catalog, guardrail_verdicts. STRICT mTLS"
+        qdrant = store "Qdrant" "Vector store — weyland_chunks + 9 dataset collections"
+        weav = store "Weaviate" "Vector store — WeylandChunk + 9 dataset classes"
+        neo = store "Neo4j" "Graph + vector (GraphRAG) — AIDLC :Entry graph + music graph"
+        neodash = component "NeoDash" "Neo4j dashboard / viz"
+        ragIndex = component "rag-index consumers" "5 stream consumers — replay Redpanda rag.chunks into each store"
+      }
+
+      // ============ Data mesh / lakehouse plane ============
+      mesh = zone "Data mesh / lakehouse plane" {
+        // storage + catalog
+        nessie = component "Nessie" "Iceberg REST catalog + table versioning (Postgres + MinIO warehouse)"
+        lakefs = component "lakeFS" "git-style dataset versioning (Postgres + MinIO); NodePort 30800"
+        // query / BI / semantic / transform
+        trino = component "Trino" "Federation SQL — iceberg (native Nessie) + postgresql catalogs"
+        gizmosql = component "GizmoSQL" "DuckDB over Arrow Flight SQL — persisted silver tables"
+        superset = component "Superset" "BI/SQL exploration over Trino + stores"
+        lightdash = component "Lightdash" "dbt-native BI over the marts"
+        cube = component "Cube" "Semantic / metrics layer over the marts (SQL/REST/GraphQL)"
+        dbtDocs = component "dbt Core + docs" "dbt-trino builds 7 Iceberg marts iceberg.dbt.mart_*"
+        trinoNoauth = component "trino-noauth proxy" "Strips auth for Lightdash / Cube -> Trino"
+        // feature store + ML tier
+        feast = component "Feast server" "Feature store — registry/offline=Postgres, online=Valkey"
+        feastUi = component "Feast UI" "Feast registry browser"
+        mlflow = component "MLflow" "Experiment tracking + model registry (Postgres + MinIO); NodePort 30500"
+        ray = component "Ray head" "Persistent Ray cluster (token auth) — rogueone joins as edge worker"
+        jupyterhub = component "JupyterHub" "Notebooks (KubeSpawner) — singleuser pods on-demand"
+        lancedb = component "LanceDB viewer" "Embedded Lance vector store on lakeFS + browse UI"
+        // streaming
+        redpanda = component "Redpanda" "Kafka-wire broker + Schema Registry — datasets.* / cdc.* / rag.chunks"
+        kafkaConnect = component "Kafka Connect (Debezium)" "CDC from musicbrainz-postgres -> cdc.*"
+        flinkOp = component "Flink Operator" "Manages the Flink 1.20 session cluster"
+        flink = component "Flink session cluster" "4 jobs — RTA, CDC, health (Java), music (PyFlink) -> Iceberg"
+        flinkHistory = component "Flink History Server" "Archived Flink jobs"
+        // tier-2 stores
+        clickhouse = store "ClickHouse" "Columnar OLAP — native s3() ingest from lakeFS"
+        cassandra = store "Cassandra" "Wide-column (StatefulSet) — lastfm ~17M rows"
+        cockroach = store "CockroachDB" "Distributed SQL (single-node) — brfss / nhis"
+        mysql = store "MySQL" "Health datasets — 6 DBs / 32 tables"
+        mongodb = store "MongoDB" "Document store — who_gho, OFF, aidlc-kb"
+        timescale = store "TimescaleDB" "Time-series hypertables"
+        opensearch = store "OpenSearch" "Search / analytics — RAG BM25 index target"
+        musicbrainz = store "MusicBrainz Postgres" "Full mbdump — CDC source"
+        valkey = store "Valkey" "Shared cache — Superset / Feast online"
+        // governance
+        datahub = component "DataHub" "Metadata catalog + lineage + domains/products/glossaries"
+        ranger = component "Apache Ranger" "Trino data-plane authz — column masking, default-deny"
+        soda = component "Soda" "Data-quality contracts over marts -> DataHub Assertions"
+        storeScaler = component "store-scaler" "Scales Tier-2 stores (Port action target)"
+      }
+
+      // ============ Platform / ops plane ============
+      ops = zone "Platform / ops plane" {
+        keycloak = component "Keycloak" "Central IdP/SSO — OIDC + forward-auth for every UI"
+        forwardAuth = gateway "traefik-forward-auth" "SSO gate for non-OIDC UIs (auth.weyland.lab)"
+        traefik = gateway "Traefik" "k3s ingress — TLS front door (*.weyland.lab)"
+        coredns = component "CoreDNS" "LAN DNS — *.weyland.lab wildcard + custom forwards"
+        apisix = gateway "APISIX" "API/data-plane gateway — fronts tool-server + backends"
+        minio = store "MinIO" "S3 object storage (8TB) — warehouse/lakefs/mlflow/registry/..."
+        filestash = component "Filestash" "MinIO browser UI"
+        grafana = component "Prometheus + Grafana" "Metrics + Alertmanager -> Telegram"
+        loki = component "Loki + Alloy" "Logs -> MinIO; ruler -> Alertmanager"
+        tempo = component "Tempo" "Traces -> MinIO (Jaeger retired)"
+        pveExporter = component "PVE exporter" "Proxmox metrics -> Prometheus"
+        glitchtip = component "GlitchTip" "Error tracking -> Port"
+        kuma = component "Uptime Kuma" "25 monitors -> Telegram"
+        istiod = component "istiod" "Istio mesh control plane (PERMISSIVE; Postgres STRICT)"
+        kiali = component "Kiali" "Mesh observability UI"
+        headlamp = component "Headlamp" "Kubernetes UI"
+        argocd = component "Argo CD" "GitOps CD — app-of-apps, 28 apps"
+        woodpecker = component "Woodpecker CI" "CI/CD (k8s backend)"
+        unleash = component "Unleash" "Feature flags -> Port"
+        sonarqube = component "SonarQube" "Code quality (+ Trivy/Semgrep jobs)"
+        opencost = component "OpenCost" "k8s cost allocation -> Port"
+        gatekeeper = component "OPA Gatekeeper" "Admission control + Policy Manager"
+        keda = component "KEDA" "Autoscaling / run-mode engine (on-demand stores)"
+        registry = component "Container registry" "MinIO-backed OCI registry (LAN)"
+        registryUi = component "Registry UI" "Registry browser"
+        docsSite = component "docs-site" "MkDocs Material docs + Tools launchpad"
+        likec4Viewer = component "LikeC4" "This architecture model viewer"
+        n8n = component "n8n" "Workflow automation (ingestion retired -> Dagster)"
+        portAgent = component "Port agent" "Outbound polling — runs Port self-service actions"
+        portExporter = component "Port k8s-exporter" "In-cluster catalog agent -> Port"
+      }
+    }
+
+    hermes = node "hermes CT" "Python/systemd (CT 104, .247) — primary agent, MCP client, Telegram front door"
+    whisper = node "whisper CT" "whisper.cpp (CT 103, .246) — CPU STT (:8080 native, :9000 OpenAI shim)"
+    openclaw = node "openclaw VM" "DEPRIORITIZED (B28) — shelved, RAM reclaimed (vm-100, .169)"
+  }
+
+  // ================= Relationships =================
+
+  // Context / access
+  edward -> weyland.mother.ai.openWebui "voice/chat UI"
+  edward -> weyland.hermes "Telegram DM (allowlisted)"
+  edward -> rogueone.claudeCode "develops on"
+  telegram -> weyland.hermes "inbound DM"
+  weyland.hermes -> telegram "agent replies"
+  weyland.mother.ops.grafana -> telegram "Alertmanager notifications"
+  weyland.mother.ops.kuma -> telegram "uptime alerts"
+
+  // Agents
+  weyland.hermes -> weyland.mother.ai.toolServer "MCP /mcp (read-only)"
+  weyland.hermes -> weyland.mother.ai.litellm "planning /v1 (Gemini)"
+  weyland.hermes -> rogueone.ollama "brain — qwen3-coder /v1"
+  weyland.hermes -> github "roadmap-sync (6h)"
+  rogueone.claudeCode -> weyland.mother.ai.toolServer "MCP /mcp"
+  rogueone.claudeCode -> anthropic "Claude reasoning"
+
+  // RAG serving
+  weyland.mother.ops.apisix -> weyland.mother.ai.toolServer "gateway routes /context, /pipeline"
+  weyland.mother.ai.toolServer -> weyland.mother.ai.pg "embed + retrieve rag_chunks"
+  weyland.mother.ai.toolServer -> weyland.mother.ai.qdrant "retrieve"
+  weyland.mother.ai.toolServer -> weyland.mother.ai.weav "retrieve"
+  weyland.mother.ai.toolServer -> weyland.mother.ai.neo "retrieve"
+  weyland.mother.ai.toolServer -> rogueone.ollama "RAG generate + eval judge /v1"
+  weyland.mother.ai.toolServer -> weyland.mother.ai.litellm "hosted-model gen"
+  weyland.mother.ai.litellm -> hostedModels "egress: Gemini / OpenRouter"
+  weyland.mother.ai.openWebui -> rogueone.ollama "chat /v1"
+  weyland.mother.ai.openWebui -> weyland.whisper "STT /v1/audio/transcriptions"
+  weyland.mother.ai.neodash -> weyland.mother.ai.neo "Bolt (browser-side)"
+  weyland.mother.ai.toolServer -> weyland.mother.ops.glitchtip "error push (Sentry SDK)"
+
+  // RAG streaming ingestion
+  weyland.mother.ai.dagster -> github "git-pull docs/ + nodes/ (RAG source)"
+  weyland.mother.ai.dagster -> rogueone.ragEmbed "chunk + embed :8900"
+  weyland.mother.ai.dagster -> weyland.mother.mesh.redpanda "produce rag.chunks (Avro)"
+  weyland.mother.ai.ragIndex -> weyland.mother.mesh.redpanda "consume rag.chunks (5 groups)"
+  weyland.mother.ai.ragIndex -> weyland.mother.ai.qdrant "upsert / delete"
+  weyland.mother.ai.ragIndex -> weyland.mother.ai.weav "upsert / delete"
+  weyland.mother.ai.ragIndex -> weyland.mother.ai.neo "MERGE nodes / edges"
+  weyland.mother.ai.ragIndex -> weyland.mother.ai.pg "upsert rag_chunks"
+  weyland.mother.ai.ragIndex -> weyland.mother.mesh.opensearch "BM25 index"
+
+  // Datasets lakehouse / hydration
+  weyland.mother.ai.dagster -> weyland.mother.mesh.lakefs "write bronze/silver + commit"
+  weyland.mother.ai.dagster -> weyland.mother.mesh.nessie "write gold Iceberg"
+  weyland.mother.ai.dagster -> weyland.mother.mesh.dbtDocs "run dbt (7 marts)"
+  weyland.mother.ai.dagster -> weyland.mother.mesh.datahub "catalog emit (6h)"
+  weyland.mother.ai.dagster -> weyland.mother.mesh.mysql "hydrate health datasets"
+  weyland.mother.ai.dagster -> weyland.mother.mesh.clickhouse "hydrate (native s3)"
+  weyland.mother.ai.dagster -> weyland.mother.mesh.cassandra "hydrate"
+  weyland.mother.ai.dagster -> weyland.mother.mesh.cockroach "hydrate"
+  weyland.mother.ai.dagster -> weyland.mother.mesh.mongodb "hydrate"
+  weyland.mother.ai.dagster -> weyland.mother.mesh.timescale "hourly hypertables"
+  weyland.mother.mesh.kafkaConnect -> weyland.mother.mesh.musicbrainz "CDC -> cdc.* topics"
+  weyland.mother.mesh.flink -> weyland.mother.mesh.redpanda "consume datasets.* / cdc.*"
+  weyland.mother.mesh.flink -> weyland.mother.mesh.nessie "write Iceberg analytics.*"
+
+  // Query / BI / semantic
+  weyland.mother.mesh.dbtDocs -> weyland.mother.mesh.trino "dbt-trino materializes marts"
+  weyland.mother.mesh.trino -> weyland.mother.mesh.nessie "iceberg catalog (native Nessie)"
+  weyland.mother.mesh.trino -> weyland.mother.ai.pg "postgresql catalog (mesh)"
+  weyland.mother.mesh.gizmosql -> weyland.mother.mesh.lakefs "persisted DuckDB from Parquet"
+  weyland.mother.mesh.superset -> weyland.mother.mesh.trino "BI queries"
+  weyland.mother.mesh.superset -> weyland.mother.mesh.valkey "Celery cache"
+  weyland.mother.mesh.lightdash -> weyland.mother.mesh.trinoNoauth "dbt-native BI"
+  weyland.mother.mesh.cube -> weyland.mother.mesh.trinoNoauth "semantic layer"
+  weyland.mother.mesh.trinoNoauth -> weyland.mother.mesh.trino "auth-stripped hop"
+
+  // Feature store / ML
+  weyland.mother.mesh.feast -> weyland.mother.ai.pg "registry + offline"
+  weyland.mother.mesh.feast -> weyland.mother.mesh.valkey "online serving"
+  rogueone.genreTrainer -> weyland.mother.mesh.lakefs "read silver"
+  rogueone.genreTrainer -> weyland.mother.mesh.mlflow "log runs + registry :30500"
+  rogueone.rayWorker -> weyland.mother.mesh.ray "join cluster :6379 (token)"
+  weyland.mother.mesh.mlflow -> weyland.mother.ops.minio "artifact store"
+  weyland.mother.mesh.jupyterhub -> weyland.mother.mesh.trino "notebook queries"
+
+  // Governance / catalog
+  weyland.mother.mesh.datahub -> weyland.mother.mesh.trino "native source ingestion"
+  weyland.mother.mesh.ranger -> weyland.mother.mesh.trino "column masking / policy"
+  weyland.mother.mesh.soda -> weyland.mother.mesh.trino "data-quality scans"
+
+  // Storage backends
+  weyland.mother.mesh.nessie -> weyland.mother.ops.minio "Iceberg warehouse"
+  weyland.mother.mesh.lakefs -> weyland.mother.ops.minio "blockstore"
+  weyland.mother.ops.registry -> weyland.mother.ops.minio "image blobs"
+  weyland.mother.ops.loki -> weyland.mother.ops.minio "log chunks"
+
+  // Platform / ops
+  weyland.mother.ops.coredns -> weyland.mother.ops.traefik "*.weyland.lab -> Traefik"
+  weyland.mother.ops.forwardAuth -> weyland.mother.ops.keycloak "SSO gate"
+  weyland.mother.ops.istiod -> weyland.mother.ai.toolServer "inject Envoy sidecars"
+  weyland.mother.ops.grafana -> weyland.mother.ai.toolServer "scrape /metrics"
+  weyland.mother.ops.grafana -> rogueone.rayWorker "scrape :8080 (static target)"
+  weyland.mother.ops.kiali -> weyland.mother.ops.grafana "Envoy mesh metrics"
+  weyland.mother.ops.argocd -> github "GitOps reconcile (28 apps)"
+  weyland.mother.ops.opencost -> weyland.mother.ops.grafana "cost metrics"
+  weyland.mother.ops.portAgent -> port "claim action runs"
+  weyland.mother.ops.portAgent -> weyland.mother.mesh.storeScaler "run store scale"
+  weyland.mother.ops.portExporter -> port "catalog sync"
+  port -> linear "roadmap ingest"
+  weyland.mother.ai.dagster -> huggingface "model weights (setup)"
+  weyland.openclaw -> tavily "web search (deprioritized)"
+}
+
+views {
+  view index {
+    title "weyland — system landscape"
+    include *
+  }
+
+  view topology of weyland {
+    title "weyland — node topology (MS-A2)"
+    include *
+  }
+
+  view rogueoneView of rogueone {
+    title "rogueone — GPU inference + training edge"
+    include *
+  }
+
+  view mother of weyland.mother {
+    title "mother VM — the three planes"
+    include *
+  }
+
+  view aiPlane of weyland.mother.ai {
+    title "AI / RAG serving plane"
+    include *
+  }
+
+  view meshPlane of weyland.mother.mesh {
+    title "Data mesh / lakehouse plane"
+    include *
+  }
+
+  view opsPlane of weyland.mother.ops {
+    title "Platform / ops plane"
+    include *
+  }
+}
