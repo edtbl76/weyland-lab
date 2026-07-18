@@ -1,0 +1,13 @@
+# Weekly trigger for weyland-image-prune.service. mother's host clock is UTC, so this is Sun 15:00 UTC (= 11:00
+# America/New_York) — a quiet window clear of the 05:00–10:00 UTC DataHub train and the 06:17 UTC Dagster heavy job.
+# Persistent = catch-up if the box was off at fire time.
+[Unit]
+Description=Weekly k3s/containerd image prune
+
+[Timer]
+OnCalendar=Sun 15:00
+Persistent=true
+RandomizedDelaySec=600
+
+[Install]
+WantedBy=timers.target

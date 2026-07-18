@@ -1,7 +1,7 @@
 # Weyland — Master Schedule
 
 Single source of truth for **everything that runs on a timer** in the lab: Dagster schedules,
-DataHub managed-ingestion sources, and the data-store scale-down cron. Keep this updated whenever a
+DataHub managed-ingestion sources, k8s CronJobs, and **node systemd timers** (mother). Keep this updated whenever a
 schedule is added, moved, or disabled (same discipline as [hosts.md](hosts.md) / [api.md](api.md)).
 
 ## Timezone — one clock now
@@ -47,6 +47,7 @@ Heavy = embeds/writes or large scans (guard the node's RAM). Light = metadata/re
 | 04:30 | DataHub | ClickHouse (datasets_music + datasets_health) | weekly (Sun) | med — profiling cheap (columnar) |
 | 04:45 | DataHub | Postgres — MusicBrainz | weekly (Sun) | **heavy scan** |
 | 05:00 | DataHub | dbt (marts + tests-as-assertions + column lineage; reads `s3://warehouse/_dbt_artifacts/`, siblings onto `iceberg.dbt.*`) | daily | light — recommend 05:00 to clear the 01:00–04:45 DataHub train. Daily connector over **weekly** (Sun 06:00) artifacts = harmless idempotent re-ingest most days; fresh artifacts land ≤1 day after a build. |
+| **11:00 (Sun)** | node systemd (mother) | `weyland-image-prune` (`k3s crictl rmi --prune`) — frees ephemeral storage so the node never re-hits the eviction line (B69, `nodes/mother/host/systemd/`) | weekly (Sun) | — (host timer @ **15:00 UTC**; quiet slot clear of the DataHub train) |
 
 **Ordering note (risk currently DORMANT):** a nightly `02:00` scale-down *would* take
 cockroach/mongo/mysql/gizmosql to 0, and the DataHub ingestions that read them (Cockroach 03:30, Mongo

@@ -1,0 +1,32 @@
+# B69 Wave 4 — node rootfs disk-fill alerts. The 2026-07-18 outage started when mother's rootfs hit the kubelet
+# ephemeral-storage eviction threshold → kubelet evicted pods AND garbage-collected images (incl. the `pause`
+# sandbox) → new pods couldn't start → argocd-repo-server down → cascade. These fire BEFORE that line so a human
+# prunes first (weyland-image-prune.timer, or `sudo k3s crictl rmi --prune`). See runbooks/lan-dns.md.
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: node-disk
+  namespace: monitoring
+  labels: { release: monitoring }
+spec:
+  groups:
+    - name: node-disk
+      rules:
+        - alert: NodeRootDiskWarning
+          expr: |
+            (1 - node_filesystem_avail_bytes{mountpoint="/",fstype!~"tmpfs|overlay|squashfs"}
+               / node_filesystem_size_bytes{mountpoint="/",fstype!~"tmpfs|overlay|squashfs"}) > 0.80
+          for: 15m
+          labels: { severity: warning }
+          annotations:
+            summary: "{{ $labels.instance }} rootfs {{ $value | humanizePercentage }} full"
+            description: "Approaching the kubelet ephemeral-storage eviction threshold. Prune images (weyland-image-prune.timer / `sudo k3s crictl rmi --prune`) or free space before pods + the pause image get evicted."
+        - alert: NodeRootDiskCritical
+          expr: |
+            (1 - node_filesystem_avail_bytes{mountpoint="/",fstype!~"tmpfs|overlay|squashfs"}
+               / node_filesystem_size_bytes{mountpoint="/",fstype!~"tmpfs|overlay|squashfs"}) > 0.90
+          for: 5m
+          labels: { severity: critical }
+          annotations:
+            summary: "{{ $labels.instance }} rootfs {{ $value | humanizePercentage }} full — eviction imminent"
+            description: "Near the ephemeral-storage eviction line — kubelet will evict pods and GC images (incl. the pause sandbox → new pods can't start). Prune NOW: `sudo k3s crictl rmi --prune`."

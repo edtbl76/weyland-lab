@@ -1,0 +1,17 @@
+# Weekly containerd (k3s) image prune — removes unused/dangling images so mother's rootfs doesn't creep toward the
+# ephemeral-storage eviction threshold. The 2026-07-18 outage: disk fill → kubelet GC'd the `pause` image → every
+# new pod stuck ContainerCreating → argocd-repo-server down → cascade (see docs/runbooks/lan-dns.md). Stale images
+# accumulate fast here (each :local→registry rebuild leaves old ReplicaSet images behind).
+#
+# Deploy (manual rsync — paired with weyland-image-prune.timer):
+#   rsync -av nodes/mother/host/systemd/weyland-image-prune.{service,timer} emangini@mother:/tmp/
+#   sudo install -m 0644 /tmp/weyland-image-prune.service /tmp/weyland-image-prune.timer /etc/systemd/system/
+#   sudo systemctl daemon-reload && sudo systemctl enable --now weyland-image-prune.timer
+[Unit]
+Description=Prune unused k3s/containerd images (free ephemeral storage)
+Wants=k3s.service
+After=k3s.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/k3s crictl rmi --prune
