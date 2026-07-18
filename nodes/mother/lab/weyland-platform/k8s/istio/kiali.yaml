@@ -169,10 +169,10 @@ data:
         ignore:
         - KIA1301
     login_token:
-      # Inert under `strategy: anonymous` (no session tokens are issued/signed), but set to a non-placeholder
-      # so it's not the addon's CHANGEME. If auth ever moves to token/openid, replace this with a real random
-      # key injected from a k8s Secret, not a committed value.
-      signing_key: a3f1c8e2b7d40695
+      # B89: signing_key is sourced from the `kiali` SealedSecret (istio-system, key `signing-key`), which the
+      # Deployment mounts at /kiali-secret/signing-key. Empty here = Kiali reads it from that mount, so no key
+      # lives in this public manifest. Inert anyway under `strategy: anonymous` (no session tokens are signed).
+      signing_key: ""
     server:
       observability:
         metrics:
