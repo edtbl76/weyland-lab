@@ -159,6 +159,10 @@ prometheus:
             labels:
               ray_node_type: worker
     retention: 15d
+    # Hard size cap BELOW the 20Gi PVC (2026-07-18) — Prometheus drops oldest blocks at whichever comes first,
+    # 15d OR 16GB, so a series-count spike can never fill the volume and pressure the root disk (the eviction that
+    # kicked off the DNS outage). ~4Gi headroom left for WAL/compaction.
+    retentionSize: 16GB
     storageSpec:
       volumeClaimTemplate:
         spec:
