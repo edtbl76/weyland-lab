@@ -7,7 +7,7 @@ ENV DEBIAN_FRONTEND=noninteractive
 RUN apt-get update && apt-get install -y --no-install-recommends \
       curl ca-certificates git xz-utils default-jre-headless \
     && rm -rf /var/lib/apt/lists/* \
-    && pip install --no-cache-dir checkov==3.2.257 bandit==1.7.10 semgrep==1.90.0
+    && pip install --no-cache-dir setuptools checkov==3.2.257 bandit==1.7.10 semgrep==1.90.0
 
 # Static binaries (amd64). Each is a single file → drop into /usr/local/bin.
 RUN set -eux; \

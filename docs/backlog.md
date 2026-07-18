@@ -1066,6 +1066,14 @@ All land in lakeFS → Parquet → Iceberg → Trino/DuckDB queryable. Gated dat
 
 ---
 
+### B88 — Per-language test runners on Woodpecker — Maturity / Polish
+**Added 2026-07-18.** The B69 weekly scans (`scan-suite` + `sonar-scan`) are **quality gates** — static/security/hotspot analysis, no code execution. The missing sibling is **test execution**: Woodpecker CI pipelines that actually build + run the test suites per language (Python/pytest, Java/Maven for the Flink modules, shell, etc.) so regressions are caught, not just smells. This is the LAN-native answer to "no GitHub Actions" ([[lan-no-github-webhooks]]) — Woodpecker polls/triggers in-cluster.
+- Stand up language-specific runner images/pipelines (start with pytest for `weyland_pipeline` + `mvn test` for `k8s/flink/*`).
+- Wire results into the same surfaces the scans use (Port `code-quality` / a test-results webhook) so pass/fail trends live alongside the quality gates.
+- Trigger model matches the rest of the LAN lab: cron/poll or manual, not push webhooks.
+
+---
+
 ## Iteration 1 follow-ups (banked, see units-iter1.md)
 - **U17** — Migrate platform API routes APISIX→Traefik; APISIX→outliers-only. **DROPPED as stale.**
 - **U18** — weyland-lab SSH key. ✅ **DONE 2026-06-17 as KEY RETIREMENT** (B25b mooted the lockdown — key had

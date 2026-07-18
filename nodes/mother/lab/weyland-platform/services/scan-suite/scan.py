@@ -46,7 +46,7 @@ def post(tool, c):
     total = sum(c.values())
     payload = {"tool": tool, "target": TARGET, "critical": c["critical"], "high": c["high"],
                "medium": c["medium"], "low": c["low"], "total": total,
-               "scannedAt": datetime.datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")}
+               "scannedAt": datetime.datetime.now(datetime.UTC).strftime("%Y-%m-%dT%H:%M:%SZ")}
     print(f"  = {tool}: {c['critical']}C / {c['high']}H / {c['medium']}M / {c['low']}L (total {total})", flush=True)
     if not PORT_URL:
         print("  (PORT_INGEST_URL unset — skipping POST)", flush=True)
@@ -200,6 +200,7 @@ def codemaat():
     # Behavioral analysis (the free CodeScene equivalent) — NOT severity-based, so no Port POST. Emit the top
     # change-hotspots (files touched most = highest maintenance risk) to the log + save the CSV for review.
     log = f"{OUT}/maat.log"
+    sh(["git", "config", "--global", "--add", "safe.directory", SRC])  # clone runs as root, scan as uid 10001 -> git "dubious ownership"
     sh(["git", "-C", SRC, "log", "--pretty=format:[%h] %an %ad %s", "--date=short", "--numstat"], outfile=log)
     sh(["java", "-jar", "/opt/code-maat.jar", "-l", log, "-c", "git2", "-a", "revisions"],
        outfile=f"{OUT}/maat-hotspots.csv")
@@ -213,7 +214,7 @@ def codemaat():
 
 
 if __name__ == "__main__":
-    print(f"=== weyland code-scan suite @ {datetime.datetime.utcnow().isoformat()}Z  src={SRC} ===", flush=True)
+    print(f"=== weyland code-scan suite @ {datetime.datetime.now(datetime.UTC).strftime('%Y-%m-%dT%H:%M:%SZ')}  src={SRC} ===", flush=True)
     for fn in (gitleaks, checkov, kubescape, hadolint, bandit, osv, shellcheck, semgrep, trivy, codemaat):
         try:
             fn()
