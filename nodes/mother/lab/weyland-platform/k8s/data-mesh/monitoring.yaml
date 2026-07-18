@@ -31,19 +31,8 @@ spec:
     - port: http # 8000
       path: /metrics
 ---
-apiVersion: monitoring.coreos.com/v1
-kind: ServiceMonitor
-metadata:
-  name: minio
-  namespace: minio
-spec:
-  selector:
-    matchLabels:
-      app: minio
-  endpoints:
-    - port: api # 9000 (MINIO_PROMETHEUS_AUTH_TYPE is set, so scrapable)
-      path: /minio/v2/metrics/cluster
----
+# minio ServiceMonitor removed here — it's single-owned in monitoring/servicemonitors.yaml now. Two apps owning one
+# SM (this data-mesh app vs monitoring-extras) flip-flopped the Argo tracking-id → perpetual OutOfSync.
 apiVersion: monitoring.coreos.com/v1
 kind: PrometheusRule
 metadata:

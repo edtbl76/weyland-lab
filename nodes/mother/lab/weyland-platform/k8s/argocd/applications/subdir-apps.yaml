@@ -317,3 +317,82 @@ spec:
     namespace: data-mesh
   syncPolicy:
     automated: { selfHeal: true, prune: true }
+
+---
+# code-quality scan Jobs (weyland ns). Weekly-CronJob conversion is Wave 4.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: code-quality
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/edtbl76/weyland-lab.git
+    targetRevision: main
+    path: nodes/mother/lab/weyland-platform/k8s/code-quality
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: weyland
+  syncPolicy:
+    automated: { selfHeal: true, prune: true }
+---
+# Istio MESH CONFIG (STRICT-mTLS PeerAuthentication, Telemetry, Kiali, VirtualServices, PodMonitor). MANUAL-first
+# (mesh blast radius) + ServerSideApply. Install CR (istio-install.yaml, IstioOperator) EXCLUDED — istioctl-managed.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: istio-config
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/edtbl76/weyland-lab.git
+    targetRevision: main
+    path: nodes/mother/lab/weyland-platform/k8s/istio
+    directory:
+      exclude: 'istio-install.yaml'
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: istio-system
+  syncPolicy: # manual — review diff first; then add `automated: { selfHeal: true, prune: false }`
+    syncOptions:
+      - ServerSideApply=true
+---
+# B69 Wave 2 — applies the committed SealedSecret CRs (k8s/sealed-secrets/sealed/). Each self-specifies its ns;
+# the controller decrypts each into its real Secret. prune:false — never auto-delete a live Secret.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: sealed-secrets-manifests
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/edtbl76/weyland-lab.git
+    targetRevision: main
+    path: nodes/mother/lab/weyland-platform/k8s/sealed-secrets/sealed
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: weyland
+  syncPolicy:
+    automated: { selfHeal: true, prune: false }
+---
+# B69 Wave 3 — Traefik readTimeout=0 override (HelmChartConfig; k3s helm-controller reconciles it). Fixes the 60s
+# request-read deadline that guillotined multi-GB registry pushes. See runbooks + traefik-readtimeout memory.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: traefik-config
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/edtbl76/weyland-lab.git
+    targetRevision: main
+    path: nodes/mother/lab/weyland-platform/k8s/traefik
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: kube-system
+  syncPolicy:
+    automated: { selfHeal: true, prune: true }
