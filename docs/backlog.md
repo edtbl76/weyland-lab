@@ -1074,6 +1074,21 @@ All land in lakeFS → Parquet → Iceberg → Trino/DuckDB queryable. Gated dat
 
 ---
 
+### B89 — Drive the scan-suite findings to zero — Security / Hardening
+**Added 2026-07-18.** The B69 weekly `code-scan-suite` now surfaces the *real* backlog of issues across 9 tools in Port `security_scan`. This item = the remediation pass (the B47 SonarQube/Trivy fix, but suite-wide). Work criticals → highs first:
+- **gitleaks `1 Critical` = a committed secret on a PUBLIC repo** — triage FIRST; if it's live, rotate + purge from history. Highest priority regardless of the rest.
+- **osv-scanner 56 High** (dependency CVEs) + **trivy 204 High / 245 Med** (vuln/misconfig/secret) — the bulk; likely overlaps the B47 accepted-residuals (`KSV-0118`/`KSV-0014` readOnlyRootFilesystem). Re-triage: fix or document-and-`.trivyignore` each.
+- **semgrep 4 High**, **bandit 6 High**, **kubescape 6 High** — code + workload hardening.
+- Track the counts trending down in the Port `security_scan` view run-over-run; the weekly cron is the regression guard.
+
+### B90 — Build out the Code Quality Port surface (code-maat + Sonar detail) — Maturity / Polish
+**Added 2026-07-18.** Today the `code_quality` blueprint holds only SonarQube's `qualityGate`. Make the Code Qualities page the real code-health surface:
+- **code-maat hotspots → Port** — scan.py currently only *logs* the change-hotspots (`entity,n-revs`); add a Port POST (new `code_hotspot` blueprint or a hotspots array on `code_quality`) so the CodeScene-style behavioral data is visible/queryable, not buried in a pod log.
+- **Richer SonarQube** — surface bugs/vulns/code-smells/coverage/duplication measures (Port already has SonarQube Issues/Projects catalog tables via the Ocean integration — wire them together on one page).
+- Goal: one Port view answering "where is the risk + churn" — pairs with B89 (findings) and B88 (test runners).
+
+---
+
 ## Iteration 1 follow-ups (banked, see units-iter1.md)
 - **U17** — Migrate platform API routes APISIX→Traefik; APISIX→outliers-only. **DROPPED as stale.**
 - **U18** — weyland-lab SSH key. ✅ **DONE 2026-06-17 as KEY RETIREMENT** (B25b mooted the lockdown — key had

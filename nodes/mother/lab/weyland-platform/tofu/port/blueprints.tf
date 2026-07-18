@@ -557,6 +557,92 @@ resource "port_blueprint" "code_quality" {
   webhook_changelog_destination = null
 }
 
+# code_hotspot — B90: code-maat change-hotspots (behavioral analysis) from the scan-suite. One entity per hot file,
+# ranked by revision count. Fed by the same code-quality webhook DS (kind:"hotspot" discriminator routes the mapping).
+resource "port_blueprint" "code_hotspot" {
+  calculation_properties      = null
+  create_catalog_page         = true
+  description                 = null
+  force_delete_entities       = false
+  icon                        = "Git"
+  identifier                  = "code_hotspot"
+  include_in_global_search    = null
+  kafka_changelog_destination = null
+  mirror_properties           = null
+  ownership                   = null
+  properties = {
+    array_props   = null
+    boolean_props = null
+    number_props = {
+      revisions = {
+        default     = null
+        description = null
+        enum        = null
+        enum_colors = null
+        icon        = null
+        maximum     = null
+        minimum     = null
+        required    = false
+        title       = "Change Count"
+      }
+    }
+    object_props = null
+    string_props = {
+      file = {
+        date_format         = null
+        default             = null
+        description         = null
+        enum                = null
+        enum_colors         = null
+        format              = null
+        icon                = null
+        max_length          = null
+        min_length          = null
+        pattern             = null
+        required            = false
+        spec                = null
+        spec_authentication = null
+        title               = "File"
+      }
+      target = {
+        date_format         = null
+        default             = null
+        description         = null
+        enum                = null
+        enum_colors         = null
+        format              = null
+        icon                = null
+        max_length          = null
+        min_length          = null
+        pattern             = null
+        required            = false
+        spec                = null
+        spec_authentication = null
+        title               = "Target Repo"
+      }
+      scannedAt = {
+        date_format         = null
+        default             = null
+        description         = null
+        enum                = null
+        enum_colors         = null
+        format              = "date-time"
+        icon                = null
+        max_length          = null
+        min_length          = null
+        pattern             = null
+        required            = false
+        spec                = null
+        spec_authentication = null
+        title               = "Scanned At"
+      }
+    }
+  }
+  relations                     = null
+  title                         = "Code Hotspot"
+  webhook_changelog_destination = null
+}
+
 # __generated__ by OpenTofu from "endpoint"
 resource "port_blueprint" "endpoint" {
   calculation_properties      = null

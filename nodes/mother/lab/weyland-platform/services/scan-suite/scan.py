@@ -59,6 +59,19 @@ def post(tool, c):
         print(f"  ! POST {tool}: {e}", flush=True)
 
 
+def post_hotspot(payload):
+    """B90: POST one code-maat hotspot to the same ingest URL. kind:"hotspot" routes it to the code_hotspot
+    blueprint mapping; silent per-item (top-N loop) so it doesn't drown the log."""
+    if not PORT_URL:
+        return
+    try:
+        req = urllib.request.Request(PORT_URL, data=json.dumps(payload).encode(),
+                                     headers={"Content-Type": "application/json"})
+        urllib.request.urlopen(req, timeout=30)
+    except Exception as e:
+        print(f"  ! POST hotspot {payload.get('file')}: {e}", flush=True)
+
+
 # ---- per-tool runners: run + parse -> {critical,high,medium,low} -> post ----
 
 def gitleaks():
@@ -210,6 +223,16 @@ def codemaat():
         print("\n  code-maat — top change-hotspots (entity,n-revs):", flush=True)
         for r in rows[1:16]:
             print(f"    {r}", flush=True)
+        # B90: push the top-20 hotspots to Port (code_hotspot blueprint). rows are `entity,n-revs` (header at [0]).
+        now = datetime.datetime.now(datetime.UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
+        posted = 0
+        for r in rows[1:21]:
+            fname, _, revs = r.rpartition(",")
+            if fname and revs.strip().isdigit():
+                post_hotspot({"kind": "hotspot", "file": fname, "revisions": int(revs),
+                              "target": TARGET, "scannedAt": now})
+                posted += 1
+        print(f"  = code-maat: posted {posted} hotspots to Port", flush=True)
     except Exception as e:
         print(f"  ! code-maat: {e}", flush=True)
 
