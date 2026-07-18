@@ -342,6 +342,14 @@ spec:
   destination:
     server: https://kubernetes.default.svc
     namespace: data-mesh
+  # The datahub chart re-randomizes datahub-gms-secret on each render (no stable lookup under Argo templating) →
+  # perpetual OutOfSync. Ignore its value so it doesn't churn (and selfHeal never rotates the GMS token-signing key).
+  ignoreDifferences:
+    - kind: Secret
+      name: datahub-gms-secret
+      namespace: data-mesh
+      jqPathExpressions:
+        - '.data'
   syncPolicy:
     automated: { selfHeal: true, prune: true }
     syncOptions:
@@ -429,6 +437,13 @@ spec:
   destination:
     server: https://kubernetes.default.svc
     namespace: gatekeeper-system
+  # The chart declares `spec.preserveUnknownFields: false` on its CRDs — the apiextensions v1 DEFAULT, which the
+  # apiserver strips → perpetual OutOfSync (same species as declaring `directory.recurse: false`). Ignore that field.
+  ignoreDifferences:
+    - group: apiextensions.k8s.io
+      kind: CustomResourceDefinition
+      jqPathExpressions:
+        - '.spec.preserveUnknownFields'
   syncPolicy:
     automated: { selfHeal: true, prune: true }
     syncOptions:
@@ -490,6 +505,13 @@ spec:
   destination:
     server: https://kubernetes.default.svc
     namespace: data-mesh
+  # Same CRD default-field drift as gatekeeper: the chart declares `spec.preserveUnknownFields: false` (apiserver
+  # strips it). Ignore it. (If a flink CRD drifts on another field, add its jq path here.)
+  ignoreDifferences:
+    - group: apiextensions.k8s.io
+      kind: CustomResourceDefinition
+      jqPathExpressions:
+        - '.spec.preserveUnknownFields'
   syncPolicy:
     automated: { selfHeal: true, prune: true }
     syncOptions:
