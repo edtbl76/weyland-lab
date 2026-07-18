@@ -1,0 +1,13 @@
+---
+apiVersion: bitnami.com/v1alpha1
+kind: SealedSecret
+metadata:
+  name: kiali
+  namespace: istio-system
+spec:
+  encryptedData:
+    signing-key: AgA7Uv07tHsg8rnq40mRVNGzzeEQcJ5qvJwFMh8DZVeK011q5r3nJPNXfSTt3bLxB6Vig2heu+nkdhTR5sTqF0lD+N5AFexBPMb5hbdWUINGNKZN/RPwXPZGVJ5QyTVuHTWlnv8sJnqeaZXajeyH8JDtLKtksEZ5pXwg1j0UdN27LvTs2/CVv/2aMcrzE8Z72jH6ljbgCW0CjAxV6bwWpuUcrJWR7vyzggOpO4XbsxhkhLGNleSItu6MZeMh3HsnNDn8LqvousKq5I9Zwun8s7zQIHTxq3cQeUqEh+woQovWA9V6uH3fWqkR5s7UYT3VGp1R7Eb+fBb8EhTSMI4gvLa/LXkHsz/GfAa+9Tppp3Ld434khxc0hoV7y06ktFCczQ9jMTYfikpQVuCmdHs6Xfb+X5dws0zKVsWCTUpEAZwIOm0EfVmBgWpSk4FBH4PNZamsyDMdiS92++nrjrT9MZsgLlSQlhmlDGVeue5hgqAWahzLjnmQBiT5Q7UxcC6SvVyiewO0Mm3u4Hn2vdQi2j7C1/eaHDlp4oJSghBYwroSZ31UJIJ6tqNhFhe1/i/RgyVqOql/VH1jsapH52qr3ctqn3M5VOfh4dc9dX6OEX/33jopzsF5FDayCgJttOnp4YUIToQwWyHicjg3Xvn/uVYr8mgl3y7W5iMizJjAwEGGgSsWDIQ/LN0OGaekU3twxzori4wAjlUPk2Yy7A2uu88y
+  template:
+    metadata:
+      name: kiali
+      namespace: istio-system
