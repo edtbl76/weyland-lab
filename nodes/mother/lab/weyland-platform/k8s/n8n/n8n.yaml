@@ -41,6 +41,17 @@ spec:
               type: RuntimeDefault
           ports:
             - containerPort: 5678
+          # B69 Wave 4: single-replica (Recreate/RWO). n8n /healthz on the app port; generous liveness delay so a
+          # slow DB-migration boot isn't killed mid-start.
+          livenessProbe:
+            httpGet: { path: /healthz, port: 5678 }
+            initialDelaySeconds: 60
+            periodSeconds: 20
+            failureThreshold: 3
+          readinessProbe:
+            httpGet: { path: /healthz, port: 5678 }
+            initialDelaySeconds: 15
+            periodSeconds: 10
           env:
             - name: N8N_ENCRYPTION_KEY
               valueFrom:

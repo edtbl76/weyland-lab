@@ -107,6 +107,16 @@ spec:
           ports:
             - { name: api, containerPort: 4000 }
             - { name: sql, containerPort: 15432 }
+          # B69 Wave 4: single-replica serving layer — Cube's built-in health endpoints on the API port
+          # (readyz also fails if Trino is unreachable, so it de-registers from the Service when its backend is down).
+          livenessProbe:
+            httpGet: { path: /livez, port: 4000 }
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          readinessProbe:
+            httpGet: { path: /readyz, port: 4000 }
+            initialDelaySeconds: 10
+            periodSeconds: 10
           env:
             # DEV MODE stays ON — it bundles Cube Store (cache/queue) so a single-node lab "just works". Production
             # mode requires an EXTERNAL Cube Store deployment (CUBEJS_CUBESTORE_HOST) — pure overhead here since we

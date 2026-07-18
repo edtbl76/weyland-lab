@@ -26,6 +26,17 @@ spec:
               type: RuntimeDefault
           ports:
             - { name: http, containerPort: 4181 }
+          # B69 Wave 4: SSO SPOF (gates ~18 UIs, single replica). No HTTP health endpoint — unauthenticated
+          # requests 307-redirect to Keycloak — so a TCP-socket probe is the version-safe liveness signal:
+          # process listening = serving; hung = probe fails → k8s restarts it.
+          livenessProbe:
+            tcpSocket: { port: 4181 }
+            initialDelaySeconds: 10
+            periodSeconds: 20
+          readinessProbe:
+            tcpSocket: { port: 4181 }
+            initialDelaySeconds: 5
+            periodSeconds: 10
           env:
             - { name: DEFAULT_PROVIDER, value: oidc }
             - { name: PROVIDERS_OIDC_ISSUER_URL, value: https://keycloak.weyland.lab/realms/weyland }
