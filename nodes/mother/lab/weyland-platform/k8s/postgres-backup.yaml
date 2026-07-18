@@ -4,19 +4,12 @@
 # guardrail_verdicts), + the reproducible-but-nice dagster/datahub/feast/mlflow/sonarqube/ranger DBs.
 # In the weyland ns (co-located with the weyland-postgres-secret superuser envFrom); meshed to reach the
 # STRICT-mTLS Postgres (native sidecars let the Job terminate). Onboarded via the `postgres` loose-app.
----
-apiVersion: v1
-kind: PersistentVolumeClaim
-metadata:
-  name: postgres-backup
-  namespace: weyland
-spec:
-  accessModes: [ReadWriteOnce]
-  storageClassName: local-path # NVMe (mother root), NOT the USB
-  resources:
-    requests:
-      # local-path reports the underlying disk capacity (50Gi) as status.capacity; a request must be >= it.
-      storage: 50Gi
+#
+# CROSS-DISK durability (2026-07-18): weyland-postgres lives on the NVMe root LV, so its backup must NOT — a
+# root-disk loss would take the DB AND its backup together. This Job writes to a hostPath on the USB
+# (/mnt/minio/backups/pg — a different physical disk), so the dump survives a root failure. (minio-backup does the
+# inverse: it mirrors the USB-hosted MinIO buckets onto root.) DirectoryOrCreate auto-makes the dir; the pod runs
+# as root (no runAsNonRoot) so it can write it. No PVC — hostPath directly (single-node, always mother).
 ---
 apiVersion: batch/v1
 kind: CronJob
@@ -65,4 +58,4 @@ spec:
                 - { name: backup, mountPath: /backup }
           volumes:
             - name: backup
-              persistentVolumeClaim: { claimName: postgres-backup }
+              hostPath: { path: /mnt/minio/backups/pg, type: DirectoryOrCreate }
