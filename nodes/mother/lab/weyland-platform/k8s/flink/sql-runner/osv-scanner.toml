@@ -1,0 +1,24 @@
+# osv-scanner ignore config for the Flink sql-runner pom (auto-applied: osv-scanner reads the osv-scanner.toml
+# adjacent to each scanned manifest). These 4 are the ONLY real osv-scanner findings in the repo — everything
+# else it flags is a false positive from unpinned Python requirements.txt (deps read as version 0.0.0, matching
+# every historical CVE; proven phantom by scanning the running pods' `pip freeze` → "No issues found"). See B91.
+#
+# All 4 here are TRANSITIVE from Apache Flink 1.20.1 (B83 streaming tier) — they move only with a Flink bump,
+# which is its own effort. Accepted at the current pinned Flink line on a LAN-only lab with no untrusted input to
+# these code paths. Revisit when Flink is bumped.
+
+[[IgnoredVulns]]
+id = "GHSA-vqf4-7m7x-wgfc"   # lz4-java 1.8.0 — 8.8
+reason = "Transitive via Flink 1.20.1; lz4-java 1.8.0 is the latest release (unmaintained) — no upstream fix. LAN-only."
+
+[[IgnoredVulns]]
+id = "GHSA-cmp6-m4wj-q63q"   # lz4-java 1.8.0 — 8.2
+reason = "Transitive via Flink 1.20.1; lz4-java 1.8.0 is the latest release (unmaintained) — no upstream fix. LAN-only."
+
+[[IgnoredVulns]]
+id = "GHSA-2f54-v4hm-fx73"   # flink-table-api-java 1.20.1 — 8.1
+reason = "CVE is in Flink itself; moves only by bumping Apache Flink (own effort). Accepted at the current line."
+
+[[IgnoredVulns]]
+id = "GHSA-j288-q9x7-2f5v"   # commons-lang3 3.12.0 — 6.5
+reason = "Managed by the Flink BOM; a standalone bump to 3.18.0 risks Flink compat. Moves with a Flink bump. LAN-only."
