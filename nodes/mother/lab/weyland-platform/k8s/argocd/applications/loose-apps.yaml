@@ -139,3 +139,86 @@ spec:
     namespace: weyland
   syncPolicy:
     automated: { selfHeal: true, prune: true }
+
+---
+# coredns-custom — LOAD-BEARING LAN DNS (weyland.lab -> LAN resolver; kube-system ConfigMap). MANUAL-sync.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: coredns-custom
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/edtbl76/weyland-lab.git
+    targetRevision: main
+    path: nodes/mother/lab/weyland-platform/k8s
+    directory:
+      recurse: false
+      include: 'coredns-custom.yaml'
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: kube-system
+  # manual sync — no `automated` block (sync via Argo UI/CLI).
+---
+# coredns-lan (weyland ns — ConfigMap + Deployment + Service). LOAD-BEARING DNS. MANUAL-sync.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: coredns-lan
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/edtbl76/weyland-lab.git
+    targetRevision: main
+    path: nodes/mother/lab/weyland-platform/k8s
+    directory:
+      recurse: false
+      include: 'coredns-lan.yaml'
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: weyland
+  # manual sync — no `automated` block (sync via Argo UI/CLI).
+---
+# rag-index consumers (weyland ns) — the two loose ones not under the data-mesh app.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: rag-index-weyland
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/edtbl76/weyland-lab.git
+    targetRevision: main
+    path: nodes/mother/lab/weyland-platform/k8s
+    directory:
+      recurse: false
+      include: '{rag-index-neo4j.yaml,rag-index-pgvector.yaml}'
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: weyland
+  syncPolicy:
+    automated: { selfHeal: true, prune: true }
+---
+# default-SA no-automount hardening (ServiceAccounts self-specify weyland + n8n ns).
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: rbac-noautomount
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/edtbl76/weyland-lab.git
+    targetRevision: main
+    path: nodes/mother/lab/weyland-platform/k8s
+    directory:
+      recurse: false
+      include: 'rbac-default-sa-noautomount.yaml'
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: weyland
+  syncPolicy:
+    automated: { selfHeal: true, prune: true }

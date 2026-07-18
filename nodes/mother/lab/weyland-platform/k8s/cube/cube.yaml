@@ -159,19 +159,9 @@ spec:
     - { name: api, port: 4000, targetPort: 4000 }
     - { name: sql, port: 15432, targetPort: 15432 }
 ---
-# Keycloak SSO gate — local forward-auth Middleware (cross-ns middleware refs are blocked), targets the shared
-# traefik-forward-auth in weyland. (Superset/Lightdash in this ns already define one; identical spec = idempotent.)
-apiVersion: traefik.io/v1alpha1
-kind: Middleware
-metadata:
-  name: traefik-forward-auth
-  namespace: data-mesh
-spec:
-  forwardAuth:
-    address: http://traefik-forward-auth.weyland.svc.cluster.local:4181
-    trustForwardHeader: true
-    authResponseHeaders:
-      - X-Forwarded-User
+# SSO gate: the `data-mesh/traefik-forward-auth` Middleware this Ingress references is defined ONCE canonically in
+# data-mesh/forward-auth.yaml (same ns). Do NOT redeclare it here — two Argo apps owning one object = perpetual
+# OutOfSync (the tracking-id flip-flops). Same reason superset/lightdash must not redeclare it either.
 ---
 apiVersion: networking.k8s.io/v1
 kind: Ingress

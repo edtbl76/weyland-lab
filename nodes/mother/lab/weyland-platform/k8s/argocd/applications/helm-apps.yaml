@@ -495,3 +495,32 @@ spec:
     syncOptions:
       - ServerSideApply=true
       - CreateNamespace=true
+
+---
+# B69 Wave 2 — sealed-secrets controller (Bitnami helm chart). Seals imperative secrets into git-safe SealedSecret
+# CRs (only this controller's private key decrypts them). SSA for the SealedSecret CRD.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: sealed-secrets
+  namespace: argocd
+spec:
+  project: default
+  sources:
+    - repoURL: https://bitnami.github.io/sealed-secrets
+      chart: sealed-secrets
+      targetRevision: 2.19.1
+      helm:
+        releaseName: sealed-secrets
+        valueFiles:
+          - $values/nodes/mother/lab/weyland-platform/k8s/sealed-secrets/sealed-secrets-values.yaml
+    - repoURL: https://github.com/edtbl76/weyland-lab.git
+      targetRevision: main
+      ref: values
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: kube-system
+  syncPolicy:
+    automated: { selfHeal: true, prune: true }
+    syncOptions:
+      - ServerSideApply=true

@@ -74,6 +74,15 @@ page by page. And **re-audit prior pages for drift** after each step: moving/ren
 stales docs, diagrams, the platform-map, and the Port catalog. Sweep every time; don't assume earlier-verified
 surfaces are still correct.
 
+## Cross-cutting: naming & structure
+
+Names and placement are part of "done," not cosmetic. Name every file/artifact by **what it contains or does**,
+never by the batch that created it — no `b##-*` / batch-named catch-alls (meaningless to a future reader, and they
+collect unrelated things into a grab-bag). Follow the **existing convention of the directory** you're adding to
+(e.g. `k8s/argocd/applications/` is category-named — helm-apps / subdir-apps / loose-apps / raw-extras); put each
+thing in the file its type belongs to instead of inventing a new bucket. A batch-named or miscategorized file is
+drift, and gets cleaned up like any other drift.
+
 ## Why
 
 Every capability must be **placed** (arch/diagrams), **operable** (runbook/api/hosts), **demonstrable** (UI+CLI
