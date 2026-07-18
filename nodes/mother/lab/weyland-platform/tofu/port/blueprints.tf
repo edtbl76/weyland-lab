@@ -111,11 +111,8 @@ resource "port_blueprint" "security_scan" {
         date_format = null
         default     = null
         description = null
-        enum        = ["trivy", "semgrep"]
-        enum_colors = {
-          semgrep = "purple"
-          trivy   = "blue"
-        }
+        enum        = null
+        enum_colors = null
         format              = null
         icon                = null
         max_length          = null
