@@ -177,8 +177,11 @@ def shellcheck():
 
 
 def semgrep():
+    # exclude sealed-secrets/: SealedSecret encryptedData is ENCRYPTED ciphertext (safe to commit by design), but
+    # semgrep's generic-secret detector false-positives on the base64 blobs. gitleaks (smarter) doesn't. (B89)
     sh(["semgrep", "scan", "--config", "auto", "--json", "--output", f"{OUT}/semgrep.json",
-        "--exclude", "node_modules", "--exclude", "openclaw", "--exclude", "site-techdocs", SRC])
+        "--exclude", "node_modules", "--exclude", "openclaw", "--exclude", "site-techdocs",
+        "--exclude", "sealed-secrets", SRC])
     d = load(f"{OUT}/semgrep.json") or {}
     m = {"ERROR": "high", "WARNING": "medium", "INFO": "low"}  # semgrep has no "critical"
     c = z()
