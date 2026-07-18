@@ -60,7 +60,9 @@ open gap = not done:
   `<name>-secret.example.yaml` + `runbooks/secrets.md` index; bricking keys (e.g. lakeFS `AUTH_ENCRYPT_SECRET_KEY`)
   escrowed.
 - **Monitored + alerted** — health scrape + a down/failure alert routed to Telegram; the alert path has a
-  **dead-man's-switch** (Watchdog → external heartbeat, not `null`).
+  **dead-man's-switch** (Watchdog → external heartbeat, not `null`). **Synthetic coverage is 1:1** — every
+  user-facing host in `hosts.md` has an active Uptime-Kuma monitor, and no orphan monitors linger for retired
+  hosts. Reconcile the host list against the live monitor list (not just the count) each batch.
 - **Backed up (if stateful)** — any PVC/DB/object store with non-reproducible data has a **tested** backup
   (CronJob + rotation); reproducible stores say so.
 - **Triggered** — anything that must stay fresh has a schedule/sensor + a freshness signal, not manual-only.
