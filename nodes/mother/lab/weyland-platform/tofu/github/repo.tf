@@ -10,6 +10,7 @@ resource "github_repository" "weyland_lab" {
   archived                    = false
   auto_init                   = false
 
+  vulnerability_alerts                    = true   # B89: enable Dependabot vulnerability alerts (trivy GIT-0003)
   ignore_vulnerability_alerts_during_read = false
 
   has_issues                  = true

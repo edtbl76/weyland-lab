@@ -1094,6 +1094,12 @@ All land in lakeFS → Parquet → Iceberg → Trino/DuckDB queryable. Gated dat
 - Preserve the deliberate co-resolution (e.g. dagster + dagster-dbt unpinned together) — the lock freezes the *resolved* set, not the intent.
 - Net: osv-scanner sees real versions (phantom highs vanish), and builds become reproducible. Verify each image still builds + runs from its lock before committing.
 
+### B92 — Relocate Ranger's committed dev-passwords to a Secret — Security / Hardening
+**Added 2026-07-18.** trivy `KSV-0109` caught what gitleaks missed: `k8s/data-mesh/ranger.yaml`'s ConfigMap holds **plaintext passwords in the public repo** — `db_root_password=weyland_dev_password`, `rangerAdmin_password=Weyland_dev_password1`, `rangerTagsync_/rangerUsersync_/keyadmin_password`, etc. They're the shared LAN dev password ([[lab-dev-credentials]] — low real risk), but committing them violates "creds via Secret, never committed," same class as the B89 kiali fix.
+- Bigger lift than kiali: Ranger reads these from `install.properties`, so relocating means reworking how the setup consumes them (env-refs from a SealedSecret, then the setup script/`ranger_setup.py` reads env) — see [[ranger-trino-authz-b-l5]] for the config mechanics.
+- Once relocated, the `KSV-0109` note in `.trivyignore` can flip to a blanket ignore (only trino's false-positive would remain).
+- Consider whether to rotate `Weyland_dev_password1` off the shared value while at it.
+
 ---
 
 ## Iteration 1 follow-ups (banked, see units-iter1.md)

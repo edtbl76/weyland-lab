@@ -15,3 +15,32 @@ GIT-0001
 # both REQUIRE broad read/watch across resources to do their job (admission review / mesh topology). Scoped-down
 # RBAC would break them. Accepted for a single-tenant LAN lab.
 KSV-0046
+
+# ---- B89 accepted (2026-07-18) ----
+
+# readOnlyRootFilesystem (KSV-0118 = container, KSV-0014 = pod). ~193 hits — the B47 SYSTEMIC residual: blanket
+# `readOnlyRootFilesystem: true` breaks the many workloads that write to their rootfs (caches, tmp, embedded DBs).
+# Accepted repo-wide; revisit per-workload only if a specific one is hardened. Not per-item fixable on a LAN lab.
+KSV-0118
+KSV-0014
+
+# Image runs as root (DS-0002) on the root-REQUIRED images: ranger, ray-head, weyland-dagster(+base, +feast). These
+# need root at build/run (system pkgs, uid-agnostic caches); documented in the B47 pass. The non-root-capable images
+# already carry USER 10001. Accepted for these; a new non-root-capable image should still fix it, not rely on this.
+DS-0002
+
+# Access to host network (KSV-0009) — ray-head.yaml. The persistent Ray head uses hostNetwork by design (stable
+# ray.weyland.lab addressing for the rogueone edge worker). Intentional; see [[remote-training-rogueone]].
+KSV-0009
+
+# Access to host ports (KSV-0024) — coredns-lan.yaml. weyland-lan-dns binds hostPort 53 on the node (scoped to
+# hostIP 192.168.1.243) — that IS the LAN DNS design + the fix for the CNI-DNAT capture incident (runbooks/lan-dns.md).
+KSV-0024
+
+# Manage Kubernetes networking (KSV-0056) — kiali.yaml. Kiali needs the networking RBAC to render Istio mesh
+# topology (same rationale as its KSV-0046 above). Scoping it down breaks the mesh view. Accepted.
+KSV-0056
+
+# NOTE: KSV-0109 (ConfigMap with secrets) is deliberately NOT ignored. trino.yaml is a false positive (${ENV:...}
+# refs; real creds in trino-secret), but ranger.yaml has REAL committed dev passwords — left visible as the reminder
+# until that's relocated to a Secret (see backlog B92). Blanket-ignoring KSV-0109 would mask the ranger finding.
