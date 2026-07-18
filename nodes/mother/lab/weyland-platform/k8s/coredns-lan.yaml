@@ -1,8 +1,12 @@
 # Weyland LAN DNS resolver (U9 prerequisite) — SEPARATE from k3s kube-dns.
 #
-# Authoritative for weyland.lab (wildcard *.weyland.lab -> mother), forwards everything
-# else to public resolvers. Exposed on mother:53 via k3s ServiceLB so LAN clients can
-# use it. Swappable for Pi-hole/dnsmasq later without touching certs or Ingress.
+# Authoritative for weyland.lab (wildcard *.weyland.lab -> mother), forwards everything else to public resolvers.
+# Exposed on mother:53 via a Deployment hostPort PINNED to the LAN IP (hostIP: 192.168.1.243) — NOT k3s ServiceLB.
+# WHY (2026-07-18 outage, see runbooks/lan-dns.md): ServiceLB (klipper) ran an svclb pod with hostPort 53 bound to
+# 0.0.0.0, whose CNI DNAT matched `dst-type LOCAL` and captured the node's OWN 127.0.0.53 systemd-resolved stub;
+# when this pod died, ALL host DNS black-holed. `hostIP` scopes the DNAT to 192.168.1.243 only, so the node
+# resolver is never touched. mother resolves *.weyland.lab via a systemd-resolved drop-in → 192.168.1.243
+# (nodes/mother/host/systemd/resolved.conf.d/weyland-lab.conf). Swappable for Pi-hole/dnsmasq later.
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -93,8 +97,10 @@ spec:
           image: coredns/coredns:1.11.3
           args: ["-conf", "/etc/coredns/Corefile"]
           ports:
-            - { name: dns-udp, containerPort: 53, protocol: UDP }
-            - { name: dns-tcp, containerPort: 53, protocol: TCP }
+            # hostPort pinned to the LAN IP (hostIP) — LAN clients reach mother:53, but the CNI hostPort DNAT is
+            # scoped to `-d 192.168.1.243 --dport 53`, so it NEVER matches the node's 127.0.0.53 resolver.
+            - { name: dns-udp, containerPort: 53, hostPort: 53, hostIP: 192.168.1.243, protocol: UDP }
+            - { name: dns-tcp, containerPort: 53, hostPort: 53, hostIP: 192.168.1.243, protocol: TCP }
             - { name: metrics, containerPort: 9153, protocol: TCP }
             - { name: health, containerPort: 8080, protocol: TCP }
             - { name: ready, containerPort: 8181, protocol: TCP }
@@ -122,7 +128,10 @@ metadata:
   labels:
     app: weyland-lan-dns
 spec:
-  type: LoadBalancer
+  # ClusterIP — NOT LoadBalancer. ServiceLB (klipper) would run an svclb pod with hostPort 53 on 0.0.0.0 whose CNI
+  # DNAT matched `dst-type LOCAL` and captured the node's 127.0.0.53 resolver (2026-07-18 outage). The Deployment
+  # now exposes :53 itself via hostPort+hostIP (LAN IP only). This ClusterIP is for in-cluster clients + metrics.
+  type: ClusterIP
   selector:
     app: weyland-lan-dns
   ports:
