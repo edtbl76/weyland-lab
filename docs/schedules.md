@@ -47,6 +47,8 @@ Heavy = embeds/writes or large scans (guard the node's RAM). Light = metadata/re
 | 04:30 | DataHub | ClickHouse (datasets_music + datasets_health) | weekly (Sun) | med — profiling cheap (columnar) |
 | 04:45 | DataHub | Postgres — MusicBrainz | weekly (Sun) | **heavy scan** |
 | 05:00 | DataHub | dbt (marts + tests-as-assertions + column lineage; reads `s3://warehouse/_dbt_artifacts/`, siblings onto `iceberg.dbt.*`) | daily | light — recommend 05:00 to clear the 01:00–04:45 DataHub train. Daily connector over **weekly** (Sun 06:00) artifacts = harmless idempotent re-ingest most days; fresh artifacts land ≤1 day after a build. |
+| **08:00 (Sun)** | k8s CronJob | `sonar-scan` (SonarQube full analysis → the SonarQube server; clone + Flink-Java compile + sonar-scanner) | weekly (Sun) | med — Java build + scan (12:00 UTC) |
+| **09:00 (Sun)** | k8s CronJob | `code-scan-suite` (gitleaks/checkov/kubescape/hadolint/bandit/osv-scanner/shellcheck/semgrep/trivy → Port + code-maat hotspots; one `scan-suite` image) | weekly (Sun) | **HEAVY** — semgrep auto + trivy fs (13:00 UTC) |
 | **11:00 (Sun)** | node systemd (mother) | `weyland-image-prune` (`k3s crictl rmi --prune`) — frees ephemeral storage so the node never re-hits the eviction line (B69, `nodes/mother/host/systemd/`) | weekly (Sun) | — (host timer @ **15:00 UTC**; quiet slot clear of the DataHub train) |
 
 **Ordering note (risk currently DORMANT):** a nightly `02:00` scale-down *would* take

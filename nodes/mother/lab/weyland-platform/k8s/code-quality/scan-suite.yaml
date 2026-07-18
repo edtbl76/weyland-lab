@@ -1,0 +1,48 @@
+# B69 Wave 4 — weekly code-scan suite. Clones the repo (FULL history — code-maat needs it) once, then the
+# scan-suite image runs the whole free-scanner set (gitleaks, checkov, kubescape, hadolint, bandit, osv-scanner,
+# shellcheck, semgrep, trivy) + code-maat, POSTing per-tool severity counts to the Port `code-quality` webhook
+# (Secret port-ingest-url). Replaces the manual semgrep-scan-job + trivy-scan-job (folded in). SonarQube is its own
+# CronJob (sonar-scan — needs the server + a Java build). Weekly Sun 13:00 UTC (09:00 NY) — clear of the DataHub
+# train (05:00–10:00 UTC) and the image-prune (15:00 UTC). Image built via scripts/build-push-images.sh.
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: code-scan-suite
+  namespace: weyland
+spec:
+  schedule: "0 13 * * 0"
+  timeZone: Etc/UTC
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 2
+  failedJobsHistoryLimit: 2
+  jobTemplate:
+    spec:
+      backoffLimit: 1
+      template:
+        spec:
+          restartPolicy: Never
+          initContainers:
+            - name: clone   # FULL clone (no --depth) so code-maat sees real history
+              image: alpine/git:latest
+              args: ["clone", "https://github.com/edtbl76/weyland-lab.git", "/src"]
+              volumeMounts:
+                - { name: src, mountPath: /src }
+          containers:
+            - name: scan-suite
+              image: registry.weyland.lab/scan-suite:v1
+              imagePullPolicy: IfNotPresent
+              env:
+                - name: PORT_INGEST_URL
+                  valueFrom: { secretKeyRef: { name: port-ingest-url, key: url } }
+              securityContext:
+                allowPrivilegeEscalation: false
+                seccompProfile: { type: RuntimeDefault }
+              resources:
+                requests: { cpu: 250m, memory: 512Mi }
+                limits: { memory: 2Gi } # semgrep auto + trivy fs are the heavy ones
+              volumeMounts:
+                - { name: src, mountPath: /src }
+                - { name: out, mountPath: /out }
+          volumes:
+            - { name: src, emptyDir: {} }
+            - { name: out, emptyDir: {} }

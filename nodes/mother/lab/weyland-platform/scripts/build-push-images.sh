@@ -24,5 +24,6 @@ build feast-server              "-f services/weyland-dagster/Dockerfile.feast se
 build weyland-flink             "-f k8s/flink/Dockerfile k8s/flink"
 build weyland-flink-py          "-f k8s/flink/Dockerfile.pyflink k8s/flink"
 build store-scaler              "services/store-scaler"
+build scan-suite                "services/scan-suite"
 
 echo "---- done: 8 images pushed to $REG at :$TAG. Now push the repointed k8s manifests so Argo redeploys. ----"

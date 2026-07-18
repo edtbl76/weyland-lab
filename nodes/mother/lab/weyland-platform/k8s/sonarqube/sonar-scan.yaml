@@ -1,0 +1,52 @@
+# B69 Wave 4 — weekly SonarQube scan (was an on-demand Job). initContainer clones the public repo → build-java
+# compiles the Flink Java modules (so SonarQube's bytecode-aware Java analyzer binds instead of hard-failing) →
+# sonar-scanner-cli analyzes against the in-cluster SonarQube over http (ClusterIP — no Traefik/mkcert TLS; the Job
+# is unmeshed and SonarQube is PERMISSIVE mTLS, so plaintext is accepted). Kept SEPARATE from code-scan-suite:
+# that one runs server-less file scanners → Port; SonarQube needs its own server. Token in Secret
+# sonarqube-scan-token (global analysis token), created out-of-band, never committed. Weekly Sun 12:00 UTC (08:00 NY).
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: sonar-scan
+  namespace: weyland
+spec:
+  schedule: "0 12 * * 0"
+  timeZone: Etc/UTC
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 2
+  failedJobsHistoryLimit: 2
+  jobTemplate:
+    spec:
+      backoffLimit: 1
+      template:
+        spec:
+          restartPolicy: Never
+          initContainers:
+            - name: clone
+              image: alpine/git:latest
+              args: ["clone", "--depth", "1", "https://github.com/edtbl76/weyland-lab.git", "/usr/src"]
+              volumeMounts:
+                - { name: src, mountPath: /usr/src }
+            - name: build-java
+              image: maven:3.9-eclipse-temurin-17
+              workingDir: /usr/src
+              command: ["sh", "-c", "mvn -q -B -f nodes/mother/lab/weyland-platform/k8s/flink/health-job/pom.xml compile && mvn -q -B -f nodes/mother/lab/weyland-platform/k8s/flink/sql-runner/pom.xml compile"]
+              volumeMounts:
+                - { name: src, mountPath: /usr/src }
+          containers:
+            - name: scanner
+              image: sonarsource/sonar-scanner-cli:latest
+              env:
+                - name: SONAR_HOST_URL
+                  value: http://sonarqube.weyland.svc.cluster.local:9000
+                - name: SONAR_TOKEN
+                  valueFrom: { secretKeyRef: { name: sonarqube-scan-token, key: SONAR_TOKEN } }
+              args:
+                - -Dsonar.projectKey=weyland-lab
+                - -Dsonar.sources=.
+                - -Dsonar.exclusions=**/node_modules/**,**/.yarn/**,**/.git/**,**/openclaw/**,site-techdocs/**
+                - -Dsonar.java.binaries=nodes/mother/lab/weyland-platform/k8s/flink/health-job/target/classes,nodes/mother/lab/weyland-platform/k8s/flink/sql-runner/target/classes
+              volumeMounts:
+                - { name: src, mountPath: /usr/src }
+          volumes:
+            - { name: src, emptyDir: {} }
