@@ -12,7 +12,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Static binaries (amd64). Each is a single file → drop into /usr/local/bin.
 RUN set -eux; \
     curl -fsSL "https://github.com/gitleaks/gitleaks/releases/download/v8.21.2/gitleaks_8.21.2_linux_x64.tar.gz" | tar -xz -C /usr/local/bin gitleaks; \
-    curl -fsSL "https://github.com/aquasecurity/trivy/releases/download/v0.56.2/trivy_0.56.2_Linux-64bit.tar.gz" | tar -xz -C /usr/local/bin trivy; \
+    curl -fsSL "https://github.com/aquasecurity/trivy/releases/download/v0.72.0/trivy_0.72.0_Linux-64bit.tar.gz" | tar -xz -C /usr/local/bin trivy; \
     curl -fsSL -o /usr/local/bin/hadolint "https://github.com/hadolint/hadolint/releases/download/v2.12.0/hadolint-Linux-x86_64"; \
     curl -fsSL -o /usr/local/bin/kubescape "https://github.com/kubescape/kubescape/releases/download/v3.0.8/kubescape-ubuntu-latest"; \
     curl -fsSL -o /usr/local/bin/osv-scanner "https://github.com/google/osv-scanner/releases/download/v1.9.1/osv-scanner_linux_amd64"; \
