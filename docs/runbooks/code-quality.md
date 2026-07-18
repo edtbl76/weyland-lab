@@ -74,3 +74,39 @@ RBAC (`KSV-0046`) → `/.trivyignore` (each documented). See [[cve-remediation-m
 
 **Accepted residuals:** `KSV-0118`/`KSV-0014` (readOnlyRootFilesystem, ~195 high) + `run-as-non-root` on root
 third-party images — systemic, blanket-applying breaks writers; documented, not per-item fixed.
+
+## B69 — weekly CronJobs + the scan-suite (2026-07-18)
+
+The three on-demand Jobs were folded into **two weekly CronJobs** (both `Sun`, `Etc/UTC`; see [schedules.md](../schedules.md)):
+- **`code-scan-suite`** (`k8s/code-quality/scan-suite.yaml`, 13:00 UTC) — ONE `registry.weyland.lab/scan-suite` image
+  (`services/scan-suite/`, built via `scripts/build-push-images.sh`) clones the repo once and runs **9 tools** best-effort
+  → per-tool severity counts POSTed to the Port `code-quality` webhook: gitleaks, checkov, kubescape, hadolint, bandit,
+  osv-scanner, shellcheck, semgrep, trivy. Replaces `semgrep-scan-job` + `trivy-scan-job` (deleted).
+- **`sonar-scan`** (`k8s/sonarqube/sonar-scan.yaml`, 12:00 UTC) — clone → Maven-compile the Flink modules → sonar-scanner
+  (kept separate: needs the server + a Java build). Replaces `sonar-scan-job` (deleted).
+
+Image gotchas hit during bring-up (all in the `scan-suite` Dockerfile/`scan.py`): pinned tool download URLs 404 on a
+bad version (verify each release's real asset name — trivy was `v0.56.2` → `v0.72.0`); **semgrep needs `setuptools<81`**
+(`python:3.12-slim` ships setuptools 83, which removed `pkg_resources`); **code-maat needs `git config --global --add
+safe.directory /src`** (clone runs as root, scan as uid 10001 → git "dubious ownership") AND the **`git2` log format**
+(`--pretty=format:--%h--%ad--%aN`, NOT the legacy `[%h] %aN %ad %s`).
+
+**A `202` from the ingest URL is NOT proof of an entity** — it's queue-acceptance; the async mapping can still drop it.
+Two ways it silently dropped here: the `security_scan.tool` property was a **string enum** locked to `["trivy","semgrep"]`
+(any other tool violated it → dropped); fix = drop the enum (`enum = null`) in `tofu/port/blueprints.tf` + re-scan. And a
+mapping entry referencing a blueprint that doesn't exist yet → save fails "blueprint not found" (apply the blueprint FIRST).
+
+## B90 — code-maat hotspots → Port (2026-07-18)
+
+code-maat's behavioral analysis (the free CodeScene equivalent) now lands in Port as its own **`code_hotspot`** blueprint
+(`tofu/port/blueprints.tf`) — one entity per hot file, `revisions` (churn count), sortable. `scan.py`'s `codemaat()` POSTs
+the top-20 rows to the **same** code-quality ingest URL with a `kind:"hotspot"` discriminator; the webhook mapping gained
+a **3rd entry** (`filter: .body.kind == "hotspot"`, `identifier: .body.file | gsub("[/. ]"; "-")`). SonarQube *detail*
+(issues/measures) is already in Port via the Ocean integration (SonarQube Issues/Projects catalog tables) — separate from
+this webhook. See [[project-backlog]] B89 (drive the findings to zero) as the follow-on.
+
+**The `Code Health` dashboard** (Port sidebar / Catalog) assembles it all on one page: three number cards (Σ `critical` +
+Σ `high` over `security_scan`, count of `sonarQubeIssue`) over a `code_quality` Quality-Gate table + a `code_hotspot`
+Top-Hotspots table (sorted by churn). Built via the **Port MCP** (`upsert_dashboard_page`) — **Port dashboards can't be
+codified in tofu** ([port.md](port.md): blueprints=code, entities+dashboards=Port/MCP), so this page lives only in Port,
+not git. To rebuild it: re-run `upsert_dashboard_page` for `code_health` via the Port MCP.
