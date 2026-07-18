@@ -201,7 +201,8 @@ def codemaat():
     # change-hotspots (files touched most = highest maintenance risk) to the log + save the CSV for review.
     log = f"{OUT}/maat.log"
     sh(["git", "config", "--global", "--add", "safe.directory", SRC])  # clone runs as root, scan as uid 10001 -> git "dubious ownership"
-    sh(["git", "-C", SRC, "log", "--pretty=format:[%h] %an %ad %s", "--date=short", "--numstat"], outfile=log)
+    # code-maat -c git2 requires the "--hash--date--author" log shape (NOT the legacy [%h] %aN %ad %s format).
+    sh(["git", "-C", SRC, "log", "--all", "--numstat", "--date=short", "--no-renames", "--pretty=format:--%h--%ad--%aN"], outfile=log)
     sh(["java", "-jar", "/opt/code-maat.jar", "-l", log, "-c", "git2", "-a", "revisions"],
        outfile=f"{OUT}/maat-hotspots.csv")
     try:
