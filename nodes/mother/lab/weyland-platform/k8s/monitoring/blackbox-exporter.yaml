@@ -1,0 +1,144 @@
+# B69 Wave 4 — git-managed synthetic monitoring (replaces UI-only Kuma monitors for the 16 hosts that had NO
+# coverage; see the 1:1 audit 2026-07-17). prometheus-blackbox-exporter probes each *.weyland.lab ingress; a
+# Prometheus `Probe` CRD tells the operator to scrape it per target; a PrometheusRule alerts on `probe_success==0`
+# → the existing Alertmanager→Telegram path. Reproducible-from-git, unlike Kuma's SQLite/PVC monitors.
+#
+# DNS: like Kuma ([[kuma-lan-dns-monitors]]), the pod uses LAN DNS (192.168.1.243) not cluster DNS — cluster DNS
+# breaks in-cluster probing of forward-auth UIs. TLS: insecure_skip_verify (lab mkcert wildcard). Status codes are
+# lenient (2xx/3xx/401/403) — a forward-auth UI returns the Keycloak page/redirect when up; the k8s liveness probes
+# cover actual app health, this covers the ingress+SSO+cert+DNS path.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: blackbox-exporter-config
+  namespace: monitoring
+data:
+  blackbox.yml: |
+    modules:
+      http_weyland:
+        prober: http
+        timeout: 10s
+        http:
+          valid_status_codes: [200, 301, 302, 303, 307, 308, 401, 403]
+          valid_http_versions: ["HTTP/1.1", "HTTP/2.0"]
+          follow_redirects: true
+          fail_if_ssl: false
+          fail_if_not_ssl: false
+          preferred_ip_protocol: ip4
+          tls_config:
+            insecure_skip_verify: true
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: blackbox-exporter
+  namespace: monitoring
+  labels: { app: blackbox-exporter }
+spec:
+  replicas: 1
+  selector: { matchLabels: { app: blackbox-exporter } }
+  template:
+    metadata:
+      labels: { app: blackbox-exporter }
+    spec:
+      # LAN DNS — identical to uptime-kuma, so forward-auth *.weyland.lab targets resolve + respond correctly.
+      dnsPolicy: "None"
+      dnsConfig:
+        nameservers: [192.168.1.243]
+        searches: [weyland.lab]
+      containers:
+        - name: blackbox-exporter
+          image: quay.io/prometheus/blackbox-exporter:v0.25.0
+          args: ["--config.file=/config/blackbox.yml"]
+          ports:
+            - { name: http, containerPort: 9115 }
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 10001
+            allowPrivilegeEscalation: false
+            capabilities: { drop: ["ALL"] }
+            seccompProfile: { type: RuntimeDefault }
+          readinessProbe:
+            tcpSocket: { port: 9115 }
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          resources:
+            requests: { cpu: 25m, memory: 32Mi }
+            limits: { memory: 64Mi }
+          volumeMounts:
+            - { name: config, mountPath: /config, readOnly: true }
+      volumes:
+        - name: config
+          configMap: { name: blackbox-exporter-config }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: blackbox-exporter
+  namespace: monitoring
+  labels: { app: blackbox-exporter }
+spec:
+  selector: { app: blackbox-exporter }
+  ports:
+    - { name: http, port: 9115, targetPort: 9115 }
+---
+# The 16 hosts that had NO Uptime-Kuma monitor (1:1 audit). Add/remove a line here = git-managed coverage change.
+apiVersion: monitoring.coreos.com/v1
+kind: Probe
+metadata:
+  name: weyland-uis
+  namespace: monitoring
+  labels: { release: monitoring }   # matches the stack's default probeSelector
+spec:
+  jobName: weyland-blackbox
+  interval: 60s
+  scrapeTimeout: 15s
+  module: http_weyland
+  prober:
+    url: blackbox-exporter.monitoring.svc.cluster.local:9115
+  targets:
+    staticConfig:
+      static:
+        - https://auth.weyland.lab            # forward-auth — the SSO gate itself
+        - https://argocd.weyland.lab
+        - https://nessie.weyland.lab/q/health
+        - https://lakefs.weyland.lab/_health
+        - https://ray.weyland.lab
+        - https://feast.weyland.lab
+        - https://registry.weyland.lab/v2/
+        - https://gatekeeper.weyland.lab
+        - https://opencost.weyland.lab
+        - https://cockroachdb.weyland.lab
+        - https://flink.weyland.lab
+        - https://docs.weyland.lab
+        - https://likec4.weyland.lab
+        - https://dbt-docs.weyland.lab
+        - https://flink-history.weyland.lab
+        - https://lancedb.weyland.lab
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: blackbox-uptime
+  namespace: monitoring
+  labels: { release: monitoring }
+spec:
+  groups:
+    - name: blackbox-uptime
+      rules:
+        - alert: WeylandEndpointDown
+          expr: probe_success == 0
+          for: 5m
+          labels: { severity: warning }
+          annotations:
+            summary: "Endpoint {{ $labels.instance }} is DOWN"
+            description: "Blackbox probe to {{ $labels.instance }} has failed for >5m (SSL/DNS/HTTP)."
+        # Meta-monitor: a dead blackbox-exporter means probe_success stops existing, so `==0` would silently never
+        # fire. absent() catches the blind spot.
+        - alert: BlackboxProbesMissing
+          expr: absent(probe_success)
+          for: 10m
+          labels: { severity: warning }
+          annotations:
+            summary: "Blackbox synthetic probes are not reporting"
+            description: "No probe_success metric for 10m — blackbox-exporter down or Probe misconfigured; synthetic monitoring is blind."
