@@ -1,85 +1,310 @@
-dagster
-dagster-postgres
-dagster-webserver
-sentence-transformers
-psycopg2-binary
-qdrant-client
-weaviate-client
-neo4j
-httpx
-minio
-sentry-sdk
-# DataHub catalog/lineage emit (datahub_emit.py). Core SDK only — the acryl-datahub-dagster-plugin
-# sensor is dead on Dagster 1.13 (run_status_sensor broken, dagster#21526), so we emit directly.
-acryl-datahub
-# Iceberg table data products (iceberg_publish.py): read Postgres → write Iceberg via Nessie REST + MinIO.
-pyiceberg[s3fs]
-pyarrow
-# eval → MLflow experiment tracking (eval_mlflow.py). Skinny client (no server deps); metrics/params only.
-# PINNED to the deployed server version (ghcr.io/mlflow/mlflow:v3.14.0). The old 2.18 pin existed because a 3.x
-# client hits /api/2.0/mlflow/logged-models which the 2.x server lacked (404 on log_model) — moot now the server
-# is 3.x. B47: also clears the 2025/2026 mlflow RCE CVEs.
+acryl-datahub==1.6.0.15
+adbc-driver-flightsql==1.11.0
+adbc-driver-manager==1.11.0
+aenum==3.1.17
+agate==1.9.1
+aiobotocore==3.8.0
+aiohappyeyeballs==2.7.1
+aiohttp==3.14.1
+aioitertools==0.13.0
+aiosignal==1.4.0
+alembic==1.18.5
+annotated-doc==0.0.4
+annotated-types==0.7.0
+antlr4-python3-runtime==4.13.2
+anyio==4.14.2
+argon2-cffi==25.1.0
+argon2-cffi-bindings==25.1.0
+asgiref==3.12.1
+attrs==26.1.0
+audioread==3.1.0
+Authlib==1.7.2
+avro==1.12.1
+avro-gen3==0.7.16
+babel==2.18.0
+backoff==2.2.1
+bigtree==1.5.3
+botocore==1.43.46
+cached-property==2.0.1
+cachetools==6.2.6
+cassandra-driver==3.30.1
+certifi==2026.6.17
+cffi==2.1.0
+charset-normalizer==3.4.9
+click==8.4.2
+click-default-group==1.2.4
+click-spinner==0.1.11
+clickhouse-connect==1.5.0
+cloudpickle==3.1.2
+colorama==0.4.6
+coloredlogs==14.0
+confluent-kafka==2.15.0
+cramjam==2.11.0
+cryptography==49.0.0
+cuda-bindings==13.3.1
+cuda-pathfinder==1.5.6
+cuda-toolkit==13.0.3.0
+daff==1.4.2
+dagster==1.13.14
+dagster-dbt==0.29.14
+dagster-graphql==1.13.14
+dagster-pipes==1.13.14
+dagster-postgres==0.29.14
+dagster-shared==1.13.14
+dagster-webserver==1.13.14
+dask==2026.7.1
+databricks-sdk==0.121.0
+datasets==5.0.0
+dbt-adapters==1.24.5
+dbt-common==1.38.0
+dbt-core==1.11.12
+dbt-extractor==0.6.0
+dbt-metricflow==0.13.0
+dbt-protos==1.0.541
+dbt-semantic-interfaces==0.9.0
+dbt-trino==1.10.2
+decorator==5.3.1
+deepdiff==8.6.2
+Deprecated==1.3.1
+deprecation==2.1.0
+dill==0.3.9
+dlt==1.29.0
+dnspython==2.8.0
+docker==7.2.0
+docstring_parser==0.18.0
+durationpy==0.10
+Events==0.5
+expandvars==1.1.2
+fastapi==0.139.2
+fastavro==1.12.2
+feast==0.64.0
+filelock==3.30.3
+frozenlist==1.8.0
+fsspec==2026.4.0
+geomet==1.1.0
+gitdb==4.0.12
+GitPython==3.1.52
+giturlparse==0.15.0
+google-auth==2.56.0
+gql==4.0.0
+graphene==3.4.3
+graphql-core==3.2.11
+graphql-relay==3.2.0
+greenlet==3.5.3
+grpcio==1.78.0
+grpcio-health-checking==1.78.0
+gunicorn==26.0.0
+h11==0.16.0
+h2==4.3.0
+halo==0.0.31
+hf-xet==1.5.2
+hiredis==3.4.0
+hpack==4.2.0
+httpcore==1.0.9
+httptools==0.8.0
+httpx==0.28.1
+huggingface_hub==1.24.0
+humanfriendly==10.0
+humanize==4.16.0
+hyperframe==6.1.0
+idna==3.18
+ijson==3.5.1
+importlib_metadata==8.9.0
+importlib_resources==7.1.0
+isodate==0.7.2
+Jinja2==3.1.6
+jmespath==1.1.0
+joblib==1.5.3
+joserfc==1.7.3
+json-logic==0.7.0a0
+jsonpath-ng==1.8.0
+jsonref==1.1.0
+jsonschema==4.26.0
+jsonschema-specifications==2025.9.1
+kubernetes==36.0.3
+lakefs==0.16.0
+lakefs-sdk==1.83.0
+lance-namespace==0.8.6
+lance-namespace-urllib3-client==0.8.6
+lancedb==0.34.0
+lazy-loader==0.5
+leather==0.4.1
+librosa==0.11.0
+librt==0.13.0
+llvmlite==0.48.0
+locket==1.0.0
+log-symbols==0.0.14
+lz4==4.4.5
+Mako==1.3.12
+markdown-it-py==4.2.0
+MarkupSafe==3.0.3
+mashumaro==3.14
+mdurl==0.1.2
+metricflow==0.211.0
+minio==7.2.20
+mixpanel==5.1.0
 mlflow-skinny==3.14.0
-# (scikit-learn + FULL mlflow removed 2026-07-06 — the in-cluster genre-training assets moved to the remote
-#  genre-trainer on rogueone. The only remaining Dagster mlflow user is eval_mlflow.py, which makes tracking-only
-#  calls (log_params/metrics/tags) that mlflow-skinny covers; the Feast retrieval asset needs neither.)
-# B72 — dlt EL (datasets_land.py): pull public datasets → MinIO filesystem destination (bronze raw zone).
-dlt[filesystem]
-# B72 — fan-out transform (datasets_transform.py): pandas for FMA's multi-row-header CSVs; lance + fastavro
-# for the Lance/Avro silver formats (Parquet/Arrow via pyarrow, Iceberg via pyiceberg — both already above).
-pandas
-pylance
-fastavro
-# B72 lakeFS write-through — datasets_land/transform write THROUGH the lakeFS S3 gateway (versioned),
-# datasets_commit calls the lakeFS API to commit each pipeline run as a version.
-lakefs
-# B65 Tier-2 DuckDB — emit_duckdb() queries the GizmoSQL Arrow Flight SQL server to catalog its views.
-adbc-driver-flightsql
-adbc-driver-manager
-# health_land.py downloads health datasets from HuggingFace / CDC / Socrata.
-datasets
-# Store hydration (data-store-mageddon) — build_store_load_assets reads silver Parquet → relational stores.
-# SQLAlchemy + PyMySQL power pandas.to_sql() for the MySQL loader (parquet file → table, batched).
-SQLAlchemy
-PyMySQL
-# pymongo — MongoDB loader (silver Parquet → documents; aidlc-kb frontmatter → queryable docs).
-pymongo
-# sqlalchemy-cockroachdb — the CockroachDB loader's dialect (plain postgres dialect can't parse Cockroach's
-# version string; cockroachdb:// handles it + Cockroach quirks). Uses psycopg2 underneath.
-sqlalchemy-cockroachdb
-# cassandra-driver — Cassandra loader (silver Parquet → wide-column tables; prepared INSERT + execute_concurrent).
-cassandra-driver
-# clickhouse-connect — ClickHouse loader (issues CREATE TABLE … AS SELECT FROM s3() — native parquet ingest).
-clickhouse-connect
-# opensearch-py — OpenSearch loader (silver Parquet → bulk-indexed documents; the standalone playground cluster).
-opensearch-py
-# librosa + soundfile — GTZAN land audio-feature extraction (decode clips → chroma/mfcc/spectral/tempo features).
-librosa
-soundfile
-# confluent-kafka — Redpanda Avro producer (B1.5 streaming): Confluent wire-format serialization + Schema
-# Registry client so Console + standard consumers decode the messages. Wheels bundle librdkafka (no system dep).
-confluent-kafka[avro]
-# lancedb — embedded, Lance-format-native vector DB (grid LanceDB). Serverless (no pod) — writes tables to the
-# lakeFS S3 gateway + does ANN search in-process; the object-storage-native counterpart to Qdrant/Weaviate.
-lancedb
-# kubernetes — the lancedb_sync sensor launches the mc-mirror Job in data-mesh (from the lancedb-sync CronJob
-# template) when a lancedb load materializes → event-triggered viewer sync (in-cluster API).
-kubernetes
-# feast — feature store (grid Feast): Postgres registry + offline, Valkey(redis) online. Capability = low-latency
-# feature serving by entity key + point-in-time-correct training retrieval. Repo in feast_repo/.
-feast[redis,postgres]
-# dbt (B1.5 Transform) — dbt-core + the Trino adapter (materialize Iceberg via Trino→Nessie), orchestrated by
-# dagster-dbt (unpinned to track the unpinned dagster above; dbt-trino pulls a compatible dbt-core). The dbt
-# project lives in dbt/ and is parsed at image build (dbt parse → dbt/target/manifest.json for @dbt_assets).
-dagster-dbt
-dbt-trino
-# MetricFlow (dbt Semantic Layer, B1.7) — `mf query` compiles metrics (models/semantic_models.yml) to Trino SQL,
-# spined by models/metricflow_time_spine.sql. Uses the dbt-trino adapter above.
-dbt-metricflow
-# sqlglot — SQL parser for COLUMN-level lineage (OpenLineage tail, B1). datahub_emit._dbt_column_lineage parses each
-# mart's compiled SQL (staging is ephemeral → inlined as CTEs, so it traces straight to the gold-source columns) and
-# emits FineGrainedLineage onto the trino-platform mart URNs we already catalog. Trino dialect.
-sqlglot
-# openlineage-dbt — the `dbt-ol` wrapper emits real OpenLineage RunEvents (run history + column lineage) to DataHub
-# GMS's native OpenLineage REST endpoint after `dbt build`. The operational-lineage half of the B1 OpenLineage tail.
-openlineage-dbt
+mmh3==5.2.1
+more-itertools==10.8.0
+mpmath==1.3.0
+msgpack==1.2.1
+multidict==6.7.1
+multiprocess==0.70.17
+mypy==1.19.1
+mypy_extensions==1.1.0
+narwhals==2.24.0
+neo4j==6.2.0
+networkx==3.6.1
+numba==0.66.0
+numpy==2.4.6
+nvidia-cublas==13.1.1.3
+nvidia-cuda-cupti==13.0.85
+nvidia-cuda-nvrtc==13.0.88
+nvidia-cuda-runtime==13.0.96
+nvidia-cudnn-cu13==9.20.0.48
+nvidia-cufft==12.0.0.61
+nvidia-cufile==1.15.1.6
+nvidia-curand==10.4.0.35
+nvidia-cusolver==12.0.4.66
+nvidia-cusparse==12.6.3.3
+nvidia-cusparselt-cu13==0.8.1
+nvidia-nccl-cu13==2.29.7
+nvidia-nvjitlink==13.3.33
+nvidia-nvshmem-cu13==3.4.5
+nvidia-nvtx==13.0.85
+oauthlib==3.3.1
+openlineage-dbt==1.51.0
+openlineage-integration-common==1.51.0
+openlineage-python==1.51.0
+openlineage_sql==1.51.0
+opensearch-protobufs==1.2.0
+opensearch-py==3.2.0
+opentelemetry-api==1.44.0
+opentelemetry-proto==1.44.0
+opentelemetry-sdk==1.44.0
+opentelemetry-semantic-conventions==0.65b0
+orderly-set==5.5.0
+orjson==3.11.9
+overrides==7.7.0
+packaging==26.2
+pandas==2.3.3
+parsedatetime==2.6
+partd==1.4.2
+pathlib_abc==0.5.2
+pathspec==0.12.1
+pathvalidate==3.3.1
+pendulum==3.2.0
+platformdirs==4.10.0
+pluggy==1.6.0
+pooch==1.9.0
+portalocker==3.2.0
+progressbar2==4.5.0
+prometheus_client==0.24.1
+propcache==0.5.2
+protobuf==6.33.6
+psutil==7.2.2
+psycopg==3.3.4
+psycopg-binary==3.3.4
+psycopg-pool==3.3.1
+psycopg2-binary==2.9.12
+pyarrow==25.0.0
+pyasn1==0.6.4
+pyasn1_modules==0.4.2
+pycparser==3.0
+pycryptodome==3.23.0
+pydantic==2.13.4
+pydantic_core==2.46.4
+Pygments==2.20.0
+pyiceberg==0.11.1
+PyJWT==2.13.0
+pylance==8.0.0
+pymongo==4.17.0
+PyMySQL==1.2.0
+pyparsing==3.3.2
+pyroaring==1.1.0
+python-dateutil==2.9.0.post0
+python-dotenv==1.2.2
+python-json-logger==4.1.0
+python-slugify==8.0.4
+python-utils==4.0.0
+pytimeparse==1.1.8
+pytz==2026.2
+PyYAML==6.0.3
+qdrant-client==1.18.0
+RapidFuzz==3.14.5
+redis==7.4.1
+referencing==0.37.0
+regex==2026.7.10
+requests==2.34.2
+requests-file==3.0.1
+requests-oauthlib==2.0.0
+requests-toolbelt==1.0.0
+requirements-parser==0.13.1
+rich==14.3.4
+rich-argparse==1.8.0
+rpds-py==2026.6.3
+ruamel.yaml==0.19.1
+s3fs==2026.4.0
+safetensors==0.8.0
+scikit-learn==1.9.0
+scipy==1.17.1
+semver==3.0.4
+sentence-transformers==5.6.0
+sentry-sdk==2.66.0
+shellingham==1.5.4
+simplejson==4.1.1
+six==1.17.0
+smmap==5.0.3
+snowplow-tracker==1.1.0
+soundfile==0.14.0
+soxr==1.1.0
+spinners==0.0.24
+SQLAlchemy==2.0.51
+sqlalchemy-cockroachdb==2.0.4
+sqlglot==28.0.0
+sqlglotrs==0.7.3
+sqlparse==0.5.5
+starlette==1.3.1
+strictyaml==1.7.3
+structlog==26.1.0
+sympy==1.14.0
+tabulate==0.10.0
+tenacity==8.5.0
+termcolor==3.3.0
+text-unidecode==1.3
+threadpoolctl==3.6.0
+tokenizers==0.22.2
+toml==0.10.2
+tomli==2.4.1
+tomlkit==0.15.1
+toolz==1.1.0
+toposort==1.10
+torch==2.13.0
+tqdm==4.69.0
+transformers==5.14.1
+trino==0.338.0
+triton==3.7.1
+typeguard==4.5.2
+typer==0.27.0
+typing-inspect==0.9.0
+typing-inspection==0.4.2
+typing_extensions==4.16.0
+tzdata==2026.3
+tzlocal==5.4.4
+universal_pathlib==0.3.10
+update-checker==0.18.0
+urllib3==2.7.0
+uvicorn==0.34.0
+uvicorn-worker==0.3.0
+uvloop==0.22.1
+validators==0.35.0
+watchdog==6.0.0
+watchfiles==1.2.0
+weaviate-client==4.22.0
+websocket-client==1.9.0
+websockets==16.1
+wrapt==2.2.2
+xxhash==3.8.1
+yarl==1.24.2
+zipp==4.1.0
+zstandard==0.25.0

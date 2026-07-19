@@ -1,0 +1,85 @@
+dagster
+dagster-postgres
+dagster-webserver
+sentence-transformers
+psycopg2-binary
+qdrant-client
+weaviate-client
+neo4j
+httpx
+minio
+sentry-sdk
+# DataHub catalog/lineage emit (datahub_emit.py). Core SDK only — the acryl-datahub-dagster-plugin
+# sensor is dead on Dagster 1.13 (run_status_sensor broken, dagster#21526), so we emit directly.
+acryl-datahub
+# Iceberg table data products (iceberg_publish.py): read Postgres → write Iceberg via Nessie REST + MinIO.
+pyiceberg[s3fs]
+pyarrow
+# eval → MLflow experiment tracking (eval_mlflow.py). Skinny client (no server deps); metrics/params only.
+# PINNED to the deployed server version (ghcr.io/mlflow/mlflow:v3.14.0). The old 2.18 pin existed because a 3.x
+# client hits /api/2.0/mlflow/logged-models which the 2.x server lacked (404 on log_model) — moot now the server
+# is 3.x. B47: also clears the 2025/2026 mlflow RCE CVEs.
+mlflow-skinny==3.14.0
+# (scikit-learn + FULL mlflow removed 2026-07-06 — the in-cluster genre-training assets moved to the remote
+#  genre-trainer on rogueone. The only remaining Dagster mlflow user is eval_mlflow.py, which makes tracking-only
+#  calls (log_params/metrics/tags) that mlflow-skinny covers; the Feast retrieval asset needs neither.)
+# B72 — dlt EL (datasets_land.py): pull public datasets → MinIO filesystem destination (bronze raw zone).
+dlt[filesystem]
+# B72 — fan-out transform (datasets_transform.py): pandas for FMA's multi-row-header CSVs; lance + fastavro
+# for the Lance/Avro silver formats (Parquet/Arrow via pyarrow, Iceberg via pyiceberg — both already above).
+pandas
+pylance
+fastavro
+# B72 lakeFS write-through — datasets_land/transform write THROUGH the lakeFS S3 gateway (versioned),
+# datasets_commit calls the lakeFS API to commit each pipeline run as a version.
+lakefs
+# B65 Tier-2 DuckDB — emit_duckdb() queries the GizmoSQL Arrow Flight SQL server to catalog its views.
+adbc-driver-flightsql
+adbc-driver-manager
+# health_land.py downloads health datasets from HuggingFace / CDC / Socrata.
+datasets
+# Store hydration (data-store-mageddon) — build_store_load_assets reads silver Parquet → relational stores.
+# SQLAlchemy + PyMySQL power pandas.to_sql() for the MySQL loader (parquet file → table, batched).
+SQLAlchemy
+PyMySQL
+# pymongo — MongoDB loader (silver Parquet → documents; aidlc-kb frontmatter → queryable docs).
+pymongo
+# sqlalchemy-cockroachdb — the CockroachDB loader's dialect (plain postgres dialect can't parse Cockroach's
+# version string; cockroachdb:// handles it + Cockroach quirks). Uses psycopg2 underneath.
+sqlalchemy-cockroachdb
+# cassandra-driver — Cassandra loader (silver Parquet → wide-column tables; prepared INSERT + execute_concurrent).
+cassandra-driver
+# clickhouse-connect — ClickHouse loader (issues CREATE TABLE … AS SELECT FROM s3() — native parquet ingest).
+clickhouse-connect
+# opensearch-py — OpenSearch loader (silver Parquet → bulk-indexed documents; the standalone playground cluster).
+opensearch-py
+# librosa + soundfile — GTZAN land audio-feature extraction (decode clips → chroma/mfcc/spectral/tempo features).
+librosa
+soundfile
+# confluent-kafka — Redpanda Avro producer (B1.5 streaming): Confluent wire-format serialization + Schema
+# Registry client so Console + standard consumers decode the messages. Wheels bundle librdkafka (no system dep).
+confluent-kafka[avro]
+# lancedb — embedded, Lance-format-native vector DB (grid LanceDB). Serverless (no pod) — writes tables to the
+# lakeFS S3 gateway + does ANN search in-process; the object-storage-native counterpart to Qdrant/Weaviate.
+lancedb
+# kubernetes — the lancedb_sync sensor launches the mc-mirror Job in data-mesh (from the lancedb-sync CronJob
+# template) when a lancedb load materializes → event-triggered viewer sync (in-cluster API).
+kubernetes
+# feast — feature store (grid Feast): Postgres registry + offline, Valkey(redis) online. Capability = low-latency
+# feature serving by entity key + point-in-time-correct training retrieval. Repo in feast_repo/.
+feast[redis,postgres]
+# dbt (B1.5 Transform) — dbt-core + the Trino adapter (materialize Iceberg via Trino→Nessie), orchestrated by
+# dagster-dbt (unpinned to track the unpinned dagster above; dbt-trino pulls a compatible dbt-core). The dbt
+# project lives in dbt/ and is parsed at image build (dbt parse → dbt/target/manifest.json for @dbt_assets).
+dagster-dbt
+dbt-trino
+# MetricFlow (dbt Semantic Layer, B1.7) — `mf query` compiles metrics (models/semantic_models.yml) to Trino SQL,
+# spined by models/metricflow_time_spine.sql. Uses the dbt-trino adapter above.
+dbt-metricflow
+# sqlglot — SQL parser for COLUMN-level lineage (OpenLineage tail, B1). datahub_emit._dbt_column_lineage parses each
+# mart's compiled SQL (staging is ephemeral → inlined as CTEs, so it traces straight to the gold-source columns) and
+# emits FineGrainedLineage onto the trino-platform mart URNs we already catalog. Trino dialect.
+sqlglot
+# openlineage-dbt — the `dbt-ol` wrapper emits real OpenLineage RunEvents (run history + column lineage) to DataHub
+# GMS's native OpenLineage REST endpoint after `dbt build`. The operational-lineage half of the B1 OpenLineage tail.
+openlineage-dbt
