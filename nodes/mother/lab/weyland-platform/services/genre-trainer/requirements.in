@@ -1,0 +1,10 @@
+# Trainer deps — deliberately minimal (this image is pulled + run ephemerally on rogueone).
+scikit-learn
+mlflow==3.14.0        # PINNED to the deployed MLflow server (ghcr.io/mlflow/mlflow:v3.14.0); B47: clears the 2025/2026 mlflow RCE CVEs
+pandas
+pyarrow               # read_parquet for the lakeFS silver
+minio                 # lakeFS S3-gateway client (silver read)
+boto3                 # mlflow's S3 artifact upload → MinIO (direct, s3://)
+ray[default,tune]==2.56.0  # --tune: HP sweep; [default] adds the Ray Dashboard (:8265). B47: 2.37->2.56 (must match the head + rogueone worker Ray version exactly) — clears the DNS-rebinding CVE + enables token auth
+# (creds + port-forwards are handled by entrypoint.sh via the kubectl binary, so no k8s Python client needed)
+
