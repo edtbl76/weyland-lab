@@ -105,6 +105,11 @@ a **3rd entry** (`filter: .body.kind == "hotspot"`, `identifier: .body.file | gs
 (issues/measures) is already in Port via the Ocean integration (SonarQube Issues/Projects catalog tables) — separate from
 this webhook. See [[project-backlog]] B89 (drive the findings to zero) as the follow-on.
 
+**B91 (dep pinning, 2026-07-19):** the service `requirements.txt` were unpinned, so osv-scanner read them as version
+`0.0.0` and matched ~52 phantom CVEs. Fixed with the **pip-tools split**: loose `requirements.in` (human) + pinned
+`requirements.txt` (from each service's `pip freeze`). osv now reads real versions → phantoms gone. To re-pin after an
+intentional bump: rebuild the image (or exec the running pod) and `pip freeze > requirements.txt`.
+
 **The `Code Health` dashboard** (Port sidebar / Catalog) assembles it all on one page: three number cards (Σ `critical` +
 Σ `high` over `security_scan`, count of `sonarQubeIssue`) over a `code_quality` Quality-Gate table + a `code_hotspot`
 Top-Hotspots table (sorted by churn). Built via the **Port MCP** (`upsert_dashboard_page`) — **Port dashboards can't be
