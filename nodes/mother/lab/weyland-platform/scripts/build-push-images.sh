@@ -26,4 +26,8 @@ build weyland-flink-py          "-f k8s/flink/Dockerfile.pyflink k8s/flink"
 build store-scaler              "services/store-scaler"
 build scan-suite                "services/scan-suite"
 
-echo "---- done: 8 images pushed to $REG at :$TAG. Now push the repointed k8s manifests so Argo redeploys. ----"
+# ranger is VERSION-PINNED (mr3project base tag), not TAG-following — build it explicitly (B92: was a local
+# ctr-import, moved to the registry so it survives a prune/reschedule like the rest).
+echo "==== ranger:2.6.0-py3 (version-pinned) ===="; docker build -t "$REG/ranger:2.6.0-py3" services/ranger; docker push "$REG/ranger:2.6.0-py3"
+
+echo "---- done: 8 images at :$TAG + ranger:2.6.0-py3 pushed to $REG. Now push the repointed k8s manifests so Argo redeploys. ----"

@@ -194,7 +194,7 @@ spec:
         # repo). The ConfigMap mount is read-only, so render here — copy the template + sed each @@TOKEN@@ into the
         # writable emptyDir the main container mounts as key/.
         - name: render-install-props
-          image: weyland/ranger:2.6.0-py3
+          image: registry.weyland.lab/ranger:2.6.0-py3
           imagePullPolicy: IfNotPresent
           command: ["/bin/bash", "-c"]
           args:
@@ -209,7 +209,7 @@ spec:
             - { name: key-template, mountPath: /template }
       containers:
         - name: ranger-admin
-          image: weyland/ranger:2.6.0-py3   # baked = mr3project/ranger:2.6.0 + python3 (services/ranger/Dockerfile)
+          image: registry.weyland.lab/ranger:2.6.0-py3   # baked = mr3project/ranger:2.6.0 + python3 (services/ranger/Dockerfile)
           imagePullPolicy: IfNotPresent            # local ctr-imported image (same pattern as the dagster image)
           command: ["/bin/bash", "-c"]
           args:
