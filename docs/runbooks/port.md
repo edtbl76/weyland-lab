@@ -25,9 +25,9 @@ what the thing *is*:
   - `catalog.tf` — the 5 **Software Catalog** blueprints that mirror the old Backstage model:
     `domain`, `system`, `resource`, `api`, `component` (component also relates to `k8s_workload`, `service`,
     APIs, and resources).
-  - `blueprints.tf` — 6 webhook/integration blueprints fed by the observability tools:
-    `security_scan` (Trivy/Semgrep), `glitchtip_issue`, `feature_flag` (Unleash), `code_quality` (SonarQube),
-    `endpoint`, `ci_pipeline` (Woodpecker).
+  - `blueprints.tf` — 7 webhook/integration blueprints fed by the observability tools:
+    `security_scan` (9-tool scan-suite), `code_hotspot` (code-maat churn), `glitchtip_issue`, `feature_flag` (Unleash),
+    `code_quality` (SonarQube), `endpoint`, `ci_pipeline` (Woodpecker).
   - `cost.tf` — the `cost` (Recurring Cost) blueprint.
 - **Entities (the data) = MCP / integration-managed, NOT in tofu.** B60 deliberately decoupled the lanes:
   codifying actively-edited entity data caused constant sync friction (every ownership/relation/scorecard tweak

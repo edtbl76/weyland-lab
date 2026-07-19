@@ -19,8 +19,8 @@ direct CI→CD wire; git is the seam.
 - `.gitignore` ignores `.terraform/`, `*.tfstate*`, `*.tfvars`; the **lock file IS committed**.
 
 ## Port lane (done) — `tofu/port/`
-**12 blueprints codified** in `catalog.tf` — 7 webhook/category (`cost`, `ci_pipeline`, `glitchtip_issue`,
-`feature_flag`, `code_quality`, `security_scan`, `endpoint`) + 5 software-catalog (`domain`/`system`/`component`/
+**13 blueprints codified** — 8 webhook/category (`cost`, `ci_pipeline`, `glitchtip_issue`, `feature_flag`,
+`code_quality`, `security_scan`, `code_hotspot`, `endpoint`) + 5 software-catalog (`domain`/`system`/`component`/
 `resource`/`api`). CLI-imported, `tofu plan` clean no-op, state in MinIO. **Entities are NOT codified** — B60
 decoupled them: **blueprints = schema (tofu, drift-checked); entities = data (MCP + integrations, free to evolve)**.
 Codifying actively-edited entity data caused constant sync friction; entities rebuild from the docs via MCP. To

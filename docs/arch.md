@@ -115,7 +115,7 @@ agents/workflows and platform state. Agents call the tool-server, *not* database
 | OpenCost | `opencost.weyland.lab` | **B55** k8s cost allocation (CNCF). Reads the existing Prometheus; **custom on-prem pricing** (bare-metal MS-A2, no cloud bill) → ~$48/mo box, k3s slice ~$15/mo. Feeds the Port **Cloud Cost** category: `cost` blueprint (Claude $200 + infra $48 + LiteLLM $0 ≈ $248/mo) + a Cost dashboard; OpenCost in the Launcher for live detail. [runbooks/opencost.md](runbooks/opencost.md). |
 | Woodpecker CI | `woodpecker.weyland.lab` | **B56** CI/CD (kubernetes backend — pipeline steps run as cluster pods, can build/deploy the apps). GitHub OAuth; LAN-only → manual/cron triggers (GitHub can't push-webhook the lab). A `notify-port` step → Port `ci_pipeline`; Woodpecker in the Launcher. Shared build farm (Stud.IO migrates on later, B57). [runbooks/woodpecker.md](runbooks/woodpecker.md). |
 | Argo CD | `argocd.weyland.lab` | **B58 (IaC, k8s lane)** GitOps CD — reconciles the k8s layer from the public repo (pull-based → LAN-safe). app-of-apps root + **28 apps onboarded** (20 raw auto-sync + 8 helm multi-source). Deploy flow is now **push to git → Argo reconciles** (rsync retired). Chosen over Flux (UI). [runbooks/argocd.md](runbooks/argocd.md). |
-| OpenTofu | (CLI on rogueone) | **B58 (IaC, non-k8s lane)** Terraform-fork for what Argo can't reconcile — SaaS + Proxmox. **State in MinIO** (`s3.weyland.lab/tofu-state`). **Port's 7 blueprints + all 5 Proxmox guests codified** (`tofu/port/` + `tofu/proxmox/`, brownfield CLI import; mother's passthrough disk frozen via `ignore_changes`); GitHub/DNS + Port entities next. [runbooks/opentofu.md](runbooks/opentofu.md). |
+| OpenTofu | (CLI on rogueone) | **B58 (IaC, non-k8s lane)** Terraform-fork for what Argo can't reconcile — SaaS + Proxmox. **State in MinIO** (`s3.weyland.lab/tofu-state`). **Port's 8 blueprints + all 5 Proxmox guests codified** (`tofu/port/` + `tofu/proxmox/`, brownfield CLI import; mother's passthrough disk frozen via `ignore_changes`); GitHub/DNS + Port entities next. [runbooks/opentofu.md](runbooks/opentofu.md). |
 | Prometheus + Grafana | `grafana.weyland.lab` (ns `monitoring`) | observability (cluster/node/pod dashboards). |
 | MinIO | `s3.weyland.lab` (S3), Filestash `files.weyland.lab` (ns `minio`) | object storage (8 TB USB -> mother). |
 | APISIX | `mother:30090` (gateway, API/data plane), `apisix.weyland.lab` (dashboard, Keycloak SSO) | **Active API/data-plane gateway** — live routes front the tool-server `/context` + `/pipeline` and the qdrant/weaviate/neo4j backends (the API-client front door; browsers go via Traefik instead). Gateway itself is API-auth'd, not Keycloak. |
@@ -861,8 +861,9 @@ observed; **Control/ops** = scheduled and operational paths.
   `usedforsecurity=False`), the rest **accepted-with-rationale** in `.trivyignore` / `osv-scanner.toml`, ranger's
   committed dev-creds logged (B92). A `202` from the ingest webhook is queue-acceptance, **not** proof of an entity.
   Flow: [diagrams/flow-code-quality.md](diagrams/flow-code-quality.md); runbook: [runbooks/code-quality.md](runbooks/code-quality.md).
-- **Deploy model:** manual `rsync` -> build on the node -> import to k3s/containerd -> `kubectl rollout`
-  (tool-server, Dagster, Open WebUI). No GitOps yet (deliberate, until stable).
+- **Deploy model:** **GitOps** (B58) — the k8s layer reconciles from the public repo via **Argo CD** (app-of-apps;
+  push to git → Argo syncs; `rsync` retired), and **OpenTofu** codifies the non-k8s lane (Port/Proxmox, state in MinIO).
+  Node-native services (rogueone's Ray worker, rag-embed) still deploy by `rsync` + a systemd/venv rebuild.
 
 ---
 

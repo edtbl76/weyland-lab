@@ -1,7 +1,8 @@
 # Secrets management — SealedSecrets (B69)
 
-As of **B69 Wave 2**, the cluster's imperative secrets are **GitOps-managed via Bitnami SealedSecrets**. The 53
-credentials we created by hand (`kubectl create secret …`) are now **sealed into the public repo** and restored by
+As of **B69 Wave 2**, the cluster's imperative secrets are **GitOps-managed via Bitnami SealedSecrets**. The **54**
+credentials we created by hand (`kubectl create secret …` — 53 in the B69 Wave 2 batch + the `kiali` signing-key sealed in
+B89) are now **sealed into the public repo** and restored by
 Argo — closing the "reproducible-from-git / secrets-restorable" gap. Encrypted `SealedSecret` CRs are safe in a
 public repo: **only this cluster's controller private key can decrypt them.**
 

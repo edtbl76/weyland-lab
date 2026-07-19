@@ -88,8 +88,9 @@ kubectl exec -n weyland deploy/dagster-user-code -- python3 -c "import psycopg2,
 
 ## Security (Kiali)
 The Istio addon ships **demo-grade** defaults. Hardened in `k8s/istio/kiali.yaml`: **`view_only_mode: true`**
-(read-only — anonymous users can't mutate the mesh), **ClusterRole read-only on Istio CRDs**, non-placeholder
-signing key. Kiali stays `auth.strategy: anonymous` internally; **the password gate is at the ingress** (below).
+(read-only — anonymous users can't mutate the mesh), **ClusterRole read-only on Istio CRDs**. The `login_token.signing_key`
+is sourced from the **`kiali` SealedSecret** (istio-system, key `signing-key`) — B89 moved it out of `kiali.yaml` so no key
+lives in the public repo (inert under `anonymous` anyway). Kiali stays `auth.strategy: anonymous` internally; **the password gate is at the ingress** (below).
 **Residual (optional):** NetworkPolicy/AuthorizationPolicy + drop the remaining workload `patch` verbs.
 
 ### Ingress auth (Keycloak SSO) — `traefik-forward-auth`

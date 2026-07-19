@@ -1,14 +1,18 @@
 # Code Quality — runbook (B43, Port category)
 
-Three on-demand scanners → Port. **SonarQube** (server, always-on) + **Trivy** + **Semgrep** (stateless Jobs).
-LaunchDarkly-style SaaS avoided; all OSS/$0. Findings surface in Port as `code_quality` + `security_scan` entities.
+**Two weekly k8s CronJobs → Port** (B69, replacing the old on-demand Jobs). **`code-scan-suite`** runs **9 OSS tools**
+in one image (gitleaks, checkov, kubescape, hadolint, bandit, osv-scanner, shellcheck, semgrep, trivy) + **code-maat**
+change-hotspots; **`sonar-scan`** runs the always-on **SonarQube** server. All OSS/$0. Findings surface in Port as
+`security_scan` (per-tool), `code_hotspot` (churn), and `code_quality` (Sonar gate) → the **Code Health** dashboard.
+The suite + B89 triage + B90 dashboard are detailed in the sections below.
 
 - SonarQube server: `k8s/sonarqube/sonarqube.yaml` — `sonarqube.weyland.lab`, **meshed** (STRICT Postgres backend,
   db/role `sonarqube`). Auth is **double-login**: a **Keycloak forward-auth gate** (`traefik-forward-auth`) sits
   **in front of** SonarQube's own login (`admin`/`admin` → forced change) — Keycloak SSO first, then SonarQube's
   own login. Stateless-ish: data + extensions on RWO PVCs.
-- Scan Jobs (clone → scan → push): `k8s/sonarqube/sonar-scan-job.yaml`, `k8s/code-quality/trivy-scan-job.yaml`,
-  `k8s/code-quality/semgrep-scan-job.yaml`. Re-run: `kubectl delete job <name> -n weyland` then re-apply.
+- Weekly CronJobs (clone → scan → Port): `k8s/code-quality/scan-suite.yaml` (`code-scan-suite`, Sun 13:00 UTC) +
+  `k8s/sonarqube/sonar-scan.yaml` (`sonar-scan`, Sun 12:00 UTC). Run on-demand:
+  `kubectl -n weyland create job <name>-smoke --from=cronjob/<code-scan-suite|sonar-scan>`.
 - Always-on (NOT KEDA scale-to-zero): the 32GB RAM bump made the cost moot; scale-to-zero would need the KEDA
   HTTP interceptor in front (cross-ns ingress rewire + scan-path-through-interceptor). Revisit only if RAM tightens.
 
@@ -16,17 +20,18 @@ LaunchDarkly-style SaaS avoided; all OSS/$0. Findings surface in Port as `code_q
 - `vm.max_map_count=524288` on mother (`/etc/sysctl.d/99-sonarqube.conf`) — SonarQube's embedded Elasticsearch
   refuses to boot otherwise.
 
-## Port wiring (all three → one webhook DS `code-quality`)
-- Blueprints: `code_quality` (qualityGate OK/ERROR/WARN/NONE, project, branch), `security_scan` (tool, target,
-  critical/high/medium/low/total). Created via MCP. **Webhook DS + its mapping are UI-only** (not MCP-manageable —
-  `list_integrations` shows only Ocean exporters).
+## Port wiring (all → one webhook DS `code-quality`)
+- Blueprints (codified in `tofu/port/blueprints.tf`): `code_quality` (qualityGate OK/ERROR/WARN/NONE, project, branch),
+  `security_scan` (tool, target, critical/high/medium/low/total), **`code_hotspot`** (file, revisions, target — code-maat
+  churn, B90). **The webhook DS + its mapping are UI-only** (not MCP-manageable — `list_integrations` shows only Ocean exporters).
 - **SonarQube → Port:** native webhook (Administration → Configuration → Webhooks → URL = `ingest.getport.io/<key>`).
   Fires after each analysis (the CE processes the report async, then POSTs). Pod is meshed; egress to getport.io
   works (Istio ALLOW_ANY).
-- **Trivy/Semgrep → Port:** each Job's `report` container parses the scan JSON → POSTs counts to the same ingest
-  URL (Secret `port-ingest-url`, key `url`). Severity map for Semgrep: ERROR→high, WARNING→medium, INFO→low.
-- Mapping (paste in the Port webhook DS Mapping tab) is the 2-entry array in this repo's git history / below format;
-  `operation` must be **`create`** (Port rejects `upsert`).
+- **scan-suite → Port:** `scan.py` POSTs each tool's counts (and code-maat's top-20 hotspots, `kind:"hotspot"`) to the
+  same ingest URL (Secret `port-ingest-url`, key `url`). Semgrep severity map: ERROR→high, WARNING→medium, INFO→low.
+- Mapping (paste in the Port webhook DS Mapping tab) is now a **3-entry array** (`code_quality` on `.body.qualityGate`,
+  `security_scan` on `.body.tool`, `code_hotspot` on `.body.kind=="hotspot"`); `operation` must be **`create`** (Port
+  rejects `upsert`). A `202` is queue-acceptance, **not** proof of an entity.
 
 ## Gotchas (hit during bring-up)
 1. **Port webhook wizard greys out Save until it receives the FIRST event.** Send one to unblock:
