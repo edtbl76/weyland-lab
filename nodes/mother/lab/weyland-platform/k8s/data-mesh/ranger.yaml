@@ -15,7 +15,7 @@ data:
     DB_FLAVOR=POSTGRES
     SQL_CONNECTOR_JAR=/opt/mr3-run/lib/postgresql-42.3.2.jar
     db_root_user=rangeradmin
-    db_root_password=weyland_dev_password
+    db_root_password=@@DB_ROOT_PASSWORD@@
     db_host=weyland-postgres.weyland.svc.cluster.local
     db_ssl_enabled=false
     db_ssl_required=false
@@ -30,13 +30,13 @@ data:
     db_ssl_certificate_file=
     db_name=ranger
     db_user=rangeradmin
-    db_password=weyland_dev_password
+    db_password=@@DB_PASSWORD@@
     is_override_db_connection_string=false
     db_override_connection_string=
-    rangerAdmin_password=Weyland_dev_password1
-    rangerTagsync_password=Weyland_dev_password1
-    rangerUsersync_password=Weyland_dev_password1
-    keyadmin_password=Weyland_dev_password1
+    rangerAdmin_password=@@RANGER_ADMIN_PASSWORD@@
+    rangerTagsync_password=@@RANGER_TAGSYNC_PASSWORD@@
+    rangerUsersync_password=@@RANGER_USERSYNC_PASSWORD@@
+    keyadmin_password=@@KEYADMIN_PASSWORD@@
     audit_store=
     audit_elasticsearch_urls=
     audit_elasticsearch_port=
@@ -67,16 +67,16 @@ data:
     policymgr_https_keystore_password=
     policymgr_supportedcomponents=
     unix_user=ranger
-    unix_user_pwd=ranger
+    unix_user_pwd=@@UNIX_USER_PWD@@
     unix_group=ranger
     authentication_method=NONE
     remoteLoginEnabled=true
     authServiceHostName=localhost
     authServicePort=5151
     ranger_unixauth_keystore=keystore.jks
-    ranger_unixauth_keystore_password=password
+    ranger_unixauth_keystore_password=@@UNIXAUTH_KEYSTORE_PASSWORD@@
     ranger_unixauth_truststore=cacerts
-    ranger_unixauth_truststore_password=changeit
+    ranger_unixauth_truststore_password=@@UNIXAUTH_TRUSTSTORE_PASSWORD@@
     xa_ldap_url=
     xa_ldap_userDNpattern=
     xa_ldap_groupSearchBase=
@@ -189,6 +189,24 @@ spec:
         proxy.istio.io/config: '{"holdApplicationUntilProxyStarts": true}'
     spec:
       terminationGracePeriodSeconds: 5   # the sleep-infinity pod ignores SIGTERM; don't wait 30s under Recreate
+      initContainers:
+        # B92: install.properties passwords come from the ranger-admin-secret SealedSecret (kept out of the public
+        # repo). The ConfigMap mount is read-only, so render here — copy the template + sed each @@TOKEN@@ into the
+        # writable emptyDir the main container mounts as key/.
+        - name: render-install-props
+          image: weyland/ranger:2.6.0-py3
+          imagePullPolicy: IfNotPresent
+          command: ["/bin/bash", "-c"]
+          args:
+            - |
+              set -e
+              cp /template/install.properties /key/install.properties
+              sed -i -e "s|@@DB_ROOT_PASSWORD@@|${DB_ROOT_PASSWORD}|" -e "s|@@DB_PASSWORD@@|${DB_PASSWORD}|" -e "s|@@RANGER_ADMIN_PASSWORD@@|${RANGER_ADMIN_PASSWORD}|" -e "s|@@RANGER_TAGSYNC_PASSWORD@@|${RANGER_TAGSYNC_PASSWORD}|" -e "s|@@RANGER_USERSYNC_PASSWORD@@|${RANGER_USERSYNC_PASSWORD}|" -e "s|@@KEYADMIN_PASSWORD@@|${KEYADMIN_PASSWORD}|" -e "s|@@UNIX_USER_PWD@@|${UNIX_USER_PWD}|" -e "s|@@UNIXAUTH_KEYSTORE_PASSWORD@@|${UNIXAUTH_KEYSTORE_PASSWORD}|" -e "s|@@UNIXAUTH_TRUSTSTORE_PASSWORD@@|${UNIXAUTH_TRUSTSTORE_PASSWORD}|" /key/install.properties
+          envFrom:
+            - secretRef: { name: ranger-admin-secret }
+          volumeMounts:
+            - { name: key, mountPath: /key }
+            - { name: key-template, mountPath: /template }
       containers:
         - name: ranger-admin
           image: weyland/ranger:2.6.0-py3   # baked = mr3project/ranger:2.6.0 + python3 (services/ranger/Dockerfile)
@@ -217,6 +235,8 @@ spec:
             - { name: conf, mountPath: /opt/mr3-run/ranger/conf }
       volumes:
         - name: key
+          emptyDir: {}
+        - name: key-template
           configMap: { name: ranger-admin-install }
         - name: conf
           configMap: { name: ranger-admin-conf }
