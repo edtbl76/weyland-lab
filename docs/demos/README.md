@@ -45,6 +45,7 @@ Legend: ✅ done · ⬜ missing · 🟡 exists but stale/partial · — not appl
 | 30 | Health status (Uptime Kuma) | ✅ (authored) | ✅ `health-status.md` | — |
 | 31 | Roadmap sync (Linear) | ✅ (authored) | ✅ `roadmap-sync.md` | ✅ Linear issues |
 | 32 | Architecture diagrams (LikeC4, B64) | — (the C4 views ARE the diagram) | ✅ `likec4.md` | — read-only |
+| 33 | Code quality / security scan (scan-suite → Port) | ✅ `flow-code-quality` | ✅ `code-quality-e2e.md` | ✅ smoke Jobs (deleted); Port upserts idempotent |
 | **End-to-end walkthroughs** (cross-system) — all 🟡 authored, pending a live validation run | | | | |
 | E1 | RAG (doc change → index → retrieve → eval) | ✅ `flow-e2e-rag` | 🟡 `rag-e2e.md` | ✅ eval run/scores (per leg) |
 | E2 | Soda data-quality → DataHub Assertions | ✅ `flow-e2e-soda` | 🟡 `soda-dq.md` | — read-only + idempotent upserts |

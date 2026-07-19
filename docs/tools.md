@@ -92,7 +92,7 @@ this page) links to the live tool.
 |---|---|---|
 | **Argo CD** | <https://argocd.weyland.lab> | GitOps CD for the k8s layer |
 | **Woodpecker CI** | <https://woodpecker.weyland.lab> | CI pipelines |
-| **SonarQube** | <https://sonarqube.weyland.lab> | Code quality + SAST |
+| **SonarQube** | <https://sonarqube.weyland.lab> | Code quality + SAST (part of the weekly scan-suite → Port Code Health) |
 | **Unleash** | <https://unleash.weyland.lab> | Feature flags |
 | **Headlamp** | <https://headlamp.weyland.lab> | Kubernetes UI |
 | **APISIX** | <https://apisix.weyland.lab> | API gateway dashboard |

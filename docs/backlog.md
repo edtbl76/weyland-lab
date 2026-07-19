@@ -1074,15 +1074,19 @@ All land in lakeFS → Parquet → Iceberg → Trino/DuckDB queryable. Gated dat
 
 ---
 
-### B89 — Drive the scan-suite findings to zero — Security / Hardening
-**Added 2026-07-18.** The B69 weekly `code-scan-suite` now surfaces the *real* backlog of issues across 9 tools in Port `security_scan`. This item = the remediation pass (the B47 SonarQube/Trivy fix, but suite-wide). Work criticals → highs first:
+### B89 — Drive the scan-suite findings to zero — ✅ DONE 2026-07-18
+**✅ DONE 2026-07-18.** Triaged all 6 scanners — **2 real fixes shipped, the rest phantom-or-accepted (real deployed vulns ≈0)**: gitleaks 1C→0 (Kiali signing key → SealedSecret), bandit 6H→0 (MD5-for-IDs → `usedforsecurity=False`), semgrep 4H→0 (sealed-ciphertext FP excluded), trivy 204H→2-tracked (193 readOnlyRootFS + 8 intentional accepted in `.trivyignore`; ranger creds→B92, trino FP), osv 56H→0-real (4 Flink-transitive accepted in `osv-scanner.toml`; 52 unpinned-dep phantoms proven via `pip freeze`→B91), kubescape 6H→0-new. GIT-0003 fixed (`vulnerability_alerts=true` in repo.tf). Follow-ons logged: B91 (dep-pinning), B92 (ranger creds), B93 (memory limits). Original scope below.
+
+The B69 weekly `code-scan-suite` surfaces the issue backlog across 9 tools in Port `security_scan`. This was the remediation pass (the B47 SonarQube/Trivy fix, but suite-wide). Work criticals → highs first:
 - **gitleaks `1 Critical` = a committed secret on a PUBLIC repo** — triage FIRST; if it's live, rotate + purge from history. Highest priority regardless of the rest.
 - **osv-scanner 56 High** (dependency CVEs) + **trivy 204 High / 245 Med** (vuln/misconfig/secret) — the bulk; likely overlaps the B47 accepted-residuals (`KSV-0118`/`KSV-0014` readOnlyRootFilesystem). Re-triage: fix or document-and-`.trivyignore` each.
 - **semgrep 4 High**, **bandit 6 High**, **kubescape 6 High** — code + workload hardening.
 - Track the counts trending down in the Port `security_scan` view run-over-run; the weekly cron is the regression guard.
 
-### B90 — Build out the Code Quality Port surface (code-maat + Sonar detail) — Maturity / Polish
-**Added 2026-07-18.** Today the `code_quality` blueprint holds only SonarQube's `qualityGate`. Make the Code Qualities page the real code-health surface:
+### B90 — Build out the Code Quality Port surface (code-maat + Sonar detail) — ✅ DONE 2026-07-18
+**✅ DONE 2026-07-18.** code-maat hotspots now flow to Port via a new **`code_hotspot`** blueprint (`tofu/port/blueprints.tf`) + a `scan.py` top-20 POST (`kind:"hotspot"` discriminator) + a 3rd webhook-mapping entry. Built the **Code Health** dashboard (Port MCP `upsert_dashboard_page`, Port-only — dashboards aren't codifiable): Σ critical / Σ high / Σ medium number cards (security_scan) + a Quality-Gate table (code_quality) + a Top-Hotspots table (code_hotspot, sorted by churn). **Caveat:** Port holds SonarQube's *gate* (native webhook), not per-issue detail — the Ocean `sonarQubeIssue`/`Project` blueprints are empty (no Ocean integration runs against the LAN SonarQube); wiring per-issue sync would be its own task. Original scope below.
+
+Today the `code_quality` blueprint holds only SonarQube's `qualityGate`. Made the Code Qualities page the real code-health surface:
 - **code-maat hotspots → Port** — scan.py currently only *logs* the change-hotspots (`entity,n-revs`); add a Port POST (new `code_hotspot` blueprint or a hotspots array on `code_quality`) so the CodeScene-style behavioral data is visible/queryable, not buried in a pod log.
 - **Richer SonarQube** — surface bugs/vulns/code-smells/coverage/duplication measures (Port already has SonarQube Issues/Projects catalog tables via the Ocean integration — wire them together on one page).
 - Goal: one Port view answering "where is the risk + churn" — pairs with B89 (findings) and B88 (test runners).
@@ -1099,6 +1103,14 @@ All land in lakeFS → Parquet → Iceberg → Trino/DuckDB queryable. Gated dat
 - Bigger lift than kiali: Ranger reads these from `install.properties`, so relocating means reworking how the setup consumes them (env-refs from a SealedSecret, then the setup script/`ranger_setup.py` reads env) — see [[ranger-trino-authz-b-l5]] for the config mechanics.
 - Once relocated, the `KSV-0109` note in `.trivyignore` can flip to a blanket ignore (only trino's false-positive would remain).
 - Consider whether to rotate `Weyland_dev_password1` off the shared value while at it.
+
+### B93 — Memory-limit backstop for unlimited workloads — Reliability (LOW priority)
+**Added 2026-07-18.** kubescape `C-0271` (memory limits missing). **Already largely mitigated**: every large memory consumer (Trino 5Gi, Cassandra 3.5Gi, SonarQube, Neo4j, OpenSearch, DataHub GMS, dagster-user-code, Ray, ClickHouse, Flink, etc.) already carries an explicit limit — the node-OOM risk is handled. Remaining unlimited pods are all small/moderate infra & control-plane (argocd, monitoring sidecars, istiod, woodpecker, n8n, headlamp) + data-mesh musicbrainz + a superset init-job. Low actual risk → this is defense-in-depth + closing the control, not urgent. Scoped approach (do NOT do a blanket 50-workload pass):
+- **Per-namespace `LimitRange`** (default `limits.memory: 2Gi`, `defaultRequest.memory: 128Mi`) on the infra namespaces (monitoring, argocd, istio-system, woodpecker, n8n, headlamp) — caps chart/system pods without forking 15 helm-values files, and auto-catches future unlimited pods. 2Gi = containment headroom (all use <500Mi).
+- **Explicit limit on `musicbrainz`** (data-mesh), sized from its real working-set.
+- **Skip** kube-system (k3s-owned system pods) + the superset init-job (ephemeral) + a blanket data-mesh/weyland LimitRange (heterogeneous — a low default could OOM a future big store).
+- CPU limits (`C-0270`) are deliberately NOT set — CPU limits cause throttling; requests-not-limits is the accepted practice.
+- Verify with an `OOMKilled` alert (`kube_pod_container_status_last_terminated_reason`) after applying; bump any too-tight limit.
 
 ---
 
