@@ -13,7 +13,7 @@ INDEX = "weyland_chunks"
 
 def _doc_id(source_path: str, chunk_index: int) -> str:
     # Deterministic + slash-free: source_path has '/', which would break the _doc URL path (400).
-    return hashlib.md5(f"{source_path}:{chunk_index}".encode()).hexdigest()
+    return hashlib.md5(f"{source_path}:{chunk_index}".encode(), usedforsecurity=False).hexdigest()
 _MAPPING = {
     "mappings": {
         "properties": {

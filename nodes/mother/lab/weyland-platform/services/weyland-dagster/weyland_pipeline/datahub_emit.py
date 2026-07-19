@@ -1512,7 +1512,7 @@ def emit_soda_assertions(scan_results: dict):
         column = check.get("column")
         outcome = (check.get("outcome") or "").lower()
         mart_urn = _soda_dataset_urn(check.get("dataSource", "weyland"), table)
-        assertion_urn = make_assertion_urn(hashlib.md5(f"{table}:{name}".encode()).hexdigest())
+        assertion_urn = make_assertion_urn(hashlib.md5(f"{table}:{name}".encode(), usedforsecurity=False).hexdigest())
         info = AssertionInfoClass(
             type=AssertionTypeClass.DATASET,
             datasetAssertion=DatasetAssertionInfoClass(
@@ -1623,7 +1623,7 @@ def emit_data_contracts(scan_results: dict):
         if not table:
             continue
         name = check.get("name") or check.get("definition") or "soda check"
-        aurn = make_assertion_urn(hashlib.md5(f"{table}:{name}".encode()).hexdigest())
+        aurn = make_assertion_urn(hashlib.md5(f"{table}:{name}".encode(), usedforsecurity=False).hexdigest())
         by_table.setdefault((check.get("dataSource", "weyland"), table), []).append(aurn)
     n = 0
     for (ds, table), aurns in by_table.items():
@@ -1633,7 +1633,7 @@ def emit_data_contracts(scan_results: dict):
         # dataContract GraphQL listing (NullValueInNonNullableField). Guard is cheap vs a poisoned Contracts tab.
         if not graph.exists(mart_urn):
             continue
-        dc_urn = f"urn:li:dataContract:{hashlib.md5(table.encode()).hexdigest()}"
+        dc_urn = f"urn:li:dataContract:{hashlib.md5(table.encode(), usedforsecurity=False).hexdigest()}"
         emitter.emit(MetadataChangeProposalWrapper(entityUrn=dc_urn, aspect=DataContractPropertiesClass(
             entity=mart_urn,
             dataQuality=[DataQualityContractClass(assertion=a) for a in aurns],
@@ -1819,7 +1819,7 @@ def emit_queries():
     n = 0
     for mart, sql in _MART_QUERIES.items():
         mart_urn = make_dataset_urn(platform="trino", name=f"iceberg.dbt.{mart}", env=ENV)
-        q_urn = f"urn:li:query:{hashlib.md5(('example:' + mart).encode()).hexdigest()}"
+        q_urn = f"urn:li:query:{hashlib.md5(('example:' + mart).encode(), usedforsecurity=False).hexdigest()}"
         emitter.emit(MetadataChangeProposalWrapper(entityUrn=q_urn, aspect=QueryPropertiesClass(
             statement=QueryStatementClass(value=sql, language=QueryLanguageClass.SQL),
             source=QuerySourceClass.MANUAL,
@@ -1878,7 +1878,7 @@ def emit_dataset_queries():
             stmts.append(("agg", f"-- {table} by {dim}\nSELECT {dim}, count(*) AS n, avg({meas}) AS avg_{meas}\n"
                                  f"FROM {frm}\nGROUP BY {dim}\nORDER BY n DESC\nLIMIT 20"))
         for kind, sql in stmts:
-            q_urn = f"urn:li:query:{hashlib.md5(f'{kind}:{plat}:{name}'.encode()).hexdigest()}"
+            q_urn = f"urn:li:query:{hashlib.md5(f'{kind}:{plat}:{name}'.encode(), usedforsecurity=False).hexdigest()}"
             emitter.emit(MetadataChangeProposalWrapper(entityUrn=q_urn, aspect=QueryPropertiesClass(
                 statement=QueryStatementClass(value=sql, language=QueryLanguageClass.SQL),
                 source=QuerySourceClass.MANUAL,
