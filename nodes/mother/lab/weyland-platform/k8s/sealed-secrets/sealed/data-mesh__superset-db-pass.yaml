@@ -1,0 +1,13 @@
+---
+apiVersion: bitnami.com/v1alpha1
+kind: SealedSecret
+metadata:
+  name: superset-db-pass
+  namespace: data-mesh
+spec:
+  encryptedData:
+    DB_PASS: AgCPWE1RVH52hOfdSkoQtZrrAyGTuHYbhD0MNvQY8OLZIvrl7I1fB97YUlvgEUHX2xAXOr/K6IBEbu9hsBIz1h8RKi2SLvU3rVP2wBV7gwL7o+l70AAA8wTlbiDWOVKZk2GJLkSAhSzQrzup3BTal61NyA3wFGbHkZE+wZ9BCqlGyl5GUw4l4YBySIUrBihIpSLCMelGDeZp8zblLcsUQOZmox+048EwzhgZ7NYHZalBJZo1lw3EPeJUSGFmiVCys+gjhc5BawXHEK4w+Sx2uTcwPLwgx3f/ywHiJi9IU1waQU7dvEKy4NHsXHWLjHoZ3HoJWecPcH8fcP+Hc2BVF+npmxl9DOwB3tPqQJ3oxpXu6gEV0rkinR4WJ/98YUtFDIzZDfkH0phIOre+HNT/YfOvnZ40GkegNF6ITRRzgEL/E5m0n2JXLIPLvMiCtGPUV+yFMZU/3tIQFFL7HXqchxGioVDlUYR2yWIs/nH/22T3zK/c7UO704L6R70xjRzZfyWTy4O0YVFla7Wziw3kGH/oX8q0Mkqya1Fx2jZVHSfTI8jTTGm762LcPAly8532Ov6CWtxFBAjP+wil9oljohXSvoVkrSUbwNPzegLalvQRZDRWE1C9cUX22z8wk7uJXCkYYmmv7q829xwbIwyodIZPLfHTWjuMo5L9LzvO3uWCCeqwKU8AiSzRYKusDkzoo0w3d6w6PLSMRFA9kqINEuqRkRgcQQ==
+  template:
+    metadata:
+      name: superset-db-pass
+      namespace: data-mesh
