@@ -108,9 +108,16 @@ spec:
             - { name: data, mountPath: /data/trino }
           resources:
             requests: { cpu: "150m", memory: 3Gi }
-            # 6Gi limit for a 4G heap (+ ~2G off-heap/G1/direct buffers + sidecar). The old 2G heap / 3Gi limit
-            # OOM-crashed under dbt's Iceberg aggregations (-XX:+ExitOnOutOfMemoryError → pod restart).
-            limits: { memory: 6Gi }
+            # 8Gi limit for a 4G heap. History: 2G heap / 3Gi limit OOM-crashed under dbt's Iceberg aggregations;
+            # raised to 4G heap / 6Gi. That 6Gi assumed "4G heap + ~2G off-heap/G1/direct + sidecar" — a budget
+            # computed BEFORE the L5 Ranger plugin. Ranger runs a GraalVM/Truffle JavaScript engine inside the
+            # coordinator (RangerScriptConditionEvaluator) plus its policy engine + tag refresher, and that cost is
+            # NON-HEAP (native/metaspace/Truffle). So the container hit its ceiling while the heap was fine:
+            # OOMKilled/137 mid-`dbt build`, surfacing to dbt as `error 503: service unavailable` at model 34 of 37
+            # (2026-07-20). Raising -Xmx would have made it WORSE — the heap was never the thing overflowing.
+            # Deliberately limit-only: the REQUEST stays 3Gi because node memory requests are already ~92%, and
+            # raising the request could make Trino unschedulable. Only the ceiling moves.
+            limits: { memory: 8Gi }
       volumes:
         - { name: config, configMap: { name: trino-config } }
         - { name: catalogs, configMap: { name: trino-catalogs } }

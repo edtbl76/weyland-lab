@@ -78,10 +78,18 @@ models/tests/lineage.
 
 ## Troubleshooting
 
-- **Trino OOM crashloop (the big one).** Heavy aggregations exhaust Trino's heap; with `-XX:+ExitOnOutOfMemoryError`
-  the JVM exits → pod restarts → every dbt query 503s while the Service/AGE still read "up" (only RESTARTS climb).
-  Fix already applied: `approx_distinct` (not `count(distinct)`) for high-cardinality, `threads: 2`, and Trino
-  `-Xmx4G` / pod limit 6Gi (`k8s/data-mesh/trino.yaml`). See `[[dbt-transform-tier]]`.
+- **Trino OOM crashloop (the big one).** `dbt build` dies mid-run with `Database Error ... error 503: service
+  unavailable` on some model (e.g. `mart_genre_audio_profile`, 34 of 37). The 503 is Trino **going away**, not a bad
+  query — confirm with the pod, not the dbt log:
+  `kubectl -n data-mesh get pod -l app=trino -o jsonpath='{.items[0].status.containerStatuses[0].lastState.terminated.reason}'`
+  → `OOMKilled` (exit 137). The Service/AGE still read "up"; only RESTARTS climb.
+  Fixes applied: `approx_distinct` (not `count(distinct)`) for high-cardinality, `threads: 2`, `-Xmx4G`, and the pod
+  limit **6Gi → 8Gi (2026-07-20)**.
+  **Why the limit, not the heap:** the 6Gi budget assumed "4G heap + ~2G off-heap" and was set BEFORE the L5 Ranger
+  plugin. Ranger runs a GraalVM/Truffle **JavaScript engine** inside the coordinator (`RangerScriptConditionEvaluator`)
+  plus its policy engine and tag refresher — all **non-heap**. So the container hit its ceiling while the heap was
+  healthy. **Raising `-Xmx` makes this worse, not better.** The request stays 3Gi (node memory requests ~92%).
+  See `[[dbt-transform-tier]]`, `[[ranger-trino-authz-b-l5]]`.
 - **Iceberg 15M-row writer cap** (`ICEBERG_MAX_ROWS`) → `usda …food_nutrient` (26.8M) isn't in Iceberg, so a
   `mart_food_nutrition` is blocked (only ClickHouse has that table). Deferred.
 - **DataHub dbt connector 503/JSONDecodeError/NoCredentials** → the artifact-publish + MinIO-Secret gotchas above.

@@ -30,15 +30,15 @@ Heavy = embeds/writes or large scans (guard the node's RAM). Light = metadata/re
 | 00:25 / 04:25 / 08:25 / … | Dagster | `timeseries` (→ TimescaleDB hypertables) | every 4h | med |
 | 00:40 / 06:40 / 12:40 / 18:40 | Dagster | `datahub_catalog_emit` (custom emitters) | every 6h | light |
 | 00:50 / 06:50 / 12:50 / 18:50 | Dagster | `catalog` (model lookup) | every 6h | light |
-| 03:00 | Dagster | `datasets_music_land` | daily — **STOPPED** | heavy |
-| 04:00 | Dagster | `datasets_health_land` | daily — **STOPPED** | heavy |
+| 03:00 | Dagster | `datasets_music_land` | daily — **RUNNING** (enabled in the UI; code `default_status` is STOPPED, which only applies at first registration) | light in practice — assets **self-skip if fresh** (30-day window), so the ~342 MB FMA download is rare, not daily |
+| 04:00 | Dagster | `datasets_health_land` | daily — **RUNNING** (as above) | light in practice — self-skips if fresh (7-day window) |
 | **06:00** | Dagster | `weyland_dbt_job` (dbt build → 7 marts + tests; then publishes `manifest.json`+`catalog.json` to `s3://warehouse/_dbt_artifacts/`) | **weekly (Sun)** | **HEAVY** — Trino aggregations (4G heap; `approx_distinct`/`threads:2` guard the OOM) |
 | 01:00 | DataHub | Grafana | daily | light |
 | 01:15 | DataHub | Iceberg (Nessie) | daily | light |
 | 01:30 | DataHub | MLflow | daily | light |
 | 01:45 | DataHub | Superset | daily | light |
 | 02:15 | DataHub | Kafka (Redpanda `datasets.*` topics + Avro schemas) | daily | light — metadata scan, no profiling |
-| `0 */6 * * *` | k8s CronJob | `lancedb-sync` (mc mirror lakeFS Lance tables → viewer PVC) | every 6h | light — **backstop** only; the real trigger is the Dagster `lancedb_sync_sensor` (fires on each `lancedb_load` materialization) |
+| `0 */6 * * *` | k8s CronJob | `lancedb-sync` (mc mirror lakeFS Lance tables → viewer PVC) | every 6h | light — in practice the **PRIMARY** path, not a backstop. `lancedb_sync_sensor` watches `datasets_{music,health}_lancedb_load`, which live in the `datasets_*_stores` groups — **hydration is deliberately ON-DEMAND** (the hydrate jobs have no schedule), so the sensor idles for weeks by design and skips cleanly. A long-idle `lancedb_sync_sensor` is EXPECTED, not a fault. |
 | 03:00 | DataHub | Neo4j | daily | light |
 | 03:15 | DataHub | Postgres (weyland core) | daily | med |
 | **03:30** | DataHub | **CockroachDB** | weekly (Sun) | med |
