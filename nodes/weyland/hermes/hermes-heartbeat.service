@@ -1,0 +1,31 @@
+# B69 Wave 4 — Hermes liveness heartbeat (CT 104). Hermes is the lab's ACT surface (Telegram front door +
+# /mcp-act); if hermes-gateway dies, nothing anywhere notices — it fails silent, because a bot that stops
+# answering looks identical to a bot nobody messaged. Prometheus can't help: CT 104 is a Proxmox container
+# outside the k3s cluster, with no scrape path.
+#
+# So this inverts the direction: instead of the monitor polling Hermes, Hermes PUSHES a heartbeat, and the
+# absence of that push is the alert. The push is GATED on `systemctl is-active` — a heartbeat that fires
+# unconditionally would happily report health while the gateway is dead, which is worse than no monitor.
+#
+# Endpoint = an Uptime Kuma **Push** monitor (self-hosted, $0). Create it in Kuma, set its heartbeat interval
+# to 120s (2x this timer, so one missed run doesn't page), then put its push URL in the EnvironmentFile below:
+#   /etc/weyland/hermes-heartbeat.env   ->   KUMA_PUSH_URL=https://kuma.weyland.lab/api/push/<token>
+# That file is chmod 600 and NEVER committed (the token is a write-capability for the monitor).
+[Unit]
+Description=Hermes gateway liveness heartbeat -> Uptime Kuma push
+After=network-online.target hermes-gateway.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+EnvironmentFile=/etc/weyland/hermes-heartbeat.env
+# `is-active --quiet` is the gate; the curl only runs when the gateway is genuinely up. --retry rides out a
+# transient Kuma blip so we don't page on the monitor's own hiccup rather than Hermes'.
+ExecStart=/bin/bash -c 'systemctl is-active --quiet hermes-gateway && exec curl -fsS -m 10 --retry 3 --retry-delay 2 "$KUMA_PUSH_URL"'
+# SuccessExitStatus=1 keeps a DOWN gateway from spamming the journal with unit failures — the missing push is
+# already the signal; a failed unit on top of it is noise, not information.
+SuccessExitStatus=0 1
+User=root
+
+[Install]
+WantedBy=multi-user.target

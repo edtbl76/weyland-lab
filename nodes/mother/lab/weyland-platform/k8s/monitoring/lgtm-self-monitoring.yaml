@@ -1,0 +1,102 @@
+# B69 Wave 4 — LGTM self-monitoring. The observability stack had NO observer: Loki (logs), Tempo (traces) and
+# Alloy (the log shipper) were scraped by nothing and alerted on by nothing, so an outage of the thing that tells
+# you about outages was invisible BY DEFINITION. Alloy is the sharpest case — if it dies, logs simply stop
+# arriving and Loki looks "healthy but quiet", which is indistinguishable from a genuinely idle cluster.
+#
+# Discovery: the stack sets `serviceMonitorSelectorNilUsesHelmValues: false`, so no `release` label is needed on
+# ServiceMonitors (same as k8s/monitoring/servicemonitors.yaml). PrometheusRules DO carry `release: monitoring`
+# to match the convention in node-disk-alerts.yaml / blackbox-exporter.yaml.
+#
+# Port names are exact, taken from the live Services (they differ per chart — Tempo's metrics port is
+# `tempo-prom-metrics`, not `http-metrics`).
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: loki
+  namespace: monitoring
+spec:
+  namespaceSelector:
+    matchNames: [monitoring]
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: loki
+      app.kubernetes.io/instance: loki
+    # `loki`, `loki-headless` and `loki-memberlist` share IDENTICAL app labels. Without this, the headless copy
+    # gets scraped too and every Loki series is double-counted. The headless Service is the one carrying
+    # `variant: headless` (it also self-declares `prometheus.io/service-monitor: false`); loki-memberlist is
+    # excluded naturally because its only port is `tcp`, which no endpoint below matches.
+    matchExpressions:
+      - { key: variant, operator: DoesNotExist }
+  endpoints:
+    - port: http-metrics      # :3100
+      path: /metrics
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: tempo
+  namespace: monitoring
+spec:
+  namespaceSelector:
+    matchNames: [monitoring]
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: tempo
+      app.kubernetes.io/instance: tempo
+  endpoints:
+    - port: tempo-prom-metrics   # :3200 — NOT http-metrics; the tempo chart names it differently
+      path: /metrics
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: alloy
+  namespace: monitoring
+spec:
+  namespaceSelector:
+    matchNames: [monitoring]
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: alloy
+      app.kubernetes.io/instance: alloy
+  endpoints:
+    - port: http-metrics      # :12345
+      path: /metrics
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: lgtm-self-monitoring
+  namespace: monitoring
+  labels: { release: monitoring }
+spec:
+  groups:
+    - name: lgtm-self-monitoring
+      rules:
+        # Each alert pairs `up == 0` (scrape failing) with `absent(up)` (target vanished entirely — ServiceMonitor
+        # deleted, Service renamed, chart upgraded with new labels). Without the absent() half these go silently
+        # blind exactly when something structural breaks, which is the same blind spot BlackboxProbesMissing
+        # covers for the synthetic probes.
+        # NOTE: `job` is set by prometheus-operator from the Service NAME. If a chart upgrade renames a Service,
+        # the absent() half FIRES rather than going quiet — noisy-not-silent is the correct failure direction here.
+        - alert: LokiDown
+          expr: up{job="loki", namespace="monitoring"} == 0 or absent(up{job="loki", namespace="monitoring"})
+          for: 5m
+          labels: { severity: critical }
+          annotations:
+            summary: "Loki is DOWN — log ingestion and all LogQL alerts are dead"
+            description: "Loki has been unscrapable for >5m. Every log-based alert (the B51 ruler → Alertmanager → Telegram path) is silently not evaluating."
+        - alert: TempoDown
+          expr: up{job="tempo", namespace="monitoring"} == 0 or absent(up{job="tempo", namespace="monitoring"})
+          for: 5m
+          labels: { severity: warning }
+          annotations:
+            summary: "Tempo is DOWN — distributed tracing unavailable"
+            description: "Tempo has been unscrapable for >5m. Mesh traces are not being ingested; Grafana trace lookups will fail."
+        - alert: AlloyDown
+          expr: up{job="alloy", namespace="monitoring"} == 0 or absent(up{job="alloy", namespace="monitoring"})
+          for: 5m
+          labels: { severity: critical }
+          annotations:
+            summary: "Alloy is DOWN — NO logs are reaching Loki"
+            description: "Alloy (the DaemonSet log shipper) has been unscrapable for >5m. Loki will keep serving cleanly while receiving nothing new, so an empty log view looks like a quiet cluster rather than an outage."

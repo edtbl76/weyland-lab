@@ -1,0 +1,13 @@
+# Daily at 06:30 (CT 104 local). The backlog changes in bursts during work sessions, so hourly would be
+# churn for no gain; daily keeps the board honest without hammering the Hermes CLI.
+# Persistent=true so a container that was down at fire time syncs on next boot instead of skipping a day.
+[Unit]
+Description=Daily roadmap -> Hermes board sync
+
+[Timer]
+OnCalendar=*-*-* 06:30:00
+Persistent=true
+RandomizedDelaySec=300
+
+[Install]
+WantedBy=timers.target
