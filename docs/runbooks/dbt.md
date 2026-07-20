@@ -28,8 +28,12 @@ BI over the marts: **Lightdash** (governed dbt metrics, [lightdash.md](lightdash
 - **On demand:** materialize `weyland_dbt_assets` in the Dagster UI (`dagster.weyland.lab`), or in the pod:
   `kubectl -n weyland exec deploy/dagster-user-code -- sh -c "cd /app/dbt && DBT_PROFILES_DIR=/app/dbt dbt build"`
   (in-cluster/meshed → reaches Trino, no port-forward).
-- **Code change → rebuild the image:** `redeploy.sh` (rsync the service dir to mother, then build → ctr import →
-  rollout restart) — the manifest re-bakes.
+- **Code change → rebuild the image (B69 Wave 3 flow — `redeploy.sh` is OBSOLETE and now refuses to run):** the
+  user-code image lives at `registry.weyland.lab/weyland-dagster-user-code:<TAG>` with `IfNotPresent`, so only a
+  **NEW TAG** makes nodes re-pull. (1) `[rogueone] TAG=vN scripts/build-push-images.sh`, (2) bump the tag in BOTH
+  `k8s/dagster/user-code.yaml` and `k8s/dagster/dbt-docs.yaml`, (3) push → Argo redeploys. Images to the registry
+  FIRST, manifests second, or Argo lands in ImagePullBackOff. Building `:local` + `ctr import` appears to succeed
+  and changes NOTHING.
 
 ## The marts (7, all tested)
 

@@ -50,8 +50,10 @@ Or run the whole thing through Dagster: launch **`soda_quality_job`** in the UI.
 
 ## Add / edit checks
 
-Edit `soda/checks/{music,health}.yml` (SodaCL), then rebuild the user-code image (`bash ~/weyland-dagster/redeploy.sh`
-on mother — the checks are COPY'd in). Emptiness tripwire pattern (catches an all-NULL column, which range checks
+Edit `soda/checks/{music,health}.yml` (SodaCL), then rebuild the user-code image — the checks are COPY'd in.
+**Use the registry flow, NOT `redeploy.sh`** (obsolete since B69 Wave 3; it builds a `:local` image nothing runs and
+reports success anyway): `[rogueone] TAG=vN scripts/build-push-images.sh` → bump the tag in `k8s/dagster/user-code.yaml`
++ `k8s/dagster/dbt-docs.yaml` → push → Argo redeploys. Emptiness tripwire pattern (catches an all-NULL column, which range checks
 miss): `- missing_percent(<col>) < 100`.
 
 ## Gotchas
