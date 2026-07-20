@@ -3,7 +3,7 @@
 # In-cluster HTTP (:8123). The `default` user HAS a password (set via the users.d/weyland-users.xml Secret) —
 # DataHub's clickhouse-sqlalchemy can't auth against a no-password user, which is exactly why that password
 # exists. ${CLICKHOUSE_PASSWORD} = pod ENV on acryl-datahub-actions (data-mesh/datahub-ingestion-secrets,
-# durable) = weyland_dev_password. Profiling cheap (columnar). Schedule: weekly (Sun). See [[clickhouse-tier2-hydration]].
+# durable) = the shared lab dev cred. Profiling cheap (columnar). Schedule: weekly (Sun). See [[clickhouse-tier2-hydration]].
 source:
   type: clickhouse
   config:

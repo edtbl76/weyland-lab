@@ -1,7 +1,7 @@
 # DataHub managed-ingestion recipe — MongoDB (datasets_* collections + aidlc-kb).
 # Source-of-record only (the live source is UI-configured). MONGO_PASSWORD is injected as pod ENV on the
 # acryl-datahub-actions pod (data-mesh/datahub-ingestion-secrets) — NOT a UI-entered DataHub Secret — so it
-# survives GMS resets. Value = weyland_dev_password (the shared lab dev cred). Mongo is meshed; the executor
+# survives GMS resets. Value = the shared lab dev cred (see runbooks/secrets.md). Mongo is meshed; the executor
 # reaches it over the cluster svc. Schema inferred by sampling (Mongo is schemaless). Schedule: daily.
 source:
   type: mongodb

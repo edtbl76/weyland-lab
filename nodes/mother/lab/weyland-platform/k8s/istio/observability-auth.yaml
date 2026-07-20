@@ -4,7 +4,7 @@
 #
 # The Secret is created out-of-band (NOT committed) — on mother:
 #   kubectl create secret generic observability-auth -n istio-system \
-#     --from-literal=users="admin:$(openssl passwd -apr1 weyland_dev_password)"
+#     --from-literal=users="admin:$(openssl passwd -apr1 "$WEYLAND_DEV_PASSWORD")"   # shared lab dev cred
 apiVersion: traefik.io/v1alpha1
 kind: Middleware
 metadata:

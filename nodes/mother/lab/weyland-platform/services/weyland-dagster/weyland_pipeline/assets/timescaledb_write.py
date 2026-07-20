@@ -27,7 +27,7 @@ def _tsdb_conn():
         port=int(os.environ.get("TIMESCALEDB_PORT", "5432")),
         dbname=os.environ.get("TIMESCALEDB_DB", "timeseries"),
         user=os.environ.get("TIMESCALEDB_USER", "weyland"),
-        password=os.environ.get("TIMESCALEDB_PASSWORD", "weyland_dev_password"),
+        password=os.environ["TIMESCALEDB_PASSWORD"],   # SEC-1: no baked-in fallback — fail loud if the Secret breaks
     )
 
 

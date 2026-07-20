@@ -2239,7 +2239,7 @@ def emit_timescaledb():
         port=int(os.environ.get("TIMESCALEDB_PORT", "5432")),
         dbname=os.environ.get("TIMESCALEDB_DB", "timeseries"),
         user=os.environ.get("TIMESCALEDB_USER", "weyland"),
-        password=os.environ.get("TIMESCALEDB_PASSWORD", "weyland_dev_password"),
+        password=os.environ["TIMESCALEDB_PASSWORD"],   # SEC-1: no baked-in fallback — fail loud if the Secret breaks
     )
     emitter = _gms_emitter()
     names = []
@@ -2319,7 +2319,7 @@ def emit_mysql():
         host=os.environ.get("MYSQL_HOST", "mysql.data-mesh.svc.cluster.local"),
         port=int(os.environ.get("MYSQL_PORT", "3306")),
         user=os.environ.get("MYSQL_USER", "weyland"),
-        password=os.environ.get("MYSQL_PASSWORD", "weyland_dev_password"),
+        password=os.environ["MYSQL_PASSWORD"],   # SEC-1: no baked-in fallback — fail loud if the Secret breaks
     )
     emitter = _gms_emitter()
     names = []

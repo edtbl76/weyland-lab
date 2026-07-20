@@ -96,7 +96,7 @@ def _tsdb_engine():
     port = os.environ.get("TIMESCALEDB_PORT", "5432")
     db = os.environ.get("TIMESCALEDB_DB", "timeseries")
     user = os.environ.get("TIMESCALEDB_USER", "weyland")
-    pw = urllib.parse.quote_plus(os.environ.get("TIMESCALEDB_PASSWORD", "weyland_dev_password"))
+    pw = urllib.parse.quote_plus(os.environ["TIMESCALEDB_PASSWORD"])   # SEC-1: no baked-in fallback
     return sqlalchemy.create_engine(f"postgresql+psycopg2://{user}:{pw}@{host}:{port}/{db}")
 
 
@@ -141,7 +141,7 @@ def _mongo_client():
     host = os.environ.get("MONGO_HOST", "mongodb.data-mesh.svc.cluster.local")
     port = os.environ.get("MONGO_PORT", "27017")
     user = urllib.parse.quote_plus(os.environ.get("MONGO_USER", "weyland"))
-    pw = urllib.parse.quote_plus(os.environ.get("MONGO_PASSWORD", "weyland_dev_password"))
+    pw = urllib.parse.quote_plus(os.environ["MONGO_PASSWORD"])   # SEC-1: no baked-in fallback
     return MongoClient(f"mongodb://{user}:{pw}@{host}:{port}/?authSource=admin")
 
 

@@ -7,7 +7,7 @@
 #
 # Post-deploy config is done in the Filestash admin UI (first visit sets an admin password),
 # then add an S3 backend: endpoint http://minio.minio.svc.cluster.local:9000,
-# access key admin / secret weyland_dev_password, region us-east-1. See docs/b6-minio-storage.md.
+# access key admin / the shared lab dev cred, region us-east-1. See docs/b6-minio-storage.md.
 ---
 apiVersion: v1
 kind: PersistentVolumeClaim

@@ -1,7 +1,7 @@
 # Category 4 (Port migration) — Feature Management = Unleash (OSS, self-hosted; LaunchDarkly is SaaS, breaks $0).
 # Stateless: all state in the shared Postgres, so no PVC and rolling updates are fine. Meshed because Postgres is
 # STRICT mTLS — the sidecar wraps the plaintext psql connection (DATABASE_SSL=false; Istio does the TLS, not the app).
-# Unleash has its OWN login (default admin/unleash4all → change to weyland_dev_password on first login), so no Traefik
+# Unleash has its OWN login (default admin/unleash4all → change to the shared lab dev cred on first login), so no Traefik
 # basicAuth middleware. CHECK_VERSION/SEND_TELEMETRY disabled — LAN-only, $0, no phone-home. Secrets (DATABASE_URL +
 # init API tokens) live in the `unleash-secret` Secret, created out-of-band (see runbooks/unleash.md), never committed.
 apiVersion: apps/v1

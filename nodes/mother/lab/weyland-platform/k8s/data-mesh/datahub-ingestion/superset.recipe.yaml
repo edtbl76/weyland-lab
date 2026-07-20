@@ -3,7 +3,7 @@
 # GMS rebuild; this captures it). Catalogs Superset dashboards/charts/datasets + chart→table lineage.
 # In-cluster svc (`superset.data-mesh.svc:8088`, NOT the Keycloak-OIDC ingress). Auth = the Superset DB admin
 # (provider=db, the helm-bootstrapped `admin`, separate from OIDC). ${SUPERSET_PASSWORD} = pod ENV on the
-# acryl-datahub-actions pod (data-mesh/datahub-ingestion-secrets, durable) = weyland_dev_password. Schedule: daily.
+# acryl-datahub-actions pod (data-mesh/datahub-ingestion-secrets, durable) = the shared lab dev cred. Schedule: daily.
 source:
   type: superset
   config:

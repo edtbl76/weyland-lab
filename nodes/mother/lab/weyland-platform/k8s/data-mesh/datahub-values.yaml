@@ -135,7 +135,7 @@ acryl-datahub-actions:
     - name: NEO4J_PASSWORD               # neo4j.recipe.yaml — neo4j-secret/auth (part after "neo4j/")
       valueFrom:
         secretKeyRef: { name: datahub-ingestion-secrets, key: NEO4J_PASSWORD, optional: true }
-    - name: MONGO_PASSWORD               # mongo.recipe.yaml — weyland_dev_password (shared lab dev cred)
+    - name: MONGO_PASSWORD               # mongo.recipe.yaml — the shared lab dev cred (see runbooks/secrets.md)
       valueFrom:
         secretKeyRef: { name: datahub-ingestion-secrets, key: MONGO_PASSWORD, optional: true }
     - name: GRAFANA_SA_TOKEN             # grafana.recipe.yaml
