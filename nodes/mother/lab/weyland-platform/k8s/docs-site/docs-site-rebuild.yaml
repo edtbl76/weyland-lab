@@ -1,0 +1,86 @@
+# B69 Wave 4 — codify the docs-site rebuild trigger (was manual-only: "kubectl rollout restart deploy/docs-site").
+#
+# docs-site has no content volume and no webhook: its initContainer clones the public repo and runs `mkdocs build`
+# on EVERY pod start, so the site is a snapshot frozen at the last restart. Docs pushed after that are invisible
+# until someone remembers to restart it — and because the site keeps serving happily, staleness is silent.
+# (A push-triggered rebuild isn't available: this is a LAN-only lab, GitHub can't reach in — see [[lan-no-github-webhooks]].)
+#
+# So: a daily restart. `rollout restart` just stamps a pod-template annotation; the new pod re-clones and rebuilds,
+# and the old one keeps serving until the new one is Ready — no downtime, no PVC, nothing to clean up.
+#
+# RBAC follows the store-scaler least-privilege pattern (k8s/data-mesh/store-scaler-rbac.yaml), tightened further
+# with `resourceNames` so this SA can touch exactly ONE Deployment and nothing else in the namespace.
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: docs-site-rebuild
+  namespace: weyland
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: docs-site-rebuild
+  namespace: weyland
+rules:
+  # `rollout restart` = GET the deployment, then PATCH its pod-template annotation. resourceNames pins it to
+  # docs-site, so a compromised job can't restart anything else in `weyland`.
+  - apiGroups: ["apps"]
+    resources: ["deployments"]
+    resourceNames: ["docs-site"]
+    verbs: ["get", "patch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: docs-site-rebuild
+  namespace: weyland
+subjects:
+  - kind: ServiceAccount
+    name: docs-site-rebuild
+    namespace: weyland
+roleRef:
+  kind: Role
+  name: docs-site-rebuild
+  apiGroup: rbac.authorization.k8s.io
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: docs-site-rebuild
+  namespace: weyland
+spec:
+  # 05:30 NY — after the overnight heavy jobs (02:17 ingestion, 06:00 Sun dbt) and before the workday, so the
+  # site reflects yesterday's doc pushes by morning. Explicit timeZone per the docs/schedules.md convention
+  # (k8s CronJobs otherwise inherit the controller-manager's clock).
+  schedule: "30 5 * * *"
+  timeZone: America/New_York
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 2
+  startingDeadlineSeconds: 3600      # ran late (node busy/down)? still fire, don't skip the day silently
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      template:
+        metadata:
+          annotations:
+            # Only outbound call is to the kube-apiserver; no mesh needed, and a sidecar would keep the Job
+            # pod Running forever (the sidecar never exits) so the Job would never complete.
+            sidecar.istio.io/inject: "false"
+        spec:
+          serviceAccountName: docs-site-rebuild
+          restartPolicy: Never
+          containers:
+            - name: kubectl
+              image: rancher/kubectl:v1.35.6      # multi-arch; matches the cluster's 1.35 control plane
+              command: ["kubectl", "-n", "weyland", "rollout", "restart", "deployment/docs-site"]
+              securityContext:
+                allowPrivilegeEscalation: false
+                runAsNonRoot: true
+                runAsUser: 10001
+                seccompProfile:
+                  type: RuntimeDefault
+              resources:
+                requests: { memory: 32Mi, cpu: 10m }
+                limits: { memory: 128Mi }
