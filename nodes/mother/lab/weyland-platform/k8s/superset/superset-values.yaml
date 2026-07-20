@@ -48,8 +48,10 @@ resources:
   requests: { memory: 256Mi, cpu: 100m }
   limits: { memory: 1Gi }       # actual ~357Mi
 
-extraSecretEnv:
-  SUPERSET_SECRET_KEY: weyland_dev_secret_key_for_superset_not_in_prod
+# SEC-1: SUPERSET_SECRET_KEY is NOT set here — it comes from the `superset-env` secret via `envFromSecret` below.
+# Verified the two values were identical before removing this duplicate, so the effective key is UNCHANGED. Never
+# let SECRET_KEY drift: it encrypts the saved DB-connection passwords in Superset's metadata DB, and a changed key
+# orphans every one of them.
 
 extraVolumes:
   - name: weyland-ca
