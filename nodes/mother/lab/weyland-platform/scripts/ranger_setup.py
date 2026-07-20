@@ -14,12 +14,22 @@ REQUIRED (no fallback) and must be passed THROUGH the exec — the pod doesn't h
 import json
 import os
 import secrets
+import sys
 
 import requests
 
 BASE = os.environ.get("RANGER_URL", "http://ranger-admin.data-mesh.svc.cluster.local:6080")
-# SEC-1: no baked-in fallback — set RANGER_ADMIN_PASSWORD (see .env.example). Ranger UI users need upper+lower+digit.
-ADMIN_PW = os.environ["RANGER_ADMIN_PASSWORD"]
+# SEC-1: no baked-in fallback (see .env.example). This most often runs during a Ranger REBUILD — i.e. while authz is
+# already down — so fail with an actionable message instead of a bare KeyError. Ranger UI users need upper+lower+digit.
+ADMIN_PW = os.environ.get("RANGER_ADMIN_PASSWORD")
+if not ADMIN_PW:
+    sys.exit(
+        "RANGER_ADMIN_PASSWORD is not set.\n"
+        "  1. source the creds locally:  set -a; . scripts/.env; set +a     (copy scripts/.env.example first)\n"
+        "  2. pass it THROUGH the exec — the pod does not have it:\n"
+        "     kubectl -n weyland exec -i deploy/dagster-user-code -- \\\n"
+        "       env RANGER_ADMIN_PASSWORD=\"$RANGER_ADMIN_PASSWORD\" python - < scripts/ranger_setup.py"
+    )
 AUTH = (os.environ.get("RANGER_ADMIN_USER", "admin"), ADMIN_PW)
 H = {"Content-Type": "application/json"}
 TRINO_JDBC = "jdbc:trino://trino.data-mesh.svc.cluster.local:8080"
