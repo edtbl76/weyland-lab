@@ -14,7 +14,26 @@ artifacts that "run once" but aren't operationally complete. Graded each against
 
 Fresh 3-agent sweep (secrets+gitops · monitoring · backup/trigger/docs) graded against the DoD **operational-completeness** pillar (reproducible · secret-restorable · monitored · backed-up · triggered). The 2026-06-26 register below is kept for history; several items are now RESOLVED (data-mesh backups, all schedules `RUNNING`, Kuma backup committed, Grafana recipe codified) or OBSOLETE (Ollama→rogueone B79, OpenClaw dropped). Current open gaps, prioritized into waves:
 
-> **▶ AM PICKUP — 2026-07-18** (last session: a "why a batch-named file?" question → a long drift/incident chain).
+> **▶ RE-VERIFIED 2026-07-20** — every Wave 1/4/5 item re-checked against git AND the live cluster. Result: the
+> register had drifted **in both directions**. Now-CLOSED (see per-wave ✅ marks below): data-mesh alert loading,
+> `telegram-test`, cube plaintext key, backup coverage, Argo onboarding, code-quality/sonar schedules, SPOF probes,
+> dead-man's-switch, and the whole 07-18 "still uncommitted" push list.
+>
+> **The instructive miss:** the "data-mesh alerts silently dead" item — flagged here as the single biggest live risk —
+> was fixed by setting `ruleSelectorNilUsesHelmValues: false` **once**, NOT by the prescribed "add `release: monitoring`
+> to 17 files". All 14 rule files still lack that label and load fine (52 PrometheusRules live). Following the register
+> literally would have meant 17 pointless edits; trusting its status would have meant believing data-mesh alerting was
+> dead when it isn't. A stale register is worse than none precisely because it is specific.
+>
+> **STILL OPEN after this pass:** LGTM self-monitoring (no `LokiDown`/`TempoDown`/`AlloyDown` — the observability stack
+> has no observer) · Hermes heartbeat (nothing in `k8s/`) · 4 uncodified triggers (docs-site rebuild, eval
+> harness/leaderboard, roadmap-sync `.timer`, ai_session producer crontab — 7 CronJobs live, none of these) · GitOps
+> misc (n8n workflows→git, LiteLLM `main-stable`→digest, DataHub recipes UI→reconciled) · Wave 5 docs-drift (Argo app
+> count drifted again: backlog says 48, live is **59** / 58 in git) · `weyland-image-prune.timer` **never installed**
+> (`inactive`) · delete CT-102 + `hosts.md` cleanup · Prometheus/Loki retention caps.
+> Disk pressure is NOT a concern anymore: `/` 63%, `/mnt/minio` 9%.
+
+> **▶ AM PICKUP — 2026-07-18** (historical; the PUSH list below is now fully committed).
 >
 > **DONE:** drift cleanup — every Argo app back to **Synced/zero-drift**; `b69-onboarding.yaml` deleted, its 9 apps redistributed to `loose-apps`/`subdir-apps`/`helm-apps` (no batch-named files); dedup'd the double-owned `data-mesh/traefik-forward-auth` Middleware (dropped from cube.yaml) + `minio/minio` ServiceMonitor (dropped from data-mesh); targeted `ignoreDifferences` for the CRD `preserveUnknownFields`+printer-column `priority` (gatekeeper/flink), STS `volumeClaimTemplates` (opensearch/datahub-prereq), and datahub-gms-secret. Deleted the **live `qdrant-fault-demo` VirtualService** (a fault-injector still adding 3s latency to qdrant). **Wave 4 Slice 1** (SPOF probes: traefik-forward-auth tcpSocket, cube `/livez`+`/readyz`, n8n `/healthz`) + **Slice 2** (blackbox synthetic monitoring for the 16 uncovered hosts + `WeylandEndpointDown` alert — verified). **DNS OUTAGE fully fixed** — weyland-lan-dns `hostPort:53` via k3s ServiceLB captured the node's own `127.0.0.53` resolver → node DNS black-holed on pod death → cascade; fix = `hostPort` pinned to `hostIP: 192.168.1.243` + Service `ClusterIP` (no svclb) + a systemd-resolved drop-in so mother resolves weyland.lab via LAN DNS while external stays on the router. **mother disk +400G** (92% → 61%). node-disk alert + image-prune timer authored.
 >
@@ -22,13 +41,15 @@ Fresh 3-agent sweep (secrets+gitops · monitoring · backup/trigger/docs) graded
 >
 > **TODO (AM):** install the prune timer (rsync + `systemctl enable --now`); move **minio-backup (51G) → `/mnt/minio`**; **de-Argo + drop the spent musicbrainz-dbdump (25G)**; **Prometheus/Loki retention caps**; **delete CT-102 (ollama)** + clean rogueone `/etc/hosts` (`.244` stale) + hosts.md "decommissioned"→"deleted"; finish **Wave 4** (code-quality CronJobs, Hermes heartbeat, LGTM self-monitoring).
 
-### Wave 1 — quick high-value fixes (small edits, real safety)
-- **[monitoring] data-mesh alert rules NOT loaded** — all 17 `k8s/data-mesh/*.yaml` PrometheusRules are labeled `app:` not `release: monitoring`, and the stack sets no `ruleSelectorNilUsesHelmValues: false`. Every data-mesh down-alert (Nessie/lakeFS/DataHub/MinIO/Trino/GizmoSQL/Feast/Superset/all 10 Tier-2) is **silently dead**. Fix: add `release: monitoring` to each (or set the selector). Confirm live: `kubectl get prometheusrule -A -l release=monitoring`.
-- **[monitoring] no dead-man's-switch** — Alertmanager Watchdog → `receiver: 'null'`. Route to an external heartbeat (healthchecks.io / Kuma push) so a dead Prometheus/Alertmanager is noticed.
-- **[secrets] cube JWT signing key in PLAINTEXT in git** — `k8s/cube/cube.yaml` (`CUBEJS_API_SECRET: weyland_cube_dev_secret`). Move to a sealed/imperative secret.
-- **[monitoring] `telegram-test` always-firing alert** — `k8s/monitoring/telegram-test-rule.yaml` (`expr: vector(1)`), self-healed by `monitoring-extras`; pages every 4h forever. Delete / exclude.
-- **[backup] extend the two backup CronJobs** — add `mlflow` + `tofu-state` (+`registry`) to `k8s/minio/backup.yaml` mc-mirror (IRREPLACEABLE: trained models, all IaC state); extend `k8s/data-mesh/backup.yaml` to `pg_dumpall` the FULL `weyland-postgres` (only nessie/lakefs of its 12 DBs are dumped — keycloak realm/superset/weyland-core are irreplaceable and unbacked).
-- **[gitops] Argo-onboard the un-reconciled dirs** — `k8s/istio/` (8 manifests incl STRICT-mTLS PeerAuthentication), `k8s/code-quality/`, and the loose root files (`coredns-custom.yaml` = load-bearing LAN DNS, `coredns-lan.yaml`, `rbac-default-sa-noautomount`, headlamp trio, `rag-index-{neo4j,pgvector}.yaml`) — currently in 0 Applications.
+### Wave 1 — quick high-value fixes (small edits, real safety) — ✅ ALL DONE (verified 2026-07-20)
+- ✅ **RESOLVED DIFFERENTLY** — `ruleSelectorNilUsesHelmValues: false` in `kube-prometheus-stack-values.yaml` makes the
+  operator load rules regardless of label; 52 PrometheusRules live. The label fix below was never needed.
+  **[monitoring] data-mesh alert rules NOT loaded** — all 17 `k8s/data-mesh/*.yaml` PrometheusRules are labeled `app:` not `release: monitoring`, and the stack sets no `ruleSelectorNilUsesHelmValues: false`. Every data-mesh down-alert (Nessie/lakeFS/DataHub/MinIO/Trino/GizmoSQL/Feast/Superset/all 10 Tier-2) is **silently dead**. Fix: add `release: monitoring` to each (or set the selector). Confirm live: `kubectl get prometheusrule -A -l release=monitoring`.
+- ✅ **DONE** (Watchdog → `healthchecks-watchdog` webhook, `url_file` from the `watchdog-healthcheck` secret, `repeat_interval: 5m`). **[monitoring] no dead-man's-switch** — Alertmanager Watchdog → `receiver: 'null'`. Route to an external heartbeat (healthchecks.io / Kuma push) so a dead Prometheus/Alertmanager is noticed.
+- ✅ **DONE** (sealed into `cube-secret` during SEC-1). **[secrets] cube JWT signing key in PLAINTEXT in git** — `k8s/cube/cube.yaml` (`CUBEJS_API_SECRET: weyland_cube_dev_secret`). Move to a sealed/imperative secret.
+- ✅ **DONE** (file deleted from git). **[monitoring] `telegram-test` always-firing alert** — `k8s/monitoring/telegram-test-rule.yaml` (`expr: vector(1)`), self-healed by `monitoring-extras`; pages every 4h forever. Delete / exclude.
+- ✅ **DONE** (`mlflow` + `tofu-state` added to the mc-mirror; `postgres-backup.yaml` full-instance `pg_dumpall`; both live). **[backup] extend the two backup CronJobs** — add `mlflow` + `tofu-state` (+`registry`) to `k8s/minio/backup.yaml` mc-mirror (IRREPLACEABLE: trained models, all IaC state); extend `k8s/data-mesh/backup.yaml` to `pg_dumpall` the FULL `weyland-postgres` (only nessie/lakefs of its 12 DBs are dumped — keycloak realm/superset/weyland-core are irreplaceable and unbacked).
+- ✅ **DONE** (`k8s/istio/` + `k8s/code-quality/` in `subdir-apps`; loose root files in `loose-apps`; 59 apps live). **[gitops] Argo-onboard the un-reconciled dirs** — `k8s/istio/` (8 manifests incl STRICT-mTLS PeerAuthentication), `k8s/code-quality/`, and the loose root files (`coredns-custom.yaml` = load-bearing LAN DNS, `coredns-lan.yaml`, `rbac-default-sa-noautomount`, headlamp trio, `rag-index-{neo4j,pgvector}.yaml`) — currently in 0 Applications.
 
 ### Wave 2 — secrets management (the big rock) — ✅ DONE 2026-07-17
 - **[secrets] SealedSecrets adopted.** Bitnami controller (chart 2.19.1 / v0.37.0) in kube-system via the `sealed-secrets` Argo app; controller private key escrowed off-cluster. **53 imperative secrets sealed** into git (`k8s/sealed-secrets/sealed/<ns>__<name>.yaml`) via the explicit allow-list in `scripts/seal-secrets.sh`, applied by the `sealed-secrets-manifests` Argo app — each live secret adopted in place (ownerRef=SealedSecret, no disruption). Runbook `docs/runbooks/secrets.md` (mechanism: seal/restore/rotate/escrow); `data-mesh-secrets.md` re-pointed to it. Chart/operator-generated secrets (datahub-chart/superset/lightdash/jupyterhub-hub/kafka-prereq/prometheus-operator/webhook certs) deliberately NOT sealed (charts recreate them). Bricking values raw-escrowed: lakeFS `AUTH_ENCRYPT_SECRET_KEY`, n8n `N8N_ENCRYPTION_KEY`, glitchtip `SECRET_KEY`.
@@ -41,10 +62,10 @@ Fresh 3-agent sweep (secrets+gitops · monitoring · backup/trigger/docs) graded
   - **Deferred:** wire a Woodpecker/B57 auto-build pipeline (currently manual `build-push-images.sh` on rebuild).
 - Note: the failing **`weyland` MCP** (`:30080/mcp`) is NOT an image problem — the tool-server pod is healthy on `:v1`. If the MCP still misbehaves in Claude Code it's the **client config** → moved to Wave 5 (MCP revisit).
 
-### Wave 4 — monitoring / probes / triggers
-- **[monitoring] SPOFs unmonitored** — Keycloak + traefik-forward-auth (single replica, no probes, gate ~18 UIs) → liveness/readiness + down-alerts + Kuma synthetic. Cube/JupyterHub/Ranger/Valkey no ServiceMonitor/alert. Gatekeeper/Flink/Ray scrape-but-no-down-alert. LGTM doesn't monitor itself (no loki/tempo/alloy SM + Down rules).
-- **[monitoring] Hermes gateway** (CT 104) no failure monitoring → systemd heartbeat gated on `systemctl is-active` → Kuma push.
-- **[trigger] manual-only → schedule + freshness** — docs-site rebuild (CronJob), code-quality scans (weekly CronJob + Argo), eval harness/leaderboard (weekly or freshness), roadmap-sync (`.timer`), ai_session producer (commit the rogueone crontab).
+### Wave 4 — monitoring / probes / triggers — PARTIALLY DONE (verified 2026-07-20)
+- ✅ **MOSTLY DONE** — Slice-1 probes + a blackbox exporter covering **19** endpoints give synthetic coverage even where no ServiceMonitor exists (cube/jupyterhub/valkey/keycloak still have none). ❌ **STILL OPEN: LGTM self-monitoring** — no `LokiDown`/`TempoDown`/`AlloyDown` rules anywhere. **[monitoring] SPOFs unmonitored** — Keycloak + traefik-forward-auth (single replica, no probes, gate ~18 UIs) → liveness/readiness + down-alerts + Kuma synthetic. Cube/JupyterHub/Ranger/Valkey no ServiceMonitor/alert. Gatekeeper/Flink/Ray scrape-but-no-down-alert. LGTM doesn't monitor itself (no loki/tempo/alloy SM + Down rules).
+- ❌ **STILL OPEN** — nothing referencing Hermes in `k8s/`; only the runbook. **[monitoring] Hermes gateway** (CT 104) no failure monitoring → systemd heartbeat gated on `systemctl is-active` → Kuma push.
+- ⚠️ **PARTIAL** — ✅ code-quality scans done (`code-scan-suite` Sun 13:00 + `sonar-scan` Sun 12:00, both live). ❌ still manual: docs-site rebuild, eval harness/leaderboard, roadmap-sync `.timer`, ai_session producer crontab (7 CronJobs live, none of these). **[trigger] manual-only → schedule + freshness** — docs-site rebuild (CronJob), code-quality scans (weekly CronJob + Argo), eval harness/leaderboard (weekly or freshness), roadmap-sync (`.timer`), ai_session producer (commit the rogueone crontab).
 - **[gitops] reproducibility misc** — Hermes runtime bootstrap, Ollama perf/Modelfile config, LiteLLM mutable `main-stable`→digest, headlamp Helm→Argo Application, n8n workflows→git, DataHub recipes UI→reconciled.
 
 ### Wave 5 — docs-drift
