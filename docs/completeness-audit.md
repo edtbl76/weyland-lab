@@ -25,12 +25,10 @@ Fresh 3-agent sweep (secrets+gitops · monitoring · backup/trigger/docs) graded
 > literally would have meant 17 pointless edits; trusting its status would have meant believing data-mesh alerting was
 > dead when it isn't. A stale register is worse than none precisely because it is specific.
 >
-> **STILL OPEN after this pass:** LGTM self-monitoring (no `LokiDown`/`TempoDown`/`AlloyDown` — the observability stack
-> has no observer) · Hermes heartbeat (nothing in `k8s/`) · 4 uncodified triggers (docs-site rebuild, eval
+> **STILL OPEN after this pass:** ~~LGTM self-monitoring~~ (✅ done 2026-07-20) · ~~Hermes heartbeat~~ (⏸ gated on B66 — Hermes is off) · 2 uncodified triggers (docs-site rebuild, eval
 > harness/leaderboard, roadmap-sync `.timer`, ai_session producer crontab — 7 CronJobs live, none of these) · GitOps
 > misc (n8n workflows→git, LiteLLM `main-stable`→digest, DataHub recipes UI→reconciled) · Wave 5 docs-drift (Argo app
-> count drifted again: backlog says 48, live is **59** / 58 in git) · `weyland-image-prune.timer` **never installed**
-> (`inactive`) · delete CT-102 + `hosts.md` cleanup · Prometheus/Loki retention caps.
+> count drifted again: backlog says 48, live is **59** / 58 in git) · ~~`weyland-image-prune.timer`~~ (✅ installed 2026-07-20, next Sun 15:09 UTC) · delete CT-102 + `hosts.md` cleanup · Prometheus/Loki retention caps.
 > Disk pressure is NOT a concern anymore: `/` 63%, `/mnt/minio` 9%.
 
 > **▶ AM PICKUP — 2026-07-18** (historical; the PUSH list below is now fully committed).
@@ -64,8 +62,8 @@ Fresh 3-agent sweep (secrets+gitops · monitoring · backup/trigger/docs) graded
 
 ### Wave 4 — monitoring / probes / triggers — PARTIALLY DONE (verified 2026-07-20)
 - ✅ **MOSTLY DONE** — Slice-1 probes + a blackbox exporter covering **19** endpoints give synthetic coverage even where no ServiceMonitor exists (cube/jupyterhub/valkey/keycloak still have none). ❌ **STILL OPEN: LGTM self-monitoring** — no `LokiDown`/`TempoDown`/`AlloyDown` rules anywhere. **[monitoring] SPOFs unmonitored** — Keycloak + traefik-forward-auth (single replica, no probes, gate ~18 UIs) → liveness/readiness + down-alerts + Kuma synthetic. Cube/JupyterHub/Ranger/Valkey no ServiceMonitor/alert. Gatekeeper/Flink/Ray scrape-but-no-down-alert. LGTM doesn't monitor itself (no loki/tempo/alloy SM + Down rules).
-- ❌ **STILL OPEN** — nothing referencing Hermes in `k8s/`; only the runbook. **[monitoring] Hermes gateway** (CT 104) no failure monitoring → systemd heartbeat gated on `systemctl is-active` → Kuma push.
-- ⚠️ **PARTIAL** — ✅ code-quality scans done (`code-scan-suite` Sun 13:00 + `sonar-scan` Sun 12:00, both live). ❌ still manual: docs-site rebuild, eval harness/leaderboard, roadmap-sync `.timer`, ai_session producer crontab (7 CronJobs live, none of these). **[trigger] manual-only → schedule + freshness** — docs-site rebuild (CronJob), code-quality scans (weekly CronJob + Argo), eval harness/leaderboard (weekly or freshness), roadmap-sync (`.timer`), ai_session producer (commit the rogueone crontab).
+- ⏸ **GATED ON B66 — not open.** Hermes is currently **shut off**; the agent lane is consolidated into **B66** (Operator Agent Platform), where the base-agent decision (Hermes vs OpenClaw) is made. Monitoring a deliberately-stopped service would page forever, so the heartbeat units are **staged in git, not installed**: `nodes/weyland/hermes/hermes-heartbeat.{service,timer}` (push-based — CT 104 is outside k3s so Prometheus has no scrape path; gated on `systemctl is-active` so a dead gateway can't report healthy). Install alongside a Kuma Push monitor when B66 brings an agent back up. **[monitoring] Hermes gateway** (CT 104) no failure monitoring → systemd heartbeat gated on `systemctl is-active` → Kuma push.
+- ⚠️ **PARTIAL** — ✅ code-quality scans done (`code-scan-suite` Sun 13:00 + `sonar-scan` Sun 12:00, both live). ✅ roadmap-sync `.timer` authored 2026-07-20 (`nodes/weyland/hermes/roadmap-sync.{service,timer}`, daily 06:30, Persistent — staged with the Hermes units). ❌ still manual: docs-site rebuild, eval harness/leaderboard, ai_session producer crontab (7 CronJobs live, none of these). **[trigger] manual-only → schedule + freshness** — docs-site rebuild (CronJob), code-quality scans (weekly CronJob + Argo), eval harness/leaderboard (weekly or freshness), roadmap-sync (`.timer`), ai_session producer (commit the rogueone crontab).
 - **[gitops] reproducibility misc** — Hermes runtime bootstrap, Ollama perf/Modelfile config, LiteLLM mutable `main-stable`→digest, headlamp Helm→Argo Application, n8n workflows→git, DataHub recipes UI→reconciled.
 
 ### Wave 5 — docs-drift
