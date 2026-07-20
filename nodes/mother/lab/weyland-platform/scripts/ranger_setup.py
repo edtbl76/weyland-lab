@@ -7,17 +7,20 @@ Creates: the `trino` service; broadens the 13 default access policies to group `
 Trino users — dbt/lightdash/trino/... — aren't locked out by default-deny); the `analyst` demo user; the
 `depression_pct` column-mask policy (analyst sees NULL, everyone else the real value).
 
-Run from a pod that can reach ranger-admin and has `requests` (the dagster user-code pod):
-  kubectl -n weyland exec -i deploy/dagster-user-code -- python - < scripts/ranger_setup.py
+Run from a pod that can reach ranger-admin and has `requests` (the dagster user-code pod). RANGER_ADMIN_PASSWORD is
+REQUIRED (no fallback) and must be passed THROUGH the exec — the pod doesn't have it. Source scripts/.env first:
+  kubectl -n weyland exec -i deploy/dagster-user-code -- env RANGER_ADMIN_PASSWORD="$RANGER_ADMIN_PASSWORD" python - < scripts/ranger_setup.py
 """
 import json
 import os
+import secrets
 
 import requests
 
 BASE = os.environ.get("RANGER_URL", "http://ranger-admin.data-mesh.svc.cluster.local:6080")
-AUTH = (os.environ.get("RANGER_ADMIN_USER", "admin"),
-        os.environ.get("RANGER_ADMIN_PASSWORD", "Weyland_dev_password1"))  # Ranger UI users need upper+lower+digit
+# SEC-1: no baked-in fallback — set RANGER_ADMIN_PASSWORD (see .env.example). Ranger UI users need upper+lower+digit.
+ADMIN_PW = os.environ["RANGER_ADMIN_PASSWORD"]
+AUTH = (os.environ.get("RANGER_ADMIN_USER", "admin"), ADMIN_PW)
 H = {"Content-Type": "application/json"}
 TRINO_JDBC = "jdbc:trino://trino.data-mesh.svc.cluster.local:8080"
 
@@ -62,7 +65,10 @@ def broaden_defaults_to_public():
 
 
 def ensure_user(name):
-    u = {"name": name, "password": "Weyland_dev_password1", "firstName": name.title(), "lastName": "Demo",
+    # Do NOT reuse the admin credential for provisioned accounts. These users exist only so policies can REFERENCE
+    # them — authz is evaluated on the Trino session user and nobody logs in as them — so a throwaway random
+    # password is correct. The "Aa1" suffix guarantees Ranger's upper+lower+digit requirement.
+    u = {"name": name, "password": secrets.token_urlsafe(24) + "Aa1", "firstName": name.title(), "lastName": "Demo",
          "userRoleList": ["ROLE_USER"], "status": 1, "isVisible": 1}
     print(f"user {name}:", _post("/service/xusers/secure/users", u).status_code)
 

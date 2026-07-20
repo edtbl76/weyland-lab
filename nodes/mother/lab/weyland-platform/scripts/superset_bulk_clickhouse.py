@@ -16,9 +16,9 @@ import clickhouse_connect
 
 SUP = os.environ.get("SUPERSET_URL", "http://superset.data-mesh.svc.cluster.local:8088").rstrip("/")
 USER = os.environ.get("SUPERSET_USER", "admin")
-PW = os.environ.get("SUPERSET_PASSWORD", "weyland_dev_password")
+PW = os.environ["SUPERSET_PASSWORD"]   # SEC-1: no baked-in fallback — source .env (see .env.example)
 CH_HOST = os.environ.get("CLICKHOUSE_HOST", "clickhouse.data-mesh.svc.cluster.local")
-CH_PW = os.environ.get("CLICKHOUSE_PASSWORD", "weyland_dev_password")
+CH_PW = os.environ["CLICKHOUSE_PASSWORD"]   # SEC-1: no baked-in fallback
 
 s = requests.Session()
 

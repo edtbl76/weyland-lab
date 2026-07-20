@@ -9,7 +9,7 @@ that reaches superset.weyland.lab (workstation/rogueone), `requests` installed:
     SUPERSET_PASSWORD=<pw> python3 /home/edwardmangini/IdeaProjects/weyland/nodes/mother/lab/weyland-platform/scripts/superset_seed.py
 
 Env: SUPERSET_URL (default https://superset.weyland.lab), SUPERSET_USER (default admin), SUPERSET_PASSWORD
-(default weyland_dev_password), SUPERSET_CA_BUNDLE (default ~/.local/share/mkcert/rootCA.pem), TRINO_DB_NAME
+(REQUIRED — no default; source scripts/.env), SUPERSET_CA_BUNDLE (default ~/.local/share/mkcert/rootCA.pem), TRINO_DB_NAME
 (substring matching the Trino DB connection name, default 'trino').
 
 The 7 marts must exist in `iceberg.dbt` (dbt build) and the Trino connection must reach the `dbt` schema.
@@ -24,7 +24,7 @@ import requests
 
 BASE = os.environ.get("SUPERSET_URL", "https://superset.weyland.lab").rstrip("/")
 USER = os.environ.get("SUPERSET_USER", "admin")
-PW = os.environ.get("SUPERSET_PASSWORD", "weyland_dev_password")
+PW = os.environ["SUPERSET_PASSWORD"]   # SEC-1: no baked-in fallback — source .env (see .env.example)
 _CA = os.environ.get("SUPERSET_CA_BUNDLE") or os.path.expanduser("~/.local/share/mkcert/rootCA.pem")
 
 S = requests.Session()

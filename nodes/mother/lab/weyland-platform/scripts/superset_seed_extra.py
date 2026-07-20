@@ -20,7 +20,7 @@ import requests
 
 BASE = os.environ.get("SUPERSET_URL", "https://superset.weyland.lab").rstrip("/")
 USER = os.environ.get("SUPERSET_USER", "admin")
-PW = os.environ.get("SUPERSET_PASSWORD", "weyland_dev_password")
+PW = os.environ["SUPERSET_PASSWORD"]   # SEC-1: no baked-in fallback — source .env (see .env.example)
 _CA = os.environ.get("SUPERSET_CA_BUNDLE") or os.path.expanduser("~/.local/share/mkcert/rootCA.pem")
 
 S = requests.Session()

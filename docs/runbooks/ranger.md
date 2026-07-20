@@ -49,7 +49,7 @@ Meshed (istio) so it reaches STRICT-mTLS Postgres.
 4. **Codify the Trino service + policies + mask** (on **mother** — needs the trino service to exist and Trino to be
    wired, step 5 first for the plugin, but the service/policies can be created any time):
    ```
-   kubectl -n weyland exec -i deploy/dagster-user-code -- python - < scripts/ranger_setup.py
+   kubectl -n weyland exec -i deploy/dagster-user-code -- env RANGER_ADMIN_PASSWORD="$RANGER_ADMIN_PASSWORD" python - < scripts/ranger_setup.py
    ```
 5. **Wire Trino** — `trino-ranger.yaml` + the mounts in `trino.yaml` (already committed). Apply + restart:
    ```
