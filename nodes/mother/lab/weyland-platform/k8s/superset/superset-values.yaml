@@ -26,7 +26,9 @@ supersetNode:
     db_host: weyland-postgres.weyland.svc.cluster.local
     db_port: "5432"
     db_user: superset
-    db_pass: weyland_dev_password
+    # SEC-1: NOT the real password — the live one comes from the `superset-env` secret (`DB_PASS`) via the
+    # configOverrides `db_uri` below, which is appended last and wins over the chart default.
+    db_pass: sourced-from-superset-env-DB_PASS
     db_name: superset
     redis_host: valkey.data-mesh.svc.cluster.local   # the shared data-mesh Valkey
     redis_port: "6379"
@@ -101,13 +103,16 @@ configOverrides:
 
 # Fallback local admin (break-glass; OIDC is the real login). Dev password — low-sensitivity, LAN-only.
 init:
-  createAdmin: true
+  # SEC-1: the bootstrap admin password is no longer committed. The admin already exists (created on first
+  # install) and Keycloak OIDC is the real login path — this local account is break-glass only. On a FRESH
+  # install, create it manually instead:
+  #   kubectl -n data-mesh exec deploy/superset -- superset fab create-admin
+  createAdmin: false
   adminUser:
     username: admin
     firstname: Superset
     lastname: Admin
     email: admin@weyland.lab
-    password: weyland_dev_password
   resources:
     requests: { memory: 128Mi, cpu: 100m }
     limits: { memory: 512Mi }
