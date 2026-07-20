@@ -26,13 +26,13 @@ supersetNode:
     db_host: weyland-postgres.weyland.svc.cluster.local
     db_port: "5432"
     db_user: superset
-    # SEC-1 (2026-07-20) — REVERTED, do not placeholder this. The chart renders `connections.db_pass` into the
-    # container's **DB_PASS env var**, which SHADOWS the DB_PASS from `superset-env` (envFromSecret). The
-    # configOverrides `db_uri` below reads `os.environ['DB_PASS']`, so it inherits the shadowed value — a
-    # placeholder here takes Superset down with "password authentication failed for user superset".
-    # To de-commit this properly: have the override read a DIFFERENTLY-NAMED key the chart doesn't emit
-    # (e.g. add SUPERSET_DB_PASSWORD to superset-env and read that), then this can go back to a placeholder.
-    db_pass: weyland_dev_password
+    # SEC-1 / EMA-84 — this value is INERT; the real password arrives via `extraEnvRaw` (see below).
+    # The chart templates `connections.db_pass` into the `superset-env` Secret (secret-env.yaml: `DB_PASS`), which
+    # every superset pod consumes with `envFrom`. You cannot de-commit it by editing that Secret — it is
+    # chart-generated (heritage=Helm) and Argo reverts hand-added keys on the next sync.
+    # The escape hatch is precedence: an explicit container `env:` entry ALWAYS wins over the same name coming
+    # from `envFrom`, so `extraEnvRaw` re-defines DB_PASS from a SealedSecret and this key is never read.
+    db_pass: unused-overridden-by-extraEnvRaw
     db_name: superset
     redis_host: valkey.data-mesh.svc.cluster.local   # the shared data-mesh Valkey
     redis_port: "6379"
@@ -67,8 +67,20 @@ extraVolumeMounts:
     mountPath: /etc/ssl/weyland-ca
     readOnly: true
 
-# SECRET_KEY + DB_PASS from the secret (created imperatively).
+# SECRET_KEY + DB_PASS from the chart-GENERATED `superset-env` Secret (heritage=Helm, Argo-tracked — NOT
+# imperative, despite what this comment used to claim). Its DB_PASS is now overridden by extraEnvRaw below.
 envFromSecret: superset-env
+
+# EMA-84 — the real metadata-DB password, from the `superset-db-pass` SealedSecret instead of git.
+# Rendered into the main container of superset (deployment.yaml), superset-worker (deployment-worker.yaml) AND the
+# superset-init-db migration Job (init-job.yaml) — all three read DB_PASS, so all three need the override.
+# NOTE: the init Job's pod spec is immutable; it must be deleted once so Argo recreates it with this env.
+extraEnvRaw:
+  - name: DB_PASS
+    valueFrom:
+      secretKeyRef:
+        name: superset-db-pass
+        key: DB_PASS
 
 # Build the metadata URI from the env password (configOverrides append to the END of superset_config.py,
 # so this wins over the chart default).
