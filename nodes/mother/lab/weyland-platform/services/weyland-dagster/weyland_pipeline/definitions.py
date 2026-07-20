@@ -320,11 +320,36 @@ soda_quality_schedule = ScheduleDefinition(
     default_status=DefaultScheduleStatus.STOPPED,
 )
 
+# B69 Wave 4 — un-freeze the eval harness. The B4 leaderboard was manual-only, so it silently stopped being
+# refreshed and the "which model is defensible?" answer aged out. Two jobs, run in order: the matrix first
+# (question-gen + RAG × models), then the 3-judge scoring pass over its results.
+#
+# WEEKLY, on SATURDAY — the one genuinely quiet day: Sunday already carries dbt (06:00), sonar (08:00),
+# scan-suite (09:00) and the image prune (11:00), and every day carries the 02:17 ingestion. Two hours between
+# the two jobs so the matrix finishes before judging starts (they're chained by data, not by a sensor).
+#
+# STOPPED by default, exactly like soda_quality_schedule above: Ollama MOVED TO ROGUEONE in B79, so the eval
+# path hasn't been exercised since. Enable both in the Dagster UI only AFTER a manual run comes back green —
+# scheduling an already-broken heavy job just manufactures weekly noise.
+weyland_eval_schedule = ScheduleDefinition(
+    job=weyland_eval_job,
+    cron_schedule="0 3 * * 6",  # Sat 03:00 — question-gen + run-matrix (HEAVY: RAG × 6 models)
+    execution_timezone="America/New_York",
+    default_status=DefaultScheduleStatus.STOPPED,
+)
+
+weyland_eval_score_schedule = ScheduleDefinition(
+    job=weyland_eval_score_job,
+    cron_schedule="0 5 * * 6",  # Sat 05:00 — 3-judge panel scores the matrix written at 03:00
+    execution_timezone="America/New_York",
+    default_status=DefaultScheduleStatus.STOPPED,
+)
+
 defs = Definitions(
     assets=[*all_assets, weyland_dbt_assets],
     asset_checks=all_asset_checks,
     jobs=[weyland_ingestion_job, weyland_eval_job, weyland_eval_score_job, weyland_catalog_job, weyland_aidlc_kb_job, weyland_ai_session_job, datahub_catalog_emit_job, weyland_datasets_music_transform_job, weyland_datasets_music_land_job, weyland_datasets_health_land_job, weyland_datasets_health_transform_job, weyland_datasets_health_hydrate_job, weyland_datasets_music_hydrate_job, weyland_timeseries_job, weyland_lancedb_sync_job, weyland_dbt_job, soda_quality_job],
-    schedules=[weyland_ingestion_schedule, weyland_catalog_schedule, weyland_ai_session_schedule, datahub_catalog_emit_schedule, weyland_timeseries_schedule, weyland_datasets_music_land_schedule, weyland_datasets_health_land_schedule, weyland_dbt_schedule, soda_quality_schedule],
+    schedules=[weyland_ingestion_schedule, weyland_catalog_schedule, weyland_ai_session_schedule, datahub_catalog_emit_schedule, weyland_timeseries_schedule, weyland_datasets_music_land_schedule, weyland_datasets_health_land_schedule, weyland_dbt_schedule, soda_quality_schedule, weyland_eval_schedule, weyland_eval_score_schedule],
     sensors=[datasets_music_raw_sensor, lancedb_sync_sensor],
     resources={
         "postgres": PostgresResource(

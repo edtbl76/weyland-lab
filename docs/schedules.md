@@ -51,6 +51,13 @@ Heavy = embeds/writes or large scans (guard the node's RAM). Light = metadata/re
 | **09:00 (Sun)** | k8s CronJob | `code-scan-suite` (gitleaks/checkov/kubescape/hadolint/bandit/osv-scanner/shellcheck/semgrep/trivy → Port + code-maat hotspots; one `scan-suite` image) | weekly (Sun) | **HEAVY** — semgrep auto + trivy fs (13:00 UTC) |
 | **11:00 (Sun)** | node systemd (mother) | `weyland-image-prune` (`k3s crictl rmi --prune`) — frees ephemeral storage so the node never re-hits the eviction line (B69, `nodes/mother/host/systemd/`) | weekly (Sun) | — (host timer @ **15:00 UTC**; quiet slot clear of the DataHub train) · **INSTALLED 2026-07-20** (authored 07-18, enabled 07-20) |
 | **05:30** | k8s CronJob | `docs-site-rebuild` — `kubectl rollout restart deploy/docs-site` (B69). docs-site rebuilds from a fresh `git clone` on every pod start, so without this the site silently serves a snapshot frozen at the last restart. No push-trigger available ([[lan-no-github-webhooks]]). | daily | light — restart only; the mkdocs build happens in the new pod's initContainer |
+| **Sat 03:00** | Dagster | `weyland_eval_job` (question-gen + run-matrix, RAG × 6 models) | weekly (Sat) — **STOPPED by default** | **HEAVY** |
+| **Sat 05:00** | Dagster | `weyland_eval_score_job` (3-judge panel → `eval_leaderboard` + Iceberg publish) | weekly (Sat) — **STOPPED by default** | med |
+
+> **Why Saturday, and why STOPPED:** Sunday is already full (dbt 06:00, sonar 08:00, scan-suite 09:00, prune 11:00)
+> and 02:17 ingestion runs daily. Both eval schedules ship `STOPPED` (same posture as `soda_quality_schedule`)
+> because **Ollama moved to rogueone in B79** and the eval path hasn't been exercised since — enable them in the
+> Dagster UI only after a manual run comes back green.
 
 **Staged but NOT installed** (they live in git; install when the gate clears):
 
