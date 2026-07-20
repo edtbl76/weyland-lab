@@ -222,3 +222,25 @@ spec:
     namespace: weyland
   syncPolicy:
     automated: { selfHeal: true, prune: true }
+---
+# B93 memory-limit backstop — the LimitRanges self-specify their namespaces (monitoring / argocd / istio-system /
+# woodpecker / n8n / headlamp), same multi-ns pattern as rbac-noautomount above.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: limitranges
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/edtbl76/weyland-lab.git
+    targetRevision: main
+    path: nodes/mother/lab/weyland-platform/k8s
+    directory:
+      recurse: false
+      include: 'limitranges.yaml'
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: weyland
+  syncPolicy:
+    automated: { selfHeal: true, prune: true }

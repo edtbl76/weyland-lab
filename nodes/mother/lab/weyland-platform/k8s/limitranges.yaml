@@ -1,0 +1,80 @@
+# B93 — memory-limit backstop (kubescape C-0271). A namespace LimitRange gives every container that declares NO
+# memory limit a default one, so a leak is contained to that pod instead of eating mother's 64Gi. This is a BACKSTOP,
+# not right-sizing: every large consumer (Trino, Cassandra, SonarQube, Neo4j, OpenSearch, DataHub GMS, dagster,
+# Ray, ClickHouse, Flink...) already carries an explicit limit, and an explicit limit always wins over these defaults.
+#
+# Scope (deliberate):
+#  - ONLY these infra/control-plane namespaces, where every unlimited pod is small (<500Mi observed) so 2Gi is pure
+#    containment headroom. It also auto-catches any FUTURE unlimited pod in them — the real value.
+#  - MEMORY ONLY. No CPU default on purpose: CPU limits cause throttling; requests-not-limits is the accepted practice.
+#  - defaultRequest is small (128Mi) so pods don't over-REQUEST 2Gi and distort scheduling — without it, k8s sets
+#    request == limit for containers that declare neither.
+#  - NOT kube-system (k3s owns those system pods; a LimitRange there could bite a future k3s upgrade).
+#  - NOT data-mesh / weyland — heterogeneous, with legitimately multi-Gi stores; a blanket default could OOM a new one.
+#
+# NOTE: applies at pod CREATION — existing running pods keep no limit until they next restart.
+apiVersion: v1
+kind: LimitRange
+metadata:
+  name: default-memory
+  namespace: monitoring
+spec:
+  limits:
+    - type: Container
+      default: { memory: 2Gi }
+      defaultRequest: { memory: 128Mi }
+---
+apiVersion: v1
+kind: LimitRange
+metadata:
+  name: default-memory
+  namespace: argocd
+spec:
+  limits:
+    - type: Container
+      default: { memory: 2Gi }
+      defaultRequest: { memory: 128Mi }
+---
+apiVersion: v1
+kind: LimitRange
+metadata:
+  name: default-memory
+  namespace: istio-system
+spec:
+  limits:
+    - type: Container
+      default: { memory: 2Gi }
+      defaultRequest: { memory: 128Mi }
+---
+apiVersion: v1
+kind: LimitRange
+metadata:
+  name: default-memory
+  namespace: woodpecker
+spec:
+  limits:
+    - type: Container
+      default: { memory: 2Gi }
+      defaultRequest: { memory: 128Mi }
+---
+apiVersion: v1
+kind: LimitRange
+metadata:
+  name: default-memory
+  namespace: n8n
+spec:
+  limits:
+    - type: Container
+      default: { memory: 2Gi }
+      defaultRequest: { memory: 128Mi }
+---
+apiVersion: v1
+kind: LimitRange
+metadata:
+  name: default-memory
+  namespace: headlamp
+spec:
+  limits:
+    - type: Container
+      default: { memory: 2Gi }
+      defaultRequest: { memory: 128Mi }
