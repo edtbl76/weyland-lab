@@ -187,7 +187,10 @@ spec:
             - name: TIMESCALEDB_USER
               value: weyland
             - name: TIMESCALEDB_PASSWORD
-              value: weyland_dev_password
+              valueFrom:
+                secretKeyRef:
+                  name: datamesh-store-creds   # SEC-1: sealed; secretKeyRef can't cross ns → replicated into weyland
+                  key: TIMESCALEDB_PASSWORD
             # Store hydration (data-store-mageddon) — MySQL loader (build_store_load_assets reads silver
             # Parquet → MySQL). Always-on store in data-mesh; in-cluster svc; shared dev password.
             - name: MYSQL_HOST
@@ -197,7 +200,10 @@ spec:
             - name: MYSQL_USER
               value: weyland
             - name: MYSQL_PASSWORD
-              value: weyland_dev_password
+              valueFrom:
+                secretKeyRef:
+                  name: datamesh-store-creds
+                  key: MYSQL_PASSWORD
             # MongoDB loader (silver Parquet → documents; aidlc-kb → frontmatter docs). Always-on, data-mesh.
             - name: MONGO_HOST
               value: mongodb.data-mesh.svc.cluster.local
@@ -206,7 +212,10 @@ spec:
             - name: MONGO_USER
               value: weyland
             - name: MONGO_PASSWORD
-              value: weyland_dev_password
+              valueFrom:
+                secretKeyRef:
+                  name: datamesh-store-creds
+                  key: MONGO_PASSWORD
             # CockroachDB loader (pg-wire, insecure single-node → user root, no password). Always-on, data-mesh.
             - name: COCKROACH_HOST
               value: cockroachdb.data-mesh.svc.cluster.local
@@ -225,7 +234,10 @@ spec:
             - name: CLICKHOUSE_USER
               value: default
             - name: CLICKHOUSE_PASSWORD
-              value: weyland_dev_password
+              valueFrom:
+                secretKeyRef:
+                  name: datamesh-store-creds
+                  key: CLICKHOUSE_PASSWORD
             # OpenSearch loader (silver Parquet → bulk-indexed docs). Standalone playground (ns opensearch,
             # security plugin OFF → plain HTTP, no auth — nothing secret here). Cross-namespace svc DNS.
             # VERIFY the host: `kubectl -n opensearch get svc` — set to whatever exposes HTTP :9200.

@@ -6,7 +6,8 @@
 # in plaintext git is a leak. It's now an imperative secret (rotated), to be sealed in Wave 2. Recreate:
 #   kubectl -n data-mesh delete secret cube-secret --ignore-not-found \
 #     && kubectl -n data-mesh create secret generic cube-secret --from-literal=CUBEJS_API_SECRET="$(openssl rand -hex 32)"
-# The Deployment below already reads it via secretKeyRef. (CUBEJS_SQL_PASSWORD stays the shared LAN dev password.)
+# The Deployment below already reads it via secretKeyRef. SEC-1: CUBEJS_SQL_PASSWORD now lives in the SAME secret
+# (no longer inline) — re-seal both keys together, preserving the live API secret.
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -132,7 +133,8 @@ spec:
             # SQL API (Postgres-wire) — lets BI tools / psql query the semantic layer.
             - { name: CUBEJS_PG_SQL_PORT, value: "15432" }
             - { name: CUBEJS_SQL_USER, value: cube }
-            - { name: CUBEJS_SQL_PASSWORD, value: weyland_dev_password }
+            - name: CUBEJS_SQL_PASSWORD          # SEC-1: sealed alongside the API secret, no longer inline
+              valueFrom: { secretKeyRef: { name: cube-secret, key: CUBEJS_SQL_PASSWORD } }
             - name: CUBEJS_API_SECRET
               valueFrom: { secretKeyRef: { name: cube-secret, key: CUBEJS_API_SECRET } }
           volumeMounts:

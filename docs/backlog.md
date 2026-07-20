@@ -1066,7 +1066,9 @@ All land in lakeFS → Parquet → Iceberg → Trino/DuckDB queryable. Gated dat
 
 ---
 
-### B88 — Per-language test runners on Woodpecker — Maturity / Polish
+### B88 — Per-language test runners on Woodpecker — ⏸ DEFERRED (gated on Stud.IO)
+**⏸ DEFERRED 2026-07-20.** Woodpecker is **idle** — nothing in the lab currently drives it, so building per-language runners now would be capability-for-its-own-sake. **Trigger to revisit: when Stud.IO starts using weyland's build pipeline** (Woodpecker was always intended as the shared build farm — see the B56/B57 Stud.IO-migrates-on-later note). Scope below stands as written for whenever that lands.
+
 **Added 2026-07-18.** The B69 weekly scans (`scan-suite` + `sonar-scan`) are **quality gates** — static/security/hotspot analysis, no code execution. The missing sibling is **test execution**: Woodpecker CI pipelines that actually build + run the test suites per language (Python/pytest, Java/Maven for the Flink modules, shell, etc.) so regressions are caught, not just smells. This is the LAN-native answer to "no GitHub Actions" ([[lan-no-github-webhooks]]) — Woodpecker polls/triggers in-cluster.
 - Stand up language-specific runner images/pipelines (start with pytest for `weyland_pipeline` + `mvn test` for `k8s/flink/*`).
 - Wire results into the same surfaces the scans use (Port `code-quality` / a test-results webhook) so pass/fail trends live alongside the quality gates.

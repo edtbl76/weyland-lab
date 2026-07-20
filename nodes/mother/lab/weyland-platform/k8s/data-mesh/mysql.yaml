@@ -50,7 +50,9 @@ spec:
             - --collation-server=utf8mb4_unicode_ci
           readinessProbe:
             exec:
-              command: ["mysqladmin", "ping", "-h", "localhost", "-u", "weyland", "--password=weyland_dev_password"]
+              # SEC-1: read the password from the env (envFrom mysql-secret) instead of inlining it. An exec probe
+              # doesn't expand $(VAR), so wrap in a shell.
+              command: ["sh", "-c", "mysqladmin ping -h localhost -u weyland --password=\"$MYSQL_PASSWORD\""]
             initialDelaySeconds: 20
             periodSeconds: 10
           resources:
