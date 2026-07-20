@@ -26,9 +26,13 @@ supersetNode:
     db_host: weyland-postgres.weyland.svc.cluster.local
     db_port: "5432"
     db_user: superset
-    # SEC-1: NOT the real password — the live one comes from the `superset-env` secret (`DB_PASS`) via the
-    # configOverrides `db_uri` below, which is appended last and wins over the chart default.
-    db_pass: sourced-from-superset-env-DB_PASS
+    # SEC-1 (2026-07-20) — REVERTED, do not placeholder this. The chart renders `connections.db_pass` into the
+    # container's **DB_PASS env var**, which SHADOWS the DB_PASS from `superset-env` (envFromSecret). The
+    # configOverrides `db_uri` below reads `os.environ['DB_PASS']`, so it inherits the shadowed value — a
+    # placeholder here takes Superset down with "password authentication failed for user superset".
+    # To de-commit this properly: have the override read a DIFFERENTLY-NAMED key the chart doesn't emit
+    # (e.g. add SUPERSET_DB_PASSWORD to superset-env and read that), then this can go back to a placeholder.
+    db_pass: weyland_dev_password
     db_name: superset
     redis_host: valkey.data-mesh.svc.cluster.local   # the shared data-mesh Valkey
     redis_port: "6379"
