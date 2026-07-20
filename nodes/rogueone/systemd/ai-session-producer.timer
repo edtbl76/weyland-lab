@@ -1,0 +1,21 @@
+# Every 4 hours at :07 — preserves the original crontab cadence (`7 */4 * * *`) exactly, so the Dagster
+# `ai_session` job's expectations don't change.
+#
+# ⚠ ORDERING NOTE (inherited, not introduced here): Dagster's `ai_session` ingest runs at :00 of the same
+# 4-hour marks (00/04/08/12/16/20 — see docs/schedules.md), i.e. SEVEN MINUTES BEFORE this producer uploads.
+# So each ingest reads the batch this timer wrote ~4h earlier. Harmless for a usage dashboard (the data is
+# cumulative, nothing is lost — just one cycle behind), but if freshness ever matters, move the producer to
+# :50 of the PRECEDING hour rather than speeding up the ingest.
+#
+# Persistent=true so a laptop that was asleep/off at the fire time runs once on resume instead of skipping the
+# window silently — the whole point of codifying this.
+[Unit]
+Description=Run the AI-Dev Usage producer every 4 hours
+
+[Timer]
+OnCalendar=*-*-* 00,04,08,12,16,20:07:00
+Persistent=true
+RandomizedDelaySec=120
+
+[Install]
+WantedBy=timers.target

@@ -1,0 +1,27 @@
+# B69 Wave 4 — codify the ai_session producer (B62 AI-Dev Usage data product). Was an uncommitted rogueone
+# crontab entry: nothing in git recreated it, so a rebuilt/reimaged workstation would silently stop feeding the
+# data product and the Port dashboard would just quietly flatline.
+#
+# Pipeline: ai_session_feeder.py parses local Claude Code telemetry into ~/.cache/ai-sessions/, then `mc mirror`
+# uploads it to the `ai-sessions` bucket, where the Dagster `ai_session` job ingests it.
+#
+# USER unit, not system: `mc` reads its alias/credentials from ~/.mc (the `weyland` alias), and the script reads
+# the caller's ~/.cache. Running it as root would find neither.
+#   Install:  systemctl --user daemon-reload && systemctl --user enable --now ai-session-producer.timer
+#   REQUIRED: loginctl enable-linger edwardmangini   <- without this the timer only runs while logged in,
+#             which reintroduces exactly the silent-gap problem this unit exists to remove.
+#
+# The `&&` is deliberate (preserved from the crontab): if the feeder fails, do NOT mirror — better to upload
+# nothing than to publish a half-written batch to the bucket the data product reads.
+[Unit]
+Description=AI-Dev Usage producer — parse Claude Code sessions, mirror to MinIO
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/bin/bash -c '/usr/bin/python3 /home/edwardmangini/IdeaProjects/weyland/nodes/mother/lab/weyland-platform/scripts/ai_session_feeder.py && "$(command -v mc)" mirror --overwrite /home/edwardmangini/.cache/ai-sessions/ weyland/ai-sessions/'
+# Journald instead of the old >> ~/.cache/ai-session-producer.log: an unrotated append-only logfile grows
+# forever, and `journalctl --user -u ai-session-producer` gives per-run exit status the flat file never did.
+StandardOutput=journal
+StandardError=journal

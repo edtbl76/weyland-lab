@@ -1,7 +1,7 @@
 # Weyland — Master Schedule
 
 Single source of truth for **everything that runs on a timer** in the lab: Dagster schedules,
-DataHub managed-ingestion sources, k8s CronJobs, and **node systemd timers** (mother). Keep this updated whenever a
+DataHub managed-ingestion sources, k8s CronJobs, and **node systemd timers** (mother + rogueone). Keep this updated whenever a
 schedule is added, moved, or disabled (same discipline as [hosts.md](hosts.md) / [api.md](api.md)).
 
 ## Timezone — one clock now
@@ -63,6 +63,7 @@ Heavy = embeds/writes or large scans (guard the node's RAM). Light = metadata/re
 
 | Unit | Where | Cadence | Gate |
 |---|---|---|---|
+| `ai-session-producer.{service,timer}` | **rogueone** (user unit) | every 4h at :07 | needs `systemctl --user enable --now` + **`loginctl enable-linger edwardmangini`**; replaces the uncommitted crontab |
 | `roadmap-sync.{service,timer}` | CT 104 (Hermes) | daily 06:30 | Hermes is shut off — install when **B66** brings an agent back |
 | `hermes-heartbeat.{service,timer}` | CT 104 (Hermes) | every 60s → Kuma Push | same; also needs the Kuma Push monitor created (120s interval) |
 
