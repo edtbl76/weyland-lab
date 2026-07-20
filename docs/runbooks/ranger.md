@@ -31,12 +31,12 @@ Meshed (istio) so it reaches STRICT-mTLS Postgres.
    CREATE DATABASE ranger OWNER rangeradmin;
    SQL
    ```
-2. **Build + import the image** (on **mother** — base is Docker Hub, builds fine here):
+2. **Build + push the image** (on **rogueone**). B92 moved this off the local `ctr`-import onto the registry — a
+   pruned local-only image left Ranger unable to restart at all (`Init:ImagePullBackOff`, nothing to pull from):
    ```
-   docker build -t weyland/ranger:2.6.0-py3 services/ranger
-   docker save weyland/ranger:2.6.0-py3 | sudo ctr -n k8s.io images import -
+   docker build -t registry.weyland.lab/ranger:2.6.0-py3 services/ranger && docker push registry.weyland.lab/ranger:2.6.0-py3
    ```
-   (rsync `services/ranger/` to mother first if it's not there.)
+   Also wired into `scripts/build-push-images.sh` (version-pinned, not TAG-following).
 3. **Deploy** (on **mother**):
    ```
    kubectl apply -f ~/ranger.yaml
@@ -59,6 +59,16 @@ Meshed (istio) so it reaches STRICT-mTLS Postgres.
    ⚠ **Run `ranger_setup.py` (step 4) BEFORE this**, or the default-deny plugin locks every consumer out of Trino.
 
 ## Config change (edit install.properties / any ConfigMap)
+
+**Passwords are NOT in the ConfigMap (B92).** `install.properties` ships `@@TOKEN@@` placeholders; the 9 real values live
+in the **`ranger-admin-secret`** SealedSecret (data-mesh), and the **`render-install-props` initContainer** copies the
+template and `sed`s each token in (`envFrom` the secret) into a writable emptyDir the main container mounts as `key/` —
+the ConfigMap mount is read-only, so it can't be edited in place.
+- **Non-password config** → edit the ConfigMap in `ranger.yaml` as usual.
+- **A password** → re-seal `ranger-admin-secret` with the changed key (`kubectl create secret generic … --dry-run=client
+  -o yaml | kubeseal --format yaml`, all 9 keys, on mother) and commit the sealed CR — never put the value back in the
+  ConfigMap. A *new* password also needs its `@@TOKEN@@` in the template plus a matching `-e "s|@@TOKEN@@|${VAR}|"` in
+  the initContainer's `sed`.
 
 ConfigMap changes don't restart the pod — force it:
 ```

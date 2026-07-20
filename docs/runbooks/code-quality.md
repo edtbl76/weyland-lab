@@ -115,6 +115,12 @@ this webhook. See [[project-backlog]] B89 (drive the findings to zero) as the fo
 `requirements.txt` (from each service's `pip freeze`). osv now reads real versions → phantoms gone. To re-pin after an
 intentional bump: rebuild the image (or exec the running pod) and `pip freeze > requirements.txt`.
 
+**B92 (ranger creds, 2026-07-20):** the last real finding — `ranger.yaml`'s ConfigMap shipped 9 plaintext dev passwords —
+is fixed: they now live in the `ranger-admin-secret` SealedSecret and a `render-install-props` initContainer substitutes
+them into `install.properties` at startup (see [ranger.md](ranger.md)). **`KSV-0109` is now blanket-accepted** in
+`.trivyignore` — both remaining hits (ranger `@@TOKEN@@` placeholders, trino `${ENV:...}` refs) are false positives,
+since trivy can't distinguish a placeholder from a secret on a password-named key.
+
 **The `Code Health` dashboard** (Port sidebar / Catalog) assembles it all on one page: three number cards (Σ `critical` +
 Σ `high` over `security_scan`, count of `sonarQubeIssue`) over a `code_quality` Quality-Gate table + a `code_hotspot`
 Top-Hotspots table (sorted by churn). Built via the **Port MCP** (`upsert_dashboard_page`) — **Port dashboards can't be

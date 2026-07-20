@@ -41,6 +41,8 @@ KSV-0024
 # topology (same rationale as its KSV-0046 above). Scoping it down breaks the mesh view. Accepted.
 KSV-0056
 
-# NOTE: KSV-0109 (ConfigMap with secrets) is deliberately NOT ignored. trino.yaml is a false positive (${ENV:...}
-# refs; real creds in trino-secret), but ranger.yaml has REAL committed dev passwords — left visible as the reminder
-# until that's relocated to a Secret (see backlog B92). Blanket-ignoring KSV-0109 would mask the ranger finding.
+# ConfigMap with secrets (KSV-0109) — now a FALSE POSITIVE on both hits, so blanket-accepted (B92, 2026-07-20):
+# trino.yaml holds `${ENV:...}` refs (real creds in the `trino-secret` Secret), and ranger.yaml holds `@@TOKEN@@`
+# placeholders (real creds sealed in `ranger-admin-secret`, substituted at startup by the render initContainer).
+# Neither ships a real credential — trivy just can't tell a placeholder from a secret on a password-named key.
+KSV-0109
