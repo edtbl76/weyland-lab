@@ -1057,7 +1057,9 @@ All land in lakeFS → Parquet → Iceberg → Trino/DuckDB queryable. Gated dat
 - **Kiro** — AWS's agentic IDE with a built-in spec flow (requirements → design → tasks) + steering files + agent hooks.
 **Goal:** map what each does, where they overlap/diverge from the Method's stages (validated-intent → requirements → design → construction → operations), and whether any patterns/artifacts/tooling are worth adopting into — or cross-pollinating with — the Method. **Output** = a comparison doc + decision matrix (`docs/concepts/` or `aidlc-docs/`). Research/maturity item — evaluate first, no commitment to adopt. All four are free/OSS or free-tier, so $0-friendly to trial.
 
-### B87 — Vet + live-validate all E2E demos (E1–E12) — Maturity / Polish
+### B87 — Vet + live-validate all E2E demos (E1–E12) — ⏸ DEFERRED to the maturity pass
+**⏸ DEFERRED 2026-07-20.** Deliberately batched: validate **all** demos in one sweep once the core build is done, rather than re-validating piecemeal as each new capability churns the demos underneath. Trigger: end of the core work (the demos stay 🟡 until then, which is the honest state — not a gap being ignored).
+
 **Added 2026-07-17.** The 12 end-to-end walkthroughs (`docs/demos/*-e2e.md` + `soda-dq.md` / `ranger-masking.md`; ledger rows **E1–E12** in `docs/demos/README.md`) are **🟡 authored, pending a live validation run**. Per the demos DoD a demo isn't ✅ until it's been executed **straight through against live infra**. This item = the last mile of the docs-relevance + E2E-demos pass, and the tracker for it.
 - **Run each E2E demo end-to-end** (UI + CLI) on the live platform; flip 🟡 → ✅ in the ledger as each passes.
 - **Resolve the inherited `TODO: verify` markers** (full list in `demos/README.md` → Outstanding): eval FK column · datahub emit-token secret name · `model_catalog` columns · MLflow 3.14 delete CLI · in-pod `dagster asset materialize -m` invocation · `genre_classifier` feature columns/order · `/context/search` body · consumer-group deletion · roadmap field mapping · etc.
