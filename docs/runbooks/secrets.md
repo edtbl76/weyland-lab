@@ -43,6 +43,28 @@ The authoritative list is the `SECRETS=(…)` array in `scripts/seal-secrets.sh`
 - **TLS/CA** (`weyland-wildcard-tls`, `weyland-mkcert-ca`) — mkcert-regenerable, replicated across namespaces, and
   they expire. Regenerate from the mkcert CA on a rebuild instead.
 
+### Getting a credential OUT of a chart-generated secret (the `extraEnvRaw` pattern)
+
+A chart-generated secret is reproducible precisely because the chart templates it **from your values file** — so the
+plaintext lives in git even though the secret itself isn't sealed. You cannot fix that by editing the secret: it is
+Helm-owned (`heritage=Helm`) and Argo reverts hand-added keys on the next sync.
+
+Override it at the **container** level instead. An explicit `env:` entry always outranks the same name arriving via
+`envFrom:` — a Kubernetes precedence rule, not an ordering coincidence — so the chart's key becomes inert:
+
+1. Dump the live pod spec first and confirm where the value actually comes from, for **every** consumer (web pods,
+   workers, and any init/migration Job — they frequently differ):
+   `kubectl -n <ns> get deploy,job -o jsonpath='{range .items[*]}{.kind}/{.metadata.name}{"\n"}{range .spec.template.spec.containers[*]}  {.name} env={.env[*].name} envFrom={.envFrom[*].secretRef.name}{"\n"}{end}{end}'`
+2. Seal the **live** value straight out of the existing secret — byte-identical, no rotation, no paste-mangling:
+   `kubectl -n <ns> create secret generic <new> --from-literal=KEY="$(kubectl -n <ns> get secret <chart-secret> -o jsonpath='{.data.KEY}' | base64 -d)" --dry-run=client -o yaml | kubeseal --format yaml > <ns>__<new>.yaml`
+3. Add the chart's raw-env hook (`extraEnvRaw`, or `envFromSecrets`/`extraSecretEnv` depending on chart) pointing at
+   the sealed secret, and check the chart source that the hook renders in **all** relevant templates.
+4. Replace the values field with an inert placeholder and comment *why* it's inert.
+
+Live example: superset `connections.db_pass` → `superset-db-pass` SealedSecret (SEC-1/EMA-84). Immutable Jobs may need
+a one-time delete, though Argo often recreates them itself. Verify against something that truly exercises the cred —
+for superset that's the `superset-init-db` migration Job succeeding, **not** `/health`, which never touches Postgres.
+
 ## ⚠️ The controller key is a bricking key — ESCROW IT
 
 The controller auto-generated a private key on first start (Secret labelled
