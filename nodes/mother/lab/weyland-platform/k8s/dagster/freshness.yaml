@@ -1,9 +1,26 @@
-# B1 / B69 data-mesh-now — Dagster pipeline freshness watchdog.
-# The native run_status_sensor is broken on Dagster 1.13 (dagster#21526), so we monitor EXTERNALLY:
-# query the dagster instance's runs table for the last SUCCESSful run; if it's older than the threshold
-# (ingestion runs every 15m), fire an Alertmanager alert -> Telegram. Catches the *silent* failure mode
-# (a stopped/stuck pipeline that throws no exception, so GlitchTip/Sentry never sees it).
-# Meshed for STRICT-mTLS Postgres; in the weyland ns (same ns as dagster + its PG secret).
+# B94 — Dagster PER-JOB watchdog (replaces the global freshness check).
+#
+# WHY THE OLD VERSION COULDN'T WORK: it asked "has ANY run succeeded in the last 90 min?"
+#   SELECT ... FROM runs WHERE status='SUCCESS'    <- no job filter
+# With timeseries (4h), ai_session (4h), catalog (6h) and datahub_catalog_emit (6h) all succeeding constantly,
+# that clock NEVER ages. A weekly job can fail forever and the watchdog stays green BY CONSTRUCTION. That is
+# exactly what happened: `weyland_dbt_job` failed 3 consecutive weekly runs (07-12, 07-19, 07-20) in total
+# silence, while a freshness watchdog was deployed and "working". The noisy healthy jobs masked the quiet
+# broken one.
+#
+# TWO conditions per job, because they catch different failures and neither implies the other:
+#   1. FAILED  — the job's MOST RECENT run is a FAILURE               (it ran and broke)
+#   2. STALE   — the job's last SUCCESS is older than its own cadence  (it stopped running at all)
+# Condition 2 matters: the B94 audit found `weyland_ai_session_schedule` STOPPED with the job never having
+# succeeded once — a failure-only alert would never have fired, because nothing was failing. Silence != health.
+#
+# WHY NOT `@run_failure_sensor`: the native run-status sensor is broken on this Dagster line (1.13.14,
+# dagster#21526) — the reason the original check polled the DB externally. Keeping the proven mechanism; only
+# the QUERY was wrong. Revisit the native sensor on a Dagster major upgrade.
+#
+# Meshed for STRICT-mTLS Postgres; weyland ns (same ns as dagster + its PG secret).
+# NOTE: alerts carry no endsAt, so Alertmanager auto-resolves them after `resolve_timeout` (5m) and this CronJob
+# re-fires them every 30m while the condition persists — deliberate: a stuck job should keep nagging.
 apiVersion: batch/v1
 kind: CronJob
 metadata:
@@ -33,17 +50,75 @@ spec:
               args:
                 - |
                   set -e
-                  THRESHOLD=5400   # 90 min (ingestion schedule = every 15m)
-                  AGE=$(PGPASSWORD="$DAGSTER_PG_PASSWORD" psql -t -A \
-                    -h weyland-postgres.weyland.svc.cluster.local -U weyland -d dagster \
-                    -c "SELECT COALESCE(EXTRACT(EPOCH FROM (now() - max(update_timestamp)))::int, 999999) FROM runs WHERE status='SUCCESS';")
-                  echo "seconds since last successful dagster run: $AGE (threshold $THRESHOLD)"
-                  if [ "$AGE" -gt "$THRESHOLD" ]; then
-                    echo "STALE — firing Alertmanager alert"
+                  AM=http://monitoring-kube-prometheus-alertmanager.monitoring.svc.cluster.local:9093/api/v2/alerts
+
+                  # Per-job staleness budget = ~2x the schedule interval, so ONE missed run doesn't page.
+                  # Only SCHEDULED jobs belong here. On-demand jobs (hydrate/transform/aidlc_kb/__ASSET_JOB)
+                  # and event-driven ones (lancedb_sync — its sensor idles for weeks BY DESIGN) must NOT be
+                  # listed, or they alert forever for being idle, which is their correct state.
+                  # ai_session is deliberately absent: its schedule is STOPPED and the job has never succeeded
+                  # (B94 audit). Add it here once the schedule is enabled and a run passes — a known-open item
+                  # should not page every 30 minutes.
+                  threshold_for() {
+                    case "$1" in
+                      weyland_ingestion_job)              echo 108000 ;;  # daily 02:17  -> 30h
+                      weyland_catalog_job)                echo  28800 ;;  # every 6h     -> 8h
+                      weyland_timeseries_job)             echo  21600 ;;  # every 4h     -> 6h
+                      datahub_catalog_emit_job)           echo  28800 ;;  # every 6h     -> 8h
+                      soda_quality_job)                   echo 108000 ;;  # daily 05:30  -> 30h
+                      weyland_datasets_music_land_job)    echo 108000 ;;  # daily 03:00  -> 30h
+                      weyland_datasets_health_land_job)   echo 108000 ;;  # daily 04:00  -> 30h
+                      weyland_dbt_job)                    echo 691200 ;;  # weekly Sun   -> 8d
+                      weyland_eval_job)                   echo 691200 ;;  # weekly Sat   -> 8d
+                      weyland_eval_score_job)             echo 691200 ;;  # weekly Sat   -> 8d
+                      *)                                  echo 0      ;;  # 0 = not monitored
+                    esac
+                  }
+
+                  fire() {   # fire <alertname> <job> <severity> <summary> <description>
+                    echo "ALERT $1 job=$2 :: $4"
                     wget -q -O- --header='Content-Type: application/json' \
-                      --post-data="[{\"labels\":{\"alertname\":\"DagsterPipelineStale\",\"severity\":\"warning\",\"namespace\":\"weyland\",\"source\":\"freshness-check\"},\"annotations\":{\"summary\":\"Dagster: no successful run in ${AGE}s (> ${THRESHOLD}s)\",\"description\":\"The Dagster pipeline appears stalled/stopped — last successful run was ${AGE}s ago. Check the schedules and the daemon.\"}}]" \
-                      http://monitoring-kube-prometheus-alertmanager.monitoring.svc.cluster.local:9093/api/v2/alerts
-                  fi
+                      --post-data="[{\"labels\":{\"alertname\":\"$1\",\"severity\":\"$3\",\"namespace\":\"weyland\",\"job_name\":\"$2\",\"source\":\"dagster-watchdog\"},\"annotations\":{\"summary\":\"$4\",\"description\":\"$5\"}}]" \
+                      "$AM" || echo "  !! alertmanager POST failed"
+                  }
+
+                  # latest = most recent run per job (any status); succ = age of the last SUCCESS per job.
+                  # LEFT JOIN so a job that has NEVER succeeded still appears (age sentinel 999999999).
+                  SQL="WITH latest AS (
+                         SELECT DISTINCT ON (pipeline_name) pipeline_name, status
+                         FROM runs ORDER BY pipeline_name, update_timestamp DESC
+                       ), succ AS (
+                         SELECT pipeline_name,
+                                EXTRACT(EPOCH FROM (now() - max(update_timestamp)))::bigint AS age
+                         FROM runs WHERE status='SUCCESS' GROUP BY 1
+                       )
+                       SELECT l.pipeline_name, l.status, COALESCE(s.age, 999999999)
+                       FROM latest l LEFT JOIN succ s USING (pipeline_name);"
+
+                  PGPASSWORD="$DAGSTER_PG_PASSWORD" psql -t -A -F'|' \
+                    -h weyland-postgres.weyland.svc.cluster.local -U weyland -d dagster \
+                    -c "$SQL" > /tmp/jobs.txt
+
+                  ALERTS=0
+                  while IFS='|' read -r JOB STATUS AGE; do
+                    [ -n "$JOB" ] || continue
+                    T=$(threshold_for "$JOB")
+                    [ "$T" -gt 0 ] || continue                      # unmonitored (on-demand/event-driven)
+                    echo "check $JOB status=$STATUS last_success_age=${AGE}s budget=${T}s"
+                    if [ "$STATUS" = "FAILURE" ]; then
+                      fire "DagsterJobFailed" "$JOB" "warning" \
+                        "Dagster job $JOB last run FAILED" \
+                        "The most recent run of $JOB failed. Inspect it at https://dagster.weyland.lab/runs (filter by job). A schedule TICK reading SUCCESS only means the run was LAUNCHED, not that it passed."
+                      ALERTS=$((ALERTS+1))
+                    fi
+                    if [ "$AGE" -gt "$T" ]; then
+                      fire "DagsterJobStale" "$JOB" "warning" \
+                        "Dagster job $JOB has no success in ${AGE}s (budget ${T}s)" \
+                        "$JOB has not completed successfully within its expected cadence — it may be failing, its schedule may be STOPPED, or the daemon may be stuck. Check https://dagster.weyland.lab/automation for the schedule state."
+                      ALERTS=$((ALERTS+1))
+                    fi
+                  done < /tmp/jobs.txt
+                  echo "done — $ALERTS alert(s) fired"
               env:
                 - name: DAGSTER_PG_PASSWORD
                   valueFrom: { secretKeyRef: { name: dagster-postgres-secret, key: password } }
