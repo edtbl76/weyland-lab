@@ -114,7 +114,7 @@
 
   <p class="eyebrow">Weyland · Platform Map · 2026-07</p>
   <h1 class="title">One box. <span class="fade">Every tool,</span> and what it's for.</h1>
-  <p class="lede">A homelab where a governed <b>lakehouse</b> is the substrate and two agent lanes close the loop - <b>Claude Code</b> builds, <b>Hermes</b> operates. Every technology below runs on a single bare-metal Minisforum MS-A2 (plus one GPU laptop), LAN-only, on a $0 budget. This is the full inventory - the numbered spine is the value path (raw data → data products); each row shows the tool, its job, and a <b>real example of it in use</b>.</p>
+  <p class="lede">A homelab where a governed <b>lakehouse</b> is the substrate and two agent lanes close the loop - <b>Claude Code</b> builds; the operator-agent half (<b>Hermes</b>) is parked pending B66. Every technology below runs on a single bare-metal Minisforum MS-A2 (plus one GPU laptop), LAN-only, on a $0 budget. This is the full inventory - the numbered spine is the value path (raw data → data products); each row shows the tool, its job, and a <b>real example of it in use</b>.</p>
 
   <div class="meta">
     <div><div class="n">130+</div><div class="l">Integrations</div></div>
@@ -325,7 +325,7 @@
   <section class="plane">
     <h2>Agents &amp; Interfaces<span class="role">build lane · operate lane · remote ingress</span></h2>
     <div class="rows">
-      <div class="row"><span class="nm"><i class="cdot"></i>Hermes</span><div><div class="rl">primary operator agent (qwen3-coder MoE)</div><span class="ex">MCP client of tool-server /mcp; B27 SQLite Kanban; Telegram front door</span></div></div>
+      <div class="row plan"><span class="nm"><i class="cdot"></i>Hermes</span><div><div class="rl">operator agent (qwen3-coder MoE) — SHUT OFF; agent lane parked pending B66</div><span class="ex">MCP client of tool-server /mcp; B27 SQLite Kanban; Telegram front door</span></div></div>
       <div class="row"><span class="nm"><i class="cdot"></i>Claude Code</span><div><div class="rl">builder agent / MCP client</div><span class="ex">claude mcp add weyland → status returns 4 backends + models</span></div></div>
       <div class="row"><span class="nm"><i class="cdot"></i>MCP</span><div><div class="rl">/mcp read · /mcp-act do</div><span class="ex">fastapi-mcp system-view + audited act tools (pipeline/evals)</span></div></div>
       <div class="row"><span class="nm"><i class="cdot"></i>Telegram</span><div><div class="rl">remote ingress + alerts</div><span class="ex">allowlisted DM → Hermes reply; Alertmanager paging</span></div></div>
@@ -355,7 +355,7 @@
   <footer class="wf">
     <b>The loop:</b> intent (Port + roadmap) → data product → operation (agents) → telemetry (Grafana / Port) → new intent.<br>
     <b>Constraints as design:</b> one Minisforum MS-A2 + one RTX-5000 laptop · LAN-only · $0 budget · self-hosted first · heavy tiers on-demand.<br>
-    <b>Two lanes:</b> Claude Code sees &amp; builds · Hermes sees &amp; does - never crossed. · <b>Retired/declined:</b> Backstage, Jaeger, Strimzi, Airbyte, Airflow, KubeRay.
+    <b>Two lanes:</b> Claude Code sees &amp; builds · Hermes (sees &amp; does) is the operator half — currently OFF, consolidated into B66. · <b>Retired/declined:</b> Backstage, Jaeger, Strimzi, Airbyte, Airflow, KubeRay.
   </footer>
 
 </div>
