@@ -1165,7 +1165,22 @@ trivy `KSV-0109` caught what gitleaks missed: `k8s/data-mesh/ranger.yaml`'s Conf
   is committed in git. Do **all four at once** — piecemeal (ClickHouse-only) is inconsistent and gives no real
   benefit while the other three stay inline. Also the ClickHouse `users.d` Secret is already out-of-band (good).
 
-### B94 — Alert on Dagster run failures (the pipeline has no failure alarm)
+### B94 — Alert on Dagster run failures — ✅ DONE 2026-07-21
+**✅ DONE 2026-07-21.** Rewrote `k8s/dagster/freshness.yaml` from a GLOBAL freshness check into a **per-job watchdog** with two independent conditions:
+- **`DagsterJobFailed`** — a job's most recent run is `FAILURE` (it ran and broke).
+- **`DagsterJobStale`** — a job's last SUCCESS is older than its own cadence budget (~2× the interval, so one missed run doesn't page). Catches "stopped running entirely", which a failure check structurally cannot.
+
+**Root cause of the original blindness:** the old query was `SELECT ... FROM runs WHERE status='SUCCESS'` with **no job filter** — "has ANY run succeeded in the last 90 min?". With timeseries/ai_session/catalog/datahub_emit succeeding constantly, that clock never ages, so a weekly job could fail forever and the watchdog stayed green **by construction**. It wasn't misconfigured; it was incapable. Note the perverse property: an aggregate health check gets LESS sensitive as you add jobs — more green noise to mask any one red.
+
+**`@run_failure_sensor` was NOT used**: the native run-status sensor is broken on this Dagster line (1.13.14, dagster#21526) — the reason the check polls the DB externally in the first place. The mechanism was always fine; only the query was wrong. Revisit on a Dagster major upgrade.
+
+**Verified:** all 10 monitored jobs report SUCCESS with sane ages, 0 alerts (correct — no false positives), and a synthetic alert confirmed the Alertmanager → Telegram path actually delivers.
+
+**Scope decisions:** only SCHEDULED jobs are monitored. On-demand jobs (hydrate/transform/aidlc_kb/`__ASSET_JOB`) and event-driven ones (`lancedb_sync` — its sensor idles for weeks BY DESIGN) are excluded, or idleness would page forever for being correct.
+
+**⚠ The backfill audit found a SECOND dead pipeline:** `weyland_ai_session_schedule` is **STOPPED** (0 ticks ever) and `weyland_ai_session_job` has **never succeeded** (1 FAILURE, 2026-06-26). So the **B62 AI-Dev Usage product has ingested nothing since June**, while the rogueone producer kept faithfully mirroring to MinIO — we hardened delivery into a bucket nothing reads. Deliberately left OUT of the watchdog list (a known-open item shouldn't page every 30 min); add it once the schedule is enabled and a manual run passes. Also noted: `datahub_sensor` is STOPPED, intent unknown.
+
+Original scope:
 **Added 2026-07-20.** Surfaced by a concrete miss: `weyland_dbt_job` failed **3 consecutive runs** (2026-07-12, 07-19, 07-20) and *nothing told anyone*. Two weeks of the weekly mart build silently not happening; found only because the eval work happened to look at tick history. Dagster is now the spine of the platform (17 jobs, 11 schedules, 2 sensors) — an un-alerted run failure is the single biggest observability hole left after B69.
 
 **The trap that hid it:** a schedule **tick** status is NOT the run's status. A tick reads `SUCCESS` when the daemon successfully *launched* the run — the run it launched can then fail immediately. Any check built on tick status is measuring the wrong thing (this misled the 07-20 investigation).
