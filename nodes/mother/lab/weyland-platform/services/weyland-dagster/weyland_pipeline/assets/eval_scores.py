@@ -13,7 +13,7 @@ import os
 import re
 
 import httpx
-from dagster import Output, MetadataValue, asset
+from dagster import Output, MetadataValue, asset, get_dagster_logger
 
 from weyland_pipeline.resources import PostgresResource
 
@@ -75,7 +75,8 @@ def eval_scores(postgres: PostgresResource) -> Output[dict]:
                 raise Exception("no run with results to score — run the matrix first")
             run_id = row[0]
 
-    scored, failed = 0, 0
+    scored, failed, errors_logged = 0, 0, 0
+    log = get_dagster_logger()
     # Judge-outer: each judge model loads once (MAX_LOADED_MODELS=1) and scores all results
     # it hasn't scored yet, before the next judge swaps in.
     for judge_model in JUDGES:
@@ -98,7 +99,15 @@ def eval_scores(postgres: PostgresResource) -> Output[dict]:
             for result_id, question, contexts, answer in rows:
                 try:
                     scores = _judge(client, judge_model, question, contexts, answer)
-                except Exception:
+                except Exception as exc:
+                    # B96 — LOG the error. This except used to swallow it entirely, so a run where 351 of 360
+                    # judge calls failed still reported SUCCESS in 85s and wrote a hollow leaderboard
+                    # (2026-07-21, run 8). Log the first few per judge — enough to diagnose, not enough to
+                    # flood a run with 120 identical tracebacks.
+                    if errors_logged < 5:
+                        log.warning(f"judge {judge_model} failed on result {result_id}: "
+                                    f"{type(exc).__name__}: {str(exc)[:300]}")
+                        errors_logged += 1
                     failed += 1
                     continue
                 with postgres.get_connection() as conn:
@@ -110,6 +119,18 @@ def eval_scores(postgres: PostgresResource) -> Output[dict]:
                                 (result_id, metric, judge_model, score),
                             )
                 scored += 1
+
+    # B96 — FAIL LOUDLY on a hollow run. Scoring is best-effort per (result, judge) so a couple of flaky judge
+    # calls shouldn't sink the run — but a mostly-failed pass must NOT be reported as success: it silently
+    # publishes a leaderboard computed from a handful of scores, which is worse than no leaderboard at all.
+    # The run is left un-marked ('results_ready'), so re-running resumes and fills the gaps (idempotent per pair).
+    attempted = scored + failed
+    if attempted and failed > attempted * 0.10:
+        raise Exception(
+            f"eval scoring mostly FAILED: {failed}/{attempted} judge calls errored "
+            f"({scored} scored). Leaderboard for run {run_id} would be hollow — refusing to mark it scored. "
+            f"See the logged judge errors above; re-run to resume (scoring is idempotent per result+judge)."
+        )
 
     with postgres.get_connection() as conn:
         with conn.cursor() as cur:
