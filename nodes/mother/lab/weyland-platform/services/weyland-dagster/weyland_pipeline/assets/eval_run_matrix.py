@@ -37,8 +37,15 @@ def eval_run_matrix(postgres: PostgresResource, eval_testset: dict) -> Output[di
     written, errors = 0, 0
     log = get_dagster_logger()
     # Model-outer keeps each model warm in Ollama across all questions before switching.
+    total = len(EVAL_MODELS) * len(questions)
+    log.info(f"eval matrix run {run_id}: {len(EVAL_MODELS)} models x {len(questions)} questions = {total} cells "
+             f"| backend={EVAL_BACKEND} ask_limit={EVAL_ASK_LIMIT}")
     with httpx.Client(timeout=600) as client:
-        for model in EVAL_MODELS:
+        for mi, model in enumerate(EVAL_MODELS, 1):
+            m_t0 = time.monotonic()
+            m_errors = errors
+            log.info(f"[{mi}/{len(EVAL_MODELS)}] model {model}: starting {len(questions)} questions "
+                     f"(model loads into Ollama on the first call — expect a pause)")
             for question_id, question in questions:
                 t0 = time.monotonic()
                 answer, contexts, error = None, None, None
@@ -81,6 +88,17 @@ def eval_run_matrix(postgres: PostgresResource, eval_testset: dict) -> Output[di
                             ),
                         )
                 written += 1
+                # Progress every 5 cells: a 20-question x 6-model matrix runs ~20+ min, and silence for that
+                # long is indistinguishable from a hang. Cheap, and it makes a slow MODEL visible vs a slow run.
+                if written % 5 == 0:
+                    log.info(f"  progress {written}/{total} cells | {errors} errors | "
+                             f"last {model} q={question_id} {latency_ms}ms")
+
+            log.info(f"[{mi}/{len(EVAL_MODELS)}] model {model} done in "
+                     f"{int(time.monotonic() - m_t0)}s | {errors - m_errors} errors this model")
+
+    log.info(f"eval matrix run {run_id} COMPLETE: {written} cells written, {errors} errors "
+             f"({(errors / written * 100) if written else 0:.1f}%)")
 
     # B96 — FAIL LOUDLY on a hollow matrix. Individual generations are allowed to fail (a flaky model call
     # shouldn't sink a 120-cell matrix), but a mostly-failed run must NOT be marked results_ready: downstream

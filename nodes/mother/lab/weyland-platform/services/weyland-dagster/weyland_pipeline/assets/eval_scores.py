@@ -95,6 +95,9 @@ def eval_scores(postgres: PostgresResource) -> Output[dict]:
                     (run_id, judge_model),
                 )
                 rows = cur.fetchall()
+        log.info(f"judge {judge_model}: {len(rows)} results to score "
+                 f"(already-scored pairs are skipped — scoring is idempotent per result+judge)")
+        j_t0, j_scored = __import__("time").monotonic(), scored
         with httpx.Client(timeout=600) as client:
             for result_id, question, contexts, answer in rows:
                 try:
@@ -119,6 +122,13 @@ def eval_scores(postgres: PostgresResource) -> Output[dict]:
                                 (result_id, metric, judge_model, score),
                             )
                 scored += 1
+                if scored % 10 == 0:
+                    log.info(f"  scored {scored} pairs so far | {failed} failed")
+
+        log.info(f"judge {judge_model} done in {int(__import__('time').monotonic() - j_t0)}s "
+                 f"| +{scored - j_scored} scored")
+
+    log.info(f"eval scoring run {run_id} COMPLETE: {scored} pairs scored, {failed} failed")
 
     # B96 — FAIL LOUDLY on a hollow run. Scoring is best-effort per (result, judge) so a couple of flaky judge
     # calls shouldn't sink the run — but a mostly-failed pass must NOT be reported as success: it silently
