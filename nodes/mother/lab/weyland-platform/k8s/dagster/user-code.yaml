@@ -145,16 +145,22 @@ spec:
                 secretKeyRef:
                   name: lakefs-creds
                   key: LAKEFS_SECRET_ACCESS_KEY
-            # B96 experiment — how many RAG contexts each eval question retrieves (code default 3).
-            # Raised 3 -> 8 on 2026-07-21 to test a hypothesis from the run-7 golden baseline: LEXICAL questions
-            # scored HIGHER than CONCEPTUAL ones on every metric (context_relevancy 0.736 vs 0.514), the opposite
-            # of B74's premise. Suspected cause: identifier answers sit in ONE distinctive chunk that top-3
-            # retrieval finds, while conceptual questions need synthesis across SEVERAL chunks that 3 never
-            # delivers. If conceptual jumps at 8, the bottleneck is context VOLUME, not sparse-vs-dense ranking —
-            # which would make B74 (hybrid BM25 fusion) largely beside the point.
-            # Env, not code, so this is a manifest change + Argo sync — no image rebuild.
+            # B96 — how many RAG contexts each eval question retrieves (code default 3). Env, not code, so
+            # changing it is a manifest change + Argo sync, no image rebuild.
+            #
+            # MEASURED on the golden set (same 20 questions, only this value changed):
+            #   run 7 (limit 3)  conceptual ctx_rel 0.514 | lexical ctx_rel 0.736
+            #   run 9 (limit 8)  conceptual ctx_rel 0.554 | lexical ctx_rel 0.702
+            # More context HELPS conceptual (+0.14 summed across the 3 metrics) and HURTS lexical (-0.21) —
+            # DILUTION: an identifier answer lives in ONE chunk, so 5 extra chunks are noise and faithfulness
+            # drops hardest (0.780 -> 0.691). Net negative, so 8 was reverted.
+            # Note conceptual ctx_rel only moved 0.514 -> 0.554: depth did NOT fix retrieval QUALITY, it just
+            # returned more mostly-irrelevant chunks. The constraint is RANKING PRECISION, not volume — which is
+            # the honest, reframed case for B74 (hybrid/RRF) and/or a reranker.
+            #
+            # Now testing 5: does a middle setting capture conceptual's gain without lexical's loss?
             - name: EVAL_ASK_LIMIT
-              value: "8"
+              value: "5"
             # B65 Tier-2 — emit_duckdb() catalogs the GizmoSQL/DuckDB Flight SQL views. URI/user are plain;
             # password = the shared dev password (same dagster-postgres-secret value GizmoSQL was created with).
             - name: GIZMOSQL_URI
