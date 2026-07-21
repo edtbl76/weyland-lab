@@ -1213,8 +1213,7 @@ Scope — make the *class* of mistake hard to repeat:
 
 Scope:
 - **Untrack** the file (gitignore alone is insufficient — it must leave the index). Removing it does NOT unpublish it; history keeps it.
-- **Rotate `N8N_ENCRYPTION_KEY`.** Normally painful because rotation makes n8n unable to decrypt existing credentials — **but here it costs exactly ONE credential re-entry.** Cheap. Do it.
-- **Rotate the SSH key itself** — the encryption key must be treated as compromised, so the asset it guarded should be too. Cross-check `n8n__weyland-lab-ssh-key` (sealed) and any `authorized_keys` the key opens.
-- Store the new key as a **SealedSecret**, never a file in the tree.
+- ~~Rotate `N8N_ENCRYPTION_KEY`~~ — **ROTATION DECLINED 2026-07-21, accepted risk, decided explicitly. Do NOT re-propose.** Same posture as the shared dev password: LAN-only lab, and the other half (n8n's Postgres) never leaves the network, so the published key is not independently usable. Consequence accepted knowingly: untracking does NOT unpublish it, so the key stays in history and the `SSH Weyland Lab` private key it protects is treated as compromised-but-accepted.
+- If that ever stops being acceptable (n8n exposed beyond the LAN, or its DB leaves the network), rotation is cheap here — exactly ONE credential to re-enter — and the new key should be stored as a **SealedSecret**, never a file in the tree.
 - History rewrite: **NOT recommended** — disruptive on a public repo, and the key must be assumed compromised regardless. Rotation is the real revocation.
 - Follow-up guard: extend the scan-suite to flag high-entropy files by shape (bare hex/base64 blobs), not just password-shaped assignments — the detection gap that let this sit for 5 weeks.
