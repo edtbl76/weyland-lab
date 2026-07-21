@@ -67,6 +67,13 @@ Heavy = embeds/writes or large scans (guard the node's RAM). Light = metadata/re
 | `roadmap-sync.{service,timer}` | CT 104 (Hermes) | daily 06:30 | Hermes is shut off — install when **B66** brings an agent back |
 | `hermes-heartbeat.{service,timer}` | CT 104 (Hermes) | every 60s → Kuma Push | same; also needs the Kuma Push monitor created (120s interval) |
 
+> **⚠ rogueone GPU contention (affects the Sat eval runs).** rogueone has ONE GPU (RTX 5000 Ada Laptop, **16 GB**)
+> and no usable iGPU, so it drives the desktop AND Ollama. A 30b model can starve the compositor and **hard-freeze
+> the desktop** while Ollama keeps serving normally (no OOM/Xid/panic — it only looks broken from the keyboard).
+> Guardrails: `nodes/rogueone/systemd/ollama-gpu-guardrails.conf` (max 1 loaded model, 30s keep-alive, 1.5 GiB
+> reserved) — **validated 2026-07-20 under contention**: a full matrix + 3-judge scoring pass completed with the
+> desktop in active use, no freeze. BIOS → Hybrid Graphics is the structural fix but is **deferred, not needed**.
+
 **Ordering note (risk currently DORMANT):** a nightly `02:00` scale-down *would* take
 cockroach/mongo/mysql/gizmosql to 0, and the DataHub ingestions that read them (Cockroach 03:30, Mongo
 03:45, both **weekly Sun**) would then hit a scaled-to-zero store. **But the auto sleep/scale-down is

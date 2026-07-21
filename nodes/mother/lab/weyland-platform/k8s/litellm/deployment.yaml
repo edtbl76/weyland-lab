@@ -18,7 +18,14 @@ spec:
     spec:
       containers:
         - name: litellm
-          image: ghcr.io/berriai/litellm:main-stable   # pin to a digest/tag for prod-grade reproducibility  # nosemgrep: yaml.kubernetes.security.run-as-non-root.run-as-non-root
+          # B69 — pinned to an immutable DIGEST (was the mutable `main-stable` tag, which silently changes under
+          # you: the same manifest yields a different image week to week, so a pod restart could swap LiteLLM
+          # versions with no git change and no way to tell what was running when something broke).
+          # Digest = the multi-arch INDEX digest of main-stable as of 2026-07-20 (not a per-arch manifest, so it
+          # still resolves correctly on any node arch).
+          # To bump: `docker buildx imagetools inspect ghcr.io/berriai/litellm:main-stable` → copy the Digest,
+          # update the line below, push. Deliberate upgrades only.
+          image: ghcr.io/berriai/litellm@sha256:a1745e629abfb17d434426ff48b115f54f4f4c4a0f5af241de569e93c63c411e  # main-stable @ 2026-07-20  # nosemgrep: yaml.kubernetes.security.run-as-non-root.run-as-non-root
           # B47 hardening: drop priv-esc + seccomp (see arch)
           securityContext:
             allowPrivilegeEscalation: false

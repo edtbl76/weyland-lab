@@ -1186,3 +1186,16 @@ Scope — make the *class* of mistake hard to repeat:
 - Add that check to the security-hardening section of the DoD, alongside the existing scan-suite gates.
 - Consider a scan-suite/kubescape-style repo check: flag any RoleBinding whose subject is a `default` ServiceAccount in a namespace where automount is disabled. Cheap static check, catches the whole class.
 - Broader principle worth capturing: **authorization and identity must target the same SA** — changing one without the other fails silently in whichever direction you get it wrong.
+
+### B96 — Eval harness: fixed question set + retrieval-quality baseline
+**Added 2026-07-20**, out of the first eval runs since B79 moved Ollama to rogueone (runs 5 + 6 both green end-to-end, so the Sat 03:00/05:00 schedules are proven).
+
+**Finding 1 — the leaderboard is NOT comparable across runs.** `eval_testset` generates a FRESH set of 10 questions per run (`eval_questions.run_id`), so run N's absolute scores are measured against a different exam than run N-1's. Cross-run deltas therefore mostly measure question difficulty, not model or system quality. Only the **within-run ranking** is meaningful today. This confounded the 07-20 investigation: run 5 scored ~0.30 below runs 3/4 across *all six models at once*, which reads exactly like a system regression and isn't.
+- Fix: an OPTIONAL **fixed/golden question set** (pin a run's questions, or a curated set in git) so cross-run tracking measures the *system*. Keep per-run generation as a mode — it guards against overfitting to a static exam. This is a prerequisite for B84 (productizing the eval as a data product): a leaderboard you can't compare over time isn't a product.
+
+**Finding 2 — `context_relevancy` looks genuinely low, and it's the RETRIEVAL metric.** Runs 5 and 6 (two INDEPENDENT question sets) both land at **0.41–0.60**, versus **0.71–0.89** in runs 3/4. Two independent samples agreeing is weak-but-real evidence this isn't only question drift. Worth an investigation, and it gives **B74 (hybrid BM25 + dense retrieval)** something it never had: a measurable before/after baseline. Validate B74 against `context_relevancy` on a fixed question set.
+
+**Finding 3 — the recorded "gpt-oss:20b is the defensible pick" (B4) no longer reproduces.** In run 6 `gpt-oss:20b` is near-bottom on all three metrics while **`qwen3-coder:30b`** is first or joint-first on all three. Two runs now disagree with the original call. Re-establish the pick on a fixed question set before treating either as settled.
+
+**Operational note:** rogueone has ONE 16 GB GPU driving both the desktop and Ollama, and no usable iGPU. Ollama guardrails (`nodes/rogueone/systemd/ollama-gpu-guardrails.conf`) are **validated under desktop contention**; BIOS → Hybrid Graphics is deferred.
+

@@ -103,7 +103,7 @@ mkcert wildcard cert; resolve from rogueone (`/etc/hosts`) or via CoreDNS. **Mos
 | **GlitchTip** (error tracking — Sentry-SDK-compatible) — **Keycloak SSO** (OIDC; via a DB-precreated social link — see [[glitchtip-allauth-sso-link]]) | `https://glitchtip.weyland.lab` |
 | **OpenCost** (k8s cost allocation — custom on-prem pricing; LAN-only) | `https://opencost.weyland.lab` |
 | **Woodpecker CI** (CI/CD — GitHub OAuth login; k8s backend; manual/cron triggers) | `https://woodpecker.weyland.lab` |
-| **Argo CD** (GitOps CD — local admin; app-of-apps, 28 apps) | `https://argocd.weyland.lab` |
+| **Argo CD** (GitOps CD — local admin; app-of-apps, **59 apps** as of 2026-07-20) | `https://argocd.weyland.lab` |
 | **Platform Docs** (MkDocs Material — runbooks/architecture/concepts; browsable+searchable, Mermaid; B59, replaced Backstage TechDocs) | `https://docs.weyland.lab` |
 | Dagster | `https://dagster.weyland.lab` |
 | n8n | `https://n8n.weyland.lab` |
