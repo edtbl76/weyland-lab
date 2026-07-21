@@ -1,6 +1,6 @@
 # Demo — Eval Harness (question-gen + run matrix)
 
-Kick off a fresh LLM evaluation run end-to-end: generate a corpus-grounded question set, then
+Kick off a fresh LLM evaluation run end-to-end: load the **pinned golden question set** (20q — 10 conceptual + 10 lexical; `EVAL_QUESTION_SOURCE=generated` regenerates instead), then
 run every question through the tool-server RAG (`/context/ask`) across all 6 local Ollama models,
 landing results in Postgres. This is the **generation** half (`weyland_eval_job`); scoring is a
 separate demo ([eval-scoring.md](eval-scoring.md)).
@@ -19,11 +19,12 @@ sequenceDiagram
     participant Dag as Dagster eval jobs
     participant RAG as tool-server /context/ask
     participant OLL as Ollama (models + judges)
+    participant GQ as golden_questions.json
     participant PG as Postgres eval_*
     C->>TS: POST /evals/run
     TS->>Dag: launch weyland_eval_job
-    Dag->>OLL: generate question set
-    Dag->>PG: eval_questions
+    Dag->>GQ: load golden_questions.json (20q)
+    Dag->>PG: eval_questions (typed conceptual/lexical)
     loop each question x 6 models
         Dag->>RAG: /context/ask (model)
         RAG->>OLL: generate

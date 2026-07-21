@@ -172,6 +172,20 @@ agents/workflows and platform state. Agents call the tool-server, *not* database
 - **Postgres / pgvector** — the spine. `rag_documents` + `rag_chunks` (384-dim `bge` vectors) is the
   primary RAG store; `eval_runs / eval_questions / eval_results / eval_scores` + `eval_leaderboard`
   view back the eval harness (B4). Reused (not a new DB) for evals by design.
+
+  **The exam is FIXED (B96, 2026-07-21) — and that is an architectural decision, not a config detail.**
+  `eval_testset` originally generated 10 fresh questions per run, so **run N was graded on a different exam than
+  run N-1**: cross-run score deltas measured question difficulty, not system quality. That is not a leaderboard,
+  it is noise with a trend line, and it actively misled an investigation (run 5 scored ~0.30 below runs 3/4 across
+  *all six models simultaneously* — the signature of a system regression, and there wasn't one).
+  Now `EVAL_QUESTION_SOURCE=golden` (default) pins `weyland_pipeline/golden_questions.json`; `generated` remains
+  available, because a static exam can be overfit to and regenerating occasionally checks the golden set is still
+  representative. **20 questions, deliberately split 10 `conceptual` / 10 `lexical`** so the leaderboard can be
+  SLICED — a single blended score hides the only contrast that matters for retrieval work, and every lexical term
+  was verified present in `rag_chunks` before pinning (an unanswerable question scores zero for every approach and
+  proves nothing). Measuring *anything* about retrieval requires this instrument to exist first — see
+  §7e-adjacent [runbooks/eval-harness.md](runbooks/eval-harness.md) for the depth-tuning results it produced, and
+  note that those results **overturned B74's founding premise**.
 - **Qdrant / Weaviate / Neo4j** — parallel vector/graph backends, all written in the *same* Dagster
   run and all queryable via the tool-server (`?backend=`). Neo4j adds a vector index + graph edges
   (GraphRAG foundation).
@@ -842,6 +856,29 @@ observed; **Control/ops** = scheduled and operational paths.
 - **Observability:** Prometheus + Grafana (B5 — done). Alertmanager -> Telegram alerts live. App metrics via
   ServiceMonitors: qdrant, weaviate, apisix, coredns, **tool-server (B14 guardrails)**, **minio** (full
   scrape-target list in [api.md](api.md#metrics--scrape-targets-b5-phase-2b)).
+
+### 10a. Monitoring the monitors — three blind spots closed (B69/B94, 2026-07-20/21)
+
+Three failures in one week shared a shape: **a control that reported success while not covering what it appeared
+to cover.** Each fix is small; the pattern is the point, because it recurs whenever a health signal is an
+*aggregate* or an *inference* rather than a direct observation.
+
+| blind spot | what it looked like | why the existing control couldn't see it | fix |
+|---|---|---|---|
+| **LGTM had no observer** | Loki/Tempo/Alloy healthy-by-assumption | nothing scraped them; an outage of the thing that reports outages is invisible *by definition* | `k8s/monitoring/lgtm-self-monitoring.yaml` — ServiceMonitors + `LokiDown`/`TempoDown`/`AlloyDown`, each pairing `up == 0` with **`absent(up)`** so a vanished target can't go quiet |
+| **Dagster job failures** | `weyland_dbt_job` failed **3 consecutive weekly runs** silently | the freshness watchdog asked *"has ANY run succeeded in 90 min?"* — with 4-6h jobs succeeding constantly the clock never aged. **An aggregate health check gets LESS sensitive as you add jobs** | `k8s/dagster/freshness.yaml` rewritten **per-job**: `DagsterJobFailed` (latest run FAILURE) **and** `DagsterJobStale` (no success within that job's own cadence — catches "stopped running entirely", which a failure check structurally cannot) |
+| **Eval reported green on near-total failure** | a scoring run "succeeded" in 85s with **351/360 judge calls skipped** | `except: failed += 1; continue` swallowed every error; the `failed` counter was returned in metadata that nothing read | both eval stages now **log errors + progress** and **raise** above a 10% error rate |
+
+Two corollaries worth carrying forward:
+- **`absent()` is not optional.** `up == 0` only fires while a target still exists. Every down-alert here pairs
+  the two — the same pattern as `BlackboxProbesMissing`.
+- **A schedule TICK is not a RUN.** A tick reads SUCCESS when the daemon successfully *launched* the run; the run
+  it launched can fail immediately. Any check built on tick status measures the wrong thing.
+
+Supporting hardening from the same pass: a **memory-limit backstop** (`k8s/limitranges.yaml` — a `default-memory`
+LimitRange on the infra namespaces, memory-only, `defaultRequest` 128Mi so requests don't distort scheduling) and
+a **docs-site rebuild CronJob** (the site builds from a fresh `git clone` on pod start, so without a daily restart
+it serves a frozen snapshot while looking perfectly healthy — staleness with no error surface).
 - **Guardrails (B14 — shadow):** a pluggable validator layer at the tool-server seam runs on `/context/*`
   — `input` hook (LLM Guard prompt-injection) + `output` hook (LLM Guard toxicity, in-process NLI
   grounding). Ships **shadow-mode** (record-only, never blocks; per-validator `off|shadow|flag|block` via

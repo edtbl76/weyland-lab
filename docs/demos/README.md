@@ -27,7 +27,7 @@ Legend: ✅ done · ⬜ missing · 🟡 exists but stale/partial · — not appl
 | 13 | DataHub catalog emit | ✅ (authored) | ✅ `catalog-emit.md` | ✅ DataHub entities |
 | 14 | Pipeline trigger (Dagster) | ✅ `flow-pipeline-trigger` | ✅ `pipeline-trigger.md` | — |
 | **ML / eval** | | | | |
-| 15 | Eval harness | ✅ `flow-eval` | ✅ `eval.md` | ✅ eval runs |
+| 15 | Eval harness | ✅ `flow-eval` | ✅ `eval.md` | ✅ eval runs (validated live runs 7-10, 2026-07-21 — golden set + depth sweep) |
 | 16 | Eval scoring (LLM-judge) | ✅ `flow-eval-scoring` | ✅ `eval-scoring.md` | ✅ scores |
 | 17 | Model catalog | ✅ `flow-model-catalog` | ✅ `model-catalog.md` | ✅ Postgres/DataHub |
 | 18 | MLflow tracking | ✅ `flow-mlflow` | ✅ `mlflow.md` | ✅ experiments |
@@ -41,7 +41,7 @@ Legend: ✅ done · ⬜ missing · 🟡 exists but stale/partial · — not appl
 | 26 | Ingress + TLS | ✅ `flow-ingress-tls` | ✅ `ingress-tls.md` | — |
 | 27 | Mesh mTLS | ✅ `flow-mesh-mtls` | ✅ `mesh-mtls.md` | — |
 | 28 | Tracing (Tempo) | ✅ `flow-tracing` | ✅ `tracing.md` | — |
-| 29 | Alerting | ✅ `flow-alerting` | ✅ `alerting.md` | ✅ test rule apply+delete |
+| 29 | Alerting | ✅ `flow-alerting` | ✅ `alerting.md` | ✅ test rule apply+delete; + Dagster watchdog synthetic alert → Telegram verified (B94) |
 | 30 | Health status (Uptime Kuma) | ✅ (authored) | ✅ `health-status.md` | — |
 | 31 | Roadmap sync (Linear) | ✅ (authored) | ✅ `roadmap-sync.md` | ✅ Linear issues |
 | 32 | Architecture diagrams (LikeC4, B64) | — (the C4 views ARE the diagram) | ✅ `likec4.md` | — read-only |
