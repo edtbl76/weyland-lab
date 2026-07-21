@@ -20,7 +20,16 @@ spec:
           image: registry.weyland.lab/weyland-tool-server:v1
           resources:
             requests: { memory: 512Mi, cpu: 250m }
-            limits: { memory: 2Gi }   # actual ~929Mi (loads embedding models) — headroom
+            # 3Gi (was 2Gi, raised 2026-07-21). Steady state is ~929Mi (it loads the embedding model), so 2Gi
+            # looked like ample headroom — until the B96 eval experiment raised EVAL_ASK_LIMIT 3 -> 8. Retrieving
+            # 8 contexts per question instead of 3, across a 120-question matrix, OOMKilled it (exit 137) three
+            # results into the run. Every subsequent call got `503 Service Unavailable` from /context/ask, and
+            # 117 of 120 eval results recorded that 503 as their error — a "1 minute, SUCCESS" eval run that had
+            # almost no data in it.
+            # Diagnostic note: a 503 from this service means the POD went away — check
+            # `lastState.terminated.reason` on the pod, not the caller's logs. Same shape as the Trino 503 that
+            # surfaced as a dbt failure on 2026-07-20.
+            limits: { memory: 3Gi }
           imagePullPolicy: IfNotPresent
           # B47 hardening: non-root uid 10001 + drop caps + no priv-esc + seccomp
           securityContext:
