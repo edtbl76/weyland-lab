@@ -1,3 +1,21 @@
+# Dedicated SA for the user-code pod. REQUIRED because runs execute IN this pod (DefaultRunLauncher — see
+# k8s/dagster/configmap.yaml) and the `trigger_lancedb_sync` op calls the Kubernetes API
+# (`config.load_incluster_config()` → creates the lancedb-sync Job in data-mesh).
+#
+# Why not the `default` SA: U10/B69 hardening (k8s/rbac-default-sa-noautomount.yaml) sets
+# `automountServiceAccountToken: false` on `weyland/default`. lancedb-sync-rbac.yaml had bound its Role to that
+# same `default` SA — so the pod held the RBAC *permissions* but had no token to authenticate with, and the op
+# died on `ConfigException: Service token file does not exist` (surfaced 2026-07-20, the first time the sensor
+# fired since the hardening landed). Two individually-correct changes that cancelled each other out.
+# This is precisely the escape hatch that manifest prescribes: "a future pod that DOES need the API should get
+# its own dedicated SA rather than relying on default."
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: dagster-user-code
+  namespace: weyland
+automountServiceAccountToken: true   # explicit: this pod genuinely needs an API token
+---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -21,6 +39,7 @@ spec:
         app: dagster-user-code
     spec:
       enableServiceLinks: false
+      serviceAccountName: dagster-user-code   # NOT `default` — that SA has automount disabled (see above)
       containers:
         - name: dagster-user-code
           image: registry.weyland.lab/weyland-dagster-user-code:v2

@@ -1,6 +1,13 @@
-# RBAC for the event-triggered LanceDB viewer sync. The Dagster `lancedb_sync_sensor` (running as the `default`
-# SA in the `weyland` ns) reads the `lancedb-sync` CronJob template and creates a mc-mirror Job in `data-mesh`
-# when a lancedb load materializes. A RoleBinding in data-mesh can bind a subject SA from another namespace.
+# RBAC for the event-triggered LanceDB viewer sync. The Dagster `trigger_lancedb_sync` op reads the
+# `lancedb-sync` CronJob template and creates a mc-mirror Job in `data-mesh` when a lancedb load materializes.
+# A RoleBinding in data-mesh can bind a subject SA from another namespace.
+#
+# ⚠️ The subject is the dedicated `dagster-user-code` SA, NOT `default`. It was bound to `weyland/default` until
+# 2026-07-20 — but U10/B69 (k8s/rbac-default-sa-noautomount.yaml) disabled token auto-mounting on that SA, so the
+# pod had these permissions with no token to present and the op failed with
+# `ConfigException: Service token file does not exist`. Permissions and identity must point at the SAME SA;
+# changing one without the other breaks this silently, in whichever direction you get it wrong.
+# Runs execute IN the user-code pod (DefaultRunLauncher), so that pod's SA is the one that matters.
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
@@ -22,8 +29,8 @@ metadata:
   namespace: data-mesh
 subjects:
   - kind: ServiceAccount
-    name: default
-    namespace: weyland          # the dagster user-code pod's SA (cross-namespace subject)
+    name: dagster-user-code
+    namespace: weyland          # the dagster user-code pod's dedicated SA (cross-namespace subject)
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: Role
