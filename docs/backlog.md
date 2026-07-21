@@ -1202,7 +1202,32 @@ Scope — make the *class* of mistake hard to repeat:
 - Consider a scan-suite/kubescape-style repo check: flag any RoleBinding whose subject is a `default` ServiceAccount in a namespace where automount is disabled. Cheap static check, catches the whole class.
 - Broader principle worth capturing: **authorization and identity must target the same SA** — changing one without the other fails silently in whichever direction you get it wrong.
 
-### B96 — Eval harness: fixed question set + retrieval-quality baseline
+### B96 — Eval harness: fixed question set + retrieval-quality baseline — 🟢 INSTRUMENT DONE 2026-07-21
+**✅ Golden set shipped 2026-07-21.** `weyland_pipeline/golden_questions.json` (in the package, so the existing `COPY weyland_pipeline/` ships it — no Dockerfile change) + `EVAL_QUESTION_SOURCE=golden|generated` in `eval_testset.py`. Golden mode **ignores `EVAL_TEST_SIZE`** — the file IS the exam; truncating it would silently change the exam between runs and reintroduce the incomparability. Fails loudly if the file is missing rather than falling back to generation (a silent fallback produces a run that LOOKS golden but isn't). Deployed as `weyland-dagster-user-code:v3`.
+
+**20 questions, 10 conceptual + 10 lexical.** Conceptual = run 6's questions verbatim (continuity with history). Lexical = exact-identifier questions (`-Xmx4G`, `readTimeout`, `tempo-prom-metrics`, `ruleSelectorNilUsesHelmValues`, `America/New_York`, `OLLAMA_MAX_LOADED_MODELS`, `31337`, `9092`, `weyland_chunks`, `30500`) — **every token verified present in the indexed corpus first** (ilike over `rag_chunks`), because a question whose answer isn't indexed scores zero for dense AND hybrid alike and proves nothing. Rarer tokens preferred; they discriminate best.
+
+## ⚠️ RUN 7 BASELINE OVERTURNED B74's PREMISE — read this before building hybrid retrieval
+
+Dense-only, golden set, n=180 scores per cell (10q × 6 models × 3 judges):
+
+| metric | conceptual | lexical | delta |
+|---|---|---|---|
+| context_relevancy | **0.514** | **0.736** | lexical **+0.22** |
+| faithfulness | 0.660 | 0.780 | lexical +0.12 |
+| answer_relevancy | 0.644 | 0.832 | lexical +0.19 |
+
+**Lexical beats conceptual on every metric.** B74 is premised on "dense embeddings are weak on exact identifiers (config keys, flags, error codes, paths, commands) that BM25 nails" — **this data does not support that.** Dense retrieval handles identifier questions BETTER here.
+
+The weak half is **conceptual retrieval (0.514)**, and BM25 is unlikely to help: BM25 is *also* lexical, so hybrid fusion would reinforce the half that is already strong. Working hypothesis: identifier answers live in ONE distinctive chunk that top-3 retrieval finds, while conceptual questions need synthesis across SEVERAL chunks that `EVAL_ASK_LIMIT=3` never delivers — i.e. the bottleneck is context VOLUME, not sparse-vs-dense ranking.
+
+**Next experiment (cheapest decisive test):** `EVAL_ASK_LIMIT` 3 → **8** via the user-code manifest (env, no rebuild), re-run golden. Conceptual jumps ⇒ it's context volume, and B74 is largely beside the point (look at chunking / retrieval depth / reranking instead). Conceptual stays ~0.51 ⇒ retrieval quality is genuinely the issue and B74 gets a fair hearing.
+
+**Caveats:** judges may favour crisp factual answers over synthesis; 10 questions per half is small. Treat as a strong signal, not proof.
+
+**Method note worth keeping:** this is exactly why the instrument was built BEFORE the feature. Building B74 first would have shipped a change against a false premise, produced a flat lexical half that was already at 0.74, and left nobody able to explain why.
+
+Original scope:
 **Added 2026-07-20**, out of the first eval runs since B79 moved Ollama to rogueone (runs 5 + 6 both green end-to-end, so the Sat 03:00/05:00 schedules are proven).
 
 **Finding 1 — the leaderboard is NOT comparable across runs.** `eval_testset` generates a FRESH set of 10 questions per run (`eval_questions.run_id`), so run N's absolute scores are measured against a different exam than run N-1's. Cross-run deltas therefore mostly measure question difficulty, not model or system quality. Only the **within-run ranking** is meaningful today. This confounded the 07-20 investigation: run 5 scored ~0.30 below runs 3/4 across *all six models at once*, which reads exactly like a system regression and isn't.
