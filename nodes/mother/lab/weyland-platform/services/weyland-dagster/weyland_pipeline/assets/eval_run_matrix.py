@@ -11,7 +11,7 @@ import os
 import time
 
 import httpx
-from dagster import Output, MetadataValue, asset
+from dagster import Output, MetadataValue, asset, get_dagster_logger
 
 from weyland_pipeline.assets.eval_testset import EVAL_MODELS
 from weyland_pipeline.resources import PostgresResource
@@ -35,6 +35,7 @@ def eval_run_matrix(postgres: PostgresResource, eval_testset: dict) -> Output[di
             questions = cur.fetchall()  # [(question_id, question_text), ...]
 
     written, errors = 0, 0
+    log = get_dagster_logger()
     # Model-outer keeps each model warm in Ollama across all questions before switching.
     with httpx.Client(timeout=600) as client:
         for model in EVAL_MODELS:
@@ -52,6 +53,11 @@ def eval_run_matrix(postgres: PostgresResource, eval_testset: dict) -> Output[di
                     contexts = data.get("sources")
                 except Exception as e:
                     error = f"{type(e).__name__}: {str(e)[:200]}"
+                    # B96 — LOG it. These errors were only ever written to eval_results.error, where nothing read
+                    # them: run 8 (2026-07-21) had 117/120 generations fail with 503 and still reported SUCCESS.
+                    # First few only, so a dead backend doesn't produce 120 identical tracebacks.
+                    if errors <= 5:
+                        log.warning(f"/context/ask failed (model={model}, q={question_id}): {error}")
                     errors += 1
                 latency_ms = int((time.monotonic() - t0) * 1000)
 
@@ -75,6 +81,20 @@ def eval_run_matrix(postgres: PostgresResource, eval_testset: dict) -> Output[di
                             ),
                         )
                 written += 1
+
+    # B96 — FAIL LOUDLY on a hollow matrix. Individual generations are allowed to fail (a flaky model call
+    # shouldn't sink a 120-cell matrix), but a mostly-failed run must NOT be marked results_ready: downstream
+    # scoring filters on `error IS NULL`, so it would happily "succeed" over the handful of survivors and
+    # publish a leaderboard built from almost nothing. That is exactly what run 8 did — 117/120 results were
+    # `503 Service Unavailable` from the tool-server (OOMKilled), and every stage after it behaved correctly on
+    # the 3 that remained. Leaving the run un-marked keeps it out of scoring entirely.
+    # A 503 here means the TOOL-SERVER went away — check its pod's lastState.terminated.reason, not this log.
+    if written and errors > written * 0.10:
+        raise Exception(
+            f"eval matrix mostly FAILED: {errors}/{written} generations errored for run {run_id}. "
+            f"Refusing to mark it results_ready — a leaderboard built on the remainder would be hollow. "
+            f"See the logged errors above; if they are 503s, check the tool-server pod for OOMKilled."
+        )
 
     with postgres.get_connection() as conn:
         with conn.cursor() as cur:
