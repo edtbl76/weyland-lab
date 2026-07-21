@@ -1,0 +1,379 @@
+[
+  {
+    "updatedAt": "2026-06-03T20:20:45.347Z",
+    "createdAt": "2026-06-02T21:10:01.870Z",
+    "id": "YgxNUxYF3wwuhSJm",
+    "name": "Ingest Weyland Obsidian ReadMe",
+    "description": null,
+    "active": false,
+    "isArchived": false,
+    "nodes": [
+      {
+        "parameters": {},
+        "type": "n8n-nodes-base.manualTrigger",
+        "typeVersion": 1,
+        "position": [
+          0,
+          -48
+        ],
+        "id": "dd16390f-932b-4b0e-bd9b-65a681cf5697",
+        "name": "When clicking ‘Execute workflow’"
+      },
+      {
+        "parameters": {
+          "authentication": "privateKey",
+          "command": "cat /home/edwardmangini/Documents/ObsidianVault/Projects/weyland/weyland.md"
+        },
+        "type": "n8n-nodes-base.ssh",
+        "typeVersion": 1,
+        "position": [
+          208,
+          0
+        ],
+        "id": "594b8947-5444-442b-b83c-544bf873081d",
+        "name": "Read Weyland Note",
+        "credentials": {
+          "sshPrivateKey": {
+            "id": "AW27RC3wfkXliXwu",
+            "name": "SSH Weyland Lab"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "jsCode": "const item = $input.first().json;\n\n// n8n SSH output is usually in stdout.\n// Keep fallbacks so we can inspect if the shape differs.\nconst markdown =\n  item.stdout ??\n  item.data ??\n  item.output ??\n  JSON.stringify(item, null, 2);\n\nreturn [\n  {\n    json: {\n      name: \"weyland.md\",\n      source_type: \"obsidian\",\n      source_path: \"/home/edwardmangini/Documents/ObsidianVault/Projects/weyland/weyland.md\",\n      markdown,\n      length: markdown.length,\n    },\n  },\n];"
+        },
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          416,
+          0
+        ],
+        "id": "1108e6b6-9a85-457e-98eb-0da7b40fa78f",
+        "name": "Extract Markdown Text"
+      },
+      {
+        "parameters": {
+          "jsCode": "const item = $input.first().json;\nconst markdown = item.markdown || \"\";\n\nconst sections = markdown\n  .split(/\\n(?=## )/g)\n  .map((section, index) => {\n    const titleMatch = section.match(/^##\\s+(.+)$/m);\n    const title = titleMatch ? titleMatch[1].trim() : index === 0 ? \"Preamble\" : `Section ${index}`;\n\n    return {\n      name: item.name,\n      source_type: item.source_type,\n      source_path: item.source_path,\n\n      current_hash: item.current_hash,\n      previous_hash: item.previous_hash,\n      should_ingest: item.should_ingest,\n\n      chunk_index: index,\n      chunk_title: title,\n      content: section.trim(),\n      metadata: {\n        title,\n        source: item.source_path,\n      },\n    };\n  })\n  .filter(chunk => chunk.content.length > 0);\n\nreturn sections.map(chunk => ({ json: chunk }));"
+        },
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          1376,
+          -16
+        ],
+        "id": "36a08c9e-04ba-4b23-a5b6-7530e453e6cc",
+        "name": "Chunk Markdown"
+      },
+      {
+        "parameters": {
+          "method": "POST",
+          "url": "http://192.168.1.243:30080/context/ingest",
+          "sendBody": true,
+          "specifyBody": "json",
+          "jsonBody": "={{ JSON.stringify($json) }}",
+          "options": {}
+        },
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.4,
+        "position": [
+          1744,
+          -16
+        ],
+        "id": "901bdb92-ae34-409a-9c14-ecaec902d440",
+        "name": "Ingest Weyland Context"
+      },
+      {
+        "parameters": {
+          "jsCode": "const chunks = $input.all().map(item => item.json);\nconst first = chunks[0] || {};\n\nconst cleanedChunks = chunks.map(chunk => ({\n  name: chunk.name,\n  source_type: chunk.source_type,\n  source_path: chunk.source_path,\n  chunk_index: chunk.chunk_index,\n  chunk_title: chunk.chunk_title,\n  content: chunk.content,\n  metadata: chunk.metadata || {},\n}));\n\nreturn [\n  {\n    json: {\n      name: \"weyland.md\",\n      source_type: \"obsidian\",\n      source_path: \"/home/edwardmangini/Documents/ObsidianVault/Projects/weyland/weyland.md\",\n      content_hash: first.current_hash,\n      chunks: cleanedChunks,\n    },\n  },\n];"
+        },
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          1552,
+          -16
+        ],
+        "id": "aeb89cda-dfad-45c1-90b0-3e19f2f82595",
+        "name": "Build Ingest Request"
+      },
+      {
+        "parameters": {
+          "conditions": {
+            "options": {
+              "caseSensitive": true,
+              "leftValue": "",
+              "typeValidation": "strict",
+              "version": 3
+            },
+            "conditions": [
+              {
+                "id": "13d7c58a-4476-4e42-8f15-65eae5172264",
+                "leftValue": "={{ $json.current_hash }}",
+                "rightValue": "={{ $json.content_hash }}",
+                "operator": {
+                  "type": "string",
+                  "operation": "notEquals"
+                }
+              }
+            ],
+            "combinator": "and"
+          },
+          "options": {}
+        },
+        "type": "n8n-nodes-base.if",
+        "typeVersion": 2.3,
+        "position": [
+          1104,
+          0
+        ],
+        "id": "8412e5d3-fff3-4bf3-aed9-fa3eeb1abcd8",
+        "name": "README Changed?"
+      },
+      {
+        "parameters": {
+          "rule": {
+            "interval": [
+              {
+                "field": "minutes",
+                "minutesInterval": 15
+              }
+            ]
+          }
+        },
+        "type": "n8n-nodes-base.scheduleTrigger",
+        "typeVersion": 1.3,
+        "position": [
+          0,
+          192
+        ],
+        "id": "da1eca19-306a-43a8-a748-9c11593fe9d9",
+        "name": "15 Minute Recurring Trigger"
+      },
+      {
+        "parameters": {
+          "assignments": {
+            "assignments": [
+              {
+                "id": "65baf2a4-cb67-445e-b733-6a0400431bdc",
+                "name": "current_hash",
+                "value": "={{ $json.markdown.hash('sha256') }}",
+                "type": "string"
+              }
+            ]
+          },
+          "includeOtherFields": true,
+          "options": {}
+        },
+        "type": "n8n-nodes-base.set",
+        "typeVersion": 3.4,
+        "position": [
+          608,
+          -64
+        ],
+        "id": "d752571b-25e8-40b2-a30d-b9003b04701f",
+        "name": "Compute README Hash"
+      },
+      {
+        "parameters": {
+          "method": "POST",
+          "url": "http://192.168.1.243:30080/context/source-state",
+          "sendBody": true,
+          "specifyBody": "json",
+          "jsonBody": "={\n  \"source_path\": \"{{$json.source_path}}\"\n}",
+          "options": {}
+        },
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.4,
+        "position": [
+          608,
+          96
+        ],
+        "id": "df35ce1d-f3c8-43a3-bae2-bf3f69f93428",
+        "name": "Check Source State"
+      },
+      {
+        "parameters": {
+          "mode": "combine",
+          "combineBy": "combineByPosition",
+          "options": {
+            "includeUnpaired": true
+          }
+        },
+        "type": "n8n-nodes-base.merge",
+        "typeVersion": 3.2,
+        "position": [
+          896,
+          0
+        ],
+        "id": "46ed93fa-50f1-4ecb-9e21-5fcfa94959be",
+        "name": "Merge Hash State"
+      }
+    ],
+    "connections": {
+      "When clicking ‘Execute workflow’": {
+        "main": [
+          [
+            {
+              "node": "Read Weyland Note",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Read Weyland Note": {
+        "main": [
+          [
+            {
+              "node": "Extract Markdown Text",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Extract Markdown Text": {
+        "main": [
+          [
+            {
+              "node": "Check Source State",
+              "type": "main",
+              "index": 0
+            },
+            {
+              "node": "Compute README Hash",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Chunk Markdown": {
+        "main": [
+          [
+            {
+              "node": "Build Ingest Request",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Build Ingest Request": {
+        "main": [
+          [
+            {
+              "node": "Ingest Weyland Context",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "README Changed?": {
+        "main": [
+          [
+            {
+              "node": "Chunk Markdown",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Ingest Weyland Context": {
+        "main": [
+          []
+        ]
+      },
+      "15 Minute Recurring Trigger": {
+        "main": [
+          [
+            {
+              "node": "Read Weyland Note",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Compute README Hash": {
+        "main": [
+          [
+            {
+              "node": "Merge Hash State",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Check Source State": {
+        "main": [
+          [
+            {
+              "node": "Merge Hash State",
+              "type": "main",
+              "index": 1
+            }
+          ]
+        ]
+      },
+      "Merge Hash State": {
+        "main": [
+          [
+            {
+              "node": "README Changed?",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      }
+    },
+    "settings": {
+      "executionOrder": "v1",
+      "binaryMode": "separate"
+    },
+    "staticData": {
+      "node:15 Minute Recurring Trigger": {
+        "recurrenceRules": []
+      }
+    },
+    "meta": {
+      "templateCredsSetupCompleted": true
+    },
+    "nodeGroups": [],
+    "pinData": {},
+    "versionId": "5f139027-0e2e-4b52-bffb-778e5f3edbda",
+    "activeVersionId": null,
+    "versionCounter": 114,
+    "triggerCount": 1,
+    "sourceWorkflowId": null,
+    "tags": [],
+    "shared": [
+      {
+        "updatedAt": "2026-06-02T21:10:01.872Z",
+        "createdAt": "2026-06-02T21:10:01.872Z",
+        "role": "workflow:owner",
+        "workflowId": "YgxNUxYF3wwuhSJm",
+        "projectId": "1aVmi58aW9zKhm7v",
+        "project": {
+          "updatedAt": "2026-06-09T02:53:37.153Z",
+          "createdAt": "2026-06-02T20:52:13.770Z",
+          "id": "1aVmi58aW9zKhm7v",
+          "name": "Edward Mangini <me@emangini.com>",
+          "type": "personal",
+          "icon": null,
+          "description": null,
+          "customTelemetryTags": [],
+          "creatorId": "2ead4abb-7b02-4c9d-a08d-f36a29c68b00"
+        }
+      }
+    ],
+    "versionMetadata": {
+      "name": null,
+      "description": null
+    }
+  }
+]

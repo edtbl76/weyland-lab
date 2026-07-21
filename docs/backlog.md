@@ -1199,3 +1199,22 @@ Scope — make the *class* of mistake hard to repeat:
 
 **Operational note:** rogueone has ONE 16 GB GPU driving both the desktop and Ollama, and no usable iGPU. Ollama guardrails (`nodes/rogueone/systemd/ollama-gpu-guardrails.conf`) are **validated under desktop contention**; BIOS → Hybrid Graphics is deferred.
 
+
+### B97 — n8n encryption key is committed to the PUBLIC repo (untrack + rotate)
+**Raised properly 2026-07-20** (known since 2026-06-15, buried in a B-audit status note and never actioned — 5 weeks).
+
+`nodes/mother/lab/weyland-platform/k8s/n8n/encryption-key.txt` is **tracked in git** (65 bytes = a 64-char hex key + newline) in the **PUBLIC** `edtbl76/weyland-lab`. It is `.gitignore`d (lines 101-103) — but **.gitignore does not untrack an already-tracked file**, which is exactly why the note was written and the risk never actually went away. Verified still tracked 2026-07-20.
+
+**What it protects:** `N8N_ENCRYPTION_KEY` encrypts n8n's stored credentials. n8n holds exactly **1 credential — `sshPrivateKey | SSH Weyland Lab`** — i.e. the protected asset is an **SSH private key**, the highest-value credential type in the lab.
+
+**Actual exposure:** the key alone is useless without n8n's Postgres DB, which is LAN-only. An attacker needs BOTH halves. So this is not "the SSH key is public" — it is "one half is public, permanently, and cannot be unpublished."
+
+**Why the SEC-1 sweep missed it:** that pass hunted the shared dev-password *string*. A high-entropy key in a bare `.txt` matches no password pattern, and gitleaks doesn't flag a context-free hex blob. Same class as the B95 SA/RBAC collision — each control correct, the gap between them.
+
+Scope:
+- **Untrack** the file (gitignore alone is insufficient — it must leave the index). Removing it does NOT unpublish it; history keeps it.
+- **Rotate `N8N_ENCRYPTION_KEY`.** Normally painful because rotation makes n8n unable to decrypt existing credentials — **but here it costs exactly ONE credential re-entry.** Cheap. Do it.
+- **Rotate the SSH key itself** — the encryption key must be treated as compromised, so the asset it guarded should be too. Cross-check `n8n__weyland-lab-ssh-key` (sealed) and any `authorized_keys` the key opens.
+- Store the new key as a **SealedSecret**, never a file in the tree.
+- History rewrite: **NOT recommended** — disruptive on a public repo, and the key must be assumed compromised regardless. Rotation is the real revocation.
+- Follow-up guard: extend the scan-suite to flag high-entropy files by shape (bare hex/base64 blobs), not just password-shaped assignments — the detection gap that let this sit for 5 weeks.
