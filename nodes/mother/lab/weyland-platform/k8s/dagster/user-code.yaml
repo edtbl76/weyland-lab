@@ -42,7 +42,7 @@ spec:
       serviceAccountName: dagster-user-code   # NOT `default` — that SA has automount disabled (see above)
       containers:
         - name: dagster-user-code
-          image: registry.weyland.lab/weyland-dagster-user-code:v3
+          image: registry.weyland.lab/weyland-dagster-user-code:v4
           imagePullPolicy: IfNotPresent
           # DefaultRunLauncher runs jobs INSIDE this pod, so a heavy dataset transform spikes here. With no
           # limit a big run triggered NODE-level OOM that killed random lab pods (2026-06-30). The limit
@@ -145,8 +145,6 @@ spec:
                 secretKeyRef:
                   name: lakefs-creds
                   key: LAKEFS_SECRET_ACCESS_KEY
-            # B65 Tier-2 — emit_duckdb() catalogs the GizmoSQL/DuckDB Flight SQL views. URI/user are plain;
-            # password = the shared dev password (same dagster-postgres-secret value GizmoSQL was created with).
             # B96 experiment — how many RAG contexts each eval question retrieves (code default 3).
             # Raised 3 -> 8 on 2026-07-21 to test a hypothesis from the run-7 golden baseline: LEXICAL questions
             # scored HIGHER than CONCEPTUAL ones on every metric (context_relevancy 0.736 vs 0.514), the opposite
@@ -157,6 +155,8 @@ spec:
             # Env, not code, so this is a manifest change + Argo sync — no image rebuild.
             - name: EVAL_ASK_LIMIT
               value: "8"
+            # B65 Tier-2 — emit_duckdb() catalogs the GizmoSQL/DuckDB Flight SQL views. URI/user are plain;
+            # password = the shared dev password (same dagster-postgres-secret value GizmoSQL was created with).
             - name: GIZMOSQL_URI
               value: grpc+tcp://gizmosql.data-mesh.svc.cluster.local:31337
             - name: GIZMOSQL_USERNAME
