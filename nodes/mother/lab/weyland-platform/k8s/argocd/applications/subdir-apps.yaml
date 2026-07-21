@@ -116,6 +116,11 @@ spec:
     repoURL: https://github.com/edtbl76/weyland-lab.git
     targetRevision: main
     path: nodes/mother/lab/weyland-platform/k8s/n8n
+    directory:
+      # ONLY .yaml — this dir also holds `workflows.json` (the exported n8n workflow definition, B69). Argo
+      # treats .json as a MANIFEST, so without this filter it tries to apply the workflow export as a k8s
+      # resource and the app goes Unknown/failed. `.md`/`.txt` are ignored by Argo natively; `.json` is not.
+      include: '*.yaml'
   destination:
     server: https://kubernetes.default.svc
     namespace: n8n
