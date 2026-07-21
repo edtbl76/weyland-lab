@@ -101,7 +101,7 @@ agents/workflows and platform state. Agents call the tool-server, *not* database
 ### mother (k3s, namespace `weyland` unless noted)
 | Component | Endpoint | Purpose |
 |---|---|---|
-| weyland-tool-server (v0.4.0) | `mother:30080` | RAG retrieval (4 backends) + `/context/ask` (RAG gen) + `/evals/*` + `/pipeline/trigger` + health, **+ `/mcp` system-view MCP server** (read-only tools, `fastapi-mcp` Streamable HTTP), **+ B14 guardrail layer** (shadow-mode validators on `/context/*`, verdicts → `/metrics` + `guardrail_verdicts` table). Consumers: Hermes (CT 104) + **Claude Code** (rogueone, validated 2026-06-14). The platform's HTTP boundary. |
+| weyland-tool-server (v0.4.0) | `mother:30080` | **3Gi limit** (raised from 2Gi 2026-07-21 — OOMKilled under sustained `/context/ask` load at retrieval depth 8; a **503** from this service means the pod went away, check `lastState.terminated.reason`). RAG retrieval (4 backends) + `/context/ask` (RAG gen) + `/evals/*` + `/pipeline/trigger` + health, **+ `/mcp` system-view MCP server** (read-only tools, `fastapi-mcp` Streamable HTTP), **+ B14 guardrail layer** (shadow-mode validators on `/context/*`, verdicts → `/metrics` + `guardrail_verdicts` table). Consumers: Hermes (CT 104) + **Claude Code** (rogueone, validated 2026-06-14). The platform's HTTP boundary. |
 | Postgres + pgvector | `weyland-postgres.weyland.svc:5432` | `rag_documents`/`rag_chunks` (vector 384-dim) + `eval_*` tables. In-cluster only. |
 | Qdrant | `mother:30083` (HTTP), `:30084` (gRPC) | vector store, collection `weyland_chunks`. |
 | Weaviate | `mother:30087` (gRPC 50051) | vector store, class `WeylandChunk`. |
@@ -801,6 +801,8 @@ observed; **Control/ops** = scheduled and operational paths.
 |---|---|---|
 | Data | Ingestion (repo -> 4 vector backends) | [flow-ingestion.md](diagrams/flow-ingestion.md) |
 | Data | RAG query (`/context/ask`) | [flow-rag-query.md](diagrams/flow-rag-query.md) |
+
+> **Retrieval depth is tuned, not arbitrary.** `/context/ask` defaults to **3** contexts. Measured on the B96 golden eval set across three runs (k=3/5/8, same 20-question exam): depth is a **trade, not an improvement** — more context helps CONCEPTUAL synthesis and hurts LEXICAL precision (identifier answers live in one chunk; extras are noise, and faithfulness falls monotonically 0.780 → 0.716 → 0.691). k=3 wins on aggregate. Critically, conceptual `context_relevancy` moved only 0.514 → 0.563 while k nearly tripled — **the constraint is ranking precision, not volume**, which reframes [B74] (hybrid BM25+dense) as a precision play rather than an identifier-recall fix. Full table: [runbooks/eval-harness.md](runbooks/eval-harness.md#retrieval-depth-eval_ask_limit--measured-three-runs-same-exam).
 | Data | RAG streaming indexer (B-RAG-STREAM) | [flow-rag-stream.md](diagrams/flow-rag-stream.md) |
 | Data | Backend selection / dispatch (one of four) | [flow-backend-dispatch.md](diagrams/flow-backend-dispatch.md) |
 | Data | Voice chat (Open WebUI -> whisper -> Ollama) | [flow-voice-chat.md](diagrams/flow-voice-chat.md) |

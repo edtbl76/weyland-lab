@@ -222,3 +222,58 @@ we drop `ragas` / `langchain*` from the Dagster image to slim it back to its pre
 **Revisit if:** the Ragas fix ships (PRs merge) **and** you specifically want canonical, citable
 metric definitions for sharing/comparison. Until both are true, the lean path is strictly better
 for this lab.
+
+---
+
+## Golden question set + retrieval-depth tuning (B96, 2026-07-21)
+
+### The exam is now FIXED — and why that matters
+
+`eval_testset` used to generate 10 fresh questions per run, so **run N was graded on a different exam than run
+N-1**. Cross-run score deltas therefore measured question difficulty, not system quality. This actively misled an
+investigation: run 5 scored ~0.30 below runs 3/4 across **all six models at once**, which reads exactly like a
+system-wide regression and was not one.
+
+Now: `EVAL_QUESTION_SOURCE=golden` (default) loads `weyland_pipeline/golden_questions.json`; `generated` keeps the
+old behaviour. Golden mode deliberately **ignores `EVAL_TEST_SIZE`** — the file IS the exam. It fails loudly if the
+file is missing rather than silently regenerating (a silent fallback yields a run that *looks* golden but isn't).
+
+**20 questions = 10 `conceptual` + 10 `lexical`**, so the leaderboard can be SLICED by `question_type`. A single
+blended score hides the only contrast that matters for retrieval work. Every lexical term was verified present in
+`rag_chunks` before pinning — an unanswerable question scores zero for every approach and proves nothing.
+
+**Editing that file changes the exam** and breaks comparability with prior golden runs. Do it deliberately.
+
+### Retrieval depth (`EVAL_ASK_LIMIT`) — measured, three runs, same exam
+
+| metric · half | limit 3 (run 7) | limit 5 (run 10) | limit 8 (run 9) |
+|---|---|---|---|
+| answer_relevancy · conceptual | 0.644 | 0.687 | **0.741** |
+| context_relevancy · conceptual | 0.514 | **0.563** | 0.554 |
+| faithfulness · conceptual | 0.660 | 0.662 | **0.665** |
+| answer_relevancy · lexical | **0.832** | 0.811 | 0.750 |
+| context_relevancy · lexical | **0.736** | 0.703 | 0.702 |
+| faithfulness · lexical | **0.780** | 0.716 | 0.691 |
+| **SUM** | **4.166** | 4.142 | 4.103 |
+
+1. **Depth is a TRADE, not an improvement — and roughly LINEAR.** 5 sits between 3 and 8 on nearly every cell;
+   there is no free middle. **Limit 3 wins on aggregate → that is the setting.**
+2. **Dilution is the mechanism.** An identifier answer lives in ONE chunk, so extra chunks are noise. Lexical
+   *faithfulness* falls monotonically with depth (0.780 → 0.716 → 0.691).
+3. **The wall is RANKING, not volume.** Conceptual `context_relevancy` moved only 0.514 → 0.563 while k nearly
+   tripled. Depth cannot fix a ranker.
+
+**Consequence for B74 (hybrid BM25 + dense):** its original premise — *dense is weak on exact identifiers* — is
+**false here**; lexical leads conceptual on every metric at every depth. B74 survives only as a **ranking-precision**
+play (get the right chunks into a small top-k), alongside a reranker and/or **per-query-type k**.
+
+### Operational gotchas this shook out
+
+- **`/context/ask` 503 = the tool-server POD went away.** It OOMKilled at 2Gi under `limit=8`; 117/120 results
+  stored the 503 as their error and the run still reported SUCCESS in ~1 minute. Now 3Gi (peaks ~2.8Gi).
+  Diagnose with `lastState.terminated.reason` on the pod, NOT the caller's logs.
+- **502 ≠ 503.** A 502 with `restarts=0` is a LIVE pod resetting the connection — different layer, different fix.
+- **Every 502 observed was `deepseek-coder-v2:16b`**, across two independent runs, late in the matrix.
+  Model-specific, not ambient flakiness.
+- **Both stages now fail loudly** (>10% errors raises) and log errors + progress. Previously
+  `except: failed += 1; continue` swallowed everything — a run with 351/360 judge calls skipped reported green.

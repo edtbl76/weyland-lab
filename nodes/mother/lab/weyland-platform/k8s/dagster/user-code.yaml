@@ -145,22 +145,30 @@ spec:
                 secretKeyRef:
                   name: lakefs-creds
                   key: LAKEFS_SECRET_ACCESS_KEY
-            # B96 — how many RAG contexts each eval question retrieves (code default 3). Env, not code, so
-            # changing it is a manifest change + Argo sync, no image rebuild.
+            # B96 — how many RAG contexts each eval question retrieves. Env, not code, so changing it is a
+            # manifest change + Argo sync, no image rebuild.
             #
-            # MEASURED on the golden set (same 20 questions, only this value changed):
-            #   run 7 (limit 3)  conceptual ctx_rel 0.514 | lexical ctx_rel 0.736
-            #   run 9 (limit 8)  conceptual ctx_rel 0.554 | lexical ctx_rel 0.702
-            # More context HELPS conceptual (+0.14 summed across the 3 metrics) and HURTS lexical (-0.21) —
-            # DILUTION: an identifier answer lives in ONE chunk, so 5 extra chunks are noise and faithfulness
-            # drops hardest (0.780 -> 0.691). Net negative, so 8 was reverted.
-            # Note conceptual ctx_rel only moved 0.514 -> 0.554: depth did NOT fix retrieval QUALITY, it just
-            # returned more mostly-irrelevant chunks. The constraint is RANKING PRECISION, not volume — which is
-            # the honest, reframed case for B74 (hybrid/RRF) and/or a reranker.
+            # ⚠️ MEASURED, three runs on the SAME golden 20-question exam — only this value changed:
+            #                              limit 3 (run 7) | limit 5 (run 10) | limit 8 (run 9)
+            #   answer_relevancy  conceptual        0.644  |          0.687   |         0.741
+            #   context_relevancy conceptual        0.514  |          0.563   |         0.554
+            #   faithfulness      conceptual        0.660  |          0.662   |         0.665
+            #   answer_relevancy  lexical           0.832  |          0.811   |         0.750
+            #   context_relevancy lexical           0.736  |          0.703   |         0.702
+            #   faithfulness      lexical           0.780  |          0.716   |         0.691
+            #   SUM                                 4.166  |          4.142   |         4.103   <- 3 WINS
             #
-            # Now testing 5: does a middle setting capture conceptual's gain without lexical's loss?
+            # Depth is a TRADE, not an improvement, and it is roughly LINEAR — there is no free middle (5 sits
+            # between 3 and 8 on nearly every cell). More context helps CONCEPTUAL synthesis and hurts LEXICAL
+            # precision: an identifier answer lives in ONE chunk, so extra chunks are noise. Lexical faithfulness
+            # declines monotonically with depth (0.780 -> 0.716 -> 0.691) — the cleanest signal in the data.
+            #
+            # The finding that matters: conceptual context_relevancy moved only 0.514 -> 0.563 while k nearly
+            # TRIPLED. Depth cannot fix a RANKING problem. The lever is ranking precision (B74 hybrid/RRF, or a
+            # reranker), or per-query-type k — identifier queries want a tight top-3, synthesis queries want more.
+            # Keep at 3 unless re-measured on the golden set.
             - name: EVAL_ASK_LIMIT
-              value: "5"
+              value: "3"
             # B65 Tier-2 — emit_duckdb() catalogs the GizmoSQL/DuckDB Flight SQL views. URI/user are plain;
             # password = the shared dev password (same dagster-postgres-secret value GizmoSQL was created with).
             - name: GIZMOSQL_URI

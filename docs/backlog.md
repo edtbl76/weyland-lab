@@ -1221,7 +1221,32 @@ Dense-only, golden set, n=180 scores per cell (10q × 6 models × 3 judges):
 
 The weak half is **conceptual retrieval (0.514)**, and BM25 is unlikely to help: BM25 is *also* lexical, so hybrid fusion would reinforce the half that is already strong. Working hypothesis: identifier answers live in ONE distinctive chunk that top-3 retrieval finds, while conceptual questions need synthesis across SEVERAL chunks that `EVAL_ASK_LIMIT=3` never delivers — i.e. the bottleneck is context VOLUME, not sparse-vs-dense ranking.
 
-**Next experiment (cheapest decisive test):** `EVAL_ASK_LIMIT` 3 → **8** via the user-code manifest (env, no rebuild), re-run golden. Conceptual jumps ⇒ it's context volume, and B74 is largely beside the point (look at chunking / retrieval depth / reranking instead). Conceptual stays ~0.51 ⇒ retrieval quality is genuinely the issue and B74 gets a fair hearing.
+## ✅ RETRIEVAL-DEPTH EXPERIMENT COMPLETE — three runs, same exam, only `EVAL_ASK_LIMIT` changed
+
+| metric · half | limit 3 (run 7) | limit 5 (run 10) | limit 8 (run 9) |
+|---|---|---|---|
+| answer_relevancy · conceptual | 0.644 | 0.687 | **0.741** |
+| context_relevancy · conceptual | 0.514 | **0.563** | 0.554 |
+| faithfulness · conceptual | 0.660 | 0.662 | **0.665** |
+| answer_relevancy · lexical | **0.832** | 0.811 | 0.750 |
+| context_relevancy · lexical | **0.736** | 0.703 | 0.702 |
+| faithfulness · lexical | **0.780** | 0.716 | 0.691 |
+| **SUM** | **4.166** | 4.142 | 4.103 |
+
+**Conclusions:**
+1. **Depth is a TRADE, not an improvement — and it is roughly LINEAR.** 5 sits between 3 and 8 on nearly every cell; there is no free middle. More context helps CONCEPTUAL synthesis and hurts LEXICAL precision. **Limit 3 wins on aggregate → reverted to 3.**
+2. **Dilution is the mechanism.** An identifier answer lives in ONE chunk, so extra chunks are noise. Lexical *faithfulness* declines monotonically with depth (0.780 → 0.716 → 0.691) — the cleanest signal in the data: more plausible-but-wrong material to be unfaithful with.
+3. **The wall is RANKING, not volume.** Conceptual `context_relevancy` moved only 0.514 → 0.563 while k nearly TRIPLED. Retrieving more mostly-irrelevant chunks doesn't fix a ranker.
+
+**→ B74 REFRAMED (it survives, on different grounds).** The original premise — "dense embeddings are weak on exact identifiers that BM25 nails" — is **FALSE here**: lexical leads conceptual on every metric at every depth. The real case is **ranking precision in both directions**: get the right chunks into a SMALL top-k rather than widening k. Hybrid/RRF is a precision mechanism; a **reranker** belongs in the same conversation. A third option this data suggests: **per-query-type k** (identifier queries → tight top-3, synthesis queries → more), which is a smarter feature than any constant.
+
+**Caveats:** lexical n = 171/174 vs 180 in runs 9/10 — the `deepseek-coder-v2:16b` 502s all landed in that half (see below). Not enough to flip a 0.09 gap. 10 questions per half is small; treat as a strong signal, not proof.
+
+**Infra findings from the experiment (each cost a debugging round):**
+- **tool-server OOMKilled at 2Gi** under `limit=8` → every subsequent `/context/ask` returned **503** and 117/120 results stored that as their error, while the run reported SUCCESS in 1 minute. Raised to **3Gi** (`k8s/weyland-tool-server.yaml`); it then peaked ~2.8Gi and survived. A 503 from an in-mesh service means the POD went away — check `lastState.terminated.reason`, not the caller's logs.
+- **502 ≠ 503.** Runs 9/10 produced a handful of **502s with `restarts=0`** — a LIVE pod resetting the connection, not a dead one. Different layer, different fix.
+- **Every 502 was `deepseek-coder-v2:16b`**, across two independent runs, late in the matrix. Model-specific, not ambient flakiness — worth isolating.
+- **Both eval stages now FAIL LOUDLY** (>10% error rate raises) and **log errors + progress**. Previously `except: failed += 1; continue` swallowed everything: a run where 351/360 judge calls were skipped reported green. Progress logging (per-model timing, every-5-cells) ships with `:v6` — a 21-minute job that logs nothing is indistinguishable from a hang.
 
 **Caveats:** judges may favour crisp factual answers over synthesis; 10 questions per half is small. Treat as a strong signal, not proof.
 
