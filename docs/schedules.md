@@ -26,7 +26,7 @@ Heavy = embeds/writes or large scans (guard the node's RAM). Light = metadata/re
 |---|---|---|---|---|
 | **02:00** | k8s CronJob | `data-mesh-scaledown` → cockroachdb/mongodb/mysql/gizmosql to 0 | daily | — (frees RAM) |
 | **02:17** | Dagster | `weyland_ingestion_job` (RAG fan-out, serialized) | daily | **HEAVY** |
-| 00:00 / 04:00 / 08:00 / 12:00 / 16:00 / 20:00 | Dagster | `ai_session` | every 4h | light |
+| 00:00 / 04:00 / 08:00 / 12:00 / 16:00 / 20:00 | Dagster | `ai_session` | every 4h — ⚠️ **STOPPED, never enabled** (0 ticks; the job has 1 FAILURE 2026-06-26 and NO successful run ever). The B62 AI-Dev Usage product has therefore ingested nothing since June, while the rogueone **producer** kept mirroring to MinIO. Enable only after a manual `weyland_ai_session_job` run passes — see B94. | light |
 | 00:25 / 04:25 / 08:25 / … | Dagster | `timeseries` (→ TimescaleDB hypertables) | every 4h | med |
 | 00:40 / 06:40 / 12:40 / 18:40 | Dagster | `datahub_catalog_emit` (custom emitters) | every 6h | light |
 | 00:50 / 06:50 / 12:50 / 18:50 | Dagster | `catalog` (model lookup) | every 6h | light |
