@@ -7,6 +7,17 @@
 # covering all current AND future pods that use it. Headlamp is untouched (it uses its
 # own SA and genuinely needs API access). A future pod that DOES need the API should get
 # its own dedicated SA rather than relying on default.
+#
+# ⚠️ BEFORE ADDING A NAMESPACE HERE — grep for RoleBindings whose SUBJECT is that `default` SA:
+#   kubectl get rolebinding -A -o jsonpath='{range .items[*]}{.metadata.namespace}{" "}{.metadata.name}{" -> "}{range .subjects[*]}{.kind}/{.namespace}/{.name}{" "}{end}{"\n"}{end}' | grep 'ServiceAccount/<ns>/default'
+# Every hit is a pod that PROVABLY calls the k8s API — nobody writes a RoleBinding otherwise. Disabling automount
+# leaves it holding permissions with no token to present, and the failure is SILENT until that code path next runs.
+#
+# This already bit once (2026-07-20, B95): `lancedb-sync-rbac.yaml` bound its Role to `weyland/default`, so the
+# Dagster `trigger_lancedb_sync` op died on `ConfigException: Service token file does not exist` — undetected for
+# weeks because the op only runs when its sensor fires. Fix = dedicated SA (`dagster-user-code`) with
+# `automountServiceAccountToken: true` + `serviceAccountName` on the Deployment + RoleBinding subject repointed.
+# NEVER "fix" it by re-enabling automount on `default`. See [[k8s-sa-token-vs-rbac-split]].
 apiVersion: v1
 kind: ServiceAccount
 metadata:

@@ -1164,3 +1164,25 @@ trivy `KSV-0109` caught what gitleaks missed: `k8s/data-mesh/ranger.yaml`'s Conf
   and **rotate** the value. Flagged twice by the automated security review. Low-risk on the LAN, but the password
   is committed in git. Do **all four at once** — piecemeal (ClickHouse-only) is inconsistent and gives no real
   benefit while the other three stay inline. Also the ClickHouse `users.d` Secret is already out-of-band (good).
+
+### B94 — Alert on Dagster run failures (the pipeline has no failure alarm)
+**Added 2026-07-20.** Surfaced by a concrete miss: `weyland_dbt_job` failed **3 consecutive runs** (2026-07-12, 07-19, 07-20) and *nothing told anyone*. Two weeks of the weekly mart build silently not happening; found only because the eval work happened to look at tick history. Dagster is now the spine of the platform (17 jobs, 11 schedules, 2 sensors) — an un-alerted run failure is the single biggest observability hole left after B69.
+
+**The trap that hid it:** a schedule **tick** status is NOT the run's status. A tick reads `SUCCESS` when the daemon successfully *launched* the run — the run it launched can then fail immediately. Any check built on tick status is measuring the wrong thing (this misled the 07-20 investigation).
+
+Scope:
+- Alert on run failure → the existing Alertmanager → Telegram path (one pipeline for metrics + logs + this).
+- Source options (pick at build time): (a) a Dagster **run-status sensor** (`@run_failure_sensor`) posting to Alertmanager's `/api/v2/alerts` — native, no scraping, catches every job; (b) `dagster-daemon` log-based LogQL alert via the Loki ruler (already wired for B51); (c) scrape Dagster's Prometheus metrics if the deployment exposes run counters.
+  (a) is the strongest — a `@run_failure_sensor` is job-agnostic and fires on the *run*, not the tick.
+- Include the job name + run URL in the alert so it's actionable from Telegram.
+- **Also cover: a job that stops being scheduled at all** (silence ≠ health) — a freshness/heartbeat check per critical job, so "never ran" alarms like "ran and failed".
+- Backfill check: audit every job's recent run history once the alert lands, since other jobs may be sitting in the same silent-failure state.
+
+### B95 — Guard against security-hardening collisions (no-automount broke lancedb sync)
+**Added 2026-07-20.** Two individually-correct changes cancelled each other out and the failure was silent for weeks. `lancedb-sync-rbac.yaml` bound its Role to **`weyland/default`**; U10/B69 `rbac-default-sa-noautomount.yaml` then set `automountServiceAccountToken: false` on that same SA. Result: the pod held the RBAC *permissions* with **no token to authenticate with** → `ConfigException: Service token file does not exist` from `config.load_incluster_config()`. Undetected because the op only runs when `lancedb_sync_sensor` fires, and its upstream hydrate jobs are on-demand. Fixed 2026-07-20 with a dedicated `dagster-user-code` SA (`automountServiceAccountToken: true`) + `serviceAccountName` on the Deployment + the RoleBinding subject repointed. See [[k8s-sa-token-vs-rbac-split]].
+
+Scope — make the *class* of mistake hard to repeat:
+- **Standing rule, documented in `rbac-default-sa-noautomount.yaml` itself:** before disabling automount on any `default` SA, grep for RoleBindings whose subject is that SA. Each one is proof a pod uses the API (nobody writes a binding otherwise).
+- Add that check to the security-hardening section of the DoD, alongside the existing scan-suite gates.
+- Consider a scan-suite/kubescape-style repo check: flag any RoleBinding whose subject is a `default` ServiceAccount in a namespace where automount is disabled. Cheap static check, catches the whole class.
+- Broader principle worth capturing: **authorization and identity must target the same SA** — changing one without the other fails silently in whichever direction you get it wrong.
