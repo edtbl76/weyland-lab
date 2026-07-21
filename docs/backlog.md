@@ -934,12 +934,28 @@ Doris (OLAP variety, on-demand) · Spark (big-data compute, on-demand) · RDF/tr
 - **Iceberg** → **time-travel / schema-evolution / ACID** demo via Trino — the gold-table capabilities.
 - **Goal:** each format demonstrated by a concrete workload, not left as a catalog entry. **Sequence after** the relevant Tier-2 engines exist (Trino/DuckDB, Kafka) — those are prerequisites for several of these.
 
-### B74 — Hybrid retrieval (BM25 + dense fusion) in the tool-server
-**Added 2026-06-27.** The **value-realization of the OpenSearch BM25 work** (B65). OpenSearch now holds the corpus as a lexical index (`weyland_chunks`, 775 chunks, kept in sync by `opensearch_write`), but the tool-server RAG still queries **only the dense/vector path** — so the sparse half is built and cataloged but **not yet used at query time**. Build it:
-- **Retrieve from both** — run the query against **BM25** (OpenSearch `weyland_chunks`) and a **dense** backend (pgvector/Qdrant), then **fuse** the two result sets — **Reciprocal Rank Fusion (RRF)** is the simplest robust default (no score-normalization headaches); weighted-sum is the alt.
-- **Where:** the retrieval path in `weyland-tool-server` (`/context/ask` + the RAG context builder). Keep fusion **configurable** (toggle + weights/k) so dense-only stays available for comparison.
-- **Why it pays here specifically:** the corpus is **code + config + docs + the aidlc-kb** — dense embeddings are weak on exact identifiers (config keys, flags, error codes, file paths, commands) that BM25 nails; fusion gets semantic recall *and* literal recall. Validate with eval (B4 harness) — hybrid vs dense-only on the leaderboard.
-- **Prereq met:** OpenSearch BM25 index populated + incrementally maintained (✅ B65). **Feeds B70** (agentic RAG) — the retriever it would call.
+### B74 — Retrieval precision (MATURITY) — phased
+**Added 2026-06-27. RESCOPED + reclassified to MATURITY 2026-07-21** after the B96 golden-set measurements.
+
+**The original premise is FALSE.** B74 was written as "dense embeddings are weak on exact identifiers (config keys, flags, error codes, paths, commands) that BM25 nails". Measured on the golden set, **lexical questions BEAT conceptual ones on every metric at every retrieval depth** (k=3: lexical `context_relevancy` 0.736 vs conceptual 0.514). Dense retrieval handles identifiers *well* here. Full evidence: B96 above + [runbooks/eval-harness.md](runbooks/eval-harness.md).
+
+**What the data actually says.** The weak half is CONCEPTUAL retrieval, and it is a **ranking** problem, not a recall or volume one: conceptual `context_relevancy` moved only 0.514 → 0.563 while k nearly TRIPLED (3 → 8). Depth is a **trade** — it buys conceptual synthesis and costs lexical precision (dilution; lexical faithfulness falls monotonically 0.780 → 0.716 → 0.691), and it is roughly linear, so there is no free middle. `EVAL_ASK_LIMIT` stays at **3**.
+
+**So this is no longer "wire up BM25".** It's *get the right chunks into a SMALL top-k*, which is a maturity/polish theme with several candidate mechanisms that should be **compared, not assumed**. Every phase is measured against the same golden 20-question exam, sliced conceptual-vs-lexical — that instrument now exists, which is what makes this tractable.
+
+**Phase 1 — Diagnose (cheap, do first).** Conceptual `context_relevancy` is 0.514: look at what is ACTUALLY being retrieved for those 10 questions. Is it wrong-document, right-document-wrong-chunk, or split-across-chunks? Each implies a different fix, and the answer may make Phases 2-4 unnecessary. Likely suspects: chunk size/overlap vs. the conceptual docs' structure, and embedding-model fit (`bge-small-en-v1.5`, 384-dim).
+- **Gate:** a written answer to "why are 5 of 8 retrieved chunks irrelevant for a conceptual question?" No code required.
+
+**Phase 2 — Reranker (highest expected value).** A cross-encoder over an over-fetched candidate set (retrieve ~20, rerank, keep 3). This is the textbook fix for exactly this shape — precision without dilution — and it should improve BOTH halves rather than trading them. Cost: another model resident on rogueone's 16 GB GPU alongside Ollama ([[remote-training-rogueone]] — mind the desktop-freeze constraint), or CPU on the tool-server (already CPU-bound at ~2.8 cores under eval load).
+- **Gate:** conceptual `context_relevancy` ≥ 0.60 with lexical NOT regressing below 0.72.
+
+**Phase 3 — Hybrid BM25 + dense (RRF).** The original scope, now on honest grounds: fusion as a *precision* mechanism. The OpenSearch lexical index (`weyland_chunks`, kept in sync by `opensearch_write`) is already built and cataloged (B65) and remains unused at query time. Keep fusion configurable (toggle + weights/k) so dense-only stays available. **Expect modest gains** — the data says the lexical half is already the strong one, so this mostly hardens what works rather than fixing what doesn't.
+- **Gate:** measurable improvement on the golden set that a reranker alone did not already deliver.
+
+**Phase 4 — Per-query-type k / adaptive retrieval.** The trade-off is real and directional: identifier queries want a tight top-3, synthesis queries want more. Classify the query (or use the retrieval score distribution) and set k accordingly — a smarter feature than any constant, and it captures both sides of the trade the measurements exposed.
+- **Gate:** beats the best fixed-k configuration on the SUM across both halves.
+
+**Feeds B70** (agentic RAG) — whatever retriever wins here is what the LangGraph loop calls. **Do not start any phase without re-reading the B96 numbers first.**
 
 ### B69 — Platform completeness / gap remediation (post-B1)
 **Added 2026-06-26. 🟢 MOSTLY DONE — re-verified against git + live cluster 2026-07-20.** Output of the multi-agent completeness audit (`docs/completeness-audit.md`) — artifacts that "run once" but aren't operationally complete (trigger / lineage / GitOps-reproducibility / monitoring / docs). **Data-mesh-scoped gaps (14) solved inline as part of B1**; this item is the **platform-wide set (28: 9 high / 14 med / 5 low)**. Full register + per-item status: `docs/completeness-audit.md`.
