@@ -1,0 +1,46 @@
+{
+  "_comment": [
+    "B96 — the GOLDEN eval question set. Pinned so the leaderboard is comparable ACROSS runs: with per-run",
+    "generated questions, every run was graded on a different exam, so a score delta measured question",
+    "difficulty rather than system quality (this confounded a real investigation on 2026-07-20 — run 5 scored",
+    "~0.30 below runs 3/4 across ALL SIX models at once, which reads as a system regression and was not one).",
+    "",
+    "TWO HALVES, deliberately. The set exists to measure RETRIEVAL work (B74 hybrid BM25 + dense fusion), so it",
+    "must contain the phenomenon being measured:",
+    "  conceptual (10) — prose/reasoning questions, carried over verbatim from run 6 so there is continuity with",
+    "                    the existing history. Dense embeddings already do well here; expect these to stay FLAT.",
+    "  lexical    (10) — exact identifiers: ports, env vars, config keys, index names. This is precisely where",
+    "                    dense retrieval is weak and BM25 is strong. If B74 works, THIS half should move.",
+    "A single blended score would have hidden that contrast. Slice by `question_type` in eval_questions.",
+    "",
+    "Every lexical term was VERIFIED present in the indexed corpus before being pinned (ilike count over",
+    "rag_chunks, source_type='markdown'). A question whose answer is not in the index scores zero for dense AND",
+    "hybrid alike and proves nothing. Rarer tokens were preferred — they discriminate best.",
+    "",
+    "Editing this file changes the exam and breaks comparability with prior golden runs. Do it deliberately, and",
+    "note the change in docs/backlog.md (B96). To regenerate questions instead, set EVAL_QUESTION_SOURCE=generated."
+  ],
+  "questions": [
+    { "type": "conceptual", "q": "What are the five building blocks of successful change adoption in the ADKAR model?" },
+    { "type": "conceptual", "q": "When should affinity mapping be used in a project workflow?" },
+    { "type": "conceptual", "q": "How does the ADKAR model differ from Kotter's 8-step change management framework?" },
+    { "type": "conceptual", "q": "Why is silent sorting important during an affinity mapping session?" },
+    { "type": "conceptual", "q": "What key factors should you consider when evaluating an AI provider for healthcare applications?" },
+    { "type": "conceptual", "q": "In the ADKAR model, what types of interventions are recommended for building Awareness?" },
+    { "type": "conceptual", "q": "How does affinity mapping facilitate conversion from raw research data to structured insights?" },
+    { "type": "conceptual", "q": "Why is it important to assess the viability and roadmap of a frontier model API provider?" },
+    { "type": "conceptual", "q": "What role do direct managers play in the success of individual change according to ADKAR?" },
+    { "type": "conceptual", "q": "When should you use an affinity map as a deliverable?" },
+
+    { "type": "lexical", "q": "What heap size is Trino's JVM configured with?" },
+    { "type": "lexical", "q": "Which Traefik setting had to be changed to stop large image pushes to the registry failing at 60 seconds?" },
+    { "type": "lexical", "q": "What is the name of Tempo's Prometheus metrics port?" },
+    { "type": "lexical", "q": "Which kube-prometheus-stack value makes Prometheus load PrometheusRules that lack the release label?" },
+    { "type": "lexical", "q": "What timezone are the lab's Dagster schedules pinned to?" },
+    { "type": "lexical", "q": "Which Ollama environment variable limits how many models stay loaded at once?" },
+    { "type": "lexical", "q": "What NodePort does GizmoSQL listen on?" },
+    { "type": "lexical", "q": "What port does the Redpanda Kafka API listen on?" },
+    { "type": "lexical", "q": "What is the name of the OpenSearch BM25 index that holds the RAG corpus?" },
+    { "type": "lexical", "q": "Which NodePort exposes MLflow to the LAN for the external Ray worker?" }
+  ]
+}
