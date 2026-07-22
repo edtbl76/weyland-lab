@@ -74,6 +74,40 @@ def post_hotspot(payload):
 
 # ---- per-tool runners: run + parse -> {critical,high,medium,low} -> post ----
 
+
+def secret_files():
+    """B69/B97 — closes the gap that let the n8n encryption key sit committed for 5 weeks.
+
+    gitleaks `dir` HONORS .gitignore, so a file that is BOTH tracked in git AND matched by a .gitignore rule is
+    invisible to it — which is exactly the most dangerous case: someone .gitignore'd a secret that was ALREADY
+    committed, believing that hid it (the n8n key's own .gitignore comment literally admits this). The file stays
+    in the repo, fully readable, but every content scanner skips it.
+
+    This finds that intersection DIRECTLY, no entropy heuristics (which would flood on the accepted shared dev
+    password + sealed-secret ciphertext): every git-tracked file that the .gitignore rules also match. The magic
+    is `check-ignore --no-index` — WITHOUT it, git reports a tracked file as "not ignored" (tracking wins); WITH
+    it, it evaluates the raw gitignore rules, revealing the tracked-but-rule-matched files. Near-zero false
+    positives: a tracked+ignored file is almost always a secret hidden after the fact. Marked CRITICAL because,
+    unlike the noisier scanners, this check is precise — a hit here is real and must not get lost in triage.
+    """
+    c = z()
+    try:
+        tracked = subprocess.run(["git", "-C", SRC, "ls-files"], capture_output=True, text=True,
+                                 timeout=120, check=False).stdout.splitlines()
+        if not tracked:
+            print("  ! secret-files: no tracked files (is /src a git repo?)", flush=True)
+            post("secret-files", c)
+            return
+        r = subprocess.run(["git", "-C", SRC, "check-ignore", "--no-index", "--stdin"],
+                           input="\n".join(tracked), capture_output=True, text=True, timeout=120, check=False)
+        flagged = [ln.strip() for ln in r.stdout.splitlines() if ln.strip()]
+        for f in flagged:
+            print(f"  !! TRACKED AND GITIGNORED (committed secret hidden after the fact?): {f}", flush=True)
+        c["critical"] = len(flagged)
+    except Exception as e:
+        print(f"  ! secret-files: {e}", flush=True)
+    post("secret-files", c)
+
 def gitleaks():
     sh(["gitleaks", "dir", SRC, "-f", "json", "-r", f"{OUT}/gitleaks.json", "--exit-code", "0"])
     d = load(f"{OUT}/gitleaks.json") or []
@@ -216,7 +250,7 @@ def codemaat():
     # Behavioral analysis (the free CodeScene equivalent) — NOT severity-based, so no Port POST. Emit the top
     # change-hotspots (files touched most = highest maintenance risk) to the log + save the CSV for review.
     log = f"{OUT}/maat.log"
-    sh(["git", "config", "--global", "--add", "safe.directory", SRC])  # clone runs as root, scan as uid 10001 -> git "dubious ownership"
+    # safe.directory is now set once in __main__ before the runner loop (secret_files also needs it).
     # code-maat -c git2 requires the "--hash--date--author" log shape (NOT the legacy [%h] %aN %ad %s format).
     sh(["git", "-C", SRC, "log", "--all", "--numstat", "--date=short", "--no-renames", "--pretty=format:--%h--%ad--%aN"], outfile=log)
     sh(["java", "-jar", "/opt/code-maat.jar", "-l", log, "-c", "git2", "-a", "revisions"],
@@ -242,7 +276,10 @@ def codemaat():
 
 if __name__ == "__main__":
     print(f"=== weyland code-scan suite @ {datetime.datetime.now(datetime.UTC).strftime('%Y-%m-%dT%H:%M:%SZ')}  src={SRC} ===", flush=True)
-    for fn in (gitleaks, checkov, kubescape, hadolint, bandit, osv, shellcheck, semgrep, trivy, codemaat):
+    # Hoisted from codemaat(): the clone runs as root, the scan as uid 10001 → git "dubious ownership". This must
+    # be set BEFORE any git-using check (secret_files runs 2nd, codemaat last) or those checks silently no-op.
+    sh(["git", "config", "--global", "--add", "safe.directory", SRC])
+    for fn in (gitleaks, secret_files, checkov, kubescape, hadolint, bandit, osv, shellcheck, semgrep, trivy, codemaat):
         try:
             fn()
         except Exception as e:
