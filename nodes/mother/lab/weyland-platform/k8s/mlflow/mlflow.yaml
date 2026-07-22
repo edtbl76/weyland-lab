@@ -91,6 +91,17 @@ spec:
                   key: secret_key
             - name: AWS_DEFAULT_REGION
               value: us-east-1
+            # B99 — disable MLflow 3.14's server-side JOB RUNNER. The 2.18→3.14 upgrade (B47) silently added a
+            # Huey-based job subsystem (`mlflow.server.jobs`) that spawns ~7 `huey_consumer` processes, each with
+            # 5-10 workers — UNBOUNDED and unsized to the pod. `--workers 1` bounds only the WEB server (1 uvicorn
+            # process); it has zero effect on this. At idle it's ~9 python3.10 / ~1.3Gi; under job load the pool
+            # balloons past the 4Gi cgroup → `memory.oom.group` kills all 9 at once → respawn → the storm that
+            # OOM-looped this pod (197 python3.10 kills in one boot, 2026-07-22 incident; see [[node-oom-forensics]]).
+            # The lab uses MLflow for TRACKING + ARTIFACTS + REGISTRY only — none of the 3.x server-side job
+            # features (GenAI eval, online scoring, webhooks) that this runner serves. So disabling it is safe and
+            # drops mlflow from ~9 processes to ~2. Env var confirmed by grepping the installed package, not guessed.
+            - name: MLFLOW_SERVER_ENABLE_JOB_EXECUTION
+              value: "false"
           readinessProbe:
             httpGet:
               path: /health

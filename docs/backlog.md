@@ -509,13 +509,14 @@ previously *gated on* B14; it's now *part of* it, so the act-tools land **behind
 checks above — not before them. This is the read-only-v1 → read+act step for the B2 agents (Hermes first,
 OpenClaw same MCP URL).
 
-### B15 — Local-model coding agents (opencode / Cline CLI)
+### B15 — Local-model coding agents (opencode / Cline / Pi)
 Terminal/editor AI coding agents pointed at **weyland's Ollama `/v1`** — code with your *own* local
-models, on-LAN; like Open WebUI (B13) but for coding. **opencode** (SST; open-source, model-agnostic,
-Claude-Code-style TUI) and **Cline** (now has a CLI) both accept an OpenAI-compatible base URL, so
-they drop onto `http://192.168.1.244:11434/v1`. Consumers of B7 — and the real payoff of B4's "best
-coding model" finding (point them at `qwen3-coder:30b` / whatever wins). **Open when scoping:** which
-agent(s), per-repo config, default model, auth. Low lift (client config, no new infra).
+models, on-LAN; like Open WebUI (B13) but for coding. Candidates to evaluate: **opencode** (SST; open-source,
+model-agnostic, Claude-Code-style TUI), **Cline** (now has a CLI), and **Pi** (added 2026-07-22 — coding
+agent/harness in the same class). All accept an OpenAI-compatible base URL, so they drop onto Ollama at
+`http://192.168.1.230:11434/v1` (rogueone, B79 — was CT-102 `.244`, destroyed). Consumers of B7 — and the real
+payoff of B4's "best coding model" finding (point them at `qwen3-coder:30b` / whatever wins). **Open when scoping:**
+which agent(s), per-repo config, default model, auth. Low lift (client config, no new infra).
 
 ### B16 — MLflow (experiment tracking + model registry) — ✅ DONE 2026-06-19
 **MERGED with B10 — this is the canonical MLflow detail section.** Live at `mlflow.weyland.lab` (dev-password): MLflow server (`k8s/mlflow/`), **Postgres** backend store (`mlflow` db/role), **MinIO** `mlflow` artifact bucket (proxied `--serve-artifacts`), meshed for STRICT Postgres, pg/s3 drivers pip-installed on start (no custom image). Smoke-tested end-to-end (run + param + metric + artifact → both stores).
@@ -1319,7 +1320,28 @@ Scope:
 - **Why it matters here specifically:** mother is a single k3s node — there's no other node to reschedule onto, so a node-RAM exhaustion is a total outage, not a degraded one. This is the highest-value missing alert on the platform.
 - Same class as B94: a control that was silent on the exact failure it should catch.
 
-### B99 — Root-cause the python3.10 OOM storm + right-size Tempo (2026-07-22 incident)
+### B99 — python3.10 OOM storm (= MLflow Huey job runner) + Tempo sizing — ✅ ROOT-CAUSED + FIXED 2026-07-22
+**✅ 2026-07-22.** Root cause found and both fixes applied (pending deploy+verify).
+
+**The python3.10 storm = MLflow's server-side JOB RUNNER.** The 2.18→3.14 upgrade (B47) silently added a Huey-based
+job subsystem (`mlflow.server.jobs`) that spawns ~7 `huey_consumer` processes, each `-w 5/10` workers — UNBOUNDED,
+unsized to the pod. `--workers 1` bounds only the WEB server (1 uvicorn proc); zero effect on this. At idle ~9
+python3.10 / ~1.3Gi; under job load the pool balloons past the 4Gi cgroup → `memory.oom.group` kills all 9 at once
+→ respawn → storm (197 python3.10 kills in the boot). **Fix:** `MLFLOW_SERVER_ENABLE_JOB_EXECUTION=false` in
+`k8s/mlflow/mlflow.yaml` (env var confirmed by grepping the installed package). The lab uses MLflow for
+tracking/artifacts/registry only — none of the 3.x server-side job features (GenAI eval, online scoring, webhooks)
+this runner serves — so disabling is safe; drops mlflow from ~9 processes to ~2.
+
+**Forensic lessons (cost several wrong turns):** (1) `oom_memcg` counts mis-named the culprit as `tempo-0` — that
+was tempo OOM-looping SEPARATELY at its own 2Gi limit (collateral). The storm's real home is in the OOM-report
+BODY: the `Tasks state` list + `oom_memcg=.../pod<UID>.slice` + `memory.oom.group set`. (2) `grep oom-kill: | task=`
+misses kills that only emit the `Memory cgroup out of memory: Killed process` line. See [[node-oom-forensics]].
+
+**Tempo:** OOM'd 72× at its 2Gi ceiling under peak trace load (eval mesh traffic + LGTM self-monitoring, both up
+2026-07-21). Raised **2Gi→3Gi** (`k8s/tempo/tempo-values.yaml`); baseline is ~326Mi so this is peak headroom.
+Revisit with sampling if it recurs.
+
+Recurrence is now ALARMED by B98 (KubePodOOMKilled + node-memory pressure). Original notes:
 **Added 2026-07-22.** Two threads from the node-OOM incident, both needing fresh investigation:
 - **The python3.10 storm.** The console showed hundreds of `python3.10` processes (UID:0, ~150 MB each, `oom_score_adj:993`) spawned in ~70 s — a fork-storm that ate tens of GB. The memcg forensic attributed 71 OOM events to **`monitoring/tempo-0`'s** pod cgroup, but **Tempo is a Go binary running as UID:10001** — the python3.10/UID:0 identity does NOT cleanly match tempo. So either the memcg accounting is rolling up a parent cgroup, or there's a secondary spawner. **Unresolved — needs a live repro with better forensics** (`journalctl -k` full OOM report incl. `task_memcg` + `task`, per-cgroup memory.current sampling). Do NOT assume tempo is the python3.10 source.
 - **Tempo sizing.** tempo-0 (limit 2 GB, baseline ~326 MB) **crash-looped 71× at its 2 GB ceiling** under last boot's peak trace load (eval mesh traffic + the new LGTM self-monitoring, both added 2026-07-21). Fine at baseline, too tight at peak. Either raise the limit, tune retention/compaction (`max_block_bytes`, ingester flush), or cap trace ingestion. Feeds B98 (a right-sized Tempo won't OOM-loop; the alert catches it if it does).

@@ -40,8 +40,12 @@ tempo:
       cpu: 100m
       memory: 512Mi
     limits:
-      memory: 2Gi   # 1Gi OOM'd (exit 137, 155 restarts) ~9s in, completing a vParquet4 block; monolithic Tempo
-                    # builds blocks in memory before the S3 flush and needs ~2Gi. Node has request headroom (85%).
+      memory: 3Gi   # 1Gi OOM'd (exit 137) ~9s in on a vParquet4 block; raised to 2Gi. Then 2Gi OOM'd **72×** in
+                    # the 2026-07-22 boot under peak trace load (eval mesh traffic + the B98/B21 LGTM
+                    # self-monitoring, 2026-07-21, both increased trace volume). Raised 2Gi→3Gi. Monolithic Tempo
+                    # builds blocks in memory before the S3 flush, so peak scales with ingest; revisit if it OOMs
+                    # again (or cap ingestion via sampling). Baseline is only ~326Mi — this is peak headroom, not
+                    # steady-state. See B99 / [[node-oom-forensics]].
 
 persistence:
   enabled: true
