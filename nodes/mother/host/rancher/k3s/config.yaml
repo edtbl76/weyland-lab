@@ -1,0 +1,23 @@
+# mother k3s server config — mirrors /etc/rancher/k3s/config.yaml on the host.
+# Apply:  sudo cp this → /etc/rancher/k3s/config.yaml  &&  sudo systemctl restart k3s
+# (k3s restart = brief API-server blip; workloads keep running under containerd.)
+kubelet-arg:
+  # Raised from the 110 default after JupyterHub hit the cap (see hosts.md).
+  - "max-pods=250"
+
+  # --- B98/B99 — node MEMORY guardrails (added 2026-07-22) ---
+  # WHY: mother is a SINGLE node whose pod memory LIMITS sum to ~300% of its 64Gi (heavy overcommit). With NO
+  # kubelet memory reservation or eviction threshold, nothing stopped pods from consuming into the RAM the OS
+  # needs to keep networking alive — so when enough pods used near their limits at once, free memory collapsed,
+  # `systemd-networkd`/`systemd-resolved`/kernel network buffers starved, and mother DROPPED OFF THE LAN (the
+  # 2026-07-21 outage: a memory event → network loss → "no route to host", NOT a simple pod OOM). This is the
+  # memory analog of the 2026-07-18 ephemeral-storage eviction cascade — same shape, and this one had no guardrail.
+  #
+  # eviction-hard is the load-bearing knob: the kubelet EVICTS pods when free RAM drops under 1.5Gi, shedding
+  # workload BEFORE the OS network stack is starved, keeping the node reachable. system/kube-reserved shrink the
+  # schedulable pool so the scheduler stops overcommitting quite so hard (accounting; the active protection is the
+  # eviction). B98's NodeMemory alerts warn well before this line trips. Tune the numbers if evictions bite legit
+  # workloads or the node still nears the wall.
+  - "system-reserved=memory=2Gi"
+  - "kube-reserved=memory=1Gi"
+  - "eviction-hard=memory.available<1.5Gi"

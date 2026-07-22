@@ -1320,8 +1320,20 @@ Scope:
 - **Why it matters here specifically:** mother is a single k3s node — there's no other node to reschedule onto, so a node-RAM exhaustion is a total outage, not a degraded one. This is the highest-value missing alert on the platform.
 - Same class as B94: a control that was silent on the exact failure it should catch.
 
-### B99 — python3.10 OOM storm (= MLflow Huey job runner) + Tempo sizing — ✅ ROOT-CAUSED + FIXED 2026-07-22
-**✅ 2026-07-22.** Root cause found and both fixes applied (pending deploy+verify).
+### B99 — 2026-07-21 outage: node memory pressure → NETWORK loss (no kubelet memory guardrail)
+**Root-caused 2026-07-22 (after two wrong turns — see below).** The actual outage was **NOT an OOM cascade and NOT the mlflow storm.**
+
+**What actually happened (2026-07-21):** mother dropped off the LAN — rogueone got "no route to host". Kernel OOM that day was a single `uvicorn` kill; the day was otherwise quiet on OOM. The real chain (per the screenshot from the incident): **node memory pressure → the OS network stack starved → `systemd-networkd`/`systemd-resolved`/kernel network buffers failed → mother unreachable.** Memory event → NETWORK loss, not a pod-OOM.
+
+**Structural root cause:** mother's kubelet had **NO memory guardrail** — `/etc/rancher/k3s/config.yaml` carried only `max-pods=250`, no `system-reserved`, no `kube-reserved`, no protective `eviction-hard` for memory. Pod memory *limits* sum to ~300% of the 64Gi (heavy overcommit), so with nothing to evict pods first, a memory spike consumed into the RAM the OS needs to keep networking alive. This is the **memory analog of the 2026-07-18 ephemeral-storage eviction cascade** — same shape, and this one had zero guardrail.
+
+**THE FIX:** kubelet memory guardrails in `nodes/mother/host/rancher/k3s/config.yaml` (→ `/etc/rancher/k3s/config.yaml`, restart k3s): `system-reserved=memory=2Gi` + `kube-reserved=memory=1Gi` + **`eviction-hard=memory.available<1.5Gi`** (the load-bearing knob — evicts pods before the network stack starves, keeping the node reachable). **B98** alerts on the pressure before eviction even trips.
+
+**Two wrong turns, recorded so the forensic lesson sticks:** (1) I chased the OOM scrollback and diagnosed the **mlflow Huey job runner** storm (197 python3.10 kills) as the incident — it was real but from **Jul 14-16**, contained to mlflow's 4Gi cgroup, and **self-resolved by Jul 17**; not the outage. (2) I then "fixed" it by DISABLING the runner (`MLFLOW_SERVER_ENABLE_JOB_EXECUTION=false`) — WRONG, demos require it; reverted. Only pulling the OOM-kills **by day** (Jul 21 = 1, not 248) exposed that I was analyzing the wrong day entirely.
+
+**Secondary hygiene (kept, complementary — NOT the outage fix):** mlflow `limits.memory` 4Gi→8Gi (room for the Huey job runner the demos need; the runner STAYS ON) + Tempo 2Gi→3Gi (it OOM-looped at 2Gi under peak trace load). With the kubelet eviction guardrail in place these limit-raises are safe (eviction protects the node regardless of individual limits) rather than adding node pressure.
+
+Original notes:
 
 **The python3.10 storm = MLflow's server-side JOB RUNNER.** The 2.18→3.14 upgrade (B47) silently added a Huey-based
 job subsystem (`mlflow.server.jobs`) that spawns ~7 `huey_consumer` processes, each `-w 5/10` workers — UNBOUNDED,
