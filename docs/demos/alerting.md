@@ -57,7 +57,7 @@ kubectl logs -n monitoring loki-0 -c loki | grep -iE 'ruler|rule file|alertmanag
 ## Expected result
 - The `apply` delivers a `WeylandTelegramTest` DM to the Weyland Alerts Telegram chat within ~1-2 min.
 - The `delete` delivers a matching **resolved** message.
-- `api/v2/alerts` lists active alerts (the test rule appears while applied). **`Watchdog` is always present and routes to an EXTERNAL heartbeat** (`healthchecks-watchdog`, B69 dead-man's-switch — no longer `null`): its absence at the external endpoint is how a dead Prometheus/Alertmanager is detected. **Dagster job failures** also reach this path — the `dagster-freshness-check` CronJob posts `DagsterJobFailed`/`DagsterJobStale` straight to `/api/v2/alerts` (B94).
+- `api/v2/alerts` lists active alerts (the test rule appears while applied). **`Watchdog` is always present and routes to an EXTERNAL heartbeat** (`healthchecks-watchdog`, B69 dead-man's-switch — no longer `null`): its absence at the external endpoint is how a dead Prometheus/Alertmanager is detected. **Dagster job failures** also reach this path — the `dagster-freshness-check` CronJob posts `DagsterJobFailed`/`DagsterJobStale` straight to `/api/v2/alerts` (B94). **Node-level alerts** ride the same path: `NodeRootDisk*` (B69) and `NodeMemoryWarning`/`NodeMemoryCritical` + `KubePodOOMKilled` (B98) — each paired with an `absent()` meta-guard so a dead exporter can't silence them. All validated by POSTing a synthetic alert of the same `alertname` to `/api/v2/alerts` and confirming the Telegram ping (the executed test).
 
 ## Cleanup / teardown
 The test rule **must** be removed (it is the created data for this demo). The `delete` step above does exactly that:
