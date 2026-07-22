@@ -91,17 +91,6 @@ spec:
                   key: secret_key
             - name: AWS_DEFAULT_REGION
               value: us-east-1
-            # B99 — disable MLflow 3.14's server-side JOB RUNNER. The 2.18→3.14 upgrade (B47) silently added a
-            # Huey-based job subsystem (`mlflow.server.jobs`) that spawns ~7 `huey_consumer` processes, each with
-            # 5-10 workers — UNBOUNDED and unsized to the pod. `--workers 1` bounds only the WEB server (1 uvicorn
-            # process); it has zero effect on this. At idle it's ~9 python3.10 / ~1.3Gi; under job load the pool
-            # balloons past the 4Gi cgroup → `memory.oom.group` kills all 9 at once → respawn → the storm that
-            # OOM-looped this pod (197 python3.10 kills in one boot, 2026-07-22 incident; see [[node-oom-forensics]]).
-            # The lab uses MLflow for TRACKING + ARTIFACTS + REGISTRY only — none of the 3.x server-side job
-            # features (GenAI eval, online scoring, webhooks) that this runner serves. So disabling it is safe and
-            # drops mlflow from ~9 processes to ~2. Env var confirmed by grepping the installed package, not guessed.
-            - name: MLFLOW_SERVER_ENABLE_JOB_EXECUTION
-              value: "false"
           readinessProbe:
             httpGet:
               path: /health
@@ -111,12 +100,19 @@ spec:
           resources:
             requests:
               cpu: 100m
-              memory: 512Mi
+              memory: 1Gi
             limits:
               # MLflow 3.x is a much larger package than 2.x (absorbed the GenAI/tracing/eval stack); importing the
-              # full server app spikes past 2Gi at startup (OOMKilled exit 137 even with --workers 1). 4Gi clears
-              # the import peak; steady-state is lower — tune down after observing actual usage.
-              memory: 4Gi
+              # full server app spikes past 2Gi at startup (OOMKilled exit 137 even with --workers 1). 4Gi cleared
+              # the import peak.
+              # B99 (2026-07-22) — raised 4Gi → 8Gi. MLflow 3.14's server-side JOB RUNNER (`mlflow.server.jobs`,
+              # Huey) runs ~7 consumer processes doing REAL work for the eval/scoring/judge/webhook demos. Under job
+              # load their combined footprint pushed past the 4Gi cgroup → `memory.oom.group` killed the whole
+              # group (197 python3.10 kills across the boot, the 2026-07-22 node-OOM incident). The runner is
+              # REQUIRED — the fix is HEADROOM, not disabling it. 8Gi holds the web server + the consumer fleet +
+              # in-flight jobs. Only the LIMIT moves (request stays low = no scheduling reservation); node has
+              # ~14Gi physical free. Revisit if a single heavy job still OOMs at 8Gi. See B99 / [[node-oom-forensics]].
+              memory: 8Gi
 ---
 apiVersion: v1
 kind: Service

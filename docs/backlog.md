@@ -1327,10 +1327,13 @@ Scope:
 job subsystem (`mlflow.server.jobs`) that spawns ~7 `huey_consumer` processes, each `-w 5/10` workers — UNBOUNDED,
 unsized to the pod. `--workers 1` bounds only the WEB server (1 uvicorn proc); zero effect on this. At idle ~9
 python3.10 / ~1.3Gi; under job load the pool balloons past the 4Gi cgroup → `memory.oom.group` kills all 9 at once
-→ respawn → storm (197 python3.10 kills in the boot). **Fix:** `MLFLOW_SERVER_ENABLE_JOB_EXECUTION=false` in
-`k8s/mlflow/mlflow.yaml` (env var confirmed by grepping the installed package). The lab uses MLflow for
-tracking/artifacts/registry only — none of the 3.x server-side job features (GenAI eval, online scoring, webhooks)
-this runner serves — so disabling is safe; drops mlflow from ~9 processes to ~2.
+→ respawn → storm (197 python3.10 kills in the boot). **Fix — HEADROOM, runner stays ON (the job runner is REQUIRED: demos + use-cases depend on it).** It is a *used*
+feature that lacked memory, not an inert one to disable. **Applied: raised mlflow `limits.memory` 4Gi → 8Gi**
+(`k8s/mlflow/mlflow.yaml`; request 512Mi→1Gi) — room for the web server + the 7 huey consumers + in-flight jobs so
+the cgroup no longer OOMs. Only the limit moves (no scheduling reservation); node has ~14Gi physical free. Revisit
+if a single heavy job still OOMs at 8Gi (then raise again, or investigate a specific job). ⚠️ An earlier attempt
+DISABLED the runner (`MLFLOW_SERVER_ENABLE_JOB_EXECUTION=false`) on a wrong "it's inert" assumption — REVERTED;
+that would have broken the demos. Recurrence is alarmed by B98.
 
 **Forensic lessons (cost several wrong turns):** (1) `oom_memcg` counts mis-named the culprit as `tempo-0` — that
 was tempo OOM-looping SEPARATELY at its own 2Gi limit (collateral). The storm's real home is in the OOM-report
