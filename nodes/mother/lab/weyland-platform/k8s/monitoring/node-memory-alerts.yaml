@@ -1,0 +1,68 @@
+# B98 — node memory-pressure + pod-OOM alerts. The 2026-07-22 incident: a single pod fork-stormed python3.10,
+# ate all of mother's 64 GB, the kernel OOM-killer took down trino/mlflow/tempo + the network stack, the node
+# went unreachable — and NOTHING paged. mother is a SINGLE k3s node, so node-RAM exhaustion is a TOTAL outage,
+# not a reschedule. This is the highest-value missing alert on the platform. Sibling of node-disk-alerts.yaml
+# (same 2026-07-18-class failure, different resource). See runbooks/lan-dns.md, [[node-oom-forensics]].
+#
+# Two angles, because they catch different moments:
+#   - node memory-pressure = the LEADING indicator (fire BEFORE the OOM-killer rampages, so a human can act).
+#   - pod OOMKilled        = the WHICH — names the container that got killed, so the culprit is immediate.
+# Each metric family is paired with absent() so a dead exporter can't make the alert silently blind (the LGTM /
+# BlackboxProbesMissing pattern). `release: monitoring` so the operator's ruleSelector picks it up.
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: node-memory
+  namespace: monitoring
+  labels: { release: monitoring }
+spec:
+  groups:
+    - name: node-memory
+      rules:
+        # --- node-level pressure (node-exporter) ---
+        - alert: NodeMemoryWarning
+          expr: |
+            (1 - node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes) > 0.90
+          for: 5m
+          labels: { severity: warning }
+          annotations:
+            summary: "{{ $labels.instance }} memory {{ $value | humanizePercentage }} used"
+            description: "Node RAM is running low. On this SINGLE-node cluster there is nowhere to reschedule — if it reaches the OOM line the kernel starts killing pods and the node can go unreachable. Find the hog: `kubectl top pods -A --sort-by=memory | tail`."
+        - alert: NodeMemoryCritical
+          expr: |
+            (1 - node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes) > 0.95
+          for: 2m
+          labels: { severity: critical }
+          annotations:
+            summary: "{{ $labels.instance }} memory {{ $value | humanizePercentage }} used — OOM imminent"
+            description: "Node is near total RAM exhaustion. The OOM-killer is about to rampage (it takes down trino/network/etc and the node goes unreachable — the 2026-07-22 incident). Act NOW: `kubectl top pods -A --sort-by=memory | tail`, then delete/scale the offender."
+        # Meta: node-exporter gone → the two above can't fire. absent() catches that blind spot.
+        - alert: NodeExporterMissing
+          expr: absent(node_memory_MemAvailable_bytes)
+          for: 10m
+          labels: { severity: warning }
+          annotations:
+            summary: "node-exporter not reporting memory metrics"
+            description: "No node_memory_MemAvailable_bytes for 10m — node-exporter is down or unscraped, so NodeMemory* alerts are blind. Check `monitoring-prometheus-node-exporter`."
+        # --- per-pod OOM (kube-state-metrics) ---
+        # Fires when a container RESTARTED recently AND its last termination reason was OOMKilled — i.e. a FRESH
+        # OOM, not a stale reason lingering in the metric. `increase(restarts) > 0` is the freshness gate.
+        - alert: KubePodOOMKilled
+          expr: |
+            (increase(kube_pod_container_status_restarts_total[15m]) > 0)
+            and on(namespace, pod, container)
+            (kube_pod_container_status_last_terminated_reason{reason="OOMKilled"} == 1)
+          for: 1m
+          labels: { severity: warning }
+          annotations:
+            summary: "Pod {{ $labels.namespace }}/{{ $labels.pod }} ({{ $labels.container }}) was OOMKilled"
+            description: "Container hit its memory limit and was OOMKilled. Raise its limit, or find the leak/storm. On this single node a repeat-OOMer can escalate to a node-wide outage (see B99 / the 2026-07-22 tempo + python3.10 incident)."
+        # Meta: kube-state-metrics was itself crash-looping during the incident — if KSM is down, KubePodOOMKilled
+        # goes blind. absent() on its core metric catches that.
+        - alert: KubeStateMetricsMissing
+          expr: absent(kube_pod_container_status_last_terminated_reason)
+          for: 10m
+          labels: { severity: warning }
+          annotations:
+            summary: "kube-state-metrics not reporting pod termination reasons"
+            description: "No kube_pod_container_status_last_terminated_reason for 10m — kube-state-metrics is down/unscraped, so KubePodOOMKilled is blind. Check `monitoring-kube-state-metrics` (it was crash-looping in the 2026-07-22 incident)."

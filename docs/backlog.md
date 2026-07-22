@@ -971,8 +971,8 @@ Doris (OLAP variety, on-demand) · Spark (big-data compute, on-demand) · RDF/tr
 
 **Feeds B70** (agentic RAG) — whatever retriever wins here is what the LangGraph loop calls. **Do not start any phase without re-reading the B96 numbers first.**
 
-### B69 — Platform completeness / gap remediation (post-B1)
-**Added 2026-06-26. 🟢 MOSTLY DONE — re-verified against git + live cluster 2026-07-20.** Output of the multi-agent completeness audit (`docs/completeness-audit.md`) — artifacts that "run once" but aren't operationally complete (trigger / lineage / GitOps-reproducibility / monitoring / docs). **Data-mesh-scoped gaps (14) solved inline as part of B1**; this item is the **platform-wide set (28: 9 high / 14 med / 5 low)**. Full register + per-item status: `docs/completeness-audit.md`.
+### B69 — Platform completeness / gap remediation (post-B1) — ✅ DONE 2026-07-22
+**Added 2026-06-26. ✅ DONE 2026-07-22** (tail fully cleared; last residual = B97 n8n-key untrack + the scan-suite `secret_files` guard). **Re-verified against git + live cluster 2026-07-20.** Output of the multi-agent completeness audit (`docs/completeness-audit.md`) — artifacts that "run once" but aren't operationally complete (trigger / lineage / GitOps-reproducibility / monitoring / docs). **Data-mesh-scoped gaps (14) solved inline as part of B1**; this item is the **platform-wide set (28: 9 high / 14 med / 5 low)**. Full register + per-item status: `docs/completeness-audit.md`.
 
 **✅ Closed:** Wave 1 entirely (data-mesh alert loading · dead-man's-switch · cube plaintext key · backup coverage · `telegram-test` · Argo onboarding) · Wave 2 SealedSecrets (53 sealed) · Wave 3 images-off-`:local` · code-quality + sonar weekly CronJobs · SPOF probes + 19-endpoint blackbox synthetic monitoring · the 07-18 push list (all committed).
 
@@ -1295,7 +1295,7 @@ Original scope:
 **Operational note:** rogueone has ONE 16 GB GPU driving both the desktop and Ollama, and no usable iGPU. Ollama guardrails (`nodes/rogueone/systemd/ollama-gpu-guardrails.conf`) are **validated under desktop contention**; BIOS → Hybrid Graphics is deferred.
 
 
-### B97 — n8n encryption key is committed to the PUBLIC repo (untrack + rotate)
+### B97 — n8n encryption key committed to the PUBLIC repo — ✅ DONE 2026-07-22 (untracked; rotation DECLINED; guard built)
 **Raised properly 2026-07-20** (known since 2026-06-15, buried in a B-audit status note and never actioned — 5 weeks).
 
 `nodes/mother/lab/weyland-platform/k8s/n8n/encryption-key.txt` is **tracked in git** (65 bytes = a 64-char hex key + newline) in the **PUBLIC** `edtbl76/weyland-lab`. It is `.gitignore`d (lines 101-103) — but **.gitignore does not untrack an already-tracked file**, which is exactly why the note was written and the risk never actually went away. Verified still tracked 2026-07-20.

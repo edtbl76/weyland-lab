@@ -7,7 +7,7 @@ everything is **outbound**: each scanner POSTs findings to Port's `code-quality`
 
 - **`code-scan-suite`** (Sun **13:00 UTC**) — an `initContainer` git-clones the public repo
   (`github.com/edtbl76/weyland-lab`, **full history** for code-maat) into `/src`, then the
-  `registry.weyland.lab/scan-suite` image runs **9 tools** best-effort over `/src` — gitleaks, checkov, kubescape,
+  `registry.weyland.lab/scan-suite` image runs **10 checks** best-effort over `/src` — gitleaks, **secret-files**, checkov, kubescape,
   hadolint, bandit, osv-scanner, shellcheck, semgrep, trivy — each POSTing per-tool severity counts →
   **`security_scan`** blueprint (one entity per tool). code-maat then computes change-hotspots and POSTs the
   **top-20** to the **same** ingest URL with a `kind:"hotspot"` discriminator → **`code_hotspot`** blueprint.
@@ -23,7 +23,7 @@ See [../runbooks/code-quality.md](../runbooks/code-quality.md) and [../schedules
 sequenceDiagram
     participant Cron as CronJobs (ns weyland)<br/>Sun 12:00 + 13:00 UTC
     participant Clone as clone initContainer<br/>(git clone --full-history)
-    participant Suite as scan-suite image<br/>(9 tools + code-maat)
+    participant Suite as scan-suite image<br/>(10 checks + code-maat)
     participant Maven as maven build + sonar-scanner<br/>(Flink modules)
     participant Sonar as SonarQube<br/>(sonarqube.weyland.svc:9000)
     participant Ingest as Port webhook<br/>(code-quality ingest URL)
@@ -33,7 +33,7 @@ sequenceDiagram
     Note over Cron,BP: Path 1 — code-scan-suite (Sun 13:00 UTC)
     Cron->>Clone: start code-scan-suite
     Clone->>Suite: /src (full git history)
-    loop 9 tools best-effort
+    loop 10 checks best-effort
         Suite->>Ingest: POST per-tool counts {tool, critical/high/medium/low, ...}
         Ingest-->>Suite: 202 (queue-accepted, NOT entity-created)
         Ingest->>BP: map .body.tool!=null → security_scan (one entity per tool)
