@@ -324,6 +324,24 @@ spec:
     automated: { selfHeal: true, prune: true }
 
 ---
+# B70 Part 1 — weyland-guard: shared B14 guard service (deployment + service + servicemonitor).
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: weyland-guard
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/edtbl76/weyland-lab.git
+    targetRevision: main
+    path: nodes/mother/lab/weyland-platform/k8s/weyland-guard
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: weyland
+  syncPolicy:
+    automated: { selfHeal: true, prune: true }
+---
 # code-quality scan Jobs (weyland ns). Weekly-CronJob conversion is Wave 4.
 apiVersion: argoproj.io/v1alpha1
 kind: Application

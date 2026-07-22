@@ -1,0 +1,67 @@
+# B70 Part 1 — weyland-guard: the B14 guard layer extracted into a shared service (tool-server + weyland-agent +
+# future B66 call it over HTTP). Meshed: writes guardrail_verdicts to STRICT-mTLS Postgres, so it MUST carry the
+# sidecar label. Guard chains default SHADOW (record-only) — override per-validator with GUARDRAIL_MODE__<name>.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: weyland-guard
+  namespace: weyland
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: weyland-guard
+  template:
+    metadata:
+      labels:
+        app: weyland-guard
+        sidecar.istio.io/inject: "true"   # B8 — needed for STRICT-mTLS Postgres (guardrail_verdicts)
+    spec:
+      enableServiceLinks: false
+      containers:
+        - name: weyland-guard
+          image: registry.weyland.lab/weyland-guard:v1
+          imagePullPolicy: IfNotPresent
+          resources:
+            # Loads 3 transformer models (injection DeBERTa + toxicity + NLI cross-encoder). The tool-server ran the
+            # same 3 + bge at ~929Mi steady / 3Gi limit; this pod carries only the guard models, so 2Gi is ample
+            # headroom. B99-aware: net node memory drops once Part 2 sheds these models from the tool-server.
+            requests: { memory: 768Mi, cpu: 100m }
+            limits: { memory: 2Gi }
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 10001
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+            seccompProfile:
+              type: RuntimeDefault
+          ports:
+            - name: http
+              containerPort: 8080
+          # startupProbe covers the model-load window (lifespan blocks until the 3 models load); once it passes,
+          # liveness/readiness take over. /ready 503s until the validators are built.
+          startupProbe:
+            httpGet: { path: /health, port: 8080 }
+            failureThreshold: 30
+            periodSeconds: 5
+          livenessProbe:
+            httpGet: { path: /health, port: 8080 }
+            periodSeconds: 20
+          readinessProbe:
+            httpGet: { path: /ready, port: 8080 }
+            periodSeconds: 10
+          env:
+            - name: WEYLAND_DB_HOST
+              value: weyland-postgres.weyland.svc.cluster.local
+            - name: WEYLAND_DB_PORT
+              value: "5432"
+            - name: WEYLAND_DB_NAME
+              valueFrom:
+                secretKeyRef: { name: weyland-postgres-secret, key: POSTGRES_DB }
+            - name: WEYLAND_DB_USER
+              valueFrom:
+                secretKeyRef: { name: weyland-postgres-secret, key: POSTGRES_USER }
+            - name: WEYLAND_DB_PASSWORD
+              valueFrom:
+                secretKeyRef: { name: weyland-postgres-secret, key: POSTGRES_PASSWORD }

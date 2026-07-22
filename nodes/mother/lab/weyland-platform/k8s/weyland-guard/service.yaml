@@ -1,0 +1,17 @@
+# ClusterIP — internal only. Consumers (tool-server, weyland-agent) reach it at
+# http://weyland-guard.weyland.svc.cluster.local:8080. No ingress (no browser surface).
+apiVersion: v1
+kind: Service
+metadata:
+  name: weyland-guard
+  namespace: weyland
+  labels:
+    app: weyland-guard   # selected by the ServiceMonitor for the /metrics scrape
+spec:
+  type: ClusterIP
+  selector:
+    app: weyland-guard
+  ports:
+    - name: http         # named so the ServiceMonitor endpoint can reference it
+      port: 8080
+      targetPort: 8080

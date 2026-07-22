@@ -1,0 +1,16 @@
+# B70 Part 1 — the guardrail verdict/latency metrics move here from the tool-server. Prometheus discovers this via
+# serviceMonitorSelectorNilUsesHelmValues:false (no release label needed). Same guardrail_verdicts_total /
+# guardrail_validator_latency_ms series, now emitted by weyland-guard. (Part 2 drops the tool-server's own scrape of
+# these once it stops running the validators in-process.)
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: weyland-guard
+  namespace: weyland
+spec:
+  selector:
+    matchLabels:
+      app: weyland-guard
+  endpoints:
+    - port: http
+      path: /metrics
