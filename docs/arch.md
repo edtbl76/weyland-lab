@@ -888,7 +888,13 @@ and Dagster-run-failure alerts, but not this). Closed by `k8s/monitoring/node-me
 node-memory-pressure alert (`(1 - MemAvailable/MemTotal) > 0.90/0.95`, fires *before* the OOM-killer rampages so a
 human can act) + a per-pod **`KubePodOOMKilled`** (which container died, gated on a fresh restart so a stale reason
 doesn't nag) — each paired with `absent()` so a dead node-exporter / kube-state-metrics can't make it silently
-blind. Root-cause of the python3.10 storm itself + Tempo right-sizing → B99. See [[node-oom-forensics]].
+blind. **B99 (2026-07-22) then root-caused the actual Jul-21 outage — via a live A/B test — to SWAP, not the
+python3.10 storm** (that storm was mlflow's Huey runner, Jul 14-16, contained to its cgroup and self-resolved): with
+swap enabled on this overcommitted single node, memory pressure *thrashes* (kernel swaps out apiserver/networkd pages)
+→ control-plane/network stall → unreachable. **Fix = swap off** (`/swap.img` out of fstab, reboot-safe), verified to
+survive worse pressure than the outage via clean kernel-OOM; kubelet reserves + `eviction-hard=memory.available<1.5Gi`
+(`nodes/mother/host/rancher/k3s/config.yaml`) kept as a backstop. Reproducible survival test:
+`runbooks/node-memory-resilience.md`. See [[node-oom-forensics]].
 - **Guardrails (B14 — shadow):** a pluggable validator layer at the tool-server seam runs on `/context/*`
   — `input` hook (LLM Guard prompt-injection) + `output` hook (LLM Guard toxicity, in-process NLI
   grounding). Ships **shadow-mode** (record-only, never blocks; per-validator `off|shadow|flag|block` via
