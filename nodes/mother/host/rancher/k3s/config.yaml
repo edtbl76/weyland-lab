@@ -5,19 +5,15 @@ kubelet-arg:
   # Raised from the 110 default after JupyterHub hit the cap (see hosts.md).
   - "max-pods=250"
 
-  # --- B98/B99 — node MEMORY guardrails (added 2026-07-22) ---
-  # WHY: mother is a SINGLE node whose pod memory LIMITS sum to ~300% of its 64Gi (heavy overcommit). With NO
-  # kubelet memory reservation or eviction threshold, nothing stopped pods from consuming into the RAM the OS
-  # needs to keep networking alive — so when enough pods used near their limits at once, free memory collapsed,
-  # `systemd-networkd`/`systemd-resolved`/kernel network buffers starved, and mother DROPPED OFF THE LAN (the
-  # 2026-07-21 outage: a memory event → network loss → "no route to host", NOT a simple pod OOM). This is the
-  # memory analog of the 2026-07-18 ephemeral-storage eviction cascade — same shape, and this one had no guardrail.
-  #
-  # eviction-hard is the load-bearing knob: the kubelet EVICTS pods when free RAM drops under 1.5Gi, shedding
-  # workload BEFORE the OS network stack is starved, keeping the node reachable. system/kube-reserved shrink the
-  # schedulable pool so the scheduler stops overcommitting quite so hard (accounting; the active protection is the
-  # eviction). B98's NodeMemory alerts warn well before this line trips. Tune the numbers if evictions bite legit
-  # workloads or the node still nears the wall.
+  # --- B98/B99 — node MEMORY guardrails (added 2026-07-22) — BACKSTOP, not the primary fix ---
+  # The 2026-07-21 outage (mother off the LAN, apiserver TLS timeouts) was ROOT-CAUSED to SWAP, not to a missing
+  # kubelet guardrail. A/B test proved it: swap ON → memory pressure THRASHES (kernel swaps out apiserver/networkd
+  # pages) → control plane stalls → node unreachable; swap OFF → same pressure → fast kernel-OOM of the offender →
+  # node stays Ready. THE FIX is `swapoff -a` + removing swap from fstab (see the host swap-off note). These kubelet
+  # reserves/eviction are DEFENSE-IN-DEPTH: the test showed they did NOT fire (a fast runaway outran the ~10s
+  # eviction poll; the kernel OOM-killer caught it first). They still shrink the overcommit and give the kubelet an
+  # earlier shot in slow-growth cases. B98's NodeMemory alerts warn before either trips. Tune if evictions bite
+  # legit workloads.
   - "system-reserved=memory=2Gi"
   - "kube-reserved=memory=1Gi"
   - "eviction-hard=memory.available<1.5Gi"
