@@ -38,6 +38,9 @@ capability is **NOT done** until ALL six pillars hold. "Ran once" ≠ done.
 - **The demo IS the validation** — it must be **RUN end-to-end against live infra**. There are no separate
   test-instruction files; the demo's CLI steps + expected output ARE the test. A demo written but not executed
   is **not done** (🟡, not ✅). This is the anti-fabrication guarantee.
+- **Enforcement (per batch, at close-out):** audit every completed item against the `docs/demos/README.md` ledger
+  **as part of the close-out** (same step as the Linear sync) — a new/changed capability with no ledger row, or a
+  stale one, is **not done**. (This check is what surfaced the B70/B94 demo gaps on 2026-07-23.)
 
 ## 4. Cleanup / teardown
 

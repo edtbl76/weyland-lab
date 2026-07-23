@@ -33,9 +33,10 @@ Legend: ✅ done · ⬜ missing · 🟡 exists but stale/partial · — not appl
 | 18 | MLflow tracking | ✅ `flow-mlflow` | ✅ `mlflow.md` | ✅ experiments |
 | 19 | Remote training (Ray → MLflow) | ✅ (authored) | ✅ `remote-training.md` | ✅ artifacts/models |
 | **Agent / serving** | | | | |
+| 21 | Agentic RAG (`weyland-agent`, B70) | ✅ `flow-agentic-rag` | ✅ `agentic-rag.md` (validated live 2026-07-23) | — read-only (traces/verdicts) |
 | 22 | Voice chat (Open WebUI + whisper) | ✅ `flow-voice-chat` | ✅ `voice-chat.md` | — |
 | 23 | Model gateway / backend dispatch | ✅ `flow-model-gateway` | ✅ `model-gateway.md` | — |
-| 24 | Guardrails / redaction | ✅ `flow-guardrails` | ✅ `guardrails.md` | — |
+| 24 | Guardrails (`weyland-guard` shared service, B70) | ✅ `flow-guardrails` | ✅ `guardrails.md` (rewritten for the service, validated 2026-07-23) | ✅ demo-actor rows deleted |
 | **Platform / ops** | | | | |
 | 25 | Deploy (GitOps / Argo) | ✅ (authored) | ✅ `deploy.md` | — |
 | 26 | Ingress + TLS | ✅ `flow-ingress-tls` | ✅ `ingress-tls.md` | — |
@@ -72,7 +73,7 @@ Legend: ✅ done · ⬜ missing · 🟡 exists but stale/partial · — not appl
 - **`flow-ingestion` is SUPERSEDED** — it diagrams the retired in-process RAG chain; the live path is
   `flow-rag-stream` / `rag-stream.md` (#1). Marked SUPERSEDED here rather than deleted for history.
 - **`TODO: verify` markers to resolve** (honest unknowns left by the generators, none fabricated):
-  eval FK column · `valve.sh` path · guardrail dotted-validator env var · datahub emit-token secret name ·
+  eval FK column · `valve.sh` path · datahub emit-token secret name ·
   `model_catalog` columns · Ollama model tags · MLflow 3.14 delete CLI · `datasets_lib._catalog` signature ·
   `psql` on the trino image · in-pod `dagster asset materialize -m` invocation · `cdc_demo` columns + mb-pg
   workload name · pgvector/neo4j consumer-group deletion via `redpanda-0` · `/context/search` body ·
