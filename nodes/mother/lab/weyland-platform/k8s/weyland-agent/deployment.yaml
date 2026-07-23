@@ -1,0 +1,86 @@
+# B70 Part 3 — weyland-agent: agentic RAG (LangGraph loop + LlamaIndex retrievers + MLflow Traces). Meshed:
+# reaches STRICT-mTLS pgvector (Postgres) + Neo4j Bolt (rides the existing `neo4j-bolt` DestinationRule). LLM
+# generation goes to Ollama on rogueone (LAN, PERMISSIVE egress); guards via weyland-guard (fail-open).
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: weyland-agent
+  namespace: weyland
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: weyland-agent
+  template:
+    metadata:
+      labels:
+        app: weyland-agent
+        sidecar.istio.io/inject: "true"   # STRICT-mTLS pgvector + meshed Neo4j Bolt
+    spec:
+      enableServiceLinks: false
+      containers:
+        - name: weyland-agent
+          image: registry.weyland.lab/weyland-agent:v1
+          imagePullPolicy: IfNotPresent
+          resources:
+            # Loads bge in-process (~torch) + langgraph/llama-index/mlflow client; LLM inference is remote (Ollama),
+            # so the pod itself is modest. B99-aware — limit only, no big reservation.
+            requests: { memory: 1Gi, cpu: 100m }
+            limits: { memory: 2500Mi }
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 10001
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+            seccompProfile:
+              type: RuntimeDefault
+          ports:
+            - name: http
+              containerPort: 8080
+          startupProbe:                     # covers the bge model-load window in lifespan
+            httpGet: { path: /health, port: 8080 }
+            failureThreshold: 30
+            periodSeconds: 5
+          livenessProbe:
+            httpGet: { path: /health, port: 8080 }
+            periodSeconds: 20
+          readinessProbe:
+            httpGet: { path: /ready, port: 8080 }
+            periodSeconds: 10
+          env:
+            - name: WEYLAND_DB_HOST
+              value: weyland-postgres.weyland.svc.cluster.local
+            - name: WEYLAND_DB_PORT
+              value: "5432"
+            - name: WEYLAND_DB_NAME
+              valueFrom: { secretKeyRef: { name: weyland-postgres-secret, key: POSTGRES_DB } }
+            - name: WEYLAND_DB_USER
+              valueFrom: { secretKeyRef: { name: weyland-postgres-secret, key: POSTGRES_USER } }
+            - name: WEYLAND_DB_PASSWORD
+              valueFrom: { secretKeyRef: { name: weyland-postgres-secret, key: POSTGRES_PASSWORD } }
+            - name: QDRANT_HOST
+              value: qdrant.weyland.svc.cluster.local
+            - name: QDRANT_PORT
+              value: "6333"
+            - name: WEAVIATE_HOST
+              value: weaviate.weyland.svc.cluster.local
+            - name: WEAVIATE_PORT
+              value: "8080"
+            - name: WEAVIATE_GRPC_PORT
+              value: "50051"
+            - name: NEO4J_URI
+              value: bolt://neo4j.weyland.svc.cluster.local:7687
+            - name: NEO4J_USER
+              value: neo4j
+            - name: NEO4J_PASSWORD
+              valueFrom: { secretKeyRef: { name: neo4j-secret, key: password } }
+            # LLM generation (Ollama on rogueone, OpenAI-compatible /v1). Phase B repoints this at LiteLLM→vLLM.
+            - name: OLLAMA_BASE_URL
+              value: http://192.168.1.230:11434/v1
+            - name: OLLAMA_MODEL
+              value: gpt-oss:20b
+            - name: GUARD_BASE_URL
+              value: http://weyland-guard.weyland.svc.cluster.local:8080
+            - name: MLFLOW_TRACKING_URI
+              value: http://mlflow.weyland.svc.cluster.local:5000

@@ -1,0 +1,26 @@
+# agent.weyland.lab — Keycloak forward-auth (matches every other lab UI). Browser/curl testing surface for the
+# agentic-RAG endpoint; MCP-tool exposure is deferred to B66. Add `agent.weyland.lab` to /etc/hosts on hosts that
+# don't resolve *.weyland.lab via LAN DNS.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: weyland-agent
+  namespace: weyland
+  annotations:
+    traefik.ingress.kubernetes.io/router.middlewares: weyland-traefik-forward-auth@kubernetescrd
+spec:
+  tls:
+    - hosts:
+        - agent.weyland.lab
+      secretName: weyland-wildcard-tls
+  rules:
+    - host: agent.weyland.lab
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: weyland-agent
+                port:
+                  number: 8080

@@ -342,6 +342,24 @@ spec:
   syncPolicy:
     automated: { selfHeal: true, prune: true }
 ---
+# B70 Part 3 — weyland-agent: agentic-RAG service (deployment + service + servicemonitor + ingress).
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: weyland-agent
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/edtbl76/weyland-lab.git
+    targetRevision: main
+    path: nodes/mother/lab/weyland-platform/k8s/weyland-agent
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: weyland
+  syncPolicy:
+    automated: { selfHeal: true, prune: true }
+---
 # code-quality scan Jobs (weyland ns). Weekly-CronJob conversion is Wave 4.
 apiVersion: argoproj.io/v1alpha1
 kind: Application

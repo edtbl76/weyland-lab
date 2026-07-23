@@ -1,0 +1,14 @@
+# B70 Part 3 — scrape the agent's /metrics (agent_requests_total / agent_attempts / agent_request_seconds).
+# Discovered via serviceMonitorSelectorNilUsesHelmValues:false (no release label needed).
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: weyland-agent
+  namespace: weyland
+spec:
+  selector:
+    matchLabels:
+      app: weyland-agent
+  endpoints:
+    - port: http
+      path: /metrics
