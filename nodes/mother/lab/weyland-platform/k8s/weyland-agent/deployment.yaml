@@ -24,8 +24,10 @@ spec:
           imagePullPolicy: IfNotPresent
           resources:
             # Loads bge in-process (~torch) + langgraph/llama-index/mlflow client; LLM inference is remote (Ollama),
-            # so the pod itself is modest. B99-aware — limit only, no big reservation.
-            requests: { memory: 1Gi, cpu: 100m }
+            # so the pod itself is modest. Request kept LOW (512Mi, like the tool-server) — the node's requested-memory
+            # sum runs near allocatable (B99 reserves + the added weyland-guard), so a big request won't schedule.
+            # Actual runtime usage is bounded by the 2500Mi limit; on-demand service, fine to be an eviction candidate.
+            requests: { memory: 512Mi, cpu: 100m }
             limits: { memory: 2500Mi }
           securityContext:
             runAsNonRoot: true
