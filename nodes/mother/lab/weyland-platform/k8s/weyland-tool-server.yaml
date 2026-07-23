@@ -17,7 +17,7 @@ spec:
       enableServiceLinks: false
       containers:
         - name: weyland-tool-server
-          image: registry.weyland.lab/weyland-tool-server:v1
+          image: registry.weyland.lab/weyland-tool-server:v2   # B70 Part 2 — guards call weyland-guard; llm-guard models dropped
           resources:
             requests: { memory: 512Mi, cpu: 250m }
             # 3Gi (was 2Gi, raised 2026-07-21). Steady state is ~929Mi (it loads the embedding model), so 2Gi
@@ -107,6 +107,9 @@ spec:
                   key: SENTRY_DSN
             - name: OLLAMA_MODEL
               value: gpt-oss:20b   # B4 panel-validated most-faithful RAG model (2026-06-13)
+            # B70 Part 2 — shared guard service (fail-open; default matches the in-cluster svc, set explicit for clarity).
+            - name: GUARD_BASE_URL
+              value: http://weyland-guard.weyland.svc.cluster.local:8080
 ---
 apiVersion: v1
 kind: Service

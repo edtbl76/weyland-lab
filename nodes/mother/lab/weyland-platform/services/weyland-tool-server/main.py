@@ -1,7 +1,5 @@
-import asyncio
 import json
 import os
-import threading
 import urllib.request
 import uuid
 from contextlib import asynccontextmanager
@@ -20,11 +18,7 @@ from pydantic import BaseModel
 from qdrant_client import QdrantClient
 from weaviate.classes.query import MetadataQuery
 
-from guardrails import metrics as guard_metrics
-from guardrails import store as guard_store
-from guardrails.config import hook_chain
-from guardrails.pipeline import GuardrailPipeline
-from guardrails.verdict import Hook, Mode
+from guardrails.verdict import Decision, Hook, Verdict
 
 # B51 — error tracking → GlitchTip (Sentry SDK). DSN from env; empty DSN = disabled (no-op), so the image
 # still runs standalone for dev. FastAPI/Starlette are auto-instrumented by the SDK on init.
@@ -36,7 +30,7 @@ sentry_sdk.init(
 )
 
 MODEL_NAME = "BAAI/bge-small-en-v1.5"
-VERSION = "0.4.0"
+VERSION = "0.5.0"  # B70 Part 2 — guards moved to the shared weyland-guard service
 
 PG_HOST = os.getenv("WEYLAND_DB_HOST", "weyland-postgres.weyland.svc.cluster.local")
 PG_PORT = int(os.getenv("WEYLAND_DB_PORT", "5432"))
@@ -110,15 +104,13 @@ qdrant_client: QdrantClient | None = None
 weaviate_client: weaviate.WeaviateClient | None = None
 neo4j_driver = None
 
-# --- B14 guardrails (shadow-first) ----------------------------------------------
-# Endpoints are sync (threadpool), but the validator pipeline is async with fire-and-forget
-# shadow tasks — those need a live event loop that outlives the request. We run one on a
-# daemon thread and submit coroutines to it via run_coroutine_threadsafe. Shadow validators
-# add ~zero response latency; only enforcing (flag/block) modes are waited on.
-GUARDRAIL_BLOCK_TIMEOUT = float(os.getenv("GUARDRAIL_BLOCK_TIMEOUT", "10"))
-guardrails: GuardrailPipeline | None = None
-_guard_loop: asyncio.AbstractEventLoop | None = None
-_guard_thread: threading.Thread | None = None
+# --- B14 guardrails → shared weyland-guard service (B70 Part 2) ------------------
+# The validator MODELS moved OUT to weyland-guard; the tool-server now POSTs each hook to it over HTTP. The service
+# owns the SHADOW/FLAG/BLOCK modes and answers fast for shadow (records the verdict async), so this is an in-cluster
+# round-trip, not model-inference latency. FAIL-OPEN: a guard outage degrades to "not guarded", never "no answer".
+GUARD_BASE_URL = os.getenv("GUARD_BASE_URL", "http://weyland-guard.weyland.svc.cluster.local:8080")
+GUARD_TIMEOUT = float(os.getenv("GUARD_TIMEOUT", "10"))
+_GUARD_PATHS = {Hook.INPUT: "/guard/input", Hook.OUTPUT: "/guard/output", Hook.ACT: "/guard/act"}
 
 
 def _actor(x_forwarded_consumer: str | None = Header(default=None)) -> str | None:
@@ -128,61 +120,19 @@ def _actor(x_forwarded_consumer: str | None = Header(default=None)) -> str | Non
     return x_forwarded_consumer
 
 
-def _record_verdict(hook, mode, verdict, request_id, actor=None) -> None:
-    """Persist a verdict to Prometheus + the guardrail_verdicts table. Telemetry must never
-    break a request, so every path is best-effort."""
-    try:
-        guard_metrics.observe(hook, mode, verdict)   # NOTE: actor is high-cardinality — DB only, never a metric label
-    except Exception:
-        pass
-    try:
-        with psycopg2.connect(
-            host=PG_HOST, port=PG_PORT, dbname=PG_DB, user=PG_USER,
-            password=PG_PASSWORD, connect_timeout=5,
-        ) as conn:
-            guard_store.record_verdict(conn, request_id=request_id, hook=hook, mode=mode, verdict=verdict, actor=actor)
-    except Exception:
-        pass
-
-
-def _build_guardrails() -> GuardrailPipeline:
-    """Instantiate the validator set. Each validator loads its own model and is built
-    independently: if one fails (missing dep, model not baked), it's skipped and the rest
-    still run. Imported here (not at module top) so model loads happen at lifespan time."""
-    from guardrails.validators.grounding import GroundingValidator
-    from guardrails.validators.llm_guard import InjectionValidator, PIIValidator, ToxicityValidator
-    from guardrails.validators.policy import AuditValidator
-
-    builders = {
-        "llm_guard.injection": InjectionValidator,
-        "llm_guard.pii": PIIValidator,
-        "llm_guard.toxicity": ToxicityValidator,
-        "grounding.nli": GroundingValidator,
-        "policy.audit": AuditValidator,
-    }
-    validators = {}
-    for name, builder in builders.items():
-        try:
-            validators[name] = builder()
-        except Exception as exc:  # partial coverage beats none
-            print(f"[guardrails] validator '{name}' unavailable: {exc}", flush=True)
-    print(f"[guardrails] active validators: {sorted(validators)}", flush=True)
-    return GuardrailPipeline(validators, hook_chain, _record_verdict)
-
-
 def _guard(hook: Hook, request_id: str, payload: dict, actor: str | None = None):
-    """Run the validator chain for `hook`. Returns a BLOCK Verdict if an enforcing validator
-    blocked the request, else None. Shadow-only chains fire-and-forget (telemetry only, no wait).
-    A guard must never break the request — any failure degrades to None (allow)."""
-    if guardrails is None or _guard_loop is None:
-        return None
+    """POST the hook to the shared weyland-guard service. Returns a BLOCK Verdict if the guard blocked (enforcing
+    mode), else None. FAIL-OPEN: any error/timeout/unreachable degrades to None (allow) — a guard outage must never
+    take an answer offline. The guard service owns the modes and answers fast for SHADOW (records the verdict async),
+    so this is just an in-cluster round-trip, not model-inference latency. `payload` already carries the per-hook
+    keys the guard expects (input=query, output=answer+sources, act=tool+params)."""
+    body = {"request_id": request_id, "actor": actor, **payload}
     try:
-        fut = asyncio.run_coroutine_threadsafe(
-            guardrails.run(hook, request_id, payload, actor), _guard_loop
-        )
-        enforcing = any(mode in (Mode.FLAG, Mode.BLOCK) for _, mode in hook_chain(hook))
-        if enforcing:
-            return fut.result(timeout=GUARDRAIL_BLOCK_TIMEOUT)
+        resp = httpx.post(f"{GUARD_BASE_URL}{_GUARD_PATHS[hook]}", json=body, timeout=GUARD_TIMEOUT)
+        data = resp.json()
+        if data.get("decision") == "block":
+            v = data.get("verdict") or {}
+            return Verdict(v.get("validator", "guard"), Decision.BLOCK, v.get("score"), v.get("reason", ""), 0)
         return None
     except Exception:
         return None
@@ -191,7 +141,6 @@ def _guard(hook: Hook, request_id: str, payload: dict, actor: str | None = None)
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     global embed_model, qdrant_client, weaviate_client, neo4j_driver
-    global guardrails, _guard_loop, _guard_thread
     embed_model = HuggingFaceEmbedding(model_name=MODEL_NAME)
     qdrant_client = QdrantClient(host=QDRANT_HOST, port=QDRANT_PORT)
     weaviate_client = weaviate.connect_to_custom(
@@ -203,18 +152,7 @@ async def lifespan(app: FastAPI):
         grpc_secure=False,
     )
     neo4j_driver = GraphDatabase.driver(NEO4J_URI, auth=(NEO4J_USER, NEO4J_PASSWORD))
-    # Background loop for fire-and-forget shadow validators, then build the pipeline.
-    _guard_loop = asyncio.new_event_loop()
-    _guard_thread = threading.Thread(target=_guard_loop.run_forever, daemon=True)
-    _guard_thread.start()
-    try:
-        guardrails = _build_guardrails()
-    except Exception as exc:  # guardrails are advisory — never block server startup
-        print(f"[guardrails] disabled — failed to initialize: {exc}", flush=True)
-        guardrails = None
     yield
-    if _guard_loop:
-        _guard_loop.call_soon_threadsafe(_guard_loop.stop)
     if weaviate_client:
         weaviate_client.close()
     if neo4j_driver:
@@ -677,10 +615,11 @@ def evals_leaderboard(run_id: int | None = Query(default=None)):
     }
 
 
-# --- Prometheus scrape target (B14 guardrail telemetry + future app metrics) -----
+# --- Prometheus scrape target -----------------------------------------------------
 # A plain route (not a sub-app mount) so it serves at exactly /metrics with no trailing-slash
 # redirect — clean for Prometheus (B5) scraping. Untagged, so it stays out of the MCP surface.
-# Guardrail shadow verdicts land here via guardrails.metrics.
+# NOTE (B70 Part 2): guardrail verdict/latency metrics moved to weyland-guard's /metrics; this now serves only the
+# default process/GC collectors (its ServiceMonitor was retired — pod cpu/mem come from cAdvisor anyway).
 @app.get("/metrics")
 def metrics():
     return Response(generate_latest(), media_type=CONTENT_TYPE_LATEST)

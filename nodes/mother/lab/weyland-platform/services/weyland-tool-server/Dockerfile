@@ -13,8 +13,10 @@ RUN pip install --no-cache-dir \
     weaviate-client \
     neo4j \
     prometheus-client \
-    llm-guard \
     sentence-transformers
+# B70 Part 2: `llm-guard` removed — the injection/toxicity/grounding validators (and their models) live in the
+# shared weyland-guard service now; this image only POSTs to it over the already-present httpx. sentence-transformers
+# stays (llama-index-embeddings-huggingface needs it for the bge query-embedding).
 
 # Pin ALL model/home caches under /app so (a) the build-time bake (as root) and the runtime load (as appuser,
 # B47) resolve to the SAME path, and (b) the `chown -R appuser /app` below makes every cached file readable by the
@@ -28,12 +30,8 @@ ENV HOME=/app \
 # Bake the public embedding model into the image at build time (no HF token needed).
 RUN python -c "from llama_index.embeddings.huggingface import HuggingFaceEmbedding; HuggingFaceEmbedding(model_name='BAAI/bge-small-en-v1.5')"
 
-# Bake the B14 guardrail models so they load offline at runtime (airgap-safe), same as bge.
-# PII (llm_guard Sensitive -> presidio/spaCy) is DEFERRED and intentionally NOT baked here;
-# it stays out of the default chain until a future eval promotes it (see roadmap).
-RUN python -c "from llm_guard.input_scanners import PromptInjection; PromptInjection()"
-RUN python -c "from llm_guard.output_scanners import Toxicity; Toxicity()"
-RUN python -c "from sentence_transformers import CrossEncoder; CrossEncoder('cross-encoder/nli-deberta-v3-small')"
+# B70 Part 2: the guard-model bakes (PromptInjection / Toxicity / nli-deberta-v3-small) moved to the weyland-guard
+# image — the tool-server no longer loads them, so its pod is lighter. Only bge (above) is baked here now.
 
 # Models are baked in — force offline at runtime so startup never reaches the HF hub
 # (deterministic, airgap-safe). Set AFTER the build-time downloads so the build can
