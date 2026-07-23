@@ -37,7 +37,7 @@ Legend: ✅ done · ⬜ missing · 🟡 exists but stale/partial · — not appl
 | 22 | Voice chat (Open WebUI + whisper) | ✅ `flow-voice-chat` | ✅ `voice-chat.md` | — |
 | 23 | Model gateway / backend dispatch | ✅ `flow-model-gateway` | ✅ `model-gateway.md` | — |
 | 24 | Guardrails (`weyland-guard` shared service, B70) | ✅ `flow-guardrails` | ✅ `guardrails.md` (rewritten for the service, validated 2026-07-23) | ✅ demo-actor rows deleted |
-| 34 | Operator brain bake-off (B66 — Claude vs local, tool-use) | — (test harness) | 🟡 `brain-bakeoff.md` — tool-selection run 2026-07-23; full-loop all-models pending | — read-only |
+| 34 | Operator brain bake-off (B66 — Claude vs local, tool-use) | — (test harness) | ✅ `brain-bakeoff.md` — tool-selection + full-loop all-models run 2026-07-23 (verdict: brain = `gpt-oss:20b`) | — read-only |
 | **Platform / ops** | | | | |
 | 25 | Deploy (GitOps / Argo) | ✅ (authored) | ✅ `deploy.md` | — |
 | 26 | Ingress + TLS | ✅ `flow-ingress-tls` | ✅ `ingress-tls.md` | — |

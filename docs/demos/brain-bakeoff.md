@@ -47,17 +47,22 @@ Env knobs: `HAIKU_MODEL` (default `haiku` — set `sonnet` to test a bigger Clau
 - **Haiku 8/8** · **gpt-oss:20b 8/8** (and *faster* here) · **qwen3-coder:30b 7/8** (one `context_ask`→`context_search`
   ambiguity, not a hallucination). Local **ties** Claude on tool-selection.
 
-**Full loop (3 tasks)** — Haiku confirmed; all-models run is the completing validation:
-- **Haiku 3/3, flawless** — incl. the **multi-step conditional** (task 3: `status` → check pgvector → `context_ask` →
-  grounded reply) and **honest-negative** handling (task 2: the KB had nothing on guardrails, and Haiku *said so*
-  rather than hallucinating — the operator-safety tell).
-- **gpt-oss:20b** uses **native OpenAI tool-calling** (structured `tool_calls` + a `reasoning` field), reasoning
-  correctly through the steps — the harness now reads that protocol. Run the command above across all models to score
-  each on the chain + honest-negative + grounding.
+**Full loop (3 tasks) — full matrix run 2026-07-23:**
 
-**Takeaway:** the "local is too weak" premise is **stale** — local is viable for the operator's tool-use, so the brain
-choice collapses to a priorities call: **local** ($0, on-LAN, but eats rogueone's GPU) vs **Haiku** (cents/month,
-clean-ToS, cloud). See B66.
+| brain | score | how it did |
+|---|---|---|
+| Haiku | 3/3 | flawless — self-corrected the weak retrieval (re-queried), grounded, nailed the conditional chain |
+| **gpt-oss:20b** | **3/3** | **tied Haiku** — re-searched on a weak hit, accurately grounded in the real KB (correctly described `weyland-guard`), fastest (5–30s) |
+| qwen3-coder:30b | 3/3 | completes all + **honest-negative** on task 2; weaker synthesis on task 3 (dumped a tool list) |
+| mistral-small3.2:24b | 1/3 | **malformed args** (invented `backend:"openai"` → 400), gave up on the error, skipped grounding |
+| deepseek-coder-v2:16b | 0/3 | HTTP 400 every call — **broken** native tool-calling |
+
+**Decision (B66 brain):** the "local is too weak" premise is **overturned** — `gpt-oss:20b` matched Haiku 3/3, faster,
+$0, on-LAN. But "local" is NOT uniform (gpt-oss ≫ qwen ≫ mistral ≫ deepseek), so the brain is **`gpt-oss:20b`
+specifically** (also the tool-server's default). **Operator brain = `gpt-oss:20b`**; **Haiku (API, cents/mo) = documented
+fallback** for cloud-offload / always-up / the autonomous B45 path. ⚠️ This test was **READ-ONLY** — the **act-path**
+bake-off (does a local brain misfire when triggering real pipelines/evals? mistral's malformed arg is the warning) is
+a required separate test before a local brain gets `/mcp-act`.
 
 ## Cleanup / teardown
 Read-only — no side effects (the full loop touches only read tools; nothing is created or triggered). Nothing to tear
