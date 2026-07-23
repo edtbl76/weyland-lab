@@ -35,10 +35,19 @@ async def lifespan(app: FastAPI):
     mlflow.set_tracking_uri(MLFLOW_TRACKING_URI)
     try:
         mlflow.set_experiment(MLFLOW_EXPERIMENT)
-        mlflow.langchain.autolog()          # graph + LLM spans
-        mlflow.llama_index.autolog()        # retrieval spans → one unified Trace per /agent/ask
-    except Exception as exc:                # tracing is advisory — never block startup
-        print(f"[mlflow] tracing disabled: {exc}", flush=True)
+    except Exception as exc:
+        print(f"[mlflow] set_experiment failed: {exc}", flush=True)
+    # Each autolog guarded INDEPENDENTLY — one failing must not silently disable the other (tracing is advisory,
+    # never blocks startup). langchain autolog needs the full `langchain` package (in the image); llama_index spans
+    # nest under the same per-/agent/ask Trace.
+    try:
+        mlflow.langchain.autolog()          # LangGraph + LLM spans
+    except Exception as exc:
+        print(f"[mlflow] langchain autolog disabled: {exc}", flush=True)
+    try:
+        mlflow.llama_index.autolog()        # retrieval spans
+    except Exception as exc:
+        print(f"[mlflow] llama_index autolog disabled: {exc}", flush=True)
     global _graph
     _graph = build_graph()
     yield

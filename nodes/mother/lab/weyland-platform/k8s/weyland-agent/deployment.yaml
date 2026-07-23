@@ -20,7 +20,7 @@ spec:
       enableServiceLinks: false
       containers:
         - name: weyland-agent
-          image: registry.weyland.lab/weyland-agent:v1
+          image: registry.weyland.lab/weyland-agent:v2   # v2 — adds `langchain` for mlflow.langchain.autolog (traces fix)
           imagePullPolicy: IfNotPresent
           resources:
             # Loads bge in-process (~torch) + langgraph/llama-index/mlflow client; LLM inference is remote (Ollama),

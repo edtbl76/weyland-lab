@@ -12,6 +12,7 @@ RUN pip install --no-cache-dir \
     neo4j \
     prometheus-client \
     langgraph \
+    langchain \
     langchain-openai \
     llama-index-core \
     llama-index-embeddings-huggingface \
