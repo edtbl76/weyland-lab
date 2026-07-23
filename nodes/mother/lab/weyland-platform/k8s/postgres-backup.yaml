@@ -38,8 +38,14 @@ spec:
                 seccompProfile:
                   type: RuntimeDefault
               resources:
-                requests: { memory: 128Mi, cpu: 100m }
-                limits: { memory: 512Mi }
+                # Raised 512Mi -> 1Gi (2026-07-22): the backup pod OOM'd at 512Mi. pg_dumpall STREAMS
+                # (SQL row-by-row → file, then gzip streams too), so it's normally well under this — the
+                # spike is almost certainly a single oversized row/blob in one of the 12 DBs (glitchtip
+                # events / mlflow / superset JSON) that libpq buffers whole. 1Gi covers that headroom for a
+                # short-lived nightly job (limit only — no scheduling reservation). If it OOMs AGAIN, the fix
+                # is finding the fat row, not piling on more memory.
+                requests: { memory: 256Mi, cpu: 100m }
+                limits: { memory: 1Gi }
               command: ["/bin/sh", "-c"]
               args:
                 - |
