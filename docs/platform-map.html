@@ -189,7 +189,7 @@
         <div class="row"><span class="nm"><i class="cdot"></i>PodSecurity Admission</span><div><div class="rl">pod-hardening baseline</div><span class="ex">restricted floor enforced every namespace</span></div></div>
         <div class="row"><span class="nm"><i class="cdot"></i>Keycloak</span><div><div class="rl">central IdP / SSO</div><span class="ex">weyland realm behind every browser UI (OIDC + forward-auth)</span></div></div>
         <div class="row"><span class="nm"><i class="cdot"></i>traefik-forward-auth</span><div><div class="rl">edge forward-auth gate</div><span class="ex">auth.weyland.lab gates MLflow / Nessie / lakeFS / Dagster</span></div></div>
-        <div class="row part"><span class="nm"><i class="cdot"></i>LLM Guard</span><div><div class="rl">prompt-injection + toxicity (shadow)</div><span class="ex">input/output hooks on /context/* → guardrail_verdicts</span></div></div>
+        <div class="row"><span class="nm"><i class="cdot"></i>weyland-guard (LLM Guard + NLI)</span><div><div class="rl">shared guard service (B70)</div><span class="ex">/guard/{input,output,act} · shadow · fail-open · serves tool-server + agent</span></div></div>
         <div class="row part"><span class="nm"><i class="cdot"></i>NLI grounding</span><div><div class="rl">answer-grounding check (shadow)</div><span class="ex">grounding.nli emits max_entailment ∈ [0,1]</span></div></div>
         <div class="row plan"><span class="nm"><i class="cdot"></i>Presidio · NeMo Guardrails</span><div><div class="rl">PII redaction · dialog rails</div><span class="ex">coded / evaluated, not baked in - B34 / B32</span></div></div>
       </div>
@@ -265,15 +265,16 @@
       <div class="num">06</div>
       <div class="stage-head"><h2>Products &amp; ML</h2><span class="role">the output the mesh exists for</span></div>
       <div class="rows">
-        <div class="row"><span class="nm"><i class="cdot"></i>MLflow</span><div><div class="rl">experiment tracking + model registry</div><span class="ex">registers genre_classifier ~v7; artifacts direct to MinIO</span></div></div>
+        <div class="row"><span class="nm"><i class="cdot"></i>MLflow</span><div><div class="rl">experiment tracking + registry + Traces</div><span class="ex">registers genre_classifier; agentic-RAG per-step Traces (B70); full buildout → B100</span></div></div>
         <div class="row"><span class="nm"><i class="cdot"></i>Ray + Ray Tune</span><div><div class="rl">persistent training cluster + HP sweep</div><span class="ex">genre-trainer --tune → winner retrains on rogueone worker (f1 ~0.31)</span></div></div>
         <div class="row"><span class="nm"><i class="cdot"></i>genre-trainer</span><div><div class="rl">remote model-training container</div><span class="ex">--source mart reads iceberg.dbt.mart_spotify_audio → lakeFS training set</span></div></div>
-        <div class="row"><span class="nm"><i class="cdot"></i>LlamaIndex</span><div><div class="rl">RAG retrieval framework</div><span class="ex">powers tool-server /context/ask single-shot RAG</span></div></div>
+        <div class="row"><span class="nm"><i class="cdot"></i>LlamaIndex</span><div><div class="rl">RAG retrieval framework</div><span class="ex">tool-server single-shot + weyland-agent's 4 custom retrievers (B70)</span></div></div>
         <div class="row"><span class="nm"><i class="cdot"></i>Model-eval leaderboard</span><div><div class="rl">data product · judge-panel scoring</div><span class="ex">eval_leaderboard over RAG × 6 models, 3-judge panel</span></div></div>
         <div class="row"><span class="nm"><i class="cdot"></i>AI-Dev usage</span><div><div class="rl">data product · Claude Code telemetry</div><span class="ex">ai_session_ingest → Port; api_equiv_value ≈ $12K, $0 spent</span></div></div>
         <div class="row"><span class="nm"><i class="cdot"></i>DataHub Data Products</span><div><div class="rl">mesh product bundles</div><span class="ex">9 products (Spotify Audio, Chronic Health Trends, Genre Classifier…)</span></div></div>
         <div class="row plan"><span class="nm"><i class="cdot"></i>Store-inventory · Tuning-feed</span><div><div class="rl">next data products</div><span class="ex">lineage/observability · Feast → MLflow fine-tuning loop</span></div></div>
-        <div class="row plan"><span class="nm"><i class="cdot"></i>LangGraph</span><div><div class="rl">agentic-RAG control loop</div><span class="ex">retrieve → reflect → re-retrieve over the vector backends (B70)</span></div></div>
+        <div class="row"><span class="nm"><i class="cdot"></i>LangGraph</span><div><div class="rl">agentic-RAG control loop (B70)</div><span class="ex">retrieve → grade → reflect/re-retrieve → generate; powers weyland-agent</span></div></div>
+        <div class="row"><span class="nm"><i class="cdot"></i>weyland-agent</span><div><div class="rl">agentic RAG service (B70)</div><span class="ex">agent.weyland.lab · LangGraph + LlamaIndex + MLflow Traces · guards via weyland-guard</span></div></div>
       </div>
     </section>
 

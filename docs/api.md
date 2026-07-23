@@ -59,6 +59,19 @@ layer; the tool-server (and the coming `weyland-agent`) POST here instead of run
 All validators **SHADOW** by default (record-only; flip one with `GUARDRAIL_MODE__<validator>=block`). Callers
 **fail open** (a guard outage → allow, never "no answer"). See [runbooks/guardrails.md](runbooks/guardrails.md).
 
+## Agent service (`weyland-agent` — B70 Part 3)
+
+`agent.weyland.lab` (Keycloak forward-auth) · `weyland-agent.weyland.svc:8080` (ClusterIP). Agentic RAG — a LangGraph
+retrieve→grade→reflect→generate loop over the 4 backends, traced per-step in MLflow (`agentic-rag` experiment).
+
+| Route | Method | Purpose |
+|---|---|---|
+| `/agent/ask` | POST | `{query, backend?=pgvector, max_attempts?=2}` → `{answer, sources, attempts, backend_used, backend_history}`. INPUT+OUTPUT guards via weyland-guard (fail-open) |
+| `/health` `/ready` | GET | liveness / readiness (503 until bge + graph load) |
+| `/metrics` | GET | `agent_requests_total`, `agent_attempts`, `agent_request_seconds` |
+
+See [runbooks/agentic-rag.md](runbooks/agentic-rag.md).
+
 ## Data backends (mother, NodePort)
 
 | Service | Endpoint | Notes |
