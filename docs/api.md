@@ -32,16 +32,32 @@ Hosts & access users: [hosts.md](hosts.md). `mother` = 192.168.1.243, CTs by IP 
 | Route | Method | Purpose |
 |---|---|---|
 | `/health` `/ready` `/status` | GET | liveness / readiness / consolidated status (incl. `llm`) |
-| `/metrics` | GET | **B14** Prometheus exposition — guardrail shadow verdicts + validator latency (plain route, no trailing slash) |
-| `/context/search?backend=<pgvector\|qdrant\|weaviate\|neo4j>` | POST | vector retrieval (B14 `input` guardrail hook: injection) |
-| `/context/ask` | POST | **RAG** — retrieve → local LLM answer (per-request `model`); B14 `input` hook (injection) + `output` hook (toxicity, grounding) |
+| `/metrics` | GET | Prometheus exposition (default process/GC collectors; **B70 Part 2** — guardrail verdicts moved to `weyland-guard`) |
+| `/context/search?backend=<pgvector\|qdrant\|weaviate\|neo4j>` | POST | vector retrieval (B14 `input` hook → `weyland-guard`, fail-open) |
+| `/context/ask` | POST | **RAG** — retrieve → local LLM answer (per-request `model`); B14 `input` + `output` hooks → `weyland-guard` (fail-open) |
 | `/models` | GET | list selectable Ollama models |
 | `/pgvector/health` `/qdrant/health` `/weaviate/health` `/neo4j/health` `/ollama/health` | GET | per-backend health |
 | `/pipeline/trigger` | POST | fire Dagster `launchRun` (B14 `act` hook: audited; exposed via `/mcp-act`) |
 | `/evals/run` · `/evals/score` | POST | B4: trigger eval matrix / judge-panel scoring (B14 `act` hook: audited; exposed via `/mcp-act`) |
 | `/evals/runs` · `/evals/leaderboard` | GET | B4: list eval runs / panel-averaged leaderboard (`?run_id=`) |
 | `/mcp` | MCP | **B2 system-view MCP server** (Streamable HTTP via `fastapi-mcp`) — read-only tools: `status`, `context_search`, `context_ask`, `list_models`. Consumers: **Hermes** (registered in `~/.hermes/config.yaml`), **Claude Code** (registered via `claude mcp add weyland --transport http http://192.168.1.243:30080/mcp`, validated 2026-06-14). [runbooks/agent-hermes.md](runbooks/agent-hermes.md) |
-| `/mcp-act` | MCP | **B14 read+act** act-tool surface (separate mount): `pipeline/trigger`, `evals/run`, `evals/score`. Every call audited by the `act` hook (`policy.audit`, shadow) → `guardrail_verdicts`. **Consumer: Hermes only** (the resident operator); **Claude Code stays read-only on `/mcp`** (builder lane — see [runbooks/agent-hermes.md](runbooks/agent-hermes.md)). Gateway (B17+B19) fronts it with auth (`X-Forwarded-Consumer` → `actor`). |
+| `/mcp-act` | MCP | **B14 read+act** act-tool surface (separate mount): `pipeline/trigger`, `evals/run`, `evals/score`. Every call audited by the `act` hook → `weyland-guard` (`policy.audit`, shadow) → `guardrail_verdicts`. **Consumer: Hermes only** (the resident operator); **Claude Code stays read-only on `/mcp`** (builder lane — see [runbooks/agent-hermes.md](runbooks/agent-hermes.md)). Gateway (B17+B19) fronts it with auth (`X-Forwarded-Consumer` → `actor`). |
+
+## Guard service (`weyland-guard` — B70 Part 1)
+
+Internal only — `http://weyland-guard.weyland.svc.cluster.local:8080` (ClusterIP, no ingress). The shared B14 guard
+layer; the tool-server (and the coming `weyland-agent`) POST here instead of running validator models in-process.
+
+| Route | Method | Purpose |
+|---|---|---|
+| `/guard/input` | POST | `{request_id, query, actor?}` → `llm_guard.injection`. Returns `{decision: allow\|block, verdict?}` |
+| `/guard/output` | POST | `{request_id, answer, sources:[{content}], actor?}` → `llm_guard.toxicity` + `grounding.nli` |
+| `/guard/act` | POST | `{request_id, tool, params?, actor?}` → `policy.audit` (audit-only) |
+| `/health` `/ready` | GET | liveness / readiness (503 until the 3 models load) |
+| `/metrics` | GET | `guardrail_verdicts_total` + `guardrail_validator_latency_ms` |
+
+All validators **SHADOW** by default (record-only; flip one with `GUARDRAIL_MODE__<validator>=block`). Callers
+**fail open** (a guard outage → allow, never "no answer"). See [runbooks/guardrails.md](runbooks/guardrails.md).
 
 ## Data backends (mother, NodePort)
 
@@ -159,7 +175,7 @@ not meant for direct browsing. ServiceMonitors: `k8s/monitoring/servicemonitors.
 | CoreDNS | `weyland-lan-dns.weyland.svc:9153` | `/metrics` | `http://mother:9153/metrics` (LoadBalancer) |
 | Weaviate | `weaviate.weyland.svc:2112` | `/metrics` | NodePort auto-assigned (no fixed port) |
 | APISIX | `weyland-apisix.weyland.svc:9091` | `/apisix/prometheus/metrics` | NodePort auto-assigned (no fixed port) |
-| Tool server (B14 guardrails) | `weyland-tool-server.weyland.svc:8080` | `/metrics` | `http://mother:30080/metrics` (NodePort) |
+| weyland-guard (B14 guardrails) | `weyland-guard.weyland.svc:8080` | `/metrics` | in-cluster only (ClusterIP) |
 | Flink (B83 JM+TM) | `weyland-flink-metrics.data-mesh.svc:9249` (headless → each JM/TM pod) | `/metrics` | via ServiceMonitor `weyland-flink` (`k8s/data-mesh/flink-metrics.yaml`); `flink_jobmanager_*` / `flink_taskmanager_*` |
 | LiteLLM gateway | `litellm.weyland.svc:4000` | `/metrics` | `http://mother:30400/metrics` (NodePort) |
 | MinIO | `minio.minio.svc:9000` | `/minio/v2/metrics/cluster` | in-cluster only (`MINIO_PROMETHEUS_AUTH_TYPE=public`, no token) |
@@ -168,10 +184,10 @@ not meant for direct browsing. ServiceMonitors: `k8s/monitoring/servicemonitors.
 Stack-internal targets (Prometheus, Alertmanager, Grafana, node-exporter, kube-state-metrics, kubelet,
 cAdvisor) are scraped by the chart's own ServiceMonitors — not listed here.
 
-> **Tool-server `/metrics` (B14):** emits `guardrail_verdicts_total` + `guardrail_validator_latency_ms`.
-> Its ServiceMonitor (`weyland-tool-server`) is defined in `k8s/monitoring/servicemonitors.yaml` alongside
-> the other four — `kubectl apply` it to start the scrape. The `guardrail_verdicts` Postgres table is the
-> durable record (and the basis for the future B1 data product); `/metrics` is the live counter view.
+> **`weyland-guard` `/metrics` (B14):** emits `guardrail_verdicts_total` + `guardrail_validator_latency_ms`.
+> Its ServiceMonitor (`weyland-guard`) is in `k8s/weyland-guard/servicemonitor.yaml`. (B70 Part 2 retired the old
+> `weyland-tool-server` guardrail ServiceMonitor — the verdicts moved here.) The `guardrail_verdicts` Postgres table
+> is the durable record (and the basis for the future B1 data product); `/metrics` is the live counter view.
 
 > **Prometheus UI is not ingressed** — view targets/PromQL via
 > `kubectl -n monitoring port-forward svc/monitoring-kube-prometheus-prometheus 9090:9090`. Only Grafana is

@@ -101,7 +101,8 @@ agents/workflows and platform state. Agents call the tool-server, *not* database
 ### mother (k3s, namespace `weyland` unless noted)
 | Component | Endpoint | Purpose |
 |---|---|---|
-| weyland-tool-server (v0.4.0) | `mother:30080` | **3Gi limit** (raised from 2Gi 2026-07-21 — OOMKilled under sustained `/context/ask` load at retrieval depth 8; a **503** from this service means the pod went away, check `lastState.terminated.reason`). RAG retrieval (4 backends) + `/context/ask` (RAG gen) + `/evals/*` + `/pipeline/trigger` + health, **+ `/mcp` system-view MCP server** (read-only tools, `fastapi-mcp` Streamable HTTP), **+ B14 guardrail layer** (shadow-mode validators on `/context/*`, verdicts → `/metrics` + `guardrail_verdicts` table). Consumers: Hermes (CT 104) + **Claude Code** (rogueone, validated 2026-06-14). The platform's HTTP boundary. |
+| weyland-tool-server (v0.5.0) | `mother:30080` | **3Gi limit** (raised from 2Gi 2026-07-21 — OOMKilled under sustained `/context/ask` load at retrieval depth 8; a **503** from this service means the pod went away, check `lastState.terminated.reason`). RAG retrieval (4 backends) + `/context/ask` (RAG gen) + `/evals/*` + `/pipeline/trigger` + health, **+ `/mcp` system-view MCP server** (read-only tools, `fastapi-mcp` Streamable HTTP), **+ B14 guards via the shared `weyland-guard` service** (B70 Part 2 — `/context/*` POST INPUT/OUTPUT hooks to `weyland-guard`, **fail-open**; guard models no longer in-process, v0.5.0 image is lighter). Consumers: Hermes (CT 104) + **Claude Code** (rogueone, validated 2026-06-14). The platform's HTTP boundary. |
+| weyland-guard | `weyland-guard.weyland.svc:8080` (ClusterIP) | **B70 Part 1** — shared B14 guard service extracted from the tool-server. 3 typed routes `/guard/{input,output,act}`; **SHADOW** default (record-only), **fail-open** callers; 3 baked models (injection + toxicity + `nli-deberta-v3-small` ≈1.5 Gi) load **once** here for the tool-server + the coming `weyland-agent` + future B66. Verdicts → own `/metrics` + `guardrail_verdicts`. The first clean seam of the tool-server decomposition (→ B31). [runbooks/guardrails.md](runbooks/guardrails.md). |
 | Postgres + pgvector | `weyland-postgres.weyland.svc:5432` | `rag_documents`/`rag_chunks` (vector 384-dim) + `eval_*` tables. In-cluster only. |
 | Qdrant | `mother:30083` (HTTP), `:30084` (gRPC) | vector store, collection `weyland_chunks`. |
 | Weaviate | `mother:30087` (gRPC 50051) | vector store, class `WeylandChunk`. |
@@ -854,7 +855,7 @@ observed; **Control/ops** = scheduled and operational paths.
   `strategy: Recreate` to avoid volume-lock deadlocks. Model/eval data on NVMe (rpool); MinIO bulk on
   the 8 TB USB.
 - **Observability:** Prometheus + Grafana (B5 — done). Alertmanager -> Telegram alerts live. App metrics via
-  ServiceMonitors: qdrant, weaviate, apisix, coredns, **tool-server (B14 guardrails)**, **minio** (full
+  ServiceMonitors: qdrant, weaviate, apisix, coredns, **weyland-guard (B14 guardrails)**, **minio** (full
   scrape-target list in [api.md](api.md#metrics--scrape-targets-b5-phase-2b)).
 
 ### 10a. Monitoring the monitors — three blind spots closed (B69/B94, 2026-07-20/21)
@@ -895,9 +896,10 @@ swap enabled on this overcommitted single node, memory pressure *thrashes* (kern
 survive worse pressure than the outage via clean kernel-OOM; kubelet reserves + `eviction-hard=memory.available<1.5Gi`
 (`nodes/mother/host/rancher/k3s/config.yaml`) kept as a backstop. Reproducible survival test:
 `runbooks/node-memory-resilience.md`. See [[node-oom-forensics]].
-- **Guardrails (B14 — shadow):** a pluggable validator layer at the tool-server seam runs on `/context/*`
-  — `input` hook (LLM Guard prompt-injection) + `output` hook (LLM Guard toxicity, in-process NLI
-  grounding). Ships **shadow-mode** (record-only, never blocks; per-validator `off|shadow|flag|block` via
+- **Guardrails (B14 — shadow):** a pluggable validator layer, **extracted to the shared `weyland-guard` service
+  (B70 Part 2)** — the tool-server seam on `/context/*` POSTs the `input` hook (LLM Guard prompt-injection) +
+  `output` hook (LLM Guard toxicity, NLI grounding) to it, **fail-open**; the coming `weyland-agent` + future B66
+  reuse the same service. Ships **shadow-mode** (record-only, never blocks; per-validator `off|shadow|flag|block` via
   env); verdicts go to Prometheus (`/metrics`) + the `guardrail_verdicts` Postgres table (a future B1 data
   product). PII deferred (coded, unbaked → B34). Full spec: `aidlc-docs/construction/b14-guardrails-design.md`.
   The `act` hook (`policy.audit`, shadow) audits the `/mcp-act` action tools (`pipeline/trigger`,
