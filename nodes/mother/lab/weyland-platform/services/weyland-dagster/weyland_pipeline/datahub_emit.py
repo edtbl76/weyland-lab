@@ -788,6 +788,7 @@ def emit_data_products():
     import time
 
     from datahub.ingestion.graph.client import DataHubGraph, DatahubClientConfig
+    from datahub.metadata.schema_classes import OwnerClass, OwnershipClass, OwnershipTypeClass
 
     emitter = _gms_emitter()
     server = os.environ.get("DATAHUB_GMS_URL", "http://datahub-datahub-gms.data-mesh.svc.cluster.local:8080")
@@ -809,9 +810,90 @@ def emit_data_products():
             name=pname, description=desc, assets=assets)))
         emitter.emit(MetadataChangeProposalWrapper(entityUrn=purn, aspect=DomainsClass(
             domains=[make_domain_urn(domain.lower().replace(" & ", "-").replace(" ", "-"))])))
+        emitter.emit(MetadataChangeProposalWrapper(entityUrn=purn, aspect=OwnershipClass(
+            owners=[OwnerClass(owner="urn:li:corpuser:emangini", type=OwnershipTypeClass.TECHNICAL_OWNER)])))
         n_p += 1
         n_a += len(assets)
     return n_p, n_a
+
+
+def emit_eval_assertions():
+    """B84 P1 — a validity + freshness CONTRACT for the Model-Eval Leaderboard data product. Queries the eval
+    Postgres for the latest status='scored' run, checks it, and emits native DataHub Assertions (+ pass/fail run
+    events) on the eval_scores dataset → the product's Validation tab. Idempotent (stable assertion URNs). Failures
+    here are logged, never fatal (a contract-emit hiccup must not fail the catalog job)."""
+    import hashlib
+    import time
+
+    import psycopg2
+    from datahub.emitter.mce_builder import make_assertion_urn
+    from datahub.metadata.schema_classes import (
+        AssertionInfoClass,
+        AssertionResultClass,
+        AssertionResultTypeClass,
+        AssertionRunEventClass,
+        AssertionRunStatusClass,
+        AssertionStdAggregationClass,
+        AssertionStdOperatorClass,
+        AssertionTypeClass,
+        DatasetAssertionInfoClass,
+        DatasetAssertionScopeClass,
+    )
+
+    target = make_dataset_urn(platform="postgres", name="weyland.public.eval_scores", env=ENV)
+    conn = psycopg2.connect(
+        host=os.environ.get("WEYLAND_PG_HOST", "weyland-postgres.weyland.svc.cluster.local"),
+        port=int(os.environ.get("WEYLAND_PG_PORT", "5432")),
+        dbname=os.environ.get("WEYLAND_PG_DB", "weyland"),
+        user=os.environ.get("WEYLAND_PG_USER", "weyland"),
+        password=os.environ.get("WEYLAND_PG_PASSWORD", ""),
+        connect_timeout=10,
+    )
+    try:
+        with conn, conn.cursor() as cur:
+            cur.execute("SELECT id, extract(epoch FROM now() - created_at) / 86400.0 "
+                        "FROM eval_runs WHERE status = 'scored' ORDER BY id DESC LIMIT 1")
+            row = cur.fetchone()
+            if not row:
+                return 0   # no scored run yet — nothing to assert
+            run_id, age_days = row[0], float(row[1])
+            cur.execute("SELECT count(DISTINCT r.model), count(DISTINCT s.judge), min(s.score), max(s.score) "
+                        "FROM eval_results r JOIN eval_scores s ON s.result_id = r.id WHERE r.run_id = %s", (run_id,))
+            n_models, n_judges, min_s, max_s = cur.fetchone()
+    finally:
+        conn.close()
+
+    fresh_days = float(os.environ.get("EVAL_FRESHNESS_DAYS", "90"))
+    validity_ok = ((n_models or 0) >= 1 and (n_judges or 0) >= 3
+                   and (min_s is None or min_s >= 0) and (max_s is None or max_s <= 1))
+    checks = [
+        ("eval-leaderboard-validity",
+         f">=1 model, >=3 judges, scores in [0,1] — run {run_id}: {n_models} models, {n_judges} judges, "
+         f"range [{min_s}, {max_s}]", validity_ok),
+        ("eval-leaderboard-freshness",
+         f"latest scored run within {fresh_days:.0f}d — run {run_id}, {age_days:.1f}d old", age_days <= fresh_days),
+    ]
+
+    emitter = _gms_emitter()
+    ts = int(time.time() * 1000)
+    contract_run = f"eval-contract-{ts}"
+    n = 0
+    for name, desc, ok in checks:
+        aurn = make_assertion_urn(hashlib.md5(f"eval_scores:{name}".encode(), usedforsecurity=False).hexdigest())
+        emitter.emit(MetadataChangeProposalWrapper(entityUrn=aurn, aspect=AssertionInfoClass(
+            type=AssertionTypeClass.DATASET,
+            datasetAssertion=DatasetAssertionInfoClass(
+                dataset=target, scope=DatasetAssertionScopeClass.DATASET_ROWS,
+                aggregation=AssertionStdAggregationClass._NATIVE_, operator=AssertionStdOperatorClass._NATIVE_,
+                nativeType=name),
+            customProperties={"source": "eval-contract", "check": name}, description=desc)))
+        emitter.emit(MetadataChangeProposalWrapper(entityUrn=aurn, aspect=AssertionRunEventClass(
+            timestampMillis=ts, runId=contract_run, assertionUrn=aurn, asserteeUrn=target,
+            status=AssertionRunStatusClass.COMPLETE,
+            result=AssertionResultClass(
+                type=AssertionResultTypeClass.SUCCESS if ok else AssertionResultTypeClass.FAILURE))))
+        n += 1
+    return n
 
 
 def emit_glossary():

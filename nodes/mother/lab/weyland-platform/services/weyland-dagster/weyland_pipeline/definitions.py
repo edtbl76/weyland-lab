@@ -143,6 +143,12 @@ def emit_data_products_op(context):
 
 
 @op
+def emit_eval_assertions_op(context):
+    from weyland_pipeline.datahub_emit import emit_eval_assertions
+    _safe_emit(context, "Eval leaderboard contract (assertions)", emit_eval_assertions)
+
+
+@op
 def emit_glossary_op(context):
     from weyland_pipeline.datahub_emit import emit_glossary
     _safe_emit(context, "Business Glossary (AIDLC KB taxonomy)", emit_glossary)
@@ -290,6 +296,7 @@ def datahub_catalog_emit_job():
     emit_lightdash_op()
     emit_domains_op()
     emit_data_products_op()
+    emit_eval_assertions_op()
     emit_glossary_op()
     emit_mesh_glossary_op()
     emit_field_docs_op()
