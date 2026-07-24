@@ -28,7 +28,7 @@ The design rests on **four clear roles** and one hardware principle:
 ```text
 weyland   = bare-metal Proxmox host (the iron)
 mother    = k3s AI platform (the shared services)
-hermes    = primary agent (Telegram front door + system-view)
+ct-104    = RETIRED 2026-07-23 (Hermes destroyed → B66 operator runs on mother)
 rogueone  = GPU inference + dev workstation (the muscle + the keyboard)
 ```
 
@@ -59,7 +59,7 @@ weyland (MS-A2, Proxmox, 192.168.1.232)
 ├── vm-101  mother     192.168.1.243   k3s AI platform
 ├── ct-102  ollama     RETIRED (B79 → moved to rogueone; 32 GB reclaimed → mother 50→64 GB)
 ├── ct-103  whisper    192.168.1.246   whisper.cpp CPU STT
-└── ct-104  hermes     192.168.1.247   Hermes agent (qwen3-coder MoE) — primary agent + MCP client
+└── ct-104  hermes     (RETIRED 2026-07-23 — destroyed; B66 operator replaces it on mother k8s)
 rogueone (laptop, 192.168.1.230, RTX 5000 Ada 16 GB) — external; vLLM + dev + Claude Code
 ```
 
@@ -71,10 +71,10 @@ rogueone (laptop, 192.168.1.230, RTX 5000 Ada 16 GB) — external; vLLM + dev + 
 |---|---|---|---|---|
 | **weyland** | MS-A2, Proxmox bare-metal (Ryzen 9 9955HX 16C, 96 GB) | .232 | `root@weyland` | The iron: VM/CT lifecycle, snapshots, storage. *Stays infrastructure* — no app sprawl. |
 | **mother** | VM vm-101, k3s | .243 | `emangini@mother` | Shared AI platform: tool-server, vector/graph stores, Dagster, UIs, observability, MinIO, DNS, ingress. |
-| **rogueone** | Laptop, RTX 5000 Ada 16 GB | .230 | `edwardmangini@rogueone` | GPU inference (vLLM) + **Ollama** (B79 — moved off CT-102 2026-07-12; `:11434` LAN-bound, serves the eval-judge panel + tool-server/open-webui/Hermes) + dev workstation + Claude Code (MCP client) + **permanent native Ray edge worker** (`ray-worker.service` → mother's Ray head) + remote model training (`genre-trainer`). Not always-on. |
+| **rogueone** | Laptop, RTX 5000 Ada 16 GB | .230 | `edwardmangini@rogueone` | GPU inference (vLLM) + **Ollama** (B79 — moved off CT-102 2026-07-12; `:11434` LAN-bound, serves the eval-judge panel + tool-server/open-webui + the B66 operator brain) + dev workstation + Claude Code (MCP client) + **permanent native Ray edge worker** (`ray-worker.service` → mother's Ray head) + remote model training (`genre-trainer`). Not always-on. |
 | ~~**ollama** (CT 102)~~ **RETIRED B79** | — | — | — | Moved to rogueone (`.230:11434`, 2026-07-12) → 32 GB reclaimed → mother 50→64 GB. |
 | **whisper** | LXC CT 103 | .246 | via `weyland` host | CPU STT (whisper.cpp + OpenAI shim). |
-| **hermes** | LXC CT 104 | .247 | via `weyland` host | **Primary agent** (B2): Hermes on `qwen3-coder` (MoE); MCP client of the tool-server system-view; Telegram front door (live 2026-06-14). |
+| ~~hermes~~ RETIRED | ~~LXC CT 104~~ destroyed 2026-07-23 | — | — | **Decommissioned** (B2, NousResearch framework). Replaced by the **B66 operator agent** — a LangGraph pod on mother (`gpt-oss:20b` brain, Telegram long-poll, tool-server `/mcp-act`). |
 
 **Boundaries (intentional):** the **VM boundary** = lifecycle / blast-radius / rollback; the
 **k8s boundary** = deployable services; the **tool-server boundary** = the stable interface between
@@ -101,7 +101,7 @@ agents/workflows and platform state. Agents call the tool-server, *not* database
 ### mother (k3s, namespace `weyland` unless noted)
 | Component | Endpoint | Purpose |
 |---|---|---|
-| weyland-tool-server (v0.5.0) | `mother:30080` | **3Gi limit** (raised from 2Gi 2026-07-21 — OOMKilled under sustained `/context/ask` load at retrieval depth 8; a **503** from this service means the pod went away, check `lastState.terminated.reason`). RAG retrieval (4 backends) + `/context/ask` (RAG gen) + `/evals/*` + `/pipeline/trigger` + health, **+ `/mcp` system-view MCP server** (read-only tools, `fastapi-mcp` Streamable HTTP), **+ B14 guards via the shared `weyland-guard` service** (B70 Part 2 — `/context/*` POST INPUT/OUTPUT hooks to `weyland-guard`, **fail-open**; guard models no longer in-process, v0.5.0 image is lighter). Consumers: Hermes (CT 104) + **Claude Code** (rogueone, validated 2026-06-14). The platform's HTTP boundary. |
+| weyland-tool-server (v0.5.0) | `mother:30080` | **3Gi limit** (raised from 2Gi 2026-07-21 — OOMKilled under sustained `/context/ask` load at retrieval depth 8; a **503** from this service means the pod went away, check `lastState.terminated.reason`). RAG retrieval (4 backends) + `/context/ask` (RAG gen) + `/evals/*` + `/pipeline/trigger` + health, **+ `/mcp` system-view MCP server** (read-only tools, `fastapi-mcp` Streamable HTTP), **+ B14 guards via the shared `weyland-guard` service** (B70 Part 2 — `/context/*` POST INPUT/OUTPUT hooks to `weyland-guard`, **fail-open**; guard models no longer in-process, v0.5.0 image is lighter). Consumers: **Claude Code** (rogueone, validated 2026-06-14) + the coming **B66 operator** (Hermes retired 2026-07-23). The platform's HTTP boundary. |
 | weyland-guard | `weyland-guard.weyland.svc:8080` (ClusterIP) | **B70 Part 1** — shared B14 guard service extracted from the tool-server. 3 typed routes `/guard/{input,output,act}`; **SHADOW** default (record-only), **fail-open** callers; 3 baked models (injection + toxicity + `nli-deberta-v3-small` ≈1.5 Gi) load **once** here for the tool-server + the coming `weyland-agent` + future B66. Verdicts → own `/metrics` + `guardrail_verdicts`. The first clean seam of the tool-server decomposition (→ B31). [runbooks/guardrails.md](runbooks/guardrails.md). |
 | weyland-agent | `weyland-agent.weyland.svc:8080` · `agent.weyland.lab` | **B70 Part 3** — agentic RAG: a LangGraph loop (retrieve→grade→reflect/re-retrieve→generate, `max_attempts=2`) + **4 custom LlamaIndex retrievers** over the vector backends (native stores don't fit the bespoke collections) + **MLflow Traces** (per-step spans, `agentic-rag` experiment) — more capable than single-shot `/context/ask`. Guards via weyland-guard (fail-open); in-process bge query embedding; Ollama gen (Phase A → vLLM/LiteLLM Phase B). The LangGraph viability spike for B66. [runbooks/agentic-rag.md](runbooks/agentic-rag.md). |
 | Postgres + pgvector | `weyland-postgres.weyland.svc:5432` | `rag_documents`/`rag_chunks` (vector 384-dim) + `eval_*` tables. In-cluster only. |
@@ -148,10 +148,10 @@ agents/workflows and platform state. Agents call the tool-server, *not* database
 ### weyland CTs
 | Component | Endpoint | Purpose |
 |---|---|---|
-| Ollama (rogueone, **B79**) | `ollama.weyland.lab:11434/v1` (.230) | **GPU** LLM serving on rogueone — moved off CT-102 2026-07-12 (freed 32 GB → mother 50→64 GB); 6 models; serves the eval-judge panel + tool-server/open-webui/Hermes. `OLLAMA_HOST=0.0.0.0`. |
+| Ollama (rogueone, **B79**) | `ollama.weyland.lab:11434/v1` (.230) | **GPU** LLM serving on rogueone — moved off CT-102 2026-07-12 (freed 32 GB → mother 50→64 GB); 6 models; serves the eval-judge panel + tool-server/open-webui + the B66 operator brain (`gpt-oss:20b`). `OLLAMA_HOST=0.0.0.0`. |
 | whisper-server (CT 103) | `whisper.weyland.lab:8080/inference` (.246) | native whisper.cpp STT (multipart). |
 | whisper OpenAI shim (CT 103) | `whisper.weyland.lab:9000/v1/audio/transcriptions` (.246) | OpenAI-compatible STT adapter -> whisper-server. |
-| Hermes (CT 104) | `192.168.1.247` (agent; no served API) | **Primary agent** (B2). Brain -> Ollama `qwen3-coder` (MoE); **MCP client** of the tool-server `/mcp` system-view (read-only v1); **Telegram gateway front door** (live 2026-06-14, allowlisted DM -> agent). **B27 Kanban** (native SQLite): self-management + a `weyland-roadmap` board mirroring `backlog.md` (one-way, 6h); planning on Gemini-free via the LiteLLM gateway, workers local. Runbook [runbooks/agent-hermes.md](runbooks/agent-hermes.md). |
+| ~~Hermes (CT 104)~~ RETIRED | — (destroyed 2026-07-23) | **Decommissioned** (B2, NousResearch agent). Replaced by the **B66 operator agent** — a LangGraph pod on mother, local `gpt-oss:20b` brain (bake-off: ties Claude Haiku on operator tool-use), Telegram long-poll, tool-server `/mcp-act` (job-allowlist + confirm-step). Kanban (B27) → Linear. Design rationale kept in `concepts/agent-platform-design.md`. |
 
 ### rogueone
 | Component | Endpoint | Purpose |
@@ -354,7 +354,7 @@ agents/workflows and platform state. Agents call the tool-server, *not* database
 - **Cube (B1.7 L6 — deployed 2026-07-12)** — the **serving semantic / metrics layer**. Where Lightdash/Superset
   are BI *UIs* for humans, Cube is a headless **API**: metrics defined once as *cubes* over the marts, served over
   **SQL (`:15432` pg-wire) + REST + GraphQL (`:4000`)**. Its distinctive value vs the rest of the stack is a
-  *governed metrics API for non-BI consumers* — an app, an **agent (Hermes)**, or an LLM gets the same governed
+  *governed metrics API for non-BI consumers* — an app, an **agent** (the B66 operator), or an LLM gets the same governed
   number a dashboard would, which BI UIs can't provide; plus Cube-Store pre-aggregation. Overlaps dbt-marts +
   Lightdash's dbt-native metrics + MetricFlow by design (the design doc keeps Cube + dbt-SL side by side). Connects
   through the same **`trino-noauth`** proxy (catalog `iceberg`, user `dbt`); 7 cubes over `iceberg.dbt.mart_*`;
@@ -829,7 +829,7 @@ observed; **Control/ops** = scheduled and operational paths.
 | Data | MLflow tracking + artifacts (B10+B16) | [flow-mlflow.md](diagrams/flow-mlflow.md) |
 | Data | **Semantic + consumption** — marts -> Cube (L6) / MetricFlow -> Superset/Lightdash/JupyterHub (B1.7+B1.8) | [flow-semantic-consumption.md](diagrams/flow-semantic-consumption.md) |
 | Data | **Data-mesh L1 storage** — Nessie (Iceberg catalog + table versioning) + lakeFS (file/dataset versioning) on MinIO + Postgres (B1.2) | *foundation only — active read/write flows arrive with Trino (B1.4) + transform (B1.5); see §6 inventory* |
-| Security/mesh | Agent system-view (Hermes / Claude Code -> MCP) | [flow-agent-mcp.md](diagrams/flow-agent-mcp.md) |
+| Security/mesh | Agent system-view (operator / Claude Code -> MCP) | [flow-agent-mcp.md](diagrams/flow-agent-mcp.md) |
 | Security/mesh | Service-mesh request path + mTLS (B8) | [flow-mesh-mtls.md](diagrams/flow-mesh-mtls.md) |
 | Security/mesh | Distributed tracing pipeline (B8) | [flow-tracing.md](diagrams/flow-tracing.md) |
 | Security/mesh | Guardrail validation (B14) | [flow-guardrails.md](diagrams/flow-guardrails.md) |

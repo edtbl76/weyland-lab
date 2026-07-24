@@ -2,7 +2,7 @@
 
 Uptime monitoring + status page at `kuma.weyland.lab`. **37 monitors** across the platform (live count, 2026-07-17). Two notifiers,
 both default-on: **Port.io webhook** (→ `uptime_monitor` blueprint, catalog/status) and **direct Telegram**
-(active paging — reuses the Hermes bot token; sending doesn't conflict with Hermes consuming). Telegram is
+(active paging — reuses the shared Telegram bot token (was Hermes's; the B66 operator inherits it); sending doesn't conflict with the operator consuming). Telegram is
 the paging path on purpose — independent of any agent that could itself fail (see B45). Has its own built-in
 auth (set on first login). Single container, SQLite state on a PVC.
 
@@ -24,7 +24,7 @@ auth (set on first login). Single container, SQLite state on a PVC.
    password from prose where it sits before a sentence-ending period. A stray `.` → silent 401.
 4. **whisper** — `GET /inference` returns `404` (the route is POST-only); the server is still up, so accept
    status codes `200-299` + `400-499`.
-5. **hermes** — no HTTP/TCP endpoint reachable from the cluster (Telegram bot, outbound-only). Not monitored.
+5. ~~**hermes**~~ **RETIRED 2026-07-23** (CT-104 destroyed) — the B66 operator replaces it (a Telegram bot, outbound-only → not HTTP-monitored either).
 6. **Restore is fragile.** Import "Overwrite" hits a **foreign-key-constraint bug** (heartbeat history);
    "Skip existing" silently skips updates to existing monitors. **Clean path: nuke the PVC and restore into an
    empty instance** — `kubectl delete deploy uptime-kuma -n weyland && kubectl delete pvc uptime-kuma-pvc -n

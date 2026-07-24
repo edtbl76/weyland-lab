@@ -64,8 +64,8 @@ Heavy = embeds/writes or large scans (guard the node's RAM). Light = metadata/re
 | Unit | Where | Cadence | Gate |
 |---|---|---|---|
 | `ai-session-producer.{service,timer}` | **rogueone** (user unit) | every 4h at :07 | needs `systemctl --user enable --now` + **`loginctl enable-linger edwardmangini`**; replaces the uncommitted crontab |
-| `roadmap-sync.{service,timer}` | CT 104 (Hermes) | daily 06:30 | Hermes is shut off — install when **B66** brings an agent back |
-| `hermes-heartbeat.{service,timer}` | CT 104 (Hermes) | every 60s → Kuma Push | same; also needs the Kuma Push monitor created (120s interval) |
+| ~~`roadmap-sync.{service,timer}`~~ | ~~CT 104~~ | — | **RETIRED** — kanban → Linear (de-committed `9d9d982`); the B66 operator has no kanban-sync job |
+| ~~`hermes-heartbeat.{service,timer}`~~ | ~~CT 104~~ | — | **RETIRED 2026-07-23** — Hermes destroyed |
 
 > **⚠ rogueone GPU contention (affects the Sat eval runs).** rogueone has ONE GPU (RTX 5000 Ada Laptop, **16 GB**)
 > and no usable iGPU, so it drives the desktop AND Ollama. A 30b model can starve the compositor and **hard-freeze

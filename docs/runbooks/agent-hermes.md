@@ -1,5 +1,9 @@
 # B2 — Hermes Agent Runbook — weyland (CT 104)
 
+> **⚠️ RETIRED 2026-07-23 — CT-104 destroyed (`pct destroy 104`).** Hermes is decommissioned; this runbook is kept for
+> history only. The operator role is replaced by the **B66 operator agent** — a LangGraph pod on mother (`gpt-oss:20b`
+> brain, Telegram, tool-server `/mcp-act`). See `docs/backlog.md` B66 (a `runbooks/operator-agent.md` lands with the build).
+
 Operational runbook for the Hermes agent platform: create/access the container, install + configure
 Hermes, the model + Ollama tuning, and the gotchas hit during bring-up. Design rationale (lanes,
 MCP, A2A) lives in [../concepts/agent-platform-design.md](../concepts/agent-platform-design.md); model serving is

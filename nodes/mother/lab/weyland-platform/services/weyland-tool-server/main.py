@@ -629,7 +629,7 @@ def metrics():
 # Constructed last so every route above is already registered for introspection.
 #
 # READ surface (B2): read-only tools tagged "mcp" (/status, /context/search, /context/ask,
-# /models), mounted at /mcp. Agents connect by URL (Hermes now, OpenClaw later):
+# /models), mounted at /mcp. Consumers: Claude Code (read lane) + the coming B66 operator agent (Hermes retired 2026-07-23):
 #   http://<host>:30080/mcp
 mcp = FastApiMCP(app, name="weyland-system-view", include_tags=["mcp"])
 mcp.mount_http()   # Streamable HTTP at /mcp — the transport remote agents connect to by URL

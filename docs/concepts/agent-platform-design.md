@@ -1,5 +1,11 @@
 # B2 — Agent Platform (Hermes) — Design
 
+> **⚠️ SUPERSEDED / RETIRED (2026-07-23).** Hermes (the NousResearch agent + CT-104) is decommissioned. Its operator
+> role is replaced by the **B66 operator agent** — a fresh LangGraph pod on **mother** with a local `gpt-oss:20b` brain
+> (bake-off: ties Claude Haiku on operator tool-use — `demos/brain-bakeoff.md`), Telegram long-poll ingress, and the
+> tool-server `/mcp-act` plane (with a job-allowlist + confirm-step). This doc is kept for the design *rationale*
+> (MCP-as-the-seam, local-brain-first) that still informs B66. See `docs/backlog.md` B66.
+
 **Status:** Scoped 2026-06-13 (design approved; first slice not yet built).
 **Goal:** Give the lab a conversational **"view into the system"** through autonomous agents — query
 knowledge, watch health/observability, and (later) drive workflows — without data leaving the LAN.
