@@ -31,6 +31,24 @@ kubectl exec -n weyland deploy/mlflow -- python -c "import mlflow; mlflow.set_tr
 ```
 `OK <run_id>` + a file under `mc ls --recursive weyland/mlflow/` + the run in the UI = full stack good.
 
+## GenAI Tracing (B100 Phase 1)
+MLflow 3.x **Traces** capture per-step GenAI observability (prompt / retrieved context / tool calls / answer spans) —
+the one pane the mesh traces (Tempo) can't give. Live-surface coverage:
+
+| Surface | How | Experiment |
+|---|---|---|
+| `weyland-agent` (B70) | `mlflow.langchain.autolog()` + `mlflow.llama_index.autolog()` (LangGraph loop + retrievers) | `agentic-rag` |
+| `weyland-operator` (B66) | `mlflow.langchain.autolog()` (ReAct loop + tools) | `operator` |
+| tool-server `/context/ask` (B100) | **manual spans** — the RAG generate is a raw `httpx`→Ollama call (not a LangChain/OpenAI client) so autolog can't see it: a `context_ask` parent + `retrieve` / `generate` children | `tool-server-rag` |
+| eval harness | → **B84** (batch, ~360 traces/run — folds into the eval-observability theme) | — |
+
+- **Fail-safe everywhere:** tracing degrades to a no-op if MLflow is unreachable — observability never takes an
+  answer offline (the tool-server wraps each span in a try/except; the agent/operator guard the autolog init).
+- **`mlflow.langchain.autolog()` needs the full `langchain` package** in the image (langchain-openai/langgraph pull
+  only `langchain-core`) — the tool-server instead uses **`mlflow-skinny`** (manual tracing only, no autolog, lighter).
+- Verify a surface's traces (swap `<svc>`/`<exp>`):
+  `kubectl -n weyland exec deploy/<svc> -- python -c "import mlflow; mlflow.set_tracking_uri('http://mlflow.weyland.svc.cluster.local:5000'); from mlflow import MlflowClient; e=MlflowClient().get_experiment_by_name('<exp>'); print(len(mlflow.search_traces(experiment_ids=[e.experiment_id])))"`
+
 ## Gotchas
 - **pip-on-start (v1).** The container installs `psycopg2-binary` + `boto3` on every start (no custom image),
   so first/restart boot is ~1–2 min and needs egress. If restarts get slow/flaky, bake a small
