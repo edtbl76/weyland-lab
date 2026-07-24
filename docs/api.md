@@ -34,7 +34,7 @@ Hosts & access users: [hosts.md](hosts.md). `mother` = 192.168.1.243, CTs by IP 
 | `/health` `/ready` `/status` | GET | liveness / readiness / consolidated status (incl. `llm`) |
 | `/metrics` | GET | Prometheus exposition (default process/GC collectors; **B70 Part 2** — guardrail verdicts moved to `weyland-guard`) |
 | `/context/search?backend=<pgvector\|qdrant\|weaviate\|neo4j>` | POST | vector retrieval (B14 `input` hook → `weyland-guard`, fail-open) |
-| `/context/ask` | POST | **RAG** — retrieve → local LLM answer (per-request `model`); B14 `input` + `output` hooks → `weyland-guard` (fail-open) |
+| `/context/ask` | POST | **RAG** — retrieve → local LLM answer (per-request `model`); B14 `input` + `output` hooks → `weyland-guard` (fail-open). **B100:** emits MLflow Traces (`tool-server-rag`) + the system prompt is fetched live from the MLflow Prompt Registry (`rag_system`, fail-safe) |
 | `/models` | GET | list selectable Ollama models |
 | `/pgvector/health` `/qdrant/health` `/weaviate/health` `/neo4j/health` `/ollama/health` | GET | per-backend health |
 | `/pipeline/trigger` | POST | fire Dagster `launchRun` (B14 `act` hook: audited; exposed via `/mcp-act`) |

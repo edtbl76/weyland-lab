@@ -114,7 +114,7 @@
 
   <p class="eyebrow">Weyland · Platform Map · 2026-07</p>
   <h1 class="title">One box. <span class="fade">Every tool,</span> and what it's for.</h1>
-  <p class="lede">A homelab where a governed <b>lakehouse</b> is the substrate and two agent lanes close the loop - <b>Claude Code</b> builds; the operator-agent half (the <b>B66 operator</b>) is in design — a local-brained (gpt-oss:20b) LangGraph agent on mother, replacing the retired Hermes. Every technology below runs on a single bare-metal Minisforum MS-A2 (plus one GPU laptop), LAN-only, on a $0 budget. This is the full inventory - the numbered spine is the value path (raw data → data products); each row shows the tool, its job, and a <b>real example of it in use</b>.</p>
+  <p class="lede">A homelab where a governed <b>lakehouse</b> is the substrate and two agent lanes close the loop - <b>Claude Code</b> builds; the operator-agent half (the <b>B66 operator</b>) is <b>live</b> — a local-brained (gpt-oss:20b) LangGraph agent on mother, replacing the retired Hermes. Every technology below runs on a single bare-metal Minisforum MS-A2 (plus one GPU laptop), LAN-only, on a $0 budget. This is the full inventory - the numbered spine is the value path (raw data → data products); each row shows the tool, its job, and a <b>real example of it in use</b>.</p>
 
   <div class="meta">
     <div><div class="n">130+</div><div class="l">Integrations</div></div>
@@ -265,7 +265,7 @@
       <div class="num">06</div>
       <div class="stage-head"><h2>Products &amp; ML</h2><span class="role">the output the mesh exists for</span></div>
       <div class="rows">
-        <div class="row"><span class="nm"><i class="cdot"></i>MLflow</span><div><div class="rl">experiment tracking + registry + Traces</div><span class="ex">registers genre_classifier; agentic-RAG per-step Traces (B70); full buildout → B100</span></div></div>
+        <div class="row"><span class="nm"><i class="cdot"></i>MLflow</span><div><div class="rl">tracking + registry + GenAI Traces + Prompt Registry</div><span class="ex">B100: per-step Traces across agent / operator / tool-server RAG; 4 versioned prompts hot-swapped live from the registry</span></div></div>
         <div class="row"><span class="nm"><i class="cdot"></i>Ray + Ray Tune</span><div><div class="rl">persistent training cluster + HP sweep</div><span class="ex">genre-trainer --tune → winner retrains on rogueone worker (f1 ~0.31)</span></div></div>
         <div class="row"><span class="nm"><i class="cdot"></i>genre-trainer</span><div><div class="rl">remote model-training container</div><span class="ex">--source mart reads iceberg.dbt.mart_spotify_audio → lakeFS training set</span></div></div>
         <div class="row"><span class="nm"><i class="cdot"></i>LlamaIndex</span><div><div class="rl">RAG retrieval framework</div><span class="ex">tool-server single-shot + weyland-agent's 4 custom retrievers (B70)</span></div></div>
@@ -332,7 +332,7 @@
       <div class="row"><span class="nm"><i class="cdot"></i>Telegram</span><div><div class="rl">remote ingress + alerts</div><span class="ex">allowlisted DM → operator reply; Alertmanager paging</span></div></div>
       <div class="row"><span class="nm"><i class="cdot"></i>Anthropic Claude API</span><div><div class="rl">cloud reasoning brain</div><span class="ex">Claude Code drives builds over the metered API</span></div></div>
       <div class="row"><span class="nm"><i class="cdot"></i>Open WebUI</span><div><div class="rl">browser chat / voice front end</div><span class="ex">chat.weyland.lab - chat ← Ollama, voice ← whisper shim</span></div></div>
-      <div class="row plan"><span class="nm"><i class="cdot"></i>Operator Agent (B66)</span><div><div class="rl">local-brained LangGraph operator (in design)</div><span class="ex">gpt-oss:20b brain (bake-off: ties Haiku), Telegram → tool-server /mcp-act, on mother; replaces retired Hermes</span></div></div>
+      <div class="row"><span class="nm"><i class="cdot"></i>weyland-operator (B66)</span><div><div class="rl">local-brained LangGraph operator (live 2026-07-24 — Postgres session, act confirm-step)</div><span class="ex">gpt-oss:20b brain (bake-off: ties Haiku), Telegram → tool-server /mcp-act, on mother; replaces retired Hermes</span></div></div>
     </div>
   </section>
 
@@ -356,7 +356,7 @@
   <footer class="wf">
     <b>The loop:</b> intent (Port + roadmap) → data product → operation (agents) → telemetry (Grafana / Port) → new intent.<br>
     <b>Constraints as design:</b> one Minisforum MS-A2 + one RTX-5000 laptop · LAN-only · $0 budget · self-hosted first · heavy tiers on-demand.<br>
-    <b>Two lanes:</b> Claude Code sees &amp; builds · the B66 operator (sees &amp; does — local gpt-oss brain, LangGraph on mother, in design) is the operator half. · <b>Retired/declined:</b> Hermes, Backstage, Jaeger, Strimzi, Airbyte, Airflow, KubeRay.
+    <b>Two lanes:</b> Claude Code sees &amp; builds · the B66 operator (sees &amp; does — local gpt-oss brain, LangGraph on mother, live) is the operator half. · <b>Retired/declined:</b> Hermes, Backstage, Jaeger, Strimzi, Airbyte, Airflow, KubeRay.
   </footer>
 
 </div>

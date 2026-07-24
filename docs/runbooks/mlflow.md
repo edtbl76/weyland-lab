@@ -49,6 +49,29 @@ the one pane the mesh traces (Tempo) can't give. Live-surface coverage:
 - Verify a surface's traces (swap `<svc>`/`<exp>`):
   `kubectl -n weyland exec deploy/<svc> -- python -c "import mlflow; mlflow.set_tracking_uri('http://mlflow.weyland.svc.cluster.local:5000'); from mlflow import MlflowClient; e=MlflowClient().get_experiment_by_name('<exp>'); print(len(mlflow.search_traces(experiment_ids=[e.experiment_id])))"`
 
+## Prompt Registry (B100 Phase 2)
+Inline prompts are promoted to versioned **MLflow Prompt Registry** artifacts — hot-swappable without a redeploy, and
+a trace pins the prompt version that produced each answer. Registered prompts (`@production` alias):
+
+| Prompt | Used by | Notes |
+|---|---|---|
+| `rag_system` | tool-server `/context/ask` **+** weyland-agent generate | one prompt, two services (identical text) |
+| `operator_system` | weyland-operator | static |
+| `agent_grade` · `agent_reflect` | weyland-agent grade/reflect | templated (`{question}`/`{context}`/`{backend}`/`{others}`) — rendered via `render_prompt`, `str.format` at the call site |
+
+- **Source of truth:** `scripts/register_prompts.py` (the canonical templates). Run it to sync — idempotent (new
+  version only on change, then moves `@production`). rogueone's shell python lacks mlflow → run it inside a pod that
+  has it: `kubectl -n weyland exec -i deploy/weyland-agent -- python < scripts/register_prompts.py`.
+- **Runtime fetch:** each service embeds `prompts.py` — `load_prompt(name, fallback)` (static) / `render_prompt(name,
+  fallback, **vars)` (templated). **TTL-cached** (`PROMPT_TTL`, default 300s) so a version bump takes effect within
+  the TTL with **no redeploy**; **fail-safe** → last-cached, else the **baked fallback** constant (a registry outage
+  never breaks a request). Each service also bakes a matching copy of the text as that fallback.
+- **API:** the Prompt Registry moved to the **`mlflow.genai`** namespace in 3.x (top-level deprecated) — both the
+  script and `prompts.py` prefer `mlflow.genai.*` with a top-level fallback. `mlflow-skinny` (the tool-server) has it.
+- **Hot-swap workflow:** edit the template in `register_prompts.py` → re-run it (new version + alias moves) → services
+  serve the new prompt within `PROMPT_TTL`, no rebuild. Confirm with
+  `kubectl -n weyland exec deploy/<svc> -- sh -c "cd /app && python -c \"import prompts; prompts.load_prompt('<name>','fb'); print(prompts.loaded_version('<name>'))\""`.
+
 ## Gotchas
 - **pip-on-start (v1).** The container installs `psycopg2-binary` + `boto3` on every start (no custom image),
   so first/restart boot is ~1–2 min and needs egress. If restarts get slow/flaky, bake a small

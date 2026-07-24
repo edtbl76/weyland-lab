@@ -31,6 +31,7 @@ Legend: ✅ done · ⬜ missing · 🟡 exists but stale/partial · — not appl
 | 16 | Eval scoring (LLM-judge) | ✅ `flow-eval-scoring` | ✅ `eval-scoring.md` | ✅ scores |
 | 17 | Model catalog | ✅ `flow-model-catalog` | ✅ `model-catalog.md` | ✅ Postgres/DataHub |
 | 18 | MLflow tracking | ✅ `flow-mlflow` | ✅ `mlflow.md` | ✅ experiments |
+| 36 | **MLflow GenAI** (B100 — Traces + Prompt Registry, hot-swap) | ✅ (seq in demo) | ✅ `mlflow-genai.md` (validated 2026-07-24) | ✅ traces + prompt versions (history) |
 | 19 | Remote training (Ray → MLflow) | ✅ (authored) | ✅ `remote-training.md` | ✅ artifacts/models |
 | **Agent / serving** | | | | |
 | 21 | Agentic RAG (`weyland-agent`, B70) | ✅ `flow-agentic-rag` | ✅ `agentic-rag.md` (validated live 2026-07-23) | — read-only (traces/verdicts) |
