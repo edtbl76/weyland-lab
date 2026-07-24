@@ -1,0 +1,320 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Weyland Data Mesh</title>
+<style>html,body{margin:0;padding:0}body{background:#0f1319}@media (prefers-color-scheme:light){body{background:#f4f5f2}}</style>
+</head>
+<body>
+<style>
+  :root{
+    --bg:#f4f5f2; --panel:#ffffff; --chip:#eef0eb;
+    --ink:#20252c; --muted:#5c6572; --faint:#8b93a0;
+    --line:#e0e2dc; --line-strong:#c7cabf;
+    --accent:#b17d1c; --code:#4a6572;
+    --live:#3f8d68; --part:#c98a1e; --plan:#8a8f98;
+    --rail:#c99a3a;
+    --sans:"Helvetica Neue",Helvetica,-apple-system,system-ui,Arial,sans-serif;
+    --mono:ui-monospace,"SF Mono","JetBrains Mono","Cascadia Code",Menlo,Consolas,monospace;
+  }
+  @media (prefers-color-scheme:dark){
+    :root{
+      --bg:#0f1319; --panel:#161b22; --chip:#1b222c;
+      --ink:#d6dbe2; --muted:#929cab; --faint:#6b7482;
+      --line:#212934; --line-strong:#323b47;
+      --accent:#d9a441; --code:#8ba6bd;
+      --live:#5fa37e; --part:#d9a441; --plan:#727a86;
+      --rail:#d9a441;
+    }
+  }
+  :root[data-theme="dark"]{
+    --bg:#0f1319; --panel:#161b22; --chip:#1b222c;
+    --ink:#d6dbe2; --muted:#929cab; --faint:#6b7482;
+    --line:#212934; --line-strong:#323b47;
+    --accent:#d9a441; --code:#8ba6bd;
+    --live:#5fa37e; --part:#d9a441; --plan:#727a86; --rail:#d9a441;
+  }
+  :root[data-theme="light"]{
+    --bg:#f4f5f2; --panel:#ffffff; --chip:#eef0eb;
+    --ink:#20252c; --muted:#5c6572; --faint:#8b93a0;
+    --line:#e0e2dc; --line-strong:#c7cabf;
+    --accent:#b17d1c; --code:#4a6572;
+    --live:#3f8d68; --part:#c98a1e; --plan:#8a8f98; --rail:#c99a3a;
+  }
+
+  *{box-sizing:border-box}
+  .wy{background:var(--bg); color:var(--ink); font-family:var(--sans); line-height:1.5;
+     -webkit-font-smoothing:antialiased; padding:clamp(20px,5vw,60px) clamp(16px,4vw,40px);}
+  .wrap{max-width:1160px; margin:0 auto}
+  a{color:inherit}
+
+  .eyebrow{font-family:var(--mono); font-size:12px; letter-spacing:.22em; text-transform:uppercase; color:var(--accent); margin:0 0 18px}
+  h1.title{font-size:clamp(30px,5.4vw,52px); line-height:1.02; letter-spacing:-.02em; margin:0 0 20px; font-weight:800; text-wrap:balance; max-width:20ch}
+  h1.title .fade{color:var(--muted); font-weight:600}
+  .lede{font-size:clamp(15px,1.7vw,18px); color:var(--muted); max-width:70ch; margin:0 0 30px; text-wrap:pretty}
+  .lede b{color:var(--ink); font-weight:600}
+
+  .meta{display:flex; flex-wrap:wrap; border:1px solid var(--line); border-radius:4px; overflow:hidden; margin-bottom:16px; background:var(--panel)}
+  .meta div{flex:1 1 120px; padding:14px 18px; border-right:1px solid var(--line)}
+  .meta div:last-child{border-right:0}
+  .meta .n{font-family:var(--mono); font-size:22px; font-weight:700; letter-spacing:-.01em; font-variant-numeric:tabular-nums}
+  .meta .l{font-family:var(--mono); font-size:11px; letter-spacing:.1em; text-transform:uppercase; color:var(--faint); margin-top:3px}
+
+  .hint{font-family:var(--mono); font-size:11.5px; color:var(--faint); margin:0 0 44px}
+  .hint .ar{color:var(--accent)}
+  .hint a{color:var(--accent); text-decoration:none; border-bottom:1px dotted var(--accent)}
+
+  .sectionlabel{font-family:var(--mono); font-size:11px; letter-spacing:.2em; text-transform:uppercase; color:var(--faint); margin:56px 0 6px; padding-top:24px; border-top:1px solid var(--line)}
+  .sectionlabel:first-of-type{border-top:0; padding-top:0}
+  .sublede{font-size:14.5px; color:var(--muted); margin:0 0 22px; max-width:68ch}
+
+  /* demo link pill */
+  a.demo{display:inline-flex; align-items:center; gap:6px; font-family:var(--mono); font-size:11.5px; letter-spacing:.02em;
+     color:var(--accent); text-decoration:none; border:1px solid var(--line-strong); border-radius:999px; padding:3px 11px;
+     background:var(--panel); transition:border-color .15s, transform .15s; white-space:nowrap}
+  a.demo:hover{border-color:var(--accent); transform:translateY(-1px)}
+  a.demo::before{content:"▶"; font-size:9px; color:var(--accent)}
+  .demos-row{display:flex; flex-wrap:wrap; gap:8px; margin-top:12px}
+
+  /* principle cards */
+  .principles{display:grid; grid-template-columns:repeat(2,1fr); gap:14px; margin-bottom:8px}
+  .principle{border:1px solid var(--line); border-radius:6px; background:var(--panel); padding:20px 22px; position:relative; overflow:hidden}
+  .principle::before{content:""; position:absolute; left:0; top:0; bottom:0; width:3px; background:var(--rail)}
+  .principle .pn{font-family:var(--mono); font-size:11px; letter-spacing:.14em; text-transform:uppercase; color:var(--faint); margin:0 0 6px}
+  .principle h3{font-size:19px; font-weight:700; letter-spacing:-.01em; margin:0 0 9px}
+  .principle p{font-size:14px; color:var(--muted); margin:0 0 12px; text-wrap:pretty}
+  .principle p b{color:var(--ink); font-weight:600}
+
+  /* layer spine */
+  .spine{position:relative; margin-left:6px; padding-left:clamp(20px,4vw,40px); border-left:2px solid var(--line-strong)}
+  .layer{position:relative; padding:6px 0 30px}
+  .layer:last-child{padding-bottom:6px}
+  .layer .num{position:absolute; left:calc(-1 * clamp(20px,4vw,40px) - 21px); top:0; width:40px; height:40px; border-radius:50%;
+     background:var(--bg); border:2px solid var(--rail); color:var(--accent); font-family:var(--mono); font-weight:700; font-size:13px;
+     display:flex; align-items:center; justify-content:center; font-variant-numeric:tabular-nums}
+  .layer-head{display:flex; align-items:baseline; gap:13px; flex-wrap:wrap; margin-bottom:4px}
+  .layer-head h2{font-size:clamp(18px,2.2vw,23px); font-weight:700; letter-spacing:-.01em; margin:0}
+  .layer-head .role{font-family:var(--mono); font-size:12.5px; color:var(--muted)}
+  .layer .desc{font-size:14px; color:var(--muted); margin:0 0 12px; max-width:70ch}
+
+  .chips{display:flex; flex-wrap:wrap; gap:7px}
+  .chips span{font-family:var(--mono); font-size:12px; color:var(--ink); background:var(--chip); border:1px solid var(--line); border-radius:4px; padding:3px 9px; white-space:nowrap}
+  .chips span.od{color:var(--muted); border-style:dashed}
+
+  /* products */
+  .prods{display:grid; grid-template-columns:repeat(3,1fr); gap:12px}
+  .prod{border:1px solid var(--line); border-top:2px solid var(--rail); border-radius:5px; background:var(--panel); padding:15px 17px}
+  .prod .pt{font-family:var(--mono); font-weight:600; font-size:13.5px; letter-spacing:-.01em; margin:0 0 5px; color:var(--ink)}
+  .prod .pd{font-size:12.5px; color:var(--muted); margin:0}
+  .prod .src{display:block; font-family:var(--mono); font-size:11px; color:var(--code); margin-top:7px; overflow-wrap:anywhere}
+  .prod .src::before{content:"› "; color:var(--accent)}
+
+  footer.wf{margin-top:52px; padding-top:22px; border-top:1px solid var(--line); font-family:var(--mono); font-size:12px; color:var(--faint); line-height:1.75}
+  footer.wf b{color:var(--muted); font-weight:600}
+  footer.wf a{color:var(--accent); text-decoration:none}
+
+  @media (max-width:720px){
+    .principles{grid-template-columns:1fr}
+    .prods{grid-template-columns:1fr}
+  }
+  @media (max-width:600px){
+    .layer .num{position:static; margin-bottom:10px}
+    .spine{padding-left:14px}
+    .meta div{flex-basis:50%}
+  }
+  @media (prefers-reduced-motion:no-preference){
+    .layer,.principle,.prod{opacity:0; transform:translateY(8px); animation:rise .5s ease forwards}
+    @keyframes rise{to{opacity:1; transform:none}}
+  }
+</style>
+
+<div class="wy">
+<div class="wrap">
+
+  <p class="eyebrow">Weyland · Data Mesh · 2026-07</p>
+  <h1 class="title">A data mesh <span class="fade">on one box.</span></h1>
+  <p class="lede">Zhamak Dehghani's four principles — <b>domain ownership</b>, <b>data as a product</b>, a
+  <b>self-serve platform</b>, and <b>federated computational governance</b> — realized as an eight-layer lakehouse
+  stack over two domains (<b>music</b> &amp; <b>health</b>). Everything runs on a single bare-metal Minisforum MS-A2
+  (plus one GPU laptop), LAN-only, $0 budget. This view is the architecture, not the full tool inventory — each
+  layer and principle links to a <b>runnable demo</b> you can open live.</p>
+
+  <div class="meta">
+    <div><div class="n">4</div><div class="l">Principles</div></div>
+    <div><div class="n">8</div><div class="l">Layers</div></div>
+    <div><div class="n">9</div><div class="l">Data products</div></div>
+    <div><div class="n">14</div><div class="l">Serving stores</div></div>
+    <div><div class="n">2</div><div class="l">Domains</div></div>
+    <div><div class="n">1</div><div class="l">Node</div></div>
+  </div>
+  <p class="hint"><span class="ar">›</span> the <a href="https://docs.weyland.lab/demos/">▶ demo</a> pills link to
+  live walkthroughs at <b>docs.weyland.lab/demos</b> (UI + CLI, grounded in the real music &amp; health datasets).</p>
+
+  <div class="sectionlabel">The four principles — how the mesh is defined</div>
+  <p class="sublede">Data mesh is an organizing idea before it is a stack. Here is each principle and the concrete
+  thing in weyland that satisfies it.</p>
+  <div class="principles">
+
+    <div class="principle">
+      <p class="pn">Principle 01</p>
+      <h3>Domain-oriented ownership</h3>
+      <p>Two bounded domains — <b>music</b> and <b>health</b> — each own their raw → silver → gold assets, schemas,
+      and pipelines end to end (<b>datasets_music.*</b> / <b>datasets_health.*</b>, per-domain Dagster jobs, per-domain
+      keyspaces/DBs across the polyglot stores). No central data team owns the pipelines.</p>
+      <div class="demos-row">
+        <a class="demo" href="https://docs.weyland.lab/demos/datasets-lakehouse/">datasets → lakehouse</a>
+      </div>
+    </div>
+
+    <div class="principle">
+      <p class="pn">Principle 02</p>
+      <h3>Data as a product</h3>
+      <p>Nine <b>DataHub Data Products</b> (Spotify Audio, Chronic Health Trends, Genre Classifier, Model-Eval
+      Leaderboard, AI-Dev Usage…), each <b>versioned</b> (Nessie for tables, lakeFS for files), documented,
+      quality-checked, and discoverable — treated as products with owners and contracts, not incidental tables.</p>
+      <div class="demos-row">
+        <a class="demo" href="https://docs.weyland.lab/demos/catalog-emit/">catalog emit</a>
+        <a class="demo" href="https://docs.weyland.lab/demos/model-catalog/">model catalog</a>
+      </div>
+    </div>
+
+    <div class="principle">
+      <p class="pn">Principle 03</p>
+      <h3>Self-serve data platform</h3>
+      <p>One platform (L1–L8) any domain consumes without a bottleneck team: land → transform → serve → consume.
+      <b>Run-mode tiering</b> keeps it viable on one node — a lightweight always-on foundation, heavy tiers
+      <b>scaled to zero</b> (KEDA) and woken per job; a Port button scales stores on demand.</p>
+      <div class="demos-row">
+        <a class="demo" href="https://docs.weyland.lab/demos/pipeline-trigger/">pipeline trigger</a>
+        <a class="demo" href="https://docs.weyland.lab/demos/store-scaler/">store wake/sleep</a>
+      </div>
+    </div>
+
+    <div class="principle">
+      <p class="pn">Principle 04</p>
+      <h3>Federated computational governance</h3>
+      <p>Governance applied <b>as code</b>, globally, while ownership stays local: <b>DataHub</b> catalog +
+      <b>OpenLineage</b> column/run lineage + <b>Soda</b> quality contracts + <b>Ranger</b> column masking +
+      <b>Keycloak</b> identity — one rule set, computed across both domains.</p>
+      <div class="demos-row">
+        <a class="demo" href="https://docs.weyland.lab/demos/catalog-emit/">catalog + assertions</a>
+      </div>
+    </div>
+
+  </div>
+
+  <div class="sectionlabel">The eight-layer architecture — raw data to data products</div>
+  <p class="sublede">The self-serve platform, layer by layer (the B1 build order: storage → federation → transform →
+  catalog → governance → analytics → BI → data science). Solid chips are live; dashed are on-demand (scaled to zero
+  until triggered).</p>
+  <div class="spine">
+
+    <div class="layer">
+      <div class="num">L1</div>
+      <div class="layer-head"><h2>Storage / Data-product layer</h2><span class="role">the substrate — versioned by data type</span></div>
+      <p class="desc">Object store + ACID tables. Versioning is split by type: <b>Nessie</b> git-branches Iceberg
+      <em>tables</em>; <b>lakeFS</b> versions <em>files</em> (raw corpora, ML datasets, model artifacts) — complementary.</p>
+      <div class="chips"><span>MinIO</span><span>Apache Iceberg</span><span>Nessie</span><span>lakeFS</span></div>
+      <div class="demos-row"><a class="demo" href="https://docs.weyland.lab/demos/datasets-lakehouse/">datasets → lakehouse</a><a class="demo" href="https://docs.weyland.lab/demos/rag-stream/">RAG streaming indexer</a></div>
+    </div>
+
+    <div class="layer">
+      <div class="num">L2</div>
+      <div class="layer-head"><h2>Query / Federation</h2><span class="role">one SQL across everything</span></div>
+      <p class="desc">A single federated engine spans Iceberg (via Nessie) plus the operational stores; embedded OLAP
+      for local crunching; hot time-series as a Postgres extension (cold → Iceberg).</p>
+      <div class="chips"><span>Trino</span><span>DuckDB</span><span>GizmoSQL</span><span>Arrow Flight SQL</span><span>TimescaleDB</span></div>
+      <div class="demos-row"><a class="demo" href="https://docs.weyland.lab/demos/semantic-consumption/">federated query → semantics</a></div>
+    </div>
+
+    <div class="layer">
+      <div class="num">L3</div>
+      <div class="layer-head"><h2>Transform / Streaming / Orchestration</h2><span class="role">batch marts + on-demand streams</span></div>
+      <p class="desc">Dagster is the always-on workhorse (raw → silver ×4 formats → tested gold marts via dbt-trino).
+      The whole streaming tier is on-demand — Debezium CDC + Redpanda + Flink, woken per job by KEDA / the Flink operator.</p>
+      <div class="chips"><span>Dagster</span><span>dbt Core</span><span>MetricFlow</span><span class="od">Debezium</span><span class="od">Redpanda</span><span class="od">Flink</span><span>KEDA</span></div>
+      <div class="demos-row"><a class="demo" href="https://docs.weyland.lab/demos/dbt/">dbt → marts</a><a class="demo" href="https://docs.weyland.lab/demos/streaming/">streaming (Avro)</a><a class="demo" href="https://docs.weyland.lab/demos/cdc/">CDC (Debezium)</a><a class="demo" href="https://docs.weyland.lab/demos/flink/">Flink jobs</a><a class="demo" href="https://docs.weyland.lab/demos/pipeline-trigger/">pipeline trigger</a></div>
+    </div>
+
+    <div class="layer">
+      <div class="num">L4</div>
+      <div class="layer-head"><h2>Catalog / Contracts</h2><span class="role">discover · document · contract</span></div>
+      <p class="desc">DataHub is the always-on centerpiece — ~27 emitters every 6h publish datasets, domains, glossaries,
+      data products, and column-level lineage. Contracts standardized on ODCS; dbt docs fold in.</p>
+      <div class="chips"><span>DataHub</span><span>OpenLineage</span><span>DataHub Data Products</span><span>ODCS contracts</span><span>Elasticsearch</span></div>
+      <div class="demos-row"><a class="demo" href="https://docs.weyland.lab/demos/catalog-emit/">catalog emit</a></div>
+    </div>
+
+    <div class="layer">
+      <div class="num">L5</div>
+      <div class="layer-head"><h2>Governance / Security</h2><span class="role">authz · quality · identity — federated</span></div>
+      <p class="desc">The computational-governance layer: Ranger masks Trino columns on the data plane; OPA/Gatekeeper
+      guards the control plane; Soda scans quality into DataHub assertions; Keycloak is the single identity every
+      policy binds to.</p>
+      <div class="chips"><span>Ranger</span><span>Soda</span><span>OPA / Gatekeeper</span><span>Keycloak</span><span>OpenLineage</span><span>PodSecurity</span></div>
+      <div class="demos-row"><a class="demo" href="https://docs.weyland.lab/demos/catalog-emit/">quality → assertions</a></div>
+    </div>
+
+    <div class="layer">
+      <div class="num">L6</div>
+      <div class="layer-head"><h2>Analytics / Semantic</h2><span class="role">governed metrics, one definition</span></div>
+      <p class="desc">A headless semantic layer over the marts — one metric definition, consumed as SQL / REST / GraphQL —
+      plus metrics-as-code in dbt. An app, an agent, or a BI tool all get the same governed numbers.</p>
+      <div class="chips"><span>Cube</span><span>MetricFlow (dbt SL)</span><span>trino-noauth proxy</span></div>
+      <div class="demos-row"><a class="demo" href="https://docs.weyland.lab/demos/semantic-consumption/">semantic consumption</a></div>
+    </div>
+
+    <div class="layer">
+      <div class="num">L7</div>
+      <div class="layer-head"><h2>BI / Dashboards</h2><span class="role">dbt-native + ad-hoc</span></div>
+      <p class="desc">Two BI faces, both on-demand: Lightdash reads the dbt models + metrics directly; Superset covers
+      ad-hoc and complex viz across Trino + the operational stores.</p>
+      <div class="chips"><span class="od">Lightdash</span><span class="od">Superset</span></div>
+      <div class="demos-row"><a class="demo" href="https://docs.weyland.lab/demos/dbt/">Lightdash over marts</a></div>
+    </div>
+
+    <div class="layer">
+      <div class="num">L8</div>
+      <div class="layer-head"><h2>Data science / ML</h2><span class="role">notebooks · features · training</span></div>
+      <p class="desc">On-demand notebooks (KubeSpawner), a feature store bridging products → features → models, and a
+      persistent Ray cluster with MLflow tracking/registry/Traces. This is where the mesh's products become models.</p>
+      <div class="chips"><span class="od">JupyterHub</span><span>Feast</span><span>MLflow</span><span class="od">Ray + Tune</span></div>
+      <div class="demos-row"><a class="demo" href="https://docs.weyland.lab/demos/feast/">Feast features</a><a class="demo" href="https://docs.weyland.lab/demos/mlflow/">MLflow tracking</a></div>
+    </div>
+
+  </div>
+
+  <div class="sectionlabel">The output — data products &amp; polyglot serving</div>
+  <p class="sublede">The reason the mesh exists. Nine catalogued data products, served from a deliberately polyglot
+  grid — the right store shape per access pattern (relational · OLAP · time-series · document · vector · graph).</p>
+  <div class="prods">
+    <div class="prod"><p class="pt">Spotify Audio Features</p><p class="pd">Audio-feature product feeding BI + the genre model.</p><span class="src">mart_spotify_audio → Feast · Cube</span></div>
+    <div class="prod"><p class="pt">Chronic Health Trends</p><p class="pd">BRFSS / WHO prevalence over time, cross-store.</p><span class="src">mart_country_health · brfss</span></div>
+    <div class="prod"><p class="pt">Genre Classifier</p><p class="pd">Model trained off the marts, tracked in MLflow.</p><span class="src">genre-trainer → Ray → MLflow registry</span></div>
+    <div class="prod"><p class="pt">Model-Eval Leaderboard</p><p class="pd">RAG × 6 models, 3-judge-panel scoring.</p><span class="src">eval_leaderboard</span></div>
+    <div class="prod"><p class="pt">AI-Dev Usage</p><p class="pd">Claude Code telemetry — ~$12K API-equiv, $0 spent.</p><span class="src">ai_session_ingest → Port</span></div>
+    <div class="prod"><p class="pt">Agentic RAG + operator</p><p class="pd">The mesh consumed — retrieval + a lab operator.</p><span class="src">weyland-agent · weyland-operator (B66)</span></div>
+  </div>
+  <div class="demos-row" style="margin-top:16px">
+    <a class="demo" href="https://docs.weyland.lab/demos/eval/">eval harness</a>
+    <a class="demo" href="https://docs.weyland.lab/demos/eval-scoring/">judge-panel scoring</a>
+    <a class="demo" href="https://docs.weyland.lab/demos/agentic-rag/">agentic RAG</a>
+    <a class="demo" href="https://docs.weyland.lab/demos/lancedb/">LanceDB vectors</a>
+    <a class="demo" href="https://docs.weyland.lab/demos/feast/">feature serving</a>
+  </div>
+
+  <footer class="wf">
+    <b>The 14 serving stores:</b> Postgres/pgvector · MusicBrainz PG · MySQL · CockroachDB · ClickHouse · TimescaleDB ·
+    MongoDB · Cassandra · Qdrant · Weaviate · LanceDB · Neo4j · OpenSearch · DuckDB (GizmoSQL) — one query plane (Trino), many shapes.<br>
+    <b>Constraints as design:</b> one Minisforum MS-A2 + one RTX-5000 laptop · LAN-only · $0 budget · self-hosted first ·
+    always-on foundation, heavy tiers scaled to zero.<br>
+    <b>Companion:</b> the full tool inventory is the <a href="https://docs.weyland.lab/platform-map.html">Platform Map</a> ·
+    all walkthroughs at <a href="https://docs.weyland.lab/demos/">docs.weyland.lab/demos</a>.
+  </footer>
+
+</div>
+</div>
+
+</body>
+</html>
