@@ -1,0 +1,65 @@
+# B66 Part 1 — weyland-operator: the lab operator agent (LangGraph ReAct loop over the tool-server read tools).
+# Meshed now so Part 2's STRICT-mTLS Postgres session store drops in without a topology change; today it reaches the
+# tool-server + weyland-guard in-cluster and egresses to Ollama on rogueone (LAN, PERMISSIVE). Read-only: no act
+# tools, no Telegram, no session yet. gpt-oss:20b brain (B66 bake-off winner).
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: weyland-operator
+  namespace: weyland
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: weyland-operator
+  template:
+    metadata:
+      labels:
+        app: weyland-operator
+        sidecar.istio.io/inject: "true"   # ready for Part 2 STRICT-mTLS Postgres sessions
+    spec:
+      enableServiceLinks: false
+      containers:
+        - name: weyland-operator
+          image: registry.weyland.lab/weyland-operator:v1
+          imagePullPolicy: IfNotPresent
+          resources:
+            # No torch/embedder — just langgraph/langchain/mlflow client + fastapi; LLM inference is remote (Ollama).
+            # Request kept LOW (256Mi) — the node's requested-memory sum runs near allocatable (B99 reserves); actual
+            # usage is bounded by the 1Gi limit. On-demand service, fine to be an eviction candidate.
+            requests: { memory: 256Mi, cpu: 100m }
+            limits: { memory: 1Gi }
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 10001
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+            seccompProfile:
+              type: RuntimeDefault
+          ports:
+            - name: http
+              containerPort: 8080
+          startupProbe:
+            httpGet: { path: /health, port: 8080 }
+            failureThreshold: 30
+            periodSeconds: 5
+          livenessProbe:
+            httpGet: { path: /health, port: 8080 }
+            periodSeconds: 20
+          readinessProbe:
+            httpGet: { path: /ready, port: 8080 }
+            periodSeconds: 10
+          env:
+            - name: TOOLSERVER
+              value: http://weyland-tool-server.weyland.svc.cluster.local:8080
+            # LLM reasoning/tool-calling (Ollama on rogueone, OpenAI-compatible /v1). Haiku-fallback env switch (design
+            # §6) lands with Part 3.
+            - name: OLLAMA_BASE_URL
+              value: http://192.168.1.230:11434/v1
+            - name: OLLAMA_MODEL
+              value: gpt-oss:20b
+            - name: GUARD_BASE_URL
+              value: http://weyland-guard.weyland.svc.cluster.local:8080
+            - name: MLFLOW_TRACKING_URI
+              value: http://mlflow.weyland.svc.cluster.local:5000

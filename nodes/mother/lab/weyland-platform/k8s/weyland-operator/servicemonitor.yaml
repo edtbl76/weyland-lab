@@ -1,0 +1,14 @@
+# B66 Part 1 — scrape the operator's /metrics (operator_requests_total / operator_request_seconds).
+# Discovered via serviceMonitorSelectorNilUsesHelmValues:false (no release label needed).
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: weyland-operator
+  namespace: weyland
+spec:
+  selector:
+    matchLabels:
+      app: weyland-operator
+  endpoints:
+    - port: http
+      path: /metrics

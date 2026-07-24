@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: weyland-operator
+  namespace: weyland
+  labels:
+    app: weyland-operator   # selected by the ServiceMonitor
+spec:
+  type: ClusterIP
+  selector:
+    app: weyland-operator
+  ports:
+    - name: http
+      port: 8080
+      targetPort: 8080

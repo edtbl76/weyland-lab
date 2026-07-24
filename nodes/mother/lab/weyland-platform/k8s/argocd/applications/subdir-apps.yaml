@@ -360,6 +360,25 @@ spec:
   syncPolicy:
     automated: { selfHeal: true, prune: true }
 ---
+# B66 Part 1 — weyland-operator: lab operator agent (deployment + service + servicemonitor). Telegram ingress +
+# Postgres session + act confirm-step land in Parts 2–3.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: weyland-operator
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/edtbl76/weyland-lab.git
+    targetRevision: main
+    path: nodes/mother/lab/weyland-platform/k8s/weyland-operator
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: weyland
+  syncPolicy:
+    automated: { selfHeal: true, prune: true }
+---
 # code-quality scan Jobs (weyland ns). Weekly-CronJob conversion is Wave 4.
 apiVersion: argoproj.io/v1alpha1
 kind: Application
