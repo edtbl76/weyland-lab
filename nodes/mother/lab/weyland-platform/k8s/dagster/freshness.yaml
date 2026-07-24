@@ -34,6 +34,7 @@ spec:
   jobTemplate:
     spec:
       backoffLimit: 0
+      activeDeadlineSeconds: 120   # backstop: if the istio sidecar refuses to exit, force-terminate rather than hang Forbid
       template:
         metadata:
           labels:
@@ -119,6 +120,10 @@ spec:
                     fi
                   done < /tmp/jobs.txt
                   echo "done — $ALERTS alert(s) fired"
+                  # Istio sidecar-on-a-Job: the injected istio-proxy runs forever, so without this the Job never
+                  # completes (pod stuck "error"/0/2) and concurrencyPolicy:Forbid deadlocks the next run. Tell the
+                  # pilot-agent (15020) / Envoy admin (15000) to quit so the pod terminates cleanly.
+                  for _p in 15020 15000; do wget -q -O- --post-data='' "http://localhost:$_p/quitquitquit" 2>/dev/null && break; done || true
               env:
                 - name: DAGSTER_PG_PASSWORD
                   valueFrom: { secretKeyRef: { name: dagster-postgres-secret, key: password } }
