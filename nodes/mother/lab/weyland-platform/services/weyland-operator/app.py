@@ -15,6 +15,7 @@ from fastapi.responses import JSONResponse
 from prometheus_client import CONTENT_TYPE_LATEST, Counter, Histogram, generate_latest
 from pydantic import BaseModel
 
+import act
 import agent
 import ingress
 import session
@@ -79,11 +80,14 @@ def operator_ask(req: AskRequest, actor: str | None = Depends(_actor)):
         raise HTTPException(403, "blocked by input guard")
     t0 = time.monotonic()
     try:
-        reply = agent.run(req.message)
+        reply, proposal = agent.run(req.message)
     except Exception as exc:
         _REQS.labels("error").inc()
         raise HTTPException(502, f"operator run failed: {exc}")
     _LATENCY.observe(time.monotonic() - t0)
+    # /operator/ask is stateless — surface a proposed action but NEVER fire (acts need the Telegram confirm flow).
+    if proposal and proposal.get("tool"):
+        reply = f"[proposed action — acts require the Telegram confirm flow] {act.describe(proposal)}"
     # sources=[] → the grounding validator is N/A (the operator grounds on tool results, not RAG chunks); the
     # output guard still screens the reply for toxicity.
     if guard("output", request_id, {"answer": reply, "sources": []}, actor):

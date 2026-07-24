@@ -46,19 +46,25 @@ def init() -> None:
     _run(lambda cur: cur.execute(_DDL))
 
 
-def load(chat_id: int) -> list:
-    """Return the stored [(role, text), ...] history for a chat (empty list if new)."""
+def load(chat_id: int) -> tuple[list, dict | None]:
+    """Return (history, pending_action) for a chat — history is [(role, text), ...] (empty if new), pending_action
+    is the proposal awaiting confirmation (or None). psycopg2 decodes the JSONB columns to Python for us."""
     def q(cur):
-        cur.execute("SELECT history FROM operator_sessions WHERE chat_id = %s", (chat_id,))
+        cur.execute("SELECT history, pending_action FROM operator_sessions WHERE chat_id = %s", (chat_id,))
         row = cur.fetchone()
-        return [tuple(t) for t in row[0]] if row and row[0] else []
+        if not row:
+            return [], None
+        history = [tuple(t) for t in row[0]] if row[0] else []
+        return history, row[1]
     return _run(q)
 
 
-def save(chat_id: int, history: list) -> None:
-    """Upsert the chat history, trimmed to the last MAX_TURNS turns (2 messages each)."""
+def save(chat_id: int, history: list, pending_action: dict | None = None) -> None:
+    """Upsert the chat history (trimmed to the last MAX_TURNS turns) and the pending_action (None clears it)."""
     payload = json.dumps([list(t) for t in history[-(MAX_TURNS * 2):]])
+    pending = json.dumps(pending_action) if pending_action is not None else None
     _run(lambda cur: cur.execute(
-        "INSERT INTO operator_sessions (chat_id, history, updated_at) VALUES (%s, %s, now()) "
-        "ON CONFLICT (chat_id) DO UPDATE SET history = EXCLUDED.history, updated_at = now()",
-        (chat_id, payload)))
+        "INSERT INTO operator_sessions (chat_id, history, pending_action, updated_at) VALUES (%s, %s, %s, now()) "
+        "ON CONFLICT (chat_id) DO UPDATE SET history = EXCLUDED.history, "
+        "pending_action = EXCLUDED.pending_action, updated_at = now()",
+        (chat_id, payload, pending)))

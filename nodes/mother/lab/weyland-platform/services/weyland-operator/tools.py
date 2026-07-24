@@ -45,4 +45,16 @@ def context_ask(query: str, backend: str = "pgvector") -> str:
         return f'{{"error": "context_ask failed: {e}"}}'
 
 
+@tool
+def propose_act(tool: str, summary: str, job_name: str = "") -> str:
+    """Propose an ACTION that changes lab state. You CANNOT run actions directly — call this to propose one, and the
+    user is asked to confirm before anything runs. Use it for: triggering a Dagster pipeline job
+    (tool="pipeline_trigger", job_name one of weyland_ingestion_job|weyland_eval_job|weyland_eval_score_job),
+    running the eval matrix (tool="evals_run"), or scoring the latest eval run (tool="evals_score"). summary = a
+    one-line description of what will happen and its cost/impact. Never claim an action ran — proposing is all you can do."""
+    return f"Proposed {tool} — the user will be asked to confirm before it runs."
+
+
 READ_TOOLS = [status, context_search, context_ask]
+ACT_TOOLS = [propose_act]
+AGENT_TOOLS = READ_TOOLS + ACT_TOOLS

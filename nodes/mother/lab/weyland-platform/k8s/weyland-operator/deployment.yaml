@@ -21,7 +21,7 @@ spec:
       enableServiceLinks: false
       containers:
         - name: weyland-operator
-          image: registry.weyland.lab/weyland-operator:v2   # v2 — Part 2: Telegram ingress + Postgres sessions
+          image: registry.weyland.lab/weyland-operator:v3   # v3 — Part 3: act tools + confirm-step
           imagePullPolicy: IfNotPresent
           resources:
             # No torch/embedder — just langgraph/langchain/mlflow client + fastapi; LLM inference is remote (Ollama).

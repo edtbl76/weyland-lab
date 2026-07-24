@@ -11,6 +11,7 @@ import uuid
 import httpx
 from prometheus_client import Counter
 
+import act
 import agent
 import session
 import telegram
@@ -18,6 +19,8 @@ from guard import guard
 
 _ALLOWED = {s.strip() for s in os.getenv("TELEGRAM_ALLOWED_USERS", "").split(",") if s.strip()}
 _MSGS = Counter("operator_telegram_messages_total", "Telegram messages by outcome", ["outcome"])
+_AFFIRM = {"yes", "y", "yep", "yeah", "yup", "confirm", "ok", "okay", "sure", "go", "do it", "proceed"}
+_NEGATE = {"no", "n", "nope", "cancel", "stop", "abort", "nvm", "nevermind", "never mind"}
 
 
 def _allowed(chat_id: int) -> bool:
@@ -33,23 +36,52 @@ async def _handle(client: httpx.AsyncClient, msg: dict) -> None:
         _MSGS.labels("ignored").inc()
         return
     actor = f"operator:telegram:{chat_id}"
+    history, pending = await asyncio.to_thread(session.load, chat_id)
+    low = text.strip().lower()
+
+    # Confirm-step: a pending proposal awaits yes/no. The APP fires (not the LLM) — only on an explicit yes.
+    if pending:
+        if low in _AFFIRM:
+            result = await asyncio.to_thread(act.fire, pending, actor)
+            await asyncio.to_thread(session.save, chat_id, history + [("user", text), ("assistant", result)], None)
+            _MSGS.labels("acted").inc()
+            await telegram.send_message(client, chat_id, result)
+            return
+        if low in _NEGATE:
+            await asyncio.to_thread(session.save, chat_id, history + [("user", text), ("assistant", "Cancelled.")], None)
+            _MSGS.labels("cancelled").inc()
+            await telegram.send_message(client, chat_id, "Cancelled — nothing was run.")
+            return
+        pending = None   # neither yes nor no → user moved on; drop the stale proposal, handle as a fresh message
+
     request_id = str(uuid.uuid4())
     if await asyncio.to_thread(guard, "input", request_id, {"query": text}, actor):
         _MSGS.labels("blocked").inc()
         await telegram.send_message(client, chat_id, "⛔ Message blocked by input guard.")
         return
-    history = await asyncio.to_thread(session.load, chat_id)
     try:
-        reply = await asyncio.to_thread(agent.run, text, history)
+        reply, proposal = await asyncio.to_thread(agent.run, text, history)
     except Exception as exc:
         _MSGS.labels("error").inc()
         await telegram.send_message(client, chat_id, f"⚠️ Something went wrong: {exc}")
         return
+
+    if proposal and proposal.get("tool"):
+        prompt = f"⚠️ Confirm: {act.describe(proposal)}\n\nReply *yes* to run or *no* to cancel."
+        if await asyncio.to_thread(guard, "output", request_id, {"answer": prompt, "sources": []}, actor):
+            _MSGS.labels("blocked").inc()
+            await telegram.send_message(client, chat_id, "⛔ Reply blocked by output guard.")
+            return
+        await asyncio.to_thread(session.save, chat_id, history + [("user", text), ("assistant", prompt)], proposal)
+        _MSGS.labels("proposed").inc()
+        await telegram.send_message(client, chat_id, prompt)
+        return
+
     if await asyncio.to_thread(guard, "output", request_id, {"answer": reply, "sources": []}, actor):
         _MSGS.labels("blocked").inc()
         await telegram.send_message(client, chat_id, "⛔ Reply blocked by output guard.")
         return
-    await asyncio.to_thread(session.save, chat_id, history + [("user", text), ("assistant", reply)])
+    await asyncio.to_thread(session.save, chat_id, history + [("user", text), ("assistant", reply)], None)
     _MSGS.labels("ok").inc()
     await telegram.send_message(client, chat_id, reply)
 
