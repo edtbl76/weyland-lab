@@ -19,6 +19,7 @@ from qdrant_client import QdrantClient
 from weaviate.classes.query import MetadataQuery
 
 from guardrails.verdict import Decision, Hook, Verdict
+from prompts import load_prompt, loaded_version
 
 # B51 — error tracking → GlitchTip (Sentry SDK). DSN from env; empty DSN = disabled (no-op), so the image
 # still runs standalone for dev. FastAPI/Starlette are auto-instrumented by the SDK on init.
@@ -30,7 +31,7 @@ sentry_sdk.init(
 )
 
 MODEL_NAME = "BAAI/bge-small-en-v1.5"
-VERSION = "0.6.0"  # B100 Phase 1 — MLflow RAG tracing (manual spans on /context/ask)
+VERSION = "0.7.0"  # B100 Phase 2 — RAG system prompt from the MLflow Prompt Registry (fail-safe, TTL-cached)
 
 PG_HOST = os.getenv("WEYLAND_DB_HOST", "weyland-postgres.weyland.svc.cluster.local")
 PG_PORT = int(os.getenv("WEYLAND_DB_PORT", "5432"))
@@ -517,13 +518,14 @@ def context_ask(request: AskRequest, actor: str | None = Depends(_actor)):
             chunks = SEARCH_FNS[request.backend](request.query, request.limit)
             if rspan is not None:
                 rspan.set_outputs({"num_chunks": len(chunks)})
+        system_prompt = load_prompt("rag_system", RAG_SYSTEM_PROMPT)   # B100 P2 — live from the Prompt Registry (fail-safe)
         messages = [
-            {"role": "system", "content": RAG_SYSTEM_PROMPT},
+            {"role": "system", "content": system_prompt},
             {"role": "user", "content": f"Context:\n{_build_context(chunks)}\n\nQuestion: {request.query}"},
         ]
         with _span("generate", span_type="LLM") as gspan:
             if gspan is not None:
-                gspan.set_inputs({"model": model, "context_chunks": len(chunks)})
+                gspan.set_inputs({"model": model, "context_chunks": len(chunks), "prompt_version": loaded_version("rag_system")})
             try:
                 answer = _ollama_chat(messages, model)
             except httpx.HTTPError as e:

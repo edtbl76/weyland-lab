@@ -45,6 +45,7 @@ ENV HF_HUB_OFFLINE=1 \
 RUN pip install --no-cache-dir sentry-sdk
 
 COPY main.py /app/main.py
+COPY prompts.py /app/prompts.py
 COPY guardrails /app/guardrails
 
 # B47: run as non-root. The HF/guardrail models were baked to /app/.cache as root above; chown /app so appuser can
