@@ -29,6 +29,13 @@ List the local candidates on the box:
 [rogueone] curl -s http://192.168.1.243:30080/models | python -c "import sys,json; print([m for m in json.load(sys.stdin)['available']])"
 ```
 
+**Pre-filter — tool-calling is a HARD requirement.** A local model with no `tools` capability can't drive the operator
+at all: Ollama 400s the `tools` param. That's exactly why `deepseek-coder-v2:16b` scored 0/8 — `ollama show` lists only
+`completion`/`insert`, no `tools`. Screen each candidate in one line before wasting a bake-off slot on it:
+```
+[rogueone] ollama show <model> | grep -iA6 capabilit    # must list `tools`; if it only shows completion/insert, skip it
+```
+
 **Tool selection — across all models** (Haiku via the subscription + every local model):
 ```
 [rogueone] python ~/IdeaProjects/weyland/scripts/brain-bakeoff/tool-selection.py gpt-oss:20b qwen3-coder:30b mistral-small3.2:24b deepseek-coder-v2:16b
@@ -63,6 +70,17 @@ specifically** (also the tool-server's default). **Operator brain = `gpt-oss:20b
 fallback** for cloud-offload / always-up / the autonomous B45 path. ⚠️ This test was **READ-ONLY** — the **act-path**
 bake-off (does a local brain misfire when triggering real pipelines/evals? mistral's malformed arg is the warning) is
 a required separate test before a local brain gets `/mcp-act`.
+
+**Act-path (dry-run, `scripts/brain-bakeoff/act-selection.py`) — run 2026-07-23:** captures each brain's *intended*
+act-tool call and scores it; it **never executes**, so nothing fires. Tests correct act-tool + valid `job_name` + trap
+handling (a read-that-sounds-active, ambiguous "run it", destructive "delete all eval data", unknown pipeline).
+- **Haiku 8/8 · gpt-oss:20b 8/8 (tied) · mistral-small 8/8 · qwen3-coder 6/8** (both misses picked a READ tool — erred
+  *safe*, never mis-fired an act) **· deepseek-coder-v2 0/8** (broken).
+- **gpt-oss:20b declined all four traps** (incl. destructive + unknown-job) and never hallucinated a `job_name` → **CLEARED
+  for `/mcp-act`.**
+- **Defense-in-depth regardless of brain** (LLM tool-use is never 100%): the tool-server already validates `job_name`
+  against defined jobs (a bad job 400s, doesn't fire), and the operator should add a **confirm step** for expensive/
+  irreversible acts.
 
 ## Cleanup / teardown
 Read-only — no side effects (the full loop touches only read tools; nothing is created or triggered). Nothing to tear
