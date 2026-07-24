@@ -1,14 +1,16 @@
-# Publish the Weyland Platform Map to GitHub Pages.
-# Deploys ONLY docs/platform-map.html (self-contained, zero external requests) — a clean public share of the map,
-# NOT the internal runbooks/hosts docs. Runs on GitHub's cloud runners (no LAN dependency, unlike Woodpecker).
-# One-time setup: repo Settings → Pages → Source = "GitHub Actions". URL: https://edtbl76.github.io/weyland-lab/
-name: Deploy platform map to Pages
+# Publish the Weyland visual maps to GitHub Pages.
+# Deploys the self-contained maps (docs/platform-map.html + docs/data-mesh-map.html; zero external asset requests) —
+# a clean public share, NOT the internal runbooks/hosts docs. Runs on GitHub's cloud runners (no LAN dependency).
+# One-time setup: repo Settings → Pages → Source = "GitHub Actions".
+# URLs: https://edtbl76.github.io/weyland-lab/ (platform map) · /data-mesh-map.html (data mesh map)
+name: Deploy visual maps to Pages
 
 on:
   push:
     branches: [main]
     paths:
       - docs/platform-map.html
+      - docs/data-mesh-map.html
       - .github/workflows/pages.yml
   workflow_dispatch:
 
@@ -29,11 +31,12 @@ jobs:
       url: ${{ steps.deploy.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
-      - name: Assemble site (map only)
+      - name: Assemble site (maps)
         run: |
           mkdir -p _site
           cp docs/platform-map.html _site/index.html
           cp docs/platform-map.html _site/platform-map.html
+          cp docs/data-mesh-map.html _site/data-mesh-map.html
       - uses: actions/configure-pages@v5
         with:
           enablement: true   # turn Pages on via the API so no manual Settings→Pages toggle is needed
