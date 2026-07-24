@@ -36,6 +36,11 @@ capability is **NOT done** until ALL six pillars hold. "Ran once" ≠ done.
 
 - A demo per workflow, with **both** a **UI walkthrough** (real URLs) and a **CLI walkthrough** (real commands,
   host-labeled, no placeholders). `docs/demos/README.md` is the ledger.
+- **UAT — eyes-on, where a UI is a valid deliverable.** When the workflow produces a **UI** (a dashboard, a catalog /
+  data-product page, an IDP entity, a rendered view), the UI walkthrough MUST include explicit **UAT steps**: the exact
+  places to click and what to **visually confirm** — it renders without error, shows the *right* data, and is in the
+  expected state. A **human puts eyes on it.** The CLI test passing is necessary but **not sufficient** when a UI is
+  the deliverable — a green pipeline can sit behind a blank or wrong dashboard. List UAT steps per UI surface.
 - **The demo IS the validation** — it must be **RUN end-to-end against live infra**. There are no separate
   test-instruction files; the demo's CLI steps + expected output ARE the test. A demo written but not executed
   is **not done** (🟡, not ✅). This is the anti-fabrication guarantee.
