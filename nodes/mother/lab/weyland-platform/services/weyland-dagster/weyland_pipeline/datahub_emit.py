@@ -776,6 +776,9 @@ _PRODUCTS = [
      "industry-vertical repositories (sub-structure lives in source_path / :Entry frontmatter).",
      ("aidlc", ":entry", "entry,prod")),
     ("Genre Classifier", "ML & Modeling", "The trained genre-classification model.", ("genre_classifier",)),
+    ("Model-Eval Leaderboard", "ML & Modeling", "Judge-panel RAG evaluation (B4/B96): per-model faithfulness / "
+     "answer-relevancy / context-relevancy over the fixed question set, scored by a >=3-model judge panel — "
+     "'which model wins, on what, as of when.'", ("eval_leaderboard", "eval_scores", "eval_runs", "eval_results")),
 ]
 
 
