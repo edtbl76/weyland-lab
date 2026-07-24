@@ -15,8 +15,9 @@ capability is **NOT done** until ALL six pillars hold. "Ran once" ≠ done.
 - **schedules.md** — updated for any new timer.
 - **Runbook** — `docs/runbooks/<x>.md` with the real operational commands.
 - **Query cookbook** — `docs/query/<x>.md` if the workflow adds a queryable surface.
-- **platform-map** — `docs/platform-map.html` refreshed for any component add / remove / rename / status change
-  (the visual map iframe'd by `platform-map.md`). It drifts silently — a removed service leaves a ghost card.
+- **platform-map** — `docs/platform-map.html` (+ `docs/data-mesh-map.html`) refreshed for any component add / remove /
+  rename / status change (the visual maps iframe'd by the **Platform Maps** nav section, `docs/platform-maps/`). They
+  drift silently — a removed service leaves a ghost card.
 - **Port catalog** — the Port.io catalog (blueprints + entities: `component` / `resource` / `k8s_workload`
   links, integrations) reflects the change. Port is the "see" layer; if it claims an integration/entity that
   isn't real (or misses one that is), that's **drift** — reconcile it, don't let it accumulate.
