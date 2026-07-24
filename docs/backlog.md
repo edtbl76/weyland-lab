@@ -908,7 +908,19 @@ Doris (OLAP variety, on-demand) · Spark (big-data compute, on-demand) · RDF/tr
 - **Enrichment DONE (2026-06-26):** descriptions (14/15 assets have one — `model_catalog` doesn't) + group as prop+tag. **No column schema** — confirmed the assets carry no `TableSchema` metadata (they're non-tabular: embeddings, vector/graph writes), so there's nothing to map; the schema tab stays empty by nature, not omission.
 - **Bring-up gotchas (cost the bulk of the session):** (1) GMS metadata-auth needs a DataHub PAT → `datahub-token` secret in the weyland ns. (2) **Long-JWT paste-mangling** on the secret's command line → use `read -rs` not `--from-literal='<paste>'` ([[feedback-verify-secret-after-create]]). (3) **The real blocker: `DATAHUB_GMS_TOKEN` env was `len=0`** — we added it to `user-code.yaml` but never pushed, and the dagster Argo app's **selfHeal stripped the manually-applied env back to git state**. Fix = push the manifest, never `kubectl apply` ([[feedback-remind-to-push]] / [[argocd-gitops-gotchas]]). (4) Deploy = manual `docker build` + `k3s ctr import` (`:local`/`Never`; a registry now exists — `registry.weyland.lab`, B-RT — so this could move to a pushed tag) — Argo can't deploy image contents, only manifests.
 
-### B66 — Operator Agent Platform (consolidation — supersedes 13 fragmented agent items)
+### B66 — Operator Agent Platform (consolidation — supersedes 13 fragmented agent items) — ✅ CORE DONE 2026-07-24
+**✅ SHIPPED 2026-07-24 — `weyland-operator`, a LangGraph pod on mother.** Text the lab from anywhere → it acts.
+Built in 4 parts: (1) **agent core** — `create_react_agent(gpt-oss:20b, tools)` over the tool-server read tools,
+native tool-calling; (2) **Telegram long-poll ingress + allowlist + Postgres session memory** (`operator_sessions`,
+last 10 turns); (3) **act tools + app-level confirm-step** — the LLM can only `propose_act`, the *app* fires only on
+an explicit "yes" (four rails: allowlist · confirm · `act.py` fail-closed job-allowlist · tool-server `Hook.ACT`);
+(4) **wrap** — SealedSecret, MLflow `operator` traces, [runbooks/operator.md](runbooks/operator.md),
+[demos/operator.md](demos/operator.md), [diagrams/flow-operator.md](diagrams/flow-operator.md), design
+`aidlc-docs/construction/operator-agent-design.md`. Brain = `gpt-oss:20b` (bake-off winner); Hermes/OpenClaw retired.
+Fresh shell, raw-httpx Telegram, `asyncio.to_thread` for the blocking loop, per-op meshed Postgres. **Enhancements**
+(Spotify/NeMo/incident-response/error-tracking = Linear EMA-56) remain the Low sibling tree. See [[weyland-guard-b70]],
+[[b66-operator-brain-bakeoff]].
+
 **Added 2026-06-25.** Folds the scattered Hermes/OpenClaw work into ONE effort: a **Claude-brained, multi-ingress operator agent**. **Thesis:** the agents' real value is *remote/mobile ingress that acts on the lab* (text it from anywhere → it acts); the failure is the **brain** — Hermes on weak free/local models is slow/unhelpful, OpenClaw "feels" better. Fix = give the agent a **Claude brain via the $0 subscription-headless path** (`claude -p` / Agent SDK with the Max-subscription auth — NOT the paid Claude API, which is exactly why the Claude-brain path was *declined* at B26). Keep the existing ingress + act (`/mcp-act`) + tool plumbing.
 - **Workstreams (each absorbs an old item):**
   - **Brain** — Claude via subscription-headless ($0); revisits the B26-declined decision with the new path.

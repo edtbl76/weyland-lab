@@ -41,7 +41,7 @@ Hosts & access users: [hosts.md](hosts.md). `mother` = 192.168.1.243, CTs by IP 
 | `/evals/run` · `/evals/score` | POST | B4: trigger eval matrix / judge-panel scoring (B14 `act` hook: audited; exposed via `/mcp-act`) |
 | `/evals/runs` · `/evals/leaderboard` | GET | B4: list eval runs / panel-averaged leaderboard (`?run_id=`) |
 | `/mcp` | MCP | **B2 system-view MCP server** (Streamable HTTP via `fastapi-mcp`) — read-only tools: `status`, `context_search`, `context_ask`, `list_models`. Consumers: **Claude Code** (registered via `claude mcp add weyland --transport http http://192.168.1.243:30080/mcp`, validated 2026-06-14) + the coming **B66 operator agent**. (Hermes retired 2026-07-23.) |
-| `/mcp-act` | MCP | **B14 read+act** act-tool surface (separate mount): `pipeline/trigger`, `evals/run`, `evals/score`. Every call audited by the `act` hook → `weyland-guard` (`policy.audit`, shadow) → `guardrail_verdicts`. **Consumer: the B66 operator agent** (Hermes retired 2026-07-23); **Claude Code stays read-only on `/mcp`** (builder lane). Gateway (B17+B19) fronts it with auth (`X-Forwarded-Consumer` → `actor`). |
+| `/mcp-act` | MCP | **B14 read+act** act-tool surface (separate mount): `pipeline/trigger`, `evals/run`, `evals/score`. Every call audited by the `act` hook → `weyland-guard` (`policy.audit`, shadow) → `guardrail_verdicts`. **Consumer: the B66 operator agent** (`weyland-operator`, live 2026-07-24 — posts here on confirmed acts, `actor=operator:telegram:<chat_id>`; Hermes retired 2026-07-23); **Claude Code stays read-only on `/mcp`** (builder lane). Gateway (B17+B19) fronts it with auth (`X-Forwarded-Consumer` → `actor`). |
 
 ## Guard service (`weyland-guard` — B70 Part 1)
 
@@ -71,6 +71,21 @@ retrieve→grade→reflect→generate loop over the 4 backends, traced per-step 
 | `/metrics` | GET | `agent_requests_total`, `agent_attempts`, `agent_request_seconds` |
 
 See [runbooks/agentic-rag.md](runbooks/agentic-rag.md).
+
+## Operator agent (`weyland-operator` — B66)
+
+`weyland-operator.weyland.svc:8080` (ClusterIP, **no ingress** — the interface is **Telegram** long-poll). A LangGraph
+ReAct agent (`gpt-oss:20b`) over the tool-server read + act tools, with Postgres session memory and an app-level
+confirm-step on acts. Traced per-message in MLflow (`operator` experiment).
+
+| Route | Method | Purpose |
+|---|---|---|
+| *(Telegram DM)* | — | primary interface: allowlisted DMs → read tools freely; state-changing acts require a **yes/no confirm** (LLM proposes, the app fires) |
+| `/operator/ask` | POST | `{message}` → `{message, reply}`. **Stateless** test/probe surface (no session, never fires acts — surfaces a proposal instead). INPUT+OUTPUT guards via weyland-guard (fail-open) |
+| `/health` `/ready` | GET | liveness / readiness |
+| `/metrics` | GET | `operator_requests_total`, `operator_request_seconds`, `operator_telegram_messages_total{outcome}` |
+
+See [runbooks/operator.md](runbooks/operator.md).
 
 ## Data backends (mother, NodePort)
 

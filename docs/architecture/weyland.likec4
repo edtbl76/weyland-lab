@@ -21,7 +21,7 @@ model {
   edward = actor "Edward" "Lab operator — sole user"
 
   // ---- External clouds / SaaS ----
-  telegram = ext "Telegram" "Cloud messaging — Hermes DMs in, alerts out"
+  telegram = ext "Telegram" "Cloud messaging — operator DMs in, alerts out"
   github = ext "GitHub" "weyland-lab repo — RAG source + Argo/Woodpecker/Port"
   anthropic = ext "Anthropic API" "Claude — Claude Code reasoning on rogueone"
   hostedModels = ext "Gemini / OpenRouter" "Hosted LLMs fronted by LiteLLM (gated egress)"
@@ -49,6 +49,7 @@ model {
         dagster = component "Dagster" "Orchestrator (cross-cutting) — RAG, evals, catalog, datasets, dbt, DataHub emit"
         litellm = gateway "LiteLLM" "Model gateway — Gemini + OpenRouter behind /v1 (gated egress)"
         openWebui = component "Open WebUI" "Browser voice/chat — chat -> Ollama, STT -> whisper"
+        operator = component "weyland-operator" "B66 operator agent — LangGraph ReAct (gpt-oss:20b) over tool-server read+act; Telegram long-poll, Postgres session, app-level act confirm-step. Replaces Hermes."
         pg = store "Postgres + pgvector" "Spine store — rag_chunks, eval_*, model_catalog. STRICT mTLS"
         qdrant = store "Qdrant" "Vector store — weyland_chunks + 9 dataset collections"
         weav = store "Weaviate" "Vector store — WeylandChunk + 9 dataset classes"
@@ -159,7 +160,7 @@ model {
       }
     }
 
-    hermes = node "hermes CT" "Python/systemd (CT 104, .247) — primary agent, MCP client, Telegram front door"
+    // hermes CT (CT 104) RETIRED 2026-07-23 — destroyed; operator role → weyland.mother.ai.operator
     whisper = node "whisper CT" "whisper.cpp (CT 103, .246) — CPU STT"
   }
 
@@ -167,18 +168,17 @@ model {
 
   // Context / access
   edward -> weyland.mother.ai.openWebui "voice/chat UI"
-  edward -> weyland.hermes "Telegram DM (allowlisted)"
+  edward -> weyland.mother.ai.operator "Telegram DM (allowlisted)"
   edward -> rogueone.claudeCode "develops on"
-  telegram -> weyland.hermes "inbound DM"
-  weyland.hermes -> telegram "agent replies"
+  telegram -> weyland.mother.ai.operator "inbound DM"
+  weyland.mother.ai.operator -> telegram "agent replies"
   weyland.mother.ops.obs.grafana -> telegram "Alertmanager notifications"
   weyland.mother.ops.obs.kuma -> telegram "uptime alerts"
 
   // Agents
-  weyland.hermes -> weyland.mother.ai.toolServer "MCP /mcp (read-only)"
-  weyland.hermes -> weyland.mother.ai.litellm "planning /v1 (Gemini)"
-  weyland.hermes -> rogueone.ollama "brain — qwen3-coder /v1"
-  weyland.hermes -> github "roadmap-sync (6h)"
+  weyland.mother.ai.operator -> weyland.mother.ai.toolServer "read + act (/mcp, /mcp-act) — confirm-step on acts"
+  weyland.mother.ai.operator -> rogueone.ollama "brain — gpt-oss:20b /v1"
+  weyland.mother.ai.operator -> weyland.mother.ai.pg "session memory (STRICT mTLS)"
   rogueone.claudeCode -> weyland.mother.ai.toolServer "MCP /mcp"
   rogueone.claudeCode -> anthropic "Claude reasoning"
 
