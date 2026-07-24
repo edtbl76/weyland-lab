@@ -86,6 +86,16 @@
   .principle p{font-size:14px; color:var(--muted); margin:0 0 12px; text-wrap:pretty}
   .principle p b{color:var(--ink); font-weight:600}
 
+  /* FAIR data-product tenets */
+  .tenets{display:grid; grid-template-columns:1fr 1fr; gap:0 28px}
+  .tenet{display:flex; gap:13px; padding:12px 0; border-top:1px solid var(--line)}
+  .tenet .tnum{font-family:var(--mono); font-size:13px; color:var(--accent); font-weight:700; flex:none; width:16px; text-align:right; padding-top:1px; font-variant-numeric:tabular-nums}
+  .tenet .tn{font-weight:700; font-size:14.5px; letter-spacing:-.01em}
+  .tenet .fair{font-family:var(--mono); font-size:10px; letter-spacing:.09em; text-transform:uppercase; color:var(--accent); display:inline-block; margin:3px 0; border:1px solid var(--line-strong); border-radius:3px; padding:1px 6px}
+  .tenet .td{font-size:13px; color:var(--muted); margin-top:3px}
+  .tenet .td b{color:var(--ink); font-weight:600}
+  .tenet .td code{font-family:var(--mono); font-size:11.5px; color:var(--code)}
+
   /* layer spine */
   .spine{position:relative; margin-left:6px; padding-left:clamp(20px,4vw,40px); border-left:2px solid var(--line-strong)}
   .layer{position:relative; padding:6px 0 30px}
@@ -117,6 +127,7 @@
   @media (max-width:720px){
     .principles{grid-template-columns:1fr}
     .prods{grid-template-columns:1fr}
+    .tenets{grid-template-columns:1fr}
   }
   @media (max-width:600px){
     .layer .num{position:static; margin-bottom:10px}
@@ -202,6 +213,20 @@
       </div>
     </div>
 
+  </div>
+
+  <div class="sectionlabel">The data-product tenets — FAIR, extended</div>
+  <p class="sublede">Principle 02 in practice: a dataset earns the status of <em>product</em> only when it satisfies
+  these seven characteristics. They extend the <b>FAIR</b> principles — Findable, Accessible, Interoperable, Reusable
+  (Wilkinson et al., 2016) — into the data-mesh product baseline, each backed by a concrete weyland mechanism.</p>
+  <div class="tenets">
+    <div class="tenet"><div class="tnum">1</div><div class="tc"><div class="tn">Discoverable</div><span class="fair">FAIR · Findable</span><div class="td">Registered &amp; searchable — every product is a <b>DataHub</b> entry with domain, glossary &amp; tags.</div></div></div>
+    <div class="tenet"><div class="tnum">2</div><div class="tc"><div class="tn">Addressable</div><span class="fair">FAIR · Findable</span><div class="td">A unique, stable address to fetch it — <b>Nessie</b> table refs, <b>lakeFS</b> paths, Trino FQNs (<code>iceberg.dbt.mart_*</code>).</div></div></div>
+    <div class="tenet"><div class="tnum">3</div><div class="tc"><div class="tn">Understandable</div><span class="fair">FAIR · Reusable</span><div class="td">Self-describing — schema, docs &amp; semantics travel with it (dbt descriptions + DataHub docs + Cube definitions).</div></div></div>
+    <div class="tenet"><div class="tnum">4</div><div class="tc"><div class="tn">Trustworthy &amp; truthful</div><span class="fair">FAIR · Reusable</span><div class="td">Stated, provable quality &amp; freshness — <b>Soda</b> assertions + dbt tests + <b>OpenLineage</b> lineage.</div></div></div>
+    <div class="tenet"><div class="tnum">5</div><div class="tc"><div class="tn">Natively accessible</div><span class="fair">FAIR · Accessible</span><div class="td">Consumable in each user's native mode — Trino SQL · Cube REST/GraphQL · Feast features · lakeFS files.</div></div></div>
+    <div class="tenet"><div class="tnum">6</div><div class="tc"><div class="tn">Interoperable</div><span class="fair">FAIR · Interoperable</span><div class="td">Global standards so products compose across domains — Iceberg/Arrow formats · <b>ODCS</b> contracts · shared keys.</div></div></div>
+    <div class="tenet"><div class="tnum">7</div><div class="tc"><div class="tn">Secure &amp; governed</div><span class="fair">FAIR · Accessible</span><div class="td">Access controlled at the product — <b>Keycloak</b> identity + <b>Ranger</b> column masking · policy, not perimeter.</div></div></div>
   </div>
 
   <div class="sectionlabel">The eight-layer architecture — raw data to data products</div>
@@ -310,7 +335,9 @@
     <b>Constraints as design:</b> one Minisforum MS-A2 + one RTX-5000 laptop · LAN-only · $0 budget · self-hosted first ·
     always-on foundation, heavy tiers scaled to zero.<br>
     <b>Companion:</b> the full tool inventory is the <a href="https://docs.weyland.lab/platform-map.html">Platform Map</a> ·
-    all walkthroughs at <a href="https://docs.weyland.lab/demos/">docs.weyland.lab/demos</a>.
+    all walkthroughs at <a href="https://docs.weyland.lab/demos/">docs.weyland.lab/demos</a>.<br>
+    <b>References:</b> FAIR — Wilkinson et al. (2016), <em>Sci Data</em> 3:160018 · <a href="https://www.go-fair.org/fair-principles/">go-fair.org/fair-principles</a> ·
+    data-product characteristics — Dehghani, <em>Data Mesh</em> (O'Reilly, 2022).
   </footer>
 
 </div>
