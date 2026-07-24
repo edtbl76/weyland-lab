@@ -17,7 +17,7 @@ spec:
       enableServiceLinks: false
       containers:
         - name: weyland-tool-server
-          image: registry.weyland.lab/weyland-tool-server:v2   # B70 Part 2 — guards call weyland-guard; llm-guard models dropped
+          image: registry.weyland.lab/weyland-tool-server:v3   # B100 Phase 1 — MLflow RAG tracing (mlflow-skinny)
           resources:
             requests: { memory: 512Mi, cpu: 250m }
             # 3Gi (was 2Gi, raised 2026-07-21). Steady state is ~929Mi (it loads the embedding model), so 2Gi
@@ -110,6 +110,10 @@ spec:
             # B70 Part 2 — shared guard service (fail-open; default matches the in-cluster svc, set explicit for clarity).
             - name: GUARD_BASE_URL
               value: http://weyland-guard.weyland.svc.cluster.local:8080
+            # B100 Phase 1 — MLflow RAG tracing (manual spans; fail-safe — empty/unreachable = tracing disabled,
+            # the request still answers). Experiment `tool-server-rag`.
+            - name: MLFLOW_TRACKING_URI
+              value: http://mlflow.weyland.svc.cluster.local:5000
 ---
 apiVersion: v1
 kind: Service

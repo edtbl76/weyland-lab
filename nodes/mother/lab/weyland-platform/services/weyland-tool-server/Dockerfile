@@ -13,7 +13,8 @@ RUN pip install --no-cache-dir \
     weaviate-client \
     neo4j \
     prometheus-client \
-    sentence-transformers
+    sentence-transformers \
+    mlflow-skinny
 # B70 Part 2: `llm-guard` removed — the injection/toxicity/grounding validators (and their models) live in the
 # shared weyland-guard service now; this image only POSTs to it over the already-present httpx. sentence-transformers
 # stays (llama-index-embeddings-huggingface needs it for the bge query-embedding).

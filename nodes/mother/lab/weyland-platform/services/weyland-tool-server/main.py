@@ -2,7 +2,7 @@ import json
 import os
 import urllib.request
 import uuid
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, contextmanager
 from typing import Literal
 
 import httpx
@@ -30,7 +30,7 @@ sentry_sdk.init(
 )
 
 MODEL_NAME = "BAAI/bge-small-en-v1.5"
-VERSION = "0.5.0"  # B70 Part 2 — guards moved to the shared weyland-guard service
+VERSION = "0.6.0"  # B100 Phase 1 — MLflow RAG tracing (manual spans on /context/ask)
 
 PG_HOST = os.getenv("WEYLAND_DB_HOST", "weyland-postgres.weyland.svc.cluster.local")
 PG_PORT = int(os.getenv("WEYLAND_DB_PORT", "5432"))
@@ -138,6 +138,44 @@ def _guard(hook: Hook, request_id: str, payload: dict, actor: str | None = None)
         return None
 
 
+# B100 Phase 1 — MLflow tracing for the RAG path. `/context/ask` generates via a raw httpx call to Ollama (not a
+# LangChain/OpenAI client), so autolog can't see it — we emit manual spans. FAIL-SAFE: any tracing error degrades to
+# a no-op, exactly like the guard is fail-open — observability must never take an answer offline.
+MLFLOW_TRACKING_URI = os.getenv("MLFLOW_TRACKING_URI", "")
+MLFLOW_EXPERIMENT = os.getenv("MLFLOW_EXPERIMENT", "tool-server-rag")
+_tracing_enabled = False
+
+
+def _init_tracing() -> None:
+    global _tracing_enabled
+    if not MLFLOW_TRACKING_URI:
+        print("[mlflow] no MLFLOW_TRACKING_URI — RAG tracing disabled", flush=True)
+        return
+    try:
+        import mlflow
+        mlflow.set_tracking_uri(MLFLOW_TRACKING_URI)
+        mlflow.set_experiment(MLFLOW_EXPERIMENT)
+        _tracing_enabled = True
+        print(f"[mlflow] RAG tracing enabled -> {MLFLOW_EXPERIMENT}", flush=True)
+    except Exception as exc:
+        print(f"[mlflow] tracing disabled: {exc}", flush=True)
+
+
+@contextmanager
+def _span(name: str, span_type: str = "UNKNOWN"):
+    """A fail-safe MLflow span: yields the span (or None if tracing is off/broken). A tracing failure never
+    interrupts the request."""
+    if not _tracing_enabled:
+        yield None
+        return
+    try:
+        import mlflow
+        with mlflow.start_span(name=name, span_type=span_type) as span:
+            yield span
+    except Exception:
+        yield None
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     global embed_model, qdrant_client, weaviate_client, neo4j_driver
@@ -152,6 +190,7 @@ async def lifespan(app: FastAPI):
         grpc_secure=False,
     )
     neo4j_driver = GraphDatabase.driver(NEO4J_URI, auth=(NEO4J_USER, NEO4J_PASSWORD))
+    _init_tracing()   # B100 Phase 1 — RAG tracing (fail-safe)
     yield
     if weaviate_client:
         weaviate_client.close()
@@ -471,15 +510,28 @@ def context_ask(request: AskRequest, actor: str | None = Depends(_actor)):
     if blocked is not None:
         raise HTTPException(status_code=403, detail=f"blocked by {blocked.validator}: {blocked.reason}")
     model = request.model or OLLAMA_MODEL
-    chunks = SEARCH_FNS[request.backend](request.query, request.limit)
-    messages = [
-        {"role": "system", "content": RAG_SYSTEM_PROMPT},
-        {"role": "user", "content": f"Context:\n{_build_context(chunks)}\n\nQuestion: {request.query}"},
-    ]
-    try:
-        answer = _ollama_chat(messages, model)
-    except httpx.HTTPError as e:
-        raise HTTPException(status_code=502, detail=f"LLM call failed ({model}): {e}")
+    with _span("context_ask", span_type="CHAIN") as parent:
+        if parent is not None:
+            parent.set_inputs({"query": request.query, "backend": request.backend, "model": model, "limit": request.limit})
+        with _span("retrieve", span_type="RETRIEVER") as rspan:
+            chunks = SEARCH_FNS[request.backend](request.query, request.limit)
+            if rspan is not None:
+                rspan.set_outputs({"num_chunks": len(chunks)})
+        messages = [
+            {"role": "system", "content": RAG_SYSTEM_PROMPT},
+            {"role": "user", "content": f"Context:\n{_build_context(chunks)}\n\nQuestion: {request.query}"},
+        ]
+        with _span("generate", span_type="LLM") as gspan:
+            if gspan is not None:
+                gspan.set_inputs({"model": model, "context_chunks": len(chunks)})
+            try:
+                answer = _ollama_chat(messages, model)
+            except httpx.HTTPError as e:
+                raise HTTPException(status_code=502, detail=f"LLM call failed ({model}): {e}")
+            if gspan is not None:
+                gspan.set_outputs({"answer": answer})
+        if parent is not None:
+            parent.set_outputs({"answer": answer, "num_sources": len(chunks)})
     # OUTPUT hook: grounding (answer vs retrieved chunks) + PII/toxicity on the answer.
     out_blocked = _guard(Hook.OUTPUT, request_id, {"query": request.query, "answer": answer, "sources": chunks}, actor)
     if out_blocked is not None:
