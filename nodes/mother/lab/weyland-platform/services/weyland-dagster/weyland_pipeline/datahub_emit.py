@@ -878,8 +878,10 @@ def emit_eval_assertions():
     ts = int(time.time() * 1000)
     contract_run = f"eval-contract-{ts}"
     n = 0
+    urns = {}
     for name, desc, ok in checks:
         aurn = make_assertion_urn(hashlib.md5(f"eval_scores:{name}".encode(), usedforsecurity=False).hexdigest())
+        urns[name] = aurn
         emitter.emit(MetadataChangeProposalWrapper(entityUrn=aurn, aspect=AssertionInfoClass(
             type=AssertionTypeClass.DATASET,
             datasetAssertion=DatasetAssertionInfoClass(
@@ -893,6 +895,26 @@ def emit_eval_assertions():
             result=AssertionResultClass(
                 type=AssertionResultTypeClass.SUCCESS if ok else AssertionResultTypeClass.FAILURE))))
         n += 1
+
+    # Wrap the two assertions in a formal Data Contract on eval_scores (the dataset's "Data Contract" tab).
+    # Guarded: if the contract classes differ/are absent in this client version, the assertions above still stand.
+    try:
+        from datahub.metadata.schema_classes import (
+            DataContractPropertiesClass,
+            DataContractStateClass,
+            DataContractStatusClass,
+            DataQualityContractClass,
+            FreshnessContractClass,
+        )
+        contract_urn = "urn:li:dataContract:eval-scores"
+        emitter.emit(MetadataChangeProposalWrapper(entityUrn=contract_urn, aspect=DataContractPropertiesClass(
+            entity=target,
+            dataQuality=[DataQualityContractClass(assertion=urns["eval-leaderboard-validity"])],
+            freshness=[FreshnessContractClass(assertion=urns["eval-leaderboard-freshness"])])))
+        emitter.emit(MetadataChangeProposalWrapper(entityUrn=contract_urn, aspect=DataContractStatusClass(
+            state=DataContractStateClass.ACTIVE)))
+    except Exception as exc:
+        print(f"[eval-contract] Data Contract wrapper skipped: {exc}", flush=True)
     return n
 
 
