@@ -27,7 +27,7 @@ RUN python -c "from llama_index.embeddings.huggingface import HuggingFaceEmbeddi
 ENV HF_HUB_OFFLINE=1 \
     TRANSFORMERS_OFFLINE=1
 
-COPY retrievers.py graph.py guard.py app.py /app/
+COPY retrievers.py graph.py guard.py prompts.py app.py /app/
 
 RUN useradd -u 10001 -m appuser && chown -R appuser /app
 USER appuser

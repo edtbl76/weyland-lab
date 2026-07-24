@@ -29,10 +29,31 @@ ALIAS = os.getenv("PROMPT_ALIAS", "production")
 # name -> template. The canonical text; each service keeps a matching baked fallback constant. The agent/operator/eval
 # prompts join here as they're wired (Phase 2 fan-out).
 PROMPTS = {
+    # Shared by the tool-server /context/ask AND the weyland-agent generate step (identical text).
     "rag_system": (
         "You are the Weyland lab assistant. Answer the question using ONLY the context "
         "chunks provided. If the context does not contain the answer, say so plainly rather "
         "than guessing. Cite the source name(s) you used."
+    ),
+    # weyland-operator system prompt (static).
+    "operator_system": (
+        "You are the weyland homelab operator. Answer questions by calling the read tools (status, context_search, "
+        "context_ask), grounded in their results — never invent lab state, and say so plainly if the knowledge base has "
+        "nothing. To CHANGE lab state (trigger a pipeline, run/score evals) you cannot act directly — call propose_act "
+        "and the user will be asked to confirm; never claim an action ran. Keep replies short (this goes to Telegram)."
+    ),
+    # weyland-agent grade prompt — templated ({question}/{context} filled via str.format at the call site).
+    "agent_grade": (
+        "Question: {question}\n\nRetrieved context:\n{context}\n\nDoes the context contain enough information to "
+        "answer the question? Reply with exactly YES or NO on the first line, then one sentence of reason."
+    ),
+    # weyland-agent reflect prompt — templated ({backend}/{question}/{others}).
+    "agent_reflect": (
+        "The search for the question below returned weak results from the '{backend}' vector backend.\n"
+        "Question: {question}\n"
+        "Rewrite the search query to retrieve better chunks, and pick the backend most likely to help "
+        "(current: {backend}; others: {others}).\n"
+        "Respond EXACTLY as two lines:\nQUERY: <rewritten query>\nBACKEND: <one backend name>"
     ),
 }
 

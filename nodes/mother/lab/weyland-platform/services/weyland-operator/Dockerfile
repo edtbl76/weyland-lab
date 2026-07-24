@@ -16,7 +16,7 @@ RUN pip install --no-cache-dir \
     langchain-openai \
     mlflow
 
-COPY tools.py agent.py guard.py telegram.py session.py ingress.py act.py app.py /app/
+COPY tools.py agent.py guard.py telegram.py session.py ingress.py act.py prompts.py app.py /app/
 
 RUN useradd -u 10001 -m appuser && chown -R appuser /app
 USER appuser

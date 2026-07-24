@@ -12,6 +12,7 @@ from typing import TypedDict
 from langchain_openai import ChatOpenAI
 from langgraph.graph import END, StateGraph
 
+from prompts import load_prompt, render_prompt
 from retrievers import VALID_BACKENDS, WeylandRetriever
 
 OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://192.168.1.230:11434/v1")
@@ -25,6 +26,19 @@ _llm = ChatOpenAI(base_url=OLLAMA_BASE_URL, api_key="ollama", model=OLLAMA_MODEL
 RAG_SYSTEM_PROMPT = (
     "You are the Weyland lab assistant. Answer the question using ONLY the context chunks provided. If the context "
     "does not contain the answer, say so plainly rather than guessing. Cite the source name(s) you used."
+)
+# B100 P2 — templated fallbacks (must match the registered `agent_grade` / `agent_reflect` templates); the live
+# versions come from the Prompt Registry via render_prompt.
+_GRADE_PROMPT = (
+    "Question: {question}\n\nRetrieved context:\n{context}\n\nDoes the context contain enough information to "
+    "answer the question? Reply with exactly YES or NO on the first line, then one sentence of reason."
+)
+_REFLECT_PROMPT = (
+    "The search for the question below returned weak results from the '{backend}' vector backend.\n"
+    "Question: {question}\n"
+    "Rewrite the search query to retrieve better chunks, and pick the backend most likely to help "
+    "(current: {backend}; others: {others}).\n"
+    "Respond EXACTLY as two lines:\nQUERY: <rewritten query>\nBACKEND: <one backend name>"
 )
 
 
@@ -59,23 +73,15 @@ def retrieve(state: AgentState) -> dict:
 def grade(state: AgentState) -> dict:
     if not state["chunks"]:
         return {"grade": "weak"}
-    msg = _llm.invoke(
-        f"Question: {state['original_query']}\n\nRetrieved context:\n{_fmt_context(state['chunks'])}\n\n"
-        "Does the context contain enough information to answer the question? "
-        "Reply with exactly YES or NO on the first line, then one sentence of reason."
-    )
+    msg = _llm.invoke(render_prompt("agent_grade", _GRADE_PROMPT,
+                                    question=state["original_query"], context=_fmt_context(state["chunks"])))
     return {"grade": "relevant" if msg.content.strip().upper().startswith("YES") else "weak"}
 
 
 def reflect(state: AgentState) -> dict:
     others = sorted(VALID_BACKENDS - {state["backend"]})
-    msg = _llm.invoke(
-        f"The search for the question below returned weak results from the '{state['backend']}' vector backend.\n"
-        f"Question: {state['original_query']}\n"
-        f"Rewrite the search query to retrieve better chunks, and pick the backend most likely to help "
-        f"(current: {state['backend']}; others: {others}).\n"
-        "Respond EXACTLY as two lines:\nQUERY: <rewritten query>\nBACKEND: <one backend name>"
-    )
+    msg = _llm.invoke(render_prompt("agent_reflect", _REFLECT_PROMPT,
+                                    backend=state["backend"], question=state["original_query"], others=others))
     new_query, new_backend = state["query"], state["backend"]
     for line in msg.content.splitlines():
         s = line.strip()
@@ -91,7 +97,7 @@ def reflect(state: AgentState) -> dict:
 
 def generate(state: AgentState) -> dict:
     msg = _llm.invoke([
-        ("system", RAG_SYSTEM_PROMPT),
+        ("system", load_prompt("rag_system", RAG_SYSTEM_PROMPT)),
         ("user", f"Context:\n{_fmt_context(state['chunks'])}\n\nQuestion: {state['original_query']}"),
     ])
     return {"answer": msg.content}

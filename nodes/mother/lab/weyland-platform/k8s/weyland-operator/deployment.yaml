@@ -21,7 +21,7 @@ spec:
       enableServiceLinks: false
       containers:
         - name: weyland-operator
-          image: registry.weyland.lab/weyland-operator:v3   # v3 — Part 3: act tools + confirm-step
+          image: registry.weyland.lab/weyland-operator:v4   # v4 — B100 P2: system prompt from the Prompt Registry
           imagePullPolicy: IfNotPresent
           resources:
             # No torch/embedder — just langgraph/langchain/mlflow client + fastapi; LLM inference is remote (Ollama).

@@ -8,6 +8,7 @@ import os
 from langchain_openai import ChatOpenAI
 from langgraph.prebuilt import create_react_agent
 
+from prompts import load_prompt
 from tools import AGENT_TOOLS
 
 OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://192.168.1.230:11434/v1")
@@ -41,7 +42,7 @@ def _extract_proposal(msgs: list) -> dict | None:
 def run(message: str, history: list | None = None) -> tuple[str, dict | None]:
     """Run the operator on a user message (+ optional prior [(role, text)] turns). Returns (reply, proposal) where
     proposal is a propose_act payload if the agent proposed an action, else None."""
-    messages = [("system", SYSTEM)]
+    messages = [("system", load_prompt("operator_system", SYSTEM))]   # B100 P2 — live from the Prompt Registry (fail-safe)
     if history:
         messages += history
     messages.append(("user", message))
