@@ -24,7 +24,12 @@ def load_prompt(name: str, fallback: str) -> str:
     try:
         import mlflow
         mlflow.set_tracking_uri(MLFLOW_TRACKING_URI)
-        pv = mlflow.load_prompt(f"prompts:/{name}@{PROMPT_ALIAS}")
+        # Prompt Registry API moved to `mlflow.genai` in 3.x; prefer it, fall back to the deprecated top-level.
+        try:
+            from mlflow.genai import load_prompt as _load_prompt
+        except Exception:
+            from mlflow import load_prompt as _load_prompt
+        pv = _load_prompt(f"prompts:/{name}@{PROMPT_ALIAS}")
         _cache[name] = (pv.template, str(pv.version), now)
         return pv.template
     except Exception:

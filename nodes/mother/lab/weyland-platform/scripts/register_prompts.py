@@ -16,6 +16,13 @@ import os
 
 import mlflow
 
+# The Prompt Registry API moved to the `mlflow.genai` namespace in 3.x; prefer it, fall back to the (deprecated)
+# top-level for older builds.
+try:
+    from mlflow.genai import load_prompt, register_prompt, set_prompt_alias
+except Exception:
+    from mlflow import load_prompt, register_prompt, set_prompt_alias
+
 mlflow.set_tracking_uri(os.environ.get("MLFLOW_TRACKING_URI", "http://mlflow.weyland.svc.cluster.local:5000"))
 ALIAS = os.getenv("PROMPT_ALIAS", "production")
 
@@ -32,14 +39,14 @@ PROMPTS = {
 
 def _sync(name: str, template: str) -> None:
     try:
-        cur = mlflow.load_prompt(f"prompts:/{name}@{ALIAS}")
+        cur = load_prompt(f"prompts:/{name}@{ALIAS}")
         if cur.template == template:
             print(f"{name}: unchanged (v{cur.version})")
             return
     except Exception:
         pass  # not registered yet, or no production alias — fall through to register
-    pv = mlflow.register_prompt(name=name, template=template, commit_message="sync from register_prompts.py")
-    mlflow.set_prompt_alias(name=name, alias=ALIAS, version=pv.version)
+    pv = register_prompt(name=name, template=template, commit_message="sync from register_prompts.py")
+    set_prompt_alias(name=name, alias=ALIAS, version=pv.version)
     print(f"{name}: registered v{pv.version} -> @{ALIAS}")
 
 
