@@ -9,13 +9,14 @@ RUN pip install --no-cache-dir \
     fastapi \
     uvicorn \
     httpx \
+    psycopg2-binary \
     prometheus-client \
     langgraph \
     langchain \
     langchain-openai \
     mlflow
 
-COPY tools.py agent.py guard.py app.py /app/
+COPY tools.py agent.py guard.py telegram.py session.py ingress.py app.py /app/
 
 RUN useradd -u 10001 -m appuser && chown -R appuser /app
 USER appuser

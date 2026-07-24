@@ -3,6 +3,7 @@
 A LangGraph ReAct agent (gpt-oss:20b) over the tool-server's read tools. Part 1 exposes it as `POST /operator/ask`
 for testing + k8s probes/scrape; Parts 2–3 add Telegram ingress, Postgres session memory, and the act confirm-step.
 Guards the inbound message + outbound reply via weyland-guard (fail-open). Each /ask is one MLflow Trace."""
+import asyncio
 import os
 import time
 import uuid
@@ -15,6 +16,9 @@ from prometheus_client import CONTENT_TYPE_LATEST, Counter, Histogram, generate_
 from pydantic import BaseModel
 
 import agent
+import ingress
+import session
+import telegram
 from guard import guard
 
 VERSION = "0.1.0"
@@ -24,6 +28,7 @@ MLFLOW_EXPERIMENT = os.getenv("MLFLOW_EXPERIMENT", "operator")
 _REQS = Counter("operator_requests_total", "Operator /ask requests", ["outcome"])
 _LATENCY = Histogram("operator_request_seconds", "End-to-end /operator/ask latency (s)")
 _ready = {"ok": False}
+_ingress_task = None
 
 
 @asynccontextmanager
@@ -37,8 +42,22 @@ async def lifespan(app: FastAPI):
         mlflow.langchain.autolog()          # LangGraph + LLM + tool spans (advisory — never blocks startup)
     except Exception as exc:
         print(f"[mlflow] langchain autolog disabled: {exc}", flush=True)
+    # Telegram ingress + Postgres sessions (Part 2). Both gated on a bot token so the HTTP /operator/ask surface
+    # still runs standalone (no DB/token) for testing + probes.
+    global _ingress_task
+    if telegram.configured():
+        try:
+            session.init()
+        except Exception as exc:
+            print(f"[session] init failed (per-message ops will retry): {exc}", flush=True)
+        _ingress_task = asyncio.create_task(ingress.poll_loop())
+        print("[telegram] long-poll ingress started", flush=True)
+    else:
+        print("[telegram] no TELEGRAM_BOT_TOKEN — ingress disabled (HTTP /operator/ask only)", flush=True)
     _ready["ok"] = True
     yield
+    if _ingress_task:
+        _ingress_task.cancel()
 
 
 app = FastAPI(title="Weyland Operator", lifespan=lifespan)

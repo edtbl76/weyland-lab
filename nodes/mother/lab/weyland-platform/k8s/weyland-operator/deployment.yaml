@@ -21,7 +21,7 @@ spec:
       enableServiceLinks: false
       containers:
         - name: weyland-operator
-          image: registry.weyland.lab/weyland-operator:v1
+          image: registry.weyland.lab/weyland-operator:v2   # v2 — Part 2: Telegram ingress + Postgres sessions
           imagePullPolicy: IfNotPresent
           resources:
             # No torch/embedder — just langgraph/langchain/mlflow client + fastapi; LLM inference is remote (Ollama).
@@ -63,3 +63,20 @@ spec:
               value: http://weyland-guard.weyland.svc.cluster.local:8080
             - name: MLFLOW_TRACKING_URI
               value: http://mlflow.weyland.svc.cluster.local:5000
+            # Postgres session store (STRICT-mTLS — rides the mesh sidecar). Same secret the agent/tool-server use.
+            - name: WEYLAND_DB_HOST
+              value: weyland-postgres.weyland.svc.cluster.local
+            - name: WEYLAND_DB_PORT
+              value: "5432"
+            - name: WEYLAND_DB_NAME
+              valueFrom: { secretKeyRef: { name: weyland-postgres-secret, key: POSTGRES_DB } }
+            - name: WEYLAND_DB_USER
+              valueFrom: { secretKeyRef: { name: weyland-postgres-secret, key: POSTGRES_USER } }
+            - name: WEYLAND_DB_PASSWORD
+              valueFrom: { secretKeyRef: { name: weyland-postgres-secret, key: POSTGRES_PASSWORD } }
+            # Telegram ingress — token + allowlist from weyland-operator-secret (your @BotFather token + chat_id).
+            # Absent token → ingress stays off and only the HTTP surface runs (graceful).
+            - name: TELEGRAM_BOT_TOKEN
+              valueFrom: { secretKeyRef: { name: weyland-operator-secret, key: TELEGRAM_BOT_TOKEN, optional: true } }
+            - name: TELEGRAM_ALLOWED_USERS
+              valueFrom: { secretKeyRef: { name: weyland-operator-secret, key: TELEGRAM_ALLOWED_USERS, optional: true } }
