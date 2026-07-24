@@ -46,8 +46,10 @@ only pull langchain-core), else it silently no-ops.
 
 ## Build & deploy (registry flow)
 - Build + push (**rogueone**): `docker build -t registry.weyland.lab/weyland-operator:vN <services/weyland-operator> && docker push registry.weyland.lab/weyland-operator:vN`
-- **Registry gotcha (B101):** confirm `curl -s https://registry.weyland.lab/v2/weyland-operator/tags/list` shows `vN`
-  before bumping `k8s/weyland-operator/deployment.yaml`; the manifest PUT often doesn't finalize on the first push.
+- **Registry manifest defect (B101 — fixed):** the manifest PUT intermittently doesn't finalize on the first push
+  (tag absent → `ImagePullBackOff: not found`). Push via **`scripts/push-image.sh registry.weyland.lab/weyland-operator:vN`**
+  — it pushes, verifies the tag landed in `/v2/.../tags/list`, and auto-re-pushes if not (a re-push re-sends the small
+  manifest, which lands). Deploy in one command instead of a manual round-trip.
 - Manifests: `k8s/weyland-operator/{deployment,service,servicemonitor}.yaml`; Argo app in `subdir-apps.yaml`. **Meshed**;
   memory request kept low (256Mi, no torch — the operator calls the tool-server for retrieval).
 - **Secret** `weyland-operator-secret` (`TELEGRAM_BOT_TOKEN` + `TELEGRAM_ALLOWED_USERS`) — SealedSecret (GitOps) or a
