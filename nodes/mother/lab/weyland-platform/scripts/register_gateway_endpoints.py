@@ -192,6 +192,36 @@ def attach_guardrails():
     print(f"guardrails: {attached} new attachment(s) ({len(want)} guardrail(s), judges excluded: {sorted(JUDGE_ENDPOINTS)})")
 
 
+def _judge_endpoint_id():
+    judge_name = next(iter(JUDGE_ENDPOINTS), None)
+    return next((e["endpoint_id"] for e in _list("/endpoints/list") if e["name"] == judge_name), None)
+
+
+def prune_stale_guardrails():
+    """Delete guardrails whose judge model is NOT the current judge endpoint (left over from a judge swap) so the
+    name-based attach isn't ambiguous. Detaches from every endpoint first, then deletes the guardrail."""
+    judge_id = _judge_endpoint_id()
+    if not judge_id:
+        print("prune: judge endpoint not found — skipping")
+        return
+    endpoint_ids = [e["endpoint_id"] for e in _list("/endpoints/list")]
+    for g in _list("/guardrails/list"):
+        try:
+            model = json.loads(g["scorer"]["serialized_scorer"])["instructions_judge_pydantic_data"].get("model", "")
+        except Exception:
+            model = ""
+        if model.endswith(judge_id):   # judged by the current judge -> keep
+            continue
+        gid = g["guardrail_id"]
+        for eid in endpoint_ids:
+            try:
+                _req("DELETE", "/guardrails/remove-from-endpoint", {"endpoint_id": eid, "guardrail_id": gid})
+            except RuntimeError:
+                pass  # not attached to that endpoint
+        _req("DELETE", "/guardrails/delete", {"guardrail_id": gid})
+        print(f"  pruned stale guardrail {g['name']} ({gid}) — old judge {model}")
+
+
 def main():
     sids = {s["secret_name"]: ensure_secret(s) for s in SECRETS}
     print(f"secrets: {sids}")
@@ -211,6 +241,7 @@ def main():
         print(f"  created: {ep_name} -> {model_name}")
         created += 1
     print(f"done: {created} created, {skipped} skipped, {len(ENDPOINTS)} total endpoints")
+    prune_stale_guardrails()
     attach_guardrails()
 
 
