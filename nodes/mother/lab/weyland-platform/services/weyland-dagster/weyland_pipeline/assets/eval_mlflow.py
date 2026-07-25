@@ -41,6 +41,16 @@ def eval_mlflow_log(context, postgres: PostgresResource, eval_scores: dict) -> O
                 (run_id,),
             )
             meta_rows = cur.fetchall()
+            cur.execute(
+                "SELECT er.question_id, er.model, "
+                "AVG(es.score) FILTER (WHERE es.metric='faithfulness') AS faithfulness, "
+                "AVG(es.score) FILTER (WHERE es.metric='answer_relevancy') AS answer_relevancy, "
+                "AVG(es.score) FILTER (WHERE es.metric='context_relevancy') AS context_relevancy "
+                "FROM eval_results er JOIN eval_scores es ON es.result_id = er.id "
+                "WHERE er.run_id = %s GROUP BY er.question_id, er.model ORDER BY er.question_id, er.model",
+                (run_id,),
+            )
+            table_rows = cur.fetchall()
 
     by_model = defaultdict(dict)
     for model, metric, avg in score_rows:
@@ -65,6 +75,24 @@ def eval_mlflow_log(context, postgres: PostgresResource, eval_scores: dict) -> O
                 mlflow.log_metric("latency_ms", latency)
             mlflow.set_tags({"eval_run_id": str(run_id), "source": "weyland-dagster"})
         logged += 1
+
+    # B84 P2a — a per-question eval TABLE on a summary run → MLflow's row-level view (drill into which question each
+    # model won/lost, not just the 3 aggregate numbers). Fail-safe: an artifact-store hiccup must not fail the eval.
+    try:
+        cols = {"question_id": [], "model": [], "faithfulness": [], "answer_relevancy": [], "context_relevancy": []}
+        for qid, model, f, a, c in table_rows:
+            cols["question_id"].append(qid)
+            cols["model"].append(model)
+            cols["faithfulness"].append(float(f) if f is not None else None)
+            cols["answer_relevancy"].append(float(a) if a is not None else None)
+            cols["context_relevancy"].append(float(c) if c is not None else None)
+        if cols["question_id"]:
+            with mlflow.start_run(run_name=f"run{run_id}-summary"):
+                mlflow.set_tags({"eval_run_id": str(run_id), "source": "weyland-dagster", "kind": "summary"})
+                mlflow.log_table(data=cols, artifact_file="eval_results.json")
+            context.log.info(f"Logged per-question eval table ({len(cols['question_id'])} rows) to MLflow")
+    except Exception as exc:
+        context.log.warning(f"eval table log skipped: {exc}")
 
     context.log.info(f"Logged {logged} model runs to MLflow for eval run {run_id}")
     return Output(

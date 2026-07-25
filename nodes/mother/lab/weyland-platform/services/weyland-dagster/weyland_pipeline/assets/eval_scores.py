@@ -11,6 +11,7 @@ json_object). Reuse-only: Ollama (judges) + Postgres.
 import json
 import os
 import re
+from contextlib import contextmanager
 
 import httpx
 from dagster import Output, MetadataValue, asset, get_dagster_logger
@@ -27,6 +28,30 @@ JUDGES = [
     if j.strip()
 ]
 METRICS = ("faithfulness", "answer_relevancy", "context_relevancy")
+
+# B84 P2a — fail-safe MLflow tracing for the judge panel: each judge verdict → a span in the `eval` experiment
+# (~360/run: models × questions × judges). No-op if MLflow is unset/unreachable — tracing must never fail an eval.
+MLFLOW_TRACKING_URI = os.environ.get("MLFLOW_TRACKING_URI", "")
+_traced = [False]
+
+
+@contextmanager
+def _judge_span(judge_model: str, question: str):
+    if not MLFLOW_TRACKING_URI:
+        yield None
+        return
+    try:
+        import mlflow
+        if not _traced[0]:
+            mlflow.set_tracking_uri(MLFLOW_TRACKING_URI)
+            mlflow.set_experiment("eval")
+            _traced[0] = True
+        with mlflow.start_span(name="judge", span_type="LLM") as span:
+            if span is not None:
+                span.set_inputs({"judge": judge_model, "question": question[:200]})
+            yield span
+    except Exception:
+        yield None
 
 
 def _strip_think(text: str | None) -> str:
@@ -45,19 +70,23 @@ def _judge(client: httpx.Client, judge_model: str, question: str, contexts, answ
         'Respond ONLY with JSON: {"faithfulness":0.0,"answer_relevancy":0.0,"context_relevancy":0.0}\n\n'
         f"QUESTION:\n{question}\n\nCONTEXT:\n{ctx}\n\nANSWER:\n{_strip_think(answer)}"
     )
-    resp = client.post(
-        f"{OLLAMA_BASE_URL}/chat/completions",
-        json={
-            "model": judge_model,
-            "messages": [{"role": "user", "content": prompt}],
-            "stream": False,
-            "response_format": {"type": "json_object"},
-        },
-    )
-    resp.raise_for_status()
-    content = _strip_think(resp.json()["choices"][0]["message"].get("content") or "")
-    data = json.loads(content[content.find("{"): content.rfind("}") + 1])
-    return {m: max(0.0, min(1.0, float(data[m]))) for m in METRICS if m in data and data[m] is not None}
+    with _judge_span(judge_model, question) as span:
+        resp = client.post(
+            f"{OLLAMA_BASE_URL}/chat/completions",
+            json={
+                "model": judge_model,
+                "messages": [{"role": "user", "content": prompt}],
+                "stream": False,
+                "response_format": {"type": "json_object"},
+            },
+        )
+        resp.raise_for_status()
+        content = _strip_think(resp.json()["choices"][0]["message"].get("content") or "")
+        data = json.loads(content[content.find("{"): content.rfind("}") + 1])
+        scores = {m: max(0.0, min(1.0, float(data[m]))) for m in METRICS if m in data and data[m] is not None}
+        if span is not None:
+            span.set_outputs(scores)
+        return scores
 
 
 @asset(
