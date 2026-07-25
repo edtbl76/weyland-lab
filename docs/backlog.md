@@ -1115,9 +1115,19 @@ Product** (*Model-Eval Leaderboard*, ML & Modeling domain, 9 eval datasets, **ow
 freshness **Data Contract** on `eval_scores` (native assertions via `emit_eval_assertions`), a **Superset dashboard**
 (`superset.weyland.lab/superset/dashboard/15` — per-model bars + faithfulness trend), a **Resources link** from the
 product, and a **Port** `endpoint` launcher. All reproducible (`datahub_emit.py` `_PRODUCTS`/`_PRODUCT_LINKS`/
-`emit_eval_assertions`; Superset defs). Demo: [demos/model-eval-product.md](demos/model-eval-product.md). **Remaining
-B84:** P2 eval-engine decision (Promptfoo vs `mlflow.evaluate` vs the hand-rolled panel), P3 Langfuse **reconcile
-against MLflow Tracing** (B100 P1 — likely subsumed). The B100 eval-tracing + eval judge prompt fold in here.
+`emit_eval_assertions`; Superset defs). Demo: [demos/model-eval-product.md](demos/model-eval-product.md).
+
+**✅ P2 (eval engines) DONE 2026-07-25 — kept as a *complementary suite*, NOT a bake-off.** The "pick one engine" framing
+was wrong: the three passes answer three different questions, so all three ship. (1) **Judge panel** (B4/B96) — the
+canonical *ranking* (golden 20Q × 6 models, ≥3 judges averaged, sliceable, productized in P1). (2) **`mlflow.evaluate`**
+(`scripts/eval_mlflow_evaluate.py`) — the GenAI-native *surface*: re-scores the panel's stored answers with MLflow genai
+metrics (single local judge) into the `mlflow_evaluate` experiment + Evaluation UI; legacy API (deprecated 3.4 → modern
+`mlflow.genai.evaluate` on adoption). (3) **Promptfoo** (`k8s/promptfoo/`, always-on `promptfoo.weyland.lab`, $0
+self-hosted) — the fast *regression gate*: declarative model×prompt matrix over live `/context/ask`, deterministic +
+`llm-rubric` (local judge) assertions, exit-100 CI semantics, honest-negative test; caught `qwen3:14b`'s data-mesh
+conflation on first run. Also folded in: **eval-tracing** (B100 P2a — judge-panel spans → `eval` experiment) + the
+**eval judge prompt**. Decision ref: [demos/eval-lanes.md](demos/eval-lanes.md). **Remaining B84:** P3 Langfuse
+**reconcile against MLflow Tracing** (B100 P1 — likely subsumed; MLflow already traces all three live AI surfaces).
 
 **Added 2026-07-16.** Spun out of the **B1.9 reframe** — the mesh's "3 data products" collapsed (9 already exist), and only *model-eval* was worth a real build. One coherent LLM-eval-and-observability theme; all three OSS / self-hosted / **$0**.
 - **model-eval — the judge-panel leaderboard, as a first-class mesh *data product*.** NOT net-new logic: **B4** already built the pipeline (testset → run-matrix → **3-judge panel** → `eval_leaderboard` over RAG × 6 models; `gpt-oss:20b` the defensible pick). This *productizes* it — catalog the leaderboard as a DataHub Data Product under **ML & Modeling**, give it a contract + freshness, and expose it (Port / Superset) so "which model wins, on what, as of when" is a governed browsable asset, not a Dagster table. Optionally re-engine the hand-rolled judge loop on Promptfoo.

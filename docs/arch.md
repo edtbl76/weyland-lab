@@ -294,6 +294,10 @@ agents/workflows and platform state. Agents call the tool-server, *not* database
       **B84 P1:** the Model-Eval Leaderboard product adds a validity+freshness **Data Contract** (`emit_eval_assertions`
       on `eval_scores`) + a **Superset dashboard** (per-model bars + faithfulness trend) linked from the product's
       Resources + a Port `endpoint`. [demos/model-eval-product.md](demos/model-eval-product.md).
+      **B84 P2** stands up a *complementary three-lane eval suite* over the same RAG — the **judge panel** (B4/B96,
+      the canonical ranking), **`mlflow.evaluate`** (GenAI-native metric surface, re-scores the panel's answers), and
+      **Promptfoo** (promptfoo.weyland.lab — the fast prompt-regression gate) — each answering a different question
+      (rank / standard-metrics / did-I-break-it). [demos/eval-lanes.md](demos/eval-lanes.md).
     - **Two Glossaries.** *AIDLC KB* (`emit_glossary` + `aidlc_glossary.py`): 17 nodes / 480 terms **generated at
       build time** from the `.methodaidlc` source repos (industry verticals, consulting tools, AIDLC stages, and
       396 engineering entries nested by frontmatter tag) — the source files aren't in the image, so the taxonomy
