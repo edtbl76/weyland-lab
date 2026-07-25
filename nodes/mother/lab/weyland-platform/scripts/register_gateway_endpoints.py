@@ -13,10 +13,10 @@ The 3-step chain (discovered from the running server's handlers + proto schema):
 NB: the OpenAI-compat base URL lives on the SECRET's auth_config.api_base, and MUST include /v1 (the provider appends
 /chat/completions; a bare host 404s from Ollama).
 
-Run from anywhere. Provider keys + the gateway URL live in the gitignored TOP-LEVEL `scripts/.env` (repo root; see
+Run from rogueone. Provider keys + the gateway URL live in the gitignored TOP-LEVEL `scripts/.env` (repo root; see
 scripts/.env.example) — the script AUTO-LOADS it (walks up to <repo>/scripts/.env), so there's no sourcing and no
-navigating the nodes/ tree. Port-forward the `mlflow` service :5000 to localhost first (the gateway API has no auth
-at the pod level), then:
+navigating the nodes/ tree. The gateway is reached via the mlflow-lan LAN NodePort (http://192.168.1.243:30500,
+source-pinned to rogueone) — no port-forward, and no forward-auth (unlike the mlflow.weyland.lab ingress). Run:
   python3 nodes/mother/lab/weyland-platform/scripts/register_gateway_endpoints.py
 """
 import json
@@ -50,7 +50,7 @@ def _load_dotenv():
 
 _load_dotenv()
 
-GW = os.environ.get("MLFLOW_GATEWAY_API", "http://localhost:5000") + "/api/3.0/mlflow/gateway"
+GW = os.environ.get("MLFLOW_GATEWAY_API", "http://192.168.1.243:30500") + "/api/3.0/mlflow/gateway"  # mlflow-lan NodePort (rogueone)
 
 # One shared secret per provider. Ollama ignores the api_key, but the field is required -> a dummy.
 OLLAMA_BASE = os.environ.get("OLLAMA_OPENAI_BASE", "http://192.168.1.230:11434/v1")  # /v1 is required
