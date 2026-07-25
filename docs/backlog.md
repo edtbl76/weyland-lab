@@ -1049,6 +1049,22 @@ registers/aliases them to MLflow — on-demand + scheduled (or triggered on repo
 every other artifact. **Low priority** — manual re-run is fine for a solo lab with infrequent prompt edits; the
 services fail-safe to baked defaults regardless. Extends **B100**.
 
+### B103 — Langfuse LLM observability (deferred from B84 P3) — Maturity
+**Added 2026-07-25.** B84 originally scoped **Langfuse** as the OSS LLM tracing/observability tool. **Deferred to
+maturity** after the P2 wrap — two reasons: (1) **its original justification is spent.** Langfuse was scoped to fill
+"nothing traces the LLM path"; **B100 P1** (MLflow Tracing) already traces all three live AI surfaces (agent / operator
+/ tool-server RAG) at span level. Overlap is ~80% — Langfuse would be a *2nd* tracing backend, a *3rd* prompt store
+(vs B100 P2 registry), and a *4th* eval surface (vs the B84 3-lane suite). (2) **node capacity.** The k3s cluster is
+**single-node** (mother, 64 GB); memory *requests* are already at **~93%** (~4.7 Gi headroom, 2026-07-25) — Flink/eval
+suite/etc. backfilled the B79 grow. Langfuse v3's heavy component is **ClickHouse**: the reuse path (web+worker on the
+existing CH/Valkey/PG/MinIO) is ~1.5–2 Gi (fits but lands the node at ~96% requests — thin, and swap is off/B99); a
+**dedicated ClickHouse** (recommended for trace write-volume) is ~4–6 Gi and **won't currently schedule**. **The one
+genuinely net-new capability** = **online eval on *production* traces** (continuous LLM-as-judge + annotation queues) —
+the whole B84 suite is offline/golden-set. **Revisit when:** node headroom grows *and* continuous production-trace
+scoring becomes a real need — and even then, first check whether **MLflow 3.14 `mlflow.genai` trace assessments/feedback**
+covers it in the tool already run (one pane of glass) before standing up a parallel platform. Decision context:
+[demos/eval-lanes.md](demos/eval-lanes.md). Deferred from **B84**.
+
 ### B71 — DataHub domains + ownership (governance pass)
 **Added 2026-06-26.** The catalog has datasets but **no domains, no ownership** — and domain-oriented ownership is the *organizing principle* of the data mesh (part of B1's governance layer alongside Keycloak/Ranger/OPA/Soda). Promote the existing **Dagster groups** (already emitted as `dagster_group` tags: default/RAG, eval, catalog, aidlc_kb, ai_session) into real DataHub **Domains** (likely consolidated — *RAG Platform · Eval · Model Catalog · Knowledge Base*), and assign **ownership** (a "Weyland" group / emangini as Technical Owner). Apply three ways (mix):
 1. **Ingestion recipes** — `domain:` (pattern→domain) + `owners:` config so the pull sources (Postgres/Grafana/Neo4j/MLflow/Iceberg) auto-file on every run.
@@ -1126,8 +1142,12 @@ metrics (single local judge) into the `mlflow_evaluate` experiment + Evaluation 
 self-hosted) — the fast *regression gate*: declarative model×prompt matrix over live `/context/ask`, deterministic +
 `llm-rubric` (local judge) assertions, exit-100 CI semantics, honest-negative test; caught `qwen3:14b`'s data-mesh
 conflation on first run. Also folded in: **eval-tracing** (B100 P2a — judge-panel spans → `eval` experiment) + the
-**eval judge prompt**. Decision ref: [demos/eval-lanes.md](demos/eval-lanes.md). **Remaining B84:** P3 Langfuse
-**reconcile against MLflow Tracing** (B100 P1 — likely subsumed; MLflow already traces all three live AI surfaces).
+**eval judge prompt**. Decision ref: [demos/eval-lanes.md](demos/eval-lanes.md).
+
+**P3 (Langfuse) DEFERRED → maturity (`B103`), 2026-07-25.** Original gap (LLM-path tracing) already closed by **B100 P1**
+(MLflow traces all 3 live AI surfaces); ~80% overlap + a single-node at ~93% memory requests → not worth a parallel
+platform now. Revisit for the one net-new (online eval on *production* traces) when node headroom grows — checking
+`mlflow.genai` trace assessments first. Rationale in `B103`. **B84 = DONE** (P1 + P2 delivered; P3 spun out).
 
 **Added 2026-07-16.** Spun out of the **B1.9 reframe** — the mesh's "3 data products" collapsed (9 already exist), and only *model-eval* was worth a real build. One coherent LLM-eval-and-observability theme; all three OSS / self-hosted / **$0**.
 - **model-eval — the judge-panel leaderboard, as a first-class mesh *data product*.** NOT net-new logic: **B4** already built the pipeline (testset → run-matrix → **3-judge panel** → `eval_leaderboard` over RAG × 6 models; `gpt-oss:20b` the defensible pick). This *productizes* it — catalog the leaderboard as a DataHub Data Product under **ML & Modeling**, give it a contract + freshness, and expose it (Port / Superset) so "which model wins, on what, as of when" is a governed browsable asset, not a Dagster table. Optionally re-engine the hand-rolled judge loop on Promptfoo.
