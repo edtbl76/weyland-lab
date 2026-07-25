@@ -288,9 +288,12 @@ agents/workflows and platform state. Agents call the tool-server, *not* database
     - **Domains** (`emit_domains`) — 6 brand-neutral business areas (Music, Health, AIDLC Knowledge, Docs & RAG,
       Platform & Ops, ML & Modeling). Every dataset/chart/dashboard **auto-assigns** to one by URN pattern
       (first-match-wins) → ~2,330 assets classified; new assets self-classify each run. Answers *"who owns this?"*
-    - **Data Products** (`emit_data_products`) — 9 mesh bundles (Spotify Audio, Artist Popularity, Chronic Health
-      Trends, Genre Classifier…), each gathering its assets by URN pattern and filed under its domain. Answers
-      *"what shippable bundle is this part of?"*
+    - **Data Products** (`emit_data_products`) — 10 mesh bundles (Spotify Audio, Artist Popularity, Chronic Health
+      Trends, Genre Classifier, **Model-Eval Leaderboard**…), each gathering its assets by URN pattern, filed under its
+      domain, and **owned** (emangini, Technical Owner). Answers *"what shippable bundle is this part of?"*
+      **B84 P1:** the Model-Eval Leaderboard product adds a validity+freshness **Data Contract** (`emit_eval_assertions`
+      on `eval_scores`) + a **Superset dashboard** (per-model bars + faithfulness trend) linked from the product's
+      Resources + a Port `endpoint`. [demos/model-eval-product.md](demos/model-eval-product.md).
     - **Two Glossaries.** *AIDLC KB* (`emit_glossary` + `aidlc_glossary.py`): 17 nodes / 480 terms **generated at
       build time** from the `.methodaidlc` source repos (industry verticals, consulting tools, AIDLC stages, and
       396 engineering entries nested by frontmatter tag) — the source files aren't in the image, so the taxonomy

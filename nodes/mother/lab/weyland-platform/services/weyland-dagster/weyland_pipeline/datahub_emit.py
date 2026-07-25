@@ -781,6 +781,13 @@ _PRODUCTS = [
      "'which model wins, on what, as of when.'", ("eval_leaderboard", "eval_scores", "eval_runs", "eval_results")),
 ]
 
+# B84 P1 — external "Resources" links per data product (InstitutionalMemory). Extend as products gain UIs.
+_PRODUCT_LINKS = {
+    "Model-Eval Leaderboard": [
+        ("https://superset.weyland.lab/superset/dashboard/15", "Superset dashboard — the browsable leaderboard"),
+    ],
+}
+
 
 def emit_data_products():
     """Create the mesh Data Products + attach cataloged assets by URN pattern + file each under its domain.
@@ -788,7 +795,13 @@ def emit_data_products():
     import time
 
     from datahub.ingestion.graph.client import DataHubGraph, DatahubClientConfig
-    from datahub.metadata.schema_classes import OwnerClass, OwnershipClass, OwnershipTypeClass
+    from datahub.metadata.schema_classes import (
+        InstitutionalMemoryClass,
+        InstitutionalMemoryMetadataClass,
+        OwnerClass,
+        OwnershipClass,
+        OwnershipTypeClass,
+    )
 
     emitter = _gms_emitter()
     server = os.environ.get("DATAHUB_GMS_URL", "http://datahub-datahub-gms.data-mesh.svc.cluster.local:8080")
@@ -812,6 +825,10 @@ def emit_data_products():
             domains=[make_domain_urn(domain.lower().replace(" & ", "-").replace(" ", "-"))])))
         emitter.emit(MetadataChangeProposalWrapper(entityUrn=purn, aspect=OwnershipClass(
             owners=[OwnerClass(owner="urn:li:corpuser:emangini", type=OwnershipTypeClass.TECHNICAL_OWNER)])))
+        links = _PRODUCT_LINKS.get(pname)
+        if links:
+            emitter.emit(MetadataChangeProposalWrapper(entityUrn=purn, aspect=InstitutionalMemoryClass(
+                elements=[InstitutionalMemoryMetadataClass(url=u, description=d, createStamp=made) for u, d in links])))
         n_p += 1
         n_a += len(assets)
     return n_p, n_a

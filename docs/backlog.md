@@ -1110,6 +1110,15 @@ All land in lakeFS → Parquet → Iceberg → Trino/DuckDB queryable. Gated dat
   authorized_keys edit. Touches the active ingestion path — validate carefully.
 
 ### B84 — LLM Eval & Observability (model-eval product + Promptfoo + Langfuse)
+**✅ P1 (model-eval product) DONE 2026-07-24.** The B4/B96 judge-panel leaderboard is now a first-class **DataHub Data
+Product** (*Model-Eval Leaderboard*, ML & Modeling domain, 9 eval datasets, **owned** by emangini) with a validity +
+freshness **Data Contract** on `eval_scores` (native assertions via `emit_eval_assertions`), a **Superset dashboard**
+(`superset.weyland.lab/superset/dashboard/15` — per-model bars + faithfulness trend), a **Resources link** from the
+product, and a **Port** `endpoint` launcher. All reproducible (`datahub_emit.py` `_PRODUCTS`/`_PRODUCT_LINKS`/
+`emit_eval_assertions`; Superset defs). Demo: [demos/model-eval-product.md](demos/model-eval-product.md). **Remaining
+B84:** P2 eval-engine decision (Promptfoo vs `mlflow.evaluate` vs the hand-rolled panel), P3 Langfuse **reconcile
+against MLflow Tracing** (B100 P1 — likely subsumed). The B100 eval-tracing + eval judge prompt fold in here.
+
 **Added 2026-07-16.** Spun out of the **B1.9 reframe** — the mesh's "3 data products" collapsed (9 already exist), and only *model-eval* was worth a real build. One coherent LLM-eval-and-observability theme; all three OSS / self-hosted / **$0**.
 - **model-eval — the judge-panel leaderboard, as a first-class mesh *data product*.** NOT net-new logic: **B4** already built the pipeline (testset → run-matrix → **3-judge panel** → `eval_leaderboard` over RAG × 6 models; `gpt-oss:20b` the defensible pick). This *productizes* it — catalog the leaderboard as a DataHub Data Product under **ML & Modeling**, give it a contract + freshness, and expose it (Port / Superset) so "which model wins, on what, as of when" is a governed browsable asset, not a Dagster table. Optionally re-engine the hand-rolled judge loop on Promptfoo.
 - **Promptfoo** — OSS LLM eval / red-team harness (declarative test matrices, model-vs-model, assertions, prompt regression). Candidate **engine** for model-eval + a standalone prompt-regression gate for the tool-server / Hermes prompts. Self-hostable CLI + web UI, $0.

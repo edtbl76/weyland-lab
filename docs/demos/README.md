@@ -29,6 +29,7 @@ Legend: ✅ done · ⬜ missing · 🟡 exists but stale/partial · — not appl
 | **ML / eval** | | | | |
 | 15 | Eval harness | ✅ `flow-eval` | ✅ `eval.md` | ✅ eval runs (validated live runs 7-10, 2026-07-21 — golden set + depth sweep) |
 | 16 | Eval scoring (LLM-judge) | ✅ `flow-eval-scoring` | ✅ `eval-scoring.md` | ✅ scores |
+| 37 | **Model-Eval Leaderboard** data product (B84 P1 — DataHub product + Data Contract + Superset + Port) | ✅ (seq in eval flows) | ✅ `model-eval-product.md` (validated 2026-07-24) | — read-only (catalog metadata + Superset defs) |
 | 17 | Model catalog | ✅ `flow-model-catalog` | ✅ `model-catalog.md` | ✅ Postgres/DataHub |
 | 18 | MLflow tracking | ✅ `flow-mlflow` | ✅ `mlflow.md` | ✅ experiments |
 | 36 | **MLflow GenAI** (B100 — Traces + Prompt Registry, hot-swap) | ✅ (seq in demo) | ✅ `mlflow-genai.md` (validated 2026-07-24) | ✅ traces + prompt versions (history) |
