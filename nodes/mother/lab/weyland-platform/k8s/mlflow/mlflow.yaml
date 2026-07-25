@@ -55,8 +55,11 @@ spec:
             # B47: `mlflow db upgrade` applies the 3.x Alembic migrations to the backend store BEFORE the server
             # starts (2->3 changes the schema; the 3.x server refuses to start on a 2.x DB otherwise). Idempotent —
             # a no-op once migrated, so it's safe on every pod restart. BACK UP the mlflow DB before first rollout.
+            # B100 P4: `mlflow[gateway]` adds the built-in AI Gateway's backend deps (tiktoken/slowapi/watchfiles) —
+            # without them the gateway UI renders but its API 404s (unmounted). mlflow==3.14.0 is already in the image,
+            # so this just pulls the missing extras. (If restarts get slow, bake these into a small image — see top note.)
             - >
-              pip install --quiet --no-cache-dir psycopg2-binary boto3 &&
+              pip install --quiet --no-cache-dir psycopg2-binary boto3 'mlflow[gateway]==3.14.0' &&
               mlflow db upgrade "postgresql://$(POSTGRES_USER):$(POSTGRES_PASSWORD)@weyland-postgres.weyland.svc.cluster.local:5432/mlflow" &&
               mlflow server --host 0.0.0.0 --port 5000
               --backend-store-uri "postgresql://$(POSTGRES_USER):$(POSTGRES_PASSWORD)@weyland-postgres.weyland.svc.cluster.local:5432/mlflow"
