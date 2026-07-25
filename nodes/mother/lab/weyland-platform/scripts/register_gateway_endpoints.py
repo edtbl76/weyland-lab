@@ -13,15 +13,42 @@ The 3-step chain (discovered from the running server's handlers + proto schema):
 NB: the OpenAI-compat base URL lives on the SECRET's auth_config.api_base, and MUST include /v1 (the provider appends
 /chat/completions; a bare host 404s from Ollama).
 
-Run LOCALLY. Provider keys + the gateway URL come from the gitignored `scripts/.env` (see scripts/.env.example),
-sourced into your shell — the same convention as the other scripts in this dir (the script just reads os.environ).
-Port-forward the `mlflow` service :5000 to localhost first (the gateway API has no auth at the pod level), then:
-  set -a; . scripts/.env; set +a
-  python3 scripts/register_gateway_endpoints.py
+Run from anywhere. Provider keys + the gateway URL live in the gitignored TOP-LEVEL `scripts/.env` (repo root; see
+scripts/.env.example) — the script AUTO-LOADS it (walks up to <repo>/scripts/.env), so there's no sourcing and no
+navigating the nodes/ tree. Port-forward the `mlflow` service :5000 to localhost first (the gateway API has no auth
+at the pod level), then:
+  python3 nodes/mother/lab/weyland-platform/scripts/register_gateway_endpoints.py
 """
 import json
 import os
+import pathlib
 import urllib.request as u
+
+
+def _load_dotenv():
+    """Auto-load the top-level scripts/.env (gitignored) so keys never hit the CLI/repo/chat and you don't navigate
+    the nodes/ maze. Walks up from this file to the first <ancestor>/scripts/.env. Real process env always wins."""
+    try:
+        cands = [os.environ.get("WEYLAND_ENV_FILE")] + \
+                [a / "scripts" / ".env" for a in pathlib.Path(__file__).resolve().parents]
+    except NameError:
+        cands = [os.environ.get("WEYLAND_ENV_FILE"), pathlib.Path.cwd() / "scripts" / ".env", pathlib.Path.cwd() / ".env"]
+    for c in cands:
+        if c and pathlib.Path(c).is_file():
+            for ln in pathlib.Path(c).read_text().splitlines():
+                ln = ln.strip()
+                if not ln or ln.startswith("#"):
+                    continue
+                ln = ln[7:].lstrip() if ln.startswith("export ") else ln
+                if "=" in ln:
+                    k, v = ln.split("=", 1)
+                    os.environ.setdefault(k.strip(), v.strip().strip('"').strip("'"))
+            print(f"loaded env from {c}")
+            return
+    print("no scripts/.env found — using process env only")
+
+
+_load_dotenv()
 
 GW = os.environ.get("MLFLOW_GATEWAY_API", "http://localhost:5000") + "/api/3.0/mlflow/gateway"
 
