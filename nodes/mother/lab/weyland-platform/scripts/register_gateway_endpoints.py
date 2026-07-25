@@ -13,8 +13,11 @@ The 3-step chain (discovered from the running server's handlers + proto schema):
 NB: the OpenAI-compat base URL lives on the SECRET's auth_config.api_base, and MUST include /v1 (the provider appends
 /chat/completions; a bare host 404s from Ollama).
 
-Run in the mlflow pod (stdlib only, hits the gateway on localhost — no auth in-pod):
-  kubectl -n weyland exec -i deploy/mlflow -- python < scripts/register_gateway_endpoints.py
+Run LOCALLY. Provider keys + the gateway URL come from the gitignored `scripts/.env` (see scripts/.env.example),
+sourced into your shell — the same convention as the other scripts in this dir (the script just reads os.environ).
+Port-forward the `mlflow` service :5000 to localhost first (the gateway API has no auth at the pod level), then:
+  set -a; . scripts/.env; set +a
+  python3 scripts/register_gateway_endpoints.py
 """
 import json
 import os
@@ -37,8 +40,8 @@ ENDPOINTS = [
     ("ollama-deepseek-coder-16b", "ollama", "ollama-local", "deepseek-coder-v2:16b"),
 ]
 # --- Category B/C (add when keyed, then re-run — idempotent) ---
-# NEVER hardcode a key here (this repo is PUBLIC). Each provider is gated on an env var you export at runtime:
-#   OPENAI_API_KEY=sk-... GROQ_API_KEY=... kubectl -n weyland exec -i deploy/mlflow -- python < <this script>
+# NEVER hardcode a key here (this repo is PUBLIC). Keys come from the gitignored .env (see .env.example): put the
+# ones you have there (e.g. OPENAI_API_KEY=...) and re-run. Each provider is gated on its env var.
 # Native cloud providers need NO api_base (the gateway knows their endpoints); Ollama/LiteLLM/Groq-via-openai do.
 # Model lists are env-overridable (comma-sep) with sensible defaults.
 _NATIVE = [
