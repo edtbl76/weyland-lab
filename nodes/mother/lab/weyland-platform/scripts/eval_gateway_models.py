@@ -22,6 +22,10 @@ from mlflow.genai import evaluate
 from mlflow.genai.scorers import RelevanceToQuery, Safety
 
 GW = os.environ.get("GATEWAY_OPENAI_BASE", "http://localhost:5000/gateway/mlflow/v1")
+# Guarded gateway calls add 2 reasoning judge round-trips per request, so a cold 30b local model can exceed the
+# default. Skip MLflow's extra pre-flight prediction and give predict_fn plenty of headroom.
+os.environ.setdefault("MLFLOW_GENAI_EVAL_SKIP_TRACE_VALIDATION", "true")
+PREDICT_TIMEOUT = int(os.environ.get("GATEWAY_EVAL_TIMEOUT", "600"))
 mlflow.set_tracking_uri(os.environ.get("MLFLOW_TRACKING_URI", "http://localhost:5000"))
 
 # Point the scorer judge (openai provider) at the gateway -> gemini. No real key: the gateway holds the provider keys.
@@ -52,7 +56,7 @@ def _make_predict(model_name):
     def predict(question: str) -> str:
         body = json.dumps({"model": model_name, "messages": [{"role": "user", "content": question}]}).encode()
         req = u.Request(f"{GW}/chat/completions", data=body, method="POST", headers={"Content-Type": "application/json"})
-        with u.urlopen(req, timeout=180) as r:
+        with u.urlopen(req, timeout=PREDICT_TIMEOUT) as r:
             return json.loads(r.read())["choices"][0]["message"]["content"] or ""
     return predict
 
