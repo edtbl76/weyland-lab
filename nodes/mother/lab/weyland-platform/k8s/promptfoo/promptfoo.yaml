@@ -16,18 +16,19 @@ data:
     description: weyland RAG prompt-regression gate (B84 P2c)
 
     providers:
-      - id: https-toolserver-gpt-oss
+      # id MUST carry a URL scheme — promptfoo prefix-dispatches the provider type off it (http:// -> HTTP provider).
+      # Both hit the same endpoint; the harmless ?pf= query (ignored by the tool-server, which reads model from the
+      # body) keeps the two ids unique so they don't collide as matrix columns. label = the friendly display name.
+      - id: http://weyland-tool-server.weyland.svc.cluster.local:8080/context/ask?pf=gpt-oss
         label: gpt-oss:20b
         config:
-          url: http://weyland-tool-server.weyland.svc.cluster.local:8080/context/ask
           method: POST
           headers: { "Content-Type": "application/json" }
           body: { "query": "{{question}}", "backend": "pgvector", "model": "gpt-oss:20b" }
           transformResponse: json.answer
-      - id: https-toolserver-qwen3-14b
+      - id: http://weyland-tool-server.weyland.svc.cluster.local:8080/context/ask?pf=qwen3-14b
         label: qwen3:14b
         config:
-          url: http://weyland-tool-server.weyland.svc.cluster.local:8080/context/ask
           method: POST
           headers: { "Content-Type": "application/json" }
           body: { "query": "{{question}}", "backend": "pgvector", "model": "qwen3:14b" }
