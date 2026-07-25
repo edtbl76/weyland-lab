@@ -22,9 +22,9 @@ from mlflow.genai import evaluate
 from mlflow.genai.scorers import RelevanceToQuery, Safety
 
 GW = os.environ.get("GATEWAY_OPENAI_BASE", "http://localhost:5000/gateway/mlflow/v1")
-# Guarded gateway calls add 2 reasoning judge round-trips per request, so a cold 30b local model can exceed the
-# default. Skip MLflow's extra pre-flight prediction and give predict_fn plenty of headroom.
-os.environ.setdefault("MLFLOW_GENAI_EVAL_SKIP_TRACE_VALIDATION", "true")
+# Guarded gateway calls add 2 reasoning judge round-trips per request, so a cold 30b local model can be slow — give
+# predict_fn plenty of headroom. (Do NOT set MLFLOW_GENAI_EVAL_SKIP_TRACE_VALIDATION: skipping the pre-flight also
+# skips creating the trace the scorers read -> `eval_item.trace` is None -> AttributeError in _get_new_expectations.)
 PREDICT_TIMEOUT = int(os.environ.get("GATEWAY_EVAL_TIMEOUT", "600"))
 mlflow.set_tracking_uri(os.environ.get("MLFLOW_TRACKING_URI", "http://localhost:5000"))
 
@@ -74,7 +74,9 @@ def main():
             agg = {k: round(v, 3) for k, v in res.metrics.items() if isinstance(v, (int, float))}
             print(f"   {agg}", flush=True)
         except Exception as exc:
-            print(f"   FAILED: {type(exc).__name__}: {str(exc)[:300]}", flush=True)
+            import traceback
+            print(f"   FAILED: {type(exc).__name__}: {exc}", flush=True)
+            traceback.print_exc()
     print("\ndone — open each gateway/<model> experiment in MLflow (Evaluation tab).", flush=True)
 
 
