@@ -93,7 +93,9 @@ spec:
         - name: promptfoo
           image: ghcr.io/promptfoo/promptfoo:latest
           imagePullPolicy: IfNotPresent
-          command: ["promptfoo", "view", "-y", "--host", "0.0.0.0", "--port", "15500"]
+          # Use the image's DEFAULT command — the self-hosted server (binds 0.0.0.0:3000). `promptfoo view` has no
+          # host flag and binds localhost, so it can't back a Service. Evals are pushed via `kubectl exec ...
+          # promptfoo eval` into the same PROMPTFOO_CONFIG_DIR the server reads.
           env:
             - name: PROMPTFOO_CONFIG_DIR
               value: /data
@@ -103,7 +105,7 @@ spec:
               value: "1"
           ports:
             - name: http
-              containerPort: 15500
+              containerPort: 3000
           resources:
             requests: { memory: 256Mi, cpu: 100m }
             limits: { memory: 1Gi }
@@ -135,8 +137,8 @@ spec:
     app: promptfoo
   ports:
     - name: http
-      port: 15500
-      targetPort: 15500
+      port: 3000
+      targetPort: 3000
 ---
 apiVersion: networking.k8s.io/v1
 kind: Ingress
@@ -159,4 +161,4 @@ spec:
               service:
                 name: promptfoo
                 port:
-                  number: 15500
+                  number: 3000
