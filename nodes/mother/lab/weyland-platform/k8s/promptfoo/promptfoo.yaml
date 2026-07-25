@@ -1,0 +1,162 @@
+# B84 P2c — Promptfoo: declarative prompt-regression gate + model×prompt matrix, self-hosted ($0), the third eval lane
+# alongside the judge panel (production scorer) + mlflow.evaluate (GenAI eval surface). The `promptfoo view` web UI is
+# always-on (promptfoo.weyland.lab, Keycloak forward-auth); evals are run via `kubectl exec ... promptfoo eval` into
+# this pod (they write to the same PROMPTFOO_CONFIG_DIR the UI reads — a shared RWO PVC can't be split with a Job).
+#
+# The config tests the REAL RAG through an HTTP provider → the tool-server /context/ask (retrieval + the registry
+# rag_system prompt + generation), across two models, with deterministic + llm-rubric assertions incl. an off-corpus
+# honest-negative test. Change the prompt → re-run → Promptfoo flags regressions. Judge (llm-rubric) = local Ollama.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: promptfoo-config
+  namespace: weyland
+data:
+  promptfooconfig.yaml: |
+    description: weyland RAG prompt-regression gate (B84 P2c)
+
+    providers:
+      - id: https-toolserver-gpt-oss
+        label: gpt-oss:20b
+        config:
+          url: http://weyland-tool-server.weyland.svc.cluster.local:8080/context/ask
+          method: POST
+          headers: { "Content-Type": "application/json" }
+          body: { "query": "{{question}}", "backend": "pgvector", "model": "gpt-oss:20b" }
+          transformResponse: json.answer
+      - id: https-toolserver-qwen3-14b
+        label: qwen3:14b
+        config:
+          url: http://weyland-tool-server.weyland.svc.cluster.local:8080/context/ask
+          method: POST
+          headers: { "Content-Type": "application/json" }
+          body: { "query": "{{question}}", "backend": "pgvector", "model": "qwen3:14b" }
+          transformResponse: json.answer
+
+    prompts:
+      - "{{question}}"   # passthrough — the tool-server owns the RAG system prompt (Prompt Registry, B100 P2)
+
+    defaultTest:
+      options:
+        provider:
+          id: ollama:chat:gpt-oss:20b   # the llm-rubric judge — local, $0
+
+    tests:
+      - vars: { question: "What is the weyland data mesh?" }
+        assert:
+          - { type: contains-any, value: ["lakehouse", "Iceberg", "data product", "mesh"] }
+          - { type: llm-rubric, value: "Answers grounded in the weyland docs; concise; says so plainly if the context lacks the answer." }
+      - vars: { question: "How does the operator agent confirm before running a state-changing action?" }
+        assert:
+          - { type: llm-rubric, value: "Describes a yes/no confirm-step before acting; does not claim to act autonomously." }
+      - vars: { question: "What is the airspeed velocity of an unladen swallow?" }
+        assert:
+          - { type: llm-rubric, value: "Declines or says the knowledge base does not contain the answer (honest-negative). Does NOT fabricate a number." }
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: promptfoo-data
+  namespace: weyland
+spec:
+  accessModes: ["ReadWriteOnce"]
+  resources:
+    requests:
+      storage: 1Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: promptfoo
+  namespace: weyland
+  labels:
+    app: promptfoo
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate   # single RWO PVC
+  selector:
+    matchLabels:
+      app: promptfoo
+  template:
+    metadata:
+      labels:
+        app: promptfoo
+        sidecar.istio.io/inject: "true"   # in-cluster call to the tool-server + Ollama egress
+    spec:
+      enableServiceLinks: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        fsGroup: 1000
+      containers:
+        - name: promptfoo
+          image: ghcr.io/promptfoo/promptfoo:latest
+          imagePullPolicy: IfNotPresent
+          command: ["promptfoo", "view", "-y", "--host", "0.0.0.0", "--port", "15500"]
+          env:
+            - name: PROMPTFOO_CONFIG_DIR
+              value: /data
+            - name: OLLAMA_BASE_URL
+              value: http://192.168.1.230:11434
+            - name: PROMPTFOO_DISABLE_TELEMETRY
+              value: "1"
+          ports:
+            - name: http
+              containerPort: 15500
+          resources:
+            requests: { memory: 256Mi, cpu: 100m }
+            limits: { memory: 1Gi }
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities: { drop: ["ALL"] }
+            seccompProfile: { type: RuntimeDefault }
+          volumeMounts:
+            - { name: data, mountPath: /data }
+            - { name: config, mountPath: /config }
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: promptfoo-data
+        - name: config
+          configMap:
+            name: promptfoo-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: promptfoo
+  namespace: weyland
+  labels:
+    app: promptfoo
+spec:
+  type: ClusterIP
+  selector:
+    app: promptfoo
+  ports:
+    - name: http
+      port: 15500
+      targetPort: 15500
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: promptfoo
+  namespace: weyland
+  annotations:
+    traefik.ingress.kubernetes.io/router.middlewares: weyland-traefik-forward-auth@kubernetescrd
+spec:
+  tls:
+    - hosts: [promptfoo.weyland.lab]
+      secretName: weyland-wildcard-tls
+  rules:
+    - host: promptfoo.weyland.lab
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: promptfoo
+                port:
+                  number: 15500

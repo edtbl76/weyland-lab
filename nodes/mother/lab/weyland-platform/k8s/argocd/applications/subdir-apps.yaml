@@ -379,6 +379,24 @@ spec:
   syncPolicy:
     automated: { selfHeal: true, prune: true }
 ---
+# B84 P2c — Promptfoo: prompt-regression gate + model×prompt matrix (UI + config + PVC).
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: promptfoo
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/edtbl76/weyland-lab.git
+    targetRevision: main
+    path: nodes/mother/lab/weyland-platform/k8s/promptfoo
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: weyland
+  syncPolicy:
+    automated: { selfHeal: true, prune: true }
+---
 # code-quality scan Jobs (weyland ns). Weekly-CronJob conversion is Wave 4.
 apiVersion: argoproj.io/v1alpha1
 kind: Application
