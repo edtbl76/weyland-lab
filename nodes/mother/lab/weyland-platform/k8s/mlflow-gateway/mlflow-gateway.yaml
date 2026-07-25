@@ -1,0 +1,152 @@
+# B100 P4 — MLflow AI Gateway: one governed, OpenAI-compatible front door over every model surface, folded into the
+# MLflow ecosystem (tracing/prompts/eval/registry). Config-driven (`mlflow gateway start --config-path`), so endpoints
+# live in git here (NOT the DB-backed UI gateway — that's UI/DB-driven and a poor fit for GitOps). The YAML gateway
+# HOT-RELOADS on config change (watchfiles), so adding a model = edit this ConfigMap + let Argo sync.
+#
+# The `openai` provider takes `openai_api_base`, so ONE provider fronts everything via OpenAI-compat base URLs:
+#   - local  → Ollama (rogueone :11434/v1)         [this file — keyless, live now]
+#   - hosted → LiteLLM (B26, its Gemini/OpenRouter) [fast-follow — needs the in-cluster LiteLLM svc + key]
+#   - free   → Groq / OpenRouter direct             [fast-follow — needs free API keys → SealedSecret]
+#   - served → MLflow model-serving (`mlflow-model-serving` provider) [capability-ready; no served LLM yet — genre_
+#              classifier is tabular sklearn, not an llm/v1/* model]
+# Keys are `$VAR` env refs resolved via MLFLOW_GATEWAY_RESOLVE_API_KEY_FROM_ENV=true.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: mlflow-gateway-config
+  namespace: weyland
+data:
+  gateway.yaml: |
+    endpoints:
+      # --- Category A: the 6 local Ollama models, unified behind the gateway (keyless; Ollama ignores the key,
+      #     but the openai provider requires the field → a dummy resolved from $OLLAMA_KEY). ---
+      - name: ollama-gpt-oss-20b
+        endpoint_type: llm/v1/chat
+        model: { provider: openai, name: "gpt-oss:20b",            config: { openai_api_base: "http://192.168.1.230:11434/v1", openai_api_key: $OLLAMA_KEY } }
+      - name: ollama-qwen3-14b
+        endpoint_type: llm/v1/chat
+        model: { provider: openai, name: "qwen3:14b",              config: { openai_api_base: "http://192.168.1.230:11434/v1", openai_api_key: $OLLAMA_KEY } }
+      - name: ollama-qwen3-30b-a3b
+        endpoint_type: llm/v1/chat
+        model: { provider: openai, name: "qwen3:30b-a3b",          config: { openai_api_base: "http://192.168.1.230:11434/v1", openai_api_key: $OLLAMA_KEY } }
+      - name: ollama-mistral-small-24b
+        endpoint_type: llm/v1/chat
+        model: { provider: openai, name: "mistral-small3.2:24b",   config: { openai_api_base: "http://192.168.1.230:11434/v1", openai_api_key: $OLLAMA_KEY } }
+      - name: ollama-qwen3-coder-30b
+        endpoint_type: llm/v1/chat
+        model: { provider: openai, name: "qwen3-coder:30b",        config: { openai_api_base: "http://192.168.1.230:11434/v1", openai_api_key: $OLLAMA_KEY } }
+      - name: ollama-deepseek-coder-16b
+        endpoint_type: llm/v1/chat
+        model: { provider: openai, name: "deepseek-coder-v2:16b",  config: { openai_api_base: "http://192.168.1.230:11434/v1", openai_api_key: $OLLAMA_KEY } }
+      # --- Category B/C fast-follow (add here, hot-reloads) ---
+      # - name: litellm-hosted            # includes LiteLLM (B26): its Gemini/OpenRouter + spend metering
+      #   endpoint_type: llm/v1/chat
+      #   model: { provider: openai, name: "<litellm-model>", config: { openai_api_base: "http://<litellm-svc>:4000/v1", openai_api_key: $LITELLM_API_KEY } }
+      # - name: groq-llama-70b            # free hosted (needs a free Groq key)
+      #   endpoint_type: llm/v1/chat
+      #   model: { provider: openai, name: "llama-3.3-70b-versatile", config: { openai_api_base: "https://api.groq.com/openai/v1", openai_api_key: $GROQ_API_KEY } }
+      # - name: served-<llm>              # MLflow-served LLM (when one exists)
+      #   endpoint_type: llm/v1/chat
+      #   model: { provider: mlflow-model-serving, name: "<model>", config: { model_server_url: "http://<serve-svc>:5001" } }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mlflow-gateway
+  namespace: weyland
+  labels:
+    app: mlflow-gateway
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mlflow-gateway
+  template:
+    metadata:
+      labels:
+        app: mlflow-gateway
+        # Sidecar OFF for v1: the gateway is an egress proxy (rogueone Ollama LAN + hosted internet) with no need for
+        # mTLS to its in-cluster callers — keeps the first bring-up free of mesh egress variables. Can mesh later.
+        sidecar.istio.io/inject: "false"
+    spec:
+      enableServiceLinks: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        fsGroup: 1000
+      containers:
+        - name: mlflow-gateway
+          image: registry.weyland.lab/weyland-mlflow-gateway:v1
+          imagePullPolicy: IfNotPresent
+          # CMD is baked in the image (mlflow gateway start --config-path /config/gateway.yaml --host 0.0.0.0 --port 7000)
+          env:
+            - name: MLFLOW_GATEWAY_RESOLVE_API_KEY_FROM_ENV
+              value: "true"
+            - name: OLLAMA_KEY          # Ollama ignores it; the openai provider just needs a non-empty key field
+              value: "ollama"
+            - name: HOME               # runs as uid 1000 with no home dir → give writable caches a target
+              value: "/tmp"
+            - name: TIKTOKEN_CACHE_DIR  # the openai provider may pull tiktoken encodings at runtime
+              value: "/tmp"
+            # Provider keys land here when Category C is added (from a SealedSecret):
+            # - name: GROQ_API_KEY
+            #   valueFrom: { secretKeyRef: { name: mlflow-gateway-keys, key: GROQ_API_KEY } }
+          ports:
+            - name: http
+              containerPort: 7000
+          resources:
+            requests: { memory: 256Mi, cpu: 50m }
+            limits: { memory: 512Mi }
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities: { drop: ["ALL"] }
+            seccompProfile: { type: RuntimeDefault }
+          readinessProbe:
+            httpGet: { path: /health, port: 7000 }
+            initialDelaySeconds: 10
+            periodSeconds: 15
+          volumeMounts:
+            - { name: config, mountPath: /config }
+      volumes:
+        - name: config
+          configMap:
+            name: mlflow-gateway-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mlflow-gateway
+  namespace: weyland
+  labels:
+    app: mlflow-gateway
+spec:
+  type: ClusterIP
+  selector:
+    app: mlflow-gateway
+  ports:
+    - name: http
+      port: 7000
+      targetPort: 7000
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: mlflow-gateway
+  namespace: weyland
+  annotations:
+    traefik.ingress.kubernetes.io/router.middlewares: weyland-traefik-forward-auth@kubernetescrd
+spec:
+  tls:
+    - hosts: [ai-gateway.weyland.lab]
+      secretName: weyland-wildcard-tls
+  rules:
+    - host: ai-gateway.weyland.lab
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: mlflow-gateway
+                port:
+                  number: 7000
