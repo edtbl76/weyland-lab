@@ -151,6 +151,46 @@ def ensure_model_def(name, secret_id, provider, model_name):
     raise RuntimeError(f"model-definition {name} missing after create")
 
 
+# Guardrails are created in the UI (each references an mlflow.genai scorer — durable in Postgres). This script does
+# NOT recreate them; it ATTACHES the existing ones (by name) to every endpoint EXCEPT the judge endpoints — guarding
+# a judge recurses (guardrail -> judge -> the judge's own guardrail -> ...). Idempotent: skips already-bound pairs.
+GUARD_NAMES = [n.strip() for n in os.environ.get("GATEWAY_GUARDRAILS", "Safety,PII Detection").split(",") if n.strip()]
+JUDGE_ENDPOINTS = {x.strip() for x in os.environ.get("GATEWAY_JUDGE_ENDPOINTS", "gemini-gemini-2-5-flash").split(",") if x.strip()}
+
+
+def _list_for(endpoint_id):
+    from urllib.parse import quote
+    d = _req("GET", f"/guardrails/list-for-endpoint?endpoint_id={quote(endpoint_id)}")  # GET + query param
+    for v in d.values():
+        if isinstance(v, list):
+            return v
+    return []
+
+
+def attach_guardrails():
+    guards = {g["name"]: g["guardrail_id"] for g in _list("/guardrails/list")}
+    want = [(n, guards[n]) for n in GUARD_NAMES if n in guards]
+    if not want:
+        print(f"guardrails: none of {GUARD_NAMES} exist yet (create them in the UI) — skipping attach")
+        return
+    attached = 0
+    for e in _list("/endpoints/list"):
+        if e["name"] in JUDGE_ENDPOINTS:
+            print(f"  skip (judge, left unguarded to avoid recursion): {e['name']}")
+            continue
+        bound = {c.get("guardrail_id") for c in _list_for(e["endpoint_id"])}
+        for gname, gid in want:
+            if gid in bound:
+                continue
+            try:
+                _req("POST", "/guardrails/add-to-endpoint", {"endpoint_id": e["endpoint_id"], "guardrail_id": gid})
+                print(f"  attached {gname} -> {e['name']}")
+                attached += 1
+            except RuntimeError as exc:
+                print(f"  attach {gname} -> {e['name']} FAILED: {exc}")
+    print(f"guardrails: {attached} new attachment(s) ({len(want)} guardrail(s), judges excluded: {sorted(JUDGE_ENDPOINTS)})")
+
+
 def main():
     sids = {s["secret_name"]: ensure_secret(s) for s in SECRETS}
     print(f"secrets: {sids}")
@@ -170,6 +210,7 @@ def main():
         print(f"  created: {ep_name} -> {model_name}")
         created += 1
     print(f"done: {created} created, {skipped} skipped, {len(ENDPOINTS)} total endpoints")
+    attach_guardrails()
 
 
 if __name__ == "__main__":
