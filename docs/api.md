@@ -117,6 +117,7 @@ See [runbooks/operator.md](runbooks/operator.md).
 |---|---|---|
 | APISIX gateway | `http://mother:30090` | **Active API/data-plane gateway** — live routes front the tool-server `/context` + `/pipeline` and the qdrant/weaviate/neo4j backends (same backends the NodePorts expose directly). **Not Keycloak-gated** — API-client front door, auth at the gateway/API layer, not browser SSO. |
 | APISIX dashboard | `https://apisix.weyland.lab` | via Traefik TLS |
+| **MLflow AI Gateway** (B100 P4) | `http://192.168.1.243:30500/gateway/mlflow/v1/chat/completions` (invoke) · `mlflow.weyland.lab/#/gateway` (UI) | **Governed OpenAI-compat front door** over **17 endpoints** (6 local Ollama + 9 hosted + 2 judges); `model` = endpoint name, **no key** (provider keys held server-side). LLM-judge **guardrails** (Safety AFTER/block + PII BEFORE/sanitize, local `qwen2.5:7b` judge, fail-closed) + a **$10/mo GLOBAL budget** (REJECT). Admin API under `/api/3.0/mlflow/gateway/…`; fully codified/self-healing in `scripts/register_gateway_endpoints.py` (keys from gitignored `scripts/.env`). Use the **`:30500` NodePort** for scripts — the `mlflow.weyland.lab` ingress bounces API calls to Keycloak. Fronts LiteLLM (B26) as one *included* option; does not replace it. See [runbooks/mlflow-gateway.md](runbooks/mlflow-gateway.md), [diagrams/flow-mlflow-gateway.md](diagrams/flow-mlflow-gateway.md). |
 
 ## Identity / SSO (Keycloak — B1.1, 2026-06-24)
 

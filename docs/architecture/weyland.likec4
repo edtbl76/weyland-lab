@@ -99,7 +99,7 @@ model {
         ml = zone "Feature store + ML" {
           feast = component "Feast server" "Feature store — registry/offline=Postgres, online=Valkey"
           feastUi = component "Feast UI" "Feast registry browser"
-          mlflow = component "MLflow" "Experiment tracking + model registry; NodePort 30500"
+          mlflow = component "MLflow" "Experiment tracking + model registry + AI Gateway (B100 P4 — governed OpenAI-compat front door, LLM-judge guardrails + budget); NodePort 30500"
           ray = component "Ray head" "Persistent Ray cluster — rogueone joins as edge worker"
           jupyterhub = component "JupyterHub" "Notebooks — singleuser pods on-demand"
           lancedb = component "LanceDB viewer" "Embedded Lance vector store on lakeFS + UI"
