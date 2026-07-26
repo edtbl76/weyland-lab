@@ -47,6 +47,31 @@ def _make_predict(model_name):
     return predict
 
 
+def _summarize(run_id, exp_id):
+    """genai logs judge scores as per-trace assessments (feedback.value = yes/no), not run metrics — aggregate the
+    yes-rate per judge for an in-terminal leaderboard line."""
+    from collections import defaultdict
+    try:
+        df = mlflow.search_traces(locations=[exp_id], run_id=run_id)
+    except TypeError:
+        df = mlflow.search_traces(experiment_ids=[exp_id], run_id=run_id)
+    tot, yes = defaultdict(int), defaultdict(int)
+    for row in df["assessments"]:
+        for a in (row or []):
+            src = getattr(a, "source", None) or (a.get("source") if isinstance(a, dict) else None)
+            st = getattr(src, "source_type", None) or (src.get("source_type") if isinstance(src, dict) else None)
+            if st != "LLM_JUDGE":
+                continue
+            name = getattr(a, "assessment_name", None) or (a.get("assessment_name") if isinstance(a, dict) else None)
+            fb = getattr(a, "feedback", None) or (a.get("feedback") if isinstance(a, dict) else None)
+            val = getattr(fb, "value", None) or (fb.get("value") if isinstance(fb, dict) else None)
+            if val is None:
+                continue
+            tot[name] += 1
+            yes[name] += 1 if str(val).strip().lower() in ("yes", "true", "1", "pass") else 0
+    return {n: f"{yes[n]}/{tot[n]}" for n in sorted(tot)} or "no judge assessments"
+
+
 def main():
     exp = mlflow.set_experiment(EXP)
     scorers = G.list_scorers(experiment_id=exp.experiment_id)
@@ -57,14 +82,12 @@ def main():
     for model in MODELS:
         print(f"== {model} ==", flush=True)
         try:
-            with mlflow.start_run(run_name=model):
-                res = evaluate(data=data, scorers=scorers, predict_fn=_make_predict(model))
-                agg = {k: round(v, 3) for k, v in res.metrics.items() if isinstance(v, (int, float))}
-                print(f"   {agg}", flush=True)
+            with mlflow.start_run(run_name=model) as run:
+                rid = run.info.run_id
+                evaluate(data=data, scorers=scorers, predict_fn=_make_predict(model))
+            print(f"   judges (yes/total): {_summarize(rid, exp.experiment_id)}", flush=True)
         except Exception as exc:
-            import traceback
-            print(f"   FAILED: {type(exc).__name__}: {str(exc)[:220]}", flush=True)
-            traceback.print_exc()
+            print(f"   FAILED: {type(exc).__name__}: {str(exc)[:200]}", flush=True)
     print(f"\ndone — Experiments -> {EXP} -> compare the runs (one per model, same judges + dataset).", flush=True)
 
 
