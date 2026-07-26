@@ -24,7 +24,7 @@ model {
   telegram = ext "Telegram" "Cloud messaging — operator DMs in, alerts out"
   github = ext "GitHub" "weyland-lab repo — RAG source + Argo/Woodpecker/Port"
   anthropic = ext "Anthropic API" "Claude — Claude Code reasoning on rogueone"
-  hostedModels = ext "Gemini / OpenRouter" "Hosted LLMs fronted by LiteLLM (gated egress)"
+  hostedModels = ext "Hosted LLM providers" "OpenAI / Anthropic / Gemini / Mistral / Cohere / DeepSeek / Together / OpenRouter / xAI — fronted by LiteLLM + the AI Gateway (gated egress)"
   huggingface = ext "Hugging Face Hub" "Model weights (bge-small, GGUF) at setup"
   port = ext "Port.io" "IDP / catalog + self-service actions (SaaS)"
   linear = ext "Linear" "Roadmap / task status (ingested by Port)"
@@ -99,7 +99,8 @@ model {
         ml = zone "Feature store + ML" {
           feast = component "Feast server" "Feature store — registry/offline=Postgres, online=Valkey"
           feastUi = component "Feast UI" "Feast registry browser"
-          mlflow = component "MLflow" "Experiment tracking + model registry + AI Gateway (B100 P4 — governed OpenAI-compat front door, LLM-judge guardrails + budget); NodePort 30500"
+          mlflow = component "MLflow" "Experiment tracking + model registry (hosts the AI Gateway, B100 P4); NodePort 30500"
+          aiGateway = gateway "MLflow AI Gateway" "B100 P4 — governed OpenAI-compat front door over 17 endpoints (6 local + 9 hosted + 2 judges); LLM-judge guardrails (Safety/PII, fail-closed) + $10/mo budget + tracing + eval; served by the MLflow server, NodePort 30500"
           ray = component "Ray head" "Persistent Ray cluster — rogueone joins as edge worker"
           jupyterhub = component "JupyterHub" "Notebooks — singleuser pods on-demand"
           lancedb = component "LanceDB viewer" "Embedded Lance vector store on lakeFS + UI"
@@ -241,6 +242,10 @@ model {
   rogueone.genreTrainer -> weyland.mother.mesh.ml.mlflow "log runs + registry :30500"
   rogueone.rayWorker -> weyland.mother.mesh.ml.ray "join cluster :6379 (token)"
   weyland.mother.mesh.ml.mlflow -> weyland.mother.ops.infra.minio "artifact store"
+  weyland.mother.mesh.ml.aiGateway -> rogueone.ollama "local models (6) + guard/eval judge qwen2.5:7b /v1"
+  weyland.mother.mesh.ml.aiGateway -> weyland.mother.ai.litellm "LiteLLM-routed hosted providers"
+  weyland.mother.mesh.ml.aiGateway -> hostedModels "native hosted providers (gated egress)"
+  weyland.mother.mesh.ml.aiGateway -> weyland.mother.mesh.ml.mlflow "usage traces + gateway-eval runs"
   weyland.mother.mesh.ml.jupyterhub -> weyland.mother.mesh.query.trino "notebook queries"
 
   // Governance / catalog

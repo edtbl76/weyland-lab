@@ -12,7 +12,7 @@ runbooks: [b6-minio](runbooks/storage-minio.md) · [b7-ollama](runbooks/model-se
 [timescaledb](runbooks/timescaledb.md) · [datasets-lake](runbooks/datasets-lake.md) · [argocd](runbooks/argocd.md) ·
 concepts: [llm-inference-cpu-vs-gpu](concepts/llm-inference-cpu-vs-gpu.md) · ops: [test.md](validation/test-commands.md)
 
-**Architecture (C4) — interactive LikeC4** (B64): explore every view at [likec4.weyland.lab](https://likec4.weyland.lab), or embedded in-page — [Context](diagrams/c4-context.md) · [Node topology](diagrams/c4-container.md) · [Components — mother, sliced into planes](diagrams/c4-component-mother.md). One model (`docs/architecture/weyland.likec4`) auto-generates the whole hierarchy; runbook [runbooks/likec4.md](runbooks/likec4.md). **Flows** (Mermaid sequence, see §9 for the grouped table): [ingestion](diagrams/flow-ingestion.md) · [RAG query](diagrams/flow-rag-query.md) · [RAG stream indexer](diagrams/flow-rag-stream.md) · [backend dispatch](diagrams/flow-backend-dispatch.md) · [voice chat](diagrams/flow-voice-chat.md) · [eval pipeline](diagrams/flow-eval.md) · [eval scoring](diagrams/flow-eval-scoring.md) · [semantic/consumption](diagrams/flow-semantic-consumption.md) · [health/status](diagrams/flow-health-status.md) · [pipeline trigger](diagrams/flow-pipeline-trigger.md) · [agent MCP](diagrams/flow-agent-mcp.md) · [mesh mTLS](diagrams/flow-mesh-mtls.md) · [tracing](diagrams/flow-tracing.md) · [guardrails](diagrams/flow-guardrails.md) · [act-tool](diagrams/flow-act-tool.md) · [ingress/TLS](diagrams/flow-ingress-tls.md) · [model gateway](diagrams/flow-model-gateway.md) · [model catalog](diagrams/flow-model-catalog.md) · [roadmap-sync](diagrams/flow-roadmap-sync.md) · [alerting](diagrams/flow-alerting.md) · [deploy](diagrams/flow-deploy.md) · [MLflow](diagrams/flow-mlflow.md)
+**Architecture (C4) — interactive LikeC4** (B64): explore every view at [likec4.weyland.lab](https://likec4.weyland.lab), or embedded in-page — [Context](diagrams/c4-context.md) · [Node topology](diagrams/c4-container.md) · [Components — mother, sliced into planes](diagrams/c4-component-mother.md). One model (`docs/architecture/weyland.likec4`) auto-generates the whole hierarchy; runbook [runbooks/likec4.md](runbooks/likec4.md). **Flows** (Mermaid sequence, see §9 for the grouped table): [ingestion](diagrams/flow-ingestion.md) · [RAG query](diagrams/flow-rag-query.md) · [RAG stream indexer](diagrams/flow-rag-stream.md) · [backend dispatch](diagrams/flow-backend-dispatch.md) · [voice chat](diagrams/flow-voice-chat.md) · [eval pipeline](diagrams/flow-eval.md) · [eval scoring](diagrams/flow-eval-scoring.md) · [semantic/consumption](diagrams/flow-semantic-consumption.md) · [health/status](diagrams/flow-health-status.md) · [pipeline trigger](diagrams/flow-pipeline-trigger.md) · [agent MCP](diagrams/flow-agent-mcp.md) · [mesh mTLS](diagrams/flow-mesh-mtls.md) · [tracing](diagrams/flow-tracing.md) · [guardrails](diagrams/flow-guardrails.md) · [act-tool](diagrams/flow-act-tool.md) · [ingress/TLS](diagrams/flow-ingress-tls.md) · [model gateway](diagrams/flow-model-gateway.md) · [AI Gateway](diagrams/flow-mlflow-gateway.md) · [model catalog](diagrams/flow-model-catalog.md) · [roadmap-sync](diagrams/flow-roadmap-sync.md) · [alerting](diagrams/flow-alerting.md) · [deploy](diagrams/flow-deploy.md) · [MLflow](diagrams/flow-mlflow.md)
 
 ---
 
@@ -808,11 +808,46 @@ flowchart TB
 | **STT** | weyland CT 103 (CPU) | whisper.cpp `large-v3` | voice -> text, faster-than-real-time; OpenAI-shim for drop-in clients. |
 | **Small fast LLMs (speed)** | rogueone (GPU) | vLLM | low-latency utility inference (Qwen), on-demand. |
 | **Hosted models (escalation)** | (cloud) via mother **LiteLLM** | Gemini + OpenRouter (free tiers) | stronger-than-local brains on demand; API-key (no subscription/ToS issue); human-gated egress. |
+| **Unified front door** | mother **MLflow AI Gateway** (B100 P4) | OpenAI-compat over Ollama + hosted (native / LiteLLM) | one *governed* endpoint over all of the above — guardrails + budget + tracing + eval. See §8a. |
 
 All inference speaks the **OpenAI `/v1` shape**, so clients are engine-agnostic. The eval harness
 (B4) found **gpt-oss:20b** the most defensible RAG model across a 3-judge panel. **Claude brain note:**
 B26's Hermes+Claude path was *declined* — a Claude Pro/Max subscription via a proxy is a ToS gray area,
 metered API wasn't wanted; Claude-in-lab is instead **you driving Claude Code** (B29, already MCP-wired).
+
+### 8a. AI Gateway — the governed front door (B100 P4)
+
+`/v1` is engine-agnostic but **ungoverned**: any client can hit Ollama or LiteLLM directly with no usage record, no
+content check, no cost cap. **MLflow 3.14's built-in AI Gateway** (served by the tracking server itself —
+`mlflow.weyland.lab/#/gateway`; scripted via the `mlflow-lan` NodePort `:30500`, which has no forward-auth) closes
+that: one OpenAI-compat endpoint (`/gateway/mlflow/v1/chat/completions`, `model` = endpoint name, **no client key** —
+provider keys are server-side) fronting **17 endpoints** — the 6 local Ollama models + 9 hosted providers
+(OpenAI/Anthropic/Gemini/Mistral/Cohere/DeepSeek/Together/OpenRouter/xAI, native or via LiteLLM) + 2 local judges.
+Every call is **usage-tracked** (a trace per `gateway/<model>` experiment), **guardrailed**, and **budget-capped**.
+
+**Three gateways, three jobs** (they compose, they don't compete):
+
+| Gateway | Plane | Job |
+|---|---|---|
+| **APISIX** | API / data | fronts the tool-server `/context`/`/pipeline` + the vector/graph backends |
+| **LiteLLM** (B26) | model egress | multi-provider proxy + spend meter — now *one included backend* of the AI Gateway, **not** replaced |
+| **MLflow AI Gateway** (B100 P4) | model governance | the OpenAI-compat front door: guardrails + budget + tracing + eval, MLflow-native |
+
+**Guardrails** are LLM-judge based — **Safety** (AFTER/block, judges the output) + **PII** (BEFORE/sanitize, redacts the
+input) — attached to every endpoint except the judge, and they **fail closed** (a judge error blocks). That puts the
+judge in the *critical path*, making judge choice the load-bearing decision, and the lesson was earned: **Gemini's free
+tier (20 RPM) fails the whole gateway under light load** (429 → fail-closed → cascade); a **3b local judge
+false-blocks ~50% of benign traffic**; **`qwen2.5:7b` local is the sweet spot** — no quota, reliable, fast enough.
+There is always exactly one terminal *unguarded* judge (guarding it recurses). **Budget** = a GLOBAL `$10/mo` REJECT
+cap: *your* limit, enforced before the paid provider is called (the answer to the Gemini-quota surprise), not a
+provider's unpredictable one.
+
+**Eval is a first-class consumer:** a registered **judge panel** (relevance/conciseness/honesty, `qwen2.5:7b`) + a
+**golden dataset** live in the `gateway-eval` experiment, and `mlflow.genai.evaluate` runs each gateway model as one
+run → a B84-style leaderboard, native (gpt-oss:20b topped it, re-validating B4). The whole surface — endpoints,
+secrets, scorers, guardrails, budget — is **one self-healing script** (`scripts/register_gateway_endpoints.py`, keys
+from gitignored `scripts/.env`; change the judge or a provider key and re-run). Runbook
+[runbooks/mlflow-gateway.md](runbooks/mlflow-gateway.md), flow [diagrams/flow-mlflow-gateway.md](diagrams/flow-mlflow-gateway.md).
 
 ---
 
@@ -841,6 +876,7 @@ observed; **Control/ops** = scheduled and operational paths.
 | Security/mesh | Service-mesh request path + mTLS (B8) | [flow-mesh-mtls.md](diagrams/flow-mesh-mtls.md) |
 | Security/mesh | Distributed tracing pipeline (B8) | [flow-tracing.md](diagrams/flow-tracing.md) |
 | Security/mesh | Guardrail validation (B14) | [flow-guardrails.md](diagrams/flow-guardrails.md) |
+| Security/mesh | AI Gateway invocation — guarded + budgeted (B100 P4) | [flow-mlflow-gateway.md](diagrams/flow-mlflow-gateway.md) |
 | Security/mesh | Audited act-tool (`/mcp-act`, B14) | [flow-act-tool.md](diagrams/flow-act-tool.md) |
 | Security/mesh | Ingress / TLS front door | [flow-ingress-tls.md](diagrams/flow-ingress-tls.md) |
 | Control/ops | Model-gateway routing (B26) | [flow-model-gateway.md](diagrams/flow-model-gateway.md) |
