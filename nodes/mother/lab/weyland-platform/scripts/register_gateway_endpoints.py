@@ -283,6 +283,25 @@ def ensure_guardrails():
         print(f"  created guardrail: {gname} (judge={judge_name}, {stage}/{action})")
 
 
+# Budget: a GLOBAL spend cap (budgets are workspace/global-scoped — there's no per-endpoint field). Caps total paid
+# spend (OpenAI/Anthropic/xAI) against a runaway loop. REJECT = hard-block once exceeded; ALERT = warn only.
+BUDGET_USD = float(os.environ.get("GATEWAY_BUDGET_USD", "10"))
+BUDGET_MONTHS = int(os.environ.get("GATEWAY_BUDGET_MONTHS", "1"))
+BUDGET_ACTION = os.environ.get("GATEWAY_BUDGET_ACTION", "REJECT")  # REJECT (hard cap) | ALERT (warn only)
+
+
+def ensure_budget():
+    if BUDGET_USD <= 0 or _list("/budgets/list"):
+        print("  budget: exists or disabled — skipping")
+        return
+    _req("POST", "/budgets/create", {
+        "budget_unit": "USD", "budget_amount": BUDGET_USD,
+        "duration": {"unit": "MONTHS", "value": BUDGET_MONTHS},
+        "target_scope": "GLOBAL", "budget_action": BUDGET_ACTION,
+    })
+    print(f"  created GLOBAL budget: ${BUDGET_USD:g} per {BUDGET_MONTHS}mo, action={BUDGET_ACTION}")
+
+
 def main():
     sids = {s["secret_name"]: ensure_secret(s) for s in SECRETS}
     print(f"secrets: {sids}")
@@ -305,6 +324,7 @@ def main():
     prune_stale_guardrails()
     ensure_guardrails()
     attach_guardrails()
+    ensure_budget()
 
 
 if __name__ == "__main__":
