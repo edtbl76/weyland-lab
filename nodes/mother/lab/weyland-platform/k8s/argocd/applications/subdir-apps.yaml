@@ -397,24 +397,6 @@ spec:
   syncPolicy:
     automated: { selfHeal: true, prune: true }
 ---
-# B100 P4 — MLflow AI Gateway: config-driven OpenAI-compat front door over Ollama/LiteLLM/free/served models.
-apiVersion: argoproj.io/v1alpha1
-kind: Application
-metadata:
-  name: mlflow-gateway
-  namespace: argocd
-spec:
-  project: default
-  source:
-    repoURL: https://github.com/edtbl76/weyland-lab.git
-    targetRevision: main
-    path: nodes/mother/lab/weyland-platform/k8s/mlflow-gateway
-  destination:
-    server: https://kubernetes.default.svc
-    namespace: weyland
-  syncPolicy:
-    automated: { selfHeal: true, prune: true }
----
 # code-quality scan Jobs (weyland ns). Weekly-CronJob conversion is Wave 4.
 apiVersion: argoproj.io/v1alpha1
 kind: Application
