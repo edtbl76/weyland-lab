@@ -59,7 +59,7 @@ spec:
             # without them the gateway UI renders but its API 404s (unmounted). mlflow==3.14.0 is already in the image,
             # so this just pulls the missing extras. (If restarts get slow, bake these into a small image — see top note.)
             - >
-              pip install --quiet --no-cache-dir psycopg2-binary boto3 'mlflow[gateway]==3.14.0' &&
+              pip install --quiet --no-cache-dir psycopg2-binary boto3 'mlflow[gateway]==3.14.0' litellm &&
               mlflow db upgrade "postgresql://$(POSTGRES_USER):$(POSTGRES_PASSWORD)@weyland-postgres.weyland.svc.cluster.local:5432/mlflow" &&
               mlflow server --host 0.0.0.0 --port 5000
               --backend-store-uri "postgresql://$(POSTGRES_USER):$(POSTGRES_PASSWORD)@weyland-postgres.weyland.svc.cluster.local:5432/mlflow"

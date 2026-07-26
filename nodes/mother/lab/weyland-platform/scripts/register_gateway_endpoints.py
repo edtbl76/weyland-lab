@@ -302,6 +302,27 @@ def ensure_budget():
     print(f"  created GLOBAL budget: ${BUDGET_USD:g} per {BUDGET_MONTHS}mo, action={BUDGET_ACTION}")
 
 
+def prune_orphan_endpoints():
+    """Opt-in (GATEWAY_PRUNE_ORPHANS=1): delete endpoints no longer in the config — a key removed from .env, or a
+    model changed (the endpoint name embeds the model slug, so a new model = a new name + an orphaned old one). This
+    is how you TRIM a dead provider (e.g. no-credit deepseek): drop its key from scripts/.env, re-run with the flag.
+    Never touches the judges. Detaches guardrails first."""
+    if os.environ.get("GATEWAY_PRUNE_ORPHANS") != "1":
+        return
+    keep = {ep[0] for ep in ENDPOINTS} | set(JUDGE_ENDPOINTS)
+    for e in _list("/endpoints/list"):
+        if e["name"] in keep:
+            continue
+        eid = e["endpoint_id"]
+        for g in _list("/guardrails/list"):
+            try:
+                _req("DELETE", "/guardrails/remove-from-endpoint", {"endpoint_id": eid, "guardrail_id": g["guardrail_id"]})
+            except RuntimeError:
+                pass
+        _req("DELETE", "/endpoints/delete", {"endpoint_id": eid})
+        print(f"  pruned orphan endpoint: {e['name']}")
+
+
 def main():
     sids = {s["secret_name"]: ensure_secret(s) for s in SECRETS}
     print(f"secrets: {sids}")
@@ -321,6 +342,7 @@ def main():
         print(f"  created: {ep_name} -> {model_name}")
         created += 1
     print(f"done: {created} created, {skipped} skipped, {len(ENDPOINTS)} total endpoints")
+    prune_orphan_endpoints()
     prune_stale_guardrails()
     ensure_guardrails()
     attach_guardrails()

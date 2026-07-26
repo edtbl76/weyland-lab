@@ -12,6 +12,7 @@ Limit models with GATEWAY_EVAL_MODELS=ollama-gpt-oss-20b,openai-gpt-5-mini (defa
 """
 import json
 import os
+import time
 import urllib.request as u
 
 import mlflow
@@ -22,6 +23,9 @@ GW = os.environ.get("GATEWAY_OPENAI_BASE", "http://localhost:5000/gateway/mlflow
 # Guarded gateway calls add judge round-trips per request, so give predict_fn plenty of headroom. Do NOT set
 # MLFLOW_GENAI_EVAL_SKIP_TRACE_VALIDATION — it skips creating the trace the scorers read (eval_item.trace is None).
 PREDICT_TIMEOUT = int(os.environ.get("GATEWAY_EVAL_TIMEOUT", "600"))
+# Breathing room between models — the local sweep swaps big models on rogueone's single 16GB GPU (no iGPU) and has
+# locked the desktop. A pause lets each swap settle. For safety, still prefer GATEWAY_EVAL_MODELS=<small subset>.
+PAUSE = float(os.environ.get("GATEWAY_EVAL_PAUSE", "3"))
 mlflow.set_tracking_uri(os.environ.get("MLFLOW_TRACKING_URI", "http://localhost:5000"))
 # The judges call `openai:/ollama-qwen25-7b` — route it through the gateway. No real key (the gateway holds them).
 os.environ["OPENAI_BASE_URL"] = GW
@@ -88,6 +92,7 @@ def main():
             print(f"   judges (yes/total): {_summarize(rid, exp.experiment_id)}", flush=True)
         except Exception as exc:
             print(f"   FAILED: {type(exc).__name__}: {str(exc)[:200]}", flush=True)
+        time.sleep(PAUSE)  # let the GPU swap settle before the next model
     print(f"\ndone — Experiments -> {EXP} -> compare the runs (one per model, same judges + dataset).", flush=True)
 
 
