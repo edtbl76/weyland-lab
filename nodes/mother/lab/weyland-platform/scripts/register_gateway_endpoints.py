@@ -267,7 +267,7 @@ def ensure_guardrails():
             continue
         serialized = json.dumps({"name": scorer_name, "instructions_judge_pydantic_data": {
             "instructions": instr, "feedback_value_type": {"type": "string", "enum": ["yes", "no"]},
-            "model": f"gateway:/{judge_id}"}})
+            "model": f"gateway:/{judge_name}"}})  # register resolves by endpoint NAME (stores the id form)
         req = u.Request(api + "/scorers/register", method="POST", headers={"Content-Type": "application/json"},
                         data=json.dumps({"experiment_id": "0", "name": scorer_name, "serialized_scorer": serialized}).encode())
         try:
