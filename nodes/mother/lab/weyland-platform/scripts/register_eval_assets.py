@@ -18,7 +18,9 @@ os.environ["OPENAI_BASE_URL"] = GW
 os.environ["OPENAI_API_BASE"] = GW
 os.environ.setdefault("OPENAI_API_KEY", "gateway")
 JUDGE = os.environ.get("GATEWAY_EVAL_JUDGE", "openai:/ollama-qwen25-7b")
-EXP = os.environ.get("EVAL_ASSETS_EXPERIMENT", "0")
+# Dedicated eval home (created if absent) — NOT Default. Judges/datasets are eval-run properties, not per-model, so
+# they live in one comparison experiment, not the 15 per-endpoint `gateway/<name>` ones.
+EXP = mlflow.set_experiment(os.environ.get("EVAL_ASSETS_EXPERIMENT", "gateway-eval")).experiment_id
 
 # Reusable lab judges (reference-free: score {{ inputs }} + {{ outputs }}, no gold answer needed).
 JUDGES = [
@@ -76,7 +78,25 @@ def register_dataset():
         print(f"  dataset {DATASET} FAILED: {type(e).__name__}: {str(e)[:220]}")
 
 
-print(f"judge={JUDGE}  experiment={EXP}")
+def cleanup_default(exp_id):
+    """Move the eval judges + dataset out of Default (experiment 0) into the dedicated experiment (idempotent)."""
+    for name, _ in JUDGES:
+        try:
+            G.delete_scorer(name=name, experiment_id="0")
+            print(f"  cleaned judge from Default: {name}")
+        except Exception:
+            pass
+    try:
+        ds = G.get_dataset(name=DATASET)
+        if exp_id not in (ds.experiment_ids or []):
+            G.delete_dataset(name=DATASET)
+            print(f"  cleaned dataset from {ds.experiment_ids}: {DATASET}")
+    except Exception:
+        pass
+
+
+print(f"judge={JUDGE}  experiment=gateway-eval ({EXP})")
+cleanup_default(EXP)
 register_judges()
 register_dataset()
-print("done — AI Gateway -> Judges / Datasets (mlflow.genai; experiment", EXP + ")")
+print("done — Experiments -> gateway-eval -> Judges / Datasets")
