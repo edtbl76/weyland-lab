@@ -278,7 +278,7 @@ def ensure_guardrails():
         payload = {"name": gname, "scorer_id": reg["scorer_id"], "scorer_version": reg["version"],
                    "stage": stage, "action": action}
         if needs_ep:
-            payload["action_endpoint_id"] = judge_name
+            payload["action_endpoint_id"] = judge_id  # FK to endpoints.endpoint_id (the id, not the name)
         _req("POST", "/guardrails/create", payload)
         print(f"  created guardrail: {gname} (judge={judge_name}, {stage}/{action})")
 
