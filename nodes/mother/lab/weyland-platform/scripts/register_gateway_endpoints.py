@@ -65,7 +65,8 @@ ENDPOINTS = [
     ("ollama-mistral-small-24b",  "ollama", "ollama-local", "mistral-small3.2:24b"),
     ("ollama-qwen3-coder-30b",    "ollama", "ollama-local", "qwen3-coder:30b"),
     ("ollama-deepseek-coder-16b", "ollama", "ollama-local", "deepseek-coder-v2:16b"),
-    ("ollama-llama32-3b",         "ollama", "ollama-local", "llama3.2:3b"),  # small/fast — the guard + eval judge (no quota)
+    ("ollama-llama32-3b",         "ollama", "ollama-local", "llama3.2:3b"),  # small/fast (over-eager as a guard judge)
+    ("ollama-qwen25-7b",          "ollama", "ollama-local", "qwen2.5:7b"),   # the guard + eval judge (stronger JSON/judgment)
 ]
 # --- Category B/C (add when keyed, then re-run — idempotent) ---
 # NEVER hardcode a key here (this repo is PUBLIC). Keys come from the gitignored .env (see .env.example): put the
@@ -156,7 +157,7 @@ def ensure_model_def(name, secret_id, provider, model_name):
 # NOT recreate them; it ATTACHES the existing ones (by name) to every endpoint EXCEPT the judge endpoints — guarding
 # a judge recurses (guardrail -> judge -> the judge's own guardrail -> ...). Idempotent: skips already-bound pairs.
 GUARD_NAMES = [n.strip() for n in os.environ.get("GATEWAY_GUARDRAILS", "Safety,PII Detection").split(",") if n.strip()]
-JUDGE_ENDPOINTS = {x.strip() for x in os.environ.get("GATEWAY_JUDGE_ENDPOINTS", "ollama-llama32-3b").split(",") if x.strip()}
+JUDGE_ENDPOINTS = {x.strip() for x in os.environ.get("GATEWAY_JUDGE_ENDPOINTS", "ollama-qwen25-7b").split(",") if x.strip()}
 
 
 def _list_for(endpoint_id):

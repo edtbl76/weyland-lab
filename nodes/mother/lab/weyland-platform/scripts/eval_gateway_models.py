@@ -32,7 +32,7 @@ mlflow.set_tracking_uri(os.environ.get("MLFLOW_TRACKING_URI", "http://localhost:
 os.environ["OPENAI_BASE_URL"] = GW
 os.environ["OPENAI_API_BASE"] = GW
 os.environ.setdefault("OPENAI_API_KEY", "gateway")
-JUDGE = os.environ.get("GATEWAY_EVAL_JUDGE", "openai:/ollama-llama32-3b")  # local judge = no quota; override for higher-fidelity scoring
+JUDGE = os.environ.get("GATEWAY_EVAL_JUDGE", "openai:/ollama-qwen25-7b")  # local judge = no quota; override for higher-fidelity scoring
 
 CHAT_Q = [
     "In two sentences, what is a data lakehouse and why would you use one?",
@@ -49,7 +49,7 @@ CODER = {"ollama-deepseek-coder-16b", "ollama-qwen3-coder-30b"}
 _all = [e["name"] for e in json.loads(
     u.urlopen("http://localhost:5000/api/3.0/mlflow/gateway/endpoints/list", timeout=15).read())["endpoints"]]
 _sel = os.environ.get("GATEWAY_EVAL_MODELS")
-JUDGE_ENDPOINT = os.environ.get("GATEWAY_JUDGE_ENDPOINT", "ollama-llama32-3b")  # excluded from eval (it's the judge)
+JUDGE_ENDPOINT = os.environ.get("GATEWAY_JUDGE_ENDPOINT", "ollama-qwen25-7b")  # excluded from eval (it's the judge)
 MODELS = [m.strip() for m in _sel.split(",") if m.strip()] if _sel else [e for e in _all if e != JUDGE_ENDPOINT]
 
 
