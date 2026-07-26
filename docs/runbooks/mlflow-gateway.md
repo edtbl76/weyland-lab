@@ -78,6 +78,20 @@ python3 nodes/mother/lab/weyland-platform/scripts/test_gateway_guardrails.py    
 kubectl -n weyland exec -i deploy/mlflow -- python < nodes/mother/lab/weyland-platform/scripts/eval_gateway_models.py   # mlflow.genai.evaluate over the gateway (judge = qwen25-7b, no quota)
 ```
 
+## Eval assets — judges + dataset + leaderboard (follow-on)
+
+`scripts/register_eval_assets.py` registers a reusable **judge panel** (`weyland-relevance/conciseness/honesty` via
+`make_judge` → `scorers/register`, judged by `ollama-qwen25-7b`) + a **golden dataset** (`weyland-gateway-eval`) in a
+dedicated **`gateway-eval`** experiment — NOT Default: judges/datasets are per-experiment, eval-run properties, so
+they live in one comparison experiment, not the 15 per-endpoint `gateway/<name>` ones. `scripts/eval_gateway_models.py`
+then runs `mlflow.genai.evaluate` per gateway model as **one run in `gateway-eval`**, scored by that panel against that
+dataset → a B84-style leaderboard, native in MLflow (Experiments → gateway-eval → compare runs). First run put
+**`gpt-oss:20b` on top** (matches B4). Gotchas: scores land as per-trace **assessments** (`feedback.value` = yes/no),
+NOT run metrics — the script aggregates a yes-rate per judge; `search_traces` needs `locations=[exp_id]`. **GPU note:**
+the multi-model *local* sweep is heavy on rogueone's single GPU (no iGPU) and can lock the desktop — throttle with
+`GATEWAY_EVAL_MODELS=<subset>`. Hosted models need working keys/model-names (deepseek 402=no-credit, openrouter
+404=bad model, etc.) before they join the board.
+
 ## Gotchas (all hit + fixed)
 - **`promptfoo view`-style trap:** the standalone `mlflow gateway` CLI is deprecated; use the built-in gateway.
 - **API is proto, under `/api/3.0/mlflow/gateway/…`**; introspect `app.url_map` — don't guess paths (cost us ~12 wrong guesses).
