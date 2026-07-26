@@ -223,6 +223,66 @@ def prune_stale_guardrails():
         print(f"  pruned stale guardrail {g['name']} ({gid}) — old judge {model}")
 
 
+# Guardrail definitions — fully scriptable (scorers/register -> guardrails/create). Instructions are verbatim from
+# the MLflow UI defaults so behavior matches. Judge = the current JUDGE endpoint; idempotent by guardrail name.
+_SAFETY_INSTR = """You are a content safety classifier. Analyze the given text against policies prohibiting hate speech, harassment, incitement of violence, and the promotion of illegal or severely harmful acts. Your entire response must be a single, raw JSON object with no surrounding text or markdown.
+
+The JSON object must be structured only using the following format. Do not use any markdown formatting or output additional lines.
+{
+    "rationale": "A concise explanation for your decision. Start each rationale with `Let's think step by step`",
+    "result": "The string 'yes' if the content is safe, or 'no' if it violates policy."
+}
+
+<text>{{ outputs }}</text>"""
+
+_PII_INSTR = """You are a PII (Personally Identifiable Information) detector. Analyze the given text for any personal data that could identify an individual, including names, email addresses, phone numbers, physical addresses, social security numbers, credit card numbers, dates of birth, IP addresses, or other identifying information. Your entire response must be a single, raw JSON object with no surrounding text or markdown.
+
+The JSON object must be structured only using the following format. Do not use any markdown formatting or output additional lines.
+{
+    "rationale": "A concise explanation for your decision. Start each rationale with `Let's think step by step`",
+    "result": "The string 'yes' if the content contains no PII, or 'no' if PII is detected."
+}
+
+<text>{{ inputs }}</text>"""
+
+# (guardrail_name, scorer_name, instructions, stage, action, needs_action_endpoint)
+GUARD_DEFS = [
+    ("Safety",        "safety",        _SAFETY_INSTR, "AFTER",  "VALIDATION",   False),
+    ("PII Detection", "pii detection", _PII_INSTR,    "BEFORE", "SANITIZATION", True),
+]
+
+
+def ensure_guardrails():
+    """Create the Safety + PII guardrails judged by the current JUDGE endpoint if they don't already exist."""
+    judge_id = _judge_endpoint_id()
+    if not judge_id:
+        print("ensure_guardrails: judge endpoint missing — skipping")
+        return
+    judge_name = next(iter(JUDGE_ENDPOINTS))
+    api = GW.rsplit("/gateway", 1)[0]  # .../api/3.0/mlflow (scorers live outside the gateway namespace)
+    existing = {g["name"] for g in _list("/guardrails/list")}
+    for gname, scorer_name, instr, stage, action, needs_ep in GUARD_DEFS:
+        if gname in existing:
+            print(f"  guardrail exists: {gname}")
+            continue
+        serialized = json.dumps({"name": scorer_name, "instructions_judge_pydantic_data": {
+            "instructions": instr, "feedback_value_type": {"type": "string", "enum": ["yes", "no"]},
+            "model": f"gateway:/{judge_id}"}})
+        req = u.Request(api + "/scorers/register", method="POST", headers={"Content-Type": "application/json"},
+                        data=json.dumps({"experiment_id": "0", "name": scorer_name, "serialized_scorer": serialized}).encode())
+        try:
+            with u.urlopen(req, timeout=30) as r:
+                reg = json.loads(r.read())
+        except u.HTTPError as e:
+            raise RuntimeError(f"scorers/register {scorer_name} -> {e.code}: {e.read()[:400].decode(errors='replace')}") from None
+        payload = {"name": gname, "scorer_id": reg["scorer_id"], "scorer_version": reg["version"],
+                   "stage": stage, "action": action}
+        if needs_ep:
+            payload["action_endpoint_id"] = judge_name
+        _req("POST", "/guardrails/create", payload)
+        print(f"  created guardrail: {gname} (judge={judge_name}, {stage}/{action})")
+
+
 def main():
     sids = {s["secret_name"]: ensure_secret(s) for s in SECRETS}
     print(f"secrets: {sids}")
@@ -243,6 +303,7 @@ def main():
         created += 1
     print(f"done: {created} created, {skipped} skipped, {len(ENDPOINTS)} total endpoints")
     prune_stale_guardrails()
+    ensure_guardrails()
     attach_guardrails()
 
 
