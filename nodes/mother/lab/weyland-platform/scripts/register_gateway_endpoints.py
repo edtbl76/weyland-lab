@@ -158,6 +158,14 @@ def ensure_model_def(name, secret_id, provider, model_name):
 # a judge recurses (guardrail -> judge -> the judge's own guardrail -> ...). Idempotent: skips already-bound pairs.
 GUARD_NAMES = [n.strip() for n in os.environ.get("GATEWAY_GUARDRAILS", "Safety,PII Detection").split(",") if n.strip()]
 JUDGE_ENDPOINTS = {x.strip() for x in os.environ.get("GATEWAY_JUDGE_ENDPOINTS", "ollama-qwen25-7b").split(",") if x.strip()}
+# Coding endpoints are left UNGUARDED like the judges. Response-stage guards (Safety runs AFTER on {{outputs}}) force
+# the gateway to buffer the whole completion, which kills token streaming — and every coding TUI (opencode/Cline/Pi,
+# B15) requires SSE streaming. The PII guard would also redact the developer's own prompts (var names, IPs, hostnames
+# read as PII). Both guards were built for the RAG serving path, not a developer prompting their own model, so coding
+# endpoints shed them: they stream, keep usage tracing, and keep the hosted fallback. RAG endpoints stay fully guarded.
+CODING_ENDPOINTS = {x.strip() for x in os.environ.get("GATEWAY_NOGUARD_ENDPOINTS",
+                    "ollama-qwen3-coder-30b,ollama-deepseek-coder-16b").split(",") if x.strip()}
+NOGUARD_ENDPOINTS = JUDGE_ENDPOINTS | CODING_ENDPOINTS
 
 
 def _list_for(endpoint_id):
@@ -177,8 +185,9 @@ def attach_guardrails():
         return
     attached = 0
     for e in _list("/endpoints/list"):
-        if e["name"] in JUDGE_ENDPOINTS:
-            print(f"  skip (judge, left unguarded to avoid recursion): {e['name']}")
+        if e["name"] in NOGUARD_ENDPOINTS:
+            reason = "judge, avoids recursion" if e["name"] in JUDGE_ENDPOINTS else "coding, must stream"
+            print(f"  skip (unguarded — {reason}): {e['name']}")
             continue
         bound = {c.get("guardrail_id") for c in _list_for(e["endpoint_id"])}
         for gname, gid in want:
@@ -190,7 +199,28 @@ def attach_guardrails():
                 attached += 1
             except RuntimeError as exc:
                 print(f"  attach {gname} -> {e['name']} FAILED: {exc}")
-    print(f"guardrails: {attached} new attachment(s) ({len(want)} guardrail(s), judges excluded: {sorted(JUDGE_ENDPOINTS)})")
+    print(f"guardrails: {attached} new attachment(s) ({len(want)} guardrail(s), unguarded: {sorted(NOGUARD_ENDPOINTS)})")
+
+
+def detach_noguard():
+    """Remove any guardrails already bound to no-guard endpoints (judges + coding) from an earlier run. Skipping the
+    ATTACH isn't enough: a coding endpoint guarded by a prior run stays guarded (and can't stream) until we actively
+    detach. Keeps the exemption self-healing."""
+    detached = 0
+    for e in _list("/endpoints/list"):
+        if e["name"] not in NOGUARD_ENDPOINTS:
+            continue
+        for c in _list_for(e["endpoint_id"]):
+            gid = c.get("guardrail_id")
+            if not gid:
+                continue
+            try:
+                _req("DELETE", "/guardrails/remove-from-endpoint", {"endpoint_id": e["endpoint_id"], "guardrail_id": gid})
+                print(f"  detached guardrail from unguarded endpoint: {e['name']}")
+                detached += 1
+            except RuntimeError as exc:
+                print(f"  detach from {e['name']} FAILED: {exc}")
+    print(f"guardrails: {detached} detachment(s) from no-guard endpoints {sorted(NOGUARD_ENDPOINTS)}")
 
 
 def _judge_endpoint_id():
@@ -346,6 +376,7 @@ def main():
     prune_stale_guardrails()
     ensure_guardrails()
     attach_guardrails()
+    detach_noguard()
     ensure_budget()
 
 
