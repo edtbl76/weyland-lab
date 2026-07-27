@@ -75,6 +75,7 @@ this page) links to the live tool.
 | **LiteLLM** | <https://litellm.weyland.lab> | Model gateway (unified LLM API) |
 | **Ollama** | <https://ollama.weyland.lab> | Local model serving API |
 | **Whisper** | <https://whisper.weyland.lab> | Speech-to-text transcription API |
+| **Coding agents (B15)** | local CLIs — [runbook](runbooks/coding-agents.md) | `$0` agentic coding TUIs (opencode / Cline / Pi / Codex) → hosted models direct or ChatGPT sub (GPT-5.5) |
 
 ## Observability & Cost
 

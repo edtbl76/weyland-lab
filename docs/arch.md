@@ -12,7 +12,7 @@ runbooks: [b6-minio](runbooks/storage-minio.md) · [b7-ollama](runbooks/model-se
 [timescaledb](runbooks/timescaledb.md) · [datasets-lake](runbooks/datasets-lake.md) · [argocd](runbooks/argocd.md) ·
 concepts: [llm-inference-cpu-vs-gpu](concepts/llm-inference-cpu-vs-gpu.md) · ops: [test.md](validation/test-commands.md)
 
-**Architecture (C4) — interactive LikeC4** (B64): explore every view at [likec4.weyland.lab](https://likec4.weyland.lab), or embedded in-page — [Context](diagrams/c4-context.md) · [Node topology](diagrams/c4-container.md) · [Components — mother, sliced into planes](diagrams/c4-component-mother.md). One model (`docs/architecture/weyland.likec4`) auto-generates the whole hierarchy; runbook [runbooks/likec4.md](runbooks/likec4.md). **Flows** (Mermaid sequence, see §9 for the grouped table): [ingestion](diagrams/flow-ingestion.md) · [RAG query](diagrams/flow-rag-query.md) · [RAG stream indexer](diagrams/flow-rag-stream.md) · [backend dispatch](diagrams/flow-backend-dispatch.md) · [voice chat](diagrams/flow-voice-chat.md) · [eval pipeline](diagrams/flow-eval.md) · [eval scoring](diagrams/flow-eval-scoring.md) · [semantic/consumption](diagrams/flow-semantic-consumption.md) · [health/status](diagrams/flow-health-status.md) · [pipeline trigger](diagrams/flow-pipeline-trigger.md) · [agent MCP](diagrams/flow-agent-mcp.md) · [mesh mTLS](diagrams/flow-mesh-mtls.md) · [tracing](diagrams/flow-tracing.md) · [guardrails](diagrams/flow-guardrails.md) · [act-tool](diagrams/flow-act-tool.md) · [ingress/TLS](diagrams/flow-ingress-tls.md) · [model gateway](diagrams/flow-model-gateway.md) · [AI Gateway](diagrams/flow-mlflow-gateway.md) · [model catalog](diagrams/flow-model-catalog.md) · [roadmap-sync](diagrams/flow-roadmap-sync.md) · [alerting](diagrams/flow-alerting.md) · [deploy](diagrams/flow-deploy.md) · [MLflow](diagrams/flow-mlflow.md)
+**Architecture (C4) — interactive LikeC4** (B64): explore every view at [likec4.weyland.lab](https://likec4.weyland.lab), or embedded in-page — [Context](diagrams/c4-context.md) · [Node topology](diagrams/c4-container.md) · [Components — mother, sliced into planes](diagrams/c4-component-mother.md). One model (`docs/architecture/weyland.likec4`) auto-generates the whole hierarchy; runbook [runbooks/likec4.md](runbooks/likec4.md). **Flows** (Mermaid sequence, see §9 for the grouped table): [ingestion](diagrams/flow-ingestion.md) · [RAG query](diagrams/flow-rag-query.md) · [RAG stream indexer](diagrams/flow-rag-stream.md) · [backend dispatch](diagrams/flow-backend-dispatch.md) · [voice chat](diagrams/flow-voice-chat.md) · [eval pipeline](diagrams/flow-eval.md) · [eval scoring](diagrams/flow-eval-scoring.md) · [semantic/consumption](diagrams/flow-semantic-consumption.md) · [health/status](diagrams/flow-health-status.md) · [pipeline trigger](diagrams/flow-pipeline-trigger.md) · [agent MCP](diagrams/flow-agent-mcp.md) · [mesh mTLS](diagrams/flow-mesh-mtls.md) · [tracing](diagrams/flow-tracing.md) · [guardrails](diagrams/flow-guardrails.md) · [act-tool](diagrams/flow-act-tool.md) · [ingress/TLS](diagrams/flow-ingress-tls.md) · [model gateway](diagrams/flow-model-gateway.md) · [AI Gateway](diagrams/flow-mlflow-gateway.md) · [coding agents](diagrams/flow-coding-agents.md) · [model catalog](diagrams/flow-model-catalog.md) · [roadmap-sync](diagrams/flow-roadmap-sync.md) · [alerting](diagrams/flow-alerting.md) · [deploy](diagrams/flow-deploy.md) · [MLflow](diagrams/flow-mlflow.md)
 
 ---
 
@@ -160,6 +160,7 @@ agents/workflows and platform state. Agents call the tool-server, *not* database
 | vLLM | `rogueone:8000/v1` | GPU LLM serving (Qwen), on-demand. |
 | Obsidian vault | (local) | personal notes — **no longer a RAG source** (retired in B25b). The RAG now ingests the GitHub repo (`docs/` + `nodes/`) via Dagster git-pull. |
 | Claude Code | (local CLI) | Dev assistant; MCP client of tool-server `/mcp` (validated 2026-06-14). |
+| Coding agents (B15) | (local CLIs, rogueone) | opencode / Cline / Pi / Codex — `$0` agentic coding TUIs; drive hosted models **direct** (Mistral/OpenRouter/Gemini free, or ChatGPT sub → GPT-5.5), bypassing the gateway. See §8b. |
 | Ray edge worker | `ray-worker.service` → mother `:6379` | **Permanent native systemd Ray worker** — joins the always-on Ray head for heavy training / HP-sweep compute. Not-always-up (laptop): drops from the cluster on sleep, systemd auto-rejoins on wake. `services/ray-head/ray-worker.service`. |
 | genre-trainer | (Docker Desktop, `registry.weyland.lab`) | Remote model-training container — reads lakeFS silver, trains, logs to MLflow (artifact direct to MinIO). `services/genre-trainer/`. |
 
@@ -855,6 +856,30 @@ MLflow's streaming path (`json.loads("")`), and response-stage guardrails buffer
 agentic coding agents (opencode/Cline/Pi) point **directly** at the provider, not through the gateway — see
 [runbooks/coding-agents.md](runbooks/coding-agents.md).
 
+### 8b. Dev-side coding agents (B15)
+
+Terminal AI coding agents — **opencode / Cline / Pi / Codex** — give the lab agentic coding at **`$0`**, the coding-side
+analogue of Open WebUI (B13). All four proven in-hand; the **harness was never the bottleneck** (each parses tool-calls
+cleanly, catches hallucinated tools, plans multi-step) — the **model/provider** was always the variable.
+
+Structurally these agents go **direct to a hosted provider** — deliberately *not* through the B100 P4 AI Gateway (which
+single-shot-serves fine but crashes on a hosted multi-turn tool loop, §8a) and *not* to rogueone's local Ollama (16GB
+can't drive tools — see below). The driver ladder, cheapest-capable first:
+
+| Driver | Via | Ceiling | Verdict |
+|---|---|---|---|
+| **ChatGPT sub → GPT-5.5** | Cline / Codex "Sign in with ChatGPT" | your ChatGPT plan | **best** — frontier, sub-*included* (not the metered API) |
+| **Mistral / OpenRouter** (free) | key in `scripts/.env` | ~60 / 20 RPM | best keyed-free; both confirmed live |
+| **Gemini 2.5 Flash** (free) | key in `.env` | 20 RPM | works but 429s inside a loop — one-shot only |
+| **Groq** (free, no card) | *(signup broke 2026-07)* | 30 RPM | the portable winner once its signup works |
+| **Local Ollama (16GB)** | rogueone `.230:11434` | — | **not viable** — tool-call leaks / no tools / hallucination / thinking-stall |
+
+**Subscriptions, honestly:** a **ChatGPT sub is not API access** — the raw `sk-` key is dead (`insufficient_quota`); the
+sub reaches these agents only through OpenAI's *"Sign in with ChatGPT"* (which OpenAI built for coding agents — the
+sanctioned path). A **Claude Pro/Max** sub via a third-party agent stays the B26 ToS gray area, so Claude-in-a-coding-
+agent remains **Claude Code** itself (B29). Runbook [runbooks/coding-agents.md](runbooks/coding-agents.md), demo
+[demos/coding-agents.md](demos/coding-agents.md), flow [diagrams/flow-coding-agents.md](diagrams/flow-coding-agents.md).
+
 ---
 
 ## 9. Key flows
@@ -886,6 +911,7 @@ observed; **Control/ops** = scheduled and operational paths.
 | Security/mesh | Audited act-tool (`/mcp-act`, B14) | [flow-act-tool.md](diagrams/flow-act-tool.md) |
 | Security/mesh | Ingress / TLS front door | [flow-ingress-tls.md](diagrams/flow-ingress-tls.md) |
 | Control/ops | Model-gateway routing (B26) | [flow-model-gateway.md](diagrams/flow-model-gateway.md) |
+| Control/ops | Coding agents — dev → agent → direct provider (B15) | [flow-coding-agents.md](diagrams/flow-coding-agents.md) |
 | Control/ops | model_catalog refresh (B26) | [flow-model-catalog.md](diagrams/flow-model-catalog.md) |
 | Control/ops | Roadmap-sync -> Hermes Kanban (B27) | [flow-roadmap-sync.md](diagrams/flow-roadmap-sync.md) |
 | Control/ops | Alerting (B5) | [flow-alerting.md](diagrams/flow-alerting.md) |

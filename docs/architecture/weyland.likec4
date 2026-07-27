@@ -37,6 +37,7 @@ model {
     genreTrainer = component "genre-trainer" "Trainer — reads silver, logs to MLflow"
     ragEmbed = component "rag-embed" "bge-small embed service :8900 (warm GPU)"
     claudeCode = component "Claude Code" "MCP client of tool-server; Claude brain"
+    codingAgents = component "Coding agents" "opencode / Cline / Pi / Codex (B15) — $0 dev coding TUIs; drive hosted models DIRECT, not through the gateway"
   }
 
   weyland = system "weyland" "Home AI lab on a Minisforum MS-A2 (Proxmox, .232). LAN-only." {
@@ -182,6 +183,8 @@ model {
   weyland.mother.ai.operator -> weyland.mother.ai.pg "session memory (STRICT mTLS)"
   rogueone.claudeCode -> weyland.mother.ai.toolServer "MCP /mcp"
   rogueone.claudeCode -> anthropic "Claude reasoning"
+  edward -> rogueone.codingAgents "codes with (B15)"
+  rogueone.codingAgents -> hostedModels "direct: Gemini/Mistral/OpenRouter free + ChatGPT sub (GPT-5.5) — bypasses the gateway"
 
   // RAG serving
   weyland.mother.ops.edge.apisix -> weyland.mother.ai.toolServer "gateway routes /context, /pipeline"
