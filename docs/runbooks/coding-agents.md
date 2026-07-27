@@ -61,6 +61,19 @@ Optional `AGENTS.md` in the project dir pins path behavior (auto-loaded by openc
 - Do NOT create directories.
 ```
 
+## Free `$0` drivers — two options
+
+1. **Gemini 2.5 Flash direct** (the recipe above) — a real free-tier *API key* from `.env`; portable (works in Cline/Pi
+   too); known-good tool-calling.
+2. **opencode's built-in "zen" free models** — `opencode auth login` → opencode (free account), then the model picker
+   lists `opencode/*-free` models (`north-mini-code-free`, `nemotron-3-ultra-free`, `ling-3.0-flash-free`, …). **In
+   practice they just work** (confirmed) — a zero-key, zero-config `$0` driver. Trade-offs: hosted on opencode/SST infra
+   (your prompts/code go there), rate-limited, and **opencode-only** (they don't port to Cline/Pi — Gemini-direct does).
+
+Both are `$0`. Neither uses a Claude Pro/Max or ChatGPT subscription — those don't fit: a **ChatGPT sub is not API
+access** (opencode needs a funded OpenAI API key), and driving a **Claude Pro/Max sub through opencode is a ToS gray
+area** (declined in B26 — the sanctioned Claude-coding path is Claude Code itself, B29).
+
 ## Why direct-to-provider, NOT the MLflow AI Gateway (B100 P4)
 
 The gateway is the governed front door for **single-shot** calls and **local Ollama serving** — but it is **NOT usable
@@ -99,13 +112,40 @@ scaffolds, non-thinking, native function-calling) is the one model worth pulling
 (desktop-freeze risk on rogueone). Also raise `OLLAMA_CONTEXT_LENGTH` on rogueone first (4096 is unusable for agentic
 work). Until then, **hosted-direct (Gemini free) is the driver; local is a $0 offline convenience for light tasks only.**
 
-## Harness verdict
+## All three harnesses — same Gemini-direct recipe, all PROVEN
 
-- **opencode — PROVEN.** Clean tool protocol, caught *every* hallucinated tool, planned via `todowrite`, streamed,
-  `$0`. Across every model tested the harness behaved correctly — **the model was always the variable.**
-- **Cline, Pi — not yet tested.** Point them at `gemini-direct` the same way (Cline: `cline auth` → OpenAI-Compatible →
-  base URL `https://generativelanguage.googleapis.com/v1beta/openai/`, model `gemini-2.5-flash`, key from `.env`; note
-  Cline CLI bug #6924 may validate the key against openai.com — fallback is editing `~/.cline/data/globalState.json`).
+Each verified end-to-end (writes both files, independent pytest green), all `$0`. Same key-from-`.env` discipline.
+
+**opencode** (v1.18.x) — the config-file recipe above. `pkill -f opencode; source .env; opencode`.
+
+**Cline** (v3.0.46) — two working drivers:
+
+- **Recommended: "Sign in with ChatGPT" → GPT-5.5** (proven). `cline auth` → choose the OpenAI / ChatGPT sign-in option
+  → authenticate in the browser → pick a model (GPT-5.5 confirmed). This uses your **ChatGPT subscription's included
+  usage** (frontier model, **no metered API**, rate limits = your plan's, far above Gemini free's 20 RPM). Unlike the
+  Claude Pro/Max case (B26 ToS gray area — Anthropic hasn't opened equivalent third-party sub auth), OpenAI *built* this
+  sign-in for coding agents, so it's the intended path. Then `cline -i -c <project>` and pick the model.
+- **Keyed fallback (Gemini free):** configure the OpenAI-compatible provider once with a *placeholder* key, feed the
+  real key per-run from env so it never persists:
+  ```
+  cline auth -p openai-compatible -b "https://generativelanguage.googleapis.com/v1beta/openai/" -k "PLACEHOLDER-overridden-per-run" -m gemini-2.5-flash
+  set -a; . ~/IdeaProjects/weyland/scripts/.env; set +a
+  cline -P openai-compatible -k "$GEMINI_API_KEY" -m gemini-2.5-flash -i -c <project>
+  ```
+  The run command's `-k` overrides the persisted placeholder, so only the placeholder is ever on disk. (Gemini free =
+  20 req/min → 429s under an agent loop; use the ChatGPT sign-in for real work.)
+
+**Pi** (`@mariozechner/pi-coding-agent`, v0.73.x) — simplest: it has a **built-in `google` provider** and reads AGENTS.md
+by default, so no custom-provider config:
+```
+npm install -g @mariozechner/pi-coding-agent
+set -a; . ~/IdeaProjects/weyland/scripts/.env; set +a
+cd <project> && pi --provider google --model gemini-2.5-flash --api-key "$GEMINI_API_KEY"     # add -p "<task>" for non-interactive
+```
+
+**Verdict:** all three are viable harnesses — clean tool protocols, real multi-step tool-use, `$0`. The **model** was
+always the variable, never the harness (see the local-model table above). Gemini free tier = **20 requests/minute** —
+ample for one interactive dev; rapid multi-agent test bursts hit the cap (429 + `RetryInfo`).
 
 ## Gotchas (all learned this build)
 
