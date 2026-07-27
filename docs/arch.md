@@ -849,6 +849,12 @@ secrets, scorers, guardrails, budget — is **one self-healing script** (`script
 from gitignored `scripts/.env`; change the judge or a provider key and re-run). Runbook
 [runbooks/mlflow-gateway.md](runbooks/mlflow-gateway.md), flow [diagrams/flow-mlflow-gateway.md](diagrams/flow-mlflow-gateway.md).
 
+**Scope limit (found in B15):** the gateway serves *single-shot* calls and local Ollama serving — it does **not** carry
+an **agentic multi-turn tool loop**. A hosted provider's second turn (tool-call → tool-result → continue) crashes
+MLflow's streaming path (`json.loads("")`), and response-stage guardrails buffer-block streaming regardless. So
+agentic coding agents (opencode/Cline/Pi) point **directly** at the provider, not through the gateway — see
+[runbooks/coding-agents.md](runbooks/coding-agents.md).
+
 ---
 
 ## 9. Key flows

@@ -65,7 +65,7 @@ Re-ordered per RE-grounded audit (aidlc-docs/inception/backlog-reprioritization.
     - **B1.9 — The 3 data products → REFRAMED 2026-07-16 (platform-complete; B1 DONE).** The mesh already publishes **9 data products** (`_PRODUCTS` in `datahub_emit.py`: Spotify Audio · Artist Popularity · Genre Taxonomy · Chronic Health Trends · Global Health Indicators · Personality Profiles · Weyland Docs · AIDLC KB · Genre Classifier) + **AI-Dev Usage** (B62, Port) — the *output* the platform was built to enable already exists. The original trio doesn't survive scrutiny: (2) store-inventory → lineage/observability is **already shipped** (OpenLineage + DataHub lineage + Port + Grafana/Kuma); (3) model-tuning feed is **parts that already exist** (Feast ✅ + MLflow ✅ + Ray ✅ — wiring, not a build). Only (1) **model-eval** warrants a real build, and even that *productizes* the existing **B4** judge-panel leaderboard rather than starting fresh → spun out to **B84**. Building "3 products" to hit the number 3 = box-checking; declined. **B1.9 closed as platform-complete; B1 = DONE.**
 
 ### Maturity / Hardening / Polish
-12. **B15** — Local-model coding agents (opencode / Cline CLI) — hardening agentic capabilities; autonomous unattended coding tasks; full value when Hermes delegates via mesh. See detail below.
+12. **B15** — Local-model coding agents (opencode / Cline / Pi) — **✅ opencode PROVEN 2026-07-26** (opencode + Gemini 2.5 Flash direct, `$0`; local-on-16GB not viable; gateway not usable for agentic — direct-to-provider). Cline/Pi pending. See detail below.
 13. **B17+B19** — "Mesh": A2A evaluation + MCP gateway — MERGED; same inflection point (fleet is real, govern it). Triggered after B14+B26+B27 + B3 stable + OpenClaw decision made. See detail below.
 14. **U18** — ✅ **DONE 2026-06-17 (as KEY RETIREMENT, not lockdown).** B25b removed the SFTP ingestion that U18 was hardening → the `weyland-lab` key had zero consumers (repo grep clean). Retired it instead: deleted rogueone `authorized_keys` line + the orphaned `weyland-lab-ssh-key` k8s Secret. See detail below.
 15. **B20** — Home Assistant (Hermes tool) — Hermes → HA → Google Home/Alexa/physical devices. Prerequisite: running HA instance. See detail below.
@@ -508,14 +508,26 @@ previously *gated on* B14; it's now *part of* it, so the act-tools land **behind
 checks above — not before them. This is the read-only-v1 → read+act step for the B2 agents (Hermes first,
 OpenClaw same MCP URL).
 
-### B15 — Local-model coding agents (opencode / Cline / Pi)
-Terminal/editor AI coding agents pointed at **weyland's Ollama `/v1`** — code with your *own* local
-models, on-LAN; like Open WebUI (B13) but for coding. Candidates to evaluate: **opencode** (SST; open-source,
-model-agnostic, Claude-Code-style TUI), **Cline** (now has a CLI), and **Pi** (added 2026-07-22 — coding
-agent/harness in the same class). All accept an OpenAI-compatible base URL, so they drop onto Ollama at
-`http://192.168.1.230:11434/v1` (rogueone, B79 — was CT-102 `.244`, destroyed). Consumers of B7 — and the real
-payoff of B4's "best coding model" finding (point them at `qwen3-coder:30b` / whatever wins). **Open when scoping:**
-which agent(s), per-repo config, default model, auth. Low lift (client config, no new infra).
+### B15 — Local-model coding agents (opencode / Cline / Pi) — ✅ opencode PROVEN 2026-07-26 (Cline/Pi pending)
+Terminal/editor AI coding agents pointed at weyland's model backends — code your *own* models, on-LAN; like Open WebUI
+(B13) but for coding. **Working recipe SHIPPED: opencode + Gemini 2.5 Flash (direct, free)** — verified end-to-end
+(writes `reverse.py`+`test_reverse.py`, pytest 6/6, `$0`). Runbook [runbooks/coding-agents.md](runbooks/coding-agents.md).
+Full findings there; the load-bearing ones:
+- **Local models are NOT viable agentic drivers on rogueone's 16GB** (tested exhaustively): `qwen3-coder:30b` leaks
+  tool-calls as `<function=…>` text; `qwen3:30b-a3b` can't disable thinking via `/v1` + leaks tool JSON; `gpt-oss:20b`
+  hallucinates tool names + context-collapses (fails **identically direct and via gateway** → the model, not the
+  gateway); `deepseek-coder-v2:16b` has **no tool support**. Systemic wall: 24–30B spill ~40% to CPU + load at
+  `CONTEXT 4096` (Ollama default, unsettable via `/v1`) + per-model Ollama tool-template quirks. `devstral-small-2:24b`
+  is the one local model worth pulling later (purpose-built for agent scaffolds), but tight 15GB/16GB fit.
+- **The MLflow AI Gateway (B100 P4) is NOT usable for agentic coding** — hosted-provider *multi-turn* tool loops crash
+  it (turn-2 `json.loads("")` inside MLflow); guardrails block streaming anyway. So agents point **directly** at the
+  provider (Gemini) or raw Ollama. The gateway keeps its single-shot/serving role. **The eval guard-exemption
+  scaffolding in `register_gateway_endpoints.py` was reverted** — re-run the script (no env override) to re-guard the
+  endpoints that were detached during the eval.
+- **opencode the harness = proven** (clean tool protocol, caught every hallucinated tool, planned via `todowrite`, `$0`);
+  the model was always the variable. Gotchas (all in the runbook): custom model hidden in TUI picker without a `limit`
+  block; 400 auth = opencode's persistent server has a stale env → `source .env` + `pkill -f opencode` + relaunch.
+- **Remaining:** test **Cline** + **Pi** against the same `gemini-direct` recipe; `OLLAMA_CONTEXT_LENGTH` bump on rogueone.
 
 ### B16 — MLflow (experiment tracking + model registry) — ✅ DONE 2026-06-19
 **MERGED with B10 — this is the canonical MLflow detail section.** Live at `mlflow.weyland.lab` (dev-password): MLflow server (`k8s/mlflow/`), **Postgres** backend store (`mlflow` db/role), **MinIO** `mlflow` artifact bucket (proxied `--serve-artifacts`), meshed for STRICT Postgres, pg/s3 drivers pip-installed on start (no custom image). Smoke-tested end-to-end (run + param + metric + artifact → both stores).
