@@ -565,6 +565,21 @@ slot vs which get desk-noted." Realistic build candidates = the OSS ones (Semgre
 Mermaid, NotebookLM); the enterprise scanners (Veracode/Checkmarx/Wiz) and paid IDEs are comparison-only. Sequence after
 the current agent/RAG threads; pick the 2–3 highest-value OSS ones to actually stand up.
 
+### B105 — Dagster job observability / progress logging (maturity)
+The ingest / re-embed jobs go **opaque during long steps** — surfaced sharply in B74: `aidlc_kb_ingest`'s embed loop ran
+**silent for ~15 min** (encodes ~3,000 chunks **one at a time**; the only log lines are `read N docs` at the start and
+`N/M docs → K chunks` emitted *after* the whole loop). You can't tell running-vs-wedged without dropping to
+`kubectl top pod`. Make the jobs legible:
+- **Progress logging in long loops** — every N chunks/docs, `log.info("embedded 1500/3000 chunks")` in the embed loops
+  (`embeddings.py`, `aidlc_kb.py`) + running per-backend write counts.
+- **Batch the encode** — `sentence_transformer.encode([...batch...])` instead of per-chunk: ~15 min → ~1 min **and** a
+  natural per-batch progress point. (A real perf win, found during B74.)
+- **Phase markers / heartbeat** — log entry+exit of each phase (read → gate → chunk → embed → write-per-backend) so a
+  stall localizes to a phase instead of a silent block.
+- Surface Dagster **asset/op metadata** (rows, chunk count, duration) in the run UI, not just free-text logs.
+Applies across the ingest jobs (`weyland_ingestion_job`, `weyland_aidlc_kb_job`, the datasets hydrate jobs). Cheap,
+high quality-of-life; the encode-batching doubles as a genuine performance fix.
+
 ### B16 — MLflow (experiment tracking + model registry) — ✅ DONE 2026-06-19
 **MERGED with B10 — this is the canonical MLflow detail section.** Live at `mlflow.weyland.lab` (dev-password): MLflow server (`k8s/mlflow/`), **Postgres** backend store (`mlflow` db/role), **MinIO** `mlflow` artifact bucket (proxied `--serve-artifacts`), meshed for STRICT Postgres, pg/s3 drivers pip-installed on start (no custom image). Smoke-tested end-to-end (run + param + metric + artifact → both stores).
 
