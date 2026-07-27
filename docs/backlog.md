@@ -539,6 +539,32 @@ Full findings there; the load-bearing ones:
 - **Optional follow-up (not blocking):** revisit **Groq** signup when it stops erroring (best no-card portable driver);
   `OLLAMA_CONTEXT_LENGTH` bump + `devstral-small-2:24b` if local is ever revisited.
 
+### B104 — AI dev-tooling landscape evaluation ("tech nerd" survey)
+A survey/evaluate item: assess the current AI-augmented dev-tooling landscape against the lab's needs + the **$0
+constraint** (free-tier / OSS / self-hostable = build candidate; enterprise-SaaS-only = desk-note & park). Extends
+**B15** (coding agents). ✅ = already in the lab. Grouped by category:
+
+- **AI coding assistants / IDEs** — GitHub Copilot · Cursor · Windsurf · **Codex** (✅ B15). $0 lens: Copilot free tier
+  + Codex-via-ChatGPT-sub are viable; Cursor/Windsurf are paid *editors* (free tiers exist) — evaluate vs the B15 CLI
+  agents (which we already proved) rather than as replacements.
+- **AI code review** — CodeRabbit · Qodo (ex-Codium). Both have free/OSS-friendly tiers; complements the SonarQube +
+  scan-suite lane (B47/B90).
+- **Security — SAST / SCA / cloud** — Snyk · Veracode · Checkmarx · **Semgrep** (✅ B47) · Wiz. Semgrep OSS already runs;
+  Snyk has a free tier; **Veracode / Checkmarx / Wiz are enterprise SaaS ($0-hostile) → comparison-only, no build**.
+- **AI test generation / automation** — Diffblue (Java unit-test gen) · Qodo (tests) · Playwright · Katalon · Mabl ·
+  TestRigor. Playwright is OSS + viable; the rest are paid (free tiers vary). **Gated on a real app UI to test** (≈none
+  yet — lands with stud.io / B46).
+- **Load / performance testing** — k6 · JMeter · Gatling. All **OSS + self-hostable** — the realistic build here: a
+  perf baseline against the tool-server / AI gateway / Trino.
+- **API** — Postman AI. Free tier; complements the existing `api.md` / OpenAPI surface.
+- **Docs / knowledge (AI)** — Mintlify · GitBook AI · NotebookLM · Mermaid AI · Otter.ai. NotebookLM + Mermaid are free;
+  Mintlify/GitBook are paid docs SaaS (vs the existing MkDocs `docs.weyland.lab`); Otter.ai = transcription (niche solo-lab).
+
+**Approach:** most are SaaS with free tiers of varying usefulness on a $0 LAN lab, so the eval is largely "which earn a
+slot vs which get desk-noted." Realistic build candidates = the OSS ones (Semgrep✅, Playwright, k6/JMeter/Gatling,
+Mermaid, NotebookLM); the enterprise scanners (Veracode/Checkmarx/Wiz) and paid IDEs are comparison-only. Sequence after
+the current agent/RAG threads; pick the 2–3 highest-value OSS ones to actually stand up.
+
 ### B16 — MLflow (experiment tracking + model registry) — ✅ DONE 2026-06-19
 **MERGED with B10 — this is the canonical MLflow detail section.** Live at `mlflow.weyland.lab` (dev-password): MLflow server (`k8s/mlflow/`), **Postgres** backend store (`mlflow` db/role), **MinIO** `mlflow` artifact bucket (proxied `--serve-artifacts`), meshed for STRICT Postgres, pg/s3 drivers pip-installed on start (no custom image). Smoke-tested end-to-end (run + param + metric + artifact → both stores).
 

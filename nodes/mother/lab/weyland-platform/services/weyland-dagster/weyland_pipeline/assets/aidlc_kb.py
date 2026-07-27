@@ -27,7 +27,7 @@ from weyland_pipeline.resources import (
     PostgresResource, SentenceTransformerResource, QdrantResource, WeaviateResource, Neo4jResource,
 )
 # Reuse the canonical helpers so KB chunking/encoding matches the docs pipeline exactly.
-from weyland_pipeline.assets.chunks import _markdown_chunks
+from weyland_pipeline.assets.chunks import _markdown_chunks, embed_text
 from weyland_pipeline.assets.pgvector_write import _to_vector
 from weyland_pipeline.assets.qdrant_write import _point_id, COLLECTION, DIMS
 
@@ -409,7 +409,7 @@ def aidlc_kb_ingest(
             ch["source_name"] = d["source_name"]
             ch["kind"] = "markdown"
             chunk_list.append(ch)
-    embedded = [{**c, "embedding": sentence_transformer.encode(c["content"])} for c in chunk_list]
+    embedded = [{**c, "embedding": sentence_transformer.encode(embed_text(c))} for c in chunk_list]  # B74: topic-prefixed embed
     grouped = _group_by_source(embedded)
     log.info("aidlc_kb: %d/%d docs changed -> %d chunks to embed/write", len(changed), len(docs), len(embedded))
 

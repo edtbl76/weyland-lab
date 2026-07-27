@@ -55,6 +55,18 @@ def _code_chunks(content: str) -> list[dict]:
     return out
 
 
+def embed_text(chunk: dict) -> str:
+    """B74: the text to EMBED for a chunk (NOT what's stored/shown). Prepends a contextual header — the doc topic
+    (`source_name`) + section heading (`chunk_title`) — so chunks embed toward their TOPIC instead of the shared
+    `## When to Apply` / `## Key Concepts` template that collides across unrelated docs. That cross-doc section-type
+    collision is the conceptual-retrieval recall failure diagnosed in B74 Phase 1 (right doc never retrieved). Stored
+    content is unchanged, so only the retrieval vector moves — the LLM still reads the raw chunk."""
+    name = (chunk.get("source_name") or "").strip()
+    title = (chunk.get("chunk_title") or "").strip()
+    header = f"{name} — {title}" if (name and title) else (name or title)
+    return f"{header}\n\n{chunk['content']}" if header else chunk["content"]
+
+
 @asset(description="Chunk each CHANGED file: markdown by H2, code by fixed-size overlap. Each chunk carries source_path.")
 def chunks(source_document: list[dict], hash_check: dict) -> list[dict]:
     result: list[dict] = []
