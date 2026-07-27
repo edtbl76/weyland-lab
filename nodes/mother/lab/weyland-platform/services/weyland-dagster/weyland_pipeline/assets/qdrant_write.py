@@ -13,7 +13,7 @@ from qdrant_client.models import (
 from weyland_pipeline.resources import QdrantResource
 
 COLLECTION = "weyland_chunks"
-DIMS = 384
+DIMS = 768   # B74: bge-base-en-v1.5 (was 384 for bge-small)
 _NS = uuid.NAMESPACE_DNS
 
 

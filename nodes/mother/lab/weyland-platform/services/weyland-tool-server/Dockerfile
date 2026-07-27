@@ -29,7 +29,7 @@ ENV HOME=/app \
     XDG_CACHE_HOME=/app/.cache
 
 # Bake the public embedding model into the image at build time (no HF token needed).
-RUN python -c "from llama_index.embeddings.huggingface import HuggingFaceEmbedding; HuggingFaceEmbedding(model_name='BAAI/bge-small-en-v1.5')"
+RUN python -c "from llama_index.embeddings.huggingface import HuggingFaceEmbedding; HuggingFaceEmbedding(model_name='BAAI/bge-base-en-v1.5')"
 
 # B70 Part 2: the guard-model bakes (PromptInjection / Toxicity / nli-deberta-v3-small) moved to the weyland-guard
 # image — the tool-server no longer loads them, so its pod is lighter. Only bge (above) is baked here now.

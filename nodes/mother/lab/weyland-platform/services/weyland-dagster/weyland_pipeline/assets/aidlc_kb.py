@@ -409,7 +409,9 @@ def aidlc_kb_ingest(
             ch["source_name"] = d["source_name"]
             ch["kind"] = "markdown"
             chunk_list.append(ch)
-    embedded = [{**c, "embedding": sentence_transformer.encode(embed_text(c))} for c in chunk_list]  # B74: topic-prefixed embed
+    log.info("aidlc_kb: encoding %d chunks (batched)…", len(chunk_list))  # B105: progress marker
+    _vecs = sentence_transformer.encode_batch([embed_text(c) for c in chunk_list])  # B74 topic-prefix + B105 batch
+    embedded = [{**c, "embedding": v} for c, v in zip(chunk_list, _vecs)]
     grouped = _group_by_source(embedded)
     log.info("aidlc_kb: %d/%d docs changed -> %d chunks to embed/write", len(changed), len(docs), len(embedded))
 

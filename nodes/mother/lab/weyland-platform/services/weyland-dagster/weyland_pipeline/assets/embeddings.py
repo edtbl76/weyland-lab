@@ -8,7 +8,5 @@ def embeddings(chunks: list[dict], sentence_transformer: SentenceTransformerReso
     if not chunks:
         return []
 
-    return [
-        {**chunk, "embedding": sentence_transformer.encode(embed_text(chunk))}
-        for chunk in chunks
-    ]
+    vectors = sentence_transformer.encode_batch([embed_text(c) for c in chunks])  # B105: one batched call
+    return [{**chunk, "embedding": vec} for chunk, vec in zip(chunks, vectors)]

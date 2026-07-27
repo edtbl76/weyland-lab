@@ -30,7 +30,7 @@ sentry_sdk.init(
     send_default_pii=False,
 )
 
-MODEL_NAME = "BAAI/bge-small-en-v1.5"
+MODEL_NAME = "BAAI/bge-base-en-v1.5"   # B74: 768-dim — MUST match the ingest embedder (query & index dims must agree)
 VERSION = "0.7.0"  # B100 Phase 2 — RAG system prompt from the MLflow Prompt Registry (fail-safe, TTL-cached)
 
 PG_HOST = os.getenv("WEYLAND_DB_HOST", "weyland-postgres.weyland.svc.cluster.local")

@@ -1028,6 +1028,24 @@ Fresh shell, raw-httpx Telegram, `asyncio.to_thread` for the blocking loop, per-
 ### B74 — Retrieval precision (MATURITY) — phased
 **Added 2026-06-27. RESCOPED + reclassified to MATURITY 2026-07-21** after the B96 golden-set measurements.
 
+**✅ Phase 1 DONE 2026-07-27 — diagnosis + first fix attempt (null result).** Inspected `/context/search` retrieval for
+all 10 conceptual questions: **4/10 are outright RECALL failures** (the answer doc — `affinity-mapping.md`, `adkar.md` —
+never retrieved in top-8), 1 ranking (rank-4), 1 right-doc-wrong-chunk, 4 good. **Root cause = template collision**: the
+AIDLC-KB docs share a rigid section template (`## When to Apply` / `## Key Concepts` / `## Related Entries`); chunked
+per-H2, those boilerplate headers embed near-identically across unrelated docs, so a conceptual query matches the
+*section-type* across many docs instead of the *topic*. So it's a **recall** problem (reranker/BM25 can't fix a doc
+that's never retrieved), NOT the ranking problem B96 hypothesized. **Fix attempted — contextual chunk headers** (prepend
+`source_name — chunk_title` to the embedded text; `embed_text()` in `chunks.py`, used by `embeddings.py` +
+`aidlc_kb.py`): re-embedded the KB (bge-small) and re-ran the golden set. **Result = null:** conceptual
+`context_relevancy` 0.514 → **0.529 (+0.015, within judge noise)**; smoke probe recovered only 1/3 recall-failures
+(ADKAR surfaced; affinity-mapping's hard queries didn't). The mechanism is real (ADKAR proves it) but **bge-small
+(384-dim) lacks the resolution** to bind paraphrased conceptual queries to the right doc when competitors share surface
+tokens. `embed_text` kept (harmless, recovered ADKAR). **Decision → the "middle rung": B105 batch-the-encode + swap to
+bge-base (768-dim), A/B vs small on the golden set; bge-large (1024-dim) the heavier fallback.** Compute note: embedding
+is **CPU-on-mother (no GPU in the path)** — RAM fine, but a full bge-base re-embed is slow until B105 batching lands
+(the small re-embed took ~20 min unbatched, ~3,817 chunks). Swap is a **384→768 dimension migration**: recreate the
+pgvector column + qdrant/weaviate/neo4j collections AND flip the tool-server's query embedder to match.
+
 **The original premise is FALSE.** B74 was written as "dense embeddings are weak on exact identifiers (config keys, flags, error codes, paths, commands) that BM25 nails". Measured on the golden set, **lexical questions BEAT conceptual ones on every metric at every retrieval depth** (k=3: lexical `context_relevancy` 0.736 vs conceptual 0.514). Dense retrieval handles identifiers *well* here. Full evidence: B96 above + [runbooks/eval-harness.md](runbooks/eval-harness.md).
 
 **What the data actually says.** The weak half is CONCEPTUAL retrieval, and it is a **ranking** problem, not a recall or volume one: conceptual `context_relevancy` moved only 0.514 → 0.563 while k nearly TRIPLED (3 → 8). Depth is a **trade** — it buys conceptual synthesis and costs lexical precision (dilution; lexical faithfulness falls monotonically 0.780 → 0.716 → 0.691), and it is roughly linear, so there is no free middle. `EVAL_ASK_LIMIT` stays at **3**.
