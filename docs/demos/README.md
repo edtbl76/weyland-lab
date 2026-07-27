@@ -32,6 +32,7 @@ Legend: ✅ done · ⬜ missing · 🟡 exists but stale/partial · — not appl
 | 37 | **Model-Eval Leaderboard** data product (B84 P1 — DataHub product + Data Contract + Superset + Port) | ✅ (seq in eval flows) | ✅ `model-eval-product.md` (validated 2026-07-24) | — read-only (catalog metadata + Superset defs) |
 | 38 | **Eval lanes — when to use each** (B84 P2 — panel vs `mlflow.evaluate` vs Promptfoo) | — decision ref | ✅ `eval-lanes.md` (validated 2026-07-25) | ✅ Promptfoo runs (promptfoo.weyland.lab) |
 | 39 | **MLflow AI Gateway** (B100 P4 — 17 endpoints + guardrails + budget, one self-healing script) | — (scripts are the flow) | ✅ `mlflow-gateway.md` (validated 2026-07-25) | ✅ endpoints/scorers/guardrails/budget (gateway DB) |
+| 40 | **Coding agents** (B15 — opencode/Cline/Pi/Codex on free/`$0` drivers + ChatGPT sub) | — (client config) | ✅ `coding-agents.md` (validated 2026-07-27) | ✅ writes reverse.py + test_reverse.py, pytest green |
 | 17 | Model catalog | ✅ `flow-model-catalog` | ✅ `model-catalog.md` | ✅ Postgres/DataHub |
 | 18 | MLflow tracking | ✅ `flow-mlflow` | ✅ `mlflow.md` | ✅ experiments |
 | 36 | **MLflow GenAI** (B100 — Traces + Prompt Registry, hot-swap) | ✅ (seq in demo) | ✅ `mlflow-genai.md` (validated 2026-07-24) | ✅ traces + prompt versions (history) |

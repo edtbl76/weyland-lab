@@ -1,8 +1,10 @@
 # Coding Agents (B15) — local-model / free-hosted coding TUIs
 
-Terminal AI coding agents (opencode / Cline / Pi) pointed at weyland's own model backends — "code with your own
-models, on-LAN," the coding-side analogue of Open WebUI (B13). This runbook is the **verified working recipe** plus
-the (extensive) findings from proving it out, so the setup never has to be re-derived from scratch.
+Terminal AI coding agents (opencode / Cline / Pi / Codex) pointed at free hosted models or your ChatGPT subscription —
+"code with capable models, on-LAN-ish, at `$0`," the coding-side analogue of Open WebUI (B13). This runbook is the
+**verified working recipes** (all harnesses proven in-hand) plus the extensive findings, so setup never has to be
+re-derived. Quick pick: **best = ChatGPT-sub GPT-5.5 via Cline/Codex; best keyed-free = Mistral / OpenRouter** (see the
+provider matrix below). Local models on rogueone's 16GB are **not** viable (also below).
 
 ## TL;DR — the working recipe
 
@@ -61,18 +63,27 @@ Optional `AGENTS.md` in the project dir pins path behavior (auto-loaded by openc
 - Do NOT create directories.
 ```
 
-## Free `$0` drivers — two options
+## Free / `$0` drivers — provider matrix
 
-1. **Gemini 2.5 Flash direct** (the recipe above) — a real free-tier *API key* from `.env`; portable (works in Cline/Pi
-   too); known-good tool-calling.
-2. **opencode's built-in "zen" free models** — `opencode auth login` → opencode (free account), then the model picker
-   lists `opencode/*-free` models (`north-mini-code-free`, `nemotron-3-ultra-free`, `ling-3.0-flash-free`, …). **In
-   practice they just work** (confirmed) — a zero-key, zero-config `$0` driver. Trade-offs: hosted on opencode/SST infra
-   (your prompts/code go there), rate-limited, and **opencode-only** (they don't port to Cline/Pi — Gemini-direct does).
+All OpenAI-compatible, all drop into the harnesses below. Confirmed 2026-07; rate limits from the free-tier research
+(verify live — free tiers churn). Keys live in gitignored `scripts/.env`; `set -a; . scripts/.env; set +a` before launch.
 
-Both are `$0`. Neither uses a Claude Pro/Max or ChatGPT subscription — those don't fit: a **ChatGPT sub is not API
-access** (opencode needs a funded OpenAI API key), and driving a **Claude Pro/Max sub through opencode is a ToS gray
-area** (declined in B26 — the sanctioned Claude-coding path is Claude Code itself, B29).
+| Driver | How | Rate limit | Notes |
+|---|---|---|---|
+| **ChatGPT sign-in → GPT-5.5** ⭐ | Cline / Codex → "Sign in with ChatGPT" | your ChatGPT plan's | **Best.** Frontier model, sub-*included* usage (NOT the metered API), far above any free tier. OpenAI *built* this for coding agents. |
+| **Mistral** ✅ | `.env` key → `https://api.mistral.ai/v1` · `mistral-large-latest` | ~60 RPM, no card (SMS verify) | confirmed live/free; responses run slow. |
+| **OpenRouter** ✅ | `.env` key → `https://openrouter.ai/api/v1` · `openai/gpt-oss-20b:free` | 20 RPM / 1000 RPD | confirmed live (cost 0); free slugs may train on inputs. |
+| **Gemini 2.5 Flash** ✅ | `.env` key → Google OpenAI-compat · `gemini-2.5-flash` | **20 RPM** | works, but the limit 429s inside an agent loop — one-shot / light use only. |
+| **opencode zen** | `opencode auth login` → opencode; `opencode/*-free` models | unpublished | opencode-only; "just work"; wants billing on file. |
+| **Cline hosted (Grok Code Fast)** | Cline default provider | uncapped (promo) | Cline-only. |
+| **Groq** ⏸ | `https://api.groq.com/openai/v1` · `openai/gpt-oss-120b` | 30 RPM / 1000 RPD, no card | **punted 2026-07 — signup was erroring** (`We had an issue`). The portable no-card winner *when it works*; doesn't train on your data. Retry later; key → `GROQ_API_KEY` in `.env`. |
+
+**Skip** (limits too low for agent loops): Cerebras (5 RPM), GitHub Models (50–150/day), OpenAI **API** key (ours is `insufficient_quota` — dead). On Groq, `llama-3.3-70b` sunsets 2026-08-16 → use `openai/gpt-oss-120b`.
+
+**Subscriptions:** ChatGPT **does** drive coding agents — via Cline/Codex "Sign in with ChatGPT" (the sub's *included* usage, not the metered API — note the raw `sk-` API key is separately dead, no credit). A **Claude Pro/Max** sub through a third-party agent stays the B26 ToS gray area (sanctioned Claude-coding = Claude Code, B29). opencode's OpenAI provider is **API-key only** → can't ride the ChatGPT sub; use Cline/Codex for the GPT-sub lane.
+
+The multi-provider `~/.config/opencode/opencode.json` (gemini · mistral · openrouter · groq stub) and Pi's
+`~/.pi/agent/models.json` are in place on rogueone — see the harness sections below for the exact shapes.
 
 ## Why direct-to-provider, NOT the MLflow AI Gateway (B100 P4)
 
@@ -112,9 +123,11 @@ scaffolds, non-thinking, native function-calling) is the one model worth pulling
 (desktop-freeze risk on rogueone). Also raise `OLLAMA_CONTEXT_LENGTH` on rogueone first (4096 is unusable for agentic
 work). Until then, **hosted-direct (Gemini free) is the driver; local is a $0 offline convenience for light tasks only.**
 
-## All three harnesses — same Gemini-direct recipe, all PROVEN
+## Harnesses — all proven in-hand
 
-Each verified end-to-end (writes both files, independent pytest green), all `$0`. Same key-from-`.env` discipline.
+Each verified end-to-end (writes both files, pytest green), all `$0`, same key-from-`.env` discipline. opencode / Cline /
+Pi confirmed by the user across Gemini / Mistral / OpenRouter (+ Cline on the ChatGPT sub); Codex installed as the native
+GPT-sub agent.
 
 **opencode** (v1.18.x) — the config-file recipe above. `pkill -f opencode; source .env; opencode`.
 
@@ -135,23 +148,45 @@ Each verified end-to-end (writes both files, independent pytest green), all `$0`
   The run command's `-k` overrides the persisted placeholder, so only the placeholder is ever on disk. (Gemini free =
   20 req/min → 429s under an agent loop; use the ChatGPT sign-in for real work.)
 
-**Pi** (`@mariozechner/pi-coding-agent`, v0.73.x) — simplest: it has a **built-in `google` provider** and reads AGENTS.md
-by default, so no custom-provider config:
+**Pi** (`@mariozechner/pi-coding-agent`, v0.73.x) — a **built-in `google` provider** (reads AGENTS.md by default), plus
+custom OpenAI-compatible providers via `~/.pi/agent/models.json`:
 ```
 npm install -g @mariozechner/pi-coding-agent
 set -a; . ~/IdeaProjects/weyland/scripts/.env; set +a
-cd <project> && pi --provider google --model gemini-2.5-flash --api-key "$GEMINI_API_KEY"     # add -p "<task>" for non-interactive
+cd <project> && pi --provider google  --model gemini-2.5-flash --api-key "$GEMINI_API_KEY"   # built-in google
+cd <project> && pi --provider mistral --model mistral-large-latest                            # custom, from models.json
+```
+`~/.pi/agent/models.json` (env keys via `$VAR`) — **`compat` is load-bearing**: without `supportsDeveloperRole:false` +
+`supportsReasoningEffort:false`, Mistral/OpenRouter reject Pi's `developer` role / `reasoning_effort` with a **422**:
+```json
+{ "providers": {
+  "mistral":    { "baseUrl": "https://api.mistral.ai/v1",      "api": "openai-completions", "apiKey": "$MISTRAL_API_KEY",
+                  "compat": { "supportsDeveloperRole": false, "supportsReasoningEffort": false }, "models": [{ "id": "mistral-large-latest" }] },
+  "openrouter": { "baseUrl": "https://openrouter.ai/api/v1",   "api": "openai-completions", "apiKey": "$OPENROUTER_API_KEY",
+                  "compat": { "supportsDeveloperRole": false, "supportsReasoningEffort": false }, "models": [{ "id": "openai/gpt-oss-20b:free" }] },
+  "groq":       { "baseUrl": "https://api.groq.com/openai/v1", "api": "openai-completions", "apiKey": "$GROQ_API_KEY",
+                  "compat": { "supportsDeveloperRole": false, "supportsReasoningEffort": false }, "models": [{ "id": "openai/gpt-oss-120b" }] }
+} }
 ```
 
-**Verdict:** all three are viable harnesses — clean tool protocols, real multi-step tool-use, `$0`. The **model** was
-always the variable, never the harness (see the local-model table above). Gemini free tier = **20 requests/minute** —
-ample for one interactive dev; rapid multi-agent test bursts hit the cap (429 + `RetryInfo`).
+**Codex** (`@openai/codex` v0.145) — OpenAI's own agent, the *native* home of ChatGPT sign-in and so the cleanest
+GPT-5.5-via-sub path: `codex login` (→ Sign in with ChatGPT), then `cd <project> && codex "<task>"` (approve its
+sandbox / file-write prompts). Installed; the GPT-sub lane is covered by **Codex (native) + Cline (proven)**.
+
+**Verdict:** opencode, Cline, and Pi all **proven in-hand** (user-confirmed) across multiple `$0` drivers; Codex installed
+as the native GPT-sub option. Clean tool protocols, real multi-step tool-use — the **model/provider** was always the
+variable, never the harness. Best driver = **ChatGPT-sub GPT-5.5** (Cline/Codex); best keyed-free = **Mistral / OpenRouter**
+(Gemini's 20 RPM 429s under an agent loop; Groq punted on a broken signup).
 
 ## Gotchas (all learned this build)
 
 - **Model hidden in TUI picker** → add a `"limit": { "context": …, "output": … }` block to the model entry.
 - **400 Missing Authorization** → opencode's persistent server has a stale/empty env. `pkill -f opencode`, `source`
   the `.env`, relaunch in that shell. The CLI `opencode run` form is the reliable way to confirm auth in isolation.
+- **Pi 422 on Mistral/OpenRouter** → add `compat: {supportsDeveloperRole:false, supportsReasoningEffort:false}` to the
+  provider in `~/.pi/agent/models.json` (they reject OpenAI's `developer` role / `reasoning_effort`).
+- **Cline "provider not configured" / wrong key** → the run-command `-k` overrides the persisted auth; Cline's default
+  `-P cline` provider (free Grok / your account) is separate from the keyed `openai-compatible` one.
 - **`num_ctx` = 4096** on all local Ollama models via `/v1` → raise `OLLAMA_CONTEXT_LENGTH` on rogueone.
 - The gateway streams **hosted** providers as a **single SSE frame** (whole answer at once), local Ollama as real
   incremental frames — both parse, but hosted single-frame + multi-turn tools is where the gateway bug bites.
