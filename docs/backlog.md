@@ -72,7 +72,7 @@ Re-ordered per RE-grounded audit (aidlc-docs/inception/backlog-reprioritization.
 16. **B28** — OpenClaw rehabilitation (or retire) — **✅ RESOLVED 2026-06-25: SUPERSEDED by B66.** The keep/retire/reuse decision is no longer standalone — it's the "base agent" workstream of the consolidated [B66] Operator Agent Platform (Hermes-base vs reuse-OpenClaw's-responsiveness, decided at B66 build time). OpenClaw is NOT auto-retired (reuse candidate). Both original Qs (keep-vs-retire, refactor-vs-rewrite) move to B66.
 17. **U14** — n8n workflow → git — audit active n8n workflows before working on this. See detail below.
 18. **B34** — Evaluate + bake PII guard — promote B14's deferred PII validator (llm_guard `Sensitive` → presidio/spaCy) from coded-but-unbaked to active. Gated on an eval showing PII detection adds real signal in this corpus (and/or a multi-user/export trigger). See detail below.
-19. **B35** — Grounding guard calibration — tune the B14 grounding validator from its guessed `0.5` threshold to a data-driven one (collect shadow `max_entailment` distribution → label grounded vs hallucinated → set threshold), and switch to sentence-level / concatenated-premise scoring if whole-answer-vs-chunk NLI over-flags. Prerequisite to ever moving grounding out of shadow. See detail below.
+19. **B35** — Grounding guard calibration — ✅ **DONE 2026-07-28.** Switched whole-answer→**sentence-level** scoring (whole-answer NLI over-flagged 58%), calibrated the threshold `0.5`→**`0.15`** from labeled golden-set shadow data, and found grounding.nli measures chunk-**attributability** not faithfulness → **kept in shadow/advisory** (true faithfulness gating = LLM-judge lane B84). Fixed an OOM the heavier scorer introduced (2Gi→2560Mi + bounded/serialized NLI). See detail below.
 - **B36** — Hermes dashboard performance — ⚰️ **MOOT 2026-07-23** (Hermes retired; the dashboard died with CT-104). The B66 operator has no such web dashboard.
 - **B46** — **Build out the Stud.io product backlog** — Stud.io has no backlog/roadmap yet. Assemble it (audit the repo, define epics + items), then dump into the Linear **Stud.IO** project (same treatment as the Weyland dump). **The LAST of the Core work — High + Core, sequenced last (NOT maturity/polish; it's a real product target).** **Seed item (from the B60 Port audit, 2026-06-23):** stud.io has real **test + production** envs (containerized, Woodpecker-deployed) — wire its deploy pipeline to emit `deployment` events → Port `environment` entities (Test/Production) so the **deployment-frequency DORA** lights up for stud.io (the one DORA pillar PR/CI metrics don't cover: "how often do I ship to prod"). Cheap once the pipeline's already moving — lands naturally alongside the **B57** farm migration.
 - **B73** — **Find/build uses for the datasets-lake formats** — **✅ DONE 2026-07-16** (via audit — the "inert" framing predated everything downstream). All 5 formats now have a real, strength-exercising consumer, built across the later batches: **Parquet/Iceberg → Trino/DuckDB/dbt analytics** (B65/B1.5), **Avro → Redpanda → Flink** ("Avro in motion", B1.5/B83), **Lance → LanceDB vector similarity** (B1), **Arrow → JupyterHub/polars EDA** (B1.8). Validated on a real run: `scripts/query_datasets_formats.py` reads **all 4 lakeFS formats (Parquet/Arrow/Avro/Lance) through one polars pass** (114k rows each). Fixes made closing it: the script's arrow reader (fsspec→bytes-via-s3fs) + lance reader (current pylance needs object_store `aws_`-prefixed keys, else anonymous→403); and a **`lakefs-lan` NodePort** (`192.168.1.243:30800`, mirrors mlflow-lan) so LAN clients reach the lakeFS S3 gateway with **no port-forward**.
@@ -834,7 +834,7 @@ toxicity/NLI bakes. (3) **enable** — uncomment the `llm_guard.pii` line in `co
 The resilient per-validator loader means it lights up with zero other code changes. **Depends on:** B14 shadow
 data accumulated. **Effort:** small (build + config), modulo presidio/spaCy bake fragility.
 
-### B35 — Grounding guard calibration (Maturity / Hardening / Polish)
+### B35 — Grounding guard calibration (Maturity / Hardening / Polish) — ✅ DONE 2026-07-28
 B14's grounding validator (`grounding.nli`, `guardrails/validators/grounding.py`) emits `max_entailment` ∈ [0,1]
 and FLAGs below a **guessed `0.5` threshold** — set before any data existed. First live run already FLAGged a
 *correct* "the context doesn't cover that" answer at `0.295`, i.e. the threshold is uncalibrated and the
@@ -849,6 +849,28 @@ answer-sentence vs its best chunk, aggregate) or **concatenate top-k chunks into
 would block good answers or pass hallucinations. Ties into the B4 eval harness (reuse its judge-panel pattern
 for labeling) and feeds the B1 model-eval data product. **Depends on:** B14 shadow data. **Effort:** small-medium
 (analysis + a possible scoring-method swap).
+
+**Resolved 2026-07-28 (weyland-guard `v2`→`v5`).** Ran the plan; it surfaced a deeper truth than "pick a threshold."
+- **Method swap — whole-answer → sentence-level.** Confirmed the whole-answer-vs-chunk NLI over-flags (shadow
+  distribution: n=1050, **58% flagged at 0.5**, a huge spike at ~0). Rewrote the scorer to split the answer into
+  claims, score each claim's best-supporting chunk, and average (`grounded_mean`), with markdown/citation
+  normalization + newline splitting (RAG answers are markdown lists). Bounded + serialized the NLI (cap 12 claims,
+  `batch_size=8`, a `threading.Lock`) after the heavier scorer OOM-killed the pod — 6 restarts, `exit 137`; limit
+  `2Gi`→**`2560Mi`** + the bounds closed it.
+- **Labeled split (golden set, tagged by type via `X-Forwarded-Consumer`).** Sentence-level moved the flag rate
+  58%→~50% and p50 0.236→~0.57, but conceptual still flagged ~65% vs lexical ~30%. Eyeballing the actual answers
+  settled it: **grounding.nli measures chunk-ATTRIBUTABILITY, not faithfulness.** Q1 (ADKAR — lists the five blocks
+  verbatim from chunks) scored 0.44; Q8 ("assess a frontier provider's viability" — a good answer that *elaborates
+  beyond* its chunks) scored 0.03; Q4 (silent sorting — the known B74 retrieval miss) 0.09. It discriminates
+  correctly, but good conceptual answers legitimately synthesize beyond sparse chunks, so a strict gate would block
+  good answers.
+- **Threshold = `0.15`, stays SHADOW/advisory.** The genuinely-unattributable tail (retrieval misses + heavy
+  elaboration) sits below ~0.15; `0.5` flagged attributable answers too. Set the calibrated default to **`0.15`**
+  (env-overridable `GROUNDING_THRESHOLD`). **Kept in shadow** — NLI can't separate "synthesized-but-true" from
+  "hallucinated," so true faithfulness gating belongs to the **LLM-judge lane (B84)**, not this guard. grounding.nli
+  is a useful "answer exceeded its retrieved sources" observability signal at 0.15, not a blocking gate.
+- Files: `services/weyland-guard/guardrails/validators/grounding.py`, `k8s/weyland-guard/deployment.yaml`. Runbook:
+  [runbooks/guardrails.md](runbooks/guardrails.md).
 
 ### B36 — Hermes dashboard performance (Maturity / Hardening / Polish)
 **Context — deployed 2026-06-17 (ad-hoc, out of roadmap order).** The native Hermes web dashboard (config /

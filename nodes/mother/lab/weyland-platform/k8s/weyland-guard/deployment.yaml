@@ -20,7 +20,7 @@ spec:
       enableServiceLinks: false
       containers:
         - name: weyland-guard
-          image: registry.weyland.lab/weyland-guard:v4
+          image: registry.weyland.lab/weyland-guard:v5
           imagePullPolicy: IfNotPresent
           resources:
             # Loads 3 transformer models (injection DeBERTa + toxicity + NLI cross-encoder). The tool-server ran the

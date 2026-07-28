@@ -42,7 +42,28 @@ All SHADOW. Flip one per-validator with an env var on the `weyland-guard` deploy
 ```
 GUARDRAIL_MODE__llm_guard__injection=block   # dots in the name → double underscore; values: off|shadow|flag|block
 ```
-Enforcing FLAG/BLOCK modes are scored inline and returned; the enforcing policy gate for the ACT hook is B35.
+Enforcing FLAG/BLOCK modes are scored inline and returned. The enforcing **act** policy gate for the ACT hook is
+deferred — it needs the gateway-injected `actor` for per-actor allowlist/rate-limit, so it's blocked on **B17+B19**
+(today `actor` is always `None`). B35 covered the *grounding* half of that original bundle (below).
+
+## grounding.nli — calibration (B35, 2026-07-28)
+`grounding.nli` scores answer-vs-sources by **sentence-level NLI**: split the answer into claims (markdown/citation-
+normalized, newline-aware — RAG answers are markdown lists), score each claim's best-supporting chunk with the
+`nli-deberta-v3-small` cross-encoder, and **average** them (`grounded_mean`, shown in the verdict `reason` alongside
+the weakest claim). The NLI is bounded + serialized (cap **12** claims, `batch_size=8`, a `threading.Lock`) so it
+can't OOM the pod — the earlier whole-answer scorer, then the unbounded sentence-level one, `exit 137`'d it; the pod
+limit is now **2560Mi**.
+
+**What it measures — read this before trusting the number:** chunk-**attributability** ("is the answer traceable to
+the retrieved chunks"), **NOT faithfulness/truth.** Good *conceptual* answers legitimately synthesize *beyond* sparse
+chunks → they score mid-low even when correct; short *lexical/factual* answers that sit verbatim in a chunk score
+high. Labeled golden-set shadow data (n≈40, tagged by type via `X-Forwarded-Consumer`) put the genuinely-
+unattributable tail (retrieval misses + heavy elaboration) below ~0.15.
+
+**Threshold `0.15`** (was a guessed `0.5` that flagged ~50%, including attributable answers). Override with
+`GROUNDING_THRESHOLD` on the deployment to retune as shadow data accrues. **Stays SHADOW/advisory** — NLI can't tell
+"synthesized-but-true" from "hallucinated," so real faithfulness gating is the **LLM-judge lane (B84)**, not this
+guard. grounding.nli is a useful "answer exceeded its retrieved sources" signal, not a blocking gate.
 
 ## Models (baked, offline at runtime)
 `services/weyland-guard/Dockerfile` bakes the **exact** 3 models the tool-server used (so verdicts are identical):

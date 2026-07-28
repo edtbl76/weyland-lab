@@ -1,10 +1,19 @@
 import math
+import os
 import re
 import threading
 
 from ..verdict import Verdict, Decision, Hook
 
 _DEFAULT_MODEL = "cross-encoder/nli-deberta-v3-small"
+
+# B35 calibrated threshold. grounding.nli measures chunk-ATTRIBUTABILITY (is the answer traceable to
+# the retrieved chunks), NOT truth/faithfulness — good conceptual answers legitimately synthesize
+# beyond sparse chunks and score mid-low. Labeled shadow data (golden set) put the genuinely-
+# unattributable tail (retrieval misses + heavy elaboration) below ~0.15, while the guessed 0.5
+# flagged ~50%, including attributable answers. Env-overridable to retune as shadow data accrues.
+# Stays SHADOW (advisory) — real faithfulness gating is the LLM-judge lane (B84), not NLI.
+_DEFAULT_THRESHOLD = float(os.getenv("GROUNDING_THRESHOLD", "0.15"))
 
 # Split on sentence punctuation OR newlines — RAG answers are often markdown lists whose items are
 # newline-separated, not .!?-separated; splitting on .!? alone shreds "1. **Awareness** – ..." into
@@ -86,12 +95,12 @@ class GroundingValidator:
     name = "grounding.nli"
     hooks = (Hook.OUTPUT,)
 
-    def __init__(self, cross_encoder=None, threshold: float = 0.5, model_name: str = _DEFAULT_MODEL):
+    def __init__(self, cross_encoder=None, threshold: float | None = None, model_name: str = _DEFAULT_MODEL):
         if cross_encoder is None:
             from sentence_transformers import CrossEncoder
             cross_encoder = CrossEncoder(model_name)
         self._ce = cross_encoder
-        self._threshold = threshold
+        self._threshold = _DEFAULT_THRESHOLD if threshold is None else threshold
 
     def check(self, payload: dict, hook: Hook) -> Verdict:
         answer = payload.get("answer", "") or ""
