@@ -572,7 +572,7 @@ The ingest / re-embed jobs go **opaque during long steps** — surfaced sharply 
 `kubectl top pod`. Make the jobs legible:
 - **Progress logging in long loops** — every N chunks/docs, `log.info("embedded 1500/3000 chunks")` in the embed loops
   (`embeddings.py`, `aidlc_kb.py`) + running per-backend write counts.
-- **Batch the encode** — `sentence_transformer.encode([...batch...])` instead of per-chunk: ~15 min → ~1 min **and** a
+- **Batch the encode** — ✅ **SHIPPED (B74, v12)**: `sentence_transformer.encode([...batch...])` instead of per-chunk: ~15 min → ~1 min **and** a
   natural per-batch progress point. (A real perf win, found during B74.)
 - **Phase markers / heartbeat** — log entry+exit of each phase (read → gate → chunk → embed → write-per-backend) so a
   stall localizes to a phase instead of a silent block.
@@ -1036,8 +1036,19 @@ Fresh shell, raw-httpx Telegram, `asyncio.to_thread` for the blocking loop, per-
 - **Iceberg** → **time-travel / schema-evolution / ACID** demo via Trino — the gold-table capabilities.
 - **Goal:** each format demonstrated by a concrete workload, not left as a catalog entry. **Sequence after** the relevant Tier-2 engines exist (Trino/DuckDB, Kafka) — those are prerequisites for several of these.
 
-### B74 — Retrieval precision (MATURITY) — phased
-**Added 2026-06-27. RESCOPED + reclassified to MATURITY 2026-07-21** after the B96 golden-set measurements.
+### B74 — Retrieval precision (MATURITY) — ✅ SOLVED 2026-07-28 (bge-base 768 + topic-prefix)
+**Added 2026-06-27. RESCOPED to MATURITY 2026-07-21** after B96. **✅ SOLVED 2026-07-28.**
+
+**✅ SOLVED 2026-07-28 — the middle rung won: bge-base (768-dim) + topic-prefix = clean sweep, no trade.** Swapped
+`BAAI/bge-small` (384) → `bge-base` (768) across every embedder, re-embedded the whole corpus, re-ran the golden set.
+**All six cells up** (small → base): conceptual `context_relevancy` 0.514 → **0.826**, lexical 0.736 → **0.819**;
+conceptual faithfulness 0.660 → 0.814, lexical 0.780 → 0.854; conceptual answer_relevancy 0.644 → 0.856, lexical 0.832
+→ 0.873. **The conceptual/lexical gap CLOSED** (was 0.514 vs 0.736; now 0.826 vs 0.819) — bge-base lifted the weak half
+**+0.31** *and* nudged the strong half up. So **no hybrid (Phase 3 permanently dead), no bge-large** — the cheaper rung
+sufficed. Smoke: Q6 top-5 all `adkar`, Q10 `affinity-mapping#1`; **residual Q4** ("silent sorting" still pulls
+`filtering-and-sorting` — the surface token beats 768-dim semantics, or the doc lacks that content) — one outlier vs an
+0.826 average, not chased. **`embed_text` topic-prefix + B105 batching both shipped.** Full migration playbook (4
+embedders, 768 re-dim, the scars) → [runbooks/embedding-model-swap.md](runbooks/embedding-model-swap.md).
 
 **✅ Phase 1 DONE 2026-07-27 — diagnosis + first fix attempt (null result).** Inspected `/context/search` retrieval for
 all 10 conceptual questions: **4/10 are outright RECALL failures** (the answer doc — `affinity-mapping.md`, `adkar.md` —

@@ -105,7 +105,7 @@ agents/workflows and platform state. Agents call the tool-server, *not* database
 | weyland-guard | `weyland-guard.weyland.svc:8080` (ClusterIP) | **B70 Part 1** — shared B14 guard service extracted from the tool-server. 3 typed routes `/guard/{input,output,act}`; **SHADOW** default (record-only), **fail-open** callers; 3 baked models (injection + toxicity + `nli-deberta-v3-small` ≈1.5 Gi) load **once** here for the tool-server + the coming `weyland-agent` + future B66. Verdicts → own `/metrics` + `guardrail_verdicts`. The first clean seam of the tool-server decomposition (→ B31). [runbooks/guardrails.md](runbooks/guardrails.md). |
 | weyland-agent | `weyland-agent.weyland.svc:8080` · `agent.weyland.lab` | **B70 Part 3** — agentic RAG: a LangGraph loop (retrieve→grade→reflect/re-retrieve→generate, `max_attempts=2`) + **4 custom LlamaIndex retrievers** over the vector backends (native stores don't fit the bespoke collections) + **MLflow Traces** (per-step spans, `agentic-rag` experiment) — more capable than single-shot `/context/ask`. Guards via weyland-guard (fail-open); in-process bge query embedding; Ollama gen (Phase A → vLLM/LiteLLM Phase B). The LangGraph viability spike for B66. [runbooks/agentic-rag.md](runbooks/agentic-rag.md). |
 | weyland-operator | `weyland-operator.weyland.svc:8080` (ClusterIP, no ingress) | **B66 ✅ 2026-07-24** — the operator lane Hermes vacated: a LangGraph ReAct agent (`gpt-oss:20b`) over the tool-server read + act tools, fronted by **Telegram long-poll**, with **per-chat Postgres session memory** (`operator_sessions`) and an **app-level confirm-step** on every act (LLM can only `propose_act`; the app fires only on an explicit "yes" — 4 rails: allowlist · confirm · `act.py` fail-closed job-allowlist · tool-server `Hook.ACT`). Guards via weyland-guard (fail-open); MLflow `operator` traces; meshed (STRICT Postgres). Fresh bot (old Hermes token died with CT-104). [runbooks/operator.md](runbooks/operator.md). |
-| Postgres + pgvector | `weyland-postgres.weyland.svc:5432` | `rag_documents`/`rag_chunks` (vector 384-dim) + `eval_*` tables. In-cluster only. |
+| Postgres + pgvector | `weyland-postgres.weyland.svc:5432` | `rag_documents`/`rag_chunks` (vector **768-dim**, bge-base — B74) + `eval_*` tables. In-cluster only. |
 | Qdrant | `mother:30083` (HTTP), `:30084` (gRPC) | vector store, collection `weyland_chunks`. |
 | Weaviate | `mother:30087` (gRPC 50051) | vector store, class `WeylandChunk`. |
 | Neo4j | `mother:30085` (HTTP), `:30086` (Bolt) | graph + vector index (GraphRAG foundation), APOC + **GDS** (PageRank/Louvain). B37 **AIDLC `:Entry` graph** (`RELATED_TO`/`SURFACES_AT`/`TAGGED`/`IN_VERTICAL` from frontmatter). |
@@ -173,7 +173,7 @@ agents/workflows and platform state. Agents call the tool-server, *not* database
 > between them. This section is the *architecture* (the why + the wiring); the guide is the *index* (which
 > store do I reach for). Read the guide to orient, this section to go deep.
 
-- **Postgres / pgvector** — the spine. `rag_documents` + `rag_chunks` (384-dim `bge` vectors) is the
+- **Postgres / pgvector** — the spine. `rag_documents` + `rag_chunks` (**768-dim** `bge-base` vectors, B74) is the
   primary RAG store; `eval_runs / eval_questions / eval_results / eval_scores` + `eval_leaderboard`
   view back the eval harness (B4). Reused (not a new DB) for evals by design.
 
@@ -343,7 +343,7 @@ agents/workflows and platform state. Agents call the tool-server, *not* database
 - **`model_catalog`** (Postgres) — current-state lookup of reachable hosted models (OpenRouter / Gemini /
   Ollama, with free flag + pricing + context), refreshed every 6h by Dagster (replace-by-source). Distinct
   from the normalized `models` infra-inventory table. See [runbooks/model-gateway.md](runbooks/model-gateway.md).
-- **Embeddings** — `BAAI/bge-small-en-v1.5` (384-dim), baked into both the tool-server and Dagster
+- **Embeddings** — `BAAI/bge-base-en-v1.5` (**768-dim**, B74 2026-07-28 — was bge-small/384; clean-swept the golden set), baked into both the tool-server and Dagster
   images so ingestion and query embed identically.
 
 - **Superset (B65 Tier-2 #3)** — BI/SQL exploration at `superset.weyland.lab`. Connects to Trino
@@ -546,7 +546,7 @@ graph, not redundant. Both backends get the **same** vectors (built once, upsert
 dataset in Qdrant, class per dataset in Weaviate; dims differ so separate spaces). The `datasets_lib` vector
 loader's `vector_spec` is either **numeric** (assemble feature columns, **z-score normalized** — raw features
 span wild scales, so cosine similarity is meaningless without it) or **text** (concat columns → embed with
-bge-small, 384-dim, the same model the RAG uses). Loaded (9): audio-feature vectors — fma_features (518d),
+bge-small, 384-dim — note the RAG itself moved to bge-base/768 at B74, so the datasets embedder now DIFFERS from the RAG's). Loaded (9): audio-feature vectors — fma_features (518d),
 fma_echonest (~244d), uci (90d), spotify (11d), **gtzan** (~53d, after fixing its land to extract librosa
 features — the silver was label-only); text vectors — lp_musiccaps ×2, audioset (`human_labels`); big_five (50
 OCEAN items). fma_tracks dropped (metadata, not features — sound-similarity is fma_features/echonest via
@@ -738,7 +738,7 @@ orchestrator removes the cause.
 | I3 | **Reference boundary at the orchestrator** | Dagster carries only the manifest (paths + hashes + current-path set); no chunk or vector crosses it |
 | I4 | **Per-store failure isolation + independent retry** | one consumer group per store, committing offsets independently; rebuild-one-store = reset that group's offset |
 | I5 | **Whole-state orphan prune** | the producer diffs the current-path set against `rag_manifest` and emits one tombstone per removed doc; each consumer deletes-by-`source_path`, so there is no per-store scan |
-| I6 | **Warm model** | `rag-embed` holds `bge-small-en-v1.5` resident on the GPU; model + CUDA context load once at startup, so every request is warm |
+| I6 | **Warm model** | `rag-embed` holds `bge-base-en-v1.5` (768-dim, B74) resident on the GPU; model + CUDA context load once at startup, so every request is warm |
 
 **The pieces.**
 - **Producer** = the Dagster op/asset `rag_stream_produce` (self-contained: clone + hash + chunk with LlamaIndex
@@ -750,7 +750,7 @@ orchestrator removes the cause.
   producer **structurally cannot** tombstone the KB corpus - the old prune-exclusion guard is now a property of the
   data model, not a runtime check.
 - **Embed** = **`rag-embed`**, a warm native systemd GPU service on **rogueone** (`192.168.1.230:8900`,
-  `bge-small-en-v1.5`, `POST /embed` returning L2-normalized 384-dim vectors). ~1-1.5 GB VRAM reserved warm next to
+  `bge-base-en-v1.5`, `POST /embed` returning L2-normalized 768-dim vectors, B74). ~1-1.5 GB VRAM reserved warm next to
   Ollama; the standing reservation is the only real cost.
 - **Bus** = the Redpanda topic **`rag.chunks`** (Confluent-Avro via Redpanda's built-in schema registry, subject
   `rag.chunks-value` = the `RagChunk` record; partition key `source_path` so a doc's chunks are ordered and its
@@ -778,7 +778,7 @@ flowchart TB
     PROD["rag_stream_produce op\nchunk (LlamaIndex) then embed then publish\none batch in flight"]
     MAN["rag_manifest (Postgres)\nsource_path PK + content_hash\nchange-detection + prune state\ndecoupled from rag_documents"]
   end
-  EMB["rag-embed - rogueone GPU (warm)\nbge-small-en-v1.5 :8900\nPOST /embed then 384-dim vectors"]
+  EMB["rag-embed - rogueone GPU (warm)\nbge-base-en-v1.5 :8900\nPOST /embed then 768-dim vectors"]
   TOPIC["Redpanda topic rag.chunks\nConfluent-Avro, key = source_path\nupsert + delete (tombstone)"]
   subgraph CONS["5 independent consumers - one image, one group each"]
     Q["rag-index-qdrant\n(data-mesh, sidecar off)"]
