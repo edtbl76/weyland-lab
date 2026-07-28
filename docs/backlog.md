@@ -580,6 +580,17 @@ The ingest / re-embed jobs go **opaque during long steps** — surfaced sharply 
 Applies across the ingest jobs (`weyland_ingestion_job`, `weyland_aidlc_kb_job`, the datasets hydrate jobs). Cheap,
 high quality-of-life; the encode-batching doubles as a genuine performance fix.
 
+### B106 — Compare AI code-review tools: CodeRabbit vs Qodo vs DeepSource
+Head-to-head of AI-augmented PR/code-review tools against the lab's needs + the **$0 constraint** (free tier for
+OSS/personal). Extends **B104** (AI code review) + complements the SonarQube/scan-suite lane (**B47/B90**). Candidates:
+- **CodeRabbit** — AI PR reviews (line-by-line + summaries); free for public repos.
+- **Qodo** (ex-Codium) — PR review + AI test generation; free tier.
+- **DeepSource** — static analysis + AI autofix; free for OSS/personal.
+Evaluate on: **review-signal quality** (real issues vs noise — the [[code-quality-scan-triage]] problem), $0 viability,
+and GitHub integration. **LAN gotcha:** the lab can't receive GitHub push webhooks ([[lan-no-github-webhooks]]), so any
+PR-triggered review must run via the vendor's own hosted GitHub App (against the public `weyland-lab` repo), not a
+lab-side webhook. Weigh overlap with the existing SonarQube/Trivy/Semgrep suite; pick **0-1** to actually adopt.
+
 ### B16 — MLflow (experiment tracking + model registry) — ✅ DONE 2026-06-19
 **MERGED with B10 — this is the canonical MLflow detail section.** Live at `mlflow.weyland.lab` (dev-password): MLflow server (`k8s/mlflow/`), **Postgres** backend store (`mlflow` db/role), **MinIO** `mlflow` artifact bucket (proxied `--serve-artifacts`), meshed for STRICT Postgres, pg/s3 drivers pip-installed on start (no custom image). Smoke-tested end-to-end (run + param + metric + artifact → both stores).
 
