@@ -1,5 +1,6 @@
 import math
 import re
+import threading
 
 from ..verdict import Verdict, Decision, Hook
 
@@ -11,6 +12,17 @@ _SENT_SPLIT = re.compile(r"(?<=[.!?])\s+")
 # Fragments shorter than this are framing ("In summary:", "Here's what I found:") — no claim to
 # ground, and they would only drag the grounding score down.
 _MIN_CLAIM_CHARS = 20
+
+# Bound the per-check NLI work so grounding can't OOM the pod (it did at 2Gi: sentence-level scoring
+# runs up to claims×chunks pairs, and the pipeline runs shadow validators in a threadpool, so spaced
+# requests stacked concurrent forward passes on top of ~1.5GB of resident models). Three guards:
+#   _MAX_CLAIMS   — cap claims scored, so a long answer can't blow up the pair count (runtime bound).
+#   _PREDICT_BATCH— small cross-encoder batch, so peak activation memory stays flat (memory bound).
+#   _PREDICT_LOCK — serialize inference across shadow threads, so at most one forward pass runs at a
+#                   time. Grounding is off the response path, so serializing costs nothing visible.
+_MAX_CLAIMS = 12
+_PREDICT_BATCH = 8
+_PREDICT_LOCK = threading.Lock()
 
 
 def _entailment_score(pred) -> float:
@@ -75,10 +87,12 @@ class GroundingValidator:
         if not contents:
             return Verdict(self.name, Decision.PASS, None, "no non-empty sources to check", 0)
 
-        claims = _split_claims(answer)
+        claims = _split_claims(answer)[:_MAX_CLAIMS]
         # One flat batch of (chunk, claim) pairs, ordered claim-major; reshape to per-claim max.
+        # Serialized + small-batched so peak memory stays flat regardless of answer length or load.
         pairs = [(chunk, claim) for claim in claims for chunk in contents]
-        flat = [_entailment_score(p) for p in self._ce.predict(pairs)]
+        with _PREDICT_LOCK:
+            flat = [_entailment_score(p) for p in self._ce.predict(pairs, batch_size=_PREDICT_BATCH)]
         n = len(contents)
         per_claim = [max(flat[i * n:(i + 1) * n]) for i in range(len(claims))]
 
