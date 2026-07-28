@@ -25,7 +25,7 @@ model {
   github = ext "GitHub" "weyland-lab repo — RAG source + Argo/Woodpecker/Port"
   anthropic = ext "Anthropic API" "Claude — Claude Code reasoning on rogueone"
   hostedModels = ext "Hosted LLM providers" "OpenAI / Anthropic / Gemini / Mistral / Cohere / DeepSeek / Together / OpenRouter / xAI — fronted by LiteLLM + the AI Gateway (gated egress)"
-  huggingface = ext "Hugging Face Hub" "Model weights (bge-small, GGUF) at setup"
+  huggingface = ext "Hugging Face Hub" "Model weights (bge-base RAG / bge-small datasets, GGUF) at setup"
   port = ext "Port.io" "IDP / catalog + self-service actions (SaaS)"
   linear = ext "Linear" "Roadmap / task status (ingested by Port)"
 
@@ -35,7 +35,7 @@ model {
     vllm = component "vLLM" "GPU inference :8000/v1"
     rayWorker = component "Ray edge worker" "Native worker — joins mother's Ray head :6379"
     genreTrainer = component "genre-trainer" "Trainer — reads silver, logs to MLflow"
-    ragEmbed = component "rag-embed" "bge-small embed service :8900 (warm GPU)"
+    ragEmbed = component "rag-embed" "bge-base (768-dim) embed service :8900 (warm GPU) — B74"
     claudeCode = component "Claude Code" "MCP client of tool-server; Claude brain"
     codingAgents = component "Coding agents" "opencode / Cline / Pi / Codex (B15) — $0 dev coding TUIs; drive hosted models DIRECT, not through the gateway"
   }

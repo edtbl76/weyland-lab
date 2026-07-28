@@ -26,7 +26,7 @@ the retired CT-102 in B79. The embedding service `rag-embed` is a separate nativ
 
 The union of the four component demos' prerequisites — confirm each is up before threading:
 
-- **rogueone** (`192.168.1.230`) — `rag-embed.service` on `:8900` (bge-small-en-v1.5) **and** Ollama on
+- **rogueone** (`192.168.1.230`) — `rag-embed.service` on `:8900` (bge-base-en-v1.5, 768-dim, B74) **and** Ollama on
   `:11434` / `ollama.weyland.lab` (6 models: generator + judge panel).
 - **Redpanda** (`redpanda-0`, ns `data-mesh`) — Kafka `:9092`, schema registry `:8081`, topic `rag.chunks`.
 - **Five store consumers** (`rag-index-*`) draining `rag.chunks` (see [rag-stream.md](rag-stream.md) for the

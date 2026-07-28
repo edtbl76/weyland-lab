@@ -23,7 +23,7 @@ RUN pip install --no-cache-dir \
 ENV HOME=/app \
     HF_HOME=/app/.cache/huggingface \
     XDG_CACHE_HOME=/app/.cache
-RUN python -c "from llama_index.embeddings.huggingface import HuggingFaceEmbedding; HuggingFaceEmbedding(model_name='BAAI/bge-small-en-v1.5')"
+RUN python -c "from llama_index.embeddings.huggingface import HuggingFaceEmbedding; HuggingFaceEmbedding(model_name='BAAI/bge-base-en-v1.5')"
 ENV HF_HUB_OFFLINE=1 \
     TRANSFORMERS_OFFLINE=1
 

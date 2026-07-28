@@ -4,7 +4,7 @@ Native LlamaIndex vector stores DON'T fit these collections — the B-RAG-STREAM
 `content` (not LlamaIndex's `text`) and writes no `_node_content` blob, so `PGVectorStore`/`QdrantVectorStore` can't
 reconstruct nodes (pgvector is also a two-table join). So we wrap the tool-server's *proven* per-backend queries in
 thin `BaseRetriever`s — the LangGraph nodes get a standard retriever interface and LlamaIndex autolog captures the
-span. Query embedding is IN-PROCESS bge-small — the SAME model the tool-server uses for query embedding and the SAME
+span. Query embedding is IN-PROCESS bge-base (768, B74) — the SAME model the tool-server uses for query embedding and the SAME
 the collections were built with (guaranteed vector-space parity)."""
 import os
 
@@ -17,7 +17,7 @@ from neo4j import GraphDatabase
 from qdrant_client import QdrantClient
 from weaviate.classes.query import MetadataQuery
 
-MODEL_NAME = "BAAI/bge-small-en-v1.5"
+MODEL_NAME = "BAAI/bge-base-en-v1.5"   # B74: 768-dim — MUST match the collections + the tool-server query embedder
 VALID_BACKENDS = {"pgvector", "qdrant", "weaviate", "neo4j"}
 
 PG_HOST = os.getenv("WEYLAND_DB_HOST", "weyland-postgres.weyland.svc.cluster.local")

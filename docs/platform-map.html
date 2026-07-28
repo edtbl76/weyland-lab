@@ -140,7 +140,7 @@
       <div class="rows">
         <div class="row"><span class="nm"><i class="cdot"></i>MinIO</span><div><div class="rl">S3 object storage · 8 TB USB</div><span class="ex">backs Nessie warehouse, lakeFS, MLflow artifacts, registry blobs</span></div></div>
         <div class="row"><span class="nm"><i class="cdot"></i>lakeFS</span><div><div class="rl">git-for-data file versioning</div><span class="ex">land assets write s3://datasets/music/raw/ bronze, branch main</span></div></div>
-        <div class="row"><span class="nm"><i class="cdot"></i>Hugging Face Hub</span><div><div class="rl">dataset + model-weight source</div><span class="ex">pulls FMA / Spotify datasets + bge-small-en-v1.5 at land</span></div></div>
+        <div class="row"><span class="nm"><i class="cdot"></i>Hugging Face Hub</span><div><div class="rl">dataset + model-weight source</div><span class="ex">pulls FMA / Spotify datasets + bge-base (RAG) / bge-small (datasets) weights at land</span></div></div>
         <div class="row"><span class="nm"><i class="cdot"></i>Redpanda</span><div><div class="rl">Kafka-wire broker (KRaft, single-node)</div><span class="ex">datasets_music_stream_produce → datasets.music.lastfm Avro topic</span></div></div>
         <div class="row"><span class="nm"><i class="cdot"></i>Schema Registry</span><div><div class="rl">Confluent-compatible Avro registry (in Redpanda)</div><span class="ex">schema-id prefix on every datasets.* event</span></div></div>
         <div class="row"><span class="nm"><i class="cdot"></i>Debezium</span><div><div class="rl">Postgres change-data-capture</div><span class="ex">musicbrainz-postgres cdc_demo → cdc.musicbrainz.public.cdc_demo</span></div></div>
@@ -218,7 +218,7 @@
 
       <div class="grp-l">Operational stores - relational · OLAP · time-series · document</div>
       <div class="rows">
-        <div class="row"><span class="nm"><i class="cdot"></i>Postgres + pgvector</span><div><div class="rl">RAG spine + eval tables</div><span class="ex">rag_chunks 384-dim vectors + eval_leaderboard</span></div></div>
+        <div class="row"><span class="nm"><i class="cdot"></i>Postgres + pgvector</span><div><div class="rl">RAG spine + eval tables</div><span class="ex">rag_chunks 768-dim vectors (bge-base, B74) + eval_leaderboard</span></div></div>
         <div class="row"><span class="nm"><i class="cdot"></i>MusicBrainz Postgres</span><div><div class="rl">native relational graph</div><span class="ex">most-prolific artists by recording count via artist_credit</span></div></div>
         <div class="row"><span class="nm"><i class="cdot"></i>MySQL</span><div><div class="rl">relational health store (6 DBs)</div><span class="ex">SELECT TimeDim, NumericValue FROM who_gho WHERE SpatialDim='USA'</span></div></div>
         <div class="row"><span class="nm"><i class="cdot"></i>CockroachDB</span><div><div class="rl">distributed SQL</div><span class="ex">SELECT genhlth, count(*) FROM brfss GROUP BY genhlth</span></div></div>
@@ -244,7 +244,7 @@
         <div class="row"><span class="nm"><i class="cdot"></i>vLLM</span><div><div class="rl">GPU LLM serving (Qwen)</div><span class="ex">low-latency utility inference at rogueone:8000/v1</span></div></div>
         <div class="row"><span class="nm"><i class="cdot"></i>whisper.cpp</span><div><div class="rl">CPU speech-to-text (large-v3)</div><span class="ex">whisper.weyland.lab:8080/inference - voice → text</span></div></div>
         <div class="row"><span class="nm"><i class="cdot"></i>LiteLLM</span><div><div class="rl">OpenAI-compatible model gateway</div><span class="ex">fronts all Gemini + OpenRouter, human-gated egress valve</span></div></div>
-        <div class="row"><span class="nm"><i class="cdot"></i>sentence-transformers</span><div><div class="rl">bge-small-en-v1.5, 384-dim embeddings</div><span class="ex">encodes queries + chunks; baked into tool-server + Dagster images</span></div></div>
+        <div class="row"><span class="nm"><i class="cdot"></i>sentence-transformers</span><div><div class="rl">bge-base-en-v1.5, 768-dim embeddings (B74)</div><span class="ex">encodes queries + chunks; baked into tool-server + Dagster images</span></div></div>
       </div>
     </section>
 

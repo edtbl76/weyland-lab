@@ -27,7 +27,7 @@ SELECT datname FROM pg_database WHERE datistemplate = false ORDER BY datname;
 ## `weyland` DB — RAG corpus (pgvector)
 
 The retrieval store the tool-server queries. `rag_documents` (one row per source file) → `rag_chunks`
-(chunked text + its `embedding vector(384)`, from `BAAI/bge-small-en-v1.5`). Two corpora share the tables:
+(chunked text + its `embedding vector(768)`, from `BAAI/bge-base-en-v1.5`, B74). Two corpora share the tables:
 the docs/code run and the AIDLC knowledge base (`source_path LIKE 'aidlc-kb/%'`, B37).
 ```sql
 \c weyland
@@ -45,8 +45,8 @@ FROM rag_documents GROUP BY corpus;
 ```
 
 ### pgvector similarity search
-Cosine distance (`<=>`); `1 - distance` = similarity. Embed your query with the **same** `bge-small-en-v1.5`
-(384-dim, unit-normalized) — this is exactly what the tool-server's `/context/ask` does under the hood. Paste a
+Cosine distance (`<=>`); `1 - distance` = similarity. Embed your query with the **same** `bge-base-en-v1.5`
+(768-dim, unit-normalized, B74) — this is exactly what the tool-server's `/context/ask` does under the hood. Paste a
 literal vector, or in practice let the tool-server embed for you.
 ```sql
 -- top-5 chunks nearest a query vector :q  (:q is a '[0.1,-0.2,…]'::vector, 384 dims)

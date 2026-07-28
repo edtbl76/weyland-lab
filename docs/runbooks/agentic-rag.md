@@ -20,7 +20,7 @@ A well-covered query answers in `attempts=1` (grade relevant); a weak one drives
 - **Custom LlamaIndex retrievers, not native stores.** The B-RAG-STREAM collections store chunk text under `content`
   with no `_node_content` blob, so `PGVectorStore`/`QdrantVectorStore` can't read them. `retrievers.py` wraps the
   tool-server's proven per-backend queries in 4 thin `BaseRetriever`s (pgvector/qdrant/weaviate/neo4j).
-- **In-process bge query embedding** (`HuggingFaceEmbedding`, bge-small) — same model the tool-server uses and the
+- **In-process bge query embedding** (`HuggingFaceEmbedding`, bge-base 768 as of B74) — same model the tool-server uses and the
   collections were built with. NOT rogueone's `rag-embed` (that's the *ingestion* embedder); in-process avoids a LAN
   round-trip per retrieval (the loop re-embeds on reflect) and keeps the agent self-contained.
 - **Generation** = LangChain `ChatOpenAI` → Ollama `gpt-oss:20b` on rogueone (**Phase A**). **Phase B** repoints

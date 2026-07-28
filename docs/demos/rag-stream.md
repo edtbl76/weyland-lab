@@ -29,7 +29,7 @@ sequenceDiagram
     DAG->>PGM: read stored hashes (exclude aidlc-kb)
     DAG->>DAG: diff current vs stored -> changed + removed docs
     DAG->>EMB: POST /embed {texts:[...]} per batch of 64
-    EMB-->>DAG: vectors (384-dim, L2-normalized)
+    EMB-->>DAG: vectors (768-dim, L2-normalized)
     DAG->>SR: register RagChunk Avro schema
     DAG->>TOPIC: per changed doc, delete-clear then upsert per chunk
     DAG->>TOPIC: per removed doc, tombstone (op=delete)
@@ -46,7 +46,7 @@ sequenceDiagram
 - **Redpanda** (`redpanda.data-mesh.svc.cluster.local:9092`, schema registry `:8081`) — pod `redpanda-0`, ns
   `data-mesh`. Serves the `rag.chunks` topic.
 - **rag-embed** warm GPU service on **rogueone** (`192.168.1.230:8900`) — native systemd unit `rag-embed.service`
-  holding `bge-small-en-v1.5` on the RTX 5000 Ada.
+  holding `bge-base-en-v1.5` (768-dim, B74) on the RTX 5000 Ada.
 - **Five store consumers** (image `weyland-rag-index:local`, one binary, `STORE` env each):
   - ns `data-mesh`: `rag-index-qdrant`, `rag-index-weaviate`, `rag-index-opensearch` (sidecar OFF).
   - ns `weyland`: `rag-index-pgvector`, `rag-index-neo4j` (sidecar ON — Postgres strict mTLS / neo4j Bolt mesh;

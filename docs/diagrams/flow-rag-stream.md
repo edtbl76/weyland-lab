@@ -10,7 +10,7 @@ the vectors never do (design invariants I1–I3, I6). See
 and [../demos/rag-stream.md](../demos/rag-stream.md).
 
 Two record types share one Avro schema, discriminated by `op`:
-- `upsert` — one chunk (text + 384-dim vector) into a store.
+- `upsert` — one chunk (text + 768-dim vector, bge-base) into a store.
 - `delete` — clear all of a doc's rows. Emitted BOTH as the replace-clear before a changed doc's new chunks AND
   as the tombstone for a removed doc. `source_path` partition-keying orders a doc's delete before its upserts.
 
@@ -36,7 +36,7 @@ sequenceDiagram
     DAG->>PGM: read stored hashes (exclude aidlc-kb)
     DAG->>DAG: diff current vs stored -> changed + removed docs
     DAG->>EMB: POST /embed {texts:[...]} per batch of 64
-    EMB-->>DAG: vectors (384-dim, L2-normalized)
+    EMB-->>DAG: vectors (768-dim, L2-normalized)
     DAG->>SR: register RagChunk Avro schema
     DAG->>TOPIC: per changed doc, delete-clear then one upsert per chunk
     DAG->>TOPIC: per removed doc, tombstone (op=delete)

@@ -18,15 +18,18 @@ trade**:
 The conceptual/lexical gap **closed** (bge-small was lopsided; bge-base is even). No hybrid, no bge-large — the cheaper
 rung sufficed. (Residual: Q4 "silent sorting" still misses affinity-mapping — a lone surface-token outlier.)
 
-## ⚠️ There are FOUR embedders — miss one and half the corpus embeds at the wrong dim
+## ⚠️ There are FIVE embedding surfaces — miss one and part of the RAG silently breaks
 
-This is the single biggest trap. Retrieval works only if **all four agree on the model + dimension**:
+This is the single biggest trap. Retrieval works only if **every surface agrees on the model + dimension** — index-side
+AND both query-side services. The weyland-agent one is the easiest to forget (it embeds queries in-process, separately
+from the tool-server) and its miss = a broken agentic RAG, exactly like a wrong-dim index:
 
 | Path | Embedder | Where | Change |
 |---|---|---|---|
 | **KB** (`aidlc-kb/`) | Dagster `SentenceTransformerResource` (CPU, mother) | `weyland_pipeline/resources/sentence_transformer.py` (`model_name`) | edit + rebuild user-code image |
-| **Query-time** | tool-server in-process `HuggingFaceEmbedding` | `weyland-tool-server/main.py` (`MODEL_NAME`) + its Dockerfile bake | edit + rebuild tool-server image |
 | **docs/code** | **rogueone GPU service** `rag-embed` (`:8900`) | `services/rag-embed/rag-embed.service` (`EMBED_MODEL` env) | flip env + `systemctl restart` (no rebuild — model auto-downloads) |
+| **Query — tool-server** | in-process `HuggingFaceEmbedding` | `weyland-tool-server/main.py` (`MODEL_NAME`) + its Dockerfile bake | edit + rebuild tool-server image |
+| **Query — weyland-agent** (B70 agentic RAG) | in-process `HuggingFaceEmbedding` | `weyland-agent/retrievers.py` (`MODEL_NAME`) + its Dockerfile bake | edit + rebuild weyland-agent image (**not** in `build-push-images.sh` — build it manually) |
 | *(the 5 `rag-index` consumers)* | **none — they only WRITE the pre-computed vector** | `services/rag-index/` | no model change; just need the target collections at the new dim |
 
 The docs/code path is the sneaky one: `rag_stream_produce` (Dagster) chunks the docs, POSTs the text to the **rogueone
