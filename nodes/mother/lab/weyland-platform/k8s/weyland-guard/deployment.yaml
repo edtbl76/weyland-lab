@@ -20,14 +20,14 @@ spec:
       enableServiceLinks: false
       containers:
         - name: weyland-guard
-          image: registry.weyland.lab/weyland-guard:v3
+          image: registry.weyland.lab/weyland-guard:v4
           imagePullPolicy: IfNotPresent
           resources:
             # Loads 3 transformer models (injection DeBERTa + toxicity + NLI cross-encoder). The tool-server ran the
             # same 3 + bge at ~929Mi steady / 3Gi limit; this pod carries only the guard models, so 2Gi is ample
             # headroom. B99-aware: net node memory drops once Part 2 sheds these models from the tool-server.
             requests: { memory: 768Mi, cpu: 100m }
-            limits: { memory: 2Gi }
+            limits: { memory: 2560Mi }   # B35: +512Mi headroom — grounding now runs NLI over per-sentence claims (bounded + serialized, but 3 models can still peak together)
           securityContext:
             runAsNonRoot: true
             runAsUser: 10001

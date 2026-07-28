@@ -6,9 +6,15 @@ from ..verdict import Verdict, Decision, Hook
 
 _DEFAULT_MODEL = "cross-encoder/nli-deberta-v3-small"
 
-# Sentence splitter: break after . ! ? followed by whitespace. Deliberately simple (no nltk) —
-# it only has to isolate claims, not be linguistically perfect.
-_SENT_SPLIT = re.compile(r"(?<=[.!?])\s+")
+# Split on sentence punctuation OR newlines — RAG answers are often markdown lists whose items are
+# newline-separated, not .!?-separated; splitting on .!? alone shreds "1. **Awareness** – ..." into
+# junk fragments that entail poorly.
+_CLAIM_SPLIT = re.compile(r"(?<=[.!?])\s+|\n+")
+# Formatting noise that degrades NLI entailment against prose chunks. The STORED answer keeps its
+# markdown; only the text we score is normalized: citation markers, emphasis, leading list markers.
+_CITATION = re.compile(r"【[^】]*】|\[\d+\]")
+_MD_EMPHASIS = re.compile(r"[*_#`]+")
+_LIST_MARKER = re.compile(r"^\s*(?:\d+[.)]|[-*•])\s+")
 # Fragments shorter than this are framing ("In summary:", "Here's what I found:") — no claim to
 # ground, and they would only drag the grounding score down.
 _MIN_CLAIM_CHARS = 20
@@ -44,10 +50,19 @@ def _entailment_score(pred) -> float:
 
 
 def _split_claims(answer: str) -> list[str]:
-    """Split an answer into claim-bearing sentences, dropping short framing fragments. Falls back
-    to the whole answer if nothing survives (e.g. a single terse sentence)."""
-    parts = [s.strip() for s in _SENT_SPLIT.split(answer.strip()) if s.strip()]
-    claims = [s for s in parts if len(s) >= _MIN_CLAIM_CHARS]
+    """Split an answer into claim-bearing units and normalize each for NLI. RAG answers are commonly
+    markdown (numbered/bulleted lists, **bold**, 【1】 citations); splitting on .!? alone mangles those
+    into junk fragments that entail poorly against prose chunks — so we also split on newlines and
+    strip the formatting noise. Short framing fragments are dropped; falls back to the whole answer
+    if nothing survives (e.g. a single terse sentence)."""
+    claims = []
+    for part in _CLAIM_SPLIT.split(answer.strip()):
+        s = _LIST_MARKER.sub("", part)
+        s = _CITATION.sub("", s)
+        s = _MD_EMPHASIS.sub("", s)
+        s = re.sub(r"\s+", " ", s).strip()
+        if len(s) >= _MIN_CLAIM_CHARS:
+            claims.append(s)
     return claims or [answer.strip()]
 
 
