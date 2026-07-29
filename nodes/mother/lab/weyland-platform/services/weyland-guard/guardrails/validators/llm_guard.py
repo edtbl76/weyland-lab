@@ -35,13 +35,18 @@ class ToxicityValidator:
         return _verdict(self.name, is_valid, score, "toxicity")
 
 
-# B34: PII entities tuned for an INFRA lab. llm_guard's Sensitive defaults include IP_ADDRESS + UUID,
-# which would false-positive on every LAN 192.168.x.x and every k8s UUID in a RAG answer — pure noise.
-# Keep only the genuinely-sensitive entities that match the export / PII-data triggers this guard exists for.
+# B34: PII entities tuned for an INFRA lab (measured on real RAG answers, not guessed).
+#  - Dropped IP_ADDRESS + UUID: every LAN 192.168.x.x and k8s UUID would false-positive.
+#  - Dropped CRYPTO: the ai4privacy NER tagged a markdown table span as a crypto address (score 0.99) — pure FP,
+#    and neither trigger (export / PII-data) has a crypto use case.
+#  - Kept PERSON despite the NER mislabeling tech nouns as people ("Traefik" → PERSON, score 1.0) — it's the detector
+#    the PII-bearing-data path needs; the tech-noun noise is tolerable while grounding stays SHADOW. At promotion,
+#    context-gate PERSON to the PII-data path (or a tech-term denylist).
+# The regex-backed entities (EMAIL/SSN/CC/PHONE/IBAN/BANK) are precise — they never misfired in the B34 measurement.
 _PII_ENTITIES = [
     "PERSON", "EMAIL_ADDRESS", "EMAIL_ADDRESS_RE", "PHONE_NUMBER",
     "US_SSN", "US_SSN_RE", "CREDIT_CARD", "CREDIT_CARD_RE",
-    "IBAN_CODE", "US_BANK_NUMBER", "CRYPTO",
+    "IBAN_CODE", "US_BANK_NUMBER",
 ]
 
 
