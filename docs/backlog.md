@@ -38,7 +38,7 @@ Re-ordered per RE-grounded audit (aidlc-docs/inception/backlog-reprioritization.
 
 ### Platform Foundation
 4. **B24** — Evaluate nerdctl — ✅ **EVALUATED 2026-06-15 → DECLINE.** Keep docker + `save|import` as a deliberate build↔runtime anti-corruption layer; nerdctl's only real win (build into k3s's live image store) violates it, and keeping docker alongside would only add daemons. See detail below.
-5. **B14** — Guardrails + Hermes read+act — ✅ **DONE 2026-06-15.** Both halves shipped: guardrail I/O layer (injection/toxicity/grounding on `/context/*`) + read+act (act-tools on `/mcp-act`, `act` hook audits to `guardrail_verdicts` with the `actor` seam), all `mode=shadow` (record-only — the right default for a single-user LAN lab). Shadow plumbing is complete; the enforcement *promotions* are carved out as their own downstream items, not B14 scope: grounding `shadow→flag/block` calibration + act policy gate → **B35**, PII bake → **B34**, gateway auth/actor injection → **B17+B19**. See detail below.
+5. **B14** — Guardrails + Hermes read+act — ✅ **DONE 2026-06-15.** Both halves shipped: guardrail I/O layer (injection/toxicity/grounding on `/context/*`) + read+act (act-tools on `/mcp-act`, `act` hook audits to `guardrail_verdicts` with the `actor` seam), all `mode=shadow` (record-only — the right default for a single-user LAN lab). Shadow plumbing is complete; the enforcement *promotions* are carved out as their own downstream items, not B14 scope: grounding `shadow→flag/block` calibration → **B35** (✅ done), act policy gate → **B17+B19** (needs the gateway `actor`), PII bake → **B34**, gateway auth/actor injection → **B17+B19**. See detail below.
 6. **B26** — Hosted-model gateway (LiteLLM) + model catalog — ✅ **DONE 2026-06-17** (reframed from "Hermes Claude brain"; Claude path declined — ToS gray area). LiteLLM on mother fronts all Gemini+OpenRouter; Dagster `model_catalog` (6h). See detail below.
 7. **B27** — Hermes Kanban (self-management + roadmap co-pilot) — ✅ **DONE 2026-06-17.** Native SQLite kanban; planning on Gemini-free via the gateway (`kanban_decomposer`/`triage_specifier` pinned), workers local; `weyland-roadmap` board mirrors this backlog one-way (`roadmap-sync.py`, 6h cron). See detail below + [runbooks/agent-hermes.md](runbooks/agent-hermes.md#kanban--self-management--roadmap-co-pilot-b27-live-2026-06-17).
 8. **B8** — Istio service mesh — **DECIDED BUILD-NOW 2026-06-17** (all four drivers: mTLS/observability/traffic-mgmt/learning). Design: `aidlc-docs/construction/b8-istio-design.md` — Approach 1 (sidecar, contained tool-server slice, bookinfo warm-up); step-0 mother-headroom gate → pivot to ambient if tight; **slice 1 = PERMISSIVE everywhere** (tool-server serves external NodePort MCP; backends serve un-meshed Dagster) — STRICT enforcement deferred to slice 2 (mesh Dagster); Traefik stays the ingress. See detail below.
@@ -485,8 +485,8 @@ mount, audited by the `act` hook (`policy.audit`, shadow) with the `actor` seam 
 header → `guardrail_verdicts.actor`, NULL until the gateway). Code: `services/weyland-tool-server/guardrails/`
 (20 tests). Specs/plans: `aidlc-docs/construction/b14-guardrails-{design,plan}.md` + `b14-readact-{design,plan}.md`.
 **Downstream promotions (separate items, not B14 scope):** (1) grounding threshold/method calibration before
-`shadow→flag/block` → **B35**; (2) the enforcing act policy gate (allowlist/rate-limit/`block`) → built with
-**B35**; (3) PII bake → **B34**; (4) gateway auth that injects the `actor` identity → **B17+B19** (handoff
+`shadow→flag/block` → **B35** (✅ done); (2) the enforcing act policy gate (allowlist/rate-limit/`block`) →
+**B17+B19** (needs the gateway-asserted `actor` — see the B19 handoff); (3) PII bake → **B34**; (4) gateway auth that injects the `actor` identity → **B17+B19** (handoff
 documented there). The shadow plumbing for all of these is in place — they are promotions, not new infrastructure.
 
 Runtime safety/validation of LLM I/O — **distinct from B4** (which measures quality *offline*). The
@@ -591,6 +591,20 @@ and GitHub integration. **LAN gotcha:** the lab can't receive GitHub push webhoo
 PR-triggered review must run via the vendor's own hosted GitHub App (against the public `weyland-lab` repo), not a
 lab-side webhook. Weigh overlap with the existing SonarQube/Trivy/Semgrep suite; pick **0-1** to actually adopt.
 
+### B107 — Integrate Prefect as the MCP gateway
+Stand up **Prefect** as the lab's **MCP gateway** — the governed front door that aggregates the MCP servers behind one
+endpoint (today: the tool-server's read `/mcp` + act `/mcp-act` mounts) with auth/RBAC, audit logging, and
+observability. This is the concrete **implementation of the MCP-gateway half of B17+B19** (which framed the *eval* —
+candidates were mcpx / MCPJungle / MCP Mesh / IBM ContextForge; **Prefect is now the named pick**). **Unblocks two
+parked items:** the gateway is the component that **injects the trusted `actor`** (`X-Forwarded-Consumer` →
+`guardrail_verdicts.actor`, `NULL` until a gateway fronts the surface), which is the prerequisite for the **enforcing
+act policy gate** (allowlist/rate-limit/`block` on the ACT hook — moved here from B35, see the B19 handoff). **Reuses
+the B14 read+act seams** already built for a gateway (`/mcp-act` mount, the trusted-header convention, the shadow
+`policy.audit` hook awaiting an enforcing validator). **Constraints:** $0 / self-hosted, LAN-only
+([[lan-no-github-webhooks]]). **Scope at start:** pin the exact Prefect MCP-gateway component/edition and how it fronts
+`/mcp` + `/mcp-act` — Prefect is best known as a workflow orchestrator, so confirm its MCP-gateway positioning before
+building. Ties into **B17+B19** (mesh / fleet governance). **Effort:** medium (new service + mesh join + auth wiring).
+
 ### B16 — MLflow (experiment tracking + model registry) — ✅ DONE 2026-06-19
 **MERGED with B10 — this is the canonical MLflow detail section.** Live at `mlflow.weyland.lab` (dev-password): MLflow server (`k8s/mlflow/`), **Postgres** backend store (`mlflow` db/role), **MinIO** `mlflow` artifact bucket (proxied `--serve-artifacts`), meshed for STRICT Postgres, pg/s3 drivers pip-installed on start (no custom image). Smoke-tested end-to-end (run + param + metric + artifact → both stores).
 
@@ -654,8 +668,10 @@ don't rebuild them:
 - **Shadow `act` hook awaiting a policy validator** — `Hook.ACT` runs `policy.audit` (records only, never
   blocks; `weyland-tool-server/guardrails/`). The gateway's/this-work's job is the **enforcing** policy
   validator (allowlist of callable tools/jobs, rate-limit, `block`) — it drops into the existing per-hook
-  validator chain (`guardrails/config.py`), no new plumbing. Built alongside **B35** (calibrate-and-enforce
-  pass). Until then, `act` is audit-only.
+  validator chain (`guardrails/config.py`), no new plumbing. **This is B17+B19 work** — the enforcing act gate
+  needs the gateway-asserted `actor` above (allowlist/rate-limit are meaningless while `actor` is `NULL`). B35
+  delivered only the *grounding* half of B14's original bundle; the act gate was always blocked on this identity.
+  Until then, `act` is audit-only.
 - **Decision recorded:** no client-supplied identity is ever trusted (anti-spoofing). Identity is a
   gateway-asserted header or absent — this work must not loosen that.
 
