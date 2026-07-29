@@ -71,7 +71,7 @@ Re-ordered per RE-grounded audit (aidlc-docs/inception/backlog-reprioritization.
 15. **B20** — Home Assistant (Hermes tool) — Hermes → HA → Google Home/Alexa/physical devices. Prerequisite: running HA instance. See detail below.
 16. **B28** — OpenClaw rehabilitation (or retire) — **✅ RESOLVED 2026-06-25: SUPERSEDED by B66.** The keep/retire/reuse decision is no longer standalone — it's the "base agent" workstream of the consolidated [B66] Operator Agent Platform (Hermes-base vs reuse-OpenClaw's-responsiveness, decided at B66 build time). OpenClaw is NOT auto-retired (reuse candidate). Both original Qs (keep-vs-retire, refactor-vs-rewrite) move to B66.
 17. **U14** — n8n workflow → git — audit active n8n workflows before working on this. See detail below.
-18. **B34** — Evaluate + bake PII guard — promote B14's deferred PII validator (llm_guard `Sensitive` → presidio/spaCy) from coded-but-unbaked to active. Gated on an eval showing PII detection adds real signal in this corpus (and/or a multi-user/export trigger). See detail below.
+18. **B34** — Evaluate + bake PII guard — ✅ **DONE 2026-07-29.** Baked presidio + ai4privacy NER, activated `llm_guard.pii` (SHADOW). Recall proven; entity set calibrated on real answers (dropped IP/UUID/CRYPTO noise, kept regex-precise + PERSON). Measured FP: 3/20, **all false positives** (NER tags tech nouns as PERSON) — so it **stays shadow/advisory**, enforcement value is on the export/PII-data paths not RAG-over-docs. Also shipped a live guard mode toggle (`/admin/mode`, Bearer-gated). See detail below.
 19. **B35** — Grounding guard calibration — ✅ **DONE 2026-07-28.** Switched whole-answer→**sentence-level** scoring (whole-answer NLI over-flagged 58%), calibrated the threshold `0.5`→**`0.15`** from labeled golden-set shadow data, and found grounding.nli measures chunk-**attributability** not faithfulness → **kept in shadow/advisory** (true faithfulness gating = LLM-judge lane B84). Fixed an OOM the heavier scorer introduced (2Gi→2560Mi + bounded/serialized NLI). See detail below.
 - **B36** — Hermes dashboard performance — ⚰️ **MOOT 2026-07-23** (Hermes retired; the dashboard died with CT-104). The B66 operator has no such web dashboard.
 - **B46** — **Build out the Stud.io product backlog** — Stud.io has no backlog/roadmap yet. Assemble it (audit the repo, define epics + items), then dump into the Linear **Stud.IO** project (same treatment as the Weyland dump). **The LAST of the Core work — High + Core, sequenced last (NOT maturity/polish; it's a real product target).** **Seed item (from the B60 Port audit, 2026-06-23):** stud.io has real **test + production** envs (containerized, Woodpecker-deployed) — wire its deploy pipeline to emit `deployment` events → Port `environment` entities (Test/Production) so the **deployment-frequency DORA** lights up for stud.io (the one DORA pillar PR/CI metrics don't cover: "how often do I ship to prod"). Cheap once the pipeline's already moving — lands naturally alongside the **B57** farm migration.
@@ -605,6 +605,17 @@ the B14 read+act seams** already built for a gateway (`/mcp-act` mount, the trus
 `/mcp` + `/mcp-act` — Prefect is best known as a workflow orchestrator, so confirm its MCP-gateway positioning before
 building. Ties into **B17+B19** (mesh / fleet governance). **Effort:** medium (new service + mesh join + auth wiring).
 
+### B108 — Generalize the demo-mode toggle across shadow systems
+B34 shipped a **live demo toggle for the guardrails** — `POST /admin/mode` on weyland-guard flips validators
+shadow↔flag/block in-process (no restart, Argo-safe, Bearer-gated). This generalizes the ask: a **consistent way to
+temporarily un-shadow / activate any observability-mode system for a demo, then revert**. The guard is the one thing
+today with a real "mode" concept; the other shadow-ish systems (Dagster eval jobs, OpenLineage, DataHub ingest, the
+MLflow tracing/eval lanes) don't share the primitive, so this needs a small **design pass**: what "demo mode" means per
+system, whether a shared control surface (a tiny control API, or a labeled toggle in Port) is worth it vs per-system
+switches, and the auth/revert-safety pattern (the guard's in-process + fail-closed + auto-revert-on-restart is the
+template). **Scope at start:** inventory which systems have a shadow/advisory mode worth toggling; don't build a
+framework before there are ≥2 real consumers. **Effort:** small-medium (design + per-system wiring). Follows **B34**.
+
 ### B16 — MLflow (experiment tracking + model registry) — ✅ DONE 2026-06-19
 **MERGED with B10 — this is the canonical MLflow detail section.** Live at `mlflow.weyland.lab` (dev-password): MLflow server (`k8s/mlflow/`), **Postgres** backend store (`mlflow` db/role), **MinIO** `mlflow` artifact bucket (proxied `--serve-artifacts`), meshed for STRICT Postgres, pg/s3 drivers pip-installed on start (no custom image). Smoke-tested end-to-end (run + param + metric + artifact → both stores).
 
@@ -836,7 +847,7 @@ whole framework + a new language) and built for **dialog management**, not the r
 B14's tool-server pipeline does (Llama Guard + LLM Guard + grounding judge cover that). **Where it might fit:**
 the **Layer-2 agent layer** (Hermes) for dialog/topical rails — evaluate then. Not the tool-server seam.
 
-### B34 — Evaluate + bake PII guard (Maturity / Hardening / Polish)
+### B34 — Evaluate + bake PII guard (Maturity / Hardening / Polish) — ✅ DONE 2026-07-29
 B14 shipped the **PII validator coded but unbaked**: the `PIIValidator` (llm_guard `Sensitive` → presidio
 + spaCy) exists in `guardrails/validators/llm_guard.py` and its config line is present-but-commented in
 `guardrails/config.py`, but the presidio/spaCy model is **not baked into the tool-server image** (Option A at
@@ -849,6 +860,23 @@ lean, or `_lg` for accuracy) to the Dockerfile *before* the `HF_HUB_OFFLINE` lin
 toxicity/NLI bakes. (3) **enable** — uncomment the `llm_guard.pii` line in `config.py` (ships `Mode.SHADOW`).
 The resilient per-validator loader means it lights up with zero other code changes. **Depends on:** B14 shadow
 data accumulated. **Effort:** small (build + config), modulo presidio/spaCy bake fragility.
+
+**Resolved 2026-07-29 (weyland-guard `v5`→`v7`).** Triggers confirmed real: answers exported off-box + RAG over
+PII-bearing mesh data. Baked presidio + `en_core_web_sm` + the `Isotonic/deberta-v3-base_finetuned_ai4privacy_v2` NER;
+uncommented `llm_guard.pii` (SHADOW); pod limit `2560Mi`→`3072Mi` for the 4th model (steady 1740Mi).
+- **Recall proven** — synthetic answer with name/email/phone/SSN → block, score 1.0.
+- **Entity set calibrated on real answers** (`_PII_ENTITIES`): dropped `IP_ADDRESS`+`UUID` (LAN-IP / k8s-UUID noise) and
+  `CRYPTO` (the NER tagged a markdown span as a crypto address, 0.99 — pure FP, no crypto use case); kept the
+  regex-precise entities + `PERSON`.
+- **Measured FP** (golden set, 20 answers): 3 flagged, **all false positives** (no PII in the public docs). Redact-mode
+  pinned the triggers: the NER mislabels **tech nouns as PERSON** ("Traefik" → PERSON, score 1.0). Scores ~1.0 → a
+  threshold can't fix it; the entity set is the lever.
+- **Stays SHADOW/advisory** (like B35): pure FP on the docs corpus. `PERSON` kept for the future PII-data path; at
+  promotion, context-gate it. Enforcement value is on the (b) export + (c) PII-data paths, not RAG-over-docs.
+- **Also shipped: the demo toggle** — `POST /admin/mode` flips validators shadow↔flag/block live (in-process, no
+  restart, Argo-safe), Bearer-gated (`GUARD_ADMIN_TOKEN`, fail-closed). Generalizing it beyond the guard → **B108**.
+Files: `services/weyland-guard/{guardrails/validators/llm_guard.py, guardrails/config.py, app.py, Dockerfile}`,
+`k8s/weyland-guard/deployment.yaml`. Runbook: [runbooks/guardrails.md](runbooks/guardrails.md).
 
 ### B35 — Grounding guard calibration (Maturity / Hardening / Polish) — ✅ DONE 2026-07-28
 B14's grounding validator (`grounding.nli`, `guardrails/validators/grounding.py`) emits `max_entailment` ∈ [0,1]

@@ -36,12 +36,13 @@ self-documenting OpenAPI, independent evolution.
   answers.
 
 ## Validators & modes
-INPUT `llm_guard.injection` · OUTPUT `llm_guard.toxicity` + `grounding.nli` · ACT `policy.audit`. PII
-(`llm_guard.pii` → presidio/spaCy) is **coded but deferred** — model not baked, out of the default chain (→ B34).
-All SHADOW. Flip one per-validator with an env var on the `weyland-guard` deployment:
+INPUT `llm_guard.injection` · OUTPUT `llm_guard.pii` + `llm_guard.toxicity` + `grounding.nli` · ACT `policy.audit`.
+All SHADOW. Two ways to change a mode:
+- **Persistent** — per-validator env on the `weyland-guard` deployment:
 ```
 GUARDRAIL_MODE__llm_guard__injection=block   # dots in the name → double underscore; values: off|shadow|flag|block
 ```
+- **Live, no restart** — the demo toggle `POST /admin/mode` (see below).
 Enforcing FLAG/BLOCK modes are scored inline and returned. The enforcing **act** policy gate for the ACT hook is
 deferred — it needs the gateway-injected `actor` for per-actor allowlist/rate-limit, so it's blocked on **B17+B19**
 (today `actor` is always `None`). B35 covered the *grounding* half of that original bundle (below).
@@ -52,7 +53,7 @@ normalized, newline-aware — RAG answers are markdown lists), score each claim'
 `nli-deberta-v3-small` cross-encoder, and **average** them (`grounded_mean`, shown in the verdict `reason` alongside
 the weakest claim). The NLI is bounded + serialized (cap **12** claims, `batch_size=8`, a `threading.Lock`) so it
 can't OOM the pod — the earlier whole-answer scorer, then the unbounded sentence-level one, `exit 137`'d it; the pod
-limit is now **2560Mi**.
+limit is **3072Mi** (raised again in B34 for the 4th/PII model).
 
 **What it measures — read this before trusting the number:** chunk-**attributability** ("is the answer traceable to
 the retrieved chunks"), **NOT faithfulness/truth.** Good *conceptual* answers legitimately synthesize *beyond* sparse
@@ -64,6 +65,43 @@ unattributable tail (retrieval misses + heavy elaboration) below ~0.15.
 `GROUNDING_THRESHOLD` on the deployment to retune as shadow data accrues. **Stays SHADOW/advisory** — NLI can't tell
 "synthesized-but-true" from "hallucinated," so real faithfulness gating is the **LLM-judge lane (B84)**, not this
 guard. grounding.nli is a useful "answer exceeded its retrieved sources" signal, not a blocking gate.
+
+## llm_guard.pii — calibration (B34, 2026-07-29)
+Baked + active (SHADOW) as of B34 (was coded-but-unbaked). Scans the **answer** (OUTPUT hook) with llm_guard's
+`Sensitive` → presidio; NER = `Isotonic/deberta-v3-base_finetuned_ai4privacy_v2` + a spaCy `en_core_web_sm` engine,
+both baked in the image. Triggers that justified it: answers **exported off-box** + RAG over **PII-bearing data** (the
+music mesh has PERSON/artist names).
+
+**Entity set — tuned on real answers, not guessed** (`_PII_ENTITIES` in `validators/llm_guard.py`):
+- **Kept:** `PERSON`, `EMAIL_ADDRESS(+_RE)`, `PHONE_NUMBER`, `US_SSN(+_RE)`, `CREDIT_CARD(+_RE)`, `IBAN_CODE`,
+  `US_BANK_NUMBER` — the regex-backed ones are precise (zero misfires in the measurement).
+- **Dropped:** `IP_ADDRESS` + `UUID` (every LAN `192.168.x.x` / k8s UUID would fire) and **`CRYPTO`** (the NER tagged a
+  markdown table span as a crypto address, score 0.99 — pure FP, no crypto use case).
+
+**Measured FP (golden set, 20 answers):** 3 flagged, **all false positives** — no real PII in the public docs corpus.
+Pinned the exact triggers via redact-mode: the NER mislabels **tech nouns as PERSON** ("Traefik" → PERSON, score 1.0)
+and (pre-drop) **markdown spans as CRYPTO**. Scores ~1.0, so a threshold won't help — the lever is the entity set.
+
+**Stays SHADOW/advisory.** On the current docs corpus it's pure FP (0 true positives). `PERSON` is kept because it's
+the detector the PII-bearing-data path needs, but it's noisy on tech text — so **do not promote to flag/block on
+RAG-over-docs**; at promotion, context-gate `PERSON` to the PII-data path (or a tech-term denylist). The regex entities
+are the solid core for the export-leak case.
+
+## Demo toggle — `POST /admin/mode` (live, no restart)
+Flip validators shadow↔flag/block **live** for a demo, then revert. In-process override: a pod restart drops back to
+the committed modes (a demo can't be left on by accident) and there's no manifest drift for Argo to fight — chosen over
+a `kubectl set env` flip precisely because Argo self-heal would revert that mid-demo.
+
+**Auth:** `/admin/*` is Bearer-gated (it can DISABLE the guards, unlike the scoring routes) — `GUARD_ADMIN_TOKEN` from
+Secret `weyland-guard-admin` (key `token`), constant-time compared, **fail-closed** (503 if unset). Create once
+(out-of-band, NOT committed):
+`kubectl -n weyland create secret generic weyland-guard-admin --from-literal=token=$(openssl rand -hex 24)`.
+```
+# in-cluster; -H "Authorization: Bearer <token>", or exec the pod which has GUARD_ADMIN_TOKEN in env
+POST /admin/mode        {"mode":"block","validators":["llm_guard.pii"]}   # un-shadow for the demo (omit validators = all)
+POST /admin/mode/reset                                                    # revert to committed modes
+GET  /admin/mode                                                          # current overrides
+```
 
 ## Models (baked, offline at runtime)
 `services/weyland-guard/Dockerfile` bakes the **exact** 3 models the tool-server used (so verdicts are identical):
