@@ -591,19 +591,10 @@ and GitHub integration. **LAN gotcha:** the lab can't receive GitHub push webhoo
 PR-triggered review must run via the vendor's own hosted GitHub App (against the public `weyland-lab` repo), not a
 lab-side webhook. Weigh overlap with the existing SonarQube/Trivy/Semgrep suite; pick **0-1** to actually adopt.
 
-### B107 — Integrate Prefect as the MCP gateway
-Stand up **Prefect** as the lab's **MCP gateway** — the governed front door that aggregates the MCP servers behind one
-endpoint (today: the tool-server's read `/mcp` + act `/mcp-act` mounts) with auth/RBAC, audit logging, and
-observability. This is the concrete **implementation of the MCP-gateway half of B17+B19** (which framed the *eval* —
-candidates were mcpx / MCPJungle / MCP Mesh / IBM ContextForge; **Prefect is now the named pick**). **Unblocks two
-parked items:** the gateway is the component that **injects the trusted `actor`** (`X-Forwarded-Consumer` →
-`guardrail_verdicts.actor`, `NULL` until a gateway fronts the surface), which is the prerequisite for the **enforcing
-act policy gate** (allowlist/rate-limit/`block` on the ACT hook — moved here from B35, see the B19 handoff). **Reuses
-the B14 read+act seams** already built for a gateway (`/mcp-act` mount, the trusted-header convention, the shadow
-`policy.audit` hook awaiting an enforcing validator). **Constraints:** $0 / self-hosted, LAN-only
-([[lan-no-github-webhooks]]). **Scope at start:** pin the exact Prefect MCP-gateway component/edition and how it fronts
-`/mcp` + `/mcp-act` — Prefect is best known as a workflow orchestrator, so confirm its MCP-gateway positioning before
-building. Ties into **B17+B19** (mesh / fleet governance). **Effort:** medium (new service + mesh join + auth wiring).
+### B107 — Integrate Prefect (Horizon) as the MCP gateway — ▶ MERGED into B17+B19 (2026-07-29)
+Not a standalone item — merged into the MCP-gateway half of **B17+B19** (see **B19**). NOTE: Horizon itself was
+**REJECTED** on scoping (managed SaaS/cloud — clashes with LAN-only/$0-self-hosted). B19's picks are **FastMCP**
+(self-hosted server-edge gateway) + **Bifrost** (client-edge MCP-tool aggregation). Linear EMA-100 merged into EMA-13.
 
 ### B108 — Generalize the demo-mode toggle across shadow systems
 B34 shipped a **live demo toggle for the guardrails** — `POST /admin/mode` on weyland-guard flips validators
@@ -656,6 +647,26 @@ cases (TBD from user); which surface (Hermes tool vs MCP). One-line `hermes tool
 
 ### B19 — MCP gateway evaluation
 **MERGED with B17 — see the Mesh item.**
+
+**Pick (2026-07-29): FastMCP (server edge) + Bifrost (agent edge)** — two self-hosted pieces. Prefect **Horizon** (the
+obvious first name, rolled in from the former standalone B107) was **REJECTED on scoping**: it's a managed **SaaS/cloud**
+(servers run on `*.fastmcp.app`, mandatory internet + GitHub, no self-host option) — collides with the lab's LAN-only /
+air-gapped / $0-self-hosted ethos and would force exposing the air-gapped tool-server to the internet. The two
+self-hosted picks:
+- **FastMCP** (Apache-2.0, `pip install fastmcp`) — the **inbound / server** MCP gateway (the self-hosted foundation
+  Horizon is built on). `create_proxy("http://<tool-server>/mcp")` fronts the existing `/mcp` + `/mcp-act` mounts behind
+  one endpoint (no rewrite, no off-LAN exposure); auth via **Keycloak** (OIDC/DCR → `RemoteAuthProvider`); the
+  authenticated caller's token claims → forwarded as **`X-Forwarded-Consumer` → `guardrail_verdicts.actor`**, which
+  **unblocks the enforcing act policy gate** (allowlist/rate-limit/`block` on the ACT hook, carved off B35). Reuses the
+  B14 read+act seams.
+- **Bifrost** — the **outbound / agent** edge, **MCP-tool aggregation ONLY**: agents (operator B66, coding agents B15)
+  route their MCP-*tool* access through Bifrost. **NOT an LLM gateway here** — LLM routing stays with the MLflow AI
+  Gateway (B100) + LiteLLM (B26). Three lanes, no overlap: server-MCP = FastMCP · LLM = MLflow/LiteLLM · client-MCP-tools
+  = Bifrost.
+
+$0 / self-hosted / LAN. **Scope at start:** FastMCP deployment (k8s pod, meshed, ingress `mcp.weyland.lab`) + Keycloak
+client + the claim→actor mapping; Bifrost deployment + wiring the agents' MCP-tool access to it. A2A (the B17 half)
+stays a later eval. (The eval candidates below are superseded.)
 
 Evaluate a self-hosted **MCP gateway** (mcpx · MCPJungle · MCP Mesh · Local MCP Gateway · IBM ContextForge)
 to **aggregate multiple MCP servers behind one governed endpoint** with auth/RBAC, audit logging, and

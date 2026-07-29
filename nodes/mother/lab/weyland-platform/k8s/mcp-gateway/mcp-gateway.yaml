@@ -1,0 +1,86 @@
+# weyland-mcp-gateway — B17+B19 MCP gateway, Phase 1 (server edge). A thin auth reverse-proxy: Keycloak Bearer JWT →
+# inject X-Forwarded-Consumer (the actor) → stream-proxy to the tool-server's /mcp + /mcp-act. NOT meshed: it talks
+# plain HTTP to the tool-server + Keycloak (both ns weyland), no STRICT-mTLS service in the path (mirrors the registry).
+#
+# JWKS is fetched from the IN-CLUSTER keycloak svc over HTTP (no CA trust needed); the token's issuer is still validated
+# against the external URL (the keys are the same however you fetch them).
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: weyland-mcp-gateway
+  namespace: weyland
+  labels: { app: weyland-mcp-gateway }
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: weyland-mcp-gateway }
+  template:
+    metadata:
+      labels: { app: weyland-mcp-gateway }
+    spec:
+      containers:
+        - name: weyland-mcp-gateway
+          image: registry.weyland.lab/weyland-mcp-gateway:v1
+          imagePullPolicy: IfNotPresent
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 10001
+            allowPrivilegeEscalation: false
+            capabilities: { drop: ["ALL"] }
+            seccompProfile: { type: RuntimeDefault }
+          ports:
+            - { name: http, containerPort: 8080 }
+          readinessProbe:
+            httpGet: { path: /health, port: 8080 }
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: { path: /health, port: 8080 }
+            periodSeconds: 20
+          env:
+            - name: TOOL_SERVER_URL
+              value: http://weyland-tool-server.weyland.svc.cluster.local:8080
+            # JWKS over internal HTTP (no CA); issuer validated against the external URL that Keycloak stamps on tokens.
+            - name: KEYCLOAK_JWKS_URL
+              value: http://keycloak.weyland.svc.cluster.local:8080/realms/weyland/protocol/openid-connect/certs
+            - name: KEYCLOAK_ISSUER
+              value: https://keycloak.weyland.lab/realms/weyland
+            # client_credentials tokens carry azp = the agent's client_id → that's the actor.
+            - name: ACTOR_CLAIM
+              value: azp
+          resources:
+            requests: { memory: 64Mi, cpu: 50m }
+            limits: { memory: 256Mi }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: weyland-mcp-gateway
+  namespace: weyland
+  labels: { app: weyland-mcp-gateway }
+spec:
+  type: ClusterIP
+  selector: { app: weyland-mcp-gateway }
+  ports:
+    - { name: http, port: 8080, targetPort: 8080 }
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: weyland-mcp-gateway
+  namespace: weyland
+spec:
+  tls:
+    - hosts: [mcp.weyland.lab]
+      secretName: weyland-wildcard-tls
+  rules:
+    - host: mcp.weyland.lab
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: weyland-mcp-gateway
+                port: { number: 8080 }
