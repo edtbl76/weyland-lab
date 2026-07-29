@@ -668,6 +668,17 @@ $0 / self-hosted / LAN. **Scope at start:** FastMCP deployment (k8s pod, meshed,
 client + the claim→actor mapping; Bifrost deployment + wiring the agents' MCP-tool access to it. A2A (the B17 half)
 stays a later eval. (The eval candidates below are superseded.)
 
+**Phase 1+2 SHIPPED 2026-07-29.** `weyland-mcp-gateway` live at `mcp.weyland.lab` — a thin auth reverse-proxy
+(Starlette + PyJWT, `services/weyland-mcp-gateway/`, not meshed, Argo `mcp-gateway`), Keycloak Bearer JWT +
+`X-Forwarded-Consumer` actor injection, **proven end-to-end** (`actor=weyland-operator` lands in `guardrail_verdicts`).
+The enforcing act gate `policy.gate` (weyland-guard — identity / allowlist / rate-limit; **SHADOW**) rides the guard
+image. Gotcha fixed: `fastapi-mcp` only forwards an allow-listed header set → tool-server now passes
+`headers=["authorization","x-forwarded-consumer"]` (v13). Per-agent Keycloak `client_credentials` clients
+(`tofu/keycloak/mcp-agents.tf`). Runbook [runbooks/mcp-gateway.md](runbooks/mcp-gateway.md); design
+`aidlc-docs/construction/mcp-gateway-design.md`. **Remaining:** proper CoreDNS for `mcp.weyland.lab` (currently an
+`/etc/hosts` stopgap); wire the operator through the gateway → flip `policy.gate` to `block` for live enforcement;
+**Phase 3 = Bifrost** (client-side MCP-tool aggregation); **B17 = A2A eval** (later).
+
 Evaluate a self-hosted **MCP gateway** (mcpx · MCPJungle · MCP Mesh · Local MCP Gateway · IBM ContextForge)
 to **aggregate multiple MCP servers behind one governed endpoint** with auth/RBAC, audit logging, and
 OpenTelemetry observability. Born from B2 scoping (docs/concepts/agent-platform-design.md §5). **Not needed now** —

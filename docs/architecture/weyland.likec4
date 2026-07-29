@@ -124,6 +124,7 @@ model {
           traefik = gateway "Traefik" "k3s ingress — TLS front door (*.weyland.lab)"
           coredns = component "CoreDNS" "LAN DNS — *.weyland.lab wildcard"
           apisix = gateway "APISIX" "API/data-plane gateway — fronts tool-server + backends"
+          mcpGateway = gateway "weyland-mcp-gateway" "MCP gateway (mesh governance) — Keycloak-authed front door for tool-server /mcp + /mcp-act; injects the verified actor into guardrail_verdicts, unblocking the enforcing act policy gate"
         }
 
         obs = zone "Observability" {
@@ -179,6 +180,9 @@ model {
 
   // Agents
   weyland.mother.ai.operator -> weyland.mother.ai.toolServer "read + act (/mcp, /mcp-act) — confirm-step on acts"
+  weyland.mother.ai.operator -> weyland.mother.ops.edge.mcpGateway "act via the governed MCP gateway (Keycloak client_credentials) — target path"
+  weyland.mother.ops.edge.mcpGateway -> weyland.mother.ai.toolServer "authed proxy of /mcp + /mcp-act; injects X-Forwarded-Consumer actor"
+  weyland.mother.ops.edge.mcpGateway -> weyland.mother.ops.edge.keycloak "validate Bearer JWT (JWKS)"
   weyland.mother.ai.operator -> rogueone.ollama "brain — gpt-oss:20b /v1"
   weyland.mother.ai.operator -> weyland.mother.ai.pg "session memory (STRICT mTLS)"
   rogueone.claudeCode -> weyland.mother.ai.toolServer "MCP /mcp"

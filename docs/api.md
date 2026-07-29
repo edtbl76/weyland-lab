@@ -43,6 +43,18 @@ Hosts & access users: [hosts.md](hosts.md). `mother` = 192.168.1.243, CTs by IP 
 | `/mcp` | MCP | **B2 system-view MCP server** (Streamable HTTP via `fastapi-mcp`) — read-only tools: `status`, `context_search`, `context_ask`, `list_models`. Consumers: **Claude Code** (registered via `claude mcp add weyland --transport http http://192.168.1.243:30080/mcp`, validated 2026-06-14) + the coming **B66 operator agent**. (Hermes retired 2026-07-23.) |
 | `/mcp-act` | MCP | **B14 read+act** act-tool surface (separate mount): `pipeline/trigger`, `evals/run`, `evals/score`. Every call audited by the `act` hook → `weyland-guard` (`policy.audit`, shadow) → `guardrail_verdicts`. **Consumer: the B66 operator agent** (`weyland-operator`, live 2026-07-24 — posts here on confirmed acts, `actor=operator:telegram:<chat_id>`; Hermes retired 2026-07-23); **Claude Code stays read-only on `/mcp`** (builder lane). Gateway (B17+B19) fronts it with auth (`X-Forwarded-Consumer` → `actor`). |
 
+## MCP gateway (`weyland-mcp-gateway` — B17+B19)
+`https://mcp.weyland.lab` — the Keycloak-authed front door for the tool-server's MCP mounts. Validates a Keycloak Bearer
+JWT (realm `weyland`, JWKS), injects `X-Forwarded-Consumer` = the token `azp` (the agent's `client_id` = the **actor**),
+and stream-proxies to the tool-server. Un-authed → **401**. Runbook: [runbooks/mcp-gateway.md](runbooks/mcp-gateway.md).
+
+| Route | Method | Purpose |
+|---|---|---|
+| `/health` | GET | liveness (no auth) |
+| `/mcp` · `/mcp-act` | MCP | authed proxy of the tool-server's read / act MCP mounts; forwards the verified actor → `guardrail_verdicts.actor`, which the enforcing `policy.gate` (weyland-guard ACT hook) keys on |
+
+Agents authenticate via Keycloak `client_credentials` (per-agent clients, `tofu/keycloak/mcp-agents.tf`); `client_id` = the actor.
+
 ## Guard service (`weyland-guard` — B70 Part 1)
 
 Internal only — `http://weyland-guard.weyland.svc.cluster.local:8080` (ClusterIP, no ingress). The shared B14 guard
@@ -52,7 +64,7 @@ layer; the tool-server (and the coming `weyland-agent`) POST here instead of run
 |---|---|---|
 | `/guard/input` | POST | `{request_id, query, actor?}` → `llm_guard.injection`. Returns `{decision: allow\|block, verdict?}` |
 | `/guard/output` | POST | `{request_id, answer, sources:[{content}], actor?}` → `llm_guard.toxicity` + `grounding.nli` |
-| `/guard/act` | POST | `{request_id, tool, params?, actor?}` → `policy.audit` (audit-only) |
+| `/guard/act` | POST | `{request_id, tool, params?, actor?}` → `policy.audit` (audit) + `policy.gate` (enforcing: identity / allowlist / rate-limit, shadow — see [runbooks/mcp-gateway.md](runbooks/mcp-gateway.md)) |
 | `/health` `/ready` | GET | liveness / readiness (503 until the 3 models load) |
 | `/metrics` | GET | `guardrail_verdicts_total` + `guardrail_validator_latency_ms` |
 

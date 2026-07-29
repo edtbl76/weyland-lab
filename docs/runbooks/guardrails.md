@@ -17,7 +17,7 @@ layer becomes the **first clean seam of the tool-server decomposition** (related
 |---|---|---|
 | `POST /guard/input` | `{request_id, query, actor?}` | `llm_guard.injection` |
 | `POST /guard/output` | `{request_id, answer, sources:[{content}], actor?}` | `llm_guard.toxicity` + `grounding.nli` |
-| `POST /guard/act` | `{request_id, tool, params?, actor?}` | `policy.audit` (audit-only) |
+| `POST /guard/act` | `{request_id, tool, params?, actor?}` | `policy.audit` (audit) + `policy.gate` (enforcing) |
 | `GET /health` | — | liveness (200 even if models failed) |
 | `GET /ready` | — | 503 until the validator set is built |
 | `GET /metrics` | — | `guardrail_verdicts_total` + `guardrail_validator_latency_ms` |
@@ -36,16 +36,24 @@ self-documenting OpenAPI, independent evolution.
   answers.
 
 ## Validators & modes
-INPUT `llm_guard.injection` · OUTPUT `llm_guard.pii` + `llm_guard.toxicity` + `grounding.nli` · ACT `policy.audit`.
+INPUT `llm_guard.injection` · OUTPUT `llm_guard.pii` + `llm_guard.toxicity` + `grounding.nli` · ACT `policy.audit` + `policy.gate`.
 All SHADOW. Two ways to change a mode:
 - **Persistent** — per-validator env on the `weyland-guard` deployment:
 ```
 GUARDRAIL_MODE__llm_guard__injection=block   # dots in the name → double underscore; values: off|shadow|flag|block
 ```
 - **Live, no restart** — the demo toggle `POST /admin/mode` (see below).
-Enforcing FLAG/BLOCK modes are scored inline and returned. The enforcing **act** policy gate for the ACT hook is
-deferred — it needs the gateway-injected `actor` for per-actor allowlist/rate-limit, so it's blocked on **B17+B19**
-(today `actor` is always `None`). B35 covered the *grounding* half of that original bundle (below).
+Enforcing FLAG/BLOCK modes are scored inline and returned.
+
+## policy.gate — the enforcing act gate (B17+B19 Phase 2, 2026-07-29)
+The MCP gateway now injects a verified `actor` (the Keycloak `client_id` via `X-Forwarded-Consumer`), so the ACT hook
+gained `policy.gate` alongside audit-only `policy.audit`. It **BLOCKs**: an act with **no actor** (a caller that
+bypassed the gateway), an actor **not in the allowlist**, a tool **not permitted** for that actor, or an actor over its
+**per-minute rate cap**. Policy = `_DEFAULT_POLICY` in `validators/policy.py` (one entry per agent, `"*"` = any tool),
+env-overridable as JSON via `GUARD_ACT_POLICY`. Ships **SHADOW** (records the would-block, enforces nothing) until every
+act caller routes through the gateway — else NULL-actor direct acts would block. Promote with
+`GUARDRAIL_MODE__policy__gate=block` or the live `/admin/mode` toggle. Full path + the fastapi-mcp header-allowlist
+gotcha: [runbooks/mcp-gateway.md](mcp-gateway.md).
 
 ## grounding.nli — calibration (B35, 2026-07-28)
 `grounding.nli` scores answer-vs-sources by **sentence-level NLI**: split the answer into claims (markdown/citation-
@@ -122,7 +130,7 @@ Image is registry-based (NOT `:local`). Consumers deploy off Argo.
 ```
 kubectl -n weyland exec deploy/weyland-guard -- python -c "import urllib.request; print(urllib.request.urlopen('http://localhost:8080/ready').read().decode())"
 ```
-`/ready` should list `grounding.nli`, `llm_guard.injection`, `llm_guard.toxicity`, `policy.audit` (not `pii`). A
+`/ready` should list `grounding.nli`, `llm_guard.injection`, `llm_guard.toxicity`, `llm_guard.pii`, `policy.audit`, `policy.gate`. A
 `POST /guard/output` with a hallucinated answer vs a contradicting source should score `grounding.nli` as `flag`
 (counter visible on `/metrics`); a jailbreak query on `/guard/input` scores `llm_guard.injection` as `block` — both
 returned as `allow` while SHADOW.
