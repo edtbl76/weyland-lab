@@ -68,7 +68,7 @@ Re-ordered per RE-grounded audit (aidlc-docs/inception/backlog-reprioritization.
 12. **B15** — Local-model coding agents (opencode / Cline / Pi / Codex) — **✅ DONE 2026-07-27** (3 harnesses proven in-hand; best driver = ChatGPT-sub GPT-5.5 via Cline/Codex, best keyed-free = Mistral/OpenRouter; local-on-16GB not viable; gateway not usable for agentic — direct-to-provider; Groq punted on broken signup). See detail below.
 13. **B17+B19** — "Mesh": A2A evaluation + MCP gateway — MERGED; same inflection point (fleet is real, govern it). Triggered after B14+B26+B27 + B3 stable + OpenClaw decision made. See detail below.
 14. **U18** — ✅ **DONE 2026-06-17 (as KEY RETIREMENT, not lockdown).** B25b removed the SFTP ingestion that U18 was hardening → the `weyland-lab` key had zero consumers (repo grep clean). Retired it instead: deleted rogueone `authorized_keys` line + the orphaned `weyland-lab-ssh-key` k8s Secret. See detail below.
-15. **B20** — Home Assistant (Hermes tool) — Hermes → HA → Google Home/Alexa/physical devices. Prerequisite: running HA instance. See detail below.
+15. **B20** — Home Assistant integration — a **generic** HA act-tool (lights/sensors/switches → Google Home/Alexa/physical devices) for the **B66 operator** / MCP gateway (Hermes retired). Prerequisites: a running HA instance + long-lived token; physical side effects → goes through the guard/act layer. See detail below.
 16. **B28** — OpenClaw rehabilitation (or retire) — **✅ RESOLVED 2026-06-25: SUPERSEDED by B66.** The keep/retire/reuse decision is no longer standalone — it's the "base agent" workstream of the consolidated [B66] Operator Agent Platform (Hermes-base vs reuse-OpenClaw's-responsiveness, decided at B66 build time). OpenClaw is NOT auto-retired (reuse candidate). Both original Qs (keep-vs-retire, refactor-vs-rewrite) move to B66.
 17. **U14** — n8n workflow → git — audit active n8n workflows before working on this. See detail below.
 18. **B34** — Evaluate + bake PII guard — ✅ **DONE 2026-07-29.** Baked presidio + ai4privacy NER, activated `llm_guard.pii` (SHADOW). Recall proven; entity set calibrated on real answers (dropped IP/UUID/CRYPTO noise, kept regex-precise + PERSON). Measured FP: 3/20, **all false positives** (NER tags tech nouns as PERSON) — so it **stays shadow/advisory**, enforcement value is on the export/PII-data paths not RAG-over-docs. Also shipped a live guard mode toggle (`/admin/mode`, Bearer-gated). See detail below.
@@ -110,15 +110,15 @@ Re-ordered per RE-grounded audit (aidlc-docs/inception/backlog-reprioritization.
 20. **B9** — Python→Go refactor — conditional; revisit when operational pain is real or agents are modifying the codebase. See detail below.
 21. **U13** — Slim sentence-transformers image / ONNX evaluation — deferred decision point: evaluate (a) swap to ONNX only, (b) both sentence-transformers + ONNX, or (c) stay with sentence-transformers. Depends on whether active embedding model experimentation is in progress at the time. See detail below.
 22. **B22** — SearXNG — Extra; Tavily works fine. See detail below.
-23. **B18** — Spotify (Hermes tool) — Extra. See detail below.
+23. **B18** — Spotify (Hermes tool) — ⚰️ **CLOSED 2026-07-29** (Hermes retired). If Spotify control is still wanted, re-file as a **B66-operator / MCP tool** — not resurrected here. See detail below.
 24. **U16** — Weaviate UI — Extra; evaluate whether still needed (native Weaviate UI may suffice). See detail below.
 25. **B30** — Real-time docs ingestion trigger — self-hosted GitHub Actions runner on the LAN fires Dagster `launchRun` on push (NAT-free near-real-time). Deferred; cron fine until 15-min latency bites. See detail below.
-26. **B32** — NeMo Guardrails evaluation — programmable conversational guardrails (Colang DSL: topical/dialog/jailbreak rails). Deferred from B14 (heavy framework + new language; built for dialog mgmt, not I/O scanning). Evaluate for the **Layer-2 agent layer** (Hermes dialog/topical rails), not the tool-server I/O pipeline. See detail below.
+26. **B32** — NeMo Guardrails evaluation — programmable conversational guardrails (Colang DSL: topical/dialog/jailbreak rails). Deferred from B14 (heavy framework + new language; built for dialog mgmt, not I/O scanning). Evaluate for the **agent layer** (the B66 operator's dialog/topical rails — Hermes retired), not the tool-server I/O pipeline. See detail below.
 27. **B38** — **Fuzzy GraphRAG: LLM concept/entity extraction** over the AIDLC KB (and `docs/`) — extract entities + *emergent* relationships from **prose** (beyond the declared frontmatter links) into Neo4j, à la Microsoft GraphRAG. **Deferred from B37**, which ships the deterministic frontmatter graph (`RELATED_TO`/`SURFACES_AT`/`TAGGED`). Why deferred: heavy on local CPU Ollama (517 docs × extraction passes, re-run on change), fuzzy/non-deterministic, needs an entity/relation schema + canonicalization/dedup ("DDD" = "Domain-Driven Design"), and low marginal value while the author-declared frontmatter already yields a high-precision graph for ~free. **Revisit once** B37 proves corpus value AND/OR a bigger model / GPU lands (pairs with B7 eGPU / B33).
 
 28. **B44** — **Grafana OnCall** (incident lifecycle) — deferred Extra. Adds structured incident timeline + postmortem log on top of existing Alertmanager→Telegram alerting. Cruft: 2 always-on pods (oncall + celery) + Redis + a Postgres DB role. **Gate:** only worth it if a real multi-service incident workflow need emerges (escalation chains, on-call rotation, postmortem process). At N=1 with Telegram already covering paging, this is a "do we ever actually use it?" bet. If it hasn't been stood up by the time the data mesh + agent platform are stable, **drop it entirely**. Grafana plugin enable only — no new Grafana pod.
 
-29. **B45** — **Hermes incident-response (agent-in-the-loop)** — deferred Extra. Let Hermes *enrich + act on* incidents (correlate, dedup, "tool-server down → here's the last log → restarted it") rather than just raw "X is down" pings. **Hard constraint:** consume incident signals **off the critical alert path** (read from Port, or a fan-out) — **never** route Kuma→Hermes→Telegram, because monitoring must not depend on an agent that can itself fail (Hermes is outbound-only today + the fragile layer). Direct Kuma→Telegram stays the paging path. Gated on the agent platform maturing.
+29. **B45** — **Operator incident-response (agent-in-the-loop)** — deferred Extra. **Reframed 2026-07-29 (Hermes retired → the B66 operator):** let the **operator** *enrich + act on* incidents (correlate, dedup, "tool-server down → here's the last log → restarted it") rather than just raw "X is down" pings. **Hard constraint (unchanged):** consume incident signals **off the critical alert path** (read from Port, or a fan-out) — **never** route Kuma→operator→Telegram, because monitoring must not depend on an agent that can itself fail. Direct Kuma→Telegram stays the paging path. Gated on the operator platform maturing.
 
 30. **B39** — **Design→code workflow (Figma → code)** — stand up a design-to-code pipeline using the **Figma MCP** (already available in-session): pull Figma designs/components into implemented UI code (and optionally code→Figma sync). Gives the lab's UI surfaces — U16 (Weaviate UI), B3 (Backstage), future dashboards — a consistent design system instead of ad-hoc per-tool UIs. $0: Figma has a free tier. **Open:** (1) Figma account + design system/tokens; (2) which UI to target first; (3) where design artifacts live (a `design/` area in the repo?); (4) Figma-MCP auth in headless/cron vs interactive-only.
 
@@ -642,7 +642,10 @@ native A2A support in each platform (cheap if shipped, heavy if we must adapter 
 peer-mesh need vs the cheaper MCP-tool bridge; (c) A2A would sit *alongside* MCP on one edge — nothing in the
 MCP-based B2 build is wasted. **Default until then: MCP for everything, incl. the Hermes→OpenClaw bridge.**
 
-### B18 — Spotify integration (Hermes tool)
+### B18 — Spotify integration (Hermes tool) — ⚰️ CLOSED 2026-07-29 (Hermes retired)
+**Closed** — the Hermes framing is dead. Spotify control as a feature is still plausibly wanted; if so it re-files as a
+new **B66-operator / MCP tool** (not a Hermes tool). Original detail retained below for the use-case notes.
+
 Wire Hermes's `spotify` tool (playback / search / playlists / library) — **wanted: user has concrete use
 cases** (CAPTURE them here — they drive scope + priority). Disabled in B2 v1 (off-theme for a system-view
 agent, and setup-heavy). **Needs:** a Spotify *developer app* (client ID/secret), an **OAuth** flow to
@@ -686,15 +689,16 @@ don't rebuild them:
 - **Decision recorded:** no client-supplied identity is ever trusted (anti-spoofing). Identity is a
   gateway-asserted header or absent — this work must not loosen that.
 
-### B20 — Home Assistant integration (Hermes tool)
-Enable Hermes's `home_assistant` tool — extend the agent's "system view" from infra to the **physical
-environment** (lights, sensors, switches). **Gated on two things, not GPU:** (1) a running Home Assistant
-instance on the LAN (none yet) + a long-lived token; (2) it's an **act tool with physical side effects**, so
-it belongs in the **read+act phase with B14 guardrails**, not read-only v1. Disabled in B2 v1. One-line
-`hermes tools` enable once HA exists and guardrails are in.
+### B20 — Home Assistant integration
+A **generic** Home Assistant act-tool — extend the agent's "system view" from infra to the **physical
+environment** (lights, sensors, switches). **Reframed 2026-07-29:** Hermes is retired, so this is a tool for the
+**B66 operator** (weyland-operator) — or any agent behind the tool-server / MCP gateway — not a Hermes tool.
+**Gated on two things, not GPU:** (1) a running Home Assistant instance on the LAN (none yet) + a long-lived
+token; (2) it's an **act tool with physical side effects**, so it goes through the guard/act layer (B14 → the
+enforcing act gate on B17+B19), not a read-only surface.
 
 ### B21 — Agent media generation (image / video / TTS)
-Enable Hermes's `image_generate`, `video_generate`, `text_to_speech` tools — **gated on the eGPU decision**
+Enable the **operator's** `image_generate` / `video_generate` / `text_to_speech` act-tools (Hermes retired → the B66 operator / MCP gateway) — **gated on the eGPU decision**
 (see Tentative). All are diffusion / GPU-hungry and do **NOT** run on Ollama/CPU, so on the current CPU-only
 box they'd be dead tools eating the agent's context. Disabled in B2 v1. Folds into the eGPU + audio-gen-GPU
 items in Tentative (shared VRAM-diffusion need). `vision_analyze` (image *analysis*, not generation) stays
@@ -845,7 +849,7 @@ this bolts on with zero rework.
 wrapping the LLM as a conversational control layer. **Deferred from B14** because it's the heaviest option (a
 whole framework + a new language) and built for **dialog management**, not the request/response **I/O scanning**
 B14's tool-server pipeline does (Llama Guard + LLM Guard + grounding judge cover that). **Where it might fit:**
-the **Layer-2 agent layer** (Hermes) for dialog/topical rails — evaluate then. Not the tool-server seam.
+the **agent layer** (the B66 operator — Hermes retired) for dialog/topical rails — evaluate then. Not the tool-server seam.
 
 ### B34 — Evaluate + bake PII guard (Maturity / Hardening / Polish) — ✅ DONE 2026-07-29
 B14 shipped the **PII validator coded but unbaked**: the `PIIValidator` (llm_guard `Sensitive` → presidio
@@ -916,7 +920,7 @@ for labeling) and feeds the B1 model-eval data product. **Depends on:** B14 shad
 - Files: `services/weyland-guard/guardrails/validators/grounding.py`, `k8s/weyland-guard/deployment.yaml`. Runbook:
   [runbooks/guardrails.md](runbooks/guardrails.md).
 
-### B36 — Hermes dashboard performance (Maturity / Hardening / Polish)
+### B36 — Hermes dashboard performance (Maturity / Hardening / Polish) — ⚰️ CLOSED 2026-07-29 (Hermes retired; the dashboard it optimized no longer exists)
 **Context — deployed 2026-06-17 (ad-hoc, out of roadmap order).** The native Hermes web dashboard (config /
 sessions / **Kanban** view) is live: web UI **built on rogueone** (the pip install shipped source only, with
 devDeps omitted → built there, `web_dist` shipped to CT 104), served localhost-only by a systemd unit
@@ -1070,8 +1074,8 @@ Fresh shell, raw-httpx Telegram, `asyncio.to_thread` for the blocking loop, per-
   - **Tools** — **B20** (Home Assistant), **B18** (Spotify), **B21** (media-gen).
   - **Guardrails** — **B32** (NeMo dialog/topical rails for the agent layer).
   - **Mesh / delegation** — **B17+B19** (A2A + MCP gateway), **B15** (local coding agents Hermes delegates to).
-  - **Ops** — **B36** (dashboard perf), **B52** (Hermes error tracking).
-- **Split into two efforts (2026-06-25, mirrors Linear):** **B66 = core** (brain, base agent, ingress, act, mesh — keeps B15, B17+B19, B20, B36, B28) · **"Operator Agent Platform (Enhancements)"** (Linear EMA-56, sibling, Low) = the agent extras **B18** (Spotify), **B32** (NeMo dialog rails), **B45** (incident-response), **B52** (error tracking).
+  - **Ops** — ~~B36 (dashboard perf), B52 (Hermes error tracking)~~ both **⚰️ CLOSED/MOOT 2026-07-29** (Hermes retired).
+- **Split into two efforts (2026-06-25, mirrors Linear):** **B66 = core** (brain, base agent, ingress, act, mesh — keeps B15, B17+B19, B20, B28) · **"Operator Agent Platform (Enhancements)"** (Linear EMA-56, sibling, Low) = the agent extras **B45** (operator incident-response, reframed), **B32** (NeMo dialog rails). *(Hermes-framed items closed 2026-07-29: B18 Spotify, B36 dashboard, B52 error-tracking.)*
 - **Done base (context, not re-scoped):** B2 (platform), B26 (LiteLLM brain), B27 (kanban).
 - **Resource note:** OpenClaw's 8 GB/4 CPU retirement (floated in the reallocation plan) is now **contingent on the base-agent decision** — if OpenClaw is reused, it stays.
 - **Sequencing (decided 2026-07-22):** B66 is the **High/Core umbrella** for the whole agent lane — B15/B17+B19/B20/B36 + the Enhancements sub-tree all nest under it (one parent, one tree). **Design DEFERRED by choice** — High-but-sequenced, not stalled. Two gates before the big-rock design starts: (1) **B70 first** (agentic RAG on LangGraph — unblocked, High, produces the framework evidence that informs the base-agent call); (2) a **brain-viability spike** — prove the $0 Claude-via-Max-subscription-headless path (`claude -p` / Agent SDK) is technically viable on CT 104 AND acceptable under Anthropic ToS (subscription auth is for interactive use — a persistent headless agent is the risk). **If the spike fails, the B66 thesis collapses, so it comes first.** ~30 min, de-risks a big rock. **Design insight for later:** the brain decision COLLAPSES the base-agent one — a Claude brain means neither Hermes nor OpenClaw's native brain matters, so B28 becomes "which ingress+act shell," not "which brain." Own brainstorm → `aidlc-docs/` when reached; orthogonal to the data mesh.
