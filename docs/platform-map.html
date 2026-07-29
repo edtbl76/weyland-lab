@@ -114,7 +114,7 @@
 
   <p class="eyebrow">Weyland · Platform Map · 2026-07</p>
   <h1 class="title">One box. <span class="fade">Every tool,</span> and what it's for.</h1>
-  <p class="lede">A homelab where a governed <b>lakehouse</b> is the substrate and two agent lanes close the loop - <b>Claude Code</b> builds; the operator-agent half (the <b>B66 operator</b>) is <b>live</b> — a local-brained (gpt-oss:20b) LangGraph agent on mother, replacing the retired Hermes. Every technology below runs on a single bare-metal Minisforum MS-A2 (plus one GPU laptop), LAN-only, on a $0 budget. This is the full inventory - the numbered spine is the value path (raw data → data products); each row shows the tool, its job, and a <b>real example of it in use</b>.</p>
+  <p class="lede">An <b>R&amp;D platform</b> where a governed <b>lakehouse</b> is the substrate and two agent lanes close the loop - <b>Claude Code</b> builds; the <b>operator agent</b> is <b>live</b>, a local-brained (gpt-oss:20b) LangGraph agent on mother. Every technology below runs on a single bare-metal Minisforum MS-A2 (plus one GPU laptop), LAN-only, on a $0 budget — constraints treated as design. This is the full inventory - the numbered spine is the value path (raw data → data products); each row shows the tool, its job, and a <b>real example of it in use</b>.</p>
 
   <div class="meta">
     <div><div class="n">130+</div><div class="l">Integrations</div></div>
@@ -150,7 +150,7 @@
         <div class="row"><span class="nm"><i class="cdot"></i>mc</span><div><div class="rl">MinIO client CLI</div><span class="ex">mc mirror lakeFS → LanceDB-viewer PVC on lancedb_load</span></div></div>
         <div class="row"><span class="nm"><i class="cdot"></i>musicbrainz-docker</span><div><div class="rl">native mbdump importer (k8s Job)</div><span class="ex">recreatedb.sh -fetch loads 2.9M artists / 39.3M recordings</span></div></div>
         <div class="row"><span class="nm"><i class="cdot"></i>n8n</span><div><div class="rl">workflow automation</div><span class="ex">retained automation after ingestion role moved to Dagster</span></div></div>
-        <div class="row plan"><span class="nm"><i class="cdot"></i>dlt</span><div><div class="rl">declarative extract-load</div><span class="ex">B1.5 EL lane - recorded, not built</span></div></div>
+        <div class="row plan"><span class="nm"><i class="cdot"></i>dlt</span><div><div class="rl">declarative extract-load</div><span class="ex">extract-load lane - recorded, not built</span></div></div>
       </div>
     </section>
 
@@ -171,7 +171,7 @@
         <div class="row"><span class="nm"><i class="cdot"></i>Parquet · Arrow · Avro · Lance</span><div><div class="rl">the 4 silver formats</div><span class="ex">columnar · zero-copy IPC · Kafka-row · ML/vector - one write each</span></div></div>
         <div class="row"><span class="nm"><i class="cdot"></i>polars · pyarrow · pandas</span><div><div class="rl">dataframe readers</div><span class="ex">seed notebook + broker read all 4 silver formats</span></div></div>
         <div class="row plan"><span class="nm"><i class="cdot"></i>Flink</span><div><div class="rl">stream processing</div><span class="ex">on-demand Flink Operator → Redpanda (windowed aggs / CDC materialize)</span></div></div>
-        <div class="row plan"><span class="nm"><i class="cdot"></i>SQLMesh</span><div><div class="rl">SQL modeling</div><span class="ex">B1.5 evaluate-later</span></div></div>
+        <div class="row plan"><span class="nm"><i class="cdot"></i>SQLMesh</span><div><div class="rl">SQL modeling</div><span class="ex">evaluate-later</span></div></div>
       </div>
     </section>
 
@@ -189,9 +189,9 @@
         <div class="row"><span class="nm"><i class="cdot"></i>PodSecurity Admission</span><div><div class="rl">pod-hardening baseline</div><span class="ex">restricted floor enforced every namespace</span></div></div>
         <div class="row"><span class="nm"><i class="cdot"></i>Keycloak</span><div><div class="rl">central IdP / SSO</div><span class="ex">weyland realm behind every browser UI (OIDC + forward-auth)</span></div></div>
         <div class="row"><span class="nm"><i class="cdot"></i>traefik-forward-auth</span><div><div class="rl">edge forward-auth gate</div><span class="ex">auth.weyland.lab gates MLflow / Nessie / lakeFS / Dagster</span></div></div>
-        <div class="row"><span class="nm"><i class="cdot"></i>weyland-guard (LLM Guard + NLI)</span><div><div class="rl">shared guard service (B70)</div><span class="ex">/guard/{input,output,act} · shadow · fail-open · serves tool-server + agent</span></div></div>
+        <div class="row"><span class="nm"><i class="cdot"></i>weyland-guard (LLM Guard + NLI)</span><div><div class="rl">shared guard service</div><span class="ex">/guard/{input,output,act} · shadow · fail-open · serves tool-server + agent</span></div></div>
         <div class="row part"><span class="nm"><i class="cdot"></i>NLI grounding</span><div><div class="rl">answer-grounding check (shadow)</div><span class="ex">grounding.nli emits max_entailment ∈ [0,1]</span></div></div>
-        <div class="row plan"><span class="nm"><i class="cdot"></i>Presidio · NeMo Guardrails</span><div><div class="rl">PII redaction · dialog rails</div><span class="ex">coded / evaluated, not baked in - B34 / B32</span></div></div>
+        <div class="row plan"><span class="nm"><i class="cdot"></i>Presidio · NeMo Guardrails</span><div><div class="rl">PII redaction · dialog rails</div><span class="ex">coded / evaluated, not baked in</span></div></div>
       </div>
     </section>
 
@@ -218,7 +218,7 @@
 
       <div class="grp-l">Operational stores - relational · OLAP · time-series · document</div>
       <div class="rows">
-        <div class="row"><span class="nm"><i class="cdot"></i>Postgres + pgvector</span><div><div class="rl">RAG spine + eval tables</div><span class="ex">rag_chunks 768-dim vectors (bge-base, B74) + eval_leaderboard</span></div></div>
+        <div class="row"><span class="nm"><i class="cdot"></i>Postgres + pgvector</span><div><div class="rl">RAG spine + eval tables</div><span class="ex">rag_chunks 768-dim vectors (bge-base) + eval_leaderboard</span></div></div>
         <div class="row"><span class="nm"><i class="cdot"></i>MusicBrainz Postgres</span><div><div class="rl">native relational graph</div><span class="ex">most-prolific artists by recording count via artist_credit</span></div></div>
         <div class="row"><span class="nm"><i class="cdot"></i>MySQL</span><div><div class="rl">relational health store (6 DBs)</div><span class="ex">SELECT TimeDim, NumericValue FROM who_gho WHERE SpatialDim='USA'</span></div></div>
         <div class="row"><span class="nm"><i class="cdot"></i>CockroachDB</span><div><div class="rl">distributed SQL</div><span class="ex">SELECT genhlth, count(*) FROM brfss GROUP BY genhlth</span></div></div>
@@ -244,7 +244,7 @@
         <div class="row"><span class="nm"><i class="cdot"></i>vLLM</span><div><div class="rl">GPU LLM serving (Qwen)</div><span class="ex">low-latency utility inference at rogueone:8000/v1</span></div></div>
         <div class="row"><span class="nm"><i class="cdot"></i>whisper.cpp</span><div><div class="rl">CPU speech-to-text (large-v3)</div><span class="ex">whisper.weyland.lab:8080/inference - voice → text</span></div></div>
         <div class="row"><span class="nm"><i class="cdot"></i>LiteLLM</span><div><div class="rl">OpenAI-compatible model gateway</div><span class="ex">fronts all Gemini + OpenRouter, human-gated egress valve</span></div></div>
-        <div class="row"><span class="nm"><i class="cdot"></i>sentence-transformers</span><div><div class="rl">bge-base-en-v1.5, 768-dim embeddings (B74)</div><span class="ex">encodes queries + chunks; baked into tool-server + Dagster images</span></div></div>
+        <div class="row"><span class="nm"><i class="cdot"></i>sentence-transformers</span><div><div class="rl">bge-base-en-v1.5, 768-dim embeddings</div><span class="ex">encodes queries + chunks; baked into tool-server + Dagster images</span></div></div>
       </div>
     </section>
 
@@ -265,16 +265,16 @@
       <div class="num">06</div>
       <div class="stage-head"><h2>Products &amp; ML</h2><span class="role">the output the mesh exists for</span></div>
       <div class="rows">
-        <div class="row"><span class="nm"><i class="cdot"></i>MLflow</span><div><div class="rl">tracking + registry + GenAI Traces + Prompt Registry</div><span class="ex">B100: per-step Traces across agent / operator / tool-server RAG; 4 versioned prompts hot-swapped live from the registry</span></div></div>
+        <div class="row"><span class="nm"><i class="cdot"></i>MLflow</span><div><div class="rl">tracking + registry + GenAI Traces + Prompt Registry</div><span class="ex">per-step Traces across agent / operator / tool-server RAG; 4 versioned prompts hot-swapped live from the registry</span></div></div>
         <div class="row"><span class="nm"><i class="cdot"></i>Ray + Ray Tune</span><div><div class="rl">persistent training cluster + HP sweep</div><span class="ex">genre-trainer --tune → winner retrains on rogueone worker (f1 ~0.31)</span></div></div>
         <div class="row"><span class="nm"><i class="cdot"></i>genre-trainer</span><div><div class="rl">remote model-training container</div><span class="ex">--source mart reads iceberg.dbt.mart_spotify_audio → lakeFS training set</span></div></div>
-        <div class="row"><span class="nm"><i class="cdot"></i>LlamaIndex</span><div><div class="rl">RAG retrieval framework</div><span class="ex">tool-server single-shot + weyland-agent's 4 custom retrievers (B70)</span></div></div>
+        <div class="row"><span class="nm"><i class="cdot"></i>LlamaIndex</span><div><div class="rl">RAG retrieval framework</div><span class="ex">tool-server single-shot + weyland-agent's 4 custom retrievers</span></div></div>
         <div class="row"><span class="nm"><i class="cdot"></i>Model-eval leaderboard</span><div><div class="rl">data product · judge-panel scoring</div><span class="ex">eval_leaderboard over RAG × 6 models, 3-judge panel</span></div></div>
         <div class="row"><span class="nm"><i class="cdot"></i>AI-Dev usage</span><div><div class="rl">data product · Claude Code telemetry</div><span class="ex">ai_session_ingest → Port; api_equiv_value ≈ $12K, $0 spent</span></div></div>
         <div class="row"><span class="nm"><i class="cdot"></i>DataHub Data Products</span><div><div class="rl">mesh product bundles</div><span class="ex">9 products (Spotify Audio, Chronic Health Trends, Genre Classifier…)</span></div></div>
         <div class="row plan"><span class="nm"><i class="cdot"></i>Store-inventory · Tuning-feed</span><div><div class="rl">next data products</div><span class="ex">lineage/observability · Feast → MLflow fine-tuning loop</span></div></div>
-        <div class="row"><span class="nm"><i class="cdot"></i>LangGraph</span><div><div class="rl">agentic-RAG control loop (B70)</div><span class="ex">retrieve → grade → reflect/re-retrieve → generate; powers weyland-agent</span></div></div>
-        <div class="row"><span class="nm"><i class="cdot"></i>weyland-agent</span><div><div class="rl">agentic RAG service (B70)</div><span class="ex">agent.weyland.lab · LangGraph + LlamaIndex + MLflow Traces · guards via weyland-guard</span></div></div>
+        <div class="row"><span class="nm"><i class="cdot"></i>LangGraph</span><div><div class="rl">agentic-RAG control loop</div><span class="ex">retrieve → grade → reflect/re-retrieve → generate; powers weyland-agent</span></div></div>
+        <div class="row"><span class="nm"><i class="cdot"></i>weyland-agent</span><div><div class="rl">agentic RAG service</div><span class="ex">agent.weyland.lab · LangGraph + LlamaIndex + MLflow Traces · guards via weyland-guard</span></div></div>
       </div>
     </section>
 
@@ -313,7 +313,7 @@
       <div class="row"><span class="nm"><i class="cdot"></i>Prometheus</span><div><div class="rl">metrics TSDB</div><span class="ex">scrapes qdrant / weaviate / apisix / coredns / tool-server / minio</span></div></div>
       <div class="row"><span class="nm"><i class="cdot"></i>Grafana</span><div><div class="rl">LGTM dashboards</div><span class="ex">Ray dashboards + guardrail / Gatekeeper panels</span></div></div>
       <div class="row"><span class="nm"><i class="cdot"></i>Loki + Grafana Alloy</span><div><div class="rl">log aggregation + collector</div><span class="ex">Alloy ships logs to Loki on MinIO; LogQL ruler → Telegram</span></div></div>
-      <div class="row"><span class="nm"><i class="cdot"></i>Tempo</span><div><div class="rl">distributed tracing</div><span class="ex">Istio + Kiali repointed to Tempo (Jaeger retired, B48)</span></div></div>
+      <div class="row"><span class="nm"><i class="cdot"></i>Tempo</span><div><div class="rl">distributed tracing</div><span class="ex">Istio + Kiali repointed to Tempo (Jaeger retired)</span></div></div>
       <div class="row"><span class="nm"><i class="cdot"></i>Alertmanager</span><div><div class="rl">alert routing</div><span class="ex">native → Telegram @weyland_alerts_bot</span></div></div>
       <div class="row"><span class="nm"><i class="cdot"></i>Kiali</span><div><div class="rl">Istio mesh topology UI</div><span class="ex">read-only mesh graph, Keycloak forward-auth</span></div></div>
       <div class="row"><span class="nm"><i class="cdot"></i>GlitchTip + Sentry SDK</span><div><div class="rl">error tracking (Sentry-compatible)</div><span class="ex">tool-server + Dagster errors → Port glitchtip_issue</span></div></div>
@@ -326,14 +326,14 @@
   <section class="plane">
     <h2>Agents &amp; Interfaces<span class="role">build lane · operate lane · remote ingress</span></h2>
     <div class="rows">
-      <div class="row"><span class="nm"><i class="cdot"></i>Hermes</span><div><div class="rl">RETIRED 2026-07-23 (CT-104 destroyed)</div><span class="ex">NousResearch operator agent — replaced by the B66 operator (gpt-oss brain, LangGraph on mother)</span></div></div>
+      <div class="row"><span class="nm"><i class="cdot"></i>Hermes</span><div><div class="rl">RETIRED 2026-07-23 (CT-104 destroyed)</div><span class="ex">NousResearch operator agent — replaced by the operator agent (gpt-oss brain, LangGraph on mother)</span></div></div>
       <div class="row"><span class="nm"><i class="cdot"></i>Claude Code</span><div><div class="rl">builder agent / MCP client</div><span class="ex">claude mcp add weyland → status returns 4 backends + models</span></div></div>
-      <div class="row"><span class="nm"><i class="cdot"></i>Coding agents (B15)</span><div><div class="rl">opencode / Cline / Pi / Codex — $0 agentic coding TUIs</div><span class="ex">direct to Mistral/OpenRouter/Gemini free or ChatGPT sub (GPT-5.5); bypasses the gateway (which can't carry a multi-turn tool loop)</span></div></div>
+      <div class="row"><span class="nm"><i class="cdot"></i>Coding agents</span><div><div class="rl">opencode / Cline / Pi / Codex — $0 agentic coding TUIs</div><span class="ex">direct to Mistral/OpenRouter/Gemini free or ChatGPT sub (GPT-5.5); bypasses the gateway (which can't carry a multi-turn tool loop)</span></div></div>
       <div class="row"><span class="nm"><i class="cdot"></i>MCP</span><div><div class="rl">/mcp read · /mcp-act do</div><span class="ex">fastapi-mcp system-view + audited act tools (pipeline/evals)</span></div></div>
       <div class="row"><span class="nm"><i class="cdot"></i>Telegram</span><div><div class="rl">remote ingress + alerts</div><span class="ex">allowlisted DM → operator reply; Alertmanager paging</span></div></div>
       <div class="row"><span class="nm"><i class="cdot"></i>Anthropic Claude API</span><div><div class="rl">cloud reasoning brain</div><span class="ex">Claude Code drives builds over the metered API</span></div></div>
       <div class="row"><span class="nm"><i class="cdot"></i>Open WebUI</span><div><div class="rl">browser chat / voice front end</div><span class="ex">chat.weyland.lab - chat ← Ollama, voice ← whisper shim</span></div></div>
-      <div class="row"><span class="nm"><i class="cdot"></i>weyland-operator (B66)</span><div><div class="rl">local-brained LangGraph operator (live 2026-07-24 — Postgres session, act confirm-step)</div><span class="ex">gpt-oss:20b brain (bake-off: ties Haiku), Telegram → tool-server /mcp-act, on mother; replaces retired Hermes</span></div></div>
+      <div class="row"><span class="nm"><i class="cdot"></i>weyland-operator</span><div><div class="rl">local-brained LangGraph operator (live 2026-07-24 — Postgres session, act confirm-step)</div><span class="ex">gpt-oss:20b brain (bake-off: ties Haiku), Telegram → tool-server /mcp-act, on mother; replaces retired Hermes</span></div></div>
     </div>
   </section>
 
@@ -357,7 +357,7 @@
   <footer class="wf">
     <b>The loop:</b> intent (Port + roadmap) → data product → operation (agents) → telemetry (Grafana / Port) → new intent.<br>
     <b>Constraints as design:</b> one Minisforum MS-A2 + one RTX-5000 laptop · LAN-only · $0 budget · self-hosted first · heavy tiers on-demand.<br>
-    <b>Two lanes:</b> Claude Code sees &amp; builds · the B66 operator (sees &amp; does — local gpt-oss brain, LangGraph on mother, live) is the operator half. · <b>Retired/declined:</b> Hermes, Backstage, Jaeger, Strimzi, Airbyte, Airflow, KubeRay.
+    <b>Two lanes:</b> Claude Code sees &amp; builds · the operator agent (sees &amp; does — local gpt-oss brain, LangGraph on mother, live) is the operator half. · <b>Retired/declined:</b> Hermes, Backstage, Jaeger, Strimzi, Airbyte, Airflow, KubeRay.
   </footer>
 
 </div>

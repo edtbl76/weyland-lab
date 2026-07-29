@@ -259,7 +259,7 @@
   </figure>
 
   <div class="sectionlabel">The eight-layer architecture — raw data to data products</div>
-  <p class="sublede">The self-serve platform, layer by layer (the B1 build order: storage → federation → transform →
+  <p class="sublede">The self-serve platform, layer by layer (build order: storage → federation → transform →
   catalog → governance → analytics → BI → data science). Solid chips are live; dashed are on-demand (scaled to zero
   until triggered).</p>
   <div class="spine">
@@ -348,7 +348,7 @@
     <div class="prod"><p class="pt">Genre Classifier</p><p class="pd">Model trained off the marts, tracked in MLflow.</p><span class="src">genre-trainer → Ray → MLflow registry</span></div>
     <div class="prod"><p class="pt">Model-Eval Leaderboard</p><p class="pd">RAG × 6 models, 3-judge-panel scoring.</p><span class="src">eval_leaderboard</span></div>
     <div class="prod"><p class="pt">AI-Dev Usage</p><p class="pd">Claude Code telemetry — ~$12K API-equiv, $0 spent.</p><span class="src">ai_session_ingest → Port</span></div>
-    <div class="prod"><p class="pt">Agentic RAG + operator</p><p class="pd">The mesh consumed — retrieval + a lab operator.</p><span class="src">weyland-agent · weyland-operator (B66)</span></div>
+    <div class="prod"><p class="pt">Agentic RAG + operator</p><p class="pd">The mesh consumed — retrieval + an operator agent.</p><span class="src">weyland-agent · weyland-operator</span></div>
   </div>
   <div class="demos-row" style="margin-top:16px">
     <a class="demo" href="https://docs.weyland.lab/demos/eval/">eval harness</a>
