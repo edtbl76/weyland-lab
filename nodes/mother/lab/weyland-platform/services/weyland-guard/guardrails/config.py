@@ -15,7 +15,10 @@ _DEFAULT = {
         ("grounding.nli", Mode.SHADOW),
     ],
     Hook.ACT: [
-        ("policy.audit", Mode.SHADOW),   # audit-only; the enforcing act policy gate → B17+B19 (needs the gateway `actor`).
+        ("policy.audit", Mode.SHADOW),   # audit-only record that an act fired.
+        ("policy.gate", Mode.SHADOW),    # B17+B19 Phase 2: ENFORCING allowlist / rate-limit / block, keyed on the
+                                         #   gateway-injected actor. SHADOW until every act caller routes through the
+                                         #   gateway (else NULL-actor acts would block), then promote to `block`.
     ],
 }
 
