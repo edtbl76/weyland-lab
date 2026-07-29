@@ -685,13 +685,15 @@ def metrics():
 # READ surface (B2): read-only tools tagged "mcp" (/status, /context/search, /context/ask,
 # /models), mounted at /mcp. Consumers: Claude Code (read lane) + the coming B66 operator agent (Hermes retired 2026-07-23):
 #   http://<host>:30080/mcp
-mcp = FastApiMCP(app, name="weyland-system-view", include_tags=["mcp"])
+# headers=: fastapi-mcp forwards ONLY allow-listed headers from the MCP request into the tool invocation (default just
+# `authorization`). Add `x-forwarded-consumer` so the gateway-injected actor reaches the `_actor` dependency (B17+B19).
+mcp = FastApiMCP(app, name="weyland-system-view", include_tags=["mcp"], headers=["authorization", "x-forwarded-consumer"])
 mcp.mount_http()   # Streamable HTTP at /mcp — the transport remote agents connect to by URL
 
 # ACT surface (B14 read+act): the action tools tagged "mcp-act" (/pipeline/trigger, /evals/run,
 # /evals/score) on a SEPARATE mount at /mcp-act, so the gateway (B17+B19) can front /mcp-act with
 # auth/policy while /mcp stays open. Agents must register /mcp-act explicitly to gain act tools —
 # read access never implies act access. Every act call is audited by the `act` hook (policy.audit,
-# shadow) → guardrail_verdicts; the enforcing policy gate is deferred to the B35 pairing.
-mcp_act = FastApiMCP(app, name="weyland-act", include_tags=["mcp-act"])
+# shadow) → guardrail_verdicts; the enforcing policy gate is B17+B19 (now that the gateway injects a real actor).
+mcp_act = FastApiMCP(app, name="weyland-act", include_tags=["mcp-act"], headers=["authorization", "x-forwarded-consumer"])
 mcp_act.mount_http(mount_path="/mcp-act")
