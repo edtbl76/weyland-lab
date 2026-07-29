@@ -20,14 +20,13 @@ spec:
       enableServiceLinks: false
       containers:
         - name: weyland-guard
-          image: registry.weyland.lab/weyland-guard:v5
+          image: registry.weyland.lab/weyland-guard:v6
           imagePullPolicy: IfNotPresent
           resources:
-            # Loads 3 transformer models (injection DeBERTa + toxicity + NLI cross-encoder). The tool-server ran the
-            # same 3 + bge at ~929Mi steady / 3Gi limit; this pod carries only the guard models, so 2Gi is ample
-            # headroom. B99-aware: net node memory drops once Part 2 sheds these models from the tool-server.
+            # Loads 4 models: injection DeBERTa + toxicity + NLI cross-encoder + (B34) the PII NER model. 3Gi covers
+            # the startup load of all four; trim once steady-state usage is measured.
             requests: { memory: 768Mi, cpu: 100m }
-            limits: { memory: 2560Mi }   # B35: +512Mi headroom — grounding now runs NLI over per-sentence claims (bounded + serialized, but 3 models can still peak together)
+            limits: { memory: 3072Mi }   # B35 grounding NLI headroom (2560Mi) + B34 PII model (~480MB, 4th model) → 3Gi for startup load; trim after measuring
           securityContext:
             runAsNonRoot: true
             runAsUser: 10001
@@ -43,7 +42,7 @@ spec:
           # liveness/readiness take over. /ready 503s until the validators are built.
           startupProbe:
             httpGet: { path: /health, port: 8080 }
-            failureThreshold: 30
+            failureThreshold: 48   # B34: the 4th model (PII) lengthens the load window → ~4 min before liveness takes over
             periodSeconds: 5
           livenessProbe:
             httpGet: { path: /health, port: 8080 }
@@ -65,3 +64,9 @@ spec:
             - name: WEYLAND_DB_PASSWORD
               valueFrom:
                 secretKeyRef: { name: weyland-postgres-secret, key: POSTGRES_PASSWORD }
+            # /admin/* auth (demo toggle). optional:true so the pod still starts before the Secret exists — the admin
+            # routes stay fail-closed (503) until the token is wired. Create out-of-band (NOT committed):
+            #   kubectl -n weyland create secret generic weyland-guard-admin --from-literal=token=$(openssl rand -hex 24)
+            - name: GUARD_ADMIN_TOKEN
+              valueFrom:
+                secretKeyRef: { name: weyland-guard-admin, key: token, optional: true }

@@ -35,12 +35,22 @@ class ToxicityValidator:
         return _verdict(self.name, is_valid, score, "toxicity")
 
 
+# B34: PII entities tuned for an INFRA lab. llm_guard's Sensitive defaults include IP_ADDRESS + UUID,
+# which would false-positive on every LAN 192.168.x.x and every k8s UUID in a RAG answer — pure noise.
+# Keep only the genuinely-sensitive entities that match the export / PII-data triggers this guard exists for.
+_PII_ENTITIES = [
+    "PERSON", "EMAIL_ADDRESS", "EMAIL_ADDRESS_RE", "PHONE_NUMBER",
+    "US_SSN", "US_SSN_RE", "CREDIT_CARD", "CREDIT_CARD_RE",
+    "IBAN_CODE", "US_BANK_NUMBER", "CRYPTO",
+]
+
+
 class PIIValidator:
     name = "llm_guard.pii"
     hooks = (Hook.OUTPUT,)
 
     def __init__(self):
-        self._s = Sensitive()
+        self._s = Sensitive(entity_types=_PII_ENTITIES)
 
     def check(self, payload: dict, hook: Hook) -> Verdict:
         text = payload.get("answer", "") or ""

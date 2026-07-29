@@ -12,18 +12,19 @@ event loop — no background daemon-thread/`run_coroutine_threadsafe` hack. SHAD
 caller decides to 403. Callers treat an unreachable service as allow (client-side fail-open) — the guards are
 advisory, they must never take an answer offline.
 """
+import hmac
 import os
 from contextlib import asynccontextmanager
 
 import psycopg2
-from fastapi import FastAPI
+from fastapi import Depends, FastAPI, Header, HTTPException
 from fastapi.responses import JSONResponse
 from prometheus_client import make_asgi_app
 from pydantic import BaseModel, Field
 
-from guardrails.config import hook_chain
+from guardrails.config import hook_chain, set_override, clear_overrides, current_overrides, all_validators
 from guardrails.pipeline import GuardrailPipeline
-from guardrails.verdict import Decision, Hook
+from guardrails.verdict import Decision, Hook, Mode
 from guardrails import metrics as guard_metrics
 from guardrails import store as guard_store
 
@@ -165,3 +166,50 @@ async def ready():
     if guardrails is None:
         return JSONResponse(status_code=503, content={"status": "loading", "validators": []})
     return {"status": "ready", "validators": _active}
+
+
+# --- Demo toggle: flip validator modes LIVE (in-process; no restart, no manifest drift → Argo-safe) ---------
+# The toggle can DISABLE the guards, so /admin/* is auth-gated (unlike the scoring routes). Bearer token vs a
+# k8s-Secret-injected value, constant-time compared, FAIL-CLOSED: if GUARD_ADMIN_TOKEN is unset the admin routes
+# are inert (503), so an unconfigured deploy can't be toggled by any in-cluster caller.
+ADMIN_TOKEN = os.environ.get("GUARD_ADMIN_TOKEN", "")
+
+
+def verify_admin_token(authorization: str | None = Header(default=None)) -> None:
+    if not ADMIN_TOKEN:
+        raise HTTPException(status_code=503, detail="admin disabled: GUARD_ADMIN_TOKEN not configured")
+    if not authorization or not hmac.compare_digest(authorization, f"Bearer {ADMIN_TOKEN}"):
+        raise HTTPException(status_code=401, detail="unauthorized")
+
+
+class ModeRequest(BaseModel):
+    mode: str                              # off | shadow | flag | block
+    validators: list[str] | None = None    # None = all validators
+
+
+@app.post("/admin/mode", dependencies=[Depends(verify_admin_token)])
+async def admin_set_mode(req: ModeRequest):
+    """Temporarily un-shadow the guards for a demo, then revert with POST /admin/mode/reset. The override is
+    in-process only, so a pod restart reverts to the committed modes (a demo can't be left on by accident)."""
+    try:
+        m = Mode(req.mode)
+    except ValueError:
+        return JSONResponse(status_code=400,
+                            content={"error": f"bad mode {req.mode!r}; use off|shadow|flag|block"})
+    targets = req.validators or all_validators()
+    for name in targets:
+        set_override(name, m)
+    return {"applied": {"mode": m.value, "validators": targets}, "overrides": current_overrides()}
+
+
+@app.post("/admin/mode/reset", dependencies=[Depends(verify_admin_token)])
+async def admin_reset_mode():
+    """Drop all demo overrides → back to the committed/env modes (everything SHADOW by default)."""
+    clear_overrides()
+    return {"overrides": current_overrides()}
+
+
+@app.get("/admin/mode", dependencies=[Depends(verify_admin_token)])
+async def admin_get_mode():
+    """Current live overrides + the full validator set you can target."""
+    return {"overrides": current_overrides(), "validators": all_validators()}

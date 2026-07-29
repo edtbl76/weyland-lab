@@ -18,11 +18,14 @@ ENV HOME=/app \
     HF_HOME=/app/.cache/huggingface \
     XDG_CACHE_HOME=/app/.cache
 
-# Bake the EXACT 3 B14 guard models the tool-server bakes, so verdicts are byte-identical whichever service scores.
-# PII (llm_guard Sensitive → presidio/spaCy) stays DEFERRED and unbaked — out of the default chain (see roadmap).
+# Bake the guard models so verdicts are byte-identical whichever service scores, and the runtime load is offline.
 RUN python -c "from llm_guard.input_scanners import PromptInjection; PromptInjection()"
 RUN python -c "from llm_guard.output_scanners import Toxicity; Toxicity()"
 RUN python -c "from sentence_transformers import CrossEncoder; CrossEncoder('cross-encoder/nli-deberta-v3-small')"
+# B34: bake the PII scanner (llm_guard Sensitive → presidio). presidio needs a spaCy model for its NLP engine
+# (en_core_web_sm — light; the NER model itself is the HF download that instantiating Sensitive() caches).
+RUN python -m spacy download en_core_web_sm
+RUN python -c "from llm_guard.output_scanners import Sensitive; Sensitive()"
 
 # Models baked → force offline at runtime (deterministic, airgap-safe). Set AFTER the downloads.
 ENV HF_HUB_OFFLINE=1 \
