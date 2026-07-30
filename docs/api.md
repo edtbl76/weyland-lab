@@ -77,6 +77,24 @@ operator consumes `/mcp-fleet` with Haiku via **LiteLLM** (agentic lane — NOT 
 schemas). List them live: `kubectl -n weyland exec -i deploy/weyland-guard -- python - < scripts/list_mcp_fleet.py`.
 Demo: [demos/mcp-fleet.md](demos/mcp-fleet.md).
 
+## Bifrost — agent-edge MCP front door (B17+B19 Phase 3b)
+
+`https://bifrost.weyland.lab` — the **coding-agent** front door (self-hosted `maximhq/bifrost`). Aggregates the compositor
+(the 91 fleet tools) and re-exposes them through **one `/mcp` endpoint**, so a coding agent (Cline / Cursor / Claude Code)
+points a single URL at the whole read-only lab. Verified 2026-07-30: Bifrost `/mcp` returns all **91/91** tools end-to-end.
+
+Two Traefik routers on the one host (MCP clients can't browser-SSO, so the paths are split):
+
+| Path | Auth | Purpose |
+|---|---|---|
+| `/` (UI) | **Keycloak** forward-auth | Bifrost admin — MCP catalog, virtual keys, observability |
+| `/mcp` | Bifrost virtual-key (none in-cluster) | aggregated MCP endpoint the coding agents point at |
+
+Reads only — the compositor fleet is read-only, and **acts still go gateway → tool-server `/mcp-act`** (Bifrost never
+touches the act lane). The longer `/mcp` path outranks the forward-auth'd `/` router in Traefik, so agent requests skip
+the browser SSO. Runbook: [runbooks/mcp-gateway.md](runbooks/mcp-gateway.md). (B111 = adopt Bifrost's full agentic-gateway
+feature set — bake-off vs LiteLLM.)
+
 ## Guard service (`weyland-guard` — B70 Part 1)
 
 Internal only — `http://weyland-guard.weyland.svc.cluster.local:8080` (ClusterIP, no ingress). The shared B14 guard
@@ -157,7 +175,7 @@ See [runbooks/operator.md](runbooks/operator.md).
 
 Central IdP for the lab — replaced the scattered dev-password / per-app logins. **Keycloak** (`keycloak.weyland.lab`, `weyland` realm, k8s + meshed Postgres) is the OIDC provider; realm + clients codified in `tofu/keycloak/`. Apps fall into three buckets:
 - **OIDC (native, true single login):** Grafana, GlitchTip, Open WebUI — hold a Keycloak client + speak OIDC directly. (MinIO's console is OIDC-capable but its community build is stripped → not used.)
-- **Forward-auth (Keycloak gate in front) — EVERY other browser UI** (extended 2026-06-25): MLflow, Kiali, filestash, Nessie, lakeFS, Unleash, SonarQube, Uptime-Kuma, Dagster, LiteLLM-UI, docs-site, APISIX-dashboard, OpenCost, n8n, Woodpecker, Argo CD, Headlamp. `traefik-forward-auth` (`auth.weyland.lab`) gates the ingress; one Keycloak session covers all (`COOKIE_DOMAIN=weyland.lab`). Cross-ns middleware refs are blocked, so each protected ns gets a local `traefik-forward-auth` Middleware. **Caveat:** forward-auth gates *access* — it does NOT replace an app's own login, so own-login apps (Unleash, SonarQube, n8n, Woodpecker…) are **double-login** (Keycloak *then* their login); apps with no own login (Dagster, OpenCost, filestash) are clean single-login.
+- **Forward-auth (Keycloak gate in front) — EVERY other browser UI** (extended 2026-06-25): MLflow, Kiali, filestash, Nessie, lakeFS, Unleash, SonarQube, Uptime-Kuma, Dagster, LiteLLM-UI, docs-site, APISIX-dashboard, OpenCost, n8n, Woodpecker, Argo CD, Headlamp, Bifrost (**UI only** — its `/mcp` path is deliberately NOT gated; MCP clients can't browser-SSO). `traefik-forward-auth` (`auth.weyland.lab`) gates the ingress; one Keycloak session covers all (`COOKIE_DOMAIN=weyland.lab`). Cross-ns middleware refs are blocked, so each protected ns gets a local `traefik-forward-auth` Middleware. **Caveat:** forward-auth gates *access* — it does NOT replace an app's own login, so own-login apps (Unleash, SonarQube, n8n, Woodpecker…) are **double-login** (Keycloak *then* their login); apps with no own login (Dagster, OpenCost, filestash) are clean single-login.
 - **NOT Keycloak-gated by design** (API/DB clients, not browsers — you can't browser-SSO a database/API call): the **S3 API** (`s3.weyland.lab`), the **data backends** (qdrant/weaviate/neo4j NodePorts), and the **APISIX gateway** (`mother:30090`). These auth at the API/DB layer. Keycloak itself + `auth.weyland.lab` stay open too (they *are* the gate). Woodpecker keeps its GitHub-forge login *behind* the new Keycloak gate.
 
 | Service | URL | Notes |
@@ -183,6 +201,7 @@ mkcert wildcard cert; resolve from rogueone (`/etc/hosts`) or via CoreDNS. **Mos
 | **OpenCost** (k8s cost allocation — custom on-prem pricing; LAN-only) | `https://opencost.weyland.lab` |
 | **Woodpecker CI** (CI/CD — GitHub OAuth login; k8s backend; manual/cron triggers) | `https://woodpecker.weyland.lab` |
 | **Argo CD** (GitOps CD — local admin; app-of-apps, **59 apps** as of 2026-07-20) | `https://argocd.weyland.lab` |
+| **Bifrost** (B17+B19 Ph3b agent-edge MCP front door — admin UI **forward-auth**; the `/mcp` agent endpoint is un-gated) | `https://bifrost.weyland.lab` (UI) · `https://bifrost.weyland.lab/mcp` (agents) |
 | **Platform Docs** (MkDocs Material — runbooks/architecture/concepts; browsable+searchable, Mermaid; B59, replaced Backstage TechDocs) | `https://docs.weyland.lab` |
 | Dagster | `https://dagster.weyland.lab` |
 | n8n | `https://n8n.weyland.lab` |
