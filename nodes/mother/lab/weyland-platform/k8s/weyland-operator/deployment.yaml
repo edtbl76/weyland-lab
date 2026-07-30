@@ -21,7 +21,7 @@ spec:
       enableServiceLinks: false
       containers:
         - name: weyland-operator
-          image: registry.weyland.lab/weyland-operator:v5   # v5 — B17+B19: acts route through the MCP gateway (Keycloak token → verified actor)
+          image: registry.weyland.lab/weyland-operator:v6   # v6 — B17+B19 Ph3: + the composed MCP fleet's read tools via the gateway /mcp-fleet
           imagePullPolicy: IfNotPresent
           resources:
             # No torch/embedder — just langgraph/langchain/mlflow client + fastapi; LLM inference is remote (Ollama).

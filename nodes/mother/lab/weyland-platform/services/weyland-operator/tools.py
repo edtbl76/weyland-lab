@@ -57,4 +57,10 @@ def propose_act(tool: str, summary: str, job_name: str = "") -> str:
 
 READ_TOOLS = [status, context_search, context_ask]
 ACT_TOOLS = [propose_act]
-AGENT_TOOLS = READ_TOOLS + ACT_TOOLS
+
+# B17+B19 Phase 3 — the composed MCP fleet's read tools (grafana/trino/k8s/postgres/neo4j/datahub) via the gateway
+# /mcp-fleet. Loaded at import; empty if no token / fleet unreachable (operator still starts with base tools).
+from fleet import load_fleet_tools  # noqa: E402
+FLEET_TOOLS = load_fleet_tools()
+
+AGENT_TOOLS = READ_TOOLS + FLEET_TOOLS + ACT_TOOLS
