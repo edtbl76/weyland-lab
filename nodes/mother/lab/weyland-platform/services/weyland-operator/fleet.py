@@ -92,6 +92,15 @@ def load_fleet_tools():
             {"fleet": {"url": FLEET_URL, "transport": "streamable_http", "auth": _KeycloakAuth()}}
         )
         tools = asyncio.run(client.get_tools())
+        # The MLflow AI Gateway strictly validates tool schemas: function.parameters MUST include a `properties` map,
+        # but some MCP no-arg tools emit a bare {"type":"object"} → the Gateway 400s the whole request. Normalize.
+        _fixed = 0
+        for t in tools:
+            sch = getattr(t, "args_schema", None)
+            if isinstance(sch, dict) and sch.get("type") == "object" and "properties" not in sch:
+                sch["properties"] = {}
+                _fixed += 1
+        print(f"[fleet] normalized {_fixed} tool schema(s) for gateway strict validation", flush=True)
         if _ALLOW:
             tools = [t for t in tools if any(t.name.startswith(p + "_") for p in _ALLOW)]
             print(f"[fleet] filtered to prefixes {_ALLOW}", flush=True)
