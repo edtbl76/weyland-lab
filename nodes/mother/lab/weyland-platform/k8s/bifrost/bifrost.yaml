@@ -6,7 +6,10 @@
 # config.json after first boot. Reads only; acts still go gateway→tool-server /mcp-act (Bifrost never touches acts).
 #
 # ADDRESS: bifrost.weyland.lab. TWO routers (MCP clients can't browser-SSO): the UI (`/`) is Keycloak forward-auth'd;
-# `/mcp` is NOT (Bifrost's own virtual-key auth). TODO: pin the image tag; codify config.json (GitOps).
+# `/mcp` is NOT (Bifrost's own virtual-key auth). Verified 2026-07-30: /mcp re-exposes all 91/91 fleet tools end-to-end.
+# TODO(B111): pin the image tag (inspect the digest on mother); codify config.json as GitOps — init-seed the weyland_fleet
+# MCP upstream via an initContainer + SealedSecret the virtual keys (repo is PUBLIC, so VKs can't be plain git). Until
+# then the MCP-upstream config is UI-managed in the PVC; re-add steps in docs/runbooks/mcp-gateway.md.
 ---
 apiVersion: v1
 kind: PersistentVolumeClaim

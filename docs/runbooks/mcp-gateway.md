@@ -104,6 +104,30 @@ gateway still `pass`es its `policy.gate`:
 kubectl -n weyland exec deploy/weyland-guard -- python -c 'import httpx; print(httpx.post("http://weyland-tool-server.weyland.svc.cluster.local:8080/pipeline/trigger",json={"job_name":"weyland_eval_job"},headers={"X-Forwarded-Consumer":"weyland-operator"}).status_code)'   # 403 RBAC: access denied
 ```
 
+## Bifrost — the agent edge (Phase 3b, `bifrost.weyland.lab`)
+The **coding-agent** front door (`maximhq/bifrost`, `k8s/bifrost/`, Argo app `bifrost`). It connects to the compositor
+as an upstream MCP server and re-exposes **all 91 fleet tools through one `/mcp`** endpoint — so a coding agent (Cline /
+Cursor / Claude Code) points a single URL at the whole read-only lab. Reads only; **acts still go gateway → tool-server
+`/mcp-act`** (Bifrost never touches the act lane). Two Traefik routers on the one host: `/` (UI) = Keycloak forward-auth;
+`/mcp` = **not** forward-auth (MCP clients can't browser-SSO — the longer path outranks the UI router so agents skip SSO;
+Bifrost's own virtual-key auth guards it, none enforced in-cluster = fine for LAN).
+
+**Point a coding agent at it:** MCP endpoint `https://bifrost.weyland.lab/mcp` (streamable-HTTP). Mint a virtual key in
+the UI (Virtual Keys) and grant it the `weyland_fleet` server for per-client tool scoping; the UI's **Connect agent**
+button emits ready-to-paste client config.
+
+**Re-add the upstream after a PVC loss** (config is currently UI-managed in the PVC — GitOps codification is `TODO(B111)`):
+UI → **MCP Gateway → MCP Catalog → New MCP Server** → Name `weyland_fleet`, Connection Type **HTTP (Streamable)**,
+Connection URL `http://weyland-mcp-compositor.weyland.svc.cluster.local:8000/mcp`, Auth Type **None** → Save. State goes
+green and **Enabled Tools = 91/91**.
+
+**Verify** the aggregated endpoint (external path through Traefik — proves the `/mcp` router bypasses forward-auth):
+```
+curl -sk -o /dev/null -w '%{http_code}\n' -X POST https://bifrost.weyland.lab/mcp -H 'Content-Type: application/json' -H 'Accept: application/json, text/event-stream' -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"s","version":"0"}}}'   # 200 (not a 302/307 to Keycloak)
+```
+**B111** = adopt Bifrost's full agentic-gateway feature set (virtual keys, budgets, governance) — bake-off vs LiteLLM; that
+work also does the config-as-GitOps (init-seed `config.json` + SealedSecret'd virtual keys, since the repo is public).
+
 ## Current state + loose ends
 - Phase 1 (gateway + auth + actor) ✅ and Phase 2 (enforcing act gate) ✅ — both **proven + LIVE**; `policy.gate` is
   **enforcing (`block`)** as of 2026-07-29 (no-actor / unknown-actor / direct acts denied; `weyland-operator` via the gateway passes).
@@ -116,8 +140,9 @@ kubectl -n weyland exec deploy/weyland-guard -- python -c 'import httpx; print(h
   (grafana/mlflow/…). No mcp-specific record is needed (it's on mother/Traefik, not a distinct IP like ollama/whisper).
   The `/etc/hosts` line on rogueone is that workstation's mechanism for **all** `*.weyland.lab` (its resolver is the FiOS
   router, not the LAN DNS) — not an mcp-specific stopgap ([[coredns-cluster-lan-resolution]]).
-- **Coding agents** (opencode/Cline) may not send a Bearer on an MCP endpoint — they stay on the direct LAN path or go
-  via Bifrost (agent edge) until they can auth.
+- ✅ **Bifrost agent edge** (Phase 3b, 2026-07-30) — `bifrost.weyland.lab` re-exposes all **91/91** fleet tools through
+  one `/mcp`; external path verified `200`. Coding agents (Cline/Cursor/Claude Code) point one URL at the whole read-only
+  lab. Loose ends: pin the `maximhq/bifrost:latest` tag; codify the MCP-upstream config as GitOps (`TODO(B111)`).
 
 Related: [runbooks/guardrails.md](guardrails.md) (the guard service + act gate), [runbooks/keycloak.md](keycloak.md),
 [[keycloak-sso-b1.1]]. Design: `aidlc-docs/construction/mcp-gateway-design.md`.
