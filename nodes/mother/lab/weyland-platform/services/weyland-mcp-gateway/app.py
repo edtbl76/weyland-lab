@@ -31,7 +31,9 @@ JWKS_URL = os.environ["KEYCLOAK_JWKS_URL"]                 # https://keycloak.we
 ISSUER = os.environ["KEYCLOAK_ISSUER"]                     # https://keycloak.weyland.lab/realms/weyland
 AUDIENCE = os.environ.get("KEYCLOAK_AUDIENCE") or None     # optional; Keycloak often sets aud=account, so default off
 ACTOR_CLAIM = os.environ.get("ACTOR_CLAIM", "azp")         # client_credentials → azp = the agent's client_id
-ALLOWED_PREFIXES = ("/mcp-act", "/mcp")                    # order matters: /mcp-act checked before /mcp (both start "/mcp")
+ALLOWED_PREFIXES = ("/mcp-act", "/mcp",                    # the MCP mounts (order: /mcp-act before /mcp — both start "/mcp")
+                    "/pipeline/trigger", "/evals/run", "/evals/score")  # + the tool-server act endpoints the operator
+                                                          #   calls directly (not via MCP) — routed here for a verified actor
 
 # Hop-by-hop / identity headers we never forward upstream. `authorization` + `x-forwarded-consumer` are dropped so the
 # ONLY actor the tool-server sees is the one WE set from the validated token (a client can't smuggle its own).
@@ -93,4 +95,8 @@ app = Starlette(routes=[
     Route("/mcp-act", _proxy, methods=["GET", "POST", "DELETE"]),
     Route("/mcp/{path:path}", _proxy, methods=["GET", "POST", "DELETE"]),
     Route("/mcp", _proxy, methods=["GET", "POST", "DELETE"]),
+    # tool-server act endpoints the operator posts to directly — proxied so the gateway sets the verified actor.
+    Route("/pipeline/trigger", _proxy, methods=["POST"]),
+    Route("/evals/run", _proxy, methods=["POST"]),
+    Route("/evals/score", _proxy, methods=["POST"]),
 ])

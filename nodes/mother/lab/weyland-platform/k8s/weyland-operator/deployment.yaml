@@ -21,7 +21,7 @@ spec:
       enableServiceLinks: false
       containers:
         - name: weyland-operator
-          image: registry.weyland.lab/weyland-operator:v4   # v4 — B100 P2: system prompt from the Prompt Registry
+          image: registry.weyland.lab/weyland-operator:v5   # v5 — B17+B19: acts route through the MCP gateway (Keycloak token → verified actor)
           imagePullPolicy: IfNotPresent
           resources:
             # No torch/embedder — just langgraph/langchain/mlflow client + fastapi; LLM inference is remote (Ollama).
@@ -53,6 +53,12 @@ spec:
           env:
             - name: TOOLSERVER
               value: http://weyland-tool-server.weyland.svc.cluster.local:8080
+            # B17+B19: acts route through the MCP gateway with a Keycloak client_credentials token — the gateway injects
+            # the VERIFIED actor (weyland-operator). optional:true → falls back to the direct/self-set path until wired.
+            # Create out-of-band (NOT committed):
+            #   kubectl -n weyland create secret generic weyland-operator-mcp --from-literal=client-secret=$(cd ~/IdeaProjects/weyland/nodes/mother/lab/weyland-platform/tofu/keycloak && tofu output -raw mcp_operator_client_secret)
+            - name: OPERATOR_CLIENT_SECRET
+              valueFrom: { secretKeyRef: { name: weyland-operator-mcp, key: client-secret, optional: true } }
             # LLM reasoning/tool-calling (Ollama on rogueone, OpenAI-compatible /v1). Haiku-fallback env switch (design
             # §6) lands with Part 3.
             - name: OLLAMA_BASE_URL
