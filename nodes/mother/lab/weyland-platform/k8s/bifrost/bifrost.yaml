@@ -1,0 +1,76 @@
+# Bifrost — B17+B19 Phase 3b, the AGENT EDGE (coding-agent MCP front door). Self-hosted maximhq/bifrost: connects to
+# upstream MCP servers and re-exposes all their tools through ONE /mcp endpoint (per-client virtual-key tool registries).
+# Consumer = B15 coding agents (Cline/Cursor/Claude Code) — they point one URL + a VK at Bifrost and get all lab tools.
+#
+# It aggregates the compositor (weyland-mcp-compositor:8000/mcp = the 6 read-only subsystems) — configured via the UI /
+# config.json after first boot. Reads only; acts still go gateway→tool-server /mcp-act (Bifrost never touches acts).
+#
+# FIRST CUT: LAN NodePort :30600 (UI + /mcp, Bifrost VK auth on /mcp). TODO harden: ingress bifrost.weyland.lab +
+# Keycloak forward-auth on the UI (NOT on /mcp — MCP clients can't browser-SSO); pin the image tag; codify config.json (GitOps).
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: bifrost-data
+  namespace: weyland
+  labels: { app: bifrost }
+spec:
+  accessModes: ["ReadWriteOnce"]
+  resources:
+    requests: { storage: 1Gi }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: bifrost
+  namespace: weyland
+  labels: { app: bifrost }
+spec:
+  replicas: 1
+  strategy: { type: Recreate }   # RWO PVC, single instance
+  selector:
+    matchLabels: { app: bifrost }
+  template:
+    metadata:
+      labels: { app: bifrost }
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        fsGroup: 10001            # so /app/data (the PVC) is writable by the non-root user
+      containers:
+        - name: bifrost
+          image: maximhq/bifrost:latest   # TODO pin (Gatekeeper no-latest); confirm the current tag
+          ports:
+            - { name: http, containerPort: 8080 }
+          readinessProbe:
+            httpGet: { path: /, port: 8080 }
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          livenessProbe:
+            tcpSocket: { port: 8080 }
+            periodSeconds: 20
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities: { drop: ["ALL"] }
+            seccompProfile: { type: RuntimeDefault }
+          resources:
+            requests: { memory: 128Mi, cpu: 50m }
+            limits: { memory: 512Mi }
+          volumeMounts:
+            - { name: data, mountPath: /app/data }
+      volumes:
+        - name: data
+          persistentVolumeClaim: { claimName: bifrost-data }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: bifrost
+  namespace: weyland
+  labels: { app: bifrost }
+spec:
+  type: NodePort
+  selector: { app: bifrost }
+  ports:
+    - { name: http, port: 8080, targetPort: 8080, nodePort: 30600 }   # LAN: mother:30600 (UI + /mcp)
