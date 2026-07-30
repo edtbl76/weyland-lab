@@ -1,0 +1,67 @@
+# trino-mcp — B17+B19 Phase 3, MCP server #2. tuannvm/mcp-trino (Go) exposing the lakehouse (Trino: iceberg.* + dbt
+# marts) as MCP query/discovery tools. Connects to the `trino-noauth` proxy (ns data-mesh) — the same no-auth path
+# dbt/Soda/Cube use (proxy strips Basic auth; Trino sees only X-Trino-User). Unmeshed — trino/trino-noauth are
+# PERMISSIVE, so a plain HTTP hop works.
+#
+# READ-ONLY BY CONSTRUCTION: TRINO_USER=mcp, and Ranger (Trino authz) is DEFAULT-DENY — `mcp` can do ONLY what a Ranger
+# policy grants (select/show), never write. NOT the `dbt` user (which can write iceberg.dbt). If a query returns
+# "Access Denied", grant `mcp` select+show in Ranger (ranger.weyland.lab) — or confirm the existing `public` grant covers it.
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: trino-mcp
+  namespace: weyland
+  labels: { app: trino-mcp, part-of: mcp-fleet }
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: trino-mcp }
+  template:
+    metadata:
+      labels: { app: trino-mcp }
+    spec:
+      containers:
+        - name: trino-mcp
+          image: ghcr.io/tuannvm/mcp-trino:v4.3.1   # pinned; if ImagePull 404s try tag "4.3.1" (no v)
+          ports:
+            - { name: http, containerPort: 8080 }
+          env:
+            - { name: MCP_TRANSPORT, value: http }        # streamable-http on :8080/mcp
+            - { name: MCP_HOST, value: 0.0.0.0 }          # default is localhost → unreachable in-pod without this
+            - { name: MCP_PORT, value: "8080" }
+            - { name: OAUTH_ENABLED, value: "false" }      # no JWT for trusted in-cluster use
+            - { name: TRINO_HOST, value: trino-noauth.data-mesh.svc.cluster.local }
+            - { name: TRINO_PORT, value: "8080" }
+            - { name: TRINO_SCHEME, value: http }          # plaintext no-auth proxy
+            - { name: TRINO_SSL, value: "false" }
+            - { name: TRINO_USER, value: mcp }             # read-only identity (Ranger default-deny → grant select/show only)
+            - { name: TRINO_CATALOG, value: iceberg }
+          readinessProbe:
+            tcpSocket: { port: 8080 }
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            tcpSocket: { port: 8080 }
+            periodSeconds: 20
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 10001
+            allowPrivilegeEscalation: false
+            capabilities: { drop: ["ALL"] }
+            seccompProfile: { type: RuntimeDefault }
+          resources:
+            requests: { memory: 64Mi, cpu: 25m }
+            limits: { memory: 128Mi }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: trino-mcp
+  namespace: weyland
+  labels: { app: trino-mcp, part-of: mcp-fleet }
+spec:
+  type: ClusterIP
+  selector: { app: trino-mcp }
+  ports:
+    - { name: http, port: 8080, targetPort: 8080 }
