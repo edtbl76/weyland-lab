@@ -1,9 +1,19 @@
-# weyland-mcp-gateway — B17+B19 MCP gateway, Phase 1 (server edge). A thin auth reverse-proxy: Keycloak Bearer JWT →
-# inject X-Forwarded-Consumer (the actor) → stream-proxy to the tool-server's /mcp + /mcp-act. NOT meshed: it talks
-# plain HTTP to the tool-server + Keycloak (both ns weyland), no STRICT-mTLS service in the path (mirrors the registry).
+# weyland-mcp-gateway — B17+B19 MCP gateway (server edge). A thin auth reverse-proxy: Keycloak Bearer JWT →
+# inject X-Forwarded-Consumer (the actor) → stream-proxy to the tool-server's /mcp + /mcp-act.
 #
-# JWKS is fetched from the IN-CLUSTER keycloak svc over HTTP (no CA trust needed); the token's issuer is still validated
-# against the external URL (the keys are the same however you fetch them).
+# MESHED (Istio sidecar + its OWN ServiceAccount weyland-mcp-gateway) so the tool-server can AUTHORIZE it by SPIFFE
+# identity: the anti-spoof AuthorizationPolicy (k8s/istio/authz-toolserver-act.yaml) lets ONLY this SA reach the act
+# endpoints, so a direct in-cluster caller can no longer spoof an actor via a forged X-Forwarded-Consumer header.
+# Stays PERMISSIVE (Traefik ingress is un-meshed plaintext → still accepted); gateway→tool-server and gateway→keycloak
+# are auto-mTLS (both meshed). JWKS is fetched from the IN-CLUSTER keycloak svc over HTTP (no CA trust needed); the
+# token issuer is still validated against the external URL (the keys are the same however you fetch them).
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: weyland-mcp-gateway
+  namespace: weyland
+  labels: { app: weyland-mcp-gateway }
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -17,8 +27,11 @@ spec:
     matchLabels: { app: weyland-mcp-gateway }
   template:
     metadata:
-      labels: { app: weyland-mcp-gateway }
+      labels:
+        app: weyland-mcp-gateway
+        sidecar.istio.io/inject: "true"   # meshed for SPIFFE identity → the tool-server AuthorizationPolicy keys on this SA
     spec:
+      serviceAccountName: weyland-mcp-gateway
       containers:
         - name: weyland-mcp-gateway
           image: registry.weyland.lab/weyland-mcp-gateway:v2

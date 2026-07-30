@@ -1,0 +1,38 @@
+# B17+B19 anti-spoof — the tool-server's ACT endpoints accept ONLY the MCP gateway's SPIFFE identity.
+#
+# WHY: policy.gate (weyland-guard) blocks acts with no/unknown actor, but the tool-server trusts the
+# X-Forwarded-Consumer header from ANY caller. Without this, a direct in-cluster POST to /pipeline/trigger with a
+# forged `X-Forwarded-Consumer: weyland-operator` would still fire. This closes that: the ONLY workload allowed to
+# reach the act paths is the gateway (SA weyland-mcp-gateway), which sets the header from a VALIDATED Keycloak token.
+#
+# HOW: a DENY rule scoped to the act paths, keyed on `notPrincipals` = [gateway SA]. Any source whose principal is not
+# the gateway is denied — INCLUDING a plaintext caller with no principal at all (notPrincipals matches empty). READ
+# paths (/mcp, /context/*, /status, /health, /ready) are untouched → they stay open. Requires both ends meshed so the
+# gateway carries its SPIFFE identity over auto-mTLS (mesh stays PERMISSIVE; this is L7 authz, not mTLS mode).
+#
+# NOTE: the operator's legacy DIRECT act path (self-set header, used only when OPERATOR_CLIENT_SECRET is unwired) is
+# now denied here — intended fail-closed: acts MUST go through the gateway. Anyone with pod-create in the ns could
+# still assume the SA (inherent to k8s) — out of scope for a single-user LAN lab; this stops the realistic app-level spoof.
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: toolserver-act-gateway-only
+  namespace: weyland
+spec:
+  selector:
+    matchLabels:
+      app: weyland-tool-server
+  action: DENY
+  rules:
+    - to:
+        - operation:
+            paths:
+              - /mcp-act
+              - /mcp-act/*
+              - /pipeline/trigger
+              - /evals/run
+              - /evals/score
+      from:
+        - source:
+            notPrincipals:
+              - cluster.local/ns/weyland/sa/weyland-mcp-gateway
