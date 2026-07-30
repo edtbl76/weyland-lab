@@ -34,6 +34,53 @@ class _KeycloakAuth(httpx.Auth):
         yield request
 
 
+_SUBSYSTEM_DESC = {
+    "k8s":      "the Kubernetes cluster (pods, namespaces, events, nodes, logs)",
+    "trino":    "the Trino lakehouse (SQL over iceberg.* + dbt marts; catalogs / schemas / tables)",
+    "grafana":  "Grafana (dashboards, Prometheus/Loki queries, alerts, datasources)",
+    "neo4j":    "the Neo4j graph store (read Cypher + schema)",
+    "datahub":  "the DataHub catalog (metadata search + data lineage)",
+    "postgres": "the Postgres database (schemas, objects, read-only SQL, health)",
+}
+
+
+def _group_by_subsystem(tools):
+    groups = {}
+    for t in tools:
+        groups.setdefault(t.name.split("_", 1)[0], []).append(t)
+    return groups
+
+
+def build_router_tools(flat_tools, llm):
+    """Two-stage routing: return one 'subsystem' router tool per group (k8s/trino/…). Each router runs a FOCUSED
+    sub-agent that sees only that subsystem's tools — so the top agent chooses among ~6 routers (not ~91 tools), and
+    the sub-agent chooses among ~a dozen. Full coverage, small active tool-set at every step. Empty if no fleet."""
+    if not flat_tools:
+        return []
+    from langchain_core.tools import StructuredTool
+    from langgraph.prebuilt import create_react_agent
+
+    routers = []
+    for subsystem, tools in _group_by_subsystem(flat_tools).items():
+        sub_agent = create_react_agent(llm, tools)
+        desc = _SUBSYSTEM_DESC.get(subsystem, f"the {subsystem} subsystem")
+
+        async def _route(request: str, _agent=sub_agent, _desc=desc):
+            sys = (f"You query {_desc} for the weyland homelab. Pick the single best tool, run it, and answer from its "
+                   f"output concisely. NEVER tell the user to run kubectl/SQL/curl themselves — YOU run it and report "
+                   f"the result. If a tool errors or returns nothing, say so plainly.")
+            r = await _agent.ainvoke({"messages": [("system", sys), ("user", request)]})
+            return r["messages"][-1].content
+
+        routers.append(StructuredTool.from_function(
+            coroutine=_route, name=subsystem,
+            description=(f"Query {desc}. Pass a natural-language request describing what you need; this selects the "
+                         f"right {subsystem} tool, runs it live, and returns the result. Use for ANY {subsystem} question."),
+        ))
+    print(f"[fleet] built {len(routers)} subsystem routers: {sorted(_group_by_subsystem(flat_tools))}", flush=True)
+    return routers
+
+
 def load_fleet_tools():
     """Return the fleet's read tools as LangChain tools (empty list on any failure — the operator must still start)."""
     if not _token():

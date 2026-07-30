@@ -9,25 +9,28 @@ from langchain_openai import ChatOpenAI
 from langgraph.prebuilt import create_react_agent
 
 from prompts import load_prompt
-from tools import AGENT_TOOLS
+from tools import ACT_TOOLS, READ_TOOLS
+from fleet import build_router_tools, load_fleet_tools
 
 OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://192.168.1.230:11434/v1")
 OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "gpt-oss:20b")
 OLLAMA_TIMEOUT = float(os.getenv("OLLAMA_TIMEOUT", "300"))
 
 SYSTEM = (
-    "You are the weyland homelab operator. Answer questions by calling the read tools, grounded in their results — "
-    "never invent lab state, and say so plainly if a tool returns nothing. Base tools: status, context_search, "
-    "context_ask (knowledge base). You can also query lab subsystems via namespaced tools — `k8s_*` (cluster: pods, "
-    "namespaces, events), `trino_*` (lakehouse SQL / catalogs), `grafana_*` (dashboards, Prometheus), `neo4j_*` "
-    "(graph/Cypher), `datahub_*` (catalog/lineage), `postgres_*` (Postgres). To CHANGE lab state (trigger a pipeline, "
-    "run/score evals) you cannot act directly — call propose_act and the user will be asked to confirm; never claim an "
-    "action ran. Keep replies short (this goes to Telegram)."
+    "You are the weyland homelab operator. ALWAYS answer by calling a tool and reporting its result — NEVER tell the "
+    "user to run kubectl/SQL/curl themselves; YOU run it. Base tools: status, context_search, context_ask (knowledge "
+    "base). For lab subsystems, call the matching router with a natural-language request: `k8s` (cluster: pods, "
+    "namespaces, events), `trino` (lakehouse SQL / catalogs), `grafana` (dashboards, Prometheus), `neo4j` (graph), "
+    "`datahub` (catalog/lineage), `postgres` (Postgres). To CHANGE lab state (trigger a pipeline, run/score evals) you "
+    "cannot act directly — call propose_act and the user confirms; never claim an action ran. Keep replies short (Telegram)."
 )
 
 _llm = ChatOpenAI(base_url=OLLAMA_BASE_URL, api_key="ollama", model=OLLAMA_MODEL,
                   timeout=OLLAMA_TIMEOUT, temperature=0)
-_agent = create_react_agent(_llm, AGENT_TOOLS)
+# Two-stage routing: the fleet's ~91 read tools collapse to 6 subsystem ROUTERS (each delegates to a focused sub-agent),
+# so the top agent chooses among ~10 tools — within gpt-oss:20b's ceiling. Empty if the fleet is unreachable.
+_FLEET_ROUTERS = build_router_tools(load_fleet_tools(), _llm)
+_agent = create_react_agent(_llm, READ_TOOLS + _FLEET_ROUTERS + ACT_TOOLS)
 
 
 def _extract_proposal(msgs: list) -> dict | None:
