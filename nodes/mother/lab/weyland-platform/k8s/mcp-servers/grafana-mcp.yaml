@@ -22,7 +22,7 @@ spec:
     spec:
       containers:
         - name: grafana-mcp
-          image: grafana/mcp-grafana:v1.0.0   # pinned (Gatekeeper no-latest); mirror to registry.weyland.lab if Docker Hub egress is an issue
+          image: grafana/mcp-grafana:1.0.0   # pinned (Gatekeeper no-latest; Docker Hub tag is 1.0.0, no "v"); mirror to registry.weyland.lab if Docker Hub egress is an issue
           args: ["-t", "streamable-http", "--disable-write"]   # streamable-http :8000/mcp; read-only
           ports:
             - { name: http, containerPort: 8000 }
