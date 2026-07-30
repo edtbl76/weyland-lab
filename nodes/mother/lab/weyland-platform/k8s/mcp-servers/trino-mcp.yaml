@@ -23,7 +23,7 @@ spec:
     spec:
       containers:
         - name: trino-mcp
-          image: ghcr.io/tuannvm/mcp-trino:v4.3.1   # pinned; if ImagePull 404s try tag "4.3.1" (no v)
+          image: ghcr.io/tuannvm/mcp-trino:4.3.1   # pinned (ghcr tag is 4.3.1, no "v")
           ports:
             - { name: http, containerPort: 8080 }
           env:
