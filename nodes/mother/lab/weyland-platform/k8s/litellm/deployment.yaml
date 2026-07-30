@@ -46,14 +46,12 @@ spec:
                 secretKeyRef:
                   name: litellm-secrets
                   key: OPENROUTER_API_KEY
-            # Anthropic (agentic lane). INTERIM: sourced from the plain `weyland-operator-llm` secret (no kubeseal on
-            # the box yet) — TODO fold ANTHROPIC_API_KEY into the sealed `litellm-secrets` for GitOps durability.
+            # Anthropic (agentic lane) — sealed into litellm-secrets (2026-07-30).
             - name: ANTHROPIC_API_KEY
               valueFrom:
                 secretKeyRef:
-                  name: weyland-operator-llm
-                  key: api-key
-                  optional: true
+                  name: litellm-secrets
+                  key: ANTHROPIC_API_KEY
             - name: LITELLM_MASTER_KEY
               valueFrom:
                 secretKeyRef:
