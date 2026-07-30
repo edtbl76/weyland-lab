@@ -70,3 +70,9 @@ spec:
             - name: GUARD_ADMIN_TOKEN
               valueFrom:
                 secretKeyRef: { name: weyland-guard-admin, key: token, optional: true }
+            # B17+B19 Phase 2: ENFORCE the act gate. policy.gate blocks no-actor / unknown-actor / tool-not-allowed /
+            # over-rate acts. Safe to enforce because every act caller (the operator) now routes through the MCP gateway,
+            # which injects the verified actor `weyland-operator` — proven passing in shadow before this flip. To demo an
+            # unverified act, toggle back to SHADOW at runtime via /admin/mode (Bearer) rather than editing this.
+            - name: GUARDRAIL_MODE__policy__gate
+              value: block
