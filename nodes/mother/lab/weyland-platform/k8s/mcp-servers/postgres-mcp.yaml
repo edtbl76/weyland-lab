@@ -25,8 +25,9 @@ spec:
     spec:
       containers:
         - name: postgres-mcp
-          image: crystaldba/postgres-mcp:0.3.0   # pin; note: ~1yr old — if it rejects --transport=streamable-http, fall back to sse
-          args: ["--access-mode=restricted", "--transport=streamable-http"]
+          image: crystaldba/postgres-mcp:0.3.0   # pin (0.3.0 supports only stdio/sse — no streamable-http)
+          # SSE transport (GET /sse + POST /messages). --sse-host defaults to localhost → must bind 0.0.0.0.
+          args: ["--access-mode=restricted", "--transport=sse", "--sse-host=0.0.0.0", "--sse-port=8000"]
           ports:
             - { name: http, containerPort: 8000 }
           env:
