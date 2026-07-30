@@ -1,0 +1,66 @@
+# postgres-mcp — B17+B19 Phase 3, MCP server #4. crystaldba/postgres-mcp ("Postgres MCP Pro") exposing the weyland
+# Postgres (operational + app cells) as MCP query/analysis tools.
+#
+# MESHED (sidecar) — weyland-postgres is STRICT mTLS; a non-meshed client gets opaque ECONNRESET. The mesh does the
+# TLS, so the pg connection itself is plaintext (sslmode=disable).
+#
+# READ-ONLY: --access-mode=restricted → the server runs every query in a Postgres READ ONLY transaction, so the DB
+# engine itself rejects writes (a real transaction-level guarantee, not app filtering).
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: postgres-mcp
+  namespace: weyland
+  labels: { app: postgres-mcp, part-of: mcp-fleet }
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: postgres-mcp }
+  template:
+    metadata:
+      labels:
+        app: postgres-mcp
+        sidecar.istio.io/inject: "true"   # STRICT-mTLS Postgres → must join the mesh
+    spec:
+      containers:
+        - name: postgres-mcp
+          image: crystaldba/postgres-mcp:0.3.0   # pin; note: ~1yr old — if it rejects --transport=streamable-http, fall back to sse
+          args: ["--access-mode=restricted", "--transport=streamable-http"]
+          ports:
+            - { name: http, containerPort: 8000 }
+          env:
+            # Compose DATABASE_URI from the shared Postgres secret via $(VAR) interpolation (password never inlined).
+            - name: PGPASSWORD
+              valueFrom:
+                secretKeyRef: { name: weyland-postgres-secret, key: POSTGRES_PASSWORD }
+            - name: DATABASE_URI
+              value: postgresql://weyland:$(PGPASSWORD)@weyland-postgres.weyland.svc.cluster.local:5432/weyland?sslmode=disable
+          readinessProbe:
+            tcpSocket: { port: 8000 }
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            tcpSocket: { port: 8000 }
+            periodSeconds: 20
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 10001
+            allowPrivilegeEscalation: false
+            capabilities: { drop: ["ALL"] }
+            seccompProfile: { type: RuntimeDefault }
+          resources:
+            requests: { memory: 96Mi, cpu: 25m }
+            limits: { memory: 256Mi }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres-mcp
+  namespace: weyland
+  labels: { app: postgres-mcp, part-of: mcp-fleet }
+spec:
+  type: ClusterIP
+  selector: { app: postgres-mcp }
+  ports:
+    - { name: http, port: 8000, targetPort: 8000 }
