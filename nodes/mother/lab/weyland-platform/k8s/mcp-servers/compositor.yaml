@@ -18,7 +18,7 @@ spec:
     spec:
       containers:
         - name: weyland-mcp-compositor
-          image: registry.weyland.lab/weyland-mcp-compositor:v1
+          image: registry.weyland.lab/weyland-mcp-compositor:v2
           ports:
             - { name: http, containerPort: 8000 }
           env:
