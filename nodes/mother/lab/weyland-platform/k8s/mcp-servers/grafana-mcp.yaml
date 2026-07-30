@@ -1,0 +1,62 @@
+# grafana-mcp — B17+B19 Phase 3, MCP server #1 of the fleet. Official grafana/mcp-grafana exposing Grafana
+# (dashboards / Prometheus queries / alerts) as MCP tools. READ-ONLY (`--disable-write` — no act surface; only the
+# tool-server acts). streamable-http transport on :8000/mcp (the transport FastMCP will compose). Unmeshed — the only
+# hop is a plain HTTP call to the (non-STRICT) grafana svc in ns monitoring; nothing STRICT in the path.
+#
+# Token: a Grafana SERVICE ACCOUNT token (role Viewer — read-only) in Secret `grafana-mcp-token`, created out-of-band:
+#   read -rsp 'Grafana SA token: ' T && kubectl -n weyland create secret generic grafana-mcp-token --from-literal=token="$T" && unset T
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: grafana-mcp
+  namespace: weyland
+  labels: { app: grafana-mcp, part-of: mcp-fleet }
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: grafana-mcp }
+  template:
+    metadata:
+      labels: { app: grafana-mcp }
+    spec:
+      containers:
+        - name: grafana-mcp
+          image: grafana/mcp-grafana:v1.0.0   # pinned (Gatekeeper no-latest); mirror to registry.weyland.lab if Docker Hub egress is an issue
+          args: ["-t", "streamable-http", "--disable-write"]   # streamable-http :8000/mcp; read-only
+          ports:
+            - { name: http, containerPort: 8000 }
+          env:
+            - name: GRAFANA_URL
+              value: http://monitoring-grafana.monitoring.svc.cluster.local
+            - name: GRAFANA_SERVICE_ACCOUNT_TOKEN
+              valueFrom:
+                secretKeyRef: { name: grafana-mcp-token, key: token }
+          readinessProbe:
+            httpGet: { path: /healthz, port: 8000 }
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: { path: /healthz, port: 8000 }
+            periodSeconds: 20
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 10001
+            allowPrivilegeEscalation: false
+            capabilities: { drop: ["ALL"] }
+            seccompProfile: { type: RuntimeDefault }
+          resources:
+            requests: { memory: 64Mi, cpu: 25m }
+            limits: { memory: 128Mi }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: grafana-mcp
+  namespace: weyland
+  labels: { app: grafana-mcp, part-of: mcp-fleet }
+spec:
+  type: ClusterIP
+  selector: { app: grafana-mcp }
+  ports:
+    - { name: http, port: 8000, targetPort: 8000 }

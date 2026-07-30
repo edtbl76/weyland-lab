@@ -105,6 +105,25 @@ spec:
   syncPolicy:
     automated: { selfHeal: true, prune: true }
 ---
+# mcp-servers — B17+B19 Phase 3 MCP server fleet (grafana/trino/k8s/postgres/neo4j/datahub), read-only surfaces
+# composed behind the gateway. One dir, one file per server.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: mcp-servers
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/edtbl76/weyland-lab.git
+    targetRevision: main
+    path: nodes/mother/lab/weyland-platform/k8s/mcp-servers
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: weyland
+  syncPolicy:
+    automated: { selfHeal: true, prune: true }
+---
 # Persistent Ray head (ray.weyland.lab) — the standing cluster jobs are submitted to (remote-training Phase 1).
 apiVersion: argoproj.io/v1alpha1
 kind: Application

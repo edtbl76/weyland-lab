@@ -67,7 +67,7 @@ sequenceDiagram
 ```
 
 ## Deploy
-- **Gateway** (built on rogueone like weyland-guard/agent): `docker build -t registry.weyland.lab/weyland-mcp-gateway:vN services/weyland-mcp-gateway && docker push …`; manifests `k8s/mcp-gateway/mcp-gateway.yaml` (Deployment + Service + Ingress `mcp.weyland.lab`, **not meshed** — plain HTTP to tool-server + Keycloak, no STRICT service in the path); Argo app `mcp-gateway` in `subdir-apps.yaml`.
+- **Gateway** (built on rogueone like weyland-guard/agent): `docker build -t registry.weyland.lab/weyland-mcp-gateway:vN services/weyland-mcp-gateway && docker push …`; manifests `k8s/mcp-gateway/mcp-gateway.yaml` (ServiceAccount `weyland-mcp-gateway` + Deployment + Service + Ingress `mcp.weyland.lab`, **meshed** — Istio sidecar + its own SA so the tool-server can authorize it by SPIFFE identity; stays PERMISSIVE so Traefik ingress still reaches it plaintext; gateway→tool-server + gateway→keycloak auto-mTLS); Argo app `mcp-gateway` in `subdir-apps.yaml`. Meshing was a **manifest-only** change (SA + `sidecar.istio.io/inject` label — no image rebuild).
 - **Keycloak clients** (OpenTofu, `tofu/keycloak/mcp-agents.tf`) — one `service_accounts_enabled` (client_credentials) client per agent; `client_id` = the actor. Apply: `TF_VAR_operator_password=… tofu apply`. Secret via `tofu output -raw mcp_operator_client_secret`.
 - **Act gate** rides the weyland-guard image (`policy.py` + the `x-forwarded-consumer` allowlist on the tool-server).
 - **JWKS** is fetched from the in-cluster keycloak svc over HTTP (`http://keycloak.weyland.svc:8080/realms/weyland/…/certs`) — no CA trust needed; the token `iss` is still validated against `https://keycloak.weyland.lab/realms/weyland`.
@@ -86,13 +86,36 @@ Act-gate enforcement (**live** via `GUARDRAIL_MODE__policy__gate=block` on the g
 for a demo via `/admin/mode`, Bearer `GUARD_ADMIN_TOKEN`): operator act → allow; NULL-actor → block
 ("no actor…"); unknown actor → block ("not in the act allowlist").
 
+## Anti-spoof — the act endpoints are gateway-only (Istio, 2026-07-29)
+`policy.gate` blocks acts with no/unknown actor, but the tool-server trusts `X-Forwarded-Consumer` from any caller — so
+a direct in-cluster POST to `/pipeline/trigger` with a forged `X-Forwarded-Consumer: weyland-operator` would still fire.
+Closed by an Istio **`AuthorizationPolicy`** (`k8s/istio/authz-toolserver-act.yaml`, Argo app `istio-config` — **manual
+sync**): a DENY rule scoped to the act paths (`/mcp-act*`, `/pipeline/trigger`, `/evals/run`, `/evals/score`), keyed on
+`notPrincipals: [cluster.local/ns/weyland/sa/weyland-mcp-gateway]`. Any source that isn't the gateway SA — **including a
+plaintext caller with no principal** — is denied at L7 before the app runs; read paths stay open. Requires the gateway
+**meshed with its own SA** (both ends meshed → auto-mTLS carries the SPIFFE identity).
+
+**Ordering:** mesh the gateway FIRST (auto-sync `mcp-gateway`), confirm it's up, THEN sync `istio-config` — if the policy
+lands while the gateway is un-meshed (no principal) the gateway's own acts get denied too.
+
+Verify (mother) — a forged direct act from a non-gateway pod is denied at L7 (`403 RBAC`), while the operator via the
+gateway still `pass`es its `policy.gate`:
+```
+kubectl -n weyland exec deploy/weyland-guard -- python -c 'import httpx; print(httpx.post("http://weyland-tool-server.weyland.svc.cluster.local:8080/pipeline/trigger",json={"job_name":"weyland_eval_job"},headers={"X-Forwarded-Consumer":"weyland-operator"}).status_code)'   # 403 RBAC: access denied
+```
+
 ## Current state + loose ends
 - Phase 1 (gateway + auth + actor) ✅ and Phase 2 (enforcing act gate) ✅ — both **proven + LIVE**; `policy.gate` is
   **enforcing (`block`)** as of 2026-07-29 (no-actor / unknown-actor / direct acts denied; `weyland-operator` via the gateway passes).
 - ✅ **Operator wired** (2026-07-29) — `weyland-operator` mints a Keycloak `client_credentials` token and routes acts
   through the gateway (`act.py`; `OPERATOR_CLIENT_SECRET`), falling back to the direct path only if no secret is wired.
-- **DNS:** `mcp.weyland.lab` is currently a client `/etc/hosts` stopgap — promote to CoreDNS + LAN DNS like the other
-  subdomains ([[coredns-cluster-lan-resolution]]).
+- ✅ **Anti-spoof** (2026-07-29) — tool-server act endpoints locked to the gateway SA via an Istio `AuthorizationPolicy`;
+  a forged direct act → `403 RBAC`. Gateway is now meshed with its own SA (see above).
+- ✅ **DNS:** `mcp.weyland.lab` resolves via the LAN DNS **wildcard** (`weyland.lab → 192.168.1.243`, `k8s/coredns-lan.yaml`)
+  — proven `dig +short mcp.weyland.lab @192.168.1.243 → 192.168.1.243`, identical to every Traefik-fronted subdomain
+  (grafana/mlflow/…). No mcp-specific record is needed (it's on mother/Traefik, not a distinct IP like ollama/whisper).
+  The `/etc/hosts` line on rogueone is that workstation's mechanism for **all** `*.weyland.lab` (its resolver is the FiOS
+  router, not the LAN DNS) — not an mcp-specific stopgap ([[coredns-cluster-lan-resolution]]).
 - **Coding agents** (opencode/Cline) may not send a Bearer on an MCP endpoint — they stay on the direct LAN path or go
   via Bifrost (agent edge) until they can auth.
 

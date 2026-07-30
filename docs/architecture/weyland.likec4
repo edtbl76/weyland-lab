@@ -181,7 +181,7 @@ model {
   // Agents
   weyland.mother.ai.operator -> weyland.mother.ai.toolServer "read + act (/mcp, /mcp-act) — confirm-step on acts"
   weyland.mother.ai.operator -> weyland.mother.ops.edge.mcpGateway "act via the governed MCP gateway (Keycloak client_credentials) — live; policy.gate enforces (block) on the verified actor"
-  weyland.mother.ops.edge.mcpGateway -> weyland.mother.ai.toolServer "authed proxy of /mcp + /mcp-act; injects X-Forwarded-Consumer actor"
+  weyland.mother.ops.edge.mcpGateway -> weyland.mother.ai.toolServer "authed proxy of /mcp + /mcp-act; injects X-Forwarded-Consumer actor; act endpoints locked to this SA (Istio AuthorizationPolicy)"
   weyland.mother.ops.edge.mcpGateway -> weyland.mother.ops.edge.keycloak "validate Bearer JWT (JWKS)"
   weyland.mother.ai.operator -> rogueone.ollama "brain — gpt-oss:20b /v1"
   weyland.mother.ai.operator -> weyland.mother.ai.pg "session memory (STRICT mTLS)"

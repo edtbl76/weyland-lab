@@ -678,9 +678,13 @@ The enforcing act gate `policy.gate` (weyland-guard — identity / allowlist / r
 direct path only when no secret is wired. Gotcha fixed: `fastapi-mcp` only forwards an allow-listed header set → tool-server
 passes `headers=["authorization","x-forwarded-consumer"]` (v13). Per-agent Keycloak `client_credentials` clients
 (`tofu/keycloak/mcp-agents.tf`). Runbook [runbooks/mcp-gateway.md](runbooks/mcp-gateway.md); design
-`aidlc-docs/construction/mcp-gateway-design.md`. **Remaining:** proper CoreDNS for `mcp.weyland.lab` (currently an
-`/etc/hosts` stopgap); **Phase 3 = Bifrost** (client-side MCP-tool aggregation); **B17 = A2A eval** (later); optional
-Istio `AuthorizationPolicy` so the tool-server act endpoints accept gateway traffic only (belt-and-suspenders anti-spoof).
+`aidlc-docs/construction/mcp-gateway-design.md`. **✅ Anti-spoof DONE 2026-07-29** — the tool-server act endpoints are
+locked to the gateway's SPIFFE identity via an Istio `AuthorizationPolicy` (`k8s/istio/authz-toolserver-act.yaml`, DENY
+act-paths from `notPrincipals:[gateway SA]`); the gateway is now meshed with its own SA `weyland-mcp-gateway`. Proven: a
+forged direct act (`X-Forwarded-Consumer: weyland-operator` from a non-gateway pod) → `403 RBAC`, operator via the gateway
+still passes. **Remaining:** **Phase 3 = Bifrost** (client-side MCP-tool aggregation); **B17 = A2A eval** (later). (**DNS
+non-issue** — `mcp.weyland.lab` already resolves via the LAN DNS wildcard `*.weyland.lab→192.168.1.243`, same as every
+Traefik subdomain; the rogueone `/etc/hosts` line is that box's mechanism for all lab subdomains, not an mcp-specific stopgap.)
 
 Evaluate a self-hosted **MCP gateway** (mcpx · MCPJungle · MCP Mesh · Local MCP Gateway · IBM ContextForge)
 to **aggregate multiple MCP servers behind one governed endpoint** with auth/RBAC, audit logging, and

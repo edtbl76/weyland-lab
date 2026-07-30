@@ -51,7 +51,7 @@ and stream-proxies to the tool-server. Un-authed → **401**. Runbook: [runbooks
 | Route | Method | Purpose |
 |---|---|---|
 | `/health` | GET | liveness (no auth) |
-| `/mcp` · `/mcp-act` | MCP | authed proxy of the tool-server's read / act MCP mounts; forwards the verified actor → `guardrail_verdicts.actor`, which the enforcing `policy.gate` (weyland-guard ACT hook) keys on |
+| `/mcp` · `/mcp-act` | MCP | authed proxy of the tool-server's read / act MCP mounts; forwards the verified actor → `guardrail_verdicts.actor`, which the enforcing `policy.gate` (weyland-guard ACT hook) keys on. The tool-server **act** endpoints (`/mcp-act`, `/pipeline/trigger`, `/evals/*`) are locked to this gateway's SPIFFE identity by an Istio `AuthorizationPolicy` — a direct/forged act → `403 RBAC` |
 
 Agents authenticate via Keycloak `client_credentials` (per-agent clients, `tofu/keycloak/mcp-agents.tf`); `client_id` = the actor.
 
