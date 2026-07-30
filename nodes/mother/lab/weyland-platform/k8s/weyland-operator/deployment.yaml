@@ -21,7 +21,7 @@ spec:
       enableServiceLinks: false
       containers:
         - name: weyland-operator
-          image: registry.weyland.lab/weyland-operator:v13   # v13 — DIAGNOSTIC: direct-to-Anthropic (MLflow Gateway bypassed) to isolate the schema-validation failure
+          image: registry.weyland.lab/weyland-operator:v13   # v13 — env-driven LLM key (LLM_API_KEY); brain = Haiku via LiteLLM (agentic lane), env-only swap
           imagePullPolicy: IfNotPresent
           resources:
             # No torch/embedder — just langgraph/langchain/mlflow client + fastapi; LLM inference is remote (Ollama).
@@ -66,15 +66,17 @@ spec:
             # $0 LOCAL FALLBACK: set OLLAMA_BASE_URL=http://192.168.1.230:11434/v1 + OLLAMA_MODEL=gpt-oss:20b +
             # FLEET_ROUTING=1 (routing keeps the 20B within its tool-selection ceiling). The var names stay OLLAMA_* —
             # both are just OpenAI-compatible endpoints.
-            # DIAGNOSTIC: MLflow Gateway removed from the chain — operator talks DIRECTLY to Anthropic's OpenAI-compat
-            # endpoint (isolates whether the Gateway's strict tool-schema validation was the failure). No gateway budget/
-            # guardrails on this path. Key in secret weyland-operator-llm (from scripts/.env ANTHROPIC_API_KEY).
+            # AGENTIC LANE: tool-calling routes through LiteLLM — a TRANSPARENT passthrough proxy (tools + tool_calls
+            # survive), with spend tracking + the off-LAN egress valve = governance at the right layer. NOT the MLflow AI
+            # Gateway (chat/eval lane only) — its strict request normalization shreds tool schemas. Guardrails are at the
+            # agent EDGE (weyland-guard input/output + the act confirm-step), never inline in the LLM path.
+            # $0 LOCAL FALLBACK: OLLAMA_BASE_URL=http://192.168.1.230:11434/v1 + OLLAMA_MODEL=gpt-oss:20b + FLEET_ROUTING=1.
             - name: OLLAMA_BASE_URL
-              value: https://api.anthropic.com/v1
+              value: http://litellm.weyland.svc.cluster.local:4000/v1
             - name: OLLAMA_MODEL
-              value: claude-haiku-4-5-20251001
+              value: claude-haiku
             - name: LLM_API_KEY
-              valueFrom: { secretKeyRef: { name: weyland-operator-llm, key: api-key } }
+              valueFrom: { secretKeyRef: { name: litellm-secrets, key: LITELLM_MASTER_KEY } }
             - name: GUARD_BASE_URL
               value: http://weyland-guard.weyland.svc.cluster.local:8080
             - name: MLFLOW_TRACKING_URI

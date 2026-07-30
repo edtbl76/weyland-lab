@@ -19,7 +19,16 @@ data:
         litellm_params:
           model: "openrouter/*"
           api_key: os.environ/OPENROUTER_API_KEY
+      # Anthropic — the agentic lane (operator, coding agents) routes tool-calling here (transparent passthrough).
+      - model_name: "anthropic/*"
+        litellm_params:
+          model: "anthropic/*"
+          api_key: os.environ/ANTHROPIC_API_KEY
       # --- Friendly aliases (optional convenience names) ---
+      - model_name: claude-haiku
+        litellm_params:
+          model: anthropic/claude-haiku-4-5-20251001
+          api_key: os.environ/ANTHROPIC_API_KEY
       - model_name: gemini-flash
         litellm_params:
           model: gemini/gemini-2.5-flash
