@@ -32,12 +32,14 @@ spec:
             - name: GRAFANA_SERVICE_ACCOUNT_TOKEN
               valueFrom:
                 secretKeyRef: { name: grafana-mcp-token, key: token }
+          # This build serves only /mcp (streamable-http, POST/JSON-RPC) — no /healthz — so probe the open TCP port.
+          # Functional MCP correctness is verified out-of-band by the tools/list smoke, not by an HTTP health path.
           readinessProbe:
-            httpGet: { path: /healthz, port: 8000 }
+            tcpSocket: { port: 8000 }
             initialDelaySeconds: 5
             periodSeconds: 10
           livenessProbe:
-            httpGet: { path: /healthz, port: 8000 }
+            tcpSocket: { port: 8000 }
             periodSeconds: 20
           securityContext:
             runAsNonRoot: true
