@@ -1,5 +1,5 @@
-# neo4j-mcp — B17+B19 Phase 3, MCP server #5. neo4j-contrib mcp-neo4j-cypher exposing the graph store (Cypher
-# read + schema) as MCP tools. HTTP transport on :8000, endpoint path **/api/mcp/** (NOT /mcp). Unmeshed — neo4j is
+# neo4j-mcp — B17+B19 Phase 3, MCP server #5. neo4j-contrib mcp-neo4j-cypher (FastMCP-based) exposing the graph store
+# (Cypher read + schema) as MCP tools. HTTP transport on :8000, endpoint path **/mcp/** (FastMCP default). Unmeshed — neo4j is
 # PERMISSIVE mesh, and MCP queries are short-lived (the neo4j-bolt long-conn stall only bites long bulk-loads).
 #
 # READ-ONLY: NEO4J_READ_ONLY=true → the server exposes only read Cypher tools (no write_neo4j_cypher).
