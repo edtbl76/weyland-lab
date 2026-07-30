@@ -23,7 +23,12 @@ spec:
       containers:
         - name: grafana-mcp
           image: grafana/mcp-grafana:1.0.0   # pinned (Gatekeeper no-latest; Docker Hub tag is 1.0.0, no "v"); mirror to registry.weyland.lab if Docker Hub egress is an issue
-          args: ["-t", "streamable-http", "--disable-write"]   # streamable-http :8000/mcp; read-only
+          # streamable-http :8000/mcp; read-only; allow the k8s service host forms (DNS-rebinding guard defaults to loopback only).
+          args:
+            - -t
+            - streamable-http
+            - --disable-write
+            - --allowed-hosts=grafana-mcp.weyland.svc.cluster.local:8000,grafana-mcp.weyland.svc:8000,grafana-mcp:8000
           ports:
             - { name: http, containerPort: 8000 }
           env:
