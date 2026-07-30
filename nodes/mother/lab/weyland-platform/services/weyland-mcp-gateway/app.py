@@ -33,7 +33,7 @@ JWKS_URL = os.environ["KEYCLOAK_JWKS_URL"]                 # https://keycloak.we
 ISSUER = os.environ["KEYCLOAK_ISSUER"]                     # https://keycloak.weyland.lab/realms/weyland
 AUDIENCE = os.environ.get("KEYCLOAK_AUDIENCE") or None     # optional; Keycloak often sets aud=account, so default off
 ACTOR_CLAIM = os.environ.get("ACTOR_CLAIM", "azp")         # client_credentials → azp = the agent's client_id
-ALLOWED_PREFIXES = ("/mcp-act", "/mcp",                    # the MCP mounts (order: /mcp-act before /mcp — both start "/mcp")
+ALLOWED_PREFIXES = ("/mcp-fleet", "/mcp-act", "/mcp",     # /mcp-fleet → compositor (read fleet); /mcp-act + /mcp → tool-server
                     "/pipeline/trigger", "/evals/run", "/evals/score")  # + the tool-server act endpoints the operator
                                                           #   calls directly (not via MCP) — routed here for a verified actor
 
@@ -75,11 +75,14 @@ async def _proxy(request: Request) -> StreamingResponse | JSONResponse:
     headers = {k: v for k, v in request.headers.items() if k.lower() not in _DROP_REQ}
     headers["X-Forwarded-Consumer"] = actor              # the whole point — set from the VALIDATED claim
 
+    # /mcp-fleet → the compositor (aggregated read-only fleet), rewritten to its /mcp mount. Everything else — RAG
+    # reads (/mcp → tool-server, unchanged) and acts (/mcp-act, /pipeline, /evals → tool-server) — goes to the tool-server.
+    if COMPOSITOR and path.startswith("/mcp-fleet"):
+        target_url = COMPOSITOR + "/mcp" + path[len("/mcp-fleet"):]
+    else:
+        target_url = TOOL_SERVER + path
     upstream = _client.build_request(
-        request.method,
-        # read /mcp → the compositor (aggregated read-only fleet) when configured; acts (/mcp-act, /pipeline, /evals) → tool-server.
-        (COMPOSITOR if (COMPOSITOR and (path == "/mcp" or path.startswith("/mcp/"))) else TOOL_SERVER) + path,
-        headers=headers,
+        request.method, target_url, headers=headers,
         content=request.stream(), params=request.query_params,
     )
     resp = await _client.send(upstream, stream=True)     # stream both ways (MCP Streamable-HTTP is SSE-capable)
@@ -96,6 +99,8 @@ async def _health(_: Request) -> PlainTextResponse:
 
 app = Starlette(routes=[
     Route("/health", _health),
+    Route("/mcp-fleet/{path:path}", _proxy, methods=["GET", "POST", "DELETE"]),
+    Route("/mcp-fleet", _proxy, methods=["GET", "POST", "DELETE"]),
     Route("/mcp-act/{path:path}", _proxy, methods=["GET", "POST", "DELETE"]),
     Route("/mcp-act", _proxy, methods=["GET", "POST", "DELETE"]),
     Route("/mcp/{path:path}", _proxy, methods=["GET", "POST", "DELETE"]),

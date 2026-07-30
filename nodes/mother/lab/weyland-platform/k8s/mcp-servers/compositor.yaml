@@ -23,6 +23,9 @@ spec:
             - { name: http, containerPort: 8000 }
           env:
             - { name: PORT, value: "8000" }
+            # context (tool-server fastapi-mcp /mcp) is EXCLUDED — its mount_http streamable-http hangs FastMCP's proxy
+            # client. RAG reads stay on the gateway /mcp → tool-server (unchanged); Bifrost aggregates the two endpoints.
+            - { name: CONTEXT_URL, value: "" }
           readinessProbe:
             tcpSocket: { port: 8000 }
             initialDelaySeconds: 5

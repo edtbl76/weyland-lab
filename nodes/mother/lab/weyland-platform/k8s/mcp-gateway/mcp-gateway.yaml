@@ -34,7 +34,7 @@ spec:
       serviceAccountName: weyland-mcp-gateway
       containers:
         - name: weyland-mcp-gateway
-          image: registry.weyland.lab/weyland-mcp-gateway:v3
+          image: registry.weyland.lab/weyland-mcp-gateway:v4
           imagePullPolicy: IfNotPresent
           securityContext:
             runAsNonRoot: true
