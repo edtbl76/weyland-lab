@@ -1,0 +1,80 @@
+# k8s-mcp — B17+B19 Phase 3, MCP server #3. containers/kubernetes-mcp-server (Red Hat) exposing cluster READ state
+# (pods/deployments/events/…) as MCP tools. streamable-http on :8080/mcp.
+#
+# READ-ONLY BY CONSTRUCTION (defense-in-depth):
+#   1. RBAC — its own ServiceAccount `k8s-mcp` bound to the built-in **view** ClusterRole (get/list/watch only, and
+#      view EXCLUDES Secrets → an agent can't read secrets). The API server denies any write regardless of the tool.
+#   2. Server — the `--read-only` flag disables all write tools.
+# The pod auto-uses its in-cluster SA token (same SA the RBAC targets — do NOT disable automount).
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: k8s-mcp
+  namespace: weyland
+  labels: { app: k8s-mcp, part-of: mcp-fleet }
+---
+# Cluster-wide READ. `view` is the built-in read-only role (get/list/watch; no secrets, no writes).
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: k8s-mcp-view
+  labels: { app: k8s-mcp, part-of: mcp-fleet }
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: view
+subjects:
+  - kind: ServiceAccount
+    name: k8s-mcp
+    namespace: weyland
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: k8s-mcp
+  namespace: weyland
+  labels: { app: k8s-mcp, part-of: mcp-fleet }
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: k8s-mcp }
+  template:
+    metadata:
+      labels: { app: k8s-mcp }
+    spec:
+      serviceAccountName: k8s-mcp
+      containers:
+        - name: k8s-mcp
+          image: ghcr.io/containers/kubernetes-mcp-server:latest   # only 'latest' published; pin by digest for reproducibility (kubectl get pod -o jsonpath='{.status.containerStatuses[0].imageID}')
+          args: ["--read-only", "--port", "8080"]   # HTTP mode (streamable-http /mcp); --bind-address defaults 0.0.0.0
+          ports:
+            - { name: http, containerPort: 8080 }
+          readinessProbe:
+            tcpSocket: { port: 8080 }
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            tcpSocket: { port: 8080 }
+            periodSeconds: 20
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 10001
+            allowPrivilegeEscalation: false
+            capabilities: { drop: ["ALL"] }
+            seccompProfile: { type: RuntimeDefault }
+          resources:
+            requests: { memory: 64Mi, cpu: 25m }
+            limits: { memory: 192Mi }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: k8s-mcp
+  namespace: weyland
+  labels: { app: k8s-mcp, part-of: mcp-fleet }
+spec:
+  type: ClusterIP
+  selector: { app: k8s-mcp }
+  ports:
+    - { name: http, port: 8080, targetPort: 8080 }
