@@ -7,9 +7,9 @@
 #
 # ADDRESS: bifrost.weyland.lab. TWO routers (MCP clients can't browser-SSO): the UI (`/`) is Keycloak forward-auth'd;
 # `/mcp` is NOT (Bifrost's own virtual-key auth). Verified 2026-07-30: /mcp re-exposes all 91/91 fleet tools end-to-end.
-# TODO(B111): pin the image tag (inspect the digest on mother); codify config.json as GitOps — init-seed the weyland_fleet
-# MCP upstream via an initContainer + SealedSecret the virtual keys (repo is PUBLIC, so VKs can't be plain git). Until
-# then the MCP-upstream config is UI-managed in the PVC; re-add steps in docs/runbooks/mcp-gateway.md.
+# Image pinned to the multi-arch index digest (below). TODO(B111): codify config.json as GitOps — init-seed the
+# weyland_fleet MCP upstream via an initContainer + SealedSecret the virtual keys (repo is PUBLIC, so VKs can't be plain
+# git). Until then the MCP-upstream config is UI-managed in the PVC; re-add steps in docs/runbooks/mcp-gateway.md.
 ---
 apiVersion: v1
 kind: PersistentVolumeClaim
@@ -43,7 +43,10 @@ spec:
         fsGroup: 10001            # so /app/data (the PVC) is writable by the non-root user
       containers:
         - name: bifrost
-          image: maximhq/bifrost:latest   # TODO pin (Gatekeeper no-latest); confirm the current tag
+          # Pinned to the multi-arch INDEX digest of `latest` as of 2026-07-30 (not a per-arch manifest, so it still
+          # resolves on any node arch — same rationale as LiteLLM). To bump: `docker buildx imagetools inspect
+          # maximhq/bifrost:latest` on a box with docker → copy the top-level Digest → update below. Deliberate only.
+          image: maximhq/bifrost@sha256:bf2208978308477a9f667dfc04cef3153197aeaca8618befefbecde3ed3378b7   # latest @ 2026-07-30
           ports:
             - { name: http, containerPort: 8080 }
           readinessProbe:

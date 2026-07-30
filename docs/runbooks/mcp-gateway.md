@@ -142,7 +142,7 @@ work also does the config-as-GitOps (init-seed `config.json` + SealedSecret'd vi
   router, not the LAN DNS) — not an mcp-specific stopgap ([[coredns-cluster-lan-resolution]]).
 - ✅ **Bifrost agent edge** (Phase 3b, 2026-07-30) — `bifrost.weyland.lab` re-exposes all **91/91** fleet tools through
   one `/mcp`; external path verified `200`. Coding agents (Cline/Cursor/Claude Code) point one URL at the whole read-only
-  lab. Loose ends: pin the `maximhq/bifrost:latest` tag; codify the MCP-upstream config as GitOps (`TODO(B111)`).
+  lab. Image pinned to the multi-arch index digest (2026-07-30). Loose end: codify the MCP-upstream config as GitOps (`TODO(B111)`).
 
 Related: [runbooks/guardrails.md](guardrails.md) (the guard service + act gate), [runbooks/keycloak.md](keycloak.md),
 [[keycloak-sso-b1.1]]. Design: `aidlc-docs/construction/mcp-gateway-design.md`.
