@@ -58,9 +58,29 @@ kubectl -n weyland exec deploy/weyland-guard -- python -c 'import httpx,json; b=
 **SSE transport** (postgres-mcp): open `GET /sse` in a thread, read the `endpoint` event's `/messages/?session_id=…`
 path, POST init/initialized/tools-list there, read responses off the stream (heredoc via `kubectl exec -i … python -`).
 
-## What's next
-- **FastMCP composition** — mount the 6 + the tool-server behind one `/mcp`, fronted by `weyland-mcp-gateway`.
-- **Bifrost** — the agent edge (operator B66 + coding agents B15).
-- First real application: **B109** — Grafana dashboard audit driven through grafana-mcp.
+## Composition + the operator (done 2026-07-30)
+- **`weyland-mcp-compositor`** (`services/weyland-mcp-compositor/`, FastMCP `create_proxy`) aggregates the **6 servers**
+  into one endpoint, tools namespaced `grafana_*`/`trino_*`/… (~90). The gateway routes **`/mcp-fleet` → compositor**;
+  `/mcp` still → tool-server (RAG). The tool-server's own `fastapi-mcp` is NOT composed (its mount hangs FastMCP's proxy
+  client) — RAG stays a separate endpoint; that's fine, agent-side aggregation is Bifrost's job.
+- **The operator (B66) uses the fleet.** It loads the `/mcp-fleet` tools via `langchain-mcp-adapters` (per-request
+  Keycloak token via a custom `httpx.Auth`), sanitizes their schemas (`fleet._sanitize_schema` — MCP servers emit
+  inconsistent schemas), and binds them flat (`ainvoke` — MCP tools are async-only). `FLEET_ROUTING=1` switches to
+  6 subsystem routers for a weaker local brain.
 
-Design: `aidlc-docs/construction/mcp-server-fleet-design.md`. Relates [runbooks/mcp-gateway.md](mcp-gateway.md), [[b17-b19-mcp-gateway]].
+## The LLM lane — two-lane rule (learned here, 2026-07-30)
+The operator's brain is **Haiku via LiteLLM**, NOT the MLflow AI Gateway. The MLflow Gateway *normalizes/validates*
+requests (great for chat; its strict tool-schema validation **shreds** heterogeneous MCP tool schemas — proven by a
+direct-to-Anthropic A/B). LiteLLM is a *transparent* passthrough (tools + tool_calls survive) and is still governed
+(spend tracking + egress valve). So: **agentic/tool-calling → LiteLLM; chat/RAG/eval/judge → MLflow AI Gateway.**
+Guardrails for the agent live at its EDGE (`weyland-guard` input/output + the act confirm-step), never inline in the LLM path.
+
+## Demo + list
+- **List servers + tools (live):** `kubectl -n weyland exec -i deploy/weyland-guard -- python - < scripts/list_mcp_fleet.py`
+- **Per-tool-set demos** (Telegram prompts): [demos/mcp-fleet.md](../demos/mcp-fleet.md)
+
+## What's next
+- **Bifrost** — the agent edge (aggregate `/mcp` + `/mcp-fleet` for agents that can't OAuth; B15 coding agents).
+- **B109** — Grafana dashboard audit driven through grafana-mcp (first real application).
+
+Design: `aidlc-docs/construction/mcp-server-fleet-design.md`. Relates [runbooks/mcp-gateway.md](mcp-gateway.md), [runbooks/operator.md](operator.md), [[b17-b19-mcp-gateway]].

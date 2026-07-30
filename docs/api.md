@@ -71,6 +71,12 @@ gateway (FastMCP). All speak MCP streamable-http on the path shown (postgres = S
 
 All read-only (enforced per-server: flag / RBAC / Ranger / Postgres READ-ONLY txn); the tool-server stays the only actor.
 
+**Composed** by `weyland-mcp-compositor` (`http://weyland-mcp-compositor.weyland.svc:8000/mcp`, FastMCP) into one endpoint
+with per-server tool prefixes; reached through the **gateway at `mcp.weyland.lab/mcp-fleet`** (Keycloak-authed). The B66
+operator consumes `/mcp-fleet` with Haiku via **LiteLLM** (agentic lane — NOT the MLflow Gateway, which mangles MCP tool
+schemas). List them live: `kubectl -n weyland exec -i deploy/weyland-guard -- python - < scripts/list_mcp_fleet.py`.
+Demo: [demos/mcp-fleet.md](demos/mcp-fleet.md).
+
 ## Guard service (`weyland-guard` — B70 Part 1)
 
 Internal only — `http://weyland-guard.weyland.svc.cluster.local:8080` (ClusterIP, no ingress). The shared B14 guard

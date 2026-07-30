@@ -35,9 +35,17 @@ propose (LLM) → store pending_action → "⚠️ Confirm …? yes/no" → user
   [runbooks/mcp-gateway.md](mcp-gateway.md) / [[b17-b19-mcp-gateway]].
 
 ## Architecture decisions (see the B66 design doc)
-- **Brain = local `gpt-oss:20b`** (Ollama on rogueone) — the bake-off found it *ties Claude Haiku* on tool-selection,
-  the full loop, and the act-path safety test (8/8, declined every trap), faster and $0. **Haiku (API) = documented
-  fallback**, reached by repointing `OLLAMA_BASE_URL`/`MODEL` — no paid path wired ($0 budget). See [[b66-operator-brain-bakeoff]].
+- **Brain = Haiku via LiteLLM** (agentic lane, 2026-07-30) — tool-calling runs through **LiteLLM** (a *transparent*
+  passthrough proxy → tools + tool_calls survive; governed by spend tracking + the egress valve), `OLLAMA_MODEL=claude-haiku`,
+  `LLM_API_KEY=litellm-secrets/LITELLM_MASTER_KEY`. **NOT the MLflow AI Gateway** — its strict request *normalization*
+  shreds heterogeneous MCP tool schemas (proven by a direct-to-Anthropic A/B); MLflow is the **chat/eval** lane.
+  **$0 LOCAL FALLBACK:** repoint `OLLAMA_BASE_URL`→Ollama + `OLLAMA_MODEL=gpt-oss:20b` + `FLEET_ROUTING=1` (subsystem
+  routers keep the 20B within its tool-selection ceiling; the B66 bake-off is why 20b was the original default).
+  See [[b66-operator-brain-bakeoff]], [runbooks/mcp-fleet.md](mcp-fleet.md).
+- **Fleet tools (B17+B19 Phase 3)** — loads the composed fleet's ~90 read tools from the gateway `/mcp-fleet`
+  (grafana/trino/k8s/postgres/neo4j/datahub) via `langchain-mcp-adapters` + a per-request token-refreshing `httpx.Auth`;
+  MCP schemas sanitized; bound flat (or 6 routers under `FLEET_ROUTING`). Guardrails stay at the EDGE (weyland-guard
+  in/out + confirm-step), never inline in the LLM path. Demo/list: [demos/mcp-fleet.md](../demos/mcp-fleet.md).
 - **Fresh LangGraph shell, not Hermes/OpenClaw** — the brain (their weakness) is fixed; we own the confirm-step rail.
 - **Raw httpx for Telegram**, not python-telegram-bot — the loop is just `getUpdates` + `sendMessage`; fewer deps.
 - **`asyncio.to_thread`** wraps the blocking agent + psycopg2 calls so the single event loop stays free for `/health`
