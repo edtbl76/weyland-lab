@@ -14,7 +14,8 @@ RUN pip install --no-cache-dir \
     langgraph \
     langchain \
     langchain-openai \
-    langchain-mcp-adapters \
+    langchain-mcp-adapters==0.3.1 \
+    mcp==1.24.0 \
     mlflow
 
 COPY tools.py agent.py guard.py telegram.py session.py ingress.py act.py prompts.py fleet.py app.py /app/

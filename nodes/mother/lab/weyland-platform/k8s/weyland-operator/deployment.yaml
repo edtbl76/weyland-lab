@@ -21,7 +21,7 @@ spec:
       enableServiceLinks: false
       containers:
         - name: weyland-operator
-          image: registry.weyland.lab/weyland-operator:v6   # v6 — B17+B19 Ph3: + the composed MCP fleet's read tools via the gateway /mcp-fleet
+          image: registry.weyland.lab/weyland-operator:v7   # v7 — B17+B19 Ph3: + composed MCP fleet read tools (pinned mcp==1.24.0 for langchain-mcp-adapters 0.3.1)
           imagePullPolicy: IfNotPresent
           resources:
             # No torch/embedder — just langgraph/langchain/mlflow client + fastapi; LLM inference is remote (Ollama).
