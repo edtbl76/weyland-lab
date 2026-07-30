@@ -41,9 +41,10 @@ alongside the audit-only `policy.audit`. It **BLOCKs**:
 - an actor over its **per-minute rate cap**.
 
 Policy is a small dict (`_DEFAULT_POLICY`, env-overridable JSON via `GUARD_ACT_POLICY`) — one entry per agent (per-agent
-Keycloak clients → per-agent actors). Ships **SHADOW** (records the would-block, enforces nothing) until every act caller
-routes through the gateway; promote to enforce with `GUARDRAIL_MODE__policy__gate=block` or the live `/admin/mode`
-toggle.
+Keycloak clients → per-agent actors). **ENFORCING (`block`) live 2026-07-29** via `GUARDRAIL_MODE__policy__gate=block` on
+the weyland-guard deployment — the operator now routes acts through the gateway (verified `weyland-operator` passes), so
+unverified acts are denied for real. Toggle back to observe-only for a demo with the live `/admin/mode` toggle (Bearer)
+rather than editing the manifest.
 
 ## Sequence (auth → actor → act gate)
 ```mermaid
@@ -81,15 +82,17 @@ the fresh verdicts carry `actor = weyland-operator`:
 ```
 SELECT actor, validator, count(*) FROM guardrail_verdicts WHERE actor='weyland-operator' GROUP BY 1,2;
 ```
-Act-gate enforcement (flip via `/admin/mode`, Bearer `GUARD_ADMIN_TOKEN`): operator act → allow; NULL-actor → block
+Act-gate enforcement (**live** via `GUARDRAIL_MODE__policy__gate=block` on the guard deployment; toggle to observe-only
+for a demo via `/admin/mode`, Bearer `GUARD_ADMIN_TOKEN`): operator act → allow; NULL-actor → block
 ("no actor…"); unknown actor → block ("not in the act allowlist").
 
 ## Current state + loose ends
-- Phase 1 (gateway + auth + actor) ✅ and Phase 2 (enforcing act gate) ✅ — both **proven**; the act gate is **SHADOW**.
+- Phase 1 (gateway + auth + actor) ✅ and Phase 2 (enforcing act gate) ✅ — both **proven + LIVE**; `policy.gate` is
+  **enforcing (`block`)** as of 2026-07-29 (no-actor / unknown-actor / direct acts denied; `weyland-operator` via the gateway passes).
+- ✅ **Operator wired** (2026-07-29) — `weyland-operator` mints a Keycloak `client_credentials` token and routes acts
+  through the gateway (`act.py`; `OPERATOR_CLIENT_SECRET`), falling back to the direct path only if no secret is wired.
 - **DNS:** `mcp.weyland.lab` is currently a client `/etc/hosts` stopgap — promote to CoreDNS + LAN DNS like the other
   subdomains ([[coredns-cluster-lan-resolution]]).
-- **Wire the operator** (B66) to call `mcp.weyland.lab` with a Keycloak token instead of the open tool-server URL; then
-  flip `policy.gate` to `block` for live enforcement (NULL-actor / direct acts get denied).
 - **Coding agents** (opencode/Cline) may not send a Bearer on an MCP endpoint — they stay on the direct LAN path or go
   via Bifrost (agent edge) until they can auth.
 

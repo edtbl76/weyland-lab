@@ -50,10 +50,11 @@ The MCP gateway now injects a verified `actor` (the Keycloak `client_id` via `X-
 gained `policy.gate` alongside audit-only `policy.audit`. It **BLOCKs**: an act with **no actor** (a caller that
 bypassed the gateway), an actor **not in the allowlist**, a tool **not permitted** for that actor, or an actor over its
 **per-minute rate cap**. Policy = `_DEFAULT_POLICY` in `validators/policy.py` (one entry per agent, `"*"` = any tool),
-env-overridable as JSON via `GUARD_ACT_POLICY`. Ships **SHADOW** (records the would-block, enforces nothing) until every
-act caller routes through the gateway — else NULL-actor direct acts would block. Promote with
-`GUARDRAIL_MODE__policy__gate=block` or the live `/admin/mode` toggle. Full path + the fastapi-mcp header-allowlist
-gotcha: [runbooks/mcp-gateway.md](mcp-gateway.md).
+env-overridable as JSON via `GUARD_ACT_POLICY`. **ENFORCING (`block`) live 2026-07-29** via
+`GUARDRAIL_MODE__policy__gate=block` on the guard deployment — the operator now routes acts through the gateway (verified
+`weyland-operator` passes), so NULL-actor / unknown / direct acts are denied for real (proven: `decision:"block"`, reason
+*"no actor…"*). Toggle to observe-only for a demo via the live `/admin/mode` toggle rather than editing the manifest.
+Full path + the fastapi-mcp header-allowlist gotcha: [runbooks/mcp-gateway.md](mcp-gateway.md).
 
 ## grounding.nli — calibration (B35, 2026-07-28)
 `grounding.nli` scores answer-vs-sources by **sentence-level NLI**: split the answer into claims (markdown/citation-

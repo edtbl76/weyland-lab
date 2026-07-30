@@ -41,7 +41,7 @@ Hosts & access users: [hosts.md](hosts.md). `mother` = 192.168.1.243, CTs by IP 
 | `/evals/run` · `/evals/score` | POST | B4: trigger eval matrix / judge-panel scoring (B14 `act` hook: audited; exposed via `/mcp-act`) |
 | `/evals/runs` · `/evals/leaderboard` | GET | B4: list eval runs / panel-averaged leaderboard (`?run_id=`) |
 | `/mcp` | MCP | **B2 system-view MCP server** (Streamable HTTP via `fastapi-mcp`) — read-only tools: `status`, `context_search`, `context_ask`, `list_models`. Consumers: **Claude Code** (registered via `claude mcp add weyland --transport http http://192.168.1.243:30080/mcp`, validated 2026-06-14) + the coming **B66 operator agent**. (Hermes retired 2026-07-23.) |
-| `/mcp-act` | MCP | **B14 read+act** act-tool surface (separate mount): `pipeline/trigger`, `evals/run`, `evals/score`. Every call audited by the `act` hook → `weyland-guard` (`policy.audit`, shadow) → `guardrail_verdicts`. **Consumer: the B66 operator agent** (`weyland-operator`, live 2026-07-24 — posts here on confirmed acts, `actor=operator:telegram:<chat_id>`; Hermes retired 2026-07-23); **Claude Code stays read-only on `/mcp`** (builder lane). Gateway (B17+B19) fronts it with auth (`X-Forwarded-Consumer` → `actor`). |
+| `/mcp-act` | MCP | **B14 read+act** act-tool surface (separate mount): `pipeline/trigger`, `evals/run`, `evals/score`. Every call audited by the `act` hook → `weyland-guard` (`policy.audit`, shadow) → `guardrail_verdicts`. **Consumer: the B66 operator agent** (`weyland-operator`, live 2026-07-24 — posts here on confirmed acts; since 2026-07-29 it routes through the MCP gateway with a Keycloak token → verified `actor=weyland-operator`, self-set `operator:telegram:<chat_id>` only on the no-secret fallback; Hermes retired 2026-07-23); **Claude Code stays read-only on `/mcp`** (builder lane). Gateway (B17+B19) fronts it with auth (`X-Forwarded-Consumer` → `actor`), and the enforcing `policy.gate` now **denies** any act that doesn't arrive with a verified actor. |
 
 ## MCP gateway (`weyland-mcp-gateway` — B17+B19)
 `https://mcp.weyland.lab` — the Keycloak-authed front door for the tool-server's MCP mounts. Validates a Keycloak Bearer
@@ -64,7 +64,7 @@ layer; the tool-server (and the coming `weyland-agent`) POST here instead of run
 |---|---|---|
 | `/guard/input` | POST | `{request_id, query, actor?}` → `llm_guard.injection`. Returns `{decision: allow\|block, verdict?}` |
 | `/guard/output` | POST | `{request_id, answer, sources:[{content}], actor?}` → `llm_guard.toxicity` + `grounding.nli` |
-| `/guard/act` | POST | `{request_id, tool, params?, actor?}` → `policy.audit` (audit) + `policy.gate` (enforcing: identity / allowlist / rate-limit, shadow — see [runbooks/mcp-gateway.md](runbooks/mcp-gateway.md)) |
+| `/guard/act` | POST | `{request_id, tool, params?, actor?}` → `policy.audit` (audit) + `policy.gate` (**enforcing `block` live 2026-07-29**: identity / allowlist / rate-limit — no-actor / unknown / direct acts denied; see [runbooks/mcp-gateway.md](runbooks/mcp-gateway.md)) |
 | `/health` `/ready` | GET | liveness / readiness (503 until the 3 models load) |
 | `/metrics` | GET | `guardrail_verdicts_total` + `guardrail_validator_latency_ms` |
 
