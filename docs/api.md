@@ -55,6 +55,22 @@ and stream-proxies to the tool-server. Un-authed → **401**. Runbook: [runbooks
 
 Agents authenticate via Keycloak `client_credentials` (per-agent clients, `tofu/keycloak/mcp-agents.tf`); `client_id` = the actor.
 
+## MCP server fleet (B17+B19 Phase 3)
+
+Internal only (ClusterIP, no ingress) — 6 **read-only** MCP servers, one per lab subsystem. To be composed behind the
+gateway (FastMCP). All speak MCP streamable-http on the path shown (postgres = SSE). Runbook: [runbooks/mcp-fleet.md](runbooks/mcp-fleet.md).
+
+| Server | In-cluster endpoint | Surface |
+|---|---|---|
+| grafana-mcp | `http://grafana-mcp.weyland.svc:8000/mcp` | dashboards / Prometheus / alerts |
+| trino-mcp | `http://trino-mcp.weyland.svc:8080/mcp` | lakehouse SQL (`iceberg.*`, dbt marts) |
+| k8s-mcp | `http://k8s-mcp.weyland.svc:8080/mcp` | cluster read (pods/events/nodes) |
+| postgres-mcp | `http://postgres-mcp.weyland.svc:8000/sse` (SSE) | Postgres (operational + app cells) |
+| neo4j-mcp | `http://neo4j-mcp.weyland.svc:8000/mcp/` | graph / Cypher |
+| datahub-mcp | `http://datahub-mcp.weyland.svc:8000/mcp` | catalog search + lineage |
+
+All read-only (enforced per-server: flag / RBAC / Ranger / Postgres READ-ONLY txn); the tool-server stays the only actor.
+
 ## Guard service (`weyland-guard` — B70 Part 1)
 
 Internal only — `http://weyland-guard.weyland.svc.cluster.local:8080` (ClusterIP, no ingress). The shared B14 guard

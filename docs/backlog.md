@@ -682,9 +682,14 @@ passes `headers=["authorization","x-forwarded-consumer"]` (v13). Per-agent Keycl
 locked to the gateway's SPIFFE identity via an Istio `AuthorizationPolicy` (`k8s/istio/authz-toolserver-act.yaml`, DENY
 act-paths from `notPrincipals:[gateway SA]`); the gateway is now meshed with its own SA `weyland-mcp-gateway`. Proven: a
 forged direct act (`X-Forwarded-Consumer: weyland-operator` from a non-gateway pod) → `403 RBAC`, operator via the gateway
-still passes. **Remaining:** **Phase 3 = Bifrost** (client-side MCP-tool aggregation); **B17 = A2A eval** (later). (**DNS
-non-issue** — `mcp.weyland.lab` already resolves via the LAN DNS wildcard `*.weyland.lab→192.168.1.243`, same as every
-Traefik subdomain; the rogueone `/etc/hosts` line is that box's mechanism for all lab subdomains, not an mcp-specific stopgap.)
+still passes. **✅ MCP server fleet DONE 2026-07-29** — 6 **read-only** MCP servers (grafana · trino · k8s · postgres ·
+neo4j · datahub) exposing lab subsystems an agent can query through one protocol; `k8s/mcp-servers/` (Argo `mcp-servers`),
+each read-only-enforced at its own layer, all proven via `tools/list`. Runbook [runbooks/mcp-fleet.md](runbooks/mcp-fleet.md),
+design `aidlc-docs/construction/mcp-server-fleet-design.md`. This *earns* the aggregation trigger (≥2 MCP servers).
+**Remaining Phase 3:** FastMCP **composition** (mount the 6 + the tool-server behind one gateway-fronted `/mcp`, namespaced
+tools) → **Bifrost** (agent edge: operator B66 + coding agents B15); **B17 = A2A eval** (later). First fleet application =
+**B109** (Grafana dashboard audit via grafana-mcp). (**DNS non-issue** — `mcp.weyland.lab` already resolves via the LAN
+DNS wildcard; the rogueone `/etc/hosts` line covers all lab subdomains, not an mcp-specific stopgap.)
 
 Evaluate a self-hosted **MCP gateway** (mcpx · MCPJungle · MCP Mesh · Local MCP Gateway · IBM ContextForge)
 to **aggregate multiple MCP servers behind one governed endpoint** with auth/RBAC, audit logging, and
