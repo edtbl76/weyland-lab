@@ -1,0 +1,67 @@
+# neo4j-mcp — B17+B19 Phase 3, MCP server #5. neo4j-contrib mcp-neo4j-cypher exposing the graph store (Cypher
+# read + schema) as MCP tools. HTTP transport on :8000, endpoint path **/api/mcp/** (NOT /mcp). Unmeshed — neo4j is
+# PERMISSIVE mesh, and MCP queries are short-lived (the neo4j-bolt long-conn stall only bites long bulk-loads).
+#
+# READ-ONLY: NEO4J_READ_ONLY=true → the server exposes only read Cypher tools (no write_neo4j_cypher).
+# ALLOWED_HOSTS=* : this server has TrustedHost middleware (DNS-rebinding guard); it's ClusterIP-only (no ingress),
+# so * is safe here and avoids brittle host-form matching.
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: neo4j-mcp
+  namespace: weyland
+  labels: { app: neo4j-mcp, part-of: mcp-fleet }
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: neo4j-mcp }
+  template:
+    metadata:
+      labels: { app: neo4j-mcp }
+    spec:
+      containers:
+        - name: neo4j-mcp
+          image: mcp/neo4j-cypher:latest   # only 'latest' published; pin by digest for reproducibility
+          env:
+            - { name: NEO4J_URI, value: bolt://neo4j.weyland.svc.cluster.local:7687 }
+            - { name: NEO4J_USERNAME, value: neo4j }
+            - name: NEO4J_PASSWORD
+              valueFrom:
+                secretKeyRef: { name: neo4j-secret, key: password }
+            - { name: NEO4J_DATABASE, value: neo4j }
+            - { name: NEO4J_READ_ONLY, value: "true" }            # read-only: no write Cypher tool
+            - { name: NEO4J_TRANSPORT, value: http }              # streamable-http on :8000/api/mcp/
+            - { name: NEO4J_MCP_SERVER_HOST, value: 0.0.0.0 }     # must be 0.0.0.0 for http transport
+            - { name: NEO4J_MCP_SERVER_PORT, value: "8000" }
+            - { name: NEO4J_MCP_SERVER_ALLOWED_HOSTS, value: "*" } # TrustedHost middleware; ClusterIP-only → * is safe
+          ports:
+            - { name: http, containerPort: 8000 }
+          readinessProbe:
+            tcpSocket: { port: 8000 }
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            tcpSocket: { port: 8000 }
+            periodSeconds: 20
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 10001
+            allowPrivilegeEscalation: false
+            capabilities: { drop: ["ALL"] }
+            seccompProfile: { type: RuntimeDefault }
+          resources:
+            requests: { memory: 96Mi, cpu: 25m }
+            limits: { memory: 256Mi }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: neo4j-mcp
+  namespace: weyland
+  labels: { app: neo4j-mcp, part-of: mcp-fleet }
+spec:
+  type: ClusterIP
+  selector: { app: neo4j-mcp }
+  ports:
+    - { name: http, port: 8000, targetPort: 8000 }
