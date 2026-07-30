@@ -25,7 +25,7 @@ SYSTEM = (
     "cannot act directly — call propose_act and the user confirms; never claim an action ran. Keep replies short (Telegram)."
 )
 
-_llm = ChatOpenAI(base_url=OLLAMA_BASE_URL, api_key="ollama", model=OLLAMA_MODEL,
+_llm = ChatOpenAI(base_url=OLLAMA_BASE_URL, api_key=os.getenv("LLM_API_KEY", "ollama"), model=OLLAMA_MODEL,
                   timeout=OLLAMA_TIMEOUT, temperature=0)
 # Fleet tools: FLAT by default — a capable brain (Haiku) selects from the ~91 read tools directly. Set FLEET_ROUTING=1
 # for the local gpt-oss:20b, which collapses the fleet into 6 subsystem ROUTERS (small prompts, extra LLM hops) so it
