@@ -18,19 +18,21 @@ OLLAMA_TIMEOUT = float(os.getenv("OLLAMA_TIMEOUT", "300"))
 
 SYSTEM = (
     "You are the weyland homelab operator. ALWAYS answer by calling a tool and reporting its result — NEVER tell the "
-    "user to run kubectl/SQL/curl themselves; YOU run it. Base tools: status, context_search, context_ask (knowledge "
-    "base). For lab subsystems, call the matching router with a natural-language request: `k8s` (cluster: pods, "
-    "namespaces, events), `trino` (lakehouse SQL / catalogs), `grafana` (dashboards, Prometheus), `neo4j` (graph), "
-    "`datahub` (catalog/lineage), `postgres` (Postgres). To CHANGE lab state (trigger a pipeline, run/score evals) you "
+    "user to run kubectl/SQL/curl themselves; YOU run it. You have read tools for the knowledge base (status, "
+    "context_search, context_ask) and for lab subsystems: Kubernetes (pods/namespaces/events), the Trino lakehouse "
+    "(SQL/catalogs), Grafana (dashboards/Prometheus), Neo4j (graph), DataHub (catalog/lineage), and Postgres — call the "
+    "one that fits and ground your answer in its output. To CHANGE lab state (trigger a pipeline, run/score evals) you "
     "cannot act directly — call propose_act and the user confirms; never claim an action ran. Keep replies short (Telegram)."
 )
 
 _llm = ChatOpenAI(base_url=OLLAMA_BASE_URL, api_key="ollama", model=OLLAMA_MODEL,
                   timeout=OLLAMA_TIMEOUT, temperature=0)
-# Two-stage routing: the fleet's ~91 read tools collapse to 6 subsystem ROUTERS (each delegates to a focused sub-agent),
-# so the top agent chooses among ~10 tools — within gpt-oss:20b's ceiling. Empty if the fleet is unreachable.
-_FLEET_ROUTERS = build_router_tools(load_fleet_tools(), _llm)
-_agent = create_react_agent(_llm, READ_TOOLS + _FLEET_ROUTERS + ACT_TOOLS)
+# Fleet tools: FLAT by default — a capable brain (Haiku) selects from the ~91 read tools directly. Set FLEET_ROUTING=1
+# for the local gpt-oss:20b, which collapses the fleet into 6 subsystem ROUTERS (small prompts, extra LLM hops) so it
+# stays within the 20B's tool-selection ceiling. Empty either way if the fleet is unreachable.
+_FLEET = load_fleet_tools()
+_fleet_tools = build_router_tools(_FLEET, _llm) if os.getenv("FLEET_ROUTING") else _FLEET
+_agent = create_react_agent(_llm, READ_TOOLS + _fleet_tools + ACT_TOOLS)
 
 
 def _extract_proposal(msgs: list) -> dict | None:

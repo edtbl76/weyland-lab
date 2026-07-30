@@ -228,23 +228,21 @@ def prune_stale_guardrails():
 
 # Guardrail definitions — fully scriptable (scorers/register -> guardrails/create). Instructions are verbatim from
 # the MLflow UI defaults so behavior matches. Judge = the current JUDGE endpoint; idempotent by guardrail name.
-_SAFETY_INSTR = """You are a content safety classifier. Analyze the given text against policies prohibiting hate speech, harassment, incitement of violence, and the promotion of illegal or severely harmful acts. Your entire response must be a single, raw JSON object with no surrounding text or markdown.
+_SAFETY_INSTR = """You are a content-safety classifier. Decide whether the text below violates policies against hate speech, harassment, incitement of violence, or the promotion of illegal or severely harmful acts. Tool calls, code, logs, SQL, and structured/config data are normal and SAFE unless they clearly contain such content.
 
-The JSON object must be structured only using the following format. Do not use any markdown formatting or output additional lines.
-{
-    "rationale": "A concise explanation for your decision. Start each rationale with `Let's think step by step`",
-    "result": "The string 'yes' if the content is safe, or 'no' if it violates policy."
-}
+Output ONLY a single raw JSON object — no markdown, no code fences, no text before or after it — in exactly this form:
+{"result": "yes", "rationale": "one short sentence"}
+
+Set "result" to exactly "yes" when the text is SAFE (no violation), or exactly "no" when it violates policy. The "result" value MUST be the literal string "yes" or "no" and nothing else.
 
 <text>{{ outputs }}</text>"""
 
-_PII_INSTR = """You are a PII (Personally Identifiable Information) detector. Analyze the given text for any personal data that could identify an individual, including names, email addresses, phone numbers, physical addresses, social security numbers, credit card numbers, dates of birth, IP addresses, or other identifying information. Your entire response must be a single, raw JSON object with no surrounding text or markdown.
+_PII_INSTR = """You are a PII detector. Decide whether the text below contains personal data that could identify a real individual — real personal names, emails, phone numbers, home addresses, government IDs, credit-card numbers, or dates of birth. Service names, hostnames, Kubernetes identifiers, internal IPs, and technical config are NOT PII.
 
-The JSON object must be structured only using the following format. Do not use any markdown formatting or output additional lines.
-{
-    "rationale": "A concise explanation for your decision. Start each rationale with `Let's think step by step`",
-    "result": "The string 'yes' if the content contains no PII, or 'no' if PII is detected."
-}
+Output ONLY a single raw JSON object — no markdown, no code fences, no text before or after it — in exactly this form:
+{"result": "yes", "rationale": "one short sentence"}
+
+Set "result" to exactly "yes" when the text contains NO PII, or exactly "no" when PII is present. The "result" value MUST be the literal string "yes" or "no" and nothing else.
 
 <text>{{ inputs }}</text>"""
 
@@ -326,6 +324,27 @@ def prune_orphan_endpoints():
         print(f"  pruned orphan endpoint: {e['name']}")
 
 
+def refresh_guardrails():
+    """Opt-in (REFRESH_GUARDRAILS=1): delete the GUARD_DEFS guardrails so ensure_guardrails() recreates them with the
+    CURRENT instructions. Guardrails are otherwise idempotent by NAME, so an instruction edit is a silent no-op —
+    run with this flag after editing _SAFETY_INSTR / _PII_INSTR. Detaches from every endpoint first, then deletes."""
+    if os.environ.get("REFRESH_GUARDRAILS") != "1":
+        return
+    names = {gname for gname, *_ in GUARD_DEFS}
+    endpoint_ids = [e["endpoint_id"] for e in _list("/endpoints/list")]
+    for g in _list("/guardrails/list"):
+        if g["name"] not in names:
+            continue
+        gid = g["guardrail_id"]
+        for eid in endpoint_ids:
+            try:
+                _req("DELETE", "/guardrails/remove-from-endpoint", {"endpoint_id": eid, "guardrail_id": gid})
+            except RuntimeError:
+                pass
+        _req("DELETE", "/guardrails/delete", {"guardrail_id": gid})
+        print(f"  refreshed (deleted for recreate with new instructions): {g['name']} ({gid})")
+
+
 def main():
     sids = {s["secret_name"]: ensure_secret(s) for s in SECRETS}
     print(f"secrets: {sids}")
@@ -347,6 +366,7 @@ def main():
     print(f"done: {created} created, {skipped} skipped, {len(ENDPOINTS)} total endpoints")
     prune_orphan_endpoints()
     prune_stale_guardrails()
+    refresh_guardrails()   # REFRESH_GUARDRAILS=1 → recreate Safety/PII with the current instructions
     ensure_guardrails()
     attach_guardrails()
     ensure_budget()

@@ -21,7 +21,7 @@ spec:
       enableServiceLinks: false
       containers:
         - name: weyland-operator
-          image: registry.weyland.lab/weyland-operator:v9   # v9 — B17+B19 Ph3: two-stage routing (fleet → 6 subsystem routers → focused sub-agents)
+          image: registry.weyland.lab/weyland-operator:v10   # v10 — B17+B19 Ph3: brain → Haiku via MLflow AI Gateway; flat fleet tools (routing toggled off)
           imagePullPolicy: IfNotPresent
           resources:
             # No torch/embedder — just langgraph/langchain/mlflow client + fastapi; LLM inference is remote (Ollama).
@@ -61,12 +61,15 @@ spec:
               valueFrom: { secretKeyRef: { name: weyland-operator-mcp, key: client-secret, optional: true } }
             # Two-stage routing (v9): all fleet tools load and collapse into 6 subsystem routers, so no curation needed.
             # FLEET_PREFIXES / FLEET_TOOLS can still trim a noisy subsystem (e.g. grafana's ~40 tools) without a rebuild.
-            # LLM reasoning/tool-calling (Ollama on rogueone, OpenAI-compatible /v1). Haiku-fallback env switch (design
-            # §6) lands with Part 3.
+            # LLM reasoning/tool-calling — via the MLflow AI Gateway (governed front door: budget cap + guardrails +
+            # tracing). Points at the Anthropic Haiku endpoint (fast + handles the flat ~91-tool fleet directly).
+            # $0 LOCAL FALLBACK: set OLLAMA_BASE_URL=http://192.168.1.230:11434/v1 + OLLAMA_MODEL=gpt-oss:20b +
+            # FLEET_ROUTING=1 (routing keeps the 20B within its tool-selection ceiling). The var names stay OLLAMA_* —
+            # both are just OpenAI-compatible endpoints.
             - name: OLLAMA_BASE_URL
-              value: http://192.168.1.230:11434/v1
+              value: http://mlflow.weyland.svc.cluster.local:5000/gateway/mlflow/v1
             - name: OLLAMA_MODEL
-              value: gpt-oss:20b
+              value: anthropic-claude-haiku-4-5
             - name: GUARD_BASE_URL
               value: http://weyland-guard.weyland.svc.cluster.local:8080
             - name: MLFLOW_TRACKING_URI
