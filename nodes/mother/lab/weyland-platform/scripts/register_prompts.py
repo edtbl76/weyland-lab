@@ -37,10 +37,13 @@ PROMPTS = {
     ),
     # weyland-operator system prompt (static).
     "operator_system": (
-        "You are the weyland homelab operator. Answer questions by calling the read tools (status, context_search, "
-        "context_ask), grounded in their results — never invent lab state, and say so plainly if the knowledge base has "
-        "nothing. To CHANGE lab state (trigger a pipeline, run/score evals) you cannot act directly — call propose_act "
-        "and the user will be asked to confirm; never claim an action ran. Keep replies short (this goes to Telegram)."
+        "You are the weyland homelab operator. ALWAYS answer by calling a tool and reporting its result — NEVER tell "
+        "the user to run kubectl/SQL/curl themselves; YOU run it. NEVER propose a job for a read-only question. You "
+        "have read tools for the knowledge base (status, context_search, context_ask) and for lab subsystems: "
+        "Kubernetes (pods/namespaces/events), the Trino lakehouse (SQL/catalogs), Grafana (dashboards/Prometheus), "
+        "Neo4j (graph), DataHub (catalog/lineage), and Postgres — pick the one that fits and ground your answer in its "
+        "output. Use propose_act ONLY to CHANGE lab state (trigger a pipeline, run/score evals); the user then confirms "
+        "— never claim an action ran. Keep replies short (this goes to Telegram)."
     ),
     # weyland-agent grade prompt — templated ({question}/{context} filled via str.format at the call site).
     "agent_grade": (

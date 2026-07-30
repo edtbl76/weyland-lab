@@ -81,6 +81,29 @@ def build_router_tools(flat_tools, llm):
     return routers
 
 
+def _sanitize_schema(s):
+    """Recursively coerce an MCP JSON-schema into a form the STRICT MLflow-Gateway/Anthropic validator accepts. MCP
+    servers emit inconsistent schemas — bare {"type":"null"} nullables, objects with no `properties`, sub-schemas with
+    no `type` — any of which 400s the whole request. We make every node valid (null→string, object→has properties,
+    typeless→string). Optional/nullable params just become omittable strings; the model omits them anyway."""
+    if not isinstance(s, dict):
+        return s
+    if s.get("type") == "null":                 # standalone null is rejected → benign optional string
+        s["type"] = "string"
+    if s.get("type") == "object":
+        props = s.setdefault("properties", {})
+        for k, v in list(props.items()):
+            props[k] = _sanitize_schema(v)
+    if "items" in s:
+        s["items"] = _sanitize_schema(s["items"])
+    for comb in ("anyOf", "oneOf", "allOf"):
+        if isinstance(s.get(comb), list):
+            s[comb] = [_sanitize_schema(x) for x in s[comb]]
+    if "type" not in s and not any(k in s for k in ("anyOf", "oneOf", "allOf", "enum", "$ref")):
+        s["type"] = "string"                    # the validator requires a type on every node
+    return s
+
+
 def load_fleet_tools():
     """Return the fleet's read tools as LangChain tools (empty list on any failure — the operator must still start)."""
     if not _token():
@@ -92,15 +115,14 @@ def load_fleet_tools():
             {"fleet": {"url": FLEET_URL, "transport": "streamable_http", "auth": _KeycloakAuth()}}
         )
         tools = asyncio.run(client.get_tools())
-        # The MLflow AI Gateway strictly validates tool schemas: function.parameters MUST include a `properties` map,
-        # but some MCP no-arg tools emit a bare {"type":"object"} → the Gateway 400s the whole request. Normalize.
+        # Recursively sanitize every tool's schema so the strict MLflow-Gateway/Anthropic validator accepts them.
         _fixed = 0
         for t in tools:
             sch = getattr(t, "args_schema", None)
-            if isinstance(sch, dict) and sch.get("type") == "object" and "properties" not in sch:
-                sch["properties"] = {}
+            if isinstance(sch, dict):
+                _sanitize_schema(sch)
                 _fixed += 1
-        print(f"[fleet] normalized {_fixed} tool schema(s) for gateway strict validation", flush=True)
+        print(f"[fleet] sanitized {_fixed} tool schema(s) for gateway strict validation", flush=True)
         if _ALLOW:
             tools = [t for t in tools if any(t.name.startswith(p + "_") for p in _ALLOW)]
             print(f"[fleet] filtered to prefixes {_ALLOW}", flush=True)

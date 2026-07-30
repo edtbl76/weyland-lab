@@ -21,7 +21,7 @@ spec:
       enableServiceLinks: false
       containers:
         - name: weyland-operator
-          image: registry.weyland.lab/weyland-operator:v11   # v11 — B17+B19 Ph3: Haiku via MLflow AI Gateway; flat fleet tools + gateway tool-schema normalization
+          image: registry.weyland.lab/weyland-operator:v12   # v12 — B17+B19 Ph3: recursive tool-schema sanitizer (gateway strict validation)
           imagePullPolicy: IfNotPresent
           resources:
             # No torch/embedder — just langgraph/langchain/mlflow client + fastapi; LLM inference is remote (Ollama).
