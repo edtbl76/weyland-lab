@@ -20,12 +20,19 @@ propose (LLM) → store pending_action → "⚠️ Confirm …? yes/no" → user
 ```
 - The act endpoints are **never bound to the LLM** — only `propose_act` is (it just records intent). `agent.run`
   returns `(reply, proposal)`; the proposal is read off the **tool-call trace**, not the model's prose.
-- **Four independent rails:** (1) Telegram **allowlist** (`TELEGRAM_ALLOWED_USERS`) · (2) **confirm-step**
+- **Five independent rails:** (1) Telegram **allowlist** (`TELEGRAM_ALLOWED_USERS`) · (2) **confirm-step**
   (app-fires-on-yes) · (3) `act.py` **fail-closed** `JOB_ALLOWLIST` (unknown tool/job refused before any HTTP) ·
-  (4) the tool-server's own **`Hook.ACT`** guard on the launch. Any one holding is enough.
+  (4) the tool-server's own **`Hook.ACT`** guard on the launch · (5) the **MCP gateway** injects a Keycloak-verified
+  actor + the guard's enforcing **`policy.gate`** (identity-required allowlist + per-actor rate-cap). Any one holding
+  is enough.
 - Acts are **Telegram-only** (the confirm needs a session). `/operator/ask` surfaces a proposal but never fires.
 - The 3 acts → the tool-server's `/mcp-act` jobs: `pipeline_trigger` (`job_name` ∈ `weyland_ingestion_job` /
-  `weyland_eval_job` / `weyland_eval_score_job`), `evals_run`, `evals_score`. Actor audit = `operator:telegram:<chat_id>`.
+  `weyland_eval_job` / `weyland_eval_score_job`), `evals_run`, `evals_score`.
+- **Actor (B17+B19):** acts route through the **MCP gateway** (`mcp.weyland.lab`) with a Keycloak `client_credentials`
+  token — the gateway validates it and injects the **verified** actor `weyland-operator` (the client_id), which is what
+  the enforcing `policy.gate` allowlists. With no client secret wired (`OPERATOR_CLIENT_SECRET` unset), `act.py` falls
+  back to the legacy direct path, self-setting `operator:telegram:<chat_id>`. See
+  [runbooks/mcp-gateway.md](mcp-gateway.md) / [[b17-b19-mcp-gateway]].
 
 ## Architecture decisions (see the B66 design doc)
 - **Brain = local `gpt-oss:20b`** (Ollama on rogueone) — the bake-off found it *ties Claude Haiku* on tool-selection,
@@ -71,6 +78,12 @@ kubectl -n weyland logs deploy/weyland-operator | grep -i telegram
 - "is the lab healthy?" → grounded reply (calls `status`).
 - "which of those is the graph store?" → "neo4j" (session memory carried the prior turn).
 - "run the ingestion pipeline" → **⚠️ Confirm** prompt, nothing fired; "no" → cancelled; "yes" → `✅ Launched weyland_ingestion_job — run …`.
+
+**Verified actor through the gateway (B17+B19):** after a confirmed act, the guard's `policy.gate` records the injected actor —
+```
+kubectl -n weyland logs deploy/weyland-guard --tail=40 | grep -i "policy.gate\|actor"
+```
+→ `actor=weyland-operator` (the gateway-injected client_id). A `<NULL>` or `operator:telegram:<chat_id>` actor here means the act bypassed the gateway (no `OPERATOR_CLIENT_SECRET`) — it must read `weyland-operator` before `policy.gate` is flipped from SHADOW to `block`.
 
 ## Reference
 Design: `aidlc-docs/construction/operator-agent-design.md`. Bake-off: [demos/brain-bakeoff.md](../demos/brain-bakeoff.md).
