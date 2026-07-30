@@ -5,8 +5,8 @@
 # It aggregates the compositor (weyland-mcp-compositor:8000/mcp = the 6 read-only subsystems) — configured via the UI /
 # config.json after first boot. Reads only; acts still go gateway→tool-server /mcp-act (Bifrost never touches acts).
 #
-# FIRST CUT: LAN NodePort :30600 (UI + /mcp, Bifrost VK auth on /mcp). TODO harden: ingress bifrost.weyland.lab +
-# Keycloak forward-auth on the UI (NOT on /mcp — MCP clients can't browser-SSO); pin the image tag; codify config.json (GitOps).
+# ADDRESS: bifrost.weyland.lab. TWO routers (MCP clients can't browser-SSO): the UI (`/`) is Keycloak forward-auth'd;
+# `/mcp` is NOT (Bifrost's own virtual-key auth). TODO: pin the image tag; codify config.json (GitOps).
 ---
 apiVersion: v1
 kind: PersistentVolumeClaim
@@ -70,7 +70,51 @@ metadata:
   namespace: weyland
   labels: { app: bifrost }
 spec:
-  type: NodePort
+  type: ClusterIP
   selector: { app: bifrost }
   ports:
-    - { name: http, port: 8080, targetPort: 8080, nodePort: 30600 }   # LAN: mother:30600 (UI + /mcp)
+    - { name: http, port: 8080, targetPort: 8080 }
+---
+# UI router — Keycloak forward-auth (browser SSO), like every other lab UI.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: bifrost-ui
+  namespace: weyland
+  annotations:
+    traefik.ingress.kubernetes.io/router.entrypoints: websecure
+    traefik.ingress.kubernetes.io/router.middlewares: weyland-traefik-forward-auth@kubernetescrd
+spec:
+  tls:
+    - hosts: [bifrost.weyland.lab]
+      secretName: weyland-wildcard-tls
+  rules:
+    - host: bifrost.weyland.lab
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service: { name: bifrost, port: { number: 8080 } }
+---
+# MCP router — NO forward-auth (MCP clients can't browser-SSO); Bifrost's virtual-key auth guards /mcp. Longer path →
+# higher Traefik priority, so /mcp requests hit THIS router, not the forward-auth'd UI one.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: bifrost-mcp
+  namespace: weyland
+  annotations:
+    traefik.ingress.kubernetes.io/router.entrypoints: websecure
+spec:
+  tls:
+    - hosts: [bifrost.weyland.lab]
+      secretName: weyland-wildcard-tls
+  rules:
+    - host: bifrost.weyland.lab
+      http:
+        paths:
+          - path: /mcp
+            pathType: Prefix
+            backend:
+              service: { name: bifrost, port: { number: 8080 } }
