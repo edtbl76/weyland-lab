@@ -21,7 +21,7 @@ spec:
       enableServiceLinks: false
       containers:
         - name: weyland-operator
-          image: registry.weyland.lab/weyland-operator:v7   # v7 — B17+B19 Ph3: + composed MCP fleet read tools (pinned mcp==1.24.0 for langchain-mcp-adapters 0.3.1)
+          image: registry.weyland.lab/weyland-operator:v8   # v8 — B17+B19 Ph3: fleet tools via ainvoke (async) + curated FLEET_TOOLS (gpt-oss:20b can't wield 91)
           imagePullPolicy: IfNotPresent
           resources:
             # No torch/embedder — just langgraph/langchain/mlflow client + fastapi; LLM inference is remote (Ollama).
@@ -59,6 +59,10 @@ spec:
             #   kubectl -n weyland create secret generic weyland-operator-mcp --from-literal=client-secret=$(cd ~/IdeaProjects/weyland/nodes/mother/lab/weyland-platform/tofu/keycloak && tofu output -raw mcp_operator_client_secret)
             - name: OPERATOR_CLIENT_SECRET
               valueFrom: { secretKeyRef: { name: weyland-operator-mcp, key: client-secret, optional: true } }
+            # Curated cross-subsystem fleet tools — gpt-oss:20b can't select from all ~91, so we hand-pick a tight set
+            # (~2 per subsystem). Widen/narrow here (or FLEET_PREFIXES for whole subsystems) — no rebuild.
+            - name: FLEET_TOOLS
+              value: "k8s_namespaces_list,k8s_pods_list_in_namespace,k8s_events_list,trino_list_catalogs,trino_execute_query,grafana_search_dashboards,grafana_query_prometheus,neo4j_read_neo4j_cypher,neo4j_get_neo4j_schema,datahub_search,postgres_list_schemas,postgres_execute_sql"
             # LLM reasoning/tool-calling (Ollama on rogueone, OpenAI-compatible /v1). Haiku-fallback env switch (design
             # §6) lands with Part 3.
             - name: OLLAMA_BASE_URL

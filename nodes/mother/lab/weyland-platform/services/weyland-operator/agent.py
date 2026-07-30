@@ -16,10 +16,13 @@ OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "gpt-oss:20b")
 OLLAMA_TIMEOUT = float(os.getenv("OLLAMA_TIMEOUT", "300"))
 
 SYSTEM = (
-    "You are the weyland homelab operator. Answer questions by calling the read tools (status, context_search, "
-    "context_ask), grounded in their results — never invent lab state, and say so plainly if the knowledge base has "
-    "nothing. To CHANGE lab state (trigger a pipeline, run/score evals) you cannot act directly — call propose_act "
-    "and the user will be asked to confirm; never claim an action ran. Keep replies short (this goes to Telegram)."
+    "You are the weyland homelab operator. Answer questions by calling the read tools, grounded in their results — "
+    "never invent lab state, and say so plainly if a tool returns nothing. Base tools: status, context_search, "
+    "context_ask (knowledge base). You can also query lab subsystems via namespaced tools — `k8s_*` (cluster: pods, "
+    "namespaces, events), `trino_*` (lakehouse SQL / catalogs), `grafana_*` (dashboards, Prometheus), `neo4j_*` "
+    "(graph/Cypher), `datahub_*` (catalog/lineage), `postgres_*` (Postgres). To CHANGE lab state (trigger a pipeline, "
+    "run/score evals) you cannot act directly — call propose_act and the user will be asked to confirm; never claim an "
+    "action ran. Keep replies short (this goes to Telegram)."
 )
 
 _llm = ChatOpenAI(base_url=OLLAMA_BASE_URL, api_key="ollama", model=OLLAMA_MODEL,
@@ -39,13 +42,15 @@ def _extract_proposal(msgs: list) -> dict | None:
     return None
 
 
-def run(message: str, history: list | None = None) -> tuple[str, dict | None]:
+async def run(message: str, history: list | None = None) -> tuple[str, dict | None]:
     """Run the operator on a user message (+ optional prior [(role, text)] turns). Returns (reply, proposal) where
-    proposal is a propose_act payload if the agent proposed an action, else None."""
+    proposal is a propose_act payload if the agent proposed an action, else None. ASYNC — the composed MCP fleet's
+    tools (langchain-mcp-adapters) are async-only, so we drive the graph with `ainvoke` (sync base tools still run,
+    LangChain executes them in a threadpool under async)."""
     messages = [("system", load_prompt("operator_system", SYSTEM))]   # B100 P2 — live from the Prompt Registry (fail-safe)
     if history:
         messages += history
     messages.append(("user", message))
-    result = _agent.invoke({"messages": messages})
+    result = await _agent.ainvoke({"messages": messages})
     msgs = result["messages"]
     return msgs[-1].content, _extract_proposal(msgs)

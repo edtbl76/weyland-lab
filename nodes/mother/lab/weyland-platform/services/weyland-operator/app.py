@@ -73,14 +73,14 @@ class AskRequest(BaseModel):
 
 
 @app.post("/operator/ask")
-def operator_ask(req: AskRequest, actor: str | None = Depends(_actor)):
+async def operator_ask(req: AskRequest, actor: str | None = Depends(_actor)):
     request_id = str(uuid.uuid4())
     if guard("input", request_id, {"query": req.message}, actor):
         _REQS.labels("blocked").inc()
         raise HTTPException(403, "blocked by input guard")
     t0 = time.monotonic()
     try:
-        reply, proposal = agent.run(req.message)
+        reply, proposal = await agent.run(req.message)
     except Exception as exc:
         _REQS.labels("error").inc()
         raise HTTPException(502, f"operator run failed: {exc}")

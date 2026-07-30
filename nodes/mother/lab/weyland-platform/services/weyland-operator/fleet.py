@@ -20,7 +20,8 @@ import httpx
 from act import GATEWAY, _token
 
 FLEET_URL = os.getenv("FLEET_URL", GATEWAY.rstrip("/") + "/mcp-fleet")
-_ALLOW = [p.strip() for p in os.getenv("FLEET_PREFIXES", "").split(",") if p.strip()]
+_ALLOW = [p.strip() for p in os.getenv("FLEET_PREFIXES", "").split(",") if p.strip()]      # subsystem filter
+_ALLOW_NAMES = [n.strip() for n in os.getenv("FLEET_TOOLS", "").split(",") if n.strip()]   # exact tool-name allowlist (tightest)
 
 
 class _KeycloakAuth(httpx.Auth):
@@ -47,6 +48,9 @@ def load_fleet_tools():
         if _ALLOW:
             tools = [t for t in tools if any(t.name.startswith(p + "_") for p in _ALLOW)]
             print(f"[fleet] filtered to prefixes {_ALLOW}", flush=True)
+        if _ALLOW_NAMES:
+            tools = [t for t in tools if t.name in _ALLOW_NAMES]
+            print(f"[fleet] filtered to {len(_ALLOW_NAMES)} named tools", flush=True)
         print(f"[fleet] loaded {len(tools)} read tools from {FLEET_URL}", flush=True)
         return tools
     except Exception as exc:

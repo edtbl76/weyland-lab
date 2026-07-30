@@ -60,7 +60,7 @@ async def _handle(client: httpx.AsyncClient, msg: dict) -> None:
         await telegram.send_message(client, chat_id, "⛔ Message blocked by input guard.")
         return
     try:
-        reply, proposal = await asyncio.to_thread(agent.run, text, history)
+        reply, proposal = await agent.run(text, history)   # async — the fleet MCP tools are async-only
     except Exception as exc:
         _MSGS.labels("error").inc()
         await telegram.send_message(client, chat_id, f"⚠️ Something went wrong: {exc}")
