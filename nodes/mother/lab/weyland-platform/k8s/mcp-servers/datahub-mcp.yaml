@@ -1,0 +1,64 @@
+# datahub-mcp — B17+B19 Phase 3, MCP server #6 (final). Official acryldata/mcp-server-datahub (built locally — no
+# official HTTP image) exposing the DataHub catalog: metadata search + lineage traversal as MCP tools. FastMCP-based,
+# HTTP transport on :8000 (FastMCP default path /mcp/). Unmeshed — DataHub GMS (ns data-mesh) is PERMISSIVE mesh.
+#
+# READ-ONLY BY DEFAULT: mutation/user/data-quality write tools are DISABLED unless TOOLS_IS_MUTATION_ENABLED=true
+# (left unset) — confirmed by the server log "Mutation Tools DISABLED".
+#
+# No --host/--port flag (FastMCP): bind + port come from FASTMCP_HOST/FASTMCP_PORT (default 127.0.0.1 → force 0.0.0.0).
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: datahub-mcp
+  namespace: weyland
+  labels: { app: datahub-mcp, part-of: mcp-fleet }
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: datahub-mcp }
+  template:
+    metadata:
+      labels: { app: datahub-mcp }
+    spec:
+      containers:
+        - name: datahub-mcp
+          image: registry.weyland.lab/mcp-server-datahub:0.1
+          args: ["--transport", "http"]
+          ports:
+            - { name: http, containerPort: 8000 }
+          env:
+            - { name: FASTMCP_HOST, value: 0.0.0.0 }     # FastMCP defaults to 127.0.0.1 → unreachable in-pod
+            - { name: FASTMCP_PORT, value: "8000" }
+            - { name: DATAHUB_GMS_URL, value: http://datahub-datahub-gms.data-mesh.svc.cluster.local:8080 }
+            - name: DATAHUB_GMS_TOKEN
+              valueFrom:
+                secretKeyRef: { name: datahub-token, key: token }
+          readinessProbe:
+            tcpSocket: { port: 8000 }
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            tcpSocket: { port: 8000 }
+            periodSeconds: 20
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 10001
+            allowPrivilegeEscalation: false
+            capabilities: { drop: ["ALL"] }
+            seccompProfile: { type: RuntimeDefault }
+          resources:
+            requests: { memory: 128Mi, cpu: 25m }
+            limits: { memory: 384Mi }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: datahub-mcp
+  namespace: weyland
+  labels: { app: datahub-mcp, part-of: mcp-fleet }
+spec:
+  type: ClusterIP
+  selector: { app: datahub-mcp }
+  ports:
+    - { name: http, port: 8000, targetPort: 8000 }
