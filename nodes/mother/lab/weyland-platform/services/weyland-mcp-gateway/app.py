@@ -27,6 +27,8 @@ from starlette.responses import JSONResponse, PlainTextResponse, StreamingRespon
 from starlette.routing import Route
 
 TOOL_SERVER = os.environ["TOOL_SERVER_URL"].rstrip("/")   # http://weyland-tool-server.weyland.svc:8080
+COMPOSITOR = (os.environ.get("COMPOSITOR_URL") or "").rstrip("/")   # if set, READ /mcp routes to the FastMCP compositor
+                                                          #   (aggregated read-only fleet); acts stay on TOOL_SERVER.
 JWKS_URL = os.environ["KEYCLOAK_JWKS_URL"]                 # https://keycloak.weyland.lab/realms/weyland/protocol/openid-connect/certs
 ISSUER = os.environ["KEYCLOAK_ISSUER"]                     # https://keycloak.weyland.lab/realms/weyland
 AUDIENCE = os.environ.get("KEYCLOAK_AUDIENCE") or None     # optional; Keycloak often sets aud=account, so default off
@@ -74,7 +76,10 @@ async def _proxy(request: Request) -> StreamingResponse | JSONResponse:
     headers["X-Forwarded-Consumer"] = actor              # the whole point — set from the VALIDATED claim
 
     upstream = _client.build_request(
-        request.method, TOOL_SERVER + path, headers=headers,
+        request.method,
+        # read /mcp → the compositor (aggregated read-only fleet) when configured; acts (/mcp-act, /pipeline, /evals) → tool-server.
+        (COMPOSITOR if (COMPOSITOR and (path == "/mcp" or path.startswith("/mcp/"))) else TOOL_SERVER) + path,
+        headers=headers,
         content=request.stream(), params=request.query_params,
     )
     resp = await _client.send(upstream, stream=True)     # stream both ways (MCP Streamable-HTTP is SSE-capable)

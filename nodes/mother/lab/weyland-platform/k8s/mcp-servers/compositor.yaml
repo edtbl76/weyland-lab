@@ -1,0 +1,53 @@
+# weyland-mcp-compositor — B17+B19 Phase 3. FastMCP proxy aggregating the 6 read-only MCP servers + the tool-server's
+# read /mcp into ONE endpoint (streamable-http :8000/mcp), tools namespaced per upstream. The gateway routes /mcp here
+# (reads); acts stay gateway→tool-server /mcp-act. Unmeshed — its upstreams are PERMISSIVE-mesh or unmeshed.
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: weyland-mcp-compositor
+  namespace: weyland
+  labels: { app: weyland-mcp-compositor, part-of: mcp-fleet }
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: weyland-mcp-compositor }
+  template:
+    metadata:
+      labels: { app: weyland-mcp-compositor }
+    spec:
+      containers:
+        - name: weyland-mcp-compositor
+          image: registry.weyland.lab/weyland-mcp-compositor:v1
+          ports:
+            - { name: http, containerPort: 8000 }
+          env:
+            - { name: PORT, value: "8000" }
+          readinessProbe:
+            tcpSocket: { port: 8000 }
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            tcpSocket: { port: 8000 }
+            periodSeconds: 20
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 10001
+            allowPrivilegeEscalation: false
+            capabilities: { drop: ["ALL"] }
+            seccompProfile: { type: RuntimeDefault }
+          resources:
+            requests: { memory: 128Mi, cpu: 50m }
+            limits: { memory: 384Mi }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: weyland-mcp-compositor
+  namespace: weyland
+  labels: { app: weyland-mcp-compositor, part-of: mcp-fleet }
+spec:
+  type: ClusterIP
+  selector: { app: weyland-mcp-compositor }
+  ports:
+    - { name: http, port: 8000, targetPort: 8000 }

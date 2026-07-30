@@ -34,7 +34,7 @@ spec:
       serviceAccountName: weyland-mcp-gateway
       containers:
         - name: weyland-mcp-gateway
-          image: registry.weyland.lab/weyland-mcp-gateway:v2
+          image: registry.weyland.lab/weyland-mcp-gateway:v3
           imagePullPolicy: IfNotPresent
           securityContext:
             runAsNonRoot: true
@@ -54,6 +54,9 @@ spec:
           env:
             - name: TOOL_SERVER_URL
               value: http://weyland-tool-server.weyland.svc.cluster.local:8080
+            # Read /mcp → the FastMCP compositor (aggregated read-only fleet). Acts stay on TOOL_SERVER_URL.
+            - name: COMPOSITOR_URL
+              value: http://weyland-mcp-compositor.weyland.svc.cluster.local:8000
             # JWKS over internal HTTP (no CA); issuer validated against the external URL that Keycloak stamps on tokens.
             - name: KEYCLOAK_JWKS_URL
               value: http://keycloak.weyland.svc.cluster.local:8080/realms/weyland/protocol/openid-connect/certs
