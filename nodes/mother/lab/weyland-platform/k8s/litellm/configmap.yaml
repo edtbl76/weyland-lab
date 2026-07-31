@@ -116,8 +116,8 @@ data:
       fallbacks:
         - {"wl-default":  ["gemini-flash", "wl-agentic"]}
         - {"wl-speed":    ["cerebras-oss", "gemini-flash"]}
-        - {"wl-coding":   ["wl-agentic", "deepseek-chat"]}
-        - {"wl-agentic":  ["openai-mini", "cerebras-oss"]}
+        - {"wl-coding":   ["wl-agentic", "deepseek-chat", "wl-default"]}       # …then groq (free) so it always lands
+        - {"wl-agentic":  ["openai-mini", "cerebras-oss", "gemini-flash"]}     # paid escalation, then gemini (free + tool-capable) as the guaranteed tail
         - {"wl-rag":      ["wl-default", "gemini-flash"]}
         - {"wl-reason":   ["deepseek-reasoner", "wl-default"]}
         - {"wl-judge":    ["wl-default", "gemini-flash"]}

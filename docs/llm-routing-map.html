@@ -88,7 +88,7 @@
     <p class="sub">Use-case aliases &rarr; provider fallback chains, served by <b>LiteLLM</b>. A client sends
       only the alias (e.g. <code>wl-coding</code>); LiteLLM picks the primary and fails over down the chain on
       network&nbsp;/&nbsp;5xx&nbsp;/&nbsp;429&nbsp;/&nbsp;timeout &mdash; server-side, transparent.</p>
-    <span class="status">◆ <b>PLANNED</b> — approved design &nbsp;·&nbsp; chains pending LiteLLM <code>model_list</code> config</span>
+    <span class="status">◆ <b>LIVE</b> — LiteLLM <code>model_list</code> + <code>fallbacks</code> &nbsp;·&nbsp; routing + failover verified end-to-end</span>
   </header>
 
   <div class="legend" id="legend">
@@ -104,8 +104,9 @@
   <div id="lanes"></div>
 
   <footer>
-    <b>Fallback philosophy.</b> Primary = cheapest capable source (free/local where private); then an
-    <b>always-on free</b> rung so nothing hard-fails when rogueone sleeps; then a paid escalation only if both are down.
+    <b>Fallback philosophy.</b> Primary = cheapest capable source (free/local where private). Chains are
+    <b>multi-rung</b>: a dry paid provider (402 / 429) is <b>skipped by cost management</b>, not an error — the router
+    walks on — and every chain ends in a free, always-on rung so it can never hard-fail.
     <div class="note"><b>Notes.</b> <code>wl-agentic</code> skips Groq — its free tier is tool-free (8k&nbsp;TPM can't carry
       the tool payload). <code>wl-search</code> / <code>wl-tts</code> are near-single-source, so their chains are short.
       Media lanes route on the image / audio / video endpoints, not chat.</div>
@@ -129,11 +130,13 @@
         {role:"primary", prov:"opencode-zen", model:"kimi-k3", tier:"funded", badges:["tools"]},
         {role:"fallback", prov:"anthropic", model:"claude-haiku-4.5", tier:"funded", badges:["tools"]},
         {role:"fallback", prov:"deepseek", model:"deepseek-chat", tier:"metered", badges:["cheap"]},
+        {role:"fallback", prov:"groq", model:"gpt-oss-120b", tier:"free", badges:["hosted"]},
       ]},
       { alias:"wl-agentic", purpose:"Tool orchestration / agents", chain:[
         {role:"primary", prov:"anthropic", model:"claude-haiku-4.5", tier:"funded", badges:["tools"]},
-        {role:"fallback", prov:"openai", model:"gpt-5-mini", tier:"metered", badges:["tools"]},
+        {role:"fallback", prov:"openai", model:"gpt-4o-mini", tier:"metered", badges:["tools"]},
         {role:"fallback", prov:"cerebras", model:"gpt-oss-120b", tier:"metered", badges:["tools","fast"]},
+        {role:"fallback", prov:"gemini", model:"2.5-flash", tier:"free", badges:["tools"]},
       ]},
       { alias:"wl-rag", purpose:"Retrieval-grounded generation (private)", chain:[
         {role:"primary", prov:"ollama", model:"gpt-oss:20b", tier:"free", badges:["local"]},
@@ -156,8 +159,7 @@
       ]},
       { alias:"wl-big-oss", purpose:"Big frontier OSS model", chain:[
         {role:"primary", prov:"openrouter", model:"minimax/minimax-m3", tier:"metered", badges:["aggregator"]},
-        {role:"fallback", prov:"together", model:"minimax-m3", tier:"metered", badges:["host"]},
-        {role:"fallback", prov:"fireworks", model:"—", tier:"metered", badges:["host"]},
+        {role:"fallback", prov:"groq", model:"gpt-oss-120b", tier:"free", badges:["hosted"]},
       ]},
     ]},
     { group:"Media", rows:[
