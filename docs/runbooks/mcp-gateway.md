@@ -152,23 +152,14 @@ roll the pod → `rollout restart`. (2) env keys read back `type=env` + redacted
 **PUSH `bifrost.yaml` + the SealedSecret to git** — Argo selfHeal reverts a local-only envFrom → env empties → outage.
 Restore-from-scratch: apply SealedSecret → restart → run `register_bifrost_providers.py`.
 
-**Use-case routing** (`scripts/register_bifrost_routing.py`, idempotent). Clients request a **use-case alias** as the
-`model` — `wl-coding`, `wl-agentic`, `wl-rag`, `wl-search`, `wl-reason`, `wl-judge`, `wl-default`, `wl-speed`,
-`wl-big-oss` — and a CEL rule `model == "wl-X"` routes it to the primary provider/model. `POST /api/governance/routing-rules`
-`{name, cel_expression, targets:[{provider,model,weight}], scope:"global", priority}`. **Targets are WEIGHTED, NOT ordered
-fallback** — each rule = the PRIMARY only. CEL vars: `model`, `provider`, `request_type`, `budget_used`/`tokens_used`/`request`
-(all %), `headers[...]`, `team_name`. Run:
-```
-kubectl -n weyland exec -i deploy/weyland-guard -- python - < scripts/register_bifrost_routing.py
-```
-Rules live in Bifrost's PVC DB (no k8s manifest → Argo won't touch them); the script is the source of truth. **GOTCHAS:**
-(1) the docs page 404'd — schema reverse-engineered off a live rule + web search. (2) **`chain_rule` is NOT on-failure
-fallback** — verified 2026-07-31: a rule → down provider (vLLM off, `502 connection refused` = the documented trigger)
-with `chain_rule:true` + a second same-CEL rung did **not** cascade. Availability failover must use **request-level
-`fallbacks:[...]`** (client sends it) or **VK-level `provider_configs`** (server-side but coarse — one chain per key),
-NOT routing rules. (3) ollama-local primaries (rag/reason/judge) fail when rogueone sleeps — matches the existing
-rogueone-local RAG architecture, not a new dependency; `wl-default`/`wl-speed` are the always-on groq aliases.
-Cost-degrade `budget_used > 90 → free` IS a normal routing rule (CEL var confirmed), buildable when wanted.
+**Use-case routing does NOT live in Bifrost — it moved to LiteLLM (2026-07-31).** Bifrost OSS can't route/fail-over
+well: **`chain_rule` is NOT on-failure fallback** (verified — a rule → down provider, vLLM off `502 connection refused`
+= the documented trigger, with `chain_rule:true` + a second same-CEL rung did **not** cascade), and **adaptive
+load-balancing** (weighted targets + capacity/error-aware failover) is **Enterprise-locked** (only static routing is OSS).
+VK `provider_configs` auto-fallback IS OSS + transparent but can't resolve self-hosted (vllm/ollama) keys in v1.6.7.
+So the 9 `wl-*` use-case aliases + fallback chains live in **LiteLLM** — see [runbooks/model-gateway.md](model-gateway.md)
+(§ Use-case router). Bifrost keeps what it's good at OSS: the MCP agent edge, provider egress, budgets, key vault,
+observability. `scripts/register_bifrost_routing.py` is **obsolete** (removed).
 
 ## Current state + loose ends
 - Phase 1 (gateway + auth + actor) ✅ and Phase 2 (enforcing act gate) ✅ — both **proven + LIVE**; `policy.gate` is

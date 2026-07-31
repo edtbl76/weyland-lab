@@ -1,8 +1,10 @@
 # Model Gateway (LiteLLM) + Model Catalog — runbook
 
-**What:** a LAN **LiteLLM** proxy on mother/k3s that fronts **every Gemini + OpenRouter model** (wildcard
-routing) behind one OpenAI-compatible endpoint, plus a Dagster `model_catalog` asset that keeps a queryable
-lookup table of reachable models fresh every 6h.
+**What:** a LAN **LiteLLM** proxy on mother/k3s that (1) fronts hosted-model providers behind one
+OpenAI-compatible endpoint, and (2) is the platform's **use-case router (B111)** — 9 `wl-*` aliases, each a
+primary model with a **server-side fallback chain** (the transparent failover Bifrost OSS gates behind its
+Enterprise adaptive load-balancer — see [mcp-gateway.md](mcp-gateway.md)). Plus a Dagster `model_catalog` asset
+that keeps a queryable lookup table of reachable models fresh every 6h.
 
 **Origin:** reframed from B26 (Hermes Claude brain). The Claude-subscription path was **declined** — using a
 Claude Pro/Max subscription via a proxy is a ToS gray area, and a metered Anthropic API key wasn't wanted.
@@ -46,6 +48,80 @@ kubectl apply -f configmap.yaml -f deployment.yaml -f service.yaml -f servicemon
 ```
 ```
 kubectl rollout status deploy/litellm -n weyland
+```
+
+## 1b. Use-case router — `wl-*` aliases + fallback chains (B111)
+
+Clients send a **use-case alias** as the `model` and LiteLLM routes it to a primary, failing over down a
+**server-side chain** on `network / 5xx / 429 / timeout`. Config: the `model_list` (primaries) +
+`router_settings.fallbacks` (chains) in `k8s/litellm/configmap.yaml`. Visual: **[LLM Routing Map](../llm-routing-map.html)** (internal).
+
+| Alias | Primary | Fallback chain (→ order) |
+|---|---|---|
+| `wl-default` / `wl-speed` | groq `gpt-oss-120b` (free) | → gemini-flash → anthropic *(speed: → cerebras → gemini)* |
+| `wl-coding` | opencode-zen `kimi-k3` (funded, tools) | → anthropic → deepseek → groq |
+| `wl-agentic` | anthropic `claude-haiku-4.5` (tools) | → openai → cerebras → gemini |
+| `wl-rag` / `wl-judge` | ollama local (`gpt-oss:20b` / `qwen2.5:7b`) | → groq → gemini |
+| `wl-reason` | ollama `qwen3:30b-a3b` (local) | → deepseek-reasoner → groq |
+| `wl-search` | perplexity `sonar` (web) | → xai grok |
+| `wl-big-oss` | openrouter `minimax-m3` | → groq |
+
+**How it works.** Provider keys come from `envFrom: bifrost-provider-keys` (the shared sealed secret — reused, not
+re-sealed). Self-hosted: ollama = `api_base: http://192.168.1.230:11434` (rogueone, no key); opencode-zen =
+`openai/kimi-k3` + `api_base: https://opencode.ai/zen/v1`. Fallback rungs reference other `model_name`s — aliases
+(`wl-default`=groq, `wl-agentic`=anthropic) are reused as rungs so the always-on-free tier is defined once. Each chain
+**ends in a free rung** so it can never hard-fail; a dry paid provider (402/429) is **skipped by cost management**, not
+an error — the router walks on.
+
+```mermaid
+sequenceDiagram
+    participant C as Client
+    participant L as LiteLLM router
+    participant P as Primary (ollama gpt-oss:20b)
+    participant F as Fallback (wl-default = groq)
+    C->>L: POST /v1/chat/completions · model=wl-rag
+    L->>P: try primary
+    alt primary healthy
+        P-->>L: 200
+    else network / 5xx / 429 / timeout
+        P--xL: error
+        L->>F: walk configured chain
+        F-->>L: 200
+    end
+    L-->>C: response (model group = wl-rag)
+```
+
+**Add / change a route.** Edit `model_list` (a primary) or `router_settings.fallbacks` (a chain) in
+`configmap.yaml`, then **push → Argo sync** (LiteLLM is Argo-managed with `selfHeal:true`, so a direct `kubectl apply`
+gets **reverted** — it must go through git). The deployment change or a `kubectl rollout restart deploy/litellm` reloads
+the config.
+
+**Demo / verify** (from inside the pod, using its own master key — never printed):
+```
+kubectl -n weyland exec -i deploy/litellm -- python - <<'PY'
+import os, httpx
+h={"Authorization":"Bearer "+os.environ["LITELLM_MASTER_KEY"]}
+for m in ["wl-default","wl-coding","wl-rag","wl-search","wl-big-oss"]:
+    r=httpx.post("http://localhost:4000/v1/chat/completions",headers=h,
+      json={"model":m,"messages":[{"role":"user","content":"one word"}],"max_tokens":256},timeout=80)
+    j=r.json(); print(m, r.status_code, j.get("model"),
+        r.headers.get("x-litellm-model-api-base"))
+PY
+```
+The `x-litellm-model-api-base` header reveals the **actual deployment** served (ollama `.230` vs `api.groq.com`, …).
+
+**Prove a fallback fires** (force the primary to fail — note: `mock_testing_fallbacks` is a Python-Router hook, **not**
+honored via the HTTP proxy, so drive the Router directly with the live config):
+```
+kubectl -n weyland exec -i deploy/litellm -- python - <<'PY'
+import yaml, asyncio
+from litellm import Router
+cfg=yaml.safe_load(open("/etc/litellm/config.yaml"))
+r=Router(model_list=cfg["model_list"], fallbacks=cfg["router_settings"]["fallbacks"])
+out=asyncio.run(r.acompletion(model="wl-rag", messages=[{"role":"user","content":"hi"}],
+    max_tokens=20, mock_testing_fallbacks=True))
+print("served by:", out._hidden_params.get("api_base"))   # -> https://api.groq.com/... (wl-default rung)
+PY
 ```
 
 ## 2. Smoke tests (on mother)
