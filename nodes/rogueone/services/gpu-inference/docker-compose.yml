@@ -53,17 +53,19 @@ services:
       - "-m"
       - "sglang.launch_server"
       - "--model-path"
-      - "Qwen/Qwen2.5-7B-Instruct-AWQ"
+      - "unsloth/Llama-3.2-1B-Instruct"   # ungated mirror of Meta's Llama-3.2-1B (identical weights) — skips Meta's 403 gate. ~2.5GB fp16 → two instances fit for PD. (Official `meta-llama/...` needs an accepted-license request.)
       - "--host"
       - "0.0.0.0"
       - "--port"
       - "8000"
       - "--mem-fraction-static"
-      - "0.55"                     # SGLang's equivalent of vLLM's --gpu-memory-utilization; same coexistence rules
+      - "0.7"                      # 1B is tiny → plenty of room for KV + the decode CUDA graph; no cramming, keep the graph
       - "--context-length"
       - "8192"
+    environment:
+      - HF_TOKEN=${HF_TOKEN:-}     # gated Llama download — provide at runtime (export HF_TOKEN=$HUGGING_FACE_API_KEY). Compose interpolates from the shell; NOT committed.
     volumes:
-      - hf-cache:/root/.cache/huggingface   # shared with vllm → reuses the already-downloaded AWQ weights
+      - hf-cache:/root/.cache/huggingface
     deploy:
       resources:
         reservations:
