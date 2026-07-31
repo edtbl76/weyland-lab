@@ -74,10 +74,16 @@ spec:
               # Alpine's chromium binary name varies by version — pin a stable symlink for Playwright.
               CHR="$(ls "$R"/usr/lib/chromium/chrome "$R"/usr/lib/chromium/chromium "$R"/usr/bin/chromium 2>/dev/null | head -1 || true)"
               [ -n "$CHR" ] && ln -sf "$CHR" "$R/bin/chromium" 2>/dev/null || echo "WARN: chromium binary not located"
-              export PATH="$R/usr/bin:$PATH" LD_LIBRARY_PATH="$R/usr/lib:$R/lib" npm_config_cache="$R/.npmcache"
-              # MCP server packages (canonical names from the Bifrost library catalog) — install GLOBAL into the runtime
-              # prefix so their bins land in /runtime/usr/bin (on Bifrost's PATH) and npx resolves them.
-              npm install -g --prefix "$R/usr" @playwright/mcp @perplexity-ai/mcp-server \
+              # node's Intl needs its ICU data dir (rooted under /runtime, not the compiled /usr default) — a stable
+              # symlink + ICU_DATA, else npm/npx die with "Icu error". chromium's libpulse lives in a pulseaudio/ subdir
+              # not on the default lib path. HOME must be writable for npm.
+              ICUD="$(ls -d "$R"/usr/share/icu/*/ 2>/dev/null | head -1)"
+              [ -n "$ICUD" ] && ln -sfn "${ICUD%/}" "$R/usr/share/icu/current" 2>/dev/null || true
+              mkdir -p "$R/home/.npm" && chmod -R 0777 "$R/home" 2>/dev/null || true
+              export PATH="$R/usr/bin:$PATH" HOME="$R/home" ICU_DATA="$R/usr/share/icu/current" \
+                LD_LIBRARY_PATH="$R/usr/lib:$R/usr/lib/pulseaudio:$R/lib" npm_config_cache="$R/home/.npm"
+              # MCP server packages (canonical names) — install GLOBAL into /runtime/usr so bins land on PATH.
+              PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 npm install -g --prefix "$R/usr" @playwright/mcp @perplexity-ai/mcp-server \
                 || echo "WARN: MCP pkg install failed — finalize live"
               echo "staged: node=$("$R/bin/node" -v 2>/dev/null) chromium=$CHR"
               exit 0
@@ -96,9 +102,12 @@ spec:
           env:
             # B111 — expose the initContainer-staged stdio MCP runtime (node + chromium) to Bifrost's process spawner.
             - { name: PATH, value: "/runtime/bin:/runtime/usr/bin:/usr/local/bin:/usr/bin:/bin:/sbin" }
-            - { name: LD_LIBRARY_PATH, value: "/runtime/usr/lib:/runtime/lib" }
-            - { name: NODE_PATH, value: "/runtime/opt/mcp/node_modules" }
-            - { name: PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD, value: "1" }   # use Alpine's system chromium, not the glibc download
+            - { name: LD_LIBRARY_PATH, value: "/runtime/usr/lib:/runtime/usr/lib/pulseaudio:/runtime/lib" }  # pulseaudio subdir = chromium's libpulse
+            - { name: ICU_DATA, value: "/runtime/usr/share/icu/current" }   # else node Intl / npm die with "Icu error"
+            - { name: HOME, value: "/runtime/home" }                        # writable HOME for npm/npx
+            - { name: npm_config_cache, value: "/runtime/home/.npm" }
+            - { name: NODE_PATH, value: "/runtime/usr/lib/node_modules" }   # global installs from the initContainer
+            - { name: PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD, value: "1" }        # use Alpine's system chromium, not the glibc download
             - { name: PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH, value: "/runtime/bin/chromium" }
           ports:
             - { name: http, containerPort: 8080 }
