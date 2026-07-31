@@ -1,7 +1,8 @@
-# B26 → reframed: LiteLLM as the hosted-model gateway (Gemini + OpenRouter).
-# Wildcards expose EVERY model from each provider — no enumeration. Clients request e.g.
-#   gemini/gemini-2.5-pro  ·  openrouter/deepseek/deepseek-r1:free  ·  openrouter/meta-llama/llama-3.3-70b-instruct:free
-# Add ollama/* later to fold the local box in behind the same endpoint.
+# B26 → reframed: LiteLLM as the hosted-model gateway AND the use-case ROUTER (B111).
+# Wildcards expose EVERY model from each provider; the wl-* aliases add use-case routing with server-side
+# fallback chains (the transparent failover Bifrost OSS gates behind Enterprise adaptive-LB). A client sends
+# only an alias (e.g. wl-coding); LiteLLM picks the primary and fails over down the chain on
+# network / 5xx / 429 / timeout. Diagram: docs/llm-routing-map.html (internal).
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -24,7 +25,7 @@ data:
         litellm_params:
           model: "anthropic/*"
           api_key: os.environ/ANTHROPIC_API_KEY
-      # --- Friendly aliases (optional convenience names) ---
+      # --- Friendly aliases (existing convenience names — consumers depend on these) ---
       - model_name: claude-haiku
         litellm_params:
           model: anthropic/claude-haiku-4-5-20251001
@@ -37,9 +38,91 @@ data:
         litellm_params:
           model: gemini/gemini-2.5-pro
           api_key: os.environ/GEMINI_API_KEY
+
+      # ================================================================================================
+      # B111 USE-CASE ROUTING — wl-* aliases (primaries). Fallback chains in router_settings.fallbacks.
+      # Keys resolve from the shared bifrost-provider-keys secret (envFrom on the pod). ollama = self-hosted
+      # on rogueone (no key). Primaries below are the ones proven end-to-end during the Bifrost routing test.
+      # ================================================================================================
+      - model_name: wl-default        # general-purpose · free hosted
+        litellm_params:
+          model: groq/openai/gpt-oss-120b
+          api_key: os.environ/GROQ_API_KEY
+      - model_name: wl-speed          # lowest latency · free hosted
+        litellm_params:
+          model: groq/openai/gpt-oss-120b
+          api_key: os.environ/GROQ_API_KEY
+      - model_name: wl-coding         # code gen/edits · opencode-zen (openai-compatible, custom base)
+        litellm_params:
+          model: openai/kimi-k3
+          api_base: https://opencode.ai/zen/v1
+          api_key: os.environ/OPENCODE_ZEN_API_KEY
+      - model_name: wl-agentic        # tool orchestration · reliable cheap tool-calling
+        litellm_params:
+          model: anthropic/claude-haiku-4-5-20251001
+          api_key: os.environ/ANTHROPIC_API_KEY
+      - model_name: wl-rag            # retrieval-grounded gen · free local (private)
+        litellm_params:
+          model: ollama_chat/gpt-oss:20b
+          api_base: http://192.168.1.230:11434
+      - model_name: wl-reason         # deep reasoning · free local
+        litellm_params:
+          model: ollama_chat/qwen3:30b-a3b
+          api_base: http://192.168.1.230:11434
+      - model_name: wl-judge          # eval / LLM-as-judge · free local
+        litellm_params:
+          model: ollama_chat/qwen2.5:7b
+          api_base: http://192.168.1.230:11434
+      - model_name: wl-search         # web-grounded · only web-search provider
+        litellm_params:
+          model: perplexity/sonar
+          api_key: os.environ/PERPLEXITY_API_KEY
+      - model_name: wl-big-oss        # big frontier OSS via aggregator
+        litellm_params:
+          model: openrouter/minimax/minimax-m3
+          api_key: os.environ/OPENROUTER_API_KEY
+
+      # --- Fallback-only deployments (targets referenced by router_settings.fallbacks) ---
+      - model_name: deepseek-chat
+        litellm_params:
+          model: deepseek/deepseek-chat
+          api_key: os.environ/DEEPSEEK_API_KEY
+      - model_name: deepseek-reasoner
+        litellm_params:
+          model: deepseek/deepseek-reasoner
+          api_key: os.environ/DEEPSEEK_API_KEY
+      - model_name: cerebras-oss
+        litellm_params:
+          model: cerebras/gpt-oss-120b
+          api_key: os.environ/CEREBRAS_API_KEY
+      - model_name: openai-mini
+        litellm_params:
+          model: openai/gpt-4o-mini
+          api_key: os.environ/OPENAI_API_KEY
+      - model_name: xai-grok
+        litellm_params:
+          model: xai/grok-3
+          api_key: os.environ/XAI_API_KEY
+
     litellm_settings:
       callbacks: ["prometheus"]
       require_auth_for_metrics_endpoint: false   # LAN-only scrape
       drop_params: true                          # tolerate params a given model doesn't support
+
+    router_settings:
+      # Ordered, server-side failover per use-case alias (network / 5xx / 429 / timeout triggers).
+      # Targets are other model_names above — aliases (wl-default = groq, wl-agentic = anthropic) are reused
+      # as rungs so the always-on-free tier is defined once. See docs/llm-routing-map.html.
+      fallbacks:
+        - {"wl-default":  ["gemini-flash", "wl-agentic"]}
+        - {"wl-speed":    ["cerebras-oss", "gemini-flash"]}
+        - {"wl-coding":   ["wl-agentic", "deepseek-chat"]}
+        - {"wl-agentic":  ["openai-mini", "cerebras-oss"]}
+        - {"wl-rag":      ["wl-default", "gemini-flash"]}
+        - {"wl-reason":   ["deepseek-reasoner", "wl-default"]}
+        - {"wl-judge":    ["wl-default", "gemini-flash"]}
+        - {"wl-search":   ["xai-grok"]}
+        - {"wl-big-oss":  ["wl-default"]}
+
     general_settings:
       master_key: os.environ/LITELLM_MASTER_KEY

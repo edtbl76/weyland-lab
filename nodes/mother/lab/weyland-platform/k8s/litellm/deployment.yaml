@@ -35,23 +35,13 @@ spec:
           ports:
             - name: http
               containerPort: 4000
+          # B111 — all provider keys come from the shared sealed secret (GROQ/OPENCODE_ZEN/PERPLEXITY/DEEPSEEK/
+          # CEREBRAS/OPENAI/XAI/GEMINI/OPENROUTER/ANTHROPIC/…), so the wl-* router resolves os.environ/<PROVIDER>_API_KEY.
+          # Named bifrost-provider-keys (B111 key-sealing) but shared by both gateways — rename to provider-api-keys later.
+          envFrom:
+            - secretRef:
+                name: bifrost-provider-keys
           env:
-            - name: GEMINI_API_KEY
-              valueFrom:
-                secretKeyRef:
-                  name: litellm-secrets
-                  key: GEMINI_API_KEY
-            - name: OPENROUTER_API_KEY
-              valueFrom:
-                secretKeyRef:
-                  name: litellm-secrets
-                  key: OPENROUTER_API_KEY
-            # Anthropic (agentic lane) — sealed into litellm-secrets (2026-07-30).
-            - name: ANTHROPIC_API_KEY
-              valueFrom:
-                secretKeyRef:
-                  name: litellm-secrets
-                  key: ANTHROPIC_API_KEY
             - name: LITELLM_MASTER_KEY
               valueFrom:
                 secretKeyRef:
