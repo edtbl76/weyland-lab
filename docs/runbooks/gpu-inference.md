@@ -67,12 +67,32 @@ kubectl -n weyland exec deploy/weyland-guard -- python -c 'import httpx; r=httpx
 On-demand consequence: when the bench is **down** (or rogueone sleeps), the Bifrost `vllm` provider shows **unhappy** —
 expected, not a fault.
 
-## SGLang (P2, use case c: prefill/decode disaggregation) — TODO
+## SGLang (use case c: PREFIX CACHING) — LIVE
 
-Not yet stood up. Will land in the same compose as `sglang`, same native-engine + VRAM-cap pattern, running SGLang's
-**PD-disaggregation** mode (separate prefill + decode servers + mini load-balancer) → Bifrost `sgl` provider on `:8002`.
-On a single GPU this is a **learning artifact** (real P/D speedup needs ≥2 GPUs + KV transfer), and the deliverable is the
-measured prefill-vs-decode split, not throughput.
+SGLang's job in the lab = **RadixAttention prefix caching** for agent/RAG (fat repeated system prompts / RAG context).
+On-demand via `scripts/sglang-bench.sh {start|stop|status|logs|smoke|prefix-bench}` — same native-engine + VRAM pattern,
+`sglang` service in the compose, `:8002`, Bifrost `sgl` provider. Model `unsloth/Llama-3.2-1B-Instruct` (ungated mirror).
+
+```
+scripts/sglang-bench.sh start                 # native GPU engine
+scripts/sglang-bench.sh status                # → unsloth/Llama-3.2-1B-Instruct
+scripts/sglang-bench.sh prefix-bench          # the prefix-cache demo (shared vs unique prefix, TTFT)
+scripts/sglang-bench.sh stop
+```
+**Wire into Bifrost:** native `sgl` provider, Base URL `http://192.168.1.230:8002` (no `/v1`), **dummy key REQUIRED**
+(Bifrost 400 "no keys found for provider: sgl" without one — even though SGLang has no auth), allow-private-network ON.
+Model string `sgl/unsloth/Llama-3.2-1B-Instruct`.
+
+**SGLang gotchas (differ from vLLM):**
+- `--mem-fraction-static` goes **HIGHER** not lower to fix "no KV cache" (`0.55`→negative KV, `0.85` works) — OPPOSITE of
+  vLLM's `--gpu-memory-utilization`. It's ~fraction of *available* mem for weights+KV, and weights alone eat ~0.64.
+- Gated models 403 even with a token (needs granted access) → use ungated mirrors (`unsloth/…`).
+- **RadixAttention (prefix caching) is ON by default** — no flag. `--disable-radix-cache` turns it off.
+
+**REJECTED — prefill/decode (PD) disaggregation.** SGLang PD needs **≥2 GPUs** (prefill GPU 0 / decode GPU 1 via
+`--base-gpu-id 1`); rogueone has one. CPU-decode escape is dead too: SGLang's CPU backend is **AMX-only** (Intel Xeon
+4th-gen+), rogueone's **i9-13950HX (Raptor Lake) has no AMX**, and SGLang's shipped CPU+GPU disagg is VLM *encode*-on-CPU,
+not decode. Real PD = a future 2-GPU play; the prefill/decode *lesson* lives in the demo without running it.
 
 ## Measured baseline (2026-07-31, Qwen2.5-7B-Instruct-AWQ, 128-tok gens)
 
@@ -86,6 +106,16 @@ Continuous batching — tok/s scales ~linearly with concurrency, latency ~flat (
 
 ~15× throughput at conc 16 for ~flat latency (93% of ideal linear scaling) — the GPU's tensor cores, idle and
 memory-bandwidth-starved at conc 1, get packed by continuous batching amortizing the per-step weight-read across the batch.
+
+**SGLang prefix cache (2026-07-31, Llama-3.2-1B, 2.5K-token shared prefix, TTFT):** `prefix-bench` —
+| run | first (cold) | avg-of-rest |
+|---|---|---|
+| shared-prefix | 170ms (miss) | **26.2ms** (RadixAttention hits) |
+| unique-prefix | 176ms | 163.6ms (all misses) |
+
+**~6.2× faster TTFT on cache hits** — a repeated fat prefix is prefilled once and reused. The shared run's *first* request
+(≈ the unique baseline) confirms the speedup is pure prefix reuse. This is the lab's agent/RAG pattern (constant system
+prompt + retrieved context per turn), and SGLang's distinct job vs vLLM's throughput.
 
 ## DoD note
 On-demand bench → **no Kuma monitor** (it's meant to be down). DoD here = this runbook + the demo + the recorded numbers +

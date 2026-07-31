@@ -1,12 +1,25 @@
-# Demo — On-Demand GPU Inference (vLLM) + Continuous Batching, explained in extreme detail
+# Demo — On-Demand GPU Inference: three engines, three jobs
 
-**What this demonstrates:** an on-demand **vLLM** server running `Qwen2.5-7B-Instruct-AWQ` on rogueone's RTX 5000 Ada
-(16GB), fronted by Bifrost, and — the star of the show — **continuous batching**: the reason a GPU serving engine gives
-you ~15× the throughput of a naive single-stream runner *for almost no extra latency*. B111 use case (b).
+**What this demonstrates:** the lab has **three GPU serving engines**, each with a *distinct* job on rogueone's RTX 5000
+Ada (16GB) — not redundant, purposeful:
+
+| Engine | Job | The measured win |
+|---|---|---|
+| **Ollama** | simple single-stream (casual chat, operator brain, judges) | the always-on default |
+| **vLLM** | **throughput / continuous batching** (concurrent + batch workloads) | **~15× tok/s** at concurrency 16, flat latency |
+| **SGLang** | **prefix caching** (RadixAttention) for agent/RAG (fat repeated prompts) | **~6.2× faster TTFT** on cache hits |
+
+Both vLLM and SGLang are on-demand (spun up per experiment, one at a time), fronted by Bifrost. This demo explains **both
+wins from the silicon up**. *(We also explored SGLang prefill/decode **disaggregation** and rejected it — it needs ≥2
+GPUs; see the runbook.)* B111 use cases (b) + (c).
 
 Design: [gpu-inference-vllm-sglang-design.md](../../aidlc-docs/gpu-inference-vllm-sglang-design.md) ·
-Runbook: [runbooks/gpu-inference.md](../runbooks/gpu-inference.md) · Compose + bench:
-`nodes/rogueone/services/gpu-inference/`.
+Runbook: [runbooks/gpu-inference.md](../runbooks/gpu-inference.md) · Compose + benches:
+`nodes/rogueone/services/gpu-inference/` · scripts `scripts/vllm-bench.sh`, `scripts/sglang-bench.sh`.
+
+---
+
+# Case 1 — vLLM: continuous batching (use case b)
 
 ---
 
@@ -108,26 +121,71 @@ those workloads, then tear down.
 
 ---
 
-## CLI walkthrough (reproduce it)
+# Case 2 — SGLang: prefix caching / RadixAttention (use case c)
 
-All on **rogueone**. vLLM runs on the **native Docker engine** (Desktop is the default context and has no GPU — see the
-runbook for the `gpu-docker` / `DOCKER_HOST` gotcha).
+vLLM and SGLang overlap ~90% on throughput — so SGLang's *reason to exist* in the lab is a different thing: **automatic
+prefix caching**. This is the win that maps directly onto how the lab actually uses LLMs — agents with fat system prompts,
+RAG with repeated context, multi-turn chat.
+
+## The measured result (the artifact)
+
+`sglang-bench.sh prefix-bench` — 8 requests, a **2.5K-token shared prefix** (a realistic fat system prompt / RAG context),
+measuring **TTFT** (time to first token), direct at SGLang:
 
 ```
-# 1. Bring the bench up (on-demand; ~5.5GB model download on first run)
-DOCKER_HOST=unix:///var/run/docker.sock docker compose -f nodes/rogueone/services/gpu-inference/docker-compose.yml up -d vllm
+shared-prefix    first= 170.2ms  avg-of-rest=  26.2ms
+unique-prefix    first= 176.0ms  avg-of-rest= 163.6ms
+```
 
-# 2. Wait for ready
-DOCKER_HOST=unix:///var/run/docker.sock docker compose -f nodes/rogueone/services/gpu-inference/docker-compose.yml logs -f vllm 2>&1 | grep -m1 "Application startup complete"
+- **shared-prefix**: request 0 is a cold miss (170ms — full 2.5K-token prefill), then the rest drop to **26.2ms**.
+- **unique-prefix**: every request re-prefills the 2.5K tokens → **163.6ms** throughout.
 
-# 3. Confirm it's serving
-curl -s http://localhost:8001/v1/models | jq -r '.data[].id'      # → Qwen/Qwen2.5-7B-Instruct-AWQ
+**~6.2× faster TTFT on cache hits** (163.6 → 26.2ms). The tell it's real: the shared run's *first* request (170ms, a
+genuine miss) matches the unique baseline (~164ms) — so the speedup is **purely reuse**, not a warm-up artifact.
 
-# 4. Run the throughput bench (the table above)
-python3 nodes/rogueone/services/gpu-inference/bench.py
+## Why this happens — RadixAttention
 
-# 5. Tear down when done (free the VRAM)
-DOCKER_HOST=unix:///var/run/docker.sock docker compose -f nodes/rogueone/services/gpu-inference/docker-compose.yml down
+- Recall from Case 1: **prefill** processes the whole prompt at once and builds its **KV cache**. For a 2.5K-token system
+  prompt that's real work — and normally it's redone on **every** request that carries that prompt.
+- **RadixAttention** stores the KV cache of processed prefixes in a **radix tree** (keyed by token prefix). When a new
+  request arrives, SGLang walks the tree and finds the **longest cached prefix match** — for a repeated system prompt,
+  that's the *entire* prompt. It **reuses that KV directly** and only prefills the new suffix (the actual question).
+- So a cache hit **skips re-prefilling the shared prefix entirely** — TTFT collapses to just the cost of the short new
+  suffix. The `unique-prefix` run diverges at token 0, so the tree never matches → every request pays the full prefill.
+
+## Why this matters for the lab
+
+This is *exactly* the lab's LLM shape: the operator and RAG agents send a **large, mostly-constant system prompt +
+retrieved context** on every turn, changing only the user's question. RadixAttention means that fat prefix is computed
+**once** and reused — cutting TTFT ~6× on the repeated part. That's SGLang's distinct, non-redundant job here; vLLM owns
+throughput, SGLang owns prefix reuse.
+
+*(RadixAttention is **on by default** in SGLang — no flag. `--disable-radix-cache` turns it off, which is how you'd
+reproduce the `unique-prefix`-like baseline for the whole server.)*
+
+---
+
+# Reproduce it — CLI
+
+## CLI walkthrough (reproduce it)
+
+All on **rogueone**, via the wrapper scripts (they force the **native Docker engine** — Desktop is the default context and
+has no GPU; see the runbook for the `gpu-docker` / `DOCKER_HOST` gotcha). **Run one bench at a time** on the 16GB card.
+
+**Case 1 — vLLM throughput:**
+```
+scripts/vllm-bench.sh start          # on-demand; ~5.5GB model download on first run
+scripts/vllm-bench.sh status         # → Qwen/Qwen2.5-7B-Instruct-AWQ
+python3 nodes/rogueone/services/gpu-inference/bench.py    # the ~15× continuous-batching table
+scripts/vllm-bench.sh stop           # free the VRAM
+```
+
+**Case 2 — SGLang prefix caching:**
+```
+scripts/sglang-bench.sh start        # on-demand
+scripts/sglang-bench.sh status       # → unsloth/Llama-3.2-1B-Instruct
+scripts/sglang-bench.sh prefix-bench # the ~6.2× TTFT shared-vs-unique table
+scripts/sglang-bench.sh stop         # free the VRAM
 ```
 
 Through the gateway (from **mother**) — proves it's a first-class Bifrost provider, tool-free (see runbook for why):
