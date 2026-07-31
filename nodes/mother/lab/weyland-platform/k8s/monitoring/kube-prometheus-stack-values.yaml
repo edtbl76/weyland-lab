@@ -139,6 +139,12 @@ grafana:
       uid: tempo
       access: proxy
       url: http://tempo.monitoring.svc.cluster.local:3200
+    # Pyroscope (continuous profiling, B111) — unlocks the Profiles Drilldown. Monolithic server :4040 (ns monitoring).
+    - name: Pyroscope
+      type: grafana-pyroscope-datasource
+      uid: pyroscope
+      access: proxy
+      url: http://pyroscope.monitoring.svc.cluster.local:4040
 
 prometheus:
   prometheusSpec:
@@ -148,6 +154,9 @@ prometheus:
     # not `release: monitoring`, so without this the operator's default `release` ruleSelector silently DROPS
     # every data-mesh down-alert (Nessie/lakeFS/DataHub/MinIO/Trino/GizmoSQL/Feast/Superset/all 10 Tier-2).
     ruleSelectorNilUsesHelmValues: false
+    # B111 — accept remote_write from Tempo's metrics-generator (span-metrics + service-graphs derived from traces).
+    # Without this the generator's remote_write is refused and the "traces → Prometheus metrics" path stays dead.
+    enableRemoteWriteReceiver: true
     # Static scrape of the EXTERNAL rogueone Ray worker (off-cluster → no ServiceMonitor; it exposes
     # --metrics-export-port=8080 on .230). This is where the task/actor/node ray_* metrics actually live — the
     # head is a --num-cpus=0 coordinator with no work. Not-always-up (laptop) → the target flaps down on sleep,

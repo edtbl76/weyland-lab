@@ -529,3 +529,21 @@ spec:
     namespace: kube-system
   syncPolicy:
     automated: { selfHeal: true, prune: true }
+---
+# B111 — Pyroscope (continuous profiling / Grafana Profiles Drilldown). Raw manifests, ns monitoring.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: pyroscope
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/edtbl76/weyland-lab.git
+    targetRevision: main
+    path: nodes/mother/lab/weyland-platform/k8s/pyroscope
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: monitoring
+  syncPolicy:
+    automated: { selfHeal: true, prune: true }

@@ -68,14 +68,18 @@ open gap = not done:
 - **Secrets restorable** — no imperative-only secret: SealedSecrets/ESO/SOPS, or a committed
   `<name>-secret.example.yaml` + `runbooks/secrets.md` index; bricking keys (e.g. lakeFS `AUTH_ENCRYPT_SECRET_KEY`)
   escrowed.
-- **Monitored + alerted — the three signals (metrics, logs, traces) + alerts + synthetic, all required:**
+- **Monitored + alerted — the four signals (metrics, logs, traces, profiles) + alerts + synthetic, all required:**
   - **Metrics** — if the service exposes `/metrics`, ship a **ServiceMonitor** so Prometheus scrapes it (the
     retroactive gap: most pre-B65 services have none — audit `count(up) by (job)`), **plus** a **Grafana dashboard**
     for its metrics (or an explicit confirmation an existing one covers it — no active service without a dashboard).
   - **Logs** — the service's container/app logs reach **Loki** (Alloy collects cluster-wide by default) and are
     **queryable in Grafana**; confirm it, and prefer structured/JSON logs where the app supports it.
-  - **Traces** — if the service sits in a request path, it emits spans to **Tempo** (OTel) and they appear in Grafana;
-    note **N/A** explicitly if it's not in a traced path.
+  - **Traces** — if the service sits in a **multi-hop** request path, it emits spans to **Tempo** (OTel) and they
+    appear in Grafana. For a **single-hop** service (e.g. an egress gateway like Bifrost), request-level tracing
+    exported **to metrics** — a tracing plugin → Prometheus (latency histograms + per-request cost/tokens/errors) —
+    satisfies this; full distributed spans only earn their keep across hops. Note **N/A** if it's not in a traced path.
+  - **Profiles** — if the service is a profiling target (Go / pprof, or SDK-instrumented), continuous profiles reach
+    **Pyroscope** and appear in Grafana's **Profiles Drilldown**; note **N/A** for services that don't profile.
   - **Alerts** — a **PrometheusRule** with a **down/failure** alert (+ spend / error-rate where relevant, e.g.
     `bifrost_cost_total`) routed to Telegram; the alert path has a **dead-man's-switch** (Watchdog → external heartbeat, not `null`).
   - **Synthetic 1:1** — every user-facing host in `hosts.md` has an active Uptime-Kuma monitor, no orphan monitors

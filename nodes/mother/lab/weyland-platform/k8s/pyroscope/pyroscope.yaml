@@ -1,0 +1,57 @@
+# B111 — Pyroscope (continuous profiling) — the 4th observability signal, unlocks Grafana's Profiles Drilldown
+# ("Missing Pyroscope data source"). Monolithic single-binary (`-target=all`) on :4040, ns monitoring alongside the
+# LGTM stack. Grafana datasource `pyroscope` (uid) is in kube-prometheus-stack-values.yaml → svc pyroscope:4040.
+# Storage: emptyDir for the initial stand-up (profile history is ephemeral across restarts — fine for a lab; move to
+# a PVC/MinIO if history matters). INGESTION is a follow-up: nothing profiles yet — wire Alloy pprof scraping of the
+# Go services (Bifrost/Tempo/Loki expose /debug/pprof) or the Pyroscope SDK to populate it.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: pyroscope
+  namespace: monitoring
+  labels: { app: pyroscope }
+spec:
+  replicas: 1
+  strategy: { type: Recreate }
+  selector: { matchLabels: { app: pyroscope } }
+  template:
+    metadata:
+      labels: { app: pyroscope }
+    spec:
+      securityContext: { runAsNonRoot: true, runAsUser: 10001, fsGroup: 10001 }
+      containers:
+        - name: pyroscope
+          image: grafana/pyroscope:1.9.0
+          args: ["-target=all", "-pyroscopedb.data-path=/data", "-log.level=warn"]
+          ports:
+            - { name: http, containerPort: 4040 }
+          volumeMounts:
+            - { name: data, mountPath: /data }
+          readinessProbe:
+            httpGet: { path: /ready, port: 4040 }
+            initialDelaySeconds: 25
+            periodSeconds: 15
+          livenessProbe:
+            httpGet: { path: /ready, port: 4040 }
+            initialDelaySeconds: 60
+            periodSeconds: 30
+          securityContext:
+            allowPrivilegeEscalation: false
+            seccompProfile: { type: RuntimeDefault }
+          resources:
+            requests: { cpu: 100m, memory: 256Mi }
+            limits: { memory: 1Gi }
+      volumes:
+        - name: data
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: pyroscope
+  namespace: monitoring
+  labels: { app: pyroscope }
+spec:
+  selector: { app: pyroscope }
+  ports:
+    - { name: http, port: 4040, targetPort: 4040 }

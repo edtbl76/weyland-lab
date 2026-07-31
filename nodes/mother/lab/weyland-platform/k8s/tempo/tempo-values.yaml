@@ -4,6 +4,14 @@
 # loki-minio Secret (config.expand-env=true → ${AWS_*}); no inline secrets. Bucket: tempo-traces.
 tempo:
   reportingEnabled: false        # no phone-home ($0/LAN)
+  # B111 — enable the metrics-generator (fixes the "empty ring" 500 in the Traces Drilldown). Without this, no
+  # generator joins the ring, so span-metrics / service-graphs / TraceQL rate() queries all fail. The chart's
+  # default processors are service-graphs + span-metrics + local-blocks; local-blocks powers the "Span rate"
+  # TraceQL-metrics view. Span-metrics remote_write → the in-cluster Prometheus (which MUST have
+  # enableRemoteWriteReceiver:true — set in kube-prometheus-stack-values.yaml). send_exemplars links metrics↔traces.
+  metricsGenerator:
+    enabled: true
+    remoteWriteUrl: "http://monitoring-kube-prometheus-prometheus.monitoring.svc.cluster.local:9090/api/v1/write"
   storage:
     trace:
       backend: s3
@@ -40,7 +48,8 @@ tempo:
       cpu: 100m
       memory: 512Mi
     limits:
-      memory: 3Gi   # 1Gi OOM'd (exit 137) ~9s in on a vParquet4 block; raised to 2Gi. Then 2Gi OOM'd **72×** in
+      memory: 4Gi   # B111: 3Gi→4Gi headroom for the metrics-generator (local-blocks holds recent traces in memory).
+                    # 1Gi OOM'd (exit 137) ~9s in on a vParquet4 block; raised to 2Gi. Then 2Gi OOM'd **72×** in
                     # the 2026-07-22 boot under peak trace load (eval mesh traffic + the B98/B21 LGTM
                     # self-monitoring, 2026-07-21, both increased trace volume). Raised 2Gi→3Gi. Monolithic Tempo
                     # builds blocks in memory before the S3 flush, so peak scales with ingest; revisit if it OOMs
