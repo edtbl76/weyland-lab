@@ -1,0 +1,26 @@
+# Bifrost provider API keys — SealedSecret (B111 key-sealing). Decrypts to Secret `bifrost-provider-keys` (weyland),
+# mounted as env on the Bifrost pod via `envFrom` so provider keys resolve through `env.VAR` references at runtime —
+# NO plaintext keys in the PVC, fully GitOps + restorable.
+#
+# FILL spec.encryptedData: run `scripts/seal_bifrost_keys.sh` (sources scripts/.env, values never printed) and paste
+# its output block below. Self-hosted providers (ollama/vllm/sgl) use dummy keys — intentionally NOT sealed here.
+#
+# Restore-from-scratch: apply this SealedSecret → controller writes the Secret → Bifrost restart picks up the env →
+# `scripts/register_bifrost_providers.py` points each provider key at its `env.VAR`. See runbooks/mcp-gateway.md.
+apiVersion: bitnami.com/v1alpha1
+kind: SealedSecret
+metadata:
+  name: bifrost-provider-keys
+  namespace: weyland
+spec:
+  encryptedData:
+    # <-- paste `scripts/seal_bifrost_keys.sh` output here, e.g.:
+    # ANTHROPIC_API_KEY: AgB...
+    # OPENAI_API_KEY: AgC...
+    # (21 keys: anthropic/openai/gemini/cohere/mistral/deepseek/openrouter/perplexity/fireworks/xai/cerebras/groq/
+    #  huggingface/opencode-zen/parasail/replicate/runway/runware/wafer/elevenlabs/together)
+  template:
+    metadata:
+      name: bifrost-provider-keys
+      namespace: weyland
+    type: Opaque

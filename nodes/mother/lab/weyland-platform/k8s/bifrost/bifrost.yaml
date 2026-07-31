@@ -47,6 +47,10 @@ spec:
           # resolves on any node arch — same rationale as LiteLLM). To bump: `docker buildx imagetools inspect
           # maximhq/bifrost:latest` on a box with docker → copy the top-level Digest → update below. Deliberate only.
           image: maximhq/bifrost@sha256:bf2208978308477a9f667dfc04cef3153197aeaca8618befefbecde3ed3378b7   # latest @ 2026-07-30
+          envFrom:                       # B111 key-sealing: provider API keys as env, from the bifrost-provider-keys
+            - secretRef:                 # SealedSecret. Each provider's key is set to `env.VAR` (register_bifrost_providers.py)
+                name: bifrost-provider-keys
+                optional: true           # optional → pod still boots if the Secret isn't applied yet (chicken-and-egg safe)
           ports:
             - { name: http, containerPort: 8080 }
           readinessProbe:
