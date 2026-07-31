@@ -152,6 +152,20 @@ roll the pod → `rollout restart`. (2) env keys read back `type=env` + redacted
 **PUSH `bifrost.yaml` + the SealedSecret to git** — Argo selfHeal reverts a local-only envFrom → env empties → outage.
 Restore-from-scratch: apply SealedSecret → restart → run `register_bifrost_providers.py`.
 
+**Use-case routing** (`scripts/register_bifrost_routing.py`, idempotent). Clients request a **use-case alias** as the
+`model` — `wl-coding`, `wl-agentic`, `wl-rag`, `wl-search`, `wl-reason`, `wl-judge`, `wl-default`, `wl-speed`,
+`wl-big-oss` — and a CEL rule `model == "wl-X"` routes it to the primary provider/model. `POST /api/governance/routing-rules`
+`{name, cel_expression, targets:[{provider,model,weight}], scope:"global", priority}`. **Targets are WEIGHTED, NOT ordered
+fallback** — each rule = the PRIMARY only. CEL vars: `model`, `provider`, `request_type`, `budget_used`/`tokens_used`/`request`
+(all %), `headers[...]`, `team_name`. Run:
+```
+kubectl -n weyland exec -i deploy/weyland-guard -- python - < scripts/register_bifrost_routing.py
+```
+Rules live in Bifrost's PVC DB (no k8s manifest → Argo won't touch them); the script is the source of truth. **GOTCHAS:**
+(1) the docs page 404'd — schema reverse-engineered off a live rule + web search. (2) ollama-local primaries
+(rag/reason/judge) fail when rogueone sleeps — **next iteration** adds `fallbacks` chains (availability) +
+`budget_used > 90 → free` overflow rules (cost-degrade) + media aliases (image/tts/video).
+
 ## Current state + loose ends
 - Phase 1 (gateway + auth + actor) ✅ and Phase 2 (enforcing act gate) ✅ — both **proven + LIVE**; `policy.gate` is
   **enforcing (`block`)** as of 2026-07-29 (no-actor / unknown-actor / direct acts denied; `weyland-operator` via the gateway passes).

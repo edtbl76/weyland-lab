@@ -26,7 +26,7 @@ CAPS = {
     "openai": 10, "gemini": 10, "deepseek": 10, "cohere": 10, "mistral": 10,
     "openrouter": 10, "perplexity": 10, "fireworks": 10, "xai": 10, "opencode-zen": 10,
     "cerebras": 10, "replicate": 10, "runway": 10, "runware": 10,
-    "wafer": 10, "elevenlabs": 10,
+    "elevenlabs": 10,
 }
 # UNCAPPED (cost $0 / not $-metered by Bifrost): ollama, vllm, sgl, huggingface, groq
 

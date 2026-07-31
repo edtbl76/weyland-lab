@@ -26,7 +26,7 @@ MAP = {  # bifrost provider -> env var (must be present as env on the Bifrost po
     "xai": "XAI_API_KEY", "cerebras": "CEREBRAS_API_KEY", "groq": "GROQ_API_KEY",
     "huggingface": "HUGGING_FACE_API_KEY", "opencode-zen": "OPENCODE_ZEN_API_KEY",
     "replicate": "REPLICATE_API_KEY", "runway": "RUNWAY_API_KEY", "runware": "RUNWARE_API_KEY",
-    "wafer": "WAFER_API_KEY", "elevenlabs": "ELEVEN_LABS_API_KEY", "together-api-key": "TOGETHER_API_KEY",
+    "elevenlabs": "ELEVEN_LABS_API_KEY", "together-api-key": "TOGETHER_API_KEY",
 }
 
 c = httpx.Client(base_url=BASE, timeout=30)
