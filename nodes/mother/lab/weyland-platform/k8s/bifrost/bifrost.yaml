@@ -60,8 +60,13 @@ spec:
           args:
             - |
               R=/runtime
-              apk add --root "$R" --initdb --no-cache \
-                nodejs npm chromium nss freetype harfbuzz ttf-freefont font-noto-cjk ca-certificates || echo "WARN: apk failed"
+              # apk --root --initdb makes an EMPTY repo list → every package is "no such package". Point apk at the
+              # real main+community repos and the host's signing keys so the --root install can actually resolve.
+              printf '%s\n' \
+                "https://dl-cdn.alpinelinux.org/alpine/v3.23/main" \
+                "https://dl-cdn.alpinelinux.org/alpine/v3.23/community" > /tmp/repos
+              apk add --root "$R" --initdb --no-cache --repositories-file /tmp/repos --keys-dir /etc/apk/keys \
+                nodejs npm chromium nss freetype harfbuzz ttf-freefont ca-certificates || echo "WARN: apk failed"
               mkdir -p "$R/bin" "$R/opt/mcp"
               ln -sf "$R/usr/bin/node" "$R/bin/node" 2>/dev/null || true
               ln -sf "$R/usr/bin/npm"  "$R/bin/npm"  2>/dev/null || true
