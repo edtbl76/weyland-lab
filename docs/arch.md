@@ -947,6 +947,13 @@ observed; **Control/ops** = scheduled and operational paths.
 - **Observability:** Prometheus + Grafana (B5 — done). Alertmanager -> Telegram alerts live. App metrics via
   ServiceMonitors: qdrant, weaviate, apisix, coredns, **weyland-guard (B14 guardrails)**, **minio** (full
   scrape-target list in [api.md](api.md#metrics--scrape-targets-b5-phase-2b)).
+- **Four observability signals (B111):** the platform covers all four — **metrics** (Prometheus / ServiceMonitors),
+  **logs** (Loki via Alloy), **traces** (Tempo), and **profiles** (**Pyroscope**, ns `monitoring`, monolithic `:4040`,
+  `grafana-pyroscope-datasource`; Alloy pprof-scrapes the Go services → the Grafana **Profiles Drilldown**). B111 also
+  fixed a dead **traces→metrics** path: Tempo's **metrics-generator** had never been enabled (`empty ring` 500 in the
+  Traces Drilldown), so span-metrics / service-graphs were never derived — now on, with `remote_write` → Prometheus
+  (which required `enableRemoteWriteReceiver: true`). The DoD's "Monitored" pillar now names all four signals as
+  explicit acceptance criteria (metrics scrape + dashboard, logs, traces, profiles).
 
 ### 10a. Monitoring the monitors — three blind spots closed (B69/B94, 2026-07-20/21)
 

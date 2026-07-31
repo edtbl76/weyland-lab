@@ -42,6 +42,23 @@ alloy:
           url = "http://loki.monitoring.svc.cluster.local:3100/loki/api/v1/push"
         }
       }
+
+      // B111 — profiling (the 4th signal): scrape Go-service pprof → Pyroscope, populating the Profiles Drilldown.
+      // Tempo/Loki are Grafana Go binaries that expose /debug/pprof by default. Add more targets (Bifrost etc.)
+      // once their pprof endpoint is confirmed. pyroscope.scrape defaults to cpu/heap/goroutine/alloc profiles.
+      pyroscope.write "default" {
+        endpoint {
+          url = "http://pyroscope.monitoring.svc.cluster.local:4040"
+        }
+      }
+
+      pyroscope.scrape "go_services" {
+        targets = [
+          {"__address__" = "tempo.monitoring.svc.cluster.local:3200", "service_name" = "tempo"},
+          {"__address__" = "loki.monitoring.svc.cluster.local:3100", "service_name" = "loki"},
+        ]
+        forward_to = [pyroscope.write.default.receiver]
+      }
   resources:
     requests:
       cpu: 50m
