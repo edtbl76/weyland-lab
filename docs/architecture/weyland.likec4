@@ -32,7 +32,7 @@ model {
   // ---- rogueone: external laptop, not always-on ----
   rogueone = node "rogueone" "RTX 5000 Ada laptop (.230) — GPU inference + training edge. Not always-on." {
     ollama = component "Ollama" "LLM serving — ollama.weyland.lab :11434 (moved here B79)"
-    vllm = component "vLLM" "GPU inference :8000/v1"
+    vllm = component "vLLM" "On-demand GPU bench :8001/v1 — Qwen2.5-7B-AWQ, continuous batching (B111)"
     rayWorker = component "Ray edge worker" "Native worker — joins mother's Ray head :6379"
     genreTrainer = component "genre-trainer" "Trainer — reads silver, logs to MLflow"
     ragEmbed = component "rag-embed" "bge-base (768-dim) embed service :8900 (warm GPU) — B74"

@@ -73,6 +73,8 @@ Heavy = embeds/writes or large scans (guard the node's RAM). Light = metadata/re
 > Guardrails: `nodes/rogueone/systemd/ollama-gpu-guardrails.conf` (max 1 loaded model, 30s keep-alive, 1.5 GiB
 > reserved) — **validated 2026-07-20 under contention**: a full matrix + 3-judge scoring pass completed with the
 > desktop in active use, no freeze. BIOS → Hybrid Graphics is the structural fix but is **deferred, not needed**.
+> **B111 (2026-07-31):** the **vLLM on-demand bench** (`scripts/vllm-bench.sh`) is a THIRD VRAM contender (~8.8GB at
+> `--gpu-memory-utilization 0.55`) — keep Ollama idle while a vLLM bench runs; it's on-demand so tear it down after.
 
 **Ordering note (risk currently DORMANT):** a nightly `02:00` scale-down *would* take
 cockroach/mongo/mysql/gizmosql to 0, and the DataHub ingestions that read them (Cockroach 03:30, Mongo

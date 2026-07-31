@@ -38,6 +38,38 @@ services:
             - driver: nvidia
               count: 1
               capabilities: [gpu]
-  # P2 (added when we build the SGLang prefill/decode disaggregation bench, use case c) — will land here as `sglang`.
+  # P2a — SGLang in NORMAL serving mode (use case c foundation). Validates the engine + Bifrost `sgl` provider, and
+  # enables a vLLM-vs-SGLang comparison on the SAME 7B AWQ (shares the hf-cache volume → no re-download). OpenAI-compat
+  # on :8002. PD-disaggregation (prefill+decode+LB) is the P2b follow-on — single-GPU = learning artifact, not throughput.
+  # RUN ONE BENCH AT A TIME: stop vllm first (`scripts/vllm-bench.sh stop`) to free the ~8.8GB before starting sglang.
+  sglang:
+    image: lmsysorg/sglang:latest
+    container_name: sglang
+    ipc: host
+    ports:
+      - "8002:8000"
+    command:
+      - "python3"
+      - "-m"
+      - "sglang.launch_server"
+      - "--model-path"
+      - "Qwen/Qwen2.5-7B-Instruct-AWQ"
+      - "--host"
+      - "0.0.0.0"
+      - "--port"
+      - "8000"
+      - "--mem-fraction-static"
+      - "0.55"                     # SGLang's equivalent of vLLM's --gpu-memory-utilization; same coexistence rules
+      - "--context-length"
+      - "8192"
+    volumes:
+      - hf-cache:/root/.cache/huggingface   # shared with vllm → reuses the already-downloaded AWQ weights
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
 volumes:
   hf-cache:
