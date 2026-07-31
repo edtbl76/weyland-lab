@@ -1,0 +1,89 @@
+# B111 — Grafana dashboard for Bifrost (agent edge + provider egress). ConfigMap in `monitoring` ns with the
+# `grafana_dashboard` label → the kube-prometheus-stack Grafana sidecar auto-imports it (Dashboards → Bifrost Gateway).
+# Metrics come from k8s/bifrost/servicemonitor.yaml (scrapes /metrics on the bifrost svc). Everything is sliced by
+# provider / model / routing_rule_name (the wl-* aliases) — so this doubles as the per-route COST view feeding B112.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: bifrost-dashboard
+  namespace: monitoring
+  labels:
+    grafana_dashboard: "1"
+data:
+  bifrost.json: |
+    {
+      "title": "Bifrost Gateway",
+      "uid": "bifrost-b111",
+      "schemaVersion": 39,
+      "editable": true,
+      "tags": ["bifrost", "llm", "b111"],
+      "time": { "from": "now-6h", "to": "now" },
+      "refresh": "30s",
+      "templating": { "list": [
+        { "name": "datasource", "type": "datasource", "query": "prometheus", "current": {}, "hide": 0 }
+      ] },
+      "panels": [
+        { "id": 1, "title": "Cost (range)", "type": "stat", "gridPos": {"h":4,"w":6,"x":0,"y":0},
+          "datasource": {"type":"prometheus","uid":"${datasource}"},
+          "targets": [{"expr":"sum(increase(bifrost_cost_total[$__range]))","refId":"A"}],
+          "fieldConfig": {"defaults":{"unit":"currencyUSD","decimals":4}} },
+        { "id": 2, "title": "Requests / s", "type": "stat", "gridPos": {"h":4,"w":6,"x":6,"y":0},
+          "datasource": {"type":"prometheus","uid":"${datasource}"},
+          "targets": [{"expr":"sum(rate(bifrost_upstream_requests_total[5m]))","refId":"A"}],
+          "fieldConfig": {"defaults":{"unit":"reqps","decimals":2}} },
+        { "id": 3, "title": "Error rate", "type": "stat", "gridPos": {"h":4,"w":6,"x":12,"y":0},
+          "datasource": {"type":"prometheus","uid":"${datasource}"},
+          "targets": [{"expr":"100 * sum(rate(bifrost_error_requests_total[5m])) / clamp_min(sum(rate(bifrost_upstream_requests_total[5m])), 0.0001)","refId":"A"}],
+          "fieldConfig": {"defaults":{"unit":"percent","decimals":1,"thresholds":{"steps":[{"color":"green","value":null},{"color":"yellow","value":2},{"color":"red","value":10}]}}} },
+        { "id": 4, "title": "Active requests", "type": "stat", "gridPos": {"h":4,"w":6,"x":18,"y":0},
+          "datasource": {"type":"prometheus","uid":"${datasource}"},
+          "targets": [{"expr":"sum(bifrost_active_requests)","refId":"A"}],
+          "fieldConfig": {"defaults":{"unit":"short"}} },
+
+        { "id": 5, "title": "Cost by provider ($, range)", "type": "table", "gridPos": {"h":8,"w":8,"x":0,"y":4},
+          "datasource": {"type":"prometheus","uid":"${datasource}"},
+          "targets": [{"expr":"sum by (provider) (increase(bifrost_cost_total[$__range]))","refId":"A","instant":true,"format":"table"}],
+          "fieldConfig": {"defaults":{"unit":"currencyUSD","decimals":4}} },
+        { "id": 6, "title": "Cost by routing rule wl-* ($, range)", "type": "table", "gridPos": {"h":8,"w":8,"x":8,"y":4},
+          "datasource": {"type":"prometheus","uid":"${datasource}"},
+          "targets": [{"expr":"sum by (routing_rule_name) (increase(bifrost_cost_total{routing_rule_name!=\"\"}[$__range]))","refId":"A","instant":true,"format":"table"}],
+          "fieldConfig": {"defaults":{"unit":"currencyUSD","decimals":4}} },
+        { "id": 7, "title": "Cost by model ($, range)", "type": "table", "gridPos": {"h":8,"w":8,"x":16,"y":4},
+          "datasource": {"type":"prometheus","uid":"${datasource}"},
+          "targets": [{"expr":"sum by (model) (increase(bifrost_cost_total[$__range]))","refId":"A","instant":true,"format":"table"}],
+          "fieldConfig": {"defaults":{"unit":"currencyUSD","decimals":4}} },
+
+        { "id": 8, "title": "Requests / s by provider", "type": "timeseries", "gridPos": {"h":8,"w":12,"x":0,"y":12},
+          "datasource": {"type":"prometheus","uid":"${datasource}"},
+          "targets": [{"expr":"sum by (provider) (rate(bifrost_upstream_requests_total[5m]))","refId":"A","legendFormat":"{{provider}}"}],
+          "fieldConfig": {"defaults":{"unit":"reqps"}} },
+        { "id": 9, "title": "Success vs error / s", "type": "timeseries", "gridPos": {"h":8,"w":12,"x":12,"y":12},
+          "datasource": {"type":"prometheus","uid":"${datasource}"},
+          "targets": [
+            {"expr":"sum(rate(bifrost_success_requests_total[5m]))","refId":"A","legendFormat":"success"},
+            {"expr":"sum(rate(bifrost_error_requests_total[5m]))","refId":"B","legendFormat":"error"}
+          ],
+          "fieldConfig": {"defaults":{"unit":"reqps"}} },
+
+        { "id": 10, "title": "Upstream latency p95 by provider", "type": "timeseries", "gridPos": {"h":8,"w":12,"x":0,"y":20},
+          "datasource": {"type":"prometheus","uid":"${datasource}"},
+          "targets": [{"expr":"histogram_quantile(0.95, sum by (provider, le) (rate(bifrost_upstream_latency_seconds_bucket[5m])))","refId":"A","legendFormat":"{{provider}}"}],
+          "fieldConfig": {"defaults":{"unit":"s"}} },
+        { "id": 11, "title": "Requests / s by routing rule wl-*", "type": "timeseries", "gridPos": {"h":8,"w":12,"x":12,"y":20},
+          "datasource": {"type":"prometheus","uid":"${datasource}"},
+          "targets": [{"expr":"sum by (routing_rule_name) (rate(bifrost_upstream_requests_total{routing_rule_name!=\"\"}[5m]))","refId":"A","legendFormat":"{{routing_rule_name}}"}],
+          "fieldConfig": {"defaults":{"unit":"reqps"}} },
+
+        { "id": 12, "title": "Tokens / s (input vs output)", "type": "timeseries", "gridPos": {"h":8,"w":12,"x":0,"y":28},
+          "datasource": {"type":"prometheus","uid":"${datasource}"},
+          "targets": [
+            {"expr":"sum(rate(bifrost_input_tokens_total[5m]))","refId":"A","legendFormat":"input"},
+            {"expr":"sum(rate(bifrost_output_tokens_total[5m]))","refId":"B","legendFormat":"output"}
+          ],
+          "fieldConfig": {"defaults":{"unit":"short"}} },
+        { "id": 13, "title": "Provider key health (1=up, 0=down)", "type": "table", "gridPos": {"h":8,"w":12,"x":12,"y":28},
+          "datasource": {"type":"prometheus","uid":"${datasource}"},
+          "targets": [{"expr":"bifrost_provider_key_up","refId":"A","instant":true,"format":"table"}],
+          "fieldConfig": {"defaults":{"mappings":[{"type":"value","options":{"1":{"text":"UP","color":"green"},"0":{"text":"DOWN","color":"red"}}}]}} }
+      ]
+    }

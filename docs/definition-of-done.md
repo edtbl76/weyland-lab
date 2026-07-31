@@ -68,17 +68,18 @@ open gap = not done:
 - **Secrets restorable** — no imperative-only secret: SealedSecrets/ESO/SOPS, or a committed
   `<name>-secret.example.yaml` + `runbooks/secrets.md` index; bricking keys (e.g. lakeFS `AUTH_ENCRYPT_SECRET_KEY`)
   escrowed.
-- **Monitored + alerted** — four parts, all required:
-  - **(a) Metrics scrape** — if the service exposes `/metrics`, ship a **ServiceMonitor** so Prometheus scrapes it.
-    This is the retroactive gap: most pre-B65 services have none, so scrape coverage is sparse. Audit with
-    `count(up) by (job)`; anything absent has no ServiceMonitor.
-  - **(b) Alerts** — a **PrometheusRule** with a **down/failure** alert (+ spend / error-rate where relevant, e.g.
-    `bifrost_cost_total`) routed to Telegram; the alert path has a **dead-man's-switch** (Watchdog → external
-    heartbeat, not `null`).
-  - **(c) Dashboard** — a **Grafana dashboard** for the service's metrics, **or** an explicit confirmation it's
-    covered by an existing one. No active store/service without a dashboard (cross-refs the Grafana datasource/dashboard audit).
-  - **(d) Synthetic 1:1** — every user-facing host in `hosts.md` has an active Uptime-Kuma monitor, no orphan
-    monitors for retired hosts. Reconcile the host list against the live monitor list (not just the count) each batch.
+- **Monitored + alerted — the three signals (metrics, logs, traces) + alerts + synthetic, all required:**
+  - **Metrics** — if the service exposes `/metrics`, ship a **ServiceMonitor** so Prometheus scrapes it (the
+    retroactive gap: most pre-B65 services have none — audit `count(up) by (job)`), **plus** a **Grafana dashboard**
+    for its metrics (or an explicit confirmation an existing one covers it — no active service without a dashboard).
+  - **Logs** — the service's container/app logs reach **Loki** (Alloy collects cluster-wide by default) and are
+    **queryable in Grafana**; confirm it, and prefer structured/JSON logs where the app supports it.
+  - **Traces** — if the service sits in a request path, it emits spans to **Tempo** (OTel) and they appear in Grafana;
+    note **N/A** explicitly if it's not in a traced path.
+  - **Alerts** — a **PrometheusRule** with a **down/failure** alert (+ spend / error-rate where relevant, e.g.
+    `bifrost_cost_total`) routed to Telegram; the alert path has a **dead-man's-switch** (Watchdog → external heartbeat, not `null`).
+  - **Synthetic 1:1** — every user-facing host in `hosts.md` has an active Uptime-Kuma monitor, no orphan monitors
+    for retired hosts. Reconcile the host list against the live monitor list (not just the count) each batch.
 - **Backed up (if stateful)** — any PVC/DB/object store with non-reproducible data has a **tested** backup
   (CronJob + rotation); reproducible stores say so.
 - **Triggered** — anything that must stay fresh has a schedule/sensor + a freshness signal, not manual-only.
