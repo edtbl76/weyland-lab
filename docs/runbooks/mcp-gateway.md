@@ -128,6 +128,30 @@ curl -sk -o /dev/null -w '%{http_code}\n' -X POST https://bifrost.weyland.lab/mc
 **B111** = adopt Bifrost's full agentic-gateway feature set (virtual keys, budgets, governance) — bake-off vs LiteLLM; that
 work also does the config-as-GitOps (init-seed `config.json` + SealedSecret'd virtual keys, since the repo is public).
 
+## Bifrost governance — budgets + key-sealing (B111, v1.6.7)
+
+**Per-provider budget caps** (`scripts/register_bifrost_governance.py`, idempotent). v1.6.7 budgets are on a
+**model-config** `(provider, model_name:"*", scope:"global")` via `POST /api/governance/model-configs` with nested
+`budgets:[{max_limit, reset_duration:"1M"}]` — NOT on VKs (the VK-budget field in the getbifrost docs is a newer,
+unreleased schema; v1.6.7 IS the latest release). `POST /api/governance/budgets` = 405 (read-only). 18 caps set:
+Anthropic $20, others $10/mo. Verify: UI → Budgets & Limits, or `GET /api/governance/model-configs`.
+
+**Key-sealing** — provider keys never sit as plaintext in the PVC. Flow:
+```
+scripts/seal_bifrost_keys.sh          # .env -> Secret (in memory) -> kubeseal -> writes the SealedSecret manifest
+kubectl apply -f k8s/sealed-secrets/sealed/weyland__bifrost-provider-keys.yaml   # controller writes Secret bifrost-provider-keys
+kubectl apply -f k8s/bifrost/bifrost.yaml                                        # adds envFrom
+kubectl -n weyland rollout restart deploy/bifrost                               # REQUIRED — envFrom alone doesn't auto-roll
+kubectl -n weyland exec -i deploy/weyland-guard -- python - < scripts/register_bifrost_providers.py            # add env.VAR keys
+# ... smoke a few providers ...
+kubectl -n weyland exec -i deploy/weyland-guard -- python - < scripts/register_bifrost_providers.py --purge    # drop plaintext
+```
+Result: every provider key is `type=env` (resolves from the SealedSecret'd pod env), **0 plaintext in the PVC**, API
+shows keys redacted. Self-hosted (ollama/vllm/sgl) use dummy keys — not sealed. **GOTCHAS:** (1) adding `envFrom` did not
+roll the pod → `rollout restart`. (2) env keys read back `type=env` + redacted value (not the literal `env.VAR`). (3)
+**PUSH `bifrost.yaml` + the SealedSecret to git** — Argo selfHeal reverts a local-only envFrom → env empties → outage.
+Restore-from-scratch: apply SealedSecret → restart → run `register_bifrost_providers.py`.
+
 ## Current state + loose ends
 - Phase 1 (gateway + auth + actor) ✅ and Phase 2 (enforcing act gate) ✅ — both **proven + LIVE**; `policy.gate` is
   **enforcing (`block`)** as of 2026-07-29 (no-actor / unknown-actor / direct acts denied; `weyland-operator` via the gateway passes).

@@ -24,7 +24,7 @@ MAP = {  # bifrost provider -> env var (must be present as env on the Bifrost po
     "cohere": "COHERE_API_KEY", "mistral": "MISTRAL_API_KEY", "deepseek": "DEEPSEEK_API_KEY",
     "openrouter": "OPENROUTER_API_KEY", "perplexity": "PERPLEXITY_API_KEY", "fireworks": "FIREWORKS_API_KEY",
     "xai": "XAI_API_KEY", "cerebras": "CEREBRAS_API_KEY", "groq": "GROQ_API_KEY",
-    "huggingface": "HUGGING_FACE_API_KEY", "opencode-zen": "OPENCODE_ZEN_API_KEY", "parasail": "PARASAIL_API_KEY",
+    "huggingface": "HUGGING_FACE_API_KEY", "opencode-zen": "OPENCODE_ZEN_API_KEY",
     "replicate": "REPLICATE_API_KEY", "runway": "RUNWAY_API_KEY", "runware": "RUNWARE_API_KEY",
     "wafer": "WAFER_API_KEY", "elevenlabs": "ELEVEN_LABS_API_KEY", "together-api-key": "TOGETHER_API_KEY",
 }
@@ -38,7 +38,9 @@ for prov, var in MAP.items():
     if r.status_code != 200:
         print(f"{prov:16} SKIP (no provider / {r.status_code})"); continue
     keys = r.json().get("keys") or []
-    has_env = any((k.get("value") or {}).get("value") == ref for k in keys)
+    # Bifrost stores an env-backed key as type="env" (value read-back is the resolved key, redacted — NOT the literal
+    # "env.VAR" string). Detect by type + our "-env" name so re-runs are idempotent (no duplicate-name 409s).
+    has_env = any((k.get("value") or {}).get("type") == "env" and k.get("name") == f"{prov}-env" for k in keys)
     if not has_env:
         body = {"name": f"{prov}-env", "value": ref, "models": ["*"], "weight": 1.0}
         a = c.post(f"/api/providers/{prov}/keys", json=body)
