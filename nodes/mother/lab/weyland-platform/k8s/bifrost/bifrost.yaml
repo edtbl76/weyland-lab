@@ -41,6 +41,43 @@ spec:
         runAsNonRoot: true
         runAsUser: 10001
         fsGroup: 10001            # so /app/data (the PVC) is writable by the non-root user
+      initContainers:
+        # B111 — stage a node + chromium runtime into a shared volume so Bifrost (a Go binary on Alpine, no node/npx)
+        # can spawn the stdio MCP servers the library only offers as stdio (Perplexity, Playwright). Bifrost's pod runs
+        # non-root with a read-only /usr, so a runtime `apk add` is impossible — this root initContainer apk-installs
+        # into an emptyDir instead. Same Alpine version (3.23) → the chromium is musl-ABI-compatible with the Bifrost
+        # pod, so Playwright drives the SYSTEM chromium (--executable-path) rather than its unsupported glibc download.
+        - name: mcp-runtime
+          image: alpine:3.23
+          securityContext:
+            runAsNonRoot: false
+            runAsUser: 0
+            allowPrivilegeEscalation: false
+            capabilities: { drop: ["ALL"] }
+          # NEVER fail (always exit 0) — an initContainer error would block Bifrost from starting = agent-edge outage.
+          # Best-effort staging; if anything fails, Bifrost still boots (just without the stdio runtime).
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              R=/runtime
+              apk add --root "$R" --initdb --no-cache \
+                nodejs npm chromium nss freetype harfbuzz ttf-freefont font-noto-cjk ca-certificates || echo "WARN: apk failed"
+              mkdir -p "$R/bin" "$R/opt/mcp"
+              ln -sf "$R/usr/bin/node" "$R/bin/node" 2>/dev/null || true
+              ln -sf "$R/usr/bin/npm"  "$R/bin/npm"  2>/dev/null || true
+              ln -sf "$R/usr/bin/npx"  "$R/bin/npx"  2>/dev/null || true
+              # Alpine's chromium binary name varies by version — pin a stable symlink for Playwright.
+              CHR="$(ls "$R"/usr/lib/chromium/chrome "$R"/usr/lib/chromium/chromium "$R"/usr/bin/chromium 2>/dev/null | head -1 || true)"
+              [ -n "$CHR" ] && ln -sf "$CHR" "$R/bin/chromium" 2>/dev/null || echo "WARN: chromium binary not located"
+              export PATH="$R/usr/bin:$PATH" LD_LIBRARY_PATH="$R/usr/lib:$R/lib" npm_config_cache="$R/.npmcache"
+              # MCP server packages (canonical names from the Bifrost library catalog) — install GLOBAL into the runtime
+              # prefix so their bins land in /runtime/usr/bin (on Bifrost's PATH) and npx resolves them.
+              npm install -g --prefix "$R/usr" @playwright/mcp @perplexity-ai/mcp-server \
+                || echo "WARN: MCP pkg install failed — finalize live"
+              echo "staged: node=$("$R/bin/node" -v 2>/dev/null) chromium=$CHR"
+              exit 0
+          volumeMounts:
+            - { name: mcp-runtime, mountPath: /runtime }
       containers:
         - name: bifrost
           # Pinned to the multi-arch INDEX digest of `latest` as of 2026-07-30 (not a per-arch manifest, so it still
@@ -51,6 +88,13 @@ spec:
             - secretRef:                 # SealedSecret. Each provider's key is set to `env.VAR` (register_bifrost_providers.py)
                 name: bifrost-provider-keys
                 optional: true           # optional → pod still boots if the Secret isn't applied yet (chicken-and-egg safe)
+          env:
+            # B111 — expose the initContainer-staged stdio MCP runtime (node + chromium) to Bifrost's process spawner.
+            - { name: PATH, value: "/runtime/bin:/runtime/usr/bin:/usr/local/bin:/usr/bin:/bin:/sbin" }
+            - { name: LD_LIBRARY_PATH, value: "/runtime/usr/lib:/runtime/lib" }
+            - { name: NODE_PATH, value: "/runtime/opt/mcp/node_modules" }
+            - { name: PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD, value: "1" }   # use Alpine's system chromium, not the glibc download
+            - { name: PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH, value: "/runtime/bin/chromium" }
           ports:
             - { name: http, containerPort: 8080 }
           readinessProbe:
@@ -66,12 +110,15 @@ spec:
             seccompProfile: { type: RuntimeDefault }
           resources:
             requests: { memory: 128Mi, cpu: 50m }
-            limits: { memory: 512Mi }
+            limits: { memory: 1536Mi }   # B111: 512Mi→1.5Gi — headless chromium (Playwright) needs the headroom
           volumeMounts:
             - { name: data, mountPath: /app/data }
+            - { name: mcp-runtime, mountPath: /runtime }   # node + chromium staged by the initContainer
       volumes:
         - name: data
           persistentVolumeClaim: { claimName: bifrost-data }
+        - name: mcp-runtime
+          emptyDir: { sizeLimit: 1536Mi }   # apk chromium+node tree (~400-600 MB); re-staged fresh each pod start
 ---
 apiVersion: v1
 kind: Service
