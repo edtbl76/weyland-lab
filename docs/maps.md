@@ -19,7 +19,15 @@ together, and what each layer does. Each opens full-screen; best viewed on a wid
 
     → **[Open the Data-Mesh Map](https://edtbl76.github.io/weyland-lab/data-mesh-map.html)** (public)
 
+!!! abstract "LLM Routing Map"
+    The agentic egress plane: each **use-case alias** (`wl-coding`, `wl-rag`, …) and the **provider
+    fallback chain** LiteLLM resolves it to — primary → always-on-free → paid escalation, colour-coded
+    by cost tier. The transparent failover the OSS gateway couldn't give us, drawn end-to-end.
+
+    → **[Open the LLM Routing Map](llm-routing-map.html)** — **internal only** (not published to Pages)
+
 ---
 
-*Both maps are generated from the platform's own architecture model and kept in step with the running
-system. For the layered architecture diagrams and sequence flows, see the Architecture section.*
+*The platform and data-mesh maps are generated from the platform's own architecture model and kept in
+step with the running system. For the layered architecture diagrams and sequence flows, see the
+Architecture section.*

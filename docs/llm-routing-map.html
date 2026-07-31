@@ -1,0 +1,197 @@
+<title>Weyland LLM Routing</title>
+<style>
+  :root{
+    --bg:#0e0d0b; --panel:#1a1714; --panel2:#221e19; --ink:#ece6da; --dim:#a99f8d;
+    --line:#302b24; --amber:#e6a23c; --amber-soft:#e6a23c22;
+    --free:#4fbf9a; --funded:#5aa9d6; --metered:#dd7a90;
+    --mono:ui-monospace,"SF Mono",SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace;
+    --sans:system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  }
+  @media (prefers-color-scheme:light){
+    :root{
+      --bg:#f4f0e8; --panel:#fffdf8; --panel2:#efe9dd; --ink:#2a2620; --dim:#6f6659;
+      --line:#e0d8c8; --amber:#b0741a; --amber-soft:#b0741a1a;
+      --free:#1f9c78; --funded:#2c7fb0; --metered:#c14e6a;
+    }
+  }
+  :root[data-theme="dark"]{
+    --bg:#0e0d0b; --panel:#1a1714; --panel2:#221e19; --ink:#ece6da; --dim:#a99f8d;
+    --line:#302b24; --amber:#e6a23c; --amber-soft:#e6a23c22;
+    --free:#4fbf9a; --funded:#5aa9d6; --metered:#dd7a90;
+  }
+  :root[data-theme="light"]{
+    --bg:#f4f0e8; --panel:#fffdf8; --panel2:#efe9dd; --ink:#2a2620; --dim:#6f6659;
+    --line:#e0d8c8; --amber:#b0741a; --amber-soft:#b0741a1a;
+    --free:#1f9c78; --funded:#2c7fb0; --metered:#c14e6a;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);
+    line-height:1.5;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:1120px;margin:0 auto;padding:34px 22px 60px}
+
+  header{border-bottom:1px solid var(--line);padding-bottom:20px;margin-bottom:22px}
+  .eyebrow{font-family:var(--mono);font-size:12px;letter-spacing:.16em;text-transform:uppercase;
+    color:var(--amber);margin:0 0 8px}
+  h1{margin:0;font-size:clamp(26px,4.4vw,40px);letter-spacing:-.01em;text-wrap:balance}
+  .sub{margin:8px 0 0;color:var(--dim);font-size:15px;max-width:66ch}
+  .sub code{font-family:var(--mono);color:var(--ink);background:var(--panel2);
+    padding:1px 6px;border-radius:5px;font-size:.86em}
+  .status{display:inline-flex;align-items:center;gap:7px;margin-top:14px;font-family:var(--mono);
+    font-size:12px;color:var(--dim);border:1px solid var(--line);border-radius:999px;padding:5px 11px}
+  .status b{color:var(--amber);font-weight:600}
+
+  .legend{display:flex;flex-wrap:wrap;gap:9px 20px;align-items:center;margin:0 0 26px;
+    padding:14px 16px;background:var(--panel);border:1px solid var(--line);border-radius:12px}
+  .legend .lg{display:inline-flex;align-items:center;gap:8px;font-size:12.5px;color:var(--dim)}
+  .dot{width:11px;height:11px;border-radius:3px;flex:none;box-shadow:0 0 0 1px #0003 inset}
+  .dot.free{background:var(--free)} .dot.funded{background:var(--funded)} .dot.metered{background:var(--metered)}
+  .legend .sep{width:1px;height:20px;background:var(--line)}
+  .badge-key{font-family:var(--mono);font-size:10.5px;letter-spacing:.03em;text-transform:uppercase;
+    color:var(--dim);border:1px solid var(--line);border-radius:5px;padding:2px 6px}
+
+  h2.section{font-family:var(--mono);font-size:13px;letter-spacing:.14em;text-transform:uppercase;
+    color:var(--dim);margin:30px 0 12px;padding-bottom:8px;border-bottom:1px dashed var(--line)}
+
+  .row{display:grid;grid-template-columns:230px 1fr;gap:18px;align-items:start;
+    padding:15px 16px;background:var(--panel);border:1px solid var(--line);border-radius:12px;margin-bottom:11px}
+  .row:hover{border-color:var(--amber)}
+  .alias{font-family:var(--mono);font-size:16px;font-weight:600;color:var(--amber);
+    background:var(--amber-soft);display:inline-block;padding:3px 9px;border-radius:7px}
+  .purpose{color:var(--dim);font-size:13px;margin-top:8px}
+
+  .chain{display:flex;flex-wrap:wrap;align-items:stretch;gap:8px}
+  .arrow{align-self:center;color:var(--dim);font-family:var(--mono);font-size:15px;opacity:.7}
+  .chip{position:relative;display:flex;flex-direction:column;gap:4px;min-width:0;
+    background:var(--panel2);border:1px solid var(--line);border-left-width:3px;border-radius:8px;
+    padding:8px 11px}
+  .chip.free{border-left-color:var(--free)} .chip.funded{border-left-color:var(--funded)}
+  .chip.metered{border-left-color:var(--metered)}
+  .chip .role{font-family:var(--mono);font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--dim)}
+  .chip .prov{font-weight:600;font-size:14px}
+  .chip .model{font-family:var(--mono);font-size:12px;color:var(--dim);word-break:break-word}
+  .badges{display:flex;flex-wrap:wrap;gap:4px;margin-top:2px}
+  .b{font-family:var(--mono);font-size:9.5px;letter-spacing:.04em;text-transform:uppercase;
+    color:var(--ink);background:#8886;border-radius:4px;padding:1px 5px;opacity:.9}
+  .b.local{background:var(--free)}.b.tools{background:var(--amber);color:#1a1005}
+  .b.web{background:var(--funded)}.b.unique{background:var(--metered)}
+
+  footer{margin-top:34px;padding-top:18px;border-top:1px solid var(--line);color:var(--dim);font-size:13px}
+  footer b{color:var(--ink)} footer code{font-family:var(--mono);color:var(--amber)}
+  .note{margin-top:9px}
+  @media (max-width:640px){ .row{grid-template-columns:1fr;gap:12px} }
+</style>
+
+<div class="wrap">
+  <header>
+    <p class="eyebrow">weyland · llm control plane</p>
+    <h1>LLM Routing Map</h1>
+    <p class="sub">Use-case aliases &rarr; provider fallback chains, served by <b>LiteLLM</b>. A client sends
+      only the alias (e.g. <code>wl-coding</code>); LiteLLM picks the primary and fails over down the chain on
+      network&nbsp;/&nbsp;5xx&nbsp;/&nbsp;429&nbsp;/&nbsp;timeout &mdash; server-side, transparent.</p>
+    <span class="status">◆ <b>PLANNED</b> — approved design &nbsp;·&nbsp; chains pending LiteLLM <code>model_list</code> config</span>
+  </header>
+
+  <div class="legend" id="legend">
+    <span class="lg"><span class="dot free"></span> Free — $0 (self-hosted or free tier)</span>
+    <span class="lg"><span class="dot funded"></span> Funded — prepaid credits</span>
+    <span class="lg"><span class="dot metered"></span> Metered — pay-per-token, budget-capped</span>
+    <span class="sep"></span>
+    <span class="lg"><span class="badge-key">local</span> on rogueone GPU</span>
+    <span class="lg"><span class="badge-key">tools</span> tool-calling</span>
+    <span class="lg"><span class="badge-key">web</span> web search</span>
+  </div>
+
+  <div id="lanes"></div>
+
+  <footer>
+    <b>Fallback philosophy.</b> Primary = cheapest capable source (free/local where private); then an
+    <b>always-on free</b> rung so nothing hard-fails when rogueone sleeps; then a paid escalation only if both are down.
+    <div class="note"><b>Notes.</b> <code>wl-agentic</code> skips Groq — its free tier is tool-free (8k&nbsp;TPM can't carry
+      the tool payload). <code>wl-search</code> / <code>wl-tts</code> are near-single-source, so their chains are short.
+      Media lanes route on the image / audio / video endpoints, not chat.</div>
+  </footer>
+</div>
+
+<script>
+  const D = [
+    { group:"Chat & Reasoning", rows:[
+      { alias:"wl-default", purpose:"General-purpose chat", chain:[
+        {role:"primary", prov:"groq", model:"gpt-oss-120b", tier:"free", badges:["hosted","fast"]},
+        {role:"fallback", prov:"gemini", model:"2.5-flash", tier:"free", badges:["hosted"]},
+        {role:"fallback", prov:"anthropic", model:"claude-haiku-4.5", tier:"funded", badges:["tools"]},
+      ]},
+      { alias:"wl-speed", purpose:"Lowest latency", chain:[
+        {role:"primary", prov:"groq", model:"gpt-oss-120b", tier:"free", badges:["hosted","fast"]},
+        {role:"fallback", prov:"cerebras", model:"gpt-oss-120b", tier:"metered", badges:["fast","tools"]},
+        {role:"fallback", prov:"gemini", model:"2.5-flash", tier:"free", badges:["hosted"]},
+      ]},
+      { alias:"wl-coding", purpose:"Code generation & edits", chain:[
+        {role:"primary", prov:"opencode-zen", model:"kimi-k3", tier:"funded", badges:["tools"]},
+        {role:"fallback", prov:"anthropic", model:"claude-haiku-4.5", tier:"funded", badges:["tools"]},
+        {role:"fallback", prov:"deepseek", model:"deepseek-chat", tier:"metered", badges:["cheap"]},
+      ]},
+      { alias:"wl-agentic", purpose:"Tool orchestration / agents", chain:[
+        {role:"primary", prov:"anthropic", model:"claude-haiku-4.5", tier:"funded", badges:["tools"]},
+        {role:"fallback", prov:"openai", model:"gpt-5-mini", tier:"metered", badges:["tools"]},
+        {role:"fallback", prov:"cerebras", model:"gpt-oss-120b", tier:"metered", badges:["tools","fast"]},
+      ]},
+      { alias:"wl-rag", purpose:"Retrieval-grounded generation (private)", chain:[
+        {role:"primary", prov:"ollama", model:"gpt-oss:20b", tier:"free", badges:["local"]},
+        {role:"fallback", prov:"groq", model:"gpt-oss-120b", tier:"free", badges:["hosted"]},
+        {role:"fallback", prov:"gemini", model:"2.5-flash", tier:"free", badges:["hosted"]},
+      ]},
+      { alias:"wl-reason", purpose:"Deep reasoning", chain:[
+        {role:"primary", prov:"ollama", model:"qwen3:30b-a3b", tier:"free", badges:["local"]},
+        {role:"fallback", prov:"deepseek", model:"deepseek-reasoner", tier:"metered", badges:["reasoner","cheap"]},
+        {role:"fallback", prov:"groq", model:"gpt-oss-120b", tier:"free", badges:["hosted"]},
+      ]},
+      { alias:"wl-judge", purpose:"Eval scoring / LLM-as-judge", chain:[
+        {role:"primary", prov:"ollama", model:"qwen2.5:7b", tier:"free", badges:["local"]},
+        {role:"fallback", prov:"groq", model:"gpt-oss-120b", tier:"free", badges:["hosted"]},
+        {role:"fallback", prov:"gemini", model:"2.5-flash", tier:"free", badges:["hosted"]},
+      ]},
+      { alias:"wl-search", purpose:"Web-grounded answers", chain:[
+        {role:"primary", prov:"perplexity", model:"sonar", tier:"funded", badges:["web"]},
+        {role:"fallback", prov:"xai", model:"grok", tier:"metered", badges:["web"]},
+      ]},
+      { alias:"wl-big-oss", purpose:"Big frontier OSS model", chain:[
+        {role:"primary", prov:"openrouter", model:"minimax/minimax-m3", tier:"metered", badges:["aggregator"]},
+        {role:"fallback", prov:"together", model:"minimax-m3", tier:"metered", badges:["host"]},
+        {role:"fallback", prov:"fireworks", model:"—", tier:"metered", badges:["host"]},
+      ]},
+    ]},
+    { group:"Media", rows:[
+      { alias:"wl-image", purpose:"Image generation", chain:[
+        {role:"primary", prov:"runware", model:"—", tier:"metered", badges:[]},
+        {role:"fallback", prov:"replicate", model:"long-tail", tier:"metered", badges:[]},
+      ]},
+      { alias:"wl-tts", purpose:"Text-to-speech", chain:[
+        {role:"primary", prov:"elevenlabs", model:"multilingual-v2", tier:"funded", badges:["unique"]},
+      ]},
+      { alias:"wl-video", purpose:"Video generation", chain:[
+        {role:"primary", prov:"runway", model:"gen-3", tier:"metered", badges:[]},
+        {role:"fallback", prov:"replicate", model:"—", tier:"metered", badges:[]},
+      ]},
+    ]},
+  ];
+
+  const el = document.getElementById("lanes");
+  for(const grp of D){
+    const h = document.createElement("h2"); h.className="section"; h.textContent=grp.group; el.appendChild(h);
+    for(const r of grp.rows){
+      const row = document.createElement("div"); row.className="row";
+      const left = document.createElement("div");
+      left.innerHTML = `<span class="alias">${r.alias}</span><div class="purpose">${r.purpose}</div>`;
+      const chain = document.createElement("div"); chain.className="chain";
+      r.chain.forEach((c,i)=>{
+        if(i>0){ const a=document.createElement("span"); a.className="arrow"; a.textContent="→"; chain.appendChild(a); }
+        const chip=document.createElement("div"); chip.className=`chip ${c.tier}`;
+        const badges=c.badges.map(b=>`<span class="b ${b}">${b}</span>`).join("");
+        chip.innerHTML=`<span class="role">${c.role}</span><span class="prov">${c.prov}</span>`+
+          `<span class="model">${c.model}</span>`+(badges?`<div class="badges">${badges}</div>`:"");
+        chain.appendChild(chip);
+      });
+      row.appendChild(left); row.appendChild(chain); el.appendChild(row);
+    }
+  }
+</script>
