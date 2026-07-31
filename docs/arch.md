@@ -159,7 +159,7 @@ agents/workflows and platform state. Agents call the tool-server, *not* database
 ### rogueone
 | Component | Endpoint | Purpose |
 |---|---|---|
-| vLLM | `rogueone:8000/v1` | GPU LLM serving (Qwen), on-demand. |
+| vLLM (B111 bench) | `rogueone:8001/v1` (Bifrost `vllm`) | **On-demand** GPU serving — `Qwen2.5-7B-Instruct-AWQ`; continuous-batching throughput bench (~15× vs serial). Native Docker engine only; VRAM-capped. `nodes/rogueone/services/gpu-inference/`, [runbooks/gpu-inference.md](runbooks/gpu-inference.md). |
 | Obsidian vault | (local) | personal notes — **no longer a RAG source** (retired in B25b). The RAG now ingests the GitHub repo (`docs/` + `nodes/`) via Dagster git-pull. |
 | Claude Code | (local CLI) | Dev assistant; MCP client of tool-server `/mcp` (validated 2026-06-14). |
 | Coding agents (B15) | (local CLIs, rogueone) | opencode / Cline / Pi / Codex — `$0` agentic coding TUIs; drive hosted models **direct** (Mistral/OpenRouter/Gemini free, or ChatGPT sub → GPT-5.5), bypassing the gateway. See §8b. |
@@ -809,7 +809,7 @@ flowchart TB
 |---|---|---|---|
 | **Large LLMs (capacity)** | rogueone (GPU) | Ollama (GGUF) | RAG generation, eval-judge, batch — 6 models; moved off the retired CT-102 CPU (B79), now GPU-served. Prefer MoE (low active params). |
 | **STT** | weyland CT 103 (CPU) | whisper.cpp `large-v3` | voice -> text, faster-than-real-time; OpenAI-shim for drop-in clients. |
-| **Small fast LLMs (speed)** | rogueone (GPU) | vLLM | low-latency utility inference (Qwen), on-demand. |
+| **Throughput/batch serving (bench)** | rogueone (GPU) | vLLM | **B111 on-demand GPU bench** — `Qwen2.5-7B-Instruct-AWQ` (7B 4-bit = 16GB-card sweet spot), `:8001`, Bifrost `vllm` provider. Why an engine vs Ollama: **continuous batching** — measured **~15× throughput (88.9→1329.5 tok/s, conc 1→16) at ~flat latency**, because decode is memory-bandwidth-bound and batching amortizes the per-token weight-read across requests. For concurrent workloads (eval panels, labeling) Ollama serves ~serial near 89 tok/s; vLLM near 1329 on the *same* card. On-demand (spin up/tear down), so it must run on the **native Docker engine** (`DOCKER_HOST=…docker.sock`; Desktop=no GPU) with VRAM hard-capped (`--gpu-memory-utilization 0.55`; too low → negative KV cache). SGLang prefill/decode-disaggregation bench = P2. [demos/gpu-inference.md](demos/gpu-inference.md) · [runbooks/gpu-inference.md](runbooks/gpu-inference.md). |
 | **Hosted models (escalation)** | (cloud) via mother **LiteLLM** | Gemini + OpenRouter (free tiers) | stronger-than-local brains on demand; API-key (no subscription/ToS issue); human-gated egress. |
 | **Unified front door** | mother **MLflow AI Gateway** (B100 P4) | OpenAI-compat over Ollama + hosted (native / LiteLLM) | one *governed* endpoint over all of the above — guardrails + budget + tracing + eval. See §8a. |
 

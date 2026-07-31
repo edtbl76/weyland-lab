@@ -1,0 +1,43 @@
+# On-demand GPU inference bench — B111. Design: aidlc-docs/gpu-inference-vllm-sglang-design.md
+#
+# CRITICAL: rogueone's DEFAULT docker context is Docker Desktop (a VM — NO host GPU). GPU containers MUST run against
+# the NATIVE Docker Engine socket, which has the nvidia runtime (/etc/docker/daemon.json). Prefix every compose call
+# with DOCKER_HOST, matching the existing ~/weyland/vllm/gpu-docker wrapper:
+#   DOCKER_HOST=unix:///var/run/docker.sock docker compose -f <this file> up -d vllm
+# Without it you get: "could not select device driver nvidia" (Desktop has no GPU).
+#
+# NOT always-on. Brought up per-experiment, torn down after:
+#   ... up -d vllm        # start the throughput bench
+#   ... logs -f vllm      # watch until "Application startup complete"
+#   ... down              # free the VRAM when done
+# rogueone = RTX 5000 Ada 16GB, SHARED with Ollama + the desktop (no iGPU) → VRAM is hard-capped in each engine's
+# args so a bench run can't grab 90% and freeze the box. vLLM caps via --gpu-memory-utilization; compose only grants
+# GPU *access*, not a VRAM slice.
+services:
+  # P1 — throughput / continuous-batching bench (use case b). OpenAI-compat on :8001 → Bifrost `vllm` provider.
+  vllm:
+    image: vllm/vllm-openai:latest
+    container_name: vllm
+    ipc: host                       # vLLM recommends host IPC (shared-mem for the engine); avoids shm errors
+    ports:
+      - "8001:8000"
+    command:
+      - "--model"
+      - "Qwen/Qwen2.5-7B-Instruct-AWQ"   # 7B, 4-bit AWQ (~5.5GB weights) — the 16GB-card sweet spot; vLLM auto-detects AWQ
+      - "--gpu-memory-utilization"
+      - "0.55"                      # ~8.8GB: AWQ weights ~5.5 + graphs/overhead ~1 + KV ~2.3. With ~5.5GB baseline = ~14/16
+                                    # → keep Ollama IDLE during a vLLM bench (on-demand, so fine). Drop to a 3B if you need Ollama live.
+      - "--max-model-len"
+      - "8192"
+    volumes:
+      - hf-cache:/root/.cache/huggingface   # persist model downloads across runs
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+  # P2 (added when we build the SGLang prefill/decode disaggregation bench, use case c) — will land here as `sglang`.
+volumes:
+  hf-cache:

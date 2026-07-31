@@ -44,6 +44,7 @@ Legend: ✅ done · ⬜ missing · 🟡 exists but stale/partial · — not appl
 | 24 | Guardrails (`weyland-guard` shared service, B70) | ✅ `flow-guardrails` | ✅ `guardrails.md` (rewritten for the service, validated 2026-07-23) | ✅ demo-actor rows deleted |
 | 34 | Operator brain bake-off (B66 — Claude vs local, tool-use) | — (test harness) | ✅ `brain-bakeoff.md` — tool-selection + full-loop all-models run 2026-07-23 (verdict: brain = `gpt-oss:20b`) | — read-only |
 | 35 | **Operator agent** (`weyland-operator`, B66 — Telegram → read/act, confirm-step) | ✅ `flow-operator` | ✅ `operator.md` (validated live 2026-07-24) | 🟡 fire path launches a real ingestion run; session rows |
+| 37 | **GPU inference bench** (B111 — vLLM continuous batching; SGLang PD next) | — (bench, not a multi-participant flow) | ✅ `gpu-inference.md` (validated 2026-07-31, ~15× tok/s + extreme-detail explainer) | — frees VRAM (`compose down`), no data |
 | **Platform / ops** | | | | |
 | 25 | Deploy (GitOps / Argo) | ✅ (authored) | ✅ `deploy.md` | — |
 | 26 | Ingress + TLS | ✅ `flow-ingress-tls` | ✅ `ingress-tls.md` | — |
