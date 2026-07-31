@@ -6,8 +6,11 @@ the primary target. Run:
     kubectl -n weyland exec -i deploy/weyland-guard -- python - < scripts/register_bifrost_routing.py
 
 MECHANISM (v1.6.7): `POST /api/governance/routing-rules` {name, cel_expression, targets:[{provider,model,weight}], scope,
-priority}. Targets are **WEIGHTED (probabilistic), NOT ordered fallback** — so each rule sets the PRIMARY. On-failure
-fallback (`fallbacks`) + cost-degrade (`budget_used > N` overflow rules) are the NEXT iteration.
+priority, chain_rule}. Targets are **WEIGHTED (probabilistic), NOT ordered fallback** — so each rule sets the PRIMARY.
+**VERIFIED 2026-07-31: `chain_rule` is NOT on-failure fallback** — a rule → down provider (502 connection refused, the
+documented trigger) with chain_rule:true + a 2nd same-CEL rung did NOT cascade. Availability failover therefore CANNOT be
+a routing rule — it needs request-level `fallbacks:[...]` (client sends) or VK-level `provider_configs` (server-side,
+coarse). Cost-degrade `budget_used > 90 → free` IS a normal routing rule (CEL var confirmed) — buildable when wanted.
 
 Primary choices: tool-heavy use cases lead a **tool-capable** provider (coding→kimi, agentic→haiku); tool-free general lead
 **free** (groq always-on, or ollama-local where private/appropriate). NOTE: the ollama-local primaries (rag/reason/judge)

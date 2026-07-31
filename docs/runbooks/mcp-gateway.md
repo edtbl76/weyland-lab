@@ -162,9 +162,13 @@ fallback** — each rule = the PRIMARY only. CEL vars: `model`, `provider`, `req
 kubectl -n weyland exec -i deploy/weyland-guard -- python - < scripts/register_bifrost_routing.py
 ```
 Rules live in Bifrost's PVC DB (no k8s manifest → Argo won't touch them); the script is the source of truth. **GOTCHAS:**
-(1) the docs page 404'd — schema reverse-engineered off a live rule + web search. (2) ollama-local primaries
-(rag/reason/judge) fail when rogueone sleeps — **next iteration** adds `fallbacks` chains (availability) +
-`budget_used > 90 → free` overflow rules (cost-degrade) + media aliases (image/tts/video).
+(1) the docs page 404'd — schema reverse-engineered off a live rule + web search. (2) **`chain_rule` is NOT on-failure
+fallback** — verified 2026-07-31: a rule → down provider (vLLM off, `502 connection refused` = the documented trigger)
+with `chain_rule:true` + a second same-CEL rung did **not** cascade. Availability failover must use **request-level
+`fallbacks:[...]`** (client sends it) or **VK-level `provider_configs`** (server-side but coarse — one chain per key),
+NOT routing rules. (3) ollama-local primaries (rag/reason/judge) fail when rogueone sleeps — matches the existing
+rogueone-local RAG architecture, not a new dependency; `wl-default`/`wl-speed` are the always-on groq aliases.
+Cost-degrade `budget_used > 90 → free` IS a normal routing rule (CEL var confirmed), buildable when wanted.
 
 ## Current state + loose ends
 - Phase 1 (gateway + auth + actor) ✅ and Phase 2 (enforcing act gate) ✅ — both **proven + LIVE**; `policy.gate` is
