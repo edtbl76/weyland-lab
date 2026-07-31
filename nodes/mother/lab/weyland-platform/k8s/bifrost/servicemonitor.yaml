@@ -1,0 +1,20 @@
+# B111 — scrape Bifrost /metrics (closes a gap under the "Prometheus scrape coverage" backlog audit).
+# Bifrost's Prometheus plugin exposes rich per-provider/per-model/per-routing-rule metrics on the svc port (8080):
+#   bifrost_active_requests · bifrost_cost_total{provider,model,routing_rule_name} (USD) · bifrost_*_tokens_total · latency.
+# Scrapes the SERVICE directly (bypasses the forward-auth ingress; /metrics is un-authed at the svc). No trailing-slash
+# bounce (unlike LiteLLM) — /metrics returns 200 directly. serviceMonitorSelectorNilUsesHelmValues:false picks it up.
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: bifrost
+  namespace: weyland
+  labels:
+    app: bifrost
+spec:
+  selector:
+    matchLabels:
+      app: bifrost
+  endpoints:
+    - port: http
+      path: /metrics
+      interval: 30s

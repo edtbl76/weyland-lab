@@ -4,8 +4,8 @@ The weyland Definition of Done — the hard gate every body of work passes befor
 **canonical, published** version (the RAG corpus + the shared reference); it supersedes any private note. A
 capability is **NOT done** until ALL six pillars hold. "Ran once" ≠ done.
 
-> Added 2026-07-14; grown through B64 (render-verify) and B69 (operational completeness). Applies retroactively
-> and going forward.
+> Added 2026-07-14; grown through B64 (render-verify), B69 (operational completeness), and B111 (metrics-scrape
+> ServiceMonitor + Grafana dashboard made explicit monitoring criteria). Applies retroactively and going forward.
 
 ## 1. Documentation sweep (every batch)
 
@@ -68,10 +68,17 @@ open gap = not done:
 - **Secrets restorable** — no imperative-only secret: SealedSecrets/ESO/SOPS, or a committed
   `<name>-secret.example.yaml` + `runbooks/secrets.md` index; bricking keys (e.g. lakeFS `AUTH_ENCRYPT_SECRET_KEY`)
   escrowed.
-- **Monitored + alerted** — health scrape + a down/failure alert routed to Telegram; the alert path has a
-  **dead-man's-switch** (Watchdog → external heartbeat, not `null`). **Synthetic coverage is 1:1** — every
-  user-facing host in `hosts.md` has an active Uptime-Kuma monitor, and no orphan monitors linger for retired
-  hosts. Reconcile the host list against the live monitor list (not just the count) each batch.
+- **Monitored + alerted** — four parts, all required:
+  - **(a) Metrics scrape** — if the service exposes `/metrics`, ship a **ServiceMonitor** so Prometheus scrapes it.
+    This is the retroactive gap: most pre-B65 services have none, so scrape coverage is sparse. Audit with
+    `count(up) by (job)`; anything absent has no ServiceMonitor.
+  - **(b) Alerts** — a **PrometheusRule** with a **down/failure** alert (+ spend / error-rate where relevant, e.g.
+    `bifrost_cost_total`) routed to Telegram; the alert path has a **dead-man's-switch** (Watchdog → external
+    heartbeat, not `null`).
+  - **(c) Dashboard** — a **Grafana dashboard** for the service's metrics, **or** an explicit confirmation it's
+    covered by an existing one. No active store/service without a dashboard (cross-refs the Grafana datasource/dashboard audit).
+  - **(d) Synthetic 1:1** — every user-facing host in `hosts.md` has an active Uptime-Kuma monitor, no orphan
+    monitors for retired hosts. Reconcile the host list against the live monitor list (not just the count) each batch.
 - **Backed up (if stateful)** — any PVC/DB/object store with non-reproducible data has a **tested** backup
   (CronJob + rotation); reproducible stores say so.
 - **Triggered** — anything that must stay fresh has a schedule/sensor + a freshness signal, not manual-only.

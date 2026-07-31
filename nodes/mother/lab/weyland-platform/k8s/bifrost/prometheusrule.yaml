@@ -1,0 +1,31 @@
+# B111 — Bifrost availability + spend alerts (pairs with servicemonitor.yaml; closes the scrape-coverage gap).
+# Lives in `monitoring` ns with release:monitoring (kube-prometheus-stack ruleSelector). → Weyland Alerts Telegram (B5 P2a).
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: bifrost
+  namespace: monitoring
+  labels:
+    release: monitoring
+spec:
+  groups:
+    - name: bifrost
+      rules:
+        # Down: kube-state-metrics only, so it fires even when Bifrost's own /metrics is unreachable.
+        - alert: BifrostDown
+          expr: kube_deployment_status_replicas_available{namespace="weyland",deployment="bifrost"} == 0
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: "Bifrost is DOWN (0 available replicas)"
+            description: "The agent edge (/mcp fleet) + provider egress is unavailable. Coding agents lose the lab. Check: kubectl -n weyland rollout status deploy/bifrost"
+        # Spend: sum across all provider/model series. Feeds B112 (Port cost tracking).
+        - alert: BifrostSpendObserved
+          expr: sum(increase(bifrost_cost_total[24h])) > 1
+          for: 0m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Bifrost reported > $1 provider spend in 24h"
+            description: "Paid-provider usage via Bifrost. Per-provider caps: GET /api/governance/model-configs. bifrost_cost_total{provider,model,routing_rule_name} is the per-route cost breakdown."
