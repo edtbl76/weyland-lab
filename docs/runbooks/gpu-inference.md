@@ -30,6 +30,10 @@ idle/unloaded during a vLLM bench**, or drop to a smaller model. Freeze risk if 
 
 ## Operate — vLLM (P1, use case b: throughput)
 
+**Convenience wrapper** (recommended — sets the native `DOCKER_HOST` + compose path for you), run on rogueone:
+`scripts/vllm-bench.sh {start|stop|status|logs|smoke}`. Replaces the old `~/weyland/vllm/start-vllm-qwen`. The raw
+compose commands below are what it wraps:
+
 ```
 # up (first run downloads the model ~5.5GB into the hf-cache volume)
 DOCKER_HOST=unix:///var/run/docker.sock docker compose -f nodes/rogueone/services/gpu-inference/docker-compose.yml up -d vllm
