@@ -31,12 +31,10 @@ HTTP = [
 ]
 
 # (name, command, args, envs) — in-pod stdio off the mcp-runtime volume (node + system chromium).
-# Use the DIRECT installed binaries (initContainer `npm install -g` → /runtime/usr/bin), NOT `npx`: npx re-fetches the
-# package to its own cache on every spawn, which blows Bifrost's MCP init deadline ("context deadline exceeded").
 STDIO = [
-    ("Perplexity", "perplexity-mcp", [], ["PERPLEXITY_API_KEY"]),
-    ("Playwright", "playwright-mcp", ["--headless", "--no-sandbox",
-                                      "--browser", "chromium", "--executable-path", "/runtime/bin/chromium"], []),
+    ("Perplexity", "npx", ["-y", "@perplexity-ai/mcp-server"], ["PERPLEXITY_API_KEY"]),
+    ("Playwright", "npx", ["@playwright/mcp", "--headless", "--no-sandbox",
+                           "--browser", "chromium", "--executable-path", "/runtime/bin/chromium"], []),
 ]
 
 c = httpx.Client(base_url=BASE, timeout=30)
@@ -45,7 +43,7 @@ existing = {cl["config"]["name"] for cl in (c.get("/api/mcp/clients").json().get
 def create(name, body):
     if name in existing:
         print(f"{name:14} EXISTS"); return
-    r = c.post("/api/mcp/client", json=body)   # create = /api/mcp/client (singular); /clients is GET-list only (405 on POST)
+    r = c.post("/api/mcp/clients", json=body)
     ok = r.status_code < 300
     print(f"{name:14} {'CREATED' if ok else 'FAILED '} ({r.status_code}){'' if ok else ' ' + r.text[:140]}")
 
