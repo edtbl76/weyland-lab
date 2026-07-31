@@ -161,6 +161,29 @@ So the 9 `wl-*` use-case aliases + fallback chains live in **LiteLLM** — see [
 (§ Use-case router). Bifrost keeps what it's good at OSS: the MCP agent edge, provider egress, budgets, key vault,
 observability. `scripts/register_bifrost_routing.py` is **obsolete** (removed).
 
+## Bifrost MCP library — durability + in-pod stdio runtime (B111)
+
+The MCP clients Bifrost aggregates (`weyland_fleet` = the compositor, plus installed library servers) live in the **PVC**
+(UI/API-added) — a wipe loses them. Codified for GitOps in **`scripts/register_bifrost_mcp_clients.py`** (idempotent) —
+the durable source of truth. By auth type:
+- **HTTP no-auth** — `weyland_fleet`, Context7, Excalidraw, Malwarebytes → reproduce fully (public URLs, no secrets).
+- **HTTP OAuth** — Hugging Face, Linear → the script registers the *shell*; the OAuth grant is interactive, so after a
+  restore **re-authorize each in the Bifrost UI** (they use dynamic client registration, so no app to pre-create — which
+  is exactly why they installed and **GitHub didn't** — GitHub's remote MCP needs a manual `client_id` + Bifrost callback URL).
+- **stdio** — Perplexity (`@perplexity-ai/mcp-server`), Playwright (`@playwright/mcp`) → run **in the Bifrost pod**.
+
+**In-pod stdio runtime:** Bifrost is a Go binary on **Alpine, non-root, read-only `/usr`** — no node/npx/chromium, and a
+runtime `apk add` is impossible. The **`mcp-runtime` initContainer** (`bifrost.yaml`) apk-installs node + chromium into a
+shared `emptyDir`; Bifrost spawns the stdio servers off `PATH`/`LD_LIBRARY_PATH`. Same-Alpine-version chromium is
+**musl-ABI compatible**, so Playwright drives the **system** chromium (`--executable-path /runtime/bin/chromium --no-sandbox`),
+not its unsupported glibc download. Mem raised 512Mi→1.5Gi for headless chromium. The initContainer is **best-effort
+(always exit 0)** so a failed apk/npm can't block Bifrost from booting. Perplexity inherits `PERPLEXITY_API_KEY` from the
+pod env (`bifrost-provider-keys`).
+
+**Restore-from-scratch:** apply `bifrost.yaml` (initContainer stages the runtime) → run `register_bifrost_mcp_clients.py`
+→ re-authorize Hugging_Face + Linear in the UI. **GITHUB (parked):** remote MCP has no DCR → make a GitHub App
+(read-only) → paste its `client_id` + Bifrost's OAuth callback URL.
+
 ## Current state + loose ends
 - Phase 1 (gateway + auth + actor) ✅ and Phase 2 (enforcing act gate) ✅ — both **proven + LIVE**; `policy.gate` is
   **enforcing (`block`)** as of 2026-07-29 (no-actor / unknown-actor / direct acts denied; `weyland-operator` via the gateway passes).
