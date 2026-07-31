@@ -1,68 +1,53 @@
 #!/usr/bin/env python3
-"""Idempotent Bifrost governance registration (B111) — a global budget ceiling + per-consumer virtual keys with caps.
+"""Idempotent Bifrost governance registration (B111) — per-PROVIDER monthly budget caps.
 
 Run against the in-cluster Bifrost admin API (no auth in-cluster):
     kubectl -n weyland exec -i deploy/weyland-guard -- python - < scripts/register_bifrost_governance.py
 
-MODEL: Bifrost budgets are consumer-scoped (team / virtual-key), NOT per-provider. So:
-  - a **team** ("weyland") carries the GLOBAL master ceiling ($20/mo) — total Bifrost spend can't exceed it,
-  - each **virtual key** (a consumer lane) carries a sub-cap; VKs belong to the team.
-Self-hosted providers (Ollama/vLLM/SGLang) cost $0 → they consume $0 of any budget automatically (no exemption needed).
-Everything hosted (incl. HF/Groq/OpenRouter) counts. NOTE: HF also burns HF-side credits Bifrost may not meter — watch it.
+v1.6.7 MODEL (reverse-engineered from the UI): budgets live on a **model-config** = (provider, model_name, scope),
+created via `POST /api/governance/model-configs` with nested budgets. This is PER-PROVIDER (not per-VK — in v1.6.7 VKs
+carry identity + tool-scoping, NOT budgets). `model_name:"*"` = All Models, `scope:"global"` = all traffic for that
+provider. Budgets only bite on $-billing providers; free/self-hosted cost $0 (and HF burns HF-side credits Bifrost
+doesn't meter), so they're intentionally left uncapped.
 
-Idempotent: existing team/VKs are UPDATED (budget), missing ones CREATED. Reset period = monthly (1M).
-VK values are SECRETS printed ONCE on create — capture them into SealedSecrets, do NOT commit them.
+Idempotent: a matching (provider, *, global) model-config is left as-is (adjust amounts in the UI or bump the digit here
+and delete+recreate). Reset = monthly (1M). model-configs are NOT secrets, so this is safe to run + commit.
+
+NOTE: the 3 consumer VKs (coding-agents / operator / chat-eval) are a SEPARATE concern (identity/auth for the coding-agent
+edge, tool-scoping) — created out-of-band; their values are SealedSecrets. They are not budgets and not managed here.
 """
-import os, json, httpx
+import os, httpx
 
 BASE = os.getenv("BIFROST_URL", "http://bifrost.weyland.svc.cluster.local:8080")
-RESET = "1M"
 
-TEAM = {"name": "weyland", "budget": {"max_limit": 20.0, "reset_duration": RESET}}   # GLOBAL master ceiling
-VKS = [
-    {"name": "coding-agents", "description": "B15 coding agents (Cline/Cursor/Claude Code) via Bifrost",
-     "budget": {"max_limit": 10.0, "reset_duration": RESET}},
-    {"name": "operator",      "description": "B66 operator brain (Haiku)",
-     "budget": {"max_limit": 10.0, "reset_duration": RESET}},
-    {"name": "chat-eval",     "description": "RAG / eval / smoke traffic",
-     "budget": {"max_limit": 5.0,  "reset_duration": RESET}},
-]
+# provider -> monthly USD cap. Anthropic higher (operator brain, funded $20); everything else paid = $10.
+CAPS = {
+    "anthropic": 20,
+    "openai": 10, "gemini": 10, "deepseek": 10, "cohere": 10, "mistral": 10,
+    "openrouter": 10, "perplexity": 10, "fireworks": 10, "xai": 10, "opencode-zen": 10,
+    "cerebras": 10, "parasail": 10, "replicate": 10, "runway": 10, "runware": 10,
+    "wafer": 10, "elevenlabs": 10,
+}
+# UNCAPPED (cost $0 / not $-metered by Bifrost): ollama, vllm, sgl, huggingface, groq
 
 c = httpx.Client(base_url=BASE, timeout=30)
 
-def _id(obj):   # tolerate {id} or {team:{id}} / {virtual_key:{id}} response shapes
-    return obj.get("id") or (obj.get("team") or obj.get("virtual_key") or {}).get("id")
-
-def upsert_team(t):
-    teams = c.get("/api/governance/teams").json().get("teams") or []
-    hit = next((x for x in teams if x.get("name") == t["name"]), None)
+def upsert(provider, cap):
+    mcs = c.get("/api/governance/model-configs?limit=500").json().get("model_configs") or []
+    hit = next((m for m in mcs if m.get("provider") == provider
+                and m.get("model_name") == "*" and m.get("scope") == "global"), None)
     if hit:
-        tid = hit["id"]
-        r = c.put(f"/api/governance/teams/{tid}", json={"budget": t["budget"]})
-        print(f"team {t['name']:14} UPDATED  id={tid}  cap ${t['budget']['max_limit']:.2f}/{RESET}  ({r.status_code})")
-        return tid
-    r = c.post("/api/governance/teams", json=t); r.raise_for_status()
-    tid = _id(r.json())
-    print(f"team {t['name']:14} CREATED  id={tid}  cap ${t['budget']['max_limit']:.2f}/{RESET}")
-    return tid
-
-def upsert_vk(vk, team_id):
-    vks = c.get("/api/governance/virtual-keys").json().get("virtual_keys") or []
-    hit = next((x for x in vks if x.get("name") == vk["name"]), None)
-    if hit:
-        vid = hit["id"]
-        r = c.put(f"/api/governance/virtual-keys/{vid}", json={"budget": vk["budget"], "is_active": True})
-        print(f"  vk {vk['name']:16} UPDATED  cap ${vk['budget']['max_limit']:.2f}/{RESET}  [value unchanged]  ({r.status_code})")
+        cur = (hit.get("budgets") or [{}])[0].get("max_limit")
+        print(f"{provider:14} EXISTS   cap ${cur}/1M   (target ${cap} — left as-is)")
         return
-    body = {**vk, "team_id": team_id, "is_active": True}
-    r = c.post("/api/governance/virtual-keys", json=body); r.raise_for_status()
-    j = r.json()
-    val = j.get("value") or (j.get("virtual_key") or {}).get("value") or "(see response — capture the vk value)"
-    print(f"  vk {vk['name']:16} CREATED  cap ${vk['budget']['max_limit']:.2f}/{RESET}")
-    print(f"     VALUE={val}   <-- SECRET: seal this, do NOT commit")
+    body = {"provider": provider, "model_name": "*", "scope": "global",
+            "budgets": [{"max_limit": cap, "reset_duration": "1M"}]}
+    r = c.post("/api/governance/model-configs", json=body)
+    ok = r.status_code < 300
+    print(f"{provider:14} {'CREATED ' if ok else 'FAILED  '} cap ${cap}/1M   ({r.status_code}){'' if ok else ' '+r.text[:120]}")
 
 if __name__ == "__main__":
-    tid = upsert_team(TEAM)
-    for vk in VKS:
-        upsert_vk(vk, tid)
-    print("\ndone — verify: GET /api/governance/{teams,virtual-keys,budgets}. Seal the printed VK value(s).")
+    print("Bifrost per-provider monthly budget caps (model_name=*, scope=global):\n")
+    for prov, cap in CAPS.items():
+        upsert(prov, cap)
+    print("\ndone — verify in UI (Budgets & Limits) or GET /api/governance/model-configs.")
