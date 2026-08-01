@@ -66,11 +66,12 @@ spec:
                 "https://dl-cdn.alpinelinux.org/alpine/v3.23/main" \
                 "https://dl-cdn.alpinelinux.org/alpine/v3.23/community" > /tmp/repos
               apk add --root "$R" --initdb --no-cache --repositories-file /tmp/repos --keys-dir /etc/apk/keys \
-                nodejs npm chromium nss freetype harfbuzz ttf-freefont ca-certificates || echo "WARN: apk failed"
+                nodejs npm chromium nss freetype harfbuzz ttf-freefont ca-certificates git || echo "WARN: apk failed"
               mkdir -p "$R/bin" "$R/opt/mcp"
               ln -sf "$R/usr/bin/node" "$R/bin/node" 2>/dev/null || true
               ln -sf "$R/usr/bin/npm"  "$R/bin/npm"  2>/dev/null || true
               ln -sf "$R/usr/bin/npx"  "$R/bin/npx"  2>/dev/null || true
+              ln -sf "$R/usr/bin/git"  "$R/bin/git"  2>/dev/null || true   # B111: git enables the Claude Code / Codex skill marketplace (git-served plugins)
               # Alpine's chromium binary name varies by version — pin a stable symlink for Playwright.
               CHR="$(ls "$R"/usr/lib/chromium/chrome "$R"/usr/lib/chromium/chromium "$R"/usr/bin/chromium 2>/dev/null | head -1 || true)"
               [ -n "$CHR" ] && ln -sf "$CHR" "$R/bin/chromium" 2>/dev/null || echo "WARN: chromium binary not located"
