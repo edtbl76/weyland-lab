@@ -180,9 +180,24 @@ not its unsupported glibc download. Mem raised 512Mi→1.5Gi for headless chromi
 (always exit 0)** so a failed apk/npm can't block Bifrost from booting. Perplexity inherits `PERPLEXITY_API_KEY` from the
 pod env (`bifrost-provider-keys`).
 
-**Restore-from-scratch:** apply `bifrost.yaml` (initContainer stages the runtime) → run `register_bifrost_mcp_clients.py`
-→ re-authorize Hugging_Face + Linear in the UI. **GITHUB (parked):** remote MCP has no DCR → make a GitHub App
-(read-only) → paste its `client_id` + Bifrost's OAuth callback URL.
+**VK -> client scoping (durable, B111 2026-08-01):** a VK only serves the tools of the MCP clients *attached* to it, and
+the governance **API cannot attach** runtime-registered clients (`PUT .../virtual-keys/{id}` with `mcp_configs` 500s
+"failed to get MCP client: not found"). The attachment is a row in `governance_virtual_key_mcp_configs` (config.db),
+keyed by the client's **integer PK**. Codified in **`scripts/attach_bifrost_vk_mcp.py`** — declarative scoping
+(coding-agents -> fleet/Context7/HF/Linear/Perplexity/Playwright/GitHub; operator -> Excalidraw/Malwarebytes;
+chat-eval -> none), resolved by client **name** (survives PVC-restore PK reassignment), idempotent + atomic. Runs IN the
+bifrost pod (no system python/sqlite3 → use `/runtime/usr/bin/python3`, staged by the initContainer). A DB write alone
+does nothing — the `/mcp` multiplexer builds its per-VK tool registry in memory at boot, so a **rollout restart is
+required** for tools to flow. See memory `bifrost-vk-mcp-attach`.
+
+**Restore-from-scratch (order matters):**
+1. apply `bifrost.yaml` (initContainer stages the runtime)
+2. `kubectl -n weyland exec -i deploy/weyland-guard -- python - < scripts/register_bifrost_mcp_clients.py`  (create clients)
+3. `kubectl -n weyland exec -i deploy/bifrost -c bifrost -- /runtime/usr/bin/python3 - < scripts/attach_bifrost_vk_mcp.py`  (scope VKs)
+4. `kubectl -n weyland rollout restart deploy/bifrost`  (reload — tools do NOT flow until this)
+5. re-authorize Hugging_Face + Linear in the UI (OAuth grant is interactive).
+
+**GITHUB (parked):** remote MCP has no DCR → make a GitHub App (read-only) → paste its `client_id` + Bifrost's OAuth callback URL.
 
 ## Current state + loose ends
 - Phase 1 (gateway + auth + actor) ✅ and Phase 2 (enforcing act gate) ✅ — both **proven + LIVE**; `policy.gate` is
