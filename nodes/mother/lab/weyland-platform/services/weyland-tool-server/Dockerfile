@@ -2,10 +2,16 @@ FROM python:3.12-slim
 
 WORKDIR /app
 
+# B111 Option C: PIN the MCP stack. Unpinned installs let a rebuild pull starlette 1.x under the
+# old fastapi-mcp 0.4.0, whose streamable-HTTP mount hangs (request.body() → ClientDisconnect) —
+# that drift is what broke /mcp. FastMCP 3.x (mcp 1.28-native) replaces fastapi-mcp; the whole set
+# is pinned to the versions validated 2026-07-31 so it can't silently drift again.
 RUN pip install --no-cache-dir \
-    fastapi \
-    fastapi-mcp \
-    uvicorn \
+    'fastapi==0.139.2' \
+    'starlette==1.3.1' \
+    'uvicorn==0.51.0' \
+    'fastmcp==3.4.5' \
+    'mcp==1.28.1' \
     psycopg2-binary \
     httpx \
     llama-index-embeddings-huggingface \

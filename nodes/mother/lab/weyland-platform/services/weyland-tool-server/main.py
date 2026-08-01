@@ -10,7 +10,8 @@ import psycopg2
 import sentry_sdk
 import weaviate
 from fastapi import Depends, FastAPI, Header, HTTPException, Query, Response
-from fastapi_mcp import FastApiMCP
+from fastmcp import FastMCP
+from fastmcp.server.providers.openapi import RouteMap, MCPType
 from llama_index.embeddings.huggingface import HuggingFaceEmbedding
 from neo4j import GraphDatabase
 from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
@@ -192,7 +193,13 @@ async def lifespan(app: FastAPI):
     )
     neo4j_driver = GraphDatabase.driver(NEO4J_URI, auth=(NEO4J_USER, NEO4J_PASSWORD))
     _init_tracing()   # B100 Phase 1 — RAG tracing (fail-safe)
-    yield
+    # B111 Option C: run the FastMCP streamable-HTTP session managers for the /mcp and /mcp-act
+    # sub-apps INSIDE the app lifespan. Starlette does NOT auto-run a mounted sub-app's lifespan,
+    # and the session manager MUST be running or the transport hangs on request.body() (the exact
+    # fastapi-mcp 0.4.0 failure this replaces). Forward-ref'd globals exist by call time (module
+    # fully imported before uvicorn starts the lifespan).
+    async with _mcp_read_app.lifespan(app), _mcp_act_app.lifespan(app):
+        yield
     if weaviate_client:
         weaviate_client.close()
     if neo4j_driver:
@@ -450,7 +457,7 @@ def ollama_health():
     return {**_check_ollama(), "ollama_url": OLLAMA_BASE_URL, "default_model": OLLAMA_MODEL}
 
 
-@app.get("/status", tags=["mcp"])
+@app.get("/status", tags=["mcp"], operation_id="status")
 def status():
     """Consolidated health — server + model + all four backends in one call.
     overall='degraded' if any backend is down (the server itself stays live/ready)."""
@@ -472,7 +479,7 @@ def status():
     }
 
 
-@app.post("/context/search", tags=["mcp"])
+@app.post("/context/search", tags=["mcp"], operation_id="context_search")
 def context_search(request: ContextSearchRequest, backend: str = Query(default="pgvector"),
                    actor: str | None = Depends(_actor)):
     if backend not in VALID_BACKENDS:
@@ -488,7 +495,7 @@ def context_search(request: ContextSearchRequest, backend: str = Query(default="
     return {"query": request.query, "results": results}
 
 
-@app.get("/models", tags=["mcp"])
+@app.get("/models", tags=["mcp"], operation_id="list_models")
 def list_models():
     """Models available on the Ollama endpoint, for client-side selection in /context/ask."""
     check = _check_ollama()
@@ -497,7 +504,7 @@ def list_models():
     return {"default": OLLAMA_MODEL, "available": check["models"]}
 
 
-@app.post("/context/ask", tags=["mcp"])
+@app.post("/context/ask", tags=["mcp"], operation_id="context_ask")
 def context_ask(request: AskRequest, actor: str | None = Depends(_actor)):
     """RAG: retrieve top-k chunks from a backend, then have the local model synthesize a
     grounded answer. `model` is selectable per request (defaults to OLLAMA_MODEL)."""
@@ -568,7 +575,7 @@ def _launch_dagster_job(job_name: str) -> dict:
     return {"status": "ok", "run_id": result["run"]["runId"], "job_name": job_name}
 
 
-@app.post("/pipeline/trigger", tags=["mcp-act"])
+@app.post("/pipeline/trigger", tags=["mcp-act"], operation_id="pipeline_trigger")
 def pipeline_trigger(request: PipelineTriggerRequest, actor: str | None = Depends(_actor)):
     """Trigger a Dagster job. Default (and usual choice) is `weyland_ingestion_job` — the docs/code
     ingestion pipeline. `job_name` must be one of the three defined jobs; leave it at the default to
@@ -585,7 +592,7 @@ def _eval_pg_conn():
     )
 
 
-@app.post("/evals/run", tags=["mcp-act"])
+@app.post("/evals/run", tags=["mcp-act"], operation_id="evals_run")
 def evals_run(actor: str | None = Depends(_actor)):
     """Run the eval matrix (generate a question set + run all models). LONG-RUNNING — ~40-60 min of CPU
     and competes with the single loaded Ollama model; fire deliberately, not casually. Then POST /evals/score."""
@@ -594,7 +601,7 @@ def evals_run(actor: str | None = Depends(_actor)):
     return _launch_dagster_job("weyland_eval_job")
 
 
-@app.post("/evals/score", tags=["mcp-act"])
+@app.post("/evals/score", tags=["mcp-act"], operation_id="evals_score")
 def evals_score(actor: str | None = Depends(_actor)):
     """Judge-panel scoring of the latest completed matrix run. LONG-RUNNING — ~70 min of CPU. Run after
     /evals/run has completed."""
@@ -679,21 +686,30 @@ def metrics():
     return Response(generate_latest(), media_type=CONTENT_TYPE_LATEST)
 
 
-# --- MCP servers -----------------------------------------------------------------
+# --- MCP servers (B111 Option C: FastMCP, replacing fastapi-mcp 0.4.0) ------------
 # Constructed last so every route above is already registered for introspection.
 #
-# READ surface (B2): read-only tools tagged "mcp" (/status, /context/search, /context/ask,
-# /models), mounted at /mcp. Consumers: Claude Code (read lane) + the coming B66 operator agent (Hermes retired 2026-07-23):
-#   http://<host>:30080/mcp
-# headers=: fastapi-mcp forwards ONLY allow-listed headers from the MCP request into the tool invocation (default just
-# `authorization`). Add `x-forwarded-consumer` so the gateway-injected actor reaches the `_actor` dependency (B17+B19).
-mcp = FastApiMCP(app, name="weyland-system-view", include_tags=["mcp"], headers=["authorization", "x-forwarded-consumer"])
-mcp.mount_http()   # Streamable HTTP at /mcp — the transport remote agents connect to by URL
-
-# ACT surface (B14 read+act): the action tools tagged "mcp-act" (/pipeline/trigger, /evals/run,
-# /evals/score) on a SEPARATE mount at /mcp-act, so the gateway (B17+B19) can front /mcp-act with
-# auth/policy while /mcp stays open. Agents must register /mcp-act explicitly to gain act tools —
-# read access never implies act access. Every act call is audited by the `act` hook (policy.audit,
-# shadow) → guardrail_verdicts; the enforcing policy gate is B17+B19 (now that the gateway injects a real actor).
-mcp_act = FastApiMCP(app, name="weyland-act", include_tags=["mcp-act"], headers=["authorization", "x-forwarded-consumer"])
-mcp_act.mount_http(mount_path="/mcp-act")
+# fastapi-mcp 0.4.0's streamable-HTTP mount hangs under starlette 1.x (request.body() never
+# resolves → ClientDisconnect). FastMCP 3.x (mcp SDK 1.28-native) replaces it. from_fastapi
+# introspects the tagged routes into MCP tools and, on each call, replays them in-process against
+# THIS app (httpx ASGITransport), forwarding the inbound MCP request headers via get_http_headers()
+# — so x-forwarded-consumer still reaches the `_actor` dependency (the B17+B19 actor lane).
+# route_maps keep each surface to its own tag; every other route is EXCLUDEd. (Validated end-to-end
+# 2026-07-31: no hang, tag isolation, and actor forwarding all confirmed under starlette 1.3.1.)
+#
+# READ surface (B2): tools tagged "mcp" (/status, /context/search, /context/ask, /models) at /mcp.
+#   Consumer: the weyland-mcp-compositor "context" upstream + direct clients — http://<host>:30080/mcp
+# ACT surface (B14): tools tagged "mcp-act" (/pipeline/trigger, /evals/run, /evals/score) at /mcp-act,
+# fronted by the gateway (B17+B19) with auth/policy while /mcp stays open. Read never implies act;
+# every act call is audited by the `act` hook (policy.audit) → guardrail_verdicts.
+mcp_read = FastMCP.from_fastapi(app, name="weyland-system-view",
+    route_maps=[RouteMap(tags={"mcp"}, mcp_type=MCPType.TOOL), RouteMap(mcp_type=MCPType.EXCLUDE)])
+mcp_act = FastMCP.from_fastapi(app, name="weyland-act",
+    route_maps=[RouteMap(tags={"mcp-act"}, mcp_type=MCPType.TOOL), RouteMap(mcp_type=MCPType.EXCLUDE)])
+# http_app(path="/") serves MCP at the sub-app root; mounted so external paths stay /mcp and /mcp-act
+# (both /mcp and /mcp/ handshake — validated). stateless_http=True (no session affinity needed for
+# these tools) + json_response=True (plain JSON). The two .lifespan()s are run by the app lifespan above.
+_mcp_read_app = mcp_read.http_app(path="/", stateless_http=True, json_response=True)
+_mcp_act_app = mcp_act.http_app(path="/", stateless_http=True, json_response=True)
+app.mount("/mcp-act", _mcp_act_app)
+app.mount("/mcp", _mcp_read_app)

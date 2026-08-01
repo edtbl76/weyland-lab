@@ -17,7 +17,7 @@ spec:
       enableServiceLinks: false
       containers:
         - name: weyland-tool-server
-          image: registry.weyland.lab/weyland-tool-server:v13   # B17+B19 — fastapi-mcp forwards x-forwarded-consumer (gateway actor); B74 bge-base (768)
+          image: registry.weyland.lab/weyland-tool-server:v14   # B111 Option C — FastMCP (was fastapi-mcp, hung on starlette 1.x); forwards x-forwarded-consumer (gateway actor); B74 bge-base (768)
           resources:
             requests: { memory: 512Mi, cpu: 250m }
             # 3Gi (was 2Gi, raised 2026-07-21). Steady state is ~929Mi (it loads the embedding model), so 2Gi
