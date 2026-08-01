@@ -1,0 +1,70 @@
+# B17 A2A — realm-of-agents: one multiplexed pod hosting the 24-agent Realm of Agents (realm-partitioned inside).
+# Meshed: reaches LiteLLM (wl-* brains) in-cluster and egresses to the Bifrost VK MCP surface for tools. On-demand,
+# read-through — no act tools here (acts still go through the operator's confirm flow). Design: aidlc-docs/a2a-agent-roster.md.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: realm-of-agents
+  namespace: weyland
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: realm-of-agents
+  template:
+    metadata:
+      labels:
+        app: realm-of-agents
+        sidecar.istio.io/inject: "true"
+    spec:
+      enableServiceLinks: false
+      containers:
+        - name: realm-of-agents
+          image: registry.weyland.lab/realm-of-agents:v1
+          imagePullPolicy: IfNotPresent
+          resources:
+            # No torch/embedder — langgraph/langchain client + fastapi only; inference is remote (LiteLLM). Low request
+            # (node runs near allocatable per B99); bounded by the 1Gi limit. On-demand → fine eviction candidate.
+            requests: { memory: 256Mi, cpu: 100m }
+            limits: { memory: 1Gi }
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 10001
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+            seccompProfile:
+              type: RuntimeDefault
+          ports:
+            - name: http
+              containerPort: 8080
+          startupProbe:
+            httpGet: { path: /health, port: 8080 }
+            failureThreshold: 30
+            periodSeconds: 5
+          livenessProbe:
+            httpGet: { path: /health, port: 8080 }
+            periodSeconds: 20
+          readinessProbe:
+            httpGet: { path: /ready, port: 8080 }
+            periodSeconds: 10
+          env:
+            # Brains — LiteLLM wl-* lanes (transparent tool-calling passthrough; the master key is the API key).
+            - name: LITELLM_BASE_URL
+              value: http://litellm.weyland.svc.cluster.local:4000/v1
+            - name: LITELLM_API_KEY
+              valueFrom: { secretKeyRef: { name: litellm-secrets, key: LITELLM_MASTER_KEY } }
+            # Tools — the coding-agents virtual key over the Bifrost MCP surface. optional:true → until the secret is
+            # created the pod runs tool-less (agents still reason + answer). Create out-of-band (NOT committed):
+            #   kubectl -n weyland create secret generic realm-of-agents-secret --from-literal=BIFROST_VK=<coding-agents VK>
+            - name: BIFROST_VK
+              valueFrom: { secretKeyRef: { name: realm-of-agents-secret, key: BIFROST_VK, optional: true } }
+            # Bifrost endpoints — default the LAN ingress (CoreDNS forwards *.weyland.lab). To skip TLS to the self-signed
+            # ingress, repoint BIFROST_MCP_URL/BIFROST_API_URL at the in-cluster Bifrost Service (plain http). To verify
+            # the ingress cert instead, mount the lab CA and set BIFROST_CA_BUNDLE (never disable verification).
+            - name: BIFROST_MCP_URL
+              value: https://bifrost.weyland.lab/mcp
+            - name: BIFROST_API_URL
+              value: https://bifrost.weyland.lab
+            - name: PUBLIC_BASE_URL
+              value: https://realm.weyland.lab

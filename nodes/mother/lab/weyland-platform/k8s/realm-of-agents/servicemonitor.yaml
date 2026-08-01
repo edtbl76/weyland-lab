@@ -1,0 +1,14 @@
+# Scrape the realm's /metrics (realm_requests_total / realm_request_seconds{agent=...}).
+# Discovered via serviceMonitorSelectorNilUsesHelmValues:false (no release label needed).
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: realm-of-agents
+  namespace: weyland
+spec:
+  selector:
+    matchLabels:
+      app: realm-of-agents
+  endpoints:
+    - port: http
+      path: /metrics

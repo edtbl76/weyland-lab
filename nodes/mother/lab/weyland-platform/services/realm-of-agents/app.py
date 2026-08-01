@@ -1,0 +1,110 @@
+"""realm-of-agents — the A2A front door for the Realm of Agents (B17).
+
+One multiplexed pod, realm-partitioned inside. Exposes A2A-shaped Agent Cards (discover the whole realm at one URL, or
+any agent at its own) and a task endpoint per agent. `/route` runs Gná (dispatch → best agent). Leads delegate to their
+members over LangGraph; cross-realm calls go over these HTTP/A2A endpoints.
+
+Slice 1 (first wave): Gná dispatch · Kvasir · Verðandi (grafana tools) · Odin delegating to Mímir + Brokkr. Every other
+agent is declared in the roster and runs generically (role prompt + lane + tool slice); leads gain delegation as their
+members come online."""
+import time
+from contextlib import asynccontextmanager
+
+from fastapi import FastAPI, HTTPException, Response
+from fastapi.responses import JSONResponse
+from prometheus_client import CONTENT_TYPE_LATEST, Counter, Histogram, generate_latest
+from pydantic import BaseModel
+
+import cards
+import router as gna
+from config import VERSION
+from roster import BY_KEY, ROSTER, REALMS, in_realm
+
+_REQS = Counter("realm_requests_total", "Agent task requests", ["agent", "outcome"])
+_LATENCY = Histogram("realm_request_seconds", "Per-task latency (s)", ["agent"])
+_ready = {"ok": False}
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    _ready["ok"] = True
+    yield
+
+
+app = FastAPI(title="Weyland — Realm of Agents", version=VERSION, lifespan=lifespan)
+
+
+class TaskRequest(BaseModel):
+    message: str
+    history: list | None = None
+
+
+# --- Discovery (A2A Agent Cards) ---------------------------------------------------------------------------------
+@app.get("/.well-known/agent-card.json")
+def root_card():
+    return cards.root_card()
+
+
+@app.get("/agents")
+def list_agents():
+    """The whole roster as cards, plus a realm index for humans/UIs."""
+    return {"realms": {r: [a.key for a in in_realm(r)] for r in REALMS}, "agents": cards.all_cards()}
+
+
+@app.get("/agents/{key}/.well-known/agent-card.json")
+@app.get("/agents/{key}/card")
+def agent_card(key: str):
+    spec = BY_KEY.get(key)
+    if not spec:
+        raise HTTPException(404, f"no agent '{key}'")
+    return cards.card(spec)
+
+
+# --- Tasking -----------------------------------------------------------------------------------------------------
+@app.post("/agents/{key}/message")
+async def send_message(key: str, req: TaskRequest):
+    """Send a task to a specific agent (a lead delegates; a plain agent answers directly)."""
+    spec = BY_KEY.get(key)
+    if not spec:
+        raise HTTPException(404, f"no agent '{key}'")
+    t0 = time.monotonic()
+    try:
+        answer = await gna.run_agent(spec, req.message, req.history)
+    except Exception as exc:
+        _REQS.labels(key, "error").inc()
+        raise HTTPException(502, f"{spec.god} run failed: {exc}")
+    _LATENCY.labels(key).observe(time.monotonic() - t0)
+    _REQS.labels(key, "ok").inc()
+    return {"agent": key, "god": spec.god, "realm": spec.realm, "answer": answer}
+
+
+@app.post("/route")
+async def route(req: TaskRequest):
+    """Gná: classify the task, run the best-fit agent, and report which one handled it."""
+    t0 = time.monotonic()
+    try:
+        key, answer = await gna.dispatch(req.message, req.history)
+    except Exception as exc:
+        _REQS.labels("gna", "error").inc()
+        raise HTTPException(502, f"dispatch failed: {exc}")
+    _LATENCY.labels("gna").observe(time.monotonic() - t0)
+    _REQS.labels(key, "ok").inc()
+    return {"routed_to": key, "god": BY_KEY[key].god, "realm": BY_KEY[key].realm, "answer": answer}
+
+
+# --- Ops ---------------------------------------------------------------------------------------------------------
+@app.get("/health")
+def health():
+    return {"status": "ok", "service": "realm-of-agents", "version": VERSION, "agents": len(ROSTER)}
+
+
+@app.get("/ready")
+def ready():
+    if _ready["ok"]:
+        return {"status": "ready"}
+    return JSONResponse(status_code=503, content={"status": "loading"})
+
+
+@app.get("/metrics")
+def metrics():
+    return Response(generate_latest(), media_type=CONTENT_TYPE_LATEST)
