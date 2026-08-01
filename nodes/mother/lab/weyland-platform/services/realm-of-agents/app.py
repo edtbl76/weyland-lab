@@ -75,7 +75,7 @@ async def send_message(key: str, req: TaskRequest):
         raise HTTPException(502, f"{spec.god} run failed: {exc}")
     _LATENCY.labels(key).observe(time.monotonic() - t0)
     _REQS.labels(key, "ok").inc()
-    return {"agent": key, "god": spec.god, "realm": spec.realm, "answer": answer}
+    return {"agent": key, "god": spec.god, "role": spec.role, "realm": spec.realm, "answer": answer}
 
 
 @app.post("/route")
@@ -89,7 +89,7 @@ async def route(req: TaskRequest):
         raise HTTPException(502, f"dispatch failed: {exc}")
     _LATENCY.labels("gna").observe(time.monotonic() - t0)
     _REQS.labels(key, "ok").inc()
-    return {"routed_to": key, "god": BY_KEY[key].god, "realm": BY_KEY[key].realm, "answer": answer}
+    return {"routed_to": key, "god": BY_KEY[key].god, "role": BY_KEY[key].role, "realm": BY_KEY[key].realm, "answer": answer}
 
 
 # --- Ops ---------------------------------------------------------------------------------------------------------

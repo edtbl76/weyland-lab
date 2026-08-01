@@ -20,7 +20,7 @@ spec:
       enableServiceLinks: false
       containers:
         - name: realm-of-agents
-          image: registry.weyland.lab/realm-of-agents:v2   # v2 — fault-isolated delegation + empty-task guard + card role field
+          image: registry.weyland.lab/realm-of-agents:v3   # v3 — role in task responses; tools via in-cluster Bifrost (no TLS wall)
           imagePullPolicy: IfNotPresent
           resources:
             # No torch/embedder — langgraph/langchain client + fastapi only; inference is remote (LiteLLM). Low request
@@ -63,8 +63,8 @@ spec:
             # ingress, repoint BIFROST_MCP_URL/BIFROST_API_URL at the in-cluster Bifrost Service (plain http). To verify
             # the ingress cert instead, mount the lab CA and set BIFROST_CA_BUNDLE (never disable verification).
             - name: BIFROST_MCP_URL
-              value: https://bifrost.weyland.lab/mcp
+              value: http://bifrost.weyland.svc.cluster.local:8080/mcp
             - name: BIFROST_API_URL
-              value: https://bifrost.weyland.lab
+              value: http://bifrost.weyland.svc.cluster.local:8080
             - name: PUBLIC_BASE_URL
               value: https://realm.weyland.lab
