@@ -196,6 +196,15 @@ required** for tools to flow. See memory `bifrost-vk-mcp-attach`.
 3. `kubectl -n weyland exec -i deploy/bifrost -c bifrost -- /runtime/usr/bin/python3 - < scripts/attach_bifrost_vk_mcp.py`  (scope VKs)
 4. `kubectl -n weyland rollout restart deploy/bifrost`  (reload — tools do NOT flow until this)
 5. re-authorize Hugging_Face + Linear in the UI (OAuth grant is interactive).
+6. `kubectl -n weyland exec -i deploy/weyland-guard -- python - < scripts/register_bifrost_prompts.py`  (Prompt Repository — 89 prompts / 10 folders)
+
+**Prompt Repository (B111 2026-08-01):** 89 model-agnostic, reusable prompts across 10 folders (system-prompts, coding,
+rag-retrieval, data-analytics, eval-judge, agentic-operator, search-web, guardrails-safety, content-ops, meta-prompt-eng)
+codified in **`scripts/register_bifrost_prompts.py`** (idempotent, source of truth). Suggested `wl-*` lane per prompt is
+in each version's `commit_message`; provider/model left empty so any caller picks the lane. API: `POST /api/prompt-repo/
+folders` + `/prompts` + `/prompts/{id}/versions` (`messages:[{role,content}]`; `{{var}}` auto-extracted — do NOT send a
+`variables` field, it 400s). Distinct from the MLflow Prompt Registry, which holds the app-integrated prompts
+(`rag_system`, `operator_system`, via `scripts/register_prompts.py`).
 
 **GITHUB (parked):** remote MCP has no DCR → make a GitHub App (read-only) → paste its `client_id` + Bifrost's OAuth callback URL.
 
