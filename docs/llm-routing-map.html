@@ -1,28 +1,31 @@
+<meta charset="utf-8">
 <title>Weyland LLM Routing</title>
 <style>
+  /* Palette aligned to the weyland site design system (data-mesh-map.html): cooler blue-grey dark,
+     muted amber accent, Helvetica Neue. Cost-tier semantics kept (free=green like --live, funded=cool blue, metered=cool rose). */
   :root{
-    --bg:#0e0d0b; --panel:#1a1714; --panel2:#221e19; --ink:#ece6da; --dim:#a99f8d;
-    --line:#302b24; --amber:#e6a23c; --amber-soft:#e6a23c22;
-    --free:#4fbf9a; --funded:#5aa9d6; --metered:#dd7a90;
-    --mono:ui-monospace,"SF Mono",SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace;
-    --sans:system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    --bg:#0f1319; --panel:#161b22; --panel2:#1b222c; --ink:#d6dbe2; --dim:#929cab;
+    --line:#212934; --amber:#d9a441; --amber-soft:#d9a44122;
+    --free:#5fa37e; --funded:#5f93c4; --metered:#cf7a92;
+    --mono:ui-monospace,"SF Mono","JetBrains Mono","Cascadia Code",Menlo,Consolas,monospace;
+    --sans:"Helvetica Neue",Helvetica,-apple-system,system-ui,Arial,sans-serif;
   }
   @media (prefers-color-scheme:light){
     :root{
-      --bg:#f4f0e8; --panel:#fffdf8; --panel2:#efe9dd; --ink:#2a2620; --dim:#6f6659;
-      --line:#e0d8c8; --amber:#b0741a; --amber-soft:#b0741a1a;
-      --free:#1f9c78; --funded:#2c7fb0; --metered:#c14e6a;
+      --bg:#f4f5f2; --panel:#ffffff; --panel2:#eef0eb; --ink:#20252c; --dim:#5c6572;
+      --line:#e0e2dc; --amber:#b17d1c; --amber-soft:#b17d1c1a;
+      --free:#3f8d68; --funded:#3a72a8; --metered:#b8556e;
     }
   }
   :root[data-theme="dark"]{
-    --bg:#0e0d0b; --panel:#1a1714; --panel2:#221e19; --ink:#ece6da; --dim:#a99f8d;
-    --line:#302b24; --amber:#e6a23c; --amber-soft:#e6a23c22;
-    --free:#4fbf9a; --funded:#5aa9d6; --metered:#dd7a90;
+    --bg:#0f1319; --panel:#161b22; --panel2:#1b222c; --ink:#d6dbe2; --dim:#929cab;
+    --line:#212934; --amber:#d9a441; --amber-soft:#d9a44122;
+    --free:#5fa37e; --funded:#5f93c4; --metered:#cf7a92;
   }
   :root[data-theme="light"]{
-    --bg:#f4f0e8; --panel:#fffdf8; --panel2:#efe9dd; --ink:#2a2620; --dim:#6f6659;
-    --line:#e0d8c8; --amber:#b0741a; --amber-soft:#b0741a1a;
-    --free:#1f9c78; --funded:#2c7fb0; --metered:#c14e6a;
+    --bg:#f4f5f2; --panel:#ffffff; --panel2:#eef0eb; --ink:#20252c; --dim:#5c6572;
+    --line:#e0e2dc; --amber:#b17d1c; --amber-soft:#b17d1c1a;
+    --free:#3f8d68; --funded:#3a72a8; --metered:#b8556e;
   }
   *{box-sizing:border-box}
   body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);

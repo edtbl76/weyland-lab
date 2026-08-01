@@ -25,6 +25,7 @@ together, and what each layer does. Each opens full-screen; best viewed on a wid
     by cost tier. The transparent failover the OSS gateway couldn't give us, drawn end-to-end.
 
     → **[Open the LLM Routing Map](llm-routing-map.html)** — **internal only** (not published to Pages)
+    &nbsp;·&nbsp; **[Copyable diagram](llm-routing.md)** — the same chains as a portable Mermaid flowchart
 
 ---
 
