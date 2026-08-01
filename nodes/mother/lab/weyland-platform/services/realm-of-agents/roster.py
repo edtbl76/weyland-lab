@@ -43,7 +43,7 @@ ROSTER: list[AgentSpec] = [
               members=("mimir", "brokkr", "forseti", "hermodr", "heimdall", "huginn", "muninn")),
     AgentSpec("mimir", "Mímir", "Valhalla", "architect",
               "Decides structure, interfaces, and tradeoffs before code is written.",
-              "The well of wisdom Odin consults.", lane="wl-reason"),
+              "The well of wisdom Odin consults.", lane="wl-reason", tool_prefixes=("context7", "datahub")),
     AgentSpec("brokkr", "Brokkr", "Valhalla", "engineer",
               "Writes the actual code.", "The dwarf-smith who forged the gods' weapons.", lane="wl-coding"),
     AgentSpec("forseti", "Forseti", "Valhalla", "test",
@@ -130,4 +130,5 @@ _COMMON = ("You are {god}, the {role} agent in the weyland homelab's Realm of Ag
 
 
 def fallback_prompt(spec: AgentSpec) -> str:
-    return _COMMON.format(god=spec.god, role=spec.role, what=spec.what)
+    from roles import ROLE_PROMPTS   # rich per-agent prompts where written; generic template otherwise
+    return ROLE_PROMPTS.get(spec.key) or _COMMON.format(god=spec.god, role=spec.role, what=spec.what)

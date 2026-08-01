@@ -15,7 +15,7 @@ RUN pip install --no-cache-dir \
     langchain-mcp-adapters==0.3.1 \
     mcp==1.24.0
 
-COPY config.py roster.py prompts.py llm.py fleet.py agents.py realms.py router.py cards.py app.py /app/
+COPY config.py roster.py roles.py prompts.py llm.py fleet.py agents.py realms.py router.py cards.py app.py /app/
 
 RUN useradd -u 10001 -m appuser && chown -R appuser /app
 USER appuser
