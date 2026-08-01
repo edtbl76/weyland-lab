@@ -128,6 +128,7 @@ model {
           mcpGateway = gateway "weyland-mcp-gateway" "MCP gateway (mesh governance) — Keycloak-authed front door for tool-server /mcp + /mcp-act; injects the verified actor into guardrail_verdicts, unblocking the enforcing act policy gate"
           mcpFleet = component "MCP server fleet (6)" "Read-only MCP servers over lab subsystems (grafana / trino / k8s / postgres / neo4j / datahub) — one protocol for agents to query the platform"
           mcpCompositor = component "weyland-mcp-compositor" "FastMCP proxy — aggregates the 6 fleet servers into one endpoint with ~90 namespaced tools; gateway routes /mcp-fleet here"
+          bifrost = gateway "Bifrost" "Agent-edge MCP front door (maximhq/bifrost, B111) — closes the MCP-gateway deliverable. The coding-agents VK aggregates 232 tools (the 95-tool compositor fleet + Context7/Linear/GitHub/Perplexity/Playwright/HuggingFace) into one /mcp for Claude Code + Codex + OpenCode. Also a Prompt Repository (241) + Skills Repository (583) served as a Claude Code/Codex plugin marketplace (git-served, /api/skills/serve open). Provider egress + per-VK budgets + sealed keys."
         }
 
         obs = zone "Observability" {
@@ -189,6 +190,10 @@ model {
   weyland.mother.ops.edge.mcpFleet -> weyland.mother.ops.edge.mcpCompositor "FastMCP composition → ~90 namespaced read tools"
   weyland.mother.ops.edge.mcpCompositor -> weyland.mother.ops.edge.mcpGateway "one MCP endpoint; gateway routes /mcp-fleet here"
   weyland.mother.ai.operator -> weyland.mother.ops.edge.mcpGateway "read the fleet via /mcp-fleet (Haiku via LiteLLM)"
+  rogueone.codingAgents -> weyland.mother.ops.edge.bifrost "MCP tools via /mcp (coding-agents VK, 232 tools) + install skills from the marketplace"
+  rogueone.claudeCode -> weyland.mother.ops.edge.bifrost "MCP tools + skill marketplace (/api/skills/serve)"
+  weyland.mother.ops.edge.bifrost -> weyland.mother.ops.edge.mcpCompositor "aggregates the 95-tool read fleet (weyland_fleet upstream)"
+  weyland.mother.ops.edge.bifrost -> hostedModels "provider egress — per-VK budgets + sealed keys"
   weyland.mother.ai.operator -> rogueone.ollama "brain — gpt-oss:20b /v1"
   weyland.mother.ai.operator -> weyland.mother.ai.pg "session memory (STRICT mTLS)"
   rogueone.claudeCode -> weyland.mother.ai.toolServer "MCP /mcp"
@@ -350,6 +355,10 @@ views {
   }
   view opsEdge of weyland.mother.ops.edge {
     title "Ops / ingress + SSO + DNS"
+    include *
+  }
+  view bifrostEdge of weyland.mother.ops.edge.bifrost {
+    title "Ops / agent edge — Bifrost (MCP aggregation + skill marketplace)"
     include *
   }
   view opsObs of weyland.mother.ops.obs {
