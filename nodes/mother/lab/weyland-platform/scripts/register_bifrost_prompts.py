@@ -38,6 +38,7 @@ FOLDERS = [
     ("guardrails-safety", "PII/injection/grounding explanation and safe rewriting — wl-agentic."),
     ("content-ops",       "Summarize, rewrite, extract, classify, ops writing — wl-default."),
     ("meta-prompt-eng",   "Prompt improvement, critique, and generation — wl-reason."),
+    ("skills",            "Orchestrate the curated skill corpus — select, apply, compose, and extend skills."),
 ]
 
 # Each prompt: folder, name (kebab), lane (recorded in commit_message), messages [(role, content)].
@@ -526,7 +527,60 @@ PROMPTS = [
                     "all hard requirements and the output format; cut redundancy and filler. Return only the "
                     "compressed prompt."),
                   u("Prompt:\n{{prompt}}")]},
+
+    # ============================ skills (orchestrate the corpus) ============================
+    {"folder": "skills", "name": "skill-selector", "lane": "wl-agentic → gemini-flash",
+     "messages": [s("A large curated skill library is available through this gateway, organized into families: "
+                    "engineering-knowledge (patterns, practices, architectures), consulting-frameworks (strategy tools), "
+                    "industry-lens (per-vertical domain knowledge), aidlc-stages (delivery lifecycle), and lab-ops "
+                    "(weyland runbooks). Given a task, name the 1-3 most relevant skills to apply and why. If nothing "
+                    "fits well, say so — do not force a match. Output JSON [{\"skill\":\"<name-or-family>\",\"why\":\"…\"}]."),
+                  u("Task:\n{{task}}")]},
+    {"folder": "skills", "name": "apply-engineering-pattern", "lane": "wl-coding → wl-agentic",
+     "messages": [s("Apply the named software engineering pattern/practice to the user's context. Explain the fit, then "
+                    "give a concrete implementation or plan in their stack. Note the trade-offs and when NOT to use it. "
+                    "Do not force the pattern if it's a poor fit — say so."),
+                  u("Pattern: {{pattern}}\nContext:\n{{context}}")]},
+    {"folder": "skills", "name": "apply-consulting-framework", "lane": "wl-reason → wl-default",
+     "messages": [s("Apply the named consulting/strategy framework to the subject, producing the framework's SPECIFIC "
+                    "structured outputs (not a generic essay). State assumptions where inputs are missing; never invent "
+                    "facts to complete the framework."),
+                  u("Framework: {{framework}}\nSubject:\n{{subject}}")]},
+    {"folder": "skills", "name": "run-aidlc-stage", "lane": "wl-agentic → wl-reason",
+     "messages": [s("Execute the named AIDLC delivery-lifecycle stage against the user's context: produce the stage's "
+                    "expected artifacts and gate output, following the stage procedure. Flag what is missing or unknown "
+                    "rather than fabricating it."),
+                  u("Stage: {{stage}}\nContext:\n{{context}}")]},
+    {"folder": "skills", "name": "industry-lens", "lane": "wl-reason → wl-default",
+     "messages": [s("Analyze the input through the domain lens of the named industry vertical — its regulations, systems, "
+                    "data, KPIs, and constraints. Ground the analysis in real domain knowledge; flag assumptions."),
+                  u("Vertical: {{vertical}}\nInput:\n{{input}}")]},
+    {"folder": "skills", "name": "compose-skills", "lane": "wl-agentic → wl-reason",
+     "messages": [s("Given a multi-step goal, compose an ordered plan that invokes specific skills from the library at "
+                    "each step (name the skill + what it produces + how it feeds the next step). Prefer existing skills "
+                    "over improvising; mark any step with no matching skill as a gap."),
+                  u("Goal:\n{{goal}}")]},
+    {"folder": "skills", "name": "gap-to-skill", "lane": "wl-reason → wl-default",
+     "messages": [s("A recurring task has no matching skill in the library. Draft a new Agent Skill for it: a one-line "
+                    "description and a SKILL.md body (purpose, when-to-use, steps, gotchas) in the house style — precise, "
+                    "actionable, refuse-to-invent. Keep it self-contained and tool-agnostic."),
+                  u("Recurring task:\n{{task}}")]},
+    {"folder": "skills", "name": "skill-explain", "lane": "wl-speed → wl-default",
+     "messages": [s("Explain what the named skill does, when to reach for it, and when not to — in 3-4 sentences. "
+                    "Concrete and honest about its limits."),
+                  u("Skill: {{skill}}")]},
 ]
+
+# Skill-awareness (B111): thread a pointer to the curated skill corpus into the general system + agentic prompts, so
+# agents consult and apply an existing skill before improvising. Applied post-hoc so the clause stays in one place.
+SKILL_AWARE = {"sys-chat", "sys-coding", "sys-agentic", "sys-reason-thinking", "sys-rag", "tool-router", "plan-decompose", "next-action", "error-triage"}
+SKILL_CLAUSE = (" A large curated skill library is available through this gateway — engineering patterns, "
+                "consulting/strategy frameworks, industry-domain knowledge, AIDLC delivery stages, and lab-ops runbooks. "
+                "When a task matches one, retrieve and apply that skill instead of improvising, and note which you used.")
+for _p in PROMPTS:
+    _m = _p["messages"]
+    if _p["name"] in SKILL_AWARE and _m and _m[0][0] == "system":
+        _m[0] = ("system", _m[0][1].rstrip() + SKILL_CLAUSE)
 
 def main():
     c = httpx.Client(base_url=BASE, timeout=30)
