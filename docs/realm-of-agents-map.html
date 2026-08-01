@@ -1,0 +1,177 @@
+<meta charset="utf-8">
+<title>Weyland — Realm of Agents</title>
+<style>
+  /* Palette aligned to the weyland site design system (data-mesh-map.html / llm-routing-map.html):
+     cooler blue-grey dark, muted amber accent, Helvetica Neue. Each realm gets one accent hue. */
+  :root{
+    --bg:#0f1319; --panel:#161b22; --panel2:#1b222c; --ink:#d6dbe2; --dim:#929cab;
+    --line:#212934; --amber:#d9a441; --amber-soft:#d9a44122;
+    --root:#d9a441; --valhalla:#5f93c4; --vanaheim:#5fa37e; --midgard:#57b0ad; --well:#cf7a92;
+    --live:#5fa37e;
+    --mono:ui-monospace,"SF Mono","JetBrains Mono","Cascadia Code",Menlo,Consolas,monospace;
+    --sans:"Helvetica Neue",Helvetica,-apple-system,system-ui,Arial,sans-serif;
+  }
+  @media (prefers-color-scheme:light){
+    :root{
+      --bg:#f4f5f2; --panel:#ffffff; --panel2:#eef0eb; --ink:#20252c; --dim:#5c6572;
+      --line:#e0e2dc; --amber:#b17d1c; --amber-soft:#b17d1c1a;
+      --root:#b17d1c; --valhalla:#3a72a8; --vanaheim:#3f8d68; --midgard:#2f8a87; --well:#b8556e;
+      --live:#3f8d68;
+    }
+  }
+  :root[data-theme="dark"]{
+    --bg:#0f1319; --panel:#161b22; --panel2:#1b222c; --ink:#d6dbe2; --dim:#929cab;
+    --line:#212934; --amber:#d9a441; --amber-soft:#d9a44122;
+    --root:#d9a441; --valhalla:#5f93c4; --vanaheim:#5fa37e; --midgard:#57b0ad; --well:#cf7a92; --live:#5fa37e;
+  }
+  :root[data-theme="light"]{
+    --bg:#f4f5f2; --panel:#ffffff; --panel2:#eef0eb; --ink:#20252c; --dim:#5c6572;
+    --line:#e0e2dc; --amber:#b17d1c; --amber-soft:#b17d1c1a;
+    --root:#b17d1c; --valhalla:#3a72a8; --vanaheim:#3f8d68; --midgard:#2f8a87; --well:#b8556e; --live:#3f8d68;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);
+    line-height:1.5;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:1180px;margin:0 auto;padding:34px 22px 60px}
+
+  header{border-bottom:1px solid var(--line);padding-bottom:20px;margin-bottom:22px}
+  .eyebrow{font-family:var(--mono);font-size:12px;letter-spacing:.16em;text-transform:uppercase;
+    color:var(--amber);margin:0 0 8px}
+  h1{margin:0;font-size:clamp(26px,4.4vw,40px);letter-spacing:-.01em;text-wrap:balance}
+  .sub{margin:8px 0 0;color:var(--dim);font-size:15px;max-width:74ch}
+  .sub code{font-family:var(--mono);color:var(--ink);background:var(--panel2);
+    padding:1px 6px;border-radius:5px;font-size:.86em}
+  .status{display:inline-flex;align-items:center;gap:7px;margin-top:14px;font-family:var(--mono);
+    font-size:12px;color:var(--dim);border:1px solid var(--line);border-radius:999px;padding:5px 11px}
+  .status b{color:var(--amber);font-weight:600}
+
+  .legend{display:flex;flex-wrap:wrap;gap:9px 18px;align-items:center;margin:0 0 26px;
+    padding:14px 16px;background:var(--panel);border:1px solid var(--line);border-radius:12px}
+  .legend .lg{display:inline-flex;align-items:center;gap:8px;font-size:12.5px;color:var(--dim)}
+  .dot{width:11px;height:11px;border-radius:3px;flex:none;box-shadow:0 0 0 1px #0003 inset}
+  .legend .sep{width:1px;height:20px;background:var(--line)}
+  .badge-key{font-family:var(--mono);font-size:10.5px;letter-spacing:.03em;text-transform:uppercase;
+    color:var(--dim);border:1px solid var(--line);border-radius:5px;padding:2px 6px}
+
+  .realm{margin:26px 0 0}
+  .realm-head{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;
+    margin:0 0 12px;padding-bottom:8px;border-bottom:1px dashed var(--line)}
+  .realm-name{font-family:var(--mono);font-size:15px;letter-spacing:.10em;text-transform:uppercase;font-weight:700}
+  .realm-tag{font-family:var(--mono);font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--dim)}
+  .realm-blurb{color:var(--dim);font-size:13px;margin-left:auto;max-width:52ch;text-align:right}
+
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(270px,1fr));gap:11px}
+  .card{position:relative;background:var(--panel);border:1px solid var(--line);border-left-width:3px;
+    border-radius:11px;padding:13px 15px}
+  .card:hover{border-color:var(--accent)}
+  .card .top{display:flex;align-items:baseline;justify-content:space-between;gap:8px}
+  .god{font-size:18px;font-weight:700;color:var(--accent);letter-spacing:-.01em}
+  .role{font-family:var(--mono);font-size:10px;letter-spacing:.07em;text-transform:uppercase;
+    color:var(--ink);background:var(--panel2);border:1px solid var(--line);border-radius:5px;padding:2px 7px}
+  .what{color:var(--ink);font-size:13.5px;margin:8px 0 6px}
+  .why{color:var(--dim);font-size:12px;font-style:italic;margin:0 0 9px}
+  .why::before{content:"⚑ ";font-style:normal;opacity:.6}
+  .chips{display:flex;flex-wrap:wrap;gap:5px}
+  .c{font-family:var(--mono);font-size:9.5px;letter-spacing:.04em;text-transform:uppercase;
+    color:var(--dim);border:1px solid var(--line);border-radius:4px;padding:1px 6px}
+  .c.brain{color:var(--ink);background:var(--amber-soft);border-color:var(--amber)}
+  .c.live{color:#0c130e;background:var(--live);border-color:var(--live)}
+  .c.new{color:var(--dim)}
+
+  footer{margin-top:34px;padding-top:18px;border-top:1px solid var(--line);color:var(--dim);font-size:13px}
+  footer b{color:var(--ink)} footer code{font-family:var(--mono);color:var(--amber)}
+  .note{margin-top:9px}
+  @media (max-width:560px){ .realm-blurb{margin-left:0;text-align:left} }
+</style>
+
+<div class="wrap">
+  <header>
+    <p class="eyebrow">weyland · agent-to-agent (B17)</p>
+    <h1>The Realm of Agents</h1>
+    <p class="sub">24 small, corpus-backed agents in five groups. Each is a thin composition &mdash;
+      <b>a role prompt</b> from the Bifrost Prompt Repo + <b>a skill family</b> from the 583-skill repo +
+      <b>a slice of the 232-tool MCP surface</b> + <b>a <code>wl-*</code> brain</b>. All $0. A supervisor
+      discovers each via its <b>Agent Card</b> and delegates.</p>
+    <span class="status">◆ <b>DESIGN</b> — roster locked &nbsp;·&nbsp; first wave next: Gná · Kvasir · Verðandi · Odin+Mímir+Brokkr</span>
+  </header>
+
+  <div class="legend">
+    <span class="lg"><span class="dot" style="background:var(--valhalla)"></span> Valhalla — engineering</span>
+    <span class="lg"><span class="dot" style="background:var(--vanaheim)"></span> Vanaheim — knowledge</span>
+    <span class="lg"><span class="dot" style="background:var(--midgard)"></span> Midgard — data &amp; platform</span>
+    <span class="lg"><span class="dot" style="background:var(--well)"></span> the Well — research · eval · content · safety</span>
+    <span class="sep"></span>
+    <span class="lg"><span class="badge-key">wl-*</span> LiteLLM brain lane</span>
+    <span class="lg"><span class="badge-key">live</span> already running</span>
+  </div>
+
+  <div id="realms"></div>
+
+  <footer>
+    <b>Framework split.</b> <code>LangGraph</code> inside a realm (supervisor fan-out), the
+    <code>A2A Protocol</code> (Agent Cards) between realms and up to the Operator. Two of the names are the myth verbatim:
+    <b>Heimdall</b> guards the <b>Bifröst</b> (our gateway is named Bifrost), and <b>Huginn</b>+<b>Muninn</b> are Odin's
+    ravens — Thought &amp; Memory — a review&rarr;orchestrator feedback loop.
+    <div class="note"><b>Source of truth:</b> <code>aidlc-docs/a2a-agent-roster.md</code> (backing prompts/skills/tools per agent, eval criteria, build order).</div>
+  </footer>
+</div>
+
+<script>
+  const REALMS = [
+    { realm:"Root", key:"root", tag:"supervision", blurb:"Sees all realms and routes the work.", agents:[
+      {god:"the Operator", role:"supervisor", what:"Top boss — takes your Telegram request, decides who handles it, runs the confirm rails.", why:"Odin's high seat Hlidskjalf — sees into every realm.", brain:"wl-agentic", live:true},
+      {god:"Gná", role:"dispatch", what:"Given a task, picks which agent should do it.", why:"Frigg's swift messenger who rides everywhere.", brain:"wl-router"},
+    ]},
+    { realm:"Valhalla", key:"valhalla", tag:"engineering", blurb:"Odin's hall — the engineering pod, his hand-picked crew under one roof.", agents:[
+      {god:"Odin", role:"orchestrator", what:"Breaks a goal into steps, delegates, merges results, owns the outcome.", why:"The Allfather, master of Valhalla.", brain:"wl-agentic"},
+      {god:"Mímir", role:"architect", what:"Decides structure, interfaces, and tradeoffs before code is written.", why:"The well of wisdom Odin consults.", brain:"wl-reason-thinking"},
+      {god:"Brokkr", role:"engineer", what:"Writes the actual code.", why:"The dwarf-smith who forged the gods' weapons.", brain:"wl-coding"},
+      {god:"Forseti", role:"test", what:"Verifies behavior, edge cases, regressions, acceptance criteria.", why:"God of justice who settles every dispute.", brain:"wl-coding"},
+      {god:"Hermóðr", role:"devops", what:"Deploy, environments, observability, operational flow.", why:"The messenger who rides to deliver.", brain:"wl-agentic"},
+      {god:"Heimdall", role:"security", what:"Guards boundaries — authz/authn, data exposure, vulnerabilities.", why:"Guardian of the Bifröst — literally our gateway's name.", brain:"wl-reason-thinking"},
+      {god:"Huginn", role:"code review", what:"Reviews for correctness and architectural alignment.", why:"Odin's raven Thought — flies out and reports back.", brain:"wl-coding"},
+      {god:"Muninn", role:"code quality", what:"Consistency, simplification, conventions.", why:"Odin's raven Memory — flies out and reports back.", brain:"wl-coding"},
+    ]},
+    { realm:"Vanaheim", key:"vanaheim", tag:"knowledge", blurb:"The Vanir — gods of foresight and counsel; the corpus turned into advisors.", agents:[
+      {god:"Kvasir", role:"strategy", what:"Applies the 60 consulting frameworks; synthesizes insight.", why:"The wisest being, born of the gods' truce.", brain:"wl-reason-thinking"},
+      {god:"Njörðr", role:"AIDLC delivery", what:"Runs the 52 delivery-lifecycle stages methodically.", why:"Vanir god of order and safe passage.", brain:"wl-agentic"},
+      {god:"Freyja", role:"industry lens", what:"Analyzes a problem through one of the 56 vertical lenses.", why:"Vanir seeress who sees across the worlds.", brain:"wl-chat"},
+      {god:"Bragi", role:"prompt engineering", what:"Writes, critiques, and generates prompts.", why:"God of poetic craft and eloquence.", brain:"wl-reason-thinking"},
+    ]},
+    { realm:"Midgard", key:"midgard", tag:"data & platform", blurb:"The concrete, running world — the read-only fleet over live systems.", agents:[
+      {god:"Verðandi", role:"observability", what:"What's happening right now in metrics, logs, traces. First job: the B109 dashboard audit.", why:"The Norn of the present — 'that which is happening'.", brain:"wl-agentic"},
+      {god:"Vör", role:"data quality", what:"Is the data true and correct? DQ contracts via Soda + Trino.", why:"Goddess from whom nothing can be concealed.", brain:"wl-coding"},
+      {god:"Sága", role:"SQL / analytics", what:"Queries the data for answers over Trino + Postgres.", why:"Seeress who drinks wisdom from the deep.", brain:"wl-coding"},
+      {god:"Yggdrasil", role:"graph / lineage", what:"Relationships and lineage across the estate via Neo4j.", why:"The world-tree that connects everything.", brain:"wl-reason-thinking"},
+      {god:"Fulla", role:"catalog steward", what:"Keeps the DataHub catalog, descriptions, and lineage tidy.", why:"Keeper of Frigg's casket and secrets.", brain:"wl-chat"},
+    ]},
+    { realm:"the Well", key:"well", tag:"research · eval · content · safety", blurb:"Mímisbrunnr — where knowledge is drawn, judged, recorded, and guarded.", agents:[
+      {god:"Tyr", role:"eval judge", what:"Scores the quality of an output (extends B84).", why:"God of law and oaths.", brain:"wl-judge"},
+      {god:"Óðrœrir", role:"RAG / retrieval", what:"Grounded answers from the corpus. This is the existing weyland-agent (B70).", why:"The vessel holding the mead of knowledge.", brain:"wl-rag", live:true},
+      {god:"Ratatoskr", role:"web research", what:"Fetches and synthesizes information from the web via Perplexity.", why:"The squirrel messenger who runs Yggdrasil carrying news.", brain:"wl-agentic"},
+      {god:"Snotra", role:"scribe", what:"Summaries, changelogs, release notes, postmortems.", why:"Goddess of eloquence and good order.", brain:"wl-chat"},
+      {god:"Syn", role:"safety", what:"PII / injection / grounding guard on inputs and outputs.", why:"Goddess who guards the door and denies entry.", brain:"wl-reason-thinking"},
+    ]},
+  ];
+
+  const host = document.getElementById("realms");
+  for(const r of REALMS){
+    const sec = document.createElement("div"); sec.className="realm"; sec.style.setProperty("--accent", `var(--${r.key})`);
+    const head = document.createElement("div"); head.className="realm-head";
+    head.innerHTML = `<span class="realm-name" style="color:var(--${r.key})">${r.realm}</span>`+
+      `<span class="realm-tag">${r.tag}</span><span class="realm-blurb">${r.blurb}</span>`;
+    sec.appendChild(head);
+    const grid = document.createElement("div"); grid.className="grid";
+    for(const a of r.agents){
+      const card = document.createElement("div"); card.className="card"; card.style.setProperty("--accent", `var(--${r.key})`);
+      const statusChip = a.live ? `<span class="c live">live</span>` : `<span class="c new">new</span>`;
+      card.innerHTML =
+        `<div class="top"><span class="god">${a.god}</span><span class="role">${a.role}</span></div>`+
+        `<div class="what">${a.what}</div>`+
+        `<div class="why">${a.why}</div>`+
+        `<div class="chips"><span class="c brain">${a.brain}</span>${statusChip}</div>`;
+      grid.appendChild(card);
+    }
+    sec.appendChild(grid); host.appendChild(sec);
+  }
+</script>
