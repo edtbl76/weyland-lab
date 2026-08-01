@@ -21,7 +21,7 @@ spec:
       enableServiceLinks: false
       containers:
         - name: weyland-operator
-          image: registry.weyland.lab/weyland-operator:v13   # v13 — env-driven LLM key (LLM_API_KEY); brain = Haiku via LiteLLM (agentic lane), env-only swap
+          image: registry.weyland.lab/weyland-operator:v14   # v14 — B17 A2A: delegate_to_realm tool → Realm of Agents (cross-service hop)
           imagePullPolicy: IfNotPresent
           resources:
             # No torch/embedder — just langgraph/langchain/mlflow client + fastapi; LLM inference is remote (Ollama).
@@ -79,6 +79,9 @@ spec:
               valueFrom: { secretKeyRef: { name: litellm-secrets, key: LITELLM_MASTER_KEY } }
             - name: GUARD_BASE_URL
               value: http://weyland-guard.weyland.svc.cluster.local:8080
+            # B17 A2A — the Realm of Agents (24 specialists). delegate_to_realm posts here; Gná routes.
+            - name: REALM_URL
+              value: http://realm-of-agents.weyland.svc.cluster.local:8080
             - name: MLFLOW_TRACKING_URI
               value: http://mlflow.weyland.svc.cluster.local:5000
             # Postgres session store (STRICT-mTLS — rides the mesh sidecar). Same secret the agent/tool-server use.

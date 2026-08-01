@@ -18,7 +18,7 @@ RUN pip install --no-cache-dir \
     mcp==1.24.0 \
     mlflow
 
-COPY tools.py agent.py guard.py telegram.py session.py ingress.py act.py prompts.py fleet.py app.py /app/
+COPY tools.py agent.py guard.py telegram.py session.py ingress.py act.py prompts.py fleet.py realm.py app.py /app/
 
 RUN useradd -u 10001 -m appuser && chown -R appuser /app
 USER appuser

@@ -11,6 +11,7 @@ from langgraph.prebuilt import create_react_agent
 from prompts import load_prompt
 from tools import ACT_TOOLS, READ_TOOLS
 from fleet import build_router_tools, load_fleet_tools
+from realm import REALM_TOOLS
 
 OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://192.168.1.230:11434/v1")
 OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "gpt-oss:20b")
@@ -21,8 +22,11 @@ SYSTEM = (
     "user to run kubectl/SQL/curl themselves; YOU run it. You have read tools for the knowledge base (status, "
     "context_search, context_ask) and for lab subsystems: Kubernetes (pods/namespaces/events), the Trino lakehouse "
     "(SQL/catalogs), Grafana (dashboards/Prometheus), Neo4j (graph), DataHub (catalog/lineage), and Postgres — call the "
-    "one that fits and ground your answer in its output. To CHANGE lab state (trigger a pipeline, run/score evals) you "
-    "cannot act directly — call propose_act and the user confirms; never claim an action ran. Keep replies short (Telegram)."
+    "one that fits and ground your answer in its output. For SPECIALIST work beyond these read tools — engineering, "
+    "consulting frameworks, observability/SQL/data-quality/lineage/catalog, research, eval, content — call "
+    "delegate_to_realm to hand it to the Realm of Agents (24 experts; Gná routes it) and report their answer. To CHANGE "
+    "lab state (trigger a pipeline, run/score evals) you cannot act directly — call propose_act and the user confirms; "
+    "never claim an action ran. Keep replies short (Telegram)."
 )
 
 _llm = ChatOpenAI(base_url=OLLAMA_BASE_URL, api_key=os.getenv("LLM_API_KEY", "ollama"), model=OLLAMA_MODEL,
@@ -32,7 +36,7 @@ _llm = ChatOpenAI(base_url=OLLAMA_BASE_URL, api_key=os.getenv("LLM_API_KEY", "ol
 # stays within the 20B's tool-selection ceiling. Empty either way if the fleet is unreachable.
 _FLEET = load_fleet_tools()
 _fleet_tools = build_router_tools(_FLEET, _llm) if os.getenv("FLEET_ROUTING") else _FLEET
-_agent = create_react_agent(_llm, READ_TOOLS + _fleet_tools + ACT_TOOLS)
+_agent = create_react_agent(_llm, READ_TOOLS + _fleet_tools + REALM_TOOLS + ACT_TOOLS)
 
 
 def _extract_proposal(msgs: list) -> dict | None:
