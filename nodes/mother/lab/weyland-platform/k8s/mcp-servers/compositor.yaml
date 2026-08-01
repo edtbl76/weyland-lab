@@ -23,9 +23,11 @@ spec:
             - { name: http, containerPort: 8000 }
           env:
             - { name: PORT, value: "8000" }
-            # context (tool-server fastapi-mcp /mcp) is EXCLUDED — its mount_http streamable-http hangs FastMCP's proxy
-            # client. RAG reads stay on the gateway /mcp → tool-server (unchanged); Bifrost aggregates the two endpoints.
-            - { name: CONTEXT_URL, value: "" }
+            # context (tool-server /mcp) — RE-ENABLED B111 Option C (2026-08-01): the tool-server moved off
+            # fastapi-mcp 0.4.0 (whose mount_http hung FastMCP's proxy client under starlette 1.x) to FastMCP 3.x;
+            # /mcp now handshakes cleanly, so the compositor aggregates its RAG read tools (status/context_search/
+            # context_ask/list_models) into the fleet. Verified end-to-end before flipping this back on.
+            - { name: CONTEXT_URL, value: "http://weyland-tool-server.weyland.svc.cluster.local:8080/mcp" }
           readinessProbe:
             tcpSocket: { port: 8000 }
             initialDelaySeconds: 5
