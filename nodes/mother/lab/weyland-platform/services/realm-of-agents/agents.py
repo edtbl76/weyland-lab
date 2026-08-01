@@ -28,5 +28,5 @@ async def run_solo(spec: AgentSpec, task: str, history: list | None = None) -> s
     if history:
         messages += history
     messages.append(("user", task))
-    result = await graph.ainvoke({"messages": messages})
+    result = await graph.ainvoke({"messages": messages}, {"recursion_limit": 50})
     return result["messages"][-1].content

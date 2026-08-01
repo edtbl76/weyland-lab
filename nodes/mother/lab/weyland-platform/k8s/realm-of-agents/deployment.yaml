@@ -20,7 +20,7 @@ spec:
       enableServiceLinks: false
       containers:
         - name: realm-of-agents
-          image: registry.weyland.lab/realm-of-agents:v3   # v3 — role in task responses; tools via in-cluster Bifrost (no TLS wall)
+          image: registry.weyland.lab/realm-of-agents:v4   # v4 — leads get their OWN tools + delegation (two-mode); recursion_limit 50
           imagePullPolicy: IfNotPresent
           resources:
             # No torch/embedder — langgraph/langchain client + fastapi only; inference is remote (LiteLLM). Low request

@@ -10,6 +10,7 @@ from langchain_core.tools import StructuredTool
 from langgraph.prebuilt import create_react_agent
 
 from agents import run_solo
+from fleet import tools_for
 from llm import brain
 from prompts import load_role
 from roster import BY_KEY, AgentSpec
@@ -36,20 +37,24 @@ def _member_tool(member: AgentSpec) -> StructuredTool:
 async def _lead_graph(lead: AgentSpec):
     g = _leads.get(lead.key)
     if g is None:
+        # A lead gets BOTH its own tools (so it can do its specialty directly — e.g. Verðandi's grafana_*) AND a
+        # delegate_to_* tool per member (to hand off everything else). Two-mode: act on your specialty, delegate the rest.
+        own_tools = await tools_for(lead.tool_prefixes)
         member_tools = [_member_tool(BY_KEY[k]) for k in lead.members if k in BY_KEY]
-        g = create_react_agent(brain(lead.lane), member_tools)
+        g = create_react_agent(brain(lead.lane), own_tools + member_tools)
         _leads[lead.key] = g
     return g
 
 
 async def run_lead(lead: AgentSpec, task: str, history: list | None = None) -> str:
-    """Run a realm lead: it decomposes the task and delegates to its members, then reconciles their outputs."""
+    """Run a realm lead: it does its own specialty with its own tools, delegates the rest to its members, and reconciles."""
     graph = await _lead_graph(lead)
-    sys = (load_role(lead) + " You lead a team of specialists — call delegate_to_* tools to hand each sub-task to the "
-           "right member, then synthesize their results into one answer. Do the work through them, not yourself.")
+    sys = (load_role(lead) + " You lead a team of specialists. Use your OWN tools for your specialty; for anything "
+           "outside it, call the matching delegate_to_* tool to hand that sub-task to the right member. Then "
+           "synthesize everything — your findings and theirs — into one answer.")
     messages = [("system", sys)]
     if history:
         messages += history
     messages.append(("user", task))
-    result = await graph.ainvoke({"messages": messages})
+    result = await graph.ainvoke({"messages": messages}, {"recursion_limit": 50})
     return result["messages"][-1].content
