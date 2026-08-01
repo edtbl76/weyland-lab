@@ -190,3 +190,9 @@ spec:
             pathType: Prefix
             backend:
               service: { name: bifrost, port: { number: 8080 } }
+          # B111 — skill marketplace serving (Claude Code / Codex plugin fetch + git clone) must be OPEN, not
+          # Keycloak forward-auth'd: agents can't browser-SSO. Longer path → higher Traefik priority than the UI's `/`.
+          - path: /api/skills/serve
+            pathType: Prefix
+            backend:
+              service: { name: bifrost, port: { number: 8080 } }
