@@ -197,7 +197,7 @@ Flow: build+push the image on rogueone → bump the tag in `k8s/ray/ray-head.yam
 - **Commands: one line each, no backslash continuations, no placeholders** — resolve pod names/creds inline via `$(...)`. Put the runnable command LAST in your message.
 - **Provide commands; don't run** operational mutations the user should run themselves. Confirm before NEW changes (propose → yes → build); remove old/broken things FIRST.
 - **$0 budget** — free tiers + self-hosted only; no paid models/services unless explicitly funded.
-- **Workflow:** this project uses its own AIDLC/"Method" workflow (NOT superpowers). Design docs go under `aidlc-docs/` (gitignored); the canonical backlog is `docs/backlog.md`. It's a homelab — weigh for experimentation and learning, don't over-engineer.
+- **Workflow:** this project uses its own AIDLC workflow (NOT superpowers). Design docs go under `aidlc-docs/` (gitignored); the canonical backlog is `docs/backlog.md`. It's a homelab — weigh for experimentation and learning, don't over-engineer.
 - **git:** the user handles ALL git; never give git info or commit for them."""),
 
     # ============================ generic dev ============================
@@ -244,7 +244,7 @@ Pattern (see register_bifrost_mcp_clients.py / _prompts.py / _skills.py):
 
 def main():
     c = httpx.Client(base_url=BASE, timeout=30)
-    existing = {s["name"] for s in c.get("/api/skills").json().get("skills") or []}
+    existing = {s["name"] for s in c.get("/api/skills?limit=1000").json().get("skills") or []}   # limit: default is 50, we have more
     created = skipped = 0
     for name, category, description, body in SKILLS:
         if name in existing:

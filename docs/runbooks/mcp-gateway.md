@@ -197,7 +197,9 @@ required** for tools to flow. See memory `bifrost-vk-mcp-attach`.
 4. `kubectl -n weyland rollout restart deploy/bifrost`  (reload — tools do NOT flow until this)
 5. re-authorize Hugging_Face + Linear in the UI (OAuth grant is interactive).
 6. `kubectl -n weyland exec -i deploy/weyland-guard -- python - < scripts/register_bifrost_prompts.py`  (Prompt Repository — 89 prompts / 10 folders)
-7. `kubectl -n weyland exec -i deploy/weyland-guard -- python - < scripts/register_bifrost_skills.py`  (Skills Repository — 20 Agent Skills)
+7. `kubectl -n weyland exec -i deploy/weyland-guard -- python - < scripts/register_bifrost_skills.py`  (Skills Repository — 20 lab/generic Agent Skills)
+8. `python3 scripts/register_aidlc_skills.py | kubectl -n weyland exec -i deploy/weyland-guard -- python -`  (52 AIDLC stage/ritual/extension procedures; runs LOCALLY to read .methodaidlc, pipes the loader in-cluster; scrubs the "Method" brand)
+9. `python3 scripts/register_aidlc_kb_skills.py | kubectl -n weyland exec -i deploy/weyland-guard -- python -`  (511 knowledge-base entries: 395 engineering-knowledge + 60 consulting-tools + 56 industry-vertical)
 
 **Skills Repository (B111 2026-08-01):** 20 Agent Skills (Anthropic-style: frontmatter cols + `skill_md_body`) codified in
 **`scripts/register_bifrost_skills.py`** (idempotent) — lab-ops skills from our runbooks (deploy-via-argo, dagster-redeploy,
