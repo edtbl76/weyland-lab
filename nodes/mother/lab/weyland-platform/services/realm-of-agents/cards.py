@@ -15,6 +15,8 @@ def card(spec: AgentSpec) -> dict:
     return {
         "name": spec.god,
         "key": spec.key,
+        "role": spec.role,          # descriptive role — engineer / eval-judge / observability / …
+        "realm": spec.realm,
         "description": spec.what,
         "url": f"{PUBLIC_BASE_URL}/agents/{spec.key}",
         "version": VERSION,
