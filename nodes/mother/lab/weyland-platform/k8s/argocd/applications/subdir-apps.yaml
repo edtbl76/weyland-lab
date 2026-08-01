@@ -547,3 +547,23 @@ spec:
     namespace: monitoring
   syncPolicy:
     automated: { selfHeal: true, prune: true }
+---
+# B17 A2A — realm-of-agents: the Realm of Agents (24 corpus-backed agents in one multiplexed pod). Adopts the
+# kubectl-applied Deployment/Service/ServiceMonitor; git = source of truth. realm-of-agents-secret (BIFROST_VK)
+# applied out-of-band (optional; pod runs tool-less without it).
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: realm-of-agents
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/edtbl76/weyland-lab.git
+    targetRevision: main
+    path: nodes/mother/lab/weyland-platform/k8s/realm-of-agents
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: weyland
+  syncPolicy:
+    automated: { selfHeal: true, prune: true }
