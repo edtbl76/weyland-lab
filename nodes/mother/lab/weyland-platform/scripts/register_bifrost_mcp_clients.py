@@ -28,13 +28,20 @@ HTTP = [
     ("Malwarebytes",  "https://scamguard.malwarebytes.com/claude/mcp",                     "none"),
     ("Hugging_Face",  "https://huggingface.co/mcp",                                        "oauth"),
     ("Linear",        "https://mcp.linear.app/mcp",                                        "oauth"),
+    ("GitHub_Remote", "https://api.githubcopilot.com/mcp/",                                "oauth"),
 ]
 
 # (name, command, args, envs) — in-pod stdio off the mcp-runtime volume (node + system chromium).
+# PROVEN 2026-07-31: use the DIRECT installed binary (initContainer `npm install -g` → /runtime/usr/bin), NOT npx
+# (npx re-fetches every spawn → blows the init deadline). AND the `envs` list MUST carry the node runtime vars —
+# Bifrost spawns stdio servers with a STRIPPED env (only what's listed here), so without LD_LIBRARY_PATH/ICU_DATA
+# node can't even load its shared libs and dies → "context deadline exceeded". Verified: Perplexity 4 tools, Playwright 24.
+RUNTIME_ENVS = ["PATH", "LD_LIBRARY_PATH", "ICU_DATA", "HOME", "NODE_PATH"]
 STDIO = [
-    ("Perplexity", "npx", ["-y", "@perplexity-ai/mcp-server"], ["PERPLEXITY_API_KEY"]),
-    ("Playwright", "npx", ["@playwright/mcp", "--headless", "--no-sandbox",
-                           "--browser", "chromium", "--executable-path", "/runtime/bin/chromium"], []),
+    ("Perplexity", "perplexity-mcp", [], ["PERPLEXITY_API_KEY"] + RUNTIME_ENVS),
+    ("Playwright", "playwright-mcp",
+     ["--headless", "--no-sandbox", "--browser", "chromium", "--executable-path", "/runtime/bin/chromium"],
+     RUNTIME_ENVS + ["PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD"]),
 ]
 
 c = httpx.Client(base_url=BASE, timeout=30)
@@ -43,7 +50,7 @@ existing = {cl["config"]["name"] for cl in (c.get("/api/mcp/clients").json().get
 def create(name, body):
     if name in existing:
         print(f"{name:14} EXISTS"); return
-    r = c.post("/api/mcp/clients", json=body)
+    r = c.post("/api/mcp/client", json=body)   # PROVEN 2026-07-31: create = /api/mcp/client (singular). /clients = GET-list (405 on POST).
     ok = r.status_code < 300
     print(f"{name:14} {'CREATED' if ok else 'FAILED '} ({r.status_code}){'' if ok else ' ' + r.text[:140]}")
 
