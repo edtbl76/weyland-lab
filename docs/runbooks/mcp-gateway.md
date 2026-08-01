@@ -197,6 +197,16 @@ required** for tools to flow. See memory `bifrost-vk-mcp-attach`.
 4. `kubectl -n weyland rollout restart deploy/bifrost`  (reload — tools do NOT flow until this)
 5. re-authorize Hugging_Face + Linear in the UI (OAuth grant is interactive).
 6. `kubectl -n weyland exec -i deploy/weyland-guard -- python - < scripts/register_bifrost_prompts.py`  (Prompt Repository — 89 prompts / 10 folders)
+7. `kubectl -n weyland exec -i deploy/weyland-guard -- python - < scripts/register_bifrost_skills.py`  (Skills Repository — 20 Agent Skills)
+
+**Skills Repository (B111 2026-08-01):** 20 Agent Skills (Anthropic-style: frontmatter cols + `skill_md_body`) codified in
+**`scripts/register_bifrost_skills.py`** (idempotent) — lab-ops skills from our runbooks (deploy-via-argo, dagster-redeploy,
+bifrost-restore, diagnose-pod-oom, k8s-rwo-recreate, wake-sleep-store, swap-embedding-model, run-eval-suite, use-model-gateway,
+remote-training-rogueone, weyland-conventions, …) + generic dev skills. API: `POST /api/skills {name (kebab), version (semver),
+description, skill_md_body, compatibility, allowed_tools, license, metadata}`. Bifrost SERVES them as a Claude Code / Codex
+plugin marketplace (`/api/skills/serve/claude-code/.claude-plugin/marketplace.json`) — but those routes are **gated on object
+storage**: they 404 ("marketplace routes disabled … object storage to be configured") until Bifrost has MinIO wired as its
+object store. `download.zip` works from the DB regardless. TODO: wire Bifrost object storage to activate agent-installable skills.
 
 **Prompt Repository (B111 2026-08-01):** 89 model-agnostic, reusable prompts across 10 folders (system-prompts, coding,
 rag-retrieval, data-analytics, eval-judge, agentic-operator, search-web, guardrails-safety, content-ops, meta-prompt-eng)
