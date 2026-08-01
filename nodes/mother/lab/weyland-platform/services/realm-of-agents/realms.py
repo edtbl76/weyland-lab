@@ -19,7 +19,13 @@ _leads: dict[str, object] = {}
 
 def _member_tool(member: AgentSpec) -> StructuredTool:
     async def _call(task: str) -> str:
-        return await run_solo(member, task)
+        # A member failing (e.g. an empty LLM completion) is DATA for the lead to reconcile, not a crash that takes
+        # down the whole route. Also guard an empty delegated task — some models call the tool with no arg, and an
+        # empty user turn makes several providers return zero choices (→ IndexError deep in langchain_core).
+        try:
+            return await run_solo(member, task or f"Handle your part ({member.role}) of the current objective.")
+        except Exception as exc:
+            return f"[{member.god} ({member.role}) could not complete the sub-task: {exc}]"
     return StructuredTool.from_function(
         coroutine=_call,
         name=f"delegate_to_{member.key}",
