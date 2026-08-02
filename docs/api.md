@@ -161,6 +161,8 @@ realm **leads** act on their own tools or delegate to their members and reconcil
 | `/route` | POST | `{message, history?}` → Gná classifies and runs the best-fit agent; returns `{routed_to, god, role, realm, answer}` |
 | `/a2a` | POST | **A2A JSON-RPC** `message/send` → Gná dispatches; returns an A2A `Message`. This is the root card's `url` (what standard A2A clients POST to). |
 | `/a2a/{key}` | POST | **A2A JSON-RPC** `message/send` to one specific agent (a per-agent card's `url`) |
+| `/route/stream` | POST | `{message, history?}` → **SSE** live execution stream (route · delegate hops · tool + LLM events · answer tokens) — powers the Console |
+| `/` | GET | the **Realm Console** — the show-off UI (live map + inline trace tree + streamed answer) |
 | `/health` `/ready` | GET | liveness / readiness |
 | `/metrics` | GET | `realm_requests_total{agent,outcome}`, `realm_request_seconds{agent}` |
 
@@ -171,7 +173,9 @@ Agent keys: `odin·mimir·brokkr·forseti·hermodr·heimdall·huginn·muninn` (V
 **Debug UI:** the [A2A Inspector](https://github.com/a2aproject/a2a-inspector) runs at **`inspector.weyland.lab`**
 (Keycloak forward-auth, `k8s/a2a-inspector/`) — point it at the Realm card to validate the surface and chat through Gná.
 Adopted in a bake-off over **a2a-ui** (client-side; lost) and rejected **LangGraph Studio** / **Agent Chat UI** (both
-require reshaping the Realm into a LangGraph Server). A bespoke show-off "Realm Console" (the god-map) is still TODO.
+require reshaping the Realm into a LangGraph Server). **Console:** the show-off UI — a live god-map + inline execution-trace
+tree + streamed answer — is served by the Realm itself at **`realm.weyland.lab/`** (`GET /`, driven by `/route/stream`
+SSE; Uncial-Antiqua title, black-and-white chrome with realm color-coding).
 
 ## Data backends (mother, NodePort)
 
