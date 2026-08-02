@@ -63,7 +63,7 @@ data:
       # its OpenAI-compatible /v1 (openai/ prefix strips for LiteLLM). Auth = the realm-llm VK as the Bearer api_key.
       - model_name: wl-agentic        # tool orchestration · reliable cheap tool-calling
         litellm_params:
-          model: openai/anthropic/claude-4.5-haiku
+          model: openai/anthropic/claude-haiku-4-5   # Bifrost's routable Anthropic Haiku ID (NOT claude-4.5-haiku, which is a display alias Bifrost 403s)
           api_base: http://bifrost.weyland.svc.cluster.local:8080/v1
           api_key: os.environ/BIFROST_REALM_VK
       - model_name: wl-rag            # retrieval-grounded gen · free local (private)
