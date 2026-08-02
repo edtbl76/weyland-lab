@@ -57,10 +57,15 @@ data:
           model: openai/kimi-k3
           api_base: https://opencode.ai/zen/v1
           api_key: os.environ/OPENCODE_ZEN_API_KEY
+      # B17 DoD: wl-agentic egresses THROUGH Bifrost (realm-llm VK) so Bifrost records provider cost/usage + per-VK
+      # attribution (no LiteLLM DB). LiteLLM still owns the wl-* alias + the fallback chain below; Bifrost is just the
+      # provider-egress layer for the primary Haiku hop. Model id `anthropic/claude-4.5-haiku` is Bifrost's, reached via
+      # its OpenAI-compatible /v1 (openai/ prefix strips for LiteLLM). Auth = the realm-llm VK as the Bearer api_key.
       - model_name: wl-agentic        # tool orchestration · reliable cheap tool-calling
         litellm_params:
-          model: anthropic/claude-haiku-4-5-20251001
-          api_key: os.environ/ANTHROPIC_API_KEY
+          model: openai/anthropic/claude-4.5-haiku
+          api_base: http://bifrost.weyland.svc.cluster.local:8080/v1
+          api_key: os.environ/BIFROST_REALM_VK
       - model_name: wl-rag            # retrieval-grounded gen · free local (private)
         litellm_params:
           model: ollama_chat/gpt-oss:20b

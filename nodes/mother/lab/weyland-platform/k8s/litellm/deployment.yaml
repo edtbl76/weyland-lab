@@ -47,6 +47,13 @@ spec:
                 secretKeyRef:
                   name: litellm-secrets
                   key: LITELLM_MASTER_KEY
+            # B17 DoD: the realm-llm Bifrost VK — wl-agentic egresses THROUGH Bifrost so it records provider cost/usage
+            # + per-VK attribution (no LiteLLM DB). Create the secret out-of-band (see the register/DoD steps).
+            - name: BIFROST_REALM_VK
+              valueFrom:
+                secretKeyRef:
+                  name: bifrost-realm-vk
+                  key: BIFROST_REALM_VK
           volumeMounts:
             - name: config
               mountPath: /etc/litellm
