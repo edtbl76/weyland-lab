@@ -30,10 +30,11 @@ data:
         litellm_params:
           model: anthropic/claude-haiku-4-5-20251001
           api_key: os.environ/ANTHROPIC_API_KEY
-      - model_name: gemini-flash
+      - model_name: gemini-flash      # B17: via Bifrost (free fallback rung across many chains)
         litellm_params:
-          model: gemini/gemini-2.5-flash
-          api_key: os.environ/GEMINI_API_KEY
+          model: openai/gemini/gemini-2.5-flash
+          api_base: http://bifrost.weyland.svc.cluster.local:8080/v1
+          api_key: os.environ/BIFROST_REALM_VK
       - model_name: gemini-pro
         litellm_params:
           model: gemini/gemini-2.5-pro
@@ -44,19 +45,23 @@ data:
       # Keys resolve from the shared bifrost-provider-keys secret (envFrom on the pod). ollama = self-hosted
       # on rogueone (no key). Primaries below are the ones proven end-to-end during the Bifrost routing test.
       # ================================================================================================
-      - model_name: wl-default        # general-purpose · free hosted
+      # B17: hosted lanes egress THROUGH Bifrost (realm-llm VK) — cost/usage obs + per-VK attribution. Bifrost model ids
+      # confirmed via a direct batch test; `openai/` prefix makes LiteLLM treat Bifrost's /v1 as OpenAI-compatible.
+      - model_name: wl-default        # general-purpose · free hosted (groq via Bifrost)
         litellm_params:
-          model: groq/openai/gpt-oss-120b
-          api_key: os.environ/GROQ_API_KEY
-      - model_name: wl-speed          # lowest latency · free hosted
+          model: openai/groq/openai/gpt-oss-120b
+          api_base: http://bifrost.weyland.svc.cluster.local:8080/v1
+          api_key: os.environ/BIFROST_REALM_VK
+      - model_name: wl-speed          # lowest latency · free hosted (groq via Bifrost)
         litellm_params:
-          model: groq/openai/gpt-oss-120b
-          api_key: os.environ/GROQ_API_KEY
-      - model_name: wl-coding         # code gen/edits · opencode-zen (openai-compatible, custom base)
+          model: openai/groq/openai/gpt-oss-120b
+          api_base: http://bifrost.weyland.svc.cluster.local:8080/v1
+          api_key: os.environ/BIFROST_REALM_VK
+      - model_name: wl-coding         # code gen/edits · opencode-zen (via Bifrost)
         litellm_params:
-          model: openai/kimi-k3
-          api_base: https://opencode.ai/zen/v1
-          api_key: os.environ/OPENCODE_ZEN_API_KEY
+          model: openai/opencode-zen/kimi-k3
+          api_base: http://bifrost.weyland.svc.cluster.local:8080/v1
+          api_key: os.environ/BIFROST_REALM_VK
       # B17 DoD: wl-agentic egresses THROUGH Bifrost (realm-llm VK) so Bifrost records provider cost/usage + per-VK
       # attribution (no LiteLLM DB). LiteLLM still owns the wl-* alias + the fallback chain below; Bifrost is just the
       # provider-egress layer for the primary Haiku hop. Model id `anthropic/claude-4.5-haiku` is Bifrost's, reached via
@@ -104,10 +109,11 @@ data:
         litellm_params:
           model: openai/gpt-4o-mini
           api_key: os.environ/OPENAI_API_KEY
-      - model_name: xai-grok
+      - model_name: xai-grok          # B17: via Bifrost; remapped grok-3 → grok-4.5 (Bifrost's routable xai id)
         litellm_params:
-          model: xai/grok-3
-          api_key: os.environ/XAI_API_KEY
+          model: openai/xai/grok-4.5
+          api_base: http://bifrost.weyland.svc.cluster.local:8080/v1
+          api_key: os.environ/BIFROST_REALM_VK
 
     litellm_settings:
       callbacks: ["prometheus"]
