@@ -67,6 +67,42 @@ kubectl -n weyland exec deploy/realm-of-agents -c realm-of-agents -- python3 -c 
 kubectl -n weyland logs -f --tail=5 deploy/realm-of-agents
 ```
 
+## See it — the Console & the Inspector
+
+**Realm Console** — [`https://realm.weyland.lab/`](https://realm.weyland.lab/) (open on the LAN). The show-off UI: type a
+task, hit **Invoke ⚡**, and watch Gná dispatch, the answering gods light up across realms, the delegation hops draw, an
+inline **execution-trace tree** build (agents · `delegate_to_*` hops · tool + LLM calls, with timings + expandable I/O),
+and the answer stream in. Served by the Realm pod at `GET /`; black-and-white chrome, realm color-coding, Uncial-Antiqua
+title.
+
+**A2A Inspector** — [`https://inspector.weyland.lab`](https://inspector.weyland.lab) (Keycloak SSO). Point it at
+`http://realm-of-agents.weyland.svc.cluster.local:8080` to validate the Agent Cards and chat through Gná — the
+protocol-level debug view (adopted over a2a-ui / LangGraph Studio / Agent Chat UI in a bake-off).
+
+Both ride the same live stream the Console renders:
+
+```mermaid
+sequenceDiagram
+  autonumber
+  participant B as Browser (Console)
+  participant R as Realm /route/stream (Gná)
+  participant L as Lead (Odin)
+  participant M as Member (Brokkr)
+  B->>R: POST /route/stream (SSE opens)
+  R-->>B: route event → lead
+  R->>L: run (astream_events)
+  L-->>B: delegate_to_* hop (god lights up, edge draws)
+  L->>M: member-as-tool
+  M-->>B: tool + LLM events (nested tree node)
+  L-->>B: answer tokens (stream)
+  R-->>B: final · done
+```
+
+**Stream it from the CLI** (the exact events the Console consumes):
+```
+curl -N -sk -X POST https://realm.weyland.lab/route/stream -H "content-type: application/json" -d '{"message":"design & test a semver parser"}'
+```
+
 ## The picture
 
 ```likec4-view

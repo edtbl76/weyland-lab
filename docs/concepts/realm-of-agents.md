@@ -111,7 +111,8 @@ flowchart TD
   `roster.py` is the source of truth (24 `AgentSpec`s), `roles.py` holds each agent's specialist prompt, `cards.py`
   serves A2A Agent Cards, `realms.py` wires a lead to its members (member-as-tool), `router.py` is Gná.
 - **Framework split:** `LangGraph` inside a realm (a lead fans out to its members as tools — real 2-hop delegation);
-  the **A2A Protocol** (Agent Cards + `/route` · `/agents/{key}/message`) between realms and up to the Operator.
+  the **A2A Protocol** — spec-valid Agent Cards + a JSON-RPC `message/send` binding (`/a2a`) alongside the native REST
+  (`/route` · `/agents/{key}/message`) — between realms, up to the Operator, and out to any standard A2A client.
 - **Two-mode leads:** each lead uses its **own** tools for its specialty *and* `delegate_to_*` for the rest, then
   reconciles. Odin's loop is **spec → plan → build → test → review → secure → ship**.
 - **Brain:** a Realm-wide **Claude Haiku** override (`REALM_MODEL=wl-agentic`) — fast, reliable, off the local GPU;
@@ -120,7 +121,11 @@ flowchart TD
   **MLflow trace** (experiment `realm-of-agents`), and each delegation hop prints to the pod log for a live view.
 - **Resilience:** a member that fails (e.g. an empty completion) returns a note the lead reconciles — it never
   crashes the route.
+- **UI:** a show-off **Realm Console** served by the pod at `realm.weyland.lab/` — a live god-map + inline
+  execution-trace tree + streamed answer, driven by the `/route/stream` **SSE** (the graph's own `astream_events`);
+  plus the **A2A Inspector** at `inspector.weyland.lab` for protocol-level card/message debugging.
 
 Proven end-to-end: Valhalla produced a full semver engineering package (design → code → 80+ tests → review → deploy);
 Midgard returned real Trino catalogs; the Well did live cited web research. Full per-agent backing, framework split,
-and the deferred UI plan live in the design doc: `aidlc-docs/a2a-agent-roster.md`.
+and the UI decision-of-record (Console + Inspector; the a2a-ui / Studio bake-off) live in the design doc:
+`aidlc-docs/a2a-agent-roster.md`.

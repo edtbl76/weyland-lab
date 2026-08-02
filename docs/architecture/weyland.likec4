@@ -58,7 +58,8 @@ model {
         neo = store "Neo4j" "Graph + vector (GraphRAG) — AIDLC + music graph"
         neodash = component "NeoDash" "Neo4j dashboard / viz"
         ragIndex = component "rag-index consumers" "5 stream consumers — replay rag.chunks into each store"
-        realmOfAgents = component "Realm of Agents" "B17 A2A — 24 corpus-backed specialists in 5 Norse-named groups (Valhalla/Vanaheim/Midgard/the Well) in one multiplexed pod. Gná dispatches; leads act on their own tools or delegate to members and reconcile. Runs on Claude Haiku (REALM_MODEL override via LiteLLM). Tools via the Bifrost VK; every hop MLflow-traced. Reached by the Operator over A2A (delegate_to_realm)."
+        realmOfAgents = component "Realm of Agents" "B17 A2A — 24 corpus-backed specialists in 5 Norse-named groups (Valhalla/Vanaheim/Midgard/the Well) in one multiplexed pod. Gná dispatches; leads act on their own tools or delegate to members and reconcile. Runs on Claude Haiku (REALM_MODEL override via LiteLLM). Tools via the Bifrost VK; every hop MLflow-traced. Reached by the Operator over A2A (delegate_to_realm). Front door realm.weyland.lab — A2A JSON-RPC /a2a binding + the Realm Console (live trace UI via /route/stream SSE); debugged with the A2A Inspector."
+        a2aInspector = component "A2A Inspector" "B17 debug UI (inspector.weyland.lab, Keycloak SSO). Validates the Realm's Agent Cards and chats through Gná — protocol-level. Adopted over a2a-ui / LangGraph Studio / Agent Chat UI in a bake-off; Argo-managed."
       }
 
       // ============ Data mesh / lakehouse plane (sliced) ============
@@ -194,6 +195,7 @@ model {
 
   // Realm of Agents (B17 A2A)
   weyland.mother.ai.operator -> weyland.mother.ai.realmOfAgents "delegate_to_realm — A2A hand-off (POST /route); Gná routes to the best specialist"
+  weyland.mother.ai.a2aInspector -> weyland.mother.ai.realmOfAgents "validates Agent Cards + chats through Gná (protocol debug UI)"
   weyland.mother.ai.realmOfAgents -> weyland.mother.ai.litellm "brains — every agent on Claude Haiku (wl-agentic lane)"
   weyland.mother.ai.realmOfAgents -> weyland.mother.ops.edge.bifrost "tools — the coding-agents VK MCP surface (grafana/trino/neo4j/datahub/context7/perplexity/…)"
   weyland.mother.ai.litellm -> weyland.mother.ops.edge.bifrost "hosted-lane LLM egress (2026-08-01) — LiteLLM→Bifrost→provider (anthropic/groq/opencode-zen/gemini/xai); Bifrost records provider cost/tokens/latency + per-VK (realm-llm). Local ollama lanes stay direct."
