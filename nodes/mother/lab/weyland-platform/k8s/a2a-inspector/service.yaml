@@ -1,0 +1,17 @@
+# ClusterIP — the ingress (inspector.weyland.lab) fronts it. Replaces the throwaway NodePort from the spike; Argo
+# reconciles the same-named Service in place on first sync.
+apiVersion: v1
+kind: Service
+metadata:
+  name: a2a-inspector
+  namespace: weyland
+  labels:
+    app: a2a-inspector
+spec:
+  type: ClusterIP
+  selector:
+    app: a2a-inspector
+  ports:
+    - name: http
+      port: 8080
+      targetPort: 8080

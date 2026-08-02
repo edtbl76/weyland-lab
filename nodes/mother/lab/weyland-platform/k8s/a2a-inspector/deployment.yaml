@@ -1,0 +1,45 @@
+# A2A Inspector — the debug/validation UI for the Realm's A2A surface (B17). Promoted from a throwaway spike to a
+# managed app: connects (in-cluster, plain http) to realm-of-agents.weyland.svc:8080 and validates the card + streams
+# a chat. UI fronted at inspector.weyland.lab behind Keycloak forward-auth (see ingress.yaml). Unmeshed — it only
+# talks to the PERMISSIVE Realm Service, no STRICT-mTLS peer in the path. Image built from
+# github.com/a2aproject/a2a-inspector and pushed to the private registry.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: a2a-inspector
+  namespace: weyland
+  labels:
+    app: a2a-inspector
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: a2a-inspector
+  template:
+    metadata:
+      labels:
+        app: a2a-inspector
+        sidecar.istio.io/inject: "false"
+    spec:
+      containers:
+        - name: a2a-inspector
+          image: registry.weyland.lab/a2a-inspector:v1  # nosemgrep: yaml.kubernetes.security.run-as-non-root.run-as-non-root
+          imagePullPolicy: IfNotPresent
+          securityContext:
+            allowPrivilegeEscalation: false
+            seccompProfile:
+              type: RuntimeDefault
+          ports:
+            - name: http
+              containerPort: 8080
+          readinessProbe:
+            tcpSocket:
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              memory: 512Mi

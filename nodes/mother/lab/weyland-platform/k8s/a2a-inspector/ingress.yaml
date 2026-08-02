@@ -1,0 +1,28 @@
+# inspector.weyland.lab — the A2A Inspector UI. Behind Keycloak forward-auth like the other human dashboards
+# (apisix-dashboard, sonarqube): the middleware lives in the weyland ns, so a same-namespace ref is allowed
+# (weyland-traefik-forward-auth@kubernetescrd). The Inspector's Socket.IO websockets pass once the SSO cookie is set
+# (same pattern as n8n). Wildcard TLS. NOTE: this gates the browser→UI hop only; the Inspector's own backend→Realm
+# hop is in-cluster and unaffected.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: a2a-inspector
+  namespace: weyland
+  annotations:
+    traefik.ingress.kubernetes.io/router.middlewares: weyland-traefik-forward-auth@kubernetescrd
+spec:
+  tls:
+    - hosts:
+        - inspector.weyland.lab
+      secretName: weyland-wildcard-tls
+  rules:
+    - host: inspector.weyland.lab
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: a2a-inspector
+                port:
+                  number: 8080

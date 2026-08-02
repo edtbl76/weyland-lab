@@ -567,3 +567,23 @@ spec:
     namespace: weyland
   syncPolicy:
     automated: { selfHeal: true, prune: true }
+---
+# B17 A2A — a2a-inspector: the debug/validation UI for the Realm's A2A surface (inspector.weyland.lab, Keycloak
+# forward-auth). Promoted from a throwaway spike; adopts the kubectl-applied Deployment/Service and reconciles the
+# NodePort → ClusterIP + adds the ingress. Image built from github.com/a2aproject/a2a-inspector → private registry.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: a2a-inspector
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/edtbl76/weyland-lab.git
+    targetRevision: main
+    path: nodes/mother/lab/weyland-platform/k8s/a2a-inspector
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: weyland
+  syncPolicy:
+    automated: { selfHeal: true, prune: true }
