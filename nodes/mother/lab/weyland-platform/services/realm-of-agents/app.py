@@ -7,12 +7,13 @@ members over LangGraph; cross-realm calls go over these HTTP/A2A endpoints.
 Slice 1 (first wave): Gná dispatch · Kvasir · Verðandi (grafana tools) · Odin delegating to Mímir + Brokkr. Every other
 agent is declared in the roster and runs generically (role prompt + lane + tool slice); leads gain delegation as their
 members come online."""
+import json
 import time
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, HTTPException, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 from prometheus_client import CONTENT_TYPE_LATEST, Counter, Histogram, generate_latest
 from pydantic import BaseModel
 
@@ -21,6 +22,7 @@ import mlflow
 import a2a
 import cards
 import router as gna
+import stream as realm_stream
 from config import MLFLOW_EXPERIMENT, MLFLOW_TRACKING_URI, VERSION
 from roster import BY_KEY, ROSTER, REALMS, in_realm
 
@@ -93,6 +95,20 @@ async def send_message(key: str, req: TaskRequest):
     _LATENCY.labels(key).observe(time.monotonic() - t0)
     _REQS.labels(key, "ok").inc()
     return {"agent": key, "god": spec.god, "role": spec.role, "realm": spec.realm, "answer": answer}
+
+
+@app.post("/route/stream")
+async def route_stream(req: TaskRequest):
+    """Live execution stream (SSE) for the Realm Console: Gná's pick, then the chosen agent's nested run as it happens
+    (node/tool/LLM/token events with parent nesting). See stream.py for the wire schema."""
+    async def gen():
+        try:
+            async for ev in realm_stream.dispatch_events(req.message, req.history):
+                yield f"data: {json.dumps(ev)}\n\n"
+        except Exception as exc:
+            yield f"data: {json.dumps({'type': 'error', 'error': str(exc)})}\n\n"
+    return StreamingResponse(gen(), media_type="text/event-stream",
+                             headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
 
 
 @app.post("/route")

@@ -22,15 +22,20 @@ async def _graph(spec: AgentSpec):
     return g
 
 
-async def run_solo(spec: AgentSpec, task: str, history: list | None = None) -> str:
-    """Run `spec` on `task` as a standalone specialist. Returns its final text."""
-    graph = await _graph(spec)
-    log(f"{spec.god} · {spec.role} — thinking ({effective_model(spec.lane)})")
+def _solo_messages(spec: AgentSpec, task: str, history: list | None = None) -> list:
+    """The message list for a solo run — reused by run_solo AND the streaming path (stream.py), so they can't drift."""
     messages = [("system", load_role(spec))]
     if history:
         messages += history
     messages.append(("user", task))
-    result = await graph.ainvoke({"messages": messages}, {"recursion_limit": 50})
+    return messages
+
+
+async def run_solo(spec: AgentSpec, task: str, history: list | None = None) -> str:
+    """Run `spec` on `task` as a standalone specialist. Returns its final text."""
+    graph = await _graph(spec)
+    log(f"{spec.god} · {spec.role} — thinking ({effective_model(spec.lane)})")
+    result = await graph.ainvoke({"messages": _solo_messages(spec, task, history)}, {"recursion_limit": 50})
     out = result["messages"][-1].content
     log(f"{spec.god} — answered ({len(out)} chars)")
     return out

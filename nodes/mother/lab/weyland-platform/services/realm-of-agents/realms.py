@@ -49,10 +49,8 @@ async def _lead_graph(lead: AgentSpec):
     return g
 
 
-async def run_lead(lead: AgentSpec, task: str, history: list | None = None) -> str:
-    """Run a realm lead: it does its own specialty with its own tools, delegates the rest to its members, and reconciles."""
-    log(f"{lead.god} (lead) — decomposing and delegating")
-    graph = await _lead_graph(lead)
+def _lead_messages(lead: AgentSpec, task: str, history: list | None = None) -> list:
+    """The message list for a lead run — reused by run_lead AND the streaming path (stream.py), so they can't drift."""
     sys = (load_role(lead) + " You lead a team of specialists. Use your OWN tools for your specialty; for anything "
            "outside it, call the matching delegate_to_* tool to hand that sub-task to the right member. Then "
            "synthesize everything — your findings and theirs — into one answer.")
@@ -60,5 +58,12 @@ async def run_lead(lead: AgentSpec, task: str, history: list | None = None) -> s
     if history:
         messages += history
     messages.append(("user", task))
-    result = await graph.ainvoke({"messages": messages}, {"recursion_limit": 50})
+    return messages
+
+
+async def run_lead(lead: AgentSpec, task: str, history: list | None = None) -> str:
+    """Run a realm lead: it does its own specialty with its own tools, delegates the rest to its members, and reconciles."""
+    log(f"{lead.god} (lead) — decomposing and delegating")
+    graph = await _lead_graph(lead)
+    result = await graph.ainvoke({"messages": _lead_messages(lead, task, history)}, {"recursion_limit": 50})
     return result["messages"][-1].content
