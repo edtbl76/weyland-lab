@@ -10,13 +10,14 @@ members come online."""
 import time
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, HTTPException, Response
+from fastapi import FastAPI, HTTPException, Request, Response
 from fastapi.responses import JSONResponse
 from prometheus_client import CONTENT_TYPE_LATEST, Counter, Histogram, generate_latest
 from pydantic import BaseModel
 
 import mlflow
 
+import a2a
 import cards
 import router as gna
 from config import MLFLOW_EXPERIMENT, MLFLOW_TRACKING_URI, VERSION
@@ -43,6 +44,7 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="Weyland — Realm of Agents", version=VERSION, lifespan=lifespan)
+app.include_router(a2a.router)   # A2A JSON-RPC binding: POST /a2a (Gná) and /a2a/{key} (specific agent)
 
 
 class TaskRequest(BaseModel):
@@ -52,23 +54,23 @@ class TaskRequest(BaseModel):
 
 # --- Discovery (A2A Agent Cards) ---------------------------------------------------------------------------------
 @app.get("/.well-known/agent-card.json")
-def root_card():
-    return cards.root_card()
+def root_card(request: Request):
+    return cards.root_card(str(request.base_url))
 
 
 @app.get("/agents")
-def list_agents():
+def list_agents(request: Request):
     """The whole roster as cards, plus a realm index for humans/UIs."""
-    return {"realms": {r: [a.key for a in in_realm(r)] for r in REALMS}, "agents": cards.all_cards()}
+    return {"realms": {r: [a.key for a in in_realm(r)] for r in REALMS}, "agents": cards.all_cards(str(request.base_url))}
 
 
 @app.get("/agents/{key}/.well-known/agent-card.json")
 @app.get("/agents/{key}/card")
-def agent_card(key: str):
+def agent_card(key: str, request: Request):
     spec = BY_KEY.get(key)
     if not spec:
         raise HTTPException(404, f"no agent '{key}'")
-    return cards.card(spec)
+    return cards.card(spec, str(request.base_url))
 
 
 # --- Tasking -----------------------------------------------------------------------------------------------------

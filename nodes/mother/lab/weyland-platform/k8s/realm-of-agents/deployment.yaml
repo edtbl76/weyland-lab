@@ -20,7 +20,7 @@ spec:
       enableServiceLinks: false
       containers:
         - name: realm-of-agents
-          image: registry.weyland.lab/realm-of-agents:v11   # v11 — Vanaheim + the Well fleshed out; roster complete (Óðrœrir=context, Ratatoskr=perplexity)
+          image: registry.weyland.lab/realm-of-agents:v12   # v12 — A2A JSON-RPC binding (a2a.py: /a2a + /a2a/{key}); cards gain protocolVersion + preferredTransport (Inspector-compatible)
           imagePullPolicy: IfNotPresent
           resources:
             # No torch/embedder — langgraph/langchain client + fastapi only; inference is remote (LiteLLM). Low request
