@@ -52,11 +52,11 @@ spec:
             # Brains — LiteLLM wl-* lanes (transparent tool-calling passthrough; the master key is the API key).
             - name: LITELLM_BASE_URL
               value: http://litellm.weyland.svc.cluster.local:4000/v1
-            # Dedicated Realm VK (LiteLLM key alias `realm-of-agents`) for clean per-Realm spend attribution in
-            # LiteLLM/Grafana — NOT the master key. Mint the VK + create this secret BEFORE pushing this change, or the
-            # pod 401s (see the register/DoD steps). To revert: point back at litellm-secrets/LITELLM_MASTER_KEY.
+            # NOTE: dedicated Realm VK is BLOCKED until LiteLLM has a DB — virtual keys/per-key spend require
+            # DATABASE_URL (our LiteLLM is master-key-only). Using the master key until then; flip to a
+            # realm-of-agents-litellm secret once the LiteLLM DB + VK exist.
             - name: LITELLM_API_KEY
-              valueFrom: { secretKeyRef: { name: realm-of-agents-litellm, key: LITELLM_KEY } }
+              valueFrom: { secretKeyRef: { name: litellm-secrets, key: LITELLM_MASTER_KEY } }
             # Whole-Realm brain = Claude Haiku (wl-agentic lane = Haiku + free hosted fallback). Keeps every agent fast
             # and reliable and off rogueone's local GPU lanes. Set to "claude-haiku" for raw Haiku, or "" for per-agent lanes.
             - name: REALM_MODEL

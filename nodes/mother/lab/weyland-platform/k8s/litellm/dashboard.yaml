@@ -1,0 +1,56 @@
+# LiteLLM cost dashboard (B17 DoD — "see the spend before deciding on a DB"). ConfigMap in the `monitoring` ns with the
+# `grafana_dashboard` label → the kube-prometheus-stack Grafana sidecar auto-imports it (Dashboards → LiteLLM Cost).
+# Metrics from k8s/litellm/servicemonitor.yaml (scrapes /metrics/ on the litellm svc). `litellm_spend_metric_total` is a
+# counter of $ spend, labeled by model / api_key_alias / team — computed from token usage × model cost, so it works
+# WITHOUT a LiteLLM DB. Spend-by-MODEL is fully attributed; spend-by-CONSUMER (api_key_alias) needs virtual keys, which
+# need a DB — until then every request rides the master key, so the by-alias panel lumps everything together (that gap
+# is exactly the decision this dashboard informs).
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: litellm-dashboard
+  namespace: monitoring
+  labels:
+    grafana_dashboard: "1"
+data:
+  litellm-cost.json: |
+    {
+      "title": "LiteLLM Cost",
+      "uid": "litellm-cost",
+      "schemaVersion": 39,
+      "editable": true,
+      "tags": ["litellm", "llm", "cost"],
+      "time": { "from": "now-7d", "to": "now" },
+      "refresh": "1m",
+      "templating": { "list": [
+        { "name": "datasource", "type": "datasource", "query": "prometheus", "current": {}, "hide": 0 }
+      ] },
+      "panels": [
+        { "id": 1, "title": "Total spend (range)", "type": "stat", "gridPos": {"h":4,"w":6,"x":0,"y":0},
+          "datasource": {"type":"prometheus","uid":"${datasource}"},
+          "targets": [{"expr":"sum(increase(litellm_spend_metric_total[$__range]))","refId":"A"}],
+          "fieldConfig": {"defaults":{"unit":"currencyUSD","decimals":4}} },
+        { "id": 2, "title": "Spend rate ($/hr)", "type": "stat", "gridPos": {"h":4,"w":6,"x":6,"y":0},
+          "datasource": {"type":"prometheus","uid":"${datasource}"},
+          "targets": [{"expr":"sum(rate(litellm_spend_metric_total[5m]))*3600","refId":"A"}],
+          "fieldConfig": {"defaults":{"unit":"currencyUSD","decimals":4}} },
+        { "id": 3, "title": "Spend by consumer (api_key_alias, range)", "type": "table", "gridPos": {"h":4,"w":12,"x":12,"y":0},
+          "datasource": {"type":"prometheus","uid":"${datasource}"},
+          "targets": [{"expr":"sum by (api_key_alias) (increase(litellm_spend_metric_total[$__range]))","refId":"A","format":"table","instant":true}],
+          "fieldConfig": {"defaults":{"unit":"currencyUSD","decimals":4}},
+          "description": "Empty/‘default’ until virtual keys exist (needs a LiteLLM DB) — this is the per-consumer view a VK would light up." },
+        { "id": 4, "title": "Spend by model over time ($/hr)", "type": "timeseries", "gridPos": {"h":8,"w":24,"x":0,"y":4},
+          "datasource": {"type":"prometheus","uid":"${datasource}"},
+          "targets": [{"expr":"sum by (model) (rate(litellm_spend_metric_total[5m]))*3600","refId":"A","legendFormat":"{{model}}"}],
+          "fieldConfig": {"defaults":{"unit":"currencyUSD","decimals":4,"custom":{"fillOpacity":10,"stacking":{"mode":"normal"}}}} },
+        { "id": 5, "title": "Spend by model (range)", "type": "bargauge", "gridPos": {"h":8,"w":12,"x":0,"y":12},
+          "datasource": {"type":"prometheus","uid":"${datasource}"},
+          "targets": [{"expr":"sum by (model) (increase(litellm_spend_metric_total[$__range]))","refId":"A","legendFormat":"{{model}}","instant":true}],
+          "options": {"displayMode":"gradient","orientation":"horizontal"},
+          "fieldConfig": {"defaults":{"unit":"currencyUSD","decimals":4}} },
+        { "id": 6, "title": "Spend by team (range)", "type": "table", "gridPos": {"h":8,"w":12,"x":12,"y":12},
+          "datasource": {"type":"prometheus","uid":"${datasource}"},
+          "targets": [{"expr":"sum by (team) (increase(litellm_spend_metric_total[$__range]))","refId":"A","format":"table","instant":true}],
+          "fieldConfig": {"defaults":{"unit":"currencyUSD","decimals":4}} }
+      ]
+    }
