@@ -31,7 +31,7 @@ def card(spec: AgentSpec, base: str | None = None) -> dict:
         "url": f"{b}/a2a/{spec.key}",
         "preferredTransport": "JSONRPC",
         "version": VERSION,
-        "provider": {"organization": "weyland", "realm": spec.realm},
+        "provider": {"organization": "weyland", "url": b},   # A2A AgentProvider requires organization + url
         "capabilities": _CAPS,
         "defaultInputModes": ["text/plain"],
         "defaultOutputModes": ["text/plain"],
@@ -60,7 +60,7 @@ def root_card(base: str | None = None) -> dict:
         "url": f"{b}/a2a",
         "preferredTransport": "JSONRPC",
         "version": VERSION,
-        "provider": {"organization": "weyland"},
+        "provider": {"organization": "weyland", "url": b},   # A2A AgentProvider requires organization + url
         "capabilities": _CAPS,
         "defaultInputModes": ["text/plain"],
         "defaultOutputModes": ["text/plain"],
