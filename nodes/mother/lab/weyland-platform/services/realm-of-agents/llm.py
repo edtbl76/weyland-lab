@@ -9,6 +9,12 @@ from langchain_openai import ChatOpenAI
 from config import LITELLM_API_KEY, LITELLM_BASE_URL, LLM_TIMEOUT, REALM_MODEL
 
 
+def effective_model(lane: str) -> str:
+    """The model actually used for `lane` after the REALM_MODEL override — what to show in logs/traces (not the
+    agent's declared lane, which is misleading while the override is on)."""
+    return REALM_MODEL or lane
+
+
 @lru_cache(maxsize=None)
 def brain(lane: str) -> ChatOpenAI:
     # REALM_MODEL (default the Haiku-backed wl-agentic lane) overrides the per-agent lane so the whole Realm runs on

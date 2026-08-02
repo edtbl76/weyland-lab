@@ -5,7 +5,7 @@ on first use (tools load async from the Bifrost VK) and cached. Realm leads add 
 from langgraph.prebuilt import create_react_agent
 
 from fleet import tools_for
-from llm import brain
+from llm import brain, effective_model
 from obs import log
 from prompts import load_role
 from roster import AgentSpec
@@ -25,7 +25,7 @@ async def _graph(spec: AgentSpec):
 async def run_solo(spec: AgentSpec, task: str, history: list | None = None) -> str:
     """Run `spec` on `task` as a standalone specialist. Returns its final text."""
     graph = await _graph(spec)
-    log(f"{spec.god} · {spec.role} — thinking (lane={spec.lane})")
+    log(f"{spec.god} · {spec.role} — thinking ({effective_model(spec.lane)})")
     messages = [("system", load_role(spec))]
     if history:
         messages += history

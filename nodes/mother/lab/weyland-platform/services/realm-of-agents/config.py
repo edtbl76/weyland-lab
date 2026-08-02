@@ -31,6 +31,10 @@ HTTPX_VERIFY = BIFROST_CA_BUNDLE or True
 # --- Prompt Repo (fail-safe): live role prompts by name, else the baked fallback in roster.py --------------------
 PROMPT_TTL = float(os.getenv("PROMPT_TTL", "300"))
 
+# --- Observability: MLflow traces (every run + its deliverable captured; fail-safe if MLflow is down) ------------
+MLFLOW_TRACKING_URI = os.getenv("MLFLOW_TRACKING_URI", "http://mlflow.weyland.svc.cluster.local:5000")
+MLFLOW_EXPERIMENT = os.getenv("MLFLOW_EXPERIMENT", "realm-of-agents")
+
 # --- Server ------------------------------------------------------------------------------------------------------
 PORT = int(os.getenv("PORT", "8080"))
 PUBLIC_BASE_URL = os.getenv("PUBLIC_BASE_URL", "https://realm.weyland.lab")   # advertised in Agent Cards

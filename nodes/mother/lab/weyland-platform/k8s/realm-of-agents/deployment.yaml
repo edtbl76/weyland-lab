@@ -20,7 +20,7 @@ spec:
       enableServiceLinks: false
       containers:
         - name: realm-of-agents
-          image: registry.weyland.lab/realm-of-agents:v8   # v8 — whole Realm runs on Haiku (REALM_MODEL); off rogueone's local lanes
+          image: registry.weyland.lab/realm-of-agents:v9   # v9 — MLflow autolog (runs+deliverables as traces); log effective brain
           imagePullPolicy: IfNotPresent
           resources:
             # No torch/embedder — langgraph/langchain client + fastapi only; inference is remote (LiteLLM). Low request
@@ -72,3 +72,6 @@ spec:
               value: http://bifrost.weyland.svc.cluster.local:8080
             - name: PUBLIC_BASE_URL
               value: https://realm.weyland.lab
+            # Every run + its deliverable captured as an MLflow trace (experiment: realm-of-agents). Fail-safe if down.
+            - name: MLFLOW_TRACKING_URI
+              value: http://mlflow.weyland.svc.cluster.local:5000

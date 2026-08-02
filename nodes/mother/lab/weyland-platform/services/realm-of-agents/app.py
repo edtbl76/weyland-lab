@@ -15,9 +15,11 @@ from fastapi.responses import JSONResponse
 from prometheus_client import CONTENT_TYPE_LATEST, Counter, Histogram, generate_latest
 from pydantic import BaseModel
 
+import mlflow
+
 import cards
 import router as gna
-from config import VERSION
+from config import MLFLOW_EXPERIMENT, MLFLOW_TRACKING_URI, VERSION
 from roster import BY_KEY, ROSTER, REALMS, in_realm
 
 _REQS = Counter("realm_requests_total", "Agent task requests", ["agent", "outcome"])
@@ -27,6 +29,15 @@ _ready = {"ok": False}
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    # Every agent run (and its full deliverable) is captured as an MLflow trace. Fail-safe: MLflow unreachable never
+    # blocks startup or a request — same ethos as the operator's tracing.
+    try:
+        mlflow.set_tracking_uri(MLFLOW_TRACKING_URI)
+        mlflow.set_experiment(MLFLOW_EXPERIMENT)
+        mlflow.langchain.autolog()
+        print("[realm] MLflow autolog enabled", flush=True)
+    except Exception as exc:
+        print(f"[realm] MLflow autolog disabled: {exc}", flush=True)
     _ready["ok"] = True
     yield
 
