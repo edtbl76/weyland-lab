@@ -83,32 +83,40 @@ data:
         litellm_params:
           model: ollama_chat/qwen2.5:7b
           api_base: http://192.168.1.230:11434
-      - model_name: wl-search         # web-grounded · only web-search provider
+      - model_name: wl-search         # web-grounded · perplexity sonar (via Bifrost; id is perplexity/sonar, NOT the /v1/models perplexity/perplexity/sonar which 400s invalid_model)
         litellm_params:
-          model: perplexity/sonar
-          api_key: os.environ/PERPLEXITY_API_KEY
-      - model_name: wl-big-oss        # big frontier OSS via aggregator
+          model: openai/perplexity/sonar
+          api_base: http://bifrost.weyland.svc.cluster.local:8080/v1
+          api_key: os.environ/BIFROST_REALM_VK
+      - model_name: wl-big-oss        # big frontier OSS via aggregator (openrouter via Bifrost)
         litellm_params:
-          model: openrouter/minimax/minimax-m3
-          api_key: os.environ/OPENROUTER_API_KEY
+          model: openai/openrouter/minimax/minimax-m3
+          api_base: http://bifrost.weyland.svc.cluster.local:8080/v1
+          api_key: os.environ/BIFROST_REALM_VK
 
       # --- Fallback-only deployments (targets referenced by router_settings.fallbacks) ---
+      # All via Bifrost. deepseek-chat/reasoner remapped to Bifrost's deepseek-v4-flash/pro; cerebras kept though
+      # still 402-unfunded (routes through Bifrost — logs the 402, works instantly when funded).
       - model_name: deepseek-chat
         litellm_params:
-          model: deepseek/deepseek-chat
-          api_key: os.environ/DEEPSEEK_API_KEY
+          model: openai/deepseek/deepseek-v4-flash
+          api_base: http://bifrost.weyland.svc.cluster.local:8080/v1
+          api_key: os.environ/BIFROST_REALM_VK
       - model_name: deepseek-reasoner
         litellm_params:
-          model: deepseek/deepseek-reasoner
-          api_key: os.environ/DEEPSEEK_API_KEY
+          model: openai/deepseek/deepseek-v4-pro
+          api_base: http://bifrost.weyland.svc.cluster.local:8080/v1
+          api_key: os.environ/BIFROST_REALM_VK
       - model_name: cerebras-oss
         litellm_params:
-          model: cerebras/gpt-oss-120b
-          api_key: os.environ/CEREBRAS_API_KEY
+          model: openai/cerebras/gpt-oss-120b
+          api_base: http://bifrost.weyland.svc.cluster.local:8080/v1
+          api_key: os.environ/BIFROST_REALM_VK
       - model_name: openai-mini
         litellm_params:
-          model: openai/gpt-4o-mini
-          api_key: os.environ/OPENAI_API_KEY
+          model: openai/openai/gpt-4o-mini
+          api_base: http://bifrost.weyland.svc.cluster.local:8080/v1
+          api_key: os.environ/BIFROST_REALM_VK
       - model_name: xai-grok          # B17: via Bifrost; remapped grok-3 → grok-4.5 (Bifrost's routable xai id)
         litellm_params:
           model: openai/xai/grok-4.5

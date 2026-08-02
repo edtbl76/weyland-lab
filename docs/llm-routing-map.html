@@ -116,10 +116,8 @@
     <b>Fallback philosophy.</b> Primary = cheapest capable source (free/local where private). Chains are
     <b>multi-rung</b>: a dry paid provider (402 / 429) is <b>skipped by cost management</b>, not an error — the router
     walks on — and every chain ends in a free, always-on rung so it can never hard-fail.
-    <div class="note"><b>Live vs dead (2026-08-01 Bifrost probe).</b> Working providers: <b>anthropic&nbsp;&middot;&nbsp;groq&nbsp;&middot;&nbsp;gemini&nbsp;&middot;&nbsp;opencode-zen&nbsp;&middot;&nbsp;xai</b>.
-      <b>openrouter&nbsp;/&nbsp;cerebras&nbsp;/&nbsp;deepseek</b> &rarr; 402 (no credits), <b>openai</b> &rarr; 429 (quota),
-      <code>wl-search</code> perplexity id &rarr; 400 (needs fixing). Those rungs are skipped and the chain falls through
-      to a working one — the always-free tail (groq/gemini) still guarantees no hard-fail.</div>
+    <div class="note"><b>Provider status (2026-08-02).</b> Live &amp; egressing through Bifrost: <b>anthropic&nbsp;&middot;&nbsp;groq&nbsp;&middot;&nbsp;gemini&nbsp;&middot;&nbsp;opencode-zen&nbsp;&middot;&nbsp;xai&nbsp;&middot;&nbsp;openrouter&nbsp;&middot;&nbsp;deepseek&nbsp;&middot;&nbsp;openai&nbsp;&middot;&nbsp;perplexity</b>.
+      Only <b>cerebras</b> is 402 (unfunded) — kept in the chains (routes through Bifrost, works the moment it's funded). Note: perplexity's routable id is <code>perplexity/sonar</code>, not the <code>/v1/models</code>-listed <code>perplexity/perplexity/sonar</code> (which 400s <code>invalid_model</code>).</div>
     <div class="note"><b>Notes.</b> <code>wl-agentic</code> skips Groq — its free tier is tool-free (8k&nbsp;TPM can't carry
       the tool payload). <code>wl-search</code> / <code>wl-tts</code> are near-single-source, so their chains are short.
       Media lanes route on the image / audio / video endpoints, not chat.</div>
