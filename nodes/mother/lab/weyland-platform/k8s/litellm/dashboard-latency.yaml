@@ -1,0 +1,56 @@
+# LiteLLM · Latency dashboard (B17 DoD). ConfigMap in `monitoring` ns, `grafana_dashboard` label → Grafana sidecar
+# auto-imports (Dashboards → LiteLLM · Latency). All panels are histogram_quantile over the *_bucket series.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: litellm-dashboard-latency
+  namespace: monitoring
+  labels:
+    grafana_dashboard: "1"
+data:
+  litellm-latency.json: |
+    {
+      "title": "LiteLLM · Latency",
+      "uid": "litellm-latency",
+      "schemaVersion": 39,
+      "editable": true,
+      "tags": ["litellm", "llm", "latency"],
+      "time": { "from": "now-6h", "to": "now" },
+      "refresh": "30s",
+      "templating": { "list": [
+        { "name": "datasource", "type": "datasource", "query": "prometheus", "current": {}, "hide": 0 }
+      ] },
+      "panels": [
+        { "id": 1, "title": "Request total latency (p50 / p95 / p99)", "type": "timeseries", "gridPos": {"h":8,"w":12,"x":0,"y":0},
+          "datasource": {"type":"prometheus","uid":"${datasource}"},
+          "targets": [
+            {"expr":"histogram_quantile(0.50, sum(rate(litellm_request_total_latency_metric_bucket[5m])) by (le))","refId":"A","legendFormat":"p50"},
+            {"expr":"histogram_quantile(0.95, sum(rate(litellm_request_total_latency_metric_bucket[5m])) by (le))","refId":"B","legendFormat":"p95"},
+            {"expr":"histogram_quantile(0.99, sum(rate(litellm_request_total_latency_metric_bucket[5m])) by (le))","refId":"C","legendFormat":"p99"}
+          ],
+          "fieldConfig": {"defaults":{"unit":"s"}} },
+        { "id": 2, "title": "LLM API latency p95 by model", "type": "timeseries", "gridPos": {"h":8,"w":12,"x":12,"y":0},
+          "datasource": {"type":"prometheus","uid":"${datasource}"},
+          "targets": [{"expr":"histogram_quantile(0.95, sum by (le, model) (rate(litellm_llm_api_latency_metric_bucket[5m])))","refId":"A","legendFormat":"{{model}}"}],
+          "fieldConfig": {"defaults":{"unit":"s"}} },
+        { "id": 3, "title": "Time to first token p95 by model", "type": "timeseries", "gridPos": {"h":8,"w":12,"x":0,"y":8},
+          "datasource": {"type":"prometheus","uid":"${datasource}"},
+          "targets": [{"expr":"histogram_quantile(0.95, sum by (le, model) (rate(litellm_llm_api_time_to_first_token_metric_bucket[5m])))","refId":"A","legendFormat":"{{model}}"}],
+          "fieldConfig": {"defaults":{"unit":"s"}} },
+        { "id": 4, "title": "Latency per output token p95", "type": "timeseries", "gridPos": {"h":8,"w":12,"x":12,"y":8},
+          "datasource": {"type":"prometheus","uid":"${datasource}"},
+          "targets": [{"expr":"histogram_quantile(0.95, sum(rate(litellm_deployment_latency_per_output_token_bucket[5m])) by (le))","refId":"A","legendFormat":"p95"}],
+          "fieldConfig": {"defaults":{"unit":"s"}} },
+        { "id": 5, "title": "Proxy overhead p95 (with vs without guardrails)", "type": "timeseries", "gridPos": {"h":8,"w":12,"x":0,"y":16},
+          "datasource": {"type":"prometheus","uid":"${datasource}"},
+          "targets": [
+            {"expr":"histogram_quantile(0.95, sum(rate(litellm_overhead_latency_metric_bucket[5m])) by (le))","refId":"A","legendFormat":"overhead"},
+            {"expr":"histogram_quantile(0.95, sum(rate(litellm_overhead_with_guardrails_latency_metric_bucket[5m])) by (le))","refId":"B","legendFormat":"+ guardrails"}
+          ],
+          "fieldConfig": {"defaults":{"unit":"s"}} },
+        { "id": 6, "title": "Request queue time p95", "type": "timeseries", "gridPos": {"h":8,"w":12,"x":12,"y":16},
+          "datasource": {"type":"prometheus","uid":"${datasource}"},
+          "targets": [{"expr":"histogram_quantile(0.95, sum(rate(litellm_request_queue_time_seconds_bucket[5m])) by (le))","refId":"A","legendFormat":"p95"}],
+          "fieldConfig": {"defaults":{"unit":"s"}} }
+      ]
+    }
