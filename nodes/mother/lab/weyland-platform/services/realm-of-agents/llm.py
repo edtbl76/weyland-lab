@@ -6,10 +6,13 @@ from functools import lru_cache
 
 from langchain_openai import ChatOpenAI
 
-from config import LITELLM_API_KEY, LITELLM_BASE_URL, LLM_TIMEOUT
+from config import LITELLM_API_KEY, LITELLM_BASE_URL, LLM_TIMEOUT, REALM_MODEL
 
 
 @lru_cache(maxsize=None)
 def brain(lane: str) -> ChatOpenAI:
-    return ChatOpenAI(base_url=LITELLM_BASE_URL, api_key=LITELLM_API_KEY, model=lane,
+    # REALM_MODEL (default the Haiku-backed wl-agentic lane) overrides the per-agent lane so the whole Realm runs on
+    # one fast, reliable hosted brain — no rogueone cold-start hangs. Falls back to the per-agent lane if cleared.
+    model = REALM_MODEL or lane
+    return ChatOpenAI(base_url=LITELLM_BASE_URL, api_key=LITELLM_API_KEY, model=model,
                       timeout=LLM_TIMEOUT, temperature=0)

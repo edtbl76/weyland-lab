@@ -20,7 +20,7 @@ spec:
       enableServiceLinks: false
       containers:
         - name: realm-of-agents
-          image: registry.weyland.lab/realm-of-agents:v7   # v7 — silence uvicorn probe access-log spam; only [realm] step-logs remain
+          image: registry.weyland.lab/realm-of-agents:v8   # v8 — whole Realm runs on Haiku (REALM_MODEL); off rogueone's local lanes
           imagePullPolicy: IfNotPresent
           resources:
             # No torch/embedder — langgraph/langchain client + fastapi only; inference is remote (LiteLLM). Low request
@@ -54,6 +54,10 @@ spec:
               value: http://litellm.weyland.svc.cluster.local:4000/v1
             - name: LITELLM_API_KEY
               valueFrom: { secretKeyRef: { name: litellm-secrets, key: LITELLM_MASTER_KEY } }
+            # Whole-Realm brain = Claude Haiku (wl-agentic lane = Haiku + free hosted fallback). Keeps every agent fast
+            # and reliable and off rogueone's local GPU lanes. Set to "claude-haiku" for raw Haiku, or "" for per-agent lanes.
+            - name: REALM_MODEL
+              value: wl-agentic
             # Tools — the coding-agents virtual key over the Bifrost MCP surface. optional:true → until the secret is
             # created the pod runs tool-less (agents still reason + answer). Create out-of-band (NOT committed):
             #   kubectl -n weyland create secret generic realm-of-agents-secret --from-literal=BIFROST_VK=<coding-agents VK>

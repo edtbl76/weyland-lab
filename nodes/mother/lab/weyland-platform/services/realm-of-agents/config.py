@@ -11,6 +11,11 @@ VERSION = "0.1.0"
 LITELLM_BASE_URL = os.getenv("LITELLM_BASE_URL", "http://litellm.weyland.svc.cluster.local:4000/v1")
 LITELLM_API_KEY = os.getenv("LITELLM_API_KEY", "sk-litellm")
 LLM_TIMEOUT = float(os.getenv("LLM_TIMEOUT", "180"))
+# Brain override: the WHOLE Realm thinks with one reliable hosted model instead of per-agent lanes. Default = the
+# wl-agentic lane (Claude Haiku primary + a free hosted fallback tail), because the local rogueone lanes
+# (wl-reason/wl-rag) cold-start-hang and we want that GPU idle. Set REALM_MODEL="" to restore per-agent lanes,
+# or ="claude-haiku" to pin to raw Haiku with no fallback.
+REALM_MODEL = os.getenv("REALM_MODEL", "wl-agentic")
 
 # --- Tools: the Bifrost VK MCP surface ---------------------------------------------------------------------------
 # CoreDNS forwards *.weyland.lab to LAN DNS, so the pod can resolve the ingress host directly.
