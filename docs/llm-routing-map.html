@@ -91,7 +91,13 @@
     <p class="sub">Use-case aliases &rarr; provider fallback chains, served by <b>LiteLLM</b>. A client sends
       only the alias (e.g. <code>wl-coding</code>); LiteLLM picks the primary and fails over down the chain on
       network&nbsp;/&nbsp;5xx&nbsp;/&nbsp;429&nbsp;/&nbsp;timeout &mdash; server-side, transparent.</p>
-    <span class="status">◆ <b>LIVE</b> — LiteLLM <code>model_list</code> + <code>fallbacks</code> &nbsp;·&nbsp; routing + failover verified end-to-end</span>
+    <p class="sub" style="margin-top:10px"><b>Provider egress &rarr; Bifrost (2026-08-01):</b> the hosted lanes now
+      egress <i>through</i> <b>Bifrost</b> (LiteLLM &rarr; Bifrost &rarr; provider), so every funded call is recorded
+      with cost&nbsp;/&nbsp;tokens&nbsp;/&nbsp;latency and attributed to the <code>realm-llm</code> virtual key &mdash; no
+      LiteLLM DB. LiteLLM still owns the aliases and the fallback chains below; the <b>local Ollama</b> lanes
+      (<code>wl-rag</code>&nbsp;&middot;&nbsp;<code>wl-reason</code>&nbsp;&middot;&nbsp;<code>wl-judge</code>) stay direct
+      to rogueone.</p>
+    <span class="status">◆ <b>LIVE</b> — LiteLLM aliases + fallback &nbsp;·&nbsp; hosted lanes egress through Bifrost (per-VK cost obs)</span>
   </header>
 
   <div class="legend" id="legend">
@@ -110,6 +116,10 @@
     <b>Fallback philosophy.</b> Primary = cheapest capable source (free/local where private). Chains are
     <b>multi-rung</b>: a dry paid provider (402 / 429) is <b>skipped by cost management</b>, not an error — the router
     walks on — and every chain ends in a free, always-on rung so it can never hard-fail.
+    <div class="note"><b>Live vs dead (2026-08-01 Bifrost probe).</b> Working providers: <b>anthropic&nbsp;&middot;&nbsp;groq&nbsp;&middot;&nbsp;gemini&nbsp;&middot;&nbsp;opencode-zen&nbsp;&middot;&nbsp;xai</b>.
+      <b>openrouter&nbsp;/&nbsp;cerebras&nbsp;/&nbsp;deepseek</b> &rarr; 402 (no credits), <b>openai</b> &rarr; 429 (quota),
+      <code>wl-search</code> perplexity id &rarr; 400 (needs fixing). Those rungs are skipped and the chain falls through
+      to a working one — the always-free tail (groq/gemini) still guarantees no hard-fail.</div>
     <div class="note"><b>Notes.</b> <code>wl-agentic</code> skips Groq — its free tier is tool-free (8k&nbsp;TPM can't carry
       the tool payload). <code>wl-search</code> / <code>wl-tts</code> are near-single-source, so their chains are short.
       Media lanes route on the image / audio / video endpoints, not chat.</div>

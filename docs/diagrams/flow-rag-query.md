@@ -2,7 +2,7 @@
 
 ```mermaid
 sequenceDiagram
-    participant Client as Client (Hermes / Claude Code / Open WebUI / curl)
+    participant Client as Client (operator / Claude Code / Open WebUI / curl)
     participant TS as tool-server /context/ask
     participant Emb as bge embedding
     participant Back as vector backend

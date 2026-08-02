@@ -1,41 +1,46 @@
-# Flow (E2E) — Agent: Telegram DM → Hermes → LiteLLM plan / Ollama → MCP → tool-server → RAG → reply
+# Flow (E2E) — Operator: Telegram DM → weyland-operator → LiteLLM→Bifrost (Haiku) → MCP / fleet → tool-server → RAG → reply
 
-Cross-system thread grounded in the Hermes runbook ([../runbooks/agent-hermes.md](../runbooks/agent-hermes.md))
-and [flow-agent-mcp](flow-agent-mcp.md): an inbound Telegram DM drives a Hermes agent turn — planning aux lanes
-hit the LiteLLM model-gateway (Gemini free), the default brain is local `qwen3-coder` on Ollama (rogueone), and
-the system-view is the read-only MCP mount on the tool-server, which fans out to the RAG backends. Demo:
-[../demos/agent-e2e.md](../demos/agent-e2e.md).
+Cross-system thread grounded in the operator runbook ([../runbooks/operator.md](../runbooks/operator.md))
+and [flow-agent-mcp](flow-agent-mcp.md): an inbound Telegram DM drives a **weyland-operator** (B66) turn — the
+tool-calling brain is **Haiku** via the `wl-agentic` lane (LiteLLM → Bifrost, a transparent passthrough so tool
+schemas survive), and the system-view is the read-only MCP mount on the tool-server (which fans out to the RAG
+backends) plus the composed **MCP fleet** (`/mcp-fleet`). Demo: [../demos/operator.md](../demos/operator.md).
 
 ```mermaid
 sequenceDiagram
     actor U as User (Telegram DM)
-    participant GW as hermes-gateway<br/>(CT 104, allowlist)
-    participant LLM as LiteLLM model-gateway<br/>(:30400, planning aux — Gemini free)
-    participant OLL as Ollama<br/>(rogueone :11434, qwen3-coder:30b)
+    participant OP as weyland-operator<br/>(B66, allowlist + confirm-step)
+    participant BR as LiteLLM → Bifrost<br/>(wl-agentic → Haiku)
     participant MCP as tool-server /mcp<br/>(mother :30080, read-only)
+    participant FL as MCP fleet /mcp-fleet<br/>(6 read-only servers)
     participant TS as tool-server
     participant RAG as RAG backends<br/>(qdrant / pgvector / weaviate / neo4j)
 
-    U->>GW: DM (allowlisted user)
-    GW->>GW: allowlist check → agent turn
-    opt planning (decompose / specify)
-        GW->>LLM: plan step (gemini-flash via model-gateway)
-        LLM-->>GW: plan
+    U->>OP: DM (allowlisted user)
+    OP->>OP: allowlist + guard-in → agent turn
+    OP->>BR: ReAct step (wl-agentic → Haiku, tools survive passthrough)
+    Note over BR: LiteLLM resolves wl-agentic → Bifrost → Anthropic haiku-4.5<br/>(records cost/tokens/latency, per-VK realm-llm)
+    BR-->>OP: decide to call a tool
+    alt system-view / RAG (tool-server)
+        OP->>MCP: MCP call (status / context_search / context_ask)
+        MCP->>TS: invoke tagged route
+        TS->>RAG: vector / graph retrieve top-k
+        RAG-->>TS: grounded context
+        TS-->>MCP: result
+        MCP-->>OP: response via MCP
+    else platform read (MCP fleet)
+        OP->>FL: grafana_* / trino_* / k8s_* / … (read-only)
+        FL-->>OP: result
     end
-    GW->>OLL: chat completion (default brain, reason→act loop)
-    OLL-->>GW: decide to call a tool (tool_search)
-    GW->>MCP: MCP call (status / context_search / context_ask)
-    MCP->>TS: invoke tagged route
-    TS->>RAG: vector / graph retrieve top-k
-    RAG-->>TS: grounded context
-    TS-->>MCP: result
-    MCP-->>GW: response via MCP
-    GW->>OLL: synthesize final answer over context
-    OLL-->>GW: grounded reply
-    GW-->>U: Telegram reply (cites sources)
+    OP->>BR: synthesize final answer over context
+    BR-->>OP: grounded reply
+    OP->>OP: guard-out
+    OP-->>U: Telegram reply (cites sources)
 ```
 
-**Seams made explicit:** the gateway is the front door (headless systemd, polling — no public webhook); the
-planning aux lanes are pinned to the LiteLLM model-gateway while the executing brain stays local Ollama; `/mcp` is
-**read-only** (act tools live on the separate `/mcp-act` mount, Hermes-only). First turn after a (re)start
-cold-prefills the ~17K base prompt (~3.5 min); warm turns are ~6-17 s.
+**Seams made explicit:** the operator pod is the front door (Telegram long-poll — no public webhook); the
+tool-calling brain runs through the **`wl-agentic`** lane (LiteLLM → Bifrost → Haiku, a transparent passthrough so
+tool schemas survive — the MLflow AI Gateway would shred them), while the local Ollama lanes (`wl-rag`/`reason`/
+`judge`) stay direct to rogueone; `/mcp` is **read-only** (act tools live on the separate `/mcp-act` mount,
+operator-only, fronted by the **live B17+B19 MCP gateway** with a Keycloak-verified actor). The operator can also
+**`delegate_to_realm`** — an A2A hand-off to the Realm of Agents (Gná → 24 corpus-backed specialists).

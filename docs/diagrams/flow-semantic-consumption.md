@@ -37,7 +37,7 @@ flowchart TB
   MARTS -.->|"lakeFS silver (4 formats)"| JHUB
   TAUTH -.-> JHUB
 
-  CUBE -->|"JWT REST/GraphQL"| APPS["apps / agents (future)<br/>Hermes tool · Stud.IO"]
+  CUBE -->|"JWT REST/GraphQL"| APPS["apps / agents (future)<br/>Stud.IO"]
 
   classDef gold fill:#2d6a4f,stroke:#95d5b2,color:#fff;
   class MARTS gold;

@@ -1,25 +1,22 @@
-# Flow: Roadmap-Sync → Hermes Kanban (B27)
+# Flow: Roadmap Sync — `docs/backlog.md` ↔ Linear (EMA)
 
-Hermes mirrors `docs/backlog.md` into its Kanban as a **one-way, read-only** board (`weyland-roadmap`). Every
-card is parked at `--initial-status blocked` so the dispatcher never actions it (DONE items are marked
-complete); the backlog stays the single source of truth and the script **never writes back**. This is distinct
-from Hermes' *self-management* board, which the agent does own. The 6h cadence is external (cron/manual) — the
-script itself does no scheduling, and it has **no prune step** (items dropped from the backlog are simply skipped,
-not deleted).
+Roadmap and issues live in **Linear** (team `emangini` / **EMA**), but the **committed `docs/backlog.md`** (B-numbered,
+in git) is the **single source of truth** for scope. The two are reconciled at the **end of a work batch**: `backlog.md`
+drives *what exists and what's planned*, Linear tracks *status*. There is **no automated write-back** — the sync is a
+manual / agent step.
 
 ```mermaid
 sequenceDiagram
-    participant Cron as Hermes cron (6h, external)
-    participant RS as roadmap-sync.py
-    participant GH as GitHub raw (raw.githubusercontent.com/.../docs/backlog.md)
-    participant CLI as hermes kanban CLI
-    participant KB as Kanban board (weyland-roadmap)
-    participant U as Operator (Hermes dashboard)
-    Cron->>RS: run roadmap-sync
-    RS->>GH: GET raw docs/backlog.md
-    RS->>RS: parse items + status markers
-    RS->>CLI: create/upsert cards (--initial-status blocked, DONE marked complete)
-    CLI->>KB: persist
-    U->>KB: view weyland-roadmap board
-    Note over RS,KB: mirror only -- no write-back to backlog.md, no prune of removed items
+    participant Dev as Maintainer / agent
+    participant BL as docs/backlog.md (committed source of truth, B-numbered)
+    participant LN as Linear (team emangini / EMA)
+    Note over BL: scope lives here — what exists, what's planned
+    Dev->>BL: add / update B-items as work is scoped
+    Note over Dev,LN: at the end of a work batch
+    Dev->>LN: reconcile issue status to match completed B-items
+    LN-->>Dev: board reflects current status
+    Note over BL,LN: backlog.md = source (scope) · Linear = status · no automated write-back
 ```
+
+> **Owner review:** this diagram captures the current *mechanism* (backlog.md = source, Linear = status, synced
+> end-of-batch). If a scripted or scheduled sync exists, wire its exact trigger/cadence in here.

@@ -35,7 +35,7 @@ flowchart TB
   REGISTRY -.->|"read on every init"| ONLINE_SDK
   REGISTRY -.->|"read on every init"| REST
   REGISTRY -.-> HIST
-  REST --> CONSUMER["consumers<br/>Hermes tool · Stud.IO (future)"]
+  REST --> CONSUMER["consumers<br/>Stud.IO (future)"]
   HIST -->|"materialize (meshed Dagster asset<br/>genre_feast_training_set)"| TRAINSET[("lakeFS<br/>music/parquet/genre_feast_training/")]
   TRAINSET -->|"--source feast"| TRAINER["genre-trainer on the Ray worker (rogueone)<br/>→ MLflow (genre_classifier v7)"]
 

@@ -196,6 +196,7 @@ model {
   weyland.mother.ai.operator -> weyland.mother.ai.realmOfAgents "delegate_to_realm — A2A hand-off (POST /route); Gná routes to the best specialist"
   weyland.mother.ai.realmOfAgents -> weyland.mother.ai.litellm "brains — every agent on Claude Haiku (wl-agentic lane)"
   weyland.mother.ai.realmOfAgents -> weyland.mother.ops.edge.bifrost "tools — the coding-agents VK MCP surface (grafana/trino/neo4j/datahub/context7/perplexity/…)"
+  weyland.mother.ai.litellm -> weyland.mother.ops.edge.bifrost "hosted-lane LLM egress (2026-08-01) — LiteLLM→Bifrost→provider (anthropic/groq/opencode-zen/gemini/xai); Bifrost records provider cost/tokens/latency + per-VK (realm-llm). Local ollama lanes stay direct."
   rogueone.codingAgents -> weyland.mother.ops.edge.bifrost "MCP tools via /mcp (coding-agents VK, 232 tools) + install skills from the marketplace"
   rogueone.claudeCode -> weyland.mother.ops.edge.bifrost "MCP tools + skill marketplace (/api/skills/serve)"
   weyland.mother.ops.edge.bifrost -> weyland.mother.ops.edge.mcpCompositor "aggregates the 95-tool read fleet (weyland_fleet upstream)"
