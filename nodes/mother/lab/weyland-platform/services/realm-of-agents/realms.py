@@ -12,6 +12,7 @@ from langgraph.prebuilt import create_react_agent
 from agents import run_solo
 from fleet import tools_for
 from llm import brain
+from obs import log
 from prompts import load_role
 from roster import BY_KEY, AgentSpec
 
@@ -23,9 +24,11 @@ def _member_tool(member: AgentSpec) -> StructuredTool:
         # A member failing (e.g. an empty LLM completion) is DATA for the lead to reconcile, not a crash that takes
         # down the whole route. Also guard an empty delegated task — some models call the tool with no arg, and an
         # empty user turn makes several providers return zero choices (→ IndexError deep in langchain_core).
+        log(f"  ↳ delegating to {member.god} ({member.role})")
         try:
             return await run_solo(member, task or f"Handle your part ({member.role}) of the current objective.")
         except Exception as exc:
+            log(f"  ↳ {member.god} FAILED: {exc}")
             return f"[{member.god} ({member.role}) could not complete the sub-task: {exc}]"
     return StructuredTool.from_function(
         coroutine=_call,
@@ -48,6 +51,7 @@ async def _lead_graph(lead: AgentSpec):
 
 async def run_lead(lead: AgentSpec, task: str, history: list | None = None) -> str:
     """Run a realm lead: it does its own specialty with its own tools, delegates the rest to its members, and reconciles."""
+    log(f"{lead.god} (lead) — decomposing and delegating")
     graph = await _lead_graph(lead)
     sys = (load_role(lead) + " You lead a team of specialists. Use your OWN tools for your specialty; for anything "
            "outside it, call the matching delegate_to_* tool to hand that sub-task to the right member. Then "

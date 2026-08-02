@@ -6,6 +6,7 @@ routes to Odin (the engineering orchestrator), who can always decompose or redir
 
 `run_agent` is the shared entry point everything uses: a lead delegates to its members; a plain agent answers directly."""
 from llm import brain
+from obs import log
 from realms import run_lead
 from agents import run_solo
 from roster import BY_KEY, ROSTER, AgentSpec
@@ -18,6 +19,7 @@ _CLASSIFY = (
 
 
 async def run_agent(spec: AgentSpec, task: str, history: list | None = None) -> str:
+    log(f"running {spec.god} ({'lead' if spec.lead else 'solo'})")
     if spec.lead:
         return await run_lead(spec, task, history)
     return await run_solo(spec, task, history)
@@ -29,9 +31,10 @@ async def classify(task: str) -> str:
         resp = await brain("wl-speed").ainvoke([("system", _CLASSIFY), ("user", task)])
         key = (resp.content or "").strip().split()[0].strip(".,:`\"'").lower()
         if key in BY_KEY:
+            log(f"Gná routed → {key}")
             return key
     except Exception as exc:
-        print(f"[gna] classify failed, routing to odin: {exc}", flush=True)
+        log(f"Gná classify failed, routing to odin: {exc}")
     return "odin"
 
 

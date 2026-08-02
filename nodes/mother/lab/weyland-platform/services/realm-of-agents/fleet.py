@@ -7,6 +7,7 @@ tool-less (it can still reason and answer). The MCP session is per-call (statele
 import asyncio
 
 from config import BIFROST_MCP_URL, BIFROST_VK
+from obs import log
 
 _all_tools: list | None = None   # lazy, process-wide cache of the full VK tool set
 
@@ -25,8 +26,9 @@ async def _load_all() -> list:
                         "headers": {"x-bf-vk": BIFROST_VK}},
         })
         _all_tools = await client.get_tools()
+        log(f"loaded {len(_all_tools)} VK tools from Bifrost")
     except Exception as exc:
-        print(f"[fleet] tool load failed — agents run tool-less: {exc}", flush=True)
+        log(f"tool load failed — agents run tool-less: {exc}")
         _all_tools = []
     return _all_tools
 

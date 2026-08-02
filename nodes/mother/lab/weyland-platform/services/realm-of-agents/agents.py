@@ -6,6 +6,7 @@ from langgraph.prebuilt import create_react_agent
 
 from fleet import tools_for
 from llm import brain
+from obs import log
 from prompts import load_role
 from roster import AgentSpec
 
@@ -24,9 +25,12 @@ async def _graph(spec: AgentSpec):
 async def run_solo(spec: AgentSpec, task: str, history: list | None = None) -> str:
     """Run `spec` on `task` as a standalone specialist. Returns its final text."""
     graph = await _graph(spec)
+    log(f"{spec.god} · {spec.role} — thinking (lane={spec.lane})")
     messages = [("system", load_role(spec))]
     if history:
         messages += history
     messages.append(("user", task))
     result = await graph.ainvoke({"messages": messages}, {"recursion_limit": 50})
-    return result["messages"][-1].content
+    out = result["messages"][-1].content
+    log(f"{spec.god} — answered ({len(out)} chars)")
+    return out
