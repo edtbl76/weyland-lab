@@ -20,7 +20,7 @@ spec:
       enableServiceLinks: false
       containers:
         - name: realm-of-agents
-          image: registry.weyland.lab/realm-of-agents:v10   # v10 — Midgard members fleshed out (rich tool-grounded role prompts)
+          image: registry.weyland.lab/realm-of-agents:v11   # v11 — Vanaheim + the Well fleshed out; roster complete (Óðrœrir=context, Ratatoskr=perplexity)
           imagePullPolicy: IfNotPresent
           resources:
             # No torch/embedder — langgraph/langchain client + fastapi only; inference is remote (LiteLLM). Low request
