@@ -20,7 +20,7 @@ spec:
       enableServiceLinks: false
       containers:
         - name: realm-of-agents
-          image: registry.weyland.lab/realm-of-agents:v15   # v15 — /route/stream SSE (astream_events → live trace tree) for the Realm Console (stream.py)
+          image: registry.weyland.lab/realm-of-agents:v16   # v16 — Realm Console served at GET / (console.html); stream final-answer capture + scaffolding filter
           imagePullPolicy: IfNotPresent
           resources:
             # No torch/embedder — langgraph/langchain client + fastapi only; inference is remote (LiteLLM). Low request

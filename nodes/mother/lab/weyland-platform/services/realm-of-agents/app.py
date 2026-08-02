@@ -8,12 +8,13 @@ Slice 1 (first wave): Gná dispatch · Kvasir · Verðandi (grafana tools) · Od
 agent is declared in the roster and runs generically (role prompt + lane + tool slice); leads gain delegation as their
 members come online."""
 import json
+import pathlib
 import time
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, HTTPException, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse, StreamingResponse
+from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse
 from prometheus_client import CONTENT_TYPE_LATEST, Counter, Histogram, generate_latest
 from pydantic import BaseModel
 
@@ -51,6 +52,20 @@ app.include_router(a2a.router)   # A2A JSON-RPC binding: POST /a2a (Gná) and /a
 # Browser-based A2A clients (e.g. a2a-ui) fetch the card + POST message/send cross-origin from their own page, so they
 # need CORS. LAN-only lab → allow any origin; this surface is read/dispatch only (acts still go via the operator).
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
+
+# The Realm Console — the show-off UI, served by the pod itself at the root. It drives /route/stream (same-origin, so no
+# CORS in play) and animates the live trace. Loaded once at import; fail-safe if the asset isn't bundled.
+try:
+    _CONSOLE_HTML = pathlib.Path(__file__).with_name("console.html").read_text(encoding="utf-8")
+except Exception as _exc:  # noqa: BLE001 — never let a missing asset break the API
+    _CONSOLE_HTML = "<!doctype html><title>Realm of Agents</title><h1>Realm of Agents</h1><p>console.html not bundled.</p>"
+    print(f"[realm] console.html not loaded: {_exc}", flush=True)
+
+
+@app.get("/", response_class=HTMLResponse)
+def console():
+    """The Realm Console (show-off UI). A2A discovery lives at /.well-known/agent-card.json — this root is for humans."""
+    return _CONSOLE_HTML
 
 
 class TaskRequest(BaseModel):

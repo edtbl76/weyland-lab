@@ -32,21 +32,14 @@ def _short(v, n: int = 600) -> str:
     return s if len(s) <= n else s[:n] + "…"
 
 
-def _final_text(out) -> str | None:
-    try:
-        msgs = out.get("messages") if isinstance(out, dict) else None
-        if msgs:
-            return msgs[-1].content
-    except Exception:
-        pass
-    return None
-
-
 def _normalize(ev: dict) -> dict | None:
-    """One LangGraph astream_events(v2) event → one compact wire event (or None to drop)."""
+    """One LangGraph astream_events(v2) event → one compact wire event (or None to drop). Tokens are handled in
+    _agent_events (they need delegate context). Pure LangGraph scaffolding (RunnableSequence/Prompt/should_continue/…)
+    is dropped by keeping only the OUTERMOST graph's chain boundary — the one node_start the UI needs to anchor its tree."""
     et = ev.get("event")
     data = ev.get("data") or {}
-    base = {"id": ev.get("run_id"), "parents": ev.get("parent_ids", []), "name": ev.get("name")}
+    parents = ev.get("parent_ids", [])
+    base = {"id": ev.get("run_id"), "parents": parents, "name": ev.get("name")}
     if et == "on_tool_start":
         return {**base, "type": "tool_start", "input": _short(data.get("input"))}
     if et == "on_tool_end":
@@ -55,30 +48,41 @@ def _normalize(ev: dict) -> dict | None:
         return {**base, "type": "llm_start"}
     if et == "on_chat_model_end":
         return {**base, "type": "llm_end"}
-    if et == "on_chat_model_stream":
-        txt = getattr(data.get("chunk"), "content", "") or ""
-        return {**base, "type": "token", "text": txt} if txt else None
-    if et == "on_chain_start":
+    if et == "on_chain_start" and not parents:
         return {**base, "type": "node_start"}
-    if et == "on_chain_end":
-        return {**base, "type": "node_end"}
     return None
 
 
 async def _agent_events(spec, task: str, history):
-    """Stream one agent's run (solo or lead) as normalized events; ends with a `final` carrying the answer."""
+    """Stream one agent's run (solo or lead) as normalized events; ends with a `final` carrying the answer.
+    The answer is the LAST *root-level* LLM completion (not running inside any delegate_to_* sub-graph) — robust to the
+    concurrent, nested fan-out — and its tokens stream to the answer pane, guarded by answer_reset so only the final
+    synthesis turn is shown (a delegating turn emits tool-calls, not text, so it contributes nothing)."""
     if spec.lead:
         graph = await realms._lead_graph(spec)
         inp = {"messages": realms._lead_messages(spec, task, history)}
     else:
         graph = await agents._graph(spec)
         inp = {"messages": agents._solo_messages(spec, task, history)}
-    root_id, final = None, None
+    delegate_ids, final = set(), None
     async for ev in graph.astream_events(inp, _CONFIG, version="v2"):
-        if root_id is None and ev.get("event") == "on_chain_start":
-            root_id = ev.get("run_id")                       # first chain_start = the outermost graph
-        if ev.get("event") == "on_chain_end" and ev.get("run_id") == root_id:
-            final = _final_text((ev.get("data") or {}).get("output"))
+        et = ev.get("event")
+        rid = ev.get("run_id")
+        parents = ev.get("parent_ids", [])
+        root_level = not (set(parents) & delegate_ids)
+        if et == "on_tool_start" and (ev.get("name") or "").startswith("delegate_to_"):
+            delegate_ids.add(rid)
+        elif et == "on_chat_model_start" and root_level:
+            yield {"type": "answer_reset"}
+        elif et == "on_chat_model_stream" and root_level:
+            txt = getattr((ev.get("data") or {}).get("chunk"), "content", "") or ""
+            if txt:
+                yield {"id": rid, "parents": parents, "type": "token", "text": txt}
+            continue
+        elif et == "on_chat_model_end" and root_level:
+            txt = getattr((ev.get("data") or {}).get("output"), "content", None)
+            if txt:
+                final = txt
         n = _normalize(ev)
         if n:
             yield n
