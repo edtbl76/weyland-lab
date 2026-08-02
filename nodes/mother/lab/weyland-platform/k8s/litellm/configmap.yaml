@@ -95,8 +95,7 @@ data:
           api_key: os.environ/BIFROST_REALM_VK
 
       # --- Fallback-only deployments (targets referenced by router_settings.fallbacks) ---
-      # All via Bifrost. deepseek-chat/reasoner remapped to Bifrost's deepseek-v4-flash/pro; cerebras kept though
-      # still 402-unfunded (routes through Bifrost — logs the 402, works instantly when funded).
+      # All via Bifrost. deepseek-chat/reasoner remapped to Bifrost's deepseek-v4-flash/pro. All providers funded.
       - model_name: deepseek-chat
         litellm_params:
           model: openai/deepseek/deepseek-v4-flash
