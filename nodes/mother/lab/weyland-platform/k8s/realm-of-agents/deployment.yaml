@@ -20,7 +20,7 @@ spec:
       enableServiceLinks: false
       containers:
         - name: realm-of-agents
-          image: registry.weyland.lab/realm-of-agents:v9   # v9 — MLflow autolog (runs+deliverables as traces); log effective brain
+          image: registry.weyland.lab/realm-of-agents:v10   # v10 — Midgard members fleshed out (rich tool-grounded role prompts)
           imagePullPolicy: IfNotPresent
           resources:
             # No torch/embedder — langgraph/langchain client + fastapi only; inference is remote (LiteLLM). Low request
