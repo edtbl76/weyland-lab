@@ -20,7 +20,7 @@ spec:
       enableServiceLinks: false
       containers:
         - name: realm-of-agents
-          image: registry.weyland.lab/realm-of-agents:v16   # v16 — Realm Console served at GET / (console.html); stream final-answer capture + scaffolding filter
+          image: registry.weyland.lab/realm-of-agents:v17   # v17 — GET /prompts (canonical per-agent role prompts) for the B102 Dagster registrations reconcile
           imagePullPolicy: IfNotPresent
           resources:
             # No torch/embedder — langgraph/langchain client + fastapi only; inference is remote (LiteLLM). Low request

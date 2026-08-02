@@ -4,7 +4,8 @@
 Bifrost's Prompt Repository (UI sidebar → Prompt Repository) stores foldered, named prompts; each prompt has versions,
 and a version is an ordered set of chat messages. This script is the durable source of truth — a PVC wipe loses the
 repo, re-run this to rebuild it. Mirrors register_bifrost_mcp_clients.py. Run:
-    kubectl -n weyland exec -i deploy/weyland-guard -- python - < scripts/register_bifrost_prompts.py
+    kubectl -n weyland exec deploy/dagster-user-code -- python /app/scripts/register_bifrost_prompts.py
+(B102: also reconciled automatically by the Dagster `registrations` group — asset bifrost_prompts_registered — weekly + on-demand.)
 
 API contract (reverse-engineered from the bifrost binary + probes, 2026-08-01):
 - POST /api/prompt-repo/folders  {name, description}                          -> {folder:{id}}

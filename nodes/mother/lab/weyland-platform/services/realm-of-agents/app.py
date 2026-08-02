@@ -25,7 +25,7 @@ import cards
 import router as gna
 import stream as realm_stream
 from config import MLFLOW_EXPERIMENT, MLFLOW_TRACKING_URI, VERSION
-from roster import BY_KEY, ROSTER, REALMS, in_realm
+from roster import BY_KEY, ROSTER, REALMS, fallback_prompt, in_realm
 
 _REQS = Counter("realm_requests_total", "Agent task requests", ["agent", "outcome"])
 _LATENCY = Histogram("realm_request_seconds", "Per-task latency (s)", ["agent"])
@@ -83,6 +83,16 @@ def root_card(request: Request):
 def list_agents(request: Request):
     """The whole roster as cards, plus a realm index for humans/UIs."""
     return {"realms": {r: [a.key for a in in_realm(r)] for r in REALMS}, "agents": cards.all_cards(str(request.base_url))}
+
+
+@app.get("/prompts")
+def prompts():
+    """The canonical per-agent system prompts (the baked source of truth from roles.py/roster.py), keyed by agent.
+    The Realm is the single source of truth for its role prompts; the Dagster `registrations` reconcile asset (B102)
+    pulls this and (re)registers each as `role-<key>` in the Bifrost prompt-repo — so registration is automated without
+    duplicating the prompts outside the Realm image. Uses the BAKED prompt (fallback_prompt), not the live Bifrost fetch."""
+    return {a.key: {"god": a.god, "realm": a.realm, "role": a.role, "lane": a.lane, "prompt": fallback_prompt(a)}
+            for a in ROSTER}
 
 
 @app.get("/agents/{key}/.well-known/agent-card.json")

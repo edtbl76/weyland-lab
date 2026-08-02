@@ -33,7 +33,9 @@ weyland_ingestion_job = define_asset_job(
     # so every night it rebuilt all 37 marts against Trino — and 503'd whenever a heavy aggregation model
     # (mart_genre_audio_profile) pressured Trino into OOM/unavailability, failing the whole ingestion run. Exclude
     # it here; marts are built weekly, and nothing in the nightly ingestion depends on fresh marts. [[dbt-transform-tier]]
-    - AssetSelection.assets(weyland_dbt_assets),
+    - AssetSelection.assets(weyland_dbt_assets)
+    # B102 — the registrations reconcile has its own weekly schedule; never sweep it into the 15-min ingestion cron.
+    - AssetSelection.groups("registrations"),
 )
 
 # B72 — the brokered fan-out (all per-format assets, each isolated in its own process);
@@ -213,6 +215,21 @@ weyland_dbt_schedule = ScheduleDefinition(
     job=weyland_dbt_job,
     cron_schedule="0 6 * * 0",  # weekly Sun 06:00 — per docs/schedules.md
     name="weyland_dbt_schedule",
+    execution_timezone="America/New_York",
+    default_status=DefaultScheduleStatus.RUNNING,
+)
+
+# B102 — registrations reconcile: Bifrost prompt + skill repos + the Realm's role prompts. Weekly (Sun 05:00, clear of
+# the other crons) + on-demand from the UI; auto-running so the repos self-heal after a PVC/store reset with no manual
+# kubectl exec. All three assets are idempotent (existing entries skipped).
+registrations_reconcile_job = define_asset_job(
+    name="registrations_reconcile_job",
+    selection=AssetSelection.groups("registrations"),
+)
+registrations_schedule = ScheduleDefinition(
+    job=registrations_reconcile_job,
+    cron_schedule="0 5 * * 0",  # weekly Sun 05:00
+    name="registrations_schedule",
     execution_timezone="America/New_York",
     default_status=DefaultScheduleStatus.RUNNING,
 )

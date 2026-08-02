@@ -31,6 +31,8 @@ from weyland_pipeline.schedules import (
     weyland_timeseries_schedule,
     weyland_dbt_job,
     weyland_dbt_schedule,
+    registrations_reconcile_job,
+    registrations_schedule,
 )
 from weyland_pipeline.sensors import datasets_music_raw_sensor
 from weyland_pipeline.lancedb_sync import weyland_lancedb_sync_job, lancedb_sync_sensor
@@ -355,8 +357,8 @@ weyland_eval_score_schedule = ScheduleDefinition(
 defs = Definitions(
     assets=[*all_assets, weyland_dbt_assets],
     asset_checks=all_asset_checks,
-    jobs=[weyland_ingestion_job, weyland_eval_job, weyland_eval_score_job, weyland_catalog_job, weyland_aidlc_kb_job, weyland_ai_session_job, datahub_catalog_emit_job, weyland_datasets_music_transform_job, weyland_datasets_music_land_job, weyland_datasets_health_land_job, weyland_datasets_health_transform_job, weyland_datasets_health_hydrate_job, weyland_datasets_music_hydrate_job, weyland_timeseries_job, weyland_lancedb_sync_job, weyland_dbt_job, soda_quality_job],
-    schedules=[weyland_ingestion_schedule, weyland_catalog_schedule, weyland_ai_session_schedule, datahub_catalog_emit_schedule, weyland_timeseries_schedule, weyland_datasets_music_land_schedule, weyland_datasets_health_land_schedule, weyland_dbt_schedule, soda_quality_schedule, weyland_eval_schedule, weyland_eval_score_schedule],
+    jobs=[weyland_ingestion_job, weyland_eval_job, weyland_eval_score_job, weyland_catalog_job, weyland_aidlc_kb_job, weyland_ai_session_job, datahub_catalog_emit_job, weyland_datasets_music_transform_job, weyland_datasets_music_land_job, weyland_datasets_health_land_job, weyland_datasets_health_transform_job, weyland_datasets_health_hydrate_job, weyland_datasets_music_hydrate_job, weyland_timeseries_job, weyland_lancedb_sync_job, weyland_dbt_job, soda_quality_job, registrations_reconcile_job],
+    schedules=[weyland_ingestion_schedule, weyland_catalog_schedule, weyland_ai_session_schedule, datahub_catalog_emit_schedule, weyland_timeseries_schedule, weyland_datasets_music_land_schedule, weyland_datasets_health_land_schedule, weyland_dbt_schedule, soda_quality_schedule, weyland_eval_schedule, weyland_eval_score_schedule, registrations_schedule],
     sensors=[datasets_music_raw_sensor, lancedb_sync_sensor],
     resources={
         "postgres": PostgresResource(

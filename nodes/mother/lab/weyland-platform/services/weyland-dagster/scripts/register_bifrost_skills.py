@@ -5,7 +5,8 @@ Bifrost's Skills Repository stores Anthropic-style Agent Skills (frontmatter fie
 files) and SERVES them as a Claude Code / Codex plugin marketplace (/api/skills/serve/claude-code/.claude-plugin/
 marketplace.json). So these skills are installable straight into the coding agents. This script is the durable source of
 truth — a PVC wipe loses the repo, re-run to rebuild it. Mirrors register_bifrost_prompts.py. Run:
-    kubectl -n weyland exec -i deploy/weyland-guard -- python - < scripts/register_bifrost_skills.py
+    kubectl -n weyland exec deploy/dagster-user-code -- python /app/scripts/register_bifrost_skills.py
+(B102: also reconciled automatically by the Dagster `registrations` group — asset bifrost_skills_registered — weekly + on-demand.)
 
 API contract (reverse-engineered from /app/main, 2026-08-01; prefix /api/skills):
 - POST /api/skills {name, version, description, skill_md_body, compatibility, allowed_tools, license, metadata} -> {skill:{id}}

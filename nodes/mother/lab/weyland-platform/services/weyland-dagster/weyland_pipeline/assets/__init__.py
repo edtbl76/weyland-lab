@@ -62,6 +62,11 @@ from .datasets_health_transform import (
     datasets_health_store_assets,
     datasets_health_stream_assets,
 )
+from .registrations import (
+    bifrost_prompts_registered,
+    bifrost_skills_registered,
+    realm_roles_registered,
+)
 
 all_assets = [
     source_document,
@@ -127,6 +132,10 @@ all_assets = [
     *datasets_music_store_assets,
     *datasets_health_stream_assets,
     *datasets_music_stream_assets,
+    # B102 — registrations reconcile (Bifrost prompt/skill repos + Realm role prompts)
+    bifrost_prompts_registered,
+    bifrost_skills_registered,
+    realm_roles_registered,
 ]
 
 # Pre-hydration quality gate (build_asset_checks per domain — the second datasets_lib factory)
