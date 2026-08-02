@@ -20,7 +20,7 @@ spec:
       enableServiceLinks: false
       containers:
         - name: realm-of-agents
-          image: registry.weyland.lab/realm-of-agents:v6   # v6 — live step logging (every hop → stdout) for kubectl logs -f visibility
+          image: registry.weyland.lab/realm-of-agents:v7   # v7 — silence uvicorn probe access-log spam; only [realm] step-logs remain
           imagePullPolicy: IfNotPresent
           resources:
             # No torch/embedder — langgraph/langchain client + fastapi only; inference is remote (LiteLLM). Low request

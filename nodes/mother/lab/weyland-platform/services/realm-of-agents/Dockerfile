@@ -22,4 +22,6 @@ USER appuser
 
 EXPOSE 8080
 
-CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8080"]
+# --no-access-log: kill the per-request access spam (k8s liveness/readiness/metrics probes hammer /health,/ready,/metrics
+# every few seconds and bury the real trace). The [realm] step-logs are separate prints and survive.
+CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8080", "--no-access-log"]
