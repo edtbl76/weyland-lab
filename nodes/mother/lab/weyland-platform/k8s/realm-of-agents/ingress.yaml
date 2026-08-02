@@ -1,0 +1,32 @@
+# realm.weyland.lab — the Realm of Agents' public A2A front door (B17).
+#
+# NO Keycloak forward-auth: this is a *programmatic* A2A endpoint (JSON-RPC message/send + /.well-known discovery +
+# the per-agent cards), and interactive SSO redirects would break A2A clients (the a2a-inspector, external agents).
+# Same posture as registry.weyland.lab — a LAN-only API on a trusted LAN, wildcard TLS so clients get HTTPS.
+#
+# Because the Agent Card `url` is request-derived (see cards.py), fetching a card THROUGH this host makes every agent
+# advertise https://realm.weyland.lab/a2a automatically — no code change when clients arrive via the ingress vs the
+# in-cluster Service. (The in-cluster a2a-inspector keeps using the plain http Service URL; it does not trust the
+# self-signed lab CA, so pointing it at https would fail cert validation — the ingress is for the browser + external
+# clients that DO trust the mkcert wildcard.)
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: realm-of-agents
+  namespace: weyland
+spec:
+  tls:
+    - hosts:
+        - realm.weyland.lab
+      secretName: weyland-wildcard-tls
+  rules:
+    - host: realm.weyland.lab
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: realm-of-agents
+                port:
+                  number: 8080
