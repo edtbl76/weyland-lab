@@ -20,7 +20,7 @@ spec:
       enableServiceLinks: false
       containers:
         - name: realm-of-agents
-          image: registry.weyland.lab/realm-of-agents:v13   # v13 — A2A card fix: provider.url (AgentProvider requires organization+url); passes a2a-sdk card validation
+          image: registry.weyland.lab/realm-of-agents:v14   # v14 — CORS for browser A2A clients (a2a-ui) + --proxy-headers so card URLs come back https behind the ingress
           imagePullPolicy: IfNotPresent
           resources:
             # No torch/embedder — langgraph/langchain client + fastapi only; inference is remote (LiteLLM). Low request

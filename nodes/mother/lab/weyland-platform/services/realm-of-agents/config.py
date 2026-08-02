@@ -5,7 +5,7 @@ from the Bifrost VK MCP surface (the same 232-tool `coding-agents` key the codin
 and fail-safe — an unreachable LiteLLM/Bifrost degrades an agent, it never crashes the pod."""
 import os
 
-VERSION = "0.2.0"   # 0.2.0: A2A JSON-RPC transport binding added (a2a.py)
+VERSION = "0.2.1"   # 0.2.0: A2A JSON-RPC transport binding (a2a.py). 0.2.1: CORS for browser A2A clients + https card URLs behind ingress
 # A2A Protocol revision advertised in every Agent Card (`protocolVersion`). Matches the spec the current a2a-sdk /
 # a2a-inspector expect; the JSON-RPC `message/send` binding lives in a2a.py.
 A2A_PROTOCOL_VERSION = "0.3.0"

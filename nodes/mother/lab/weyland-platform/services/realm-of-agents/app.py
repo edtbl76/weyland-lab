@@ -11,6 +11,7 @@ import time
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, HTTPException, Request, Response
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from prometheus_client import CONTENT_TYPE_LATEST, Counter, Histogram, generate_latest
 from pydantic import BaseModel
@@ -45,6 +46,9 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="Weyland — Realm of Agents", version=VERSION, lifespan=lifespan)
 app.include_router(a2a.router)   # A2A JSON-RPC binding: POST /a2a (Gná) and /a2a/{key} (specific agent)
+# Browser-based A2A clients (e.g. a2a-ui) fetch the card + POST message/send cross-origin from their own page, so they
+# need CORS. LAN-only lab → allow any origin; this surface is read/dispatch only (acts still go via the operator).
+app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 
 
 class TaskRequest(BaseModel):
