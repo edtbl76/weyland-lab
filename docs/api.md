@@ -142,8 +142,12 @@ See [runbooks/operator.md](runbooks/operator.md).
 
 ## Realm of Agents (`realm-of-agents` — B17 A2A)
 
-`realm-of-agents.weyland.svc:8080` (ClusterIP, **no ingress yet** — STRICT-mTLS meshed, so drive it in-cluster). One
-multiplexed pod hosting 24 corpus-backed specialists in 5 Norse-named groups. **Gná** routes a task to the best agent;
+Public front door **`realm.weyland.lab`** (wildcard TLS, **NO forward-auth** — a programmatic A2A API, like the
+registry) · `realm-of-agents.weyland.svc:8080` in-cluster. It is a **conformant A2A server**: a JSON-RPC `message/send`
+binding (`/a2a`), spec-valid Agent Cards (`protocolVersion` + `preferredTransport` + `provider{organization,url}`),
+**request-derived `https` card URLs** (uvicorn `--proxy-headers`, so cards advertise whatever host reached them), and
+**CORS** for browser A2A clients. One multiplexed pod hosting 24 corpus-backed specialists in 5 Norse-named groups.
+**Gná** routes a task to the best agent;
 realm **leads** act on their own tools or delegate to their members and reconcile. Every agent runs on **Claude Haiku**
 (`REALM_MODEL=wl-agentic` override via LiteLLM); tools via the **Bifrost VK**; every run is an **MLflow trace**
 (`realm-of-agents` experiment). The **operator** reaches it via its `delegate_to_realm` tool.
@@ -155,12 +159,19 @@ realm **leads** act on their own tools or delegate to their members and reconcil
 | `/agents/{key}/card` (or `/agents/{key}/.well-known/agent-card.json`) | GET | one agent's A2A card |
 | `/agents/{key}/message` | POST | `{message, history?}` → run a specific agent (a lead delegates; a plain agent answers) |
 | `/route` | POST | `{message, history?}` → Gná classifies and runs the best-fit agent; returns `{routed_to, god, role, realm, answer}` |
+| `/a2a` | POST | **A2A JSON-RPC** `message/send` → Gná dispatches; returns an A2A `Message`. This is the root card's `url` (what standard A2A clients POST to). |
+| `/a2a/{key}` | POST | **A2A JSON-RPC** `message/send` to one specific agent (a per-agent card's `url`) |
 | `/health` `/ready` | GET | liveness / readiness |
 | `/metrics` | GET | `realm_requests_total{agent,outcome}`, `realm_request_seconds{agent}` |
 
 Agent keys: `odin·mimir·brokkr·forseti·hermodr·heimdall·huginn·muninn` (Valhalla) · `kvasir·njordr·freyja·bragi`
 (Vanaheim) · `verdandi·vor·saga·yggdrasil·fulla` (Midgard) · `tyr·odroerir·ratatoskr·snotra·syn` (the Well) · `gna`
 (dispatch). See [demos/realm-of-agents.md](demos/realm-of-agents.md) · [concepts/realm-of-agents.md](concepts/realm-of-agents.md).
+
+**Debug UI:** the [A2A Inspector](https://github.com/a2aproject/a2a-inspector) runs at **`inspector.weyland.lab`**
+(Keycloak forward-auth, `k8s/a2a-inspector/`) — point it at the Realm card to validate the surface and chat through Gná.
+Adopted in a bake-off over **a2a-ui** (client-side; lost) and rejected **LangGraph Studio** / **Agent Chat UI** (both
+require reshaping the Realm into a LangGraph Server). A bespoke show-off "Realm Console" (the god-map) is still TODO.
 
 ## Data backends (mother, NodePort)
 
