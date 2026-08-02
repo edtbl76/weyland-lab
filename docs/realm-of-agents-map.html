@@ -89,10 +89,14 @@
     <p class="eyebrow">weyland · agent-to-agent (B17)</p>
     <h1>The Realm of Agents</h1>
     <p class="sub">24 small, corpus-backed agents in five groups. Each is a thin composition &mdash;
-      <b>a role prompt</b> from the Bifrost Prompt Repo + <b>a skill family</b> from the 583-skill repo +
-      <b>a slice of the 232-tool MCP surface</b> + <b>a <code>wl-*</code> brain</b>. All $0. A supervisor
-      discovers each via its <b>Agent Card</b> and delegates.</p>
-    <span class="status">◆ <b>DESIGN</b> — roster locked &nbsp;·&nbsp; first wave next: Gná · Kvasir · Verðandi · Odin+Mímir+Brokkr</span>
+      <b>a role prompt</b> + <b>a skill family</b> + <b>a slice of the 232-tool MCP surface</b> (via the Bifrost VK)
+      + <b>a brain</b>. A supervisor discovers each via its <b>Agent Card</b> and delegates; leads run their own
+      specialty <i>or</i> delegate to their team.</p>
+    <p class="sub" style="margin-top:10px"><b>Brain:</b> every agent currently runs on <b>Claude Haiku</b> (a
+      Realm-wide <code>REALM_MODEL</code> override, resolved through LiteLLM's <code>wl-agentic</code> lane) &mdash;
+      fast, reliable, and off the lab's local GPU. The <code>wl-*</code> lanes on each card below are the
+      <i>designed</i> per-agent routing, restored by clearing the override.</p>
+    <span class="status">◆ <b>LIVE</b> — all 24 agents across 5 realms, on Claude Haiku &nbsp;·&nbsp; runs traced in MLflow &nbsp;·&nbsp; reachable from the Operator (B66) over A2A</span>
   </header>
 
   <div class="legend">
@@ -112,7 +116,10 @@
     <code>A2A Protocol</code> (Agent Cards) between realms and up to the Operator. Two of the names are the myth verbatim:
     <b>Heimdall</b> guards the <b>Bifröst</b> (our gateway is named Bifrost), and <b>Huginn</b>+<b>Muninn</b> are Odin's
     ravens — Thought &amp; Memory — a review&rarr;orchestrator feedback loop.
-    <div class="note"><b>Source of truth:</b> <code>aidlc-docs/a2a-agent-roster.md</code> (backing prompts/skills/tools per agent, eval criteria, build order).</div>
+    <div class="note"><b>Deployed:</b> one multiplexed <code>realm-of-agents</code> pod (ns <code>weyland</code>, Argo-managed) &mdash;
+      A2A surface <code>/route</code> · <code>/agents/{key}/message</code> · Agent Cards; each hop is an MLflow trace
+      (experiment <code>realm-of-agents</code>).</div>
+    <div class="note"><b>Source of truth:</b> <code>aidlc-docs/a2a-agent-roster.md</code> (backing prompts/skills/tools per agent, framework split, build order) · concept page <code>docs/concepts/realm-of-agents.md</code>.</div>
   </footer>
 </div>
 

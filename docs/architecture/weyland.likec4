@@ -58,6 +58,7 @@ model {
         neo = store "Neo4j" "Graph + vector (GraphRAG) — AIDLC + music graph"
         neodash = component "NeoDash" "Neo4j dashboard / viz"
         ragIndex = component "rag-index consumers" "5 stream consumers — replay rag.chunks into each store"
+        realmOfAgents = component "Realm of Agents" "B17 A2A — 24 corpus-backed specialists in 5 Norse-named groups (Valhalla/Vanaheim/Midgard/the Well) in one multiplexed pod. Gná dispatches; leads act on their own tools or delegate to members and reconcile. Runs on Claude Haiku (REALM_MODEL override via LiteLLM). Tools via the Bifrost VK; every hop MLflow-traced. Reached by the Operator over A2A (delegate_to_realm)."
       }
 
       // ============ Data mesh / lakehouse plane (sliced) ============
@@ -190,6 +191,11 @@ model {
   weyland.mother.ops.edge.mcpFleet -> weyland.mother.ops.edge.mcpCompositor "FastMCP composition → ~90 namespaced read tools"
   weyland.mother.ops.edge.mcpCompositor -> weyland.mother.ops.edge.mcpGateway "one MCP endpoint; gateway routes /mcp-fleet here"
   weyland.mother.ai.operator -> weyland.mother.ops.edge.mcpGateway "read the fleet via /mcp-fleet (Haiku via LiteLLM)"
+
+  // Realm of Agents (B17 A2A)
+  weyland.mother.ai.operator -> weyland.mother.ai.realmOfAgents "delegate_to_realm — A2A hand-off (POST /route); Gná routes to the best specialist"
+  weyland.mother.ai.realmOfAgents -> weyland.mother.ai.litellm "brains — every agent on Claude Haiku (wl-agentic lane)"
+  weyland.mother.ai.realmOfAgents -> weyland.mother.ops.edge.bifrost "tools — the coding-agents VK MCP surface (grafana/trino/neo4j/datahub/context7/perplexity/…)"
   rogueone.codingAgents -> weyland.mother.ops.edge.bifrost "MCP tools via /mcp (coding-agents VK, 232 tools) + install skills from the marketplace"
   rogueone.claudeCode -> weyland.mother.ops.edge.bifrost "MCP tools + skill marketplace (/api/skills/serve)"
   weyland.mother.ops.edge.bifrost -> weyland.mother.ops.edge.mcpCompositor "aggregates the 95-tool read fleet (weyland_fleet upstream)"
@@ -315,6 +321,11 @@ views {
 
   view aiPlane of weyland.mother.ai {
     title "AI plane"
+    include *
+  }
+
+  view realmOfAgents of weyland.mother.ai.realmOfAgents {
+    title "Realm of Agents (B17 A2A)"
     include *
   }
 

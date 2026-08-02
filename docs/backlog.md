@@ -66,7 +66,7 @@ Re-ordered per RE-grounded audit (aidlc-docs/inception/backlog-reprioritization.
 
 ### Maturity / Hardening / Polish
 12. **B15** — Local-model coding agents (opencode / Cline / Pi / Codex) — **✅ DONE 2026-07-27** (3 harnesses proven in-hand; best driver = ChatGPT-sub GPT-5.5 via Cline/Codex, best keyed-free = Mistral/OpenRouter; local-on-16GB not viable; gateway not usable for agentic — direct-to-provider; Groq punted on broken signup). See detail below.
-13. **B17+B19** — "Mesh": A2A evaluation + MCP gateway — MERGED; same inflection point (fleet is real, govern it). **MCP-gateway half ✅ CLOSED 2026-08-01** — Ph1-2 auth/actor gate + Ph3 read-only fleet + Ph3b Bifrost agent-edge + Claude Code/Codex skill marketplace (built out as B111). **Residual: A2A eval** — deferred, separate future item. Triggered after B14+B26+B27 + B3 stable + OpenClaw decision made. See detail below.
+13. **B17+B19** — "Mesh": A2A evaluation + MCP gateway — MERGED; same inflection point (fleet is real, govern it). **MCP-gateway half ✅ CLOSED 2026-08-01** — Ph1-2 auth/actor gate + Ph3 read-only fleet + Ph3b Bifrost agent-edge + Claude Code/Codex skill marketplace (built out as B111). **A2A-eval half — core BUILT & LIVE 2026-08-01** — the **Realm of Agents**: 24 corpus-backed specialists in 5 Norse-named groups in one multiplexed pod; Gná dispatch + two-mode leads delegating to members (LangGraph in-realm) + cross-service hand-off from the operator (`delegate_to_realm`); on Claude Haiku, tools via the Bifrost VK, MLflow-traced. Roster complete — **but B17 stays OPEN until the DoD lands: (1) Realm Console UI, (2) dedicated LiteLLM VK, (3) `role-<key>` prompt registration in Bifrost.** See detail below.
 14. **U18** — ✅ **DONE 2026-06-17 (as KEY RETIREMENT, not lockdown).** B25b removed the SFTP ingestion that U18 was hardening → the `weyland-lab` key had zero consumers (repo grep clean). Retired it instead: deleted rogueone `authorized_keys` line + the orphaned `weyland-lab-ssh-key` k8s Secret. See detail below.
 15. **B20** — Home Assistant integration — a **generic** HA act-tool (lights/sensors/switches → Google Home/Alexa/physical devices) for the **B66 operator** / MCP gateway (Hermes retired). Prerequisites: a running HA instance + long-lived token; physical side effects → goes through the guard/act layer. See detail below.
 16. **B28** — OpenClaw rehabilitation (or retire) — **✅ RESOLVED 2026-06-25: SUPERSEDED by B66.** The keep/retire/reuse decision is no longer standalone — it's the "base agent" workstream of the consolidated [B66] Operator Agent Platform (Hermes-base vs reuse-OpenClaw's-responsiveness, decided at B66 build time). OpenClaw is NOT auto-retired (reuse candidate). Both original Qs (keep-vs-retire, refactor-vs-rewrite) move to B66.
@@ -622,7 +622,21 @@ with a standard UI — but we already built a lean Postgres `eval_*` store, so t
 **Open:** MLflow vs (B10's) lighter MinIO-bucket / OCI-registry options.
 
 ### B17 — A2A (agent-to-agent protocol) evaluation
-**MERGED with B19 — see the Mesh item.**
+**MERGED with B19 — see the Mesh item. Core BUILT & LIVE 2026-08-01 — the "Realm of Agents" (roster complete); B17 OPEN until DoD: UI + LiteLLM VK + prompt-reg.**
+
+**Built as the Realm of Agents** (design of record: `aidlc-docs/a2a-agent-roster.md`; concept
+`docs/concepts/realm-of-agents.md`; demo `docs/demos/realm-of-agents.md`): 24 small, corpus-backed specialists in
+5 Norse-named groups (Valhalla eng · Vanaheim knowledge · Midgard data · the Well research/eval/safety · Root =
+Operator+Gná), one multiplexed `realm-of-agents` pod, realm-partitioned inside. **A2A on two axes:** LangGraph *inside*
+a realm (a lead delegates to members-as-tools — real 2-hop) + the A2A Protocol (Agent Cards + `/route` ·
+`/agents/{key}/message`) *between* realms and up from the **operator** (`delegate_to_realm` — the cross-service hop,
+proven: "audit the grafana dashboards" → Gná → Verðandi → answer through Telegram). Runs on Claude Haiku
+(`REALM_MODEL` override), tools via the Bifrost VK, every hop MLflow-traced, resilient (failed member → note, not a
+crash). Proven: Valhalla shipped a full semver package, Midgard returned real Trino catalogs, the Well did cited web
+research. **Remaining for DoD (B17 stays OPEN until all three land):** (1) the **Realm Console UI** (`a2a-agent-roster.md` §9 —
+served by the pod at `realm.weyland.lab`, directory + live prompt bar, the answering god lighting up); (2) a dedicated
+**LiteLLM VK** for Realm spend attribution; (3) register the `role-<key>` prompts into **Bifrost** (editable without a
+rebuild). Original evaluation framing retained below.
 
 Evaluate **A2A (Agent2Agent)** — or similar (ACP, AGNTCY) — for the **agent↔agent edge only**. Born out of
 B2 scoping (see docs/concepts/agent-platform-design.md §5). **Key framing: A2A is complementary to MCP, not a

@@ -1,6 +1,8 @@
 # The Realm of Agents (B17 — Agent-to-Agent)
 
-**Status:** Design — roster locked, first wave next.
+**Status:** ✅ **LIVE (2026-08-01)** — all 24 agents across all five realms deployed, fleshed out with specialist
+prompts, and grounded in real tools. Runs on **Claude Haiku** (a Realm-wide `REALM_MODEL` override), every hop traced
+in MLflow, and reachable from the Operator (B66) over A2A.
 
 The lab has the raw material for agents sitting in **Bifrost** (B111): 241 prompts, 583 skills, and a
 232-tool MCP surface. What it lacks is *agents* that wield those as **peers**. B17 (Agent-to-Agent) is that
@@ -103,15 +105,22 @@ flowchart TD
 
 ---
 
-## How it gets built
+## How it's built
 
-- **Framework split:** `LangGraph` inside a realm (supervisor fan-out among a lead and its members); the
-  **A2A Protocol** (Agent Cards) between realms and up to the Operator. LangGraph is already in-lab (B66, B70).
-- **Two-mode leads:** each realm lead runs *solo* (skill-swapping through phases) for small work, or
-  *delegates* to its members for real work. Odin's loop is **spec → plan → build → test → review → secure → ship**.
-- **First wave** (proves discovery → delegate → reconcile across both in-process and cross-service):
-  **Gná** + **Kvasir** (pure-corpus peer) + **Verðandi** (tool-bound peer; first job = the B109 dashboard audit)
-  + **Odin** with **Mímir** and **Brokkr** (intra-realm LangGraph fan-out).
+- **One multiplexed pod** — `realm-of-agents` (ns `weyland`, Argo-managed, meshed). Realm-partitioned inside:
+  `roster.py` is the source of truth (24 `AgentSpec`s), `roles.py` holds each agent's specialist prompt, `cards.py`
+  serves A2A Agent Cards, `realms.py` wires a lead to its members (member-as-tool), `router.py` is Gná.
+- **Framework split:** `LangGraph` inside a realm (a lead fans out to its members as tools — real 2-hop delegation);
+  the **A2A Protocol** (Agent Cards + `/route` · `/agents/{key}/message`) between realms and up to the Operator.
+- **Two-mode leads:** each lead uses its **own** tools for its specialty *and* `delegate_to_*` for the rest, then
+  reconciles. Odin's loop is **spec → plan → build → test → review → secure → ship**.
+- **Brain:** a Realm-wide **Claude Haiku** override (`REALM_MODEL=wl-agentic`) — fast, reliable, off the local GPU;
+  the per-agent `wl-*` lanes in the roster are the designed routing, restored by clearing the override.
+- **Grounding:** tools load from the **Bifrost VK** (in-cluster); every run + its deliverable is captured as an
+  **MLflow trace** (experiment `realm-of-agents`), and each delegation hop prints to the pod log for a live view.
+- **Resilience:** a member that fails (e.g. an empty completion) returns a note the lead reconciles — it never
+  crashes the route.
 
-Full backing (prompt/skill/tool/`wl-*` per agent), eval criteria, and build order live in the design doc:
-`aidlc-docs/a2a-agent-roster.md`.
+Proven end-to-end: Valhalla produced a full semver engineering package (design → code → 80+ tests → review → deploy);
+Midgard returned real Trino catalogs; the Well did live cited web research. Full per-agent backing, framework split,
+and the deferred UI plan live in the design doc: `aidlc-docs/a2a-agent-roster.md`.

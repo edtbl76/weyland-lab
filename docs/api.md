@@ -140,6 +140,28 @@ confirm-step on acts. Traced per-message in MLflow (`operator` experiment).
 
 See [runbooks/operator.md](runbooks/operator.md).
 
+## Realm of Agents (`realm-of-agents` — B17 A2A)
+
+`realm-of-agents.weyland.svc:8080` (ClusterIP, **no ingress yet** — STRICT-mTLS meshed, so drive it in-cluster). One
+multiplexed pod hosting 24 corpus-backed specialists in 5 Norse-named groups. **Gná** routes a task to the best agent;
+realm **leads** act on their own tools or delegate to their members and reconcile. Every agent runs on **Claude Haiku**
+(`REALM_MODEL=wl-agentic` override via LiteLLM); tools via the **Bifrost VK**; every run is an **MLflow trace**
+(`realm-of-agents` experiment). The **operator** reaches it via its `delegate_to_realm` tool.
+
+| Route | Method | Purpose |
+|---|---|---|
+| `/.well-known/agent-card.json` | GET | root A2A Agent Card — discover the whole Realm |
+| `/agents` | GET | every agent's card + a realm index |
+| `/agents/{key}/card` (or `/agents/{key}/.well-known/agent-card.json`) | GET | one agent's A2A card |
+| `/agents/{key}/message` | POST | `{message, history?}` → run a specific agent (a lead delegates; a plain agent answers) |
+| `/route` | POST | `{message, history?}` → Gná classifies and runs the best-fit agent; returns `{routed_to, god, role, realm, answer}` |
+| `/health` `/ready` | GET | liveness / readiness |
+| `/metrics` | GET | `realm_requests_total{agent,outcome}`, `realm_request_seconds{agent}` |
+
+Agent keys: `odin·mimir·brokkr·forseti·hermodr·heimdall·huginn·muninn` (Valhalla) · `kvasir·njordr·freyja·bragi`
+(Vanaheim) · `verdandi·vor·saga·yggdrasil·fulla` (Midgard) · `tyr·odroerir·ratatoskr·snotra·syn` (the Well) · `gna`
+(dispatch). See [demos/realm-of-agents.md](demos/realm-of-agents.md) · [concepts/realm-of-agents.md](concepts/realm-of-agents.md).
+
 ## Data backends (mother, NodePort)
 
 | Service | Endpoint | Notes |
