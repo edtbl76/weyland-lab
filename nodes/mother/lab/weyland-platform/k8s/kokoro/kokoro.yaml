@@ -1,0 +1,64 @@
+# Kokoro-FastAPI — self-hosted, OpenAI-compatible TTS (`/v1/audio/speech`) for the lab media lane (B111).
+# Replaces ElevenLabs as the PRIMARY tts: ElevenLabs' free tier blocks library voices + cloning via the API, so its
+# credits are unspendable. Kokoro (Apache-2.0, ~82M) is $0, no quota, CPU-only, high quality, multi-voice. Bifrost
+# fronts it as a custom provider for `wl-tts`; ElevenLabs stays registered as the deferred alternate.
+# In-cluster only (ClusterIP) — consumers are Bifrost + Open WebUI, not a browser UI. Unmeshed (serves plain http, no
+# STRICT-mTLS peer in its path).
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kokoro
+  namespace: weyland
+  labels:
+    app: kokoro
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate          # single small model service, no rolling overlap needed
+  selector:
+    matchLabels:
+      app: kokoro
+  template:
+    metadata:
+      labels:
+        app: kokoro
+        sidecar.istio.io/inject: "false"
+    spec:
+      containers:
+        - name: kokoro
+          image: ghcr.io/remsky/kokoro-fastapi-cpu:latest   # pin to a release tag once smoke-tested
+          imagePullPolicy: IfNotPresent
+          securityContext:
+            allowPrivilegeEscalation: false
+            seccompProfile:
+              type: RuntimeDefault
+          ports:
+            - name: http
+              containerPort: 8880
+          readinessProbe:
+            tcpSocket:
+              port: 8880
+            initialDelaySeconds: 25    # first boot warms the model
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: 250m
+              memory: 768Mi
+            limits:
+              memory: 3Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: kokoro
+  namespace: weyland
+  labels:
+    app: kokoro
+spec:
+  type: ClusterIP
+  selector:
+    app: kokoro
+  ports:
+    - name: http
+      port: 8880
+      targetPort: 8880
