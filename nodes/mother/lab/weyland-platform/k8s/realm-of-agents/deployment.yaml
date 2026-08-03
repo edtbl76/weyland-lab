@@ -20,7 +20,7 @@ spec:
       enableServiceLinks: false
       containers:
         - name: realm-of-agents
-          image: registry.weyland.lab/realm-of-agents:v17   # v17 — GET /prompts (canonical per-agent role prompts) for the B102 Dagster registrations reconcile
+          image: registry.weyland.lab/realm-of-agents:v18   # v18 — FIX multi-level delegation: a delegated LEAD runs as a lead (Operator→Odin→Brokkr/Forseti), not solo
           imagePullPolicy: IfNotPresent
           resources:
             # No torch/embedder — langgraph/langchain client + fastapi only; inference is remote (LiteLLM). Low request

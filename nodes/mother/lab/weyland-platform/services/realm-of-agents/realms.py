@@ -25,8 +25,13 @@ def _member_tool(member: AgentSpec) -> StructuredTool:
         # down the whole route. Also guard an empty delegated task — some models call the tool with no arg, and an
         # empty user turn makes several providers return zero choices (→ IndexError deep in langchain_core).
         log(f"  ↳ delegating to {member.god} ({member.role})")
+        sub = task or f"Handle your part ({member.role}) of the current objective."
         try:
-            return await run_solo(member, task or f"Handle your part ({member.role}) of the current objective.")
+            # A member that is ITSELF a lead (e.g. the Operator delegating to Odin) must run AS a lead — keeping its own
+            # delegate_to_* tools — so multi-level delegation works (Operator → Odin → Brokkr/Forseti). Running it solo
+            # (the old behaviour) stripped those tools, so a delegated lead could only answer directly, never fan out.
+            # run_lead is defined below in this module; the closure is called at runtime, so the reference resolves.
+            return await (run_lead(member, sub) if member.lead else run_solo(member, sub))
         except Exception as exc:
             log(f"  ↳ {member.god} FAILED: {exc}")
             return f"[{member.god} ({member.role}) could not complete the sub-task: {exc}]"
