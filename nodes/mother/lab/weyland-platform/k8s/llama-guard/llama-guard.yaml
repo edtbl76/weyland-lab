@@ -1,0 +1,91 @@
+# Llama Guard — Classify layer of the guardrails platform (B113), TIER 1.
+# Llama-Guard-3-1B on CPU, always-on: the default content-safety classifier weyland-guard (the Scan layer) calls on
+# every classify. Served by llama.cpp (OpenAI-compatible /v1/chat/completions; the GGUF embeds the Llama Guard safety
+# taxonomy chat template, so plain `messages` get wrapped for us). Output is `safe` or `unsafe\nS<category>`.
+# $0, no GPU. TIER 2 = an on-demand Llama-Guard-3-8B on the rogueone GPU (llama.cpp server-cuda) — separate, not here.
+# UNMESHED (no Istio sidecar): keeps the on-boot HuggingFace model pull off the mesh's proxy-startup egress ordering;
+# a meshed client (weyland-guard) reaching a sidecar-less pod auto-negotiates to plaintext, so this still resolves.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: llama-guard
+  namespace: weyland
+  labels:
+    app: llama-guard
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate            # single-instance, model-cache emptyDir — never two pods contending
+  selector:
+    matchLabels:
+      app: llama-guard
+  template:
+    metadata:
+      labels:
+        app: llama-guard
+        sidecar.istio.io/inject: "false"
+    spec:
+      containers:
+        - name: llama-guard
+          image: ghcr.io/ggml-org/llama.cpp:server
+          imagePullPolicy: IfNotPresent
+          args:
+            - "-hf"
+            - "QuantFactory/Llama-Guard-3-1B-GGUF:Q8_0"   # ungated GGUF mirror; llama.cpp pulls + caches on first boot
+            - "--host"
+            - "0.0.0.0"
+            - "--port"
+            - "8080"
+            - "-c"
+            - "4096"                                       # context: a short conversation + the taxonomy fits easily
+            - "--temp"
+            - "0"                                          # deterministic — Llama Guard goes random above temp 0
+          ports:
+            - name: http
+              containerPort: 8080
+          securityContext:
+            allowPrivilegeEscalation: false
+            seccompProfile:
+              type: RuntimeDefault
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 40    # first boot downloads the ~1.3 GB GGUF before /health goes green
+            periodSeconds: 10
+            failureThreshold: 30
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 120
+            periodSeconds: 30
+          resources:
+            requests:
+              cpu: "1"
+              memory: 2Gi
+            limits:
+              memory: 4Gi
+          volumeMounts:
+            - name: model-cache
+              mountPath: /root/.cache/llama.cpp   # persists the GGUF across container restarts within the pod
+      volumes:
+        - name: model-cache
+          emptyDir:
+            sizeLimit: 4Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: llama-guard
+  namespace: weyland
+  labels:
+    app: llama-guard
+spec:
+  type: ClusterIP
+  selector:
+    app: llama-guard
+  ports:
+    - name: http
+      port: 8080
+      targetPort: 8080

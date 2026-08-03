@@ -110,11 +110,15 @@ flowchart TD
 - **One multiplexed pod** — `realm-of-agents` (ns `weyland`, Argo-managed, meshed). Realm-partitioned inside:
   `roster.py` is the source of truth (24 `AgentSpec`s), `roles.py` holds each agent's specialist prompt, `cards.py`
   serves A2A Agent Cards, `realms.py` wires a lead to its members (member-as-tool), `router.py` is Gná.
-- **Framework split:** `LangGraph` inside a realm (a lead fans out to its members as tools — real 2-hop delegation);
+- **Framework split:** `LangGraph` inside a realm (a lead fans out to its members as tools — **multi-level**: Operator → a realm lead → that lead's own members, because a delegated lead now runs *as a lead* and keeps its `delegate_to_*` tools);
   the **A2A Protocol** — spec-valid Agent Cards + a JSON-RPC `message/send` binding (`/a2a`) alongside the native REST
   (`/route` · `/agents/{key}/message`) — between realms, up to the Operator, and out to any standard A2A client.
 - **Two-mode leads:** each lead uses its **own** tools for its specialty *and* `delegate_to_*` for the rest, then
-  reconciles. Odin's loop is **spec → plan → build → test → review → secure → ship**.
+  reconciles. Odin's loop is **spec → plan → build → test → review → secure → ship**. Delegation is a **mandate** —
+  each lead is handed its explicit roster and told to decompose → delegate to every relevant member (a capable model,
+  left to its own judgment, under-delegates and just answers) — and the **Operator routes by domain→realm**
+  (engineering → Valhalla/Odin, knowledge → Vanaheim/Kvasir, data → Midgard/Verðandi, research·eval·safety → the Well/Tyr),
+  so an engineering task lands on Odin's full team rather than the wrong realm.
 - **Brain:** a Realm-wide **Claude Haiku** override (`REALM_MODEL=wl-agentic`) — fast, reliable, off the local GPU;
   the per-agent `wl-*` lanes in the roster are the designed routing, restored by clearing the override.
 - **Grounding:** tools load from the **Bifrost VK** (in-cluster); every run + its deliverable is captured as an
