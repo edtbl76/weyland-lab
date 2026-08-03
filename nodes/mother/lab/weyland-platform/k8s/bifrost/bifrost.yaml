@@ -196,3 +196,11 @@ spec:
             pathType: Prefix
             backend:
               service: { name: bifrost, port: { number: 8080 } }
+          # B111 — Anthropic drop-in ingress: Claude Code / Cline point ANTHROPIC_BASE_URL at bifrost.weyland.lab/anthropic
+          # (native Anthropic Messages API at /anthropic/v1/messages) with a Bifrost VK as the key, so the coding agents'
+          # Anthropic spend flows through the gateway (per-VK cost + budget + observability) instead of hitting Anthropic
+          # direct. NO forward-auth (agents can't browser-SSO); Bifrost's VK auth guards it, same as /mcp.
+          - path: /anthropic
+            pathType: Prefix
+            backend:
+              service: { name: bifrost, port: { number: 8080 } }
