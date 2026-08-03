@@ -308,9 +308,3 @@ xxhash==3.8.1
 yarl==1.24.2
 zipp==4.1.0
 zstandard==0.25.0
-
-# B115 Structure layer — Guardrails AI (output-schema validate + re-ask) for the eval judge; see
-# weyland_pipeline/structure.py. Direct dep on top of the pinned lock; pulls litellm + its tree transitively.
-# Pin the resolved versions after the first successful image build (DoD reproducibility). The judge fails SAFE
-# to a best-effort parse if this ever fails to import, so a resolution hiccup degrades, it doesn't break evals.
-guardrails-ai>=0.5.0

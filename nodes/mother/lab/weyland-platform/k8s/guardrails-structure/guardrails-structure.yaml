@@ -1,0 +1,74 @@
+# B115 Structure layer — guardrails-structure: Guardrails AI (output-schema validate + re-ask) ISOLATED in its own
+# image because its click<=8.2.0 pin can't co-install with the Dagster/dbt/huggingface stack that produces the output.
+# The eval judge POSTs its raw JSON here; the guard validates JudgeScores and re-asks the judge model (litellm -> Ollama)
+# to repair. Meshed — a normal in-cluster svc that reaches rogueone Ollama for the re-ask, like the tool-server does.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: guardrails-structure
+  namespace: weyland
+  labels:
+    app: guardrails-structure
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: guardrails-structure
+  template:
+    metadata:
+      labels:
+        app: guardrails-structure
+        sidecar.istio.io/inject: "true"
+    spec:
+      enableServiceLinks: false
+      containers:
+        - name: guardrails-structure
+          image: registry.weyland.lab/guardrails-structure:v1
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8080
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 10001
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+            seccompProfile:
+              type: RuntimeDefault
+          env:
+            - name: OLLAMA_BASE_URL          # where the re-ask reaches the judge models (litellm ollama_chat)
+              value: http://192.168.1.230:11434
+          # First /ready imports guardrails-ai + litellm (heavy) and builds the Guard — allow ~2.5 min before liveness.
+          startupProbe:
+            httpGet: { path: /ready, port: 8080 }
+            failureThreshold: 30
+            periodSeconds: 5
+          livenessProbe:
+            httpGet: { path: /health, port: 8080 }
+            periodSeconds: 20
+          readinessProbe:
+            httpGet: { path: /ready, port: 8080 }
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              memory: 1536Mi   # guardrails + litellm import footprint; trim after measuring
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: guardrails-structure
+  namespace: weyland
+  labels:
+    app: guardrails-structure
+spec:
+  type: ClusterIP
+  selector:
+    app: guardrails-structure
+  ports:
+    - name: http
+      port: 8080
+      targetPort: 8080

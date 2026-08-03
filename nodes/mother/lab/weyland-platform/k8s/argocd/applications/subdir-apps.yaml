@@ -626,3 +626,22 @@ spec:
     namespace: weyland
   syncPolicy:
     automated: { selfHeal: true, prune: true }
+---
+# B115 — guardrails-structure: Structure layer of the guardrails platform. Guardrails AI (schema-validate + re-ask)
+# isolated in its own image (its click<=8.2.0 pin can't co-install with the Dagster stack). The eval judge POSTs here.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: guardrails-structure
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/edtbl76/weyland-lab.git
+    targetRevision: main
+    path: nodes/mother/lab/weyland-platform/k8s/guardrails-structure
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: weyland
+  syncPolicy:
+    automated: { selfHeal: true, prune: true }

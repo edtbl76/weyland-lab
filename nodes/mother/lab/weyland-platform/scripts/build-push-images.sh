@@ -25,6 +25,7 @@ build weyland-flink             "-f k8s/flink/Dockerfile k8s/flink"
 build weyland-flink-py          "-f k8s/flink/Dockerfile.pyflink k8s/flink"
 build store-scaler              "services/store-scaler"
 build scan-suite                "services/scan-suite"
+build guardrails-structure      "services/guardrails-structure"   # B115 Structure layer (guardrails-ai isolated)
 
 # ranger is VERSION-PINNED (mr3project base tag), not TAG-following — build it explicitly (B92: was a local
 # ctr-import, moved to the registry so it survives a prune/reschedule like the rest).
