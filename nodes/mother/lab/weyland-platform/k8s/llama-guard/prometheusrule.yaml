@@ -1,0 +1,23 @@
+# B115 — llama-guard (Classify tier-1) down alert. Lives in the `monitoring` ns with release:monitoring
+# (kube-prometheus-stack ruleSelector); routes to the Weyland Alerts Telegram chat (B5 P2a). The classifier is
+# FAIL-OPEN — if it's down, weyland-guard's llama_guard.safety records a PASS and the other guards are unaffected —
+# so severity is `warning`, not critical. kube-state-metrics signal (no /metrics on llama.cpp), like the litellm rule.
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: llama-guard
+  namespace: monitoring
+  labels:
+    release: monitoring
+spec:
+  groups:
+    - name: llama-guard
+      rules:
+        - alert: LlamaGuardDown
+          expr: kube_deployment_status_replicas_available{namespace="weyland",deployment="llama-guard"} < 1
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "llama-guard (Classify tier-1) has no ready replica"
+            description: "The always-on Llama-Guard-3-1B classifier is down. weyland-guard's llama_guard.safety validator fails open (the Classify opinion is lost; injection/toxicity/PII/grounding are unaffected). Check: kubectl -n weyland rollout status deploy/llama-guard"

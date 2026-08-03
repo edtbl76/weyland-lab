@@ -1,0 +1,19 @@
+#!/usr/bin/env bash
+# gpu-docker — run docker against rogueone's NATIVE engine (nvidia runtime), NEVER Docker Desktop.
+#
+# WHY THIS EXISTS: rogueone's DEFAULT docker context is Docker Desktop — a VM with NO host GPU and a SEPARATE container
+# namespace. The GPU containers (vllm / sglang / llama-guard-8b) run on the native Docker Engine socket
+# (/var/run/docker.sock, which has the nvidia runtime configured in /etc/docker/daemon.json). So a bare `docker ps` /
+# `docker stats` on rogueone talks to Docker Desktop and reports "No such container" for anything GPU. This wrapper
+# prepends DOCKER_HOST so you don't have to — use it for EVERY ad-hoc docker command against a GPU container.
+#
+# Usage:  gpu-docker <any docker args>
+#   gpu-docker ps                          gpu-docker stats llama-guard-8b
+#   gpu-docker logs -f vllm                gpu-docker exec llama-guard-8b nvidia-smi
+#   gpu-docker compose -f nodes/rogueone/services/gpu-inference/docker-compose.yml ps
+#
+# TIP: put scripts/ on your PATH (or symlink this into ~/.local/bin) so it's just `gpu-docker …` from anywhere:
+#   ln -s "$(pwd)/scripts/gpu-docker" ~/.local/bin/gpu-docker
+# The *-bench.sh wrappers (vllm/sglang/llama-guard-8b) already set DOCKER_HOST internally — this is for the ad-hoc
+# commands they don't cover (stats / exec / inspect / one-off ps).
+exec env DOCKER_HOST="unix:///var/run/docker.sock" docker "$@"

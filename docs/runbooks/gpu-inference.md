@@ -13,10 +13,13 @@ GPU access lives on the **native Docker Engine** socket (`/var/run/docker.sock`)
 (`/etc/docker/daemon.json`). Symptom if you forget: `Error response from daemon: could not select device driver "nvidia"
 with capabilities: [[gpu]]`.
 
-Fix = force the native socket per-command (this is exactly what the existing `~/weyland/vllm/gpu-docker` wrapper does —
-`env DOCKER_HOST=unix:///var/run/docker.sock docker "$@"`). For compose, prefix every call:
+Fix = the committed **`scripts/gpu-docker`** wrapper — it prepends `DOCKER_HOST=unix:///var/run/docker.sock` so you never
+type it. Use it for EVERY ad-hoc docker command against a GPU container: `gpu-docker ps` · `gpu-docker stats <c>` ·
+`gpu-docker logs -f <c>` · `gpu-docker exec <c> nvidia-smi`. (A bare `docker …` hits Docker Desktop and reports
+"No such container".) Put `scripts/` on your PATH or symlink it into `~/.local/bin` so it's `gpu-docker …` from anywhere.
+The `*-bench.sh` wrappers already set `DOCKER_HOST` internally. For compose:
 ```
-DOCKER_HOST=unix:///var/run/docker.sock docker compose -f nodes/rogueone/services/gpu-inference/docker-compose.yml <cmd>
+gpu-docker compose -f nodes/rogueone/services/gpu-inference/docker-compose.yml <cmd>
 ```
 Verify the GPU is reachable at all: `docker run --rm --gpus all ubuntu:22.04 nvidia-smi` **on the native engine**.
 

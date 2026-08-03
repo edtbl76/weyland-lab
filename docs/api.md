@@ -114,8 +114,8 @@ layer; the tool-server (and the coming `weyland-agent`) POST here instead of run
 
 | Route | Method | Purpose |
 |---|---|---|
-| `/guard/input` | POST | `{request_id, query, actor?}` → `llm_guard.injection`. Returns `{decision: allow\|block, verdict?}` |
-| `/guard/output` | POST | `{request_id, answer, sources:[{content}], actor?}` → `llm_guard.toxicity` + `grounding.nli` |
+| `/guard/input` | POST | `{request_id, query, actor?}` → `llm_guard.injection` + `llama_guard.safety`. Returns `{decision: allow\|block, verdict?}` |
+| `/guard/output` | POST | `{request_id, answer, sources:[{content}], actor?}` → `llm_guard.pii` + `llm_guard.toxicity` + `grounding.nli` + `llama_guard.safety` |
 | `/guard/act` | POST | `{request_id, tool, params?, actor?}` → `policy.audit` (audit) + `policy.gate` (**enforcing `block` live 2026-07-29**: identity / allowlist / rate-limit — no-actor / unknown / direct acts denied; see [runbooks/mcp-gateway.md](runbooks/mcp-gateway.md)) |
 | `/health` `/ready` | GET | liveness / readiness (503 until the 3 models load) |
 | `/metrics` | GET | `guardrail_verdicts_total` + `guardrail_validator_latency_ms` |
@@ -209,6 +209,7 @@ SSE; Uncial-Antiqua title, black-and-white chrome with realm color-coding).
 | Valkey (shared cache) | `valkey.data-mesh.svc:6379` (in-cluster only) | Shared data-mesh cache (BSD Redis fork). Used by Superset (cache + Celery). IntelliJ via k8s port-forward + DataGrip "Redis" data source. |
 | TimescaleDB (time-series) | `timescaledb.data-mesh.svc:5432` (in-cluster); IntelliJ via k8s port-forward | **B65 Tier-2 #4** — Postgres extension for time-series; 5 hypertables (eval_scores_ts, guardrail_verdicts_ts, dagster_run_durations, unleash_feature_metrics, datahub_ingestion_runs); db `timeseries`, user `weyland` / dev password. See [runbooks/timescaledb.md](runbooks/timescaledb.md). |
 | MySQL (health/wellness) | `mysql.data-mesh.svc:3306` (in-cluster); IntelliJ via k8s port-forward | **B65 Tier-2 #5** — health datasets, hydrated from silver Parquet (data-store-mageddon, 2026-07-01). 6 databases = the grid `MySQL=Y` set: NHANES, Big Five, WHO GHO, CDC Physical Activity, BRFSS, NHIS (USDA + Open Food Facts are `MySQL=N`; NHIS replaced UK Biobank). 32 tables (dataset→db, parquet file→table). user `weyland` / dev password. See [runbooks/datasets-hydration.md](runbooks/datasets-hydration.md). |
+| llama-guard (Classify classifier) | `llama-guard.weyland.svc:8080` (ClusterIP, no ingress) | **B115 Classify layer** — Llama Guard content-safety classifier `weyland-guard` calls as `llama_guard.safety` (INPUT+OUTPUT, shadow, fail-open). **Tier 1** (always-on) = Llama-Guard-3-1B on CPU (mother), llama.cpp OpenAI-compat, model `QuantFactory/Llama-Guard-3-1B-GGUF:Q8_0`; `k8s/llama-guard/`, UNMESHED. **Tier 2** (on-demand) = Llama-Guard-3-8B on the rogueone GPU at `http://192.168.1.230:8003` (`scripts/llama-guard-8b.sh`) — repoint `LLAMA_GUARD_URL` to escalate. See [runbooks/guardrails.md](runbooks/guardrails.md). |
 
 > **Not behind Traefik, not Keycloak-gated** — these are databases/APIs reached by code (the tool-server, clients), not browsers. They're exposed via **NodePort + the APISIX gateway**, auth'd at the API/DB layer (Neo4j login, Qdrant/Weaviate keys/network). Keycloak SSO gates browser UIs only.
 

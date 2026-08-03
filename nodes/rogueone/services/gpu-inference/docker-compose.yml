@@ -97,7 +97,7 @@ services:
       - "--temp"
       - "0"                         # deterministic — Llama Guard goes random above 0
     volumes:
-      - llama-cache:/root/.cache/llama.cpp   # persist the GGUF across runs
+      - hf-cache:/root/.cache/huggingface   # llama.cpp `-hf` caches to the HF hub layout here — SAME volume vllm/sglang use
     deploy:
       resources:
         reservations:
@@ -107,4 +107,3 @@ services:
               capabilities: [gpu]
 volumes:
   hf-cache:
-  llama-cache:
