@@ -8,7 +8,6 @@ Standalone + idempotent per (result, judge): re-runs only score pairs not yet do
 judge or resuming after a crash is cheap. Judges are non-thinking models (reliable JSON under
 json_object). Reuse-only: Ollama (judges) + Postgres.
 """
-import json
 import os
 import re
 from contextlib import contextmanager
@@ -17,6 +16,7 @@ import httpx
 from dagster import Output, MetadataValue, asset, get_dagster_logger
 
 from weyland_pipeline.resources import PostgresResource
+from weyland_pipeline.structure import validate_scores
 
 OLLAMA_BASE_URL = os.environ.get("OLLAMA_BASE_URL", "http://192.168.1.230:11434/v1")
 # Panel of non-thinking judges (reliable JSON); the eval_leaderboard view averages across them.
@@ -82,10 +82,11 @@ def _judge(client: httpx.Client, judge_model: str, question: str, contexts, answ
         )
         resp.raise_for_status()
         content = _strip_think(resp.json()["choices"][0]["message"].get("content") or "")
-        data = json.loads(content[content.find("{"): content.rfind("}") + 1])
-        scores = {m: max(0.0, min(1.0, float(data[m]))) for m in METRICS if m in data and data[m] is not None}
+        # B115 Structure layer — validate the judge's JSON against JudgeScores and RE-ASK the judge to repair on a
+        # schema miss (Guardrails AI); fail-safe to a best-effort parse so a guard hiccup never sinks the eval.
+        scores, structure_source = validate_scores(content, judge_model, OLLAMA_BASE_URL)
         if span is not None:
-            span.set_outputs(scores)
+            span.set_outputs({**scores, "_structure": structure_source})
         return scores
 
 
