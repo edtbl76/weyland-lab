@@ -60,6 +60,7 @@ def _build_guardrails() -> GuardrailPipeline:
     """Instantiate the validator set — each loads its own baked model; a failure skips that one and the rest still
     run (partial coverage beats none). Identical construction to the tool-server's `_build_guardrails`."""
     from guardrails.validators.grounding import GroundingValidator
+    from guardrails.validators.llama_guard import LlamaGuardValidator
     from guardrails.validators.llm_guard import InjectionValidator, PIIValidator, ToxicityValidator
     from guardrails.validators.policy import AuditValidator, PolicyGateValidator
 
@@ -67,6 +68,7 @@ def _build_guardrails() -> GuardrailPipeline:
         "llm_guard.injection": InjectionValidator,
         "llm_guard.pii": PIIValidator,
         "llm_guard.toxicity": ToxicityValidator,
+        "llama_guard.safety": LlamaGuardValidator,   # B115 Classify layer — calls the 1B classifier svc (fail-open)
         "grounding.nli": GroundingValidator,
         "policy.audit": AuditValidator,
         "policy.gate": PolicyGateValidator,

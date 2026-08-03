@@ -2,10 +2,14 @@ FROM python:3.12-slim
 
 WORKDIR /app
 
-# Slimmer than the tool-server: ONLY the guard's needs — no llama-index/qdrant/weaviate/neo4j/httpx.
+# Slimmer than the tool-server: ONLY the guard's needs — no llama-index/qdrant/weaviate/neo4j.
+# httpx is explicit (B115): the llama_guard.safety validator calls the Llama Guard classifier svc over HTTP, and its
+# module-level `import httpx` runs before the per-builder try/except — a missing httpx would crash the whole builder
+# (disabling ALL guards), so we declare it rather than lean on a transitive pull.
 RUN pip install --no-cache-dir \
     fastapi \
     uvicorn \
+    httpx \
     psycopg2-binary \
     prometheus-client \
     llm-guard \

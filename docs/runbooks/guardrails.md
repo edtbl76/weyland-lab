@@ -15,8 +15,8 @@ layer becomes the **first clean seam of the tool-server decomposition** (related
 
 | Route | Body | Runs |
 |---|---|---|
-| `POST /guard/input` | `{request_id, query, actor?}` | `llm_guard.injection` |
-| `POST /guard/output` | `{request_id, answer, sources:[{content}], actor?}` | `llm_guard.toxicity` + `grounding.nli` |
+| `POST /guard/input` | `{request_id, query, actor?}` | `llm_guard.injection` + `llama_guard.safety` |
+| `POST /guard/output` | `{request_id, answer, sources:[{content}], actor?}` | `llm_guard.pii` + `llm_guard.toxicity` + `grounding.nli` + `llama_guard.safety` |
 | `POST /guard/act` | `{request_id, tool, params?, actor?}` | `policy.audit` (audit) + `policy.gate` (enforcing) |
 | `GET /health` | — | liveness (200 even if models failed) |
 | `GET /ready` | — | 503 until the validator set is built |
@@ -36,7 +36,7 @@ self-documenting OpenAPI, independent evolution.
   answers.
 
 ## Validators & modes
-INPUT `llm_guard.injection` · OUTPUT `llm_guard.pii` + `llm_guard.toxicity` + `grounding.nli` · ACT `policy.audit` + `policy.gate`.
+INPUT `llm_guard.injection` + `llama_guard.safety` · OUTPUT `llm_guard.pii` + `llm_guard.toxicity` + `grounding.nli` + `llama_guard.safety` · ACT `policy.audit` + `policy.gate`.
 All SHADOW. Two ways to change a mode:
 - **Persistent** — per-validator env on the `weyland-guard` deployment:
 ```
@@ -96,6 +96,17 @@ the detector the PII-bearing-data path needs, but it's noisy on tech text — so
 RAG-over-docs**; at promotion, context-gate `PERSON` to the PII-data path (or a tech-term denylist). The regex entities
 are the solid core for the export-leak case.
 
+## llama_guard.safety — the Classify layer (B115, 2026-08-03)
+The **Classify** path of the guardrails platform (B115): a **model-based content-safety classifier** — Meta's **Llama
+Guard** over its full safety taxonomy (S1 violent crime, S9 weapons, S11 self-harm, …) — run as a SECOND opinion
+alongside the single-purpose llm_guard scanners (it catches policy classes injection/toxicity don't). It is **not** a
+baked model: the validator (`validators/llama_guard.py`) POSTs to the always-on **`llama-guard`** svc —
+**tier 1** = Llama-Guard-3-1B on **CPU (mother)**, served by **llama.cpp** at temp 0 (`LLAMA_GUARD_URL` on the
+deployment; `k8s/llama-guard/`). Runs on **INPUT** (the prompt) and **OUTPUT** (the answer), both **SHADOW**. Reply
+`unsafe\n<S-cat>` → BLOCK verdict `unsafe: S<cat>`; `safe` → PASS; unreachable / odd reply → **fail-open** (PASS), per
+the caller contract. **Tier 2** (an on-demand Llama-Guard-3-8B on the **rogueone GPU**, same llama.cpp stack) is the
+stronger escalation — repoint `LLAMA_GUARD_URL` with no rebuild. Design: `aidlc-docs/guardrails-platform.md`.
+
 ## Demo toggle — `POST /admin/mode` (live, no restart)
 Flip validators shadow↔flag/block **live** for a demo, then revert. In-process override: a pod restart drops back to
 the committed modes (a demo can't be left on by accident) and there's no manifest drift for Argo to fight — chosen over
@@ -131,7 +142,7 @@ Image is registry-based (NOT `:local`). Consumers deploy off Argo.
 ```
 kubectl -n weyland exec deploy/weyland-guard -- python -c "import urllib.request; print(urllib.request.urlopen('http://localhost:8080/ready').read().decode())"
 ```
-`/ready` should list `grounding.nli`, `llm_guard.injection`, `llm_guard.toxicity`, `llm_guard.pii`, `policy.audit`, `policy.gate`. A
+`/ready` should list `grounding.nli`, `llm_guard.injection`, `llm_guard.toxicity`, `llm_guard.pii`, `llama_guard.safety`, `policy.audit`, `policy.gate`. A
 `POST /guard/output` with a hallucinated answer vs a contradicting source should score `grounding.nli` as `flag`
 (counter visible on `/metrics`); a jailbreak query on `/guard/input` scores `llm_guard.injection` as `block` — both
 returned as `allow` while SHADOW.

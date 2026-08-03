@@ -7,12 +7,14 @@ from .verdict import Hook, Mode
 _DEFAULT = {
     Hook.INPUT: [
         ("llm_guard.injection", Mode.SHADOW),
+        ("llama_guard.safety", Mode.SHADOW),  # B115 Classify: Llama Guard safety-taxonomy on the user prompt.
     ],
     Hook.OUTPUT: [
         ("llm_guard.pii", Mode.SHADOW),       # B34: baked + entity-calibrated (IP/UUID dropped); SHADOW until the
                                               #   false-positive rate is measured on real traffic (then promote).
         ("llm_guard.toxicity", Mode.SHADOW),
         ("grounding.nli", Mode.SHADOW),
+        ("llama_guard.safety", Mode.SHADOW),  # B115 Classify: same classifier on the answer (broader than toxicity).
     ],
     Hook.ACT: [
         ("policy.audit", Mode.SHADOW),   # audit-only record that an act fired.

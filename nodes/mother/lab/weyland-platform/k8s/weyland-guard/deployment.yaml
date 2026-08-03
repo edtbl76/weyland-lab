@@ -20,7 +20,7 @@ spec:
       enableServiceLinks: false
       containers:
         - name: weyland-guard
-          image: registry.weyland.lab/weyland-guard:v8
+          image: registry.weyland.lab/weyland-guard:v9   # B115: + llama_guard.safety Classify validator (httpx dep)
           imagePullPolicy: IfNotPresent
           resources:
             # Loads 4 models: injection DeBERTa + toxicity + NLI cross-encoder + (B34) the PII NER model. 3Gi covers
@@ -76,3 +76,8 @@ spec:
             # unverified act, toggle back to SHADOW at runtime via /admin/mode (Bearer) rather than editing this.
             - name: GUARDRAIL_MODE__policy__gate
               value: block
+            # B115 Classify layer — the llama_guard.safety validator (INPUT+OUTPUT, SHADOW) posts to the always-on
+            # Llama-Guard-3-1B classifier svc (tier 1). Default resolves to the in-cluster svc; surfaced here so ops can
+            # repoint to the on-demand tier-2 8B (rogueone) without a rebuild. Ships SHADOW — promote via GUARDRAIL_MODE.
+            - name: LLAMA_GUARD_URL
+              value: http://llama-guard.weyland.svc.cluster.local:8080
