@@ -96,6 +96,17 @@ touches the act lane). The longer `/mcp` path outranks the forward-auth'd `/` ro
 the browser SSO. Runbook: [runbooks/mcp-gateway.md](runbooks/mcp-gateway.md). (B111 = adopt Bifrost's full agentic-gateway
 feature set — bake-off vs LiteLLM.)
 
+## Media lane (Bifrost — B111)
+
+`https://bifrost.weyland.lab` — the non-chat generation lane (image / tts / video), OpenAI-style shapes through Bifrost.
+See [bifrost-provider-loadout.md](../aidlc-docs/bifrost-provider-loadout.md).
+
+| Media | Endpoint | Model | Notes |
+|---|---|---|---|
+| **Image** | `POST /v1/images/generations` | `runware:100@1` | Runware (FLUX.1 schnell), OpenAI-style `model`+`prompt`+`size`+`n` → image URL, ~1.5s. Cheap/free-credit. |
+| **TTS** | `POST /v1/audio/speech` | `kokoro/kokoro` | **Kokoro** self-hosted (`kokoro.weyland.svc:8880`), $0/no-quota, voices `af_bella`/`am_adam`/`bf_emma`. Or via LiteLLM alias **`wl-tts`** (`http://mother:30400/v1/audio/speech`), primary Kokoro → **ElevenLabs deferred** fallback (free tier blocks library voices via API). |
+| **Video** | `POST /v1/videos` | `gen4_turbo` | Runway image-to-video, **async**: `→ status:queued` + task id, poll `GET /v1/videos/{id}` until `status:completed` (`.mp4` URL), ~30-90s. Bifrost tries Replicate first (paywalled) → falls back to Runway. |
+
 ## Guard service (`weyland-guard` — B70 Part 1)
 
 Internal only — `http://weyland-guard.weyland.svc.cluster.local:8080` (ClusterIP, no ingress). The shared B14 guard

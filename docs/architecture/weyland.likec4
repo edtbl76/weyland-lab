@@ -60,6 +60,7 @@ model {
         ragIndex = component "rag-index consumers" "5 stream consumers — replay rag.chunks into each store"
         realmOfAgents = component "Realm of Agents" "B17 A2A — 24 corpus-backed specialists in 5 Norse-named groups (Valhalla/Vanaheim/Midgard/the Well) in one multiplexed pod. Gná dispatches; leads act on their own tools or delegate to members and reconcile. Runs on Claude Haiku (REALM_MODEL override via LiteLLM). Tools via the Bifrost VK; every hop MLflow-traced. Reached by the Operator over A2A (delegate_to_realm). Front door realm.weyland.lab — A2A JSON-RPC /a2a binding + the Realm Console (live trace UI via /route/stream SSE); debugged with the A2A Inspector."
         a2aInspector = component "A2A Inspector" "B17 debug UI (inspector.weyland.lab, Keycloak SSO). Validates the Realm's Agent Cards and chats through Gná — protocol-level. Adopted over a2a-ui / LangGraph Studio / Agent Chat UI in a bake-off; Argo-managed."
+        kokoro = component "Kokoro TTS" "B111 self-hosted OpenAI-compatible TTS (/v1/audio/speech), $0/no-quota — the media-lane primary (image=Runware, video=Runway; ElevenLabs deferred — free tier blocks library voices via API). Fronted by Bifrost as a custom provider (kokoro/kokoro) + a wl-tts LiteLLM route. kokoro.weyland.lab web UI."
       }
 
       // ============ Data mesh / lakehouse plane (sliced) ============
@@ -203,6 +204,7 @@ model {
   rogueone.claudeCode -> weyland.mother.ops.edge.bifrost "MCP tools + skill marketplace (/api/skills/serve)"
   weyland.mother.ops.edge.bifrost -> weyland.mother.ops.edge.mcpCompositor "aggregates the 95-tool read fleet (weyland_fleet upstream)"
   weyland.mother.ops.edge.bifrost -> hostedModels "provider egress — per-VK budgets + sealed keys"
+  weyland.mother.ops.edge.bifrost -> weyland.mother.ai.kokoro "media tts — Kokoro custom provider (kokoro/kokoro)"
   weyland.mother.ai.operator -> rogueone.ollama "brain — gpt-oss:20b /v1"
   weyland.mother.ai.operator -> weyland.mother.ai.pg "session memory (STRICT mTLS)"
   rogueone.claudeCode -> weyland.mother.ai.toolServer "MCP /mcp"
