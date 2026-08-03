@@ -62,3 +62,30 @@ spec:
     - name: http
       port: 8880
       targetPort: 8880
+---
+# kokoro.weyland.lab — Kokoro-FastAPI's built-in web player UI (generate/preview speech). Keycloak forward-auth like the
+# other lab UIs. Bifrost + agents reach Kokoro via the in-cluster Service (not this ingress), so gating the browser UI is
+# fine. Add an Uptime Kuma HTTP monitor for https://kokoro.weyland.lab (200/302 lenient, like the other forward-auth UIs).
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: kokoro
+  namespace: weyland
+  annotations:
+    traefik.ingress.kubernetes.io/router.middlewares: weyland-traefik-forward-auth@kubernetescrd
+spec:
+  tls:
+    - hosts:
+        - kokoro.weyland.lab
+      secretName: weyland-wildcard-tls
+  rules:
+    - host: kokoro.weyland.lab
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: kokoro
+                port:
+                  number: 8880

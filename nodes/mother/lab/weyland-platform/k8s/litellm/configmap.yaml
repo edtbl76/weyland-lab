@@ -94,6 +94,25 @@ data:
           api_base: http://bifrost.weyland.svc.cluster.local:8080/v1
           api_key: os.environ/BIFROST_REALM_VK
 
+      # B111 media lane — text-to-speech. PRIMARY = Kokoro (self-hosted, $0, no quota) via Bifrost; ALTERNATE =
+      # ElevenLabs (kept/listed, but its free tier blocks library voices via API — usable only on a paid plan).
+      # Callers hit LiteLLM /v1/audio/speech with model wl-tts. NOTE: voice names differ per provider (Kokoro af_bella…
+      # vs ElevenLabs voice IDs), so an actual failover to ElevenLabs needs a valid ElevenLabs voice.
+      - model_name: wl-tts
+        litellm_params:
+          model: openai/kokoro/kokoro
+          api_base: http://bifrost.weyland.svc.cluster.local:8080/v1
+          api_key: os.environ/BIFROST_REALM_VK
+        model_info:
+          mode: audio_speech
+      - model_name: elevenlabs-tts       # the deferred alternate (referenced by the wl-tts fallback chain)
+        litellm_params:
+          model: openai/elevenlabs/eleven_multilingual_v2
+          api_base: http://bifrost.weyland.svc.cluster.local:8080/v1
+          api_key: os.environ/BIFROST_REALM_VK
+        model_info:
+          mode: audio_speech
+
       # --- Fallback-only deployments (targets referenced by router_settings.fallbacks) ---
       # All via Bifrost. deepseek-chat/reasoner remapped to Bifrost's deepseek-v4-flash/pro. All providers funded.
       - model_name: deepseek-chat
@@ -141,6 +160,7 @@ data:
         - {"wl-judge":    ["wl-default", "gemini-flash"]}
         - {"wl-search":   ["xai-grok"]}
         - {"wl-big-oss":  ["wl-default"]}
+        - {"wl-tts":      ["elevenlabs-tts"]}      # Kokoro primary → ElevenLabs alternate (media lane, B111)
 
     general_settings:
       master_key: os.environ/LITELLM_MASTER_KEY
