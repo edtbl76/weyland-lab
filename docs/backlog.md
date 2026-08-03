@@ -751,13 +751,18 @@ don't rebuild them:
 - **Decision recorded:** no client-supplied identity is ever trusted (anti-spoofing). Identity is a
   gateway-asserted header or absent — this work must not loosen that.
 
-### B20 — Home Assistant integration
-A **generic** Home Assistant act-tool — extend the agent's "system view" from infra to the **physical
-environment** (lights, sensors, switches). **Reframed 2026-07-29:** Hermes is retired, so this is a tool for the
-**B66 operator** (weyland-operator) — or any agent behind the tool-server / MCP gateway — not a Hermes tool.
-**Gated on two things, not GPU:** (1) a running Home Assistant instance on the LAN (none yet) + a long-lived
-token; (2) it's an **act tool with physical side effects**, so it goes through the guard/act layer (B14 → the
-enforcing act gate on B17+B19), not a read-only surface.
+### B20 — Home Assistant integration — Maturity
+**Reframed 2026-08-03 → Maturity, DECOUPLED from B66/agents.** Home Assistant is a **standalone home-automation hub** —
+one pane over the consumer/physical environment (**Nest**, **Google Home/Cast**, **Alexa/Echo**, **Smart TVs**;
+lights/sensors/thermostats/speakers/TVs). Its value does NOT depend on agents, so it's no longer framed as "a B66
+operator tool." **Deployment DECIDED: a Proxmox HAOS VM** (bridged LAN — the devices are cloud + local-network, no USB
+dongles, but local mDNS/SSDP discovery needs LAN visibility a k8s pod lacks). Specs + integration map + sequence in the
+design doc: **`aidlc-docs/home-assistant.md`**. $0 except an optional one-time **$5** Nest Device Access; **no Nabu Casa**.
+
+**The guarded agent act-tool** (operator → HA REST API via a long-lived token, through the B14/B17 guard/act confirm
+rails + enforcing `policy.gate` for physical side effects) is a **separate, optional follow-on layer** — the only
+agent-dependent piece, NOT part of the core. **PARKED** (design captured 2026-08-03); un-park by creating the HAOS VM →
+onboarding + integrations → token → (optional) the agent act-tool.
 
 ### B21 — Agent media generation (image / video / TTS)
 Enable the **operator's** `image_generate` / `video_generate` / `text_to_speech` act-tools (Hermes retired → the B66 operator / MCP gateway) — **gated on the eGPU decision**
