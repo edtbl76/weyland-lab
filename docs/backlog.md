@@ -1280,6 +1280,14 @@ Original highlights (high) — historical, several now closed above:
 **Added 2026-07-23.** `docker push` to the MinIO-backed OCI registry (`registry.weyland.lab`, `distribution/registry`, blobs on the uas-quirked USB disk) completes the blob layers but **intermittently fails to finalize the manifest PUT** → the tag is absent and the pod `ImagePullBackOff`s with `not found` even though the blobs are present. A re-push (blobs already there = fast) re-sends the small manifest, which lands. **Hit 3× in one session** (weyland-guard, tool-server v2, weyland-agent v1→v2), costing a round-trip per deploy. Investigate: the registry→MinIO manifest-write path (USB-disk latency? a registry storage/timeout config?), any remaining Traefik/ingress limit (readTimeout=0 fixed the 60s *read* cut, but the manifest PUT may hit a different one), or wrap pushes in a **verify-and-retry** helper (`push → curl tags/list → re-push if missing`) as the pragmatic mitigation. **Done 2026-07-24 — `scripts/push-image.sh <ref>`:** pushes, verifies the tag is in `/v2/<name>/tags/list`, and auto-re-pushes if not (`PUSH_ATTEMPTS`, default 3) → a deploy is one command. Root cause = the USB/S3 manifest-write race (no registry timeout/consistency knob exposed in `k8s/registry/registry.yaml`); accepted as a lab constraint. Runbooks' raw `docker push` can adopt the wrapper (operator.md updated). See [[traefik-readtimeout-registry-push]], [[weyland-usb-uas-quirk]].
 
 ### B102 — Automate prompt registration (register_prompts.py → Dagster asset) — Maturity
+**✅ DONE 2026-08-02.** Shipped as the Dagster **`registrations`** group (weekly + on-demand `registrations_reconcile_job`,
+auto-running): `bifrost_prompts_registered` + `bifrost_skills_registered` (shell out to the register scripts bundled in
+the user-code image) + `realm_roles_registered` (pulls the Realm `GET /prompts` → registers `role-<key>` in Bifrost, so
+the Realm stays the source of truth). All idempotent → the Bifrost prompt/skill repos + realm roles self-heal after a
+PVC/store reset with no manual `kubectl exec`. **MLflow prompt-reg (`register_prompts.py`) intentionally stays a runbook**
+— `mlflow` isn't in the Dagster env and folding it risks the dagster+dbt+datahub version clashes the image avoids
+(candidate for its own CronJob in the mlflow image later). realm-of-agents v17 (`/prompts`), user-code v14.
+
 **Added 2026-07-24.** B100 P2 shipped the MLflow Prompt Registry with `scripts/register_prompts.py` as the source of
 truth, run **manually on change** (`kubectl -n weyland exec -i deploy/weyland-agent -- python < scripts/register_prompts.py`).
 Mature it into a **Dagster asset** so registration is GitOps-reproducible + auto-synced like the rest of the mesh: an
