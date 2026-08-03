@@ -158,7 +158,7 @@ data:
         - {"wl-rag":      ["wl-default", "gemini-flash"]}
         - {"wl-reason":   ["deepseek-reasoner", "wl-default"]}
         - {"wl-judge":    ["wl-default", "gemini-flash"]}
-        - {"wl-search":   ["xai-grok"]}
+        - {"wl-search":   ["xai-grok", "wl-default"]}    # …then groq (free) as the guaranteed $0 lander (non-web answer, but always returns)
         - {"wl-big-oss":  ["wl-default"]}
         - {"wl-tts":      ["elevenlabs-tts"]}      # Kokoro primary → ElevenLabs alternate (media lane, B111)
 

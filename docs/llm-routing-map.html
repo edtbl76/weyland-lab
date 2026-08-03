@@ -120,7 +120,7 @@
       <b>anthropic&nbsp;&middot;&nbsp;groq&nbsp;&middot;&nbsp;gemini&nbsp;&middot;&nbsp;opencode-zen&nbsp;&middot;&nbsp;xai&nbsp;&middot;&nbsp;openrouter&nbsp;&middot;&nbsp;deepseek&nbsp;&middot;&nbsp;openai&nbsp;&middot;&nbsp;perplexity&nbsp;&middot;&nbsp;cerebras</b>.
       Note: perplexity's routable id is <code>perplexity/sonar</code>, not the <code>/v1/models</code>-listed <code>perplexity/perplexity/sonar</code> (which 400s <code>invalid_model</code>).</div>
     <div class="note"><b>Notes.</b> <code>wl-agentic</code> skips Groq — its free tier is tool-free (8k&nbsp;TPM can't carry
-      the tool payload). <code>wl-search</code> is near-single-source, so its chain is short. The one media lane
+      the tool payload). <code>wl-search</code> is web-first (perplexity &rarr; xAI), then a free Groq tail as the guaranteed $0 lander. The one media lane
       <code>wl-tts</code> routes on the <code>/v1/audio/speech</code> endpoint (not chat): primary <b>Kokoro</b>
       (self-hosted, $0) &rarr; <b>ElevenLabs</b> alternate (its free tier blocks library voices via API).</div>
   </footer>
@@ -136,19 +136,19 @@
       ]},
       { alias:"wl-speed", purpose:"Lowest latency", chain:[
         {role:"primary", prov:"groq", model:"gpt-oss-120b", tier:"free", badges:["hosted","fast"]},
-        {role:"fallback", prov:"cerebras", model:"gpt-oss-120b", tier:"metered", badges:["fast","tools"]},
+        {role:"fallback", prov:"cerebras", model:"gpt-oss-120b", tier:"funded", badges:["fast","tools"]},
         {role:"fallback", prov:"gemini", model:"2.5-flash", tier:"free", badges:["hosted"]},
       ]},
       { alias:"wl-coding", purpose:"Code generation & edits", chain:[
         {role:"primary", prov:"opencode-zen", model:"kimi-k3", tier:"funded", badges:["tools"]},
         {role:"fallback", prov:"anthropic", model:"claude-haiku-4.5", tier:"funded", badges:["tools"]},
-        {role:"fallback", prov:"deepseek", model:"deepseek-v4-flash", tier:"metered", badges:["cheap"]},
+        {role:"fallback", prov:"deepseek", model:"deepseek-v4-flash", tier:"funded", badges:["cheap"]},
         {role:"fallback", prov:"groq", model:"gpt-oss-120b", tier:"free", badges:["hosted"]},
       ]},
       { alias:"wl-agentic", purpose:"Tool orchestration / agents", chain:[
         {role:"primary", prov:"anthropic", model:"claude-haiku-4.5", tier:"funded", badges:["tools"]},
-        {role:"fallback", prov:"openai", model:"gpt-4o-mini", tier:"metered", badges:["tools"]},
-        {role:"fallback", prov:"cerebras", model:"gpt-oss-120b", tier:"metered", badges:["tools","fast"]},
+        {role:"fallback", prov:"openai", model:"gpt-4o-mini", tier:"funded", badges:["tools"]},
+        {role:"fallback", prov:"cerebras", model:"gpt-oss-120b", tier:"funded", badges:["tools","fast"]},
         {role:"fallback", prov:"gemini", model:"2.5-flash", tier:"free", badges:["tools"]},
       ]},
       { alias:"wl-rag", purpose:"Retrieval-grounded generation (private)", chain:[
@@ -158,7 +158,7 @@
       ]},
       { alias:"wl-reason", purpose:"Deep reasoning", chain:[
         {role:"primary", prov:"ollama", model:"qwen3:30b-a3b", tier:"free", badges:["local"]},
-        {role:"fallback", prov:"deepseek", model:"deepseek-v4-pro", tier:"metered", badges:["reasoner","cheap"]},
+        {role:"fallback", prov:"deepseek", model:"deepseek-v4-pro", tier:"funded", badges:["reasoner","cheap"]},
         {role:"fallback", prov:"groq", model:"gpt-oss-120b", tier:"free", badges:["hosted"]},
       ]},
       { alias:"wl-judge", purpose:"Eval scoring / LLM-as-judge", chain:[
@@ -168,7 +168,8 @@
       ]},
       { alias:"wl-search", purpose:"Web-grounded answers", chain:[
         {role:"primary", prov:"perplexity", model:"sonar", tier:"funded", badges:["web"]},
-        {role:"fallback", prov:"xai", model:"grok-4.5", tier:"metered", badges:["web"]},
+        {role:"fallback", prov:"xai", model:"grok-4.5", tier:"funded", badges:["web"]},
+        {role:"fallback", prov:"groq", model:"gpt-oss-120b", tier:"free", badges:["hosted"]},
       ]},
       { alias:"wl-big-oss", purpose:"Big frontier OSS model", chain:[
         {role:"primary", prov:"openrouter", model:"minimax/minimax-m3", tier:"metered", badges:["aggregator"]},

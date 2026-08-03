@@ -94,6 +94,26 @@ Model string `sgl/unsloth/Llama-3.2-1B-Instruct`.
 4th-gen+), rogueone's **i9-13950HX (Raptor Lake) has no AMX**, and SGLang's shipped CPU+GPU disagg is VLM *encode*-on-CPU,
 not decode. Real PD = a future 2-GPU play; the prefill/decode *lesson* lives in the demo without running it.
 
+## Llama Guard 8B — guardrails Classify tier-2 (B115) — on-demand
+The stronger tier of the guardrails **Classify** layer (see [guardrails.md](guardrails.md)): Meta's **Llama-Guard-3-8B**
+content-safety classifier on the GPU, above the always-on 1B (CPU/mother). Uses **llama.cpp** (not vLLM/SGLang — the 1B
+tier already uses it, and the GGUF embeds Meta's safety taxonomy). OpenAI-compat on **:8003**. Wrapper:
+`scripts/llama-guard-8b.sh {start|stop|status|logs|smoke}` — run on rogueone.
+
+```
+scripts/llama-guard-8b.sh start     # first start pulls the ~5.7GB Q5_K_M GGUF into the llama-cache volume
+scripts/llama-guard-8b.sh status    # /health
+scripts/llama-guard-8b.sh smoke     # classify a benign + a harmful prompt → safe / unsafe\nS<cat>
+scripts/llama-guard-8b.sh stop      # free VRAM (GGUF stays cached)
+```
+- **temp 0** (Llama Guard is random above it); `-ngl 99` offloads all layers. Q5_K_M ~5.7GB — with Ollama on rogueone +
+  the desktop sharing the 16GB card, keep Ollama idle if VRAM is tight ([[rogueone-gpu-freeze-vram]]) or drop to Q4_K_M.
+- **NOT wired into Bifrost** (unlike the vLLM/SGLang benches) — it's a classifier the guard calls DIRECTLY, not an LLM lane.
+- **Re-classify against it:** `LLAMA_GUARD_URL=http://localhost:8003 python3 nodes/mother/lab/weyland-platform/scripts/validate_llama_guard.py`
+  (the same 5-case sweep as tier 1). To route the LIVE weyland-guard through it *while it's up*, repoint `LLAMA_GUARD_URL`
+  on the guard deployment to `http://192.168.1.230:8003` — but it's on-demand, so normally the guard stays on the
+  always-on 1B and the 8B is a manual stronger pass.
+
 ## Measured baseline (2026-07-31, Qwen2.5-7B-Instruct-AWQ, 128-tok gens)
 
 Continuous batching — tok/s scales ~linearly with concurrency, latency ~flat (full explanation in the demo):

@@ -73,5 +73,38 @@ services:
             - driver: nvidia
               count: 1
               capabilities: [gpu]
+  # Guardrails tier-2 (B115) — Llama Guard 3 8B content-safety CLASSIFIER, on-demand. The stronger escalation above the
+  # always-on 1B (CPU/mother). llama.cpp CUDA server (same stack as the 1B, NOT vLLM/SGLang) — the GGUF embeds Meta's
+  # safety-taxonomy chat template, so a plain `messages` POST returns `safe` / `unsafe\nS<cat>`. OpenAI-compat on :8003.
+  # Called DIRECTLY by the re-classify script / (optionally) weyland-guard's LLAMA_GUARD_URL — NOT wired into Bifrost
+  # (it's a classifier, not an LLM lane). Q5_K_M ~5.7GB fits the 16GB card; keep Ollama idle if VRAM is tight.
+  llama-guard-8b:
+    image: ghcr.io/ggml-org/llama.cpp:server-cuda
+    container_name: llama-guard-8b
+    ports:
+      - "8003:8080"
+    command:
+      - "-hf"
+      - "QuantFactory/Llama-Guard-3-8B-GGUF:Q5_K_M"   # ungated mirror; llama.cpp pulls + caches on first start
+      - "-ngl"
+      - "99"                        # offload all layers to the GPU
+      - "--host"
+      - "0.0.0.0"
+      - "--port"
+      - "8080"
+      - "-c"
+      - "4096"
+      - "--temp"
+      - "0"                         # deterministic — Llama Guard goes random above 0
+    volumes:
+      - llama-cache:/root/.cache/llama.cpp   # persist the GGUF across runs
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
 volumes:
   hf-cache:
+  llama-cache:

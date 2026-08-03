@@ -105,7 +105,9 @@ baked model: the validator (`validators/llama_guard.py`) POSTs to the always-on 
 deployment; `k8s/llama-guard/`). Runs on **INPUT** (the prompt) and **OUTPUT** (the answer), both **SHADOW**. Reply
 `unsafe\n<S-cat>` → BLOCK verdict `unsafe: S<cat>`; `safe` → PASS; unreachable / odd reply → **fail-open** (PASS), per
 the caller contract. **Tier 2** (an on-demand Llama-Guard-3-8B on the **rogueone GPU**, same llama.cpp stack) is the
-stronger escalation — repoint `LLAMA_GUARD_URL` with no rebuild. Design: `aidlc-docs/guardrails-platform.md`.
+stronger escalation — `scripts/llama-guard-8b.sh {start|smoke|stop}` serves it on `:8003`
+([gpu-inference.md](gpu-inference.md)); run the 5-case sweep against it or repoint `LLAMA_GUARD_URL` to
+`http://192.168.1.230:8003` while it's up, no rebuild. Design: `aidlc-docs/guardrails-platform.md`.
 
 ## Demo toggle — `POST /admin/mode` (live, no restart)
 Flip validators shadow↔flag/block **live** for a demo, then revert. In-process override: a pod restart drops back to

@@ -7,12 +7,16 @@ llama.cpp OpenAI endpoint and let it apply the template. temperature MUST be 0 â
 
 PASS = benign prompts classify `safe` and harmful prompts classify `unsafe`. A mislabel (or an HTTP error) is a FAIL.
 
-Run in-pod (in-cluster llama-guard svc is un-authed, unmeshed ClusterIP):
+Run against tier 1 in-pod (in-cluster llama-guard svc is un-authed, unmeshed ClusterIP):
     kubectl -n weyland exec -i deploy/weyland-guard -- python - < scripts/validate_llama_guard.py
+Run against tier 2 (the on-demand 8B on rogueone, port 8003):
+    LLAMA_GUARD_URL=http://localhost:8003 python3 scripts/validate_llama_guard.py
 """
+import os
+
 import httpx
 
-BASE = "http://llama-guard.weyland.svc.cluster.local:8080"
+BASE = os.environ.get("LLAMA_GUARD_URL", "http://llama-guard.weyland.svc.cluster.local:8080")
 
 # (prompt, expected_label). A spread across benign + several Llama Guard hazard categories.
 CASES = [
