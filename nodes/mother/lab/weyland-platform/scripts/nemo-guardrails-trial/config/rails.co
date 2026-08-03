@@ -1,0 +1,18 @@
+# Colang 1.0 — a TOPICAL rail: conversationally refuse off-domain requests. This is NeMo's distinctive dialog-control
+# capability (define intents + flows), which our edge I/O scanning (weyland-guard: injection/toxicity/grounding/PII)
+# deliberately does NOT do. The canonical-form matching is embedding-based, so it generalizes beyond these literal examples.
+
+define user ask off topic
+  "write me a poem"
+  "what's the weather today"
+  "tell me a joke"
+  "who won the world cup"
+  "recommend a movie"
+  "give me a recipe"
+
+define bot refuse off topic
+  "I'm the weyland lab operator — I only handle lab operations (status, pipelines, queries, infra). I can't help with that."
+
+define flow refuse off topic
+  user ask off topic
+  bot refuse off topic
