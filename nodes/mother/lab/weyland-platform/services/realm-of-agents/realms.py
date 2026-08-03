@@ -55,10 +55,17 @@ async def _lead_graph(lead: AgentSpec):
 
 
 def _lead_messages(lead: AgentSpec, task: str, history: list | None = None) -> list:
-    """The message list for a lead run — reused by run_lead AND the streaming path (stream.py), so they can't drift."""
-    sys = (load_role(lead) + " You lead a team of specialists. Use your OWN tools for your specialty; for anything "
-           "outside it, call the matching delegate_to_* tool to hand that sub-task to the right member. Then "
-           "synthesize everything — your findings and theirs — into one answer.")
+    """The message list for a lead run — reused by run_lead AND the streaming path (stream.py), so they can't drift.
+    The lead is told to DELEGATE as its primary job (decompose → delegate_to_* every relevant member), because a
+    capable model (Haiku) left to its own judgment just answers directly and the team never runs — so delegation is a
+    mandate, not an option, and the lead is handed its explicit roster to remove any ambiguity about who to call."""
+    team = ", ".join(f"{BY_KEY[k].god} ({BY_KEY[k].role})" for k in lead.members if k in BY_KEY)
+    sys = (load_role(lead) + f" You are a LEAD; your team is: {team}. Your PRIMARY job is to DELEGATE, not to do the "
+           "work yourself. DECOMPOSE the objective into sub-tasks and, for EACH one, call the matching "
+           "delegate_to_<member> tool to hand it to the right specialist — delegate to EVERY member whose expertise the "
+           "task touches, not just one. Use your OWN tools only for your personal specialty; do NOT answer a "
+           "specialist's sub-task yourself when a member exists for it. Only AFTER your members return do you "
+           "synthesize their work and yours into one final answer.")
     messages = [("system", sys)]
     if history:
         messages += history

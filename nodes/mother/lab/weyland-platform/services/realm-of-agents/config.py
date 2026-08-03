@@ -5,7 +5,7 @@ from the Bifrost VK MCP surface (the same 232-tool `coding-agents` key the codin
 and fail-safe — an unreachable LiteLLM/Bifrost degrades an agent, it never crashes the pod."""
 import os
 
-VERSION = "0.3.3"   # 0.3.2: GET /prompts. 0.3.3: FIX multi-level delegation — a delegated LEAD now runs as a lead (Operator→Odin→Brokkr), not solo
+VERSION = "0.3.4"   # 0.3.3: multi-level delegation fix. 0.3.4: leads DELEGATE reliably — mandate + explicit roster in the lead prompt (was permissive → under-delegated)
 # A2A Protocol revision advertised in every Agent Card (`protocolVersion`). Matches the spec the current a2a-sdk /
 # a2a-inspector expect; the JSON-RPC `message/send` binding lives in a2a.py.
 A2A_PROTOCOL_VERSION = "0.3.0"
