@@ -20,7 +20,7 @@ spec:
       enableServiceLinks: false
       containers:
         - name: realm-of-agents
-          image: registry.weyland.lab/realm-of-agents:v19   # v19 — leads delegate RELIABLY: delegation mandate + explicit roster in the lead prompt (Haiku was under-delegating)
+          image: registry.weyland.lab/realm-of-agents:v20   # v20 — FIX operator realm-routing: explicit domain→realm map (eng→Valhalla/Odin) so tasks land on the right realm
           imagePullPolicy: IfNotPresent
           resources:
             # No torch/embedder — langgraph/langchain client + fastapi only; inference is remote (LiteLLM). Low request
