@@ -109,6 +109,22 @@ stronger escalation — `scripts/llama-guard-8b.sh {start|smoke|stop}` serves it
 ([gpu-inference.md](gpu-inference.md)); run the 5-case sweep against it or repoint `LLAMA_GUARD_URL` to
 `http://192.168.1.230:8003` while it's up, no rebuild. Design: `aidlc-docs/guardrails-platform.md`.
 
+## guardrails-structure — the Structure layer (B115, 2026-08-03)
+The **Structure** path: Guardrails AI (output-schema validation + re-ask) as a **standalone service** —
+`guardrails-structure.weyland.svc:8080` (ClusterIP, no ingress, meshed; `k8s/guardrails-structure/`, Argo). It runs
+alone because guardrails-ai pins `click<=8.2.0`, irreconcilable with the Dagster/dbt/huggingface stack that produces the
+output (`click>=8.4.2`) — a `ResolutionImpossible` if embedded. Endpoint **`POST /structure/judge-scores`**
+`{raw, model, api_base?, num_reasks?}` → validates the judge output against a Pydantic **`JudgeScores`** (three floats
+in [0,1]) and, on a schema miss, **re-asks the same judge model** (litellm→Ollama) to repair; returns
+`{scores, source, validation_passed}` with source ∈ `guarded | reasked | failed`. `/health` (liveness); `/ready`
+imports guardrails+litellm (~1–2 min first boot).
+
+**First consumer:** the RAG eval judge (`weyland-dagster` `eval_scores._judge`) POSTs each judge's raw JSON here via
+`weyland_pipeline/structure.py` (a thin HTTP client). **Fail-safe** — if the service is unreachable it best-effort
+parses the raw (the pre-B115 behaviour), so a guard outage never sinks an eval. The judge records the `_structure`
+source (`guarded`/`reasked`/`fallback`) on its MLflow `eval`-experiment span — the honesty check that the guard actually
+ran (all `fallback` = the service isn't answering). Design: `aidlc-docs/guardrails-platform.md`.
+
 ## Demo toggle — `POST /admin/mode` (live, no restart)
 Flip validators shadow↔flag/block **live** for a demo, then revert. In-process override: a pod restart drops back to
 the committed modes (a demo can't be left on by accident) and there's no manifest drift for Argo to fight — chosen over

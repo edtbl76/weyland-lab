@@ -1,0 +1,23 @@
+# B115 — guardrails-structure (Structure layer) down alert. Lives in the `monitoring` ns with release:monitoring
+# (kube-prometheus-stack ruleSelector); routes to the Weyland Alerts Telegram chat (B5 P2a). The eval judge FAILS
+# SAFE (best-effort parse) if this is down, so severity is `warning`, not critical. kube-state-metrics signal
+# (no /metrics on the service), like the litellm + llama-guard rules.
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: guardrails-structure
+  namespace: monitoring
+  labels:
+    release: monitoring
+spec:
+  groups:
+    - name: guardrails-structure
+      rules:
+        - alert: GuardrailsStructureDown
+          expr: kube_deployment_status_replicas_available{namespace="weyland",deployment="guardrails-structure"} < 1
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "guardrails-structure (Structure layer) has no ready replica"
+            description: "The Guardrails AI Structure service is down. The eval judge's `structure.py` fails open (best-effort parse; judge spans will read `_structure: fallback`), so evals still score but without schema-validation / re-ask. Check: kubectl -n weyland rollout status deploy/guardrails-structure"

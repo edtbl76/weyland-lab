@@ -143,6 +143,29 @@ the sharper category vs the 1B's S1: the "stronger classification" this tier exi
 `LLAMA_GUARD_URL=http://localhost:8003 python3 nodes/mother/lab/weyland-platform/scripts/validate_llama_guard.py`; then
 `./scripts/llama-guard-8b.sh stop` to free the GPU.
 
+## Structure layer — Guardrails AI (B115)
+
+The **Structure** path validates *structured* output against a schema and re-asks the model to repair it — guarding the
+eval **LLM-as-judge**, whose JSON scores feed the leaderboard. It runs as the isolated **`guardrails-structure`** service
+(guardrails-ai can't co-install with the Dagster stack — `click` conflict). The judge calls it via
+`weyland_pipeline/structure.py`.
+
+Drive it through the judge's client — a clean payload validates, malformed prose gets **re-asked** into a valid schema —
+**mother**:
+
+```
+[mother] kubectl -n weyland exec deploy/dagster-user-code -- python -c "from weyland_pipeline.structure import validate_scores; print(validate_scores('{\"faithfulness\":0.9,\"answer_relevancy\":0.8,\"context_relevancy\":0.7}','mistral-small3.2:24b','http://192.168.1.230:11434/v1'))"
+```
+```
+[mother] kubectl -n weyland exec deploy/dagster-user-code -- python -c "from weyland_pipeline.structure import validate_scores; print(validate_scores('here are the scores: faithfulness is about 0.9, relevancy high','mistral-small3.2:24b','http://192.168.1.230:11434/v1'))"
+```
+
+The clean JSON returns `(…, 'guarded')`; the malformed prose returns `(…, 'reasked')` — the guard caught the schema miss
+and re-asked the judge, which repaired `"faithfulness is about 0.9, relevancy high"` into valid scores
+(`{faithfulness: 0.9, answer_relevancy: 0.5, context_relevancy: 0.5}`). In a **real eval run** (`/evals/score`), each
+judge verdict carries a `_structure` source on its MLflow `eval`-experiment span — the live signal. Fail-safe: with the
+service down, `validate_scores` returns `'fallback'` and the eval still scores.
+
 ## Expected result
 
 - Direct calls: `/guard/input` jailbreak → `{"decision":"allow"}` (block scored but shadow); `/guard/output` green-sky

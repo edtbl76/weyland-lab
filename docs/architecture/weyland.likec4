@@ -63,6 +63,7 @@ model {
         kokoro = component "Kokoro TTS" "B111 self-hosted OpenAI-compatible TTS (/v1/audio/speech), $0/no-quota — the media-lane primary (image=Runware, video=Runway; ElevenLabs deferred — free tier blocks library voices via API). Fronted by Bifrost as a custom provider (kokoro/kokoro) + a wl-tts LiteLLM route. kokoro.weyland.lab web UI."
         weylandGuard = component "weyland-guard" "B70 shared guardrail service — /guard/{input,output,act} hooks over the validator set (injection/toxicity/PII/grounding/act-policy + Llama Guard Classify), SHADOW default, fail-open callers. The Scan + Classify layers of the B115 guardrails platform. Verdicts -> /metrics + guardrail_verdicts."
         llamaGuard = component "llama-guard" "B115 Classify layer — Llama Guard content-safety classifier (llama.cpp, temp 0). Tier-1 Llama-Guard-3-1B on CPU (always-on, mother); tier-2 on-demand Llama-Guard-3-8B on the rogueone GPU. Called by weyland-guard's llama_guard.safety validator via LLAMA_GUARD_URL."
+        guardrailsStructure = component "guardrails-structure" "B115 Structure layer — Guardrails AI (output-schema validate + re-ask), isolated in its own image (guardrails-ai's click<=8.2.0 pin can't co-install with the Dagster/dbt/hf stack). FastAPI POST /structure/judge-scores; validates the eval judge's JudgeScores + re-asks the judge model (litellm->Ollama) to repair. Called by the Dagster eval judge via an HTTP client, fail-safe."
       }
 
       // ============ Data mesh / lakehouse plane (sliced) ============
@@ -224,6 +225,8 @@ model {
   weyland.mother.ai.toolServer -> weyland.mother.ai.litellm "hosted-model gen"
   weyland.mother.ai.toolServer -> weyland.mother.ai.weylandGuard "guards — /guard/{input,output,act} hooks (shadow, fail-open)"
   weyland.mother.ai.weylandGuard -> weyland.mother.ai.llamaGuard "Classify — POST content-safety classification (llama_guard.safety, temp 0)"
+  weyland.mother.ai.dagster -> weyland.mother.ai.guardrailsStructure "Structure — eval judge JSON -> validate JudgeScores + re-ask (fail-open)"
+  weyland.mother.ai.guardrailsStructure -> rogueone.ollama "re-ask the judge model to repair (litellm)"
   weyland.mother.ai.litellm -> hostedModels "egress: wl-* routed + fallback"
   weyland.mother.ai.openWebui -> rogueone.ollama "chat /v1"
   weyland.mother.ai.openWebui -> weyland.whisper "STT /v1/audio/transcriptions"

@@ -41,7 +41,7 @@ Legend: ✅ done · ⬜ missing · 🟡 exists but stale/partial · — not appl
 | 21 | Agentic RAG (`weyland-agent`, B70) | ✅ `flow-agentic-rag` | ✅ `agentic-rag.md` (validated live 2026-07-23) | — read-only (traces/verdicts) |
 | 22 | Voice chat (Open WebUI + whisper) | ✅ `flow-voice-chat` | ✅ `voice-chat.md` | — |
 | 23 | Model gateway / backend dispatch | ✅ `flow-model-gateway` | ✅ `model-gateway.md` | — |
-| 24 | Guardrails (`weyland-guard` shared service, B70 + **B115 Classify / Llama Guard**) | ✅ `flow-guardrails` | ✅ `guardrails.md` (+ Classify layer: 1B CPU + on-demand 8B, validated 2026-08-03) | ✅ demo-actor rows deleted |
+| 24 | Guardrails (`weyland-guard` B70 + **B115 Classify (Llama Guard)** + **Structure (Guardrails AI)**) | ✅ `flow-guardrails` + `flow-eval-scoring` | ✅ `guardrails.md` (+ Classify 1B/8B + Structure guarded/reasked, validated 2026-08-03) | ✅ read-only (demo-actor rows + eval spans) |
 | 34 | Operator brain bake-off (B66 — Claude vs local, tool-use) | — (test harness) | ✅ `brain-bakeoff.md` — tool-selection + full-loop all-models run 2026-07-23 (verdict: brain = `gpt-oss:20b`) | — read-only |
 | 35 | **Operator agent** (`weyland-operator`, B66 — Telegram → read/act, confirm-step) | ✅ `flow-operator` | ✅ `operator.md` (validated live 2026-07-24) | 🟡 fire path launches a real ingestion run; session rows |
 | 37 | **GPU inference bench** (B111 — three engines: Ollama simple · vLLM throughput · SGLang prefix-cache) | — (benches, not a multi-participant flow) | ✅ `gpu-inference.md` (validated 2026-07-31: vLLM ~15× tok/s + SGLang ~6.2× TTFT, extreme-detail explainers) | — frees VRAM (`bench.sh stop`), no data |

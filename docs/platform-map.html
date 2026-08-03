@@ -191,8 +191,9 @@
         <div class="row"><span class="nm"><i class="cdot"></i>traefik-forward-auth</span><div><div class="rl">edge forward-auth gate</div><span class="ex">auth.weyland.lab gates MLflow / Nessie / lakeFS / Dagster</span></div></div>
         <div class="row"><span class="nm"><i class="cdot"></i>weyland-guard (LLM Guard + NLI + Llama Guard)</span><div><div class="rl">shared guard service (Scan + Classify)</div><span class="ex">/guard/{input,output,act} · shadow · fail-open · runs the B115 Classify layer (Llama Guard) · serves tool-server + agent</span></div></div>
         <div class="row"><span class="nm"><i class="cdot"></i>llama-guard</span><div><div class="rl">Llama Guard classifier (Classify layer)</div><span class="ex">tier 1 = 1B on CPU (always-on) · tier 2 = 8B on-demand on the rogueone GPU · called by weyland-guard</span></div></div>
+        <div class="row"><span class="nm"><i class="cdot"></i>guardrails-structure</span><div><div class="rl">Guardrails AI (Structure layer)</div><span class="ex">schema-validate + re-ask · isolated service (click pin can't co-install with the Dagster stack) · /structure/judge-scores called by the eval judge</span></div></div>
         <div class="row part"><span class="nm"><i class="cdot"></i>NLI grounding</span><div><div class="rl">answer-grounding check (shadow)</div><span class="ex">grounding.nli emits max_entailment ∈ [0,1]</span></div></div>
-        <div class="row plan"><span class="nm"><i class="cdot"></i>NeMo Guardrails · Guardrails AI</span><div><div class="rl">dialog rails · structured output (B115 planned paths)</div><span class="ex">NeMo adopted for the future Dialog layer · Presidio PII now baked in llm_guard.pii</span></div></div>
+        <div class="row plan"><span class="nm"><i class="cdot"></i>NeMo Guardrails</span><div><div class="rl">dialog rails (B115 planned path)</div><span class="ex">NeMo adopted for the future Dialog layer · Presidio PII now baked in llm_guard.pii</span></div></div>
       </div>
     </section>
 
