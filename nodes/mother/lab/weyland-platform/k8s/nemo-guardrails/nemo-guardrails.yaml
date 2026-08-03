@@ -1,0 +1,76 @@
+# B115 Dialog layer — nemo-guardrails: NeMo Guardrails (Colang topical + input rails) as an OpenAI-compatible service,
+# isolated in its own image. Open WebUI adds it as an OpenAI connection → a guarded "weyland-operator" chat model
+# alongside the raw Ollama models. Meshed — reaches rogueone Ollama for the rails LLM + the main model, like the tool-server.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nemo-guardrails
+  namespace: weyland
+  labels:
+    app: nemo-guardrails
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: nemo-guardrails
+  template:
+    metadata:
+      labels:
+        app: nemo-guardrails
+        sidecar.istio.io/inject: "true"
+    spec:
+      enableServiceLinks: false
+      containers:
+        - name: nemo-guardrails
+          image: registry.weyland.lab/nemo-guardrails:v1
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8080
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 10001
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+            seccompProfile:
+              type: RuntimeDefault
+          env:
+            - name: NEMO_MODEL_NAME          # the model id Open WebUI shows for the guarded lane
+              value: weyland-operator
+            - name: NEMO_CONFIG_PATH
+              value: /app/config
+          # First /ready imports NeMo + langchain and loads the rails (+ the topical rail's embedding model downloads on
+          # first use) — heavy. Allow ~5 min before liveness takes over.
+          startupProbe:
+            httpGet: { path: /ready, port: 8080 }
+            failureThreshold: 60
+            periodSeconds: 5
+          livenessProbe:
+            httpGet: { path: /health, port: 8080 }
+            periodSeconds: 20
+          readinessProbe:
+            httpGet: { path: /ready, port: 8080 }
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: 100m
+              memory: 512Mi
+            limits:
+              memory: 2Gi   # NeMo + langchain + fastembed footprint; trim after measuring
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: nemo-guardrails
+  namespace: weyland
+  labels:
+    app: nemo-guardrails
+spec:
+  type: ClusterIP
+  selector:
+    app: nemo-guardrails
+  ports:
+    - name: http
+      port: 8080
+      targetPort: 8080

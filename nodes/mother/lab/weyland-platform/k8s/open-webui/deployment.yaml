@@ -45,8 +45,14 @@ spec:
             # --- Chat: native Ollama integration (CT 102) ---
             - name: OLLAMA_BASE_URL
               value: http://192.168.1.230:11434
-            - name: ENABLE_OPENAI_API          # don't reach OpenAI cloud for chat — Ollama only
-              value: "false"
+            # B115 Dialog layer — the "OpenAI API" points at the IN-CLUSTER nemo-guardrails svc (NOT OpenAI cloud), so
+            # a guarded "weyland-operator" chat model appears ALONGSIDE the raw Ollama models. General chat is unaffected.
+            - name: ENABLE_OPENAI_API
+              value: "true"
+            - name: OPENAI_API_BASE_URL
+              value: http://nemo-guardrails.weyland.svc.cluster.local:8080/v1
+            - name: OPENAI_API_KEY             # dummy — the nemo svc ignores it; present to satisfy the client
+              value: nemo-guardrails
             # --- Voice input (STT) -> whisper shim (CT 103, B11), OpenAI-compatible ---
             - name: AUDIO_STT_ENGINE
               value: openai
