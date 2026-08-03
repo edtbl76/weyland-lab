@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""B113 Classify layer — validate the Llama Guard content-safety classifier (tier 1: Llama-Guard-3-1B on CPU, mother).
+"""B115 Classify layer — validate the Llama Guard content-safety classifier (tier 1: Llama-Guard-3-1B on CPU, mother).
 
 Llama Guard is not a chat model: given a conversation it returns `safe` or `unsafe\\n<S-category>` after wrapping the
 input in Meta's safety taxonomy. That taxonomy template ships inside the GGUF, so we just POST plain `messages` to the

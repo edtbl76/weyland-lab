@@ -1,4 +1,4 @@
-# Llama Guard — Classify layer of the guardrails platform (B113), TIER 1.
+# Llama Guard — Classify layer of the guardrails platform (B115), TIER 1.
 # Llama-Guard-3-1B on CPU, always-on: the default content-safety classifier weyland-guard (the Scan layer) calls on
 # every classify. Served by llama.cpp (OpenAI-compatible /v1/chat/completions; the GGUF embeds the Llama Guard safety
 # taxonomy chat template, so plain `messages` get wrapped for us). Output is `safe` or `unsafe\nS<category>`.
