@@ -4,6 +4,9 @@
 #   - INPUT: `self check input` — an LLM-judged block for jailbreak / off-domain (prompt below).
 #   - DIALOG/TOPICAL: the Colang flow in rails.co — NeMo's distinctive feature; the thing weyland-guard does NOT do
 #     (edge I/O scanning). Applied ONLY to this dedicated persona, not the raw Ollama chat models.
+# rails.co is Colang 1.0 syntax (define user/bot/flow) — pin it so a newer NeMo default doesn't silently skip the flows.
+colang_version: "1.0"
+
 models:
   - type: main
     engine: openai
@@ -11,11 +14,21 @@ models:
     parameters:
       base_url: http://192.168.1.230:11434/v1
       api_key: ollama
+  # Embedding-based canonical-form matching for the TOPICAL rail. The trial had no embeddings model, so intent matching
+  # fell through to a single LLM call that just answered the off-topic request. FastEmbed is CPU/onnx (no torch).
+  - type: embeddings
+    engine: FastEmbed
+    model: all-MiniLM-L6-v2
 
 rails:
   input:
     flows:
       - self check input
+  dialog:
+    # Force the MULTI-STEP dialog (embedding-matched user intent -> flow) instead of one LLM shot that skips the match —
+    # this is what actually makes the topical refusal fire (the single-call default is why off-topic got answered).
+    single_call:
+      enabled: False
 
 prompts:
   - task: self_check_input

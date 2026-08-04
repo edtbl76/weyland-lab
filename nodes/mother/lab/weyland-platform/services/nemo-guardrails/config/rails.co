@@ -4,11 +4,14 @@
 
 define user ask off topic
   "write me a poem"
+  "write me a haiku"
+  "compose a poem about the ocean"
   "what's the weather today"
   "tell me a joke"
   "who won the world cup"
   "recommend a movie"
   "give me a recipe"
+  "what's a good recipe for dinner"
 
 define bot refuse off topic
   "I'm the weyland lab operator — I only handle lab operations (status, pipelines, queries, infra). I can't help with that."
