@@ -51,7 +51,7 @@ model {
         dagster = component "Dagster" "Orchestrator (cross-cutting) — RAG, evals, catalog, datasets, dbt, DataHub emit"
         litellm = gateway "LiteLLM" "Use-case router (B111) — wl-* aliases + server-side fallback chains over the hosted-model fleet (gated egress)"
         openWebui = component "Open WebUI" "Browser voice/chat — chat -> Ollama, STT -> whisper"
-        operator = component "weyland-operator" "B66 operator agent — LangGraph ReAct (gpt-oss:20b) over tool-server read+act; Telegram long-poll, Postgres session, app-level act confirm-step. Replaces Hermes."
+        operator = component "weyland-operator" "B66 operator agent — LangGraph ReAct over tool-server read+act + MCP fleet; Telegram long-poll, Postgres session, app-level act confirm-step. Brain = local qwen2.5:7b primary (curated flat toolset) with Haiku health-failover. B45 incident sweep: reads firing Prometheus ALERTS off the critical path, enriches (logs+pods) and Telegram-digests, enrich-only. Replaces Hermes."
         pg = store "Postgres + pgvector" "Spine store — rag_chunks, eval_*, model_catalog. STRICT mTLS"
         qdrant = store "Qdrant" "Vector store — weyland_chunks + 9 dataset collections"
         weav = store "Weaviate" "Vector store — WeylandChunk + 9 dataset classes"

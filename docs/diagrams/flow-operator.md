@@ -1,12 +1,13 @@
 # Flow: Operator agent (`weyland-operator`, B66)
 
-Text the lab from anywhere → it acts. A LangGraph ReAct agent (**Haiku** via the `wl-agentic` lane → LiteLLM→Bifrost)
-over the tool-server's read + act tools **plus the read-only MCP fleet** (`/mcp-fleet`) **and a `delegate_to_realm`
+Text the lab from anywhere → it acts. A LangGraph ReAct agent — **local `qwen2.5:7b` primary with Haiku failover**
+(see [flow-operator-brain.md](flow-operator-brain.md)) — over the tool-server's read + act tools **plus the read-only MCP fleet** (`/mcp-fleet`) **and a `delegate_to_realm`
 hand-off to the Realm of Agents** (B17 A2A), fronted by **Telegram long-poll**, with **per-chat Postgres session
 memory** and an **app-level confirm-step** on every state-changing action (the operator lane Hermes vacated). Read
 tools and Realm delegation are called freely; act tools are **PROPOSE-only** — the LLM proposes, the user confirms,
 the *app* fires. See [demos/operator.md](../demos/operator.md), [runbooks/operator.md](../runbooks/operator.md),
-[runbooks/mcp-fleet.md](../runbooks/mcp-fleet.md), [demos/realm-of-agents.md](../demos/realm-of-agents.md).
+[runbooks/mcp-fleet.md](../runbooks/mcp-fleet.md), [demos/realm-of-agents.md](../demos/realm-of-agents.md),
+[flow-operator-brain.md](flow-operator-brain.md), [flow-incident-sweep.md](flow-incident-sweep.md).
 
 ```mermaid
 sequenceDiagram
@@ -14,7 +15,7 @@ sequenceDiagram
     participant O as weyland-operator (LangGraph)
     participant S as Postgres (session)
     participant G as weyland-guard
-    participant L as LiteLLM → Bifrost (Haiku, wl-agentic)
+    participant L as brain (local qwen2.5:7b · Haiku failover)
     participant T as tool-server (/mcp + /mcp-act)
     participant F as MCP fleet /mcp-fleet (grafana·trino·k8s·postgres·neo4j·datahub)
     participant R as Realm of Agents (Gná → 24 specialists)
