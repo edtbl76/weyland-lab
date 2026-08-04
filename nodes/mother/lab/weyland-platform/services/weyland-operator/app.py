@@ -17,12 +17,13 @@ from pydantic import BaseModel
 
 import act
 import agent
+import incidents
 import ingress
 import session
 import telegram
 from guard import guard
 
-VERSION = "0.1.0"
+VERSION = "0.2.0"   # B45 — enrich-only incident sweep
 MLFLOW_TRACKING_URI = os.getenv("MLFLOW_TRACKING_URI", "http://mlflow.weyland.svc.cluster.local:5000")
 MLFLOW_EXPERIMENT = os.getenv("MLFLOW_EXPERIMENT", "operator")
 
@@ -30,6 +31,7 @@ _REQS = Counter("operator_requests_total", "Operator /ask requests", ["outcome"]
 _LATENCY = Histogram("operator_request_seconds", "End-to-end /operator/ask latency (s)")
 _ready = {"ok": False}
 _ingress_task = None
+_sweep_task = None
 
 
 @asynccontextmanager
@@ -45,20 +47,25 @@ async def lifespan(app: FastAPI):
         print(f"[mlflow] langchain autolog disabled: {exc}", flush=True)
     # Telegram ingress + Postgres sessions (Part 2). Both gated on a bot token so the HTTP /operator/ask surface
     # still runs standalone (no DB/token) for testing + probes.
-    global _ingress_task
+    global _ingress_task, _sweep_task
     if telegram.configured():
         try:
             session.init()
+            session.init_incidents()          # B45 — the incident-sweep dedup table
         except Exception as exc:
             print(f"[session] init failed (per-message ops will retry): {exc}", flush=True)
         _ingress_task = asyncio.create_task(ingress.poll_loop())
         print("[telegram] long-poll ingress started", flush=True)
+        if incidents.enabled():               # B45 — enrich-only incident sweep, OFF the critical alert path
+            _sweep_task = asyncio.create_task(incidents.sweep_loop())
+            print("[incidents] B45 incident sweep started", flush=True)
     else:
         print("[telegram] no TELEGRAM_BOT_TOKEN — ingress disabled (HTTP /operator/ask only)", flush=True)
     _ready["ok"] = True
     yield
-    if _ingress_task:
-        _ingress_task.cancel()
+    for _t in (_ingress_task, _sweep_task):
+        if _t:
+            _t.cancel()
 
 
 app = FastAPI(title="Weyland Operator", lifespan=lifespan)

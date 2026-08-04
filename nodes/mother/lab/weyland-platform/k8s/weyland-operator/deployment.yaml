@@ -21,7 +21,7 @@ spec:
       enableServiceLinks: false
       containers:
         - name: weyland-operator
-          image: registry.weyland.lab/weyland-operator:v14   # v14 — B17 A2A: delegate_to_realm tool → Realm of Agents (cross-service hop)
+          image: registry.weyland.lab/weyland-operator:v15   # v15 — B45 enrich-only incident sweep (+ incidents.py)
           imagePullPolicy: IfNotPresent
           resources:
             # No torch/embedder — just langgraph/langchain/mlflow client + fastapi; LLM inference is remote (Ollama).
@@ -101,3 +101,12 @@ spec:
               valueFrom: { secretKeyRef: { name: weyland-operator-secret, key: TELEGRAM_BOT_TOKEN, optional: true } }
             - name: TELEGRAM_ALLOWED_USERS
               valueFrom: { secretKeyRef: { name: weyland-operator-secret, key: TELEGRAM_ALLOWED_USERS, optional: true } }
+            # B45 — enrich-only incident sweep: the agent READS Prometheus `ALERTS{alertstate="firing"}` off the
+            # critical path (which unifies blackbox synthetic downs + guardrail/service alerts), correlates logs/pods,
+            # and posts a proactive Telegram digest to the first TELEGRAM_ALLOWED_USERS chat. Set "false" to disable.
+            - name: INCIDENT_SWEEP_ENABLED
+              value: "true"
+            - name: INCIDENT_SWEEP_INTERVAL
+              value: "180"
+            - name: PROMETHEUS_URL
+              value: http://prometheus-operated.monitoring.svc.cluster.local:9090
