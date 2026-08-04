@@ -24,6 +24,8 @@ spec:
   jobTemplate:
     spec:
       backoffLimit: 1
+      activeDeadlineSeconds: 900   # 15 min — a wedged run (e.g. a stuck native-sidecar init) self-kills instead of
+                                   # freezing ALL future backups via concurrencyPolicy: Forbid (the 12–13d wedge B45 caught).
       template:
         metadata:
           labels:

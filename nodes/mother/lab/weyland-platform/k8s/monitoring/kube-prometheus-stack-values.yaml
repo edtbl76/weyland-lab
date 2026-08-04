@@ -10,6 +10,16 @@
 # to keep deps minimal in the failure-detection path (n8n stays standby for actions/orchestration).
 # Bot token lives in the weyland-alerts-telegram Secret (kubectl-created, NOT committed); the operator
 # mounts it at /etc/alertmanager/secrets/<name>/ and Alertmanager reads it via bot_token_file.
+# k3s bundles kube-scheduler / kube-controller-manager / kube-proxy INTO the k3s process, so the stack's separate
+# ServiceMonitors find no endpoint and fire {KubeScheduler,KubeControllerManager,KubeProxy}Down false-positives.
+# Disable those component scrapes + rules — they don't apply to k3s (surfaced by the B45 incident sweep, 2026-08-04).
+kubeControllerManager:
+  enabled: false
+kubeScheduler:
+  enabled: false
+kubeProxy:
+  enabled: false
+
 alertmanager:
   enabled: true
   config:
