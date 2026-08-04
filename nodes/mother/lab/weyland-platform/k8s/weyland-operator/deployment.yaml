@@ -22,7 +22,7 @@ spec:
       enableServiceLinks: false
       containers:
         - name: weyland-operator
-          image: registry.weyland.lab/weyland-operator:v18   # v18 — local gpt-oss primary + Haiku failover; 60s local timeout so a GPU stall trips it
+          image: registry.weyland.lab/weyland-operator:v19   # v19 — local qwen3:14b primary + Haiku failover; 60s timeout + qwen3 thinking OFF
           imagePullPolicy: IfNotPresent
           resources:
             # No torch/embedder — just langgraph/langchain/mlflow client + fastapi; LLM inference is remote (Ollama).
@@ -80,6 +80,8 @@ spec:
               value: ollama          # Ollama ignores the key; any non-empty string satisfies the OpenAI client
             - name: FLEET_ROUTING
               value: "1"
+            - name: OPERATOR_LOCAL_NO_THINK
+              value: "1"           # qwen3: disable <think> reasoning (Ollama think:false) — else it's too slow per hop
             # FALLBACK brain — Haiku via LiteLLM (flat fleet, handles all ~91 tools). Used ONLY when the local engine
             # fails a fast health pre-check (GET OLLAMA_HEALTH_URL, ~3s, cached ~30s) or errors mid-request — so a
             # rogueone/Ollama outage degrades to paid cloud instead of going dark, and steady-state Haiku spend ≈ $0.

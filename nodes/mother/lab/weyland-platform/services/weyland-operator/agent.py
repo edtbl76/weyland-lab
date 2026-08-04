@@ -38,6 +38,10 @@ LOCAL_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://192.168.1.230:11434/v1")
 LOCAL_MODEL = os.getenv("OLLAMA_MODEL", "qwen2.5:7b")
 LOCAL_API_KEY = os.getenv("LLM_API_KEY", "ollama")
 LOCAL_ROUTED = _bool(os.getenv("FLEET_ROUTING", "1"))
+# Thinking models (qwen3) emit a long <think> block before every tool call — on a multi-hop routed agent that blows
+# past the per-call timeout. Disable it at the LLM level (Ollama `think:false`) so it covers the top-level agent AND
+# the router sub-calls. No-op for models without a thinking mode. Toggle with OPERATOR_LOCAL_NO_THINK.
+LOCAL_NO_THINK = _bool(os.getenv("OPERATOR_LOCAL_NO_THINK", "1"))
 
 # FALLBACK — Haiku via LiteLLM, flat fleet (handles all ~91 tools). Each field defaults sanely; only wire what differs.
 FALLBACK_ENABLED = _bool(os.getenv("OPERATOR_LLM_FALLBACK", "1"))
@@ -72,16 +76,19 @@ _BRAIN_SELECTED = Counter("operator_brain_selected_total", "Operator brain selec
 _FLEET = load_fleet_tools()   # load the MCP fleet ONCE — both brains share it (flat vs. routed views below)
 
 
-def _build_agent(base_url: str, model: str, api_key: str, routed: bool, timeout: float):
+def _build_agent(base_url: str, model: str, api_key: str, routed: bool, timeout: float, extra_body: dict | None = None):
     """Compile one ReAct agent. `routed` collapses the fleet into 6 subsystem routers (small brains); flat exposes all
     ~91 tools directly (capable brains only). READ/REALM/ACT tools are identical across brains. `timeout` is per-LLM-call
-    — SHORT for local (stall → failover), long for the Haiku fallback."""
-    llm = ChatOpenAI(base_url=base_url, api_key=api_key, model=model, timeout=timeout, temperature=0)
+    — SHORT for local (stall → failover), long for the Haiku fallback. `extra_body` rides every request (e.g.
+    {"think": False}) and reaches the router sub-calls too, since they reuse this same llm."""
+    llm = ChatOpenAI(base_url=base_url, api_key=api_key, model=model, timeout=timeout, temperature=0,
+                     extra_body=extra_body or {})
     fleet = build_router_tools(_FLEET, llm) if routed else _FLEET
     return create_react_agent(llm, READ_TOOLS + fleet + REALM_TOOLS + ACT_TOOLS)
 
 
-_local_agent = _build_agent(LOCAL_BASE_URL, LOCAL_MODEL, LOCAL_API_KEY, LOCAL_ROUTED, LOCAL_TIMEOUT)
+_local_agent = _build_agent(LOCAL_BASE_URL, LOCAL_MODEL, LOCAL_API_KEY, LOCAL_ROUTED, LOCAL_TIMEOUT,
+                            {"think": False} if LOCAL_NO_THINK else None)
 _fallback_agent = (_build_agent(FALLBACK_BASE_URL, FALLBACK_MODEL, FALLBACK_API_KEY, FALLBACK_ROUTED, OLLAMA_TIMEOUT)
                    if FALLBACK_ENABLED else None)
 
