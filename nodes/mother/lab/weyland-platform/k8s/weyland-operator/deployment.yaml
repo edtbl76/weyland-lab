@@ -67,14 +67,15 @@ spec:
             # MLflow AI Gateway (chat/eval lane only — its strict normalization shreds tool schemas). Guardrails live at
             # the agent EDGE (weyland-guard input/output + the act confirm-step), never inline in the LLM path.
             #
-            # PRIMARY brain — local qwen2.5:7b on rogueone, DIRECT to Ollama (LAN, PERMISSIVE): $0, never touches
-            # LiteLLM/spend. Deliberately a 7B (~4.7GB): rogueone's 16GB GPU is SHARED (RAG embedder ~1.5GB + on-demand
-            # llama-guard-8b ~6GB), so a 20B spills to CPU and stalls — a 7B co-resides and serves fast. Fleet ROUTED
-            # (FLEET_ROUTING=1) collapses the ~91 tools into 6 subsystem routers to stay within the 7B's selection ceiling.
+            # PRIMARY brain — local qwen3:14b on rogueone, DIRECT to Ollama (LAN, PERMISSIVE): $0, never touches
+            # LiteLLM/spend. qwen3:14b (~9GB) over qwen2.5:7b: the 7B reasoned correctly but its Hermes <tool_call> tags
+            # leaked as text through Ollama's OpenAI shim instead of parsing to structured tool_calls; qwen3 emits clean
+            # ones. Fits the 16GB card only with the on-demand llama-guard-8b OFF (rag-embed ~1.5GB + display leaves ~10GB);
+            # when llama-guard is up the operator health-fails-over to Haiku. Fleet ROUTED (FLEET_ROUTING=1) → 6 routers.
             - name: OLLAMA_BASE_URL
               value: http://192.168.1.230:11434/v1
             - name: OLLAMA_MODEL
-              value: qwen2.5:7b
+              value: qwen3:14b
             - name: LLM_API_KEY
               value: ollama          # Ollama ignores the key; any non-empty string satisfies the OpenAI client
             - name: FLEET_ROUTING
