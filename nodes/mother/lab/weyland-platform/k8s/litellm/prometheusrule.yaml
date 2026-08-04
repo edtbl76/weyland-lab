@@ -21,13 +21,16 @@ spec:
           annotations:
             summary: "LiteLLM hosted-model egress is RUNNING (off-LAN model access enabled)"
             description: "Close the valve to disable: kubectl scale deploy/litellm -n weyland --replicas=0"
-        # Spend: only meaningful for paid models (free Gemini/OpenRouter routes cost $0). Metric name CONFIRMED
-        # from /metrics (B55): litellm_spend_metric_total (counter; series materializes once a request logs spend).
+        # Spend: metric name CONFIRMED from /metrics (B55): litellm_spend_metric_total (counter; the series
+        # materializes once a request logs spend). Threshold $5/24h (2026-08-04): the weyland-operator runs LOCAL
+        # gpt-oss:20b as its primary brain and Haiku only as a HEALTH FAILOVER, so steady-state paid spend is ≈ $0.
+        # Sustained spend now means either the local engine (rogueone/Ollama) has been DOWN long enough that Haiku
+        # carried real load, or a route meant to be free is hitting a paid model — both worth a look.
         - alert: LiteLLMSpendObserved
-          expr: increase(litellm_spend_metric_total[24h]) > 1
+          expr: increase(litellm_spend_metric_total[24h]) > 5
           for: 0m
           labels:
             severity: warning
           annotations:
-            summary: "LiteLLM reported > $1 spend in 24h"
-            description: "A paid model is being used. Free Gemini/OpenRouter routes should stay at $0."
+            summary: "LiteLLM reported > $5 spend in 24h (operator Haiku should be ~$0 — failover or misroute?)"
+            description: "The operator's Haiku is failover-only (local gpt-oss primary). Sustained spend suggests rogueone/Ollama has been unavailable (check operator_brain_selected_total{brain=\"haiku\"}) or a free route hit a paid model — check LiteLLM logs."

@@ -1,21 +1,51 @@
 """The operator agent — a LangGraph ReAct loop over the tool-server tools (B66 Part 1).
 
-Uses LangGraph's prebuilt `create_react_agent` (handles reason → call tool → observe → repeat → answer). The brain is
-local **gpt-oss:20b** via Ollama (the B66 bake-off proved it ties Claude Haiku on this exact workload, incl. the
-act-path safety test). Read-only for now; act tools + the confirm-step land in Part 3."""
-import os
+Uses LangGraph's prebuilt `create_react_agent` (reason → call tool → observe → repeat → answer).
 
+LOCAL-PRIMARY WITH HAIKU FAILOVER (B45 follow-up): the brain is the local **gpt-oss:20b** on rogueone ($0, fleet
+ROUTED to stay within the 20B's tool-selection ceiling — the B66 bake-off proved it ties Haiku on this workload). Haiku
+via LiteLLM (flat fleet) is a health FAILOVER only: a request routes to it when the local engine fails a fast health
+pre-check (cached) OR errors mid-flight — so a rogueone/Ollama outage degrades to paid cloud instead of the operator
+going dark, and steady-state Haiku spend stays ≈ $0. Set OPERATOR_LLM_FALLBACK=0 for local-only. Both agents are
+compiled once at import; `run()` picks local unless it's unavailable."""
+import os
+import time
+
+import httpx
 from langchain_openai import ChatOpenAI
 from langgraph.prebuilt import create_react_agent
+from prometheus_client import Counter
 
 from prompts import load_prompt
 from tools import ACT_TOOLS, READ_TOOLS
 from fleet import build_router_tools, load_fleet_tools
 from realm import REALM_TOOLS
 
-OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://192.168.1.230:11434/v1")
-OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "gpt-oss:20b")
 OLLAMA_TIMEOUT = float(os.getenv("OLLAMA_TIMEOUT", "300"))
+
+
+def _bool(v: str) -> bool:
+    return str(v).lower() in ("1", "true", "yes")
+
+
+# PRIMARY — local gpt-oss on rogueone, direct to Ollama ($0). Routed by default (the 20B needs the 6-router collapse).
+LOCAL_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://192.168.1.230:11434/v1")
+LOCAL_MODEL = os.getenv("OLLAMA_MODEL", "gpt-oss:20b")
+LOCAL_API_KEY = os.getenv("LLM_API_KEY", "ollama")
+LOCAL_ROUTED = _bool(os.getenv("FLEET_ROUTING", "1"))
+
+# FALLBACK — Haiku via LiteLLM, flat fleet (handles all ~91 tools). Each field defaults sanely; only wire what differs.
+FALLBACK_ENABLED = _bool(os.getenv("OPERATOR_LLM_FALLBACK", "1"))
+FALLBACK_BASE_URL = os.getenv("OLLAMA_FALLBACK_BASE_URL", "http://litellm.weyland.svc.cluster.local:4000/v1")
+FALLBACK_MODEL = os.getenv("OLLAMA_FALLBACK_MODEL", "claude-haiku")
+FALLBACK_API_KEY = os.getenv("OLLAMA_FALLBACK_API_KEY", LOCAL_API_KEY)
+FALLBACK_ROUTED = _bool(os.getenv("OLLAMA_FALLBACK_FLEET_ROUTING", "0"))
+
+# Health pre-check: a cheap liveness GET to the local engine so a down/hung Ollama routes to Haiku in ~seconds instead
+# of waiting out OLLAMA_TIMEOUT. Cached briefly so a burst of messages doesn't hammer it.
+HEALTH_URL = os.getenv("OLLAMA_HEALTH_URL", "http://192.168.1.230:11434/api/tags")
+HEALTH_TIMEOUT = float(os.getenv("OPERATOR_HEALTH_TIMEOUT", "3"))
+HEALTH_TTL = float(os.getenv("OPERATOR_HEALTH_TTL", "30"))
 
 SYSTEM = (
     "You are the weyland homelab operator. ALWAYS answer by calling a tool and reporting its result — NEVER tell the "
@@ -29,14 +59,48 @@ SYSTEM = (
     "never claim an action ran. Keep replies short (Telegram)."
 )
 
-_llm = ChatOpenAI(base_url=OLLAMA_BASE_URL, api_key=os.getenv("LLM_API_KEY", "ollama"), model=OLLAMA_MODEL,
-                  timeout=OLLAMA_TIMEOUT, temperature=0)
-# Fleet tools: FLAT by default — a capable brain (Haiku) selects from the ~91 read tools directly. Set FLEET_ROUTING=1
-# for the local gpt-oss:20b, which collapses the fleet into 6 subsystem ROUTERS (small prompts, extra LLM hops) so it
-# stays within the 20B's tool-selection ceiling. Empty either way if the fleet is unreachable.
-_FLEET = load_fleet_tools()
-_fleet_tools = build_router_tools(_FLEET, _llm) if os.getenv("FLEET_ROUTING") else _FLEET
-_agent = create_react_agent(_llm, READ_TOOLS + _fleet_tools + REALM_TOOLS + ACT_TOOLS)
+# Which brain served each request + why. reason: primary (local ok) | local_down (pre-check miss) | local_error (invoke
+# threw). Watch operator_brain_selected_total{brain,reason} — Haiku selections are the failover signal.
+_BRAIN_SELECTED = Counter("operator_brain_selected_total", "Operator brain selections by brain + reason",
+                          ["brain", "reason"])
+
+_FLEET = load_fleet_tools()   # load the MCP fleet ONCE — both brains share it (flat vs. routed views below)
+
+
+def _build_agent(base_url: str, model: str, api_key: str, routed: bool):
+    """Compile one ReAct agent. `routed` collapses the fleet into 6 subsystem routers (small brains); flat exposes all
+    ~91 tools directly (capable brains only). READ/REALM/ACT tools are identical across brains."""
+    llm = ChatOpenAI(base_url=base_url, api_key=api_key, model=model, timeout=OLLAMA_TIMEOUT, temperature=0)
+    fleet = build_router_tools(_FLEET, llm) if routed else _FLEET
+    return create_react_agent(llm, READ_TOOLS + fleet + REALM_TOOLS + ACT_TOOLS)
+
+
+_local_agent = _build_agent(LOCAL_BASE_URL, LOCAL_MODEL, LOCAL_API_KEY, LOCAL_ROUTED)
+_fallback_agent = (_build_agent(FALLBACK_BASE_URL, FALLBACK_MODEL, FALLBACK_API_KEY, FALLBACK_ROUTED)
+                   if FALLBACK_ENABLED else None)
+
+_health = {"at": 0.0, "ok": True}   # cached liveness of the local engine: (monotonic checked-at, healthy?)
+
+
+async def _local_healthy() -> bool:
+    """Cheap cached liveness for the local engine. Any miss (refused / hung / non-200) → False → route to Haiku fast."""
+    now = time.monotonic()
+    if now - _health["at"] < HEALTH_TTL:
+        return _health["ok"]
+    ok = True
+    try:
+        async with httpx.AsyncClient() as c:
+            r = await c.get(HEALTH_URL, timeout=HEALTH_TIMEOUT)
+            ok = r.status_code == 200
+    except Exception:
+        ok = False
+    _health["at"], _health["ok"] = now, ok
+    return ok
+
+
+def _mark_local_down() -> None:
+    """Force the next request to skip the local engine (used when an invoke throws between health checks)."""
+    _health["at"], _health["ok"] = time.monotonic(), False
 
 
 def _extract_proposal(msgs: list) -> dict | None:
@@ -52,14 +116,29 @@ def _extract_proposal(msgs: list) -> dict | None:
 
 
 async def run(message: str, history: list | None = None) -> tuple[str, dict | None]:
-    """Run the operator on a user message (+ optional prior [(role, text)] turns). Returns (reply, proposal) where
-    proposal is a propose_act payload if the agent proposed an action, else None. ASYNC — the composed MCP fleet's
-    tools (langchain-mcp-adapters) are async-only, so we drive the graph with `ainvoke` (sync base tools still run,
-    LangChain executes them in a threadpool under async)."""
+    """Run the operator on a user message (+ optional prior [(role, text)] turns). Returns (reply, proposal). Local is
+    primary; on a health-precheck miss or a mid-flight error we re-run the same messages on the Haiku fallback. ASYNC —
+    the composed MCP fleet's tools (langchain-mcp-adapters) are async-only, so we drive the graph with `ainvoke`."""
     messages = [("system", load_prompt("operator_system", SYSTEM))]   # B100 P2 — live from the Prompt Registry (fail-safe)
     if history:
         messages += history
     messages.append(("user", message))
-    result = await _agent.ainvoke({"messages": messages})
+
+    reason = "local_down"   # why we'd use the fallback, if we do
+    if _fallback_agent is None or await _local_healthy():
+        try:
+            result = await _local_agent.ainvoke({"messages": messages})
+            _BRAIN_SELECTED.labels("local", "primary").inc()
+            msgs = result["messages"]
+            return msgs[-1].content, _extract_proposal(msgs)
+        except Exception as exc:
+            if _fallback_agent is None:
+                raise
+            print(f"[agent] local brain failed ({exc}) — falling back to {FALLBACK_MODEL}", flush=True)
+            _mark_local_down()
+            reason = "local_error"
+
+    result = await _fallback_agent.ainvoke({"messages": messages})   # fresh attempt on Haiku (reads are idempotent)
+    _BRAIN_SELECTED.labels("haiku", reason).inc()
     msgs = result["messages"]
     return msgs[-1].content, _extract_proposal(msgs)

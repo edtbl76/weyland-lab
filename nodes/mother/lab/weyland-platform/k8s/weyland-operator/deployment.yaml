@@ -1,7 +1,8 @@
 # B66 Part 1 — weyland-operator: the lab operator agent (LangGraph ReAct loop over the tool-server read tools).
 # Meshed now so Part 2's STRICT-mTLS Postgres session store drops in without a topology change; today it reaches the
 # tool-server + weyland-guard in-cluster and egresses to Ollama on rogueone (LAN, PERMISSIVE). Read-only: no act
-# tools, no Telegram, no session yet. gpt-oss:20b brain (B66 bake-off winner).
+# tools, no Telegram, no session yet. Brain is local gpt-oss:20b ($0, primary) with Haiku as a HEALTH FAILOVER (B45
+# follow-up) — used only when rogueone/Ollama is unavailable, so the operator never goes dark. See the OLLAMA_* env below.
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -21,7 +22,7 @@ spec:
       enableServiceLinks: false
       containers:
         - name: weyland-operator
-          image: registry.weyland.lab/weyland-operator:v16   # v16 — B45 incident sweep + by-design-alert noise filter
+          image: registry.weyland.lab/weyland-operator:v17   # v17 — local gpt-oss primary + Haiku health-failover
           imagePullPolicy: IfNotPresent
           resources:
             # No torch/embedder — just langgraph/langchain/mlflow client + fastapi; LLM inference is remote (Ollama).
@@ -61,22 +62,37 @@ spec:
               valueFrom: { secretKeyRef: { name: weyland-operator-mcp, key: client-secret, optional: true } }
             # Two-stage routing (v9): all fleet tools load and collapse into 6 subsystem routers, so no curation needed.
             # FLEET_PREFIXES / FLEET_TOOLS can still trim a noisy subsystem (e.g. grafana's ~40 tools) without a rebuild.
-            # LLM reasoning/tool-calling — via the MLflow AI Gateway (governed front door: budget cap + guardrails +
-            # tracing). Points at the Anthropic Haiku endpoint (fast + handles the flat ~91-tool fleet directly).
-            # $0 LOCAL FALLBACK: set OLLAMA_BASE_URL=http://192.168.1.230:11434/v1 + OLLAMA_MODEL=gpt-oss:20b +
-            # FLEET_ROUTING=1 (routing keeps the 20B within its tool-selection ceiling). The var names stay OLLAMA_* —
-            # both are just OpenAI-compatible endpoints.
-            # AGENTIC LANE: tool-calling routes through LiteLLM — a TRANSPARENT passthrough proxy (tools + tool_calls
-            # survive), with spend tracking + the off-LAN egress valve = governance at the right layer. NOT the MLflow AI
-            # Gateway (chat/eval lane only) — its strict request normalization shreds tool schemas. Guardrails are at the
-            # agent EDGE (weyland-guard input/output + the act confirm-step), never inline in the LLM path.
-            # $0 LOCAL FALLBACK: OLLAMA_BASE_URL=http://192.168.1.230:11434/v1 + OLLAMA_MODEL=gpt-oss:20b + FLEET_ROUTING=1.
+            # AGENTIC LANE: the Haiku FALLBACK path routes through LiteLLM — a TRANSPARENT passthrough proxy (tools +
+            # tool_calls survive), with spend tracking + the off-LAN egress valve = governance at the right layer. NOT the
+            # MLflow AI Gateway (chat/eval lane only — its strict normalization shreds tool schemas). Guardrails live at
+            # the agent EDGE (weyland-guard input/output + the act confirm-step), never inline in the LLM path.
+            #
+            # PRIMARY brain — local gpt-oss:20b on rogueone, DIRECT to Ollama (LAN, PERMISSIVE): $0, never touches
+            # LiteLLM/spend. Fleet ROUTED (FLEET_ROUTING=1) to stay within the 20B's tool-selection ceiling.
             - name: OLLAMA_BASE_URL
-              value: http://litellm.weyland.svc.cluster.local:4000/v1
+              value: http://192.168.1.230:11434/v1
             - name: OLLAMA_MODEL
-              value: claude-haiku
+              value: gpt-oss:20b
             - name: LLM_API_KEY
+              value: ollama          # Ollama ignores the key; any non-empty string satisfies the OpenAI client
+            - name: FLEET_ROUTING
+              value: "1"
+            # FALLBACK brain — Haiku via LiteLLM (flat fleet, handles all ~91 tools). Used ONLY when the local engine
+            # fails a fast health pre-check (GET OLLAMA_HEALTH_URL, ~3s, cached ~30s) or errors mid-request — so a
+            # rogueone/Ollama outage degrades to paid cloud instead of going dark, and steady-state Haiku spend ≈ $0.
+            # Set OPERATOR_LLM_FALLBACK=0 for local-only. Watch operator_brain_selected_total{brain,reason}.
+            - name: OPERATOR_LLM_FALLBACK
+              value: "1"
+            - name: OLLAMA_FALLBACK_BASE_URL
+              value: http://litellm.weyland.svc.cluster.local:4000/v1
+            - name: OLLAMA_FALLBACK_MODEL
+              value: claude-haiku
+            - name: OLLAMA_FALLBACK_FLEET_ROUTING
+              value: "0"
+            - name: OLLAMA_FALLBACK_API_KEY
               valueFrom: { secretKeyRef: { name: litellm-secrets, key: LITELLM_MASTER_KEY } }
+            - name: OLLAMA_HEALTH_URL
+              value: http://192.168.1.230:11434/api/tags
             - name: GUARD_BASE_URL
               value: http://weyland-guard.weyland.svc.cluster.local:8080
             # B17 A2A — the Realm of Agents (24 specialists). delegate_to_realm posts here; Gná routes.

@@ -9,6 +9,7 @@ RUN pip install --no-cache-dir \
     fastapi \
     uvicorn \
     httpx \
+
     psycopg2-binary \
     prometheus-client \
     langgraph \
