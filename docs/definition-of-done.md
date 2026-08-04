@@ -82,8 +82,11 @@ open gap = not done:
     **Pyroscope** and appear in Grafana's **Profiles Drilldown**; note **N/A** for services that don't profile.
   - **Alerts** — a **PrometheusRule** with a **down/failure** alert (+ spend / error-rate where relevant, e.g.
     `bifrost_cost_total`) routed to Telegram; the alert path has a **dead-man's-switch** (Watchdog → external heartbeat, not `null`).
-  - **Synthetic 1:1** — every user-facing host in `hosts.md` has an active Uptime-Kuma monitor, no orphan monitors
-    for retired hosts. Reconcile the host list against the live monitor list (not just the count) each batch.
+  - **Synthetic 1:1** — **blackbox is the synthetic source of record.** Every user-facing host in `hosts.md` has a
+    **blackbox probe target** (`k8s/monitoring/blackbox-exporter.yaml`, kept alphabetical), **1:1, no orphans** — a
+    **git-vs-git diff** of that target list against `hosts.md` each batch (add a host to hosts.md → add its probe in the
+    same change). Kuma is **supplementary** (UI / status page / push-heartbeat monitors / the Port `uptime_monitor`
+    blueprint), NOT the coverage-of-record — don't reconcile against Kuma's PVC state.
 - **Backed up (if stateful)** — any PVC/DB/object store with non-reproducible data has a **tested** backup
   (CronJob + rotation); reproducible stores say so.
 - **Triggered** — anything that must stay fresh has a schedule/sensor + a freshness signal, not manual-only.

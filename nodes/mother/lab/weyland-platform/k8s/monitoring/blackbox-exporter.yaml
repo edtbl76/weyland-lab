@@ -1,7 +1,9 @@
-# B69 Wave 4 — git-managed synthetic monitoring (replaces UI-only Kuma monitors for the 16 hosts that had NO
-# coverage; see the 1:1 audit 2026-07-17). prometheus-blackbox-exporter probes each *.weyland.lab ingress; a
-# Prometheus `Probe` CRD tells the operator to scrape it per target; a PrometheusRule alerts on `probe_success==0`
-# → the existing Alertmanager→Telegram path. Reproducible-from-git, unlike Kuma's SQLite/PVC monitors.
+# B69 Wave 4 → reframed B45 (2026-08-04): git-managed synthetic monitoring, now the COMPLETE synthetic source of
+# RECORD — **1:1 with docs/hosts.md** (every *.weyland.lab ingress has a blackbox target). Reproducible-from-git,
+# unlike Kuma's SQLite/PVC monitors. prometheus-blackbox-exporter probes each ingress; a Prometheus `Probe` CRD scrapes
+# per target; a PrometheusRule alerts on `probe_success==0` → the existing Alertmanager→Telegram path. Kuma is now
+# SUPPLEMENTARY (UI / status page / push-heartbeat monitors / the Port incident blueprint) — NOT the coverage-of-record.
+# DoD invariant: keep this target list 1:1 with docs/hosts.md (a git-vs-git diff each batch) — see definition-of-done.md.
 #
 # DNS: like Kuma ([[kuma-lan-dns-monitors]]), the pod uses LAN DNS (192.168.1.243) not cluster DNS — cluster DNS
 # breaks in-cluster probing of forward-auth UIs. TLS: insecure_skip_verify (lab mkcert wildcard). Status codes are
@@ -82,7 +84,9 @@ spec:
   ports:
     - { name: http, port: 9115, targetPort: 9115 }
 ---
-# The 16 hosts that had NO Uptime-Kuma monitor (1:1 audit). Add/remove a line here = git-managed coverage change.
+# 1:1 with docs/hosts.md — every *.weyland.lab ingress. Add/remove a host here (AND in hosts.md) = git-managed coverage
+# change; kept ALPHABETICAL so the hosts.md diff is trivial. Root + the lenient http_weyland module (SSO redirect / 200 /
+# 401 / 403) for UIs; a /health path where root doesn't return an accepted code (post-deploy probe_success reveals any).
 apiVersion: monitoring.coreos.com/v1
 kind: Probe
 metadata:
@@ -99,22 +103,46 @@ spec:
   targets:
     staticConfig:
       static:
-        - https://auth.weyland.lab            # forward-auth — the SSO gate itself
+        - https://agent.weyland.lab
         - https://argocd.weyland.lab
-        - https://nessie.weyland.lab/q/health
-        - https://lakefs.weyland.lab/_health
-        - https://ray.weyland.lab
-        - https://feast.weyland.lab
-        - https://registry.weyland.lab/v2/
-        - https://gatekeeper.weyland.lab
-        - https://opencost.weyland.lab
+        - https://auth.weyland.lab            # forward-auth — the SSO gate itself
+        - https://bifrost.weyland.lab
+        - https://clickhouse.weyland.lab
         - https://cockroachdb.weyland.lab
-        - https://flink.weyland.lab
-        - https://docs.weyland.lab
-        - https://likec4.weyland.lab
+        - https://cube.weyland.lab
         - https://dbt-docs.weyland.lab
+        - https://docs.weyland.lab
+        - https://feast.weyland.lab
+        - https://feast-ui.weyland.lab
+        - https://flink.weyland.lab
         - https://flink-history.weyland.lab
+        - https://gatekeeper.weyland.lab
+        - https://glitchtip.weyland.lab
+        - https://inspector.weyland.lab
+        - https://jupyter.weyland.lab
+        - https://keycloak.weyland.lab
+        - https://kokoro.weyland.lab
+        - https://kuma.weyland.lab
+        - https://lakefs.weyland.lab/_health
         - https://lancedb.weyland.lab
+        - https://lightdash.weyland.lab
+        - https://likec4.weyland.lab
+        - https://mlflow.weyland.lab
+        - https://nessie.weyland.lab/q/health
+        - https://ollama.weyland.lab
+        - https://opencost.weyland.lab
+        - https://promptfoo.weyland.lab
+        - https://ranger.weyland.lab
+        - https://ray.weyland.lab
+        - https://realm.weyland.lab
+        - https://redpanda.weyland.lab
+        - https://registry.weyland.lab/v2/
+        - https://registry-ui.weyland.lab
+        - https://sonarqube.weyland.lab
+        - https://superset.weyland.lab
+        - https://trino.weyland.lab
+        - https://unleash.weyland.lab
+        - https://woodpecker.weyland.lab
 ---
 apiVersion: monitoring.coreos.com/v1
 kind: PrometheusRule
