@@ -112,9 +112,8 @@ spec:
         - https://cube.weyland.lab
         - https://dbt-docs.weyland.lab
         - https://docs.weyland.lab
-        - https://feast.weyland.lab
+        - https://feast.weyland.lab/health   # feature-server API — 404 at root
         - https://feast-ui.weyland.lab
-        - https://flink.weyland.lab
         - https://flink-history.weyland.lab
         - https://gatekeeper.weyland.lab
         - https://glitchtip.weyland.lab
@@ -129,7 +128,6 @@ spec:
         - https://likec4.weyland.lab
         - https://mlflow.weyland.lab
         - https://nessie.weyland.lab/q/health
-        - https://ollama.weyland.lab
         - https://opencost.weyland.lab
         - https://promptfoo.weyland.lab
         - https://ranger.weyland.lab
@@ -143,6 +141,12 @@ spec:
         - https://trino.weyland.lab
         - https://unleash.weyland.lab
         - https://woodpecker.weyland.lab
+      # --- Intentionally NOT probed (on-demand / not always-up — probing would false-page) ---
+      # • flink (JobManager/session cluster — up only when running jobs; flink-history IS probed).
+      # • rogueone GPU on-demand services (vllm / sglang / llama-guard-8b) — brought up per run.
+      # ollama.weyland.lab is a DNS ALIAS to rogueone (192.168.1.230), NOT an HTTPS ingress — Ollama serves HTTP
+      # on :11434, so an https:// probe gets 000 (nothing on :443). Valid hosts.md DNS entry, just not a probe
+      # target. The 1:1 rule = every HTTPS INGRESS in hosts.md, EXCEPT the on-demand hosts listed above.
 ---
 apiVersion: monitoring.coreos.com/v1
 kind: PrometheusRule

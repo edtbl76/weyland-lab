@@ -83,9 +83,11 @@ open gap = not done:
   - **Alerts** — a **PrometheusRule** with a **down/failure** alert (+ spend / error-rate where relevant, e.g.
     `bifrost_cost_total`) routed to Telegram; the alert path has a **dead-man's-switch** (Watchdog → external heartbeat, not `null`).
   - **Synthetic 1:1** — **blackbox is the synthetic source of record.** Every user-facing host in `hosts.md` has a
-    **blackbox probe target** (`k8s/monitoring/blackbox-exporter.yaml`, kept alphabetical), **1:1, no orphans** — a
-    **git-vs-git diff** of that target list against `hosts.md` each batch (add a host to hosts.md → add its probe in the
-    same change). Kuma is **supplementary** (UI / status page / push-heartbeat monitors / the Port `uptime_monitor`
+    **blackbox probe target** (`k8s/monitoring/blackbox-exporter.yaml`, kept alphabetical) — **1:1, no orphans**, a
+    **git-vs-git diff** of that target list against `hosts.md` each batch (add an ingress → add its probe in the same
+    change, at a **working path** not blindly root). Two documented carve-outs: **(a) on-demand** hosts (the excluded
+    list in the blackbox config — Flink session cluster, GPU benches) and **(b) DNS aliases** that aren't HTTPS
+    ingresses (e.g. `ollama.weyland.lab` → the LAN IP:11434). Kuma is **supplementary** (UI / status page / push-heartbeat monitors / the Port `uptime_monitor`
     blueprint), NOT the coverage-of-record — don't reconcile against Kuma's PVC state.
 - **Backed up (if stateful)** — any PVC/DB/object store with non-reproducible data has a **tested** backup
   (CronJob + rotation); reproducible stores say so.
