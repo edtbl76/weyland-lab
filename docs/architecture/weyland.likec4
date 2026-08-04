@@ -64,6 +64,7 @@ model {
         weylandGuard = component "weyland-guard" "B70 shared guardrail service — /guard/{input,output,act} hooks over the validator set (injection/toxicity/PII/grounding/act-policy + Llama Guard Classify), SHADOW default, fail-open callers. The Scan + Classify layers of the B115 guardrails platform. Verdicts -> /metrics + guardrail_verdicts."
         llamaGuard = component "llama-guard" "B115 Classify layer — Llama Guard content-safety classifier (llama.cpp, temp 0). Tier-1 Llama-Guard-3-1B on CPU (always-on, mother); tier-2 on-demand Llama-Guard-3-8B on the rogueone GPU. Called by weyland-guard's llama_guard.safety validator via LLAMA_GUARD_URL."
         guardrailsStructure = component "guardrails-structure" "B115 Structure layer — Guardrails AI (output-schema validate + re-ask), isolated in its own image (guardrails-ai's click<=8.2.0 pin can't co-install with the Dagster/dbt/hf stack). FastAPI POST /structure/judge-scores; validates the eval judge's JudgeScores + re-asks the judge model (litellm->Ollama) to repair. Called by the Dagster eval judge via an HTTP client, fail-safe."
+        nemoGuardrails = component "nemo-guardrails" "B115 Dialog layer — NeMo Guardrails as an OpenAI-compat service (FastAPI wraps LLMRails.generate). Open WebUI adds it as a guarded weyland-operator chat model beside the raw Ollama models; input + topical rails (a self check input LLM-judge — the Colang dialog rail wouldn't fire) refuse off-domain / jailbreak, on-topic passes to gpt-oss:20b."
       }
 
       // ============ Data mesh / lakehouse plane (sliced) ============
@@ -227,6 +228,8 @@ model {
   weyland.mother.ai.weylandGuard -> weyland.mother.ai.llamaGuard "Classify — POST content-safety classification (llama_guard.safety, temp 0)"
   weyland.mother.ai.dagster -> weyland.mother.ai.guardrailsStructure "Structure — eval judge JSON -> validate JudgeScores + re-ask (fail-open)"
   weyland.mother.ai.guardrailsStructure -> rogueone.ollama "re-ask the judge model to repair (litellm)"
+  weyland.mother.ai.openWebui -> weyland.mother.ai.nemoGuardrails "guarded weyland-operator model (OpenAI connection)"
+  weyland.mother.ai.nemoGuardrails -> rogueone.ollama "rails LLM + main completion (gpt-oss:20b)"
   weyland.mother.ai.litellm -> hostedModels "egress: wl-* routed + fallback"
   weyland.mother.ai.openWebui -> rogueone.ollama "chat /v1"
   weyland.mother.ai.openWebui -> weyland.whisper "STT /v1/audio/transcriptions"

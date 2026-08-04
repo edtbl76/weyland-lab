@@ -125,6 +125,40 @@ parses the raw (the pre-B115 behaviour), so a guard outage never sinks an eval. 
 source (`guarded`/`reasked`/`fallback`) on its MLflow `eval`-experiment span — the honesty check that the guard actually
 ran (all `fallback` = the service isn't answering). Design: `aidlc-docs/guardrails-platform.md`.
 
+## nemo-guardrails — the Dialog layer (B115, 2026-08-03)
+The **Dialog** path (the 4th and final guardrails-platform path): NeMo Guardrails for **conversational / topical**
+control — the thing the edge I/O scan does NOT do. It runs as a **standalone service** — `nemo-guardrails.weyland.svc:8080`
+(ClusterIP, no ingress, meshed; `k8s/nemo-guardrails/`, Argo; image `registry.weyland.lab/nemo-guardrails:v3`) — in its
+own image because NeMo drags a heavy dep tree (langchain, fastembed) that doesn't co-exist cleanly with the rest of the
+stack. Meshed so the rails' LLM reaches the rogueone Ollama (the operator brain `gpt-oss:20b`), like the tool-server.
+
+**OpenAI-compat wrapper.** A **FastAPI wraps the NeMo library** (`LLMRails.generate`, `services/nemo-guardrails/app.py`)
+behind a plain OpenAI surface — `POST /v1/chat/completions`, `GET /v1/models`, `/health`, `/ready` — rather than NeMo's
+own server, because that server wants `config_id` nested under a `guardrails` object a vanilla OpenAI client (Open WebUI)
+won't send. So Open WebUI gets a clean OpenAI endpoint; the rails apply transparently. (The endpoint is sync `def` — it
+runs in the threadpool because NeMo's `generate` spins its own event loop an `async def` would break; the rails are built
+**once** and reused, since the NeMo import is heavy.)
+
+**Open WebUI wiring — the guarded `weyland-operator` lane.** Open WebUI (`chat.weyland.lab`) adds `nemo-guardrails` as an
+**OpenAI connection**, so a guarded **`weyland-operator`** chat model appears **alongside** the raw Ollama models — pick it
+and every turn runs through the rails; pick a raw Ollama model and general chat is **unguarded** (unaffected). **Gotcha:**
+Open WebUI's OpenAI connection is **PersistentConfig** — `ENABLE_OPENAI_API` / `OPENAI_API_BASE_URL` are read only on first
+init, then DB-stored, so on an **existing** install the env change is ignored. Add the connection in the **admin UI**
+(Settings → Connections → OpenAI; URL `http://nemo-guardrails.weyland.svc:8080/v1`, Auth **None**, empty Model IDs — it
+reads `/v1/models`).
+
+**Topical control via `self check input`, not Colang.** The rails config (`config/config.yml`) does topical control with a
+**strengthened `self check input` LLM-judge rail** — a single input rail that judges **both** jailbreak/prompt-injection
+**and** off-topic (anything that isn't a genuine lab-operations request). The intended NeMo feature — a **Colang
+dialog/topical flow** — would **NOT fire** (v1 + v2 both answered off-topic; NeMo's embedding-based dialog matching is its
+finickiest feature, and it failed the B32 trial the same way), whereas `self check input` blocks reliably (it caught the
+jailbreak first try). So topicality moved into the self-check prompt, and `config/rails.co` overrides the blocked-message
+to a **custom operator refusal** ("I'm the weyland lab operator — I only handle lab operations…") instead of NeMo's
+generic default. Reliable > elegant.
+
+**Verified 2026-08-03:** off-topic (e.g. "write me a haiku") → the operator refusal; on-topic (a lab-ops question) →
+answered through the operator brain; a jailbreak → blocked. Design: `aidlc-docs/guardrails-platform.md`.
+
 ## Demo toggle — `POST /admin/mode` (live, no restart)
 Flip validators shadow↔flag/block **live** for a demo, then revert. In-process override: a pod restart drops back to
 the committed modes (a demo can't be left on by accident) and there's no manifest drift for Argo to fight — chosen over

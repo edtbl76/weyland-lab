@@ -1,0 +1,23 @@
+# B115 — nemo-guardrails (Dialog layer) down alert. Lives in the `monitoring` ns with release:monitoring
+# (kube-prometheus-stack ruleSelector); routes to the Weyland Alerts Telegram chat (B5 P2a). If it's down, the guarded
+# `weyland-operator` model in Open WebUI just stops answering (the raw Ollama chat lane is unaffected) — severity warning.
+# kube-state-metrics signal (no /metrics on the service), like the llama-guard + guardrails-structure rules.
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: nemo-guardrails
+  namespace: monitoring
+  labels:
+    release: monitoring
+spec:
+  groups:
+    - name: nemo-guardrails
+      rules:
+        - alert: NemoGuardrailsDown
+          expr: kube_deployment_status_replicas_available{namespace="weyland",deployment="nemo-guardrails"} < 1
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "nemo-guardrails (Dialog layer) has no ready replica"
+            description: "The NeMo Guardrails service is down — the guarded `weyland-operator` chat model in Open WebUI won't respond (raw Ollama models unaffected). Check: kubectl -n weyland rollout status deploy/nemo-guardrails"
