@@ -24,7 +24,7 @@ spec:
       enableServiceLinks: false
       containers:
         - name: nemo-guardrails
-          image: registry.weyland.lab/nemo-guardrails:v2   # v2 — topical-rail fix (colang 1.0 + embeddings + multi-step dialog + more utterances)
+          image: registry.weyland.lab/nemo-guardrails:v3   # v3 — topical control via the self-check input rail (Colang dialog rail wouldn't fire)
           imagePullPolicy: IfNotPresent
           ports:
             - name: http
