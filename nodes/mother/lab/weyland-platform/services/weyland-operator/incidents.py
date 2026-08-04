@@ -31,6 +31,17 @@ _CHAT_ID = os.getenv("INCIDENT_CHAT_ID", "") or next(
 _SWEEPS = Counter("operator_incident_sweeps_total", "Incident sweeps by outcome", ["outcome"])
 _NOTIFIED = Counter("operator_incidents_notified_total", "Incidents enriched + notified")
 
+# Alerts that fire BY DESIGN (not incidents), so the digest stays real-signal-only. `severity="none"` is always skipped
+# (Watchdog dead-man's-switch + InfoInhibitor are kube-prometheus-stack built-ins that fire forever); the named set is
+# for intentional awareness alerts (LiteLLM egress/spend). Env-overridable via INCIDENT_SKIP_ALERTS (comma list).
+_SKIP_ALERTNAMES = {s.strip() for s in os.getenv(
+    "INCIDENT_SKIP_ALERTS", "Watchdog,InfoInhibitor,LiteLLMEgressEnabled,LiteLLMSpendObserved").split(",") if s.strip()}
+
+
+def _is_incident(labels: dict) -> bool:
+    """True if a firing alert is a REAL incident worth enriching — not a by-design / awareness alert."""
+    return labels.get("severity") != "none" and labels.get("alertname") not in _SKIP_ALERTNAMES
+
 
 def enabled() -> bool:
     """The sweep runs only when explicitly enabled AND Telegram + a target chat are configured."""
@@ -75,7 +86,7 @@ async def _enrich_and_notify(client: httpx.AsyncClient, labels: dict) -> None:
 
 
 async def sweep_once(client: httpx.AsyncClient) -> None:
-    firing = {_fingerprint(l): l for l in await _firing(client)}
+    firing = {_fingerprint(l): l for l in await _firing(client) if _is_incident(l)}
     recorded = session.incidents_recorded()
     new_fps = [fp for fp in firing if fp not in recorded]
     for fp in new_fps[:MAX_ENRICH_PER_SWEEP]:          # cap per sweep; a storm overflow is picked up next sweep

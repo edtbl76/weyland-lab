@@ -21,7 +21,7 @@ spec:
       enableServiceLinks: false
       containers:
         - name: weyland-operator
-          image: registry.weyland.lab/weyland-operator:v15   # v15 — B45 enrich-only incident sweep (+ incidents.py)
+          image: registry.weyland.lab/weyland-operator:v16   # v16 — B45 incident sweep + by-design-alert noise filter
           imagePullPolicy: IfNotPresent
           resources:
             # No torch/embedder — just langgraph/langchain/mlflow client + fastapi; LLM inference is remote (Ollama).
