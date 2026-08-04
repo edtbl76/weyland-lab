@@ -1,6 +1,8 @@
 # B115 Dialog layer — nemo-guardrails: NeMo Guardrails (Colang topical + input rails) as an OpenAI-compatible service,
 # isolated in its own image. Open WebUI adds it as an OpenAI connection → a guarded "weyland-operator" chat model
-# alongside the raw Ollama models. Meshed — reaches rogueone Ollama for the rails LLM + the main model, like the tool-server.
+# alongside the raw Ollama models. Meshed — reaches rogueone Ollama for the rails LLM + the main model, like the
+# tool-server. (open-webui reaches it fine over the mesh; the model not appearing was Open WebUI PersistentConfig
+# ignoring the env change on an existing install — fixed by adding the connection in the Open WebUI admin UI.)
 apiVersion: apps/v1
 kind: Deployment
 metadata:
