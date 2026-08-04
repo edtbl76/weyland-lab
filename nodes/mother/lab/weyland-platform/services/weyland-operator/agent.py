@@ -2,12 +2,14 @@
 
 Uses LangGraph's prebuilt `create_react_agent` (reason → call tool → observe → repeat → answer).
 
-LOCAL-PRIMARY WITH HAIKU FAILOVER (B45 follow-up): the brain is a local model on rogueone ($0, fleet ROUTED to stay
-within its tool-selection ceiling). Default qwen2.5:7b — deliberately a 7B because rogueone's 16GB GPU is SHARED (RAG
-embedder + on-demand llama-guard-8b), so a 20B spills to CPU and stalls; a 7B co-resides and serves fast. Haiku
-via LiteLLM (flat fleet) is a health FAILOVER only: a request routes to it when the local engine fails a fast health
-pre-check (cached) OR errors mid-flight — so a rogueone/Ollama outage degrades to paid cloud instead of the operator
-going dark, and steady-state Haiku spend stays ≈ $0. Set OPERATOR_LLM_FALLBACK=0 for local-only. Both agents are
+LOCAL-PRIMARY WITH HAIKU FAILOVER (B45 follow-up): the brain is a local model on rogueone ($0). Default qwen2.5:7b —
+fast, non-thinking, and it tool-calls cleanly on a SMALL FLAT toolset (proven: one real tool → a clean structured
+tool_call in ~2.7s). It gets READ_TOOLS + a CURATED subset of the fleet (LOCAL_FLEET_ALLOW) — deliberately NOT the full
+~91 tools and NOT the two-stage router wrappers, both of which broke small-model tool selection (the 91 drown it; the
+synthetic router schemas made it emit malformed tool calls). Haiku via LiteLLM is a health FAILOVER only, and gets the
+FULL flat fleet (it handles all ~91): a request routes to it when the local engine fails a fast health pre-check or
+errors/stalls past the short LOCAL_TIMEOUT — so a rogueone/Ollama outage OR a local fumble degrades to paid cloud
+instead of going dark, and steady-state Haiku spend ≈ $0. Set OPERATOR_LLM_FALLBACK=0 for local-only. Both agents are
 compiled once at import; `run()` picks local unless it's unavailable."""
 import os
 import time
@@ -19,7 +21,7 @@ from prometheus_client import Counter
 
 from prompts import load_prompt
 from tools import ACT_TOOLS, READ_TOOLS
-from fleet import build_router_tools, load_fleet_tools
+from fleet import load_fleet_tools
 from realm import REALM_TOOLS
 
 OLLAMA_TIMEOUT = float(os.getenv("OLLAMA_TIMEOUT", "300"))          # fallback (Haiku) per-call timeout — Haiku is fast
@@ -33,22 +35,23 @@ def _bool(v: str) -> bool:
     return str(v).lower() in ("1", "true", "yes")
 
 
-# PRIMARY — local gpt-oss on rogueone, direct to Ollama ($0). Routed by default (the 20B needs the 6-router collapse).
+# PRIMARY — local model on rogueone, direct to Ollama ($0). Default qwen2.5:7b: fast, non-thinking, clean tool-calls.
 LOCAL_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://192.168.1.230:11434/v1")
 LOCAL_MODEL = os.getenv("OLLAMA_MODEL", "qwen2.5:7b")
 LOCAL_API_KEY = os.getenv("LLM_API_KEY", "ollama")
-LOCAL_ROUTED = _bool(os.getenv("FLEET_ROUTING", "1"))
-# Thinking models (qwen3) emit a long <think> block before every tool call — on a multi-hop routed agent that blows
-# past the per-call timeout. Disable it at the LLM level (Ollama `think:false`) so it covers the top-level agent AND
-# the router sub-calls. No-op for models without a thinking mode. Toggle with OPERATOR_LOCAL_NO_THINK.
-LOCAL_NO_THINK = _bool(os.getenv("OPERATOR_LOCAL_NO_THINK", "1"))
+# A small model tool-calls cleanly only on a FEW real tools. Curate the fleet (namespaced k8s_/grafana_/trino_/…) to the
+# ops core for the LOCAL brain. Comma substrings matched against tool names; empty → the full fleet. Anything outside
+# this set is still reachable via delegate_to_realm or the Haiku fallback (which always gets the full fleet).
+LOCAL_FLEET_ALLOW = [s.strip() for s in os.getenv(
+    "LOCAL_FLEET_ALLOW",
+    "k8s_pods_list,k8s_pods_get,k8s_pods_log,k8s_events,k8s_nodes_top,k8s_resources_list,"
+    "grafana_query_prometheus,grafana_query_loki,trino_execute_query,postgres_execute_sql").split(",") if s.strip()]
 
-# FALLBACK — Haiku via LiteLLM, flat fleet (handles all ~91 tools). Each field defaults sanely; only wire what differs.
+# FALLBACK — Haiku via LiteLLM, FULL flat fleet (handles all ~91 tools). Used ONLY when the local engine is unavailable.
 FALLBACK_ENABLED = _bool(os.getenv("OPERATOR_LLM_FALLBACK", "1"))
 FALLBACK_BASE_URL = os.getenv("OLLAMA_FALLBACK_BASE_URL", "http://litellm.weyland.svc.cluster.local:4000/v1")
 FALLBACK_MODEL = os.getenv("OLLAMA_FALLBACK_MODEL", "claude-haiku")
 FALLBACK_API_KEY = os.getenv("OLLAMA_FALLBACK_API_KEY", LOCAL_API_KEY)
-FALLBACK_ROUTED = _bool(os.getenv("OLLAMA_FALLBACK_FLEET_ROUTING", "0"))
 
 # Health pre-check: a cheap liveness GET to the local engine so a down/hung Ollama routes to Haiku in ~seconds instead
 # of waiting out OLLAMA_TIMEOUT. Cached briefly so a burst of messages doesn't hammer it.
@@ -73,23 +76,21 @@ SYSTEM = (
 _BRAIN_SELECTED = Counter("operator_brain_selected_total", "Operator brain selections by brain + reason",
                           ["brain", "reason"])
 
-_FLEET = load_fleet_tools()   # load the MCP fleet ONCE — both brains share it (flat vs. routed views below)
+_FLEET = load_fleet_tools()   # load the MCP fleet ONCE — Haiku gets all of it; local gets the curated subset below
+_LOCAL_FLEET = [t for t in _FLEET if any(a in t.name for a in LOCAL_FLEET_ALLOW)] if LOCAL_FLEET_ALLOW else _FLEET
+print(f"[agent] local '{LOCAL_MODEL}' → {len(_LOCAL_FLEET)}/{len(_FLEET)} fleet tools (curated flat: "
+      f"{sorted(t.name for t in _LOCAL_FLEET)}); fallback '{FALLBACK_MODEL}' → all {len(_FLEET)}", flush=True)
 
 
-def _build_agent(base_url: str, model: str, api_key: str, routed: bool, timeout: float, extra_body: dict | None = None):
-    """Compile one ReAct agent. `routed` collapses the fleet into 6 subsystem routers (small brains); flat exposes all
-    ~91 tools directly (capable brains only). READ/REALM/ACT tools are identical across brains. `timeout` is per-LLM-call
-    — SHORT for local (stall → failover), long for the Haiku fallback. `extra_body` rides every request (e.g.
-    {"think": False}) and reaches the router sub-calls too, since they reuse this same llm."""
-    llm = ChatOpenAI(base_url=base_url, api_key=api_key, model=model, timeout=timeout, temperature=0,
-                     extra_body=extra_body or {})
-    fleet = build_router_tools(_FLEET, llm) if routed else _FLEET
-    return create_react_agent(llm, READ_TOOLS + fleet + REALM_TOOLS + ACT_TOOLS)
+def _build_agent(base_url: str, model: str, api_key: str, timeout: float, fleet_tools: list):
+    """Compile one ReAct agent over READ_TOOLS + the given fleet tools + REALM + ACT. Flat — no router wrappers.
+    `timeout` is per-LLM-call: SHORT for local (stall → failover), long for the Haiku fallback."""
+    llm = ChatOpenAI(base_url=base_url, api_key=api_key, model=model, timeout=timeout, temperature=0)
+    return create_react_agent(llm, READ_TOOLS + fleet_tools + REALM_TOOLS + ACT_TOOLS)
 
 
-_local_agent = _build_agent(LOCAL_BASE_URL, LOCAL_MODEL, LOCAL_API_KEY, LOCAL_ROUTED, LOCAL_TIMEOUT,
-                            {"think": False} if LOCAL_NO_THINK else None)
-_fallback_agent = (_build_agent(FALLBACK_BASE_URL, FALLBACK_MODEL, FALLBACK_API_KEY, FALLBACK_ROUTED, OLLAMA_TIMEOUT)
+_local_agent = _build_agent(LOCAL_BASE_URL, LOCAL_MODEL, LOCAL_API_KEY, LOCAL_TIMEOUT, _LOCAL_FLEET)
+_fallback_agent = (_build_agent(FALLBACK_BASE_URL, FALLBACK_MODEL, FALLBACK_API_KEY, OLLAMA_TIMEOUT, _FLEET)
                    if FALLBACK_ENABLED else None)
 
 _health = {"at": 0.0, "ok": True}   # cached liveness of the local engine: (monotonic checked-at, healthy?)

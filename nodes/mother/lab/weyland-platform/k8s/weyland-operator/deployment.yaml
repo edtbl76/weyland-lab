@@ -22,7 +22,7 @@ spec:
       enableServiceLinks: false
       containers:
         - name: weyland-operator
-          image: registry.weyland.lab/weyland-operator:v19   # v19 — local qwen3:14b primary + Haiku failover; 60s timeout + qwen3 thinking OFF
+          image: registry.weyland.lab/weyland-operator:v20   # v20 — local qwen2.5:7b + curated FLAT toolset (no routers) + Haiku failover
           imagePullPolicy: IfNotPresent
           resources:
             # No torch/embedder — just langgraph/langchain/mlflow client + fastapi; LLM inference is remote (Ollama).
@@ -67,21 +67,18 @@ spec:
             # MLflow AI Gateway (chat/eval lane only — its strict normalization shreds tool schemas). Guardrails live at
             # the agent EDGE (weyland-guard input/output + the act confirm-step), never inline in the LLM path.
             #
-            # PRIMARY brain — local qwen3:14b on rogueone, DIRECT to Ollama (LAN, PERMISSIVE): $0, never touches
-            # LiteLLM/spend. qwen3:14b (~9GB) over qwen2.5:7b: the 7B reasoned correctly but its Hermes <tool_call> tags
-            # leaked as text through Ollama's OpenAI shim instead of parsing to structured tool_calls; qwen3 emits clean
-            # ones. Fits the 16GB card only with the on-demand llama-guard-8b OFF (rag-embed ~1.5GB + display leaves ~10GB);
-            # when llama-guard is up the operator health-fails-over to Haiku. Fleet ROUTED (FLEET_ROUTING=1) → 6 routers.
+            # PRIMARY brain — local qwen2.5:7b on rogueone, DIRECT to Ollama (LAN, PERMISSIVE): $0, never touches
+            # LiteLLM/spend. qwen2.5:7b is fast + non-thinking + tool-calls cleanly on a SMALL FLAT toolset (proven: one
+            # real tool → a clean structured tool_call in ~2.7s). agent.py gives the LOCAL brain READ_TOOLS + a curated
+            # fleet subset (LOCAL_FLEET_ALLOW, ~15 ops tools) — NOT the full ~91 and NOT the two-stage routers, both of
+            # which broke its tool selection. ~4.7GB fits the shared 16GB card (rag-embed + display) best with the
+            # on-demand llama-guard-8b OFF; if the card saturates it health-fails-over to Haiku (which gets the full 91).
             - name: OLLAMA_BASE_URL
               value: http://192.168.1.230:11434/v1
             - name: OLLAMA_MODEL
-              value: qwen3:14b
+              value: qwen2.5:7b
             - name: LLM_API_KEY
               value: ollama          # Ollama ignores the key; any non-empty string satisfies the OpenAI client
-            - name: FLEET_ROUTING
-              value: "1"
-            - name: OPERATOR_LOCAL_NO_THINK
-              value: "1"           # qwen3: disable <think> reasoning (Ollama think:false) — else it's too slow per hop
             # FALLBACK brain — Haiku via LiteLLM (flat fleet, handles all ~91 tools). Used ONLY when the local engine
             # fails a fast health pre-check (GET OLLAMA_HEALTH_URL, ~3s, cached ~30s) or errors mid-request — so a
             # rogueone/Ollama outage degrades to paid cloud instead of going dark, and steady-state Haiku spend ≈ $0.
