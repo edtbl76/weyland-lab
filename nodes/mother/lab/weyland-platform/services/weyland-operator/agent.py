@@ -2,8 +2,9 @@
 
 Uses LangGraph's prebuilt `create_react_agent` (reason → call tool → observe → repeat → answer).
 
-LOCAL-PRIMARY WITH HAIKU FAILOVER (B45 follow-up): the brain is the local **gpt-oss:20b** on rogueone ($0, fleet
-ROUTED to stay within the 20B's tool-selection ceiling — the B66 bake-off proved it ties Haiku on this workload). Haiku
+LOCAL-PRIMARY WITH HAIKU FAILOVER (B45 follow-up): the brain is a local model on rogueone ($0, fleet ROUTED to stay
+within its tool-selection ceiling). Default qwen2.5:7b — deliberately a 7B because rogueone's 16GB GPU is SHARED (RAG
+embedder + on-demand llama-guard-8b), so a 20B spills to CPU and stalls; a 7B co-resides and serves fast. Haiku
 via LiteLLM (flat fleet) is a health FAILOVER only: a request routes to it when the local engine fails a fast health
 pre-check (cached) OR errors mid-flight — so a rogueone/Ollama outage degrades to paid cloud instead of the operator
 going dark, and steady-state Haiku spend stays ≈ $0. Set OPERATOR_LLM_FALLBACK=0 for local-only. Both agents are
@@ -21,7 +22,11 @@ from tools import ACT_TOOLS, READ_TOOLS
 from fleet import build_router_tools, load_fleet_tools
 from realm import REALM_TOOLS
 
-OLLAMA_TIMEOUT = float(os.getenv("OLLAMA_TIMEOUT", "300"))
+OLLAMA_TIMEOUT = float(os.getenv("OLLAMA_TIMEOUT", "300"))          # fallback (Haiku) per-call timeout — Haiku is fast
+# LOCAL per-call timeout, deliberately SHORT: a warm local call is seconds, so a call dragging past this means the
+# engine is stalled or CPU-offloaded (GPU VRAM contended). We want that to TRIP the Haiku failover fast, not hang for
+# minutes — the health pre-check catches "down", this catches "up but pathologically slow".
+LOCAL_TIMEOUT = float(os.getenv("OPERATOR_LOCAL_TIMEOUT", "60"))
 
 
 def _bool(v: str) -> bool:
@@ -30,7 +35,7 @@ def _bool(v: str) -> bool:
 
 # PRIMARY — local gpt-oss on rogueone, direct to Ollama ($0). Routed by default (the 20B needs the 6-router collapse).
 LOCAL_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://192.168.1.230:11434/v1")
-LOCAL_MODEL = os.getenv("OLLAMA_MODEL", "gpt-oss:20b")
+LOCAL_MODEL = os.getenv("OLLAMA_MODEL", "qwen2.5:7b")
 LOCAL_API_KEY = os.getenv("LLM_API_KEY", "ollama")
 LOCAL_ROUTED = _bool(os.getenv("FLEET_ROUTING", "1"))
 
@@ -67,16 +72,17 @@ _BRAIN_SELECTED = Counter("operator_brain_selected_total", "Operator brain selec
 _FLEET = load_fleet_tools()   # load the MCP fleet ONCE — both brains share it (flat vs. routed views below)
 
 
-def _build_agent(base_url: str, model: str, api_key: str, routed: bool):
+def _build_agent(base_url: str, model: str, api_key: str, routed: bool, timeout: float):
     """Compile one ReAct agent. `routed` collapses the fleet into 6 subsystem routers (small brains); flat exposes all
-    ~91 tools directly (capable brains only). READ/REALM/ACT tools are identical across brains."""
-    llm = ChatOpenAI(base_url=base_url, api_key=api_key, model=model, timeout=OLLAMA_TIMEOUT, temperature=0)
+    ~91 tools directly (capable brains only). READ/REALM/ACT tools are identical across brains. `timeout` is per-LLM-call
+    — SHORT for local (stall → failover), long for the Haiku fallback."""
+    llm = ChatOpenAI(base_url=base_url, api_key=api_key, model=model, timeout=timeout, temperature=0)
     fleet = build_router_tools(_FLEET, llm) if routed else _FLEET
     return create_react_agent(llm, READ_TOOLS + fleet + REALM_TOOLS + ACT_TOOLS)
 
 
-_local_agent = _build_agent(LOCAL_BASE_URL, LOCAL_MODEL, LOCAL_API_KEY, LOCAL_ROUTED)
-_fallback_agent = (_build_agent(FALLBACK_BASE_URL, FALLBACK_MODEL, FALLBACK_API_KEY, FALLBACK_ROUTED)
+_local_agent = _build_agent(LOCAL_BASE_URL, LOCAL_MODEL, LOCAL_API_KEY, LOCAL_ROUTED, LOCAL_TIMEOUT)
+_fallback_agent = (_build_agent(FALLBACK_BASE_URL, FALLBACK_MODEL, FALLBACK_API_KEY, FALLBACK_ROUTED, OLLAMA_TIMEOUT)
                    if FALLBACK_ENABLED else None)
 
 _health = {"at": 0.0, "ok": True}   # cached liveness of the local engine: (monotonic checked-at, healthy?)
