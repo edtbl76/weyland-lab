@@ -3,8 +3,8 @@
 Every `/context/*` call runs validator chains at the **INPUT** and **OUTPUT** hooks. Since B70 Part 2 the validators
 live in a **standalone `weyland-guard` service** — the tool-server POSTs each hook to it over HTTP instead of running
 models in-process. All validators ship **SHADOW** (fire-and-forget telemetry, never block); a mode flips to
-`block`/`flag` via `GUARDRAIL_MODE__<validator>` env on `weyland-guard`. Active chains: INPUT = `llm_guard.injection` +
-`llama_guard.safety`; OUTPUT = `llm_guard.pii` + `llm_guard.toxicity` + `grounding.nli` + `llama_guard.safety`. The
+`block`/`flag` via `GUARDRAIL_MODE__<validator>` env on `weyland-guard`. Active chains: INPUT = `prompt_guard.injection` +
+`llama_guard.safety`; OUTPUT = `pii.presidio` + `grounding.nli` + `llama_guard.safety` (safety = toxicity since B117). The
 **Classify** validator `llama_guard.safety` (B115) POSTs to the `llama-guard` svc — a Llama Guard content-safety
 classifier (tier-1 1B on CPU/mother; on-demand 8B on the rogueone GPU) — and is itself fail-open. Enforcing ACT policy = B35.
 The tool-server calls **fail-open**: a guard outage degrades to "not guarded", never "no answer". See
@@ -22,7 +22,7 @@ sequenceDiagram
     C->>TS: POST /context/ask {query} (actor = X-Forwarded-Consumer)
     TS->>G: POST /guard/input {request_id, query, actor}
     Note over TS,G: fail-open — any error/timeout => allow
-    G->>V: llm_guard.injection + llama_guard.safety (shadow, fire-and-forget)
+    G->>V: prompt_guard.injection + llama_guard.safety (shadow, fire-and-forget)
     V->>LG: llama_guard.safety: classify prompt (temp 0)
     LG-->>V: safe | unsafe/S<cat>
     G-->>TS: {decision: allow} (fast — models score async)
@@ -31,7 +31,7 @@ sequenceDiagram
     Note over V,PM: actor is high-cardinality -> DB only, never a metric label
     TS->>TS: retrieve chunks + generate answer
     TS->>G: POST /guard/output {request_id, answer, sources, actor}
-    G->>V: llm_guard.pii + toxicity + grounding.nli + llama_guard.safety
+    G->>V: pii.presidio + grounding.nli + llama_guard.safety (safety=toxicity)
     V->>LG: llama_guard.safety: classify answer (temp 0)
     LG-->>V: safe | unsafe/S<cat>
     G-->>TS: {decision: allow|block}

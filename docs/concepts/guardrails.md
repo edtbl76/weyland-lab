@@ -14,7 +14,7 @@ They're **complementary, not competing.**
 
 | # | Path | Tool | The one job it does | Where it sits |
 |---|------|------|---------------------|---------------|
-| ① | **Scan** | **weyland-guard** (≈ LLM Guard) | fast **I/O sanitization** — injection · toxicity · PII · grounding · act-policy | the always-on first layer, at the agent edge + the MCP gateway |
+| ① | **Scan** | **weyland-guard** (Prompt Guard 2 · Presidio · NLI) | fast **I/O sanitization** — injection · PII · grounding · act-policy (toxicity via the Classify layer) | the always-on first layer, at the agent edge + the MCP gateway |
 | ② | **Classify** | **Llama Guard** (Meta) | model-based **content-safety classification** (safe / unsafe + category) | a classifier the Scan layer calls — **1B on CPU** (default) → **8B on-demand GPU** (escalation) |
 | ③ | **Dialog** | **NeMo Guardrails** (NVIDIA) | **topical / conversational** control — keep the assistant in scope | the guarded **`weyland-operator`** chat model in Open WebUI |
 | ④ | **Structure** | **Guardrails AI** | **output-schema validation** — validate + **re-ask** the model to repair | structured-output producers (the eval LLM-as-judge) |

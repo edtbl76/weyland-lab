@@ -23,13 +23,13 @@ sequenceDiagram
     C->>TS: POST /context/ask {query} (actor = X-Forwarded-Consumer)
     TS->>G: POST /guard/input {request_id, query, actor}
     Note over TS,G: fail-open — any error/timeout => allow
-    G->>V: llm_guard.injection (shadow, fire-and-forget)
+    G->>V: prompt_guard.injection (shadow, fire-and-forget)
     G-->>TS: {decision: allow} (fast — model scores async)
     V-->>PM: observe(hook, mode, verdict)
     V-->>PG: record_verdict(... actor)
     TS->>TS: retrieve chunks + generate answer
     TS->>G: POST /guard/output {answer, sources}
-    G->>V: llm_guard.toxicity + grounding.nli
+    G->>V: pii.presidio + grounding.nli + llama_guard.safety
     G-->>TS: {decision: allow|block}
     TS-->>C: answer (shadow never blocks; enforcing => 403)
 ```
@@ -37,8 +37,8 @@ sequenceDiagram
 ## Prerequisites
 
 - **mother** — `weyland-guard` (ns `weyland`, ClusterIP `:8080`); its ServiceMonitor scraped by Prometheus;
-  `weyland-postgres` holding `guardrail_verdicts`. Active chain: INPUT = `llm_guard.injection` + `llama_guard.safety`; OUTPUT =
-  `llm_guard.pii` + `llm_guard.toxicity` + `grounding.nli` + `llama_guard.safety`. (PII baked/active since B34; `llama_guard.safety` = the B115 **Classify** layer, POSTing to the `llama-guard` svc.)
+  `weyland-postgres` holding `guardrail_verdicts`. Active chain: INPUT = `prompt_guard.injection` + `llama_guard.safety`; OUTPUT =
+  `pii.presidio` + `grounding.nli` + `llama_guard.safety`. (B117: injection = Meta **Prompt Guard 2**, PII = **Presidio** direct, toxicity folded into `llama_guard.safety` = the B115 **Classify** layer POSTing to the `llama-guard` svc.)
 - Consumers already wired: `weyland-tool-server` (v0.5.0) + `weyland-agent`, both fail-open.
 
 ## UI walkthrough
@@ -94,10 +94,10 @@ Read the live shadow counters + the durable rows:
 
 **Optional — flip a validator out of shadow.** Modes are set by `GUARDRAIL_MODE__<validator>` env **on
 `weyland-guard`** — and a dot in the validator name becomes a **double underscore** (`config.py` does
-`name.replace(".", "__")`), so `llm_guard.injection` → `GUARDRAIL_MODE__llm_guard__injection`:
+`name.replace(".", "__")`), so `prompt_guard.injection` → `GUARDRAIL_MODE__prompt_guard__injection`:
 
 ```
-[mother] kubectl set env deployment/weyland-guard -n weyland GUARDRAIL_MODE__llm_guard__injection=block
+[mother] kubectl set env deployment/weyland-guard -n weyland GUARDRAIL_MODE__prompt_guard__injection=block
 ```
 ```
 [mother] kubectl -n weyland rollout status deployment/weyland-guard
@@ -190,7 +190,7 @@ Ollama models still chat freely. **Visually confirm** the guarded model refuses 
 
 - Direct calls: `/guard/input` jailbreak → `{"decision":"allow"}` (block scored but shadow); `/guard/output` green-sky
   → `{"decision":"allow"}` with `grounding.nli` recorded as `flag`. `/context/ask` returns an answer.
-- `guardrail_verdicts_total` increments for `llm_guard.injection` (input) + `toxicity`/`grounding` (output); new rows
+- `guardrail_verdicts_total` increments for `prompt_guard.injection` (input) + `pii.presidio`/`grounding.nli`/`llama_guard.safety` (output); new rows
   carry the `demo-user` actor.
 - Fail-open: guard at 0 replicas → `/context/ask` still returns `200`.
 
@@ -203,5 +203,5 @@ if you enforced injection:
 [mother] kubectl exec -n weyland deploy/weyland-postgres -- psql -U weyland -d weyland -c "DELETE FROM guardrail_verdicts WHERE actor IN ('demo-user','b115-demo');"
 ```
 ```
-[mother] kubectl set env deployment/weyland-guard -n weyland GUARDRAIL_MODE__llm_guard__injection=shadow
+[mother] kubectl set env deployment/weyland-guard -n weyland GUARDRAIL_MODE__prompt_guard__injection=shadow
 ```

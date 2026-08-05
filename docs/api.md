@@ -114,8 +114,8 @@ layer; the tool-server (and the coming `weyland-agent`) POST here instead of run
 
 | Route | Method | Purpose |
 |---|---|---|
-| `/guard/input` | POST | `{request_id, query, actor?}` → `llm_guard.injection` + `llama_guard.safety`. Returns `{decision: allow\|block, verdict?}` |
-| `/guard/output` | POST | `{request_id, answer, sources:[{content}], actor?}` → `llm_guard.pii` + `llm_guard.toxicity` + `grounding.nli` + `llama_guard.safety` |
+| `/guard/input` | POST | `{request_id, query, actor?}` → `prompt_guard.injection` + `llama_guard.safety`. Returns `{decision: allow\|block, verdict?}` |
+| `/guard/output` | POST | `{request_id, answer, sources:[{content}], actor?}` → `pii.presidio` + `grounding.nli` + `llama_guard.safety` (safety = toxicity, B117) |
 | `/guard/act` | POST | `{request_id, tool, params?, actor?}` → `policy.audit` (audit) + `policy.gate` (**enforcing `block` live 2026-07-29**: identity / allowlist / rate-limit — no-actor / unknown / direct acts denied; see [runbooks/mcp-gateway.md](runbooks/mcp-gateway.md)) |
 | `/health` `/ready` | GET | liveness / readiness (503 until the 3 models load) |
 | `/metrics` | GET | `guardrail_verdicts_total` + `guardrail_validator_latency_ms` |

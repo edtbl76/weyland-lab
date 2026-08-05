@@ -5,7 +5,7 @@ Part 2, 2026-07-22). Every consumer — the tool-server, the coming `weyland-age
 it over HTTP instead of loading validator models in-process. The three transformer models load **once**, here.
 
 ## Why a service
-The validators are **model-backed** (LLM Guard injection + toxicity + a `nli-deberta-v3-small` cross-encoder ≈ 1.5 Gi
+The validators are **model-backed** (Prompt Guard 2 injection + Presidio PII + a `nli-deberta-v3-small` cross-encoder ≈ 1.5 Gi
 RAM). In-process, every consumer pod would duplicate that footprint — on a memory-tight single node that's exactly
 the pressure B99 was about. As a shared service the models load once, the consumer pods stay thin, and the guard
 layer becomes the **first clean seam of the tool-server decomposition** (related to B31).
@@ -15,8 +15,8 @@ layer becomes the **first clean seam of the tool-server decomposition** (related
 
 | Route | Body | Runs |
 |---|---|---|
-| `POST /guard/input` | `{request_id, query, actor?}` | `llm_guard.injection` + `llama_guard.safety` |
-| `POST /guard/output` | `{request_id, answer, sources:[{content}], actor?}` | `llm_guard.pii` + `llm_guard.toxicity` + `grounding.nli` + `llama_guard.safety` |
+| `POST /guard/input` | `{request_id, query, actor?}` | `prompt_guard.injection` + `llama_guard.safety` |
+| `POST /guard/output` | `{request_id, answer, sources:[{content}], actor?}` | `pii.presidio` + `grounding.nli` + `llama_guard.safety` (safety = toxicity) |
 | `POST /guard/act` | `{request_id, tool, params?, actor?}` | `policy.audit` (audit) + `policy.gate` (enforcing) |
 | `GET /health` | — | liveness (200 even if models failed) |
 | `GET /ready` | — | 503 until the validator set is built |
@@ -36,11 +36,11 @@ self-documenting OpenAPI, independent evolution.
   answers.
 
 ## Validators & modes
-INPUT `llm_guard.injection` + `llama_guard.safety` · OUTPUT `llm_guard.pii` + `llm_guard.toxicity` + `grounding.nli` + `llama_guard.safety` · ACT `policy.audit` + `policy.gate`.
+INPUT `prompt_guard.injection` + `llama_guard.safety` · OUTPUT `pii.presidio` + `grounding.nli` + `llama_guard.safety` (safety = toxicity) · ACT `policy.audit` + `policy.gate`.
 All SHADOW. Two ways to change a mode:
 - **Persistent** — per-validator env on the `weyland-guard` deployment:
 ```
-GUARDRAIL_MODE__llm_guard__injection=block   # dots in the name → double underscore; values: off|shadow|flag|block
+GUARDRAIL_MODE__prompt_guard__injection=block   # dots in the name → double underscore; values: off|shadow|flag|block
 ```
 - **Live, no restart** — the demo toggle `POST /admin/mode` (see below).
 Enforcing FLAG/BLOCK modes are scored inline and returned.
@@ -75,15 +75,15 @@ unattributable tail (retrieval misses + heavy elaboration) below ~0.15.
 "synthesized-but-true" from "hallucinated," so real faithfulness gating is the **LLM-judge lane (B84)**, not this
 guard. grounding.nli is a useful "answer exceeded its retrieved sources" signal, not a blocking gate.
 
-## llm_guard.pii — calibration (B34, 2026-07-29)
-Baked + active (SHADOW) as of B34 (was coded-but-unbaked). Scans the **answer** (OUTPUT hook) with llm_guard's
-`Sensitive` → presidio; NER = `Isotonic/deberta-v3-base_finetuned_ai4privacy_v2` + a spaCy `en_core_web_sm` engine,
-both baked in the image. Triggers that justified it: answers **exported off-box** + RAG over **PII-bearing data** (the
-music mesh has PERSON/artist names).
+## pii.presidio — calibration (B34 → B117)
+Scans the **answer** (OUTPUT hook) with **Microsoft Presidio** called directly (`validators/pii_presidio.py`, B117 —
+was `llm_guard.pii`, which already just *wrapped* Presidio). NLP engine = spaCy **`en_core_web_sm`** (for `PERSON`) +
+Presidio's built-in regex recognizers (email/SSN/CC/phone/IBAN/bank), baked in the image, loaded offline. Triggers that
+justified it: answers **exported off-box** + RAG over **PII-bearing data** (the music mesh has PERSON/artist names).
 
-**Entity set — tuned on real answers, not guessed** (`_PII_ENTITIES` in `validators/llm_guard.py`):
-- **Kept:** `PERSON`, `EMAIL_ADDRESS(+_RE)`, `PHONE_NUMBER`, `US_SSN(+_RE)`, `CREDIT_CARD(+_RE)`, `IBAN_CODE`,
-  `US_BANK_NUMBER` — the regex-backed ones are precise (zero misfires in the measurement).
+**Entity set — tuned on real answers, not guessed** (`_PII_ENTITIES` in `validators/pii_presidio.py`):
+- **Kept:** `PERSON`, `EMAIL_ADDRESS`, `PHONE_NUMBER`, `US_SSN`, `CREDIT_CARD`, `IBAN_CODE`, `US_BANK_NUMBER` — Presidio's
+  regex-backed recognizers are precise (zero misfires in the measurement).
 - **Dropped:** `IP_ADDRESS` + `UUID` (every LAN `192.168.x.x` / k8s UUID would fire) and **`CRYPTO`** (the NER tagged a
   markdown table span as a crypto address, score 0.99 — pure FP, no crypto use case).
 
@@ -99,7 +99,7 @@ are the solid core for the export-leak case.
 ## llama_guard.safety — the Classify layer (B115, 2026-08-03)
 The **Classify** path of the guardrails platform (B115): a **model-based content-safety classifier** — Meta's **Llama
 Guard** over its full safety taxonomy (S1 violent crime, S9 weapons, S11 self-harm, …) — run as a SECOND opinion
-alongside the single-purpose llm_guard scanners (it catches policy classes injection/toxicity don't). It is **not** a
+alongside the single-purpose Scan scanners (Prompt Guard 2 injection + Presidio PII). Since B117 it is **also the platform's toxicity signal** (llm_guard.toxicity retired — its S-taxonomy covers hate/harassment/sexual). It is **not** a
 baked model: the validator (`validators/llama_guard.py`) POSTs to the always-on **`llama-guard`** svc —
 **tier 1** = Llama-Guard-3-1B on **CPU (mother)**, served by **llama.cpp** at temp 0 (`LLAMA_GUARD_URL` on the
 deployment; `k8s/llama-guard/`). Runs on **INPUT** (the prompt) and **OUTPUT** (the answer), both **SHADOW**. Reply
@@ -170,15 +170,16 @@ Secret `weyland-guard-admin` (key `token`), constant-time compared, **fail-close
 `kubectl -n weyland create secret generic weyland-guard-admin --from-literal=token=$(openssl rand -hex 24)`.
 ```
 # in-cluster; -H "Authorization: Bearer <token>", or exec the pod which has GUARD_ADMIN_TOKEN in env
-POST /admin/mode        {"mode":"block","validators":["llm_guard.pii"]}   # un-shadow for the demo (omit validators = all)
+POST /admin/mode        {"mode":"block","validators":["pii.presidio"]}   # un-shadow for the demo (omit validators = all)
 POST /admin/mode/reset                                                    # revert to committed modes
 GET  /admin/mode                                                          # current overrides
 ```
 
 ## Models (baked, offline at runtime)
-`services/weyland-guard/Dockerfile` bakes the **exact** 3 models the tool-server used (so verdicts are identical):
-`llm_guard.input_scanners.PromptInjection`, `llm_guard.output_scanners.Toxicity`,
-`sentence_transformers.CrossEncoder('cross-encoder/nli-deberta-v3-small')`; `HF_HUB_OFFLINE=1` at runtime.
+`services/weyland-guard/Dockerfile` bakes the in-process Scan models (B117): Meta **Llama Prompt Guard 2**
+(`project-free-llama/Llama-Prompt-Guard-2-22M`, injection — env `PROMPT_GUARD_MODEL` to swap), **Presidio** + spaCy
+`en_core_web_sm` (PII), and `sentence_transformers.CrossEncoder('cross-encoder/nli-deberta-v3-small')` (grounding);
+`HF_HUB_OFFLINE=1` at runtime. `llama_guard.safety` is NOT baked (it POSTs to the external `llama-guard` svc).
 
 ## Build & deploy (registry flow)
 Image is registry-based (NOT `:local`). Consumers deploy off Argo.
@@ -194,10 +195,10 @@ Image is registry-based (NOT `:local`). Consumers deploy off Argo.
 ```
 kubectl -n weyland exec deploy/weyland-guard -- python -c "import urllib.request; print(urllib.request.urlopen('http://localhost:8080/ready').read().decode())"
 ```
-`/ready` should list `grounding.nli`, `llm_guard.injection`, `llm_guard.toxicity`, `llm_guard.pii`, `llama_guard.safety`, `policy.audit`, `policy.gate`. A
+`/ready` should list `grounding.nli`, `prompt_guard.injection`, `pii.presidio`, `llama_guard.safety`, `policy.audit`, `policy.gate`. A
 `POST /guard/output` with a hallucinated answer vs a contradicting source should score `grounding.nli` as `flag`
-(counter visible on `/metrics`); a jailbreak query on `/guard/input` scores `llm_guard.injection` as `block` — both
-returned as `allow` while SHADOW.
+(counter visible on `/metrics`); a jailbreak query on `/guard/input` scores `prompt_guard.injection` as `block` — both
+returned as `allow` while SHADOW. **B117 validation (2026-08-05):** direct `.check()` — injection → BLOCK @ 0.998, benign → PASS @ 0.001; email/SSN answer → BLOCK @ 1.0 (EMAIL_ADDRESS), clean text → PASS.
 
 ## Tool-server integration (B70 Part 2)
 `weyland-tool-server` v0.5.0 dropped `llm-guard` + the guard-model bakes; its `_guard()` now POSTs to this service
