@@ -120,9 +120,9 @@
       <b>anthropic&nbsp;&middot;&nbsp;groq&nbsp;&middot;&nbsp;gemini&nbsp;&middot;&nbsp;opencode-zen&nbsp;&middot;&nbsp;xai&nbsp;&middot;&nbsp;openrouter&nbsp;&middot;&nbsp;deepseek&nbsp;&middot;&nbsp;openai&nbsp;&middot;&nbsp;perplexity&nbsp;&middot;&nbsp;cerebras</b>.
       Note: perplexity's routable id is <code>perplexity/sonar</code>, not the <code>/v1/models</code>-listed <code>perplexity/perplexity/sonar</code> (which 400s <code>invalid_model</code>).</div>
     <div class="note"><b>Notes.</b> <code>wl-agentic</code> skips Groq — its free tier is tool-free (8k&nbsp;TPM can't carry
-      the tool payload). <code>wl-search</code> is web-first (perplexity &rarr; xAI), then a free Groq tail as the guaranteed $0 lander. The one media lane
-      <code>wl-tts</code> routes on the <code>/v1/audio/speech</code> endpoint (not chat): primary <b>Kokoro</b>
-      (self-hosted, $0) &rarr; <b>ElevenLabs</b> alternate (its free tier blocks library voices via API).</div>
+      the tool payload). <code>wl-search</code> is web-first (perplexity &rarr; xAI), then a free Groq tail as the guaranteed $0 lander. The <b>media lane</b> has three generators through Bifrost:
+      <b>image</b> (Runware <code>runware:100@1</code>, FLUX.1 schnell, <code>/v1/images/generations</code>), <b>TTS</b> (<code>wl-tts</code> on <code>/v1/audio/speech</code> &rarr; self-hosted <b>Kokoro</b> $0; ElevenLabs deferred), and
+      <b>video</b> (Runway <code>gen4_turbo</code>, image&rarr;video, async submit&rarr;poll&rarr;mp4).</div>
   </footer>
 </div>
 
@@ -177,9 +177,16 @@
       ]},
     ]},
     { group:"Media", rows:[
-      { alias:"wl-tts", purpose:"Text-to-speech (audio_speech endpoint)", chain:[
+      { alias:"image", purpose:"Image generation (/v1/images/generations)", chain:[
+        {role:"primary", prov:"runware", model:"runware:100@1 (FLUX.1 schnell)", tier:"free", badges:["Bifrost","~1.5s"]},
+      ]},
+      { alias:"wl-tts", purpose:"Text-to-speech (/v1/audio/speech)", chain:[
         {role:"primary", prov:"kokoro", model:"kokoro", tier:"free", badges:["self-hosted"]},
-        {role:"fallback", prov:"elevenlabs", model:"eleven_multilingual_v2", tier:"funded", badges:["unique"]},
+        {role:"fallback", prov:"elevenlabs", model:"eleven_multilingual_v2", tier:"funded", badges:["deferred"]},
+      ]},
+      { alias:"video", purpose:"Image→video (async submit→poll→mp4)", chain:[
+        {role:"primary", prov:"runway", model:"gen4_turbo", tier:"funded", badges:["Bifrost","async"]},
+        {role:"fallback", prov:"replicate", model:"image→video", tier:"funded", badges:["alt"]},
       ]},
     ]},
   ];
