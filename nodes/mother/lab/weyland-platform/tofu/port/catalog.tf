@@ -297,10 +297,34 @@ resource "port_blueprint" "component" {
         title         = "Tags"
       }
     }
-    boolean_props = null
+    boolean_props = {
+      is_data_application = {
+        default     = null
+        description = "Owns cataloged data (has a DataHub Application entity) vs pure compute. B82 taxonomy."
+        icon        = null
+        required    = false
+        title       = "Data Application"
+      }
+    }
     number_props  = null
     object_props  = null
     string_props = {
+      datahub_application_url = {
+        date_format         = null
+        default             = null
+        description         = "Link to this app's DataHub Application page (data-apps only). B82."
+        enum                = null
+        enum_colors         = null
+        format              = "url"
+        icon                = null
+        max_length          = null
+        min_length          = null
+        pattern             = null
+        required            = false
+        spec                = null
+        spec_authentication = null
+        title               = "DataHub Application"
+      }
       description = {
         date_format         = null
         default             = null

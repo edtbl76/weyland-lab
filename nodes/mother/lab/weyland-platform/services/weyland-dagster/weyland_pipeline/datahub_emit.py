@@ -29,6 +29,8 @@ from datahub.emitter.mce_builder import (
 from datahub.emitter.mcp import MetadataChangeProposalWrapper
 from datahub.emitter.rest_emitter import DatahubRestEmitter
 from datahub.metadata.schema_classes import (
+    ApplicationPropertiesClass,
+    ApplicationsClass,
     AuditStampClass,
     BooleanTypeClass,
     ChangeAuditStampsClass,
@@ -832,6 +834,57 @@ def emit_data_products():
         n_p += 1
         n_a += len(assets)
     return n_p, n_a
+
+
+def _load_app_registry():
+    """Load the canonical Application registry (applications.yaml) — the ONE source of truth for the B82 app taxonomy,
+    also read by tofu/port. Baked next to this module (COPY weyland_pipeline/)."""
+    import yaml
+    path = os.path.join(os.path.dirname(__file__), "applications.yaml")
+    with open(path) as f:
+        return yaml.safe_load(f)["applications"]
+
+
+def emit_applications():
+    """B82 — create DataHub Application entities from the canonical registry + attach every cataloged
+    dataset/chart/dashboard to its owning app by producer URN-pattern (FIRST-MATCH, registry order — the file is
+    ordered specific-producer → broad, weyland-dagster last). Application = an app-centric lens *alongside* Domains
+    (business area) + Data Products (bundles). Only rows with `datahub_application: true` become entities; only rows
+    with non-empty `owns` participate in attachment (empty = modeled-now, attaches-later). Idempotent (upsert).
+    Returns (n_apps, n_attached).
+
+    NOTE: `traces` (MLflow experiment ownership for the agent apps) is a v2 follow-up — the MLflow trace→DataHub
+    entity mapping needs its own pass; those apps exist as entities now, their trace assets attach later."""
+    from datahub.ingestion.graph.client import DataHubGraph, DatahubClientConfig
+
+    apps = _load_app_registry()
+    dh_apps = [a for a in apps if a.get("datahub_application")]
+
+    emitter = _gms_emitter()
+    server = os.environ.get("DATAHUB_GMS_URL", "http://datahub-datahub-gms.data-mesh.svc.cluster.local:8080")
+    token = os.environ.get("DATAHUB_GMS_TOKEN", "")
+
+    # 1) create the Application entities
+    aurn = {}
+    for a in dh_apps:
+        u = f"urn:li:application:{a['key']}"
+        aurn[a["key"]] = u
+        emitter.emit(MetadataChangeProposalWrapper(
+            entityUrn=u, aspect=ApplicationPropertiesClass(name=a["name"], description=a.get("description", ""))))
+
+    # 2) attach each cataloged asset to its owning app (first-match by owns patterns, registry order)
+    ordered = [a for a in dh_apps if a.get("owns")]
+    graph = DataHubGraph(DatahubClientConfig(server=server, token=token))
+    attached = 0
+    for etype in ("dataset", "chart", "dashboard"):
+        for urn in graph.get_urns_by_filter(entity_types=[etype]):
+            low = urn.lower()
+            match = next((a["key"] for a in ordered if any(p.lower() in low for p in a["owns"])), None)
+            if match:
+                emitter.emit(MetadataChangeProposalWrapper(
+                    entityUrn=urn, aspect=ApplicationsClass(applications=[aurn[match]])))
+                attached += 1
+    return len(dh_apps), attached
 
 
 def emit_eval_assertions():

@@ -1,0 +1,148 @@
+# ============================================================================
+# Canonical Application registry — B82 app taxonomy (the ONE source of truth).
+# Design: aidlc-docs/application-taxonomy.md.
+#
+# Consumed by:
+#   - datahub_emit.py :: emit_applications()  (baked into the Dagster image via COPY weyland_pipeline/)
+#   - tofu/port/catalog.tf                     (yamldecode — a Port `component` per `applications:` entry)
+#   - docs + diagrams                          (written from + DoD-checked against this)
+#
+# COMPLETENESS: every deployed Argo CD Application (k8s/argocd/applications/, ~74) + the non-k8s services
+# (whisper/ollama CTs) + the data-mesh sub-components must appear here — either as an `applications:` entry
+# (it's a component) or in `excluded:` (a store or plumbing). Nothing unaccounted. A drift check diffs the
+# live Argo app list against this file. If it's not here, it's in no surface AND it's a drift finding.
+#
+# SCHEMA — applications[] (things that get a Port `component`):
+#   key                 stable id — the Port component identifier + (where applicable) the k8s workload
+#   name                display name (DataHub Application + docs)
+#   group               core-producer | ai-serving | data-platform | bi | operational | observability |
+#                       serving | gateway | ui | platform
+#   datahub_application  true → gets a DataHub Application entity + owns assets; false → Port component only
+#   owns                URN-substring patterns, producer-based, FIRST-MATCH in list order (specific→broad,
+#                       weyland-dagster last). [] = modeled now, owns nothing yet ("plausibly will").
+#   traces              optional MLflow experiment (the explicit-tag path — trace URNs don't reveal producer)
+#   port_component      the Port component entity id (== key)
+#
+# SCHEMA — excluded[] (accounted-for, but NOT a component): { key, kind: store|plumbing, reason }
+# Catalog `owns` status verified 2026-08-05 vs pg_database on weyland-postgres + the DataHub platform list.
+# ============================================================================
+
+applications:
+
+  # ============ DATA-APPS (datahub_application: true) ============
+
+  # ---- core producers ----
+  - {key: genre-trainer, name: Genre Trainer, group: core-producer, datahub_application: true, owns: ["genre_classifier"], port_component: genre-trainer, description: "Ray training → the genre_classifier model."}
+  - {key: weyland-guard, name: Weyland Guard, group: ai-serving, datahub_application: true, owns: ["guardrail_verdicts"], port_component: weyland-guard, description: "Shared guardrails — produces guardrail_verdicts."}
+  - {key: weyland-operator, name: Weyland Operator, group: ai-serving, datahub_application: true, owns: ["operator_incidents"], traces: "operator", port_component: weyland-operator, description: "Ops agent — operator_incidents + traces."}
+  - {key: weyland-tool-server, name: Weyland Tool Server, group: ai-serving, datahub_application: true, owns: ["eval_leaderboard", "eval_scores", "eval_runs", "eval_results", "rag_documents", "rag_chunks", "weyland_chunks"], traces: "tool-server-rag", port_component: weyland-tool-server, description: "RAG API — eval leaderboard + RAG corpus/index."}
+  - {key: weyland-agent, name: Weyland Agent, group: ai-serving, datahub_application: true, owns: [], traces: "agentic-rag", port_component: weyland-agent, description: "Agentic RAG — owns its agentic-rag traces."}
+  - {key: realm-of-agents, name: Realm of Agents, group: ai-serving, datahub_application: true, owns: [], traces: "realm-of-agents", port_component: realm-of-agents, description: "A2A fleet — owns its realm traces."}
+  - {key: mlflow, name: MLflow, group: core-producer, datahub_application: true, owns: ["mlflow,", "model_catalog", "registered_model", "model_version", "latest_metrics"], port_component: mlflow, description: "Tracking + model registry."}
+  - {key: dbt, name: dbt, group: core-producer, datahub_application: true, owns: ["mart_", ".dbt."], port_component: dbt, description: "dbt-trino transform — the 7 gold marts."}
+  - {key: flink, name: Flink, group: core-producer, datahub_application: true, owns: ["analytics.", ".analytics_", "flink,"], port_component: flink, description: "Stream processing — streaming iceberg analytics.*."}
+  - {key: grafana, name: Grafana, group: observability, datahub_application: true, owns: ["grafana,"], port_component: grafana, description: "Observability UI — its dashboards/datasources are cataloged (~367 datasets)."}
+
+  # ---- data-platform + BI ----
+  - {key: feast, name: Feast, group: data-platform, datahub_application: true, owns: ["feast,", "postgres,feast."], port_component: feast, description: "Feature store — owns its feature views."}
+  - {key: cube, name: Cube, group: data-platform, datahub_application: true, owns: ["cube,"], port_component: cube, description: "Semantic layer over the marts."}
+  - {key: trino, name: Trino, group: data-platform, datahub_application: true, owns: ["trino,"], port_component: trino, description: "Federation query — owns trino.* catalog views."}
+  - {key: nessie, name: Nessie, group: data-platform, datahub_application: true, owns: ["postgres,nessie."], port_component: nessie, description: "Iceberg catalog — owns its refs/commits DB."}
+  - {key: lakefs, name: lakeFS, group: data-platform, datahub_application: true, owns: ["lakefs,", "postgres,lakefs."], port_component: lakefs, description: "Data versioning — versioned files + metadata DB."}
+  - {key: superset, name: Superset, group: bi, datahub_application: true, owns: ["superset,", "postgres,superset."], port_component: superset, description: "BI — owns its charts + dashboards."}
+  - {key: lightdash, name: Lightdash, group: bi, datahub_application: true, owns: ["lightdash,", "postgres,lightdash."], port_component: lightdash, description: "dbt-native BI — owns its charts + dashboards."}
+
+  # ---- operational apps (own their cataloged Postgres DB; empty owns = DB not on weyland-postgres yet) ----
+  - {key: glitchtip, name: GlitchTip, group: operational, datahub_application: true, owns: ["postgres,glitchtip."], port_component: glitchtip, description: "Error tracking — owns its issue/event tables."}
+  - {key: keycloak, name: Keycloak, group: operational, datahub_application: true, owns: ["postgres,keycloak."], port_component: keycloak, description: "IdP/SSO — owns its realm/user tables."}
+  - {key: sonarqube, name: SonarQube, group: operational, datahub_application: true, owns: ["postgres,sonarqube."], port_component: sonarqube, description: "Code quality — owns its scan tables."}
+  - {key: unleash, name: Unleash, group: operational, datahub_application: true, owns: ["postgres,unleash."], port_component: unleash, description: "Feature flags — owns its flag tables."}
+  - {key: ranger, name: Apache Ranger, group: operational, datahub_application: true, owns: ["postgres,ranger."], port_component: ranger, description: "L5 authz — owns its policy tables."}
+  - {key: n8n, name: n8n, group: operational, datahub_application: true, owns: [], port_component: n8n, description: "Workflow automation — DB not on weyland-postgres; modeled."}
+  - {key: woodpecker, name: Woodpecker CI, group: operational, datahub_application: true, owns: [], port_component: woodpecker, description: "CI — SQLite-backed (not cataloged); modeled."}
+  - {key: open-webui, name: Open WebUI, group: operational, datahub_application: true, owns: [], port_component: open-webui, description: "Chat front-end — DB not on weyland-postgres; modeled."}
+  - {key: uptime-kuma, name: Uptime Kuma, group: operational, datahub_application: true, owns: [], port_component: uptime-kuma, description: "Uptime monitoring — DB not on weyland-postgres; modeled."}
+  - {key: litellm, name: LiteLLM, group: ai-serving, datahub_application: true, owns: [], port_component: litellm, description: "Model gateway — usage/cost cataloged later; modeled."}
+  - {key: bifrost, name: Bifrost, group: ai-serving, datahub_application: true, owns: [], port_component: bifrost, description: "Agentic-lane gateway — usage/cost cataloged later; modeled."}
+
+  # ---- broadest producer LAST (catch-all for pipeline-produced store data) ----
+  - {key: weyland-dagster, name: Weyland Dagster, group: core-producer, datahub_application: true, owns: ["datasets_", "qdrant,", "weaviate,", "lancedb,", "opensearch,", "duckdb,", "timescale", "mysql,", "clickhouse,", "cassandra,", "cockroach", "mongo,", "musicbrainz", "dagster,"], port_component: weyland-dagster, description: "Orchestration — the mega-producer: datasets + every Tier-2 copy + vectors."}
+
+  # ============ PURE-COMPUTE COMPONENTS (datahub_application: false) ============
+
+  # ---- serving / AI (no cataloged data) ----
+  - {key: whisper, name: Whisper STT, group: serving, datahub_application: false, owns: [], port_component: whisper, description: "CPU speech-to-text (whisper.cpp, CT)."}
+  - {key: ollama, name: Ollama, group: serving, datahub_application: false, owns: [], port_component: ollama, description: "Local GPU LLM serving on rogueone."}
+  - {key: kokoro, name: Kokoro, group: serving, datahub_application: false, owns: [], port_component: kokoro, description: "Self-hosted TTS."}
+  - {key: llama-guard, name: Llama Guard, group: serving, datahub_application: false, owns: [], port_component: llama-guard, description: "Content-safety classifier (llama.cpp) — the Classify tier."}
+  - {key: nemo-guardrails, name: NeMo Guardrails, group: serving, datahub_application: false, owns: [], port_component: nemo-guardrails, description: "Dialog guardrails."}
+  - {key: guardrails-structure, name: Guardrails AI, group: serving, datahub_application: false, owns: [], port_component: guardrails-structure, description: "Structured-output validation."}
+  - {key: rag-index, name: RAG Streaming Indexer, group: serving, datahub_application: false, owns: [], port_component: rag-index, description: "Streaming RAG indexer (output vectors attributed to weyland-dagster)."}
+
+  # ---- gateways / mesh ----
+  - {key: apisix, name: APISIX, group: gateway, datahub_application: false, owns: [], port_component: apisix, description: "API gateway."}
+  - {key: mcp-gateway, name: MCP Gateway, group: gateway, datahub_application: false, owns: [], port_component: mcp-gateway, description: "FastMCP auth reverse-proxy."}
+  - {key: mcp-servers, name: MCP Compositor, group: gateway, datahub_application: false, owns: [], port_component: mcp-servers, description: "FastMCP fleet compositor + read-only servers."}
+  - {key: port-agent, name: Port Agent, group: gateway, datahub_application: false, owns: [], port_component: port-agent, description: "Self-hosted Port execution agent (polling)."}
+  - {key: traefik-forward-auth, name: Traefik Forward-Auth, group: gateway, datahub_application: false, owns: [], port_component: traefik-forward-auth, description: "Keycloak forward-auth for browser UIs."}
+
+  # ---- UIs / tools ----
+  - {key: a2a-inspector, name: A2A Inspector, group: ui, datahub_application: false, owns: [], port_component: a2a-inspector, description: "A2A debug UI."}
+  - {key: neodash, name: NeoDash, group: ui, datahub_application: false, owns: [], port_component: neodash, description: "Neo4j dashboard UI."}
+  - {key: docs-site, name: Docs Site, group: ui, datahub_application: false, owns: [], port_component: docs-site, description: "MkDocs Material (docs.weyland.lab)."}
+  - {key: promptfoo, name: Promptfoo, group: ui, datahub_application: false, owns: [], port_component: promptfoo, description: "LLM eval / red-team harness UI."}
+  - {key: jupyterhub, name: JupyterHub, group: ui, datahub_application: false, owns: [], port_component: jupyterhub, description: "On-demand notebook workspace."}
+  - {key: opensearch-dashboards, name: OpenSearch Dashboards, group: ui, datahub_application: false, owns: [], port_component: opensearch-dashboards, description: "OpenSearch UI / Dev Tools."}
+  - {key: headlamp, name: Headlamp, group: ui, datahub_application: false, owns: [], port_component: headlamp, description: "K8s dashboard UI."}
+  - {key: likec4, name: LikeC4, group: ui, datahub_application: false, owns: [], port_component: likec4, description: "Architecture-diagram explorer (likec4.weyland.lab)."}
+
+  # ---- platform / ops ----
+  - {key: store-scaler, name: Store Scaler, group: platform, datahub_application: false, owns: [], port_component: store-scaler, description: "KEDA-driven data-mesh store wake/sleep controller."}
+  - {key: ray, name: Ray, group: platform, datahub_application: false, owns: [], port_component: ray, description: "Persistent Ray cluster (head on mother + rogueone worker)."}
+  - {key: scan-suite, name: Scan Suite, group: platform, datahub_application: false, owns: [], port_component: scan-suite, description: "Code/security scan jobs → Port (not DataHub)."}
+  - {key: opencost, name: OpenCost, group: platform, datahub_application: false, owns: [], port_component: opencost, description: "Cloud/lab cost accounting."}
+  - {key: argocd, name: Argo CD, group: platform, datahub_application: false, owns: [], port_component: argocd, description: "GitOps engine (the app-of-apps)."}
+
+excluded:
+
+  # ---- data stores (Port `resource`, not a component — their DATA is owned by producers) ----
+  - {key: qdrant, kind: store, reason: "vector store"}
+  - {key: weaviate, kind: store, reason: "vector store"}
+  - {key: neo4j, kind: store, reason: "graph store"}
+  - {key: opensearch, kind: store, reason: "lexical/BM25 store"}
+  - {key: minio, kind: store, reason: "object store"}
+  - {key: postgres, kind: store, reason: "relational store (hosts app DBs — those apps are the Applications)"}
+  - {key: clickhouse, kind: store, reason: "Tier-2 OLAP store"}
+  - {key: cassandra, kind: store, reason: "Tier-2 store"}
+  - {key: cockroachdb, kind: store, reason: "Tier-2 store"}
+  - {key: mongodb, kind: store, reason: "Tier-2 store"}
+  - {key: timescaledb, kind: store, reason: "Tier-2 timeseries store"}
+  - {key: mysql, kind: store, reason: "Tier-2 store"}
+  - {key: redpanda, kind: store, reason: "streaming log/store"}
+  - {key: loki, kind: store, reason: "log store"}
+  - {key: tempo, kind: store, reason: "trace store"}
+  - {key: pyroscope, kind: store, reason: "profile store"}
+  - {key: registry, kind: store, reason: "OCI image registry (MinIO-backed)"}
+
+  # ---- cluster plumbing / config bundles / secret-holders / meta-apps ----
+  - {key: datahub, kind: plumbing, reason: "the catalog itself — self-referential"}
+  - {key: datahub-prerequisites, kind: plumbing, reason: "datahub helm prereqs"}
+  - {key: datahub-gms-secret, kind: plumbing, reason: "secret holder"}
+  - {key: data-mesh, kind: plumbing, reason: "app-of-apps bundle (its members are classified individually)"}
+  - {key: coredns-custom, kind: plumbing, reason: "DNS config"}
+  - {key: coredns-lan, kind: plumbing, reason: "LAN DNS"}
+  - {key: istio-config, kind: plumbing, reason: "mesh config"}
+  - {key: traefik-config, kind: plumbing, reason: "ingress config"}
+  - {key: gatekeeper, kind: plumbing, reason: "OPA admission controller"}
+  - {key: gatekeeper-constraints, kind: plumbing, reason: "admission policy"}
+  - {key: rbac-noautomount, kind: plumbing, reason: "RBAC hardening"}
+  - {key: limitranges, kind: plumbing, reason: "resource defaults"}
+  - {key: sealed-secrets, kind: plumbing, reason: "secrets controller"}
+  - {key: sealed-secrets-manifests, kind: plumbing, reason: "sealed secret manifests"}
+  - {key: keda, kind: plumbing, reason: "autoscaling controller"}
+  - {key: keda-http-add-on, kind: plumbing, reason: "KEDA HTTP scaler"}
+  - {key: alloy, kind: plumbing, reason: "Grafana Alloy log/telemetry collector"}
+  - {key: opensearch-extras, kind: plumbing, reason: "opensearch config extras"}
+  - {key: loki-rules, kind: plumbing, reason: "Loki alert rules"}
+  - {key: monitoring-extras, kind: plumbing, reason: "prometheus/alertmanager extras"}
+  - {key: opencost-ingress, kind: plumbing, reason: "ingress only"}
