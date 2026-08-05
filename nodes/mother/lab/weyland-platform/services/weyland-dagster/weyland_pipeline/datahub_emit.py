@@ -845,6 +845,30 @@ def _load_app_registry():
         return yaml.safe_load(f)["applications"]
 
 
+# B82 enrichment — per-app docs-site page (InstitutionalMemory "Documentation" link) + domain override. Mirrors the
+# _PRODUCT_LINKS pattern (code-side links map). Path is under https://docs.weyland.lab/ ; runbooks/ unless concepts/.
+# Apps absent here get no docs link (no dead links). Tag = the registry `group`. Domain defaults to Platform & Ops.
+_DOCS_BASE = "https://docs.weyland.lab/"
+_APP_DOCS = {
+    "weyland-dagster": "runbooks/datasets-hydration", "dbt": "runbooks/dbt", "flink": "runbooks/flink",
+    "genre-trainer": "runbooks/mlflow-training", "mlflow": "runbooks/mlflow", "weyland-agent": "runbooks/agentic-rag",
+    "weyland-operator": "runbooks/operator", "weyland-guard": "runbooks/guardrails", "weyland-tool-server": "runbooks/eval-harness",
+    "realm-of-agents": "concepts/realm-of-agents", "a2a-inspector": "concepts/realm-of-agents", "grafana": "runbooks/observability",
+    "cube": "runbooks/cube", "trino": "runbooks/trino", "nessie": "runbooks/nessie", "superset": "runbooks/superset",
+    "lightdash": "runbooks/lightdash", "glitchtip": "runbooks/glitchtip", "keycloak": "runbooks/keycloak",
+    "sonarqube": "runbooks/code-quality", "unleash": "runbooks/unleash", "ranger": "runbooks/ranger",
+    "woodpecker": "runbooks/woodpecker", "uptime-kuma": "runbooks/uptime-kuma", "litellm": "runbooks/model-gateway",
+    "bifrost": "runbooks/mcp-gateway", "whisper": "runbooks/transcription-whisper", "ollama": "runbooks/model-serving-ollama",
+    "llama-guard": "runbooks/guardrails", "nemo-guardrails": "runbooks/guardrails", "guardrails-structure": "runbooks/guardrails",
+    "mcp-gateway": "runbooks/mcp-gateway", "mcp-servers": "runbooks/mcp-fleet", "port-agent": "runbooks/port-agent-easy-button",
+    "jupyterhub": "runbooks/jupyterhub", "likec4": "runbooks/likec4", "store-scaler": "runbooks/port-agent-easy-button",
+    "ray": "runbooks/remote-training", "scan-suite": "runbooks/code-quality", "opencost": "runbooks/opencost",
+    "argocd": "runbooks/argocd", "promptfoo": "runbooks/eval-harness",
+}
+_APP_DOMAIN = {"genre-trainer": "ML & Modeling", "mlflow": "ML & Modeling",
+               "weyland-tool-server": "Docs & RAG", "weyland-agent": "Docs & RAG"}
+
+
 def emit_applications():
     """B82 — create DataHub Application entities from the canonical registry + attach every cataloged
     dataset/chart/dashboard to its owning app by producer URN-pattern (FIRST-MATCH, registry order — the file is
@@ -864,13 +888,30 @@ def emit_applications():
     server = os.environ.get("DATAHUB_GMS_URL", "http://datahub-datahub-gms.data-mesh.svc.cluster.local:8080")
     token = os.environ.get("DATAHUB_GMS_TOKEN", "")
 
-    # 1) create the Application entities
+    # 1) create the Application entities (+ docs link, group tag, domain)
+    import time
+    from datahub.metadata.schema_classes import InstitutionalMemoryClass, InstitutionalMemoryMetadataClass
+    made = AuditStampClass(time=int(time.time() * 1000), actor="urn:li:corpuser:datahub")
     aurn = {}
     for a in dh_apps:
-        u = f"urn:li:application:{a['key']}"
-        aurn[a["key"]] = u
+        key = a["key"]
+        u = f"urn:li:application:{key}"
+        aurn[key] = u
         emitter.emit(MetadataChangeProposalWrapper(
             entityUrn=u, aspect=ApplicationPropertiesClass(name=a["name"], description=a.get("description", ""))))
+        # Documentation — link to the docs-site page (no dead links: only apps present in _APP_DOCS)
+        doc = _APP_DOCS.get(key)
+        if doc:
+            emitter.emit(MetadataChangeProposalWrapper(entityUrn=u, aspect=InstitutionalMemoryClass(
+                elements=[InstitutionalMemoryMetadataClass(
+                    url=f"{_DOCS_BASE}{doc}/", description=f"Docs — {a['name']}", createStamp=made)])))
+        # Tag by group (core-producer / ai-serving / operational / …)
+        emitter.emit(MetadataChangeProposalWrapper(entityUrn=u, aspect=GlobalTagsClass(
+            tags=[TagAssociationClass(tag=make_tag_urn(a["group"]))])))
+        # Domain (default Platform & Ops; ML/RAG apps overridden)
+        dom = _APP_DOMAIN.get(key, "Platform & Ops")
+        emitter.emit(MetadataChangeProposalWrapper(entityUrn=u, aspect=DomainsClass(
+            domains=[make_domain_urn(dom.lower().replace(" & ", "-").replace(" ", "-"))])))
 
     # 2) attach each cataloged asset to its owning app (first-match by owns patterns, registry order)
     ordered = [a for a in dh_apps if a.get("owns")]
