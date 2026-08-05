@@ -38,8 +38,7 @@ resource "port_entity" "component" {
     )
   }
 
-  relations = {
-    single_relations = {}
-    many_relations   = {}
-  }
+  # relations intentionally UNMANAGED — the Port K8s exporter owns each component's k8sWorkload link;
+  # Tofu managing relations here would flap against it every sync + wipe the B59 component→k8s_workload links.
+  relations = null
 }
