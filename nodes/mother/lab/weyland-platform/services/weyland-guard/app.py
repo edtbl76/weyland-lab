@@ -61,14 +61,14 @@ def _build_guardrails() -> GuardrailPipeline:
     run (partial coverage beats none). Identical construction to the tool-server's `_build_guardrails`."""
     from guardrails.validators.grounding import GroundingValidator
     from guardrails.validators.llama_guard import LlamaGuardValidator
-    from guardrails.validators.llm_guard import InjectionValidator, PIIValidator, ToxicityValidator
+    from guardrails.validators.prompt_guard import PromptGuardValidator   # B117 — replaced llm_guard.injection
+    from guardrails.validators.pii_presidio import PresidioPIIValidator   # B117 — replaced llm_guard.pii (Presidio direct)
     from guardrails.validators.policy import AuditValidator, PolicyGateValidator
 
     builders = {
-        "llm_guard.injection": InjectionValidator,
-        "llm_guard.pii": PIIValidator,
-        "llm_guard.toxicity": ToxicityValidator,
-        "llama_guard.safety": LlamaGuardValidator,   # B115 Classify layer — calls the 1B classifier svc (fail-open)
+        "prompt_guard.injection": PromptGuardValidator,   # B117 Scan: Llama Prompt Guard 2 (in-process classifier)
+        "pii.presidio": PresidioPIIValidator,             # B117 Scan: Presidio direct (llm_guard.pii already wrapped it)
+        "llama_guard.safety": LlamaGuardValidator,        # B115 Classify — ALSO the toxicity signal now (B117 folded it)
         "grounding.nli": GroundingValidator,
         "policy.audit": AuditValidator,
         "policy.gate": PolicyGateValidator,

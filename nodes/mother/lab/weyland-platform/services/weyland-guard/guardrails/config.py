@@ -6,15 +6,15 @@ from .verdict import Hook, Mode
 # or LIVE (no restart) via POST /admin/mode — see the override machinery below.
 _DEFAULT = {
     Hook.INPUT: [
-        ("llm_guard.injection", Mode.SHADOW),
+        ("prompt_guard.injection", Mode.SHADOW),  # B117 Scan: Llama Prompt Guard 2 (replaced llm_guard.injection).
         ("llama_guard.safety", Mode.SHADOW),  # B115 Classify: Llama Guard safety-taxonomy on the user prompt.
     ],
     Hook.OUTPUT: [
-        ("llm_guard.pii", Mode.SHADOW),       # B34: baked + entity-calibrated (IP/UUID dropped); SHADOW until the
-                                              #   false-positive rate is measured on real traffic (then promote).
-        ("llm_guard.toxicity", Mode.SHADOW),
+        ("pii.presidio", Mode.SHADOW),        # B117 Scan: Presidio direct, B34 entity-calibrated (IP/UUID dropped);
+                                              #   SHADOW until the false-positive rate is measured on real traffic.
         ("grounding.nli", Mode.SHADOW),
-        ("llama_guard.safety", Mode.SHADOW),  # B115 Classify: same classifier on the answer (broader than toxicity).
+        ("llama_guard.safety", Mode.SHADOW),  # B115 Classify: safety-taxonomy on the answer — ALSO the toxicity signal
+                                              #   now that llm_guard.toxicity is retired (B117, folded into this).
     ],
     Hook.ACT: [
         ("policy.audit", Mode.SHADOW),   # audit-only record that an act fired.

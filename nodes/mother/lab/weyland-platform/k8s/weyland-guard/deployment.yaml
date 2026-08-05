@@ -20,7 +20,7 @@ spec:
       enableServiceLinks: false
       containers:
         - name: weyland-guard
-          image: registry.weyland.lab/weyland-guard:v9   # B115: + llama_guard.safety Classify validator (httpx dep)
+          image: registry.weyland.lab/weyland-guard:v10   # B117: llm-guard RETIRED → prompt_guard (Llama Prompt Guard 2) + pii.presidio (Presidio direct); toxicity folded into llama_guard.safety
           imagePullPolicy: IfNotPresent
           resources:
             # Loads 4 models: injection DeBERTa + toxicity + NLI cross-encoder + (B34) the PII NER model. 3Gi covers
