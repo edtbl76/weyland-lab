@@ -1175,6 +1175,9 @@ Fresh shell, raw-httpx Telegram, `asyncio.to_thread` for the blocking loop, per-
 - **File/S3 source** — **catalog** the CSV rows as a *dataset*: export Sheet → CSV → MinIO → DataHub S3 source infers the schema.
 - Doc: https://docs.datahub.com/docs/generated/ingestion/sources/csv-enricher
 
+### B72 — Datasets landing zone + CSV→Parquet pipeline (music data) — ✅ DONE
+Produced the lab's first real datasets: **Spotify audio features + FMA metadata**, landed and transformed into **five formats** (Parquet · Lance · Avro · Arrow · Iceberg) + raw CSV as silver/gold artifacts in MinIO + the DataHub catalog. The landing-zone + CSV→Parquet transform pipeline (Dagster) is the foundation the data-mesh (B1) and the per-format use cases (B73) build on. Tracked in Linear as EMA-62.
+
 ### B73 — Find/build uses for the datasets-lake formats (Maturity / Polish)
 **Added 2026-06-26.** B72 produced the music data (Spotify audio features + FMA metadata) in **five formats** (Parquet · Lance · Avro · Arrow · Iceberg) + raw CSV — but they're currently **inert** silver/gold artifacts sitting in MinIO + the catalog. Build a **real use case per format** that exercises its specific strength, so each earns its keep and the format choices are validated *by use*, not just by the rationale in [datasets-lake.md](runbooks/datasets-lake.md):
 - **Parquet** → analytics queries via **Trino / DuckDB** (Tier-2) — genre/feature aggregations over the Spotify set.
@@ -1497,6 +1500,9 @@ The service `requirements.txt` files were **unpinned** (only `mlflow-skinny==3.1
 - Build the image FROM the lock (`pip install -r requirements.lock`); keep the loose `requirements.txt` as the human-edited top-level, regenerate the lock on intentional bumps.
 - Preserve the deliberate co-resolution (e.g. dagster + dagster-dbt unpinned together) — the lock freezes the *resolved* set, not the intent.
 - Net: osv-scanner sees real versions (phantom highs vanish), and builds become reproducible. Verify each image still builds + runs from its lock before committing.
+
+### SEC-1 — Move inline dev creds out of manifests into Secrets — ✅ DONE
+General security pass (same class as B92/B97): relocate inline/plaintext dev credentials out of committed k8s manifests into Secrets so nothing sensitive lives in the public repo. Tracked in Linear as EMA-84. Related follow-ons: B92 (Ranger creds → SealedSecret), B97 (n8n key untrack+rotate), B95 (hardening-collision guard).
 
 ### B92 — Relocate Ranger's committed dev-passwords to a Secret — ✅ DONE 2026-07-20
 **✅ DONE 2026-07-20.** All **9** non-empty passwords moved out of the `ranger-admin-install` ConfigMap into a **`ranger-admin-secret` SealedSecret** (data-mesh) — values preserved, no rotation, so the DB/admin creds still match and nothing was disrupted. The ConfigMap now ships only `@@TOKEN@@` placeholders; a **`render-install-props` initContainer** copies the template + `sed`s each token from `envFrom` the secret into a writable emptyDir the main container mounts as `key/` (the ConfigMap mount is read-only, so it can't be sed'd in place). Verified: `deployment "ranger-admin" successfully rolled out` and the rendered file shows the real values (`db_password=weyland_dev_password`, `rangerAdmin_password=Weyland_dev_password1`).
