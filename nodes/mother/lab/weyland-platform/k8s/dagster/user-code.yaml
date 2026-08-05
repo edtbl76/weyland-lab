@@ -42,7 +42,7 @@ spec:
       serviceAccountName: dagster-user-code   # NOT `default` — that SA has automount disabled (see above)
       containers:
         - name: dagster-user-code
-          image: registry.weyland.lab/weyland-dagster-user-code:v18   # B82 — Application taxonomy + enrichment; v18 fixes the docs-link slash (name collision on _DOCS_BASE)
+          image: registry.weyland.lab/weyland-dagster-user-code:v19   # B82 — Application taxonomy; v19 adds customProperties + per-app attachment diagnostic
           imagePullPolicy: IfNotPresent
           # DefaultRunLauncher runs jobs INSIDE this pod, so a heavy dataset transform spikes here. With no
           # limit a big run triggered NODE-level OOM that killed random lab pods (2026-06-30). The limit

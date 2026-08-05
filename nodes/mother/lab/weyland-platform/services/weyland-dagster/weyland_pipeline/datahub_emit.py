@@ -896,8 +896,10 @@ def emit_applications():
         key = a["key"]
         u = f"urn:li:application:{key}"
         aurn[key] = u
-        emitter.emit(MetadataChangeProposalWrapper(
-            entityUrn=u, aspect=ApplicationPropertiesClass(name=a["name"], description=a.get("description", ""))))
+        emitter.emit(MetadataChangeProposalWrapper(entityUrn=u, aspect=ApplicationPropertiesClass(
+            name=a["name"], description=a.get("description", ""),
+            customProperties={"group": a["group"], "key": key,
+                              "owns_patterns": ", ".join(a.get("owns", [])) or "(none yet — plausibly will)"})))
         # Documentation — link to the docs-site page (no dead links: only apps present in _APP_DOCS)
         doc = _APP_DOCS.get(key)
         if doc:
@@ -913,9 +915,10 @@ def emit_applications():
             domains=[make_domain_urn(dom.lower().replace(" & ", "-").replace(" ", "-"))])))
 
     # 2) attach each cataloged asset to its owning app (first-match by owns patterns, registry order)
+    from collections import Counter
     ordered = [a for a in dh_apps if a.get("owns")]
     graph = DataHubGraph(DatahubClientConfig(server=server, token=token))
-    attached = 0
+    counts = Counter()
     for etype in ("dataset", "chart", "dashboard"):
         for urn in graph.get_urns_by_filter(entity_types=[etype]):
             low = urn.lower()
@@ -923,8 +926,11 @@ def emit_applications():
             if match:
                 emitter.emit(MetadataChangeProposalWrapper(
                     entityUrn=urn, aspect=ApplicationsClass(applications=[aurn[match]])))
-                attached += 1
-    return len(dh_apps), attached
+                counts[match] += 1
+    # diagnostic — per-app attachment + the zero-asset apps (empty-owns/no-source = expected; a producer at 0 = a pattern miss)
+    print("APP ATTACHMENT:", dict(sorted(counts.items(), key=lambda kv: -kv[1])))
+    print("ZERO-ASSET APPS:", sorted(a["key"] for a in dh_apps if counts.get(a["key"], 0) == 0))
+    return len(dh_apps), sum(counts.values())
 
 
 def emit_eval_assertions():
