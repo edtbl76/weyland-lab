@@ -1,0 +1,34 @@
+# B66/B45 — weyland-operator down + incident-sweep health alerts. Lives in the `monitoring` ns with release:monitoring
+# (kube-prometheus-stack ruleSelector); routes to the Weyland Alerts Telegram chat (B5 P2a). Same pattern as the
+# nemo-guardrails / litellm rules. NOTE: these alert on the OPERATOR — paging itself is independent (direct
+# Kuma/Alertmanager -> Telegram), so an operator outage never blinds the pager, only the enrichment layer.
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: weyland-operator
+  namespace: monitoring
+  labels:
+    release: monitoring
+spec:
+  groups:
+    - name: weyland-operator
+      rules:
+        # Down: kube-state-metrics signal (fires even if the pod's own /metrics is unreachable).
+        - alert: WeylandOperatorDown
+          expr: kube_deployment_status_replicas_available{namespace="weyland",deployment="weyland-operator"} < 1
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "weyland-operator has no ready replica"
+            description: "The operator agent is down — Telegram ops + the B45 incident sweep (alert enrichment) stop. Paging is UNAFFECTED (direct Kuma/Alertmanager -> Telegram is independent). Check: kubectl -n weyland rollout status deploy/weyland-operator"
+        # Incident sweep erroring: the enrich loop can't reach Prometheus ALERTS / the fleet / Telegram (needs the
+        # operator's own /metrics — ServiceMonitor scrapes it). Firing alerts won't be enriched while this fires.
+        - alert: WeylandOperatorSweepErrors
+          expr: increase(operator_incident_sweeps_total{outcome="error"}[15m]) > 3
+          for: 0m
+          labels:
+            severity: warning
+          annotations:
+            summary: "weyland-operator incident sweep is erroring (> 3 in 15m)"
+            description: "The B45 incident-enrichment loop is failing — firing alerts won't be enriched (paging still works). Check: kubectl -n weyland logs deploy/weyland-operator | grep '\\[incidents\\]'"

@@ -196,7 +196,7 @@ model {
   weyland.mother.ops.edge.mcpGateway -> weyland.mother.ops.edge.keycloak "validate Bearer JWT (JWKS)"
   weyland.mother.ops.edge.mcpFleet -> weyland.mother.ops.edge.mcpCompositor "FastMCP composition → ~90 namespaced read tools"
   weyland.mother.ops.edge.mcpCompositor -> weyland.mother.ops.edge.mcpGateway "one MCP endpoint; gateway routes /mcp-fleet here"
-  weyland.mother.ai.operator -> weyland.mother.ops.edge.mcpGateway "read the fleet via /mcp-fleet (Haiku via LiteLLM)"
+  weyland.mother.ai.operator -> weyland.mother.ops.edge.mcpGateway "read the fleet via /mcp-fleet (local qwen2.5:7b curated ~14-tool subset; Haiku failover gets all ~91)"
 
   // Realm of Agents (B17 A2A)
   weyland.mother.ai.operator -> weyland.mother.ai.realmOfAgents "delegate_to_realm — A2A hand-off (POST /route); Gná routes to the best specialist"
@@ -209,8 +209,9 @@ model {
   weyland.mother.ops.edge.bifrost -> weyland.mother.ops.edge.mcpCompositor "aggregates the 95-tool read fleet (weyland_fleet upstream)"
   weyland.mother.ops.edge.bifrost -> hostedModels "provider egress — per-VK budgets + sealed keys"
   weyland.mother.ops.edge.bifrost -> weyland.mother.ai.kokoro "media tts — Kokoro custom provider (kokoro/kokoro)"
-  weyland.mother.ai.operator -> rogueone.ollama "brain — gpt-oss:20b /v1"
-  weyland.mother.ai.operator -> weyland.mother.ai.pg "session memory (STRICT mTLS)"
+  weyland.mother.ai.operator -> rogueone.ollama "brain — local qwen2.5:7b /v1 (primary; Haiku failover on health-precheck miss / 60s timeout)"
+  weyland.mother.ai.operator -> weyland.mother.ai.pg "session memory (STRICT mTLS) + incident dedup (operator_incidents)"
+  weyland.mother.ai.operator -> weyland.mother.ops.obs.grafana "B45 incident sweep — reads firing Prometheus ALERTS off the critical path (enrich-only)"
   rogueone.claudeCode -> weyland.mother.ai.toolServer "MCP /mcp"
   rogueone.claudeCode -> anthropic "Claude reasoning"
   edward -> rogueone.codingAgents "codes with (B15)"

@@ -1,7 +1,8 @@
 # Demo — Operator agent (`weyland-operator`, B66)
 
-Text the lab from anywhere → it acts. A LangGraph agent (`gpt-oss:20b`) over the tool-server's read + act tools,
-fronted by **Telegram**, with **session memory** and an **app-level confirm-step** on every action. The operator lane
+Text the lab from anywhere → it acts. A LangGraph agent — **local `qwen2.5:7b` primary, Haiku failover** — over the
+tool-server's read + act tools, fronted by **Telegram**, with **session memory** and an **app-level confirm-step** on
+every action. It also runs the **B45 incident sweep** — see [demos/incident-sweep.md](incident-sweep.md). The operator lane
 Hermes vacated (CT-104 destroyed 2026-07-23) — now a k8s pod on mother. Validated live 2026-07-24.
 
 Grounded in [runbooks/operator.md](../runbooks/operator.md), the design doc
@@ -17,7 +18,7 @@ sequenceDiagram
     participant O as weyland-operator
     participant S as Postgres (session)
     participant G as weyland-guard
-    participant L as Ollama (gpt-oss)
+    participant L as brain (local qwen2.5:7b · Haiku failover)
     participant T as tool-server
     U->>O: message (long-poll)
     O->>S: load session
@@ -37,7 +38,7 @@ sequenceDiagram
 
 - **mother** — `weyland-operator` (Deployment, ns `weyland`), `weyland-guard`, `weyland-tool-server`, `weyland-postgres`
   (session store), `mlflow` (tracking the `operator` experiment). A Telegram bot (`weyland-operator-secret`).
-- **rogueone** — Ollama (`gpt-oss:20b`) for the ReAct loop.
+- **rogueone** — Ollama (`qwen2.5:7b`, the local-primary brain on a curated flat toolset; Haiku failover when the shared GPU can't serve) for the ReAct loop.
 - Your Telegram account allowlisted (`TELEGRAM_ALLOWED_USERS` = your `chat_id`).
 
 ## Telegram walkthrough (the headline — DM the bot)
@@ -78,6 +79,24 @@ Confirm the ingress + confirm-step metrics:
 ```
 [mother] kubectl -n weyland exec deploy/weyland-operator -- python -c "import urllib.request; print([l for l in urllib.request.urlopen('http://localhost:8080/metrics').read().decode().splitlines() if 'operator_telegram_messages_total' in l and not l.startswith('#')])"
 ```
+
+## Local-primary brain + Haiku failover (B45 follow-up)
+
+The brain is local `qwen2.5:7b` ($0); Haiku is a health failover only. Confirm local is actually serving (not silently
+all-Haiku) — a real answer in the teens of seconds:
+
+```
+[mother] kubectl -n weyland exec deploy/weyland-operator -- python -c "import urllib.request,json,time; t=time.time(); req=urllib.request.Request('http://localhost:8080/operator/ask', data=json.dumps({'message':'which pods are running in the weyland namespace?'}).encode(), headers={'Content-Type':'application/json'}); print(urllib.request.urlopen(req, timeout=90).read().decode()[:400]); print('took', round(time.time()-t,1),'s')"
+```
+
+Then the brain-selection metric:
+
+```
+[mother] kubectl -n weyland exec deploy/weyland-operator -- python -c "import urllib.request; print(urllib.request.urlopen('http://localhost:8080/metrics').read().decode())" | grep 'operator_brain_selected_total{'
+```
+→ `brain="local",reason="primary"` climbing; `brain="haiku"` at ~0. A non-zero `haiku` count means the local engine was
+unavailable and it failed over (rogueone/Ollama down, or the 16 GB GPU saturated) — the design degrading gracefully, not
+a bug. Diagnose with [runbooks/operator.md](../runbooks/operator.md#diagnosing-a-slow--stalled-local-brain).
 
 ## Expected result
 
