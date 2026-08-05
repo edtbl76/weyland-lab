@@ -201,6 +201,25 @@ Flow: build+push the image on rogueone → bump the tag in `k8s/ray/ray-head.yam
 - **Workflow:** this project uses its own AIDLC workflow (NOT superpowers). Design docs go under `aidlc-docs/` (gitignored); the canonical backlog is `docs/backlog.md`. It's a homelab — weigh for experimentation and learning, don't over-engineer.
 - **git:** the user handles ALL git; never give git info or commit for them."""),
 
+    # ============================ content / knowledge ============================
+    ("distill-doc", "content",
+     "Turn a lab-specific docs page into a generic, shareable writeup of the underlying process/concept — strips lab specifics + secrets, outputs a Google Doc.",
+     """Use when the user wants to turn an internal docs-site page into a generic, shareable writeup of the underlying process, concept, or technique — stripping everything lab/org-specific so it can be handed to someone outside.
+
+**Input:** one or more source pages — a repo markdown path or a docs-site URL. Read the FULL source before writing anything.
+
+**Generalize — this is the whole point:**
+- **STRIP** every organization-specific: proper nouns (project/service/pod/host names, internal codenames), IPs, hostnames, URLs, backlog/ticket numbers, internal file paths, ports, and anything secret or credential-shaped. **A shared doc must never leak internal topology or secrets — a hard rule, not a nicety.** When a concrete detail is load-bearing, replace it with a generic placeholder (`<your-gpu-host>`, `a 16GB GPU`, `the ingestion service`), never the real value.
+- **KEEP** the transferable substance: the technique, the *why* (decision rationale + tradeoffs), the gotchas and failure modes, and the ordered steps. That is what the reader is there for.
+- **DEFAULT: keep ONE concrete worked example** with generic values — a reader learns more from "here's how it looks" than pure abstraction. An `--abstract` flag drops worked examples.
+- Preserve structure (headings, numbered steps); convert any org-specific diagram to a generic one. **Title the output by the concept, not the source page.**
+
+**Output:**
+- **Default → a Google Doc** via the Google Drive/Docs MCP; return the shareable link (PDF = one-click download from Docs).
+- `--md` → write generalized markdown to a scratch file instead.
+
+**Before finalizing, show a short audit** — Stripped / Kept / ⚠️ possibly-still-identifying — so the user can catch over- or under-generalization. Multiple pages → offer to combine into one writeup or one Doc each."""),
+
     # ============================ generic dev ============================
     ("systematic-debugging", "generic",
      "Debug any failure by isolating the layer and proving the fix, instead of guessing.",
