@@ -19,6 +19,11 @@ locals {
 resource "port_entity" "component" {
   for_each = local.app_components
 
+  # `blueprint` is a string literal, so Tofu infers no ordering against the blueprint resource. Without this,
+  # entities can be created in parallel with a blueprint change and land BEFORE new properties exist → Port
+  # silently drops the unknown property (is_data_application → null). Force blueprint-first.
+  depends_on = [port_blueprint.component]
+
   identifier = each.value.key
   title      = each.value.name
   blueprint  = "component"
