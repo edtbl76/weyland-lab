@@ -5,8 +5,9 @@ The weyland Definition of Done — the hard gate every body of work passes befor
 capability is **NOT done** until ALL six pillars hold. "Ran once" ≠ done.
 
 > Added 2026-07-14; grown through B64 (render-verify), B69 (operational completeness), B111 (metrics-scrape
-> ServiceMonitor + Grafana dashboard made explicit monitoring criteria), and 2026-08-05 (tier rebalance at close-out —
-> keep High/Medium/Low roughly equal). Applies retroactively and going forward.
+> ServiceMonitor + Grafana dashboard made explicit monitoring criteria), 2026-08-05 (tier rebalance at close-out —
+> keep High/Medium/Low roughly equal), and 2026-08-05 (B82 — one source of truth for a cross-surface taxonomy).
+> Applies retroactively and going forward.
 
 ## 1. Documentation sweep (every batch)
 
@@ -116,6 +117,20 @@ collect unrelated things into a grab-bag). Follow the **existing convention of t
 (e.g. `k8s/argocd/applications/` is category-named — helm-apps / subdir-apps / loose-apps / raw-extras); put each
 thing in the file its type belongs to instead of inventing a new bucket. A batch-named or miscategorized file is
 drift, and gets cleaned up like any other drift.
+
+## Cross-cutting: one source of truth for a cross-surface taxonomy (possible process)
+
+Some bodies of work introduce a **classification that must hold identically across more than one surface** — e.g.
+the B82 application taxonomy (which apps are data-owning **Applications**) spans **DataHub** (Application entities),
+**Port** (the `component` / `k8s_workload` catalog), the **docs** (arch + a concept page), and the **diagrams**
+(LikeC4 + platform-map). When that happens, do **not** re-encode the classification per surface — that is exactly how
+drift starts. Define it **once** as a canonical, machine-readable **registry** (a single YAML/JSON/table that IS the
+source of truth), and make every surface **consume or DoD-check against that one registry**. If a thing isn't in the
+registry, it isn't in any surface — drift becomes impossible **by construction**, not by discipline.
+
+This is a **possible process**: reach for it whenever the same set of things must be classified identically in **≥2
+surfaces** (Port ↔ DataHub ↔ docs ↔ diagrams). Skip it for single-surface work. When it applies, the registry is the
+deliverable the other surfaces are graded against in the drift sweep above.
 
 ## Why
 
