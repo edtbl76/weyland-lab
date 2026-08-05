@@ -848,7 +848,6 @@ def _load_app_registry():
 # B82 enrichment — per-app docs-site page (InstitutionalMemory "Documentation" link) + domain override. Mirrors the
 # _PRODUCT_LINKS pattern (code-side links map). Path is under https://docs.weyland.lab/ ; runbooks/ unless concepts/.
 # Apps absent here get no docs link (no dead links). Tag = the registry `group`. Domain defaults to Platform & Ops.
-_DOCS_BASE = "https://docs.weyland.lab/"
 _APP_DOCS = {
     "weyland-dagster": "runbooks/datasets-hydration", "dbt": "runbooks/dbt", "flink": "runbooks/flink",
     "genre-trainer": "runbooks/mlflow-training", "mlflow": "runbooks/mlflow", "weyland-agent": "runbooks/agentic-rag",
@@ -904,7 +903,7 @@ def emit_applications():
         if doc:
             emitter.emit(MetadataChangeProposalWrapper(entityUrn=u, aspect=InstitutionalMemoryClass(
                 elements=[InstitutionalMemoryMetadataClass(
-                    url=f"{_DOCS_BASE}{doc}/", description=f"Docs — {a['name']}", createStamp=made)])))
+                    url=f"https://docs.weyland.lab/{doc}/", description=f"Docs — {a['name']}", createStamp=made)])))
         # Tag by group (core-producer / ai-serving / operational / …)
         emitter.emit(MetadataChangeProposalWrapper(entityUrn=u, aspect=GlobalTagsClass(
             tags=[TagAssociationClass(tag=make_tag_urn(a["group"]))])))
