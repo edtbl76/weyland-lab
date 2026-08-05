@@ -6,6 +6,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     git \
     && rm -rf /var/lib/apt/lists/*
 
+# Upgrade pip first — the base image's pip 24.0 crashes (TypeError: 'NoneType' object is not iterable, in its
+# version parser) while resolving the pinned deps once a malformed version string lands on PyPI (hit 2026-08 around
+# pyiceberg). Newer pip parses it fine. Incidental to B82 — just unblocks the build.
+RUN pip install --no-cache-dir --upgrade "pip>=25"
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
