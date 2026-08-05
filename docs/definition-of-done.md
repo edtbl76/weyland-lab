@@ -4,8 +4,9 @@ The weyland Definition of Done — the hard gate every body of work passes befor
 **canonical, published** version (the RAG corpus + the shared reference); it supersedes any private note. A
 capability is **NOT done** until ALL six pillars hold. "Ran once" ≠ done.
 
-> Added 2026-07-14; grown through B64 (render-verify), B69 (operational completeness), and B111 (metrics-scrape
-> ServiceMonitor + Grafana dashboard made explicit monitoring criteria). Applies retroactively and going forward.
+> Added 2026-07-14; grown through B64 (render-verify), B69 (operational completeness), B111 (metrics-scrape
+> ServiceMonitor + Grafana dashboard made explicit monitoring criteria), and 2026-08-05 (tier rebalance at close-out —
+> keep High/Medium/Low roughly equal). Applies retroactively and going forward.
 
 ## 1. Documentation sweep (every batch)
 
@@ -57,6 +58,13 @@ capability is **NOT done** until ALL six pillars hold. "Ran once" ≠ done.
 - **Linear** — flip the tracked issue (`EMA-*`) to Done with a completion comment (what shipped, gotchas, links).
 - **backlog.md** — flip the item to ✅ DONE with a substantial summary (backlog = ordered source; Linear = status).
 - **Memory** — capture any durable, non-obvious lesson.
+- **Tier rebalance — keep High / Medium / Low roughly equal.** Completing work drains the **High** lane, so at
+  close-out re-tier to refill it: promote the strongest **Medium → High**, then backfill **Low → Medium** (and, as
+  the tail grows, close or promote stale **Low** items — a Low that never rises is a drop candidate). It's a pull
+  system: High pulls from Medium, Medium pulls from Low. Apply the move in **both** `backlog.md` (the 🔴/🟡/⚪ tag) and
+  **Linear** (priority field + the `High`/`Medium`/`Low` label), in the **same** close-out step as the status flip —
+  the two must never diverge. This keeps the roadmap from silently emptying High while Low accumulates. Judgment, not
+  arithmetic: "roughly equal," re-derived from the current open set, not forced to exact counts.
 
 ## 6. Operational completeness (deployed capabilities must be DURABLE, not "runs once")
 
