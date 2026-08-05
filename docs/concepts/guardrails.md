@@ -57,8 +57,8 @@ and **offline eval** (the B84 LLM-judge lane) — the act-safety and quality lan
 
 Each addresses a **distinct failure mode** a single tool can't:
 
-- **Scan** stops the *input/output* attacks and leaks (injection, toxicity, PII) — fast, on every request.
-- **Classify** catches *content-policy* violations a keyword/embedding scanner misses (weapons, self-harm, CSAM) with a
+- **Scan** stops the *input/output* attacks and leaks (injection, PII) — fast, on every request (toxicity moved to Classify).
+- **Classify** catches *content-policy* violations a keyword/embedding scanner misses (weapons, self-harm, CSAM, toxicity) with a
   model trained for exactly that — and grades them by category (the 8B binned a request S9/*weapons* where the 1B said
   S1/*violent crime*: the sharper call is why the stronger tier exists).
 - **Dialog** keeps a *conversation* in scope — refuse off-domain requests, resist jailbreaks — which the stateless I/O
