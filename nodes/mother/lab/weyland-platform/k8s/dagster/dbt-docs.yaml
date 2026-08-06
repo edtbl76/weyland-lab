@@ -27,7 +27,7 @@ spec:
     spec:
       containers:
         - name: dbt-docs
-          image: registry.weyland.lab/weyland-dagster-user-code:v27   # keep in lockstep with user-code.yaml (B77 — Soda-to-silver + advisory posture)
+          image: registry.weyland.lab/weyland-dagster-user-code:v28   # keep in lockstep with user-code.yaml (B77 part b — Great Expectations)
           imagePullPolicy: IfNotPresent
           command: ["sh", "-c"]
           args:

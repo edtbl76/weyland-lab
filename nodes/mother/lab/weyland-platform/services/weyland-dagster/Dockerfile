@@ -34,6 +34,13 @@ RUN cd /app/dbt && DBT_PROFILES_DIR=/app/dbt dbt deps && DBT_PROFILES_DIR=/app/d
 RUN python -m venv /opt/soda-venv && /opt/soda-venv/bin/pip install --upgrade "pip>=25" && /opt/soda-venv/bin/pip install --no-cache-dir soda-core-trino
 COPY soda/ ./soda/
 
+# Great Expectations (B77 part b — DQ profiling/validation showcase) in its OWN isolated venv: GE 0.18 pins
+# sqlalchemy<2 + marshmallow that clash with the dagster+dbt+datahub main env, and acryl-datahub 1.7 dropped the
+# native GE action — so GE runs alone (GE 0.18 + trino dialect + SA 1.4), shelled out from ge_validate_op, and the
+# MAIN env's emit_ge_assertions() surfaces results to DataHub. pip>=25 first (base pip 24.0 segfaults resolving these).
+RUN python -m venv /opt/ge-venv && /opt/ge-venv/bin/pip install --upgrade "pip>=25" && /opt/ge-venv/bin/pip install --no-cache-dir "great-expectations==0.18.*" trino "sqlalchemy<2"
+COPY ge/ ./ge/
+
 # Ops scripts (feast_setup.py etc.) — run via `kubectl exec … python /app/scripts/<name>`. Last COPY so it never
 # invalidates the cached dbt/deps layer above.
 COPY scripts/ ./scripts/

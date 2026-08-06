@@ -1851,6 +1851,67 @@ def emit_soda_assertions(scan_results: dict):
     return n
 
 
+def emit_ge_assertions(results_path="/tmp/ge_results.json"):
+    """B77 part (b) → DataHub: turn Great Expectations validation results into per-dataset Assertions. acryl-datahub
+    1.7 dropped the native GE action, so we hand-roll it here (same AssertionInfo/AssertionRunEvent shape as
+    emit_soda_assertions). Reads the JSON `ge/ge_validate.py` wrote in the isolated ge-venv: one entry per dataset,
+    each with `results[]` of GE expectations. Each expectation → one assertion (nativeType = expectation_type,
+    column-scoped when kwargs.column is set), pass/fail from `success`. Stable md5(ge:dataset:type:col) URN so
+    re-runs update in place. Called by ge_validate_op after the runner. Non-fatal."""
+    import hashlib
+    import json
+    import time
+    from datahub.emitter.mce_builder import make_assertion_urn, make_schema_field_urn
+    from datahub.metadata.schema_classes import (
+        AssertionInfoClass,
+        AssertionResultClass,
+        AssertionResultTypeClass,
+        AssertionRunEventClass,
+        AssertionRunStatusClass,
+        AssertionStdAggregationClass,
+        AssertionStdOperatorClass,
+        AssertionTypeClass,
+        DatasetAssertionInfoClass,
+        DatasetAssertionScopeClass,
+    )
+    try:
+        with open(results_path) as f:
+            data = json.load(f)
+    except Exception:
+        return 0
+    emitter = _gms_emitter()
+    ts = int(time.time() * 1000)
+    run_id = f"ge-{ts}"
+    n = 0
+    for entry in data:
+        urn = make_dataset_urn(platform="trino", name=entry["dataset"], env=ENV)
+        for r in entry.get("results", []):
+            cfg = r.get("expectation_config") or {}
+            etype = cfg.get("expectation_type", "expectation")
+            col = (cfg.get("kwargs") or {}).get("column")
+            passed = bool(r.get("success"))
+            aurn = make_assertion_urn(hashlib.md5(
+                f"ge:{entry['dataset']}:{etype}:{col or ''}".encode(), usedforsecurity=False).hexdigest())
+            emitter.emit(MetadataChangeProposalWrapper(entityUrn=aurn, aspect=AssertionInfoClass(
+                type=AssertionTypeClass.DATASET,
+                datasetAssertion=DatasetAssertionInfoClass(
+                    dataset=urn,
+                    scope=DatasetAssertionScopeClass.DATASET_COLUMN if col else DatasetAssertionScopeClass.DATASET_ROWS,
+                    fields=[make_schema_field_urn(urn, col)] if col else [],
+                    aggregation=AssertionStdAggregationClass._NATIVE_,
+                    operator=AssertionStdOperatorClass._NATIVE_, nativeType=etype),
+                customProperties={"source": "great_expectations", "expectation": etype,
+                                  "observed_value": str((r.get("result") or {}).get("observed_value"))[:200]},
+                description=etype)))
+            emitter.emit(MetadataChangeProposalWrapper(entityUrn=aurn, aspect=AssertionRunEventClass(
+                timestampMillis=ts, runId=run_id, assertionUrn=aurn, asserteeUrn=urn,
+                status=AssertionRunStatusClass.COMPLETE,
+                result=AssertionResultClass(
+                    type=AssertionResultTypeClass.SUCCESS if passed else AssertionResultTypeClass.FAILURE))))
+            n += 1
+    return n
+
+
 def emit_asset_check_assertions(instance=None):
     """B77 → DataHub: surface the Dagster `@asset_check` pre-hydration GATE (`build_asset_checks`) as per-silver-
     table DataHub **Assertions**, so the Assertions tab reflects the gate — not just Soda's mart scan. This is the

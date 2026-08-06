@@ -344,6 +344,32 @@ def datahub_asset_check_assertions_job():
     emit_asset_check_assertions_op()
 
 
+@op
+def ge_validate_op(context):
+    """B77 part (b) — on-demand Great Expectations. Shell out to the isolated /opt/ge-venv (GE's pins clash with the
+    main env, same as Soda) to auto-profile + validate the showcase tables, then surface results via the MAIN-env
+    emit_ge_assertions (acryl dropped the native GE action). Advisory — GE findings never fail the job."""
+    import subprocess
+    from weyland_pipeline.datahub_emit import emit_ge_assertions
+    cmd = ["/opt/ge-venv/bin/python", "/app/ge/ge_validate.py"]
+    context.log.info("Running: " + " ".join(cmd))
+    r = subprocess.run(cmd, capture_output=True, text=True)
+    if r.stdout:
+        context.log.info(r.stdout)
+    if r.stderr:
+        context.log.warning(r.stderr)
+    _safe_emit(context, "Great Expectations → DataHub Assertions (B77 part b)", emit_ge_assertions)
+    if r.returncode != 0:
+        context.log.warning(f"GE runner exit {r.returncode} — advisory (findings in DataHub + Data Docs), not failing the job.")
+    return r.returncode
+
+
+@job(executor_def=in_process_executor, tags={"dagster/max_runtime": 1800})
+def ge_validate_job():
+    """B77 part (b) — on-demand Great Expectations: auto-profile + validate the showcase tables → DataHub Assertions + Data Docs (ge-docs.weyland.lab)."""
+    ge_validate_op()
+
+
 datahub_catalog_emit_schedule = ScheduleDefinition(
     job=datahub_catalog_emit_job,
     cron_schedule="40 */6 * * *",  # every 6h at :40 — per docs/schedules.md
@@ -388,7 +414,7 @@ weyland_eval_score_schedule = ScheduleDefinition(
 defs = Definitions(
     assets=[*all_assets, weyland_dbt_assets],
     asset_checks=all_asset_checks,
-    jobs=[weyland_ingestion_job, weyland_eval_job, weyland_eval_score_job, weyland_catalog_job, weyland_aidlc_kb_job, weyland_ai_session_job, datahub_catalog_emit_job, datahub_asset_check_assertions_job, weyland_datasets_music_transform_job, weyland_datasets_music_land_job, weyland_datasets_health_land_job, weyland_datasets_health_transform_job, weyland_datasets_health_hydrate_job, weyland_datasets_music_hydrate_job, weyland_timeseries_job, weyland_lancedb_sync_job, weyland_dbt_job, soda_quality_job, registrations_reconcile_job],
+    jobs=[weyland_ingestion_job, weyland_eval_job, weyland_eval_score_job, weyland_catalog_job, weyland_aidlc_kb_job, weyland_ai_session_job, datahub_catalog_emit_job, datahub_asset_check_assertions_job, ge_validate_job, weyland_datasets_music_transform_job, weyland_datasets_music_land_job, weyland_datasets_health_land_job, weyland_datasets_health_transform_job, weyland_datasets_health_hydrate_job, weyland_datasets_music_hydrate_job, weyland_timeseries_job, weyland_lancedb_sync_job, weyland_dbt_job, soda_quality_job, registrations_reconcile_job],
     schedules=[weyland_ingestion_schedule, weyland_catalog_schedule, weyland_ai_session_schedule, datahub_catalog_emit_schedule, weyland_timeseries_schedule, weyland_datasets_music_land_schedule, weyland_datasets_health_land_schedule, weyland_dbt_schedule, soda_quality_schedule, weyland_eval_schedule, weyland_eval_score_schedule, registrations_schedule],
     sensors=[datasets_music_raw_sensor, lancedb_sync_sensor],
     resources={
