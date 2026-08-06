@@ -1887,6 +1887,7 @@ def emit_asset_check_assertions(instance=None):
         DatasetAssertionScopeClass,
     )
     from weyland_pipeline.assets.datasets_lib.writers import ice_ident
+    from weyland_pipeline.assets.datasets_lib.checks import ALL_NULL_ALLOWLIST
 
     emitter = _gms_emitter()
     server = os.environ.get("DATAHUB_GMS_URL", "http://datahub-datahub-gms.data-mesh.svc.cluster.local:8080")
@@ -1951,7 +1952,8 @@ def emit_asset_check_assertions(instance=None):
             m2 = row_re.match(status)
             rc = int(m2.group(1)) if m2 else 0
             if rc and col_nulls:  # B77 enrich: catch a 100%-null column (silent parse/source failure)
-                all_null = sorted(c for c, nc in col_nulls.items() if nc >= rc)
+                allow = ALL_NULL_ALLOWLIST.get(table, ())
+                all_null = sorted(c for c, nc in col_nulls.items() if nc >= rc and c not in allow)
                 _assert(urn, "no_all_null_columns", not all_null, DatasetAssertionScopeClass.DATASET_COLUMN,
                         {"all_null_columns": ",".join(all_null)[:400], "cols_with_nulls": str(len(col_nulls))})
                 n += 1

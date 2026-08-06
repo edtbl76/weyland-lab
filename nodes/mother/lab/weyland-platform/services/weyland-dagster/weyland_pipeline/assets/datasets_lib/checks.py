@@ -18,6 +18,18 @@ from dagster import AssetCheckResult, AssetCheckSeverity, AssetKey, MetadataValu
 _VALID = re.compile(r"^[A-Za-z0-9_]+$")
 _FORMATS = ("parquet", "arrow", "avro", "lance", "iceberg")
 
+# Known-benign all-null columns per source folder (the `table` part of the "table/name" key) — structurally or
+# optionally empty at the source, NOT parse failures. From the B77 triage 2026-08-06 (all 17 verified benign; the
+# USDA FK confirmed via Trino — inputs are referenced by sr_code/sr_description, not fdc_id_of_input_food). Keeping
+# these out of the WARN means a NEW all-null column stands out as a real regression instead of hiding in the noise.
+ALL_NULL_ALLOWLIST = {
+    "who_gho": {"Comments", "DataSourceDim", "DataSourceDimType", "Dim1", "Dim1Type",
+                "Dim2", "Dim2Type", "Dim3", "Dim3Type", "High", "Low"},   # GHO OData fixed schema — unused dim/annotation slots
+    "nhanes": {"BMIHEAD"},                                                # head circumference — infant-only measure
+    "nhis": {"CHFLG_A", "OGFLG_A", "OPFLG_A", "PRPLCOV2_C_A"},            # edit/imputation + conditional coverage flags
+    "usda_fooddata": {"footnote", "max_value", "fdc_id_of_input_food"},   # optional text/measure + SR-referenced input FK
+}
+
 
 def _latest_meta(context, key: AssetKey) -> dict:
     """The asset's latest-materialization metadata as plain python (MetadataValue → .value)."""
@@ -98,7 +110,8 @@ def build_asset_checks(cfg):
             if not m:
                 continue
             rc = int(m.group(1))
-            all_null = [c for c, nc in cols.items() if rc and nc >= rc]
+            allow = ALL_NULL_ALLOWLIST.get(key.split("/")[0], ())
+            all_null = [c for c, nc in cols.items() if rc and nc >= rc and c not in allow]
             if all_null:
                 bad[key] = all_null
         return AssetCheckResult(
