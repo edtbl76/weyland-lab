@@ -29,7 +29,9 @@ RUN cd /app/dbt && DBT_PROFILES_DIR=/app/dbt dbt deps && DBT_PROFILES_DIR=/app/d
 # versions that clash with dagster+dbt+datahub in the main env, so it lives in its own /opt/soda-venv and is
 # invoked as a subprocess by soda_scan_op. soda-core-trino pulls soda-core + the Trino connector. The venv is a
 # heavy layer, so it precedes COPY soda/ — editing checks won't rebuild it.
-RUN python -m venv /opt/soda-venv && /opt/soda-venv/bin/pip install --no-cache-dir soda-core-trino
+# pip>=25 first: the base image's ensurepip pip (24.x) SEGFAULTS mid-resolve on this dep set when the layer cache
+# misses (seen 2026-08-06) — the same class of pip bug the main-env install already works around.
+RUN python -m venv /opt/soda-venv && /opt/soda-venv/bin/pip install --upgrade "pip>=25" && /opt/soda-venv/bin/pip install --no-cache-dir soda-core-trino
 COPY soda/ ./soda/
 
 # Ops scripts (feast_setup.py etc.) — run via `kubectl exec … python /app/scripts/<name>`. Last COPY so it never

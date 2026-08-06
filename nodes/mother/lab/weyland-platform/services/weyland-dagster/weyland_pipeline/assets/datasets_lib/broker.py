@@ -19,12 +19,16 @@ def build_transform_assets(cfg):
         mc = io.client()
         out: dict = {}
         schemas: dict = {}  # per-table column names, for the asset checks (cheap — we have the Arrow table)
+        nulls: dict = {}    # B77: sparse {table: {col: null_count}} for cols with any null → the no_all_null_columns check
         for table, name, t in iter_raw_tables(mc, cfg.repo, allow, context.log):
             key = f"{table}/{name}"
             try:
                 write_one(mc, cfg, table, name, t)
                 out[key] = f"ok ({t.num_rows}r x {t.num_columns}c)"
                 schemas[key] = list(t.column_names)
+                col_nulls = {c: t.column(i).null_count for i, c in enumerate(t.column_names) if t.column(i).null_count}
+                if col_nulls:
+                    nulls[key] = col_nulls
             except SkipTable as sk:
                 out[key] = f"deferred: {sk}"
                 context.log.warning(f"{key}: deferred — {sk}")
@@ -38,6 +42,7 @@ def build_transform_assets(cfg):
             "deferred": MetadataValue.int(sum(1 for v in out.values() if v.startswith("deferred"))),
             "schemas": MetadataValue.json(schemas),
             "detail": MetadataValue.json(out),
+            "nulls": MetadataValue.json(nulls),
         })
 
     @asset(name=f"datasets_{d}_parquet", **common, description=f"Silver — Parquet (batch columnar) for each {d} raw table.")

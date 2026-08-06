@@ -85,4 +85,27 @@ def build_asset_checks(cfg):
         )
 
     checks.append(_names)
+
+    @asset_check(asset=parquet_key, name="no_all_null_columns", blocking=False,
+                 description="No silver column is 100% null — a silent parse/source failure (the class that produced the fma URL-column + spotify empty column). WARN, not block.")
+    def _all_null(context):
+        meta = _latest_meta(context, parquet_key)
+        detail = meta.get("detail") or {}
+        nulls = meta.get("nulls") or {}
+        bad = {}
+        for key, cols in nulls.items():
+            m = re.match(r"ok \((\d+)r", str(detail.get(key, "")))
+            if not m:
+                continue
+            rc = int(m.group(1))
+            all_null = [c for c, nc in cols.items() if rc and nc >= rc]
+            if all_null:
+                bad[key] = all_null
+        return AssetCheckResult(
+            passed=not bad,
+            severity=AssetCheckSeverity.WARN,
+            metadata={"tables_with_all_null_columns": MetadataValue.int(len(bad)), "detail": MetadataValue.json(bad)},
+        )
+
+    checks.append(_all_null)
     return checks

@@ -1924,6 +1924,7 @@ def emit_asset_check_assertions(instance=None):
         md = {k: getattr(v, "value", v) for k, v in ev.asset_materialization.metadata.items()}
         detail = md.get("detail") or {}
         schemas = md.get("schemas") or {}
+        nulls_md = md.get("nulls") or {}
         for key, status in detail.items():
             if "/" not in key:
                 continue
@@ -1945,6 +1946,14 @@ def emit_asset_check_assertions(instance=None):
                 bad = [c for c in cols if not valid.match(str(c))]
                 _assert(urn, "valid_column_names", not bad, DatasetAssertionScopeClass.DATASET_SCHEMA,
                         {"bad_columns": ",".join(bad)[:200], "column_count": str(len(cols))})
+                n += 1
+            col_nulls = nulls_md.get(key) or {}
+            m2 = row_re.match(status)
+            rc = int(m2.group(1)) if m2 else 0
+            if rc and col_nulls:  # B77 enrich: catch a 100%-null column (silent parse/source failure)
+                all_null = sorted(c for c, nc in col_nulls.items() if nc >= rc)
+                _assert(urn, "no_all_null_columns", not all_null, DatasetAssertionScopeClass.DATASET_COLUMN,
+                        {"all_null_columns": ",".join(all_null)[:400], "cols_with_nulls": str(len(col_nulls))})
                 n += 1
     return n
 
