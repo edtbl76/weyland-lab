@@ -59,6 +59,7 @@ Legend: ✅ done · ⬜ missing · 🟡 exists but stale/partial · — not appl
 | **End-to-end walkthroughs** (cross-system) — all 🟡 authored, pending a live validation run | | | | |
 | E1 | RAG (doc change → index → retrieve → eval) | ✅ `flow-e2e-rag` | 🟡 `rag-e2e.md` | ✅ eval run/scores (per leg) |
 | E2 | Soda data-quality → DataHub Assertions | ✅ `flow-e2e-soda` | 🟡 `soda-dq.md` | — read-only + idempotent upserts |
+| E3 | Great Expectations profiling → DataHub Assertions + Data Docs (B77b) | ✅ `flow-great-expectations` | ✅ `great-expectations.md` | — on-demand `ge_validate_job`; read-only profiling |
 | E3 | Ranger column masking (masked vs unmasked) | ✅ `flow-e2e-ranger` | 🟡 `ranger-masking.md` | — read-only |
 | E4 | Governance (lineage + DQ + masking on one dataset) | ✅ `flow-e2e-governance` | 🟡 `governance-e2e.md` | — non-destructive |
 | E5 | ML lifecycle (silver → Feast → Ray → MLflow → serve/consume) | ✅ `flow-e2e-ml` | 🟡 `ml-lifecycle-e2e.md` | ✅ MLflow version/artifact (per leg) |

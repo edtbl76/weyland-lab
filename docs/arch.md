@@ -708,6 +708,22 @@ tests) and "verify the output" (Soda aggregate scan) are different jobs** — a 
 aggregate is a cheap emptiness tripwire that catches what row-level range checks structurally cannot. Runbook:
 [runbooks/soda.md](runbooks/soda.md).
 
+**B77 — the data-quality layer, complete (three sources, one pane).** The DQ layer settled into **three
+complementary sources**, all surfacing to **DataHub Assertions** on the same dataset URNs: (1) the **`@asset_check`
+gate** — `build_asset_checks(cfg)` per domain, now three checks per silver table (`no_error_non_empty` ·
+`valid_column_names` · `no_all_null_columns`, the last from per-column null counts the transform records) →
+`emit_asset_check_assertions` (~231 assertions), with a source-scoped `ALL_NULL_ALLOWLIST` so known-empty schema
+slots don't cry wolf; (2) **Soda**, extended from the 7 marts to the **silver** datasets (`music_silver.yml` +
+enriched `health_gold.yml` — audio-feature bounds, WHO indicator ranges, IPIP scales), on an **advisory posture**
+(silver findings emit but don't fail the job — source-data dirt we don't control; marts stay strict); (3) **Great
+Expectations** (part b, the showcase) — an on-demand `ge_validate_job` (isolated `/opt/ge-venv`, GE 0.18) that
+**auto-profiles** each table (`UserConfigurableProfiler` over a Trino *table* asset) → validate → **339 assertions**
+hand-rolled to DataHub (`emit_ge_assertions` — acryl-datahub 1.7 dropped the native GE action) + **Data Docs** served
+at **`ge-docs.weyland.lab`** (nginx over the `ge-data-docs` PVC the in-pod run writes). The value split is honest:
+Soda-to-silver is the DQ-capability win (caught a 0-ms spotify track + `−1337`/`1002` lastfm ages on run 1); GE is
+the profiling *showcase* — its statistical edge is largely wasted on static at-rest data. See
+[runbooks/soda.md](runbooks/soda.md) and [demos/great-expectations.md](demos/great-expectations.md).
+
 ---
 
 ### 7e. RAG streaming indexer (B-RAG-STREAM)

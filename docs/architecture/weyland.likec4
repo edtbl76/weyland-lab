@@ -118,7 +118,9 @@ model {
         gov = zone "Governance" {
           datahub = component "DataHub" "Metadata catalog + lineage + domains/products/glossaries + applications (B82 app lens)"
           ranger = component "Apache Ranger" "Trino authz — column masking, default-deny"
-          soda = component "Soda" "Data-quality contracts -> DataHub Assertions"
+          soda = component "Soda" "Data-quality contracts (marts + silver) -> DataHub Assertions"
+          greatExpectations = component "Great Expectations" "B77b auto-profiling + validation -> DataHub Assertions + Data Docs"
+          geDocs = component "GE Data Docs" "ge-docs.weyland.lab -- served GE profiling/validation reports"
           storeScaler = component "store-scaler" "Scales Tier-2 stores (Port action target)"
         }
       }
@@ -292,6 +294,7 @@ model {
   weyland.mother.mesh.gov.datahub -> weyland.mother.mesh.query.trino "native source ingestion"
   weyland.mother.mesh.gov.ranger -> weyland.mother.mesh.query.trino "column masking / policy"
   weyland.mother.mesh.gov.soda -> weyland.mother.mesh.query.trino "data-quality scans"
+  weyland.mother.mesh.gov.greatExpectations -> weyland.mother.mesh.query.trino "B77b profiles + validates"
 
   // Storage backends
   weyland.mother.mesh.storage.nessie -> weyland.mother.ops.infra.minio "Iceberg warehouse"
