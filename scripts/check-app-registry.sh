@@ -5,7 +5,7 @@
 #
 # Run from anywhere in the repo. Exit 1 (+ lists the unaccounted apps) on drift, 0 when clean.
 set -euo pipefail
-here="$(cd "$(dirname "$0")/.." && pwd)"           # -> weyland-platform
+here="$(cd "$(dirname "$0")/../nodes/mother/lab/weyland-platform" && pwd)"   # this script lives in repo-root ./scripts; the assets are under the platform dir
 argo_dir="$here/k8s/argocd/applications"
 registry="$here/services/weyland-dagster/weyland_pipeline/applications.yaml"
 
