@@ -1855,11 +1855,14 @@ def emit_asset_check_assertions(instance=None):
     """B77 → DataHub: surface the Dagster `@asset_check` pre-hydration GATE (`build_asset_checks`) as per-silver-
     table DataHub **Assertions**, so the Assertions tab reflects the gate — not just Soda's mart scan. This is the
     seam that unblocks B80: it raises assertion coverage across the data-mesh SILVER datasets (Soda only covers the
-    dbt marts + gold). Reads each domain's **`datasets_<domain>_parquet`** latest-materialization metadata —
-    parquet writes EVERY allowlisted table with no inline-row cap, so large tables that `SkipTable` out of Iceberg
-    (full `brfss`/`usda`) still get a verdict (B77 enrich, 2026-08-06 — was reading `_iceberg`, which missed them).
-    The same per-table `detail`/`schemas` the checks read (no data re-read), mapped to each table's cataloged
-    Trino/Iceberg URN via the SAME `ice_ident` the writer used, emitting up to two assertions per table:
+    dbt marts + gold). Reads each domain's **`datasets_<domain>_parquet`** latest-materialization metadata (parquet
+    writes every allowlisted table and carries row/col counts for the assertion metadata). **Coverage is bounded by
+    the `graph.exists` guard below — a table gets an assertion only if its `iceberg.datasets_<domain>.<ice_ident>`
+    URN EXISTS; parquet-vs-iceberg read does NOT change that (the iceberg-URN anchor does). Current per-file tables
+    are fully covered; plain folder-named duplicates (`brfss`/`usda_fooddata` from the pre-per-file naming) correctly
+    get nothing — they're stale catalog orphans to soft-delete, not a coverage gap.** The per-table `detail`/`schemas`
+    the checks read (no data re-read), mapped to each table's cataloged Trino/Iceberg URN via the SAME `ice_ident`
+    the writer used, emitting up to two assertions per table:
     `no_error_non_empty` (DATASET_ROWS, from `detail`) + `valid_column_names` (DATASET_SCHEMA, from `schemas`).
     Every URN is `graph.exists`-guarded (like `emit_data_contracts`) so a naming miss emits nothing rather than a
     phantom. Reuses the `emit_soda_assertions` AssertionInfo/AssertionRunEvent shape + stable md5(urn:check) so
