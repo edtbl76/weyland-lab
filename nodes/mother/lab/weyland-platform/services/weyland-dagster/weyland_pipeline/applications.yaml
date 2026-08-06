@@ -89,6 +89,7 @@ applications:
   - {key: opensearch-dashboards, name: OpenSearch Dashboards, group: ui, datahub_application: false, owns: [], capabilities: ["visualization", "console-ui"], port_component: opensearch-dashboards, description: "OpenSearch UI / Dev Tools."}
   - {key: headlamp, name: Headlamp, group: ui, datahub_application: false, owns: [], capabilities: ["console-ui"], port_component: headlamp, description: "K8s dashboard UI."}
   - {key: likec4, name: LikeC4, group: ui, datahub_application: false, owns: [], capabilities: ["console-ui"], port_component: likec4, description: "Architecture-diagram explorer (likec4.weyland.lab)."}
+  - {key: ge-docs, name: GE Data Docs, group: ui, datahub_application: false, owns: [], capabilities: ["data-quality", "console-ui"], port_component: ge-docs, description: "Great Expectations Data Docs (ge-docs.weyland.lab) — HTML profiling/validation reports (B77 part b)."}
 
   - {key: store-scaler, name: Store Scaler, group: platform, datahub_application: false, owns: [], capabilities: ["autoscaling"], port_component: store-scaler, description: "KEDA-driven data-mesh store wake/sleep controller."}
   - {key: ray, name: Ray, group: platform, datahub_application: false, owns: [], capabilities: ["model-training"], port_component: ray, description: "Persistent Ray cluster (head on mother + rogueone worker)."}

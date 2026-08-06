@@ -128,6 +128,19 @@ drift starts. Define it **once** as a canonical, machine-readable **registry** (
 source of truth), and make every surface **consume or DoD-check against that one registry**. If a thing isn't in the
 registry, it isn't in any surface — drift becomes impossible **by construction**, not by discipline.
 
+**Onboarding a new app (standing close-out rule).** The moment a body of work stands up a **new deployed service**
+— a pod, a UI, a runner, an nginx — it is **not done until it is registered in `applications.yaml`** (the live B82
+registry): add a `port_component` entry (pure-compute → `datahub_application: false`; owns cataloged data → `true`
+with `owns` URN patterns), then `tofu apply` the Port catalog (+ `emit_applications` for DataHub if it's data-owning)
+and confirm `scripts/check-app-registry.sh` is green. A new service that ships without a registry entry is drift by
+definition — Port and DataHub silently fall out of sync with what's actually running. The same onboarding also covers the **operational surfaces** (§6 operational
+completeness): an **Uptime Kuma monitor** (LAN health → the `uptime_monitor` Port blueprint) **and** a **Prometheus
+`*Down` alert** (a `PrometheusRule`, like every other service carries) — a service the catalog knows about but nothing
+watches is only half-onboarded. Applies to every change that deploys a new app; the registry entry, the drift-guard
+pass, the **Kuma monitor**, and the **Down alert** are all part of that change's close-out. (Example: `ge-docs`, the GE
+Data Docs server — registered here as a pure-compute `ui` component, with a Kuma monitor + `GeDocsDown` rule, when its
+build lands.)
+
 This is a **possible process**: reach for it whenever the same set of things must be classified identically in **≥2
 surfaces** (Port ↔ DataHub ↔ docs ↔ diagrams). Skip it for single-surface work. When it applies, the registry is the
 deliverable the other surfaces are graded against in the drift sweep above.
