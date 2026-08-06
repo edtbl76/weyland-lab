@@ -867,6 +867,74 @@ _APP_DOCS = {
 _APP_DOMAIN = {"genre-trainer": "ML & Modeling", "mlflow": "ML & Modeling",
                "weyland-tool-server": "Docs & RAG", "weyland-agent": "Docs & RAG"}
 
+# B82 — "Application Capabilities" glossary: a DESCRIPTIVE controlled vocabulary of what an app DOES (not an
+# exhaustive ontology). Each Application carries the handful that apply — apps do several things. One glossary node.
+_CAP_NODE = ("application-capabilities", "Application Capabilities",
+             "What a lab application does — the descriptive capability vocabulary for the app-centric catalog lens (B82).")
+_CAPABILITY_TERMS = {
+    "orchestration": ("Orchestration", "Schedules and runs the data/asset pipeline."),
+    "data-production": ("Data Production", "Writes cataloged datasets."),
+    "transformation": ("Transformation", "Builds derived tables (SQL / dbt models)."),
+    "streaming": ("Streaming", "Real-time stream processing."),
+    "model-training": ("Model Training", "Trains ML models."),
+    "model-registry": ("Model Registry & Tracking", "Versions models and tracks experiments."),
+    "catalog-governance": ("Catalog & Governance", "Metadata catalog, lineage, or governance surface."),
+    "retrieval-rag": ("Retrieval / RAG", "Vector retrieval + retrieval-augmented generation."),
+    "agent": ("Agent", "Autonomous / agentic task execution."),
+    "multi-agent": ("Multi-Agent (A2A)", "Agent-to-agent orchestration across a fleet."),
+    "guardrails": ("Guardrails / Safety", "I/O sanitization, content safety, or policy enforcement."),
+    "observability": ("Observability", "Metrics, logs, traces, or health signals."),
+    "visualization": ("Visualization / Dashboards", "Charts and dashboards."),
+    "feature-store": ("Feature Store", "Serves ML features (offline + online)."),
+    "semantic-layer": ("Semantic Layer", "Governed metrics and dimensions over the marts."),
+    "query-federation": ("Query Federation", "Cross-source SQL query."),
+    "data-versioning": ("Data Versioning", "Git-like versioning of data or the table catalog."),
+    "business-intelligence": ("Business Intelligence", "Self-serve BI exploration."),
+    "error-tracking": ("Error Tracking", "Application error / exception capture."),
+    "authentication": ("Authentication / SSO", "Identity provider and single sign-on."),
+    "authorization": ("Authorization", "Data-plane access control and policy."),
+    "code-quality": ("Code Quality", "Static analysis and quality gates."),
+    "feature-flags": ("Feature Flags", "Runtime feature toggles."),
+    "workflow-automation": ("Workflow Automation", "Event / HTTP glue and automations."),
+    "ci-cd": ("CI / CD", "Build and deployment pipelines."),
+    "chat-interface": ("Chat Interface", "Conversational front end."),
+    "console-ui": ("Console / UI", "Web console for a capability."),
+    "uptime-monitoring": ("Uptime Monitoring", "Synthetic up/down monitoring."),
+    "llm-gateway": ("LLM Gateway", "Routes and meters LLM traffic."),
+    "mcp": ("MCP Tool Gateway", "Model Context Protocol tool aggregation."),
+}
+_APP_CAPABILITIES = {
+    "weyland-dagster": ["orchestration", "data-production", "catalog-governance"],
+    "dbt": ["transformation", "data-production"],
+    "flink": ["streaming", "transformation", "data-production"],
+    "genre-trainer": ["model-training", "data-production"],
+    "mlflow": ["model-registry"],
+    "weyland-tool-server": ["retrieval-rag", "data-production"],
+    "weyland-agent": ["agent", "retrieval-rag"],
+    "weyland-operator": ["agent", "observability"],
+    "realm-of-agents": ["agent", "multi-agent"],
+    "weyland-guard": ["guardrails"],
+    "grafana": ["observability", "visualization"],
+    "feast": ["feature-store"],
+    "cube": ["semantic-layer"],
+    "trino": ["query-federation"],
+    "nessie": ["data-versioning", "catalog-governance"],
+    "lakefs": ["data-versioning"],
+    "superset": ["business-intelligence", "visualization"],
+    "lightdash": ["business-intelligence", "visualization"],
+    "glitchtip": ["error-tracking", "observability"],
+    "keycloak": ["authentication"],
+    "sonarqube": ["code-quality"],
+    "unleash": ["feature-flags"],
+    "ranger": ["authorization", "catalog-governance"],
+    "n8n": ["workflow-automation"],
+    "woodpecker": ["ci-cd"],
+    "open-webui": ["chat-interface", "console-ui"],
+    "uptime-kuma": ["uptime-monitoring", "observability"],
+    "litellm": ["llm-gateway"],
+    "bifrost": ["llm-gateway", "mcp"],
+}
+
 
 def emit_applications():
     """B82 — create DataHub Application entities from the canonical registry + attach every cataloged
@@ -891,6 +959,18 @@ def emit_applications():
     import time
     from datahub.metadata.schema_classes import InstitutionalMemoryClass, InstitutionalMemoryMetadataClass
     made = AuditStampClass(time=int(time.time() * 1000), actor="urn:li:corpuser:datahub")
+
+    # Application Capabilities glossary — node + the descriptive terms (emitted once, idempotent)
+    cap_node = f"urn:li:glossaryNode:{_CAP_NODE[0]}"
+    emitter.emit(MetadataChangeProposalWrapper(entityUrn=cap_node,
+        aspect=GlossaryNodeInfoClass(name=_CAP_NODE[1], definition=_CAP_NODE[2], parentNode=None)))
+    cap_urn = {}
+    for tid, (tname, tdef) in _CAPABILITY_TERMS.items():
+        cu = f"urn:li:glossaryTerm:app-cap.{tid}"
+        cap_urn[tid] = cu
+        emitter.emit(MetadataChangeProposalWrapper(entityUrn=cu, aspect=GlossaryTermInfoClass(
+            name=tname, definition=tdef, termSource="INTERNAL", parentNode=cap_node)))
+
     aurn = {}
     for a in dh_apps:
         key = a["key"]
@@ -913,6 +993,11 @@ def emit_applications():
         dom = _APP_DOMAIN.get(key, "Platform & Ops")
         emitter.emit(MetadataChangeProposalWrapper(entityUrn=u, aspect=DomainsClass(
             domains=[make_domain_urn(dom.lower().replace(" & ", "-").replace(" ", "-"))])))
+        # Capabilities — the descriptive glossary terms for what this app does
+        caps = _APP_CAPABILITIES.get(key, [])
+        if caps:
+            emitter.emit(MetadataChangeProposalWrapper(entityUrn=u, aspect=GlossaryTermsClass(
+                terms=[GlossaryTermAssociationClass(urn=cap_urn[c]) for c in caps], auditStamp=made)))
 
     # 2) attach each cataloged asset to its owning app (first-match by owns patterns, registry order)
     from collections import Counter
