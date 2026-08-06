@@ -157,6 +157,12 @@ def emit_eval_assertions_op(context):
 
 
 @op
+def emit_asset_check_assertions_op(context):
+    from weyland_pipeline.datahub_emit import emit_asset_check_assertions
+    _safe_emit(context, "Asset-check GATE → per-silver-table Assertions (B77)", emit_asset_check_assertions)
+
+
+@op
 def emit_glossary_op(context):
     from weyland_pipeline.datahub_emit import emit_glossary
     _safe_emit(context, "Business Glossary (AIDLC KB taxonomy)", emit_glossary)
@@ -306,6 +312,7 @@ def datahub_catalog_emit_job():
     emit_data_products_op()
     emit_applications_op()
     emit_eval_assertions_op()
+    emit_asset_check_assertions_op()
     emit_glossary_op()
     emit_mesh_glossary_op()
     emit_field_docs_op()

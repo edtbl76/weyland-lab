@@ -1851,6 +1851,93 @@ def emit_soda_assertions(scan_results: dict):
     return n
 
 
+def emit_asset_check_assertions():
+    """B77 → DataHub: surface the Dagster `@asset_check` pre-hydration GATE (`build_asset_checks`) as per-silver-
+    table DataHub **Assertions**, so the Assertions tab reflects the gate — not just Soda's mart scan. This is the
+    seam that unblocks B80: it raises assertion coverage across the data-mesh SILVER datasets (Soda only covers the
+    dbt marts + gold). Reads each domain's `datasets_<domain>_iceberg` latest-materialization metadata (the same
+    per-table `detail`/`schemas` the checks read — no data re-read), maps every hydrated table to its cataloged
+    Trino/Iceberg URN via the SAME `ice_ident` the writer used, and emits up to two assertions per table:
+    `no_error_non_empty` (DATASET_ROWS, from `detail`) + `valid_column_names` (DATASET_SCHEMA, from `schemas`).
+    Every URN is `graph.exists`-guarded (like `emit_data_contracts`) so a naming miss emits nothing rather than a
+    phantom. Reuses the `emit_soda_assertions` AssertionInfo/AssertionRunEvent shape + stable md5(urn:check) so
+    re-runs update the same assertion and append a fresh run result. Domain list derives from `_SODA_DS_SCHEMA`
+    (add a `weyland_<domain>` there and this covers it for free). Non-fatal — failures are logged, never raised."""
+    import hashlib
+    import re
+    import time
+    from dagster import AssetKey, DagsterInstance
+    from datahub.emitter.mce_builder import make_assertion_urn
+    from datahub.ingestion.graph.client import DataHubGraph, DatahubClientConfig
+    from datahub.metadata.schema_classes import (
+        AssertionInfoClass,
+        AssertionResultClass,
+        AssertionResultTypeClass,
+        AssertionRunEventClass,
+        AssertionRunStatusClass,
+        AssertionStdAggregationClass,
+        AssertionStdOperatorClass,
+        AssertionTypeClass,
+        DatasetAssertionInfoClass,
+        DatasetAssertionScopeClass,
+    )
+    from weyland_pipeline.assets.datasets_lib.writers import ice_ident
+
+    emitter = _gms_emitter()
+    server = os.environ.get("DATAHUB_GMS_URL", "http://datahub-datahub-gms.data-mesh.svc.cluster.local:8080")
+    graph = DataHubGraph(DatahubClientConfig(server=server, token=os.environ.get("DATAHUB_GMS_TOKEN", "")))
+    inst = DagsterInstance.get()
+    valid = re.compile(r"^[A-Za-z0-9_]+$")
+    ts = int(time.time() * 1000)
+    run_id = f"assetcheck-{ts}"
+    n = 0
+
+    def _assert(urn, check, passed, scope, extra):
+        aurn = make_assertion_urn(hashlib.md5(f"{urn}:{check}".encode(), usedforsecurity=False).hexdigest())
+        emitter.emit(MetadataChangeProposalWrapper(entityUrn=aurn, aspect=AssertionInfoClass(
+            type=AssertionTypeClass.DATASET,
+            datasetAssertion=DatasetAssertionInfoClass(
+                dataset=urn, scope=scope, fields=[],
+                aggregation=AssertionStdAggregationClass._NATIVE_,
+                operator=AssertionStdOperatorClass._NATIVE_, nativeType=check),
+            customProperties={"source": "dagster_asset_check", "check": check, **extra},
+            description=check)))
+        emitter.emit(MetadataChangeProposalWrapper(entityUrn=aurn, aspect=AssertionRunEventClass(
+            timestampMillis=ts, runId=run_id, assertionUrn=aurn, asserteeUrn=urn,
+            status=AssertionRunStatusClass.COMPLETE,
+            result=AssertionResultClass(
+                type=AssertionResultTypeClass.SUCCESS if passed else AssertionResultTypeClass.FAILURE))))
+
+    domains = [k[len("weyland_"):] for k in _SODA_DS_SCHEMA if k.startswith("weyland_")]
+    for domain in domains:
+        ev = inst.get_latest_materialization_event(AssetKey(f"datasets_{domain}_iceberg"))
+        if ev is None or ev.asset_materialization is None:
+            continue
+        md = {k: getattr(v, "value", v) for k, v in ev.asset_materialization.metadata.items()}
+        detail = md.get("detail") or {}
+        schemas = md.get("schemas") or {}
+        for key, status in detail.items():
+            if "/" not in key:
+                continue
+            table, name = key.split("/", 1)
+            urn = _soda_dataset_urn(f"weyland_{domain}", ice_ident(table, name))
+            if not graph.exists(urn):
+                continue  # deferred / errored-and-never-hydrated / naming miss → no phantom assertion
+            status = status if isinstance(status, str) else ""
+            if not status.startswith("deferred"):  # a SkipTable isn't a quality failure, just not inline-iceberg'd
+                passed = status.startswith("ok") and not status.startswith("ok (0r")
+                _assert(urn, "no_error_non_empty", passed, DatasetAssertionScopeClass.DATASET_ROWS,
+                        {"status": status[:200]})
+                n += 1
+            cols = schemas.get(key) or []
+            if cols:
+                bad = [c for c in cols if not valid.match(str(c))]
+                _assert(urn, "valid_column_names", not bad, DatasetAssertionScopeClass.DATASET_SCHEMA,
+                        {"bad_columns": ",".join(bad)[:200]})
+                n += 1
+    return n
+
+
 def emit_soda_profiles(scan_results: dict):
     """L5 Slice C → DataHub **Stats**: reuse the numbers Soda already computed (`metrics` in the -srf JSON) as a
     `DatasetProfile` per mart — rowCount + per-column nullCount/min/max — so the greyed-out Stats tab populates
