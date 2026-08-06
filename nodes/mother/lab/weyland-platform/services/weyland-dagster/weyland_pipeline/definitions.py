@@ -261,6 +261,7 @@ def soda_scan_op(context):
         ("weyland_health", "/tmp/soda_gold.json", ["/app/soda/checks/health_gold.yml", _bl]),
     ]
     worst = 0
+    marts_bad = False
     for ds, results_file, check_files in scans:
         cmd = ["/opt/soda-venv/bin/soda", "scan", "-d", ds, "-c", "/app/soda/configuration.yml",
                "-srf", results_file, *check_files]
@@ -271,6 +272,8 @@ def soda_scan_op(context):
         if result.stderr:
             context.log.warning(result.stderr)
         worst = max(worst, result.returncode)
+        if ds == "weyland" and result.returncode >= 2:  # marts = strict data contract; silver is advisory (below)
+            marts_bad = True
         # Emit BEFORE the fail check so failing checks still surface in the catalog. Non-fatal per scan.
         try:
             with open(results_file) as f:
@@ -280,8 +283,15 @@ def soda_scan_op(context):
                              f"{emit_data_contracts(scan_results)} contracts")
         except Exception as e:
             context.log.warning(f"DataHub quality emit skipped for {ds} (non-fatal): {e}")
+    # Marts (data source `weyland`) violating their contract = a real failure → raise. SILVER source-data findings
+    # (dirty ages, 0-duration tracks in downloaded datasets we don't control) are ADVISORY: already emitted to
+    # DataHub as failing assertions above, so they show red on the Quality tabs without failing the pipeline
+    # (B77 Soda-to-silver posture, 2026-08-06).
+    if marts_bad:
+        raise Failure(description="Soda scan failed — a MART violated its data contract.")
     if worst >= 2:
-        raise Failure(description=f"Soda scan failed (exit {worst}) — a table violated its data contract.")
+        context.log.warning(f"Soda SILVER check(s) failed (exit {worst}) — advisory only; findings are on the "
+                            f"datasets' DataHub Quality tabs, not failing the job.")
     return worst
 
 
