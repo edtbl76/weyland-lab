@@ -1851,7 +1851,7 @@ def emit_soda_assertions(scan_results: dict):
     return n
 
 
-def emit_asset_check_assertions():
+def emit_asset_check_assertions(instance=None):
     """B77 → DataHub: surface the Dagster `@asset_check` pre-hydration GATE (`build_asset_checks`) as per-silver-
     table DataHub **Assertions**, so the Assertions tab reflects the gate — not just Soda's mart scan. This is the
     seam that unblocks B80: it raises assertion coverage across the data-mesh SILVER datasets (Soda only covers the
@@ -1886,7 +1886,7 @@ def emit_asset_check_assertions():
     emitter = _gms_emitter()
     server = os.environ.get("DATAHUB_GMS_URL", "http://datahub-datahub-gms.data-mesh.svc.cluster.local:8080")
     graph = DataHubGraph(DatahubClientConfig(server=server, token=os.environ.get("DATAHUB_GMS_TOKEN", "")))
-    inst = DagsterInstance.get()
+    inst = instance if instance is not None else DagsterInstance.get()  # op passes context.instance; get() needs $DAGSTER_HOME (absent in user-code pod), so never rely on it
     valid = re.compile(r"^[A-Za-z0-9_]+$")
     ts = int(time.time() * 1000)
     run_id = f"assetcheck-{ts}"
