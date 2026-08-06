@@ -69,6 +69,7 @@ Legend: ✅ done · ⬜ missing · 🟡 exists but stale/partial · — not appl
 | E10 | SSO (browser → forward-auth → Keycloak → app, one login) | ✅ `flow-e2e-sso` | 🟡 `sso-e2e.md` | — read-only |
 | E11 | Agent (Telegram → Hermes → LiteLLM/Ollama → MCP → tool-server → reply) | ✅ `flow-e2e-agent` | 🟡 `agent-e2e.md` | — read-only |
 | E12 | Store wake/sleep (Port action → port-agent → store-scaler → k8s scale) | ✅ `flow-e2e-store-scale` | 🟡 `store-scale-e2e.md` | — replicas only |
+| B82 | Application taxonomy (registry → DataHub Applications + Port components, one SoT) | ✅ `flow-application-taxonomy` | ✅ `application-taxonomy.md` (RUN — `(29,4157)` + eyes-on) | — read-only |
 
 > **E-rows are 🟡 authored — pending live validation run.** Commands are real (pulled from the component
 > demos/runbooks, no placeholders, host-labeled), but per the demos DoD a demo is not ✅ until executed

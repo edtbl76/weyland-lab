@@ -29,9 +29,13 @@ resource "port_entity" "component" {
   blueprint  = "component"
 
   properties = {
-    array_props   = null
     number_props  = null
     object_props  = null
+    array_props = {
+      string_items = {
+        capabilities = lookup(each.value, "capabilities", [])
+      }
+    }
     boolean_props = {
       is_data_application = each.value.datahub_application
     }

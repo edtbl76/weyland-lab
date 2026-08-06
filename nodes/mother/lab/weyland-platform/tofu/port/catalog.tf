@@ -296,6 +296,18 @@ resource "port_blueprint" "component" {
         string_items  = null
         title         = "Tags"
       }
+      capabilities = {
+        boolean_items = null
+        description   = "What this app does — from the B82 registry (applications.yaml)."
+        icon          = null
+        max_items     = null
+        min_items     = null
+        number_items  = null
+        object_items  = null
+        required      = false
+        string_items  = null
+        title         = "Capabilities"
+      }
     }
     boolean_props = {
       is_data_application = {

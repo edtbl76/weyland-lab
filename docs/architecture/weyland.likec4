@@ -116,7 +116,7 @@ model {
         }
 
         gov = zone "Governance" {
-          datahub = component "DataHub" "Metadata catalog + lineage + domains/products/glossaries"
+          datahub = component "DataHub" "Metadata catalog + lineage + domains/products/glossaries + applications (B82 app lens)"
           ranger = component "Apache Ranger" "Trino authz — column masking, default-deny"
           soda = component "Soda" "Data-quality contracts -> DataHub Assertions"
           storeScaler = component "store-scaler" "Scales Tier-2 stores (Port action target)"
