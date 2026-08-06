@@ -1,0 +1,17 @@
+# ge-docs — nginx serving Great Expectations Data Docs (B77 part b). Auto-sync (new clean app).
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: ge-docs
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/edtbl76/weyland-lab.git
+    targetRevision: main
+    path: nodes/mother/lab/weyland-platform/k8s/ge-docs
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: weyland
+  syncPolicy:
+    automated: { selfHeal: true, prune: true }

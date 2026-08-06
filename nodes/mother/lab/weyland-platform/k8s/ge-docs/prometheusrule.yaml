@@ -1,0 +1,22 @@
+# ge-docs (GE Data Docs) down alert — B77 part b. Lives in the `monitoring` ns with release:monitoring
+# (kube-prometheus-stack ruleSelector); kube-state-metrics deployment-replicas signal (no /metrics on the nginx),
+# like the guardrails-structure / litellm / llama-guard rules. Non-critical — a static report viewer — so `warning`.
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: ge-docs
+  namespace: monitoring
+  labels:
+    release: monitoring
+spec:
+  groups:
+    - name: ge-docs
+      rules:
+        - alert: GeDocsDown
+          expr: kube_deployment_status_replicas_available{namespace="weyland",deployment="ge-docs"} < 1
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "ge-docs (Great Expectations Data Docs) has no ready replica"
+            description: "The GE Data Docs site (ge-docs.weyland.lab, B77 part b) is down. Non-critical — a static HTML report viewer; GE validation + DataHub Assertions are unaffected. Check: kubectl -n weyland rollout status deploy/ge-docs"

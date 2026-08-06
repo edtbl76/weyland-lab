@@ -298,10 +298,15 @@ spec:
             - name: dagster-config
               mountPath: /opt/dagster/dagster_home/dagster.yaml
               subPath: dagster.yaml
+            - name: ge-data-docs
+              mountPath: /ge-data   # B77 part b — GE (ge_validate_op runs in-pod via DefaultRunLauncher) writes Data Docs here; ge-docs nginx serves the same PVC
       volumes:
         - name: dagster-config
           configMap:
             name: dagster-config
+        - name: ge-data-docs
+          persistentVolumeClaim:
+            claimName: ge-data-docs
 ---
 apiVersion: v1
 kind: Service
