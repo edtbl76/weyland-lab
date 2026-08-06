@@ -1,38 +1,74 @@
-# #8 — gold source data-quality (data source: weyland_health = iceberg.datasets_health). The WHO GHO + BRFSS gold
-# tables that feed the health marts. Conservative checks (row presence + the measured value isn't 100% NULL) — this
-# is where the WHO dim1 code-vs-label bug originated, so an emptiness tripwire on numericvalue guards the source.
+# #8 — gold/silver source data-quality (data source: weyland_health = iceberg.datasets_health). The WHO GHO + BRFSS
+# gold tables that feed the health marts, plus the Big-Five silver. Checks: row presence, value bounds where the
+# indicator scale is unambiguous, and missing_percent(col)<100 "not 100% NULL" tripwires (a min/max passes vacuously
+# on an all-null column — this is where the WHO dim1 code-vs-label bug originated, so the tripwire guards the source).
+# B77 Soda-to-silver enrich 2026-08-06.
 
+# --- WHO GHO indicators (one indicator per table; numericvalue is DOUBLE) ---
 checks for who_gho_life_expectancy:
   - row_count > 0
+  - min(numericvalue) >= 0
+  - max(numericvalue) <= 120        # years
   - missing_percent(numericvalue) < 100
 
 checks for who_gho_healthy_life_expectancy:
   - row_count > 0
+  - min(numericvalue) >= 0
+  - max(numericvalue) <= 120        # years
   - missing_percent(numericvalue) < 100
 
 checks for who_gho_diabetes_prevalence:
   - row_count > 0
+  - min(numericvalue) >= 0
+  - max(numericvalue) <= 100        # prevalence %
   - missing_percent(numericvalue) < 100
 
 checks for who_gho_adult_obesity:
   - row_count > 0
+  - min(numericvalue) >= 0
+  - max(numericvalue) <= 100        # prevalence %
   - missing_percent(numericvalue) < 100
 
 checks for who_gho_hypertension:
   - row_count > 0
-  - missing_percent(numericvalue) < 100
-
-checks for who_gho_alcohol_consumption:
-  - row_count > 0
+  - min(numericvalue) >= 0
+  - max(numericvalue) <= 100        # prevalence %
   - missing_percent(numericvalue) < 100
 
 checks for who_gho_tobacco_smoking:
   - row_count > 0
+  - min(numericvalue) >= 0
+  - max(numericvalue) <= 100        # prevalence %
+  - missing_percent(numericvalue) < 100
+
+# alcohol (litres/capita) + mental-health (mixed rate scales) — scale not a clean %, so bound only the floor
+checks for who_gho_alcohol_consumption:
+  - row_count > 0
+  - min(numericvalue) >= 0
   - missing_percent(numericvalue) < 100
 
 checks for who_gho_mental_health_disorders:
   - row_count > 0
+  - min(numericvalue) >= 0
   - missing_percent(numericvalue) < 100
 
+# --- BRFSS prevalence (row presence only for now — column set not yet confirmed for value bounds) ---
 checks for brfss_brfss_prevalence_2011_present:
   - row_count > 0
+
+# --- Big-Five (IPIP-BFFM 50-item; responses 1–5, 0 = not answered; age is self-reported and known-dirty) ---
+checks for big_five_big5_data:
+  - row_count > 0
+  - min(age) >= 0
+  # one representative item per OCEAN trait bounded to the Likert scale (0 = skipped)
+  - min(e1) >= 0
+  - max(e1) <= 5
+  - min(n1) >= 0
+  - max(n1) <= 5
+  - min(a1) >= 0
+  - max(a1) <= 5
+  - min(c1) >= 0
+  - max(c1) <= 5
+  - min(o1) >= 0
+  - max(o1) <= 5
+  - missing_percent(e1) < 100

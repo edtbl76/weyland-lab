@@ -257,7 +257,7 @@ def soda_scan_op(context):
     _bl = "/app/soda/checks/baseline.yml"
     scans = [
         ("weyland", "/tmp/soda_marts.json", ["/app/soda/checks/music.yml", "/app/soda/checks/health.yml", _bl]),
-        ("weyland_music", "/tmp/soda_music.json", [_bl]),
+        ("weyland_music", "/tmp/soda_music.json", ["/app/soda/checks/music_silver.yml", _bl]),
         ("weyland_health", "/tmp/soda_gold.json", ["/app/soda/checks/health_gold.yml", _bl]),
     ]
     worst = 0

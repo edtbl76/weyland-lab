@@ -1,0 +1,48 @@
+# Soda data-quality — music-domain SILVER (data source weyland_music = iceberg.datasets_music). Richer semantic
+# bounds on the tables with real numeric columns, layered over the baseline row_count>0 (baseline.yml). Mirrors the
+# mart rigor (music.yml/health.yml): value ranges, key non-null, and missing_percent(col)<100 "not 100% NULL"
+# tripwires (a min/max check passes vacuously on an all-null column — these do not). B77 Soda-to-silver 2026-08-06.
+# NOTE: no uniqueness on track_id — the Spotify set repeats a track across genres by design (would false-fail).
+
+checks for spotify_tracks:
+  - row_count > 0
+  - missing_count(track_id) = 0
+  # audio-feature model scores are bounded [0,1]
+  - min(danceability) >= 0
+  - max(danceability) <= 1
+  - min(energy) >= 0
+  - max(energy) <= 1
+  - min(valence) >= 0
+  - max(valence) <= 1
+  - min(acousticness) >= 0
+  - max(acousticness) <= 1
+  - min(instrumentalness) >= 0
+  - max(instrumentalness) <= 1
+  - min(liveness) >= 0
+  - max(liveness) <= 1
+  - min(speechiness) >= 0
+  - max(speechiness) <= 1
+  # physical / catalog measures
+  - min(tempo) >= 0
+  - min(duration_ms) > 0
+  - min(popularity) >= 0
+  - max(popularity) <= 100
+  - min(mode) >= 0            # 0 = minor, 1 = major
+  - max(mode) <= 1
+  - min(key) >= -1           # pitch class 0–11, −1 = undetected
+  - max(key) <= 11
+
+checks for lastfm:
+  - row_count > 0
+  - missing_count(user_id) = 0
+  - missing_count(artist_name) = 0
+  - min(play_count) >= 0
+  - min(age) >= 0
+  - max(age) <= 120
+  - missing_percent(play_count) < 100
+
+checks for gtzan:
+  - row_count > 0
+  - missing_count(genre) = 0
+  - min(label) >= 0          # 10 GTZAN genre classes → label 0–9
+  - max(label) <= 9
