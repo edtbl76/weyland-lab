@@ -25,7 +25,7 @@ data:
   default.conf: |
     server {
       listen 80;
-      root /ge-data/uncommitted/data_docs/local_site;
+      root /ge-data/gx/uncommitted/data_docs/local_site;   # GE's FileDataContext nests the project under gx/
       index index.html;
       location / { try_files $uri $uri/ =404; }
     }
