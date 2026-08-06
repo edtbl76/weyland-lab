@@ -25,15 +25,18 @@ spec:
           limits:
             cpu: "2000m"
             memory: "1024Mi"
-  # istiod (pilot) right-sized 2026-06-27: the helm default reserved 500m CPU but it idles at ~15m. Mem
-  # kept at 2Gi (it uses it). istio is NOT in Argo (B69) → re-apply with `istioctl install -f`.
+  # istiod (pilot) right-sized 2026-06-27 (CPU 500m→200m; idles ~15m) and 2026-08-06 (mem 2Gi→512Mi): the
+  # 2Gi reservation was a myth — live usage is ~200Mi/replica, and the default HPA runs 3 replicas, so 2Gi
+  # reserved 6Gi and pinned the single node at 98% memory-requests (blocking a 4Gi dagster-user-code roll).
+  # No mem LIMIT is set, so istiod can still burst above 512Mi during large config pushes — this only frees
+  # the scheduler reservation. istio is NOT in Argo (B69) → re-apply with `istioctl install -f`.
   components:
     pilot:
       k8s:
         resources:
           requests:
             cpu: "200m"
-            memory: "2Gi"
+            memory: "512Mi"
   meshConfig:
     enableTracing: true
     # Tracing PROVIDER: where Envoy ships spans → Tempo's zipkin receiver (B48; was the addon Jaeger, now retired).

@@ -126,6 +126,23 @@ kubectl -n weyland exec deploy/weyland-operator -- python -c "import urllib.requ
 - **tool-call leaked into `content`** (a `</tool_call>` blob, no `tool_calls`) → too many / router-wrapped tools; the local brain needs the **curated FLAT set**, not routers or the full 91.
 - **Ollama `/v1` won't disable qwen3 thinking** — `think:false`, `/no_think`, and `chat_template_kwargs.enable_thinking:false` are ALL no-ops on this build (the reasoning field stays populated); use a **non-thinking** model (qwen2.5:7b), don't fight it. See [[operator-local-brain-qwen25-flat]].
 
+## Reliability check (periodic — run ~1 day after any brain/image roll)
+
+Confirm local-primary is actually carrying the load and Haiku is a rare/zero backstop — off the fleet Grafana
+Prometheus (datasource `prometheus`):
+```
+# brain selection over 24h — expect ~100% local (reason=primary), ~0 haiku (local_down / local_error):
+sum by (brain, reason) (increase(operator_brain_selected_total[24h]))
+# operator failover cost — expect ≈0. NOTE this is ALL claude-haiku through LiteLLM, not operator-only; the
+# operator's attributed Haiku spend is $0 whenever the brain metric above shows 0 haiku selections:
+sum(increase(litellm_spend_metric_total{requested_model="claude-haiku"}[24h]))
+```
+**Healthy** = local carries ~100%, `haiku` selections 0, operator Haiku spend $0. **Flaking** = frequent
+`local_down`/`local_error` failover or non-zero operator Haiku spend → chase rogueone/Ollama (VRAM contention / model
+not fully on GPU — see the troubleshooting block above). Also glance at the pod's restart count while you're here.
+**Validated 2026-08-06** (v20, ~1.5 days post-deploy): 3/3 local-primary, **0 failover**, operator Haiku **$0**
+(fleet-wide Haiku was $0.157 from *other* consumers, not the operator) — design behaved.
+
 ## Reference
 Design: `aidlc-docs/construction/operator-agent-design.md`. Bake-off: [demos/brain-bakeoff.md](../demos/brain-bakeoff.md).
 Guard service: [runbooks/guardrails.md](guardrails.md). Demo: [demos/operator.md](../demos/operator.md). See [[b66-operator-brain-bakeoff]].

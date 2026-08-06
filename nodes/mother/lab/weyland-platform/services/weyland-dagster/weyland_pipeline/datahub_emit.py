@@ -1855,9 +1855,11 @@ def emit_asset_check_assertions(instance=None):
     """B77 → DataHub: surface the Dagster `@asset_check` pre-hydration GATE (`build_asset_checks`) as per-silver-
     table DataHub **Assertions**, so the Assertions tab reflects the gate — not just Soda's mart scan. This is the
     seam that unblocks B80: it raises assertion coverage across the data-mesh SILVER datasets (Soda only covers the
-    dbt marts + gold). Reads each domain's `datasets_<domain>_iceberg` latest-materialization metadata (the same
-    per-table `detail`/`schemas` the checks read — no data re-read), maps every hydrated table to its cataloged
-    Trino/Iceberg URN via the SAME `ice_ident` the writer used, and emits up to two assertions per table:
+    dbt marts + gold). Reads each domain's **`datasets_<domain>_parquet`** latest-materialization metadata —
+    parquet writes EVERY allowlisted table with no inline-row cap, so large tables that `SkipTable` out of Iceberg
+    (full `brfss`/`usda`) still get a verdict (B77 enrich, 2026-08-06 — was reading `_iceberg`, which missed them).
+    The same per-table `detail`/`schemas` the checks read (no data re-read), mapped to each table's cataloged
+    Trino/Iceberg URN via the SAME `ice_ident` the writer used, emitting up to two assertions per table:
     `no_error_non_empty` (DATASET_ROWS, from `detail`) + `valid_column_names` (DATASET_SCHEMA, from `schemas`).
     Every URN is `graph.exists`-guarded (like `emit_data_contracts`) so a naming miss emits nothing rather than a
     phantom. Reuses the `emit_soda_assertions` AssertionInfo/AssertionRunEvent shape + stable md5(urn:check) so
@@ -1908,9 +1910,12 @@ def emit_asset_check_assertions(instance=None):
             result=AssertionResultClass(
                 type=AssertionResultTypeClass.SUCCESS if passed else AssertionResultTypeClass.FAILURE))))
 
+    row_re = re.compile(r"ok \((\d+)r x (\d+)c\)")  # parse "ok (123r x 45c)" → row/column counts for assertion metadata
     domains = [k[len("weyland_"):] for k in _SODA_DS_SCHEMA if k.startswith("weyland_")]
     for domain in domains:
-        ev = inst.get_latest_materialization_event(AssetKey(f"datasets_{domain}_iceberg"))
+        # PARQUET (not iceberg): no inline-row cap, so deferred big tables still get a verdict. The assertion
+        # anchors on the cataloged trino:iceberg URN either way, graph.exists-guarded.
+        ev = inst.get_latest_materialization_event(AssetKey(f"datasets_{domain}_parquet"))
         if ev is None or ev.asset_materialization is None:
             continue
         md = {k: getattr(v, "value", v) for k, v in ev.asset_materialization.metadata.items()}
@@ -1922,18 +1927,21 @@ def emit_asset_check_assertions(instance=None):
             table, name = key.split("/", 1)
             urn = _soda_dataset_urn(f"weyland_{domain}", ice_ident(table, name))
             if not graph.exists(urn):
-                continue  # deferred / errored-and-never-hydrated / naming miss → no phantom assertion
+                continue  # table not cataloged as an iceberg dataset (naming miss / never hydrated) → no phantom
             status = status if isinstance(status, str) else ""
-            if not status.startswith("deferred"):  # a SkipTable isn't a quality failure, just not inline-iceberg'd
+            if not status.startswith("deferred"):  # a SkipTable isn't a quality failure
                 passed = status.startswith("ok") and not status.startswith("ok (0r")
-                _assert(urn, "no_error_non_empty", passed, DatasetAssertionScopeClass.DATASET_ROWS,
-                        {"status": status[:200]})
+                meta = {"status": status[:200]}
+                m = row_re.match(status)
+                if m:
+                    meta["row_count"], meta["column_count"] = m.group(1), m.group(2)
+                _assert(urn, "no_error_non_empty", passed, DatasetAssertionScopeClass.DATASET_ROWS, meta)
                 n += 1
             cols = schemas.get(key) or []
             if cols:
                 bad = [c for c in cols if not valid.match(str(c))]
                 _assert(urn, "valid_column_names", not bad, DatasetAssertionScopeClass.DATASET_SCHEMA,
-                        {"bad_columns": ",".join(bad)[:200]})
+                        {"bad_columns": ",".join(bad)[:200], "column_count": str(len(cols))})
                 n += 1
     return n
 
