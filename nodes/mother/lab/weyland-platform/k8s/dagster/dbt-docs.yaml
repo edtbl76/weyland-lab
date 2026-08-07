@@ -27,7 +27,7 @@ spec:
     spec:
       containers:
         - name: dbt-docs
-          image: registry.weyland.lab/weyland-dagster-user-code:v29   # keep in lockstep with user-code.yaml (B77 part b — GE rich profiler)
+          image: registry.weyland.lab/weyland-dagster-user-code:v30   # keep in lockstep with user-code.yaml (B80 — mesh-wide Data Contracts)
           imagePullPolicy: IfNotPresent
           command: ["sh", "-c"]
           args:

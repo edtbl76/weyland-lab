@@ -164,6 +164,13 @@ def emit_asset_check_assertions_op(context):
 
 
 @op
+def emit_data_contracts_op(context):
+    from weyland_pipeline.datahub_emit import emit_data_contracts
+    _safe_emit(context, "Data Contracts (per data-mesh dataset, all 3 assertion sources — B80)",
+               emit_data_contracts)
+
+
+@op
 def emit_glossary_op(context):
     from weyland_pipeline.datahub_emit import emit_glossary
     _safe_emit(context, "Business Glossary (AIDLC KB taxonomy)", emit_glossary)
@@ -240,13 +247,12 @@ def soda_scan_op(context):
     """L5 Slice C — data quality. Shell out to the isolated /opt/soda-venv (soda-core's pins can't co-exist with
     dagster/dbt in the main env) and run independent contract scans over the 7 published marts AND the WHO/BRFSS
     gold sources (each is a separate Soda data source → separate `-d` invocation). Each scan's results emit to
-    DataHub (assertions/profiles/contracts). Soda exit codes: 0 = all pass, 1 = warnings, 2 = check failures,
+    DataHub (assertions/profiles; contracts now emit mesh-wide from datahub_catalog_emit_job — B80). Soda exit codes: 0 = all pass, 1 = warnings, 2 = check failures,
     3 = execution error. Fail the op if ANY scan is >= 2 so a broken contract surfaces as a red Dagster run."""
     import json
     import subprocess
     from dagster import Failure
     from weyland_pipeline.datahub_emit import (
-        emit_data_contracts,
         emit_soda_assertions,
         emit_soda_profiles,
     )
@@ -279,8 +285,7 @@ def soda_scan_op(context):
             with open(results_file) as f:
                 scan_results = json.load(f)
             context.log.info(f"DataHub [{ds}]: {emit_soda_assertions(scan_results)} assertions, "
-                             f"{emit_soda_profiles(scan_results)} profiles (Stats), "
-                             f"{emit_data_contracts(scan_results)} contracts")
+                             f"{emit_soda_profiles(scan_results)} profiles (Stats)")
         except Exception as e:
             context.log.warning(f"DataHub quality emit skipped for {ds} (non-fatal): {e}")
     # Marts (data source `weyland`) violating their contract = a real failure → raise. SILVER source-data findings
@@ -324,6 +329,7 @@ def datahub_catalog_emit_job():
     emit_applications_op()
     emit_eval_assertions_op()
     emit_asset_check_assertions_op()
+    emit_data_contracts_op()   # B80 — AFTER asset-check assertions so the per-dataset query picks them up
     emit_glossary_op()
     emit_mesh_glossary_op()
     emit_field_docs_op()

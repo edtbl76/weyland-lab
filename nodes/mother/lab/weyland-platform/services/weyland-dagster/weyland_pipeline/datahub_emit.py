@@ -2080,12 +2080,19 @@ def emit_soda_profiles(scan_results: dict):
     return n
 
 
-def emit_data_contracts(scan_results: dict):
-    """L5 Slice C → DataHub **Data Contract**: one `DataContract` per mart that bundles its Soda checks as the
-    dataQuality contract — referencing the SAME assertion URNs `emit_soda_assertions` mints (stable md5(table:check)).
-    The mart *is* the contract: publishing it means those checks must hold. Populates the mart's Data Contract tab."""
+def emit_data_contracts():
+    """B80 — a `DataContract` per DATA-MESH DATASET, bundling ALL its assertions (Soda + `@asset_check` + GE),
+    source-agnostic. DataHub's `DataContract.entity` is DATASET-scoped (not DataProduct-scoped), so a data product's
+    'contract' = the contracts on its constituent datasets. For each `trino:iceberg` dataset (the data-mesh set —
+    marts/gold/silver), query DataHub for its assertion set and emit one ACTIVE DataContract bundling them. A dataset
+    with ZERO assertions gets NO contract (an empty contract is noise) — which also naturally excludes the
+    operational majority (GlitchTip/Keycloak/grafana carry no DQ checks) and `information_schema`. Idempotent stable
+    `dataContract:md5(urn)`. Runs in `datahub_catalog_emit_job` AFTER `emit_asset_check_assertions_op`. Non-fatal.
+
+    Supersedes the old per-mart Soda-only emitter (was `emit_data_contracts(scan_results)` in `soda_scan_op`) — its
+    ~7 `md5(short-name)` mart contracts are orphaned by the `md5(urn)` scheme change; a one-time soft-delete tidies
+    them (minor). Querying (not recomputing) the assertions keeps it decoupled from how each source mints its URNs."""
     import hashlib
-    from datahub.emitter.mce_builder import make_assertion_urn
     from datahub.ingestion.graph.client import DataHubGraph, DatahubClientConfig
     from datahub.metadata.schema_classes import (
         DataContractPropertiesClass,
@@ -2095,29 +2102,23 @@ def emit_data_contracts(scan_results: dict):
     emitter = _gms_emitter()
     server = os.environ.get("DATAHUB_GMS_URL", "http://datahub-datahub-gms.data-mesh.svc.cluster.local:8080")
     graph = DataHubGraph(DatahubClientConfig(server=server, token=os.environ.get("DATAHUB_GMS_TOKEN", "")))
-    by_table: dict = {}
-    for check in scan_results.get("checks", []):
-        table = check.get("table") or (check.get("location") or {}).get("table")
-        if not table:
-            continue
-        name = check.get("name") or check.get("definition") or "soda check"
-        aurn = make_assertion_urn(hashlib.md5(f"{table}:{name}".encode(), usedforsecurity=False).hexdigest())
-        by_table.setdefault((check.get("dataSource", "weyland"), table), []).append(aurn)
+    q = "query($urn:String!){ dataset(urn:$urn){ assertions(start:0,count:200){ assertions{ urn } } } }"
     n = 0
-    for (ds, table), aurns in by_table.items():
-        mart_urn = _soda_dataset_urn(ds, table)
-        # NEVER emit a contract for a dataset that isn't cataloged (dbt tmp/backup, renamed table): a
-        # DataContract.entity pointing at a non-existent dataset is a null non-null ref that breaks the entire
-        # dataContract GraphQL listing (NullValueInNonNullableField). Guard is cheap vs a poisoned Contracts tab.
-        if not graph.exists(mart_urn):
+    for urn in graph.get_urns_by_filter(entity_types=["dataset"], platform="trino"):
+        if "iceberg." not in urn:   # data-mesh set: iceberg.dbt (marts) + iceberg.datasets_* (silver/gold)
             continue
-        dc_urn = f"urn:li:dataContract:{hashlib.md5(table.encode(), usedforsecurity=False).hexdigest()}"
+        try:
+            res = graph.execute_graphql(q, variables={"urn": urn})
+            aurns = [a["urn"] for a in
+                     (((res.get("dataset") or {}).get("assertions") or {}).get("assertions") or [])]
+        except Exception:
+            continue
+        if not aurns:               # no checks → no contract (also skips information_schema + empties)
+            continue
+        dc_urn = f"urn:li:dataContract:{hashlib.md5(urn.encode(), usedforsecurity=False).hexdigest()}"
         emitter.emit(MetadataChangeProposalWrapper(entityUrn=dc_urn, aspect=DataContractPropertiesClass(
-            entity=mart_urn,
-            dataQuality=[DataQualityContractClass(assertion=a) for a in aurns],
-        )))
-        emitter.emit(MetadataChangeProposalWrapper(
-            entityUrn=dc_urn, aspect=DataContractStatusClass(state="ACTIVE")))
+            entity=urn, dataQuality=[DataQualityContractClass(assertion=a) for a in aurns])))
+        emitter.emit(MetadataChangeProposalWrapper(entityUrn=dc_urn, aspect=DataContractStatusClass(state="ACTIVE")))
         n += 1
     return n
 
