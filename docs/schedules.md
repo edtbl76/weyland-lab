@@ -27,9 +27,9 @@ Heavy = embeds/writes or large scans (guard the node's RAM). Light = metadata/re
 | **02:00** | k8s CronJob | `data-mesh-scaledown` → cockroachdb/mongodb/mysql/gizmosql to 0 | daily | — (frees RAM) |
 | **02:17** | Dagster | `weyland_ingestion_job` (RAG fan-out, serialized) | daily | **HEAVY** |
 | — | Dagster | `ai_session` | **OFF — deliberately disabled** (was every 4h). Turned off on purpose; the B62 product does not auto-refresh and the rogueone producer keeps mirroring to MinIO in the meantime. **Not a fault — do not re-enable or alert on it without a decision.** If revived: run `weyland_ai_session_job` manually first (never passed as a job), then add it to the B94 watchdog. | light |
-| 00:25 / 04:25 / 08:25 / … | Dagster | `timeseries` (→ TimescaleDB hypertables) | every 4h | med |
-| 00:40 / 06:40 / 12:40 / 18:40 | Dagster | `datahub_catalog_emit` (custom emitters) | every 6h | light |
-| 00:50 / 06:50 / 12:50 / 18:50 | Dagster | `catalog` (model lookup) | every 6h | light |
+| **00:20** | Dagster | `timeseries` (→ TimescaleDB hypertables) | daily (**overnight-only** — was every 4h) | med |
+| **00:35** | Dagster | `datahub_catalog_emit` (custom emitters) | daily (**overnight-only** — was every 6h) | light |
+| **00:50** | Dagster | `catalog` (model lookup) | daily (**overnight-only** — was every 6h) | light |
 | 03:00 | Dagster | `datasets_music_land` | daily — **RUNNING** (enabled in the UI; code `default_status` is STOPPED, which only applies at first registration) | light in practice — assets **self-skip if fresh** (30-day window), so the ~342 MB FMA download is rare, not daily |
 | 04:00 | Dagster | `datasets_health_land` | daily — **RUNNING** (as above) | light in practice — self-skips if fresh (7-day window) |
 | **06:00** | Dagster | `weyland_dbt_job` (dbt build → 7 marts + tests; then publishes `manifest.json`+`catalog.json` to `s3://warehouse/_dbt_artifacts/`) | **weekly (Sun)** | **HEAVY** — Trino aggregations (4G heap; `approx_distinct`/`threads:2` guard the OOM) |
@@ -104,9 +104,20 @@ scaled down — they back live services or the mesh.
    were loaded once; daily re-profiling just re-scans them. Weekly is enough.
 4. **One node, one RAM pool** — Dagster runs execute *in* the user-code pod; DataHub ingestion in its
    executor; both draw on mother's ~32 GB. Staggering + scale-down are memory guards, not tidiness.
+5. **NO mid-day auto-runs (2026-08-07, incident-driven)** — every Dagster schedule (and any new timer) runs
+   ONLY in the pre-dawn window (~00:00–06:00 NY), never during the working day. **Mid-day is manual-only.** The
+   single node can't absorb a scheduled job stacking on a manual/interactive load: an every-4h/6h cluster
+   (`timeseries` 12:25 · `datahub_catalog_emit` 12:40 · `catalog` 12:50) firing at noon *on top of* a manual
+   datasets-hydrate saturated mother (RAM 97% / CPU 105%, control plane unreachable). New periodic schedules are
+   daily-overnight, not intraday. This rule is mirrored in the DoD.
 
 ## Change log
 
+- 2026-08-07 — **No mid-day auto-runs (incident-driven).** Moved the every-N-hour Dagster schedules to a single
+  pre-dawn tick each — `timeseries` 00:20, `datahub_catalog_emit` 00:35, `catalog` 00:50 (were every 4h/6h,
+  firing at noon). Trigger: the noon cluster stacked on a manual datasets-hydrate + a raised Cockroach disk-stall
+  threshold (which removed the crash that used to fail-fast the hydrate) saturated mother — control plane
+  unreachable, k3s restart hung, recovery via OS-level `pkill`. New Design Rule #5 + a DoD rule: mid-day = manual-only.
 - 2026-07-04 — Added Kafka (Redpanda B1.5) DataHub ingestion → 02:15 daily (light metadata scan of the
   `datasets.*` event topics + their Avro schemas; closes the last B65 catalog target).
 - 2026-07-02 — Added ClickHouse (Tier-2 #10) DataHub ingestion → Sun 04:30 (weekly; profiling on — columnar

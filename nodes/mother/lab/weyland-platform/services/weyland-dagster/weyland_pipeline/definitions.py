@@ -386,7 +386,7 @@ def ge_validate_job():
 
 datahub_catalog_emit_schedule = ScheduleDefinition(
     job=datahub_catalog_emit_job,
-    cron_schedule="40 */6 * * *",  # every 6h at :40 — per docs/schedules.md
+    cron_schedule="35 0 * * *",  # daily 00:35 — OVERNIGHT-ONLY (no mid-day auto-runs; single-node RAM guard, 2026-08-07) — per docs/schedules.md
     execution_timezone="America/New_York",
     default_status=DefaultScheduleStatus.RUNNING,
 )

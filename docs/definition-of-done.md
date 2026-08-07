@@ -15,7 +15,12 @@ capability is **NOT done** until ALL seven pillars hold. "Ran once" ≠ done.
 - **arch.md** — a **substantial** entry: comparative placement (why this vs the alternatives), a decision
   matrix/tradeoffs, and diagrams. Not a one-line entry — `arch.md` is a deliverable.
 - **api.md + hosts.md** — updated for EVERY endpoint / host / IP / DNS / subdomain change.
-- **schedules.md** — updated for any new timer.
+- **schedules.md** — updated for any new timer, and every new/changed schedule obeys the **off-hours rule**:
+  Dagster schedules + k8s CronJobs + node timers run ONLY in the pre-dawn window (~00:00–06:00 NY), **never
+  mid-day** — the single node cannot absorb a scheduled job stacking on a manual/interactive load (2026-08-07
+  incident: a noon `timeseries`/`catalog`/`datahub_catalog_emit` cluster + a manual datasets-hydrate saturated
+  mother, control plane unreachable). **Mid-day is manual-only.** `docs/schedules.md` is the source of truth for
+  all timers (its Design Rule #5); reconcile every schedule change against it.
 - **Runbook** — `docs/runbooks/<x>.md` with the real operational commands.
 - **Query cookbook** — `docs/query/<x>.md` if the workflow adds a queryable surface.
 - **platform-map** — `docs/platform-map.html` (+ `docs/data-mesh-map.html`) refreshed for any component add / remove /

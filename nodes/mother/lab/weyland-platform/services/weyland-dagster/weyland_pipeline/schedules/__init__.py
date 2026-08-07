@@ -100,7 +100,7 @@ weyland_ingestion_schedule = ScheduleDefinition(
 
 weyland_catalog_schedule = ScheduleDefinition(
     job=weyland_catalog_job,
-    cron_schedule="50 */6 * * *",  # every 6h at :50 — per docs/schedules.md
+    cron_schedule="50 0 * * *",  # daily 00:50 — OVERNIGHT-ONLY (no mid-day auto-runs; single-node RAM guard, 2026-08-07) — per docs/schedules.md
     name="weyland_catalog_schedule",
     execution_timezone="America/New_York",
     default_status=DefaultScheduleStatus.RUNNING,
@@ -108,7 +108,7 @@ weyland_catalog_schedule = ScheduleDefinition(
 
 weyland_ai_session_schedule = ScheduleDefinition(
     job=weyland_ai_session_job,
-    cron_schedule="0 */4 * * *",  # every 4h — per docs/schedules.md
+    cron_schedule="5 0 * * *",  # daily 00:05 — OVERNIGHT-ONLY (also STOPPED/OFF; no mid-day auto-runs, 2026-08-07) — per docs/schedules.md
     name="weyland_ai_session_schedule",
     execution_timezone="America/New_York",
     default_status=DefaultScheduleStatus.RUNNING,
@@ -163,6 +163,10 @@ weyland_datasets_health_transform_job = define_asset_job(
 # so the transform job never runs it; gated by the parquet no_failures check (loader deps on _parquet).
 weyland_datasets_health_hydrate_job = define_asset_job(
     name="weyland_datasets_health_hydrate_job",
+    # 2026-08-07: SERIALIZE the store-loads (max_concurrent=1) — the ONLY job that was missing this guard. Running
+    # cockroach + mysql + clickhouse + mongo + opensearch + cassandra + the _build_vectors pandas load ALL in
+    # parallel on the single node saturated mother (RAM 97% / CPU 105%, control plane down). One store at a time.
+    config=_SERIAL_EXEC,
     selection=AssetSelection.groups("datasets_health_stores"),
 )
 
@@ -170,6 +174,7 @@ weyland_datasets_health_hydrate_job = define_asset_job(
 # Own group (datasets_music_stores) so the music transform job never runs it. On-demand.
 weyland_datasets_music_hydrate_job = define_asset_job(
     name="weyland_datasets_music_hydrate_job",
+    config=_SERIAL_EXEC,  # 2026-08-07: SERIALIZE the store-loads (max_concurrent=1) — same node-RAM guard as the health hydrate + ingestion/transform jobs.
     selection=AssetSelection.groups("datasets_music_stores"),
 )
 
@@ -198,7 +203,7 @@ weyland_timeseries_job = define_asset_job(
 
 weyland_timeseries_schedule = ScheduleDefinition(
     job=weyland_timeseries_job,
-    cron_schedule="25 */4 * * *",  # every 4h at :25 — per docs/schedules.md
+    cron_schedule="20 0 * * *",  # daily 00:20 — OVERNIGHT-ONLY (no mid-day auto-runs; single-node RAM guard, 2026-08-07) — per docs/schedules.md
     name="weyland_timeseries_schedule",
     execution_timezone="America/New_York",
     default_status=DefaultScheduleStatus.RUNNING,
