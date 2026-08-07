@@ -724,6 +724,22 @@ Soda-to-silver is the DQ-capability win (caught a 0-ms spotify track + `−1337`
 the profiling *showcase* — its statistical edge is largely wasted on static at-rest data. See
 [runbooks/soda.md](runbooks/soda.md) and [demos/great-expectations.md](demos/great-expectations.md).
 
+**B80 — DataHub governance maturity, complete (contracts mesh-wide · siblings · stats).** With B77's three
+assertion sources in place, B80 closed the governance surface: **(1) `emit_data_contracts`** — a `DataContract` per
+data-mesh dataset that queries DataHub for the dataset's *full* assertion set (Soda + `@asset_check` + GE,
+source-agnostic) and bundles it ACTIVE (~102 datasets); **(2) `emit_siblings`** — every logical table exists as
+up-to-three entities (`trino:iceberg.<s>.<t>` where governance lives, plus the `dbt:` and `iceberg:` twins users land
+on), merged via the `Siblings` aspect (126 groups, primary = the governed trino surface) so governance shows on
+whichever twin you open; **(3) stats-wide** — a rowCount `DatasetProfile` emitted directly from every recipe-less
+store's catalog-emit (`_emit_profile` in qdrant/weaviate/lancedb/opensearch/duckdb/mysql/timescale + cockroach),
+lifting Stats coverage to **2995/3756 (79%) — ~95% of every *profileable* dataset**; the ~615 uncovered are
+non-tabular by nature (grafana pseudo-datasets, dagster assets, s3/parquet/arrow/avro/lance file pointers, neo4j
+graph, kafka topics, mongo — the honest ceiling). **The sibling-merge gotcha that shaped the design:** DataHub merges
+the *Assertions* tab across siblings but resolves the *Data Contract* tab (and Stats) strictly per-URN — so the
+contract is emitted on **every twin**, matching how the assertions already appear everywhere via the merge. B82 (the
+Application taxonomy) folded in earlier; all governance surfaces now at their honest ceilings, mechanism end-to-end
+via `datahub_emit.py` → `datahub_catalog_emit_job`. See [demos/datahub-maturity.md](demos/datahub-maturity.md).
+
 ---
 
 ### 7e. RAG streaming indexer (B-RAG-STREAM)

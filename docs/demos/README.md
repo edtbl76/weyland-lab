@@ -62,6 +62,7 @@ Legend: ✅ done · ⬜ missing · 🟡 exists but stale/partial · — not appl
 | E3 | Great Expectations profiling → DataHub Assertions + Data Docs (B77b) | ✅ `flow-great-expectations` | ✅ `great-expectations.md` | — on-demand `ge_validate_job`; read-only profiling |
 | E3 | Ranger column masking (masked vs unmasked) | ✅ `flow-e2e-ranger` | 🟡 `ranger-masking.md` | — read-only |
 | E4 | Governance (lineage + DQ + masking on one dataset) | ✅ `flow-e2e-governance` | 🟡 `governance-e2e.md` | — non-destructive |
+| E5 | DataHub maturity: contracts mesh-wide · siblings merge · stats-wide (B80) | ✅ inline seq | ✅ `datahub-maturity.md` | — read-only emit; per-twin contracts |
 | E5 | ML lifecycle (silver → Feast → Ray → MLflow → serve/consume) | ✅ `flow-e2e-ml` | 🟡 `ml-lifecycle-e2e.md` | ✅ MLflow version/artifact (per leg) |
 | E6 | Lakehouse (land → lakeFS → Iceberg → dbt marts → BI + Tier-2) | ✅ `flow-e2e-lakehouse` | 🟡 `lakehouse-e2e.md` | ✅ idempotent overwrites |
 | E7 | Streaming + CDC (produce/Debezium → Redpanda → Flink → Iceberg → Trino) | ✅ `flow-e2e-streaming-cdc` | 🟡 `streaming-cdc-e2e.md` | ✅ topics + Iceberg `analytics.*` |
