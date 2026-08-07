@@ -2123,6 +2123,42 @@ def emit_data_contracts():
     return n
 
 
+def emit_siblings():
+    """B80 — MERGE the platform-fragmented twins of each data-mesh table into ONE DataHub entity via the `Siblings`
+    aspect. Every logical mart/silver table exists as up to THREE separate catalog entities:
+      · `trino:iceberg.<schema>.<table>`  — where Soda/GE/`@asset_check` assertions + DataContracts + stats live
+      · `dbt:iceberg.<schema>.<table>`    — the dbt model (+ dbt tests)
+      · `iceberg:<schema>.<table>`        — the Iceberg-catalog entity users naturally land on (drops the `iceberg.`)
+    Unlinked, governance shows ONLY on the trino twin — so the entity a user opens (`iceberg`) looks empty. Siblings
+    links the twins so DataHub renders them as one merged entity: assertions/contracts/stats are visible from ANY of
+    them. `primary` = the trino twin (the governed, queryable surface where the substance lives). Each member's
+    `siblings` lists the OTHER members. Runs in `datahub_catalog_emit_job`. Non-fatal."""
+    from datahub.ingestion.graph.client import DataHubGraph, DatahubClientConfig
+    from datahub.metadata.schema_classes import SiblingsClass
+    emitter = _gms_emitter()
+    server = os.environ.get("DATAHUB_GMS_URL", "http://datahub-datahub-gms.data-mesh.svc.cluster.local:8080")
+    graph = DataHubGraph(DatahubClientConfig(server=server, token=os.environ.get("DATAHUB_GMS_TOKEN", "")))
+    def _ds(platform, name):
+        return f"urn:li:dataset:(urn:li:dataPlatform:{platform},{name},PROD)"
+    n = 0
+    for turn in graph.get_urns_by_filter(entity_types=["dataset"], platform="trino"):
+        try:
+            name = turn.split(",", 1)[1].rsplit(",", 1)[0]      # iceberg.<schema>.<table>
+        except Exception:
+            continue
+        if not name.startswith("iceberg."):
+            continue
+        short = name[len("iceberg."):]                          # <schema>.<table>  (iceberg twin drops the prefix)
+        group = [turn] + [u for u in (_ds("dbt", name), _ds("iceberg", short)) if graph.exists(u)]
+        if len(group) < 2:                                      # nothing to merge (twin absent)
+            continue
+        for member in group:
+            emitter.emit(MetadataChangeProposalWrapper(entityUrn=member, aspect=SiblingsClass(
+                siblings=[u for u in group if u != member], primary=(member == turn))))
+        n += 1
+    return n
+
+
 _TAGS = {
     "bronze": "Medallion **bronze** layer — raw landed data (as ingested, unmodified).",
     "silver": "Medallion **silver** layer — cleaned, conformed, type-cast data.",

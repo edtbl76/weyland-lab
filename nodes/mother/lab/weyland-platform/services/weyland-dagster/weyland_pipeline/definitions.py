@@ -171,6 +171,13 @@ def emit_data_contracts_op(context):
 
 
 @op
+def emit_siblings_op(context):
+    from weyland_pipeline.datahub_emit import emit_siblings
+    _safe_emit(context, "Siblings (merge trino/dbt/iceberg twins → one entity so governance is visible — B80)",
+               emit_siblings)
+
+
+@op
 def emit_glossary_op(context):
     from weyland_pipeline.datahub_emit import emit_glossary
     _safe_emit(context, "Business Glossary (AIDLC KB taxonomy)", emit_glossary)
@@ -330,6 +337,7 @@ def datahub_catalog_emit_job():
     emit_eval_assertions_op()
     emit_asset_check_assertions_op()
     emit_data_contracts_op()   # B80 — AFTER asset-check assertions so the per-dataset query picks them up
+    emit_siblings_op()         # B80 — merge the platform twins so assertions/contracts show on any of them
     emit_glossary_op()
     emit_mesh_glossary_op()
     emit_field_docs_op()
