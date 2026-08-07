@@ -27,7 +27,7 @@ spec:
     spec:
       containers:
         - name: dbt-docs
-          image: registry.weyland.lab/weyland-dagster-user-code:v34   # keep in lockstep with user-code.yaml (B105 + schedules overnight-only)
+          image: registry.weyland.lab/weyland-dagster-user-code:v35   # keep in lockstep with user-code.yaml (B105 + overnight schedules + hydrate concurrency cap)
           imagePullPolicy: IfNotPresent
           command: ["sh", "-c"]
           args:

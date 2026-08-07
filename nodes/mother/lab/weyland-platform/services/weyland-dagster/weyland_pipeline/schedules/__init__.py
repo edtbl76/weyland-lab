@@ -7,6 +7,11 @@ from weyland_pipeline.dbt_assets import weyland_dbt_assets
 # node already heavily committed). max_concurrent=1 runs the formats one at a time → 1× peak. (2026-06-29)
 _SERIAL_EXEC = {"execution": {"config": {"multiprocess": {"max_concurrent": 1}}}}
 
+# Hydrate store-loads: 3-at-a-time middle ground. max_concurrent=1 was node-safe but too slow (hours for the full
+# health hydrate); the DEFAULT (unbounded ~10-way fan-out) saturated mother (RAM 97% / CPU 105%, control plane
+# down, 2026-08-07). 3 is ~3× faster than serial and stays well under the fan-out that broke it.
+_HYDRATE_EXEC = {"execution": {"config": {"multiprocess": {"max_concurrent": 3}}}}
+
 # Ingestion = everything EXCEPT the eval and catalog groups (they have their own schedules).
 # `datasets` (B72) is excluded too: it must NOT run on the 15-min cron — datasets_land re-downloads
 # external sources (incl. FMA's ~342 MB zip), so it's on-demand + sensor-triggered only.
@@ -166,7 +171,7 @@ weyland_datasets_health_hydrate_job = define_asset_job(
     # 2026-08-07: SERIALIZE the store-loads (max_concurrent=1) — the ONLY job that was missing this guard. Running
     # cockroach + mysql + clickhouse + mongo + opensearch + cassandra + the _build_vectors pandas load ALL in
     # parallel on the single node saturated mother (RAM 97% / CPU 105%, control plane down). One store at a time.
-    config=_SERIAL_EXEC,
+    config=_HYDRATE_EXEC,  # max_concurrent=3 (2026-08-07: 1 was node-safe but too slow; 3 = ~3× faster, still << the unbounded fan-out)
     selection=AssetSelection.groups("datasets_health_stores"),
 )
 
@@ -174,7 +179,7 @@ weyland_datasets_health_hydrate_job = define_asset_job(
 # Own group (datasets_music_stores) so the music transform job never runs it. On-demand.
 weyland_datasets_music_hydrate_job = define_asset_job(
     name="weyland_datasets_music_hydrate_job",
-    config=_SERIAL_EXEC,  # 2026-08-07: SERIALIZE the store-loads (max_concurrent=1) — same node-RAM guard as the health hydrate + ingestion/transform jobs.
+    config=_HYDRATE_EXEC,  # max_concurrent=3 (2026-08-07: loosened from 1 — too slow serial; still bounded well below the fan-out that broke mother)
     selection=AssetSelection.groups("datasets_music_stores"),
 )
 
