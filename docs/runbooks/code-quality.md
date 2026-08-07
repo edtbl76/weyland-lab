@@ -1,8 +1,11 @@
 # Code Quality — runbook (B43, Port category)
 
-**Two weekly k8s CronJobs → Port** (B69, replacing the old on-demand Jobs). **`code-scan-suite`** runs **9 OSS tools**
-in one image (gitleaks, **secret-files**, checkov, kubescape, hadolint, bandit, osv-scanner, shellcheck, semgrep, trivy) + **code-maat**
-change-hotspots; **`sonar-scan`** runs the always-on **SonarQube** server. All OSS/$0. Findings surface in Port as
+**Two weekly k8s CronJobs → Port** (B69, replacing the old on-demand Jobs). **`code-scan-suite`** runs the **full
+scan-suite roster declared in the repo-root [`quality-tools.yaml`](../../quality-tools.yaml)** — the SOURCE OF TRUTH
+(`scripts/check-quality-tools.sh` drift-guards scan.py + these docs against it; a hand-copied list is how the old
+"9 vs 10" mismatch happened). **19 tools**, now **multi-language** (Python + Go for polyglot repos like Stud.io):
+secrets · SAST · SCA/deps · IaC/k8s · Dockerfile/shell lint · vuln · HTTP-headers, + **code-maat** change-hotspots;
+**`sonar-scan`** runs the always-on **SonarQube** server. All OSS/$0. Findings surface in Port as
 `security_scan` (per-tool), `code_hotspot` (churn), and `code_quality` (Sonar gate) → the **Code Health** dashboard.
 The suite + B89 triage + B90 dashboard are detailed in the sections below.
 
@@ -84,9 +87,10 @@ third-party images — systemic, blanket-applying breaks writers; documented, no
 
 The three on-demand Jobs were folded into **two weekly CronJobs** (both `Sun`, `Etc/UTC`; see [schedules.md](../schedules.md)):
 - **`code-scan-suite`** (`k8s/code-quality/scan-suite.yaml`, 13:00 UTC) — ONE `registry.weyland.lab/scan-suite` image
-  (`services/scan-suite/`, built via `scripts/build-push-images.sh`) clones the repo once and runs **10 checks** best-effort
-  → per-tool severity counts POSTed to the Port `code-quality` webhook: gitleaks, **secret-files** (B97), checkov, kubescape,
-  bandit, osv-scanner, shellcheck, semgrep, trivy.
+  (`services/scan-suite/`, built via `scripts/build-push-images.sh`) clones the repo once and runs the
+  **`quality-tools.yaml`** roster (19 scan-suite tools) best-effort → per-tool severity counts POSTed to the Port
+  `code-quality` webhook. The registry is authoritative; the build-suite-home adds (2026-08-07) were **ruff ·
+  pip-audit · detect-secrets · headers · gosec · govulncheck · staticcheck · go-vet** (image `scan-suite:v4`).
   **`secret-files`** (B97, 2026-07-22) closes the gap that let the n8n key sit committed for 5 weeks: gitleaks `dir`
   HONORS `.gitignore`, so a file that is BOTH tracked in git AND gitignored (a secret hidden after it was already
   committed) is invisible to it. `secret_files` finds that intersection via `git check-ignore --no-index` over the

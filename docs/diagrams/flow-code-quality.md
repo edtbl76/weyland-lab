@@ -7,8 +7,8 @@ everything is **outbound**: each scanner POSTs findings to Port's `code-quality`
 
 - **`code-scan-suite`** (Sun **13:00 UTC**) — an `initContainer` git-clones the public repo
   (`github.com/edtbl76/weyland-lab`, **full history** for code-maat) into `/src`, then the
-  `registry.weyland.lab/scan-suite` image runs **10 checks** best-effort over `/src` — gitleaks, **secret-files**, checkov, kubescape,
-  hadolint, bandit, osv-scanner, shellcheck, semgrep, trivy — each POSTing per-tool severity counts →
+  `registry.weyland.lab/scan-suite` image runs the **`quality-tools.yaml`** roster (19 scan-suite tools, multi-language:
+  secrets/SAST/SCA/IaC/k8s/lint/vuln/HTTP-headers over Python + Go) best-effort over `/src` — each POSTing severity counts →
   **`security_scan`** blueprint (one entity per tool). code-maat then computes change-hotspots and POSTs the
   **top-20** to the **same** ingest URL with a `kind:"hotspot"` discriminator → **`code_hotspot`** blueprint.
 - **`sonar-scan`** (Sun **12:00 UTC**) — clone → Maven-compile the Flink modules → `sonar-scanner-cli` against the
