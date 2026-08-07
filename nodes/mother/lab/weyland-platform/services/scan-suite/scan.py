@@ -339,26 +339,28 @@ def headers():
     want = ["strict-transport-security", "content-security-policy", "x-frame-options",
             "x-content-type-options", "referrer-policy"]
     hostsmd = os.path.join(SRC, "docs", "hosts.md")
-    urls = sorted(set(re.findall(r"https://[a-z0-9.-]+\.weyland\.lab", open(hostsmd).read()))) \
+    # hosts.md lists ingresses as BARE names (realm.weyland.lab) — extract those, prepend https://. (NOT the literal
+    # "*.weyland.lab" wildcard — the [a-z0-9] start excludes it.)
+    hosts = sorted(set(re.findall(r"[a-z0-9][a-z0-9-]*\.weyland\.lab", open(hostsmd).read()))) \
         if os.path.exists(hostsmd) else []
     # TLS verify off ON PURPOSE: header-presence probe of the lab's OWN *.weyland.lab hosts (self-signed wildcard,
     # no lab CA in this pod's trust store); we read response headers, transmit nothing — cert validity isn't the
     # control here (same posture as the blackbox synthetic prober). Documented so it's a decision, not an oversight.
     ctx = ssl.create_default_context(); ctx.check_hostname = False
     ctx.verify_mode = ssl.CERT_NONE  # nosemgrep  # noqa: S323
-    c = z(); probed = 0
-    for u in urls:
+    c = z(); reachable = evaluated = 0
+    for h in hosts:
         try:
-            resp = urllib.request.urlopen(urllib.request.Request(u, method="HEAD"), timeout=10, context=ctx)
+            resp = urllib.request.urlopen(f"https://{h}", timeout=8, context=ctx)
         except Exception:
-            try:  # some hosts reject HEAD (405) — fall back to GET
-                resp = urllib.request.urlopen(u, timeout=10, context=ctx)
-            except Exception:
-                continue
-        probed += 1
+            continue  # unreachable / non-HTTPS backend / on-demand host — blackbox's concern, not a header finding
+        reachable += 1
+        if "text/html" not in (resp.headers.get("Content-Type") or "").lower():
+            continue  # not a browser page (registry/API/JSON) → browser security headers don't apply
+        evaluated += 1
         present = {k.lower() for k in resp.headers.keys()}
-        c["medium"] += len([h for h in want if h not in present])
-    print(f"  headers: probed {probed}/{len(urls)} ingress hosts from hosts.md", flush=True)
+        c["medium"] += len([x for x in want if x not in present])
+    print(f"  headers: {reachable} reachable / {evaluated} HTML of {len(hosts)} hosts in hosts.md", flush=True)
     post("headers", c)
 
 
