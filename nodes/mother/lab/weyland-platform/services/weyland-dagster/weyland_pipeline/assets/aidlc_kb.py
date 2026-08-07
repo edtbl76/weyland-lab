@@ -195,7 +195,7 @@ def _wv_stored_kb_paths(collection) -> set:
     return paths
 
 
-def _write_weaviate(grouped, current_paths, weaviate: WeaviateResource) -> dict:
+def _write_weaviate(grouped, current_paths, weaviate: WeaviateResource, log=None) -> dict:
     client = weaviate.get_client()
     try:
         # WeylandDocument / WeylandChunk are bootstrapped by the docs pipeline; create defensively if absent.
@@ -224,7 +224,9 @@ def _write_weaviate(grouped, current_paths, weaviate: WeaviateResource) -> dict:
         docs_col = client.collections.get("WeylandDocument")
         docs_written = objects_written = pruned = 0
 
-        for sp, doc_chunks in grouped.items():
+        for i, (sp, doc_chunks) in enumerate(grouped.items(), 1):
+            if log and i % 50 == 0:  # B105: progress in the slow per-chunk-insert loop
+                log.info("aidlc_kb weaviate: %d/%d docs written", i, len(grouped))
             source_name = doc_chunks[0]["source_name"]
             chunks_col.data.delete_many(where=WvFilter.by_property("source_path").equal(sp))
             docs_col.data.delete_many(where=WvFilter.by_property("source_path").equal(sp))
@@ -402,6 +404,7 @@ def aidlc_kb_ingest(
                 gate[d["source_path"]] = {"changed": row is None or row[0] != h, "incoming_hash": h}
 
     changed = [d for d in docs if gate[d["source_path"]]["changed"]]
+    log.info("aidlc_kb: hash-gate → %d/%d docs changed; chunking…", len(changed), len(docs))  # B105 phase marker
     chunk_list: list[dict] = []
     for d in changed:
         for ch in _markdown_chunks(d["content"]):
@@ -415,10 +418,20 @@ def aidlc_kb_ingest(
     grouped = _group_by_source(embedded)
     log.info("aidlc_kb: %d/%d docs changed -> %d chunks to embed/write", len(changed), len(docs), len(embedded))
 
+    # B105 phase markers: log entry+exit of each backend write so a stall localizes to a backend instead of a
+    # silent block (the B74 symptom). Each _write_* returns its counts; log them as they complete.
+    log.info("aidlc_kb: write → pgvector (%d docs)…", len(grouped))
     pg = _write_pgvector(grouped, current_paths, gate, meta_by_path, postgres)
+    log.info("aidlc_kb: pgvector done — %s", pg)
+    log.info("aidlc_kb: write → qdrant…")
     qd = _write_qdrant(grouped, current_paths, qdrant)
-    wv = _write_weaviate(grouped, current_paths, weaviate)
+    log.info("aidlc_kb: qdrant done — %s", qd)
+    log.info("aidlc_kb: write → weaviate (slowest — per-chunk inserts + refs)…")
+    wv = _write_weaviate(grouped, current_paths, weaviate, log)
+    log.info("aidlc_kb: weaviate done — %s", wv)
+    log.info("aidlc_kb: write → neo4j…")
     n4 = _write_neo4j(grouped, current_paths, neo4j)
+    log.info("aidlc_kb: neo4j done — %s", n4)
 
     # Phase 2 (B37 step 5): rebuild the frontmatter graph over ALL current entries. Run it when content
     # changed OR when the graph doesn't exist yet (e.g. first run after Phase 1 already ingested chunks,

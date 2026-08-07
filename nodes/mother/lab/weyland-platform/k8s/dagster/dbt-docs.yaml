@@ -27,7 +27,7 @@ spec:
     spec:
       containers:
         - name: dbt-docs
-          image: registry.weyland.lab/weyland-dagster-user-code:v32   # keep in lockstep with user-code.yaml (B80 — contracts on every twin)
+          image: registry.weyland.lab/weyland-dagster-user-code:v33   # keep in lockstep with user-code.yaml (B105 — job observability)
           imagePullPolicy: IfNotPresent
           command: ["sh", "-c"]
           args:

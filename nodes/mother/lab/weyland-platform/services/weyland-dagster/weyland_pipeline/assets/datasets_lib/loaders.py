@@ -700,10 +700,12 @@ def _build_vectors(mc, cfg, dataset, spec, log):
     if not frames:
         return 0, []
     df = pd.concat(frames, ignore_index=True) if len(frames) > 1 else frames[0]
+    log.info(f"{dataset}: read {len(frames)} parquet file(s) → {len(df):,} rows; building vectors…")  # B105 phase marker
 
     if spec.get("text"):
         cols = [c for c in spec["text"] if c in df.columns]
         texts = df[cols].fillna("").astype(str).agg(" ".join, axis=1).tolist()
+        log.info(f"{dataset}: embedding {len(texts):,} texts (bge-small, batched — silent encode follows)…")  # B105
         vecs = _embedder().encode(texts, normalize_embeddings=True, batch_size=64, show_progress_bar=False)
         vectors = [v.tolist() for v in vecs]
         dim = len(vectors[0]) if vectors else 384
