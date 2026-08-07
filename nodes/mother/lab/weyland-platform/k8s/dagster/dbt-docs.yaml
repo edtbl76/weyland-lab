@@ -27,7 +27,7 @@ spec:
     spec:
       containers:
         - name: dbt-docs
-          image: registry.weyland.lab/weyland-dagster-user-code:v35   # keep in lockstep with user-code.yaml (B105 + overnight schedules + hydrate concurrency cap)
+          image: registry.weyland.lab/weyland-dagster-user-code:v36   # keep in lockstep with user-code.yaml (hydrate concurrency=2 + Cassandra timeout 300s)
           imagePullPolicy: IfNotPresent
           command: ["sh", "-c"]
           args:

@@ -930,7 +930,7 @@ def build_store_load_assets(cfg):
             mc = io.client()
             cluster = _cassandra_cluster()
             session = cluster.connect()
-            session.default_timeout = 60
+            session.default_timeout = 300  # 2026-08-07: single-node Cassandra batch writes blow past 60s under hydrate I/O contention → "Client request timeout" (big_five). 300s tolerates the slow-but-progressing write.
             session.execute(
                 f"CREATE KEYSPACE IF NOT EXISTS datasets_{d} "
                 "WITH replication = {'class': 'SimpleStrategy', 'replication_factor': 1}")

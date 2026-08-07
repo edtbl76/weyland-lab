@@ -7,10 +7,11 @@ from weyland_pipeline.dbt_assets import weyland_dbt_assets
 # node already heavily committed). max_concurrent=1 runs the formats one at a time → 1× peak. (2026-06-29)
 _SERIAL_EXEC = {"execution": {"config": {"multiprocess": {"max_concurrent": 1}}}}
 
-# Hydrate store-loads: 3-at-a-time middle ground. max_concurrent=1 was node-safe but too slow (hours for the full
-# health hydrate); the DEFAULT (unbounded ~10-way fan-out) saturated mother (RAM 97% / CPU 105%, control plane
-# down, 2026-08-07). 3 is ~3× faster than serial and stays well under the fan-out that broke it.
-_HYDRATE_EXEC = {"execution": {"config": {"multiprocess": {"max_concurrent": 3}}}}
+# Hydrate store-loads: 2-at-a-time. max_concurrent=1 was node-safe but too slow (hours); the DEFAULT (unbounded
+# ~10-way fan-out) saturated mother (RAM 97% / CPU 105%, control plane down, 2026-08-07). 3 kept the node flat but
+# contended single-node Cassandra past its request timeout on big_five — so 2: faster than serial, light enough
+# that Cassandra's writes finish (paired with the Cassandra session default_timeout=300 in loaders.py).
+_HYDRATE_EXEC = {"execution": {"config": {"multiprocess": {"max_concurrent": 2}}}}
 
 # Ingestion = everything EXCEPT the eval and catalog groups (they have their own schedules).
 # `datasets` (B72) is excluded too: it must NOT run on the 15-min cron — datasets_land re-downloads
