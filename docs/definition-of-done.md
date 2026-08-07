@@ -2,11 +2,12 @@
 
 The weyland Definition of Done — the hard gate every body of work passes before it's "done." This page is the
 **canonical, published** version (the RAG corpus + the shared reference); it supersedes any private note. A
-capability is **NOT done** until ALL six pillars hold. "Ran once" ≠ done.
+capability is **NOT done** until ALL seven pillars hold. "Ran once" ≠ done.
 
 > Added 2026-07-14; grown through B64 (render-verify), B69 (operational completeness), B111 (metrics-scrape
 > ServiceMonitor + Grafana dashboard made explicit monitoring criteria), 2026-08-05 (tier rebalance at close-out —
-> keep High/Medium/Low roughly equal), and 2026-08-05 (B82 — one source of truth for a cross-surface taxonomy).
+> keep High/Medium/Low roughly equal), 2026-08-05 (B82 — one source of truth for a cross-surface taxonomy), and
+> 2026-08-06 (B47 — the security / code-quality scan as a standing per-batch gate, Pillar 7).
 > Applies retroactively and going forward.
 
 ## 1. Documentation sweep (every batch)
@@ -102,6 +103,26 @@ open gap = not done:
   (CronJob + rotation); reproducible stores say so.
 - **Triggered** — anything that must stay fresh has a schedule/sensor + a freshness signal, not manual-only.
 
+## 7. Security & code-quality scan (every batch that touches code)
+
+Scanners are a **gate**, not a dashboard to admire. Any batch that adds or changes **code, a Dockerfile, or a k8s
+manifest** runs the relevant scan and **triages the result before "done":**
+
+- **Run** the `code-scan-suite` (10 OSS tools — gitleaks · secret-files · checkov · kubescape · hadolint · bandit ·
+  osv-scanner · shellcheck · semgrep · trivy) on-demand:
+  `kubectl -n weyland create job scan-suite-adhoc --from=cronjob/code-scan-suite` — and, for changes SonarQube covers,
+  `sonar-scan`. Both feed Port `security_scan` / `code_quality` (the **Code Health** dashboard). It's also a weekly
+  CronJob (B69); this pillar is the **per-batch** gate on top of that safety net, not a substitute for it.
+- **Triage every NEW critical / high.** Most highs are phantom (see [[code-quality-scan-triage]]) — **fix** the real
+  ones; **explicitly accept** the false/systemic ones with a *documented reason* in the right place: `.trivyignore`
+  (Trivy / KSV — rule-id + why), `osv-scanner.toml` (dependency CVEs), or a **bare `# nosemgrep: <rule-id>`** (Semgrep —
+  rule-id ONLY; prose after `nosemgrep:` suppresses nothing). Never leave a new high un-triaged, and never blanket-
+  suppress to make a number green.
+- **Re-scan after fixes** so Port reflects the true state — a `202` from the ingest URL is queue-acceptance, **not**
+  proof of an entity. "Scanned once and ignored" is not done.
+
+Runbook: [runbooks/code-quality.md](runbooks/code-quality.md).
+
 ## Cross-cutting: verify the render, sweep for drift
 
 A green build is **not** proof of done — **verify the actual rendered output** the user sees after each step,
@@ -149,5 +170,6 @@ deliverable the other surfaces are graded against in the drift sweep above.
 
 Every capability must be **placed** (arch/diagrams), **operable** (runbook/api/hosts), **demonstrable** (UI+CLI
 demo, executed), **investigable** (sequence diagram + history), **reversible** (cleanup), **closed out** (Linear +
-backlog), and **operationally durable** (reproducible / secret-restorable / monitored / backed-up / triggered).
-Add all six pillars as explicit acceptance criteria in every design/plan doc.
+backlog), **operationally durable** (reproducible / secret-restorable / monitored / backed-up / triggered), and
+**scanned** (the security / code-quality gate, findings triaged not ignored).
+Add all seven pillars as explicit acceptance criteria in every design/plan doc.

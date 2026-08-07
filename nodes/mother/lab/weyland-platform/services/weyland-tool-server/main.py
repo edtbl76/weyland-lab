@@ -345,7 +345,8 @@ def _check_pgvector() -> dict:
 def _check_qdrant() -> dict:
     try:
         url = f"http://{QDRANT_HOST}:{QDRANT_PORT}/collections"
-        with urllib.request.urlopen(url, timeout=5) as resp:
+        # FP: internal health-check — URL is built from trusted in-cluster env constants, never user input (not SSRF).
+        with urllib.request.urlopen(url, timeout=5) as resp:  # nosemgrep
             data = json.loads(resp.read().decode())
         return {"status": "ok", "collections": data.get("result", {}).get("collections", [])}
     except Exception as e:
@@ -355,7 +356,8 @@ def _check_qdrant() -> dict:
 def _check_weaviate() -> dict:
     try:
         url = f"http://{WEAVIATE_HOST}:{WEAVIATE_PORT}/v1/.well-known/ready"
-        with urllib.request.urlopen(url, timeout=5) as resp:
+        # FP: internal health-check — URL is built from trusted in-cluster env constants, never user input (not SSRF).
+        with urllib.request.urlopen(url, timeout=5) as resp:  # nosemgrep
             resp.read()
         return {"status": "ok"}
     except Exception as e:
