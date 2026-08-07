@@ -1,0 +1,50 @@
+# Canonical registry of the weyland build / code-quality / security suite — THE source of truth.
+#
+# weyland houses the build suite going forward, so this registry is the single place the toolset is declared. The
+# docs (docs/tools.md, arch.md, runbooks/code-quality.md, diagrams/flow-code-quality.md, schedules.md) CITE this file
+# instead of re-listing tools by hand (a hand-copied list is how the "9 vs 10" drift happened), and
+# scripts/check-quality-tools.sh diffs scan.py + the docs against it. B82's applications.yaml pattern, applied to
+# the quality suite.
+#
+# The suite is MULTI-LANGUAGE by design: it scans polyglot repos (Stud.io = 3 Go modules + a TS frontend + Python),
+# so a tool that no-ops on weyland's OWN code (0 Go / 0 TS today) still belongs — it runs against the other repos.
+#
+# Fields per tool:
+#   id         canonical name (matches scan.py's post("<id>", ...) string for scan-suite tools)
+#   category   secrets | sast | sca | iac | k8s | dockerfile | lint | vuln | hotspots | http-headers | quality-gate | managed
+#   languages  which languages/targets it covers ([any] = language-agnostic)
+#   engine     what it runs
+#   install    binary | pip | go-install | jar | server | builtin | saas
+#   runner     scan-suite | sonarqube | deepsource | codescene   (HOW it executes)
+#   enabled    true = active now; false = inventoried, wiring tracked in `wired_by`
+#   config     repo path of its config, if any
+#   notes      short rationale / gotcha
+
+tools:
+  # ---- scan-suite runner: the code-scan-suite CronJob (services/scan-suite/scan.py) ----
+  - {id: gitleaks,       category: secrets,     languages: [any],                 engine: gitleaks,     install: binary,     runner: scan-suite, enabled: true,  notes: "committed-secret detection; honors .gitignore (see secret-files for the gap it leaves)"}
+  - {id: secret-files,   category: secrets,     languages: [any],                 engine: "git check-ignore --no-index", install: builtin, runner: scan-suite, enabled: true, notes: "B97 — tracked AND gitignored files = a secret hidden after commit; gitleaks skips these"}
+  - {id: detect-secrets, category: secrets,     languages: [any],                 engine: detect-secrets, install: pip,      runner: scan-suite, enabled: true,  notes: "3rd secrets engine (Yelp); excludes sealed-secrets ciphertext; a .secrets.baseline is the follow-up to quiet the shared-dev-password FPs"}
+  - {id: semgrep,        category: sast,        languages: [multi],               engine: semgrep,      install: pip,        runner: scan-suite, enabled: true,  notes: "rule-based SAST; excludes sealed-secrets/"}
+  - {id: bandit,         category: sast,        languages: [python],              engine: bandit,       install: pip,        runner: scan-suite, enabled: true,  notes: "Python SAST"}
+  - {id: gosec,          category: sast,        languages: [go],                  engine: gosec,        install: go-install, runner: scan-suite, enabled: true,  notes: "Go SAST; per go.mod module; no-op on 0-Go repos"}
+  - {id: ruff,           category: lint,        languages: [python],              engine: ruff,         install: pip,        runner: scan-suite, enabled: true,  notes: "Python lint+format — weyland's 2029 .py had no linter; a ruff.toml can tune the ruleset later"}
+  - {id: staticcheck,    category: lint,        languages: [go],                  engine: staticcheck,  install: go-install, runner: scan-suite, enabled: true,  notes: "Go static analysis; per go.mod module"}
+  - {id: go-vet,         category: lint,        languages: [go],                  engine: "go vet",     install: builtin,    runner: scan-suite, enabled: true,  notes: "ships with the Go toolchain; per go.mod module"}
+  - {id: osv-scanner,    category: sca,         languages: [any],                 engine: osv-scanner,  install: binary,     runner: scan-suite, enabled: true,  notes: "dependency CVEs (OSV feed) across manifests"}
+  - {id: pip-audit,      category: sca,         languages: [python],              engine: pip-audit,    install: pip,        runner: scan-suite, enabled: true,  notes: "Python dep CVEs (PyPI advisory DB) — 2nd engine next to osv; per requirements*.txt"}
+  - {id: govulncheck,    category: sca,         languages: [go],                  engine: govulncheck,  install: go-install, runner: scan-suite, enabled: true,  notes: "Go dep+stdlib vulns (call-graph aware); per go.mod module"}
+  - {id: checkov,        category: iac,         languages: [terraform, yaml, k8s], engine: checkov,     install: pip,        runner: scan-suite, enabled: true,  notes: "IaC misconfig"}
+  - {id: kubescape,      category: k8s,         languages: [k8s],                 engine: kubescape,    install: binary,     runner: scan-suite, enabled: true,  notes: "k8s security posture (scoreFactor → severity band)"}
+  - {id: hadolint,       category: dockerfile,  languages: [docker],              engine: hadolint,     install: binary,     runner: scan-suite, enabled: true,  notes: "Dockerfile lint"}
+  - {id: shellcheck,     category: lint,        languages: [shell],               engine: shellcheck,   install: binary,     runner: scan-suite, enabled: true,  notes: "shell-script lint"}
+  - {id: trivy,          category: vuln,        languages: [any],                 engine: trivy,        install: binary,     runner: scan-suite, enabled: true,  config: .trivyignore, notes: "vuln + misconfig + secret; --offline-scan; honors .trivyignore"}
+  - {id: headers,        category: http-headers, languages: [live-http],          engine: "urllib HEAD", install: builtin,   runner: scan-suite, enabled: true,  notes: "NOVEL to weyland — probes the ingress hosts in docs/hosts.md for HSTS/CSP/X-Frame-Options/X-Content-Type-Options/Referrer-Policy; live-probe, not a repo scan"}
+  - {id: code-maat,      category: hotspots,    languages: [any],                 engine: code-maat,    install: jar,        runner: scan-suite, enabled: true,  notes: "B90 — change-hotspots (churn); posts to Port code_hotspot (kind:hotspot), not a severity count"}
+
+  # ---- sonarqube runner: its own CronJob (needs the server + a Java build) ----
+  - {id: sonarqube,      category: quality-gate, languages: [python, typescript, go, java], engine: sonar-scanner, install: server, runner: sonarqube, enabled: true, config: sonar-project.properties, notes: "quality gate + issues → Port code_quality; separate because it needs the SonarQube server + Maven compile of the Flink modules"}
+
+  # ---- managed SaaS PR gates — inventoried now, wiring tracked in B118 ----
+  - {id: deepsource,     category: managed,     languages: [python, javascript, go, secrets, shell, docker, sql], engine: deepsource, install: saas, runner: deepsource, enabled: false, wired_by: B118, config: .deepsource.toml, notes: "managed multi-lang SAST on every PR (GitHub app); Stud.io is the reference impl (shell→shellcheck, docker→hadolint analyzers)"}
+  - {id: codescene,      category: managed,     languages: [any],                 engine: codescene,    install: saas,       runner: codescene,  enabled: false, wired_by: B118, notes: "Code Health PR gate + a CodeScene MCP tool for local working-tree analysis in Claude Code; the paid CodeScene equivalent of code-maat, richer"}

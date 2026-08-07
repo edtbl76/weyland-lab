@@ -1,6 +1,7 @@
 # B69 Wave 4 — weekly code-scan suite. Clones the repo (FULL history — code-maat needs it) once, then the
-# scan-suite image runs the whole free-scanner set (gitleaks, checkov, kubescape, hadolint, bandit, osv-scanner,
-# shellcheck, semgrep, trivy) + code-maat, POSTing per-tool severity counts to the Port `code-quality` webhook
+# scan-suite image runs the whole free-scanner set — the tool roster is the repo-root quality-tools.yaml (SOURCE OF
+# TRUTH; scripts/check-quality-tools.sh guards it), now multi-language (Python/Go/shell/docker/IaC + HTTP-headers) —
+# POSTing per-tool severity counts to the Port `code-quality` webhook
 # (Secret port-ingest-url). Replaces the manual semgrep-scan-job + trivy-scan-job (folded in). SonarQube is its own
 # CronJob (sonar-scan — needs the server + a Java build). Weekly Sun 13:00 UTC (09:00 NY) — clear of the DataHub
 # train (05:00–10:00 UTC) and the image-prune (15:00 UTC). Image built via scripts/build-push-images.sh.
@@ -29,7 +30,7 @@ spec:
                 - { name: src, mountPath: /src }
           containers:
             - name: scan-suite
-              image: registry.weyland.lab/scan-suite:v2
+              image: registry.weyland.lab/scan-suite:v3
               imagePullPolicy: IfNotPresent
               env:
                 - name: PORT_INGEST_URL

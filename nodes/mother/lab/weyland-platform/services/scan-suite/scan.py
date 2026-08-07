@@ -6,6 +6,11 @@ webhook (env PORT_INGEST_URL — same payload as the existing semgrep/trivy Jobs
 to /out (an emptyDir). Port holds the durable per-tool trend; the finding detail lives in this pod's logs (+ the
 /out JSON while the pod exists). Every tool runs BEST-EFFORT: one failing or finding nothing never aborts the
 rest. SonarQube is NOT here — it needs the server + a Java build (own CronJob).
+
+The tool roster is declared in the repo-root `quality-tools.yaml` (SOURCE OF TRUTH; `scripts/check-quality-tools.sh`
+guards scan.py + the docs against it). weyland houses the build suite going forward, so the suite is MULTI-LANGUAGE
+— Python + Go + shell + docker + IaC + live HTTP-headers; a tool no-ops cleanly on a repo lacking its language (0 Go
+here → the Go tools post 0, correct for a multi-repo suite).
 """
 import json, os, subprocess, datetime, urllib.request, glob
 
@@ -274,12 +279,158 @@ def codemaat():
         print(f"  ! code-maat: {e}", flush=True)
 
 
+# ---- Python (added when weyland became the build-suite home; see repo-root quality-tools.yaml) ----
+
+
+def ruff():
+    # Python lint+format. ruff has no severity field — bucket by code family: S* (flake8-bandit security) high,
+    # F*/E9* (real errors) medium, everything else (style) low.
+    r = subprocess.run(["ruff", "check", SRC, "--output-format", "json", "--no-cache",
+                        "--exclude", "openclaw,site-techdocs,node_modules"],
+                       capture_output=True, text=True, timeout=1800, check=False)
+    open(f"{OUT}/ruff.json", "w").write(r.stdout or "[]")
+    c = z()
+    try:
+        for f in json.loads(r.stdout or "[]"):
+            code = f.get("code") or ""
+            c["high" if code.startswith("S") else "medium" if code.startswith(("F", "E9")) else "low"] += 1
+    except Exception as e:
+        print(f"  ! ruff: {e}", flush=True)
+    post("ruff", c)
+
+
+def pip_audit():
+    # Python dependency CVEs (PyPI advisory DB) — a 2nd engine next to osv. pip-audit gives no severity → all high.
+    reqs = subprocess.run(["find", SRC, "-name", "requirements*.txt",
+                           "-not", "-path", "*/node_modules/*", "-not", "-path", "*/openclaw/*"],
+                          capture_output=True, text=True).stdout.split()
+    c = z()
+    for rq in reqs:
+        r = subprocess.run(["pip-audit", "-r", rq, "-f", "json", "--progress-spinner", "off"],
+                           capture_output=True, text=True, timeout=600, check=False)
+        try:
+            for dep in (json.loads(r.stdout or "{}").get("dependencies") or []):
+                c["high"] += len(dep.get("vulns") or [])
+        except Exception:
+            pass
+    post("pip-audit", c)
+
+
+def detect_secrets():
+    # 3rd secrets engine (Yelp). Excludes the sealed-secrets ciphertext (encrypted, safe to commit) so it doesn't
+    # flood; MEDIUM (advisory) — a committed .secrets.baseline is the follow-up to quiet the shared-dev-password FPs.
+    r = subprocess.run(["detect-secrets", "scan", SRC, "--exclude-files",
+                        r"(node_modules|openclaw|site-techdocs|sealed-secrets|package-lock\.json|\.secrets\.baseline)"],
+                       capture_output=True, text=True, timeout=900, check=False)
+    open(f"{OUT}/detect-secrets.json", "w").write(r.stdout or "{}")
+    c = z()
+    try:
+        c["medium"] = sum(len(v) for v in (json.loads(r.stdout or "{}").get("results") or {}).values())
+    except Exception as e:
+        print(f"  ! detect-secrets: {e}", flush=True)
+    post("detect-secrets", c)
+
+
+def headers():
+    # NOVEL to weyland — live HTTP security-header check against the ingress hosts declared in docs/hosts.md
+    # (in-cluster DNS resolves *.weyland.lab via coredns-custom → LAN). Each MISSING security header on a reachable
+    # host = one medium finding. A down/unreachable host is blackbox's concern, not a header finding — skipped.
+    import re, ssl
+    want = ["strict-transport-security", "content-security-policy", "x-frame-options",
+            "x-content-type-options", "referrer-policy"]
+    hostsmd = os.path.join(SRC, "docs", "hosts.md")
+    urls = sorted(set(re.findall(r"https://[a-z0-9.-]+\.weyland\.lab", open(hostsmd).read()))) \
+        if os.path.exists(hostsmd) else []
+    # TLS verify off ON PURPOSE: header-presence probe of the lab's OWN *.weyland.lab hosts (self-signed wildcard,
+    # no lab CA in this pod's trust store); we read response headers, transmit nothing — cert validity isn't the
+    # control here (same posture as the blackbox synthetic prober). Documented so it's a decision, not an oversight.
+    ctx = ssl.create_default_context(); ctx.check_hostname = False
+    ctx.verify_mode = ssl.CERT_NONE  # nosemgrep  # noqa: S323
+    c = z(); probed = 0
+    for u in urls:
+        try:
+            resp = urllib.request.urlopen(urllib.request.Request(u, method="HEAD"), timeout=10, context=ctx)
+        except Exception:
+            try:  # some hosts reject HEAD (405) — fall back to GET
+                resp = urllib.request.urlopen(u, timeout=10, context=ctx)
+            except Exception:
+                continue
+        probed += 1
+        present = {k.lower() for k in resp.headers.keys()}
+        c["medium"] += len([h for h in want if h not in present])
+    print(f"  headers: probed {probed}/{len(urls)} ingress hosts from hosts.md", flush=True)
+    post("headers", c)
+
+
+# ---- Go (for polyglot repos — Stud.io etc.; per go.mod module, clean no-op on weyland's 0-Go tree) ----
+
+
+def _go_modules():
+    return [os.path.dirname(p) for p in subprocess.run(
+        ["find", SRC, "-name", "go.mod", "-not", "-path", "*/node_modules/*", "-not", "-path", "*/openclaw/*"],
+        capture_output=True, text=True).stdout.split()]
+
+
+def go_vet():
+    c = z()
+    for mod in _go_modules():
+        r = subprocess.run(["go", "vet", "./..."], cwd=mod, capture_output=True, text=True, timeout=900, check=False)
+        c["medium"] += len([ln for ln in r.stderr.splitlines() if ".go:" in ln])
+    post("go-vet", c)
+
+
+def gosec():
+    c = z(); m = {"HIGH": "high", "MEDIUM": "medium", "LOW": "low"}
+    for mod in _go_modules():
+        r = subprocess.run(["gosec", "-quiet", "-fmt", "json", "./..."], cwd=mod,
+                           capture_output=True, text=True, timeout=900, check=False)
+        try:
+            for iss in (json.loads(r.stdout or "{}").get("Issues") or []):
+                c[m.get((iss.get("severity") or "").upper(), "low")] += 1
+        except Exception:
+            pass
+    post("gosec", c)
+
+
+def govulncheck():
+    c = z()
+    for mod in _go_modules():
+        r = subprocess.run(["govulncheck", "-format", "json", "./..."], cwd=mod,
+                           capture_output=True, text=True, timeout=900, check=False)
+        ids = set()
+        for ln in (r.stdout or "").splitlines():
+            try:
+                f = json.loads(ln).get("finding")
+                if f and f.get("trace") and f.get("osv"):
+                    ids.add(f["osv"])
+            except Exception:
+                pass
+        c["high"] += len(ids)
+    post("govulncheck", c)
+
+
+def staticcheck():
+    c = z()
+    for mod in _go_modules():
+        r = subprocess.run(["staticcheck", "-f", "json", "./..."], cwd=mod,
+                           capture_output=True, text=True, timeout=900, check=False)
+        for ln in (r.stdout or "").splitlines():
+            try:
+                sev = (json.loads(ln).get("severity") or "").lower()
+                c["medium" if sev in ("error", "warning") else "low"] += 1
+            except Exception:
+                pass
+    post("staticcheck", c)
+
+
 if __name__ == "__main__":
     print(f"=== weyland code-scan suite @ {datetime.datetime.now(datetime.UTC).strftime('%Y-%m-%dT%H:%M:%SZ')}  src={SRC} ===", flush=True)
     # Hoisted from codemaat(): the clone runs as root, the scan as uid 10001 → git "dubious ownership". This must
     # be set BEFORE any git-using check (secret_files runs 2nd, codemaat last) or those checks silently no-op.
     sh(["git", "config", "--global", "--add", "safe.directory", SRC])
-    for fn in (gitleaks, secret_files, checkov, kubescape, hadolint, bandit, osv, shellcheck, semgrep, trivy, codemaat):
+    for fn in (gitleaks, secret_files, detect_secrets, checkov, kubescape, hadolint, bandit, ruff,
+               osv, pip_audit, shellcheck, semgrep, trivy, go_vet, gosec, govulncheck, staticcheck,
+               headers, codemaat):
         try:
             fn()
         except Exception as e:
