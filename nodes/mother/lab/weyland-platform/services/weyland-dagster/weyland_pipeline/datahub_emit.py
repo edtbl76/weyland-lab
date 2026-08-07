@@ -2103,9 +2103,17 @@ def emit_data_contracts():
     server = os.environ.get("DATAHUB_GMS_URL", "http://datahub-datahub-gms.data-mesh.svc.cluster.local:8080")
     graph = DataHubGraph(DatahubClientConfig(server=server, token=os.environ.get("DATAHUB_GMS_TOKEN", "")))
     q = "query($urn:String!){ dataset(urn:$urn){ assertions(start:0,count:200){ assertions{ urn } } } }"
+
+    def _ds(platform, name):
+        return f"urn:li:dataset:(urn:li:dataPlatform:{platform},{name},PROD)"
+
     n = 0
     for urn in graph.get_urns_by_filter(entity_types=["dataset"], platform="trino"):
-        if "iceberg." not in urn:   # data-mesh set: iceberg.dbt (marts) + iceberg.datasets_* (silver/gold)
+        try:
+            name = urn.split(",", 1)[1].rsplit(",", 1)[0]   # iceberg.<schema>.<table>
+        except Exception:
+            continue
+        if not name.startswith("iceberg."):   # data-mesh set: iceberg.dbt (marts) + iceberg.datasets_* (silver/gold)
             continue
         try:
             res = graph.execute_graphql(q, variables={"urn": urn})
@@ -2115,11 +2123,19 @@ def emit_data_contracts():
             continue
         if not aurns:               # no checks → no contract (also skips information_schema + empties)
             continue
-        dc_urn = f"urn:li:dataContract:{hashlib.md5(urn.encode(), usedforsecurity=False).hexdigest()}"
-        emitter.emit(MetadataChangeProposalWrapper(entityUrn=dc_urn, aspect=DataContractPropertiesClass(
-            entity=urn, dataQuality=[DataQualityContractClass(assertion=a) for a in aurns])))
-        emitter.emit(MetadataChangeProposalWrapper(entityUrn=dc_urn, aspect=DataContractStatusClass(state="ACTIVE")))
-        n += 1
+        # DataHub merges the Assertions tab across siblings but resolves the Data Contract tab strictly per-URN — a
+        # contract whose entity is exactly the viewed dataset. So emit the SAME contract on every existing twin
+        # (trino/dbt/iceberg) — same assertion set, stable md5(twin) URN — so the tab resolves whichever twin a user
+        # opens, matching how the assertions already appear everywhere via the sibling merge. B80.
+        short = name[len("iceberg."):]                      # <schema>.<table> (iceberg twin drops the prefix)
+        twins = [urn] + [t for t in (_ds("dbt", name), _ds("iceberg", short)) if graph.exists(t)]
+        for twin in twins:
+            dc_urn = f"urn:li:dataContract:{hashlib.md5(twin.encode(), usedforsecurity=False).hexdigest()}"
+            emitter.emit(MetadataChangeProposalWrapper(entityUrn=dc_urn, aspect=DataContractPropertiesClass(
+                entity=twin, dataQuality=[DataQualityContractClass(assertion=a) for a in aurns])))
+            emitter.emit(MetadataChangeProposalWrapper(
+                entityUrn=dc_urn, aspect=DataContractStatusClass(state="ACTIVE")))
+            n += 1
     return n
 
 
