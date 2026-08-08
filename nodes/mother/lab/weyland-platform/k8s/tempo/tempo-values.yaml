@@ -12,6 +12,18 @@ tempo:
   metricsGenerator:
     enabled: true
     remoteWriteUrl: "http://monitoring-kube-prometheus-prometheus.monitoring.svc.cluster.local:9090/api/v1/write"
+  # B49(a) FIX (2026-08-08) — enabling the generator COMPONENT above is NOT enough: the per-tenant PROCESSORS must be
+  # turned on too, or it produces 0 series (verified `tempo_metrics_generator_registry_active_series`=0 → empty
+  # Drilldown Rate/Error, no `traces_spanmetrics_*` in Prometheus). The chart rendered `/conf/overrides.yaml` as
+  # `overrides: {}`; this fills it. span-metrics = RED (Rate/Error/Duration); service-graphs = the service map;
+  # local-blocks powers the TraceQL "Span rate" metrics view. Chart key: `tempo.overrides.defaults` (grafana/tempo 1.24.4).
+  overrides:
+    defaults:
+      metrics_generator:
+        processors:
+          - service-graphs
+          - span-metrics
+          - local-blocks
   storage:
     trace:
       backend: s3
