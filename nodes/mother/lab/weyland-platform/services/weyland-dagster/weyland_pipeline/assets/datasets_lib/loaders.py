@@ -15,6 +15,7 @@ import pyarrow.parquet as pq
 from dagster import MetadataValue, Output, asset
 
 from . import io
+from weyland_pipeline._otel import traced_load  # B49(b) Phase 2 — one coarse span per dataset-load
 
 
 def _safe_ident(name):
@@ -61,6 +62,7 @@ def _mysql_engine_factory():
     return engine_for
 
 
+@traced_load
 def _load_dataset_to_mysql(mc, cfg, dataset, engine_for, log) -> dict:
     """Each silver parquet file under parquet/<dataset>/ → a table in MySQL db <dataset>."""
     prefix = f"{io.branch()}/parquet/{dataset}/"
@@ -100,6 +102,7 @@ def _tsdb_engine():
     return sqlalchemy.create_engine(f"postgresql+psycopg2://{user}:{pw}@{host}:{port}/{db}")
 
 
+@traced_load
 def _load_dataset_to_timescale(mc, cfg, dataset, time_col, engine, log) -> dict:
     """Each silver parquet file under parquet/<dataset>/ → a TimescaleDB hypertable in db `timeseries`,
     partitioned on a derived `ts` timestamptz. WHO GHO's TimeDim is a year → Jan 1 of that year. Rows with
@@ -145,6 +148,7 @@ def _mongo_client():
     return MongoClient(f"mongodb://{user}:{pw}@{host}:{port}/?authSource=admin")
 
 
+@traced_load
 def _load_dataset_to_mongo(mc, cfg, dataset, client, log) -> dict:
     """Each silver parquet file under parquet/<dataset>/ → a Mongo collection in db datasets_<domain>,
     doc per row. MEMORY-SAFE: the parquet is DOWNLOADED TO A TEMP FILE (not held in RAM — OFF is 1.63GB and
@@ -199,6 +203,7 @@ def _cockroach_engine_factory():
     return engine_for
 
 
+@traced_load
 def _load_dataset_to_cockroach(mc, cfg, dataset, engine_for, log) -> dict:
     """Each silver parquet file under parquet/<dataset>/ → a table in CockroachDB db <dataset> (created if
     absent). pg-wire, so pandas.to_sql (default executemany, NOT method='multi'). MEMORY-SAFE: parquet
@@ -265,6 +270,7 @@ def _cql_col(dtype):
     return "text", lambda v: None if v is None or (isinstance(v, float) and pd.isna(v)) else str(v)
 
 
+@traced_load
 def _load_dataset_to_cassandra(session, mc, cfg, dataset, partition_raw, log) -> dict:
     """Each silver parquet file under parquet/<dataset>/ → a table in keyspace datasets_<domain>. Partition
     key = the configured natural column when present in the data (query-first — e.g. who_gho by country);
@@ -355,6 +361,7 @@ def _opensearch_client():
     return OpenSearch(hosts=[{"host": host, "port": port}], use_ssl=False, verify_certs=False, http_compress=True)
 
 
+@traced_load
 def _load_dataset_to_opensearch(client, mc, cfg, dataset, log) -> dict:
     """Each silver parquet file → an OpenSearch index (doc per row) — searchable. MEMORY-SAFE: temp file + row
     batches → helpers.bulk. Index dropped + recreated each run (idempotent). Index name = sanitized file name
@@ -405,6 +412,7 @@ def _clickhouse_client(database="default"):
     return clickhouse_connect.get_client(host=host, port=port, username=user, password=pw, database=database)
 
 
+@traced_load
 def _load_dataset_to_clickhouse(client, mc, cfg, dataset, log) -> dict:
     """Each silver parquet file → a MergeTree table in db datasets_<domain>. NATIVE ingest: ClickHouse reads
     the parquet straight from the lakeFS S3 gateway via the s3() table function (schema inferred, columnar,
@@ -582,6 +590,7 @@ def _write_neo4j_batch(tx, node_q, edge_q, rows):
         tx.run(q, rows=rows)
 
 
+@traced_load
 def _load_dataset_to_neo4j(driver, mc, cfg, dataset, spec, log) -> dict:
     """Build a graph from silver Parquet per the GraphSpec — nodes + edges MERGE'd (idempotent; re-runs dedupe
     on the key, no drop needed). Uniqueness constraints are created FIRST (MERGE without the backing index is

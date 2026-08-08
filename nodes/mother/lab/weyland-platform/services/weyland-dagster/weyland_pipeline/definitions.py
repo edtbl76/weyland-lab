@@ -37,6 +37,11 @@ from weyland_pipeline.schedules import (
 from weyland_pipeline.sensors import datasets_music_raw_sensor
 from weyland_pipeline.lancedb_sync import weyland_lancedb_sync_job, lancedb_sync_sensor
 
+# B49(b) Phase 2 — start app-level tracing → Tempo (opt-in via OTEL_EXPORTER_OTLP_ENDPOINT). Called at code-location
+# import so it also initializes INSIDE each forked op subprocess (the multiprocess executor re-imports this module).
+from weyland_pipeline._otel import init_otel
+init_otel()
+
 # DataHub catalog emitter — walks the asset graph and pushes datasets + lineage to GMS via
 # the datahub SDK (see datahub_emit.py). Replaces the acryl run_status_sensor, which is dead
 # on Dagster 1.13 (dagster#21526). Idempotent; scheduled hourly. Reads DATAHUB_GMS_TOKEN.
