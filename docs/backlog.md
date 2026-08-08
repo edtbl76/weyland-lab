@@ -1429,7 +1429,7 @@ platform now. Revisit for the one net-new (online eval on *production* traces) w
 - **Langfuse** — OSS LLM **tracing / observability** (traces, spans, token/cost, prompt versions, eval scores). The LLM-native observability gap: GlitchTip catches errors and Prometheus catches infra metrics, but nothing traces the *LLM* path (Hermes → LiteLLM → model; RAG retrieve → rank → generate). Self-hosted on Postgres + ClickHouse (both already in the lab), $0.
 - **Sequencing:** model-eval first (rides the done B4 + mesh) → Langfuse (instrument Hermes / tool-server / LiteLLM) → Promptfoo folds in as the model-eval engine or a CI-style prompt gate. Its own brainstorm when reached.
 
-### B85 — data-store-mageddon v2 — 🟡 MEDIUM (2026-08-05; comprehensive datastore re-evaluation)
+### B85 — data-store-mageddon v2 — 🔴 HIGH (2026-08-05; comprehensive datastore re-evaluation; ↑ Medium→High 2026-08-08 rebalance — the disk-stall/timeout incident (B123) makes a systematic datastore re-eval more earned)
 **Added 2026-07-16.** A full re-sweep of candidate datastores, **superseding B67** (dropped candidates) **+ the B65 Tier-3 "keepers" re-eval**. Same bar as v1: **$0 / no cloud-paid, single-node-feasible, non-redundant with the committed grid, earns its keep as a *new capability*** (breadth-for-learning counts; catalog-clutter does not). 27 stores, four verdicts:
 
 **✗ Cloud / paid / proprietary — can't or won't run ($0 + LAN-only):**
@@ -1584,7 +1584,7 @@ Scope:
 - **Also cover: a job that stops being scheduled at all** (silence ≠ health) — a freshness/heartbeat check per critical job, so "never ran" alarms like "ran and failed".
 - Backfill check: audit every job's recent run history once the alert lands, since other jobs may be sitting in the same silent-failure state.
 
-### B95 — Guard against security-hardening collisions (no-automount broke lancedb sync) — 🔴 HIGH (2026-08-07; ↑ Medium→High rebalance)
+### B95 — Guard against security-hardening collisions (no-automount broke lancedb sync) — ✅ **DONE 2026-08-08.** Class made un-repeatable: `scripts/check-sa-automount-collisions.sh` (static tripwire — fails if any (Cluster)RoleBinding binds a `default` SA; proven trips on a planted collision, green on the real repo) + wired into **DoD Pillar 7** (runs on any SA/RBAC/automount change) + the standing-rule comment already in `rbac-default-sa-noautomount.yaml` + principle in [[k8s-sa-token-vs-rbac-split]]. Scanned clean (0 new high). _(Was 🔴 HIGH.)_
 **Added 2026-07-20.** Two individually-correct changes cancelled each other out and the failure was silent for weeks. `lancedb-sync-rbac.yaml` bound its Role to **`weyland/default`**; U10/B69 `rbac-default-sa-noautomount.yaml` then set `automountServiceAccountToken: false` on that same SA. Result: the pod held the RBAC *permissions* with **no token to authenticate with** → `ConfigException: Service token file does not exist` from `config.load_incluster_config()`. Undetected because the op only runs when `lancedb_sync_sensor` fires, and its upstream hydrate jobs are on-demand. Fixed 2026-07-20 with a dedicated `dagster-user-code` SA (`automountServiceAccountToken: true`) + `serviceAccountName` on the Deployment + the RoleBinding subject repointed. See [[k8s-sa-token-vs-rbac-split]].
 
 Scope — make the *class* of mistake hard to repeat:
