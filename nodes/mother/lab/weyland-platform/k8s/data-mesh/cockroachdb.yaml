@@ -26,6 +26,20 @@ spec:
         - name: cockroachdb
           image: cockroachdb/cockroach:v24.2.4
           args: ["start-single-node", "--insecure", "--store=/cockroach/cockroach-data"]
+          lifecycle:
+            postStart:
+              exec:
+                # B123 disk-stall guard — re-assert on EVERY start so a PVC rebuild can't silently revert to the
+                # 20s default that fail-fast-crashed the hydrate (2026-08-07 incident). Cluster settings persist in
+                # the store, NOT in start flags, so this is the only durable place. SET CLUSTER SETTING is
+                # idempotent; retry until the node accepts SQL, then best-effort exit 0 (never block the pod).
+                command:
+                  - /bin/sh
+                  - -c
+                  - >-
+                    for i in $(seq 1 40); do cockroach sql --insecure -e "SET CLUSTER SETTING
+                    storage.max_sync_duration = '40s'; SET CLUSTER SETTING
+                    storage.max_sync_duration.fatal.enabled = true;" && exit 0; sleep 5; done; exit 0
           ports:
             - name: sql
               containerPort: 26257
