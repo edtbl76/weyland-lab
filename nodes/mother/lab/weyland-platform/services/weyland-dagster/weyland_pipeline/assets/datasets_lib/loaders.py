@@ -238,6 +238,7 @@ def _load_dataset_to_cockroach(mc, cfg, dataset, engine_for, log) -> dict:
 
 
 _CQL_BATCH = 5_000
+_CASS_LOG_EVERY = 200_000   # B121: heartbeat every N rows so the big Cassandra writes (lastfm ~17M) aren't silent for 15-40 min
 
 
 def _cassandra_cluster():
@@ -316,7 +317,9 @@ def _load_dataset_to_cassandra(session, mc, cfg, dataset, partition_raw, log) ->
             marks = ", ".join(["?"] * (len(cols) + 1))
             ins = session.prepare(f'INSERT INTO {ks}.{table} ({quoted}, row_id) VALUES ({marks})')
 
-            n = 0
+            total = pf.metadata.num_rows
+            log.info(f"cassandra {ks}.{table}: writing {total:,} rows…")
+            n, next_mark = 0, _CASS_LOG_EVERY
             for batch in pf.iter_batches(batch_size=_CQL_BATCH):
                 df = batch.to_pandas()
                 params = [
@@ -325,6 +328,9 @@ def _load_dataset_to_cassandra(session, mc, cfg, dataset, partition_raw, log) ->
                 ]
                 execute_concurrent_with_args(session, ins, params, concurrency=64)
                 n += len(params)
+                if n >= next_mark:   # B121: per-N-rows heartbeat so long writes aren't a silent block
+                    log.info(f"cassandra {ks}.{table}: {n:,}/{total:,} rows…")
+                    next_mark += _CASS_LOG_EVERY
                 del batch, df, params
             out[f"{ks}.{table}"] = n
             log.info(f"cassandra {ks}.{table}: {n:,} rows"
