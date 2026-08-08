@@ -142,6 +142,14 @@ grafana:
   #                    Grafana — view/silence alerts in Alertmanager's own UI instead. If you ever want alert-ops
   #                    back inside Grafana, wire the external Alertmanager via Grafana unified-alerting, NOT this
   #                    deprecated datasource.
+  # B49(a) — kube-prometheus-stack AUTO-INJECTS the Alertmanager datasource (like Prometheus), so `deleteDatasources`
+  # alone loses: Grafana deletes it, then the chart re-adds it in the SAME provisioning pass. This toggle stops the
+  # chart creating it (Prometheus is a separate toggle, unaffected); with it off, the `deleteDatasources` entry below
+  # actually sticks. Both are needed: the toggle prevents the re-add, deleteDatasources prunes the pre-existing copy.
+  sidecar:
+    datasources:
+      alertmanager:
+        enabled: false
   deleteDatasources:
     - name: Jaeger
       orgId: 1
