@@ -10,7 +10,7 @@ free. Paid **Qodo is cancelled**; **CodeRabbit** is kept on its **free** tier.
 | Lane | Runs where | Tools | Why |
 |---|---|---|---|
 | **PR / cloud** | Vendor infra, against the **public `weyland-lab`** GitHub repo | DeepSource · CodeScene · Sourcery · Greptile · CodeRabbit | Cloud GitHub Apps — GitHub pushes events *out* to them, so the LAN-webhook limit doesn't apply. $0 on a public repo. |
-| **Local / gateway** | rogueone (reaches GitHub **and** the LAN gateway) | PR-Agent (CLI) · Continue (IDE) | Route through the lab's own **LiteLLM `:30400` / Bifrost** → your models, cost-tracked per-VK, no vendor egress. |
+| **Local / gateway** | rogueone (reaches GitHub **and** the LAN gateway) | PR-Agent (CLI) · ProxyAI (IDE) | Route through the lab's own **LiteLLM `:30400` / Bifrost** → your models, cost-tracked per-VK, no vendor egress. |
 
 **Why PR-Agent is a CLI, not a GitHub Action:** this repo's Actions run on **GitHub's cloud runners**, which
 **cannot reach the LAN gateway** (`:30400`). Running PR-Agent on rogueone keeps it on your $0 gateway. You open a
@@ -38,8 +38,9 @@ installed from its dashboard against the GitHub repo; I can't do that.
 | **CodeRabbit** | `.coderabbit.yaml` | **Downgrade the plan to Free** in the CodeRabbit dashboard (App already installed). | free tier |
 | **Greptile** | — | Install the App on `weyland-lab` (PR-native). | free OSS/public |
 | **PR-Agent** | `.pr_agent.toml` + `scripts/pr-agent-review.sh` | Nothing to install — just `docker` + `scripts/.env`. | $0 via your gateway |
-| **Continue** | `.continue/config.yaml` | Use the **Continue CLI** (`npm i -g @continuedev/cli` → `cn`), NOT the JetBrains plugin (deprecated — Cursor acquired Continue, repo read-only). Same config, BYO-LLM → LiteLLM. | $0 via your gateway |
-| ~~Qodo~~ | — | **Cancel the paid subscription.** Continue replaces Gen. | — |
+| **ProxyAI** (CodeGPT) | IDE settings (see **Use it**) | **Adopted in-IDE assistant** (replaces paid Qodo Gen): JetBrains plugin → **Custom OpenAI** provider at `http://192.168.1.243:30400/v1`, key = LiteLLM master key, model `wl-coding`. Verified 2026-08-08. | $0 via your gateway |
+| Continue (fallback) | `.continue/config.yaml` | Terminal-only fallback — **Continue CLI** (`npm i -g @continuedev/cli` → `cn`), same BYO-LLM → LiteLLM config. Its JetBrains *plugin* is deprecated (Cursor acquisition) → ProxyAI is the in-IDE pick. | $0 via your gateway |
+| ~~Qodo~~ | — | **Cancel the paid subscription** — ProxyAI replaces Gen. | — |
 
 ## Use it
 
@@ -49,11 +50,15 @@ installed from its dashboard against the GitHub repo; I can't do that.
 ```
 `describe` / `improve` / `ask` are the other commands. Model defaults to `wl-coding` (override with `PR_AGENT_MODEL`).
 
-**Continue (CLI):** `npm i -g @continuedev/cli`, export `LITELLM_API_KEY`, then run `cn` from the repo — it reads
-`.continue/config.yaml` and runs on `wl-coding` (LiteLLM). The JetBrains plugin is deprecated (Cursor acquired
-Continue; repo read-only at v2.0.0) — the CLI is the maintained path. If you want an *in-IDE* BYO-LLM assistant
-instead, **ProxyAI/CodeGPT** (JetBrains plugin, custom OpenAI-compatible provider → `:30400`) is the actively-
-maintained alternative — evaluate it if the CLI doesn't fit your flow.
+**ProxyAI (CodeGPT) — the adopted in-IDE assistant, replacing paid Qodo Gen:** install the ProxyAI JetBrains plugin,
+then **Settings → Tools → ProxyAI → Providers → Custom OpenAI** and set: **Base/URL** `http://192.168.1.243:30400/v1`
+(if it asks for the full chat path instead: `…/v1/chat/completions`), **API key** = your LiteLLM master key (the
+`LITELLM_API_KEY` value in `scripts/.env`), **Model** `wl-coding`. Verified working 2026-08-08. Field labels vary by
+version, but those three values are what matter — the gateway path is the same one the Step-1 curl proves.
+
+**Continue CLI (fallback — terminal, not in-IDE):** `npm i -g @continuedev/cli`, export `LITELLM_API_KEY`, then `cn`
+reads `.continue/config.yaml` on `wl-coding`. Continue's JetBrains *plugin* is deprecated (Cursor acquired Continue,
+repo read-only at v2.0.0) — that's why ProxyAI is the in-IDE pick and Continue survives only as the CLI fallback.
 
 **CodeScene (Claude Code, via MCP):** the JetBrains plugin doesn't launch on IntelliJ 2026.2 — use the
 **CodeHealth MCP** (Docker `codescene/codescene-mcp`, mirrored from STUD.io's setup). Wired in the repo-root
@@ -73,7 +78,7 @@ Docker up + a Claude Code restart (MCP servers load at session start).
   not your local edit — so config changes must be pushed, or overridden via env on the docker run.
 - **Overlap is intentional.** Tuned so CodeRabbit stays on summaries (`profile: chill`) and Sourcery/DeepSource
   don't re-flag what the scan-suite already owns — but breadth is the goal, not dedup.
-- **The gateway is the win** for PR-Agent + Continue: $0 marginal, your models, routed/guardrailed like the rest of
+- **The gateway is the win** for PR-Agent + ProxyAI: $0 marginal, your models, routed/guardrailed like the rest of
   the LLM lane. Spend is attributed **by model** at LiteLLM (this instance has **no DB → no per-consumer VK
   attribution**); the `wl-*` models still record provider cost via **Bifrost**. If you want per-consumer spend for
   the review tools, mint a dedicated **Bifrost VK** and point the configs at it — optional, not required to work.
