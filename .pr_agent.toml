@@ -5,6 +5,7 @@
 [config]
 model = "openai/wl-coding"                 # overridable via PR_AGENT_MODEL; api_base/key injected by the script
 fallback_models = ["openai/claude-haiku"]
+custom_model_max_tokens = 128000           # REQUIRED for custom/gateway models — PR-Agent doesn't know wl-coding/claude-haiku's context window
 publish_output = true
 verbosity_level = 1
 

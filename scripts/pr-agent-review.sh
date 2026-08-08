@@ -6,7 +6,7 @@
 #   usage: scripts/pr-agent-review.sh <github-pr-url> [review|describe|improve|ask]   (default: review)
 #   env (scripts/.env):  LITELLM_API_KEY (required) · GITHUB_USER_TOKEN (required, repo-scoped PAT)
 #   optional:      PR_AGENT_MODEL (default openai/wl-coding) · LITELLM_API_BASE (default http://192.168.1.243:30400)
-#                  PR_AGENT_IMAGE (default qodoai/pr-agent:latest — verify the current tag at install)
+#                  PR_AGENT_IMAGE (default codiumai/pr-agent:latest — verify the current tag at install)
 set -euo pipefail
 PR_URL="${1:?usage: pr-agent-review.sh <github-pr-url> [review|describe|improve|ask]}"
 CMD="${2:-review}"
@@ -16,9 +16,10 @@ here="$(cd "$(dirname "$0")/.." && pwd)"
 : "${GITHUB_USER_TOKEN:?set GITHUB_USER_TOKEN in scripts/.env (a repo-scoped GitHub PAT)}"
 MODEL="${PR_AGENT_MODEL:-openai/wl-coding}"
 API_BASE="${LITELLM_API_BASE:-http://192.168.1.243:30400}"
-IMAGE="${PR_AGENT_IMAGE:-qodoai/pr-agent:latest}"
+IMAGE="${PR_AGENT_IMAGE:-codiumai/pr-agent:latest}"
 exec docker run --rm \
   -e CONFIG__MODEL="$MODEL" \
+  -e CONFIG__CUSTOM_MODEL_MAX_TOKENS="${PR_AGENT_MAX_TOKENS:-128000}" \
   -e OPENAI__KEY="$LITELLM_API_KEY" \
   -e OPENAI__API_BASE="$API_BASE" \
   -e GITHUB__USER_TOKEN="$GITHUB_USER_TOKEN" \

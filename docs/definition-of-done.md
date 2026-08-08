@@ -131,6 +131,13 @@ manifest** runs the relevant scan and **triages the result before "done":**
   permissions to a `default` ServiceAccount (the automount-off SA), the collision that silently broke lancedb-sync
   (2026-07-20). A workload that calls the k8s API gets a **dedicated** SA (automount on), never `default`. See
   `k8s/rbac-default-sa-noautomount.yaml`.
+- **AI code-review lane (B106) — run it on the change, triage like the scanners.** The adopted $0 stack (7 tools;
+  [runbooks/code-review-stack.md](runbooks/code-review-stack.md)) sits ON TOP of the scanners — LLM contextual review
+  the SAST lane can't do. For a change on a **PR**: the cloud bots (**DeepSource · CodeRabbit · Sourcery · Greptile**)
+  auto-review + **PR-Agent** via `./scripts/pr-agent-review.sh <pr-url>` (routed through the LiteLLM gateway) — confirm
+  they ran and address the real findings. For **direct-to-main** work: run **CodeScene** on the changed files via its
+  MCP (`code_health_review` / `pre_commit_code_health_safeguard`) and fix Code-Health regressions before done;
+  **ProxyAI** covers in-IDE review during authoring. Triaged like the scanners — fix the real ones, document-accept noise.
 
 Runbook: [runbooks/code-quality.md](runbooks/code-quality.md).
 

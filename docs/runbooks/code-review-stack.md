@@ -66,8 +66,11 @@ Docker up + a Claude Code restart (MCP servers load at session start).
 (direct-to-main) and raises its own **Autofix PRs**, so it works without a PR flow.
 
 ## Notes / gotchas
-- **Verify vendor specifics at install:** the PR-Agent image tag (`qodoai/pr-agent:latest` — the OSS moved under
-  Qodo/community in 2026), and each cloud App's current config schema. The committed configs are correct starters.
+- **PR-Agent gotchas (hit + fixed 2026-08-08, validated on PR #6):** the image is **`codiumai/pr-agent:latest`**
+  (NOT `qodoai/...`, which 404s); and a **custom/gateway model needs `custom_model_max_tokens`** or PR-Agent errors
+  "Model … not defined in MAX_TOKENS" — set via `CONFIG__CUSTOM_MODEL_MAX_TOKENS` in `scripts/pr-agent-review.sh`
+  (and `.pr_agent.toml`). Note PR-Agent reads `.pr_agent.toml` from the **committed GitHub repo** (apply_repo_settings),
+  not your local edit — so config changes must be pushed, or overridden via env on the docker run.
 - **Overlap is intentional.** Tuned so CodeRabbit stays on summaries (`profile: chill`) and Sourcery/DeepSource
   don't re-flag what the scan-suite already owns — but breadth is the goal, not dedup.
 - **The gateway is the win** for PR-Agent + Continue: $0 marginal, your models, routed/guardrailed like the rest of
