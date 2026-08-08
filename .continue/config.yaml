@@ -1,0 +1,26 @@
+# B106 — Continue (JetBrains) config, workspace-scoped. Routes the in-IDE assistant/review through the lab's own
+# LiteLLM gateway ($0, your models, cost-tracked per-VK) — replaces the paid Qodo Gen JetBrains plugin. Continue
+# reads a workspace `.continue/` OR the global `~/.continue/`; keep this here so the wiring lives in the repo.
+# The API key is NOT committed — export LITELLM_API_KEY in your shell (Continue expands ${{ env.NAME }}); see
+# runbooks/code-review-stack.md. Validate against your Continue plugin version (schema shifts between releases).
+name: weyland-code-review
+version: 0.0.1
+schema: v1
+models:
+  - name: wl-coding (LiteLLM)
+    provider: openai
+    model: wl-coding
+    apiBase: http://192.168.1.243:30400
+    apiKey: ${{ env.LITELLM_API_KEY }}
+    roles: [chat, edit, apply]
+  - name: claude-haiku (LiteLLM)
+    provider: openai
+    model: claude-haiku
+    apiBase: http://192.168.1.243:30400
+    apiKey: ${{ env.LITELLM_API_KEY }}
+    roles: [chat, edit]
+context:
+  - provider: diff
+  - provider: currentFile
+  - provider: code
+  - provider: terminal

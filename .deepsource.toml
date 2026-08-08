@@ -1,0 +1,39 @@
+# B106 — DeepSource config. Install the DeepSource GitHub App on the public weyland-lab repo (free Open Source
+# plan) + this file drives its analysis. Autofix PRs are raised by DeepSource itself (works on direct-to-main —
+# no PR flow needed). Overlaps the scan-suite by design (owner wants breadth); DeepSource adds AI Autofix + its
+# own dashboard. Docs: https://docs.deepsource.com/docs/config
+version = 1
+
+# Skip what the scan-suite already owns / vendored trees.
+exclude_patterns = [
+  "openclaw/**",
+  "**/site-techdocs/**",
+  "**/node_modules/**",
+  "nodes/**/sealed-secrets/**",
+]
+
+[[analyzers]]
+name = "python"
+enabled = true
+  [analyzers.meta]
+  runtime_version = "3.x.x"
+
+[[analyzers]]
+name = "shell"
+enabled = true
+
+[[analyzers]]
+name = "docker"
+enabled = true
+
+[[analyzers]]
+name = "terraform"
+enabled = true
+
+[[analyzers]]
+name = "test-coverage"
+enabled = false   # no coverage upload wired yet; flip on when B87/CI publishes coverage
+
+[[transformers]]
+name = "ruff"
+enabled = true    # DeepSource Autofix via ruff — same linter the scan-suite runs (B120), so fixes stay consistent

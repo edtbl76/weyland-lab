@@ -1,0 +1,24 @@
+# B106 — PR-Agent (Qodo Merge OSS, Apache-2.0) config. Runs as a CLI on rogueone via scripts/pr-agent-review.sh,
+# routed through the lab's own LiteLLM gateway ($0, your models). NOT a GitHub Action — cloud runners can't reach
+# the LAN gateway (:30400). Model/keys are supplied by the script from ./.env; this file tunes behaviour only.
+# Docs: https://qodo-merge-docs.qodo.ai/usage-guide/configuration_options/
+[config]
+model = "openai/wl-coding"                 # overridable via PR_AGENT_MODEL; api_base/key injected by the script
+fallback_models = ["openai/claude-haiku"]
+publish_output = true
+verbosity_level = 1
+
+[pr_reviewer]
+require_score_review = true
+require_tests_review = true
+require_security_review = true
+num_code_suggestions = 4
+inline_code_comments = true
+persistent_comment = true
+
+[pr_description]
+publish_labels = false
+add_original_user_description = true
+
+[pr_code_suggestions]
+num_code_suggestions = 6

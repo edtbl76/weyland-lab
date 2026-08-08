@@ -1,0 +1,21 @@
+# yaml-language-server: $schema=https://coderabbit.ai/integrations/schema.v2.json
+# B106 — CodeRabbit config (kept on the FREE tier — downgrade the paid plan in the CodeRabbit dashboard).
+# CodeRabbit reviews PRs on the public weyland-lab repo. Tuned to NOT drown in what the scan-suite/DeepSource
+# already cover — it earns its keep on summaries + walkthroughs (the "nice format" it's kept for).
+language: en-US
+reviews:
+  profile: chill            # less nitpicky — the scan-suite/DeepSource own the pedantic lane
+  request_changes_workflow: false
+  high_level_summary: true
+  poem: false
+  review_status: true
+  auto_review:
+    enabled: true
+    drafts: false
+  path_filters:
+    - "!openclaw/**"
+    - "!**/site-techdocs/**"
+    - "!**/node_modules/**"
+    - "!nodes/**/sealed-secrets/**"
+chat:
+  auto_reply: true

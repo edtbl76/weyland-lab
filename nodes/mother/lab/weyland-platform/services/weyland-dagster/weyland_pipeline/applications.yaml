@@ -97,6 +97,15 @@ applications:
   - {key: opencost, name: OpenCost, group: platform, datahub_application: false, owns: [], capabilities: ["cost-management"], port_component: opencost, description: "Cloud/lab cost accounting."}
   - {key: argocd, name: Argo CD, group: platform, datahub_application: false, owns: [], capabilities: ["gitops", "ci-cd"], port_component: argocd, description: "GitOps engine (the app-of-apps)."}
 
+  # ============ CODE-REVIEW TOOLS (B106 — the ai-code-review lane; external SaaS / IDE / CLI, own no lab data) ============
+  - {key: deepsource, name: DeepSource, group: code-review, datahub_application: false, owns: [], capabilities: ["code-review", "code-quality"], port_component: deepsource, description: "AI SAST + Autofix PRs on the public repo (B106); CI + continuous."}
+  - {key: codescene, name: CodeScene, group: code-review, datahub_application: false, owns: [], capabilities: ["code-review", "code-quality"], port_component: codescene, description: "Behavioral code-health; MCP into Claude Code + CI (B106)."}
+  - {key: sourcery, name: Sourcery, group: code-review, datahub_application: false, owns: [], capabilities: ["code-review"], port_component: sourcery, description: "Python review/refactor; PyCharm plugin + GitHub app (B106)."}
+  - {key: coderabbit, name: CodeRabbit, group: code-review, datahub_application: false, owns: [], capabilities: ["code-review"], port_component: coderabbit, description: "PR summaries/walkthroughs; free tier (B106)."}
+  - {key: greptile, name: Greptile, group: code-review, datahub_application: false, owns: [], capabilities: ["code-review"], port_component: greptile, description: "Codebase-aware LLM PR review; PR-native (B106)."}
+  - {key: pr-agent, name: PR-Agent, group: code-review, datahub_application: false, owns: [], capabilities: ["code-review"], port_component: pr-agent, description: "Self-hosted LLM PR review via the LiteLLM gateway; CLI on rogueone (B106)."}
+  - {key: proxyai, name: ProxyAI, group: code-review, datahub_application: false, owns: [], capabilities: ["code-review", "code-assistant"], port_component: proxyai, description: "In-IDE LLM assistant via the LiteLLM gateway; replaces paid Qodo Gen (B106)."}
+
 excluded:
 
   # ---- data stores (Port `resource`, not a component — their DATA is owned by producers) ----

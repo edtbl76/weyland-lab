@@ -1,0 +1,18 @@
+{
+  "mcpServers": {
+    "codescene": {
+      "type": "stdio",
+      "command": "docker",
+      "args": [
+        "run", "-i", "--rm",
+        "-e", "CS_ACCESS_TOKEN",
+        "-e", "CS_MOUNT_PATH=/home/edwardmangini/IdeaProjects/weyland",
+        "--mount", "type=bind,src=/home/edwardmangini/IdeaProjects/weyland,dst=/mount/,ro",
+        "codescene/codescene-mcp"
+      ],
+      "env": {
+        "CS_ACCESS_TOKEN": "${CS_ACCESS_TOKEN}"
+      }
+    }
+  }
+}

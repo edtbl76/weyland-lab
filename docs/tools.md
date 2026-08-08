@@ -93,7 +93,7 @@ this page) links to the live tool.
 |---|---|---|
 | **Argo CD** | <https://argocd.weyland.lab> | GitOps CD for the k8s layer |
 | **Woodpecker CI** | <https://woodpecker.weyland.lab> | CI pipelines |
-| **SonarQube** | <https://sonarqube.weyland.lab> | Code quality + SAST (part of the weekly scan-suite → Port Code Health). Full quality/security tool roster (19 scan-suite tools + Sonar + DeepSource/CodeScene) is the repo-root **`quality-tools.yaml`** — the source of truth. |
+| **SonarQube** | <https://sonarqube.weyland.lab> | Code quality + SAST (part of the weekly scan-suite → Port Code Health). Full quality/security tool roster (19 scan-suite tools + Sonar + the 7-tool **ai-code-review** lane, B106) is the repo-root **`quality-tools.yaml`** — the source of truth; the review lane's wiring + install steps are in [runbooks/code-review-stack.md](runbooks/code-review-stack.md). |
 | **Unleash** | <https://unleash.weyland.lab> | Feature flags |
 | **Headlamp** | <https://headlamp.weyland.lab> | Kubernetes UI |
 | **APISIX** | <https://apisix.weyland.lab> | API gateway dashboard |

@@ -1,0 +1,21 @@
+# B106 — Sourcery config (Python review/refactor). Two surfaces, both $0 for the public repo:
+#   • PyCharm plugin (in-IDE suggestions as you type)  • GitHub App (PR review comments)
+# Install both; this file tunes them. Docs: https://docs.sourcery.ai/Configuration/
+rule_settings:
+  enable:
+    - default
+  rule_types:
+    - refactoring
+    - suggestion
+    - comment
+
+# Keep Sourcery to the Python it's good at; skip vendored / generated trees.
+ignore:
+  - openclaw/
+  - '**/site-techdocs/'
+  - '**/node_modules/'
+  - nodes/**/sealed-secrets/
+
+github:
+  review_comments: true
+  request_review: author
