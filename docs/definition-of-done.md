@@ -113,9 +113,10 @@ open gap = not done:
 Scanners are a **gate**, not a dashboard to admire. Any batch that adds or changes **code, a Dockerfile, or a k8s
 manifest** runs the relevant scan and **triages the result before "done":**
 
-- **Run** the `code-scan-suite` (10 OSS tools — gitleaks · secret-files · checkov · kubescape · hadolint · bandit ·
-  osv-scanner · shellcheck · semgrep · trivy) on-demand:
-  `kubectl -n weyland create job scan-suite-adhoc --from=cronjob/code-scan-suite` — and, for changes SonarQube covers,
+- **Run** the `code-scan-suite` (the multi-language 19-tool suite — see `quality-tools.yaml`, the registry source of
+  truth; B120) on-demand with **`./scripts/run-scan-suite.sh`** (clears any prior adhoc job → launches from
+  `cronjob/code-scan-suite` → waits → prints findings; raw form:
+  `kubectl -n weyland create job scan-suite-adhoc --from=cronjob/code-scan-suite`) — and, for changes SonarQube covers,
   `sonar-scan`. Both feed Port `security_scan` / `code_quality` (the **Code Health** dashboard). It's also a weekly
   CronJob (B69); this pillar is the **per-batch** gate on top of that safety net, not a substitute for it.
 - **Triage every NEW critical / high.** Most highs are phantom (see [[code-quality-scan-triage]]) — **fix** the real
@@ -125,6 +126,11 @@ manifest** runs the relevant scan and **triages the result before "done":**
   suppress to make a number green.
 - **Re-scan after fixes** so Port reflects the true state — a `202` from the ingest URL is queue-acceptance, **not**
   proof of an entity. "Scanned once and ignored" is not done.
+- **RBAC / SA hardening guard (B95).** Any change touching a `ServiceAccount`, `RoleBinding`, `ClusterRoleBinding`, or
+  `automountServiceAccountToken` runs **`./scripts/check-sa-automount-collisions.sh`** — it fails if any binding grants
+  permissions to a `default` ServiceAccount (the automount-off SA), the collision that silently broke lancedb-sync
+  (2026-07-20). A workload that calls the k8s API gets a **dedicated** SA (automount on), never `default`. See
+  `k8s/rbac-default-sa-noautomount.yaml`.
 
 Runbook: [runbooks/code-quality.md](runbooks/code-quality.md).
 

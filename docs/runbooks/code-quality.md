@@ -14,7 +14,9 @@ The suite + B89 triage + B90 dashboard are detailed in the sections below.
   **in front of** SonarQube's own login (`admin`/`admin` → forced change) — Keycloak SSO first, then SonarQube's
   own login. Stateless-ish: data + extensions on RWO PVCs.
 - Weekly CronJobs (clone → scan → Port): `k8s/code-quality/scan-suite.yaml` (`code-scan-suite`, Sun 13:00 UTC) +
-  `k8s/sonarqube/sonar-scan.yaml` (`sonar-scan`, Sun 12:00 UTC). Run on-demand:
+  `k8s/sonarqube/sonar-scan.yaml` (`sonar-scan`, Sun 12:00 UTC). **On-demand — the per-batch DoD Pillar 7 gate:**
+  `./scripts/run-scan-suite.sh` (clears any prior adhoc job → launches from `cronjob/code-scan-suite` → waits →
+  prints the findings to triage; runs from anywhere with kubectl). Raw form:
   `kubectl -n weyland create job <name>-smoke --from=cronjob/<code-scan-suite|sonar-scan>`.
 - Always-on (NOT KEDA scale-to-zero): the 32GB RAM bump made the cost moot; scale-to-zero would need the KEDA
   HTTP interceptor in front (cross-ns ingress rewire + scan-path-through-interceptor). Revisit only if RAM tightens.
