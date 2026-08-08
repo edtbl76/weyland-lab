@@ -125,18 +125,31 @@ grafana:
     # 256Mi was too tight — Grafana + its 2 sidecars run ~310Mi and OOMKilled (→502s).
     requests: { cpu: 50m, memory: 256Mi }
     limits: { memory: 512Mi }
-  # Surface already-running backends INSIDE Grafana (no new services). Prometheus is auto-provisioned by the
-  # chart; these are additions. (Jaeger removed — replaced by Tempo in B48.)
-  additionalDataSources:
-    # kube-prometheus-stack Alertmanager — view firing alerts in Grafana (routing stays Alertmanager→Telegram).
+  # ── Grafana datasource pruning (B49 thread c, 2026-08-08) ───────────────────────────────────────────────────────
+  # READ THIS before touching datasources — the terminology bites people:
+  #   A Grafana "datasource" is ONLY a Grafana-side CONFIG POINTER to a backend. It is NOT the backend workload.
+  #   Deleting a datasource removes Grafana's link to a backend — it NEVER deletes the pod/StatefulSet/Service.
+  #   Also: Grafana datasource provisioning is ADD-ONLY — removing an entry from `additionalDataSources` does NOT
+  #   delete the live datasource object; you must prune it explicitly here in `deleteDatasources`.
+  #
+  #   • Jaeger       — trace backend retired in B48 (replaced by Tempo). Dropped from config then, but the live
+  #                    datasource orphaned and now health-errors on the dead istio tracing svc → prune it.
+  #   • Alertmanager — Grafana 13 DEPRECATED the standalone `alertmanager` datasource and ships its plugin DISABLED,
+  #                    so its health check returns "plugin unavailable". We remove the dead pointer.
+  #                    ⚠️ THIS DOES NOT TOUCH ALERTING. The Alertmanager StatefulSet and the real notification path
+  #                    Prometheus → Alertmanager → Telegram (configured by the `alertmanager:` block far above) are
+  #                    SEPARATE and completely unaffected. You just lose the (already-broken) view of alerts *inside*
+  #                    Grafana — view/silence alerts in Alertmanager's own UI instead. If you ever want alert-ops
+  #                    back inside Grafana, wire the external Alertmanager via Grafana unified-alerting, NOT this
+  #                    deprecated datasource.
+  deleteDatasources:
+    - name: Jaeger
+      orgId: 1
     - name: Alertmanager
-      type: alertmanager
-      uid: alertmanager
-      access: proxy
-      url: http://monitoring-kube-prometheus-alertmanager.monitoring.svc.cluster.local:9093
-      jsonData:
-        implementation: prometheus
-        handleGrafanaManagedAlerts: false
+      orgId: 1
+  # Surface already-running backends INSIDE Grafana (no new services). Prometheus is auto-provisioned by the chart;
+  # these are additions. (Jaeger + Alertmanager pruned above — see the note.)
+  additionalDataSources:
     # Loki (logs, B48) — SingleBinary svc, no gateway. View via Explore → Loki / Logs Drilldown.
     - name: Loki
       type: loki

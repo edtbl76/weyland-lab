@@ -153,13 +153,24 @@ From rogueone's browser instead: `https://grafana.weyland.lab` → Explore → `
 
 ## Phase 3 — Grafana datasources (Jaeger + Alertmanager) + Proxmox metrics ✅ (2026-06-20)
 
-**Surface the already-running tools INSIDE Grafana** (no new services) — two provisioned datasources in the values
-file under `grafana.additionalDataSources`; the datasource sidecar reloads on the version-pinned `helm upgrade`.
-- **Jaeger** `url: http://tracing.istio-system.svc.cluster.local:80/jaeger` — the Istio addon serves the query API
-  under base path **`/jaeger`**; without the suffix Grafana hits the SPA `index.html` ("invalid character '<'" on
-  Test). View traces via **Explore → Jaeger → Search** — NOT the Drilldown app (Tempo-only).
+**Surface the already-running tools INSIDE Grafana** (no new services) — provisioned datasources in the values file
+under `grafana.additionalDataSources`; the datasource sidecar reloads on the version-pinned `helm upgrade`.
+
+> **⚠️ Both Phase-3 datasources below were later REMOVED (B49, 2026-08-08).** Terminology that bites: a Grafana
+> **datasource** is only a config *pointer* to a backend — deleting it **never** touches the backend pod/workload.
+> Grafana provisioning is **add-only**, so dropping a datasource from `additionalDataSources` does NOT delete the live
+> object; it's pruned explicitly via `grafana.deleteDatasources` (see the long note in `kube-prometheus-stack-values.yaml`).
+> - **Jaeger** — retired with the trace backend in B48 (Tempo replaced it); the datasource orphaned until B49 pruned it.
+> - **Alertmanager** — Grafana 13 **deprecated** the standalone `alertmanager` datasource and ships its plugin
+>   **disabled** (health check → "plugin unavailable"), so B49 removed the dead pointer. **Alerting is unaffected** —
+>   the Alertmanager StatefulSet + `Prometheus → Alertmanager → Telegram` are a separate path; view/silence alerts in
+>   Alertmanager's own UI now. To run alert-ops inside Grafana later, wire the external AM via unified-alerting (not a datasource).
+
+_Historical (2026-06-20, both since removed per the note above):_
+- **Jaeger** `url: http://tracing.istio-system.svc.cluster.local:80/jaeger` — the Istio addon served the query API
+  under base path **`/jaeger`**; without the suffix Grafana hit the SPA `index.html` ("invalid character '<'" on Test).
 - **Alertmanager** `url: http://monitoring-kube-prometheus-alertmanager.monitoring.svc:9093`,
-  `jsonData.implementation: prometheus` — firing alerts visible in Grafana (routing stays Alertmanager→Telegram).
+  `jsonData.implementation: prometheus` — firing alerts were visible in Grafana (routing always stayed Alertmanager→Telegram).
 
 **Proxmox metrics — `prometheus-pve-exporter`** (`k8s/monitoring/pve-exporter.yaml`, ns `monitoring`, NOT meshed):
 scrapes the PVE API (read-only `PVEAuditor` token `pve-exporter@pve!monitoring` in Secret `pve-exporter-secret`)

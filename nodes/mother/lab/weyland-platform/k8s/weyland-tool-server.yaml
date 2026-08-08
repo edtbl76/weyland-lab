@@ -17,7 +17,7 @@ spec:
       enableServiceLinks: false
       containers:
         - name: weyland-tool-server
-          image: registry.weyland.lab/weyland-tool-server:v14   # B111 Option C — FastMCP (was fastapi-mcp, hung on starlette 1.x); forwards x-forwarded-consumer (gateway actor); B74 bge-base (768)
+          image: registry.weyland.lab/weyland-tool-server:v15   # B49(b) OTel FastAPI+httpx spans → Tempo OTLP; was v14 (B111 FastMCP; forwards x-forwarded-consumer; B74 bge-base 768)
           resources:
             requests: { memory: 512Mi, cpu: 250m }
             # 3Gi (was 2Gi, raised 2026-07-21). Steady state is ~929Mi (it loads the embedding model), so 2Gi
@@ -114,6 +114,12 @@ spec:
             # the request still answers). Experiment `tool-server-rag`.
             - name: MLFLOW_TRACKING_URI
               value: http://mlflow.weyland.svc.cluster.local:5000
+            # B49 thread (b) — app-level spans → Tempo OTLP (HTTP :4318; OPT-IN, unset = no tracing). FastAPI + httpx
+            # auto-instrumentation nests app spans under the Istio mesh trace. Runbook: observability.md.
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
+              value: http://tempo.monitoring.svc.cluster.local:4318
+            - name: OTEL_SERVICE_NAME
+              value: weyland-tool-server
 ---
 apiVersion: v1
 kind: Service

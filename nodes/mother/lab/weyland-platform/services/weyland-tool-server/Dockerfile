@@ -20,7 +20,11 @@ RUN pip install --no-cache-dir \
     neo4j \
     prometheus-client \
     sentence-transformers \
-    mlflow-skinny
+    mlflow-skinny \
+    'opentelemetry-sdk==1.44.0' \
+    'opentelemetry-exporter-otlp-proto-http==1.44.0' \
+    'opentelemetry-instrumentation-fastapi==0.65b0' \
+    'opentelemetry-instrumentation-httpx==0.65b0'
 # B70 Part 2: `llm-guard` removed — the injection/toxicity/grounding validators (and their models) live in the
 # shared weyland-guard service now; this image only POSTs to it over the already-present httpx. sentence-transformers
 # stays (llama-index-embeddings-huggingface needs it for the bge query-embedding).

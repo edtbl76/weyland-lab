@@ -209,6 +209,32 @@ async def lifespan(app: FastAPI):
 app = FastAPI(title="Weyland Tool Server", lifespan=lifespan)
 
 
+def _init_otel(app):
+    # B49 thread (b) — app-level spans → Tempo OTLP. OPT-IN via OTEL_EXPORTER_OTLP_ENDPOINT (set in the k8s env to
+    # http://tempo.monitoring.svc.cluster.local:4318); unset → no-op, so local/dev runs and tests need no collector.
+    # HTTP OTLP (:4318), NOT gRPC (:4317) — the meshed→unmeshed hop hits the same http2-framing snag the Grafana→Tempo
+    # gRPC path shows, so a plain HTTP POST sidesteps it. FastAPI instrumentation extracts the incoming Istio
+    # traceparent, so these spans nest UNDER the mesh span (full request → handler → outbound httpx picture).
+    if not os.environ.get("OTEL_EXPORTER_OTLP_ENDPOINT"):
+        return
+    from opentelemetry import trace
+    from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
+    from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
+    from opentelemetry.instrumentation.httpx import HTTPXClientInstrumentor
+    from opentelemetry.sdk.resources import Resource
+    from opentelemetry.sdk.trace import TracerProvider
+    from opentelemetry.sdk.trace.export import BatchSpanProcessor
+    provider = TracerProvider(resource=Resource.create(
+        {"service.name": os.environ.get("OTEL_SERVICE_NAME", "weyland-tool-server")}))
+    provider.add_span_processor(BatchSpanProcessor(OTLPSpanExporter()))  # reads OTEL_EXPORTER_OTLP_ENDPOINT (+ /v1/traces)
+    trace.set_tracer_provider(provider)
+    FastAPIInstrumentor.instrument_app(app)
+    HTTPXClientInstrumentor().instrument()
+
+
+_init_otel(app)
+
+
 class ContextSearchRequest(BaseModel):
     query: str
     limit: int = 5
