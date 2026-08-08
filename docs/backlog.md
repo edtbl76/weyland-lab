@@ -576,7 +576,7 @@ slot vs which get desk-noted." Realistic build candidates = the OSS ones (Semgre
 Mermaid, NotebookLM); the enterprise scanners (Veracode/Checkmarx/Wiz) and paid IDEs are comparison-only. Sequence after
 the current agent/RAG threads; pick the 2–3 highest-value OSS ones to actually stand up.
 
-### B105 — Dagster job observability / progress logging — 🔴 HIGH (2026-08-07; ↑ Medium→High in the tier rebalance — real incident-driven ops value)
+### B105 — Dagster job observability / progress logging — ✅ **DONE 2026-08-07.** All four sub-items hold: progress logging in long loops + batched encode (B74/v12) + phase/embedding markers (`aidlc_kb`, `_build_vectors`, cockroach per-table, Cassandra per-200k-rows via B121 — all verified firing live on the 2026-08-07 hydrate runs) + **structured op/asset metadata in the run UI** (51 assets emit `MetadataValue` — rows/chunk counts/etc.). The silent-step trap (running-vs-wedged indistinguishable) is closed across the ingest + datasets-hydrate jobs. _(Was 🔴 HIGH; ↑ Medium→High in the rebalance — real incident-driven ops value.)_
 The ingest / re-embed jobs go **opaque during long steps** — surfaced sharply in B74: `aidlc_kb_ingest`'s embed loop ran
 **silent for ~15 min** (encodes ~3,000 chunks **one at a time**; the only log lines are `read N docs` at the start and
 `N/M docs → K chunks` emitted *after* the whole loop). You can't tell running-vs-wedged without dropping to
