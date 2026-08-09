@@ -146,6 +146,7 @@ model {
           tempo = component "Tempo" "Traces -> MinIO (Jaeger retired)"
           pveExporter = component "PVE exporter" "Proxmox metrics -> Prometheus"
           glitchtip = component "GlitchTip" "Error tracking -> Port"
+          langfuse = component "Langfuse" "LLM observability (B103) — traces/scores/prompts; reuses data-mesh ClickHouse/Valkey/MinIO + weyland-postgres"
           kuma = component "Uptime Kuma" "25 monitors -> Telegram"
           kiali = component "Kiali" "Mesh observability UI"
         }
@@ -238,6 +239,7 @@ model {
   weyland.mother.ai.openWebui -> weyland.whisper "STT /v1/audio/transcriptions"
   weyland.mother.ai.neodash -> weyland.mother.ai.neo "Bolt (browser-side)"
   weyland.mother.ai.toolServer -> weyland.mother.ops.obs.glitchtip "error push (Sentry SDK)"
+  weyland.mother.ai.litellm -> weyland.mother.ops.obs.langfuse "LLM traces (langfuse callback, B103)"
 
   // RAG streaming ingestion
   weyland.mother.ai.dagster -> github "git-pull docs/ + nodes/ (RAG source)"

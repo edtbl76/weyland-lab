@@ -250,6 +250,7 @@ mkcert wildcard cert; resolve from rogueone (`/etc/hosts`) or via CoreDNS. **Mos
 | **Kiali** (Istio mesh graph + mTLS, **read-only**; traces from Tempo) — **Keycloak SSO** (forward-auth) | `https://kiali.weyland.lab` |
 | Grafana (metrics + logs (Loki) + traces (Tempo) + alerts (Alertmanager, incl. **Loki-ruler log alerts**) — Explore/Drilldown) — **Keycloak SSO** (OIDC, CA-verified back-channel) | `https://grafana.weyland.lab` |
 | **GlitchTip** (error tracking — Sentry-SDK-compatible) — **Keycloak SSO** (OIDC; via a DB-precreated social link — see [[glitchtip-allauth-sso-link]]) | `https://glitchtip.weyland.lab` |
+| **Langfuse** (LLM observability — traces / scores / prompts / online evals) — **Keycloak forward-auth** (UI only; SDK ingestion uses the in-cluster svc + pk/sk keys, not the ingress) | `https://langfuse.weyland.lab` |
 | **OpenCost** (k8s cost allocation — custom on-prem pricing; LAN-only) | `https://opencost.weyland.lab` |
 | **Woodpecker CI** (CI/CD — GitHub OAuth login; k8s backend; manual/cron triggers) | `https://woodpecker.weyland.lab` |
 | **Argo CD** (GitOps CD — local admin; app-of-apps, **59 apps** as of 2026-07-20) | `https://argocd.weyland.lab` |

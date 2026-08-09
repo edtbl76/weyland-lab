@@ -84,6 +84,7 @@ this page) links to the live tool.
 | **Grafana** | <https://grafana.weyland.lab> | LGTM dashboards — metrics, logs, traces |
 | **Uptime Kuma** | <https://kuma.weyland.lab> | Uptime status board (Telegram paging) |
 | **GlitchTip** | <https://glitchtip.weyland.lab> | Error tracking (Sentry-compatible) |
+| **Langfuse** | <https://langfuse.weyland.lab> | LLM observability (traces / prompts / evals) |
 | **OpenCost** | <https://opencost.weyland.lab> | Kubernetes cost allocation |
 | **Kiali** | <https://kiali.weyland.lab> | Istio service-mesh topology |
 

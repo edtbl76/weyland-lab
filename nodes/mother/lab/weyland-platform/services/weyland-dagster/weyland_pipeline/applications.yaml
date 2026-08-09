@@ -42,6 +42,7 @@ applications:
   - {key: dbt, name: dbt, group: core-producer, datahub_application: true, owns: ["mart_", ".dbt."], capabilities: ["transformation", "data-production"], port_component: dbt, description: "dbt-trino transform — the 7 gold marts."}
   - {key: flink, name: Flink, group: core-producer, datahub_application: true, owns: ["analytics.", ".analytics_", "flink,"], capabilities: ["streaming", "transformation", "data-production"], port_component: flink, description: "Stream processing — streaming iceberg analytics.*."}
   - {key: grafana, name: Grafana, group: observability, datahub_application: true, owns: ["grafana,"], capabilities: ["observability", "visualization"], port_component: grafana, description: "Observability UI — its dashboards/datasources are cataloged."}
+  - {key: langfuse, name: Langfuse, group: observability, datahub_application: true, owns: ["postgres,langfuse.", "clickhouse,langfuse."], capabilities: ["observability", "tracing"], port_component: langfuse, description: "LLM observability (B103) — traces/scores/prompts; owns its langfuse PG + ClickHouse DBs."}
 
   - {key: feast, name: Feast, group: data-platform, datahub_application: true, owns: ["feast,", "postgres,feast."], capabilities: ["feature-store"], port_component: feast, description: "Feature store — owns its feature views."}
   - {key: cube, name: Cube, group: data-platform, datahub_application: true, owns: ["cube,"], capabilities: ["semantic-layer"], port_component: cube, description: "Semantic layer over the marts."}
