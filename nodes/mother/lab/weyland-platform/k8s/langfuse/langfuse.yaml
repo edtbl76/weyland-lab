@@ -23,9 +23,12 @@ data:
   CLICKHOUSE_USER: "default"
   CLICKHOUSE_DB: langfuse
   CLICKHOUSE_CLUSTER_ENABLED: "false"   # single-node — MUST be false or migrations emit ON CLUSTER DDL and fail
-  # --- Valkey (ingestion queue / cache) ---
-  REDIS_HOST: valkey.data-mesh.svc
-  REDIS_PORT: "6379"
+  # --- Valkey (ingestion queue / cache) — NO AUTH ---
+  # Use a credential-less connection STRING, not REDIS_HOST/REDIS_PORT. With the individual vars, Langfuse's
+  # client still issued an AUTH command, which valkey.data-mesh's password-less `default` user rejects with
+  # "ERR AUTH called without any password configured" → the queue never connects → worker /api/health 500s.
+  # A redis:// URL with no user:pass@ sends no AUTH. (Do NOT add a password to the SHARED data-mesh Valkey.)
+  REDIS_CONNECTION_STRING: redis://valkey.data-mesh.svc:6379
   # --- MinIO (event upload — the durable landing zone the worker flushes to ClickHouse) ---
   LANGFUSE_S3_EVENT_UPLOAD_ENABLED: "true"
   LANGFUSE_S3_EVENT_UPLOAD_BUCKET: langfuse
