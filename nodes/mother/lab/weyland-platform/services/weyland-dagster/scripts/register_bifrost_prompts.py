@@ -16,8 +16,10 @@ API contract (reverse-engineered from the bifrost binary + probes, 2026-08-01):
 
 DESIGN (per the 2026-08-01 scoping decision): prompts are MODEL-AGNOSTIC — provider/model left empty so any caller runs
 them against whatever lane they choose; the suggested LiteLLM use-case lane is recorded in `commit_message` (e.g.
-"lane: wl-coding → wl-agentic"). This is the gateway-side REUSABLE library; app-integrated prompts (rag_system,
-operator_system) live in the MLflow Prompt Registry (scripts/register_prompts.py) and are intentionally not duplicated.
+"lane: wl-coding → wl-agentic"). This is the gateway-side REUSABLE library. B103 prompt federation (2026-08-09): the app-integrated prompts
+(rag_system, operator_system, agent_grade, agent_reflect) now ALSO live here (folder `app-integrated`) — Bifrost is the
+single authoring SoT, and sync_prompts.py mirrors everything OUT to Langfuse (runtime fetch -> trace linkage) + MLflow
+(catalog mirror). The apps fetch these from Langfuse at runtime. See aidlc-docs/prompt-federation-design.md.
 
 Idempotent: folders/prompts created only if absent (matched by name); existing prompts are skipped (no duplicate
 version churn on re-run). To revise a prompt, edit here, delete that prompt in the UI, and re-run — or bump it in the UI.
@@ -40,6 +42,7 @@ FOLDERS = [
     ("content-ops",       "Summarize, rewrite, extract, classify, ops writing — wl-default."),
     ("meta-prompt-eng",   "Prompt improvement, critique, and generation — wl-reason."),
     ("skills",            "Orchestrate the curated skill corpus — select, apply, compose, and extend skills."),
+    ("app-integrated",    "App runtime prompts fetched by tool-server/operator/agent (B103 federation; SoT here → synced to Langfuse for runtime fetch + trace linkage)."),
 ]
 
 # Each prompt: folder, name (kebab), lane (recorded in commit_message), messages [(role, content)].
@@ -49,6 +52,35 @@ def s(t): return ("system", t)
 def u(t): return ("user", t)
 
 PROMPTS = [
+    # ==================== app-integrated (B103 prompt federation) ====================
+    # Runtime prompts the apps fetch — rag_system/operator_system as system prompts; agent_grade/agent_reflect as
+    # templated user prompts. Migrated from the MLflow registry (scripts/register_prompts.py) with {var} -> {{var}} for
+    # Bifrost's auto-extraction. Bifrost is now the SoT; sync_prompts.py mirrors these to Langfuse + MLflow. Names are
+    # kept EXACT (underscored) so the apps' get_prompt("rag_system") resolves against the Langfuse mirror.
+    {"folder": "app-integrated", "name": "rag_system", "lane": "wl-rag → wl-default",
+     "messages": [s("You are the Weyland lab assistant. Answer the question using ONLY the context chunks provided. "
+                    "If the context does not contain the answer, say so plainly rather than guessing. Cite the source "
+                    "name(s) you used.")]},
+    {"folder": "app-integrated", "name": "operator_system", "lane": "wl-agentic",
+     "messages": [s("You are the weyland homelab operator. ALWAYS answer by calling a tool and reporting its result — "
+                    "NEVER tell the user to run kubectl/SQL/curl themselves; YOU run it. NEVER propose a job for a "
+                    "read-only question. You have read tools for the knowledge base (status, context_search, "
+                    "context_ask) and for lab subsystems: Kubernetes (pods/namespaces/events), the Trino lakehouse "
+                    "(SQL/catalogs), Grafana (dashboards/Prometheus), Neo4j (graph), DataHub (catalog/lineage), and "
+                    "Postgres — pick the one that fits and ground your answer in its output. Use propose_act ONLY to "
+                    "CHANGE lab state (trigger a pipeline, run/score evals); the user then confirms — never claim an "
+                    "action ran. Keep replies short (this goes to Telegram).")]},
+    {"folder": "app-integrated", "name": "agent_grade", "lane": "wl-judge",
+     "messages": [u("Question: {{question}}\n\nRetrieved context:\n{{context}}\n\nDoes the context contain enough "
+                    "information to answer the question? Reply with exactly YES or NO on the first line, then one "
+                    "sentence of reason.")]},
+    {"folder": "app-integrated", "name": "agent_reflect", "lane": "wl-reason",
+     "messages": [u("The search for the question below returned weak results from the '{{backend}}' vector backend.\n"
+                    "Question: {{question}}\n"
+                    "Rewrite the search query to retrieve better chunks, and pick the backend most likely to help "
+                    "(current: {{backend}}; others: {{others}}).\n"
+                    "Respond EXACTLY as two lines:\nQUERY: <rewritten query>\nBACKEND: <one backend name>")]},
+
     # ============================ system-prompts ============================
     {"folder": "system-prompts", "name": "sys-chat", "lane": "wl-default → gemini-flash",
      "messages": [s("You are the weyland lab assistant — a direct, technically fluent generalist. Answer the question "
