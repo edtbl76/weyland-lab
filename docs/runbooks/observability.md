@@ -162,8 +162,11 @@ under `grafana.additionalDataSources`; the datasource sidecar reloads on the ver
 > object; it's pruned explicitly via `grafana.deleteDatasources` (see the long note in `kube-prometheus-stack-values.yaml`).
 > - **Jaeger** — retired with the trace backend in B48 (Tempo replaced it); the datasource orphaned until B49 pruned it.
 > - **Alertmanager** — Grafana 13 **deprecated** the standalone `alertmanager` datasource and ships its plugin
->   **disabled** (health check → "plugin unavailable"), so B49 removed the dead pointer. **Alerting is unaffected** —
->   the Alertmanager StatefulSet + `Prometheus → Alertmanager → Telegram` are a separate path; view/silence alerts in
+>   **disabled** (health check → "plugin unavailable"), so B49 removed it. **GOTCHA:** kube-prometheus-stack
+>   AUTO-INJECTS the AM datasource, so `deleteDatasources` alone LOSES — Grafana deletes it, the chart re-adds it in
+>   the same provisioning pass. Real fix = **both** `grafana.sidecar.datasources.alertmanager.enabled: false` (stop
+>   the re-add) **and** the `deleteDatasources` entry (prune the existing copy). **Alerting is unaffected** — the
+>   Alertmanager StatefulSet + `Prometheus → Alertmanager → Telegram` are a separate path; view/silence alerts in
 >   Alertmanager's own UI now. To run alert-ops inside Grafana later, wire the external AM via unified-alerting (not a datasource).
 
 _Historical (2026-06-20, both since removed per the note above):_
@@ -200,9 +203,32 @@ Completes the LGTM stack. All three pillars now in Grafana (metrics + logs + tra
   + `${AWS_*}`.
 - **Loki SingleBinary:** `loki.commonConfig.replication_factor: 1` is mandatory (chart default 3 crashes); memberlist
   warnings are harmless.
-- **Tempo "empty ring" query error** in the Drilldown Rate/Error panels = the **metrics-generator** isn't enabled
-  (span-metrics/service-graph need Tempo→Prometheus remote-write). Traces themselves work. Deferred — see backlog.
+- **Tempo "empty ring" Rate/Error panels** (FIXED B49, 2026-08-08): the metrics-generator produced 0 series. TWO
+  gotchas — (1) `metricsGenerator.enabled: true` + Prometheus `enableRemoteWriteReceiver: true` enable the COMPONENT
+  but NOT the processors; you also need `tempo.overrides.defaults.metrics_generator.processors: [service-graphs,
+  span-metrics, local-blocks]` (grafana/tempo 1.24.4) or it generates nothing. **Verify the OUTPUT** —
+  `tempo_metrics_generator_registry_active_series` > 0 and `traces_spanmetrics_*` present — NOT just the config.
 - **istioctl** isn't on mother by default — download it (matching the mesh version, 1.30.1) to apply meshConfig changes.
+
+---
+
+## Phase 5 — App-level OpenTelemetry tracing → Tempo OTLP ✅ (2026-08-08, B49 thread b)
+
+The Istio mesh already emits service-to-service spans (zipkin → Tempo). Phase 5 adds **app-INTERNAL** spans from the
+Python services, exported OTLP → Tempo, so a trace shows what happens *inside* a request/op, not just the hop.
+- **weyland-tool-server** (FastAPI): `opentelemetry-instrumentation-fastapi` + `-httpx` in `main.py::_init_otel(app)`
+  → per-request spans. service.name `weyland-tool-server`.
+- **weyland-dagster** (batch): `weyland_pipeline/_otel.py` — the `@traced_load` decorator on the 8 store-loaders emits
+  ONE COARSE span per dataset (`<store>_load:<dataset>`, e.g. `clickhouse_load:usda_fooddata`). service.name
+  `weyland-dagster` (distinct from the mesh's `dagster-user-code.weyland`). Shows which dataset/store in a hydrate is slow.
+- **Wiring (both):** opt-in via `OTEL_EXPORTER_OTLP_ENDPOINT=http://tempo.monitoring.svc:4318` in the k8s env (unset =
+  no-op). **HTTP OTLP (:4318), NOT gRPC (:4317)** — the meshed→unmeshed hop hits an http2-framing snag over gRPC. With
+  Phase-4's metrics-generator processors on, these spans also produce **span-metrics** → a RED dashboard per service.
+- **Gotchas:** Dagster's multiprocess executor runs each op in a subprocess that exits when done → use
+  **SimpleSpanProcessor** (Batch drops unflushed spans on exit). Do NOT auto-instrument the DB drivers — query-level
+  spans explode into millions on a 17M-row hydrate; keep spans COARSE (per-op/dataset).
+- **Verify:** `sum by (span_name) (traces_spanmetrics_calls_total{service="weyland-dagster"})` shows the
+  `<store>_load:<dataset>` spans; `rate(tempo_receiver_accepted_spans{receiver=~".*otlp.*"}[5m])` > 0 = app spans reach Tempo.
 
 ---
 
