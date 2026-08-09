@@ -142,7 +142,10 @@ data:
           api_key: os.environ/BIFROST_REALM_VK
 
     litellm_settings:
-      callbacks: ["prometheus"]
+      # prometheus = metrics (spend/latency/errors); langfuse = per-request traces (prompt/response/tool tree,
+      # per-VK attribution). Callbacks stack — both fire per request. Langfuse creds via envFrom litellm-secrets
+      # (LANGFUSE_PUBLIC_KEY/SECRET_KEY/HOST=in-cluster svc, bypassing the forward-auth'd ingress). B103.
+      callbacks: ["prometheus", "langfuse"]
       require_auth_for_metrics_endpoint: false   # LAN-only scrape
       drop_params: true                          # tolerate params a given model doesn't support
 
