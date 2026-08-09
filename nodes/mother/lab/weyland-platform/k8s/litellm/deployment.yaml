@@ -54,6 +54,23 @@ spec:
                 secretKeyRef:
                   name: bifrost-realm-vk
                   key: BIFROST_REALM_VK
+            # B103 — Langfuse callback creds. litellm-secrets is cherry-picked (explicit env, NOT blanket envFrom),
+            # so these three keys must be named explicitly or the langfuse callback silently no-ops (no host = off).
+            - name: LANGFUSE_PUBLIC_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: litellm-secrets
+                  key: LANGFUSE_PUBLIC_KEY
+            - name: LANGFUSE_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: litellm-secrets
+                  key: LANGFUSE_SECRET_KEY
+            - name: LANGFUSE_HOST
+              valueFrom:
+                secretKeyRef:
+                  name: litellm-secrets
+                  key: LANGFUSE_HOST
           volumeMounts:
             - name: config
               mountPath: /etc/litellm
