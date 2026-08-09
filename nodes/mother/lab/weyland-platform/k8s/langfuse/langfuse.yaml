@@ -127,16 +127,18 @@ spec:
             allowPrivilegeEscalation: false
             seccompProfile:
               type: RuntimeDefault
+          # Worker binds PORT (3000, inherited from the shared ConfigMap), NOT its 3030 default — probe + port
+          # must match 3000 or istio's pilot-agent proxies the probe to a dead 3030 and returns HTTP 500.
           ports:
             - name: http
-              containerPort: 3030
+              containerPort: 3000
           envFrom:
             - configMapRef: { name: langfuse-config }
             - secretRef: { name: langfuse-secret }
           readinessProbe:
             httpGet:
               path: /api/health
-              port: 3030
+              port: 3000
             initialDelaySeconds: 30
             periodSeconds: 15
           resources:
