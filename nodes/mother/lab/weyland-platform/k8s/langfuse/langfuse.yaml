@@ -39,6 +39,10 @@ data:
   PORT: "3000"
   TELEMETRY_ENABLED: "false"            # $0 LAN lab — no phone-home
   LANGFUSE_CSP_ENFORCE_HTTPS: "true"    # TLS terminates at Traefik; enforce https in CSP
+  # V8 old-space ceiling — unset, V8 derives this from the cgroup limit and aborted (SIGABRT/134) near ~384MB
+  # under the old 768Mi limit during the boot init spike. Pin it explicitly, ~1GB heap under a 1536Mi limit
+  # (leaves ~512Mi for non-heap/buffers). Applies to both web + worker (both are Node).
+  NODE_OPTIONS: "--max-old-space-size=1024"
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -87,9 +91,9 @@ spec:
           resources:
             requests:
               cpu: 100m
-              memory: 320Mi
+              memory: 512Mi
             limits:
-              memory: 768Mi
+              memory: 1536Mi   # V8 heap pinned to 1024 via NODE_OPTIONS; +512Mi non-heap headroom
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -135,9 +139,9 @@ spec:
           resources:
             requests:
               cpu: 100m
-              memory: 256Mi
+              memory: 512Mi
             limits:
-              memory: 1Gi   # worker does the heavier ClickHouse batch flushes
+              memory: 1536Mi   # worker does the heavier ClickHouse batch flushes; same V8 ceiling as web
 ---
 apiVersion: v1
 kind: Service
