@@ -1323,8 +1323,8 @@ registers/aliases them to MLflow — on-demand + scheduled (or triggered on repo
 every other artifact. **Low priority** — manual re-run is fine for a solo lab with infrequent prompt edits; the
 services fail-safe to baked defaults regardless. Extends **B100**.
 
-### B103 — Langfuse LLM observability (deferred from B84 P3) — ✅ DONE (2026-08-09)
-**DONE 2026-08-09.** Langfuse v3 self-hosted, **reuse-first** — only the stateless **web + worker** pods
+### B103 — Langfuse LLM observability (deferred from B84 P3) — 🟢 Deploy + LiteLLM emitter DONE; prompt-mgmt + online-evals remaining (2026-08-09)
+**Deploy + emitter DONE 2026-08-09.** Langfuse v3 self-hosted, **reuse-first** — only the stateless **web + worker** pods
 (`k8s/langfuse/langfuse.yaml`, Argo `subdir-apps.yaml`); every stateful plane reuses an existing lab service
 (Postgres `langfuse` DB · ClickHouse `langfuse` DB, `CLUSTER_ENABLED=false` · Valkey queue · MinIO `langfuse` bucket).
 This voids the original "won't schedule" note below — the marginal cost is ~web+worker, not a dedicated ClickHouse
@@ -1332,7 +1332,12 @@ stack, and mother grew to 78 Gi. UI `langfuse.weyland.lab` (Keycloak forward-aut
 (`callbacks: ["prometheus","langfuse"]`, in-cluster `LANGFUSE_HOST`) — traces (model/tokens/latency/per-VK) verified
 landing in the `weyland-platform` project. Deploy/wiring gotchas (OOM exit-134 vs 137, Redis no-auth connection-string,
 worker port, cherry-picked `env` vs blanket `envFrom`, key-mismatch) captured in memory `b103-langfuse` + runbook.
-Follow-ups spun out: **B124** (prompt federation) + **B125** (Langfuse online evals). Original deferral rationale kept
+**Remaining IN SCOPE (part of B103 — NOT separate B-numbers):** (1) **prompt federation** — Bifrost as authoring SoT
+→ sync prompt *definitions* to Langfuse + MLflow (same shape as `register_bifrost_prompts.py`); runtime trace↔prompt
+linkage needs Langfuse-SDK *fetch* at runtime, adopt on the highest-value agent(s) first. (2) **Langfuse online evals**
+— Evaluators (LLM-as-judge on a sampled slice of `platform` production traces) + Annotation Queues + Datasets; point
+Datasets at the [B96] golden set so the offline ([B84]) and online eval lanes share fixtures. These are the online/
+prompt complement to the offline suite — the net-new capability the eval flagged. Original deferral rationale kept
 below for history.
 
 **Added 2026-07-25.** B84 originally scoped **Langfuse** as the OSS LLM tracing/observability tool. **Deferred to
@@ -1349,21 +1354,6 @@ the whole B84 suite is offline/golden-set. **Revisit when:** node headroom grows
 scoring becomes a real need — and even then, first check whether **MLflow 3.14 `mlflow.genai` trace assessments/feedback**
 covers it in the tool already run (one pane of glass) before standing up a parallel platform. Decision context:
 [demos/eval-lanes.md](demos/eval-lanes.md). Deferred from **B84**.
-
-### B124 — Prompt federation: Bifrost as authoring SoT → sync to Langfuse + MLflow — 🟡 MEDIUM (2026-08-09; spun out of B103)
-**Added 2026-08-09.** Three prompt stores now coexist — Bifrost Prompt Repo (89 prompts), MLflow prompt registry,
-Langfuse Prompts. Centralize authoring in **Bifrost (SoT)** and sync prompt *definitions* out to Langfuse + MLflow
-(same shape as `register_bifrost_prompts.py`) for discoverability/versioning. **Key constraint:** each tool's prompt
-management earns its value from *runtime coupling* — Langfuse auto-links a fetched-prompt version to the traces/scores
-it produced; a one-way mirror gives a catalog but NOT that linkage. So: sync defs one-way, and adopt Langfuse-SDK
-prompt *fetch* at runtime only on the highest-value agent(s) first, not everywhere. Depends on B103 (Langfuse live).
-
-### B125 — Langfuse online evals (Scores / Evaluators / Human Annotation / Datasets) — 🟡 MEDIUM (2026-08-09; spun out of B103)
-**Added 2026-08-09.** Langfuse's eval suite is the **online/production** complement to the **offline** [B84] 3-lane
-suite + [B96] golden set. Layer onto B103: (1) one **LLM-as-judge Evaluator** on a sampled slice of `platform`
-*production* traces; (2) an **Annotation Queue** routing traces to human review; (3) point Langfuse **Datasets** at the
-B96 golden set so offline + online share fixtures. This is the net-new capability the B103 eval flagged — continuous
-production-trace scoring, which the offline suite structurally can't do. Depends on B103.
 
 ### B71 — DataHub domains + ownership (governance pass)
 **Added 2026-06-26.** The catalog has datasets but **no domains, no ownership** — and domain-oriented ownership is the *organizing principle* of the data mesh (part of B1's governance layer alongside Keycloak/Ranger/OPA/Soda). Promote the existing **Dagster groups** (already emitted as `dagster_group` tags: default/RAG, eval, catalog, aidlc_kb, ai_session) into real DataHub **Domains** (likely consolidated — *RAG Platform · Eval · Model Catalog · Knowledge Base*), and assign **ownership** (a "Weyland" group / emangini as Technical Owner). Apply three ways (mix):

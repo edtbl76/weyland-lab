@@ -100,8 +100,9 @@ in `langfuse-web` logs.
   `langfuse/langfuse:3` + `langfuse-worker:3` images float on the v3 major — pin to the resolved tag once stable and
   fold into the Trivy image-scan scope.
 
-## Follow-ups
+## Remaining (in scope — part of B103, not separate backlog items)
 
-- **B124** — prompt federation (Bifrost SoT → sync defs to Langfuse + MLflow; runtime linkage needs Langfuse-SDK fetch).
-- **B125** — Langfuse online evals (Evaluators / Annotation Queues / Datasets); point Datasets at the B96 golden set
-  so offline (B84) and online share fixtures.
+- **Prompt federation** — Bifrost as authoring SoT → sync prompt *definitions* to Langfuse + MLflow; runtime
+  trace↔prompt linkage needs Langfuse-SDK *fetch* at runtime (adopt on the highest-value agent(s) first).
+- **Langfuse online evals** — Evaluators / Annotation Queues / Datasets over `platform` production traces; point
+  Datasets at the B96 golden set so the offline (B84) and online eval lanes share fixtures.
