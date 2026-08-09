@@ -1,0 +1,180 @@
+# B103 — Langfuse v3 (LLM observability). REUSE-FIRST deploy: only the two STATELESS compute pods (web + worker)
+# live here; every stateful plane is an EXISTING lab service — Postgres (weyland-postgres, transactional),
+# ClickHouse (clickhouse.data-mesh, the trace/observation/score OLAP firehose, a dedicated `langfuse` DB),
+# Valkey (valkey.data-mesh, the ingestion queue), MinIO (the `langfuse` bucket, durable event landing zone).
+# Marginal RAM ≈ web+worker only (~0.5Gi req / ~1.8Gi limit) — the 6-8Gi "won't schedule" note assumed a
+# DEDICATED ClickHouse+PG+Redis stack; reuse voids it.
+#
+# Meshed (sidecar) so the app reaches STRICT-mTLS weyland-postgres (same ns). ClickHouse/Valkey/MinIO are
+# reached cross-ns; Istio auto-mTLS falls back to plaintext for those un-sidecar'd services. Single web replica
+# owns migrations (Prisma→Postgres + golang-migrate→ClickHouse) on boot — holdApplicationUntilProxyStarts so the
+# sidecar is up before Prisma dials Postgres. UI behind Keycloak forward-auth at the edge (langfuse.weyland.lab);
+# Langfuse's own NextAuth login sits behind that (first-registered user = owner, LAN-only).
+# Config split: non-secret env → ConfigMap; passwords/keys → SealedSecret langfuse-secret (envFrom both).
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: langfuse-config
+  namespace: weyland
+data:
+  # --- ClickHouse (dedicated `langfuse` DB in the shared single-node instance) ---
+  CLICKHOUSE_URL: http://clickhouse.data-mesh.svc:8123          # HTTP interface (runtime reads/writes)
+  CLICKHOUSE_MIGRATION_URL: clickhouse://clickhouse.data-mesh.svc:9000  # native TCP (schema migrations)
+  CLICKHOUSE_USER: "default"
+  CLICKHOUSE_DB: langfuse
+  CLICKHOUSE_CLUSTER_ENABLED: "false"   # single-node — MUST be false or migrations emit ON CLUSTER DDL and fail
+  # --- Valkey (ingestion queue / cache) ---
+  REDIS_HOST: valkey.data-mesh.svc
+  REDIS_PORT: "6379"
+  # --- MinIO (event upload — the durable landing zone the worker flushes to ClickHouse) ---
+  LANGFUSE_S3_EVENT_UPLOAD_ENABLED: "true"
+  LANGFUSE_S3_EVENT_UPLOAD_BUCKET: langfuse
+  LANGFUSE_S3_EVENT_UPLOAD_ENDPOINT: http://minio.minio.svc:9000
+  LANGFUSE_S3_EVENT_UPLOAD_REGION: us-east-1
+  LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE: "true"   # MinIO needs path-style (no vhost buckets)
+  LANGFUSE_S3_EVENT_UPLOAD_PREFIX: "events/"
+  # --- web / misc ---
+  NEXTAUTH_URL: https://langfuse.weyland.lab
+  HOSTNAME: "0.0.0.0"
+  PORT: "3000"
+  TELEMETRY_ENABLED: "false"            # $0 LAN lab — no phone-home
+  LANGFUSE_CSP_ENFORCE_HTTPS: "true"    # TLS terminates at Traefik; enforce https in CSP
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: langfuse-web
+  namespace: weyland
+  labels:
+    app: langfuse-web
+spec:
+  replicas: 1
+  strategy:
+    type: RollingUpdate
+  selector:
+    matchLabels:
+      app: langfuse-web
+  template:
+    metadata:
+      labels:
+        app: langfuse-web
+        sidecar.istio.io/inject: "true"   # STRICT Postgres
+      annotations:
+        # web migrates on boot → hold the app until the sidecar is ready so Prisma's first Postgres dial is meshed
+        proxy.istio.io/config: '{"holdApplicationUntilProxyStarts": true}'
+    spec:
+      containers:
+        - name: langfuse
+          # nosemgrep: yaml.kubernetes.security.run-as-non-root.run-as-non-root
+          image: langfuse/langfuse:3   # major-floating; pin to the resolved tag after the first green deploy
+          imagePullPolicy: IfNotPresent
+          securityContext:
+            allowPrivilegeEscalation: false
+            seccompProfile:
+              type: RuntimeDefault
+          ports:
+            - name: http
+              containerPort: 3000
+          envFrom:
+            - configMapRef: { name: langfuse-config }
+            - secretRef: { name: langfuse-secret }
+          readinessProbe:
+            httpGet:
+              path: /api/public/health
+              port: 3000
+            initialDelaySeconds: 30
+            periodSeconds: 15
+          resources:
+            requests:
+              cpu: 100m
+              memory: 320Mi
+            limits:
+              memory: 768Mi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: langfuse-worker
+  namespace: weyland
+  labels:
+    app: langfuse-worker
+spec:
+  replicas: 1
+  strategy:
+    type: RollingUpdate
+  selector:
+    matchLabels:
+      app: langfuse-worker
+  template:
+    metadata:
+      labels:
+        app: langfuse-worker
+        sidecar.istio.io/inject: "true"
+    spec:
+      containers:
+        - name: langfuse-worker
+          # nosemgrep: yaml.kubernetes.security.run-as-non-root.run-as-non-root
+          image: langfuse/langfuse-worker:3
+          imagePullPolicy: IfNotPresent
+          securityContext:
+            allowPrivilegeEscalation: false
+            seccompProfile:
+              type: RuntimeDefault
+          ports:
+            - name: http
+              containerPort: 3030
+          envFrom:
+            - configMapRef: { name: langfuse-config }
+            - secretRef: { name: langfuse-secret }
+          readinessProbe:
+            httpGet:
+              path: /api/health
+              port: 3030
+            initialDelaySeconds: 30
+            periodSeconds: 15
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              memory: 1Gi   # worker does the heavier ClickHouse batch flushes
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: langfuse
+  namespace: weyland
+  labels:
+    app: langfuse-web
+spec:
+  type: ClusterIP
+  selector:
+    app: langfuse-web
+  ports:
+    - name: http
+      port: 3000
+      targetPort: 3000
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: langfuse
+  namespace: weyland
+  annotations:
+    traefik.ingress.kubernetes.io/router.middlewares: weyland-traefik-forward-auth@kubernetescrd
+spec:
+  tls:
+    - hosts:
+        - langfuse.weyland.lab
+      secretName: weyland-wildcard-tls
+  rules:
+    - host: langfuse.weyland.lab
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: langfuse
+                port:
+                  number: 3000
