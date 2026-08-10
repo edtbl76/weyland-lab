@@ -148,7 +148,10 @@ spec:
   sources:
     - repoURL: https://woodpecker-ci.org
       chart: woodpecker
-      targetRevision: 3.6.4
+      targetRevision: 3.7.0            # appVersion 3.17.0. Was 3.6.4/3.15.0: docker.io woodpecker-agent:v3.15.0
+                                        # served a mismatched *nightly* binary (next-*) that couldn't auth to the stable
+                                        # 3.15.0 server ("individual agent not found by token") → agents CrashLoopBackOff.
+                                        # 3.17.0 ships a matched server+agent pair. See woodpecker-values.yaml (createAgentSecret).
       helm:
         releaseName: woodpecker
         valueFiles:
