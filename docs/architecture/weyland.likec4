@@ -240,6 +240,10 @@ model {
   weyland.mother.ai.neodash -> weyland.mother.ai.neo "Bolt (browser-side)"
   weyland.mother.ai.toolServer -> weyland.mother.ops.obs.glitchtip "error push (Sentry SDK)"
   weyland.mother.ai.litellm -> weyland.mother.ops.obs.langfuse "LLM traces (langfuse callback, B103)"
+  weyland.mother.ops.edge.bifrost -> weyland.mother.ops.obs.langfuse "prompt federation (B103) — sync_prompts.py mirrors the SoT prompt repo (269) → apps fetch + link at runtime"
+  weyland.mother.ops.edge.bifrost -> weyland.mother.mesh.ml.mlflow "prompt federation (B103) — catalog mirror of the Bifrost prompt SoT"
+  weyland.mother.ai.toolServer -> weyland.mother.ops.obs.langfuse "prompt-linked RAG traces (B103) — rag_system version on each trace"
+  weyland.mother.ai.operator -> weyland.mother.ops.obs.langfuse "prompt-linked traces (B103) — operator_system version on each trace"
 
   // RAG streaming ingestion
   weyland.mother.ai.dagster -> github "git-pull docs/ + nodes/ (RAG source)"

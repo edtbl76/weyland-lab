@@ -90,6 +90,8 @@ spec:
             # litellm-secrets project keys (same weyland ns). Unset = Langfuse tracing off.
             - name: LANGFUSE_HOST
               value: http://langfuse.weyland.svc:3000
+            - name: OTEL_SERVICE_NAME   # labels the Langfuse trace's service.name (else "unknown_service")
+              value: weyland-agent
             - name: LANGFUSE_PUBLIC_KEY
               valueFrom:
                 secretKeyRef:

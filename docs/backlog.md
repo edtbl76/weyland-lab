@@ -1323,7 +1323,7 @@ registers/aliases them to MLflow — on-demand + scheduled (or triggered on repo
 every other artifact. **Low priority** — manual re-run is fine for a solo lab with infrequent prompt edits; the
 services fail-safe to baked defaults regardless. Extends **B100**.
 
-### B103 — Langfuse LLM observability (deferred from B84 P3) — 🟢 Deploy + LiteLLM emitter DONE; prompt-mgmt + online-evals remaining (2026-08-09)
+### B103 — Langfuse LLM observability (deferred from B84 P3) — 🟢 Deploy + emitter + prompt-federation Ph1 DONE; online-evals + federation-Ph2 remaining (2026-08-10)
 **Deploy + emitter DONE 2026-08-09.** Langfuse v3 self-hosted, **reuse-first** — only the stateless **web + worker** pods
 (`k8s/langfuse/langfuse.yaml`, Argo `subdir-apps.yaml`); every stateful plane reuses an existing lab service
 (Postgres `langfuse` DB · ClickHouse `langfuse` DB, `CLUSTER_ENABLED=false` · Valkey queue · MinIO `langfuse` bucket).
@@ -1332,9 +1332,13 @@ stack, and mother grew to 78 Gi. UI `langfuse.weyland.lab` (Keycloak forward-aut
 (`callbacks: ["prometheus","langfuse"]`, in-cluster `LANGFUSE_HOST`) — traces (model/tokens/latency/per-VK) verified
 landing in the `weyland-platform` project. Deploy/wiring gotchas (OOM exit-134 vs 137, Redis no-auth connection-string,
 worker port, cherry-picked `env` vs blanket `envFrom`, key-mismatch) captured in memory `b103-langfuse` + runbook.
-**Remaining IN SCOPE (part of B103 — NOT separate B-numbers):** (1) **prompt federation** — Bifrost as authoring SoT
-→ sync prompt *definitions* to Langfuse + MLflow (same shape as `register_bifrost_prompts.py`); runtime trace↔prompt
-linkage needs Langfuse-SDK *fetch* at runtime, adopt on the highest-value agent(s) first. (2) **Langfuse online evals**
+**Remaining IN SCOPE (part of B103 — NOT separate B-numbers):** (1) **prompt federation — Phase 1 ✅ DONE (2026-08-10):** Bifrost = single SoT (269 prompts,
+incl. the 4 app prompts migrated into `app-integrated`); `sync_prompts.py` mirrors Bifrost → Langfuse + MLflow (REST —
+the langfuse SDK's `packaging<26` conflicts with the dagster lockfile); prompt↔trace linkage LIVE on tool-server
+(v16) + operator (v21) + agent (v5) via a per-app `_lf_generation` (Langfuse v4 SDK, `prompt=` link → each trace shows
+`Prompt: <name> - vN`). Design `aidlc-docs/prompt-federation-design.md`, memory `prompt-federation-b103`. **Phase 2
+remaining:** inbound reconcile (native Langfuse/MLflow edits → Bifrost, skip `synced-from-bifrost` stamps) + wire
+`sync_prompts.py` into the Dagster `registrations` group (currently a manual exec). (2) **Langfuse online evals**
 — Evaluators (LLM-as-judge on a sampled slice of `platform` production traces) + Annotation Queues + Datasets; point
 Datasets at the [B96] golden set so the offline ([B84]) and online eval lanes share fixtures. These are the online/
 prompt complement to the offline suite — the net-new capability the eval flagged. Original deferral rationale kept
