@@ -21,6 +21,7 @@ RUN pip install --no-cache-dir \
     prometheus-client \
     sentence-transformers \
     mlflow-skinny \
+    langfuse \
     'opentelemetry-sdk==1.44.0' \
     'opentelemetry-exporter-otlp-proto-http==1.44.0' \
     'opentelemetry-instrumentation-fastapi==0.65b0' \

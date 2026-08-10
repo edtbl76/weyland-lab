@@ -146,21 +146,31 @@ def _guard(hook: Hook, request_id: str, payload: dict, actor: str | None = None)
 MLFLOW_TRACKING_URI = os.getenv("MLFLOW_TRACKING_URI", "")
 MLFLOW_EXPERIMENT = os.getenv("MLFLOW_EXPERIMENT", "tool-server-rag")
 _tracing_enabled = False
+_lf = None   # B103 — Langfuse client for prompt-linked RAG tracing (alongside MLflow)
 
 
 def _init_tracing() -> None:
-    global _tracing_enabled
+    global _tracing_enabled, _lf
     if not MLFLOW_TRACKING_URI:
         print("[mlflow] no MLFLOW_TRACKING_URI — RAG tracing disabled", flush=True)
-        return
-    try:
-        import mlflow
-        mlflow.set_tracking_uri(MLFLOW_TRACKING_URI)
-        mlflow.set_experiment(MLFLOW_EXPERIMENT)
-        _tracing_enabled = True
-        print(f"[mlflow] RAG tracing enabled -> {MLFLOW_EXPERIMENT}", flush=True)
-    except Exception as exc:
-        print(f"[mlflow] tracing disabled: {exc}", flush=True)
+    else:
+        try:
+            import mlflow
+            mlflow.set_tracking_uri(MLFLOW_TRACKING_URI)
+            mlflow.set_experiment(MLFLOW_EXPERIMENT)
+            _tracing_enabled = True
+            print(f"[mlflow] RAG tracing enabled -> {MLFLOW_EXPERIMENT}", flush=True)
+        except Exception as exc:
+            print(f"[mlflow] tracing disabled: {exc}", flush=True)
+    # B103 prompt federation — ALSO trace the RAG generation to Langfuse (alongside MLflow), linking the prompt
+    # version so the Langfuse trace shows which rag_system version produced the answer. Fail-safe: never blocks a request.
+    if os.getenv("LANGFUSE_PUBLIC_KEY"):
+        try:
+            from langfuse import Langfuse
+            _lf = Langfuse()   # reads LANGFUSE_PUBLIC_KEY / LANGFUSE_SECRET_KEY / LANGFUSE_HOST from env
+            print("[langfuse] RAG prompt-linked tracing enabled", flush=True)
+        except Exception as exc:
+            print(f"[langfuse] tracing disabled: {exc}", flush=True)
 
 
 @contextmanager
@@ -176,6 +186,38 @@ def _span(name: str, span_type: str = "UNKNOWN"):
             yield span
     except Exception:
         yield None
+
+
+@contextmanager
+def _lf_generation(name: str, model: str, input_messages, prompt_name: str):
+    """B103 — a fail-safe Langfuse generation LINKED to the Langfuse prompt version (SDK v4), running ALONGSIDE the
+    MLflow span. Yields a generation handle (call `.update(output=...)`), or None if Langfuse is off/broken. A tracing
+    failure never interrupts the request; flushes on exit so the trace lands on this request/response server. Setup and
+    yield are separated so a broken SDK call can't double-yield."""
+    if _lf is None:
+        yield None
+        return
+    gen_cm = gen = None
+    try:
+        prompt = None
+        try:
+            prompt = _lf.get_prompt(prompt_name, type="chat")   # object carries the version -> links the trace
+        except Exception:
+            pass
+        gen_cm = _lf.start_as_current_observation(as_type="generation", name=name, model=model,
+                                                  input=input_messages, prompt=prompt)
+        gen = gen_cm.__enter__()
+    except Exception:
+        gen_cm = gen = None
+    try:
+        yield gen
+    finally:
+        try:
+            if gen_cm is not None:
+                gen_cm.__exit__(None, None, None)
+            _lf.flush()
+        except Exception:
+            pass
 
 
 @asynccontextmanager
@@ -558,7 +600,8 @@ def context_ask(request: AskRequest, actor: str | None = Depends(_actor)):
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": f"Context:\n{_build_context(chunks)}\n\nQuestion: {request.query}"},
         ]
-        with _span("generate", span_type="LLM") as gspan:
+        with _span("generate", span_type="LLM") as gspan, \
+             _lf_generation("rag-generate", model, messages, "rag_system") as lgen:   # B103 — Langfuse link, dual with MLflow
             if gspan is not None:
                 gspan.set_inputs({"model": model, "context_chunks": len(chunks), "prompt_version": loaded_version("rag_system")})
             try:
@@ -567,6 +610,8 @@ def context_ask(request: AskRequest, actor: str | None = Depends(_actor)):
                 raise HTTPException(status_code=502, detail=f"LLM call failed ({model}): {e}")
             if gspan is not None:
                 gspan.set_outputs({"answer": answer})
+            if lgen is not None:
+                lgen.update(output=answer)
         if parent is not None:
             parent.set_outputs({"answer": answer, "num_sources": len(chunks)})
     # OUTPUT hook: grounding (answer vs retrieved chunks) + PII/toxicity on the answer.
