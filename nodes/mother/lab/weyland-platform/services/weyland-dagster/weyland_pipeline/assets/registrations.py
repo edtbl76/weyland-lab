@@ -48,6 +48,15 @@ def bifrost_prompts_registered() -> Output:
 
 
 @asset(group_name=_GROUP,
+       deps=[bifrost_prompts_registered],
+       description="B103 prompt federation — bidirectional sync (sync_prompts.py): pull native Langfuse/MLflow prompt "
+                   "edits back to Bifrost, then mirror the Bifrost SoT out to Langfuse + MLflow. Runs AFTER the Bifrost "
+                   "repo is reconciled. Uses the LANGFUSE_* env on the user-code pod (DefaultRunLauncher runs it here).")
+def prompt_federation_synced() -> Output:
+    return _run_script("sync_prompts.py")
+
+
+@asset(group_name=_GROUP,
        description="Reconcile the Bifrost Skills Repository from the bundled register_bifrost_skills.py (idempotent).")
 def bifrost_skills_registered() -> Output:
     return _run_script("register_bifrost_skills.py")

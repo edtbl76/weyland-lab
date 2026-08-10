@@ -34,6 +34,8 @@ LANGFUSE_HOST = os.getenv("LANGFUSE_HOST", "http://langfuse.weyland.svc:3000")
 MLFLOW_URI = os.getenv("MLFLOW_TRACKING_URI", "http://mlflow.weyland.svc.cluster.local:5000")
 STAMP = "synced-from-bifrost"          # provenance prefix — Phase-2 inbound skips versions whose origin is this
 MIRROR_MLFLOW = os.getenv("SYNC_MLFLOW", "1") != "0"   # set SYNC_MLFLOW=0 to skip the MLflow catalog mirror
+RECONCILE_INBOUND = os.getenv("SYNC_INBOUND", "1") != "0"   # Phase 2 — set SYNC_INBOUND=0 for outbound-only (no pull-back)
+_VAR_TO_BF = re.compile(r"\{(\w+)\}")   # MLflow {var} -> Bifrost {{var}} (MLflow templates never use {{}})
 
 _VAR = re.compile(r"\{\{\s*(\w+)\s*\}\}")   # {{var}} -> {var} for the MLflow (str.format) dialect
 
@@ -123,8 +125,104 @@ def sync_mlflow(items):
     return upserted, unchanged
 
 
+# ==================== Phase 2 — INBOUND reconcile (native Langfuse/MLflow edits -> Bifrost) ====================
+
+def _to_bifrost_from_mlflow(template, name):
+    """Reverse-normalize an MLflow string template -> Bifrost chat messages: wrap in a single message (role heuristic),
+    translate {var} -> {{var}}."""
+    role = "system" if name.endswith("_system") else "user"
+    return [{"role": role, "content": _VAR_TO_BF.sub(r"{{\1}}", template)}]
+
+
+def _epoch(v):
+    """Best-effort epoch seconds from a Langfuse ISO string or an MLflow epoch-ms number — for last-write-wins."""
+    try:
+        if isinstance(v, (int, float)):
+            return float(v) / 1000.0
+        from datetime import datetime
+        return datetime.fromisoformat(str(v).replace("Z", "+00:00")).timestamp()
+    except Exception:
+        return 0.0
+
+
+def _bifrost_ids():
+    c = httpx.Client(base_url=BIFROST, timeout=30)
+    return {p["name"]: p["id"] for p in (c.get("/api/prompt-repo/prompts", params={"limit": 1000}).json().get("prompts") or [])}
+
+
+def _langfuse_native(c_lf, name):
+    """Latest Langfuse production version IF natively authored (NOT synced-from-bifrost). Returns (messages, epoch)."""
+    r = c_lf.get(f"/api/public/v2/prompts/{name}", params={"label": "production"})
+    if r.status_code != 200:
+        return None
+    v = r.json()
+    if STAMP in (v.get("tags") or []) or str(v.get("commitMessage") or "").startswith(STAMP):
+        return None                                # sync-origin, not a human edit
+    prompt = v.get("prompt")
+    if not isinstance(prompt, list):
+        return None
+    msgs = [{"role": m.get("role"), "content": m.get("content")} for m in prompt]
+    return (msgs, _epoch(v.get("updatedAt") or v.get("createdAt")))
+
+
+def _mlflow_native(name):
+    try:
+        from mlflow.genai import load_prompt
+    except Exception:
+        from mlflow import load_prompt
+    try:
+        pv = load_prompt(f"prompts:/{name}@production")
+    except Exception:
+        return None
+    if str(getattr(pv, "commit_message", "") or "").startswith(STAMP):
+        return None
+    return (_to_bifrost_from_mlflow(pv.template, name), _epoch(getattr(pv, "creation_timestamp", 0)))
+
+
+def reconcile_inbound(bifrost_items):
+    """Pull native (human-authored) Langfuse/MLflow edits back into Bifrost (the SoT). LOOP-SAFE: only pulls when the
+    downstream content-hash DIFFERS from Bifrost's canonical, so once pulled (Bifrost matches) the next run skips —
+    regardless of stamping. Conflict (edited natively in BOTH stores) = last-write-wins by version timestamp + a WARNING."""
+    canon = {it["name"]: _hash(it["messages"]) for it in bifrost_items}
+    ids = _bifrost_ids()
+    c_bf = httpx.Client(base_url=BIFROST, timeout=30)
+    c_lf = httpx.Client(base_url=LANGFUSE_HOST, timeout=30,
+                        auth=(os.environ["LANGFUSE_PUBLIC_KEY"], os.environ["LANGFUSE_SECRET_KEY"]))
+    pulled = 0
+    for name, h in canon.items():
+        cands = []                                 # (epoch, source, messages)
+        lf = _langfuse_native(c_lf, name)
+        if lf and _hash(lf[0]) != h:
+            cands.append((lf[1], "langfuse", lf[0]))
+        if MIRROR_MLFLOW:
+            try:
+                mf = _mlflow_native(name)
+                if mf and _hash(mf[0]) != h:
+                    cands.append((mf[1], "mlflow", mf[0]))
+            except Exception:
+                pass
+        if not cands:
+            continue
+        if len(cands) > 1:
+            print(f"  CONFLICT {name}: native edits in {[c[1] for c in cands]} -> last-write-wins by timestamp")
+        _, source, msgs = max(cands, key=lambda c: c[0])
+        pid = ids.get(name)
+        if not pid:
+            print(f"  skip {name}: native in {source} but not in Bifrost (create it in Bifrost first)")
+            continue
+        c_bf.post(f"/api/prompt-repo/prompts/{pid}/versions", json={
+            "commit_message": f"reconciled-from-{source}:{_hash(msgs)}",
+            "messages": [{"role": m["role"], "content": m["content"]} for m in msgs]})
+        pulled += 1
+        print(f"  pulled {name} <- {source}")
+    return pulled
+
+
 def main():
-    items = read_bifrost()
+    if RECONCILE_INBOUND:                          # Phase 2 — pull native downstream edits back to Bifrost FIRST,
+        n = reconcile_inbound(read_bifrost())      # so the outbound pass below re-propagates them (stamped).
+        print(f"Inbound: {n} native edit(s) pulled into Bifrost" if n else "Inbound: 0 native edits")
+    items = read_bifrost()                          # re-read (post-inbound) — Bifrost is canonical
     print(f"Bifrost prompts (latest versions): {len(items)}")
     lu, ln = sync_langfuse(items)
     print(f"Langfuse: {lu} upserted, {ln} unchanged")
