@@ -37,8 +37,9 @@ flowchart LR
    ```
    Idempotent: only prompts whose content changed get a new downstream version (hash-compared vs the current
    `production`). Expect `Langfuse: N upserted, M unchanged` / `MLflow: …`.
-   **NOTE:** today this is a MANUAL step — a prompt edit does NOT reach Langfuse until you run it (Phase-2 wires it
-   into the Dagster `registrations` group for weekly + on-demand auto-reconcile).
+   **NOTE:** this exec is the fast on-demand path. As of Phase 2 the sync also runs automatically as the
+   `prompt_federation_synced` asset in the Dagster `registrations` group (weekly + on-demand), so a Bifrost edit
+   propagates on the next reconcile without the manual exec.
 3. **Apps pick it up** — the apps fetch `production` at runtime (TTL-cached), so a new version hot-swaps within the
    cache TTL, no redeploy.
 
@@ -85,10 +86,18 @@ lockfile). Env per app: `LANGFUSE_HOST`, `LANGFUSE_PUBLIC_KEY`/`SECRET_KEY` (fro
 - **Docker Desktop `unpigz: invalid deflate data`** on build = a CORRUPTED layer in the store, NOT transient (repeats
   on the same layer sha) → `docker system prune -af` + `docker build --no-cache`.
 
-## Phase 2 (remaining)
+## Phase 2 (✅ DONE 2026-08-10 — bidirectional + auto)
 
-- **Inbound reconcile:** native edits made *in* Langfuse (playground) / MLflow flow back to Bifrost — read only
-  UNSTAMPED (non-`synced-from-bifrost`) versions to break the `A→B→A` loop; conflict policy (last-write-wins vs
-  Bifrost-wins) TBD.
-- **Auto-reconcile:** wire `sync_prompts.py` into the Dagster `registrations` group (weekly + on-demand) like
-  `bifrost_prompts_registered`, so a Bifrost edit propagates without the manual exec.
+`sync_prompts.py` now runs `reconcile_inbound()` FIRST (pull native edits back to Bifrost), then re-reads Bifrost and
+mirrors outbound — bidirectional in one pass.
+
+- **Inbound reconcile:** native edits made *in* Langfuse (playground) / MLflow flow back to Bifrost. Loop-safety =
+  content-hash compare + a `synced-from-bifrost:<hash>` provenance stamp; conflict = **last-write-wins by timestamp**
+  (with a WARNING). **GOTCHA:** native-edit detection keys on the VERSION-level **`commitMessage`**, NOT Langfuse
+  **`tags`** — Langfuse tags are PROMPT-level (sticky across every version), so a native edit inherits v1's
+  `synced-from-bifrost` tag and checking tags would falsely skip it (the Part-A bug: `Inbound: 0`, then outbound
+  clobbered the native edit; keying on `commitMessage` fixed it → `Inbound: 1`).
+- **Auto-reconcile:** wired as the `prompt_federation_synced` asset in the Dagster `registrations` group (downstream of
+  `bifrost_prompts_registered`; user-code image v41), so it runs on the weekly + on-demand reconcile — no manual exec.
+  The asset must be added to BOTH the import and the explicit `all_assets` list in `weyland_pipeline/assets/__init__.py`
+  or it silently won't load.
