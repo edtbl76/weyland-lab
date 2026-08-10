@@ -4,13 +4,14 @@ Weyland had **three** prompt stores drifting apart — the Bifrost Prompt Reposi
 the MLflow Prompt Registry (app-integrated prompts), and now Langfuse. Prompt federation makes **Bifrost the single
 source of truth** and flows every prompt OUT to Langfuse + MLflow, then wires the apps to **fetch from Langfuse at
 runtime** — so every LLM trace is tagged with the exact prompt version that produced it. Author in one place; measure
-the impact of a change in one place. Built + validated 2026-08-10 (Phase 1).
+the impact of a change in one place. Built + validated 2026-08-10 (Phase 1 = outbound + linkage; Phase 2 = **bidirectional + automatic**).
 
 ## The loop, in one glance
 
 ```
-author/edit a prompt in Bifrost (SoT)
-        │  sync_prompts.py  (Bifrost → Langfuse + MLflow, normalized, idempotent)
+author/edit in Bifrost (SoT)  ◀──reconcile native edits──  Langfuse/MLflow (playground)
+        │  sync_prompts.py — bidirectional, normalized, idempotent
+        │  driven by the Dagster `registrations` asset (weekly + on-demand; also runnable by hand)
         ▼
 Langfuse Prompts  ──fetch at runtime──▶  tool-server / operator / agent  ──LLM call──▶  Langfuse trace
         └───────────────── the trace shows  Prompt: <name> - vN  (clickable) ─────────────┘
@@ -57,5 +58,21 @@ Linkage is live on the three flagship apps — **tool-server** (`rag_system`), *
 spans (nothing removed). Runbook: [runbooks/prompt-federation.md](../runbooks/prompt-federation.md). Design:
 `aidlc-docs/prompt-federation-design.md`.
 
-**Phase 2 (next):** make the sync **automatic** (Dagster `registrations` asset) and **bidirectional** (native
-Langfuse/MLflow edits reconcile back to Bifrost).
+## Phase 2 — bidirectional + automatic (✅ DONE 2026-08-10)
+
+Two upgrades on top of Phase 1:
+
+- **Automatic:** `sync_prompts.py` is now the `prompt_federation_synced` asset in the Dagster `registrations` group
+  (downstream of `bifrost_prompts_registered`) — it runs on the weekly/on-demand reconcile, so a Bifrost edit
+  propagates with no manual step. (The `kubectl exec` above still works as the fast on-demand path.)
+- **Bidirectional:** an edit made *natively* in the Langfuse playground (or MLflow) flows **back** to Bifrost — the
+  sync runs `reconcile_inbound()` first, then mirrors outbound. Loop-safety is a content-hash + a
+  `synced-from-bifrost:<hash>` stamp, so an already-synced version is never re-pulled.
+
+**See the bidirectional loop:** edit a prompt in the Langfuse UI → run the sync → the summary shows
+`Inbound: 1 native edit(s) pulled into Bifrost`; run it again → `Inbound: 0` and everything `unchanged` — the edit
+landed in the SoT and doesn't bounce (the A→B→A loop is closed).
+
+> **Gotcha (cost a debug cycle):** native-edit detection keys on the *version-level* `commitMessage`, **not** Langfuse
+> `tags` — tags are *prompt-level* (sticky across every version), so a native edit inherits v1's `synced-from-bifrost`
+> tag and checking tags would falsely skip it.
