@@ -22,7 +22,7 @@ spec:
       enableServiceLinks: false
       containers:
         - name: weyland-operator
-          image: registry.weyland.lab/weyland-operator:v20   # v20 — local qwen2.5:7b + curated FLAT toolset (no routers) + Haiku failover
+          image: registry.weyland.lab/weyland-operator:v21   # B103 prompt federation — Langfuse prompt-linked tracing (langfuse SDK); was v20 (local qwen2.5:7b + curated FLAT toolset + Haiku failover)
           imagePullPolicy: IfNotPresent
           resources:
             # No torch/embedder — just langgraph/langchain/mlflow client + fastapi; LLM inference is remote (Ollama).
@@ -102,6 +102,20 @@ spec:
               value: http://realm-of-agents.weyland.svc.cluster.local:8080
             - name: MLFLOW_TRACKING_URI
               value: http://mlflow.weyland.svc.cluster.local:5000
+            # B103 prompt federation — Langfuse prompt-linked tracing (alongside MLflow). Reuses the already-sealed
+            # litellm-secrets project keys (same weyland ns). Unset = Langfuse tracing off.
+            - name: LANGFUSE_HOST
+              value: http://langfuse.weyland.svc:3000
+            - name: LANGFUSE_PUBLIC_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: litellm-secrets
+                  key: LANGFUSE_PUBLIC_KEY
+            - name: LANGFUSE_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: litellm-secrets
+                  key: LANGFUSE_SECRET_KEY
             # Postgres session store (STRICT-mTLS — rides the mesh sidecar). Same secret the agent/tool-server use.
             - name: WEYLAND_DB_HOST
               value: weyland-postgres.weyland.svc.cluster.local

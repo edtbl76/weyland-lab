@@ -13,6 +13,7 @@ instead of going dark, and steady-state Haiku spend ≈ $0. Set OPERATOR_LLM_FAL
 compiled once at import; `run()` picks local unless it's unavailable."""
 import os
 import time
+from contextlib import contextmanager
 
 import httpx
 from langchain_openai import ChatOpenAI
@@ -129,6 +130,47 @@ def _extract_proposal(msgs: list) -> dict | None:
     return None
 
 
+# B103 prompt federation — Langfuse prompt-linked tracing (alongside MLflow autolog). Fail-safe.
+_lf = None
+if os.getenv("LANGFUSE_PUBLIC_KEY"):
+    try:
+        from langfuse import Langfuse
+        _lf = Langfuse()   # reads LANGFUSE_PUBLIC_KEY / LANGFUSE_SECRET_KEY / LANGFUSE_HOST
+        print("[langfuse] prompt-linked tracing enabled", flush=True)
+    except Exception as _exc:
+        print(f"[langfuse] tracing disabled: {_exc}", flush=True)
+
+
+@contextmanager
+def _lf_generation(name: str, model: str, input_data, prompt_name: str):
+    """B103 — a fail-safe Langfuse generation LINKED to the operator_system prompt version (SDK v4), alongside MLflow.
+    Yields a handle (call `.update(output=...)`) or None. Setup/yield separated so a broken SDK call can't double-yield."""
+    if _lf is None:
+        yield None
+        return
+    gen_cm = gen = None
+    try:
+        prompt = None
+        try:
+            prompt = _lf.get_prompt(prompt_name, type="chat")
+        except Exception:
+            pass
+        gen_cm = _lf.start_as_current_observation(as_type="generation", name=name, model=model,
+                                                  input=input_data, prompt=prompt)
+        gen = gen_cm.__enter__()
+    except Exception:
+        gen_cm = gen = None
+    try:
+        yield gen
+    finally:
+        try:
+            if gen_cm is not None:
+                gen_cm.__exit__(None, None, None)
+            _lf.flush()
+        except Exception:
+            pass
+
+
 async def run(message: str, history: list | None = None) -> tuple[str, dict | None]:
     """Run the operator on a user message (+ optional prior [(role, text)] turns). Returns (reply, proposal). Local is
     primary; on a health-precheck miss or a mid-flight error we re-run the same messages on the Haiku fallback. ASYNC —
@@ -141,10 +183,13 @@ async def run(message: str, history: list | None = None) -> tuple[str, dict | No
     reason = "local_down"   # why we'd use the fallback, if we do
     if _fallback_agent is None or await _local_healthy():
         try:
-            result = await _local_agent.ainvoke({"messages": messages})
-            _BRAIN_SELECTED.labels("local", "primary").inc()
-            msgs = result["messages"]
-            return msgs[-1].content, _extract_proposal(msgs)
+            with _lf_generation("operator-ask", LOCAL_MODEL, messages, "operator_system") as lgen:
+                result = await _local_agent.ainvoke({"messages": messages})
+                _BRAIN_SELECTED.labels("local", "primary").inc()
+                msgs = result["messages"]
+                if lgen is not None:
+                    lgen.update(output=msgs[-1].content)
+                return msgs[-1].content, _extract_proposal(msgs)
         except Exception as exc:
             if _fallback_agent is None:
                 raise
@@ -152,7 +197,10 @@ async def run(message: str, history: list | None = None) -> tuple[str, dict | No
             _mark_local_down()
             reason = "local_error"
 
-    result = await _fallback_agent.ainvoke({"messages": messages})   # fresh attempt on Haiku (reads are idempotent)
-    _BRAIN_SELECTED.labels("haiku", reason).inc()
-    msgs = result["messages"]
-    return msgs[-1].content, _extract_proposal(msgs)
+    with _lf_generation("operator-ask", FALLBACK_MODEL, messages, "operator_system") as lgen:
+        result = await _fallback_agent.ainvoke({"messages": messages})   # fresh attempt on Haiku (reads are idempotent)
+        _BRAIN_SELECTED.labels("haiku", reason).inc()
+        msgs = result["messages"]
+        if lgen is not None:
+            lgen.update(output=msgs[-1].content)
+        return msgs[-1].content, _extract_proposal(msgs)

@@ -7,6 +7,7 @@ Ollama does grade / reflect / generate. Grade and reflect use PROMPT-AND-PARSE (
 function-calling is unreliable across models, so we don't use `.with_structured_output()`). Every LLM + retrieval
 step is captured by MLflow's langchain + llama_index autolog → one per-query Trace."""
 import os
+from contextlib import contextmanager
 from typing import TypedDict
 
 from langchain_openai import ChatOpenAI
@@ -22,6 +23,47 @@ RETRIEVE_LIMIT = int(os.getenv("AGENT_RETRIEVE_LIMIT", "5"))
 
 _llm = ChatOpenAI(base_url=OLLAMA_BASE_URL, api_key="ollama", model=OLLAMA_MODEL,
                   timeout=OLLAMA_TIMEOUT, temperature=0)
+
+# B103 prompt federation — Langfuse prompt-linked tracing (alongside MLflow autolog). Fail-safe: never blocks a step.
+_lf = None
+if os.getenv("LANGFUSE_PUBLIC_KEY"):
+    try:
+        from langfuse import Langfuse
+        _lf = Langfuse()   # reads LANGFUSE_PUBLIC_KEY / LANGFUSE_SECRET_KEY / LANGFUSE_HOST
+        print("[langfuse] prompt-linked tracing enabled", flush=True)
+    except Exception as _exc:
+        print(f"[langfuse] tracing disabled: {_exc}", flush=True)
+
+
+@contextmanager
+def _lf_generation(name: str, model: str, input_data, prompt_name: str):
+    """B103 — a fail-safe Langfuse generation LINKED to the Langfuse prompt version (SDK v4), alongside MLflow. Yields a
+    handle (call `.update(output=...)`) or None if Langfuse is off/broken. Setup and yield are separated so a broken
+    SDK call can't double-yield; flushes on exit."""
+    if _lf is None:
+        yield None
+        return
+    gen_cm = gen = None
+    try:
+        prompt = None
+        try:
+            prompt = _lf.get_prompt(prompt_name, type="chat")   # object carries the version -> links the trace
+        except Exception:
+            pass
+        gen_cm = _lf.start_as_current_observation(as_type="generation", name=name, model=model,
+                                                  input=input_data, prompt=prompt)
+        gen = gen_cm.__enter__()
+    except Exception:
+        gen_cm = gen = None
+    try:
+        yield gen
+    finally:
+        try:
+            if gen_cm is not None:
+                gen_cm.__exit__(None, None, None)
+            _lf.flush()
+        except Exception:
+            pass
 
 RAG_SYSTEM_PROMPT = (
     "You are the Weyland lab assistant. Answer the question using ONLY the context chunks provided. If the context "
@@ -73,15 +115,23 @@ def retrieve(state: AgentState) -> dict:
 def grade(state: AgentState) -> dict:
     if not state["chunks"]:
         return {"grade": "weak"}
-    msg = _llm.invoke(render_prompt("agent_grade", _GRADE_PROMPT,
-                                    question=state["original_query"], context=_fmt_context(state["chunks"])))
+    _p = render_prompt("agent_grade", _GRADE_PROMPT,
+                       question=state["original_query"], context=_fmt_context(state["chunks"]))
+    with _lf_generation("agent-grade", OLLAMA_MODEL, _p, "agent_grade") as lgen:
+        msg = _llm.invoke(_p)
+        if lgen is not None:
+            lgen.update(output=msg.content)
     return {"grade": "relevant" if msg.content.strip().upper().startswith("YES") else "weak"}
 
 
 def reflect(state: AgentState) -> dict:
     others = sorted(VALID_BACKENDS - {state["backend"]})
-    msg = _llm.invoke(render_prompt("agent_reflect", _REFLECT_PROMPT,
-                                    backend=state["backend"], question=state["original_query"], others=others))
+    _p = render_prompt("agent_reflect", _REFLECT_PROMPT,
+                       backend=state["backend"], question=state["original_query"], others=others)
+    with _lf_generation("agent-reflect", OLLAMA_MODEL, _p, "agent_reflect") as lgen:
+        msg = _llm.invoke(_p)
+        if lgen is not None:
+            lgen.update(output=msg.content)
     new_query, new_backend = state["query"], state["backend"]
     for line in msg.content.splitlines():
         s = line.strip()
@@ -96,10 +146,14 @@ def reflect(state: AgentState) -> dict:
 
 
 def generate(state: AgentState) -> dict:
-    msg = _llm.invoke([
+    _msgs = [
         ("system", load_prompt("rag_system", RAG_SYSTEM_PROMPT)),
         ("user", f"Context:\n{_fmt_context(state['chunks'])}\n\nQuestion: {state['original_query']}"),
-    ])
+    ]
+    with _lf_generation("rag-generate", OLLAMA_MODEL, _msgs, "rag_system") as lgen:
+        msg = _llm.invoke(_msgs)
+        if lgen is not None:
+            lgen.update(output=msg.content)
     return {"answer": msg.content}
 
 

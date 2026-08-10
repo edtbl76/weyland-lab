@@ -16,7 +16,8 @@ RUN pip install --no-cache-dir \
     langchain-openai \
     llama-index-core \
     llama-index-embeddings-huggingface \
-    mlflow
+    mlflow \
+    langfuse
 
 # In-process bge query embedding (same model + path convention as the tool-server; torch layer dedupes against it in
 # the registry). Pin caches under /app so the build-time bake (root) and runtime load (appuser) resolve identically.

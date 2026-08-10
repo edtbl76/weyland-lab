@@ -20,7 +20,7 @@ spec:
       enableServiceLinks: false
       containers:
         - name: weyland-agent
-          image: registry.weyland.lab/weyland-agent:v4   # v4 — B74: query embedder → bge-base 768 (match the collections)
+          image: registry.weyland.lab/weyland-agent:v5   # B103 prompt federation — Langfuse prompt-linked tracing (langfuse SDK); was v4 (B74 bge-base 768)
           imagePullPolicy: IfNotPresent
           resources:
             # Loads bge in-process (~torch) + langgraph/llama-index/mlflow client; LLM inference is remote (Ollama),
@@ -86,3 +86,17 @@ spec:
               value: http://weyland-guard.weyland.svc.cluster.local:8080
             - name: MLFLOW_TRACKING_URI
               value: http://mlflow.weyland.svc.cluster.local:5000
+            # B103 prompt federation — Langfuse prompt-linked tracing (alongside MLflow). Reuses the already-sealed
+            # litellm-secrets project keys (same weyland ns). Unset = Langfuse tracing off.
+            - name: LANGFUSE_HOST
+              value: http://langfuse.weyland.svc:3000
+            - name: LANGFUSE_PUBLIC_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: litellm-secrets
+                  key: LANGFUSE_PUBLIC_KEY
+            - name: LANGFUSE_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: litellm-secrets
+                  key: LANGFUSE_SECRET_KEY
