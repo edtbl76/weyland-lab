@@ -26,7 +26,12 @@ server:
   # GitHub OAuth client + secret live in the woodpecker-secret you create (WOODPECKER_GITHUB_CLIENT/SECRET).
   extraSecretNamesForEnvFrom:
     - woodpecker-secret
-  createAgentSecret: true                             # chart makes woodpecker-default-agent-secret (server + agent share it)
+  createAgentSecret: false                            # we own woodpecker-default-agent-secret via SealedSecret (stable value).
+                                                       # The chart's generated secret rotates under Argo (helm `lookup` can't
+                                                       # preserve it on every render), and a rotated token no longer matches the
+                                                       # agent rows in the server's persistent DB → agents fatal on auth
+                                                       # ("individual agent not found by token"). A stable owned secret removes
+                                                       # that drift. See k8s/sealed-secrets/sealed/woodpecker__woodpecker-default-agent-secret.yaml
   persistentVolume:
     enabled: true
     size: 5Gi
