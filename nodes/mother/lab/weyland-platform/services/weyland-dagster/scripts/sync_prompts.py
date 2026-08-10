@@ -156,7 +156,9 @@ def _langfuse_native(c_lf, name):
     if r.status_code != 200:
         return None
     v = r.json()
-    if STAMP in (v.get("tags") or []) or str(v.get("commitMessage") or "").startswith(STAMP):
+    # Native-detection keys on the VERSION-level commitMessage ONLY. Langfuse `tags` are PROMPT-level (sticky across
+    # every version), so a native edit inherits v1's `synced-from-bifrost` tag → checking tags falsely skips it.
+    if str(v.get("commitMessage") or "").startswith(STAMP):
         return None                                # sync-origin, not a human edit
     prompt = v.get("prompt")
     if not isinstance(prompt, list):
