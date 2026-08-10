@@ -27,7 +27,7 @@ spec:
     spec:
       containers:
         - name: dbt-docs
-          image: registry.weyland.lab/weyland-dagster-user-code:v40   # keep in lockstep with user-code.yaml (B103 prompt federation Ph2 — inbound native-detection fix)
+          image: registry.weyland.lab/weyland-dagster-user-code:v41   # keep in lockstep with user-code.yaml (B103 prompt federation Ph2 — inbound fix + asset registration)
           imagePullPolicy: IfNotPresent
           command: ["sh", "-c"]
           args:

@@ -66,6 +66,7 @@ from .registrations import (
     bifrost_prompts_registered,
     bifrost_skills_registered,
     realm_roles_registered,
+    prompt_federation_synced,
 )
 
 all_assets = [
@@ -136,6 +137,7 @@ all_assets = [
     bifrost_prompts_registered,
     bifrost_skills_registered,
     realm_roles_registered,
+    prompt_federation_synced,
 ]
 
 # Pre-hydration quality gate (build_asset_checks per domain — the second datasets_lib factory)
