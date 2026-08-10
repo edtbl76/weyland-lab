@@ -26,6 +26,10 @@ server:
   # GitHub OAuth client + secret live in the woodpecker-secret you create (WOODPECKER_GITHUB_CLIENT/SECRET).
   extraSecretNamesForEnvFrom:
     - woodpecker-secret
+    - woodpecker-default-agent-secret                 # REQUIRED with createAgentSecret:false — the chart only auto-wires this
+                                                       # into the SERVER when it generates it. Without this line the server has no
+                                                       # WOODPECKER_AGENT_SECRET, so it can't match the agent's token as the shared
+                                                       # secret and rejects every agent ("individual agent not found by token").
   createAgentSecret: false                            # we own woodpecker-default-agent-secret via SealedSecret (stable value).
                                                        # The chart's generated secret rotates under Argo (helm `lookup` can't
                                                        # preserve it on every render), and a rotated token no longer matches the
