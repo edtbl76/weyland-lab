@@ -26,6 +26,9 @@ server:
   # GitHub OAuth client + secret live in the woodpecker-secret you create (WOODPECKER_GITHUB_CLIENT/SECRET).
   extraSecretNamesForEnvFrom:
     - woodpecker-secret
+    - woodpecker-grpc-secret                          # stable WOODPECKER_GRPC_SECRET — the server signs agent session tokens with
+                                                       # it; random-per-restart otherwise, so a server bounce invalidates every
+                                                       # agent's session token. Server-only; sealed under k8s/sealed-secrets/sealed/.
     - woodpecker-default-agent-secret                 # REQUIRED with createAgentSecret:false — the chart only auto-wires this
                                                        # into the SERVER when it generates it. Without this line the server has no
                                                        # WOODPECKER_AGENT_SECRET, so it can't match the agent's token as the shared
