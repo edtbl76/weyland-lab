@@ -1323,7 +1323,7 @@ registers/aliases them to MLflow — on-demand + scheduled (or triggered on repo
 every other artifact. **Low priority** — manual re-run is fine for a solo lab with infrequent prompt edits; the
 services fail-safe to baked defaults regardless. Extends **B100**.
 
-### B103 — Langfuse LLM observability (deferred from B84 P3) — 🟢 Deploy + emitter + prompt-federation Ph1+Ph2 + session-grouping DONE; online-evals remaining (2026-08-11)
+### B103 — Langfuse LLM observability (deferred from B84 P3) — ✅ DONE 2026-08-11 — deploy + emitter + prompt-federation Ph1+Ph2 + session-grouping + online-evals (Scores/Evaluators/Datasets/Annotation) all shipped
 **Deploy + emitter DONE 2026-08-09.** Langfuse v3 self-hosted, **reuse-first** — only the stateless **web + worker** pods
 (`k8s/langfuse/langfuse.yaml`, Argo `subdir-apps.yaml`); every stateful plane reuses an existing lab service
 (Postgres `langfuse` DB · ClickHouse `langfuse` DB, `CLUSTER_ENABLED=false` · Valkey queue · MinIO `langfuse` bucket).
@@ -1342,10 +1342,16 @@ the langfuse SDK's `packaging<26` conflicts with the dagster lockfile); prompt�
 asset in the Dagster `registrations` group (downstream of `bifrost_prompts_registered`; user-code img v41) → runs on
 the weekly/on-demand reconcile, no manual exec. **Gotcha:** native-edit detection keys on the VERSION-level
 `commitMessage`, NOT Langfuse `tags` (tags are PROMPT-level/sticky → a native edit inherits v1's stamp → would be
-falsely skipped). (2) **Langfuse online evals**
-— Evaluators (LLM-as-judge on a sampled slice of `platform` production traces) + Annotation Queues + Datasets; point
-Datasets at the [B96] golden set so the offline ([B84]) and online eval lanes share fixtures. These are the online/
-prompt complement to the offline suite — the net-new capability the eval flagged. Original deferral rationale kept
+falsely skipped). (2) **Langfuse online evals — ✅ DONE 2026-08-11.** All four shipped: **Scores** + **9 native
+evaluators** (7 managed + custom citation/refusal) created programmatically via `/api/public/unstable/evaluation-rules`
+(NOT `/eval-configs`=404), live per-trace on `rag-generate`, $0 on `wl-judge-oss`; **Datasets** = git `eval_sets/` SSOT
+(golden.json = B96, regression.json = Promptfoo gate) mirrored to `weyland-golden`/`weyland-regression` by
+`langfuse_eval.py`; **Human Annotation** = `weyland-rag-review` queue + `human_quality` score-config. Codified as
+`registrations` assets (dagster v43) → DB-reset-durable. SSRF fix = `LANGFUSE_LLM_CONNECTION_WHITELISTED_HOST`. Memory
+`langfuse-evaluation-b103`; design `aidlc-docs/langfuse-evaluation-design.md`. — Evaluators (LLM-as-judge on a sampled
+slice of `platform` production traces) + Annotation Queues + Datasets; point Datasets at the [B96] golden set so the
+offline ([B84]) and online eval lanes share fixtures. These are the online/ prompt complement to the offline suite —
+the net-new capability the eval flagged. Original deferral rationale kept
 below for history. **(3) DOCS follow-up (2026-08-11):** author two comprehensive `docs.weyland.lab` concept pages —
 **Federated Prompts** and **Federated Evals** — each detailed on: the **SSOT** (prompts = Bifrost repo; eval fixtures =
 git `eval_sets/*.json`), the **tools** and **what owns what** (an ownership matrix: e.g. Bifrost owns prompt authoring →

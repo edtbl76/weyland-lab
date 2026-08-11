@@ -114,12 +114,15 @@ The ONLINE eval lane, complementing the offline B84 MLflow suite; shared fixture
 - **Judge model** = LiteLLM (one Langfuse LLM Connection → `http://litellm.weyland.svc.cluster.local:4000/v1`, master
   key). Aliases added for eval: **`wl-judge-oss`** (gpt-oss:20b, free local, the production/codified judge) and
   **`claude-haiku`** (quality lane). `k8s/litellm/configmap.yaml`.
-- **Evaluators are CODIFIED, not UI.** Langfuse's eval-config API is UI/internal-only in v3.225.1 (`/api/public/eval-*`
-  → 404; verified against the OpenAPI spec). So `scripts/langfuse_evaluators.py` (Dagster `registrations` asset
-  `langfuse_codified_evals`) reads recent `rag-generate` generations, judges a 6-criterion catalog (relevance ·
-  helpfulness · conciseness · citation · groundedness · refusal) via LiteLLM, and POSTs to `/api/public/scores`.
-  Unlimited criteria, GitOps, survives a Langfuse DB reset. Add a criterion = one `CATALOG` entry. One UI evaluator
-  (Relevance) is kept as the live-sampling example.
+- **Evaluators are NATIVE, created via the API.** Langfuse's eval engine IS public API — under `/api/public/unstable/`
+  (`evaluators` + `evaluation-rules`), NOT `/eval-configs` (which 404s — the path that misled the first probe).
+  `scripts/langfuse_evaluators.py` (Dagster `registrations` asset `langfuse_codified_evals`) idempotently creates **2
+  custom evaluators** (`citation`, `refusal`) + **9 evaluation-rules** on `rag-generate` (7 managed —
+  Relevance/Helpfulness/Hallucination/Conciseness/Toxicity/Contextrelevance/Faithfulness — + the 2 custom). They run
+  **live per-trace on Langfuse's engine** → Scores view. Rules have **no per-rule model** → all use the connection
+  default (`wl-judge-oss`, $0). A Langfuse DB reset is rebuilt by materializing the asset. Add a criterion = a
+  `CATALOG` / `CUSTOM_EVALUATORS` entry. (Custom-evaluator variables must map to the observation; `context` maps to
+  Input since the RAG context+question are concatenated there.)
 - **Datasets** — the eval-fixture SSOT is **git** (`weyland_pipeline/eval_sets/*.json`), mirrored to Langfuse Datasets
   by `scripts/langfuse_eval.py` (asset `langfuse_golden_dataset`). Langfuse holds a *copy*, never the source.
 - **Human Annotation** — a `quality` score-config + a queue (UI); score-configs are API-creatable and defined by the
