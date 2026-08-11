@@ -37,8 +37,10 @@ COPY soda/ ./soda/
 # Great Expectations (B77 part b — DQ profiling/validation showcase) in its OWN isolated venv: GE 0.18 pins
 # sqlalchemy<2 + marshmallow that clash with the dagster+dbt+datahub main env, and acryl-datahub 1.7 dropped the
 # native GE action — so GE runs alone (GE 0.18 + trino dialect + SA 1.4), shelled out from ge_validate_op, and the
-# MAIN env's emit_ge_assertions() surfaces results to DataHub. pip>=25 first (base pip 24.0 segfaults resolving these).
-RUN python -m venv /opt/ge-venv && /opt/ge-venv/bin/pip install --upgrade "pip>=25" && /opt/ge-venv/bin/pip install --no-cache-dir "great-expectations==0.18.*" trino "sqlalchemy<2"
+# MAIN env's emit_ge_assertions() surfaces results to DataHub. pip PINNED to 25.x: base pip 24.0 AND pip 26.x both
+# SIGSEGV (exit 139) resolving GE 0.18's graph; 25.x is the known-good window. `pandas<3` because GE 0.18 predates
+# pandas 3 (unbounded `pandas>=1.3` otherwise pulls 3.0 → runtime + resolver trouble); numpy<2 is already GE-enforced.
+RUN python -m venv /opt/ge-venv && /opt/ge-venv/bin/pip install --upgrade "pip>=25,<26" && /opt/ge-venv/bin/pip install --no-cache-dir "great-expectations==0.18.*" "pandas<3" trino "sqlalchemy<2"
 COPY ge/ ./ge/
 
 # Ops scripts (feast_setup.py etc.) — run via `kubectl exec … python /app/scripts/<name>`. Last COPY so it never

@@ -42,7 +42,7 @@ spec:
       serviceAccountName: dagster-user-code   # NOT `default` — that SA has automount disabled (see above)
       containers:
         - name: dagster-user-code
-          image: registry.weyland.lab/weyland-dagster-user-code:v41   # B103 prompt federation Ph2 — inbound native-detection fix (commitMessage not sticky tags) + register prompt_federation_synced in all_assets; was v39; keep in lockstep with dbt-docs.yaml
+          image: registry.weyland.lab/weyland-dagster-user-code:v42   # B103 eval — langfuse_eval.py (golden dataset) + langfuse_evaluators.py (codified judge) as registrations assets + LITELLM_* env; was v41; keep in lockstep with dbt-docs.yaml
           imagePullPolicy: IfNotPresent
           # DefaultRunLauncher runs jobs INSIDE this pod, so a heavy dataset transform spikes here. With no
           # limit a big run triggered NODE-level OOM that killed random lab pods (2026-06-30). The limit
@@ -77,6 +77,14 @@ spec:
                 secretKeyRef:
                   name: litellm-secrets
                   key: LANGFUSE_SECRET_KEY
+            # B103 eval — the codified LLM-as-judge (langfuse_evaluators.py) calls LiteLLM for wl-judge-oss / claude-haiku
+            - name: LITELLM_BASE_URL
+              value: http://litellm.weyland.svc.cluster.local:4000/v1
+            - name: LITELLM_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: litellm-secrets
+                  key: LITELLM_MASTER_KEY
             - name: WEYLAND_PG_HOST
               value: weyland-postgres.weyland.svc.cluster.local
             - name: WEYLAND_PG_PORT

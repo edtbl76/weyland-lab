@@ -57,6 +57,21 @@ def prompt_federation_synced() -> Output:
 
 
 @asset(group_name=_GROUP,
+       description="B103 eval — seed the Langfuse `weyland-golden` dataset from the B96 golden set (shared fixtures for "
+                   "the offline B84 + online Langfuse eval lanes). Idempotent (langfuse_eval.py).")
+def langfuse_golden_dataset() -> Output:
+    return _run_script("langfuse_eval.py")
+
+
+@asset(group_name=_GROUP,
+       description="B103 eval — the codified LLM-as-judge: scores recent rag-generate generations on a 6-criterion "
+                   "catalog via LiteLLM (wl-judge-oss / claude-haiku) → Langfuse Scores. Langfuse's eval-config API is "
+                   "UI-only in v3.225.1, so we run our own (langfuse_evaluators.py). Needs LITELLM_* env on the pod.")
+def langfuse_codified_evals() -> Output:
+    return _run_script("langfuse_evaluators.py")
+
+
+@asset(group_name=_GROUP,
        description="Reconcile the Bifrost Skills Repository from the bundled register_bifrost_skills.py (idempotent).")
 def bifrost_skills_registered() -> Output:
     return _run_script("register_bifrost_skills.py")
