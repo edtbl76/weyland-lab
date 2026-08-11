@@ -27,7 +27,7 @@ spec:
     spec:
       containers:
         - name: dbt-docs
-          image: registry.weyland.lab/weyland-dagster-user-code:v42   # keep in lockstep with user-code.yaml (B103 eval — golden dataset + codified judge assets + LITELLM env)
+          image: registry.weyland.lab/weyland-dagster-user-code:v43   # keep in lockstep with user-code.yaml (B103 eval — native evaluators + eval_sets/ SSOT catalog)
           imagePullPolicy: IfNotPresent
           command: ["sh", "-c"]
           args:
