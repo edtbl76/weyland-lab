@@ -83,8 +83,13 @@ lockfile). Env per app: `LANGFUSE_HOST`, `LANGFUSE_PUBLIC_KEY`/`SECRET_KEY` (fro
 - **langfuse SDK vs REST:** SDK 3.x/4.x caps `packaging<26` → conflicts with the dagster mega-lockfile. Use REST for
   the sync (dagster image); the SDK is fine in the light app images.
 - **SDK v4** (not v3): tracing is `start_as_current_observation(as_type="generation")`, not `start_generation`.
-- **Docker Desktop `unpigz: invalid deflate data`** on build = a CORRUPTED layer in the store, NOT transient (repeats
-  on the same layer sha) → `docker system prune -af` + `docker build --no-cache`.
+- **`unpigz: invalid deflate data`** on build (rogueone `unpacking`) OR on the node (`ErrImagePull … failed to extract
+  layer`) = an **oversized single layer** tripping a buildkit gzip defect — the layer is written as malformed gzip. It is
+  **NOT** a cache/disk/prune problem (`prune -af` + `--no-cache` do nothing; `--push` just moves the bad layer to the
+  registry). Diagnose: `curl -sk https://registry.weyland.lab/v2/<img>/blobs/<digest> | gzip -t` — gzip fails but the
+  sha matches ⇒ corrupt at build. Fix: shrink/split the layer (e.g. tool-server's 3 GB CUDA-torch layer → CPU-only
+  `torch --index-url https://download.pytorch.org/whl/cpu`, 258 MB) and push a fresh tag. Full detail:
+  [[buildkit-large-layer-corruption]].
 
 ## Phase 2 (✅ DONE 2026-08-10 — bidirectional + auto)
 

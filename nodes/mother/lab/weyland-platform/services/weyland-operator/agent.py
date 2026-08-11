@@ -150,21 +150,23 @@ def _lf_generation(name: str, model: str, input_data, prompt_name: str,
     if _lf is None:
         yield None
         return
-    gen_cm = gen = None
+    prop_cm = gen_cm = gen = None
     try:
         prompt = None
         try:
             prompt = _lf.get_prompt(prompt_name, type="chat")
         except Exception:
             pass
+        if session_id or user_id:                        # session grouping — propagate_attributes (langfuse v4), set BEFORE the obs
+            try:
+                from langfuse import propagate_attributes
+                prop_cm = propagate_attributes(session_id=session_id, user_id=user_id)
+                prop_cm.__enter__()
+            except Exception:
+                prop_cm = None
         gen_cm = _lf.start_as_current_observation(as_type="generation", name=name, model=model,
                                                   input=input_data, prompt=prompt)
         gen = gen_cm.__enter__()
-        if session_id or user_id:                        # session grouping — related traces under one session
-            try:
-                _lf.update_current_trace(session_id=session_id, user_id=user_id)
-            except Exception:
-                pass
     except Exception:
         gen_cm = gen = None
     try:
@@ -173,6 +175,8 @@ def _lf_generation(name: str, model: str, input_data, prompt_name: str,
         try:
             if gen_cm is not None:
                 gen_cm.__exit__(None, None, None)
+            if prop_cm is not None:
+                prop_cm.__exit__(None, None, None)
             _lf.flush()
         except Exception:
             pass

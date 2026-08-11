@@ -17,7 +17,7 @@ spec:
       enableServiceLinks: false
       containers:
         - name: weyland-tool-server
-          image: registry.weyland.lab/weyland-tool-server:v18   # CPU-only torch — slims the image ~2.5GB + fixes the ~3GB-layer buildkit gzip corruption that broke v17; carries the v17 Langfuse session grouping
+          image: registry.weyland.lab/weyland-tool-server:v19   # session grouping FIX: propagate_attributes (v18's update_current_trace is a no-op in langfuse 4.x); CPU-only torch layer retained
           resources:
             requests: { memory: 512Mi, cpu: 250m }
             # 3Gi (was 2Gi, raised 2026-07-21). Steady state is ~929Mi (it loads the embedding model), so 2Gi
