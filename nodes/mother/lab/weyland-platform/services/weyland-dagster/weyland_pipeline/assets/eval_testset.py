@@ -38,7 +38,7 @@ EVAL_METRICS = ["faithfulness", "answer_relevancy", "context_relevancy"]
 # The file lives INSIDE weyland_pipeline/ so the existing `COPY weyland_pipeline/` in the Dockerfile picks it
 # up — no image-build change needed to add or edit questions.
 EVAL_QUESTION_SOURCE = os.environ.get("EVAL_QUESTION_SOURCE", "golden")
-GOLDEN_QUESTIONS_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "golden_questions.json")
+GOLDEN_QUESTIONS_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "eval_sets", "golden.json")  # B103 — moved into the eval_sets/ SSOT catalog (was golden_questions.json)
 
 
 def _load_golden_questions() -> list[dict]:

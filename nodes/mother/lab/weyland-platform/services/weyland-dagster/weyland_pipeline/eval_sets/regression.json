@@ -1,0 +1,14 @@
+{
+  "name": "regression",
+  "description": "The prompt-regression GATE set (small, targeted) — mirrors Promptfoo's inline tests (k8s/promptfoo/promptfoo.yaml). A fast 'did editing the RAG prompt break something' check, NOT the comparable benchmark. Includes a deliberate off-corpus honest-negative (does it refuse rather than hallucinate?).",
+  "_comment": [
+    "Keep in step with the Promptfoo config's `tests:` block — this is the git SSOT copy so the online (Langfuse)",
+    "and CI (Promptfoo) gates share fixtures. The `negative` item has no answer in the corpus ON PURPOSE: a correct",
+    "system refuses / says it cannot find it. Grade it with the `refusal` evaluator, not `groundedness`."
+  ],
+  "questions": [
+    { "type": "functional", "q": "What is the weyland data mesh?" },
+    { "type": "functional", "q": "How does the operator agent confirm before running a state-changing action?" },
+    { "type": "negative", "q": "What is the airspeed velocity of an unladen swallow?" }
+  ]
+}

@@ -1,115 +1,74 @@
-"""B103 eval — the CODIFIED LLM-as-judge. Langfuse's eval-config API is UI/internal-only in v3.225.1 (POST
-/api/public/eval-configs → 404), so instead of a handful of hand-clicked UI evaluators we run an EXHAUSTIVE catalog
-of judge criteria in code and POST the results to the Langfuse **Scores** API (200). Same rendering on the trace as a
-native evaluator, but unlimited criteria, fully GitOps, and durable across a Langfuse DB reset.
+"""B103 eval — codify the Langfuse ONLINE evaluator set (native LLM-as-judge) so a Langfuse DB reset recreates it.
 
-Reads recent `rag-generate` generations from Langfuse, scores each criterion via **LiteLLM** (tiered per the design:
-`wl-judge-oss` = gpt-oss:20b, $0, for the cheap criteria; `claude-haiku` for the harder discriminating one), and posts a
-0–1 NUMERIC score + one-line reason. Idempotent: deterministic score ids (obs+criterion) → re-runs upsert, no dupes.
+Langfuse's eval engine IS programmatic — via `/api/public/unstable/{evaluators,evaluation-rules}` (NOT `/eval-configs`,
+which 404s; the earlier probe checked the wrong path). This reconciles, idempotently:
+  - 2 **custom** evaluators (`citation`, `refusal`) — weyland-specific criteria absent from Langfuse's managed library.
+  - 9 evaluation **rules** binding evaluators (7 managed + the 2 custom) to `rag-generate` observations. Native rules
+    have **no per-rule model** — all share the LLM connection's default (set to `wl-judge-oss` → $0). "All native on
+    wl-judge-oss" was the chosen tier; per-criterion Haiku would need the old batch judge, which this REPLACES.
 
-Env (user-code pod): LANGFUSE_HOST + LANGFUSE_PUBLIC_KEY/SECRET_KEY, LITELLM_BASE_URL + LITELLM_API_KEY.
+Skips any evaluator/rule whose name already exists. Env: LANGFUSE_HOST + LANGFUSE_PUBLIC_KEY/SECRET_KEY.
 Run: `kubectl -n weyland exec deploy/dagster-user-code -- python /app/scripts/langfuse_evaluators.py`
-(or materialize the `langfuse_codified_evals` asset). Tunables: EVAL_LOOKBACK_HOURS (24), EVAL_MAX_OBS (50).
+(or the `langfuse_codified_evals` registrations asset). Fixtures/model live elsewhere: git `eval_sets/` (SSOT) + the
+Langfuse LLM connection.
 """
-import datetime
-import hashlib
-import json
 import os
-import re
 
 import httpx
 
 LF = os.environ["LANGFUSE_HOST"].rstrip("/")
-LF_AUTH = (os.environ["LANGFUSE_PUBLIC_KEY"], os.environ["LANGFUSE_SECRET_KEY"])
-LITE = os.environ.get("LITELLM_BASE_URL", "http://litellm.weyland.svc.cluster.local:4000/v1").rstrip("/")
-LITE_KEY = os.environ["LITELLM_API_KEY"]
-LOOKBACK = int(os.getenv("EVAL_LOOKBACK_HOURS", "24"))
-MAX_OBS = int(os.getenv("EVAL_MAX_OBS", "50"))
+AUTH = (os.environ["LANGFUSE_PUBLIC_KEY"], os.environ["LANGFUSE_SECRET_KEY"])
+EV, RULE = "/api/public/unstable/evaluators", "/api/public/unstable/evaluation-rules"
+FILTER = [{"column": "name", "operator": "any of", "value": ["rag-generate"], "type": "stringOptions"}]
+_OUT = {"dataType": "NUMERIC", "score": {"description": "Score between 0 and 1"},
+        "reasoning": {"description": "One sentence reasoning"}}
 
-OSS, HAIKU = "wl-judge-oss", "claude-haiku"
-# criterion -> (judge model, needs_context, instruction)
-CATALOG = {
-    "relevance":    (OSS,   False, "Does the ANSWER directly address the QUESTION and stay on topic?"),
-    "helpfulness":  (OSS,   False, "Is the ANSWER helpful and complete for the QUESTION?"),
-    "conciseness":  (OSS,   False, "Is the ANSWER concise — free of padding, hedging, and repetition?"),
-    "citation":     (OSS,   False, "Does the ANSWER cite the source name(s) it used, as the system prompt requires?"),
-    "groundedness": (HAIKU, True,  "Is EVERY factual claim in the ANSWER supported by the CONTEXT? (hallucination = low)"),
-    "refusal":      (OSS,   True,  "If the CONTEXT does not contain the answer, does the ANSWER say so plainly instead "
-                                   "of guessing? Score 1 if it either answered FROM the context OR correctly declined."),
-}
+# weyland-specific evaluators (not in the managed library)
+CUSTOM_EVALUATORS = [
+    {"type": "llm_as_judge", "name": "citation", "variables": ["query", "generation"], "outputDefinition": _OUT,
+     "prompt": "Does the ANSWER cite the source name(s) it used, as the assistant is required to? Score 1 if it cites "
+               "at least one source or document name, 0 if it makes claims with no citation. Query: {{query}} "
+               "Answer: {{generation}}"},
+    {"type": "llm_as_judge", "name": "refusal", "variables": ["query", "context", "generation"], "outputDefinition": _OUT,
+     "prompt": "If the context does not contain the answer, the ANSWER must say so plainly rather than guess. Score 1 "
+               "if it answers from the context OR correctly states the info is unavailable, 0 if it fabricates or "
+               "guesses. Query: {{query}} Context: {{context}} Answer: {{generation}}"},
+]
 
-_JUDGE = (
-    "You are a strict, fair evaluator. Criterion: {criterion}\n\n"
-    "QUESTION:\n{question}\n\n{context_block}ANSWER:\n{answer}\n\n"
-    'Reply with ONLY a JSON object: {{"score": <float 0.0-1.0>, "reason": "<one short sentence>"}}. '
-    "1.0 = fully satisfies the criterion; 0.0 = fails it."
-)
+_QG = [{"variable": "query", "source": "input"}, {"variable": "generation", "source": "output"}]
+_CTX = [{"variable": "query", "source": "input"}, {"variable": "context", "source": "input"}]
+_FAI = [{"variable": "context", "source": "input"}, {"variable": "answer", "source": "output"}]
+_REF = _CTX + [{"variable": "generation", "source": "output"}]
 
-
-def _parse_input(inp):
-    """`rag-generate` input is a chat messages list; the user turn is 'Context:\\n<chunks>\\n\\nQuestion: <q>'. Return
-    (question, context); defensive — fall back to the raw text if the shape differs."""
-    try:
-        msgs = inp if isinstance(inp, list) else json.loads(inp)
-        user = next(m["content"] for m in reversed(msgs) if isinstance(m, dict) and m.get("role") == "user")
-    except Exception:
-        user = inp if isinstance(inp, str) else json.dumps(inp)
-    if "\n\nQuestion:" in user:
-        ctx, q = user.rsplit("\n\nQuestion:", 1)
-        return q.strip(), ctx.strip()
-    return user.strip(), user.strip()
-
-
-def _judge(c, model, criterion, question, context, answer, needs_ctx):
-    prompt = _JUDGE.format(criterion=criterion, question=question, answer=answer,
-                           context_block=(f"CONTEXT:\n{context}\n\n" if needs_ctx else ""))
-    r = c.post(f"{LITE}/chat/completions", headers={"Authorization": f"Bearer {LITE_KEY}"}, timeout=120,
-               json={"model": model, "temperature": 0, "messages": [{"role": "user", "content": prompt}]})
-    r.raise_for_status()
-    txt = r.json()["choices"][0]["message"]["content"]
-    m = re.search(r"\{.*\}", txt, re.S)
-    obj = json.loads(m.group(0)) if m else {}
-    return (float(obj["score"]), str(obj.get("reason", ""))[:500]) if "score" in obj else (None, txt[:200])
-
-
-def ensure_score_configs(c):
-    """Define each score's schema (0–1 numeric) so the UI + annotation render them consistently. Ignore 'already exists'."""
-    for name in CATALOG:
-        try:
-            c.post(f"{LF}/api/public/score-configs", auth=LF_AUTH,
-                   json={"name": name, "dataType": "NUMERIC", "minValue": 0, "maxValue": 1})
-        except Exception:
-            pass
+# (rule name, evaluator name, evaluator scope, variable mapping). Mapping must cover the evaluator's variables exactly once;
+# the RAG context+question are concatenated in the observation Input, so `context` maps to Input alongside `query`.
+RULES = [
+    ("Relevance", "Relevance", "managed", _QG), ("Helpfulness", "Helpfulness", "managed", _QG),
+    ("Hallucination", "Hallucination", "managed", _QG), ("Conciseness", "Conciseness", "managed", _QG),
+    ("Toxicity", "Toxicity", "managed", _QG), ("Contextrelevance", "Contextrelevance", "managed", _CTX),
+    ("Faithfulness", "Faithfulness", "managed", _FAI),
+    ("citation", "citation", "project", _QG), ("refusal", "refusal", "project", _REF),
+]
 
 
 def main():
-    since = (datetime.datetime.utcnow() - datetime.timedelta(hours=LOOKBACK)).strftime("%Y-%m-%dT%H:%M:%SZ")
-    with httpx.Client() as c:
-        ensure_score_configs(c)
-        obs = c.get(f"{LF}/api/public/observations", auth=LF_AUTH, timeout=30,
-                    params={"name": "rag-generate", "type": "GENERATION", "fromStartTime": since, "limit": MAX_OBS}
-                    ).json().get("data", [])
-        posted = 0
-        for o in obs:
-            answer = o.get("output")
-            if not answer:
-                continue
-            answer = answer if isinstance(answer, str) else json.dumps(answer)
-            question, context = _parse_input(o.get("input"))
-            for name, (model, needs_ctx, criterion) in CATALOG.items():
-                try:
-                    score, reason = _judge(c, model, criterion, question, context, answer, needs_ctx)
-                    if score is None:
-                        continue
-                    c.post(f"{LF}/api/public/scores", auth=LF_AUTH, timeout=30, json={
-                        "id": "eval-" + hashlib.sha1(f"{o['id']}:{name}".encode()).hexdigest()[:20],
-                        "traceId": o["traceId"], "observationId": o["id"],
-                        "name": name, "value": score, "dataType": "NUMERIC", "comment": reason,
-                    }).raise_for_status()
-                    posted += 1
-                except Exception as e:
-                    print(f"  ! {name} on obs {o.get('id','?')[:8]}: {e}")
-        print(f"codified judge: {len(obs)} rag-generate obs × {len(CATALOG)} criteria → {posted} scores posted")
+    with httpx.Client(base_url=LF, auth=AUTH, timeout=120) as c:
+        have = {e["name"] for e in c.get(EV, params={"limit": 100}, timeout=30).json().get("data", [])}
+        for spec in CUSTOM_EVALUATORS:
+            if spec["name"] in have:
+                print("evaluator exists:", spec["name"]); continue
+            print("evaluator", spec["name"], c.post(EV, json=spec, timeout=60).status_code)
+        have = {r["name"] for r in c.get(RULE, params={"limit": 100}, timeout=30).json().get("data", [])}
+        for name, ev, scope, mapping in RULES:
+            if name in have:
+                print("rule exists:", name); continue
+            body = {"name": name, "evaluator": {"name": ev, "scope": scope, "type": "llm_as_judge"},
+                    "target": "observation", "enabled": True, "sampling": 1, "filter": FILTER, "mapping": mapping}
+            try:
+                print("rule", name, c.post(RULE, json=body, timeout=120).status_code)
+            except Exception as e:   # rule create can be slow (cold judge model) — don't let one stall the rest
+                print("rule", name, "ERR", type(e).__name__)
+    print(f"langfuse online evaluators reconciled: {len(RULES)} rules + {len(CUSTOM_EVALUATORS)} custom evaluators")
 
 
 if __name__ == "__main__":

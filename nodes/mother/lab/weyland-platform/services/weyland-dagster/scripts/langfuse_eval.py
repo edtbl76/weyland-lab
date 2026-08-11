@@ -1,16 +1,15 @@
-"""B103 eval — seed the Langfuse `weyland-golden` dataset from the B96 golden question set.
+"""B103 eval — mirror the git eval-fixture SSOT (`weyland_pipeline/eval_sets/*.json`) into Langfuse Datasets.
 
-Mirrors `weyland_pipeline/golden_questions.json` (the pinned 20q: 10 conceptual + 10 lexical) into a Langfuse **Dataset**
-so the OFFLINE lane (B84 MLflow judge-panel) and the ONLINE lane (Langfuse evaluators/experiments) share the SAME
-fixtures. Reference-free (question-only, like B84): each item carries the question as `input` + a `question_type`
-metadata tag so you can slice the conceptual-vs-lexical contrast the golden set was built to measure.
+The single source of truth is **git**: each set is one JSON in `eval_sets/` (`{name, description, questions:[{type,q}]}`).
+This mirrors every set to a Langfuse Dataset `weyland-<name>` (weyland-golden, weyland-regression, …) so the offline
+(B84 MLflow judge-panel) and online (Langfuse) eval lanes share the SAME fixtures. Langfuse holds a COPY, never the
+source — a Langfuse DB reset is rebuilt by re-running this. Reference-free (question-only, like B84): item input = the
+question, `metadata.question_type` = conceptual/lexical/functional/negative.
 
-Idempotent: deterministic item ids (sha1 of the question) → re-runs upsert, never duplicate. Langfuse **REST** via httpx
-(Basic auth pk/sk) — NO langfuse SDK (its `packaging<26` pin conflicts with the dagster lockfile, same reason as
-`sync_prompts.py`). Creds: `LANGFUSE_HOST` + `LANGFUSE_PUBLIC_KEY`/`SECRET_KEY` on the user-code pod.
-
-Run: `kubectl -n weyland exec deploy/dagster-user-code -- python /app/scripts/langfuse_eval.py`
-(or materialize the `langfuse_golden_dataset` asset in the Dagster `registrations` group).
+Idempotent: deterministic item ids (per dataset+question) → re-runs upsert, no dupes. Langfuse **REST** via httpx (Basic
+auth pk/sk) — NO langfuse SDK (its `packaging<26` pin conflicts with the dagster lockfile). Env: LANGFUSE_HOST +
+LANGFUSE_PUBLIC_KEY/SECRET_KEY. Run: `kubectl -n weyland exec deploy/dagster-user-code -- python
+/app/scripts/langfuse_eval.py` (or the `langfuse_golden_dataset` registrations asset).
 """
 import hashlib
 import json
@@ -21,43 +20,41 @@ import httpx
 
 HOST = os.environ["LANGFUSE_HOST"].rstrip("/")
 AUTH = (os.environ["LANGFUSE_PUBLIC_KEY"], os.environ["LANGFUSE_SECRET_KEY"])
-DATASET = "weyland-golden"
-_GOLDEN = pathlib.Path(__file__).resolve().parent.parent / "weyland_pipeline" / "golden_questions.json"
+EVAL_SETS = pathlib.Path(__file__).resolve().parent.parent / "weyland_pipeline" / "eval_sets"
 
 
-def ensure_dataset(c: httpx.Client) -> None:
-    """Create the dataset if absent (GET 404 → POST). Langfuse has no dataset-upsert, so guard on existence."""
-    if c.get(f"/api/public/v2/datasets/{DATASET}").status_code == 200:
+def ensure_dataset(c: httpx.Client, name: str, description: str) -> None:
+    if c.get(f"/api/public/v2/datasets/{name}").status_code == 200:
         return
     c.post("/api/public/v2/datasets", json={
-        "name": DATASET,
-        "description": "B96 golden eval set (10 conceptual + 10 lexical), mirrored from golden_questions.json. Shared "
-                       "fixtures for the offline (B84 MLflow judge-panel) and online (Langfuse) eval lanes. "
-                       "Reference-free — judged, not string-matched.",
-        "metadata": {"source": "golden_questions.json", "backlog": "B96/B103"},
+        "name": name, "description": description,
+        "metadata": {"source": "git weyland_pipeline/eval_sets/", "backlog": "B96/B103"},
     }).raise_for_status()
 
 
-def seed_items(c: httpx.Client) -> int:
-    """Upsert the 20 golden questions as dataset items (deterministic id → idempotent). Input matches the tool-server
-    `/context/ask` contract so the experiment runner can POST an item straight to the RAG."""
-    qs = json.loads(_GOLDEN.read_text())["questions"]
-    for item in qs:
+def seed(c: httpx.Client, dataset: str, questions: list) -> int:
+    for item in questions:
         q, qtype = item["q"], item["type"]
         c.post("/api/public/dataset-items", json={
-            "id": "golden-" + hashlib.sha1(q.encode()).hexdigest()[:16],   # deterministic → upsert, no dupes
-            "datasetName": DATASET,
-            "input": {"query": q, "backend": "pgvector"},
-            "metadata": {"question_type": qtype},   # slice conceptual vs lexical (the B96 contrast)
+            "id": "es-" + hashlib.sha1(f"{dataset}:{q}".encode()).hexdigest()[:16],   # deterministic → upsert
+            "datasetName": dataset,
+            "input": {"query": q, "backend": "pgvector"},   # matches the tool-server /context/ask contract
+            "metadata": {"question_type": qtype},
         }).raise_for_status()
-    return len(qs)
+    return len(questions)
 
 
 def main() -> None:
     with httpx.Client(base_url=HOST, auth=AUTH, timeout=30) as c:
-        ensure_dataset(c)
-        n = seed_items(c)
-    print(f"Langfuse dataset '{DATASET}': {n} items upserted (from golden_questions.json)")
+        total = 0
+        for path in sorted(EVAL_SETS.glob("*.json")):
+            data = json.loads(path.read_text())
+            dataset = f"weyland-{data['name']}"
+            ensure_dataset(c, dataset, data.get("description", f"weyland eval set: {data['name']}"))
+            n = seed(c, dataset, data["questions"])
+            total += n
+            print(f"  {dataset}: {n} items upserted (from {path.name})")
+    print(f"eval-fixture SSOT → Langfuse Datasets: {total} items across the eval_sets/ catalog")
 
 
 if __name__ == "__main__":

@@ -64,9 +64,10 @@ def langfuse_golden_dataset() -> Output:
 
 
 @asset(group_name=_GROUP,
-       description="B103 eval — the codified LLM-as-judge: scores recent rag-generate generations on a 6-criterion "
-                   "catalog via LiteLLM (wl-judge-oss / claude-haiku) → Langfuse Scores. Langfuse's eval-config API is "
-                   "UI-only in v3.225.1, so we run our own (langfuse_evaluators.py). Needs LITELLM_* env on the pod.")
+       description="B103 eval — reconcile the Langfuse ONLINE evaluator set (native LLM-as-judge): 2 custom evaluators "
+                   "(citation, refusal) + 9 evaluation-rules on `rag-generate` via /api/public/unstable "
+                   "(langfuse_evaluators.py), idempotent, so a Langfuse DB reset rebuilds them. Judge = the LLM "
+                   "connection default (wl-judge-oss, $0). Replaced the earlier batch-judge approach.")
 def langfuse_codified_evals() -> Output:
     return _run_script("langfuse_evaluators.py")
 
