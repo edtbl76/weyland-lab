@@ -106,6 +106,28 @@ realm = per-dispatch uuid. Two wirings:
 wrapper, and silently sets nothing (traces land with no session). Use `propagate_attributes(...)`. Verify in-image:
 `kubectl -n weyland exec deploy/weyland-agent -- python -c "from langfuse import Langfuse; print(hasattr(Langfuse,'update_current_trace'))"` → `False`. Demo: [demos/langfuse-sessions.md](../demos/langfuse-sessions.md).
 
+## Evaluation (B103 — Scores · Evaluators · Datasets · Annotation)
+
+The ONLINE eval lane, complementing the offline B84 MLflow suite; shared fixtures. Design:
+`aidlc-docs/langfuse-evaluation-design.md`.
+
+- **Judge model** = LiteLLM (one Langfuse LLM Connection → `http://litellm.weyland.svc.cluster.local:4000/v1`, master
+  key). Aliases added for eval: **`wl-judge-oss`** (gpt-oss:20b, free local, the production/codified judge) and
+  **`claude-haiku`** (quality lane). `k8s/litellm/configmap.yaml`.
+- **Evaluators are CODIFIED, not UI.** Langfuse's eval-config API is UI/internal-only in v3.225.1 (`/api/public/eval-*`
+  → 404; verified against the OpenAPI spec). So `scripts/langfuse_evaluators.py` (Dagster `registrations` asset
+  `langfuse_codified_evals`) reads recent `rag-generate` generations, judges a 6-criterion catalog (relevance ·
+  helpfulness · conciseness · citation · groundedness · refusal) via LiteLLM, and POSTs to `/api/public/scores`.
+  Unlimited criteria, GitOps, survives a Langfuse DB reset. Add a criterion = one `CATALOG` entry. One UI evaluator
+  (Relevance) is kept as the live-sampling example.
+- **Datasets** — the eval-fixture SSOT is **git** (`weyland_pipeline/eval_sets/*.json`), mirrored to Langfuse Datasets
+  by `scripts/langfuse_eval.py` (asset `langfuse_golden_dataset`). Langfuse holds a *copy*, never the source.
+- **Human Annotation** — a `quality` score-config + a queue (UI); score-configs are API-creatable and defined by the
+  evaluator script.
+- **SSRF gotcha (UI evaluators only):** private-IP LLM connections are blocked; the working env var is
+  `LANGFUSE_LLM_CONNECTION_WHITELISTED_HOST` on web+worker (NOT `LANGFUSE_UNSAFE_TRUSTED_PRIVATE_IPS`, which is a no-op —
+  langfuse#13097). The codified judge doesn't need it. Memory: `langfuse-session-tracking` neighbours; design doc above.
+
 ## Ops & security
 
 - **Uptime Kuma monitor** (manual UI step — monitors are UI-managed): add `langfuse.weyland.lab` to the board.
