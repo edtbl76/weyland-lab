@@ -46,6 +46,10 @@ data:
   # under the old 768Mi limit during the boot init spike. Pin it explicitly, ~1GB heap under a 1536Mi limit
   # (leaves ~512Mi for non-heap/buffers). Applies to both web + worker (both are Node).
   NODE_OPTIONS: "--max-old-space-size=1024"
+  # B103 eval — let the SSRF guard reach the in-cluster LiteLLM (ClusterIP 10.43.x) so UI LLM-as-judge evaluators can
+  # call it. Langfuse blocks private IPs by default ("Blocked IP address detected"). This is a private-range allowlist;
+  # it's known-flaky for LLM connections (langfuse#13097) — if it doesn't take, we fall back to a codified Dagster judge.
+  LANGFUSE_UNSAFE_TRUSTED_PRIVATE_IPS: "10.0.0.0/8,172.16.0.0/12,192.168.0.0/16"
 ---
 apiVersion: apps/v1
 kind: Deployment
