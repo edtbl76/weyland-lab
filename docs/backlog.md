@@ -1323,7 +1323,7 @@ registers/aliases them to MLflow — on-demand + scheduled (or triggered on repo
 every other artifact. **Low priority** — manual re-run is fine for a solo lab with infrequent prompt edits; the
 services fail-safe to baked defaults regardless. Extends **B100**.
 
-### B103 — Langfuse LLM observability (deferred from B84 P3) — 🟢 Deploy + emitter + prompt-federation Ph1+Ph2 DONE; online-evals remaining (2026-08-10)
+### B103 — Langfuse LLM observability (deferred from B84 P3) — 🟢 Deploy + emitter + prompt-federation Ph1+Ph2 + session-grouping DONE; online-evals remaining (2026-08-11)
 **Deploy + emitter DONE 2026-08-09.** Langfuse v3 self-hosted, **reuse-first** — only the stateless **web + worker** pods
 (`k8s/langfuse/langfuse.yaml`, Argo `subdir-apps.yaml`); every stateful plane reuses an existing lab service
 (Postgres `langfuse` DB · ClickHouse `langfuse` DB, `CLUSTER_ENABLED=false` · Valkey queue · MinIO `langfuse` bucket).

@@ -92,6 +92,20 @@ MK="$(kubectl -n weyland get secret litellm-secrets -o jsonpath='{.data.LITELLM_
 A trace should appear in the `platform` project within seconds. Auth failures surface as `No key found for public key`
 in `langfuse-web` logs.
 
+## Session tracking (2026-08-11)
+
+Related traces group under one `session_id` in **Tracing → Sessions**. Keys: operator = Telegram chat_id (REST =
+request_id) · agent = per-run request_id (`AgentState.session_id`) · tool-server = optional `AskRequest.session_id` ·
+realm = per-dispatch uuid. Two wirings:
+- **Manual-span apps** (tool-server v19 / operator v23 / agent v7): `_lf_generation` wraps each generation in
+  `propagate_attributes(session_id=…, user_id=…)`.
+- **Realm** (v21): langchain `CallbackHandler` + `metadata={"langfuse_session_id": <dispatch id>}`, with a contextvar
+  (`obs.set_session`/`lf_config`) carrying the id through the nested delegation.
+
+**Gotcha:** langfuse **4.x has NO `Langfuse.update_current_trace`** — it raises, gets swallowed by the fail-safe
+wrapper, and silently sets nothing (traces land with no session). Use `propagate_attributes(...)`. Verify in-image:
+`kubectl -n weyland exec deploy/weyland-agent -- python -c "from langfuse import Langfuse; print(hasattr(Langfuse,'update_current_trace'))"` → `False`. Demo: [demos/langfuse-sessions.md](../demos/langfuse-sessions.md).
+
 ## Ops & security
 
 - **Uptime Kuma monitor** (manual UI step — monitors are UI-managed): add `langfuse.weyland.lab` to the board.
