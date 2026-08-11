@@ -46,10 +46,11 @@ data:
   # under the old 768Mi limit during the boot init spike. Pin it explicitly, ~1GB heap under a 1536Mi limit
   # (leaves ~512Mi for non-heap/buffers). Applies to both web + worker (both are Node).
   NODE_OPTIONS: "--max-old-space-size=1024"
-  # B103 eval — let the SSRF guard reach the in-cluster LiteLLM (ClusterIP 10.43.x) so UI LLM-as-judge evaluators can
-  # call it. Langfuse blocks private IPs by default ("Blocked IP address detected"). This is a private-range allowlist;
-  # it's known-flaky for LLM connections (langfuse#13097) — if it doesn't take, we fall back to a codified Dagster judge.
-  LANGFUSE_UNSAFE_TRUSTED_PRIVATE_IPS: "10.0.0.0/8,172.16.0.0/12,192.168.0.0/16"
+  # B103 eval — whitelist the in-cluster LiteLLM so the SSRF guard lets UI LLM-as-judge evaluators reach it
+  # ("Blocked IP address detected" otherwise). `LANGFUSE_UNSAFE_TRUSTED_PRIVATE_IPS` does NOT exist; the real vars are
+  # `LANGFUSE_LLM_CONNECTION_WHITELISTED_*` (PR #13073, present in ≥3.218). Whitelist is checked BEFORE the deny-list.
+  LANGFUSE_LLM_CONNECTION_WHITELISTED_HOST: litellm.weyland.svc.cluster.local
+  LANGFUSE_LLM_CONNECTION_WHITELISTED_IP_SEGMENTS: "10.0.0.0/8"
 ---
 apiVersion: apps/v1
 kind: Deployment
