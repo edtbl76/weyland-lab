@@ -6,6 +6,13 @@ WORKDIR /app
 # old fastapi-mcp 0.4.0, whose streamable-HTTP mount hangs (request.body() → ClientDisconnect) —
 # that drift is what broke /mcp. FastMCP 3.x (mcp 1.28-native) replaces fastapi-mcp; the whole set
 # is pinned to the versions validated 2026-07-31 so it can't silently drift again.
+# CPU-only torch, installed FIRST so sentence-transformers reuses it instead of pulling the default CUDA wheel. The
+# tool-server runs CPU-only on mother (the GPU is on rogueone), so the ~2.5GB of bundled CUDA libs are dead weight.
+# This ALSO fixes a real deploy failure: the combined torch+deps produced a single ~3GB layer that buildkit on Docker
+# Desktop mangled into invalid gzip (large-layer compression defect) → the layer fails to extract on the node →
+# ImagePullBackOff. A ~500MB CPU-torch layer stays well under that threshold.
+RUN pip install --no-cache-dir torch --index-url https://download.pytorch.org/whl/cpu
+
 RUN pip install --no-cache-dir \
     'fastapi==0.139.2' \
     'starlette==1.3.1' \
