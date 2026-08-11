@@ -14,7 +14,8 @@ RUN pip install --no-cache-dir \
     langchain-openai \
     langchain-mcp-adapters==0.3.1 \
     mcp==1.24.0 \
-    mlflow
+    mlflow \
+    langfuse
 
 COPY config.py roster.py roles.py obs.py prompts.py llm.py fleet.py agents.py realms.py router.py cards.py a2a.py stream.py console.html app.py /app/
 

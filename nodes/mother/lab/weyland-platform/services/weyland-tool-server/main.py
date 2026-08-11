@@ -189,11 +189,12 @@ def _span(name: str, span_type: str = "UNKNOWN"):
 
 
 @contextmanager
-def _lf_generation(name: str, model: str, input_messages, prompt_name: str):
+def _lf_generation(name: str, model: str, input_messages, prompt_name: str,
+                   session_id: str | None = None, user_id: str | None = None):
     """B103 — a fail-safe Langfuse generation LINKED to the Langfuse prompt version (SDK v4), running ALONGSIDE the
     MLflow span. Yields a generation handle (call `.update(output=...)`), or None if Langfuse is off/broken. A tracing
     failure never interrupts the request; flushes on exit so the trace lands on this request/response server. Setup and
-    yield are separated so a broken SDK call can't double-yield."""
+    yield are separated so a broken SDK call can't double-yield. `session_id` groups related asks into one session."""
     if _lf is None:
         yield None
         return
@@ -207,6 +208,11 @@ def _lf_generation(name: str, model: str, input_messages, prompt_name: str):
         gen_cm = _lf.start_as_current_observation(as_type="generation", name=name, model=model,
                                                   input=input_messages, prompt=prompt)
         gen = gen_cm.__enter__()
+        if session_id or user_id:                        # session grouping — asks sharing a session_id (e.g. an open-webui chat)
+            try:
+                _lf.update_current_trace(session_id=session_id, user_id=user_id)
+            except Exception:
+                pass
     except Exception:
         gen_cm = gen = None
     try:
@@ -298,6 +304,9 @@ class AskRequest(BaseModel):
     # None -> fall back to OLLAMA_MODEL. Pass any model pulled on the Ollama host
     # (see GET /models) to override per request.
     model: str | None = None
+    # Optional Langfuse session grouping — pass a stable id (e.g. an open-webui conversation id)
+    # to collapse a multi-turn exchange into one session; unset → this ask is its own session.
+    session_id: str | None = None
 
 
 def _to_vector(values) -> str:
@@ -601,7 +610,8 @@ def context_ask(request: AskRequest, actor: str | None = Depends(_actor)):
             {"role": "user", "content": f"Context:\n{_build_context(chunks)}\n\nQuestion: {request.query}"},
         ]
         with _span("generate", span_type="LLM") as gspan, \
-             _lf_generation("rag-generate", model, messages, "rag_system") as lgen:   # B103 — Langfuse link, dual with MLflow
+             _lf_generation("rag-generate", model, messages, "rag_system",
+                            request.session_id or request_id, actor) as lgen:   # B103 — Langfuse link + session, dual with MLflow
             if gspan is not None:
                 gspan.set_inputs({"model": model, "context_chunks": len(chunks), "prompt_version": loaded_version("rag_system")})
             try:

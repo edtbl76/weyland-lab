@@ -5,8 +5,10 @@ Given a free-text task, Gná picks the single best agent from the roster and run
 routes to Odin (the engineering orchestrator), who can always decompose or redirect.
 
 `run_agent` is the shared entry point everything uses: a lead delegates to its members; a plain agent answers directly."""
+import uuid
+
 from llm import brain
-from obs import log
+from obs import lf_config, log, set_session
 from realms import run_lead
 from agents import run_solo
 from roster import BY_KEY, ROSTER, AgentSpec
@@ -28,7 +30,7 @@ async def run_agent(spec: AgentSpec, task: str, history: list | None = None) -> 
 async def classify(task: str) -> str:
     """Return the roster key of the best-fit agent (fail-safe to 'odin')."""
     try:
-        resp = await brain("wl-speed").ainvoke([("system", _CLASSIFY), ("user", task)])
+        resp = await brain("wl-speed").ainvoke([("system", _CLASSIFY), ("user", task)], lf_config())
         key = (resp.content or "").strip().split()[0].strip(".,:`\"'").lower()
         if key in BY_KEY:
             log(f"Gná routed → {key}")
@@ -40,5 +42,6 @@ async def classify(task: str) -> str:
 
 async def dispatch(task: str, history: list | None = None) -> tuple[str, str]:
     """Classify → run. Returns (chosen_key, answer)."""
+    set_session(str(uuid.uuid4()))   # one dispatch = one Langfuse session (covers /route + the A2A binding)
     key = await classify(task)
     return key, await run_agent(BY_KEY[key], task, history)

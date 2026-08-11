@@ -20,7 +20,7 @@ spec:
       enableServiceLinks: false
       containers:
         - name: realm-of-agents
-          image: registry.weyland.lab/realm-of-agents:v20   # v20 — FIX operator realm-routing: explicit domain→realm map (eng→Valhalla/Odin) so tasks land on the right realm
+          image: registry.weyland.lab/realm-of-agents:v21   # v21 — Langfuse session tracing (langchain CallbackHandler, one session per dispatch); was v20 (operator realm-routing domain→realm map)
           imagePullPolicy: IfNotPresent
           resources:
             # No torch/embedder — langgraph/langchain client + fastapi only; inference is remote (LiteLLM). Low request
@@ -61,6 +61,17 @@ spec:
             # and reliable and off rogueone's local GPU lanes. Set to "claude-haiku" for raw Haiku, or "" for per-agent lanes.
             - name: REALM_MODEL
               value: wl-agentic
+            # Langfuse session tracing — realm dispatch → Langfuse via the langchain CallbackHandler, ONE session per
+            # dispatch (contextvar-propagated through the nested delegation). Creds reuse the sealed litellm-secrets
+            # (same keys as the other apps); OTEL_SERVICE_NAME so the trace isn't service.name=unknown_service.
+            - name: LANGFUSE_HOST
+              value: http://langfuse.weyland.svc:3000
+            - name: LANGFUSE_PUBLIC_KEY
+              valueFrom: { secretKeyRef: { name: litellm-secrets, key: LANGFUSE_PUBLIC_KEY } }
+            - name: LANGFUSE_SECRET_KEY
+              valueFrom: { secretKeyRef: { name: litellm-secrets, key: LANGFUSE_SECRET_KEY } }
+            - name: OTEL_SERVICE_NAME
+              value: realm-of-agents
             # Tools — the coding-agents virtual key over the Bifrost MCP surface. optional:true → until the secret is
             # created the pod runs tool-less (agents still reason + answer). Create out-of-band (NOT committed):
             #   kubectl -n weyland create secret generic realm-of-agents-secret --from-literal=BIFROST_VK=<coding-agents VK>

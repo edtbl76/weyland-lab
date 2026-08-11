@@ -36,10 +36,11 @@ if os.getenv("LANGFUSE_PUBLIC_KEY"):
 
 
 @contextmanager
-def _lf_generation(name: str, model: str, input_data, prompt_name: str):
+def _lf_generation(name: str, model: str, input_data, prompt_name: str,
+                   session_id: str | None = None, user_id: str | None = None):
     """B103 — a fail-safe Langfuse generation LINKED to the Langfuse prompt version (SDK v4), alongside MLflow. Yields a
     handle (call `.update(output=...)`) or None if Langfuse is off/broken. Setup and yield are separated so a broken
-    SDK call can't double-yield; flushes on exit."""
+    SDK call can't double-yield; flushes on exit. `session_id` groups the run's grade/reflect/generate into one session."""
     if _lf is None:
         yield None
         return
@@ -53,6 +54,11 @@ def _lf_generation(name: str, model: str, input_data, prompt_name: str):
         gen_cm = _lf.start_as_current_observation(as_type="generation", name=name, model=model,
                                                   input=input_data, prompt=prompt)
         gen = gen_cm.__enter__()
+        if session_id or user_id:                        # session grouping — all 3 calls of one /agent/ask run
+            try:
+                _lf.update_current_trace(session_id=session_id, user_id=user_id)
+            except Exception:
+                pass
     except Exception:
         gen_cm = gen = None
     try:
@@ -94,6 +100,7 @@ class AgentState(TypedDict):
     max_attempts: int
     answer: str
     backend_history: list
+    session_id: str        # per-run id → groups grade/reflect/generate into one Langfuse session
 
 
 def _fmt_context(chunks: list) -> str:
@@ -117,7 +124,7 @@ def grade(state: AgentState) -> dict:
         return {"grade": "weak"}
     _p = render_prompt("agent_grade", _GRADE_PROMPT,
                        question=state["original_query"], context=_fmt_context(state["chunks"]))
-    with _lf_generation("agent-grade", OLLAMA_MODEL, _p, "agent_grade") as lgen:
+    with _lf_generation("agent-grade", OLLAMA_MODEL, _p, "agent_grade", state.get("session_id")) as lgen:
         msg = _llm.invoke(_p)
         if lgen is not None:
             lgen.update(output=msg.content)
@@ -128,7 +135,7 @@ def reflect(state: AgentState) -> dict:
     others = sorted(VALID_BACKENDS - {state["backend"]})
     _p = render_prompt("agent_reflect", _REFLECT_PROMPT,
                        backend=state["backend"], question=state["original_query"], others=others)
-    with _lf_generation("agent-reflect", OLLAMA_MODEL, _p, "agent_reflect") as lgen:
+    with _lf_generation("agent-reflect", OLLAMA_MODEL, _p, "agent_reflect", state.get("session_id")) as lgen:
         msg = _llm.invoke(_p)
         if lgen is not None:
             lgen.update(output=msg.content)
@@ -150,7 +157,7 @@ def generate(state: AgentState) -> dict:
         ("system", load_prompt("rag_system", RAG_SYSTEM_PROMPT)),
         ("user", f"Context:\n{_fmt_context(state['chunks'])}\n\nQuestion: {state['original_query']}"),
     ]
-    with _lf_generation("rag-generate", OLLAMA_MODEL, _msgs, "rag_system") as lgen:
+    with _lf_generation("rag-generate", OLLAMA_MODEL, _msgs, "rag_system", state.get("session_id")) as lgen:
         msg = _llm.invoke(_msgs)
         if lgen is not None:
             lgen.update(output=msg.content)

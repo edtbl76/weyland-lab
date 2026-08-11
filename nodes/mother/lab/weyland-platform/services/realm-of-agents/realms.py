@@ -12,7 +12,7 @@ from langgraph.prebuilt import create_react_agent
 from agents import run_solo
 from fleet import tools_for
 from llm import brain
-from obs import log
+from obs import lf_config, log
 from prompts import load_role
 from roster import BY_KEY, AgentSpec
 
@@ -88,5 +88,5 @@ async def run_lead(lead: AgentSpec, task: str, history: list | None = None) -> s
     """Run a realm lead: it does its own specialty with its own tools, delegates the rest to its members, and reconciles."""
     log(f"{lead.god} (lead) — decomposing and delegating")
     graph = await _lead_graph(lead)
-    result = await graph.ainvoke({"messages": _lead_messages(lead, task, history)}, {"recursion_limit": 50})
+    result = await graph.ainvoke({"messages": _lead_messages(lead, task, history)}, lf_config({"recursion_limit": 50}))
     return result["messages"][-1].content

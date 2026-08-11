@@ -22,7 +22,7 @@ spec:
       enableServiceLinks: false
       containers:
         - name: weyland-operator
-          image: registry.weyland.lab/weyland-operator:v21   # B103 prompt federation — Langfuse prompt-linked tracing (langfuse SDK); was v20 (local qwen2.5:7b + curated FLAT toolset + Haiku failover)
+          image: registry.weyland.lab/weyland-operator:v22   # Langfuse session grouping (Telegram chat_id → one session); was v21 (B103 prompt-linked tracing)
           imagePullPolicy: IfNotPresent
           resources:
             # No torch/embedder — just langgraph/langchain/mlflow client + fastapi; LLM inference is remote (Ollama).

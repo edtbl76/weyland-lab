@@ -15,10 +15,12 @@ runnables via LangChain's async callback context, and our delegate tool awaits `
 *should* nest. Curl `/route/stream` on a delegating task and read the indented tree to confirm.
 """
 import json
+import uuid
 
 import agents
 import realms
 import router as gna
+from obs import lf_config, set_session
 from roster import BY_KEY
 
 _CONFIG = {"recursion_limit": 50}
@@ -65,7 +67,7 @@ async def _agent_events(spec, task: str, history):
         graph = await agents._graph(spec)
         inp = {"messages": agents._solo_messages(spec, task, history)}
     delegate_ids, final = set(), None
-    async for ev in graph.astream_events(inp, _CONFIG, version="v2"):
+    async for ev in graph.astream_events(inp, lf_config(_CONFIG), version="v2"):
         et = ev.get("event")
         rid = ev.get("run_id")
         parents = ev.get("parent_ids", [])
@@ -91,6 +93,7 @@ async def _agent_events(spec, task: str, history):
 
 async def dispatch_events(task: str, history=None):
     """The full route as a live event stream: Gná's pick, then the chosen agent's (possibly nested) execution."""
+    set_session(str(uuid.uuid4()))   # one streamed dispatch = one Langfuse session
     yield {"type": "route_start"}
     key = await gna.classify(task)
     spec = BY_KEY[key]

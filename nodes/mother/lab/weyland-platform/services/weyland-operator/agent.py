@@ -142,9 +142,11 @@ if os.getenv("LANGFUSE_PUBLIC_KEY"):
 
 
 @contextmanager
-def _lf_generation(name: str, model: str, input_data, prompt_name: str):
+def _lf_generation(name: str, model: str, input_data, prompt_name: str,
+                   session_id: str | None = None, user_id: str | None = None):
     """B103 — a fail-safe Langfuse generation LINKED to the operator_system prompt version (SDK v4), alongside MLflow.
-    Yields a handle (call `.update(output=...)`) or None. Setup/yield separated so a broken SDK call can't double-yield."""
+    Yields a handle (call `.update(output=...)`) or None. Setup/yield separated so a broken SDK call can't double-yield.
+    `session_id`/`user_id` group the trace into a Langfuse session (operator: the Telegram chat_id)."""
     if _lf is None:
         yield None
         return
@@ -158,6 +160,11 @@ def _lf_generation(name: str, model: str, input_data, prompt_name: str):
         gen_cm = _lf.start_as_current_observation(as_type="generation", name=name, model=model,
                                                   input=input_data, prompt=prompt)
         gen = gen_cm.__enter__()
+        if session_id or user_id:                        # session grouping — related traces under one session
+            try:
+                _lf.update_current_trace(session_id=session_id, user_id=user_id)
+            except Exception:
+                pass
     except Exception:
         gen_cm = gen = None
     try:
@@ -171,7 +178,8 @@ def _lf_generation(name: str, model: str, input_data, prompt_name: str):
             pass
 
 
-async def run(message: str, history: list | None = None) -> tuple[str, dict | None]:
+async def run(message: str, history: list | None = None,
+              session_id: str | None = None, user_id: str | None = None) -> tuple[str, dict | None]:
     """Run the operator on a user message (+ optional prior [(role, text)] turns). Returns (reply, proposal). Local is
     primary; on a health-precheck miss or a mid-flight error we re-run the same messages on the Haiku fallback. ASYNC —
     the composed MCP fleet's tools (langchain-mcp-adapters) are async-only, so we drive the graph with `ainvoke`."""
@@ -183,7 +191,7 @@ async def run(message: str, history: list | None = None) -> tuple[str, dict | No
     reason = "local_down"   # why we'd use the fallback, if we do
     if _fallback_agent is None or await _local_healthy():
         try:
-            with _lf_generation("operator-ask", LOCAL_MODEL, messages, "operator_system") as lgen:
+            with _lf_generation("operator-ask", LOCAL_MODEL, messages, "operator_system", session_id, user_id) as lgen:
                 result = await _local_agent.ainvoke({"messages": messages})
                 _BRAIN_SELECTED.labels("local", "primary").inc()
                 msgs = result["messages"]
@@ -197,7 +205,7 @@ async def run(message: str, history: list | None = None) -> tuple[str, dict | No
             _mark_local_down()
             reason = "local_error"
 
-    with _lf_generation("operator-ask", FALLBACK_MODEL, messages, "operator_system") as lgen:
+    with _lf_generation("operator-ask", FALLBACK_MODEL, messages, "operator_system", session_id, user_id) as lgen:
         result = await _fallback_agent.ainvoke({"messages": messages})   # fresh attempt on Haiku (reads are idempotent)
         _BRAIN_SELECTED.labels("haiku", reason).inc()
         msgs = result["messages"]

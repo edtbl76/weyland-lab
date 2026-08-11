@@ -87,7 +87,7 @@ async def operator_ask(req: AskRequest, actor: str | None = Depends(_actor)):
         raise HTTPException(403, "blocked by input guard")
     t0 = time.monotonic()
     try:
-        reply, proposal = await agent.run(req.message)
+        reply, proposal = await agent.run(req.message, session_id=request_id, user_id=actor)
     except Exception as exc:
         _REQS.labels("error").inc()
         raise HTTPException(502, f"operator run failed: {exc}")

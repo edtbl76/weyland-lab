@@ -78,7 +78,7 @@ def agent_ask(req: AskRequest, actor: str | None = Depends(_actor)):
 
     state = {"query": req.query, "original_query": req.query, "backend": req.backend,
              "chunks": [], "grade": "", "attempts": 0, "max_attempts": req.max_attempts,
-             "answer": "", "backend_history": [req.backend]}
+             "answer": "", "backend_history": [req.backend], "session_id": request_id}
     t0 = time.monotonic()
     try:
         result = _graph.invoke(state)

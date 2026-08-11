@@ -17,7 +17,7 @@ spec:
       enableServiceLinks: false
       containers:
         - name: weyland-tool-server
-          image: registry.weyland.lab/weyland-tool-server:v16   # B103 prompt federation — Langfuse prompt-linked RAG tracing (langfuse SDK); was v15 (B49(b) OTel FastAPI+httpx spans → Tempo)
+          image: registry.weyland.lab/weyland-tool-server:v17   # Langfuse session grouping on /context/ask (session_id); was v16 (B103 prompt-linked RAG tracing)
           resources:
             requests: { memory: 512Mi, cpu: 250m }
             # 3Gi (was 2Gi, raised 2026-07-21). Steady state is ~929Mi (it loads the embedding model), so 2Gi

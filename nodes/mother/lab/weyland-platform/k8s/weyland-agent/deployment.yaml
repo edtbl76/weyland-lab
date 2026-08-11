@@ -20,7 +20,7 @@ spec:
       enableServiceLinks: false
       containers:
         - name: weyland-agent
-          image: registry.weyland.lab/weyland-agent:v5   # B103 prompt federation — Langfuse prompt-linked tracing (langfuse SDK); was v4 (B74 bge-base 768)
+          image: registry.weyland.lab/weyland-agent:v6   # Langfuse session grouping (per-run id → grade/reflect/generate one session); was v5 (B103 prompt-linked tracing)
           imagePullPolicy: IfNotPresent
           resources:
             # Loads bge in-process (~torch) + langgraph/llama-index/mlflow client; LLM inference is remote (Ollama),
