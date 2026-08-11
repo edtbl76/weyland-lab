@@ -1352,13 +1352,14 @@ evaluators** (7 managed + custom citation/refusal) created programmatically via 
 slice of `platform` production traces) + Annotation Queues + Datasets; point Datasets at the [B96] golden set so the
 offline ([B84]) and online eval lanes share fixtures. These are the online/ prompt complement to the offline suite —
 the net-new capability the eval flagged. Original deferral rationale kept
-below for history. **(3) DOCS follow-up (2026-08-11):** author two comprehensive `docs.weyland.lab` concept pages —
-**Federated Prompts** and **Federated Evals** — each detailed on: the **SSOT** (prompts = Bifrost repo; eval fixtures =
-git `eval_sets/*.json`), the **tools** and **what owns what** (an ownership matrix: e.g. Bifrost owns prompt authoring →
-Langfuse/MLflow are mirrors; git owns eval fixtures → Langfuse Datasets mirror; Langfuse owns online scoring; MLflow
-owns the offline leaderboard; LiteLLM owns the judge model; Promptfoo owns the regression gate), **what each tool does**,
-and **what makes them different** (offline-vs-online, benchmark-vs-gate, source-vs-mirror). Goal: one page each so a
-newcomer understands the whole federation shape without reading code. Feeds the eval/prompt DoD.
+below for history. **(3) DOCS follow-up — ✅ DONE 2026-08-11:** two comprehensive `docs.weyland.lab` concept pages
+shipped — **`docs/concepts/federated-prompts.md`** and **`docs/concepts/federated-evals.md`** — each covering the
+**SSOT** (prompts = Bifrost repo; eval fixtures = git `eval_sets/*.json`), the **tools** and an **ownership matrix**
+(Bifrost owns prompt authoring → Langfuse/MLflow are mirrors; git owns eval fixtures → Langfuse Datasets mirror;
+Langfuse owns online scoring; MLflow owns the offline leaderboard; LiteLLM owns the judge model; Promptfoo owns the
+regression gate), **what each tool does**, and **what makes them different** (offline-vs-online, benchmark-vs-gate,
+source-vs-mirror) — each with a mermaid flow + gotchas. Auto-nav (no `nav:` in `mkdocs-site.yml`) picks them up under
+**Concepts**; LikeC4 model re-validated (`✓ Valid`). Renders after push + docs-site rebuild.
 
 **Added 2026-07-25.** B84 originally scoped **Langfuse** as the OSS LLM tracing/observability tool. **Deferred to
 maturity** after the P2 wrap — two reasons: (1) **its original justification is spent.** Langfuse was scoped to fill
