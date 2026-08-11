@@ -146,7 +146,7 @@ model {
           tempo = component "Tempo" "Traces -> MinIO (Jaeger retired)"
           pveExporter = component "PVE exporter" "Proxmox metrics -> Prometheus"
           glitchtip = component "GlitchTip" "Error tracking -> Port"
-          langfuse = component "Langfuse" "LLM observability (B103) — traces/scores/prompts; reuses data-mesh ClickHouse/Valkey/MinIO + weyland-postgres"
+          langfuse = component "Langfuse" "LLM observability (B103) — traces/scores/prompts/sessions + online evals (native LLM-as-judge evaluators + git-SSOT Datasets); reuses data-mesh ClickHouse/Valkey/MinIO + weyland-postgres"
           kuma = component "Uptime Kuma" "25 monitors -> Telegram"
           kiali = component "Kiali" "Mesh observability UI"
         }
@@ -244,6 +244,7 @@ model {
   weyland.mother.ops.edge.bifrost -> weyland.mother.mesh.ml.mlflow "prompt federation (B103) — bidirectional catalog mirror (Bifrost SoT ⇄ MLflow); native MLflow edits reconcile back"
   weyland.mother.ai.toolServer -> weyland.mother.ops.obs.langfuse "prompt-linked RAG traces (B103) — rag_system version on each trace"
   weyland.mother.ai.operator -> weyland.mother.ops.obs.langfuse "prompt-linked traces (B103) — operator_system version on each trace"
+  weyland.mother.ops.obs.langfuse -> weyland.mother.ai.litellm "online eval judge (B103) — 9 native evaluators (7 managed + custom citation/refusal) score rag-generate per-trace on wl-judge-oss ($0); git eval_sets/ SSOT mirrored to Langfuse Datasets"
 
   // RAG streaming ingestion
   weyland.mother.ai.dagster -> github "git-pull docs/ + nodes/ (RAG source)"
