@@ -83,6 +83,10 @@ data:
         litellm_params:
           model: ollama_chat/qwen2.5:7b
           api_base: http://192.168.1.230:11434
+      - model_name: wl-judge-oss      # B103 eval — stronger free-local judge (gpt-oss:20b) for Langfuse ONLINE evaluators
+        litellm_params:                # (high-volume production sampling, $0). Golden-set dataset runs use claude-haiku.
+          model: ollama_chat/gpt-oss:20b
+          api_base: http://192.168.1.230:11434
       - model_name: wl-search         # web-grounded · perplexity sonar (via Bifrost; id is perplexity/sonar, NOT the /v1/models perplexity/perplexity/sonar which 400s invalid_model)
         litellm_params:
           model: openai/perplexity/sonar
