@@ -1,7 +1,7 @@
 # B57 — LAN NodePort for the Woodpecker server's gRPC (agent) port.
 # The chart's woodpecker-server Service is ClusterIP → only in-cluster (mother) agents reach grpc:9000.
 # Native rogueone agents (WOODPECKER_BACKEND=local, outside the cluster) need a LAN endpoint:
-#   192.168.1.243:32900 → server h2c grpc:9000
+#   192.168.1.243:30900 → server h2c grpc:9000
 # Trust boundary = WOODPECKER_AGENT_SECRET (woodpecker-default-agent-secret SealedSecret); plaintext h2c on the trusted LAN.
 # Synced by the `woodpecker-grpc` raw-extras Argo app (raw manifest in the helm dir; the helm app consumes only *-values.yaml).
 apiVersion: v1
@@ -23,4 +23,4 @@ spec:
       targetPort: grpc
       protocol: TCP
       appProtocol: kubernetes.io/h2c
-      nodePort: 32900
+      nodePort: 30900
