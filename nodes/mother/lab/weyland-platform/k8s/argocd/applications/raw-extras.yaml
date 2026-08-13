@@ -56,3 +56,25 @@ spec:
     namespace: opencost
   syncPolicy:
     automated: { selfHeal: true, prune: true }
+---
+# B57 — LAN NodePort exposing the Woodpecker server gRPC (agent) port, so native rogueone local-backend
+# agents can register with the in-cluster server. Raw Service in the woodpecker helm dir; include-glob so it
+# does NOT collide with the helm `woodpecker` Application (which consumes only *-values.yaml).
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: woodpecker-grpc
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/edtbl76/weyland-lab.git
+    targetRevision: main
+    path: nodes/mother/lab/weyland-platform/k8s/woodpecker
+    directory:
+      include: 'woodpecker-grpc-lan.yaml'
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: woodpecker
+  syncPolicy:
+    automated: { selfHeal: true, prune: true }
