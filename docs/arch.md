@@ -172,7 +172,7 @@ agents/workflows and platform state. Agents call the tool-server, *not* database
 | Claude Code | (local CLI) | Dev assistant; MCP client of tool-server `/mcp` (validated 2026-06-14). |
 | Coding agents (B15) | (local CLIs, rogueone) | opencode / Cline / Pi / Codex — `$0` agentic coding TUIs; drive hosted models **direct** (Mistral/OpenRouter/Gemini free, or ChatGPT sub → GPT-5.5), bypassing the gateway. See §8b. |
 | Ray edge worker | `ray-worker.service` → mother `:6379` | **Permanent native systemd Ray worker** — joins the always-on Ray head for heavy training / HP-sweep compute. Not-always-up (laptop): drops from the cluster on sleep, systemd auto-rejoins on wake. `services/ray-head/ray-worker.service`. |
-| genre-trainer | (Docker Desktop, `registry.weyland.lab`) | Remote model-training container — reads lakeFS silver, trains, logs to MLflow (artifact direct to MinIO). `services/genre-trainer/`. |
+| genre-trainer | (native docker engine, `registry.weyland.lab`) | Remote model-training container — reads lakeFS silver, trains, logs to MLflow (artifact direct to MinIO). Runs on rogueone's **native** engine (`DOCKER_HOST=unix:///var/run/docker.sock`; Docker Desktop retired B127 → full 128 GB, no VM RAM cap). `services/genre-trainer/`. |
 
 ---
 

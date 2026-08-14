@@ -1,0 +1,26 @@
+# B127 — LAN NodePort for the weyland MinIO S3 API, so external rogueone clients (the STUD.io app serving gear
+# photos + the nightly masterdb backup) can use the CENTRAL weyland MinIO instead of a per-product local MinIO.
+# The `minio` Service is ClusterIP; the browser console stays behind forward-auth (minio.weyland.lab). External S3
+# access today is ad-hoc `kubectl port-forward` — not viable for an always-on app. This gives a standing endpoint:
+#   192.168.1.243:30990 -> minio api :9000   (plain HTTP — the minio pod is NOT meshed, no TLS; S3 SigV4 keys
+#                                              are the auth. Scope blast radius with a dedicated `studio` MinIO
+#                                              user whose policy is limited to the studio-* buckets — see the plan.)
+# Console (9001) is intentionally NOT exposed here. 30990 is in the NodePort range (30000-32767).
+# Auto-synced by the existing `minio` Argo app (path k8s/minio, whole-dir sync, selfHeal + prune).
+apiVersion: v1
+kind: Service
+metadata:
+  name: minio-s3-lan
+  namespace: minio
+  labels:
+    app: minio
+spec:
+  type: NodePort
+  selector:
+    app: minio
+  ports:
+    - name: api
+      port: 9000
+      targetPort: api
+      protocol: TCP
+      nodePort: 30990

@@ -56,13 +56,15 @@ docker push registry.weyland.lab/genre-trainer:v3
 ## Run (on rogueone)
 
 ```
-docker run --rm -v $HOME/.kube/config:/root/.kube/config:ro --add-host mother:192.168.1.243 registry.weyland.lab/genre-trainer:v3 --source silver
+DOCKER_HOST=unix:///var/run/docker.sock docker run --rm -v $HOME/.kube/config:/root/.kube/config:ro --add-host mother:192.168.1.243 registry.weyland.lab/genre-trainer:v3 --source silver
 ```
 
-That's the **entire** run — no creds, no endpoint env, no host port-forwards. Two flags carry it:
+That's the **entire** run — no creds, no endpoint env, no host port-forwards. Three parts carry it:
+- `DOCKER_HOST=unix:///var/run/docker.sock` — pin to rogueone's **native** docker engine (Docker Desktop retired, B127);
+  native has no VM RAM cap, so the container sees all 128 GB. Same as the `scripts/gpu-docker` wrapper + the `*-bench.sh`.
 - `-v $HOME/.kube/config:/root/.kube/config:ro` — the kubeconfig the container self-serves everything from.
 - `--add-host mother:192.168.1.243` — so the container resolves the kubeconfig's `mother:6443` API server
-  (mother is `.243`; **not** rogueone's `.230`). On Docker Desktop's bridge there's no other resolver for it.
+  (mother is `.243`; **not** rogueone's `.230`) on the native bridge, which has no other resolver for it.
 
 Expected output:
 ```
@@ -85,14 +87,15 @@ Append `--tune` for a **Ray Tune** sweep on a local Ray cluster (rogueone's core
 each its own MLflow run, the best config retrained + registered. Publish the Ray Dashboard **loopback-only** (it's
 unauthenticated → its Jobs API is RCE):
 ```
-docker run --rm --shm-size=2g -p 127.0.0.1:8265:8265 -v $HOME/.kube/config:/root/.kube/config:ro --add-host mother:192.168.1.243 registry.weyland.lab/genre-trainer:v6 --source silver --tune --trials 100
+DOCKER_HOST=unix:///var/run/docker.sock docker run --rm --shm-size=2g -p 127.0.0.1:8265:8265 -v $HOME/.kube/config:/root/.kube/config:ro --add-host mother:192.168.1.243 registry.weyland.lab/genre-trainer:v6 --source silver --tune --trials 100
 ```
 Watch at `http://localhost:8265` (rogueone, while it runs) + MLflow `genre-classifier` (persistent). Measured: the
 sweep beat the single fit — **f1 0.312 / acc 0.329** vs 0.305 / 0.321.
 
-> **Docker Desktop memory cap:** a container only sees Docker Desktop's VM RAM (a fraction of rogueone's 128 GB by
-> default), so a parallel sweep OOMs at ~15 GB. Raise it under **Settings → Resources → Memory** — this is the one
-> setting that silently defeats "rogueone has the RAM."
+> **Memory:** on the **native** engine (B127 — `DOCKER_HOST=unix:///var/run/docker.sock`, as above) a container sees
+> rogueone's full 128 GB directly — no VM cap, no Settings knob. (Historically, under the retired Docker Desktop a
+> container only saw the Desktop VM's RAM and a parallel sweep OOM'd at ~15 GB — the single setting that silently
+> defeated "rogueone has the RAM." Native removes that failure mode entirely.)
 
 ## Sources (`--source`)
 

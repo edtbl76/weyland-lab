@@ -2,6 +2,13 @@
 # LAN-only: GitHub can't reach woodpecker.weyland.lab to deliver push webhooks, so trigger via "Run pipeline"
 # (manual) or cron. The `manual`/`cron` events below are what actually fire here; push/pull_request are kept
 # for the day this (or a repo) is reachable. First pipeline = prove the mechanism + one real check.
+#
+# B57 — PIN this workflow to the kubernetes backend. The shared Woodpecker server also hosts STUD.io's
+# local-backend agents (native, on rogueone); an unlabeled workflow in v3.17 schedules onto ANY connected
+# agent, so without this guard a weyland build could land on a local agent and run these container steps
+# directly on rogueone's host. The `backend` label is auto-advertised by each agent as its backend type.
+labels:
+  backend: kubernetes
 when:
   - event: [manual, cron, push, pull_request]
 
