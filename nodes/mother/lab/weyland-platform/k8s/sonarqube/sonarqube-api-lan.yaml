@@ -1,0 +1,26 @@
+# B57/B127 — LAN NodePort for the weyland SonarQube API, so STUD.io's external sonar-scanner (runs on rogueone,
+# outside the cluster) can analyze against the CENTRAL weyland Sonar instead of a per-project local SonarQube.
+# The chart's `sonarqube` Service is ClusterIP → only the in-cluster sonar-scan CronJob reaches it, and forward-auth
+# gates the browser ingress (no programmatic SSO). A token-authenticated external scanner needs a non-forward-auth
+# LAN endpoint:
+#   192.168.1.243:30969 -> sonarqube :9000   (Sonar's own project-token auth; the pod is meshed PERMISSIVE mTLS,
+#                                              so it accepts external plaintext like the other LAN NodePorts.)
+# 30969 is in the NodePort range (30000-32767) and mnemonic to STUD.io's local Sonar port 1969.
+# Auto-synced by the existing `sonarqube` Argo app (path k8s/sonarqube, whole-dir sync, selfHeal + prune).
+apiVersion: v1
+kind: Service
+metadata:
+  name: sonarqube-api-lan
+  namespace: weyland
+  labels:
+    app: sonarqube
+spec:
+  type: NodePort
+  selector:
+    app: sonarqube
+  ports:
+    - name: http
+      port: 9000
+      targetPort: 9000
+      protocol: TCP
+      nodePort: 30969
