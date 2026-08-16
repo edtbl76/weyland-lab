@@ -1,4 +1,4 @@
-from dagster import ScheduleDefinition, define_asset_job, AssetSelection, DefaultScheduleStatus
+from dagster import ScheduleDefinition, define_asset_job, AssetSelection, DefaultScheduleStatus, in_process_executor
 
 from weyland_pipeline.dbt_assets import weyland_dbt_assets
 
@@ -76,6 +76,10 @@ weyland_catalog_job = define_asset_job(
 weyland_eval_job = define_asset_job(
     name="weyland_eval_job",  # question-gen + run-matrix
     selection=AssetSelection.assets("eval_testset", "eval_run_matrix"),
+    # in_process so the graph-backed eval_run_matrix's per-model DynamicOut steps run SERIALLY —
+    # the 16 GB GPU holds one model at a time (OLLAMA_MAX_LOADED_MODELS=1); parallel model loads
+    # would race evictions. drain_gpu clears the card before each load.
+    executor_def=in_process_executor,
 )
 weyland_eval_score_job = define_asset_job(
     name="weyland_eval_score_job",  # LLM-as-judge scoring of the latest results + Iceberg publish

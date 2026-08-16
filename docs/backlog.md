@@ -1774,3 +1774,44 @@ Recurrence is now ALARMED by B98 (KubePodOOMKilled + node-memory pressure). Orig
 **Added 2026-07-22.** Two threads from the node-OOM incident, both needing fresh investigation:
 - **The python3.10 storm.** The console showed hundreds of `python3.10` processes (UID:0, ~150 MB each, `oom_score_adj:993`) spawned in ~70 s — a fork-storm that ate tens of GB. The memcg forensic attributed 71 OOM events to **`monitoring/tempo-0`'s** pod cgroup, but **Tempo is a Go binary running as UID:10001** — the python3.10/UID:0 identity does NOT cleanly match tempo. So either the memcg accounting is rolling up a parent cgroup, or there's a secondary spawner. **Unresolved — needs a live repro with better forensics** (`journalctl -k` full OOM report incl. `task_memcg` + `task`, per-cgroup memory.current sampling). Do NOT assume tempo is the python3.10 source.
 - **Tempo sizing.** tempo-0 (limit 2 GB, baseline ~326 MB) **crash-looped 71× at its 2 GB ceiling** under last boot's peak trace load (eval mesh traffic + the new LGTM self-monitoring, both added 2026-07-21). Fine at baseline, too tight at peak. Either raise the limit, tune retention/compaction (`max_block_bytes`, ingester flush), or cap trace ingestion. Feeds B98 (a right-sized Tempo won't OOM-loop; the alert catches it if it does).
+
+---
+
+### B128 — Wire rogueone DCGM GPU telemetry → Prometheus/Grafana (dcgm-exporter) — 🟡 MEDIUM (2026-08-15)
+
+rogueone already runs `dcgm.nv-hostengine` (the NVIDIA DCGM host engine — active, continuously polling the RTX 5000 Ada), but `dcgm.dcgm-exporter` is **disabled**, so the GPU telemetry it collects is consumed by nothing. Enable the exporter and scrape it into the existing weyland LGTM stack (Prometheus/Grafana) to get per-GPU **utilization, VRAM used, temperature/throttle state, power draw, clocks**, and — most valuable — **Xid error counts** (GPU-fault codes). rogueone is the lab's GPU training box (Ray + MLflow + genre-trainer), so this gives real observability for training runs (spot thermal throttling, VRAM pressure, under-utilization) and **early warning of GPU faults** — e.g. the `NVRM Xid 16` (display-engine) events that showed up in the freeze forensics would surface in Grafana instead of only post-mortem in `dmesg`. Effort: `snap start --enable dcgm.dcgm-exporter`, add a Prometheus scrape target for the exporter's `:9400/metrics` (LAN NodePort or direct), import the standard NVIDIA DCGM Grafana dashboard. Decided keep-over-remove during the 2026-08-15 rogueone cleanup (it's harmless running and genuinely useful once wired). See [[remote-training-rogueone]], [[observability-otel-b49]].
+
+---
+
+### B129 — Catalog installed tools/packages per machine in Port.io — 🟢 LOW (2026-08-15)
+
+Build a living inventory of software installed across the lab machines (rogueone, mother, weyland) in **Port.io** — snaps, flatpaks, apt packages, pip/npm global tools, container images — as blueprint + entities, with per-machine ownership, keep/remove status, and a one-line rationale each. Goal: replace ad-hoc "what's installed and why" audits with a queryable catalog we can diff over time. Ties into the existing `quality-tools.yaml` SoT pattern (extend or complement it). Seeded by the **2026-08-15 rogueone snap/package audit** — decisions so far, to be codified as the first entities:
+
+**rogueone — KEEP (with rationale):**
+- `canonical-livepatch` — live kernel-CVE patching; valued, and it has applied 0 patches so far (no wildcard today).
+- `dcgm` (`nv-hostengine`) — GPU telemetry; harmless + useful once wired to Grafana (see B128).
+- `cups` + `cups-browsed` — prints regularly; snap is current so the 2024 CUPS CVEs are patched.
+- `steam` — occasional gaming (caveat: don't run games during GPU training — VRAM contention).
+- `scummvm`, `dosbox-x` — retro gaming, actively used.
+- `altair` — GraphQL client; occasional use, redundant-ish with Postman but low cost to keep.
+- `appimage2deb` — AppImage→deb utility; used when installing software.
+
+**rogueone — REMOVED (2026-08-15):**
+- `deepseek-desktop`, `gemini-desktop` — AI-chat Electron wrappers, leftover trials (full local AI stack already covers this).
+- `ms-365-electron` — unofficial M365 web wrapper, redundant with a browser.
+- `curl` (snap) — redundant with, and more-confined than, system `/usr/bin/curl`.
+
+**rogueone — REMOVED (2026-08-15, full triage complete):**
+- Snaps: `brave` (unused, never launched), `dbeaver-ce` (idle since Mar; DataGrip covers DB), `flutter`, `fx` (jq/Postman cover it), `julia`, `jupyterlab-desktop` (Anaconda covers), `data-science-stack` (redundant w/ weyland + native CUDA), `kontena-lens` (kubectl + JetBrains + ArgoCD cover), `pieces-for-developers` + `pieces-os` (redundant w/ AI stack). _(Plus earlier: deepseek-desktop, gemini-desktop, ms-365-electron, curl.)_
+- Flatpaks: `org.gnome.DejaDup` (dormant, wrong-fit → B130), `org.telegram.desktop` (web client), `org.x.Warpinator` (rsync covers LAN).
+- apt: `duplicati` (2nd dormant backup → B130), `timeshift`, `warp-terminal`, `thunderbird`, `webex`, `sqlitebrowser` (DataGrip covers SQLite), `stacer` (CLI covers).
+
+**rogueone — additional KEEP notes:** kept `docker-desktop` (retired/unused but removal drags docker libs — not worth the cascade), `clamtk` + full `clamav` stack (only AV on the box; `freshclam` disabled → defs stale), plus the standard dev/CLI toolchain. Full KEEP/REMOVED inventory in **Linear EMA-188** (comment) and `/home/edwardmangini/rogueone-snap-cleanup.md`.
+
+_Audit COMPLETE for rogueone 2026-08-15 (snap + flatpak + apt). mother + weyland still to inventory. Linear: EMA-188._
+
+---
+
+### B130 — Proper backups on rogueone (restic → MinIO) — 🔴 HIGH (2026-08-15)
+
+rogueone effectively has **no active backups**: both installed backup tools were dormant — Déjà Dup last ran May 2025 (Google-Drive/pop-os-era config) and `duplicati` was a second unused one; both removed in the B129 audit. Replace with **restic targeting the existing MinIO (S3)** — encrypted, deduplicated, incremental, cron/systemd-timer driven — the idiomatic $0 lab choice that reuses infra we already run (vs a desktop GUI → Google Drive). Scope tightly: code is already in git, and the STUD.io masterdb already backs up nightly to MinIO, so the real target is **dotfiles/config + local non-git data** (scratch work, local models/datasets not reproducible from the cluster). Acceptance: dedicated MinIO bucket + encrypted restic repo; backup script with sensible excludes (`~/.cache`, venvs, model blobs already in MinIO); scheduled with keep-daily/weekly/monthly prune; a **restore test** (a backup you haven't restored isn't a backup); creds via the gitignored `.env` convention. Surfaced during the B129 rogueone cleanup. Linear: EMA-189. See [[data-mesh-b1.2-storage]] (MinIO), [[feedback-local-dotenv-convention]].

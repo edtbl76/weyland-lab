@@ -1,5 +1,6 @@
 import json
 import os
+import sys
 import urllib.request
 import uuid
 from contextlib import asynccontextmanager, contextmanager
@@ -176,16 +177,27 @@ def _init_tracing() -> None:
 @contextmanager
 def _span(name: str, span_type: str = "UNKNOWN"):
     """A fail-safe MLflow span: yields the span (or None if tracing is off/broken). A tracing failure never
-    interrupts the request."""
+    interrupts the request, and an exception from the body propagates cleanly. Setup and yield are separated (like
+    _lf_generation) so a broken SDK call — OR an exception thrown into the span from the body — can't double-yield
+    (`RuntimeError: generator didn't stop after throw()`) and mask the real error."""
     if not _tracing_enabled:
         yield None
         return
+    span_cm = span = None
     try:
         import mlflow
-        with mlflow.start_span(name=name, span_type=span_type) as span:
-            yield span
+        span_cm = mlflow.start_span(name=name, span_type=span_type)
+        span = span_cm.__enter__()
     except Exception:
-        yield None
+        span_cm = span = None
+    try:
+        yield span
+    finally:
+        if span_cm is not None:
+            try:
+                span_cm.__exit__(*sys.exc_info())   # records the body's exception on the span, then closes it
+            except Exception:
+                pass
 
 
 @contextmanager
