@@ -42,7 +42,7 @@ spec:
       serviceAccountName: dagster-user-code   # NOT `default` — that SA has automount disabled (see above)
       containers:
         - name: dagster-user-code
-          image: registry.weyland.lab/weyland-dagster-user-code:v43   # B103 eval — native Langfuse evaluators (langfuse_evaluators.py) + eval_sets/ SSOT catalog + generalized langfuse_eval.py + eval_testset repoint; was v42; keep in lockstep with dbt-docs.yaml
+          image: registry.weyland.lab/weyland-dagster-user-code:v44   # v44: graph-backed eval_run_matrix (per-model DynamicOut + drain_gpu + 503 retry) + gpu.py; was v43; keep in lockstep with dbt-docs.yaml
           imagePullPolicy: IfNotPresent
           # DefaultRunLauncher runs jobs INSIDE this pod, so a heavy dataset transform spikes here. With no
           # limit a big run triggered NODE-level OOM that killed random lab pods (2026-06-30). The limit
