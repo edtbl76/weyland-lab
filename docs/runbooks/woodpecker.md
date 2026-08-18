@@ -64,6 +64,36 @@ woodpecker-cli pipeline log show edtbl76/stud.io <N> <STEP>     # tail a step lo
   ("secret not found"), not just a failed step.
 - Same LAN-webhook constraint as below applies — STUD.io runs are CLI/manual-triggered (auto-trigger = B57a).
 
+## weyland image CI → CD (B57a)
+The weyland-lab `.woodpecker.yml` builds the weyland-built images (`weyland-tool-server`, `weyland-dagster-*`,
+`weyland-rag-index`, `feast-server`, `weyland-flink*`, `store-scaler`, `scan-suite`, `guardrails-structure`,
+`nemo-guardrails`) and deploys them **via git**, replacing the manual `scripts/build-push-images.sh` + hand-bumped
+tags. Steps: `detect-changes → build → kubeconform → deploy-handoff`.
+- **git-as-seam:** CI never calls `argocd sync`. `deploy-handoff` bumps the image tag in the tracked manifests,
+  pushes a branch, and opens a **PR** (`github_token` repo secret); **you merge** → Argo reconciles → rollout.
+- **SoT = `scripts/ci/images.tsv`** (image → build context → tracked manifests, lockstep pairs together). The three
+  step scripts are `scripts/ci/{detect-changes,build-images,open-deploy-pr}.sh`.
+- **Change detection is stateless:** each manifest already carries `:git-<oldsha>`; `detect-changes` diffs the
+  image's context from that SHA to HEAD and rebuilds only what changed (BuildKit registry cache makes it cheap).
+- **Tags = `git-<short-sha>`** (was hand-bumped `vN`). `IfNotPresent` + a unique tag → nodes re-pull.
+- **Trigger:** nightly cron `nightly-images` **01:00 NY** (`0 5 * * *` **UTC** — Woodpecker crons are UTC, see
+  `schedules.md`) + manual (`woodpecker-cli pipeline create edtbl76/weyland-lab --branch main`). No LAN webhooks.
+- **Build engine = a persistent `buildkitd` Deployment** (`k8s/woodpecker/buildkitd.yaml`, Argo app
+  `woodpecker-buildkitd`), NOT build-in-the-step-pod. The `build` step is a thin `buildctl --addr tcp://buildkitd:1234`
+  client that mounts nothing.
+
+**Why the daemon (hard-won 2026-08-18):** daemonless BuildKit inside an ephemeral Woodpecker step pod could not do
+its snapshot mounts on this k3s cluster. In order we cleared: (1) **`fs.inotify.max_user_instances` on MOTHER** — the
+step pods run on mother, so raise it there (512→8192; codified `nodes/mother/host/sysctl.d/99-weyland-buildkit.conf`;
+setting it on rogueone does nothing); (2) rootless BuildKit's nested userns doesn't inherit that raise; (3) privileged
+needs **AppArmor-unconfined** too; (4) `/var/lib/buildkit` on the pod's nested overlay forces the `runc-native`
+snapshotter, whose bind-mounts EPERM; (5) even overlayfs-on-a-real-fs-PVC + **repo `--trusted-security`** (without
+which Woodpecker silently drops `privileged`), the mount **still** EPERM'd in the step pod. A long-lived buildkitd does
+those mounts in its own stable mount namespace — the standard buildkit-in-k8s pattern — and moots all of the above.
+The daemon is privileged + AppArmor-unconfined **in its own manifest** (accepted: internal CI daemon, ns-isolated).
+- **Build-status → Port** (`ci_pipeline`) is deferred to **B63**; it needs the `port_ingest_url` secret cleared by the
+  2026-08-10 DB wipe. Until then, build health is the Woodpecker run UI.
+
 ## Pipelines
 - `.woodpecker.yml` lives at the **repo root on GitHub** (Woodpecker reads it from the forge, NOT your local
   checkout — if it's only local, the UI says "nothing to run"). Steps use the k8s backend (each step = a pod).

@@ -1,8 +1,9 @@
 # Weyland — Master Schedule
 
 Single source of truth for **everything that runs on a timer** in the lab: Dagster schedules,
-DataHub managed-ingestion sources, k8s CronJobs, and **node systemd timers** (mother + rogueone). Keep this updated whenever a
-schedule is added, moved, or disabled (same discipline as [hosts.md](hosts.md) / [api.md](api.md)).
+DataHub managed-ingestion sources, k8s CronJobs, **node systemd timers** (mother + rogueone), and **Woodpecker crons**.
+Keep this updated whenever a schedule is added, moved, or disabled (same discipline as [hosts.md](hosts.md) /
+[api.md](api.md); it's a DoD close-out check).
 
 ## Timezone — one clock now
 
@@ -14,6 +15,7 @@ UI is what actually runs — no mental TZ conversion:
 | **Dagster** | America/New_York | `execution_timezone="America/New_York"` on every `ScheduleDefinition`. |
 | **DataHub** managed ingestion | America/New_York | TZ selector per source in the ingestion UI. |
 | **k8s CronJob** (scale-down) | UTC by convention → set `.spec.timeZone` | k8s CronJobs default to the kube-controller-manager's TZ; set `spec.timeZone: America/New_York` explicitly. |
+| **Woodpecker cron** | **UTC** (NOT NY-pinned) | `repo cron add --schedule` is parsed in the server's clock = **UTC**; unlike Dagster/DataHub these do **not** auto-follow NY DST. Choose the UTC expression so the NY-equivalent stays inside the 00:00–06:00 window year-round (e.g. `0 5 * * *` = 01:00 EDT / 00:00 EST — both off-hours). |
 
 > **History:** before the pin, Dagster schedules ran in **UTC** while DataHub ran in EDT — a `12 am`
 > DataHub source was really `04:00 UTC`, colliding with Dagster's `ai_session`. The pin removed that trap.
@@ -51,6 +53,7 @@ Heavy = embeds/writes or large scans (guard the node's RAM). Light = metadata/re
 | **09:00 (Sun)** | k8s CronJob | `code-scan-suite` (the `quality-tools.yaml` roster — 19 scan-suite tools → Port + code-maat hotspots; one `scan-suite` image) | weekly (Sun) | **HEAVY** — semgrep auto + trivy fs (13:00 UTC) |
 | **11:00 (Sun)** | node systemd (mother) | `weyland-image-prune` (`k3s crictl rmi --prune`) — frees ephemeral storage so the node never re-hits the eviction line (B69, `nodes/mother/host/systemd/`) | weekly (Sun) | — (host timer @ **15:00 UTC**; quiet slot clear of the DataHub train) · **INSTALLED 2026-07-20** (authored 07-18, enabled 07-20) |
 | **05:30** | k8s CronJob | `docs-site-rebuild` — `kubectl rollout restart deploy/docs-site` (B69). docs-site rebuilds from a fresh `git clone` on every pod start, so without this the site silently serves a snapshot frozen at the last restart. No push-trigger available ([[lan-no-github-webhooks]]). | daily | light — restart only; the mkdocs build happens in the new pod's initContainer |
+| **01:00** | Woodpecker cron | `nightly-images` (B57a — weyland image CI: detect changed images → BuildKit build+push `registry.weyland.lab/<img>:git-<sha>` → open a tag-bump PR; you merge → Argo deploys). Repo `edtbl76/weyland-lab`, `0 5 * * *` **UTC** = 01:00 EDT / 00:00 EST (see TZ note — Woodpecker crons are UTC, not NY-pinned). | daily | light most nights (BuildKit registry cache → only genuinely-changed images rebuild); **HEAVY** only on the one-time `:vN`→`git-<sha>` migration or many-change days. Placed at 01:00 to clear the **02:17 `weyland_ingestion` HEAVY** and the 02:00 scaledown; only overlaps the light 01:00 DataHub Grafana scan. The bump PR is merged **manually**, so nothing rolls unattended. |
 | **Sat 03:00** | Dagster | `weyland_eval_job` (question-gen + run-matrix, RAG × 6 models) | weekly (Sat) — **STOPPED by default** | **HEAVY** |
 | **Sat 05:00** | Dagster | `weyland_eval_score_job` (3-judge panel → `eval_leaderboard` + Iceberg publish) | weekly (Sat) — **STOPPED by default** | med |
 
@@ -98,7 +101,7 @@ scaled down — they back live services or the mesh.
 
 ## Design rules
 
-1. **One clock** — everything in America/New_York. New timers inherit it explicitly.
+1. **One clock** — everything in America/New_York. New timers inherit it explicitly. **Exception: Woodpecker crons run in UTC** (not NY-pinnable) — pick the UTC expression so the NY-equivalent stays inside the 00:00–06:00 off-hours window in **both** EDT and EST (see the TZ table).
 2. **Spread the heavy stores** — Postgres-core, Cockroach, Mongo, MusicBrainz never share a 15-min slot.
 3. **Static data → weekly, not daily** — Cockroach (brfss/nhis), the Mongo *datasets*, and MusicBrainz
    were loaded once; daily re-profiling just re-scans them. Weekly is enough.
@@ -113,6 +116,10 @@ scaled down — they back live services or the mesh.
 
 ## Change log
 
+- 2026-08-18 — **Added the `nightly-images` Woodpecker cron (B57a)** — weyland image CI build pipeline on
+  `edtbl76/weyland-lab`, `0 5 * * *` **UTC** = 01:00 EDT / 00:00 EST. Placed at 01:00 NY to clear the 02:00
+  scaledown + the 02:17 `weyland_ingestion` HEAVY; only overlaps the light 01:00 DataHub Grafana scan. First entry
+  of a new timer class — **Woodpecker crons run in UTC**, not NY-pinned (added to the TZ table + Design Rule #1).
 - 2026-08-07 — **No mid-day auto-runs (incident-driven).** Moved the every-N-hour Dagster schedules to a single
   pre-dawn tick each — `timeseries` 00:20, `datahub_catalog_emit` 00:35, `catalog` 00:50 (were every 4h/6h,
   firing at noon). Trigger: the noon cluster stacked on a manual datasets-hydrate + a raised Cockroach disk-stall

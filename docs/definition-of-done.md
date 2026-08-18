@@ -15,12 +15,19 @@ capability is **NOT done** until ALL seven pillars hold. "Ran once" ≠ done.
 - **arch.md** — a **substantial** entry: comparative placement (why this vs the alternatives), a decision
   matrix/tradeoffs, and diagrams. Not a one-line entry — `arch.md` is a deliverable.
 - **api.md + hosts.md** — updated for EVERY endpoint / host / IP / DNS / subdomain change.
-- **schedules.md** — updated for any new timer, and every new/changed schedule obeys the **off-hours rule**:
-  Dagster schedules + k8s CronJobs + node timers run ONLY in the pre-dawn window (~00:00–06:00 NY), **never
-  mid-day** — the single node cannot absorb a scheduled job stacking on a manual/interactive load (2026-08-07
-  incident: a noon `timeseries`/`catalog`/`datahub_catalog_emit` cluster + a manual datasets-hydrate saturated
-  mother, control plane unreachable). **Mid-day is manual-only.** `docs/schedules.md` is the source of truth for
-  all timers (its Design Rule #5); reconcile every schedule change against it.
+- **schedules.md — the timer reconciliation check (every batch that adds/moves/removes a timer).** `docs/schedules.md`
+  is the single source of truth for **every timer class** — Dagster schedules, DataHub managed ingestion, k8s
+  CronJobs, node systemd timers, **and Woodpecker crons**. On any timer change, **reconcile the live timer against
+  `schedules.md` in the same batch** — a timer that runs but has no row (or a row with no live timer) is **drift**,
+  same failure mode as an unlisted host in `hosts.md`. The row must record the **NY-equivalent time, cadence, weight
+  (heavy/light), and owner system**. Two hard constraints on every new/changed timer:
+  - **Off-hours rule** — it runs ONLY in the pre-dawn window (~00:00–06:00 NY), **never mid-day**; the single node
+    cannot absorb a scheduled job stacking on a manual/interactive load (2026-08-07 incident: a noon
+    `timeseries`/`catalog`/`datahub_catalog_emit` cluster + a manual datasets-hydrate saturated mother, control
+    plane unreachable). **Mid-day is manual-only.** (schedules.md Design Rule #5.)
+  - **No heavy-on-heavy** — a new heavy timer must not share its slot with an existing heavy job; check the
+    timetable for the nearest heavy neighbour before picking a time. **Clock caveat:** Woodpecker crons run in **UTC**
+    (not NY-pinnable) — pick the UTC expression so the NY-equivalent stays off-hours in **both** EDT and EST.
 - **Runbook** — `docs/runbooks/<x>.md` with the real operational commands.
 - **Query cookbook** — `docs/query/<x>.md` if the workflow adds a queryable surface.
 - **platform-map** — `docs/platform-map.html` (+ `docs/data-mesh-map.html`) refreshed for any component add / remove /

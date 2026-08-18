@@ -17,6 +17,10 @@ spec:
     requests:
       storage: 40Gi
 ---
+# Pillar-7 acceptances (scoped to buildkitd only, so the guard stays active on every other manifest):
+# trivy:ignore:AVD-KSV-0017 buildkitd MUST be privileged — it performs the snapshot/overlay mounts image builds need; internal CI daemon, ns-isolated (runbook B57a)
+# trivy:ignore:AVD-KSV-0014 buildkitd needs a writable rootfs (build scratch in /tmp, /run) — readOnlyRootFilesystem is incompatible
+# trivy:ignore:AVD-KSV-0118 buildkitd runs as root by design (a privileged build daemon)
 apiVersion: apps/v1
 kind: Deployment
 metadata:

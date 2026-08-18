@@ -155,6 +155,7 @@ model {
         platform = zone "Delivery + governance" {
           argocd = component "Argo CD" "GitOps CD — app-of-apps, 28 apps"
           woodpecker = component "Woodpecker CI" "CI/CD — mixed fleet (B57b): weyland jobs = k8s backend (pods), STUD.io CI = local backend (rogueone agents). LAN NodePorts :30980 (CLI/REST) + :30900 (agent gRPC)"
+          buildkitd = component "buildkitd" "B57a — persistent BuildKit daemon; the weyland image CI's build step is a thin buildctl client to it (:1234). Daemonless BuildKit couldn't mount in an ephemeral step pod on k3s."
           gatekeeper = component "OPA Gatekeeper" "Admission control + Policy Manager"
           keda = component "KEDA" "Autoscaling / run-mode engine (on-demand stores)"
           sonarqube = component "SonarQube" "Code quality + SAST — weekly sonar-scan -> Port code_quality"
@@ -292,6 +293,8 @@ model {
   rogueone.genreTrainer -> weyland.mother.mesh.ml.mlflow "log runs + registry :30500"
   rogueone.rayWorker -> weyland.mother.mesh.ml.ray "join cluster :6379 (token)"
   rogueone.studioAgents -> weyland.mother.ops.platform.woodpecker "register + run STUD.io CI :30900 (gRPC, local backend)"
+  weyland.mother.ops.platform.woodpecker -> weyland.mother.ops.platform.buildkitd "B57a image build (buildctl :1234)"
+  weyland.mother.ops.platform.buildkitd -> weyland.mother.ops.platform.registry "push git-<sha> tag"
   weyland.mother.mesh.ml.mlflow -> weyland.mother.ops.infra.minio "artifact store"
   weyland.mother.mesh.ml.aiGateway -> rogueone.ollama "local models (6) + guard/eval judge qwen2.5:7b /v1"
   weyland.mother.mesh.ml.aiGateway -> weyland.mother.ai.litellm "LiteLLM-routed hosted providers"

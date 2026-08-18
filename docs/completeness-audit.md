@@ -133,7 +133,11 @@ SealedSecrets/External-Secrets mechanism for all imperative secrets.
 - **[gitops] Port ingestion integrations + webhooks are imperative MCP/UI one-offs, unmonitored** — Fix: document exact recreate steps per integration + freshness alert per key blueprint.
 - **[trigger] `docs.weyland.lab` rebuilds only on manual pod restart** — Fix: CronJob `rollout restart deploy/docs-site` + surface built commit/date.
 - **[trigger] code-quality scans (semgrep, trivy) are one-shot Jobs, not scheduled/Argo** — Fix: weekly CronJobs, onboard the dir as an Argo Application, last-scan freshness signal.
-- **[trigger] no auto-trigger for the *weyland-image* build/deploy pipeline (B57a)** — narrowed 2026-08-17: **STUD.io** now runs 4 real build/test pipelines on the farm (B57b done), but they're **CLI/manual-triggered** (LAN gets no GitHub push-webhooks) and weyland's **own** images still have no CI→registry→git pipeline. Fix: land B57a CI→registry→git pipelines (registry prerequisite **met** — `registry.weyland.lab`, B-RT) + a cron/poll trigger (the LAN-webhook wall applies to STUD.io runs too).
+- **✅ RESOLVED 2026-08-18 (B57a) — weyland-image CI→registry→git pipeline landed.** The weyland-lab `.woodpecker.yml`
+  now builds the weyland-built images (via a persistent `buildkitd` Deployment) → pushes `git-<sha>` to
+  `registry.weyland.lab` → opens a tag-bump PR → merge → Argo deploys, on a **nightly 01:00 NY cron** + manual
+  (the LAN-webhook wall means cron/manual, not push — accepted). Validated live (store-scaler → `git-ec59b430`).
+  Residual: build-status → Port (`ci_pipeline`) is deferred to **B63**.
 - **[gitops] Loose `k8s/` root files not reconciled by Argo** — `coredns-custom.yaml` (load-bearing), `coredns-lan.yaml`, `rbac-default-sa-noautomount.yaml`, headlamp trio in 0 Applications — Fix: add Applications or widen `loose-apps` globs.
 - **[monitoring] LGTM stack does not monitor itself** — no ServiceMonitor on loki/tempo/alloy — Fix: enable `monitoring.serviceMonitor` + `LokiDown`/`AlloyDaemonSetNotReady` rules.
 - **[monitoring] traefik-forward-auth is a single-replica SPOF with no probes** — gates ~18 UIs — Fix: liveness+readiness on :4181 + synthetic monitor on `auth.weyland.lab/_oauth` + Keycloak `/health/ready`.
