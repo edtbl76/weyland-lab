@@ -18,6 +18,10 @@ echo "[detect] HEAD=${NEWSHA} → candidate tag ${NEWTAG}"
 # strip comments/blank lines; read TAB-separated rows
 grep -v '^[[:space:]]*#' "$TSV" | grep -v '^[[:space:]]*$' | while IFS="$(printf '\t')" read -r image context manifests; do
   [ -n "$image" ] || continue
+  # optional allowlist for scoped/validation runs: ONLY="img1 img2" builds only those (SoT tsv stays intact)
+  if [ -n "${ONLY:-}" ]; then
+    case " $ONLY " in *" $image "*) : ;; *) continue ;; esac
+  fi
   # context dir = part before "::" (Dockerfile spec), repo-relative under the platform dir
   ctxdir="${context%%::*}"
   path="${PLATFORM}/${ctxdir}"
