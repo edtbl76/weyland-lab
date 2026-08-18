@@ -34,18 +34,17 @@ steps:
     commands:
       - sh scripts/ci/detect-changes.sh
 
-  # ── 3. build + push the changed images (rootless BuildKit, daemonless) ──────
+  # ── 3. build + push the changed images (BuildKit, daemonless) ───────────────
+  # Non-rootless + privileged: rootless BuildKit's nested userns (rootlesskit) does NOT inherit the host's raised
+  # fs.inotify.max_user_instances, so its fsnotify watcher hits EMFILE regardless. Non-rootless shares the host
+  # user ns → uses the 8192 cap. Keeps BuildKit's ~1-3 GB RAM profile (the kaniko win was RAM, not privilege).
+  # Pillar-7 note: privileged build pod — accepted for an internal, off-hours CI builder; revisit rootless later.
   - name: build
-    image: moby/buildkit:rootless
-    environment:
-      BUILDKITD_FLAGS: --oci-worker-no-process-sandbox
+    image: moby/buildkit:latest
     backend_options:
       kubernetes:
         securityContext:
-          runAsUser: 1000
-          runAsGroup: 1000
-          seccompProfile:
-            type: Unconfined
+          privileged: true
     commands:
       - sh scripts/ci/build-images.sh
 
