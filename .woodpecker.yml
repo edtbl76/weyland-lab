@@ -52,11 +52,15 @@ steps:
     commands:
       - |
         [ -s .ci-image-bumps ] || { echo "kubeconform: nothing built — skip"; exit 0; }
-        # collect the manifests to be bumped (cols 3+ of each row), validate them
-        cut -f3- .ci-image-bumps | tr '\t ' '\n\n' | sed '/^$/d' | sort -u | while read -r m; do
+        # validate each manifest that will carry the new tag (cols 3+ of each row); fail the gate on any error
+        rc=0
+        for m in $(cut -f3- .ci-image-bumps | tr '\t ' '\n\n' | sed '/^$/d' | sort -u); do
           f="nodes/mother/lab/weyland-platform/$m"
-          [ -f "$f" ] && echo "validate $f" && kubeconform -strict -summary -ignore-missing-schemas "$f"
+          [ -f "$f" ] || continue
+          echo "validate $f"
+          /kubeconform -strict -summary -ignore-missing-schemas "$f" || rc=1
         done
+        exit $rc
 
   # ── 5. deploy handoff: bump tags → branch → PR (you merge → Argo deploys) ────
   - name: deploy-handoff
