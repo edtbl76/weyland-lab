@@ -1,9 +1,12 @@
 # B56 — Woodpecker CI Runbook — weyland (CI/CD)
 
 Self-hosted CI/CD (Woodpecker) on k3s — the Port **CI/CD** category and the lab's first build automation.
-Server + agents in ns `woodpecker`; UI at `woodpecker.weyland.lab`; GitHub OAuth login. **Kubernetes backend:**
-pipeline steps run as **pods in the cluster**, so pipelines can build/deploy the weyland apps. Intended as the
-shared **build farm** (Stud.IO migrates onto it later — B57). Chart: `woodpecker-ci/woodpecker`.
+Server + agents in ns `woodpecker`; UI at `woodpecker.weyland.lab`; GitHub OAuth login. Now a **shared build farm
+running a mixed fleet** on ONE server, routed by the built-in `backend` agent label: **weyland jobs = `kubernetes`
+backend** (steps run as **pods in the cluster**, so pipelines can build/deploy the weyland apps); **STUD.io jobs =
+`local` backend** (steps run on **rogueone's host shell** + native docker, which carry the real
+Go/Node/pyenv/Playwright toolchain). STUD.io's full CI (4 workflows) runs green on the farm as of B57b — see
+[the CLI/mixed-fleet section](#studio-ci--cli-access-mixed-fleet-b57b). Chart: `woodpecker-ci/woodpecker`.
 
 ---
 
@@ -35,6 +38,32 @@ do NOT auto-trigger builds**. Activating a repo still works (login + repo list a
 the **Run pipeline** button or **cron**. (Same wall that parked B30. To get push-triggered CI you'd expose
 Woodpecker publicly or run a poller — not done.)
 
+## STUD.io CI & CLI access (mixed fleet, B57b)
+STUD.io's CI was migrated off its own local Woodpecker onto this server (B57b, proven live 2026-08-17). Key wiring:
+- **Local-backend agents:** STUD.io's 4 agents (`woodpecker-agent-1..4`, systemd units on **rogueone**, registered
+  `agent_id` 4–7) advertise `backend=local` and run steps on the host shell + native docker (`studio_db` on
+  `/var/run/docker.sock`). Every STUD.io workflow pins `labels: {backend: local}` so it can't schedule onto a
+  weyland k8s agent (an UNLABELED workflow in v3.17 can land on ANY connected agent).
+- **Two LAN NodePorts** (Argo apps `woodpecker-grpc` + `woodpecker-http` in `raw-extras.yaml`) bridge the
+  off-cluster agents + CLI:
+  - **gRPC `192.168.1.243:30900`** (`woodpecker-grpc-lan`) — how the local agents register (h2c; trust =
+    `WOODPECKER_AGENT_SECRET`).
+  - **HTTP `192.168.1.243:30980`** (`woodpecker-http-lan`) — the REST/UI port for the CLI. The public URL is behind
+    `traefik-forward-auth` (Keycloak), which **302-redirects Bearer API calls** to login, so `woodpecker-cli` can't
+    use `woodpecker.weyland.lab`. This NodePort bypasses Traefik; trust = the caller's PAT. (Replaces the old ad-hoc
+    `kubectl -n woodpecker port-forward svc/woodpecker-server 8000:80`.)
+- **CLI** (`~/.local/bin/woodpecker-cli` v3.17; creds in `~/.config/studio/woodpecker-cli.env` — `WOODPECKER_SERVER=http://192.168.1.243:30980` + PAT, gitignored). Trigger + watch a STUD.io run:
+```bash
+. ~/.config/studio/woodpecker-cli.env; export PATH="$HOME/.local/bin:$PATH"
+woodpecker-cli pipeline create edtbl76/stud.io --branch main   # runs all 4 workflows
+woodpecker-cli pipeline ps  edtbl76/stud.io <N>                 # poll step state
+woodpecker-cli pipeline log show edtbl76/stud.io <N> <STEP>     # tail a step log
+```
+- **Repo secrets on the server** (repo `edtbl76/stud.io`, events `push`,`manual`): `sonar_token`,
+  `minio_svc_access_key`, `minio_svc_secret_key`. Missing/wrong-event secrets → whole-config PARSE error
+  ("secret not found"), not just a failed step.
+- Same LAN-webhook constraint as below applies — STUD.io runs are CLI/manual-triggered (auto-trigger = B57a).
+
 ## Pipelines
 - `.woodpecker.yml` lives at the **repo root on GitHub** (Woodpecker reads it from the forge, NOT your local
   checkout — if it's only local, the UI says "nothing to run"). Steps use the k8s backend (each step = a pod).
@@ -61,4 +90,5 @@ A `notify-port` step (`when: status:[success,failure]`) POSTs build status to a 
 ## Pointers
 - Values: `k8s/woodpecker/woodpecker-values.yaml` · pipeline: `.woodpecker.yml` + `.yamllint` (repo root)
 - Port: `ci_pipeline` blueprint + `woodpecker` webhook DS + Launcher `endpoint/woodpecker`
-- Future (B57): real build/deploy pipelines for the weyland images + cron; migrate Stud.IO onto this farm
+- STUD.io CI: 4 workflows on the farm via `local`-backend agents on rogueone (B57b DONE) — `flow-woodpecker-studio-ci` + `demos/woodpecker-studio-ci.md`
+- Future (B57a): real build/deploy pipelines for the **weyland images** + cron (auto-trigger); the STUD.io migration (B57b) is done

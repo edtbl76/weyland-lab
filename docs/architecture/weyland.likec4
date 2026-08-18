@@ -39,6 +39,7 @@ model {
     ragEmbed = component "rag-embed" "bge-base (768-dim) embed service :8900 (warm GPU) — B74"
     claudeCode = component "Claude Code" "MCP client of tool-server; Claude brain"
     codingAgents = component "Coding agents" "opencode / Cline / Pi / Codex (B15) — $0 dev coding TUIs; drive hosted models DIRECT, not through the gateway"
+    studioAgents = component "STUD.io CI agents" "4 Woodpecker local-backend agents (B57b) — run STUD.io's CI on the host shell + native docker; register to weyland's Woodpecker over the :30900 gRPC NodePort"
   }
 
   weyland = system "weyland" "Home AI lab on a Minisforum MS-A2 (Proxmox, .232). LAN-only." {
@@ -153,7 +154,7 @@ model {
 
         platform = zone "Delivery + governance" {
           argocd = component "Argo CD" "GitOps CD — app-of-apps, 28 apps"
-          woodpecker = component "Woodpecker CI" "CI/CD (k8s backend)"
+          woodpecker = component "Woodpecker CI" "CI/CD — mixed fleet (B57b): weyland jobs = k8s backend (pods), STUD.io CI = local backend (rogueone agents). LAN NodePorts :30980 (CLI/REST) + :30900 (agent gRPC)"
           gatekeeper = component "OPA Gatekeeper" "Admission control + Policy Manager"
           keda = component "KEDA" "Autoscaling / run-mode engine (on-demand stores)"
           sonarqube = component "SonarQube" "Code quality + SAST — weekly sonar-scan -> Port code_quality"
@@ -290,6 +291,7 @@ model {
   rogueone.genreTrainer -> weyland.mother.mesh.storage.lakefs "read silver"
   rogueone.genreTrainer -> weyland.mother.mesh.ml.mlflow "log runs + registry :30500"
   rogueone.rayWorker -> weyland.mother.mesh.ml.ray "join cluster :6379 (token)"
+  rogueone.studioAgents -> weyland.mother.ops.platform.woodpecker "register + run STUD.io CI :30900 (gRPC, local backend)"
   weyland.mother.mesh.ml.mlflow -> weyland.mother.ops.infra.minio "artifact store"
   weyland.mother.mesh.ml.aiGateway -> rogueone.ollama "local models (6) + guard/eval judge qwen2.5:7b /v1"
   weyland.mother.mesh.ml.aiGateway -> weyland.mother.ai.litellm "LiteLLM-routed hosted providers"
