@@ -1,0 +1,28 @@
+# B57 — LAN NodePort for the Woodpecker server's HTTP (REST API + UI) port.
+# The public route (woodpecker.weyland.lab) is behind traefik-forward-auth (Keycloak), which 302-redirects
+# Bearer API calls to the login page → woodpecker-cli / API clients can't authenticate through it. This NodePort
+# bypasses Traefik and hits the server directly, giving a stable LAN endpoint for the CLI (replaces the ad-hoc
+# `kubectl port-forward svc/woodpecker-server 8000:80`):
+#   192.168.1.243:30980 → server http:80
+# Trust boundary = the caller's Woodpecker PAT (same token model as the public API); LAN-only, plaintext HTTP.
+# Mirrors woodpecker-grpc-lan.yaml. Synced by the `woodpecker-http` raw-extras Argo app (raw manifest in the helm
+# dir; the helm `woodpecker` app consumes only *-values.yaml).
+apiVersion: v1
+kind: Service
+metadata:
+  name: woodpecker-http-lan
+  namespace: woodpecker
+  labels:
+    app.kubernetes.io/instance: woodpecker
+    app.kubernetes.io/name: server
+spec:
+  type: NodePort
+  selector:
+    app.kubernetes.io/instance: woodpecker
+    app.kubernetes.io/name: server
+  ports:
+    - name: http
+      port: 80
+      targetPort: http
+      protocol: TCP
+      nodePort: 30980

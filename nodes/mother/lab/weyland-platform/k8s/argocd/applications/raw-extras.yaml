@@ -78,3 +78,26 @@ spec:
     namespace: woodpecker
   syncPolicy:
     automated: { selfHeal: true, prune: true }
+---
+# B57 — LAN NodePort exposing the Woodpecker server HTTP (REST API + UI) port, so woodpecker-cli / API clients get
+# a stable LAN endpoint (192.168.1.243:30980) that bypasses traefik-forward-auth — replaces the ad-hoc
+# `kubectl port-forward`. Raw Service in the woodpecker helm dir; include-glob so it does NOT collide with the helm
+# `woodpecker` Application (which consumes only *-values.yaml).
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: woodpecker-http
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/edtbl76/weyland-lab.git
+    targetRevision: main
+    path: nodes/mother/lab/weyland-platform/k8s/woodpecker
+    directory:
+      include: 'woodpecker-http-lan.yaml'
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: woodpecker
+  syncPolicy:
+    automated: { selfHeal: true, prune: true }
