@@ -101,3 +101,25 @@ spec:
     namespace: woodpecker
   syncPolicy:
     automated: { selfHeal: true, prune: true }
+---
+# B57a — persistent BuildKit daemon (Deployment + Service + cache PVC) that the weyland image CI pipeline builds
+# against as a thin `buildctl --addr tcp://buildkitd:1234` client. Raw manifest in the woodpecker helm dir; include-glob
+# so it does NOT collide with the helm `woodpecker` Application (which consumes only *-values.yaml).
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: woodpecker-buildkitd
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/edtbl76/weyland-lab.git
+    targetRevision: main
+    path: nodes/mother/lab/weyland-platform/k8s/woodpecker
+    directory:
+      include: 'buildkitd.yaml'
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: woodpecker
+  syncPolicy:
+    automated: { selfHeal: true, prune: true }

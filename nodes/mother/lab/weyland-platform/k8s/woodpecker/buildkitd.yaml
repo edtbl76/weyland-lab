@@ -1,0 +1,74 @@
+# B57a — persistent BuildKit daemon for the weyland image CI pipeline.
+# WHY a daemon (not build-in-the-step-pod): daemonless BuildKit inside an ephemeral Woodpecker step pod could not
+# perform its snapshot bind-mounts on this k3s cluster — EPERM even with privileged + AppArmor-unconfined +
+# repo trusted-security + overlayfs-on-a-real-fs. A long-lived buildkitd runs those mounts in its OWN stable mount
+# namespace (the standard buildkit-in-k8s pattern) and the CI step becomes a thin `buildctl --addr tcp://…` client
+# that mounts nothing. Small idle footprint (request 128Mi); spikes ~1-3 GB during a build (off-hours cron), on the
+# overlayfs snapshotter over a real-fs PVC. LAN/in-ns only, plain tcp (no TLS) — ns-internal Service.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: buildkitd-cache
+  namespace: woodpecker
+spec:
+  accessModes: [ReadWriteOnce]
+  storageClassName: local-path
+  resources:
+    requests:
+      storage: 40Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: buildkitd
+  namespace: woodpecker
+  labels: { app: buildkitd }
+spec:
+  replicas: 1
+  strategy: { type: Recreate }        # RWO cache PVC → single writer
+  selector:
+    matchLabels: { app: buildkitd }
+  template:
+    metadata:
+      labels: { app: buildkitd }
+      annotations:
+        sidecar.istio.io/inject: "false"                                        # buildkit tcp must not go via Envoy
+    spec:
+      containers:
+        - name: buildkitd
+          image: moby/buildkit:latest
+          args:
+            - --addr
+            - tcp://0.0.0.0:1234
+            - --oci-worker-snapshotter=overlayfs
+            - --root
+            - /var/lib/buildkit
+          securityContext:
+            privileged: true            # buildkit needs mount/overlay; honored here (its own manifest, not a Woodpecker step)
+            appArmorProfile:
+              type: Unconfined          # let buildkitd do its mounts (k8s ≥1.30 field; replaces the deprecated annotation)
+          ports:
+            - { name: grpc, containerPort: 1234 }
+          readinessProbe:
+            exec: { command: ["buildctl", "--addr", "tcp://0.0.0.0:1234", "debug", "workers"] }
+            initialDelaySeconds: 5
+            periodSeconds: 20
+          resources:
+            requests: { cpu: 100m, memory: 128Mi }
+            limits: { memory: 6Gi }
+          volumeMounts:
+            - { name: cache, mountPath: /var/lib/buildkit }
+      volumes:
+        - name: cache
+          persistentVolumeClaim: { claimName: buildkitd-cache }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: buildkitd
+  namespace: woodpecker
+  labels: { app: buildkitd }
+spec:
+  selector: { app: buildkitd }
+  ports:
+    - { name: grpc, port: 1234, targetPort: 1234, protocol: TCP }

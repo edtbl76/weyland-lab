@@ -34,23 +34,15 @@ steps:
     commands:
       - sh scripts/ci/detect-changes.sh
 
-  # ── 3. build + push the changed images (BuildKit, daemonless) ───────────────
-  # Non-rootless + privileged: rootless BuildKit's nested userns (rootlesskit) does NOT inherit the host's raised
-  # fs.inotify.max_user_instances, so its fsnotify watcher hits EMFILE regardless. Non-rootless shares the host
-  # user ns → uses the 8192 cap. Keeps BuildKit's ~1-3 GB RAM profile (the kaniko win was RAM, not privilege).
-  # Pillar-7 note: privileged build pod — accepted for an internal, off-hours CI builder; revisit rootless later.
+  # ── 3. build + push the changed images (thin buildctl client → buildkitd) ───
+  # Builds against the persistent buildkitd Deployment (k8s/woodpecker/buildkitd.yaml) over tcp. This step mounts
+  # nothing and needs no privilege — buildkitd does the snapshot mounts in its own stable mnt ns. (Daemonless
+  # BuildKit in an ephemeral step pod EPERM'd on its mounts on this cluster, even privileged+trusted; hence the daemon.)
+  # The client-side context filesync uses inotify — fine now that mother's fs.inotify.max_user_instances = 8192.
   - name: build
     image: moby/buildkit:latest
-    backend_options:
-      kubernetes:
-        securityContext:
-          privileged: true
-          # containerd still applies the default AppArmor profile to privileged pods, which denies the `mount`
-          # syscall BuildKit's snapshotter needs (EACCES on the snapshot bind-mount). Unconfine it.
-          apparmorProfile:
-            type: Unconfined
-          seccompProfile:
-            type: Unconfined
+    environment:
+      BUILDKIT_HOST: tcp://buildkitd:1234
     commands:
       - sh scripts/ci/build-images.sh
 

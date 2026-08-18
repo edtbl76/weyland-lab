@@ -15,13 +15,12 @@ REG="registry.weyland.lab"
 
 [ -s "$PLAN" ] || { echo "[build] empty plan — nothing to build."; exit 0; }
 
-# BuildKit's default root (/var/lib/buildkit) sits on the step pod's NESTED overlay fs → BuildKit falls back to the
-# runc-native snapshotter, whose bind-mounts fail EPERM. Root it on the workspace PVC (a real fs — local-path) and
-# use the overlayfs snapshotter, which works there. The daemonless helper passes BUILDKITD_FLAGS to buildkitd.
-BK_ROOT="${CI_WORKSPACE:-$PWD}/.buildkit-state"
-mkdir -p "$BK_ROOT"
-export BUILDKITD_FLAGS="--oci-worker-snapshotter=overlayfs --root ${BK_ROOT}"
-echo "[build] buildkitd root=${BK_ROOT} snapshotter=overlayfs"
+# Thin client: build against the persistent buildkitd Deployment (k8s/woodpecker/buildkitd.yaml), NOT a daemon in
+# this step pod — daemonless BuildKit can't do its snapshot mounts inside an ephemeral Woodpecker step pod on this
+# cluster (EPERM). buildkitd does the mounts in its own stable mnt ns. This step mounts nothing.
+BK_ADDR="${BUILDKIT_HOST:-tcp://buildkitd:1234}"
+echo "[build] using buildkitd at ${BK_ADDR}"
+buildctl --addr "$BK_ADDR" debug workers >/dev/null 2>&1 || { echo "[build] buildkitd not reachable at ${BK_ADDR}"; exit 1; }
 
 while IFS="$(printf '\t')" read -r image context newtag manifests; do
   [ -n "$image" ] || continue
@@ -34,7 +33,7 @@ while IFS="$(printf '\t')" read -r image context newtag manifests; do
   ctxpath="${PLATFORM}/${ctxdir}"
   echo "==== [build] ${image}:${newtag}  (context ${ctxdir}, dockerfile ${dfname}) ===="
 
-  buildctl-daemonless.sh build \
+  buildctl --addr "$BK_ADDR" build \
     --frontend dockerfile.v0 \
     --local "context=${ctxpath}" \
     --local "dockerfile=${ctxpath}" \
