@@ -15,6 +15,14 @@ REG="registry.weyland.lab"
 
 [ -s "$PLAN" ] || { echo "[build] empty plan — nothing to build."; exit 0; }
 
+# BuildKit's default root (/var/lib/buildkit) sits on the step pod's NESTED overlay fs → BuildKit falls back to the
+# runc-native snapshotter, whose bind-mounts fail EPERM. Root it on the workspace PVC (a real fs — local-path) and
+# use the overlayfs snapshotter, which works there. The daemonless helper passes BUILDKITD_FLAGS to buildkitd.
+BK_ROOT="${CI_WORKSPACE:-$PWD}/.buildkit-state"
+mkdir -p "$BK_ROOT"
+export BUILDKITD_FLAGS="--oci-worker-snapshotter=overlayfs --root ${BK_ROOT}"
+echo "[build] buildkitd root=${BK_ROOT} snapshotter=overlayfs"
+
 while IFS="$(printf '\t')" read -r image context newtag manifests; do
   [ -n "$image" ] || continue
   # split "<dir>" or "<dir>::<dockerfile-relpath>"
