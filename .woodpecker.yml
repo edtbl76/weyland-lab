@@ -28,9 +28,6 @@ steps:
   # ── 2. detect which images changed since their currently-deployed git-<sha> ──
   - name: detect-changes
     image: alpine/git:latest
-    environment:
-      ONLY: store-scaler   # VALIDATION SCOPE — proves the pipeline on one small image. REMOVE this line after the
-                           # first green run so the nightly cron migrates the full set (staged, off-hours).
     commands:
       - sh scripts/ci/detect-changes.sh
 
