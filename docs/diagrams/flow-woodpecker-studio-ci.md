@@ -20,7 +20,7 @@ sequenceDiagram
     participant Ext as weyland SonarQube :30969 / MinIO :30990
     Op->>CLI: pipeline create edtbl76/stud.io --branch main
     CLI->>Srv: POST /api/... (Bearer PAT) via HTTP NodePort 192.168.1.243:30980
-    Note over Srv: enqueues 4 workflows (main · pilot · plugin-scanner · roadie), each labels{backend: local}
+    Note over Srv: enqueues 3 workflows (main · plugin-scanner · roadie), each labels{backend: local}
     Srv->>Ag: dispatch steps over gRPC NodePort 192.168.1.243:30900 (matched by backend=local)
     Ag->>Ag: git clone into per-run workspace
     Ag->>Roadie: roadie build --schema-only / test unit·pbt·e2e·scan·perf

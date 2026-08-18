@@ -5,7 +5,7 @@ Server + agents in ns `woodpecker`; UI at `woodpecker.weyland.lab`; GitHub OAuth
 running a mixed fleet** on ONE server, routed by the built-in `backend` agent label: **weyland jobs = `kubernetes`
 backend** (steps run as **pods in the cluster**, so pipelines can build/deploy the weyland apps); **STUD.io jobs =
 `local` backend** (steps run on **rogueone's host shell** + native docker, which carry the real
-Go/Node/pyenv/Playwright toolchain). STUD.io's full CI (4 workflows) runs green on the farm as of B57b — see
+Go/Node/pyenv/Playwright toolchain). STUD.io's full CI (3 workflows) runs green on the farm as of B57b — see
 [the CLI/mixed-fleet section](#studio-ci--cli-access-mixed-fleet-b57b). Chart: `woodpecker-ci/woodpecker`.
 
 ---
@@ -55,7 +55,7 @@ STUD.io's CI was migrated off its own local Woodpecker onto this server (B57b, p
 - **CLI** (`~/.local/bin/woodpecker-cli` v3.17; creds in `~/.config/studio/woodpecker-cli.env` — `WOODPECKER_SERVER=http://192.168.1.243:30980` + PAT, gitignored). Trigger + watch a STUD.io run:
 ```bash
 . ~/.config/studio/woodpecker-cli.env; export PATH="$HOME/.local/bin:$PATH"
-woodpecker-cli pipeline create edtbl76/stud.io --branch main   # runs all 4 workflows
+woodpecker-cli pipeline create edtbl76/stud.io --branch main   # runs all 3 workflows
 woodpecker-cli pipeline ps  edtbl76/stud.io <N>                 # poll step state
 woodpecker-cli pipeline log show edtbl76/stud.io <N> <STEP>     # tail a step log
 ```
@@ -90,5 +90,5 @@ A `notify-port` step (`when: status:[success,failure]`) POSTs build status to a 
 ## Pointers
 - Values: `k8s/woodpecker/woodpecker-values.yaml` · pipeline: `.woodpecker.yml` + `.yamllint` (repo root)
 - Port: `ci_pipeline` blueprint + `woodpecker` webhook DS + Launcher `endpoint/woodpecker`
-- STUD.io CI: 4 workflows on the farm via `local`-backend agents on rogueone (B57b DONE) — `flow-woodpecker-studio-ci` + `demos/woodpecker-studio-ci.md`
+- STUD.io CI: 3 workflows (main · plugin-scanner · roadie) on the farm via `local`-backend agents on rogueone (B57b DONE) — `flow-woodpecker-studio-ci` + `demos/woodpecker-studio-ci.md`
 - Future (B57a): real build/deploy pipelines for the **weyland images** + cron (auto-trigger); the STUD.io migration (B57b) is done

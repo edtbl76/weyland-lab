@@ -23,7 +23,7 @@ sequenceDiagram
     participant Ext as weyland SonarQube :30969 / MinIO :30990
     Op->>CLI: pipeline create edtbl76/stud.io --branch main
     CLI->>Srv: POST /api/... (Bearer PAT) via HTTP NodePort 192.168.1.243:30980
-    Note over Srv: enqueues 4 workflows (main · pilot · plugin-scanner · roadie), each labels{backend: local}
+    Note over Srv: enqueues 3 workflows (main · plugin-scanner · roadie), each labels{backend: local}
     Srv->>Ag: dispatch steps over gRPC NodePort 192.168.1.243:30900 (matched by backend=local)
     Ag->>Roadie: git clone → roadie build --schema-only / test unit·pbt·e2e·scan·perf
     Roadie->>Dkr: docker exec studio_db psql (schema + seeds → masterdb_test_ci); containerized test lanes
@@ -48,7 +48,7 @@ sequenceDiagram
 1. Open `https://woodpecker.weyland.lab` (Keycloak login).
 2. Select the **`edtbl76/stud.io`** repo → the run list.
 3. Open the latest run. **UAT — visually confirm:**
-   - all **4 workflows** are present — `main`, `pilot`, `plugin-scanner`, `roadie`;
+   - all **3 workflows** are present — `main`, `plugin-scanner`, `roadie`;
    - `main` shows every step green: **clone · build · npm-install · unit-pbt · e2e · scan · perf**;
    - the run's agent is a **local** agent (step host = rogueone), not a k8s pod;
    - open `main → scan` logs and confirm the `sonar` sub-steps (pytest-coverage, sonar-scanner) succeeded.
@@ -63,7 +63,7 @@ sequenceDiagram
 ```
 curl -s -o /dev/null -w "%{http_code}\n" http://192.168.1.243:30980/ && woodpecker-cli repo ls | grep stud.io
 ```
-[rogueone] Trigger a run of all 4 STUD.io workflows on the farm:
+[rogueone] Trigger a run of all 3 STUD.io workflows on the farm:
 ```
 woodpecker-cli pipeline create edtbl76/stud.io --branch main
 ```
@@ -77,7 +77,7 @@ woodpecker-cli pipeline log show edtbl76/stud.io N STEP
 ```
 
 ## Expected result
-- `pipeline create` returns a pending run; within minutes every step across all 4 workflows reaches `success`.
+- `pipeline create` returns a pending run; within minutes every step across all 3 workflows reaches `success`.
 - `main`: clone · build · npm-install · unit-pbt · e2e · scan · perf all green (e2e = 4 Playwright shards over
   `masterdb_test_ci_0..3`; scan = sonar · trivy · detect-secrets · security-headers · govulncheck · gosec ·
   staticcheck).
