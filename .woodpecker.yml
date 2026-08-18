@@ -45,6 +45,12 @@ steps:
       kubernetes:
         securityContext:
           privileged: true
+          # containerd still applies the default AppArmor profile to privileged pods, which denies the `mount`
+          # syscall BuildKit's snapshotter needs (EACCES on the snapshot bind-mount). Unconfine it.
+          apparmorProfile:
+            type: Unconfined
+          seccompProfile:
+            type: Unconfined
     commands:
       - sh scripts/ci/build-images.sh
 
