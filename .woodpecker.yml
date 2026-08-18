@@ -1,35 +1,76 @@
-# Woodpecker CI — weyland (CI/CD category). Runs on the kubernetes backend: each step is a pod in the cluster.
-# LAN-only: GitHub can't reach woodpecker.weyland.lab to deliver push webhooks, so trigger via "Run pipeline"
-# (manual) or cron. The `manual`/`cron` events below are what actually fire here; push/pull_request are kept
-# for the day this (or a repo) is reachable. First pipeline = prove the mechanism + one real check.
+# Woodpecker CI — weyland image build pipeline (B57a). Builds the weyland-built images → pushes a git-<sha> tag to
+# registry.weyland.lab → opens a PR that bumps the tag in the manifests → YOU merge → Argo CD reconciles → rollout.
+# git-as-seam: CI never calls `argocd sync` (that bypasses GitOps → drift).
 #
-# B57 — PIN this workflow to the kubernetes backend. The shared Woodpecker server also hosts STUD.io's
-# local-backend agents (native, on rogueone); an unlabeled workflow in v3.17 schedules onto ANY connected
-# agent, so without this guard a weyland build could land on a local agent and run these container steps
-# directly on rogueone's host. The `backend` label is auto-advertised by each agent as its backend type.
+# Runs on the KUBERNETES backend (steps = pods on mother's woodpecker-agent-0/-1). Pinned so an unlabeled workflow
+# can't land on STUD.io's local-backend agents (B57b). Single-node k3s → local-path RWO → steps run SEQUENTIALLY,
+# so the workspace files (.ci-build-plan, .ci-image-bumps) pass cleanly step→step.
+#
+# Build engine = rootless BuildKit, DAEMONLESS (nothing always-on — mother runs at ~90% RAM, no swap). ~1-3 GB peak
+# vs kaniko's ~8-12 GB on the 8.38 GB user-code image; heavy scratch lands on disk (400 GB free), warm-cache via a
+# registry cache tag. See aidlc-docs/image-build-pipeline-design.md.
+#
+# Trigger: manual + a nightly pre-dawn cron (create once: `woodpecker-cli cron add --repository edtbl76/weyland-lab
+#          --name nightly-images --schedule "0 30 2 * * *" --branch main`). No push-webhooks on the LAN.
 labels:
   backend: kubernetes
 when:
-  - event: [manual, cron, push, pull_request]
+  - event: manual
+  - event: cron
 
 steps:
-  - name: info
-    image: alpine
-    commands:
-      - echo "Woodpecker CI on weyland — this step is running as a pod IN the cluster (k8s backend)."
-      - echo "commit ${CI_COMMIT_SHA} on branch ${CI_COMMIT_BRANCH}"
-      - ls -la
-
+  # ── 1. lint the k8s manifests (syntax) ──────────────────────────────────────
   - name: yaml-syntax
     image: pipelinecomponents/yamllint:latest
     commands:
-      # Uses .yamllint at the repo root (relaxed + line-length disabled). Catches broken YAML / trailing
-      # spaces / dup keys without the 80-col noise that's meaningless for commented k8s manifests.
       - yamllint nodes/mother/lab/weyland-platform/k8s/
 
-  # Report build status → Port (CI/CD category). Runs on success AND failure. The Port ingest URL comes from a
-  # Woodpecker repo secret (port_ingest_url) so the key stays OUT of this public repo. printf builds the JSON
-  # cleanly (no quote-escaping). Maps to the `ci_pipeline` blueprint.
+  # ── 2. detect which images changed since their currently-deployed git-<sha> ──
+  - name: detect-changes
+    image: alpine/git:latest
+    commands:
+      - sh scripts/ci/detect-changes.sh
+
+  # ── 3. build + push the changed images (rootless BuildKit, daemonless) ──────
+  - name: build
+    image: moby/buildkit:rootless
+    environment:
+      BUILDKITD_FLAGS: --oci-worker-no-process-sandbox
+    backend_options:
+      kubernetes:
+        securityContext:
+          runAsUser: 1000
+          runAsGroup: 1000
+          seccompProfile:
+            type: Unconfined
+    commands:
+      - sh scripts/ci/build-images.sh
+
+  # ── 4. schema-validate the manifests that will carry the new tag ────────────
+  - name: kubeconform
+    image: ghcr.io/yannh/kubeconform:latest-alpine
+    commands:
+      - |
+        [ -s .ci-image-bumps ] || { echo "kubeconform: nothing built — skip"; exit 0; }
+        # collect the manifests to be bumped (cols 3+ of each row), validate them
+        cut -f3- .ci-image-bumps | tr '\t ' '\n\n' | sed '/^$/d' | sort -u | while read -r m; do
+          f="nodes/mother/lab/weyland-platform/$m"
+          [ -f "$f" ] && echo "validate $f" && kubeconform -strict -summary -ignore-missing-schemas "$f"
+        done
+
+  # ── 5. deploy handoff: bump tags → branch → PR (you merge → Argo deploys) ────
+  - name: deploy-handoff
+    image: alpine:latest
+    when:
+      - status: success
+    environment:
+      GITHUB_TOKEN:
+        from_secret: github_token
+    commands:
+      - apk add --no-cache git curl >/dev/null
+      - sh scripts/ci/open-deploy-pr.sh
+
+  # ── 6. build status → Port ci_pipeline (success AND failure) ────────────────
   - name: notify-port
     image: curlimages/curl:latest
     when:

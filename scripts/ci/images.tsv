@@ -1,0 +1,23 @@
+# B57a — source of truth for the weyland-image CI build pipeline.
+# Columns (TAB-separated):
+#   image      registry repo name under registry.weyland.lab/  (matches scripts/build-push-images.sh)
+#   context    buildctl context spec: "<dir>" (Dockerfile at <dir>/Dockerfile) or
+#              "<dir>::<dockerfile-relpath>" (context=<dir>, Dockerfile=<dir>/<dockerfile-relpath>)
+#   manifests  space-separated k8s manifests whose image tag tracks this build (lockstep — all move together)
+# Paths are relative to nodes/mother/lab/weyland-platform/ (the platform dir), matching build-push-images.sh.
+# ranger is version-pinned (not tag-following) and intentionally omitted — build via build-push-images.sh.
+# NOTE: feast-server + weyland-dagster-user-code share context services/weyland-dagster (different Dockerfiles);
+#       weyland-flink + weyland-flink-py share k8s/flink — a change in the shared dir rebuilds both (conservative, correct).
+#
+#image	context	manifests
+weyland-tool-server	services/weyland-tool-server	k8s/weyland-tool-server.yaml
+weyland-dagster-base	services/weyland-dagster-base	k8s/dagster/webserver.yaml k8s/dagster/daemon.yaml
+weyland-dagster-user-code	services/weyland-dagster	k8s/dagster/user-code.yaml k8s/dagster/dbt-docs.yaml
+weyland-rag-index	services/rag-index	k8s/rag-index-pgvector.yaml k8s/rag-index-neo4j.yaml k8s/data-mesh/rag-index-qdrant.yaml k8s/data-mesh/rag-index-weaviate.yaml k8s/data-mesh/rag-index-opensearch.yaml
+feast-server	services/weyland-dagster::Dockerfile.feast	k8s/data-mesh/feast-server.yaml k8s/data-mesh/feast-ui.yaml
+weyland-flink	k8s/flink::Dockerfile	k8s/data-mesh/flink-session.yaml k8s/data-mesh/flink-history-server.yaml k8s/data-mesh/flink-jar-server.yaml
+weyland-flink-py	k8s/flink::Dockerfile.pyflink	k8s/data-mesh/flink-pyflink.yaml
+store-scaler	services/store-scaler	k8s/data-mesh/store-scaler.yaml
+scan-suite	services/scan-suite	k8s/code-quality/scan-suite.yaml
+guardrails-structure	services/guardrails-structure	k8s/guardrails-structure/guardrails-structure.yaml
+nemo-guardrails	services/nemo-guardrails	k8s/nemo-guardrails/nemo-guardrails.yaml
