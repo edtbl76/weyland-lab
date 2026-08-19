@@ -17,7 +17,7 @@ spec:
       enableServiceLinks: false
       containers:
         - name: weyland-tool-server
-          image: registry.weyland.lab/weyland-tool-server:v20   # v20: _span context-manager fix (no more double-yield masking LLM 503s as 500s); was v19; CPU-only torch layer retained
+          image: registry.weyland.lab/weyland-tool-server:git-2bed11b0   # v20: _span context-manager fix (no more double-yield masking LLM 503s as 500s); was v19; CPU-only torch layer retained
           resources:
             requests: { memory: 512Mi, cpu: 250m }
             # 3Gi (was 2Gi, raised 2026-07-21). Steady state is ~929Mi (it loads the embedding model), so 2Gi

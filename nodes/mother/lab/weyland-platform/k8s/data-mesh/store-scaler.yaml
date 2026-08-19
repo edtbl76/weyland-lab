@@ -28,7 +28,7 @@ spec:
       serviceAccountName: store-scaler
       containers:
         - name: store-scaler
-          image: registry.weyland.lab/store-scaler:git-ec59b430   # built on mother + imported to containerd (see deploy steps)
+          image: registry.weyland.lab/store-scaler:git-2bed11b0   # built on mother + imported to containerd (see deploy steps)
           imagePullPolicy: IfNotPresent
           # B47 hardening: non-root + drop all caps + no priv-esc + seccomp default. runAsUser: 10001 is REQUIRED
           # alongside runAsNonRoot because the image's USER is a NAME (appuser); the kubelet needs the numeric uid
