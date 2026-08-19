@@ -137,7 +137,8 @@ SealedSecrets/External-Secrets mechanism for all imperative secrets.
   now builds the weyland-built images (via a persistent `buildkitd` Deployment) → pushes `git-<sha>` to
   `registry.weyland.lab` → opens a tag-bump PR → merge → Argo deploys, on a **nightly 01:00 NY cron** + manual
   (the LAN-webhook wall means cron/manual, not push — accepted). Validated live (store-scaler → `git-ec59b430`).
-  Residual: build-status → Port (`ci_pipeline`) is deferred to **B63**.
+  Residual: build-status → Port (`ci_pipeline`) — **✅ RESOLVED 2026-08-19 (B63):** a `notify-port` step feeds the
+  `weyland_ci_reliability` dashboard (both farms, both outcomes proven). See `runbooks/woodpecker.md`.
 - **[gitops] Loose `k8s/` root files not reconciled by Argo** — `coredns-custom.yaml` (load-bearing), `coredns-lan.yaml`, `rbac-default-sa-noautomount.yaml`, headlamp trio in 0 Applications — Fix: add Applications or widen `loose-apps` globs.
 - **[monitoring] LGTM stack does not monitor itself** — no ServiceMonitor on loki/tempo/alloy — Fix: enable `monitoring.serviceMonitor` + `LokiDown`/`AlloyDaemonSetNotReady` rules.
 - **[monitoring] traefik-forward-auth is a single-replica SPOF with no probes** — gates ~18 UIs — Fix: liveness+readiness on :4181 + synthetic monitor on `auth.weyland.lab/_oauth` + Keycloak `/health/ready`.

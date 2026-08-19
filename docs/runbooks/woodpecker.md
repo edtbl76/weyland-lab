@@ -91,8 +91,8 @@ snapshotter, whose bind-mounts EPERM; (5) even overlayfs-on-a-real-fs-PVC + **re
 which Woodpecker silently drops `privileged`), the mount **still** EPERM'd in the step pod. A long-lived buildkitd does
 those mounts in its own stable mount namespace — the standard buildkit-in-k8s pattern — and moots all of the above.
 The daemon is privileged + AppArmor-unconfined **in its own manifest** (accepted: internal CI daemon, ns-isolated).
-- **Build-status → Port** (`ci_pipeline`) is deferred to **B63**; it needs the `port_ingest_url` secret cleared by the
-  2026-08-10 DB wipe. Until then, build health is the Woodpecker run UI.
+- **Build-status → Port** (`ci_pipeline`) is **DONE (B63, 2026-08-19)** — a `notify-port` step feeds the
+  `weyland_ci_reliability` dashboard; see [the CI reliability signal section](#woodpecker--port-ci-reliability-signal-b63-done-2026-08-19).
 
 ## Pipelines
 - `.woodpecker.yml` lives at the **repo root on GitHub** (Woodpecker reads it from the forge, NOT your local
@@ -100,18 +100,36 @@ The daemon is privileged + AppArmor-unconfined **in its own manifest** (accepted
 - `.yamllint` at the repo root tunes the `yaml-syntax` check: `extends: relaxed` + `line-length: disable`
   (80-col is meaningless for commented k8s manifests; keeps the checks that catch real breakage).
 
-## Woodpecker → Port (CI/CD category)
-A `notify-port` step (`when: status:[success,failure]`) POSTs build status to a Port webhook DS; mapped to the
-**`ci_pipeline`** blueprint (id `repo-number`, so it stays unique once Stud.IO joins → build history per run).
-- The Port ingest URL lives in a **Woodpecker repo secret `port_ingest_url`** (env `from_secret`) — keeps the
-  ingest key OUT of the public `.woodpecker.yml`.
-- Payload built with `printf` (clean JSON, no quote-escaping); fields: number/status/repo/branch/commit/event/url.
+## Woodpecker → Port: CI reliability signal (B63, DONE 2026-08-19)
+A `notify-port` step POSTs each run's terminal status to a Port webhook DS, mapped to the **`ci_pipeline`** blueprint
+(id `repo-number`, unique per run → build history). A **`weyland_ci_reliability`** Port dashboard aggregates it
+(status pie + counters + runs table) — the weyland reliability view Port's stock **GitHub-Actions-only** DORA boards
+can't provide. Docs: [../diagrams/flow-ci-reliability-signal.md](../diagrams/flow-ci-reliability-signal.md) ·
+[../demos/ci-reliability-signal.md](../demos/ci-reliability-signal.md).
+- The ingest URL lives in a **Woodpecker repo secret `port_ingest_url`** (env `from_secret`) — keeps the key OUT of
+  the public YAML. Events: weyland-lab `cron,manual`; stud.io `manual,pull_request,push`.
+- Payload built with `printf` (clean JSON, no quote-escaping): number/status/repo/branch/commit/event/url.
+- **The step differs by backend, because of a DAG subtlety:**
+  - **weyland-lab** (`kubernetes`, **single** workflow) — one `notify-port` step reads `$CI_PIPELINE_STATUS`; reliable
+    here because the pipeline *is* that one workflow, so the status is final at the last step. Proven: run #12 → success.
+  - **STUD.io** (`local`, **three parallel** workflows) — `$CI_PIPELINE_STATUS` reflects the **whole** pipeline, which
+    isn't final while sibling workflows run, so it reads **empty** at main's notify time. Fix = **two status-gated
+    steps** (`notify-port-pass` / `notify-port-fail`) that **hardcode** the status, each `depends_on` **every** prior
+    step. Proven: #14 → failure, #15 → success. Only `main` reports (all 3 share the pipeline number → id collision).
 
 ## Gotchas (hard-won)
 - **YAML colon-space:** a `curl -H "Content-Type: application/json"` line in `commands` makes YAML parse it as a
   *map* (`cannot unmarshal map … into string`). Put multi-command shell in a **`|` literal block**.
 - **Port webhook mapping must be Saved** before the event fires — there's **no replay**; re-run the pipeline
   after saving the mapping (first run's event is lost if the mapping wasn't saved yet).
+- **notify step with no `depends_on` fires a false green (B63):** `when: status:` evaluates the moment a step is
+  eligible, not at workflow end. A notify step whose only implicit dep is `clone` runs right after `build` — while the
+  status is still `success` — and reports before scan/e2e/perf fail. Make notify the **terminal stage**:
+  `depends_on: [<every other step>]`.
+- **`$CI_PIPELINE_STATUS` is empty on a multi-workflow run (B63):** it reflects the whole pipeline, not one workflow,
+  so it's blank while sibling workflows still run. Port drops an empty-enum `status` silently — ingest returns
+  `ok:true` but writes **no entity**. On multi-workflow repos, **hardcode** the status in two `when:status`-gated
+  steps instead of reading the env var.
 - **Config must be on GitHub**, not just local — Woodpecker reads from the forge head.
 - Benign agent log: `could not persist agent config at /etc/woodpecker/agent.conf` (agent persistence is off;
   harmless — the agent just re-registers on restart).
@@ -119,6 +137,7 @@ A `notify-port` step (`when: status:[success,failure]`) POSTs build status to a 
 
 ## Pointers
 - Values: `k8s/woodpecker/woodpecker-values.yaml` · pipeline: `.woodpecker.yml` + `.yamllint` (repo root)
-- Port: `ci_pipeline` blueprint + `woodpecker` webhook DS + Launcher `endpoint/woodpecker`
+- Port: `ci_pipeline` blueprint + `woodpecker` webhook DS + `weyland_ci_reliability` dashboard (B63) + Launcher `endpoint/woodpecker`
 - STUD.io CI: 3 workflows (main · plugin-scanner · roadie) on the farm via `local`-backend agents on rogueone (B57b DONE) — `flow-woodpecker-studio-ci` + `demos/woodpecker-studio-ci.md`
-- Future (B57a): real build/deploy pipelines for the **weyland images** + cron (auto-trigger); the STUD.io migration (B57b) is done
+- weyland image CI→CD (B57a DONE): buildkitd daemon → registry → tag-bump PR → Argo — `flow-weyland-image-ci` + `demos/weyland-image-ci.md`
+- CI reliability signal (B63 DONE): run outcome → `ci_pipeline` → dashboard — `flow-ci-reliability-signal` + `demos/ci-reliability-signal.md`
