@@ -37,6 +37,7 @@ for e in reg.get("excluded", []):
 ALIAS = {
     "dagster": "weyland-dagster", "code-quality": "scan-suite", "flink-operator": "flink",
     "kube-prometheus-stack": "grafana", "rag-index-weyland": "rag-index",
+    "woodpecker-buildkitd": "buildkitd",
 }
 # GitOps bootstrap Applications — real Argo apps but NOT deployed components, so they carry no registry entry.
 INFRA = {"weyland-root"}   # the app-of-apps root (syncs k8s/argocd/applications/)
