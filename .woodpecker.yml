@@ -71,6 +71,16 @@ steps:
       - apk add --no-cache git curl >/dev/null
       - sh scripts/ci/open-deploy-pr.sh
 
-  # NOTE: build-status → Port `ci_pipeline` (the old B56 `notify-port` step) is deferred to B63
-  # (Woodpecker runs → Port — the reliability/DORA signal). It needs the `port_ingest_url` repo secret,
-  # which was cleared by the 2026-08-10 Woodpecker DB wipe. Re-add it there, not here.
+  # ── 6. build status → Port ci_pipeline (B63 — CI reliability signal; success AND failure) ──
+  - name: notify-port
+    image: curlimages/curl:latest
+    when:
+      - status: [success, failure]
+    environment:
+      PORT_INGEST_URL:
+        from_secret: port_ingest_url
+    commands:
+      - |
+        printf '{"number":%s,"status":"%s","repo":"%s","branch":"%s","commit":"%s","event":"%s","url":"%s"}' \
+          "$CI_PIPELINE_NUMBER" "$CI_PIPELINE_STATUS" "$CI_REPO" "$CI_COMMIT_BRANCH" "$CI_COMMIT_SHA" "$CI_PIPELINE_EVENT" "$CI_PIPELINE_URL" > /tmp/port.json
+        curl -sf -X POST "$PORT_INGEST_URL" -H "Content-Type: application/json" -d @/tmp/port.json
