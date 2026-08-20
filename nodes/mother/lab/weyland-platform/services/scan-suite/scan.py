@@ -218,7 +218,14 @@ def shellcheck():
 def semgrep():
     # exclude sealed-secrets/: SealedSecret encryptedData is ENCRYPTED ciphertext (safe to commit by design), but
     # semgrep's generic-secret detector false-positives on the base64 blobs. gitleaks (smarter) doesn't. (B89)
+    # --jobs/--max-memory are NOT tuning knobs here, they are the difference between finishing and being SIGKILLed.
+    # semgrep defaults --jobs to the host CPU count; on mother (16 cores) that forked ~16 workers, each holding the
+    # rule set + file ASTs, and blew the pod's memory cgroup mid-scan (exit 137, 2026-08-20). A cgroup memory limit
+    # does not shrink os.cpu_count(), so semgrep cannot discover the bound on its own — it has to be told.
+    # --max-memory is per-worker (MB): semgrep skips a file that would exceed it instead of dying, so the scan
+    # degrades to "one file unscanned" rather than "no semgrep results at all", which suits a best-effort suite.
     sh(["semgrep", "scan", "--config", "auto", "--json", "--output", f"{OUT}/semgrep.json",
+        "--jobs", "4", "--max-memory", "2000",
         "--exclude", "node_modules", "--exclude", "openclaw", "--exclude", "site-techdocs",
         "--exclude", "sealed-secrets", SRC])
     d = load(f"{OUT}/semgrep.json") or {}

@@ -44,7 +44,11 @@ spec:
                 # single node a batch job with no latency SLO should reserve little and burst wide:
                 # at 250m this job sat Pending for 40min behind reservations the fleet wasn't using.
                 requests: { cpu: 100m, memory: 512Mi }
-                limits: { memory: 2Gi } # semgrep auto + trivy fs are the heavy ones
+                # 2Gi SIGKILLed the pod (exit 137) mid-semgrep on 2026-08-20: semgrep defaults --jobs to the
+                # CPU count, so on this 16-core node it forked ~16 workers against a 2Gi cgroup. scan.py now
+                # pins --jobs/--max-memory (durable fix, needs an image rebuild); this headroom is the belt to
+                # that braces, and the node has ~76Gi so it costs nothing to hold.
+                limits: { memory: 6Gi } # semgrep auto + trivy fs are the heavy ones
               volumeMounts:
                 - { name: src, mountPath: /src }
                 - { name: out, mountPath: /out }
