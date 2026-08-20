@@ -1,0 +1,65 @@
+# B130 — restic excludes for the STATIC include roots (~/.config, ~/.claude, ~/Documents, …).
+# (Git-repo bulk is filtered in restic-backup.sh — restic won't exclude a path handed to it
+# explicitly via --files-from, so those are dropped before restic sees them.)
+# Plus `--exclude-caches` in the script (skips any dir with a CACHEDIR.TAG).
+#
+# Bare names match by BASENAME anywhere (the reliable form). Leading-/ lines anchor to a full path.
+# Bare names here are ones that are NEVER precious.
+
+# ── reproducible bulk (basename) ──
+node_modules
+.gradle
+.venv
+venv
+__pycache__
+.pytest_cache
+.mypy_cache
+.ruff_cache
+.cache
+caches
+.npm
+.nvm
+.yarn
+.pnpm-store
+.sdkman
+.pyenv
+.tox
+.turbo
+.parcel-cache
+jdbc-drivers
+event-log-metadata
+wrapper/dists
+*.hprof
+*.pyc
+*.class
+
+# ── browser / Electron cache dirs (basename — these leaked from ~/.config) ──
+Cache
+Caches
+GPUCache
+ShaderCache
+Code Cache
+CachedData
+DawnCache
+DawnGraphiteCache
+DawnWebGPUCache
+Service Worker
+blob_storage
+Crashpad
+component_crx_cache
+
+# ── big app data under ~/.config (basename — unique names, never precious) ──
+google-chrome
+google-chrome-for-testing
+Msty
+neo4j-desktop
+
+# ── ~/.claude: keep memory + settings, drop the bulk (anchored — verified working) ──
+/home/edwardmangini/.claude/plugins
+/home/edwardmangini/.claude/security
+/home/edwardmangini/.claude/downloads
+/home/edwardmangini/.claude/file-history
+/home/edwardmangini/.claude/shell-snapshots
+/home/edwardmangini/.claude/paste-cache
+/home/edwardmangini/.claude/statsig
+/home/edwardmangini/.claude/projects/**/*.jsonl

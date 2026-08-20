@@ -1,0 +1,12 @@
+# B130 — daily rogueone backup, off-hours (~02:30 NY + up to 30 min jitter). Persistent=true so a
+# missed run (box asleep/off) fires on next boot. Paired with restic-backup.service (USER unit).
+[Unit]
+Description=Daily rogueone restic backup (off-hours)
+
+[Timer]
+OnCalendar=*-*-* 02:30:00
+RandomizedDelaySec=1800
+Persistent=true
+
+[Install]
+WantedBy=timers.target

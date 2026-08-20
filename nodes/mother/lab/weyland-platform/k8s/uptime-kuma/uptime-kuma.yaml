@@ -122,3 +122,30 @@ spec:
                 name: uptime-kuma
                 port:
                   number: 3001
+---
+# B130 — push-endpoint carve-out. The restic-backup dead-man's-switch (rogueone) pings
+# https://kuma.weyland.lab/api/push/<token>, but the main Ingress gates the whole host behind
+# traefik-forward-auth (Keycloak) which 307s the token call to login. This second Ingress serves
+# ONLY /api/push WITHOUT forward-auth — the push token is its own auth. More-specific path wins in
+# Traefik, so the UI (every other path) stays gated.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: uptime-kuma-push
+  namespace: weyland
+spec:
+  tls:
+    - hosts:
+        - kuma.weyland.lab
+      secretName: weyland-wildcard-tls
+  rules:
+    - host: kuma.weyland.lab
+      http:
+        paths:
+          - path: /api/push
+            pathType: Prefix
+            backend:
+              service:
+                name: uptime-kuma
+                port:
+                  number: 3001

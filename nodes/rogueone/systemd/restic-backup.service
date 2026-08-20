@@ -1,0 +1,19 @@
+# B130 — rogueone backup: restic → lab MinIO. USER unit (backs up $HOME; reads ~/.env, git, and
+# restic from the user's PATH — a system/root unit would find none of those).
+#   Install:  cp nodes/rogueone/systemd/restic-backup.{service,timer} ~/.config/systemd/user/
+#             systemctl --user daemon-reload && systemctl --user enable --now restic-backup.timer
+#   REQUIRED: loginctl enable-linger edwardmangini   <- so the timer fires without an active login
+#             (same requirement as ai-session-producer).
+#   Run now:  systemctl --user start restic-backup.service   ·   logs: journalctl --user -u restic-backup
+[Unit]
+Description=rogueone backup — restic → lab MinIO (encrypted, incremental)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+Nice=10
+IOSchedulingClass=idle
+ExecStart=/home/edwardmangini/IdeaProjects/weyland/nodes/rogueone/backup/restic-backup.sh
+StandardOutput=journal
+StandardError=journal
