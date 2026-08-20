@@ -35,6 +35,19 @@ spec:
               env:
                 - name: PORT_INGEST_URL
                   valueFrom: { secretKeyRef: { name: port-ingest-url, key: url } }
+                # Archive raw per-tool JSON to MinIO — /out is an emptyDir, so without this every finding's DETAIL
+                # dies with the pod and only the Port severity COUNTS survive. Retention is an ILM expiry rule on
+                # the bucket (90d), not a prune cron. In-cluster http:// endpoint on purpose: s3.weyland.lab would
+                # need the lab CA in this image's trust store (same reasoning as the headers check in scan.py).
+                # Creds reuse aidlc-kb-minio-secret, already mirrored into ns weyland (secretKeyRef can't cross ns).
+                - name: SCAN_S3_ENDPOINT
+                  value: http://minio.minio.svc.cluster.local:9000
+                - name: SCAN_S3_BUCKET
+                  value: scan-reports
+                - name: AWS_ACCESS_KEY_ID
+                  valueFrom: { secretKeyRef: { name: aidlc-kb-minio-secret, key: access_key } }
+                - name: AWS_SECRET_ACCESS_KEY
+                  valueFrom: { secretKeyRef: { name: aidlc-kb-minio-secret, key: secret_key } }
               securityContext:
                 allowPrivilegeEscalation: false
                 seccompProfile: { type: RuntimeDefault }

@@ -432,6 +432,45 @@ def staticcheck():
     post("staticcheck", c)
 
 
+def archive():
+    """Upload the raw per-tool JSON to MinIO so findings outlive the pod.
+
+    Port holds the per-tool severity COUNTS (the durable trend) but not a single finding's detail, and OUT is an
+    emptyDir — so before this existed, the moment the next run deleted this pod every report was gone and there was
+    nothing left to triage against. Retention is an ILM expiry rule on the bucket (90d), not a cron here: the
+    lifecycle is the store's job, and a cron that prunes is one more thing to notice has stopped.
+
+    Best-effort like every other step: a MinIO outage must not fail a scan that already produced good results and
+    already POSTed its counts to Port.
+    """
+    bucket = os.environ.get("SCAN_S3_BUCKET", "scan-reports")
+    endpoint = os.environ.get("SCAN_S3_ENDPOINT")
+    if not endpoint:
+        print("  ~ archive: SCAN_S3_ENDPOINT unset — skipping upload (reports stay pod-local)", flush=True)
+        return
+    try:
+        import boto3
+    except ImportError:
+        print("  !! archive: boto3 missing from the image — skipping upload", flush=True)
+        return
+
+    stamp = datetime.datetime.now(datetime.UTC).strftime("%Y-%m-%dT%H-%M-%SZ")
+    s3 = boto3.client("s3", endpoint_url=endpoint,
+                      aws_access_key_id=os.environ.get("AWS_ACCESS_KEY_ID"),
+                      aws_secret_access_key=os.environ.get("AWS_SECRET_ACCESS_KEY"))
+    sent = 0
+    for name in sorted(os.listdir(OUT)):
+        path = os.path.join(OUT, name)
+        if not os.path.isfile(path):
+            continue
+        try:
+            s3.upload_file(path, bucket, f"{stamp}/{name}")
+            sent += 1
+        except Exception as e:
+            print(f"  !! archive: {name} failed: {e}", flush=True)
+    print(f"  = archive: {sent} report(s) → s3://{bucket}/{stamp}/ (90d ILM)", flush=True)
+
+
 if __name__ == "__main__":
     print(f"=== weyland code-scan suite @ {datetime.datetime.now(datetime.UTC).strftime('%Y-%m-%dT%H:%M:%SZ')}  src={SRC} ===", flush=True)
     # Hoisted from codemaat(): the clone runs as root, the scan as uid 10001 → git "dubious ownership". This must
@@ -444,4 +483,9 @@ if __name__ == "__main__":
             fn()
         except Exception as e:
             print(f"  !! {fn.__name__} crashed: {e}", flush=True)
+    # Archive LAST, after every tool has written its JSON — this is the step that makes the reports outlive the pod.
+    try:
+        archive()
+    except Exception as e:
+        print(f"  !! archive crashed: {e}", flush=True)
     print(f"\n=== suite complete; raw reports in {OUT} ===", flush=True)
