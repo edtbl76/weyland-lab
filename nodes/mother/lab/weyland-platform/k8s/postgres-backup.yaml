@@ -24,8 +24,11 @@ spec:
   jobTemplate:
     spec:
       backoffLimit: 1
-      activeDeadlineSeconds: 900   # 15 min — a wedged run (e.g. a stuck native-sidecar init) self-kills instead of
+      activeDeadlineSeconds: 1800  # 30 min — a wedged run (e.g. a stuck native-sidecar init) self-kills instead of
                                    # freezing ALL future backups via concurrencyPolicy: Forbid (the 12–13d wedge B45 caught).
+                                   # Raised 900→1800 on 2026-08-20: pg_dumpall now takes ~12–13 min (DB growth + the
+                                   # 03:00 data-mesh pg-backup stacking into 03:30), so 900s tripped DeadlineExceeded and
+                                   # left the Argo app Degraded. 30 min gives 2× headroom while still catching a real wedge.
       template:
         metadata:
           labels:
