@@ -23,7 +23,7 @@ spec:
     spec:
       containers:
         - name: history
-          image: registry.weyland.lab/weyland-flink:git-402dc1bb
+          image: registry.weyland.lab/weyland-flink:git-db985970
           imagePullPolicy: IfNotPresent
           args: ["history-server"]
           env:
