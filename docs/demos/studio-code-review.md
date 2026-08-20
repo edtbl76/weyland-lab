@@ -13,7 +13,8 @@ See [../diagrams/flow-studio-code-review.md](../diagrams/flow-studio-code-review
 - `edtbl76/stud.io` is **public** (free OSS/public tier for every App).
 - Committed configs on the STUD.io repo: `.deepsource.toml` · `.coderabbit.yaml` · `.pr_agent.toml` · `.mcp.json`.
 - The GitHub Apps installed on the repo: DeepSource, CodeScene (project 78184), Sourcery, CodeRabbit, Qodo.
-  (Greptile is **not** installed yet — see the STUD.io repo `docs/arch/code-review-stack.md`.)
+  Greptile's App is installed too, but it reviews via a PR comment (not a check-run) and activates on new human PRs —
+  see the STUD.io repo `docs/arch/code-review-stack.md`.
 
 ## UI walkthrough (eyes-on UAT)
 1. **GitHub** → `edtbl76/stud.io` → **Pull requests** → an open/recent PR (e.g. #121) → the **Checks** tab.
@@ -43,7 +44,7 @@ cd /home/edwardmangini/IdeaProjects/weyland; set -a; . ./scripts/.env; set +a; T
 ## Expected result
 - Every open STUD.io PR carries DeepSource (7) + CodeScene + Sourcery checks and CodeRabbit/Qodo reviews.
 - The Port `component` entities describe the tools as covering **weyland-lab + stud.io**.
-- The one gap is **Greptile** (App not installed on `edtbl76/stud.io`).
+- **Greptile** is installed (App access confirmed) but reviews via PR comment, not a check — verify on the next human PR.
 
 ## Cleanup / teardown
 Read-only — inspects existing PR checks + Port entities; creates nothing.

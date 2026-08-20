@@ -6,7 +6,8 @@ App, which reviews on its own infra and posts a **check** back. That outbound-fr
 the lab's **LAN-webhook wall doesn't apply** (nothing has to reach `*.weyland.lab`). Separately, STUD.io's Woodpecker
 CI run reports its outcome to Port's `ci_pipeline` reliability signal (B63) — a different path from the review checks.
 Verified live on **PR #121** (2026-08-19): DeepSource (7 analyzers), CodeScene (project 78184), and Sourcery all
-posted passing checks; CodeRabbit + Qodo reviewed in the conversation. Greptile is not yet installed on this repo.
+posted passing checks; CodeRabbit + Qodo reviewed in the conversation. Greptile's App is installed too (it reviews via
+a PR comment, not a check-run, and typically only on new human PRs — not observed on the Dependabot #121).
 
 ```mermaid
 sequenceDiagram
@@ -32,5 +33,5 @@ sequenceDiagram
     Dev->>WP: woodpecker-cli pipeline create (LAN CLI — no GitHub push webhook to the LAN)
     WP->>Port: notify-port (terminal status → ci_pipeline, B63)
     Dev->>GH: read checks + reviews; squash-merge when green
-    Note over GH,Port: Greptile = the one App not yet installed on edtbl76/stud.io (browser install pending)
+    Note over GH,Port: Greptile App installed too (reviews via PR comment, not a check; activates on new human PRs)
 ```

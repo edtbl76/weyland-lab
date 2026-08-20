@@ -93,7 +93,9 @@ checks; **CodeRabbit** + **Qodo Merge** (STUD.io's `.pr_agent.toml`) review in t
 its own configs before B106 (`.deepsource.toml`/`.coderabbit.yaml`/`.pr_agent.toml`/`.mcp.json`); the weyland
 CodeHealth-MCP setup was mirrored **from** STUD.io.
 
-- **Greptile** is the one member **not yet installed** on `edtbl76/stud.io` (browser App-install, your step).
+- **Greptile** is **installed** on `edtbl76/stud.io` too (App access confirmed across weyland-lab + stud.io +
+  emangini-tailwind); it reviews via a **PR comment, not a check-run**, and wasn't observed on the recent PRs
+  (#117–#121, mostly Dependabot) — confirm it posts on the next human PR.
 - **CI → Port** for STUD.io runs is **B63** (`ci_pipeline` → `weyland_ci_reliability`), not a review-tool feed.
 - STUD.io-side doc (in the STUD.io repo): `docs/arch/code-review-stack.md` (+ `workflow.md` / `github.md`).
 
