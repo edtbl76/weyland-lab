@@ -5,11 +5,14 @@
 # registry.weyland.lab via scripts/build-push-images.sh. Pin bumps: check each tool's latest release if a URL 404s.
 FROM python:3.12-slim
 ENV DEBIAN_FRONTEND=noninteractive
+# boto3 (for the MinIO archive step in scan.py) is deliberately UNPINNED: checkov pins boto3 to an EXACT version
+# (3.2.257 → boto3==1.34.25), so any pin of our own that differs makes the install unsatisfiable and the image
+# build dies with ResolutionImpossible. Listing it unpinned declares the dependency without fighting checkov's pin.
 RUN apt-get update && apt-get install -y --no-install-recommends \
       curl ca-certificates git xz-utils default-jre-headless \
     && rm -rf /var/lib/apt/lists/* \
     && pip install --no-cache-dir 'setuptools<81' checkov==3.2.257 bandit==1.7.10 semgrep==1.90.0 \
-         ruff==0.9.10 pip-audit==2.7.3 detect-secrets==1.5.0 boto3==1.35.76
+         ruff==0.9.10 pip-audit==2.7.3 detect-secrets==1.5.0 boto3
 
 # Static binaries (amd64). Each is a single file → drop into /usr/local/bin.
 RUN set -eux; \
