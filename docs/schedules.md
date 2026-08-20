@@ -54,6 +54,7 @@ Heavy = embeds/writes or large scans (guard the node's RAM). Light = metadata/re
 | **11:00 (Sun)** | node systemd (mother) | `weyland-image-prune` (`k3s crictl rmi --prune`) — frees ephemeral storage so the node never re-hits the eviction line (B69, `nodes/mother/host/systemd/`) | weekly (Sun) | — (host timer @ **15:00 UTC**; quiet slot clear of the DataHub train) · **INSTALLED 2026-07-20** (authored 07-18, enabled 07-20) |
 | **05:30** | k8s CronJob | `docs-site-rebuild` — `kubectl rollout restart deploy/docs-site` (B69). docs-site rebuilds from a fresh `git clone` on every pod start, so without this the site silently serves a snapshot frozen at the last restart. No push-trigger available ([[lan-no-github-webhooks]]). | daily | light — restart only; the mkdocs build happens in the new pod's initContainer |
 | **01:00** | Woodpecker cron | `nightly-images` (B57a — weyland image CI: detect changed images → BuildKit build+push `registry.weyland.lab/<img>:git-<sha>` → open a tag-bump PR; you merge → Argo deploys). Repo `edtbl76/weyland-lab`, `0 5 * * *` **UTC** = 01:00 EDT / 00:00 EST (see TZ note — Woodpecker crons are UTC, not NY-pinned). | daily | light most nights (BuildKit registry cache → only genuinely-changed images rebuild); **HEAVY** only on the one-time `:vN`→`git-<sha>` migration or many-change days. Placed at 01:00 to clear the **02:17 `weyland_ingestion` HEAVY** and the 02:00 scaledown; only overlaps the light 01:00 DataHub Grafana scan. The bump PR is merged **manually**, so nothing rolls unattended. |
+| **02:30** (+≤30m jitter) | node systemd (rogueone) | `restic-backup` (B130 — encrypted incremental restic → MinIO `rogueone-backup`: dotfiles + `~/.config` + `~/.claude` memory + secrets/keyring/mkcert + curated `~/Documents` + allow-listed repos' untracked-minus-bulk; reports Port `backup` entity + Kuma push heartbeat). `nodes/rogueone/{backup,systemd/restic-backup.*}` · **INSTALLED 2026-08-20** (user unit + `enable-linger`) | daily | light — ~415M deduped repo, incremental; runs on **rogueone** (not mother), so no single-node contention — only a light MinIO write |
 | **Sat 03:00** | Dagster | `weyland_eval_job` (question-gen + run-matrix, RAG × 6 models) | weekly (Sat) — **STOPPED by default** | **HEAVY** |
 | **Sat 05:00** | Dagster | `weyland_eval_score_job` (3-judge panel → `eval_leaderboard` + Iceberg publish) | weekly (Sat) — **STOPPED by default** | med |
 
@@ -116,6 +117,9 @@ scaled down — they back live services or the mesh.
 
 ## Change log
 
+- 2026-08-20 — **Added the `restic-backup` rogueone systemd timer (B130)** — encrypted incremental restic → MinIO
+  `rogueone-backup`, daily 02:30 NY (+≤30m jitter), user unit + `loginctl enable-linger`. Off-hours ✓; on rogueone
+  (not mother) so it doesn't stack on the single node. Reports Port `backup` + a Kuma push dead-man's-switch.
 - 2026-08-18 — **Added the `nightly-images` Woodpecker cron (B57a)** — weyland image CI build pipeline on
   `edtbl76/weyland-lab`, `0 5 * * *` **UTC** = 01:00 EDT / 00:00 EST. Placed at 01:00 NY to clear the 02:00
   scaledown + the 02:17 `weyland_ingestion` HEAVY; only overlaps the light 01:00 DataHub Grafana scan. First entry
