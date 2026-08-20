@@ -1,10 +1,14 @@
 #!/usr/bin/env python3
 """B37 prep — brand-neutral scrub of the AIDLC knowledge repos for RAG ingestion.
 
-Reads the three knowledge repos out of `.methodaidlc/`, writes a SCRUBBED staging copy
+Reads the three knowledge repos out of `knowledge-repos/`, writes a SCRUBBED staging copy
 (brand "Method" removed), and uploads that copy to MinIO (step 3, done separately). The
-live `.methodaidlc/` source is never touched — it intentionally references "Method" to
-drive the workflow; only the staging copy that feeds the vector store is genericized.
+live `knowledge-repos/` source is never touched — only the staging copy that feeds the
+vector store is genericized.
+
+Source moved by the AIDLC-v2 migration (B133, 2026-08-20): these repos used to live in the
+gitignored `.methodaidlc/`, which is now retired. `--src` defaults to `knowledge-repos`;
+an older invocation passing `--src .methodaidlc` will fail with a missing-path error.
 
 Why a curated map and not `s/Method//g`: capital-M "Method" is the firm brand in ~500
 places, but ~28 occurrences are established TECHNICAL terms (the GoF "Template Method" /
@@ -12,7 +16,7 @@ places, but ~28 occurrences are established TECHNICAL terms (the GoF "Template M
 A blind delete would corrupt those, so we protect them first, then genericize the brand.
 
 Usage:
-    python3 aidlc-kb-scrub.py [--src .methodaidlc] [--dest /tmp/aidlc-kb-staging]
+    python3 aidlc-kb-scrub.py [--src knowledge-repos] [--dest /tmp/aidlc-kb-staging]
 
 Output is brand-neutral markdown under <dest>/<repo>/... ready to upload to MinIO.
 """
@@ -96,7 +100,7 @@ def scrub(text: str) -> tuple[str, int, list[str]]:
 
 def main() -> int:
     ap = argparse.ArgumentParser(description="Brand-neutral scrub of the AIDLC knowledge repos (B37).")
-    ap.add_argument("--src", default=".methodaidlc", help="path to the .methodaidlc root")
+    ap.add_argument("--src", default="knowledge-repos", help="path to the knowledge-repos root (moved out of .methodaidlc, AIDLC-v2)")
     ap.add_argument("--dest", default="/tmp/aidlc-kb-staging", help="staging output dir")
     args = ap.parse_args()
 

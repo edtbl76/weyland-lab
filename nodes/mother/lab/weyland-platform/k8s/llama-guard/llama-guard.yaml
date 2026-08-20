@@ -62,7 +62,12 @@ spec:
             periodSeconds: 30
           resources:
             requests:
-              cpu: "1"
+              # Node CPU-requests are saturated (same wall the Flink JobManager hit — see
+              # k8s/data-mesh/flink-session.yaml). Measured: this pod RESERVED a full core while
+              # using <0.03 under normal traffic, and a 250m batch pod (code-scan-suite) could not
+              # schedule behind it. There is no CPU *limit* here, so the request is a scheduling
+              # floor only — inference still bursts to whatever the node has free (node runs ~19%).
+              cpu: 100m
               memory: 2Gi
             limits:
               memory: 4Gi

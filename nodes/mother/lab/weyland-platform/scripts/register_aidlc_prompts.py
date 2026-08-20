@@ -2,11 +2,19 @@
 """Derive a large corpus of Bifrost prompts from the AIDLC knowledge base (B111) — parallels the skill corpus.
 
 Each knowledge entry is naturally prompt-shaped: a consulting framework -> an "apply this framework" prompt; an AIDLC
-stage -> a "run this stage" prompt; an industry entry -> a domain-lens prompt. This generator reads .methodaidlc and
-emits foldered, model-agnostic prompts into Bifrost's Prompt Repository, scrubbing the proprietary "Method" brand (same
-as the skill generators). Reuses scrub()/describe()/_read()/kebab()/ROOT from register_aidlc_skills.py.
+stage -> a "run this stage" prompt; an industry entry -> a domain-lens prompt. This generator emits foldered,
+model-agnostic prompts into Bifrost's Prompt Repository, scrubbing the proprietary "Method" brand (same as the skill
+generators). Reuses scrub()/describe()/_read()/kebab()/ROOT from register_aidlc_skills.py.
 
-RUN (locally reads the files, pipes the loader in-cluster; .methodaidlc stays the source of truth):
+⚠ PARTIALLY RETIRED as of B133 (AIDLC-v2 migration, 2026-08-20) — this generator reads TWO sources:
+  * `knowledge-repos/` (KB_ROOT) -> `consulting-frameworks` (60) + `industry-lens` (56) — ALIVE, decoupled, regenerable.
+  * the Method rule tree (ROOT) -> `aidlc-stages` (28)                                   — RETIRED, source removed.
+So a full run now yields 116 prompts, not the historical 144. The 28 stage prompts REMAIN REGISTERED in Bifrost but
+are FROZEN — not regenerable here. The script warns on stderr rather than failing, because the 116 are still valid.
+To restore the stage lane, set AIDLC_ROOT at a restored Method tree (~/methodaidlc-retired/) or re-derive from the v2
+stage files under .claude/aidlc-common/stages/. See docs/runbooks/aidlc-workflow.md#accepted-gaps.
+
+RUN (locally reads the files, pipes the loader in-cluster):
     python3 scripts/register_aidlc_prompts.py --dry
     python3 scripts/register_aidlc_prompts.py | kubectl -n weyland exec -i deploy/weyland-guard -- python -
 
@@ -20,7 +28,7 @@ import sys
 
 _spec = importlib.util.spec_from_file_location("_r", os.path.join(os.path.dirname(__file__), "register_aidlc_skills.py"))
 _r = importlib.util.module_from_spec(_spec); _spec.loader.exec_module(_r)
-scrub, describe, kebab, _read, ROOT = _r.scrub, _r.describe, _r.kebab, _r._read, _r.ROOT
+scrub, describe, kebab, _read, ROOT, KB_ROOT = _r.scrub, _r.describe, _r.kebab, _r._read, _r.ROOT, _r.KB_ROOT
 
 FOLDERS = [
     ("consulting-frameworks", "Apply a specific consulting/strategy framework to a problem — one prompt per framework."),
@@ -31,6 +39,23 @@ FOLDERS = [
 def _msgs(system, user):
     return [{"role": "system", "content": scrub(system)}, {"role": "user", "content": scrub(user)}]
 
+def _warn_if_stage_source_absent():
+    """Announce the retired 'aidlc-stages' lane (B133).
+
+    The Method rule tree was removed by the AIDLC-v2 migration, so that lane now yields nothing and the total drops
+    from 144 to 116. A silent drop is indistinguishable from a healthy run — which is exactly how a frozen corpus
+    rots unnoticed — so say it out loud. Kept out of build() so the branch doesn't add to that function's already
+    high cyclomatic complexity.
+    """
+    if any(os.path.isdir(os.path.join(ROOT, layer)) for layer in (".method-rule-details", ".aidlc-rule-details")):
+        return
+    print(
+        f"WARNING: Method rule source absent under {ROOT} — skipping the 'aidlc-stages' lane (28 prompts).\n"
+        "         Those prompts stay REGISTERED in Bifrost but are FROZEN (B133). Expect 116, not 144.\n"
+        "         Set AIDLC_ROOT to a restored Method tree to regenerate them.",
+        file=sys.stderr,
+    )
+
 def build():
     prompts, seen = [], set()
     def add(folder, name, lane, messages):
@@ -40,7 +65,7 @@ def build():
         seen.add(name)
         prompts.append({"folder": folder, "name": name, "commit_message": f"lane: {lane}", "messages": messages})
 
-    base = os.path.join(ROOT, "consulting-tools-repository")
+    base = os.path.join(KB_ROOT, "consulting-tools-repository")
     for fn in sorted(os.listdir(base)) if os.path.isdir(base) else []:
         if not fn.endswith(".md") or fn.lower() in ("index.md", "readme.md"):
             continue
@@ -52,6 +77,8 @@ def build():
             f"and produce the framework's SPECIFIC structured outputs — not a generic essay. State assumptions where "
             f"inputs are missing; never invent facts to fill the framework.",
             f"Apply {t} to:\n\n{{{{subject}}}}"))
+
+    _warn_if_stage_source_absent()
 
     for layer in (".method-rule-details", ".aidlc-rule-details"):
         for phase in ("inception", "construction", "operations", "pre-inception"):
@@ -69,7 +96,7 @@ def build():
                     f"unknown rather than fabricating it.",
                     f"Execute the {t} stage for:\n\n{{{{context}}}}"))
 
-    iv = os.path.join(ROOT, "industry-vertical-repository")
+    iv = os.path.join(KB_ROOT, "industry-vertical-repository")
     for vertical in sorted(os.listdir(iv)) if os.path.isdir(iv) else []:
         vdir = os.path.join(iv, vertical)
         if not os.path.isdir(vdir):

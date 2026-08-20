@@ -1,15 +1,19 @@
 #!/usr/bin/env python3
 """Bring the AIDLC knowledge-base repositories into the Bifrost Skills Repository as Agent Skills (B111).
 
-The three .methodaidlc knowledge repos are large libraries of reusable, self-contained knowledge docs — each entry is a
-skill. This generator ingests all three, scrubbing the proprietary "Method" brand (same as register_aidlc_skills.py):
+The three `knowledge-repos/` libraries are large collections of reusable, self-contained knowledge docs — each entry is
+a skill. This generator ingests all three, scrubbing the proprietary "Method" brand (same as register_aidlc_skills.py):
   - engineering-knowledge-repository/  -> ek-<stem>   (design patterns, practices, architectures — ~395)
   - consulting-tools-repository/        -> ct-<stem>   (frameworks: adkar, bcg-matrix, jtbd, … — ~60)
   - industry-vertical-repository/<v>/   -> iv-<v>-<stem> (per-vertical insights — ~56)
 
+Source: `knowledge-repos/` at the repo root, resolved via KB_ROOT (env `AIDLC_KB_ROOT`, else self-discovery). The
+repos were moved there out of the retired `.methodaidlc/` by the AIDLC-v2 migration (B133) precisely so this
+generator survives the workflow's retirement — they are DATA, not workflow. This script is NOT retired; its sibling
+`register_aidlc_skills.py` (the 52 stage skills) IS.
+
 Reuses scrub()/describe()/kebab()/_read()/LOADER from register_aidlc_skills.py (single source of that logic). Runs
-LOCALLY (reads the files) and emits a self-contained loader piped into the cluster — .methodaidlc stays the source of
-truth, nothing duplicated into git:
+LOCALLY (reads the files) and emits a self-contained loader piped into the cluster:
     python3 scripts/register_aidlc_kb_skills.py --dry
     python3 scripts/register_aidlc_kb_skills.py | kubectl -n weyland exec -i deploy/weyland-guard -- python -
 Idempotent on the cluster side (create-if-absent by name).
@@ -22,7 +26,7 @@ import sys
 
 _spec = importlib.util.spec_from_file_location("_r", os.path.join(os.path.dirname(__file__), "register_aidlc_skills.py"))
 _r = importlib.util.module_from_spec(_spec); _spec.loader.exec_module(_r)
-scrub, describe, kebab, _read, LOADER, ROOT = _r.scrub, _r.describe, _r.kebab, _r._read, _r.LOADER, _r.ROOT
+scrub, describe, kebab, _read, LOADER, ROOT, KB_ROOT = _r.scrub, _r.describe, _r.kebab, _r._read, _r.LOADER, _r.ROOT, _r.KB_ROOT
 
 # (dir, name-prefix, fixed-category-or-None). None → category derived per-vertical (industry is nested).
 REPOS = [
@@ -35,7 +39,7 @@ SKIP = {"index", "readme"}   # keep _overview.md (useful vertical context)
 def build():
     skills, seen = [], set()
     for repo, prefix, fixed_cat in REPOS:
-        base_dir = os.path.join(ROOT, repo)
+        base_dir = os.path.join(KB_ROOT, repo)
         for dp, _, files in os.walk(base_dir):
             for fn in sorted(files):
                 if not fn.endswith(".md"):

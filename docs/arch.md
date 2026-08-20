@@ -309,10 +309,13 @@ agents/workflows and platform state. Agents call the tool-server, *not* database
       the canonical ranking), **`mlflow.evaluate`** (GenAI-native metric surface, re-scores the panel's answers), and
       **Promptfoo** (promptfoo.weyland.lab — the fast prompt-regression gate) — each answering a different question
       (rank / standard-metrics / did-I-break-it). [demos/eval-lanes.md](demos/eval-lanes.md).
-    - **Two Glossaries.** *AIDLC KB* (`emit_glossary` + `aidlc_glossary.py`): 17 nodes / 480 terms **generated at
-      build time** from the `.methodaidlc` source repos (industry verticals, consulting tools, AIDLC stages, and
-      396 engineering entries nested by frontmatter tag) — the source files aren't in the image, so the taxonomy
-      is baked into a data module. *Data Mesh* (`emit_mesh_glossary` + `mesh_vocabulary.py`): 6 nodes / 44
+    - **Two Glossaries.** *AIDLC KB* (`emit_glossary` + `aidlc_glossary.py`): 17 nodes / 480 terms **baked into a
+      data module** — the source files aren't in the image, so the taxonomy travels as generated Python. It was
+      generated from the `.methodaidlc` source repos (industry verticals, consulting tools, AIDLC stages, and 396
+      engineering entries nested by frontmatter tag). **⚠ Frozen as of B133 (2026-08-20):** the AIDLC-v2 migration
+      retired `.methodaidlc/`, so the *stage*-derived nodes can no longer be regenerated here — the baked module is
+      now the source of truth for them. The knowledge-repo–derived terms *are* still regenerable from
+      `knowledge-repos/`. See [runbooks/aidlc-workflow.md](runbooks/aidlc-workflow.md#accepted-gaps). *Data Mesh* (`emit_mesh_glossary` + `mesh_vocabulary.py`): 6 nodes / 44
       **hand-authored** terms with canonical definitions (11 Spotify audio features, Big-Five/OCEAN, medallion
       layers, cryptic source-schema columns — MusicBrainz `entity0_credit`/`gid`, WHO GHO `dim1`, CDC `op`).
       Answers *"what does this concept mean?"*
@@ -962,6 +965,57 @@ sanctioned path). A **Claude Pro/Max** sub via a third-party agent stays the B26
 agent remains **Claude Code** itself (B29). Runbook [runbooks/coding-agents.md](runbooks/coding-agents.md), demo
 [demos/coding-agents.md](demos/coding-agents.md), flow [diagrams/flow-coding-agents.md](diagrams/flow-coding-agents.md).
 
+### 8c. Development lifecycle — AI-DLC v2 (B133)
+
+If §8b is *which model drives the keyboard*, this is *what process the keyboard is driven through*. The lab runs
+**AWS AI-DLC v2** (`awslabs/aidlc-workflows`, `v2` branch, pinned at commit **`4d0968f`** / internal v2.6.18) as its
+structured-development workflow: **33 stages / 5 phases / 14 agents**, an approval gate at every stage, and a
+learning system that promotes human corrections into persistent rules. Invoked **on demand** with `/aidlc`; it does
+**not** ambiently govern ordinary conversational work.
+
+**How the engine is shaped.** v2 is *not* a prompt library — it is a deterministic forwarding loop around a
+TypeScript engine. The orchestrator asks `aidlc-orchestrate.ts next` what to do, receives exactly **one typed
+directive** (`run-stage`, `ask`, `load-steering`, `print`, `error`, `done`, `parked`, `invoke-swarm`), executes that
+single move, then `report`s the outcome so the next `next` reads fresh state. All between-stage routing — scope
+resolution, gate status, sequencing, resume guards — lives in the engine; the model owns only execution quality
+*inside* a stage. That split is what makes the workflow auditable: every state transition is tool-emitted, never
+narrated into existence by a model.
+
+**Why v2 rather than the alternatives.** The lab previously ran **"the Method"** — a bespoke fork of AWS AI-DLC with
+a consulting overlay (`.methodaidlc/.method-rule-details/`, 54 rule files, two-layer resolution). B86 had already
+evaluated the external spec-driven field. The comparison that decided it:
+
+| Option | Process depth | Maintenance cost | Fit for a solo $0 lab | Verdict |
+|---|---|---|---|---|
+| **AWS AI-DLC v2** (chosen) | 33 stages / 5 phases / 14 agents, gates + learning loop | **$0 fork tax** — upstream is the source; pin a commit | on-demand, scope-adaptive (7-stage `bugfix` → 33-stage `enterprise`) | ✅ **adopted** |
+| **The Method** (incumbent) | v1 AI-DLC + consulting overlay | **high** — every AWS release forced a re-port | mob rituals / team-ownership / engagement archetypes are ceremony for one person | ❌ retired |
+| **OpenSpec / Spec Kit / BMAD** (B86) | coding-workflow scope — delta specs, constitution gate, context files | low | narrower than a lifecycle; **notations worth borrowing** | ➖ cross-pollinate (B126), don't migrate |
+| **Kiro** | managed lifecycle | low | **$0 violation** — managed AWS / Bedrock-locked / no BYOK | ❌ rejected |
+| **No framework** | — | zero | the DoD gate + backlog already carry the quality bar | ➖ baseline |
+
+**The tradeoff, stated honestly.** The fork tax was the whole problem: maintaining a private overlay meant every
+upstream release became a merge project, and the overlay's *substance* — what actually drove quality here — turned
+out to be the project's own **DoD 7-pillar gate**, `backlog.md`, and the memory system, none of which are AI-DLC at
+all. So v2 was adopted **clean**, and the consulting framing was **consciously dropped** rather than ported. What
+that costs: 52 generated AIDLC stage skills and 28 stage prompts are now **frozen** (registered, not regenerable) —
+an accepted, documented gap, not an oversight.
+
+**What was kept, and why it's load-bearing.** The three **knowledge repositories** (engineering-knowledge ·
+consulting-tools · industry-vertical, 517 docs) are **DATA, not workflow** — they feed 511 Bifrost KB skills, the
+domain-lens prompts, the DataHub glossary, and the B37 RAG corpus. They were lifted out of `.methodaidlc/` into a
+tracked **`knowledge-repos/`** at the repo root and every generator repointed via a `KB_ROOT` resolver, *before*
+Method was retired. Decoupling the data from the framework is the move that made retiring the framework safe.
+
+**Provider note.** v2 ships assuming Claude Code on **Bedrock** (`CLAUDE_CODE_USE_BEDROCK=1` + region + Bedrock
+model IDs). The lab is **$0 Anthropic-direct**, so that env block is stripped from `.claude/settings.json` — the
+workflow rules themselves are provider-neutral. Prereq: **`bun`**, referenced by **absolute path** in hooks (hook
+subprocesses run under `/bin/sh` and don't inherit the shell `PATH`).
+
+Runbook [runbooks/aidlc-workflow.md](runbooks/aidlc-workflow.md), demo
+[demos/aidlc-workflow.md](demos/aidlc-workflow.md), flow
+[diagrams/flow-aidlc-workflow.md](diagrams/flow-aidlc-workflow.md). Relates B86 (framework eval), B126 (borrow
+notations), B37 (KB ingest).
+
 ---
 
 ## 9. Key flows
@@ -994,6 +1048,7 @@ observed; **Control/ops** = scheduled and operational paths.
 | Security/mesh | Ingress / TLS front door | [flow-ingress-tls.md](diagrams/flow-ingress-tls.md) |
 | Control/ops | Model-gateway routing (B26) | [flow-model-gateway.md](diagrams/flow-model-gateway.md) |
 | Control/ops | Coding agents — dev → agent → direct provider (B15) | [flow-coding-agents.md](diagrams/flow-coding-agents.md) |
+| Control/ops | AI-DLC workflow — `/aidlc` forwarding loop (next → directive → stage → report) (B133) | [flow-aidlc-workflow.md](diagrams/flow-aidlc-workflow.md) |
 | Control/ops | model_catalog refresh (B26) | [flow-model-catalog.md](diagrams/flow-model-catalog.md) |
 | Control/ops | Roadmap-sync -> Hermes Kanban (B27) | [flow-roadmap-sync.md](diagrams/flow-roadmap-sync.md) |
 | Control/ops | Alerting (B5) | [flow-alerting.md](diagrams/flow-alerting.md) |

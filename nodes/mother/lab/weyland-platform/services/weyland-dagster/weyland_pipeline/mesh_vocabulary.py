@@ -1,5 +1,6 @@
 """Hand-authored Data-Mesh business vocabulary for the DataHub glossary (Surface 1 of the field-semantics
-build). Unlike aidlc_glossary.py (generated from the .methodaidlc source files), these are curated terms whose
+build). Unlike aidlc_glossary.py (generated from the now-retired .methodaidlc source files, and frozen since B133),
+these are curated terms whose
 definitions are CANONICAL — Spotify audio-feature docs, standard Big-Five psychology, standard lakehouse/medallion
 terminology, MusicBrainz + WHO-GHO + Debezium schema semantics — transcribed, not invented.
 

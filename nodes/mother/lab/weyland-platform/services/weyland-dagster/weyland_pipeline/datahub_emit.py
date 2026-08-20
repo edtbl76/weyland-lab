@@ -1127,7 +1127,9 @@ def emit_glossary():
     Verticals, Consulting Tools, AIDLC Stages, Engineering Knowledge + its 12 tag-derived category sub-groups); terms
     = every leaf value with its REAL title + definition. Baked from .methodaidlc at build time into
     aidlc_glossary.GLOSSARY (the source files aren't in the dagster image). Idempotent — re-run adopts new/edited
-    entries when the module is regenerated. Returns (n_nodes, n_terms)."""
+    entries when the module is regenerated. NOTE (B133, 2026-08-20): aidlc_glossary.py is now FROZEN — the
+    .methodaidlc source was retired by the AIDLC-v2 migration, so "when the module is regenerated" no longer
+    happens without restoring that source. Emission itself is unaffected. Returns (n_nodes, n_terms)."""
     from weyland_pipeline.aidlc_glossary import GLOSSARY
 
     emitter = _gms_emitter()

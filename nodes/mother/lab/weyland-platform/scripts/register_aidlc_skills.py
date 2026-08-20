@@ -1,9 +1,23 @@
 #!/usr/bin/env python3
 """Bring the AIDLC / Method rule library into the Bifrost Skills Repository as Agent Skills (B111).
 
+⛔ RETIRED as of B133 (AIDLC-v2 migration, 2026-08-20) — this generator NO LONGER RUNS in weyland.
+
+It reads the Method rule tree (`.methodaidlc/.method-rule-details/` + `.aidlc-rule-details/`), which the v2
+migration removed from this repo (retired to `~/methodaidlc-retired/`, tarball + the `method-aidlc` installer repo).
+Its 52 skills REMAIN REGISTERED in Bifrost from the last successful run — they are FROZEN, not regenerable here.
+To rebuild them you must first restore a Method source tree and point AIDLC_ROOT at it, or re-derive the procedures
+from the v2 stage files under `.claude/aidlc-common/stages/`. See docs/runbooks/aidlc-workflow.md#accepted-gaps.
+
+Kept in-tree (rather than deleted) because it is the only executable record of how those frozen skills were derived,
+and because AIDLC_ROOT makes it runnable again against a restored source. It now FAILS LOUDLY when the source is
+absent — previously it emitted a zero-skill loader that reported "0 created" and looked like success.
+
 The .methodaidlc rule files ARE reusable procedures (one per AIDLC stage / ritual / extension / common rule). This
 generator reads them from the repo and turns each into a Bifrost skill (name `aidlc-<stem>`, body = the rule content).
-The .methodaidlc tree stays the single source of truth — nothing is duplicated into git; re-run to resync.
+
+NOTE: the KB skills generator (`register_aidlc_kb_skills.py`, 511 skills) is a DIFFERENT script and is NOT retired —
+its knowledge repos were decoupled to `knowledge-repos/` and it still runs normally.
 
 RUN MODEL — the Bifrost API is only reachable in-cluster, but the rule files are only on the workstation. So this
 generator runs LOCALLY (reads the files) and EMITS a self-contained loader to stdout that is piped into the cluster:
@@ -30,6 +44,18 @@ def _find_aidlc():
     return ".methodaidlc"
 
 ROOT = os.getenv("AIDLC_ROOT") or _find_aidlc()
+# Knowledge repos (engineering-knowledge / consulting-tools / industry-vertical) were moved OUT of
+# .methodaidlc into a standalone, committed home during the AIDLC-v2 migration — they are DATA that
+# feeds Bifrost skills/prompts + the DataHub glossary, independent of the (retired) Method workflow.
+def _find_kb():
+    d = os.path.dirname(os.path.abspath(__file__))
+    while d != "/":
+        cand = os.path.join(d, "knowledge-repos")
+        if os.path.isdir(cand):
+            return cand
+        d = os.path.dirname(d)
+    return "knowledge-repos"
+KB_ROOT = os.getenv("AIDLC_KB_ROOT") or _find_kb()   # self-discovers; survives .methodaidlc removal
 LAYERS = [(".method-rule-details", "method"), (".aidlc-rule-details", "aidlc")]
 SKIP_STEMS = {"readme", "welcome-message"}   # branding / index, not procedures
 
@@ -140,8 +166,31 @@ for sk in SKILLS:
 print("\ndone. %d created, %d existing, %d total AIDLC skills." % (created, skipped, len(SKILLS)))
 '''
 
+def _require_method_source(root):
+    """Fail loudly if the retired Method rule tree is absent (B133).
+
+    os.walk() over a missing directory yields nothing, so without this the generator emitted a VALID loader
+    containing zero skills and printed "0 created, 0 existing" — indistinguishable from a clean no-op re-sync.
+    A retired generator must announce that it is retired, not quietly produce an empty artifact.
+    """
+    present = [sub for sub, _ in LAYERS if os.path.isdir(os.path.join(root, sub))]
+    if present:
+        return
+    sys.exit(
+        "register_aidlc_skills.py: RETIRED — no Method rule source found.\n"
+        f"  looked for {[s for s, _ in LAYERS]} under: {root}\n"
+        "  The AIDLC-v2 migration (B133, 2026-08-20) removed .methodaidlc/ from this repo.\n"
+        "  Its 52 skills remain REGISTERED in Bifrost but are FROZEN — not regenerable here.\n"
+        "  To run anyway, restore a Method source and set AIDLC_ROOT, e.g.:\n"
+        "    AIDLC_ROOT=~/methodaidlc-retired python3 scripts/register_aidlc_skills.py --dry\n"
+        "  See docs/runbooks/aidlc-workflow.md#accepted-gaps\n"
+        "  (For the 511 KB skills use register_aidlc_kb_skills.py — that one is NOT retired.)"
+    )
+
 def main():
-    skills = build(os.path.abspath(ROOT))
+    root = os.path.abspath(ROOT)
+    _require_method_source(root)
+    skills = build(root)
     if "--dry" in sys.argv:
         for s in skills:
             print(f"{s['metadata']['category']:22} {s['name']:34} body={len(s['skill_md_body']):5}  {s['description'][:70]}")

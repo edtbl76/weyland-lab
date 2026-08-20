@@ -2,6 +2,14 @@
 Baked taxonomy (nodes + terms with real titles/definitions) so the DataHub glossary emitter
 has no runtime dependency on the source files (which aren't in the dagster image).
 Counts: 17 nodes, 480 terms.
+
+⚠ FROZEN as of B133 (AIDLC-v2 migration, 2026-08-20). The generator reads `.methodaidlc/`,
+which that migration retired, so THIS FILE CAN NO LONGER BE REGENERATED as a whole — it is
+now the source of truth for the AIDLC Stages nodes rather than a derived artifact. The
+knowledge-repo-derived nodes (Industry Verticals, Consulting Tools, Engineering Knowledge)
+could be rebuilt from `knowledge-repos/` if gen_glossary.py were repointed at KB_ROOT; the
+stage nodes would need a restored Method tree (~/methodaidlc-retired/) or re-derivation from
+.claude/aidlc-common/stages/. See docs/runbooks/aidlc-workflow.md#accepted-gaps.
 """
 
 GLOSSARY = { 'nodes': [ { 'id': 'aidlc-knowledge',

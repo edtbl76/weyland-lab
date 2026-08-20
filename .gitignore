@@ -93,10 +93,22 @@ nodes/openclaw/lab/openclaw/
 *-key.pem
 certs/
 
-# Method AIDLC — installed tooling
+# AIDLC — the Method (retired B133) + hand-written design docs
+# NOTE: /CLAUDE.md was ignored here because the Method GENERATED it (222 lines).
+# Since B133 it is hand-written source (19 lines: @AGENTS.md + lab conventions)
+# and the entry point that imports AGENTS.md, so it is now TRACKED like the rest
+# of the instruction layer (AGENTS.md, .claude/rules/, aidlc/spaces/*/memory/).
 .methodaidlc/
-/CLAUDE.md
 /aidlc-docs/
+
+# AI-DLC v2 workspace (B133) — machine-local churn ONLY.
+# Everything else under aidlc/ stays TRACKED on purpose: .claude/rules/aidlc.md
+# @-imports aidlc/spaces/default/memory/{org,team,project}.md + phases/*.md into
+# CLAUDE.md context, so a blanket `aidlc/` ignore would leave a fresh clone with
+# no method layer at all. Ignore the per-machine bookkeeping, not the records.
+aidlc/.aidlc-sessions/
+aidlc/.aidlc-clone-id
+aidlc/spaces/*/intents/.aidlc-hooks-health/
 
 # Stray secret copies — n8n reads the key from a k8s Secret, not this file.
 # NOTE: already in git history — untrack + rotate the n8n key (security task).

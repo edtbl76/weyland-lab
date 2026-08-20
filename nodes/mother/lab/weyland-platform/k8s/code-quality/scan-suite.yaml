@@ -39,7 +39,11 @@ spec:
                 allowPrivilegeEscalation: false
                 seccompProfile: { type: RuntimeDefault }
               resources:
-                requests: { cpu: 250m, memory: 512Mi }
+                # cpu is a SCHEDULING RESERVATION, not a cap — there is no cpu limit, so the scan
+                # still bursts to whatever the node has free. On a chronically request-saturated
+                # single node a batch job with no latency SLO should reserve little and burst wide:
+                # at 250m this job sat Pending for 40min behind reservations the fleet wasn't using.
+                requests: { cpu: 100m, memory: 512Mi }
                 limits: { memory: 2Gi } # semgrep auto + trivy fs are the heavy ones
               volumeMounts:
                 - { name: src, mountPath: /src }

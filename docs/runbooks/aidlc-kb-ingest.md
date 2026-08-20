@@ -1,10 +1,16 @@
 # B37 — AIDLC Knowledge-Base Ingestion (MinIO → RAG)
 
-Ingest the three AIDLC knowledge repositories (`.methodaidlc/` engineering + consulting + industry, ~511
+Ingest the three AIDLC knowledge repositories (`knowledge-repos/` engineering + consulting + industry, ~511
 chunk-eligible markdown files) into the multi-backend RAG so `/context/*` can answer with *domain* knowledge,
 not just infra docs. **On-demand** (the corpus is static) — there is no schedule; you re-run after re-uploading.
 
-**Shape:** the source is the user's own IP, kept **out of git** and **brand-neutral**. A local scrub strips all
+> **Source moved (B133, 2026-08-20).** The repos used to live in the gitignored `.methodaidlc/`. The AIDLC-v2
+> migration relocated them to **`knowledge-repos/`** at the repo root (tracked), and `.methodaidlc/` is **gone**
+> (retired to `~/methodaidlc-retired/`). The scrub's `--src` now defaults to `knowledge-repos`; any older copy of
+> this runbook passing `--src .methodaidlc` will fail. The repos are the user's own IP and are now **committed**,
+> so the brand scrub still runs before upload for neutrality — see [aidlc-workflow.md](aidlc-workflow.md).
+
+**Shape:** the source is the user's own IP, kept **brand-neutral** on the way out. A local scrub strips all
 "Method" branding into a staging copy, which is uploaded to a **private MinIO bucket**; a Dagster asset reads the
 bucket and writes to all 4 backends under an `aidlc-kb/` `source_path` namespace (so it coexists with the `docs/`
 corpus in the same stores and is found by the same retrieval). Phase 1 = chunk-ingest (this runbook). Phase 2 =
@@ -26,7 +32,7 @@ frontmatter→Neo4j graph (B37 step 5). LLM concept extraction is deferred to **
 **1. Scrub to a brand-neutral staging copy** (local, on rogueone). Verifies 0 brand "Method" survives while
 keeping technical terms (`Template Method`, `Factory Method`, …):
 ```
-python3 nodes/mother/lab/weyland-platform/scripts/aidlc-kb-scrub.py --src .methodaidlc --dest /tmp/aidlc-kb-staging
+python3 nodes/mother/lab/weyland-platform/scripts/aidlc-kb-scrub.py --src knowledge-repos --dest /tmp/aidlc-kb-staging
 ```
 
 **2. Upload to MinIO** (`mc` alias `weyland` → `s3.weyland.lab`; mirror = upsert + delete removed):
@@ -149,5 +155,6 @@ a dev license, parked in favor of NeoDash.
   skips its prune — it will not wipe an existing KB on a bad run.
 - **Not chunked:** `index.md` and `README.md` are skipped (navigation/brand). `index.md` may feed the Phase-2
   frontmatter graph.
-- **Brand scrub** runs on a *staging copy only* — never the live `.methodaidlc/` source, which intentionally
-  references "Method" to drive the AIDLC workflow.
+- **Brand scrub** runs on a *staging copy only* — never the live `knowledge-repos/` source, which retains its
+  original wording. (Pre-B133 this source was `.methodaidlc/`, where the branding also drove the retired Method
+  workflow; the workflow is gone, the neutrality requirement for the distributed corpus is not.)

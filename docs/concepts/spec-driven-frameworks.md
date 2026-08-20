@@ -6,7 +6,25 @@ it overlaps or diverges from the Method's stages, and decide whether any pattern
 commitment to adopt any tool** — the output is this comparison + a decision matrix.
 
 > Data current as of **2026-08-11** (four parallel web-research passes). Versions/stars/prices move fast — see
-> [Provenance & freshness](#provenance--freshness) for the caveats.
+> [Provenance & freshness](#provenance-freshness) for the caveats.
+
+> ### ⚠ The incumbent changed (B133, 2026-08-20)
+>
+> This page evaluates the four contenders against **"the Method"** — weyland's bespoke fork of AWS AI-DLC. The Method
+> has since been **retired**: the lab migrated to **AWS AI-DLC v2** clean (`awslabs/aidlc-workflows` `v2`, pinned
+> `4d0968f`), because maintaining the fork cost a re-port on every upstream release. See
+> [arch.md §8c](../arch.md#8c-development-lifecycle-ai-dlc-v2-b133).
+>
+> **What survives:** the *core finding* is unchanged, and if anything stronger. The coverage asymmetry was never about
+> the fork — it was about **lifecycle vs coding-workflow**, and AI-DLC v2 spans the same full arc (33 stages across
+> Ideation → Inception → Construction → **Operation**, with the learning loop back). The four contenders still cluster
+> in the boxed middle band. **Cross-pollination, not migration** remains the call, and **Kiro is still disqualified**
+> on the same $0 / Bedrock-lock grounds — now doubly so, since v2 gives us the AWS lifecycle *without* the managed tier.
+>
+> **What changed:** wherever this page says "keep the Method as the spine," read **"keep AI-DLC v2 as the spine."** The
+> B126 follow-up (borrow delta specs / EARS / constitution / context-engineered unit files) now targets v2's stage
+> files under `.claude/aidlc-common/stages/` rather than the Method's rule tree — and is *easier*, since v2's
+> `core/` → `dist/<harness>/` packaging is an explicit customization seam the fork never had.
 
 ## Bottom line up front
 
@@ -29,7 +47,8 @@ commitment to adopt any tool** — the output is this comparison + a decision ma
 
 | | One-liner | Origin | License / cost | Self-host? |
 |---|---|---|---|---|
-| **The Method** (AIDLC) | Full consulting-delivery lifecycle: discovery → construction → operations, looped | weyland (user IP, `.methodaidlc/`) | private IP | ✅ (it's local rules) |
+| **The Method** (AIDLC) ⚠️ *retired B133* | Full consulting-delivery lifecycle: discovery → construction → operations, looped | weyland (user IP, `.methodaidlc/`) | private IP | ✅ (it's local rules) |
+| **AWS AI-DLC v2** *(the incumbent since B133)* | Same full arc, upstream-maintained: 33 stages / 5 phases / 14 agents + gates + learning loop | awslabs/aidlc-workflows (`v2`, `4d0968f`) | Apache-2.0, $0 | ✅ (local `.claude/` + `bun`) |
 | **OpenSpec** | Spec-first change proposals with **delta specs**, agent-agnostic | Fission-AI | MIT, $0 | ✅ |
 | **GitHub Spec Kit** | `/specify → /plan → /tasks → /implement` pipeline with a **constitution** | GitHub | MIT, $0 | ✅ |
 | **BMAD-METHOD** | **Role-agents** (analyst/PM/architect/SM/dev/QA) + sharded story files | BMad Code, LLC | MIT, $0 | ✅ |
@@ -169,5 +188,6 @@ Compiled from four parallel web-research passes (2026-08-11). Figures move fast 
 - **Kiro** GA in 2026 (exact date conflicts: ~Mar–May 2026), Pro tier **$20/user/mo** (some reviews cite $19 — trust $20).
   Model lineup shifts fast; treat version numbers as point-in-time.
 
-Related: [[methodaidlc-user-authored]] (the Method is the user's own IP), [[feedback-aidlc-not-superpowers]],
-[[feedback-zero-budget]]. Backlog: B86.
+Related: [[aidlc-v2-migration]] (the Method → AI-DLC v2 cutover that superseded this page's incumbent),
+[[methodaidlc-user-authored]] (the Method was the user's own IP), [[feedback-zero-budget]].
+Backlog: B86 (this eval), B126 (borrow the notations), B133 (the v2 migration).

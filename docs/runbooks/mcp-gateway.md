@@ -198,7 +198,13 @@ required** for tools to flow. See memory `bifrost-vk-mcp-attach`.
 5. re-authorize Hugging_Face + Linear in the UI (OAuth grant is interactive).
 6. `kubectl -n weyland exec -i deploy/weyland-guard -- python - < scripts/register_bifrost_prompts.py`  (Prompt Repository — 89 prompts / 10 folders)
 7. `kubectl -n weyland exec -i deploy/weyland-guard -- python - < scripts/register_bifrost_skills.py`  (Skills Repository — 20 lab/generic Agent Skills)
-8. `python3 scripts/register_aidlc_skills.py | kubectl -n weyland exec -i deploy/weyland-guard -- python -`  (52 AIDLC stage/ritual/extension procedures; runs LOCALLY to read .methodaidlc, pipes the loader in-cluster; scrubs the "Method" brand)
+8. ~~`python3 scripts/register_aidlc_skills.py | …`~~ — ⛔ **RETIRED (B133, 2026-08-20). Do not run.** It read the
+   Method rule tree (`.methodaidlc/.method-rule-details/`), which the AIDLC-v2 migration removed, so it now exits
+   without emitting a loader. Its 52 AIDLC stage/ritual/extension procedures **remain registered** in Bifrost from
+   the last successful run — they are **frozen, not regenerable** from weyland. To rebuild them you would first have
+   to restore the Method source (`~/methodaidlc-retired/` or `~/IdeaProjects/method-aidlc`) or re-derive the
+   procedures from the v2 stage files in `.claude/aidlc-common/stages/`. See
+   [aidlc-workflow.md](aidlc-workflow.md#accepted-gaps).
 9. `python3 scripts/register_aidlc_kb_skills.py | kubectl -n weyland exec -i deploy/weyland-guard -- python -`  (511 knowledge-base entries: 395 engineering-knowledge + 60 consulting-tools + 56 industry-vertical)
 
 **Skills Repository (B111 2026-08-01):** 20 Agent Skills (Anthropic-style: frontmatter cols + `skill_md_body`) codified in
