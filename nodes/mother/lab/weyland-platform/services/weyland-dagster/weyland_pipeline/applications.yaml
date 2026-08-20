@@ -99,13 +99,14 @@ applications:
   - {key: opencost, name: OpenCost, group: platform, datahub_application: false, owns: [], capabilities: ["cost-management"], port_component: opencost, description: "Cloud/lab cost accounting."}
   - {key: argocd, name: Argo CD, group: platform, datahub_application: false, owns: [], capabilities: ["gitops", "ci-cd"], port_component: argocd, description: "GitOps engine (the app-of-apps)."}
 
-  # ============ CODE-REVIEW TOOLS (B106 — the ai-code-review lane; external SaaS / IDE / CLI, own no lab data) ============
-  - {key: deepsource, name: DeepSource, group: code-review, datahub_application: false, owns: [], capabilities: ["code-review", "code-quality"], port_component: deepsource, description: "AI SAST + Autofix PRs on the public repo (B106); CI + continuous."}
-  - {key: codescene, name: CodeScene, group: code-review, datahub_application: false, owns: [], capabilities: ["code-review", "code-quality"], port_component: codescene, description: "Behavioral code-health; MCP into Claude Code + CI (B106)."}
-  - {key: sourcery, name: Sourcery, group: code-review, datahub_application: false, owns: [], capabilities: ["code-review"], port_component: sourcery, description: "Python review/refactor; PyCharm plugin + GitHub app (B106)."}
-  - {key: coderabbit, name: CodeRabbit, group: code-review, datahub_application: false, owns: [], capabilities: ["code-review"], port_component: coderabbit, description: "PR summaries/walkthroughs; free tier (B106)."}
-  - {key: greptile, name: Greptile, group: code-review, datahub_application: false, owns: [], capabilities: ["code-review"], port_component: greptile, description: "Codebase-aware LLM PR review; PR-native (B106)."}
-  - {key: pr-agent, name: PR-Agent, group: code-review, datahub_application: false, owns: [], capabilities: ["code-review"], port_component: pr-agent, description: "Self-hosted LLM PR review via the LiteLLM gateway; CLI on rogueone (B106)."}
+  # ============ CODE-REVIEW TOOLS (B106 adopted / B118 wired on both public repos — the ai-code-review lane; external SaaS / IDE / CLI, own no lab data) ============
+  # Coverage: the cloud Apps run on BOTH public repos — weyland-lab AND edtbl76/stud.io (B118 parity, verified on stud.io PR #121 2026-08-19).
+  - {key: deepsource, name: DeepSource, group: code-review, datahub_application: false, owns: [], capabilities: ["code-review", "code-quality"], port_component: deepsource, description: "AI SAST + Autofix PRs; CI + continuous. Live on weyland-lab + stud.io (7 analyzers) — B106/B118."}
+  - {key: codescene, name: CodeScene, group: code-review, datahub_application: false, owns: [], capabilities: ["code-review", "code-quality"], port_component: codescene, description: "Behavioral code-health; CI gate (stud.io project 78184) + CodeHealth MCP into Claude Code — B106/B118."}
+  - {key: sourcery, name: Sourcery, group: code-review, datahub_application: false, owns: [], capabilities: ["code-review"], port_component: sourcery, description: "Python review/refactor; GitHub App on weyland-lab + stud.io + PyCharm plugin — B106/B118."}
+  - {key: coderabbit, name: CodeRabbit, group: code-review, datahub_application: false, owns: [], capabilities: ["code-review"], port_component: coderabbit, description: "PR summaries/walkthroughs; free tier; weyland-lab + stud.io — B106/B118."}
+  - {key: greptile, name: Greptile, group: code-review, datahub_application: false, owns: [], capabilities: ["code-review"], port_component: greptile, description: "Codebase-aware LLM PR review; PR-native. Installed on weyland-lab; stud.io App install pending — B106/B118."}
+  - {key: pr-agent, name: PR-Agent, group: code-review, datahub_application: false, owns: [], capabilities: ["code-review"], port_component: pr-agent, description: "Self-hosted LLM PR review via the LiteLLM gateway; CLI on rogueone (both repos) — B106/B118."}
   - {key: proxyai, name: ProxyAI, group: code-review, datahub_application: false, owns: [], capabilities: ["code-review", "code-assistant"], port_component: proxyai, description: "In-IDE LLM assistant via the LiteLLM gateway; replaces paid Qodo Gen (B106)."}
 
 excluded:

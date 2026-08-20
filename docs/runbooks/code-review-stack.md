@@ -9,7 +9,7 @@ free. Paid **Qodo is cancelled**; **CodeRabbit** is kept on its **free** tier.
 
 | Lane | Runs where | Tools | Why |
 |---|---|---|---|
-| **PR / cloud** | Vendor infra, against the **public `weyland-lab`** GitHub repo | DeepSource · CodeScene · Sourcery · Greptile · CodeRabbit | Cloud GitHub Apps — GitHub pushes events *out* to them, so the LAN-webhook limit doesn't apply. $0 on a public repo. |
+| **PR / cloud** | Vendor infra, against the **public `weyland-lab`** *and* **`edtbl76/stud.io`** repos | DeepSource · CodeScene · Sourcery · Greptile · CodeRabbit | Cloud GitHub Apps — GitHub pushes events *out* to them, so the LAN-webhook limit doesn't apply. $0 on a public repo. |
 | **Local / gateway** | rogueone (reaches GitHub **and** the LAN gateway) | PR-Agent (CLI) · ProxyAI (IDE) | Route through the lab's own **LiteLLM `:30400` / Bifrost** → your models, cost-tracked per-VK, no vendor egress. |
 
 **Why PR-Agent is a CLI, not a GitHub Action:** this repo's Actions run on **GitHub's cloud runners**, which
@@ -83,6 +83,19 @@ Docker up + a Claude Code restart (MCP servers load at session start).
   attribution**); the `wl-*` models still record provider cost via **Bifrost**. If you want per-consumer spend for
   the review tools, mint a dedicated **Bifrost VK** and point the configs at it — optional, not required to work.
   ([[litellm-bifrost-egress]], [[gateway-lane-separation]].)
+
+## STUD.io parity (B118)
+
+The **same cloud stack also runs on the public `edtbl76/stud.io` repo** — it's the other half of the "breadth"
+decision, wired under **B118**. Verified live on **stud.io PR #121** (2026-08-19) via `gh pr checks 121`:
+**DeepSource** (7 analyzers), **CodeScene** (Code Health Review, project **78184**), and **Sourcery** all post
+checks; **CodeRabbit** + **Qodo Merge** (STUD.io's `.pr_agent.toml`) review in the PR conversation. STUD.io carried
+its own configs before B106 (`.deepsource.toml`/`.coderabbit.yaml`/`.pr_agent.toml`/`.mcp.json`); the weyland
+CodeHealth-MCP setup was mirrored **from** STUD.io.
+
+- **Greptile** is the one member **not yet installed** on `edtbl76/stud.io` (browser App-install, your step).
+- **CI → Port** for STUD.io runs is **B63** (`ci_pipeline` → `weyland_ci_reliability`), not a review-tool feed.
+- STUD.io-side doc (in the STUD.io repo): `docs/arch/code-review-stack.md` (+ `workflow.md` / `github.md`).
 
 ## Pointers
 - Registry: `quality-tools.yaml` (category `ai-code-review`) · Eval decision: `docs/backlog.md` → B106 · CI wiring
