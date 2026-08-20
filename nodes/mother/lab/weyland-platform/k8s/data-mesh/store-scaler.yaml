@@ -28,7 +28,7 @@ spec:
       serviceAccountName: store-scaler
       containers:
         - name: store-scaler
-          image: registry.weyland.lab/store-scaler:git-ccbadd2b   # tag is CI-managed (git-<sha>, B57a pipeline builds + pushes to the registry) — don't hand-bump.
+          image: registry.weyland.lab/store-scaler:git-ff6c2321   # tag is CI-managed (git-<sha>, B57a pipeline builds + pushes to the registry) — don't hand-bump.
           imagePullPolicy: IfNotPresent
           # B47 hardening: non-root + drop all caps + no priv-esc + seccomp default. runAsUser: 10001 is REQUIRED
           # alongside runAsNonRoot because the image's USER is a NAME (appuser); the kubelet needs the numeric uid
