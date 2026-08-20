@@ -43,6 +43,11 @@ def load(path):
         return None
 
 
+# Every post() result lands here so archive() can render the HTML summary without re-parsing /out. Order is run
+# order, which is also the order the operator watched them scroll past.
+RESULTS = []
+
+
 def z():
     return {"critical": 0, "high": 0, "medium": 0, "low": 0}
 
@@ -53,6 +58,8 @@ def post(tool, c):
                "medium": c["medium"], "low": c["low"], "total": total,
                "scannedAt": datetime.datetime.now(datetime.UTC).strftime("%Y-%m-%dT%H:%M:%SZ")}
     print(f"  = {tool}: {c['critical']}C / {c['high']}H / {c['medium']}M / {c['low']}L (total {total})", flush=True)
+    RESULTS.append({"tool": tool, "critical": c["critical"], "high": c["high"],
+                    "medium": c["medium"], "low": c["low"], "total": total})
     if not PORT_URL:
         print("  (PORT_INGEST_URL unset — skipping POST)", flush=True)
         return
@@ -432,16 +439,107 @@ def staticcheck():
     post("staticcheck", c)
 
 
+SEV_ORDER = ("critical", "high", "medium", "low")
+
+
+def _sev_weight(r):
+    """Sort key: worst-first. A single critical outranks any number of lows, so weight by band, not by total."""
+    return (-r["critical"], -r["high"], -r["medium"], -r["low"], r["tool"])
+
+
+def _prior_summary(s3, bucket, this_prefix):
+    """Fetch the most recent PREVIOUS run's summary.json so the report can show deltas.
+
+    Best-effort and deliberately quiet: a missing/corrupt prior summary means 'no trend column', never a failure.
+    Prefixes are ISO-8601 timestamps, so lexical sort == chronological sort.
+    """
+    try:
+        r = s3.list_objects_v2(Bucket=bucket, Delimiter="/")
+        prefixes = sorted(p["Prefix"] for p in r.get("CommonPrefixes", []))
+        prior = [p for p in prefixes if p < this_prefix]
+        if not prior:
+            return None
+        obj = s3.get_object(Bucket=bucket, Key=f"{prior[-1]}summary.json")
+        return json.loads(obj["Body"].read().decode())
+    except Exception:
+        return None
+
+
+def _html(stamp, links, prior):
+    """Self-contained HTML summary — no external CSS/JS, so it renders from a presigned URL with no network."""
+    pri = {r["tool"]: r for r in (prior or {}).get("results", [])} if prior else {}
+    rows = []
+    tot = z()
+    for r in sorted(RESULTS, key=_sev_weight):
+        for k in SEV_ORDER:
+            tot[k] += r[k]
+        delta = ""
+        if r["tool"] in pri:
+            d = r["total"] - pri[r["tool"]]["total"]
+            if d > 0:
+                delta = f'<span class="up">+{d}</span>'
+            elif d < 0:
+                delta = f'<span class="down">{d}</span>'
+            else:
+                delta = '<span class="same">0</span>'
+        else:
+            delta = '<span class="same">new</span>'
+        cells = "".join(
+            f'<td class="n {k}">{r[k] or ""}</td>' for k in SEV_ORDER
+        )
+        raw = links.get(f"{r['tool']}.json")
+        name = f'<a href="{raw}">{r["tool"]}</a>' if raw else r["tool"]
+        cls = "bad" if r["critical"] else "warn" if r["high"] else ""
+        rows.append(f'<tr class="{cls}"><td>{name}</td>{cells}<td class="n">{r["total"]}</td><td class="n">{delta}</td></tr>')
+
+    other = "".join(
+        f'<li><a href="{u}">{k}</a></li>' for k, u in sorted(links.items())
+        if not any(k == f"{r['tool']}.json" for r in RESULTS)
+    )
+    prior_note = (f'vs previous run <code>{prior["stamp"]}</code>' if prior else "no previous run to compare")
+    return f"""<!doctype html>
+<meta charset="utf-8"><title>scan-suite {stamp}</title>
+<style>
+ :root{{color-scheme:light dark}}
+ body{{font:14px/1.5 ui-sans-serif,system-ui,sans-serif;margin:2rem auto;max-width:60rem;padding:0 1rem}}
+ h1{{font-size:1.3rem;margin:0 0 .2rem}} .sub{{opacity:.7;margin:0 0 1.5rem}}
+ table{{border-collapse:collapse;width:100%}}
+ th,td{{padding:.4rem .6rem;border-bottom:1px solid #8884;text-align:left}}
+ th{{font-weight:600;opacity:.8;font-size:.85rem;text-transform:uppercase;letter-spacing:.04em}}
+ td.n{{text-align:right;font-variant-numeric:tabular-nums}}
+ .critical{{color:#d21;font-weight:700}} .high{{color:#e60;font-weight:600}}
+ .medium{{opacity:.75}} .low{{opacity:.5}}
+ tr.bad td:first-child{{border-left:3px solid #d21;padding-left:.45rem}}
+ tr.warn td:first-child{{border-left:3px solid #e60;padding-left:.45rem}}
+ tfoot td{{font-weight:700;border-top:2px solid #8886}}
+ .up{{color:#d21}} .down{{color:#0a7}} .same{{opacity:.45}}
+ ul{{padding-left:1.2rem}} code{{font-size:.9em}}
+</style>
+<h1>code-scan-suite &mdash; {TARGET}</h1>
+<p class="sub">{stamp} &middot; {prior_note} &middot; reports expire 90 days after the run</p>
+<table>
+ <thead><tr><th>Tool</th><th class="n">Crit</th><th class="n">High</th><th class="n">Med</th><th class="n">Low</th><th class="n">Total</th><th class="n">&Delta;</th></tr></thead>
+ <tbody>{"".join(rows)}</tbody>
+ <tfoot><tr><td>all tools</td>{"".join(f'<td class="n {k}">{tot[k]}</td>' for k in SEV_ORDER)}<td class="n">{sum(tot.values())}</td><td></td></tr></tfoot>
+</table>
+<p class="sub">Rows are worst-first: one critical outranks any number of lows. Tool names link to the raw JSON.</p>
+{f"<h2>Other artifacts</h2><ul>{other}</ul>" if other else ""}
+"""
+
+
 def archive():
-    """Upload the raw per-tool JSON to MinIO so findings outlive the pod.
+    """Upload the raw per-tool JSON + a rendered HTML summary to MinIO so findings outlive the pod.
 
-    Port holds the per-tool severity COUNTS (the durable trend) but not a single finding's detail, and OUT is an
-    emptyDir — so before this existed, the moment the next run deleted this pod every report was gone and there was
-    nothing left to triage against. Retention is an ILM expiry rule on the bucket (90d), not a cron here: the
-    lifecycle is the store's job, and a cron that prunes is one more thing to notice has stopped.
+    Why this exists: OUT is an emptyDir, so before this the moment the next run deleted the pod every report was
+    gone. Port keeps the per-tool COUNTS (the durable trend) but not one finding's detail. Retention is an ILM
+    expiry rule on the bucket (90d), not a cron here.
 
-    Best-effort like every other step: a MinIO outage must not fail a scan that already produced good results and
-    already POSTed its counts to Port.
+    Browse the results in the S3 UIs the lab already runs — files.weyland.lab (Filestash) or minio.weyland.lab —
+    both behind Keycloak. Deliberately NO presigned links: they add a two-endpoint signing dance (a presigned
+    signature covers the host, so an in-cluster-signed URL is unopenable from a laptop) and a 7-day SigV4 expiry
+    ceiling, to reach files an authenticated browser can already open directly.
+
+    Best-effort like every other step: a MinIO outage must not fail a scan that already produced good results.
     """
     bucket = os.environ.get("SCAN_S3_BUCKET", "scan-reports")
     endpoint = os.environ.get("SCAN_S3_ENDPOINT")
@@ -455,20 +553,44 @@ def archive():
         return
 
     stamp = datetime.datetime.now(datetime.UTC).strftime("%Y-%m-%dT%H-%M-%SZ")
-    s3 = boto3.client("s3", endpoint_url=endpoint,
+    prefix = f"{stamp}/"
+    s3 = boto3.client("s3", endpoint_url=endpoint, region_name="us-east-1",
                       aws_access_key_id=os.environ.get("AWS_ACCESS_KEY_ID"),
                       aws_secret_access_key=os.environ.get("AWS_SECRET_ACCESS_KEY"))
+
+    prior = _prior_summary(s3, bucket, prefix)
+
     sent = 0
     for name in sorted(os.listdir(OUT)):
         path = os.path.join(OUT, name)
         if not os.path.isfile(path):
             continue
         try:
-            s3.upload_file(path, bucket, f"{stamp}/{name}")
+            s3.upload_file(path, bucket, prefix + name,
+                           ExtraArgs={"ContentType": "application/json"} if name.endswith(".json") else None)
             sent += 1
         except Exception as e:
             print(f"  !! archive: {name} failed: {e}", flush=True)
-    print(f"  = archive: {sent} report(s) → s3://{bucket}/{stamp}/ (90d ILM)", flush=True)
+
+    # summary.json is what the NEXT run diffs against for its delta column.
+    try:
+        s3.put_object(Bucket=bucket, Key=prefix + "summary.json", ContentType="application/json",
+                      Body=json.dumps({"stamp": stamp, "target": TARGET, "results": RESULTS}, indent=1).encode())
+    except Exception as e:
+        print(f"  !! archive: summary.json failed: {e}", flush=True)
+
+    # Links are RELATIVE (just "trivy.json"), so they resolve correctly wherever the page is served from.
+    # text/html is what makes a browser render it rather than download it.
+    try:
+        s3.put_object(Bucket=bucket, Key=prefix + "index.html", ContentType="text/html; charset=utf-8",
+                      Body=_html(stamp, {n: n for n in sorted(os.listdir(OUT)) if os.path.isfile(os.path.join(OUT, n))},
+                                 prior).encode())
+        sent += 1
+    except Exception as e:
+        print(f"  !! archive: index.html failed: {e}", flush=True)
+
+    print(f"  = archive: {sent} file(s) → s3://{bucket}/{prefix} (90d ILM)", flush=True)
+    print(f"    browse: https://files.weyland.lab  →  scan-reports/{stamp}/  (index.html = summary)", flush=True)
 
 
 if __name__ == "__main__":
