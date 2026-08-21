@@ -30,7 +30,7 @@ spec:
                 - { name: src, mountPath: /src }
           containers:
             - name: scan-suite
-              image: registry.weyland.lab/scan-suite:git-fd6a85bc
+              image: registry.weyland.lab/scan-suite:git-2c73c898
               imagePullPolicy: IfNotPresent
               env:
                 - name: PORT_INGEST_URL
