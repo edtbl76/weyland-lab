@@ -143,14 +143,35 @@ def checkov():
 def kubescape():
     sh(["kubescape", "scan", SRC, "--format", "json", "--output", f"{OUT}/kubescape.json"])
     d = load(f"{OUT}/kubescape.json") or {}
-    m = {"Critical": "critical", "High": "high", "Medium": "medium", "Low": "low"}
+    sd = d.get("summaryDetails") or {}
     c = z()
-    # summaryDetails.controls: {id: {name, statusInfo, scoreFactor, controlID, ...}} — count FAILED by severity band
-    for ctl in ((d.get("summaryDetails") or {}).get("controls") or {}).values():
-        if (ctl.get("status") or "").lower() == "failed" or (ctl.get("ResourcesFailedCount") or ctl.get("resourceCounters", {}).get("failedResources", 0)):
-            sf = ctl.get("scoreFactor", 0) or 0
-            band = "critical" if sf >= 9 else "high" if sf >= 7 else "medium" if sf >= 4 else "low"
-            c[band] += 1
+
+    # Read kubescape's OWN per-severity RESOURCE counts. Three numbers live in this file and they measure
+    # different things — picking the wrong one produced a metric that tracked the scanner, not the cluster:
+    #   controlsSeverityCounters  -> failed rule CLASSES        (7 -> 16 across one policy update)
+    #   resourcesSeverityCounters -> failed RESOURCES by severity (115 -> 522 across the same update)  <- we use this
+    #   ResourceCounters.failedResources -> DISTINCT failing resources (113 -> 119)  <- the stable one
+    # We report resourcesSeverityCounters because it is actionable ("97 containers run as root" beats "1 control
+    # failed") and it fills Port's C/H/M/L schema.
+    #
+    # KNOW THIS WHEN READING THE TREND: kubescape DOWNLOADS ITS POLICY SET AT SCAN TIME. When upstream grew the
+    # set 52 -> 127 controls (2026-08-21) this number jumped 115 -> 522 with nothing in this repo changing. A
+    # spike here is "kubescape shipped rules" until proven otherwise — cross-check `failedResources` (logged
+    # below), which barely moves across policy updates and is the honest posture trend.
+    #
+    # History: the previous parser read `resourceCounters` (lowercase) but kubescape emits `ResourceCounters`.
+    # Python dicts are case-sensitive, so the lookup silently returned {} and the code fell through to counting
+    # one per failed CONTROL — accidentally reproducing controlsSeverityCounters while appearing to count
+    # resources. A silent wrong-key lookup that still returns a plausible number is the worst kind.
+    rs = sd.get("resourcesSeverityCounters") or {}
+    for band in ("critical", "high", "medium", "low"):
+        c[band] = rs.get(f"{band}Severity", 0) or 0
+
+    rc = sd.get("ResourceCounters") or {}
+    if rc:
+        print(f"  ~ kubescape: {rc.get('failedResources', 0)} distinct failing resources of "
+              f"{rc.get('failedResources', 0) + rc.get('passedResources', 0)} scanned "
+              f"({len(sd.get('controls') or {})} controls in today's policy set)", flush=True)
     post("kubescape", c)
 
 
