@@ -24,3 +24,28 @@ invalid byte ranges into XXHash; this cluster processes internal Redpanda topics
 Re-evaluate when the Flink base image is next bumped: if flink:1.2x ships lz4-java >= 1.11.1 this entry can go.
 Accepted 2026-08-20.
 """
+
+# PackageOverrides is scoped to name+version on purpose: if sqlparse ever moves off 0.5.5 this stops applying,
+# so the exception cannot silently outlive the reason for it. (IgnoredVulns would suppress the CVE globally,
+# hiding a regression in services that ARE fixed.)
+[[PackageOverrides]]
+name = "sqlparse"
+version = "0.5.5"
+ecosystem = "PyPI"
+ignore = true
+reason = """
+CANNOT FIX in services/weyland-dagster: dbt-core 1.11.12 pins `sqlparse<0.6.0,>=0.5.5`, so 0.6.0 is
+unresolvable there (build 19 died on exactly this: ResolutionImpossible). services/genre-trainer has NO dbt and
+IS on 0.6.0 — this is a dagster-only constraint, not a decision to skip the fix.
+
+The 5 CVEs fixed in 0.6.0 (CVE-2026-59893, CVE-2026-54284, CVE-2026-71491, CVE-2026-59894, GHSA-cfqr-cjx5-5jcm)
+are all DoS-class — quadratic CPU in the lexer/grouping/reindent paths. Here sqlparse is used INTERNALLY BY DBT
+to parse OUR OWN model SQL from the repo; it never sees attacker-controlled input, which is what those CVEs
+require. Low real exposure for a LAN-only single-tenant lab.
+
+THE FIX EXISTS AND IS A DELIBERATE DEFERRAL, not a dead end: dbt-core 1.12.3 relaxes the pin to
+`sqlparse<0.7.0`. Bumping dbt-core 1.11 -> 1.12 pulls dbt-adapters/dbt-trino/dbt-metricflow with it and needs
+its own validation against the 7 marts (dbt parse + build + tests), so it is not bundled into a CVE sweep.
+Re-evaluate when dbt-core is next bumped; at that point set sqlparse==0.6.0 and DELETE this override.
+Accepted 2026-08-20.
+"""
