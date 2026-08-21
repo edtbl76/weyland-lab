@@ -590,7 +590,11 @@ def archive():
         print(f"  !! archive: index.html failed: {e}", flush=True)
 
     print(f"  = archive: {sent} file(s) → s3://{bucket}/{prefix} (90d ILM)", flush=True)
-    print(f"    browse: https://files.weyland.lab  →  scan-reports/{stamp}/  (index.html = summary)", flush=True)
+    # Deep-link straight at this run's folder — nobody should have to click down a bucket tree to find it.
+    # Base is env-configurable so swapping Filestash for the MinIO console is a manifest edit, not a code change.
+    browse = os.environ.get("SCAN_BROWSE_BASE", "https://files.weyland.lab/files").rstrip("/")
+    print(f"    browse: {browse}/{bucket}/{stamp}/", flush=True)
+    print(f"    report: {browse}/{bucket}/{stamp}/index.html", flush=True)
 
 
 if __name__ == "__main__":
