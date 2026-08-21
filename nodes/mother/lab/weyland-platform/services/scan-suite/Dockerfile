@@ -3,7 +3,7 @@
 # webhook (same payload as the semgrep/trivy Jobs) + raw JSON archived to MinIO s3://scan-reports/<ts>/ (90d ILM;
 # OUT itself is an emptyDir, so the upload is what makes findings outlive the pod). Built + pushed to
 # registry.weyland.lab via scripts/build-push-images.sh. Pin bumps: check each tool's latest release if a URL 404s.
-FROM python:3.12-slim
+FROM python:3.14-slim
 ENV DEBIAN_FRONTEND=noninteractive
 # boto3 (for the MinIO archive step in scan.py) is deliberately UNPINNED: checkov pins boto3 to an EXACT version
 # (3.2.257 → boto3==1.34.25), so any pin of our own that differs makes the install unsatisfiable and the image
