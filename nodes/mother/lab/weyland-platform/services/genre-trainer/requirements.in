@@ -95,7 +95,7 @@ python-discovery==1.4.4
 python-dotenv==1.2.2
 pytz==2026.2
 PyYAML==6.0.3
-ray==2.56.0
+ray==2.57.0
 referencing==0.37.0
 requests==2.34.2
 rpds-py==2026.6.3
