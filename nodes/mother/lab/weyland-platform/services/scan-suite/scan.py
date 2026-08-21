@@ -576,6 +576,7 @@ def archive():
     try:
         s3.put_object(Bucket=bucket, Key=prefix + "summary.json", ContentType="application/json",
                       Body=json.dumps({"stamp": stamp, "target": TARGET, "results": RESULTS}, indent=1).encode())
+        sent += 1
     except Exception as e:
         print(f"  !! archive: summary.json failed: {e}", flush=True)
 
@@ -593,8 +594,17 @@ def archive():
     # Deep-link straight at this run's folder — nobody should have to click down a bucket tree to find it.
     # Base is env-configurable so swapping Filestash for the MinIO console is a manifest edit, not a code change.
     browse = os.environ.get("SCAN_BROWSE_BASE", "https://files.weyland.lab/files").rstrip("/")
+    # Two different jobs, two different hosts — this is not redundancy:
+    #   browse -> Filestash. A file MANAGER: great for navigating the raw JSON, but it renders .html in a
+    #             syntax-highlighted CODE viewer, so the summary page is unreadable through it. (Verified
+    #             2026-08-20: /files/<path>.html is treated as a directory; /view/<path>.html shows source.)
+    #   report -> the MinIO S3 endpoint directly, which serves the object with the text/html Content-Type we
+    #             set on upload, so a browser actually RENDERS it. Requires the bucket to allow anonymous
+    #             download (`mc anonymous set download weyland/scan-reports`) — LAN-only, and these are
+    #             findings for a repo that is already public.
+    report = os.environ.get("SCAN_REPORT_BASE", "https://s3.weyland.lab").rstrip("/")
     print(f"    browse: {browse}/{bucket}/{stamp}/", flush=True)
-    print(f"    report: {browse}/{bucket}/{stamp}/index.html", flush=True)
+    print(f"    report: {report}/{bucket}/{stamp}/index.html", flush=True)
 
 
 if __name__ == "__main__":

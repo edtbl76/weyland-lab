@@ -1,0 +1,72 @@
+# Dependabot config (B131). Added 2026-08-20 after discovering there was NO config file at all: the PRs that
+# had been arriving came from GitHub's repo-level "Dependabot security updates" toggle, which is opportunistic
+# — it had picked up services/genre-trainer and left every other service unwatched.
+#
+# The cost of that gap, measured: a scan on 2026-08-20 found 74 osv highs. Merging the two genre-trainer PRs
+# cleared 24 of them — but 22 MORE were the SAME two packages (GitPython, sqlparse) at the SAME old versions in
+# services/weyland-dagster, which no PR had ever been opened for. Half the exposure was invisible.
+#
+# So: every requirements.txt gets an explicit entry. An unlisted directory is an unwatched directory.
+version: 2
+updates:
+  # ---- Python services -------------------------------------------------------------------------------------
+  # One entry per requirements.txt. Weekly + grouped, because a solo lab wants a small number of reviewable PRs,
+  # not one PR per package (see B131: open PRs that pile up are the failure mode, not the fix).
+  - package-ecosystem: "pip"
+    directory: "/nodes/mother/lab/weyland-platform/services/weyland-dagster"
+    schedule: { interval: "weekly", day: "sunday", time: "09:00" }
+    open-pull-requests-limit: 5
+    groups:
+      security-and-patches:
+        applies-to: security-updates
+        patterns: ["*"]
+
+  - package-ecosystem: "pip"
+    directory: "/nodes/mother/lab/weyland-platform/services/genre-trainer"
+    schedule: { interval: "weekly", day: "sunday", time: "09:00" }
+    open-pull-requests-limit: 5
+    groups:
+      security-and-patches:
+        applies-to: security-updates
+        patterns: ["*"]
+
+  - package-ecosystem: "pip"
+    directory: "/nodes/mother/lab/weyland-platform/services/rag-index"
+    schedule: { interval: "weekly", day: "sunday", time: "09:00" }
+    open-pull-requests-limit: 5
+    groups:
+      security-and-patches:
+        applies-to: security-updates
+        patterns: ["*"]
+
+  - package-ecosystem: "pip"
+    directory: "/nodes/mother/lab/weyland-platform/services/store-scaler"
+    schedule: { interval: "weekly", day: "sunday", time: "09:00" }
+    open-pull-requests-limit: 5
+    groups:
+      security-and-patches:
+        applies-to: security-updates
+        patterns: ["*"]
+
+  # ---- Docker base images ----------------------------------------------------------------------------------
+  # The scan-suite image pins tool versions by hand in its Dockerfile; base-image bumps still matter.
+  - package-ecosystem: "docker"
+    directory: "/nodes/mother/lab/weyland-platform/services/scan-suite"
+    schedule: { interval: "weekly", day: "sunday", time: "09:00" }
+    open-pull-requests-limit: 3
+
+  # weyland-tool-server has NO requirements.txt — it pip-installs inline in its Dockerfile, so a "pip" entry
+  # here would silently no-op (Dependabot needs a manifest to parse). Docker is the ecosystem that applies;
+  # its Python pins are only reachable by editing that RUN line, which no scanner will PR for us.
+  - package-ecosystem: "docker"
+    directory: "/nodes/mother/lab/weyland-platform/services/weyland-tool-server"
+    schedule: { interval: "weekly", day: "sunday", time: "09:00" }
+    open-pull-requests-limit: 3
+
+  # ---- Maven -----------------------------------------------------------------------------------------------
+  # Both Flink deps here are <scope>provided</scope>, so this only catches OUR direct deps — the cluster's
+  # classpath (lz4-java etc.) moves with the Flink base image, not with this pom. See osv-scanner.toml.
+  - package-ecosystem: "maven"
+    directory: "/nodes/mother/lab/weyland-platform/k8s/flink/sql-runner"
+    schedule: { interval: "monthly" }
+    open-pull-requests-limit: 2

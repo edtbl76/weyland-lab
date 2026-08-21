@@ -1,0 +1,26 @@
+# osv-scanner accepted findings. Same discipline as .trivyignore: each entry is a DOCUMENTED, deliberate
+# exception with its reasoning inline — never blanket suppression to make a number go green.
+# Consumed by the code-scan-suite's osv-scanner step (scan.py -> `osv-scanner --format json -r /src`).
+#
+# Before adding here, prefer FIXING: bump the pin. This file is for findings that cannot be fixed by us, or
+# where the finding does not describe our actual runtime.
+
+[[IgnoredVulns]]
+id = "GHSA-xx22-p4ch-683r"
+reason = """
+org.lz4:lz4-java 1.8.0 — "Native XXHash implementations can crash the JVM when passed invalid byte array
+ranges" (fixed upstream in 1.11.1). NOT FIXABLE HERE, and not actually our artifact's dependency.
+
+k8s/flink/sql-runner/pom.xml declares BOTH of its Flink dependencies with <scope>provided</scope>, so they are
+NOT bundled into sql-runner.jar — the jar contains one class (lab.weyland.flink.SqlRunner). lz4-java reaches
+the runtime from the Flink cluster's own classpath (image flink:1.20.1-java17), not from anything we build.
+Pinning lz4-java in this pom would therefore change nothing at runtime; osv-scanner is reporting the resolved
+Maven tree, which includes provided-scope deps that never ship.
+
+Real exposure, if any, moves with the Flink base image and is closed by bumping Flink — tracked with the Flink
+tier (B83), not by editing this pom. Impact is a JVM crash (DoS) reachable only by feeding attacker-controlled
+invalid byte ranges into XXHash; this cluster processes internal Redpanda topics on a LAN-only single node.
+
+Re-evaluate when the Flink base image is next bumped: if flink:1.2x ships lz4-java >= 1.11.1 this entry can go.
+Accepted 2026-08-20.
+"""
