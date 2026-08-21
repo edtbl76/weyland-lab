@@ -1888,3 +1888,23 @@ mother's CPU **requests** are over-committed while the node sits nearly idle —
 **Measurement gotcha — keep this.** `sum by (pod) (kube_pod_container_resource_requests)` **double-counts**: both kube-state-metrics *and* opencost publish it — pin `job="kube-state-metrics"`. A `node=` filter still includes terminal (Succeeded/Failed) pods that no longer reserve anything. When in doubt, trust the scheduler's own `FailedScheduling` message over a reconstructed sum.
 
 Linear: EMA-195. Surfaced during the B133 DoD sweep. Relates B130 (backups), [[store-scaler-easy-button]], [[istiod-request-node-wall]], [[node-oom-forensics]].
+
+---
+
+### B135 — Automate the image build→deploy cadence (script / skill / agent) — 🔴 **HIGH (2026-08-20)**
+
+Shipping one image change is a **seven-step loop run entirely by hand**, and three of its steps fail **silently** — you find out two steps later via a confusing result, not at the point of the mistake. Run five times on 2026-08-20, it stumbled four; every stumble was a skipped step, not a real fault.
+
+**The loop:** (1) `git push` — **silent**; (2) trigger the pipeline; (3) CI builds + opens a **PR**; (4) **merge the PR** — **silent**; (5) `git pull` — **silent**; (6) Argo reconciles (~3 min poll, **no LAN webhooks** — [[lan-no-github-webhooks]]); (7) run the thing.
+
+**How each silent step actually bit us.** **(1)** the pipeline was triggered before the push landed, so `detect-changes` — which diffs the build context against `HEAD` *at pipeline start* — rebuilt the OLD `scan.py` and produced an image that looked new and behaved old; cost a full cycle to spot. **(4)** Argo was refreshed repeatedly expecting a change with nothing merged; separately **PR #12 sat open a full day**, leaving the whole 11-image fleet two builds behind while every surface read green (the pipeline goes green at *"opened a PR"*, and `notify-port` reports the **pipeline** outcome, never the merge). **(5)** merging remotely leaves local behind, and the CI's PR edits the same manifests being edited locally, so the next push conflicts. **(6)** the scan was run twice before the sync landed → old image, twice.
+
+**The pattern is the point:** steps 1, 4 and 5 emit no signal when skipped. Nothing says "you didn't do this" — you get a wrong-looking result later and debug the wrong layer. Same class of silent-gap failure as B131 (open PRs rotting unseen) and B134 (a scheduling failure surfacing only as a stale Argo badge).
+
+**What it should do — one invocation that refuses to advance past a gate it cannot verify:** confirm the tree is pushed and `HEAD` matches `origin/main` **before** triggering (this alone kills the most expensive failure); trigger + poll, surfacing the failing step's log; find the opened PR (its sha differing from the deployed tag **is** the proof the change was picked up); merge it and **close any superseded older image-bump PR** (merging an older one after a newer rolls images *backwards* — the #12-after-#13 trap); `git pull`; force a **targeted** Argo refresh (`kubectl -n argocd annotate app <apps> argocd.argoproj.io/refresh=hard --overwrite` — not `--all`, since a full re-compare across 77 apps is a CPU spike on a node that already has a request wall, B134); then **verify the live cluster resource carries the new tag before declaring done** — the running pod is the only proof, the repo and the PR are not.
+
+**Mechanism undecided:** a shell script (`scripts/ship-images.sh` — simplest, matches `run-scan-suite.sh`, no new dependency) · a Claude Code skill (`/ship` — could derive which apps a diff touches instead of hardcoding) · an agent (heaviest; only if the loop needs judgment beyond gate-checking). **Bias to the script** until something demands more: the value here is **verified gates**, not intelligence.
+
+**Acceptance:** one command takes a pushed change to a verified rollout; every gate is checked and a skipped/failed one **halts with the specific reason** instead of proceeding; verification is against the **live cluster resource**; superseded image-bump PRs are closed automatically.
+
+Linear: EMA-196. Relates B57a (the image CI this wraps), B131 (open-PR lifecycle), B134 (why the refresh is targeted), [[weyland-image-ci-b57a]], [[argocd-gitops-gotchas]].
