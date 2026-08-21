@@ -1908,3 +1908,17 @@ Shipping one image change is a **seven-step loop run entirely by hand**, and thr
 **Acceptance:** one command takes a pushed change to a verified rollout; every gate is checked and a skipped/failed one **halts with the specific reason** instead of proceeding; verification is against the **live cluster resource**; superseded image-bump PRs are closed automatically.
 
 Linear: EMA-196. Relates B57a (the image CI this wraps), B131 (open-PR lifecycle), B134 (why the refresh is targeted), [[weyland-image-ci-b57a]], [[argocd-gitops-gotchas]].
+
+---
+
+### B136 — Bump dbt-core 1.11.12 → 1.12.x (unblocks sqlparse 0.6.0 in weyland-dagster) — 🟡 **MEDIUM (2026-08-20)**
+
+`dbt-core==1.11.12` pins `sqlparse<0.6.0,>=0.5.5`, which **blocks the sqlparse CVE fix** in `services/weyland-dagster` — build 19 died on exactly that (`ResolutionImpossible: dbt-core 1.11.12 depends on sqlparse<0.6.0`). **dbt-core 1.12.3 relaxes it to `sqlparse<0.7.0`**, so the bump IS the fix.
+
+**Why deferred, not bundled:** the sqlparse change rode a CVE sweep, and dragging a dbt-core *minor* into that couples a security fix to the tool that builds all 7 marts — it pulls `dbt-adapters` / `dbt-trino` / `dbt-metricflow` / `dbt-semantic-interfaces` with it. That needs its own validation pass. `services/genre-trainer` has no dbt and IS on 0.6.0, so this is a dagster-only constraint, not a decision to skip the fix.
+
+**What it unblocks:** 5 DoS-class CVEs currently accepted in `osv-scanner.toml` (8 osv findings) — CVE-2026-59893, CVE-2026-54284, CVE-2026-71491, CVE-2026-59894, GHSA-cfqr-cjx5-5jcm, all quadratic-CPU paths in the lexer/grouping/reindent. Real exposure is low (dbt parses **our own** model SQL from the repo; these CVEs need attacker-controlled input), which is what makes deferral defensible — but the fix exists, so this is **a deferral with a date, not a permanent accept**.
+
+**Acceptance:** dbt-core → 1.12.x with its siblings moved to compatible versions; `sqlparse==0.6.0`; **DELETE the `[[PackageOverrides]]` sqlparse block from `osv-scanner.toml`** (it is scoped to `version = "0.5.5"` so it stops applying by itself, but a dead exception left behind is drift); validate with `dbt deps` + `parse` + `build` + tests against the marts (the image bakes a `dbt parse`, so a broken manifest fails the build — necessary but **not** sufficient, the mart tests are the real check); confirm `weyland_dbt_assets` still materialises and dbt-docs still renders.
+
+Linear: EMA-197. Relates B1.5 (dbt transform tier), B131 (dependency lifecycle), B133 (the sweep that surfaced it). Detail: `osv-scanner.toml` → sqlparse override.
