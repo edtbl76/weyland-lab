@@ -21,7 +21,7 @@ spec:
     spec:
       containers:
         - name: rag-index
-          image: registry.weyland.lab/weyland-rag-index:git-fd6a85bc
+          image: registry.weyland.lab/weyland-rag-index:git-2c73c898
           imagePullPolicy: IfNotPresent
           # B47 hardening: non-root uid 10001 + drop caps + no priv-esc + seccomp
           securityContext:
