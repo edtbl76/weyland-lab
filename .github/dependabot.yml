@@ -7,6 +7,18 @@
 # services/weyland-dagster, which no PR had ever been opened for. Half the exposure was invisible.
 #
 # So: every requirements.txt gets an explicit entry. An unlisted directory is an unwatched directory.
+#
+# ⚠ SECURITY UPDATES ONLY — `open-pull-requests-limit: 0` is the documented switch that DISABLES version
+# updates while leaving security updates enabled. It is not a typo and not a throttle.
+#
+# Learned the hard way: the first version of this file omitted it and Dependabot immediately opened THIRTEEN
+# PRs of routine version bumps — including flink 1.20.1 -> 2.3.0 (a major that would break the streaming tier),
+# python 3.12 -> 3.14-slim on two base images, and kubernetes 31 -> 36. On a $0 lab where every dep is pinned
+# deliberately and nothing has a test suite guarding an upgrade, routine version churn is noise WITH RISK, and
+# a queue of unreviewed PRs is the exact failure mode B131 exists to prevent.
+#
+# What we want is narrow: tell me when a pinned dep has a KNOWN VULNERABILITY. Version currency is a decision
+# to make deliberately (see B136 — dbt-core), not a PR to rubber-stamp.
 version: 2
 updates:
   # ---- Python services -------------------------------------------------------------------------------------
@@ -15,7 +27,7 @@ updates:
   - package-ecosystem: "pip"
     directory: "/nodes/mother/lab/weyland-platform/services/weyland-dagster"
     schedule: { interval: "weekly", day: "sunday", time: "09:00" }
-    open-pull-requests-limit: 5
+    open-pull-requests-limit: 0
     groups:
       security-and-patches:
         applies-to: security-updates
@@ -24,7 +36,7 @@ updates:
   - package-ecosystem: "pip"
     directory: "/nodes/mother/lab/weyland-platform/services/genre-trainer"
     schedule: { interval: "weekly", day: "sunday", time: "09:00" }
-    open-pull-requests-limit: 5
+    open-pull-requests-limit: 0
     groups:
       security-and-patches:
         applies-to: security-updates
@@ -33,7 +45,7 @@ updates:
   - package-ecosystem: "pip"
     directory: "/nodes/mother/lab/weyland-platform/services/rag-index"
     schedule: { interval: "weekly", day: "sunday", time: "09:00" }
-    open-pull-requests-limit: 5
+    open-pull-requests-limit: 0
     groups:
       security-and-patches:
         applies-to: security-updates
@@ -42,7 +54,7 @@ updates:
   - package-ecosystem: "pip"
     directory: "/nodes/mother/lab/weyland-platform/services/store-scaler"
     schedule: { interval: "weekly", day: "sunday", time: "09:00" }
-    open-pull-requests-limit: 5
+    open-pull-requests-limit: 0
     groups:
       security-and-patches:
         applies-to: security-updates
@@ -53,7 +65,7 @@ updates:
   - package-ecosystem: "docker"
     directory: "/nodes/mother/lab/weyland-platform/services/scan-suite"
     schedule: { interval: "weekly", day: "sunday", time: "09:00" }
-    open-pull-requests-limit: 3
+    open-pull-requests-limit: 0
 
   # weyland-tool-server has NO requirements.txt — it pip-installs inline in its Dockerfile, so a "pip" entry
   # here would silently no-op (Dependabot needs a manifest to parse). Docker is the ecosystem that applies;
@@ -61,7 +73,7 @@ updates:
   - package-ecosystem: "docker"
     directory: "/nodes/mother/lab/weyland-platform/services/weyland-tool-server"
     schedule: { interval: "weekly", day: "sunday", time: "09:00" }
-    open-pull-requests-limit: 3
+    open-pull-requests-limit: 0
 
   # ---- Maven -----------------------------------------------------------------------------------------------
   # Both Flink deps here are <scope>provided</scope>, so this only catches OUR direct deps — the cluster's
@@ -69,4 +81,4 @@ updates:
   - package-ecosystem: "maven"
     directory: "/nodes/mother/lab/weyland-platform/k8s/flink/sql-runner"
     schedule: { interval: "monthly" }
-    open-pull-requests-limit: 2
+    open-pull-requests-limit: 0
