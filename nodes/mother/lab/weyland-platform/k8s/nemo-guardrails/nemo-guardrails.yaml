@@ -24,7 +24,7 @@ spec:
       enableServiceLinks: false
       containers:
         - name: nemo-guardrails
-          image: registry.weyland.lab/nemo-guardrails:git-ff6c2321   # topical control via the self-check input rail (the Colang dialog rail wouldn't fire); tag is CI-managed (git-<sha>, B57a) — don't hand-bump.
+          image: registry.weyland.lab/nemo-guardrails:git-fd6a85bc   # topical control via the self-check input rail (the Colang dialog rail wouldn't fire); tag is CI-managed (git-<sha>, B57a) — don't hand-bump.
           imagePullPolicy: IfNotPresent
           ports:
             - name: http
