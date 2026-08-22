@@ -44,6 +44,16 @@ server:
     # DELETE mode — that needs an explicit `PRAGMA journal_mode=DELETE`.
     # MAX_CONNECTIONS deliberately left at its 100 default: with WAL, concurrent readers are no longer the
     # problem. Lower it only if locks persist, and change one thing at a time.
+    #
+    # ⚠ EXPECTED, HARMLESS STARTUP WARNING — do not act on it:
+    #     "no sqlite3 file found, will create one at
+    #      '/var/lib/woodpecker/woodpecker.sqlite?_journal_mode=WAL&_busy_timeout=15000'"
+    # Woodpecker `stat`s the RAW DSN STRING as if it were a filename, so once query params are appended that
+    # check can never match and always claims the DB is missing. It is not: the driver parses the DSN and
+    # opens the real file. Verified on the 2026-08-22 roll — repos, secrets, the `nightly-images` cron
+    # (`enabled:true`) and all 21 pipelines survived, and `ls` on the PVC shows ONE database plus its WAL
+    # sidecars (`woodpecker.sqlite`, `-wal`, `-shm`) with no stray file named after the DSN.
+    # WAL confirmed active by the presence of those `-wal`/`-shm` files; they exist in no other journal mode.
     WOODPECKER_DATABASE_DATASOURCE: '/var/lib/woodpecker/woodpecker.sqlite?_journal_mode=WAL&_busy_timeout=15000'
   # GitHub OAuth client + secret live in the woodpecker-secret you create (WOODPECKER_GITHUB_CLIENT/SECRET).
   extraSecretNamesForEnvFrom:
