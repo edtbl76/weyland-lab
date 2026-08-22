@@ -17,8 +17,16 @@ data:
           # Threshold 100/5m is a starting baseline (an active debug session hit ~114) — tune to your noise floor:
           # lower if real incidents slip under it, raise if it cries wolf. A level-aware rule would be more precise
           # but needs consistent structured logging across apps (deferred).
+          #
+          # ⚠ THE `\b` IS LOAD-BEARING. Without it this matched `NOERROR` — the SUCCESS code CoreDNS writes on
+          # every resolved query — so `weyland-lan-dns` alone contributed ~6,158 "errors" per 30 minutes and this
+          # alert was PERMANENTLY FIRING (found 2026-08-22). A permanently-lit alert is worse than no alert: a real
+          # error storm in weyland or data-mesh would have changed nothing anyone would notice.
+          # Leading boundary only, deliberately: `\berror` still matches `[ERROR]`, `Error:` and `errors`, while
+          # `NOERROR` has a word character before `ERROR` and so no longer matches. A trailing `\b` would lose
+          # `errors`. RE2 (Loki's engine) supports `\b` as an ASCII word boundary.
           - alert: WeylandErrorLogSpike
-            expr: sum by (namespace) (count_over_time({namespace=~"weyland|data-mesh"} |~ `(?i)(error|exception|traceback)` [5m])) > 100
+            expr: sum by (namespace) (count_over_time({namespace=~"weyland|data-mesh"} |~ `(?i)\b(error|exception|traceback)` [5m])) > 100
             for: 2m
             labels:
               severity: warning
@@ -30,7 +38,7 @@ data:
           # single per-table failure the loader swallows (it logs `<store> <db>.<table>: <exc>` at ERROR but keeps
           # going) — the "don't silently drop a table" signal. Generalizes to every store's hydrate job.
           - alert: WeylandDatasetHydrationFailure
-            expr: sum (count_over_time({namespace="weyland"} |~ `hydrate_job` |~ `(?i)(error|exception|traceback)` [10m])) > 0
+            expr: sum (count_over_time({namespace="weyland"} |~ `hydrate_job` |~ `(?i)\b(error|exception|traceback)` [10m])) > 0
             for: 1m
             labels:
               severity: warning
