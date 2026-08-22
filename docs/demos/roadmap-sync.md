@@ -27,7 +27,7 @@ sequenceDiagram
     LN-->>CC: issue identifiers (EMA-###)
     Port->>LN: ingest issues for catalog/status
     Op->>LN: view board at linear.app/emangini
-    Note over BL,LN: backlog.md leads on priority/scope; Linear reflects status
+    Note over BL,LN: backlog.md leads on priority/scope — Linear reflects status
 ```
 
 ## Prerequisites

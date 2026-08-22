@@ -25,5 +25,5 @@ sequenceDiagram
     Job->>PG: replace-by-source (DELETE source + INSERT) + upsert model_catalog
     TS->>PG: read model_catalog
     TS-->>TS: list_models (MCP read tool on /mcp)
-    Note over OR,OL: inventory only — actual routing is LiteLLM wl-* → Bifrost (anthropic/groq/opencode-zen/gemini/xai); OpenRouter now 402-unfunded, Ollama local still $0
+    Note over OR,OL: inventory only — actual routing is LiteLLM wl-* → Bifrost (anthropic/groq/opencode-zen/gemini/xai) — OpenRouter now 402-unfunded, Ollama local still $0
 ```

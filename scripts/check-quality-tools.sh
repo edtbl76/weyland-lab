@@ -4,9 +4,10 @@
 # tool added to one but not the other fails instead of silently drifting (the "9 vs 10" class of bug). Mirrors
 # scripts/check-app-registry.sh. Run from anywhere; script is in the repo-root ./scripts.
 set -euo pipefail
-here="$(cd "$(dirname "$0")/.." && pwd)"
+. "$(dirname "$0")/lib/common.sh"
+here="$REPO_ROOT"
 python3 - "$here/quality-tools.yaml" \
-  "$here/nodes/mother/lab/weyland-platform/services/scan-suite/scan.py" <<'PY'
+  "$PLATFORM_DIR/services/scan-suite/scan.py" <<'PY'
 import sys, re, yaml
 reg, scan = sys.argv[1], sys.argv[2]
 declared = {t["id"] for t in yaml.safe_load(open(reg))["tools"]

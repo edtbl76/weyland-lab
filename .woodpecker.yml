@@ -25,6 +25,75 @@ steps:
     commands:
       - yamllint nodes/mother/lab/weyland-platform/k8s/
 
+  # ── 1b. repo guards: diagrams parse, documented counts match reality ────────
+  # WHY THIS STEP EXISTS: on 2026-08-21 a sweep found FIFTEEN mermaid blocks under docs/ that had
+  # never rendered (all the same bug — a `;` inside sequence-diagram text, which mermaid treats as a
+  # statement separator) and TEN stale Argo application counts across eight files, in three different
+  # generations (28 / 59 / 72) against 78 actual. Both classes had been in the repo for months.
+  #
+  # Nothing caught them because the checks were human. The DoD mandates a per-batch "Diagrams" pillar,
+  # a "verify the render" cross-cutting rule, and a docs relevance sweep — all satisfied by eye. A page
+  # saying "28 apps onboarded" READS as perfectly relevant; only comparing it to the cluster reveals it.
+  # scripts/check-app-registry.sh could not help: it compares structure to structure, so a number typed
+  # into a sentence is invisible to it.
+  #
+  # BLOCKING ON PURPOSE. These are cheap and deterministic, and an advisory warning is exactly what let
+  # 15 diagrams rot. Trade-off, stated plainly: a stale doc count will now fail the nightly cron and no
+  # images will ship that run. If that coupling proves wrong, add `failure: ignore` to this step — it
+  # keeps reporting and stops blocking. Do NOT silently delete the step.
+  #
+  # All five guards run here. The three older ones (check-app-registry / check-quality-tools /
+  # check-sa-automount-collisions) had ALSO never been wired — the repo's own comments claimed they
+  # "enforce" and "guard" things while nothing ran them. All three are pure file analysis (python3 +
+  # pyyaml, no cluster access), so there is no reason they were not in CI other than nobody adding them.
+  - name: repo-guards
+    image: node:24-alpine
+    commands:
+      - apk add --no-cache bash python3 py3-yaml >/dev/null
+      # The mermaid parser needs its own resolution root: ESM ignores NODE_PATH, so a global install
+      # does not satisfy a bare `import "mermaid"`. Built here per-run rather than baked into an image.
+      # Deliberately NOT @mermaid-js/mermaid-cli — that pulls puppeteer + headless Chromium, which
+      # needs a sandbox this cluster's step pods should not be granting.
+      - mkdir -p /tmp/mmcheck
+      - printf '{"name":"mmcheck","private":true,"type":"module"}\n' > /tmp/mmcheck/package.json
+      - (cd /tmp/mmcheck && npm install --silent --no-audit --no-fund mermaid jsdom)
+      - MERMAID_CHECK_ROOT=/tmp/mmcheck bash scripts/check-mermaid.sh docs
+      - bash scripts/check-doc-counts.sh
+      - bash scripts/check-app-registry.sh
+      - bash scripts/check-quality-tools.sh
+      - bash scripts/check-sa-automount-collisions.sh
+
+  # ── 1c. shellcheck the shell surface ────────────────────────────────────────
+  # --severity=warning on purpose. At `note` the repo has 3 findings, and two of them are noise that
+  # can never be fixed: SC2016 fires on the deliberately-single-quoted node heredoc in
+  # check-mermaid.sh, and SC1091 cannot follow scripts/.env because it is gitignored. Gating at
+  # warning gives a clean zero today while still catching real defects (unquoted expansions that
+  # word-split, unreachable code, bad test operators). There is no .shellcheckrc — the severity flag
+  # is the whole policy, kept visible here rather than hidden in a dotfile.
+  - name: shellcheck
+    image: koalaman/shellcheck-alpine:stable
+    commands:
+      - shellcheck --severity=warning scripts/*.sh scripts/lib/*.sh scripts/ci/*.sh
+
+  # ── 1d. unit tests ──────────────────────────────────────────────────────────
+  # The repo had ONE test suite and CI had never run it. Worse, it was orphaned: the tests lived in
+  # services/weyland-tool-server/tests/ while the code they import moved to services/weyland-guard/
+  # when B70 extracted the shared guard service. 5 of 8 files could not even be collected
+  # (ModuleNotFoundError) and the suite had clearly not been run since the extraction. Tests moved to
+  # weyland-guard/tests/, the stale assertions repaired against the current API, and
+  # test_llm_guard.py replaced by test_safety_validators.py (its `llm_guard` backend was retired in
+  # B117). 28 tests, all green.
+  #
+  # No image build needed: guardrails/ imports only dataclasses + enum from stdlib, and conftest.py
+  # supplies DB fakes — so pytest + prometheus_client on a slim base is the entire dependency set.
+  # Deliberately NOT building the weyland-guard image to test it; that would pull transformers,
+  # presidio and spaCy for a suite that stubs all three.
+  - name: unit-tests
+    image: python:3.12-slim
+    commands:
+      - pip install --quiet --no-cache-dir pytest prometheus_client
+      - cd nodes/mother/lab/weyland-platform/services/weyland-guard && python -m pytest tests/ -q -p no:cacheprovider
+
   # ── 2. detect which images changed since their currently-deployed git-<sha> ──
   - name: detect-changes
     image: alpine/git:latest

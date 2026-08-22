@@ -32,6 +32,6 @@ sequenceDiagram
     Note over GH: branch protection requires ci/woodpecker/pr/main (the CI check), not the review Apps
     Dev->>WP: woodpecker-cli pipeline create (LAN CLI — no GitHub push webhook to the LAN)
     WP->>Port: notify-port (terminal status → ci_pipeline, B63)
-    Dev->>GH: read checks + reviews; squash-merge when green
-    Note over GH,Port: Greptile App installed too (reviews via PR comment, not a check; activates on new human PRs)
+    Dev->>GH: read checks + reviews, squash-merge when green
+    Note over GH,Port: Greptile App installed too (reviews via PR comment, not a check — activates on new human PRs)
 ```

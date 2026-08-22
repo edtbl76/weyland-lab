@@ -33,7 +33,7 @@ sequenceDiagram
     Note over TF,PORT: Port surface (same file, no rebuild)
     TF->>REG: yamldecode(file(...))
     TF->>PORT: for_each → 54 component entities<br/>(is_data_application + datahub_application_url)
-    Note over PORT: relations UNMANAGED (exporter owns k8sWorkload);<br/>depends_on blueprint (avoid the mid-modify null race)
+    Note over PORT: relations UNMANAGED (exporter owns k8sWorkload).<br/>depends_on blueprint (avoid the mid-modify null race)
     end
 
     rect rgb(255,245,230)

@@ -40,7 +40,7 @@ sequenceDiagram
             O->>F: grafana_* · trino_* · k8s_* · … (read-only)
             F-->>O: result
         else delegate_to_realm
-            O->>R: POST /route {message} (A2A hand-off; Gná dispatches)
+            O->>R: POST /route {message} (A2A hand-off — Gná dispatches)
             R-->>O: {routed_to, role, realm, answer}
         else propose_act
             L-->>O: proposal {tool, job_name, summary}

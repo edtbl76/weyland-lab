@@ -22,8 +22,9 @@
 # Run from anywhere in the repo. Exit 1 (+ every mismatching file:line) on drift, 0 when clean.
 set -euo pipefail
 
-here="$(cd "$(dirname "$0")/.." && pwd)"
-argo_dir="$here/nodes/mother/lab/weyland-platform/k8s/argocd"
+. "$(dirname "$0")/lib/common.sh"
+here="$REPO_ROOT"
+argo_dir="$PLATFORM_DIR/k8s/argocd"
 
 command -v python3 >/dev/null 2>&1 || { echo "❌ python3 not found on PATH" >&2; exit 1; }
 
@@ -69,7 +70,15 @@ fail=0
 # docs/demos/application-taxonomy.md "(72 apps)"). A guard that misses drift is worse than
 # one that occasionally over-reports, so the default is to flag and the exceptions are
 # explicit -- the same shape as check-app-registry.sh's ALIAS map.
-claims="$(grep -rnoE "onboarded \([0-9]+\)|\b[0-9]{1,3} (Argo )?apps?\b" "$here/docs" 2>/dev/null || true)"
+# Scanned set: the docs tree PLUS the B82 application registry, whose header comment also states a
+# count ("78 Argo apps, all accounted"). That one drifted to 72 and was invisible to a docs-only scan.
+# Deliberately NOT a whole-repo sweep: .woodpecker.yml and this script both QUOTE stale numbers while
+# explaining the bug, and a broad scan would flag its own documentation.
+scan_paths=("$here/docs")
+reg="$PLATFORM_DIR/services/weyland-dagster/weyland_pipeline/applications.yaml"
+[ -f "$reg" ] && scan_paths+=("$reg")
+
+claims="$(grep -rnoE "onboarded \([0-9]+\)|\b[0-9]{1,3} (Argo )?apps?\b" "${scan_paths[@]}" 2>/dev/null || true)"
 
 filtered=""
 while IFS= read -r hit; do

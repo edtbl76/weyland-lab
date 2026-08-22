@@ -12,7 +12,8 @@
 set -euo pipefail
 REG="${REG:-registry.weyland.lab}"
 TAG="${TAG:-v1}"
-cd "$(dirname "$0")/../nodes/mother/lab/weyland-platform"   # script is in repo-root ./scripts; build contexts below are relative to the platform dir
+. "$(dirname "$0")/lib/common.sh"
+cd "$PLATFORM_DIR"   # build contexts below are relative to the platform dir
 
 build() { echo "==== $1:$TAG ===="; docker build -t "$REG/$1:$TAG" $2; docker push "$REG/$1:$TAG"; }
 

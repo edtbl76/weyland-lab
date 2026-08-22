@@ -38,5 +38,5 @@ sequenceDiagram
         Note over R: operator_brain_selected_total{brain="haiku",reason="local_down"}
         R-->>C: reply (paid)
     end
-    Note over R: Haiku selections are the failover signal — watch operator_brain_selected_total; sustained > $5/24h → LiteLLMSpendObserved
+    Note over R: Haiku selections are the failover signal — watch operator_brain_selected_total — sustained > $5/24h → LiteLLMSpendObserved
 ```

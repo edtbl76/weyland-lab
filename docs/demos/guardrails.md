@@ -31,7 +31,7 @@ sequenceDiagram
     TS->>G: POST /guard/output {answer, sources}
     G->>V: pii.presidio + grounding.nli + llama_guard.safety
     G-->>TS: {decision: allow|block}
-    TS-->>C: answer (shadow never blocks; enforcing => 403)
+    TS-->>C: answer (shadow never blocks — enforcing returns 403)
 ```
 
 ## Prerequisites

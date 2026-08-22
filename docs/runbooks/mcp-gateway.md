@@ -56,7 +56,7 @@ sequenceDiagram
     participant G as weyland-guard ACT hook
     A->>KC: client_credentials → token (azp = weyland-operator)
     A->>GW: MCP call + Authorization Bearer token
-    GW->>GW: validate JWT (JWKS) ; extract azp
+    GW->>GW: validate JWT (JWKS), extract azp
     GW->>TS: proxy + X-Forwarded-Consumer weyland-operator
     TS->>TS: fastapi-mcp forwards header → _actor
     TS->>G: POST /guard/act {tool, params, actor}

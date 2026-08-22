@@ -32,7 +32,8 @@
 # number, the parser's message, and the offending source).
 set -euo pipefail
 
-here="$(cd "$(dirname "$0")/.." && pwd)"
+. "$(dirname "$0")/lib/common.sh"
+here="$REPO_ROOT"
 targets=("$@")
 if [ ${#targets[@]} -eq 0 ]; then
   targets=("$here/docs")

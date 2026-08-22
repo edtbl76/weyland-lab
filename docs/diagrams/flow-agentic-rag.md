@@ -27,7 +27,7 @@ sequenceDiagram
         R-->>A: chunks
     end
     A->>L: generate — grounded answer over the chunks
-    A->>G: POST /guard/output (answer, sources; fail-open)
+    A->>G: POST /guard/output (answer, sources — fail-open)
     A->>M: autolog Trace — retrieve / grade / reflect / generate spans
     A-->>C: {answer, sources, attempts, backend_used, backend_history}
 ```

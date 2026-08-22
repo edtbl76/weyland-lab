@@ -28,10 +28,10 @@ sequenceDiagram
     participant Dash as weyland_ci_reliability dashboard
     Note over Run: run reaches its terminal status (success / failure)
     alt weyland-lab (kubernetes, single workflow)
-        Run->>Step: last step; $CI_PIPELINE_STATUS is final here
+        Run->>Step: last step — $CI_PIPELINE_STATUS is final here
         Step->>Ingest: POST printf JSON {number,status,repo,branch,commit,event,url}
     else STUD.io (local, 3 parallel workflows)
-        Note over Run,Step: notify-port-pass (when:status success) / notify-port-fail (when:status failure)<br/>each depends_on ALL prior steps → terminal stage; status HARDCODED (env var is empty here)
+        Note over Run,Step: notify-port-pass (when:status success) / notify-port-fail (when:status failure)<br/>each depends_on ALL prior steps → terminal stage — status HARDCODED (env var is empty here)
         Run->>Step: whichever gate matches main's real outcome fires
         Step->>Ingest: POST printf JSON with hardcoded status
     end

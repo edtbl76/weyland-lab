@@ -134,5 +134,11 @@ nodes/mother/lab/weyland-platform/scripts/kuma-backup.json
 __pycache__/
 *.py[cod]
 .pytest_cache/
+# Virtualenvs and bench output. NOT previously ignored — nodes/mother/lab/weyland-platform/scripts/.venv
+# exists on disk today and was one `git add -A` away from committing an entire virtualenv (2026-08-21).
+# It is not tracked, so adding these patterns is purely preventive.
+.venv/
+venv/
+.benchmarks/
 
 /.junie/

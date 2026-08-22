@@ -9,7 +9,8 @@
 #
 # COMPLETENESS: every deployed Argo CD Application + the non-k8s services (whisper/ollama CTs) + data-mesh
 # sub-components appears here — as an `applications:` entry (a component) or `excluded:` (store/plumbing).
-# scripts/check-app-registry.sh enforces it (72 Argo apps, all accounted).
+# scripts/check-app-registry.sh enforces it (78 Argo apps, all accounted) — but note that guard is NOT
+# wired into CI or any CronJob, so "enforces" means "when a human remembers to run it".
 #
 # SCHEMA — applications[] (things that get a Port `component`):
 #   key                 stable id — the Port component identifier + (where applicable) the k8s workload

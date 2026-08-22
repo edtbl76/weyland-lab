@@ -30,5 +30,5 @@ sequenceDiagram
     Argo->>GH: detect main changed (auto-sync)
     Argo->>Reg: (nodes) pull the new git-<sha> tag
     Argo->>Argo: reconcile → rollout the bumped Deployment(s)
-    Note over Srv,Ag: notify-port (build status → Port ci_pipeline) landed in B63 (flow-ci-reliability-signal); nothing deploys unattended — the merge is the gate.
+    Note over Srv,Ag: notify-port (build status → Port ci_pipeline) landed in B63 (flow-ci-reliability-signal) — nothing deploys unattended — the merge is the gate.
 ```

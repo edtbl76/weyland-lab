@@ -17,7 +17,7 @@ sequenceDiagram
     Src->>Img: docker build -t image:tag
     Img->>K3s: docker save | k3s ctr images import (ACL'd handoff)
     Dev->>Dep: kubectl set image / rollout restart
-    Dep->>K3s: pull from local containerd (app-deploy path; registry.weyland.lab now exists for job images)
+    Dep->>K3s: pull from local containerd (app-deploy path — registry.weyland.lab now exists for job images)
     K3s-->>Dep: new pod (Recreate strategy for RWO singletons)
     Dep-->>Dev: rollout status
 ```

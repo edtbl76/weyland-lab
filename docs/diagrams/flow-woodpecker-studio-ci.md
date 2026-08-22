@@ -25,7 +25,7 @@ sequenceDiagram
     Ag->>Ag: git clone into per-run workspace
     Ag->>Roadie: roadie build --schema-only / test unit·pbt·e2e·scan·perf
     Roadie->>Dkr: docker exec studio_db psql (schema + seeds → masterdb_test_ci)
-    Roadie->>Dkr: containerized lanes (backend/frontend/go test images; sonar pytest-coverage)
+    Roadie->>Dkr: containerized lanes (backend/frontend/go test images, sonar pytest-coverage)
     Roadie->>Ext: sonar-scanner → SonarQube :30969 · plugin-scanner release → MinIO :30990
     Dkr-->>Roadie: results
     Roadie-->>Ag: step exit codes + logs

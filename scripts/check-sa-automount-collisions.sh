@@ -7,7 +7,8 @@
 # `default`. Cheap static tripwire; catches the whole class before it ships. Mirrors scripts/check-app-registry.sh.
 # Run from anywhere; script is in the repo-root ./scripts. See k8s/rbac-default-sa-noautomount.yaml.
 set -euo pipefail
-here="$(cd "$(dirname "$0")/.." && pwd)"
+. "$(dirname "$0")/lib/common.sh"
+here="$REPO_ROOT"
 python3 - "$here" <<'PY'
 import sys, os, yaml
 root = sys.argv[1]

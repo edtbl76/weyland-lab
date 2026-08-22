@@ -26,7 +26,7 @@ sequenceDiagram
     Note over Srv: enqueues 3 workflows (main · plugin-scanner · roadie), each labels{backend: local}
     Srv->>Ag: dispatch steps over gRPC NodePort 192.168.1.243:30900 (matched by backend=local)
     Ag->>Roadie: git clone → roadie build --schema-only / test unit·pbt·e2e·scan·perf
-    Roadie->>Dkr: docker exec studio_db psql (schema + seeds → masterdb_test_ci); containerized test lanes
+    Roadie->>Dkr: docker exec studio_db psql (schema + seeds → masterdb_test_ci) — containerized test lanes
     Roadie->>Ext: sonar-scanner → SonarQube :30969 · plugin-scanner release → MinIO :30990
     Ag-->>Srv: stream logs + status over gRPC
     Op->>Srv: pipeline ps <n> (poll) via :30980

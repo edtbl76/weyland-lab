@@ -10,7 +10,8 @@
 set -euo pipefail
 PR_URL="${1:?usage: pr-agent-review.sh <github-pr-url> [review|describe|improve|ask]}"
 CMD="${2:-review}"
-here="$(cd "$(dirname "$0")/.." && pwd)"
+. "$(dirname "$0")/lib/common.sh"
+here="$REPO_ROOT"
 [ -f "$here/scripts/.env" ] && { set -a; . "$here/scripts/.env"; set +a; }
 : "${LITELLM_API_KEY:?set LITELLM_API_KEY in scripts/.env}"
 : "${GITHUB_USER_TOKEN:?set GITHUB_USER_TOKEN in scripts/.env (a repo-scoped GitHub PAT)}"

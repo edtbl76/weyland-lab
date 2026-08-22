@@ -5,7 +5,7 @@ class _FakeCE:
     def __init__(self, score):
         self._s = score
 
-    def predict(self, pairs):
+    def predict(self, pairs, **kwargs):  # **kwargs: grounding.py passes batch_size=
         return [self._s for _ in pairs]
 
 
@@ -36,7 +36,7 @@ class _FakeNLICE:
     def __init__(self, rows):
         self._rows = rows
 
-    def predict(self, pairs):
+    def predict(self, pairs, **kwargs):  # **kwargs: grounding.py passes batch_size=
         return self._rows[: len(pairs)]
 
 
