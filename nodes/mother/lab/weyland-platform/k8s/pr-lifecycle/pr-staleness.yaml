@@ -85,21 +85,52 @@ data:
         "$AM" || echo "  !! alertmanager POST failed"
     }
 
+    # Fetch the open PRs as `<number><TAB><branch><TAB><age-seconds>`. Non-zero on ANY failure.
+    #
+    # WHY THIS IS ITS OWN FUNCTION, AND WHY curl AND jq ARE NOT PIPED TOGETHER: the first version was
+    # `curl -sf ... | jq ... > /tmp/prs.tsv`. Under `set -e` a pipeline's exit status is the LAST
+    # command's, so a 401, a 500, or no network at all reached jq as empty input, jq emitted nothing,
+    # and the run reported "0 open PR(s) checked, 0 alert(s) fired" - identical to a genuinely empty
+    # repo. A watchdog that goes quiet when it cannot see is worse than no watchdog, because it emits
+    # a green signal. That is the exact failure class this whole B131/B135 effort exists to remove,
+    # and it was in the watchdog itself (found 2026-08-22 on the first live run).
+    #
+    # curl writes the body to a file and the status code to stdout, so the two are never conflated.
+    fetch_open_prs() {
+      _body=/tmp/prs.json
+      _http="$(curl -s -o "$_body" -w '%{http_code}' \
+        -H "Authorization: Bearer ${GITHUB_TOKEN}" \
+        -H "Accept: application/vnd.github+json" \
+        "https://api.github.com/repos/${REPO}/pulls?state=open&per_page=100")" || {
+          echo "FATAL: could not reach the GitHub API (curl transport failure). NOT reporting zero PRs." >&2
+          return 1
+        }
+      if [ "$_http" != "200" ]; then
+        echo "FATAL: GitHub API returned HTTP ${_http}. NOT reporting zero PRs." >&2
+        return 1
+      fi
+      # jq does the date arithmetic: `fromdateiso8601` parses GitHub's created_at and the shell never
+      # has to. busybox `date -d` cannot reliably parse ISO8601, and getting that wrong would silently
+      # produce ages that are always zero (never alerting) or always huge (alerting on everything) -
+      # both of which look like a working watchdog.
+      jq -r --argjson now "$(date +%s)" \
+        '.[] | [.number, .head.ref, ($now - (.created_at | fromdateiso8601))] | @tsv' \
+        < "$_body" || {
+          echo "FATAL: could not parse the GitHub API response. NOT reporting zero PRs." >&2
+          return 1
+        }
+    }
+
     main() {
       : "${GITHUB_TOKEN:?GITHUB_TOKEN not set - see the pr-lifecycle-github SealedSecret}"
 
-      # jq does the date arithmetic: `fromdateiso8601` parses GitHub's created_at and the shell
-      # never has to. busybox `date -d` cannot reliably parse ISO8601, and getting that wrong would
-      # silently produce ages that are always zero (never alerting) or always huge (alerting on
-      # everything) - both of which look like a working watchdog.
-      NOW="$(date +%s)"
-      curl -sf \
-        -H "Authorization: Bearer ${GITHUB_TOKEN}" \
-        -H "Accept: application/vnd.github+json" \
-        "https://api.github.com/repos/${REPO}/pulls?state=open&per_page=100" \
-        | jq -r --argjson now "$NOW" \
-            '.[] | [.number, .head.ref, ($now - (.created_at | fromdateiso8601))] | @tsv' \
-        > /tmp/prs.tsv
+      if ! fetch_open_prs > /tmp/prs.tsv; then
+        echo "aborting: the PR list could not be retrieved, so 'no stale PRs' would be a lie."
+        exit 1
+      fi
+      # Says so explicitly, so a real zero is distinguishable from a broken fetch in the job log.
+      # This line is also what proves A3 (a cluster workload CAN reach the GitHub API outbound).
+      echo "fetched the open-PR list from ${REPO} successfully"
 
       COUNT=0
       ALERTS=0

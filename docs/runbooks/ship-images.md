@@ -219,12 +219,19 @@ cluster today, and reusing the CI one would put a write-capable credential in a 
 PRs. Least privilege wins; a PAT costs nothing.
 
 1. Create a fine-grained PAT on `edtbl76/weyland-lab` with **`Pull requests: read`** and nothing else.
-2. On **mother**, create the Secret, then seal it (`weyland/pr-lifecycle-github` is already on the
-   allow-list in `nodes/mother/lab/weyland-platform/scripts/seal-secrets.sh`):
+2. Put it in the gitignored `scripts/.env` as `PR_TOKEN`, per the lab convention. **Never paste a
+   credential into a command line**, and do not use a silent `read` either — a `read -rs` that
+   captures nothing produces a Secret with an *empty* value, which k8s accepts happily and which
+   fails at runtime as `GITHUB_TOKEN not set`. That happened on 2026-08-22.
+3. Create the Secret from the `.env` value, and **verify the stored length before trusting it**
+   (`b64len` should be `ceil(chars/3)*4` — a mismatch means a stray newline or a truncated paste):
 
 ```
-kubectl -n weyland create secret generic pr-lifecycle-github --from-literal=token='<PAT>'
+cd /home/edwardmangini/IdeaProjects/weyland/scripts && set -a && . ./.env && set +a && echo "PR_TOKEN is ${#PR_TOKEN} chars" && kubectl -n weyland create secret generic pr-lifecycle-github --from-literal=token="$PR_TOKEN" && kubectl -n weyland get secret pr-lifecycle-github -o go-template='{{range $k,$v := .data}}{{$k}} b64len={{len $v}}{{"\n"}}{{end}}'
 ```
+
+4. Then seal it (`weyland/pr-lifecycle-github` is already on the allow-list in
+   `nodes/mother/lab/weyland-platform/scripts/seal-secrets.sh`):
 
 ```
 /home/emangini/lab/weyland-platform/scripts/seal-secrets.sh --seal

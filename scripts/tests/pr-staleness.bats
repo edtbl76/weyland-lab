@@ -70,6 +70,44 @@ teardown() {
   grep -q 'alertname' "$LOGIC"
 }
 
+# --- The watchdog must never go quiet when it cannot see -------------------------------
+# A monitor that reports "0 problems" because its data source failed is worse than no monitor: it
+# emits a green signal. The first version of this script piped `curl -sf | jq > file`, and under
+# `set -e` a pipeline's status is the LAST command's — so a 401, a 500 or no network at all reached
+# jq as empty input, jq emitted nothing, and the run printed "0 open PR(s) checked, 0 alert(s)".
+# Indistinguishable from a genuinely empty repo, which is exactly what weyland-lab is.
+
+@test "a curl transport failure is fatal, not 'zero open PRs'" {
+  PR_STALENESS_LIB=1 source "$LOGIC"
+  export GITHUB_TOKEN=not-a-real-token
+  stub curl 7 ''          # 7 = could not connect
+  run fetch_open_prs
+  [ "$status" -ne 0 ]
+}
+
+@test "a non-200 from GitHub is fatal, not 'zero open PRs'" {
+  PR_STALENESS_LIB=1 source "$LOGIC"
+  export GITHUB_TOKEN=not-a-real-token
+  stub curl 0 '500'       # curl itself succeeds; the API did not
+  run fetch_open_prs
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"500"* ]]
+}
+
+@test "an expired or unscoped token (401) is fatal, not 'zero open PRs'" {
+  PR_STALENESS_LIB=1 source "$LOGIC"
+  export GITHUB_TOKEN=not-a-real-token
+  stub curl 0 '401'
+  run fetch_open_prs
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"401"* ]]
+}
+
+@test "the fetch reports success explicitly, so a real zero is distinguishable from a broken one" {
+  # The log line that makes A3 (can the cluster reach GitHub at all?) provable from the job output.
+  grep -q 'fetched' "$LOGIC"
+}
+
 @test "NFR7 the Job tells the Istio sidecar to quit so concurrencyPolicy Forbid cannot deadlock" {
   grep -q 'quitquitquit' "$MANIFEST"
   grep -q 'concurrencyPolicy: Forbid' "$MANIFEST"
