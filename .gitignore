@@ -101,14 +101,26 @@ certs/
 .methodaidlc/
 /aidlc-docs/
 
-# AI-DLC v2 workspace (B133) — machine-local churn ONLY.
-# Everything else under aidlc/ stays TRACKED on purpose: .claude/rules/aidlc.md
-# @-imports aidlc/spaces/default/memory/{org,team,project}.md + phases/*.md into
-# CLAUDE.md context, so a blanket `aidlc/` ignore would leave a fresh clone with
-# no method layer at all. Ignore the per-machine bookkeeping, not the records.
-aidlc/.aidlc-sessions/
-aidlc/.aidlc-clone-id
-aidlc/spaces/*/intents/.aidlc-hooks-health/
+# AI-DLC v2 workspace (B133) — ignored wholesale (operator decision 2026-08-21).
+# This is a solo lab and a fresh clone is not a scenario we design for, so none of
+# the workspace is worth carrying in git: not the per-machine bookkeeping, not the
+# per-workflow intent records, not the derived codekb stores.
+#
+# KNOWN TRADE-OFFS, accepted deliberately:
+#  - `.claude/rules/aidlc.md` @-imports aidlc/spaces/*/memory/{org,team,project}.md
+#    and phases/*.md into CLAUDE.md context. Ignoring them means a fresh clone (or
+#    a second machine) starts with no method/rules layer and the affirmed practices
+#    are lost. Accepted: the lab runs from one working copy.
+#  - The framework treats per-intent records (artifacts + the stage diary) as a
+#    stage's permanent, committed audit trail. Ignoring them keeps that trail
+#    machine-local only.
+#  - The codekb is derived from the code and regenerable; a fresh clone simply
+#    rescans, which is the correct behaviour anyway.
+#
+# NOTE: files already tracked stay tracked — .gitignore does not untrack them.
+# aidlc/spaces/default/memory/*.md and intents.json are in the index today and
+# need explicit untracking if that is wanted.
+aidlc/
 
 # Stray secret copies — n8n reads the key from a k8s Secret, not this file.
 # NOTE: already in git history — untrack + rotate the n8n key (security task).

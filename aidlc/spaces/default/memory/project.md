@@ -62,3 +62,5 @@
 
 <!-- Project-specific corrections from human feedback. -->
 <!-- Format: NEVER/ALWAYS [behavior] (learned [date]) -->
+- When the code-knowledge-base rerun guard reports NO_STORE, no scan-breadth question is presented at all — on a large repository choose the breadth deliberately, brief it explicitly, and record in the `## Scope of Analysis` block exactly what was analyzed deeply versus skimmed, so a later workflow rescans its own area instead of trusting a narrow store (learned 2026-08-21) <!-- cid:reverse-engineering:c1 -->
+- Settle architectural decisions before starting an `express` run and brief them in as inputs — `express` runs no design pass, so a decision left open there is never made by the workflow (learned 2026-08-21) <!-- cid:reverse-engineering:c3 -->
