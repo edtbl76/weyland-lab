@@ -81,7 +81,7 @@ teardown() {
   PR_STALENESS_LIB=1 source "$LOGIC"
   export GITHUB_TOKEN=not-a-real-token
   stub curl 7 ''          # 7 = could not connect
-  run fetch_open_prs
+  run fetch_open_prs edtbl76/weyland-lab
   [ "$status" -ne 0 ]
 }
 
@@ -89,7 +89,7 @@ teardown() {
   PR_STALENESS_LIB=1 source "$LOGIC"
   export GITHUB_TOKEN=not-a-real-token
   stub curl 0 '500'       # curl itself succeeds; the API did not
-  run fetch_open_prs
+  run fetch_open_prs edtbl76/weyland-lab
   [ "$status" -ne 0 ]
   [[ "$output" == *"500"* ]]
 }
@@ -98,9 +98,35 @@ teardown() {
   PR_STALENESS_LIB=1 source "$LOGIC"
   export GITHUB_TOKEN=not-a-real-token
   stub curl 0 '401'
-  run fetch_open_prs
+  run fetch_open_prs edtbl76/weyland-lab
   [ "$status" -ne 0 ]
   [[ "$output" == *"401"* ]]
+}
+
+# --- Multi-repo coverage ---------------------------------------------------------------
+# FR5.2 originally scoped this to weyland-lab alone. Widened 2026-08-22 at the operator's direction
+# once the PAT was granted read access to all six active repos.
+
+@test "FR5.2 all six active repos are watched, not just weyland-lab" {
+  PR_STALENESS_LIB=1 source "$LOGIC"
+  for r in Algopedia ServiceTransformation emangini-tailwind-nextjs-contentlayer \
+           startme-curator stud.io weyland-lab; do
+    [[ "$REPOS" == *"edtbl76/$r"* ]] || {
+      echo "missing repo: edtbl76/$r  (REPOS=$REPOS)"
+      return 1
+    }
+  done
+}
+
+@test "FR5.2 one unreachable repo does not silently shrink the watch set" {
+  # The subtle multi-repo failure: repo 3 of 6 401s, the loop swallows it, and the run reports on 5
+  # repos while claiming to cover 6. Every repo must be attempted AND the run must end non-zero.
+  export GITHUB_TOKEN=not-a-real-token
+  stub curl 0 '403'
+  run bash "$LOGIC"
+  [ "$status" -ne 0 ]
+  [ "$(calls_to curl | grep -c 'api.github.com')" -eq 6 ]
+  [[ "$output" == *"403"* ]]
 }
 
 @test "the fetch reports success explicitly, so a real zero is distinguishable from a broken one" {

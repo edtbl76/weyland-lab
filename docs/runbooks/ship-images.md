@@ -184,8 +184,17 @@ The failure modes are ordered by how much state got created:
 
 ## Open-PR staleness watchdog (B131)
 
-A CronJob in `k8s/pr-lifecycle/` asks GitHub which PRs are open, applies an age budget, and POSTs a
-synthetic alert to the Alertmanager v2 API.
+A CronJob in `k8s/pr-lifecycle/` asks GitHub which PRs are open across **all six active repos** —
+`Algopedia`, `ServiceTransformation`, `emangini-tailwind-nextjs-contentlayer`, `startme-curator`,
+`stud.io`, `weyland-lab` — applies an age budget, and POSTs a synthetic alert to the Alertmanager v2
+API. Override the set for a scoped run with `PR_REPOS`.
+
+A failure on any single repo is **fatal to the run**, not skipped: the counts must never quietly
+describe a shrunken watch set. Every repo is still attempted, so one bad repo does not hide the rest.
+
+> This is **not** the same six the `github-weyland` Port integration maps — Port carries
+> `midi_real_book`, this set carries `startme-curator`. Reconciling coverage across the toolset is
+> **B138**, not something to fix by quietly editing one list to match the other.
 
 | PR kind | Identified by | Budget |
 |---|---|---|

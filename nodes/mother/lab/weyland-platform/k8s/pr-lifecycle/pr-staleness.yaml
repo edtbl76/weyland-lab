@@ -47,7 +47,15 @@ data:
     fi
 
     AM="http://monitoring-kube-prometheus-alertmanager.monitoring.svc.cluster.local:9093/api/v2/alerts"
-    REPO="${PR_REPO:-edtbl76/weyland-lab}"
+
+    # All six ACTIVE repos, not just weyland-lab. FR5.2 originally scoped this to one repo because the
+    # token only reached one; widened 2026-08-22 once the PAT was granted `Pull requests: read` on the
+    # full set. Space-separated; override with PR_REPOS for a scoped run.
+    #
+    # NOT the same six the `github-weyland` Port integration maps — Port carries `midi_real_book`, this
+    # set carries `startme-curator`. That divergence is real and tracked separately; do not silently
+    # reconcile one to the other here.
+    REPOS="${PR_REPOS:-edtbl76/Algopedia edtbl76/ServiceTransformation edtbl76/emangini-tailwind-nextjs-contentlayer edtbl76/startme-curator edtbl76/stud.io edtbl76/weyland-lab}"
 
     # Two budgets, because the two kinds of PR mean different things when they sit.
     #   A CI image-bump PR that is a day old means the ship loop stalled — that is the B135 failure
@@ -76,12 +84,15 @@ data:
 
     # FR5.5 — the payload shape a PrometheusRule alert produces, so it renders identically in the
     # existing Telegram template.
-    fire() { # fire <number> <branch> <age-seconds> <budget-seconds>
-      _days="$(( $3 / 86400 ))"
-      _budget_days="$(( $4 / 86400 ))"
-      echo "ALERT pr #$1 ($2) open ${_days}d, budget ${_budget_days}d"
+    fire() { # fire <repo> <number> <branch> <age-seconds> <budget-seconds>
+      _repo="$1"; _num="$2"; _branch="$3"
+      _days="$(( $4 / 86400 ))"
+      _budget_days="$(( $5 / 86400 ))"
+      echo "ALERT ${_repo}#${_num} (${_branch}) open ${_days}d, budget ${_budget_days}d"
+      # `repo` is a LABEL, not just annotation text: Alertmanager dedupes on the label set, so without
+      # it two repos with the same PR number would collapse into one alert.
       wget -q -O- --header='Content-Type: application/json' \
-        --post-data="[{\"labels\":{\"alertname\":\"OpenPullRequestStale\",\"severity\":\"warning\",\"namespace\":\"weyland\",\"pr\":\"$1\",\"branch\":\"$2\",\"source\":\"pr-lifecycle-watchdog\"},\"annotations\":{\"summary\":\"PR #$1 on ${REPO} has been open ${_days}d (budget ${_budget_days}d)\",\"description\":\"Branch ${2}. Review, merge or close it at https://github.com/${REPO}/pull/$1 . CI image-bump PRs are budgeted 1 day because an unmerged bump means the ship loop stalled and the built image is not deployed; every other PR is budgeted 7 days.\"}}]" \
+        --post-data="[{\"labels\":{\"alertname\":\"OpenPullRequestStale\",\"severity\":\"warning\",\"namespace\":\"weyland\",\"repo\":\"${_repo}\",\"pr\":\"${_num}\",\"branch\":\"${_branch}\",\"source\":\"pr-lifecycle-watchdog\"},\"annotations\":{\"summary\":\"${_repo} PR #${_num} has been open ${_days}d (budget ${_budget_days}d)\",\"description\":\"Branch ${_branch}. Review, merge or close it at https://github.com/${_repo}/pull/${_num} . CI image-bump PRs are budgeted 1 day because an unmerged bump means the ship loop stalled and the built image is not deployed; every other PR is budgeted 7 days.\"}}]" \
         "$AM" || echo "  !! alertmanager POST failed"
     }
 
@@ -96,17 +107,18 @@ data:
     # and it was in the watchdog itself (found 2026-08-22 on the first live run).
     #
     # curl writes the body to a file and the status code to stdout, so the two are never conflated.
-    fetch_open_prs() {
-      _body=/tmp/prs.json
+    fetch_open_prs() { # fetch_open_prs <owner/repo>
+      _repo="${1:?usage: fetch_open_prs <owner/repo>}"
+      _body="/tmp/prs.json"
       _http="$(curl -s -o "$_body" -w '%{http_code}' \
         -H "Authorization: Bearer ${GITHUB_TOKEN}" \
         -H "Accept: application/vnd.github+json" \
-        "https://api.github.com/repos/${REPO}/pulls?state=open&per_page=100")" || {
-          echo "FATAL: could not reach the GitHub API (curl transport failure). NOT reporting zero PRs." >&2
+        "https://api.github.com/repos/${_repo}/pulls?state=open&per_page=100")" || {
+          echo "FATAL: could not reach the GitHub API for ${_repo} (curl transport failure). NOT reporting zero PRs." >&2
           return 1
         }
       if [ "$_http" != "200" ]; then
-        echo "FATAL: GitHub API returned HTTP ${_http}. NOT reporting zero PRs." >&2
+        echo "FATAL: GitHub API returned HTTP ${_http} for ${_repo}. NOT reporting zero PRs." >&2
         return 1
       fi
       # jq does the date arithmetic: `fromdateiso8601` parses GitHub's created_at and the shell never
@@ -124,27 +136,38 @@ data:
     main() {
       : "${GITHUB_TOKEN:?GITHUB_TOKEN not set - see the pr-lifecycle-github SealedSecret}"
 
-      if ! fetch_open_prs > /tmp/prs.tsv; then
-        echo "aborting: the PR list could not be retrieved, so 'no stale PRs' would be a lie."
-        exit 1
-      fi
-      # Says so explicitly, so a real zero is distinguishable from a broken fetch in the job log.
-      # This line is also what proves A3 (a cluster workload CAN reach the GitHub API outbound).
-      echo "fetched the open-PR list from ${REPO} successfully"
-
       COUNT=0
       ALERTS=0
-      while IFS="$(printf '\t')" read -r NUM BRANCH AGE; do
-        [ -n "$NUM" ] || continue
-        COUNT=$((COUNT + 1))
-        BUDGET="$(threshold_for "$BRANCH")"
-        echo "check #$NUM $BRANCH age=${AGE}s budget=${BUDGET}s"
-        if is_stale "$BRANCH" "$AGE"; then
-          fire "$NUM" "$BRANCH" "$AGE" "$BUDGET"
-          ALERTS=$((ALERTS + 1))
+      FAILED=""
+
+      # Every repo is attempted even after one fails. The alternative — abort on the first failure —
+      # would let a single unreachable repo silently shrink the watch set while the run still looked
+      # like it covered everything. Failures are collected and the run exits non-zero at the end.
+      for _r in $REPOS; do
+        if ! fetch_open_prs "$_r" > /tmp/prs.tsv; then
+          FAILED="${FAILED} ${_r}"
+          continue
         fi
-      done < /tmp/prs.tsv
+        # Says so explicitly, so a real zero is distinguishable from a broken fetch in the job log.
+        # This line is also what proves A3 (a cluster workload CAN reach the GitHub API outbound).
+        echo "fetched the open-PR list from ${_r} successfully"
+        while IFS="$(printf '\t')" read -r NUM BRANCH AGE; do
+          [ -n "$NUM" ] || continue
+          COUNT=$((COUNT + 1))
+          BUDGET="$(threshold_for "$BRANCH")"
+          echo "check ${_r}#${NUM} ${BRANCH} age=${AGE}s budget=${BUDGET}s"
+          if is_stale "$BRANCH" "$AGE"; then
+            fire "$_r" "$NUM" "$BRANCH" "$AGE" "$BUDGET"
+            ALERTS=$((ALERTS + 1))
+          fi
+        done < /tmp/prs.tsv
+      done
+
       echo "done - ${COUNT} open PR(s) checked, ${ALERTS} alert(s) fired"
+      if [ -n "$FAILED" ]; then
+        echo "FATAL: could not check:${FAILED} - the counts above cover only the repos that answered." >&2
+        exit 1
+      fi
     }
 
     if [ -z "${PR_STALENESS_LIB:-}" ]; then
