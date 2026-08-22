@@ -16,8 +16,31 @@ The *action* execution path (clicking a Port button to change the cluster) is se
 
 ## How the catalog is built + kept in sync
 
-Port is SaaS and the lab is LAN-only, so **Port's cloud cannot reach inbound** to scrape the cluster — there is
-**no self-hosted k8s exporter / Ocean integration running**. Instead the catalog is maintained two ways, split by
+> **CORRECTED 2026-08-22.** This section previously claimed there is "no self-hosted k8s exporter / Ocean
+> integration running." **That is false**, and was verified false against the live Port API. FOUR integrations
+> are connected:
+>
+> | Integration | Type | Version | Mapped kinds |
+> |---|---|---|---|
+> | `weyland-cluster` | OnPrem — K8S EXPORTER | 0.7.4 | 11: deployments, daemonsets, replicasets, statefulsets, pods, nodes, namespaces, Istio gateways + virtualservices |
+> | `github-weyland` | SaasOAuth2 — github-ocean | 6.8.1 | **1: `repository` only** |
+> | `linear` | Saas | 0.3.97 | 3: issue, label, team |
+> | `sonarqube-direct` | Saas | 0.1.439 | 2: issues, projects_ga |
+>
+> The k8s exporter runs **on-prem and pushes outbound**, which is why the LAN-only topology never blocked it —
+> the original inference (cloud cannot reach in ⇒ no exporter) was wrong about the direction of travel.
+>
+> Live counts at correction time: **51 blueprints** (only 13 in OpenTofu), **8 scorecards** (none in OpenTofu),
+> `githubRepository` 6 entities, `service` 6, `environment` 3, `ci_pipeline` 13, and
+> **`githubPullRequest` 0 / `githubWorkflowRun` 0 / `deployment` 0** — those blueprints exist but nothing feeds
+> them. `deployment: 0` is exactly the gap EMA-172 (DORA) is open for, and the `service/dora_lead_time`,
+> `service/dora_deploy_freq` and `service/delivery_performance` scorecards are built and starved.
+>
+> **Consequence worth knowing:** ingesting pull requests is NOT a build — it is adding the `pull-request` kind to
+> `github-weyland`'s existing mapping.
+
+Port is SaaS and the lab is LAN-only, so **Port's cloud cannot reach inbound** to scrape the cluster — anything
+Port learns about in-cluster state is **pushed outbound** to it. The catalog is maintained two ways, split by
 what the thing *is*:
 
 - **Blueprints (the schema) = OpenTofu, drift-checked.** The blueprint definitions live in `tofu/port/` and are

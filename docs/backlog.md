@@ -1926,3 +1926,33 @@ Linear: EMA-196. Relates B57a (the image CI this wraps), B131 (open-PR lifecycle
 **Acceptance:** dbt-core → 1.12.x with its siblings moved to compatible versions; `sqlparse==0.6.0`; **DELETE the `[[PackageOverrides]]` sqlparse block from `osv-scanner.toml`** (it is scoped to `version = "0.5.5"` so it stops applying by itself, but a dead exception left behind is drift); validate with `dbt deps` + `parse` + `build` + tests against the marts (the image bakes a `dbt parse`, so a broken manifest fails the build — necessary but **not** sufficient, the mart tests are the real check); confirm `weyland_dbt_assets` still materialises and dbt-docs still renders.
 
 Linear: EMA-197. Relates B1.5 (dbt transform tier), B131 (dependency lifecycle), B133 (the sweep that surfaced it). Detail: `osv-scanner.toml` → sqlparse override.
+
+---
+
+### B137 — Bring Port's schema back under OpenTofu — 🔴 **HIGH (2026-08-22)**
+
+`docs/runbooks/port.md` documents the B60 split as **"blueprints (the schema) = OpenTofu, drift-checked; entity data outside."** That is no longer true. Verified against the live `api.port.io` on 2026-08-22:
+
+| | In `tofu/port/` | Live in Port |
+|---|---|---|
+| Blueprints | 13 | **51** |
+| Scorecards | 0 | **8** |
+| Integrations | 0 | **4** |
+
+**38 blueprints, all 8 scorecards, and all 4 integrations exist only in Port's UI.** There is no codified definition of any of them, no `tofu plan` that would detect their loss, and no review trail for changes to them.
+
+**Concrete consequences already observed:**
+
+- The `component` blueprint's `service` relation (`catalog.tf:442`, titled "Repo / Service (DORA)") targets a `service` blueprint **that does not exist in `tofu/port/`**. It resolves only because a `service` blueprint exists in Port with 6 entities — created outside OpenTofu. Reading the IaC alone, that relation looks broken.
+- Eight scorecards carry real logic with no source of truth: `service/delivery_performance` (14 rules), `service/production_readiness` (10), `service/quality_maturity` (5), `service/reliability_health` (5), `service/dora_lead_time` (3), `service/dora_deploy_freq` (3), `workload/availability` (3), `sonarQubeProject/services_connected` (1). Losing the org loses all of it.
+- Four integrations are unversioned config: `github-weyland` (github-ocean 6.8.1, mapping **only** `repository`), `weyland-cluster` (OnPrem K8S EXPORTER 0.7.4, 11 kinds), `linear` (0.3.97), `sonarqube-direct` (0.1.439).
+
+**How this was found — worth recording, because the failure mode repeats.** During B133's reverse-engineering scan the codebase was grepped for `pull_request` and, finding nothing, the store concluded Port had no PR ingestion and "cannot easily get one." That conclusion was wrong: Port's configuration does not live in this repo, so the repo could never have answered the question. `githubPullRequest` exists as a blueprint and `github-weyland` is live and ingesting — PR ingestion is one mapping line away. **Grepping the repo cannot establish the absence of anything Port owns.** The codekb finding was withdrawn (TD-3 → TD-3b) and `docs/runbooks/port.md` corrected.
+
+**Also surfaced:** the runbook claimed LAN-only topology meant "no self-hosted k8s exporter / Ocean integration running." There is one — it runs on-prem and pushes **outbound**, so inbound unreachability was never the constraint. Corrected 2026-08-22.
+
+**Not to be bundled into B131.** Codifying an integration means importing `github-weyland` into OpenTofu state — a real operation on a live OAuth-connected integration currently feeding 6 repositories. That risk should not ride along with a one-line mapping change.
+
+**Acceptance:** every blueprint, scorecard and integration the lab depends on is defined in `tofu/port/`; `tofu plan` reports no drift; the `service` blueprint exists in code so the `component` relation resolves from the IaC alone; a documented decision for anything deliberately left UI-managed (with the reason). Bonus: `deployment` currently has **0 entities**, starving three DORA scorecards — that is EMA-172's gap, not this item's, but B137 is what makes the scorecard definitions reviewable.
+
+Linear: EMA-198. Relates **B131** (its Port surface is what exposed this), **B135** (same ship-loop workstream), B60 (the split this restores), EMA-172 (DORA deployment events), B133 (the scan whose wrong conclusion led here).
