@@ -35,7 +35,7 @@ tofu -chdir=tofu/port plan   # clean (no drift) once applied
 ```
 bash scripts/check-app-registry.sh
 ```
-Expected: `✅ every deployed Argo app is accounted for in the registry` (72 apps).
+Expected: `✅ every deployed Argo app is accounted for in the registry` (78 apps).
 
 ## Teardown
 
