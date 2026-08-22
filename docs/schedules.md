@@ -41,6 +41,7 @@ Heavy = embeds/writes or large scans (guard the node's RAM). Light = metadata/re
 | 01:45 | DataHub | Superset | daily | light |
 | 02:15 | DataHub | Kafka (Redpanda `datasets.*` topics + Avro schemas) | daily | light — metadata scan, no profiling |
 | `0 */6 * * *` | k8s CronJob | `lancedb-sync` (mc mirror lakeFS Lance tables → viewer PVC) | every 6h | light — in practice the **PRIMARY** path, not a backstop. `lancedb_sync_sensor` watches `datasets_{music,health}_lancedb_load`, which live in the `datasets_*_stores` groups — **hydration is deliberately ON-DEMAND** (the hydrate jobs have no schedule), so the sensor idles for weeks by design and skips cleanly. A long-idle `lancedb_sync_sensor` is EXPECTED, not a fault. |
+| **05:45** | k8s CronJob | `pr-staleness-check` (B131 — lists open PRs on `edtbl76/weyland-lab` via the GitHub API, applies a per-kind age budget — 1 day for `ci/image-bump-*`, 7 days for everything else — and POSTs a synthetic alert to Alertmanager v2). Decision logic lives in the `pr-staleness-logic` ConfigMap so `scripts/tests/pr-staleness.bats` runs the same text the cluster does. `spec.timeZone: America/New_York`. | daily | **light** — one GitHub API call + jq, ~2s; 32Mi/25m requests. Slotted at 05:45 because 05:00 is the DataHub dbt scan, 05:30 is `docs-site-rebuild` and 06:00 is the weekly dbt build. **Daily, not `*/30`**: the alert auto-resolves after 5m and each firing is a NEW Alertmanager alert, so the CronJob cadence IS the Telegram rate — `*/30` would send ~48 messages a day per stale PR, and would violate Design Rule #5 (no mid-day auto-runs). |
 | 03:00 | DataHub | Neo4j | daily | light |
 | 03:15 | DataHub | Postgres (weyland core) | daily | med |
 | **03:30** | DataHub | **CockroachDB** | weekly (Sun) | med |
@@ -53,7 +54,7 @@ Heavy = embeds/writes or large scans (guard the node's RAM). Light = metadata/re
 | **09:00 (Sun)** | k8s CronJob | `code-scan-suite` (the `quality-tools.yaml` roster — 19 scan-suite tools → Port + code-maat hotspots; one `scan-suite` image) | weekly (Sun) | **HEAVY** — semgrep auto + trivy fs (13:00 UTC) |
 | **11:00 (Sun)** | node systemd (mother) | `weyland-image-prune` (`k3s crictl rmi --prune`) — frees ephemeral storage so the node never re-hits the eviction line (B69, `nodes/mother/host/systemd/`) | weekly (Sun) | — (host timer @ **15:00 UTC**; quiet slot clear of the DataHub train) · **INSTALLED 2026-07-20** (authored 07-18, enabled 07-20) |
 | **05:30** | k8s CronJob | `docs-site-rebuild` — `kubectl rollout restart deploy/docs-site` (B69). docs-site rebuilds from a fresh `git clone` on every pod start, so without this the site silently serves a snapshot frozen at the last restart. No push-trigger available ([[lan-no-github-webhooks]]). | daily | light — restart only; the mkdocs build happens in the new pod's initContainer |
-| **01:00** | Woodpecker cron | `nightly-images` (B57a — weyland image CI: detect changed images → BuildKit build+push `registry.weyland.lab/<img>:git-<sha>` → open a tag-bump PR; you merge → Argo deploys). Repo `edtbl76/weyland-lab`, `0 5 * * *` **UTC** = 01:00 EDT / 00:00 EST (see TZ note — Woodpecker crons are UTC, not NY-pinned). | daily | light most nights (BuildKit registry cache → only genuinely-changed images rebuild); **HEAVY** only on the one-time `:vN`→`git-<sha>` migration or many-change days. Placed at 01:00 to clear the **02:17 `weyland_ingestion` HEAVY** and the 02:00 scaledown; only overlaps the light 01:00 DataHub Grafana scan. The bump PR is merged **manually**, so nothing rolls unattended. |
+| **01:00** | Woodpecker cron | `nightly-images` (B57a — weyland image CI: detect changed images → BuildKit build+push `registry.weyland.lab/<img>:git-<sha>` → open a tag-bump PR; you merge → Argo deploys). Repo `edtbl76/weyland-lab`, `0 5 * * *` **UTC** = 01:00 EDT / 00:00 EST (see TZ note — Woodpecker crons are UTC, not NY-pinned). | daily | light most nights (BuildKit registry cache → only genuinely-changed images rebuild); **HEAVY** only on the one-time `:vN`→`git-<sha>` migration or many-change days. Placed at 01:00 to clear the **02:17 `weyland_ingestion` HEAVY** and the 02:00 scaledown; only overlaps the light 01:00 DataHub Grafana scan. The bump PR is merged **manually**, so nothing rolls unattended. **Dormant 2026-08-18 → 2026-08-22: the cron existed but was `enabled:false` and never fired; first real run is 2026-08-23.** |
 | **02:30** (+≤30m jitter) | node systemd (rogueone) | `restic-backup` (B130 — encrypted incremental restic → MinIO `rogueone-backup`: dotfiles + `~/.config` + `~/.claude` memory + secrets/keyring/mkcert + curated `~/Documents` + allow-listed repos' untracked-minus-bulk; reports Port `backup` entity + Kuma push heartbeat). `nodes/rogueone/{backup,systemd/restic-backup.*}` · **INSTALLED 2026-08-20** (user unit + `enable-linger`) | daily | light — ~415M deduped repo, incremental; runs on **rogueone** (not mother), so no single-node contention — only a light MinIO write |
 | **Sat 03:00** | Dagster | `weyland_eval_job` (question-gen + run-matrix, RAG × 6 models) | weekly (Sat) — **STOPPED by default** | **HEAVY** |
 | **Sat 05:00** | Dagster | `weyland_eval_score_job` (3-judge panel → `eval_leaderboard` + Iceberg publish) | weekly (Sat) — **STOPPED by default** | med |
@@ -117,6 +118,19 @@ scaled down — they back live services or the mesh.
 
 ## Change log
 
+- 2026-08-22 — **`nightly-images` was never actually running.** The Woodpecker cron (id 2, `0 5 * * *` UTC)
+  was created **`enabled: false`** on 2026-08-18 and had never fired: `next_exec` was frozen at its first-ever
+  slot (2026-08-19 01:00 EDT) and every pipeline on `edtbl76/weyland-lab` was `event: manual`. This table has
+  documented it as a daily job for four days. Enabled via the REST API (`PATCH /api/repos/2/cron/2`) — the CLI's
+  `repo cron update` 404s on a positional repo argument. `next_exec` now reads 2026-08-23 01:00 EDT.
+  **Lesson for any new timer: `--enabled` is not a default, and a disabled cron is silent.** Verify a new
+  schedule by checking `next_exec` is in the FUTURE, not merely that the entry exists.
+- 2026-08-22 — **Added the `pr-staleness-check` k8s CronJob (B131)** — open-PR staleness watchdog on
+  `edtbl76/weyland-lab`, daily **05:45 NY**, `spec.timeZone` pinned. Drafted at `*/30` and corrected before merge:
+  that violated **Design Rule #5** (no mid-day auto-runs) and, because synthetic alerts auto-resolve after 5m and
+  re-fire as NEW alerts, would have sent ~48 Telegram messages a day per stale PR. The budgets are measured in days,
+  so daily is proportionate. Note for a future sweep: `dagster-freshness-check` (`*/30`, `k8s/dagster/freshness.yaml`)
+  is **absent from this table** and is itself a mid-day auto-run — an undocumented Rule #5 exception, not a precedent.
 - 2026-08-20 — **Added the `restic-backup` rogueone systemd timer (B130)** — encrypted incremental restic → MinIO
   `rogueone-backup`, daily 02:30 NY (+≤30m jitter), user unit + `loginctl enable-linger`. Off-hours ✓; on rogueone
   (not mother) so it doesn't stack on the single node. Reports Port `backup` + a Kuma push dead-man's-switch.

@@ -19,9 +19,19 @@
 
 ## Testing Posture
 
-<!-- Affirmed during practices-discovery. Example: -->
-<!-- We use BDD. Specifications drive scenarios; scenarios drive code. -->
-<!-- Each Unit ships with feature files in /features/. -->
+**Methodology**: tdd
+**Ordering**: For each applicable testable layer, write the failing test first (Red), implement the minimum that passes it (Green), then refactor while green.
+
+Affirmed 2026-08-22. This replaces reliance on the org-level `test-after` default, which applied only
+because no posture had been recorded here. Where a slice is better described as an observable
+user-facing scenario, express the test as a scenario — that is a BDD-flavoured way of writing the
+Red step, not a different methodology, and it does not change the Red/Green/Refactor ordering above.
+
+**Shell is included.** This repository carries 17 shell scripts and, as of 2026-08-22, no shell test
+harness at all — the largest untested surface in the tree. Shell that makes decisions (gate checks,
+exit-code logic, argument handling) gets tests like any other layer; `bats` is the harness. Shell
+that is purely a sequence of external commands with no branching does not need a test for its own
+sake.
 
 ## Deployment
 

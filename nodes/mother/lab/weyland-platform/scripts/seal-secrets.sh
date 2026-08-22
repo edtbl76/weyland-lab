@@ -24,7 +24,7 @@ OUT="${OUT:-$HOME/sealed-out}"
 SEAL=0; [ "${1:-}" = "--seal" ] && SEAL=1
 
 SECRETS=(
-  # --- weyland (25) ---
+  # --- weyland (26) ---
   weyland/aidlc-kb-minio-secret
   weyland/apisix-secret
   weyland/dagster-postgres-secret
@@ -41,6 +41,7 @@ SECRETS=(
   weyland/neo4j-secret
   weyland/open-webui-oauth
   weyland/port-creds
+  weyland/pr-lifecycle-github     # B131 — read-only GitHub PAT for the open-PR staleness watchdog
   weyland/port-ingest-url
   weyland/ray-auth
   weyland/registry-auth

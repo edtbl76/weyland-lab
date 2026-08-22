@@ -1,0 +1,172 @@
+# B131 — open pull request staleness watchdog.
+#
+# WHY THIS IS A CRONJOB AND NOT A PrometheusRule: there is no metric in this cluster that describes a
+# GitHub pull request (constraint C3). No pushgateway, no node_exporter textfile collector, no GitHub
+# exporter — so there is no `expr` to write. This job asks GitHub directly and POSTs a synthetic
+# alert to the Alertmanager v2 API, exactly as k8s/dagster/freshness.yaml does for Dagster jobs.
+#
+# NO ROUTING CHANGE IS NEEDED (NFR5): the top-level Alertmanager route is a catch-all to `telegram`
+# with a single `alertname = "Watchdog"` sub-route, so an alert carrying `severity` +
+# `annotations.summary` + `annotations.description` renders through the existing template unmodified.
+#
+# RE-FIRE IS DELIBERATE (NFR6), BUT DAILY, NOT EVERY 30 MINUTES. Synthetic alerts carry no `endsAt`,
+# so Alertmanager auto-resolves them after `resolve_timeout` (5m) and treats the next firing as a NEW
+# alert — which means the cadence of this CronJob IS the Telegram notification rate. At `*/30` a
+# single stale PR would send ~48 messages a day, which is not nagging, it is training the operator to
+# ignore the channel. The budgets here are measured in DAYS (1 and 7), so a daily check can be at most
+# a few hours late. NFR6 asked for persistence, not frequency.
+#
+# 05:45 NY is also what Design Rule #5 requires (docs/schedules.md, incident-driven 2026-08-07):
+# every new timer runs ONLY in the ~00:00–06:00 pre-dawn window, never during the working day.
+# `*/30` was the first draft and violated that rule outright. `dagster-freshness-check` does run
+# `*/30`, but it is absent from schedules.md entirely — an undocumented exception, not a precedent.
+# Slot chosen because 05:00 is the DataHub dbt scan, 05:30 is docs-site-rebuild and 06:00 is the
+# weekly dbt build, leaving 05:45 clear.
+#
+# THE DECISION LOGIC LIVES IN THE ConfigMap BELOW, not inline in the container args, because
+# scripts/tests/pr-staleness.bats extracts and executes that exact text. A tested copy sitting beside
+# a deployed copy drifts, and the drift is silent — both halves keep passing their own checks.
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: pr-staleness-logic
+  namespace: weyland
+data:
+  pr-staleness.sh: |
+    #!/bin/sh
+    # Open-PR staleness evaluation. Sourced by the test suite with PR_STALENESS_LIB=1 (which
+    # suppresses main), executed directly by the CronJob.
+    #
+    # Both guards are `if` blocks rather than `[ … ] && …` on purpose: a trailing `&&` whose test is
+    # false makes the file's LAST statement return 1, and a sourced file that returns non-zero is a
+    # failed `source` under `set -e`. The library path would break for a reason having nothing to do
+    # with the logic.
+    if [ -z "${PR_STALENESS_LIB:-}" ]; then
+      set -eu
+    fi
+
+    AM="http://monitoring-kube-prometheus-alertmanager.monitoring.svc.cluster.local:9093/api/v2/alerts"
+    REPO="${PR_REPO:-edtbl76/weyland-lab}"
+
+    # Two budgets, because the two kinds of PR mean different things when they sit.
+    #   A CI image-bump PR that is a day old means the ship loop stalled — that is the B135 failure
+    #   this whole effort exists to catch, and a day is already generous for a machine-authored PR
+    #   whose only job is to be merged.
+    #   Anything else is a human's work in progress; a week is when it starts to look forgotten.
+    CI_BUMP_BUDGET=86400      # 1 day
+    DEFAULT_BUDGET=604800     # 7 days
+
+    # OQ4 resolved to the BRANCH PREFIX rather than the author. The prefix says what the PR IS;
+    # the author only says who pushed the button. `ci/image-bump-*` is the shape CI actually
+    # creates, and the anchored glob means `feature/ci-image-bump-lookalike` does not qualify.
+    threshold_for() {
+      case "$1" in
+        ci/image-bump-*) echo "$CI_BUMP_BUDGET" ;;
+        *)               echo "$DEFAULT_BUDGET" ;;
+      esac
+    }
+
+    # FR5.2 — the decision takes a branch and an age and nothing else. There is deliberately no
+    # author parameter, so the check cannot quietly become bot-only.
+    is_stale() {
+      _budget="$(threshold_for "$1")"
+      [ "$2" -gt "$_budget" ]
+    }
+
+    # FR5.5 — the payload shape a PrometheusRule alert produces, so it renders identically in the
+    # existing Telegram template.
+    fire() { # fire <number> <branch> <age-seconds> <budget-seconds>
+      _days="$(( $3 / 86400 ))"
+      _budget_days="$(( $4 / 86400 ))"
+      echo "ALERT pr #$1 ($2) open ${_days}d, budget ${_budget_days}d"
+      wget -q -O- --header='Content-Type: application/json' \
+        --post-data="[{\"labels\":{\"alertname\":\"OpenPullRequestStale\",\"severity\":\"warning\",\"namespace\":\"weyland\",\"pr\":\"$1\",\"branch\":\"$2\",\"source\":\"pr-lifecycle-watchdog\"},\"annotations\":{\"summary\":\"PR #$1 on ${REPO} has been open ${_days}d (budget ${_budget_days}d)\",\"description\":\"Branch ${2}. Review, merge or close it at https://github.com/${REPO}/pull/$1 . CI image-bump PRs are budgeted 1 day because an unmerged bump means the ship loop stalled and the built image is not deployed; every other PR is budgeted 7 days.\"}}]" \
+        "$AM" || echo "  !! alertmanager POST failed"
+    }
+
+    main() {
+      : "${GITHUB_TOKEN:?GITHUB_TOKEN not set - see the pr-lifecycle-github SealedSecret}"
+
+      # jq does the date arithmetic: `fromdateiso8601` parses GitHub's created_at and the shell
+      # never has to. busybox `date -d` cannot reliably parse ISO8601, and getting that wrong would
+      # silently produce ages that are always zero (never alerting) or always huge (alerting on
+      # everything) - both of which look like a working watchdog.
+      NOW="$(date +%s)"
+      curl -sf \
+        -H "Authorization: Bearer ${GITHUB_TOKEN}" \
+        -H "Accept: application/vnd.github+json" \
+        "https://api.github.com/repos/${REPO}/pulls?state=open&per_page=100" \
+        | jq -r --argjson now "$NOW" \
+            '.[] | [.number, .head.ref, ($now - (.created_at | fromdateiso8601))] | @tsv' \
+        > /tmp/prs.tsv
+
+      COUNT=0
+      ALERTS=0
+      while IFS="$(printf '\t')" read -r NUM BRANCH AGE; do
+        [ -n "$NUM" ] || continue
+        COUNT=$((COUNT + 1))
+        BUDGET="$(threshold_for "$BRANCH")"
+        echo "check #$NUM $BRANCH age=${AGE}s budget=${BUDGET}s"
+        if is_stale "$BRANCH" "$AGE"; then
+          fire "$NUM" "$BRANCH" "$AGE" "$BUDGET"
+          ALERTS=$((ALERTS + 1))
+        fi
+      done < /tmp/prs.tsv
+      echo "done - ${COUNT} open PR(s) checked, ${ALERTS} alert(s) fired"
+    }
+
+    if [ -z "${PR_STALENESS_LIB:-}" ]; then
+      main
+    fi
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: pr-staleness-check
+  namespace: weyland
+spec:
+  # Load-bearing, not decoration: this is a wall-clock schedule and k8s CronJobs otherwise inherit
+  # the kube-controller-manager's clock (UTC), which would put this at 01:45 NY in EDT — on top of
+  # the DataHub sweep. Design Rule #1, docs/schedules.md.
+  timeZone: America/New_York
+  schedule: "45 5 * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 2
+  failedJobsHistoryLimit: 2
+  jobTemplate:
+    spec:
+      backoffLimit: 0
+      # Backstop: if the istio sidecar refuses to exit, force-terminate rather than hang Forbid.
+      activeDeadlineSeconds: 180
+      template:
+        metadata:
+          labels:
+            sidecar.istio.io/inject: "true"
+        spec:
+          restartPolicy: Never
+          containers:
+            - name: check
+              image: alpine:latest
+              resources:
+                requests: { memory: 32Mi, cpu: 25m }
+                limits: { memory: 128Mi }
+              command: ["/bin/sh", "-c"]
+              args:
+                - |
+                  set -e
+                  apk add --no-cache curl jq ca-certificates >/dev/null
+                  sh /opt/pr-staleness/pr-staleness.sh
+                  # Istio sidecar-on-a-Job: the injected istio-proxy runs forever, so without this
+                  # the Job never completes and concurrencyPolicy:Forbid deadlocks the next run.
+                  for _p in 15020 15000; do wget -q -O- --post-data='' "http://localhost:$_p/quitquitquit" 2>/dev/null && break; done || true
+              env:
+                - name: GITHUB_TOKEN
+                  valueFrom: { secretKeyRef: { name: pr-lifecycle-github, key: token } }
+              volumeMounts:
+                - name: logic
+                  mountPath: /opt/pr-staleness
+          volumes:
+            - name: logic
+              configMap:
+                name: pr-staleness-logic

@@ -1,0 +1,18 @@
+diff --git a/nodes/mother/lab/weyland-platform/k8s/code-quality/scan-suite.yaml b/nodes/mother/lab/weyland-platform/k8s/code-quality/scan-suite.yaml
+index 1111111..2222222 100644
+--- a/nodes/mother/lab/weyland-platform/k8s/code-quality/scan-suite.yaml
++++ b/nodes/mother/lab/weyland-platform/k8s/code-quality/scan-suite.yaml
+@@ -30,7 +30,7 @@ spec:
+           containers:
+             - name: scan
+-              image: registry.weyland.lab/scan-suite:git-2c73c898
++              image: registry.weyland.lab/scan-suite:git-9a4996c6
+               resources:
+diff --git a/nodes/mother/lab/weyland-platform/k8s/data-mesh/flink-session.yaml b/nodes/mother/lab/weyland-platform/k8s/data-mesh/flink-session.yaml
+index 3333333..4444444 100644
+--- a/nodes/mother/lab/weyland-platform/k8s/data-mesh/flink-session.yaml
++++ b/nodes/mother/lab/weyland-platform/k8s/data-mesh/flink-session.yaml
+@@ -12,5 +12,5 @@ spec:
+-  image: registry.weyland.lab/weyland-flink:git-2c73c898
++  image: registry.weyland.lab/weyland-flink:git-9a4996c6
+   flinkVersion: v1_20

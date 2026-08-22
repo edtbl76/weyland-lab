@@ -40,7 +40,7 @@ sequenceDiagram
     Note over CHK: Drift guard (CI / DoD sweep)
     CHK->>REG: applications[].key + port_component + excluded[].key
     CHK->>CHK: diff vs live Argo apps (+ alias map)
-    Note over CHK: ✅ 78 Argo apps all accounted → exit 0
+    Note over CHK: ✅ 79 Argo apps all accounted → exit 0
     end
 ```
 

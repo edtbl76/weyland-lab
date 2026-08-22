@@ -10,8 +10,22 @@
 # vs kaniko's ~8-12 GB on the 8.38 GB user-code image; heavy scratch lands on disk (400 GB free), warm-cache via a
 # registry cache tag. See aidlc-docs/image-build-pipeline-design.md.
 #
-# Trigger: manual + a nightly pre-dawn cron (create once: `woodpecker-cli cron add --repository edtbl76/weyland-lab
-#          --name nightly-images --schedule "0 30 2 * * *" --branch main`). No push-webhooks on the LAN.
+# Trigger: manual + a nightly pre-dawn cron. No push-webhooks on the LAN.
+#
+# The cron is `nightly-images`, id 2, `0 5 * * *` UTC = 01:00 EDT / 00:00 EST (Woodpecker crons are UTC, NOT
+# NY-pinned — docs/schedules.md Design Rule #1). It already exists; do not re-create it.
+#
+# ⚠ IT WAS CREATED **DISABLED** ON 2026-08-18 AND NEVER RAN. Found 2026-08-22: `enabled:false`, `next_exec` frozen
+# at its first-ever slot, and all 21 pipelines on this repo were `event: manual`. Meanwhile docs/schedules.md
+# documented a nightly build as running. `--enabled` is NOT a default — a cron created without it is inert and
+# nothing warns you. Verify after any cron change:
+#   curl -sf -H "Authorization: Bearer $WOODPECKER_TOKEN" "$WOODPECKER_SERVER/api/repos/2/cron"
+# and check `enabled` AND that `next_exec` is in the FUTURE. A stale next_exec is the tell.
+#
+# CLI notes (v3.x, verified 2026-08-22): `cron` lives under `repo` (`woodpecker-cli repo cron ls|add|update`), not
+# at the top level as an older comment here claimed. `repo cron update` and `pipeline last` 404 on a positional
+# repo argument; the REST API works. `--output json` is accepted and SILENTLY IGNORED — use
+# `--output 'go-template={{range .}}...{{end}}'` (the payload is a slice). See docs/runbooks/ship-images.md.
 labels:
   backend: kubernetes
 when:
@@ -74,6 +88,21 @@ steps:
     image: koalaman/shellcheck-alpine:stable
     commands:
       - shellcheck --severity=warning scripts/*.sh scripts/lib/*.sh scripts/ci/*.sh
+
+  # ── 1c2. shell tests ────────────────────────────────────────────────────────
+  # B131/B135 — the repo's FIRST shell test harness. shellcheck above catches malformed shell; it
+  # cannot tell you that a gate predicate returns the wrong answer. `ship-images.sh` merges PRs on
+  # main and syncs the live cluster, so its decisions are exactly the kind that must not be verified
+  # by running them.
+  #
+  # Every external binary (git/gh/woodpecker-cli/argocd/kubectl/curl) is stubbed onto PATH by
+  # scripts/tests/helper.bash — this step reaches nothing outside its own container. The staleness
+  # tests additionally extract the CronJob's decision logic straight out of its ConfigMap, so the
+  # cluster runs the same text the suite exercises.
+  - name: shell-tests
+    image: bats/bats:latest
+    commands:
+      - bats scripts/tests/
 
   # ── 1d. unit tests ──────────────────────────────────────────────────────────
   # The repo had ONE test suite and CI had never run it. Worse, it was orphaned: the tests lived in

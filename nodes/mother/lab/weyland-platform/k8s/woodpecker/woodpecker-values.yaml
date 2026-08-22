@@ -23,6 +23,28 @@ server:
     WOODPECKER_ADMIN: 'edtbl76'                       # GitHub username → first admin
     WOODPECKER_GITHUB: 'true'                         # forge = GitHub
     WOODPECKER_OPEN: 'false'                          # no open registration (admin-gated)
+    # SQLite in WAL mode. The path is the chart's own default (/var/lib/woodpecker/woodpecker.sqlite on the
+    # `data` PVC) — restated here ONLY because the DSN is the sole place these pragmas can be set.
+    #
+    # WHY: the server logged 8 × "database is locked" between 2026-08-10 and 2026-08-22 — 6 on the metrics
+    # writer, 2 on "obtain cron list". Every one landed between 00:16 and 03:05 EDT, i.e. inside the overnight
+    # Dagster/DataHub batch window when mother's disk is saturated; Woodpecker itself is idle then. Cause is a
+    # default, not a bug: WOODPECKER_DATABASE_MAX_CONNECTIONS defaults to **100**, and a 100-connection pool
+    # against SQLite in its default journal_mode=DELETE means any write blocks every reader for its duration.
+    # mattn/go-sqlite3's default busy timeout is 5s, which a contended disk can exceed.
+    #
+    # WAL is the real fix (readers no longer block the writer, or the writer them); the timeout is margin for
+    # the genuinely slow moments. Verified against v3.17.0 rather than assumed: it links
+    # mattn/go-sqlite3 v1.14.49, whose DSN accepts `_journal_mode`/`_busy_timeout`, and
+    # server/store/datastore/engine.go passes the datasource UNMODIFIED to xorm.NewEngine.
+    #
+    # PRECONDITION: WAL requires local storage — it is unsafe on network filesystems. `local-path` is a local
+    # ext4 dir on mother, so this is fine. It adds `-wal`/`-shm` files beside the DB on the 5Gi PVC.
+    # NOT TRIVIALLY REVERSIBLE: journal_mode lives in the DB header, so removing this line does NOT restore
+    # DELETE mode — that needs an explicit `PRAGMA journal_mode=DELETE`.
+    # MAX_CONNECTIONS deliberately left at its 100 default: with WAL, concurrent readers are no longer the
+    # problem. Lower it only if locks persist, and change one thing at a time.
+    WOODPECKER_DATABASE_DATASOURCE: '/var/lib/woodpecker/woodpecker.sqlite?_journal_mode=WAL&_busy_timeout=15000'
   # GitHub OAuth client + secret live in the woodpecker-secret you create (WOODPECKER_GITHUB_CLIENT/SECRET).
   extraSecretNamesForEnvFrom:
     - woodpecker-secret

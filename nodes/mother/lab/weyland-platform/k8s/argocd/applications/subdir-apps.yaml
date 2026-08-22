@@ -681,3 +681,24 @@ spec:
     namespace: weyland
   syncPolicy:
     automated: { selfHeal: true, prune: true }
+---
+# B131 — pr-lifecycle: the open-PR staleness watchdog. A CronJob that asks GitHub which PRs are open,
+# applies a per-kind age budget, and POSTs a synthetic alert to Alertmanager. Its own Application
+# because k8s/pr-lifecycle/ is a new subdir — a rule file dropped into k8s/monitoring/ is
+# auto-onboarded, but a new directory is not (constraint C7).
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: pr-lifecycle
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/edtbl76/weyland-lab.git
+    targetRevision: main
+    path: nodes/mother/lab/weyland-platform/k8s/pr-lifecycle
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: weyland
+  syncPolicy:
+    automated: { selfHeal: true, prune: true }

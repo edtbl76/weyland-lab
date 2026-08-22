@@ -1,0 +1,53 @@
+# B135 — LAN NodePort for the Argo CD server's HTTP port.
+#
+# The public route (argocd.weyland.lab) is behind traefik-forward-auth (Keycloak, see
+# argocd-ingress.yaml). A CLI cannot complete a browser SSO round-trip, so `argocd login` against the
+# public host fails at POST /session.SessionService/Create with HTTP 400 — the auth gate answers, not
+# Argo. This NodePort bypasses Traefik and hits the server directly:
+#   192.168.1.243:30880 → argocd-server http:80 (targetPort 8080)
+#
+# EXACTLY the woodpecker-http-lan.yaml pattern, and for exactly the same reason (B57). Bifrost solves
+# it the third way, by leaving /mcp un-gated. Three CLIs, one problem: forward-auth is a browser gate.
+#
+# WHY THIS EXISTS AT ALL: scripts/ship-images.sh calls `argocd app sync <app>` to reconcile the apps a
+# tag bump touched, instead of waiting out Argo's ~3-minute poll. It has to run UNATTENDED, so
+# `kubectl port-forward` is not an option — that adds a background process, a teardown burden and a
+# startup race to a script whose entire value is that it can be trusted.
+#
+# TRUST BOUNDARY — stated plainly, because this is a real reduction in the SSO posture, not a free
+# move: the Argo API is now reachable on the LAN without Keycloak, protected only by the argocd admin
+# password. Accepted because the lab is LAN-only and single-operator, and the Woodpecker API already
+# sits on the same footing. The public host keeps its forward-auth gate; the browser UI is unchanged.
+# If the lab ever grows a second user, put an Argo CD local account with a scoped RBAC role behind
+# this port instead of admin.
+#
+# The server runs plain HTTP internally (`configs.params.server.insecure: true` — Traefik terminates
+# TLS), so ONE http port serves both the REST API and gRPC-Web. `argocd login --grpc-web` is
+# therefore all the CLI needs here; `--insecure` is still required because there is no TLS on 30880.
+#
+# NOT GitOps-SYNCED, and that is deliberate upstream of this file: Argo CD does not manage itself
+# ("NOT onboarded — argocd (self)", docs/runbooks/argocd.md). The only Application rooted anywhere
+# near here is root-app, whose path is k8s/argocd/APPLICATIONS — this directory's own manifests
+# (argocd-ingress.yaml and now this one) are applied by hand.
+#
+# So the discipline is repo-first, never a live edit: change this file, `kubectl apply -f` it, commit.
+# Deleting the file does NOT remove the Service — `kubectl delete svc argocd-server-lan -n argocd`.
+apiVersion: v1
+kind: Service
+metadata:
+  name: argocd-server-lan
+  namespace: argocd
+  labels:
+    app.kubernetes.io/instance: argocd
+    app.kubernetes.io/name: argocd-server
+spec:
+  type: NodePort
+  selector:
+    app.kubernetes.io/instance: argocd
+    app.kubernetes.io/name: argocd-server
+  ports:
+    - name: http
+      port: 80
+      targetPort: 8080
+      protocol: TCP
+      nodePort: 30880
