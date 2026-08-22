@@ -41,9 +41,8 @@ REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 # shellcheck disable=SC2034  # consumed by the scripts that source this file, not used here
 PLATFORM_DIR="$REPO_ROOT/nodes/mother/lab/weyland-platform"
 
-# Status prefixes — the convention every operator script here already uses by hand
-# (see run-scan-suite.sh, the exemplar). Progress to stdout, problems to stderr.
-say()  { printf '→ %s\n' "$*"; }
-ok()   { printf '✓ %s\n' "$*"; }
-warn() { printf '⚠ %s\n' "$*" >&2; }
-die()  { printf '❌ %s\n' "$*" >&2; exit 1; }
+# Paths only, on purpose. `say`/`ok`/`warn`/`die` status helpers were added here 2026-08-21 and
+# removed the same day: nothing called them. The duplication they would have absorbed is 2 die-shaped
+# sites and 8 status prints across 3 files, so adopting them meant editing working scripts to save
+# nothing, while creating a second sanctioned way to print status. `run-scan-suite.sh` remains the
+# convention exemplar (see the codekb's code-structure.md). Add a helper here when it has a caller.

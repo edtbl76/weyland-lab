@@ -134,9 +134,12 @@ nodes/mother/lab/weyland-platform/scripts/kuma-backup.json
 __pycache__/
 *.py[cod]
 .pytest_cache/
-# Virtualenvs and bench output. NOT previously ignored — nodes/mother/lab/weyland-platform/scripts/.venv
-# exists on disk today and was one `git add -A` away from committing an entire virtualenv (2026-08-21).
-# It is not tracked, so adding these patterns is purely preventive.
+# Virtualenvs and bench output.
+# OBSERVED 2026-08-21: `.venv/` under nodes/mother/lab/weyland-platform/scripts/ existed on disk and was
+# NOT ignored — untracked only by luck, one `git add -A` from committing an entire virtualenv.
+# PREVENTIVE: `venv/` and `.benchmarks/` do not exist anywhere in the tree today. They are standard
+# Python conventions and the failure is asymmetric — an unused ignore line is inert, while a committed
+# virtualenv is painful to undo.
 .venv/
 venv/
 .benchmarks/
