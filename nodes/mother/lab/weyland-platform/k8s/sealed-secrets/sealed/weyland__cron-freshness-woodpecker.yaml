@@ -1,0 +1,16 @@
+---
+apiVersion: bitnami.com/v1alpha1
+kind: SealedSecret
+metadata:
+  name: cron-freshness-woodpecker
+  namespace: weyland
+spec:
+  encryptedData:
+    token: AgBfxNwxDqNrAefZLbO5FguJUbunJzBu0KDuyevcvT6NJCKZdbh5W04B1o1ElD+WJlQxk+79CCccPH5CqVznF42w65ZCDSQdfh8vYhfb97rOpDsPYrF8LyJZKw9RHpSbNOYdTd8ZcjIX8zpFaKYx947OkL6w1LZMW5wXmDj26JSsokBQ/qJ3qlCmXj7Jv5Qo4J19V4NNgFk3JXyLjcOO5AlAiyq4Lg1RYAoV6mOXvvn3hg9jA8R0oUQWrVTnH3kBf2UTNdmKUXfFFY8Dk5trZYTKWLl8D0hEQz7/bCcUIFACN8iJ1LPuT2eW4xnurO2Ne41+5YLWAuvvGATW9c5xm7DZkoIguURzo2pzg5QR0hNFKLfgQHkhWZq1XohDk2rK3IKnQe9HnN6GMsbbdckBbeFB5mNtkwBhSqj1xb7BXHwRb2ebBWRPGbh03Ae2y1vVFk7HSSgPy1EXlDRpcNNbnTYKY2crNDkv/Lbgdwj+tDBb2+lftzwGtUCYTKty5mEx1Lr/4jCbWx/fxXlzILtWUlzEpquFXsxF/nlT37T32/QNX6t5CS1Oi9KuYuwTFr82A56kEAHuQFsB9aebR9Nn92LTBdHXEcnoL8WJO7y+q6ABf/TyZ9zr4KF6Xgghi2cD86+MTDqsvEwZ8PXU4u4hCNrax1xo868kO1eMJVs6Dpy7XJdUqXnBTpbMAMyV161+T2KoGN9/2T0kvBhGk521vePpsdW9sKFlWpc4MygV5HDHl5uaWiyeeKvMS0lCiZYRKgO5Sldv5mreuH08kWKmXmqWx4zcOhroxC5S6b+9VCG9REsTVLvj6fmCXXszldIEt7+slqBQg0grpgHz5KjWSkWLM/PrN5lVuDU=
+  template:
+    metadata:
+      annotations:
+        sealedsecrets.bitnami.com/managed: "true"
+      name: cron-freshness-woodpecker
+      namespace: weyland
+    type: Opaque
