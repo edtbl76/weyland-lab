@@ -75,6 +75,17 @@ kubectl -n data-mesh get deploy store-scaler -o jsonpath='{.spec.template.spec.c
 - Unchanged images are skipped (context-diff vs their deployed `git-<sha>`); the nightly **01:00 NY** cron does this
   incrementally.
 
+> **Superseded in part (B135/B131, 2026-08-22/23).** The "**you merge**" step above is no longer the only path:
+> `scripts/ship-images.sh` now merges the tag-bump PR under three machine gates, syncs only the affected Argo
+> apps, and verifies every bumped image is live on a probe-backed workload. The merge is still the gate — it just
+> is not a human click any more. This demo remains valid for the **build half**; the automated hand-off, the gates
+> and the watchdogs are demonstrated in [ship-images.md](ship-images.md).
+>
+> Also corrected since this was written: **change detection had never worked in CI.** A shallow clone made
+> `git diff <oldsha> HEAD` fail, `2>/dev/null` swallowed it, and the failure was read as "changed" — so every
+> image rebuilt on every run while the log printed per-image decisions that looked deliberate. Fixed 2026-08-22;
+> first clean CI evidence is pipeline #25.
+
 ## Cleanup / teardown
 - The pipeline accumulates registry tags (`<img>:git-<sha>` per build + a `:buildcache`). The `git-<sha>` tags ARE
   the deploy history (keep); the mother `weyland-image-prune` timer + registry lifecycle handle old-tag pressure.
