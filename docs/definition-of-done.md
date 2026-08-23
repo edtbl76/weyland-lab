@@ -2,12 +2,14 @@
 
 The weyland Definition of Done — the hard gate every body of work passes before it's "done." This page is the
 **canonical, published** version (the RAG corpus + the shared reference); it supersedes any private note. A
-capability is **NOT done** until ALL seven pillars hold. "Ran once" ≠ done.
+capability is **NOT done** until ALL eight pillars hold. "Ran once" ≠ done.
 
 > Added 2026-07-14; grown through B64 (render-verify), B69 (operational completeness), B111 (metrics-scrape
 > ServiceMonitor + Grafana dashboard made explicit monitoring criteria), 2026-08-05 (tier rebalance at close-out —
 > keep High/Medium/Low roughly equal), 2026-08-05 (B82 — one source of truth for a cross-surface taxonomy), and
-> 2026-08-06 (B47 — the security / code-quality scan as a standing per-batch gate, Pillar 7).
+> 2026-08-06 (B47 — the security / code-quality scan as a standing per-batch gate, Pillar 7), and 2026-08-23
+> (B135 — **Pillar 8, cascading changes**: the DoD graded the thing built but never what it implied, so a new
+> dataset could ship uncatalogued and a new timer undocumented without a single check going red).
 > Applies retroactively and going forward.
 
 ## 1. Documentation sweep (every batch)
@@ -148,6 +150,51 @@ manifest** runs the relevant scan and **triages the result before "done":**
 
 Runbook: [runbooks/code-quality.md](runbooks/code-quality.md).
 
+## 8. Cascading changes (what else must move because this moved?)
+
+**A change is almost never local.** The other seven pillars grade the thing you built; this one grades
+everything that thing *implies*. Answer it explicitly before "done" — and **"nothing cascades" is a valid
+answer that must still be written down**, because an unasked question and a genuinely-empty answer look
+identical in a commit.
+
+This exists because the failure it catches is silent by construction: nothing errors, no test goes red, no
+alert fires. The new thing works perfectly and the surfaces that should have learned about it simply never
+did. That is how the catalog starts lying, how a dataset becomes invisible to governance, and how a doc
+becomes confidently wrong.
+
+### Trigger → cascade
+
+| You added / changed | Then these must move too |
+|---|---|
+| **A dataset / table / mart** | **DataHub** — ingested, in a **domain**, tagged to a **data product**, glossary terms attached, **column lineage** resolving upstream (not just the table node); **dbt** — is it a source or a mart, does it need tests-as-assertions; **data-quality** — a Soda/GE check, or a written reason it has none; **BI** — a Lightdash/Superset/Cube surface, or a written reason nobody queries it; **query cookbook** — `docs/query/<store>.md` gains real, dataset-specific queries; **the storage grid** — `docs/data-domain-storage-grid.csv` says which domain lives where; **retention/backup** if it is not reproducible |
+| **A deployed service** | `applications.yaml` registry entry (or an explicit `kind: plumbing` with a reason) → Port `component`; **Kuma monitor**; a `*Down` **PrometheusRule**; **ServiceMonitor + Grafana dashboard** if it exposes `/metrics`; logs reaching Loki; LikeC4 placement; `arch.md` §6 inventory row |
+| **An endpoint / host / DNS name** | `api.md`, `hosts.md`, a **blackbox probe target at a working path** (1:1, no orphans), forward-auth or a written reason it is not gated, `/etc/hosts` for new subdomains |
+| **A timer** (Dagster · DataHub · k8s CronJob · systemd · **Woodpecker cron**) | `schedules.md` row with NY-equivalent + cadence + weight + owner; the off-hours and no-heavy-on-heavy checks; **a freshness signal** — something that notices when it stops, not just when it fails |
+| **An image** | `scripts/ci/images.tsv` (or a written exclusion); the ship loop's gates then cover it; a `readinessProbe` on whatever runs it, since the SMOKE gate makes that a shipping requirement |
+| **A repo** | every lane in the coverage matrix — CI, Port integration selectors, PR-lifecycle `PR_REPOS`, code-review stack, scan-suite, `tofu/github/` |
+| **A classification used on ≥2 surfaces** | the single registry (see the cross-cutting rule below) — never re-encode it per surface |
+| **A retirement / rename** | **the reverse sweep** — this is the one most often skipped |
+
+### The reverse sweep
+
+Removals and renames cascade *harder* than additions, because nothing fails: **platform-map** ghost cards,
+orphan blackbox probes, stale Port entities and `k8s_workload` links, dangling doc links, a `schedules.md`
+row whose timer is gone, a registry key with no workload, a dashboard querying a metric nobody emits, an
+alert on a series that no longer exists. Sweep for the *absence* you created, not just the presence.
+
+### How to run it
+
+Walk the trigger table for the change, write the cascade list into the design/plan doc, then close each
+item or record why it does not apply. Grade it like the scanners: **an unanswered cascade is not done**, and
+a cascade deliberately deferred gets a backlog item, not silence.
+
+**Worked example (B135/B131, 2026-08-23):** adding one CronJob cascaded into `schedules.md` (its row), the
+`pr-lifecycle` `applications.yaml` entry (two jobs now share that Argo app, so the reason text was stale), a
+sealed secret plus the `seal-secrets.sh` allow-list plus the count in `secrets.md`, a runbook, `arch.md`
+§6/§9/§10b, and the freshness rule — which turned out to be missing **the watchdog itself**. Running the
+timer reconciliation the same batch also surfaced three *unrelated* backup CronJobs that had no row and were
+silently running on the wrong clock. None of that was the feature; all of it was the feature's wake.
+
 ## Cross-cutting: verify the render, sweep for drift
 
 A green build is **not** proof of done — **verify the actual rendered output** the user sees after each step,
@@ -197,4 +244,4 @@ Every capability must be **placed** (arch/diagrams), **operable** (runbook/api/h
 demo, executed), **investigable** (sequence diagram + history), **reversible** (cleanup), **closed out** (Linear +
 backlog), **operationally durable** (reproducible / secret-restorable / monitored / backed-up / triggered), and
 **scanned** (the security / code-quality gate, findings triaged not ignored).
-Add all seven pillars as explicit acceptance criteria in every design/plan doc.
+Add all eight pillars as explicit acceptance criteria in every design/plan doc.

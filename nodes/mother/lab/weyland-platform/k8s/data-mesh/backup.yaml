@@ -25,7 +25,12 @@ metadata:
   name: pg-backup
   namespace: data-mesh
 spec:
-  schedule: "0 3 * * *" # 03:00 local
+  # 23:00 America/New_York. Was `0 3 * * *` with a "03:00 local" comment and no `spec.timeZone`, so it
+  # actually fired at 03:00 UTC = 23:00 EDT (observed 03:00:10Z, 2026-08-23). Pinned 2026-08-23 to the
+  # time it already ran. Stays 30 min behind minio-backup and outside the pre-dawn window on purpose —
+  # see docs/schedules.md for the carve-out.
+  schedule: "0 23 * * *"
+  timeZone: America/New_York
   concurrencyPolicy: Forbid
   successfulJobsHistoryLimit: 3
   failedJobsHistoryLimit: 3

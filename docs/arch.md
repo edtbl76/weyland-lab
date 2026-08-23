@@ -125,7 +125,7 @@ agents/workflows and platform state. Agents call the tool-server, *not* database
 | GlitchTip | `glitchtip.weyland.lab` | **B51** error tracking (Sentry-SDK-compatible; web + worker + Valkey, meshed Postgres). tool-server + Dagster push errors via the Sentry SDK; issues → Port `glitchtip_issue` via webhook. Sibling alerting: **Loki ruler** LogQL rules → Alertmanager→Telegram (one pipeline for metric + log alerts). [runbooks/glitchtip.md](runbooks/glitchtip.md). |
 | Langfuse | `langfuse.weyland.lab` | **B103** LLM observability (v3 self-hosted; **web + worker only** — REUSES data-mesh ClickHouse (`langfuse` DB), Valkey, MinIO + weyland-postgres, so the marginal cost is just the two stateless pods). LiteLLM's `langfuse` callback emits traces (model/tokens/latency/per-VK) into the `platform` project, stacking with the Prometheus cost callback. **Prompt federation LIVE** (Phase 1+2, 2026-08-10): Bifrost = SoT, `sync_prompts.py` mirrors 269 prompts here + to MLflow and tool-server/operator/agent tag every trace with its prompt version; **Phase 2** made the sync **bidirectional** (native Langfuse/MLflow edits reconcile back to Bifrost, loop-safe via `synced-from-bifrost` stamps) and **automatic** (the `prompt_federation_synced` asset in the Dagster `registrations` group) — [runbooks/prompt-federation.md](runbooks/prompt-federation.md). **Session grouping LIVE** (2026-08-11): the 4 AI surfaces tag traces with a `session_id` (tool-server/operator/agent via `propagate_attributes`; realm via a langchain CallbackHandler + contextvar through delegation) → Langfuse **Sessions** shows a whole chat / agent-run / dispatch as one timeline — [demos/langfuse-sessions.md](demos/langfuse-sessions.md). **Online-evals LIVE** (2026-08-11): 9 **native** evaluators (7 managed + custom `citation`/`refusal`) created via `/api/public/unstable/evaluation-rules`, scoring `rag-generate` per-trace on `wl-judge-oss` ($0); eval-fixture **SSOT = git** `eval_sets/` → `weyland-golden`/`weyland-regression` Datasets; `human_quality` annotation queue — all codified as Dagster `registrations` assets (DB-reset-durable) — [demos/langfuse-evaluation.md](demos/langfuse-evaluation.md). [runbooks/langfuse.md](runbooks/langfuse.md). |
 | OpenCost | `opencost.weyland.lab` | **B55** k8s cost allocation (CNCF). Reads the existing Prometheus; **custom on-prem pricing** (bare-metal MS-A2, no cloud bill) → ~$48/mo box, k3s slice ~$15/mo. Feeds the Port **Cloud Cost** category: `cost` blueprint (Claude $200 + infra $48 + LiteLLM $0 ≈ $248/mo) + a Cost dashboard; OpenCost in the Launcher for live detail. [runbooks/opencost.md](runbooks/opencost.md). |
-| Woodpecker CI | `woodpecker.weyland.lab` · `192.168.1.243:30980` (CLI/REST) · `:30900` (agent gRPC) | **B56** CI/CD, now a **shared build farm running a mixed fleet** on one server (**B57b**), routed by the built-in `backend` agent label. **Two backends, chosen per workload:** weyland's own jobs use `backend: kubernetes` (steps = cluster pods — needed to build/deploy the weyland apps into k3s); **STUD.io's jobs use `backend: local`** (steps run on **rogueone's host shell + native docker**) because that CI needs the real Go/Node/pyenv/Playwright toolchain + `docker exec studio_db`, which a throwaway k8s step-pod doesn't carry. One server hosting both beats standing up a 2nd Woodpecker (STUD.io's own local server + GH-Actions runners were **retired**); the label keeps the lanes from cross-scheduling (an UNLABELED v3.17 workflow can grab ANY agent). **Off-cluster bridge = two LAN NodePorts:** `:30900` gRPC (`woodpecker-grpc-lan`, how rogueone's 4 local agents register; trust = `WOODPECKER_AGENT_SECRET`) and `:30980` HTTP (`woodpecker-http-lan`, for `woodpecker-cli` — the public URL is behind `traefik-forward-auth`, which 302s Bearer API calls, so the CLI can't use it; the NodePort bypasses Traefik, trust = PAT). GitHub OAuth; LAN-only → manual/CLI/cron triggers (no push-webhook). STUD.io's 3 workflows (main · plugin-scanner · roadie) run green end-to-end (2026-08-17). **The `kubernetes` lane runs the weyland image CI→CD (B57a, DONE 2026-08-18):** builds the weyland-built images via a persistent `buildkitd` Deployment → pushes `git-<sha>` to `registry.weyland.lab` → opens a tag-bump PR → you merge → **Argo** deploys (nightly 01:00 NY cron + manual; **git-as-seam** — CI never calls `argocd sync`). buildkitd (not build-in-step-pod) because daemonless BuildKit couldn't do its mounts in an ephemeral step pod on k3s. **CI reliability signal (B63, DONE 2026-08-19):** each run's terminal status POSTs to Port's `ci_pipeline` blueprint (id `repo-number`) → a `weyland_ci_reliability` dashboard (status pie + counters + runs table) — the weyland reliability view Port's stock **GitHub-Actions-only** DORA boards can't give. The notify step differs by backend: weyland-lab (single workflow) reads `$CI_PIPELINE_STATUS`; STUD.io (3 parallel workflows) needs **two status-gated steps that hardcode the status** and `depends_on` every prior step (the env var is empty mid-pipeline, and a notify step without `depends_on` fires a false green before later steps fail). [runbooks/woodpecker.md](runbooks/woodpecker.md) · [diagrams/flow-woodpecker-studio-ci.md](diagrams/flow-woodpecker-studio-ci.md) · [demos/woodpecker-studio-ci.md](demos/woodpecker-studio-ci.md) · [diagrams/flow-weyland-image-ci.md](diagrams/flow-weyland-image-ci.md) · [demos/weyland-image-ci.md](demos/weyland-image-ci.md) · [diagrams/flow-ci-reliability-signal.md](diagrams/flow-ci-reliability-signal.md) · [demos/ci-reliability-signal.md](demos/ci-reliability-signal.md). |
+| Woodpecker CI | `woodpecker.weyland.lab` · `192.168.1.243:30980` (CLI/REST) · `:30900` (agent gRPC) | **B56** CI/CD, now a **shared build farm running a mixed fleet** on one server (**B57b**), routed by the built-in `backend` agent label. **Two backends, chosen per workload:** weyland's own jobs use `backend: kubernetes` (steps = cluster pods — needed to build/deploy the weyland apps into k3s); **STUD.io's jobs use `backend: local`** (steps run on **rogueone's host shell + native docker**) because that CI needs the real Go/Node/pyenv/Playwright toolchain + `docker exec studio_db`, which a throwaway k8s step-pod doesn't carry. One server hosting both beats standing up a 2nd Woodpecker (STUD.io's own local server + GH-Actions runners were **retired**); the label keeps the lanes from cross-scheduling (an UNLABELED v3.17 workflow can grab ANY agent). **Off-cluster bridge = two LAN NodePorts:** `:30900` gRPC (`woodpecker-grpc-lan`, how rogueone's 4 local agents register; trust = `WOODPECKER_AGENT_SECRET`) and `:30980` HTTP (`woodpecker-http-lan`, for `woodpecker-cli` — the public URL is behind `traefik-forward-auth`, which 302s Bearer API calls, so the CLI can't use it; the NodePort bypasses Traefik, trust = PAT). GitHub OAuth; LAN-only → manual/CLI/cron triggers (no push-webhook). STUD.io's 3 workflows (main · plugin-scanner · roadie) run green end-to-end (2026-08-17). **The `kubernetes` lane runs the weyland image CI→CD (B57a, DONE 2026-08-18):** builds the weyland-built images via a persistent `buildkitd` Deployment → pushes `git-<sha>` to `registry.weyland.lab` → opens a tag-bump PR → you merge → **Argo** deploys (nightly 01:00 NY cron + manual; **git-as-seam** — CI never calls `argocd sync`). buildkitd (not build-in-step-pod) because daemonless BuildKit couldn't do its mounts in an ephemeral step pod on k3s. **CI reliability signal (B63, DONE 2026-08-19):** each run's terminal status POSTs to Port's `ci_pipeline` blueprint (id `repo-number`) → a `weyland_ci_reliability` dashboard (status pie + counters + runs table) — the weyland reliability view Port's stock **GitHub-Actions-only** DORA boards can't give. The notify step differs by backend: weyland-lab (single workflow) reads `$CI_PIPELINE_STATUS`; STUD.io (3 parallel workflows) needs **two status-gated steps that hardcode the status** and `depends_on` every prior step (the env var is empty mid-pipeline, and a notify step without `depends_on` fires a false green before later steps fail). **The hand-off is now closed end-to-end (B135/B131, 2026-08-22/23):** `scripts/ship-images.sh` merges the tag-bump PR under a three-condition gate (same-repo · CI-authored · tags-only diff), syncs only the affected Argo apps, and verifies **every** bumped image is live on a probe-backed workload; `pr-staleness-check` and `cron-freshness-check` alert when a PR sits or a cron stops. The pipeline grew a `shell-tests` step (**62 bats**) and its change detection was found to have **never worked** — a shallow clone made `git diff` fail, `2>/dev/null` ate it, and the failure read as "changed". See §10b for the full decision matrix and the bug class. [runbooks/woodpecker.md](runbooks/woodpecker.md) · [diagrams/flow-woodpecker-studio-ci.md](diagrams/flow-woodpecker-studio-ci.md) · [demos/woodpecker-studio-ci.md](demos/woodpecker-studio-ci.md) · [diagrams/flow-weyland-image-ci.md](diagrams/flow-weyland-image-ci.md) · [demos/weyland-image-ci.md](demos/weyland-image-ci.md) · [diagrams/flow-ci-reliability-signal.md](diagrams/flow-ci-reliability-signal.md) · [demos/ci-reliability-signal.md](demos/ci-reliability-signal.md). |
 | Argo CD | `argocd.weyland.lab` | **B58 (IaC, k8s lane)** GitOps CD — reconciles the k8s layer from the public repo (pull-based → LAN-safe). app-of-apps root + **77 apps onboarded** (2026-08-21; grew 28 → 48 → 59 → 78 as the data-mesh, code-quality, istio, monitoring-extras and loose-root sets came under GitOps). Deploy flow is now **push to git → Argo reconciles** (rsync retired). Chosen over Flux (UI). [runbooks/argocd.md](runbooks/argocd.md). |
 | OpenTofu | (CLI on rogueone) | **B58 (IaC, non-k8s lane)** Terraform-fork for what Argo can't reconcile — SaaS + Proxmox. **State in MinIO** (`s3.weyland.lab/tofu-state`). **Port's 8 blueprints + all 5 Proxmox guests codified** (`tofu/port/` + `tofu/proxmox/`, brownfield CLI import; mother's passthrough disk frozen via `ignore_changes`); GitHub/DNS + Port entities next. [runbooks/opentofu.md](runbooks/opentofu.md). |
 | Prometheus + Grafana | `grafana.weyland.lab` (ns `monitoring`) | observability (cluster/node/pod dashboards). |
@@ -995,7 +995,7 @@ evaluated the external spec-driven field. The comparison that decided it:
 
 **The tradeoff, stated honestly.** The fork tax was the whole problem: maintaining a private overlay meant every
 upstream release became a merge project, and the overlay's *substance* — what actually drove quality here — turned
-out to be the project's own **DoD 7-pillar gate**, `backlog.md`, and the memory system, none of which are AI-DLC at
+out to be the project's own **DoD 8-pillar gate**, `backlog.md`, and the memory system, none of which are AI-DLC at
 all. So v2 was adopted **clean**, and the consulting framing was **consciously dropped** rather than ported. What
 that costs: 52 generated AIDLC stage skills and 28 stage prompts are now **frozen** (registered, not regenerable) —
 an accepted, documented gap, not an oversight.
@@ -1053,6 +1053,8 @@ observed; **Control/ops** = scheduled and operational paths.
 | Control/ops | Roadmap-sync -> Hermes Kanban (B27) | [flow-roadmap-sync.md](diagrams/flow-roadmap-sync.md) |
 | Control/ops | Alerting (B5) | [flow-alerting.md](diagrams/flow-alerting.md) |
 | Control/ops | Deploy / redeploy (build<->runtime isolation) | [flow-deploy.md](diagrams/flow-deploy.md) |
+| Control/ops | **Ship loop** — detect → build → tag-bump PR → gated merge → Argo → verify a pod carries the tag (B135) | [flow-ship-loop.md](diagrams/flow-ship-loop.md) |
+| Control/ops | **Scheduled-work watchdogs** — open-PR staleness + Woodpecker-cron freshness → Alertmanager → Telegram (B131/B135) | [flow-ship-loop.md](diagrams/flow-ship-loop.md#watchdogs) |
 
 ---
 
@@ -1143,6 +1145,72 @@ survive worse pressure than the outage via clean kernel-OOM; kubelet reserves + 
 - **Deploy model:** **GitOps** (B58) — the k8s layer reconciles from the public repo via **Argo CD** (app-of-apps;
   push to git → Argo syncs; `rsync` retired), and **OpenTofu** codifies the non-k8s lane (Port/Proxmox, state in MinIO).
   Node-native services (rogueone's Ray worker, rag-embed) still deploy by `rsync` + a systemd/venv rebuild.
+
+### 10b. The ship loop — closing build→deploy, and the bug class it kept finding (B135/B131, 2026-08-22/23)
+
+B57a ended at "CI opens a tag-bump PR." **A human still had to notice the PR, decide it was safe, merge it, and
+confirm something actually rolled** — four manual steps between a built image and a running one, each of which
+fails silently by simply not happening. B135 automates that hand-off; B131 makes an un-merged PR *visible* rather
+than merely open. They are one workstream: B131 is the alarm for the gap B135 closes.
+
+**Comparative placement — why a gated script and not the obvious tools.** The seam is deliberately still git; the
+question was only who pushes the button.
+
+| Option | What it would do | Why not (here) |
+|---|---|---|
+| **Argo CD Image Updater** | Argo watches the registry and rewrites the tag itself | Moves the decision *into the cluster*. The manifest stops being the source of truth — the thing that decides what runs is no longer reviewable in a diff, and the "cluster runs what `main` says" invariant (B57a's whole point) dies quietly |
+| **Woodpecker auto-merge** | CI merges its own PR at the end of the pipeline | The pipeline that *produced* the change also approves it. There is no independent check, and `weyland-lab` is public with **no branch protection** — a fork PR would inherit the same auto-merge |
+| **Renovate / Dependabot** | Bot opens + auto-merges tag bumps | Built for upstream dependency ranges, not self-built `git-<sha>` images. Adds a hosted bot for a job that is one diff-shape check |
+| **Keep it manual** | Status quo ante | The status quo *was* the bug: PRs sat, and `nightly-images` ran dead for four days with nobody noticing |
+| **Gated shell loop** *(chosen)* | `scripts/ship-images.sh` merges only under three machine checks, then verifies a pod carries the tag | The gate is reviewable, testable (62 bats), and runs where the operator already is. **Approval becomes a check a human cannot absent-mindedly wave through**, which in a solo lab is strictly better than a click |
+
+**The merge gate is three conditions, and they are not equally strong** — stating that plainly is the point:
+
+1. **The PR originates from the base repo, not a fork.** GitHub decides it; unspoofable. **This is the load-bearing one.**
+2. **Every commit carries the `weyland-ci` git author name.** A *convention*, set by `git config` — anyone who can
+   write a commit can write that string. Defence in depth behind (1), never provenance on its own.
+3. **The diff touches nothing but image-tag lines**, written as *"no line fails to match"*, so a smuggled
+   `memory: 8Gi` fails even though the diff still contains a valid tag line.
+
+**And a deploy is not "merged" or "synced" — it is a running pod carrying the tag**, asserted per-image against the
+live cluster. The first successful run printed `✓ shipped` while `weyland-tool-server` was still on the old tag,
+because the check passed on a single matching pod.
+
+**The pattern worth carrying forward: an absent or failed result standing for success.** Seven defects survived 47
+green tests and were found by three live runs; **five were the same bug**, and two of those were *inside the gate
+built to prevent it*:
+
+| Where | What it looked like |
+|---|---|
+| `woodpecker-cli --output json` | flag silently ignored → parsed garbage read as a status |
+| `curl -sf` | every non-2xx collapsed to exit 0 → a 401 read as "no open PRs" |
+| `WeylandErrorLogSpike` | `/error/` matched `NOERROR` → **permanently firing**, which is worse than no alert |
+| shallow-clone `git diff` | failure swallowed by `2>/dev/null`, read as "changed" → **change detection had never worked**; all 11 images rebuilt nightly while the log printed per-image decisions that looked deliberate |
+| `rm -f "$diff_file"` before the gate that read it | empty image list → the verification gate **passed vacuously** |
+
+Three more of the same shape turned up while closing it out: `promtool check rules` **exits 0 while printing
+`FAILED`**; a bats test asserting only a non-zero exit **passed against a function that did not exist** (exit 127);
+and `increase()` over a counter whose exporter restarted reported **~60 pods restarting simultaneously** — an
+artifact, disproved by the flat raw counters.
+
+**Corollaries, generalising §10a's:**
+- **Stubs verify the author's assumption, never the contract.** The stub author decides what the command returns,
+  so a green suite confirms what you already believed. Observe the real thing once before encoding it.
+- **`Ready` is only evidence when a probe measured something.** A workload with no `readinessProbe` reports `1/1
+  Ready` the instant PID 1 is alive — byte-identical to genuine health. `dagster-user-code`, the gRPC code server
+  every Dagster run executes inside, had **no probe at all**.
+- **A tool's exit code is not its verdict** — read what it printed, and never `$?` at the end of a pipeline.
+
+**What watches it.** The estate had **41 alert rules and every one watched something that was running**; nothing
+fired when scheduled work simply did not happen, which is exactly how a disabled cron stayed invisible for four
+days. Two watchdogs close that: a `PrometheusRule` over `kube_cronjob_status_last_successful_time` with
+**per-cadence** budgets (a blanket 24h rule would have false-fired on the two weekly jobs every week) plus an
+`absent()` companion for jobs that have *never* succeeded — and, because a **Woodpecker cron is not a Kubernetes
+object** and kube-state-metrics can never see it, a CronJob that asks the Woodpecker API directly.
+
+Flows: [flow-ship-loop.md](diagrams/flow-ship-loop.md) · [flow-weyland-image-ci.md](diagrams/flow-weyland-image-ci.md).
+Runbooks: [ship-images.md](runbooks/ship-images.md) · [pr-lifecycle.md](runbooks/pr-lifecycle.md).
+Demo: [ship-images.md](demos/ship-images.md).
 
 ---
 

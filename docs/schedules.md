@@ -56,6 +56,9 @@ Heavy = embeds/writes or large scans (guard the node's RAM). Light = metadata/re
 | **11:00 (Sun)** | node systemd (mother) | `weyland-image-prune` (`k3s crictl rmi --prune`) — frees ephemeral storage so the node never re-hits the eviction line (B69, `nodes/mother/host/systemd/`) | weekly (Sun) | — (host timer @ **15:00 UTC**; quiet slot clear of the DataHub train) · **INSTALLED 2026-07-20** (authored 07-18, enabled 07-20) |
 | **05:30** | k8s CronJob | `docs-site-rebuild` — `kubectl rollout restart deploy/docs-site` (B69). docs-site rebuilds from a fresh `git clone` on every pod start, so without this the site silently serves a snapshot frozen at the last restart. No push-trigger available ([[lan-no-github-webhooks]]). | daily | light — restart only; the mkdocs build happens in the new pod's initContainer |
 | **01:00** | Woodpecker cron | `nightly-images` (B57a — weyland image CI: detect changed images → BuildKit build+push `registry.weyland.lab/<img>:git-<sha>` → open a tag-bump PR; you merge → Argo deploys). Repo `edtbl76/weyland-lab`, `0 5 * * *` **UTC** = 01:00 EDT / 00:00 EST (see TZ note — Woodpecker crons are UTC, not NY-pinned). | daily | light most nights (BuildKit registry cache → only genuinely-changed images rebuild); **HEAVY** only on the one-time `:vN`→`git-<sha>` migration or many-change days. Placed at 01:00 to clear the **02:17 `weyland_ingestion` HEAVY** and the 02:00 scaledown; only overlaps the light 01:00 DataHub Grafana scan. The bump PR is merged **manually**, so nothing rolls unattended. **Dormant 2026-08-18 → 2026-08-22: the cron existed but was `enabled:false` and never fired; first real run is 2026-08-23.** |
+| **22:30** | k8s CronJob | `minio-backup` (`mc mirror` MinIO → the backup target). **Carve-out to Design Rule #5 — see the note under the table.** `spec.timeZone: America/New_York` (added 2026-08-23; it previously had none and so ran in UTC). | daily | med — object-store mirror, I/O-bound |
+| **23:00** | k8s CronJob | `pg-backup` (data-mesh — `pg_dump` of the **nessie + lakefs** Postgres). Same carve-out. `spec.timeZone` added 2026-08-23. | daily | med |
+| **23:30** | k8s CronJob | `postgres-backup` (weyland core — `pg_dumpall`). Deliberately **30 min after** `pg-backup` so the two never overlap; both moved together on 2026-08-23 so the ordering is preserved. Same carve-out. `spec.timeZone` added 2026-08-23. | daily | med |
 | **02:30** (+≤30m jitter) | node systemd (rogueone) | `restic-backup` (B130 — encrypted incremental restic → MinIO `rogueone-backup`: dotfiles + `~/.config` + `~/.claude` memory + secrets/keyring/mkcert + curated `~/Documents` + allow-listed repos' untracked-minus-bulk; reports Port `backup` entity + Kuma push heartbeat). `nodes/rogueone/{backup,systemd/restic-backup.*}` · **INSTALLED 2026-08-20** (user unit + `enable-linger`) | daily | light — ~415M deduped repo, incremental; runs on **rogueone** (not mother), so no single-node contention — only a light MinIO write |
 | **Sat 03:00** | Dagster | `weyland_eval_job` (question-gen + run-matrix, RAG × 6 models) | weekly (Sat) — **STOPPED by default** | **HEAVY** |
 | **Sat 05:00** | Dagster | `weyland_eval_score_job` (3-judge panel → `eval_leaderboard` + Iceberg publish) | weekly (Sat) — **STOPPED by default** | med |
@@ -102,6 +105,20 @@ Only `data-mesh` stores that are queried **rarely and ad-hoc** are in the set:
 stores (core Postgres, Nessie, lakeFS, Trino, Valkey, TimescaleDB, MusicBrainz-Postgres) are **not**
 scaled down — they back live services or the mesh.
 
+> **Documented carve-out to Design Rule #5 — the three database/object backups (22:30 · 23:00 · 23:30 NY).**
+> They sit just *outside* the 00:00–06:00 pre-dawn window, deliberately. Moving them in would put
+> `minio-backup` at 02:30 NY — **13 minutes into the 02:17 HEAVY `weyland_ingestion_job`**, where
+> `dagster-user-code` peaks at **10.6 Gi** on the same single node, and directly on top of `restic-backup`'s
+> 02:30 slot. Late evening is quiet, off the working day, and clear of every heavy neighbour, which is what
+> Rule #5 is actually protecting. Recorded here rather than left as drift.
+>
+> **How this was found (2026-08-23, B135 DoD sweep):** all three were **absent from this table** and none set
+> `spec.timeZone`, so they ran in the controller-manager's clock (**UTC**) while their manifest comments claimed
+> "02:30 / 03:00 local". They had been firing at 22:30/23:00/23:30 NY the whole time — confirmed against
+> `kube_cronjob_status_last_successful_time` (02:32:49Z, 03:00:10Z, 03:43:33Z). The fix pinned each to
+> `America/New_York` at the time it **already ran**, so nothing moved on the day and they stop drifting an hour
+> in EST. A timer that runs but has no row is drift; so is a comment that describes a clock the timer isn't using.
+
 ## Design rules
 
 1. **One clock** — everything in America/New_York. New timers inherit it explicitly. **Exception: Woodpecker crons run in UTC** (not NY-pinnable) — pick the UTC expression so the NY-equivalent stays inside the 00:00–06:00 off-hours window in **both** EDT and EST (see the TZ table).
@@ -119,6 +136,16 @@ scaled down — they back live services or the mesh.
 
 ## Change log
 
+- 2026-08-23 — **Three backup CronJobs were undocumented AND running on the wrong clock.** `minio-backup`,
+  `pg-backup` and `postgres-backup` had **no row in this table** and no `spec.timeZone`, so they ran in UTC
+  while their manifests commented "local" — firing at 22:30/23:00/23:30 NY, not 02:30/03:00/03:30. Found by
+  the B135 DoD timer reconciliation (a live-vs-doc diff, which is exactly what that check is for). Each is now
+  pinned to `America/New_York` at the time it already ran — no same-day change, no EST drift — and each has a
+  row above plus a written carve-out explaining why they stay outside the pre-dawn window. **Design Rule #1
+  now has a guard it did not have:** "new timers inherit NY explicitly" was policy with nothing checking it.
+- 2026-08-23 — **Added `cron-freshness-check`** (04:30 NY, B135) — the Woodpecker-cron watchdog. Slotted 3.5h
+  after `nightly-images` (a genuine run has long finished) and clear of 05:30 `docs-site-rebuild` / 05:45
+  `pr-staleness-check`; stacking two watchdogs on one minute means one failure mode hides the other.
 - 2026-08-22 — **`nightly-images` was never actually running.** The Woodpecker cron (id 2, `0 5 * * *` UTC)
   was created **`enabled: false`** on 2026-08-18 and had never fired: `next_exec` was frozen at its first-ever
   slot (2026-08-19 01:00 EDT) and every pipeline on `edtbl76/weyland-lab` was `event: manual`. This table has

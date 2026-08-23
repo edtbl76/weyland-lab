@@ -135,9 +135,26 @@ still executes.
 | — | *idempotence:* tag already live **and** no bump PR open → stop, "already deployed" | cluster + GitHub |
 | `FR1.3` | the pipeline reached `success` | Woodpecker API |
 | `FR1.4` | the cluster is not already running this tag for the bumped image | live pods |
-| `FR2.1` | the PR is authored by `weyland-ci` | GitHub API |
+| `FR2.1` | the PR originates from the **base repo, not a fork** | GitHub API |
+| `FR2.1` | every commit carries the `weyland-ci` git author name | GitHub API |
 | `FR2.1` | the PR's diff touches **nothing but** image-tag lines | GitHub API |
-| `FR1.5` | a running pod carries the new tag | live pods |
+| `FR1.5` | **every** bumped image is live on a pod | live pods |
+| `SMOKE` | every bumped workload **declares a `readinessProbe`** and reports all replicas available | live Deployments + StatefulSets |
+
+**The three FR2.1 conditions are not equally strong.** Same-repo is decided by GitHub and is unspoofable — it is
+the load-bearing one, and `weyland-lab` is public with **no branch protection**, so it is the only thing standing
+between a stranger's PR and `main`. The `weyland-ci` author name is a *convention* set by `git config`; anyone who
+can write a commit can write that string. It is defence in depth behind same-repo, never provenance on its own.
+
+**Why `SMOKE` fails on a missing probe rather than warning.** `FR1.5` proves the right *bytes* are on the node. A
+workload with no `readinessProbe` reports `1/1 Ready` the instant PID 1 is alive — indistinguishable from genuine
+health. Stack the two and you get a green ship report backed by nothing that asked the application a question.
+Making it a hard failure turns the probe into a shipping requirement: a workload added without one fails loudly the
+first time its image is bumped. Images with no matching Deployment/StatefulSet (CI images that run as Jobs) are
+**named as unchecked** rather than silently passed, and an empty workload table fails closed.
+
+Both gates read the same diff file, so it is deleted only after **both** have run — deleting it early is how
+`FR1.5` once passed on an empty image list, verifying nothing.
 
 Superseded older bump PRs are closed **before** the newer one merges. Merging `#12` after `#13`
 rolls images backwards.

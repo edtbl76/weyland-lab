@@ -17,7 +17,12 @@ metadata:
   name: postgres-backup
   namespace: weyland
 spec:
-  schedule: "30 3 * * *" # 03:30 local (after the data-mesh nessie/lakefs pg-backup at 03:00)
+  # 23:30 America/New_York — 30 min after the data-mesh nessie/lakefs pg-backup, preserving the
+  # deliberate ordering. Was `30 3 * * *` with a "03:30 local" comment and no `spec.timeZone`, so it
+  # really fired at 03:30 UTC = 23:30 EDT (observed 03:43:33Z, 2026-08-23). Pinned 2026-08-23 to the
+  # time it already ran; the two backups keep their relative order because both moved together.
+  schedule: "30 23 * * *"
+  timeZone: America/New_York
   concurrencyPolicy: Forbid
   successfulJobsHistoryLimit: 3
   failedJobsHistoryLimit: 3

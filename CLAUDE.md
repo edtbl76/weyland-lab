@@ -9,7 +9,7 @@ Run `/aidlc` (scope auto-detected) to start/resume; `/aidlc --doctor` to validat
 `/aidlc --status` for progress. Stages/scopes live in `.claude/`; workspace is `aidlc/spaces/default/`.
 
 ## Project conventions (the quality bar the workflow serves)
-- **Definition of Done** — the 7-pillar gate in `docs/definition-of-done.md`; nothing is "done" until it passes.
+- **Definition of Done** — the 8-pillar gate in `docs/definition-of-done.md`; nothing is "done" until it passes.
 - **Backlog** = `docs/backlog.md` (ordered source of truth, B-numbered); **Linear** (emangini/EMA) = status.
 - **Docs** — arch/hosts/api/schedules/runbooks/demos/diagrams under `docs/`; keep current on every change.
 - **Knowledge libraries** — `knowledge-repos/` (engineering-knowledge · consulting-tools · industry-vertical)

@@ -205,4 +205,4 @@ cd /home/edwardmangini/IdeaProjects/weyland && bun .claude/tools/aidlc-graph.ts 
 - [mcp-gateway.md](mcp-gateway.md) — Bifrost registration steps, incl. the retired step 8
 - [code-review-stack.md](code-review-stack.md) — the AI code-review lane the DoD's pillar 7 invokes
 - [../concepts/spec-driven-frameworks.md](../concepts/spec-driven-frameworks.md) — B86 eval (incumbent updated by B133)
-- [../definition-of-done.md](../definition-of-done.md) — the 7-pillar gate this workflow serves
+- [../definition-of-done.md](../definition-of-done.md) — the 8-pillar gate this workflow serves

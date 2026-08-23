@@ -22,7 +22,15 @@ metadata:
   name: minio-backup
   namespace: minio
 spec:
-  schedule: "30 2 * * *" # 02:30 local
+  # 22:30 America/New_York. The comment used to read "02:30 local" and was WRONG: with no
+  # `spec.timeZone` a k8s CronJob runs in the controller-manager's clock (UTC), so `30 2 * * *` fired
+  # at 02:30 UTC = 22:30 EDT — confirmed against observed successes (02:32:49Z on 2026-08-23). Pinned
+  # 2026-08-23 to the time it ALREADY ran, so nothing moves today and it stops drifting an hour in EST.
+  # Deliberately NOT moved into the 00:00–06:00 pre-dawn window (Design Rule #5): 02:30 NY would land
+  # 13 min into the 02:17 HEAVY ingestion, where dagster-user-code peaks at 10.6Gi on this same node.
+  # Documented carve-out — see docs/schedules.md.
+  schedule: "30 22 * * *"
+  timeZone: America/New_York
   concurrencyPolicy: Forbid
   successfulJobsHistoryLimit: 3
   failedJobsHistoryLimit: 3
