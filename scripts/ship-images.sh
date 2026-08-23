@@ -30,6 +30,9 @@ BASE="main"
 # Waits. Overridable so the test suite can drive the poll loops with no wall-clock cost
 # (SHIP_POLL_INTERVAL=0), which is also why they are read with `${VAR-default}` and not `:-`.
 SHIP_POLL_TIMEOUT="${SHIP_POLL_TIMEOUT:-1800}"    # 30m — a cold user-code build is slow
+# The SAME detector CI runs, so the local answer and the pipeline's cannot disagree. Overridable for
+# the test suite only.
+SHIP_DETECT="${SHIP_DETECT:-$(dirname "${BASH_SOURCE[0]}")/ci/detect-changes.sh}"
 SHIP_ROLLOUT_TIMEOUT="${SHIP_ROLLOUT_TIMEOUT:-300}" # 5m — Argo polls every ~3m
 
 # An image-tag line is `<anything> registry.weyland.lab/<image>:<tag>`. Anchoring on the registry
@@ -364,6 +367,19 @@ main() {
     printf '✓ already deployed — %s is live and no image-bump PR is open. Nothing to do.\n' "$newtag"
     return 0
   fi
+
+  # "No PR because nothing changed" is NOT "no PR because the handoff broke" — the second is C9, the
+  # first is an ordinary quiet day. Asking the same detector CI uses, BEFORE triggering, keeps those
+  # two apart and skips a pipeline that would build nothing. Without this, a docs-only commit ends in
+  # a red FR1.4 abort that reads like a failure.
+  local plan
+  plan="$(mktemp)"
+  if PLAN="$plan" sh "$SHIP_DETECT" >/dev/null 2>&1 && [ ! -s "$plan" ]; then
+    rm -f "$plan"
+    printf '✓ nothing to ship — no image build context changed since its deployed tag.\n'
+    return 0
+  fi
+  rm -f "$plan"
 
   printf '→ triggering pipeline on %s (%s)\n' "$REPO" "$BASE"
   local num

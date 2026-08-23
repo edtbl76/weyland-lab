@@ -9,6 +9,15 @@ setup() {
   load helper
   setup_stubs
   SHIP="$REPO_ROOT/scripts/ship-images.sh"
+
+  # Default: the detector reports work, which is what every orchestration test assumes when it
+  # expects a pipeline to be triggered. Without this the suite runs the REAL detect-changes.sh
+  # against the live repo, and on a quiet day every test short-circuits at "nothing to ship" and
+  # passes for the wrong reason. The one test that wants an empty plan overrides SHIP_DETECT itself.
+  printf '#!/usr/bin/env bash\nprintf "scan-suite\\tservices/scan-suite\\tgit-9a4996c6\\tk8s/x.yaml\\n" > "$PLAN"\n' \
+    > "$STUB_DIR/detect-work"
+  chmod +x "$STUB_DIR/detect-work"
+  export SHIP_DETECT="$STUB_DIR/detect-work"
 }
 
 teardown() {
@@ -367,4 +376,22 @@ registry.weyland.lab/weyland-flink:git-9a4996c6'
   stub_case kubectl 'get' 0 'registry.weyland.lab/scan-suite:git-9a4996c6'
   run all_bumped_images_live 'git-9a4996c6' /nonexistent/diff
   [ "$status" -ne 0 ]
+}
+
+@test "NFR3 exits cleanly when no image context changed — without triggering a pipeline" {
+  # Running the loop after a docs- or script-only commit used to trigger a pointless build and then
+  # ABORT at FR1.4 ("succeeded but opened no PR"), because "no PR because nothing changed" and "no PR
+  # because deploy-handoff broke" looked identical. They are not the same, and only one is a fault.
+  stub_git_pushed
+  stub_dispatch woodpecker-cli
+  stub_dispatch gh
+  stub_dispatch kubectl
+  stub_case kubectl 'get' 0 'registry.weyland.lab/scan-suite:git-2c73c898'
+  # a detector that finds nothing to build
+  printf '#!/usr/bin/env bash\n: > "$PLAN"\n' > "$STUB_DIR/detect-none"
+  chmod +x "$STUB_DIR/detect-none"
+  SHIP_DETECT="$STUB_DIR/detect-none" run bash "$SHIP"
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"nothing to ship"* ]]
+  never_called woodpecker-cli
 }
