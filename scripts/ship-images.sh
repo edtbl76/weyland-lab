@@ -69,12 +69,16 @@ sha_differs_from_deployed() {
 # The commit author is the real CI marker, and it is exactly as hard to forge as the old check was
 # meant to be: anything CI produced carries it, anything a human pushed does not.
 #
+# USE `.name`, NOT `.login`. Second time I made this mistake: `.login` is the GitHub ACCOUNT, and since
+# `weyland-ci` is not one, GitHub returns it empty — `{"email":"ci@weyland.lab","login":"","name":"weyland-ci"}`.
+# `.name` is the git commit author that `git config user.name` actually stamps.
+#
 # An EMPTY commit list fails closed. "Could not determine the authors" is not "the authors are fine".
 pr_commits_are_ci() {
   local pr="${1:?usage: pr_commits_are_ci <pr-number>}"
   local authors seen=0
   authors="$(gh pr view "$pr" --repo "$REPO" --json commits \
-    --template '{{range .commits}}{{range .authors}}{{.login}}{{"\n"}}{{end}}{{end}}' 2>/dev/null)"
+    --template '{{range .commits}}{{range .authors}}{{.name}}{{"\n"}}{{end}}{{end}}' 2>/dev/null)"
   [ -n "$authors" ] || return 1
   local a
   while read -r a; do
@@ -83,6 +87,26 @@ pr_commits_are_ci() {
     [ "$a" = "$CI_AUTHOR" ] || return 1
   done <<<"$authors"
   [ "$seen" -eq 1 ]
+}
+
+# FR2.1 — the UNSPOOFABLE half of the identity check, and the one that actually bounds the threat.
+#
+# Everything else about a PR's provenance is self-asserted: `git config user.name weyland-ci` is a
+# string anyone can set. `edtbl76/weyland-lab` is PUBLIC and carries no branch protection (FR2.4), so
+# without this check a stranger could fork it, push `ci/image-bump-<current-main-sha>` with a
+# tags-only diff authored as `weyland-ci`, and this loop would merge it to main.
+#
+# `isCrossRepository` is decided by GitHub, not by the committer. CI pushes to the BASE repo with its
+# own token (scripts/ci/open-deploy-pr.sh), so a CI bump PR is ALWAYS same-repo and a fork PR is never
+# CI's. Fails closed on an unreadable answer.
+#
+# Deliberately NOT signature verification: Woodpecker signs nothing today, so pinning a CI key means
+# building a signing path first. Revisit if the repo ever accepts pushes from more than one human.
+pr_is_same_repo() {
+  local pr="${1:?usage: pr_is_same_repo <pr-number>}" cross
+  cross="$(gh pr view "$pr" --repo "$REPO" --json isCrossRepository \
+    --template '{{.isCrossRepository}}' 2>/dev/null)"
+  [ "$cross" = "false" ]
 }
 
 # FR2.1 — second merge condition: the diff touches NOTHING but image-tag lines.
@@ -366,6 +390,7 @@ main() {
     sha_differs_from_deployed "$newtag" "${deployed:-none:none}" || abort
 
   # FR2.1 — both conditions, or no merge.
+  gate FR2.1 "PR #${pr_num} originates from ${REPO} itself, not a fork" pr_is_same_repo "$pr_num" || abort
   gate FR2.1 "every commit on PR #${pr_num} authored by ${CI_AUTHOR}" pr_commits_are_ci "$pr_num" || abort
   gate FR2.1 "PR #${pr_num} touches nothing but image-tag lines" diff_is_tags_only "$diff_file" || abort
 

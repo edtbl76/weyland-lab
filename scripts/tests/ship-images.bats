@@ -168,6 +168,7 @@ stub_git_pushed() {
   stub_case woodpecker-cli 'pipeline show' 0 '42 success'
   stub_dispatch gh
   stub_case gh 'pr list' 0 '13	ci/image-bump-9a4996c6	edtbl76'
+  stub_case gh 'isCrossRepository' 0 'false'
   stub_case gh 'pr view' 0 'edtbl76'
   stub_case gh 'pr diff' 0 "$(cat "$FIXTURES/tags-only.diff")"
   stub_dispatch kubectl
@@ -186,6 +187,7 @@ stub_git_pushed() {
   stub_case woodpecker-cli 'pipeline show' 0 '42 success'
   stub_dispatch gh
   stub_case gh 'pr list' 0 '13	ci/image-bump-9a4996c6	weyland-ci'
+  stub_case gh 'isCrossRepository' 0 'false'
   stub_case gh 'pr view' 0 'weyland-ci'
   stub_case gh 'pr diff' 0 "$(cat "$FIXTURES/mixed.diff")"
   stub_dispatch kubectl
@@ -204,6 +206,7 @@ stub_git_pushed() {
   # Two open bumps. #12 is the older one; merging it after #13 rolls images BACKWARDS.
   stub_case gh 'pr list' 0 '13	ci/image-bump-9a4996c6	weyland-ci
 12	ci/image-bump-2c73c898	weyland-ci'
+  stub_case gh 'isCrossRepository' 0 'false'
   stub_case gh 'pr view' 0 'weyland-ci'
   stub_case gh 'pr diff' 0 "$(cat "$FIXTURES/tags-only.diff")"
   stub_dispatch argocd
@@ -236,6 +239,7 @@ stub_git_pushed() {
   stub_case woodpecker-cli 'pipeline show' 0 '42 success'
   stub_dispatch gh
   stub_case gh 'pr list' 0 '13	ci/image-bump-9a4996c6	weyland-ci'
+  stub_case gh 'isCrossRepository' 0 'false'
   stub_case gh 'pr view' 0 'weyland-ci'
   stub_case gh 'pr diff' 0 "$(cat "$FIXTURES/tags-only.diff")"
   stub_dispatch argocd
@@ -278,6 +282,7 @@ stub_git_pushed() {
   stub_case woodpecker-cli 'pipeline show' 0 '42 success'
   stub_dispatch gh
   stub_case gh 'pr list' 0 '13	ci/image-bump-9a4996c6	edtbl76'
+  stub_case gh 'isCrossRepository' 0 'false'
   stub_case gh 'pr view' 0 'edtbl76'          # human-authored -> FR2.1 aborts AFTER the PR was found
   stub_case gh 'pr diff' 0 "$(cat "$FIXTURES/tags-only.diff")"
   stub_dispatch kubectl
@@ -294,4 +299,26 @@ stub_git_pushed() {
   stub_case git 'rev-parse origin/main' 0 '11111111222222223333333344444444'
   run bash "$SHIP"
   [[ "$output" == *"expected"* ]]
+}
+
+@test "FR2.1 pr_is_same_repo: rejects a PR opened from a fork" {
+  # SECURITY. The commit author is SELF-ASSERTED — anyone can `git config user.name weyland-ci`.
+  # weyland-lab is public and has no branch protection, so a stranger could fork it, branch
+  # `ci/image-bump-<current-main-sha>`, commit a tags-only diff under that name, and this loop would
+  # merge it to main. GitHub decides isCrossRepository, so it cannot be spoofed; CI always pushes to
+  # the BASE repo, so a fork PR is never CI's.
+  SHIP_IMAGES_LIB=1 source "$SHIP"
+  stub gh 0 'false'
+  run pr_is_same_repo 34
+  [ "$status" -eq 0 ]
+  stub gh 0 'true'
+  run pr_is_same_repo 34
+  [ "$status" -ne 0 ]
+}
+
+@test "FR2.1 pr_is_same_repo: fails closed when the answer is unreadable" {
+  SHIP_IMAGES_LIB=1 source "$SHIP"
+  stub gh 0 ''
+  run pr_is_same_repo 34
+  [ "$status" -ne 0 ]
 }
