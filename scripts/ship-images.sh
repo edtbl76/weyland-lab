@@ -192,11 +192,41 @@ live_carries_tag() {
   kubectl get pods -A -o jsonpath='{..image}' 2>/dev/null | grep -q ":${tag}\\b"
 }
 
-# The first image name a bump diff raises the tag on. One image is enough: the bumps in a run share
-# the HEAD tag, so any of them answers "is this tag live yet?".
+# EVERY image a bump diff raises the tag on. Not "the first" — see all_bumped_images_live.
+bumped_images() {
+  grep -E '^\+' "${1:?usage: bumped_images <diff-file>}" \
+    | grep -oE "${REG//./\\.}/[A-Za-z0-9._-]+:" | sed -E "s#.*/##; s#:\$##" | sort -u
+}
+
+# The first one, for the FR1.4 "is there anything to do" comparison.
 bumped_image() {
-  grep -E '^\+' "${1:?usage: bumped_image <diff-file>}" \
-    | grep -oE "${REG//./\\.}/[A-Za-z0-9._-]+:" | head -n1 | sed -E "s#.*/##; s#:\$##"
+  bumped_images "$1" | head -n1
+}
+
+# FR1.5 — EVERY bumped image must carry the tag, and the failure must NAME the stragglers.
+#
+# THE BUG THIS REPLACES: the gate called live_carries_tag, which greps ALL pods for the tag and passes
+# on a single match. On 2026-08-22 dagster-user-code carried git-36c4d3e0 while weyland-tool-server sat
+# on git-ef734fc8, and the command printed "shipped — git-36c4d3e0 is live". A verification gate that
+# goes green on a partial rollout is the precise failure this project exists to remove — and it was in
+# the gate meant to catch it. "Some pod somewhere has the tag" was never the question.
+all_bumped_images_live() {
+  local tag="${1:?usage: all_bumped_images_live <tag> <diff-file>}"
+  local diff_file="${2:?usage: all_bumped_images_live <tag> <diff-file>}"
+  local img deployed stale="" checked=0
+  [ -f "$diff_file" ] || { printf '  cannot read the bumped-image list (%s)\n' "$diff_file" >&2; return 1; }
+  while read -r img; do
+    [ -n "$img" ] || continue
+    deployed="$(deployed_tag_for "$img")"
+    deployed="${deployed##*:}"
+    checked=$((checked + 1))
+    [ "$deployed" = "$tag" ] || stale="${stale} ${img}(${deployed:-absent})"
+  done <<<"$(bumped_images "$diff_file")"
+  # Verifying NOTHING is not verifying successfully.
+  [ "$checked" -gt 0 ] || { printf '  no bumped images found to verify — refusing to call that shipped\n' >&2; return 1; }
+  [ -z "$stale" ] && return 0
+  printf '  not yet on %s:%s\n' "$tag" "$stale" >&2
+  return 1
 }
 
 # The tag the cluster is currently running for one image.
@@ -216,14 +246,19 @@ open_bump_prs() {
 
 # Argo Application name -> source path, read from the manifests themselves so this cannot drift as
 # applications are added. Only path-based Applications appear; Helm-chart ones have no path to match.
+# `<name>|<path>|<include-glob>`. The glob matters: TWELVE loose-file apps all declare
+# `path: .../k8s` and are told apart ONLY by `directory.include`. Matching on path alone picks one of
+# the twelve arbitrarily — which is how weyland-tool-server.yaml resolved to `postgres` on 2026-08-22
+# and the tool-server app went unsynced while the run reported success.
 argo_app_paths() {
   awk '
-    /^apiVersion:/            { if (name && path) print name "|" path; name=""; path=""; inmeta=0 }
+    /^apiVersion:/            { if (name && path) print name "|" path "|" inc; name=""; path=""; inc=""; inmeta=0 }
     /^metadata:/              { inmeta=1; next }
     /^[a-z]/                  { inmeta=0 }
     inmeta && /^  name:/      { if (!name) name=$2 }
     /^    path:/              { path=$2 }
-    END                       { if (name && path) print name "|" path }
+    /^      include:/         { inc=$2; gsub(/^.|.$/, "", inc) }
+    END                       { if (name && path) print name "|" path "|" inc }
   ' "$PLATFORM_DIR"/k8s/argocd/applications/*.yaml "$PLATFORM_DIR"/k8s/argocd/*.yaml 2>/dev/null
 }
 
@@ -241,17 +276,28 @@ affected_apps() {
   for f in $changed; do
     best_name=""
     best_len=0
-    while IFS='|' read -r n p; do
+    while IFS='|' read -r n p inc; do
       [ -n "$p" ] || continue
-      case "$f" in
-        "$p"/*)
-          len=${#p}
-          if [ "$len" -gt "$best_len" ]; then
-            best_len="$len"
-            best_name="$n"
-          fi
-          ;;
-      esac
+      case "$f" in "$p"/*) : ;; *) continue ;; esac
+      # An include glob is a hard filter, not a tiebreak: if the app declares one, the file must be in
+      # it. `{a.yaml,b.yaml}` -> strip the braces and compare against the basename.
+      if [ -n "$inc" ]; then
+        local base="${f##*/}" want
+        local matched=0
+        inc="${inc#\{}"; inc="${inc%\}}"
+        while IFS=',' read -r -d ',' want || [ -n "$want" ]; do
+          want="$(printf '%s' "$want" | tr -d ' ')"
+          [ "$want" = "$base" ] && matched=1
+        done <<<"${inc},"
+        [ "$matched" -eq 1 ] || continue
+      fi
+      len=${#p}
+      # A glob-scoped app beats a bare-path app on the same directory: it is the more specific claim.
+      [ -n "$inc" ] && len=$((len + 1000))
+      if [ "$len" -gt "$best_len" ]; then
+        best_len="$len"
+        best_name="$n"
+      fi
     done <<<"$pairs"
     [ -n "$best_name" ] && printf '%s\n' "$best_name"
   done | sort -u
@@ -417,8 +463,6 @@ main() {
         printf '  ⚠ sync of %s did not return cleanly — the live check below is the real gate\n' "$app" >&2
     done
   fi
-  rm -f "$diff_file"
-
   # FR1.5 — the only assertion that proves anything shipped.
   local waited=0 interval="${SHIP_POLL_INTERVAL-10}"
   while ! live_carries_tag "$newtag"; do
@@ -427,8 +471,10 @@ main() {
     waited=$((waited + interval))
     [ "$interval" = "0" ] && break
   done
-  gate FR1.5 "a running pod carries ${newtag}" live_carries_tag "$newtag" || abort
+  gate FR1.5 "every image this run bumped is live on ${newtag}" \
+    all_bumped_images_live "$newtag" "$diff_file" || abort
 
+  rm -f "$diff_file"
   printf '✓ shipped — %s is live.\n' "$newtag"
 }
 

@@ -1,0 +1,7 @@
+diff --git a/nodes/mother/lab/weyland-platform/k8s/weyland-tool-server.yaml b/nodes/mother/lab/weyland-platform/k8s/weyland-tool-server.yaml
+index 1111111..2222222 100644
+--- a/nodes/mother/lab/weyland-platform/k8s/weyland-tool-server.yaml
++++ b/nodes/mother/lab/weyland-platform/k8s/weyland-tool-server.yaml
+@@ -30,7 +30,7 @@ spec:
+-              image: registry.weyland.lab/weyland-tool-server:git-2c73c898
++              image: registry.weyland.lab/weyland-tool-server:git-9a4996c6

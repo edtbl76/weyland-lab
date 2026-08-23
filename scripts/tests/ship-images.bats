@@ -246,8 +246,8 @@ stub_git_pushed() {
   # The cluster runs the OLD tag until the merge lands, and the new one after. Modelling that is
   # what lets FR1.4 (there is something to deploy) and FR1.5 (it deployed) both mean something.
   stub_when_seen kubectl 'pr merge' \
-    'registry.weyland.lab/scan-suite:git-2c73c898' \
-    'registry.weyland.lab/scan-suite:git-9a4996c6'
+    'registry.weyland.lab/scan-suite:git-2c73c898 registry.weyland.lab/weyland-flink:git-2c73c898' \
+    'registry.weyland.lab/scan-suite:git-9a4996c6 registry.weyland.lab/weyland-flink:git-9a4996c6'
   run bash "$SHIP"
   [ "$status" -eq 0 ]
   # NFR4: never a blanket refresh across all 78 applications.
@@ -320,5 +320,51 @@ stub_git_pushed() {
   SHIP_IMAGES_LIB=1 source "$SHIP"
   stub gh 0 ''
   run pr_is_same_repo 34
+  [ "$status" -ne 0 ]
+}
+
+# --- The two defects the first successful live run exposed ------------------------------
+
+@test "FR1.5 verifies EVERY bumped image, not just one" {
+  # THE BUG THAT PRINTED A FALSE SUCCESS (2026-08-22): live_carries_tag grepped ALL pods for the tag,
+  # so one match passed the gate. dagster-user-code had git-36c4d3e0 and weyland-tool-server did not,
+  # and the command still said "shipped — git-36c4d3e0 is live". A verification gate that passes on a
+  # partial rollout is the exact false-confidence failure this whole effort exists to remove.
+  SHIP_IMAGES_LIB=1 source "$SHIP"
+  stub_dispatch kubectl
+  stub_case kubectl 'get' 0 'registry.weyland.lab/scan-suite:git-9a4996c6
+registry.weyland.lab/weyland-flink:git-2c73c898'
+  run all_bumped_images_live 'git-9a4996c6' "$FIXTURES/tags-only.diff"
+  [ "$status" -ne 0 ]                       # weyland-flink is stale -> must FAIL
+  [[ "$output" == *"weyland-flink"* ]]      # and must name which one
+}
+
+@test "FR1.5 passes only when every bumped image carries the tag" {
+  SHIP_IMAGES_LIB=1 source "$SHIP"
+  stub_dispatch kubectl
+  stub_case kubectl 'get' 0 'registry.weyland.lab/scan-suite:git-9a4996c6
+registry.weyland.lab/weyland-flink:git-9a4996c6'
+  run all_bumped_images_live 'git-9a4996c6' "$FIXTURES/tags-only.diff"
+  [ "$status" -eq 0 ]
+}
+
+@test "NFR4 affected_apps distinguishes the 12 loose apps that share one path" {
+  # They all declare `path: .../k8s` and differ only by `directory.include` globs. Longest-prefix
+  # matching cannot tell them apart, so weyland-tool-server.yaml resolved to `postgres` and the
+  # tool-server app was never synced.
+  SHIP_IMAGES_LIB=1 source "$SHIP"
+  run affected_apps "$FIXTURES/loose-file.diff"
+  [[ "$output" == *"weyland-tool-server"* ]]
+  [[ "$output" != *"postgres"* ]]
+}
+
+@test "FR1.5 fails closed when the bumped-image list cannot be read" {
+  # Nearly shipped as another false green: `rm -f "$diff_file"` ran BEFORE this gate, so the image
+  # list came back empty, the loop never executed, nothing was marked stale, and the gate PASSED —
+  # declaring a rollout verified without checking a single image. Empty input is not success.
+  SHIP_IMAGES_LIB=1 source "$SHIP"
+  stub_dispatch kubectl
+  stub_case kubectl 'get' 0 'registry.weyland.lab/scan-suite:git-9a4996c6'
+  run all_bumped_images_live 'git-9a4996c6' /nonexistent/diff
   [ "$status" -ne 0 ]
 }
