@@ -202,7 +202,7 @@
       <h3>Self-serve data platform</h3>
       <p>One platform (L1–L8) any domain consumes without a bottleneck team: land → transform → serve → consume.
       <b>Run-mode tiering</b> keeps it viable on one node — a lightweight always-on foundation, heavy tiers
-      <b>scaled to zero</b> (KEDA) and woken per job; a Port button scales stores on demand.</p>
+      <b>scaled to zero</b> and woken per job; a Port button scales stores on demand. <b>Aspirational, not built</b> — the sleep half is PARKED (Argo selfHeal reverts replicas:0) and KEDA was retired 2026-08-22 without ever scaling a store.</p>
       <div class="demos-row">
         <a class="demo" href="https://docs.weyland.lab/demos/pipeline-trigger/">pipeline trigger</a>
         <a class="demo" href="https://docs.weyland.lab/demos/store-scaler/">store wake/sleep</a>
@@ -286,7 +286,7 @@
       <div class="num">L3</div>
       <div class="layer-head"><h2>Transform / Streaming / Orchestration</h2><span class="role">batch marts + on-demand streams</span></div>
       <p class="desc">Dagster is the always-on workhorse (raw → silver ×4 formats → tested gold marts via dbt-trino).
-      The whole streaming tier is on-demand — Debezium CDC + Redpanda + Flink, woken per job by KEDA / the Flink operator.</p>
+      The whole streaming tier is on-demand — Debezium CDC + Redpanda + Flink, woken per job by the Flink operator. (KEDA appeared in this sentence but never scaled anything; retired 2026-08-22.)</p>
       <div class="chips"><span>Dagster</span><span>dbt Core</span><span>MetricFlow</span><span class="od">Debezium</span><span class="od">Redpanda</span><span class="od">Flink</span><span>KEDA</span></div>
       <div class="demos-row"><a class="demo" href="https://docs.weyland.lab/demos/dbt/">dbt → marts</a><a class="demo" href="https://docs.weyland.lab/demos/streaming/">streaming (Avro)</a><a class="demo" href="https://docs.weyland.lab/demos/cdc/">CDC (Debezium)</a><a class="demo" href="https://docs.weyland.lab/demos/flink/">Flink jobs</a><a class="demo" href="https://docs.weyland.lab/demos/pipeline-trigger/">pipeline trigger</a></div>
     </div>

@@ -197,49 +197,24 @@ spec:
       - ServerSideApply=true
       - CreateNamespace=true
 ---
-# KEDA + its HTTP add-on were installed with DEFAULT values (no values file in the repo) → chart-only, single source.
-apiVersion: argoproj.io/v1alpha1
-kind: Application
-metadata:
-  name: keda
-  namespace: argocd
-spec:
-  project: default
-  source:
-    repoURL: https://kedacore.github.io/charts
-    chart: keda
-    targetRevision: 2.20.1
-    helm:
-      releaseName: keda
-  destination:
-    server: https://kubernetes.default.svc
-    namespace: keda
-  syncPolicy:
-    automated: { selfHeal: true, prune: true }
-    syncOptions:
-      - ServerSideApply=true       # the scaledjobs.keda.sh CRD is what hit the 256KB annotation cap
----
-apiVersion: argoproj.io/v1alpha1
-kind: Application
-metadata:
-  name: keda-http-add-on
-  namespace: argocd
-spec:
-  project: default
-  source:
-    repoURL: https://kedacore.github.io/charts
-    chart: keda-add-ons-http
-    targetRevision: 0.15.0
-    helm:
-      releaseName: http-add-on
-  destination:
-    server: https://kubernetes.default.svc
-    namespace: keda
-  syncPolicy:
-    automated: { selfHeal: true, prune: true }
-    syncOptions:
-      - ServerSideApply=true
----
+# KEDA RETIRED 2026-08-22. Both Applications (`keda` 2.20.1 + `keda-http-add-on` 0.15.0) removed here;
+# Argo's prune deletes the workloads on the next sync. The `keda` namespace is left for a manual delete.
+#
+# WHY: installed as a B43-era platform capability and never used. In 62 days it produced exactly ONE
+# ScaledObject — the HTTP add-on's own interceptor. No HTTPScaledObject ever existed, and nothing in the
+# cluster referenced it. Cost was 10 pods / ~215Mi / 114 operator restarts on a node already at 93% of its
+# memory reservation; docs/runbooks/keda.md meanwhile read "Installed + healthy", which describes an inert
+# component as a working capability.
+#
+# Its one intended consumer was the data-mesh run-mode tiering (store sleep/wake). That is blocked on ceding
+# `/spec/replicas` to an external actor via Argo `ignoreDifferences` — a carve-out rejected on MECHANISM, not
+# arithmetic: it is unscoped and permanent, so a sleeping store would report Synced/Healthy, the
+# accidental-scale-to-zero safety net would disappear, and the sleep state would live only in the cluster.
+# KEDA does not avoid that carve-out — it needs the identical one (docs/runbooks/port-agent-easy-button.md
+# § PARKED). So KEDA was never what stood between the lab and store sleep.
+#
+# REINSTATE if a real trigger appears — two helm installs, see docs/runbooks/keda.md (kept for its gotchas).
+# The clean form of store sleep needs no KEDA at all: commit `replicas: 0` to git and let Argo enforce it.
 # B1.3 — exposed OpenSearch 3.x search/log playground (standalone; NOT used by DataHub).
 apiVersion: argoproj.io/v1alpha1
 kind: Application

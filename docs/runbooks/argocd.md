@@ -24,7 +24,7 @@ Proxmox, SaaS). Part of the IaC track (B58).
    (annotation-based tracking — lands on resource metadata, NOT the pod template → **sync does not restart pods**).
 3. **Sync** = pure adoption (stamps ownership, goes green). Then flip to `automated: {selfHeal, prune}` once trusted.
 
-## Apps onboarded (79)
+## Apps onboarded (77)
 - **Raw** (20, auto-sync): open-webui + subdir apps (`dagster`, `glitchtip`, `minio`, `mlflow`, `n8n`,
   `sonarqube`, `unleash`, `uptime-kuma`, `litellm`) + loose-file apps via include-globs (`postgres`, `qdrant`,
   `weaviate`, `neo4j`, `neodash`, `weyland-tool-server`, `apisix`) + raw-extras (`loki-rules`,

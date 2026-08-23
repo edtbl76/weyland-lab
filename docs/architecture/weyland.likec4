@@ -153,7 +153,7 @@ model {
         }
 
         platform = zone "Delivery + governance" {
-          argocd = component "Argo CD" "GitOps CD — app-of-apps, 79 apps"
+          argocd = component "Argo CD" "GitOps CD — app-of-apps, 77 apps"
           woodpecker = component "Woodpecker CI" "CI/CD — mixed fleet (B57b): weyland jobs = k8s backend (pods), STUD.io CI = local backend (rogueone agents). LAN NodePorts :30980 (CLI/REST) + :30900 (agent gRPC)"
           buildkitd = component "buildkitd" "B57a — persistent BuildKit daemon; the weyland image CI's build step is a thin buildctl client to it (:1234). Daemonless BuildKit couldn't mount in an ephemeral step pod on k3s."
           gatekeeper = component "OPA Gatekeeper" "Admission control + Policy Manager"
@@ -321,7 +321,7 @@ model {
   weyland.mother.ops.obs.grafana -> weyland.mother.ai.toolServer "scrape /metrics"
   weyland.mother.ops.obs.grafana -> rogueone.rayWorker "scrape :8080 (static target)"
   weyland.mother.ops.obs.kiali -> weyland.mother.ops.obs.grafana "Envoy mesh metrics"
-  weyland.mother.ops.platform.argocd -> github "GitOps reconcile (79 apps)"
+  weyland.mother.ops.platform.argocd -> github "GitOps reconcile (77 apps)"
   weyland.mother.ops.platform.opencost -> weyland.mother.ops.obs.grafana "cost metrics"
   weyland.mother.ops.platform.portAgent -> port "claim action runs"
   weyland.mother.ops.platform.portAgent -> weyland.mother.mesh.gov.storeScaler "run store scale"

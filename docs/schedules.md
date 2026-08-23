@@ -85,7 +85,7 @@ Heavy = embeds/writes or large scans (guard the node's RAM). Light = metadata/re
 cockroach/mongo/mysql/gizmosql to 0, and the DataHub ingestions that read them (Cockroach 03:30, Mongo
 03:45, both **weekly Sun**) would then hit a scaled-to-zero store. **But the auto sleep/scale-down is
 PARKED** — Argo `selfHeal` reverts `replicas:0` (see [runbooks/port-agent-easy-button.md](runbooks/port-agent-easy-button.md)
-and [[store-scaler-easy-button]]), pending KEDA-in-Argo. Stores stay up overnight, so 03:30/03:45 are
+and [[store-scaler-easy-button]]). **KEDA was retired 2026-08-22** — it needs the SAME `/spec/replicas` carve-out, so it was never the unblocker. Stores stay up overnight, so 03:30/03:45 are
 fine **today**. **When sleep is un-parked:** move the two affected weekly ingestions (Cockroach, Mongo) to
 a **Sunday 01:xx** slot (before scale-down), or exclude those stores from the Sunday scale-down.
 (MusicBrainz-Postgres and core-Postgres are NOT in the scale-down set, so 04:45 is fine for MusicBrainz.)

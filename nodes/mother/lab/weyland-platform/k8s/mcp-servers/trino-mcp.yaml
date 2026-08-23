@@ -52,7 +52,9 @@ spec:
             seccompProfile: { type: RuntimeDefault }
           resources:
             requests: { memory: 64Mi, cpu: 25m }
-            limits: { memory: 128Mi }
+            # Limit raised 128Mi -> 256Mi (2026-08-22): OOMKilled 2026-08-21 at 104Mi steady-state — 81% of the
+            # old ceiling. Same reasoning as postgres-mcp: cgroup OOM, not node pressure; request unchanged.
+            limits: { memory: 256Mi }
 ---
 apiVersion: v1
 kind: Service

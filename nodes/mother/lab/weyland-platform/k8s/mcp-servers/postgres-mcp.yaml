@@ -52,7 +52,11 @@ spec:
             seccompProfile: { type: RuntimeDefault }
           resources:
             requests: { memory: 96Mi, cpu: 25m }
-            limits: { memory: 256Mi }
+            # Limit raised 256Mi -> 512Mi (2026-08-22): OOMKilled at 17:54Z while sitting at 196Mi steady-state
+            # — 77% of the old ceiling, so any burst crossed it. Per-container cgroup OOM, NOT node pressure
+            # (mother had ~6Gi free). Only the LIMIT moved: mother is at 93% of its memory RESERVATION and
+            # requests are what the scheduler counts, so raising the request would cost scheduling headroom.
+            limits: { memory: 512Mi }
 ---
 apiVersion: v1
 kind: Service

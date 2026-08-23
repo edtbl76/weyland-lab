@@ -3,7 +3,7 @@
 Walk a change through the k8s GitOps lane: edit a manifest, push to GitHub, and let
 Argo CD reconcile it onto mother's k3s. Argo is **pull-based** (polls the repo every
 ~3 min, or on manual refresh) so no inbound webhook is needed — LAN-safe. UI at
-`argocd.weyland.lab`, ns `argocd`, app-of-apps with 79 apps onboarded.
+`argocd.weyland.lab`, ns `argocd`, app-of-apps with 77 apps onboarded.
 
 Related: the image build→runtime handoff (rsync + `docker save | k3s ctr images import`)
 is a separate flow — see [../diagrams/flow-deploy.md](../diagrams/flow-deploy.md). This

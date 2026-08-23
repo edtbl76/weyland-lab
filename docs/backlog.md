@@ -1929,6 +1929,29 @@ Linear: EMA-197. Relates B1.5 (dbt transform tier), B131 (dependency lifecycle),
 
 ---
 
+### B139 — Overnight window collision: nightly image build vs the 02:17 ingestion — 🟠 **MEDIUM (2026-08-22)**
+
+**Measure first, then decide.** The `nightly-images` Woodpecker cron fires at **01:00 NY**; `weyland_ingestion_job` fires at **02:17**. That is a **77-minute window**, and nobody knows how long a three-image build takes — the cron was created `enabled:false` on 2026-08-18 and had never run until it was enabled 2026-08-22, so there is no cron-triggered duration on record.
+
+**Why the overlap matters — measured 2026-08-22, 14-day peaks vs requests:**
+
+| Pod | Request | 14d peak | Exceeds request by |
+|---|---|---|---|
+| `dagster-user-code` | 4 Gi | **10.6 Gi** | +6.5 Gi |
+| `trino` | 3 Gi | 8.0 Gi | +5.1 Gi |
+| `tempo-0` | 512 Mi | 3.9 Gi | +3.4 Gi |
+| `neo4j` | 1 Gi | 4.0 Gi | +3.0 Gi |
+
+The lab runs a deliberate memory overcommit — nearly everything is `Burstable` with requests well under peak — and it holds because the peaks do not coincide. The kubelet evicts by **usage minus request**, so under pressure the first pod killed is whichever most exceeds its reservation. During ingestion that is `dagster-user-code`, at exactly the moment it is doing real work. A build still running at 02:17 is the collision.
+
+**Do this:** read the first cron-triggered build's duration from Woodpecker (`woodpecker-cli pipeline ls edtbl76/weyland-lab`, look for `event: cron`). If it lands within ~60 min there is adequate margin. If it approaches 77 min, move the cron earlier (`0 4 * * *` UTC = 00:00 EDT / 23:00 EST — still inside the 00:00–06:00 off-hours window, Design Rule #1) rather than moving ingestion.
+
+**Explicitly NOT the fix — both were considered and rejected 2026-08-22:**
+- **Trimming requests.** Only **8.1 Gi** is genuinely over-reserved (request above the 14-day *peak*), spread across many pods with a largest single win of 731 Mi. An earlier "15.5 Gi over-reserved" figure was an artifact of comparing requests to one idle `kubectl top` sample — `dagster-user-code` reads 938 Mi at rest and 10.6 Gi under load. **Never size a job runner from an instantaneous sample.**
+- **Store sleep via Argo `ignoreDifferences` on `/spec/replicas`.** Stays parked, on mechanism not arithmetic: the carve-out is unscoped and permanent, so a sleeping store reports Synced/Healthy, the accidental-scale-to-zero safety net disappears, and the sleep state lives only in the cluster (the B137 disease). See `docs/runbooks/port-agent-easy-button.md` § PARKED. If store sleep is ever wanted, the clean form is `replicas: 0` **committed to git**, which keeps every property.
+
+Linear: TBD. Relates B134 (the request wall), B57a (the nightly build), B135/B131 (the ship loop that made this visible), B137 (live-only config).
+
 ### B138 — Repo coverage parity: every active repo tracked across the whole toolset — 🟠 **MEDIUM (2026-08-22)**
 
 **The problem:** the lab has **six active repos** — `edtbl76/Algopedia`, `ServiceTransformation`, `emangini-tailwind-nextjs-contentlayer`, `startme-curator`, `stud.io`, `weyland-lab` — and every tool that watches repos watches a *different* subset. Nobody decided that; each tool was onboarded once, against whatever set was current that day, and none of them agree now.

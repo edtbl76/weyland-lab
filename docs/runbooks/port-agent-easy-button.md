@@ -76,8 +76,17 @@ pending a decision to possibly drive scaling via **KEDA inside Argo**. Note: **K
 (KEDA+Argo still needs the `/spec/replicas` carve-out) and KEDA's triggers are cron/metric/event, not a button.
 So the carve-out is unavoidable if you want the button sticky; KEDA just changes who pulls the trigger.
 
-**Decision when resumed:** manual button → keep store-scaler + add the `ignoreDifferences` carve-out;
-autonomous policy (idle-timeout / overnight) → KEDA + `managedFieldsManagers` ignoreDifferences. The RAM the
+**Decision when resumed (updated 2026-08-22):** **KEDA has been RETIRED** — it needed the same
+`/spec/replicas` carve-out, so the autonomous-policy branch below is no longer on the table without
+reinstalling it. The carve-out itself was re-examined and **rejected on mechanism**: `ignoreDifferences`
+is unscoped and permanent, so a sleeping store would report Synced/Healthy, the accidental-scale-to-zero
+safety net would vanish, and the sleep state would live only in the cluster (the B137 disease).
+**If store sleep is wanted, the clean form is `replicas: 0` committed to GIT** — Argo enforces it, the
+repo stays truthful, drift detection keeps working, and a rebuild restores intent. The Port button would
+write to git rather than the cluster.
+
+*Original options, for the record:* manual button → keep store-scaler + add the `ignoreDifferences`
+carve-out; autonomous policy (idle-timeout / overnight) → KEDA + `managedFieldsManagers` ignoreDifferences. The RAM the
 sleep reclaims (~1–1.5 GB) is marginal now that the real OOM (Dagster ingestion) is fixed — the **execution
 plumbing** is the keeper, not the sleep feature.
 
