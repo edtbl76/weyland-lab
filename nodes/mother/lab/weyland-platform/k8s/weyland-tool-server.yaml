@@ -17,7 +17,7 @@ spec:
       enableServiceLinks: false
       containers:
         - name: weyland-tool-server
-          image: registry.weyland.lab/weyland-tool-server:git-ef734fc8   # tag is CI-managed (git-<sha>, B57a pipeline) — don't hand-bump. Keep the CPU-only torch layer (NOT CUDA — the oversized CUDA layer corrupts the build; see buildkit-large-layer note).
+          image: registry.weyland.lab/weyland-tool-server:git-15e3ea4d   # tag is CI-managed (git-<sha>, B57a pipeline) — don't hand-bump. Keep the CPU-only torch layer (NOT CUDA — the oversized CUDA layer corrupts the build; see buildkit-large-layer note).
           resources:
             requests: { memory: 512Mi, cpu: 250m }
             # 3Gi (was 2Gi, raised 2026-07-21). Steady state is ~929Mi (it loads the embedding model), so 2Gi
