@@ -39,8 +39,18 @@ spec:
                 secretKeyRef:
                   name: dagster-postgres-secret   # copied into data-mesh (see runbook)
                   key: password
+          # httpGet, not tcpSocket: a bound listener is not a serving feature store. `feast serve` runs
+          # uvicorn, and /health is a real route on it (verified 2026-08-23: HTTP 200, alongside
+          # /get-online-features, /push, /materialize in its OpenAPI). The socket check passed the
+          # instant the port bound, which is before uvicorn routes anything.
+          #
+          # What this does and does not prove: it proves the app is serving HTTP. It does NOT re-check
+          # the Postgres registry — but it does not need to, because `feast serve` does a one-shot
+          # registry connect at startup and EXITS on failure (see the holdApplicationUntilProxyStarts
+          # annotation above), so a registry problem kills the pod rather than leaving it half-up.
+          # The gap this closes is the wedged-uvicorn case, which tcpSocket could not see.
           readinessProbe:
-            tcpSocket: { port: 6566 }
+            httpGet: { path: /health, port: 6566 }
             initialDelaySeconds: 15
             periodSeconds: 10
           resources:

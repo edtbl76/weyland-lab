@@ -56,6 +56,17 @@ spec:
               memory: 12Gi
           ports:
             - containerPort: 4000
+          # Without this the pod reports 1/1 Ready as soon as PID 1 is alive — the gRPC code server could
+          # fail to load its definitions and every Dagster run would fail while the deploy looked green
+          # (ship-images.sh FR1.5 verifies the image TAG, which is a fact about bytes, not function).
+          # tcpSocket, not httpGet: port 4000 speaks gRPC, so there is no HTTP path to hit. Generous
+          # initialDelay because loading the definitions on this image is slow; readiness failure only
+          # de-routes the Service, it never restarts the pod, so a slow start recovers on its own.
+          readinessProbe:
+            tcpSocket: { port: 4000 }
+            initialDelaySeconds: 30
+            periodSeconds: 15
+            failureThreshold: 6
           env:
             # B49(b) Phase 2 — app-level spans → Tempo OTLP (OPT-IN; unset = no tracing). service.name=weyland-dagster;
             # coarse per-dataset store-load spans (weyland_pipeline/_otel.py). Runbook: observability.md.

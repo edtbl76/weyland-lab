@@ -232,6 +232,82 @@ all_bumped_images_live() {
   return 1
 }
 
+# One row per (workload, container): namespace, name, image, probe|NOPROBE, desired, available.
+#
+# Deployments and StatefulSets only — the workload kinds that carry both a readinessProbe and a
+# replica count. A CI image that runs as a Job (scan-suite) legitimately has neither; smoke_ok
+# reports those as unchecked rather than failing them.
+#
+# go-template, not jq: gh and kubectl both ship the template engine in-process (see open_bump_prs).
+# availableReplicas is ABSENT rather than 0 when nothing is up, hence the explicit else-0 — an empty
+# field would compare equal to an empty desired and read as healthy.
+workload_probe_status() {
+  kubectl get deploy,statefulset -A -o go-template='{{range .items}}{{$ns := .metadata.namespace}}{{$n := .metadata.name}}{{$d := .spec.replicas}}{{$st := .status}}{{range .spec.template.spec.containers}}{{$ns}}{{"\t"}}{{$n}}{{"\t"}}{{.image}}{{"\t"}}{{if .readinessProbe}}probe{{else}}NOPROBE{{end}}{{"\t"}}{{$d}}{{"\t"}}{{if $st.availableReplicas}}{{$st.availableReplicas}}{{else}}0{{end}}{{"\n"}}{{end}}{{end}}' 2>/dev/null
+}
+
+# SMOKE — FR1.5 proves the right BYTES are on the node. This proves something asked the process a
+# question and got an answer.
+#
+# THE GAP THIS CLOSES: `Ready` is only evidence when a probe measured something. With no
+# readinessProbe a pod reports 1/1 Ready the moment PID 1 is alive. On 2026-08-23 dagster-user-code
+# had no probe at all — it is the gRPC code server every Dagster run executes inside, it deploys
+# Recreate so no old pod is still serving, and if it came up unable to load its definitions this loop
+# would have printed "✓ shipped" while every Dagster run failed. Asserting readiness without
+# asserting that readiness was MEASURED is the same nothing-verified class as the partial-rollout bug
+# in all_bumped_images_live.
+#
+# So a missing probe FAILS the gate. That is deliberate: it makes the probe a shipping requirement
+# rather than a nice-to-have, and any future workload added without one fails loudly the first time
+# its image is bumped.
+smoke_ok() {
+  local tag="${1:?usage: smoke_ok <tag> <diff-file>}"
+  local diff_file="${2:?usage: smoke_ok <tag> <diff-file>}"
+  [ -f "$diff_file" ] || { printf '  cannot read the bumped-image list (%s)\n' "$diff_file" >&2; return 1; }
+
+  local rows
+  rows="$(workload_probe_status)"
+  # An empty table is a failure to OBSERVE, never an observation of health. Same reason
+  # all_bumped_images_live refuses a zero count.
+  if [ -z "$rows" ]; then
+    printf '  no workload status returned — refusing to call that smoke-verified\n' >&2
+    return 1
+  fi
+
+  local img ns name image probe desired avail matched
+  local unmeasured="" unhealthy="" unchecked="" verified=0
+  while read -r img; do
+    [ -n "$img" ] || continue
+    matched=0
+    while IFS=$'\t' read -r ns name image probe desired avail; do
+      [ "$image" = "${REG}/${img}:${tag}" ] || continue
+      matched=1
+      if [ "$probe" != "probe" ]; then
+        unmeasured="${unmeasured} ${ns}/${name}"
+      elif [ "${avail:-0}" != "${desired:-0}" ] || [ "${desired:-0}" = "0" ]; then
+        unhealthy="${unhealthy} ${ns}/${name}(${avail:-0}/${desired:-0})"
+      else
+        verified=$((verified + 1))
+      fi
+    done <<<"$rows"
+    [ "$matched" = "1" ] || unchecked="${unchecked} ${img}"
+  done <<<"$(bumped_images "$diff_file")"
+
+  # Named, never silent: a run must not imply coverage it does not have.
+  if [ -n "$unchecked" ]; then
+    printf '  no workload runs:%s — not smoke-checked (Job/CronJob images are expected here)\n' "$unchecked" >&2
+  fi
+  if [ -n "$unmeasured" ]; then
+    printf '  no readiness probe, so Ready proves nothing:%s\n' "$unmeasured" >&2
+    return 1
+  fi
+  if [ -n "$unhealthy" ]; then
+    printf '  probe-backed but not all replicas available:%s\n' "$unhealthy" >&2
+    return 1
+  fi
+  printf '  %d workload(s) probe-backed and fully available\n' "$verified" >&2
+  return 0
+}
+
 # The tag the cluster is currently running for one image.
 deployed_tag_for() {
   kubectl get pods -A -o jsonpath='{..image}' 2>/dev/null | tr ' ' '\n' \
@@ -490,8 +566,13 @@ main() {
   gate FR1.5 "every image this run bumped is live on ${newtag}" \
     all_bumped_images_live "$newtag" "$diff_file" || abort
 
+  # Both gates read $diff_file, so it stays until both are done. Deleting it early is exactly how the
+  # FR1.5 check came to pass vacuously on an empty image list.
+  gate SMOKE "every bumped workload is probe-backed and fully available" \
+    smoke_ok "$newtag" "$diff_file" || abort
+
   rm -f "$diff_file"
-  printf '✓ shipped — %s is live.\n' "$newtag"
+  printf '✓ shipped — %s is live and smoke-verified.\n' "$newtag"
 }
 
 # Source guard: `SHIP_IMAGES_LIB=1 source ship-images.sh` loads the predicates without running.

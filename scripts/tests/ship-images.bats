@@ -378,6 +378,75 @@ registry.weyland.lab/weyland-flink:git-9a4996c6'
   [ "$status" -ne 0 ]
 }
 
+# --- SMOKE -------------------------------------------------------------------------------------
+#
+# FR1.5 proves the right BYTES are on the node. It says nothing about whether the process works.
+# `Ready` is only evidence when a probe measured something: with no readinessProbe a pod reports
+# 1/1 Ready the instant PID 1 is alive. dagster-user-code had exactly that on 2026-08-23 — the gRPC
+# code server every Dagster run executes inside could fail to load its definitions and this loop
+# would still print "✓ shipped". These tests pin the gate that closes it.
+
+# smoke_rows <image-a-probe-state> <image-b-probe-state> — build a workload table the stub returns.
+# Columns: namespace, name, image, probe|NOPROBE, desired, available.
+smoke_rows() {
+  printf 'code-quality\tscan-suite\tregistry.weyland.lab/scan-suite:git-9a4996c6\t%s\t1\t%s\n' "$1" "${3:-1}"
+  printf 'data-mesh\tweyland-flink\tregistry.weyland.lab/weyland-flink:git-9a4996c6\t%s\t1\t%s\n' "$2" "${4:-1}"
+}
+
+@test "SMOKE fails and names the workload when a bumped image declares no readinessProbe" {
+  SHIP_IMAGES_LIB=1 source "$SHIP"
+  stub_dispatch kubectl
+  stub_case kubectl 'get deploy' 0 "$(smoke_rows probe NOPROBE)"
+  run smoke_ok 'git-9a4996c6' "$FIXTURES/tags-only.diff"
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"weyland-flink"* ]]        # must name WHICH workload is unmeasured
+  [[ "$output" != *"scan-suite"*"no readiness"* ]]
+}
+
+@test "SMOKE fails and names the workload when replicas are not all available" {
+  SHIP_IMAGES_LIB=1 source "$SHIP"
+  stub_dispatch kubectl
+  stub_case kubectl 'get deploy' 0 "$(smoke_rows probe probe 1 0)"
+  run smoke_ok 'git-9a4996c6' "$FIXTURES/tags-only.diff"
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"weyland-flink"* ]]
+  [[ "$output" == *"0/1"* ]]
+}
+
+@test "SMOKE passes when every workload for every bumped image is probe-backed and available" {
+  SHIP_IMAGES_LIB=1 source "$SHIP"
+  stub_dispatch kubectl
+  stub_case kubectl 'get deploy' 0 "$(smoke_rows probe probe)"
+  run smoke_ok 'git-9a4996c6' "$FIXTURES/tags-only.diff"
+  [ "$status" -eq 0 ]
+}
+
+@test "SMOKE fails closed when the workload table comes back empty" {
+  # Same class as the FR1.5 empty-input bug: an empty table means every loop body is skipped, nothing
+  # is marked bad, and the gate would pass having measured nothing. kubectl returning no rows is a
+  # failure to observe, never an observation of health.
+  SHIP_IMAGES_LIB=1 source "$SHIP"
+  stub_dispatch kubectl
+  stub_case kubectl 'get deploy' 0 ''
+  run smoke_ok 'git-9a4996c6' "$FIXTURES/tags-only.diff"
+  [ "$status" -ne 0 ]
+  # Assert the REASON, not just non-zero: a missing function also exits non-zero, so a status-only
+  # assertion passes against no implementation at all. This test caught exactly that on itself.
+  [[ "$output" == *"refusing to call that smoke-verified"* ]]
+}
+
+@test "SMOKE reports an image with no matching workload rather than silently passing it" {
+  # scan-suite is a CI image — it runs as a Job, not a Deployment. That is legitimate, so it must not
+  # fail the gate, but it must be NAMED as unchecked so the run never implies coverage it lacks.
+  SHIP_IMAGES_LIB=1 source "$SHIP"
+  stub_dispatch kubectl
+  stub_case kubectl 'get deploy' 0 "$(printf 'data-mesh\tweyland-flink\tregistry.weyland.lab/weyland-flink:git-9a4996c6\tprobe\t1\t1\n')"
+  run smoke_ok 'git-9a4996c6' "$FIXTURES/tags-only.diff"
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"scan-suite"* ]]
+  [[ "$output" == *"no workload"* ]]
+}
+
 @test "NFR3 exits cleanly when no image context changed — without triggering a pipeline" {
   # Running the loop after a docs- or script-only commit used to trigger a pointless build and then
   # ABORT at FR1.4 ("succeeded but opened no PR"), because "no PR because nothing changed" and "no PR
