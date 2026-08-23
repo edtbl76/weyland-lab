@@ -20,6 +20,8 @@
 # 04:30 NY: inside the Design Rule #5 pre-dawn window (docs/schedules.md), and 3.5h after the 01:00
 # nightly-images cron so a genuine run has long finished. Not 05:45 — that slot is pr-staleness-check,
 # and stacking two watchdogs on one minute means one failure mode hides the other in the job log.
+# Added to the docs/schedules.md table in the same commit: an undocumented timer is exactly the gap
+# that let nightly-images run (or not run) unobserved.
 ---
 apiVersion: v1
 kind: ConfigMap
@@ -166,22 +168,33 @@ spec:
   failedJobsHistoryLimit: 3
   jobTemplate:
     spec:
-      backoffLimit: 1
+      backoffLimit: 0
+      # Backstop: if the istio sidecar refuses to exit, force-terminate rather than hang Forbid.
+      activeDeadlineSeconds: 180
       template:
         metadata:
-          annotations:
-            # Same reason as pr-staleness-check: with an Istio sidecar the pod never reaches Completed,
-            # because Envoy keeps running after the app container exits and `Forbid` then deadlocks
-            # every subsequent run behind it.
-            sidecar.istio.io/inject: "false"
+          labels:
+            # MESHED, exactly as pr-staleness-check is. woodpecker-server and Alertmanager are both
+            # in-cluster, so the sidecar is what makes those calls work under mTLS. The cost is that
+            # the injected istio-proxy runs forever and the Job never reaches Completed on its own —
+            # handled by the /quitquitquit call below plus the activeDeadlineSeconds backstop above.
+            sidecar.istio.io/inject: "true"
         spec:
           restartPolicy: Never
-          serviceAccountName: default
-          automountServiceAccountToken: false
           containers:
             - name: check
-              image: ghcr.io/edtbl76/alpine-curl-jq:latest
-              command: ["/bin/sh", "/logic/cron-freshness.sh"]
+              # alpine + apk, the same as pr-staleness-check. busybox wget ships in the base image
+              # (used for the Alertmanager POST); curl and jq do not, and the script needs both —
+              # curl because it separates the HTTP status from the body, which is the whole reason
+              # the fetch fails closed instead of reading a 401 as "no crons".
+              image: alpine:latest
+              command: ["/bin/sh", "-c"]
+              args:
+                - |
+                  set -e
+                  apk add --no-cache curl jq ca-certificates >/dev/null
+                  sh /opt/cron-freshness/cron-freshness.sh
+                  for _p in 15020 15000; do wget -q -O- --post-data='' "http://localhost:$_p/quitquitquit" 2>/dev/null && break; done || true
               env:
                 - name: WOODPECKER_TOKEN
                   valueFrom:
@@ -190,9 +203,10 @@ spec:
                       key: token
               resources:
                 requests: { cpu: 25m, memory: 32Mi }
-                limits: { memory: 64Mi }
+                limits: { memory: 128Mi }
               volumeMounts:
-                - { name: logic, mountPath: /logic }
+                - name: logic
+                  mountPath: /opt/cron-freshness
           volumes:
             - name: logic
               configMap:
