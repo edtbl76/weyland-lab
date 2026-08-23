@@ -1,0 +1,199 @@
+# B135 — scheduled-work freshness watchdog for the Woodpecker `nightly-images` cron.
+#
+# WHY THIS EXISTS: `nightly-images` sat `enabled: false` from 2026-08-18 to 2026-08-22 while
+# docs/schedules.md documented it as running daily. Four days of silence, and nothing in the estate
+# could have said otherwise — all 41 alert rules watch things that ARE running. The closest exception,
+# DataMeshBackupFailed, fires on `kube_job_status_failed > 0`: a job that ran and FAILED, never a job
+# that never ran. Absence of work read as a healthy system.
+#
+# WHY THIS IS A CRONJOB AND NOT A PrometheusRule: a Woodpecker cron is not a Kubernetes object. There
+# is no CronJob, no Job, no pod — so kube-state-metrics cannot see it and no `kube_cronjob_*` metric
+# will ever cover it. The single most important scheduled job in the B135 ship loop is structurally
+# invisible to the monitoring stack. The only place the truth lives is the Woodpecker API.
+# (k8s CronJobs ARE covered, by the sibling PrometheusRule in cron-freshness-rules.yaml, which uses
+# kube_cronjob_status_last_successful_time — a metric that already existed and had no consumer.)
+#
+# Same shape as pr-staleness.yaml: curl an external API, decide in a ConfigMap that the bats suite
+# executes verbatim, POST a synthetic alert to the Alertmanager v2 API. No routing change is needed —
+# the top-level route is a catch-all to `telegram`.
+#
+# 04:30 NY: inside the Design Rule #5 pre-dawn window (docs/schedules.md), and 3.5h after the 01:00
+# nightly-images cron so a genuine run has long finished. Not 05:45 — that slot is pr-staleness-check,
+# and stacking two watchdogs on one minute means one failure mode hides the other in the job log.
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cron-freshness-logic
+  namespace: weyland
+data:
+  cron-freshness.sh: |
+    #!/bin/sh
+    # Woodpecker cron freshness evaluation. Sourced by the test suite with CRON_FRESHNESS_LIB=1
+    # (which suppresses main), executed directly by the CronJob.
+    #
+    # Both guards are `if` blocks rather than `[ … ] && …`: a trailing `&&` whose test is false makes
+    # the file's LAST statement return 1, and a sourced file returning non-zero is a failed `source`
+    # under `set -e`.
+    if [ -z "${CRON_FRESHNESS_LIB:-}" ]; then
+      set -eu
+    fi
+
+    AM="http://monitoring-kube-prometheus-alertmanager.monitoring.svc.cluster.local:9093/api/v2/alerts"
+    WP="${WOODPECKER_URL:-http://woodpecker-server.weyland.svc.cluster.local:8000}"
+
+    # Repo 2 is edtbl76/weyland-lab. Override for a scoped run.
+    REPO_IDS="${WP_REPO_IDS:-2}"
+
+    # How long past next_exec the scheduler may be before we call it stuck. The scheduler needs room
+    # to actually run the job; alerting the instant next_exec passes would fire on every normal
+    # execution.
+    GRACE="${WP_CRON_GRACE:-3600}"
+
+    # THE headline check. `enabled: false` is the state that cost four days, and it is completely
+    # silent — a disabled cron produces no builds, no errors, and no Kubernetes object.
+    #
+    # Fails CLOSED on an absent or unparseable value. An empty field is a failure to observe, and
+    # reading it as "enabled" would reproduce the exact bug class this watchdog exists for.
+    is_disabled() { # is_disabled <enabled-field>
+      case "${1:-}" in
+        true) return 1 ;;
+        *)    return 0 ;;
+      esac
+    }
+
+    # The second tell, and the one that actually exposed the dead cron: a next_exec already in the
+    # past means the scheduler is not advancing it. Woodpecker reports 0 for a cron that has never
+    # been scheduled, which must read as overdue rather than as the distant past being ignored.
+    next_exec_overdue() { # next_exec_overdue <next-exec-epoch> <now-epoch> <grace-seconds>
+      _next="${1:-0}"
+      case "$_next" in
+        ''|*[!0-9]*) _next=0 ;;
+      esac
+      [ "$_next" -eq 0 ] && return 0
+      [ "$_next" -lt "$(( ${2} - ${3} ))" ]
+    }
+
+    fire() { # fire <repo-id> <cron-name> <reason> <detail>
+      _id="$1"; _name="$2"; _reason="$3"; _detail="$4"
+      echo "ALERT repo ${_id} cron ${_name}: ${_reason} — ${_detail}"
+      wget -q -O- --header='Content-Type: application/json' \
+        --post-data="[{\"labels\":{\"alertname\":\"ScheduledWorkNotRunning\",\"severity\":\"critical\",\"namespace\":\"weyland\",\"repo_id\":\"${_id}\",\"cron\":\"${_name}\",\"source\":\"cron-freshness-watchdog\"},\"annotations\":{\"summary\":\"Woodpecker cron ${_name} is not running (${_reason})\",\"description\":\"${_detail} This cron is not a Kubernetes object, so nothing else in the estate can see it. Check with: curl -H 'Authorization: Bearer \$WOODPECKER_TOKEN' ${WP}/api/repos/${_id}/cron . A cron created enabled:false is completely silent — that state cost four days between 2026-08-18 and 2026-08-22.\"}}]" \
+        "$AM" || echo "  !! alertmanager POST failed"
+    }
+
+    # Emit each cron as `<name><TAB><enabled><TAB><next_exec>`. Non-zero on ANY failure.
+    #
+    # curl writes the body to a file and the status code to stdout, so the two are never conflated.
+    # `curl -sf ... | jq` was the pr-staleness bug: under `set -e` a pipeline's status is the LAST
+    # command's, so a 401 reached jq as empty input and the run reported "no crons" — identical to a
+    # healthy repo that has none. A watchdog that goes quiet when it cannot see emits a green signal.
+    fetch_crons() { # fetch_crons <repo-id>
+      _id="${1:?usage: fetch_crons <repo-id>}"
+      _body="/tmp/crons.json"
+      _http="$(curl -s -o "$_body" -w '%{http_code}' \
+        -H "Authorization: Bearer ${WOODPECKER_TOKEN}" \
+        "${WP}/api/repos/${_id}/cron")" || {
+          echo "FATAL: could not reach the Woodpecker API for repo ${_id} (curl transport failure). NOT reporting healthy." >&2
+          return 1
+        }
+      if [ "$_http" != "200" ]; then
+        echo "FATAL: Woodpecker API returned HTTP ${_http} for repo ${_id}. NOT reporting healthy." >&2
+        return 1
+      fi
+      jq -r '.[] | [.name, (.enabled|tostring), (.next_exec // 0)] | @tsv' < "$_body" || {
+        echo "FATAL: could not parse the Woodpecker cron list for repo ${_id}. NOT reporting healthy." >&2
+        return 1
+      }
+    }
+
+    main() {
+      : "${WOODPECKER_TOKEN:?WOODPECKER_TOKEN not set - see the cron-freshness-woodpecker SealedSecret}"
+
+      NOW="$(date +%s)"
+      COUNT=0
+      ALERTS=0
+      FAILED=""
+
+      for _id in $REPO_IDS; do
+        if ! fetch_crons "$_id" > /tmp/crons.tsv; then
+          FAILED="${FAILED} ${_id}"
+          continue
+        fi
+        # Says so explicitly, so a real zero is distinguishable from a broken fetch in the job log.
+        echo "fetched the cron list for repo ${_id} successfully"
+        while IFS="$(printf '\t')" read -r NAME ENABLED NEXT; do
+          [ -n "$NAME" ] || continue
+          COUNT=$((COUNT + 1))
+          echo "check repo ${_id} cron ${NAME} enabled=${ENABLED} next_exec=${NEXT}"
+          if is_disabled "$ENABLED"; then
+            fire "$_id" "$NAME" "disabled" "The cron exists but enabled=${ENABLED}, so it will never fire."
+            ALERTS=$((ALERTS + 1))
+          elif next_exec_overdue "$NEXT" "$NOW" "$GRACE"; then
+            fire "$_id" "$NAME" "next_exec in the past" "next_exec=${NEXT} is more than ${GRACE}s behind now=${NOW}; the scheduler is not advancing it."
+            ALERTS=$((ALERTS + 1))
+          fi
+        done < /tmp/crons.tsv
+      done
+
+      echo "done - ${COUNT} cron(s) checked, ${ALERTS} alert(s) fired"
+      # A run that checked nothing has verified nothing. Zero crons on a repo we were told to watch is
+      # itself the failure, not a pass.
+      if [ "$COUNT" -eq 0 ] && [ -z "$FAILED" ]; then
+        echo "FATAL: no crons found on any watched repo - refusing to report that as healthy." >&2
+        exit 1
+      fi
+      if [ -n "$FAILED" ]; then
+        echo "FATAL: could not check repo(s):${FAILED} - the counts above cover only what answered." >&2
+        exit 1
+      fi
+    }
+
+    if [ -z "${CRON_FRESHNESS_LIB:-}" ]; then
+      main
+    fi
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: cron-freshness-check
+  namespace: weyland
+spec:
+  schedule: "30 4 * * *"
+  timeZone: America/New_York
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 1
+      template:
+        metadata:
+          annotations:
+            # Same reason as pr-staleness-check: with an Istio sidecar the pod never reaches Completed,
+            # because Envoy keeps running after the app container exits and `Forbid` then deadlocks
+            # every subsequent run behind it.
+            sidecar.istio.io/inject: "false"
+        spec:
+          restartPolicy: Never
+          serviceAccountName: default
+          automountServiceAccountToken: false
+          containers:
+            - name: check
+              image: ghcr.io/edtbl76/alpine-curl-jq:latest
+              command: ["/bin/sh", "/logic/cron-freshness.sh"]
+              env:
+                - name: WOODPECKER_TOKEN
+                  valueFrom:
+                    secretKeyRef:
+                      name: cron-freshness-woodpecker
+                      key: token
+              resources:
+                requests: { cpu: 25m, memory: 32Mi }
+                limits: { memory: 64Mi }
+              volumeMounts:
+                - { name: logic, mountPath: /logic }
+          volumes:
+            - name: logic
+              configMap:
+                name: cron-freshness-logic

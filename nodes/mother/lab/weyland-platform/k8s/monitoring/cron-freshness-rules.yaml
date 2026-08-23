@@ -1,0 +1,103 @@
+# B135 — scheduled-work freshness for k8s CronJobs.
+#
+# THE GAP THIS CLOSES: as of 2026-08-23 the estate had 41 alert rules and every one watched something
+# that IS running (TrinoDown, MinioDown, NodeMemoryCritical, WeylandErrorLogSpike). The closest
+# exception, DataMeshBackupFailed, fires on `kube_job_status_failed > 0` — a job that ran and FAILED.
+# NOTHING fired when scheduled work never happened at all, which is why `nightly-images` could sit
+# `enabled: false` for four days while docs/schedules.md documented it as running daily.
+#
+# `kube_cronjob_status_last_successful_time` already existed and had no consumer. This gives it one.
+#
+# WHY PER-CADENCE BUDGETS AND NOT ONE BLANKET RULE: the first draft was a single "no success in 24h".
+# `sonar-scan` and `code-scan-suite` are WEEKLY, so it would have false-fired on both every single
+# week — and a permanently-lit alert is worse than no alert, which is exactly what WeylandErrorLogSpike
+# was found doing on 2026-08-22. Every budget below is the job's documented period plus slack, read
+# from its manifest and cross-checked against docs/schedules.md before it was written here.
+#
+# WHY THIS DOES NOT COVER `nightly-images`: that is a Woodpecker cron, not a Kubernetes object. No
+# CronJob, no Job, no pod — kube-state-metrics cannot see it and no `kube_cronjob_*` metric ever will.
+# Its watchdog is the sibling CronJob in k8s/pr-lifecycle/cron-freshness.yaml, which asks the
+# Woodpecker API directly.
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: cron-freshness
+  namespace: monitoring
+  labels:
+    release: monitoring
+spec:
+  groups:
+    - name: scheduled-work-freshness
+      rules:
+        # every 30m → 2h budget. dagster-freshness-check (k8s/dagster/freshness.yaml, `*/30`).
+        - alert: ScheduledJobStale
+          expr: |
+            time() - kube_cronjob_status_last_successful_time{cronjob="dagster-freshness-check"} > 7200
+          for: 30m
+          labels:
+            severity: warning
+            source: cron-freshness
+            cadence: 30m
+          annotations:
+            summary: "CronJob {{ $labels.cronjob }} has not succeeded in over 2h (runs every 30m)"
+            description: "Last success was {{ $value | humanizeDuration }} ago. This alert fires on work that did NOT happen — the estate's other rules only watch things that are running."
+
+        # every 6h → 8h budget. lancedb-sync (k8s/data-mesh/lancedb-viewer.yaml, `0 */6 * * *`).
+        - alert: ScheduledJobStale
+          expr: |
+            time() - kube_cronjob_status_last_successful_time{cronjob="lancedb-sync"} > 28800
+          for: 30m
+          labels:
+            severity: warning
+            source: cron-freshness
+            cadence: 6h
+          annotations:
+            summary: "CronJob {{ $labels.cronjob }} has not succeeded in over 8h (runs every 6h)"
+            description: "Last success was {{ $value | humanizeDuration }} ago."
+
+        # daily → 26h budget (24h + 2h slack). Schedules read from each manifest:
+        #   minio-backup `30 2 * * *` · pg-backup `0 3 * * *` · postgres-backup `30 3 * * *`
+        #   docs-site-rebuild 05:30 · pr-staleness-check `45 5 * * *`
+        - alert: ScheduledJobStale
+          expr: |
+            time() - kube_cronjob_status_last_successful_time{cronjob=~"minio-backup|pg-backup|postgres-backup|docs-site-rebuild|pr-staleness-check"} > 93600
+          for: 1h
+          labels:
+            severity: warning
+            source: cron-freshness
+            cadence: daily
+          annotations:
+            summary: "Daily CronJob {{ $labels.cronjob }} has not succeeded in over 26h"
+            description: "Last success was {{ $value | humanizeDuration }} ago in namespace {{ $labels.namespace }}. A daily job silently not running is the failure mode that cost four days on nightly-images."
+
+        # weekly (Sunday) → 8d budget. sonar-scan 08:00 · code-scan-suite 09:00.
+        # NOT 24h: on 2026-08-23 sonar-scan read 160.8h since last success and was entirely on
+        # schedule — it is weekly and was due that afternoon. Checking the schedule before choosing
+        # the number is the whole reason this rule is not one blanket threshold.
+        - alert: ScheduledJobStale
+          expr: |
+            time() - kube_cronjob_status_last_successful_time{cronjob=~"sonar-scan|code-scan-suite"} > 691200
+          for: 1h
+          labels:
+            severity: warning
+            source: cron-freshness
+            cadence: weekly
+          annotations:
+            summary: "Weekly CronJob {{ $labels.cronjob }} has not succeeded in over 8 days"
+            description: "Last success was {{ $value | humanizeDuration }} ago. Both run Sunday morning."
+
+        # A CronJob that has NEVER succeeded exports no series at all, so every threshold rule above
+        # is silent for it — absence again, one level up. absent() is what turns "no data" from an
+        # implicit pass into an explicit alert.
+        - alert: ScheduledJobNeverSucceeded
+          expr: |
+            absent(kube_cronjob_status_last_successful_time{cronjob="pr-staleness-check"})
+            or absent(kube_cronjob_status_last_successful_time{cronjob="postgres-backup"})
+            or absent(kube_cronjob_status_last_successful_time{cronjob="minio-backup"})
+          for: 2h
+          labels:
+            severity: critical
+            source: cron-freshness
+          annotations:
+            summary: "A watched CronJob has no recorded successful run at all"
+            description: "kube_cronjob_status_last_successful_time is absent for at least one of pr-staleness-check, postgres-backup, minio-backup. Either the CronJob was deleted, it has never completed successfully, or kube-state-metrics has stopped exporting it. A threshold rule cannot fire on a series that does not exist, which is why this rule exists separately."

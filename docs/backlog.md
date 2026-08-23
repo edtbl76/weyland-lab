@@ -1929,6 +1929,46 @@ Linear: EMA-197. Relates B1.5 (dbt transform tier), B131 (dependency lifecycle),
 
 ---
 
+### B141 — `rta-trending` FlinkSessionJob emits a permanent `Job Not Found` Warning — 🟡 **LOW (2026-08-23)**
+
+**Root-caused 2026-08-23; the remedy is a design call, not a bug fix.** `rta-trending` is a **bounded** job by design (`scan.bounded.mode=latest-offset`): it reads the lastfm topic to the end, closes its tumbling windows, writes `analytics.trending_artists`, and finishes. It did — 5,017,946 rows across 223 snapshots, last committed **2026-08-21T21:50:56Z**. The session cluster is healthy: the JobManager is running the CDC flagship (`4416a6ca…`) and health-state-risk (`2b946762…`), both checkpointing every 60s without failures.
+
+So the Warning is the Flink Kubernetes Operator reconciling a `FlinkSessionJob` CR whose job has legitimately terminated. It has nothing to adopt, so it emits `Missing / Job Not Found` **forever**.
+
+**Why it is worth closing despite not being an outage:** a permanent Warning stream is how a team learns to ignore Warning events. Same alert-fatigue shape as `nightly-images` sitting `enabled: false` for four days while `docs/schedules.md` described it as running daily.
+
+**Terminal state confirmed `FINISHED` (operator-checked 2026-08-23).** The job succeeded. There is no failure to chase — the CR describes work that is complete, and the Iceberg commits through 2026-08-21T21:50:56Z are its output. The Warning is purely the operator being unable to retire a CR whose job has legitimately ended.
+
+**Options, now that FINISHED is known:** delete the CR (safe — the data is written and the run is archived to `s3://warehouse/_flink/completed-jobs`; the cost is losing the GitOps record of how the job was run, which could be kept as a commented manifest or a runbook snippet); or keep it and document the Warning as expected in the Flink runbook. A scheduled re-run is the wrong shape — the manifest frames this as a one-shot showcase (*"the continuous flagship is the CDC job"*), so freshness was never its job.
+
+Recommendation: delete the CR and record the submission recipe in the Flink runbook. A permanent Warning that everyone is told to ignore is worse than a documented procedure for re-running a demo job.
+
+**Second finding, same investigation:** the `k8s-mcp` service account cannot read `flink.apache.org` resources at all. Read-only diagnosis of the streaming tier is impossible from the MCP fleet. Worth a RBAC read grant on its own merits.
+
+Linear: TBD. Relates **B83** (streaming tier, owns this manifest), B135 (the deployment-execution health sweep that surfaced it), B49 (observability).
+
+---
+
+### B140 — Smoke-test layer: prove a deploy WORKS, not just that it is Ready — 🟠 **MEDIUM (2026-08-23)**
+
+**What B135 already fixed, so this starts from a real floor.** The ship loop's SMOKE gate now requires every bumped workload to declare a `readinessProbe` and report all replicas available, `dagster-user-code` got the probe it never had (`tcpSocket 4000`), and `feast-server` moved from `tcpSocket` to a verified `httpGet /health`. That converts `Ready` from "PID 1 is alive" into "something asked and got an answer".
+
+**What is still missing:** nothing anywhere in the loop exercises a **user-visible transaction**. A readiness probe proves the process answers; it does not prove the process is correct. Concretely:
+
+- `dagster-user-code`'s probe is TCP, so it proves the gRPC server is **listening**, not that its definitions **loaded**. A code server that binds 4000 and fails to load definitions still passes.
+- `dbt-docs` serving `/` says nothing about whether the docs it serves are current.
+- No feature is ever fetched from Feast, no Dagster run is ever launched, as part of shipping.
+
+**Acceptance:** one real transaction per shipped service, run after FR1.5 and before `✓ shipped` — e.g. a Dagster GraphQL query asserting the code location loaded without error (this is the one that closes the TCP-probe gap), and a `POST /get-online-features` against Feast for a known entity key.
+
+**Constraint that shaped the current design and will shape this one:** almost every UI sits behind Keycloak forward-auth and answers an unauthenticated curl with 307 — measured 2026-08-23 for `dagster.weyland.lab`, `dbt-docs.weyland.lab`, `flink.weyland.lab`, `flink-history.weyland.lab`. Only `feast.weyland.lab` answers directly. Any HTTP-based smoke layer therefore has to either run in-cluster or carry a credential into the ship path; the second option puts Keycloak in the deploy critical path and should be argued for explicitly, not drifted into.
+
+**Do not regress:** the SMOKE gate fails closed on an empty workload table and NAMES images it did not check. Preserve both — five of the seven original `ship-images.sh` defects were an absent result read as a positive one, and one of the five SMOKE tests initially passed against no implementation for exactly that reason.
+
+Linear: TBD. Relates **B135** (added the gate this extends), B131, B49 (observability), B1.8 (Feast).
+
+---
+
 ### B139 — Overnight window collision: nightly image build vs the 02:17 ingestion — 🟠 **MEDIUM (2026-08-22)**
 
 **Measure first, then decide.** The `nightly-images` Woodpecker cron fires at **01:00 NY**; `weyland_ingestion_job` fires at **02:17**. That is a **77-minute window**, and nobody knows how long a three-image build takes — the cron was created `enabled:false` on 2026-08-18 and had never run until it was enabled 2026-08-22, so there is no cron-triggered duration on record.
