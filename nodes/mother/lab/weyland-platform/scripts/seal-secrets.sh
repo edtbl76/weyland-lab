@@ -24,9 +24,10 @@ OUT="${OUT:-$HOME/sealed-out}"
 SEAL=0; [ "${1:-}" = "--seal" ] && SEAL=1
 
 SECRETS=(
-  # --- weyland (26) ---
+  # --- weyland (27) ---
   weyland/aidlc-kb-minio-secret
   weyland/apisix-secret
+  weyland/cron-freshness-woodpecker  # B135 — Woodpecker API token for the scheduled-work watchdog
   weyland/dagster-postgres-secret
   weyland/dagster-sentry
   weyland/datahub-token

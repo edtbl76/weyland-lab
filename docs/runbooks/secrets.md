@@ -1,8 +1,9 @@
 # Secrets management — SealedSecrets (B69)
 
-As of **B69 Wave 2**, the cluster's imperative secrets are **GitOps-managed via Bitnami SealedSecrets**. The **54**
+As of **B69 Wave 2**, the cluster's imperative secrets are **GitOps-managed via Bitnami SealedSecrets**. The **55**
 credentials we created by hand (`kubectl create secret …` — 53 in the B69 Wave 2 batch + the `kiali` signing-key (B89)
-+ `ranger-admin-secret` (B92) + `datamesh-store-creds` (SEC-1)) are now **sealed into the public repo** and restored by
++ `ranger-admin-secret` (B92) + `datamesh-store-creds` (SEC-1) + `cron-freshness-woodpecker` (B135)) are now **sealed
+into the public repo** and restored by
 Argo — closing the "reproducible-from-git / secrets-restorable" gap. Encrypted `SealedSecret` CRs are safe in a
 public repo: **only this cluster's controller private key can decrypt them.**
 
@@ -31,8 +32,9 @@ kubectl get secret <name> -o yaml ──kubeseal──▶ SealedSecret CR (encry
 
 ## What is and isn't sealed
 
-**Sealed (53):** every credential we created imperatively — nothing else recreates them, so they must be in git.
-The authoritative list is the `SECRETS=(…)` array in `scripts/seal-secrets.sh`.
+**Sealed (55):** every credential we created imperatively — nothing else recreates them, so they must be in git.
+The authoritative list is the `SECRETS=(…)` array in `scripts/seal-secrets.sh` — this count trails it, so when the
+two disagree the array wins (it read 53 here against 54 in the array before B135 added the 55th).
 
 **Deliberately NOT sealed** (do not add these):
 - **Chart/operator-generated** secrets — their chart/operator recreates them on install, so they're already
