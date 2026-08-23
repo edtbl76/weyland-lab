@@ -59,8 +59,30 @@ sha_differs_from_deployed() {
 }
 
 # FR2.1 — first of the two merge conditions.
-pr_is_ci_authored() {
-  [ "${1:?usage: pr_is_ci_authored <login>}" = "$CI_AUTHOR" ]
+#
+# KEYED ON THE COMMIT AUTHOR, NOT THE PR AUTHOR. `weyland-ci` is not a GitHub account and never will
+# be: scripts/ci/open-deploy-pr.sh sets it with `git config user.name`, which stamps the COMMIT, while
+# the PR itself is opened through the API with $GITHUB_TOKEN — a PAT owned by the human. So the PR
+# author is always `edtbl76` and the original check could never pass. Found on the first live run
+# (2026-08-22), where it aborted at FR2.1 on a PR that was entirely legitimate.
+#
+# The commit author is the real CI marker, and it is exactly as hard to forge as the old check was
+# meant to be: anything CI produced carries it, anything a human pushed does not.
+#
+# An EMPTY commit list fails closed. "Could not determine the authors" is not "the authors are fine".
+pr_commits_are_ci() {
+  local pr="${1:?usage: pr_commits_are_ci <pr-number>}"
+  local authors seen=0
+  authors="$(gh pr view "$pr" --repo "$REPO" --json commits \
+    --template '{{range .commits}}{{range .authors}}{{.login}}{{"\n"}}{{end}}{{end}}' 2>/dev/null)"
+  [ -n "$authors" ] || return 1
+  local a
+  while read -r a; do
+    [ -n "$a" ] || continue
+    seen=1
+    [ "$a" = "$CI_AUTHOR" ] || return 1
+  done <<<"$authors"
+  [ "$seen" -eq 1 ]
 }
 
 # FR2.1 — second merge condition: the diff touches NOTHING but image-tag lines.
@@ -122,7 +144,9 @@ cleanup() {
 # FR4.3 — cleanup is best-effort and must not mask the original failure. The exit reason reported is
 # the gate that failed; a failed cleanup is a warning underneath it, never a replacement for it.
 abort() {
-  printf '❌ stopped at %s — %s\n' "$FAILED_GATE" "$FAILED_REASON" >&2
+  # "stopped at FR2.1 — PR #33 is CI-authored" read as though the check had SUCCEEDED, because the
+  # gate description is phrased as the assertion. Say what was expected, so the line cannot be misread.
+  printf '❌ stopped at %s — expected: %s\n' "$FAILED_GATE" "$FAILED_REASON" >&2
   if ! cleanup; then
     printf '⚠ cleanup did not complete; the failure above is still the reason for this exit\n' >&2
   fi
@@ -308,6 +332,12 @@ main() {
     abort
   fi
   printf '→ PR #%s (%s, by %s)\n' "$pr_num" "$pr_branch" "$pr_author"
+  # FR4.2 — STOP TRACKING THE BRANCH AS AN ORPHAN THE MOMENT A PR CLAIMS IT.
+  # It used to be cleared only after a successful merge, so aborting anywhere between "PR opened" and
+  # "merged" deleted the head branch of a live PR — and GitHub auto-closes a PR when its head branch
+  # goes. That is what closed PR #33 on the first live run (2026-08-22). An orphan is a branch pushed
+  # WITHOUT a PR; this one has one.
+  ORPHAN_BRANCH=""
 
   # FR2.3 — close superseded older bumps FIRST. Merging #12 after #13 rolls images backwards.
   local n b a
@@ -336,7 +366,7 @@ main() {
     sha_differs_from_deployed "$newtag" "${deployed:-none:none}" || abort
 
   # FR2.1 — both conditions, or no merge.
-  gate FR2.1 "PR #${pr_num} is CI-authored" pr_is_ci_authored "$pr_author" || abort
+  gate FR2.1 "every commit on PR #${pr_num} authored by ${CI_AUTHOR}" pr_commits_are_ci "$pr_num" || abort
   gate FR2.1 "PR #${pr_num} touches nothing but image-tag lines" diff_is_tags_only "$diff_file" || abort
 
   printf '→ merging PR #%s\n' "$pr_num"

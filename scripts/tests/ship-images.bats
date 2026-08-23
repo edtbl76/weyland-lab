@@ -48,11 +48,28 @@ teardown() {
   [ "$status" -ne 0 ]
 }
 
-@test "FR2.1 pr_is_ci_authored: only the weyland-ci identity qualifies" {
+@test "FR2.1 pr_commits_are_ci: true when every commit is authored by weyland-ci" {
+  # The PR AUTHOR is always the PAT owner (edtbl76) — `weyland-ci` is not a GitHub account and never
+  # will be. The real CI marker is the COMMIT author, which open-deploy-pr.sh sets via `git config`.
+  # Found on the first live run 2026-08-22: FR2.1 as originally written was unsatisfiable.
   SHIP_IMAGES_LIB=1 source "$SHIP"
-  run pr_is_ci_authored 'weyland-ci'
+  stub gh 0 'weyland-ci'
+  run pr_commits_are_ci 33
   [ "$status" -eq 0 ]
-  run pr_is_ci_authored 'edtbl76'
+}
+
+@test "FR2.1 pr_commits_are_ci: false when any commit is human-authored" {
+  SHIP_IMAGES_LIB=1 source "$SHIP"
+  stub gh 0 'weyland-ci
+edtbl76'
+  run pr_commits_are_ci 33
+  [ "$status" -ne 0 ]
+}
+
+@test "FR2.1 pr_commits_are_ci: false when the commit list is empty (cannot verify != safe)" {
+  SHIP_IMAGES_LIB=1 source "$SHIP"
+  stub gh 0 ''
+  run pr_commits_are_ci 33
   [ "$status" -ne 0 ]
 }
 
@@ -151,6 +168,7 @@ stub_git_pushed() {
   stub_case woodpecker-cli 'pipeline show' 0 '42 success'
   stub_dispatch gh
   stub_case gh 'pr list' 0 '13	ci/image-bump-9a4996c6	edtbl76'
+  stub_case gh 'pr view' 0 'edtbl76'
   stub_case gh 'pr diff' 0 "$(cat "$FIXTURES/tags-only.diff")"
   stub_dispatch kubectl
   stub_case kubectl 'get' 0 'registry.weyland.lab/scan-suite:git-2c73c898'
@@ -168,6 +186,7 @@ stub_git_pushed() {
   stub_case woodpecker-cli 'pipeline show' 0 '42 success'
   stub_dispatch gh
   stub_case gh 'pr list' 0 '13	ci/image-bump-9a4996c6	weyland-ci'
+  stub_case gh 'pr view' 0 'weyland-ci'
   stub_case gh 'pr diff' 0 "$(cat "$FIXTURES/mixed.diff")"
   stub_dispatch kubectl
   stub_case kubectl 'get' 0 'registry.weyland.lab/scan-suite:git-2c73c898'
@@ -185,6 +204,7 @@ stub_git_pushed() {
   # Two open bumps. #12 is the older one; merging it after #13 rolls images BACKWARDS.
   stub_case gh 'pr list' 0 '13	ci/image-bump-9a4996c6	weyland-ci
 12	ci/image-bump-2c73c898	weyland-ci'
+  stub_case gh 'pr view' 0 'weyland-ci'
   stub_case gh 'pr diff' 0 "$(cat "$FIXTURES/tags-only.diff")"
   stub_dispatch argocd
   stub_dispatch kubectl
@@ -216,6 +236,7 @@ stub_git_pushed() {
   stub_case woodpecker-cli 'pipeline show' 0 '42 success'
   stub_dispatch gh
   stub_case gh 'pr list' 0 '13	ci/image-bump-9a4996c6	weyland-ci'
+  stub_case gh 'pr view' 0 'weyland-ci'
   stub_case gh 'pr diff' 0 "$(cat "$FIXTURES/tags-only.diff")"
   stub_dispatch argocd
   # The cluster runs the OLD tag until the merge lands, and the new one after. Modelling that is
@@ -244,4 +265,33 @@ stub_git_pushed() {
   [[ "$output" == *"already deployed"* ]]
   never_called woodpecker-cli
   never_called argocd
+}
+
+@test "FR4.2 does NOT delete the branch once a valid PR exists" {
+  # THE BUG THAT CLOSED PR #33 (2026-08-22, first live run): ORPHAN_BRANCH was set at trigger time and
+  # only cleared after MERGE, so aborting anywhere between "PR opened" and "merged" deleted the branch
+  # of a perfectly good PR — and GitHub auto-closes a PR when its head branch goes. FR4.2 means a branch
+  # pushed WITHOUT a PR. A branch with an open PR is not an orphan.
+  stub_git_pushed
+  stub_dispatch woodpecker-cli
+  stub_case woodpecker-cli 'pipeline create' 0 '42 pending'
+  stub_case woodpecker-cli 'pipeline show' 0 '42 success'
+  stub_dispatch gh
+  stub_case gh 'pr list' 0 '13	ci/image-bump-9a4996c6	edtbl76'
+  stub_case gh 'pr view' 0 'edtbl76'          # human-authored -> FR2.1 aborts AFTER the PR was found
+  stub_case gh 'pr diff' 0 "$(cat "$FIXTURES/tags-only.diff")"
+  stub_dispatch kubectl
+  stub_case kubectl 'get' 0 'registry.weyland.lab/scan-suite:git-2c73c898'
+  run bash "$SHIP"
+  [ "$status" -ne 0 ]
+  ! called_with git 'push --delete'
+}
+
+@test "FR1.6 a gate failure reads as a failure, not as the assertion it tested" {
+  # "stopped at FR2.1 — PR #33 is CI-authored" read as if the check had PASSED.
+  stub_dispatch git
+  stub_case git 'rev-parse HEAD' 0 'aaaaaaaabbbbbbbbccccccccdddddddd'
+  stub_case git 'rev-parse origin/main' 0 '11111111222222223333333344444444'
+  run bash "$SHIP"
+  [[ "$output" == *"expected"* ]]
 }

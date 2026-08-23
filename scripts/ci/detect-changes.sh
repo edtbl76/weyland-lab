@@ -15,6 +15,19 @@ NEWSHA="$(git rev-parse --short=8 HEAD)"
 NEWTAG="git-${NEWSHA}"
 echo "[detect] HEAD=${NEWSHA} → candidate tag ${NEWTAG}"
 
+# CHANGE DETECTION NEEDS HISTORY, AND WOODPECKER CLONES SHALLOW.
+# Until 2026-08-22 this script ran `git diff <oldsha> HEAD -- <path> 2>/dev/null` inside a shallow
+# clone, where <oldsha> is not present. git exits non-zero with "unknown revision"; the redirect ate
+# the message and the `if` read the failure as "changed" — so EVERY image rebuilt on EVERY run and
+# nobody could tell. Detection had never once worked in CI; it only looked right locally, where the
+# clone has full history. (Fourth instance in one day of an error being read as data.)
+if [ "$(git rev-parse --is-shallow-repository 2>/dev/null)" = "true" ]; then
+  echo "[detect] shallow clone — deepening so the old shas are reachable"
+  git fetch --unshallow --quiet 2>/dev/null \
+    || git fetch --depth=200 --quiet 2>/dev/null \
+    || echo "[detect] WARN could not deepen; detection will degrade to build-everything (announced per image)"
+fi
+
 # strip comments/blank lines; read TAB-separated rows
 grep -v '^[[:space:]]*#' "$TSV" | grep -v '^[[:space:]]*$' | while IFS="$(printf '\t')" read -r image context manifests; do
   [ -n "$image" ] || continue
@@ -37,7 +50,13 @@ grep -v '^[[:space:]]*#' "$TSV" | grep -v '^[[:space:]]*$' | while IFS="$(printf
   case "$oldtag" in
     git-*)
       oldsha="${oldtag#git-}"
-      if git diff --quiet "${oldsha}" HEAD -- "$path" 2>/dev/null; then
+      # THREE outcomes, not two. "I cannot compare" is not "it changed" — conflating them is what hid
+      # the shallow-clone bug for months. Build in that case (safe), but SAY it is a degraded answer.
+      if ! git cat-file -e "${oldsha}^{commit}" 2>/dev/null; then
+        echo "[detect] ${image}: ⚠ ${oldtag} unreachable in this clone — BUILDING, but this is DEGRADED"
+        echo "[detect] ${image}:   detection, not an observed change. Deepen the clone to fix."
+        build="yes"
+      elif git diff --quiet "${oldsha}" HEAD -- "$path" 2>/dev/null; then
         echo "[detect] ${image}: unchanged since ${oldtag} — skip"
       else
         echo "[detect] ${image}: context ${ctxdir} changed since ${oldtag} — BUILD"
