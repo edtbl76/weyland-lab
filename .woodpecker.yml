@@ -80,6 +80,12 @@ steps:
       # the freshness budget). Nothing kept them honest, so relaxing a schedule silently made
       # its alert false-fire and tightening one silently stopped it catching a stop.
       - bash scripts/check-cron-freshness-budgets.sh
+      # B142 — a `pip-audit --ignore-vuln` exception is scoped to a vuln ID and NOTHING else, so
+      # unlike osv-scanner.toml's version-scoped PackageOverrides it can never expire on its own.
+      # This asserts each accepted ID is really wired into scan.py's IGNORED_VULNS, and that the
+      # upstream condition justifying it still holds (asked of PyPI). When the blocker is fixed,
+      # this goes red and names the exception to delete, instead of it rotting unnoticed.
+      - bash scripts/check-pip-audit-ignores.sh
 
   # ── 1c. shellcheck the shell surface ────────────────────────────────────────
   # --severity=warning on purpose. At `note` the repo has 3 findings, and two of them are noise that

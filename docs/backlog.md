@@ -2098,7 +2098,13 @@ acryl-datahub 1.6.0.15 depends on setuptools<82.0.0
 
 and **every acryl-datahub release pins the same cap, including the latest 1.7.0.5** (checked 1.7.0, .2, .3, .4, .5 — all `setuptools<82.0.0`). So unlike B136 — where a patch bump quietly relaxed the cap — there is no version of the blocker that unblocks this. It is genuinely stuck until DataHub raises it upstream.
 
-**The accept cannot currently be expressed to the scanner.** `.trivyignore` and `osv-scanner.toml` both carry dated exceptions, but `scan.py`'s `pip_audit()` shells out with no ignore mechanism, so this finding will keep counting as 2 "highs" (really: 2 advisories of unknown severity — pip-audit reports none, and the suite counts every finding as high). Either add `--ignore-vuln` support to `pip_audit()` with a dated rationale, matching the discipline of the other two accept-lists, or accept a permanently non-zero pip-audit count and know why. **Decision not taken — flagged.**
+**ACCEPTED, AND GUARDED SO IT CANNOT ROT (2026-08-24).** `pip_audit()` now passes `--ignore-vuln PYSEC-2026-3447` from an `IGNORED_VULNS` list with the rationale inline, matching the discipline of `.trivyignore` and `osv-scanner.toml`. Verified it works: pip-audit goes from `Found 2 known vulnerabilities` to `No known vulnerabilities found, 2 ignored`.
+
+**The weakness that made a plain ignore unsafe, and the fix.** `osv-scanner.toml`'s sqlparse override was scoped `version = "0.5.5"`, so it **expired by itself** the moment the package moved. That self-expiry is why it could be deleted with confidence this morning. `--ignore-vuln` is scoped to a vuln ID and nothing else, so it suppresses forever, including long after acryl-datahub relaxes its cap. That is precisely the "dead exception outliving its reason" failure this repo hit three times on 2026-08-24 alone.
+
+So it is guarded: **`scripts/check-pip-audit-ignores.sh`** (wired into CI `repo-guards`) asserts (a) every accepted ID is actually in `scan.py`'s `IGNORED_VULNS`, and (b) **acryl-datahub still caps `setuptools<82.0.0`, asked of PyPI rather than of a comment**. The day upstream lifts the cap, CI goes red and names the exception to delete. Same shape as `check-cron-freshness-budgets.sh` defending a hand-owned file from outside.
+
+**Mutation-tested, and it caught a real hole in itself.** The first version of check (a) was `grep -qF "$id" scan.py`, which passed even with `IGNORED_VULNS = []` — because the ID also appears in the explanatory comment above it. It was verifying the documentation rather than the code. Now it parses the `IGNORED_VULNS` literal with `ast.literal_eval`. Both failure modes confirmed to fail: unwired ignore → red; condition lifted → red, naming the exception.
 
 **Re-evaluate when:** acryl-datahub relaxes `setuptools<82.0.0`. Watch its `requires_dist` on the next DataHub bump.
 

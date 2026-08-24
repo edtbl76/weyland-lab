@@ -351,9 +351,30 @@ def pip_audit():
     reqs = subprocess.run(["find", SRC, "-name", "requirements*.txt",
                            "-not", "-path", "*/node_modules/*", "-not", "-path", "*/openclaw/*"],
                           capture_output=True, text=True).stdout.split()
+    # ACCEPTED FINDINGS (B142, 2026-08-24). Same discipline as .trivyignore and osv-scanner.toml:
+    # every entry is a DOCUMENTED, dated exception with its reasoning, never blanket suppression.
+    #
+    # PYSEC-2026-3447 (setuptools): the fix is 83.0.0, but acryl-datahub pins `setuptools<82.0.0` in
+    # EVERY release including the latest (1.7.0.5, checked 2026-08-24). Unlike B136's sqlparse case,
+    # where a patch bump quietly relaxed the cap, there is no version of the blocker that unblocks
+    # this. It is genuinely stuck until DataHub raises it upstream.
+    #
+    # ⚠ `--ignore-vuln` IS SCOPED TO THE VULN ID AND NOTHING ELSE, so unlike osv-scanner.toml's
+    # `PackageOverrides` (scoped `version = "0.5.5"`, which self-expires the moment the package
+    # moves) this exception CANNOT expire on its own. That is the "dead exception outliving its
+    # reason" failure this repo hit three times on 2026-08-24 alone.
+    #
+    # So it is guarded: scripts/check-pip-audit-ignores.sh asserts (a) every ID accepted there is
+    # actually passed here, and (b) acryl-datahub STILL caps setuptools below 83 -- asked of PyPI,
+    # not of this comment. The day upstream relaxes it, CI goes red and names the exception to
+    # delete. Add an ID here ONLY together with a row in that guard.
+    IGNORED_VULNS = ["PYSEC-2026-3447"]
+    ignore_flags = [f for vid in IGNORED_VULNS for f in ("--ignore-vuln", vid)]
+
     c = z()
     for rq in reqs:
-        r = subprocess.run(["pip-audit", "-r", rq, "-f", "json", "--progress-spinner", "off"],
+        r = subprocess.run(["pip-audit", "-r", rq, "-f", "json", "--progress-spinner", "off",
+                            *ignore_flags],
                            capture_output=True, text=True, timeout=600, check=False)
         try:
             for dep in (json.loads(r.stdout or "{}").get("dependencies") or []):
