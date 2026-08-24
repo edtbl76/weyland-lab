@@ -1,3 +1,17 @@
-fastapi==0.115.6
+# B142 (2026-08-24) — fastapi 0.115.6 -> 0.141.1 to clear EIGHT starlette advisories.
+#
+# starlette is TRANSITIVE here, and `fastapi==0.115.6` pinned it `>=0.40.0,<0.42.0` — so 0.41.3 was the
+# ceiling and no direct starlette pin could have fixed it. Modern fastapi declares only
+# `starlette>=0.46.0` with no upper bound, which admits 1.6.0. Bumping fastapi IS the fix.
+#
+# Cleared: PYSEC-2026-161 / -248 / -249 / -1941 / -1942 / -2280 / -2281 (fixes spanning 0.47.2 -> 1.3.1).
+# Verified before committing: `pip-audit` on these exact pins in python:3.12-slim (the image's base)
+# reports "No known vulnerabilities found", and app.py was exercised against the new stack —
+# GET /healthz -> 200, POST /scale with a bad store -> 400 with the allowlist message, empty body -> 400.
+#
+# The 26-minor fastapi jump is low risk HERE specifically: app.py is 97 lines using only FastAPI,
+# HTTPException, Request and the route decorators — the most stable surface in the library. Do not
+# assume the same for a service that uses dependencies, response models or middleware.
+fastapi==0.141.1
 uvicorn[standard]==0.34.0
 kubernetes==31.0.0

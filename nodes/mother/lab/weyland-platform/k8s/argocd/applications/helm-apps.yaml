@@ -148,10 +148,31 @@ spec:
   sources:
     - repoURL: https://woodpecker-ci.org
       chart: woodpecker
-      targetRevision: 3.7.0            # appVersion 3.17.0. Was 3.6.4/3.15.0: docker.io woodpecker-agent:v3.15.0
-                                        # served a mismatched *nightly* binary (next-*) that couldn't auth to the stable
-                                        # 3.15.0 server ("individual agent not found by token") → agents CrashLoopBackOff.
-                                        # 3.17.0 ships a matched server+agent pair. See woodpecker-values.yaml (createAgentSecret).
+      targetRevision: 3.7.2            # appVersion 3.18.0 (B143). Was 3.7.0/3.17.0, and 3.6.4/3.15.0 before that.
+                                        #
+                                        # ⚠ THE AGENT IMAGE TAG HAS NEVER MATCHED ITS BINARY. Verified by running
+                                        # `--version` inside the images rather than trusting the tag (2026-08-24):
+                                        #     woodpecker-server:v3.18.0  -> "3.18.0"            ✅ correct
+                                        #     woodpecker-agent:v3.18.0   -> "next-6d14586713"   ❌ a NIGHTLY
+                                        # The live agents on :v3.17.0 likewise report "next-b6e16d5aec", and the
+                                        # 3.15.0 incident recorded here previously was the same defect: a next-*
+                                        # agent that couldn't auth to a stable server → CrashLoopBackOff. An earlier
+                                        # version of this comment claimed "3.17.0 ships a matched server+agent pair";
+                                        # that was WRONG and is corrected here. This is a defect in upstream's AGENT
+                                        # release pipeline, not a one-off — a version pin here is a claim about a tag,
+                                        # never about the binary inside it.
+                                        #
+                                        # 3.18.0 ADDS gRPC PROTO VERSION VERIFICATION and rejects incompatible agents,
+                                        # so a genuine 3.18.0 server in front of next-* agents is exactly the pairing
+                                        # that enforcement exists to refuse. Bumped anyway as a deliberate experiment
+                                        # (operator's call, 2026-08-24): the lab can absorb the outage and the failure
+                                        # mode is worth observing directly. IF THE AGENTS CRASHLOOP, the fix is to pin
+                                        # the agent image explicitly in woodpecker-values.yaml to a digest whose binary
+                                        # has been verified, decoupling it from the chart's appVersion.
+                                        #
+                                        # The 4 rogueone systemd agents were upgraded FIRST to genuine 3.18.0 binaries
+                                        # (from 3.14.0-rc.1) and are confirmed contacting the server. See woodpecker-
+                                        # values.yaml (createAgentSecret) and docs/runbooks/woodpecker.md.
       helm:
         releaseName: woodpecker
         valueFiles:

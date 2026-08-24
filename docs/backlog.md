@@ -2058,7 +2058,23 @@ Triaged out of the 2026-08-24 `code-scan-suite` run (`s3://scan-reports/2026-08-
 
 **Note on severity:** `scan.py`'s `pip_audit()` comments that pip-audit reports **no severity, so the suite counts every finding as `high`**. These 8 are therefore "8 advisories", not "8 High CVEs" — confirm actual severity before tiering the work.
 
-**Acceptance:** bump both (or record why not); re-run `scripts/run-scan-suite.sh` and confirm pip-audit drops; `store-scaler` still scales data-mesh deployments (its one job — see [[store-scaler-easy-button]]).
+**OUTCOME 2026-08-24 — one FIXED, one BLOCKED UPSTREAM.**
+
+**✅ starlette — FIXED via `fastapi 0.115.6 → 0.141.1`.** starlette is transitive, and the old fastapi pinned it `>=0.40.0,<0.42.0`, so 0.41.3 was the ceiling and **no direct starlette pin could ever have fixed it** — bumping fastapi IS the fix. Modern fastapi declares only `starlette>=0.46.0` with no upper bound, admitting 1.6.0. Verified in `python:3.12-slim` (the image's base) *before* editing: `pip-audit` on the new pins reports **"No known vulnerabilities found"**, clearing all 8 (PYSEC-2026-161 / -248 / -249 / -1941 / -1942 / -2280 / -2281). The app was then exercised against the new stack with the k8s config stubbed: `GET /healthz` → 200 `{"ok":true}`, `POST /scale` with an unknown store → 400 with the allowlist message, empty body → 400. Behaviour identical. The 26-minor jump is low risk **here specifically** — `app.py` is 97 lines using only `FastAPI`, `HTTPException`, `Request` and the route decorators; do not generalise that to a service using dependencies, response models or middleware.
+
+**⛔ setuptools — BLOCKED, and bumping the blocker does not help.** `setuptools 81.0.0 → PYSEC-2026-3447` needs **83.0.0**, but:
+
+```
+acryl-datahub 1.6.0.15 depends on setuptools<82.0.0
+```
+
+and **every acryl-datahub release pins the same cap, including the latest 1.7.0.5** (checked 1.7.0, .2, .3, .4, .5 — all `setuptools<82.0.0`). So unlike B136 — where a patch bump quietly relaxed the cap — there is no version of the blocker that unblocks this. It is genuinely stuck until DataHub raises it upstream.
+
+**The accept cannot currently be expressed to the scanner.** `.trivyignore` and `osv-scanner.toml` both carry dated exceptions, but `scan.py`'s `pip_audit()` shells out with no ignore mechanism, so this finding will keep counting as 2 "highs" (really: 2 advisories of unknown severity — pip-audit reports none, and the suite counts every finding as high). Either add `--ignore-vuln` support to `pip_audit()` with a dated rationale, matching the discipline of the other two accept-lists, or accept a permanently non-zero pip-audit count and know why. **Decision not taken — flagged.**
+
+**Re-evaluate when:** acryl-datahub relaxes `setuptools<82.0.0`. Watch its `requires_dist` on the next DataHub bump.
+
+**Acceptance:** ~~bump both~~ — starlette bumped and verified; setuptools recorded as upstream-blocked with the evidence above. Re-run `scripts/run-scan-suite.sh` after the store-scaler image ships and confirm pip-audit drops from 8 to 2; `store-scaler` still scales data-mesh deployments (its one job — see [[store-scaler-easy-button]]).
 
 Linear: EMA-201. Relates B133 (the sweep discipline), B136 (which surfaced these), B47 (prior CVE remediation).
 
