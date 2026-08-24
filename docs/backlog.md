@@ -1988,7 +1988,19 @@ Relates B57a (the image CI this wraps), B131 (open-PR lifecycle), B134 (why the 
 
 ---
 
-### B136 — Bump dbt-core 1.11.12 → 1.11.14 (unblocks sqlparse 0.6.0 in weyland-dagster) — 🟡 **MEDIUM (2026-08-20, rescoped 2026-08-23)**
+### B136 — Bump dbt-core 1.11.12 → 1.11.14 (unblocks sqlparse 0.6.0 in weyland-dagster) — ✅ **DONE (2026-08-24)**
+
+**SHIPPED AND VERIFIED LIVE.** `dbt-core==1.11.14` + `sqlparse==0.6.0` are installed in the running `dagster-user-code` pod (`ready=true`, 0 restarts, image `git-afb1fb5d`). `dbt build` in-pod: **8 table models rebuilt against Trino, 29 data tests, PASS=37 / ERROR=0 in 14.92s** — the real acceptance, since the image's baked `dbt parse` only proves the manifest compiles and never asks Trino a question. dbt-docs re-verified the honest way: HTTP 200 / 1.8 MB / title `dbt Docs` fetched **inside the pod on :8080**, catalog regenerated fresh, and the container's `dbt docs generate || echo "serving what we have"` fallback never fired (count 0) — a 307 from `https://dbt-docs.weyland.lab/` is only the Keycloak forward-auth gate answering and proves nothing about the app.
+
+**Scan gate (DoD pillar 7), run 2026-08-24 (`s3://scan-reports/2026-08-24T15-55-29Z/`): trivy highs 4 → 0, and osv carries ZERO sqlparse findings.** The `[[PackageOverrides]]` exception is deleted, not re-dated. Remaining highs were triaged and are **pre-existing and unrelated**: osv's 4 are Maven `pom.xml` deps from the Flink tier (`commons-lang3`, `flink-table-api-java`, two new lz4-java GHSAs) — same provided-scope-never-ships rationale as the documented `lz4-java` accept; pip-audit's 8 are `starlette 0.41.3` in `store-scaler` plus `setuptools 81.0.0`. Both filed as **B142**.
+
+**DoD:** 1 ✅ (no stale version refs; no component/endpoint/host/timer change, so arch/api/hosts/schedules/platform-map/Port are N/A) · 2 ✅ N/A · 3 ✅ N/A · 4 ✅ · 5 ✅ · 6 ✅ N/A (no new service) · 7 ✅ · 8 ✅ (all three images in `images.tsv`; readinessProbes on all four bumped workloads; the `feast-server` ride-along is documented above).
+
+Linear: EMA-197.
+
+---
+
+### B136 (original entry) — 🟡 **MEDIUM (2026-08-20, rescoped 2026-08-23)**
 
 `dbt-core==1.11.12` pins `sqlparse<0.6.0,>=0.5.5`, which **blocks the sqlparse CVE fix** in `services/weyland-dagster` — build 19 died on exactly that (`ResolutionImpossible: dbt-core 1.11.12 depends on sqlparse<0.6.0`).
 
@@ -2007,6 +2019,21 @@ The premise behind the deferral — "dragging a dbt-core *minor* in couples a se
 - **`feast-server` will rebuild too, and that is expected noise.** `scripts/ci/detect-changes.sh` diffs the *context directory*, and `images.tsv` gives `feast-server` the context `services/weyland-dagster::Dockerfile.feast` — the same `ctxdir`. `Dockerfile.feast` never reads `requirements.txt` (it `pip install`s `feast[redis,postgres]` directly), so the rebuilt image is functionally identical; the deploy PR will nonetheless bump **four** manifests (`user-code.yaml`, `dbt-docs.yaml`, `feast-server.yaml`, `feast-ui.yaml`), not two. Do not treat the extra two as an error. Shared-context over-rebuild is a known property of the context-diff design, not drift.
 
 Linear: EMA-197. Relates B1.5 (dbt transform tier), B131 (dependency lifecycle), B133 (the sweep that surfaced it). Detail: `osv-scanner.toml` → sqlparse override (now a removal note).
+
+---
+
+### B142 — Dependency CVEs surfaced by the B136 scan: `starlette` (store-scaler) + `setuptools` (weyland-dagster) — 🟡 **MEDIUM (2026-08-24)**
+
+Triaged out of the 2026-08-24 `code-scan-suite` run (`s3://scan-reports/2026-08-24T15-55-29Z/`) while grading B136's DoD pillar 7. Neither is B136's doing — both pre-date it — but they are now the **top remaining fixable dependency CVEs**, and B136 having cleared sqlparse is what left them at the top.
+
+- **`services/store-scaler/requirements.txt` — `starlette 0.41.3`, 8 advisories.** PYSEC-2026-161 / -248 / -249 / -1941 / -1942 / -2280 / -2281. Fixes exist across the range (0.47.2 → 1.3.1), so a single bump to a recent release likely clears the set. Check what pins it first — store-scaler is a small FastAPI service, so the constraint is probably `fastapi`, not starlette directly.
+- **`services/weyland-dagster/requirements.txt` — `setuptools 81.0.0` → PYSEC-2026-3447**, fix 83.0.0.
+
+**Note on severity:** `scan.py`'s `pip_audit()` comments that pip-audit reports **no severity, so the suite counts every finding as `high`**. These 8 are therefore "8 advisories", not "8 High CVEs" — confirm actual severity before tiering the work.
+
+**Acceptance:** bump both (or record why not); re-run `scripts/run-scan-suite.sh` and confirm pip-audit drops; `store-scaler` still scales data-mesh deployments (its one job — see [[store-scaler-easy-button]]).
+
+Relates B133 (the sweep discipline), B136 (which surfaced these), B47 (prior CVE remediation).
 
 ---
 

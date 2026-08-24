@@ -25,7 +25,7 @@ Re-evaluate when the Flink base image is next bumped: if flink:1.2x ships lz4-ja
 Accepted 2026-08-20.
 """
 
-# REMOVED 2026-08-23 (B136): the `sqlparse 0.5.5` PackageOverride, accepted 2026-08-20 for 5 DoS-class CVEs
+# REMOVED 2026-08-24 (B136): the `sqlparse 0.5.5` PackageOverride, accepted 2026-08-20 for 5 DoS-class CVEs
 # (CVE-2026-59893, CVE-2026-54284, CVE-2026-71491, CVE-2026-59894, GHSA-cfqr-cjx5-5jcm). It was accepted because
 # dbt-core 1.11.12 pinned `sqlparse<0.6.0` and build 19 died resolving it. FIXED, not re-accepted:
 # weyland-dagster is now on dbt-core 1.11.14, whose only dependency change from 1.11.12 is that very cap
