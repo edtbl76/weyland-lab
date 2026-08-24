@@ -35,6 +35,9 @@ SHIP_POLL_TIMEOUT="${SHIP_POLL_TIMEOUT:-1800}"    # 30m — a cold user-code bui
 SHIP_DETECT="${SHIP_DETECT:-$(dirname "${BASH_SOURCE[0]}")/ci/detect-changes.sh}"
 SHIP_ROLLOUT_TIMEOUT="${SHIP_ROLLOUT_TIMEOUT:-300}" # 5m — Argo polls every ~3m
 
+# Credentials live in the gitignored scripts/.env (lab convention). Overridable for the test suite.
+SHIP_ENV_FILE="${SHIP_ENV_FILE:-$REPO_ROOT/scripts/.env}"
+
 # An image-tag line is `<anything> registry.weyland.lab/<image>:<tag>`. Anchoring on the registry
 # host rather than on "a line containing a colon" is what makes diff_is_tags_only trustworthy.
 TAG_LINE_RE="${REG//./\\.}/[A-Za-z0-9._/-]+:[A-Za-z0-9._-]+"
@@ -406,9 +409,26 @@ wp_field() {
 poll_pipeline() {
   local num="${1:?usage: poll_pipeline <number>}"
   local interval="${SHIP_POLL_INTERVAL-10}"
-  local waited=0 status=""
+  local waited=0 status="" show_rc=0 cli_fails=0 errfile show_err=""
   while [ "$waited" -le "$SHIP_POLL_TIMEOUT" ]; do
-    status="$(woodpecker-cli pipeline show "$REPO" "$num" --output "$WP_FIELDS" 2>/dev/null | wp_field 2)"
+    # An empty status is treated as non-terminal below, which is right for a pipeline that has not
+    # reported yet and WRONG for a CLI that cannot answer at all. Undistinguished, a dead CLI looks
+    # exactly like a slow build for the full 30-minute timeout and then reports "ended as: unknown".
+    # Three consecutive failures is a broken client, not a quiet pipeline.
+    errfile="$(mktemp)"
+    status="$(woodpecker-cli pipeline show "$REPO" "$num" --output "$WP_FIELDS" 2>"$errfile" | wp_field 2)" && show_rc=0 || show_rc=$?
+    show_err="$(cat "$errfile")"
+    rm -f "$errfile"
+    if [ "$show_rc" -ne 0 ]; then
+      cli_fails=$((cli_fails + 1))
+      if [ "$cli_fails" -ge 3 ]; then
+        printf '  woodpecker-cli failed %s times running while polling #%s (exit %s): %s\n' \
+          "$cli_fails" "$num" "$show_rc" "$show_err" >&2
+        return 1
+      fi
+    else
+      cli_fails=0
+    fi
     case "$status" in
       success) return 0 ;;
       pending | running | "") : ;;
@@ -426,7 +446,28 @@ poll_pipeline() {
   return 1
 }
 
+# Load the repo's own credentials rather than hoping the caller sourced them.
+#
+# WHY, precisely: `woodpecker-cli` reads a `.env` from its WORKING DIRECTORY. Once the loop became
+# safe to run from any directory (2026-08-24), that turned into a live hazard — run from
+# nodes/.../tofu/port and the CLI dutifully loads Port's `.env`, which carries PORT_CLIENT_ID and
+# no WOODPECKER_* key at all. That is exactly what happened: the CLI came up unauthenticated and
+# `pipeline create` failed. Loading the repo's env file here makes the run independent of both the
+# caller's shell and whatever `.env` happens to sit in the current directory.
+#
+# Absent file is NOT an error: the operator may have sourced it already, and the runbook documents
+# doing so by hand. A real credential problem is reported at the gate that needs the credential,
+# with the variable named — not here, where all we would know is that a file is missing.
+load_env() {
+  [ -f "$SHIP_ENV_FILE" ] || return 0
+  set -a
+  # shellcheck disable=SC1090  # path is a runtime value; the file is gitignored and never in-tree
+  . "$SHIP_ENV_FILE"
+  set +a
+}
+
 main() {
+  load_env
   gate FR1.2 "local HEAD matches origin/${BASE}" head_matches_origin || abort
 
   local newtag short_sha
@@ -471,13 +512,35 @@ main() {
   rm -f "$plan"
 
   printf '→ triggering pipeline on %s (%s)\n' "$REPO" "$BASE"
-  local num
-  num="$(woodpecker-cli pipeline create "$REPO" --branch "$BASE" --output "$WP_FIELDS" 2>/dev/null | wp_field 1)"
-  [ -n "$num" ] || {
+  #
+  # THIS ASSIGNMENT USED TO KILL THE SCRIPT SILENTLY. It was a bare `num="$(woodpecker-cli ... |
+  # wp_field 1)"` under `set -euo pipefail`: when the CLI exits non-zero, `pipefail` makes the
+  # pipeline non-zero, `set -e` terminates the run right here, and the `[ -n "$num" ]` guard on the
+  # next line NEVER EXECUTES — the one guard written for this failure was unreachable in the case it
+  # names, and `2>/dev/null` had already thrown away the reason. On 2026-08-24 the loop printed
+  # "→ triggering pipeline" and returned to a clean prompt; no pipeline was created and nothing said
+  # why. Capture the status explicitly, keep stderr in a file so it cannot be mistaken for output,
+  # and let the guard run.
+  local num create_rc errfile create_err
+  errfile="$(mktemp)"
+  num="$(woodpecker-cli pipeline create "$REPO" --branch "$BASE" --output "$WP_FIELDS" 2>"$errfile" | wp_field 1)" && create_rc=0 || create_rc=$?
+  create_err="$(cat "$errfile")"
+  rm -f "$errfile"
+  # A number, or nothing. `--output json` is accepted and silently ignored by woodpecker-cli v3, so
+  # a successful call can still print the human table whose first field is the word "NUMBER".
+  # Polling that would wait out the full timeout on a pipeline that does not exist.
+  case "$num" in
+    '' | *[!0-9]*) num="" ;;
+  esac
+  if [ "$create_rc" -ne 0 ] || [ -z "$num" ]; then
     FAILED_GATE="FR1.3"
-    FAILED_REASON="woodpecker-cli did not return a pipeline number"
+    if [ -z "${WOODPECKER_TOKEN:-}" ]; then
+      FAILED_REASON="woodpecker-cli to create a pipeline — it exited ${create_rc} and WOODPECKER_TOKEN is unset. Credentials come from ${SHIP_ENV_FILE}; note that woodpecker-cli also reads a .env from the CURRENT directory, so running elsewhere can load the wrong one. Output: ${create_err}"
+    else
+      FAILED_REASON="woodpecker-cli to create a pipeline and return its number — it exited ${create_rc}. Output: ${create_err}"
+    fi
     abort
-  }
+  fi
   # From here on a branch may exist that no merge will claim. FR4.2 tracks it.
   ORPHAN_BRANCH="ci/image-bump-${short_sha}"
   printf '  pipeline #%s\n' "$num"

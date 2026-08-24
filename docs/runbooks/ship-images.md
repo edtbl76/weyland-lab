@@ -127,6 +127,13 @@ bash /home/edwardmangini/IdeaProjects/weyland/scripts/ship-images.sh
 **Run it against a no-op change the first time.** A failed gate then costs nothing, and every gate
 still executes.
 
+**From any directory, and with no `.env` sourcing.** The loop loads `scripts/.env` itself and resolves
+every path from the git toplevel. Both were cwd-dependent until 2026-08-24, and the second one bit
+hard: `woodpecker-cli` reads a `.env` from its **working directory**, so running the loop from
+`nodes/.../tofu/port` handed the CLI Port's credentials file — four keys, no `WOODPECKER_*` — and
+`pipeline create` failed unauthenticated. Sourcing `scripts/.env` by hand still works and is still
+what the health check above uses; the loop no longer depends on your having done it.
+
 ### The gates, in order
 
 | Gate | Asserts | Against |

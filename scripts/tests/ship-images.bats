@@ -492,3 +492,114 @@ smoke_rows() {
   # And a run that cannot tell whether work exists must not start a build.
   never_called woodpecker-cli
 }
+
+# --- FR1.3 trigger: the CLI failing must be a REPORTED failure, not a silent exit ------
+#
+# 2026-08-24, immediately after the DETECT fix: the loop reached "→ triggering pipeline" and then
+# returned to the prompt with no pipeline number, no gate line, and no error. Under
+# `set -euo pipefail`,
+#
+#     num="$(woodpecker-cli pipeline create ... 2>/dev/null | wp_field 1)"
+#
+# is a bare assignment in main(). When woodpecker-cli exits non-zero, `pipefail` makes the whole
+# pipeline non-zero, `set -e` kills the script THERE, and the `[ -n "$num" ]` guard on the very next
+# line never runs — so the one guard written for this failure was unreachable in the exact case it
+# names. `2>/dev/null` had already discarded the reason. No pipeline was created; the operator saw
+# a clean prompt.
+
+@test "FR1.3 a failing woodpecker-cli aborts with its reason, not a silent exit" {
+  stub_git_pushed
+  stub_dispatch gh
+  stub_dispatch kubectl
+  stub_case kubectl 'get' 0 'registry.weyland.lab/scan-suite:git-2c73c898'
+  printf '#!/usr/bin/env bash\nprintf "woodpecker-cli %%s\\n" "$*" >> "%s"\necho "Error: client credentials not set" >&2\nexit 1\n' \
+    "$STUB_LOG" > "$STUB_DIR/woodpecker-cli"
+  chmod +x "$STUB_DIR/woodpecker-cli"
+  WOODPECKER_TOKEN=t SHIP_ENV_FILE=/nonexistent run bash "$SHIP"
+  [ "$status" -ne 0 ]
+  # The gate must be NAMED. A bare non-zero check passes on the silent-exit bug itself.
+  [[ "$output" == *"FR1.3"* ]]
+  # And the CLI's own words must reach the operator rather than /dev/null.
+  [[ "$output" == *"client credentials not set"* ]]
+}
+
+@test "FR1.3 aborts when the CLI succeeds but prints a table instead of a pipeline number" {
+  # `--output json` is accepted and SILENTLY IGNORED by woodpecker-cli v3 — you get the human table
+  # with exit 0. Field 1 of its first row is a header word, not a number; accepting it would poll a
+  # pipeline that does not exist until the 30m timeout.
+  stub_git_pushed
+  stub_dispatch gh
+  stub_dispatch kubectl
+  stub_case kubectl 'get' 0 'registry.weyland.lab/scan-suite:git-2c73c898'
+  stub_dispatch woodpecker-cli
+  stub_case woodpecker-cli 'pipeline create' 0 'NUMBER  STATUS'
+  # Bounded on purpose. Before the fix a non-numeric "number" is accepted and polled to the full
+  # timeout, so an unbounded Red run hangs instead of failing. SHIP_POLL_INTERVAL=0 does NOT bound
+  # it — the counter only ever advances from 0 to 1 and then stalls there.
+  SHIP_POLL_INTERVAL=1 SHIP_POLL_TIMEOUT=1 WOODPECKER_TOKEN=t SHIP_ENV_FILE=/nonexistent run bash "$SHIP"
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"FR1.3"* ]]
+}
+
+@test "FR1.3 names the missing credential when WOODPECKER_TOKEN is unset" {
+  # The actual 2026-08-24 cause: run from a directory whose .env holds Port credentials, with
+  # scripts/.env never sourced. Saying so beats making the operator re-derive it.
+  stub_git_pushed
+  stub_dispatch gh
+  stub_dispatch kubectl
+  stub_case kubectl 'get' 0 'registry.weyland.lab/scan-suite:git-2c73c898'
+  printf '#!/usr/bin/env bash\nprintf "woodpecker-cli %%s\\n" "$*" >> "%s"\nexit 1\n' \
+    "$STUB_LOG" > "$STUB_DIR/woodpecker-cli"
+  chmod +x "$STUB_DIR/woodpecker-cli"
+  WOODPECKER_TOKEN= SHIP_ENV_FILE=/nonexistent run bash "$SHIP"
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"WOODPECKER_TOKEN"* ]]
+}
+
+# --- credentials come from the repo, not from the caller's shell ----------------------
+
+@test "loads the env file so the loop does not depend on the caller having sourced it" {
+  # woodpecker-cli reads .env from its WORKING DIRECTORY. Now that the loop runs correctly from any
+  # directory, that is a live hazard: run from tofu/port and the CLI loads Port's .env, which has no
+  # WOODPECKER_* keys at all. The loop loads the repo's own env file instead of hoping.
+  stub_git_pushed
+  stub_dispatch gh
+  stub_dispatch kubectl
+  stub_case kubectl 'get' 0 'registry.weyland.lab/scan-suite:git-2c73c898'
+  ENVFILE="$STUB_DIR/fixture.env"
+  printf 'WOODPECKER_SERVER=http://mother:30980\nWOODPECKER_TOKEN=fixture-token\n' > "$ENVFILE"
+  printf '#!/usr/bin/env bash\necho "TOKENSEEN=${WOODPECKER_TOKEN:-none}" >> "%s"\nexit 1\n' \
+    "$STUB_LOG" > "$STUB_DIR/woodpecker-cli"
+  chmod +x "$STUB_DIR/woodpecker-cli"
+  WOODPECKER_TOKEN= WOODPECKER_SERVER= SHIP_ENV_FILE="$ENVFILE" run bash "$SHIP"
+  grep -q 'TOKENSEEN=fixture-token' "$STUB_LOG"
+}
+
+@test "a missing env file is not fatal — the caller may have sourced it already" {
+  stub_git_pushed
+  stub_dispatch gh
+  stub_dispatch kubectl
+  stub_case kubectl 'get' 0 'registry.weyland.lab/scan-suite:git-2c73c898'
+  stub_dispatch woodpecker-cli
+  stub_case woodpecker-cli 'pipeline create' 0 '41 pending'
+  stub_case woodpecker-cli 'pipeline show'   0 '41 success'
+  SHIP_POLL_INTERVAL=0 WOODPECKER_TOKEN=t SHIP_ENV_FILE=/nonexistent run bash "$SHIP"
+  # It must get PAST the trigger — the absent file must not abort the run.
+  [[ "$output" == *"pipeline #41"* ]]
+}
+
+@test "FR1.3 gives up with a reason when the CLI keeps failing while polling" {
+  # Same shape one level down: poll_pipeline read `status` from a pipeline whose CLI half could
+  # fail. An empty status is treated as non-terminal, so a dead CLI looked exactly like a slow
+  # build — for the full 30-minute timeout — and then reported "ended as: unknown".
+  stub_git_pushed
+  stub_dispatch gh
+  stub_dispatch kubectl
+  stub_case kubectl 'get' 0 'registry.weyland.lab/scan-suite:git-2c73c898'
+  printf '#!/usr/bin/env bash\ncase "$*" in\n  *"pipeline create"*) echo "41 pending"; exit 0 ;;\n  *) echo "Error: connection refused" >&2; exit 1 ;;\nesac\n' \
+    > "$STUB_DIR/woodpecker-cli"
+  chmod +x "$STUB_DIR/woodpecker-cli"
+  SHIP_POLL_INTERVAL=1 SHIP_POLL_TIMEOUT=3 WOODPECKER_TOKEN=t SHIP_ENV_FILE=/nonexistent run bash "$SHIP"
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"connection refused"* ]]
+}
