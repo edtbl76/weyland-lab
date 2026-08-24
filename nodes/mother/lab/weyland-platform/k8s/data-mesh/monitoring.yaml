@@ -56,10 +56,18 @@ spec:
           annotations:
             summary: "MinIO (data-mesh object store) has 0 available replicas"
             description: "MinIO is down — Iceberg warehouse, lakeFS data, and aidlc-kb are unreachable."
-        - alert: DataMeshBackupFailed
-          expr: kube_job_status_failed{namespace="data-mesh", job_name=~"(minio|pg)-backup.*"} > 0
-          for: 10m
-          labels: { severity: warning }
-          annotations:
-            summary: "data-mesh backup job {{ $labels.job_name }} failed"
-            description: "A data-mesh backup CronJob failed — data products / catalog metadata may be unprotected."
+        # DataMeshBackupFailed was REMOVED 2026-08-24 (B140) and replaced by `ScheduledBackupFailed`
+        # in k8s/monitoring/cron-freshness-rules.yaml. It is NOT a silent deletion — it was BROKEN
+        # and covered half of what it read as covering:
+        #
+        #     expr: kube_job_status_failed{namespace="data-mesh", job_name=~"(minio|pg)-backup.*"} > 0
+        #
+        # The regex names both backups; the namespace selector one line up pinned it to `data-mesh`.
+        # `minio-backup` lives in namespace `minio`, so a failing MinIO backup — the mlflow models and
+        # tofu state, both irreplaceable — alerted NOBODY. A label selector and a name regex
+        # disagreeing is invisible unless you check where the objects actually live.
+        #
+        # The replacement carries no namespace selector (the 10 CronJobs span `weyland`, `data-mesh`
+        # and `minio`), covers `postgres-backup` too, is CRITICAL rather than warning, and is enforced
+        # by scripts/check-cron-freshness-budgets.sh, which fails CI if any CronJob loses its failure
+        # rule. Do not re-add a namespace-scoped copy here.

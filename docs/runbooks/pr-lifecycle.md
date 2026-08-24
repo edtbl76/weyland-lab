@@ -55,6 +55,34 @@ A separate `ScheduledJobNeverSucceeded` rule uses `absent()`: a CronJob that has
 exports **no series at all**, so every threshold rule is silent for it — `time() - <nothing> > budget`
 matches nothing and alerts on nothing.
 
+### Freshness is only half — the failure side (B140, 2026-08-24)
+
+Everything above answers **"did it stop?"**. A job that **ran and broke** and then succeeded inside its
+budget is invisible to all of it, because one later success advances `last_successful_time` and the
+rule goes quiet. `dagster-freshness-check-29791170` sat `Failed` for **19 hours** exactly that way; by
+the time anyone noticed, the pod and its events had aged out and the cause was unrecoverable.
+
+Two rules close it, and the split is deliberate:
+
+| Rule | Covers | Severity |
+|---|---|---|
+| `ScheduledBackupFailed` | `minio-backup` · `pg-backup` · `postgres-backup` | **critical** — these losing a run costs DATA, not freshness |
+| `ScheduledJobFailed` | the other seven | warning |
+
+**Neither carries a namespace selector, deliberately.** The 10 CronJobs span `weyland`, `data-mesh`
+and `minio`, and a namespace selector is precisely the bug being corrected: the estate's previous
+only failure rule, `DataMeshBackupFailed`, read as `job_name=~"(minio|pg)-backup.*"` — both backups —
+while `namespace="data-mesh"` one line above silently excluded `minio-backup`, which lives in ns
+`minio`. **A failing MinIO backup, protecting the irreplaceable `mlflow` and `tofu-state` buckets,
+alerted nobody.** A label selector and a name regex disagreeing is invisible unless you check where
+the objects actually live.
+
+The `-[0-9]+` suffix matches how kube-state-metrics names a CronJob-spawned Job
+(`<cronjob>-<unix-minutes>`), which also keeps hand-launched ad-hoc Jobs (`scan-suite-adhoc`) out.
+
+The guard asserts **exactly one** failure rule per CronJob — zero is a blind spot, two is a double
+page, and duplicate pages are how an on-call learns to ignore a rule.
+
 ### The budgets are guarded, not trusted
 
 `scripts/check-cron-freshness-budgets.sh` (CI `repo-guards`) asserts the three surfaces agree — the

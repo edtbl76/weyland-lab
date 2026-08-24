@@ -148,6 +148,7 @@ what the health check above uses; the loop no longer depends on your having done
 | `FR2.1` | the PR's diff touches **nothing but** image-tag lines | GitHub API |
 | `FR1.5` | **every** bumped image is live on a pod | live pods |
 | `SMOKE` | every bumped workload **declares a `readinessProbe`** and reports all replicas available | live Deployments + StatefulSets |
+| `TXN` | every shipped service **answers a real transaction** | the service itself, in-cluster |
 
 **The three FR2.1 conditions are not equally strong.** Same-repo is decided by GitHub and is unspoofable — it is
 the load-bearing one, and `weyland-lab` is public with **no branch protection**, so it is the only thing standing
@@ -179,8 +180,32 @@ This was the fourth instance in this effort of a failed result standing in for a
 `promtool` exiting 0 while printing `FAILED`. It is the direction that matters: this one shipped *nothing*
 while reporting success, which is invisible until someone notices the deploy never happened.
 
-Both gates read the same diff file, so it is deleted only after **both** have run — deleting it early is how
-`FR1.5` once passed on an empty image list, verifying nothing.
+**Why `TXN` exists on top of `SMOKE` (B140).** `FR1.5` proves the right bytes are on the node; `SMOKE` proves a
+probe measured *something*. Neither asks the service to do its job — and on **2026-08-24** both were green for
+`feast-server` while its **online store was completely empty**: Valkey held 228 keys, all Langfuse's `bull:*`,
+zero Feast keys, and every entity key returned `null` including invented ones. The `/health` probe I had
+upgraded it to two days earlier reported perfect health the whole time.
+
+`TXN` runs one real transaction per shipped service:
+
+| Image | Transaction | Asserts |
+|---|---|---|
+| `weyland-dagster-user-code` | Dagster GraphQL `workspaceOrError` | `loadStatus == LOADED` **and** the location is a `RepositoryLocation`, not a `PythonError` — the assertion the `tcpSocket 4000` probe cannot make, since binding a port is not loading definitions |
+| `feast-server` | `POST /get-online-features` for a **real key sampled from the offline table** | the returned **value** is non-null |
+
+**Assert the value, never the status.** Feast answers `statuses: ["PRESENT"]` with `values: [null]` for a key it
+never materialized — `PRESENT` describes the response row, not a found feature. A status-based check would stay
+green against an empty store forever, which is the vacuous-check class this gate exists to eliminate. The key is
+sampled from Postgres rather than hardcoded, because a hardcoded key can quietly stop existing.
+
+**It runs in-cluster via `kubectl exec`, deliberately.** Every UI except `feast.weyland.lab` sits behind Keycloak
+forward-auth and answers an unauthenticated curl with `307`. The alternative — carrying a credential into the
+ship path — would put Keycloak in the deploy critical path, which is a decision to argue for explicitly rather
+than drift into. In-cluster sidesteps it. Images with no transaction defined (CI images that run as Jobs) are
+**named as unverified**, never silently passed.
+
+All three gates read the same diff file, so it is deleted only after **every** one has run — deleting it early is
+how `FR1.5` once passed on an empty image list, verifying nothing.
 
 Superseded older bump PRs are closed **before** the newer one merges. Merging `#12` after `#13`
 rolls images backwards.

@@ -91,6 +91,54 @@ spec:
             summary: "Weekly CronJob {{ $labels.cronjob }} has not succeeded in over 8 days"
             description: "Last success was {{ $value | humanizeDuration }} ago. Both run Sunday morning."
 
+        # ── FAILURE SIDE (B140) ────────────────────────────────────────────────────────────────
+        # Everything above answers "did it STOP?". Nothing answered "did it RUN AND BREAK?" — and a
+        # job can fail the second while passing the first, because one later success advances
+        # `last_successful_time` and the freshness rule goes quiet.
+        #
+        # NOT theoretical: `dagster-freshness-check-29791170` sat `Failed` in ns weyland for 19 HOURS.
+        # Later runs succeeded, freshness stayed green, nothing alerted, and by the time it was
+        # noticed the pod and its events had aged out — the cause is permanently unrecoverable.
+        #
+        # These REPLACE `DataMeshBackupFailed` (formerly in k8s/data-mesh/monitoring.yaml), which was
+        # the estate's only failure-side rule and covered half of what it claimed: its regex
+        # `job_name=~"(minio|pg)-backup.*"` reads as both, while the `namespace="data-mesh"` selector
+        # one line above excluded `minio-backup`, which lives in namespace `minio`. A failing MinIO
+        # backup — the mlflow and tofu-state buckets, both irreplaceable — alerted nobody.
+        #
+        # NO namespace selector here, deliberately: these 10 CronJobs span `weyland`, `data-mesh` and
+        # `minio`, and pinning a namespace is exactly the mistake being corrected. kube-state-metrics
+        # names a CronJob-spawned Job `<cronjob>-<unix-minutes>`, hence the `-[0-9]+` suffix — which
+        # also keeps ad-hoc Jobs (`scan-suite-adhoc`) out, since those are launched by hand.
+        #
+        # `scripts/check-cron-freshness-budgets.sh` asserts every CronJob is named by EXACTLY ONE of
+        # these two rules — zero is a blind spot, two is a double page.
+
+        # Backups are their own rule at CRITICAL: the others losing a run costs freshness, these
+        # losing a run costs DATA. Kept separate from ScheduledJobFailed so the severity and the
+        # message can differ — collapsing them would flatten that distinction.
+        - alert: ScheduledBackupFailed
+          expr: |
+            kube_job_status_failed{job_name=~"(minio-backup|pg-backup|postgres-backup)-[0-9]+"} > 0
+          for: 10m
+          labels:
+            severity: critical
+            source: cron-freshness
+          annotations:
+            summary: "Backup job {{ $labels.job_name }} FAILED in {{ $labels.namespace }}"
+            description: "A backup CronJob ran and failed. Data products, catalog metadata or the MinIO buckets (mlflow models, tofu state — both irreplaceable) may now be unprotected. Freshness alerts will NOT catch this if a later run succeeds."
+
+        - alert: ScheduledJobFailed
+          expr: |
+            kube_job_status_failed{job_name=~"(sonar-scan|code-scan-suite|docs-site-rebuild|pr-staleness-check|cron-freshness-check|lancedb-sync|dagster-freshness-check)-[0-9]+"} > 0
+          for: 10m
+          labels:
+            severity: warning
+            source: cron-freshness
+          annotations:
+            summary: "CronJob {{ $labels.job_name }} ran and FAILED in {{ $labels.namespace }}"
+            description: "The job executed and exited non-zero. This is the half freshness cannot see: if a later run succeeds inside the budget, the freshness rule goes quiet and the failure is lost with the pod's events."
+
         # A CronJob that has NEVER succeeded exports no series at all, so every threshold rule above
         # is silent for it — absence again, one level up. absent() is what turns "no data" from an
         # implicit pass into an explicit alert.

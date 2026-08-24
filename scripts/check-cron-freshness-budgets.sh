@@ -35,9 +35,13 @@ set -euo pipefail
 
 . "$(dirname "${BASH_SOURCE[0]}")/lib/common.sh"
 
-RULES="$PLATFORM_DIR/k8s/monitoring/cron-freshness-rules.yaml"
-K8S_DIR="$PLATFORM_DIR/k8s"
-SCHEDULES="$REPO_ROOT/docs/schedules.md"
+# Overridable so the bats suite can point the guard at a crafted rule file and assert it FAILS.
+# Without that, the only end-to-end outcome testable is "the real repo passes", which cannot fail
+# for the right reason — the same vacuous-test problem as an assertion that only checks a non-zero
+# exit.
+RULES="${CRON_RULES_FILE:-$PLATFORM_DIR/k8s/monitoring/cron-freshness-rules.yaml}"
+K8S_DIR="${CRON_K8S_DIR:-$PLATFORM_DIR/k8s}"
+SCHEDULES="${CRON_SCHEDULES_DOC:-$REPO_ROOT/docs/schedules.md}"
 
 # Minimum slack over the job's own period before a budget is considered usable. A budget equal
 # to (or a whisker above) the period alerts on every normal late run, which is the false-positive
@@ -135,6 +139,31 @@ for g in (d.get("spec", {}).get("groups") or []):
 PY
 }
 
+# Emit every CronJob name named by a FAILURE-side rule, one per line.
+#
+# Freshness asks "did it stop?"; this asks "did it run and BREAK?". They are different questions and
+# a job can fail the second while passing the first — `dagster-freshness-check-29791170` sat Failed
+# for 19h while later runs kept the success timestamp fresh, so the freshness rule stayed silent and
+# the cause aged out before anyone looked.
+#
+# Matches `job_name=~"(a|b|c)-[0-9]+"`: kube-state-metrics labels a CronJob-spawned Job
+# `<cronjob>-<unix-minutes>`, so the alternation group holds the CronJob names.
+failure_covered_from_rules() {
+  python3 - "$RULES" <<'PY'
+import sys, re, yaml
+d = yaml.safe_load(open(sys.argv[1], encoding="utf-8")) or {}
+for g in (d.get("spec", {}).get("groups") or []):
+    for r in (g.get("rules") or []):
+        if r.get("alert") not in ("ScheduledJobFailed", "ScheduledBackupFailed"):
+            continue
+        m = re.search(r'job_name\s*=~\s*"\(([^)]+)\)', r.get("expr") or "")
+        if not m:
+            print("PARSE-FAIL\t" + (r.get("alert") or "?")); continue
+        for name in m.group(1).split("|"):
+            print(name.strip())
+PY
+}
+
 main() {
   local list_only=0
   [ "${1-}" = "--list" ] && list_only=1
@@ -143,20 +172,26 @@ main() {
   [ -f "$RULES" ]     || { echo "❌ rule file missing: $RULES" >&2; exit 1; }
   [ -f "$SCHEDULES" ] || { echo "❌ schedules doc missing: $SCHEDULES" >&2; exit 1; }
 
-  local jobs budgets
+  local jobs budgets failcov
   jobs="$(cronjobs_from_manifests)"
   budgets="$(budgets_from_rules)"
+  failcov="$(failure_covered_from_rules)"
 
   # Verifying NOTHING is not verifying successfully.
   [ -n "$jobs" ]    || { echo "❌ no CronJob manifests found under $K8S_DIR — refusing to report OK" >&2; exit 1; }
   [ -n "$budgets" ] || { echo "❌ no ScheduledJobStale rules parsed from $RULES — refusing to report OK" >&2; exit 1; }
+  [ -n "$failcov" ] || { echo "❌ no failure-side rules (ScheduledJobFailed/ScheduledBackupFailed) parsed from $RULES — refusing to report OK" >&2; exit 1; }
   if grep -q '^PARSE-FAIL' <<<"$budgets"; then
     echo "❌ could not parse a ScheduledJobStale expr (cronjob matcher + threshold expected):" >&2
     grep '^PARSE-FAIL' <<<"$budgets" >&2; exit 1
   fi
+  if grep -q '^PARSE-FAIL' <<<"$failcov"; then
+    echo "❌ could not parse a failure-side expr (job_name=~\"(a|b)-[0-9]+\" expected):" >&2
+    grep '^PARSE-FAIL' <<<"$failcov" >&2; exit 1
+  fi
 
-  local fail=0 checked=0 name sched tz period budget row
-  printf '%-26s %-16s %-10s %-10s %s\n' "CRONJOB" "SCHEDULE" "PERIOD" "BUDGET" "SCHEDULES.MD"
+  local fail=0 checked=0 name sched tz period budget row fcount
+  printf '%-26s %-16s %-10s %-10s %-13s %s\n' "CRONJOB" "SCHEDULE" "PERIOD" "BUDGET" "SCHEDULES.MD" "FAILURE"
   while IFS=$'\t' read -r name sched tz; do
     [ -n "$name" ] || continue
     checked=$((checked + 1))
@@ -167,14 +202,25 @@ main() {
 
     budget="$(awk -F'\t' -v n="$name" '$1==n {print $2; exit}' <<<"$budgets")"
     row="missing"; grep -qF "\`${name}\`" "$SCHEDULES" && row="ok"
+    fcount="$(awk -v n="$name" '$1==n {c++} END{print c+0}' <<<"$failcov")"
 
-    printf '%-26s %-16s %-10s %-10s %s\n' \
-      "$name" "$sched" "${period}s" "${budget:-NONE}" "$row"
+    printf '%-26s %-16s %-10s %-10s %-13s %s\n' \
+      "$name" "$sched" "${period}s" "${budget:-NONE}" "$row" \
+      "$( [ "$fcount" -eq 1 ] && echo ok || echo "${fcount}" )"
 
     if [ -z "$budget" ]; then
       echo "  ❌ ${name} is covered by NO ScheduledJobStale rule — a stop would be invisible" >&2; fail=1
     elif ! budget_ok "$period" "$budget"; then
       echo "  ❌ ${name}: budget ${budget}s is not ≥ period ${period}s + ${SLACK_FRACTION}% slack" >&2; fail=1
+    fi
+
+    # EXACTLY ONE failure rule, not "at least one". Zero means a job that runs and BREAKS is silent
+    # inside its freshness budget; two means the same break pages twice, and duplicate pages are how
+    # an on-call learns to ignore a rule.
+    if [ "$fcount" -eq 0 ]; then
+      echo "  ❌ ${name} is covered by NO failure rule — a run that FAILED inside its budget would be invisible" >&2; fail=1
+    elif [ "$fcount" -gt 1 ]; then
+      echo "  ❌ ${name} is covered by ${fcount} failure rules — one break would page twice" >&2; fail=1
     fi
     if [ "$row" != "ok" ]; then
       echo "  ❌ ${name} has no row in docs/schedules.md — an undocumented timer is drift" >&2; fail=1

@@ -389,6 +389,107 @@ def ge_validate_job():
     ge_validate_op()
 
 
+@op
+def feast_materialize_op(context):
+    """B140 — push the Feast OFFLINE store (Postgres `feast` DB) into the ONLINE store (Valkey).
+
+    WHY THIS EXISTS, and why it does NOT use `materialize-incremental`:
+
+    Found 2026-08-24 while writing a smoke test for feast-server. The online store was EMPTY — Valkey
+    held 228 keys, all `bull:*` (Langfuse's queue) and zero Feast keys — while feast-server was
+    Argo-healthy, REST-answering and green on its `/health` probe. Every entity key returned `null`,
+    including fabricated ones like `nonexistent-key-xyz`.
+
+    The cause is a self-perpetuating trap. `feast_metadata` already held a materialization watermark of
+    **2026-07-08** (the B1.8 setup run), and `materialize-incremental` only scans FORWARD from that
+    watermark. Every event timestamp in the data predates it — `track_audio_features` is stamped
+    2020-01-01, `state_health_risk` spans 2011→2024 — so the incremental window is permanently empty.
+    Each run therefore "succeeds", writes nothing, prints no progress bar, emits no error, and leaves
+    the watermark such that the NEXT run is equally empty. Forever.
+
+    So: an EXPLICIT window from before the earliest event time. `FEAST_MATERIALIZE_START` overrides it
+    if the sources ever gain older rows.
+
+    AND THE OP VERIFIES ITS OWN WORK. `feast materialize` exits 0 whether it wrote 89,741 rows or
+    nothing at all, so trusting the exit code here would rebuild the exact bug this op fixes. It
+    samples a REAL entity key out of the offline table (never a hardcoded one — a hardcoded key can
+    silently stop existing) and asserts the online store returns a NON-NULL value for it.
+
+    Note `statuses: ["PRESENT"]` is NOT evidence: Feast returns PRESENT with `values: [null]` for keys
+    that were never materialized. PRESENT describes the response row, not a found feature. The
+    assertion must be on the value.
+    """
+    import os
+    import subprocess
+    from datetime import datetime, timezone
+
+    from dagster import Failure
+
+    repo = "/app/feast_repo"
+    start = os.environ.get("FEAST_MATERIALIZE_START", "2010-01-01T00:00:00")
+    end = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S")
+
+    cmd = ["feast", "materialize", start, end]
+    context.log.info("Running: " + " ".join(cmd) + f"  (cwd={repo})")
+    result = subprocess.run(cmd, cwd=repo, capture_output=True, text=True)
+    if result.stdout:
+        context.log.info(result.stdout)
+    if result.returncode != 0:
+        raise Failure(
+            f"feast materialize exited {result.returncode}. stderr: {(result.stderr or '')[-2000:]}"
+        )
+
+    # --- verification: did anything actually land? -------------------------------------------
+    import psycopg2
+    from feast import FeatureStore
+
+    dsn = (
+        f"host=weyland-postgres.weyland.svc.cluster.local port=5432 dbname=feast "
+        f"user=weyland password={os.environ.get('WEYLAND_PG_PASSWORD', '')} sslmode=disable"
+    )
+    with psycopg2.connect(dsn) as conn, conn.cursor() as cur:
+        cur.execute("SELECT state FROM state_health_risk ORDER BY event_timestamp DESC LIMIT 1")
+        row = cur.fetchone()
+    if not row or not row[0]:
+        raise Failure("offline table state_health_risk is empty — nothing could be materialized")
+    sample_key = row[0]
+
+    store = FeatureStore(repo_path=repo)
+    feats = store.get_online_features(
+        features=["state_health_risk:depression_pct"],
+        entity_rows=[{"state": sample_key}],
+    ).to_dict()
+    values = feats.get("depression_pct") or []
+    if not values or values[0] is None:
+        raise Failure(
+            f"feast materialize reported success but the online store serves NOTHING for a real "
+            f"entity key ({sample_key!r}). This is the silent no-op the op exists to prevent — check "
+            f"the materialization window against the sources' event_timestamp range."
+        )
+
+    context.log.info(
+        f"verified: online store serves state={sample_key!r} depression_pct={values[0]}"
+    )
+
+
+@job(executor_def=in_process_executor, tags={"dagster/max_runtime": 1800})
+def feast_materialize_job():
+    """B140 — offline (Postgres) → online (Valkey) for the Feast feature views, with self-verification."""
+    feast_materialize_op()
+
+
+feast_materialize_schedule = ScheduleDefinition(
+    job=feast_materialize_job,
+    # 00:05 daily — inside the 00:00–06:00 off-hours window (schedules.md Design Rule #5) and clear of
+    # 00:20 timeseries. Light: the full 89,741-row materialize takes seconds. Daily rather than weekly
+    # because it is cheap and, if the offline sources are ever reloaded, a stale online store is
+    # exactly the invisible failure this whole item is about.
+    cron_schedule="5 0 * * *",
+    execution_timezone="America/New_York",
+    default_status=DefaultScheduleStatus.RUNNING,
+)
+
+
 datahub_catalog_emit_schedule = ScheduleDefinition(
     job=datahub_catalog_emit_job,
     cron_schedule="35 0 * * *",  # daily 00:35 — OVERNIGHT-ONLY (no mid-day auto-runs; single-node RAM guard, 2026-08-07) — per docs/schedules.md
@@ -433,8 +534,8 @@ weyland_eval_score_schedule = ScheduleDefinition(
 defs = Definitions(
     assets=[*all_assets, weyland_dbt_assets],
     asset_checks=all_asset_checks,
-    jobs=[weyland_ingestion_job, weyland_eval_job, weyland_eval_score_job, weyland_catalog_job, weyland_aidlc_kb_job, weyland_ai_session_job, datahub_catalog_emit_job, datahub_asset_check_assertions_job, ge_validate_job, weyland_datasets_music_transform_job, weyland_datasets_music_land_job, weyland_datasets_health_land_job, weyland_datasets_health_transform_job, weyland_datasets_health_hydrate_job, weyland_datasets_music_hydrate_job, weyland_timeseries_job, weyland_lancedb_sync_job, weyland_dbt_job, soda_quality_job, registrations_reconcile_job],
-    schedules=[weyland_ingestion_schedule, weyland_catalog_schedule, weyland_ai_session_schedule, datahub_catalog_emit_schedule, weyland_timeseries_schedule, weyland_datasets_music_land_schedule, weyland_datasets_health_land_schedule, weyland_dbt_schedule, soda_quality_schedule, weyland_eval_schedule, weyland_eval_score_schedule, registrations_schedule],
+    jobs=[feast_materialize_job, weyland_ingestion_job, weyland_eval_job, weyland_eval_score_job, weyland_catalog_job, weyland_aidlc_kb_job, weyland_ai_session_job, datahub_catalog_emit_job, datahub_asset_check_assertions_job, ge_validate_job, weyland_datasets_music_transform_job, weyland_datasets_music_land_job, weyland_datasets_health_land_job, weyland_datasets_health_transform_job, weyland_datasets_health_hydrate_job, weyland_datasets_music_hydrate_job, weyland_timeseries_job, weyland_lancedb_sync_job, weyland_dbt_job, soda_quality_job, registrations_reconcile_job],
+    schedules=[feast_materialize_schedule, weyland_ingestion_schedule, weyland_catalog_schedule, weyland_ai_session_schedule, datahub_catalog_emit_schedule, weyland_timeseries_schedule, weyland_datasets_music_land_schedule, weyland_datasets_health_land_schedule, weyland_dbt_schedule, soda_quality_schedule, weyland_eval_schedule, weyland_eval_score_schedule, registrations_schedule],
     sensors=[datasets_music_raw_sensor, lancedb_sync_sensor],
     resources={
         "postgres": PostgresResource(

@@ -344,6 +344,121 @@ smoke_ok() {
   return 0
 }
 
+# --- TXN: one REAL transaction per shipped service (B140) -----------------------------
+#
+# FR1.5 proves the right BYTES are on the node. SMOKE proves a readinessProbe measured something.
+# NEITHER asks the service to do its job, and on 2026-08-24 that gap was live:
+#
+#   feast-server was Argo-healthy, REST-answering and green on the `/health` probe — while its ONLINE
+#   STORE WAS EMPTY. Valkey held 228 keys, all Langfuse's `bull:*`, zero Feast keys. Every entity key
+#   returned null, including invented ones.
+#
+# And dagster-user-code's probe is `tcpSocket 4000`: it proves the gRPC server BOUND, not that its
+# definitions LOADED. A code server that binds and fails to load sails through SMOKE.
+#
+# RUNS IN-CLUSTER via `kubectl exec`, deliberately. Every UI but feast.weyland.lab sits behind
+# Keycloak forward-auth and 307s an unauthenticated curl; the alternative is carrying a credential
+# into the deploy path, which puts Keycloak in the ship critical path. In-cluster avoids the question.
+#
+# The in-cluster probes print ONE verdict token (`TXN_OK` / `TXN_FAIL <reason>`) and the shell decides
+# on that, so the decision stays testable without a cluster.
+
+txn_pod() {
+  kubectl -n weyland get pod -l app=dagster-user-code \
+    -o jsonpath='{.items[?(@.status.phase=="Running")].metadata.name}' 2>/dev/null | awk '{print $1}'
+}
+
+# Dagster: did the code location actually LOAD? `loadStatus` must be LOADED and the location must not
+# be a PythonError. This is the assertion the TCP probe cannot make.
+txn_dagster() {
+  local pod="${1:?usage: txn_dagster <pod>}"
+  kubectl -n weyland exec "$pod" -- python3 -c '
+import json, urllib.request
+q = {"query": "{ workspaceOrError { __typename ... on Workspace { locationEntries { name loadStatus locationOrLoadError { __typename } } } } }"}
+try:
+    r = urllib.request.Request("http://dagster-webserver.weyland.svc.cluster.local:3000/graphql",
+        data=json.dumps(q).encode(), headers={"Content-Type": "application/json"})
+    w = json.load(urllib.request.urlopen(r, timeout=25))["data"]["workspaceOrError"]
+    entries = w.get("locationEntries") or []
+    if not entries:
+        print("TXN_FAIL no code locations at all"); raise SystemExit
+    bad = [e for e in entries
+           if e.get("loadStatus") != "LOADED"
+           or (e.get("locationOrLoadError") or {}).get("__typename") != "RepositoryLocation"]
+    print("TXN_FAIL " + json.dumps(bad)[:200] if bad else "TXN_OK")
+except Exception as e:
+    print("TXN_FAIL " + type(e).__name__ + " " + str(e)[:120])
+' 2>/dev/null
+}
+
+# Feast: serve a feature for a REAL entity key sampled from the offline table, and assert the VALUE is
+# not null. `statuses: ["PRESENT"]` is NOT evidence — Feast returns PRESENT with a null value for keys
+# it never materialized, so a status-based check stays green against a completely empty store.
+txn_feast() {
+  local pod="${1:?usage: txn_feast <pod>}"
+  kubectl -n weyland exec "$pod" -- python3 -c '
+import json, os, urllib.request
+try:
+    import psycopg2
+    dsn = ("host=weyland-postgres.weyland.svc.cluster.local port=5432 dbname=feast user=weyland "
+           "password=" + os.environ.get("WEYLAND_PG_PASSWORD", "") + " sslmode=disable")
+    with psycopg2.connect(dsn) as c, c.cursor() as cur:
+        cur.execute("SELECT state FROM state_health_risk ORDER BY event_timestamp DESC LIMIT 1")
+        row = cur.fetchone()
+    if not row or not row[0]:
+        print("TXN_FAIL offline table state_health_risk is empty"); raise SystemExit
+    key = row[0]
+    body = {"features": ["state_health_risk:depression_pct"], "entities": {"state": [key]}}
+    r = urllib.request.Request("http://feast-server.data-mesh.svc.cluster.local:6566/get-online-features",
+        data=json.dumps(body).encode(), headers={"Content-Type": "application/json"})
+    d = json.load(urllib.request.urlopen(r, timeout=25))
+    vals = [v for res in d.get("results", []) for v in res.get("values", [])]
+    feat = d["results"][-1]["values"][0] if d.get("results") else None
+    print("TXN_OK" if feat is not None else "TXN_FAIL feast served null for real key " + str(key))
+except Exception as e:
+    print("TXN_FAIL " + type(e).__name__ + " " + str(e)[:120])
+' 2>/dev/null
+}
+
+txn_ok() {
+  local tag="${1:?usage: txn_ok <tag> <diff-file>}"
+  local diff_file="${2:?usage: txn_ok <tag> <diff-file>}"
+  [ -f "$diff_file" ] || { printf '  cannot read the bumped-image list (%s)\n' "$diff_file" >&2; return 1; }
+
+  local pod img verdict checked=0 failed="" unchecked=""
+  pod="$(txn_pod)"
+  # Verifying nothing is not verifying successfully.
+  [ -n "$pod" ] || { printf '  no running dagster-user-code pod to run transactions from — refusing to report verified\n' >&2; return 1; }
+
+  while read -r img; do
+    [ -n "$img" ] || continue
+    case "$img" in
+      weyland-dagster-user-code) verdict="$(txn_dagster "$pod")" ;;
+      feast-server)              verdict="$(txn_feast "$pod")" ;;
+      # NAMED, never silently passed — same discipline as smoke_ok. A CI image that runs as a Job has
+      # no transaction to make; saying so is honest, implying it was verified is not.
+      *) unchecked="${unchecked} ${img}"; continue ;;
+    esac
+    checked=$((checked + 1))
+    case "$verdict" in
+      TXN_OK*) : ;;
+      *) failed="${failed} ${img}(${verdict:-no-answer})" ;;
+    esac
+  done <<<"$(bumped_images "$diff_file")"
+
+  [ -n "$unchecked" ] && printf '  no transaction defined, NOT verified:%s\n' "$unchecked" >&2
+  if [ -n "$failed" ]; then
+    printf '  transaction FAILED:%s\n' "$failed" >&2
+    return 1
+  fi
+  if [ "$checked" -eq 0 ] && [ -z "$unchecked" ]; then
+    printf '  no images to run a transaction against — refusing to call that verified\n' >&2
+    return 1
+  fi
+  printf '  %d service(s) answered a real transaction\n' "$checked" >&2
+  return 0
+}
+
 # Every tag the cluster currently declares or runs for one image, one per line, deduped.
 #
 # TWO SOURCES, because two kinds of workload answer "is this live?" differently:
@@ -702,13 +817,19 @@ main() {
   gate FR1.5 "every image this run bumped is live on ${newtag}" \
     all_bumped_images_live "$newtag" "$diff_file" || abort
 
-  # Both gates read $diff_file, so it stays until both are done. Deleting it early is exactly how the
-  # FR1.5 check came to pass vacuously on an empty image list.
+  # All three gates read $diff_file, so it stays until every one is done. Deleting it early is exactly
+  # how the FR1.5 check came to pass vacuously on an empty image list.
   gate SMOKE "every bumped workload is probe-backed and fully available" \
     smoke_ok "$newtag" "$diff_file" || abort
 
+  # B140 — the last one asks the service to actually DO something. FR1.5 proves the bytes are there,
+  # SMOKE proves a probe measured something, and on 2026-08-24 both were green for feast-server while
+  # its online store was completely empty.
+  gate TXN "every shipped service answers a real transaction" \
+    txn_ok "$newtag" "$diff_file" || abort
+
   rm -f "$diff_file"
-  printf '✓ shipped — %s is live and smoke-verified.\n' "$newtag"
+  printf '✓ shipped — %s is live, smoke-verified, and answering real transactions.\n' "$newtag"
 }
 
 # Source guard: `SHIP_IMAGES_LIB=1 source ship-images.sh` loads the predicates without running.

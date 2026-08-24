@@ -105,3 +105,83 @@ teardown() {
   [ "$status" -eq 0 ]
   [[ "$output" == *"cron-freshness-check"* ]]
 }
+
+# --- FAILURE-side coverage (B140) --------------------------------------------------------
+#
+# Freshness answers "did it stop?" — `time() - last_successful_time > budget`. It is structurally
+# blind to a job that RAN AND FAILED and then succeeded inside its budget, because the success
+# timestamp advances and the rule goes quiet.
+#
+# Evidence this is not theoretical: `dagster-freshness-check-29791170` sat `Failed` in ns weyland
+# for 19 HOURS. Later runs succeeded, so freshness stayed green and nothing alerted. By the time
+# anyone noticed, the pod and its events had aged out and the cause was unrecoverable.
+#
+# The estate had exactly ONE failure-side rule — `DataMeshBackupFailed` — and it was half broken:
+# its regex `job_name=~"(minio|pg)-backup.*"` reads as covering both, while the namespace selector
+# one line above pinned it to `data-mesh`. `minio-backup` lives in namespace `minio`, so a failing
+# MinIO backup (the mlflow + tofu-state buckets — irreplaceable) alerted NOBODY.
+
+@test "the guard reads its rule file from an overridable path" {
+  # Needed so the negative cases below can point at a crafted rule file instead of the repo's.
+  #
+  # This asserts the override is HONOURED, not merely accepted: pointing it at a rule file with no
+  # rules must make the guard refuse. Asserting that a copy of the real file still passes would be
+  # vacuous — it passes identically when the override is ignored.
+  printf 'apiVersion: monitoring.coreos.com/v1\nkind: PrometheusRule\nmetadata:\n  name: empty\nspec:\n  groups: []\n' \
+    > "$STUB_DIR/empty.yaml"
+  CRON_RULES_FILE="$STUB_DIR/empty.yaml" run "$GUARD"
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"refusing"* ]]
+}
+
+@test "the guard FAILS and NAMES a CronJob covered by no FAILURE rule" {
+  # Drop ONLY the backup rule, leaving ScheduledJobFailed in place. That is the realistic drift —
+  # someone adds a CronJob, or deletes one rule, and the rest still parse. Stripping *every* failure
+  # rule instead trips the earlier "refusing to report OK" guard, which is also correct but proves
+  # something different: this case has to reach the per-job table and NAME the uncovered job.
+  python3 - "$REPO_ROOT/nodes/mother/lab/weyland-platform/k8s/monitoring/cron-freshness-rules.yaml" "$STUB_DIR/nobackup.yaml" <<'PY'
+import sys, yaml
+d = yaml.safe_load(open(sys.argv[1]))
+for g in d["spec"]["groups"]:
+    g["rules"] = [r for r in g["rules"] if r.get("alert") != "ScheduledBackupFailed"]
+yaml.safe_dump(d, open(sys.argv[2], "w"))
+PY
+  CRON_RULES_FILE="$STUB_DIR/nobackup.yaml" run "$GUARD"
+  [ "$status" -ne 0 ]
+  # All three backups must be named, not just whichever one is listed first.
+  [[ "$output" == *"minio-backup"* ]]
+  [[ "$output" == *"pg-backup"* ]]
+  [[ "$output" == *"postgres-backup"* ]]
+  [[ "$output" == *"NO failure rule"* ]]
+}
+
+@test "the guard FAILS when a CronJob is covered by TWO failure rules — one break, two pages" {
+  # Duplicate coverage is not harmless: it double-pages, and duplicate pages are how an on-call
+  # learns to ignore a rule. Add the backups to ScheduledJobFailed as well, so each is named twice.
+  python3 - "$REPO_ROOT/nodes/mother/lab/weyland-platform/k8s/monitoring/cron-freshness-rules.yaml" "$STUB_DIR/dupe.yaml" <<'PY'
+import sys, yaml, re
+d = yaml.safe_load(open(sys.argv[1]))
+for g in d["spec"]["groups"]:
+    for r in g["rules"]:
+        if r.get("alert") == "ScheduledJobFailed":
+            r["expr"] = re.sub(r'job_name=~"\(', 'job_name=~"(minio-backup|', r["expr"], count=1)
+yaml.safe_dump(d, open(sys.argv[2], "w"))
+PY
+  CRON_RULES_FILE="$STUB_DIR/dupe.yaml" run "$GUARD"
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"minio-backup"* ]]
+  [[ "$output" == *"2 failure rules"* ]]
+}
+
+@test "every CronJob in the repo has BOTH a freshness and a failure rule" {
+  run "$GUARD"
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"OK"* ]]
+}
+
+@test "the backup CronJobs are covered, including the one in the minio namespace" {
+  # The exact gap DataMeshBackupFailed left: minio-backup is in ns `minio`, not `data-mesh`.
+  run "$GUARD" --list
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"minio-backup"* ]]
+}

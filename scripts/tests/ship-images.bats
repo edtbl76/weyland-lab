@@ -713,3 +713,81 @@ smoke_rows() {
   [ "$status" -ne 0 ]
   [[ "$output" == *"connection refused"* ]]
 }
+
+# --- TXN: one REAL transaction per shipped service (B140) ---------------------------------
+#
+# FR1.5 proves the right BYTES are on the node. SMOKE proves a readinessProbe measured something.
+# NEITHER proves the service does its job — and on 2026-08-24 that gap was live, not theoretical:
+#
+#   feast-server was Argo-healthy, REST-answering, and green on the `/health` probe I had just
+#   upgraded it to... while its ONLINE STORE WAS EMPTY. Valkey held 228 keys, all Langfuse's
+#   `bull:*`, and zero Feast keys. Every entity key returned null — including invented ones.
+#
+# Likewise dagster-user-code's probe is `tcpSocket 4000`: it proves the gRPC server BOUND, not that
+# its definitions LOADED. A code server that binds and fails to load passes SMOKE.
+#
+# The transactions run IN-CLUSTER via `kubectl exec`, deliberately. Every UI except feast.weyland.lab
+# sits behind Keycloak forward-auth and 307s an unauthenticated curl; the alternative — carrying a
+# credential into the ship path — would put Keycloak in the deploy critical path, which B140 says must
+# be argued for explicitly rather than drifted into. In-cluster avoids the question entirely.
+
+txn_stub_pod() {
+  stub_dispatch kubectl
+  stub_case kubectl 'get pod -l app=dagster-user-code' 0 'dagster-user-code-abc'
+}
+
+@test "TXN passes when both the Dagster and Feast transactions answer OK" {
+  SHIP_IMAGES_LIB=1 source "$SHIP"
+  printf '+ registry.weyland.lab/weyland-dagster-user-code:git-9a4996c6\n+ registry.weyland.lab/feast-server:git-9a4996c6\n' > "$STUB_DIR/d.diff"
+  txn_stub_pod
+  stub_case kubectl 'exec' 0 'TXN_OK'
+  run txn_ok 'git-9a4996c6' "$STUB_DIR/d.diff"
+  [ "$status" -eq 0 ]
+}
+
+@test "TXN FAILS when the Dagster code location did not load — the TCP-probe gap" {
+  # The exact case SMOKE cannot see: the gRPC server is listening, definitions are broken.
+  SHIP_IMAGES_LIB=1 source "$SHIP"
+  printf '+ registry.weyland.lab/weyland-dagster-user-code:git-9a4996c6\n' > "$STUB_DIR/d.diff"
+  txn_stub_pod
+  stub_case kubectl 'exec' 0 'TXN_FAIL loadStatus=LOADING error=PythonError'
+  run txn_ok 'git-9a4996c6' "$STUB_DIR/d.diff"
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"weyland-dagster-user-code"* ]]
+}
+
+@test "TXN FAILS when Feast serves a NULL value — the empty-online-store case" {
+  # Found live 2026-08-24. Note Feast answers `statuses: [PRESENT]` with `values: [null]` for a key
+  # it never materialized, so the in-cluster check must assert the VALUE; a status-based check would
+  # have been green against an empty store forever.
+  SHIP_IMAGES_LIB=1 source "$SHIP"
+  printf '+ registry.weyland.lab/feast-server:git-9a4996c6\n' > "$STUB_DIR/d.diff"
+  txn_stub_pod
+  stub_case kubectl 'exec' 0 'TXN_FAIL feast served null for a real entity key'
+  run txn_ok 'git-9a4996c6' "$STUB_DIR/d.diff"
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"feast-server"* ]]
+}
+
+@test "TXN NAMES an image it has no transaction for rather than silently passing it" {
+  # Same discipline as smoke_ok: an unchecked image must never read as a verified one.
+  SHIP_IMAGES_LIB=1 source "$SHIP"
+  printf '+ registry.weyland.lab/scan-suite:git-9a4996c6\n+ registry.weyland.lab/feast-server:git-9a4996c6\n' > "$STUB_DIR/d.diff"
+  txn_stub_pod
+  stub_case kubectl 'exec' 0 'TXN_OK'
+  run txn_ok 'git-9a4996c6' "$STUB_DIR/d.diff"
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"scan-suite"* ]]
+  [[ "$output" == *"no transaction"* ]]
+}
+
+@test "TXN fails closed when there is no pod to run the transaction from" {
+  # Verifying nothing is not verifying successfully — the rule this loop has broken five times.
+  SHIP_IMAGES_LIB=1 source "$SHIP"
+  printf '+ registry.weyland.lab/feast-server:git-9a4996c6\n' > "$STUB_DIR/d.diff"
+  stub_dispatch kubectl
+  stub_case kubectl 'get pod' 0 ''
+  run txn_ok 'git-9a4996c6' "$STUB_DIR/d.diff"
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"no running"* ]]
+}

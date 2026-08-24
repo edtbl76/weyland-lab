@@ -2057,7 +2057,28 @@ Linear: TBD. Relates **B83** (streaming tier, owns this manifest), B135 (the dep
 
 ---
 
-### B140 — Smoke-test layer: prove a deploy WORKS, not just that it is Ready — 🟠 **MEDIUM (2026-08-23)**
+### B140 — Smoke-test layer: prove a deploy WORKS, not just that it is Ready — ✅ **DONE (2026-08-24)**
+
+**All three parts shipped.** The `TXN` gate runs one real transaction per shipped service after `FR1.5`/`SMOKE` and before `✓ shipped`; failure alerting covers all 10 CronJobs; the cadence-drift guard closed earlier.
+
+**AND IT PROVED ITS OWN THESIS ON THE WAY IN.** Writing the Feast transaction found that **`feast-server`'s online store was completely empty** — Valkey held 228 keys, all Langfuse's `bull:*`, and zero Feast keys. Every entity key returned `null`, including fabricated ones like `nonexistent-key-xyz`. The service was Argo-healthy, REST-answering, and green on the `/health` probe upgraded two days earlier in B135. A feature store deployed, monitored, and serving nothing.
+
+**Root cause was a self-perpetuating silent no-op, not a missing run.** `feast_metadata` already held a materialization watermark of **2026-07-08** (the B1.8 setup), and `materialize-incremental` only scans FORWARD from it — while every source event timestamp predates it (`track_audio_features` 2020-01-01; `state_health_risk` 2011→2024). The incremental window was permanently empty, so each run exited 0, printed no progress bar, emitted no error, and left the watermark such that the next run was equally empty. Forever. Only an explicit `feast materialize <start> <end>` starting before the data escapes it.
+
+**Shipped:**
+- **`feast_materialize_job` + `feast_materialize_schedule`** (Dagster, **00:05 daily NY**, `schedules.md` row added). Explicit window (`FEAST_MATERIALIZE_START`, default 2010-01-01), never incremental. **The op verifies its own work**: it samples a real entity key from the offline table and fails unless the online store serves a NON-NULL value — because `feast materialize` exits 0 whether it wrote 89,741 rows or nothing, and trusting that exit code would rebuild the very bug.
+- **`TXN` gate** — Dagster GraphQL asserting `loadStatus == LOADED` and the location being a `RepositoryLocation` rather than a `PythonError` (the assertion `tcpSocket 4000` cannot make), plus Feast serving a non-null value for a sampled real key. Runs **in-cluster via `kubectl exec`**: every UI but `feast.weyland.lab` 307s behind forward-auth, and carrying a credential into the ship path would put Keycloak in the deploy critical path — a decision B140 said to argue for, not drift into. Unverified images are **named**, never silently passed.
+- **Manual backfill run**: Valkey 228 → **90,025 keys**; `MA` now returns `depression_pct 21.0`, `diabetes_pct 9.6` at `event_timestamp 2024-01-01`.
+
+**`statuses: ["PRESENT"]` is not evidence** — Feast returns PRESENT with a null value for never-materialized keys; PRESENT describes the response row, not a found feature. Every check here asserts the VALUE.
+
+**Verified:** 105 bats tests green (up from 100), and the TXN tests were **mutation-tested** — forcing `txn_ok` to `return 0` killed 4 of 5, proving the negatives discriminate rather than passing vacuously. shellcheck clean, all repo guards exit 0, the new op compiles inside the runtime image with `psycopg2` + `feast` importable.
+
+Linear: EMA-TBD. Relates B135 (the loop this extends), B1.8 (Feast), B142.
+
+---
+
+### B140 (original entry) — 🟠 **MEDIUM (2026-08-23)**
 
 **What B135 already fixed, so this starts from a real floor.** The ship loop's SMOKE gate now requires every bumped workload to declare a `readinessProbe` and report all replicas available, `dagster-user-code` got the probe it never had (`tcpSocket 4000`), and `feast-server` moved from `tcpSocket` to a verified `httpGet /health`. That converts `Ready` from "PID 1 is alive" into "something asked and got an answer".
 
@@ -2072,6 +2093,14 @@ Linear: TBD. Relates **B83** (streaming tier, owns this manifest), B135 (the dep
 **Constraint that shaped the current design and will shape this one:** almost every UI sits behind Keycloak forward-auth and answers an unauthenticated curl with 307 — measured 2026-08-23 for `dagster.weyland.lab`, `dbt-docs.weyland.lab`, `flink.weyland.lab`, `flink-history.weyland.lab`. Only `feast.weyland.lab` answers directly. Any HTTP-based smoke layer therefore has to either run in-cluster or carry a credential into the ship path; the second option puts Keycloak in the deploy critical path and should be argued for explicitly, not drifted into.
 
 **Do not regress:** the SMOKE gate fails closed on an empty workload table and NAMES images it did not check. Preserve both — five of the seven original `ship-images.sh` defects were an absent result read as a positive one, and one of the five SMOKE tests initially passed against no implementation for exactly that reason.
+
+**Companion gap — ✅ CLOSED 2026-08-24.** Two rules now live in `cron-freshness-rules.yaml`: **`ScheduledBackupFailed`** (critical — `minio-backup`, `pg-backup`, `postgres-backup`; losing a run costs data, not freshness) and **`ScheduledJobFailed`** (warning — the other seven). Neither carries a namespace selector, deliberately: the 10 CronJobs span `weyland`, `data-mesh` and `minio`.
+
+**`DataMeshBackupFailed` was not merely superseded — it was BROKEN, and the fix is the finding.** Its expr read `kube_job_status_failed{namespace="data-mesh", job_name=~"(minio|pg)-backup.*"} > 0`. The regex names both backups; the namespace selector one line above pinned it to `data-mesh`, and **`minio-backup` lives in namespace `minio`** — so the estate's ONLY failure-side alert covered one of the two jobs it named, and a failing MinIO backup (the `mlflow` models and `tofu-state`, both irreplaceable) alerted nobody. A label selector and a name regex disagreeing is invisible unless you check where the objects actually live. Removed from `k8s/data-mesh/monitoring.yaml` with a comment recording why, so it cannot be "restored" as a namespace-scoped copy.
+
+`check-cron-freshness-budgets.sh` now asserts **exactly one** failure rule per CronJob (zero = blind spot, two = double page) alongside its freshness assertions, and its inputs became env-overridable so the negative cases are testable against a crafted rule file rather than only "the real repo passes". **100 bats tests green** (up from 95), promtool `SUCCESS: 7 rules` / `SUCCESS: 2 rules` read from its **output** rather than its exit code, yamllint and shellcheck clean.
+
+**Original statement of the gap, kept for context:**
 
 **Companion gap, found 2026-08-23 during the B135 DoD close-out — CronJob FAILURE is still unalerted.** `cron-freshness-rules.yaml` watches `kube_cronjob_status_last_successful_time`, i.e. **absence** of success. A run that **fails and then succeeds** inside its budget is invisible to it. Evidence: `dagster-freshness-check-29791170` sat `Failed` in ns `weyland` for 19h; later runs succeeded, so freshness stayed green and nothing alerted. By the time it was noticed the pod and its events had both aged out, so the cause is unrecoverable — the failure mode this whole effort exists to remove, one layer over.
 
