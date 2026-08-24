@@ -1970,6 +1970,16 @@ Fixed: exit status captured explicitly with stderr kept in a separate file so it
 
 **Fifth instance of the class, and the third inside a guard built to prevent it.** The lesson that generalises beyond this repo: under `set -euo pipefail`, a guard placed *after* a bare command-substitution assignment is dead code for the most common failure of that command. Guards must capture status, not follow it.
 
+**THIRD AND FOURTH POST-CLOSE DEFECTS (2026-08-24) — the handoff is not idempotent, and cleanup can destroy its own output.**
+
+**(a) `open-deploy-pr.sh` fails on any re-run of the same sha.** The branch is named `ci/image-bump-<sha>`, so a re-run finds its own branch on origin — and `git push HEAD:$BRANCH` is a **non-fast-forward even when the file content is identical**, because re-committing the same tree yields a different commit object. `set -eu` killed the step and `2>/dev/null` discarded the reason. Run #26 (manual) pushed `ci/image-bump-dab283e9` and opened PR #36; nightly cron **#27 rebuilt the same sha six hours later, produced `058b4bd` against origin's `89fa700`, and failed** — its log simply ends at `5 files changed` with no error. It would have failed **every night** until PR #36 merged. Fixed: compare the remote branch's **tree** against ours — identical ⇒ skip the push and go verify the PR (the 422 path was always correct and was simply never reached); different ⇒ lease-guarded force-push; and the push's stderr now reaches the operator.
+
+**(b) `cleanup()` deleted the branch backing an open PR.** `ORPHAN_BRANCH` is set right after the trigger and cleared only once the PR lookup succeeds, so an abort *between* them — exactly where the 2026-08-24 run died (FR1.3, after `deploy-handoff` had opened PR #36) — reached cleanup with a live branch. It printed `deleting orphan branch ci/image-bump-dab283e9`. **Only the concurrent ISP outage stopped the delete.** The existing test named "does NOT delete once a valid PR exists" covered only aborts *after* the lookup. Fixed: cleanup asks GitHub and **fails closed** — unreachable GitHub means keep the branch, because a wrong "no" destroys the run's output while a wrong "yes" leaves one the staleness watchdog surfaces.
+
+**(c) A whole class of the suite's safety assertions could not fail.** Writing `! called_with git 'push --delete'` is inert: POSIX exempts "any command whose return value is being inverted with `!`" from `set -e`, which is how bats detects failure. Six such assertions existed — including the three the file's own header calls "the assertions that matter most" (`! called_with gh 'pr merge'`, `! called_with argocd '--all'`). All six now use a `not_called_with` helper that puts the inversion *inside* a function so the caller's non-zero status is caught. The four pre-existing ones still pass, so that behaviour was correct — it had simply never been tested. **Same family as asserting only a non-zero exit (passes on 127): an assertion that cannot fail.**
+
+**92 bats tests green** (up from 87), shellcheck clean, all five repo guards exit 0.
+
 Relates B57a (the image CI this wraps), B131 (open-PR lifecycle), B134 (why the refresh is targeted), [[weyland-image-ci-b57a]], [[argocd-gitops-gotchas]].
 
 ---

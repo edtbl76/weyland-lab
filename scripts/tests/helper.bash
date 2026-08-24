@@ -175,6 +175,20 @@ never_called() {
   ! grep -q "^$1 " "$STUB_LOG"
 }
 
+# not_called_with <name> <substring> — succeeds when NO invocation contained the substring.
+#
+# USE THIS INSTEAD OF `! called_with …`. Under `set -e` — which is how bats detects a failed
+# assertion — POSIX exempts "any command whose return value is being inverted with !" from the
+# error trap. So a bare `! called_with git 'push'` NEVER fails a test, whatever the script did.
+#
+# Found 2026-08-24: a test written to prove the loop does not delete a branch backing an open PR
+# passed against code that deletes it unconditionally. The inversion has to live INSIDE a function,
+# so the caller invokes it as a plain command whose non-zero status set -e will actually catch.
+# Same family as asserting only a non-zero exit (passes on 127) — an assertion that cannot fail.
+not_called_with() {
+  ! calls_to "$1" | grep -qF -- "$2"
+}
+
 # extract_configmap_script <manifest> <key> — write the ConfigMap value at data.<key> to stdout.
 #
 # The staleness decision logic lives in a ConfigMap inside the CronJob manifest so that the cluster

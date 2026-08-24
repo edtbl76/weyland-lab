@@ -164,9 +164,37 @@ gate() { # gate <id> <what it is asserting> <command...>
 # WHY IT MATTERS: manifests are both the input to change detection (they carry the old sha) and the
 # output of the PR step. A run that leaves the registry holding a tag the manifests never received
 # makes the NEXT run diff from a stale sha.
+# Does an open PR exist for this branch? FAILS CLOSED — if GitHub cannot be asked, the answer is YES.
+#
+# The costs here are wildly asymmetric. A wrong "no" DELETES a branch backing a real PR, destroying
+# this run's own output; a wrong "yes" merely leaves a branch behind, which the staleness watchdog
+# surfaces the next morning. So the unknown case takes the safe side — and note that reading an
+# unanswerable query as a negative answer is precisely the silent-failure family this loop exists to
+# prevent. `open_bump_prs` cannot serve here: it ends in `2>/dev/null | grep … || true`, so a dead
+# `gh` and "no PRs" are indistinguishable in its output.
+branch_has_open_pr() {
+  local branch="${1:?usage: branch_has_open_pr <branch>}" out
+  if ! out="$(gh pr list --repo "$REPO" --state open --head "$branch" \
+        --json number --template '{{range .}}{{.number}}{{"\n"}}{{end}}' 2>&1)"; then
+    printf '  cannot ask GitHub whether %s has an open PR (%s) — assuming it does, keeping it\n' \
+      "$branch" "$(printf '%s' "$out" | head -n1)" >&2
+    return 0
+  fi
+  [ -n "$(printf '%s' "$out" | tr -d '[:space:]')" ]
+}
+
 cleanup() {
   [ -n "$ORPHAN_BRANCH" ] || return 0
   is_image_bump_branch "$ORPHAN_BRANCH" || return 0
+  # ORPHAN_BRANCH is set immediately after the trigger and cleared only once the PR lookup succeeds.
+  # An abort in BETWEEN — which is where the 2026-08-24 run died, at FR1.3, after deploy-handoff had
+  # already opened PR #36 — therefore reached this function with a branch that was not orphaned at
+  # all. It printed "deleting orphan branch ci/image-bump-dab283e9"; the delete failed only because
+  # the ISP happened to be down. Ask GitHub before destroying anything.
+  if branch_has_open_pr "$ORPHAN_BRANCH"; then
+    printf '→ cleanup: %s backs an open PR — keeping it\n' "$ORPHAN_BRANCH"
+    return 0
+  fi
   printf '→ cleanup: deleting orphan branch %s\n' "$ORPHAN_BRANCH"
   git push --delete origin "$ORPHAN_BRANCH" >/dev/null 2>&1
 }

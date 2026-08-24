@@ -216,6 +216,15 @@ The failure modes are ordered by how much state got created:
 
 1. **Aborted before merge** — the command deletes the orphan `ci/image-bump-<sha>` branch itself.
    If that cleanup also failed it says so *underneath* the real reason; delete the branch by hand.
+
+   **It now asks GitHub first, and fails closed.** `ORPHAN_BRANCH` is set right after the trigger and
+   cleared only once the PR lookup succeeds, so an abort *between* those two points — which is where
+   the 2026-08-24 run died, at `FR1.3`, after `deploy-handoff` had already opened PR #36 — used to
+   reach cleanup with a branch that was not orphaned at all. It printed
+   `deleting orphan branch ci/image-bump-dab283e9`; only an ISP outage stopped the delete from
+   landing. Cleanup now checks for an open PR on that branch and keeps it if one exists, **or if
+   GitHub cannot be reached** — a wrong "no PR" destroys the run's own output, a wrong "yes" leaves a
+   branch the staleness watchdog surfaces the next morning.
 2. **Merged but not rolled out** — do **not** re-run to "fix" it. The manifests already carry the
    tag; the problem is downstream. Sync the app and inspect the pod.
 3. **Registry has a tag the manifests never received** — the dangerous one. Manifests are both the

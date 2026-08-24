@@ -186,7 +186,7 @@ stub_git_pushed() {
   [ "$status" -ne 0 ]
   [[ "$output" == *"FR2.1"* ]]
   # The assertion that matters: no merge was attempted.
-  ! called_with gh 'pr merge'
+  not_called_with gh 'pr merge'
 }
 
 @test "FR2.2 refuses to merge when the diff carries more than image-tag lines" {
@@ -203,7 +203,7 @@ stub_git_pushed() {
   stub_case kubectl 'get' 0 'registry.weyland.lab/scan-suite:git-2c73c898'
   run bash "$SHIP"
   [ "$status" -ne 0 ]
-  ! called_with gh 'pr merge'
+  not_called_with gh 'pr merge'
 }
 
 @test "FR2.3 closes a superseded older bump before merging the newer one" {
@@ -223,7 +223,7 @@ stub_git_pushed() {
   stub_case kubectl 'get' 0 'registry.weyland.lab/scan-suite:git-9a4996c6'
   run bash "$SHIP"
   called_with gh 'pr close 12'
-  ! called_with gh 'pr close 13'
+  not_called_with gh 'pr close 13'
 }
 
 @test "FR4.2/FR4.3 deletes the orphan branch on abort and still reports the gate, not the cleanup" {
@@ -232,6 +232,11 @@ stub_git_pushed() {
   stub_case woodpecker-cli 'pipeline create' 0 '42 pending'
   stub_case woodpecker-cli 'pipeline show' 0 '42 failure'
   stub_case woodpecker-cli 'log' 0 'step build failed'
+  # gh MUST be stubbed: cleanup now asks GitHub whether the branch backs an open PR, and an
+  # unstubbed `gh` would reach the real api.github.com from a test suite that guarantees it
+  # touches nothing outside its container. No case registered => empty answer => no PR => delete,
+  # which is this test's intent.
+  stub_dispatch gh
   stub_dispatch kubectl
   stub_case kubectl 'get' 0 'registry.weyland.lab/scan-suite:git-2c73c898'
   run bash "$SHIP"
@@ -239,6 +244,56 @@ stub_git_pushed() {
   called_with git 'push --delete origin ci/image-bump-9a4996c6'
   # FR4.3 — the reported reason is the gate, not the cleanup.
   [[ "$output" == *"FR1.3"* ]]
+}
+
+@test "FR4.2 does NOT delete the branch when it already backs an open PR" {
+  # 2026-08-24, and it survived only by luck. The run aborted at FR1.3 — AFTER deploy-handoff had
+  # opened PR #36, but BEFORE the step that looks the PR up. ORPHAN_BRANCH is set right after the
+  # trigger and cleared only once a valid PR is found, so cleanup fired against the branch backing
+  # a real, mergeable PR and printed "deleting orphan branch ci/image-bump-dab283e9". The delete
+  # failed ONLY because the ISP was down at that moment.
+  #
+  # The existing "does NOT delete once a valid PR exists" test covers aborts AFTER the lookup. The
+  # window between "the pipeline opened a PR" and "we noticed it" was uncovered, and that is exactly
+  # where this run died.
+  stub_git_pushed
+  stub_dispatch woodpecker-cli
+  stub_case woodpecker-cli 'pipeline create' 0 '42 pending'
+  stub_case woodpecker-cli 'pipeline show' 0 '42 failure'
+  stub_case woodpecker-cli 'log' 0 'step build failed'
+  stub_dispatch gh
+  stub_case gh 'pr list' 0 '42'
+  stub_dispatch kubectl
+  stub_case kubectl 'get' 0 'registry.weyland.lab/scan-suite:git-2c73c898'
+  run bash "$SHIP"
+  [ "$status" -ne 0 ]
+  # THE ASSERTION: the branch survives.
+  not_called_with git 'push --delete'
+  [[ "$output" == *"open PR"* ]]
+  # FR4.3 still holds — the reported reason is the gate.
+  [[ "$output" == *"FR1.3"* ]]
+}
+
+@test "FR4.2 keeps the branch when GitHub cannot be asked — fail closed" {
+  # The costs are wildly asymmetric. A wrong "no PR" DELETES the run's own output; a wrong "yes"
+  # leaves a branch the staleness watchdog will surface. So the unknown case must take the safe
+  # side. Getting this backwards would reproduce the whole silent-failure family this loop exists
+  # to prevent — an unanswerable query read as a negative answer.
+  stub_git_pushed
+  stub_dispatch woodpecker-cli
+  stub_case woodpecker-cli 'pipeline create' 0 '42 pending'
+  stub_case woodpecker-cli 'pipeline show' 0 '42 failure'
+  stub_case woodpecker-cli 'log' 0 'step build failed'
+  # gh cannot answer at all.
+  printf '#!/usr/bin/env bash\nprintf "gh %%s\\n" "$*" >> "%s"\necho "error connecting to api.github.com" >&2\nexit 1\n' \
+    "$STUB_LOG" > "$STUB_DIR/gh"
+  chmod +x "$STUB_DIR/gh"
+  stub_dispatch kubectl
+  stub_case kubectl 'get' 0 'registry.weyland.lab/scan-suite:git-2c73c898'
+  run bash "$SHIP"
+  [ "$status" -ne 0 ]
+  not_called_with git 'push --delete'
+  [[ "$output" == *"cannot ask GitHub"* ]]
 }
 
 @test "FR1.5/NFR4 syncs only the affected app and verifies against the live resource" {
@@ -260,7 +315,7 @@ stub_git_pushed() {
   run bash "$SHIP"
   [ "$status" -eq 0 ]
   # NFR4: never a blanket refresh across all 78 applications.
-  ! called_with argocd '--all'
+  not_called_with argocd '--all'
   # FR1.5: the rollout was asserted against the cluster, not against the repo or the PR.
   called_with kubectl 'get'
 }
@@ -298,7 +353,7 @@ stub_git_pushed() {
   stub_case kubectl 'get' 0 'registry.weyland.lab/scan-suite:git-2c73c898'
   run bash "$SHIP"
   [ "$status" -ne 0 ]
-  ! called_with git 'push --delete'
+  not_called_with git 'push --delete'
 }
 
 @test "FR1.6 a gate failure reads as a failure, not as the assertion it tested" {

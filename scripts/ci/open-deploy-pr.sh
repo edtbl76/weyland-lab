@@ -37,8 +37,56 @@ git checkout -b "$BRANCH"
 git commit -am "ci: bump${IMAGES} to ${NEWTAG}"
 
 # push the branch (token in the URL, never logged)
-git push -q "https://x-access-token:${GITHUB_TOKEN}@github.com/${REPO}.git" "HEAD:${BRANCH}" 2>/dev/null
-echo "[handoff] pushed branch ${BRANCH}"
+#
+# THE BRANCH IS NAMED FROM THE SHA, so any re-run of the same commit finds its own branch already on
+# origin — and `git push HEAD:$BRANCH` is then a NON-FAST-FORWARD even when the file content is
+# identical, because re-committing the same tree produces a different commit object. git rejects it,
+# `set -eu` kills the step, and the old `2>/dev/null` threw the reason away.
+#
+# Seen live 2026-08-24: run #26 pushed ci/image-bump-dab283e9 and opened PR #36; the nightly cron #27
+# rebuilt the SAME sha six hours later, produced 058b4bd against origin's 89fa700, and died here. Its
+# log simply ends at "5 files changed" — no error, no clue. It would have failed every night until
+# PR #36 merged.
+REMOTE="https://x-access-token:${GITHUB_TOKEN}@github.com/${REPO}.git"
+push_needed="yes"
+remote_sha=""
+
+if remote_line="$(git ls-remote --exit-code --heads "$REMOTE" "$BRANCH" 2>/dev/null)"; then
+  remote_sha="$(printf '%s\n' "$remote_line" | awk 'NR==1{print $1}')"
+  echo "[handoff] branch ${BRANCH} is already on origin — comparing content"
+  if git fetch -q "$REMOTE" "$BRANCH" >/dev/null 2>&1; then
+    # Compare TREES, not commits. Same tree = this exact work is already published, and re-pushing a
+    # fresh commit of identical content would only churn the open PR.
+    remote_tree="$(git rev-parse 'FETCH_HEAD^{tree}' 2>/dev/null || echo unknown-remote)"
+    local_tree="$(git rev-parse 'HEAD^{tree}' 2>/dev/null || echo unknown-local)"
+    if [ "$remote_tree" = "$local_tree" ]; then
+      echo "[handoff] identical content already pushed — skipping push, verifying the PR below"
+      push_needed="no"
+    else
+      # Content genuinely differs for the same sha, which happens when a previous run built a
+      # different SET of images (a partial build). This run is the newer, fuller answer.
+      echo "[handoff] origin's copy of ${BRANCH} differs from this build — replacing it"
+    fi
+  else
+    echo "[handoff] could not fetch ${BRANCH} to compare — will attempt a lease-guarded push" >&2
+  fi
+fi
+
+if [ "$push_needed" = "yes" ]; then
+  # Lease-guarded rather than a bare --force: if origin moved since the ls-remote above, the push is
+  # refused instead of silently discarding whatever landed there.
+  if [ -n "$remote_sha" ]; then
+    push_out="$(git push --force-with-lease="${BRANCH}:${remote_sha}" "$REMOTE" "HEAD:${BRANCH}" 2>&1)" || push_rc=$?
+  else
+    push_out="$(git push "$REMOTE" "HEAD:${BRANCH}" 2>&1)" || push_rc=$?
+  fi
+  if [ "${push_rc:-0}" -ne 0 ]; then
+    # The reason reaches the operator. Discarding it is why #27 was undiagnosable from its own log.
+    echo "[handoff] push of ${BRANCH} FAILED (exit ${push_rc}): ${push_out}" >&2
+    exit 1
+  fi
+  echo "[handoff] pushed branch ${BRANCH}"
+fi
 
 # open the PR. Body uses literal \n (valid JSON); image names/tags are [A-Za-z0-9._/-] only → no escaping needed.
 # 422 = a PR for this head is already open → not an error.
