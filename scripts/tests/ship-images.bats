@@ -467,10 +467,10 @@ registry.weyland.lab/weyland-flink:git-9a4996c6'
   # would pass them both while verifying nothing — which is the failure mode this gate exists for.
   SHIP_IMAGES_LIB=1 source "$SHIP"
   stub_dispatch kubectl
-  stub_case kubectl 'status.phase=Running' 0 'registry.weyland.lab/scan-suite:git-9a4996c6
+  stub_case kubectl 'status.phase=Running' 0 'registry.weyland.lab/scan-suite:git-2c73c898
 registry.weyland.lab/weyland-flink:git-2c73c898'
   stub_case kubectl 'get cronjob' 0 ''
-  stub_case kubectl 'get' 0 'registry.weyland.lab/scan-suite:git-9a4996c6
+  stub_case kubectl 'get' 0 'registry.weyland.lab/scan-suite:git-2c73c898
 registry.weyland.lab/weyland-flink:git-2c73c898'
   run all_bumped_images_live 'git-9a4996c6' "$FIXTURES/tags-only.diff"
   [ "$status" -ne 0 ]
@@ -790,4 +790,48 @@ txn_stub_pod() {
   run txn_ok 'git-9a4996c6' "$STUB_DIR/d.diff"
   [ "$status" -ne 0 ]
   [[ "$output" == *"no running"* ]]
+}
+
+@test "FR1.5 the pre-gate wait POLLS the same predicate the gate asserts" {
+  # Run #29 (2026-08-24): the wait used `live_carries_tag` — "some pod somewhere has the tag" — which
+  # is true the instant the FIRST new pod appears. It then handed a still-rolling cluster to a gate
+  # requiring EVERY bumped image to be on the tag, and the run aborted on a rollout that was merely
+  # in progress. A wait weaker than its gate is not a wait.
+  #
+  # Asserted behaviourally: with the cluster permanently mid-rollout, the loop must poll REPEATEDLY
+  # before giving up, not check once. Checking once would satisfy a naive "it eventually failed" test.
+  stub_git_pushed
+  stub_dispatch woodpecker-cli
+  stub_case woodpecker-cli 'pipeline create' 0 '42 pending'
+  stub_case woodpecker-cli 'pipeline show' 0 '42 success'
+  stub_dispatch gh
+  stub_case gh 'pr list' 0 '13	ci/image-bump-9a4996c6	weyland-ci'
+  stub_case gh 'isCrossRepository' 0 'false'
+  stub_case gh 'pr view' 0 'weyland-ci'
+  stub_case gh 'pr diff' 0 "$(cat "$FIXTURES/tags-only.diff")"
+  stub_dispatch argocd
+  # Permanently mid-rollout: BOTH images stay on the old tag for the whole run.
+  #
+  # They must stay OLD, not partially-new: FR1.4 compares the newtag against the first bumped image,
+  # so seeding scan-suite with the new tag makes the run abort at FR1.4 ("already deployed") and never
+  # reach the wait this test is about. Cost me a debug cycle.
+  # An UNRELATED workload already carries the new tag. That is what makes this test discriminate:
+  # `live_carries_tag` greps EVERY pod for the tag, so tool-server alone satisfies it and the old wait
+  # exits after a single check — while neither BUMPED image has arrived, so the gate still fails. With
+  # both bumped images merely old, live_carries_tag is false too, the old wait also polls, and the
+  # outcome is identical: the first version of this test passed against the bug it was written for.
+  stub_dispatch kubectl
+  stub_case kubectl 'status.phase=Running' 0 'registry.weyland.lab/weyland-tool-server:git-9a4996c6
+registry.weyland.lab/scan-suite:git-2c73c898
+registry.weyland.lab/weyland-flink:git-2c73c898'
+  stub_case kubectl 'get cronjob' 0 ''
+  stub_case kubectl 'get' 0 'registry.weyland.lab/weyland-tool-server:git-9a4996c6
+registry.weyland.lab/scan-suite:git-2c73c898
+registry.weyland.lab/weyland-flink:git-2c73c898'
+  SHIP_POLL_INTERVAL=1 SHIP_ROLLOUT_TIMEOUT=3 run bash "$SHIP"
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"FR1.5"* ]]
+  [[ "$output" == *"weyland-flink"* ]]
+  # THE ASSERTION: it polled the live cluster more than once while waiting.
+  [ "$(calls_to kubectl | grep -c 'status.phase=Running')" -ge 2 ]
 }

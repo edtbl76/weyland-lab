@@ -55,8 +55,25 @@ install -m 555 /tmp/argocd ~/.local/bin/argocd && rm -f /tmp/argocd
 ```
 
 ```
-argocd login mother:30880 --username admin --password "$(kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath='{.data.password}' | base64 -d)" --insecure --grpc-web
+argocd login mother:30880 --username admin --password "$(kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath='{.data.password}' | base64 -d)" --plaintext --grpc-web
 ```
+
+> **`--plaintext`, not `--insecure`** (corrected 2026-08-24). `--insecure` means "TLS with a certificate I
+> won't verify"; port 30880 serves **plain HTTP**, which is a different thing. With `--insecure` the CLI stops
+> to ask `server is not configured with TLS. Proceed (y/n)?` — fine by hand, but it reads EOF and dies with
+> `{"level":"fatal","msg":"EOF"}` in any non-interactive context. `--plaintext` states the intent and skips
+> the prompt.
+
+**The session token expires, and the failure is quiet.** When it does, `ship-images.sh` prints
+`⚠ sync of <app> did not return cleanly` for every app and falls through to the live check — correct behaviour,
+but with no forced reconcile `FR1.5` then races Argo's ~3-minute poll and can fail on a rollout that was merely
+slow. Seen 2026-08-24. Verify the session rather than the login message:
+
+```
+argocd app list --grpc-web -o name
+```
+
+`invalid session: token has invalid claims: token is expired` means re-run the login above.
 
 **Log in against the LAN NodePort, NOT `argocd.weyland.lab`.** The public host is behind Keycloak
 forward-auth (`k8s/argocd/argocd-ingress.yaml`), and a CLI cannot complete a browser SSO round-trip —

@@ -807,8 +807,19 @@ main() {
     done
   fi
   # FR1.5 — the only assertion that proves anything shipped.
+  #
+  # THE WAIT MUST POLL THE SAME PREDICATE THE GATE ASSERTS. It used to wait on `live_carries_tag`,
+  # which is satisfied as soon as ANY pod anywhere carries the tag — so it stopped waiting the instant
+  # the FIRST new pod appeared, then handed a still-rolling cluster to a gate that requires EVERY
+  # bumped image to be on the tag. A wait that is weaker than its gate does not wait for the thing
+  # being gated; it just sleeps a bit.
+  #
+  # This mismatch was always there and was masked by FR1.5's old `head -n1`, which was loose in the
+  # same direction. Tightening the gate (2026-08-24) made it visible on run #29:
+  #   `not yet on git-8c120f9d: feast-server(git-2c73c898,git-afb1fb5d) weyland-dagster-user-code(...)`
+  # — a genuine mid-rollout, aborted as a failure.
   local waited=0 interval="${SHIP_POLL_INTERVAL-10}"
-  while ! live_carries_tag "$newtag"; do
+  while ! all_bumped_images_live "$newtag" "$diff_file" >/dev/null 2>&1; do
     [ "$waited" -ge "$SHIP_ROLLOUT_TIMEOUT" ] && break
     [ "$interval" != "0" ] && sleep "$interval"
     waited=$((waited + interval))
