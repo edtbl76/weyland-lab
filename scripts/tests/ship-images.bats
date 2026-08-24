@@ -808,7 +808,16 @@ txn_stub_pod() {
   stub_case gh 'pr list' 0 '13	ci/image-bump-9a4996c6	weyland-ci'
   stub_case gh 'isCrossRepository' 0 'false'
   stub_case gh 'pr view' 0 'weyland-ci'
-  stub_case gh 'pr diff' 0 "$(cat "$FIXTURES/tags-only.diff")"
+  # ONE bumped image on purpose. all_bumped_images_live queries the cluster once PER IMAGE, so with a
+  # two-image diff a SINGLE gate evaluation already makes two queries and a ">= 2 queries" assertion is
+  # satisfied without any polling at all. With one image, one evaluation = one query, so reaching 2
+  # requires actually looping. The two-image version of this test passed against the bug it was written
+  # for -- caught by mutation-testing it, not by reading it.
+  stub_case gh 'pr diff' 0 'diff --git a/k8s/x.yaml b/k8s/x.yaml
+--- a/k8s/x.yaml
++++ b/k8s/x.yaml
+-        image: registry.weyland.lab/weyland-flink:git-2c73c898
++        image: registry.weyland.lab/weyland-flink:git-9a4996c6'
   stub_dispatch argocd
   # Permanently mid-rollout: BOTH images stay on the old tag for the whole run.
   #
@@ -832,6 +841,67 @@ registry.weyland.lab/weyland-flink:git-2c73c898'
   [ "$status" -ne 0 ]
   [[ "$output" == *"FR1.5"* ]]
   [[ "$output" == *"weyland-flink"* ]]
-  # THE ASSERTION: it polled the live cluster more than once while waiting.
-  [ "$(calls_to kubectl | grep -c 'status.phase=Running')" -ge 2 ]
+  # THE ASSERTION, with the threshold DERIVED rather than guessed:
+  #   with the bug  -> FR1.4 queries once + the FR1.5 gate queries once            = 2
+  #   with the fix  -> those two PLUS one query per poll (interval 1, timeout 3)   >= 5
+  # ">= 2" and even ">= 3" are met without any polling at all, which is why the first two versions of
+  # THE ASSERTION, with the threshold DERIVED rather than guessed:
+  #   with the bug  -> FR1.4 queries once + the gate queries once            = 2
+  #   with the fix  -> those two, plus one query per poll (interval 1, 3s)   >= 6
+  # ">= 2" is met without any polling at all, which is why the first two versions of this test passed
+  # against the very bug they were written for. 4 sits cleanly between the two.
+  [ "$(calls_to kubectl | grep -c 'status.phase=Running')" -ge 4 ]
+}
+
+@test "the loop fast-forwards local main after the merge — step 5 of the documented loop" {
+  # Missing until 2026-08-24. `gh pr merge` advances origin/main, so without this the local clone is
+  # exactly one commit behind after EVERY successful run and the operator's next push is rejected.
+  # Happened twice before it was traced back here — the symptom surfaces in a human's git workflow,
+  # several steps from the script that caused it.
+  SHIP_IMAGES_LIB=1 source "$SHIP"
+  stub_dispatch git
+  stub_case git 'fetch' 0 ''
+  stub_case git 'merge --ff-only' 0 ''
+  run sync_local_main 42
+  [ "$status" -eq 0 ]
+  called_with git 'merge --ff-only origin/main'
+  [[ "$output" == *"fast-forwarded"* ]]
+}
+
+@test "the fast-forward NEVER rebases or merges on the operator's behalf" {
+  # A local commit makes ff impossible. The correct outcome is to SAY so and continue — this script
+  # does not own the operator's history, and a verified rollout must not be failed over a git state.
+  SHIP_IMAGES_LIB=1 source "$SHIP"
+  stub_dispatch git
+  stub_case git 'fetch' 0 ''
+  stub_case git 'merge --ff-only' 1 ''
+  run sync_local_main 42
+  [ "$status" -eq 0 ]                      # friction, not a broken deploy
+  [[ "$output" == *"could NOT fast-forward"* ]]
+  not_called_with git 'rebase'
+  not_called_with git 'merge origin'
+}
+
+@test "an unreachable origin is reported, not silently swallowed" {
+  SHIP_IMAGES_LIB=1 source "$SHIP"
+  stub_dispatch git
+  stub_case git 'fetch' 1 ''
+  run sync_local_main 42
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"BEHIND"* ]]
+  not_called_with git 'merge --ff-only'
+}
+
+@test "affected_apps returns 0 when NOTHING matches — an empty answer is not a failure" {
+  # It ended `done | sort -u` with the loop body's last statement being `[ -n "$x" ] && printf`. With
+  # no match that returns 1, and `set -o pipefail` propagates it past a successful sort — so the
+  # caller's bare `apps="$(affected_apps …)"` killed the whole script under `set -e`, SILENTLY, right
+  # after the merge: no sync, no FR1.5, no error. "No Argo app claims this manifest" is a legitimate
+  # answer the caller already handles.
+  SHIP_IMAGES_LIB=1 source "$SHIP"
+  printf 'diff --git a/k8s/nope.yaml b/k8s/nope.yaml\n+ image: registry.weyland.lab/weyland-flink:git-9a4996c6\n' \
+    > "$STUB_DIR/nomatch.diff"
+  run affected_apps "$STUB_DIR/nomatch.diff"
+  [ "$status" -eq 0 ]
+  [ -z "$output" ]
 }

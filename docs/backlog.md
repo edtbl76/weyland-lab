@@ -1980,7 +1980,15 @@ Fixed: exit status captured explicitly with stderr kept in a separate file so it
 
 **FIFTH POST-CLOSE DEFECT (2026-08-24) — FR1.5 read COMPLETED JOB pods and would have failed on `scan-suite` forever.** The fixed loop merged PR #37 and every workload really did reach `git-afb1fb5d` — yet FR1.5 reported `not yet on git-afb1fb5d: scan-suite(git-ef734fc8)`. `deployed_tag_for` grepped **all** pods and took `head -n1`, so it read `Job/code-scan-suite-29791500` and the leftover `Job/scan-suite-adhoc`, both frozen on the old tag. **A Job's pod template is immutable**, so those records can never advance — the gate was permanently red for that image. Compounding it, `scan-suite` runs *only* as a weekly CronJob, so outside its few minutes of execution it has **no pod at all** and a pod-only check reads `absent`. Same "some pod somewhere" class as the partial-rollout bug this very gate replaced, inverted. Fixed: `deployed_tags_for` reads **running pods + CronJob templates**, returns the full deduped tag set, and the gate requires *every* tag to be the target — no `head -n1`. The FR1.4 call site was fixed with it: its comment already said the comparand must not be "whatever pod the cluster happens to list first" while the implementation did exactly that.
 
-**95 bats tests green** (up from 87), shellcheck clean, all five repo guards exit 0.
+**SIXTH, SEVENTH AND EIGHTH POST-CLOSE DEFECTS (2026-08-24), all found by running the loop for real.**
+
+**(a) The pre-FR1.5 wait was WEAKER than the gate it fed.** It polled `live_carries_tag` — "some pod *somewhere* carries the tag" — which is true the instant the FIRST new pod appears, then handed a still-rolling cluster to a gate requiring EVERY bumped image. Run #29 aborted on a rollout that had actually succeeded: `not yet on git-8c120f9d: feast-server(git-2c73c898,git-afb1fb5d) weyland-dagster-user-code(git-afb1fb5d)`. The mismatch was always there and was **masked by FR1.5's old `head -n1`**, which was loose in the same direction — tightening the gate is what exposed it. Now polls `all_bumped_images_live`, the same predicate the gate asserts.
+
+**(b) `affected_apps` returned NON-ZERO when nothing matched, killing the run silently.** It ends `done | sort -u`, and the loop body's last statement was `[ -n "$best_name" ] && printf` — an `&&` list that returns 1 when no app matches. Under `set -o pipefail` that propagates past a successful `sort`, and the caller's bare `apps="$(affected_apps …)"` made it fatal under `set -e`. **A bump PR touching a manifest no Argo application claims would have killed the loop right after merging — no sync, no FR1.5, no error line.** Fixed on both sides: an `if` (which returns 0) inside, and `|| apps=""` at the call site. Third instance of the bare-assignment class in this one script.
+
+**(c) `git pull` — step 5 of the documented loop — was NEVER IMPLEMENTED.** B135's own entry lists it twice. The loop merges the bump PR, advancing `origin/main`, and then never touched git again: **every successful run left the local clone exactly one commit behind, so the operator's next push was rejected.** It happened twice before anyone connected the friction to this script, because the symptom lands in a human's git workflow several steps from the cause. Added `sync_local_main`: `git fetch` + **fast-forward only**. If the local branch has its own commits or a dirty tree, ff fails, it says so, and the run continues — this script does not rewrite history it does not own, and a verified rollout must not be failed over a git state. A *specified step silently absent* is a different failure class from the gates-that-lied above, and nothing checked implementation against spec.
+
+**110 bats tests green** (up from 87 this morning), shellcheck clean, all five repo guards exit 0. The wait test in (a) took **three attempts to become non-vacuous** — the first two passed against the bug they were written for, caught only by mutation-testing (reverting the fix and confirming the test fails). Its threshold is now derived in-comment rather than guessed: with the bug the cluster is queried twice, with the fix at least six.
 
 **Also surfaced by the same run, not a code defect:** the `argocd` CLI session token had **expired** (`invalid session: token has invalid claims: token is expired`), which is why all three `argocd app sync` calls warned. The fallback behaved correctly — the run continued to the live check rather than trusting the sync — but with no forced reconcile FR1.5 raced Argo's ~3-minute poll. Re-login per `docs/runbooks/ship-images.md` § Prerequisites.
 
@@ -2022,6 +2030,25 @@ Linear: EMA-197. Relates B1.5 (dbt transform tier), B131 (dependency lifecycle),
 
 ---
 
+### B143 — Upgrade Woodpecker 3.17.0 → 3.18.0 (log-storage DB migration + gRPC proto enforcement across a mixed fleet) — 🔴 **HIGH (2026-08-24)**
+
+Release: https://github.com/woodpecker-ci/woodpecker/releases/tag/v3.18.0. Current: server + 2 k8s agents on `v3.17.0`, **plus 4 local agent systemd services on rogueone** (the STUD.io lane, B57b).
+
+**Two things make this more than a tag bump:**
+
+1. **`gRPC proto version verification` — incompatible agents are now REJECTED.** Only half the fleet is GitOps-managed: the 2 k8s agents bump via Argo, the **4 rogueone agents are systemd units outside Argo** and must be upgraded by hand. Bump the server without them and the STUD.io lane's CI goes down — an outage on a different repo, caused by a change here. **Upgrade agents first, or in the same window.**
+2. **A database migration affecting log storage, with possible extended downtime** proportional to stored log volume. **Back up the Woodpecker Postgres first** — this server has run since B56 and nothing prunes pipeline logs.
+
+**Why bother:** security fixes that touch how we actually use it — *"Don't inject additional env vars into plugins"* and *"Don't inject matrix env vars into plugins"* (the pipeline passes `github_token` / `port_ingest_url` via `from_secret`), *"k8s: allow to disable runtime class name backend option"* (the weyland lane's backend), plus an updated `golang.org/x/mod`. Useful additions: a pipeline **log download endpoint**, configurable k8s **cluster domain**, unique step/service name validation under DAG.
+
+**What does NOT change — do not expect these fixed.** The release notes carry **no CLI changes**, so every documented trap stays: `woodpecker-cli --output json` is accepted and **silently ignored** (`ship-images.sh` must keep its `--output 'go-template=…'`); crons remain **UTC**, not NY-pinnable (schedules.md Design Rule #1); `pipeline last <repo>` still 404s.
+
+**Acceptance:** back up the Postgres and note expected migration time; upgrade the 4 rogueone systemd agents and the 2 k8s agents; bump the server manifest via GitOps and watch for proto rejection in agent logs; verify **both lanes** build green (weyland/kubernetes and STUD.io/local); confirm `ship-images.sh` still works end to end — it is the only CLI consumer and its FR1.3 poll depends on the go-template output shape; refresh `docs/runbooks/woodpecker.md` + `hosts.md` if anything moved.
+
+Linear: EMA-199. Relates B56, B57a, B57b (the mixed fleet), B135 (the CLI consumer).
+
+---
+
 ### B142 — Dependency CVEs surfaced by the B136 scan: `starlette` (store-scaler) + `setuptools` (weyland-dagster) — 🟡 **MEDIUM (2026-08-24)**
 
 Triaged out of the 2026-08-24 `code-scan-suite` run (`s3://scan-reports/2026-08-24T15-55-29Z/`) while grading B136's DoD pillar 7. Neither is B136's doing — both pre-date it — but they are now the **top remaining fixable dependency CVEs**, and B136 having cleared sqlparse is what left them at the top.
@@ -2033,7 +2060,7 @@ Triaged out of the 2026-08-24 `code-scan-suite` run (`s3://scan-reports/2026-08-
 
 **Acceptance:** bump both (or record why not); re-run `scripts/run-scan-suite.sh` and confirm pip-audit drops; `store-scaler` still scales data-mesh deployments (its one job — see [[store-scaler-easy-button]]).
 
-Relates B133 (the sweep discipline), B136 (which surfaced these), B47 (prior CVE remediation).
+Linear: EMA-201. Relates B133 (the sweep discipline), B136 (which surfaced these), B47 (prior CVE remediation).
 
 ---
 
@@ -2074,7 +2101,7 @@ Linear: TBD. Relates **B83** (streaming tier, owns this manifest), B135 (the dep
 
 **Verified:** 105 bats tests green (up from 100), and the TXN tests were **mutation-tested** — forcing `txn_ok` to `return 0` killed 4 of 5, proving the negatives discriminate rather than passing vacuously. shellcheck clean, all repo guards exit 0, the new op compiles inside the runtime image with `psycopg2` + `feast` importable.
 
-Linear: EMA-TBD. Relates B135 (the loop this extends), B1.8 (Feast), B142.
+Linear: EMA-200. Relates B135 (the loop this extends), B1.8 (Feast), B142, B143.
 
 ---
 

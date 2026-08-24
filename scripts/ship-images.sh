@@ -183,6 +183,23 @@ branch_has_open_pr() {
   [ -n "$(printf '%s' "$out" | tr -d '[:space:]')" ]
 }
 
+# Bring the local branch up to the origin/main the merge just advanced. Fast-forward ONLY — never
+# rebase or merge on the operator's behalf. Never fails the run: being behind is friction, not a
+# broken deploy, and aborting a verified rollout over a git state would be the wrong trade.
+sync_local_main() {
+  if ! git fetch origin "$BASE" >/dev/null 2>&1; then
+    printf '  ⚠ could not fetch origin/%s — your local clone is now BEHIND the merge\n' "$BASE" >&2
+    return 0
+  fi
+  if git merge --ff-only "origin/${BASE}" >/dev/null 2>&1; then
+    printf '→ local %s fast-forwarded to the merge\n' "$BASE"
+    return 0
+  fi
+  printf '  ⚠ local %s could NOT fast-forward (local commits or a dirty tree) — it is behind\n' "$BASE" >&2
+  printf '    origin/%s moved when PR #%s merged; reconcile it yourself before your next push.\n' "$BASE" "${1:-?}" >&2
+  return 0
+}
+
 cleanup() {
   [ -n "$ORPHAN_BRANCH" ] || return 0
   is_image_bump_branch "$ORPHAN_BRANCH" || return 0
@@ -547,7 +564,13 @@ affected_apps() {
         best_name="$n"
       fi
     done <<<"$pairs"
-    [ -n "$best_name" ] && printf '%s\n' "$best_name"
+    # `if`, NOT `[ -n … ] && printf`. As an `&&` list this is the loop body's LAST command, so when no
+    # app matches it returns 1 — and with `set -o pipefail` the enclosing `… done | sort -u` pipeline
+    # then returns 1 too, even though sort succeeded. The caller's bare `apps="$(affected_apps …)"`
+    # assignment made that fatal under `set -e`: on a bump PR touching a manifest no Argo application
+    # claims, the loop died SILENTLY right after merging — no sync, no FR1.5, no error line. An `if`
+    # with no else returns 0. (Found 2026-08-24; third instance of this class in this script.)
+    if [ -n "$best_name" ]; then printf '%s\n' "$best_name"; fi
   done | sort -u
 }
 
@@ -792,10 +815,26 @@ main() {
   # Merged: the branch is claimed, so it is no longer this run's orphan to clean up.
   ORPHAN_BRANCH=""
 
+  # STEP 5 OF THE DOCUMENTED LOOP, and it was missing until 2026-08-24.
+  #
+  # The merge above advances origin/main. Without pulling, the local clone sits exactly one commit
+  # behind after EVERY successful run — so the operator's next push is rejected and they hand-merge to
+  # recover. That happened twice before anyone connected it to this script, because the symptom shows
+  # up in a human's git workflow several steps away from the loop that caused it.
+  #
+  # FAST-FORWARD ONLY, on purpose. If the local branch has its own commits or a dirty tree, ff fails —
+  # and that is the correct outcome: say so and continue. Rebasing or merging on the operator's behalf
+  # would be this script rewriting history it does not own.
+  sync_local_main "$pr_num"
+
+
   # FR1.5a / NFR4 — reconcile only what changed, via the CLI the runbook documents. The refresh
   # annotation and `kubectl patch` on the Application CRD are forbidden (docs/runbooks/argocd.md).
+  # Belt and braces: even with affected_apps fixed to return 0, a bare command-substitution assignment
+  # under `set -euo pipefail` is the shape that has killed this script silently three times today.
+  # "No apps matched" is a legitimate answer, handled two lines below — never a reason to vanish.
   local apps
-  apps="$(affected_apps "$diff_file")"
+  apps="$(affected_apps "$diff_file")" || apps=""
   if [ -z "$apps" ]; then
     printf '⚠ no Argo application matched the changed manifests — relying on Argo'"'"'s own poll\n' >&2
   else
