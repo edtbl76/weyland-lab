@@ -74,13 +74,22 @@ capability is **NOT done** until ALL eight pillars hold. "Ran once" ≠ done.
 - **Linear** — flip the tracked issue (`EMA-*`) to Done with a completion comment (what shipped, gotchas, links).
 - **backlog.md** — flip the item to ✅ DONE with a substantial summary (backlog = ordered source; Linear = status).
 - **Memory** — capture any durable, non-obvious lesson.
-- **Tier rebalance — keep High / Medium / Low roughly equal.** Completing work drains the **High** lane, so at
-  close-out re-tier to refill it: promote the strongest **Medium → High**, then backfill **Low → Medium** (and, as
-  the tail grows, close or promote stale **Low** items — a Low that never rises is a drop candidate). It's a pull
-  system: High pulls from Medium, Medium pulls from Low. Apply the move in **both** `backlog.md` (the 🔴/🟡/⚪ tag) and
-  **Linear** (priority field + the `High`/`Medium`/`Low` label), in the **same** close-out step as the status flip —
-  the two must never diverge. This keeps the roadmap from silently emptying High while Low accumulates. Judgment, not
-  arithmetic: "roughly equal," re-derived from the current open set, not forced to exact counts.
+- **Tier rebalance — keep High / Medium / Low roughly equal. PROPOSE IT, NEVER APPLY IT UNILATERALLY (2026-08-23).**
+  Completing work drains the **High** lane, so at close-out re-tier to refill it: promote the strongest
+  **Medium → High**, then backfill **Low → Medium** (and, as the tail grows, close or promote stale **Low** items — a
+  Low that never rises is a drop candidate). It's a pull system: High pulls from Medium, Medium pulls from Low.
+  - **The rebalance is a DISCUSSION, and the human has final say.** Present the current spread, name the specific
+    items proposed to move and *why each one*, and then **stop and ask**. Do not move a single item's priority
+    before an explicit answer. Priority encodes what the human intends to work on next — that is theirs to set, and
+    it is not recoverable from the backlog text, so a well-reasoned guess is still a guess.
+  - **"No move" is a legitimate outcome and must be offered as one.** If the lanes are already within tolerance,
+    say so and propose nothing; forcing a promotion to look diligent is exactly the box-checking this gate exists
+    to prevent. Count *per project* as well as overall — one project's cluster of frontend work can make a shared
+    High lane look healthy while another project's High is quietly empty.
+  - Once decided, apply the move in **both** `backlog.md` (the 🔴/🟡/⚪ tag) and **Linear** (priority field + the
+    `High`/`Medium`/`Low` label), in the **same** close-out step as the status flip — the two must never diverge.
+  This keeps the roadmap from silently emptying High while Low accumulates. Judgment, not arithmetic: "roughly
+  equal," re-derived from the current open set, not forced to exact counts.
 
 ## 6. Operational completeness (deployed capabilities must be DURABLE, not "runs once")
 

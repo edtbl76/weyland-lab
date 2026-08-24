@@ -55,6 +55,22 @@ A separate `ScheduledJobNeverSucceeded` rule uses `absent()`: a CronJob that has
 exports **no series at all**, so every threshold rule is silent for it — `time() - <nothing> > budget`
 matches nothing and alerts on nothing.
 
+### The budgets are guarded, not trusted
+
+`scripts/check-cron-freshness-budgets.sh` (CI `repo-guards`) asserts the three surfaces agree — the
+manifest `schedule:`, this rule's budget, and the `docs/schedules.md` row. It fails if a CronJob has
+**no rule** covering it, if a budget is not ≥ its period + 5% slack, if a job has **no schedules.md
+row**, or if a fixed-time schedule sets **no `spec.timeZone`** (which silently runs it in UTC).
+
+Run it directly:
+
+```
+bash scripts/check-cron-freshness-budgets.sh --list
+```
+
+`--list` prints the per-CronJob table and exits 0; without it the guard gates. It **fails closed** —
+an unparseable schedule or a missing input is an error, never a skip.
+
 ## Operating it
 
 Run either job now (either host with `kubectl`; these are on **mother**):

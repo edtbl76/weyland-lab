@@ -2011,6 +2011,23 @@ Linear: TBD. Relates **B83** (streaming tier, owns this manifest), B135 (the dep
 
 `DataMeshBackupFailed` (`kube_job_status_failed{namespace="data-mesh", job_name=~"(minio|pg)-backup.*"} > 0`) is the only failure-side rule in the estate and is scoped to two backup jobs. Generalising it to the other nine CronJobs is a handful of lines and completes the pair: **freshness catches "it stopped", a failure rule catches "it ran and broke".** Keep them separate rules — collapsing them hides which of the two happened.
 
+**Second companion gap — a cadence fact re-encoded on THREE surfaces — ✅ CLOSED 2026-08-23.** Found grading DoD Pillar 8: every CronJob's cadence lived in (1) its manifest `schedule:` — the truth, (2) `docs/schedules.md`, and (3) the per-cadence budget in `cron-freshness-rules.yaml`, with nothing keeping them honest. Change a schedule and the budget silently goes wrong in one of two ways: **tighten** a job and its 26h budget stops catching a stop; **relax** one and it false-fires every week — the `WeylandErrorLogSpike` failure, where a permanently-lit alert is worse than none.
+
+**Shipped `scripts/check-cron-freshness-budgets.sh`** (+ 11 bats tests, wired into the CI `repo-guards` step). A guard rather than generating the rule: generated YAML needs its own drift check anyway, the slack figure is a judgment not a formula, and an alert file has to stay hand-editable. Same shape as `check-doc-counts.sh` — it defends a hand-owned file from outside instead of owning it.
+
+Three assertions, and two of them are worth more than the duplication that prompted it:
+
+| Check | Catches |
+|---|---|
+| Every CronJob is covered by exactly one `ScheduledJobStale` rule | **`cron-freshness-check` was missing from its own rule** — found by hand while grading Pillar 8, which is not a repeatable control |
+| Budget ≥ period + 5% slack, period derived from the manifest | the drift above, in both directions |
+| Every CronJob has a `docs/schedules.md` row | **the three backup CronJobs that had none** — found only because a human ran the reconciliation |
+| *(added after shellcheck flagged the unused field)* fixed-time schedule sets `spec.timeZone` | the backups running in **UTC** while their comments claimed "local" — 22:30–23:30 NY, not 02:30–03:30 |
+
+**Design notes worth keeping.** The 5% slack floor is derived from the deployed budgets, not invented — real slacks are 300% (30m job), 33% (6h), 14% (weekly) and 8.3% (daily 24h/26h, the tightest). A floor above 8.3% would reject the repo's own sensible budget, which teaches people to widen numbers to satisfy a guard instead of to reflect reality. The period classifier handles only the cron shapes this repo uses and **refuses anything else** rather than defaulting — a day-of-month expression, an `@daily` alias or an empty string is a loud failure. Step schedules (`*/30`, `*/6`) are exempt from the timeZone check because they fire at the same interval in every timezone; failing them would be noise, and noise is how a guard gets silenced.
+
+**Verified failing, not just passing** — a guard that cannot fail is worthless. Each mode was exercised by temporarily breaking the repo and restoring it: relaxing `dagster-freshness-check` to daily with its 2h budget → caught; dropping `cron-freshness-check` from the rule → caught; removing `minio-backup`'s `timeZone` → caught. `python3`/`py3-yaml` added to the CI `shell-tests` step, which `bats/bats:latest` lacks — the guard failed closed there, correctly, which is how the gap was noticed.
+
 Linear: TBD. Relates **B135** (added the gate this extends), B131, B49 (observability), B1.8 (Feast).
 
 ---

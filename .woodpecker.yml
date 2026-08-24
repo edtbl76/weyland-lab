@@ -76,6 +76,10 @@ steps:
       - bash scripts/check-app-registry.sh
       - bash scripts/check-quality-tools.sh
       - bash scripts/check-sa-automount-collisions.sh
+      # B140 — a CronJob's cadence lives on three surfaces (manifest schedule · schedules.md ·
+      # the freshness budget). Nothing kept them honest, so relaxing a schedule silently made
+      # its alert false-fire and tightening one silently stopped it catching a stop.
+      - bash scripts/check-cron-freshness-budgets.sh
 
   # ── 1c. shellcheck the shell surface ────────────────────────────────────────
   # --severity=warning on purpose. At `note` the repo has 3 findings, and two of them are noise that
@@ -102,6 +106,11 @@ steps:
   - name: shell-tests
     image: bats/bats:latest
     commands:
+      # python3 + pyyaml are NOT in bats/bats:latest. check-cron-freshness-budgets.sh needs them
+      # to read CronJob manifests and the PrometheusRule, and its end-to-end tests exercise the
+      # real guard rather than a stub (the whole point — a stubbed guard would only confirm the
+      # stub). Same packages repo-guards installs; keep the two steps in step if either changes.
+      - apk add --no-cache python3 py3-yaml >/dev/null
       - bats scripts/tests/
 
   # ── 1d. unit tests ──────────────────────────────────────────────────────────
