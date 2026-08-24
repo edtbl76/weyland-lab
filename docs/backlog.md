@@ -1953,6 +1953,15 @@ Shipping one image change is a **seven-step loop run entirely by hand**, and thr
 
 **Acceptance:** one command takes a pushed change to a verified rollout; every gate is checked and a skipped/failed one **halts with the specific reason** instead of proceeding; verification is against the **live cluster resource**; superseded image-bump PRs are closed automatically.
 
+**POST-CLOSE DEFECT, found and fixed 2026-08-24 — the loop reported success while shipping nothing.** Run from `nodes/.../tofu/port` (not the repo root) with a real dbt-core/sqlparse bump committed on `main`, `ship-images.sh` printed `✓ nothing to ship — no image build context changed since its deployed tag.` and exited **0**. Three images were genuinely stale. Two independent faults stacked:
+
+1. **`scripts/ci/detect-changes.sh` resolved both inputs relatively** (`TSV="scripts/ci/images.tsv"`, `PLATFORM="nodes/..."`), so outside the repo root its manifest simply was not there — and the row-reading `while` loop is the **last command in a pipeline**, so `grep`'s exit 2 was overwritten by the loop's exit 0. Empty plan, success status.
+2. **`ship-images.sh` ran the detector as `>/dev/null 2>&1`** and inspected only the plan file, discarding the single line of evidence (`grep: scripts/ci/images.tsv: No such file or directory`) and collapsing "found no work" into "could not run".
+
+Fixed: the detector anchors every path to `git rev-parse --show-toplevel` and refuses to report "nothing to build" when its manifest is unreadable, missing, or carries no rows; the loop reads the detector's exit status, keeps its output, and aborts at a new **`DETECT`** gate. Covered by a new `scripts/tests/detect-changes.bats` (7 cases, incl. a repo-root/subdirectory matched pair so a green result cannot come from a broken fixture) plus a `DETECT` case in `ship-images.bats`; **81 bats tests green**, shellcheck clean. Verified against the original failing directory. The command is now safe to run from anywhere.
+
+**This was the fourth instance in this effort of a failed result standing for a successful one** — after `woodpecker-cli --output json` silently ignored, `curl -sf` collapsing non-2xx to 0, and `promtool` exiting 0 while printing `FAILED`. The direction is what made it dangerous: it shipped *nothing* while reporting success, which stays invisible until someone notices the deploy never happened. It also landed in the one gate written specifically to separate "nothing changed" from "the handoff broke" (`ship-images.sh:447`) — the second time in this effort a defect appeared inside the guard built to prevent it.
+
 Relates B57a (the image CI this wraps), B131 (open-PR lifecycle), B134 (why the refresh is targeted), [[weyland-image-ci-b57a]], [[argocd-gitops-gotchas]].
 
 ---

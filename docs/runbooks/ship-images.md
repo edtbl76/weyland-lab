@@ -133,6 +133,7 @@ still executes.
 |---|---|---|
 | `FR1.2` | local `HEAD` == `origin/main` | git |
 | — | *idempotence:* tag already live **and** no bump PR open → stop, "already deployed" | cluster + GitHub |
+| `DETECT` | change detection **succeeded**, so an empty plan means "nothing changed" and not "the detector broke" | `scripts/ci/detect-changes.sh` |
 | `FR1.3` | the pipeline reached `success` | Woodpecker API |
 | `FR1.4` | the cluster is not already running this tag for the bumped image | live pods |
 | `FR2.1` | the PR originates from the **base repo, not a fork** | GitHub API |
@@ -152,6 +153,24 @@ health. Stack the two and you get a green ship report backed by nothing that ask
 Making it a hard failure turns the probe into a shipping requirement: a workload added without one fails loudly the
 first time its image is bumped. Images with no matching Deployment/StatefulSet (CI images that run as Jobs) are
 **named as unchecked** rather than silently passed, and an empty workload table fails closed.
+
+**Why `DETECT` is a gate and not a quiet pre-check.** On 2026-08-24 the loop was run from
+`nodes/.../tofu/port` with a real dbt-core/sqlparse bump committed on `main`. It printed
+`✓ nothing to ship` and exited **0**; three images were genuinely stale. `detect-changes.sh` resolved both
+of its inputs relatively, so from any directory but the repo root its `images.tsv` was not there — and the
+row-reading `while` loop sits at the **end of a pipeline**, so `grep`'s exit 2 was replaced by the loop's
+exit 0. An empty plan came back with a success status, and the caller (which ran the detector as
+`>/dev/null 2>&1`) had thrown away the one line that said otherwise.
+
+Both halves are fixed: the detector anchors every path to `git rev-parse --show-toplevel` and refuses to
+report "nothing to build" when its manifest is unreadable, absent, or empty; the loop reads the detector's
+**exit status** and keeps its output, aborting at `DETECT` rather than collapsing "found no work" into
+"could not run". **The command is now safe to run from any directory.**
+
+This was the fourth instance in this effort of a failed result standing in for a successful one — after
+`woodpecker-cli --output json` being silently ignored, `curl -sf` collapsing every non-2xx to 0, and
+`promtool` exiting 0 while printing `FAILED`. It is the direction that matters: this one shipped *nothing*
+while reporting success, which is invisible until someone notices the deploy never happened.
 
 Both gates read the same diff file, so it is deleted only after **both** have run — deleting it early is how
 `FR1.5` once passed on an empty image list, verifying nothing.
@@ -288,7 +307,15 @@ decisions are exactly the kind that must not be verified by running them — eve
 docker run --rm -v "$PWD:/code:ro" -w /code bats/bats:latest scripts/tests/
 ```
 
-Also runs in CI as the blocking `shell-tests` step in `.woodpecker.yml`, beside `shellcheck`.
+`scripts/tests/detect-changes.bats` covers the detector separately, because it is the one component
+whose *silence* is indistinguishable from a correct answer. Its first two cases are a matched pair —
+the same fixture run from the repo root and from a subdirectory — so a green "works from elsewhere"
+cannot come from a broken fixture. The fail-closed cases assert the **reason** in the output, not just
+a non-zero exit: `[ "$status" -ne 0 ]` alone passes on exit 127, which is how a test written to prove
+the SMOKE gate failed closed passed against a function that did not exist (2026-08-23).
+
+Also runs in CI as the blocking `shell-tests` step in `.woodpecker.yml`, beside `shellcheck` — the step
+runs `bats scripts/tests/` over the whole directory, so a new suite file needs no CI change.
 
 ---
 

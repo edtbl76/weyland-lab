@@ -464,3 +464,31 @@ smoke_rows() {
   [[ "$output" == *"nothing to ship"* ]]
   never_called woodpecker-cli
 }
+
+@test "DETECT a failing detector aborts with its reason — never 'nothing to ship'" {
+  # 2026-08-24: run from a subdirectory, detect-changes.sh could not find its own images.tsv. The
+  # loop reported "✓ nothing to ship" and exited 0 while three images were genuinely stale.
+  #
+  # detect-changes.sh has been fixed to fail closed, but that only helps if the CALLER looks. This
+  # step ran it as `>/dev/null 2>&1`, so the one line of evidence ("grep: scripts/ci/images.tsv: No
+  # such file or directory") was discarded before anyone could read it. An empty plan from a
+  # detector that FAILED is not the same fact as an empty plan from a detector that SUCCEEDED, and
+  # the loop must not collapse the two.
+  stub_git_pushed
+  stub_dispatch woodpecker-cli
+  stub_dispatch gh
+  stub_dispatch kubectl
+  stub_case kubectl 'get' 0 'registry.weyland.lab/scan-suite:git-2c73c898'
+  printf '#!/usr/bin/env bash\n: > "$PLAN"\necho "detect: images.tsv unreadable — refusing" >&2\nexit 1\n' \
+    > "$STUB_DIR/detect-broken"
+  chmod +x "$STUB_DIR/detect-broken"
+  SHIP_DETECT="$STUB_DIR/detect-broken" run bash "$SHIP"
+  [ "$status" -ne 0 ]
+  # The REASON, not merely a non-zero exit — a bare status check passes on exit 127.
+  [[ "$output" == *"DETECT"* ]]
+  [[ "$output" != *"nothing to ship"* ]]
+  # The detector's own words must survive to the operator.
+  [[ "$output" == *"refusing"* ]]
+  # And a run that cannot tell whether work exists must not start a build.
+  never_called woodpecker-cli
+}

@@ -448,9 +448,22 @@ main() {
   # first is an ordinary quiet day. Asking the same detector CI uses, BEFORE triggering, keeps those
   # two apart and skips a pipeline that would build nothing. Without this, a docs-only commit ends in
   # a red FR1.4 abort that reads like a failure.
-  local plan
+  #
+  # AN EMPTY PLAN IS ONLY MEANINGFUL IF THE DETECTOR SUCCEEDED. Until 2026-08-24 this ran the
+  # detector as `>/dev/null 2>&1` and looked only at the plan file, so "the detector found no work"
+  # and "the detector could not run" produced the identical green line. Run from a subdirectory with
+  # three images genuinely stale, it printed "✓ nothing to ship" and exited 0. Read the status, and
+  # keep the detector's own words — they are the only description of what went wrong.
+  local plan detect_out detect_rc
   plan="$(mktemp)"
-  if PLAN="$plan" sh "$SHIP_DETECT" >/dev/null 2>&1 && [ ! -s "$plan" ]; then
+  detect_out="$(PLAN="$plan" sh "$SHIP_DETECT" 2>&1)" && detect_rc=0 || detect_rc=$?
+  if [ "$detect_rc" -ne 0 ]; then
+    rm -f "$plan"
+    FAILED_GATE="DETECT"
+    FAILED_REASON="change detection to succeed — it exited ${detect_rc}, so an empty plan cannot be read as 'nothing changed'. Detector output: ${detect_out}"
+    abort
+  fi
+  if [ ! -s "$plan" ]; then
     rm -f "$plan"
     printf '✓ nothing to ship — no image build context changed since its deployed tag.\n'
     return 0

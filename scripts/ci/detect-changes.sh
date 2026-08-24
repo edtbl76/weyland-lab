@@ -6,10 +6,50 @@
 # Runs from the repo root in a git-capable image. Output: $PLAN = "image<TAB>context<TAB>newtag<TAB>manifests".
 set -eu
 
+# EVERY input is anchored to the git toplevel, never to the caller's cwd.
+#
+# 2026-08-24: `bash scripts/ship-images.sh` was run from nodes/.../tofu/port while a real
+# dbt-core/sqlparse bump sat committed on main. TSV and PLATFORM were relative, so the TSV simply
+# was not there — and the read loop below is the LAST command in a pipeline, so `grep`'s exit 2 and
+# its "No such file or directory" were both discarded: a `while` over empty input returns 0. The
+# caller saw exit 0 plus an empty plan and reported "✓ nothing to ship". Three images were stale.
+#
+# Same class as the shallow-clone bug described above — an error read as data — except this time it
+# read as "no work", which is the direction that ships nothing while looking successful.
+ROOT="$(git rev-parse --show-toplevel 2>/dev/null || true)"
+[ -n "$ROOT" ] || {
+  echo "[detect] ❌ cannot resolve the repo root (git rev-parse --show-toplevel failed) — refusing to report 'nothing to build'" >&2
+  exit 1
+}
+
+# Resolve PLAN to an absolute path BEFORE the cd, so a caller's relative path still lands where the
+# caller meant it to. In CI cwd is already the repo root, so this is a no-op there.
+PLAN="${PLAN:-.ci-build-plan}"
+case "$PLAN" in
+  /*) : ;;
+  *) PLAN="$(pwd)/$PLAN" ;;
+esac
+
+cd "$ROOT" || {
+  echo "[detect] ❌ cannot enter repo root ${ROOT} — refusing to report 'nothing to build'" >&2
+  exit 1
+}
+
 PLATFORM="nodes/mother/lab/weyland-platform"
 TSV="scripts/ci/images.tsv"
-PLAN="${PLAN:-.ci-build-plan}"
 : > "$PLAN"
+
+# Both checks run HERE, up front, where a failure is still visible. Down in the read loop the exit
+# status belongs to the `while`, and can never speak for the greps feeding it.
+[ -r "$TSV" ] || {
+  echo "[detect] ❌ image manifest not readable: ${TSV} — refusing to report 'nothing to build'" >&2
+  exit 1
+}
+rows="$(grep -v '^[[:space:]]*#' "$TSV" | grep -v '^[[:space:]]*$' | grep -c '' || true)"
+[ "${rows:-0}" -gt 0 ] || {
+  echo "[detect] ❌ no image rows in ${TSV} — refusing to report 'nothing to build'" >&2
+  exit 1
+}
 
 NEWSHA="$(git rev-parse --short=8 HEAD)"
 NEWTAG="git-${NEWSHA}"
