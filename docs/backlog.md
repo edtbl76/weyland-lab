@@ -1821,7 +1821,27 @@ rogueone effectively has **no active backups**: both installed backup tools were
 
 ---
 
-### B131 — Open-PR lifecycle: surface AND resolve dependency + CI PRs — 🔴 **HIGH (widened 2026-08-20; was "Track Dependabot PRs", 🟡 MEDIUM 2026-08-18)**
+### B131 — Open-PR lifecycle: surface AND resolve dependency + CI PRs — ✅ **DONE (2026-08-23)**
+
+**Shipped: `pr-staleness-check`** (`k8s/pr-lifecycle/pr-staleness.yaml`) — a daily 05:45 NY CronJob that lists open PRs across the **six active repos** via the GitHub API, applies a per-kind age budget, and POSTs a synthetic alert to the **Alertmanager v2** API. No routing change was needed: the top-level route is a catch-all to `telegram`.
+
+**Two budgets, because the two kinds of PR mean different things when they sit.** A `ci/image-bump-*` PR older than **1 day** means the ship loop stalled — the B135 failure this exists to catch, and a day is already generous for a machine-authored PR whose only job is to be merged. Anything else is a human's work in progress and gets **7 days**. Keyed on the **branch prefix**, not the author: the prefix says what the PR *is*, the author only says who pushed the button, and the anchored glob means `feature/ci-image-bump-lookalike` does not qualify.
+
+**Daily, not `*/30`.** Synthetic alerts carry no `endsAt`, so Alertmanager auto-resolves after `resolve_timeout` (5m) and treats each firing as a NEW alert — meaning the CronJob cadence **is** the Telegram rate. At `*/30` a single stale PR would send ~48 messages a day, which is not nagging, it is training the operator to ignore the channel. It would also have violated `schedules.md` Design Rule #5 (no mid-day auto-runs).
+
+**The watchdog's own first live run found the bug this whole effort is about.** `curl -sf … | jq` collapsed every non-2xx to exit 0, so a 404 on a private repo reached `jq` as empty input and the run reported "4 open PRs checked" — indistinguishable from a genuinely clean sweep, while silently watching **one repo of six**. Now `curl` writes the body to a file and the status to stdout so the two are never conflated; every repo is attempted even after one fails; and the run exits non-zero naming what it could not check. **A watchdog that goes quiet when it cannot see is worse than no watchdog, because it emits a green signal.**
+
+**Decision logic lives in a ConfigMap**, not inline in container args, because `scripts/tests/pr-staleness.bats` extracts and executes that exact text — a tested copy beside a deployed copy drifts, and the drift is silent because both halves keep passing their own checks. The suite's first test asserts the logic is actually extractable; without that tripwire every later test would be vacuously green against an empty file.
+
+**Live evidence:** three Job runs 2026-08-22. Run 1 failed correctly (`GITHUB_TOKEN not set` — the Secret held an empty value, caught by verifying the stored `b64len` rather than trusting `DATA 1`). Run 2 hit a 404 on `startme-curator` and **named it, attempted all six, exited non-zero**. Run 3: six repos fetched, **4 real alerts** delivered to Telegram and visible in Alertmanager.
+
+**Companion shipped under B135:** `cron-freshness-check` — same pattern pointed at the Woodpecker API, because the *other* way the loop stalls is the nightly cron dying, and a Woodpecker cron is not a Kubernetes object so no metric can ever see it.
+
+**Shipped:** `k8s/pr-lifecycle/pr-staleness.yaml` · `scripts/tests/pr-staleness.bats` (7 tests) · sealed `pr-lifecycle-github` · `runbooks/pr-lifecycle.md` · `schedules.md` row · `diagrams/flow-ship-loop.md` § Watchdogs.
+
+**Residual:** the six repos this watches diverge from the six the Port `github-weyland` integration maps (this set carries `startme-curator`, Port carries `midi_real_book`) — real, deliberate, and tracked in **B138** (repo coverage parity); do not silently reconcile one to the other. Port PR ingestion itself was completed 2026-08-23 and folded into **B137**.
+
+Linear: EMA-192.
 
 Give Dependabot dependency-update PRs a durable, queryable home instead of ad-hoc GitHub browsing. **Quick / ad-hoc (gh):** `gh pr list --repo edtbl76/weyland-lab --author "app/dependabot" --state open` (across repos: `gh search prs --author app/dependabot --state open --owner edtbl76`). **Durable answer = Port** (the lab IDP): its GitHub integration can ingest `pull_request` entities, so build a dashboard table/scorecard filtered to `author = dependabot[bot]` (e.g. "open dependency PRs > N days") — same "see" layer as everything else; first check whether the current GitHub integration mapping already ingests PRs, else it's a mapping addition. Composes with **B63** (CI signals → Port). **Prerequisite:** Dependabot must be enabled per repo (a `.github/dependabot.yml`) for the PRs to exist. **LAN caveat:** Dependabot PRs will NOT auto-trigger Woodpecker CI — GitHub can't reach `woodpecker.weyland.lab` for webhooks (the same wall as all LAN CI); running CI *on* them would be a poll/cron extension of the B57a nightly cron (enumerate open PRs → run the pipeline per branch) — tracking ≠ running. Acceptance: a one-glance view of open Dependabot PRs (age / repo / target dep) — a `gh` alias at minimum, a Port dashboard widget if durable visibility is wanted. $0 (native GitHub + Port). Linear: EMA-192. See [[port-catalog-docs-b59]].
 
@@ -1895,7 +1915,29 @@ Linear: EMA-195. Surfaced during the B133 DoD sweep. Relates B130 (backups), [[s
 
 ---
 
-### B135 — Automate the image build→deploy cadence (script / skill / agent) — 🔴 **HIGH (2026-08-20)**
+### B135 — Automate the image build→deploy cadence (script / skill / agent) — ✅ **DONE (2026-08-23)**
+
+**Shipped: `scripts/ship-images.sh`** — the seven-step hand-run loop is now one command with machine gates. It short-circuits without triggering a pipeline when nothing changed, triggers and polls Woodpecker, closes superseded bump PRs, merges the new one only under three conditions, syncs **only the affected** Argo apps, then verifies against the live cluster. Approval did not disappear; it stopped being a human click. In a solo lab reviewer, approver and on-call are the same person, so a click adds no independent judgement — the gate replaces it with something that cannot be absent-mindedly waved through.
+
+**The three merge conditions, and they are NOT equally strong** — stated plainly because treating them as three defences is the mistake: **same-repo, not a fork** is decided by GitHub and is unspoofable (the load-bearing one — `weyland-lab` is public with no branch protection, so it is the only thing between a stranger's PR and `main`); the **`weyland-ci` author name** is a *convention* set by `git config` and proves nothing alone; the **tags-only diff** is written as "no line fails to match", so a smuggled `memory: 8Gi` fails even though the diff still contains valid tag lines.
+
+**Verification is part of the deploy.** FR1.5 asserts **every** bumped image is live on a pod — the first green run printed `✓ shipped` while `weyland-tool-server` was still on the old tag, because the check passed on one matching pod. A **SMOKE** gate now additionally requires every bumped workload to declare a `readinessProbe` and report all replicas available, which makes the probe a shipping requirement rather than a nice-to-have.
+
+**Seven defects that 47 green tests could not find, all caught by three live runs.** Five were **one bug class — an absent or failed result standing for success** — and two of those were *inside the gate built to prevent it*: `woodpecker-cli --output json` silently ignored; `curl -sf` collapsing every non-2xx to 0; `NOERROR` matching `/error/`; a shallow-clone `git diff` failure read as "changed" (**change detection had never worked in CI** — all 11 images rebuilt nightly while the log printed per-image decisions that looked deliberate); and `rm -f "$diff_file"` running *before* the gate that read it, so FR1.5 passed vacuously on an empty list. Also: FR2.1 originally keyed on PR author `weyland-ci`, which is not a GitHub account; and cleanup deleted a valid PR's branch, which auto-closed PR #33.
+
+**Deployment health sweep found `dagster-user-code` had no `readinessProbe` at all** — the gRPC code server every Dagster run executes inside, `Recreate` strategy, peaks at 10.6 Gi. Its `1/1 Ready` meant only that PID 1 had not exited. Probe added; `feast-server` upgraded from `tcpSocket` to a verified `httpGet /health`.
+
+**Observability: the estate had 41 alert rules and every one watched something that WAS running.** Nothing fired when scheduled work simply did not happen — which is how `nightly-images` sat `enabled: false` for four days while `docs/schedules.md` documented it as daily. Two watchdogs close it: `k8s/monitoring/cron-freshness-rules.yaml` (per-cadence budgets over `kube_cronjob_status_last_successful_time`, a metric that already existed with no consumer, plus an `absent()` companion) and `k8s/pr-lifecycle/cron-freshness.yaml` (a CronJob asking the **Woodpecker API**, because a Woodpecker cron is not a Kubernetes object and kube-state-metrics can never see it).
+
+**Tests: 0 → 62.** This repo had no shell test harness at all when the work started; `bats` is now a blocking CI step.
+
+**Shipped:** `scripts/ship-images.sh` · `scripts/ci/detect-changes.sh` (shallow-clone fix) · `scripts/ci/open-deploy-pr.sh` · `scripts/tests/{ship-images,pr-staleness,cron-freshness,open-deploy-pr}.bats` · `k8s/monitoring/cron-freshness-rules.yaml` · `k8s/pr-lifecycle/cron-freshness.yaml` · `k8s/argocd/argocd-lan.yaml` · probes on `k8s/dagster/user-code.yaml` + `k8s/data-mesh/feast-server.yaml` · sealed `cron-freshness-woodpecker` · docs: `arch.md` §10b + §6 + §9, `runbooks/ship-images.md`, `runbooks/pr-lifecycle.md`, `diagrams/flow-ship-loop.md`, `demos/ship-images.md`, `schedules.md`.
+
+**Residual, tracked not hidden:** **B135 phase 2** — nine images outside `images.tsv` (`weyland-operator`, `weyland-mcp-gateway`, `weyland-mcp-compositor`, `weyland-guard`, `weyland-agent`, `realm-of-agents`, `ray-head`, `a2a-inspector`, `mcp-server-datahub`) are hand-built and uncovered; until they are in, the loop reports success while a third of the fleet is unwatched. **B140** (smoke layer that exercises a real transaction), **B139** (measured: worst 11-image build 15m14s vs a 77-minute window — no collision), **EMA-77** (the demo's three unrun live paths, deferred by decision).
+
+**DoD:** pillars 1, 2, 4, 6 pass; 3 is 🟡 with live execution deferred to EMA-77; 7 partial (the 19-tool `run-scan-suite.sh` still to run on mother); 8 (cascading changes) graded at close-out — it surfaced the freshness rule missing **the watchdog itself**, a stale `applications.yaml` reason, and three unrelated backup CronJobs with no `schedules.md` row running on the wrong clock.
+
+Linear: EMA-196.
 
 Shipping one image change is a **seven-step loop run entirely by hand**, and three of its steps fail **silently** — you find out two steps later via a confusing result, not at the point of the mistake. Run five times on 2026-08-20, it stumbled four; every stumble was a skipped step, not a real fault.
 
@@ -1911,7 +1953,7 @@ Shipping one image change is a **seven-step loop run entirely by hand**, and thr
 
 **Acceptance:** one command takes a pushed change to a verified rollout; every gate is checked and a skipped/failed one **halts with the specific reason** instead of proceeding; verification is against the **live cluster resource**; superseded image-bump PRs are closed automatically.
 
-Linear: EMA-196. Relates B57a (the image CI this wraps), B131 (open-PR lifecycle), B134 (why the refresh is targeted), [[weyland-image-ci-b57a]], [[argocd-gitops-gotchas]].
+Relates B57a (the image CI this wraps), B131 (open-PR lifecycle), B134 (why the refresh is targeted), [[weyland-image-ci-b57a]], [[argocd-gitops-gotchas]].
 
 ---
 
@@ -1964,6 +2006,10 @@ Linear: TBD. Relates **B83** (streaming tier, owns this manifest), B135 (the dep
 **Constraint that shaped the current design and will shape this one:** almost every UI sits behind Keycloak forward-auth and answers an unauthenticated curl with 307 — measured 2026-08-23 for `dagster.weyland.lab`, `dbt-docs.weyland.lab`, `flink.weyland.lab`, `flink-history.weyland.lab`. Only `feast.weyland.lab` answers directly. Any HTTP-based smoke layer therefore has to either run in-cluster or carry a credential into the ship path; the second option puts Keycloak in the deploy critical path and should be argued for explicitly, not drifted into.
 
 **Do not regress:** the SMOKE gate fails closed on an empty workload table and NAMES images it did not check. Preserve both — five of the seven original `ship-images.sh` defects were an absent result read as a positive one, and one of the five SMOKE tests initially passed against no implementation for exactly that reason.
+
+**Companion gap, found 2026-08-23 during the B135 DoD close-out — CronJob FAILURE is still unalerted.** `cron-freshness-rules.yaml` watches `kube_cronjob_status_last_successful_time`, i.e. **absence** of success. A run that **fails and then succeeds** inside its budget is invisible to it. Evidence: `dagster-freshness-check-29791170` sat `Failed` in ns `weyland` for 19h; later runs succeeded, so freshness stayed green and nothing alerted. By the time it was noticed the pod and its events had both aged out, so the cause is unrecoverable — the failure mode this whole effort exists to remove, one layer over.
+
+`DataMeshBackupFailed` (`kube_job_status_failed{namespace="data-mesh", job_name=~"(minio|pg)-backup.*"} > 0`) is the only failure-side rule in the estate and is scoped to two backup jobs. Generalising it to the other nine CronJobs is a handful of lines and completes the pair: **freshness catches "it stopped", a failure rule catches "it ran and broke".** Keep them separate rules — collapsing them hides which of the two happened.
 
 Linear: TBD. Relates **B135** (added the gate this extends), B131, B49 (observability), B1.8 (Feast).
 

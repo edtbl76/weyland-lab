@@ -130,7 +130,14 @@ Recorded honestly, because "the demo IS the test" and a written-but-unrun step p
 | **A cron-produced bump PR** | 🟡 **NOT YET RUN** | pipeline #25 built 0 images, so it opened no PR — B139 item 5 |
 
 The three 🟡 rows are why this demo is **🟡, not ✅**. They are not defects; they need a day on which an image
-build context genuinely changes.
+build context genuinely changes, which cannot be forced without manufacturing a change.
+
+**Deferred by decision to Linear EMA-77** ("B87 — Vet + live-validate all E2E demos"). B135/B131 closed with DoD
+Pillar 3's live-execution requirement carried there rather than holding both issues open on a condition that
+arrives by itself. Closing them here: run `scripts/ship-images.sh` on a day `detect-changes.sh` reports a
+non-empty plan — that single run exercises the SMOKE gate and the cron-produced PR together. For
+`cron-freshness-check`, confirm `kube_cronjob_status_last_successful_time{cronjob="cron-freshness-check"}` has a
+value and the run appears in the CronJob's history; an ad-hoc Job succeeding does **not** prove the schedule.
 
 ## Cleanup / teardown
 
