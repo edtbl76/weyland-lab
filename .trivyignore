@@ -46,3 +46,19 @@ KSV-0056
 # placeholders (real creds sealed in `ranger-admin-secret`, substituted at startup by the render initContainer).
 # Neither ships a real credential — trivy just can't tell a placeholder from a secret on a password-named key.
 KSV-0109
+
+# ---- B135 DoD Pillar 7 (2026-08-23) ----
+# Privileged container (KSV-0017) on buildkitd ONLY. It performs the snapshot/overlay mounts an image build
+# needs; daemonless BuildKit could not do them in an ephemeral step pod on this k3s cluster (EPERM even with
+# privileged + AppArmor-unconfined + trusted-security), which is the whole reason a long-lived daemon exists
+# (B57a, runbooks/woodpecker.md). Internal CI daemon, own namespace, reachable only via cluster DNS on a
+# LAN-only single node.
+#
+# WHY HERE AND NOT INLINE: k8s/woodpecker/buildkitd.yaml already carries `# trivy:ignore:AVD-KSV-0017` (and
+# -0014/-0118) above the resource. Those comments DO NOT WORK — verified 2026-08-23 against the pinned
+# trivy 0.72.0 four ways: with the trailing prose stripped, with the AVD- prefix dropped, with no space after
+# `#`, and relocated directly above the offending securityContext block. All three rules still fired every
+# time. `.trivyignore` via --ignorefile is the mechanism that actually suppresses (which is why -0014 and
+# -0118, listed above, do not appear in scan output while -0017 did). Treat the inline comments as prose
+# documenting intent, NOT as suppression.
+KSV-0017

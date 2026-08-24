@@ -205,7 +205,19 @@ def bandit():
 
 
 def osv():
-    sh(["osv-scanner", "--format", "json", "-r", SRC], outfile=f"{OUT}/osv.json")
+    # --config is REQUIRED, not optional. Without it osv-scanner v1.9.1 never applies
+    # /src/osv-scanner.toml: it looks for a config beside each scanned lockfile, and the accepted
+    # findings live in nested paths (services/weyland-dagster, k8s/flink/sql-runner) that have no
+    # co-located config — and even the one that DOES have a co-located toml was not honoured under
+    # `-r`. Found 2026-08-23 during the B135 DoD Pillar 7 run: every group in osv.json came back
+    # `ignored: null`, i.e. the whole accept-list had never applied. sqlparse@0.5.5 (documented via
+    # PackageOverrides) and lz4-java (a long, careful IgnoredVulns rationale) were both being
+    # re-reported as live highs every week.
+    #
+    # This is the file's own failure mode turned on itself: a control that looks maintained —
+    # the toml exists, is thorough, is under review — while covering nothing. Do not drop this flag.
+    sh(["osv-scanner", "--format", "json", "--config", f"{SRC}/osv-scanner.toml", "-r", SRC],
+       outfile=f"{OUT}/osv.json")
     d = load(f"{OUT}/osv.json") or {}
     c = z()
     for res in (d.get("results") or []):
