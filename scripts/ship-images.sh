@@ -879,7 +879,11 @@ main() {
     txn_ok "$newtag" "$diff_file" || abort
 
   rm -f "$diff_file"
-  printf '✓ shipped — %s is live, smoke-verified, and answering real transactions.\n' "$newtag"
+  # Say what was VERIFIED, not what the gate is named. Run #31 shipped store-scaler, whose TXN line
+  # correctly read "no transaction defined, NOT verified: store-scaler / 0 service(s) answered" — and
+  # this line then claimed it was "answering real transactions". The gate was honest; the summary
+  # under it was not, which is the same false-confidence this whole loop exists to remove.
+  printf '✓ shipped: %s is live and smoke-verified (see the TXN line above for what answered a real transaction).\n' "$newtag"
 }
 
 # Source guard: `SHIP_IMAGES_LIB=1 source ship-images.sh` loads the predicates without running.

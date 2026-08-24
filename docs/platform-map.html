@@ -112,25 +112,25 @@
 <div class="wy">
 <div class="wrap">
 
-  <p class="eyebrow">Weyland · Platform Map · 2026-07</p>
-  <h1 class="title">One box. <span class="fade">Every tool,</span> and what it's for.</h1>
-  <p class="lede">An <b>R&amp;D platform</b> where a governed <b>lakehouse</b> is the substrate and two agent lanes close the loop - <b>Claude Code</b> builds; the <b>operator agent</b> is <b>live</b>, a local-brained (gpt-oss:20b) LangGraph agent on mother. Every technology below runs on a single bare-metal Minisforum MS-A2 (plus one GPU laptop), LAN-only, on a $0 budget — constraints treated as design. This is the full inventory - the numbered spine is the value path (raw data → data products); each row shows the tool, its job, and a <b>real example of it in use</b>.</p>
+  <p class="eyebrow">Weyland · Platform Map · 2026-08</p>
+  <h1 class="title">Built end to end. <span class="fade">Every tool,</span> and what it's for.</h1>
+  <p class="lede">A self-hosted <b>R&amp;D data platform</b> where a governed <b>lakehouse</b> is the substrate and two agent lanes close the loop: <b>Claude Code</b> builds it, and the <b>operator agent</b> runs <b>live</b> as a local-brained LangGraph service. It spans a Proxmox hypervisor, the k3s cluster it hosts, and a GPU workstation, all on the LAN with no cloud dependency and no budget. Every workload is reconciled from git by Argo CD, so the repository is the system of record and a rebuild is a resync rather than a recovery. This is the full inventory. The numbered spine is the value path from raw data to data products, and each row names the tool, the job it does, and a <b>real example of it in use</b>.</p>
 
   <div class="meta">
     <div><div class="n">130+</div><div class="l">Integrations</div></div>
     <div><div class="n">14</div><div class="l">Data stores</div></div>
     <div><div class="n">17</div><div class="l">Consoles / UIs</div></div>
     <div><div class="n">6</div><div class="l">Flow stages</div></div>
-    <div><div class="n">1</div><div class="l">Bare-metal node</div></div>
+    <div><div class="n">77</div><div class="l">Argo apps, all GitOps</div></div>
   </div>
   <div class="legend">
     <span><i class="dot live"></i> Live</span>
-    <span><i class="dot part"></i> Partial - shadow / audit-only / on-demand</span>
-    <span><i class="dot plan"></i> Next - on the roadmap</span>
+    <span><i class="dot part"></i> Partial: shadow, audit-only, or on-demand</span>
+    <span><i class="dot plan"></i> Next: on the roadmap</span>
   </div>
-  <p class="hint"><span class="ar">›</span> each row carries a real usage example - a query, a pipeline, a command, grounded in the actual music &amp; health datasets.</p>
+  <p class="hint"><span class="ar">›</span> every row carries a real usage example: a query, a pipeline, or a command, grounded in the music and health datasets this platform actually serves.</p>
 
-  <div class="sectionlabel">The value path - raw data to data products</div>
+  <div class="sectionlabel">The value path: raw data to data products</div>
   <div class="spine">
 
     <!-- 01 -->
@@ -183,7 +183,7 @@
         <div class="row"><span class="nm"><i class="cdot"></i>DataHub</span><div><div class="rl">metadata catalog + lineage</div><span class="ex">datahub_catalog_emit_job runs ~27 emitters every 6h</span></div></div>
         <div class="row"><span class="nm"><i class="cdot"></i>OpenLineage</span><div><div class="rl">dbt column + run lineage</div><span class="ex">dbt DataFlow + per-model DataJobs + run instances on trino URNs</span></div></div>
         <div class="row"><span class="nm"><i class="cdot"></i>DataHub Assertions</span><div><div class="rl">quality results surface</div><span class="ex">emit_soda_assertions → green/red tab per mart URN</span></div></div>
-        <div class="row"><span class="nm"><i class="cdot"></i>Soda</span><div><div class="rl">data-quality contract scan (marts + silver)</div><span class="ex">B77: extended to silver; advisory posture — caught −1337/1002 lastfm ages</span></div></div>
+        <div class="row"><span class="nm"><i class="cdot"></i>Soda</span><div><div class="rl">data-quality contract scan (marts + silver)</div><span class="ex">B77: extended to silver; advisory posture, and it caught −1337/1002 lastfm ages</span></div></div>
         <div class="row"><span class="nm"><i class="cdot"></i>Great Expectations</span><div><div class="rl">auto-profiling + validation (showcase)</div><span class="ex">B77b: ge_validate_job → 339 assertions; Data Docs at ge-docs.weyland.lab</span></div></div>
         <div class="row"><span class="nm"><i class="cdot"></i>@asset_check gate</span><div><div class="rl">pre-hydration DQ gate</div><span class="ex">no-error · valid-names · no-all-null → ~231 assertions</span></div></div>
         <div class="row"><span class="nm"><i class="cdot"></i>Ranger</span><div><div class="rl">data-plane authz (Trino plugin)</div><span class="ex">MASK_NULL: analyst sees NULL, dbt sees the value</span></div></div>
@@ -278,7 +278,7 @@
         <div class="row"><span class="nm"><i class="cdot"></i>Model-eval leaderboard</span><div><div class="rl">data product · judge-panel scoring</div><span class="ex">eval_leaderboard over RAG × 6 models, 3-judge panel</span></div></div>
         <div class="row"><span class="nm"><i class="cdot"></i>AI-Dev usage</span><div><div class="rl">data product · Claude Code telemetry</div><span class="ex">ai_session_ingest → Port; api_equiv_value ≈ $12K, $0 spent</span></div></div>
         <div class="row"><span class="nm"><i class="cdot"></i>DataHub Data Products</span><div><div class="rl">mesh product bundles</div><span class="ex">9 products (Spotify Audio, Chronic Health Trends, Genre Classifier…)</span></div></div>
-        <div class="row"><span class="nm"><i class="cdot"></i>DataHub Applications (B82)</span><div><div class="rl">app-centric ownership lens</div><span class="ex">29 Application entities + 4157 assets attached, + docs/tags/domain/capabilities — from applications.yaml, the same registry that generates 54 Port components</span></div></div>
+        <div class="row"><span class="nm"><i class="cdot"></i>DataHub Applications (B82)</span><div><div class="rl">app-centric ownership lens</div><span class="ex">29 Application entities + 4157 assets attached, + docs/tags/domain/capabilities, all from applications.yaml, the same registry that generates 54 Port components</span></div></div>
         <div class="row plan"><span class="nm"><i class="cdot"></i>Store-inventory · Tuning-feed</span><div><div class="rl">next data products</div><span class="ex">lineage/observability · Feast → MLflow fine-tuning loop</span></div></div>
         <div class="row"><span class="nm"><i class="cdot"></i>LangGraph</span><div><div class="rl">agentic-RAG control loop</div><span class="ex">retrieve → grade → reflect/re-retrieve → generate; powers weyland-agent</span></div></div>
         <div class="row"><span class="nm"><i class="cdot"></i>weyland-agent</span><div><div class="rl">agentic RAG service</div><span class="ex">agent.weyland.lab · LangGraph + LlamaIndex + MLflow Traces · guards via weyland-guard</span></div></div>
@@ -297,16 +297,16 @@
       <div class="row"><span class="nm"><i class="cdot"></i>Istio</span><div><div class="rl">service mesh (sidecar mTLS)</div><span class="ex">PERMISSIVE mesh + STRICT Postgres; neo4j-bolt DestinationRule</span></div></div>
       <div class="row"><span class="nm"><i class="cdot"></i>Traefik</span><div><div class="rl">ingress + TLS front door</div><span class="ex">mkcert wildcard for *.weyland.lab</span></div></div>
       <div class="row"><span class="nm"><i class="cdot"></i>APISIX</span><div><div class="rl">API / data-plane gateway</div><span class="ex">routes front tool-server /context + vector/graph backends</span></div></div>
-      <div class="row"><span class="nm"><i class="cdot"></i>weyland-mcp-gateway</span><div><div class="rl">MCP gateway — Keycloak-authed front door for /mcp + /mcp-act</div><span class="ex">injects the verified caller identity → guardrail_verdicts; enforcing act policy gate — denies any act without an authenticated identity (live)</span></div></div>
-      <div class="row"><span class="nm"><i class="cdot"></i>MCP server fleet</span><div><div class="rl">6 read-only MCP servers over lab subsystems</div><span class="ex">grafana · trino (lakehouse) · k8s · postgres · neo4j · datahub — one protocol for agents to query the platform; composed behind the gateway (FastMCP)</span></div></div>
+      <div class="row"><span class="nm"><i class="cdot"></i>weyland-mcp-gateway</span><div><div class="rl">MCP gateway: Keycloak-authed front door for /mcp + /mcp-act</div><span class="ex">injects the verified caller identity → guardrail_verdicts; enforcing act policy gate that denies any act without an authenticated identity (live)</span></div></div>
+      <div class="row"><span class="nm"><i class="cdot"></i>MCP server fleet</span><div><div class="rl">6 read-only MCP servers over lab subsystems</div><span class="ex">grafana · trino (lakehouse) · k8s · postgres · neo4j · datahub. One protocol for agents to query the platform; composed behind the gateway (FastMCP)</span></div></div>
       <div class="row"><span class="nm"><i class="cdot"></i>CoreDNS</span><div><div class="rl">LAN DNS resolver</div><span class="ex">authoritative for weyland.lab; coredns-custom in-cluster forward</span></div></div>
       <div class="row"><span class="nm"><i class="cdot"></i>mkcert</span><div><div class="rl">local wildcard CA / TLS</div><span class="ex">wildcard cert + OIDC back-channel bundle</span></div></div>
       <div class="row"><span class="nm"><i class="cdot"></i>Argo CD</span><div><div class="rl">GitOps CD (app-of-apps)</div><span class="ex">77 apps auto-sync; push-to-git → reconcile</span></div></div>
       <div class="row"><span class="nm"><i class="cdot"></i>OpenTofu</span><div><div class="rl">IaC (non-k8s lane)</div><span class="ex">codifies Port blueprints + 5 Proxmox guests; state in MinIO</span></div></div>
-      <div class="row"><span class="nm"><i class="cdot"></i>Woodpecker CI</span><div><div class="rl">CI/CD — mixed fleet (k8s + local agents)</div><span class="ex">B57b: STUD.io CI on local agents (rogueone); B57a: weyland image CI→CD (buildkitd → registry → tag-bump PR → Argo, nightly 01:00 cron); LAN NodePorts :30980/:30900</span></div></div>
+      <div class="row"><span class="nm"><i class="cdot"></i>Woodpecker CI</span><div><div class="rl">CI/CD across a mixed fleet (k8s + local agents)</div><span class="ex">B57b: STUD.io CI on local agents (rogueone); B57a: weyland image CI→CD (buildkitd → registry → tag-bump PR → Argo, nightly 01:00 cron); LAN NodePorts :30980/:30900</span></div></div>
       <div class="row"><span class="nm"><i class="cdot"></i>buildkitd</span><div><div class="rl">BuildKit daemon (B57a)</div><span class="ex">persistent image builder for the weyland CI; thin buildctl client in the step; overlayfs snapshotter + registry cache</span></div></div>
       <div class="row"><span class="nm"><i class="cdot"></i>Container registry</span><div><div class="rl">MinIO-backed OCI registry</div><span class="ex">registry.weyland.lab; blobs in MinIO registry bucket</span></div></div>
-      <div class="row part"><span class="nm"><i class="cdot"></i>KEDA</span><div><div class="rl">event-driven autoscaler — RETIRED 2026-08-22</div><span class="ex">installed 62 days, zero HTTPScaledObjects; its one intended consumer (store sleep) needs an Argo /spec/replicas carve-out KEDA does not avoid</span></div></div>
+      <div class="row part"><span class="nm"><i class="cdot"></i>KEDA</span><div><div class="rl">event-driven autoscaler, RETIRED 2026-08-22</div><span class="ex">installed 62 days, zero HTTPScaledObjects; its one intended consumer (store sleep) needs an Argo /spec/replicas carve-out KEDA does not avoid</span></div></div>
       <div class="row"><span class="nm"><i class="cdot"></i>Port.io</span><div><div class="rl">Internal Developer Platform (SaaS)</div><span class="ex">Launcher + endpoint blueprint (31); K8s / GitHub / Linear exporters</span></div></div>
       <div class="row"><span class="nm"><i class="cdot"></i>port-agent → store-scaler</span><div><div class="rl">outbound action → cluster</div><span class="ex">"Scale data-mesh store" button → least-priv deployments/scale</span></div></div>
       <div class="row"><span class="nm"><i class="cdot"></i>Unleash</span><div><div class="rl">OSS feature flags</div><span class="ex">feature_flag blueprint webhook → Port</span></div></div>
@@ -337,14 +337,14 @@
   <section class="plane">
     <h2>Agents &amp; Interfaces<span class="role">build lane · operate lane · remote ingress</span></h2>
     <div class="rows">
-      <div class="row"><span class="nm"><i class="cdot"></i>Hermes</span><div><div class="rl">RETIRED 2026-07-23 (CT-104 destroyed)</div><span class="ex">NousResearch operator agent — replaced by the operator agent (gpt-oss brain, LangGraph on mother)</span></div></div>
+      <div class="row"><span class="nm"><i class="cdot"></i>Hermes</span><div><div class="rl">RETIRED 2026-07-23 (CT-104 destroyed)</div><span class="ex">NousResearch operator agent, replaced by the operator agent (gpt-oss brain, LangGraph on mother)</span></div></div>
       <div class="row"><span class="nm"><i class="cdot"></i>Claude Code</span><div><div class="rl">builder agent / MCP client</div><span class="ex">claude mcp add weyland → status returns 4 backends + models</span></div></div>
-      <div class="row"><span class="nm"><i class="cdot"></i>Coding agents</span><div><div class="rl">opencode / Cline / Pi / Codex — $0 agentic coding TUIs</div><span class="ex">direct to Mistral/OpenRouter/Gemini free or ChatGPT sub (GPT-5.5); bypasses the gateway (which can't carry a multi-turn tool loop)</span></div></div>
+      <div class="row"><span class="nm"><i class="cdot"></i>Coding agents</span><div><div class="rl">opencode / Cline / Pi / Codex: $0 agentic coding TUIs</div><span class="ex">direct to Mistral/OpenRouter/Gemini free or ChatGPT sub (GPT-5.5); bypasses the gateway (which can't carry a multi-turn tool loop)</span></div></div>
       <div class="row"><span class="nm"><i class="cdot"></i>MCP</span><div><div class="rl">/mcp read · /mcp-act do</div><span class="ex">fastapi-mcp system-view + audited act tools (pipeline/evals)</span></div></div>
       <div class="row"><span class="nm"><i class="cdot"></i>Telegram</span><div><div class="rl">remote ingress + alerts</div><span class="ex">allowlisted DM → operator reply; Alertmanager paging</span></div></div>
       <div class="row"><span class="nm"><i class="cdot"></i>Anthropic Claude API</span><div><div class="rl">cloud reasoning brain</div><span class="ex">Claude Code drives builds over the metered API</span></div></div>
       <div class="row"><span class="nm"><i class="cdot"></i>Open WebUI</span><div><div class="rl">browser chat / voice front end</div><span class="ex">chat.weyland.lab - chat ← Ollama, voice ← whisper shim</span></div></div>
-      <div class="row"><span class="nm"><i class="cdot"></i>weyland-operator</span><div><div class="rl">local-brained LangGraph operator (live 2026-07-24 — Postgres session, act confirm-step)</div><span class="ex">gpt-oss:20b brain (bake-off: ties Haiku), Telegram → tool-server /mcp-act, on mother; replaces retired Hermes</span></div></div>
+      <div class="row"><span class="nm"><i class="cdot"></i>weyland-operator</span><div><div class="rl">local-brained LangGraph operator (live 2026-07-24: Postgres session, act confirm-step)</div><span class="ex">gpt-oss:20b brain (bake-off: ties Haiku), Telegram → tool-server /mcp-act, on mother; replaces retired Hermes</span></div></div>
     </div>
   </section>
 
@@ -367,8 +367,9 @@
 
   <footer class="wf">
     <b>The loop:</b> intent (Port + roadmap) → data product → operation (agents) → telemetry (Grafana / Port) → new intent.<br>
-    <b>Constraints as design:</b> one Minisforum MS-A2 + one RTX-5000 laptop · LAN-only · $0 budget · self-hosted first · heavy tiers on-demand.<br>
-    <b>Two lanes:</b> Claude Code sees &amp; builds · the operator agent (sees &amp; does — local gpt-oss brain, LangGraph on mother, live) is the operator half. · <b>Retired/declined:</b> Hermes, Backstage, Jaeger, Strimzi, Airbyte, Airflow, KubeRay.
+    <b>Topology:</b> a Proxmox hypervisor running the k3s platform in a VM · a GPU workstation for inference, training and edge compute · LAN-only, no public ingress.<br>
+    <b>Constraints as design:</b> $0 budget · self-hosted first · every workload reconciled from git · heavy tiers scheduled on-demand so the fleet stays within its envelope.<br>
+    <b>Two lanes:</b> Claude Code sees &amp; builds · the operator agent (sees &amp; does: local gpt-oss brain, LangGraph on mother, live) is the operator half. · <b>Retired/declined:</b> Hermes, Backstage, Jaeger, Strimzi, Airbyte, Airflow, KubeRay.
   </footer>
 
 </div>
