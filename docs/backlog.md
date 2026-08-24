@@ -2030,7 +2030,35 @@ Linear: EMA-197. Relates B1.5 (dbt transform tier), B131 (dependency lifecycle),
 
 ---
 
-### B143 — Upgrade Woodpecker 3.17.0 → 3.18.0 (log-storage DB migration + gRPC proto enforcement across a mixed fleet) — 🔴 **HIGH (2026-08-24)**
+### B143 — Upgrade Woodpecker 3.17.0 → 3.18.0 (log-storage DB migration + gRPC proto enforcement across a mixed fleet) — ✅ **DONE (2026-08-24)**
+
+**Shipped. Server on 3.18.0, all six agents live, no outage.** Chart `3.7.0 → 3.7.2` in `helm-apps.yaml`.
+
+**The datastore is SQLite, not Postgres** — `/var/lib/woodpecker/woodpecker.sqlite` (WAL) on a 5Gi PVC, **73 MB**. So the release's "back up your database" is a file copy, and the "extended downtime" warning is scaled to installations far larger than this; the migration was seconds. Backup taken first to `/home/emangini/wp-backup-20260824/` on mother (all three files — `.sqlite`, `-wal`, `-shm`; the main file alone is not a consistent WAL snapshot). Two traps on the way: the server image is **distroless**, so no `kubectl exec` / `kubectl cp` — the copy has to happen host-side on mother; and `sudo cp /root-only-dir/glob*` fails because **the shell expands the glob as the unprivileged user before sudo runs** (`/var/lib/rancher/k3s/storage` is `drwx------`). `sudo sh -c '…'` is the fix.
+
+**⚠ THE AGENT IMAGE TAG HAS NEVER MATCHED ITS BINARY — verified, not assumed.** Ran `--version` inside the images:
+
+```
+woodpeckerci/woodpecker-server:v3.18.0  ->  "3.18.0"            ✅
+woodpeckerci/woodpecker-agent:v3.18.0   ->  "next-6d14586713"   ❌ a NIGHTLY
+woodpeckerci/woodpecker-agent:v3.17.0   ->  "next-b6e16d5aec"   ❌ (the live agents)
+```
+
+Three releases now (3.15.0 recorded here previously, 3.17.0, 3.18.0) ship a mislabelled **agent** image while the server image is correct — a defect in upstream's agent release pipeline, not a one-off. **A version pin in `helm-apps.yaml` is a claim about a tag, never about the binary inside it.** The prior comment claiming "3.17.0 ships a matched server+agent pair" was wrong and is corrected in the manifest.
+
+**The feared rejection did NOT happen.** 3.18.0 adds gRPC proto version verification, and the concern was that a genuine 3.18.0 server would refuse `next-*` agents — the documented 3.15.0 CrashLoopBackOff scenario, with enforcement newly looking for it. Operator's call was to run it and find out. Result: the `next-6d14586713` agents (ids 10/11) registered and are LIVE. **The proto version is compatible even when the version string is not a release** — the check is on the proto, not on semver.
+
+**The rogueone half was the real latent hazard, and it is fixed.** The 4 systemd agents under `~/Documents/Studio/woodpecker-agent-{1..4}/` were on **`3.14.0-rc.1`** — a *release candidate*, three minors behind the server, tolerated only because nothing enforced matching. Upgraded to genuine 3.18.0 binaries **first**, before the server moved, with the old binaries kept alongside as `woodpecker-agent.3.14.0-rc.1` for rollback.
+
+**TWO-LEVEL GITOPS — the actual obstacle, worth knowing for any future chart bump.** `helm-apps.yaml` defines Argo **Application CRs**, so a `targetRevision` change there must land via **`weyland-root`** (the app-of-apps) *before* the `woodpecker` app can see it. Syncing `woodpecker` first re-renders its own unchanged spec and reports `Synced` — truthfully and uselessly. Order: `argocd app sync weyland-root`, then `argocd app sync woodpecker`.
+
+**Agent restarts during the roll are expected and benign** — `connection refused` to `woodpecker-server:9000` while agents race the server's rolling restart, not proto refusal. Read the log, not the restart count.
+
+**Follow-ups, both minor:** `woodpecker-cli` on rogueone is still 3.17 (it warns on every invocation; `woodpecker-cli update`). And the agent registration list now holds **11 entries for 6 real agents** — ids 1/2/3 stale for 37h/244h, plus 8/9 orphaned by this rollout. Each rollout adds two; harmless, but it makes "which agents are real?" harder to answer during an incident.
+
+---
+
+### B143 (original plan) — 🔴 **HIGH (2026-08-24)**
 
 Release: https://github.com/woodpecker-ci/woodpecker/releases/tag/v3.18.0. Current: server + 2 k8s agents on `v3.17.0`, **plus 4 local agent systemd services on rogueone** (the STUD.io lane, B57b).
 
