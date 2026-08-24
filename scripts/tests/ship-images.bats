@@ -422,6 +422,61 @@ registry.weyland.lab/weyland-flink:git-9a4996c6'
   [[ "$output" != *"postgres"* ]]
 }
 
+@test "FR1.5 ignores a COMPLETED JOB's pod still carrying the old tag" {
+  # 2026-08-24, live: the loop merged PR #37, every workload really was on git-afb1fb5d, and FR1.5
+  # still failed with `not yet on git-afb1fb5d: scan-suite(git-ef734fc8)`. What it had read was
+  #
+  #   weyland/Job/code-scan-suite-29791500   scan-suite:git-ef734fc8
+  #   weyland/Job/scan-suite-adhoc           scan-suite:git-ef734fc8
+  #
+  # A Job's pod template is IMMUTABLE, so its finished pod carries its creation-time image forever.
+  # `deployed_tag_for` grepped every pod and took `head -n1`, so an arbitrary historical record
+  # outvoted the live workload — and the gate would have failed on scan-suite permanently, for as
+  # long as those Job objects existed. Same "some pod somewhere" class as the partial-rollout bug
+  # this gate replaced, just inverted: some pod somewhere has an OLD tag.
+  SHIP_IMAGES_LIB=1 source "$SHIP"
+  stub_dispatch kubectl
+  stub_case kubectl 'status.phase=Running' 0 'registry.weyland.lab/scan-suite:git-9a4996c6
+registry.weyland.lab/weyland-flink:git-9a4996c6'
+  stub_case kubectl 'get cronjob' 0 ''
+  # What `kubectl get pods -A` actually returns today — the finished Job pod listed FIRST, which is
+  # exactly what head -n1 picked up.
+  stub_case kubectl 'get' 0 'registry.weyland.lab/scan-suite:git-ef734fc8
+registry.weyland.lab/scan-suite:git-9a4996c6
+registry.weyland.lab/weyland-flink:git-9a4996c6'
+  run all_bumped_images_live 'git-9a4996c6' "$FIXTURES/tags-only.diff"
+  [ "$status" -eq 0 ]
+}
+
+@test "FR1.5 verifies a CronJob-only image from its template, not from pods" {
+  # scan-suite runs ONLY as a weekly CronJob, so between runs it has NO pod at all. A pod-only check
+  # cannot verify it in principle — it would read `absent` and fail every time outside the ~minutes
+  # the job is actually executing. The CronJob's own pod template IS the deployed state for it.
+  # smoke_ok already treats Job-shaped images specially; FR1.5 did not.
+  SHIP_IMAGES_LIB=1 source "$SHIP"
+  stub_dispatch kubectl
+  stub_case kubectl 'status.phase=Running' 0 'registry.weyland.lab/weyland-flink:git-9a4996c6'
+  stub_case kubectl 'get cronjob' 0 'registry.weyland.lab/scan-suite:git-9a4996c6'
+  stub_case kubectl 'get' 0 'registry.weyland.lab/weyland-flink:git-9a4996c6'
+  run all_bumped_images_live 'git-9a4996c6' "$FIXTURES/tags-only.diff"
+  [ "$status" -eq 0 ]
+}
+
+@test "FR1.5 still fails when a RUNNING pod carries an old tag" {
+  # The control for the two tests above. Without it, a fix that simply stopped looking at anything
+  # would pass them both while verifying nothing — which is the failure mode this gate exists for.
+  SHIP_IMAGES_LIB=1 source "$SHIP"
+  stub_dispatch kubectl
+  stub_case kubectl 'status.phase=Running' 0 'registry.weyland.lab/scan-suite:git-9a4996c6
+registry.weyland.lab/weyland-flink:git-2c73c898'
+  stub_case kubectl 'get cronjob' 0 ''
+  stub_case kubectl 'get' 0 'registry.weyland.lab/scan-suite:git-9a4996c6
+registry.weyland.lab/weyland-flink:git-2c73c898'
+  run all_bumped_images_live 'git-9a4996c6' "$FIXTURES/tags-only.diff"
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"weyland-flink"* ]]
+}
+
 @test "FR1.5 fails closed when the bumped-image list cannot be read" {
   # Nearly shipped as another false green: `rm -f "$diff_file"` ran BEFORE this gate, so the image
   # list came back empty, the loop never executed, nothing was marked stale, and the gate PASSED —

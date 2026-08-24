@@ -247,14 +247,19 @@ bumped_image() {
 all_bumped_images_live() {
   local tag="${1:?usage: all_bumped_images_live <tag> <diff-file>}"
   local diff_file="${2:?usage: all_bumped_images_live <tag> <diff-file>}"
-  local img deployed stale="" checked=0
+  local img tags stale="" checked=0
   [ -f "$diff_file" ] || { printf '  cannot read the bumped-image list (%s)\n' "$diff_file" >&2; return 1; }
   while read -r img; do
     [ -n "$img" ] || continue
-    deployed="$(deployed_tag_for "$img")"
-    deployed="${deployed##*:}"
+    tags="$(deployed_tags_for "$img")"
     checked=$((checked + 1))
-    [ "$deployed" = "$tag" ] || stale="${stale} ${img}(${deployed:-absent})"
+    # EVERY tag seen for this image must be the target — not merely "the target appears somewhere".
+    # A mid-rollout image legitimately shows two tags, and that is not shipped yet.
+    if [ -z "$tags" ]; then
+      stale="${stale} ${img}(absent)"
+    elif [ "$tags" != "$tag" ]; then
+      stale="${stale} ${img}($(printf '%s' "$tags" | tr '\n' ',' | sed 's/,$//'))"
+    fi
   done <<<"$(bumped_images "$diff_file")"
   # Verifying NOTHING is not verifying successfully.
   [ "$checked" -gt 0 ] || { printf '  no bumped images found to verify — refusing to call that shipped\n' >&2; return 1; }
@@ -339,10 +344,28 @@ smoke_ok() {
   return 0
 }
 
-# The tag the cluster is currently running for one image.
-deployed_tag_for() {
-  kubectl get pods -A -o jsonpath='{..image}' 2>/dev/null | tr ' ' '\n' \
-    | grep -E "^${REG//./\\.}/${1:?usage: deployed_tag_for <image>}:" | head -n1
+# Every tag the cluster currently declares or runs for one image, one per line, deduped.
+#
+# TWO SOURCES, because two kinds of workload answer "is this live?" differently:
+#   - long-running (Deployment/StatefulSet/DaemonSet) -> the images of its RUNNING pods
+#   - scheduled    (CronJob)                          -> the CronJob's own pod template
+#
+# RUNNING PODS ONLY, and NEVER a bare `head -n1`. Both halves were wrong, and both bit on 2026-08-24:
+# the loop merged PR #37, every workload really was on git-afb1fb5d, and FR1.5 still reported
+# `scan-suite(git-ef734fc8)`. It had read two COMPLETED Job pods —
+# `code-scan-suite-29791500` and the leftover `scan-suite-adhoc` — whose templates are IMMUTABLE and
+# therefore carry their creation-time image forever. `head -n1` then let one arbitrary historical
+# record outvote the live workload. That gate would have failed on scan-suite permanently.
+#
+# The CronJob source is not an extra: `scan-suite` runs ONLY as a weekly CronJob, so outside the few
+# minutes it executes it has NO pod at all, and a pod-only check reads `absent` and fails forever.
+# smoke_ok already special-cases Job-shaped images; this is the same accommodation for FR1.5.
+deployed_tags_for() {
+  local img="${1:?usage: deployed_tags_for <image>}"
+  {
+    kubectl get pods -A --field-selector=status.phase=Running -o jsonpath='{..image}' 2>/dev/null | tr ' ' '\n'
+    kubectl get cronjob -A -o jsonpath='{..image}' 2>/dev/null | tr ' ' '\n'
+  } | grep -E "^${REG//./\\.}/${img}:" | sed 's#.*:##' | sort -u || true
 }
 
 # Open image-bump PRs as `<number><TAB><branch><TAB><author>`, newest first. Go-template rather than
@@ -625,11 +648,20 @@ main() {
   #
   # Compared against an image the PR ACTUALLY TOUCHES, not against whatever pod the cluster happens
   # to list first. An arbitrary comparand makes the gate pass or fail for reasons unrelated to it.
-  local image deployed
+  # The comment above was already right and the old implementation contradicted it: `deployed_tag_for`
+  # ended in `head -n1`, which IS "whatever pod the cluster happens to list first". Collapse the whole
+  # tag set instead — only an image that is ENTIRELY on the new tag counts as already-deployed. An
+  # empty set, an older tag, or a mid-rollout mix all mean there is still work to do.
+  local image deployed deployed_ref
   image="$(bumped_image "$diff_file")"
-  deployed="$(deployed_tag_for "${image:-none}")"
+  deployed="$(deployed_tags_for "${image:-none}")"
+  if [ "$deployed" = "$newtag" ]; then
+    deployed_ref="${REG}/${image}:${newtag}"
+  else
+    deployed_ref="${REG}/${image:-none}:not-fully-${newtag}"
+  fi
   gate FR1.4 "the cluster is not already running ${newtag} for ${image:-the bumped image}" \
-    sha_differs_from_deployed "$newtag" "${deployed:-none:none}" || abort
+    sha_differs_from_deployed "$newtag" "$deployed_ref" || abort
 
   # FR2.1 — both conditions, or no merge.
   gate FR2.1 "PR #${pr_num} originates from ${REPO} itself, not a fork" pr_is_same_repo "$pr_num" || abort
