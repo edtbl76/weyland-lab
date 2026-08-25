@@ -145,17 +145,28 @@ spec:
             description: "The job executed and exited non-zero. This is the half freshness cannot see: if a later run succeeds inside the budget, the freshness rule goes quiet and the failure is lost with the pod's events."
 
         # A CronJob that has NEVER succeeded exports no series at all, so every threshold rule above
-        # is silent for it — absence again, one level up. absent() is what turns "no data" from an
-        # implicit pass into an explicit alert.
+        # is silent for it — absence again, one level up.
+        #
+        # ⚠ REWRITTEN 2026-08-25. This was three hardcoded `absent()` clauses naming pr-staleness-check,
+        # postgres-backup and minio-backup. `cron-freshness-check` was NOT among them — and it turned out
+        # to be the one CronJob in the estate that had **never succeeded once**, from the day B140 shipped
+        # it, because its Woodpecker URL had the wrong namespace AND the wrong port. The rule written to
+        # catch "never succeeded" could not see the only job it was true of.
+        #
+        # That is the same blind spot as check-app-registry.sh reconciling two lists and missing a third
+        # thing in neither: a hand-maintained subset silently stops covering what gets added later.
+        #
+        # So it is now GENERIC. `unless on(...)` returns every CronJob that has NO last-successful-time
+        # series, whatever its name — new jobs are covered the moment they exist, and the alert names the
+        # offender through its own labels instead of a sentence listing what someone remembered.
         - alert: ScheduledJobNeverSucceeded
           expr: |
-            absent(kube_cronjob_status_last_successful_time{cronjob="pr-staleness-check"})
-            or absent(kube_cronjob_status_last_successful_time{cronjob="postgres-backup"})
-            or absent(kube_cronjob_status_last_successful_time{cronjob="minio-backup"})
+            kube_cronjob_info
+              unless on (namespace, cronjob) kube_cronjob_status_last_successful_time
           for: 2h
           labels:
             severity: critical
             source: cron-freshness
           annotations:
-            summary: "A watched CronJob has no recorded successful run at all"
-            description: "kube_cronjob_status_last_successful_time is absent for at least one of pr-staleness-check, postgres-backup, minio-backup. Either the CronJob was deleted, it has never completed successfully, or kube-state-metrics has stopped exporting it. A threshold rule cannot fire on a series that does not exist, which is why this rule exists separately."
+            summary: "CronJob {{ $labels.cronjob }} has NO recorded successful run at all ({{ $labels.namespace }})"
+            description: "kube_cronjob_status_last_successful_time does not exist for {{ $labels.cronjob }}. Either it was just created and has not run yet, it has never completed successfully, or kube-state-metrics stopped exporting it. A threshold rule cannot fire on a series that does not exist, which is why this rule exists separately — and it is deliberately generic rather than a hand-listed subset, because the hand-listed version missed cron-freshness-check for the entire time that job was broken."

@@ -2199,7 +2199,36 @@ Linear: EMA-205. Relates **B137** (found during its DoD sweep), B120/B69 (the sc
 
 ---
 
-### B145 — The Port k8s exporter's own deployment is live-only (and its blueprint enum is wrong) — 🟠 **MEDIUM (2026-08-25)**
+### B145 — The Port k8s exporter's own deployment is live-only (and its blueprint enum is wrong) — ✅ **DONE (2026-08-25)**
+
+**Both halves done and verified live.** The exporter is under GitOps, its credentials are sealed, and `k8s_workload.kind` now carries `Job`/`CronJob` on all 39 batch entities.
+
+**The exporter had run 38+ days `helm install`ed by hand** — no manifest, no Argo app, no `applications.yaml` entry, and its Port credentials sitting in a Secret with **no ownerReferences at all**. It feeds the entire k8s half of the Port catalog (`k8s_workload` / `k8s_pod` / `k8s_namespace` / `k8s_node` / `k8s_replicaSet` / `k8s_cluster` + both `istio_*` blueprints), so losing the namespace would have silently emptied all of it with nothing in git to rebuild from.
+
+**Why nothing caught it, and this is the transferable part:** `check-app-registry.sh` reconciles **Argo apps against the registry**. A workload never onboarded to Argo is absent from *both* sides, so the guard reported "every deployed Argo app is accounted for" while this one sat outside the comparison entirely. **A check that diffs two lists cannot see a third thing present in neither.**
+
+**Shipped:** Argo app `port-k8s-exporter` (chart pinned to **0.3.28 / app 0.7.4 — the version already running**; this codifies, it does not upgrade, because mixing the two means a later failure has two candidate causes) · values at `k8s/port-k8s-exporter/port-k8s-exporter-values.yaml` · registry entry (`check-app-registry` green at **78**) · the credential sealed to `sealed/port-k8s-exporter__weyland-cluster-port-k8s-exporter.yaml`, allow-list 56 → **57**.
+
+**Two safety checks were run BEFORE writing anything, and both were load-bearing:**
+
+1. **Would an Argo-triggered restart wipe B137's mapping?** No — `OVERWRITE_CONFIGURATION_ON_RESTART=false` on the live Deployment, and the mounted ConfigMap's `config.yaml` is literally `{}`, **three bytes**. The mapping does not live in the cluster at all; it lives in Port, where `b137_integrations.tf` codifies it. Had that flag been `true`, adopting this into Argo would have destroyed the `ownerReferences` guard and the batch-mapping fixes.
+2. **Would the first sync replace rather than adopt?** `helm template` was diffed against the live objects: name, image, args, **all 13 env vars**, `envFrom`, the ConfigMap (`config.yaml` *and* `state_key`), ServiceAccount, and ClusterRole rules — **identical**. Adoption is a genuine no-op. `prune: false` on the app, deliberately: the release was created outside Argo, and pruning during an adoption is how you delete the thing you meant to take ownership of.
+
+**The enum question was ANSWERED BY EXPERIMENT, not decided.** `k8s_workload.kind` was an enum of StatefulSet/DaemonSet/Deployment/Rollout, and Port drops an out-of-enum value **silently** — which is why B137 wrote `null` rather than a value that would look accepted and write nothing. The blueprint is integration-**owned**, so the stated fear was that the exporter would revert any extension. Test: extend the enum → restart the exporter (which runs `CREATE_DEFAULT_RESOURCES=true`) → re-read. **It survived.** Corroborated independently: the blueprint's `updatedAt` had sat at `2026-06-20T16:54:37` — *eight seconds after the integration was created* — unchanged for **66 days across 3 pod restarts**. The exporter has never rewritten it.
+
+Also learned and worth keeping: **the exporter does not rewrite unchanged entities when a mapping changes.** Two minutes of polling produced nothing; a restart is what forces the full resync. Live result: `Job: 28, CronJob: 11`, `kind` populated on all 168 `k8s_workload` entities.
+
+**Cascade — adding one Argo app moved the documented count on TEN surfaces.** `check-doc-counts.sh` caught nine (`arch.md`, `api.md`, `hosts.md`, `platform-map.html`, `argocd.md`, `weyland.likec4` ×2, `deploy.md`, `application-taxonomy.md`, `flow-application-taxonomy.md`, `applications.yaml`). It **structurally cannot see the tenth** — the platform-map stat tile splits the number and its label across separate HTML elements, so the phrase "77 apps" never appears. Fixed anyway; a wrong number is wrong whether or not a check can see it. Same blind-spot family as the guard gap this item is about.
+
+**Post-change health verified rather than asserted:** both restarted deployments 1/1 ready; the exporter authenticating and bulk-upserting with `failedCount: 0` after the reseal; `tofu plan` clean; **2** Port audit failures in the hour spanning three restarts — one transient (the exporter's own pod, mid-rollout, single occurrence, current pod present at HTTP 200) and one the known jupyterhub `proxy` replicaSet residue. Baseline for scale: 176 in a single nightly run before B137.
+
+**DoD:** **1 ✅** `port.md` · `opentofu.md` · `secrets.md` · `applications.yaml` + the ten count surfaces. **2 ✅ N/A** — no new component in the C4 sense; the exporter was already modelled as the `weyland-cluster` integration. **3 ✅ N/A** — codifying an existing workload adds no new user-facing workflow; the verification is the helm-template diff, recorded above. **4 ✅ N/A**. **5 ✅** Linear EMA-204, backlog flipped. **6 ✅** — this pillar *is* the item: now reproducible from git, secret restorable and sealed, monitored by the existing exporter path. **7 ✅** yamllint clean; no new code (values + an Argo app). **8 ✅** cascade above.
+
+Linear: EMA-204.
+
+---
+
+### B145 (original entry) — 🟠 **MEDIUM (2026-08-25)**
 
 Found while validating B137. `weyland-cluster-port-k8s-exporter` runs in ns `port-k8s-exporter` (Helm chart `port-k8s-exporter-0.3.28`, app 0.7.4, pod 38 days old, 3 restarts) with **no manifest in `k8s/`, no Argo application, and no entry in `applications.yaml`**. It was `helm install`ed by hand and has been reconciling the entire k8s catalog into Port ever since.
 

@@ -42,7 +42,20 @@ data:
     fi
 
     AM="http://monitoring-kube-prometheus-alertmanager.monitoring.svc.cluster.local:9093/api/v2/alerts"
-    WP="${WOODPECKER_URL:-http://woodpecker-server.weyland.svc.cluster.local:8000}"
+    # ⚠ THE DEFAULT BELOW WAS WRONG IN TWO WAYS AND THIS JOB NEVER SUCCEEDED ONCE (fixed 2026-08-25).
+    # It read `woodpecker-server.weyland.svc.cluster.local:8000`. The Service lives in namespace
+    # **woodpecker**, not weyland, and listens on **80**, not 8000. Every scheduled run since B140 died
+    # at `curl` with a transport failure; `kube_cronjob_status_last_successful_time` was ABSENT the whole
+    # time, i.e. lastSuccessfulTime: <none>.
+    #
+    # The bats suite passed throughout, and could not have caught this: it STUBS curl, so it verifies the
+    # decision logic and never the CONTRACT with the real service. Same lesson as the ship-images stubs —
+    # observe the real thing once before encoding an external address.
+    #
+    # Verified from inside the cluster before changing it:
+    #   woodpecker-server.weyland.svc.cluster.local:8000    -> TRANSPORT FAILURE
+    #   woodpecker-server.woodpecker.svc.cluster.local:80   -> HTTP 200
+    WP="${WOODPECKER_URL:-http://woodpecker-server.woodpecker.svc.cluster.local:80}"
 
     # Repo 2 is edtbl76/weyland-lab. Override for a scoped run.
     REPO_IDS="${WP_REPO_IDS:-2}"
