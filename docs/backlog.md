@@ -2388,7 +2388,25 @@ All four were copy-paste from the deployments mapping. Same class as the `cron-f
 - **The k8s exporter itself is not in git.** `weyland-cluster-port-k8s-exporter` runs in ns `port-k8s-exporter` (Helm, chart 0.3.28, 38d old) with no manifest and no Argo app — the same disease one layer down, found while validating this work. Also carries a `Completed` pod from 65 days ago.
 - **The jupyterhub `k8s_replicaSet` residue** is still unexplained and still not chased.
 
-**DoD:** 1 ✅ (`port.md`, `opentofu.md`, `woodpecker.md`; no endpoint/host/timer change) · 2 ✅ N/A · 3 ✅ N/A · 4 ✅ · 5 ✅ · 6 ✅ N/A · 7 ✅ N/A (no image change) · 8 ✅ (guard wired to CI; `check-cron-freshness-budgets` / `check-app-registry` / `check-doc-counts` / mermaid all green).
+**Pillar 8 — the cascade, walked explicitly.** Nothing here errored, went red, or alerted; every one of these was a surface that should have learned about the change and would simply never have.
+
+| Trigger | Cascaded to | Status |
+|---|---|---|
+| A **guard script** (`check-port-iac-coverage.sh`) | bats suite · shellcheck · a CI step · runbook usage block | ✅ 18 tests (mutation-verified), CI step `port-iac-coverage` **blocking** |
+| A **new workflow** | `flow-port-iac-coverage.md` sequence diagram + `demos/port-iac-coverage.md` + the demos ledger row | ✅ all three; demo RUN, including the negative case |
+| **Port catalog changed** (DoD §1 names Port explicitly) | 21 blueprints · 8 scorecards · 4 integrations codified; `k8s_workload` gained 10 CronJob entities | ✅ asserted live, not inferred from a plan |
+| `arch.md` **§6 OpenTofu row** | said "Port's **8** blueprints + **5** Proxmox guests… Port entities next" | ✅ **was stale twice and wrong once** — 21/8/4/1 now, 3 Proxmox guests, and Port entities are deliberately never coming |
+| `arch.md` **Port.io row** | claimed **twice** "no standalone k8s-exporter is deployed" and that `k8s_workload` links are MCP-maintained | ✅ **flatly false** — the exporter has been running for 38+ days. The runbook was corrected on 2026-08-22; arch.md still carried the same wrong claim in two places. Fixed, with the bad inference recorded (Port is SaaS + LAN-only ⇒ nothing can scrape — but the exporter pushes **outbound**) |
+| `platform-map.html` | OpenTofu card said "Port blueprints + 5 Proxmox guests"; Port.io card said "K8s / GitHub / Linear exporters" | ✅ both refreshed |
+| **The reverse sweep** — `applications.tf` stopped declaring entities | `flow-application-taxonomy.md` still drew `TF->>PORT: for_each → 54 component entities`, and `demos/application-taxonomy.md` still told the reader to verify the Port side with `tofu plan` | ✅ **both corrected** — that plan check was not just stale, it was the wrong instrument, and it would have kept "passing" forever. Replaced with a live entity query, **run**: 64 components, 30 data-app / 34 pure-compute |
+| A **repo-level guard needing secrets** | two Woodpecker repo secrets, `events: [cron, manual]` | ✅ created (ids 7, 8); a secret not covering the triggering event is a whole-config **PARSE** error, not a failed step |
+| **Woodpecker live-only state** | repo ids, `trusted` flags, the cron row, secret names + events → `runbooks/woodpecker.md` with recreate calls | ✅ |
+| **A timer?** | none added — `nightly-images` already had its `schedules.md` row and B140's watchdog | ✅ N/A, verified rather than assumed |
+| **An endpoint / host / image / dataset / new service?** | none | ✅ N/A |
+
+**Nothing else cascades.** Written down because an unasked question and a genuinely-empty answer look identical.
+
+**DoD:** **1 ✅** — `port.md` · `opentofu.md` · `woodpecker.md` · `arch.md` (2 rows, one carrying a false claim) · `platform-map.html`; relevance sweep run across `runbooks/` · `demos/` · `diagrams/` · top-level, which is what caught the two stale application-taxonomy surfaces. api/hosts/schedules N/A (no endpoint, host or timer change), verified not assumed. **2 ✅** — `flow-port-iac-coverage.md` authored + parses (124 mermaid blocks green); `flow-application-taxonomy.md` corrected. LikeC4 N/A (no new deployed component; the exporter's placement belongs to **B145**, which is what makes it a component the model should carry). **3 ✅** — `demos/port-iac-coverage.md`, **RUN end-to-end**: guard 51/21/30 · 8/8 · 4/4, negative case exit 1 naming all 8 scorecards, `tofu plan` clean, live spot-checks, 18 bats. Ledger row 49 added. **4 ✅** — steps 1/2/4/5/6/7 read-only and say so; step 3's throwaway `/tmp` copy has a teardown. **5 ✅** — Linear EMA-198 Done, backlog flipped, memory `opentofu-iac-gotchas` updated with the generalizable lesson (*a clean `tofu plan` is not coverage*) + the `port_integration` attribute rules + three Port-API traps; tier rebalance **proposed to the human, not applied**. **6 ✅** — B137's own deliverables are all reproducible from git; the one operational gap found (the exporter itself is not in git) is **filed as B145**, not swallowed. **7 ⚠️ PARTIAL** — shellcheck clean across the whole shell surface, 128 bats green, `check-sa-automount-collisions.sh` green (no SA/RBAC change anyway), CodeScene **N/A — it does not support `.sh`**; the `code-scan-suite` run needs `kubectl` on mother and is the **one item outstanding**. **8 ✅** — table above.
 
 Linear: EMA-198.
 

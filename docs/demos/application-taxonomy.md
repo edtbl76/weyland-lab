@@ -26,10 +26,21 @@ kubectl -n weyland exec deploy/dagster-user-code -- python -c "import weyland_pi
 ```
 Expected: `(29, 4157)`, then `APP ATTACHMENT: {...}` + `ZERO-ASSET APPS: [...]` (the empty ones are the plausibly-will / no-source apps — expected).
 
-**Port side** — 54 components with the flag distribution:
+**Port side** — the component entities. **Corrected 2026-08-25 (B137):** `tofu plan` is the WRONG check here and
+was always misleading — component entities are **not** in OpenTofu. B60 split schema (tofu) from data (MCP + the
+integrations), and until B137 executed the `state rm` half, those 64 entities sat in state making every plan report
+`0 to add, 64 to change`. Ask Port directly instead:
+
 ```
-tofu -chdir=tofu/port plan   # clean (no drift) once applied
+cd nodes/mother/lab/weyland-platform/tofu/port && set -a && . ./.env && set +a && TOK=$(curl -sS -X POST https://api.port.io/v1/auth/access_token -H 'Content-Type: application/json' -d "{\"clientId\":\"$PORT_CLIENT_ID\",\"clientSecret\":\"$PORT_CLIENT_SECRET\"}" | python3 -c 'import sys,json;print(json.load(sys.stdin)["accessToken"])') && curl -sS https://api.port.io/v1/blueprints/component/entities -H "Authorization: Bearer $TOK" | python3 -c "
+import sys,json,collections
+e=json.load(sys.stdin)['entities']
+print('components:',len(e))
+print('is_data_application:',dict(collections.Counter(x['properties'].get('is_data_application') for x in e)))"
 ```
+
+Expected: **64 components**. For the tofu lane's own coverage check see
+[port-iac-coverage.md](port-iac-coverage.md).
 
 **Drift guard** — every deployed Argo app is accounted for in the registry:
 ```
