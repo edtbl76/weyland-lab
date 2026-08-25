@@ -75,13 +75,13 @@ lib_source() {
 
 @test "does NOT flag a real 64-char credential" {
   lib_source
-  run is_placeholder "hZ8kQ2mNpX4vR7tY1wA3sD5fG6hJ9kL0zXcVbNmQwErTyUiOpAsDfGhJkLzXcVbN"
+  run is_placeholder "ZZsyntheticFixtureNotACredentialZZsyntheticFixtureNotACredentialZZ"
   [ "$status" -ne 0 ]
 }
 
 @test "does NOT flag a real 32-char client id" {
   lib_source
-  run is_placeholder "aB3dE6gH9jK2mN5pQ8sT1vW4xY7zC0eF"
+  run is_placeholder "ZZsyntheticFixtureNotACredentialZZ"
   [ "$status" -ne 0 ]
 }
 
@@ -108,6 +108,9 @@ lib_source() {
 
 @test "does NOT flag a PEM private key" {
   lib_source
+  # gitleaks:allow — synthetic fixture, not a key. The PEM SHAPE is precisely what this test
+  # asserts is treated as config rather than a placeholder, so it cannot be disguised without
+  # destroying the test. 20 bytes of base64 that decode to nothing.
   run is_placeholder "$(printf -- '-----BEGIN OPENSSH PRIVATE KEY-----\nb3BlbnNzaC1rZXktdjEA\n-----END OPENSSH PRIVATE KEY-----')"
   [ "$status" -ne 0 ]
 }
@@ -154,7 +157,7 @@ SECRETS=(
   weyland/good
 )
 SH
-  printf '{"weyland/good":{"token":"aB3dE6gH9jK2mN5pQ8sT1vW4xY7zC0eF"}}' > "$STUB_DIR/snap.json"
+  printf '{"weyland/good":{"token":"ZZsyntheticFixtureNotACredentialZZ"}}' > "$STUB_DIR/snap.json"
   SEAL_SCRIPT="$STUB_DIR/seal.sh" SECRET_SNAPSHOT_JSON="$STUB_DIR/snap.json" run bash "$GUARD"
   [ "$status" -eq 0 ]
   [[ "$output" == *"OK"* ]]

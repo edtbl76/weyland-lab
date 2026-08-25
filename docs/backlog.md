@@ -1871,7 +1871,7 @@ Give Dependabot dependency-update PRs a durable, queryable home instead of ad-ho
 
 ### B133 — Migrate off the bespoke "Method" onto AWS AI-DLC v2 — ✅ **DONE 2026-08-21 [Linear EMA-194]**
 
-**Shipped:** the lab's development workflow moved **off the bespoke "Method"** (a maintained fork of AWS AI-DLC) **onto AWS `aidlc-workflows` v2, clean** — pinned to the **`v2` branch @ `4d0968f`** (internal **v2.6.18**). `/aidlc` is now **invoke-on-demand**: 33 stages / 5 phases / 14 agents, an approval gate per stage, and a learning loop that promotes corrections into persistent rules. Artifacts land in **`aidlc/spaces/<space>/intents/<record>/`** (tracked), **not** the gitignored `aidlc-docs/`. `CLAUDE.md` dropped from **222 lines → 19** (`@AGENTS.md` + lab conventions); the engine lives in `.claude/` + root `AGENTS.md` + the `aidlc/` workspace. Design: `aidlc-docs/aidlc-v2-migration.md`.
+**Shipped:** the lab's development workflow moved **off the bespoke "Method"** (a maintained fork of AWS AI-DLC) **onto AWS `aidlc-workflows` v2, clean** — pinned to the **`v2` branch @ `4d0968f`** (internal **v2.6.18**). `/aidlc` is now **invoke-on-demand**: 33 stages / 5 phases / 14 agents, an approval gate per stage, and a learning loop that promotes corrections into persistent rules. Artifacts land in **`aidlc/spaces/<space>/intents/<record>/`**, **not** the gitignored `aidlc-docs/`. **CORRECTED 2026-08-25 (B146): those artifact directories are NOT tracked.** This entry said "(tracked)", and it stopped being true on 2026-08-21 when the operator decided to ignore the AI-DLC workspace wholesale — per-intent records included. What IS tracked under `aidlc/` is only the instruction layer: `spaces/*/memory/` (@-imported into CLAUDE.md by explicit path), `active-space`, and the 177-byte `intents/intents.json` index. 84 of the 94 files under `aidlc/` are correctly ignored. `CLAUDE.md` dropped from **222 lines → 19** (`@AGENTS.md` + lab conventions); the engine lives in `.claude/` + root `AGENTS.md` + the `aidlc/` workspace. Design: `aidlc-docs/aidlc-v2-migration.md`.
 
 **Why:** the fork was a **fork tax** — every upstream release forced a re-port, which is exactly what triggered this. And the overlay's *substance* turned out not to be AI-DLC at all: what actually drives quality here is this project's **DoD 8-pillar gate**, `backlog.md`, and the memory system, all of which survive untouched. The consulting framing that *was* Method-specific (mob rituals, team-ownership, engagement archetypes) is ceremony for a solo lab — **consciously dropped, not ported**. Comparative placement + decision matrix (v2 vs Method vs OpenSpec/SpecKit/BMAD vs Kiro vs nothing): [arch.md §8c](arch.md#8c-development-lifecycle-ai-dlc-v2-b133). This **supersedes** B86's "keep the Method as the spine" recommendation — the *coverage-asymmetry finding* stands unchanged (v2 spans the same full arc), only the incumbent changed; **B126** (borrow delta specs / EARS / constitution / context-engineered unit files) now targets v2's stage files and is *easier*, since `core/` → `dist/<harness>/` is an explicit customization seam the fork never had.
 
@@ -2143,7 +2143,34 @@ sealing that faithfully preserved the placeholder), [[feedback-verify-secret-aft
 
 ---
 
-### B146 — `.gitignore` says `aidlc/` is not committed; 12 committed files say otherwise — 🟠 **MEDIUM (2026-08-25)**
+### B146 — `.gitignore` says `aidlc/` is not committed; 12 committed files say otherwise — ✅ **DONE (2026-08-25)**
+
+**Fixed. `git ls-files | git check-ignore --no-index --stdin` returns EMPTY (was 12), and the rule now says what is actually true.**
+
+**It was two separate bugs wearing one symptom**, and the split matters:
+
+1. **The rule was UNANCHORED.** `aidlc/` matches a directory of that name at *any depth*, so it also swallowed **`.claude/skills/aidlc/`** — the orchestrator skill and `question-rendering.md`. Line 100 of the same file states the instruction layer is tracked. Nothing about that was intentional; anchoring to `/aidlc/*` confines it to the workspace it was written for.
+2. **The file contradicted itself.** Line 100 names `aidlc/spaces/*/memory/` as tracked; line 123 ignored it. They were written at different times and the later one never reconciled with the earlier. This was load-bearing, not cosmetic: **`.claude/rules/aidlc.md` @-imports seven of those files BY EXPLICIT PATH** (`org`, `team`, `project`, `phases/{ideation,inception,construction,operation}`), so ignoring them leaves a fresh clone with seven broken imports and no rules layer at all.
+
+**The resolution keeps the 2026-08-21 operator decision intact** — the workspace stays ignored wholesale, because **84 of the 94 files** under `aidlc/` are codekb stores, per-intent artifacts and machine-local bookkeeping that genuinely do not belong in git. What changed is that the 10 already-tracked instruction-layer files are now explicitly re-included. **Nothing was untracked and no behaviour changed**; the file simply stopped lying.
+
+**A gitignore constraint forced the verbose form, worth knowing:** git cannot re-include a file whose *parent directory* is excluded, so each level has to be re-opened before the next can be negated — `/aidlc/*` · `!/aidlc/spaces/` · `/aidlc/spaces/*` · … A single `/aidlc/` plus negations silently does nothing.
+
+**Verified in both directions**, because a rule that stops ignoring too much is as broken as one that ignores too much: `.aidlc-clone-id`, `.aidlc-sessions`, `spaces/*/codekb`, `spaces/*/knowledge` and the per-intent artifact directories all still ignored ✓; the 10 tracked files plus the 2 `.claude` skill files all visible ✓; `git status --untracked-files=all aidlc/` offers **0** new files ✓; the CLAUDE.md @-import chain still resolves ✓.
+
+**⚠ I introduced a regression while fixing this, and caught it in the same pass.** The scan came back `gitleaks: 2C` — up from 0 on both earlier runs the same day. Both were **mine**, in `scripts/tests/secret-placeholders.bats`: a synthetic 32-char token fixture (`generic-api-key`) and a fake PEM (`private-key`). Neither is a real credential, but gitleaks cannot tell and neither can a human reading the report — **which is precisely the disease this item exists to remove**, pointed at a different scanner. Fixed rather than suppressed where possible: the token fixtures were rewritten to be unmistakably synthetic while exercising the identical code path; the PEM keeps a single `# gitleaks:allow` with its reason, because the PEM *shape* is what that test asserts and disguising it would destroy the test. Gitleaks now reports **0 repo-wide**, verified locally, and the suite is still 20/20.
+
+**Cascade — one stale claim found and corrected:** B133's backlog entry said intent artifacts land in `aidlc/spaces/<space>/intents/<record>/` **"(tracked)"**. They are not, and stopped being so on 2026-08-21. Corrected in place. The `aidlc-docs-gitignored` memory was also clarified — `aidlc-docs/` and `aidlc/` are *different directories with different rules and different intent*, and conflating them is what makes this area confusing.
+
+**⚠ ONE ACCEPTANCE ITEM PENDING THE PUSH.** `secret-files` still reported **12** on the 19:28 scan, because the scan-suite clones from **git** and the fix is not yet pushed. The check was reproduced locally with scan.py's exact logic (`git ls-files | git check-ignore --no-index --stdin`) and returns **0**. It will read 0 on the first scan after the push — that is the confirmation to look for, not a re-verification of the local result.
+
+**DoD:** **1 ✅** the `.gitignore` block IS the documentation and now carries the full rationale; B133's entry corrected. **2 ✅ N/A** — no workflow, no component, nothing to diagram. **3 ✅ N/A** — a gitignore rule has no UI or CLI walkthrough; the verification is the two-direction check above, which is recorded in full. **4 ✅ N/A** — creates nothing. **5 ✅** Linear EMA-205, backlog flipped, `aidlc-docs-gitignored` memory clarified. **6 ✅ N/A** — no deployment. **7 ✅** scan RUN (`s3://scan-reports/2026-08-25T19-28-59Z/`); it caught my own gitleaks regression, now 0 repo-wide. **8 ✅** cascade above.
+
+Linear: EMA-205.
+
+---
+
+### B146 (original entry) — 🟠 **MEDIUM (2026-08-25)**
 
 Surfaced by the `code-scan-suite` run during B137's DoD sweep. `secret-files` reported **12 CRITICAL**, and unlike most of this suite's highs it is **not phantom** — reproduced locally, byte for byte:
 

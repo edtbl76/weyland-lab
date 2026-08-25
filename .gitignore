@@ -117,10 +117,48 @@ certs/
 #  - The codekb is derived from the code and regenerable; a fresh clone simply
 #    rescans, which is the correct behaviour anyway.
 #
-# NOTE: files already tracked stay tracked — .gitignore does not untrack them.
-# aidlc/spaces/default/memory/*.md and intents.json are in the index today and
-# need explicit untracking if that is wanted.
-aidlc/
+# ── CORRECTED 2026-08-25 (B146). The rule below was `aidlc/`, unanchored, and it
+# was wrong in two separate ways. Found by `secret-files` in the code-scan-suite,
+# which flags the tracked ∩ gitignored intersection as CRITICAL on the theory that
+# a committed-and-then-hidden file is usually a leaked secret. It reported 12.
+#
+# 1. UNANCHORED. `aidlc/` matches a directory named `aidlc` at ANY depth, so it also
+#    swallowed `.claude/skills/aidlc/` — the orchestrator skill, which line 100 of
+#    this very file states is TRACKED as part of the instruction layer. Anchoring it
+#    to `/aidlc/` confines it to the workspace directory it was written for.
+#
+# 2. IT CONTRADICTED LINE 100. That line says the instruction layer is tracked and
+#    names `aidlc/spaces/*/memory/` explicitly; this rule then ignored it. The two
+#    were written at different times and the later one never reconciled with the
+#    earlier. `.claude/rules/aidlc.md` @-imports SEVEN of those files BY EXPLICIT
+#    PATH (org, team, project, phases/{ideation,inception,construction,operation}),
+#    so ignoring them means a fresh clone has seven broken @-imports and no rules
+#    layer at all.
+#
+# THE RESOLUTION: keep ignoring the workspace wholesale — 84 of the 94 files under
+# aidlc/ are codekb stores, intent artifacts and per-machine bookkeeping, and none of
+# that belongs in git — but explicitly re-include the instruction layer that is
+# already tracked and already depended on. Nothing is untracked and nothing changes
+# behaviour; the file simply now says what is actually true.
+#
+# The negation chain below is verbose because git cannot re-include a file whose
+# PARENT DIRECTORY is excluded. Each level has to be re-opened before the next can
+# be negated, which is why it is `/aidlc/*` rather than `/aidlc/`.
+#
+# STILL DELIBERATELY IGNORED: .aidlc-clone-id · .aidlc-sessions · spaces/*/codekb
+# (derived, regenerable) · spaces/*/knowledge · the per-intent artifact directories.
+/aidlc/*
+!/aidlc/active-space
+!/aidlc/spaces/
+/aidlc/spaces/*
+!/aidlc/spaces/default/
+/aidlc/spaces/default/*
+# the method/rules layer — @-imported into CLAUDE.md context, must survive a clone
+!/aidlc/spaces/default/memory/
+# the intent INDEX only (177 bytes); the per-intent record directories stay ignored
+!/aidlc/spaces/default/intents/
+/aidlc/spaces/default/intents/*
+!/aidlc/spaces/default/intents/intents.json
 
 # Stray secret copies — n8n reads the key from a k8s Secret, not this file.
 # NOTE: already in git history — untrack + rotate the n8n key (security task).
