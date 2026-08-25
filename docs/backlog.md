@@ -2030,6 +2030,54 @@ Linear: EMA-197. Relates B1.5 (dbt transform tier), B131 (dependency lifecycle),
 
 ---
 
+### B147 — `port-creds` holds `YOUR_ID` / `YOUR_SECRET`; the B62 AI-Dev Usage pipeline has never worked — 🟠 **MEDIUM (2026-08-25)**
+
+Found during B144's secret work, while checking whether an existing Port credential secret could be reused instead of creating a second one.
+
+**`weyland/port-creds` contains literal placeholders.** Base64-decoded from the live Secret:
+
+```
+PORT_CLIENT_ID       = YOUR_ID       (7 bytes)
+PORT_CLIENT_SECRET   = YOUR_SECRET   (11 bytes)
+```
+
+Asked of Port rather than inferred: `POST /v1/auth/access_token` with those values returns **HTTP 401**.
+
+**It is wired into a live workload.** `dagster-user-code` mounts both keys via `secretKeyRef`, and
+`weyland_pipeline/assets/ai_session.py:57` reads `os.environ["PORT_CLIENT_ID"]` to authenticate the B62
+**AI-Dev Usage** pipeline (Claude Code telemetry → Port `ai_session`). With a 401 it cannot write anything.
+
+**It has never worked, and the timestamps prove it rather than suggest it.** `ai_session` holds 37 entities;
+**every one was written 2026-06-23T20:21Z by `user_LsOqrzfUpyETjoWR`** — a *user* account, not the
+integration. The Secret was created at **20:44:48Z, twenty-three minutes later**. So the 37 are hand/MCP
+seeded from B62's build-out, and from the moment the credential existed it was a placeholder. Nothing has
+been written in **63 days**. `ai_user` has **0** entities and always has.
+
+**The part that makes this more than a typo: the placeholder is sealed into git.** `port-creds` is in the
+`seal-secrets.sh` allow-list, the sealed CR is committed at
+`k8s/sealed-secrets/sealed/weyland__port-creds.yaml`, and the live Secret carries
+`ownerReferences: [SealedSecret/port-creds]` — so the controller writes it *from* the sealed value. **A
+full restore faithfully restores a 401.** DoD Pillar 6's "secrets restorable" is satisfied on paper —
+sealed ✅, in git ✅, Argo-applied ✅, `DATA 2` ✅ — while what it restores authenticates to nothing. Exactly
+the shape [[feedback-verify-secret-after-create]] exists for: *base64-decode a fresh Secret before relying
+on it*, because a placeholder and a real credential are byte-indistinguishable from the outside.
+
+**Not fixed as part of B144, deliberately.** B144 got its own `port-pr-reconcile-creds` rather than reusing
+this one, because fixing `port-creds` turns a dormant pipeline back on as a side effect and that deserves
+its own change with its own verification.
+
+**Acceptance:** `port-creds` holds real org credentials, verified by decoding the STORED value and getting a
+**200** from `/v1/auth/access_token` (not by `DATA 2`); re-sealed and the CR updated in git; the B62 asset
+runs and `ai_session` gains an entity with `createdBy` = the integration rather than a user; a decision
+recorded for `ai_user` (0 entities — is the blueprint wanted at all?); and **a guard**, because this class
+recurs — the cheapest is to assert every credential-bearing Secret in the allow-list authenticates, the same
+posture as `check-pip-audit-ignores.sh` asking PyPI rather than asking a comment.
+
+Linear: EMA-206. Relates **B62** (the pipeline this kills), **B144** (found during its secret work), B69 (the
+sealing that faithfully preserved the placeholder), [[feedback-verify-secret-after-create]].
+
+---
+
 ### B146 — `.gitignore` says `aidlc/` is not committed; 12 committed files say otherwise — 🟠 **MEDIUM (2026-08-25)**
 
 Surfaced by the `code-scan-suite` run during B137's DoD sweep. `secret-files` reported **12 CRITICAL**, and unlike most of this suite's highs it is **not phantom** — reproduced locally, byte for byte:
@@ -2075,7 +2123,57 @@ Linear: EMA-204. Relates **B137** (found there), **B131** (same coverage-looks-t
 
 ---
 
-### B144 — Port `githubPullRequest` entities are never reaped (the ship loop manufactures them) — 🔴 **HIGH (2026-08-25; promoted from MEDIUM the same day — it corrupts two DORA scorecards and it is the ship loop's own wake)**
+### B144 — Port `githubPullRequest` entities are never reaped (the ship loop manufactures them) — ✅ **DONE (2026-08-25)**
+
+**SHIPPED AND VERIFIED LIVE. Port and GitHub agree for the first time since the ship loop started producing tag-bump PRs: `port=7 github=7`.**
+
+`k8s/pr-lifecycle/port-pr-reconcile.yaml` — a ConfigMap holding the decision logic plus a CronJob at **05:15 NY**, joining `pr-staleness-check` and `cron-freshness-check` in the existing directory-based Argo app. Built **TDD, Red→Green**: 19 bats tests written first, confirmed failing for the right reason, then the implementation. Full suite **147 green** (was 128).
+
+**It is the only job in `pr-lifecycle/` that destroys data, and it is built accordingly.** Its siblings only ever POST an alert — worst case a missed page. This one issues `DELETE /v1/blueprints/githubPullRequest/entities/<id>` against the live catalog, so worst case is deleting real data because GitHub returned a 502. The single decision that authorises a delete is an **allow-list**:
+
+```sh
+should_reap() { case "${1:-}" in closed) return 0 ;; *) return 1 ;; esac; }
+```
+
+`[ "$1" != "open" ]` was the obvious form and is **exactly wrong** — it returns true for the empty string, so an unparseable response, a renamed field or a network blip would each authorise deleting a live entity. Everything upstream fails closed the same way: a non-200 from Port or GitHub, a token reply with no `accessToken`, an entity missing its `repository` relation or `prNumber`, or a GitHub **404** all skip that entity and exit the run non-zero. A 404 is deliberately **not** read as "gone, therefore reap" — Port knows about that PR, so a 404 means the two systems disagree, and deleting on a disagreement is the destructive guess this job exists not to make. The majority of the 19 tests assert that **nothing was deleted**.
+
+**Live validation, in order:**
+
+| Step | Result |
+|---|---|
+| Dry run (`PORT_REAP_DRY_RUN=1`) | 8 entities checked, **exactly one flagged** — `weyland-lab#36`, the entity diagnosed in B137 |
+| Entity backed up first | `/tmp/claude-1000/reap/entity-4345412397-backup.json` — the integration will NOT recreate it, since it only fetches open PRs |
+| Live run | reaped `4345412397`, 7 others untouched |
+| **Acceptance** | **`port=7 github=7` — MATCH**, asserted across the six mapped repos, not eyeballed |
+| Steady-state re-run | `7 open PR entities checked, 0 reaped`, exit 0 — and the job SAYS which, so "nothing to do" is distinguishable from "could not see" |
+
+**The secret was verified three ways, because `DATA 2` proves nothing.** `port-pr-reconcile-creds` (keys `clientId`/`clientSecret`) checked by b64-length arithmetic, decoded length, and a live **HTTP 200** from `/v1/auth/access_token` using the **stored** value rather than the `.env` one. It is deliberately **not** `weyland/port-creds` — reusing that was the first instinct, and checking it first is what surfaced **B147**: it holds the literal placeholders `YOUR_ID`/`YOUR_SECRET`, returns 401, is sealed into git in that state, and has silently killed the B62 AI-Dev Usage pipeline for 63 days.
+
+**Two mechanisms were ruled out with evidence before building this** — recorded so they are not re-proposed: `POST /v1/integration/github-weyland/resync` returns `{"ok":true}` and does nothing (no log rows, no `resyncState` movement, no entity change); and `spec.appSpec.incrementalSyncEnabled: false` is **not durable** — set three times, reverted three times by the Port-hosted integration re-registering with its own appSpec, no human action in between.
+
+**Pillar 8 — the cascade, walked explicitly:**
+
+| Trigger | Cascaded to | Status |
+|---|---|---|
+| **A timer** | `schedules.md` row (NY time · cadence · weight · owner); off-hours + no-heavy-on-heavy checks; a freshness signal | ✅ — and **05:00 was the wrong slot**, taken by the DataHub dbt scan. Corrected to 05:15. Picked by reading the neighbouring rows instead of the table, which is the documented mistake; worth recording because `check-cron-freshness-budgets.sh` asserts a row **exists**, not that the time is free, so CI would never have caught the collision |
+| **A CronJob** | `ScheduledJobStale` (26h daily budget) + **exactly one** `ScheduledJobFailed` rule | ✅ guard reports `ok`/`ok`, 11 CronJobs. The **failure** rule matters more than freshness here: because it fails closed, a broken run exits non-zero having reaped nothing while the catalog keeps accumulating — freshness stays quiet as long as a later run succeeds |
+| **A secret** | `seal-secrets.sh` allow-list (an allow-list, **not** a filter) + the header count + the documented total in `secrets.md` | ✅ 27→28 weyland, 55→56 total |
+| **A shared Argo app** | `applications.yaml` `pr-lifecycle` reason text said "**TWO** CronJobs" | ✅ → THREE, with the destroys-data caveat. Same stale-reason-text cascade B135 hit on this exact entry |
+| **A new workflow** | sequence diagram + demo + ledger row | ✅ `flow-port-pr-reconcile.md`, `demos/port-pr-reconcile.md` (RUN), ledger row 50 |
+| **The runbook** | `pr-lifecycle.md` opened "**Two** CronJobs share the Argo app" | ✅ → Three, new § with the two dead-end mechanisms, the fail-closed design, and the verify-by-comparison step |
+| **The C4 model** | LikeC4 `deliveryWatchdogs` said "**two** CronJobs … Both POST synthetic alerts" | ✅ → three, split into two that WATCH and one that ACTS |
+| **`arch.md`** | §10b named both watchdogs; also carried "**62 bats**" from B135 | ✅ third job added; bats count corrected to **147**, counted rather than guessed |
+| **An endpoint / host / image / dataset / repo?** | none | ✅ N/A, verified not assumed |
+
+**DoD:** **1 ✅** `pr-lifecycle.md` · `schedules.md` · `secrets.md` · `arch.md` · `applications.yaml`; api/hosts N/A (no endpoint or host change). **2 ✅** `flow-port-pr-reconcile.md` + LikeC4 corrected; 125 mermaid blocks parse. **3 ✅** demo RUN end-to-end including the destructive step. **4 ✅** read-only steps marked; the destructive step has a backup and a documented restore. **5 ✅** Linear EMA-203 (promoted Medium→High on both surfaces in the same step, per the human's call), backlog flipped, B147 filed as EMA-206. **6 ✅** reproducible from git (directory-based Argo app picks the file up); secret restorable — **see the outstanding item below**; monitored (stale + failure rules); triggered (05:15 daily). **7 ✅** `code-scan-suite` RUN 2026-08-25 (`s3://scan-reports/2026-08-25T15-34-32Z/`). kubescape went **534H → 540H**; all six land on this manifest and all six are triaged in its header. Five (C-0009/C-0050/C-0270 CPU+resource limits · C-0211 security context · C-0237 image signature) are **byte-identical to what both sibling CronJobs already produce** — verified by diffing the failed-control sets, not assumed. The sixth, **C-0012 'Applications credentials in configuration files', is novel and a false positive**: it flags the ConfigMap because the script embeds the literal JSON `{"clientId":…,"clientSecret":…}` in its token payload, where the siblings use a single `${TOKEN}` var. Proven phantom — the real id and secret are both absent from the file (grepped against the live values) and gitleaks + detect-secrets both return **0** across the repo on the same run. **A methodology note worth keeping:** the first attempt to attribute these highs returned a clean **zero**, which was wrong — it intersected against `resourceIDs.failedResources`, a field kubescape leaves empty. A zero from an unverified query is not evidence; the mechanism was checked and the query redone from the per-resource results. Also green: yamllint, kubeconform 2/2, shellcheck, **147 bats**. **8 ✅** table above.
+
+**⚠ ONE ITEM OUTSTANDING:** `port-pr-reconcile-creds` exists in the cluster and authenticates, but has **not yet been sealed** — `scripts/seal-secrets.sh --seal` has not been run, so `k8s/sealed-secrets/sealed/weyland__port-pr-reconcile-creds.yaml` does not exist. Until it does, the CronJob will not start on a cluster rebuilt from git. The allow-list entry and the docs are in place; only the seal + rsync remain.
+
+Linear: EMA-203.
+
+---
+
+### B144 (original entry) — 🔴 **HIGH (2026-08-25; promoted from MEDIUM the same day — it corrupts two DORA scorecards and it is the ship loop's own wake)**
 
 `github-weyland` fetches **only open PRs** — confirmed in the integration's own stored raw examples (`[Rest] Fetching open PRs`). A PR that closes simply stops appearing, and an incremental sync upserts but never deletes. So every closed PR leaves a permanent Port entity claiming `status: open`, `closedAt: null`.
 

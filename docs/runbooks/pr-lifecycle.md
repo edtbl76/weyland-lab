@@ -1,15 +1,23 @@
 # pr-lifecycle — the delivery-pipeline watchdogs
 
-Two CronJobs share the `pr-lifecycle` Argo app (`k8s/pr-lifecycle/`). Neither deploys anything; both
-answer the same question about the ship loop: **did the thing that was supposed to happen, happen?**
+**Three** CronJobs share the `pr-lifecycle` Argo app (`k8s/pr-lifecycle/`). None deploys anything. Two
+answer the same question about the ship loop — **did the thing that was supposed to happen, happen?** —
+and the third cleans up after it.
 
-| CronJob | Schedule (NY) | Asks | Alert |
+| CronJob | Schedule (NY) | Asks | Acts |
 |---|---|---|---|
-| `pr-staleness-check` | 05:45 daily | is a PR sitting open past its age budget? | `OpenPullRequestStale` (warning) |
-| `cron-freshness-check` | 04:30 daily | is the Woodpecker `nightly-images` cron enabled, with a future `next_exec`? | `ScheduledWorkNotRunning` (critical) |
+| `cron-freshness-check` | 04:30 daily | is the Woodpecker `nightly-images` cron enabled, with a future `next_exec`? | alert `ScheduledWorkNotRunning` (critical) |
+| `port-pr-reconcile` | 05:15 daily | does Port still believe a closed PR is open? | **DELETES** the stale entity |
+| `pr-staleness-check` | 05:45 daily | is a PR sitting open past its age budget? | alert `OpenPullRequestStale` (warning) |
 
-Both POST a synthetic alert to the **Alertmanager v2 API**, which needs no routing change — the
-top-level route is a catch-all to `telegram`.
+The two watchdogs POST a synthetic alert to the **Alertmanager v2 API**, which needs no routing change —
+the top-level route is a catch-all to `telegram`.
+
+> ⚠ **`port-pr-reconcile` is the odd one out and the dangerous one.** The other two only ever emit an
+> alert; their worst failure is a missed page. This one issues
+> `DELETE /v1/blueprints/githubPullRequest/entities/<id>` against the live catalog, so its worst failure
+> is deleting real data because GitHub returned a 502. Read
+> [Reaping stale Port PR entities](#reaping-stale-port-pr-entities-b144) before changing anything in it.
 
 ## Why these are CronJobs and not PrometheusRules
 
@@ -41,7 +49,7 @@ job's own manifest:
 |---|---|---|
 | every 30m | `dagster-freshness-check` | 2h |
 | every 6h | `lancedb-sync` | 8h |
-| daily | `minio-backup` · `pg-backup` · `postgres-backup` · `docs-site-rebuild` · `pr-staleness-check` · `cron-freshness-check` | 26h |
+| daily | `minio-backup` · `pg-backup` · `postgres-backup` · `docs-site-rebuild` · `pr-staleness-check` · `cron-freshness-check` · `port-pr-reconcile` | 26h |
 | weekly (Sun) | `sonar-scan` · `code-scan-suite` | 8d |
 
 **Budgets are per-cadence deliberately.** A blanket "no success in 24h" would false-fire on both
@@ -99,6 +107,94 @@ bash scripts/check-cron-freshness-budgets.sh --list
 `--list` prints the per-CronJob table and exits 0; without it the guard gates. It **fails closed** —
 an unparseable schedule or a missing input is an error, never a skip.
 
+## Reaping stale Port PR entities (B144)
+
+`github-weyland` fetches **only open PRs** — confirmed in the integration's own stored raw examples
+(`[Rest] Fetching open PRs`). When a PR closes it stops appearing in the source data, and an incremental
+sync **upserts but never deletes**. The entity survives forever claiming `status: open`, `closedAt: null`.
+
+The ship loop makes that a steady producer rather than a curiosity: `ship-images.sh` opens a tag-bump PR
+on most runs and its FR2.3 gate closes superseded ones outright. Two were caught by hand three days apart
+(weyland-lab #34 and #36) before this job existed.
+
+**Why it matters:** these entities feed `service/dora_lead_time` and `service/delivery_performance`. A PR
+that closed weeks ago but still reads `open` inflates cycle time permanently — the scorecard gets *worse*
+with age instead of measuring anything.
+
+### Two mechanisms that do NOT work — do not re-propose them
+
+- **`POST /v1/integration/github-weyland/resync`** returns `{"ok":true}` and does nothing. No new log
+  rows, no `resyncState` movement, no entity change — even with incremental sync disabled. That 200 is
+  not evidence of anything.
+- **`spec.appSpec.incrementalSyncEnabled: false`** is **not durable**. Set 2026-08-23 → reverted by 08-24;
+  set again → `true` by 08-25. The integration is Port-hosted SaaS (`installationType: SaasOAuth2`), so it
+  re-registers and pushes its own appSpec over server-side edits. Three attempts, three reversions, no
+  human action in between. (Note the top-level `{"incrementalSyncEnabled": false}` PATCH is a separate
+  trap: it returns HTTP 200 and is silently ignored — the flag lives under `spec.appSpec`.)
+
+### How it fails closed
+
+The single decision that authorises a `DELETE` is an **allow-list**:
+
+```sh
+should_reap() { case "${1:-}" in closed) return 0 ;; *) return 1 ;; esac; }
+```
+
+`[ "$1" != "open" ]` was the obvious form and it is exactly wrong — it returns true for the **empty
+string**, so an unparseable response, a renamed field or a network blip would each authorise deleting a
+live entity. Everything upstream fails closed the same way: a non-200 from Port or GitHub, a token
+response with no `accessToken`, an entity missing its `repository` relation or `prNumber`, or a GitHub
+**404** all cause that entity to be **skipped** and the run to exit non-zero. A 404 is deliberately not
+read as "gone, therefore reap" — Port knows about that PR, so a 404 means the two systems disagree, and
+deleting on a disagreement is the destructive guess this job must not make.
+
+### Running it by hand
+
+Dry run first, always. It reports what it would reap and touches nothing:
+
+```
+cd nodes/mother/lab/weyland-platform/k8s/pr-lifecycle
+awk -v key="port-pr-reconcile.sh" '$0 ~ "^  " key ": \\|" {g=1;next} g && !/^    / && !/^[ \t]*$/ {g=0} g {sub(/^    /,"");print}' port-pr-reconcile.yaml > /tmp/reap.sh
+set -a && . ../../tofu/port/.env && set +a && export GITHUB_TOKEN="$(gh auth token)"
+PORT_REAP_DRY_RUN=1 sh /tmp/reap.sh
+```
+
+Real output, 2026-08-25:
+
+```
+fetched the open PR entity list from Port successfully
+check entity 4240999487 = midi_real_book#3 github_state=open
+check entity 4345412397 = weyland-lab#36 github_state=closed
+  -> would reap 4345412397 (weyland-lab#36 is closed)
+...
+done - 8 open PR entities checked, 1 reaped
+```
+
+Drop `PORT_REAP_DRY_RUN=1` to act. In-cluster it runs from the `port-pr-reconcile-logic` ConfigMap, which
+is the same text `scripts/tests/port-pr-reconcile.bats` executes — 19 tests, most of which assert that
+nothing was deleted.
+
+### Verifying it worked
+
+Not "the job exited 0" — compare the two systems:
+
+```
+bash -c 'cd nodes/mother/lab/weyland-platform/tofu/port && set -a && . ./.env && set +a
+TOK=$(curl -sS -X POST https://api.port.io/v1/auth/access_token -H "Content-Type: application/json" -d "{\"clientId\":\"$PORT_CLIENT_ID\",\"clientSecret\":\"$PORT_CLIENT_SECRET\"}" | python3 -c "import sys,json;print(json.load(sys.stdin)[\"accessToken\"])")
+curl -sS https://api.port.io/v1/blueprints/githubPullRequest/entities -H "Authorization: Bearer $TOK" | python3 -c "import sys,json;print(\"port:\",len(json.load(sys.stdin)[\"entities\"]))"
+for r in weyland-lab stud.io midi_real_book Algopedia ServiceTransformation emangini-tailwind-nextjs-contentlayer; do gh pr list --repo edtbl76/$r --state open --json number --jq length; done | paste -sd+ | bc'
+```
+
+The two numbers must match. First matching run was **7 = 7** on 2026-08-25, immediately after the reaper
+removed weyland-lab #36.
+
+### Secret
+
+`port-pr-reconcile-creds` (keys `clientId` / `clientSecret`), Port **organization** credentials.
+**Deliberately NOT `weyland/port-creds`** — that one is mounted by `dagster-user-code` and, as of
+2026-08-25, holds the literal placeholders `YOUR_ID` / `YOUR_SECRET` and returns HTTP 401 (**B147**).
+Verify a fresh copy by decoding the **stored** value and authenticating with it, never by `DATA 2`.
+
 ## Operating it
 
 Run either job now (either host with `kubectl`; these are on **mother**):
@@ -140,9 +236,11 @@ cron has never been scheduled — the created-disabled state.
 |---|---|---|---|
 | `pr-lifecycle-github` | `weyland` | GitHub PAT, `Pull requests: read` on the six active repos | `k8s/sealed-secrets/sealed/weyland__pr-lifecycle-github.yaml` |
 | `cron-freshness-woodpecker` | `weyland` | Woodpecker API token (user-scoped) | `k8s/sealed-secrets/sealed/weyland__cron-freshness-woodpecker.yaml` |
+| `port-pr-reconcile-creds` | `weyland` | Port **organization** clientId / clientSecret (B144) | `k8s/sealed-secrets/sealed/weyland__port-pr-reconcile-creds.yaml` |
 
-Both are in the `SECRETS=(…)` allow-list in `scripts/seal-secrets.sh` — that array is the source of
-truth for what gets sealed. See [secrets.md](secrets.md) for the mechanism.
+All three are in the `SECRETS=(…)` allow-list in `scripts/seal-secrets.sh` — that array is the source of
+truth for what gets sealed, and it is an **allow-list, not a filter**: anything missing from it is
+silently never sealed. See [secrets.md](secrets.md) for the mechanism.
 
 **Verify a freshly created secret before trusting it.** An empty or truncated value is accepted
 silently (`DATA 1`, pod starts) and fails only at runtime:
@@ -164,8 +262,8 @@ things handle it: a `/quitquitquit` POST to ports 15020/15000 after the script, 
 ## Where the logic lives
 
 The decision logic is in a **ConfigMap**, not inline in the container args, because
-`scripts/tests/pr-staleness.bats` and `scripts/tests/cron-freshness.bats` extract and execute that
-exact text. A tested copy sitting beside a deployed copy drifts, and the drift is silent — both halves
+`scripts/tests/pr-staleness.bats`, `scripts/tests/cron-freshness.bats` and
+`scripts/tests/port-pr-reconcile.bats` extract and execute that exact text. A tested copy sitting beside a deployed copy drifts, and the drift is silent — both halves
 keep passing their own checks.
 
 ```
@@ -174,6 +272,11 @@ docker run --rm -v "$PWD:/code:ro" -w /code bats/bats:latest scripts/tests/
 
 Each suite's first test asserts the logic is actually extractable from the manifest. Without that
 tripwire, every later test would be vacuously green against an empty file.
+
+`port-pr-reconcile.bats` adds a second seam worth knowing about: its two **side-effecting** operations
+are reached through `GH_STATE_FN` / `PORT_DELETE_FN` indirection rather than called by name. A plain PATH
+stub cannot intercept them — a shell function always beats an executable of the same name, so the real
+`curl` implementation would shadow the stub and the test would hit the live API while appearing to pass.
 
 ## Related
 

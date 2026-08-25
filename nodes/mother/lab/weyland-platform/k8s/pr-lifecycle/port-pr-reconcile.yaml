@@ -40,6 +40,24 @@
 # neighbouring rows rather than the whole `docs/schedules.md` table, which is the documented mistake
 # (read the governing document BEFORE choosing a value). Worth recording because the CI guard would NOT
 # have caught it: `check-cron-freshness-budgets.sh` asserts a row EXISTS, not that the time is free.
+#
+# SCAN TRIAGE (code-scan-suite, 2026-08-25). This manifest adds SIX kubescape HIGH findings, and the
+# triage is deliberately recorded here rather than in a suppression file, because five of them are the
+# house pattern and the sixth is a phantom worth explaining:
+#
+#   C-0009 / C-0050 / C-0270 (resource + CPU limits) · C-0211 (security context) · C-0237 (image
+#   signature) — IDENTICAL to what pr-staleness-check and cron-freshness-check already produce. Same
+#   `requests: {cpu,memory}` + memory-only `limits` shape (a CPU limit throttles; the lab sets memory
+#   limits only), same absent securityContext, same unsigned `alpine:latest`. Systemic across the repo,
+#   not introduced here. Changing it for this one job would make it the odd one out for no gain.
+#
+#   C-0012 "Applications credentials in configuration files" — NOVEL to this manifest, and a FALSE
+#   POSITIVE. It flags the ConfigMap's `data[port-pr-reconcile.sh]` because the script contains the
+#   literal JSON `{"clientId":"…","clientSecret":"…"}` in its token-request payload; the siblings use a
+#   single `${TOKEN}` variable and so never match that signature. Verified rather than asserted: the
+#   real client id and secret are both absent from this file (grepped against the live values), and
+#   gitleaks + detect-secrets each return 0 across the whole repo on the same run. The values arrive
+#   only via `secretKeyRef` from `port-pr-reconcile-creds` at runtime.
 ---
 apiVersion: v1
 kind: ConfigMap
