@@ -24,7 +24,7 @@ OUT="${OUT:-$HOME/sealed-out}"
 SEAL=0; [ "${1:-}" = "--seal" ] && SEAL=1
 
 SECRETS=(
-  # --- weyland (27) ---
+  # --- weyland (28) ---
   weyland/aidlc-kb-minio-secret
   weyland/apisix-secret
   weyland/cron-freshness-woodpecker  # B135 — Woodpecker API token for the scheduled-work watchdog
@@ -43,6 +43,9 @@ SECRETS=(
   weyland/open-webui-oauth
   weyland/port-creds
   weyland/pr-lifecycle-github     # B131 — read-only GitHub PAT for the open-PR staleness watchdog
+  weyland/port-pr-reconcile-creds # B144 — Port org creds for the githubPullRequest reaper. DELIBERATELY NOT
+                                  # weyland/port-creds: that one is mounted by dagster-user-code and, as of
+                                  # 2026-08-25, holds the literal placeholders YOUR_ID / YOUR_SECRET (401).
   weyland/port-ingest-url
   weyland/ray-auth
   weyland/registry-auth
