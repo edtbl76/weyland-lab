@@ -122,9 +122,17 @@ spec:
         # Backups are their own rule at CRITICAL: the others losing a run costs freshness, these
         # losing a run costs DATA. Kept separate from ScheduledJobFailed so the severity and the
         # message can differ — collapsing them would flatten that distinction.
+        # ⚠ `job="kube-state-metrics"` ON BOTH FAILURE RULES IS LOAD-BEARING, added 2026-08-25.
+        # BOTH kube-state-metrics AND opencost export `kube_job_status_failed` — 40 identical series each.
+        # Without the selector every CronJob failure produced TWO firing alerts and TWO Telegram messages
+        # for one event. Confirmed in Alertmanager: six active alerts for three failed jobs, each present
+        # once per exporter. A 2x noise multiplier on the whole family, and noise is how a real page gets
+        # read as background. `kube_cronjob_info`, `kube_cronjob_status_last_schedule_time` and
+        # `kube_cronjob_status_last_successful_time` come from KSM alone, so the freshness rules above
+        # were never affected — only these two.
         - alert: ScheduledBackupFailed
           expr: |
-            kube_job_status_failed{job_name=~"(minio-backup|pg-backup|postgres-backup)-[0-9]+"} > 0
+            kube_job_status_failed{job="kube-state-metrics", job_name=~"(minio-backup|pg-backup|postgres-backup)-[0-9]+"} > 0
           for: 10m
           labels:
             severity: critical
@@ -135,7 +143,7 @@ spec:
 
         - alert: ScheduledJobFailed
           expr: |
-            kube_job_status_failed{job_name=~"(sonar-scan|code-scan-suite|docs-site-rebuild|pr-staleness-check|cron-freshness-check|lancedb-sync|dagster-freshness-check|port-pr-reconcile)-[0-9]+"} > 0
+            kube_job_status_failed{job="kube-state-metrics", job_name=~"(sonar-scan|code-scan-suite|docs-site-rebuild|pr-staleness-check|cron-freshness-check|lancedb-sync|dagster-freshness-check|port-pr-reconcile)-[0-9]+"} > 0
           for: 10m
           labels:
             severity: warning
@@ -157,11 +165,19 @@ spec:
         # thing in neither: a hand-maintained subset silently stops covering what gets added later.
         #
         # So it is now GENERIC. `unless on(...)` returns every CronJob that has NO last-successful-time
-        # series, whatever its name — new jobs are covered the moment they exist, and the alert names the
-        # offender through its own labels instead of a sentence listing what someone remembered.
+        # series, whatever its name — the alert names the offender through its own labels instead of a
+        # sentence listing what someone remembered.
+        #
+        # THE BASE SERIES IS `last_schedule_time`, NOT `kube_cronjob_info`, and that distinction is the
+        # whole rule. Basing it on `info` matches every CronJob that EXISTS, so a newly-created one pages
+        # as "never succeeded" during the entirely normal gap before its first scheduled run. Caught by
+        # running the expression against live data rather than reasoning about it: it returned
+        # `port-pr-reconcile`, created that afternoon with its first run 19 hours out, which would have
+        # paged at the 2h mark. `last_schedule_time` exists only once a CronJob has actually RUN, so the
+        # rule now means "it has run, and has never once succeeded" — which is the real failure.
         - alert: ScheduledJobNeverSucceeded
           expr: |
-            kube_cronjob_info
+            kube_cronjob_status_last_schedule_time
               unless on (namespace, cronjob) kube_cronjob_status_last_successful_time
           for: 2h
           labels:
