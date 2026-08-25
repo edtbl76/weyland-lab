@@ -104,11 +104,74 @@ ever lost at once. Keep their decoded values off-cluster too, as defense-in-dept
 
 ## Rotate / re-seal a secret
 
-Update the live secret, then re-seal (the script overwrites the CR in place):
+> ⚠ **YOU CANNOT FIX A SEALED SECRET IN THE CLUSTER. Updating the live Secret does not stick.**
+> `sealed-secrets-manifests` runs `selfHeal: true`, so Argo re-applies the sealed CR **from git** and the
+> controller rewrites the Secret back to the sealed value within minutes. Observed end to end on
+> 2026-08-25 (B147) — every intermediate step reported success:
+>
+> ```
+> kubectl apply (real creds)        -> clientId len 32, HTTP 200   ✅
+> kubeseal -> new CR -> apply       -> HTTP 200                    ✅
+> rollout restart the consumer      -> ~90 s
+> kubectl get secret                -> clientId len 7, "YOUR_ID"   ❌ reverted
+> ```
+>
+> The revert arrives on Argo's sync interval, so a verify **immediately after** the change passes and the
+> real state comes back a few minutes later. Same family as the `argocd app rollback` trap.
+
+**The sequence that works.** Order matters: `secretKeyRef` injects env vars at pod start, so the restart
+must come AFTER the sync, not before.
+
 ```
+# 1. update the live Secret (so kubeseal has something to read)
 kubectl -n <ns> create secret generic <name> --from-literal=<k>=<newval> --dry-run=client -o yaml | kubectl -n <ns> apply -f -
-~/seal-secrets.sh --seal   # on mother; rsync ~/sealed-out/ -> repo k8s/sealed-secrets/sealed/ ; commit + push
+
+# 2-3. annotate + seal ONE secret into the repo (the two commands seal-secrets.sh runs per entry)
+kubectl -n <ns> annotate secret <name> sealedsecrets.bitnami.com/managed=true --overwrite
+kubectl -n <ns> get secret <name> -o yaml | kubeseal --format yaml > nodes/mother/lab/weyland-platform/k8s/sealed-secrets/sealed/<ns>__<name>.yaml
+
+# 4. COMMIT + PUSH — without this the next Argo sync undoes everything above
+# 5. wait for the app to report Synced on the new revision, THEN restart the consumer
+kubectl -n <ns> rollout restart deploy/<consumer>
 ```
+
+**Seal only the ONE secret you changed**, not `--seal` across the whole allow-list: each seal produces
+fresh ciphertext, so a full run rewrites all 56 CRs and buries the real change in the diff.
+
+**Verify by decoding the STORED value and authenticating with it** — never by `DATA n`. See the guard below.
+
+## The placeholder guard (B147)
+
+```
+bash scripts/check-secret-placeholders.sh          # assert
+bash scripts/check-secret-placeholders.sh --list   # per-key verdicts + accepted exceptions
+```
+
+**Why it exists.** `weyland/port-creds` held the literal strings `YOUR_ID` / `YOUR_SECRET` for **63 days**.
+Sealed ✅, committed ✅, Argo-applied ✅, `DATA 2` ✅, mounted by a running pod ✅ — and it authenticated to
+nothing, so the B62 AI-Dev Usage pipeline never wrote a single entity. Pillar 6 asks whether secrets are
+**restorable**, and the honest answer was yes: a full restore faithfully reproduced a 401. A placeholder
+and a real credential are byte-indistinguishable from outside; only decoding and looking finds it.
+
+It reads the allow-list **out of** `seal-secrets.sh` rather than duplicating it, decodes every value, and
+fails on placeholder vocabulary or an empty value. It fails closed on an unparseable allow-list, an
+unreadable Secret, or a secret that is allow-listed but absent from the cluster.
+
+**Not in CI, deliberately.** It must read Secrets, and step pods run as `woodpecker:default` which cannot
+(`kubectl auth can-i get secrets -n weyland` → no). Wiring it in means granting CI cluster-wide secret read
+to run a lint — a permanent broad privilege for a periodic check. Run it at DoD time and after any secret
+change. The durable form is a CronJob with a scoped SA alongside the `pr-lifecycle` watchdogs.
+
+**The false-positive problem is the hard half.** A guard that cries wolf on a legitimate secret gets muted,
+and a muted guard is worth nothing. The discriminator: a credential is a **short, single-line** token;
+config is long or multi-line. `data-mesh/clickhouse-users` holds an XML document beginning `<clickhouse>`
+and was flagged by the first version's `<[a-z-]+>` pattern. Accepted exceptions live in the `ACCEPTED`
+array with the condition that justifies each one — same posture as `check-pip-audit-ignores.sh`.
+
+**It found a second problem on its first live run.** An empty `password` in `data-mesh/trino-metrics-auth`
+is legitimate (Trino's metrics endpoint ignores it, `k8s/data-mesh/trino.yaml:154`) — but verifying that
+claim revealed Trino exports **no metrics to Prometheus at all**, with a 59-day-old ServiceMonitor. Filed
+as **B148**.
 
 ## Add a NEW secret to the sealed set
 

@@ -2030,7 +2030,72 @@ Linear: EMA-197. Relates B1.5 (dbt transform tier), B131 (dependency lifecycle),
 
 ---
 
-### B147 — `port-creds` holds `YOUR_ID` / `YOUR_SECRET`; the B62 AI-Dev Usage pipeline has never worked — 🟠 **MEDIUM (2026-08-25)**
+### B148 — Trino exports NO metrics to Prometheus; the ServiceMonitor has been dead for 59 days — 🟠 **MEDIUM (2026-08-25)**
+
+Found by `scripts/check-secret-placeholders.sh` on its **first live run**, while verifying whether an empty `password` in `data-mesh/trino-metrics-auth` was a bug or deliberate. The empty password turned out to be correct — `k8s/data-mesh/trino.yaml:154` documents that Trino's metrics endpoint "accepts ANY username and ignores the password." Checking that claim is what surfaced the real problem.
+
+**There are no Trino metrics in Prometheus at all:**
+
+```
+up{job=~".*trino.*"}                    -> no data
+count({__name__=~"trino_.*"})           -> no data
+up{namespace="data-mesh"}               -> trino appears ONLY as monitoring/envoy-stats-monitor
+                                           (its istio sidecar), never as a trino scrape job
+```
+
+A `ServiceMonitor` named `trino` has existed in `data-mesh` for **59 days**. It produces no target and no series.
+
+**Why nothing noticed.** DoD Pillar 6 requires a ServiceMonitor for any service exposing `/metrics`, and Trino has one — the box is ticked. Nothing asserts the ServiceMonitor produces a **series**. `up` for the pod is `1` because the istio sidecar is scraped, so a casual look at "is trino up" says yes. That is the same shape as [[argo-cronjob-degraded-means-missed-run]] and as B137's clean-but-meaningless `tofu plan`: a control that reports success while measuring nothing.
+
+**Consequences:** no Trino dashboard data, no query-latency or memory-pressure signal on the engine the whole lakehouse runs through, and any alert rule written against `trino_*` has never been able to fire. Worth checking whether such a rule exists and has been silently green.
+
+**Acceptance:** `up{job="trino"}` returns 1 and `trino_*` series exist in Prometheus; a Grafana dashboard renders real data (eyes-on, per Pillar 3); and — the part that stops the recurrence — **a guard that asserts every ServiceMonitor in the repo actually yields a series**, since "the ServiceMonitor exists" is exactly the check that passed for 59 days. Same posture as `check-port-iac-coverage.sh`: ask the live system the inverse question.
+
+**Do not assume the empty password is the cause** — the manifest says the endpoint ignores it, and that claim has not been falsified. Start from why the ServiceMonitor selects no endpoints (label selector, port name, or the istio sidecar intercepting the scrape).
+
+Linear: EMA-207. Relates **B147** (the guard run that found it), B69 (Pillar 6 monitoring), [[dbt-transform-tier]] and [[trino-nessie-native-catalog]] (what runs on Trino).
+
+---
+
+### B147 — `port-creds` holds `YOUR_ID` / `YOUR_SECRET`; the B62 AI-Dev Usage pipeline has never worked — ✅ **DONE (2026-08-25)**
+
+**FIXED AND VERIFIED LIVE. `ai_session` went 37 → 62 entities, 25 of them created by the integration rather than a human — the first successful write in 63 days.**
+
+The credential now decodes to 32/64 chars and returns **HTTP 200** where it returned 401. Verified the only way that means anything: decoding the **stored** value and authenticating with it, never `DATA n`.
+
+**The fix had a trap in it, and it is the durable lesson: you cannot fix a sealed secret in the cluster.** Updating the live Secret worked, sealed cleanly, round-tripped to 200 — and then Argo put the placeholder back. `sealed-secrets-manifests` runs `selfHeal: true`, so it re-applies the sealed CR **from git** and the controller rewrites the Secret to whatever git says. Every intermediate step reported success:
+
+```
+kubectl apply (real creds)   -> len 32, HTTP 200   ✅
+kubeseal -> apply -> verify  -> HTTP 200           ✅
+rollout restart the consumer -> ~90 s
+kubectl get secret           -> len 7, "YOUR_ID"   ❌ reverted
+```
+
+The revert lands on Argo's sync interval, so verifying immediately after the change **passes** and the truth returns minutes later — the same family as the `argocd app rollback` trap. The working sequence is re-seal → **commit + push** → wait for Synced → *then* restart the consumer, because `secretKeyRef` injects env at pod start. Written into `docs/runbooks/secrets.md`, whose "Rotate / re-seal" section previously stopped one step before the part that bites.
+
+**The pipeline itself, end to end:** producer healthy (62 summaries in MinIO, uploaded 08:07 that morning), `ai_session_ingest` materialized `sessions_read: 62, upserted: 62, errors: 0`, and Port shows 25 new entities under the integration's client id. The 37 pre-existing ones were hand-seeded on 2026-06-23 — **23 minutes before the credential was created**, which is why the pipeline had never worked once.
+
+**The guard — `scripts/check-secret-placeholders.sh`, 20 bats, TDD Red→Green.** It reads the allow-list **out of** `seal-secrets.sh` (two copies would drift silently on both sides), decodes every value of all 56 allow-listed secrets, and fails on placeholder vocabulary or an empty value. Fails closed on an unparseable allow-list, an unreadable Secret, or a secret allow-listed but absent from the cluster.
+
+**The hard half was not finding placeholders, it was not flagging real config.** A guard that cries wolf on a legitimate secret gets muted, and a muted guard is worth nothing. The discriminator: a credential is a **short, single-line** token; config is long or multi-line. Two bugs found by the tests:
+
+- `data-mesh/clickhouse-users` is an XML document beginning `<clickhouse>`, flagged by the first version's `<[a-z-]+>` pattern (written for `<your-token>`).
+- Worse, the emitter used `key<TAB>value` per line, so a **multi-line value arrived as three separate rows** — the multi-line guard never ran because it never saw a multi-line value. Base64 in the emitter fixed it.
+
+**It found a second problem on its first live run**, and the chain matters: an empty `password` in `data-mesh/trino-metrics-auth` is legitimate (the endpoint ignores it, `trino.yaml:154`) — but verifying *that* claim revealed **Trino exports no metrics to Prometheus at all**, with a 59-day-old ServiceMonitor. Filed as **B148**.
+
+**Deliberately NOT in CI, and it is a trade rather than an oversight.** It must read Secrets; step pods run as `woodpecker:default`, which cannot (`kubectl auth can-i get secrets -n weyland` → no). Wiring it in means granting CI cluster-wide secret read to run a lint — a permanent broad privilege for a periodic check. It runs at DoD time and after any secret change; the durable form is a CronJob with a scoped SA alongside the `pr-lifecycle` watchdogs.
+
+**`ai_user` — decision recorded: KEEP, empty and provisioned.** 0 entities, nothing writes it, but the operator expects to add a second person to the lab, at which point per-user AI attribution becomes meaningful. It is codified in `b137_blueprints.tf`, so holding it costs nothing.
+
+**DoD:** **1 ✅** `secrets.md` (rotate section rewritten + the guard documented); api/hosts/schedules N/A, verified not assumed. **2 ✅** `flow-secret-placeholders.md`; 126 mermaid blocks parse. **3 ✅** `demos/secret-placeholders.md`, RUN end to end including the negative case; ledger row 51. **4 ✅** read-only steps marked; the one fixture has a teardown; step 5's upserts are the pipeline's real output and are idempotent. **5 ✅** Linear EMA-206, backlog flipped, B148 filed as EMA-207, memory updated with the selfHeal trap. **6 ✅** secret restorable **and now actually valid** — which is the distinction this item exists to draw. **7 ✅** shellcheck clean, 20 bats, no new scan surface (one shell script; the suite ran earlier the same day). **8 ✅** cascade: `seal-secrets.sh` allow-list unchanged (port-creds was already in it — that is *why* the placeholder was faithfully preserved), `secrets.md` count unchanged at 56, no new timer, no new endpoint.
+
+Linear: EMA-206.
+
+---
+
+### B147 (original entry) — 🟠 **MEDIUM (2026-08-25)**
 
 Found during B144's secret work, while checking whether an existing Port credential secret could be reused instead of creating a second one.
 
