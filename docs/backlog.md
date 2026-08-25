@@ -2030,6 +2030,35 @@ Linear: EMA-197. Relates B1.5 (dbt transform tier), B131 (dependency lifecycle),
 
 ---
 
+### B146 — `.gitignore` says `aidlc/` is not committed; 12 committed files say otherwise — 🟠 **MEDIUM (2026-08-25)**
+
+Surfaced by the `code-scan-suite` run during B137's DoD sweep. `secret-files` reported **12 CRITICAL**, and unlike most of this suite's highs it is **not phantom** — reproduced locally, byte for byte:
+
+```
+git ls-files | git check-ignore --no-index --stdin | wc -l   →  12
+git check-ignore --no-index -v aidlc/spaces/default/memory/team.md
+  →  .gitignore:123:aidlc/   aidlc/spaces/default/memory/team.md
+```
+
+The check looks for the **tracked ∩ gitignored** intersection, on the theory that a file which is committed *and* rule-matched is usually a secret someone hid after the fact. Here it is not a secret — the 12 are AI-DLC workflow files: `.claude/skills/aidlc/SKILL.md`, `.claude/skills/aidlc/question-rendering.md`, `aidlc/active-space`, `aidlc/spaces/default/intents/intents.json`, and the eight memory rule files (`org` / `team` / `project` + the four `phases/*` + `templates/.gitkeep`).
+
+**Two things are wrong, and they contradict each other:**
+
+1. **The rule is broader than intended.** `.gitignore:123` is `aidlc/` with **no leading slash**, so it matches a directory named `aidlc` at *any depth* — which is why it also swallows `.claude/skills/aidlc/`, a completely different tree. Almost certainly not what was meant.
+2. **The repo depends on these files being committed.** `CLAUDE.md` → `.claude/rules/aidlc.md` `@`-imports `aidlc/spaces/default/memory/{org,team,project}.md` and all four `phases/*.md`; they are loaded as project instructions on every session. A fresh clone that honoured the ignore rule would lose the entire rule layer.
+
+So the current state only works because tracking beats ignoring. Nothing fails, which is exactly why it went unnoticed — the same silent shape as the rest of this workstream.
+
+Do not conflate with [[aidlc-docs-gitignored]]: that is `aidlc-docs/` (design artifacts, deliberately uncommitted). This is `aidlc/`, the workspace, a different directory with a different intent.
+
+**Acceptance:** the ignore rule says what is actually meant (anchor it, and/or add explicit `!` un-ignores for the tracked rule layer); `git ls-files | git check-ignore --no-index --stdin` returns **empty**; `secret-files` reports **0 CRITICAL** on the next scan; and a one-line comment at `.gitignore:123` records which aidlc paths are deliberately tracked and why, so the next person does not re-broaden it.
+
+**Why it matters beyond tidiness:** this check is marked CRITICAL precisely because it is meant to be low-noise. Twelve standing false criticals train the reader to skim past it — and the next hit may be a real committed secret. A permanently-lit alert is worse than none, which is the same argument B137 made about a permanently-dirty `tofu plan`.
+
+Linear: EMA-205. Relates **B137** (found during its DoD sweep), B120/B69 (the scan suite), [[code-quality-scan-triage]] (the "most highs are phantom" default this one breaks).
+
+---
+
 ### B145 — The Port k8s exporter's own deployment is live-only (and its blueprint enum is wrong) — 🟠 **MEDIUM (2026-08-25)**
 
 Found while validating B137. `weyland-cluster-port-k8s-exporter` runs in ns `port-k8s-exporter` (Helm chart `port-k8s-exporter-0.3.28`, app 0.7.4, pod 38 days old, 3 restarts) with **no manifest in `k8s/`, no Argo application, and no entry in `applications.yaml`**. It was `helm install`ed by hand and has been reconciling the entire k8s catalog into Port ever since.
@@ -2406,7 +2435,7 @@ All four were copy-paste from the deployments mapping. Same class as the `cron-f
 
 **Nothing else cascades.** Written down because an unasked question and a genuinely-empty answer look identical.
 
-**DoD:** **1 ✅** — `port.md` · `opentofu.md` · `woodpecker.md` · `arch.md` (2 rows, one carrying a false claim) · `platform-map.html`; relevance sweep run across `runbooks/` · `demos/` · `diagrams/` · top-level, which is what caught the two stale application-taxonomy surfaces. api/hosts/schedules N/A (no endpoint, host or timer change), verified not assumed. **2 ✅** — `flow-port-iac-coverage.md` authored + parses (124 mermaid blocks green); `flow-application-taxonomy.md` corrected. LikeC4 N/A (no new deployed component; the exporter's placement belongs to **B145**, which is what makes it a component the model should carry). **3 ✅** — `demos/port-iac-coverage.md`, **RUN end-to-end**: guard 51/21/30 · 8/8 · 4/4, negative case exit 1 naming all 8 scorecards, `tofu plan` clean, live spot-checks, 18 bats. Ledger row 49 added. **4 ✅** — steps 1/2/4/5/6/7 read-only and say so; step 3's throwaway `/tmp` copy has a teardown. **5 ✅** — Linear EMA-198 Done, backlog flipped, memory `opentofu-iac-gotchas` updated with the generalizable lesson (*a clean `tofu plan` is not coverage*) + the `port_integration` attribute rules + three Port-API traps; tier rebalance **proposed to the human, not applied**. **6 ✅** — B137's own deliverables are all reproducible from git; the one operational gap found (the exporter itself is not in git) is **filed as B145**, not swallowed. **7 ⚠️ PARTIAL** — shellcheck clean across the whole shell surface, 128 bats green, `check-sa-automount-collisions.sh` green (no SA/RBAC change anyway), CodeScene **N/A — it does not support `.sh`**; the `code-scan-suite` run needs `kubectl` on mother and is the **one item outstanding**. **8 ✅** — table above.
+**DoD:** **1 ✅** — `port.md` · `opentofu.md` · `woodpecker.md` · `arch.md` (2 rows, one carrying a false claim) · `platform-map.html`; relevance sweep run across `runbooks/` · `demos/` · `diagrams/` · top-level, which is what caught the two stale application-taxonomy surfaces. api/hosts/schedules N/A (no endpoint, host or timer change), verified not assumed. **2 ✅** — `flow-port-iac-coverage.md` authored + parses (124 mermaid blocks green); `flow-application-taxonomy.md` corrected. LikeC4 N/A (no new deployed component; the exporter's placement belongs to **B145**, which is what makes it a component the model should carry). **3 ✅** — `demos/port-iac-coverage.md`, **RUN end-to-end**: guard 51/21/30 · 8/8 · 4/4, negative case exit 1 naming all 8 scorecards, `tofu plan` clean, live spot-checks, 18 bats. Ledger row 49 added. **4 ✅** — steps 1/2/4/5/6/7 read-only and say so; step 3's throwaway `/tmp` copy has a teardown. **5 ✅** — Linear EMA-198 Done, backlog flipped, memory `opentofu-iac-gotchas` updated with the generalizable lesson (*a clean `tofu plan` is not coverage*) + the `port_integration` attribute rules + three Port-API traps; tier rebalance **proposed to the human, not applied**. **6 ✅** — B137's own deliverables are all reproducible from git; the one operational gap found (the exporter itself is not in git) is **filed as B145**, not swallowed. **7 ✅** — `code-scan-suite` RUN 2026-08-25 (`s3://scan-reports/2026-08-25T04-35-00Z/`, 19 tools). **B137 introduced ZERO new critical or high findings**, verified per-finding rather than by reading the totals: trivy scanned `tofu/port` as a terraform root module → **0C/0H**; checkov **0C/0H**; and the semgrep, bandit and kubescape JSON reports were each grepped for `check-port-iac-coverage` / `b137_` / `port-iac-coverage` → **no B137 file appears in any of them**. The standing highs are all pre-existing and traced to a file: semgrep's 1 is `.claude/tools/aidlc-swarm.ts:200` (`spawn` with `shell:true`), bandit's 1 is `langfuse_eval.py:39` (SHA1 as a cache key, not security), osv's 4 are the Flink-tier Maven pom deps already accepted in B136, and kubescape's 534 are the systemic k8s-manifest set — B137 changed no k8s manifest. **One finding was real and is NOT B137's: `secret-files` 12 CRITICAL**, reproduced locally (`git ls-files | git check-ignore --no-index --stdin` → 12, all matched by `.gitignore:123 aidlc/`). Not secrets — AI-DLC workflow files the repo actually depends on being committed — but a genuine contradiction, filed as **B146**. Also green: shellcheck across the whole shell surface, 128 bats, `check-sa-automount-collisions.sh` (no SA/RBAC change anyway). CodeScene **N/A — it does not support `.sh`**; shellcheck plus mutation-verified bats is the shell equivalent the team posture mandates. **8 ✅** — table above.
 
 Linear: EMA-198.
 
