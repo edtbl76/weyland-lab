@@ -2075,7 +2075,7 @@ Linear: EMA-204. Relates **B137** (found there), **B131** (same coverage-looks-t
 
 ---
 
-### B144 — Port `githubPullRequest` entities are never reaped (the ship loop manufactures them) — 🟠 **MEDIUM (2026-08-25)**
+### B144 — Port `githubPullRequest` entities are never reaped (the ship loop manufactures them) — 🔴 **HIGH (2026-08-25; promoted from MEDIUM the same day — it corrupts two DORA scorecards and it is the ship loop's own wake)**
 
 `github-weyland` fetches **only open PRs** — confirmed in the integration's own stored raw examples (`[Rest] Fetching open PRs`). A PR that closes simply stops appearing, and an incremental sync upserts but never deletes. So every closed PR leaves a permanent Port entity claiming `status: open`, `closedAt: null`.
 

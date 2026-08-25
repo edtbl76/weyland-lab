@@ -59,13 +59,18 @@ spec:
         #   minio-backup `30 2 * * *` · pg-backup `0 3 * * *` · postgres-backup `30 3 * * *`
         #   docs-site-rebuild 05:30 · pr-staleness-check `45 5 * * *` · cron-freshness-check `30 4 * * *`
         #
+        # port-pr-reconcile (B144, `0 5 * * *`) is the ONLY job in this file that DESTROYS data, so its
+        # failure rule matters more than its freshness rule: it fails CLOSED on any uncertain answer,
+        # which means a broken run exits non-zero having reaped NOTHING while the catalog keeps
+        # accumulating stale rows. Freshness alone would stay quiet as long as some later run succeeded.
+        #
         # cron-freshness-check WATCHES ITSELF here, deliberately. It is the job that detects scheduled
         # work which stopped — so a silent failure of it re-opens the exact blind spot the whole rule
         # exists to close, and nothing else would notice. Found missing during the B135 DoD sweep:
         # every other live CronJob was covered and the watchdog was not.
         - alert: ScheduledJobStale
           expr: |
-            time() - kube_cronjob_status_last_successful_time{cronjob=~"minio-backup|pg-backup|postgres-backup|docs-site-rebuild|pr-staleness-check|cron-freshness-check"} > 93600
+            time() - kube_cronjob_status_last_successful_time{cronjob=~"minio-backup|pg-backup|postgres-backup|docs-site-rebuild|pr-staleness-check|cron-freshness-check|port-pr-reconcile"} > 93600
           for: 1h
           labels:
             severity: warning
@@ -130,7 +135,7 @@ spec:
 
         - alert: ScheduledJobFailed
           expr: |
-            kube_job_status_failed{job_name=~"(sonar-scan|code-scan-suite|docs-site-rebuild|pr-staleness-check|cron-freshness-check|lancedb-sync|dagster-freshness-check)-[0-9]+"} > 0
+            kube_job_status_failed{job_name=~"(sonar-scan|code-scan-suite|docs-site-rebuild|pr-staleness-check|cron-freshness-check|lancedb-sync|dagster-freshness-check|port-pr-reconcile)-[0-9]+"} > 0
           for: 10m
           labels:
             severity: warning

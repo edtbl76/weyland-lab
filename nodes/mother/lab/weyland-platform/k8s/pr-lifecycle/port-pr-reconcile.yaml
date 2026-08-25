@@ -1,0 +1,296 @@
+# B144 — reap Port `githubPullRequest` entities whose pull request is no longer open.
+#
+# WHY THIS EXISTS: the `github-weyland` Ocean integration fetches **only open PRs** — confirmed in its
+# own stored raw examples (`[Rest] Fetching open PRs`). When a PR closes it simply stops appearing in
+# the source data, and an incremental sync UPSERTS but never DELETES. So every closed PR leaves a
+# permanent Port entity claiming `status: open`, `closedAt: null`, forever.
+#
+# The B135 ship loop turns that from an occasional wart into a steady producer: `ship-images.sh` opens
+# a tag-bump PR on most runs and its FR2.3 gate closes superseded ones outright. Observed twice in
+# three days — weyland-lab #34 (2026-08-23, deleted by hand) and #36 (2026-08-25).
+#
+# IT MATTERS BEYOND TIDINESS: these entities feed the `service/dora_lead_time` and
+# `service/delivery_performance` scorecards. A PR that closed weeks ago but still reads `open`
+# inflates cycle time permanently, so those scorecards get WORSE with age rather than measuring
+# anything. That is the catalog lying — the same class B137 spent a day removing.
+#
+# TWO OTHER MECHANISMS WERE TRIED FIRST AND BOTH ARE DEAD ENDS — do not re-propose them:
+#   * `POST /v1/integration/github-weyland/resync` returns `{"ok":true}` and does NOTHING. No log rows,
+#     no `resyncState` movement, no entity change. That 200 is not evidence of anything.
+#   * `spec.appSpec.incrementalSyncEnabled: false` is NOT DURABLE. Set 2026-08-23 → reverted by 08-24;
+#     set again → `true` by 08-25. The integration is Port-hosted SaaS (`installationType:
+#     SaasOAuth2`), so it re-registers and pushes its own appSpec over server-side edits. Three
+#     attempts, three reversions, no human action in between.
+# A periodic DELETE-based reconciler is what is left.
+#
+# ⚠ THIS IS THE ONLY JOB IN pr-lifecycle/ THAT DESTROYS DATA. Its siblings (`pr-staleness-check`,
+# `cron-freshness-check`) only ever POST an alert; their worst failure is a missed page. This one
+# issues `DELETE /v1/blueprints/githubPullRequest/entities/<id>` against the live catalog, so its
+# worst failure is deleting real data because GitHub returned a 502. Every fetch therefore fails
+# CLOSED and `should_reap` refuses anything it does not positively recognise as closed. The bats
+# suite is weighted the same way — most of its cases assert that nothing was deleted.
+#
+# 05:15 NY: inside the Design Rule #5 pre-dawn window, and 15 minutes clear on both sides — 05:00 is
+# the DataHub dbt managed-ingestion scan and 05:30 is `docs-site-rebuild`. Puts the three watchdogs at
+# 04:30 / 05:15 / 05:45 without stacking any two on one minute, which is the spread the sibling jobs
+# already document: one failure mode hiding another in a shared job log is the thing being avoided.
+# Light: two API calls per entity, seconds.
+#
+# 05:00 was the first choice and it was WRONG — taken by the DataHub scan. It was picked by reading the
+# neighbouring rows rather than the whole `docs/schedules.md` table, which is the documented mistake
+# (read the governing document BEFORE choosing a value). Worth recording because the CI guard would NOT
+# have caught it: `check-cron-freshness-budgets.sh` asserts a row EXISTS, not that the time is free.
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: port-pr-reconcile-logic
+  namespace: weyland
+data:
+  port-pr-reconcile.sh: |
+    #!/bin/sh
+    # Port githubPullRequest reconciliation. Sourced by the test suite with PORT_PR_REAP_LIB=1
+    # (which suppresses main), executed directly by the CronJob.
+    if [ -z "${PORT_PR_REAP_LIB:-}" ]; then
+      set -eu
+    fi
+
+    PORT_API="${PORT_API:-https://api.port.io/v1}"
+    GH_API="${GH_API:-https://api.github.com}"
+    BLUEPRINT="githubPullRequest"
+
+    # The two SIDE-EFFECTING operations are reached through indirection so the test suite can
+    # substitute a stub. A PATH stub alone would not work — a shell function always beats an
+    # executable of the same name, so the real implementation would silently shadow the stub and the
+    # test would exercise the live curl path while appearing to pass.
+    GH_STATE_FN="${GH_STATE_FN:-github_pr_state}"
+    PORT_DELETE_FN="${PORT_DELETE_FN:-port_delete_entity}"
+
+    # THE decision that authorises a DELETE, and the only one.
+    #
+    # Allow-list, never a deny-list. `[ "$1" != "open" ]` would have been the obvious form and it is
+    # exactly wrong: it returns TRUE for the empty string, so an unparseable response, a renamed
+    # field, or a network blip would each authorise deletion of a live entity. GitHub documents
+    # `open` and `closed`; anything else is a reason to stop, not to guess.
+    should_reap() { # should_reap <github-pr-state>
+      case "${1:-}" in
+        closed) return 0 ;;
+        *)      return 1 ;;
+      esac
+    }
+
+    # curl writes the body to a file and the status code to stdout, so the two are never conflated.
+    # `curl -sf … | jq` is the pr-staleness bug: under `set -e` a pipeline's status is the LAST
+    # command's, so a 401 reaches jq as empty input and the caller reads "nothing found" — which here
+    # would mean "nothing to reap" rather than the deletion it could have meant. Both directions of
+    # that mistake are silent.
+    port_token() {
+      _body="${TOKEN_BODY:-/tmp/port-token.json}"
+      if [ -z "${TOKEN_BODY:-}" ]; then
+        _http="$(curl -s -o "$_body" -w '%{http_code}' -X POST "${PORT_API}/auth/access_token" \
+          -H 'Content-Type: application/json' \
+          -d "{\"clientId\":\"${PORT_CLIENT_ID}\",\"clientSecret\":\"${PORT_CLIENT_SECRET}\"}")" || {
+            echo "FATAL: could not reach the Port API for a token (curl transport failure)." >&2
+            return 1
+          }
+        if [ "$_http" != "200" ]; then
+          echo "FATAL: Port token endpoint returned HTTP ${_http}." >&2
+          return 1
+        fi
+      fi
+      _tok="$(jq -r '.accessToken // empty' < "$_body" 2>/dev/null || true)"
+      # An empty bearer would 401 every later call, and a 401-driven empty entity list reads exactly
+      # like a catalog with nothing to reap. Catch it here, at the source.
+      if [ -z "$_tok" ]; then
+        echo "FATAL: Port returned no accessToken - refusing to continue with an empty bearer." >&2
+        return 1
+      fi
+      printf '%s' "$_tok"
+    }
+
+    port_open_pr_entities() { # port_open_pr_entities <token>
+      _body="${ENTITIES_BODY:-/tmp/port-entities.json}"
+      if [ -z "${ENTITIES_BODY:-}" ]; then
+        _http="$(curl -s -o "$_body" -w '%{http_code}' \
+          -H "Authorization: Bearer ${1}" \
+          "${PORT_API}/blueprints/${BLUEPRINT}/entities")" || {
+            echo "FATAL: could not reach the Port API for entities (curl transport failure)." >&2
+            return 1
+          }
+        if [ "$_http" != "200" ]; then
+          echo "FATAL: Port entities endpoint returned HTTP ${_http}." >&2
+          return 1
+        fi
+      fi
+      # `<id>\t<repo>\t<prNumber>` for every entity Port still believes is open. Missing fields come
+      # through as the literal `-` rather than an empty column, so main can tell "absent" from
+      # "empty string" and refuse to act on either.
+      jq -r '.entities[]
+             | select(.properties.status == "open")
+             | [ .identifier,
+                 (.relations.repository // "-"),
+                 (.properties.prNumber // "-" | tostring) ]
+             | @tsv' < "$_body" || {
+        echo "FATAL: could not parse the Port entity list." >&2
+        return 1
+      }
+    }
+
+    github_pr_state() { # github_pr_state <repo-name> <pr-number>
+      _repo="${1:?usage: github_pr_state <repo> <num>}"
+      _num="${2:?usage: github_pr_state <repo> <num>}"
+      _body="${GH_BODY:-/tmp/gh-pr.json}"
+      _http="$(curl -s -o "$_body" -w '%{http_code}' \
+        -H "Authorization: Bearer ${GITHUB_TOKEN}" \
+        -H "Accept: application/vnd.github+json" \
+        "${GH_API}/repos/${GH_OWNER:-edtbl76}/${_repo}/pulls/${_num}")" || {
+          echo "FATAL: could not reach the GitHub API for ${_repo}#${_num} (curl transport failure)." >&2
+          return 1
+        }
+      # A 404 is NOT treated as "gone, therefore reap". Port knows about this PR, so a 404 means the
+      # two systems disagree about reality — a renamed repo, a wrong number, a revoked token scope.
+      # Deleting on that disagreement is precisely the destructive guess this job must not make.
+      if [ "$_http" != "200" ]; then
+        echo "FATAL: GitHub returned HTTP ${_http} for ${_repo}#${_num} - NOT reaping on an uncertain answer." >&2
+        return 1
+      fi
+      jq -r '.state // empty' < "$_body" || {
+        echo "FATAL: could not parse the GitHub response for ${_repo}#${_num}." >&2
+        return 1
+      }
+    }
+
+    port_delete_entity() { # port_delete_entity <token> <entity-id>
+      _http="$(curl -s -o /dev/null -w '%{http_code}' -X DELETE \
+        -H "Authorization: Bearer ${1}" \
+        "${PORT_API}/blueprints/${BLUEPRINT}/entities/${2}")" || {
+          echo "  !! DELETE ${2} failed at the transport layer" >&2
+          return 1
+        }
+      case "$_http" in
+        200|204) return 0 ;;
+        *) echo "  !! DELETE ${2} returned HTTP ${_http}" >&2; return 1 ;;
+      esac
+    }
+
+    main() {
+      : "${PORT_CLIENT_ID:?PORT_CLIENT_ID not set - see the port-pr-reconcile-creds SealedSecret}"
+      : "${PORT_CLIENT_SECRET:?PORT_CLIENT_SECRET not set - see the port-pr-reconcile-creds SealedSecret}"
+      : "${GITHUB_TOKEN:?GITHUB_TOKEN not set - see the pr-lifecycle-github SealedSecret}"
+
+      TOKEN="$(port_token)" || return 1
+      port_open_pr_entities "$TOKEN" > /tmp/open-prs.tsv || return 1
+      # Says so explicitly, so a real zero is distinguishable from a broken fetch in the job log.
+      echo "fetched the open PR entity list from Port successfully"
+
+      COUNT=0
+      REAPED=0
+      SKIPPED=""
+
+      while IFS="$(printf '\t')" read -r ID REPO NUM; do
+        [ -n "${ID:-}" ] || continue
+        COUNT=$((COUNT + 1))
+
+        # A `-` means Port holds an entity it cannot describe. Do not infer the repo from the
+        # identifier or the number from the title — an entity we cannot positively identify is one
+        # we must not delete.
+        if [ "$REPO" = "-" ] || [ "$NUM" = "-" ]; then
+          echo "  ?? entity ${ID} has no repository relation or no prNumber - skipping, NOT reaping"
+          SKIPPED="${SKIPPED} ${ID}"
+          continue
+        fi
+
+        if ! STATE="$("$GH_STATE_FN" "$REPO" "$NUM")"; then
+          echo "  ?? could not determine the state of ${REPO}#${NUM} (entity ${ID}) - skipping, NOT reaping"
+          SKIPPED="${SKIPPED} ${ID}"
+          continue
+        fi
+
+        echo "check entity ${ID} = ${REPO}#${NUM} github_state=${STATE:-<empty>}"
+        if should_reap "$STATE"; then
+          if [ -n "${PORT_REAP_DRY_RUN:-}" ]; then
+            echo "  -> would reap ${ID} (${REPO}#${NUM} is ${STATE})"
+            REAPED=$((REAPED + 1))
+          elif "$PORT_DELETE_FN" "$TOKEN" "$ID"; then
+            echo "  -> reaped ${ID} (${REPO}#${NUM} is ${STATE})"
+            REAPED=$((REAPED + 1))
+          else
+            SKIPPED="${SKIPPED} ${ID}"
+          fi
+        fi
+      done < /tmp/open-prs.tsv
+
+      echo "done - ${COUNT} open PR entit$( [ "$COUNT" -eq 1 ] && echo y || echo ies ) checked, ${REAPED} reaped"
+
+      # A run that could not check something has NOT verified the catalog, and saying so is the whole
+      # difference between this and the incremental sync it exists to compensate for.
+      if [ -n "$SKIPPED" ]; then
+        echo "FATAL: could not resolve entit(y/ies):${SKIPPED} - the catalog may still hold stale rows." >&2
+        return 1
+      fi
+      return 0
+    }
+
+    if [ -z "${PORT_PR_REAP_LIB:-}" ]; then
+      main
+    fi
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: port-pr-reconcile
+  namespace: weyland
+spec:
+  schedule: "15 5 * * *"
+  timeZone: America/New_York
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 0
+      # Backstop: if the istio sidecar refuses to exit, force-terminate rather than hang Forbid.
+      activeDeadlineSeconds: 300
+      template:
+        metadata:
+          labels:
+            # MESHED, exactly as its two siblings are. Both of this job's calls are EXTERNAL
+            # (api.port.io, api.github.com) so the sidecar is not strictly required to reach them —
+            # but pr-staleness-check proves an external call works through the mesh here, and running
+            # the odd one out would mean debugging a second egress path the first time something
+            # breaks. The cost is the usual one: the injected istio-proxy runs forever and the Job
+            # never reaches Completed on its own, handled by /quitquitquit plus the deadline above.
+            sidecar.istio.io/inject: "true"
+        spec:
+          restartPolicy: Never
+          containers:
+            - name: reconcile
+              # alpine + apk, the same as both siblings. busybox wget ships in the base image; curl
+              # and jq do not, and this needs both — curl because it separates the HTTP status from
+              # the body, which is what makes every fetch here fail closed rather than read an error
+              # as an empty result.
+              image: alpine:latest
+              command: ["/bin/sh", "-c"]
+              args:
+                - |
+                  set -e
+                  apk add --no-cache curl jq ca-certificates >/dev/null
+                  sh /opt/port-pr-reconcile/port-pr-reconcile.sh
+                  for _p in 15020 15000; do wget -q -O- --post-data='' "http://localhost:$_p/quitquitquit" 2>/dev/null && break; done || true
+              env:
+                - name: PORT_CLIENT_ID
+                  valueFrom: { secretKeyRef: { name: port-pr-reconcile-creds, key: clientId } }
+                - name: PORT_CLIENT_SECRET
+                  valueFrom: { secretKeyRef: { name: port-pr-reconcile-creds, key: clientSecret } }
+                - name: GITHUB_TOKEN
+                  valueFrom: { secretKeyRef: { name: pr-lifecycle-github, key: token } }
+              resources:
+                requests: { cpu: 25m, memory: 32Mi }
+                limits: { memory: 128Mi }
+              volumeMounts:
+                - name: logic
+                  mountPath: /opt/port-pr-reconcile
+          volumes:
+            - name: logic
+              configMap:
+                name: port-pr-reconcile-logic
