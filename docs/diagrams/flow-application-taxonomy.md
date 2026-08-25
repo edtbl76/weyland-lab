@@ -10,11 +10,11 @@ sequenceDiagram
     participant JOB as datahub_catalog_emit_job<br/>(Dagster)
     participant EMIT as emit_applications()
     participant GMS as DataHub GMS
-    participant TF as tofu/port/applications.tf
+    participant MCP as Port MCP / REST
     participant PORT as Port
     participant CHK as check-app-registry.sh
 
-    Note over REG: 54 components (29 data-app + 25 pure-compute)<br/>+ excluded[] (stores / plumbing)
+    Note over REG: 64 components live in Port as of 2026-08-25<br/>(30 data-app + 34 pure-compute, was 54/29/25 at B82)<br/>+ excluded[] (stores / plumbing)
 
     rect rgb(230,240,255)
     Note over JOB,GMS: DataHub surface (baked into the image)
@@ -30,10 +30,10 @@ sequenceDiagram
     end
 
     rect rgb(235,255,235)
-    Note over TF,PORT: Port surface (same file, no rebuild)
-    TF->>REG: yamldecode(file(...))
-    TF->>PORT: for_each → 54 component entities<br/>(is_data_application + datahub_application_url)
-    Note over PORT: relations UNMANAGED (exporter owns k8sWorkload).<br/>depends_on blueprint (avoid the mid-modify null race)
+    Note over MCP,PORT: Port surface — entities are DATA, not IaC (B60, executed B137)
+    MCP->>REG: read the same registry
+    MCP->>PORT: 64 component entities<br/>(is_data_application + datahub_application_url)
+    Note over PORT: OpenTofu holds the SCHEMA only.<br/>It used to hold these entities too, and that made<br/>EVERY plan report "0 to add, 64 to change" —<br/>a drift check that could detect nothing.
     end
 
     rect rgb(255,245,230)
