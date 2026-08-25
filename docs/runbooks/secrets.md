@@ -1,9 +1,10 @@
 # Secrets management — SealedSecrets (B69)
 
-As of **B69 Wave 2**, the cluster's imperative secrets are **GitOps-managed via Bitnami SealedSecrets**. The **56**
+As of **B69 Wave 2**, the cluster's imperative secrets are **GitOps-managed via Bitnami SealedSecrets**. The **57**
 credentials we created by hand (`kubectl create secret …` — 53 in the B69 Wave 2 batch + the `kiali` signing-key (B89)
 + `ranger-admin-secret` (B92) + `datamesh-store-creds` (SEC-1) + `cron-freshness-woodpecker` (B135)
-+ `port-pr-reconcile-creds` (B144)) are now **sealed
++ `port-pr-reconcile-creds` (B144) + `weyland-cluster-port-k8s-exporter` (B145 — the k8s exporter's own
+creds, created by a hand-run `helm install` and never sealed)) are now **sealed
 into the public repo** and restored by
 Argo — closing the "reproducible-from-git / secrets-restorable" gap. Encrypted `SealedSecret` CRs are safe in a
 public repo: **only this cluster's controller private key can decrypt them.**

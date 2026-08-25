@@ -29,6 +29,17 @@ The *action* execution path (clicking a Port button to change the cluster) is se
 > | `linear` | Saas | 0.3.97 | 3: issue, label, team |
 > | `sonarqube-direct` | Saas | 0.1.439 | 2: issues, projects_ga |
 >
+> **UNDER GITOPS SINCE B145 (2026-08-25).** The exporter — `weyland-cluster-port-k8s-exporter`, ns
+> `port-k8s-exporter`, chart 0.3.28 / app 0.7.4 — had run **38+ days `helm install`ed by hand**: no manifest, no
+> Argo app, no registry entry, and its Port credentials unsealed with no ownerReferences. It feeds the entire k8s
+> half of this catalog, so losing the namespace would have emptied all of it with nothing in git to rebuild from.
+> Now: Argo app `port-k8s-exporter`, values at `k8s/port-k8s-exporter/port-k8s-exporter-values.yaml`, creds sealed.
+>
+> **Its resource MAPPING stays in a different lane** — `tofu/port/b137_integrations.tf` — and must. The chart's
+> `configMap.config` is deliberately left empty (`{}`, three bytes on the live ConfigMap) so tofu is the only
+> writer; setting it here would create a second writer competing with the tofu lane. Restarting is safe:
+> `OVERWRITE_CONFIGURATION_ON_RESTART=false`, verified before the Argo app was written rather than assumed.
+>
 > The k8s exporter runs **on-prem and pushes outbound**, which is why the LAN-only topology never blocked it —
 > the original inference (cloud cannot reach in ⇒ no exporter) was wrong about the direction of travel.
 >

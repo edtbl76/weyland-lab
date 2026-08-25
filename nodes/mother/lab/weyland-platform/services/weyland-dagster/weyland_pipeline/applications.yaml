@@ -9,7 +9,7 @@
 #
 # COMPLETENESS: every deployed Argo CD Application + the non-k8s services (whisper/ollama CTs) + data-mesh
 # sub-components appears here — as an `applications:` entry (a component) or `excluded:` (store/plumbing).
-# scripts/check-app-registry.sh enforces it (77 Argo apps, all accounted). As of 2026-08-22 that guard
+# scripts/check-app-registry.sh enforces it (78 Argo apps, all accounted). As of 2026-08-22 that guard
 # DOES run in CI — the `repo-guards` step in .woodpecker.yml, blocking — so "enforces" now means what it
 # says. (It previously did not, and this comment said so.)
 #
@@ -83,6 +83,7 @@ applications:
   - {key: mcp-gateway, name: MCP Gateway, group: gateway, datahub_application: false, owns: [], capabilities: ["mcp", "api-gateway"], port_component: mcp-gateway, description: "FastMCP auth reverse-proxy."}
   - {key: mcp-servers, name: MCP Compositor, group: gateway, datahub_application: false, owns: [], capabilities: ["mcp"], port_component: mcp-servers, description: "FastMCP fleet compositor + read-only servers."}
   - {key: port-agent, name: Port Agent, group: gateway, datahub_application: false, owns: [], capabilities: ["control-agent"], port_component: port-agent, description: "Self-hosted Port execution agent (polling)."}
+  - {key: port-k8s-exporter, name: Port K8s Exporter, group: gateway, datahub_application: false, owns: [], capabilities: ["catalog-ingestion"], port_component: port-k8s-exporter, description: "On-prem Ocean k8s exporter (polling, outbound) — feeds the entire k8s half of the Port catalog: k8s_workload/k8s_pod/k8s_namespace/k8s_node/k8s_replicaSet/k8s_cluster + istio_gateway/istio_virtual_service. Ran 38+ days un-onboarded (B145); its resource MAPPING is codified separately in tofu/port/b137_integrations.tf, which is why this entry covers only the workload."}
   - {key: traefik-forward-auth, name: Traefik Forward-Auth, group: gateway, datahub_application: false, owns: [], capabilities: ["authentication", "api-gateway"], port_component: traefik-forward-auth, description: "Keycloak forward-auth for browser UIs."}
 
   - {key: a2a-inspector, name: A2A Inspector, group: ui, datahub_application: false, owns: [], capabilities: ["console-ui"], port_component: a2a-inspector, description: "A2A debug UI."}

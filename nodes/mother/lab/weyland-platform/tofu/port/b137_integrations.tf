@@ -483,10 +483,14 @@ resource "port_integration" "weyland_cluster" {
                 # A Job is healthy if it succeeded or is still running; anything else (failed, or never
                 # started) is not. Deliberately not `.status.failed == 0`, which is true before it starts.
                 "properties" = {
-                  # Explicit `null`, not an omitted key. An upsert does not clear a property it stops
-                  # sending, so simply dropping `kind` would have left the 27 existing Job entities
-                  # carrying the false "Deployment" forever. Writing null is what actually removes it.
-                  "kind"              = "null"
+                  # B145, 2026-08-25 — now a real value. It was `null` because `k8s_workload.kind` was an
+                  # enum of StatefulSet/DaemonSet/Deployment/Rollout and Port drops an out-of-enum value
+                  # SILENTLY, so writing "Job" would have looked like it worked and written nothing.
+                  # The enum was extended with Job + CronJob, and the concern that the integration would
+                  # revert it was TESTED rather than assumed: extended, restarted the exporter (which runs
+                  # CREATE_DEFAULT_RESOURCES=true), re-read — the change SURVIVED. Consistent with the
+                  # blueprint's updatedAt having sat unchanged for 66 days across 3 pod restarts.
+                  "kind"              = "\"Job\""
                   "creationTimestamp" = ".metadata.creationTimestamp"
                   "replicas"          = ".spec.parallelism"
                   "hasPrivileged"     = ".spec.template.spec.containers | [.[].securityContext.privileged] | any"
@@ -524,11 +528,12 @@ resource "port_integration" "weyland_cluster" {
                 # nothing was ever written. Nothing reported this: an entity that is never created leaves no
                 # trace at all — not even an audit FAILURE, which is what the pod-relation bug at least had.
                 #
-                # `kind` omitted for the same enum reason as the Jobs mapping above. A CronJob has no
+                # `kind` is now "CronJob" — see the Jobs mapping above for the enum test. A CronJob has no
                 # replicas and no health of its own; the meaningful state is whether it is SUSPENDED, which
                 # is the one way a scheduled job silently stops — the exact failure that cost four days on
                 # `nightly-images`.
                 "properties" = {
+                  "kind"              = "\"CronJob\""
                   "creationTimestamp" = ".metadata.creationTimestamp"
                   "hasPrivileged"     = ".spec.jobTemplate.spec.template.spec.containers | [.[].securityContext.privileged] | any"
                   "hasLatest"         = ".spec.jobTemplate.spec.template.spec.containers[].image | contains(\":latest\")"

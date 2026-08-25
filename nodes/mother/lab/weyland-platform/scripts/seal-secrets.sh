@@ -55,6 +55,11 @@ SECRETS=(
   weyland/traefik-forward-auth-secret
   weyland/unleash-secret
   weyland/weyland-postgres-secret
+  # --- port-k8s-exporter (1) ---
+  # B145 — the exporter's Port ORG credentials. Created imperatively with the hand-run `helm install`
+  # and never sealed: it had NO ownerReferences at all, so nothing in git could restore it. The exporter
+  # feeds the entire k8s half of the Port catalog, so losing this secret silently empties that catalog.
+  port-k8s-exporter/weyland-cluster-port-k8s-exporter
   # --- data-mesh (15) ---
   data-mesh/clickhouse-users
   data-mesh/cube-secret

@@ -47,6 +47,8 @@ created in Port's UI is invisible to it — which is how this org reached 51 liv
 with a clean plan throughout. `scripts/check-port-iac-coverage.sh` asks the inverse question and is what actually
 guards the lane; see [port.md](port.md) § What is deliberately UI-managed.
 
+**`k8s_workload.kind` carries Job/CronJob as of B145, and the enum extension was TESTED not assumed.** Port drops an out-of-enum property value SILENTLY, so the batch mappings originally wrote `null` rather than a value that would look accepted and write nothing. The enum lives on an integration-OWNED blueprint, so the fear was that the exporter would revert it. Experiment: extend the enum → restart the exporter (which runs `CREATE_DEFAULT_RESOURCES=true`) → re-read. **It survived.** Consistent with the blueprint's `updatedAt` sitting unchanged for 66 days across 3 pod restarts. Note the exporter does NOT rewrite unchanged entities when a mapping changes — a restart is what forces the full resync.
+
 **Integrations (`port_integration`) — the two attributes that matter:** `version` is optional+**computed**, so
 leave it unset. Port upgrades its hosted integrations on its own schedule (github-ocean 6.8.1 → 6.9.4 in two days
 here) and pinning it makes the plan permanently dirty. `config` is the resource **mapping** — authored by a human,

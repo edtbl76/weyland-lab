@@ -1,0 +1,56 @@
+# Helm values for the port-labs/port-k8s-exporter chart (Argo app: port-k8s-exporter). NON-SECRET only.
+# PORT_CLIENT_ID / PORT_CLIENT_SECRET come from the existing Secret `weyland-cluster-port-k8s-exporter`
+# via secret.useExistingSecret — the same arrangement as port-agent.
+#
+# B145 — BROUGHT UNDER GITOPS 2026-08-25. This exporter had been running for 38+ days with **no manifest,
+# no Argo application, and no applications.yaml entry**: `helm install`ed by hand and never onboarded. It
+# feeds the ENTIRE k8s half of the Port catalog (k8s_workload / k8s_pod / k8s_namespace / k8s_node /
+# k8s_replicaSet / k8s_cluster + the two istio_* blueprints), so losing the namespace would have silently
+# emptied all of it with nothing in git to rebuild from.
+#
+# It went unnoticed because `scripts/check-app-registry.sh` reconciles **Argo apps against the registry**,
+# and a workload that was never onboarded to Argo is absent from BOTH sides — so the guard reported
+# "every deployed Argo app is accounted for" while this one sat outside the comparison entirely. A check
+# that diffs two lists cannot see a third thing that is in neither.
+#
+# ── WHY A RESTART IS SAFE, verified rather than assumed ────────────────────────────────────────────
+# Bringing this under Argo means Argo may restart it, and the obvious fear is that a restart would reset
+# the resource mapping — which B137 spent real effort correcting (the `ownerReferences` guard on the pod
+# relation, `batch/v1/jobs`, and the `batch/v1/cronjobs` fix that took CronJob entities 0 -> 10).
+#
+# It cannot, and here is the evidence:
+#   * `OVERWRITE_CONFIGURATION_ON_RESTART = false` on the live Deployment.
+#   * The mounted ConfigMap's `config.yaml` is literally `{}` — THREE BYTES. The mapping does not live in
+#     the cluster at all; it lives server-side in Port, where `tofu/port/b137_integrations.tf` now
+#     codifies it.
+# Do NOT set `configMap.config` here. Doing so would move the mapping back into the cluster and create a
+# second writer competing with the tofu lane — exactly the split B60 exists to prevent.
+#
+# ── CHART VERSION IS PINNED TO WHAT IS RUNNING, ON PURPOSE ─────────────────────────────────────────
+# 0.3.28 / app 0.7.4 is the live release. Newer exists (0.3.33 / 0.7.10 as of 2026-08-25). This change is
+# "codify what is already running", NOT "upgrade" — a version bump is a separate change with its own
+# verification, and mixing the two means a failure afterwards has two candidate causes.
+
+# POLLING, not KAFKA: same constraint as port-agent — this org has no Kafka credentials provisioned, so
+# the exporter polls the Port API outbound instead. See k8s/port-agent/port-agent-values.yaml.
+eventListener:
+  type: POLLING
+
+# EU region. The org lives on api.port.io; the chart default is the legacy US api.getport.io.
+portBaseUrl: https://api.port.io
+
+# The exporter's own identity in Port. Must match the integration `installationId` that
+# tofu/port/b137_integrations.tf manages — change one and the other stops describing it.
+stateKey: weyland-cluster
+
+extraEnv:
+  # Interpolated into the mapping's jq as `env.CLUSTER_NAME` — it is the suffix on EVERY entity
+  # identifier the exporter writes (`<name>-<Kind>-<ns>-<cluster>`). Changing it orphans every existing
+  # entity and creates a duplicate set.
+  - name: CLUSTER_NAME
+    value: weyland-cluster
+
+secret:
+  # Creds live in the pre-existing Secret rather than in these values, so the values file stays committable.
+  useExistingSecret: true
+  name: weyland-cluster-port-k8s-exporter

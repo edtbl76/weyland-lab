@@ -1,0 +1,25 @@
+---
+apiVersion: bitnami.com/v1alpha1
+kind: SealedSecret
+metadata:
+  name: weyland-cluster-port-k8s-exporter
+  namespace: port-k8s-exporter
+spec:
+  encryptedData:
+    PORT_CLIENT_ID: AgBEBKJRd7mBPZ6Yio9ZVvzkuHdWJ97+XVw+JKlBTF0nh4eEKRDFba4eAq3fcOOHEaoljL05BIbWEjcaZH2JbqESrSjCb45hiFz7ZR9bmXR2XNLufBun/0PHTJIAW3k6CTjW8HOtv5rFSvFVg1zx7sBZ+GZMVdM5VERei0a9Lg22zuHUxhQZN4xiWamdlASL0S9aBvIW+1DbNDRaCPZdCxKa4Ch6EIfnQmgcJ9soZpTNqyV5YAyPQvs62UTaOJiC6MO7fwGQ5fhRcBVXnOqyvZ3Kr/iH5mZuZhpmUVkJVz9D3zjj7H+D6A5E1XECUFHWWF7z2tLPMzk4bd+WKCg/Vf9i+wX9di0ZrFcf5SoKjlBXkwipsnNpb2n7P/mH2bb+if1qO02tUCQhaSFDKPSSZoI7tcW+5ljNATVG+IMVr5dSCM190WhE+rxFZD5yHXIA0u3T6fMUk4SXyebEOIsQMfjnMnZMAjAoPW6+2CdtooqsJszGL+kffmZLJ1fYg7/Vb4MZdUJ5BM2AhxUvw2xSnsaHg9WEKj72OK5RslX4jglgvIf04GPgOHPE17mc7jL08R4Rz5hXlfvR0Z2g9BLo7dYKhYhTowcLuMUAcvcAUXD47XYLlv4Mdc8zQ3KREV4sb1FFhFjB6rloUgKWv+Udmn2sCW1hc9baSaFKLWl/3OxCcF9zpnr+KbEn6IZOykMx/7oSNBnCj9XBpLmTI/2pxwgUk5z+FtbU3DR+IyYTvs5ybA==
+    PORT_CLIENT_SECRET: AgCHse20feiirk1MzcL0jrRTUytXyorwfPVRNSyxwCn8iSHw2k5SjFcJSnJrQk0olyDTfbyGHn/SDpL//tcHZyrTKa/cxHtC+KwFko/Z6hNnOs+zxATy9REPewFcaHFj3+/4RNmgTAgyRTMGwsTs37Egr9nHMQNK//xhqWxJs61YIzkAHQU3neXS33dL/fa+QbSl+5vJbc/p1hrQDvYkxU7Gbu2xEmQs6vfZskt97YNQMe5yW2SDwXLlZfREQG5EJuk+GiLgFAFcYeHumoB4tpXfaf+AvQdLbL/a0SlC6RxKnjZVHEVMpVT/SXTKA1eY+Z3FTD1ISD/gfPDI89QnX/0mWjTFpTRhHZX9ktxy/E6oeX3O3jsKcXGbDP4y4wQYpWEXRa1nDXz4qOzRNjT7IMcSD0QiuVS3FJRU2fNqnvDVsh60l9Lhlhez+OfHkgdyg7P2JIvi6jt4MNP1pigt0DEmZymsj/Eh7CRrVNg9OINMQWUuowbgO77kdFxJ6VGlfBpNfWGW9UKqlkDdEsurm50EtXqFU12bkkN9TQkqdcvn+bh2eC6Tl3Pq0qdTYI8SOs4OyupleZQdkqPNt6P0fgdXyJbjoQiQ38vXUf9SC8NujHN2MwrwgIEJi2uOCyVDgZoWJMFU6sjRsO1lFECyu8bxIlXbnUEqHMirp8AXGhz2/TXab+Z68du/C0vqCQT2q9H0AUhGOGOanwtfaOZpLIpK6ShjgG4J5+o1Cdd+Mjg77b8kLTdwOBn5ZEEtlgGZyV7wJk/4HGUKaj66doKjKY8+
+  template:
+    metadata:
+      annotations:
+        meta.helm.sh/release-name: weyland-cluster
+        meta.helm.sh/release-namespace: port-k8s-exporter
+        sealedsecrets.bitnami.com/managed: "true"
+      labels:
+        app.kubernetes.io/instance: weyland-cluster
+        app.kubernetes.io/managed-by: Helm
+        app.kubernetes.io/name: port-k8s-exporter
+        app.kubernetes.io/version: 0.7.4
+        helm.sh/chart: port-k8s-exporter-0.3.28
+      name: weyland-cluster-port-k8s-exporter
+      namespace: port-k8s-exporter
+    type: opaque

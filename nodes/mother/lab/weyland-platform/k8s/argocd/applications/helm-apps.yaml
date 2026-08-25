@@ -190,6 +190,43 @@ spec:
 ---
 # Port execution agent — outbound-only relay for Port self-service actions in the LAN (Port cloud can't
 # push inbound). Forwards the "Scale data-mesh store" action to the in-cluster store-scaler → k8s scale.
+# B145 — the Port k8s exporter. Ran 38+ days with no manifest, no Argo app and no registry entry;
+# `helm install`ed by hand and never onboarded. It feeds the ENTIRE k8s half of the Port catalog, so
+# losing the namespace would have emptied all of it with nothing in git to rebuild from.
+# Chart pinned to the version already RUNNING (0.3.28 / app 0.7.4) — this codifies, it does not upgrade.
+# Creds via the existing Secret `weyland-cluster-port-k8s-exporter` (sealed, see k8s/sealed-secrets/).
+# Restart-safe: OVERWRITE_CONFIGURATION_ON_RESTART=false and the mapping lives in Port, not the cluster.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: port-k8s-exporter
+  namespace: argocd
+spec:
+  project: default
+  sources:
+    - repoURL: https://port-labs.github.io/helm-charts
+      chart: port-k8s-exporter
+      targetRevision: 0.3.28
+      helm:
+        # MUST stay `weyland-cluster` — it is the existing Helm release name AND the exporter's stateKey.
+        # A different releaseName makes Argo create a SECOND exporter beside the running one.
+        releaseName: weyland-cluster
+        valueFiles:
+          - $values/nodes/mother/lab/weyland-platform/k8s/port-k8s-exporter/port-k8s-exporter-values.yaml
+    - repoURL: https://github.com/edtbl76/weyland-lab.git
+      targetRevision: main
+      ref: values
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: port-k8s-exporter
+  syncPolicy:
+    # prune: false, deliberately. The existing release was created outside Argo, so the first sync ADOPTS
+    # live objects; pruning during an adoption is how you delete the thing you meant to take ownership of.
+    automated: { selfHeal: true, prune: false }
+    syncOptions:
+      - ServerSideApply=true
+      - CreateNamespace=true
+---
 # Creds via existing Secret `port-agent-creds` in ns port-agent (created out-of-band, NOT committed).
 apiVersion: argoproj.io/v1alpha1
 kind: Application

@@ -121,7 +121,7 @@
     <div><div class="n">14</div><div class="l">Data stores</div></div>
     <div><div class="n">17</div><div class="l">Consoles / UIs</div></div>
     <div><div class="n">6</div><div class="l">Flow stages</div></div>
-    <div><div class="n">77</div><div class="l">Argo apps, all GitOps</div></div>
+    <div><div class="n">78</div><div class="l">Argo apps, all GitOps</div></div>
   </div>
   <div class="legend">
     <span><i class="dot live"></i> Live</span>
@@ -301,7 +301,7 @@
       <div class="row"><span class="nm"><i class="cdot"></i>MCP server fleet</span><div><div class="rl">6 read-only MCP servers over lab subsystems</div><span class="ex">grafana · trino (lakehouse) · k8s · postgres · neo4j · datahub. One protocol for agents to query the platform; composed behind the gateway (FastMCP)</span></div></div>
       <div class="row"><span class="nm"><i class="cdot"></i>CoreDNS</span><div><div class="rl">LAN DNS resolver</div><span class="ex">authoritative for weyland.lab; coredns-custom in-cluster forward</span></div></div>
       <div class="row"><span class="nm"><i class="cdot"></i>mkcert</span><div><div class="rl">local wildcard CA / TLS</div><span class="ex">wildcard cert + OIDC back-channel bundle</span></div></div>
-      <div class="row"><span class="nm"><i class="cdot"></i>Argo CD</span><div><div class="rl">GitOps CD (app-of-apps)</div><span class="ex">77 apps auto-sync; push-to-git → reconcile</span></div></div>
+      <div class="row"><span class="nm"><i class="cdot"></i>Argo CD</span><div><div class="rl">GitOps CD (app-of-apps)</div><span class="ex">78 apps auto-sync; push-to-git → reconcile</span></div></div>
       <div class="row"><span class="nm"><i class="cdot"></i>OpenTofu</span><div><div class="rl">IaC (non-k8s lane)</div><span class="ex">21 Port blueprints, 8 scorecards, 4 integrations, 3 Proxmox guests, the weyland-lab repo; state in MinIO. A coverage guard catches UI-created schema that a clean plan cannot see</span></div></div>
       <div class="row"><span class="nm"><i class="cdot"></i>Woodpecker CI</span><div><div class="rl">CI/CD across a mixed fleet (k8s + local agents)</div><span class="ex">B57b: STUD.io CI on local agents (rogueone); B57a: weyland image CI→CD (buildkitd → registry → tag-bump PR → Argo, nightly 01:00 cron); LAN NodePorts :30980/:30900</span></div></div>
       <div class="row"><span class="nm"><i class="cdot"></i>buildkitd</span><div><div class="rl">BuildKit daemon (B57a)</div><span class="ex">persistent image builder for the weyland CI; thin buildctl client in the step; overlayfs snapshotter + registry cache</span></div></div>
