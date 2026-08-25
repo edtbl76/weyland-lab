@@ -62,6 +62,45 @@ Per-vertex record counts (bisects "no output" — did the SOURCE read, or did th
 [mother] kubectl -n data-mesh exec deploy/weyland-flink -- curl -s localhost:8081/jobs/$JID | python3 -c "import sys,json;d=json.load(sys.stdin);[print(v['name'][:45],'sent=',v['metrics']['write-records'],'recv=',v['metrics']['read-records']) for v in d['vertices']]"
 ```
 
+### Retired: `rta-trending` (B141, manifest deleted 2026-08-24)
+
+A **bounded** job, and its manifest is no longer in the repo. Kept here because deleting a CR should not
+delete the knowledge of how the job ran.
+
+It read the lastfm topic to the end (`scan.bounded.mode=latest-offset`), closed its tumbling windows,
+wrote **5,017,946 rows across 223 snapshots** into `analytics.trending_artists` (last commit
+`2026-08-21T21:50:56Z`), and **FINISHED**. Terminal state confirmed `FINISHED`, jobId
+`f5920627ed8edd6701f898e5a40e4510`. The run is archived to `s3://warehouse/_flink/completed-jobs`, so
+the History Server still shows it and the output data is untouched.
+
+**Why the manifest was deleted.** A `FlinkSessionJob` CR describes a job the Operator expects to be
+running. This one had legitimately ended, so the Operator reconciled it forever and emitted
+`Missing / Job Not Found` as a permanent Warning. That is not an outage, but a Warning that is always
+present is how a team learns to skim past Warnings that are not. A scheduled re-run would have been the
+wrong shape: this was a one-shot showcase, and the continuous flagship is the CDC job.
+
+To run it again, re-apply this (it was `k8s/data-mesh/flink-rta-sessionjob.yaml`), and **delete the CR
+once `state=FINISHED`**:
+
+```yaml
+apiVersion: flink.apache.org/v1beta1
+kind: FlinkSessionJob
+metadata:
+  name: rta-trending
+  namespace: data-mesh
+spec:
+  deploymentName: weyland-flink       # must match the FlinkDeployment (the session cluster)
+  job:
+    jarURI: http://flink-jars.data-mesh.svc.cluster.local/sql-runner.jar   # operator fetches it; local:// is not fetchable for session jobs
+    entryClass: lab.weyland.flink.SqlRunner
+    args:
+      - /opt/flink/sql/rta_trending.sql
+    parallelism: 1
+    upgradeMode: stateless            # bounded, no state to carry across upgrades
+```
+
+The SQL it runs is still in the repo at `k8s/flink/sql/rta_trending.sql`; only the CR was removed.
+
 ## Observability
 
 - **UI:** `flink.weyland.lab` (JM). Per job: Overview / Checkpoints / BackPressure / **FlameGraph**

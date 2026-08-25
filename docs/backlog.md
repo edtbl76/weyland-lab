@@ -2077,7 +2077,7 @@ Linear: EMA-199. Relates B56, B57a, B57b (the mixed fleet), B135 (the CLI consum
 
 ---
 
-### B142 — Dependency CVEs surfaced by the B136 scan: `starlette` (store-scaler) + `setuptools` (weyland-dagster) — 🟡 **MEDIUM (2026-08-24)**
+### B142 — Dependency CVEs surfaced by the B136 scan: `starlette` (store-scaler) + `setuptools` (weyland-dagster) — ✅ **DONE (2026-08-24)**
 
 Triaged out of the 2026-08-24 `code-scan-suite` run (`s3://scan-reports/2026-08-24T15-55-29Z/`) while grading B136's DoD pillar 7. Neither is B136's doing — both pre-date it — but they are now the **top remaining fixable dependency CVEs**, and B136 having cleared sqlparse is what left them at the top.
 
@@ -2114,7 +2114,23 @@ Linear: EMA-201. Relates B133 (the sweep discipline), B136 (which surfaced these
 
 ---
 
-### B141 — `rta-trending` FlinkSessionJob emits a permanent `Job Not Found` Warning — 🟡 **LOW (2026-08-23)**
+### B141 — `rta-trending` FlinkSessionJob emits a permanent `Job Not Found` Warning — ✅ **DONE (2026-08-24)**
+
+**Resolved by deleting the CR and preserving its manifest in the runbook.** The job was bounded by design, ran successfully (5,017,946 rows / 223 snapshots, last commit `2026-08-21T21:50:56Z`), and terminated `FINISHED` (jobId `f5920627ed8edd6701f898e5a40e4510`, re-confirmed live before deletion). A `FlinkSessionJob` CR describes a job the Operator expects to be *running*, so a legitimately-ended one is reconciled forever and emits `Missing / Job Not Found` as a permanent Warning. Not an outage, but a Warning that is always present is how a team learns to skim past Warnings that are not.
+
+`k8s/data-mesh/flink-rta-sessionjob.yaml` deleted; the full manifest, the terminal-state evidence, and the re-run instructions now live in **`docs/runbooks/flink.md`** under "Retired: `rta-trending`". Deleting a CR should not delete the knowledge of how the job ran. The SQL is untouched at `k8s/flink/sql/rta_trending.sql`, and the archived run remains at `s3://warehouse/_flink/completed-jobs` so the History Server still shows it.
+
+The `data-mesh` Argo app has `prune: true`, so the live CR is removed by the sync rather than by hand.
+
+**Cascading doc fixes (DoD pillar 8):** three stale references in `docs/demos/flink.md` and `docs/demos/streaming-cdc-e2e.md` now point at the runbook. Those also carried a **pre-existing error** worth noting: they told the reader to query `flinksessionjob rta-trending-artists`, but the CR was always named `rta-trending`, so that command could never have worked. Corrected.
+
+A scheduled re-run was considered and rejected: the manifest framed this as a one-shot showcase, and the continuous flagship is the CDC job. Freshness was never its job.
+
+Linear: EMA-202. Relates B83 (the Flink tier).
+
+---
+
+### B141 (original diagnosis) — 🟡 **LOW (2026-08-23)**
 
 **Root-caused 2026-08-23; the remedy is a design call, not a bug fix.** `rta-trending` is a **bounded** job by design (`scan.bounded.mode=latest-offset`): it reads the lastfm topic to the end, closes its tumbling windows, writes `analytics.trending_artists`, and finishes. It did — 5,017,946 rows across 223 snapshots, last committed **2026-08-21T21:50:56Z**. The session cluster is healthy: the JobManager is running the CDC flagship (`4416a6ca…`) and health-state-risk (`2b946762…`), both checkpointing every 60s without failures.
 

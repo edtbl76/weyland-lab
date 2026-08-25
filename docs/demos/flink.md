@@ -6,7 +6,7 @@ Four jobs cover all four Flink surfaces:
 
 | # | Job | Surface | Source → Sink | Mode | Manifest |
 |---|-----|---------|---------------|------|----------|
-| 1 | **RTA — trending artists** | Flink SQL | `datasets.music.lastfm` → Iceberg `analytics.trending_artists` (append) | bounded | `flink-rta-sessionjob.yaml` |
+| 1 | **RTA, trending artists** | Flink SQL | `datasets.music.lastfm` → Iceberg `analytics.trending_artists` (append) | bounded, **RETIRED 2026-08-24** | manifest in [runbooks/flink.md](../runbooks/flink.md#retired-rta-trending-b141-manifest-deleted-2026-08-24) |
 | 2 | **CDC → lakehouse** | Flink SQL | `cdc.musicbrainz.public.cdc_demo` → Iceberg `datasets_music.cdc_demo_live` (upsert, v2 equality-deletes) | continuous | `flink-cdc-sessionjob.yaml` |
 | 3 | **health — state risk** | Java DataStream + keyed state | `datasets.health.brfss` → Kafka `analytics.health.state_risk` | continuous | `flink-health-sessionjob.yaml` |
 | 4 | **music — popularity tier** | PyFlink + Python UDF | `datasets.music.lastfm` → Kafka `analytics.music.artist_tier` (upsert-kafka) | bounded | `flink-pyflink.yaml` |
@@ -105,8 +105,8 @@ Re-produce the lastfm source (bounded replay), submit the session job, query the
 
 ```
 [mother] kubectl -n weyland exec deploy/dagster-user-code -- dagster asset materialize --select datasets_music_stream_produce -m weyland_pipeline.definitions
-[mother] kubectl apply -f ~/flink-rta-sessionjob.yaml
-[mother] kubectl -n data-mesh get flinksessionjob rta-trending-artists -o jsonpath='{.status.jobStatus.state}{"\n"}'
+[mother] kubectl apply -f ~/flink-rta-sessionjob.yaml   # B141: no longer in the repo, the manifest lives in runbooks/flink.md
+[mother] kubectl -n data-mesh get flinksessionjob rta-trending -o jsonpath='{.status.jobStatus.state}{"\n"}'
 [mother] kubectl -n data-mesh exec deploy/trino-coordinator -- trino --execute "SELECT window_start, artist_name, plays, listeners FROM iceberg.analytics.trending_artists ORDER BY plays DESC LIMIT 20"
 ```
 

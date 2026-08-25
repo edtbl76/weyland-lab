@@ -121,8 +121,8 @@ Kubectl runs on **mother**.
 
 **Step 2 — submit / confirm the Flink jobs:**
 ```
-[mother] kubectl apply -f ~/flink-rta-sessionjob.yaml
-[mother] kubectl -n data-mesh get flinksessionjob rta-trending-artists -o jsonpath='{.status.jobStatus.state}{"\n"}'
+[mother] kubectl apply -f ~/flink-rta-sessionjob.yaml   # B141: no longer in the repo, the manifest lives in runbooks/flink.md
+[mother] kubectl -n data-mesh get flinksessionjob rta-trending -o jsonpath='{.status.jobStatus.state}{"\n"}'
 [mother] kubectl -n data-mesh get flinksessionjob cdc-cdc-demo-live -o jsonpath='{.status.jobStatus.state}{"\n"}'
 ```
 
