@@ -117,6 +117,65 @@ can't provide. Docs: [../diagrams/flow-ci-reliability-signal.md](../diagrams/flo
     steps** (`notify-port-pass` / `notify-port-fail`) that **hardcode** the status, each `depends_on` **every** prior
     step. Proven: #14 → failure, #15 → success. Only `main` reports (all 3 share the pipeline number → id collision).
 
+## What lives ONLY in the server's SQLite, and how to recreate it (B137)
+
+The server's whole state — activated repos, their ids, trust flags, repo secrets, and **crons** — is a SQLite file
+on a PVC at `/var/lib/woodpecker`. None of it is in git and there is no OpenTofu provider for it, so a rebuild or a
+lost PVC loses all of it **silently**. Deleting the manifest is not an option the way it was for a finished Flink
+job: these are live configuration. So the definition is recorded here instead, and the live state is watched.
+
+Verified against the live API 2026-08-24. Values are the ones to recreate, not a recollection:
+
+| Repo id | Repo | active | `trusted` |
+|---|---|---|---|
+| 1 | `edtbl76/stud.io` | true | network `false` · volumes `false` · security `false` |
+| 2 | `edtbl76/weyland-lab` | true | network `false` · volumes `false` · **security `true`** |
+
+`weyland-lab`'s `trusted.security: true` is load-bearing: without it Woodpecker **silently drops** `privileged`
+from a step, which is one of the five things that had to be cleared before BuildKit worked (see the buildkitd
+section above). A rebuilt repo defaults it to `false` and the failure looks like an unrelated EPERM.
+
+**Crons** — repo 2 only:
+
+| id | name | schedule | timezone | branch | enabled |
+|---|---|---|---|---|---|
+| 2 | `nightly-images` | `0 5 * * *` | UTC | `main` | **true** |
+
+**`--enabled` is not a default.** `nightly-images` was created `enabled: false` on 2026-08-18 and never fired for
+four days while `docs/schedules.md` documented a running daily build. A disabled cron emits nothing at all — no
+run, no error, no metric — and `next_exec` simply freezes at its first-ever slot.
+
+**Repo secrets** (values are NOT recorded here; recreate from `scripts/.env` and the Port webhook DS):
+
+| Repo | Secret | Events |
+|---|---|---|
+| 2 `weyland-lab` | `github_token` | `cron`, `manual` |
+| 2 `weyland-lab` | `port_ingest_url` | `cron`, `manual` |
+| 1 `stud.io` | `sonar_token`, `minio_svc_access_key`, `minio_svc_secret_key` | `push`, `manual` |
+
+The **events list is part of the secret**, not decoration: a secret that exists but does not cover the triggering
+event produces a whole-config **PARSE** error ("secret not found"), not a failed step.
+
+Recreate via the REST API (the CLI's `repo cron update` 404s on a positional repo argument, as `pipeline last`
+does). `$WOODPECKER_SERVER` is the LAN NodePort `http://mother:30980`, never `woodpecker.weyland.lab` — the public
+host is behind `traefik-forward-auth`, which 302-redirects Bearer calls to a login page:
+
+```bash
+set -a && . scripts/.env && set +a
+curl -sS -X POST "$WOODPECKER_SERVER/api/repos/2/cron" -H "Authorization: Bearer $WOODPECKER_TOKEN" \
+  -H 'Content-Type: application/json' \
+  -d '{"name":"nightly-images","schedule":"0 5 * * *","branch":"main"}'
+curl -sS -X PATCH "$WOODPECKER_SERVER/api/repos/2/cron/2" -H "Authorization: Bearer $WOODPECKER_TOKEN" \
+  -H 'Content-Type: application/json' -d '{"enabled":true}'
+```
+
+**This table is not the safety net — the watchdog is.** `cron-freshness-check` (k8s CronJob, 04:30 NY,
+`k8s/pr-lifecycle/cron-freshness.yaml`) asks the Woodpecker API every day whether each cron is `enabled` and
+whether `next_exec` has gone stale, and POSTs a synthetic `ScheduledWorkNotRunning` alert to Alertmanager when
+either fails. It exists because a Woodpecker cron is **not a Kubernetes object** — no CronJob, no Job, no pod — so
+kube-state-metrics cannot see it and no `kube_cronjob_*` metric ever will. It also fails loudly on zero crons
+found, so a wiped database reads as an alert rather than a quiet green.
+
 ## Gotchas (hard-won)
 - **YAML colon-space:** a `curl -H "Content-Type: application/json"` line in `commands` makes YAML parse it as a
   *map* (`cannot unmarshal map … into string`). Put multi-command shell in a **`|` literal block**.

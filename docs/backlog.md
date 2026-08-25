@@ -2030,6 +2030,45 @@ Linear: EMA-197. Relates B1.5 (dbt transform tier), B131 (dependency lifecycle),
 
 ---
 
+### B145 — The Port k8s exporter's own deployment is live-only (and its blueprint enum is wrong) — 🟠 **MEDIUM (2026-08-25)**
+
+Found while validating B137. `weyland-cluster-port-k8s-exporter` runs in ns `port-k8s-exporter` (Helm chart `port-k8s-exporter-0.3.28`, app 0.7.4, pod 38 days old, 3 restarts) with **no manifest in `k8s/`, no Argo application, and no entry in `applications.yaml`**. It was `helm install`ed by hand and has been reconciling the entire k8s catalog into Port ever since.
+
+This is precisely the B137 disease one layer down, and it is worse than the Port-side version was: B137 codified what the exporter *does* (`b137_integrations.tf` holds the mapping), but nothing describes what the exporter *is*. Lose the namespace and the mapping in git points at an integration with nothing feeding it. `scripts/check-app-registry.sh` did not catch it because that guard compares **Argo apps** to the registry, and an app that was never onboarded to Argo is invisible to both sides — the same shape as B131's "coverage that looks total from inside one tool."
+
+Also carries a `Completed` pod from **65 days ago** still sitting in the namespace.
+
+**Second, smaller item, same owner:** `k8s_workload.kind` is an enum of `StatefulSet / DaemonSet / Deployment / Rollout`. B137 added Jobs and CronJobs to the mapping, so 37 entities now have **no** `kind` at all — deliberately, because Port drops an out-of-enum value silently and writing `"Job"` would have looked like it worked. `k8s_workload` is an integration-owned blueprint, so extending its enum is a decision about whether the exporter's next upgrade reverts it, and B137's documented rule says not to smuggle that in. Test it: extend the enum, set `kind` on both batch mappings, and check after the next exporter version bump whether it held.
+
+**Acceptance:** the exporter is an Argo application with its values in git and a registry entry; `check-app-registry.sh` accounts for it; the stale Completed pod is gone; and either `k8s_workload.kind` carries `Job`/`CronJob` with a recorded observation of whether the integration preserves it, or the decision not to is written down.
+
+Linear: EMA-204. Relates **B137** (found there), **B131** (same coverage-looks-total shape), B82/B60 (the registry + Argo completeness this bypasses).
+
+---
+
+### B144 — Port `githubPullRequest` entities are never reaped (the ship loop manufactures them) — 🟠 **MEDIUM (2026-08-25)**
+
+`github-weyland` fetches **only open PRs** — confirmed in the integration's own stored raw examples (`[Rest] Fetching open PRs`). A PR that closes simply stops appearing, and an incremental sync upserts but never deletes. So every closed PR leaves a permanent Port entity claiming `status: open`, `closedAt: null`.
+
+The ship loop makes this a steady producer rather than an occasional one: `ship-images.sh` opens a tag-bump PR on most runs and FR2.3 closes superseded ones outright. Observed twice now — PR #34 on 2026-08-23 (deleted by hand) and **PR #36 on 2026-08-25**, both closed on GitHub and still open in Port. Count is 8 entities against 7 real open PRs.
+
+**Two mechanisms have already been tried and both are dead ends:**
+
+- `POST /v1/integration/github-weyland/resync` returns `{"ok":true}` and does nothing — no log rows, `resyncState.lastResyncEnd` unchanged, entity count unchanged. Do not read a 200 from that endpoint as evidence of anything.
+- `spec.appSpec.incrementalSyncEnabled: false` is **not durable**. Set on 2026-08-23, reverted by 2026-08-24; set again, `true` by 2026-08-25. The integration is Port-hosted SaaS (`installationType: SaasOAuth2`) and re-registers with its own appSpec, overwriting server-side edits with no human action. A scheduled resync ran at 13:16Z on 2026-08-24, **after** #36 closed, and did not reap it.
+
+**So the only mechanism left is a periodic `DELETE`-based reconciler:** list `githubPullRequest` entities with `status: open`, ask GitHub whether each is still open, `DELETE /v1/blueprints/githubPullRequest/entities/<id>` for the ones that are not. Natural home is alongside `pr-staleness-check` in `k8s/pr-lifecycle/` — it already talks to GitHub about exactly these PRs.
+
+**Do not skip the fail-closed shape.** An empty entity list, an unreachable Port API, or an unreachable GitHub must be a loud failure, never "nothing to reap" — that is the class of bug this whole workstream keeps finding, and a reaper that deletes on a bad answer is worse than none.
+
+**Acceptance:** `githubPullRequest` entity count matches `gh pr list --state open` across the six mapped repos, asserted after a reconciler run and not by hand; a schedules.md row; a freshness rule and a failure rule like every other CronJob; bats coverage of the decision logic including the fail-closed paths.
+
+**Why it matters beyond tidiness:** these entities feed `service/dora_lead_time` and `service/delivery_performance`. A permanently-open PR that closed weeks ago inflates cycle time forever, so the scorecard degrades with age rather than measuring anything.
+
+Linear: EMA-203. Relates **B137** (where it was diagnosed), **B135** (the ship loop that produces them), EMA-172 (the DORA scorecards it corrupts).
+
+---
+
 ### B143 — Upgrade Woodpecker 3.17.0 → 3.18.0 (log-storage DB migration + gRPC proto enforcement across a mixed fleet) — ✅ **DONE (2026-08-24)**
 
 **Shipped. Server on 3.18.0, all six agents live, no outage.** Chart `3.7.0 → 3.7.2` in `helm-apps.yaml`.
@@ -2309,7 +2348,53 @@ Linear: TBD. Relates B134 (the request wall), B57a (the nightly build), B135/B13
 
 Linear: TBD. Relates **B131** (surfaced the divergence), **B137** (same disease — live-only config nobody can diff), B106/B118 (the review-stack parity claim this would verify), B57a/B57b (Woodpecker's mixed fleet), B60/B82 (Port catalog completeness).
 
-### B137 — Bring live-only config back under IaC (Port schema + Woodpecker) — 🔴 **HIGH (2026-08-22)**
+### B137 — Bring live-only config back under IaC (Port schema + Woodpecker) — ✅ **DONE (2026-08-25)**
+
+**Everything the lab depends on is codified, `tofu plan` is clean, and the decision for what stays UI-managed is enforced by a guard rather than written in prose.** `tofu/port/` went from 13 blueprints / 0 scorecards / 0 integrations to **21 blueprints · 8 scorecards (44 rules) · 4 integrations · 1 action**, all CLI-imported and iterated to a no-op plan. New files: `b137_blueprints.tf` (`service`, `workload`, `deployment`, `environment`, `organization`, `backup`, `ai_session`, `ai_user`), `b137_scorecards.tf`, `b137_integrations.tf`. `service` was the one that mattered most — `component`'s "Repo / Service (DORA)" relation targets it, so from the IaC alone that relation had looked broken.
+
+**The load-bearing prerequisite nobody had run: B60's `state rm`.** The baseline plan was **not** clean — it reported `0 to add, 64 to change, 0 to destroy` on **every** invocation, because 64 `port_entity.component` resources had sat in state for weeks after the decision to remove them was already made and recorded in `docs/runbooks/opentofu.md`. Other writers legitimately own that data, so tofu could only ever read their work as drift to revert. A permanently dirty plan detects nothing: the signal was indistinguishable from the noise, exactly like a permanently-lit alert. State backed up, 64 addresses removed, `applications.tf` replaced by a comment-only file explaining why it declares nothing. **Checked against live Port rather than inferred from the diff:** of the 64, `type`/`lifecycle`/`source` were populated on **0** and no component had a non-empty relation, but `datahub_application_url` was populated on **30** — an apply would have cleared those 30 links. Real hazard, bounded, and both numbers came from the API rather than from the plan output.
+
+**A clean `tofu plan` is not coverage, so a guard was built.** Plan compares the code to the resources **tofu knows about**; a blueprint created in Port's UI is not one of them, which is how the org reached 51 live blueprints against 13 codified with a clean plan the entire time. **`scripts/check-port-iac-coverage.sh`** asks the inverse question — what is LIVE that the code does not describe — and it is the only thing that can catch this recurring. It reads the **`.tf` files**, not `tofu state` (state answers "what does tofu know about", which is exactly the condition the unexecuted `state rm` left things in). Fails closed on an unreachable API, an empty live list, or an unparseable `.tf`. **18 bats tests** (`scripts/tests/port-iac-coverage.bats`), every one mutation-verified — the first pass left one vacuous (the nested-identifier fixture put the decoy *after* the real value, so deleting the parser's depth check kept it green); fixed and re-mutated. Suite is **128 green**, shellcheck clean. CI step `port-iac-coverage` in `.woodpecker.yml`, separate from `repo-guards` because it is the only guard here that needs credentials.
+
+**The documented decision — codify what cannot recreate itself; document what does.** 30 of 51 blueprints stay UI-managed, in three groups with three different reasons, enumerated in `docs/runbooks/port.md` and enforced by the guard: **11 Port system** (`_`-prefixed — Port ships them, the provider models them as a different resource type); **15 integration-owned** (derived at runtime from the live mappings, *not* a static allow-list — an Ocean integration revises its blueprints on upgrade, and github-ocean moved 6.8.1 → 6.9.4 in two days here, so tofu owning `githubRepository` would turn every upgrade into drift); **4 dormant** (created on install, mapped by nothing, named explicitly with a per-entry reason because they cannot be derived). The guard also prints the **rebuild order** every run — six codified relations target integration-owned blueprints, so a from-scratch restore installs the integrations *before* `tofu apply`.
+
+**Codifying the integrations immediately paid for itself — four real defects in `weyland-cluster`'s mapping, found by reading live entities rather than the config, and fixed as reviewable diffs:**
+
+1. **Owner-less pods failed their `k8s_workload` relation.** The `v1/pods` selector is `ownerReferences[0].kind != "ReplicaSet"`, and in jq `null != "ReplicaSet"` is TRUE — so bare pods landed there and the relation string-concatenated nulls. Woodpecker's kubernetes backend creates every step pod bare, so enabling `nightly-images` produced **176 audit FAILUREs in one 05:01 run**, recurring nightly. Both workload relations are now guarded on `ownerReferences` existing. Guarding the *relation* not the selector, on purpose: the pod entity is still worth having, and excluding the `woodpecker` namespace would have hidden the symptom while leaving every other owner-less pod broken.
+2. **`batch/v1/cronjobs` produced ZERO entities** — a CronJob's pod template is at `.spec.jobTemplate.spec.template.spec`, not `.spec.template.spec`, so four properties dereferenced a path that does not exist. B137's own validation row passed anyway because it only ever counted Jobs. **Nothing reported this**: an entity that is never created leaves no trace at all, not even an audit FAILURE. Fixed → **0 → 10 CronJob entities**, matching the 10 that `check-cron-freshness-budgets.sh` knows about.
+3. **Every Job reported `isHealthy: Healthy`, including a failed one.** The copied expression compared `.spec.replicas` to `.status.availableReplicas`; a Job has neither field, so it evaluated `null == null`. Same class as the five silent-failure defects — an absent result standing in for a successful one, in the field whose entire job is to say otherwise. **Proof the fix measures something:** the property went from 27/27 `Healthy` to **24 Healthy / 3 Unhealthy**, and the flagged ones are genuinely `Failed` in Kubernetes — `cron-freshness-check-29792670` (19h) and `dagster-freshness-check-29791170` (44h). Both are correct fail-closed outcomes (`FATAL: could not reach the Woodpecker API … NOT reporting healthy`), both already covered by B140's `ScheduledJobFailed` rule, and neither was caused by this change — Port had simply been calling them Healthy.
+4. **`kind` was hardcoded `"Deployment"` on both batch mappings**, so 27 Jobs reported themselves as Deployments. Not set to `"Job"`: `k8s_workload.kind` is an enum of StatefulSet/DaemonSet/Deployment/Rollout and Port drops an out-of-enum value **silently** (the same trap that made `ci_pipeline` ingest return `ok:true` and write nothing). Written as an explicit `null` rather than an omitted key, because an upsert does not clear a property it stops sending — omitting it would have left the false value on all 27 forever.
+
+All four were copy-paste from the deployments mapping. Same class as the `cron-freshness.yaml` finding: an assumption about a sibling encoded instead of an observation of it.
+
+**The `nightly-images` cron needed no new machinery — B140 already built the watchdog.** `cron-freshness-check` (04:30 NY, `k8s/pr-lifecycle/cron-freshness.yaml`) already asks the Woodpecker API daily whether each cron is `enabled` and whether `next_exec` has gone stale, POSTs a synthetic `ScheduledWorkNotRunning` alert, and fails loudly on zero crons found. Read `docs/schedules.md` before building and it said so. Verified live: `enabled: true`, `next_exec` 2026-08-25T05:00:00Z (future). What was genuinely missing was the **definition**, since Woodpecker's SQLite lives on a PVC with no provider and no git: repo ids, `trusted` flags (weyland-lab's `security: true` is load-bearing — without it Woodpecker silently drops `privileged` and BuildKit breaks), the cron row, and the repo-secret names with their **events** lists are now recorded in `docs/runbooks/woodpecker.md` with the exact recreate calls. B141's precedent, applied.
+
+**Live validation (a clean plan only proves the code matches the code):**
+
+| Item | Assertion | Result |
+|---|---|---|
+| `check-port-iac-coverage.sh` | run against the live API, not a snapshot | ✅ 51/21/30 blueprints · 8/8 scorecards · 4/4 integrations, 0 missing |
+| `tofu plan` | no drift after every apply | ✅ `No changes` |
+| owner-less pod relation | guard present in the LIVE integration config | ✅ read back from `GET /v1/integration/weyland-cluster` |
+| `batch/v1/cronjobs` | CronJob entities exist | ✅ 0 → **10** |
+| Job entities | present in `k8s_workload` | ✅ 27 |
+| `nightly-images` | `enabled` true AND `next_exec` in the FUTURE | ✅ both, read from the Woodpecker API |
+| `githubPullRequest` | count matches `gh pr list` | ⚠️ **8 vs 7** — see below |
+
+**Open, and deliberately not closed here:**
+
+- **The stale-PR defect recurred, exactly as predicted.** Port holds 8 `githubPullRequest` entities against 7 open on GitHub; the extra is weyland-lab **PR #36**, closed, still `status: open` in Port. `incrementalSyncEnabled` has reverted to `true` **again** (it was PATCHed `false` on 2026-08-23) because the integration is Port-hosted and re-registers with its own appSpec — that flag is now proven non-durable twice over. With incremental on, a resync ran at 13:16Z *after* #36 closed and did not reap it. The ship loop generates these as a matter of course. Per B137's own note, a periodic **`DELETE`-based reconciler** is the only mechanism left; filed rather than bolted on, since it is a new scheduled job with its own secrets, alerting and `schedules.md` row.
+- **`k8s_workload.kind` needs `Job` / `CronJob` added to its enum.** It is an integration-owned blueprint, so extending it is exactly the kind of change the documented decision says not to smuggle in. Until then Jobs and CronJobs carry no `kind`, which is honest rather than false.
+- **The k8s exporter itself is not in git.** `weyland-cluster-port-k8s-exporter` runs in ns `port-k8s-exporter` (Helm, chart 0.3.28, 38d old) with no manifest and no Argo app — the same disease one layer down, found while validating this work. Also carries a `Completed` pod from 65 days ago.
+- **The jupyterhub `k8s_replicaSet` residue** is still unexplained and still not chased.
+
+**DoD:** 1 ✅ (`port.md`, `opentofu.md`, `woodpecker.md`; no endpoint/host/timer change) · 2 ✅ N/A · 3 ✅ N/A · 4 ✅ · 5 ✅ · 6 ✅ N/A · 7 ✅ N/A (no image change) · 8 ✅ (guard wired to CI; `check-cron-freshness-budgets` / `check-app-registry` / `check-doc-counts` / mermaid all green).
+
+Linear: EMA-198.
+
+---
+
+### B137 (original entry) — 🔴 **HIGH (2026-08-22)**
 
 `docs/runbooks/port.md` documents the B60 split as **"blueprints (the schema) = OpenTofu, drift-checked; entity data outside."** That is no longer true. Verified against the live `api.port.io` on 2026-08-22:
 

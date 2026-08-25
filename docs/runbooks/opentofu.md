@@ -19,15 +19,43 @@ direct CI→CD wire; git is the seam.
 - `.gitignore` ignores `.terraform/`, `*.tfstate*`, `*.tfvars`; the **lock file IS committed**.
 
 ## Port lane (done) — `tofu/port/`
-**13 blueprints codified** — 8 webhook/category (`cost`, `ci_pipeline`, `glitchtip_issue`, `feature_flag`,
+**21 blueprints + 8 scorecards + 4 integrations + 1 action codified.** CLI-imported, `tofu plan` a clean no-op,
+state in MinIO. Blueprints: 8 webhook/category (`cost`, `ci_pipeline`, `glitchtip_issue`, `feature_flag`,
 `code_quality`, `security_scan`, `code_hotspot`, `endpoint`) + 5 software-catalog (`domain`/`system`/`component`/
-`resource`/`api`). CLI-imported, `tofu plan` clean no-op, state in MinIO. **Entities are NOT codified** — B60
-decoupled them: **blueprints = schema (tofu, drift-checked); entities = data (MCP + integrations, free to evolve)**.
-Codifying actively-edited entity data caused constant sync friction; entities rebuild from the docs via MCP. To
-un-codify entities: `tofu state list | grep '^port_entity\.' | xargs tofu state rm` + trim the entity blocks.
+`resource`/`api`) + the 8 that B137 recovered from the UI (`service`, `workload`, `deployment`, `environment`,
+`organization`, `backup`, `ai_session`, `ai_user`).
+
+**Entities are NOT codified** — B60 decoupled them: **blueprints = schema (tofu, drift-checked); entities = data
+(MCP + integrations, free to evolve)**. Codifying actively-edited entity data caused constant sync friction;
+entities rebuild from the docs via MCP.
+
+> **B60's `state rm` was never actually run, and that cost the lane its whole purpose (executed 2026-08-24, B137).**
+> 64 `port_entity.component` resources sat in state for weeks with the decision to remove them already made. The
+> effect was not cosmetic: **every** `tofu plan` reported `0 to add, 64 to change, 0 to destroy`, because other
+> writers legitimately own that data and tofu could only ever read their work as drift to revert. A permanently
+> dirty plan detects nothing — the signal is indistinguishable from the noise, exactly like a permanently-lit
+> alert. `applications.tf` is now a comment-only file explaining why it declares nothing.
+>
+> Checked before removing rather than inferred from the diff: of the 64, `type`/`lifecycle`/`source` were populated
+> on **0** and no component had a non-empty relation, but `datahub_application_url` was populated on **30**. An
+> apply would have cleared those 30 links — a real hazard, and a bounded one. Both numbers came from the live API.
+>
+> To un-codify entities: `tofu state list | grep '^port_entity\.' | xargs -n1 tofu state rm` + delete the blocks.
+
+**A clean plan is not coverage.** Plan compares the code to the resources **tofu knows about**, so a blueprint
+created in Port's UI is invisible to it — which is how this org reached 51 live blueprints against 13 codified
+with a clean plan throughout. `scripts/check-port-iac-coverage.sh` asks the inverse question and is what actually
+guards the lane; see [port.md](port.md) § What is deliberately UI-managed.
+
+**Integrations (`port_integration`) — the two attributes that matter:** `version` is optional+**computed**, so
+leave it unset. Port upgrades its hosted integrations on its own schedule (github-ocean 6.8.1 → 6.9.4 in two days
+here) and pinning it makes the plan permanently dirty. `config` is the resource **mapping** — authored by a human,
+safe to manage. `spec.appSpec.*` has no provider attribute and is not durable anyway: the Port-hosted integrations
+re-register and push their own appSpec over server-side edits.
+
 **Gotcha (only if you ever DO codify an entity):** generate-config-out emits the `provider = port-labs` phantom
 AND read-only fields (`id`/`created_at`/`updated_at`/`updated_by`) → `sed`-strip BOTH before CLI import. Entity
-import ID = `<blueprint>:<identifier>`. NOT codified: entities, dashboards, actions, scorecards.
+import ID = `<blueprint>:<identifier>`. NOT codified: entities, dashboards, most pages.
 
 ## THE gotcha — port-labs provider + generated config = phantom `hashicorp/port-labs`
 The provider's **source type (`port-labs`) ≠ its resource prefix (`port_`)**. Two failure modes fall out:
@@ -78,7 +106,14 @@ template fields (`gitignore_template`, `source_owner/repo`); pin `has_downloads`
 is deprecated (cosmetic warning, kept to avoid a perpetual diff). Branch protection / webhooks can be added here later.
 
 ## Deliberately NOT codified (justified skips)
-- **Rest of Port** (actions, scorecards, most dashboards, entities): **Port-managed defaults + integration-generated**
-  (the `set_*_relations` automations, the DORA/quality scorecard templates) or live **data** (entities) — NOT authored
-  config. tofu would fight Port's own lifecycle for zero benefit. Blueprints were the authored config (done).
+- **Port entities, dashboards, and most pages**: live **data**, not authored config. tofu would fight the writers
+  that legitimately own it — which it did, for weeks, until B137 executed B60's `state rm` (above).
+- **Port's system (`_`-prefixed) and integration-owned blueprints** — 30 of the 51 live. The rule is *codify what
+  cannot recreate itself; document what does*: an Ocean integration creates its blueprints on install and revises
+  them on upgrade, so tofu owning `githubRepository` would turn every integration upgrade into drift. Enumerated
+  with per-group reasons in [port.md](port.md) § What is deliberately UI-managed, and enforced by
+  `scripts/check-port-iac-coverage.sh` rather than left to prose.
+  > **Superseded:** this bullet used to say scorecards were "Port-managed defaults … NOT authored config." That was
+  > wrong. All 8 carry hand-written logic — 44 rules, including a 14-rule `service/delivery_performance` — and
+  > losing the org would have lost every one of them. They are codified in `b137_scorecards.tf`.
 - **DNS**: the lab's resolution is **CoreDNS** (a k8s ConfigMap, Argo's domain); no external zone to manage.

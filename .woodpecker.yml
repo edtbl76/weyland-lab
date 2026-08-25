@@ -87,6 +87,32 @@ steps:
       # this goes red and names the exception to delete, instead of it rotting unnoticed.
       - bash scripts/check-pip-audit-ignores.sh
 
+  # ── 1b2. Port IaC coverage (B137) ───────────────────────────────────────────
+  # SEPARATE from repo-guards because it is the only guard here that talks to a live API and needs
+  # credentials. repo-guards is deliberately pure file analysis with no secrets, and mixing the two
+  # would hand every one of those checks a token they have no use for.
+  #
+  # WHAT IT CATCHES that nothing else can: Port schema created in the UI. On 2026-08-22 the live org
+  # held 51 blueprints / 8 scorecards / 4 integrations while tofu/port/ described 13 / 0 / 0 — and
+  # `tofu plan` reported no drift the entire time, because plan compares the code to the resources
+  # TOFU KNOWS ABOUT and a UI-created blueprint is not one of them. The gap opened one click at a
+  # time over two months and was found by accident.
+  #
+  # BLOCKING, same posture as repo-guards. It shipped `failure: ignore` for exactly as long as it took
+  # to create the two secrets below (`port_client_id` / `port_client_secret` on edtbl76/weyland-lab,
+  # events cron+manual — a secret that does not cover the triggering event is a whole-config PARSE
+  # error, not a failed step). An advisory guard left advisory is how fifteen diagrams rotted.
+  - name: port-iac-coverage
+    image: alpine:latest
+    environment:
+      PORT_CLIENT_ID:
+        from_secret: port_client_id
+      PORT_CLIENT_SECRET:
+        from_secret: port_client_secret
+    commands:
+      - apk add --no-cache bash curl python3 >/dev/null
+      - bash scripts/check-port-iac-coverage.sh
+
   # ── 1c. shellcheck the shell surface ────────────────────────────────────────
   # --severity=warning on purpose. At `note` the repo has 3 findings, and two of them are noise that
   # can never be fixed: SC2016 fires on the deliberately-single-quoted node heredoc in
