@@ -112,6 +112,64 @@ Prometheus. Manifest: `k8s/monitoring/servicemonitors.yaml`.
 expose `/metrics` (entryPoint + ServiceMonitor against the kube-system service) carries real blast radius
 for a metric we don't need in a lab. Revisit only if we start debugging ingress latency.
 
+### ServiceMonitor coverage — the guard (B148, 2026-08-26)
+
+`serviceMonitorSelectorNilUsesHelmValues: false` (below) means the operator discovers every
+ServiceMonitor **regardless of label**. That solved discovery of the *monitor*; it says nothing about
+whether the monitor finds anything. **`data-mesh/trino` existed for 59 days and produced zero series**
+because its Service had no `metadata.labels` — a ServiceMonitor matches **Services** by their own
+labels, while the `spec.selector` beside it matches **pods**. Both said `app: trino`.
+
+The condition has **no positive signal**: `kubectl get servicemonitor` → `60d` ✅, `up{job="trino"}` →
+*no data* (reads as idle), Grafana → empty panel. It can only be found by enumerating what should
+exist and subtracting what does — the inverse question `check-port-iac-coverage.sh` asks of Port.
+
+**`scripts/check-servicemonitor-coverage.sh`** reconciles every live ServiceMonitor across **three planes**:
+
+| Plane | Source |
+|---|---|
+| **intended** | `.spec.replicas` on the workload the monitor selects |
+| **actual** | `.status.readyReplicas` |
+| **observed** | its Prometheus scrape-pool target count |
+
+| verdict | meaning | fails? |
+|---|---|---|
+| `ok` | running and scraped | no |
+| `blind` | **running and unmonitored** | **yes** |
+| `down` | should be up and is not | **yes** |
+| `sleeping` | deliberately parked (`replicas: 0` in git) | no |
+| `zombie` | awake while declared parked | **yes** |
+| `stale` | parked but still producing targets | **yes** |
+| `orphan` | no workload **and** no targets ← trino | **yes** |
+| `unmanaged` | no k8s workload declares intent, but actively scraping (kube-apiserver, kubelet) | no |
+
+**Why reading `intended` from the cluster is legitimate here** — and normally would not be. Asking the
+cluster what it intends is usually circular: it grades itself, which is how `argocd app rollback`
+fools you. But **Argo `selfHeal` (75 of 78 apps; the 3 without are ConfigMap-only) continuously
+overwrites `.spec.replicas` from git**, so that field stops being cluster state and becomes a cached
+read of git. The mechanism that makes rollback a trap is what makes this field trustworthy. Store
+sleep is deliberately *not* delegated to an external scaler for the same reason
+(`k8s/argocd/applications/helm-apps.yaml:267-275`): the sleep state would then live only in the cluster.
+
+Without the intended plane, `0 replicas` is **ambiguous input rather than an answer** — deliberately
+parked and crashed-at-3am are byte-identical.
+
+- Runs as CronJob **`servicemonitor-coverage`, 02:45 NY** (`k8s/monitoring/servicemonitor-coverage.yaml`),
+  **unmeshed** — both targets (kube-apiserver, the Prometheus ClusterIP) have no sidecar, which is the
+  opposite of `cron-freshness-check`, whose target *is* meshed. Read-only SA with four `list` verbs and
+  no `pods/proxy`.
+- **Not in CI**, and that is a trade not an oversight: `woodpecker:default` can read none of those four,
+  and buying permanent cluster-wide read for a periodic lint is not worth it. The *decision logic* does
+  run in CI — `scripts/tests/servicemonitor-coverage.bats`, 30 cases.
+- The CronJob's embedded copy of the script is **byte-identical** to the repo file, asserted by a bats
+  case. Regenerate the ConfigMap after editing the script.
+- Exit **1** = the estate has a defect. Exit **2** = the guard could not do its job. Never conflate them.
+
+```
+bash scripts/check-servicemonitor-coverage.sh          # OK — 32 ServiceMonitor(s)
+bash scripts/check-servicemonitor-coverage.sh --list   # every monitor + its verdict
+```
+
 ### Key enabler — discover ServiceMonitors cluster-wide
 By default the operator only scrapes ServiceMonitors carrying `release: monitoring`. Setting
 `prometheus.prometheusSpec.serviceMonitorSelectorNilUsesHelmValues: false` (in the values file) makes it

@@ -70,7 +70,7 @@ spec:
         # every other live CronJob was covered and the watchdog was not.
         - alert: ScheduledJobStale
           expr: |
-            time() - kube_cronjob_status_last_successful_time{cronjob=~"minio-backup|pg-backup|postgres-backup|docs-site-rebuild|pr-staleness-check|cron-freshness-check|port-pr-reconcile"} > 93600
+            time() - kube_cronjob_status_last_successful_time{cronjob=~"minio-backup|pg-backup|postgres-backup|docs-site-rebuild|pr-staleness-check|cron-freshness-check|port-pr-reconcile|servicemonitor-coverage"} > 93600
           for: 1h
           labels:
             severity: warning
@@ -141,9 +141,24 @@ spec:
             summary: "Backup job {{ $labels.job_name }} FAILED in {{ $labels.namespace }}"
             description: "A backup CronJob ran and failed. Data products, catalog metadata or the MinIO buckets (mlflow models, tofu state — both irreplaceable) may now be unprotected. Freshness alerts will NOT catch this if a later run succeeds."
 
+        # THIS LIST STAYS A LIST, and that is a considered decision rather than an oversight — it was
+        # briefly rewritten as a generic `kube_job_owner{owner_kind="CronJob"}` join on 2026-08-26
+        # (B148) and reverted the same hour, because the generic form is wrong here for two reasons:
+        #
+        #   1. It is NOT the ScheduledJobNeverSucceeded blind spot. That rule's hand-maintained list
+        #      had NOTHING checking it, which is how `cron-freshness-check` — the one job in the
+        #      estate it was actually true of — went uncovered. This list is enforced:
+        #      `check-cron-freshness-budgets.sh` fails CI when a CronJob has no failure rule, and it
+        #      caught `servicemonitor-coverage` within seconds of the manifest being written. A list a
+        #      guard enforces is not the same defect as a list nobody checks.
+        #   2. A generic rule would ALSO match the three backup jobs, which have their own dedicated
+        #      `critical` ScheduledBackupFailed rule above. Two rules per job means one break pages
+        #      twice — which the budgets guard correctly rejects ("covered by 2 failure rules").
+        #
+        # So: add new CronJobs here. CI will tell you if you forget.
         - alert: ScheduledJobFailed
           expr: |
-            kube_job_status_failed{job="kube-state-metrics", job_name=~"(sonar-scan|code-scan-suite|docs-site-rebuild|pr-staleness-check|cron-freshness-check|lancedb-sync|dagster-freshness-check|port-pr-reconcile)-[0-9]+"} > 0
+            kube_job_status_failed{job="kube-state-metrics", job_name=~"(sonar-scan|code-scan-suite|docs-site-rebuild|pr-staleness-check|cron-freshness-check|lancedb-sync|dagster-freshness-check|port-pr-reconcile|servicemonitor-coverage)-[0-9]+"} > 0
           for: 10m
           labels:
             severity: warning

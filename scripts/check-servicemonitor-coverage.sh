@@ -211,15 +211,28 @@ servicemonitor_rows() {
   # "Argument list too long" — 32 ServiceMonitors + ~90 Services + ~140 workloads is well past
   # MAX_ARG_STRLEN. It failed loudly with exit 2 rather than silently producing an empty list, which
   # is the only reason that was a five-minute fix instead of another guard that measures nothing.
-  local dir; dir="$(mktemp -d)"
-  trap 'rm -rf "$dir"' RETURN
-  kubectl get servicemonitors -A -o json >"$dir/sm.json" 2>/dev/null || {
-    echo "FATAL: could not list ServiceMonitors" >&2; return 1; }
-  kubectl get svc -A -o json >"$dir/svc.json" 2>/dev/null || {
-    echo "FATAL: could not list Services" >&2; return 1; }
-  kubectl get deploy,statefulset,daemonset -A -o json >"$dir/wl.json" 2>/dev/null || {
-    echo "FATAL: could not list workloads" >&2; return 1; }
-  python3 - "$dir/sm.json" "$dir/svc.json" "$dir/wl.json" <<'PY'
+  #
+  # TWO TRANSPORTS, ONE RESOLVER. By hand on the dev box the three lists come from kubectl; in the
+  # CronJob they are already on disk, fetched with curl + the pod's ServiceAccount token (K8S_*_JSON),
+  # which saves shipping a ~50MB kubectl into an alpine container. Both feed the SAME python below —
+  # a second resolver would mean the guard is tested on one code path and runs on another.
+  local dir sm svc wl
+  if [ -n "${K8S_SM_JSON:-}" ]; then
+    sm="$K8S_SM_JSON"
+    svc="${K8S_SVC_JSON:?K8S_SVC_JSON must accompany K8S_SM_JSON}"
+    wl="${K8S_WL_JSON:?K8S_WL_JSON must accompany K8S_SM_JSON}"
+  else
+    dir="$(mktemp -d)"
+    trap 'rm -rf "$dir"' RETURN
+    sm="$dir/sm.json"; svc="$dir/svc.json"; wl="$dir/wl.json"
+    kubectl get servicemonitors -A -o json >"$sm" 2>/dev/null || {
+      echo "FATAL: could not list ServiceMonitors" >&2; return 1; }
+    kubectl get svc -A -o json >"$svc" 2>/dev/null || {
+      echo "FATAL: could not list Services" >&2; return 1; }
+    kubectl get deploy,statefulset,daemonset -A -o json >"$wl" 2>/dev/null || {
+      echo "FATAL: could not list workloads" >&2; return 1; }
+  fi
+  python3 - "$sm" "$svc" "$wl" <<'PY'
 import json, sys
 sms  = json.load(open(sys.argv[1], encoding="utf-8"))["items"]
 svcs = json.load(open(sys.argv[2], encoding="utf-8"))["items"]
@@ -286,7 +299,7 @@ main() {
   tfile="$(targets_json)"         || exit 2
 
   local total=0 failed=0
-  local line ns name intended actual targets verdict
+  local ns name intended actual targets verdict
   while IFS=$'\t' read -r ns name intended actual; do
     [ -n "${ns:-}" ] || continue
     total=$((total + 1))

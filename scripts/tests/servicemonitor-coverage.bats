@@ -278,6 +278,92 @@ JSON
   done
 }
 
+# --- raw API input (the in-cluster path) ---------------------------------------------------------
+
+@test "resolves intent from RAW api json, so the CronJob needs no kubectl binary" {
+  # The CronJob reaches the API with curl + its ServiceAccount token rather than shipping a ~50MB
+  # kubectl. Feeding the SAME python resolver keeps one implementation: if this diverged from the
+  # kubectl path, the guard would be tested on one code path and run on another.
+  lib_source
+  cat > "$STUB_DIR/sm.json" <<'JSON'
+{"items":[{"metadata":{"name":"trino","namespace":"data-mesh"},
+           "spec":{"selector":{"matchLabels":{"app":"trino"}}}}]}
+JSON
+  cat > "$STUB_DIR/svc.json" <<'JSON'
+{"items":[{"metadata":{"name":"trino","namespace":"data-mesh","labels":{"app":"trino"}},
+           "spec":{"selector":{"app":"trino"}}}]}
+JSON
+  cat > "$STUB_DIR/wl.json" <<'JSON'
+{"items":[{"kind":"Deployment","metadata":{"name":"trino","namespace":"data-mesh"},
+           "spec":{"replicas":1,"template":{"metadata":{"labels":{"app":"trino"}}}},
+           "status":{"readyReplicas":1}}]}
+JSON
+  K8S_SM_JSON="$STUB_DIR/sm.json" K8S_SVC_JSON="$STUB_DIR/svc.json" K8S_WL_JSON="$STUB_DIR/wl.json" \
+    run servicemonitor_rows
+  [ "$status" -eq 0 ]
+  [[ "$output" == *'"intended": 1'* ]]
+  [[ "$output" == *'"actual": 1'* ]]
+}
+
+@test "a Service with NO labels resolves to -1 — the exact B148 defect" {
+  # The regression test for the bug itself. Same manifests as above with metadata.labels removed
+  # from the Service: the ServiceMonitor's matchLabels reads THAT block, so nothing matches.
+  lib_source
+  cat > "$STUB_DIR/sm.json" <<'JSON'
+{"items":[{"metadata":{"name":"trino","namespace":"data-mesh"},
+           "spec":{"selector":{"matchLabels":{"app":"trino"}}}}]}
+JSON
+  cat > "$STUB_DIR/svc.json" <<'JSON'
+{"items":[{"metadata":{"name":"trino","namespace":"data-mesh"},
+           "spec":{"selector":{"app":"trino"}}}]}
+JSON
+  cat > "$STUB_DIR/wl.json" <<'JSON'
+{"items":[{"kind":"Deployment","metadata":{"name":"trino","namespace":"data-mesh"},
+           "spec":{"replicas":1,"template":{"metadata":{"labels":{"app":"trino"}}}},
+           "status":{"readyReplicas":1}}]}
+JSON
+  K8S_SM_JSON="$STUB_DIR/sm.json" K8S_SVC_JSON="$STUB_DIR/svc.json" K8S_WL_JSON="$STUB_DIR/wl.json" \
+    run servicemonitor_rows
+  [[ "$output" == *'"intended": -1'* ]]
+}
+
+# --- the CronJob runs the same text this suite tests ---------------------------------------------
+
+@test "the CronJob's embedded script is byte-identical to the tested script" {
+  # Two copies of a guard drift, and the drift is silent on BOTH sides: the cluster would run logic
+  # nothing tests while the suite stayed green. cron-freshness solves this by making the ConfigMap
+  # the source; here the repo script is the source and this asserts the ConfigMap matches it.
+  local manifest="$REPO_ROOT/nodes/mother/lab/weyland-platform/k8s/monitoring/servicemonitor-coverage.yaml"
+  [ -f "$manifest" ]
+  python3 - "$manifest" "$REPO_ROOT/scripts/check-servicemonitor-coverage.sh" <<'PY'
+import sys
+manifest, script = sys.argv[1], sys.argv[2]
+lines = open(manifest, encoding="utf-8").read().splitlines()
+try:
+    start = next(i for i, l in enumerate(lines)
+                 if l.strip() == "check-servicemonitor-coverage.sh: |")
+except StopIteration:
+    print("no embedded script key in the manifest", file=sys.stderr); raise SystemExit(1)
+body, indent = [], None
+for l in lines[start + 1:]:
+    if l.strip() == "":
+        body.append("")
+        continue
+    cur = len(l) - len(l.lstrip())
+    if indent is None:
+        indent = cur
+    if cur < indent:
+        break
+    body.append(l[indent:])
+embedded = "\n".join(body).rstrip("\n")
+actual = open(script, encoding="utf-8").read().rstrip("\n")
+if embedded != actual:
+    print("EMBEDDED SCRIPT HAS DRIFTED from scripts/check-servicemonitor-coverage.sh",
+          file=sys.stderr)
+    raise SystemExit(1)
+PY
+}
+
 # --- end to end ----------------------------------------------------------------------------------
 
 @test "end to end: a healthy estate passes" {

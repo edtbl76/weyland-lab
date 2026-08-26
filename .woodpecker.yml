@@ -142,7 +142,15 @@ steps:
       # to read CronJob manifests and the PrometheusRule, and its end-to-end tests exercise the
       # real guard rather than a stub (the whole point — a stubbed guard would only confirm the
       # stub). Same packages repo-guards installs; keep the two steps in step if either changes.
-      - apk add --no-cache python3 py3-yaml >/dev/null
+      #
+      # `jq` ADDED 2026-08-26 (found during B148). It is not in the image either, and WITHOUT IT 8
+      # of port-pr-reconcile.bats's cases fail — every one that reaches `main`, because the script
+      # under test parses the Port and GitHub responses with jq. Measured, not inferred: 197/197
+      # pass with jq present and 189/197 without, and `command -v jq` in a bare bats/bats:latest
+      # returns nothing. This step has therefore been failing since port-pr-reconcile.bats landed
+      # with B144 on 2026-08-25 — a one-day-old red that a green local run would not reveal, because
+      # a dev box has jq. (Why it went unread was not investigated; the fix does not depend on it.)
+      - apk add --no-cache python3 py3-yaml jq >/dev/null
       - bats scripts/tests/
 
   # ── 1d. unit tests ──────────────────────────────────────────────────────────

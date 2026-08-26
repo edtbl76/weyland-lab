@@ -2030,6 +2030,92 @@ Linear: EMA-197. Relates B1.5 (dbt transform tier), B131 (dependency lifecycle),
 
 ---
 
+### B148 — Trino exports NO metrics to Prometheus; the ServiceMonitor has been dead for 59 days — 🔵 **IN PROGRESS (2026-08-26)** — fix live + verified; CronJob and dashboard await sync
+
+**Root cause: the `trino` Service had no `metadata.labels` block at all.** A ServiceMonitor selects
+**Services** by *their own* `metadata.labels`; the `spec.selector` beside it selects **pods**. Both
+said `app: trino`, so the manifest read as correct at a glance — and the two selectors point at
+completely different objects. With the Service unlabelled nothing matched, so Prometheus never
+created a scrape pool, so there was no `up{job="trino"}` series to be *missing*. One absent line.
+
+**Everything else in the chain was already correct**, which is why it survived: the port name (`http`),
+the path, the basic-auth wiring, and the endpoint itself — verified by hand at `200`, **1.1 MB,
+4,228 `trino_*` series**, unchanged throughout the 59 days.
+
+**The empty password was CORRECT, and the B147 exception was right for the right reason.** Trino's
+insecure mode returns `Password not allowed for insecure authentication` when a password *is* sent;
+an empty value is the required one, not a missing one. The warning in this item's original text — *do
+not assume the empty password is the cause* — earned its keep: the most suspicious-looking artifact
+was the only part already working.
+
+**Verified, not assumed:** no alert rule and no Grafana dashboard referenced `trino_*`, so nothing
+had been silently un-fireable. The original entry flagged that as worth checking; it was checked.
+
+**The recurrence guard — `scripts/check-servicemonitor-coverage.sh` (30 bats cases).** Not the binary
+"is it scraping" check this item originally specified. That framing was wrong, and the better one came
+out of the design conversation: it reconciles **three planes** and any disagreement is a defect.
+
+| Plane | Source |
+|---|---|
+| **intended** | `.spec.replicas` on the workload the monitor selects |
+| **actual** | `.status.readyReplicas` |
+| **observed** | the Prometheus scrape-pool target count |
+
+Verdicts: `ok` · `blind` (running and unmonitored — trino) · `down` · `sleeping` (deliberately parked,
+passes) · `zombie` (awake while declared parked) · `stale` · `orphan` · `unmanaged` (no k8s workload
+declares intent, but actively scraping — the apiserver and kubelet monitors).
+
+Reading `intended` from the cluster is sound **only because Argo selfHeal** (verified on 75 of 78 apps;
+the 3 without are ConfigMap-only) continuously overwrites `.spec.replicas` from git, which makes that
+field a cached read of git rather than self-graded cluster state. The mechanism that makes
+`argocd app rollback` a trap is what makes this field trustworthy. Without the intended plane,
+`0 replicas` is *ambiguous input* — deliberately parked and crashed-at-3am are byte-identical.
+
+**Live result:** 32 ServiceMonitors → 1 defect (`data-mesh/trino orphan`), which is what the fix
+cleared. Now `OK — 32 ServiceMonitor(s)`; `up{job="trino"} = 1`; 4,228 series, 6,721 samples/scrape.
+
+**Runs as a CronJob (02:45 NY), not in CI.** `woodpecker:default` cannot read ServiceMonitors,
+Services, workloads or the Prometheus proxy, and buying a permanent cluster-wide read to run a
+periodic lint is the trade rejected for `check-secret-placeholders.sh` — which was then left as a
+by-hand DoD step, the weaker call and plainly wrong for a defect whose whole nature is that nobody
+noticed for 59 days. Dedicated read-only SA scoped to exactly the four reads; Prometheus reached via
+its ClusterIP so `pods/proxy` is not needed. Runs **unmeshed** (both targets are unmeshed — this is
+NOT the `cron-freshness-check` pattern, whose target *is* meshed). The 30-case bats suite runs in CI.
+
+**Two unrelated defects found and fixed in passing** (rather than filed):
+- **`.woodpecker.yml` `shell-tests` had been failing since B144.** `jq` is not in `bats/bats:latest`
+  and the step installed only `python3 py3-yaml`, so the 8 `port-pr-reconcile.bats` cases that reach
+  `main` all failed. Measured: **197/197 with jq, 189/197 without.** A green local run hides it —
+  a dev box has jq.
+- **`ScheduledJobFailed` was left as a list, deliberately.** It was briefly rewritten as a generic
+  `kube_job_owner` join and reverted within the hour: unlike `ScheduledJobNeverSucceeded` (whose list
+  had *nothing* checking it, which is how `cron-freshness-check` went uncovered), this list **is**
+  enforced by `check-cron-freshness-budgets.sh` — which caught the missing `servicemonitor-coverage`
+  within seconds. A generic rule would also have double-paged the three backup jobs that carry their
+  own `critical` rule. A list a guard enforces is not the same defect as a list nobody checks.
+
+**DoD:** **1 ✅** `trino.md` + `observability.md` + `schedules.md` (02:45 row; the "nine k8s CronJobs"
+count → ten); api/hosts N/A, verified not assumed. **2 ✅** `flow-servicemonitor-coverage.md`; mermaid
+parses. **3 ⏳** `demos/servicemonitor-coverage.md` steps 1-6 RUN including the negative case (exit **1** vs
+**2** distinguished); every one of the dashboard's 13 queries executed against live Prometheus before
+it was written — no empty panels, metric names read from `/api/v1/label/__name__/values` rather than
+guessed, counter-vs-gauge checked via `/api/v1/metadata`. **OUTSTANDING: the dashboard is not yet
+eyes-on and demo step 7 (ad-hoc CronJob run) has not been executed** — both need the commit synced
+first. Recorded as pending rather than ticked: a query that resolves in Prometheus is not the same
+evidence as a panel that renders, and this item exists precisely because a green box stood in for a
+measurement. **4 ✅** guard is read-only; the CronJob has no destructive verb and no write permission
+at all. **5 ✅** Linear EMA-207, backlog flipped. **6 ⏳** new timer documented + budgeted +
+failure-covered, `check-cron-freshness-budgets.sh` exit 0 — but **the CronJob has never run**; it is
+validated on demand immediately after sync, never by waiting for 02:45.
+**7 ✅** shellcheck clean, 30 new bats (197 total, all green), scan surface = the usual CronJob
+findings shared with the pr-lifecycle siblings. **8 ✅** cascade: schedules row + budget + failure rule
++ CI jq fix + `monitoring-extras` already owns `k8s/monitoring` so no new Argo app row.
+
+Linear: EMA-207. Relates **B147** (the guard run that found it), B69 (Pillar 6 monitoring),
+[[dbt-transform-tier]] and [[trino-nessie-native-catalog]] (what runs on Trino).
+
+<details><summary>Original entry (2026-08-25)</summary>
+
 ### B148 — Trino exports NO metrics to Prometheus; the ServiceMonitor has been dead for 59 days — 🟠 **MEDIUM (2026-08-25)**
 
 Found by `scripts/check-secret-placeholders.sh` on its **first live run**, while verifying whether an empty `password` in `data-mesh/trino-metrics-auth` was a bug or deliberate. The empty password turned out to be correct — `k8s/data-mesh/trino.yaml:154` documents that Trino's metrics endpoint "accepts ANY username and ignores the password." Checking that claim is what surfaced the real problem.
@@ -2054,6 +2140,8 @@ A `ServiceMonitor` named `trino` has existed in `data-mesh` for **59 days**. It 
 **Do not assume the empty password is the cause** — the manifest says the endpoint ignores it, and that claim has not been falsified. Start from why the ServiceMonitor selects no endpoints (label selector, port name, or the istio sidecar intercepting the scrape).
 
 Linear: EMA-207. Relates **B147** (the guard run that found it), B69 (Pillar 6 monitoring), [[dbt-transform-tier]] and [[trino-nessie-native-catalog]] (what runs on Trino).
+
+</details>
 
 ---
 

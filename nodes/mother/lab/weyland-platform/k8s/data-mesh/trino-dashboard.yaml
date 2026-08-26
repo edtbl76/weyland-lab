@@ -1,0 +1,127 @@
+# Grafana dashboard for Trino (B148). ConfigMap in the `monitoring` ns with the `grafana_dashboard`
+# label → the kube-prometheus-stack Grafana sidecar auto-imports it (Dashboards → Trino).
+#
+# WHY IT DID NOT EXIST BEFORE: there were no Trino metrics to draw. The `trino` ServiceMonitor sat in
+# `data-mesh` for 59 days selecting nothing, because the Service carried no `metadata.labels` — a
+# ServiceMonitor matches SERVICES by their own labels, not by the `spec.selector` that matches pods.
+# Both said `app: trino`, so the manifest read as correct. See k8s/data-mesh/trino.yaml.
+#
+# EVERY METRIC NAME HERE WAS READ OUT OF PROMETHEUS, not guessed. That is not pedantry: an earlier
+# pass in the same session invented three plausible names (`trino_memory_ClusterMemoryPool_*`,
+# `trino_execution_executor_TaskExecutor_*`) and all three returned "no such metric" — the real names
+# carry a `_name_` segment the JMX exporter inserts. A dashboard of non-existent metrics renders as
+# empty panels, which looks exactly like an idle cluster, which is the failure this whole item is about.
+#
+# COUNTER vs GAUGE was checked against /api/v1/metadata rather than assumed: `StartedQueries`,
+# `CompletedQueries`, `FailedQueries`, `AbandonedQueries` and `CanceledQueries` are COUNTERS (so
+# `increase()` is correct); `RunningQueries`, `QueuedQueries`, `ActiveNodeCount` and both memory
+# series are GAUGES (so `increase()` on them would be nonsense).
+#
+# The first panel is the scrape itself. If `up{job="trino"}` ever goes to 0 — or the panel goes empty,
+# which is the 59-day failure returning — everything below it is stale, and a reader should know that
+# before believing any other number on the page.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: trino-dashboard
+  namespace: monitoring
+  labels:
+    grafana_dashboard: "1"
+data:
+  trino.json: |
+    {
+      "title": "Trino",
+      "uid": "trino-b148",
+      "schemaVersion": 39,
+      "editable": true,
+      "time": { "from": "now-6h", "to": "now" },
+      "refresh": "30s",
+      "tags": ["data-mesh", "trino", "b148"],
+      "panels": [
+        {
+          "type": "stat",
+          "title": "Scrape health (up)",
+          "description": "1 = Prometheus is scraping Trino. EMPTY means no target exists at all — the exact 59-day B148 failure, and it looks identical to an idle panel. scripts/check-servicemonitor-coverage.sh asserts this cannot recur silently.",
+          "gridPos": { "h": 4, "w": 4, "x": 0, "y": 0 },
+          "targets": [{ "expr": "up{job=\"trino\"}", "refId": "A" }],
+          "fieldConfig": {
+            "defaults": {
+              "mappings": [
+                { "type": "value", "options": { "0": { "text": "DOWN", "color": "red", "index": 0 } } },
+                { "type": "value", "options": { "1": { "text": "UP", "color": "green", "index": 1 } } }
+              ],
+              "noValue": "NO TARGET"
+            }
+          }
+        },
+        {
+          "type": "stat",
+          "title": "Active nodes",
+          "description": "Coordinator + workers Trino can currently see. This lab runs a single combined node, so 1 is healthy.",
+          "gridPos": { "h": 4, "w": 4, "x": 4, "y": 0 },
+          "targets": [{ "expr": "trino_metadata_name_DiscoveryNodeManager_ActiveNodeCount{job=\"trino\"}", "refId": "A" }]
+        },
+        {
+          "type": "stat",
+          "title": "Running queries",
+          "gridPos": { "h": 4, "w": 4, "x": 8, "y": 0 },
+          "targets": [{ "expr": "trino_execution_name_QueryManager_RunningQueries{job=\"trino\"}", "refId": "A" }]
+        },
+        {
+          "type": "stat",
+          "title": "Queued queries",
+          "description": "Sustained queuing on a single-node cluster usually means memory pressure rather than CPU — check the memory panel below before adding concurrency.",
+          "gridPos": { "h": 4, "w": 4, "x": 12, "y": 0 },
+          "targets": [{ "expr": "trino_execution_name_QueryManager_QueuedQueries{job=\"trino\"}", "refId": "A" }],
+          "fieldConfig": {
+            "defaults": {
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  { "color": "green", "value": null },
+                  { "color": "yellow", "value": 1 },
+                  { "color": "red", "value": 5 }
+                ]
+              }
+            }
+          }
+        },
+        {
+          "type": "stat",
+          "title": "Failed queries (total)",
+          "description": "Cumulative since the process started. The rate panel below is what to watch; this is context for it.",
+          "gridPos": { "h": 4, "w": 4, "x": 16, "y": 0 },
+          "targets": [{ "expr": "trino_execution_name_QueryManager_FailedQueries{job=\"trino\"}", "refId": "A" }]
+        },
+        {
+          "type": "stat",
+          "title": "Started queries (total)",
+          "gridPos": { "h": 4, "w": 4, "x": 20, "y": 0 },
+          "targets": [{ "expr": "trino_execution_name_QueryManager_StartedQueries{job=\"trino\"}", "refId": "A" }]
+        },
+        {
+          "type": "timeseries",
+          "title": "Query throughput (5m)",
+          "description": "COUNTERS, verified via /api/v1/metadata — increase() is the right function here. A failed line that tracks the started line means every query is breaking, which no freshness or up-based check would ever show.",
+          "gridPos": { "h": 9, "w": 12, "x": 0, "y": 4 },
+          "targets": [
+            { "expr": "increase(trino_execution_name_QueryManager_StartedQueries{job=\"trino\"}[5m])", "legendFormat": "started", "refId": "A" },
+            { "expr": "increase(trino_execution_name_QueryManager_CompletedQueries{job=\"trino\"}[5m])", "legendFormat": "completed", "refId": "B" },
+            { "expr": "increase(trino_execution_name_QueryManager_FailedQueries{job=\"trino\"}[5m])", "legendFormat": "failed", "refId": "C" },
+            { "expr": "increase(trino_execution_name_QueryManager_AbandonedQueries{job=\"trino\"}[5m])", "legendFormat": "abandoned", "refId": "D" },
+            { "expr": "increase(trino_execution_name_QueryManager_CanceledQueries{job=\"trino\"}[5m])", "legendFormat": "canceled", "refId": "E" }
+          ]
+        },
+        {
+          "type": "timeseries",
+          "title": "Cluster memory",
+          "description": "GAUGES. `ClusterMemoryBytes` is the pool size; `ClusterUserMemoryReservation` is what queries currently hold. Reservation approaching pool size is the shape that precedes the dbt-build OOMs recorded in docs/runbooks/dbt.md.",
+          "gridPos": { "h": 9, "w": 12, "x": 12, "y": 4 },
+          "fieldConfig": { "defaults": { "unit": "bytes" } },
+          "targets": [
+            { "expr": "trino_memory_name_ClusterMemoryManager_ClusterMemoryBytes{job=\"trino\"}", "legendFormat": "pool size", "refId": "A" },
+            { "expr": "trino_memory_name_ClusterMemoryManager_ClusterUserMemoryReservation{job=\"trino\"}", "legendFormat": "user reservation", "refId": "B" }
+          ]
+        }
+      ]
+    }

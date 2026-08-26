@@ -34,9 +34,43 @@ Superset / dbt / the B73 "use the data" work all ride on it. Manifest: `k8s/data
   `kubectl -n data-mesh rollout restart deploy/trino` (and the configmap must be synced/applied first).
 
 ## Observability
-- **Prometheus** ServiceMonitor scrapes `/metrics` (basicAuth) → `trino_*` series in Grafana Explore.
+- **Prometheus** ServiceMonitor scrapes `/metrics` (basicAuth) → **4,228 `trino_*` series** (2,720 distinct
+  metric names), ~6,721 samples/scrape. **Grafana → Dashboards → Trino** (uid `trino-b148`,
+  `k8s/data-mesh/trino-dashboard.yaml`).
 - **Istio** sidecar already exports request rate/latency/errors (`istio_requests_total{destination_workload="trino"}`).
 - **Kuma** HTTP monitor on `https://trino.weyland.lab` (reports UP off the gated page, like the other SSO'd UIs).
+
+> ### ⚠ This bullet was FALSE for 59 days (B148, fixed 2026-08-26)
+>
+> It said `trino_*` series were in Grafana. There were none — no series, no target, no scrape pool.
+> **The `trino` Service had no `metadata.labels` block.** A ServiceMonitor's `selector.matchLabels`
+> matches **Services by their own `metadata.labels`**; the `spec.selector` sitting right beside it
+> matches **pods**. Both said `app: trino`, so the manifest read as correct. Nothing matched, so
+> Prometheus built no scrape pool, so `up{job="trino"}` returned *no data* — which reads as "idle",
+> not "broken". `kubectl get servicemonitor` said `60d` the whole time.
+>
+> **Two traps worth keeping:**
+>
+> 1. **An empty password in `trino-metrics-auth` is CORRECT, not missing.** Trino's insecure mode
+>    rejects any request that *carries* a password: `curl -u metrics:x` → **401
+>    `Password not allowed for insecure authentication`**; `curl -u "metrics:"` → **200**. The empty
+>    value is the required one. It is the most suspicious-looking artifact here and it was never the bug.
+> 2. **Metric names carry a `_name_` segment** the JMX exporter inserts —
+>    `trino_execution_name_QueryManager_RunningQueries`, not `trino_execution_QueryManager_RunningQueries`.
+>    Guessing the shorter form returns "no such metric", which on a dashboard renders as an empty panel
+>    and looks exactly like an idle cluster. Read them from
+>    `/api/v1/label/__name__/values`, and check counter-vs-gauge in `/api/v1/metadata` before reaching
+>    for `rate()`/`increase()`.
+>
+> **Recurrence guard:** `scripts/check-servicemonitor-coverage.sh` (CronJob `servicemonitor-coverage`,
+> 02:45 NY) reconciles every ServiceMonitor against the workload it monitors. See
+> [observability.md](observability.md) § ServiceMonitor coverage.
+
+**Verify it end to end** (series, not just `up` — `up` alone was 1 for the istio sidecar throughout):
+
+```
+kubectl get --raw "/api/v1/namespaces/monitoring/pods/prometheus-monitoring-kube-prometheus-prometheus-0:9090/proxy/api/v1/query?query=count(%7B__name__%3D~%22trino_.%2B%22%7D)"
+```
 
 ## DataHub
 DataHub `trino` ingestion source (`k8s/data-mesh/datahub-ingestion/trino.recipe.yaml`) catalogs the
