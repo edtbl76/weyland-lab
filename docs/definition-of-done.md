@@ -60,7 +60,7 @@ capability is **NOT done** until ALL eight pillars hold. "Ran once" ≠ done.
   the deliverable — a green pipeline can sit behind a blank or wrong dashboard. List UAT steps per UI surface.
 - **The demo IS the validation** — it must be **RUN end-to-end against live infra**. There are no separate
   test-instruction files; the demo's CLI steps + expected output ARE the test. A demo written but not executed
-  is **not done** (🟡, not ✅). This is the anti-fabrication guarantee.
+  is **not done** (still MEDIUM, not DONE). This is the anti-fabrication guarantee.
 - **Enforcement (per batch, at close-out):** audit every completed item against the `docs/demos/README.md` ledger
   **as part of the close-out** (same step as the Linear sync) — a new/changed capability with no ledger row, or a
   stale one, is **not done**. (This check is what surfaced the B70/B94 demo gaps on 2026-07-23.)
@@ -72,8 +72,33 @@ capability is **NOT done** until ALL eight pillars hold. "Ran once" ≠ done.
 ## 5. Close-out / tracking (the unit isn't done until the tracker says so)
 
 - **Linear** — flip the tracked issue (`EMA-*`) to Done with a completion comment (what shipped, gotchas, links).
-- **backlog.md** — flip the item to ✅ DONE with a substantial summary (backlog = ordered source; Linear = status).
+- **backlog.md** — flip the item to DONE with a substantial summary (backlog = ordered source; Linear = status).
 - **Memory** — capture any durable, non-obvious lesson.
+- **VERIFY IT — `bash scripts/check-linear-sync.sh`. Do not hand-tick this pillar.**
+
+> ### Why this pillar has a checker now (added 2026-08-26, B148)
+>
+> Pillar 5 was **the only pillar with nothing that could contradict the person filling it in.** Every other
+> pillar has one — `check-mermaid.sh`, `check-doc-counts.sh`, `check-cron-freshness-budgets.sh`, the bats
+> suite, eyes on a UI. Here the tick *was* the work, so it recorded intent rather than outcome.
+>
+> It failed exactly that way on the day it was noticed: the **B148** close-out recorded
+> *"5 — Linear EMA-207, backlog flipped"* while **no Linear call had been made at all**. The issue sat in
+> `Backlog`. Checking then found **B143** had also been open for two days after shipping. Neither was
+> visible from inside the checklist, because the checklist is where the claim was made.
+>
+> `scripts/check-linear-sync.sh` compares the two documents that make claims about each other:
+>
+> - **A backlog entry marked DONE whose Linear issue is not terminal.** One-way on purpose — an issue
+>   closed in Linear while the backlog entry is still open is a normal mid-flight state, not drift.
+> - **An open Linear issue with no project.** This team runs two products (Weyland Lab, Stud.IO) and
+>   project assignment is the only thing separating them, so a project-less issue is invisible to *both*
+>   filtered views while still counting in the team total. Two High-priority weyland issues were hiding
+>   there — one open since 2026-08-12 and absent from every "what's next" answer.
+>
+> Needs `LINEAR_API_KEY` in the gitignored `scripts/.env` (Linear → Settings → Security & access).
+> Exit **1** = drift; exit **2** = the guard could not run. A missing token must never read as a clean
+> backlog. 20 bats cases; `--list` prints every reference and its verdict.
 - **Tier rebalance — keep High / Medium / Low roughly equal. PROPOSE IT, NEVER APPLY IT UNILATERALLY (2026-08-23).**
   Completing work drains the **High** lane, so at close-out re-tier to refill it: promote the strongest
   **Medium → High**, then backfill **Low → Medium** (and, as the tail grows, close or promote stale **Low** items — a
@@ -86,7 +111,7 @@ capability is **NOT done** until ALL eight pillars hold. "Ran once" ≠ done.
     say so and propose nothing; forcing a promotion to look diligent is exactly the box-checking this gate exists
     to prevent. Count *per project* as well as overall — one project's cluster of frontend work can make a shared
     High lane look healthy while another project's High is quietly empty.
-  - Once decided, apply the move in **both** `backlog.md` (the 🔴/🟡/⚪ tag) and **Linear** (priority field + the
+  - Once decided, apply the move in **both** `backlog.md` (the HIGH/MEDIUM/LOW tag) and **Linear** (priority field + the
     `High`/`Medium`/`Low` label), in the **same** close-out step as the status flip — the two must never diverge.
   This keeps the roadmap from silently emptying High while Low accumulates. Judgment, not arithmetic: "roughly
   equal," re-derived from the current open set, not forced to exact counts.
