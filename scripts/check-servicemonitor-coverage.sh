@@ -99,8 +99,46 @@ accepted_reason() { # accepted_reason <ns/name>
 #     "<none>" that silently becomes 0 classifies a broken lookup as `sleeping` — a clean pass over a
 #     workload nobody measured, which is the exact bug this guard exists to catch.
 classify() { # classify <intended> <actual> <targets>
-  echo "classify is not implemented" >&2
-  return 3
+  local intended="${1-}" actual="${2-}" targets="${3-}" n
+  # Accept a non-negative integer, or the single sentinel -1. Say nothing on stdout when refusing.
+  # A sentinel is a contract, not a licence: -2 means a lookup went wrong in a way nobody designed
+  # for, and that has to be loud rather than swept into the -1 branch.
+  for n in "$intended" "$actual" "$targets"; do
+    case "$n" in
+      -1)          continue ;;
+      ''|*[!0-9]*) return 1 ;;
+    esac
+  done
+  # `targets` is a real count from Prometheus and never a sentinel.
+  [ "$targets" -lt 0 ] && return 1
+
+  # NOTHING IN KUBERNETES DECLARES INTENT for this monitor (-1). Found live on
+  # monitoring-kube-prometheus-apiserver (selector-less Service, manual Endpoints) and -kubelet (a
+  # host process per node). Neither has a workload and neither ever will.
+  #
+  # The INTENDED plane is simply unavailable here, so the verdict rests on the OBSERVED plane alone:
+  # an active healthy scrape is direct evidence the monitor works, and no scrape at all leaves no
+  # evidence from any plane. Deliberately NOT an ACCEPTED entry — that would stop checking them, and
+  # a kubelet scrape dying is exactly what this guard is for.
+  if [ "$intended" -eq -1 ] || [ "$actual" -eq -1 ]; then
+    [ "$targets" -gt 0 ] && { echo unmanaged; return 0; }
+    echo orphan; return 0
+  fi
+
+  if [ "$intended" -gt 0 ]; then
+    # Declared up. Nothing ready at all is an outage; the monitoring verdict cannot be trusted.
+    [ "$actual" -eq 0 ] && { echo down; return 0; }
+    # SOMETHING is ready. Deliberately not comparing actual against intended: a rolling update sits
+    # at 3/2 for a minute and that is not a monitoring defect. The only question left is whether
+    # what IS running is being scraped.
+    [ "$targets" -gt 0 ] && { echo ok; return 0; }
+    echo blind; return 0
+  fi
+
+  # Declared parked (replicas: 0 committed to git, enforced by selfHeal).
+  [ "$actual" -gt 0 ] && { echo zombie; return 0; }
+  [ "$targets" -gt 0 ] && { echo stale; return 0; }
+  echo sleeping
 }
 
 # is_failing <verdict> -> 0 when the verdict should fail the run.
@@ -109,8 +147,8 @@ classify() { # classify <intended> <actual> <targets>
 # and a bug in the guard must not read as a pass.
 is_failing() { # is_failing <verdict>
   case "${1-}" in
-    ok|sleeping) return 1 ;;
-    *)           return 0 ;;
+    ok|sleeping|unmanaged) return 1 ;;
+    *)                     return 0 ;;
   esac
 }
 
@@ -169,18 +207,23 @@ servicemonitor_rows() {
     cat "$SM_SNAPSHOT_JSON"
     return 0
   fi
-  local sms svcs deps
-  sms="$(kubectl get servicemonitors -A -o json 2>/dev/null)" || {
+  # VIA TEMP FILES, NOT argv. The first cut passed all three blobs as arguments and died with
+  # "Argument list too long" — 32 ServiceMonitors + ~90 Services + ~140 workloads is well past
+  # MAX_ARG_STRLEN. It failed loudly with exit 2 rather than silently producing an empty list, which
+  # is the only reason that was a five-minute fix instead of another guard that measures nothing.
+  local dir; dir="$(mktemp -d)"
+  trap 'rm -rf "$dir"' RETURN
+  kubectl get servicemonitors -A -o json >"$dir/sm.json" 2>/dev/null || {
     echo "FATAL: could not list ServiceMonitors" >&2; return 1; }
-  svcs="$(kubectl get svc -A -o json 2>/dev/null)" || {
+  kubectl get svc -A -o json >"$dir/svc.json" 2>/dev/null || {
     echo "FATAL: could not list Services" >&2; return 1; }
-  deps="$(kubectl get deploy,statefulset,daemonset -A -o json 2>/dev/null)" || {
+  kubectl get deploy,statefulset,daemonset -A -o json >"$dir/wl.json" 2>/dev/null || {
     echo "FATAL: could not list workloads" >&2; return 1; }
-  python3 - <<'PY' "$sms" "$svcs" "$deps"
+  python3 - "$dir/sm.json" "$dir/svc.json" "$dir/wl.json" <<'PY'
 import json, sys
-sms  = json.loads(sys.argv[1])["items"]
-svcs = json.loads(sys.argv[2])["items"]
-wls  = json.loads(sys.argv[3])["items"]
+sms  = json.load(open(sys.argv[1], encoding="utf-8"))["items"]
+svcs = json.load(open(sys.argv[2], encoding="utf-8"))["items"]
+wls  = json.load(open(sys.argv[3], encoding="utf-8"))["items"]
 
 def matches(selector, labels):
     return selector and all(labels.get(k) == v for k, v in selector.items())

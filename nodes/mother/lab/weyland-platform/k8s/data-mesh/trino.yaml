@@ -129,6 +129,16 @@ kind: Service
 metadata:
   name: trino
   namespace: data-mesh
+  # `labels` IS LOad-BEARING and its absence cost 59 days of Trino metrics (B148). The ServiceMonitor
+  # below selects SERVICES by `matchLabels: {app: trino}`, and that reads THIS block — not the
+  # `spec.selector` on the next line, which selects PODS. Both say `app: trino`, which is exactly why
+  # the manifest looked correct: the two selectors point at different objects.
+  #
+  # With this empty, no Service matched, so Prometheus never created a scrape pool and there was no
+  # `up{job="trino"}` series to be missing — `kubectl get servicemonitor` said 60d, the Grafana panel
+  # looked idle, and nothing anywhere reported a fault. scripts/check-servicemonitor-coverage.sh now
+  # reconciles every ServiceMonitor against the workload it monitors so this cannot recur silently.
+  labels: { app: trino }
 spec:
   selector: { app: trino }
   ports:

@@ -122,6 +122,39 @@ lib_source() {
   [ "$output" = "ok" ]
 }
 
+@test "classify: no resolvable workload but actively scraping is unmanaged, not a failure" {
+  # -1 means "nothing in Kubernetes declares intent for this". Real instances found on the live
+  # cluster: monitoring-kube-prometheus-apiserver (a selector-less Service with manual Endpoints)
+  # and -kubelet (a host process on each node). Neither has a Deployment and neither ever will, yet
+  # both scrape correctly. Dropping them in ACCEPTED would stop checking them entirely — if the
+  # kubelet scrape died we would never hear about it. The scrape itself is the evidence.
+  lib_source
+  run classify -1 -1 1
+  [ "$status" -eq 0 ]
+  [ "$output" = "unmanaged" ]
+  run classify -1 -1 3
+  [ "$output" = "unmanaged" ]
+}
+
+@test "classify: no resolvable workload AND no targets is an orphan — the trino shape" {
+  # This is the cell that must NOT be softened by the unmanaged rule above. trino resolves to no
+  # workload and scrapes nothing, so there is no evidence of correctness from either plane.
+  lib_source
+  run classify -1 -1 0
+  [ "$status" -eq 0 ]
+  [ "$output" = "orphan" ]
+}
+
+@test "classify: -1 is the ONLY negative it accepts" {
+  # A sentinel is a contract, not a licence to accept junk. -2 or -99 means a lookup went wrong in a
+  # way nobody designed for, and that must be loud.
+  lib_source
+  run classify -2 -1 1
+  [ "$status" -ne 0 ]
+  run classify -1 -1 -5
+  [ "$status" -ne 0 ]
+}
+
 @test "classify: refuses non-numeric input rather than guessing" {
   # An unparsed field arriving as "" or "<none>" must be LOUD. Silently treating it as 0 would
   # classify a broken lookup as `sleeping` — a clean pass over a workload nobody measured.
@@ -134,13 +167,13 @@ lib_source() {
 
 # --- verdict severity ----------------------------------------------------------------------------
 
-@test "is_failing: blind, down, zombie and stale fail; ok and sleeping pass" {
+@test "is_failing: blind, down, zombie, stale and orphan fail; ok, sleeping and unmanaged pass" {
   lib_source
-  for v in blind down zombie stale; do
+  for v in blind down zombie stale orphan; do
     run is_failing "$v"
     [ "$status" -eq 0 ]
   done
-  for v in ok sleeping; do
+  for v in ok sleeping unmanaged; do
     run is_failing "$v"
     [ "$status" -ne 0 ]
   done
