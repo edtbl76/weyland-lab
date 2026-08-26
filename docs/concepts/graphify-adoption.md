@@ -51,11 +51,28 @@ label collision while querying, not by looking for it.
 
 ## Limits found (these bound the adoption)
 
-**1. Shell `source` is not a dependency edge.** 13 scripts source `scripts/lib/common.sh`;
-`affected "common.sh"` returns **"No affected nodes found."** Shell nodes carry only `calls` (71),
-`contains` (33), `defines` (105) — **zero `imports`**. Python and TypeScript get 1,200 `imports`
-edges, so this is bash-specific. **This repo's guard surface is shell**, so the single most useful
-query on the most safety-critical code is the one that does not work.
+**1. Shell `source` is not a dependency edge — but this matters less than it first appears.**
+13 scripts source `scripts/lib/common.sh`; `affected "common.sh"` returns **"No affected nodes
+found."** Measured across the whole graph: `.ts` 7,102 edges / **1,029** import-type, `.py` 3,460 /
+**448**, `.sh` 192 / **0**. Bash `source` takes a runtime-evaluated string
+(`. "$(dirname "$0")/lib/common.sh"`), so resolving it statically means evaluating shell expansion —
+genuinely harder than a literal Python or TypeScript import path, which is likely why it is
+unimplemented.
+
+**Corrected scope (2026-08-26).** This was first written up as the deciding constraint. It is not.
+Shell's dependency structure in this repo is *deliberately* one level deep: `scripts/lib/common.sh`
+is a leaf holding two path constants and sources nothing (its only `source` matches are in comments).
+So the complete shell dependency graph is `common.sh <- 13 guards`, with no transitive chain, and
+`grep -rln 'lib/common.sh' scripts/*.sh` answers it exhaustively in one line. `affected` earns its
+keep where a human cannot hold the chain in their head — 1,029 TypeScript and 448 Python import edges
+— not for 13 scripts pointing at one leaf.
+
+**The real risk was never the missing edges.** It is that `No affected nodes found` is byte-identical
+to the answer for a genuinely unused file. Compare the `.sql` gap in the same run, which the tool
+reported properly: *"16 .sql file(s) contributed nothing … tree_sitter_sql not installed"* — named the
+gap, the package and the issue number. Same class of missing coverage, opposite reporting: one is a
+warning, the other a clean zero. Knowing shell is uncovered converts a silent wrong answer into a
+known blind spot with a one-line substitute.
 
 **2. Ambiguous labels break `affected` at repo scale.** `affected "Verdict"` works on a subset and
 returns `No unique node match for Verdict` on the full repo — 12 nodes share that label. The tool
@@ -117,9 +134,46 @@ building.
 
 - **Acceptance:** on a real change, the affected set is a superset of what the author touched.
 
+### Stage 2b — make the wrapper refuse where the graph is blind
+
+The risk is not the missing shell edges. It is that `No affected nodes found` is byte-identical to the
+answer for a genuinely unused file, so a reader takes it as authoritative. Fix that at the boundary
+where we consume the tool, in the Stage 1 wrapper — roughly ten lines:
+
+    affected <target>
+      target is *.sh -> say "shell deps are not in the graph", run grep -rln '<basename>' scripts/
+      otherwise      -> graphify affected
+
+**An earlier draft of this plan proposed the opposite and it was wrong.** It would have enforced an
+invariant — "shell sourcing must stay one level deep" — so the grep substitute stayed valid. That
+constrains how this repo writes shell *forever* to preserve a workaround for a third-party parser
+gap, in a tool not yet installed. When a tool has a blind spot, the fix belongs where you consume it,
+not in the system it is looking at.
+
+**And the underlying question answers itself: shell should not have a dependency chain at all.**
+Sourcing has no namespacing — every sourced file lands in one global scope, so collisions are silent;
+ordering is implicit; `set -e` semantics shift across the boundary. There is no import graph to build,
+which is precisely why no tool builds one.
+
+This is already how the repo behaves, for its own reasons rather than for graphify's. From
+`scripts/lib/common.sh`'s own header: *"Paths only, on purpose. `say`/`ok`/`warn`/`die` status helpers
+were added here 2026-08-21 and removed the same day: nothing called them … Add a helper here when it
+has a caller."*
+
+So the rule worth stating is not "shell stays shallow" but:
+
+> **If a shell script needs a real dependency chain, it has outgrown shell — rewrite that piece in
+> Python.** Do not build a shell module system, and do not build a resolver to understand one.
+
+That makes the gap a non-issue by construction. Shell that is correctly scoped — orchestrating
+external commands, sourcing at most one file of constants — has nothing for `affected` to find. Shell
+that would benefit from `affected` is shell that should not have been shell. The tool's blind spot
+lands on an architectural boundary that already exists for better reasons.
+
 ### Stage 3 — close the shell gap, or scope around it
 
-The shell blind spot is the deciding factor for how far this goes. Two options, in order of cost:
+Given Stage 2b, the shell blind spot is no longer a deciding factor — it aligns with a boundary we
+want anyway. Two options remain, in order of cost:
 
 1. **Scope around it** — declare graphify a Python/TypeScript/HCL tool, keep shell dependencies
    tracked by the existing `scripts/lib/common.sh` convention plus shellcheck. Cheapest, honest.
