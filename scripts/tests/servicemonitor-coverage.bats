@@ -327,6 +327,25 @@ JSON
   [[ "$output" == *'"intended": -1'* ]]
 }
 
+@test "runs standalone with NO scripts/lib/ beside it — the CronJob's actual condition" {
+  # THE FIRST AD-HOC CRONJOB RUN FAILED ON EXACTLY THIS (2026-08-26): the script sourced
+  # `lib/common.sh`, which is not in the ConfigMap mount, so it died at line 45 before doing anything.
+  # It used NOTHING from that file — the line was copy-pasted from check-secret-placeholders.sh, which
+  # genuinely needs PLATFORM_DIR to find seal-secrets.sh.
+  #
+  # The bats suite could not have caught it: every other case runs the script from its real location
+  # where lib/ exists. This one copies it somewhere bare, which is what the container does.
+  local bare="$STUB_DIR/bare"
+  mkdir -p "$bare"
+  cp "$GUARD" "$bare/guard.sh"
+  printf '[{"ns":"weyland","name":"bifrost","intended":1,"actual":1}]' > "$STUB_DIR/sm.json"
+  printf '{"data":{"activeTargets":[{"scrapePool":"serviceMonitor/weyland/bifrost/0","health":"up"}]}}' \
+    > "$STUB_DIR/t.json"
+  SM_SNAPSHOT_JSON="$STUB_DIR/sm.json" TARGETS_JSON="$STUB_DIR/t.json" run bash "$bare/guard.sh"
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"OK"* ]]
+}
+
 # --- the CronJob runs the same text this suite tests ---------------------------------------------
 
 @test "the CronJob's embedded script is byte-identical to the tested script" {

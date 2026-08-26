@@ -42,8 +42,13 @@
 # Conflating them means a broken guard reads exactly like a broken cluster.
 set -euo pipefail
 
-. "$(dirname "${BASH_SOURCE[0]}")/lib/common.sh"
-
+# DELIBERATELY DOES NOT SOURCE scripts/lib/common.sh, unlike its sibling guards. It used nothing from
+# it — the line was copy-pasted from check-secret-placeholders.sh, which genuinely needs PLATFORM_DIR
+# to locate seal-secrets.sh. Here it was pure ceremony, and it BROKE THE FIRST CRONJOB RUN: the
+# ConfigMap mounts this file alone, so `lib/common.sh` does not exist beside it in the container and
+# the script died at the source line before doing anything. The bats suite could not have caught that
+# — every other case runs it from its real location, where lib/ exists. There is now a case that
+# copies it somewhere bare, which is what the container actually does.
 PROM_POD="${PROM_POD:-prometheus-monitoring-kube-prometheus-prometheus-0}"
 PROM_NS="${PROM_NS:-monitoring}"
 

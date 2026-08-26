@@ -2096,17 +2096,23 @@ NOT the `cron-freshness-check` pattern, whose target *is* meshed). The 30-case b
 
 **DoD:** **1 ✅** `trino.md` + `observability.md` + `schedules.md` (02:45 row; the "nine k8s CronJobs"
 count → ten); api/hosts N/A, verified not assumed. **2 ✅** `flow-servicemonitor-coverage.md`; mermaid
-parses. **3 ⏳** `demos/servicemonitor-coverage.md` steps 1-6 RUN including the negative case (exit **1** vs
-**2** distinguished); every one of the dashboard's 13 queries executed against live Prometheus before
-it was written — no empty panels, metric names read from `/api/v1/label/__name__/values` rather than
-guessed, counter-vs-gauge checked via `/api/v1/metadata`. **OUTSTANDING: the dashboard is not yet
-eyes-on and demo step 7 (ad-hoc CronJob run) has not been executed** — both need the commit synced
-first. Recorded as pending rather than ticked: a query that resolves in Prometheus is not the same
-evidence as a panel that renders, and this item exists precisely because a green box stood in for a
-measurement. **4 ✅** guard is read-only; the CronJob has no destructive verb and no write permission
-at all. **5 ✅** Linear EMA-207, backlog flipped. **6 ⏳** new timer documented + budgeted +
-failure-covered, `check-cron-freshness-budgets.sh` exit 0 — but **the CronJob has never run**; it is
-validated on demand immediately after sync, never by waiting for 02:45.
+parses. **3 ✅** `demos/servicemonitor-coverage.md` steps 1-6 RUN including the negative case (exit **1** vs
+**2** distinguished); all 13 dashboard queries executed against live Prometheus *before* the panel JSON
+was written — metric names read from `/api/v1/label/__name__/values` rather than guessed,
+counter-vs-gauge checked via `/api/v1/metadata`. **Dashboard EYES-ON 2026-08-26** (`/d/trino-b148/trino`):
+`UP` · 1 node · 0 running/queued/failed · 69 started · a real 3 GiB pool-size line. Ticked only after
+looking, having first been recorded as pending — a query resolving in Prometheus is evidence about
+*Prometheus*, not about a panel that can still render empty from a bad `fieldConfig` or an unimported
+ConfigMap, and substituting the upstream check for the downstream one is this item's own bug one layer
+up. **Both timeseries are blank before ~00:00 and only then begin drawing: that gap IS the 59-day
+blindness, visible — there is no history to render because none was ever collected.**
+**4 ✅** guard is read-only; the CronJob has no destructive verb and no write permission at all.
+**5 ✅** Linear EMA-207, backlog flipped. **6 ⏳** new timer documented + budgeted + failure-covered,
+`check-cron-freshness-budgets.sh` exit 0; **its first ad-hoc run FAILED and that is why it was
+triggered rather than awaited** — the script sourced `scripts/lib/common.sh`, which the ConfigMap does
+not mount, and died before doing any work. It used nothing from that file. Removed, plus a regression
+case that runs the script from a bare directory (the container's actual condition, which no other test
+reproduced). Awaiting re-run against the corrected ConfigMap.
 **7 ✅** shellcheck clean, 30 new bats (197 total, all green), scan surface = the usual CronJob
 findings shared with the pr-lifecycle siblings. **8 ✅** cascade: schedules row + budget + failure rule
 + CI jq fix + `monitoring-extras` already owns `k8s/monitoring` so no new Argo app row.
