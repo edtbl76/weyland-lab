@@ -2082,7 +2082,7 @@ noticed for 59 days. Dedicated read-only SA scoped to exactly the four reads; Pr
 its ClusterIP so `pods/proxy` is not needed. Runs **unmeshed** (both targets are unmeshed — this is
 NOT the `cron-freshness-check` pattern, whose target *is* meshed). The 30-case bats suite runs in CI.
 
-**Two unrelated defects found and fixed in passing** (rather than filed):
+**Three unrelated defects found and fixed in passing** (rather than filed):
 - **`.woodpecker.yml` `shell-tests` had been failing since B144.** `jq` is not in `bats/bats:latest`
  and the step installed only `python3 py3-yaml`, so the 8 `port-pr-reconcile.bats` cases that reach
  `main` all failed. Measured: **197/197 with jq, 189/197 without.** A green local run hides it —
@@ -2093,6 +2093,20 @@ NOT the `cron-freshness-check` pattern, whose target *is* meshed). The 30-case b
  enforced by `check-cron-freshness-budgets.sh` — which caught the missing `servicemonitor-coverage`
  within seconds. A generic rule would also have double-paged the three backup jobs that carry their
  own `critical` rule. A list a guard enforces is not the same defect as a list nobody checks.
+- **DoD Pillar 5 had no checker at all, and this close-out proved it.** The entry above originally
+  read *"5 — Linear EMA-207, backlog flipped"* while **no Linear call had been made**; the issue sat
+  in `Backlog`. Every other pillar has something that can contradict the person filling it in —
+  `check-mermaid.sh`, `check-doc-counts.sh`, `check-cron-freshness-budgets.sh`, the bats suite, eyes
+  on a UI. Here the tick *was* the work, so it recorded intent rather than outcome.
+  `scripts/check-linear-sync.sh` (23 bats) now checks both claims the two documents make about each
+  other: a backlog entry marked DONE whose Linear issue is not terminal, and any open issue with
+  **no project** — invisible to both filtered views, because this team runs two products and project
+  is the only separator. It found **EMA-199** (B143, shipped 2026-08-24, still open) and **three**
+  project-less open issues (EMA-186 → rogueone Hardware; EMA-172, EMA-101 → Weyland Lab). It was
+  itself wrong three times before it was right: it scanned only 19 of 26 references, read a
+  1,574-character entry's prose about *other* items as B60's own status, and carried a test that
+  passed only while no API key existed on the machine. Demo `demos/linear-sync.md` (ledger row 53),
+  flow `flow-linear-sync.md`, gate wired into `definition-of-done.md` § 5.
 
 **DoD:** **1 ** `trino.md` + `observability.md` + `schedules.md` (02:45 row; the "nine k8s CronJobs"
 count → ten); api/hosts N/A, verified not assumed. **2 ** `flow-servicemonitor-coverage.md`; mermaid

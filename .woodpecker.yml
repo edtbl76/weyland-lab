@@ -113,6 +113,37 @@ steps:
       - apk add --no-cache bash curl python3 >/dev/null
       - bash scripts/check-port-iac-coverage.sh
 
+  # ── 1b3. DoD Pillar 5 — backlog/Linear reconciliation (B148 follow-on) ──────
+  # SEPARATE from repo-guards for the same reason as the step above: it needs a credential, and
+  # repo-guards is deliberately pure file analysis. Its own step rather than folded into
+  # port-iac-coverage, because the two tokens address different SaaS and a step should hold only the
+  # secret it uses.
+  #
+  # WHAT IT CATCHES that nothing else can: DoD Pillar 5 was the ONE pillar with no checker. Every
+  # other has one — check-mermaid, check-doc-counts, check-cron-freshness-budgets, the bats suite,
+  # eyes on a UI — so here the tick WAS the work and recorded intent rather than outcome. On
+  # 2026-08-26 the B148 close-out claimed "Linear EMA-207, backlog flipped" with NO Linear call ever
+  # made; the issue sat in Backlog. Checking then found B143 open two days after shipping and three
+  # open issues with no project at all — invisible to every filtered view, because this team runs two
+  # products (Weyland Lab / Stud.IO) and project is the only separator.
+  #
+  # UNLIKE check-secret-placeholders.sh and check-servicemonitor-coverage.sh, this one CAN live in
+  # CI: those need cluster read (`woodpecker:default` cannot list secrets, ServiceMonitors, Services
+  # or workloads) and granting that permanently to run a periodic lint is not worth it. This makes
+  # one outbound HTTPS call with a READ-scoped token. Different trade, different answer.
+  #
+  # NEEDS the `linear_api_key` secret on edtbl76/weyland-lab, events cron+manual — a secret that does
+  # not cover the triggering event is a whole-config PARSE error, not a failed step (learned when
+  # port_client_id shipped). Read scope is sufficient; the guard has no write path.
+  - name: linear-sync
+    image: alpine:latest
+    environment:
+      LINEAR_API_KEY:
+        from_secret: linear_api_key
+    commands:
+      - apk add --no-cache bash curl python3 >/dev/null
+      - bash scripts/check-linear-sync.sh
+
   # ── 1c. shellcheck the shell surface ────────────────────────────────────────
   # --severity=warning on purpose. At `note` the repo has 3 findings, and two of them are noise that
   # can never be fixed: SC2016 fires on the deliberately-single-quoted node heredoc in
