@@ -209,7 +209,33 @@ becomes confidently wrong.
 | **An image** | `scripts/ci/images.tsv` (or a written exclusion); the ship loop's gates then cover it; a `readinessProbe` on whatever runs it, since the SMOKE gate makes that a shipping requirement |
 | **A repo** | every lane in the coverage matrix — CI, Port integration selectors, PR-lifecycle `PR_REPOS`, code-review stack, scan-suite, `tofu/github/` |
 | **A classification used on ≥2 surfaces** | the single registry (see the cross-cutting rule below) — never re-encode it per surface |
+| **A shared type / function / module** | every **call site** — `bash scripts/graphify.sh affected "<symbol>"` names them with file:line. This row exists because the other rows are all about infrastructure surfaces (services, endpoints, timers, docs) and none of them cover CODE cascade. Found 2026-08-26: `guardrails/verdict.py` is duplicated byte-for-byte between `weyland-guard` and `weyland-tool-server`, where `Hook` values are URL paths and `Decision` values are parsed from the response — a wire contract kept in sync by nothing, and no Pillar 8 row would have asked about it |
 | **A retirement / rename** | **the reverse sweep** — this is the one most often skipped |
+
+### Answering the code half — `scripts/graphify.sh affected`
+
+The table above is answered by reading and remembering. The **code** cascade — what breaks if I change
+this symbol — is answered by a command:
+
+```
+bash scripts/graphify.sh affected GuardrailPipeline    # file:line for every dependent
+bash scripts/graphify.sh god-nodes                     # the hubs a change is most likely to ripple from
+```
+
+**ADVISORY, NEVER A GATE**, and the reason is specific rather than cautious:
+
+- **It is blind to shell.** Bash `source` is not a dependency edge (`.ts` 1029 import edges, `.py` 448,
+  `.sh` **0**), and raw graphify answers `No affected nodes found` — byte-identical to the answer for a
+  genuinely unused file. The wrapper refuses to pass that through and greps instead, but a gate built on
+  it would be blind to the guard surface, which is exactly the "control that measures nothing" this
+  document keeps legislating against.
+- **A duplicated symbol is unanswerable.** Same-named symbols in different files collide, so
+  `affected Decision` returns `No unique node match`. The wrapper then lists the colliding files —
+  which is how the duplication above was confirmed. Useful, but not a pass/fail signal.
+- **An empty answer is not evidence of no impact.** Treat it as "the graph had nothing to say."
+
+Rebuild the graph first (`scripts/graphify.sh build`, ~16s) — it reads tracked source, not the working
+tree. Full evaluation, limits and staged plan: `docs/concepts/graphify-adoption.md`.
 
 ### The reverse sweep
 

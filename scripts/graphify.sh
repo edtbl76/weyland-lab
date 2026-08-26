@@ -181,13 +181,51 @@ cmd_affected() {
   fi
   require_venv
   require_graph
-  "$GRAPHIFY_VENV/bin/graphify" affected "$target" --graph "$GRAPHIFY_GRAPH"
+  local out rc=0
+  out="$("$GRAPHIFY_VENV/bin/graphify" affected "$target" --graph "$GRAPHIFY_GRAPH" 2>&1)" || rc=$?
+  printf '%s\n' "$out"
+  # Turn the unactionable "No unique node match" into the list of colliding files.
+  if printf '%s' "$out" | grep -q "No unique node match"; then
+    candidates "$target" "$GRAPHIFY_GRAPH"
+  fi
+  return $rc
 }
 
 cmd_god_nodes() {
   require_venv
   require_graph
   "$GRAPHIFY_VENV/bin/graphify" god-nodes --graph "$GRAPHIFY_GRAPH" --top "${1:-10}"
+}
+
+# --- ambiguity ------------------------------------------------------------------------------------
+#
+# graphify answers an ambiguous symbol with the bare string "No unique node match for X" (the
+# pre-#1504 node-ID scheme: IDs are not path-qualified, so same-named symbols in different files
+# collide). That message names no candidates, so the reader cannot act on it.
+#
+# It bites hardest exactly where it matters most. `affected Decision` is unanswerable on this repo
+# because there are two nodes labelled `decision` - one in weyland-guard/guardrails/verdict.py and one
+# in the DUPLICATED weyland-tool-server copy. A shared type becomes unqueryable precisely when it has
+# been duplicated, which is the moment the cascade question is worth asking.
+candidates() { # candidates <symbol> <graph.json>
+  local sym="${1:?usage: candidates <symbol> <graph.json>}" graph="${2:?}"
+  [ -r "$graph" ] || { echo "FATAL: cannot read $graph" >&2; return 2; }
+  python3 - "$graph" "$sym" <<'PY'
+import json, sys
+graph, sym = sys.argv[1], sys.argv[2].lower()
+try:
+    g = json.load(open(graph, encoding="utf-8"))
+except Exception as exc:
+    print(f"FATAL: could not parse {graph}: {exc}", file=sys.stderr); raise SystemExit(2)
+hits = [n for n in (g.get("nodes") or [])
+        if (n.get("norm_label") or n.get("label", "").lower()) == sym]
+if not hits:
+    print(f"  no node in the graph is labelled '{sys.argv[2]}'")
+    raise SystemExit(0)
+print(f"  {len(hits)} node(s) share this label - disambiguate by file:")
+for n in hits:
+    print(f"    {n.get('label')}  <-  {n.get('source_file') or '(no source)'}")
+PY
 }
 
 # --- verify (run this after bumping GRAPHIFY_PIN) --------------------------------------------------

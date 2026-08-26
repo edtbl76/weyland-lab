@@ -210,6 +210,26 @@ shellcheck clean at the CI gate.
 
 </details>
 
+### Stage 2 — the actual reason to adopt: DoD Pillar 8 — **DONE 2026-08-26**
+
+Wired into `docs/definition-of-done.md` § 8 as an **advisory** aid: a new trigger-cascade row for
+**a shared type / function / module**, plus a short section giving the commands and — the part that
+matters — the three reasons it is not a gate (blind to shell, unanswerable on duplicated symbols, an
+empty answer is not evidence of no impact).
+
+**The gap it fills is real and was not obvious.** Every existing Pillar 8 row is about an
+*infrastructure* surface — a service, an endpoint, a timer, an image, a repo — and none of them ask
+about **code** cascade. That is why the duplicated `guardrails/verdict.py` could sit between two
+services with `Hook` values acting as URL paths and nothing in the DoD would have raised it.
+
+**Limit 2 also got smaller.** `affected Decision` returns `No unique node match` because two nodes
+share that label — one per copy of the duplicated file. The wrapper now catches that string and lists
+the colliding files with their sources, so the unactionable message becomes a disambiguation aid. It
+doubles as a duplication signal: two nodes with the same label in different services is itself a
+finding.
+
+<details><summary>Original Stage 2 plan</summary>
+
 ### Stage 2 — the actual reason to adopt: DoD Pillar 8
 
 Pillar 8 asks "what does this change imply?" and is answered by hand today. It was answered *wrong*
@@ -223,6 +243,8 @@ blind to the guard surface would be the exact "control that measures nothing" th
 building.
 
 - **Acceptance:** on a real change, the affected set is a superset of what the author touched.
+
+</details>
 
 ### Stage 2b — make the wrapper refuse where the graph is blind — **DONE 2026-08-26**
 

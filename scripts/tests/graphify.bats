@@ -179,6 +179,46 @@ lib_source() {
   [ "$status" -eq 2 ]
 }
 
+# --- ambiguity (limit 2: the pre-#1504 node-ID scheme) --------------------------------------------
+
+@test "candidates lists every node sharing a label, with its source file" {
+  # graphify answers an ambiguous symbol with the bare string "No unique node match for X", which
+  # tells you nothing about WHICH duplicates collided. Found live on `Decision`: two nodes, one per
+  # copy of the duplicated guardrails/verdict.py. The symbol is unanswerable exactly when it is
+  # duplicated - which is precisely when the cascade question matters most.
+  lib_source
+  cat > "$STUB_DIR/g.json" <<'JSON'
+{"nodes":[
+ {"id":"a","label":"Decision","norm_label":"decision","source_file":"svc-one/verdict.py"},
+ {"id":"b","label":"Decision","norm_label":"decision","source_file":"svc-two/verdict.py"},
+ {"id":"c","label":"Other","norm_label":"other","source_file":"x.py"}],
+ "links":[]}
+JSON
+  run candidates "Decision" "$STUB_DIR/g.json"
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"svc-one/verdict.py"* ]]
+  [[ "$output" == *"svc-two/verdict.py"* ]]
+  [[ "$output" != *"x.py"* ]]
+}
+
+@test "candidates is case-insensitive on the label" {
+  lib_source
+  cat > "$STUB_DIR/g2.json" <<'JSON'
+{"nodes":[{"id":"a","label":"Decision","norm_label":"decision","source_file":"one.py"}],"links":[]}
+JSON
+  run candidates "decision" "$STUB_DIR/g2.json"
+  [[ "$output" == *"one.py"* ]]
+}
+
+@test "candidates on an unknown symbol says so rather than printing nothing" {
+  lib_source
+  cat > "$STUB_DIR/g3.json" <<'JSON'
+{"nodes":[{"id":"a","label":"Decision","norm_label":"decision","source_file":"one.py"}],"links":[]}
+JSON
+  run candidates "NoSuchThing" "$STUB_DIR/g3.json"
+  [[ "$output" == *"no node"* ]]
+}
+
 # --- verify (guards a pin bump) --------------------------------------------------------------------
 
 @test "graph_files extracts file paths from affected output" {
