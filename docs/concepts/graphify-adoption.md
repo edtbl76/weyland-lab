@@ -62,8 +62,13 @@ unimplemented.
 **Corrected scope (2026-08-26).** This was first written up as the deciding constraint. It is not.
 Shell's dependency structure in this repo is *deliberately* one level deep: `scripts/lib/common.sh`
 is a leaf holding two path constants and sources nothing (its only `source` matches are in comments).
-So the complete shell dependency graph is `common.sh <- 13 guards`, with no transitive chain, and
-`grep -rln 'lib/common.sh' scripts/*.sh` answers it exhaustively in one line. `affected` earns its
+So the complete shell dependency graph is `common.sh <- 12 guards`, with no transitive chain, and a
+grep answers it exhaustively — but it must match the SOURCE STATEMENT, not the name. A bare
+`grep -rln 'lib/common.sh'` returns 14, counting two files whose only mention is a comment; one of
+them is `check-servicemonitor-coverage.sh`, whose comment says *"DELIBERATELY DOES NOT SOURCE"* it.
+Prose about a dependency is not a dependency, and the better the removal is documented the more
+confidently the naive check reports it. `^[[:space:]]*(\.|source)[[:space:]]` is the fix; it is what
+`scripts/graphify.sh affected` uses. `affected` earns its
 keep where a human cannot hold the chain in their head — 1,029 TypeScript and 448 Python import edges
 — not for 13 scripts pointing at one leaf.
 
@@ -111,6 +116,25 @@ all; the model only adds concepts on top.
 
 Staged so each step is independently useful and reversible. Nothing here is a framework build.
 
+### Stage 1 — structural only, no LLM, no global install — **DONE 2026-08-26**
+
+Shipped as `scripts/graphify.sh` (`install` / `build` / `affected` / `god-nodes`), 15 bats cases,
+shellcheck clean at the CI gate.
+
+- Pinned `graphifyy==0.9.50[terraform,neo4j,mcp,pdf,sql]`. Install took 12s; `build` 15.8s for
+  **13,682 nodes / 22,980 edges**, and with `sql` present the 16-file warning is gone.
+- **Nothing is written inside the repo** — venv, source copy and graph all live under
+  `~/.local/share/weyland/graphify/`. The plan originally said to gitignore `graphify-out/`; not
+  generating it in the repo at all is strictly better, and `git status` confirms it.
+- **Acceptance MET, measured not asserted.** `affected GuardrailPipeline` returned the same
+  dependents as `grep -rln`, with exact file:line and relation type, and correctly EXCLUDED
+  `guardrails/pipeline.py` — the definition site is not affected by itself.
+- Left deliberately as a one-time proof rather than a standing test: the check needs a built graph,
+  so a bats case would have to skip in CI, and a skipping guard is the advisory trap this repo keeps
+  writing about. The version pin is what guards drift.
+
+<details><summary>Original Stage 1 checklist</summary>
+
 ### Stage 1 — structural only, no LLM, no global install (do first)
 
 - Isolated venv, `graphifyy[terraform,neo4j,mcp,pdf,sql]`. **Add `sql`** — 16 files are being dropped.
@@ -119,6 +143,8 @@ Staged so each step is independently useful and reversible. Nothing here is a fr
 - Wrap `god-nodes` + `affected` in a thin script so they are callable without remembering the venv path.
 - **Acceptance:** `affected` on a Python or TypeScript symbol returns the same set as a hand grep.
   It already does for `Verdict`; make it a test, not an anecdote.
+
+</details>
 
 ### Stage 2 — the actual reason to adopt: DoD Pillar 8
 
@@ -134,7 +160,24 @@ building.
 
 - **Acceptance:** on a real change, the affected set is a superset of what the author touched.
 
-### Stage 2b — make the wrapper refuse where the graph is blind
+### Stage 2b — make the wrapper refuse where the graph is blind — **DONE 2026-08-26**
+
+Implemented in `scripts/graphify.sh`: `is_shell_target()` short-circuits before any graph
+precondition, so a shell target never reaches the graph even when the graph is healthy (there is a
+bats case for exactly that). Two defects were found building it, both the house pattern:
+
+- **`grep --include` is not portable here.** `grep` on PATH on rogueone is **ugrep 7.8.4**, not GNU
+  grep (`/usr/bin/grep` is GNU 3.11, shadowed), and its `--include='*.sh'` returned a `.bats` file —
+  a phantom dependency. CI runs alpine, a third implementation. File selection is now `find -name`,
+  which is unambiguous in all three. **Worth a wider look: the other ten `check-*.sh` guards use
+  grep heavily and were written against whichever implementation the author had.**
+- **Matching the NAME counts prose.** The first version reported `graphify.sh` as depending on
+  `common.sh` because its comments discuss it — and reported `check-servicemonitor-coverage.sh`,
+  whose comment says *"DELIBERATELY DOES NOT SOURCE"* it. The better the removal is documented, the
+  more confidently the naive check reports the dependency. Now anchored to
+  `^[[:space:]]*(\.|source)[[:space:]]`.
+
+
 
 The risk is not the missing shell edges. It is that `No affected nodes found` is byte-identical to the
 answer for a genuinely unused file, so a reader takes it as authoritative. Fix that at the boundary
