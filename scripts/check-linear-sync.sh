@@ -72,28 +72,68 @@ backlog_refs() { # backlog_refs <backlog-file>
 import re, sys
 path = sys.argv[1]
 lines = open(path, encoding="utf-8").read().split("\n")
-DONE = re.compile(r"\b(DONE|CLOSED|RETIRED|MOOT|SOLVED|MERGED|WON'T DO|MITIGATED|DROPPED)\b")
-REF  = re.compile(r"(?:Linear:?\s*|\[Linear\s+)(EMA-\d+)")
+REF = re.compile(r"(?:Linear:?\s*|\[Linear\s+)(EMA-\d+)")
+
+# FIRST STATUS-OR-PRIORITY TOKEN WINS — do NOT just search the line for "DONE".
+#
+# The list entries are long (B60's is 1574 characters) and routinely narrate OTHER items' status
+# inside themselves: `[B63, DONE 2026-08-19]`, `scorecards DONE (->B61)`. A bare `\bDONE\b` search
+# read B63's status as B60's and reported drift on an item correctly open in both systems — the
+# guard's first false positive, on its first otherwise-clean live run.
+#
+# An item's own marker always precedes prose about other items, so the FIRST hit over the combined
+# vocabulary is the item's own status. Priority words must be in the same alternation: without them
+# the scan skips straight past `MEDIUM` and finds the first stray `DONE` further along.
+TERMINAL_WORDS = ("DONE", "CLOSED", "RETIRED", "MOOT", "SOLVED", "MERGED",
+                  "WON'T DO", "MITIGATED", "DROPPED", "SUPERSEDED")
+OPEN_WORDS     = ("HIGH", "MEDIUM", "LOW", "IN PROGRESS", "PAUSED", "DEFERRED")
+STATUS = re.compile(r"\b(" + "|".join(re.escape(w) for w in TERMINAL_WORDS + OPEN_WORDS) + r")\b")
+
+def is_done(line):
+    m = STATUS.search(line)
+    return bool(m) and m.group(1) in TERMINAL_WORDS
+
+# THE FILE HAS TWO REGIONS AND BOTH CARRY REFERENCES.
+#
+#   1. An ordered priority list near the top — `1. **B46** — ... [Linear EMA-35].` — which CLAUDE.md
+#      calls the ordered source of truth. Each item is self-contained: B-number, status and ref all
+#      on ONE line.
+#   2. The `### B<n>` detail sections below it, where the ref usually sits on a later line.
+#
+# The first cut scanned only region 2 and silently missed 7 live references — reporting 19 of 45 on
+# its first real run. That is the same "supporting only one format halves coverage" failure this
+# file's own header warns about, committed while writing the warning.
+LIST_ITEM = re.compile(r'^\s*(?:\d+\.|[-*])\s+\*\*(B[\d.]+)\*\*')
 
 rows, cur, done, seen = [], None, False, set()
+
+def add(bnum, done_flag, line):   # param renamed: `is_done` shadowed the function above
+    for ref in REF.findall(line):
+        key = (bnum, ref)
+        if key in seen:
+            return
+        seen.add(key)
+        rows.append(f"{bnum}\t{ref}\t{'done' if done_flag else 'open'}")
+
 for line in lines:
+    li = LIST_ITEM.match(line)
+    if li:
+        # Self-contained: judge status from THIS line, and do not disturb the section cursor.
+        add(li.group(1), is_done(line), line)
+        continue
+
     h = re.match(r'^### (B[\d.]+)\b(.*)$', line)
     if h:
         if "(original" in line:
             cur = None                      # inside a collapsed duplicate: ignore its refs
             continue
-        cur, done = h.group(1), bool(DONE.search(line))
+        cur, done = h.group(1), is_done(line)
         # DO NOT `continue` HERE. The `[Linear EMA-46]` form appears INSIDE the heading itself
         # (`— **DONE 2026-08-18 [Linear EMA-46].**`), so skipping to the next line drops every
         # reference written that way — silently, and the dropped half looks like the passing half.
     if cur is None:
         continue
-    for ref in REF.findall(line):
-        key = (cur, ref)
-        if key in seen:
-            continue
-        seen.add(key)
-        rows.append(f"{cur}\t{ref}\t{'done' if done else 'open'}")
+    add(cur, done, line)
 
 if not rows:
     print(f"no `Linear: EMA-<n>` references found in {path}", file=sys.stderr)
@@ -115,8 +155,13 @@ linear_snapshot() {
     return 0
   fi
   # The key may live in the gitignored scripts/.env alongside every other lab credential.
+  #
+  # THE PATH IS OVERRIDABLE so the no-key branch stays testable. Before a real key existed, the
+  # "missing LINEAR_API_KEY is fatal" test passed for an ENVIRONMENTAL reason rather than a logical
+  # one — the moment a key landed in scripts/.env the guard loaded it and the test went red. A test
+  # that only passes while a file happens to be absent is not testing the code.
   if [ -z "${LINEAR_API_KEY:-}" ]; then
-    local envf; envf="$(dirname "${BASH_SOURCE[0]}")/.env"
+    local envf="${LINEAR_ENV_FILE:-$(dirname "${BASH_SOURCE[0]}")/.env}"
     # shellcheck disable=SC1090
     [ -r "$envf" ] && { set -a; . "$envf"; set +a; }
   fi

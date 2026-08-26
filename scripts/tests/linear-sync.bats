@@ -133,6 +133,34 @@ MD
   [[ "$output" == *"EMA-207"* ]]
 }
 
+@test "backlog_refs reads the item's OWN status, not prose about other items" {
+  # THE FALSE POSITIVE THAT FIRED ON THE FIRST CLEAN LIVE RUN. B60's list entry is 1574 characters
+  # and mentions other items' status inside it — `[B63, DONE 2026-08-19]`, `scorecards DONE (→B61)`.
+  # Searching the whole line for DONE therefore read B63's status as B60's, and the guard reported
+  # drift on an item that is correctly open in both systems.
+  #
+  # An item's own marker always precedes any prose about other items, so first-match-wins over the
+  # combined status+priority vocabulary is the rule. MEDIUM appears at char ~45 here; the first
+  # spurious DONE at char 407.
+  lib_source
+  cat > "$STUB_DIR/b.md" <<'MD'
+- **B60** — **Port maturity (bucket)** — **MEDIUM (deprioritized).** Covers (c) Woodpecker CI signal [B63, DONE 2026-08-19]. Phase 2: scorecards DONE (→B61) [Linear EMA-49].
+MD
+  run backlog_refs "$STUB_DIR/b.md"
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"EMA-49"*"open"* ]]
+  [[ "$output" != *"EMA-49"*"done"* ]]
+}
+
+@test "backlog_refs still marks a genuinely done item done when prose follows" {
+  lib_source
+  cat > "$STUB_DIR/b.md" <<'MD'
+- **B118** — **Stud.IO code-quality** — **DONE 2026-08-19 [Linear EMA-107].** Follows B57, which is MEDIUM.
+MD
+  run backlog_refs "$STUB_DIR/b.md"
+  [[ "$output" == *"EMA-107"*"done"* ]]
+}
+
 @test "backlog_refs on a file with NO refs is FATAL, not an empty pass" {
   lib_source
   printf '# nothing here\n' > "$STUB_DIR/empty.md"
@@ -252,7 +280,11 @@ MD
 ### B1 — thing — **DONE (2026-08-01)**
 Linear: EMA-10.
 MD
-  BACKLOG_FILE="$STUB_DIR/b.md" LINEAR_API_KEY="" run bash "$GUARD"
+  # LINEAR_ENV_FILE points at nothing so the real scripts/.env cannot satisfy this. Without that,
+  # the test passed only while no key existed on the machine — an environmental pass, not a logical
+  # one, and it went red the moment a real key landed.
+  BACKLOG_FILE="$STUB_DIR/b.md" LINEAR_API_KEY="" LINEAR_ENV_FILE="$STUB_DIR/no-such.env" \
+    run bash "$GUARD"
   [ "$status" -eq 2 ]
   [[ "$output" == *"LINEAR_API_KEY"* ]]
 }
