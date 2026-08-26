@@ -6,6 +6,7 @@
 #   usage: scripts/graphify.sh build              rebuild the graph from TRACKED source
 #          scripts/graphify.sh affected <target>  what depends on this symbol or file
 #          scripts/graphify.sh god-nodes [N]      most-connected nodes (architectural hubs)
+#          scripts/graphify.sh verify [symbol]    prove the graph invents nothing (run after a pin bump)
 #          scripts/graphify.sh install            create the venv (one-off)
 #
 # WHY A WRAPPER AND NOT THE RAW TOOL — two things the raw CLI gets wrong for this repo:
@@ -43,7 +44,8 @@ GRAPHIFY_GRAPH="${GRAPHIFY_GRAPH:-$GRAPHIFY_SRC/graphify-out/graph.json}"
 # Pinned on purpose: 0.9.x, ~5 months old, 1130 open issues. Treat an upgrade as a change.
 GRAPHIFY_PIN="${GRAPHIFY_PIN:-graphifyy==0.9.50}"
 # `sql` is NOT optional here — without it 16 .sql files contribute nothing to the graph.
-GRAPHIFY_EXTRAS="${GRAPHIFY_EXTRAS:-terraform,neo4j,mcp,pdf,sql}"
+# `leiden` pulls graspologic, which is `requires_python: <3.13,>=3.9` — see venv_python below.
+GRAPHIFY_EXTRAS="${GRAPHIFY_EXTRAS:-terraform,neo4j,mcp,pdf,sql,leiden}"
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
@@ -88,6 +90,39 @@ affected_shell() { # affected_shell <file> <search-root>
   printf '%s\n' "$hits" | sed "s|^$root/|  |"
 }
 
+# --- interpreter selection -------------------------------------------------------------------------
+
+# venv_python -> the interpreter to build the venv with.
+#
+# Leiden comes from `graspologic`, which is `requires_python: <3.13,>=3.9`. rogueone's default python3
+# is 3.13.3, so a plain `python3 -m venv` silently loses Leiden: graphify catches the ImportError and
+# falls back to `networkx.community.louvain_communities` (graphify/cluster.py:67-76) without a word.
+#
+# Louvain is not wrong — it is Leiden's 2008 predecessor and the reason Leiden exists is that Louvain
+# can emit badly-connected or internally-disconnected communities. But the choice must be deliberate
+# and visible, not an accident of which interpreter happened to be first on PATH.
+venv_python() {
+  if [ -n "${GRAPHIFY_PYTHON:-}" ]; then printf '%s' "$GRAPHIFY_PYTHON"; return 0; fi
+  local c
+  for c in python3.12 python3.11 python3.10; do
+    command -v "$c" >/dev/null 2>&1 && { printf '%s' "$c"; return 0; }
+  done
+  printf 'python3'
+}
+
+# leiden_status <venv> -> print which clustering the built venv will actually use.
+#
+# Asserted by IMPORTING it, not by inspecting the pin. A wheel that failed to build leaves the extra
+# "installed" while the import fails, and the difference is invisible from the outside.
+leiden_status() { # leiden_status <venv>
+  local v="${1:?usage: leiden_status <venv>}"
+  if "$v/bin/python" -c "import graspologic" >/dev/null 2>&1; then
+    echo "clustering: Leiden (graspologic present)"
+  else
+    echo "clustering: networkx louvain fallback - graspologic absent (needs python < 3.13)"
+  fi
+}
+
 # --- preconditions ---------------------------------------------------------------------------------
 
 require_venv() {
@@ -109,11 +144,19 @@ require_graph() {
 # --- subcommands -----------------------------------------------------------------------------------
 
 cmd_install() {
+  local py; py="$(venv_python)"
   mkdir -p "$GRAPHIFY_HOME"
-  python3 -m venv "$GRAPHIFY_VENV"
+  # --clear IS LOAD-BEARING. `python -m venv` over an existing directory REUSES it and will not swap
+  # the interpreter, so re-running install after adding python3.12 kept a 3.13 venv and Leiden stayed
+  # absent. It printed "interpreter: python3.12 (Python 3.13.3)" — selected one, got the other — and
+  # only the leiden_status line below made that visible. Without --clear the install silently no-ops
+  # on the thing you ran it to change.
+  "$py" -m venv --clear "$GRAPHIFY_VENV"
   "$GRAPHIFY_VENV/bin/pip" install -q --upgrade pip
   "$GRAPHIFY_VENV/bin/pip" install -q "${GRAPHIFY_PIN%%==*}[$GRAPHIFY_EXTRAS]==${GRAPHIFY_PIN##*==}"
   echo "installed $GRAPHIFY_PIN [$GRAPHIFY_EXTRAS] into $GRAPHIFY_VENV"
+  echo "interpreter: $py ($("$GRAPHIFY_VENV/bin/python" -V 2>&1))"
+  leiden_status "$GRAPHIFY_VENV"
 }
 
 # TRACKED FILES ONLY — git ls-files, never the working tree. See the header for the 927 MB / 24 MB
@@ -147,6 +190,66 @@ cmd_god_nodes() {
   "$GRAPHIFY_VENV/bin/graphify" god-nodes --graph "$GRAPHIFY_GRAPH" --top "${1:-10}"
 }
 
+# --- verify (run this after bumping GRAPHIFY_PIN) --------------------------------------------------
+#
+# WHY THIS EXISTS. Stage 1's acceptance — "affected matches a hand grep" — was checked once by hand
+# and then left as an anecdote. The version pin guards drift while it holds, but NOTHING re-checks
+# accuracy when someone bumps it, which is exactly when behaviour can change. A bats case could not
+# cover this: it needs a built graph, so it would have to skip in CI, and a skipping guard is the
+# advisory trap. A subcommand run deliberately at the moment of risk is the right shape.
+#
+# THE INVARIANT IS A SUBSET, NOT EQUALITY. graphify legitimately omits the definition site (a symbol
+# is not "affected by" itself), so demanding equality with grep would fail for a correct answer. What
+# it must NEVER do is name a file that does not contain the symbol at all — that is fabrication.
+
+# graph_files <affected-output> -> the bare file paths it named, line numbers stripped.
+graph_files() { # graph_files <affected-output>
+  printf '%s\n' "${1-}" \
+    | sed -n 's/.*\] \([^ ]*\):L[0-9]*.*/\1/p' \
+    | sort -u
+}
+
+# verify_subset <symbol> <graph-files> <search-root>
+verify_subset() { # verify_subset <symbol> <newline-separated-files> <search-root>
+  local symbol="${1:?}" files="${2-}" root="${3:?}"
+  # An empty result trivially satisfies "subset of grep". It must fail instead, or a completely
+  # broken upgrade verifies clean — the absent-result-as-success trap, one level up.
+  if [ -z "$(printf '%s' "$files" | tr -d '[:space:]')" ]; then
+    echo "FATAL: graphify returned nothing for '$symbol' - that is not a pass." >&2
+    return 1
+  fi
+  local f bad=0 abs
+  while IFS= read -r f; do
+    [ -n "$f" ] || continue
+    abs="$f"; [ -f "$abs" ] || abs="$root/${f#"$root/"}"
+    if [ ! -f "$abs" ] || ! grep -q -- "$symbol" "$abs" 2>/dev/null; then
+      echo "  FABRICATED: $f does not contain '$symbol'" >&2
+      bad=$((bad + 1))
+    fi
+  done <<<"$files"
+  [ "$bad" -eq 0 ] || { echo "FATAL: $bad file(s) named by the graph do not contain the symbol." >&2; return 1; }
+  return 0
+}
+
+cmd_verify() {
+  require_venv
+  require_graph
+  local symbol="${1:-GuardrailPipeline}"
+  local root="$REPO_ROOT/nodes/mother/lab/weyland-platform/services"
+  local out files
+  out="$("$GRAPHIFY_VENV/bin/graphify" affected "$symbol" --graph "$GRAPHIFY_GRAPH" 2>&1)" || {
+    echo "FATAL: graphify affected failed for '$symbol'" >&2; exit 2; }
+  files="$(graph_files "$out")"
+  echo "verifying '$symbol' - graph named $(printf '%s\n' "$files" | grep -c . || true) file(s)"
+  if verify_subset "$symbol" "$files" "$REPO_ROOT"; then
+    leiden_status "$GRAPHIFY_VENV"
+    echo "OK - every file the graph named really contains '$symbol'."
+    return 0
+  fi
+  echo "   Run after any GRAPHIFY_PIN bump. A pin bump is a change, not an upgrade." >&2
+  exit 1
+}
+
 usage() {
   sed -n '4,8p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,2\}//'
   exit 2
@@ -158,6 +261,7 @@ main() {
     build)     shift; cmd_build "$@" ;;
     affected)  shift; cmd_affected "$@" ;;
     god-nodes) shift; cmd_god_nodes "$@" ;;
+    verify)    shift; cmd_verify "$@" ;;
     *)         usage ;;
   esac
 }

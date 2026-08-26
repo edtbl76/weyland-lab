@@ -103,6 +103,53 @@ lib_source() {
   [ "$status" -ne 0 ]
 }
 
+# --- interpreter selection (Leiden needs python < 3.13) -------------------------------------------
+
+@test "venv_python prefers an interpreter below 3.13" {
+  # graspologic — which provides Leiden — is `requires_python: <3.13,>=3.9`. rogueone's default is
+  # 3.13.3, so a plain `python3 -m venv` silently loses Leiden and graphify falls back to networkx
+  # louvain_communities without saying so. The fallback is not wrong, but it must not be SILENT or
+  # accidental.
+  lib_source
+  mkdir -p "$STUB_DIR/bin"
+  printf '#!/bin/sh\necho "Python 3.12.10"\n' > "$STUB_DIR/bin/python3.12"
+  printf '#!/bin/sh\necho "Python 3.13.3"\n' > "$STUB_DIR/bin/python3"
+  chmod +x "$STUB_DIR/bin/python3.12" "$STUB_DIR/bin/python3"
+  PATH="$STUB_DIR/bin:$PATH" run venv_python
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"python3.12"* ]]
+}
+
+@test "venv_python falls back to python3 when no older interpreter exists" {
+  lib_source
+  mkdir -p "$STUB_DIR/only13"
+  printf '#!/bin/sh\necho "Python 3.13.3"\n' > "$STUB_DIR/only13/python3"
+  chmod +x "$STUB_DIR/only13/python3"
+  PATH="$STUB_DIR/only13" run venv_python
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"python3"* ]]
+}
+
+@test "GRAPHIFY_PYTHON overrides the search entirely" {
+  lib_source
+  GRAPHIFY_PYTHON=/usr/bin/python3.11 run venv_python
+  [ "$output" = "/usr/bin/python3.11" ]
+}
+
+@test "leiden_status reports AVAILABLE or FALLBACK, never silence" {
+  # The whole point: whichever clustering we get, the operator is told which one.
+  lib_source
+  mkdir -p "$STUB_DIR/v/bin"
+  printf '#!/bin/sh\nexit 0\n' > "$STUB_DIR/v/bin/python"; chmod +x "$STUB_DIR/v/bin/python"
+  run leiden_status "$STUB_DIR/v"
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"Leiden"* ]]
+
+  printf '#!/bin/sh\nexit 1\n' > "$STUB_DIR/v/bin/python"; chmod +x "$STUB_DIR/v/bin/python"
+  run leiden_status "$STUB_DIR/v"
+  [[ "$output" == *"louvain"* ]]
+}
+
 # --- failing closed --------------------------------------------------------------------------------
 
 @test "a missing venv is exit 2 with the build command, never a clean answer" {
@@ -130,6 +177,51 @@ lib_source() {
 @test "an unknown subcommand is exit 2, not silently ignored" {
   run bash "$GUARD" frobnicate
   [ "$status" -eq 2 ]
+}
+
+# --- verify (guards a pin bump) --------------------------------------------------------------------
+
+@test "graph_files extracts file paths from affected output" {
+  lib_source
+  run graph_files "$(printf 'Affected nodes for X\nDepth: 2\n- foo() [calls] a/b/c.py:L27\n- bar.py [imports] d/e.py:L3\n')"
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"a/b/c.py"* ]]
+  [[ "$output" == *"d/e.py"* ]]
+  # line numbers must be stripped, or the comparison against grep can never match
+  [[ "$output" != *":L27"* ]]
+}
+
+@test "verify_subset passes when the graph names only files that really contain the symbol" {
+  lib_source
+  mkdir -p "$STUB_DIR/v"
+  printf 'class Thing: pass\n' > "$STUB_DIR/v/has.py"
+  printf 'nothing here\n'      > "$STUB_DIR/v/lacks.py"
+  run verify_subset "Thing" "$STUB_DIR/v/has.py" "$STUB_DIR/v"
+  [ "$status" -eq 0 ]
+}
+
+@test "verify_subset FAILS when the graph names a file that does not contain the symbol" {
+  # The invariant that matters after a pin bump: graphify may legitimately OMIT the definition site,
+  # but it must never INVENT a dependent. A subset check catches fabrication without being brittle
+  # about omissions.
+  lib_source
+  mkdir -p "$STUB_DIR/v2"
+  printf 'class Thing: pass\n' > "$STUB_DIR/v2/has.py"
+  printf 'nothing here\n'      > "$STUB_DIR/v2/lacks.py"
+  run verify_subset "Thing" "$STUB_DIR/v2/lacks.py" "$STUB_DIR/v2"
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"lacks.py"* ]]
+}
+
+@test "verify_subset FAILS on an EMPTY graph result — that is not a pass" {
+  # "graphify returned nothing" trivially satisfies a subset check. It must be a failure instead,
+  # or a totally broken upgrade would verify clean.
+  lib_source
+  mkdir -p "$STUB_DIR/v3"
+  printf 'class Thing: pass\n' > "$STUB_DIR/v3/has.py"
+  run verify_subset "Thing" "" "$STUB_DIR/v3"
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"nothing"* ]]
 }
 
 # --- dispatch --------------------------------------------------------------------------------------

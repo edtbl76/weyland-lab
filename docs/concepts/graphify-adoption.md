@@ -29,7 +29,21 @@ Apache-2.0, active — pushed 2026-08-25).
 | Network calls | **zero** on the AST path |
 | Coverage | `.md` 8,693 · `.ts` 2,149 · `.py` 1,578 · `.js` 673 · `.sh` 155 · `.tf` 90 · `.java` 12 |
 
-**The 71.5× token-reduction claim was NOT tested** and is not repeated here as fact.
+**The 71.5× token-reduction claim — MEASURED 2026-08-26, and the frame is wrong.** Against a fair
+baseline (the files a human would actually open, not "the whole repo") one real query gives **~12×**:
+`affected GuardrailPipeline` is 992 chars against 12,081 chars of `app.py` + `test_pipeline.py`. One
+symbol, one measurement, not a benchmark.
+
+The vendor number is unfalsifiable rather than wrong — 71.5× against an undefined baseline can be
+true of almost any retrieval, and it describes `query`, the feature this plan explicitly does not
+adopt. Its own budget mechanism concedes the cost: our `--budget 700` run printed *"TRUNCATED:
+showing 23 of 133 nodes … the answer may be among the 110 cut nodes."* Compression that drops the
+answer is not compression.
+
+**The value is precision, not compression.** `affected` output is not a substitute for reading those
+12 KB — it is a set of coordinates (`policy.py:21`, `pipeline.py:27`, `grounding.py:109`). You still
+read the code; you read the seven lines that matter instead of skimming two files to find them. That
+is a falsifiable claim, which is what `graphify.sh verify` tests. "Fewer tokens" is not.
 
 ### Accuracy — spot-checked against source, not trusted
 
@@ -93,13 +107,54 @@ the cost of the no-embeddings design, not a bug, and it is why this does **not**
 is `.terraform/` provider binaries and venvs under `weyland-platform/scripts/`. Feed it
 `git ls-files`, never the raw directory.
 
-**5. Two dependency gaps are silent-ish.** 16 `.sql` files "contributed nothing" without
-`graphifyy[sql]` — it *did* say so, naming the package and issue number, which is better behaviour
-than most. And `graspologic` (Leiden) requires `python_version < "3.13"`; **rogueone runs 3.13.3**, so
-Leiden is unavailable and clustering silently falls back.
+**5. Two dependency gaps — one loud, one silent. RESOLVED 2026-08-26.** 16 `.sql` files
+"contributed nothing" without `graphifyy[sql]` — it *did* say so, naming the package and the issue
+number. The Leiden gap was the silent one, and it mattered more than expected:
 
-**6. `graphify install` edits `~/.claude/CLAUDE.md`** — the global instructions file holding the
-commit policy — and writes `~/.claude/skills/graphify/SKILL.md`. Not run during this evaluation.
+`graspologic` (Leiden) is `requires_python: <3.13,>=3.9` and rogueone's default is 3.13.3, so
+graphify caught the ImportError and fell back to `networkx.community.louvain_communities`
+(`graphify/cluster.py:67-76`) without a word. **Measured on our own graph rather than argued from the
+README:**
+
+| | Communities | Internally disconnected |
+|---|---|---|
+| Leiden | 1,103 | **0** |
+| Louvain | 1,112 | **15**, splitting into 42 fragments |
+
+Louvain's known defect is that it can emit communities which are not connected groups at all, and it
+did so 15 times here — mislabelled architectural groupings in `GRAPH_REPORT.md` and the aggregated
+view. Leiden's refinement pass is exactly the fix. Everything else was near-identical (same median
+community size, same singleton count), so the algorithm choice is worth ~1% of the structure and
+100% of its correctness.
+
+`scripts/graphify.sh` now builds the venv with the newest interpreter **below** 3.13
+(`venv_python()`, `GRAPHIFY_PYTHON` overrides), adds the `leiden` extra, and — the part that matters
+— prints which clustering the built venv will actually use, asserted by IMPORTING graspologic rather
+than trusting the pin.
+
+**That status line immediately earned itself.** Re-running install after adding python3.12 printed
+`interpreter: python3.12 (Python 3.13.3)` — selected one interpreter, got another. `python -m venv`
+over an existing directory REUSES it and will not swap the interpreter, so the install silently
+no-opped on the one thing it was run to change. Fixed with `--clear`. Without the status line it
+would have looked like a clean install.
+
+**6. `graphify install` touches `~/.claude/CLAUDE.md` — INSPECTED 2026-08-26, and it is benign.**
+Read from `graphify/install.py:624-650` rather than inferred:
+
+- It **appends** (`content.rstrip() + registration`), never overwrites. An existing global CLAUDE.md
+  keeps everything it had.
+- It is **idempotent** — if `"graphify"` already appears it prints `already registered (no change)`.
+- The block is **six lines**: a `# graphify` heading, a pointer to the installed SKILL.md, and a
+  trigger instruction.
+- Two escape hatches: **`CLAUDE_CONFIG_DIR`** redirects the whole registration, and project mode
+  writes to `<project>/.claude/CLAUDE.md` instead of `$HOME`. There is also `graphify uninstall`,
+  which removes registrations across every detected platform.
+
+**The earlier framing here was wrong and worth correcting explicitly.** This limit read as "edits the
+file holding your commit policy", which implied risk to existing content. Skipping the skill install
+was still correct for an evaluation — the point was to exercise the deterministic CLI without changing
+the machine — but the REASON given was not the real one. We skipped it because we did not need it,
+not because it was dangerous. A wrong reason in a design doc outlives the decision it justified.
 
 ### On "source never leaves the machine"
 
@@ -129,9 +184,18 @@ shellcheck clean at the CI gate.
 - **Acceptance MET, measured not asserted.** `affected GuardrailPipeline` returned the same
   dependents as `grep -rln`, with exact file:line and relation type, and correctly EXCLUDED
   `guardrails/pipeline.py` — the definition site is not affected by itself.
-- Left deliberately as a one-time proof rather than a standing test: the check needs a built graph,
-  so a bats case would have to skip in CI, and a skipping guard is the advisory trap this repo keeps
-  writing about. The version pin is what guards drift.
+- **Now a subcommand, not an anecdote: `scripts/graphify.sh verify [symbol]`.** The first write-up
+  framed this as a binary — one-time proof versus a bats case that skips in CI — and both were wrong.
+  The pin guards drift *while it holds*; the real gap is that **bumping the pin re-verifies nothing**,
+  which is precisely when behaviour can change. A subcommand run at the moment of risk is the right
+  shape, and it computes its own ground truth so it never goes stale.
+- **The invariant is a SUBSET, not equality.** graphify legitimately omits the definition site (a
+  symbol is not affected by itself), so demanding equality with grep would fail a correct answer. What
+  it must never do is name a file that does not contain the symbol — fabrication. An empty result is
+  also a failure, not a trivially-satisfied subset: without that, a completely broken upgrade would
+  verify clean.
+- Proven to fail, both ways: unit cases cover fabrication and emptiness, and end-to-end
+  `verify ZzNotARealSymbolZz` exits **1** with `graphify returned nothing - that is not a pass`.
 
 <details><summary>Original Stage 1 checklist</summary>
 
@@ -169,8 +233,15 @@ bats case for exactly that). Two defects were found building it, both the house 
 - **`grep --include` is not portable here.** `grep` on PATH on rogueone is **ugrep 7.8.4**, not GNU
   grep (`/usr/bin/grep` is GNU 3.11, shadowed), and its `--include='*.sh'` returned a `.bats` file —
   a phantom dependency. CI runs alpine, a third implementation. File selection is now `find -name`,
-  which is unambiguous in all three. **Worth a wider look: the other ten `check-*.sh` guards use
-  grep heavily and were written against whichever implementation the author had.**
+  which is unambiguous in all three.
+
+  **AUDITED, and it does NOT generalise (2026-08-26).** This was first written up as "worth a wider
+  look" at the other ten guards. Measured instead of assumed: all six file-analysis guards were run
+  under BOTH implementations — locally on ugrep and inside `node:24-alpine` where CI's `/bin/grep` is
+  a **busybox** symlink — and their output is **byte-identical**, not merely same-exit-code. The
+  reason is structural: the guards use only the portable core (`-c -q -v -E -F -o -x -l`, all POSIX)
+  and do the real parsing in Python. `--include` is the one non-portable flag, and after this fix it
+  appears nowhere in the repo except the comment describing it. No wider problem exists.
 - **Matching the NAME counts prose.** The first version reported `graphify.sh` as depending on
   `common.sh` because its comments discuss it — and reported `check-servicemonitor-coverage.sh`,
   whose comment says *"DELIBERATELY DOES NOT SOURCE"* it. The better the removal is documented, the
