@@ -112,6 +112,27 @@ MD
   [ "$(printf '%s' "$output" | grep -c 'EMA-207')" -eq 1 ]
 }
 
+@test "backlog_refs also reads the ORDERED LIST, not just the ### sections" {
+  # The backlog has two regions: a numbered/bulleted priority list near the top (which CLAUDE.md
+  # calls the ordered source of truth) and the ### detail sections below it. The first cut only
+  # scanned after a ### heading and silently missed 7 live references — the exact "supporting only
+  # one format halves coverage" failure this guard's own header warns about. Found on its first
+  # live run: 19 refs reported against 45 present.
+  lib_source
+  cat > "$STUB_DIR/b.md" <<'MD'
+1. **B46** — **Build out the Stud.io product backlog** — **DONE 2026-08-12 [Linear EMA-35].**
+- **B78** — **Data-mesh maturity (bucket)** — **HIGH** [Linear EMA-69].
+
+### B148 — thing — **DONE (2026-08-26)**
+Linear: EMA-207.
+MD
+  run backlog_refs "$STUB_DIR/b.md"
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"B46"*"EMA-35"*"done"* ]]
+  [[ "$output" == *"B78"*"EMA-69"*"open"* ]]
+  [[ "$output" == *"EMA-207"* ]]
+}
+
 @test "backlog_refs on a file with NO refs is FATAL, not an empty pass" {
   lib_source
   printf '# nothing here\n' > "$STUB_DIR/empty.md"
