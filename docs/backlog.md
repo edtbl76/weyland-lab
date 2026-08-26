@@ -2030,7 +2030,7 @@ Linear: EMA-197. Relates B1.5 (dbt transform tier), B131 (dependency lifecycle),
 
 ---
 
-### B148 — Trino exports NO metrics to Prometheus; the ServiceMonitor has been dead for 59 days — 🔵 **IN PROGRESS (2026-08-26)** — fix live + verified; CronJob and dashboard await sync
+### B148 — Trino exports NO metrics to Prometheus; the ServiceMonitor has been dead for 59 days — ✅ **DONE (2026-08-26)**
 
 **Root cause: the `trino` Service had no `metadata.labels` block at all.** A ServiceMonitor selects
 **Services** by *their own* `metadata.labels`; the `spec.selector` beside it selects **pods**. Both
@@ -2107,12 +2107,18 @@ ConfigMap, and substituting the upstream check for the downstream one is this it
 up. **Both timeseries are blank before ~00:00 and only then begin drawing: that gap IS the 59-day
 blindness, visible — there is no history to render because none was ever collected.**
 **4 ✅** guard is read-only; the CronJob has no destructive verb and no write permission at all.
-**5 ✅** Linear EMA-207, backlog flipped. **6 ⏳** new timer documented + budgeted + failure-covered,
-`check-cron-freshness-budgets.sh` exit 0; **its first ad-hoc run FAILED and that is why it was
-triggered rather than awaited** — the script sourced `scripts/lib/common.sh`, which the ConfigMap does
-not mount, and died before doing any work. It used nothing from that file. Removed, plus a regression
-case that runs the script from a bare directory (the container's actual condition, which no other test
-reproduced). Awaiting re-run against the corrected ConfigMap.
+**5 ✅** Linear EMA-207, backlog flipped. **6 ✅** new timer documented + budgeted + failure-covered,
+`check-cron-freshness-budgets.sh` exit 0; **RUN ON DEMAND 2026-08-26** — `Complete` in 11s, one
+container, exit 0, full 32-monitor inventory in the log. Its FIRST ad-hoc run **failed**, and that is
+the whole argument for triggering rather than awaiting: the script sourced `scripts/lib/common.sh`,
+which the ConfigMap does not mount, so it died at that line before doing any work. It used nothing
+from that file — copy-pasted ceremony from `check-secret-placeholders.sh`, which genuinely needs
+`PLATFORM_DIR`. **The 30-case suite could not have caught it**: every case ran the script from its real
+location where `lib/` exists, while the container mounts one file into an empty directory. Same shape
+as the `jq` gap below — tests that pass because they run somewhere else. Fixed, plus a regression case
+that runs it from a bare directory; 198/198 green. Waiting for 02:45 would have produced a 3am Telegram
+page reporting a broken guard rather than a broken cluster, which is exactly why exit 1 and exit 2 are
+kept distinct.
 **7 ✅** shellcheck clean, 30 new bats (197 total, all green), scan surface = the usual CronJob
 findings shared with the pr-lifecycle siblings. **8 ✅** cascade: schedules row + budget + failure rule
 + CI jq fix + `monitoring-extras` already owns `k8s/monitoring` so no new Argo app row.
