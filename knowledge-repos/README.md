@@ -1,7 +1,7 @@
 # knowledge-repos/
 
 Standalone knowledge libraries — moved here out of `.methodaidlc/` during the **AIDLC-v2 migration**
-(`aidlc-docs/aidlc-v2-migration.md`). These are **DATA**, decoupled from the retired Method *workflow*:
+(`docs/design/aidlc-v2-migration.md`). These are **DATA**, decoupled from the retired Method *workflow*:
 they feed lab systems independently of any AIDLC workflow.
 
 | Repo | Entries | Prefix | Feeds |

@@ -107,7 +107,7 @@ deployment; `k8s/llama-guard/`). Runs on **INPUT** (the prompt) and **OUTPUT** (
 the caller contract. **Tier 2** (an on-demand Llama-Guard-3-8B on the **rogueone GPU**, same llama.cpp stack) is the
 stronger escalation — `scripts/llama-guard-8b.sh {start|smoke|stop}` serves it on `:8003`
 ([gpu-inference.md](gpu-inference.md)); run the 5-case sweep against it or repoint `LLAMA_GUARD_URL` to
-`http://192.168.1.230:8003` while it's up, no rebuild. Design: `aidlc-docs/guardrails-platform.md`.
+`http://192.168.1.230:8003` while it's up, no rebuild. Design: `../design/guardrails-platform.md`.
 
 ## guardrails-structure — the Structure layer (B115, 2026-08-03)
 The **Structure** path: Guardrails AI (output-schema validation + re-ask) as a **standalone service** —
@@ -123,7 +123,7 @@ imports guardrails+litellm (~1–2 min first boot).
 `weyland_pipeline/structure.py` (a thin HTTP client). **Fail-safe** — if the service is unreachable it best-effort
 parses the raw (the pre-B115 behaviour), so a guard outage never sinks an eval. The judge records the `_structure`
 source (`guarded`/`reasked`/`fallback`) on its MLflow `eval`-experiment span — the honesty check that the guard actually
-ran (all `fallback` = the service isn't answering). Design: `aidlc-docs/guardrails-platform.md`.
+ran (all `fallback` = the service isn't answering). Design: `../design/guardrails-platform.md`.
 
 ## nemo-guardrails — the Dialog layer (B115, 2026-08-03)
 The **Dialog** path (the 4th and final guardrails-platform path): NeMo Guardrails for **conversational / topical**
@@ -157,7 +157,7 @@ to a **custom operator refusal** ("I'm the weyland lab operator — I only handl
 generic default. Reliable > elegant.
 
 **Verified 2026-08-03:** off-topic (e.g. "write me a haiku") → the operator refusal; on-topic (a lab-ops question) →
-answered through the operator brain; a jailbreak → blocked. Design: `aidlc-docs/guardrails-platform.md`.
+answered through the operator brain; a jailbreak → blocked. Design: `../design/guardrails-platform.md`.
 
 ## Demo toggle — `POST /admin/mode` (live, no restart)
 Flip validators shadow↔flag/block **live** for a demo, then revert. In-process override: a pod restart drops back to
@@ -209,4 +209,4 @@ just emitted here now.
 ## Records
 `guardrail_verdicts` (Postgres) = the durable per-verdict record + the basis for the future B1 data product;
 `/metrics` = the live counters. See [[node-oom-forensics]] context for why models-once matters, and the B70 design in
-`aidlc-docs/construction/agentic-rag-langgraph-design.md`.
+`../design/agentic-rag-langgraph-design.md`.

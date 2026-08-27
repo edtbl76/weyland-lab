@@ -57,6 +57,6 @@ A well-covered query → `attempts 1`; an off-corpus one → `attempts 2` (refle
 weyland-guard's `/metrics`; a Trace appears in the `agentic-rag` experiment.
 
 ## Reference
-Design: `aidlc-docs/construction/agentic-rag-langgraph-design.md`. Guard service: [runbooks/guardrails.md](guardrails.md).
+Design: `../design/agentic-rag-langgraph-design.md`. Guard service: [runbooks/guardrails.md](guardrails.md).
 Full MLflow exploitation (eval/prompts/AI-gateway/more integrations) → **B100**. Model gateway Phase B → B26/LiteLLM.
 See [[weyland-guard-b70]].

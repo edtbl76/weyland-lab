@@ -99,7 +99,7 @@ feature set — bake-off vs LiteLLM.)
 ## Media lane (Bifrost — B111)
 
 `https://bifrost.weyland.lab` — the non-chat generation lane (image / tts / video), OpenAI-style shapes through Bifrost.
-See [bifrost-provider-loadout.md](../aidlc-docs/bifrost-provider-loadout.md).
+See [bifrost-provider-loadout.md](design/bifrost-provider-loadout.md).
 
 | Media | Endpoint | Model | Notes |
 |---|---|---|---|
@@ -224,7 +224,7 @@ STUD.io (rogueone) uses weyland's **central** MinIO + SonarQube instead of per-p
 | MinIO S3 (studio) | `http://192.168.1.243:30990` (`minio-s3-lan`, ns `minio`) | weyland MinIO S3 API on the LAN. Scoped **`studio-svc`** user (policy `studio-scope` = `s3:*` on `studio-*` only). Buckets `studio-photos` (gear photos) / `studio-downloads` (public artifacts) / `studio-backups`. Console stays forward-auth (`minio.weyland.lab`). Keys: rogueone `~/.config/studio/minio.env`. |
 | SonarQube API (studio) | `http://192.168.1.243:30969` (`sonarqube-api-lan`, ns `weyland`) | weyland Sonar API on the LAN for STUD.io's external scanner. Project **`controlroom`**; `controlroom-ci` PROJECT_ANALYSIS_TOKEN in rogueone `~/.config/studio/sonar-token`. Admin pw = `SONAR_ADMIN_PW` in weyland `scripts/.env`. Browser UI stays forward-auth (`sonarqube.weyland.lab`). |
 
-**STUD.io masterdb backup** (production durability): nightly `pg_dump -Fc masterdb` (rogueone `studio_db`) → `wl/studio-backups/masterdb/` via the `studio-masterdb-backup.timer` system unit (daily + `Persistent`; script `~/Documents/Studio/STUD.io/scripts/backup-masterdb.sh`). 180-day retention (MinIO ILM). masterdb stays local (hot-path/CI-heavy); this is its off-laptop copy → chain rogueone → weyland MinIO → root-disk mirror. Full plan: `aidlc-docs/b127-desktop-to-native-migration.md`.
+**STUD.io masterdb backup** (production durability): nightly `pg_dump -Fc masterdb` (rogueone `studio_db`) → `wl/studio-backups/masterdb/` via the `studio-masterdb-backup.timer` system unit (daily + `Persistent`; script `~/Documents/Studio/STUD.io/scripts/backup-masterdb.sh`). 180-day retention (MinIO ILM). masterdb stays local (hot-path/CI-heavy); this is its off-laptop copy → chain rogueone → weyland MinIO → root-disk mirror. Full plan: `design/b127-desktop-to-native-migration.md`.
 
 ## Gateways
 

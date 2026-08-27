@@ -83,6 +83,6 @@ Each addresses a **distinct failure mode** a single tool can't:
 
 ---
 
-Full design + decision record: `aidlc-docs/guardrails-platform.md`. Operations, per-layer tuning, and the demo:
+Full design + decision record: `../design/guardrails-platform.md`. Operations, per-layer tuning, and the demo:
 [runbooks/guardrails.md](../runbooks/guardrails.md) · [demos/guardrails.md](../demos/guardrails.md). Sequence flows:
 [flow-guardrails](../diagrams/flow-guardrails.md) (Scan/Classify) · [flow-eval-scoring](../diagrams/flow-eval-scoring.md) (Structure).

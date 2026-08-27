@@ -56,7 +56,7 @@ DoD-checked against it, so drift is impossible by construction (the DoD's cross-
 - **Registry (source of truth):** `services/weyland-dagster/weyland_pipeline/applications.yaml`
 - **DataHub emit:** `weyland_pipeline/datahub_emit.py` → `emit_applications()` (in `datahub_catalog_emit_job`)
 - **Port:** `tofu/port/applications.tf` + the `component` blueprint props in `catalog.tf`
-- **Design + full roster:** `aidlc-docs/application-taxonomy.md`
+- **Design + full roster:** `../design/application-taxonomy.md`
 
 ## Honest tail
 

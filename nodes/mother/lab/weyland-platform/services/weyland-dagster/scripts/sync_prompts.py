@@ -20,7 +20,7 @@ Langfuse is reached via its PUBLIC REST API with httpx + Basic auth (pk/sk) — 
 Run (in the dagster-user-code pod, which has httpx + mlflow-skinny + the LANGFUSE_* creds):
     kubectl -n weyland exec deploy/dagster-user-code -- python /app/scripts/sync_prompts.py
 (Phase 2 will add the reverse direction + a Postgres `prompt_federation_manifest`; Phase 1 uses downstream-content
-comparison as the state, so no manifest table yet.) See aidlc-docs/prompt-federation-design.md.
+comparison as the state, so no manifest table yet.) See docs/design/prompt-federation-design.md.
 """
 import hashlib
 import json

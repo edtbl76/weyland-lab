@@ -652,7 +652,7 @@ async-profiler. The two SQL jobs' Iceberg outputs are auto-cataloged by DataHub'
 Trino/Superset; the analytics Kafka topics are read with `rpk`. Diagram:
 [diagrams/flow-flink.md](diagrams/flow-flink.md). Demo: [demos/flink.md](demos/flink.md). Runbook:
 [runbooks/flink.md](runbooks/flink.md). Design:
-[../aidlc-docs/construction/flink-streaming-design.md](../aidlc-docs/construction/flink-streaming-design.md).
+[design/flink-streaming-design.md](design/flink-streaming-design.md).
 
 ---
 
@@ -751,7 +751,7 @@ via `datahub_emit.py` → `datahub_catalog_emit_job`. See [demos/datahub-maturit
 The RAG index (the `rag_documents`/`rag_chunks` spine from the top of this section, plus the parallel
 Qdrant/Weaviate/Neo4j/OpenSearch copies) is now built by a **streaming fan-out**, not an in-process Dagster asset
 chain. It is the same "streaming tier carries events" principle as §7c, applied to the RAG **write** path. Design:
-[../aidlc-docs/construction/rag-streaming-indexer-design.md](../aidlc-docs/construction/rag-streaming-indexer-design.md);
+[design/rag-streaming-indexer-design.md](design/rag-streaming-indexer-design.md);
 flow: [diagrams/flow-rag-stream.md](diagrams/flow-rag-stream.md); demo: [demos/rag-stream.md](demos/rag-stream.md).
 
 **What it replaced, and why streaming won.** The old path was an in-process chain
@@ -874,7 +874,7 @@ so drift is impossible by construction (the DoD's cross-surface-taxonomy process
 
 Deferred: the 6 operational "plausibly-will" apps (n8n, woodpecker, open-webui, uptime-kuma, litellm, bifrost) exist
 as entities with no owned assets yet (their DBs aren't on `weyland-postgres`); future assets self-attach. Design +
-full roster: `aidlc-docs/application-taxonomy.md`. Concept page: [concepts/application-catalog.md](concepts/application-catalog.md).
+full roster: `design/application-taxonomy.md`. Concept page: [concepts/application-catalog.md](concepts/application-catalog.md).
 
 ## 8. Model serving
 
@@ -1124,7 +1124,7 @@ survive worse pressure than the outage via clean kernel-OOM; kubelet reserves + 
   `output` hook (Presidio PII + NLI grounding; toxicity via Llama Guard Classify) to it, **fail-open**; the coming `weyland-agent` + future B66
   reuse the same service. Ships **shadow-mode** (record-only, never blocks; per-validator `off|shadow|flag|block` via
   env); verdicts go to Prometheus (`/metrics`) + the `guardrail_verdicts` Postgres table (a future B1 data
-  product). PII deferred (coded, unbaked → B34). Full spec: `aidlc-docs/construction/b14-guardrails-design.md`.
+  product). PII deferred (coded, unbaked → B34). Full spec: `design/b14-guardrails-design.md`.
   The `act` hook (`policy.audit`, shadow) audits the `/mcp-act` action tools (`pipeline/trigger`,
   `evals/run`, `evals/score`) to `guardrail_verdicts.actor` (trusted `X-Forwarded-Consumer` header, NULL
   until the B17+B19 gateway). Enforcing policy gate deferred to the B35 pairing.

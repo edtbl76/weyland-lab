@@ -144,5 +144,5 @@ not fully on GPU — see the troubleshooting block above). Also glance at the po
 (fleet-wide Haiku was $0.157 from *other* consumers, not the operator) — design behaved.
 
 ## Reference
-Design: `aidlc-docs/construction/operator-agent-design.md`. Bake-off: [demos/brain-bakeoff.md](../demos/brain-bakeoff.md).
+Design: `../design/operator-agent-design.md`. Bake-off: [demos/brain-bakeoff.md](../demos/brain-bakeoff.md).
 Guard service: [runbooks/guardrails.md](guardrails.md). Demo: [demos/operator.md](../demos/operator.md). See [[b66-operator-brain-bakeoff]].

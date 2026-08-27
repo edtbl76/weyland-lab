@@ -189,7 +189,7 @@ curl -s "http://localhost:30080/evals/leaderboard?run_id=3" | jq   # a specific 
 Pluggable validators at the tool-server seam: `input` hook (injection) on `/context/*`, `output` hook
 (toxicity + NLI grounding) on `/context/ask`. Shadow = record-only, never blocks. Verdicts → `/metrics`
 (Prometheus) + `guardrail_verdicts` (Postgres). PII deferred/unbaked (B34). Design:
-../../aidlc-docs/construction/b14-guardrails-design.md.
+../design/b14-guardrails-design.md.
 
 ### One-time: schema + ServiceMonitor
 

@@ -15,7 +15,7 @@ Jobs 1–3 run on the shared session cluster; job 4 runs in its own application-
 (`weyland-flink-py:local`) because PyFlink needs a ~1 GB python + `apache-flink` runtime that would otherwise
 bloat the session image and force a restart of the running CDC job. State + checkpoints go to MinIO
 (`s3://warehouse/_flink`); the two SQL jobs write **Iceberg on the same Nessie catalog** as Trino/dbt. Design:
-[../../aidlc-docs/construction/flink-streaming-design.md](../../aidlc-docs/construction/flink-streaming-design.md).
+[../design/flink-streaming-design.md](../design/flink-streaming-design.md).
 Diagram: [../diagrams/flow-flink.md](../diagrams/flow-flink.md). Runbook:
 [../runbooks/flink.md](../runbooks/flink.md).
 

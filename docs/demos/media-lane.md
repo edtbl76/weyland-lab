@@ -2,7 +2,7 @@
 
 Multi-modal generation through the **Bifrost** gateway: **image** (Runware), **text-to-speech** (self-hosted **Kokoro**,
 the $0 primary — **ElevenLabs** kept as the deferred alternate), and **video** (Runway). All OpenAI-shaped, so a caller
-uses the same `/v1/...` verbs it already knows. Providers: [bifrost-provider-loadout](../../aidlc-docs/bifrost-provider-loadout.md).
+uses the same `/v1/...` verbs it already knows. Providers: [bifrost-provider-loadout](../design/bifrost-provider-loadout.md).
 
 **Why Kokoro for tts:** ElevenLabs' free tier returns `402` — "Free users cannot use library voices via the API" — so its
 credits are unspendable. Kokoro-FastAPI (Apache-2.0, ~82M, CPU) runs on our own hardware: no quota, no cost, a browser

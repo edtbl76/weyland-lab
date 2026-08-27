@@ -3,7 +3,7 @@
 **Bifrost = the single source of truth for prompts.** Author/manage every prompt in the Bifrost Prompt Repository;
 it syncs OUT to **Langfuse** (runtime fetch + trace linkage) and **MLflow** (catalog mirror); the apps fetch from
 Langfuse at runtime, so **every LLM trace is tagged with the exact prompt version that produced it**. Design:
-`aidlc-docs/prompt-federation-design.md`. Memory: `prompt-federation-b103`.
+`../design/prompt-federation-design.md`. Memory: `prompt-federation-b103`.
 
 ## Why this shape
 

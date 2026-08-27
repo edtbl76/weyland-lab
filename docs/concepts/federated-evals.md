@@ -89,5 +89,5 @@ flowchart LR
   mirrors by re-materializing.
 
 Runbook: [../runbooks/langfuse.md](../runbooks/langfuse.md) § Evaluation · Demo:
-[../demos/langfuse-evaluation.md](../demos/langfuse-evaluation.md) · Design: `aidlc-docs/langfuse-evaluation-design.md` ·
+[../demos/langfuse-evaluation.md](../demos/langfuse-evaluation.md) · Design: `../design/langfuse-evaluation-design.md` ·
 Memory `langfuse-evaluation-b103`. Related: the B84 offline suite, B96 golden set.

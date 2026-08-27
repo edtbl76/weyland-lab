@@ -2,7 +2,7 @@
 
 One multiplexed pod hosting the **Realm of Agents** — 24 small, corpus-backed agents in five groups, realm-partitioned
 inside. Each agent = a role prompt (Bifrost Prompt Repo) + a skill family + a slice of the Bifrost VK MCP tools + a
-LiteLLM `wl-*` brain. Design & full roster: `aidlc-docs/a2a-agent-roster.md`; public map: `docs/concepts/realm-of-agents.md`.
+LiteLLM `wl-*` brain. Design & full roster: `docs/design/a2a-agent-roster.md`; public map: `docs/concepts/realm-of-agents.md`.
 
 ## Shape
 

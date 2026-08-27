@@ -87,4 +87,4 @@ flowchart LR
   with the dagster lockfile.
 
 Runbook: [../runbooks/prompt-federation.md](../runbooks/prompt-federation.md) · Demo:
-[../demos/prompt-federation.md](../demos/prompt-federation.md) · Design: `aidlc-docs/prompt-federation-design.md`.
+[../demos/prompt-federation.md](../demos/prompt-federation.md) · Design: `../design/prompt-federation-design.md`.

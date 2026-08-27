@@ -1,6 +1,6 @@
 # B17 A2A — realm-of-agents: one multiplexed pod hosting the 24-agent Realm of Agents (realm-partitioned inside).
 # Meshed: reaches LiteLLM (wl-* brains) in-cluster and egresses to the Bifrost VK MCP surface for tools. On-demand,
-# read-through — no act tools here (acts still go through the operator's confirm flow). Design: aidlc-docs/a2a-agent-roster.md.
+# read-through — no act tools here (acts still go through the operator's confirm flow). Design: docs/design/a2a-agent-roster.md.
 apiVersion: apps/v1
 kind: Deployment
 metadata:

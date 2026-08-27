@@ -2,7 +2,7 @@
 
 On-demand GPU inference bench on rogueone (RTX 5000 Ada, 16GB), fronted by Bifrost. **Not always-on** — spun up per
 experiment, torn down after. Files: `nodes/rogueone/services/gpu-inference/` (`docker-compose.yml`, `bench.py`).
-Design: [aidlc-docs/gpu-inference-vllm-sglang-design.md](../../aidlc-docs/gpu-inference-vllm-sglang-design.md).
+Design: [../design/gpu-inference-vllm-sglang-design.md](../design/gpu-inference-vllm-sglang-design.md).
 Demo (continuous batching, extreme detail): [demos/gpu-inference.md](../demos/gpu-inference.md).
 
 ## ⚠️ THE TWO GOTCHAS THAT COST A MONTH — read first

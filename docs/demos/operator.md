@@ -6,7 +6,7 @@ every action. It also runs the **B45 incident sweep** — see [demos/incident-sw
 Hermes vacated (CT-104 destroyed 2026-07-23) — now a k8s pod on mother. Validated live 2026-07-24.
 
 Grounded in [runbooks/operator.md](../runbooks/operator.md), the design doc
-(`aidlc-docs/construction/operator-agent-design.md`), and the brain [demos/brain-bakeoff.md](brain-bakeoff.md).
+(`../design/operator-agent-design.md`), and the brain [demos/brain-bakeoff.md](brain-bakeoff.md).
 
 ## Sequence diagram
 

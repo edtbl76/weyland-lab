@@ -132,4 +132,4 @@ flowchart TD
 Proven end-to-end: Valhalla produced a full semver engineering package (design → code → 80+ tests → review → deploy);
 Midgard returned real Trino catalogs; the Well did live cited web research. Full per-agent backing, framework split,
 and the UI decision-of-record (Console + Inspector; the a2a-ui / Studio bake-off) live in the design doc:
-`aidlc-docs/a2a-agent-roster.md`.
+`../design/a2a-agent-roster.md`.

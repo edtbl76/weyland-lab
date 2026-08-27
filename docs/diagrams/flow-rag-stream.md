@@ -6,7 +6,7 @@ and publishes `RagChunk` records (Confluent-Avro) to the Redpanda topic **`rag.c
 `source_path`). Five independent consumers — one per store, one consumer group each — replay that topic into
 their own store (qdrant, weaviate, pgvector, neo4j, opensearch). Only the manifest + record stream cross Dagster;
 the vectors never do (design invariants I1–I3, I6). See
-[../../aidlc-docs/construction/rag-streaming-indexer-design.md](../../aidlc-docs/construction/rag-streaming-indexer-design.md)
+[../design/rag-streaming-indexer-design.md](../design/rag-streaming-indexer-design.md)
 and [../demos/rag-stream.md](../demos/rag-stream.md).
 
 Two record types share one Avro schema, discriminated by `op`:

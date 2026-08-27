@@ -19,7 +19,7 @@ them against whatever lane they choose; the suggested LiteLLM use-case lane is r
 "lane: wl-coding → wl-agentic"). This is the gateway-side REUSABLE library. B103 prompt federation (2026-08-09): the app-integrated prompts
 (rag_system, operator_system, agent_grade, agent_reflect) now ALSO live here (folder `app-integrated`) — Bifrost is the
 single authoring SoT, and sync_prompts.py mirrors everything OUT to Langfuse (runtime fetch -> trace linkage) + MLflow
-(catalog mirror). The apps fetch these from Langfuse at runtime. See aidlc-docs/prompt-federation-design.md.
+(catalog mirror). The apps fetch these from Langfuse at runtime. See docs/design/prompt-federation-design.md.
 
 Idempotent: folders/prompts created only if absent (matched by name); existing prompts are skipped (no duplicate
 version churn on re-run). To revise a prompt, edit here, delete that prompt in the UI, and re-run — or bump it in the UI.

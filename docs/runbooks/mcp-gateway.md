@@ -243,4 +243,4 @@ folders` + `/prompts` + `/prompts/{id}/versions` (`messages:[{role,content}]`; `
   lab. Image pinned to the multi-arch index digest (2026-07-30). Loose end: codify the MCP-upstream config as GitOps (`TODO(B111)`).
 
 Related: [runbooks/guardrails.md](guardrails.md) (the guard service + act gate), [runbooks/keycloak.md](keycloak.md),
-[[keycloak-sso-b1.1]]. Design: `aidlc-docs/construction/mcp-gateway-design.md`.
+[[keycloak-sso-b1.1]]. Design: `../design/mcp-gateway-design.md`.

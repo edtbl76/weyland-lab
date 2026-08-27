@@ -6,7 +6,7 @@ their own specialty *or* delegate to their team and reconcile. The **Operator** 
 single `delegate_to_realm` tool — the cross-service agent-to-agent hop.
 
 Concept + decoder ring: [concepts/realm-of-agents.md](../concepts/realm-of-agents.md) · interactive
-[Realm of Agents map](../realm-of-agents-map.html) · design of record `aidlc-docs/a2a-agent-roster.md`.
+[Realm of Agents map](../realm-of-agents-map.html) · design of record `../design/a2a-agent-roster.md`.
 
 **Brain:** every agent runs on **Claude Haiku** (a Realm-wide `REALM_MODEL` override via LiteLLM's `wl-agentic` lane) —
 fast, reliable, and off the lab's local GPU. Tools load from the Bifrost VK; every hop is an MLflow trace.

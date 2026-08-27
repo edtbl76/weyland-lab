@@ -89,4 +89,4 @@ Guardrails for the agent live at its EDGE (`weyland-guard` input/output + the ac
 - **Bifrost** — the agent edge (aggregate `/mcp` + `/mcp-fleet` for agents that can't OAuth; B15 coding agents).
 - **B109** — Grafana dashboard audit driven through grafana-mcp (first real application).
 
-Design: `aidlc-docs/construction/mcp-server-fleet-design.md`. Relates [runbooks/mcp-gateway.md](mcp-gateway.md), [runbooks/operator.md](operator.md), [[b17-b19-mcp-gateway]].
+Design: `../design/mcp-server-fleet-design.md`. Relates [runbooks/mcp-gateway.md](mcp-gateway.md), [runbooks/operator.md](operator.md), [[b17-b19-mcp-gateway]].

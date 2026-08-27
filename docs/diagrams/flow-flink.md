@@ -6,7 +6,7 @@ session cluster** (`weyland-flink`, ns `data-mesh`, Flink 1.20, sidecar OFF) tha
 isolated **application-mode** deployment for the PyFlink job. SQL outputs land in **Iceberg on the same Nessie
 catalog** as Trino/dbt (instantly queryable, auto-cataloged by DataHub); the Java/PyFlink jobs write analytics
 Kafka topics. State + checkpoints go to MinIO (`s3://warehouse/_flink`). See
-[../../aidlc-docs/construction/flink-streaming-design.md](../../aidlc-docs/construction/flink-streaming-design.md)
+[../design/flink-streaming-design.md](../design/flink-streaming-design.md)
 and [../demos/flink.md](../demos/flink.md).
 
 Two real jobs (Flink SQL) + two example surfaces (Java DataStream, PyFlink) — all four Flink authoring surfaces:

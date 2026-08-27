@@ -3,7 +3,7 @@
 The app-centric catalog lens: **which app owns / produces / consumes an asset**, alongside Domains and Data Products.
 One registry drives DataHub Applications + Port components. **Executed + eyes-on 2026-08-05** (✅).
 
-- **Concept:** [concepts/application-catalog.md](../concepts/application-catalog.md) · **arch:** §7f · **design:** `aidlc-docs/application-taxonomy.md`
+- **Concept:** [concepts/application-catalog.md](../concepts/application-catalog.md) · **arch:** §7f · **design:** `../design/application-taxonomy.md`
 - **Flow:** [diagrams/flow-application-taxonomy.md](../diagrams/flow-application-taxonomy.md)
 
 ## UI walkthrough (eyes-on)

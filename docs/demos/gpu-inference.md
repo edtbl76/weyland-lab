@@ -13,7 +13,7 @@ Both vLLM and SGLang are on-demand (spun up per experiment, one at a time), fron
 wins from the silicon up**. *(We also explored SGLang prefill/decode **disaggregation** and rejected it — it needs ≥2
 GPUs; see the runbook.)* B111 use cases (b) + (c).
 
-Design: [gpu-inference-vllm-sglang-design.md](../../aidlc-docs/gpu-inference-vllm-sglang-design.md) ·
+Design: [gpu-inference-vllm-sglang-design.md](../design/gpu-inference-vllm-sglang-design.md) ·
 Runbook: [runbooks/gpu-inference.md](../runbooks/gpu-inference.md) · Compose + benches:
 `nodes/rogueone/services/gpu-inference/` · scripts `scripts/vllm-bench.sh`, `scripts/sglang-bench.sh`.
 

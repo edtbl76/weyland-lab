@@ -1,4 +1,4 @@
-"""The Realm of Agents roster — the single source of truth in code (mirrors aidlc-docs/a2a-agent-roster.md).
+"""The Realm of Agents roster — the single source of truth in code (mirrors docs/design/a2a-agent-roster.md).
 
 Every agent is a thin spec: which realm it belongs to, its plain-English job, the role prompt (a Bifrost prompt name +
 a baked fallback), the LiteLLM `wl-*` lane it thinks with, and the MCP tool subsystems it may touch. Leads additionally

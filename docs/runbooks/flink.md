@@ -2,7 +2,7 @@
 
 Operational guide for the Flink tier: the `weyland-flink` session cluster + the four jobs. Demo:
 [../demos/flink.md](../demos/flink.md). Flow: [../diagrams/flow-flink.md](../diagrams/flow-flink.md). Design:
-[../../aidlc-docs/construction/flink-streaming-design.md](../../aidlc-docs/construction/flink-streaming-design.md).
+[../design/flink-streaming-design.md](../design/flink-streaming-design.md).
 
 All `kubectl` runs on **mother** (`emangini@mother`). Images build on mother and `ctr import` into k3s (single
 node) — never `docker pull` (`imagePullPolicy: Never`).

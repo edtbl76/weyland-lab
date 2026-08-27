@@ -61,5 +61,5 @@ weyland-rag-review** is the manual queue.
 - The eval-config API is under `/api/public/unstable/`, **not** `/eval-configs` (which 404s). Native rules have **no
   per-rule model** — they all use the connection's default, so we run everything on `wl-judge-oss`.
 
-Runbook: [runbooks/langfuse.md](../runbooks/langfuse.md) § Evaluation. Design: `aidlc-docs/langfuse-evaluation-design.md`.
+Runbook: [runbooks/langfuse.md](../runbooks/langfuse.md) § Evaluation. Design: `../design/langfuse-evaluation-design.md`.
 Memory: `langfuse-evaluation-b103`.

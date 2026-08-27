@@ -109,7 +109,7 @@ wrapper, and silently sets nothing (traces land with no session). Use `propagate
 ## Evaluation (B103 — Scores · Evaluators · Datasets · Annotation)
 
 The ONLINE eval lane, complementing the offline B84 MLflow suite; shared fixtures. Design:
-`aidlc-docs/langfuse-evaluation-design.md`.
+`../design/langfuse-evaluation-design.md`.
 
 - **Judge model** = LiteLLM (one Langfuse LLM Connection → `http://litellm.weyland.svc.cluster.local:4000/v1`, master
   key). Aliases added for eval: **`wl-judge-oss`** (gpt-oss:20b, free local, the production/codified judge) and

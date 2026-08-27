@@ -1,6 +1,6 @@
 # ============================================================================
 # Canonical Application registry — B82 app taxonomy (the ONE source of truth).
-# Design: aidlc-docs/application-taxonomy.md.
+# Design: docs/design/application-taxonomy.md.
 #
 # Consumed by:
 #   - datahub_emit.py :: emit_applications()  (baked into the Dagster image via COPY weyland_pipeline/)

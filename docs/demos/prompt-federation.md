@@ -56,7 +56,7 @@ surface. That's the payoff the split stores couldn't give you.
 Linkage is live on the three flagship apps — **tool-server** (`rag_system`), **operator** (`operator_system`),
 **agent** (`agent_grade` / `agent_reflect` / `rag_system`) — each tracing to Langfuse **alongside** its existing MLflow
 spans (nothing removed). Runbook: [runbooks/prompt-federation.md](../runbooks/prompt-federation.md). Design:
-`aidlc-docs/prompt-federation-design.md`.
+`../design/prompt-federation-design.md`.
 
 ## Phase 2 — bidirectional + automatic (✅ DONE 2026-08-10)
 

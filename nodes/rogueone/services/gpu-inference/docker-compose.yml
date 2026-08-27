@@ -1,4 +1,4 @@
-# On-demand GPU inference bench — B111. Design: aidlc-docs/gpu-inference-vllm-sglang-design.md
+# On-demand GPU inference bench — B111. Design: docs/design/gpu-inference-vllm-sglang-design.md
 #
 # CRITICAL: rogueone's DEFAULT docker context is Docker Desktop (a VM — NO host GPU). GPU containers MUST run against
 # the NATIVE Docker Engine socket, which has the nvidia runtime (/etc/docker/daemon.json). Prefix every compose call
