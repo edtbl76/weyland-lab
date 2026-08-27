@@ -34,6 +34,12 @@
 #   LINEAR_SNAPSHOT_JSON  {"EMA-207": {"stateType": "...", "state": "...", "project": "..."|null}}
 #   BACKLOG_FILE          defaults to docs/backlog.md
 #
+# HOW IT RUNS: **blocking in CI** — `.woodpecker.yml` step `linear-sync` (its own step, because
+# `repo-guards` is deliberately secret-free), secret `linear_api_key`, events cron+manual. Also run by
+# hand at close-out. Unlike `check-secret-placeholders.sh` and `check-servicemonitor-coverage.sh` this
+# one CAN live in CI: those need cluster read, this makes one outbound HTTPS call with a read-scoped
+# token. Different trade, different answer. Verified green on pipeline 35.
+#
 # EXIT CODES are distinct on purpose. 1 = the estate has drift. 2 = the guard could not do its job.
 # Conflating them means a missing token reads exactly like a clean backlog — and "checked nothing,
 # found nothing" is the precise bug this whole family of guards exists to catch.

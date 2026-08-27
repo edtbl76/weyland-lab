@@ -100,7 +100,7 @@ capability is **NOT done** until ALL eight pillars hold. "Ran once" ≠ done.
 > cron+manual) *and* by hand at close-out. Locally it needs `LINEAR_API_KEY` in the gitignored
 > `scripts/.env` (Linear → Settings → Security & access); a read-scoped key is sufficient.
 > Exit **1** = drift; exit **2** = the guard could not run. A missing token must never read as a clean
-> backlog. 20 bats cases; `--list` prints every reference and its verdict.
+> backlog. 23 bats cases; `--list` prints every reference and its verdict.
 - **Tier rebalance — keep High / Medium / Low roughly equal. PROPOSE IT, NEVER APPLY IT UNILATERALLY (2026-08-23).**
   Completing work drains the **High** lane, so at close-out re-tier to refill it: promote the strongest
   **Medium → High**, then backfill **Low → Medium** (and, as the tail grows, close or promote stale **Low** items — a
