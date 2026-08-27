@@ -2,7 +2,7 @@
 
 A ServiceMonitor that existed, was committed, was Argo-applied and was `kubectl get`-able for **59 days**
 while producing zero metrics — and the three-plane guard that makes it impossible to repeat quietly.
-**Executed + eyes-on 2026-08-26** (✅).
+**Executed + eyes-on 2026-08-26.**
 
 - **Flow:** [diagrams/flow-servicemonitor-coverage.md](../diagrams/flow-servicemonitor-coverage.md)
 - **Runbooks:** [trino.md](../runbooks/trino.md) · [observability.md](../runbooks/observability.md) · [schedules.md](../schedules.md)
@@ -13,9 +13,9 @@ while producing zero metrics — and the three-plane guard that makes it impossi
 Every affirmative check said Trino monitoring was fine:
 
 ```
-kubectl -n data-mesh get servicemonitor trino   ->  trino   60d      ✅
-up{job="trino"}                                 ->  no data           (reads as "idle")
-Grafana                                         ->  empty panel       (reads as "no traffic")
+kubectl -n data-mesh get servicemonitor trino -> trino 60d 
+up{job="trino"} -> no data (reads as "idle")
+Grafana -> empty panel (reads as "no traffic")
 ```
 
 The `trino` Service had **no `metadata.labels` block at all**. A ServiceMonitor selects *Services* by
@@ -48,7 +48,7 @@ guard. This reproduces the exact trino shape (running, ready, zero targets) agai
 cd /tmp && printf '[{"ns":"data-mesh","name":"trino","intended":1,"actual":1}]' > sm.json && printf '{"data":{"activeTargets":[]}}' > t.json && SM_SNAPSHOT_JSON=/tmp/sm.json TARGETS_JSON=/tmp/t.json bash ~/IdeaProjects/weyland/scripts/check-servicemonitor-coverage.sh; echo "EXIT=$?"
 ```
 
-Expected: `❌ data-mesh/trino  blind  intended=1 actual=1 targets=0` and **`EXIT=1`**.
+Expected: `data-mesh/trino blind intended=1 actual=1 targets=0` and **`EXIT=1`**.
 Exit **1** = the estate has a defect; exit **2** = the guard could not do its job. Conflating them
 means a broken guard reads exactly like a broken cluster.
 

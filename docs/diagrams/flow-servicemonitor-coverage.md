@@ -20,7 +20,7 @@ flowchart LR
     PSEL -- "matches PODS<br/>(worked fine)" --> POD
 
     LAB -.->|no match| NOPOOL["Prometheus creates<br/><b>no scrape pool</b>"]
-    NOPOOL --> NOSIG["up{job=trino} -> <i>no data</i><br/>Grafana panel -> empty<br/>kubectl get sm -> 60d ✅"]
+    NOPOOL --> NOSIG["up{job=trino} -> <i>no data</i><br/>Grafana panel -> empty<br/>kubectl get sm -> 60d"]
 
     style LAB fill:#ffdddd,stroke:#cc0000
     style NOPOOL fill:#ffdddd,stroke:#cc0000
@@ -54,7 +54,7 @@ sequenceDiagram
     Note over RES: intended = .spec.replicas (a cached read of git —<br/>Argo selfHeal on 75/78 apps keeps it honest)<br/>actual = .status.readyReplicas<br/>unresolvable → -1
 
     loop every ServiceMonitor
-        CLS->>CLS: classify(intended, actual, targets)
+    CLS->>CLS: classify(intended, actual, targets)
     end
 ```
 
@@ -65,21 +65,21 @@ flowchart TD
     A["classify(intended, actual, targets)"] --> V{"non-negative int<br/>or the -1 sentinel?"}
     V -- no --> ERR["exit non-zero<br/><i>never default to 0</i>"]
     V -- "-1" --> U{"targets > 0?"}
-    U -- yes --> UM["<b>unmanaged</b> ✅<br/>apiserver · kubelet"]
-    U -- no --> OR["<b>orphan</b> ❌<br/>← trino"]
+    U -- yes --> UM["<b>unmanaged</b><br/>apiserver · kubelet"]
+    U -- no --> OR["<b>orphan</b><br/>← trino"]
     V -- "&ge;0" --> I{"intended > 0?"}
 
     I -- yes --> R{"actual &gt; 0?"}
-    R -- no --> DN["<b>down</b> ❌"]
+    R -- no --> DN["<b>down</b>"]
     R -- yes --> T{"targets &gt; 0?"}
-    T -- yes --> OK["<b>ok</b> ✅"]
-    T -- no --> BL["<b>blind</b> ❌<br/>running, unmonitored"]
+    T -- yes --> OK["<b>ok</b>"]
+    T -- no --> BL["<b>blind</b><br/>running, unmonitored"]
 
     I -- no --> Z{"actual &gt; 0?"}
-    Z -- yes --> ZO["<b>zombie</b> ❌<br/>awake, undeclared"]
+    Z -- yes --> ZO["<b>zombie</b><br/>awake, undeclared"]
     Z -- no --> ST{"targets &gt; 0?"}
-    ST -- yes --> SL["<b>stale</b> ❌"]
-    ST -- no --> SP["<b>sleeping</b> ✅<br/>parked on purpose"]
+    ST -- yes --> SL["<b>stale</b>"]
+    ST -- no --> SP["<b>sleeping</b><br/>parked on purpose"]
 
     style BL fill:#ffdddd,stroke:#cc0000
     style OR fill:#ffdddd,stroke:#cc0000
