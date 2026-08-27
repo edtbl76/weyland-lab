@@ -202,6 +202,36 @@ all; the model only adds concepts on top.
 
 ---
 
+## How it runs, and why (DoD Pillar 6 for repo tooling)
+
+**By hand, on demand, at Pillar 8 time.** Not in CI, not on a timer. Recorded because the DoD's
+repo-tooling rule requires the choice to be stated, not just the outcome — and because the two
+rejected options were rejected for reasons, not by default.
+
+**Why not CI.** The output is **advisory**: it is blind to shell, unanswerable on duplicated symbols,
+and an empty answer is not evidence of no impact. A CI step over advisory output has only two shapes,
+and both are bad — it blocks the pipeline on a finding that may be a known blind spot, or it is
+allowed to fail and therefore never read. This repo already learned that: an advisory guard left
+advisory *"is how fifteen diagrams rotted"* (`.woodpecker.yml`, port-iac-coverage). It would also need
+python < 3.13 in the image plus a ~16s graph build on every run, to produce something no gate can act
+on.
+
+**Why not a CronJob.** There is nothing to notice. `cron-freshness-check` and `servicemonitor-coverage`
+run on timers because the condition they detect *arrives on its own* — a job stops, a monitor goes
+blind. Nothing changes about the code graph unless someone changes the code, and at that moment a
+human is already present. A timer would add a schedules row, a freshness budget and a failure rule to
+watch a question nobody is asking.
+
+**So: `build` then `affected`, when answering Pillar 8 for a change that touches Python, TypeScript or
+HCL.** The one scheduled-feeling obligation is `verify` after any `GRAPHIFY_PIN` bump — which is an
+event, not an interval.
+
+**What DOES run in CI:** `scripts/tests/graphify.bats` (32 cases) via the `shell-tests` step, and
+`shellcheck --severity=warning`. The decision logic is continuously tested; only the live graph query
+is by hand.
+
+---
+
 ## Adoption plan
 
 Staged so each step is independently useful and reversible. Nothing here is a framework build.

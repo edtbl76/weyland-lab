@@ -302,6 +302,35 @@ deliverable the other surfaces are graded against in the drift sweep above.
 
 ## Why
 
+## Applying this to REPO TOOLING (something that deploys nothing)
+
+**Five of the eight pillars presume the thing runs somewhere.** LikeC4 placement, a UI walkthrough with
+real URLs, a Kuma monitor, a `*Down` rule, a schedules row — all of it assumes a deployed workload. A
+repo guard (`scripts/check-*.sh`, `scripts/graphify.sh`) deploys nothing, so those pillars evaluate to
+N/A every time.
+
+Until 2026-08-26 that N/A was decided **by convention, per run, by whoever held the gate** — and this
+document says elsewhere that *"an unasked question and a genuinely-empty answer look identical."* The
+same principle applies to the gate's own applicability. Ten `check-*.sh` guards now exist; none appear
+in the LikeC4 model or `tools.md`, and that was never written down. So:
+
+| Pillar | For repo tooling |
+|---|---|
+| **1 Docs** | The **runbook section** is the home, not `arch.md`. `tools.md` is explicitly *"every RUNNING tool… all `*.weyland.lab` UIs"* — a local script does not belong there. Add an `arch.md` row only if the tool changes how a deployed system is operated. |
+| **2 Diagrams** | LikeC4 placement is **N/A** — it is not a deployed component. A `docs/diagrams/flow-*.md` **is** required when the logic is non-obvious (a decision matrix, a fallback path, a refusal). |
+| **3 Demos** | The **CLI walkthrough is the whole demo** — there is no UI to put eyes on. It must still be RUN, and it must include the **negative case**: show the guard failing, with its exit code. A guard nobody has watched fail is not a guard. |
+| **4 Cleanup** | Say where it writes. Prefer writing **outside the repo** entirely over gitignoring output. |
+| **5 Tracking** | Unchanged. `scripts/check-linear-sync.sh`. |
+| **6 Ops** | Not N/A — **restated**: say explicitly whether it runs **by hand at close-out, in CI, or on a timer, and why**. Each has a real trade: a by-hand guard only runs when someone remembers; a CI guard needs whatever credentials it reads; a CronJob needs a schedules row + freshness budget + failure rule. Record the choice, not just the outcome. |
+| **7 Scan** | `shellcheck --severity=warning` and a `bats` suite. Both are already CI steps. |
+| **8 Cascade** | Unchanged, and usually the only one doing real work on a tooling change. |
+
+**Exit codes are part of the contract**, not an implementation detail: **1** = the estate has a defect,
+**2** = the guard could not do its job. Conflating them means a missing credential reads exactly like a
+clean estate — which is the failure this entire document exists to prevent.
+
+---
+
 Every capability must be **placed** (arch/diagrams), **operable** (runbook/api/hosts), **demonstrable** (UI+CLI
 demo, executed), **investigable** (sequence diagram + history), **reversible** (cleanup), **closed out** (Linear +
 backlog), **operationally durable** (reproducible / secret-restorable / monitored / backed-up / triggered), and
