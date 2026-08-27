@@ -179,6 +179,81 @@ lib_source() {
   [ "$status" -eq 2 ]
 }
 
+# --- staging must be a REPLACE, not a merge ---------------------------------------------------------
+
+@test "clean_stage refuses a path outside GRAPHIFY_HOME" {
+  # This function deletes. It must never be able to act on anything but the tool's own scratch dir,
+  # whatever a misconfigured GRAPHIFY_SRC says.
+  lib_source
+  mkdir -p "$STUB_DIR/elsewhere"; : > "$STUB_DIR/elsewhere/precious.txt"
+  GRAPHIFY_HOME="$STUB_DIR/home" run clean_stage "$STUB_DIR/elsewhere"
+  [ "$status" -ne 0 ]
+  [ -f "$STUB_DIR/elsewhere/precious.txt" ]
+}
+
+@test "clean_stage empties a staging dir under GRAPHIFY_HOME" {
+  # rsync --files-from does NOT delete destination files absent from the list, so the staged tree only
+  # ever GROWS. Measured: after adding the artifact exclusion, 34 .min.js files survived from the
+  # previous build and 477 nodes with them. Worse, a file DELETED from the repo keeps its nodes
+  # forever — a phantom dependency on something that no longer exists.
+  lib_source
+  mkdir -p "$STUB_DIR/home/src/sub"
+  : > "$STUB_DIR/home/src/stale.js"; : > "$STUB_DIR/home/src/sub/also-stale.js"
+  GRAPHIFY_HOME="$STUB_DIR/home" run clean_stage "$STUB_DIR/home/src"
+  [ "$status" -eq 0 ]
+  [ ! -f "$STUB_DIR/home/src/stale.js" ]
+  [ ! -f "$STUB_DIR/home/src/sub/also-stale.js" ]
+  [ -d "$STUB_DIR/home/src" ]
+}
+
+@test "clean_stage on a missing dir succeeds — nothing to clean is not an error" {
+  lib_source
+  GRAPHIFY_HOME="$STUB_DIR/home" run clean_stage "$STUB_DIR/home/never-existed"
+  [ "$status" -eq 0 ]
+}
+
+# --- build-artifact exclusion ---------------------------------------------------------------------
+
+@test "is_build_artifact: minified and vendored web assets are excluded" {
+  # 653 nodes (4.8% of the graph) came from 42 tracked files under site-techdocs/assets/ — mkdocs
+  # BUILD OUTPUT. Nobody will ever edit bundle.79ae519e.min.js; the next docs build replaces it with
+  # a different hash. Worse, minification renames every identifier to one letter, so it MANUFACTURES
+  # the label collisions that make `affected` ambiguous: c() x19, a() x17, t() x17.
+  #
+  # `git ls-files` is the right filter for "not a provider binary", but tracked is not the same as
+  # AUTHORED. Build artifacts are committed, so they pass that filter and land in the graph anyway.
+  lib_source
+  for f in \
+    site-techdocs/assets/javascripts/bundle.79ae519e.min.js \
+    site-techdocs/assets/javascripts/lunr/wordcut.js \
+    site-techdocs/assets/stylesheets/main.css \
+    docs/assets/javascripts/search.min.js
+  do
+    run is_build_artifact "$f"
+    [ "$status" -eq 0 ]
+  done
+}
+
+@test "is_build_artifact: real source is NOT excluded" {
+  lib_source
+  for f in \
+    scripts/graphify.sh \
+    nodes/mother/lab/weyland-platform/services/weyland-guard/app.py \
+    .claude/tools/aidlc-orchestrate.ts \
+    nodes/mother/lab/weyland-platform/tofu/port/main.tf
+  do
+    run is_build_artifact "$f"
+    [ "$status" -ne 0 ]
+  done
+}
+
+@test "is_build_artifact does NOT exclude a hand-written js file outside assets/" {
+  # The rule targets build output, not JavaScript. A real .js source file must survive.
+  lib_source
+  run is_build_artifact "services/some-app/src/index.js"
+  [ "$status" -ne 0 ]
+}
+
 # --- ambiguity (limit 2: the pre-#1504 node-ID scheme) --------------------------------------------
 
 @test "candidates lists every node sharing a label, with its source file" {

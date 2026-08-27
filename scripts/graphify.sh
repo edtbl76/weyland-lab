@@ -90,6 +90,54 @@ affected_shell() { # affected_shell <file> <search-root>
   printf '%s\n' "$hits" | sed "s|^$root/|  |"
 }
 
+# --- staging ------------------------------------------------------------------------------------------
+#
+# clean_stage <dir> -> empty the staging directory, keeping the directory itself.
+#
+# WHY THIS IS NECESSARY. `rsync --files-from` copies the listed files and DELETES NOTHING ELSE —
+# `--delete` is ignored because the transfer is not recursive. So the staged tree only ever grows:
+#
+#   - Adding the build-artifact exclusion changed nothing on the first run. 34 `.min.js` files
+#     survived from the previous build and 477 nodes with them; ambiguity was byte-for-byte unchanged.
+#   - Worse in normal use: a file DELETED from the repo keeps its nodes in the graph forever, so
+#     `affected` can report a dependency on something that no longer exists — a phantom, which is the
+#     one thing `verify` exists to prove the graph never does.
+#
+# GUARDED. This deletes, so it refuses any path that is not under $GRAPHIFY_HOME regardless of what
+# GRAPHIFY_SRC is set to. `find -mindepth 1 -delete` rather than a recursive remove: scoped, and it
+# leaves the directory itself in place.
+clean_stage() { # clean_stage <dir>
+  local dir="${1:?usage: clean_stage <dir>}"
+  case "$dir" in
+    "$GRAPHIFY_HOME"/*) ;;
+    *) echo "FATAL: refusing to clean '$dir' - not under GRAPHIFY_HOME ($GRAPHIFY_HOME)" >&2; return 2 ;;
+  esac
+  [ -d "$dir" ] || return 0
+  find "$dir" -mindepth 1 -delete 2>/dev/null || true
+  return 0
+}
+
+# --- build-artifact exclusion -----------------------------------------------------------------------
+#
+# is_build_artifact <path> -> 0 when the file is generated/vendored output, not authored source.
+#
+# `git ls-files` correctly keeps out provider binaries and venvs, but TRACKED IS NOT AUTHORED: mkdocs
+# build output is committed, so it passes that filter and lands in the graph. Measured before this
+# rule: 653 nodes, 4.8% of the graph, from 42 files under `site-techdocs/assets/`.
+#
+# It is not merely noise, it actively degrades the one query we adopted. Minification renames every
+# identifier to a single letter, so it MANUFACTURES label collisions — `c()` x19, `a()` x17, `t()` x17
+# — and those collisions are most of what makes `affected` ambiguous on code. The content hash in
+# `bundle.79ae519e.min.js` is the tell: it is regenerated wholesale on every docs build, so "what
+# depends on this" is a question about an artifact.
+is_build_artifact() { # is_build_artifact <path>
+  case "${1-}" in
+    *.min.js|*.min.css)                 return 0 ;;
+    */assets/javascripts/*|*/assets/stylesheets/*) return 0 ;;
+    *)                                  return 1 ;;
+  esac
+}
+
 # --- interpreter selection -------------------------------------------------------------------------
 
 # venv_python -> the interpreter to build the venv with.
@@ -165,8 +213,24 @@ cmd_build() {
   require_venv
   command -v git >/dev/null 2>&1 || { echo "FATAL: git not on PATH" >&2; exit 2; }
   mkdir -p "$GRAPHIFY_SRC"
-  ( cd "$REPO_ROOT" && git ls-files -z | rsync -a --delete-excluded --files-from=- --from0 ./ "$GRAPHIFY_SRC/" ) || {
-    echo "FATAL: could not stage tracked source into $GRAPHIFY_SRC" >&2; exit 2; }
+  # Tracked source MINUS build artifacts — see is_build_artifact for why tracked is not authored.
+  local list; list="$(mktemp)"
+  ( cd "$REPO_ROOT" && git ls-files ) > "$list" || {
+    echo "FATAL: could not list tracked files" >&2; rm -f "$list"; exit 2; }
+  local kept; kept="$(mktemp)"
+  local f dropped=0
+  while IFS= read -r f; do
+    if is_build_artifact "$f"; then dropped=$((dropped + 1)); else printf '%s\n' "$f" >> "$kept"; fi
+  done < "$list"
+  # Say what was dropped. A silent exclusion is indistinguishable from a file that was never there.
+  echo "staging $(wc -l < "$kept") tracked file(s); excluded $dropped build artifact(s)"
+  # REPLACE, do not merge — see clean_stage. Without this the staged tree only grows and deleted
+  # files keep their graph nodes.
+  clean_stage "$GRAPHIFY_SRC" || { rm -f "$list" "$kept"; exit 2; }
+  mkdir -p "$GRAPHIFY_SRC"
+  ( cd "$REPO_ROOT" && rsync -a --delete-excluded --files-from="$kept" ./ "$GRAPHIFY_SRC/" ) || {
+    echo "FATAL: could not stage tracked source into $GRAPHIFY_SRC" >&2; rm -f "$list" "$kept"; exit 2; }
+  rm -f "$list" "$kept"
   "$GRAPHIFY_VENV/bin/graphify" update "$GRAPHIFY_SRC"
 }
 

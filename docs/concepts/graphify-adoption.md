@@ -1,10 +1,24 @@
 # Graphify — evaluation and adoption plan (EMA-191)
 
-**Verdict: adopt narrowly.** Take the deterministic structural half — `affected`, `god-nodes`, the AST
-graph — and wire it to DoD Pillar 8 (cascading changes). Do **not** adopt it as a retrieval layer; it
-has no embeddings by design and our graph-RAG already covers that. $0, Apache-2.0, runs local.
+**Verdict: adopted narrowly. COMPLETE 2026-08-26.** The deterministic structural half — `affected`,
+`god-nodes`, the AST graph — is in, wired to DoD Pillar 8 (cascading changes) as an advisory aid. It
+is **not** a retrieval layer: no embeddings by design, and graph-RAG keeps that job. $0, Apache-2.0,
+runs local, pinned.
 
-Evaluated 2026-08-26 against `graphifyy` 0.9.50 in an isolated venv, no global install.
+| Stage | |
+|---|---|
+| 1 — structural, isolated venv, no global install | **DONE** |
+| 2 — wired to Pillar 8 | **DONE** |
+| 2b — wrapper refuses where the graph is blind | **DONE** |
+| 3 — shell gap | **DECIDED: scope around it** |
+| 4 — in-lab semantic pass | **NOT EARNED** — closed with reasons |
+| 5 — Neo4j / MCP / git hook | **NOT EARNED** — closed with re-open criteria |
+
+Shipped: `scripts/graphify.sh` (`install` · `build` · `affected` · `god-nodes` · `verify`), 26 bats
+cases, `docs/definition-of-done.md` § 8. Nothing is written inside the repo; the venv, source copy and
+graph live under `~/.local/share/weyland/graphify/`.
+
+Evaluated against `graphifyy==0.9.50` in an isolated venv, no global install, no skill registration.
 
 ---
 
@@ -103,9 +117,30 @@ recorded"* pulled in `_get()` from `scripts/brain-bakeoff/full-loop.py:61` — a
 occurrences of `Decision`/`Verdict`/`Hook`. `rapidfuzz` matched "get" from "get recorded". This is
 the cost of the no-embeddings design, not a bug, and it is why this does **not** replace graph-RAG.
 
-**4. Point it at tracked files only.** The working tree is 927 MB; tracked source is 24 MB. The rest
-is `.terraform/` provider binaries and venvs under `weyland-platform/scripts/`. Feed it
-`git ls-files`, never the raw directory.
+**4. Point it at tracked files only — and TRACKED IS NOT AUTHORED.** The working tree is 927 MB
+(`.terraform/` provider binaries, venvs under `weyland-platform/scripts/`) against 24 MB tracked, so
+`git ls-files` is the right first filter. But mkdocs **build output is committed**, so it passes that
+filter too: 42 files under `site-techdocs/assets/` contributed **653 nodes, 4.8% of the graph**.
+
+Not merely noise. Minification renames every identifier to a single letter, so it MANUFACTURES the
+label collisions that make `affected` ambiguous — `c()` x19, `a()` x17, `t()` x17. The content hash in
+`bundle.79ae519e.min.js` is the tell: regenerated wholesale on every docs build, so "what depends on
+this" is a question about an artifact.
+
+**Fixed 2026-08-26** (`is_build_artifact` in `scripts/graphify.sh`): 13,703 -> **13,051 nodes**,
+minified nodes **0**, code-symbol ambiguity 4.8% -> **3.8%**, uniquely queryable **96.2%**.
+
+> **The exclusion was correct and did nothing, which is the more useful finding.**
+> `rsync --files-from` copies the listed files and **deletes nothing else** — `--delete` is silently
+> ignored because the transfer is not recursive. The first build after adding the exclusion printed
+> `excluded 42 build artifact(s)` and produced a graph with MORE nodes than before, because those 42
+> files were already staged from the previous run. Trusting that line would have recorded a win that
+> never happened; only measuring the outcome caught it.
+>
+> The underlying bug was worse than the cosmetic one being chased: **a file deleted from the repo kept
+> its nodes forever**, so `affected` could report a dependency on a file that no longer exists — the
+> exact phantom `verify` exists to disprove. `clean_stage()` now replaces the staged tree instead of
+> merging into it, guarded to refuse any path outside `$GRAPHIFY_HOME`.
 
 **5. Two dependency gaps — one loud, one silent. RESOLVED 2026-08-26.** 16 `.sql` files
 "contributed nothing" without `graphifyy[sql]` — it *did* say so, naming the package and the issue
@@ -306,34 +341,44 @@ external commands, sourcing at most one file of constants — has nothing for `a
 that would benefit from `affected` is shell that should not have been shell. The tool's blind spot
 lands on an architectural boundary that already exists for better reasons.
 
-### Stage 3 — close the shell gap, or scope around it
+### Stage 3 — close the shell gap, or scope around it — **DECIDED 2026-08-26: scope around it**
 
-Given Stage 2b, the shell blind spot is no longer a deciding factor — it aligns with a boundary we
-want anyway. Two options remain, in order of cost:
+Option 1. Graphify is a **Python / TypeScript / HCL** tool here. Shell dependencies stay covered by
+the `scripts/lib/common.sh` convention, shellcheck, and the wrapper's grep fallback.
 
-1. **Scope around it** — declare graphify a Python/TypeScript/HCL tool, keep shell dependencies
-   tracked by the existing `scripts/lib/common.sh` convention plus shellcheck. Cheapest, honest.
-2. **Contribute upstream** — a `source`/`.` handler in the bash extractor. The project is Apache-2.0
-   and active; this is a small, well-defined patch.
+Nothing further to build — Stage 2b already implemented it. Recorded as a decision rather than left
+open, because "we'll decide later" on a settled question is how a plan grows a permanent TODO.
 
-Do **not** build a local fork. This is a lab.
+**Option 2 (an upstream `source`/`.` handler) is explicitly NOT adoption work.** It would be a small
+Apache-2.0 patch and the project is active, but it benefits projects that put dependency chains in
+shell — and this repo's standing rule is that such a script has outgrown shell. Worth contributing if
+someone feels like it; not a prerequisite for anything here, and not tracked as one. No local fork.
 
-### Stage 4 — in-lab semantic pass (only if Stages 1-2 earn it)
+### Stages 4 and 5 — **NOT EARNED. Closing the plan here.**
 
-`graphify extract --backend openai` with `OPENAI_BASE_URL` pointed at LiteLLM. This unlocks
-path-qualified node IDs (limit 2) and doc/concept extraction with no egress.
+Stage 4 was written as *"only if Stages 1-2 earn it"*. They did not, and saying so is the point of
+having written the condition down.
 
-- **Acceptance:** `affected "Verdict"` resolves uniquely at full-repo scale, and no request leaves
-  the LAN — verified by watching the gateway, not by trusting the flag.
+**Stage 4 (in-lab semantic pass via LiteLLM) — no.** Its two selling points both evaporated:
+- *Path-qualified node IDs*, to fix ambiguous labels. Mitigated more cheaply — the wrapper now lists
+  the colliding files, which is what the reader actually needed, and doubles as a duplication signal.
+- *Doc / concept extraction.* The 8,693 markdown nodes are already extracted **structurally with no
+  LLM**; the model would add concept edges. Our one adopted use is `affected` on code, which semantic
+  extraction does not improve. Running an LLM pass over the whole corpus to enrich a feature we do
+  not use is cost without a consumer.
 
-### Stage 5 — integrations, each independently optional
+**Stage 5 (Neo4j / MCP / git hook) — not yet, and each needs its own reason.**
+- `--neo4j` emits `cypher.txt`. We have Neo4j, but no question today is better answered by having the
+  code graph beside the data graph. Build it when a question needs it, not because the flag exists.
+- `--mcp` is a stdio MCP server, which would make the code graph agent-queryable through the B17/B19
+  gateway. The most plausible future item of the three — revisit if the operator or the Realm agents
+  ever need code-structure answers.
+- `graphify hook install` adds a **post-commit git hook**. The operator owns all git operations here.
+  **Do not install it.**
 
-- `--neo4j` emits `cypher.txt` → our existing Neo4j graph store.
-- `--mcp` is a stdio MCP server → the B17/B19 gateway, making the graph agent-queryable.
-- `graphify hook install` adds a **post-commit git hook**. The operator owns all git operations here;
-  **do not install it.**
-
----
+**Re-open the plan if any of these become true:** a question arrives that wants the code graph in
+Neo4j; an agent needs code structure at runtime; or `affected` starts being wrong in a way
+path-qualified IDs would fix.
 
 ## What would make this a bad idea
 
