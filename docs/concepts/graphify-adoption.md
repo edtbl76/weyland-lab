@@ -11,8 +11,8 @@ runs local, pinned.
 | 2 — wired to Pillar 8 | **DONE** |
 | 2b — wrapper refuses where the graph is blind | **DONE** |
 | 3 — shell gap | **DECIDED: scope around it** |
-| 4 — in-lab semantic pass | **NOT EARNED** — closed with reasons |
-| 5 — Neo4j / MCP / git hook | **NOT EARNED** — closed with re-open criteria |
+| 4 — in-lab semantic pass | **DEFERRED** — EMA-208 (Low) |
+| 5 — Neo4j / MCP / git hook | **DEFERRED** — EMA-208 (Low) |
 
 Shipped: `scripts/graphify.sh` (`install` · `build` · `affected` · `god-nodes` · `verify`), 26 bats
 cases, `docs/definition-of-done.md` § 8. Nothing is written inside the repo; the venv, source copy and
@@ -354,10 +354,17 @@ Apache-2.0 patch and the project is active, but it benefits projects that put de
 shell — and this repo's standing rule is that such a script has outgrown shell. Worth contributing if
 someone feels like it; not a prerequisite for anything here, and not tracked as one. No local fork.
 
-### Stages 4 and 5 — **NOT EARNED. Closing the plan here.**
+### Stages 4 and 5 — **DEFERRED, tracked as EMA-208 (Low)**
 
-Stage 4 was written as *"only if Stages 1-2 earn it"*. They did not, and saying so is the point of
-having written the condition down.
+Stage 4 was written as *"only if Stages 1-2 earn it"*. They did not — nothing consumes these yet, so
+neither is built.
+
+**Not built is not dropped.** An earlier draft of this section closed both stages outright, arguing
+that a Low item which never rises is a drop candidate. That reasoning was wrong in a specific way:
+**"no consumer today" is an argument against BUILDING something now, not against TRACKING it.**
+Defining value only by what already exists means never building the thing that creates the use case,
+which is most of what a lab is for. The stale backlog items that argument borrowed from were orphans —
+no recorded why, no recorded when. These have both. **EMA-208** carries them.
 
 **Stage 4 (in-lab semantic pass via LiteLLM) — no.** Its two selling points both evaporated:
 - *Path-qualified node IDs*, to fix ambiguous labels. Mitigated more cheaply — the wrapper now lists
@@ -376,9 +383,13 @@ having written the condition down.
 - `graphify hook install` adds a **post-commit git hook**. The operator owns all git operations here.
   **Do not install it.**
 
-**Re-open the plan if any of these become true:** a question arrives that wants the code graph in
-Neo4j; an agent needs code structure at runtime; or `affected` starts being wrong in a way
-path-qualified IDs would fix.
+**Re-open (EMA-208) if any of these become true:** we want doc/concept relationships rather than code
+structure; a question wants the code graph beside the data graph in Neo4j; an agent needs code
+structure at runtime; or `affected` starts being wrong in a way path-qualified IDs would fix.
+
+The issue is the surface for *"what capability could we add?"*; the runbook pointers in
+`neo4j.md` and the MCP runbook are the surface for someone who arrives from the other direction,
+already working on Neo4j or the gateway. Both, because they answer different questions.
 
 ## What would make this a bad idea
 

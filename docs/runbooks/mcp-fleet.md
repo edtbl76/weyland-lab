@@ -19,6 +19,12 @@ real job — with one MCP server there is nothing to compose. All live in ns `we
 
 Each proven via MCP `tools/list` (+ a real read call, and a write-denial probe where the server exposes a query tool).
 
+> **A seventh server is available but not deployed: the code graph.** `graphify --mcp` is a stdio MCP
+> server exposing this repo's AST graph (`affected`, `god-nodes`, `query`), which would let the operator
+> and the Realm agents ask code-structure questions — something no server in the fleet can answer today.
+> Not built because nothing has needed it. Tracked as **EMA-208 (Low)**; see
+> `docs/concepts/graphify-adoption.md`.
+
 ## Connectivity notes
 - **trino-mcp** → the `trino-noauth` proxy (`trino-noauth.data-mesh.svc:8080`) as `X-Trino-User: mcp` — the same no-auth
   path dbt/Soda/Cube use. Ranger is default-deny, so `mcp` reads only what it's granted and can never write.

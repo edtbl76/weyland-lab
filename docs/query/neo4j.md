@@ -17,6 +17,13 @@ music: `fma_genres` genre tree + `lastfm` ~13.85M listen edges; fma_tracks/music
 Importable Browser favorites: [AIDLC](neo4j-aidlc-favorites.csv) · [Music](neo4j-music-favorites.csv).
 Importable NeoDash dashboard: [Music graph](neo4j-music-dashboard.json) (NeoDash → Load dashboard → paste/upload).
 
+
+> **The CODE graph is not in here — yet.** `scripts/graphify.sh` builds an AST graph of this repo
+> (13,051 nodes: Python, TypeScript, HCL) and graphify can emit it as Cypher with `--neo4j`. It was
+> deliberately not loaded, because no question yet needs the code graph beside the data graph. The
+> obvious candidate is a cross-graph query — *which code produces which dataset* — pairing with the
+> B82 application taxonomy. Tracked as **EMA-208 (Low)**; plan in
+> `docs/concepts/graphify-adoption.md`.
 ## Explore
 ```cypher
 CALL db.labels();
