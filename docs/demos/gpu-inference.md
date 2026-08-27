@@ -169,8 +169,9 @@ reproduce the `unique-prefix`-like baseline for the whole server.)*
 
 ## CLI walkthrough (reproduce it)
 
-All on **rogueone**, via the wrapper scripts (they force the **native Docker engine** — Desktop is the default context and
-has no GPU; see the runbook for the `gpu-docker` / `DOCKER_HOST` gotcha). **Run one bench at a time** on the 16GB card.
+All on **rogueone**, via the wrapper scripts. (They set `DOCKER_HOST` to the **native Docker engine** — harmless but
+redundant since B127 retired Docker Desktop and native became the default context; see the runbook's gotcha 1.)
+**Run one bench at a time** on the 16GB card.
 
 **Case 1 — vLLM throughput:**
 ```

@@ -7,21 +7,26 @@ Demo (continuous batching, extreme detail): [demos/gpu-inference.md](../demos/gp
 
 ## ⚠️ THE TWO GOTCHAS THAT COST A MONTH — read first
 
-### 1. GPU containers MUST run on the NATIVE Docker engine, not Docker Desktop
-rogueone's **default** docker context is **Docker Desktop** (`desktop-linux`), which runs in a VM with **no host GPU**.
-GPU access lives on the **native Docker Engine** socket (`/var/run/docker.sock`), which has the nvidia runtime configured
-(`/etc/docker/daemon.json`). Symptom if you forget: `Error response from daemon: could not select device driver "nvidia"
-with capabilities: [[gpu]]`.
+### 1. GPU containers MUST run on the NATIVE Docker engine — RESOLVED 2026-08-27 (B127), kept for context
+**This gotcha no longer bites: a bare `docker …` is now correct.** Docker Desktop was retired in place (B127) — its
+systemd user unit is `disabled` + `inactive` and the **default context is `default` → `unix:///var/run/docker.sock`**,
+the native engine with the nvidia runtime configured in `/etc/docker/daemon.json`. **`scripts/gpu-docker` is now
+redundant**; it still exists but only sets the `DOCKER_HOST` that is already the default. Plain `docker ps` / `docker
+logs -f <c>` / `docker exec <c> nvidia-smi` all hit the right engine.
 
-Fix = the committed **`scripts/gpu-docker`** wrapper — it prepends `DOCKER_HOST=unix:///var/run/docker.sock` so you never
-type it. Use it for EVERY ad-hoc docker command against a GPU container: `gpu-docker ps` · `gpu-docker stats <c>` ·
-`gpu-docker logs -f <c>` · `gpu-docker exec <c> nvidia-smi`. (A bare `docker …` hits Docker Desktop and reports
-"No such container".) Put `scripts/` on your PATH or symlink it into `~/.local/bin` so it's `gpu-docker …` from anywhere.
-The `*-bench.sh` wrappers already set `DOCKER_HOST` internally. For compose:
-```
-gpu-docker compose -f nodes/rogueone/services/gpu-inference/docker-compose.yml <cmd>
-```
-Verify the GPU is reachable at all: `docker run --rm --gpus all ubuntu:22.04 nvidia-smi` **on the native engine**.
+**What it used to be**, because the symptom is worth recognising if a Desktop context is ever re-selected: Desktop's
+`desktop-linux` context runs in a VM with **no host GPU**, so a GPU container started against it fails with
+`Error response from daemon: could not select device driver "nvidia" with capabilities: [[gpu]]`, and ad-hoc commands
+against a natively-started container report `No such container` because they are querying a different daemon.
+`scripts/gpu-docker` existed solely to route around that — the wrapper's existence was itself the evidence Desktop was
+the wrong engine here.
+
+**⛔ Do NOT "finish" the migration by uninstalling the `docker-desktop` package — removing it BREAKS the native engine.**
+It is retired in place on purpose and the package stays on disk permanently. (The 574 GB everyone wanted back was never
+in the package; it was the VM disk image, deleted separately — see B127.)
+
+Verify the GPU is reachable at all: `docker run --rm --gpus all ubuntu:22.04 nvidia-smi`.
+For compose: `docker compose -f nodes/rogueone/services/gpu-inference/docker-compose.yml <cmd>`.
 
 ### 2. vLLM `--gpu-memory-utilization` must cover weights + CUDA graphs + KV cache
 The util fraction is the WHOLE budget for the vLLM process, not just weights. Set it too low and vLLM aborts at startup:
