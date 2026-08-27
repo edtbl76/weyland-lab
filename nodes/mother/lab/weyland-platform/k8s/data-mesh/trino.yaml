@@ -107,7 +107,16 @@ spec:
             - { name: ranger, mountPath: /etc/trino/ranger-trino-audit.xml, subPath: ranger-trino-audit.xml }
             - { name: data, mountPath: /data/trino }
           resources:
-            requests: { cpu: "150m", memory: 3Gi }
+            # memory 3Gi -> 5.5Gi (B134, 2026-08-27). THE ONLY POD ON THIS NODE WITH A DEMONSTRATED
+            # FAILURE FROM UNDER-RESERVATION: OOMKilled 2026-08-23, 16 restarts. Measured over 7 days
+            # it sits at p50 4.91Gi / p95 6.80Gi against a 3Gi request — the scheduler believed it
+            # occupied 3Gi while it held nearly 5, so new pods were placed into space Trino was
+            # already using. The limit stays 8Gi; this raises the FLOOR, it does not cap anything.
+            #
+            # 5.5 not 6.8: requests must sum under 72Gi allocatable, and honest per-pod reservations
+            # across this cluster sum to ~97Gi (see below). 5.5 covers steady state with headroom and
+            # leaves the dbt-run peaks to the limit.
+            requests: { cpu: "150m", memory: 5.5Gi }
             # 8Gi limit for a 4G heap. History: 2G heap / 3Gi limit OOM-crashed under dbt's Iceberg aggregations;
             # raised to 4G heap / 6Gi. That 6Gi assumed "4G heap + ~2G off-heap/G1/direct + sidecar" — a budget
             # computed BEFORE the L5 Ranger plugin. Ranger runs a GraalVM/Truffle JavaScript engine inside the

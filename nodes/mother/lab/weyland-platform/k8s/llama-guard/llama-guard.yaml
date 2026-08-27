@@ -68,7 +68,10 @@ spec:
               # schedule behind it. There is no CPU *limit* here, so the request is a scheduling
               # floor only — inference still bursts to whatever the node has free (node runs ~19%).
               cpu: 100m
-              memory: 2Gi
+              # memory 2Gi -> 1Gi (B134, 2026-08-27). Same measurement pass that trimmed the CPU
+              # request above, applied to memory: p50 0.20Gi, p95 0.62Gi over 7 days. It reserved 2Gi
+              # and peaked at under a third of that. Limit stays 4Gi so a large prompt still bursts.
+              memory: 1Gi
             limits:
               memory: 4Gi
           volumeMounts:

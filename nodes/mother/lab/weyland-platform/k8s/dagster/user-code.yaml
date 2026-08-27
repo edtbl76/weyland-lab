@@ -51,7 +51,12 @@ spec:
           # read-gated, so steady-state peak is a few Gi — 12Gi is headroom.)
           resources:
             requests:
-              memory: 4Gi
+              # 4Gi -> 1.75Gi (B134, 2026-08-27). Measured over 7 days: p50 0.91Gi, p95 1.40Gi — it
+              # reserved 4Gi and never exceeded 1.4. The 12Gi LIMIT is untouched and is the number
+              # that matters here: `weyland_ingestion_job` peaks at ~10.6Gi (docs/schedules.md), but
+              # that is a bounded 02:17 burst, not a floor to hold all day. A request is a permanent
+              # reservation; a limit is the burst ceiling. This pod had them confused.
+              memory: 1.75Gi
             limits:
               memory: 12Gi
           ports:
