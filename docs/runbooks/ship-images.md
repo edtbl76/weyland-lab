@@ -355,6 +355,48 @@ kubectl -n weyland get secret pr-lifecycle-github -o jsonpath='{.data.token}' | 
 
 ---
 
+## DORA emit (EMA-172)
+
+After the gates pass, the loop records a Port `deployment` entity so **deployment frequency** and
+**lead time for changes** have data. Before this, `dora_lead_time` and `delivery_performance` scored
+against fields nothing populated.
+
+```
+-> Port deployment recorded: weyland-lab-git-4c7c7861
+```
+
+| Field | Source |
+|---|---|
+| `identifier` | `weyland-lab-<tag>` — stable per tag (re-ship upserts), unique across tags (each deploy counts once) |
+| `createdAt` | emit time — the deployment-frequency clock |
+| `deploymentStatus` / `environment` | `Success` / `Production`, **exact enum spellings** |
+| `lead_time_hours` | source-commit author date → deploy time |
+| `pull_request_url` | plain URL, not a relation |
+
+**It cannot abort a ship.** The deploy already passed FR1.5 and TXN; failing the script over catalog
+bookkeeping would turn a real deploy into a red run. But it is never silent — a swallowed emit
+under-counts deployment frequency forever, and "the scorecard stopped moving" is indistinguishable
+from "we stopped deploying". Contract: loud warning, non-zero from the function, ship still succeeds.
+
+**Two design points that will look wrong if you skim them:**
+
+- **Lead time starts at the source commit, not the PR.** This loop opens *and merges* its own
+  tag-bump PR, so PR created→merged is seconds (PR #41: **24 seconds**) and would render `0.0` hours
+  on every ship — a perfect-looking number measuring the robot. The tag is `git-<short-sha>`, so the
+  real commit is already in hand. Same ship: **0.4 hours** once corrected.
+- **The PR is a URL property, not a relation.** B144's reaper deletes closed `githubPullRequest`
+  entities nightly and this loop closes the PR it merged, so a relation would dangle after every
+  ship. The blueprint's `github_lead_time_hours` mirror is dead for a related reason: the Ocean
+  integration fetches only OPEN PRs while `cycle_time_hours` is computed on MERGE. Measured
+  2026-08-27: 10 PR entities, all `open`, zero cycle times.
+
+**If the emit fails**, the deploy is still real — check `PORT_CLIENT_ID` / `PORT_CLIENT_SECRET` in
+`scripts/.env`, then re-emit by hand:
+
+```
+SHIP_IMAGES_LIB=1 source scripts/ship-images.sh && set -a && . nodes/mother/lab/weyland-platform/tofu/port/.env && set +a && emit_deployment "git-<sha>" "weyland-lab" "$(commit_iso "git-<sha>")" "" "https://github.com/edtbl76/weyland-lab/pull/<n>"
+```
+
 ## Tests
 
 The shell is tested. `ship-images.sh` merges PRs on `main` and syncs the live cluster, so its

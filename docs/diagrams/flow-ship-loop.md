@@ -18,6 +18,7 @@ sequenceDiagram
     participant GH as GitHub edtbl76/weyland-lab
     participant Argo as Argo CD
     participant K8s as live cluster
+    participant Port as Port catalog
     Op->>Det: short-circuit — any image context changed since its deployed tag?
     Det-->>Op: empty plan → exit 0, no pipeline triggered (NFR3)
     Op->>WP: trigger pipeline, then poll to a terminal status
@@ -35,7 +36,28 @@ sequenceDiagram
     Op->>K8s: FR1.5 EVERY bumped image is live on a pod
     Op->>K8s: SMOKE every bumped workload declares a readinessProbe and is fully available
     Note over Op,K8s: Both gates read the same diff file, so it is deleted only after both run. Deleting it early is how FR1.5 once passed on an empty list, verifying nothing.
+    Op->>Port: EMA-172 — record a deployment entity (DORA), AFTER the gates
+    Note over Op,Port: Describes only a ship the gates already proved. Cannot abort the run,<br/>but a failed emit is LOUD: a silent miss makes deployment-frequency<br/>indistinguishable from a lab that stopped deploying.
 ```
+
+## The DORA emit (EMA-172)
+
+The last step records the deploy so **deployment frequency** and **lead time for changes** have data.
+Two things about it are deliberate and non-obvious:
+
+**The lead-time clock starts at the SOURCE COMMIT, not the PR.** `ship-images.sh` opens and merges
+its own tag-bump PR, so PR created→merged is seconds — PR #41 measured **24 seconds**, which renders
+as `0.0` hours on every ship forever. That is a flattering, meaningless number measuring how fast the
+robot merges its own PR. The image tag *is* `git-<short-sha>`, so the source commit is already in
+hand: author date → deploy time is the real "code committed to running in production". Same ship
+measured **0.4 hours** once corrected.
+
+**The PR is a plain URL property, never a relation.** B144's reaper deletes closed
+`githubPullRequest` entities nightly, and this loop closes the PR it just merged — so a relation here
+would dangle after every single ship. The blueprint's `github_lead_time_hours` mirror is dead for the
+same reason: the Ocean integration fetches only OPEN PRs while `cycle_time_hours` is computed on
+MERGE, so a PR never carries one while it is visible. Measured 2026-08-27: 10 PR entities, all
+`open`, **zero** with a cycle time.
 
 ## The gates are not equally strong
 

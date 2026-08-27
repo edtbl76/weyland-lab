@@ -162,3 +162,48 @@ kubectl -n weyland delete job cron-freshness-adhoc pr-staleness-adhoc --ignore-n
 - [weyland-image-ci.md](weyland-image-ci.md) — the build half this extends
 - [runbooks/ship-images.md](../runbooks/ship-images.md) · [runbooks/pr-lifecycle.md](../runbooks/pr-lifecycle.md)
 - `arch.md` §10b — decision matrix and the bug class
+
+## DORA emit — verify a deploy is recorded (EMA-172, added 2026-08-27)
+
+**1. What the payload will be** (no network, no writes):
+
+```
+cd ~/IdeaProjects/weyland && SHIP_IMAGES_LIB=1 source scripts/ship-images.sh && TAG="git-$(git rev-parse --short=8 HEAD)" && deployment_payload "$TAG" "weyland-lab" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$(lead_time_hours "$(commit_iso "$TAG")" "$(date -u +%Y-%m-%dT%H:%M:%SZ)")" "https://github.com/edtbl76/weyland-lab/pull/41" | python3 -m json.tool
+```
+
+Expected: `deploymentStatus: "Success"`, `environment: "Production"`, a non-zero `lead_time_hours`,
+and `relations` containing **only** `service` — never `github_pull_request`.
+
+**2. The lead-time clock starts at the commit, not the PR** — the correction that stops this metric
+reading `0.0` forever:
+
+```
+cd ~/IdeaProjects/weyland && SHIP_IMAGES_LIB=1 source scripts/ship-images.sh && echo "PR   #41: $(lead_time_hours 2026-08-24T21:34:48Z 2026-08-24T21:35:12Z) h" && echo "commit  : $(lead_time_hours "$(commit_iso "git-$(git rev-parse --short=8 HEAD)")" "$(date -u +%Y-%m-%dT%H:%M:%SZ)") h"
+```
+
+Expected: the PR line reads **0.0** (created and merged 24 seconds apart by the loop itself); the
+commit line reads a real number. That gap is the whole reason for `commit_iso`.
+
+**3. The negative cases** — a guard nobody has watched fail is not a guard:
+
+```
+cd ~/IdeaProjects/weyland && SHIP_IMAGES_LIB=1 source scripts/ship-images.sh && PORT_CLIENT_ID= PORT_CLIENT_SECRET= emit_deployment "git-test" "weyland-lab" "" "" ""; echo "EXIT=$?"
+```
+
+Expected: `PORT_CLIENT_ID / PORT_CLIENT_SECRET not set - DORA deployment NOT recorded` and **`EXIT=1`**.
+A missing credential must never read as "nothing to emit".
+
+**4. Live entity after a real ship** — read it back rather than trusting the exit code:
+
+```
+cd ~/IdeaProjects/weyland/nodes/mother/lab/weyland-platform/tofu/port && set -a && . ./.env && set +a && TOK=$(curl -sS -X POST https://api.port.io/v1/auth/access_token -H 'Content-Type: application/json' -d "{\"clientId\":\"$PORT_CLIENT_ID\",\"clientSecret\":\"$PORT_CLIENT_SECRET\"}" | python3 -c 'import sys,json;print(json.load(sys.stdin)["accessToken"])') && curl -sS "https://api.port.io/v1/blueprints/deployment/entities" -H "Authorization: Bearer $TOK" | python3 -m json.tool | head -40
+```
+
+Expected: one entity per shipped tag, each with `lead_time_hours` populated.
+
+**UI (eyes-on):** `https://app.port.io` → Catalog → **Deployments**. Confirm the newest entry matches
+the tag just shipped, and that **Lead Time for Changes (Hours)** is non-zero. A column of `0.0` means
+the clock regressed to PR timestamps.
+
+**Teardown:** entities created by a real ship are the product and stay. Ad-hoc test entities are
+removed with `DELETE /v1/blueprints/deployment/entities/<identifier>`.
