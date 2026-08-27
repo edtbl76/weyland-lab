@@ -905,3 +905,83 @@ registry.weyland.lab/weyland-flink:git-2c73c898'
   [ "$status" -eq 0 ]
   [ -z "$output" ]
 }
+
+# ── EMA-172 — emit a Port `deployment` entity after a verified ship (DORA) ──────────────────────
+#
+# WHY: the `deployment` blueprint already carries `createdAt` / `deploymentStatus` / `environment`
+# and mirrors `github_lead_time_hours` from the linked PR's `cycle_time_hours`. Lead time is wired;
+# deployment FREQUENCY has no data because nothing ever created a deployment entity. B144 keeps
+# `githubPullRequest` clean precisely so these scorecards mean something.
+#
+# THE EMIT MUST NEVER ABORT A SHIP. The deploy already happened and was gate-verified; failing the
+# script over bookkeeping would turn a successful deploy into a red run. But it must not be silent
+# either — a swallowed emit under-counts deployment frequency forever, which is this repo's
+# signature bug. So: loud warning, non-zero from the function, ship still succeeds.
+
+@test "deployment_payload: emits the exact enum values Port accepts" {
+  # Port drops an out-of-enum property value SILENTLY (documented in runbooks/opentofu.md). The
+  # blueprint allows Success|Failure|Pending and Production|Staging|Development - anything else is
+  # accepted by the API and then simply absent from the entity.
+  SHIP_IMAGES_LIB=1 source "$SHIP"
+  run deployment_payload "git-abc1234" "weyland-lab" "4240999487" "2026-08-27T12:00:00Z"
+  [ "$status" -eq 0 ]
+  [[ "$output" == *'"deploymentStatus": "Success"'* ]] || [[ "$output" == *'"deploymentStatus":"Success"'* ]]
+  [[ "$output" == *"Production"* ]]
+  [[ "$output" == *"2026-08-27T12:00:00Z"* ]]
+}
+
+@test "deployment_payload: is valid JSON and carries both relations" {
+  SHIP_IMAGES_LIB=1 source "$SHIP"
+  run deployment_payload "git-abc1234" "weyland-lab" "4240999487" "2026-08-27T12:00:00Z"
+  printf '%s' "$output" | python3 -c "
+import json,sys
+d=json.load(sys.stdin)
+assert d['identifier'], 'no identifier'
+assert d['properties']['deploymentStatus']=='Success'
+assert d['properties']['environment']=='Production'
+assert d['relations']['service']=='weyland-lab'
+assert d['relations']['github_pull_request']=='4240999487'
+"
+}
+
+@test "deployment_payload: omits the PR relation when the id is unknown rather than sending empty" {
+  # A relation pointing at "" would either 422 or create a dangling link. The blueprint marks both
+  # relations optional, so absent is the correct representation of unknown.
+  SHIP_IMAGES_LIB=1 source "$SHIP"
+  run deployment_payload "git-abc1234" "weyland-lab" "" "2026-08-27T12:00:00Z"
+  printf '%s' "$output" | python3 -c "
+import json,sys
+d=json.load(sys.stdin)
+assert 'github_pull_request' not in d['relations'], 'empty PR id must be omitted, not sent blank'
+assert d['relations']['service']=='weyland-lab'
+"
+}
+
+@test "deployment_payload: the identifier is unique per tag, so re-running does not double-count" {
+  SHIP_IMAGES_LIB=1 source "$SHIP"
+  a="$(deployment_payload 'git-aaa1111' 'weyland-lab' '1' '2026-08-27T12:00:00Z')"
+  b="$(deployment_payload 'git-bbb2222' 'weyland-lab' '1' '2026-08-27T12:00:00Z')"
+  ida="$(printf '%s' "$a" | python3 -c 'import json,sys;print(json.load(sys.stdin)["identifier"])')"
+  idb="$(printf '%s' "$b" | python3 -c 'import json,sys;print(json.load(sys.stdin)["identifier"])')"
+  [ "$ida" != "$idb" ]
+  # ...and STABLE for the same tag: an upsert of the same deploy must not create a second entity.
+  again="$(deployment_payload 'git-aaa1111' 'weyland-lab' '1' '2026-08-27T99:99:99Z')"
+  idagain="$(printf '%s' "$again" | python3 -c 'import json,sys;print(json.load(sys.stdin)["identifier"])')"
+  [ "$ida" = "$idagain" ]
+}
+
+@test "emit_deployment: a failed emit WARNS and returns non-zero, but never aborts the ship" {
+  SHIP_IMAGES_LIB=1 source "$SHIP"
+  PORT_EMIT_FN=__emit_fail run emit_deployment "git-abc1234" "weyland-lab" "" 
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"DORA"* ]] || [[ "$output" == *"deployment"* ]]
+}
+
+@test "emit_deployment: refuses to run with no Port credentials rather than silently skipping" {
+  # A missing credential must not read as "nothing to emit". Deployment frequency that silently
+  # stops counting is indistinguishable from a lab that stopped deploying.
+  SHIP_IMAGES_LIB=1 source "$SHIP"
+  PORT_CLIENT_ID= PORT_CLIENT_SECRET= run emit_deployment "git-abc1234" "weyland-lab" ""
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"PORT_CLIENT_ID"* ]]
+}

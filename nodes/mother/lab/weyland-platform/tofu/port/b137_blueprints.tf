@@ -547,6 +547,20 @@ resource "port_blueprint" "backup" {
   }
 }
 
+# EMA-172 (2026-08-27) — `lead_time_hours` + `pull_request_url` added, and they are deliberately
+# PROPERTIES rather than a relation-mirror.
+#
+# `github_lead_time_hours` below mirrors `github_pull_request.cycle_time_hours`, which is structurally
+# ALWAYS NULL here: the github-weyland Ocean integration fetches only OPEN PRs, and cycle_time_hours
+# is computed on MERGE. So a PR has no cycle time while it is visible and stops being visible the
+# moment it would have one. Measured 2026-08-27: 10 PR entities, all `open`, zero with a cycle time.
+#
+# B144's reaper then makes it permanent — it deletes closed PR entities nightly, so a deployment's
+# `github_pull_request` relation would dangle the night after every ship.
+#
+# `ship-images.sh` already knows both timestamps at merge time, so it writes the real number here and
+# links the PR as a plain URL that cannot dangle. The mirrors are kept, unused, rather than removed:
+# they cost nothing and they document why this property exists.
 resource "port_blueprint" "deployment" {
   identifier                    = "deployment"
   title                         = "Deployment"
@@ -561,9 +575,37 @@ resource "port_blueprint" "deployment" {
   properties = {
     array_props   = null
     boolean_props = null
-    number_props  = null
+    number_props = {
+      lead_time_hours = {
+        default     = null
+        description = "Hours from first commit on the PR branch to the deploy landing. Written directly by ship-images.sh at emit time - NOT mirrored from the PR, whose cycle_time_hours is structurally always null here."
+        icon        = null
+        maximum     = null
+        minimum     = null
+        required    = false
+        spec        = null
+        title       = "Lead Time for Changes (Hours)"
+        unit        = null
+      }
+    }
     object_props  = null
     string_props = {
+      pull_request_url = {
+        date_format         = null
+        default             = null
+        description         = "Plain link, not a relation - B144's reaper deletes closed PR entities nightly, so a relation here would dangle after every ship."
+        enum                = null
+        enum_colors         = null
+        format              = "url"
+        icon                = null
+        max_length          = null
+        min_length          = null
+        pattern             = null
+        required            = false
+        spec                = null
+        spec_authentication = null
+        title               = "Pull Request"
+      }
       createdAt = {
         date_format         = null
         default             = null

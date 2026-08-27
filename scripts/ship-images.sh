@@ -655,6 +655,111 @@ load_env() {
   set +a
 }
 
+# ── EMA-172 — Port `deployment` entity (DORA deployment frequency) ─────────────────────────────
+#
+# The `deployment` blueprint already carries `createdAt` / `deploymentStatus` / `environment` and
+# MIRRORS `github_lead_time_hours` from the linked PR's `cycle_time_hours`. So lead-time-for-changes
+# was already wired; deployment FREQUENCY had no data, because nothing ever created a deployment
+# entity. B144 exists to keep `githubPullRequest` clean precisely so these scorecards mean something
+# — this closes the other half.
+#
+# THE ISSUE SAID `environment`, AND THAT WAS WRONG. The `environment` blueprint has no properties at
+# all (one relation to k8s_cluster), so re-upserting it per deploy would carry no new information.
+# `deployment` is the entity a frequency metric counts; `environment` is a dimension on it.
+#
+# THIS RUNS AFTER THE SHIP IS VERIFIED AND CAN NEVER ABORT ONE. The deploy already happened and
+# passed FR1.5 + TXN; failing the script over catalog bookkeeping would turn a real deploy into a red
+# run. But it is not allowed to be silent either: a swallowed emit under-counts deployment frequency
+# forever, and "the scorecard stopped moving" is indistinguishable from "we stopped deploying".
+# Contract: loud warning, non-zero from the function, ship still succeeds.
+
+# deployment_payload <tag> <service> <pr_id> <iso8601> -> entity JSON on stdout.
+#
+# The identifier is `<service>-<tag>`: STABLE for a given tag (re-running a ship upserts rather than
+# double-counting one deploy) and UNIQUE across tags (each real deploy is its own entity, which is
+# what a frequency metric counts).
+#
+# ENUM VALUES ARE EXACT. Port drops an out-of-enum property value SILENTLY (runbooks/opentofu.md) —
+# the API accepts the write and the property is simply absent afterwards. `Success` and `Production`
+# are the blueprint's spellings, not approximations of them.
+deployment_payload() { # deployment_payload <tag> <service> <pr_id> <iso8601>
+  python3 - "${1:?tag}" "${2:?service}" "${3-}" "${4:?timestamp}" <<'PYPAYLOAD'
+import json, sys
+tag, service, pr_id, ts = sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4]
+rel = {"service": service}
+# An empty relation would either 422 or dangle. Both relations are optional in the blueprint, so
+# ABSENT is the honest representation of "unknown" — never "".
+if pr_id:
+    rel["github_pull_request"] = pr_id
+print(json.dumps({
+    "identifier": f"{service}-{tag}",
+    "title": f"{service} {tag}",
+    "properties": {
+        "createdAt": ts,
+        "deploymentStatus": "Success",
+        "environment": "Production",
+    },
+    "relations": rel,
+}))
+PYPAYLOAD
+}
+
+# The POST is reached through indirection so the suite can substitute a stub. A PATH stub cannot work
+# here — a shell function always beats an executable of the same name, so the real implementation
+# would shadow the stub and the test would hit the LIVE Port API while appearing to pass. Same
+# reasoning as port-pr-reconcile's GH_STATE_FN.
+PORT_EMIT_FN="${PORT_EMIT_FN:-__port_upsert_deployment}"
+
+__emit_fail() { return 1; }   # test double
+
+__port_upsert_deployment() { # __port_upsert_deployment <payload-file>
+  local body http tok
+  body="$(mktemp)"
+  # curl writes the body to a file and the STATUS to stdout, so the two are never conflated. A
+  # `curl -sf | python3` pipeline turns a 401 into empty input, which reads as a successful parse of
+  # nothing — the exact failure this repo keeps finding.
+  http="$(curl -s -o "$body" -w '%{http_code}' -X POST https://api.port.io/v1/auth/access_token \
+    -H 'Content-Type: application/json' \
+    -d "{\"clientId\":\"${PORT_CLIENT_ID}\",\"clientSecret\":\"${PORT_CLIENT_SECRET}\"}")" || {
+      echo "  !! Port token request failed at the transport layer" >&2; rm -f "$body"; return 1; }
+  [ "$http" = "200" ] || { echo "  !! Port token endpoint returned HTTP ${http}" >&2; rm -f "$body"; return 1; }
+  tok="$(python3 -c 'import sys,json;print(json.load(sys.stdin).get("accessToken",""))' < "$body")"
+  rm -f "$body"
+  [ -n "$tok" ] || { echo "  !! Port returned no accessToken" >&2; return 1; }
+  # upsert=true so re-shipping the same tag updates rather than 409s.
+  http="$(curl -s -o /dev/null -w '%{http_code}' -X POST \
+    "https://api.port.io/v1/blueprints/deployment/entities?upsert=true&merge=true" \
+    -H "Authorization: Bearer ${tok}" -H 'Content-Type: application/json' -d @"$1")" || {
+      echo "  !! Port deployment upsert failed at the transport layer" >&2; return 1; }
+  case "$http" in
+    200|201) return 0 ;;
+    *) echo "  !! Port deployment upsert returned HTTP ${http}" >&2; return 1 ;;
+  esac
+}
+
+emit_deployment() { # emit_deployment <tag> <service> <pr_id>
+  local tag="${1:?}" service="${2:?}" pr_id="${3-}" ts payload rc=0
+  # A missing credential must NOT read as "nothing to emit" — that is the silent skip this repo keeps
+  # building by accident.
+  if [ -z "${PORT_CLIENT_ID:-}" ] || [ -z "${PORT_CLIENT_SECRET:-}" ]; then
+    echo "  !! PORT_CLIENT_ID / PORT_CLIENT_SECRET not set - DORA deployment NOT recorded" >&2
+    return 1
+  fi
+  ts="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+  payload="$(mktemp)"
+  deployment_payload "$tag" "$service" "$pr_id" "$ts" > "$payload" || { rm -f "$payload"; return 1; }
+  "$PORT_EMIT_FN" "$payload" || rc=1
+  rm -f "$payload"
+  if [ "$rc" -ne 0 ]; then
+    echo "  !! could not record the deployment in Port - DORA deployment-frequency will under-count this ship." >&2
+    return 1
+  fi
+  # `printf --` because the format starts with `->`, which printf otherwise parses as an option:
+  # `printf: ->: invalid option`. Caught on the first live emit.
+  printf -- '-> Port deployment recorded: %s-%s\n' "$service" "$tag"
+  return 0
+}
+
 main() {
   load_env
   gate FR1.2 "local HEAD matches origin/${BASE}" head_matches_origin || abort
@@ -884,6 +989,21 @@ main() {
   # this line then claimed it was "answering real transactions". The gate was honest; the summary
   # under it was not, which is the same false-confidence this whole loop exists to remove.
   printf '✓ shipped: %s is live and smoke-verified (see the TXN line above for what answered a real transaction).\n' "$newtag"
+
+  # EMA-172 — record the deploy for DORA deployment-frequency. AFTER the gates, deliberately: this
+  # only ever describes a ship that FR1.5 and TXN already proved. It cannot abort the run (the deploy
+  # is real whatever Port says), but a failure is loud, because a silently-missed emit makes the
+  # scorecard indistinguishable from a lab that stopped deploying.
+  #
+  # The PR id is GitHub's INTERNAL id, not the PR number: Port's githubPullRequest entities are keyed
+  # on it (identifier 4240999487, with prNumber 3 as a property). Without it the deployment still
+  # records — the relation is optional — but `github_lead_time_hours`, which mirrors the PR's
+  # cycle_time_hours, stays empty.
+  local pr_id=""
+  if [ -n "${pr_num:-}" ]; then
+    pr_id="$(gh api "repos/${REPO}/pulls/${pr_num}" --jq '.id' 2>/dev/null || true)"
+  fi
+  emit_deployment "$newtag" "weyland-lab" "$pr_id" || true
 }
 
 # Source guard: `SHIP_IMAGES_LIB=1 source ship-images.sh` loads the predicates without running.
