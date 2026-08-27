@@ -150,6 +150,7 @@ model {
           langfuse = component "Langfuse" "LLM observability (B103) — traces/scores/prompts/sessions + online evals (native LLM-as-judge evaluators + git-SSOT Datasets); reuses data-mesh ClickHouse/Valkey/MinIO + weyland-postgres"
           kuma = component "Uptime Kuma" "25 monitors -> Telegram"
           kiali = component "Kiali" "Mesh observability UI"
+          smCoverage = component "ServiceMonitor coverage" "B148 CronJob (ns monitoring, 02:45 NY, unmeshed, read-only SA). Reconciles every live ServiceMonitor across three planes - intended (.spec.replicas, trustworthy because Argo selfHeal), actual (.status.readyReplicas), observed (Prometheus scrape-pool targets). Exists because data-mesh/trino exported zero metrics for 59 days behind an unlabelled Service and no affirmative check could see it"
         }
 
         platform = zone "Delivery + governance" {
@@ -159,7 +160,7 @@ model {
           gatekeeper = component "OPA Gatekeeper" "Admission control + Policy Manager"
           keda = component "KEDA" "RETIRED 2026-08-22 — autoscaling / run-mode engine; installed 62 days, never used. Kept in the model only until the next diagram sweep confirms nothing references it"
           shipLoop = component "Ship loop" "B135 — scripts/ship-images.sh on rogueone: merges the CI tag-bump PR under three gates (same-repo, CI-authored, tags-only diff), syncs only the affected Argo apps, then verifies EVERY bumped image is live on a probe-backed workload (FR1.5 + SMOKE). Closes the four manual steps B57a left"
-          deliveryWatchdogs = component "Delivery watchdogs" "B131/B135/B144 — three CronJobs in ns weyland. Two WATCH: pr-staleness-check (open PRs past their age budget) + cron-freshness-check (is the Woodpecker nightly-images cron enabled, next_exec fresh — it is not a k8s object, so no metric can see it), both POSTing synthetic alerts to Alertmanager. One ACTS: port-pr-reconcile DELETES Port githubPullRequest entities whose PR has closed — the Ocean integration fetches only OPEN PRs and never deletes, so stale entities accumulate and inflate the DORA scorecards"
+          deliveryWatchdogs = component "Delivery watchdogs" "B131/B135/B144 — three CronJobs in ns weyland (the fourth watchdog, B148 servicemonitor-coverage, sits in ns monitoring under Observability — different namespace, different concern). Two WATCH: pr-staleness-check (open PRs past their age budget) + cron-freshness-check (is the Woodpecker nightly-images cron enabled, next_exec fresh — it is not a k8s object, so no metric can see it), both POSTing synthetic alerts to Alertmanager. One ACTS: port-pr-reconcile DELETES Port githubPullRequest entities whose PR has closed — the Ocean integration fetches only OPEN PRs and never deletes, so stale entities accumulate and inflate the DORA scorecards"
           sonarqube = component "SonarQube" "Code quality + SAST — weekly sonar-scan -> Port code_quality"
           scanSuite = component "Code scan suite" "Weekly 9-tool scan + code-maat hotspots -> Port security_scan / code_hotspot; Code Health dashboard"
           unleash = component "Unleash" "Feature flags -> Port"
@@ -195,6 +196,8 @@ model {
   weyland.mother.ai.operator -> telegram "agent replies"
   weyland.mother.ops.obs.grafana -> telegram "Alertmanager notifications"
   weyland.mother.ops.obs.kuma -> telegram "uptime alerts"
+  weyland.mother.ops.obs.smCoverage -> weyland.mother.ops.obs.grafana "reads /api/v1/targets via the Prometheus ClusterIP - which ServiceMonitors actually yield scrape pools"
+  weyland.mother.ops.obs.smCoverage -> weyland.mother.ops.platform.argocd "intended state is .spec.replicas, which selfHeal keeps equal to git - the only reason reading it from the cluster is sound"
 
   // Agents
   weyland.mother.ai.operator -> weyland.mother.ai.toolServer "read + act (/mcp, /mcp-act) — confirm-step on acts"
