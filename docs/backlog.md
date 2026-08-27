@@ -1853,7 +1853,26 @@ Give Dependabot dependency-update PRs a durable, queryable home instead of ad-ho
 
 ---
 
-### B132 — start.me Curator: classify new bookmarks at save time — MEDIUM (2026-08-18)
+### B132 — start.me Curator: classify new bookmarks at save time — DONE (2026-08-27)
+
+**Moved out of Weyland Lab into its own Linear project, `start.me Curator`.** It is a separate
+product, not lab infrastructure: code and the 1,968-link corpus live in `edtbl76/startme-curator`
+(**private**, because this repo is public and the corpus carries personal-account links — health,
+education, finance, memberships). Same posture as Stud.IO.
+
+Shipped: the SQLite datastore (`link`/`item` split mirroring start.me's own model, FTS5 over title +
+description, 11 invariant tests, 1,968 links / 147 widgets / 14 pages ingested with zero unresolved),
+the verified write path against start.me's undocumented private API, and the classifier.
+
+**Two rules worth carrying out of it:**
+- **Key on IDs, never titles.** Page titles are not unique — `Business` and `Music & Studio` each
+  exist twice (live and archived) — so resolving placement by title let an archived widget shadow its
+  live namesake and silently filed **8 links onto a retired page**. The original round-trip test
+  compared titles too and was blind to it.
+- **Strict tool schemas accept only a subset of JSON Schema.** `minItems`/`maxItems` return a **400
+  and fail the whole request** rather than being ignored.
+
+Linear: EMA-193.
 
 **Full design: `aidlc-docs/b132-startme-curator-design.md`.** Chrome MV3 extension that files a new bookmark into the right start.me widget **at save time**, against the 1,968-link / 147-widget taxonomy rebuilt 2026-08-05 → 08-08 (2,214 → 1,968 links; 85 → 147 widgets; `Misc.` 195 → **0**; descriptions 16% → **100%**). **The problem is entropy at the edges:** every new link is a decision against 147 widgets, and the cost of deciding is high enough that links get parked instead of filed — parking is precisely what produced `Misc.` the first time. The vendor Bookmarker extension makes it worse: it saves to a start.me **inbox**, i.e. a `Misc.` that fills itself. Requirement (operator-stated): the decision happens at save time and the item is **done** — no queue, no second pass.
 
