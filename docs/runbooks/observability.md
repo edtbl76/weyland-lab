@@ -170,6 +170,37 @@ bash scripts/check-servicemonitor-coverage.sh          # OK — 32 ServiceMonito
 bash scripts/check-servicemonitor-coverage.sh --list   # every monitor + its verdict
 ```
 
+### Scheduling alerts (B134, 2026-08-27)
+
+`k8s/monitoring/scheduling-rules.yaml` — two rules for the failure mode that has no natural signal:
+**work that never started.** The existing `ScheduledJobFailed` / `ScheduledBackupFailed` rules fire on
+a job that RAN AND BROKE; these fire on a pod the scheduler never placed.
+
+| Alert | Fires on |
+|---|---|
+| `PodUnschedulable` | `kube_pod_status_scheduled{condition="false"} == 1`, **for: 1m** |
+| `NodeMemoryRequestsNearCeiling` | memory requests > 95% of allocatable, for: 30m |
+
+**The `for: 1m` window is the design, and 15m would be useless.** A pod that cannot schedule lives
+only as long as its deadline: `dagster-freshness-check` has `activeDeadlineSeconds: 120`, and the two
+PR watchdogs 180. An alert with a 15-minute window would silently cover only the three long-deadline
+jobs and miss every watchdog. At a 30s scrape interval, 1m is 2-3 samples — past ordinary scheduling
+latency, ahead of a 120s deadline.
+
+**Why this metric.** `kube_pod_status_unschedulable` is absent from this KSM build (0 series).
+`kube_pod_status_phase{phase="Pending"}` also covers image pulls and init containers, which are not
+scheduling failures. `kube_pod_status_scheduled{condition="false"}` is exactly "not placed", and only
+kube-state-metrics publishes it — no opencost double-count.
+
+**Proven able to fire:** `max_over_time(count(... == 1)[7d:5m])` returns 1, so the condition really
+does occur here.
+
+> **Do not "correct" `NodeMemoryRequestsNearCeiling` by excluding terminal pods.** The obvious remedy
+> (`and on(namespace,pod) kube_pod_status_phase{phase=~"Running|Pending"}`) was measured and is worse:
+> naive 66.65 Gi, joined 59.10 Gi, `kubectl describe node` **65.94 Gi**. The join drops 34 pods
+> including `istiod`, because `kube_pod_status_phase` covers fewer pods than the requests metric. The
+> naive sum is within 1% of the scheduler; the corrected one is off by 10%.
+
 ### Key enabler — discover ServiceMonitors cluster-wide
 By default the operator only scrapes ServiceMonitors carrying `release: monitoring`. Setting
 `prometheus.prometheusSpec.serviceMonitorSelectorNilUsesHelmValues: false` (in the values file) makes it

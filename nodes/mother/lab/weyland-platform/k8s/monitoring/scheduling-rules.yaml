@@ -1,0 +1,98 @@
+# B134 item 3 — alert when a pod cannot be SCHEDULED.
+#
+# WHY THIS EXISTS: both failures that motivated B134 were silent.
+#
+#   1. `code-scan-suite` sat Pending for 40+ minutes — `FailedScheduling: 0/1 nodes are available:
+#      1 Insufficient cpu`. Found by looking, not by being told.
+#   2. `postgres-backup` MISSED A RUN. Its pod could not schedule at 03:30 and died on
+#      `activeDeadlineSeconds`. It surfaced only as an Argo "Degraded" badge that looked cosmetic —
+#      a silently missed database backup presenting as a UI annoyance.
+#
+# The existing failure rules (`ScheduledJobFailed`, `ScheduledBackupFailed` in cron-freshness-rules.yaml)
+# fire on a job that RAN AND BROKE. This one fires on work that never started, and names the reason.
+#
+# ── THE `for:` WINDOW IS THE WHOLE DESIGN, and 15m — the obvious choice — WOULD BE USELESS HERE ──
+#
+# A pod that cannot schedule lives only as long as its deadline allows, and this cluster's CronJobs
+# are short:
+#
+#     120s  weyland/dagster-freshness-check     <- an alert with for: 2m can NEVER fire for this
+#     180s  weyland/cron-freshness-check
+#     180s  weyland/pr-staleness-check
+#     300s  monitoring/servicemonitor-coverage · weyland/port-pr-reconcile
+#    1800s  weyland/postgres-backup
+#     none  minio-backup · pg-backup · code-scan-suite · sonar-scan · docs-site-rebuild · lancedb-sync
+#
+# So the alert must fire BEFORE the shortest deadline kills its evidence. `for: 1m` at a 30s scrape
+# interval means 2-3 consecutive samples: long enough that ordinary scheduling latency (sub-second)
+# never trips it, short enough to fire at 60s against a 120s deadline. A 15m window would silently
+# cover only the three long-deadline jobs and miss every watchdog — the exact shape of a control that
+# looks present and measures nothing.
+#
+# METRIC CHOICE, verified rather than assumed:
+#   * `kube_pod_status_unschedulable` is ABSENT from this kube-state-metrics build (checked; 0 series).
+#   * `kube_pod_status_phase{phase="Pending"}` is wrong — it also covers image pulls and init
+#     containers, which are not scheduling failures.
+#   * `kube_pod_status_scheduled{condition="false"}` is exactly "the scheduler has not placed this",
+#     published ONLY by kube-state-metrics (176 series each for true/false/unknown; no opencost
+#     double-publish, unlike `kube_pod_container_resource_requests` — see B134's own gotcha note).
+#
+# PROVEN LIVE, NOT ASSUMED: `max_over_time(count(... == 1)[7d:5m])` returns 1 — the condition really
+# does occur here. A rule whose expression can never be true is the thing this repo keeps building by
+# accident.
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: scheduling
+  namespace: monitoring
+  labels:
+    app: scheduling
+spec:
+  groups:
+    - name: scheduling
+      rules:
+        - alert: PodUnschedulable
+          expr: |
+            kube_pod_status_scheduled{job="kube-state-metrics", condition="false"} == 1
+          for: 1m
+          labels:
+            severity: warning
+            source: scheduling
+          annotations:
+            summary: "Pod {{ $labels.namespace }}/{{ $labels.pod }} cannot be scheduled"
+            description: "The scheduler has not placed this pod for over a minute - almost always Insufficient cpu/memory on the single node. If it belongs to a CronJob it will die on activeDeadlineSeconds and the run is LOST, which is how a postgres-backup went missing on 2026-08-20 while showing only an Argo Degraded badge. Check `kubectl describe pod` for the FailedScheduling event, then `kubectl describe node mother` for the Allocated resources section."
+
+        # The node-level view. The rule above names the victim; this one names the cause, and fires
+        # even when nothing is currently pending — which is the point, since by the time a pod is
+        # stuck the headroom is already gone.
+        #
+        # 95% not 90%: memory requests have sat at 91-92% for weeks as a NORMAL state on this node
+        # (66.7 Gi of 72.0 allocatable, measured 2026-08-27), so a 90% threshold would be permanently
+        # lit and therefore ignored. This is deliberately a "getting worse than usual" line, not a
+        # "healthy" line.
+        # DO NOT "FIX" THIS BY EXCLUDING TERMINAL PODS. B134 documents that
+        # `kube_pod_container_resource_requests` still counts Succeeded/Failed pods, and the obvious
+        # remedy is `and on(namespace,pod) kube_pod_status_phase{phase=~"Running|Pending"}`. It was
+        # tried on 2026-08-27 and it is WORSE, measured against the scheduler's own number:
+        #
+        #     naive sum                    66.65 Gi
+        #     joined to Running|Pending    59.10 Gi
+        #     kubectl describe node        65.94 Gi   <- ground truth
+        #
+        # The join silently drops 34 pods, including `istio-system/istiod` (2 Gi), which is plainly
+        # Running. `kube_pod_status_phase` covers 176 pods while the requests metric covers more, so
+        # the join discards the difference rather than filtering it. The naive sum is within 1% of the
+        # scheduler; the "corrected" one is off by 10%. A documented gotcha applied mechanically can be
+        # worse than the gotcha.
+        - alert: NodeMemoryRequestsNearCeiling
+          expr: |
+            sum(kube_pod_container_resource_requests{job="kube-state-metrics", resource="memory"})
+              / on() sum(kube_node_status_allocatable{job="kube-state-metrics", resource="memory"})
+            > 0.95
+          for: 30m
+          labels:
+            severity: warning
+            source: scheduling
+          annotations:
+            summary: "Memory requests are {{ $value | humanizePercentage }} of allocatable on mother"
+            description: "Reserved memory is approaching the node ceiling, so the next pod that needs a real reservation will not schedule. Unlike CPU (81% reserved against 17% used) these reservations are HONEST - peak concurrent usage was 67.4 Gi against 72.0 allocatable - so the fix is to run less, not to trim requests. See EMA-195 for the measured on-demand candidates."
