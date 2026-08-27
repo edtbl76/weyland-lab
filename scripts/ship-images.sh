@@ -682,24 +682,84 @@ load_env() {
 # ENUM VALUES ARE EXACT. Port drops an out-of-enum property value SILENTLY (runbooks/opentofu.md) —
 # the API accepts the write and the property is simply absent afterwards. `Success` and `Production`
 # are the blueprint's spellings, not approximations of them.
-deployment_payload() { # deployment_payload <tag> <service> <pr_id> <iso8601>
-  python3 - "${1:?tag}" "${2:?service}" "${3-}" "${4:?timestamp}" <<'PYPAYLOAD'
+# commit_iso <tag-or-sha> -> the commit's author date in ISO-8601, or NOTHING.
+#
+# THE LEAD-TIME CLOCK STARTS AT THE COMMIT, not at the PR. ship-images opens and merges its own
+# tag-bump PR, so PR created->merged is seconds: PR #41 measured 21:34:48 -> 21:35:12, twenty-four
+# seconds, which renders as 0.0 hours. Every ship would report a perfect lead time forever while
+# measuring only how fast the robot merges its own PR.
+#
+# The image tag is `git-<short-sha>` (`head_tag`, line ~237), so the source commit is already in
+# hand. Author date -> deploy time is the real "code committed to running in production".
+#
+# Empty on anything unresolvable — a plausible-but-wrong date produces a plausible-but-wrong metric.
+commit_iso() { # commit_iso <tag-or-sha>
+  local ref="${1-}"
+  [ -n "$ref" ] || return 0
+  ref="${ref#git-}"
+  git -C "$REPO_ROOT" show -s --format=%aI "$ref" 2>/dev/null || true
+}
+
+# lead_time_hours <created-iso8601> <merged-iso8601> -> hours to 1dp on stdout, or NOTHING.
+#
+# DORA "lead time for changes". Written here rather than mirrored from the PR because
+# `github_pull_request.cycle_time_hours` is structurally always null in this org — the Ocean
+# integration fetches only OPEN PRs and the cycle time is computed on MERGE, so a PR never carries
+# one while it is visible. Measured 2026-08-27: 10 PR entities, all open, zero cycle times.
+#
+# EMPTY ON ANYTHING UNCERTAIN, NEVER 0. Zero hours is a real and flattering DORA number, so an
+# unknown lead time rendered as 0 would make the metric look perfect while measuring nothing — the
+# absence-as-success failure this repo keeps finding. Callers omit the property when this returns
+# empty. A negative span (merged before created) means swapped inputs or a wrong clock, and is
+# refused for the same reason.
+lead_time_hours() { # lead_time_hours <created> <merged>
+  [ -n "${1-}" ] && [ -n "${2-}" ] || return 0
+  python3 - "$1" "$2" <<'PYLEAD'
+import sys
+from datetime import datetime, timezone
+def parse(v):
+    try:
+        return datetime.fromisoformat(v.replace("Z", "+00:00"))
+    except Exception:
+        return None
+a, b = parse(sys.argv[1]), parse(sys.argv[2])
+if a is None or b is None:
+    raise SystemExit(0)          # unknown -> print nothing
+# `git show -s --format=%aI` emits an OFFSET (…-04:00) while `date -u` emits Z, so one side can be
+# naive and the other aware — subtracting those raises TypeError. A naive timestamp is treated as
+# UTC, which is what every producer in this loop actually means.
+if (a.tzinfo is None) != (b.tzinfo is None):
+    a = a.replace(tzinfo=timezone.utc) if a.tzinfo is None else a
+    b = b.replace(tzinfo=timezone.utc) if b.tzinfo is None else b
+hours = (b - a).total_seconds() / 3600
+if hours < 0:
+    raise SystemExit(0)          # impossible -> print nothing
+print(f"{hours:.1f}")
+PYLEAD
+}
+
+deployment_payload() { # deployment_payload <tag> <service> <iso8601> <lead_hours> <pr_url>
+  python3 - "${1:?tag}" "${2:?service}" "${3:?timestamp}" "${4-}" "${5-}" <<'PYPAYLOAD'
 import json, sys
-tag, service, pr_id, ts = sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4]
-rel = {"service": service}
-# An empty relation would either 422 or dangle. Both relations are optional in the blueprint, so
-# ABSENT is the honest representation of "unknown" — never "".
-if pr_id:
-    rel["github_pull_request"] = pr_id
+tag, service, ts, lead, pr_url = sys.argv[1:6]
+props = {
+    "createdAt": ts,
+    "deploymentStatus": "Success",
+    "environment": "Production",
+}
+# OMIT rather than send 0 / "" — an unknown lead time rendered as 0 makes the DORA metric look
+# perfect while measuring nothing.
+if lead:
+    props["lead_time_hours"] = float(lead)
+if pr_url:
+    props["pull_request_url"] = pr_url
 print(json.dumps({
     "identifier": f"{service}-{tag}",
     "title": f"{service} {tag}",
-    "properties": {
-        "createdAt": ts,
-        "deploymentStatus": "Success",
-        "environment": "Production",
-    },
-    "relations": rel,
+    "properties": props,
+    # `service` only. The PR is a plain URL property above, NOT a relation: B144's reaper deletes
+    # closed githubPullRequest entities nightly, so a relation here would dangle after every ship.
+    "relations": {"service": service},
 }))
 PYPAYLOAD
 }
@@ -737,8 +797,8 @@ __port_upsert_deployment() { # __port_upsert_deployment <payload-file>
   esac
 }
 
-emit_deployment() { # emit_deployment <tag> <service> <pr_id>
-  local tag="${1:?}" service="${2:?}" pr_id="${3-}" ts payload rc=0
+emit_deployment() { # emit_deployment <tag> <service> <pr_created> <pr_merged> <pr_url>
+  local tag="${1:?}" service="${2:?}" created="${3-}" merged="${4-}" pr_url="${5-}" ts lead payload rc=0
   # A missing credential must NOT read as "nothing to emit" — that is the silent skip this repo keeps
   # building by accident.
   if [ -z "${PORT_CLIENT_ID:-}" ] || [ -z "${PORT_CLIENT_SECRET:-}" ]; then
@@ -746,8 +806,10 @@ emit_deployment() { # emit_deployment <tag> <service> <pr_id>
     return 1
   fi
   ts="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+  # Merge time defaults to now: ship-images emits seconds after merging the PR itself.
+  lead="$(lead_time_hours "$created" "${merged:-$ts}")"
   payload="$(mktemp)"
-  deployment_payload "$tag" "$service" "$pr_id" "$ts" > "$payload" || { rm -f "$payload"; return 1; }
+  deployment_payload "$tag" "$service" "$ts" "$lead" "$pr_url" > "$payload" || { rm -f "$payload"; return 1; }
   "$PORT_EMIT_FN" "$payload" || rc=1
   rm -f "$payload"
   if [ "$rc" -ne 0 ]; then
@@ -999,11 +1061,14 @@ main() {
   # on it (identifier 4240999487, with prNumber 3 as a property). Without it the deployment still
   # records — the relation is optional — but `github_lead_time_hours`, which mirrors the PR's
   # cycle_time_hours, stays empty.
-  local pr_id=""
-  if [ -n "${pr_num:-}" ]; then
-    pr_id="$(gh api "repos/${REPO}/pulls/${pr_num}" --jq '.id' 2>/dev/null || true)"
-  fi
-  emit_deployment "$newtag" "weyland-lab" "$pr_id" || true
+  # One call for all three PR facts. `created_at` is the DORA lead-time start; `merged_at` is the
+  # end (and is populated, because ship-images merged it moments ago). Failure here is tolerated —
+  # emit_deployment omits what it does not know rather than inventing a zero.
+  # Lead time starts at the SOURCE COMMIT the tag names, not at the PR — see commit_iso. The PR
+  # contributes only its URL, as a human link.
+  local pr_url=""
+  [ -n "${pr_num:-}" ] && pr_url="https://github.com/${REPO}/pull/${pr_num}"
+  emit_deployment "$newtag" "weyland-lab" "$(commit_iso "$newtag")" "" "$pr_url" || true
 }
 
 # Source guard: `SHIP_IMAGES_LIB=1 source ship-images.sh` loads the predicates without running.

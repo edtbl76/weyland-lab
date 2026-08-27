@@ -919,55 +919,44 @@ registry.weyland.lab/weyland-flink:git-2c73c898'
 # signature bug. So: loud warning, non-zero from the function, ship still succeeds.
 
 @test "deployment_payload: emits the exact enum values Port accepts" {
-  # Port drops an out-of-enum property value SILENTLY (documented in runbooks/opentofu.md). The
-  # blueprint allows Success|Failure|Pending and Production|Staging|Development - anything else is
-  # accepted by the API and then simply absent from the entity.
+  # Port drops an out-of-enum property value SILENTLY (runbooks/opentofu.md) - the API accepts the
+  # write and the property is simply absent afterwards. Verified live 2026-08-27: Success/Production
+  # came back present, so these spellings are right.
   SHIP_IMAGES_LIB=1 source "$SHIP"
-  run deployment_payload "git-abc1234" "weyland-lab" "4240999487" "2026-08-27T12:00:00Z"
+  run deployment_payload "git-abc1234" "weyland-lab" "2026-08-27T12:00:00Z" "" ""
   [ "$status" -eq 0 ]
-  [[ "$output" == *'"deploymentStatus": "Success"'* ]] || [[ "$output" == *'"deploymentStatus":"Success"'* ]]
-  [[ "$output" == *"Production"* ]]
-  [[ "$output" == *"2026-08-27T12:00:00Z"* ]]
-}
-
-@test "deployment_payload: is valid JSON and carries both relations" {
-  SHIP_IMAGES_LIB=1 source "$SHIP"
-  run deployment_payload "git-abc1234" "weyland-lab" "4240999487" "2026-08-27T12:00:00Z"
   printf '%s' "$output" | python3 -c "
 import json,sys
 d=json.load(sys.stdin)
-assert d['identifier'], 'no identifier'
 assert d['properties']['deploymentStatus']=='Success'
 assert d['properties']['environment']=='Production'
-assert d['relations']['service']=='weyland-lab'
-assert d['relations']['github_pull_request']=='4240999487'
+assert d['properties']['createdAt']=='2026-08-27T12:00:00Z'
 "
 }
 
-@test "deployment_payload: omits the PR relation when the id is unknown rather than sending empty" {
-  # A relation pointing at "" would either 422 or create a dangling link. The blueprint marks both
-  # relations optional, so absent is the correct representation of unknown.
+@test "deployment_payload: relates to the service and NEVER to the PR entity" {
+  # A github_pull_request relation would dangle: B144's reaper deletes closed githubPullRequest
+  # entities nightly, and ship-images closes the PR it just merged. The PR travels as a plain URL
+  # property instead.
   SHIP_IMAGES_LIB=1 source "$SHIP"
-  run deployment_payload "git-abc1234" "weyland-lab" "" "2026-08-27T12:00:00Z"
+  run deployment_payload "git-abc1234" "weyland-lab" "2026-08-27T12:00:00Z" "3.5" "https://x/pull/1"
   printf '%s' "$output" | python3 -c "
 import json,sys
 d=json.load(sys.stdin)
-assert 'github_pull_request' not in d['relations'], 'empty PR id must be omitted, not sent blank'
-assert d['relations']['service']=='weyland-lab'
+assert d['relations']=={'service':'weyland-lab'}, d['relations']
 "
 }
 
-@test "deployment_payload: the identifier is unique per tag, so re-running does not double-count" {
+@test "deployment_payload: the identifier is stable per tag and unique across tags" {
+  # Stable so re-shipping a tag UPSERTS one deploy rather than double-counting it; unique so each
+  # real deploy is its own entity, which is what a frequency metric counts.
   SHIP_IMAGES_LIB=1 source "$SHIP"
-  a="$(deployment_payload 'git-aaa1111' 'weyland-lab' '1' '2026-08-27T12:00:00Z')"
-  b="$(deployment_payload 'git-bbb2222' 'weyland-lab' '1' '2026-08-27T12:00:00Z')"
-  ida="$(printf '%s' "$a" | python3 -c 'import json,sys;print(json.load(sys.stdin)["identifier"])')"
-  idb="$(printf '%s' "$b" | python3 -c 'import json,sys;print(json.load(sys.stdin)["identifier"])')"
-  [ "$ida" != "$idb" ]
-  # ...and STABLE for the same tag: an upsert of the same deploy must not create a second entity.
-  again="$(deployment_payload 'git-aaa1111' 'weyland-lab' '1' '2026-08-27T99:99:99Z')"
-  idagain="$(printf '%s' "$again" | python3 -c 'import json,sys;print(json.load(sys.stdin)["identifier"])')"
-  [ "$ida" = "$idagain" ]
+  ident() { printf '%s' "$1" | python3 -c 'import json,sys;print(json.load(sys.stdin)["identifier"])'; }
+  a="$(ident "$(deployment_payload 'git-aaa1111' 'weyland-lab' '2026-08-27T12:00:00Z' '' '')")"
+  b="$(ident "$(deployment_payload 'git-bbb2222' 'weyland-lab' '2026-08-27T12:00:00Z' '' '')")"
+  again="$(ident "$(deployment_payload 'git-aaa1111' 'weyland-lab' '2026-08-27T23:59:59Z' '9.9' 'https://x')")"
+  [ "$a" != "$b" ]
+  [ "$a" = "$again" ]
 }
 
 @test "emit_deployment: a failed emit WARNS and returns non-zero, but never aborts the ship" {
@@ -984,4 +973,124 @@ assert d['relations']['service']=='weyland-lab'
   PORT_CLIENT_ID= PORT_CLIENT_SECRET= run emit_deployment "git-abc1234" "weyland-lab" ""
   [ "$status" -ne 0 ]
   [[ "$output" == *"PORT_CLIENT_ID"* ]]
+}
+
+@test "lead_time_hours: whole hours between two ISO-8601 timestamps" {
+  SHIP_IMAGES_LIB=1 source "$SHIP"
+  run lead_time_hours "2026-08-27T10:00:00Z" "2026-08-27T13:30:00Z"
+  [ "$status" -eq 0 ]
+  [ "$output" = "3.5" ]
+}
+
+@test "lead_time_hours: spans days" {
+  SHIP_IMAGES_LIB=1 source "$SHIP"
+  run lead_time_hours "2026-08-25T00:00:00Z" "2026-08-27T00:00:00Z"
+  [ "$output" = "48.0" ]
+}
+
+@test "lead_time_hours: an unparseable or missing timestamp yields NOTHING, never 0" {
+  # 0 hours is a real and impressive-looking DORA number. An unknown lead time that renders as 0
+  # would silently make the metric look perfect - the same absence-as-success failure this repo keeps
+  # finding. Empty means the property is omitted entirely.
+  SHIP_IMAGES_LIB=1 source "$SHIP"
+  run lead_time_hours "" "2026-08-27T13:30:00Z"
+  [ -z "$output" ]
+  run lead_time_hours "not-a-date" "2026-08-27T13:30:00Z"
+  [ -z "$output" ]
+  run lead_time_hours "2026-08-27T13:30:00Z" ""
+  [ -z "$output" ]
+}
+
+@test "lead_time_hours: refuses a negative span rather than reporting it" {
+  # merged-before-created is impossible; it means the inputs were swapped or the clock is wrong.
+  SHIP_IMAGES_LIB=1 source "$SHIP"
+  run lead_time_hours "2026-08-27T13:00:00Z" "2026-08-27T10:00:00Z"
+  [ -z "$output" ]
+}
+
+@test "deployment_payload: carries lead_time_hours and pull_request_url when known" {
+  SHIP_IMAGES_LIB=1 source "$SHIP"
+  run deployment_payload "git-abc1234" "weyland-lab" "2026-08-27T12:00:00Z" "3.5" "https://github.com/edtbl76/weyland-lab/pull/42"
+  printf '%s' "$output" | python3 -c "
+import json,sys
+d=json.load(sys.stdin)
+assert d['properties']['lead_time_hours']==3.5, d['properties']
+assert d['properties']['pull_request_url'].endswith('/pull/42')
+assert 'github_pull_request' not in d['relations'], 'relation would dangle after B144 reaps the PR'
+"
+}
+
+@test "deployment_payload: OMITS lead_time_hours when unknown rather than sending 0 or null" {
+  SHIP_IMAGES_LIB=1 source "$SHIP"
+  run deployment_payload "git-abc1234" "weyland-lab" "2026-08-27T12:00:00Z" "" ""
+  printf '%s' "$output" | python3 -c "
+import json,sys
+d=json.load(sys.stdin)
+assert 'lead_time_hours' not in d['properties'], 'unknown must be absent, not 0'
+assert 'pull_request_url' not in d['properties']
+assert d['properties']['deploymentStatus']=='Success'
+"
+}
+
+@test "commit_iso: resolves a git-<sha> tag to the commit's author date" {
+  # DORA lead time is code-committed -> running in production. PR timestamps are the WRONG source:
+  # ship-images opens and merges its own tag-bump PR, so created->merged is ~24 seconds (measured on
+  # PR #41), rendering 0.0 hours forever - a flatteringly perfect number measuring the robot, not the
+  # change. The tag is `git-<short-sha>`, so the commit is already in hand.
+  #
+  # Builds its OWN repo rather than reading the enclosing one: the real repo is not readable from the
+  # test container (git exits 128 on dubious ownership), and a test that depends on the checkout it
+  # happens to run inside is testing the environment.
+  SHIP_IMAGES_LIB=1 source "$SHIP"
+  local r="$STUB_DIR/repo"
+  mkdir -p "$r"
+  git -C "$r" init -q 2>/dev/null
+  git -C "$r" config user.email t@t.local; git -C "$r" config user.name t
+  : > "$r/f"; git -C "$r" add f
+  GIT_AUTHOR_DATE="2026-08-20T09:00:00Z" GIT_COMMITTER_DATE="2026-08-20T09:00:00Z" \
+    git -C "$r" commit -qm one
+  local sha; sha="$(git -C "$r" rev-parse --short=8 HEAD)"
+  REPO_ROOT="$r" run commit_iso "git-$sha"
+  [ "$status" -eq 0 ]
+  [[ "$output" == 2026-08-20T* ]]
+}
+
+@test "commit_iso: an unknown sha yields NOTHING, never a fallback date" {
+  # A plausible-but-wrong date produces a plausible-but-wrong lead time.
+  SHIP_IMAGES_LIB=1 source "$SHIP"
+  local r="$STUB_DIR/repo2"; mkdir -p "$r"; git -C "$r" init -q 2>/dev/null
+  REPO_ROOT="$r" run commit_iso "git-deadbeef"
+  [ -z "$output" ]
+  REPO_ROOT="$r" run commit_iso ""
+  [ -z "$output" ]
+}
+
+@test "commit_iso: tolerates a tag without the git- prefix" {
+  SHIP_IMAGES_LIB=1 source "$SHIP"
+  local r="$STUB_DIR/repo3"; mkdir -p "$r"
+  git -C "$r" init -q 2>/dev/null
+  git -C "$r" config user.email t@t.local; git -C "$r" config user.name t
+  : > "$r/f"; git -C "$r" add f
+  GIT_AUTHOR_DATE="2026-08-21T09:00:00Z" GIT_COMMITTER_DATE="2026-08-21T09:00:00Z" \
+    git -C "$r" commit -qm one
+  local sha; sha="$(git -C "$r" rev-parse --short=8 HEAD)"
+  REPO_ROOT="$r" run commit_iso "$sha"
+  [[ "$output" == 2026-08-21T* ]]
+}
+
+@test "lead_time_hours: mixed naive/offset-aware timestamps do not traceback" {
+  # `git show -s --format=%aI` emits an OFFSET (2026-08-27T10:27:42-04:00) while `date -u` emits Z.
+  # Subtracting a naive from an aware datetime raises TypeError. It failed safe (no value printed, so
+  # the property is omitted) but spewed a traceback into the ship log, which reads as a real error in
+  # a script whose whole job is making failures legible.
+  SHIP_IMAGES_LIB=1 source "$SHIP"
+  run lead_time_hours "2026-08-27T10:00:00" "2026-08-27T13:00:00Z"
+  [[ "$output" != *"Traceback"* ]]
+  [ "$output" = "3.0" ]
+}
+
+@test "lead_time_hours: honours a real UTC offset rather than ignoring it" {
+  SHIP_IMAGES_LIB=1 source "$SHIP"
+  run lead_time_hours "2026-08-27T06:00:00-04:00" "2026-08-27T13:00:00Z"
+  [ "$output" = "3.0" ]
 }
