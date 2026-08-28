@@ -1,0 +1,8 @@
+# Hello-world fixture for the Rust lane (B88). Rust has no production code in weyland yet — this
+# fixture is what keeps the lane continuously proven until it does (see B9 / the platform split).
+[package]
+name = "weyland-fixture"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]

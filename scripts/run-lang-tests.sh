@@ -115,9 +115,16 @@ resolve_root() {
   dir="$(dirname "$file")"
 
   if [ -z "$marker" ]; then
-    case "$dir" in
-      */tests|*/test) dirname "$dir"; return 0 ;;
-    esac
+    # python and shell both lack a manifest but need OPPOSITE roots, and conflating them was a real
+    # bug: `pytest` runs from the PROJECT and collects `tests/`, while `bats` must run IN the
+    # directory that holds the .bats files. Applying python's rule to shell resolved
+    # `scripts/tests` -> `scripts`, where `bats .` finds nothing and exits 1 — a healthy suite
+    # reported as an estate defect.
+    if [ "$lang" = python ]; then
+      case "$dir" in
+        */tests|*/test) dirname "$dir"; return 0 ;;
+      esac
+    fi
     printf '%s\n' "$dir"; return 0
   fi
 
@@ -149,6 +156,13 @@ is_excluded() {
 discover_roots() {
   local lang="$1" base="$2" glob f root
   [ -d "$base" ] || return 0
+  # `set -f` IS LOAD-BEARING. Without it the unquoted `$(test_glob_for ...)` below undergoes
+  # PATHNAME EXPANSION against the current directory: run from the repo root, `*.bats` matches
+  # nothing and survives as the literal pattern find needs; run from `scripts/tests`, it expands
+  # into the real filenames there and discovery silently finds ZERO projects. Same code, correct or
+  # broken purely by cwd — and it read as a clean "projects: 0" rather than an error.
+  local restore_glob=0
+  case "$-" in *f*) : ;; *) restore_glob=1; set -f ;; esac
   for glob in $(test_glob_for "$lang"); do
     while IFS= read -r f; do
       is_excluded "$f" && continue
@@ -163,6 +177,8 @@ discover_roots() {
       printf '%s\n' "$root"
     done < <(find "$base" -type f -name "$glob" 2>/dev/null)
   done | sort -u
+  [ "$restore_glob" -eq 1 ] && set +f
+  return 0
 }
 
 # run_in <lang> <dir> <mode> — run this language's tests in <dir>.
@@ -178,25 +194,38 @@ run_in() {
     return 2
   }
 
+  # THE selfcheck/ CONVENTION. Every fixture keeps its deliberately-failing test in a `selfcheck/`
+  # subdirectory, and NORMAL mode excludes that directory explicitly. Without this, each runner's
+  # default discovery (`bats .`, `go test ./...`, `cargo test`, `node --test`) would collect the
+  # deliberate failure and the fixture could never pass — the lane would report itself broken
+  # forever. Excluding by directory beats filtering by test name: a name filter silently stops
+  # matching when someone renames a test, and it would fail OPEN (the deliberate test quietly stops
+  # running, and --self-check starts proving nothing).
   case "$lang" in
     python)
-      if [ "$mode" = selfcheck ]; then (cd "$dir" && pytest -q -k deliberate_failure); \
-      else (cd "$dir" && pytest -q -p no:cacheprovider --deselect-deliberate 2>/dev/null \
-            || (cd "$dir" && pytest -q -p no:cacheprovider -k "not deliberate_failure")); fi ;;
+      if [ "$mode" = selfcheck ]; then (cd "$dir" && pytest -q -p no:cacheprovider selfcheck)
+      else (cd "$dir" && pytest -q -p no:cacheprovider --ignore=selfcheck); fi ;;
     shell)
-      if [ "$mode" = selfcheck ]; then (cd "$dir" && bats deliberate-failure.bats); \
+      if [ "$mode" = selfcheck ]; then (cd "$dir" && bats selfcheck)
       else (cd "$dir" && bats .); fi ;;
     java)
-      if [ "$mode" = selfcheck ]; then (cd "$dir" && mvn -q -Dtest=DeliberateFailureTest test); \
-      else (cd "$dir" && mvn -q -Dtest='!DeliberateFailureTest' test); fi ;;
+      if [ "$mode" = selfcheck ]; then (cd "$dir" && mvn -q -Dtest=DeliberateFailureTest -DfailIfNoTests=false test)
+      else (cd "$dir" && mvn -q -Dtest='!DeliberateFailureTest' -DfailIfNoTests=false test); fi ;;
     go)
-      if [ "$mode" = selfcheck ]; then (cd "$dir" && go test -run DeliberateFailure ./...); \
+      # The deliberate test sits behind a build tag, so a plain `go test ./...` cannot see it.
+      if [ "$mode" = selfcheck ]; then (cd "$dir" && go test -tags deliberate -run DeliberateFailure ./...)
       else (cd "$dir" && go test -race -coverprofile=coverage.out ./...); fi ;;
     rust)
-      if [ "$mode" = selfcheck ]; then (cd "$dir" && cargo test deliberate_failure); \
+      # #[ignore] keeps it out of a normal run; --ignored is the only way to reach it.
+      if [ "$mode" = selfcheck ]; then (cd "$dir" && cargo test -- --ignored)
       else (cd "$dir" && cargo test); fi ;;
     typescript|javascript|react|nextjs)
-      if [ "$mode" = selfcheck ]; then (cd "$dir" && node --test deliberate-failure.test.*); \
+      # node --test recurses and has NO path-exclusion flag (only --test-skip-pattern, which
+      # matches test NAMES). So exclusion is structural instead: the deliberate file is named
+      # *.selfcheck.* and therefore does not match node's default *.test.* discovery glob. A name
+      # filter would fail OPEN on a rename — the deliberate test would quietly stop running and
+      # --self-check would start proving nothing.
+      if [ "$mode" = selfcheck ]; then (cd "$dir" && node --test ./selfcheck/*.selfcheck.*)
       else (cd "$dir" && node --test); fi ;;
   esac
 }

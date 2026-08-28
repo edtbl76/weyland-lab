@@ -181,7 +181,15 @@ steps:
       # returns nothing. This step has therefore been failing since port-pr-reconcile.bats landed
       # with B144 on 2026-08-25 — a one-day-old red that a green local run would not reveal, because
       # a dev box has jq. (Why it went unread was not investigated; the fix does not depend on it.)
-      - apk add --no-cache python3 py3-yaml jq >/dev/null
+      #
+      # `git` ADDED 2026-08-28 (found while building B88's lane runner). ship-images.bats's
+      # commit_iso cases shell out to `git show -s --format=%aI` to resolve a git-<sha> tag to its
+      # author date. They landed with the EMA-172 DORA work on 2026-08-27 and have been RED in CI
+      # ever since, because bats/bats:latest has no git. Measured, not inferred: 4 failures without
+      # git, 0 with it. This is the SECOND time this exact step has been silently red for a missing
+      # tool — jq was the first, two days earlier. A green local run hides both, because a dev box
+      # has git and jq.
+      - apk add --no-cache python3 py3-yaml jq git >/dev/null
       - bats scripts/tests/
 
   # ── 1d. unit tests ──────────────────────────────────────────────────────────

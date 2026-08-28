@@ -206,6 +206,37 @@ teardown() {
   [[ "$output" != *"scan/svc"* ]]
 }
 
+@test "REGRESSION: shell resolves to the dir CONTAINING the .bats files, not its parent" {
+  # python and shell both have no manifest, but they need OPPOSITE roots: pytest runs from the
+  # project and collects tests/, while bats must run IN the directory holding the .bats files.
+  # Applying python's "parent of tests/" rule to shell resolved scripts/tests -> scripts, where
+  # `bats .` finds nothing and exits 1 — a real project reported as an estate defect.
+  mkdir -p "$SANDBOX/fix/shell" "$SANDBOX/scan/proj/tests"
+  : > "$SANDBOX/fix/shell/hello.bats"
+  : > "$SANDBOX/scan/proj/tests/thing.bats"
+  run env WEYLAND_LANG_FIXTURE_DIR="$SANDBOX/fix" WEYLAND_LANG_SCAN_ROOT="$SANDBOX/scan" \
+      bash "$RUNNER" shell --list-roots
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"scan/proj/tests"* ]]
+}
+
+@test "REGRESSION: discovery works from ANY cwd (glob expansion does not eat the pattern)" {
+  # `for glob in $(test_glob_for "$lang")` is an UNQUOTED command substitution, so bash applies
+  # pathname expansion to it. From the repo root `*.bats` matches nothing and survives as the
+  # literal pattern find needs; from `scripts/tests` it expanded into the real filenames there and
+  # discovery silently returned ZERO projects — reported as a clean "projects: 0", not an error.
+  # Same code, correct or broken purely by cwd. `set -f` in discover_roots is the fix.
+  mkdir -p "$SANDBOX/fix/shell" "$SANDBOX/scan/proj/tests"
+  : > "$SANDBOX/fix/shell/hello.bats"
+  : > "$SANDBOX/scan/proj/tests/thing.bats"
+  # Run from a directory that CONTAINS .bats files — the condition that triggered the bug.
+  run env WEYLAND_LANG_FIXTURE_DIR="$SANDBOX/fix" WEYLAND_LANG_SCAN_ROOT="$SANDBOX/scan" \
+      bash -c "cd '$WEYLAND_TEST_DIR' && bash '$RUNNER' shell --list-roots"
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"projects: 1"* ]]
+  [[ "$output" == *"scan/proj/tests"* ]]
+}
+
 @test "a go test file resolves UP to its module root, not its own directory" {
   # `go test` must run at the module root; discovering the test file's directory would run it in a
   # package dir with no go.mod and fail for the wrong reason.

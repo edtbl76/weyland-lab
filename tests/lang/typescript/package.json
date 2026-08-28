@@ -1,0 +1,6 @@
+{
+  "name": "weyland-fixture-typescript",
+  "private": true,
+  "type": "module",
+  "description": "Hello-world fixture for the TypeScript lane (B88). DEPENDENCY-FREE by design: node:24 runs `node --test` and strips TS types natively, so this lane needs no npm install, no lockfile and no registry round-trip."
+}

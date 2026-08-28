@@ -1,0 +1,6 @@
+{
+  "name": "weyland-fixture-javascript",
+  "private": true,
+  "type": "module",
+  "description": "Hello-world fixture for the JavaScript lane (B88). Dependency-free: node's built-in test runner."
+}
