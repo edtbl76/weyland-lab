@@ -192,7 +192,15 @@ venv/
 tests/lang/*/node_modules/
 tests/lang/*/coverage/
 tests/lang/*/.next/
-tests/lang/go/coverage.out
-tests/lang/rust/target/
-tests/lang/java/target/
 tests/lang/**/__pycache__/
+
+# BUILD OUTPUT — ignore it EVERYWHERE, not just under tests/lang/.
+# The first version of this scoped `target/` to the fixture only, and the very next `mvn` run
+# (B88's java test + scan lanes, which execute IN the repo tree) put 105 build artifacts under
+# k8s/flink/*/target into version control: compiled .class files, surefire reports, checkstyle /
+# pmd / spotbugs output. Build output is reproducible by definition and must never be tracked.
+# These are anchored to a path segment so they cannot match a legitimately-named source directory.
+**/target/
+**/coverage.out
+**/.gradle/
+**/*.tmp

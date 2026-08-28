@@ -94,7 +94,7 @@ this page) links to the live tool.
 |---|---|---|
 | **Argo CD** | <https://argocd.weyland.lab> | GitOps CD for the k8s layer |
 | **Woodpecker CI** | <https://woodpecker.weyland.lab> | CI pipelines |
-| **SonarQube** | <https://sonarqube.weyland.lab> | Code quality + SAST (part of the weekly scan-suite → Port Code Health). Full quality/security tool roster (19 scan-suite tools + Sonar + the 7-tool **ai-code-review** lane, B106) is the repo-root **`quality-tools.yaml`** — the source of truth; the review lane's wiring + install steps are in [runbooks/code-review-stack.md](runbooks/code-review-stack.md). |
+| **SonarQube** | <https://sonarqube.weyland.lab> | Code quality + SAST (part of the weekly scan-suite → Port Code Health). Full quality/security tool roster is the repo-root **`quality-tools.yaml`** — the source of truth, now spanning **four execution runners**: **21 scan-suite** tools (the weekly cron) + **13 lang-scan** tools (per-language, pinned images — B88 Phase 2: Rust/Java/TS-JS, which had 0/1/0 coverage before) + **5 supply-chain** tools (SBOM · signing · SLSA provenance · licences — B88 Phase 3) + Sonar and the 7-tool **ai-code-review** lane (B106). `scripts/check-quality-tools.sh` fails the build if the registry and any runner's implementation drift apart. Wiring: [runbooks/code-review-stack.md](runbooks/code-review-stack.md) (review lane) · [runbooks/supply-chain.md](runbooks/supply-chain.md) (SBOM/signing/provenance). |
 | **Unleash** | <https://unleash.weyland.lab> | Feature flags |
 | **Headlamp** | <https://headlamp.weyland.lab> | Kubernetes UI |
 | **APISIX** | <https://apisix.weyland.lab> | API gateway dashboard |

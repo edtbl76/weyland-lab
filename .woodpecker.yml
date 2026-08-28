@@ -296,6 +296,43 @@ steps:
       - bash scripts/run-lang-tests.sh nextjs --self-check
       - bash scripts/run-lang-tests.sh nextjs
 
+  # ── 1e. per-language SCANNERS (B88 Phase 2) ─────────────────────────────────
+  # The analysis sibling of the test lanes above. Kept OUT of the scan-suite image on purpose: that
+  # image already carries python + a full Go toolchain + a JRE, and adding Rust/Java/Node toolchains
+  # would roughly triple it — oversized layers have broken builds here before (`unpigz: invalid
+  # deflate`). Registry: quality-tools.yaml, `runner: lang-scan`; check-quality-tools.sh fails if
+  # this script and the registry disagree in either direction.
+  #
+  # FINDINGS DO NOT FAIL THE BUILD (exit 0 with counts); only an inability to LOOK does (exit 2).
+  # Gating CI on lint counts turns every nit into a merge blocker and gets the gate muted — the same
+  # argument this repo makes about permanently-lit alerts.
+  #
+  # ⚠ DELIBERATELY NO `failure: ignore` HERE. The first draft of these steps had it, which would
+  # have swallowed exit 2 — "the scanner could not run" — along with the findings, so a lane with a
+  # missing toolchain would have reported green forever. That is precisely the absence-as-success
+  # defect this whole item exists to remove, reintroduced in the CI wiring. The exit-code contract
+  # in run-lang-scan.sh already does the filtering: findings are 0, broken is 2.
+  - name: scan-rust
+    image: rust:1-slim
+    commands:
+      - rustup component add clippy rustfmt >/dev/null 2>&1 || true
+      - cargo install cargo-audit cargo-deny --locked >/dev/null 2>&1 || true
+      - bash scripts/run-lang-scan.sh rust
+
+  - name: scan-java
+    image: maven:3.9-eclipse-temurin-17
+    commands:
+      - bash scripts/run-lang-scan.sh java
+
+  - name: scan-node
+    image: node:24-alpine
+    commands:
+      - apk add --no-cache bash >/dev/null
+      - bash scripts/run-lang-scan.sh typescript
+      - bash scripts/run-lang-scan.sh javascript
+      - bash scripts/run-lang-scan.sh react
+      - bash scripts/run-lang-scan.sh nextjs
+
   # ── 2. detect which images changed since their currently-deployed git-<sha> ──
   - name: detect-changes
     image: alpine/git:latest

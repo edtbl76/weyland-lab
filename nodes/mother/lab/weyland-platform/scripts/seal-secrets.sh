@@ -27,6 +27,10 @@ SECRETS=(
   # --- weyland (28) ---
   weyland/aidlc-kb-minio-secret
   weyland/apisix-secret
+  weyland/cosign-signing-key         # B88 — cosign image-signing key. ⚠ BRICKING: lose it and every
+                                     # image already signed can no longer be verified against the
+                                     # public key shipped in k8s/gatekeeper/image-signatures.yaml.
+                                     # Escrow off-cluster like glitchtip-secret.
   weyland/cron-freshness-woodpecker  # B135 — Woodpecker API token for the scheduled-work watchdog
   weyland/dagster-postgres-secret
   weyland/dagster-sentry

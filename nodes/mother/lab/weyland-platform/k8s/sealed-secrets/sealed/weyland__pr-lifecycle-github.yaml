@@ -1,0 +1,16 @@
+---
+apiVersion: bitnami.com/v1alpha1
+kind: SealedSecret
+metadata:
+  name: pr-lifecycle-github
+  namespace: weyland
+spec:
+  encryptedData:
+    token: AgAe9iiZ75I1rqL/DNqrCMCNIWNg7bYbPyDDt6N25cEoxlrzfJVzaAOArZhFGehJ/3ZYBMawOfRu+HjzShK1tnS63wLbfjiS2zPfMQ2n65K6Uz2itUJ6CdaS1z/UZfcYzFH1H4VHcY240ZX1/0BdpbldyB7eScfNfjCzIC71KTvqLGEgfraoz0Z74+5Rp/+jN2bnl2ok336gCaanPZgYLqu8TQW2C2ZjXhDTxgRBALtUciTQgaXZ9jmPybjYmd3bT68hrzWHhBi/aHpPADlZcBTDhWk5z0KZxjllC8ETUHs3HFLJwsiHGPlFt1k6+sLdQzGc5uVyvXeZhe3qBjH0IyE+PyIWpT6q5ZP4gIKgMfZhWWtEyXMs7I+xzVaN5XyP2PIpuiqjyPkHySh9rEkcpPUUan2qZv7AOZiq9lAJBmii+hrtbPhOfzhsx5WuyCV6wN8FqgYINJUWHho1a8WTBegHc7yrcerCyagEuxnvnxt3MxH6cLxAFg+1pzC1N2/MuesH/bDW6l+ulg0znV7eSyhIeJoz3+3AZbNtlKYIjUJrNcWC8EmeU88UtYch2Ttm1orZxOLXh6MGO15VchbDUS7vC8qrt+mC1aFmULQ3cYu2eNmTRHc2aec5CagL+GhbeXOaP4oMXq5Z9q2g9g4qKwRlShDYLXrEmXAlCr/5KBpJFUiu1dFCGOdHMv+Qg0GXJ9zJt8crhyCZs3Y9/R6qBGWZ1FlqDbPuZcuYj4AnjD2+bQ9OpblWR/CHrXSQQQSB6R2V/1+2PymiReN2z+zaaB4Syy2aMpmnNQBK6wU/vGZxAZnpH1GgOQ9TIAh1g8g=
+  template:
+    metadata:
+      annotations:
+        sealedsecrets.bitnami.com/managed: "true"
+      name: pr-lifecycle-github
+      namespace: weyland
+    type: Opaque

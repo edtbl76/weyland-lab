@@ -1614,7 +1614,7 @@ Eval + decision matrix: `docs/concepts/spec-driven-frameworks.md`. Memory: `spec
 
 ---
 
-### B88 — Per-language build lanes: tests + scanners + software supply chain — **DONE (2026-08-28)** — was HIGH (2026-08-05; gated on Stud.IO CI track, B57/B118; ↑ Medium→High 2026-08-27; SCOPE EXPANDED 2026-08-27 from "test runners" to the whole per-language build surface — see the three phases below)
+### B88 — Per-language build lanes: tests + scanners + software supply chain — HIGH (REOPENED 2026-08-28 — closing it was premature; see OUTSTANDING below) (2026-08-05; gated on Stud.IO CI track, B57/B118; ↑ Medium→High 2026-08-27; SCOPE EXPANDED 2026-08-27 from "test runners" to the whole per-language build surface — see the three phases below)
 
 **⚠ THE DEFER TRIGGER HAS FIRED, AND THERE IS NOW A CONCRETE DEFECT (2026-08-27).**
 
@@ -1635,7 +1635,27 @@ The shell lane scales with the repo; the Python lane does not. **[B78]'s Open Fo
 
 ---
 
-## DONE 2026-08-28 — all three phases shipped
+## ⛔ REOPENED 2026-08-28 — OUTSTANDING WORK
+
+**Closing this was premature.** The code for all three phases is written and tested, but the integration is not done and **no DoD pillar was run** — which is the project's own gate, so "done" was not mine to declare.
+
+**CLOSED since the reopen (2026-08-28):**
+1. ~~`run-lang-scan.sh` unwired~~ → **3 scan lanes added** (`scan-rust` / `scan-java` / `scan-node`). The java lane was then run for real: 3 targets, all 4 tools, genuine findings (checkstyle 11/55/29 lines, spotbugs 8). **⚠ The first draft carried `failure: ignore`, which would have swallowed exit 2 — "the scanner could not run" — alongside the findings, so a lane with a missing toolchain would report green forever. That is this item's own defect class, reintroduced in the CI wiring. Removed, with the reason recorded in the step comment.**
+4. ~~scan-suite not rebuilt~~ → **resolves itself**: `scan-suite` IS in `scripts/ci/images.tsv`, so `mypy` + `shfmt` land on the next ship.
+6. ~~dangling runbook ref~~ → **[runbooks/supply-chain.md](runbooks/supply-chain.md) written**, carrying the operator setup, the promote-to-deny checklist and the gotchas (OPA's image is distroless; Rego v0 not v1; kubeconform skips Gatekeeper CRDs; keyless signing needs internet; a signature is not provenance).
+
+**DoD progress:** runbook ✔ · [diagrams/flow-build-lanes.md](diagrams/flow-build-lanes.md) ✔ (5 blocks — **the repo's own `check-mermaid.sh` caught a `;` in sequence text, the exact bug that guard was written for**; all 144 blocks now parse) · LikeC4 ✔ (`buildLanes` + `supplyChain` components + 3 edges, model re-validated `✓ Valid`) · `arch.md` ✔ · `tools.md` ✔ (four runners, 21+13+5) · all 4 repo guards green. **Still open: the demo doc.**
+
+**STILL OUTSTANDING — operator-only (cannot be done from here):**
+2. **No `cosign-signing-key` SealedSecret** → every build logs the signing failure and ships **unsigned**. Needs `cosign generate-key-pair` + `kubectl create secret` + `seal-secrets.sh --seal` **on mother**. The allow-list entry is already added, flagged ⚠ BRICKING with an off-cluster escrow note.
+3. **CI secrets `cosign_key` / `cosign_password`** declared in `.woodpecker.yml` but not provisioned — Woodpecker secrets are UI-only state.
+5. **Gatekeeper policy never applied** → no violation data, so the promote-to-deny checklist has nothing to act on. `kubectl apply` is safe (dryrun).
+
+**Never executed for real:** everything has run locally in containers only. No weyland image has been signed, and CI has never run these steps end to end. That is the real remaining risk — the B148 lesson is that a control which has never actually run is not yet a control.
+
+---
+
+## Code complete (2026-08-28) — what exists and is tested
 
 **Phase 1 — test lanes.** `scripts/run-lang-tests.sh` + 9 hello-world fixtures under `tests/lang/`. `.woodpecker.yml` went from ONE hardcoded step (`cd services/weyland-guard && pytest`) to **6 lanes covering 9 languages**, each running `--self-check` FIRST. Every lane verified in its exact pinned CI image. 22 bats cases.
 
