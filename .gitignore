@@ -183,3 +183,16 @@ venv/
 .benchmarks/
 
 /.junie/
+
+# B88 per-language lane fixtures — the React and Next.js fixtures are the only two that cannot be
+# dependency-free (rendering a component needs React + a DOM), so they install node_modules.
+# ~458 MB combined; NEVER commit it. The package-lock.json files ARE committed, deliberately —
+# they are what makes the install reproducible, and CI restores from them into a cached volume
+# (roadie's pattern: named cache volume + skip-if-unchanged).
+tests/lang/*/node_modules/
+tests/lang/*/coverage/
+tests/lang/*/.next/
+tests/lang/go/coverage.out
+tests/lang/rust/target/
+tests/lang/java/target/
+tests/lang/**/__pycache__/

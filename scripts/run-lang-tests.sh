@@ -223,13 +223,31 @@ run_in() {
       if [ "$mode" = selfcheck ]; then (cd "$dir" && cargo test -- --ignored)
       else (cd "$dir" && cargo test); fi ;;
     typescript|javascript|react|nextjs)
-      # node --test recurses and has NO path-exclusion flag (only --test-skip-pattern, which
-      # matches test NAMES). So exclusion is structural instead: the deliberate file is named
-      # *.selfcheck.* and therefore does not match node's default *.test.* discovery glob. A name
-      # filter would fail OPEN on a rename — the deliberate test would quietly stop running and
-      # --self-check would start proving nothing.
-      if [ "$mode" = selfcheck ]; then (cd "$dir" && node --test ./selfcheck/*.selfcheck.*)
-      else (cd "$dir" && node --test); fi ;;
+      # TWO NODE SHAPES, ONE RUNNER. A project that declares its own `test` script owns how its
+      # tests run (React and Next.js need jest + a DOM, which node's built-in runner cannot
+      # provide); anything else uses `node --test` directly and stays dependency-free. Honouring
+      # package.json is also what makes this work for real projects, which will always have one.
+      if [ -f "$dir/package.json" ] && node -e \
+           'process.exit(require("./package.json").scripts?.test?0:1)' \
+           --input-type=commonjs >/dev/null 2>&1 \
+         || (cd "$dir" && node -e 'const p=require("./package.json");process.exit(p.scripts&&p.scripts.test?0:1)' 2>/dev/null); then
+        # Dependencies must exist before jest can run. Install only when absent — a real CI cache
+        # makes this a no-op on the common path (roadie's pattern: named cache volume + skip).
+        if [ ! -d "$dir/node_modules" ]; then
+          (cd "$dir" && npm install --no-audit --no-fund --loglevel=error) || {
+            printf 'LANE BROKEN: npm install failed in %s\n' "$dir" >&2; return 2; }
+        fi
+        if [ "$mode" = selfcheck ]; then (cd "$dir" && npm run --silent test:selfcheck)
+        else (cd "$dir" && npm test --silent); fi
+      else
+        # node --test recurses and has NO path-exclusion flag (only --test-skip-pattern, which
+        # matches test NAMES). So exclusion is structural: the deliberate file is named
+        # *.selfcheck.* and does not match node's default *.test.* discovery glob. A name filter
+        # would fail OPEN on a rename — the deliberate test would quietly stop running and the
+        # self-check mode would start proving nothing.
+        if [ "$mode" = selfcheck ]; then (cd "$dir" && node --test ./selfcheck/*.selfcheck.*)
+        else (cd "$dir" && node --test); fi
+      fi ;;
   esac
 }
 
@@ -304,6 +322,26 @@ The fixture is what proves this lane can run at all; without it a pass would mea
   for d in "${real[@]+"${real[@]}"}"; do
     run_in "$lang" "$d" normal
     rc=$?
+    # A COLLECTION error is not a failing test — nothing ran. pytest exits 1 for real failures but
+    # 2/3/4 for collection, internal and usage errors; flattening those into "estate defect" makes
+    # a missing dependency read as broken code. Found on the real tree: weyland-guard could not be
+    # collected because prometheus_client was absent, and the lane blamed the code.
+    # pytest exit 5 = "no tests collected". Discovery matched this path, so something here LOOKS
+    # like a test and is not one. Found on the real tree: scripts/test_gateway_guardrails.py is a
+    # standalone diagnostic script whose name matches the glob. Skipping it quietly would be
+    # absence-as-success; name the path so it gets renamed or excluded on purpose.
+    if [ "$lang" = python ] && [ "$rc" -eq 5 ]; then
+      printf 'LANE BROKEN: %s discovered %s but pytest collected NO TESTS there (exit 5).\n' \
+        "$lang" "$d" >&2
+      printf 'Either it is not a test suite (rename it) or discovery is matching the wrong thing.\n' >&2
+      exit 2
+    fi
+    if [ "$lang" = python ] && { [ "$rc" -eq 2 ] || [ "$rc" -eq 3 ] || [ "$rc" -eq 4 ]; }; then
+      printf 'LANE BROKEN: %s tests in %s could not be COLLECTED (pytest exit %d) — a missing\n' \
+        "$lang" "$d" "$rc" >&2
+      printf 'dependency or a usage error, not a failing test. Nothing was actually run.\n' >&2
+      exit 2
+    fi
     if [ "$rc" -ne 0 ]; then
       printf 'FAIL: %s tests failed in %s (exit %d)\n' "$lang" "$d" "$rc" >&2
       failed=$((failed + 1))

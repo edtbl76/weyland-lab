@@ -293,6 +293,43 @@ teardown() {
   [[ "$output" == *"cargo"* ]]
 }
 
+@test "a COLLECTION error (missing dependency) is a broken lane, not an estate defect" {
+  # Found running against the real repo: weyland-guard's suite could not even be COLLECTED because
+  # `prometheus_client` was absent, and the runner called that exit 1 — "the estate has a failing
+  # test". It does not: nothing was tested. pytest already distinguishes these (1 = tests failed,
+  # 2/3/4 = collection/internal/usage error) and the lane must not flatten that distinction, or a
+  # missing dependency reads as broken code.
+  mkdir -p "$SANDBOX/fix/python" "$SANDBOX/scan/svc/tests"
+  : > "$SANDBOX/fix/python/test_hello.py"
+  : > "$SANDBOX/scan/svc/tests/test_thing.py"
+  stub_seq pytest
+  stub_seq_add pytest 0 "fixture ok"
+  stub_seq_add pytest 2 "ERROR collecting: ModuleNotFoundError"
+  run env WEYLAND_LANG_FIXTURE_DIR="$SANDBOX/fix" WEYLAND_LANG_SCAN_ROOT="$SANDBOX/scan" \
+      bash "$RUNNER" python
+  [ "$status" -eq 2 ]
+  [[ "$output" == *"collect"* || "$output" == *"LANE BROKEN"* ]]
+}
+
+@test "pytest exit 5 (nothing collected) is a broken lane and NAMES the offending path" {
+  # Found on the real tree: `scripts/test_gateway_guardrails.py` matches the test glob but is a
+  # standalone diagnostic SCRIPT with no test functions, so pytest collects nothing and exits 5.
+  # Skipping that silently is absence-as-success wearing a different hat — discovery matched
+  # something that is not a suite, and that must be said out loud with the path, so it can be
+  # renamed or excluded deliberately.
+  mkdir -p "$SANDBOX/fix/python" "$SANDBOX/scan/notasuite"
+  : > "$SANDBOX/fix/python/test_hello.py"
+  : > "$SANDBOX/scan/notasuite/test_looks_like_one.py"
+  stub_seq pytest
+  stub_seq_add pytest 0 "fixture ok"
+  stub_seq_add pytest 5 "no tests ran"
+  run env WEYLAND_LANG_FIXTURE_DIR="$SANDBOX/fix" WEYLAND_LANG_SCAN_ROOT="$SANDBOX/scan" \
+      bash "$RUNNER" python
+  [ "$status" -eq 2 ]
+  [[ "$output" == *"notasuite"* ]]
+  [[ "$output" == *"no tests"* || "$output" == *"collected"* ]]
+}
+
 # ---------------------------------------------------------------------------
 # The negative case — prove a lane can actually FAIL
 # ---------------------------------------------------------------------------

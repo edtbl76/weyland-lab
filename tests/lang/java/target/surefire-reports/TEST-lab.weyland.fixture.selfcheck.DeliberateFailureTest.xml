@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<testsuite xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="https://maven.apache.org/surefire/maven-surefire-plugin/xsd/surefire-test-report.xsd" version="3.0.2" name="lab.weyland.fixture.selfcheck.DeliberateFailureTest" time="0.025" tests="1" errors="0" skipped="0" failures="1">
+<testsuite xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="https://maven.apache.org/surefire/maven-surefire-plugin/xsd/surefire-test-report.xsd" version="3.0.2" name="lab.weyland.fixture.selfcheck.DeliberateFailureTest" time="0.022" tests="1" errors="0" skipped="0" failures="1">
   <properties>
     <property name="java.specification.version" value="25"/>
     <property name="sun.jnu.encoding" value="UTF-8"/>
@@ -12,7 +12,7 @@
     <property name="sun.java.launcher" value="SUN_STANDARD"/>
     <property name="user.country" value="US"/>
     <property name="sun.boot.library.path" value="/home/edwardmangini/.sdkman/candidates/java/25.0.2-amzn/lib"/>
-    <property name="sun.java.command" value="/home/edwardmangini/IdeaProjects/weyland/tests/lang/java/target/surefire/surefirebooter-20260828095443365_3.jar /home/edwardmangini/IdeaProjects/weyland/tests/lang/java/target/surefire 2026-08-28T09-54-43_325-jvmRun1 surefire-20260828095443365_1tmp surefire_0-20260828095443365_2tmp"/>
+    <property name="sun.java.command" value="/home/edwardmangini/IdeaProjects/weyland/tests/lang/java/target/surefire/surefirebooter-20260828113941062_3.jar /home/edwardmangini/IdeaProjects/weyland/tests/lang/java/target/surefire 2026-08-28T11-39-41_022-jvmRun1 surefire-20260828113941062_1tmp surefire_0-20260828113941062_2tmp"/>
     <property name="jdk.debug" value="release"/>
     <property name="surefire.test.class.path" value="/home/edwardmangini/IdeaProjects/weyland/tests/lang/java/target/test-classes:/home/edwardmangini/IdeaProjects/weyland/tests/lang/java/target/classes:/home/edwardmangini/.m2/repository/org/junit/jupiter/junit-jupiter/5.11.4/junit-jupiter-5.11.4.jar:/home/edwardmangini/.m2/repository/org/junit/jupiter/junit-jupiter-api/5.11.4/junit-jupiter-api-5.11.4.jar:/home/edwardmangini/.m2/repository/org/opentest4j/opentest4j/1.3.0/opentest4j-1.3.0.jar:/home/edwardmangini/.m2/repository/org/junit/platform/junit-platform-commons/1.11.4/junit-platform-commons-1.11.4.jar:/home/edwardmangini/.m2/repository/org/apiguardian/apiguardian-api/1.1.2/apiguardian-api-1.1.2.jar:/home/edwardmangini/.m2/repository/org/junit/jupiter/junit-jupiter-params/5.11.4/junit-jupiter-params-5.11.4.jar:/home/edwardmangini/.m2/repository/org/junit/jupiter/junit-jupiter-engine/5.11.4/junit-jupiter-engine-5.11.4.jar:/home/edwardmangini/.m2/repository/org/junit/platform/junit-platform-engine/1.11.4/junit-platform-engine-1.11.4.jar:"/>
     <property name="sun.cpu.endian" value="little"/>
@@ -27,7 +27,7 @@
     <property name="line.separator" value="&#10;"/>
     <property name="java.specification.name" value="Java Platform API Specification"/>
     <property name="java.vm.specification.vendor" value="Oracle Corporation"/>
-    <property name="surefire.real.class.path" value="/home/edwardmangini/IdeaProjects/weyland/tests/lang/java/target/surefire/surefirebooter-20260828095443365_3.jar"/>
+    <property name="surefire.real.class.path" value="/home/edwardmangini/IdeaProjects/weyland/tests/lang/java/target/surefire/surefirebooter-20260828113941062_3.jar"/>
     <property name="sun.management.compiler" value="HotSpot 64-Bit Tiered Compilers"/>
     <property name="java.runtime.version" value="25.0.2+10-LTS"/>
     <property name="user.name" value="edwardmangini"/>
@@ -55,7 +55,7 @@
     <property name="sun.io.unicode.encoding" value="UnicodeLittle"/>
     <property name="java.class.version" value="69.0"/>
   </properties>
-  <testcase name="deliberateFailure" classname="lab.weyland.fixture.selfcheck.DeliberateFailureTest" time="0.013">
+  <testcase name="deliberateFailure" classname="lab.weyland.fixture.selfcheck.DeliberateFailureTest" time="0.012">
     <failure message="deliberate: this failure is the point" type="java.lang.AssertionError"><![CDATA[java.lang.AssertionError: deliberate: this failure is the point
 	at lab.weyland.fixture.selfcheck.DeliberateFailureTest.deliberateFailure(DeliberateFailureTest.java:15)
 	at java.base/java.lang.reflect.Method.invoke(Method.java:565)
