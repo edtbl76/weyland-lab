@@ -1,0 +1,116 @@
+# OPA Gatekeeper — cosign image-signature admission (B88 Phase 3).
+#
+# ⛔ SHIPS IN dryrun, AND THAT IS NOT TIMIDITY. Every image running in this cluster today is
+# UNSIGNED. A constraint with `enforcementAction: deny` would reject every one of them on the next
+# pod creation — every Deployment, every CronJob, every Argo sync — and the cluster would not come
+# back until the policy was deleted. Signing is additive and safe; REQUIRING signatures is the
+# single most destructive change in this whole B88 effort.
+#
+# This follows the house rule already written at the top of constraints.yaml: "ALL start in
+# enforcementAction: dryrun — violations are audited but NOTHING is blocked."
+#
+# ── HOW TO PROMOTE THIS TO deny (do not skip a step) ─────────────────────────────────────────────
+#   1. Sign everything. The ship loop calls scripts/supply-chain.sh, so this happens as images are
+#      rebuilt — but images that are NOT rebuilt stay unsigned indefinitely. Enumerate them:
+#         kubectl get pods -A -o jsonpath='{range .items[*]}{.spec.containers[*].image}{"\n"}{end}' | sort -u
+#   2. Watch the audit until it reads zero:
+#         kubectl get k8simagesignature require-signed-images \
+#           -o jsonpath='{.status.totalViolations}{"\n"}'
+#      Gatekeeper's audit runs on an interval, so a fresh zero means "zero at last audit", not
+#      "zero now". Confirm it holds across at least two audit cycles before trusting it.
+#   3. ONLY THEN flip `enforcementAction: dryrun` -> `deny` below, and keep the exempt list honest.
+#
+# ── WHY A PREFIX CHECK AND NOT A REAL SIGNATURE VERIFY ───────────────────────────────────────────
+# Gatekeeper's Rego runs in the admission path with no network egress, so it CANNOT call cosign or
+# reach the registry. It can only reason about the object in front of it. So this constraint asserts
+# the honest, checkable thing: images must come from the registry whose contents we sign
+# (registry.weyland.lab). Actual cryptographic verification is done by scripts/supply-chain.sh in
+# CI, before the image is ever deployed.
+#
+# That is a real limitation, stated rather than hidden: this policy raises the cost of running an
+# arbitrary upstream image, it does not prove a signature at admission time. Full in-cluster
+# verification needs a policy controller that can reach the registry (Kyverno + cosign, or
+# sigstore-policy-controller) — a separate decision, not a silent gap.
+#
+#   kubectl apply -f image-signatures.yaml
+#   kubectl get k8simagesignature require-signed-images -o yaml | yq '.status.violations'
+---
+apiVersion: templates.gatekeeper.sh/v1
+kind: ConstraintTemplate
+metadata:
+  name: k8simagesignature
+spec:
+  crd:
+    spec:
+      names: { kind: K8sImageSignature }
+      validation:
+        openAPIV3Schema:
+          type: object
+          properties:
+            allowedRegistries:
+              type: array
+              items: { type: string }
+            exemptImages:
+              type: array
+              items: { type: string }
+  targets:
+    - target: admission.k8s.gatekeeper.sh
+      rego: |
+        package k8simagesignature
+
+        # An image is exempt when it matches an explicit prefix in exemptImages. Exemptions are
+        # listed one by one on purpose: a wildcard here would quietly re-admit everything.
+        exempt(image) {
+          prefix := input.parameters.exemptImages[_]
+          startswith(image, prefix)
+        }
+
+        from_allowed_registry(image) {
+          reg := input.parameters.allowedRegistries[_]
+          startswith(image, reg)
+        }
+
+        violation[{"msg": msg}] {
+          container := input.review.object.spec.containers[_]
+          not exempt(container.image)
+          not from_allowed_registry(container.image)
+          msg := sprintf("container <%v> runs image <%v>, which is not from a signed registry (%v) and is not exempt", [container.name, container.image, input.parameters.allowedRegistries])
+        }
+
+        violation[{"msg": msg}] {
+          container := input.review.object.spec.initContainers[_]
+          not exempt(container.image)
+          not from_allowed_registry(container.image)
+          msg := sprintf("initContainer <%v> runs image <%v>, which is not from a signed registry (%v) and is not exempt", [container.name, container.image, input.parameters.allowedRegistries])
+        }
+---
+apiVersion: constraints.gatekeeper.sh/v1beta1
+kind: K8sImageSignature
+metadata:
+  name: require-signed-images
+spec:
+  # dryrun. See the promote-to-deny checklist at the top of this file. Do not flip this because the
+  # violation count "looks low" — flip it when it is zero and has stayed zero.
+  enforcementAction: dryrun
+  match:
+    kinds:
+      - apiGroups: [""]
+        kinds: ["Pod"]
+    excludedNamespaces:
+      # Cluster infrastructure the lab does not build and therefore cannot sign. Listing them makes
+      # the exemption auditable; leaving them to a wildcard would not.
+      - kube-system
+      - gatekeeper-system
+      - istio-system
+      - cert-manager
+  parameters:
+    allowedRegistries:
+      - registry.weyland.lab/
+    exemptImages:
+      # Third-party images the lab runs but does not build. Every entry is a deliberate, reviewable
+      # decision — NOT a catch-all. Trim this list as workloads move to locally-built images.
+      - docker.io/library/
+      - quay.io/
+      - ghcr.io/
+      - gcr.io/
+      - registry.k8s.io/
