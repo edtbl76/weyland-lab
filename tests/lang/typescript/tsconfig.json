@@ -1,0 +1,14 @@
+{
+  "//": "Scoped to the fixture's own sources. Without a tsconfig, `tsc --noEmit` walks everything it can reach — including node_modules — and reports ~100 errors that belong to dependencies, not to us.",
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "allowImportingTsExtensions": true,
+    "strict": true,
+    "noEmit": true,
+    "skipLibCheck": true
+  },
+  "include": ["*.ts"],
+  "exclude": ["node_modules", "selfcheck"]
+}

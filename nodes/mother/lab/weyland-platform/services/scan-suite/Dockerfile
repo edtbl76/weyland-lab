@@ -12,7 +12,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
       curl ca-certificates git xz-utils default-jre-headless \
     && rm -rf /var/lib/apt/lists/* \
     && pip install --no-cache-dir 'setuptools<81' checkov==3.2.257 bandit==1.7.10 semgrep==1.90.0 \
-         ruff==0.9.10 pip-audit==2.7.3 detect-secrets==1.5.0 boto3
+         ruff==0.9.10 pip-audit==2.7.3 detect-secrets==1.5.0 mypy==1.14.1 boto3
 
 # Static binaries (amd64). Each is a single file → drop into /usr/local/bin.
 RUN set -eux; \
@@ -23,7 +23,8 @@ RUN set -eux; \
     curl -fsSL -o /usr/local/bin/osv-scanner "https://github.com/google/osv-scanner/releases/download/v1.9.1/osv-scanner_linux_amd64"; \
     curl -fsSL "https://github.com/koalaman/shellcheck/releases/download/v0.10.0/shellcheck-v0.10.0.linux.x86_64.tar.xz" | tar -xJ --strip-components=1 -C /usr/local/bin shellcheck-v0.10.0/shellcheck; \
     curl -fsSL -o /opt/code-maat.jar "https://github.com/adamtornhill/code-maat/releases/download/v1.0.4/code-maat-1.0.4-standalone.jar"; \
-    chmod +x /usr/local/bin/hadolint /usr/local/bin/kubescape /usr/local/bin/osv-scanner
+    curl -fsSL "https://github.com/mvdan/sh/releases/download/v3.10.0/shfmt_v3.10.0_linux_amd64" -o /usr/local/bin/shfmt; \
+    chmod +x /usr/local/bin/hadolint /usr/local/bin/kubescape /usr/local/bin/osv-scanner /usr/local/bin/shfmt
 
 # Go toolchain + Go security tools (gosec/govulncheck/staticcheck) for polyglot repos (Stud.io etc.). `go vet`
 # ships with the toolchain. GOBIN → /usr/local/bin (world-readable, on PATH for uid 10001); a go.mod-less repo

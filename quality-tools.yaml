@@ -42,6 +42,32 @@ tools:
   - {id: headers,        category: http-headers, languages: [live-http],          engine: "urllib HEAD", install: builtin,   runner: scan-suite, enabled: true,  notes: "NOVEL to weyland — probes the ingress hosts in docs/hosts.md for HSTS/CSP/X-Frame-Options/X-Content-Type-Options/Referrer-Policy; live-probe, not a repo scan"}
   - {id: code-maat,      category: hotspots,    languages: [any],                 engine: code-maat,    install: jar,        runner: scan-suite, enabled: true,  notes: "B90 — change-hotspots (churn); posts to Port code_hotspot (kind:hotspot), not a severity count"}
 
+  # ── B88 Phase 2 — per-language scanners ──────────────────────────────────────────────────────────
+  # WHY runner: lang-scan AND NOT scan-suite. The scan-suite is ONE image already carrying python + a
+  # full Go toolchain + a JRE. Adding Rust, Java and Node toolchains to it would roughly triple it,
+  # and oversized layers have already broken builds here once (`unpigz: invalid deflate`, memory
+  # buildkit-large-layer-corruption). These run in the per-language lanes instead — pinned images,
+  # same pattern as the B88 test lanes — via scripts/run-lang-scan.sh. Small tools that fit the
+  # existing image (mypy, shfmt) stay on runner: scan-suite.
+  - {id: mypy,           category: lint,        languages: [python],                    engine: mypy,          install: pip,        runner: scan-suite, enabled: true,  notes: "B88 — static type check; ruff covers style/lint but NOT types. Fits the existing image (pip, no toolchain)"}
+  - {id: shfmt,          category: lint,        languages: [shell],                     engine: shfmt,         install: binary,     runner: scan-suite, enabled: true,  notes: "B88 — shell formatter/diff check; shellcheck finds bugs, shfmt finds inconsistency. Single static binary"}
+
+  - {id: clippy,         category: lint,        languages: [rust],                      engine: "cargo clippy", install: rustup,    runner: lang-scan,  enabled: true,  notes: "B88 — Rust had ZERO registry entries before this. The canonical Rust linter; ships with the toolchain"}
+  - {id: rustfmt,        category: lint,        languages: [rust],                      engine: "cargo fmt --check", install: rustup, runner: lang-scan, enabled: true,  notes: "B88 — formatting drift as a check, not a rewrite"}
+  - {id: cargo-audit,    category: sca,         languages: [rust],                      engine: cargo-audit,   install: cargo,      runner: lang-scan,  enabled: true,  notes: "B88 — Rust dep CVEs (RustSec advisory DB); the cargo-native sibling of pip-audit/govulncheck"}
+  - {id: cargo-deny,     category: license,     languages: [rust],                      engine: cargo-deny,    install: cargo,      runner: lang-scan,  enabled: true,  notes: "B88 — licence + banned-crate + duplicate-dependency policy. Also the FIRST licence-compliance tool in this registry"}
+
+  - {id: spotbugs,       category: sast,        languages: [java],                      engine: spotbugs,      install: maven-plugin, runner: lang-scan, enabled: true,  notes: "B88 — Java bug-pattern SAST (FindBugs successor). Java had only SonarQube before this"}
+  - {id: pmd,            category: lint,        languages: [java],                      engine: pmd,           install: maven-plugin, runner: lang-scan, enabled: true,  notes: "B88 — Java source analysis: dead code, complexity, bad practice"}
+  - {id: checkstyle,     category: lint,        languages: [java],                      engine: checkstyle,    install: maven-plugin, runner: lang-scan, enabled: true,  notes: "B88 — Java style/convention enforcement"}
+  - {id: error-prone,    category: sast,        languages: [java],                      engine: error-prone,   install: maven-plugin, runner: lang-scan, enabled: true,  notes: "B88 — Google's compile-time bug detector; catches at BUILD time what the others catch after"}
+
+  - {id: eslint,         category: lint,        languages: [typescript, javascript, react, nextjs], engine: eslint, install: npm,   runner: lang-scan,  enabled: true,  notes: "B88 — the JS/TS ecosystem had NO linter in this registry; SonarQube covered TS and DeepSource covered JS, neither is eslint"}
+  - {id: tsc,            category: typecheck,   languages: [typescript, react, nextjs],  engine: "tsc --noEmit", install: npm,       runner: lang-scan,  enabled: true,  notes: "B88 — a type error means it cannot BUILD; closer to compilation than to lint, which is why it rides the lane"}
+  - {id: npm-audit,      category: sca,         languages: [typescript, javascript, react, nextjs], engine: "npm audit", install: builtin, runner: lang-scan, enabled: true, notes: "B88 — npm dep CVEs; ships with npm, no install"}
+  - {id: next-lint,      category: lint,        languages: [nextjs],                    engine: "next lint",   install: npm,        runner: lang-scan,  enabled: true,  notes: "B88 — Next.js's own rule set (App Router, image/font/script correctness) that generic eslint does not carry"}
+  - {id: license-checker, category: license,    languages: [typescript, javascript, react, nextjs], engine: license-checker, install: npm, runner: lang-scan, enabled: true, notes: "B88 — npm dependency licence inventory; the JS half of the licence-compliance gap"}
+
   # ---- sonarqube runner: its own CronJob (needs the server + a Java build) ----
   - {id: sonarqube,      category: quality-gate, languages: [python, typescript, go, java], engine: sonar-scanner, install: server, runner: sonarqube, enabled: true, config: sonar-project.properties, notes: "quality gate + issues → Port code_quality; separate because it needs the SonarQube server + Maven compile of the Flink modules"}
 

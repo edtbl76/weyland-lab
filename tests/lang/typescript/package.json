@@ -2,5 +2,12 @@
   "name": "weyland-fixture-typescript",
   "private": true,
   "type": "module",
-  "description": "Hello-world fixture for the TypeScript lane (B88). DEPENDENCY-FREE by design: node:24 runs `node --test` and strips TS types natively, so this lane needs no npm install, no lockfile and no registry round-trip."
+  "description": "Hello-world fixture for the TypeScript lane (B88). DEPENDENCY-FREE by design: node:24 runs `node --test` and strips TS types natively, so this lane needs no npm install, no lockfile and no registry round-trip. Scan tools (eslint/license-checker, typescript) are devDependencies: the TEST lane never installs them (no `test` script means it uses node --test directly), so the dependency-free test property survives; the SCAN lane installs them.",
+  "devDependencies": {
+    "eslint": "^9.18.0",
+    "license-checker": "^25.0.1",
+    "typescript": "^5.7.3",
+    "@types/node": "^22.10.5",
+    "typescript-eslint": "^8.20.0"
+  }
 }

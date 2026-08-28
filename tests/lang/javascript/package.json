@@ -2,5 +2,9 @@
   "name": "weyland-fixture-javascript",
   "private": true,
   "type": "module",
-  "description": "Hello-world fixture for the JavaScript lane (B88). Dependency-free: node's built-in test runner."
+  "description": "Hello-world fixture for the JavaScript lane (B88). Dependency-free: node's built-in test runner. Scan tools (eslint/license-checker) are devDependencies: the TEST lane never installs them (no `test` script means it uses node --test directly), so the dependency-free test property survives; the SCAN lane installs them.",
+  "devDependencies": {
+    "eslint": "^9.18.0",
+    "license-checker": "^25.0.1"
+  }
 }

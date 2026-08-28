@@ -399,6 +399,44 @@ def detect_secrets():
     post("detect-secrets", c)
 
 
+def mypy():
+    """B88 — static type check. ruff covers style and lint but NOT types; a wrong type is a class of
+    bug neither ruff nor bandit sees. Counted as `medium`: a type error is real but is not a
+    security finding, and inflating it to high would drown the severities that are."""
+    c = z()
+    r = subprocess.run(["mypy", "--ignore-missing-imports", "--no-error-summary",
+                        "--exclude", "(node_modules|\\.venv|site-packages)", SRC],
+                       capture_output=True, text=True, timeout=1800, check=False)
+    # mypy exits 1 when it FINDS errors and 2 on a usage/internal failure. Only 0 and 1 are real
+    # answers; treating 2 as "no findings" would be absence-as-success.
+    if r.returncode not in (0, 1):
+        print(f"  !! mypy could not run (exit {r.returncode}): {r.stderr.strip()[:200]}", flush=True)
+        return
+    c["medium"] = len([ln for ln in r.stdout.splitlines() if ": error:" in ln])
+    post("mypy", c)
+
+
+def shfmt():
+    """B88 — formatting drift as a check, never a rewrite (`-d` diffs, it does not edit). shellcheck
+    finds bugs; shfmt finds inconsistency. Counted as `low`: formatting is real signal but must not
+    compete with security findings for attention."""
+    c = z()
+    files = subprocess.run(["find", SRC, "-name", "*.sh", "-not", "-path", "*/node_modules/*",
+                            "-not", "-path", "*/.venv/*"],
+                           capture_output=True, text=True).stdout.split()
+    if not files:
+        post("shfmt", c)
+        return
+    r = subprocess.run(["shfmt", "-d", "-i", "2", "-ci", *files],
+                       capture_output=True, text=True, timeout=600, check=False)
+    if r.returncode not in (0, 1):
+        print(f"  !! shfmt could not run (exit {r.returncode}): {r.stderr.strip()[:200]}", flush=True)
+        return
+    # One diff hunk header per file that differs.
+    c["low"] = len([ln for ln in r.stdout.splitlines() if ln.startswith("--- ")])
+    post("shfmt", c)
+
+
 def headers():
     # NOVEL to weyland — live HTTP security-header check against the ingress hosts declared in docs/hosts.md
     # (in-cluster DNS resolves *.weyland.lab via coredns-custom → LAN). Each MISSING security header on a reachable
@@ -667,8 +705,8 @@ if __name__ == "__main__":
     # be set BEFORE any git-using check (secret_files runs 2nd, codemaat last) or those checks silently no-op.
     sh(["git", "config", "--global", "--add", "safe.directory", SRC])
     for fn in (gitleaks, secret_files, detect_secrets, checkov, kubescape, hadolint, bandit, ruff,
-               osv, pip_audit, shellcheck, semgrep, trivy, go_vet, gosec, govulncheck, staticcheck,
-               headers, codemaat):
+               mypy, shfmt, osv, pip_audit, shellcheck, semgrep, trivy, go_vet, gosec, govulncheck,
+               staticcheck, headers, codemaat):
         try:
             fn()
         except Exception as e:
