@@ -72,8 +72,31 @@ public final class HealthStateRisk {
         env.execute("health-state-risk");
     }
 
-    private static String str(Object o) {
+    /** Renders a possibly-null Avro field for the JSON sink; null becomes the "??" placeholder. */
+    static String str(Object o) {
         return o == null ? "??" : o.toString();
+    }
+
+    /**
+     * Decides whether an Avro {@code Data_value} contributes to the running mean.
+     *
+     * <p>Extracted from {@link RunningMean#flatMap} by B88 so the SKIP decisions are testable
+     * without a Flink state backend. BRFSS carries footnote and suppressed rows whose Data_value is
+     * null or non-numeric; silently skipping those is deliberate, and a test now pins it — an
+     * accidental change to "parse as 0" would quietly drag every state's mean toward zero while
+     * still reporting healthy output.
+     *
+     * @return the parsed value, or {@code null} when the row must be skipped
+     */
+    static Double parseDataValue(Object dv) {
+        if (dv == null) {
+            return null;
+        }
+        try {
+            return Double.parseDouble(dv.toString());
+        } catch (NumberFormatException e) {
+            return null;
+        }
     }
 
     /** Per-state running mean of data_value, held in keyed state; emits the updated stat as JSON per record. */
@@ -89,16 +112,11 @@ public final class HealthStateRisk {
 
         @Override
         public void flatMap(GenericRecord r, Collector<String> out) throws Exception {
-            Object dv = r.get("Data_value");
-            if (dv == null) {
-                return;
+            Double parsed = parseDataValue(r.get("Data_value"));
+            if (parsed == null) {
+                return; // null or non-numeric data_value (footnote/suppressed row) - skip
             }
-            double v;
-            try {
-                v = Double.parseDouble(dv.toString());
-            } catch (NumberFormatException e) {
-                return; // non-numeric data_value row (footnote/suppressed) - skip
-            }
+            double v = parsed;
             long count = n.value() == null ? 0L : n.value();
             double total = sum.value() == null ? 0.0 : sum.value();
             count += 1;

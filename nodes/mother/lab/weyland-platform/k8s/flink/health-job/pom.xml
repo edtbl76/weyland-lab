@@ -58,11 +58,25 @@
       <artifactId>flink-avro</artifactId>
       <version>${flink.version}</version>
     </dependency>
+    <!-- B88: JUnit 5 + Surefire. These modules shipped with NO test framework and no Surefire
+         plugin at all, so `mvn test` ran zero tests and exited 0 — absence-as-success in the real
+         modules, not just hypothetically. -->
+    <dependency>
+      <groupId>org.junit.jupiter</groupId>
+      <artifactId>junit-jupiter</artifactId>
+      <version>5.11.4</version>
+      <scope>test</scope>
+    </dependency>
   </dependencies>
 
   <build>
     <finalName>health-job</finalName>
     <plugins>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-surefire-plugin</artifactId>
+        <version>3.5.2</version>
+      </plugin>
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-shade-plugin</artifactId>

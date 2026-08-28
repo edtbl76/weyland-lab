@@ -30,13 +30,7 @@ public final class SqlRunner {
         }
 
         String raw = new String(Files.readAllBytes(Paths.get(args[0])));
-
-        // strip line comments: everything from "--" to end-of-line
-        StringBuilder sb = new StringBuilder();
-        for (String line : raw.split("\n", -1)) {
-            int c = line.indexOf("--");
-            sb.append(c >= 0 ? line.substring(0, c) : line).append('\n');
-        }
+        StringBuilder sb = new StringBuilder(stripLineComments(raw));
 
         StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
         StreamTableEnvironment tEnv = StreamTableEnvironment.create(env);
@@ -55,6 +49,24 @@ public final class SqlRunner {
             System.out.println("[sql-runner] " + stmt.replaceAll("\\s+", " "));
             tEnv.executeSql(stmt);
         }
+    }
+
+    /**
+     * Strips SQL line comments: everything from {@code --} to end-of-line, per line.
+     *
+     * <p>Extracted from {@code main} by B88 so it can be tested. <b>Known limitation, covered by a
+     * test rather than hidden:</b> this is not string-literal aware, so a {@code --} inside a
+     * quoted literal is treated as a comment and the rest of the line is dropped. No shipped .sql
+     * file relies on that today; the test documents the behaviour so a future change is a
+     * deliberate decision rather than a surprise.
+     */
+    static String stripLineComments(String raw) {
+        StringBuilder sb = new StringBuilder();
+        for (String line : raw.split("\n", -1)) {
+            int c = line.indexOf("--");
+            sb.append(c >= 0 ? line.substring(0, c) : line).append('\n');
+        }
+        return sb.toString();
     }
 
     private SqlRunner() {

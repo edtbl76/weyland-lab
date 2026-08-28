@@ -209,8 +209,11 @@ run_in() {
       if [ "$mode" = selfcheck ]; then (cd "$dir" && bats selfcheck)
       else (cd "$dir" && bats .); fi ;;
     java)
-      if [ "$mode" = selfcheck ]; then (cd "$dir" && mvn -q -Dtest=DeliberateFailureTest -DfailIfNoTests=false test)
-      else (cd "$dir" && mvn -q -Dtest='!DeliberateFailureTest' -DfailIfNoTests=false test); fi ;;
+      # Structural, like every other lane: Surefire excludes **/selfcheck/** by default and the
+      # `selfcheck` profile inverts that to run ONLY it. A -Dtest=!Name filter would fail OPEN on a
+      # rename, quietly retiring the deliberate test.
+      if [ "$mode" = selfcheck ]; then (cd "$dir" && mvn -q -B -Pselfcheck test)
+      else (cd "$dir" && mvn -q -B test); fi ;;
     go)
       # The deliberate test sits behind a build tag, so a plain `go test ./...` cannot see it.
       if [ "$mode" = selfcheck ]; then (cd "$dir" && go test -tags deliberate -run DeliberateFailure ./...)

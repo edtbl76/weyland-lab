@@ -1,0 +1,79 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Hello-world fixture for the Java lane (B88).
+
+  Java 17 matches the Flink modules' existing maven.compiler.source/target, so the fixture proves
+  the same toolchain the real code builds on.
+
+  THE SELFCHECK PROFILE IS STRUCTURAL, NOT NAME-BASED. Surefire excludes the `selfcheck` package by
+  default, so a normal `mvn test` can never collect the deliberately-failing test; the `selfcheck`
+  profile inverts that and runs ONLY it. A name filter such as -Dtest=!DeliberateFailureTest would
+  fail OPEN on a rename: the deliberate test would quietly stop running, and the self-check mode
+  would start proving nothing.
+
+  (Note for editors: XML comments cannot contain a double hyphen, which is why the self-check flag
+  is spelled without its leading dashes throughout this file.)
+-->
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <groupId>lab.weyland</groupId>
+  <artifactId>weyland-fixture-java</artifactId>
+  <version>1.0-SNAPSHOT</version>
+  <packaging>jar</packaging>
+
+  <properties>
+    <maven.compiler.source>17</maven.compiler.source>
+    <maven.compiler.target>17</maven.compiler.target>
+    <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+    <junit.version>5.11.4</junit.version>
+    <surefire.version>3.5.2</surefire.version>
+  </properties>
+
+  <dependencies>
+    <dependency>
+      <groupId>org.junit.jupiter</groupId>
+      <artifactId>junit-jupiter</artifactId>
+      <version>${junit.version}</version>
+      <scope>test</scope>
+    </dependency>
+  </dependencies>
+
+  <build>
+    <plugins>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-surefire-plugin</artifactId>
+        <version>${surefire.version}</version>
+        <configuration>
+          <excludes>
+            <exclude>**/selfcheck/**</exclude>
+          </excludes>
+        </configuration>
+      </plugin>
+    </plugins>
+  </build>
+
+  <profiles>
+    <profile>
+      <id>selfcheck</id>
+      <build>
+        <plugins>
+          <plugin>
+            <groupId>org.apache.maven.plugins</groupId>
+            <artifactId>maven-surefire-plugin</artifactId>
+            <version>${surefire.version}</version>
+            <configuration>
+              <excludes combine.self="override"/>
+              <includes>
+                <include>**/selfcheck/**</include>
+              </includes>
+            </configuration>
+          </plugin>
+        </plugins>
+      </build>
+    </profile>
+  </profiles>
+</project>
