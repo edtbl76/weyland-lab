@@ -68,7 +68,7 @@ Re-ordered per RE-grounded audit (aidlc-docs/inception/backlog-reprioritization.
 12. **B15** — Local-model coding agents (opencode / Cline / Pi / Codex) — **DONE 2026-07-27** (3 harnesses proven in-hand; best driver = ChatGPT-sub GPT-5.5 via Cline/Codex, best keyed-free = Mistral/OpenRouter; local-on-16GB not viable; gateway not usable for agentic — direct-to-provider; Groq punted on broken signup). See detail below.
 13. **B17+B19** — "Mesh": A2A evaluation + MCP gateway — MERGED; same inflection point (fleet is real, govern it). **MCP-gateway half DONE CLOSED 2026-08-01** — Ph1-2 auth/actor gate + Ph3 read-only fleet + Ph3b Bifrost agent-edge + Claude Code/Codex skill marketplace (built out as B111). **A2A-eval half — core BUILT & LIVE 2026-08-01** — the **Realm of Agents**: 24 corpus-backed specialists in 5 Norse-named groups in one multiplexed pod; Gná dispatch + two-mode leads delegating to members (LangGraph in-realm) + cross-service hand-off from the operator (`delegate_to_realm`); on Claude Haiku, tools via the Bifrost VK, MLflow-traced. Roster complete. **A2A-eval half DONE CLOSED 2026-08-02 — DoD landed: (1) UI — the **A2A Inspector** (`inspector.weyland.lab`, Argo-managed) for debug + a bespoke **Realm Console** (`realm.weyland.lab/`: live god-map + inline execution-trace tree + streamed answer, driven by the `/route/stream` SSE); (2) per-Realm spend attribution via the **`realm-llm` Bifrost VK** (LiteLLM→Bifrost egress) — a LiteLLM-native VK is intentionally skipped (needs a LiteLLM DB, redundant given Bifrost); (3) `role-<key>` prompts registered in the Bifrost prompt-repo.** See detail below.
 14. **U18** — **DONE 2026-06-17 (as KEY RETIREMENT, not lockdown).** B25b removed the SFTP ingestion that U18 was hardening → the `weyland-lab` key had zero consumers (repo grep clean). Retired it instead: deleted rogueone `authorized_keys` line + the orphaned `weyland-lab-ssh-key` k8s Secret. See detail below.
-15. **B20** — Home Assistant integration — **LOW (2026-08-05).** a **generic** HA act-tool (lights/sensors/switches → Google Home/Alexa/physical devices) for the **B66 operator** / MCP gateway (Hermes retired). Prerequisites: a running HA instance + long-lived token; physical side effects → goes through the guard/act layer. See detail below.
+15. **B20** — Home Assistant integration — **MEDIUM (2026-08-05; ↑ Low→Medium 2026-08-27 — promoted as the most EXECUTABLE item on the board: deployment decided, specs + integration map written, design now committed, genuinely $0, nothing blocking. Lands on **weyland (Proxmox), not mother**, so it costs nothing on the capacity-contended k8s node and is unaffected by rogueone's hardware state [B150]).** **Home Assistant as a STANDALONE home-automation hub** — one pane over the consumer/physical environment (Nest · Google Home/Cast · Alexa/Echo · Smart TVs). **Decoupled from agents since 2026-08-03**: the guarded act-tool (operator → HA REST API through the guard/act confirm rails + `policy.gate` for physical side effects) is a **separate, optional follow-on**, NOT the core. Deployment decided: a **Proxmox HAOS VM**, bridged LAN (local integrations need mDNS/SSDP discovery a k8s pod cannot do). Design: [docs/concepts/home-assistant.md](concepts/home-assistant.md). See detail below.
 16. **B28** — OpenClaw rehabilitation (or retire) — **DONE RESOLVED 2026-06-25: SUPERSEDED by B66.** The keep/retire/reuse decision is no longer standalone — it's the "base agent" workstream of the consolidated [B66] Operator Agent Platform (Hermes-base vs reuse-OpenClaw's-responsiveness, decided at B66 build time). OpenClaw is NOT auto-retired (reuse candidate). Both original Qs (keep-vs-retire, refactor-vs-rewrite) move to B66.
 17. **U14** — n8n workflow → git — **LOW (2026-08-05).** audit active n8n workflows before working on this. See detail below.
 18. **B34** — Evaluate + bake PII guard — **DONE 2026-07-29.** Baked presidio + ai4privacy NER, activated `llm_guard.pii` (SHADOW). Recall proven; entity set calibrated on real answers (dropped IP/UUID/CRYPTO noise, kept regex-precise + PERSON). Measured FP: 3/20, **all false positives** (NER tags tech nouns as PERSON) — so it **stays shadow/advisory**, enforcement value is on the export/PII-data paths not RAG-over-docs. Also shipped a live guard mode toggle (`/admin/mode`, Bearer-gated). See detail below.
@@ -127,13 +127,19 @@ Re-ordered per RE-grounded audit (aidlc-docs/inception/backlog-reprioritization.
 - **B54** — **OTel app instrumentation → Tempo** — **FOLDED INTO B49 (2026-08-05)** — thread (b) of the Observability bucket. Full scope: deferred from B51 to Extras. Instrument the Python apps (tool-server, Dagster) with the OpenTelemetry SDK → Tempo for **app-level spans** (true APM; mesh/Istio spans already flow to Tempo). Adds per-request app tracing beyond the service-to-service mesh view. Deferred: meaningful effort per app; mesh tracing + GlitchTip error tracking already cover the immediate needs.
 - **B110** — **MLflow AI Gateway: fix tool-schema validation + the guardrail judge** — **CLOSED 2026-08-05 — moot/won't-do.** The premise ("tool-calling needs the Gateway") was answered by *choosing LiteLLM/Bifrost for the agentic lane* (B111) — a deliberate two-lane split (tool-calling→LiteLLM transparent; chat/eval→MLflow Gateway normalizing), with guardrails at the **agent edge** not inline. Moving tool-calling back buys nothing functional (agent-edge guardrails + Bifrost per-VK cost already cover it); it'd only be one-gateway tidiness against a working design. The one useful half (Safety/PII judge over-blocking) was already improved this session. Full detail below.
 20. **B9** — **Codebase refactoring (Python / Go / Rust / …)** — **LOW (2026-08-12 — user set back to Low; no active driver, Python services run fine. CodeScene hotspots [`loaders.py` 4.46, `build_store_load_assets` cc=56] noted but not urgent; the 2026-08-11 rebalance promotion was over-reach).** Language/perf refactoring of any service where a rewrite earns its keep (Go or Rust for hot paths, etc.) — conditional; revisit when operational pain is real or agents are heavily modifying the codebase. No driver today; the Python services run fine. See detail below.
-21. **U13** — Slim sentence-transformers image / ONNX evaluation — **LOW (2026-08-05; reviewed 2026-08-27 — the deferral condition has been MET, so this is now DECIDABLE rather than blocked; kept LOW because nothing is failing).** Decision point: (a) swap to ONNX only, (b) both sentence-transformers + ONNX, or (c) stay with sentence-transformers. The old gate — *"depends on whether active embedding model experimentation is in progress"* — has resolved: embeddings settled on bge-base ([B74], re-confirmed by [B96]) and bge-small ([B78]). Sequence AFTER B78's OFF work; it reshapes the same `weyland-dagster` image. See detail below.
+21. **U13** — Slim sentence-transformers image / ONNX evaluation — **MEDIUM (2026-08-05; ↑ Low→Medium 2026-08-27 — promoted BECAUSE the deferral condition demonstrably resolved: this is now decidable, not blocked).** Decision point: (a) swap to ONNX only, (b) both sentence-transformers + ONNX, or (c) stay with sentence-transformers. The old gate — *"depends on whether active embedding model experimentation is in progress"* — has resolved: embeddings settled on bge-base ([B74], re-confirmed by [B96]) and bge-small ([B78]). Sequence AFTER B78's OFF work; it reshapes the same `weyland-dagster` image. See detail below.
 22. **B22** — **Self-hosted metasearch engine (SearXNG / etc.)** — **LOW (2026-08-05; rebranded from "SearXNG"; reviewed 2026-08-27 — consumer list corrected, Hermes was named but is retired; real consumers are the B66 operator, the B17 realm-of-agents fleet, and the tool-server).** Stand up a self-hosted metasearch capability, tool-agnostic (SearXNG or whatever fits). No driver today — search is already covered by Tavily + Perplexity (via Bifrost), and SearXNG's delta is **negative** (rawer, non-agent-tuned results) for a privacy gain that sits oddly beside a cloud IDP, cloud issue tracker and cloud LLM egress. Trigger: Tavily middleman/quota becoming a concern. See detail below.
 23. **B18** — Spotify (Hermes tool) — **CLOSED 2026-07-29** (Hermes retired). If Spotify control is still wanted, re-file as a **B66-operator / MCP tool** — not resurrected here. See detail below.
 24. **U16** — Weaviate UI — **FOLDED INTO [B81] 2026-08-27** (the "evaluate whether still needed" question was answered: schema browsing is already live in DataHub, and search/inspection becomes an explicit **Weaviate notebook** in B81's library — the bespoke React app is dropped, the capability is not). See detail below.
 25. **B30** — Real-time docs ingestion trigger — **CLOSED 2026-08-05 — won't-do.** Cron/manual re-ingest is adequate; docs ingestion isn't latency-critical, so near-real-time has no real driver. Historical: self-hosted GitHub Actions runner on the LAN fires Dagster `launchRun` on push (NAT-free near-real-time). Deferred; cron fine until 15-min latency bites. See detail below.
 26. **B32** — NeMo Guardrails evaluation — programmable conversational guardrails (Colang DSL: topical/dialog/jailbreak rails). Deferred from B14 (heavy framework + new language; built for dialog mgmt, not I/O scanning). Evaluate for the **agent layer** (the B66 operator's dialog/topical rails — Hermes retired), not the tool-server I/O pipeline. See detail below.
 27. **B38** — **Fuzzy GraphRAG: LLM concept/entity extraction** — **LOW (2026-08-05; re-tiered from Medium — deeply deferred, low marginal value while the frontmatter graph suffices, GPU-gated).** Over the AIDLC KB (and `docs/`) — extract entities + *emergent* relationships from **prose** (beyond the declared frontmatter links) into Neo4j, à la Microsoft GraphRAG. **Deferred from B37**, which ships the deterministic frontmatter graph (`RELATED_TO`/`SURFACES_AT`/`TAGGED`). Why deferred: heavy on local CPU Ollama (517 docs × extraction passes, re-run on change), fuzzy/non-deterministic, needs an entity/relation schema + canonicalization/dedup ("DDD" = "Domain-Driven Design"), and low marginal value while the author-declared frontmatter already yields a high-precision graph for ~free. **Revisit once** B37 proves corpus value AND/OR a bigger model / GPU lands (pairs with B7 eGPU / B33).
+
+  **REVIEWED 2026-08-27 — the GPU half of the trigger HAS FIRED; the blocker moved.** "Heavy on local CPU Ollama" is no longer the constraint it was written as: [B79] moved Ollama to rogueone and [B111] stood up on-demand vLLM + SGLang on the RTX 5000 Ada. **The real blocker is now rogueone's hardware state** — it runs with **4 cores / 8 threads offline** pending a mainboard RMA ([B150]), and whether it remains the lab's GPU host at all is undecided ([B149]). The GPU exists; the host is compromised. Stop citing CPU Ollama.
+
+  **The other deferral reasons still stand unchanged** — non-deterministic output, an entity/relation schema plus canonicalization/dedup to build ("DDD" = "Domain-Driven Design"), and genuinely low marginal value while B37's author-declared frontmatter graph (510 `:Entry` nodes / 2311 edges) delivers high precision for free.
+
+  **⚠ OVERLAPS EMA-208 (Graphify Stage 4, "in-lab semantic pass") — decide ownership before either is built.** Both propose running an LLM over prose to extract graph structure, and they intersect on `docs/`. Graphify was adopted **deliberately as structure-only** — no embeddings by design, graph-RAG keeps retrieval (see `docs/concepts/graphify-adoption.md`) — so a semantic pass landing there would quietly reverse that decision. Whichever item owns the semantic pass over documentation, it should be one of them, not both.
 
 27b. **B126** — **Trial / adopt a spec-driven framework (B86 follow-up)** — **MERGED INTO [B86] 2026-08-27 (was LOW; Linear EMA-146 closed as merged into EMA-76).** Never a separate item: its part **(b) was the same four notations** B86's evaluation concluded should be adopted, so it duplicated B86's execution half. B86 was reopened the same day precisely because those four were never implemented — folding B126 in puts the decision and its execution back in one place. **Full scope, the trial half, and B126's opportunistic gate are all preserved in the B86 entry.** Original text follows for the record. **(2026-08-11; B86 follow-up.)** [B86] decided the Method is a lifecycle *superset* of OpenSpec / Spec Kit / BMAD / Kiro → **cross-pollinate artifact notations, don't migrate**. This item = actually execute a slice of that: **(a)** trial **OpenSpec** (brownfield delta model) or **Spec Kit** (constitution + `analyze` gate) on **one small unit** to feel the discipline first-hand ($0 / MIT / agent-agnostic / reversible); and/or **(b)** fold the borrowed notations into the Method — **delta specs** (ADDED/MODIFIED/REMOVED) into Iteration-N artifacts · **EARS notation** into Requirements Analysis · a checkable **constitution** rendering of the always-enforced baseline · **context-engineered unit files** (BMAD). No tool migration; **not Kiro** ($0 violation — managed AWS / Bedrock-locked / no BYOK). Eval + decision matrix: `docs/concepts/spec-driven-frameworks.md`; memory `spec-driven-frameworks-b86`. **Gate:** low-priority/opportunistic — do it when the Method's Requirements/Units stages are next being revised, not as a standalone push.
 
@@ -806,7 +812,7 @@ don't rebuild them:
 - **Decision recorded:** no client-supplied identity is ever trusted (anti-spoofing). Identity is a
  gateway-asserted header or absent — this work must not loosen that.
 
-### B20 — Home Assistant integration — Maturity
+### B20 — Home Assistant integration — MEDIUM (↑ Low→Medium 2026-08-27) — Maturity
 **Reframed 2026-08-03 → Maturity, DECOUPLED from B66/agents.** Home Assistant is a **standalone home-automation hub** —
 one pane over the consumer/physical environment (**Nest**, **Google Home/Cast**, **Alexa/Echo**, **Smart TVs**;
 lights/sensors/thermostats/speakers/TVs). Its value does NOT depend on agents, so it's no longer framed as "a B66
@@ -1121,14 +1127,14 @@ ingested corpus → more useful `context_ask`). Re-confirms the Hermes↔MCP pat
 `30080` reachability from the dev host; read-only now (act later, gated like B14); whether to scope which
 tools load.
 
-### U13 — sentence-transformers image slimming — LOW (reviewed 2026-08-27)
+### U13 — sentence-transformers image slimming — MEDIUM (↑ Low→Medium 2026-08-27)
 - **Running-list item**: 12
 - **Theme**: B — footprint
 - **Scope**: Reduce or split the heavy sentence-transformers Docker image. Decision point: **(a)** swap to ONNX only · **(b)** carry both sentence-transformers + ONNX · **(c)** stay with sentence-transformers.
-- **⚠ THE DEFERRAL CONDITION HAS BEEN MET — this is now DECIDABLE, not blocked (2026-08-27).** The stated gate was *"depends on whether active embedding model experimentation is in progress at the time."* It is not: embeddings settled on **bge-base-en-v1.5** (768-dim) via [B74], re-confirmed when [B96]'s golden set overturned and then restored that choice, and the [B78] OFF plan specifies **bge-small** for text vectors. Nobody is churning models. Kept at LOW because it is footprint work with nothing failing — but stop describing it as waiting on a condition that has resolved.
+- **⚠ THE DEFERRAL CONDITION HAS BEEN MET — this is now DECIDABLE, not blocked (2026-08-27).** The stated gate was *"depends on whether active embedding model experimentation is in progress at the time."* It is not: embeddings settled on **bge-base-en-v1.5** (768-dim) via [B74], re-confirmed when [B96]'s golden set overturned and then restored that choice, and the [B78] OFF plan specifies **bge-small** for text vectors. Nobody is churning models. **PROMOTED to MEDIUM 2026-08-27** as one of two Lows upgraded in the full-backlog triage — precisely because the condition resolved: this is decidable work, not blocked work.
 - **Scope is six build contexts, not one image:** `weyland-guard/Dockerfile` · `weyland-tool-server/Dockerfile` · `weyland-dagster/Dockerfile` · `weyland-dagster/Dockerfile.feast` · `rag-embed/requirements.{in,txt}` · `weyland-dagster/requirements.{in,txt}`.
 - **Option (a) is entirely unexplored** — `onnx` appears **nowhere** in the repo today.
-- **Prior art, and why footprint here is not academic:** oversized layers already broke builds once with `unpigz: invalid deflate` (memory `buildkit-large-layer-corruption`), fixed by moving from CUDA torch to **CPU torch**. That resolved the acute pain, which is also why this stays LOW rather than rising.
+- **Prior art, and why footprint here is not academic:** oversized layers already broke builds once with `unpigz: invalid deflate` (memory `buildkit-large-layer-corruption`), fixed by moving from CUDA torch to **CPU torch**. That resolved the *acute* pain — the bulk itself was never addressed.
 - **SEQUENCE AFTER [B78]'s OFF vector work, not concurrently.** That work adds `weyland-dagster`'s first pytest suite and its first large vector hydration, both in the image this would reshape. Changing the embedding stack underneath it at the same time turns any failure into a two-variable problem.
 
 ### U14 — n8n: assign a purpose, then version its workflows to git (MATURITY)
@@ -1608,7 +1614,7 @@ Eval + decision matrix: `docs/concepts/spec-driven-frameworks.md`. Memory: `spec
 
 ---
 
-### B88 — Per-language test runners on Woodpecker — HIGH (2026-08-05; gated on Stud.IO CI track, B57/B118; ↑ Medium→High 2026-08-27)
+### B88 — Per-language build lanes: tests + scanners + software supply chain — HIGH (2026-08-05; gated on Stud.IO CI track, B57/B118; ↑ Medium→High 2026-08-27; SCOPE EXPANDED 2026-08-27 from "test runners" to the whole per-language build surface — see the three phases below)
 
 **⚠ THE DEFER TRIGGER HAS FIRED, AND THERE IS NOW A CONCRETE DEFECT (2026-08-27).**
 
@@ -1626,6 +1632,71 @@ The shell lane scales with the repo; the Python lane does not. **[B78]'s Open Fo
 **This exact failure already happened once.** The `.woodpecker.yml` comment records that the repo had ONE test suite and CI had never run it; worse, it was orphaned — the tests lived in `weyland-tool-server/tests/` while the code they imported moved to `weyland-guard/` during the B70 extraction, leaving **5 of 8 files uncollectable (ModuleNotFoundError)**, unnoticed until 2026-08-26. A path-named lane is how that recurs.
 
 **Narrow fix available ahead of the full item:** make the Python step discover any service directory containing `tests/` rather than naming one. Small, and it closes the B78 exposure on its own.
+
+---
+
+## SCOPE EXPANDED 2026-08-27 (operator) — B88 is the whole per-language build surface, not just tests
+
+Three phases. The **test/scan split is preserved** (execution here, analysis in `quality-tools.yaml` under the scan-suite runner) — but B88 now owns *filling in* both, plus the supply chain.
+
+**LANGUAGES (9, operator-chosen):** Python · Shell · Java · Go · Rust · TypeScript · JavaScript · React · Next.js. Three have real code today (Python 212 files · Shell 33+12 · Java 2 files/2 Maven modules); JS is generated site assets only; **Go and Rust have none** — those lanes are deliberate forward scaffolding for the platform/application split ([B9]). TypeScript's 58 files are the **vendored AI-DLC distribution** under `.claude/`, not authored here — excluded.
+
+**EVERY LANE SHIPS A HELLO-WORLD FIXTURE (operator).** This is what removes the no-code state: a lane for a language with nothing to run is one careless line from reporting green. With a fixture, every lane always has a real project with a real test that must really pass, so toolchain + image + runner + discovery are continuously proven. Each fixture also carries a **deliberately-failing test** run only under `--self-check`, because a lane never seen failing is not a lane (the [B148] argument). Exit codes keep the two facts apart: **0** = fixture + all real projects passed · **1** = a REAL project failed (estate defect) · **2** = the FIXTURE failed or the lane could not do its job (lane broken). Conflating 1 and 2 makes a broken runner read exactly like broken code.
+
+### Phase 1 — test lanes
+| Lane | Runner | Image |
+|---|---|---|
+| Python | `pytest` | `python:3.12-slim` |
+| Shell | `bats` | `bats/bats:latest` |
+| Java | Surefire + **JUnit 5** | `maven:3.9-eclipse-temurin-17` |
+| Go | `go test -race -coverprofile` | Go 1.26 **+ gcc** (race needs cgo) |
+| Rust | `cargo test` | `rust:1-slim` |
+| TypeScript | `node --test` + `tsc --noEmit` | `node:24-alpine` |
+| JavaScript | `node --test` | `node:24-alpine` |
+| React | jest + testing-library + jsdom | `node:24-alpine` |
+| Next.js | jest + testing-library + jsdom | `node:24-alpine` |
+
+**Conventions taken from STUD.io's `roadie`** (a Go CLI that already solves this — read it before building): every lane runs in a **pinned container**, never on the host, to stay off host glibc/pyenv drift; steps are **data with an injectable runner** (`ToolStep{Name,Bin,Args,Dir,Env,run}` + `withRunner()`), which is why roadie itself is testable in 21 files; **named cache volumes** persist across runs (`roadie-npm-cache`, `roadie-go-build`, `roadie-go-mod`); **install-skip via content hash**. Roadie also corrected three initial picks: **jest not vitest** (the production convention), **Go 1.26 + gcc** (alpine without `build-base` silently cannot `-race`), and `node:24` for native TS type-stripping. Roadie *blends* test and scan steps in one pipeline — weyland deliberately does **not**; that fork is intentional.
+
+**Finding:** the Flink poms (`sql-runner`, `health-job`) declare **no test framework and no Surefire plugin**, so `mvn test` against them today runs zero tests and exits 0 — absence-as-success in the real modules. They need JUnit 5 added before they have anything to run.
+
+### Phase 2 — per-language scanners → `quality-tools.yaml`
+Registry entries, not lanes. Existing coverage is uneven; the gaps:
+- **Rust — ZERO entries today.** Add **clippy · rustfmt · cargo-audit · cargo-deny**.
+- **Java — SonarQube only.** Add **SpotBugs · PMD · Checkstyle · error-prone**.
+- **TS/JS/React/Next — no linters.** Add **eslint · tsc · npm audit · `next lint`**.
+- **Python** — add **mypy** (bandit/ruff/pip-audit/osv already present).
+- **Shell** — add **shfmt** (shellcheck present).
+- **Go** — already the best covered (gosec/staticcheck/go-vet/govulncheck); nothing required.
+
+### Phase 3 — the software supply chain
+**Every supply-chain concept currently exists in this lab as KNOWLEDGE and nowhere as IMPLEMENTATION** — `syft`, `cosign`, `sigstore`, SBOM, CycloneDX, SPDX, SLSA, provenance, attestation and Renovate appear *only* under `knowledge-repos/`. Four real holes:
+- **SBOM** — nothing. **syft** (or `trivy sbom`), CycloneDX/SPDX output per image.
+- **Artifact signing** — nothing. **cosign** (Sigstore), plus signature *verification* at admission (Gatekeeper is deployed but verifies no signatures).
+- **Build provenance** — nothing. SLSA attestation.
+- **License compliance** — nothing. `trivy --scanners license` · cargo-deny · license-checker.
+
+Covered already and not to be re-done: secrets (3 engines), IaC (checkov/kubescape), registry vuln scanning (trivy), dependency CVEs (osv/pip-audit/govulncheck), dependency-PR lifecycle ([B131]).
+
+### Decisions taken 2026-08-28 (operator)
+1. **The Flink JUnit 5 + Surefire retrofit is IN SCOPE here**, not a separate item. `sql-runner` and `health-job` get a test framework, a Surefire plugin and at least one real test each — without that the Java lane runs zero tests and exits 0, which is the very defect B88 exists to remove. Java 17, matching the poms' existing `maven.compiler.source/target`.
+2. **cosign signatures WILL be verified at admission via Gatekeeper.** Signing without verification is signing into a void — Gatekeeper is already deployed and enforcing policy but checks no signatures today, so Phase 3 ships the ValidatingAdmission policy alongside the signing step, not after it.
+3. **Every tool named below must actually land in `quality-tools.yaml`** — the registry is the single source of truth (`scripts/check-quality-tools.sh` diffs `scan.py` + the docs against it), so a tool named here and absent there is exactly the drift that file was built to stop.
+
+**THE COMPLETE TOOL LIST THIS ITEM MUST ADD (nothing on this list is optional):**
+| Language / stage | Tools |
+|---|---|
+| Rust | `clippy` · `rustfmt` · `cargo-audit` · `cargo-deny` |
+| Java | `spotbugs` · `pmd` · `checkstyle` · `error-prone` |
+| TS / JS / React / Next | `eslint` · `tsc` · `npm-audit` · `next-lint` |
+| Python | `mypy` |
+| Shell | `shfmt` |
+| SBOM | `syft` (CycloneDX + SPDX per image) |
+| Signing | `cosign` + **Gatekeeper signature verification** |
+| Provenance | SLSA attestation |
+| License | `trivy --scanners license` · `cargo-deny` (licenses) · `license-checker` (npm) |
+| Dep updates | `renovate` |
+Each entry carries the registry's full field set (`id`, `category`, `languages`, `engine`, `install`, `runner`, `enabled`, `notes`), and `languages: [rust]` / `[java]` / `[typescript, javascript]` etc. so the registry's own no-op-on-0-code rule (line 10) applies cleanly. The leverage is high — the ship loop already knows every image and tag, so this is close to one `syft` step and one `cosign` step from being real rather than documented.
 
 **Original deferral (superseded, kept for the record):** PAUSED — DEFERRED 2026-07-20. Woodpecker is **idle** — nothing in the lab currently drives it, so building per-language runners now would be capability-for-its-own-sake. **Trigger to revisit: when Stud.IO starts using weyland's build pipeline** (Woodpecker was always intended as the shared build farm — see the B56/B57 Stud.IO-migrates-on-later note). Scope below stands as written for whenever that lands.
 
