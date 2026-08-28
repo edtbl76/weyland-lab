@@ -68,6 +68,18 @@ tools:
   - {id: next-lint,      category: lint,        languages: [nextjs],                    engine: "next lint",   install: npm,        runner: lang-scan,  enabled: true,  notes: "B88 — Next.js's own rule set (App Router, image/font/script correctness) that generic eslint does not carry"}
   - {id: license-checker, category: license,    languages: [typescript, javascript, react, nextjs], engine: license-checker, install: npm, runner: lang-scan, enabled: true, notes: "B88 — npm dependency licence inventory; the JS half of the licence-compliance gap"}
 
+  # ── B88 Phase 3 — software supply chain ──────────────────────────────────────────────────────────
+  # THE FINDING: every one of these existed in this lab as KNOWLEDGE and nowhere as IMPLEMENTATION.
+  # syft, cosign, sigstore, SBOM, CycloneDX, SPDX, SLSA, provenance, attestation and Renovate
+  # appeared ONLY under knowledge-repos/. The estate documented a supply chain it did not have.
+  # runner: supply-chain -> scripts/supply-chain.sh, invoked per image by the ship loop.
+  - {id: syft,           category: sbom,        languages: [any],  engine: syft,            install: binary, runner: supply-chain, enabled: true,  notes: "B88 — SBOM per image in BOTH CycloneDX and SPDX: CycloneDX feeds vuln tooling, SPDX feeds licence/compliance. Emitting one and calling it an SBOM is half an artifact"}
+  - {id: cosign,         category: signing,     languages: [any],  engine: cosign,          install: binary, runner: supply-chain, enabled: true,  notes: "B88 — image signing with a KEY PAIR, not keyless: keyless needs Fulcio/OIDC over the internet and this is a LAN-only lab. Private key = SealedSecret cosign-signing-key"}
+  - {id: slsa-provenance, category: provenance, languages: [any],  engine: "cosign attest", install: binary, runner: supply-chain, enabled: true,  notes: "B88 — in-toto SLSA predicate: which commit, which pipeline, which builder. A signature vouches for a blob; provenance says where the blob came from"}
+  - {id: trivy-license,  category: license,     languages: [any],  engine: "trivy --scanners license", install: binary, runner: supply-chain, enabled: true, notes: "B88 — licence compliance is a DIFFERENT question from trivy's vuln scan (which the scan-suite already runs). The estate had no licence tooling at all before B88"}
+  - {id: cosign-verify,  category: signing,     languages: [any],  engine: "cosign verify", install: binary, runner: supply-chain, enabled: true,  notes: "B88 — the read-only half. Runs in CI BEFORE deploy; Gatekeeper cannot verify signatures at admission (no egress from the admission path), so k8s/gatekeeper/image-signatures.yaml asserts registry provenance instead and ships in dryrun"}
+  - {id: renovate,       category: dep-updates, languages: [any],  engine: renovate,        install: saas,   runner: github-app,   enabled: false, notes: "B88 — NOT deployed. Declared so the gap is visible rather than forgotten; B131's open-PR lifecycle covers dependency PRs today. Flip enabled when a Renovate instance exists"}
+
   # ---- sonarqube runner: its own CronJob (needs the server + a Java build) ----
   - {id: sonarqube,      category: quality-gate, languages: [python, typescript, go, java], engine: sonar-scanner, install: server, runner: sonarqube, enabled: true, config: sonar-project.properties, notes: "quality gate + issues → Port code_quality; separate because it needs the SonarQube server + Maven compile of the Flink modules"}
 

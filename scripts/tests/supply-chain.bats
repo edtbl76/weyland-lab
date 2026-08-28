@@ -56,7 +56,7 @@ teardown() {
   run env PATH="$STUB_DIR:/usr/bin:/bin" bash "$SC" sbom registry.weyland.lab/x:git-abc
   [ "$status" -eq 2 ]
   [[ "$output" == *"syft"* ]]
-  [[ "$output" != *"OK"* ]]
+  [[ "$output" != *"OK — "* ]]   # NB: "OK" alone matches "BROKEN" (B-R-O-K-E-N)
 }
 
 @test "sign fails closed when cosign is absent, and names it" {
@@ -124,7 +124,7 @@ teardown() {
   run env WEYLAND_SBOM_DIR="$SANDBOX" bash "$SC" sbom registry.weyland.lab/x:git-abc
   [ "$status" -eq 1 ]
   [[ "$output" == *"SBOM"* || "$output" == *"sbom"* ]]
-  [[ "$output" != *"OK"* ]]
+  [[ "$output" != *"OK — "* ]]   # NB: "OK" alone matches "BROKEN" (B-R-O-K-E-N)
 }
 
 @test "a failing cosign sign is a failure" {
@@ -132,7 +132,7 @@ teardown() {
   run env COSIGN_KEY=/tmp/k.key bash "$SC" sign registry.weyland.lab/x:git-abc
   [ "$status" -eq 1 ]
   [[ "$output" == *"sign"* ]]
-  [[ "$output" != *"OK"* ]]
+  [[ "$output" != *"OK — "* ]]   # NB: "OK" alone matches "BROKEN" (B-R-O-K-E-N)
 }
 
 # ---------------------------------------------------------------------------
@@ -155,8 +155,9 @@ teardown() {
   run grep -c "enforcementAction: dryrun" "$policy"
   [ "$status" -eq 0 ]
   [ "$output" -ge 1 ]
-  # And it must NOT be set to deny anywhere in the file.
-  run grep -c "enforcementAction: deny" "$policy"
+  # And no ACTIVE line may set deny. The file documents how to promote it, so a naive grep matches
+  # the instructions — strip comments before asserting.
+  run bash -c "grep -v '^[[:space:]]*#' '$policy' | grep -c 'enforcementAction: deny' || true"
   [ "$output" -eq 0 ]
 }
 

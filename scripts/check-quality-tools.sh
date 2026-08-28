@@ -71,8 +71,35 @@ wired = set(re.findall(r'run_tool\s+([A-Za-z0-9._-]+)', lsrc))
 ls_declared = declared("lang-scan")
 drift = report("run-lang-scan.sh", ls_declared, wired) or drift
 
+# ── supply-chain: tools are implemented as subcommands/functions in supply-chain.sh ──────────────
+# Declared here for the same reason as the other two runners: B88 Phase 3 exists BECAUSE syft,
+# cosign and SLSA were documented and never implemented. A registry line with nothing behind it is
+# precisely the state this whole phase was written to end.
+import os
+sc_path = os.environ.get("WEYLAND_QT_SUPPLYCHAIN") or \
+    os.path.join(os.path.dirname(langscan), "supply-chain.sh")
+sc_declared = declared("supply-chain")
+if sc_declared:
+    try:
+        ssrc = open(sc_path).read()
+    except FileNotFoundError:
+        print(f"MISSING: {sc_path} does not exist, but the registry declares supply-chain tools:",
+              sorted(sc_declared))
+        sys.exit(1)
+    # Each tool maps to a marker the script must actually contain: its engine's binary name.
+    engines = {t["id"]: (t.get("engine") or t["id"]).split()[0]
+               for t in tools if t.get("runner") == "supply-chain" and t.get("enabled")}
+    unimplemented = {tid for tid, bin_ in engines.items() if bin_ not in ssrc}
+    if unimplemented:
+        print("MISSING from supply-chain.sh (declared enabled, engine never invoked):",
+              sorted(unimplemented))
+        drift = True
+
 if drift:
     sys.exit(1)
+# Report all three counts. A guard that silently skips a runner is indistinguishable from one that
+# checked and found nothing — the exact ambiguity this whole effort keeps closing.
 print(f"OK — {len(ss_declared)} scan-suite tools match scan.py, "
-      f"{len(ls_declared)} lang-scan tools match run-lang-scan.sh.")
+      f"{len(ls_declared)} lang-scan tools match run-lang-scan.sh, "
+      f"{len(sc_declared)} supply-chain tools match supply-chain.sh.")
 PY

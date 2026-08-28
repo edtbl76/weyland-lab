@@ -44,6 +44,22 @@ while IFS="$(printf '\t')" read -r image context newtag manifests; do
 
   printf '%s\t%s\t%s\n' "$image" "$newtag" "$manifests" >> "$BUMPS"
   echo "[build] pushed ${REG}/${image}:${newtag}"
+
+  # ── B88 Phase 3 — supply chain, per pushed image ──────────────────────────────────────────────
+  # SBOM + signature + SLSA provenance + licence scan. This runs AFTER a successful push (there is
+  # nothing to sign before one) and MUST NOT abort the build: an image that shipped but was not
+  # signed is a gap to fix, whereas failing the pipeline here would make a signing-tool hiccup look
+  # like a broken build. Same contract as the DORA emit in ship-images.sh — loud, non-fatal.
+  #
+  # It is NOT silent either. A swallowed failure means unsigned images accumulate while the
+  # pipeline stays green, which is exactly the absence-as-success shape B88 exists to remove.
+  if [ -x "${REPO_ROOT:-.}/scripts/supply-chain.sh" ] || [ -f "scripts/supply-chain.sh" ]; then
+    if ! bash scripts/supply-chain.sh all "${REG}/${image}:${newtag}"; then
+      echo "  !! supply-chain step FAILED for ${REG}/${image}:${newtag} — image shipped UNSIGNED /"
+      echo "  !! without an SBOM. The build is not failed for this, but the gap is real: re-run"
+      echo "  !! scripts/supply-chain.sh all <image> once the cause is fixed."
+    fi
+  fi
 done < "$PLAN"
 
 echo "[build] done — $(wc -l < "$BUMPS" | tr -d ' ') image(s) pushed."
