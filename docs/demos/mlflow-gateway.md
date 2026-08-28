@@ -28,7 +28,7 @@ Rebuild the whole gateway from scratch (idempotent, self-healing):
 ## UAT — eyes-on
 
 1. **Endpoints** — `mlflow.weyland.lab/#/gateway` lists all 17; each has **Usage tracking** on.
-2. **Guardrails work** — run `scripts/test_gateway_guardrails.py`: **benign PASS** on all 6 local models; **PII**
+2. **Guardrails work** — run `scripts/verify_gateway_guardrails.py`: **benign PASS** on all 6 local models; **PII**
    redacted-before-model (you can see `Contact [REDACTED]…` in the echo) or blocked — never leaked; **unsafe**
    refused/blocked/safely-reframed. (Judge = `ollama-qwen25-7b`, local, no quota.)
 3. **Budget** — Gateway → **Budgets** shows the `$10 / 1mo, REJECT` GLOBAL cap + live spend.

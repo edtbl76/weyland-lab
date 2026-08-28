@@ -327,8 +327,9 @@ The fixture is what proves this lane can run at all; without it a pass would mea
     # a missing dependency read as broken code. Found on the real tree: weyland-guard could not be
     # collected because prometheus_client was absent, and the lane blamed the code.
     # pytest exit 5 = "no tests collected". Discovery matched this path, so something here LOOKS
-    # like a test and is not one. Found on the real tree: scripts/test_gateway_guardrails.py is a
-    # standalone diagnostic script whose name matches the glob. Skipping it quietly would be
+    # like a test and is not one. Found on the real tree: scripts/test_gateway_guardrails.py was a
+    # standalone diagnostic script whose name matched the glob (renamed to verify_* by B88).
+    # Skipping it quietly would be
     # absence-as-success; name the path so it gets renamed or excluded on purpose.
     if [ "$lang" = python ] && [ "$rc" -eq 5 ]; then
       printf 'LANE BROKEN: %s discovered %s but pytest collected NO TESTS there (exit 5).\n' \

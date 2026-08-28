@@ -10,7 +10,7 @@ guardrailed, budget-capped, provider-agnostic. `openai:/…` / OpenAI SDK compat
 
 - **UI:** `https://mlflow.weyland.lab/#/gateway` (Keycloak forward-auth) — Endpoints · Usage · Budgets · per-endpoint Guardrails.
 - **API (scripts):** the **mlflow-lan NodePort** `http://192.168.1.243:30500` (raw server, **no** forward-auth; source-pinned to rogueone). The `mlflow.weyland.lab` ingress bounces API calls to Keycloak — always script against the NodePort. See [[feedback-intellij-k8s-portforward]].
-- **Codified by:** `scripts/register_gateway_endpoints.py` (self-healing) + `scripts/.env` (keys). Verified by `scripts/test_gateway_guardrails.py` + `scripts/eval_gateway_models.py`.
+- **Codified by:** `scripts/register_gateway_endpoints.py` (self-healing) + `scripts/.env` (keys). Verified by `scripts/verify_gateway_guardrails.py` + `scripts/eval_gateway_models.py`.
 
 ## Enablement (the one server change)
 
@@ -74,7 +74,7 @@ python3 nodes/mother/lab/weyland-platform/scripts/register_gateway_endpoints.py
 
 ### Verify
 ```
-python3 nodes/mother/lab/weyland-platform/scripts/test_gateway_guardrails.py      # Safety/PII on the 6 local models
+python3 nodes/mother/lab/weyland-platform/scripts/verify_gateway_guardrails.py      # Safety/PII on the 6 local models
 kubectl -n weyland exec -i deploy/mlflow -- python < nodes/mother/lab/weyland-platform/scripts/eval_gateway_models.py   # mlflow.genai.evaluate over the gateway (judge = qwen25-7b, no quota)
 ```
 

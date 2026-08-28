@@ -16,7 +16,7 @@ invokes models but changes no gateway state. Loads scripts/.env + reaches the ga
 register_gateway_endpoints.py (the mlflow-lan NodePort from rogueone). This is the DoD verification step for the
 mlflow-gateway runbook/demo.
 
-Run:  python3 nodes/mother/lab/weyland-platform/scripts/test_gateway_guardrails.py
+Run:  python3 nodes/mother/lab/weyland-platform/scripts/verify_gateway_guardrails.py
 """
 import json
 import os

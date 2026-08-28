@@ -205,11 +205,81 @@ steps:
   # supplies DB fakes — so pytest + prometheus_client on a slim base is the entire dependency set.
   # Deliberately NOT building the weyland-guard image to test it; that would pull transformers,
   # presidio and spaCy for a suite that stubs all three.
-  - name: unit-tests
+  # ── 1d. per-language test lanes (B88) ───────────────────────────────────────
+  # REPLACES a hardcoded `cd services/weyland-guard && pytest`. That named ONE service by path, so a
+  # suite added anywhere else was never executed and sat green by absence. scripts/run-lang-tests.sh
+  # discovers suites by TEST FILE and resolves each to its owning project root.
+  #
+  # EVERY LANE SHIPS A HELLO-WORLD FIXTURE under tests/lang/<lang>/. A language with no production
+  # code yet (Go, Rust) would otherwise have nothing to run, and "nothing to run" is one careless
+  # line from "green". The fixture means every lane always executes a real test, so the image,
+  # toolchain, discovery and runner are continuously proven.
+  #
+  # EXIT CODES ARE NOT INTERCHANGEABLE:
+  #   0  fixture passed and every discovered project passed
+  #   1  a REAL project failed                      -> the estate has a defect
+  #   2  the FIXTURE failed, or the lane could not do its job -> the LANE is broken
+  # A broken runner must never read like broken code.
+  #
+  # --self-check runs each fixture's DELIBERATELY FAILING test and asserts the runner propagates it.
+  # A lane never seen failing is not a lane; without this a runner that swallowed failures would
+  # report green forever. It runs FIRST in each lane, deliberately.
+  #
+  # Each lane pins its own toolchain image rather than installing into one — the roadie convention
+  # from STUD.io: tests run in a controlled environment, off host/base-image drift.
+
+  - name: test-python
     image: python:3.12-slim
     commands:
       - pip install --quiet --no-cache-dir pytest prometheus_client
-      - cd nodes/mother/lab/weyland-platform/services/weyland-guard && python -m pytest tests/ -q -p no:cacheprovider
+      - bash scripts/run-lang-tests.sh python --self-check
+      - bash scripts/run-lang-tests.sh python
+
+  - name: test-shell
+    image: bats/bats:latest
+    commands:
+      # Same package set as the shell-tests step above; keep them in step if either changes.
+      - apk add --no-cache python3 py3-yaml jq git bash >/dev/null
+      - bash scripts/run-lang-tests.sh shell --self-check
+      - bash scripts/run-lang-tests.sh shell
+
+  - name: test-java
+    image: maven:3.9-eclipse-temurin-17
+    commands:
+      # Java 17 matches the Flink modules' maven.compiler.source/target. B88 added JUnit 5 +
+      # Surefire to both modules — before that `mvn test` ran zero tests and exited 0.
+      - bash scripts/run-lang-tests.sh java --self-check
+      - bash scripts/run-lang-tests.sh java
+
+  - name: test-go
+    image: golang:1.26
+    commands:
+      # NOT -alpine: `go test -race` needs cgo, and alpine without build-base cannot race-detect —
+      # it would silently run without the detector.
+      - bash scripts/run-lang-tests.sh go --self-check
+      - bash scripts/run-lang-tests.sh go
+
+  - name: test-rust
+    image: rust:1-slim
+    commands:
+      - bash scripts/run-lang-tests.sh rust --self-check
+      - bash scripts/run-lang-tests.sh rust
+
+  - name: test-node
+    image: node:24-alpine
+    commands:
+      # Four archetypes on ONE toolchain. TypeScript and JavaScript are dependency-free (node's
+      # built-in runner + native TS type-stripping, 23.6+); React and Next.js cannot be — rendering
+      # a component needs React and a DOM — so those two npm install from their committed lockfiles.
+      - apk add --no-cache bash >/dev/null
+      - bash scripts/run-lang-tests.sh typescript --self-check
+      - bash scripts/run-lang-tests.sh typescript
+      - bash scripts/run-lang-tests.sh javascript --self-check
+      - bash scripts/run-lang-tests.sh javascript
+      - bash scripts/run-lang-tests.sh react --self-check
+      - bash scripts/run-lang-tests.sh react
+      - bash scripts/run-lang-tests.sh nextjs --self-check
+      - bash scripts/run-lang-tests.sh nextjs
 
   # ── 2. detect which images changed since their currently-deployed git-<sha> ──
   - name: detect-changes
