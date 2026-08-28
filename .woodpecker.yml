@@ -228,6 +228,21 @@ steps:
   # Each lane pins its own toolchain image rather than installing into one — the roadie convention
   # from STUD.io: tests run in a controlled environment, off host/base-image drift.
 
+  # ── 1c3. Gatekeeper Rego (B88 Phase 3) ──────────────────────────────────────
+  # kubeconform SKIPS Gatekeeper CRDs — it has no schema for them — so before this step NOTHING
+  # validated the Rego. A policy with a syntax error or inverted logic would ship, be applied, and
+  # silently admit everything; "the file exists" was the only check it got. This compiles every
+  # ConstraintTemplate and EXERCISES the signature constraint against real admission payloads,
+  # because a policy that compiles can still be backwards.
+  - name: rego-policies
+    image: python:3.12-slim
+    commands:
+      - pip install --quiet pyyaml
+      - apt-get update -qq >/dev/null && apt-get install -y -qq curl >/dev/null
+      - curl -sSfL -o /usr/local/bin/opa https://openpolicyagent.org/downloads/latest/opa_linux_amd64_static
+      - chmod +x /usr/local/bin/opa
+      - sh scripts/ci/check-rego-policies.sh
+
   - name: test-python
     image: python:3.12-slim
     commands:

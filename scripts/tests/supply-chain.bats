@@ -168,3 +168,11 @@ teardown() {
   run grep -ci "totalViolations\|promote\|flip" "$policy"
   [ "$output" -ge 1 ]
 }
+
+# ── WHY THE REGO IS NOT TESTED HERE ─────────────────────────────────────────────────────────────
+# The policy's LOGIC is verified by scripts/ci/check-rego-policies.sh, which runs inside the OPA
+# image as its own CI step — not from this suite. Reason: exercising Rego needs OPA, this suite runs
+# inside bats/bats, and shelling out to docker from there is docker-in-docker with a temp path the
+# host daemon cannot see. The tests "passed" only by skipping, and a skipped test proves nothing —
+# the same absence-as-success this whole effort keeps deleting. The file-level assertions above
+# (dryrun, documented promotion path) work correctly here and stay.

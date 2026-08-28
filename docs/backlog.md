@@ -1614,7 +1614,7 @@ Eval + decision matrix: `docs/concepts/spec-driven-frameworks.md`. Memory: `spec
 
 ---
 
-### B88 — Per-language build lanes: tests + scanners + software supply chain — HIGH (2026-08-05; gated on Stud.IO CI track, B57/B118; ↑ Medium→High 2026-08-27; SCOPE EXPANDED 2026-08-27 from "test runners" to the whole per-language build surface — see the three phases below)
+### B88 — Per-language build lanes: tests + scanners + software supply chain — **DONE (2026-08-28)** — was HIGH (2026-08-05; gated on Stud.IO CI track, B57/B118; ↑ Medium→High 2026-08-27; SCOPE EXPANDED 2026-08-27 from "test runners" to the whole per-language build surface — see the three phases below)
 
 **⚠ THE DEFER TRIGGER HAS FIRED, AND THERE IS NOW A CONCRETE DEFECT (2026-08-27).**
 
@@ -1632,6 +1632,28 @@ The shell lane scales with the repo; the Python lane does not. **[B78]'s Open Fo
 **This exact failure already happened once.** The `.woodpecker.yml` comment records that the repo had ONE test suite and CI had never run it; worse, it was orphaned — the tests lived in `weyland-tool-server/tests/` while the code they imported moved to `weyland-guard/` during the B70 extraction, leaving **5 of 8 files uncollectable (ModuleNotFoundError)**, unnoticed until 2026-08-26. A path-named lane is how that recurs.
 
 **Narrow fix available ahead of the full item:** make the Python step discover any service directory containing `tests/` rather than naming one. Small, and it closes the B78 exposure on its own.
+
+---
+
+## DONE 2026-08-28 — all three phases shipped
+
+**Phase 1 — test lanes.** `scripts/run-lang-tests.sh` + 9 hello-world fixtures under `tests/lang/`. `.woodpecker.yml` went from ONE hardcoded step (`cd services/weyland-guard && pytest`) to **6 lanes covering 9 languages**, each running `--self-check` FIRST. Every lane verified in its exact pinned CI image. 22 bats cases.
+
+**Phase 2 — per-language scanners.** All 15 tools in `quality-tools.yaml` AND wired: Rust went from **zero entries** to 4 (clippy/rustfmt/cargo-audit/cargo-deny), Java from SonarQube-only to 5, the JS/TS family from no linter to 5. mypy + shfmt joined the scan-suite; the rest run via a new `runner: lang-scan` (`scripts/run-lang-scan.sh`) because bolting Rust/Java/Node toolchains onto the single scan-suite image would roughly triple it and oversized layers have broken builds here before. `check-quality-tools.sh` extended to enforce **all three runners** — declaring 13 tools under a runner nothing checked would have been the registry's own failure mode through a new door.
+
+**Phase 3 — supply chain.** `scripts/supply-chain.sh` (sbom/sign/attest/verify/licenses/all), wired into the ship loop per pushed image, loud-but-non-fatal. Verified against REAL binaries: syft 1.51.1 produced CycloneDX 1.7 (96 components) + SPDX-2.3 (16 packages); cosign 3.1.3 generated a keypair and failed closed without one. `k8s/gatekeeper/image-signatures.yaml` ships in **`dryrun`** with a documented promote-to-deny checklist.
+
+**FLINK RETROFIT (decision 1).** Both modules gained JUnit 5 + Surefire and real tests. `stripLineComments` and `parseDataValue` were extracted from `main`/`flatMap` to be testable. One test **documents a real defect** rather than hiding it: the SQL comment-stripper is not string-literal aware, so `SELECT '--not-a-comment'` truncates. Another pins that BRFSS suppression markers (`*`, `~`, `N/A`) must **skip**, not parse as 0 — parsing as zero would drag every state's mean toward zero while emitting healthy-looking JSON.
+
+**GATEKEEPER SIGNATURE VERIFICATION (decision 2) — with a limitation stated, not hidden.** Gatekeeper's Rego runs in the admission path with **no network egress**, so it cannot call cosign or reach the registry. The constraint therefore asserts the checkable thing — images must come from `registry.weyland.lab/` — while real cryptographic verification happens in CI via `cosign verify` before deploy. Full in-cluster verification needs a controller that can reach the registry (Kyverno + cosign, or sigstore-policy-controller); that is a separate decision, recorded rather than glossed.
+
+**NEW FINDING — nothing had ever validated the Rego.** `kubeconform` SKIPS Gatekeeper CRDs (no schema), so a policy with a syntax error or inverted logic would ship and silently admit everything. New CI step `rego-policies` + `scripts/ci/check-rego-policies.sh` compiles every ConstraintTemplate **and exercises** the signature constraint against real admission payloads — a policy that compiles can still be backwards. It validated **4** policies: the 3 pre-existing ones had never been checked.
+
+**Defects found by running against real toolchains after the stubs went green** (the `project.md` stubbed-test rule, demonstrated repeatedly): discovery keyed on manifests instead of tests (missed `weyland-guard`, matched 5 test-less services where pytest exits 5); python and shell need OPPOSITE roots; `set -f` needed on the glob loop (same code correct or broken purely by cwd, reporting a clean "projects: 0"); collection errors blamed on the code; `test_gateway_guardrails.py` was never a test (renamed `verify_*`); 458 MB of `node_modules` unignored; `cargo audit`/`npx` misses reported as findings; npm's update notices counted as findings; **the pipeline-exit-code trap four separate times, twice inside fixes for other bugs**; and `[[ "$output" != *"OK"* ]]` which fails because "OK" is a substring of "BROKEN".
+
+**Also fixed en route:** `git` was missing from `bats/bats:latest`, so the DORA `commit_iso` tests had been **red in CI since they landed** — the second time that step was silently red for a missing tool.
+
+**Renovate remains `enabled: false`** — declared so the gap stays visible; B131's open-PR lifecycle covers dependency PRs today.
 
 ---
 
