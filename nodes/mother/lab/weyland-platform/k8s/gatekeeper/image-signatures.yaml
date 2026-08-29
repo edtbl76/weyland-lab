@@ -209,5 +209,9 @@ spec:
       - maximhq/                                  # Bifrost LLM gateway
       - mcp/                                      # neo4j-cypher MCP
       - thomseddon/                               # traefik-forward-auth
-      # ── ⚠ FLAGGED — allowlisted to keep the cluster running, NOT endorsed. See B151.
-      - docker.io/bitnamilegacy/                  # Kafka — ⚠ SEE THE FLAGGED NOTE BELOW
+      # ── (The FLAGGED tier is now EMPTY, and that is the point.) `docker.io/bitnamilegacy/`
+      #    was the one entry of 44 that made the estate LESS safe — Bitnami's frozen namespace,
+      #    no security updates. It was removed on 2026-08-29 by deleting the image rather than
+      #    by trusting it: DataHub was repointed at the Redpanda already running in-cluster and
+      #    the chart's bundled broker was disabled. THE ALLOWLIST SHRINKING IS THE PROOF —
+      #    an exemption removed because the risk is gone, not because it was tolerated.
