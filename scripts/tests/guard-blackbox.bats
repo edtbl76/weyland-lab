@@ -20,7 +20,10 @@
 
 load helper
 
-BB="scripts/integration/guard-blackbox.sh"
+# Absolute (via helper's REPO_ROOT) so this passes under BOTH runners: `bats scripts/tests/` from the
+# repo root (the shell-tests step) AND `bats .` from inside scripts/tests/ (the test-shell lane, which
+# discovers this dir as a shell project). A repo-root-relative path breaks under the second, cwd-in-dir one.
+BB="$REPO_ROOT/scripts/integration/guard-blackbox.sh"
 
 setup() {
   setup_stubs

@@ -9,7 +9,9 @@
 
 load helper
 
-DR="scripts/integration/datahub-redpanda-blackbox.sh"
+# Absolute (via helper's REPO_ROOT) so it resolves under both bats runners regardless of cwd — see the
+# note in guard-blackbox.bats. A repo-root-relative path 127s when the test-shell lane runs `bats .`.
+DR="$REPO_ROOT/scripts/integration/datahub-redpanda-blackbox.sh"
 
 setup() {
   setup_stubs
