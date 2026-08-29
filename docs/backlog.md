@@ -1667,7 +1667,8 @@ Two tracks left. Track A = the original integration gaps (CI secrets, real-CI-ru
 
 **TRACK B — CI/CD hardening (the pipeline-map audit; worked one at a time):**
 - ✔ **B/#1 coverage ratchet — DONE.** `scripts/coverage-ratchet.sh`, per-project baseline `tests/lang/coverage-baseline.tsv`, 8 lanes, shell excluded loudly. Critical-code pass: guard 74→80% (policy.gate), Flink health-job 9.8→33% (extracted meanStep/riskJson). Ratchet wired into every test lane. **Established the pattern for the rest: extract testable logic from framework glue, test the DECISION not the line, ratchet locks it.**
-- **B/#2 — integration/e2e/smoke tier (2026-08-29 — 2 integration lanes DONE: guard + DataHub↔Redpanda, BOTH validated live end-to-end (committed scripts run in-cluster against the real services, 5/5 and topic-spine+MAE/MCE-Stable); Flink MiniCluster deferred with rationale; only the routine first-CI-run remains).**
+- **B/#2 — integration/e2e/smoke tier (2026-08-29 — DONE + VERIFIED IN REAL CI. 2 integration lanes: guard + DataHub↔Redpanda, both ran GREEN inside a real Woodpecker pipeline (#41) from k8s-backend pods, confirmed by their printed OK lines — 5/5 assertions and topic-spine+MAE/MCE-Stable, not just exit codes. Flink MiniCluster + any future test-tier depth deferred → **B151**.)**
+  **Real-CI run surfaced TWO wiring bugs local checks could not (the "run real CI, don't trust local" rule earning its keep):** (1) the CI `shellcheck` step had been RED since before this work — two dead vars (`SCAN_ROOT` in run-lang-scan.sh, `REPO_ROOT` in supply-chain.sh, copy-paste leftovers) flagged by a moving `koalaman/shellcheck-alpine:stable` now at 0.11.0; removed; AND the shellcheck glob did not cover `scripts/integration/*.sh`, so the new scripts escaped the gate — glob extended. (2) both new bats referenced the script by a REPO-ROOT-RELATIVE path, which 127s under the `test-shell` lane (it discovers `scripts/tests/` and runs `bats .` from inside it, unlike the `shell-tests` step's `bats scripts/tests/` from root) — switched to `$REPO_ROOT` like every other suite. Fixed across pipelines #39→#41.
   There was NO test tier above unit; nothing asserted two of ~20 services still talk. First slice shipped:
   **`scripts/integration/guard-blackbox.sh`** — a curl-only (no framework, no jq; flat JSON via grep/sed)
   black-box of the **LIVE deployed weyland-guard**, wired as the new `test-integration` step (pipeline is now
@@ -1693,8 +1694,9 @@ Two tracks left. Track A = the original integration gaps (CI secrets, real-CI-ru
   assertions corrected to match). **VALIDATED end-to-end 2026-08-29:** the committed script, piped into a
   throwaway in-cluster pod, ran against the live guard and printed `5/5 assertions passed` (exit 0) — the same
   alpine+curl+bash mechanism the CI step uses, so the exit-code path and all five assertions are proven against
-  the real deployed guard. **Remaining = routine only:** it firing inside the actual Woodpecker pipeline on the
-  next manual/cron trigger (A2).
+  the real deployed guard. **DONE — verified in real CI (pipeline #41):** `test-integration-guard` ran green from a
+  woodpecker k8s-backend pod against the live guard, printing the 5/5 OK line (A2 closed by a hand-triggered run,
+  not deferred to cron).
   **Second slice DONE 2026-08-29 — DataHub↔Redpanda:** `scripts/integration/datahub-redpanda-blackbox.sh`
   asserts DataHub is actually CONSUMING from the Redpanda it was repointed onto this session — the
   `generic-mae-consumer-job-client` / `generic-mce-consumer-job-client` groups are `Stable` (an `Empty`
@@ -1708,11 +1710,8 @@ Two tracks left. Track A = the original integration gaps (CI secrets, real-CI-ru
   vs finding vs the exit-code trap all covered); shellcheck clean. **Validated live end-to-end 2026-08-29:** the
   committed script, run in a redpanda-image pod against the real broker, printed the topic-spine+MAE/MCE-Stable
   OK line (exit 0).
-  **Flink `main()` MiniCluster harness — DELIBERATELY DEFERRED (not dropped):** the health-job/sql-runner
-  `main()` is topology wiring (source→map→sink); the testable arithmetic was already extracted and unit-tested
-  in the #1 pass (health-job 9.8%→33%). A MiniCluster harness is heavy Java test infra whose remaining yield
-  is framework-glue coverage, not defect-catching — poor ROI for a $0 lab. Revisit if the streaming tier grows
-  real branching logic in `main()`. **A truly-deeper post-deploy endpoint check is now SUBSUMED:** both
+  **Flink `main()` MiniCluster harness — DEFERRED → [B151]** (LOW), the catch-all for any future test-tier depth
+  deferred from this work; the full ROI rationale lives there. **A truly-deeper post-deploy endpoint check is now SUBSUMED:** both
   black-boxes already run in-cluster against the live deployed services, which was the CI-pod-in-mesh question
   — answered (mesh is PERMISSIVE; verified live). Extending the pattern to more services (e.g. tool-server) is
   available on demand but not required to call the tier complete.
@@ -2380,6 +2379,20 @@ echo 0 | sudo tee /sys/devices/system/cpu/cpu4/online /sys/devices/system/cpu/cp
 **Diagnostic conventions that cost real time to learn:** tally with `journalctl _TRANSPORT=kernel`, never `-k` (current-boot-only, silently hides history) · never `tail`/`head` a diagnostic before knowing its line count (a truncated grep produced a confident, wrong "the cutover never took effect" correction that nearly went into two systems of record) · map processor → core id from `/proc/cpuinfo`, never assume CPU number equals core number · after a freeze wait well over 2 minutes before power-cycling (the crash kernel ran 63s and self-booted to produce the only complete dump).
 
 Linear: EMA-186 (project `rogueone Hardware`). Memory: `rogueone-gpu-freeze-vram`, `ema186-core12-offline-after-reboot`. Coupled to **[B149]** (GPU strategy — the decisions hinge on each other, see there).
+
+---
+
+### B151 — B88 follow-on: deferred integration-tier depth (Flink MiniCluster + future test-tier deferrals) — LOW (2026-08-29)
+
+The catch-all for test-tier depth **deliberately deferred** from B88's #2 integration tier — so the deferrals live in ONE tracked place rather than scattered as inline "someday" notes. B88 #2 itself is DONE: two black-box integration lanes (guard, DataHub↔Redpanda) built, bats-tested, and verified GREEN in a real Woodpecker run (#41). What was consciously NOT built lands here.
+
+**Currently holds:**
+
+1. **Flink `main()` MiniCluster harness.** The `health-job` / `sql-runner` `main()` is streaming-topology wiring (`KafkaSource → map → KafkaSink`). **Why deferred, not done:** the only real logic in those modules — the running-mean arithmetic (`meanStep` / `riskJson`) — was already extracted and unit-tested in B88's #1 coverage pass (health-job 9.8%→33%). A Flink MiniCluster harness (`flink-test-utils` + a test source/sink + JUnit wiring, spinning an in-JVM cluster) is non-trivial Java test infra whose remaining yield is "the topology assembles and a record flows end-to-end" — which rarely regresses and, when it does, the live Flink job fails visibly. Poor ROI for a $0 lab with two small modules. The cheaper black-box route (assert the Flink jobs are producing to their `analytics.*` topics, like the DataHub lane) does **not** fit: those jobs are on-demand and idle (their consumer groups show `Empty`), so there is no stable "should be consuming" state to assert without false-firing. **Scope if picked up:** a SINGLE MiniCluster harness on `health-job`'s `main()` to prove the pattern — not both modules.
+
+**Future B88 test-tier deferrals append here** rather than spawning new items. Also available on demand (not deferrals, just not-yet-built): extending the black-box pattern to more service boundaries (e.g. `tool-server`'s HTTP layer) — the tier is complete with its two highest-value boundaries, and more can be added when a driver appears.
+
+Relates **B88** (the integration tier this spun off from), B136 (Flink modules).
 
 ---
 
