@@ -128,7 +128,21 @@ in CI via `cosign verify` before anything is deployed.
 That is a real limitation, stated rather than hidden. Full in-cluster verification needs a controller
 that can reach the registry (Kyverno + cosign, or sigstore-policy-controller). Separate decision.
 
-**Apply the policy (dryrun, safe) — TWO PHASES, not one.**
+**⛔ DO NOT `kubectl apply` THIS — the path is Argo-managed with `selfHeal: true`.**
+
+`k8s/gatekeeper/` is owned by the **`gatekeeper-constraints`** Argo Application, so a hand-apply is
+reverted to git main HEAD within minutes. Worse, it fails *quietly*: `kubectl apply` prints
+`configured` for both resources and the live object simply does not change. Measured 2026-08-28 —
+live Rego 1083 bytes, repo 1978, after two applies that both reported success.
+
+**The deploy is the push.** Commit the policy, let Argo sync it, then read the audit. This is the
+same selfHeal mechanism recorded in the `argocd-gitops-gotchas` memory, which is also why
+`argocd app rollback` and `kubectl rollout undo` are traps here.
+
+A hand-apply is legitimate only for the **first** creation of the ConstraintTemplate on a cluster
+that has never seen it — and even then it is two phases, not one:
+
+**The two-phase gotcha (first creation only)**
 
 The ConstraintTemplate *generates* the `K8sImageSignature` CRD, so the constraint that uses that kind
 cannot be applied in the same pass — the first apply creates the template and then fails with
@@ -141,7 +155,7 @@ kubectl apply -f /home/edwardmangini/IdeaProjects/weyland/nodes/mother/lab/weyla
 ```
 
 (Runs from **rogueone** — kubectl reaches the cluster from either host, and the file lives in the repo
-there, so no rsync is needed.)
+there, so no rsync is needed. After this first creation, every subsequent change goes through git.)
 
 **Read the audit:**
 

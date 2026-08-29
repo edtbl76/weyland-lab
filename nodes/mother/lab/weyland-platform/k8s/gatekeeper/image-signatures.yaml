@@ -70,10 +70,34 @@ spec:
           startswith(image, reg)
         }
 
+        # IMPLICIT DOCKER HUB — **OFFICIAL IMAGES ONLY**, and the narrowness is the point.
+        #
+        # `postgres:17` is shorthand for `docker.io/library/postgres:17`: a Docker-Hub OFFICIAL
+        # image, curated, in the `library` namespace. A SINGLE-segment reference can only ever
+        # resolve there, so exempting it is exactly as broad as the `docker.io/library/` entry in
+        # exemptImages — no wider.
+        #
+        # ⚠ WHAT THIS DELIBERATELY DOES **NOT** COVER, and why. The first version of this rule
+        # exempted anything whose first path segment lacked a `.` or `:`, reasoning that such a
+        # segment is "a namespace, not a host". True — but a namespace belongs to ANY Docker Hub
+        # user, so `grafana/grafana` was exempt and so was `attacker/evil`. That is an admission
+        # BYPASS, not an exemption: the policy would have admitted any image any person on earth
+        # can push. Caught by security review 2026-08-28, after this repo's own test suite had
+        # asserted the broken behaviour as correct ("implicit hub, org-scoped -> 0 violations").
+        #
+        # An org-scoped Hub image that this lab genuinely needs must therefore be listed
+        # explicitly in exemptImages, by full path. That is more entries and a higher violation
+        # count — which is the honest state, not a problem to be suppressed.
+        implicit_official_image(image) {
+          count(split(image, "/")) == 1          # no namespace at all -> library/
+          not contains(split(image, ":")[0], ".")  # ...and not a bare hostname
+        }
+
         violation[{"msg": msg}] {
           container := input.review.object.spec.containers[_]
           not exempt(container.image)
           not from_allowed_registry(container.image)
+          not implicit_official_image(container.image)
           msg := sprintf("container <%v> runs image <%v>, which is not from a signed registry (%v) and is not exempt", [container.name, container.image, input.parameters.allowedRegistries])
         }
 
@@ -81,6 +105,7 @@ spec:
           container := input.review.object.spec.initContainers[_]
           not exempt(container.image)
           not from_allowed_registry(container.image)
+          not implicit_official_image(container.image)
           msg := sprintf("initContainer <%v> runs image <%v>, which is not from a signed registry (%v) and is not exempt", [container.name, container.image, input.parameters.allowedRegistries])
         }
 ---
@@ -109,7 +134,16 @@ spec:
     exemptImages:
       # Third-party images the lab runs but does not build. Every entry is a deliberate, reviewable
       # decision — NOT a catch-all. Trim this list as workloads move to locally-built images.
+      # ⚠ NEVER exempt the ROOT of a registry that accepts public pushes. `docker.io/` was briefly
+      # listed here and that was wrong twice over: it admits `docker.io/<anyone>/<anything>`, and
+      # the only reason it was widened was to make a violation count drop. The 270 violations were
+      # TRUE — they really are unsigned third-party images. Suppressing a correct signal is not a
+      # fix. Reverted to official images only (security review, 2026-08-28).
       - docker.io/library/
+      # registry.istio.io — vendor-controlled (the Istio project publishes it; it is not open-push)
+      # and unavoidable: sidecars are injected into EVERY meshed namespace, so
+      # `excludedNamespaces: [istio-system]` never covered them.
+      - registry.istio.io/
       - quay.io/
       - ghcr.io/
       - gcr.io/

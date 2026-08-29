@@ -51,7 +51,18 @@ done
 # "foreign" case ever returns zero violations the constraint is decoration, and that must fail.
 SIG="$WORK/image-signatures.0.0.rego"
 if [ -f "$SIG" ]; then
-  P='{"allowedRegistries":["registry.weyland.lab/"],"exemptImages":["docker.io/library/"]}'
+  # THE PARAMETERS COME FROM THE SHIPPED CONSTRAINT, not from a synthetic literal. The first
+  # version hardcoded them, so it exercised the Rego's LOGIC against a stand-in config and could
+  # not see a missing exemption at all — it passed while the real policy flagged istio sidecars as
+  # violations. A policy test that does not read the policy's own parameters is testing half the
+  # policy.
+  P="$(python3 - "$POLICY_DIR/image-signatures.yaml" <<'PYP'
+import sys, yaml, json
+for d in (x for x in yaml.safe_load_all(open(sys.argv[1])) if x):
+    if d.get("kind") == "K8sImageSignature":
+        print(json.dumps(d["spec"]["parameters"])); break
+PYP
+)"
   check() { # check <label> <image> <expected-count>
     printf '{"parameters":%s,"review":{"object":{"spec":{"containers":[{"name":"c","image":"%s"}]}}}}' \
       "$P" "$2" > "$WORK/in.json"
@@ -68,6 +79,26 @@ if [ -f "$SIG" ]; then
   check "signed-registry image admitted" "registry.weyland.lab/weyland-agent:git-abc" 0
   check "foreign-registry image flagged" "evil.example.com/backdoor:latest"           1
   check "exempted third-party admitted"  "docker.io/library/postgres:17"              0
+  # Added after the first dryrun audit reported 270 violations and showed the exemption model was
+  # incomplete in two ways that only live data could reveal:
+  #   - registry.istio.io led the list, because sidecars are injected into EVERY meshed namespace,
+  #     so excludedNamespaces: [istio-system] never covered them.
+  #   - "implicit docker hub" images carry NO registry prefix at all (postgres:17, nginx:alpine),
+  #     so a startswith("docker.io/...") test cannot match them.
+  check "istio sidecar admitted"         "registry.istio.io/release/proxyv2:1.30.1"   0
+  # SINGLE-SEGMENT implicit refs are Docker Hub OFFICIAL images (postgres:17 ==
+  # docker.io/library/postgres), so they follow the docker.io/library/ exemption.
+  check "implicit OFFICIAL image admitted" "postgres:17"                              0
+  # ORG-SCOPED implicit refs are NOT official — grafana/grafana == docker.io/grafana/grafana,
+  # pushed by a third party. Treating "first segment has no dot" as trustworthy admitted ANY
+  # Docker Hub user's image, including attacker/evil. Flagged by security review 2026-08-28; the
+  # earlier version of this suite asserted the BYPASS worked.
+  check "org-scoped hub image FLAGGED"   "grafana/grafana:11.4.0"                     1
+  check "attacker-namespace image FLAGGED" "attacker/evil:latest"                     1
+  check "a bare host:port is NOT implicit hub" "evil.io:5000/x:latest"                1
+  # A whole-registry exemption on a registry that accepts public pushes is not an exemption, it is
+  # an opt-out. docker.io/ must stay scoped to library/.
+  check "non-official docker.io path FLAGGED" "docker.io/acryldata/datahub-gms:v1.6.0" 1
 fi
 
 rm -rf "$WORK"
