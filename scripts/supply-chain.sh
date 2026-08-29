@@ -35,7 +35,6 @@
 # Admission control lives in k8s/gatekeeper/image-signatures.yaml and ships in `dryrun`.
 set -uo pipefail
 
-REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 SBOM_DIR="${WEYLAND_SBOM_DIR:-${TMPDIR:-/tmp}/weyland-sbom}"
 
 die() { printf '%s\n' "$*" >&2; exit 2; }
