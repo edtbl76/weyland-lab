@@ -93,12 +93,21 @@ PYP
   # pushed by a third party. Treating "first segment has no dot" as trustworthy admitted ANY
   # Docker Hub user's image, including attacker/evil. Flagged by security review 2026-08-28; the
   # earlier version of this suite asserted the BYPASS worked.
-  check "org-scoped hub image FLAGGED"   "grafana/grafana:11.4.0"                     1
+  # Was `grafana/grafana` until the B88 inventory added `grafana/` as a REVIEWED publisher, at
+  # which point 0 became the right answer and this case went stale. Repointed at an org that is
+  # deliberately not in the inventory, so it still tests what it was written to test: an implicit
+  # org-scoped reference is NOT exempt merely for lacking a registry host. NOT weakened — the
+  # bypass case is still covered by attacker/evil below.
+  check "UNREVIEWED org-scoped hub FLAGGED" "someorg/someimage:1.0"                    1
   check "attacker-namespace image FLAGGED" "attacker/evil:latest"                     1
   check "a bare host:port is NOT implicit hub" "evil.io:5000/x:latest"                1
   # A whole-registry exemption on a registry that accepts public pushes is not an exemption, it is
   # an opt-out. docker.io/ must stay scoped to library/.
-  check "non-official docker.io path FLAGGED" "docker.io/acryldata/datahub-gms:v1.6.0" 1
+  # acryldata is now an EXPLICITLY REVIEWED publisher (B88 inventory), so it is admitted — but by
+  # its own prefix, not by a blanket docker.io/ entry. The distinction is the whole point.
+  check "reviewed publisher admitted"    "docker.io/acryldata/datahub-gms:v1.6.0"     0
+  check "UNREVIEWED publisher FLAGGED"   "docker.io/nobody-reviewed-this/x:latest"    1
+  check "typosquat of a reviewed pub FLAGGED" "docker.io/grafanaa/grafana:11.4.0"     1
 fi
 
 rm -rf "$WORK"

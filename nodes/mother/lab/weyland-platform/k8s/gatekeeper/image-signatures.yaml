@@ -148,3 +148,66 @@ spec:
       - ghcr.io/
       - gcr.io/
       - registry.k8s.io/
+
+      # ── REVIEWED THIRD-PARTY INVENTORY (B88, 2026-08-29) ──────────────────────────────────────
+      # 44 publisher prefixes covering the 84 violations the first dryrun audit surfaced. Scoped to
+      # the PUBLISHER, never the registry root: `docker.io/grafana/` trusts Grafana Labs, whereas
+      # `docker.io/` would trust anyone with a Docker Hub account (that mistake was made and
+      # reverted here on 2026-08-28 — it was made to lower a violation count, which is the wrong
+      # reason to widen a security control).
+      #
+      # THIS IS AN ALLOWLIST OF REVIEWED SOFTWARE, NOT A SUPPRESSION LIST. Its value is what
+      # happens AFTER: with the known inventory named, any future violation means an image from a
+      # publisher nobody has reviewed has appeared — a typosquat, an ad-hoc pull, or a chart
+      # quietly changing its image source. Keep it that way; do not add a prefix without knowing
+      # what it is.
+      # ── VENDOR: published by the project's own organisation. Lowest risk of the three.
+      - alpine/                                   # alpine/git (CI clones) + alpine/minio
+      - apache/                                   # APISIX gateway + dashboard
+      - apachesuperset.docker.scarf.sh/apache/    # Superset BI (vendor-hosted scarf mirror)
+      - clickhouse/                               # ClickHouse OLAP
+      - cockroachdb/                              # CockroachDB
+      - confluentinc/                             # Kafka Connect
+      - coredns/                                  # CoreDNS
+      - cubejs/                                   # Cube semantic layer
+      - docker.io/acryldata/                      # DataHub (gms/frontend/actions/upgrade)
+      - docker.io/grafana/                        # Alloy, Grafana, Loki, Tempo
+      - docker.io/woodpeckerci/                   # Woodpecker server + agent
+      - docker.n8n.io/n8nio/                      # n8n
+      - docker.redpanda.com/redpandadata/         # Redpanda + console
+      - ecr-public.aws.com/docker/                # redis (official image via the AWS ECR mirror)
+      - glitchtip/                                # GlitchTip error tracking
+      - grafana/                                  # mcp-grafana + pyroscope
+      - langfuse/                                 # Langfuse web + worker
+      - lightdash/                                # Lightdash BI
+      - minio/                                    # mc client
+      - moby/                                     # BuildKit
+      - neo4jlabs/                                # NeoDash
+      - opensearchproject/                        # OpenSearch + Dashboards
+      - qdrant/                                   # Qdrant
+      - rancher/                                  # kubectl (job runner)
+      - semitechnologies/                         # Weaviate
+      - sonarsource/                              # sonar-scanner-cli
+      - timescale/                                # TimescaleDB HA
+      - treeverse/                                # lakeFS
+      - trinodb/                                  # Trino
+      - unleashorg/                               # Unleash
+      - valkey/                                   # Valkey
+      # ── COMMUNITY: real multi-maintainer projects, not vendor-run.
+      - docker.io/kiwigrid/                       # k8s-sidecar (dashboard loader)
+      - gizmodata/                                # GizmoSQL
+      - pgvector/                                 # pgvector Postgres
+      - prompve/                                  # prometheus-pve-exporter
+      - squidfunk/                                # mkdocs-material
+      # ── SOLO-MAINTAINER namespaces. Legitimate and in use, but a different trust tier:
+      #    one account compromise is one supply-chain compromise. Reviewed and accepted; the
+      #    tiering exists so this concentration is visible rather than buried in an alphabetised list.
+      - crystaldba/                               # postgres-mcp
+      - joxit/                                    # docker-registry-ui
+      - louislam/                                 # Uptime Kuma
+      - machines/                                 # Filestash
+      - maximhq/                                  # Bifrost LLM gateway
+      - mcp/                                      # neo4j-cypher MCP
+      - thomseddon/                               # traefik-forward-auth
+      # ── ⚠ FLAGGED — allowlisted to keep the cluster running, NOT endorsed. See B151.
+      - docker.io/bitnamilegacy/                  # Kafka — ⚠ SEE THE FLAGGED NOTE BELOW

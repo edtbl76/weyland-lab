@@ -20,6 +20,37 @@ global:
       provisionSecrets:
         enabled: false
 
+  # ── Kafka: REDPANDA, not the chart's bundled broker (B88 follow-on, 2026-08-29) ────────────────
+  # The DataHub chart ships its own single-pod KRaft Kafka as `prerequisites-kafka`. That image is
+  # `docker.io/bitnamilegacy/kafka` — the namespace Bitnami froze when it moved its catalog behind a
+  # paid tier, and which receives **no security updates**. Found by B88's first Gatekeeper dryrun
+  # audit, where it was the one entry of 44 that made the estate less safe rather than merely
+  # unsigned.
+  #
+  # Redpanda is already running in this namespace, speaks the Kafka API, and auto-creates topics
+  # (`auto_create_topics_enabled: true`), so it replaces the broker outright — one less StatefulSet
+  # AND one less unmaintained image.
+  #
+  # WHY THIS IS LOWER RISK THAN IT LOOKS: DataHub's source of truth is **Postgres + OpenSearch**.
+  # Kafka is the event bus, not the catalog — an empty broker loses in-flight events, not the 3,255
+  # cataloged datasets. `DataHubUpgradeHistory_v1` is the one topic that matters (GMS reads it to
+  # decide whether schema migrations have run); the system-update Job re-establishes it.
+  #
+  # MESH NOTE: DataHub pods are meshed, redpanda is NOT, and DataHub is the first meshed client to
+  # talk to it. That is allowed — the only STRICT PeerAuthentication is scoped to `weyland-postgres`
+  # — and the TCP path was verified from the GMS pod before this change. Watch for the long-lived
+  # connection stall documented in `neo4j-istio-bolt-longconn-stall`: Kafka consumers hold
+  # persistent connections, the same shape that needed a DestinationRule keepalive for Neo4j Bolt.
+  #
+  # SCHEMA REGISTRY IS UNCHANGED: DataHub uses `SCHEMA_REGISTRY_TYPE=INTERNAL`, served by GMS
+  # itself, so redpanda's registry is not involved.
+  #
+  # ROLLBACK: revert this block. `prerequisites-kafka` is deliberately LEFT RUNNING until this is
+  # proven, so rolling back is a repoint, not a restore.
+  kafka:
+    bootstrap:
+      server: "redpanda.data-mesh.svc.cluster.local:9092"
+
   # Metadata store = the shared Postgres, datahub DB, dedicated `datahub` role (password in datahub-secret).
   sql:
     datasource:
