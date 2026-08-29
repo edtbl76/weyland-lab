@@ -398,6 +398,18 @@ steps:
     environment:
       BUILDKIT_HOST: tcp://buildkitd:1234
     secrets: [cosign_key, cosign_password]
+    # B88 gap #3 — the per-image supply-chain scans (syft SBOM + trivy image vuln) analyse the full
+    # pushed image. With no memory request the step pod is best-effort QoS and was OOMKilled (exit 137)
+    # scanning a large ML image on the RAM-tight node. A 1Gi request makes it Burstable (a real floor,
+    # not first-to-die) and a 4Gi limit gives the scans headroom. MEMORY ONLY — no cpu request, to
+    # avoid adding to mother's cpu-requests wall (cpu is compressible; it never triggers an OOM kill).
+    backend_options:
+      kubernetes:
+        resources:
+          requests:
+            memory: 1Gi
+          limits:
+            memory: 4Gi
     commands:
       # B88 Phase 3 — syft + cosign + trivy are fetched here rather than baked into moby/buildkit,
       # which is upstream's image and not ours to rebuild. All single static binaries.
