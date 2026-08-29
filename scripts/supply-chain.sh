@@ -175,8 +175,11 @@ vuln() {
   # or output that is NOT a report, means trivy could not pull/scan -> broken (2). Reading "0 findings"
   # off a scan that never happened is the absence-as-success trap; 0 findings counts ONLY when the
   # report is present. Read what trivy PRINTED, never its exit code alone.
-  if [ "$rc" -ne 0 ] || ! printf '%s' "$out" | grep -q '"SchemaVersion"' \
-       || ! printf '%s' "$out" | grep -q '"ArtifactName"'; then
+  # here-strings, NOT `printf | grep -q`: under `set -o pipefail`, grep -q short-circuits on the match
+  # and closes the pipe, so a printf still streaming a huge report (an 8 GB image's JSON) gets SIGPIPE
+  # (141) and pipefail reports the whole pipeline failed — the guard would then falsely call a perfectly
+  # good scan "broken". A here-string has no pipe, so it is immune at any output size.
+  if [ "$rc" -ne 0 ] || ! grep -q '"SchemaVersion"' <<<"$out" || ! grep -q '"ArtifactName"' <<<"$out"; then
     printf 'VULN SCAN BROKEN: trivy could not scan %s (rc=%s):\n%s\n' "$img" "$rc" "$out" >&2
     return 2
   fi

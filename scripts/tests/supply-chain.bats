@@ -59,6 +59,22 @@ TRIVY_CLEAN='{"SchemaVersion":2,"ArtifactName":"img","Results":[]}'
   [ "$status" -eq 2 ]
 }
 
+@test "vuln: a LARGE valid report (8GB-image scale) is not falsely called broken" {
+  # Regression for the pipefail+SIGPIPE trap: `printf huge | grep -q` had grep short-circuit and
+  # SIGPIPE the printf, so pipefail reported the pipeline failed and the guard called a good scan
+  # broken. The here-string guard is immune. Build a big report: SchemaVersion up top, thousands of
+  # findings after — the exact shape that broke the real 8.48GB dagster-user-code scan in CI.
+  local big='{"SchemaVersion":2,"ArtifactName":"img","Results":[{"Vulnerabilities":['
+  local i
+  for i in $(seq 1 2000); do big+='{"VulnerabilityID":"CVE-x","Severity":"HIGH"},'; done
+  big+='{"VulnerabilityID":"CVE-z","Severity":"CRITICAL"}]}]}'
+  stub trivy 0 "$big"
+  run bash "$SC" vuln registry.test/img:tag
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"2001 finding(s)"* ]]
+  [[ "$output" == *"CRITICAL 1"* ]]
+}
+
 @test "vuln: trivy not on PATH is a BROKEN lane (2)" {
   run bash "$SC" vuln registry.test/img:tag
   [ "$status" -eq 2 ]
