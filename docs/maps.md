@@ -19,6 +19,16 @@ together, and what each layer does. Each opens full-screen; best viewed on a wid
 
     → **[Open the Data-Mesh Map](https://edtbl76.github.io/weyland-lab/data-mesh-map.html)** (public)
 
+!!! abstract "CI Architecture Map"
+    The continuous-integration pipeline end-to-end: the 21 Woodpecker steps grouped by phase &mdash;
+    **guards** that block a bad run before anything builds, the **9-language test lanes** and **3 scan
+    lanes** (B88), then **build &rarr; SBOM/sign/attest &rarr; deploy-handoff** &mdash; plus the
+    surrounding ship loop, watchdogs, weekly scan-suite, and the **Gatekeeper signature policy**. Two
+    backends on one server: weyland jobs as k8s pods, STUD.io CI on rogueone agents.
+
+    &rarr; **[Open the CI Architecture Map](ci-architecture-map.html)** &mdash; **internal only** (not published to Pages)
+    &nbsp;&middot;&nbsp; **[Flow diagram](diagrams/flow-build-lanes.md)** &mdash; the build-lane mechanism as Mermaid
+
 !!! abstract "LLM Routing Map"
     The agentic egress plane: each **use-case alias** (`wl-coding`, `wl-rag`, …) and the **provider
     fallback chain** LiteLLM resolves it to — primary → always-on-free → paid escalation, colour-coded

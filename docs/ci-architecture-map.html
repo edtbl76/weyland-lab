@@ -1,0 +1,156 @@
+<title>Weyland CI Architecture Map</title>
+<style>
+  :root{
+    --bg:#0f1319; --panel:#171c24; --panel2:#1c222c; --line:#2a323e; --line2:#38424f;
+    --ink:#e8ecf1; --muted:#9aa7b6; --faint:#6b7787; --accent:#5fb3d4; --mono:ui-monospace,SFMono-Regular,Menlo,monospace;
+    --gate:#e0b155; --test:#6bbf8a; --scan:#c98bd8; --supply:#e08a6b; --deploy:#5fb3d4; --guard:#8a94e0;
+  }
+  @media (prefers-color-scheme:light){
+    :root{ --bg:#f4f5f2; --panel:#ffffff; --panel2:#f7f8f6; --line:#e2e4de; --line2:#d2d5cd;
+      --ink:#1a1e24; --muted:#5a6472; --faint:#8a94a2; --accent:#2c7fa0;
+      --gate:#b8860b; --test:#3d8f5f; --scan:#9040a8; --supply:#c05a34; --deploy:#2c7fa0; --guard:#4048a8; }
+  }
+  html,body{margin:0;padding:0}
+  body{background:var(--bg); color:var(--ink); font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif; line-height:1.5; -webkit-font-smoothing:antialiased}
+  .wrap{max-width:1240px; margin:0 auto; padding:44px 22px 80px}
+  .eyebrow{font-family:var(--mono); font-size:12px; letter-spacing:.22em; text-transform:uppercase; color:var(--accent); margin:0 0 16px}
+  .title{font-size:clamp(28px,5vw,48px); line-height:1.03; letter-spacing:-.02em; margin:0 0 16px; font-weight:800; text-wrap:balance; max-width:20ch}
+  .fade{color:var(--muted); font-weight:600}
+  .lede{font-size:clamp(15px,1.6vw,17px); color:var(--muted); max-width:74ch; margin:0 0 26px; text-wrap:pretty}
+  .legend{display:flex; flex-wrap:wrap; gap:8px 18px; margin:0 0 30px; font-family:var(--mono); font-size:12px; color:var(--muted)}
+  .legend span{display:inline-flex; align-items:center; gap:6px}
+  .dot{width:10px; height:10px; border-radius:2px; flex:none}
+  .phase{border:1px solid var(--line); border-radius:8px; background:var(--panel); margin:0 0 16px; overflow:hidden}
+  .phase-head{display:flex; align-items:baseline; gap:12px; padding:13px 18px; border-bottom:1px solid var(--line); background:var(--panel2)}
+  .phase-num{font-family:var(--mono); font-size:13px; font-weight:700; color:var(--faint); font-variant-numeric:tabular-nums}
+  .phase-name{font-size:16px; font-weight:700; letter-spacing:-.01em}
+  .phase-note{font-size:12.5px; color:var(--muted); margin-left:auto; text-align:right; max-width:52ch}
+  .steps{display:grid; grid-template-columns:repeat(auto-fill,minmax(232px,1fr)); gap:1px; background:var(--line); padding:1px}
+  .step{background:var(--panel); padding:12px 14px; display:flex; flex-direction:column; gap:5px; border-left:3px solid var(--tint,var(--line2))}
+  .step .top{display:flex; align-items:center; gap:8px}
+  .step .sn{font-family:var(--mono); font-size:11px; color:var(--faint); font-variant-numeric:tabular-nums}
+  .step .name{font-family:var(--mono); font-size:13px; font-weight:700; color:var(--ink)}
+  .step .img{font-family:var(--mono); font-size:10.5px; color:var(--faint)}
+  .step .desc{font-size:12px; color:var(--muted); text-wrap:pretty}
+  .step .tag{font-family:var(--mono); font-size:10px; color:var(--tint); font-weight:700; text-transform:uppercase; letter-spacing:.05em}
+  .arrow{text-align:center; color:var(--faint); font-size:18px; margin:2px 0; user-select:none}
+  .band{display:grid; grid-template-columns:repeat(auto-fit,minmax(200px,1fr)); gap:12px; margin:0 0 16px}
+  .card{border:1px solid var(--line); border-radius:8px; background:var(--panel); padding:14px 16px}
+  .card h3{margin:0 0 8px; font-size:13px; font-family:var(--mono); font-weight:700; letter-spacing:.02em; display:flex; align-items:center; gap:7px}
+  .card p{margin:0; font-size:12.5px; color:var(--muted); text-wrap:pretty}
+  .card .k{font-family:var(--mono); color:var(--ink); font-size:11.5px}
+  .sec{font-size:12px; font-family:var(--mono); text-transform:uppercase; letter-spacing:.16em; color:var(--faint); margin:34px 0 12px; border-bottom:1px solid var(--line); padding-bottom:6px}
+  .foot{margin-top:36px; font-size:12px; color:var(--faint); font-family:var(--mono); text-wrap:pretty; line-height:1.7}
+  .foot a{color:var(--accent); text-decoration:none}
+  b.h{color:var(--ink)}
+</style>
+<div class="wrap">
+  <p class="eyebrow">Weyland · Continuous Integration</p>
+  <h1 class="title">CI Architecture <span class="fade">— one pipeline, gate to deploy</span></h1>
+  <p class="lede">Every push to <span style="font-family:var(--mono)">weyland-lab</span> runs a 21-step Woodpecker pipeline: cheap deterministic <b class="h">guards</b> first (a stale doc or a broken policy stops the run before anything builds), then <b class="h">per-language tests</b> and <b class="h">scanners</b>, then <b class="h">build → sign → deploy-handoff</b>. The LAN has no push-webhooks, so it is triggered manually or by a nightly 01:00 NY cron. This is the weyland-lab pipeline (<span style="font-family:var(--mono)">backend: kubernetes</span> — steps are cluster pods); the same Woodpecker server also runs STUD.io's CI on a <span style="font-family:var(--mono)">local</span> backend over rogueone agents.</p>
+
+  <div class="legend">
+    <span><i class="dot" style="background:var(--guard)"></i>guard — blocks the run</span>
+    <span><i class="dot" style="background:var(--gate)"></i>gate — status/registry</span>
+    <span><i class="dot" style="background:var(--test)"></i>test lane</span>
+    <span><i class="dot" style="background:var(--scan)"></i>scan lane</span>
+    <span><i class="dot" style="background:var(--supply)"></i>build + supply chain</span>
+    <span><i class="dot" style="background:var(--deploy)"></i>deploy handoff</span>
+  </div>
+
+  <!-- PHASE 1 — GUARDS -->
+  <div class="phase">
+    <div class="phase-head">
+      <span class="phase-num">1a–1c</span><span class="phase-name">Guards</span>
+      <span class="phase-note">Cheap, deterministic, BLOCKING. An advisory warning is exactly what let 15 diagrams rot — so these fail the run and no images ship that run.</span>
+    </div>
+    <div class="steps">
+      <div class="step" style="--tint:var(--guard)"><div class="top"><span class="sn">01</span><span class="name">yaml-syntax</span></div><div class="img">yamllint</div><div class="desc">malformed pipeline YAML never reaches an agent</div></div>
+      <div class="step" style="--tint:var(--guard)"><div class="top"><span class="sn">02</span><span class="name">repo-guards</span></div><div class="img">node:24-alpine</div><div class="desc">mermaid render-check (144 blocks) · doc-counts · app-registry · <b class="h">quality-tools drift (3 runners)</b> · SA-automount · cron-freshness</div></div>
+      <div class="step" style="--tint:var(--guard)"><div class="top"><span class="sn">03</span><span class="name">port-iac-coverage</span></div><div class="img">alpine</div><div class="desc">every Port blueprint TOFU knows about is codified — the gap that opened one UI click at a time</div></div>
+      <div class="step" style="--tint:var(--gate)"><div class="top"><span class="sn">04</span><span class="name">linear-sync</span></div><div class="img">alpine</div><div class="desc">DoD Pillar 5 — backlog DONE vs Linear open; issues with no project</div></div>
+      <div class="step" style="--tint:var(--guard)"><div class="top"><span class="sn">05</span><span class="name">shellcheck</span></div><div class="img">shellcheck-alpine</div><div class="desc">every <span class="k">scripts/*.sh</span> lints clean at warning severity</div></div>
+      <div class="step" style="--tint:var(--guard)"><div class="top"><span class="sn">06</span><span class="name">shell-tests</span></div><div class="img">bats/bats</div><div class="desc">310 bats — the guards' own tests + ship-loop logic. <span class="k">git</span>/<span class="k">jq</span> added after silent-red incidents</div></div>
+      <div class="step" style="--tint:var(--guard)"><div class="top"><span class="sn">07</span><span class="name">rego-policies</span></div><div class="img">python:3.12-slim + opa</div><div class="desc"><b class="h">B88.</b> compiles every Gatekeeper ConstraintTemplate + exercises the signature policy vs real payloads — kubeconform SKIPS these CRDs, so nothing validated Rego before</div></div>
+    </div>
+  </div>
+
+  <div class="arrow">↓</div>
+
+  <!-- PHASE 2 — TEST LANES -->
+  <div class="phase">
+    <div class="phase-head">
+      <span class="phase-num">1d</span><span class="phase-name">Test lanes — 9 languages</span>
+      <span class="phase-note">B88. Replaced ONE hardcoded <span style="font-family:var(--mono)">pytest</span> step that named a single service by path. Discovery keys on test files; each lane runs <span style="font-family:var(--mono)">--self-check</span> first to prove it can fail.</span>
+    </div>
+    <div class="steps">
+      <div class="step" style="--tint:var(--test)"><div class="top"><span class="sn">08</span><span class="name">test-python</span></div><div class="img">python:3.12-slim</div><div class="desc">pytest · finds weyland-guard by discovery, not by path</div></div>
+      <div class="step" style="--tint:var(--test)"><div class="top"><span class="sn">09</span><span class="name">test-shell</span></div><div class="img">bats/bats</div><div class="desc">bats · directory-discovered</div></div>
+      <div class="step" style="--tint:var(--test)"><div class="top"><span class="sn">10</span><span class="name">test-java</span></div><div class="img">maven:3.9-temurin-17</div><div class="desc">JUnit 5 + Surefire · the 2 Flink modules that ran ZERO tests before B88</div></div>
+      <div class="step" style="--tint:var(--test)"><div class="top"><span class="sn">11</span><span class="name">test-go</span></div><div class="img">golang:1.26</div><div class="desc"><span class="k">go test -race</span> · 1.26+gcc (alpine can't race-detect)</div></div>
+      <div class="step" style="--tint:var(--test)"><div class="top"><span class="sn">12</span><span class="name">test-rust</span></div><div class="img">rust:1-slim</div><div class="desc"><span class="k">cargo test</span> · fixture-only today (forward scaffolding, B9)</div></div>
+      <div class="step" style="--tint:var(--test)"><div class="top"><span class="sn">13</span><span class="name">test-node</span></div><div class="img">node:24-alpine</div><div class="desc">TS · JS · React · Next.js — 4 archetypes, 1 node runner (jest + native type-strip)</div></div>
+    </div>
+  </div>
+
+  <div class="arrow">↓</div>
+
+  <!-- PHASE 3 — SCAN LANES -->
+  <div class="phase">
+    <div class="phase-head">
+      <span class="phase-num">1e</span><span class="phase-name">Scan lanes — analysis</span>
+      <span class="phase-note">B88. Findings are COUNTS, never gates (a nit that blocks merge gets the gate muted); a BROKEN lane is exit 2. Kept out of the scan-suite image — 3 toolchains would triple it.</span>
+    </div>
+    <div class="steps">
+      <div class="step" style="--tint:var(--scan)"><div class="top"><span class="sn">14</span><span class="name">scan-rust</span></div><div class="img">rust:1-slim</div><div class="desc">clippy · rustfmt · cargo-audit · cargo-deny — Rust had 0 registry entries before</div></div>
+      <div class="step" style="--tint:var(--scan)"><div class="top"><span class="sn">15</span><span class="name">scan-java</span></div><div class="img">maven:3.9-temurin-17</div><div class="desc">spotbugs · pmd · checkstyle · error-prone</div></div>
+      <div class="step" style="--tint:var(--scan)"><div class="top"><span class="sn">16</span><span class="name">scan-node</span></div><div class="img">node:24-alpine</div><div class="desc">eslint · tsc · npm-audit · license-checker · next-lint</div></div>
+    </div>
+  </div>
+
+  <div class="arrow">↓</div>
+
+  <!-- PHASE 4 — BUILD + SUPPLY CHAIN -->
+  <div class="phase">
+    <div class="phase-head">
+      <span class="phase-num">2–3</span><span class="phase-name">Build → supply chain → schema-validate</span>
+      <span class="phase-note">Only images whose context changed rebuild. Each pushed image gets an SBOM, a signature, provenance and a licence scan — loud but non-fatal.</span>
+    </div>
+    <div class="steps">
+      <div class="step" style="--tint:var(--gate)"><div class="top"><span class="sn">17</span><span class="name">detect-changes</span></div><div class="img">alpine/git</div><div class="desc">diff each image context vs its deployed <span class="k">git-&lt;sha&gt;</span> — only changed images build</div></div>
+      <div class="step" style="--tint:var(--supply)"><div class="top"><span class="sn">18</span><span class="name">build</span><span class="tag">+supply</span></div><div class="img">moby/buildkit</div><div class="desc">buildctl → <span class="k">registry.weyland.lab</span>, then per image: <b class="h">syft</b> SBOM (CycloneDX+SPDX) · <b class="h">cosign</b> sign · <b class="h">attest</b> SLSA · <b class="h">trivy</b> licences</div></div>
+      <div class="step" style="--tint:var(--gate)"><div class="top"><span class="sn">19</span><span class="name">kubeconform</span></div><div class="img">kubeconform-alpine</div><div class="desc">schema-validate every manifest that will carry the new tag</div></div>
+    </div>
+  </div>
+
+  <div class="arrow">↓</div>
+
+  <!-- PHASE 5 — DEPLOY HANDOFF -->
+  <div class="phase">
+    <div class="phase-head">
+      <span class="phase-num">4</span><span class="phase-name">Deploy handoff — git is the seam</span>
+      <span class="phase-note">CI never calls <span style="font-family:var(--mono)">argocd sync</span>. It opens a tag-bump PR; a human merges; Argo deploys. Decoupled by design.</span>
+    </div>
+    <div class="steps">
+      <div class="step" style="--tint:var(--deploy)"><div class="top"><span class="sn">20</span><span class="name">deploy-handoff</span></div><div class="img">alpine</div><div class="desc">opens the <span class="k">git-&lt;sha&gt;</span> tag-bump PR — the git-as-seam boundary</div></div>
+      <div class="step" style="--tint:var(--gate)"><div class="top"><span class="sn">21</span><span class="name">notify-port</span></div><div class="img">curl</div><div class="desc">terminal status → Port <span class="k">ci_pipeline</span> blueprint → reliability dashboard (B63)</div></div>
+    </div>
+  </div>
+
+  <!-- SURROUNDING ECOSYSTEM -->
+  <div class="sec">Around the pipeline</div>
+  <div class="band">
+    <div class="card"><h3><i class="dot" style="background:var(--deploy)"></i>Ship loop</h3><p><span class="k">ship-images.sh</span> merges the tag-bump PR under a 3-condition gate (same-repo · CI-authored · tags-only), syncs only affected Argo apps, and verifies every bumped image is live on a probe-backed workload.</p></div>
+    <div class="card"><h3><i class="dot" style="background:var(--gate)"></i>Watchdogs</h3><p><span class="k">pr-staleness</span> + <span class="k">cron-freshness</span> → Alertmanager → Telegram when a PR sits or a cron stops. <span class="k">port-pr-reconcile</span> reaps closed-PR entities the Ocean integration leaves behind.</p></div>
+    <div class="card"><h3><i class="dot" style="background:var(--scan)"></i>Weekly scan-suite</h3><p>Separate cadence from the pipeline: <span class="k">code-scan-suite</span> (21 tools) + <span class="k">sonar-scan</span> CronJobs → Port <span class="k">security_scan</span> / <span class="k">code_quality</span> / <span class="k">code_hotspot</span> → Code Health dashboard.</p></div>
+    <div class="card"><h3><i class="dot" style="background:var(--guard)"></i>Admission control</h3><p>Gatekeeper <span class="k">K8sImageSignature</span> in <b class="h">dryrun</b>: images must come from a signed/reviewed registry. The Rego cannot verify signatures (no egress) — <span class="k">cosign verify</span> does that in CI. Audit: <b class="h">0</b> violations across 49 reviewed publishers.</p></div>
+    <div class="card"><h3><i class="dot" style="background:var(--test)"></i>Two backends, one server</h3><p><span class="k">kubernetes</span> backend = weyland jobs as cluster pods. <span class="k">local</span> backend = STUD.io CI on rogueone's 4 agents (real Go/Node/Playwright toolchain). Routed by the <span class="k">backend</span> agent label.</p></div>
+    <div class="card"><h3><i class="dot" style="background:var(--supply)"></i>Registry &amp; source of truth</h3><p>Images: <span class="k">registry.weyland.lab</span>. Build plan: <span class="k">scripts/ci/images.tsv</span>. Tool roster: <span class="k">quality-tools.yaml</span> (47 tools, 4 runners) — drift-guarded against every implementation.</p></div>
+  </div>
+
+  <p class="foot">
+    <b class="h">Trigger:</b> manual or nightly 01:00 NY cron — the LAN gets no GitHub push-webhooks.<br>
+    <b class="h">Sources:</b> <a href="../.woodpecker.yml">.woodpecker.yml</a> (the 21 steps) · <a href="diagrams/flow-build-lanes.md">flow-build-lanes.md</a> · <a href="runbooks/supply-chain.md">runbooks/supply-chain.md</a> · <a href="arch.md">arch.md §CI</a> · the LikeC4 model (<span class="k">buildLanes</span> + <span class="k">supplyChain</span>).<br>
+    Generated for B88. Counts are observed against the live repo + cluster, not illustrative.
+  </p>
+</div>
