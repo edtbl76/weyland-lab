@@ -1667,7 +1667,7 @@ Two tracks left. Track A = the original integration gaps (CI secrets, real-CI-ru
 
 **TRACK B — CI/CD hardening (the pipeline-map audit; worked one at a time):**
 - ✔ **B/#1 coverage ratchet — DONE.** `scripts/coverage-ratchet.sh`, per-project baseline `tests/lang/coverage-baseline.tsv`, 8 lanes, shell excluded loudly. Critical-code pass: guard 74→80% (policy.gate), Flink health-job 9.8→33% (extracted meanStep/riskJson). Ratchet wired into every test lane. **Established the pattern for the rest: extract testable logic from framework glue, test the DECISION not the line, ratchet locks it.**
-- **B/#2 — integration/e2e/smoke tier (2026-08-29 — 2 integration lanes DONE: guard + DataHub↔Redpanda, guard validated live end-to-end; Flink MiniCluster deferred with rationale; only the routine first-CI-run remains).**
+- **B/#2 — integration/e2e/smoke tier (2026-08-29 — 2 integration lanes DONE: guard + DataHub↔Redpanda, BOTH validated live end-to-end (committed scripts run in-cluster against the real services, 5/5 and topic-spine+MAE/MCE-Stable); Flink MiniCluster deferred with rationale; only the routine first-CI-run remains).**
   There was NO test tier above unit; nothing asserted two of ~20 services still talk. First slice shipped:
   **`scripts/integration/guard-blackbox.sh`** — a curl-only (no framework, no jq; flat JSON via grep/sed)
   black-box of the **LIVE deployed weyland-guard**, wired as the new `test-integration` step (pipeline is now
@@ -1705,7 +1705,9 @@ Two tracks left. Track A = the original integration gaps (CI secrets, real-CI-ru
   the DataHub groups because the `flink-*` groups are legitimately `Empty` when idle, and reads what `rpk`
   PRINTS (listing headers + rows), never its exit code alone. New `test-integration-datahub` step on the
   deployed `redpanda:v24.2.7` image (rpk matches the broker); pipeline now 23 steps. **+9 bats** (transport
-  vs finding vs the exit-code trap all covered); shellcheck clean.
+  vs finding vs the exit-code trap all covered); shellcheck clean. **Validated live end-to-end 2026-08-29:** the
+  committed script, run in a redpanda-image pod against the real broker, printed the topic-spine+MAE/MCE-Stable
+  OK line (exit 0).
   **Flink `main()` MiniCluster harness — DELIBERATELY DEFERRED (not dropped):** the health-job/sql-runner
   `main()` is topology wiring (source→map→sink); the testable arithmetic was already extracted and unit-tested
   in the #1 pass (health-job 9.8%→33%). A MiniCluster harness is heavy Java test infra whose remaining yield
