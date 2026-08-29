@@ -111,8 +111,14 @@ hard-exit aborted the whole chain, so licences and vuln never ran in CI at all.
 **Insecure registry.** `syft` and `trivy` skip TLS verification (`SYFT_REGISTRY_INSECURE_SKIP_TLS_VERIFY=true`
 and trivy `--insecure`) to pull the just-pushed image from `registry.weyland.lab`, which serves a mkcert
 cert the tools don't trust — exactly as buildctl pushes with `registry.insecure=true`. Without this, every
-scan reported "broken". `trivy` is installed in the build step alongside syft/cosign; it downloads its vuln
-DB on first run (a persistent cache is gap #6).
+scan reported "broken". `trivy` is installed in the build step alongside syft/cosign, and the step **pre-warms
+the vuln DB** (`trivy image --download-db-only`) once before the scan loop — without it, the first image races
+the DB download and trivy returns a valid-looking 0-findings report (a fresh install reported 0 CVEs for an
+image that really had 327). A persistent DB cache is gap #6.
+
+**Memory.** The scans analyse the full pushed image, so the build step carries a **1Gi memory request / 4Gi
+limit** (memory only — no cpu request, to stay off mother's cpu-requests wall). Without a request the step pod
+was best-effort QoS and got OOMKilled (exit 137) scanning a large ML image on the RAM-tight node.
 
 **SBOM output** lands in `$WEYLAND_SBOM_DIR` (default `/tmp/weyland-sbom`), two files per image:
 

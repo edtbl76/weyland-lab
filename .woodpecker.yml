@@ -421,6 +421,11 @@ steps:
       # trivy meant a base-image CVE sat uncaught until Sunday; this runs it per pushed image (loud,
       # non-fatal). trivy pulls its vuln DB on first run — a cache lives in gap #6.
       - curl -sSfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b /usr/local/bin >/dev/null
+      # Warm trivy's vuln DB ONCE before the scan loop. Without this, the first image's scan races the
+      # DB download and trivy returns a valid-looking 0-findings report (observed: a fresh install
+      # reported 0 CVEs for an image that really had 327) — an absence-as-success the per-scan guard
+      # cannot detect. Best-effort: if it fails, the scans report BROKEN, which is the honest outcome.
+      - trivy image --download-db-only >/dev/null 2>&1 || echo "[build] WARNING: trivy DB pre-download failed — vuln scans may report BROKEN"
       - sh scripts/ci/build-images.sh
 
   # ── 4. schema-validate the manifests that will carry the new tag ────────────
