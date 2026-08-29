@@ -99,7 +99,7 @@
   <div class="phase">
     <div class="phase-head">
       <span class="phase-num">1d</span><span class="phase-name">Test lanes — 9 languages</span>
-      <span class="phase-note">B88. Replaced ONE hardcoded <span style="font-family:var(--mono)">pytest</span> step that named a single service by path. Discovery keys on test files; each lane runs <span style="font-family:var(--mono)">--self-check</span> first to prove it can fail.</span>
+      <span class="phase-note">B88. Replaced ONE hardcoded <span style="font-family:var(--mono)">pytest</span> step that named a single service by path. Discovery keys on test files; each lane runs <span style="font-family:var(--mono)">--self-check</span> first to prove it can fail. Each lane also runs a <b class="h">coverage ratchet</b> — fails only if a project drops below its committed baseline.</span>
     </div>
     <div class="steps">
       <div class="step" style="--tint:var(--test)"><div class="top"><span class="sn">08</span><span class="name">test-python</span></div><div class="img">python:3.12-slim</div><div class="desc">pytest · finds weyland-guard by discovery, not by path</div></div>
@@ -166,7 +166,7 @@
     <div class="steps" style="grid-template-columns:repeat(auto-fit,minmax(220px,1fr))">
       <div class="step" style="--tint:var(--deploy)"><div class="top"><span class="name">tag-bump PR</span></div><div class="desc">CI opens it (step 20). A human reviews the one-line image bump and merges — the deliberate human gate.</div></div>
       <div class="step" style="--tint:var(--deploy)"><div class="top"><span class="name">ship-images.sh</span></div><div class="desc">merges under a <b class="h">3-condition gate</b> (same-repo · CI-authored · tags-only), syncs ONLY affected Argo apps, then <b class="h">verifies every bumped image is live on a probe-backed workload</b> — refuses to advance past a gate it can't positively verify.</div></div>
-      <div class="step" style="--tint:var(--deploy)"><div class="top"><span class="name">Argo CD</span></div><div class="desc"><span class="k">selfHeal: true</span> on ~75 apps — git IS the desired state, so a hand <span class="k">kubectl</span> edit is reverted within ~3 min. Deploy = push. Rollback = <b class="h">git revert</b>, never <span class="k">argocd rollback</span> (selfHeal makes that a trap).</div></div>
+      <div class="step" style="--tint:var(--deploy)"><div class="top"><span class="name">Argo CD</span></div><div class="desc"><span class="k">selfHeal: true</span> on nearly every app — git IS the desired state, so a hand <span class="k">kubectl</span> edit is reverted within ~3 min. Deploy = push. Rollback = <b class="h">git revert</b>, never <span class="k">argocd rollback</span> (selfHeal makes that a trap).</div></div>
       <div class="step" style="--tint:var(--deploy)"><div class="top"><span class="name">live workload</span></div><div class="desc">the running pods on mother's k3s. Uptime Kuma (37 monitors) + Alertmanager→Telegram are the post-deploy status board.</div></div>
     </div>
   </div>
