@@ -1690,9 +1690,11 @@ Two tracks left. Track A = the original integration gaps (CI secrets, real-CI-ru
   — verified against the manifests. Three-outcome exit codes: 0 pass · 1 reachable-but-misbehaved (real regression)
   · 2 unreachable/can't-run (fail closed, never green). **+11 bats** (`scripts/tests/guard-blackbox.bats`,
   all green; shellcheck clean; response shapes confirmed from `app.py` source; live verdicts observed and the
-  assertions corrected to match). **PENDING (the one honest gap):** first real-CI run (A2) — the script's logic
-  is bats-proven and its three load-bearing behaviors were observed live by hand, but the committed script has
-  not yet run end-to-end inside the pipeline. **Follow-ons in this tier, not yet built:** DataHub↔Redpanda wiring
+  assertions corrected to match). **VALIDATED end-to-end 2026-08-29:** the committed script, piped into a
+  throwaway in-cluster pod, ran against the live guard and printed `5/5 assertions passed` (exit 0) — the same
+  alpine+curl+bash mechanism the CI step uses, so the exit-code path and all five assertions are proven against
+  the real deployed guard. **Remaining = routine only:** it firing inside the actual Woodpecker pipeline on the
+  next manual/cron trigger (A2). **Follow-ons in this tier, not yet built:** DataHub↔Redpanda wiring
   assertion (the repoint verified by hand this session); a Flink `main()` MiniCluster harness; a truly-deeper
   post-deploy endpoint check (reopens the CI-pod-in-mesh question — deferred).
 - **B/#3 — per-build image scan.** trivy runs WEEKLY + licences-only. A CVE in a base image ships and isn't caught until Sunday. Add `trivy image --scanners vuln` to the build step per pushed image (loud, non-fatal like the SBOM/sign steps — findings are counts, a broken scan is exit 2).
