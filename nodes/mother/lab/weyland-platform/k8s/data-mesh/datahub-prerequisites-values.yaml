@@ -23,8 +23,27 @@ mysql:
 neo4j:
   enabled: false             # graph rides OpenSearch, no Neo4j
 
+# ── DISABLED 2026-08-29 — DataHub now uses REDPANDA (B88 follow-on) ─────────────────────────────
+# This chart's bundled broker ran `docker.io/bitnamilegacy/kafka`: the namespace Bitnami froze when
+# it moved its catalog behind a paid tier, which receives **no security updates**. B88's first
+# Gatekeeper dryrun audit surfaced it as the one entry of 44 third-party publishers that made the
+# estate less safe rather than merely unsigned.
+#
+# Redpanda was already running in this namespace, speaks the Kafka API, and auto-creates topics —
+# so it replaced this broker outright. Verified 2026-08-29 after the repoint: all 8 DataHub topics
+# created on redpanda, GMS ready with 0 restarts, both system-update Jobs Completed (including the
+# DataHubUpgradeHistory rebuild), and the mae/mce/usage/doc-propagation consumer groups Stable.
+# Catalog intact throughout — 175,388 Postgres aspect rows, 4,196 OpenSearch datasets — because
+# DataHub's source of truth is Postgres + OpenSearch and Kafka is only the event bus.
+#
+# ⚠ `enabled: false` IS WHAT MAKES THE DELETION STICK. This app runs selfHeal, so
+# `kubectl delete statefulset prerequisites-kafka-controller` alone is reverted within ~3 minutes
+# (see the `argocd-gitops-gotchas` memory — the same mechanism that makes `argocd app rollback` a
+# trap). The bootstrap repoint lives in `datahub-values.yaml` → `global.kafka.bootstrap.server`.
 kafka:
-  enabled: true              # chart default: single-pod KRaft, no Zookeeper
+  enabled: false
+  # Resource block kept for the rollback path: re-enabling means flipping the flag above, not
+  # reconstructing this from the chart defaults.
   controller:
     resources:
       requests: { memory: 1Gi, cpu: 250m }
