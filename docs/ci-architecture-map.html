@@ -135,7 +135,7 @@
       <span class="phase-note">B88 gap #2. The first tier above unit: the unit lanes prove a module in isolation; this asserts a request actually CROSSES into a running service and comes back correct. Runs in-cluster (mesh is PERMISSIVE, guard has no authz policy), POSTs real payloads, asserts real verdicts. Exit 2 (guard unreachable) stays visible — a "couldn't reach it" that read green would be absence-as-success.</span>
     </div>
     <div class="steps">
-      <div class="step" style="--tint:var(--test)"><div class="top"><span class="sn">17</span><span class="name">test-integration</span></div><div class="img">alpine + curl</div><div class="desc">black-box <span class="k">weyland-guard</span> live · injection BLOCKED · actorless act BLOCKED · benign ALLOWED · covers <span class="k">app.py</span> (0% in unit)</div></div>
+      <div class="step" style="--tint:var(--test)"><div class="top"><span class="sn">17</span><span class="name">test-integration</span></div><div class="img">alpine + curl</div><div class="desc">black-box <span class="k">weyland-guard</span> live · actorless act BLOCKED by <span class="k">policy.gate</span> · benign ALLOWED · input pipeline runs on a hostile payload (guards ship SHADOW; contract-checked) · covers <span class="k">app.py</span> (0% in unit)</div></div>
     </div>
   </div>
 

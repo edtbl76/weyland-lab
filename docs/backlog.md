@@ -1671,20 +1671,28 @@ Two tracks left. Track A = the original integration gaps (CI secrets, real-CI-ru
   There was NO test tier above unit; nothing asserted two of ~20 services still talk. First slice shipped:
   **`scripts/integration/guard-blackbox.sh`** — a curl-only (no framework, no jq; flat JSON via grep/sed)
   black-box of the **LIVE deployed weyland-guard**, wired as the new `test-integration` step (pipeline is now
-  22 steps). It POSTs real payloads and asserts real verdicts across all three hooks: a known prompt-injection
-  is BLOCKED (`/guard/input`), an actorless act is BLOCKED by policy.gate (`/guard/act`), a benign answer is
-  ALLOWED (`/guard/output`), plus `/health` non-empty validators and `/ready`. That reaches `app.py` — the HTTP
-  layer that is un-importable in the unit lane (needs fastapi/httpx) and sat at 0%. **Why the LIVE guard, not a
+  22 steps). It POSTs real payloads across all three hooks. **The by-hand live observation (2026-08-29)
+  corrected a wrong assumption in the first draft:** the guard ships EVERY model validator in SHADOW
+  (record-only) by design — the deployment sets exactly one enforce override, `GUARDRAIL_MODE__policy__gate=block`
+  — so a textbook prompt-injection returns `allow` in prod (the DeBERTa scorer records but does not block). The
+  original test asserted injection→BLOCK and would have fired a FALSE regression on the first CI run: the exact
+  "a control that has never run is not a control" trap, caught by observing the real thing once. Assertions are now
+  **mode-agnostic**: the deterministic enforcing path (an actorless act is BLOCKED by policy.gate with the "no
+  actor" reason — observed live), a no-false-positive positive (a benign answer is ALLOWED on `/guard/output`),
+  the model hooks by CONTRACT (`/guard/input` runs the real scorer on a hostile payload and must return a VALID
+  verdict — `allow` under SHADOW, `block` under a future promote, both pass), plus `/health` non-empty validators
+  (6 loaded, observed) and `/ready`. That reaches `app.py` — the HTTP layer un-importable in the unit lane (needs
+  fastapi/httpx) and sat at 0%. **Why the LIVE guard, not a
   booted copy or a smoke-ping:** the guard is NOT in `images.tsv` (built out-of-band), so a fresh-image black-box
   had nothing fresh to test; the post-deploy `/health` ping I'd penciled in would DUPLICATE blackbox-exporter
   (already 1:1 with hosts.md) and hit forward-auth = a Keycloak page (absence-as-success). The live guard is
   reachable because the mesh default is PERMISSIVE (only Postgres STRICT) and the guard carries no AuthorizationPolicy
   — verified against the manifests. Three-outcome exit codes: 0 pass · 1 reachable-but-misbehaved (real regression)
-  · 2 unreachable/can't-run (fail closed, never green). **11→ +9 bats** (`scripts/tests/guard-blackbox.bats`,
-  all green; shellcheck clean; response SHAPES confirmed from `app.py` source). **PENDING (the honest gaps):**
-  (a) observe the live guard's VERDICT behavior ONCE by hand — the shapes are source-confirmed but the actual
-  block/allow behavior has not been run against the deployed service (the "a control that has never run is not a
-  control" rule); (b) first real-CI run (A2). **Follow-ons in this tier, not yet built:** DataHub↔Redpanda wiring
+  · 2 unreachable/can't-run (fail closed, never green). **+11 bats** (`scripts/tests/guard-blackbox.bats`,
+  all green; shellcheck clean; response shapes confirmed from `app.py` source; live verdicts observed and the
+  assertions corrected to match). **PENDING (the one honest gap):** first real-CI run (A2) — the script's logic
+  is bats-proven and its three load-bearing behaviors were observed live by hand, but the committed script has
+  not yet run end-to-end inside the pipeline. **Follow-ons in this tier, not yet built:** DataHub↔Redpanda wiring
   assertion (the repoint verified by hand this session); a Flink `main()` MiniCluster harness; a truly-deeper
   post-deploy endpoint check (reopens the CI-pod-in-mesh question — deferred).
 - **B/#3 — per-build image scan.** trivy runs WEEKLY + licences-only. A CVE in a base image ships and isn't caught until Sunday. Add `trivy image --scanners vuln` to the build step per pushed image (loud, non-fatal like the SBOM/sign steps — findings are counts, a broken scan is exit 2).
