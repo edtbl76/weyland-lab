@@ -78,6 +78,27 @@ public final class HealthStateRisk {
     }
 
     /**
+     * One step of the per-state running mean, extracted from {@link RunningMean#flatMap} by B88 so
+     * the arithmetic is unit-testable without a Flink StateBackend.
+     *
+     * <p>This is the code most likely to be silently wrong: an off-by-one in the count or a stale
+     * sum would skew EVERY state's mean_risk while the job still emits healthy-looking JSON. Nulls
+     * in prior state (first record for a key) are treated as the identity (0 count, 0 sum).
+     *
+     * @return {@code {newCount, newMean}} — the updated count and the mean after adding {@code value}
+     */
+    static double[] meanStep(Long prevCount, Double prevSum, double value) {
+        long count = (prevCount == null ? 0L : prevCount) + 1;
+        double total = (prevSum == null ? 0.0 : prevSum) + value;
+        return new double[] {count, total / count};
+    }
+
+    /** The sink line for one state, extracted so its exact JSON shape is pinned by a test. */
+    static String riskJson(String state, long count, double mean) {
+        return String.format("{\"state\":\"%s\",\"n\":%d,\"mean_risk\":%.4f}", str(state), count, mean);
+    }
+
+    /**
      * Decides whether an Avro {@code Data_value} contributes to the running mean.
      *
      * <p>Extracted from {@link RunningMean#flatMap} by B88 so the SKIP decisions are testable
@@ -116,15 +137,13 @@ public final class HealthStateRisk {
             if (parsed == null) {
                 return; // null or non-numeric data_value (footnote/suppressed row) - skip
             }
-            double v = parsed;
-            long count = n.value() == null ? 0L : n.value();
-            double total = sum.value() == null ? 0.0 : sum.value();
-            count += 1;
-            total += v;
+            double[] step = meanStep(n.value(), sum.value(), parsed);
+            long count = (long) step[0];
+            double mean = step[1];
+            // persist the new count + sum (sum is reconstructed from mean*count to keep one source)
             n.update(count);
-            sum.update(total);
-            out.collect(String.format("{\"state\":\"%s\",\"n\":%d,\"mean_risk\":%.4f}",
-                    str(r.get("Locationdesc")), count, total / count));
+            sum.update(mean * count);
+            out.collect(riskJson(str(r.get("Locationdesc")), count, mean));
         }
     }
 

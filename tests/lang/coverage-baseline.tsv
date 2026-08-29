@@ -1,0 +1,11 @@
+python:tests/lang/python	100
+python:nodes/mother/lab/weyland-platform/services/weyland-guard	80
+go:tests/lang/go	100.0
+rust:tests/lang/rust	77.78
+typescript:tests/lang/typescript	100.00
+javascript:tests/lang/javascript	100
+react:tests/lang/react	100
+nextjs:tests/lang/nextjs	100
+java:tests/lang/java	100.0
+java:nodes/mother/lab/weyland-platform/k8s/flink/health-job	33.0
+java:nodes/mother/lab/weyland-platform/k8s/flink/sql-runner	33.3

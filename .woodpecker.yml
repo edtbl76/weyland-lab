@@ -246,9 +246,13 @@ steps:
   - name: test-python
     image: python:3.12-slim
     commands:
-      - pip install --quiet --no-cache-dir pytest prometheus_client
+      - pip install --quiet --no-cache-dir pytest pytest-cov prometheus_client
       - bash scripts/run-lang-tests.sh python --self-check
       - bash scripts/run-lang-tests.sh python
+      # B88 gap #1 — coverage RATCHET: fails ONLY if a project's coverage drops vs the committed
+      # baseline (tests/lang/coverage-baseline.tsv). weyland-guard sits at 74% today; this stops it
+      # sliding, without an 80% floor that would fail the mostly-fixture lanes on day one.
+      - bash scripts/coverage-ratchet.sh run python
 
   - name: test-shell
     image: bats/bats:latest
@@ -265,6 +269,9 @@ steps:
       # Surefire to both modules — before that `mvn test` ran zero tests and exited 0.
       - bash scripts/run-lang-tests.sh java --self-check
       - bash scripts/run-lang-tests.sh java
+      # Coverage ratchet — jacoco. The Flink modules sit at 9.8% / 33.3% (main() is untested
+      # topology wiring); the ratchet protects those floors rather than demanding they rise.
+      - bash scripts/coverage-ratchet.sh run java
 
   - name: test-go
     image: golang:1.26
@@ -273,12 +280,18 @@ steps:
       # it would silently run without the detector.
       - bash scripts/run-lang-tests.sh go --self-check
       - bash scripts/run-lang-tests.sh go
+      - bash scripts/coverage-ratchet.sh run go   # B88 gap #1 — coverage ratchet
 
   - name: test-rust
     image: rust:1-slim
     commands:
       - bash scripts/run-lang-tests.sh rust --self-check
       - bash scripts/run-lang-tests.sh rust
+      # Coverage ratchet — cargo-llvm-cov (the standard Rust line-coverage tool) is not in the base
+      # image, so install it here. A missing tool is a BROKEN lane (exit 2), never a silent pass.
+      - rustup component add llvm-tools-preview >/dev/null 2>&1 || true
+      - cargo install cargo-llvm-cov --quiet 2>/dev/null || true
+      - bash scripts/coverage-ratchet.sh run rust
 
   - name: test-node
     image: node:24-alpine
@@ -295,6 +308,11 @@ steps:
       - bash scripts/run-lang-tests.sh react
       - bash scripts/run-lang-tests.sh nextjs --self-check
       - bash scripts/run-lang-tests.sh nextjs
+      # Coverage ratchet — node's built-in coverage for ts/js, jest --coverage for react/next.
+      - bash scripts/coverage-ratchet.sh run typescript
+      - bash scripts/coverage-ratchet.sh run javascript
+      - bash scripts/coverage-ratchet.sh run react
+      - bash scripts/coverage-ratchet.sh run nextjs
 
   # ── 1e. per-language SCANNERS (B88 Phase 2) ─────────────────────────────────
   # The analysis sibling of the test lanes above. Kept OUT of the scan-suite image on purpose: that

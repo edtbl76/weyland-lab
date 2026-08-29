@@ -59,6 +59,23 @@
     <span><i class="dot" style="background:var(--deploy)"></i>deploy handoff</span>
   </div>
 
+  <!-- TRIGGER ROW -->
+  <div class="sec">Trigger &amp; runtime — the LAN has no push-webhooks</div>
+  <div class="band">
+    <div class="card"><h3><i class="dot" style="background:var(--gate)"></i>Trigger</h3><p><b class="h">No GitHub push-webhooks</b> — the cluster is LAN-only. Runs start <span class="k">manually</span>, from <span class="k">woodpecker-cli</span>, or the nightly <span class="k">01:00 NY cron</span>. GitHub OAuth for login only.</p></div>
+    <div class="card"><h3><i class="dot" style="background:var(--test)"></i>Backend: kubernetes</h3><p><b class="h">weyland-lab</b> jobs — each step is a fresh <b class="h">cluster pod</b> on mother's k3s. The default for anything that builds/deploys into the cluster.</p></div>
+    <div class="card"><h3><i class="dot" style="background:var(--supply)"></i>Backend: local</h3><p><b class="h">STUD.io</b> jobs — steps run on <b class="h">rogueone's 4 agents</b> (host shell + native docker), because that CI needs a real Go/Node/pyenv/Playwright toolchain + <span class="k">docker exec studio_db</span>. Routed by the <span class="k">backend</span> agent label.</p></div>
+  </div>
+
+  <div class="sec">Build infrastructure — what the pipeline runs on</div>
+  <div class="band">
+    <div class="card"><h3><i class="dot" style="background:var(--supply)"></i>buildkitd</h3><p>A <b class="h">persistent</b> Deployment (<span class="k">:1234</span> TCP), not a per-step daemon — daemonless BuildKit couldn't do its mounts in an ephemeral k3s step-pod. The <span class="k">build</span> step is a thin buildctl client to it. Warm cache via a registry cache tag.</p></div>
+    <div class="card"><h3><i class="dot" style="background:var(--supply)"></i>registry.weyland.lab</h3><p>The image registry every build pushes <span class="k">git-&lt;sha&gt;</span> to, and the ONLY registry the Gatekeeper policy trusts by default. Fronted by Traefik with a raised read-timeout (big pushes were 499-ing).</p></div>
+    <div class="card"><h3><i class="dot" style="background:var(--gate)"></i>Woodpecker server + LAN bridge</h3><p>One server, mixed fleet. Two NodePorts bridge off-cluster: <span class="k">:30900</span> gRPC (rogueone agents register, trust = <span class="k">WOODPECKER_AGENT_SECRET</span>) and <span class="k">:30980</span> HTTP (the CLI, bypassing forward-auth which 302s Bearer calls).</p></div>
+  </div>
+
+  <div class="arrow">↓</div>
+
   <!-- PHASE 1 — GUARDS -->
   <div class="phase">
     <div class="phase-head">
@@ -135,6 +152,40 @@
     <div class="steps">
       <div class="step" style="--tint:var(--deploy)"><div class="top"><span class="sn">20</span><span class="name">deploy-handoff</span></div><div class="img">alpine</div><div class="desc">opens the <span class="k">git-&lt;sha&gt;</span> tag-bump PR — the git-as-seam boundary</div></div>
       <div class="step" style="--tint:var(--gate)"><div class="top"><span class="sn">21</span><span class="name">notify-port</span></div><div class="img">curl</div><div class="desc">terminal status → Port <span class="k">ci_pipeline</span> blueprint → reliability dashboard (B63)</div></div>
+    </div>
+  </div>
+
+  <div class="arrow">↓</div>
+
+  <!-- GITOPS DELIVERY CHAIN (the CD half) -->
+  <div class="phase">
+    <div class="phase-head">
+      <span class="phase-num">CD</span><span class="phase-name">Delivery — git is the seam, Argo is the deployer</span>
+      <span class="phase-note">The pipeline never calls <span style="font-family:var(--mono)">argocd sync</span>. It opens a PR; a human merges; the ship loop and Argo take it from there. This is the half that turns a green build into a live workload.</span>
+    </div>
+    <div class="steps" style="grid-template-columns:repeat(auto-fit,minmax(220px,1fr))">
+      <div class="step" style="--tint:var(--deploy)"><div class="top"><span class="name">tag-bump PR</span></div><div class="desc">CI opens it (step 20). A human reviews the one-line image bump and merges — the deliberate human gate.</div></div>
+      <div class="step" style="--tint:var(--deploy)"><div class="top"><span class="name">ship-images.sh</span></div><div class="desc">merges under a <b class="h">3-condition gate</b> (same-repo · CI-authored · tags-only), syncs ONLY affected Argo apps, then <b class="h">verifies every bumped image is live on a probe-backed workload</b> — refuses to advance past a gate it can't positively verify.</div></div>
+      <div class="step" style="--tint:var(--deploy)"><div class="top"><span class="name">Argo CD</span></div><div class="desc"><span class="k">selfHeal: true</span> on ~75 apps — git IS the desired state, so a hand <span class="k">kubectl</span> edit is reverted within ~3 min. Deploy = push. Rollback = <b class="h">git revert</b>, never <span class="k">argocd rollback</span> (selfHeal makes that a trap).</div></div>
+      <div class="step" style="--tint:var(--deploy)"><div class="top"><span class="name">live workload</span></div><div class="desc">the running pods on mother's k3s. Uptime Kuma (37 monitors) + Alertmanager→Telegram are the post-deploy status board.</div></div>
+    </div>
+  </div>
+
+  <!-- PARALLEL SURFACE — AI CODE REVIEW -->
+  <div class="sec">Parallel surface — AI code review (runs on the PR, NOT in the Woodpecker pipeline)</div>
+  <div class="phase">
+    <div class="phase-head">
+      <span class="phase-num">PR</span><span class="phase-name">7-tool AI review lane (B106 / B118)</span>
+      <span class="phase-note">A separate CI surface. These are GitHub-app / SaaS reviewers that comment on the PR — they do not gate the merge and never touch the pipeline steps above. All free-tier / OSS.</span>
+    </div>
+    <div class="steps" style="grid-template-columns:repeat(auto-fill,minmax(190px,1fr))">
+      <div class="step" style="--tint:var(--scan)"><div class="top"><span class="name">CodeRabbit</span></div><div class="desc">PR summaries + walkthroughs (free tier)</div></div>
+      <div class="step" style="--tint:var(--scan)"><div class="top"><span class="name">DeepSource</span></div><div class="desc">AI SAST + Autofix PRs (B118)</div></div>
+      <div class="step" style="--tint:var(--scan)"><div class="top"><span class="name">CodeScene</span></div><div class="desc">behavioral / hotspots; in-IDE via MCP</div></div>
+      <div class="step" style="--tint:var(--scan)"><div class="top"><span class="name">Sourcery</span></div><div class="desc">Python review + refactor</div></div>
+      <div class="step" style="--tint:var(--scan)"><div class="top"><span class="name">Greptile</span></div><div class="desc">codebase-graph LLM, cross-file</div></div>
+      <div class="step" style="--tint:var(--scan)"><div class="top"><span class="name">PR-Agent</span></div><div class="desc">self-hosted (Qodo OSS) → LiteLLM :30400</div></div>
+      <div class="step" style="--tint:var(--scan)"><div class="top"><span class="name">SonarQube</span></div><div class="desc">quality gate → Port <span class="k">code_quality</span>; needs the server + Maven compile of the Flink modules</div></div>
     </div>
   </div>
 
