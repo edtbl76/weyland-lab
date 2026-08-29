@@ -96,13 +96,21 @@ bash scripts/supply-chain.sh all registry.weyland.lab/weyland-agent:git-abc1234
 
 Individual subcommands — `sbom` · `sign` · `attest` · `verify` · `licenses` · `vuln`.
 
-**`vuln` (B88 gap #3) — per-build CVE scan.** `trivy image --scanners vuln` on every pushed image, so
-a base-image CVE is caught at build time instead of waiting for the weekly scan-suite run. It is
+**`vuln` (B88 gap #3) — per-build CVE scan + DELTA.** `trivy image --scanners vuln` on every pushed
+image, so a base-image CVE is caught at build time instead of waiting for the weekly scan-suite run. It is
 **loud but non-fatal**: it prints the finding count (`N finding(s) [CRITICAL x · HIGH y]`) and exits
 **0 even with findings** — gating every build on a base-image CVE would mute the gate. Only a scan
-that *could not run* (trivy missing, or an image it could not pull) is exit 2, and it decides that by
-reading trivy's actual report (`SchemaVersion` present), never its exit code alone — 0 findings counts
-only when the scan really happened.
+that *could not run* (trivy missing, `--skip-db-update` with no DB, or an image it could not pull) is exit 2.
+
+**The delta is the signal.** An absolute CVE count is dominated by unchanged base-image findings, so it
+can't tell you whether *this change* added anything. When a baseline image ref is passed (the build step
+passes the **currently-deployed** tag, read from the manifest before deploy-handoff bumps it), `vuln` scans
+BOTH images with the same pre-warmed DB — controlling out CVE-disclosure drift — and reports the CVEs
+present in the new image but not the deployed one: `Δ vs deployed: +N NEW CVE(s) this change (c CRITICAL,
+h HIGH)`, with a loud `⚠ VULN DELTA` block naming any new critical/high. That is the actionable "this change
+introduces CVE-X" signal, still non-fatal (gating on a new critical would be a one-line change in `vuln()`).
+The delta doubles the scan work per image (new + deployed); it degrades to an absolute count if the deployed
+image can't be scanned. Manual runs: `supply-chain.sh vuln <new-ref> <deployed-ref>`.
 
 **`all` is resilient (gap #3).** A missing `COSIGN_KEY` (until the Woodpecker `cosign_key` secret is
 provisioned) breaks `sign`/`attest` only — `sbom`, `licenses` and `vuln` still run. Before this, sign's

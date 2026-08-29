@@ -121,6 +121,68 @@ TRIVY_CLEAN='{"SchemaVersion":2,"ArtifactName":"img","Results":[]}'
   [[ "$output" == *"cosign"* ]]
 }
 
+# ── vuln DELTA vs the deployed image (gap #3 completion) ─────────────────────
+# These need trivy to return DIFFERENT reports for the new vs the deployed image, so a per-image stub.
+# Multi-line JSON (one finding per line) so the awk ID/Severity pairing behaves like real trivy output.
+setup_trivy_keyed() {
+  TRIVY_DIR="$STUB_DIR/trivy_resp"; mkdir -p "$TRIVY_DIR"; export TRIVY_DIR
+  cat >"$STUB_DIR/trivy" <<'TRIVY'
+#!/usr/bin/env bash
+ref="${!#}"                                   # the image ref is the last positional arg
+key="$(printf '%s' "$ref" | tr '/:.' '___')"
+spec="$TRIVY_DIR/$key"
+[ -f "$spec" ] || { echo "no trivy stub for $ref" >&2; exit 3; }
+rc="$(sed -n 1p "$spec")"; sed -n '2,$p' "$spec"
+exit "$rc"
+TRIVY
+  chmod +x "$STUB_DIR/trivy"
+}
+trivy_resp() {
+  local k; k="$(printf '%s' "$1" | tr '/:.' '___')"
+  { printf '%s\n' "$2"; printf '%s' "$3"; } >"$TRIVY_DIR/$k"
+}
+J_OLD='{"SchemaVersion":2,"ArtifactName":"img","Results":[{"Vulnerabilities":[
+{"VulnerabilityID":"CVE-1","Severity":"LOW"},
+{"VulnerabilityID":"CVE-2","Severity":"HIGH"}
+]}]}'
+J_NEW_ADDS_CRIT='{"SchemaVersion":2,"ArtifactName":"img","Results":[{"Vulnerabilities":[
+{"VulnerabilityID":"CVE-1","Severity":"LOW"},
+{"VulnerabilityID":"CVE-2","Severity":"HIGH"},
+{"VulnerabilityID":"CVE-3","Severity":"CRITICAL"}
+]}]}'
+
+@test "vuln delta: a CVE in the new image but NOT the deployed one is flagged as introduced (loud)" {
+  setup_trivy_keyed
+  trivy_resp registry.test/img:new 0 "$J_NEW_ADDS_CRIT"
+  trivy_resp registry.test/img:old 0 "$J_OLD"
+  run bash "$SC" vuln registry.test/img:new registry.test/img:old
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"+1 NEW CVE"* ]]
+  [[ "$output" == *"1 CRITICAL"* ]]
+  [[ "$output" == *"VULN DELTA"* ]]        # the loud stderr warning
+  [[ "$output" == *"CVE-3 CRITICAL"* ]]    # names the introduced CVE
+}
+
+@test "vuln delta: new is a subset of deployed -> no new CVEs introduced" {
+  setup_trivy_keyed
+  trivy_resp registry.test/img:new 0 "$J_OLD"
+  trivy_resp registry.test/img:old 0 "$J_OLD"
+  run bash "$SC" vuln registry.test/img:new registry.test/img:old
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"no new CVEs introduced"* ]]
+  [[ "$output" != *"VULN DELTA"* ]]
+}
+
+@test "vuln delta: an unscannable baseline degrades to absolute count, NOT broken" {
+  # the new image scans fine; the deployed one cannot be pulled -> report the count, skip the delta.
+  setup_trivy_keyed
+  trivy_resp registry.test/img:new 0 "$J_NEW_ADDS_CRIT"
+  trivy_resp registry.test/img:old 1 ""
+  run bash "$SC" vuln registry.test/img:new registry.test/img:old
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"absolute count only"* ]]
+}
+
 @test "an unknown subcommand exits 2 with the valid list" {
   run bash "$SC" frobnicate registry.test/img:tag
   [ "$status" -eq 2 ]

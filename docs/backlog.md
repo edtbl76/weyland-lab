@@ -1729,9 +1729,17 @@ Two tracks left. Track A = the original integration gaps (CI secrets, real-CI-ru
   which schedules fine (~9Gi requestable free). Plus two absence-as-success traps caught by reading real output: the
   vuln guard's `printf huge | grep -q` **SIGPIPE'd under pipefail** on an 8GB image's report and falsely called a
   good scan broken (fixed with here-strings), and a **fresh trivy install raced its DB download** and returned a
-  valid-looking 0 for an image that had 327 (fixed by pre-downloading the DB before the scan loop). 11 bats
+  valid-looking 0 for an image that had 327 (fixed by pre-downloading the DB before the scan loop). 14 bats
   (`supply-chain.bats`, the file's first suite); shellcheck clean; runbook + CI map cascaded. Sign/attest still break
   non-fatally until the operator provisions the Woodpecker `cosign_key` secret (Track A1).
+  **Completed 2026-08-29 with the DELTA (the "log-only, no signal" gap closed):** an absolute count is dominated by
+  unchanged base-image CVEs, so it can't tell you whether THIS change added anything. `vuln` now takes the
+  currently-deployed image as a baseline (build-images.sh reads it from the manifest, pre-bump — no plan-format
+  change), scans BOTH with the same pre-warmed DB (drift-controlled), and reports `Δ vs deployed: +N NEW CVE(s)
+  this change (c CRITICAL, h HIGH)` with a loud `⚠ VULN DELTA` block naming new criticals/highs — the actionable
+  "this change introduces CVE-X" signal, still non-fatal. CVE-ID/Severity pairs extracted from trivy JSON with awk
+  (no jq); `--skip-db-update` makes a missing DB an honest exit-2 instead of a false 0. Doubles the scan per image
+  (new + deployed), degrades to an absolute count if the deployed image can't be scanned.
 - **B/#4 — post-deploy verification.** ship-loop checks "pod ready" but Ready≠works (the `dagster-user-code` no-probe finding). A synthetic check that hits the deployed endpoint. Merges with #2's smoke lane — do them together.
 - **B/#5 — feature flags → CI/CD.** Unleash IS deployed (`unleash.weyland.lab`, Port feature_flag blueprint) but is app-runtime ONLY — nothing in the deploy path consults a flag. This is the N=1 substitute for canary/progressive delivery. Wire a flag-gated rollout path (or document deliberately that flags stay app-level). Confirmed 2026-08-29: not wired.
 - **B/#6 — CI toolchain caching.** Every lane reinstalls cargo-audit/npm/maven plugins per run. roadie already solved this with named cache volumes (`roadie-npm-cache`, `roadie-go-build`, `roadie-go-mod` exist on the box). Pure speed; lowest of the real gaps.

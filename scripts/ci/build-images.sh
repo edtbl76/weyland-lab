@@ -54,7 +54,16 @@ while IFS="$(printf '\t')" read -r image context newtag manifests; do
   # It is NOT silent either. A swallowed failure means unsigned images accumulate while the
   # pipeline stays green, which is exactly the absence-as-success shape B88 exists to remove.
   if [ -x "${REPO_ROOT:-.}/scripts/supply-chain.sh" ] || [ -f "scripts/supply-chain.sh" ]; then
-    if ! bash scripts/supply-chain.sh all "${REG}/${image}:${newtag}"; then
+    # Baseline for the vuln DELTA (gap #3): the tag this image's manifest currently points at — the
+    # DEPLOYED image, which deploy-handoff has NOT bumped yet, so it is still readable here. Same
+    # derivation as detect-changes.sh. Empty for a brand-new image or a non-git tag → absolute count only.
+    first_manifest="$(printf '%s' "$manifests" | awk '{print $1}')"
+    baseref=""
+    if [ -n "$first_manifest" ] && [ -f "${PLATFORM}/${first_manifest}" ]; then
+      oldtag="$(grep -oE "registry\.weyland\.lab/${image}:[A-Za-z0-9._-]+" "${PLATFORM}/${first_manifest}" | head -n1 | sed 's#.*:##')"
+      case "$oldtag" in git-*) baseref="${REG}/${image}:${oldtag}" ;; esac
+    fi
+    if ! bash scripts/supply-chain.sh all "${REG}/${image}:${newtag}" "$baseref"; then
       echo "  !! supply-chain step FAILED for ${REG}/${image}:${newtag} — image shipped UNSIGNED /"
       echo "  !! without an SBOM. The build is not failed for this, but the gap is real: re-run"
       echo "  !! scripts/supply-chain.sh all <image> once the cause is fixed."

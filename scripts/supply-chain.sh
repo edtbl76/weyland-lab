@@ -67,8 +67,11 @@ usage: supply-chain.sh <sbom|sign|attest|verify|licenses|vuln|all> <image-ref>
   attest    cosign attest, SLSA provenance predicate (needs COSIGN_KEY)
   verify    cosign verify          (needs COSIGN_PUBKEY)
   licenses  trivy --scanners license
-  vuln      trivy --scanners vuln  (counts, NON-FATAL; exit 2 only if it cannot run)
+  vuln      trivy --scanners vuln  (counts + Δ vs deployed baseline; NON-FATAL; exit 2 only if it cannot run)
   all       sbom -> sign -> attest -> licenses -> vuln (resilient: one broken step never aborts the rest)
+
+  A second image ref (the currently-DEPLOYED image) may be passed to `vuln` or `all`; vuln then reports
+  the DELTA — the CVEs the new image adds over the deployed one — instead of just an absolute count.
 
 exit 0 clean · 1 found something · 2 could not run
 EOF
@@ -167,39 +170,90 @@ licenses() {
 }
 
 # ── vulnerabilities (gap #3) ─────────────────────────────────────────────────
-vuln() {
-  local img="$1" out rc n crit high
-  has trivy || { broken "\`trivy\` is not on PATH"; return 2; }
-  out="$(trivy image --scanners vuln $TRIVY_INSECURE_FLAG --quiet --format json "$img" 2>&1)"; rc=$?
-  # DID IT ACTUALLY SCAN? A real trivy report carries SchemaVersion + ArtifactName. A non-zero exit,
-  # or output that is NOT a report, means trivy could not pull/scan -> broken (2). Reading "0 findings"
-  # off a scan that never happened is the absence-as-success trap; 0 findings counts ONLY when the
-  # report is present. Read what trivy PRINTED, never its exit code alone.
-  # here-strings, NOT `printf | grep -q`: under `set -o pipefail`, grep -q short-circuits on the match
-  # and closes the pipe, so a printf still streaming a huge report (an 8 GB image's JSON) gets SIGPIPE
-  # (141) and pipefail reports the whole pipeline failed — the guard would then falsely call a perfectly
-  # good scan "broken". A here-string has no pipe, so it is immune at any output size.
-  if [ "$rc" -ne 0 ] || ! grep -q '"SchemaVersion"' <<<"$out" || ! grep -q '"ArtifactName"' <<<"$out"; then
-    printf 'VULN SCAN BROKEN: trivy could not scan %s (rc=%s):\n%s\n' "$img" "$rc" "$out" >&2
-    return 2
-  fi
-  # grep -o | wc -l counts OCCURRENCES, not matching lines: trivy pretty-prints (one field per line)
-  # but compact JSON would put many on one line, and `grep -c` would then undercount to 1. Robust to both.
-  n="$(printf '%s\n' "$out" | grep -o '"VulnerabilityID"' | wc -l | tr -d ' ')"
-  crit="$(printf '%s\n' "$out" | grep -oE '"Severity":[[:space:]]*"CRITICAL"' | wc -l | tr -d ' ')"
-  high="$(printf '%s\n' "$out" | grep -oE '"Severity":[[:space:]]*"HIGH"' | wc -l | tr -d ' ')"
-  # NON-FATAL: findings are COUNTS, not a gate (see the header). Exit 0 with the count.
-  printf 'OK — vuln scan %s: %s finding(s) [CRITICAL %s · HIGH %s] — reported, non-blocking\n' \
-    "$img" "$n" "$crit" "$high"
+# scan_vuln <img> — print trivy's JSON report to stdout; return 0 if it scanned, 2 if it could not.
+# `--skip-db-update` makes trivy use the DB the build step pre-warmed and FATAL-error if it is absent,
+# so a missing DB is an honest exit-2 rather than a valid-looking 0-findings report (observed: a fresh
+# install returned 0 for an image that had 327). The report-present guard (SchemaVersion + ArtifactName)
+# uses here-strings, not `printf | grep -q`: under pipefail, grep -q short-circuits and SIGPIPEs a printf
+# still streaming an 8 GB image's report, which would falsely mark a good scan broken.
+scan_vuln() {
+  local img="$1" out rc
+  out="$(trivy image --scanners vuln --skip-db-update $TRIVY_INSECURE_FLAG --quiet --format json "$img" 2>&1)"; rc=$?
+  printf '%s' "$out"
+  { [ "$rc" -eq 0 ] && grep -q '"SchemaVersion"' <<<"$out" && grep -q '"ArtifactName"' <<<"$out"; } || return 2
 }
 
-# all — run every step, collect the WORST outcome (2 broken > 1 found > 0 clean), abort NOTHING.
+# vuln_pairs — read a trivy JSON report on stdin, emit unique "CVE-ID SEVERITY" lines. VulnerabilityID
+# and Severity are 1:1 and ID always precedes Severity within a finding (verified against live trivy),
+# so awk pairs them without jq. sort -u collapses a CVE that hits multiple packages to one entry.
+vuln_pairs() {
+  awk '
+    match($0,/"VulnerabilityID": *"[^"]+"/){ v=substr($0,RSTART,RLENGTH); gsub(/.*"VulnerabilityID": *"|"$/,"",v); id=v }
+    match($0,/"Severity": *"[^"]+"/){ s=substr($0,RSTART,RLENGTH); gsub(/.*"Severity": *"|"$/,"",s); if(id!=""){print id" "s; id=""} }
+  ' | sort -u
+}
+
+# vuln <img> [baseline-img] — scan <img> and report the CVE count (loud, NON-FATAL). When a baseline is
+# given (the currently-DEPLOYED image), scan it too with the SAME pre-warmed DB and report the DELTA:
+# the CVEs present in the new image but not the deployed one — i.e. what THIS change introduces, with
+# CVE-disclosure drift controlled out because both were scanned now. A base-image CVE count is dominated
+# by unchanged findings; the delta is the signal that a change added something. Still non-fatal — a loud,
+# actionable line, not a merge blocker (gating on a new critical would be a one-line policy change here).
+vuln() {
+  local img="$1" base="${2:-}" newjson rc n crit high msg
+  has trivy || { broken "\`trivy\` is not on PATH"; return 2; }
+  newjson="$(scan_vuln "$img")"; rc=$?
+  if [ "$rc" -ne 0 ]; then
+    printf 'VULN SCAN BROKEN: trivy could not scan %s:\n%s\n' "$img" "$newjson" >&2
+    return 2
+  fi
+  # grep -o | wc -l counts OCCURRENCES (a CVE per affected package), robust to compact or pretty JSON.
+  n="$(grep -o '"VulnerabilityID"' <<<"$newjson" | wc -l | tr -d ' ')"
+  crit="$(grep -oE '"Severity":[[:space:]]*"CRITICAL"' <<<"$newjson" | wc -l | tr -d ' ')"
+  high="$(grep -oE '"Severity":[[:space:]]*"HIGH"' <<<"$newjson" | wc -l | tr -d ' ')"
+  msg="OK — vuln scan $img: $n finding(s) [CRITICAL $crit · HIGH $high]"
+
+  if [ -n "$base" ]; then
+    local basejson brc newp oldp introduced ic ih itot
+    basejson="$(scan_vuln "$base")"; brc=$?
+    if [ "$brc" -ne 0 ]; then
+      msg="$msg — Δ vs deployed: baseline $base could not be scanned, absolute count only"
+    else
+      newp="$(vuln_pairs <<<"$newjson")"
+      oldp="$(vuln_pairs <<<"$basejson")"
+      # introduced = new "ID SEV" lines whose CVE ID is not among the deployed image's IDs.
+      introduced="$(awk 'NR==FNR{o[$1]=1;next} !($1 in o)' <(printf '%s\n' "$oldp") <(printf '%s\n' "$newp"))"
+      itot=0; ic=0; ih=0
+      if [ -n "$introduced" ]; then
+        itot="$(grep -c . <<<"$introduced")"
+        ic="$(grep -c ' CRITICAL$' <<<"$introduced" || true)"
+        ih="$(grep -c ' HIGH$' <<<"$introduced" || true)"
+      fi
+      if [ "$itot" -gt 0 ]; then
+        msg="$msg — Δ vs deployed: +$itot NEW CVE(s) this change ($ic CRITICAL, $ih HIGH)"
+        if [ $((ic + ih)) -gt 0 ]; then
+          printf '⚠ VULN DELTA — this change INTRODUCES %s CRITICAL + %s HIGH new CVE(s) into %s:\n' "$ic" "$ih" "$img" >&2
+          grep -E ' (CRITICAL|HIGH)$' <<<"$introduced" | sed 's/^/    /' >&2
+        fi
+      else
+        msg="$msg — Δ vs deployed: no new CVEs introduced by this change"
+      fi
+    fi
+  fi
+  # NON-FATAL: the count and the delta are reported; only a scan that could not run is exit 2.
+  printf '%s — reported, non-blocking\n' "$msg"
+}
+
+# all <img> [baseline] — run every step, collect the WORST outcome (2 broken > 1 found > 0 clean),
+# abort NOTHING. Only vuln takes the baseline (the deployed image, for the delta); the rest ignore it.
 run_all() {
-  local img="$1" worst=0 rc step
-  for step in sbom sign attest licenses vuln; do
+  local img="$1" base="${2:-}" worst=0 rc step
+  for step in sbom sign attest licenses; do
     "$step" "$img"; rc=$?
     [ "$rc" -gt "$worst" ] && worst="$rc"
   done
+  vuln "$img" "$base"; rc=$?
+  [ "$rc" -gt "$worst" ] && worst="$rc"
   return "$worst"
 }
 
@@ -207,12 +261,15 @@ main() {
   [ $# -ge 1 ] || usage
   local cmd="$1"; shift
   case "$cmd" in
-    sbom|sign|attest|verify|licenses|vuln)
+    sbom|sign|attest|verify|licenses)
       [ $# -ge 1 ] || { printf 'usage: supply-chain.sh %s <image-ref>\n' "$cmd" >&2; exit 2; }
       "$cmd" "$1"; exit $? ;;
+    vuln)
+      [ $# -ge 1 ] || { printf 'usage: supply-chain.sh vuln <image-ref> [baseline-image-ref]\n' >&2; exit 2; }
+      vuln "$1" "${2:-}"; exit $? ;;
     all)
-      [ $# -ge 1 ] || { printf 'usage: supply-chain.sh all <image-ref>\n' >&2; exit 2; }
-      run_all "$1"; exit $? ;;
+      [ $# -ge 1 ] || { printf 'usage: supply-chain.sh all <image-ref> [baseline-image-ref]\n' >&2; exit 2; }
+      run_all "$1" "${2:-}"; exit $? ;;
     *)
       printf 'unknown subcommand: %s\nvalid: sbom sign attest verify licenses vuln all\n' "$cmd" >&2
       exit 2 ;;
