@@ -425,7 +425,7 @@ steps:
       # DB download and trivy returns a valid-looking 0-findings report (observed: a fresh install
       # reported 0 CVEs for an image that really had 327) — an absence-as-success the per-scan guard
       # cannot detect. Best-effort: if it fails, the scans report BROKEN, which is the honest outcome.
-      - trivy image --download-db-only >/dev/null 2>&1 || echo "[build] WARNING: trivy DB pre-download failed — vuln scans may report BROKEN"
+      - trivy image --download-db-only >/dev/null 2>&1 || echo "[build] WARNING - trivy DB pre-download failed, vuln scans may report BROKEN"
       - sh scripts/ci/build-images.sh
 
   # ── 4. schema-validate the manifests that will carry the new tag ────────────
