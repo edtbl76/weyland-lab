@@ -301,7 +301,7 @@ model {
   rogueone.rayWorker -> weyland.mother.mesh.ml.ray "join cluster :6379 (token)"
   rogueone.studioAgents -> weyland.mother.ops.platform.woodpecker "register + run STUD.io CI :30900 (gRPC, local backend)"
   weyland.mother.ops.platform.woodpecker -> weyland.mother.ops.platform.buildkitd "B57a image build (buildctl :1234)"
-  weyland.mother.ops.platform.woodpecker -> weyland.mother.ops.platform.buildLanes "runs 6 test + 3 scan + 1 integration lane per pipeline, each in its own pinned toolchain image"
+  weyland.mother.ops.platform.woodpecker -> weyland.mother.ops.platform.buildLanes "runs 6 test + 3 scan + 2 integration lanes per pipeline, each in its own pinned toolchain image"
   weyland.mother.ops.platform.buildkitd -> weyland.mother.ops.platform.supplyChain "after each successful push: SBOM + sign + attest + licence scan"
   weyland.mother.ops.platform.supplyChain -> weyland.mother.ops.platform.gatekeeper "cosign public key backs the image-signature constraint (dryrun - Gatekeeper cannot verify signatures itself, its Rego has no network egress)"
   weyland.mother.ops.platform.shipLoop -> weyland.mother.ops.platform.woodpecker "trigger + poll the pipeline to a terminal status"

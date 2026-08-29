@@ -351,29 +351,36 @@ steps:
       - bash scripts/run-lang-scan.sh react
       - bash scripts/run-lang-scan.sh nextjs
 
-  # ── 1f. INTEGRATION tier (B88 gap #2) — black-box the LIVE deployed guard ────
+  # ── 1f. INTEGRATION tier (B88 gap #2) — black-box the LIVE services in-cluster ────
   # The first test tier above unit. The unit lanes above prove a module in isolation; nothing until
-  # now asserted that a request actually CROSSES into a running service and comes back correct. The
-  # guard's HTTP layer (app.py) was the clearest hole — un-importable in the unit lane (needs
-  # fastapi/httpx), so its routes sat at 0% and were never exercised end to end.
+  # now asserted that a request actually CROSSES a service boundary and comes back correct. These
+  # steps run IN-CLUSTER (k8s-backend pods), so cluster-DNS service names resolve; the mesh default
+  # is PERMISSIVE (only Postgres is STRICT), so an un-meshed caller reaches the targets in plaintext
+  # — verified against the manifests, not assumed.
   #
-  # This step runs IN-CLUSTER (a k8s-backend pod), so weyland-guard.weyland.svc.cluster.local:8080
-  # resolves. The mesh default is PERMISSIVE (only Postgres is STRICT) and the guard carries no
-  # AuthorizationPolicy, so this un-meshed caller reaches it in plaintext — verified against the
-  # manifests, not assumed. It POSTs real payloads and asserts real verdicts (a known injection is
-  # BLOCKED, an actorless act is BLOCKED, a benign answer is ALLOWED): the actual shipped artifact
-  # with Postgres + the baked validators wired together — "two services talking".
-  #
-  # ⚠ NO `failure: ignore`, for the same reason as the scan lanes. Exit codes: 0 pass · 1 the guard
-  # is REACHABLE but MISBEHAVED (a real regression the author must see) · 2 the guard could not be
-  # reached / the lane could not run. Exit 2 must stay visible — a "could not reach the guard" that
-  # read as green would be the exact absence-as-success this whole effort removes. Curl-only (the
-  # script parses the flat JSON with grep/sed); no test framework, no jq.
-  - name: test-integration
+  # ⚠ NO `failure: ignore`, for the same reason as the scan lanes. Each script uses the same
+  # three-outcome contract: 0 pass · 1 the service is REACHABLE but MISBEHAVED (a real regression the
+  # author must see) · 2 the target could not be reached / the lane could not run. Exit 2 must stay
+  # visible — a "could not reach it" that read as green would be the exact absence-as-success this
+  # whole effort removes.
+
+  # Guard: POSTs real payloads to weyland-guard and asserts the deterministic enforcing verdict
+  # (actorless act BLOCKED by policy.gate) plus the route/pipeline contract on the SHADOW model hooks
+  # — reaching app.py, the HTTP layer un-importable in the unit lane (0% there). Curl-only, no jq.
+  - name: test-integration-guard
     image: alpine:latest
     commands:
       - apk add --no-cache bash curl >/dev/null
       - bash scripts/integration/guard-blackbox.sh
+
+  # DataHub<->Redpanda: asserts DataHub is actually CONSUMING from the Redpanda it was repointed onto
+  # (2026-08-29) — the MAE/MCE consumer groups are Stable and the topic spine exists. DataHub serves
+  # its catalog from Postgres+OpenSearch, so a severed event bus is invisible in the UI; only the
+  # broker shows it. Uses the deployed redpanda image so rpk matches the broker version.
+  - name: test-integration-datahub
+    image: docker.redpanda.com/redpandadata/redpanda:v24.2.7
+    commands:
+      - bash scripts/integration/datahub-redpanda-blackbox.sh
 
   # ── 2. detect which images changed since their currently-deployed git-<sha> ──
   - name: detect-changes

@@ -48,7 +48,7 @@
 <div class="wrap">
   <p class="eyebrow">Weyland · Continuous Integration</p>
   <h1 class="title">CI Architecture <span class="fade">— one pipeline, gate to deploy</span></h1>
-  <p class="lede">Every push to <span style="font-family:var(--mono)">weyland-lab</span> runs a 22-step Woodpecker pipeline: cheap deterministic <b class="h">guards</b> first (a stale doc or a broken policy stops the run before anything builds), then <b class="h">per-language tests</b>, <b class="h">scanners</b> and an <b class="h">integration lane</b>, then <b class="h">build → sign → deploy-handoff</b>. The LAN has no push-webhooks, so it is triggered manually or by a nightly 01:00 NY cron. This is the weyland-lab pipeline (<span style="font-family:var(--mono)">backend: kubernetes</span> — steps are cluster pods); the same Woodpecker server also runs STUD.io's CI on a <span style="font-family:var(--mono)">local</span> backend over rogueone agents.</p>
+  <p class="lede">Every push to <span style="font-family:var(--mono)">weyland-lab</span> runs a 23-step Woodpecker pipeline: cheap deterministic <b class="h">guards</b> first (a stale doc or a broken policy stops the run before anything builds), then <b class="h">per-language tests</b>, <b class="h">scanners</b> and an <b class="h">integration lane</b>, then <b class="h">build → sign → deploy-handoff</b>. The LAN has no push-webhooks, so it is triggered manually or by a nightly 01:00 NY cron. This is the weyland-lab pipeline (<span style="font-family:var(--mono)">backend: kubernetes</span> — steps are cluster pods); the same Woodpecker server also runs STUD.io's CI on a <span style="font-family:var(--mono)">local</span> backend over rogueone agents.</p>
 
   <div class="legend">
     <span><i class="dot" style="background:var(--guard)"></i>guard — blocks the run</span>
@@ -131,11 +131,12 @@
   <!-- PHASE 3b — INTEGRATION TIER -->
   <div class="phase">
     <div class="phase-head">
-      <span class="phase-num">1f</span><span class="phase-name">Integration tier — black-box the live guard</span>
-      <span class="phase-note">B88 gap #2. The first tier above unit: the unit lanes prove a module in isolation; this asserts a request actually CROSSES into a running service and comes back correct. Runs in-cluster (mesh is PERMISSIVE, guard has no authz policy), POSTs real payloads, asserts real verdicts. Exit 2 (guard unreachable) stays visible — a "couldn't reach it" that read green would be absence-as-success.</span>
+      <span class="phase-num">1f</span><span class="phase-name">Integration tier — black-box the live services</span>
+      <span class="phase-note">B88 gap #2. The first tier above unit: the unit lanes prove a module in isolation; these assert a request actually CROSSES a service boundary and comes back correct. Run in-cluster (mesh is PERMISSIVE), against the real deployed services. Exit 2 (target unreachable) stays visible — a "couldn't reach it" that read green would be absence-as-success.</span>
     </div>
     <div class="steps">
-      <div class="step" style="--tint:var(--test)"><div class="top"><span class="sn">17</span><span class="name">test-integration</span></div><div class="img">alpine + curl</div><div class="desc">black-box <span class="k">weyland-guard</span> live · actorless act BLOCKED by <span class="k">policy.gate</span> · benign ALLOWED · input pipeline runs on a hostile payload (guards ship SHADOW; contract-checked) · covers <span class="k">app.py</span> (0% in unit)</div></div>
+      <div class="step" style="--tint:var(--test)"><div class="top"><span class="sn">17</span><span class="name">test-integration-guard</span></div><div class="img">alpine + curl</div><div class="desc">black-box <span class="k">weyland-guard</span> live · actorless act BLOCKED by <span class="k">policy.gate</span> · benign ALLOWED · input pipeline runs on a hostile payload (guards ship SHADOW; contract-checked) · covers <span class="k">app.py</span> (0% in unit)</div></div>
+      <div class="step" style="--tint:var(--test)"><div class="top"><span class="sn">18</span><span class="name">test-integration-datahub</span></div><div class="img">redpanda + rpk</div><div class="desc">assert DataHub is CONSUMING from <span class="k">redpanda</span> — MAE/MCE groups Stable + topic spine present. UI serves off Postgres/OpenSearch, so a severed bus is invisible except here</div></div>
     </div>
   </div>
 
@@ -148,9 +149,9 @@
       <span class="phase-note">Only images whose context changed rebuild. Each pushed image gets an SBOM, a signature, provenance and a licence scan — loud but non-fatal.</span>
     </div>
     <div class="steps">
-      <div class="step" style="--tint:var(--gate)"><div class="top"><span class="sn">18</span><span class="name">detect-changes</span></div><div class="img">alpine/git</div><div class="desc">diff each image context vs its deployed <span class="k">git-&lt;sha&gt;</span> — only changed images build</div></div>
-      <div class="step" style="--tint:var(--supply)"><div class="top"><span class="sn">19</span><span class="name">build</span><span class="tag">+supply</span></div><div class="img">moby/buildkit</div><div class="desc">buildctl → <span class="k">registry.weyland.lab</span>, then per image: <b class="h">syft</b> SBOM (CycloneDX+SPDX) · <b class="h">cosign</b> sign · <b class="h">attest</b> SLSA · <b class="h">trivy</b> licences</div></div>
-      <div class="step" style="--tint:var(--gate)"><div class="top"><span class="sn">20</span><span class="name">kubeconform</span></div><div class="img">kubeconform-alpine</div><div class="desc">schema-validate every manifest that will carry the new tag</div></div>
+      <div class="step" style="--tint:var(--gate)"><div class="top"><span class="sn">19</span><span class="name">detect-changes</span></div><div class="img">alpine/git</div><div class="desc">diff each image context vs its deployed <span class="k">git-&lt;sha&gt;</span> — only changed images build</div></div>
+      <div class="step" style="--tint:var(--supply)"><div class="top"><span class="sn">20</span><span class="name">build</span><span class="tag">+supply</span></div><div class="img">moby/buildkit</div><div class="desc">buildctl → <span class="k">registry.weyland.lab</span>, then per image: <b class="h">syft</b> SBOM (CycloneDX+SPDX) · <b class="h">cosign</b> sign · <b class="h">attest</b> SLSA · <b class="h">trivy</b> licences</div></div>
+      <div class="step" style="--tint:var(--gate)"><div class="top"><span class="sn">21</span><span class="name">kubeconform</span></div><div class="img">kubeconform-alpine</div><div class="desc">schema-validate every manifest that will carry the new tag</div></div>
     </div>
   </div>
 
@@ -163,8 +164,8 @@
       <span class="phase-note">CI never calls <span style="font-family:var(--mono)">argocd sync</span>. It opens a tag-bump PR; a human merges; Argo deploys. Decoupled by design.</span>
     </div>
     <div class="steps">
-      <div class="step" style="--tint:var(--deploy)"><div class="top"><span class="sn">21</span><span class="name">deploy-handoff</span></div><div class="img">alpine</div><div class="desc">opens the <span class="k">git-&lt;sha&gt;</span> tag-bump PR — the git-as-seam boundary</div></div>
-      <div class="step" style="--tint:var(--gate)"><div class="top"><span class="sn">22</span><span class="name">notify-port</span></div><div class="img">curl</div><div class="desc">terminal status → Port <span class="k">ci_pipeline</span> blueprint → reliability dashboard (B63)</div></div>
+      <div class="step" style="--tint:var(--deploy)"><div class="top"><span class="sn">22</span><span class="name">deploy-handoff</span></div><div class="img">alpine</div><div class="desc">opens the <span class="k">git-&lt;sha&gt;</span> tag-bump PR — the git-as-seam boundary</div></div>
+      <div class="step" style="--tint:var(--gate)"><div class="top"><span class="sn">23</span><span class="name">notify-port</span></div><div class="img">curl</div><div class="desc">terminal status → Port <span class="k">ci_pipeline</span> blueprint → reliability dashboard (B63)</div></div>
     </div>
   </div>
 
@@ -177,7 +178,7 @@
       <span class="phase-note">The pipeline never calls <span style="font-family:var(--mono)">argocd sync</span>. It opens a PR; a human merges; the ship loop and Argo take it from there. This is the half that turns a green build into a live workload.</span>
     </div>
     <div class="steps" style="grid-template-columns:repeat(auto-fit,minmax(220px,1fr))">
-      <div class="step" style="--tint:var(--deploy)"><div class="top"><span class="name">tag-bump PR</span></div><div class="desc">CI opens it (step 21). A human reviews the one-line image bump and merges — the deliberate human gate.</div></div>
+      <div class="step" style="--tint:var(--deploy)"><div class="top"><span class="name">tag-bump PR</span></div><div class="desc">CI opens it (step 22). A human reviews the one-line image bump and merges — the deliberate human gate.</div></div>
       <div class="step" style="--tint:var(--deploy)"><div class="top"><span class="name">ship-images.sh</span></div><div class="desc">merges under a <b class="h">3-condition gate</b> (same-repo · CI-authored · tags-only), syncs ONLY affected Argo apps, then <b class="h">verifies every bumped image is live on a probe-backed workload</b> — refuses to advance past a gate it can't positively verify.</div></div>
       <div class="step" style="--tint:var(--deploy)"><div class="top"><span class="name">Argo CD</span></div><div class="desc"><span class="k">selfHeal: true</span> on nearly every app — git IS the desired state, so a hand <span class="k">kubectl</span> edit is reverted within ~3 min. Deploy = push. Rollback = <b class="h">git revert</b>, never <span class="k">argocd rollback</span> (selfHeal makes that a trap).</div></div>
       <div class="step" style="--tint:var(--deploy)"><div class="top"><span class="name">live workload</span></div><div class="desc">the running pods on mother's k3s. Uptime Kuma (37 monitors) + Alertmanager→Telegram are the post-deploy status board.</div></div>
@@ -215,7 +216,7 @@
 
   <p class="foot">
     <b class="h">Trigger:</b> manual or nightly 01:00 NY cron — the LAN gets no GitHub push-webhooks.<br>
-    <b class="h">Sources:</b> <a href="../.woodpecker.yml">.woodpecker.yml</a> (the 22 steps) · <a href="diagrams/flow-build-lanes.md">flow-build-lanes.md</a> · <a href="runbooks/supply-chain.md">runbooks/supply-chain.md</a> · <a href="arch.md">arch.md §CI</a> · the LikeC4 model (<span class="k">buildLanes</span> + <span class="k">supplyChain</span>).<br>
+    <b class="h">Sources:</b> <a href="../.woodpecker.yml">.woodpecker.yml</a> (the 23 steps) · <a href="diagrams/flow-build-lanes.md">flow-build-lanes.md</a> · <a href="runbooks/supply-chain.md">runbooks/supply-chain.md</a> · <a href="arch.md">arch.md §CI</a> · the LikeC4 model (<span class="k">buildLanes</span> + <span class="k">supplyChain</span>).<br>
     Generated for B88. Counts are observed against the live repo + cluster, not illustrative.
   </p>
 </div>

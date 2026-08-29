@@ -1667,7 +1667,7 @@ Two tracks left. Track A = the original integration gaps (CI secrets, real-CI-ru
 
 **TRACK B — CI/CD hardening (the pipeline-map audit; worked one at a time):**
 - ✔ **B/#1 coverage ratchet — DONE.** `scripts/coverage-ratchet.sh`, per-project baseline `tests/lang/coverage-baseline.tsv`, 8 lanes, shell excluded loudly. Critical-code pass: guard 74→80% (policy.gate), Flink health-job 9.8→33% (extracted meanStep/riskJson). Ratchet wired into every test lane. **Established the pattern for the rest: extract testable logic from framework glue, test the DECISION not the line, ratchet locks it.**
-- **B/#2 — integration/e2e/smoke tier (STARTED 2026-08-29 — guard black-box built, pending live+CI validation).**
+- **B/#2 — integration/e2e/smoke tier (2026-08-29 — 2 integration lanes DONE: guard + DataHub↔Redpanda, guard validated live end-to-end; Flink MiniCluster deferred with rationale; only the routine first-CI-run remains).**
   There was NO test tier above unit; nothing asserted two of ~20 services still talk. First slice shipped:
   **`scripts/integration/guard-blackbox.sh`** — a curl-only (no framework, no jq; flat JSON via grep/sed)
   black-box of the **LIVE deployed weyland-guard**, wired as the new `test-integration` step (pipeline is now
@@ -1694,9 +1694,26 @@ Two tracks left. Track A = the original integration gaps (CI secrets, real-CI-ru
   throwaway in-cluster pod, ran against the live guard and printed `5/5 assertions passed` (exit 0) — the same
   alpine+curl+bash mechanism the CI step uses, so the exit-code path and all five assertions are proven against
   the real deployed guard. **Remaining = routine only:** it firing inside the actual Woodpecker pipeline on the
-  next manual/cron trigger (A2). **Follow-ons in this tier, not yet built:** DataHub↔Redpanda wiring
-  assertion (the repoint verified by hand this session); a Flink `main()` MiniCluster harness; a truly-deeper
-  post-deploy endpoint check (reopens the CI-pod-in-mesh question — deferred).
+  next manual/cron trigger (A2).
+  **Second slice DONE 2026-08-29 — DataHub↔Redpanda:** `scripts/integration/datahub-redpanda-blackbox.sh`
+  asserts DataHub is actually CONSUMING from the Redpanda it was repointed onto this session — the
+  `generic-mae-consumer-job-client` / `generic-mce-consumer-job-client` groups are `Stable` (an `Empty`
+  state = the consumer disconnected) and the topic spine exists (`DataHubUpgradeHistory_v1` +
+  MetadataChangeLog/Proposal). This is the check the UI CANNOT make: DataHub serves its catalog from
+  Postgres+OpenSearch, so a severed event bus is invisible there — pure absence-as-success, on a live
+  seam. Grounded in the REAL broker state (observed via `rpk` first, per the guard lesson): asserts only
+  the DataHub groups because the `flink-*` groups are legitimately `Empty` when idle, and reads what `rpk`
+  PRINTS (listing headers + rows), never its exit code alone. New `test-integration-datahub` step on the
+  deployed `redpanda:v24.2.7` image (rpk matches the broker); pipeline now 23 steps. **+9 bats** (transport
+  vs finding vs the exit-code trap all covered); shellcheck clean.
+  **Flink `main()` MiniCluster harness — DELIBERATELY DEFERRED (not dropped):** the health-job/sql-runner
+  `main()` is topology wiring (source→map→sink); the testable arithmetic was already extracted and unit-tested
+  in the #1 pass (health-job 9.8%→33%). A MiniCluster harness is heavy Java test infra whose remaining yield
+  is framework-glue coverage, not defect-catching — poor ROI for a $0 lab. Revisit if the streaming tier grows
+  real branching logic in `main()`. **A truly-deeper post-deploy endpoint check is now SUBSUMED:** both
+  black-boxes already run in-cluster against the live deployed services, which was the CI-pod-in-mesh question
+  — answered (mesh is PERMISSIVE; verified live). Extending the pattern to more services (e.g. tool-server) is
+  available on demand but not required to call the tier complete.
 - **B/#3 — per-build image scan.** trivy runs WEEKLY + licences-only. A CVE in a base image ships and isn't caught until Sunday. Add `trivy image --scanners vuln` to the build step per pushed image (loud, non-fatal like the SBOM/sign steps — findings are counts, a broken scan is exit 2).
 - **B/#4 — post-deploy verification.** ship-loop checks "pod ready" but Ready≠works (the `dagster-user-code` no-probe finding). A synthetic check that hits the deployed endpoint. Merges with #2's smoke lane — do them together.
 - **B/#5 — feature flags → CI/CD.** Unleash IS deployed (`unleash.weyland.lab`, Port feature_flag blueprint) but is app-runtime ONLY — nothing in the deploy path consults a flag. This is the N=1 substitute for canary/progressive delivery. Wire a flag-gated rollout path (or document deliberately that flags stay app-level). Confirmed 2026-08-29: not wired.
