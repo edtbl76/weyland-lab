@@ -1667,7 +1667,26 @@ Two tracks left. Track A = the original integration gaps (CI secrets, real-CI-ru
 
 **TRACK B — CI/CD hardening (the pipeline-map audit; worked one at a time):**
 - ✔ **B/#1 coverage ratchet — DONE.** `scripts/coverage-ratchet.sh`, per-project baseline `tests/lang/coverage-baseline.tsv`, 8 lanes, shell excluded loudly. Critical-code pass: guard 74→80% (policy.gate), Flink health-job 9.8→33% (extracted meanStep/riskJson). Ratchet wired into every test lane. **Established the pattern for the rest: extract testable logic from framework glue, test the DECISION not the line, ratchet locks it.**
-- **B/#2 — integration/e2e/smoke tier (NEXT, highest value).** There is NO test tier above unit; nothing asserts two of ~20 services still talk. This is the tier that reaches the bucket-2 code the #1 pass identified as the unit ceiling (`app.py` FastAPI routes 0%, Flink `main()` topology, DataHub↔Redpanda wiring — the exact repoint we verified BY HAND this session). Design open: (a) a `smoke` CI lane that hits deployed `/health`+one real endpoint per service post-deploy (ties into #4); (b) testcontainers-style ephemeral integration for the guard's HTTP layer; (c) a Flink MiniCluster harness for `main()`. Recommend starting with the post-deploy smoke lane — cheapest, catches the most, and it's also gap #4. TDD: bats around a `scripts/smoke-check.sh` that discovers services from applications.yaml + hits each health/endpoint, three-outcome exit codes like the test lanes.
+- **B/#2 — integration/e2e/smoke tier (STARTED 2026-08-29 — guard black-box built, pending live+CI validation).**
+  There was NO test tier above unit; nothing asserted two of ~20 services still talk. First slice shipped:
+  **`scripts/integration/guard-blackbox.sh`** — a curl-only (no framework, no jq; flat JSON via grep/sed)
+  black-box of the **LIVE deployed weyland-guard**, wired as the new `test-integration` step (pipeline is now
+  22 steps). It POSTs real payloads and asserts real verdicts across all three hooks: a known prompt-injection
+  is BLOCKED (`/guard/input`), an actorless act is BLOCKED by policy.gate (`/guard/act`), a benign answer is
+  ALLOWED (`/guard/output`), plus `/health` non-empty validators and `/ready`. That reaches `app.py` — the HTTP
+  layer that is un-importable in the unit lane (needs fastapi/httpx) and sat at 0%. **Why the LIVE guard, not a
+  booted copy or a smoke-ping:** the guard is NOT in `images.tsv` (built out-of-band), so a fresh-image black-box
+  had nothing fresh to test; the post-deploy `/health` ping I'd penciled in would DUPLICATE blackbox-exporter
+  (already 1:1 with hosts.md) and hit forward-auth = a Keycloak page (absence-as-success). The live guard is
+  reachable because the mesh default is PERMISSIVE (only Postgres STRICT) and the guard carries no AuthorizationPolicy
+  — verified against the manifests. Three-outcome exit codes: 0 pass · 1 reachable-but-misbehaved (real regression)
+  · 2 unreachable/can't-run (fail closed, never green). **11→ +9 bats** (`scripts/tests/guard-blackbox.bats`,
+  all green; shellcheck clean; response SHAPES confirmed from `app.py` source). **PENDING (the honest gaps):**
+  (a) observe the live guard's VERDICT behavior ONCE by hand — the shapes are source-confirmed but the actual
+  block/allow behavior has not been run against the deployed service (the "a control that has never run is not a
+  control" rule); (b) first real-CI run (A2). **Follow-ons in this tier, not yet built:** DataHub↔Redpanda wiring
+  assertion (the repoint verified by hand this session); a Flink `main()` MiniCluster harness; a truly-deeper
+  post-deploy endpoint check (reopens the CI-pod-in-mesh question — deferred).
 - **B/#3 — per-build image scan.** trivy runs WEEKLY + licences-only. A CVE in a base image ships and isn't caught until Sunday. Add `trivy image --scanners vuln` to the build step per pushed image (loud, non-fatal like the SBOM/sign steps — findings are counts, a broken scan is exit 2).
 - **B/#4 — post-deploy verification.** ship-loop checks "pod ready" but Ready≠works (the `dagster-user-code` no-probe finding). A synthetic check that hits the deployed endpoint. Merges with #2's smoke lane — do them together.
 - **B/#5 — feature flags → CI/CD.** Unleash IS deployed (`unleash.weyland.lab`, Port feature_flag blueprint) but is app-runtime ONLY — nothing in the deploy path consults a flag. This is the N=1 substitute for canary/progressive delivery. Wire a flag-gated rollout path (or document deliberately that flags stay app-level). Confirmed 2026-08-29: not wired.

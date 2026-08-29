@@ -20,9 +20,10 @@ together, and what each layer does. Each opens full-screen; best viewed on a wid
     → **[Open the Data-Mesh Map](https://edtbl76.github.io/weyland-lab/data-mesh-map.html)** (public)
 
 !!! abstract "CI Architecture Map"
-    The continuous-integration pipeline end-to-end: the 21 Woodpecker steps grouped by phase &mdash;
-    **guards** that block a bad run before anything builds, the **9-language test lanes** and **3 scan
-    lanes** (B88), then **build &rarr; SBOM/sign/attest &rarr; deploy-handoff** &mdash; plus the
+    The continuous-integration pipeline end-to-end: the 22 Woodpecker steps grouped by phase &mdash;
+    **guards** that block a bad run before anything builds, the **9-language test lanes**, **3 scan
+    lanes**, and an **integration lane** that black-boxes the live guard (B88), then **build &rarr;
+    SBOM/sign/attest &rarr; deploy-handoff** &mdash; plus the
     surrounding ship loop, watchdogs, weekly scan-suite, and the **Gatekeeper signature policy**. Two
     backends on one server: weyland jobs as k8s pods, STUD.io CI on rogueone agents.
 
