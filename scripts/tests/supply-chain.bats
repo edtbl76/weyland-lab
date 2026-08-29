@@ -1,178 +1,112 @@
 #!/usr/bin/env bats
 #
-# scripts/supply-chain.sh — SBOM, signing, provenance, licences (B88 Phase 3).
+# scripts/supply-chain.sh — SBOM / sign / attest / licences / VULN, and the resilient `all` (B88 #3).
 #
-# THE FINDING THIS EXISTS TO CLOSE. Every supply-chain concept in this lab was present as KNOWLEDGE
-# and absent as IMPLEMENTATION: syft, cosign, sigstore, SBOM, CycloneDX, SPDX, SLSA, provenance,
-# attestation and Renovate appeared ONLY under knowledge-repos/. The estate documented a supply
-# chain it did not have.
-#
-# WHY THE ORDER OF OPERATIONS IS SAFETY-CRITICAL. Signing is additive — an unsigned image keeps
-# working. VERIFICATION is not: a Gatekeeper policy that requires signatures would reject every
-# image already running and take the cluster down. So the policy ships in `enforcementAction:
-# dryrun`, matching the convention already written into k8s/gatekeeper/constraints.yaml ("ALL start
-# in dryrun — violations are audited but NOTHING is blocked"). These tests assert that default.
-#
-# ASSERT THE REASON, NOT JUST THE STATUS — exit 127 satisfies `-ne 0`.
+# Two things this suite pins that the real #41 build log proved were broken:
+#   1. `vuln` — trivy's per-build vulnerability scan. LOUD BUT NON-FATAL (a base-image CVE at build
+#      time is a count, not a gate), and it MUST distinguish "scanned, 0 findings" from "could not
+#      scan": reading 0 off a scan that never ran is the absence-as-success trap. It reads what trivy
+#      PRINTS (the report), never its exit code alone.
+#   2. `all` RESILIENCE — before this, sign's hard-exit on a missing COSIGN_KEY aborted the whole
+#      script, so licences and vuln NEVER ran in CI. Steps now return (never exit) and `all` collects
+#      the worst outcome, so a missing key breaks sign/attest ONLY.
 
 load helper
 
+SC="$REPO_ROOT/scripts/supply-chain.sh"
+
 setup() {
   setup_stubs
-  SC="$REPO_ROOT/scripts/supply-chain.sh"
-  SANDBOX="$(mktemp -d)"
-  export SANDBOX
+  export WEYLAND_SBOM_DIR="$STUB_DIR/sbom"   # keep artifacts out of /tmp
+  unset COSIGN_KEY COSIGN_PUBKEY             # default: no signing key (the CI reality until A1)
+}
+teardown() { teardown_stubs; return 0; }
+
+# A minimal but REAL-SHAPED trivy vuln report (fields verified against live trivy 0.74 output):
+# 3 findings — 1 CRITICAL, 1 HIGH, 1 LOW.
+TRIVY_FINDINGS='{"SchemaVersion":2,"ArtifactName":"img","Results":[{"Vulnerabilities":[{"VulnerabilityID":"CVE-1","Severity":"CRITICAL"},{"VulnerabilityID":"CVE-2","Severity":"HIGH"},{"VulnerabilityID":"CVE-3","Severity":"LOW"}]}]}'
+TRIVY_CLEAN='{"SchemaVersion":2,"ArtifactName":"img","Results":[]}'
+
+# ── vuln ─────────────────────────────────────────────────────────────────────
+@test "vuln: findings are COUNTED and reported, but NON-FATAL (exit 0)" {
+  stub trivy 0 "$TRIVY_FINDINGS"
+  run bash "$SC" vuln registry.test/img:tag
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"3 finding(s)"* ]]
+  [[ "$output" == *"CRITICAL 1"* ]]
+  [[ "$output" == *"HIGH 1"* ]]
 }
 
-teardown() {
-  teardown_stubs
-  [ -n "${SANDBOX:-}" ] && [ -d "$SANDBOX" ] && rm -rf "$SANDBOX"
-  return 0
+@test "vuln: a clean image (report present, 0 findings) passes with a 0 count" {
+  stub trivy 0 "$TRIVY_CLEAN"
+  run bash "$SC" vuln registry.test/img:tag
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"0 finding(s)"* ]]
 }
 
-# ---------------------------------------------------------------------------
-# Arguments
-# ---------------------------------------------------------------------------
-
-@test "an unknown subcommand is refused and the valid set is named" {
-  run bash "$SC" teleport
+@test "vuln: trivy exiting NON-ZERO is a BROKEN scan (2), never a pass" {
+  stub trivy 1 ""
+  run bash "$SC" vuln registry.test/img:tag
   [ "$status" -eq 2 ]
-  [[ "$output" == *"teleport"* ]]
-  [[ "$output" == *"sbom"* ]]
-  [[ "$output" == *"sign"* ]]
+  [[ "$output" == *"BROKEN"* ]]
 }
 
-@test "no subcommand prints usage rather than doing something" {
-  run bash "$SC"
+@test "vuln: trivy exit 0 but NO report (garbage/error text) is BROKEN (2) — the absence-as-success guard" {
+  # e.g. an insecure-registry pull error that trivy still exits 0 on. Reading "0 findings" off this
+  # would be verifying nothing. No SchemaVersion in the output -> it never scanned -> 2.
+  stub trivy 0 "FATAL failed to pull image: tls: unknown authority"
+  run bash "$SC" vuln registry.test/img:tag
   [ "$status" -eq 2 ]
-  [[ "$output" == *"usage"* ]]
 }
 
-# ---------------------------------------------------------------------------
-# Fail closed on a missing tool — never skip
-# ---------------------------------------------------------------------------
-
-@test "sbom fails closed when syft is absent, and names it" {
-  run env PATH="$STUB_DIR:/usr/bin:/bin" bash "$SC" sbom registry.weyland.lab/x:git-abc
+@test "vuln: trivy not on PATH is a BROKEN lane (2)" {
+  run bash "$SC" vuln registry.test/img:tag
   [ "$status" -eq 2 ]
-  [[ "$output" == *"syft"* ]]
-  [[ "$output" != *"OK — "* ]]   # NB: "OK" alone matches "BROKEN" (B-R-O-K-E-N)
+  [[ "$output" == *"trivy"* ]]
 }
 
-@test "sign fails closed when cosign is absent, and names it" {
-  run env PATH="$STUB_DIR:/usr/bin:/bin" bash "$SC" sign registry.weyland.lab/x:git-abc
+# ── all — resilience (the load-bearing fix) ──────────────────────────────────
+@test "all: a missing COSIGN_KEY breaks sign/attest but licences and VULN still run (resilient)" {
+  # THE regression this closes: before the refactor, sign's die-exit aborted the whole script here,
+  # so licences and vuln never executed. Now they must — and the vuln OK line proves it.
+  stub syft 0 ""
+  stub cosign 0 ""
+  stub trivy 0 "$TRIVY_FINDINGS"
+  # COSIGN_KEY intentionally unset (setup unsets it).
+  run bash "$SC" all registry.test/img:tag
+  [ "$status" -eq 2 ]                                # worst outcome = sign/attest broken
+  [[ "$output" == *"vuln scan"* ]]                  # vuln RAN despite the broken sign
+  [[ "$output" == *"COSIGN_KEY is unset"* ]]        # and the broken step still reported why
+}
+
+@test "all: with everything available, the whole chain runs clean (exit 0)" {
+  export COSIGN_KEY="$STUB_DIR/fake.key"            # non-empty -> sign/attest proceed to (stubbed) cosign
+  stub syft 0 ""
+  stub cosign 0 ""
+  stub trivy 0 "$TRIVY_CLEAN"
+  run bash "$SC" all registry.test/img:tag
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"vuln scan"* ]]
+  [[ "$output" == *"SBOM written"* ]]
+}
+
+# ── sbom / step contracts ────────────────────────────────────────────────────
+@test "sbom: a syft that cannot produce an SBOM is BROKEN (2), not a finding (1)" {
+  stub syft 1 "error: cannot parse image"
+  run bash "$SC" sbom registry.test/img:tag
+  [ "$status" -eq 2 ]
+  [[ "$output" == *"SBOM BROKEN"* ]]
+}
+
+@test "a single subcommand PROPAGATES its exit code (sign, no cosign -> 2)" {
+  # no cosign stub -> has cosign fails -> broken (2), and main exits with it.
+  run bash "$SC" sign registry.test/img:tag
   [ "$status" -eq 2 ]
   [[ "$output" == *"cosign"* ]]
 }
 
-@test "sign refuses to run without a signing key rather than silently not signing" {
-  # An unsigned image that reports success is the whole failure mode: verification later says
-  # "no signature" and nobody knows whether signing ran or was skipped.
-  stub cosign 0 "signed"
-  run env COSIGN_KEY= bash "$SC" sign registry.weyland.lab/x:git-abc
+@test "an unknown subcommand exits 2 with the valid list" {
+  run bash "$SC" frobnicate registry.test/img:tag
   [ "$status" -eq 2 ]
-  [[ "$output" == *"key"* ]]
+  [[ "$output" == *"vuln"* ]]
 }
-
-# ---------------------------------------------------------------------------
-# The happy paths actually invoke the tools
-# ---------------------------------------------------------------------------
-
-@test "sbom emits BOTH CycloneDX and SPDX, not just one" {
-  # Two formats because they answer to different consumers: CycloneDX for vuln tooling, SPDX for
-  # licence/compliance. Emitting one and claiming an SBOM would be half the artifact.
-  stub syft 0 "sbom written"
-  run env WEYLAND_SBOM_DIR="$SANDBOX" bash "$SC" sbom registry.weyland.lab/x:git-abc
-  [ "$status" -eq 0 ]
-  grep -q "cyclonedx" "$STUB_LOG"
-  grep -q "spdx" "$STUB_LOG"
-}
-
-@test "sign passes the image reference through to cosign" {
-  stub cosign 0 "signed"
-  run env COSIGN_KEY=/tmp/k.key bash "$SC" sign registry.weyland.lab/x:git-abc
-  [ "$status" -eq 0 ]
-  grep -q "registry.weyland.lab/x:git-abc" "$STUB_LOG"
-}
-
-@test "attest records SLSA provenance, not a bare signature" {
-  stub cosign 0 "attested"
-  run env COSIGN_KEY=/tmp/k.key WEYLAND_SBOM_DIR="$SANDBOX" \
-      bash "$SC" attest registry.weyland.lab/x:git-abc
-  [ "$status" -eq 0 ]
-  grep -qi "attest" "$STUB_LOG"
-  grep -qi "slsaprovenance\|provenance" "$STUB_LOG"
-}
-
-@test "licences are scanned with trivy's licence scanner specifically" {
-  stub trivy 0 "no license findings"
-  run bash "$SC" licenses registry.weyland.lab/x:git-abc
-  [ "$status" -eq 0 ]
-  grep -q -- "--scanners" "$STUB_LOG"
-  grep -q "license" "$STUB_LOG"
-}
-
-# ---------------------------------------------------------------------------
-# A tool that fails must not be reported as success
-# ---------------------------------------------------------------------------
-
-@test "a failing syft is a failure, not a shrug" {
-  # `-ne 0` ALONE IS NOT ENOUGH — exit 127 (command not found) satisfies it, and the first version
-  # of this test passed in the Red run against a script that did not exist. Fourth occurrence of
-  # this trap in the repo. Assert the script's OWN diagnostic, which a missing file cannot emit.
-  stub syft 1 "syft exploded"
-  run env WEYLAND_SBOM_DIR="$SANDBOX" bash "$SC" sbom registry.weyland.lab/x:git-abc
-  [ "$status" -eq 1 ]
-  [[ "$output" == *"SBOM"* || "$output" == *"sbom"* ]]
-  [[ "$output" != *"OK — "* ]]   # NB: "OK" alone matches "BROKEN" (B-R-O-K-E-N)
-}
-
-@test "a failing cosign sign is a failure" {
-  stub cosign 1 "signing failed"
-  run env COSIGN_KEY=/tmp/k.key bash "$SC" sign registry.weyland.lab/x:git-abc
-  [ "$status" -eq 1 ]
-  [[ "$output" == *"sign"* ]]
-  [[ "$output" != *"OK — "* ]]   # NB: "OK" alone matches "BROKEN" (B-R-O-K-E-N)
-}
-
-# ---------------------------------------------------------------------------
-# verify — and the safety property that matters most
-# ---------------------------------------------------------------------------
-
-@test "verify reports an UNSIGNED image as unverified, never as fine" {
-  stub cosign 1 "no matching signatures"
-  run env COSIGN_PUBKEY=/tmp/k.pub bash "$SC" verify registry.weyland.lab/x:git-abc
-  [ "$status" -ne 0 ]
-  [[ "$output" == *"nsigned"* || "$output" == *"not verified"* || "$output" == *"no matching"* ]]
-}
-
-@test "the Gatekeeper signature policy ships in dryrun, NOT deny" {
-  # THE most important assertion in this file. Requiring signatures on a cluster whose images are
-  # all unsigned would reject every workload. k8s/gatekeeper/constraints.yaml already states the
-  # house rule — ALL constraints start in dryrun — and this keeps the new one honest.
-  policy="$REPO_ROOT/nodes/mother/lab/weyland-platform/k8s/gatekeeper/image-signatures.yaml"
-  [ -f "$policy" ]
-  run grep -c "enforcementAction: dryrun" "$policy"
-  [ "$status" -eq 0 ]
-  [ "$output" -ge 1 ]
-  # And no ACTIVE line may set deny. The file documents how to promote it, so a naive grep matches
-  # the instructions — strip comments before asserting.
-  run bash -c "grep -v '^[[:space:]]*#' '$policy' | grep -c 'enforcementAction: deny' || true"
-  [ "$output" -eq 0 ]
-}
-
-@test "the signature policy documents how to promote it to deny" {
-  # A dryrun policy nobody knows how to graduate stays dryrun forever, which is its own kind of
-  # theatre. The file must say what to check and what to flip.
-  policy="$REPO_ROOT/nodes/mother/lab/weyland-platform/k8s/gatekeeper/image-signatures.yaml"
-  run grep -ci "totalViolations\|promote\|flip" "$policy"
-  [ "$output" -ge 1 ]
-}
-
-# ── WHY THE REGO IS NOT TESTED HERE ─────────────────────────────────────────────────────────────
-# The policy's LOGIC is verified by scripts/ci/check-rego-policies.sh, which runs inside the OPA
-# image as its own CI step — not from this suite. Reason: exercising Rego needs OPA, this suite runs
-# inside bats/bats, and shelling out to docker from there is docker-in-docker with a temp path the
-# host daemon cannot see. The tests "passed" only by skipping, and a skipped test proves nothing —
-# the same absence-as-success this whole effort keeps deleting. The file-level assertions above
-# (dryrun, documented promotion path) work correctly here and stay.

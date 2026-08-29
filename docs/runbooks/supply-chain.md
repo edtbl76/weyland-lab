@@ -1,4 +1,4 @@
-# Runbook — Software supply chain (SBOM · signing · provenance · licences)
+# Runbook — Software supply chain (SBOM · signing · provenance · licences · vulnerabilities)
 
 **B88 Phase 3.** SBOM generation, image signing, SLSA provenance and licence scanning for every image
 this lab builds. Tooling: `scripts/supply-chain.sh`, invoked per pushed image by
@@ -94,7 +94,25 @@ Everything runs automatically per pushed image via `build-images.sh`. To run a s
 bash scripts/supply-chain.sh all registry.weyland.lab/weyland-agent:git-abc1234
 ```
 
-Individual subcommands — `sbom` · `sign` · `attest` · `verify` · `licenses`.
+Individual subcommands — `sbom` · `sign` · `attest` · `verify` · `licenses` · `vuln`.
+
+**`vuln` (B88 gap #3) — per-build CVE scan.** `trivy image --scanners vuln` on every pushed image, so
+a base-image CVE is caught at build time instead of waiting for the weekly scan-suite run. It is
+**loud but non-fatal**: it prints the finding count (`N finding(s) [CRITICAL x · HIGH y]`) and exits
+**0 even with findings** — gating every build on a base-image CVE would mute the gate. Only a scan
+that *could not run* (trivy missing, or an image it could not pull) is exit 2, and it decides that by
+reading trivy's actual report (`SchemaVersion` present), never its exit code alone — 0 findings counts
+only when the scan really happened.
+
+**`all` is resilient (gap #3).** A missing `COSIGN_KEY` (until the Woodpecker `cosign_key` secret is
+provisioned) breaks `sign`/`attest` only — `sbom`, `licenses` and `vuln` still run. Before this, sign's
+hard-exit aborted the whole chain, so licences and vuln never ran in CI at all.
+
+**Insecure registry.** `syft` and `trivy` skip TLS verification (`SYFT_REGISTRY_INSECURE_SKIP_TLS_VERIFY=true`
+and trivy `--insecure`) to pull the just-pushed image from `registry.weyland.lab`, which serves a mkcert
+cert the tools don't trust — exactly as buildctl pushes with `registry.insecure=true`. Without this, every
+scan reported "broken". `trivy` is installed in the build step alongside syft/cosign; it downloads its vuln
+DB on first run (a persistent cache is gap #6).
 
 **SBOM output** lands in `$WEYLAND_SBOM_DIR` (default `/tmp/weyland-sbom`), two files per image:
 
