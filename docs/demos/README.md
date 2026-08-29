@@ -85,6 +85,7 @@ Legend: **DONE** · **MISSING** · **PARTIAL** (exists but stale) · — not app
 | E11 | Agent (Telegram → Hermes → LiteLLM/Ollama → MCP → tool-server → reply) | DONE `flow-e2e-agent` | PARTIAL `agent-e2e.md` | — read-only |
 | E12 | Store wake/sleep (Port action → port-agent → store-scaler → k8s scale) | DONE `flow-e2e-store-scale` | PARTIAL `store-scale-e2e.md` | — replicas only |
 | B82 | Application taxonomy (registry → DataHub Applications + Port components, one SoT) | DONE `flow-application-taxonomy` | DONE `application-taxonomy.md` (RUN — `(29,4157)` + eyes-on) | — read-only |
+| B88 | Per-language build lanes + supply chain (9 test langs → 3 scan lanes → SBOM/sign/attest → Gatekeeper dryrun) | DONE `flow-build-lanes` | DONE `build-lanes-supply-chain.md` (RUN — SBOM 96/16, audit 0, 310 bats, all CLI verified) | — read-only |
 
 > **E-rows are PARTIAL authored — pending live validation run.** Commands are real (pulled from the component
 > demos/runbooks, no placeholders, host-labeled), but per the demos DoD a demo is not DONE until executed
