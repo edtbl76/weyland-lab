@@ -1,0 +1,53 @@
+# B88 #6 — persistent toolchain caches for the CI lanes.
+#
+# Every lane reinstalled its toolchain per run — `cargo install cargo-llvm-cov/cargo-audit/cargo-deny`
+# (compiled from source, minutes each), maven plugins, go modules, npm packages, and (since #3) the
+# 109 MB trivy vuln DB. These PVCs persist those across runs; the lanes mount them in `.woodpecker.yml`
+# at each toolchain's cache dir with the matching cache env var.
+#
+# HAND-APPLIED, like `buildkitd-cache` — `k8s/woodpecker/` raw manifests are not Argo-synced (the Helm
+# app deploys woodpecker itself; these are operator-applied). MUST exist before the `.woodpecker.yml`
+# mounts reference them, or step pods stay Pending on a missing PVC.
+#
+# RWO + local-path: steps run SEQUENTIALLY on the single node, so one writer at a time keeps each cache
+# intact (concurrent writers would corrupt a shared cargo/maven dir — RWO enforces the one-at-a-time the
+# caches need anyway). Node-local, on mother's disk.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata: { name: ci-cache-cargo, namespace: woodpecker }
+spec:
+  accessModes: [ReadWriteOnce]
+  storageClassName: local-path
+  resources: { requests: { storage: 4Gi } }
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata: { name: ci-cache-maven, namespace: woodpecker }
+spec:
+  accessModes: [ReadWriteOnce]
+  storageClassName: local-path
+  resources: { requests: { storage: 4Gi } }
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata: { name: ci-cache-trivy, namespace: woodpecker }
+spec:
+  accessModes: [ReadWriteOnce]
+  storageClassName: local-path
+  resources: { requests: { storage: 2Gi } }
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata: { name: ci-cache-go, namespace: woodpecker }
+spec:
+  accessModes: [ReadWriteOnce]
+  storageClassName: local-path
+  resources: { requests: { storage: 4Gi } }
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata: { name: ci-cache-npm, namespace: woodpecker }
+spec:
+  accessModes: [ReadWriteOnce]
+  storageClassName: local-path
+  resources: { requests: { storage: 2Gi } }

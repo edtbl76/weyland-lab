@@ -264,6 +264,8 @@ steps:
 
   - name: test-java
     image: maven:3.9-eclipse-temurin-17
+    volumes:
+      - ci-cache-maven:/root/.m2/repository   # B88 #6 — persist downloaded maven plugins/deps
     commands:
       # Java 17 matches the Flink modules' maven.compiler.source/target. B88 added JUnit 5 +
       # Surefire to both modules — before that `mvn test` ran zero tests and exited 0.
@@ -275,6 +277,11 @@ steps:
 
   - name: test-go
     image: golang:1.26
+    environment:                              # B88 #6 — persist the go module + build caches
+      GOMODCACHE: /cache/go/mod
+      GOCACHE: /cache/go/build
+    volumes:
+      - ci-cache-go:/cache/go
     commands:
       # NOT -alpine: `go test -race` needs cgo, and alpine without build-base cannot race-detect —
       # it would silently run without the detector.
@@ -284,6 +291,14 @@ steps:
 
   - name: test-rust
     image: rust:1-slim
+    # B88 #6 — persist CARGO_HOME (registry + cargo-installed bins, so cargo-llvm-cov is not recompiled
+    # every run). PATH is set LITERALLY (image PATH + the cache bin) rather than with $PATH, so the
+    # scripts' `command -v cargo-llvm-cov` finds the cached binary; RUSTUP_HOME stays the image default.
+    environment:
+      CARGO_HOME: /cache/cargo
+      PATH: /cache/cargo/bin:/usr/local/cargo/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+    volumes:
+      - ci-cache-cargo:/cache/cargo
     commands:
       - bash scripts/run-lang-tests.sh rust --self-check
       - bash scripts/run-lang-tests.sh rust
@@ -295,6 +310,10 @@ steps:
 
   - name: test-node
     image: node:24-alpine
+    environment:
+      npm_config_cache: /cache/npm            # B88 #6 — persist the npm package cache
+    volumes:
+      - ci-cache-npm:/cache/npm
     commands:
       # Four archetypes on ONE toolchain. TypeScript and JavaScript are dependency-free (node's
       # built-in runner + native TS type-stripping, 23.6+); React and Next.js cannot be — rendering
@@ -332,6 +351,11 @@ steps:
   # in run-lang-scan.sh already does the filtering: findings are 0, broken is 2.
   - name: scan-rust
     image: rust:1-slim
+    environment:                              # B88 #6 — same cargo cache as test-rust (audit/deny bins persist)
+      CARGO_HOME: /cache/cargo
+      PATH: /cache/cargo/bin:/usr/local/cargo/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+    volumes:
+      - ci-cache-cargo:/cache/cargo
     commands:
       - rustup component add clippy rustfmt >/dev/null 2>&1 || true
       - cargo install cargo-audit cargo-deny --locked >/dev/null 2>&1 || true
@@ -339,11 +363,17 @@ steps:
 
   - name: scan-java
     image: maven:3.9-eclipse-temurin-17
+    volumes:
+      - ci-cache-maven:/root/.m2/repository   # B88 #6 — same maven cache as test-java
     commands:
       - bash scripts/run-lang-scan.sh java
 
   - name: scan-node
     image: node:24-alpine
+    environment:
+      npm_config_cache: /cache/npm            # B88 #6 — same npm cache as test-node
+    volumes:
+      - ci-cache-npm:/cache/npm
     commands:
       - apk add --no-cache bash >/dev/null
       - bash scripts/run-lang-scan.sh typescript
@@ -397,7 +427,10 @@ steps:
     image: moby/buildkit:latest
     environment:
       BUILDKIT_HOST: tcp://buildkitd:1234
+      TRIVY_CACHE_DIR: /cache/trivy           # B88 #6 — persist trivy's 109MB vuln DB across runs (was re-downloaded every build)
     secrets: [cosign_key, cosign_password]
+    volumes:
+      - ci-cache-trivy:/cache/trivy
     # B88 gap #3 — the per-image supply-chain scans (syft SBOM + trivy image vuln) analyse the full
     # pushed image. With no memory request the step pod is best-effort QoS and was OOMKilled (exit 137)
     # scanning a large ML image on the RAM-tight node. A 1Gi request makes it Burstable (a real floor,
