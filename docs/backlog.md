@@ -1653,7 +1653,7 @@ The shell lane scales with the repo; the Python lane does not. **[B78]'s Open Fo
 **DoD:** runbook ✔ · [diagrams/flow-build-lanes.md](diagrams/flow-build-lanes.md) ✔ (5 blocks, all 144 parse; `check-mermaid.sh` caught a `;` in sequence text — the exact bug that guard exists for) · LikeC4 ✔ (`buildLanes` + `supplyChain` + 3 edges, `✓ Valid`) · `arch.md` ✔ · `tools.md` ✔ · Gatekeeper Rego now CI-validated by a new `rego-policies` step (kubeconform SKIPS Gatekeeper CRDs, so no Rego here had EVER been checked — it validated 4 policies, the 3 pre-existing ones included) · all repo guards green. · **demo** ✔ [demos/build-lanes-supply-chain.md](demos/build-lanes-supply-chain.md) (RUN — every CLI + UI command verified against live infra; SBOM 96/16, audit 0, 310 bats). DoD COMPLETE.
 
 **CI/CD HARDENING (gaps found while mapping the pipeline, 2026-08-29) — worked one at a time:**
-- ✔ **#1 Coverage ratchet.** Only Go emitted coverage and nothing read it — a number produced and discarded. Built `scripts/coverage-ratchet.sh`: per-project line coverage vs a committed baseline (`tests/lang/coverage-baseline.tsv`), failing ONLY on a regression beyond a 0.1pt float-noise tolerance — a **ratchet, not an 80% floor** (a hard threshold on mostly-fixture lanes either fails day one or forces fake tests; % is the most gameable metric). Extractors for 8 lanes verified against REAL toolchains: go `-coverprofile`, pytest-cov, node built-in + jest, jacoco, cargo-llvm-cov — each fails CLOSED (exit 2) if its tool is missing, never a silent pass. **Shell deliberately excluded, loudly** (kcov absent from Alpine + line-coverage of a decision-asserting orchestrator measures ~nothing). Real baselines now protected: weyland-guard **74%**, Flink health-job **9.8%**, sql-runner **33.3%**. 11 bats + wired into all test lanes. Regression path proven live (seeded 90% → real 74% → exit 1, baseline NOT rewritten down). ✔ #2 integration/e2e tier (2 black-box lanes, verified CI) · ✔ #3 per-build image scan (verified CI #44). Still to walk: #4 post-deploy verification · #5 Unleash→CI wiring · #6 CI toolchain caching · lower: DAST/mutation/perf.
+- ✔ **#1 Coverage ratchet.** Only Go emitted coverage and nothing read it — a number produced and discarded. Built `scripts/coverage-ratchet.sh`: per-project line coverage vs a committed baseline (`tests/lang/coverage-baseline.tsv`), failing ONLY on a regression beyond a 0.1pt float-noise tolerance — a **ratchet, not an 80% floor** (a hard threshold on mostly-fixture lanes either fails day one or forces fake tests; % is the most gameable metric). Extractors for 8 lanes verified against REAL toolchains: go `-coverprofile`, pytest-cov, node built-in + jest, jacoco, cargo-llvm-cov — each fails CLOSED (exit 2) if its tool is missing, never a silent pass. **Shell deliberately excluded, loudly** (kcov absent from Alpine + line-coverage of a decision-asserting orchestrator measures ~nothing). Real baselines now protected: weyland-guard **74%**, Flink health-job **9.8%**, sql-runner **33.3%**. 11 bats + wired into all test lanes. Regression path proven live (seeded 90% → real 74% → exit 1, baseline NOT rewritten down). ✔ #2 integration/e2e tier (2 black-box lanes, verified CI) · ✔ #3 per-build image scan + delta (verified CI) · ✔ #4 post-deploy verification (tool-server txn, verified live) · ✔ #5 Unleash→CI wiring (ship kill-switch, exercised live). Still to walk: #6 CI toolchain caching · lower: DAST/mutation/perf.
 
 ## B88 — REMAINING PLAN (written 2026-08-29, survives compaction)
 
@@ -1744,8 +1744,34 @@ Two tracks left. Track A = the original integration gaps (CI secrets, real-CI-ru
   since the change touched only scripts/docs/yaml, not any image's Dockerfile/deps; the phrasing (not "absolute
   count only") confirms each baseline was pulled, scanned with the same DB, and diffed. The new-CVE-flag path is
   bats-verified. **#3 now catches, not just logs.**
-- **B/#4 — post-deploy verification.** ship-loop checks "pod ready" but Ready≠works (the `dagster-user-code` no-probe finding). A synthetic check that hits the deployed endpoint. Merges with #2's smoke lane — do them together.
-- **B/#5 — feature flags → CI/CD.** Unleash IS deployed (`unleash.weyland.lab`, Port feature_flag blueprint) but is app-runtime ONLY — nothing in the deploy path consults a flag. This is the N=1 substitute for canary/progressive delivery. Wire a flag-gated rollout path (or document deliberately that flags stay app-level). Confirmed 2026-08-29: not wired.
+- **B/#4 — post-deploy verification — DONE + verified live 2026-08-29.** Was NOT greenfield: `ship-images.sh`
+  already has a functional post-deploy layer — `txn_ok` runs a real in-cluster transaction per shipped service
+  (`txn_dagster` asserts the code location actually LOADED; `txn_feast` serves a real feature and asserts the VALUE
+  is non-null — both defeating "Ready≠works" where `smoke_ok`'s probe check cannot). The gap was COVERAGE: only 2 of
+  ~11 CI-built services were checked; the rest were honestly named `unchecked`. Added **`txn_tool_server`** — the
+  core RAG API was the biggest hole: `POST /context/search` must return a **non-empty** result set (a `/ready` 200
+  over an empty/unbuilt index is the Ready-but-empty trap), which also indirectly verifies the endpoint-less
+  `rag-index` loader Job. Also routed `weyland-dagster-base` → `txn_dagster` (it deploys the webserver that
+  transaction hits). Reuses the existing `TXN_OK`/`TXN_FAIL` token framework + the "named, never silently passed"
+  discipline. Endpoint/response shape observed live before encoding; the committed `txn_tool_server` returns
+  `TXN_OK` against the live cluster; +3 bats (8 TXN total), shellcheck clean, runbook cascaded. **Still honestly
+  unchecked (available on demand):** the two B115 FastAPI guardrails services (`guardrails-structure`,
+  `nemo-guardrails`); the Jobs/CronJobs (`scan-suite`, `rag-index`, `store-scaler`) legitimately have no post-deploy
+  transaction and the framework names them; Flink (`flink`, `flink-py`) is on-demand/idle (same deferral as #2's Flink).
+- **B/#5 — feature flags → CI/CD — DONE + exercised live 2026-08-29.** Unleash was app-runtime only; nothing in
+  the DEPLOY path consulted a flag. Now `ship-images.sh` checks the Unleash kill-switch **`weyland-ship-enabled`**
+  (`ship_flag_allows`) — the N=1 substitute for canary/progressive delivery: an operator disables the flag in the
+  Unleash UI to HOLD the whole rollout, no git change, and re-enables to release. **Gated BEFORE the PR merge, not
+  the Argo sync** — the key design point: every app is `selfHeal: true`, so Argo re-syncs git HEAD within ~3min and
+  a sync-step gate would be futile; withholding the MERGE keeps the new tag out of git HEAD entirely, so Argo has
+  nothing new to deploy. One PR carries all bumped images → the gate is a global kill-switch. **FAIL-OPEN by design:**
+  an absent flag, an unreachable Unleash, or no pod all PROCEED — a flag service must never be a deploy critical-path
+  dependency; the flag can only HOLD (exists AND explicitly disabled). Checked **in-cluster** via kubectl exec (the
+  ingress is behind Keycloak forward-auth and 307s a host API call — same reason the txn checks run in-cluster). A
+  hold is exit **3** (distinct from shipped=0 / failed=1) and leaves the PR OPEN. **Exercised live:** flag ON →
+  ALLOW, toggled OFF → HELD, toggled ON → ALLOW, against the real Unleash (the committed `ship_flag_allows` reading
+  the live flag). +6 bats; shellcheck clean; the flag `weyland-ship-enabled` (kill-switch type) created in Unleash;
+  runbook cascaded. Flag left ON (deploys proceed).
 - **B/#6 — CI toolchain caching.** Every lane reinstalls cargo-audit/npm/maven plugins per run. roadie already solved this with named cache volumes (`roadie-npm-cache`, `roadie-go-build`, `roadie-go-mod` exist on the box). Pure speed; lowest of the real gaps.
 - **Lower tier (park unless a driver appears):** DAST (dynamic scan — thin for a LAN lab), mutation testing (maturity nicety), perf/load (already B104's k6/Gatling). Progressive delivery beyond flags = over-engineering at N=1, skip.
 

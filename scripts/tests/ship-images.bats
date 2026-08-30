@@ -792,6 +792,88 @@ txn_stub_pod() {
   [[ "$output" == *"no running"* ]]
 }
 
+@test "TXN checks the tool-server's RAG RETRIEVAL post-deploy (Ready != retrieves), passing on results" {
+  SHIP_IMAGES_LIB=1 source "$SHIP"
+  printf '+ registry.weyland.lab/weyland-tool-server:git-9a4996c6\n' > "$STUB_DIR/d.diff"
+  txn_stub_pod
+  stub_case kubectl 'exec' 0 'TXN_OK'
+  run txn_ok 'git-9a4996c6' "$STUB_DIR/d.diff"
+  [ "$status" -eq 0 ]
+  [[ "$output" != *"no transaction"* ]]   # tool-server is now CHECKED, not silently unchecked
+}
+
+@test "TXN FAILS when the tool-server serves an EMPTY index — the Ready-but-empty RAG trap" {
+  # /ready is 200 the moment the process is up; a search over an unbuilt index returns [] with a green
+  # probe. Asserting non-empty results is the txn_feast-shaped fix: a status check would never see it.
+  SHIP_IMAGES_LIB=1 source "$SHIP"
+  printf '+ registry.weyland.lab/weyland-tool-server:git-9a4996c6\n' > "$STUB_DIR/d.diff"
+  txn_stub_pod
+  stub_case kubectl 'exec' 0 'TXN_FAIL /context/search returned no results (empty or unbuilt RAG index)'
+  run txn_ok 'git-9a4996c6' "$STUB_DIR/d.diff"
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"weyland-tool-server"* ]]
+}
+
+@test "TXN routes weyland-dagster-base through the Dagster transaction (it deploys the webserver)" {
+  SHIP_IMAGES_LIB=1 source "$SHIP"
+  printf '+ registry.weyland.lab/weyland-dagster-base:git-9a4996c6\n' > "$STUB_DIR/d.diff"
+  txn_stub_pod
+  stub_case kubectl 'exec' 0 'TXN_OK'
+  run txn_ok 'git-9a4996c6' "$STUB_DIR/d.diff"
+  [ "$status" -eq 0 ]
+  [[ "$output" != *"no transaction"* ]]   # dagster-base is checked via txn_dagster, not unchecked
+}
+
+@test "FLAG: a DISABLED weyland-ship-enabled HOLDS the ship (the only held verdict)" {
+  SHIP_IMAGES_LIB=1 source "$SHIP"
+  txn_stub_pod
+  stub_case kubectl 'exec' 0 'FLAG_OFF'
+  run ship_flag_allows
+  [ "$status" -ne 0 ]           # non-zero = HELD
+}
+
+@test "FLAG: an ENABLED flag allows the ship" {
+  SHIP_IMAGES_LIB=1 source "$SHIP"
+  txn_stub_pod
+  stub_case kubectl 'exec' 0 'FLAG_ON'
+  run ship_flag_allows
+  [ "$status" -eq 0 ]
+}
+
+@test "FLAG: an ABSENT flag FAILS OPEN — Unleash is never a deploy blocker" {
+  SHIP_IMAGES_LIB=1 source "$SHIP"
+  txn_stub_pod
+  stub_case kubectl 'exec' 0 'FLAG_ABSENT'
+  run ship_flag_allows
+  [ "$status" -eq 0 ]
+}
+
+@test "FLAG: an UNREACHABLE Unleash FAILS OPEN — not a critical-path dependency" {
+  SHIP_IMAGES_LIB=1 source "$SHIP"
+  txn_stub_pod
+  stub_case kubectl 'exec' 0 'FLAG_ERR URLError'
+  run ship_flag_allows
+  [ "$status" -eq 0 ]
+}
+
+@test "FLAG: no pod to check from FAILS OPEN and says so" {
+  SHIP_IMAGES_LIB=1 source "$SHIP"
+  stub_dispatch kubectl
+  stub_case kubectl 'get pod' 0 ''
+  run ship_flag_allows
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"failing OPEN"* ]]
+}
+
+@test "FLAG: a hold is exit 3 (distinct from shipped=0 and failed=1) and leaves the PR open" {
+  SHIP_IMAGES_LIB=1 source "$SHIP"
+  ORPHAN_BRANCH=""              # no orphan -> cleanup returns early, PR-backing branch untouched
+  run held 42
+  [ "$status" -eq 3 ]
+  [[ "$output" == *"HELD"* ]]
+  [[ "$output" == *"left OPEN"* ]]
+}
+
 @test "FR1.5 the pre-gate wait POLLS the same predicate the gate asserts" {
   # Run #29 (2026-08-24): the wait used `live_carries_tag` — "some pod somewhere has the tag" — which
   # is true the instant the FIRST new pod appears. It then handed a still-rolling cluster to a gate

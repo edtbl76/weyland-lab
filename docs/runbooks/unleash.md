@@ -14,6 +14,28 @@ switches. Consumers are Python (tool-server, Hermes) → use the **Python SDK** 
   (still active — change in Profile → Change password to `weyland_dev_password` when desired).
 - `CHECK_VERSION=false` + `SEND_TELEMETRY=false` — LAN-only, $0, no phone-home.
 
+## Deploy kill-switch — `weyland-ship-enabled` (B88 #5)
+
+The **first flag wired into the CI/CD path** (before this, Unleash was app-runtime only). `scripts/ship-images.sh`
+checks the kill-switch **`weyland-ship-enabled`** (kill-switch type, `development` env) right **before it merges the
+tag-bump PR**, and holds the whole rollout when the flag is OFF — the N=1 substitute for canary/progressive delivery.
+
+- **Why before the merge, not the sync.** Every Argo app is `selfHeal: true`, so Argo re-syncs git HEAD within ~3min
+  no matter what ship-images does — gating `argocd app sync` is futile, the change deploys anyway. The only
+  selfHeal-proof hold point is the PR **merge**: don't merge → the new tag never reaches git HEAD → Argo has nothing
+  new to deploy. One PR carries every bumped image, so the gate is a **global** kill-switch, not per-service.
+- **Fail-open, always.** An absent flag, an unreachable Unleash, or no pod to check from all PROCEED. A flag service
+  must never be a deploy critical-path dependency; the flag can only HOLD (exists AND explicitly disabled). If
+  Unleash's DB is reset and the flag vanishes, deploys simply resume — safe by default.
+- **Checked in-cluster** (`kubectl exec` → `http://unleash.weyland.svc.cluster.local:4242/api/client/features/weyland-ship-enabled`,
+  backend token) because the ingress is behind Keycloak forward-auth and 307s an API call from the host.
+- **A hold is exit 3** (distinct from shipped=0 / failed=1); the PR is left OPEN, git unchanged, nothing deployed.
+  Re-enable the flag in the Unleash UI (`development` env) and re-run to ship.
+
+**To hold all deploys:** `unleash.weyland.lab` → `weyland-ship-enabled` → toggle OFF in `development`.
+**To create it** (kill-switch type, if the DB was reset): `POST /api/admin/projects/default/features`
+`{"name":"weyland-ship-enabled","type":"kill-switch"}` then `.../environments/development/on` (admin token).
+
 ## Secrets (`unleash-secret`, created out-of-band, never committed)
 - `DATABASE_URL` = `postgres://unleash:weyland_dev_password@weyland-postgres.weyland.svc.cluster.local:5432/unleash`
 - `INIT_ADMIN_API_TOKENS` = `*:*.weyland-unleash-admin` — admin API token (AIDLC/Claude/Hermes can create+flip flags via API)

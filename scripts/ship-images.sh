@@ -38,6 +38,13 @@ SHIP_ROLLOUT_TIMEOUT="${SHIP_ROLLOUT_TIMEOUT:-300}" # 5m — Argo polls every ~3
 # Credentials live in the gitignored scripts/.env (lab convention). Overridable for the test suite.
 SHIP_ENV_FILE="${SHIP_ENV_FILE:-$REPO_ROOT/scripts/.env}"
 
+# B88 #5 — the Unleash deploy kill-switch. `weyland-ship-enabled` OFF holds the whole rollout (see
+# ship_flag_allows). Checked in-cluster; the token default is the documented LAN-only read-only backend
+# token (runbooks/unleash.md), overridable from .env.
+SHIP_FLAG="${SHIP_FLAG:-weyland-ship-enabled}"
+UNLEASH_SVC="${UNLEASH_SVC:-http://unleash.weyland.svc.cluster.local:4242}"
+UNLEASH_TOKEN="${UNLEASH_TOKEN:-*:development.weyland-flags-backend}"
+
 # An image-tag line is `<anything> registry.weyland.lab/<image>:<tag>`. Anchoring on the registry
 # host rather than on "a line containing a colon" is what makes diff_is_tags_only trustworthy.
 TAG_LINE_RE="${REG//./\\.}/[A-Za-z0-9._/-]+:[A-Za-z0-9._-]+"
@@ -437,6 +444,73 @@ except Exception as e:
 ' 2>/dev/null
 }
 
+# Tool-server: the RAG path must RETRIEVE, not merely be live. `/context/search` over the corpus must
+# return results — a `/ready` 200 with an empty or unbuilt index (the rag-index loader never ran, or the
+# embed model failed to load) is the Ready-but-empty trap, byte-identical to a healthy one. A non-empty
+# result set proves the embed model loaded, the vector DB is connected, and the index has content — which
+# ALSO verifies the rag-index Job, which has no endpoint of its own to probe. Shape observed live:
+# {"query": ..., "results": [{"source","chunk_index","similarity","content"}, ...]}.
+txn_tool_server() {
+  local pod="${1:?usage: txn_tool_server <pod>}"
+  kubectl -n weyland exec "$pod" -- python3 -c '
+import json, urllib.request
+try:
+    body = {"query": "data platform", "limit": 3}
+    r = urllib.request.Request("http://weyland-tool-server.weyland.svc.cluster.local:8080/context/search",
+        data=json.dumps(body).encode(), headers={"Content-Type": "application/json"})
+    d = json.load(urllib.request.urlopen(r, timeout=25))
+    res = d.get("results") or []
+    print("TXN_OK" if res else "TXN_FAIL /context/search returned no results (empty or unbuilt RAG index)")
+except Exception as e:
+    print("TXN_FAIL " + type(e).__name__ + " " + str(e)[:120])
+' 2>/dev/null
+}
+
+# ship_flag_allows — B88 #5, the Unleash deploy kill-switch. Returns 0 = ship allowed, 1 = HELD.
+#
+# WHY BEFORE THE MERGE, and why global. Every Argo app is `selfHeal: true`, so Argo re-syncs to git
+# HEAD within ~3min no matter what this script does — gating `argocd app sync` would be futile, the
+# change would deploy anyway. The ONLY selfHeal-proof hold point is the PR MERGE: don't merge → the
+# new tag never reaches git HEAD → Argo has nothing new to sync. Since one PR carries every bumped
+# image, the gate is naturally a global ship kill-switch, not per-service.
+#
+# FAIL-OPEN, deliberately. Unleash is a flag service; it must NEVER be a deploy critical-path
+# dependency. An absent flag, an unreachable Unleash, a missing pod, or any error all PROCEED — the
+# flag can only HOLD, and only when it EXISTS and is EXPLICITLY disabled. Checked IN-CLUSTER via
+# kubectl exec because the ingress sits behind Keycloak forward-auth and 307s an API call from the
+# host — the same reason the txn checks run in-cluster.
+ship_flag_allows() {
+  local pod verdict
+  pod="$(txn_pod)"
+  [ -n "$pod" ] || { printf '  ⚠ no pod to check the ship flag from — failing OPEN (deploy proceeds)\n' >&2; return 0; }
+  verdict="$(kubectl -n weyland exec "$pod" -- python3 -c '
+import json, urllib.request, urllib.error
+try:
+    r = urllib.request.Request("'"$UNLEASH_SVC"'/api/client/features/'"$SHIP_FLAG"'",
+        headers={"Authorization": "'"$UNLEASH_TOKEN"'"})
+    d = json.load(urllib.request.urlopen(r, timeout=10))
+    print("FLAG_OFF" if d.get("enabled") is False else "FLAG_ON")
+except urllib.error.HTTPError as e:
+    print("FLAG_ABSENT" if e.code == 404 else "FLAG_ERR " + str(e.code))
+except Exception as e:
+    print("FLAG_ERR " + type(e).__name__)
+' 2>/dev/null)"
+  # FLAG_OFF is the ONLY held verdict. FLAG_ON / FLAG_ABSENT / FLAG_ERR / empty all fail open.
+  case "$verdict" in
+    FLAG_OFF) return 1 ;;
+    *)        return 0 ;;
+  esac
+}
+
+# held — a deliberate hold, NOT a failure. The PR is left OPEN (cleanup keeps a branch backing an open
+# PR), git is unchanged, nothing deployed. Exit 3 is distinct from 0 (shipped) and 1 (a failed gate).
+held() {
+  printf '⏸ deploy HELD by the Unleash flag %s (disabled in development) — PR #%s left OPEN,\n' "$SHIP_FLAG" "${1:-?}" >&2
+  printf '   git unchanged, nothing deployed. Re-enable %s at unleash.weyland.lab and re-run to ship.\n' "$SHIP_FLAG" >&2
+  cleanup || printf '⚠ cleanup did not complete; the hold above still stands\n' >&2
+  exit 3
+}
+
 txn_ok() {
   local tag="${1:?usage: txn_ok <tag> <diff-file>}"
   local diff_file="${2:?usage: txn_ok <tag> <diff-file>}"
@@ -450,8 +524,9 @@ txn_ok() {
   while read -r img; do
     [ -n "$img" ] || continue
     case "$img" in
-      weyland-dagster-user-code) verdict="$(txn_dagster "$pod")" ;;
+      weyland-dagster-user-code|weyland-dagster-base) verdict="$(txn_dagster "$pod")" ;;
       feast-server)              verdict="$(txn_feast "$pod")" ;;
+      weyland-tool-server)       verdict="$(txn_tool_server "$pod")" ;;
       # NAMED, never silently passed — same discipline as smoke_ok. A CI image that runs as a Job has
       # no transaction to make; saying so is honest, implying it was verified is not.
       *) unchecked="${unchecked} ${img}"; continue ;;
@@ -972,6 +1047,10 @@ main() {
   gate FR2.1 "PR #${pr_num} originates from ${REPO} itself, not a fork" pr_is_same_repo "$pr_num" || abort
   gate FR2.1 "every commit on PR #${pr_num} authored by ${CI_AUTHOR}" pr_commits_are_ci "$pr_num" || abort
   gate FR2.1 "PR #${pr_num} touches nothing but image-tag lines" diff_is_tags_only "$diff_file" || abort
+
+  # FR-FLAG (B88 #5) — the Unleash deploy kill-switch, checked HERE (before the merge) because that is
+  # the only selfHeal-proof hold point. A hold leaves the PR open and deploys nothing; fail-open.
+  ship_flag_allows || held "$pr_num"
 
   printf '→ merging PR #%s\n' "$pr_num"
   gh pr merge "$pr_num" --repo "$REPO" --squash --delete-branch >/dev/null 2>&1 || {

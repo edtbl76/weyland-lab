@@ -207,8 +207,9 @@ upgraded it to two days earlier reported perfect health the whole time.
 
 | Image | Transaction | Asserts |
 |---|---|---|
-| `weyland-dagster-user-code` | Dagster GraphQL `workspaceOrError` | `loadStatus == LOADED` **and** the location is a `RepositoryLocation`, not a `PythonError` — the assertion the `tcpSocket 4000` probe cannot make, since binding a port is not loading definitions |
+| `weyland-dagster-user-code`, `weyland-dagster-base` | Dagster GraphQL `workspaceOrError` | `loadStatus == LOADED` **and** the location is a `RepositoryLocation`, not a `PythonError` — the assertion the `tcpSocket 4000` probe cannot make, since binding a port is not loading definitions (dagster-base deploys the webserver this hits) |
 | `feast-server` | `POST /get-online-features` for a **real key sampled from the offline table** | the returned **value** is non-null |
+| `weyland-tool-server` (B88 #4) | `POST /context/search` — a real RAG retrieval over the corpus | the `results` array is **non-empty** — a `/ready` 200 with an empty or unbuilt index (the rag-index loader never ran, or the embed model failed to load) is the Ready-but-empty trap, byte-identical to a healthy one. Non-empty results prove the embed model loaded, the vector DB is connected, and the index has content — which **also** verifies the `rag-index` Job, which has no endpoint of its own |
 
 **Assert the value, never the status.** Feast answers `statuses: ["PRESENT"]` with `values: [null]` for a key it
 never materialized — `PRESENT` describes the response row, not a found feature. A status-based check would stay
