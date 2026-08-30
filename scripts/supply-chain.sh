@@ -117,8 +117,12 @@ sign() {
   # A missing key must NOT degrade to "did not sign, carried on". An unsigned image that reported
   # success is indistinguishable later from one whose signature was stripped.
   [ -n "${COSIGN_KEY:-}" ] || { broken "COSIGN_KEY is unset — refusing to 'sign' without a key (SealedSecret cosign-signing-key; see runbooks/supply-chain.md)"; return 2; }
-  if ! cosign sign --key "$(cosign_key_ref COSIGN_KEY)" --yes "$img" >/dev/null 2>&1; then
-    printf 'SIGN FAILED: cosign could not sign %s\n' "$img" >&2
+  # --allow-insecure-registry: cosign PUSHES the .sig to registry.weyland.lab (mkcert TLS), the same
+  # registry syft/trivy needed insecure access to. Capture cosign's stderr — a swallowed signing error
+  # is the absence-of-info trap; the first attempt failed with `>/dev/null 2>&1` hiding the cause.
+  local out
+  if ! out="$(cosign sign --key "$(cosign_key_ref COSIGN_KEY)" --allow-insecure-registry --yes "$img" 2>&1)"; then
+    printf 'SIGN FAILED: cosign could not sign %s:\n%s\n' "$img" "$out" >&2
     return 1
   fi
   printf 'OK — signed %s\n' "$img"
@@ -145,9 +149,10 @@ attest() {
   "metadata": { "buildInvocationId": "${CI_PIPELINE_NUMBER:-unknown}" }
 }
 EOF
-  if ! cosign attest --key "$(cosign_key_ref COSIGN_KEY)" --yes \
-        --type slsaprovenance --predicate "$pred" "$img" >/dev/null 2>&1; then
-    printf 'ATTEST FAILED: cosign could not attach SLSA provenance to %s\n' "$img" >&2
+  local out
+  if ! out="$(cosign attest --key "$(cosign_key_ref COSIGN_KEY)" --allow-insecure-registry --yes \
+        --type slsaprovenance --predicate "$pred" "$img" 2>&1)"; then
+    printf 'ATTEST FAILED: cosign could not attach SLSA provenance to %s:\n%s\n' "$img" "$out" >&2
     return 1
   fi
   printf 'OK — SLSA provenance attested for %s\n' "$img"
@@ -158,7 +163,7 @@ verify() {
   local img="$1"
   has cosign || { broken "\`cosign\` is not on PATH"; return 2; }
   [ -n "${COSIGN_PUBKEY:-}" ] || { broken "COSIGN_PUBKEY is unset — cannot verify"; return 2; }
-  if ! cosign verify --key "$(cosign_key_ref COSIGN_PUBKEY)" "$img" >/dev/null 2>&1; then
+  if ! cosign verify --key "$(cosign_key_ref COSIGN_PUBKEY)" --allow-insecure-registry "$img" >/dev/null 2>&1; then
     # EXIT 1, NOT 2. We looked and the answer was no — that is a finding, not a broken step.
     printf 'UNVERIFIED: %s has no matching signature for the configured key.\n' "$img" >&2
     return 1
