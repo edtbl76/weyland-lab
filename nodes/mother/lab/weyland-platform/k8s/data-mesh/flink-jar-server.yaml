@@ -23,7 +23,7 @@ spec:
     spec:
       initContainers:
         - name: copy-jar
-          image: registry.weyland.lab/weyland-flink:git-ef734fc8
+          image: registry.weyland.lab/weyland-flink:git-4e8dea7b
           imagePullPolicy: IfNotPresent
           command: ["sh", "-c", "cp /opt/flink/usrlib/*.jar /jars/"]   # serves sql-runner.jar + health-job.jar
           volumeMounts:
