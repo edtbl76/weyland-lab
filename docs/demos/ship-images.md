@@ -1,5 +1,9 @@
 # Demo — the ship loop + delivery watchdogs (B135 / B131)
 
+> **B88 Track B extended the ship loop:** the post-deploy **tool-server transaction** (#4, `txn_tool_server` —
+> Ready≠works) and the **Unleash deploy kill-switch** (#5, `ship_flag_allows` — hold the rollout before the merge)
+> are demoed RUN in [cicd-hardening.md](cicd-hardening.md).
+
 Extends [weyland-image-ci](weyland-image-ci.md), which ends at "CI opens a tag-bump PR." This demo covers the
 four steps that used to be manual — merge under gates, sync, verify a pod carries the tag — plus the two
 watchdogs that make a *missing* run visible.

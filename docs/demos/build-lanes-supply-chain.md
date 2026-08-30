@@ -1,5 +1,9 @@
 # Demo — per-language build lanes + software supply chain (B88)
 
+> **B88 Track B extended the lanes:** the **coverage ratchet** (#1, `coverage-ratchet.sh`) and the **per-build
+> vulnerability scan + Δ vs deployed** (#3, `supply-chain.sh vuln`) are demoed RUN in
+> [cicd-hardening.md](cicd-hardening.md).
+
 One hardcoded `pytest` step became **nine languages, three scan lanes, and a signed supply chain** —
 and the interesting part is not the count, it is that every control had to *actually run* before it
 was true. Each walkthrough below is a real command against the live repo or cluster; the numbers are

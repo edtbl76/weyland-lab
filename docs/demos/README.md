@@ -86,6 +86,7 @@ Legend: **DONE** · **MISSING** · **PARTIAL** (exists but stale) · — not app
 | E12 | Store wake/sleep (Port action → port-agent → store-scaler → k8s scale) | DONE `flow-e2e-store-scale` | PARTIAL `store-scale-e2e.md` | — replicas only |
 | B82 | Application taxonomy (registry → DataHub Applications + Port components, one SoT) | DONE `flow-application-taxonomy` | DONE `application-taxonomy.md` (RUN — `(29,4157)` + eyes-on) | — read-only |
 | B88 | Per-language build lanes + supply chain (9 test langs → 3 scan lanes → SBOM/sign/attest → Gatekeeper dryrun) | DONE `flow-build-lanes` | DONE `build-lanes-supply-chain.md` (RUN — SBOM 96/16, audit 0, 310 bats, all CLI verified) | — read-only |
+| B88-B | **CI/CD hardening** (Track B gaps #1–#5 — coverage ratchet · integration black-boxes · per-build vuln + Δ vs deployed · post-deploy transactions (Ready≠works) · Unleash deploy kill-switch) | DONE `flow-cicd-hardening` (5 sequence diagrams) | DONE `cicd-hardening.md` (RUN — ratchet 80→71.5 exit 1 baseline held · guard 5/5 + datahub MAE/MCE Stable live · vuln 327[12C/73H] Δ:no-new (CI #47) · txn_tool_server TXN_OK · flag ON→ALLOW/OFF→HELD/ON→ALLOW live) | — #1 writes /tmp/base.tsv (rm); #2 `--rm` pods; #5 toggles flag then restores ON |
 
 > **E-rows are PARTIAL authored — pending live validation run.** Commands are real (pulled from the component
 > demos/runbooks, no placeholders, host-labeled), but per the demos DoD a demo is not DONE until executed
