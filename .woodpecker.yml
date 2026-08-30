@@ -428,7 +428,9 @@ steps:
     environment:
       BUILDKIT_HOST: tcp://buildkitd:1234
       TRIVY_CACHE_DIR: /cache/trivy           # B88 #6 — persist trivy's 109MB vuln DB across runs (was re-downloaded every build)
-    secrets: [cosign_key, cosign_password]
+      COSIGN_KEY:                             # A1 — v3.18 secret injection is `from_secret`, NOT the deprecated `secrets:` list
+        from_secret: cosign_key
+      COSIGN_PASSWORD: ""                      # empty (key generated with no passphrase); a plain env, since Woodpecker rejects an empty SECRET
     volumes:
       - ci-cache-trivy:/cache/trivy
     # B88 gap #3 — the per-image supply-chain scans (syft SBOM + trivy image vuln) analyse the full
