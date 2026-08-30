@@ -10,7 +10,7 @@ metadata:
   name: weyland-flink
   namespace: data-mesh
 spec:
-  image: registry.weyland.lab/weyland-flink:git-ef734fc8
+  image: registry.weyland.lab/weyland-flink:git-e9f789ed
   imagePullPolicy: IfNotPresent
   flinkVersion: v1_20
   serviceAccount: flink            # created by the operator chart in watched namespaces; verify on deploy
