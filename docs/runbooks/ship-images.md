@@ -163,7 +163,7 @@ what the health check above uses; the loop no longer depends on your having done
 | `FR2.1` | the PR originates from the **base repo, not a fork** | GitHub API |
 | `FR2.1` | every commit carries the `weyland-ci` git author name | GitHub API |
 | `FR2.1` | the PR's diff touches **nothing but** image-tag lines | GitHub API |
-| `FR1.5` | **every** bumped image is live on a pod | live pods |
+| `FR1.5` | **every** bumped image carries the tag — a running pod for a normal workload, the CronJob template for a scheduled one (scan-suite), or a registry-manifest for an **on-demand** image (`weyland-flink-py`, a bounded FlinkDeployment deleted at rest) | live pods · CronJobs · registry |
 | `SMOKE` | every bumped workload **declares a `readinessProbe`** and reports all replicas available | live Deployments + StatefulSets |
 | `TXN` | every shipped service **answers a real transaction** | the service itself, in-cluster |
 
@@ -252,6 +252,10 @@ case automated merge must not handle.
 **`FR1.5`** — merged and synced, but no pod carries the tag within 5 minutes. Check whether the Argo
 app actually synced (`argocd app get <app>`), then whether the pod can pull the image
 (`kubectl -n weyland describe pod <pod>` — `ImagePullBackOff` means the registry push half failed).
+If the straggler is an **on-demand** image (`weyland-flink-py`, deleted at rest), it has no pod to
+check — `absent` there is verified instead by the registry carrying the new tag
+(`docker buildx imagetools inspect registry.weyland.lab/<img>:<tag>`); an `absent` that also fails
+that inspect means the pipeline's push half never landed.
 
 ### Recovering from a half-completed run
 
