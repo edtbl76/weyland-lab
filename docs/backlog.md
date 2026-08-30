@@ -1739,7 +1739,11 @@ Two tracks left. Track A = the original integration gaps (CI secrets, real-CI-ru
   this change (c CRITICAL, h HIGH)` with a loud `⚠ VULN DELTA` block naming new criticals/highs — the actionable
   "this change introduces CVE-X" signal, still non-fatal. CVE-ID/Severity pairs extracted from trivy JSON with awk
   (no jq); `--skip-db-update` makes a missing DB an honest exit-2 instead of a false 0. Doubles the scan per image
-  (new + deployed), degrades to an absolute count if the deployed image can't be scanned.
+  (new + deployed), degrades to an absolute count if the deployed image can't be scanned. **Verified in real CI
+  (pipeline #47):** all 5 rebuilt images reported `Δ vs deployed: no new CVEs introduced by this change` — correct,
+  since the change touched only scripts/docs/yaml, not any image's Dockerfile/deps; the phrasing (not "absolute
+  count only") confirms each baseline was pulled, scanned with the same DB, and diffed. The new-CVE-flag path is
+  bats-verified. **#3 now catches, not just logs.**
 - **B/#4 — post-deploy verification.** ship-loop checks "pod ready" but Ready≠works (the `dagster-user-code` no-probe finding). A synthetic check that hits the deployed endpoint. Merges with #2's smoke lane — do them together.
 - **B/#5 — feature flags → CI/CD.** Unleash IS deployed (`unleash.weyland.lab`, Port feature_flag blueprint) but is app-runtime ONLY — nothing in the deploy path consults a flag. This is the N=1 substitute for canary/progressive delivery. Wire a flag-gated rollout path (or document deliberately that flags stay app-level). Confirmed 2026-08-29: not wired.
 - **B/#6 — CI toolchain caching.** Every lane reinstalls cargo-audit/npm/maven plugins per run. roadie already solved this with named cache volumes (`roadie-npm-cache`, `roadie-go-build`, `roadie-go-mod` exist on the box). Pure speed; lowest of the real gaps.
