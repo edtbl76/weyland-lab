@@ -280,7 +280,21 @@ all_bumped_images_live() {
     # EVERY tag seen for this image must be the target — not merely "the target appears somewhere".
     # A mid-rollout image legitimately shows two tags, and that is not shipped yet.
     if [ -z "$tags" ]; then
-      stale="${stale} ${img}(absent)"
+      # An image with NO steady-state workload reads `absent` here forever — deployed_tags_for finds
+      # neither a running pod nor a CronJob template for it. scan-suite is covered by its CronJob;
+      # weyland-flink-py is not: it is a BOUNDED application-mode FlinkDeployment
+      # (k8s/data-mesh/flink-pyflink.yaml) that runs the lastfm replay to completion and is then
+      # DELETED by design ("no steady-state cost"), so at rest it has no pod AND no template. This
+      # halted a real ship on 2026-08-30 at `weyland-flink-py(absent)` after pipeline #55 had already
+      # built+signed+pushed it and the bump merged. For a no-steady-state image the honest proof the
+      # ship landed is that the NEW TAG EXISTS in the registry (FR1.3 pushed it this run) plus the
+      # merged bump that put it in bumped_images — asserted positively, never a bare skip. A push that
+      # never landed leaves the registry without the tag and still fails closed below.
+      if is_ondemand_image "$img" && registry_has_tag "$img" "$tag"; then
+        printf '  %s: on-demand (deleted at rest) — verified present in registry on %s, not pod-checked\n' "$img" "$tag" >&2
+      else
+        stale="${stale} ${img}(absent)"
+      fi
     elif [ "$tags" != "$tag" ]; then
       stale="${stale} ${img}($(printf '%s' "$tags" | tr '\n' ',' | sed 's/,$//'))"
     fi
@@ -573,6 +587,29 @@ deployed_tags_for() {
     kubectl get pods -A --field-selector=status.phase=Running -o jsonpath='{..image}' 2>/dev/null | tr ' ' '\n'
     kubectl get cronjob -A -o jsonpath='{..image}' 2>/dev/null | tr ' ' '\n'
   } | grep -E "^${REG//./\\.}/${img}:" | sed 's#.*:##' | sort -u || true
+}
+
+# Images with NO steady-state workload, so a running-pod check cannot verify them even in principle.
+# scan-suite is already handled by the CronJob source in deployed_tags_for; this list is for images
+# whose workload does not persist between runs at all. weyland-flink-py is a bounded application-mode
+# FlinkDeployment that is DELETED after it finishes (k8s/data-mesh/flink-pyflink.yaml, "no steady-state
+# cost"), so at rest nothing declares its tag. Keep this list SHORT and justified: every entry weakens
+# FR1.5 from "a pod runs it" to "the registry carries it", which is only honest when there is genuinely
+# no long-lived workload to check.
+is_ondemand_image() {
+  case "${1:?usage: is_ondemand_image <image>}" in
+    weyland-flink-py) return 0 ;;
+    *)                return 1 ;;
+  esac
+}
+
+# Positive proof the ship pushed an image: the registry serves a manifest for REG/img:tag. Used only by
+# FR1.5 for on-demand images, whose bytes cannot be observed on a node. buildx imagetools ships with the
+# same docker the build step already uses, and speaks to the mkcert registry over the host's trust store
+# (the same path the push took). A missing tag exits non-zero -> FR1.5 fails closed, never a false pass.
+registry_has_tag() {
+  local img="${1:?usage: registry_has_tag <image> <tag>}" tag="${2:?usage: registry_has_tag <image> <tag>}"
+  docker buildx imagetools inspect "${REG}/${img}:${tag}" >/dev/null 2>&1
 }
 
 # Open image-bump PRs as `<number><TAB><branch><TAB><author>`, newest first. Go-template rather than

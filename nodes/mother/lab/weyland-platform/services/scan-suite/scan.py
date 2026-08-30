@@ -402,17 +402,44 @@ def detect_secrets():
 def mypy():
     """B88 — static type check. ruff covers style and lint but NOT types; a wrong type is a class of
     bug neither ruff nor bandit sees. Counted as `medium`: a type error is real but is not a
-    security finding, and inflating it to high would drown the severities that are."""
+    security finding, and inflating it to high would drown the severities that are.
+
+    PER-DIRECTORY, not one pass over SRC. mypy builds a single global module graph and exits 2
+    ("Duplicate module named 'app'") the instant two files map to the same module name — and this repo
+    has ten app.py plus colliding config.py/guard.py/… in unrelated service dirs. --explicit-package-
+    bases does NOT rescue it: the service paths carry a hyphen ('weyland-platform') and no __init__.py,
+    so each top-level file falls back to a bare module name and still collides. The collisions are all
+    ACROSS directories (one app.py per dir), so checking each directory's own .py files in its own
+    invocation removes them. Measured on scan-suite:git-91789258 against this repo: one SRC-wide pass =
+    exit 2 / 0 findings (a silent miss the old code reported as "could not run" with a BLANK cause,
+    because mypy writes that fatal to STDOUT and the code printed only stderr); 36 per-dir passes = 0
+    fatals, 158 type errors. Read stdout+stderr for the same reason, and surface every dir that breaks
+    rather than letting an unchecked directory pass as zero."""
     c = z()
-    r = subprocess.run(["mypy", "--ignore-missing-imports", "--no-error-summary",
-                        "--exclude", "(node_modules|\\.venv|site-packages)", SRC],
-                       capture_output=True, text=True, timeout=1800, check=False)
-    # mypy exits 1 when it FINDS errors and 2 on a usage/internal failure. Only 0 and 1 are real
-    # answers; treating 2 as "no findings" would be absence-as-success.
-    if r.returncode not in (0, 1):
-        print(f"  !! mypy could not run (exit {r.returncode}): {r.stderr.strip()[:200]}", flush=True)
+    files = subprocess.run(["find", SRC, "-name", "*.py", "-not", "-path", "*/node_modules/*",
+                            "-not", "-path", "*/.venv/*", "-not", "-path", "*/site-packages/*"],
+                           capture_output=True, text=True).stdout.split()
+    if not files:
+        post("mypy", c)
         return
-    c["medium"] = len([ln for ln in r.stdout.splitlines() if ": error:" in ln])
+    by_dir = {}
+    for f in files:
+        by_dir.setdefault(os.path.dirname(f), []).append(f)
+    errors = 0
+    broke = []
+    for d, fs in sorted(by_dir.items()):
+        r = subprocess.run(["mypy", "--ignore-missing-imports", "--no-error-summary", *fs],
+                           capture_output=True, text=True, timeout=600, check=False)
+        # mypy exits 1 when it FINDS type errors, 2 on a usage/internal failure. The fatal TEXT lands
+        # on stdout, not stderr — read both, or the cause logs blank (the bug this replaces).
+        if r.returncode not in (0, 1):
+            out = (r.stdout + r.stderr).strip().splitlines()
+            broke.append((d, out[0] if out else f"exit {r.returncode}"))
+            continue
+        errors += len([ln for ln in r.stdout.splitlines() if ": error:" in ln])
+    for d, why in broke[:5]:
+        print(f"  !! mypy could not run in {d}: {why}", flush=True)
+    c["medium"] = errors
     post("mypy", c)
 
 

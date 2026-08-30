@@ -1,0 +1,8 @@
+diff --git a/nodes/mother/lab/weyland-platform/k8s/data-mesh/flink-pyflink.yaml b/nodes/mother/lab/weyland-platform/k8s/data-mesh/flink-pyflink.yaml
+index 5555555..6666666 100644
+--- a/nodes/mother/lab/weyland-platform/k8s/data-mesh/flink-pyflink.yaml
++++ b/nodes/mother/lab/weyland-platform/k8s/data-mesh/flink-pyflink.yaml
+@@ -12,5 +12,5 @@ spec:
+-  image: registry.weyland.lab/weyland-flink-py:git-2c73c898
++  image: registry.weyland.lab/weyland-flink-py:git-9a4996c6
+   imagePullPolicy: IfNotPresent

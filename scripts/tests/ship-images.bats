@@ -477,6 +477,40 @@ registry.weyland.lab/weyland-flink:git-2c73c898'
   [[ "$output" == *"weyland-flink"* ]]
 }
 
+@test "FR1.5 verifies an on-demand image (deleted at rest) from the registry, not from pods" {
+  # weyland-flink-py is a BOUNDED application-mode FlinkDeployment (k8s/data-mesh/flink-pyflink.yaml):
+  # it reads the lastfm replay to completion, then FINISHES and is DELETED by design ("no steady-state
+  # cost"). At rest it has NO running pod AND no CronJob template, so deployed_tags_for returns nothing
+  # and FR1.5 reads `absent` — which halted a real ship on 2026-08-30 at FR1.5 with
+  # `weyland-flink-py(absent)` even though pipeline #55 had built+signed+pushed it and the bump merged.
+  # The honest proof for a no-steady-state image is that the new tag EXISTS in the registry (FR1.3
+  # already pushed it) plus the merged bump — asserted positively here, never skipped.
+  SHIP_IMAGES_LIB=1 source "$SHIP"
+  stub_dispatch kubectl
+  stub_case kubectl 'status.phase=Running' 0 ''          # no flink-py pod runs at rest
+  stub_case kubectl 'get cronjob' 0 ''                   # and it is not a CronJob
+  stub_case kubectl 'get' 0 ''
+  stub_dispatch docker
+  stub_case docker 'imagetools inspect' 0 'Digest: sha256:abc'   # registry HAS the new tag
+  run all_bumped_images_live 'git-9a4996c6' "$FIXTURES/ondemand.diff"
+  [ "$status" -eq 0 ]
+}
+
+@test "FR1.5 still FAILS an on-demand image when the registry lacks the new tag" {
+  # The control: the accommodation above must not become "on-demand images are never checked". If the
+  # push never landed, the registry does not carry the tag and the gate must fail closed, naming it.
+  SHIP_IMAGES_LIB=1 source "$SHIP"
+  stub_dispatch kubectl
+  stub_case kubectl 'status.phase=Running' 0 ''
+  stub_case kubectl 'get cronjob' 0 ''
+  stub_case kubectl 'get' 0 ''
+  stub_dispatch docker
+  stub_case docker 'imagetools inspect' 1 ''             # registry does NOT have the tag
+  run all_bumped_images_live 'git-9a4996c6' "$FIXTURES/ondemand.diff"
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"weyland-flink-py"* ]]
+}
+
 @test "FR1.5 fails closed when the bumped-image list cannot be read" {
   # Nearly shipped as another false green: `rm -f "$diff_file"` ran BEFORE this gate, so the image
   # list came back empty, the loop never executed, nothing was marked stale, and the gate PASSED —
