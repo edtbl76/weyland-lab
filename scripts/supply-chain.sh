@@ -101,6 +101,15 @@ sbom() {
   printf 'OK — SBOM written for %s (cyclonedx + spdx) in %s\n' "$img" "$SBOM_DIR"
 }
 
+# cosign_key_ref <VARNAME> — print the correct `--key` argument for cosign. cosign's --key wants a FILE
+# PATH or an `env://` / KMS ref, NOT raw PEM (it tries to open the PEM as a filename and errors). In CI
+# the Woodpecker secret is the PEM CONTENT in an env var → `env://VAR`; by hand it is usually a file path.
+# Detect: a readable file → use the path; otherwise → `env://VAR`. Verified against real cosign.
+cosign_key_ref() {
+  local var="$1" val="${!1:-}"
+  if [ -f "$val" ]; then printf '%s' "$val"; else printf 'env://%s' "$var"; fi
+}
+
 # ── signing ──────────────────────────────────────────────────────────────────
 sign() {
   local img="$1"
@@ -108,7 +117,7 @@ sign() {
   # A missing key must NOT degrade to "did not sign, carried on". An unsigned image that reported
   # success is indistinguishable later from one whose signature was stripped.
   [ -n "${COSIGN_KEY:-}" ] || { broken "COSIGN_KEY is unset — refusing to 'sign' without a key (SealedSecret cosign-signing-key; see runbooks/supply-chain.md)"; return 2; }
-  if ! cosign sign --key "$COSIGN_KEY" --yes "$img" >/dev/null 2>&1; then
+  if ! cosign sign --key "$(cosign_key_ref COSIGN_KEY)" --yes "$img" >/dev/null 2>&1; then
     printf 'SIGN FAILED: cosign could not sign %s\n' "$img" >&2
     return 1
   fi
@@ -136,7 +145,7 @@ attest() {
   "metadata": { "buildInvocationId": "${CI_PIPELINE_NUMBER:-unknown}" }
 }
 EOF
-  if ! cosign attest --key "$COSIGN_KEY" --yes \
+  if ! cosign attest --key "$(cosign_key_ref COSIGN_KEY)" --yes \
         --type slsaprovenance --predicate "$pred" "$img" >/dev/null 2>&1; then
     printf 'ATTEST FAILED: cosign could not attach SLSA provenance to %s\n' "$img" >&2
     return 1
@@ -149,7 +158,7 @@ verify() {
   local img="$1"
   has cosign || { broken "\`cosign\` is not on PATH"; return 2; }
   [ -n "${COSIGN_PUBKEY:-}" ] || { broken "COSIGN_PUBKEY is unset — cannot verify"; return 2; }
-  if ! cosign verify --key "$COSIGN_PUBKEY" "$img" >/dev/null 2>&1; then
+  if ! cosign verify --key "$(cosign_key_ref COSIGN_PUBKEY)" "$img" >/dev/null 2>&1; then
     # EXIT 1, NOT 2. We looked and the answer was no — that is a finding, not a broken step.
     printf 'UNVERIFIED: %s has no matching signature for the configured key.\n' "$img" >&2
     return 1

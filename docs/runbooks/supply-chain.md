@@ -78,11 +78,24 @@ the same bricking class as the sealed-secrets controller key.
 
 ### 2. Provision the Woodpecker CI secrets
 
-The `build` step declares `secrets: [cosign_key, cosign_password]`. Add them in the Woodpecker UI
-(Repo → Settings → Secrets), since Woodpecker secrets are UI-only state:
+The `build` step declares `secrets: [cosign_key, cosign_password]`, injected as env `COSIGN_KEY` /
+`COSIGN_PASSWORD`. `supply-chain.sh` passes the key to cosign as **`--key env://COSIGN_KEY`** — cosign's
+`--key` wants a file path or an `env://` ref, NOT raw PEM (it would try to open the PEM as a filename;
+`cosign_key_ref` auto-detects: a readable file path by hand, `env://` in CI). So the secret value is the
+PEM **contents**:
 
-- `cosign_key` — the contents of `cosign.key`
-- `cosign_password` — empty
+- `cosign_key` — the contents of `cosign.key` (private key)
+- `cosign_password` — **empty** (the key was generated with `COSIGN_PASSWORD=""`)
+
+Woodpecker secrets are server-side state (CLI or Repo → Settings → Secrets). Pull the key from the
+in-cluster `cosign-signing-key` secret rather than pasting it:
+
+```
+set -a; . /path/to/scripts/.env; set +a   # WOODPECKER_SERVER + WOODPECKER_TOKEN
+woodpecker-cli repo secret add --repository edtbl76/weyland-lab --name cosign_key \
+  --value "$(kubectl get secret cosign-signing-key -n weyland -o jsonpath='{.data.cosign\.key}' | base64 -d)"
+woodpecker-cli repo secret add --repository edtbl76/weyland-lab --name cosign_password --value ""
+```
 
 ---
 

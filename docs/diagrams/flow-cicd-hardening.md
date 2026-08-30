@@ -72,6 +72,23 @@ sequenceDiagram
     end
 ```
 
+## #6 Toolchain caching — persist per-lane installs across runs
+
+```mermaid
+sequenceDiagram
+    participant Lane as lane pod (test-rust / build / ...)
+    participant PVC as cache PVC (ci-cache-*)
+    participant Src as upstream (crates.io / maven / trivy-db)
+    Lane->>PVC: mount at CARGO_HOME / .m2 / TRIVY_CACHE_DIR
+    alt cold (empty cache)
+        Lane->>Src: install/download toolchain
+        Lane->>PVC: populate cache
+    else warm (populated)
+        Lane->>PVC: reuse cached bins/deps/DB
+        Note over Lane: cargo install detects already-installed, trivy DB present - minutes saved
+    end
+```
+
 ## #5 Unleash deploy kill-switch — gate the MERGE, not the sync (selfHeal-proof)
 
 ```mermaid

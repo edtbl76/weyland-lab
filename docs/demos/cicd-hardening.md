@@ -145,6 +145,30 @@ unreachable Unleash proceeds — a flag service never blocks deploys. The flag i
 
 ---
 
+## #6 — CI toolchain caching · `k8s/woodpecker/ci-caches.yaml` + `.woodpecker.yml`
+
+**Proves:** every lane reinstalled its toolchain per run — `cargo install` compiled cargo-llvm-cov/audit/deny from
+source, maven re-downloaded plugins, and (since #3) the 109 MB trivy DB re-downloaded every build. Five persistent
+cache PVCs (mounted per-lane at each toolchain's cache dir) fix it. Requires the repo's `trusted.volumes` in
+Woodpecker (a server-side setting `woodpecker-cli lint` cannot see — the lint-vs-server gap again).
+
+### CLI walkthrough (RUN — cold populate vs warm reuse, real CI)
+
+Two consecutive real pipeline runs, cold (#49, empty caches) then warm (#50, populated):
+
+```
+lane          cold(#49)  warm(#50)
+scan-rust        125s        6s      ~20x — cargo no longer recompiles cargo-audit/cargo-deny
+test-rust         52s        8s      ~6x  — cargo-llvm-cov cached
+test-java         68s       19s      ~3.6x — maven plugins cached
+test-go           18s        8s      go modules + build cache
+build            682s      370s      -312s — trivy vuln DB not re-downloaded
+```
+
+**UAT:** ~9 min saved on the warm run, both green. `kubectl get pvc -n woodpecker` shows `ci-cache-{cargo,maven,
+trivy,go,npm}` **Bound**. The repo carries `trusted.volumes:true` in Woodpecker (the operator already had the
+stronger `trusted.security:true`, so this is a consistent least-privilege increment; `trusted.network` stays false).
+
 ## UI walkthrough — the map
 
 <https://edtbl76.github.io/weyland-lab/> is internal; open `docs/ci-architecture-map.html` (23 steps): the

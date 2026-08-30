@@ -176,7 +176,22 @@ either fails. It exists because a Woodpecker cron is **not a Kubernetes object**
 kube-state-metrics cannot see it and no `kube_cronjob_*` metric ever will. It also fails loudly on zero crons
 found, so a wiped database reads as an alert rather than a quiet green.
 
+## Toolchain caches (B88 #6)
+
+Five persistent PVCs (`k8s/woodpecker/ci-caches.yaml`, ns `woodpecker`, RWO local-path, **hand-applied** like
+`buildkitd-cache`) are mounted per-lane in `.woodpecker.yml` via the step-level `volumes: [<pvc>:<path>]` key, each
+with the matching cache env var: `ci-cache-cargo` → `CARGO_HOME=/cache/cargo` (+ a **literal** `PATH` incl.
+`/cache/cargo/bin`, so `command -v cargo-llvm-cov` finds the cached binary — never `$PATH` in YAML); `ci-cache-maven`
+→ `/root/.m2/repository`; `ci-cache-trivy` → `TRIVY_CACHE_DIR`; `ci-cache-go` → `GOMODCACHE`/`GOCACHE`; `ci-cache-npm`
+→ `npm_config_cache`. Warm-vs-cold: `cargo install` stops recompiling (scan-rust 125s→6s), the 109 MB trivy DB stops
+re-downloading (build 682s→370s) — ~9 min/run. RWO is correct: single-node sequential steps = one writer, which the
+caches need anyway. **Apply the PVCs before the run** or step pods hang Pending.
+
 ## Gotchas (hard-won)
+- **Step `volumes` need repo trust:** the SERVER rejects them with `Insufficient trust level to use volumes` unless
+  the repo's `trusted.volumes` is set (`PATCH /api/repos/<id>` `{"trusted":{"volumes":true}}`). **`woodpecker-cli
+  lint` does NOT catch this** — trust is a server-side repo setting, so lint passes and the pipeline compiles to
+  `error`. Same lint-vs-server class as the colon-space trap below.
 - **YAML colon-space:** a `curl -H "Content-Type: application/json"` line in `commands` makes YAML parse it as a
   *map* (`cannot unmarshal map … into string`). Put multi-command shell in a **`|` literal block**.
 - **Port webhook mapping must be Saved** before the event fires — there's **no replay**; re-run the pipeline
