@@ -56,9 +56,21 @@ HEALTH_CFG = DomainConfig(
     opensearch_allow=frozenset({"big_five", "open_food_facts"}),
     # Qdrant + Weaviate (grid=Y): big_five personality vector — the 50 OCEAN items (E*/N*/A*/C*/O*), z-scored;
     # demographics excluded. open_food_facts → B78 (4.5M docs, capped embed = maturity/polish).
+    # vector_allow feeds Qdrant, Weaviate AND LanceDB: lancedb_allow is unset, so LanceDB inherits this
+    # set (loaders.py:1153, `cfg.lancedb_allow or cfg.vector_allow`). Both entries INTENTIONALLY hydrate
+    # all three — big_five and OFF each get cross-store presence and LanceDB is embedded on object
+    # storage (cheap, no server). To keep OFF out of LanceDB, set lancedb_allow={"big_five": ...}
+    # EXPLICITLY (dropping it here would also drop big_five).
     vector_allow={
         "big_five": {"numeric_exclude": ["race", "age", "engnat", "gender", "hand", "source"],
                      "payload": ["country"]},
+        # B78 (EMA-69) — the 4.5M-doc set, hydrated via the bounded projected+capped read in
+        # _build_vectors that `cap`+`filter` switch on (loaders.py). Columns confirmed against the REAL
+        # silver 2026-08-31: categories_en IS present (categories_fr is NOT — the field docs are stale);
+        # id `code` is the barcode. The read projects only these ~5 of 211 columns and caps at 200k rows.
+        "open_food_facts": {"text": ["product_name", "brands", "categories_en"],
+                            "filter": "product_name", "cap": 200_000,
+                            "id": "code", "payload": ["product_name", "brands", "url"]},
     },
     # Redpanda (grid=Y, survey streams): big_five / brfss / nhis survey responses → Avro topics. No natural key
     # (round-robin partitions). big_five is small (~20k, no cap); brfss/nhis are big → capped 100k for the demo.

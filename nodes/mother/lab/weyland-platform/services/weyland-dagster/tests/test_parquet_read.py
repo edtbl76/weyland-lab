@@ -122,3 +122,37 @@ def test_resolve_text_columns_raises_when_every_column_is_absent(parquet_read):
     # mistake) must RAISE, not embed empty strings and report success.
     with pytest.raises(ValueError, match="absent"):
         parquet_read.resolve_text_columns(["categories_fr"], {"product_name", "categories_en"})
+
+
+# --- build_records: assembling store records (extracted from _build_vectors for coverage) ---------
+
+def _df(columns):
+    import pandas as pd
+
+    return pd.DataFrame(columns)
+
+
+def test_build_records_keys_on_the_spec_id_column_when_present(parquet_read):
+    df = _df({"code": ["a", "b"], "brands": ["x", "y"]})
+    recs = parquet_read.build_records(df, {"id": "code", "payload": ["brands"]}, [[0.1], [0.2]])
+    assert [r["id"] for r in recs] == ["a", "b"]
+    assert recs[0] == {"id": "a", "vector": [0.1], "payload": {"row_id": "a", "brands": "x"}}
+
+
+def test_build_records_falls_back_to_the_row_index_without_an_id_column(parquet_read):
+    df = _df({"x": ["p", "q", "r"]})
+    recs = parquet_read.build_records(df, {}, [[1], [2], [3]])
+    assert [r["id"] for r in recs] == ["0", "1", "2"]
+    assert recs[1]["payload"] == {"row_id": "1"}  # row_id is always injected
+
+
+def test_build_records_stringifies_payload_and_blanks_nulls(parquet_read):
+    df = _df({"code": ["a"], "n": [None], "k": [5]})
+    recs = parquet_read.build_records(df, {"id": "code", "payload": ["n", "k"]}, [[0.0]])
+    assert recs[0]["payload"] == {"row_id": "a", "n": "", "k": "5"}
+
+
+def test_build_records_ignores_absent_payload_columns(parquet_read):
+    df = _df({"code": ["a"]})
+    recs = parquet_read.build_records(df, {"id": "code", "payload": ["ghost"]}, [[0.0]])
+    assert recs[0]["payload"] == {"row_id": "a"}

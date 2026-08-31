@@ -700,7 +700,7 @@ def _build_vectors(mc, cfg, dataset, spec, log):
     import numpy as np
     import pandas as pd
 
-    from .parquet_read import needed_columns, read_capped, resolve_text_columns
+    from .parquet_read import build_records, needed_columns, read_capped, resolve_text_columns
 
     prefix = f"{io.branch()}/parquet/{dataset}/"
     # BOUNDED read — only when the spec opts in with `cap` or `filter`. OFF is the first and (today) only
@@ -785,13 +785,7 @@ def _build_vectors(mc, cfg, dataset, spec, log):
         dim = len(cols)
         log.info(f"{dataset}: numeric vectors dim={dim} (z-scored) from {cols[:6]}… ({len(df):,} rows)")
 
-    id_col = spec.get("id")
-    ids = df[id_col].astype(str).tolist() if id_col and id_col in df.columns else [str(i) for i in range(len(df))]
-    pcols = [p for p in spec.get("payload", []) if p in df.columns]
-    payloads = df[pcols].fillna("").astype(str).to_dict("records") if pcols else [{} for _ in range(len(df))]
-    records = [{"id": ids[i], "vector": vectors[i], "payload": {"row_id": ids[i], **payloads[i]}}
-               for i in range(len(df))]
-    return dim, records
+    return dim, build_records(df, spec, vectors)
 
 
 def _load_dataset_to_qdrant(client, dim, records, coll, log) -> int:

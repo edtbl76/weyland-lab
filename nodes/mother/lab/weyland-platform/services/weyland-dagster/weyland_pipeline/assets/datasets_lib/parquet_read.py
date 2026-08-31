@@ -113,3 +113,33 @@ def read_capped(path, columns, filter_col=None, cap=None, batch_size=50_000):
         # Return only the projected columns — drops filter_col if it was read solely to filter on.
         df = df[projection]
     return df
+
+
+def build_records(df, spec, vectors):
+    """Assemble the store records from a projected frame and its per-row vectors.
+
+    The id of each record is the spec's ``id`` column when present, else the row index (a dataset
+    without a natural key still gets stable positional ids). The payload ALWAYS carries ``row_id`` set
+    to that id — so a similarity hit traces back to the source key — merged with the present ``payload``
+    columns, stringified with nulls blanked. ``vectors`` must have one entry per row of ``df``.
+
+    Uses only the passed frame's own methods, so it needs no pandas import and stays loadable in
+    isolation. This is a verbatim lift of the assembly that lived inline in ``_build_vectors``; keeping
+    it here puts the id-fallback / row_id / payload-merge logic under test without importing dagster.
+    """
+    id_col = spec.get("id")
+    if id_col and id_col in df.columns:
+        ids = df[id_col].astype(str).tolist()
+    else:
+        ids = [str(i) for i in range(len(df))]
+
+    payload_cols = [p for p in spec.get("payload", []) if p in df.columns]
+    if payload_cols:
+        payloads = df[payload_cols].fillna("").astype(str).to_dict("records")
+    else:
+        payloads = [{} for _ in range(len(df))]
+
+    return [
+        {"id": ids[i], "vector": vectors[i], "payload": {"row_id": ids[i], **payloads[i]}}
+        for i in range(len(df))
+    ]
