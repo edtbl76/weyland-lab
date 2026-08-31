@@ -547,14 +547,38 @@ smoke_rows() {
   [[ "$output" != *"scan-suite"*"no readiness"* ]]
 }
 
-@test "SMOKE fails and names the workload when replicas are not all available" {
+@test "SMOKE fails and names the workload when replicas stay unavailable past the timeout" {
+  # SHIP_SMOKE_TIMEOUT=0 exhausts the retry window on the first check, so a workload that is not
+  # available is a failure — the same verdict as before the retry was added, reached immediately.
   SHIP_IMAGES_LIB=1 source "$SHIP"
+  export SHIP_SMOKE_TIMEOUT=0 SHIP_SMOKE_INTERVAL=0
   stub_dispatch kubectl
   stub_case kubectl 'get deploy' 0 "$(smoke_rows probe probe 1 0)"
   run smoke_ok 'git-9a4996c6' "$FIXTURES/tags-only.diff"
   [ "$status" -ne 0 ]
   [[ "$output" == *"weyland-flink"* ]]
   [[ "$output" == *"0/1"* ]]
+}
+
+@test "SMOKE retries a workload that is still rolling and passes once it becomes available" {
+  # THE FIX (2026-08-31): dagster-user-code deploys Recreate and its gRPC code server takes ~40s to
+  # LOAD its definitions before it reports Ready. smoke_ok used to snapshot once, right after the Argo
+  # sync, catch the pod at 0/1, and abort a deploy that was merely mid-rollout (observed on the OFF
+  # ship, git-6df37f41). A not-yet-available workload is TRANSIENT — retry it to a timeout. (A missing
+  # probe stays an immediate failure: waiting cannot make a probe appear.)
+  #
+  # workload_probe_status is overridden (not a kubectl stub) because the table is multi-line and must
+  # CHANGE between calls: flink 0/1 on the first observation, 1/1 after — exactly the Recreate rollout.
+  SHIP_IMAGES_LIB=1 source "$SHIP"
+  export SHIP_SMOKE_TIMEOUT=10 SHIP_SMOKE_INTERVAL=1
+  export WPS_CTR="$BATS_TEST_TMPDIR/wps"; echo 0 > "$WPS_CTR"
+  workload_probe_status() {
+    local n; n="$(cat "$WPS_CTR")"; echo $((n + 1)) > "$WPS_CTR"
+    if [ "$n" -eq 0 ]; then smoke_rows probe probe 1 0; else smoke_rows probe probe 1 1; fi
+  }
+  run smoke_ok 'git-9a4996c6' "$FIXTURES/tags-only.diff"
+  [ "$status" -eq 0 ]
+  echo "$output" | grep -q 'probe-backed and fully available'
 }
 
 @test "SMOKE passes when every workload for every bumped image is probe-backed and available" {

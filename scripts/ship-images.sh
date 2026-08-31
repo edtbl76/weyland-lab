@@ -338,48 +338,66 @@ smoke_ok() {
   local diff_file="${2:?usage: smoke_ok <tag> <diff-file>}"
   [ -f "$diff_file" ] || { printf '  cannot read the bumped-image list (%s)\n' "$diff_file" >&2; return 1; }
 
-  local rows
-  rows="$(workload_probe_status)"
-  # An empty table is a failure to OBSERVE, never an observation of health. Same reason
-  # all_bumped_images_live refuses a zero count.
-  if [ -z "$rows" ]; then
-    printf '  no workload status returned — refusing to call that smoke-verified\n' >&2
-    return 1
-  fi
+  # Retry the TRANSIENT case only. A workload rolling to the new image is not available for the seconds
+  # it takes to become Ready — dagster-user-code deploys Recreate and its gRPC code server LOADS its
+  # definitions for ~40s before it reports Ready, so a single snapshot taken right after the Argo sync
+  # catches it at 0/1 and aborts a deploy that was merely mid-rollout (observed on the OFF ship,
+  # git-6df37f41, 2026-08-31). A MISSING PROBE is the opposite — permanent; waiting cannot make one
+  # appear — so it stays an immediate failure, as does an unobservable (empty) workload table.
+  local timeout="${SHIP_SMOKE_TIMEOUT:-180}" interval="${SHIP_SMOKE_INTERVAL:-10}" waited=0
+  local rows img ns name image probe desired avail matched
+  local unmeasured unhealthy unchecked verified
+  while : ; do
+    rows="$(workload_probe_status)"
+    # An empty table is a failure to OBSERVE, never an observation of health. Same reason
+    # all_bumped_images_live refuses a zero count.
+    if [ -z "$rows" ]; then
+      printf '  no workload status returned — refusing to call that smoke-verified\n' >&2
+      return 1
+    fi
 
-  local img ns name image probe desired avail matched
-  local unmeasured="" unhealthy="" unchecked="" verified=0
-  while read -r img; do
-    [ -n "$img" ] || continue
-    matched=0
-    while IFS=$'\t' read -r ns name image probe desired avail; do
-      [ "$image" = "${REG}/${img}:${tag}" ] || continue
-      matched=1
-      if [ "$probe" != "probe" ]; then
-        unmeasured="${unmeasured} ${ns}/${name}"
-      elif [ "${avail:-0}" != "${desired:-0}" ] || [ "${desired:-0}" = "0" ]; then
-        unhealthy="${unhealthy} ${ns}/${name}(${avail:-0}/${desired:-0})"
-      else
-        verified=$((verified + 1))
+    unmeasured=""; unhealthy=""; unchecked=""; verified=0
+    while read -r img; do
+      [ -n "$img" ] || continue
+      matched=0
+      while IFS=$'\t' read -r ns name image probe desired avail; do
+        [ "$image" = "${REG}/${img}:${tag}" ] || continue
+        matched=1
+        if [ "$probe" != "probe" ]; then
+          unmeasured="${unmeasured} ${ns}/${name}"
+        elif [ "${avail:-0}" != "${desired:-0}" ] || [ "${desired:-0}" = "0" ]; then
+          unhealthy="${unhealthy} ${ns}/${name}(${avail:-0}/${desired:-0})"
+        else
+          verified=$((verified + 1))
+        fi
+      done <<<"$rows"
+      [ "$matched" = "1" ] || unchecked="${unchecked} ${img}"
+    done <<<"$(bumped_images "$diff_file")"
+
+    # PERMANENT — a missing probe never appears by waiting. Fail now, named.
+    if [ -n "$unmeasured" ]; then
+      printf '  no readiness probe, so Ready proves nothing:%s\n' "$unmeasured" >&2
+      return 1
+    fi
+    # TRANSIENT — a workload still rolling becomes available shortly. Retry until the window closes,
+    # then fail loudly with how long it waited.
+    if [ -n "$unhealthy" ]; then
+      if [ "$waited" -ge "$timeout" ]; then
+        [ -n "$unchecked" ] && printf '  no workload runs:%s — not smoke-checked (Job/CronJob images are expected here)\n' "$unchecked" >&2
+        printf '  probe-backed but not all replicas available after %ss:%s\n' "$timeout" "$unhealthy" >&2
+        return 1
       fi
-    done <<<"$rows"
-    [ "$matched" = "1" ] || unchecked="${unchecked} ${img}"
-  done <<<"$(bumped_images "$diff_file")"
+      sleep "$interval"
+      waited=$((waited + interval))
+      [ "$interval" = "0" ] && waited=$((waited + 1))   # make progress even at interval 0 (tests)
+      continue
+    fi
 
-  # Named, never silent: a run must not imply coverage it does not have.
-  if [ -n "$unchecked" ]; then
-    printf '  no workload runs:%s — not smoke-checked (Job/CronJob images are expected here)\n' "$unchecked" >&2
-  fi
-  if [ -n "$unmeasured" ]; then
-    printf '  no readiness probe, so Ready proves nothing:%s\n' "$unmeasured" >&2
-    return 1
-  fi
-  if [ -n "$unhealthy" ]; then
-    printf '  probe-backed but not all replicas available:%s\n' "$unhealthy" >&2
-    return 1
-  fi
-  printf '  %d workload(s) probe-backed and fully available\n' "$verified" >&2
-  return 0
+    # Named, never silent: a run must not imply coverage it does not have.
+    [ -n "$unchecked" ] && printf '  no workload runs:%s — not smoke-checked (Job/CronJob images are expected here)\n' "$unchecked" >&2
+    printf '  %d workload(s) probe-backed and fully available\n' "$verified" >&2
+    return 0
+  done
 }
 
 # --- TXN: one REAL transaction per shipped service (B140) -----------------------------
