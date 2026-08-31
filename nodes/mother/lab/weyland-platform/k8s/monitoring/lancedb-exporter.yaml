@@ -4,10 +4,12 @@
 # metrics, scraped by a ServiceMonitor exactly like qdrant/weaviate.
 #
 # It REUSES the weyland-dagster image only for its `lancedb` + `prometheus_client` runtime — it runs a
-# self-contained script (no weyland_pipeline import, no dagster graph load). The tag is a DEPS-ONLY pin,
-# NOT tracked by the ship-loop (this file is not in scripts/ci/images.tsv); bump it by hand only if the
-# lancedb / prometheus_client dependency must change. Runs in `weyland` (where lakefs-creds lives and
-# where Prometheus provably scrapes the qdrant/weaviate ServiceMonitors).
+# self-contained script (no weyland_pipeline import, no dagster graph load). Because it runs the
+# weyland-dagster-user-code image, this manifest IS in the ship-loop's bump list for that image
+# (scripts/ci/images.tsv) so its tag moves in LOCKSTEP with user-code.yaml / dbt-docs.yaml — otherwise a
+# pinned old tag here shows up as a second weyland-dagster-user-code tag and fails the ship's FR1.5
+# "all pods on the new tag" gate. Runs in `weyland` (where lakefs-creds lives and where Prometheus
+# provably scrapes the qdrant/weaviate ServiceMonitors).
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -90,7 +92,7 @@ spec:
     spec:
       containers:
         - name: exporter
-          image: registry.weyland.lab/weyland-dagster-user-code:git-6df37f41   # deps-only pin: lancedb + prometheus_client
+          image: registry.weyland.lab/weyland-dagster-user-code:git-9da69369   # bumped in lockstep by the ship-loop (images.tsv); lancedb + prometheus_client only
           imagePullPolicy: IfNotPresent
           command: ["python", "/exporter/exporter.py"]
           ports:

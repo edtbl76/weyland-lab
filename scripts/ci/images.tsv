@@ -12,7 +12,7 @@
 #image	context	manifests
 weyland-tool-server	services/weyland-tool-server	k8s/weyland-tool-server.yaml
 weyland-dagster-base	services/weyland-dagster-base	k8s/dagster/webserver.yaml k8s/dagster/daemon.yaml
-weyland-dagster-user-code	services/weyland-dagster	k8s/dagster/user-code.yaml k8s/dagster/dbt-docs.yaml
+weyland-dagster-user-code	services/weyland-dagster	k8s/dagster/user-code.yaml k8s/dagster/dbt-docs.yaml k8s/monitoring/lancedb-exporter.yaml
 weyland-rag-index	services/rag-index	k8s/rag-index-pgvector.yaml k8s/rag-index-neo4j.yaml k8s/data-mesh/rag-index-qdrant.yaml k8s/data-mesh/rag-index-weaviate.yaml k8s/data-mesh/rag-index-opensearch.yaml
 feast-server	services/weyland-dagster::Dockerfile.feast	k8s/data-mesh/feast-server.yaml k8s/data-mesh/feast-ui.yaml
 weyland-flink	k8s/flink::Dockerfile	k8s/data-mesh/flink-session.yaml k8s/data-mesh/flink-history-server.yaml k8s/data-mesh/flink-jar-server.yaml
