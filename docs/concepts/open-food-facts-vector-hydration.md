@@ -59,10 +59,16 @@ becomes a list of empty strings, bge-small embeds them, and the loader reports a
 hydration of N identical vectors. Nothing raises, nothing logs a problem, and the collection looks
 populated in Qdrant and in DataHub.
 
-This matters immediately, because the column names in the backlog are probably wrong. It proposes
-`product_name` + `brands` + `categories_en`. `datasets_field_docs.OPEN_FOOD_FACTS` documents
-`categories` and `categories_fr` — no `categories_en`. Under the current code that typo costs a third
-of the text signal and reports success.
+This matters immediately, and the observed schema (Phase 0, 2026-08-31) proves it — by inverting the
+assumption everyone held. The backlog proposes `product_name` + `brands` + `categories_en`, and
+`datasets_field_docs.OPEN_FOOD_FACTS` documents `categories` and `categories_fr` with *no*
+`categories_en`, so the field docs made `categories_en` look like a typo. Reading the real file
+settled it the other way: the silver parquet **has** `categories_en` (and `categories`,
+`categories_tags`) and does **not** have `categories_fr`. The repo's field docs are stale relative to
+the downloaded OFF export; the backlog's `categories_en` was correct all along, and "correcting" it to
+`categories_fr` — the intuitive fix from the docs — is what would have silently embedded a third of
+the text signal as empty and reported success. The lesson is not which column won; it is that a column
+name copied from *any* declared source, docs included, is a guess until the file confirms it.
 
 This is the absence-as-success class recorded in `project.md` (learned 2026-08-22, five instances in
 one session). Fixing it belongs in this pass because this is the change that would otherwise
@@ -96,6 +102,20 @@ file: row count, column count, and the presence and null-density of the candidat
 
 `project.md` (learned 2026-08-22): "Before encoding any external command's output in a stub, observe
 the real thing once." Same rule applies to a schema.
+
+**Observed 2026-08-31** (read inside `dagster-user-code` via `io.client()` against lakeFS `health`):
+
+- Single file: `main/parquet/open_food_facts/open_food_facts.parquet` — **211 columns**,
+  **4,532,765 rows**, every column `large_string`. Confirms the 4.5M / all-string / whole-read-OOM
+  premise exactly, and that it is one file (so the projected read iterates row groups within it, not
+  across many files).
+- Candidate text columns **present**: `product_name`, `brands`, `categories`, **`categories_en`**,
+  `generic_name`. Category variants that exist: `categories`, `categories_tags`, `categories_en`.
+- **`categories_fr` is absent.** The field docs are stale; the file is authoritative.
+- Id: `code` (barcode) present; `url` present for payload.
+- Null-density: TODO — measure on the projected read in Phase 1 (a cheap `count`/`count_if(x <> '')`
+  over `product_name`, since `na_filter=False` at ingest means "missing" is the empty string, not
+  null).
 
 ### Phase 1 — bounded read in `_build_vectors` (TDD)
 
@@ -134,13 +154,20 @@ In `HEALTH_CFG.vector_allow`, using the column names confirmed in Phase 0:
 
 ```python
 "open_food_facts": {
-    "text": [...],              # confirmed in Phase 0, NOT copied from the backlog
+    "text": ["product_name", "brands", "categories_en"],  # all confirmed present in Phase 0
     "filter": "product_name",
     "cap": 200_000,
     "id": "code",               # the barcode — a real key, better than a row index
-    "payload": ["product_name", "brands", "countries"],
+    "payload": ["product_name", "brands", "url"],          # confirmed present; `url` is a usable link
 },
 ```
+
+`categories_en` (the observed English-normalized column, e.g. `en:snacks,en:sweet-snacks`) is the
+confirmed name — NOT `categories_fr`, which the file does not have. `categories` (raw human text) is
+also present and is a defensible alternative if the `en:`-prefixed tag format reads worse in
+similarity results; decide at implementation. `payload` columns still drop silently if absent
+(loaders.py:744) — the fail-closed guard added in Phase 1 covers `text`/`filter`/`id`, so keep payload
+to columns confirmed in Phase 0 (`product_name`, `brands`, `url` all are).
 
 `id: code` is a deliberate improvement over the row-index default: OFF has a natural key, and a
 payload `row_id` that means something makes the collection usable for lookups, not just similarity.
