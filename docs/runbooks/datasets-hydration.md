@@ -249,6 +249,26 @@ constraint) — a `mysqld-exporter` is the follow-up. Same 7-point gate applies 
   **imperatively** (not in git); recreate on a data-mesh rebuild. See [[datahub-ingestion-secrets-durable]] class.
 - **Gate:** Loaded ✅ · Queryable ✅ · Cataloged ✅ · Browsable ✅ (viewer) · Auto-synced ✅ (sensor) · Pushed ▢.
 
+## Vector-store observability & quality (B78, 2026-08-31)
+
+The three vector backends now have both a quality gate and a dashboard:
+
+- **Quality checks** — `build_vector_checks` (`datasets_lib/checks.py`) adds a blocking `@asset_check`
+  (`vectors_present_and_nondegenerate`) on each `datasets_{d}_{qdrant,weaviate,lancedb}_load` asset. It
+  queries the store DIRECTLY (never the loader's self-reported count — the class that hid Weaviate's
+  silent drop) and fails if any collection is empty, wrong-dim, degenerate (all-identical vectors), or
+  unqueryable. Runs with every hydration.
+- **Dashboard** — Grafana **"Vector Stores"** (`k8s/monitoring/vector-stores-grafana-dashboard.yaml`,
+  uid `vector-stores`): Qdrant `collection_points{id}` + memory + REST latency; Weaviate
+  `object_count{class_name}` + index size + batch latency; LanceDB from the exporter below.
+- **LanceDB exporter** — LanceDB is embedded (no `/metrics`), so `lancedb-exporter` (a small pod on the
+  weyland-dagster image, `k8s/monitoring/lancedb-exporter.yaml`) polls the lakeFS repos and exposes
+  `lancedb_table_rows{repo,table}` / `lancedb_tables` / `lancedb_repo_up`, scraped by a ServiceMonitor.
+  Its tag is bumped in **lockstep** with the dagster image (in `images.tsv`) so it never fails the ship's
+  FR1.5 gate. Registered in `applications.yaml` (pure-compute).
+- **Alerts** — `k8s/monitoring/vector-stores-alerts.yaml`: `LancedbExporterDown` (exporter unscrapable)
+  and `LancedbRepoUnreachable` (a lakeFS repo unreadable).
+
 ## Feast (feature store, B1.8, 2026-07-05)
 
 - **What:** a feature store — same feature *defined once*, served online (low-latency by entity key, Valkey) +

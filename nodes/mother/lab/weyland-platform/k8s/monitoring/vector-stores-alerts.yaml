@@ -1,0 +1,31 @@
+# Vector-store alerts (B78) — the lancedb-exporter is a new deployed service, so per the DoD new-app
+# rule it carries a Down alert like every other service. Two rules: the exporter itself being
+# unscrapable (scrape failing OR the target vanished — same up==0/absent() pairing as lgtm-self-
+# monitoring), and a lakeFS-backed LanceDB repo becoming unreadable (lancedb_repo_up==0), which is the
+# exporter reporting a real dependency failure rather than the exporter being down. `release: monitoring`
+# matches the PrometheusRule convention (node-disk-alerts / lgtm-self-monitoring); job is the Service name.
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: vector-stores
+  namespace: monitoring
+  labels:
+    release: monitoring
+spec:
+  groups:
+    - name: vector-stores
+      rules:
+        - alert: LancedbExporterDown
+          expr: up{job="lancedb-exporter", namespace="weyland"} == 0 or absent(up{job="lancedb-exporter", namespace="weyland"})
+          for: 5m
+          labels: { severity: warning }
+          annotations:
+            summary: "LanceDB exporter is DOWN — the Vector Stores dashboard's LanceDB panels have no data"
+            description: "lancedb-exporter has been unscrapable for >5m (up==0 or the target vanished). LanceDB is embedded and has no other metrics source, so its row-count observability is dark until this recovers."
+        - alert: LancedbRepoUnreachable
+          expr: lancedb_repo_up == 0
+          for: 10m
+          labels: { severity: warning }
+          annotations:
+            summary: "LanceDB repo {{ $labels.repo }} is unreadable from the exporter"
+            description: "lancedb_repo_up==0 for repo {{ $labels.repo }} for >10m — the exporter reached but could not open the lakeFS-backed LanceDB at s3://{{ $labels.repo }}/main/lancedb (creds, lakeFS, or the repo/branch). Distinct from the exporter itself being down."
