@@ -1910,6 +1910,18 @@ Each entry carries the registry's full field set (`id`, `category`, `languages`,
 
 ---
 
+### B152 — Audit CI/CD test categories: AOP, contract, and architecture (ArchUnit-style) tests — HIGH (2026-08-31, Linear EMA-209)
+
+B88 built the per-language **test-execution** and **scanner** lanes, but only for the usual unit/integration/scan shapes. This item audits the CI/CD pipeline (`run-lang-tests.sh`, `run-lang-scan.sh`, `.woodpecker.yml`) for whole CATEGORIES of testing that are absent, decides which apply to the lab's stack (Python/Java/Go/Rust/TS), and closes the gaps for the ones that do:
+
+- **AOP tests** — verification of aspect / cross-cutting behaviour (logging, auth, tracing, transaction boundaries, retry/rate-limit decorators). Where behaviour is applied via decorators/interceptors/middleware/aspects, is it actually asserted or only the happy-path business logic?
+- **Contract tests** — consumer/provider contract testing at service seams (Pact-style). The estate is full of seams — MCP servers, the tool-server, Dagster↔stores, operator↔gateways, Port/DataHub emitters — are any covered by a contract that fails when one side drifts, or only by end-to-end hope?
+- **Architecture tests** — ArchUnit-style enforced rules (layer/dependency direction, package/module boundaries, naming, "no X may import Y"). Tooling per language: Java ArchUnit · Python import-linter/pytest-archon · TS dependency-cruiser · Go go-arch-lint.
+
+Deliverable: a per-category finding (applicable? covered? gap?) across the languages/services with real code, plus a concrete plan (tools, lanes, rules) for the categories worth adding — wired into the existing CI lanes the same way B88 added the test/scan lanes.
+
+---
+
 ### B89 — Drive the scan-suite findings to zero — DONE 2026-07-18
 **DONE 2026-07-18.** Triaged all 6 scanners — **2 real fixes shipped, the rest phantom-or-accepted (real deployed vulns ≈0)**: gitleaks 1C→0 (Kiali signing key → SealedSecret), bandit 6H→0 (MD5-for-IDs → `usedforsecurity=False`), semgrep 4H→0 (sealed-ciphertext FP excluded), trivy 204H→2-tracked (193 readOnlyRootFS + 8 intentional accepted in `.trivyignore`; ranger creds→B92, trino FP), osv 56H→0-real (4 Flink-transitive accepted in `osv-scanner.toml`; 52 unpinned-dep phantoms proven via `pip freeze`→B91), kubescape 6H→0-new. GIT-0003 fixed (`vulnerability_alerts=true` in repo.tf). Follow-ons logged: B91 (dep-pinning), B92 (ranger creds), B93 (memory limits). Original scope below.
 
