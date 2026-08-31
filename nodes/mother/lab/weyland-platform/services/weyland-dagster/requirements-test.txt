@@ -1,0 +1,8 @@
+# B78 (EMA-69) — test-only deps for weyland-dagster, installed per-project by scripts/run-lang-tests.sh.
+# The MINIMAL set the loader / parquet-read tests need — deliberately NOT requirements.txt, which pulls
+# the whole dagster + torch + sentence-transformers runtime into the fast CI test lane. Pinned to the
+# runtime versions in requirements.txt so the tests exercise the same behaviour the pipeline runs.
+pyarrow==25.0.0
+pandas==2.3.3
+numpy==2.4.6
+minio==7.2.20

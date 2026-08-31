@@ -1,0 +1,45 @@
+"""Test harness for weyland-dagster (B78 step 2, EMA-69).
+
+Two jobs:
+
+1. Put the project root on ``sys.path`` so ``weyland_pipeline`` resolves when pytest runs from here.
+   The lane installs no package (there is no setup.py / pyproject), so the import root is explicit.
+
+2. Provide ``load_isolated``, which imports ONE leaf module by file path, bypassing every parent
+   package ``__init__``. That chain — ``weyland_pipeline/__init__.py`` imports ``sentry_sdk`` and the
+   full dagster ``definitions``; ``assets/__init__.py`` imports every asset — would otherwise drag the
+   entire dagster runtime into this deliberately light lane, whose only extra deps are in
+   requirements-test.txt (pyarrow/pandas/numpy/minio, NOT dagster). A leaf module written with only
+   absolute imports (no ``from . import ...``) loads clean in isolation and stays a normal package
+   module for the runtime code that imports it relatively.
+"""
+import importlib.util
+import os
+import sys
+
+import pytest
+
+_ROOT = os.path.dirname(os.path.abspath(__file__))
+if _ROOT not in sys.path:
+    sys.path.insert(0, _ROOT)
+
+
+def load_isolated(relpath, name="_isolated"):
+    """Import ``<project-root>/relpath`` without running any parent package ``__init__``.
+
+    The target must use only absolute imports. Raises the module's own ImportError if one of its
+    (absolute) dependencies is genuinely missing — that is a real failure, not something to swallow.
+    """
+    path = os.path.join(_ROOT, relpath)
+    spec = importlib.util.spec_from_file_location(name, path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+@pytest.fixture
+def parquet_read():
+    """The dagster-free ``datasets_lib/parquet_read`` module, loaded in isolation."""
+    return load_isolated(
+        "weyland_pipeline/assets/datasets_lib/parquet_read.py", "parquet_read"
+    )

@@ -203,6 +203,16 @@ run_in() {
   # running, and --self-check starts proving nothing).
   case "$lang" in
     python)
+      # Per-project test deps, the python analogue of the node lane's `npm install`. A project whose
+      # tests import beyond the CI image's baseline (weyland-dagster needs pyarrow/pandas) declares
+      # them in requirements-test.txt — NOT its full runtime requirements.txt, which would drag the
+      # whole dagster/torch stack into this fast lane. weyland-guard has none, so nothing installs and
+      # its behaviour is unchanged. A failed install means the lane could not do its job: exit 2 (lane
+      # broken), never a silent pass and never exit 1 (which would frame a deps gap as an estate defect).
+      if [ -f "$dir/requirements-test.txt" ]; then
+        (cd "$dir" && pip install --quiet --no-cache-dir -r requirements-test.txt) || {
+          printf 'LANE BROKEN: pip install -r requirements-test.txt failed in %s\n' "$dir" >&2; return 2; }
+      fi
       if [ "$mode" = selfcheck ]; then (cd "$dir" && pytest -q -p no:cacheprovider selfcheck)
       else (cd "$dir" && pytest -q -p no:cacheprovider --ignore=selfcheck); fi ;;
     shell)

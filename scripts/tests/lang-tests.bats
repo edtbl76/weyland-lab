@@ -206,6 +206,55 @@ teardown() {
   [[ "$output" != *"scan/svc"* ]]
 }
 
+@test "python lane installs a project's requirements-test.txt before running its pytest" {
+  # B78 step 2: weyland-guard's tests import only what the CI image already has, but weyland-dagster's
+  # import pyarrow/pandas — deps the fast python lane must NOT carry globally. A project declares its
+  # own test deps in requirements-test.txt and the lane installs them per-project, exactly as the node
+  # lane runs `npm install`. Without this the dagster suite fails at collection with ModuleNotFoundError
+  # and the lane reports it as an estate defect, when the truth is the lane never gave it its deps.
+  mkdir -p "$SANDBOX/fix/python" "$SANDBOX/scan/svc/tests"
+  : > "$SANDBOX/fix/python/test_hello.py"
+  : > "$SANDBOX/scan/svc/tests/test_thing.py"
+  printf 'pyarrow==25.0.0\n' > "$SANDBOX/scan/svc/requirements-test.txt"
+  stub pip 0 "installed"
+  stub pytest 0 "1 passed"
+  run env WEYLAND_LANG_FIXTURE_DIR="$SANDBOX/fix" WEYLAND_LANG_SCAN_ROOT="$SANDBOX/scan" \
+      bash "$RUNNER" python
+  [ "$status" -eq 0 ]
+  grep -qE 'pip .*install.*requirements-test\.txt' "$STUB_LOG"
+}
+
+@test "python lane: a FAILED requirements-test.txt install is a broken lane (exit 2), never a pass" {
+  # Fail closed. If the deps cannot be installed the lane could not do its job — that is exit 2 (lane
+  # broken), the same class as a missing toolchain, NOT exit 0 (green) and NOT exit 1 (estate defect).
+  # Assert the REASON, not just non-zero: project.md records a test that passed on exit 127.
+  mkdir -p "$SANDBOX/fix/python" "$SANDBOX/scan/svc/tests"
+  : > "$SANDBOX/fix/python/test_hello.py"
+  : > "$SANDBOX/scan/svc/tests/test_thing.py"
+  printf 'pyarrow==25.0.0\n' > "$SANDBOX/scan/svc/requirements-test.txt"
+  stub pip 1 "ERROR: could not install pyarrow"
+  stub pytest 0 "1 passed"
+  run env WEYLAND_LANG_FIXTURE_DIR="$SANDBOX/fix" WEYLAND_LANG_SCAN_ROOT="$SANDBOX/scan" \
+      bash "$RUNNER" python
+  [ "$status" -eq 2 ]
+  [[ "$output" == *"requirements-test.txt"* ]]
+}
+
+@test "python lane: a project with NO requirements-test.txt never calls pip (weyland-guard shape stays green)" {
+  # Backward compatibility. weyland-guard has no requirements-test.txt; the lane must run its pytest
+  # without an install step and without regressing to exit non-zero. Guards against the change calling
+  # pip unconditionally (which would fail on a machine where pip is absent but the deps are preinstalled).
+  mkdir -p "$SANDBOX/fix/python" "$SANDBOX/scan/guard/tests"
+  : > "$SANDBOX/fix/python/test_hello.py"
+  : > "$SANDBOX/scan/guard/tests/test_thing.py"
+  stub pip 1 "pip must NOT be called"
+  stub pytest 0 "1 passed"
+  run env WEYLAND_LANG_FIXTURE_DIR="$SANDBOX/fix" WEYLAND_LANG_SCAN_ROOT="$SANDBOX/scan" \
+      bash "$RUNNER" python
+  [ "$status" -eq 0 ]
+  ! grep -qE '^pip ' "$STUB_LOG"
+}
+
 @test "REGRESSION: shell resolves to the dir CONTAINING the .bats files, not its parent" {
   # python and shell both have no manifest, but they need OPPOSITE roots: pytest runs from the
   # project and collects tests/, while bats must run IN the directory holding the .bats files.
