@@ -820,8 +820,18 @@ def _load_dataset_to_weaviate(client, dim, records, cls, log) -> int:
         for r in records:
             batch.add_object(properties=r["payload"], vector=r["vector"])
             n += 1
-    log.info(f"weaviate {cls}: {n:,} objects (dim {dim})")
-    return n
+    # HONEST COUNT, not attempts. `n` counts add_object CALLS; the dynamic batch can reject individual
+    # objects — OFF's messier text tripped ~4,208 on the git-6df37f41 hydration (200k attempted, 195,792
+    # landed) — and those failures are collected on `col.batch.failed_objects`, NOT raised. Returning `n`
+    # claimed a hydration of every row while the collection held fewer: the silent over-count this repo
+    # keeps finding. Surface the drop loudly and report what actually landed.
+    failed = col.batch.failed_objects
+    landed = n - len(failed)
+    if failed:
+        log.warning(f"weaviate {cls}: {len(failed):,} of {n:,} objects FAILED to insert (landed "
+                    f"{landed:,}) — first error: {failed[0].message}")
+    log.info(f"weaviate {cls}: {landed:,} objects landed (dim {dim})")
+    return landed
 
 
 def _lancedb_connect(cfg):

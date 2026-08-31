@@ -1,7 +1,15 @@
 # Open Food Facts → vector stores — implementation plan (B78 thread (a), EMA-69)
 
-**Status: PLANNED, not started.** Written 2026-08-27 after scoping revealed the work is a read-path
-change to shared code, not the config entry the backlog implies.
+**Status: DONE 2026-08-31.** Written 2026-08-27 after scoping revealed the work is a read-path change
+to shared code, not the config entry the backlog implies. Delivered exactly as planned: the bounded
+projected+capped read (`parquet_read.py`, fail-closed on absent columns), weyland-dagster's first
+pytest suite, the OFF spec, then hydration to all three backends — **Qdrant 200,000 · LanceDB 200,000
+· Weaviate 195,792, all dim 384**, user-code pod peaking **~6 Gi against the 12 Gi limit** (the
+whole-read that OOM'd it is retired). Phase-0 finding that mattered: `categories_en` IS in the real
+silver (the field docs' `categories_fr` is not). Two adjacent fixes found en route: `ship-images.sh`
+SMOKE now retries the transient Recreate rollout, and `_load_dataset_to_weaviate` reports the true
+landed count (the 195,792-vs-200,000 gap was a silent batch-drop over-count, now surfaced). Original
+plan preserved below.
 
 The backlog describes this thread as "reuses the `build_vector_load_assets` loader + `vector_spec`
 already built for the other sets; just add the OFF spec + run." That is not accurate. The shared

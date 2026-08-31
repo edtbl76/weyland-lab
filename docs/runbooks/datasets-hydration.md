@@ -208,7 +208,7 @@ constraint) — a `mysqld-exporter` is the follow-up. Same 7-point gate applies 
 
 - **Targets (grid `Qdrant=Y` = `Weaviate=Y` — identical sets):** audio-feature + text sets — fma_features,
   fma_echonest, uci, spotify_tracks, gtzan, lp_musiccaps_mc/mtt, audioset (music) + big_five (health). fma_tracks
-  DROPPED (metadata not features — sound-sim is fma_features/echonest via track_id); open_food_facts → B78 (4.5M capped).
+  DROPPED (metadata not features — sound-sim is fma_features/echonest via track_id); open_food_facts DONE via B78 (4.5M → capped 200k, bge-small text on product_name+brands+categories_en).
 - **Deploy:** the existing always-on Qdrant + Weaviate (the RAG backends, ns `weyland`). No new deploy.
 - **Loader:** `datasets_{d}_qdrant_load` + `datasets_{d}_weaviate_load` (`vector_allow = {dataset: vector_spec}`).
   A **shared `_build_vectors`** builds each dataset's vectors ONCE — numeric specs assemble feature cols
@@ -283,8 +283,8 @@ constraint) — a `mysqld-exporter` is the follow-up. Same 7-point gate applies 
 | TimescaleDB | ✅ | ✅ **done** | who_gho (country/year → 8 hypertables). Last.fm **skipped** — its silver is lifetime playcounts, no per-listen timestamps (not a real time-series) |
 | **Neo4j** | ✅ always-on | ✅ **done** | GRAPH (music): fma_genres tree · lastfm ~13.85M PLAYS · fma_tracks (BY/ON/IN_GENRE) · audioset (HAS_LABEL). musicbrainz/uci/big_five → N (flat, no edges) |
 | OpenSearch | ✅ (RAG) | ▢ | search: fma_tracks, uci, musicbrainz, lp_musiccaps_*, audioset, usda, open_food_facts |
-| **Qdrant + Weaviate** | ✅ always-on | ✅ **done** | VECTOR (9 each, one build → both): fma_features/echonest/uci/spotify/gtzan (z-scored audio features) · lp_musiccaps×2/audioset (bge text) · big_five (OCEAN). fma_tracks dropped · OFF → B78 |
-| **LanceDB** | ✅ embedded | ✅ **done** | embedded/Lance-native vectors on lakeFS (same 9 sets); in-process query, `emit_lancedb`, Lance Data Viewer UI + event-sync sensor |
+| **Qdrant + Weaviate** | ✅ always-on | ✅ **done** | VECTOR (9 each, one build → both): fma_features/echonest/uci/spotify/gtzan (z-scored audio features) · lp_musiccaps×2/audioset (bge text) · big_five (OCEAN). fma_tracks dropped · **open_food_facts DONE (B78 2026-08-31): Qdrant 200,000 / Weaviate 195,792, dim 384** |
+| **LanceDB** | ✅ embedded | ✅ **done** | embedded/Lance-native vectors on lakeFS (same 9 sets + **open_food_facts 200,000, B78**); in-process query, `emit_lancedb`, Lance Data Viewer UI + event-sync sensor |
 | **Feast** | ✅ data-mesh | ✅ **done** | feature store — online (Valkey) + point-in-time (Postgres); 2 views (spotify audio / brfss prevalence); feast-server REST at feast.weyland.lab + Swagger |
 | ClickHouse | ✅ always-on | ✅ **done** | music: fma_tracks, uci, musicbrainz-subset, lp_musiccaps, audioset · health: usda, open_food_facts (native s3() ingest) |
 | Cassandra | ✅ always-on | ✅ **done** | music: uci, lastfm (~17M, by user_id) · health: big_five, who_gho |
