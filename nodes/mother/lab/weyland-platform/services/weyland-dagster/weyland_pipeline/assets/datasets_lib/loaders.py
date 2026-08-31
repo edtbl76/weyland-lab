@@ -700,25 +700,71 @@ def _build_vectors(mc, cfg, dataset, spec, log):
     import numpy as np
     import pandas as pd
 
+    from .parquet_read import needed_columns, read_capped, resolve_text_columns
+
     prefix = f"{io.branch()}/parquet/{dataset}/"
-    frames = []
-    for obj in mc.list_objects(cfg.repo, prefix=prefix, recursive=True):
-        if not obj.object_name.endswith(".parquet"):
-            continue
-        tmp = tempfile.NamedTemporaryFile(suffix=".parquet", delete=False)
-        tmp.close()
-        try:
-            mc.fget_object(cfg.repo, obj.object_name, tmp.name)
-            frames.append(pd.read_parquet(tmp.name))
-        finally:
-            os.unlink(tmp.name)
-    if not frames:
-        return 0, []
-    df = pd.concat(frames, ignore_index=True) if len(frames) > 1 else frames[0]
-    log.info(f"{dataset}: read {len(frames)} parquet file(s) → {len(df):,} rows; building vectors…")  # B105 phase marker
+    # BOUNDED read — only when the spec opts in with `cap` or `filter`. OFF is the first and (today) only
+    # such vector spec; every existing dataset sets neither and keeps the whole-file read below unchanged.
+    # This is the fix for the whole-file `pd.read_parquet` that OOMs on OFF's 4.5M × 211 all-string file.
+    bounded = spec.get("cap") is not None or spec.get("filter") is not None
+
+    if bounded:
+        if not (spec.get("text") or spec.get("numeric")):
+            raise ValueError(
+                f"{dataset}: a capped/filtered vector spec must declare `text` or `numeric` columns to "
+                f"project; got keys {sorted(spec)}"
+            )
+        projection = needed_columns(spec)
+        filter_col = spec.get("filter")
+        cap = spec.get("cap")
+        frames = []
+        collected = 0
+        for obj in mc.list_objects(cfg.repo, prefix=prefix, recursive=True):
+            if not obj.object_name.endswith(".parquet"):
+                continue
+            tmp = tempfile.NamedTemporaryFile(suffix=".parquet", delete=False)
+            tmp.close()
+            try:
+                mc.fget_object(cfg.repo, obj.object_name, tmp.name)
+                remaining = (cap - collected) if cap is not None else None
+                frames.append(read_capped(tmp.name, projection, filter_col=filter_col, cap=remaining))
+            finally:
+                os.unlink(tmp.name)
+            collected += len(frames[-1])
+            if cap is not None and collected >= cap:
+                break  # cap reached — do not fetch or read any more files
+        df = pd.concat(frames, ignore_index=True) if len(frames) > 1 else (frames[0] if frames else pd.DataFrame())
+        if df.empty:
+            raise ValueError(
+                f"{dataset}: bounded read produced 0 rows (filter {filter_col!r}, cap {cap}) — refusing "
+                f"to build an empty collection rather than reporting a hydration that embedded nothing"
+            )
+        log.info(f"{dataset}: bounded read → {len(df):,} rows, projected {list(df.columns)} (cap {cap}); building vectors…")
+    else:
+        frames = []
+        for obj in mc.list_objects(cfg.repo, prefix=prefix, recursive=True):
+            if not obj.object_name.endswith(".parquet"):
+                continue
+            tmp = tempfile.NamedTemporaryFile(suffix=".parquet", delete=False)
+            tmp.close()
+            try:
+                mc.fget_object(cfg.repo, obj.object_name, tmp.name)
+                frames.append(pd.read_parquet(tmp.name))
+            finally:
+                os.unlink(tmp.name)
+        if not frames:
+            return 0, []
+        df = pd.concat(frames, ignore_index=True) if len(frames) > 1 else frames[0]
+        log.info(f"{dataset}: read {len(frames)} parquet file(s) → {len(df):,} rows; building vectors…")  # B105 phase marker
 
     if spec.get("text"):
-        cols = [c for c in spec["text"] if c in df.columns]
+        if bounded:
+            cols = resolve_text_columns(spec["text"], df.columns)  # fail closed: raises if ALL absent
+            absent = [c for c in spec["text"] if c not in cols]
+            if absent:
+                log.info(f"{dataset}: text columns absent from source, embedding without them: {absent}")
+        else:
+            cols = [c for c in spec["text"] if c in df.columns]
         texts = df[cols].fillna("").astype(str).agg(" ".join, axis=1).tolist()
         log.info(f"{dataset}: embedding {len(texts):,} texts (bge-small, batched — silent encode follows)…")  # B105
         vecs = _embedder().encode(texts, normalize_embeddings=True, batch_size=64, show_progress_bar=False)
