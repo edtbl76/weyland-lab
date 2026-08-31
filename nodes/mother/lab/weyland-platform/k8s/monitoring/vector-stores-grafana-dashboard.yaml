@@ -1,0 +1,82 @@
+# Vector Stores dashboard (B78) — the observability gap the OFF-hydration cascade flagged: Qdrant,
+# Weaviate and LanceDB had no Grafana panels. Qdrant + Weaviate come from their own scraped /metrics
+# (collection_points{id}, object_count{class_name}); LanceDB — embedded, no server — comes from the
+# lancedb-exporter (lancedb_table_rows{repo,table}). Provisioned via the grafana_dashboard sidecar,
+# same pattern as ray-grafana-dashboards.yaml.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: vector-stores-grafana-dashboard
+  namespace: monitoring
+  labels:
+    grafana_dashboard: "1"
+data:
+  vector-stores_grafana_dashboard.json: |-
+    {
+      "annotations": {"list": [{"builtIn": 1, "datasource": "-- Grafana --", "enable": true, "hide": true, "name": "Annotations & Alerts", "type": "dashboard"}]},
+      "editable": true,
+      "graphTooltip": 1,
+      "title": "Vector Stores",
+      "uid": "vector-stores",
+      "tags": ["vector", "data-mesh", "b78"],
+      "timezone": "browser",
+      "time": {"from": "now-6h", "to": "now"},
+      "refresh": "1m",
+      "schemaVersion": 39,
+      "templating": {"list": []},
+      "panels": [
+        {"type": "row", "title": "Qdrant", "gridPos": {"h": 1, "w": 24, "x": 0, "y": 0}},
+        {"type": "stat", "title": "Collections", "datasource": {"type": "prometheus", "uid": "prometheus"},
+         "gridPos": {"h": 8, "w": 4, "x": 0, "y": 1},
+         "fieldConfig": {"defaults": {"unit": "short"}},
+         "targets": [{"expr": "collections_total{job=\"qdrant\"}", "refId": "A"}]},
+        {"type": "timeseries", "title": "Points per collection", "datasource": {"type": "prometheus", "uid": "prometheus"},
+         "gridPos": {"h": 8, "w": 12, "x": 4, "y": 1},
+         "fieldConfig": {"defaults": {"unit": "short", "custom": {"drawStyle": "line", "fillOpacity": 10}}},
+         "options": {"legend": {"displayMode": "table", "placement": "right", "calcs": ["last"]}},
+         "targets": [{"expr": "collection_points{job=\"qdrant\"}", "legendFormat": "{{id}}", "refId": "A"}]},
+        {"type": "timeseries", "title": "Resident memory", "datasource": {"type": "prometheus", "uid": "prometheus"},
+         "gridPos": {"h": 8, "w": 8, "x": 16, "y": 1},
+         "fieldConfig": {"defaults": {"unit": "bytes"}},
+         "targets": [{"expr": "memory_resident_bytes{job=\"qdrant\"}", "legendFormat": "resident", "refId": "A"}]},
+        {"type": "timeseries", "title": "REST request rate (by status)", "datasource": {"type": "prometheus", "uid": "prometheus"},
+         "gridPos": {"h": 7, "w": 12, "x": 0, "y": 9},
+         "fieldConfig": {"defaults": {"unit": "reqps"}},
+         "targets": [{"expr": "sum by (status) (rate(rest_responses_total{job=\"qdrant\"}[5m]))", "legendFormat": "{{status}}", "refId": "A"}]},
+        {"type": "timeseries", "title": "REST avg latency", "datasource": {"type": "prometheus", "uid": "prometheus"},
+         "gridPos": {"h": 7, "w": 12, "x": 12, "y": 9},
+         "fieldConfig": {"defaults": {"unit": "s"}},
+         "targets": [{"expr": "rest_responses_avg_duration_seconds{job=\"qdrant\"}", "legendFormat": "{{method}}", "refId": "A"}]},
+
+        {"type": "row", "title": "Weaviate", "gridPos": {"h": 1, "w": 24, "x": 0, "y": 16}},
+        {"type": "timeseries", "title": "Objects per class", "datasource": {"type": "prometheus", "uid": "prometheus"},
+         "gridPos": {"h": 8, "w": 12, "x": 0, "y": 17},
+         "fieldConfig": {"defaults": {"unit": "short", "custom": {"drawStyle": "line", "fillOpacity": 10}}},
+         "options": {"legend": {"displayMode": "table", "placement": "right", "calcs": ["last"]}},
+         "targets": [{"expr": "sum by (class_name) (object_count)", "legendFormat": "{{class_name}}", "refId": "A"}]},
+        {"type": "timeseries", "title": "Vector index size", "datasource": {"type": "prometheus", "uid": "prometheus"},
+         "gridPos": {"h": 8, "w": 6, "x": 12, "y": 17},
+         "fieldConfig": {"defaults": {"unit": "short"}},
+         "targets": [{"expr": "sum by (class_name) (vector_index_size)", "legendFormat": "{{class_name}}", "refId": "A"}]},
+        {"type": "timeseries", "title": "Batch insert avg latency", "datasource": {"type": "prometheus", "uid": "prometheus"},
+         "gridPos": {"h": 8, "w": 6, "x": 18, "y": 17},
+         "fieldConfig": {"defaults": {"unit": "ms"}},
+         "targets": [{"expr": "rate(batch_durations_ms_sum[5m]) / clamp_min(rate(batch_durations_ms_count[5m]), 1)", "legendFormat": "{{operation}}", "refId": "A"}]},
+
+        {"type": "row", "title": "LanceDB (embedded — via lancedb-exporter)", "gridPos": {"h": 1, "w": 24, "x": 0, "y": 25}},
+        {"type": "timeseries", "title": "Rows per table", "datasource": {"type": "prometheus", "uid": "prometheus"},
+         "gridPos": {"h": 8, "w": 14, "x": 0, "y": 26},
+         "fieldConfig": {"defaults": {"unit": "short", "custom": {"drawStyle": "line", "fillOpacity": 10}}},
+         "options": {"legend": {"displayMode": "table", "placement": "right", "calcs": ["last"]}},
+         "targets": [{"expr": "lancedb_table_rows", "legendFormat": "{{repo}}/{{table}}", "refId": "A"}]},
+        {"type": "stat", "title": "Tables per repo", "datasource": {"type": "prometheus", "uid": "prometheus"},
+         "gridPos": {"h": 8, "w": 5, "x": 14, "y": 26},
+         "fieldConfig": {"defaults": {"unit": "short"}},
+         "targets": [{"expr": "lancedb_tables", "legendFormat": "{{repo}}", "refId": "A"}]},
+        {"type": "stat", "title": "Repo reachable", "datasource": {"type": "prometheus", "uid": "prometheus"},
+         "gridPos": {"h": 8, "w": 5, "x": 19, "y": 26},
+         "fieldConfig": {"defaults": {"unit": "short", "mappings": [{"type": "value", "options": {"0": {"text": "DOWN", "color": "red"}, "1": {"text": "UP", "color": "green"}}}]}},
+         "options": {"colorMode": "background"},
+         "targets": [{"expr": "lancedb_repo_up", "legendFormat": "{{repo}}", "refId": "A"}]}
+      ]
+    }

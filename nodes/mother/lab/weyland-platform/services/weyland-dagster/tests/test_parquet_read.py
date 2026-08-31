@@ -156,3 +156,18 @@ def test_build_records_ignores_absent_payload_columns(parquet_read):
     df = _df({"code": ["a"]})
     recs = parquet_read.build_records(df, {"id": "code", "payload": ["ghost"]}, [[0.0]])
     assert recs[0]["payload"] == {"row_id": "a"}
+
+
+# --- vectors_degenerate: the store-side backstop for the empty/identical-vector defect --------------
+
+def test_vectors_degenerate_flags_all_identical(parquet_read):
+    assert parquet_read.vectors_degenerate([[1.0, 2.0], [1.0, 2.0], [1.0, 2.0]]) is True
+
+
+def test_vectors_degenerate_false_when_varied(parquet_read):
+    assert parquet_read.vectors_degenerate([[1.0, 2.0], [3.0, 4.0], [1.0, 2.0]]) is False
+
+
+def test_vectors_degenerate_false_when_too_few_to_judge(parquet_read):
+    assert parquet_read.vectors_degenerate([[1.0, 2.0]]) is False
+    assert parquet_read.vectors_degenerate([]) is False

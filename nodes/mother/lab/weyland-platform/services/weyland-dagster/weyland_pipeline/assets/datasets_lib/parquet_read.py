@@ -115,6 +115,17 @@ def read_capped(path, columns, filter_col=None, cap=None, batch_size=50_000):
     return df
 
 
+def vectors_degenerate(sample):
+    """True when a sample of vectors is DEGENERATE — two or more that are all IDENTICAL. That is the
+    signature of an embed fed empty or identical text (the silent-empty-vector failure the read's
+    fail-closed column resolution guards against, checked here against the actual STORE contents as a
+    backstop). Fewer than two observed vectors is not judgeable, so it is not flagged."""
+    vecs = [tuple(v) for v in sample if v is not None]
+    if len(vecs) < 2:
+        return False
+    return all(v == vecs[0] for v in vecs)
+
+
 def build_records(df, spec, vectors):
     """Assemble the store records from a projected frame and its per-row vectors.
 

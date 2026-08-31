@@ -13,7 +13,16 @@ functions), never default args.
 """
 import re
 
-from dagster import AssetCheckResult, AssetCheckSeverity, AssetKey, MetadataValue, asset_check
+from dagster import (
+    AssetCheckResult,
+    AssetCheckSeverity,
+    AssetKey,
+    MetadataValue,
+    asset_check,
+)
+
+from .loaders import _lancedb_connect, _qdrant_client, _weaviate_class, _weaviate_client
+from .parquet_read import vectors_degenerate
 
 _VALID = re.compile(r"^[A-Za-z0-9_]+$")
 _FORMATS = ("parquet", "arrow", "avro", "lance", "iceberg")
@@ -121,4 +130,92 @@ def build_asset_checks(cfg):
         )
 
     checks.append(_all_null)
+    return checks
+
+
+# ── Vector-store quality gate (B78) ──────────────────────────────────────────────────────────────
+# build_asset_checks covers the silver PARQUET; the vector STORES had no coverage — a load could leave
+# an empty collection, or (the defect the read's fail-closed guard exists for) fill one with identical
+# vectors from empty text, and nothing noticed. These checks query the store DIRECTLY after the load
+# — the independent read that the loader's own count cannot be (Weaviate's silent 195,792-vs-200,000
+# drop was exactly a trusted-self-report failure). One blocking check per backend the domain loads to.
+
+def _vector_stats(cfg, backend, ds, n=10):
+    """Live (count, vector_sample) for one dataset's collection in a backend, via the same clients the
+    loaders use. Collection naming matches the loaders: qdrant `datasets_<d>_<ds>`, weaviate the
+    CamelCase class, lancedb the bare dataset name."""
+    d = cfg.domain
+    if backend == "qdrant":
+        c = _qdrant_client()
+        coll = f"datasets_{d}_{ds}"
+        count = c.get_collection(coll).points_count
+        sample = [p.vector for p in c.scroll(coll, limit=n, with_vectors=True)[0]]
+        return count, sample
+    if backend == "weaviate":
+        c = _weaviate_client()
+        try:
+            col = c.collections.get(_weaviate_class(d, ds))
+            count = col.aggregate.over_all(total_count=True).total_count
+            sample = [o.vector["default"]
+                      for o in col.query.fetch_objects(limit=n, include_vector=True).objects]
+            return count, sample
+        finally:
+            c.close()
+    if backend == "lancedb":
+        db = _lancedb_connect(cfg)
+        tbl = db.open_table(ds)
+        return tbl.count_rows(), [r["vector"] for r in tbl.head(n).to_pylist()]
+    raise ValueError(f"unknown vector backend {backend!r}")
+
+
+def _make_vector_check(cfg, backend, datasets):
+    d = cfg.domain
+    akey = AssetKey(f"datasets_{d}_{backend}_load")
+
+    @asset_check(asset=akey, name="vectors_present_and_nondegenerate", blocking=True,
+                 description=f"Every {backend} collection loaded for {d} holds >0 vectors and a "
+                             f"non-degenerate sample — verified by an INDEPENDENT query of the store, "
+                             f"never the loader's self-reported count.")
+    def _chk(context):
+        empty, degenerate, unobserved, ok = [], [], [], {}
+        for ds in datasets:
+            try:
+                count, sample = _vector_stats(cfg, backend, ds)
+            except Exception as e:  # noqa: BLE001 — a store that cannot be queried is not healthy
+                unobserved.append(ds)
+                context.log.warning(f"{backend} {ds}: could not query the store: {e}")
+                continue
+            if not count:
+                empty.append(ds)
+            elif vectors_degenerate(sample):
+                degenerate.append(ds)
+            else:
+                ok[ds] = count
+        return AssetCheckResult(
+            # Cannot-observe fails CLOSED alongside empty/degenerate — never a silent pass.
+            passed=not empty and not degenerate and not unobserved,
+            severity=AssetCheckSeverity.ERROR,
+            metadata={
+                "empty": MetadataValue.json(empty),
+                "degenerate": MetadataValue.json(degenerate),
+                "unobserved": MetadataValue.json(unobserved),
+                "ok_counts": MetadataValue.json(ok),
+            },
+        )
+
+    return _chk
+
+
+def build_vector_checks(cfg):
+    """Post-load quality gate for the vector stores (the leg build_asset_checks does not cover). One
+    blocking check per backend the domain loads to — qdrant + weaviate from `vector_allow`, lancedb
+    from `lancedb_allow or vector_allow` (matching loaders.py:1153) — asserting every collection is
+    non-empty and non-degenerate against a live query of the store itself."""
+    checks = []
+    if cfg.vector_allow:
+        checks.append(_make_vector_check(cfg, "qdrant", sorted(cfg.vector_allow)))
+        checks.append(_make_vector_check(cfg, "weaviate", sorted(cfg.vector_allow)))
+    lancedb_specs = cfg.lancedb_allow or cfg.vector_allow
+    if lancedb_specs:
+        checks.append(_make_vector_check(cfg, "lancedb", sorted(lancedb_specs)))
     return checks

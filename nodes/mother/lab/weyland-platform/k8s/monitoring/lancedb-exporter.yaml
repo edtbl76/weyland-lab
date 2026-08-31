@@ -1,0 +1,140 @@
+# LanceDB metrics exporter (B78) — LanceDB is EMBEDDED (no server, no /metrics), so a Grafana dashboard
+# needs a metrics SOURCE the way Qdrant/Weaviate get one from their own /metrics. This tiny always-on
+# exporter polls the lakeFS-backed LanceDB repos for per-table row counts and exposes them as Prometheus
+# metrics, scraped by a ServiceMonitor exactly like qdrant/weaviate.
+#
+# It REUSES the weyland-dagster image only for its `lancedb` + `prometheus_client` runtime — it runs a
+# self-contained script (no weyland_pipeline import, no dagster graph load). The tag is a DEPS-ONLY pin,
+# NOT tracked by the ship-loop (this file is not in scripts/ci/images.tsv); bump it by hand only if the
+# lancedb / prometheus_client dependency must change. Runs in `weyland` (where lakefs-creds lives and
+# where Prometheus provably scrapes the qdrant/weaviate ServiceMonitors).
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: lancedb-exporter-script
+  namespace: weyland
+data:
+  exporter.py: |
+    import os
+    import time
+
+    import lancedb
+    from prometheus_client import Gauge, start_http_server
+
+    ENDPOINT = os.environ.get("LAKEFS_ENDPOINT", "http://lakefs.data-mesh.svc.cluster.local:8000")
+    BRANCH = os.environ.get("LAKEFS_BRANCH", "main")
+    REPOS = [r.strip() for r in os.environ.get("LANCEDB_REPOS", "health,music").split(",") if r.strip()]
+    PORT = int(os.environ.get("EXPORTER_PORT", "9109"))
+    INTERVAL = int(os.environ.get("SCRAPE_INTERVAL", "60"))
+
+    ROWS = Gauge("lancedb_table_rows", "Row count of a LanceDB table", ["repo", "table"])
+    TABLES = Gauge("lancedb_tables", "Number of LanceDB tables in a repo", ["repo"])
+    UP = Gauge("lancedb_repo_up", "1 if the repo's LanceDB was reachable this scrape, else 0", ["repo"])
+
+
+    def _storage_options():
+        scheme = "https" if ENDPOINT.startswith("https") else "http"
+        host = ENDPOINT.replace("https://", "").replace("http://", "")
+        return {
+            "aws_endpoint": f"{scheme}://{host}",
+            "aws_access_key_id": os.environ["LAKEFS_ACCESS_KEY_ID"],
+            "aws_secret_access_key": os.environ["LAKEFS_SECRET_ACCESS_KEY"],
+            "aws_region": "us-east-1",
+            "aws_allow_http": "true" if scheme == "http" else "false",
+            "aws_virtual_hosted_style_request": "false",
+        }
+
+
+    def scrape():
+        ROWS.clear()          # drop tables that disappeared since the last scrape
+        TABLES.clear()
+        so = _storage_options()
+        for repo in REPOS:
+            try:
+                db = lancedb.connect(f"s3://{repo}/{BRANCH}/lancedb", storage_options=so)
+                names = list(db.table_names())
+                TABLES.labels(repo=repo).set(len(names))
+                for t in names:
+                    try:
+                        ROWS.labels(repo=repo, table=t).set(db.open_table(t).count_rows())
+                    except Exception as e:  # one bad table must not sink the repo
+                        print(f"lancedb {repo}/{t}: {e}", flush=True)
+                UP.labels(repo=repo).set(1)
+            except Exception as e:
+                UP.labels(repo=repo).set(0)
+                print(f"lancedb {repo}: {e}", flush=True)
+
+
+    if __name__ == "__main__":
+        start_http_server(PORT)
+        print(f"lancedb-exporter on :{PORT}, repos={REPOS}, every {INTERVAL}s", flush=True)
+        while True:
+            scrape()
+            time.sleep(INTERVAL)
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: lancedb-exporter
+  namespace: weyland
+  labels: { app: lancedb-exporter }
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: lancedb-exporter }
+  template:
+    metadata:
+      labels: { app: lancedb-exporter }
+      annotations:
+        sidecar.istio.io/inject: "false"   # scraped directly by Prometheus; only egress is lakeFS (PERMISSIVE mTLS)
+    spec:
+      containers:
+        - name: exporter
+          image: registry.weyland.lab/weyland-dagster-user-code:git-6df37f41   # deps-only pin: lancedb + prometheus_client
+          imagePullPolicy: IfNotPresent
+          command: ["python", "/exporter/exporter.py"]
+          ports:
+            - { containerPort: 9109, name: metrics }
+          env:
+            - { name: LAKEFS_ENDPOINT, value: http://lakefs.data-mesh.svc.cluster.local:8000 }
+            - { name: LAKEFS_BRANCH, value: main }
+            - { name: LANCEDB_REPOS, value: "health,music" }
+            - name: LAKEFS_ACCESS_KEY_ID
+              valueFrom: { secretKeyRef: { name: lakefs-creds, key: LAKEFS_ACCESS_KEY_ID } }
+            - name: LAKEFS_SECRET_ACCESS_KEY
+              valueFrom: { secretKeyRef: { name: lakefs-creds, key: LAKEFS_SECRET_ACCESS_KEY } }
+          readinessProbe:
+            httpGet: { path: /metrics, port: metrics }
+            initialDelaySeconds: 10
+            periodSeconds: 15
+          resources:
+            requests: { cpu: 10m, memory: 128Mi }
+            limits: { memory: 512Mi }
+          volumeMounts:
+            - { name: script, mountPath: /exporter }
+      volumes:
+        - name: script
+          configMap: { name: lancedb-exporter-script }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: lancedb-exporter
+  namespace: weyland
+  labels: { app: lancedb-exporter }
+spec:
+  selector: { app: lancedb-exporter }
+  ports:
+    - { name: metrics, port: 9109, targetPort: metrics }
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: lancedb-exporter
+  namespace: weyland
+spec:
+  selector:
+    matchLabels: { app: lancedb-exporter }
+  endpoints:
+    - port: metrics
+      path: /metrics

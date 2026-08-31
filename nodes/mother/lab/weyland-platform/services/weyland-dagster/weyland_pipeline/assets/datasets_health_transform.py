@@ -4,7 +4,7 @@ Same mechanism as music (datasets_lib): the only health specifics are the repo, 
 reader (the shared reader already dispatches .xpt/.json/.csv.gz), and the allowlists. build_transform_assets()
 produces datasets_health_parquet/_arrow/_avro/_lance/_iceberg + _commit."""
 from .datasets_lib.broker import build_transform_assets
-from .datasets_lib.checks import build_asset_checks
+from .datasets_lib.checks import build_asset_checks, build_vector_checks
 from .datasets_lib.config import DomainConfig
 from .datasets_lib.loaders import build_store_load_assets
 from .datasets_lib.streaming import build_streamed_parquet_asset
@@ -90,6 +90,6 @@ HEALTH_CFG = DomainConfig(
 datasets_health_open_food_facts_parquet = build_streamed_parquet_asset(
     HEALTH_CFG, "open_food_facts", "products.csv.gz", sep="\t")
 
-datasets_health_checks = build_asset_checks(HEALTH_CFG)
+datasets_health_checks = build_asset_checks(HEALTH_CFG) + build_vector_checks(HEALTH_CFG)
 datasets_health_store_assets = build_store_load_assets(HEALTH_CFG)
 datasets_health_stream_assets = build_stream_produce_assets(HEALTH_CFG)
