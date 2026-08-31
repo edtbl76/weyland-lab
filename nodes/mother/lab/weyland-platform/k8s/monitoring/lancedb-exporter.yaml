@@ -47,6 +47,19 @@ data:
         }
 
 
+    def _table_names(db):
+        # lancedb's list_tables() is paginated — [('tables', [...]), ('page_token', None)] — NOT a flat
+        # list (table_names() is the flat one, but deprecated). Walk the page_token to be correct even
+        # past the default page size.
+        names, token = [], None
+        while True:
+            res = dict(db.list_tables(page_token=token) if token else db.list_tables())
+            names.extend(res.get("tables", []))
+            token = res.get("page_token")
+            if not token:
+                return names
+
+
     def scrape():
         ROWS.clear()          # drop tables that disappeared since the last scrape
         TABLES.clear()
@@ -54,7 +67,7 @@ data:
         for repo in REPOS:
             try:
                 db = lancedb.connect(f"s3://{repo}/{BRANCH}/lancedb", storage_options=so)
-                names = list(db.table_names())
+                names = _table_names(db)
                 TABLES.labels(repo=repo).set(len(names))
                 for t in names:
                     try:
@@ -89,6 +102,7 @@ spec:
       labels: { app: lancedb-exporter }
       annotations:
         sidecar.istio.io/inject: "false"   # scraped directly by Prometheus; only egress is lakeFS (PERMISSIVE mTLS)
+        config-revision: "2"               # bump when the exporter.py ConfigMap changes so Argo rolls the pod (a mounted ConfigMap does not restart the process)
     spec:
       containers:
         - name: exporter
