@@ -1,0 +1,17 @@
+---
+apiVersion: bitnami.com/v1alpha1
+kind: SealedSecret
+metadata:
+  name: iceberg-s3-creds
+  namespace: jupyterhub
+spec:
+  encryptedData:
+    access_key: AgAEWmA5wT9q8wHP9YD336OMq7gEvWbnovRqNE2ftvlKDmHIaFlmSSHL8X7ggUqP9/jk0NKakKGGnjPQ5YJ9UWPMD4B0AZBZxHbqal770dk61j6618h+LsHwA4f6SYxMxkHJb9m9ns8omN2eGYl+ZIS993ZfcmUUiVIThd8tmh5cvnqZeojWJWiuW4eHqXIOq+5y68SP6LiVB5zx63TBT3suZBg5xdQmKU6K3wZtDk201V0NYdK2NPyFt3xhybLx3pZZ4v1QisqY/Sjx2FxdbnPrAJGAi+rJFsrtHhNpAieAmG/M4V+KsGmQxUy7Ky+erKoDwgVCTZbGIz3kJ5Yj8DKfegdmiyheLZKqZgY6n6HQ6eldOTBVJiokWxdOq/ndHOiB12lghS85nuwTUzxhSntouEVC3E2Lwk/ZDqPZ8XECF8SVko2N3nLjjVTEFtSDBaH2wi2NeUN3Jf1aUFggjGV/pND3/gubsv7hTWSWrnEob7Z/yCDAj2ElGRwXnFeLw9UNt1QccDTiEWBCgMlrPSLMET58ilIOcoYezcJK7dPSuo9mB3K9j5QZQBZF+8LyA0P9XSebzjXFcbG784SNUsSsZA29RSxNb96HD/EGELfN1XPNMq9mKyQIeqplmiNl9a6nvBre6wiXkf3mYyTP6dHFYFYo/kY190cHG3PeLICQEb1LxeZd93Dmxh/oKyOECE+1KHl65w==
+    secret_key: AgAVl0DJwCjCjnZsMm7idOFWSE+1cHxj1Hxj+g0JPnzAesnZ0MHFUzOwfDQXQdqb3yryGMucIIB8/dh8xGnjypvUp6NuU19r+uWr3LH6ZqeJlxwBqnvEpSHCp5IxpQzjkwLy5BWjs00YWlTlpLcj1E/kTWVH0Xhh7qX9a1k0mi4eMefxSXm3uHU7fpbISLITE4tSms/9ddrlrHw6v7Q/dEDQt5mmGUSnncjgLhr9f/hb9ZPIxXGBfxMsnwEnSW4BTIDSVUmC+gwosEGj6RGGhT5ehaumIG32xYolIMU4ombGCvWcMCVq+S2gv9GTsslJPqWPZz7fxAs/w1yAAHnOmIMQvHb4pmgPtrapiDZI1igvZ3CbCkwq2Ynf1i8wlEfcGa0S1Vk/jbNoSIu0fth97TYPL5nqVPm5ykkwRtQ5qIVXWK4bfDpnMUBrqAA4bHd81Ny7eH9gla1FRxZMhJmjjzwp9z+/OFfhC34VZAr33+71p4rdhejK3fN46e/Vvdcy9KTFZnAWlgeP/5X2nEZw9jWYychCPtD3kibHDT4ZPNQwNLEd8qdRUhLvo2GEuU+B6KcsUvAgn5/LYW9waHAktAyfgHK0s/T5u0FKMezILqo9RHsnE8MT4e+R4JAUQvG0kX+imbCGHsgvhh1B0UNm4KIrQGYWpqeLJExyYXj7P4IlvTETlsSDPkvke4H9WUd8VRwUXZvYWMfS/GOYAqlr1Emm082+zQ==
+  template:
+    metadata:
+      annotations:
+        sealedsecrets.bitnami.com/managed: "true"
+      name: iceberg-s3-creds
+      namespace: jupyterhub
+    type: Opaque

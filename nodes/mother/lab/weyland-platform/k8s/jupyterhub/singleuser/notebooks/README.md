@@ -24,11 +24,21 @@ the next spawn.
 | `03_format_avro.ipynb` | **Avro** | row-based, schema-with-data, **schema evolution** (reader/writer resolution, back/forward compat), codecs |
 | `04_format_lance.ipynb` | **Lance** | ML-native columnar: zero-copy **versioning / time-travel**, fast random access (`.take`), a real **IVF_PQ vector index** + ANN |
 
-### Stack layers — *coming next* (B81 waves 2+)
-storage/versioning (lakeFS, Nessie/Iceberg) · query/federation (Trino, DuckDB/GizmoSQL, per Tier-2 store)
-· vector/graph (Qdrant, **Weaviate** [U16], Lance similarity, Neo4j) · transform/semantic (dbt, MetricFlow,
-Cube) · feature/ML (Feast, Ray → MLflow) · AI/RAG (LlamaIndex, eval, LiteLLM/Ollama) · governance/quality
-(DataHub, Soda, Ranger) · streaming (Redpanda, Debezium CDC).
+### Stack layers — storage & versioning
+| Notebook | Layer | Focus |
+|---|---|---|
+| `10_storage_lakefs.ipynb` | **lakeFS** (git-for-data) | zero-copy branch / commit / diff / merge / log + commit-id time-travel over the `music` repo — scratch-branch-only, self-cleaning |
+| `11_storage_nessie_iceberg.ipynb` | **Nessie + Iceberg** | table-level versioning: snapshots, hidden partitioning, schema evolution, atomic commits; Nessie git-like catalog branching; commit-hash time-travel via `StaticTable` — reads `dbt.mart_*` read-only, writes a scratch `nb_demo` namespace, self-cleaning |
+
+Both run against the **live** mesh. `10` versions *objects* (whole-lake, format-agnostic);
+`11` versions *tables* (Iceberg snapshots, catalogued by Nessie) — they stack, and each
+notebook explains where it sits relative to the other.
+
+### Stack layers — *coming next* (B81 waves 3+)
+query/federation (Trino, DuckDB/GizmoSQL, per Tier-2 store) · vector/graph (Qdrant, **Weaviate** [U16],
+Lance similarity, Neo4j) · transform/semantic (dbt, MetricFlow, Cube) · feature/ML (Feast, Ray → MLflow)
+· AI/RAG (LlamaIndex, eval, LiteLLM/Ollama) · governance/quality (DataHub, Soda, Ranger) · streaming
+(Redpanda, Debezium CDC).
 
 Full scope: `docs/backlog.md` → B81 (Linear EMA-71). Each notebook must **run end-to-end** — that is the
 test (DoD): the per-format set is self-contained; the stack-layer set runs against the live mesh.

@@ -93,9 +93,10 @@ SECRETS=(
   # --- n8n (2) ---
   n8n/n8n-secret                      # ⚠ bricking: N8N_ENCRYPTION_KEY — also escrow off-cluster
   n8n/weyland-lab-ssh-key
-  # --- jupyterhub (2) ---
+  # --- jupyterhub (3) ---
   jupyterhub/jupyterhub-oidc
   jupyterhub/lakefs-creds
+  jupyterhub/iceberg-s3-creds         # B81 storage nb 11 — Nessie/Iceberg warehouse S3 creds (access_key/secret_key)
   # --- gatekeeper-system (1) ---
   gatekeeper-system/gpm-secret
 )

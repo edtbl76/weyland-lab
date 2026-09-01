@@ -111,7 +111,17 @@ the stack-layer set runs against the live mesh. Validate by `jupyter nbconvert -
   (row groups, encodings, compression, projection + pushdown) · `02_format_arrow_ipc` (zero-copy interop, IPC file vs
   stream, mmap) · `03_format_avro` (schema evolution, codecs) · `04_format_lance` (versioning/time-travel, random
   access, real IVF_PQ vector index + ANN).
-- **Stack-layer waves (next):** storage/query/vector/transform/ML/RAG/governance/streaming — one per layer, against
-  live services, incl. the folded-in Weaviate notebook (U16). See `docs/backlog.md` → B81 (EMA-71).
+- **Storage & versioning (shipped 2026-09-01, both validated live, headless-execute clean):** `10_storage_lakefs`
+  (git-for-data over the `music` repo — zero-copy branch/commit/diff/merge/log + commit-id time-travel, scratch-branch
+  only, self-cleaning) · `11_storage_nessie_iceberg` (table-level versioning — Iceberg snapshots/schema-evolution/atomic
+  commits + Nessie git-like catalog branching + commit-hash time-travel via `StaticTable`; reads `dbt.mart_*`
+  read-only, writes a scratch `nb_demo` namespace, self-cleaning). One versions objects, the other tables — they stack.
+  **Iceberg creds:** the singleuser pod injects `ICEBERG_S3_ACCESS_KEY`/`ICEBERG_S3_SECRET_KEY` from SealedSecret
+  `jupyterhub/iceberg-s3-creds` (mirrors data-mesh `nessie-secret` s3 keys); all other Nessie/warehouse URLs default to
+  the cluster service addresses in the notebook. Gotcha: Nessie **vends** the S3 endpoint+creds per table (overrides the
+  client `s3.endpoint`), and versions at the catalog-commit level — a single live Iceberg snapshot per table — so
+  snapshot-id time-travel fails; time-travel is done by Nessie commit hash + `StaticTable` instead.
+- **Stack-layer waves (next):** query/vector/transform/ML/RAG/governance/streaming — one per layer, against live
+  services, incl. the folded-in Weaviate notebook (U16). See `docs/backlog.md` → B81 (EMA-71).
 
 See [[cube-semantic-layer-b1.7]], [runbooks/cube.md](cube.md).

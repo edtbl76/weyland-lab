@@ -76,6 +76,16 @@ singleuser:
     LAKEFS_SECRET_ACCESS_KEY:
       valueFrom:
         secretKeyRef: { name: lakefs-creds, key: LAKEFS_SECRET_ACCESS_KEY }
+    # Iceberg/Nessie warehouse S3 creds (B81 storage notebook 11) — the MinIO-backed `s3://warehouse`, a
+    # DIFFERENT credential than lakeFS above. Mirrors data-mesh `nessie-secret` (s3-access-key/-secret-key)
+    # into a jupyterhub SealedSecret `iceberg-s3-creds`; the notebook defaults NESSIE_ICEBERG_URI /
+    # ICEBERG_WAREHOUSE / ICEBERG_S3_ENDPOINT to the cluster URLs, so only the creds need injecting.
+    ICEBERG_S3_ACCESS_KEY:
+      valueFrom:
+        secretKeyRef: { name: iceberg-s3-creds, key: access_key }
+    ICEBERG_S3_SECRET_KEY:
+      valueFrom:
+        secretKeyRef: { name: iceberg-s3-creds, key: secret_key }
   lifecycleHooks:
     postStart:
       exec:
