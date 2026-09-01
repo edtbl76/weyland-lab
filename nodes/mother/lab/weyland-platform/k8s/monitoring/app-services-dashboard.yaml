@@ -1,0 +1,62 @@
+# App Services (process health) dashboard — the four in-house Python services that expose /metrics but
+# only the prometheus_client process/python defaults (no HTTP instrumentation): weyland-operator,
+# weyland-agent, weyland-guard, realm-of-agents. One shared board rather than four near-identical ones;
+# each panel overlays all four by `{{job}}`. The job set is hardcoded (NOT a $job template variable) on
+# purpose: check-dashboard-coverage.sh greps panel queries for `job=`/`job=~`, and a `$job` variable
+# renders as `job=~"$job"` which matches no real job — the alternation below is what makes these four
+# count as covered. Deeper request-level boards land if/when these services add HTTP instrumentation.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: app-services-grafana-dashboard
+  namespace: monitoring
+  labels:
+    grafana_dashboard: "1"
+data:
+  app-services_grafana_dashboard.json: |-
+    {
+      "annotations": {"list": [{"builtIn": 1, "datasource": "-- Grafana --", "enable": true, "hide": true, "name": "Annotations & Alerts", "type": "dashboard"}]},
+      "editable": true,
+      "graphTooltip": 1,
+      "title": "App Services",
+      "uid": "app-services",
+      "tags": ["app-services", "platform", "observability"],
+      "timezone": "browser",
+      "time": {"from": "now-6h", "to": "now"},
+      "refresh": "1m",
+      "schemaVersion": 39,
+      "templating": {"list": []},
+      "panels": [
+        {"type": "row", "title": "Process health — weyland-operator / weyland-agent / weyland-guard / realm-of-agents", "gridPos": {"h": 1, "w": 24, "x": 0, "y": 0}},
+        {"type": "stat", "title": "Scrape health (up)", "datasource": {"type": "prometheus", "uid": "prometheus"},
+         "gridPos": {"h": 8, "w": 8, "x": 0, "y": 1},
+         "fieldConfig": {"defaults": {"unit": "short", "mappings": [{"type": "value", "options": {"0": {"text": "DOWN", "color": "red"}, "1": {"text": "UP", "color": "green"}}}]}},
+         "options": {"colorMode": "background"},
+         "targets": [{"expr": "up{job=~\"realm-of-agents|weyland-agent|weyland-guard|weyland-operator\"}", "legendFormat": "{{job}}", "refId": "A"}]},
+        {"type": "timeseries", "title": "Uptime", "datasource": {"type": "prometheus", "uid": "prometheus"},
+         "gridPos": {"h": 8, "w": 8, "x": 8, "y": 1},
+         "fieldConfig": {"defaults": {"unit": "s"}},
+         "options": {"legend": {"displayMode": "table", "placement": "right", "calcs": ["last"]}},
+         "targets": [{"expr": "time() - process_start_time_seconds{job=~\"realm-of-agents|weyland-agent|weyland-guard|weyland-operator\"}", "legendFormat": "{{job}}", "refId": "A"}]},
+        {"type": "timeseries", "title": "Open file descriptors", "datasource": {"type": "prometheus", "uid": "prometheus"},
+         "gridPos": {"h": 8, "w": 8, "x": 16, "y": 1},
+         "fieldConfig": {"defaults": {"unit": "short"}},
+         "options": {"legend": {"displayMode": "table", "placement": "right", "calcs": ["last"]}},
+         "targets": [{"expr": "process_open_fds{job=~\"realm-of-agents|weyland-agent|weyland-guard|weyland-operator\"}", "legendFormat": "{{job}}", "refId": "A"}]},
+        {"type": "timeseries", "title": "CPU usage (cores)", "datasource": {"type": "prometheus", "uid": "prometheus"},
+         "gridPos": {"h": 8, "w": 12, "x": 0, "y": 9},
+         "fieldConfig": {"defaults": {"unit": "short", "custom": {"drawStyle": "line", "fillOpacity": 10}}},
+         "options": {"legend": {"displayMode": "table", "placement": "right", "calcs": ["last", "max"]}},
+         "targets": [{"expr": "rate(process_cpu_seconds_total{job=~\"realm-of-agents|weyland-agent|weyland-guard|weyland-operator\"}[5m])", "legendFormat": "{{job}}", "refId": "A"}]},
+        {"type": "timeseries", "title": "Resident memory", "datasource": {"type": "prometheus", "uid": "prometheus"},
+         "gridPos": {"h": 8, "w": 12, "x": 12, "y": 9},
+         "fieldConfig": {"defaults": {"unit": "bytes"}},
+         "options": {"legend": {"displayMode": "table", "placement": "right", "calcs": ["last", "max"]}},
+         "targets": [{"expr": "process_resident_memory_bytes{job=~\"realm-of-agents|weyland-agent|weyland-guard|weyland-operator\"}", "legendFormat": "{{job}}", "refId": "A"}]},
+        {"type": "timeseries", "title": "GC objects collected (rate)", "datasource": {"type": "prometheus", "uid": "prometheus"},
+         "gridPos": {"h": 8, "w": 24, "x": 0, "y": 17},
+         "fieldConfig": {"defaults": {"unit": "short"}},
+         "options": {"legend": {"displayMode": "table", "placement": "right", "calcs": ["last"]}},
+         "targets": [{"expr": "sum by (job) (rate(python_gc_objects_collected_total{job=~\"realm-of-agents|weyland-agent|weyland-guard|weyland-operator\"}[5m]))", "legendFormat": "{{job}}", "refId": "A"}]}
+      ]
+    }

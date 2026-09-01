@@ -1,0 +1,75 @@
+# MinIO object-store dashboard — the homelab's primary S3 backend (lakeFS/Nessie data-mesh storage,
+# scan-reports, ML registry, restic backups). MinIO exports a rich /metrics on the API port; it is
+# scraped TWICE — job="minio" (in-cluster) and job="minio-s3-lan" (LAN alias) both hit the same pod,
+# so every query filters job=~"minio.*" to cover both scrapes and collapses the twin series with max()
+# (they are byte-identical) to avoid double-counting. Provisioned via the grafana_dashboard sidecar,
+# same pattern as vector-stores-grafana-dashboard.yaml.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: minio-grafana-dashboard
+  namespace: monitoring
+  labels:
+    grafana_dashboard: "1"
+data:
+  minio_grafana_dashboard.json: |-
+    {
+      "annotations": {"list": [{"builtIn": 1, "datasource": "-- Grafana --", "enable": true, "hide": true, "name": "Annotations & Alerts", "type": "dashboard"}]},
+      "editable": true,
+      "graphTooltip": 1,
+      "title": "MinIO",
+      "uid": "minio",
+      "tags": ["minio", "object-store", "observability"],
+      "timezone": "browser",
+      "time": {"from": "now-6h", "to": "now"},
+      "refresh": "1m",
+      "schemaVersion": 39,
+      "templating": {"list": []},
+      "panels": [
+        {"type": "row", "title": "Health & Capacity", "gridPos": {"h": 1, "w": 24, "x": 0, "y": 0}},
+        {"type": "stat", "title": "Scrape health (up)", "datasource": {"type": "prometheus", "uid": "prometheus"},
+         "gridPos": {"h": 8, "w": 6, "x": 0, "y": 1},
+         "fieldConfig": {"defaults": {"unit": "short", "mappings": [{"type": "value", "options": {"0": {"text": "DOWN", "color": "red"}, "1": {"text": "UP", "color": "green"}}}]}},
+         "options": {"colorMode": "background"},
+         "targets": [{"expr": "up{job=~\"minio.*\"}", "legendFormat": "{{job}}", "refId": "A"}]},
+        {"type": "stat", "title": "Buckets", "datasource": {"type": "prometheus", "uid": "prometheus"},
+         "gridPos": {"h": 8, "w": 6, "x": 6, "y": 1},
+         "fieldConfig": {"defaults": {"unit": "short"}},
+         "targets": [{"expr": "max(minio_cluster_bucket_total{job=~\"minio.*\"})", "legendFormat": "buckets", "refId": "A"}]},
+        {"type": "stat", "title": "Objects", "datasource": {"type": "prometheus", "uid": "prometheus"},
+         "gridPos": {"h": 8, "w": 6, "x": 12, "y": 1},
+         "fieldConfig": {"defaults": {"unit": "short"}},
+         "targets": [{"expr": "max(minio_cluster_usage_object_total{job=~\"minio.*\"})", "legendFormat": "objects", "refId": "A"}]},
+        {"type": "timeseries", "title": "Usable capacity (used vs free)", "datasource": {"type": "prometheus", "uid": "prometheus"},
+         "gridPos": {"h": 8, "w": 6, "x": 18, "y": 1},
+         "fieldConfig": {"defaults": {"unit": "bytes", "custom": {"drawStyle": "line", "fillOpacity": 20, "stacking": {"mode": "normal"}}}},
+         "options": {"legend": {"displayMode": "table", "placement": "bottom", "calcs": ["last"]}},
+         "targets": [
+           {"expr": "max(minio_cluster_capacity_usable_total_bytes{job=~\"minio.*\"}) - max(minio_cluster_capacity_usable_free_bytes{job=~\"minio.*\"})", "legendFormat": "used", "refId": "A"},
+           {"expr": "max(minio_cluster_capacity_usable_free_bytes{job=~\"minio.*\"})", "legendFormat": "free", "refId": "B"}]},
+
+        {"type": "row", "title": "Requests & Traffic", "gridPos": {"h": 1, "w": 24, "x": 0, "y": 9}},
+        {"type": "timeseries", "title": "S3 request rate by API", "datasource": {"type": "prometheus", "uid": "prometheus"},
+         "gridPos": {"h": 8, "w": 12, "x": 0, "y": 10},
+         "fieldConfig": {"defaults": {"unit": "reqps", "custom": {"drawStyle": "line", "fillOpacity": 10}}},
+         "options": {"legend": {"displayMode": "table", "placement": "right", "calcs": ["last", "max"]}},
+         "targets": [{"expr": "max by (api) (rate(minio_s3_requests_total{job=~\"minio.*\"}[5m]))", "legendFormat": "{{api}}", "refId": "A"}]},
+        {"type": "timeseries", "title": "S3 4xx error rate by API", "datasource": {"type": "prometheus", "uid": "prometheus"},
+         "gridPos": {"h": 8, "w": 12, "x": 12, "y": 10},
+         "fieldConfig": {"defaults": {"unit": "reqps", "custom": {"drawStyle": "line", "fillOpacity": 10}}},
+         "options": {"legend": {"displayMode": "table", "placement": "right", "calcs": ["last", "max"]}},
+         "targets": [{"expr": "max by (api) (rate(minio_s3_requests_4xx_errors_total{job=~\"minio.*\"}[5m]))", "legendFormat": "{{api}}", "refId": "A"}]},
+        {"type": "timeseries", "title": "S3 traffic (received / sent)", "datasource": {"type": "prometheus", "uid": "prometheus"},
+         "gridPos": {"h": 8, "w": 12, "x": 0, "y": 18},
+         "fieldConfig": {"defaults": {"unit": "Bps", "custom": {"drawStyle": "line", "fillOpacity": 10}}},
+         "options": {"legend": {"displayMode": "list", "placement": "bottom", "calcs": ["last"]}},
+         "targets": [
+           {"expr": "max(rate(minio_s3_traffic_received_bytes{job=~\"minio.*\"}[5m]))", "legendFormat": "received", "refId": "A"},
+           {"expr": "max(rate(minio_s3_traffic_sent_bytes{job=~\"minio.*\"}[5m]))", "legendFormat": "sent", "refId": "B"}]},
+        {"type": "timeseries", "title": "Node resident memory", "datasource": {"type": "prometheus", "uid": "prometheus"},
+         "gridPos": {"h": 8, "w": 12, "x": 12, "y": 18},
+         "fieldConfig": {"defaults": {"unit": "bytes", "custom": {"drawStyle": "line", "fillOpacity": 10}}},
+         "options": {"legend": {"displayMode": "list", "placement": "bottom", "calcs": ["last"]}},
+         "targets": [{"expr": "max(minio_node_process_resident_memory_bytes{job=~\"minio.*\"})", "legendFormat": "resident", "refId": "A"}]}
+      ]
+    }

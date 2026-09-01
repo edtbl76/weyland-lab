@@ -1,0 +1,265 @@
+#!/usr/bin/env bash
+# Dashboard coverage — every metric-emitting job has a Grafana dashboard, or a documented reason not.
+#
+# COMPANION TO check-servicemonitor-coverage.sh (B148). That guard proves a service is SCRAPED; this one
+# proves what is scraped is also VISUALIZED. The DoD (Pillar 6) says "no active service without a
+# dashboard", but only the ServiceMonitor half had a guard + cron — dashboards had a one-time audit
+# (B109) and nothing ongoing, so a new metrics-exposing service could ship with no board and every
+# affirmative check would still be green. Found 2026-09-01 auditing Grafana: minio / lakefs / flink /
+# apisix / pve-exporter and the agent services were all scraped-but-unvisualized (and so were loki /
+# tempo / alloy — which the manual audit had missed).
+#
+# COVERAGE MODEL — a UNION of two signals, because neither alone is right:
+#
+#   (1) job scope. A dashboard names the job: `job="<job>"` literal, or `job=~"<pattern>"` whose pattern
+#       matches it. This is the convention for our OWN service boards (and folds the `-lan` scrape-twins
+#       via `job=~"minio.*"`). It is what a `$job`-templated or instance-scoped board does NOT provide,
+#       which is why signal (2) exists.
+#
+#   (2) distinctive metric. A dashboard queries a metric that is DISTINCTIVE to the job — exported by at
+#       most DIST_THRESHOLD jobs. This catches every vendor/mixin board that scopes by a `$job` variable
+#       or an `instance` label instead of a literal `job=`: the CoreDNS board queries `coredns_*`, the
+#       Bifrost board `bifrost_*`, node-exporter `node_*`, and those metrics belong to one job (or a
+#       tight twin-set), so the coverage is REAL and verified rather than trusted. Metrics every process
+#       emits — `up`, `process_*`, `go_*`, `python_*`, `scrape_*` — are exported by dozens of jobs, sail
+#       past the threshold, and confer NO coverage, so a board that only charts `up` cannot vacuously
+#       cover the estate. A service whose ONLY metrics are those generic ones is covered by signal (1)
+#       alone (an explicit `job=` board), which is exactly why both signals are kept.
+#
+#   usage: scripts/check-dashboard-coverage.sh [--list]
+#          --list   print every job and its verdict (covered / accepted / GAP), exit 0
+#
+# INPUTS. By default reads live from Prometheus (scrape jobs + the metric→job map, API proxy) and the
+# dashboards from the grafana_dashboard ConfigMaps (kubectl). For testing point these at fixtures:
+#
+#   UP_JOBS_FILE      newline-delimited job names                            — skips the `up` query
+#   DASH_JSON_FILE    a `kubectl get cm -l grafana_dashboard=1 -o json` body — skips kubectl
+#   METRIC_JOBS_FILE  a JSON object {"<metric>": ["<job>", …], …}            — skips the metric→job query
+#   DIST_THRESHOLD    max jobs a metric may span to count as distinctive (default 5)
+#
+# EXIT CODES are distinct on purpose. 1 = the estate has a gap. 2 = the guard could not do its job.
+set -euo pipefail
+
+PROM_POD="${PROM_POD:-prometheus-monitoring-kube-prometheus-prometheus-0}"
+PROM_NS="${PROM_NS:-monitoring}"
+DIST_THRESHOLD="${DIST_THRESHOLD:-5}"
+
+# --- accepted, with the reason -------------------------------------------------------------------
+# One row per tolerated job: <job>|<why it needs no grafana_dashboard ConfigMap>. State the CONDITION so
+# a reader can re-check it. These are covered-ELSEWHERE, not covered-here.
+ACCEPTED=(
+  "ray-head|Ray ships its own provisioned Grafana dashboards (Data / Default / Serve / Serve Deployment, tagged rayVersion:*) through the KubeRay operator, NOT as grafana_dashboard ConfigMaps — so this guard cannot see them, but the coverage is real and out-of-band."
+  "ray-worker-rogueone|Same Ray-owned dashboards as ray-head."
+  "opencost|OpenCost has its own first-class cost UI; its metrics drive that view (and the LiteLLM cost board) rather than a dedicated Grafana dashboard."
+  "weyland-blackbox|Blackbox probe success/latency for the ~38 LAN endpoints is surfaced in Uptime Kuma — the lab's uptime surface — not Grafana."
+  "weyland-lan-dns|LAN DNS reachability is a blackbox-style probe surfaced in Uptime Kuma alongside weyland-blackbox."
+  "loki|Loki is a Grafana DATASOURCE, not a charted service: its health is the datasource-health check + the lgtm-self-monitoring PrometheusRule, and its data is browsed in Explore. No per-instance board by design."
+  "tempo|Tempo is a Grafana DATASOURCE (traces), same posture as loki — datasource health + lgtm-self-monitoring, browsed in Explore, no dedicated board."
+  "alloy|Grafana Alloy is the telemetry collector; its liveness is the up metric + the lgtm-self-monitoring alert, and its throughput shows up as the data landing in Loki/Tempo. No dedicated board (candidate for one if it ever misbehaves)."
+  "monitoring/envoy-stats-monitor|The Istio Service + Workload dashboards chart this scrape's distinctive metrics (istio_requests_total is exported ONLY by this job), but Istio provisions those boards OUTSIDE grafana_dashboard ConfigMaps, so this guard cannot see them — the coverage is real and out-of-band, same as Ray."
+  "monitoring-kube-prometheus-operator|kube-prometheus-stack's own Prometheus Operator — self-metrics (reconcile / workqueue / prometheus_operator_ready). No dedicated board ships or is warranted for the operator's internals; its scrape health shows on the Prometheus / Overview board."
+  "bifrost|FINDING, not a clean pass (2026-09-01): the bifrost-dashboard ConfigMap charts bifrost_upstream_* / bifrost_cost_* — metrics that DO NOT EXIST in this Prometheus, so the board is broken (all No-data) — while the scraped job=\"bifrost\" (the MCP gateway) exports http_* / bifrost_mcp_client_* that nothing charts. Accepted to unblock; the real fix is to repoint bifrost-dashboard at the metrics the MCP gateway actually emits. Surfaced for a decision, not silently tolerated."
+)
+
+is_accepted() { # is_accepted <job>
+  local row e_entry
+  for row in "${ACCEPTED[@]}"; do
+    IFS="|" read -r e_entry _ <<<"$row"
+    [ "$e_entry" = "$1" ] && return 0
+  done
+  return 1
+}
+
+# --- coverage --------------------------------------------------------------------------------------
+#
+# covered_jobs <up-file> <dash-file> <metric-jobs-json-file> <dist-threshold> -> the covered subset.
+#
+# ConfigMaps embed each dashboard as a JSON STRING under .data, so its panel exprs arrive with ESCAPED
+# quotes (`job=\"trino\"`). Parsing each .data value as JSON restores ordinary quotes so the regexes
+# match; a value that is not JSON falls back to unescape-then-match. `job=~` patterns are matched with
+# re.fullmatch (so `minio.*` covers `minio` and `minio-s3-lan`). A queried metric confers coverage on
+# every job that exports it ONLY when it is distinctive — exported by 1..threshold jobs.
+covered_jobs() {
+  python3 - "$1" "$2" "$3" "$4" <<'PY'
+import json, re, sys
+
+def strings(o):
+    if isinstance(o, str):
+        yield o
+    elif isinstance(o, dict):
+        for v in o.values():
+            yield from strings(v)
+    elif isinstance(o, list):
+        for v in o:
+            yield from strings(v)
+
+# PromQL functions/keywords/label-names that are NOT metric names — do not treat as queried metrics.
+KW = {
+    "sum", "avg", "min", "max", "count", "count_values", "stddev", "stdvar", "group", "topk", "bottomk",
+    "quantile", "rate", "irate", "increase", "delta", "idelta", "deriv", "predict_linear", "holt_winters",
+    "resets", "changes", "histogram_quantile", "label_replace", "label_join", "clamp", "clamp_min",
+    "clamp_max", "abs", "ceil", "floor", "round", "exp", "ln", "log2", "log10", "sqrt", "sgn", "time",
+    "timestamp", "vector", "scalar", "sort", "sort_desc", "absent", "absent_over_time", "by", "without",
+    "on", "ignoring", "group_left", "group_right", "offset", "bool", "and", "or", "unless", "le",
+    "job", "instance", "namespace", "pod", "container", "cluster", "service", "endpoint", "node",
+    "avg_over_time", "sum_over_time", "min_over_time", "max_over_time", "count_over_time",
+    "quantile_over_time", "stddev_over_time", "last_over_time", "present_over_time",
+}
+
+up = [l.strip() for l in open(sys.argv[1]) if l.strip()]
+doc = json.loads(open(sys.argv[2]).read())
+items = doc.get("items", doc if isinstance(doc, list) else [])
+try:
+    metric_jobs = json.loads(open(sys.argv[3]).read())
+except Exception:
+    metric_jobs = {}
+thresh = int(sys.argv[4])
+
+literals, patterns, queried = set(), [], set()
+
+def scan(text):
+    literals.update(re.findall(r'job=\s*"([^"]+)"', text))
+    patterns.extend(re.findall(r'job=~\s*"([^"]+)"', text))
+    # metric-name tokens: an identifier NOT immediately followed by '(' (that would be a function),
+    # carrying a '_' or ':' (metric names do; bare label values like `status`/`4xx` usually do not).
+    for m in re.findall(r'\b([a-zA-Z_:][a-zA-Z0-9_:]*)\b(?!\s*\()', text):
+        if m not in KW and ("_" in m or ":" in m):
+            queried.add(m)
+
+for cm in items:
+    for _, v in (cm.get("data") or {}).items():
+        if not isinstance(v, str):
+            continue
+        try:
+            dash = json.loads(v)
+        except Exception:
+            scan(v.replace('\\"', '"'))
+            continue
+        for s in strings(dash):
+            scan(s)
+
+metric_covered = set()
+for m in queried:
+    js = metric_jobs.get(m)
+    if js and 1 <= len(set(js)) <= thresh:
+        metric_covered.update(js)
+
+compiled = []
+for p in patterns:
+    try:
+        compiled.append(re.compile(p))
+    except re.error:
+        pass  # a malformed matcher covers nothing rather than crashing the guard
+
+for j in up:
+    if j in literals or j in metric_covered or any(rx.fullmatch(j) for rx in compiled):
+        print(j)
+PY
+}
+
+# --- inputs ----------------------------------------------------------------------------------------
+
+prom_query() { # prom_query <promql> -> raw /api/v1/query response body
+  local q
+  q="$(python3 -c "import urllib.parse,sys; print(urllib.parse.quote(sys.argv[1]))" "$1")" || return 1
+  kubectl get --raw \
+    "/api/v1/namespaces/$PROM_NS/pods/$PROM_POD:9090/proxy/api/v1/query?query=$q" 2>/dev/null
+}
+
+up_jobs() {
+  if [ -n "${UP_JOBS_FILE:-}" ]; then cat "$UP_JOBS_FILE"; return 0; fi
+  local raw
+  raw="$(prom_query 'count by (job) (up)')" \
+    || { echo "FATAL: could not reach Prometheus at $PROM_NS/$PROM_POD" >&2; return 1; }
+  printf '%s' "$raw" | python3 -c "
+import json, sys
+for s in json.load(sys.stdin).get('data', {}).get('result', []):
+    j = s.get('metric', {}).get('job')
+    if j: print(j)
+" || { echo "FATAL: 'up' query result did not parse" >&2; return 1; }
+}
+
+metric_jobs() {
+  if [ -n "${METRIC_JOBS_FILE:-}" ]; then cat "$METRIC_JOBS_FILE"; return 0; fi
+  local raw
+  raw="$(prom_query 'group by (__name__, job) ({job=~".+"})')" \
+    || { echo "FATAL: could not query Prometheus for the metric→job map" >&2; return 1; }
+  printf '%s' "$raw" | python3 -c "
+import json, sys
+mj = {}
+for s in json.load(sys.stdin).get('data', {}).get('result', []):
+    m = s['metric'].get('__name__'); j = s['metric'].get('job')
+    if m and j: mj.setdefault(m, []).append(j)
+print(json.dumps(mj))
+" || { echo "FATAL: metric→job result did not parse" >&2; return 1; }
+}
+
+dash_json() {
+  if [ -n "${DASH_JSON_FILE:-}" ]; then cat "$DASH_JSON_FILE"; return 0; fi
+  kubectl get configmap -A -l grafana_dashboard=1 -o json 2>/dev/null \
+    || { echo "FATAL: could not list grafana_dashboard ConfigMaps" >&2; return 1; }
+}
+
+main() {
+  local list_only=0
+  [ "${1-}" = "--list" ] && list_only=1
+  command -v python3 >/dev/null 2>&1 || { echo "❌ python3 not found on PATH" >&2; exit 2; }
+
+  local ups dash mj upfile dashfile mjfile coveredfile covered
+  ups="$(up_jobs)"      || exit 2
+  dash="$(dash_json)"   || exit 2
+  mj="$(metric_jobs)"   || exit 2
+
+  upfile="$(mktemp)"; dashfile="$(mktemp)"; mjfile="$(mktemp)"; coveredfile="$(mktemp)"
+  # shellcheck disable=SC2064
+  trap "rm -f '$upfile' '$dashfile' '$mjfile' '$coveredfile'" RETURN
+  # awk 'NF', not `grep -v '^$'`: grep exits 1 when it filters EVERY line away (an empty job list), and
+  # under `set -euo pipefail` that would abort one line before the zero-jobs check — turning the loudest
+  # failure this guard has into a bare exit 1. awk drops blanks and exits 0.
+  printf '%s\n' "$ups" | awk 'NF' | sort -u > "$upfile"
+  printf '%s'   "$dash" > "$dashfile"
+  printf '%s'   "$mj"   > "$mjfile"
+
+  local total; total="$(wc -l <"$upfile")"
+  if [ "$total" -eq 0 ]; then
+    echo "❌ ZERO scrape jobs found. 'Checked nothing, found nothing' is the exact shape of bug this" >&2
+    echo "   guard exists to catch; it must never be a clean pass." >&2
+    exit 2
+  fi
+
+  covered="$(covered_jobs "$upfile" "$dashfile" "$mjfile" "$DIST_THRESHOLD")" \
+    || { echo "❌ coverage computation failed" >&2; exit 2; }
+  printf '%s\n' "$covered" | awk 'NF' | sort -u > "$coveredfile"
+
+  local job gaps=0
+  while IFS= read -r job; do
+    [ -n "$job" ] || continue
+    if grep -qxF "$job" "$coveredfile"; then
+      [ "$list_only" -eq 1 ] && printf '  ok       %s\n' "$job"
+    elif is_accepted "$job"; then
+      [ "$list_only" -eq 1 ] && printf '  ACCEPTED %s (documented exception)\n' "$job"
+    else
+      printf '  ❌ GAP   %s — scraped, but no dashboard scopes a panel to it or charts a metric distinctive to it\n' "$job" >&2
+      gaps=$((gaps + 1))
+    fi
+  done <"$upfile"
+
+  if [ "$list_only" -eq 1 ]; then
+    echo "listed $total scrape job(s)."
+    return 0
+  fi
+
+  if [ "$gaps" -ne 0 ]; then
+    echo >&2
+    echo "❌ $gaps of $total scrape job(s) emit metrics with no Grafana dashboard." >&2
+    echo "   Add a dashboard that filters its panels by job=\"<job>\" (or charts a metric distinctive to" >&2
+    echo "   the service); or, if it is covered elsewhere (its own UI, Uptime Kuma, an out-of-band" >&2
+    echo "   board), document it in ACCEPTED with the reason." >&2
+    exit 1
+  fi
+  echo "OK — $total scrape job(s), every one has a dashboard or a documented exception."
+}
+
+if [ -z "${DASHBOARD_COVERAGE_LIB:-}" ]; then
+  main "$@"
+fi

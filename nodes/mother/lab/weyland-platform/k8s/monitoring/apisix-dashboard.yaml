@@ -1,0 +1,60 @@
+# APISIX Gateway dashboard — the weyland-apisix API gateway exposes the APISIX prometheus plugin's
+# default metric set (scraped as job="weyland-apisix"): request counter, nginx connection states,
+# nginx internal error counter, etcd control-plane reachability, and shared-dict capacity/free space.
+# This deployment does NOT enable per-route metrics, so apisix_http_status (status-code breakdown),
+# apisix_http_latency (latency histogram), and apisix_bandwidth are absent — the request panel is a
+# total rate rather than a by-status breakdown, and there is no latency/bandwidth panel. Provisioned
+# via the grafana_dashboard sidecar, same pattern as vector-stores-grafana-dashboard.yaml.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: apisix-grafana-dashboard
+  namespace: monitoring
+  labels:
+    grafana_dashboard: "1"
+data:
+  apisix_grafana_dashboard.json: |-
+    {
+      "annotations": {"list": [{"builtIn": 1, "datasource": "-- Grafana --", "enable": true, "hide": true, "name": "Annotations & Alerts", "type": "dashboard"}]},
+      "editable": true,
+      "graphTooltip": 1,
+      "title": "APISIX Gateway",
+      "uid": "apisix",
+      "tags": ["apisix", "gateway", "observability"],
+      "timezone": "browser",
+      "time": {"from": "now-6h", "to": "now"},
+      "refresh": "1m",
+      "schemaVersion": 39,
+      "templating": {"list": []},
+      "panels": [
+        {"type": "row", "title": "APISIX Gateway", "gridPos": {"h": 1, "w": 24, "x": 0, "y": 0}},
+        {"type": "stat", "title": "Scrape health (up)", "datasource": {"type": "prometheus", "uid": "prometheus"},
+         "gridPos": {"h": 8, "w": 4, "x": 0, "y": 1},
+         "fieldConfig": {"defaults": {"unit": "short", "mappings": [{"type": "value", "options": {"0": {"text": "DOWN", "color": "red"}, "1": {"text": "UP", "color": "green"}}}]}},
+         "options": {"colorMode": "background"},
+         "targets": [{"expr": "up{job=\"weyland-apisix\"}", "legendFormat": "{{pod}}", "refId": "A"}]},
+        {"type": "stat", "title": "etcd reachable", "datasource": {"type": "prometheus", "uid": "prometheus"},
+         "gridPos": {"h": 8, "w": 4, "x": 4, "y": 1},
+         "fieldConfig": {"defaults": {"unit": "short", "mappings": [{"type": "value", "options": {"0": {"text": "DOWN", "color": "red"}, "1": {"text": "OK", "color": "green"}}}]}},
+         "options": {"colorMode": "background"},
+         "targets": [{"expr": "apisix_etcd_reachable{job=\"weyland-apisix\"}", "legendFormat": "etcd", "refId": "A"}]},
+        {"type": "timeseries", "title": "Request rate", "datasource": {"type": "prometheus", "uid": "prometheus"},
+         "gridPos": {"h": 8, "w": 16, "x": 8, "y": 1},
+         "fieldConfig": {"defaults": {"unit": "reqps", "custom": {"drawStyle": "line", "fillOpacity": 10}}},
+         "targets": [{"expr": "sum(rate(apisix_http_requests_total{job=\"weyland-apisix\"}[5m]))", "legendFormat": "requests/s", "refId": "A"}]},
+        {"type": "timeseries", "title": "Nginx connections by state", "datasource": {"type": "prometheus", "uid": "prometheus"},
+         "gridPos": {"h": 8, "w": 12, "x": 0, "y": 9},
+         "fieldConfig": {"defaults": {"unit": "short", "custom": {"drawStyle": "line", "fillOpacity": 10}}},
+         "options": {"legend": {"displayMode": "table", "placement": "right", "calcs": ["last"]}},
+         "targets": [{"expr": "sum by (state) (apisix_nginx_http_current_connections{job=\"weyland-apisix\"})", "legendFormat": "{{state}}", "refId": "A"}]},
+        {"type": "timeseries", "title": "Nginx internal error rate", "datasource": {"type": "prometheus", "uid": "prometheus"},
+         "gridPos": {"h": 8, "w": 12, "x": 12, "y": 9},
+         "fieldConfig": {"defaults": {"unit": "ops", "custom": {"drawStyle": "line", "fillOpacity": 10}}},
+         "targets": [{"expr": "rate(apisix_nginx_metric_errors_total{job=\"weyland-apisix\"}[5m])", "legendFormat": "errors/s", "refId": "A"}]},
+        {"type": "timeseries", "title": "Shared dict utilization", "datasource": {"type": "prometheus", "uid": "prometheus"},
+         "gridPos": {"h": 8, "w": 24, "x": 0, "y": 17},
+         "fieldConfig": {"defaults": {"unit": "percentunit", "custom": {"drawStyle": "line", "fillOpacity": 10}}},
+         "options": {"legend": {"displayMode": "table", "placement": "right", "calcs": ["last"]}},
+         "targets": [{"expr": "1 - (sum by (name) (apisix_shared_dict_free_space_bytes{job=\"weyland-apisix\"}) / sum by (name) (apisix_shared_dict_capacity_bytes{job=\"weyland-apisix\"}))", "legendFormat": "{{name}}", "refId": "A"}]}
+      ]
+    }

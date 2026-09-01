@@ -1,0 +1,72 @@
+# Proxmox (PVE) host dashboard — the physical MS-A2 bare-metal Proxmox host (weyland) scraped via
+# pve-exporter (prometheus-pve-exporter) at :9221. The exporter emits one series set per Proxmox
+# object, keyed by the `id` label: `node/<name>` (the host), `qemu/<vmid>` and `lxc/<vmid>` (guests),
+# and `storage/<node>/<name>`. Guest CPU/memory panels join `pve_guest_info` on `id` to surface the
+# friendly guest name (mother, whisper). Provisioned via the grafana_dashboard sidecar, same pattern
+# as vector-stores-grafana-dashboard.yaml. Every panel query filters by job="pve-exporter".
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: pve-exporter-dashboard
+  namespace: monitoring
+  labels:
+    grafana_dashboard: "1"
+data:
+  pve-exporter_grafana_dashboard.json: |-
+    {
+      "annotations": {"list": [{"builtIn": 1, "datasource": "-- Grafana --", "enable": true, "hide": true, "name": "Annotations & Alerts", "type": "dashboard"}]},
+      "editable": true,
+      "graphTooltip": 1,
+      "title": "Proxmox (PVE)",
+      "uid": "pve-exporter",
+      "tags": ["proxmox", "pve", "host", "observability"],
+      "timezone": "browser",
+      "time": {"from": "now-6h", "to": "now"},
+      "refresh": "1m",
+      "schemaVersion": 39,
+      "templating": {"list": []},
+      "panels": [
+        {"type": "row", "title": "Node (weyland)", "gridPos": {"h": 1, "w": 24, "x": 0, "y": 0}},
+        {"type": "stat", "title": "Node up", "datasource": {"type": "prometheus", "uid": "prometheus"},
+         "gridPos": {"h": 8, "w": 4, "x": 0, "y": 1},
+         "fieldConfig": {"defaults": {"unit": "short", "mappings": [{"type": "value", "options": {"0": {"text": "DOWN", "color": "red"}, "1": {"text": "UP", "color": "green"}}}]}},
+         "options": {"colorMode": "background"},
+         "targets": [{"expr": "pve_up{job=\"pve-exporter\", id=~\"node/.*\"}", "legendFormat": "{{id}}", "refId": "A"}]},
+        {"type": "stat", "title": "Guests up", "datasource": {"type": "prometheus", "uid": "prometheus"},
+         "gridPos": {"h": 8, "w": 4, "x": 4, "y": 1},
+         "fieldConfig": {"defaults": {"unit": "short"}},
+         "targets": [{"expr": "sum(pve_up{job=\"pve-exporter\", id=~\"qemu/.*|lxc/.*\"})", "legendFormat": "running", "refId": "A"}]},
+        {"type": "stat", "title": "Uptime", "datasource": {"type": "prometheus", "uid": "prometheus"},
+         "gridPos": {"h": 8, "w": 16, "x": 8, "y": 1},
+         "fieldConfig": {"defaults": {"unit": "s"}},
+         "options": {"colorMode": "value"},
+         "targets": [{"expr": "pve_uptime_seconds{job=\"pve-exporter\"}", "legendFormat": "{{id}}", "refId": "A"}]},
+        {"type": "timeseries", "title": "Node CPU usage", "datasource": {"type": "prometheus", "uid": "prometheus"},
+         "gridPos": {"h": 8, "w": 12, "x": 0, "y": 9},
+         "fieldConfig": {"defaults": {"unit": "percentunit", "min": 0, "max": 1, "custom": {"drawStyle": "line", "fillOpacity": 10}}},
+         "targets": [{"expr": "pve_cpu_usage_ratio{job=\"pve-exporter\", id=~\"node/.*\"}", "legendFormat": "{{id}}", "refId": "A"}]},
+        {"type": "timeseries", "title": "Node memory usage", "datasource": {"type": "prometheus", "uid": "prometheus"},
+         "gridPos": {"h": 8, "w": 12, "x": 12, "y": 9},
+         "fieldConfig": {"defaults": {"unit": "percentunit", "min": 0, "max": 1, "custom": {"drawStyle": "line", "fillOpacity": 10}}},
+         "targets": [{"expr": "pve_memory_usage_bytes{job=\"pve-exporter\", id=~\"node/.*\"} / pve_memory_size_bytes{job=\"pve-exporter\", id=~\"node/.*\"}", "legendFormat": "{{id}}", "refId": "A"}]},
+
+        {"type": "row", "title": "Guests", "gridPos": {"h": 1, "w": 24, "x": 0, "y": 17}},
+        {"type": "timeseries", "title": "Guest CPU usage", "datasource": {"type": "prometheus", "uid": "prometheus"},
+         "gridPos": {"h": 8, "w": 12, "x": 0, "y": 18},
+         "fieldConfig": {"defaults": {"unit": "percentunit", "min": 0, "custom": {"drawStyle": "line", "fillOpacity": 10}}},
+         "options": {"legend": {"displayMode": "table", "placement": "right", "calcs": ["last"]}},
+         "targets": [{"expr": "pve_cpu_usage_ratio{job=\"pve-exporter\", id=~\"qemu/.*|lxc/.*\"} * on(id) group_left(name) pve_guest_info{job=\"pve-exporter\"}", "legendFormat": "{{name}}", "refId": "A"}]},
+        {"type": "timeseries", "title": "Guest memory usage", "datasource": {"type": "prometheus", "uid": "prometheus"},
+         "gridPos": {"h": 8, "w": 12, "x": 12, "y": 18},
+         "fieldConfig": {"defaults": {"unit": "bytes", "custom": {"drawStyle": "line", "fillOpacity": 10}}},
+         "options": {"legend": {"displayMode": "table", "placement": "right", "calcs": ["last"]}},
+         "targets": [{"expr": "pve_memory_usage_bytes{job=\"pve-exporter\", id=~\"qemu/.*|lxc/.*\"} * on(id) group_left(name) pve_guest_info{job=\"pve-exporter\"}", "legendFormat": "{{name}}", "refId": "A"}]},
+
+        {"type": "row", "title": "Storage", "gridPos": {"h": 1, "w": 24, "x": 0, "y": 26}},
+        {"type": "timeseries", "title": "Storage usage", "datasource": {"type": "prometheus", "uid": "prometheus"},
+         "gridPos": {"h": 8, "w": 24, "x": 0, "y": 27},
+         "fieldConfig": {"defaults": {"unit": "percentunit", "min": 0, "max": 1, "custom": {"drawStyle": "line", "fillOpacity": 10}}},
+         "options": {"legend": {"displayMode": "table", "placement": "right", "calcs": ["last"]}},
+         "targets": [{"expr": "pve_disk_usage_bytes{job=\"pve-exporter\", id=~\"storage/.*\"} / pve_disk_size_bytes{job=\"pve-exporter\", id=~\"storage/.*\"}", "legendFormat": "{{id}}", "refId": "A"}]}
+      ]
+    }

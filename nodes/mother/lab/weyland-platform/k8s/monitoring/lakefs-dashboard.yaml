@@ -1,0 +1,84 @@
+# lakeFS dashboard — observability for the data-versioning layer (data-mesh namespace). lakeFS exports
+# a Prometheus /metrics endpoint scraped under two jobs that hit the SAME pod: job="lakefs" and a
+# job="lakefs-lan" LAN duplicate. Every panel filters `job=~"lakefs.*"` to cover both (a coverage guard
+# greps for job=), and rate/gauge panels aggregate with avg by(...) so the two identical scrape series
+# collapse to one true value instead of double-counting; histogram_quantile is a ratio so the duplicate
+# buckets do not distort it. Provisioned via the grafana_dashboard sidecar, same pattern as
+# vector-stores-grafana-dashboard.yaml. lakeFS has no dedicated commit counter — commit/branch activity
+# surfaces indirectly through api_requests_total and the gateway post/put operations.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: lakefs-grafana-dashboard
+  namespace: monitoring
+  labels:
+    grafana_dashboard: "1"
+data:
+  lakefs_grafana_dashboard.json: |-
+    {
+      "annotations": {"list": [{"builtIn": 1, "datasource": "-- Grafana --", "enable": true, "hide": true, "name": "Annotations & Alerts", "type": "dashboard"}]},
+      "editable": true,
+      "graphTooltip": 1,
+      "title": "lakeFS",
+      "uid": "lakefs",
+      "tags": ["lakefs", "data-mesh", "observability"],
+      "timezone": "browser",
+      "time": {"from": "now-6h", "to": "now"},
+      "refresh": "1m",
+      "schemaVersion": 39,
+      "templating": {"list": []},
+      "panels": [
+        {"type": "row", "title": "Overview & API", "gridPos": {"h": 1, "w": 24, "x": 0, "y": 0}},
+        {"type": "stat", "title": "Scrape health (up)", "datasource": {"type": "prometheus", "uid": "prometheus"},
+         "gridPos": {"h": 7, "w": 6, "x": 0, "y": 1},
+         "fieldConfig": {"defaults": {"unit": "short", "mappings": [{"type": "value", "options": {"0": {"text": "DOWN", "color": "red"}, "1": {"text": "UP", "color": "green"}}}]}},
+         "options": {"colorMode": "background"},
+         "targets": [{"expr": "up{job=~\"lakefs.*\"}", "legendFormat": "{{job}}", "refId": "A"}]},
+        {"type": "timeseries", "title": "API request rate (method / code)", "datasource": {"type": "prometheus", "uid": "prometheus"},
+         "gridPos": {"h": 7, "w": 18, "x": 6, "y": 1},
+         "fieldConfig": {"defaults": {"unit": "reqps", "custom": {"drawStyle": "line", "fillOpacity": 10}}},
+         "options": {"legend": {"displayMode": "table", "placement": "right", "calcs": ["last", "max"]}},
+         "targets": [{"expr": "avg by (method, code) (rate(api_requests_total{job=~\"lakefs.*\"}[5m]))", "legendFormat": "{{method}} {{code}}", "refId": "A"}]},
+
+        {"type": "row", "title": "S3 Gateway & Blockstore", "gridPos": {"h": 1, "w": 24, "x": 0, "y": 8}},
+        {"type": "timeseries", "title": "S3 gateway request rate (by operation)", "datasource": {"type": "prometheus", "uid": "prometheus"},
+         "gridPos": {"h": 8, "w": 8, "x": 0, "y": 9},
+         "fieldConfig": {"defaults": {"unit": "reqps", "custom": {"drawStyle": "line", "fillOpacity": 10}}},
+         "options": {"legend": {"displayMode": "table", "placement": "bottom", "calcs": ["last"]}},
+         "targets": [{"expr": "avg by (operation) (rate(gateway_request_duration_seconds_count{job=~\"lakefs.*\"}[5m]))", "legendFormat": "{{operation}}", "refId": "A"}]},
+        {"type": "timeseries", "title": "S3 gateway p95 latency (by operation)", "datasource": {"type": "prometheus", "uid": "prometheus"},
+         "gridPos": {"h": 8, "w": 8, "x": 8, "y": 9},
+         "fieldConfig": {"defaults": {"unit": "s", "custom": {"drawStyle": "line", "fillOpacity": 0}}},
+         "options": {"legend": {"displayMode": "table", "placement": "bottom", "calcs": ["last", "max"]}},
+         "targets": [{"expr": "histogram_quantile(0.95, sum by (le, operation) (rate(gateway_request_duration_seconds_bucket{job=~\"lakefs.*\"}[5m])))", "legendFormat": "{{operation}}", "refId": "A"}]},
+        {"type": "timeseries", "title": "S3 gateway errors (4xx/5xx)", "datasource": {"type": "prometheus", "uid": "prometheus"},
+         "gridPos": {"h": 8, "w": 8, "x": 16, "y": 9},
+         "fieldConfig": {"defaults": {"unit": "reqps", "custom": {"drawStyle": "line", "fillOpacity": 20}}},
+         "options": {"legend": {"displayMode": "table", "placement": "bottom", "calcs": ["last", "max"]}},
+         "targets": [{"expr": "avg by (code, operation) (rate(gateway_request_duration_seconds_count{job=~\"lakefs.*\", code=~\"4..|5..\"}[5m]))", "legendFormat": "{{code}} {{operation}}", "refId": "A"}]},
+        {"type": "timeseries", "title": "Blockstore S3 throughput (by operation)", "datasource": {"type": "prometheus", "uid": "prometheus"},
+         "gridPos": {"h": 7, "w": 24, "x": 0, "y": 17},
+         "fieldConfig": {"defaults": {"unit": "Bps", "custom": {"drawStyle": "line", "fillOpacity": 10}}},
+         "options": {"legend": {"displayMode": "table", "placement": "right", "calcs": ["last", "max"]}},
+         "targets": [{"expr": "avg by (operation) (rate(s3_operation_size_bytes_sum{job=~\"lakefs.*\"}[5m]))", "legendFormat": "{{operation}}", "refId": "A"}]},
+
+        {"type": "row", "title": "Backend (KV / Postgres)", "gridPos": {"h": 1, "w": 24, "x": 0, "y": 24}},
+        {"type": "timeseries", "title": "KV store request & failure rate", "datasource": {"type": "prometheus", "uid": "prometheus"},
+         "gridPos": {"h": 8, "w": 12, "x": 0, "y": 25},
+         "fieldConfig": {"defaults": {"unit": "reqps", "custom": {"drawStyle": "line", "fillOpacity": 10}}},
+         "options": {"legend": {"displayMode": "table", "placement": "right", "calcs": ["last", "max"]}},
+         "targets": [
+           {"expr": "avg by (operation) (rate(kv_request_duration_seconds_count{job=~\"lakefs.*\"}[5m]))", "legendFormat": "{{operation}}", "refId": "A"},
+           {"expr": "avg by (operation) (rate(kv_request_failures_total{job=~\"lakefs.*\"}[5m]))", "legendFormat": "fail {{operation}}", "refId": "B"}
+         ]},
+        {"type": "timeseries", "title": "Postgres connection pool (kv)", "datasource": {"type": "prometheus", "uid": "prometheus"},
+         "gridPos": {"h": 8, "w": 12, "x": 12, "y": 25},
+         "fieldConfig": {"defaults": {"unit": "short", "custom": {"drawStyle": "line", "fillOpacity": 10}}},
+         "options": {"legend": {"displayMode": "table", "placement": "right", "calcs": ["last"]}},
+         "targets": [
+           {"expr": "avg by (db_name) (pgxpool_total_conns{job=~\"lakefs.*\"})", "legendFormat": "total {{db_name}}", "refId": "A"},
+           {"expr": "avg by (db_name) (pgxpool_acquired_conns{job=~\"lakefs.*\"})", "legendFormat": "acquired {{db_name}}", "refId": "B"},
+           {"expr": "avg by (db_name) (pgxpool_idle_conns{job=~\"lakefs.*\"})", "legendFormat": "idle {{db_name}}", "refId": "C"}
+         ]}
+      ]
+    }
