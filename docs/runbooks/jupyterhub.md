@@ -84,8 +84,12 @@ browser ──► jupyter.weyland.lab (Traefik ingress + weyland-wildcard-tls)
   `singleuser.networkPolicy.egressAllowRules.privateIPs: true` (the cloud-metadata block stays).
 - **Custom image = `ctr import` + `pullPolicy: Never`.** Single-node k3s → build on mother, `docker save | ctr -n
   k8s.io images import -`, reference `weyland-jupyter:local`. If a spawn shows `ErrImageNeverPull`, the import didn't land.
-- **The PVC hides baked notebooks.** The user PVC mounts at `/home/jovyan`, hiding anything baked there. Bake examples
-  at `/opt/examples` + a `lifecycleHooks.postStart` `cp -n /opt/examples/*.ipynb /home/jovyan/` (no-clobber).
+- **The PVC hides baked notebooks → git-sync on spawn (B81).** The user PVC mounts at `/home/jovyan`, hiding anything
+  baked there. The `lifecycleHooks.postStart` populates `~/notebooks` on every spawn: first `cp -rn /opt/examples/.`
+  (the baked copy, no-clobber → offline fallback), then a shallow **sparse `git clone`** of `singleuser/notebooks/`
+  from the public repo, `cp -rf` over the top (library == `main`). git is in the scipy base, so growing the library is
+  a `git push`, **not an image rebuild**. Reachable because the singleuser NetworkPolicy allows public egress
+  (`0.0.0.0/0` except the private ranges + cloud-metadata) — GitHub is public, the mesh is the re-allowed private ranges.
 - **Editing a live notebook fights `kubectl cp`.** An OPEN notebook autosaves its in-memory copy back over a `kubectl
   cp`. Sequence: **close the tab (File → Close and Shutdown) → cp → reopen**. (Moot once the image bakes the notebook;
   B81's git-sync makes library updates a non-event.)
@@ -95,10 +99,19 @@ browser ──► jupyter.weyland.lab (Traefik ingress + weyland-wildcard-tls)
 
 ---
 
-## 4. The seed notebook + the library
+## 4. The notebook library (B81)
 
-`k8s/jupyterhub/singleuser/datasets_lake.ipynb` (18 cells) reads the **music** dataset's silver in all 4 lakeFS
-formats (Parquet/Arrow/Avro/Lance), then does polars analysis (genre landscape, audio-feature correlations, extremes)
-+ DuckDB SQL (incl. a window function) + matplotlib. Env `LAKEFS_ENDPOINT` / `LAKEFS_ACCESS_KEY_ID` /
-`LAKEFS_SECRET_ACCESS_KEY` is injected. Growing this into a **full-stack, per-format library** (git-synced) is
-**B81** — see the backlog. See [[cube-semantic-layer-b1.7]], [runbooks/cube.md](cube.md).
+Notebooks live in `k8s/jupyterhub/singleuser/notebooks/` (git-synced into `~/notebooks` — see §3) with a
+`README.md` index. Each must **run end-to-end** — that IS the test (DoD); the per-format set is self-contained,
+the stack-layer set runs against the live mesh. Validate by `jupyter nbconvert --to notebook --execute`.
+
+- **`datasets_lake.ipynb`** (seed) — reads the **music** silver in all 4 lakeFS formats, then polars analysis + DuckDB
+  SQL + matplotlib. Env `LAKEFS_ENDPOINT` / `LAKEFS_ACCESS_KEY_ID` / `LAKEFS_SECRET_ACCESS_KEY` is injected.
+- **Per-format deep dives (shipped 2026-09-01, all self-contained, headless-execute clean):** `01_format_parquet`
+  (row groups, encodings, compression, projection + pushdown) · `02_format_arrow_ipc` (zero-copy interop, IPC file vs
+  stream, mmap) · `03_format_avro` (schema evolution, codecs) · `04_format_lance` (versioning/time-travel, random
+  access, real IVF_PQ vector index + ANN).
+- **Stack-layer waves (next):** storage/query/vector/transform/ML/RAG/governance/streaming — one per layer, against
+  live services, incl. the folded-in Weaviate notebook (U16). See `docs/backlog.md` → B81 (EMA-71).
+
+See [[cube-semantic-layer-b1.7]], [runbooks/cube.md](cube.md).

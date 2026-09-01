@@ -79,8 +79,29 @@ singleuser:
   lifecycleHooks:
     postStart:
       exec:
-        # drop the seed notebook into the user's home on spawn (the PVC hides anything baked at /home/jovyan)
-        command: ["sh", "-c", "cp -n /opt/examples/*.ipynb /home/jovyan/ 2>/dev/null || true"]
+        # NOTEBOOK LIBRARY (B81) — populate ~/notebooks on every spawn. The 2Gi home PVC hides anything baked at
+        # /home/jovyan, so we sync here: first the image's baked copy (no-clobber → an offline spawn still has
+        # notebooks), then the LATEST from the public repo. git is in the scipy base, so growing the library is a
+        # `git push`, NOT an image rebuild. The sync OVERWRITES the library (it == git); do scratch work elsewhere
+        # in home, which the PVC persists. A failed clone (offline) degrades to the baked fallback, never blank.
+        command:
+          - sh
+          - -c
+          - |
+            set -e
+            DEST=/home/jovyan/notebooks; mkdir -p "$DEST"
+            cp -rn /opt/examples/. "$DEST"/ 2>/dev/null || true
+            REPO=https://github.com/edtbl76/weyland-lab
+            SUB=nodes/mother/lab/weyland-platform/k8s/jupyterhub/singleuser/notebooks
+            if cd /tmp && rm -rf nbsync \
+               && git clone --depth 1 --filter=blob:none --sparse "$REPO" nbsync >/dev/null 2>&1 \
+               && ( cd nbsync && git sparse-checkout set "$SUB" >/dev/null 2>&1 ) \
+               && cp -rf "/tmp/nbsync/$SUB/." "$DEST"/ ; then
+              echo "notebook library git-synced into $DEST"
+            else
+              echo "notebook git-sync skipped (offline?) — using baked fallback in $DEST" >&2
+            fi
+            rm -rf /tmp/nbsync 2>/dev/null || true
   networkPolicy:
     # Z2JH's default singleuser NetworkPolicy BLOCKS egress to private cluster IPs (a security default). But the
     # whole point here is notebooks querying the data mesh (lakeFS / Trino / Cube), which are private ClusterIPs —
