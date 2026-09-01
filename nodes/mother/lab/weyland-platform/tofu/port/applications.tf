@@ -35,10 +35,18 @@
 # indistinguishable from the noise, exactly like a permanently-lit alert.
 #
 # ── WHERE COMPONENT ENTITIES COME FROM NOW ────────────────────────────────────────────────────────
-# `applications.yaml` remains the ONE canonical registry, read by `datahub_emit.py` for the DataHub
-# Applications lens and pushed to Port through the same path. Port and DataHub still cannot disagree,
-# because they still read the same file. What changed is only that OpenTofu no longer holds a competing
-# copy of that data in its state.
+# `applications.yaml` remains the ONE canonical registry. `datahub_emit.py::emit_applications` reads it
+# and creates DataHub Application entities — but ONLY for rows with `datahub_application: true` (the ~30
+# data-apps), and it writes to DataHub GMS ONLY. It does NOT touch Port.
+#
+# Port `component` entities are DATA created/updated out-of-band via the Port API/MCP when a component is
+# added — there is NO code that auto-syncs the file into Port, and NO guard that reconciles the registry
+# against live Port (`scripts/check-app-registry.sh` only reconciles Argo apps ↔ the registry, git-side).
+# So a newly-registered `datahub_application: false` component can be committed, pass every git-side check,
+# and still never reach the Port catalog. That is exactly what happened to `lancedb-exporter` (B78) and
+# `port-k8s-exporter` (B145): both sat in the registry, absent from Port, until a manual API upsert on
+# 2026-08-31 backfilled them (66/66 reconciled). If this keeps recurring, the fix is a reconciliation
+# step (a Dagster op or a CI check that upserts registry→Port), NOT re-adding entity-as-code below.
 #
 # ── DO NOT RE-ADD ENTITY RESOURCES HERE ───────────────────────────────────────────────────────────
 # If a future change makes entity-as-code look attractive again, read this comment first. It was tried,

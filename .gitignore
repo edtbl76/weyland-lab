@@ -204,3 +204,8 @@ tests/lang/**/__pycache__/
 **/coverage.out
 **/.gradle/
 **/*.tmp
+
+# ship-images.sh / CI image pipeline: detect-changes.sh writes this build plan and build-images.sh
+# reads it — a per-run scratch handoff (target tag baked in), regenerated every ship. Normally consumed
+# within a CI run; a local ship that halts at a gate can leave it in the repo root. Never commit it.
+.ci-build-plan
