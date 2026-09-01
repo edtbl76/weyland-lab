@@ -156,6 +156,13 @@ def emit_applications_op(context):
 
 
 @op
+def emit_port_components_op(context):
+    from weyland_pipeline.datahub_emit import emit_port_components
+    _safe_emit(context, "Port components (registry → Port, closes B137 registry↔Port drift)",
+               emit_port_components)
+
+
+@op
 def emit_eval_assertions_op(context):
     from weyland_pipeline.datahub_emit import emit_eval_assertions
     _safe_emit(context, "Eval leaderboard contract (assertions)", emit_eval_assertions)
@@ -339,6 +346,7 @@ def datahub_catalog_emit_job():
     emit_domains_op()
     emit_data_products_op()
     emit_applications_op()
+    emit_port_components_op()   # B78 follow-up — reconcile registry → Port components (both surfaces, one file)
     emit_eval_assertions_op()
     emit_asset_check_assertions_op()
     emit_data_contracts_op()   # B80 — AFTER asset-check assertions so the per-dataset query picks them up

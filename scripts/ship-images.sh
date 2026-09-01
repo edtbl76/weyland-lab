@@ -33,7 +33,8 @@ SHIP_POLL_TIMEOUT="${SHIP_POLL_TIMEOUT:-1800}"    # 30m — a cold user-code bui
 # The SAME detector CI runs, so the local answer and the pipeline's cannot disagree. Overridable for
 # the test suite only.
 SHIP_DETECT="${SHIP_DETECT:-$(dirname "${BASH_SOURCE[0]}")/ci/detect-changes.sh}"
-SHIP_ROLLOUT_TIMEOUT="${SHIP_ROLLOUT_TIMEOUT:-300}" # 5m — Argo polls every ~3m
+# SHIP_ROLLOUT_TIMEOUT is read inside all_bumped_images_live (default 600s — Argo self-heal polls ~3m
+# and the roll follows), not defaulted here: a global assignment would shadow the function's own default.
 
 # Credentials live in the gitignored scripts/.env (lab convention). Overridable for the test suite.
 SHIP_ENV_FILE="${SHIP_ENV_FILE:-$REPO_ROOT/scripts/.env}"
@@ -271,39 +272,71 @@ bumped_image() {
 all_bumped_images_live() {
   local tag="${1:?usage: all_bumped_images_live <tag> <diff-file>}"
   local diff_file="${2:?usage: all_bumped_images_live <tag> <diff-file>}"
-  local img tags stale="" checked=0
   [ -f "$diff_file" ] || { printf '  cannot read the bumped-image list (%s)\n' "$diff_file" >&2; return 1; }
-  while read -r img; do
-    [ -n "$img" ] || continue
-    tags="$(deployed_tags_for "$img")"
-    checked=$((checked + 1))
-    # EVERY tag seen for this image must be the target — not merely "the target appears somewhere".
-    # A mid-rollout image legitimately shows two tags, and that is not shipped yet.
-    if [ -z "$tags" ]; then
-      # An image with NO steady-state workload reads `absent` here forever — deployed_tags_for finds
-      # neither a running pod nor a CronJob template for it. scan-suite is covered by its CronJob;
-      # weyland-flink-py is not: it is a BOUNDED application-mode FlinkDeployment
-      # (k8s/data-mesh/flink-pyflink.yaml) that runs the lastfm replay to completion and is then
-      # DELETED by design ("no steady-state cost"), so at rest it has no pod AND no template. This
-      # halted a real ship on 2026-08-30 at `weyland-flink-py(absent)` after pipeline #55 had already
-      # built+signed+pushed it and the bump merged. For a no-steady-state image the honest proof the
-      # ship landed is that the NEW TAG EXISTS in the registry (FR1.3 pushed it this run) plus the
-      # merged bump that put it in bumped_images — asserted positively, never a bare skip. A push that
-      # never landed leaves the registry without the tag and still fails closed below.
-      if is_ondemand_image "$img" && registry_has_tag "$img" "$tag"; then
-        printf '  %s: on-demand (deleted at rest) — verified present in registry on %s, not pod-checked\n' "$img" "$tag" >&2
-      else
-        stale="${stale} ${img}(absent)"
+
+  # Retry the TRANSIENT case only — the same transient/permanent split smoke_ok uses, for the same
+  # class of bug on the same ship (git-cc3a2918, 2026-08-31). Every Argo app runs selfHeal:true, so the
+  # `argocd app sync` this script fires usually CONFLICTS with a concurrent Argo operation and returns
+  # non-clean WITHOUT starting the roll — Argo's own ~3m poll drives it instead. The FR1.5 wait clock
+  # started at sync time and only covered the roll (300s), so it could expire before the roll even began,
+  # and the gate aborted on `feast-server(git-6df37f41,git-cc3a2918)` — a mid-rollout the deploy finished
+  # moments later. So an image showing the WRONG or EXTRA tags (a running old pod alongside the new one)
+  # or a non-on-demand image momentarily ABSENT (a Recreate gap between old-terminated and new-Ready) is
+  # TRANSIENT: retry to a timeout that covers self-heal latency + roll, then fail named. PERMANENT — an
+  # on-demand image the registry does not carry (the push never landed) — fails NOW: waiting cannot make
+  # a missing tag appear. The gate itself now does the waiting, so there is no separate pre-gate loop.
+  local timeout="${SHIP_ROLLOUT_TIMEOUT:-600}" interval="${SHIP_POLL_INTERVAL-10}" waited=0
+  local img tags checked transient permanent ondemand_ok
+  while : ; do
+    checked=0; transient=""; permanent=""; ondemand_ok=""
+    while read -r img; do
+      [ -n "$img" ] || continue
+      tags="$(deployed_tags_for "$img")"
+      checked=$((checked + 1))
+      # EVERY tag seen for this image must be the target — not merely "the target appears somewhere".
+      if [ -z "$tags" ]; then
+        # No running pod AND no CronJob template. weyland-flink-py is a BOUNDED application-mode
+        # FlinkDeployment (k8s/data-mesh/flink-pyflink.yaml) that runs the lastfm replay to completion
+        # and is then DELETED by design ("no steady-state cost"), so at rest it has neither — the honest
+        # proof it shipped is the NEW TAG EXISTING in the registry (FR1.3 pushed it this run). Anything
+        # else absent is a Recreate gap mid-roll: transient until the window closes, then failed closed.
+        if is_ondemand_image "$img"; then
+          if registry_has_tag "$img" "$tag"; then
+            ondemand_ok="${ondemand_ok} ${img}"
+          else
+            permanent="${permanent} ${img}(absent — on-demand, missing from registry on ${tag})"
+          fi
+        else
+          transient="${transient} ${img}(absent)"
+        fi
+      elif [ "$tags" != "$tag" ]; then
+        # A mid-rollout legitimately shows two tags (old pod not yet terminated); that is not shipped yet.
+        transient="${transient} ${img}($(printf '%s' "$tags" | tr '\n' ',' | sed 's/,$//'))"
       fi
-    elif [ "$tags" != "$tag" ]; then
-      stale="${stale} ${img}($(printf '%s' "$tags" | tr '\n' ',' | sed 's/,$//'))"
+    done <<<"$(bumped_images "$diff_file")"
+    # Verifying NOTHING is not verifying successfully.
+    [ "$checked" -gt 0 ] || { printf '  no bumped images found to verify — refusing to call that shipped\n' >&2; return 1; }
+    # PERMANENT — waiting cannot fix a push that never reached the registry. Fail now, named.
+    if [ -n "$permanent" ]; then
+      printf '  not shipped on %s (permanent):%s\n' "$tag" "$permanent" >&2
+      return 1
     fi
-  done <<<"$(bumped_images "$diff_file")"
-  # Verifying NOTHING is not verifying successfully.
-  [ "$checked" -gt 0 ] || { printf '  no bumped images found to verify — refusing to call that shipped\n' >&2; return 1; }
-  [ -z "$stale" ] && return 0
-  printf '  not yet on %s:%s\n' "$tag" "$stale" >&2
-  return 1
+    if [ -z "$transient" ]; then
+      for img in $ondemand_ok; do
+        printf '  %s: on-demand (deleted at rest) — verified present in registry on %s, not pod-checked\n' "$img" "$tag" >&2
+      done
+      return 0
+    fi
+    # TRANSIENT — a rolling workload settles shortly. Retry until the window closes, then fail named.
+    if [ "$waited" -ge "$timeout" ]; then
+      printf '  not yet on %s after %ss:%s\n' "$tag" "$timeout" "$transient" >&2
+      return 1
+    fi
+    [ "$interval" != "0" ] && sleep "$interval"
+    waited=$((waited + interval))
+    [ "$interval" = "0" ] && waited=$((waited + 1))   # make progress even at interval 0 (tests)
+    continue
+  done
 }
 
 # One row per (workload, container): namespace, name, image, probe|NOPROBE, desired, available.
@@ -1148,23 +1181,16 @@ main() {
   fi
   # FR1.5 — the only assertion that proves anything shipped.
   #
-  # THE WAIT MUST POLL THE SAME PREDICATE THE GATE ASSERTS. It used to wait on `live_carries_tag`,
-  # which is satisfied as soon as ANY pod anywhere carries the tag — so it stopped waiting the instant
-  # the FIRST new pod appeared, then handed a still-rolling cluster to a gate that requires EVERY
-  # bumped image to be on the tag. A wait that is weaker than its gate does not wait for the thing
-  # being gated; it just sleeps a bit.
-  #
-  # This mismatch was always there and was masked by FR1.5's old `head -n1`, which was loose in the
-  # same direction. Tightening the gate (2026-08-24) made it visible on run #29:
-  #   `not yet on git-8c120f9d: feast-server(git-2c73c898,git-afb1fb5d) weyland-dagster-user-code(...)`
-  # — a genuine mid-rollout, aborted as a failure.
-  local waited=0 interval="${SHIP_POLL_INTERVAL-10}"
-  while ! all_bumped_images_live "$newtag" "$diff_file" >/dev/null 2>&1; do
-    [ "$waited" -ge "$SHIP_ROLLOUT_TIMEOUT" ] && break
-    [ "$interval" != "0" ] && sleep "$interval"
-    waited=$((waited + interval))
-    [ "$interval" = "0" ] && break
-  done
+  # THE WAIT IS THE GATE. all_bumped_images_live now polls internally to SHIP_ROLLOUT_TIMEOUT (default
+  # 600s), retrying only the transient mid-rollout states and failing fast on the permanent ones — so
+  # the thing that waits and the thing that asserts are the same code, and cannot disagree in strength.
+  # A separate pre-gate loop used to do the waiting on `live_carries_tag` ("some pod somewhere has the
+  # tag"), a predicate WEAKER than the gate: it stopped the instant the first new pod appeared and
+  # handed a still-rolling cluster to a gate that requires EVERY bumped image on the tag (run #29,
+  # 2026-08-24). Its successor polled the right predicate but with a 300s clock that started at
+  # `argocd app sync` time — before selfHeal even began the roll — and aborted git-cc3a2918's ship on
+  # `feast-server(git-6df37f41,git-cc3a2918)`, a mid-rollout the deploy finished seconds later. Folding
+  # the wait into the predicate (and sizing it to self-heal latency + roll) removes both failure modes.
   gate FR1.5 "every image this run bumped is live on ${newtag}" \
     all_bumped_images_live "$newtag" "$diff_file" || abort
 

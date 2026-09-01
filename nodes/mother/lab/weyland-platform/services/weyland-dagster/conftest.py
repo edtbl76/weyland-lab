@@ -43,3 +43,9 @@ def parquet_read():
     return load_isolated(
         "weyland_pipeline/assets/datasets_lib/parquet_read.py", "parquet_read"
     )
+
+
+@pytest.fixture
+def port_components():
+    """The dagster-free ``port_components`` module, loaded in isolation (stdlib-only at module scope)."""
+    return load_isolated("weyland_pipeline/port_components.py", "port_components")

@@ -39,14 +39,18 @@
 # and creates DataHub Application entities — but ONLY for rows with `datahub_application: true` (the ~30
 # data-apps), and it writes to DataHub GMS ONLY. It does NOT touch Port.
 #
-# Port `component` entities are DATA created/updated out-of-band via the Port API/MCP when a component is
-# added — there is NO code that auto-syncs the file into Port, and NO guard that reconciles the registry
-# against live Port (`scripts/check-app-registry.sh` only reconciles Argo apps ↔ the registry, git-side).
-# So a newly-registered `datahub_application: false` component can be committed, pass every git-side check,
-# and still never reach the Port catalog. That is exactly what happened to `lancedb-exporter` (B78) and
-# `port-k8s-exporter` (B145): both sat in the registry, absent from Port, until a manual API upsert on
-# 2026-08-31 backfilled them (66/66 reconciled). If this keeps recurring, the fix is a reconciliation
-# step (a Dagster op or a CI check that upserts registry→Port), NOT re-adding entity-as-code below.
+# Port `component` entities are DATA, and `datahub_emit.py::emit_port_components` (the `port_components`
+# module, wired into `datahub_catalog_emit_job` right after `emit_applications_op`) upserts EVERY registry
+# entry to Port as a `component` on each catalog emit — idempotent, `upsert=true&merge=true` so it never
+# clobbers the DataHub-link enrichment the data-apps carry. THAT is the reconciler that keeps the file and
+# Port in step; this .tf stays resource-free.
+#
+# It exists because for a window there was NO such path: `emit_applications` writes to DataHub only and
+# only for `datahub_application: true` rows, B137 removed the OpenTofu `port_entity`, and
+# `scripts/check-app-registry.sh` only reconciles Argo apps ↔ the registry (git-side) — so a
+# `datahub_application: false` component could be committed, pass every git check, and never reach Port.
+# That stranded `lancedb-exporter` (B78) and `port-k8s-exporter` (B145) until a manual API upsert on
+# 2026-08-31 (66/66); `emit_port_components` was added the same day so it cannot recur silently.
 #
 # ── DO NOT RE-ADD ENTITY RESOURCES HERE ───────────────────────────────────────────────────────────
 # If a future change makes entity-as-code look attractive again, read this comment first. It was tried,

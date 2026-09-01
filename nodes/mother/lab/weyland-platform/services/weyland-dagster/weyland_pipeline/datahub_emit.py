@@ -1018,6 +1018,21 @@ def emit_applications():
     return len(dh_apps), sum(counts.values())
 
 
+def emit_port_components():
+    """B78 follow-up — upsert EVERY applications.yaml entry to Port as a `component` entity (idempotent).
+
+    emit_applications (above) writes only to DataHub and only for `datahub_application: true` rows, and
+    B137 removed the OpenTofu `port_entity` that used to create Port components — so a pure-compute
+    component could be registered, pass every git check, and never reach Port. That stranded
+    `lancedb-exporter` (B78) and `port-k8s-exporter` (B145). This closes the gap from the SAME registry,
+    making the `tofu/port/applications.tf` "one file, both surfaces" claim true. Returns (n, n_missing).
+    A Port hiccup raises to _safe_emit, which WARNS and continues (catalog bookkeeping never aborts the
+    job). Mapping + drift logic live in the dagster-free, unit-tested `port_components` module."""
+    from weyland_pipeline.port_components import reconcile
+    n, missing = reconcile(_load_app_registry(), log=lambda m: print("PORT COMPONENTS:", m))
+    return n, len(missing)
+
+
 def emit_eval_assertions():
     """B84 P1 — a validity + freshness CONTRACT for the Model-Eval Leaderboard data product. Queries the eval
     Postgres for the latest status='scored' run, checks it, and emits native DataHub Assertions (+ pass/fail run

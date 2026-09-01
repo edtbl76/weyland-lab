@@ -395,6 +395,7 @@ stub_git_pushed() {
   # and the command still said "shipped — git-36c4d3e0 is live". A verification gate that passes on a
   # partial rollout is the exact false-confidence failure this whole effort exists to remove.
   SHIP_IMAGES_LIB=1 source "$SHIP"
+  export SHIP_ROLLOUT_TIMEOUT=0 SHIP_POLL_INTERVAL=0   # a stale tag is transient now; timeout=0 fails fast
   stub_dispatch kubectl
   stub_case kubectl 'get' 0 'registry.weyland.lab/scan-suite:git-9a4996c6
 registry.weyland.lab/weyland-flink:git-2c73c898'
@@ -405,11 +406,40 @@ registry.weyland.lab/weyland-flink:git-2c73c898'
 
 @test "FR1.5 passes only when every bumped image carries the tag" {
   SHIP_IMAGES_LIB=1 source "$SHIP"
+  export SHIP_ROLLOUT_TIMEOUT=0 SHIP_POLL_INTERVAL=0
   stub_dispatch kubectl
   stub_case kubectl 'get' 0 'registry.weyland.lab/scan-suite:git-9a4996c6
 registry.weyland.lab/weyland-flink:git-9a4996c6'
   run all_bumped_images_live 'git-9a4996c6' "$FIXTURES/tags-only.diff"
   [ "$status" -eq 0 ]
+}
+
+@test "FR1.5 retries a mid-rollout image showing two tags and passes once it settles" {
+  # THE FIX (2026-08-31, git-cc3a2918 ship): the FR1.5 wait clock started at `argocd app sync` time,
+  # but with selfHeal:true on every app the manual sync usually conflicts with a concurrent Argo
+  # operation and returns non-clean WITHOUT triggering the roll — Argo's own poll (~3m) drives it. So
+  # a 300s wait could expire before the roll even began, and FR1.5 aborted on
+  # `feast-server(git-6df37f41,git-cc3a2918)` — a genuine mid-rollout the deploy would have finished
+  # seconds later. A running old pod alongside the new one is TRANSIENT (Recreate/RollingUpdate keeps
+  # the old pod until the new is Ready): retry to a timeout that covers self-heal latency + roll, then
+  # fail named. Symmetric with smoke_ok's transient/permanent split for the same class, same ship.
+  #
+  # deployed_tags_for is overridden (not a kubectl stub) because the answer must CHANGE between calls:
+  # weyland-flink shows old+new on the first observation, new-only after — exactly the rollout settling.
+  SHIP_IMAGES_LIB=1 source "$SHIP"
+  export SHIP_ROLLOUT_TIMEOUT=10 SHIP_POLL_INTERVAL=1
+  export DTF_CTR="$BATS_TEST_TMPDIR/dtf"; echo 0 > "$DTF_CTR"
+  deployed_tags_for() {
+    case "$1" in
+      scan-suite) echo 'git-9a4996c6' ;;
+      weyland-flink)
+        local n; n="$(cat "$DTF_CTR")"; echo $((n + 1)) > "$DTF_CTR"
+        if [ "$n" -eq 0 ]; then printf 'git-2c73c898\ngit-9a4996c6\n'; else echo 'git-9a4996c6'; fi ;;
+    esac
+  }
+  run all_bumped_images_live 'git-9a4996c6' "$FIXTURES/tags-only.diff"
+  [ "$status" -eq 0 ]
+  [[ "$output" != *"not yet on"* ]]
 }
 
 @test "NFR4 affected_apps distinguishes the 12 loose apps that share one path" {
@@ -466,6 +496,7 @@ registry.weyland.lab/weyland-flink:git-9a4996c6'
   # The control for the two tests above. Without it, a fix that simply stopped looking at anything
   # would pass them both while verifying nothing — which is the failure mode this gate exists for.
   SHIP_IMAGES_LIB=1 source "$SHIP"
+  export SHIP_ROLLOUT_TIMEOUT=0 SHIP_POLL_INTERVAL=0   # a stale tag is transient now; timeout=0 fails fast
   stub_dispatch kubectl
   stub_case kubectl 'status.phase=Running' 0 'registry.weyland.lab/scan-suite:git-2c73c898
 registry.weyland.lab/weyland-flink:git-2c73c898'
