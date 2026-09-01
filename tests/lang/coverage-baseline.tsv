@@ -9,4 +9,4 @@ nextjs:tests/lang/nextjs	100
 java:tests/lang/java	100.0
 java:nodes/mother/lab/weyland-platform/k8s/flink/health-job	33.0
 java:nodes/mother/lab/weyland-platform/k8s/flink/sql-runner	33.3
-python:nodes/mother/lab/weyland-platform/services/weyland-dagster	3
+python:nodes/mother/lab/weyland-platform/services/weyland-dagster	4
