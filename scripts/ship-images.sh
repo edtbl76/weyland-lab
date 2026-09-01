@@ -29,7 +29,12 @@ BASE="main"
 
 # Waits. Overridable so the test suite can drive the poll loops with no wall-clock cost
 # (SHIP_POLL_INTERVAL=0), which is also why they are read with `${VAR-default}` and not `:-`.
-SHIP_POLL_TIMEOUT="${SHIP_POLL_TIMEOUT:-1800}"    # 30m — a cold user-code build is slow
+SHIP_POLL_TIMEOUT="${SHIP_POLL_TIMEOUT:-3600}"    # 60m — one `build` step builds BOTH images off the
+# shared services/weyland-dagster context (weyland-dagster-user-code AND feast-server, different
+# Dockerfiles), so a COLD run is two sequential builds + cache export + kubeconform/deploy-handoff/
+# notify-port. On 2026-09-01 that pair took >30m and the old 1800s poll timed out on a pipeline that was
+# still legitimately building feast-server — FR1.3 failed closed on a build that then succeeded. The poll
+# exits the instant the pipeline is terminal, so a longer ceiling only costs time on a genuinely hung run.
 # The SAME detector CI runs, so the local answer and the pipeline's cannot disagree. Overridable for
 # the test suite only.
 SHIP_DETECT="${SHIP_DETECT:-$(dirname "${BASH_SOURCE[0]}")/ci/detect-changes.sh}"

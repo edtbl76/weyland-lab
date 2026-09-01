@@ -5,7 +5,7 @@
 # Input: $BUMPS = "image<TAB>newtag<TAB>manifests"  (from build-images.sh)
 set -eu
 
-PLATFORM="nodes/mother/lab/weyland-platform"
+PLATFORM="${PLATFORM:-nodes/mother/lab/weyland-platform}"   # overridable so the test can bump a scratch manifest
 BUMPS="${BUMPS:-.ci-image-bumps}"
 REG="registry.weyland.lab"
 REPO="edtbl76/weyland-lab"
@@ -18,6 +18,7 @@ NEWTAG="$(awk 'NR==1{print $2}' "$BUMPS")"          # all bumps in a run share t
 SHA="${NEWTAG#git-}"
 BRANCH="ci/image-bump-${SHA}"
 IMAGES=""
+CHANGED=""   # ONLY the manifests we bumped — the exact, and only, paths this commit may carry
 
 # rewrite each tracked manifest's image tag to the new one
 while IFS="$(printf '\t')" read -r image newtag manifests; do
@@ -27,6 +28,7 @@ while IFS="$(printf '\t')" read -r image newtag manifests; do
     f="${PLATFORM}/${m}"
     [ -f "$f" ] || { echo "[handoff] WARN missing manifest ${f} — skipping"; continue; }
     sed -i -E "s#(${REG}/${image}):[A-Za-z0-9._-]+#\1:${newtag}#g" "$f"
+    CHANGED="${CHANGED} ${f}"
     echo "[handoff] ${m} → ${image}:${newtag}"
   done
 done < "$BUMPS"
@@ -34,7 +36,14 @@ done < "$BUMPS"
 git config user.email "ci@weyland.lab"
 git config user.name  "weyland-ci"
 git checkout -b "$BRANCH"
-git commit -am "ci: bump${IMAGES} to ${NEWTAG}"
+# Stage ONLY the manifests we bumped — NEVER `git commit -a`. `-a` sweeps in every OTHER dirty tracked
+# file the pipeline left behind (the coverage ratchet's baseline row, a regenerated `.coverage` data
+# file, …), which makes the bump PR non-tags-only and aborts ship-images.sh at FR2.1. Found 2026-09-01:
+# a bump that had added python tests carried `.coverage` + a coverage-baseline bump into PR #61 and the
+# ship stopped at FR2.1. Scoping the add to exactly what we changed fixes the whole class at the root.
+# shellcheck disable=SC2086 # CHANGED is a space-joined list of repo paths (no spaces) — intentional split
+[ -n "$CHANGED" ] && git add -- $CHANGED
+git commit -m "ci: bump${IMAGES} to ${NEWTAG}"
 
 # push the branch (token in the URL, never logged)
 #

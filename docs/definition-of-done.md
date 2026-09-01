@@ -9,7 +9,10 @@ capability is **NOT done** until ALL eight pillars hold. "Ran once" ≠ done.
 > keep High/Medium/Low roughly equal), 2026-08-05 (B82 — one source of truth for a cross-surface taxonomy), and
 > 2026-08-06 (B47 — the security / code-quality scan as a standing per-batch gate, Pillar 7), and 2026-08-23
 > (B135 — **Pillar 8, cascading changes**: the DoD graded the thing built but never what it implied, so a new
-> dataset could ship uncatalogued and a new timer undocumented without a single check going red).
+> dataset could ship uncatalogued and a new timer undocumented without a single check going red), and
+> 2026-09-01 (**Pillar 5 — full-tracker reconciliation on every DoD run**, not just the unit in hand: the
+> Linear ↔ backlog sync is a standing sweep the gate drives to clean each time, because grading only the
+> current item let drift accumulate on every other one).
 > Applies retroactively and going forward.
 
 ## 1. Documentation sweep (every batch)
@@ -75,6 +78,15 @@ capability is **NOT done** until ALL eight pillars hold. "Ran once" ≠ done.
 - **backlog.md** — flip the item to DONE with a substantial summary (backlog = ordered source; Linear = status).
 - **Memory** — capture any durable, non-obvious lesson.
 - **VERIFY IT — `bash scripts/check-linear-sync.sh`. Do not hand-tick this pillar.**
+- **Every DoD run reconciles the WHOLE tracker, not just the unit in hand (2026-09-01).**
+  `check-linear-sync.sh` is a full backlog ↔ Linear sweep, so run it and drive it to **clean (exit 0)** on
+  *every* DoD invocation — then **fix every drift it names, whichever item it belongs to**, before Pillar 5
+  can go green. Grading only the item being closed is exactly what let the tracker drift: an item closed in
+  code but never flipped, or flipped in one document and not the other, stays invisible from inside the
+  checklist for the *current* unit (that is how B143 sat open two days and B148's own row was fabricated).
+  The backlog is the ordered source of truth; Linear is status; wherever they disagree, **this step makes
+  them agree now** rather than deferring it. A sweep that still reports drift = Pillar 5 is **not** done,
+  even if the unit in hand is perfectly tracked.
 
 > ### Why this pillar has a checker now (added 2026-08-26, B148)
 >

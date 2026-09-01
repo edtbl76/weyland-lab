@@ -137,3 +137,26 @@ teardown() {
   called_with git 'push'
   [[ "$output" == *"pull/40"* ]]
 }
+
+@test "FR2.1 the bump commit stages ONLY the manifests it changed — never git commit -a" {
+  # 2026-09-01: the step committed with `git commit -am`, which sweeps EVERY dirty tracked file. A bump
+  # whose pipeline had just run the python lane carried `.coverage` (a tracked, regenerated binary) and a
+  # coverage-baseline bump into PR #61 alongside the tag lines — non-tags-only — and ship-images.sh
+  # aborted at FR2.1. The fix stages exactly the bumped manifests, so anything else the pipeline dirtied
+  # stays out of the commit. Asserted on the git invocations: the manifest is `add`ed, and the commit
+  # carries NO `-a`.
+  export PLATFORM="$WORK"
+  mkdir -p "$WORK/k8s"
+  printf 'spec:\n  image: registry.weyland.lab/scan-suite:git-old\n' >"$WORK/k8s/x.yaml"
+  printf 'scan-suite\tgit-9a4996c6\tk8s/x.yaml\n' >"$WORK/bumps"
+  stub_dispatch curl
+  stub_case curl '-X POST' 0 '{"html_url":"https://github.com/edtbl76/weyland-lab/pull/41"}
+201'
+  run bash "$SCRIPT"
+  [ "$status" -eq 0 ]
+  called_with git 'add'                         # the manifest is staged explicitly
+  called_with git "$WORK/k8s/x.yaml"            # and it is THIS manifest
+  not_called_with git 'commit -am'              # the sweep-all form is gone
+  not_called_with git 'commit -a '              # …in any spelling
+  called_with git 'commit -m'                   # committed, just scoped
+}
