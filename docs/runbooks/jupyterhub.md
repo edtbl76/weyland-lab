@@ -121,7 +121,16 @@ the stack-layer set runs against the live mesh. Validate by `jupyter nbconvert -
   the cluster service addresses in the notebook. Gotcha: Nessie **vends** the S3 endpoint+creds per table (overrides the
   client `s3.endpoint`), and versions at the catalog-commit level — a single live Iceberg snapshot per table — so
   snapshot-id time-travel fails; time-travel is done by Nessie commit hash + `StaticTable` instead.
-- **Stack-layer waves (next):** query/vector/transform/ML/RAG/governance/streaming — one per layer, against live
-  services, incl. the folded-in Weaviate notebook (U16). See `docs/backlog.md` → B81 (EMA-71).
+- **Query & federation (started 2026-09-01, validated live, headless-execute clean):** `20_query_trino_federation`
+  (Trino federated SQL — catalog/schema discovery, a real cross-catalog join `iceberg.eval.eval_scores` ⋈
+  `postgresql.public.eval_results` in one query, predicate + column pushdown via `EXPLAIN`; read-only, env-driven
+  `TRINO_HOST`/`TRINO_PORT`/`TRINO_USER` defaulting to the in-cluster coordinator, `%pip install trino` since the
+  client isn't baked). **Catalog reality:** only `iceberg` (Nessie/Iceberg lakehouse) + `postgresql` (operational
+  eval/operator DB) + `system` are wired as Trino catalogs — the Tier-2 stores are NOT Trino connectors, they get
+  native clients in `22`. Trino here is UNMESHED (single `trino` container, no istio sidecar), so the singleuser pod
+  reaches it over plain HTTP via the privateIPs NetworkPolicy — no mTLS wall. `21` (DuckDB/GizmoSQL) + `22` (Tier-2
+  native) still to come.
+- **Stack-layer waves (next):** query cont. (`21`/`22`) then vector/transform/ML/RAG/governance/streaming — one per
+  layer, against live services, incl. the folded-in Weaviate notebook (U16). See `docs/backlog.md` → B81 (EMA-71).
 
 See [[cube-semantic-layer-b1.7]], [runbooks/cube.md](cube.md).

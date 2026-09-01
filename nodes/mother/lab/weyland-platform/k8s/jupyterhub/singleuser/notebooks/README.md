@@ -34,11 +34,21 @@ Both run against the **live** mesh. `10` versions *objects* (whole-lake, format-
 `11` versions *tables* (Iceberg snapshots, catalogued by Nessie) — they stack, and each
 notebook explains where it sits relative to the other.
 
+### Stack layers — query & federation
+| Notebook | Layer | Focus |
+|---|---|---|
+| `20_query_trino_federation.ipynb` | **Trino** (federated SQL) | catalog/schema discovery; a real cross-catalog join — lakehouse eval scores (`iceberg.eval`) ⋈ operational eval results (`postgresql.public`) in one query; predicate + column pushdown via `EXPLAIN`. Read-only |
+
+Only three Trino catalogs are wired here — **`iceberg`** (Nessie/Iceberg lakehouse on MinIO), **`postgresql`**
+(the operational eval/operator DB), and **`system`**. The Tier-2 stores (ClickHouse/Cassandra/Mongo/Cockroach/
+Timescale/MySQL) are **not** Trino connectors — they're queried by their **native clients** in `22` (below), not
+through Trino. `21`/`22` land next in this wave.
+
 ### Stack layers — *coming next* (B81 waves 3+)
-query/federation (Trino, DuckDB/GizmoSQL, per Tier-2 store) · vector/graph (Qdrant, **Weaviate** [U16],
-Lance similarity, Neo4j) · transform/semantic (dbt, MetricFlow, Cube) · feature/ML (Feast, Ray → MLflow)
-· AI/RAG (LlamaIndex, eval, LiteLLM/Ollama) · governance/quality (DataHub, Soda, Ranger) · streaming
-(Redpanda, Debezium CDC).
+query/federation cont. (`21` DuckDB/GizmoSQL edge querying · `22` per Tier-2 store via native client) ·
+vector/graph (Qdrant, **Weaviate** [U16], Lance similarity, Neo4j) · transform/semantic (dbt, MetricFlow, Cube)
+· feature/ML (Feast, Ray → MLflow) · AI/RAG (LlamaIndex, eval, LiteLLM/Ollama) · governance/quality (DataHub,
+Soda, Ranger) · streaming (Redpanda, Debezium CDC).
 
 Full scope: `docs/backlog.md` → B81 (Linear EMA-71). Each notebook must **run end-to-end** — that is the
 test (DoD): the per-format set is self-contained; the stack-layer set runs against the live mesh.
