@@ -86,6 +86,16 @@ singleuser:
     ICEBERG_S3_SECRET_KEY:
       valueFrom:
         secretKeyRef: { name: iceberg-s3-creds, key: secret_key }
+    # GizmoSQL (served DuckDB over Arrow Flight SQL) creds (B81 query notebook 21, served-DuckDB half).
+    # Mirrors data-mesh `gizmosql-secret` (GIZMOSQL_USERNAME/PASSWORD) into a jupyterhub SealedSecret
+    # `gizmosql-creds`; the notebook defaults GIZMOSQL_URI to the in-cluster Flight SQL address, so only
+    # the creds need injecting. The embedded-DuckDB half of nb 21 needs no creds beyond LAKEFS_* above.
+    GIZMOSQL_USERNAME:
+      valueFrom:
+        secretKeyRef: { name: gizmosql-creds, key: GIZMOSQL_USERNAME }
+    GIZMOSQL_PASSWORD:
+      valueFrom:
+        secretKeyRef: { name: gizmosql-creds, key: GIZMOSQL_PASSWORD }
   lifecycleHooks:
     postStart:
       exec:

@@ -128,9 +128,17 @@ the stack-layer set runs against the live mesh. Validate by `jupyter nbconvert -
   client isn't baked). **Catalog reality:** only `iceberg` (Nessie/Iceberg lakehouse) + `postgresql` (operational
   eval/operator DB) + `system` are wired as Trino catalogs — the Tier-2 stores are NOT Trino connectors, they get
   native clients in `22`. Trino here is UNMESHED (single `trino` container, no istio sidecar), so the singleuser pod
-  reaches it over plain HTTP via the privateIPs NetworkPolicy — no mTLS wall. `21` (DuckDB/GizmoSQL) + `22` (Tier-2
-  native) still to come.
-- **Stack-layer waves (next):** query cont. (`21`/`22`) then vector/transform/ML/RAG/governance/streaming — one per
+  reaches it over plain HTTP via the privateIPs NetworkPolicy — no mTLS wall. `22` (Tier-2 native) still to come.
+- **`21_query_duckdb_gizmosql` (2026-09-01, validated live, headless-execute clean):** DuckDB two ways —
+  **embedded** (in the kernel, httpfs over the lakeFS S3 gateway, window fns + projection pushdown, and true
+  zero-copy Arrow interop proven by identical buffer address across polars/arrow/duckdb) using the EXISTING
+  `lakefs-creds`; and **served** via GizmoSQL (Arrow Flight SQL, ADBC client `%pip install adbc-driver-flightsql`)
+  over the persisted silver base tables (`datasets_music`/`datasets_health`, USDA relational JOINs). Read-only.
+  GizmoSQL reachable from rogueone at the NodePort `192.168.1.243:31337` (DataGrip path); in-cluster default
+  `grpc+tcp://gizmosql.data-mesh.svc:31337`, plaintext (Istio mTLS covers the hop). **Served half needs creds:**
+  the singleuser pod gets `GIZMOSQL_USERNAME`/`GIZMOSQL_PASSWORD` from SealedSecret `jupyterhub/gizmosql-creds`
+  (mirrors data-mesh `gizmosql-secret`); the embedded half needs no creds beyond `LAKEFS_*`.
+- **Stack-layer waves (next):** query cont. (`22`) then vector/transform/ML/RAG/governance/streaming — one per
   layer, against live services, incl. the folded-in Weaviate notebook (U16). See `docs/backlog.md` → B81 (EMA-71).
 
 See [[cube-semantic-layer-b1.7]], [runbooks/cube.md](cube.md).

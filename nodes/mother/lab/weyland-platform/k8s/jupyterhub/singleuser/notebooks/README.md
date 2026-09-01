@@ -38,14 +38,16 @@ notebook explains where it sits relative to the other.
 | Notebook | Layer | Focus |
 |---|---|---|
 | `20_query_trino_federation.ipynb` | **Trino** (federated SQL) | catalog/schema discovery; a real cross-catalog join — lakehouse eval scores (`iceberg.eval`) ⋈ operational eval results (`postgresql.public`) in one query; predicate + column pushdown via `EXPLAIN`. Read-only |
+| `21_query_duckdb_gizmosql.ipynb` | **DuckDB** two ways | **embedded** DuckDB over lakeFS Parquet (httpfs, window fns, projection pushdown) + true zero-copy Arrow interop (polars↔arrow↔duckdb, identical buffer address); **served** via GizmoSQL Arrow Flight SQL (ADBC) over the persisted silver base tables (USDA relational JOINs). Read-only |
 
 Only three Trino catalogs are wired here — **`iceberg`** (Nessie/Iceberg lakehouse on MinIO), **`postgresql`**
 (the operational eval/operator DB), and **`system`**. The Tier-2 stores (ClickHouse/Cassandra/Mongo/Cockroach/
 Timescale/MySQL) are **not** Trino connectors — they're queried by their **native clients** in `22` (below), not
-through Trino. `21`/`22` land next in this wave.
+through Trino. Trino is the distributed-federation half of the query layer; DuckDB/GizmoSQL (`21`) is the
+single-node OLAP half. `22` lands next in this wave.
 
 ### Stack layers — *coming next* (B81 waves 3+)
-query/federation cont. (`21` DuckDB/GizmoSQL edge querying · `22` per Tier-2 store via native client) ·
+query/federation cont. (`22` per Tier-2 store via native client) ·
 vector/graph (Qdrant, **Weaviate** [U16], Lance similarity, Neo4j) · transform/semantic (dbt, MetricFlow, Cube)
 · feature/ML (Feast, Ray → MLflow) · AI/RAG (LlamaIndex, eval, LiteLLM/Ollama) · governance/quality (DataHub,
 Soda, Ranger) · streaming (Redpanda, Debezium CDC).

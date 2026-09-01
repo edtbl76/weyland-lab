@@ -1,0 +1,17 @@
+---
+apiVersion: bitnami.com/v1alpha1
+kind: SealedSecret
+metadata:
+  name: gizmosql-creds
+  namespace: jupyterhub
+spec:
+  encryptedData:
+    GIZMOSQL_PASSWORD: AgCI4Nvw5M1wJ3J1MloSoX6yNjwR1XxQD8A2IsQWnO5JWsRTR9Lzz2iodY/n+UWI4ryzJwkuHSCq0wxWCYjMIrCrC+0WY/XPecLwYzL7NyPCP10EivVydtkXEUDDQGgfYWbXHawac8BR+nvsIMu+OWYos3besqWQ64lH7TRk1Eoi9kRCmjZ4dtYRT5r0kl3eXG64wubE+PJl+C8kI6TUAvVg5FYgA6ECVndw+BM/kOMq963U+yiU97QzBCtrKOL8obFLTU31Ank9Rp0eiLGLr05kEis6rnM9GFkMlMsmf/Fyy0u8cin1rA1vnezuJCh8U4F/cVl3HfodUn8JoTXJMnmt18WVN4664lzyhlX0yf2T1scbaSifqGjZA9iNCpfxfMpjQf7rUWjmj9D/YpuVEGN/EzpkeYIbJ2OzOqBusRpt0ds5L6yFK0TeTUN1Lvddoq/BbxxJThoMRKzAkpq0IRs3gAwGgFsdXRTISWazeImGKcCzdaWNeRxs3sfU5te4T6JQxr4a/kqiuA2WP9P5kOXIlu0/H9BwCp6Szm1GNP1wD4Xh/WtCqsGnIc6YooyI10GsmW3G/hI6ttxR4tWyCmjKR10Onz6T3uqB4ofUNCFiOBxTGjnPF4kqZbN+RpKHI6/YHFkwlo3NJkHNZjryJjk7+MiLBzAsM2FdFPrkhEZS7Wdou4Hv14FYR8KRy7sD68HlXrCSwtEZFds6sI1F+7EugWVy1Q==
+    GIZMOSQL_USERNAME: AgA3wxDkm6JiEQr+V65jO5+1ACqq6/nWxlmx6SakBRpKa4lKO9nNoXZlAWlIqGNVDoiSvzLLqC0D7csUqnnB2M0NTKU/t91EZJxhoYiH8dD3BrK48hRhB42S5lupb6un2dkcQQLWhR0+n68Jy7Yzfu8GClAT5EtrfNnCnxu7qiGApUXHEufJ1QHJHDDKlzccEhEkEezGTKPraX+IL11yN/ya89WAqQ6tEErSndSOU+uOXlvugvqV8TStaxnJ6BTaBpIfyPLAJrqZcRl1NTghD1FR+AjPptxFo2OhqB8IW9cMQJi6xS/n9UCbjvCejwp2IRZNbUoFtLPG5gAzFqiav62F/0ESjHzXYDUHr2Yhhy4soIFIM6l0O0/c+zi2NM8ds5dfpO4rAYZtI7yUYRuzr/3mRvbuWyuKv60VVF4hlCYM6HRDpWLubpJPuTJ7qOJmXra4HeqD+4HUyAP6DfXlQV4AdLukMLFmwmQfazkdTDuEe/Tt9YIfBXDWgpj6BXs4ZvdlHhWAhC1Hm6AEc+br2C3b1EYBiDDBwPxcm3StFBXepa4ZTqy+wykmMm5BHuusGLqwpk/9zoSsBGC92AEu4zlPQL9n999K0wAx0acj6t9XzW5fCDKePgtRGfSsaMH1ZXMqtOBApXSD9x+6qw7R+LEK9U67rr1JYsgrV/zWgSCaz5L3XGMpalw39DLSZ9H+9V/nJ3cB2yXO
+  template:
+    metadata:
+      annotations:
+        sealedsecrets.bitnami.com/managed: "true"
+      name: gizmosql-creds
+      namespace: jupyterhub
+    type: Opaque
