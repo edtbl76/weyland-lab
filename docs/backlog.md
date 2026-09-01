@@ -1912,6 +1912,24 @@ Each entry carries the registry's full field set (`id`, `category`, `languages`,
 
 ---
 
+### B153 — Golden paths per supported language — MEDIUM (2026-09-01)
+
+A blessed, paved-road starting point for each language the platform supports (Python / Java / Go / Rust / TypeScript). A new service should scaffold from a template that already wires in the conventions the estate enforces — project layout, the B88 test-execution + scan lanes, coverage-ratchet entry, Dockerfile + buildkit build, `.woodpecker.yml` steps, OTel/logging hooks, and a ServiceMonitor stub — rather than being hand-assembled and later audited into compliance. The goal is that "start a new Go service" is one command that lands in a state the DoD would already pass, not a checklist a human re-derives each time. Relates to **B88** (the per-language lanes these paths would consume) and pairs naturally with **B154** (onboarding) — golden paths are the per-language half of the same paved-road theme.
+
+---
+
+### B154 — Self-service onboarding for applications / repos — MEDIUM (2026-09-01)
+
+One repeatable path that wires a new application or repo into the WHOLE estate in a single pass, instead of each surface being onboarded once by hand against whatever set was current that day. Covers: the canonical registry (`applications.yaml`), Port component + DataHub entity (now that `emit_port_components` reconciles registry→Port, this is the create half), the CI/CD lanes (build / test / scan), the operational surfaces the DoD's new-service rule names (ServiceMonitor + Grafana dashboard + alert + Kuma + backup), and docs. Turns the DoD §6 onboarding checklist into a paved road with a guard. Directly related to **B138** (repo coverage parity — the AUDIT half; this is the ONBOARD half that stops the drift at the source) and **B82** (application taxonomy — the registry this builds on). The `startme-curator` / repo-coverage question that surfaced this is exactly the gap it closes.
+
+---
+
+### B155 — API lifecycle management — MEDIUM (2026-09-01)
+
+Govern the estate's APIs across their whole lifecycle — design → publish/catalog → version → deprecate → retire — with an authoritative catalog and the governance around it (ownership, versioning policy, deprecation signalling, consumer/producer visibility, breaking-change detection). Supersedes and reframes **B12** (*API catalog / endpoint registry*, **CANCELED** — Linear EMA-136), which was a static registry only; the lifecycle framing is what B12 was missing. The estate already has the seams (MCP servers, the tool-server, Dagster↔stores, operator↔gateways, Port/DataHub emitters, the platform's own HTTP APIs) — this decides how their contracts are cataloged, versioned, and retired, and ties into **B152**'s contract-test question (a contract test is the enforcement arm of a lifecycle policy).
+
+---
+
 ### B152 — Audit CI/CD test categories: AOP, contract, and architecture (ArchUnit-style) tests — HIGH (2026-08-31, Linear EMA-209)
 
 B88 built the per-language **test-execution** and **scanner** lanes, but only for the usual unit/integration/scan shapes. This item audits the CI/CD pipeline (`run-lang-tests.sh`, `run-lang-scan.sh`, `.woodpecker.yml`) for whole CATEGORIES of testing that are absent, decides which apply to the lab's stack (Python/Java/Go/Rust/TS), and closes the gaps for the ones that do:
