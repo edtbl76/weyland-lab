@@ -1,7 +1,13 @@
-# B111 — Grafana dashboard for Bifrost (agent edge + provider egress). ConfigMap in `monitoring` ns with the
+# B111 — Grafana dashboard for Bifrost (the MCP / tool gateway). ConfigMap in `monitoring` ns with the
 # `grafana_dashboard` label → the kube-prometheus-stack Grafana sidecar auto-imports it (Dashboards → Bifrost Gateway).
-# Metrics come from k8s/bifrost/servicemonitor.yaml (scrapes /metrics on the bifrost svc). Everything is sliced by
-# provider / model / routing_rule_name (the wl-* aliases) — so this doubles as the per-route COST view feeding B112.
+# Metrics come from k8s/bifrost/servicemonitor.yaml (scrapes /metrics on the bifrost svc, job="bifrost").
+#
+# This board charts what the service ACTUALLY exports: HTTP request/latency (the REST + /mcp edge), the
+# MCP client operation histogram (bifrost_mcp_client_operation_duration_seconds_*), and Go/process health.
+# The earlier LLM-egress panels (bifrost_cost_total, bifrost_upstream_requests_total, bifrost_*_tokens_total,
+# bifrost_provider_key_up, …) charted an intended provider-gateway role that this deployment never wired up —
+# none of those series exist in Prometheus, so every panel read "No data". Every query below is filtered by
+# job="bifrost" and was validated to return data against live Prometheus before commit.
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -14,76 +20,81 @@ data:
     {
       "title": "Bifrost Gateway",
       "uid": "bifrost-b111",
+      "description": "Bifrost MCP / tool gateway — HTTP edge, MCP client operations, and process health (job=bifrost). The provider-egress/cost role is not wired up in this deployment; those metrics do not exist.",
       "schemaVersion": 39,
       "editable": true,
-      "tags": ["bifrost", "llm", "b111"],
+      "graphTooltip": 1,
+      "tags": ["bifrost", "mcp", "gateway", "b111"],
       "time": { "from": "now-6h", "to": "now" },
       "refresh": "30s",
       "templating": { "list": [
         { "name": "datasource", "type": "datasource", "query": "prometheus", "current": {}, "hide": 0 }
       ] },
       "panels": [
-        { "id": 1, "title": "Cost (range)", "type": "stat", "gridPos": {"h":4,"w":6,"x":0,"y":0},
+        { "id": 1, "title": "Scrape up", "type": "stat", "gridPos": {"h":4,"w":5,"x":0,"y":0},
           "datasource": {"type":"prometheus","uid":"${datasource}"},
-          "targets": [{"expr":"sum(increase(bifrost_cost_total[$__range]))","refId":"A"}],
-          "fieldConfig": {"defaults":{"unit":"currencyUSD","decimals":4}} },
-        { "id": 2, "title": "Requests / s", "type": "stat", "gridPos": {"h":4,"w":6,"x":6,"y":0},
+          "targets": [{"expr":"up{job=\"bifrost\"}","refId":"A"}],
+          "options": {"colorMode":"background"},
+          "fieldConfig": {"defaults":{"unit":"short","mappings":[{"type":"value","options":{"1":{"text":"UP","color":"green"},"0":{"text":"DOWN","color":"red"}}}]}} },
+        { "id": 2, "title": "HTTP requests / s", "type": "stat", "gridPos": {"h":4,"w":5,"x":5,"y":0},
           "datasource": {"type":"prometheus","uid":"${datasource}"},
-          "targets": [{"expr":"sum(rate(bifrost_upstream_requests_total[5m]))","refId":"A"}],
-          "fieldConfig": {"defaults":{"unit":"reqps","decimals":2}} },
-        { "id": 3, "title": "Error rate", "type": "stat", "gridPos": {"h":4,"w":6,"x":12,"y":0},
+          "targets": [{"expr":"sum(rate(http_requests_total{job=\"bifrost\"}[5m]))","refId":"A"}],
+          "fieldConfig": {"defaults":{"unit":"reqps","decimals":3}} },
+        { "id": 3, "title": "HTTP 5xx error rate", "type": "stat", "gridPos": {"h":4,"w":6,"x":10,"y":0},
           "datasource": {"type":"prometheus","uid":"${datasource}"},
-          "targets": [{"expr":"100 * sum(rate(bifrost_error_requests_total[5m])) / clamp_min(sum(rate(bifrost_upstream_requests_total[5m])), 0.0001)","refId":"A"}],
+          "targets": [{"expr":"100 * sum(rate(http_requests_total{job=\"bifrost\",status=~\"5..\"}[5m])) / clamp_min(sum(rate(http_requests_total{job=\"bifrost\"}[5m])), 0.0001)","refId":"A"}],
           "fieldConfig": {"defaults":{"unit":"percent","decimals":1,"thresholds":{"steps":[{"color":"green","value":null},{"color":"yellow","value":2},{"color":"red","value":10}]}}} },
-        { "id": 4, "title": "Active requests", "type": "stat", "gridPos": {"h":4,"w":6,"x":18,"y":0},
+        { "id": 4, "title": "Goroutines", "type": "stat", "gridPos": {"h":4,"w":4,"x":16,"y":0},
           "datasource": {"type":"prometheus","uid":"${datasource}"},
-          "targets": [{"expr":"sum(bifrost_active_requests)","refId":"A"}],
+          "targets": [{"expr":"go_goroutines{job=\"bifrost\"}","refId":"A"}],
+          "fieldConfig": {"defaults":{"unit":"short"}} },
+        { "id": 5, "title": "Open FDs", "type": "stat", "gridPos": {"h":4,"w":4,"x":20,"y":0},
+          "datasource": {"type":"prometheus","uid":"${datasource}"},
+          "targets": [{"expr":"process_open_fds{job=\"bifrost\"}","refId":"A"}],
           "fieldConfig": {"defaults":{"unit":"short"}} },
 
-        { "id": 5, "title": "Cost by provider ($, range)", "type": "table", "gridPos": {"h":8,"w":8,"x":0,"y":4},
+        { "type": "row", "title": "HTTP edge", "gridPos": {"h":1,"w":24,"x":0,"y":4} },
+        { "id": 6, "title": "HTTP request rate by status", "type": "timeseries", "gridPos": {"h":8,"w":12,"x":0,"y":5},
           "datasource": {"type":"prometheus","uid":"${datasource}"},
-          "targets": [{"expr":"sum by (provider) (increase(bifrost_cost_total[$__range]))","refId":"A","instant":true,"format":"table"}],
-          "fieldConfig": {"defaults":{"unit":"currencyUSD","decimals":4}} },
-        { "id": 6, "title": "Cost by routing rule wl-* ($, range)", "type": "table", "gridPos": {"h":8,"w":8,"x":8,"y":4},
-          "datasource": {"type":"prometheus","uid":"${datasource}"},
-          "targets": [{"expr":"sum by (routing_rule_name) (increase(bifrost_cost_total{routing_rule_name!=\"\"}[$__range]))","refId":"A","instant":true,"format":"table"}],
-          "fieldConfig": {"defaults":{"unit":"currencyUSD","decimals":4}} },
-        { "id": 7, "title": "Cost by model ($, range)", "type": "table", "gridPos": {"h":8,"w":8,"x":16,"y":4},
-          "datasource": {"type":"prometheus","uid":"${datasource}"},
-          "targets": [{"expr":"sum by (model) (increase(bifrost_cost_total[$__range]))","refId":"A","instant":true,"format":"table"}],
-          "fieldConfig": {"defaults":{"unit":"currencyUSD","decimals":4}} },
-
-        { "id": 8, "title": "Requests / s by provider", "type": "timeseries", "gridPos": {"h":8,"w":12,"x":0,"y":12},
-          "datasource": {"type":"prometheus","uid":"${datasource}"},
-          "targets": [{"expr":"sum by (provider) (rate(bifrost_upstream_requests_total[5m]))","refId":"A","legendFormat":"{{provider}}"}],
+          "options": {"legend": {"displayMode":"table","placement":"right","calcs":["last"]}},
+          "targets": [{"expr":"sum by (status) (rate(http_requests_total{job=\"bifrost\"}[5m]))","refId":"A","legendFormat":"{{status}}"}],
           "fieldConfig": {"defaults":{"unit":"reqps"}} },
-        { "id": 9, "title": "Success vs error / s", "type": "timeseries", "gridPos": {"h":8,"w":12,"x":12,"y":12},
+        { "id": 7, "title": "HTTP request rate by handler (path)", "type": "timeseries", "gridPos": {"h":8,"w":12,"x":12,"y":5},
           "datasource": {"type":"prometheus","uid":"${datasource}"},
-          "targets": [
-            {"expr":"sum(rate(bifrost_success_requests_total[5m]))","refId":"A","legendFormat":"success"},
-            {"expr":"sum(rate(bifrost_error_requests_total[5m]))","refId":"B","legendFormat":"error"}
-          ],
+          "options": {"legend": {"displayMode":"table","placement":"right","calcs":["last"]}},
+          "targets": [{"expr":"sum by (path) (rate(http_requests_total{job=\"bifrost\"}[5m]))","refId":"A","legendFormat":"{{path}}"}],
           "fieldConfig": {"defaults":{"unit":"reqps"}} },
-
-        { "id": 10, "title": "Upstream latency p95 by provider", "type": "timeseries", "gridPos": {"h":8,"w":12,"x":0,"y":20},
+        { "id": 8, "title": "HTTP p95 latency", "type": "timeseries", "gridPos": {"h":8,"w":12,"x":0,"y":13},
           "datasource": {"type":"prometheus","uid":"${datasource}"},
-          "targets": [{"expr":"histogram_quantile(0.95, sum by (provider, le) (rate(bifrost_upstream_latency_seconds_bucket[5m])))","refId":"A","legendFormat":"{{provider}}"}],
+          "targets": [{"expr":"histogram_quantile(0.95, sum by (le) (rate(http_request_duration_seconds_bucket{job=\"bifrost\"}[5m])))","refId":"A","legendFormat":"p95"}],
           "fieldConfig": {"defaults":{"unit":"s"}} },
-        { "id": 11, "title": "Requests / s by routing rule wl-*", "type": "timeseries", "gridPos": {"h":8,"w":12,"x":12,"y":20},
+        { "id": 9, "title": "HTTP avg latency", "type": "timeseries", "gridPos": {"h":8,"w":12,"x":12,"y":13},
           "datasource": {"type":"prometheus","uid":"${datasource}"},
-          "targets": [{"expr":"sum by (routing_rule_name) (rate(bifrost_upstream_requests_total{routing_rule_name!=\"\"}[5m]))","refId":"A","legendFormat":"{{routing_rule_name}}"}],
-          "fieldConfig": {"defaults":{"unit":"reqps"}} },
+          "targets": [{"expr":"sum(rate(http_request_duration_seconds_sum{job=\"bifrost\"}[5m])) / clamp_min(sum(rate(http_request_duration_seconds_count{job=\"bifrost\"}[5m])), 0.0001)","refId":"A","legendFormat":"avg"}],
+          "fieldConfig": {"defaults":{"unit":"s"}} },
 
-        { "id": 12, "title": "Tokens / s (input vs output)", "type": "timeseries", "gridPos": {"h":8,"w":12,"x":0,"y":28},
+        { "type": "row", "title": "MCP client operations", "gridPos": {"h":1,"w":24,"x":0,"y":21} },
+        { "id": 10, "title": "MCP client operation rate", "type": "timeseries", "gridPos": {"h":8,"w":12,"x":0,"y":22},
           "datasource": {"type":"prometheus","uid":"${datasource}"},
+          "targets": [{"expr":"sum(rate(bifrost_mcp_client_operation_duration_seconds_count{job=\"bifrost\"}[5m]))","refId":"A","legendFormat":"ops/s"}],
+          "fieldConfig": {"defaults":{"unit":"ops"}} },
+        { "id": 11, "title": "MCP client operation p95 latency", "type": "timeseries", "gridPos": {"h":8,"w":12,"x":12,"y":22},
+          "datasource": {"type":"prometheus","uid":"${datasource}"},
+          "targets": [{"expr":"histogram_quantile(0.95, sum by (le) (rate(bifrost_mcp_client_operation_duration_seconds_bucket{job=\"bifrost\"}[5m])))","refId":"A","legendFormat":"p95"}],
+          "fieldConfig": {"defaults":{"unit":"s"}} },
+
+        { "type": "row", "title": "Process health", "gridPos": {"h":1,"w":24,"x":0,"y":30} },
+        { "id": 12, "title": "CPU (cores)", "type": "timeseries", "gridPos": {"h":8,"w":12,"x":0,"y":31},
+          "datasource": {"type":"prometheus","uid":"${datasource}"},
+          "targets": [{"expr":"rate(process_cpu_seconds_total{job=\"bifrost\"}[5m])","refId":"A","legendFormat":"cores"}],
+          "fieldConfig": {"defaults":{"unit":"short","decimals":3}} },
+        { "id": 13, "title": "Memory", "type": "timeseries", "gridPos": {"h":8,"w":12,"x":12,"y":31},
+          "datasource": {"type":"prometheus","uid":"${datasource}"},
+          "options": {"legend": {"displayMode":"table","placement":"right","calcs":["last"]}},
           "targets": [
-            {"expr":"sum(rate(bifrost_input_tokens_total[5m]))","refId":"A","legendFormat":"input"},
-            {"expr":"sum(rate(bifrost_output_tokens_total[5m]))","refId":"B","legendFormat":"output"}
+            {"expr":"process_resident_memory_bytes{job=\"bifrost\"}","refId":"A","legendFormat":"resident"},
+            {"expr":"go_memstats_heap_inuse_bytes{job=\"bifrost\"}","refId":"B","legendFormat":"go heap inuse"}
           ],
-          "fieldConfig": {"defaults":{"unit":"short"}} },
-        { "id": 13, "title": "Provider key health (1=up, 0=down)", "type": "table", "gridPos": {"h":8,"w":12,"x":12,"y":28},
-          "datasource": {"type":"prometheus","uid":"${datasource}"},
-          "targets": [{"expr":"bifrost_provider_key_up","refId":"A","instant":true,"format":"table"}],
-          "fieldConfig": {"defaults":{"mappings":[{"type":"value","options":{"1":{"text":"UP","color":"green"},"0":{"text":"DOWN","color":"red"}}}]}} }
+          "fieldConfig": {"defaults":{"unit":"bytes"}} }
       ]
     }

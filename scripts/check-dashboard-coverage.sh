@@ -32,10 +32,10 @@
 # INPUTS. By default reads live from Prometheus (scrape jobs + the metric→job map, API proxy) and the
 # dashboards from the grafana_dashboard ConfigMaps (kubectl). For testing point these at fixtures:
 #
-#   UP_JOBS_FILE      newline-delimited job names                            — skips the `up` query
-#   DASH_JSON_FILE    a `kubectl get cm -l grafana_dashboard=1 -o json` body — skips kubectl
-#   METRIC_JOBS_FILE  a JSON object {"<metric>": ["<job>", …], …}            — skips the metric→job query
-#   DIST_THRESHOLD    max jobs a metric may span to count as distinctive (default 5)
+#   UP_RAW_FILE          a raw /api/v1/query body for `count by (job) (up)`          — skips the up query
+#   METRIC_JOBS_RAW_FILE a raw /api/v1/query body for `group by (__name__,job) (…)`  — skips the metric→job query
+#   DASH_JSON_FILE       a `kubectl get cm -l grafana_dashboard=1 -o json` body      — skips kubectl
+#   DIST_THRESHOLD       max jobs a metric may span to count as distinctive (default 5)
 #
 # EXIT CODES are distinct on purpose. 1 = the estate has a gap. 2 = the guard could not do its job.
 set -euo pipefail
@@ -58,7 +58,6 @@ ACCEPTED=(
   "alloy|Grafana Alloy is the telemetry collector; its liveness is the up metric + the lgtm-self-monitoring alert, and its throughput shows up as the data landing in Loki/Tempo. No dedicated board (candidate for one if it ever misbehaves)."
   "monitoring/envoy-stats-monitor|The Istio Service + Workload dashboards chart this scrape's distinctive metrics (istio_requests_total is exported ONLY by this job), but Istio provisions those boards OUTSIDE grafana_dashboard ConfigMaps, so this guard cannot see them — the coverage is real and out-of-band, same as Ray."
   "monitoring-kube-prometheus-operator|kube-prometheus-stack's own Prometheus Operator — self-metrics (reconcile / workqueue / prometheus_operator_ready). No dedicated board ships or is warranted for the operator's internals; its scrape health shows on the Prometheus / Overview board."
-  "bifrost|FINDING, not a clean pass (2026-09-01): the bifrost-dashboard ConfigMap charts bifrost_upstream_* / bifrost_cost_* — metrics that DO NOT EXIST in this Prometheus, so the board is broken (all No-data) — while the scraped job=\"bifrost\" (the MCP gateway) exports http_* / bifrost_mcp_client_* that nothing charts. Accepted to unblock; the real fix is to repoint bifrost-dashboard at the metrics the MCP gateway actually emits. Surfaced for a decision, not silently tolerated."
 )
 
 is_accepted() { # is_accepted <job>
@@ -166,11 +165,14 @@ prom_query() { # prom_query <promql> -> raw /api/v1/query response body
     "/api/v1/namespaces/$PROM_NS/pods/$PROM_POD:9090/proxy/api/v1/query?query=$q" 2>/dev/null
 }
 
+# up_jobs / metric_jobs parse RAW /api/v1/query responses — from a fixture file when set, else live.
+# ONE parser for both transports (dev box via prom_query, CronJob via curl into *_RAW_FILE): a second
+# parser would mean the guard is tested on one code path and runs on another (B148's lesson).
 up_jobs() {
-  if [ -n "${UP_JOBS_FILE:-}" ]; then cat "$UP_JOBS_FILE"; return 0; fi
   local raw
-  raw="$(prom_query 'count by (job) (up)')" \
-    || { echo "FATAL: could not reach Prometheus at $PROM_NS/$PROM_POD" >&2; return 1; }
+  if [ -n "${UP_RAW_FILE:-}" ]; then raw="$(cat "$UP_RAW_FILE")"
+  else raw="$(prom_query 'count by (job) (up)')" \
+    || { echo "FATAL: could not reach Prometheus at $PROM_NS/$PROM_POD" >&2; return 1; }; fi
   printf '%s' "$raw" | python3 -c "
 import json, sys
 for s in json.load(sys.stdin).get('data', {}).get('result', []):
@@ -180,10 +182,10 @@ for s in json.load(sys.stdin).get('data', {}).get('result', []):
 }
 
 metric_jobs() {
-  if [ -n "${METRIC_JOBS_FILE:-}" ]; then cat "$METRIC_JOBS_FILE"; return 0; fi
   local raw
-  raw="$(prom_query 'group by (__name__, job) ({job=~".+"})')" \
-    || { echo "FATAL: could not query Prometheus for the metric→job map" >&2; return 1; }
+  if [ -n "${METRIC_JOBS_RAW_FILE:-}" ]; then raw="$(cat "$METRIC_JOBS_RAW_FILE")"
+  else raw="$(prom_query 'group by (__name__, job) ({job=~".+"})')" \
+    || { echo "FATAL: could not query Prometheus for the metric→job map" >&2; return 1; }; fi
   printf '%s' "$raw" | python3 -c "
 import json, sys
 mj = {}

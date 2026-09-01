@@ -144,6 +144,12 @@ open gap = not done:
   - **Metrics** — if the service exposes `/metrics`, ship a **ServiceMonitor** so Prometheus scrapes it (the
     retroactive gap: most pre-B65 services have none — audit `count(up) by (job)`), **plus** a **Grafana dashboard**
     for its metrics (or an explicit confirmation an existing one covers it — no active service without a dashboard).
+    **Both halves are now GUARDED, not hand-ticked:** ServiceMonitor coverage by `scripts/check-servicemonitor-coverage.sh`
+    (B148, nightly `servicemonitor-coverage` CronJob) and dashboard coverage by `scripts/check-dashboard-coverage.sh`
+    (nightly `dashboard-coverage` CronJob + `dashboard-coverage.bats` in CI), which fails when a scraped job has no
+    dashboard scoping a panel to it (`job="<job>"`) or charting a metric distinctive to it. A service covered by an
+    out-of-band board the guard cannot see (its own UI, an Istio/Ray board, Uptime Kuma) is documented in the guard's
+    ACCEPTED list with the reason — the same "state the condition, don't trust it" posture as the ServiceMonitor guard.
   - **Logs** — the service's container/app logs reach **Loki** (Alloy collects cluster-wide by default) and are
     **queryable in Grafana**; confirm it, and prefer structured/JSON logs where the app supports it.
   - **Traces** — if the service sits in a **multi-hop** request path, it emits spans to **Tempo** (OTel) and they
