@@ -158,8 +158,14 @@ open gap = not done:
     satisfies this; full distributed spans only earn their keep across hops. Note **N/A** if it's not in a traced path.
   - **Profiles** — if the service is a profiling target (Go / pprof, or SDK-instrumented), continuous profiles reach
     **Pyroscope** and appear in Grafana's **Profiles Drilldown**; note **N/A** for services that don't profile.
-  - **Alerts** — a **PrometheusRule** with a **down/failure** alert (+ spend / error-rate where relevant, e.g.
-    `bifrost_cost_total`) routed to Telegram; the alert path has a **dead-man's-switch** (Watchdog → external heartbeat, not `null`).
+  - **Alerts** — down/absence alerting routed to Telegram, with a **dead-man's-switch** (Watchdog → external
+    heartbeat, not `null`). The **down case is GUARDED, not hand-ticked**: `scripts/check-alert-coverage.sh`
+    (nightly `alert-coverage` CronJob + `alert-coverage.bats` in CI) fails if any scraped job has no down/absent
+    alert — satisfied by the **blanket `TargetDown`** net (kube-prometheus-stack, `count(up==0) BY (job)`, one
+    rule protects every job) OR a **job-scoped** rule (`up{job="J"}==0` / `absent(...)`, e.g. `LancedbExporterDown`).
+    A dedicated per-service down alert is NOT required on top of the blanket net; add **service-specific**
+    PrometheusRules (error-rate, saturation, a real exported metric — verify it EXISTS first, see the Bifrost
+    board that charted metrics that never did) by judgment, not as blanket coverage.
   - **Synthetic 1:1** — **blackbox is the synthetic source of record.** Every user-facing host in `hosts.md` has a
     **blackbox probe target** (`k8s/monitoring/blackbox-exporter.yaml`, kept alphabetical) — **1:1, no orphans**, a
     **git-vs-git diff** of that target list against `hosts.md` each batch (add an ingress → add its probe in the same
