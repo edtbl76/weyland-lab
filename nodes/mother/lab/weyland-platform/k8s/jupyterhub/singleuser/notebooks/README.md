@@ -96,8 +96,21 @@ the gateway in `61`. Eval closes the loop. Query embeddings run locally (bge-bas
 DataHub is the catalog/lineage surface; Soda is the independent post-publish contract; Ranger is per-user
 query-engine authz. All three validated in-cluster. Only DataHub needs a token; Soda/Ranger use no-auth paths.
 
-### Stack layers — *coming next* (B81 wave 9)
-streaming (Qdrant, **Weaviate** [U16], Lance similarity, Neo4j) · transform/semantic (dbt, MetricFlow, Cube)
+### Stack layers — streaming
+| Notebook | Layer | Focus |
+|---|---|---|
+| `80_streaming_redpanda.ipynb` | **Redpanda** (Kafka + Schema Registry) | list topics/partitions, inspect a topic's registered Avro schema, consume a bounded batch (Avro-deserialized) with live offset watermarks; fresh read-only consumer group. Read-only |
+| `81_streaming_cdc_debezium.ipynb` | **Debezium CDC** | connector status via Kafka Connect, consume the `cdc.musicbrainz.public.cdc_demo` change stream (Debezium Envelope: op/before/after), and the Iceberg mirror (`cdc_demo_live` via Trino) — the CDC→lakehouse loop. Read-only |
+
+Redpanda is the streaming backbone; Debezium tails a DB's WAL into Kafka, and Flink upserts the changes into
+an Iceberg mirror. Both validated in-cluster; no creds (Redpanda is plaintext in-cluster).
+
+---
+
+**The library is complete** — 25 numbered notebooks (plus the `datasets_lake` seed) spanning the whole stack:
+formats (`01`–`04`) → storage (`10`–`11`) → query (`20`–`22`) → vector/graph (`30`–`33`) → transform/semantic
+(`40`–`41`) → feature/ML (`50`–`51`) → AI/RAG (`60`–`62`) → governance/quality (`70`–`72`) → streaming (`80`–`81`).
+Each runs end-to-end against the live mesh — that is the test. (Qdrant, **Weaviate** [U16], Lance similarity, Neo4j) · transform/semantic (dbt, MetricFlow, Cube)
 · feature/ML (Feast, Ray → MLflow) · AI/RAG (LlamaIndex, eval, LiteLLM/Ollama) · governance/quality (DataHub,
 Soda, Ranger) · streaming (Redpanda, Debezium CDC).
 

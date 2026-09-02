@@ -199,6 +199,21 @@ the stack-layer set runs against the live mesh. Validate by `jupyter nbconvert -
   depression_pct` NULL, `dbt` sees real, sibling cols unchanged; DEFAULT-DENY + `trino-noauth` bypass explained).
   Only DataHub needs a secret — `jupyterhub/datahub-creds` (← weyland `datahub-token`); Soda uses trino-noauth,
   Ranger sets the Trino user via the client (no password).
-- **Stack-layer waves (next):** streaming (Redpanda · Debezium CDC) — the final wave. See `docs/backlog.md` → B81 (EMA-71).
+- **Streaming (2026-09-02, both validated live IN-CLUSTER, headless-execute clean) — the FINAL wave:**
+  `80_streaming_redpanda` (Kafka API + Schema Registry — list topics, inspect a registered Avro schema, consume a
+  bounded Avro batch with live offset watermarks via `confluent-kafka[avro]`, fresh read-only consumer group) ·
+  `81_streaming_cdc_debezium` (Debezium CDC — connector status via Kafka Connect :8083, consume
+  `cdc.musicbrainz.public.cdc_demo` Debezium-Envelope change events, and the Iceberg mirror
+  `iceberg.datasets_music.cdc_demo_live` via Trino — the CDC→lakehouse loop). No creds (Redpanda is plaintext,
+  unmeshed, in-cluster). Note: nb 81's live consume showed 0 events because the demo topic's 7-day retention aged out
+  the historical records and there is no periodic writer — the notebook proves the decode path against the real
+  registered schema and shows the populated Iceberg mirror instead of fabricating events; to see a live envelope an
+  operator would write one row to `musicbrainz.public.cdc_demo`.
+- **B81 NOTEBOOK LIBRARY COMPLETE (2026-09-02):** 25 numbered notebooks + the `datasets_lake` seed, spanning
+  formats → storage → query → vector/graph → transform/semantic → feature/ML → AI/RAG → governance/quality →
+  streaming, each validated end-to-end against the live mesh. Distribution is git-sync (§3). **Remaining: the operator
+  spawn-verify UAT only** — spawn JupyterHub (Keycloak login), confirm `~/notebooks` git-syncs and the notebooks run
+  in-pod (the singleuser pod is mesh-joined for the meshed stores; the MLflow model-LOAD cell needs the mlflow S3
+  artifact creds if live in-pod model load is wanted).
 
 See [[cube-semantic-layer-b1.7]], [runbooks/cube.md](cube.md).
