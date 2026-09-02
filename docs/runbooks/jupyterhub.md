@@ -213,7 +213,17 @@ the stack-layer set runs against the live mesh. Validate by `jupyter nbconvert -
   formats → storage → query → vector/graph → transform/semantic → feature/ML → AI/RAG → governance/quality →
   streaming, each validated end-to-end against the live mesh. Distribution is git-sync (§3). **Remaining: the operator
   spawn-verify UAT only** — spawn JupyterHub (Keycloak login), confirm `~/notebooks` git-syncs and the notebooks run
-  in-pod (the singleuser pod is mesh-joined for the meshed stores; the MLflow model-LOAD cell needs the mlflow S3
-  artifact creds if live in-pod model load is wanted).
+  in-pod (the singleuser pod is mesh-joined for the meshed stores).
+- **DECISION (2026-09-02): nb 51's MLflow model-LOAD cell is left as a graceful note in-pod — NOT wired for live
+  load.** Loading the registered model blob from `s3://mlflow/` needs MinIO artifact creds, which MLflow/boto3 read
+  as GENERIC `AWS_ACCESS_KEY_ID`/`AWS_SECRET_ACCESS_KEY`. Injecting those into the singleuser pod would leak into
+  every notebook kernel's default credential chain (collision) and widen every spawn's blast radius to the mlflow
+  MinIO bucket — for one cell whose surrounding value (experiments/runs/registry browse) already works in-pod. So it
+  stays a note. If live in-pod model load is ever wanted, do it SCOPED (not global env): a dedicated `mlflow-s3-creds`
+  SealedSecret injected as `MLFLOW_S3_ACCESS_KEY`/`_SECRET`/`_ENDPOINT`, and nb 51's load cell sets `AWS_*` from those
+  only inside that cell. Not worth the operator round-trip today.
+- **nb 81 CDC (2026-09-02): the consume cell shows a real live `op=u` envelope** (id 11 `bravo-v2`→`bravo-v3`),
+  produced by a one-row UPDATE to `musicbrainz_db.public.cdc_demo` (the purpose-built demo table; the topic had aged
+  out its 7-day retention). To refresh the demo again, UPDATE a `cdc_demo` row and re-run the notebook.
 
 See [[cube-semantic-layer-b1.7]], [runbooks/cube.md](cube.md).
