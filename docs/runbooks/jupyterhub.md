@@ -256,6 +256,19 @@ SSO; a bot can't spawn). Tick each box; a notebook "passes" = **Run All Cells �
 - [ ] **Scratch survives**: create `~/scratch/keep.txt`; it persists across a cull/respawn (PVC), while edits inside `~/notebooks` are overwritten on respawn (git == source). (Optional, confirms the distribution contract.)
 
 ### 5.2 Per-notebook run — Run All Cells, expect 0 errors
+
+**Fastest way — run the whole library headless from the JupyterLab terminal** (inside the pod, so it has the
+injected env + in-cluster DNS + can `%pip`), one PASS/FAIL line per notebook instead of clicking 26 times:
+```
+cd ~/notebooks && for nb in $(ls [0-9]*.ipynb datasets_lake.ipynb 2>/dev/null); do jupyter nbconvert --to notebook --execute --stdout "$nb" >/dev/null 2>&1 && echo "PASS  $nb" || echo "FAIL  $nb"; done
+```
+`--stdout >/dev/null` runs without modifying the files; a cell error makes nbconvert exit non-zero → `FAIL`. Takes
+several minutes (some notebooks `%pip install` per run; `60` downloads bge-base ~440MB once). **Expected: all PASS**,
+incl. `51_ml_mlflow` (its model-load cell catches the missing artifact creds and prints a note, so it doesn't error).
+For any `FAIL`, get the traceback with `jupyter nbconvert --to notebook --execute --stdout <nb> 2>&1 | tail -40`. This
+IS the in-pod test — a `FAIL` on `21`/`22`/`41` means the mesh-join regressed, on `60` means git-sync/egress, on a
+creds notebook means its sealed secret is missing. Tick the per-notebook boxes below from the PASS/FAIL run.
+
 Formats (self-contained, no external creds):
 - [ ] `01_format_parquet` · `02_format_arrow_ipc` · `03_format_avro` · `04_format_lance` — all execute; `04` builds a real IVF_PQ index.
 
