@@ -138,7 +138,20 @@ the stack-layer set runs against the live mesh. Validate by `jupyter nbconvert -
   `grpc+tcp://gizmosql.data-mesh.svc:31337`, plaintext (Istio mTLS covers the hop). **Served half needs creds:**
   the singleuser pod gets `GIZMOSQL_USERNAME`/`GIZMOSQL_PASSWORD` from SealedSecret `jupyterhub/gizmosql-creds`
   (mirrors data-mesh `gizmosql-secret`); the embedded half needs no creds beyond `LAKEFS_*`.
-- **Stack-layer waves (next):** query cont. (`22`) then vector/transform/ML/RAG/governance/streaming — one per
-  layer, against live services, incl. the folded-in Weaviate notebook (U16). See `docs/backlog.md` → B81 (EMA-71).
+- **`22_query_tier2_native` (2026-09-01, validated live, headless-execute clean) — completes the query wave:** the
+  six Tier-2 stores by NATIVE client (they are NOT Trino connectors) — ClickHouse (`clickhouse-connect`) · Cassandra
+  (`cassandra-driver`) · MongoDB (`pymongo`) · CockroachDB (`psycopg`, insecure dev mode) · TimescaleDB (`psycopg`,
+  hypertables) · MySQL (`PyMySQL`), each a real read on hydrated music/health data. Env-driven, in-cluster DNS
+  defaults; the four password stores share `TIER2_DB_PASSWORD` (SealedSecret `jupyterhub/tier2-creds`), Cassandra +
+  Cockroach need none. **Reach from rogueone = the new `-lan` NodePorts** (`k8s/data-mesh/tier2-lan.yaml`:
+  clickhouse 30123 · cassandra 30942 · mongodb 30017 · cockroachdb 30257 · timescaledb 30543 · mysql 30306) — the
+  lab is NodePorts-only, never `kubectl port-forward`. **Mesh caveat (in-pod UAT):** `data-mesh` is istio-injected;
+  cassandra opts out (`inject:false`), mysql/timescale opt in (`inject:true`), the rest inherit the ns default — so
+  a store IS meshed once its pod restarts, and a plaintext client (an unmeshed singleuser pod) then can't reach it.
+  The notebook was validated from INSIDE the mesh (the real in-cluster environment); for the actual spawn to reach
+  the meshed stores (MySQL here, GizmoSQL in `21`) the singleuser pod must be mesh-joined — track that in the UAT.
+- **Stack-layer waves (next):** vector/graph · transform/semantic · feature/ML · AI/RAG · governance/quality ·
+  streaming — one per layer, against live services, incl. the folded-in Weaviate notebook (U16). See
+  `docs/backlog.md` → B81 (EMA-71).
 
 See [[cube-semantic-layer-b1.7]], [runbooks/cube.md](cube.md).
