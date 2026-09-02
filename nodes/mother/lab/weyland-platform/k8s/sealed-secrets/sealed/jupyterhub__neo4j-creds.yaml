@@ -1,0 +1,16 @@
+---
+apiVersion: bitnami.com/v1alpha1
+kind: SealedSecret
+metadata:
+  name: neo4j-creds
+  namespace: jupyterhub
+spec:
+  encryptedData:
+    NEO4J_PASSWORD: AgC92hcDNh8B0JG2G/GHrUEEQo48NN3uaGMohRHzv3/XJYrervhjZvcBlMvJZGBQiyaTEZUxoiEwtvAfN+RDCXqEio5/o6vhIu3RiEcG6anIzWeWjvt3gxeD2XY9igtK2cA2BbL0jt8g6dQljwNf+AJBEvnWceS2SnQj4sMZGp9vW9tluu8F0EgbhKeyglgsJQgklHPD0Ruwybfqiod021RCoLvt6Eeok8SN/kcrYRyfOEW4CqR1KK1MheEwnnhdxd09drsDuZ0gKtMytkz/pzlGPyqDWCRMXAQxZkCE9iQicrFs45lgofeYon3/58f7xjfibVPgsCHBxkJe2GDxzRY6vOWLspkg5i5sFi3UVl2Q2GD1IoU1a+tUX0NPlSWSHXnHJDzfFD4Hzx9FU4gFGC0a7pYDHVaZwoAPw2tSu9YgMjvgbfkUc1eAYa1IjW0JN90bgd2cVc2AFjMJoS2IMvSk9ZAW5g5QLtJWfP2sb6tTyjTEYfcP6D9tMOzGD0sQWQ5CqLfc8CGU2Wol7lI65pJTKP7YdUnjAHrTTwZDnu0EJ6YJO96rnFar3FEMpomnPjPUiLdO9YlOqplUr0wvK7zvGdSBJ24EoYQmBTT9AiJSkmfLDf9GHW2QW6HFfO7RAMdgof2aj9rwS268lD1JQTu0/gCgIL0lIFuhc2tzkTJuw1HfoHfW+qkgVcHcdLKmNIgbWd9rsobQOfgrw9eKNChObnffgA==
+  template:
+    metadata:
+      annotations:
+        sealedsecrets.bitnami.com/managed: "true"
+      name: neo4j-creds
+      namespace: jupyterhub
+    type: Opaque
