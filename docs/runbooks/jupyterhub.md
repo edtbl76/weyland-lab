@@ -160,8 +160,16 @@ the stack-layer set runs against the live mesh. Validate by `jupyter nbconvert -
   needs a secret — `NEO4J_PASSWORD` from SealedSecret `jupyterhub/neo4j-creds` (mirrors weyland `neo4j-secret`). All
   four unmeshed, reached from rogueone via their existing NodePorts (qdrant 30083 · weaviate 30087/32418 · neo4j
   bolt 30086 · lakeFS 30800). **U16 (Weaviate UI) is satisfied by `31`.**
-- **Stack-layer waves (next):** transform/semantic (dbt · MetricFlow · Cube) · feature/ML (Feast · Ray→MLflow) ·
-  AI/RAG (LlamaIndex · eval · LiteLLM) · governance/quality (DataHub · Soda · Ranger) · streaming (Redpanda ·
-  Debezium) — one per layer, against live services. See `docs/backlog.md` → B81 (EMA-71).
+- **Transform & semantic (2026-09-02, both validated live IN-CLUSTER, headless-execute clean):**
+  `40_transform_dbt_marts` (the dbt transform tier — query the 7 `iceberg.dbt.*` marts via Trino + the MetricFlow
+  semantic models: metric definitions + the compiled-equivalent Trino query; the real dbt project is two-layer
+  staging→marts, no intermediate) · `41_semantic_cube` (Cube headless semantic layer via its pg-wire SQL API, the
+  `MEASURE()` contract, governed measures over the marts). **Validated in-cluster** (ephemeral injected data-mesh
+  pod) because Trino + Cube are ClusterIP-only — NOT via NodePort (a Trino NodePort would expose the no-auth engine
+  on the LAN) and NOT via port-forward. Trino needs no creds; Cube SQL API needs `CUBE_SQL_PASSWORD` from
+  SealedSecret `jupyterhub/cube-creds` (mirrors data-mesh `cube-secret` `CUBEJS_SQL_PASSWORD`).
+- **Stack-layer waves (next):** feature/ML (Feast · Ray→MLflow) · AI/RAG (LlamaIndex · eval · LiteLLM) ·
+  governance/quality (DataHub · Soda · Ranger) · streaming (Redpanda · Debezium) — one per layer, against live
+  services. See `docs/backlog.md` → B81 (EMA-71).
 
 See [[cube-semantic-layer-b1.7]], [runbooks/cube.md](cube.md).

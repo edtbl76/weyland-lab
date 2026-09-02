@@ -1,0 +1,16 @@
+---
+apiVersion: bitnami.com/v1alpha1
+kind: SealedSecret
+metadata:
+  name: cube-creds
+  namespace: jupyterhub
+spec:
+  encryptedData:
+    CUBE_SQL_PASSWORD: AgCEVy94NUTdlHoGrkPEHKiydsykFkAZMYOKQaYCUdYvDViv3U9pYguz+YH/BKfi0pL8YYEpGxEompmq5I6TsvVhKG32ENYN0KwtTuVpvLIAW4UFqkwwpu5Wu8RQUVR8zkNQiioe4feeTigP/xxv+93GQgqq2S6hovba1N3SUadwmgca39FuUUUyp6zXhnQsOIZna8fGDVTKIzMrt/jqf0WllCrdyXKat9UcmvLNPz0IX5ypocNq/MjfulAKReF+C4Ipg799UpDgPQOKFrAokc7K1EP429fzCkRJBUo6t1kv/ZUqnSZGJrbBJO9u80JYjKyEIJ/XK8BFcG/Hp9ZRk8fx4ORlcU3akxjaewSwB7fnqWJFrMJhncHHR0gfVf6eDbM390lEjk8XCs95Bj2B92zgP8dE+nutNRv6k3Unm+tMLQveQYBpOZr2uCTjfYWB5+OuzLCNupEP/8dQt4p9Czdx2EbjU953QMbIQ7hVVVKFdgjXNysxhRBqQDgcwAYymR3YAxhByC2IHkFnGGkLaDGgbKRdLM6QeoIK2aorOg8FQtUGp79iYoN5xY4bV/RHB8JxIOzKEtu6wwKPzo5rPo4csKbOBjL2mfKgJFXl2jil8VU3K+fgMzXKFFeWjGFdMpPt3dXmMdwLbmtAGzni+2nlYCeQ5HvU/U47VIIxKIdA+blISt2NQ/ooxVWs7JaQyQ9Z9lk2XrTGALKOpj6FcTda3m7xTw==
+  template:
+    metadata:
+      annotations:
+        sealedsecrets.bitnami.com/managed: "true"
+      name: cube-creds
+      namespace: jupyterhub
+    type: Opaque

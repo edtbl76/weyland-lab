@@ -120,6 +120,12 @@ singleuser:
     NEO4J_PASSWORD:
       valueFrom:
         secretKeyRef: { name: neo4j-creds, key: NEO4J_PASSWORD }
+    # Cube semantic-layer SQL API creds (B81 transform/semantic notebook 41). Cube's pg-wire SQL API (:15432,
+    # user `cube`) needs a password; mirrors data-mesh `cube-secret` (CUBEJS_SQL_PASSWORD) into a jupyterhub
+    # SealedSecret `cube-creds`. The dbt-marts notebook (40) queries Trino (no creds needed).
+    CUBE_SQL_PASSWORD:
+      valueFrom:
+        secretKeyRef: { name: cube-creds, key: CUBE_SQL_PASSWORD }
   lifecycleHooks:
     postStart:
       exec:

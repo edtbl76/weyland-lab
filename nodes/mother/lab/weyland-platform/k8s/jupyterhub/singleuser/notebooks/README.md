@@ -58,8 +58,17 @@ per-engine native half. **That completes the query/federation wave.**
 Served vector stores (Qdrant/Weaviate) vs embedded (LanceDB, reading Lance from lakeFS) vs graph (Neo4j).
 Qdrant/Weaviate are open/anonymous; LanceDB reuses the lakeFS creds; Neo4j needs `NEO4J_PASSWORD`.
 
-### Stack layers — *coming next* (B81 waves 5+)
-transform/semantic (Qdrant, **Weaviate** [U16], Lance similarity, Neo4j) · transform/semantic (dbt, MetricFlow, Cube)
+### Stack layers — transform & semantic
+| Notebook | Layer | Focus |
+|---|---|---|
+| `40_transform_dbt_marts.ipynb` | **dbt** + **MetricFlow** | the transform tier — query the 7 `iceberg.dbt.*` marts via Trino (what each mart means, row counts, the staging→marts + tests contract) + the MetricFlow semantic models (metric definitions + the compiled-equivalent Trino query, spined by `metricflow_time_spine`). Read-only |
+| `41_semantic_cube.ipynb` | **Cube** (semantic API) | the headless semantic layer — pg-wire SQL API, the `MEASURE()` contract (measures must be wrapped; bare aggregates are rejected), governed measures/dimensions over the marts. Read-only |
+
+Two semantic options over the same marts: MetricFlow (dbt-native, `mf query` compiles to Trino) and Cube
+(headless SQL/REST/GraphQL). Both validated **in-cluster** (Trino + Cube are ClusterIP-only — no NodePort).
+
+### Stack layers — *coming next* (B81 waves 6+)
+feature/ML (Qdrant, **Weaviate** [U16], Lance similarity, Neo4j) · transform/semantic (dbt, MetricFlow, Cube)
 · feature/ML (Feast, Ray → MLflow) · AI/RAG (LlamaIndex, eval, LiteLLM/Ollama) · governance/quality (DataHub,
 Soda, Ranger) · streaming (Redpanda, Debezium CDC).
 
