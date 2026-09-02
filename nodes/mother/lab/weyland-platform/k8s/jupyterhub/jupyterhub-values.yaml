@@ -126,6 +126,25 @@ singleuser:
     CUBE_SQL_PASSWORD:
       valueFrom:
         secretKeyRef: { name: cube-creds, key: CUBE_SQL_PASSWORD }
+    # Feature/ML platform creds (B81 notebooks 50 Feast + 51 MLflow). One consolidated SealedSecret `mlplat-creds`:
+    # WEYLAND_PG_PASSWORD (Feast SQL registry + offline store on weyland-postgres `feast` DB) +
+    # MLFLOW_TRACKING_USERNAME/PASSWORD (MLflow basic auth). Ray training is a rogueone-container pattern
+    # (genre-trainer); nb 51 shows its MLflow-logged runs rather than a version-pinned live Ray client, so no ray token.
+    WEYLAND_PG_PASSWORD:
+      valueFrom:
+        secretKeyRef: { name: mlplat-creds, key: WEYLAND_PG_PASSWORD }
+    MLFLOW_TRACKING_USERNAME:
+      valueFrom:
+        secretKeyRef: { name: mlplat-creds, key: MLFLOW_TRACKING_USERNAME }
+    MLFLOW_TRACKING_PASSWORD:
+      valueFrom:
+        secretKeyRef: { name: mlplat-creds, key: MLFLOW_TRACKING_PASSWORD }
+    # LiteLLM gateway master key (B81 AI/RAG notebooks 60 RAG + 61 gateways + 62 eval-judge). LiteLLM here is
+    # master-key-only (no virtual keys). Mirrors weyland `litellm-secrets` LITELLM_MASTER_KEY into a jupyterhub
+    # SealedSecret `litellm-creds`. Qdrant is open; RAG query embeddings run locally (bge-base) in the notebook.
+    LITELLM_MASTER_KEY:
+      valueFrom:
+        secretKeyRef: { name: litellm-creds, key: LITELLM_MASTER_KEY }
   lifecycleHooks:
     postStart:
       exec:

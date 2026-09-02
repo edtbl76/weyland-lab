@@ -101,6 +101,8 @@ SECRETS=(
   jupyterhub/tier2-creds              # B81 query nb 22 — shared Tier-2 store password (ClickHouse/Mongo/Timescale/MySQL)
   jupyterhub/neo4j-creds              # B81 vector/graph nb 33 — Neo4j bolt password (NEO4J_PASSWORD)
   jupyterhub/cube-creds               # B81 semantic nb 41 — Cube SQL API password (CUBE_SQL_PASSWORD)
+  jupyterhub/mlplat-creds             # B81 feature/ML nb 50+51 — Feast PG password + MLflow basic-auth (WEYLAND_PG_PASSWORD/MLFLOW_TRACKING_USERNAME/PASSWORD)
+  jupyterhub/litellm-creds            # B81 AI/RAG nb 60-62 — LiteLLM gateway master key (LITELLM_MASTER_KEY)
   # --- gatekeeper-system (1) ---
   gatekeeper-system/gpm-secret
 )

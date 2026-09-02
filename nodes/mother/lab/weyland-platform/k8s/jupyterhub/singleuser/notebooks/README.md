@@ -67,8 +67,27 @@ Qdrant/Weaviate are open/anonymous; LanceDB reuses the lakeFS creds; Neo4j needs
 Two semantic options over the same marts: MetricFlow (dbt-native, `mf query` compiles to Trino) and Cube
 (headless SQL/REST/GraphQL). Both validated **in-cluster** (Trino + Cube are ClusterIP-only — no NodePort).
 
-### Stack layers — *coming next* (B81 waves 6+)
-feature/ML (Qdrant, **Weaviate** [U16], Lance similarity, Neo4j) · transform/semantic (dbt, MetricFlow, Cube)
+### Stack layers — feature & ML
+| Notebook | Layer | Focus |
+|---|---|---|
+| `50_feature_feast.ipynb` | **Feast** (feature store) | train/serve parity — online retrieval from Valkey + historical point-in-time joins from Postgres over the two live feature views (`track_audio_features`, `state_health_risk`); the same feature-store object drives both. Read-only |
+| `51_ml_mlflow.ipynb` | **MLflow** (+ Ray) | tracking + registry — browse experiments/runs, compare metrics, the model registry (load+predict, gracefully gated on artifact creds); Ray covered as the genre-trainer training pattern whose runs land here (`genre-classifier`, 247 Ray-Tune runs). Read-only |
+
+Feast serves the same definitions for training (offline PIT) and serving (online). MLflow is the read surface
+for training that runs on rogueone via Ray (the `genre-trainer` container) — the notebook shows its logged runs.
+
+### Stack layers — AI & RAG
+| Notebook | Layer | Focus |
+|---|---|---|
+| `60_rag_llamaindex.ipynb` | **RAG** (retrieve→augment→generate) | embed a question locally with bge-base (matching the corpus, no prefix), retrieve `weyland_chunks` from Qdrant, generate a grounded answer via LiteLLM `wl-rag` — grounded vs no-context contrast. Read-only |
+| `61_gateway_litellm.ipynb` | **LiteLLM** gateway | one OpenAI-compatible front door — the `wl-*` use-case aliases, chat + streaming, live routing (alias→provider/model/latency), vs the MLflow AI Gateway. Read-only |
+| `62_eval_rag.ipynb` | **RAG eval** | the leaderboard (faithfulness/answer_relevancy/context_relevancy per model, Trino over `iceberg.eval` + `postgresql`) + one metric judged LIVE via `wl-judge`, mirroring the harness. Read-only |
+
+The RAG pieces (embedder · vector store · LLM gateway) each have their own notebook: bge-base here, Qdrant in `30`,
+the gateway in `61`. Eval closes the loop. Query embeddings run locally (bge-base); LiteLLM needs its master key.
+
+### Stack layers — *coming next* (B81 waves 8+)
+governance/quality (Qdrant, **Weaviate** [U16], Lance similarity, Neo4j) · transform/semantic (dbt, MetricFlow, Cube)
 · feature/ML (Feast, Ray → MLflow) · AI/RAG (LlamaIndex, eval, LiteLLM/Ollama) · governance/quality (DataHub,
 Soda, Ranger) · streaming (Redpanda, Debezium CDC).
 

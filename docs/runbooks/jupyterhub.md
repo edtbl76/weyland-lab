@@ -168,8 +168,28 @@ the stack-layer set runs against the live mesh. Validate by `jupyter nbconvert -
   pod) because Trino + Cube are ClusterIP-only — NOT via NodePort (a Trino NodePort would expose the no-auth engine
   on the LAN) and NOT via port-forward. Trino needs no creds; Cube SQL API needs `CUBE_SQL_PASSWORD` from
   SealedSecret `jupyterhub/cube-creds` (mirrors data-mesh `cube-secret` `CUBEJS_SQL_PASSWORD`).
-- **Stack-layer waves (next):** feature/ML (Feast · Ray→MLflow) · AI/RAG (LlamaIndex · eval · LiteLLM) ·
-  governance/quality (DataHub · Soda · Ranger) · streaming (Redpanda · Debezium) — one per layer, against live
-  services. See `docs/backlog.md` → B81 (EMA-71).
+- **Feature & ML (2026-09-02, both validated live, headless-execute clean):** `50_feature_feast` (Feast train/serve
+  parity — online retrieval from Valkey + historical point-in-time from Postgres over `track_audio_features` /
+  `state_health_risk`; validated IN-CLUSTER since weyland-postgres is STRICT-mTLS; needs `WEYLAND_PG_PASSWORD`) ·
+  `51_ml_mlflow` (MLflow tracking + registry — experiments/runs/metrics, the `genre_classifier` registry v1-v9,
+  guarded load+predict; Ray covered as the genre-trainer pattern with its 247 Ray-Tune runs; NodePort 30500,
+  needs `MLFLOW_TRACKING_USERNAME`/`PASSWORD`). Both creds in one SealedSecret `jupyterhub/mlplat-creds`
+  (`WEYLAND_PG_PASSWORD` ← weyland-postgres-secret; MLflow basic-auth admin/dev-password). Note: the MLflow
+  model-LOAD cell degrades to a note in-pod unless the `mlflow`-bucket S3 artifact creds are also injected —
+  metadata browsing works regardless; a future enhancement if live model-load in-pod is wanted.
+- **AI & RAG (2026-09-02, all three validated live, headless-execute clean):** `60_rag_llamaindex` (end-to-end RAG —
+  local bge-base query embed [NO prefix — matches the corpus's bare+normalized ingest, verified against the real
+  retrievers], retrieve `weyland_chunks` from Qdrant, generate via LiteLLM `wl-rag`; grounded-vs-no-context contrast;
+  explicit qdrant-client+openai path, not llama-index, because the corpus stores text under `content`) ·
+  `61_gateway_litellm` (LiteLLM OpenAI-compat gateway — `wl-*` aliases, chat+streaming, live routing incl. the
+  underlying provider/model/latency) · `62_eval_rag` (RAG eval leaderboard via Trino over `iceberg.eval` +
+  `postgresql` + one faithfulness score judged LIVE via `wl-judge`, mirroring `eval_scores.py`). 60/61 validated from
+  rogueone via NodePort (Qdrant 30083, LiteLLM 30400); 62 validated IN-CLUSTER (Trino ClusterIP). Query embeddings
+  run locally (bge-base, HF download cached under the PVC home); only new cred = `LITELLM_MASTER_KEY` from
+  SealedSecret `jupyterhub/litellm-creds` (mirrors weyland `litellm-secrets`). Gotcha: in the `data-mesh` ns k8s
+  auto-injects a colliding `TRINO_PORT=tcp://...` service var — the validation run overrides `TRINO_HOST`/`TRINO_PORT`;
+  the real singleuser pods aren't in data-mesh so the committed in-cluster defaults are correct.
+- **Stack-layer waves (next):** governance/quality (DataHub · Soda · Ranger) · streaming (Redpanda · Debezium) — one
+  per layer, against live services. See `docs/backlog.md` → B81 (EMA-71).
 
 See [[cube-semantic-layer-b1.7]], [runbooks/cube.md](cube.md).

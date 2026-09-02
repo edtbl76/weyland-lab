@@ -1,0 +1,16 @@
+---
+apiVersion: bitnami.com/v1alpha1
+kind: SealedSecret
+metadata:
+  name: litellm-creds
+  namespace: jupyterhub
+spec:
+  encryptedData:
+    LITELLM_MASTER_KEY: AgBL3yeeONZdc+spFlVPh03p/8a/vqh5GWC35d6pXopbz6hmOfat/4jWIkJtN/ebZ6KTBC+teAQyzadH1ALR1xBZx8IzfnCqGMZYP+gtLAEO6Ji4mySz5aftNutXV8mx6WCEr6gKYC40VZLDwyL28Luvx7EEoOaTBtYm3BRKuF1v4pUyjTjtkJ2dCYHfxH09MXdmDU1cFlEcQuaOg8DExa5smUmkeYFFv/ZFFphamsJtCDc5g2z0u3xlDi9k59trTWExKHQSkvD9/q701jAVh/BsS5McrB+9f8Iddhjr7souyKkZ4AV1JgkjRVeXe/R2Q0aJCuc2niju8F9JMcYMsZ8ft6L3XgFR3EL2mXO1CrBsGfXB31IVSTT1hsc6gzdHCd1sM68CghBRQy7JzckW5kyxsYk75EJwKBooKM/7XekOtkNnt1M5hWbzqAphgIy4DT8K12l70Pjqaq8Pc3/YPXTa7XyRqX9RzYkxZeJb/JaRWFJdQmshxGNX1leaynIGetqwP97EM5BahfAxXnY00MVNl/2L9ouypo+7apXr0vWuwZmIrnhUxZ9j/2NlsNMxFREZK9qjygxczYOgeVXAfDXWYpHO5rnkbUmfODwihC3t7OgGHoxmdgUOpRQ+aq+/SPK7XPGs3DEgO02ls6UejcW4YuhheMfMN54mcgxotNPLMDEHm3wqzLFjj71CZcszSRq2EaR4wHpIkrcQdE0u/4XufeLgd1Az2j+l3d0=
+  template:
+    metadata:
+      annotations:
+        sealedsecrets.bitnami.com/managed: "true"
+      name: litellm-creds
+      namespace: jupyterhub
+    type: Opaque
