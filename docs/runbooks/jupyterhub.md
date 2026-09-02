@@ -226,4 +226,77 @@ the stack-layer set runs against the live mesh. Validate by `jupyter nbconvert -
   produced by a one-row UPDATE to `musicbrainz_db.public.cdc_demo` (the purpose-built demo table; the topic had aged
   out its 7-day retention). To refresh the demo again, UPDATE a `cdc_demo` row and re-run the notebook.
 
+---
+
+## 5. Operator spawn-verify UAT (B81) — the final gate
+
+Everything below the notebooks was validated out-of-pod (NodePort from rogueone, or an ephemeral in-cluster pod).
+This UAT is the ONLY remaining B81 item: prove the same holds **inside a real singleuser pod** — git-sync
+distribution, the mesh-join (for meshed stores), and every injected credential. Operator-only (browser + Keycloak
+SSO; a bot can't spawn). Tick each box; a notebook "passes" = **Run All Cells → 0 error outputs**.
+
+### 5.0 Pre-flight (from mother/kubectl, before spawning)
+- [ ] All eight jupyterhub creds exist: `kubectl -n jupyterhub get secret jupyterhub-oidc lakefs-creds iceberg-s3-creds gizmosql-creds tier2-creds neo4j-creds cube-creds mlplat-creds litellm-creds datahub-creds` (10 incl. oidc+lakefs) all present.
+- [ ] Argo `jupyterhub` app is **Synced/Healthy** (the latest `jupyterhub-values.yaml` with `extraLabels` + all `extraEnv` is live).
+- [ ] The six data-mesh `-lan` NodePorts + the Tier-2/vector stores are up (only needed if you also spot-check from rogueone; the in-pod path uses ClusterIP DNS).
+
+### 5.1 Spawn + distribution
+- [ ] Browse `https://jupyter.weyland.lab` → Keycloak login → spawn a server (first spawn pulls nothing new; the image is `weyland-jupyter:local`, already on the node).
+- [ ] **Sidecar confirmed** (the mesh-join): `kubectl -n jupyterhub get pod -l component=singleuser-server -o jsonpath='{.items[0].spec.containers[*].name}'` shows **`istio-proxy`** alongside `notebook`. (If not, meshed-store cells in 21/22/41 will hang — check the `extraLabels` landed.)
+- [ ] **git-sync worked**: in a terminal, `ls ~/notebooks` shows all 25 numbered notebooks + `datasets_lake.ipynb` + `README.md`. The `postStart` log (`kubectl -n jupyterhub logs <pod> -c notebook` or the pod events) shows "notebook library git-synced".
+- [ ] **Scratch survives**: create `~/scratch/keep.txt`; it persists across a cull/respawn (PVC), while edits inside `~/notebooks` are overwritten on respawn (git == source). (Optional, confirms the distribution contract.)
+
+### 5.2 Per-notebook run — Run All Cells, expect 0 errors
+Formats (self-contained, no external creds):
+- [ ] `01_format_parquet` · `02_format_arrow_ipc` · `03_format_avro` · `04_format_lance` — all execute; `04` builds a real IVF_PQ index.
+
+Storage (needs `lakefs-creds`, `iceberg-s3-creds`):
+- [ ] `10_storage_lakefs` — branch/commit/diff/merge over the `music` repo; **cleanup cell leaves only `main`** (assert passes).
+- [ ] `11_storage_nessie_iceberg` — reads `dbt.mart_*`; scratch `nb_demo` namespace created + **dropped** (cleanup asserts pass).
+
+Query:
+- [ ] `20_query_trino_federation` — the `iceberg.eval ⋈ postgresql` join returns rows.
+- [ ] `21_query_duckdb_gizmosql` — **MESHED-STORE CHECK**: the GizmoSQL (served) half connects over mTLS; embedded DuckDB over lakeFS works.
+- [ ] `22_query_tier2_native` — **MESHED-STORE CHECK**: all six stores; **MySQL** is the one that only works if the sidecar is present (needs `tier2-creds`).
+
+Vector/graph (Qdrant/Weaviate open; `33` needs `neo4j-creds`):
+- [ ] `30_vector_qdrant` — `weyland_chunks` search (768-dim, ~8300 pts).
+- [ ] `31_vector_weaviate` — vector/BM25/hybrid/GraphQL (the U16 deliverable).
+- [ ] `32_vector_lancedb` — opens the lakeFS-backed Lance tables (reuses `lakefs-creds`).
+- [ ] `33_graph_neo4j` — Cypher traversal over the 634k-node graph (needs `neo4j-creds`).
+
+Transform/semantic:
+- [ ] `40_transform_dbt_marts` — the 7 marts via Trino + a MetricFlow metric.
+- [ ] `41_semantic_cube` — **MESHED-STORE CHECK**: Cube SQL API (`MEASURE()`), needs `cube-creds`.
+
+Feature/ML (needs `mlplat-creds`):
+- [ ] `50_feature_feast` — online (Valkey) + historical PIT (Postgres) retrieval; needs `WEYLAND_PG_PASSWORD`.
+- [ ] `51_ml_mlflow` — experiments/runs/registry browse works; **KNOWN GAP: the model-LOAD cell shows a graceful note** (S3 artifact creds deliberately not injected — see §4). That note is a PASS, not a failure.
+
+AI/RAG (needs `litellm-creds`; `60` downloads bge-base from HF on first run):
+- [ ] `60_rag_llamaindex` — **GIT-SYNC/EGRESS CHECK**: `%pip install` + the HF bge-base download must succeed (public egress); retrieval returns on-topic chunks; grounded answer via `wl-rag`.
+- [ ] `61_gateway_litellm` — `wl-*` aliases list + a chat + streaming.
+- [ ] `62_eval_rag` — the eval leaderboard + a live `wl-judge` faithfulness score.
+
+Governance/quality (`70` needs `datahub-creds`; 71/72 no creds):
+- [ ] `70_governance_datahub` — search + lineage (needs `DATAHUB_TOKEN`).
+- [ ] `71_quality_soda` — a contract scan over the marts (8/8 pass) via `trino-noauth`.
+- [ ] `72_authz_ranger` — **MESHED?** no (main Trino unmeshed) — column mask: as `analyst` `depression_pct` is NULL, as `dbt` real.
+
+Streaming (no creds):
+- [ ] `80_streaming_redpanda` — list topics + consume an Avro batch.
+- [ ] `81_streaming_cdc_debezium` — connector RUNNING + the live `op=u` (`bravo-v2`→`bravo-v3`) + mirror `bravo-v3`.
+
+### 5.3 Sign-off
+- [ ] Every notebook above ran with **0 error outputs** in-pod (nb 51 model-load note excepted, by design).
+- [ ] The three meshed-store checks (21 GizmoSQL, 22 MySQL, 41 Cube) succeeded → the singleuser mesh-join is confirmed working.
+- [ ] The RAG egress check (60) succeeded → git-sync + public `%pip`/HF egress confirmed.
+- [ ] Record the run (date + any deviation) here, flip **B81/EMA-71 → Done**, and mark the DoD demo pillar for the notebook library.
+
+> If a meshed-store cell (21/22/41) hangs: the sidecar didn't inject — re-check §5.1's sidecar box and the
+> `singleuser.extraLabels` in values. If a creds cell fails: the matching sealed secret isn't in the jupyterhub ns
+> (§5.0). If git-sync didn't populate `~/notebooks`: check the `postStart` log + the singleuser NetworkPolicy egress.
+
+---
+
 See [[cube-semantic-layer-b1.7]], [runbooks/cube.md](cube.md).
