@@ -68,6 +68,16 @@ singleuser:
     limit: 2G
     guarantee: 256M
   defaultUrl: /lab            # JupyterLab, not the classic tree
+  extraLabels:
+    # MESH-JOIN the singleuser pods (B81) so notebooks can reach the MESHED data-mesh stores over mTLS —
+    # GizmoSQL (nb 21) and any Tier-2 store whose pod carries a sidecar (mysql/timescale opt in; the others
+    # inherit the injected ns default on restart) (nb 22). Without a sidecar a plaintext client deadlocks at
+    # the store's inbound proxy. This is a POD LABEL, not a namespace label: the istio `object` injector
+    # webhook injects any pod labelled inject=true in a ns that has NO `istio-injection` label (jupyterhub
+    # qualifies), so ONLY singleuser pods get a sidecar — hub + proxy stay unmeshed (they use the mkcert
+    # back-channel to Keycloak, not mTLS). Mesh outboundTrafficPolicy is ALLOW_ANY, so the postStart GitHub
+    # git-sync still egresses; and it already degrades to the baked fallback if the proxy isn't up yet.
+    sidecar.istio.io/inject: "true"
   extraEnv:
     LAKEFS_ENDPOINT: "http://lakefs.data-mesh.svc.cluster.local:8000"
     LAKEFS_ACCESS_KEY_ID:

@@ -1,0 +1,16 @@
+---
+apiVersion: bitnami.com/v1alpha1
+kind: SealedSecret
+metadata:
+  name: tier2-creds
+  namespace: jupyterhub
+spec:
+  encryptedData:
+    TIER2_DB_PASSWORD: AgCW9g8gJIcU1bnDIG09API3z/KieSnqo/mF7iem8dTY+CdlunfrENGQGiwAszo4djo7W3fWIGBY50LQgRkqn/VJJXBRqyIL0yrXZClXFjlwXltT5s+5w5T7KdrNIEHsVl1bCeZxcR8C0iwCkZZpcA+ROV3p1RQXSh8YeevN+bwgQcv0qs8y7nLMndgdaozclLhEEocr+cN0dtywQanuS4EJsYKHQoR8l3+Xduar9PZyR+Ph+w4TV/Le8UZ3Clsi5WLHBnK0AXXZzCD3bj9qaJJiQ6j4U+YBQc18OZn15acs/6NKkubNODWRr2PBQlq6hcPRBxrObrhxPBAXASHLUAY37UDAkahHlTTiq2uRAtOTgtBgt2sQi2HmM+TsG+jM66kbSeDgv7bumvpLocTm0AOCVRYHgMp1P2rMFpGytOEr+clt19TJZZR9gRRDv0zPRq0u5EgN5vttqQkCEnOeZDAURF0b4IgchOQqnBTQSPUmCYQcMajHDOEisZstFRZ0/3ZvMVnD7n42iy6VF1qs8JHCAvSXfN0f4h4mh2jEnIq/FWaa182IdphGO0ibZ8PVE/EKfUudgUzmi6gHTz4XZjgUBqA7TeISmaPFMHbhM4GSPiCDR6zCIOWlGpW0bA4GZL5v+p9cTIaeKugvpzl9DX2yYGaZhXrbuGLw+fX3UZbbGMOpLR4kpH+JKW/Rt32vhN57omJiFtPLlnaepVZ2ITopKaNjQw==
+  template:
+    metadata:
+      annotations:
+        sealedsecrets.bitnami.com/managed: "true"
+      name: tier2-creds
+      namespace: jupyterhub
+    type: Opaque
