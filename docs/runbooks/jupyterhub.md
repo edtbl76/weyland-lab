@@ -21,7 +21,7 @@ browser ──► jupyter.weyland.lab (Traefik ingress + weyland-wildcard-tls)
           proxy (CHP) ──► hub (JupyterHub) ──OIDC──► Keycloak (weyland realm)
                                 │  KubeSpawner (on-demand)
                                 ▼
-                       jupyter-<user>  (weyland-jupyter:local — polars/s3fs/pylance/duckdb)
+                       jupyter-<user>  (registry.weyland.lab/weyland-jupyter — polars/s3fs/pylance/duckdb)
                                 │  egress (singleuser NetworkPolicy: privateIPs allowed)
                                 ▼
                        lakeFS S3 gateway (data-mesh) · Trino · Cube · …the mesh
@@ -32,7 +32,7 @@ browser ──► jupyter.weyland.lab (Traefik ingress + weyland-wildcard-tls)
   (CONFIDENTIAL; secret → k8s Secret `jupyterhub-oidc`). `allow_all: true` (solo lab). Callback
   `/hub/oauth_callback`.
 - **Hub DB:** `sqlite-pvc` (first cut — no Postgres-mesh plumbing; migrate later if multi-user).
-- **Singleuser:** custom image `weyland-jupyter:local` (built + `ctr import`ed into k3s, `pullPolicy: Never`); JupyterLab
+- **Singleuser:** custom image `registry.weyland.lab/weyland-jupyter:<tag>` (in-cluster registry, `pullPolicy: IfNotPresent` — prune-safe, see §3); JupyterLab
   default; idle-cull after 1h; per-user 2Gi PVC; `LAKEFS_*` env from `lakefs-creds`.
 - **On-demand tiering:** hub+proxy ~tiny always-on; notebook pods spawn per login, cull to zero.
 
@@ -59,11 +59,15 @@ browser ──► jupyter.weyland.lab (Traefik ingress + weyland-wildcard-tls)
      --from-literal=LAKEFS_ACCESS_KEY_ID="$K" --from-literal=LAKEFS_SECRET_ACCESS_KEY="$S"
    ```
    (These secrets are NOT in git — recreate on a fresh cluster.)
-3. **Custom singleuser image** — build on mother + import into k3s (single node → no registry):
+3. **Custom singleuser image** — build on mother + push to the in-cluster registry (NOT ctr-import — see the prune
+   gotcha in §3). Rebuild = bump the tag in `jupyterhub-values.yaml` (`singleuser.image.tag`) and:
    ```
-   rsync ... k8s/jupyterhub/singleuser/ emangini@mother:~/jupyter-singleuser/
-   docker build -t weyland-jupyter:local ~/jupyter-singleuser/ && docker save weyland-jupyter:local | sudo ctr -n k8s.io images import -
+   rsync -a --delete k8s/jupyterhub/singleuser/ emangini@mother:~/jupyter-singleuser/
+   docker build -t registry.weyland.lab/weyland-jupyter:<tag> ~/jupyter-singleuser/ && docker push registry.weyland.lab/weyland-jupyter:<tag>
    ```
+   (`pullPolicy: IfNotPresent`, no imagePullSecret — the node has registry access. If `docker push` 401s,
+   `docker login registry.weyland.lab` first; if a large layer 499s, that's the Traefik `readTimeout` — see
+   [[traefik-readtimeout-registry-push]].)
 4. **Push** `jupyterhub-values.yaml` + the Argo app → Argo deploys the chart.
 
 ---
@@ -82,8 +86,13 @@ browser ──► jupyter.weyland.lab (Traefik ingress + weyland-wildcard-tls)
   pods that **blocks egress to private cluster IPs** (security default) — so notebooks got `Connection refused` to
   `lakefs.data-mesh:8000` even though an ad-hoc pod in the same ns reached it fine. Fix:
   `singleuser.networkPolicy.egressAllowRules.privateIPs: true` (the cloud-metadata block stays).
-- **Custom image = `ctr import` + `pullPolicy: Never`.** Single-node k3s → build on mother, `docker save | ctr -n
-  k8s.io images import -`, reference `weyland-jupyter:local`. If a spawn shows `ErrImageNeverPull`, the import didn't land.
+- **Custom image = in-cluster registry + `pullPolicy: IfNotPresent` (NOT ctr-import).** The image was originally
+  ctr-imported as `weyland-jupyter:local` / `pullPolicy: Never`, but the weekly `weyland-image-prune`
+  (`k3s crictl rmi --prune`) removes UNUSED images — and a scale-to-zero singleuser image reads as unused, so it got
+  pruned and the next spawn died with **`ErrImageNeverPull`** (hit 2026-09-02, mid-UAT). Fix: push to
+  `registry.weyland.lab/weyland-jupyter:<tag>` + `IfNotPresent`, so a prune just triggers a re-pull. If a spawn still
+  shows `ErrImageNeverPull`, the tag in values doesn't exist in the registry (build+push it) — it is no longer a
+  ctr-import problem.
 - **The PVC hides baked notebooks → git-sync on spawn (B81).** The user PVC mounts at `/home/jovyan`, hiding anything
   baked there. The `lifecycleHooks.postStart` populates `~/notebooks` on every spawn: first `cp -rn /opt/examples/.`
   (the baked copy, no-clobber → offline fallback), then a shallow **sparse `git clone`** of `singleuser/notebooks/`
@@ -241,7 +250,7 @@ SSO; a bot can't spawn). Tick each box; a notebook "passes" = **Run All Cells �
 - [ ] The six data-mesh `-lan` NodePorts + the Tier-2/vector stores are up (only needed if you also spot-check from rogueone; the in-pod path uses ClusterIP DNS).
 
 ### 5.1 Spawn + distribution
-- [ ] Browse `https://jupyter.weyland.lab` → Keycloak login → spawn a server (first spawn pulls nothing new; the image is `weyland-jupyter:local`, already on the node).
+- [ ] Browse `https://jupyter.weyland.lab` → Keycloak login → spawn a server (first spawn pulls `registry.weyland.lab/weyland-jupyter:<tag>` from the in-cluster registry — a few seconds).
 - [ ] **Sidecar confirmed** (the mesh-join): `kubectl -n jupyterhub get pod -l component=singleuser-server -o jsonpath='{.items[0].spec.containers[*].name}'` shows **`istio-proxy`** alongside `notebook`. (If not, meshed-store cells in 21/22/41 will hang — check the `extraLabels` landed.)
 - [ ] **git-sync worked**: in a terminal, `ls ~/notebooks` shows all 25 numbered notebooks + `datasets_lake.ipynb` + `README.md`. The `postStart` log (`kubectl -n jupyterhub logs <pod> -c notebook` or the pod events) shows "notebook library git-synced".
 - [ ] **Scratch survives**: create `~/scratch/keep.txt`; it persists across a cull/respawn (PVC), while edits inside `~/notebooks` are overwritten on respawn (git == source). (Optional, confirms the distribution contract.)

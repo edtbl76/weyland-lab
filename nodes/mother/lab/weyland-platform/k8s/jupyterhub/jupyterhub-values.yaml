@@ -56,9 +56,15 @@ proxy:
 
 singleuser:
   image:
-    name: weyland-jupyter      # custom datasets-lake image (polars/s3fs/pylance/duckdb) — k8s/jupyterhub/singleuser/
-    tag: local                 # built + ctr-imported into k3s (single node → no registry)
-    pullPolicy: Never
+    # custom datasets-lake image (polars/s3fs/pylance/duckdb) — k8s/jupyterhub/singleuser/. Served from the
+    # in-cluster registry (NOT ctr-imported): the weekly `weyland-image-prune` (`k3s crictl rmi --prune`) removes
+    # UNUSED images, and a scale-to-zero singleuser image reads as unused — so a `pullPolicy: Never` / ctr-import
+    # image gets pruned and the next spawn dies with ErrImageNeverPull. Registry + IfNotPresent = a prune just
+    # triggers a re-pull. Rebuild = bump the tag + `docker build/push registry.weyland.lab/weyland-jupyter:<tag>`
+    # + bump `tag` here (dagster-image-registry-tag-flow pattern). No imagePullSecret — the node has registry access.
+    name: registry.weyland.lab/weyland-jupyter
+    tag: v1
+    pullPolicy: IfNotPresent
   storage:
     capacity: 2Gi
   cpu:
