@@ -93,12 +93,13 @@ SECRETS=(
   # --- n8n (2) ---
   n8n/n8n-secret                      # ⚠ bricking: N8N_ENCRYPTION_KEY — also escrow off-cluster
   n8n/weyland-lab-ssh-key
-  # --- jupyterhub (5) ---
+  # --- jupyterhub (6) ---
   jupyterhub/jupyterhub-oidc
   jupyterhub/lakefs-creds
   jupyterhub/iceberg-s3-creds         # B81 storage nb 11 — Nessie/Iceberg warehouse S3 creds (access_key/secret_key)
   jupyterhub/gizmosql-creds           # B81 query nb 21 — GizmoSQL Flight SQL creds (GIZMOSQL_USERNAME/PASSWORD)
   jupyterhub/tier2-creds              # B81 query nb 22 — shared Tier-2 store password (ClickHouse/Mongo/Timescale/MySQL)
+  jupyterhub/neo4j-creds              # B81 vector/graph nb 33 — Neo4j bolt password (NEO4J_PASSWORD)
   # --- gatekeeper-system (1) ---
   gatekeeper-system/gpm-secret
 )

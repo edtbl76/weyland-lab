@@ -150,8 +150,18 @@ the stack-layer set runs against the live mesh. Validate by `jupyter nbconvert -
   a store IS meshed once its pod restarts, and a plaintext client (an unmeshed singleuser pod) then can't reach it.
   The notebook was validated from INSIDE the mesh (the real in-cluster environment); for the actual spawn to reach
   the meshed stores (MySQL here, GizmoSQL in `21`) the singleuser pod must be mesh-joined — track that in the UAT.
-- **Stack-layer waves (next):** vector/graph · transform/semantic · feature/ML · AI/RAG · governance/quality ·
-  streaming — one per layer, against live services, incl. the folded-in Weaviate notebook (U16). See
-  `docs/backlog.md` → B81 (EMA-71).
+- **Vector & graph (2026-09-01, all four validated live, headless-execute clean):** `30_vector_qdrant` (served
+  vector DB — semantic ANN seeded from a stored vector, payload-filtered search, HNSW/quantization tuning over
+  `weyland_chunks`/dataset collections) · `31_vector_weaviate` (**the U16 deliverable** — class/object browse, vector
+  + BM25 + hybrid + raw GraphQL; needs both HTTP `30087` and gRPC `32418` NodePorts) · `32_vector_lancedb` (embedded
+  — opens the lakeFS-backed Lance tables via object-store `storage_options`, IVF_PQ ANN vs exact cosine; reuses
+  `LAKEFS_*`) · `33_graph_neo4j` (Cypher schema discovery + multi-hop traversal + degree/co-listen aggregation; GDS
+  detected-and-skipped on Community edition). Qdrant open, Weaviate anonymous, LanceDB via lakeFS creds; only Neo4j
+  needs a secret — `NEO4J_PASSWORD` from SealedSecret `jupyterhub/neo4j-creds` (mirrors weyland `neo4j-secret`). All
+  four unmeshed, reached from rogueone via their existing NodePorts (qdrant 30083 · weaviate 30087/32418 · neo4j
+  bolt 30086 · lakeFS 30800). **U16 (Weaviate UI) is satisfied by `31`.**
+- **Stack-layer waves (next):** transform/semantic (dbt · MetricFlow · Cube) · feature/ML (Feast · Ray→MLflow) ·
+  AI/RAG (LlamaIndex · eval · LiteLLM) · governance/quality (DataHub · Soda · Ranger) · streaming (Redpanda ·
+  Debezium) — one per layer, against live services. See `docs/backlog.md` → B81 (EMA-71).
 
 See [[cube-semantic-layer-b1.7]], [runbooks/cube.md](cube.md).

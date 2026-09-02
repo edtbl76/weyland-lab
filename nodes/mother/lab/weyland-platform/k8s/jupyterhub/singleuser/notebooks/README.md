@@ -47,8 +47,19 @@ Timescale/MySQL) are **not** Trino connectors — they're queried by their **nat
 distributed-federation half of the query layer; DuckDB/GizmoSQL (`21`) is the single-node OLAP half; `22` is the
 per-engine native half. **That completes the query/federation wave.**
 
-### Stack layers — *coming next* (B81 waves 4+)
-vector/graph (Qdrant, **Weaviate** [U16], Lance similarity, Neo4j) · transform/semantic (dbt, MetricFlow, Cube)
+### Stack layers — vector & graph
+| Notebook | Store | Focus |
+|---|---|---|
+| `30_vector_qdrant.ipynb` | **Qdrant** (served vector DB) | collection discovery + real vector config; semantic ANN (seeded from a stored vector); payload-filtered search; HNSW/quantization tuning. Read-only |
+| `31_vector_weaviate.ipynb` | **Weaviate** (served, schema+hybrid) | **the U16 deliverable** (replaces the dropped Weaviate UI) — class/object browse, vector `near_vector`, BM25 keyword, hybrid (α), raw GraphQL. Read-only |
+| `32_vector_lancedb.ipynb` | **LanceDB** (embedded) | opens the lakeFS-backed Lance tables directly (no server), IVF_PQ ANN vs exact cosine, contrasted with served Qdrant/Weaviate and Lance-the-format (`04`). Read-only |
+| `33_graph_neo4j.ipynb` | **Neo4j** (graph) | live schema discovery, multi-hop Cypher traversal, degree/co-listen aggregation, GDS-if-present (graceful when absent). Read-only |
+
+Served vector stores (Qdrant/Weaviate) vs embedded (LanceDB, reading Lance from lakeFS) vs graph (Neo4j).
+Qdrant/Weaviate are open/anonymous; LanceDB reuses the lakeFS creds; Neo4j needs `NEO4J_PASSWORD`.
+
+### Stack layers — *coming next* (B81 waves 5+)
+transform/semantic (Qdrant, **Weaviate** [U16], Lance similarity, Neo4j) · transform/semantic (dbt, MetricFlow, Cube)
 · feature/ML (Feast, Ray → MLflow) · AI/RAG (LlamaIndex, eval, LiteLLM/Ollama) · governance/quality (DataHub,
 Soda, Ranger) · streaming (Redpanda, Debezium CDC).
 

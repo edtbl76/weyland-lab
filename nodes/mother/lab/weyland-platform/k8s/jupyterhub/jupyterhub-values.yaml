@@ -113,6 +113,13 @@ singleuser:
     TIER2_DB_PASSWORD:
       valueFrom:
         secretKeyRef: { name: tier2-creds, key: TIER2_DB_PASSWORD }
+    # Neo4j creds (B81 vector/graph notebook 33) — bolt auth for the graph store. Mirrors weyland `neo4j-secret`
+    # (password) into a jupyterhub SealedSecret `neo4j-creds`; the notebook defaults NEO4J_URI/NEO4J_USER to the
+    # in-cluster bolt address + `neo4j`, so only the password injects. Qdrant + Weaviate need none (open /
+    # anonymous); LanceDB (nb 32) reuses the LAKEFS_* creds above.
+    NEO4J_PASSWORD:
+      valueFrom:
+        secretKeyRef: { name: neo4j-creds, key: NEO4J_PASSWORD }
   lifecycleHooks:
     postStart:
       exec:
