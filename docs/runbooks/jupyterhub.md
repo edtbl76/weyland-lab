@@ -189,7 +189,16 @@ the stack-layer set runs against the live mesh. Validate by `jupyter nbconvert -
   SealedSecret `jupyterhub/litellm-creds` (mirrors weyland `litellm-secrets`). Gotcha: in the `data-mesh` ns k8s
   auto-injects a colliding `TRINO_PORT=tcp://...` service var — the validation run overrides `TRINO_HOST`/`TRINO_PORT`;
   the real singleuser pods aren't in data-mesh so the committed in-cluster defaults are correct.
-- **Stack-layer waves (next):** governance/quality (DataHub · Soda · Ranger) · streaming (Redpanda · Debezium) — one
-  per layer, against live services. See `docs/backlog.md` → B81 (EMA-71).
+- **Governance & quality (2026-09-02, all three validated live IN-CLUSTER, headless-execute clean):**
+  `70_governance_datahub` (DataHub catalog — search, schema/owners/tags/domain, bidirectional lineage, domains +
+  glossary, via the acryl-datahub SDK GraphQL; needs `DATAHUB_TOKEN`) · `71_quality_soda` (Soda contract scan over
+  the marts via `trino-noauth`, 8/8 checks with measured values, fail-closed guard against a false "0 checks passed";
+  ships `setuptools<81` [distutils on py3.12] + `auth_type: NoAuthentication` [newer trino client refuses BasicAuth
+  over http] fixes — the committed dagster `soda/configuration.yml` predates the latter) · `72_authz_ranger` (Ranger
+  column mask on the main Trino — `mask-depression-pct-analyst` MASK_NULL: `analyst` sees `mart_state_health_trends.
+  depression_pct` NULL, `dbt` sees real, sibling cols unchanged; DEFAULT-DENY + `trino-noauth` bypass explained).
+  Only DataHub needs a secret — `jupyterhub/datahub-creds` (← weyland `datahub-token`); Soda uses trino-noauth,
+  Ranger sets the Trino user via the client (no password).
+- **Stack-layer waves (next):** streaming (Redpanda · Debezium CDC) — the final wave. See `docs/backlog.md` → B81 (EMA-71).
 
 See [[cube-semantic-layer-b1.7]], [runbooks/cube.md](cube.md).

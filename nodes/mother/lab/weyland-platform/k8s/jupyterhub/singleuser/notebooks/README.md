@@ -86,8 +86,18 @@ for training that runs on rogueone via Ray (the `genre-trainer` container) — t
 The RAG pieces (embedder · vector store · LLM gateway) each have their own notebook: bge-base here, Qdrant in `30`,
 the gateway in `61`. Eval closes the loop. Query embeddings run locally (bge-base); LiteLLM needs its master key.
 
-### Stack layers — *coming next* (B81 waves 8+)
-governance/quality (Qdrant, **Weaviate** [U16], Lance similarity, Neo4j) · transform/semantic (dbt, MetricFlow, Cube)
+### Stack layers — governance & quality
+| Notebook | Layer | Focus |
+|---|---|---|
+| `70_governance_datahub.ipynb` | **DataHub** (catalog/lineage) | GraphQL via the SDK — search datasets, inspect schema/owners/tags/domain, trace bidirectional lineage (provenance + impact), browse domains + glossary. Read-only |
+| `71_quality_soda.ipynb` | **Soda** (data quality) | run a real contract scan over the marts via `trino-noauth`, per-check pass/fail with measured values; a fail-closed guard so an unconnected scan can't read as success. Read-only |
+| `72_authz_ranger.ipynb` | **Ranger** (fine-grained authz) | live column masking on Trino — the same query as `analyst` (`depression_pct`→NULL) vs `dbt` (real), proving a column-scoped mask; DEFAULT-DENY + the `trino-noauth` bypass explained. Read-only |
+
+DataHub is the catalog/lineage surface; Soda is the independent post-publish contract; Ranger is per-user
+query-engine authz. All three validated in-cluster. Only DataHub needs a token; Soda/Ranger use no-auth paths.
+
+### Stack layers — *coming next* (B81 wave 9)
+streaming (Qdrant, **Weaviate** [U16], Lance similarity, Neo4j) · transform/semantic (dbt, MetricFlow, Cube)
 · feature/ML (Feast, Ray → MLflow) · AI/RAG (LlamaIndex, eval, LiteLLM/Ollama) · governance/quality (DataHub,
 Soda, Ranger) · streaming (Redpanda, Debezium CDC).
 

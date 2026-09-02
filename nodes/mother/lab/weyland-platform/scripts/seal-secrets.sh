@@ -103,6 +103,7 @@ SECRETS=(
   jupyterhub/cube-creds               # B81 semantic nb 41 — Cube SQL API password (CUBE_SQL_PASSWORD)
   jupyterhub/mlplat-creds             # B81 feature/ML nb 50+51 — Feast PG password + MLflow basic-auth (WEYLAND_PG_PASSWORD/MLFLOW_TRACKING_USERNAME/PASSWORD)
   jupyterhub/litellm-creds            # B81 AI/RAG nb 60-62 — LiteLLM gateway master key (LITELLM_MASTER_KEY)
+  jupyterhub/datahub-creds            # B81 governance nb 70 — DataHub GMS token (DATAHUB_TOKEN)
   # --- gatekeeper-system (1) ---
   gatekeeper-system/gpm-secret
 )

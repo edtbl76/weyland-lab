@@ -145,6 +145,12 @@ singleuser:
     LITELLM_MASTER_KEY:
       valueFrom:
         secretKeyRef: { name: litellm-creds, key: LITELLM_MASTER_KEY }
+    # DataHub GMS token (B81 governance notebook 70). Mirrors weyland `datahub-token` (token) into a jupyterhub
+    # SealedSecret `datahub-creds`; the notebook defaults DATAHUB_GMS_URL to the in-cluster GMS. Soda (71) uses
+    # trino-noauth (no creds); Ranger (72) sets the Trino user via the client (no password).
+    DATAHUB_TOKEN:
+      valueFrom:
+        secretKeyRef: { name: datahub-creds, key: DATAHUB_TOKEN }
   lifecycleHooks:
     postStart:
       exec:

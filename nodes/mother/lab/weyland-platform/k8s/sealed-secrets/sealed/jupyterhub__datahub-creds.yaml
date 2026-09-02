@@ -1,0 +1,16 @@
+---
+apiVersion: bitnami.com/v1alpha1
+kind: SealedSecret
+metadata:
+  name: datahub-creds
+  namespace: jupyterhub
+spec:
+  encryptedData:
+    DATAHUB_TOKEN: AgBkRILhv6m6hCKdhvfrCMqInrtFWdqFfg1W2cGRlznWtNgtIg5DOV84zOvm20+0uwDgQ5ENtAE7LMnmPOnzUD0F1J99jtoaiW4zUBGgUzSjE/5iC+cumkzdExCFaYJOlZnpIl/kphbxcnjra23pXPIvOhtsT26H3B0fT91eP+Y8kDAhXIrHCE04m7emm+ax3TDIvYJOYy/llAg22/GY+qM8FHYLdnKxurEjraYyX6sXDR7Tc6xlU/xKnrQteu9z56tDpw0SRDl74MIwQ6bqQhraG0RSNY6prXRDIwOCJeduo50ZNzpN1jWGyuhVf3R/XDrXrpWZ6i171gqtHpYCDysXhyxuhZIRZBQTz7zzuKlMafp8vBac96UGpOgXm/MMMi8dboTnG2YmPOVPrAYb6RcG66dK6f259BVx4Aow9c2ph1FwIeHZl+WOxpq92ce3DLJFVf/P3nhySkbdgkjKH86BrDSISxK7wr9beEJNAcU6I+C6zNDTfJwUeU4L+azE7XJIhNzBbZsZGCVEitcUA0KBxsRoYwEoODAJ5djDJbLgj6zswDYVFmyFERyt8Q1edf87y4Syk1Sxl/jw1XP6SR3f7/UZDW0KcY+ND1pdpzQDo8peWxkvG6q95UdENkjzEdEIwvl4EefCaPPPCB/HxKo/0RS0L/gD5FBltHvAU7xvq2VO3vUM5H0qSJtXXXb37iTBF6hzBsCboqNcrA9XY6kKt11y1XW1BZRBtjVdTQ9TSKRSXS4P8+hdD+I11szHtLqIp6x5STrEySUeKNsHZeITXi2tisx2RqjdRW88gXkddHQqw2CXAIXvbGCkQVnR0DMK7rm37Xs2C1tGSEw1zufwmgMd1x5M9BMUeOAcJYDhHDOBliNFX376JyZZ8KoK7fhD7ylnwxYrPSmrcg30lYjx1UWRYzO4hy5CTbQOAyYdSGqKE+Up1KcWVPJpvy/wRxTw4MUuhAgffIgxzuRkWZF6E/kEcgMQyyfBjFp80MQvsimoyTzJSAtk98htkPJyqWcprZfXvXmgXeucz8GT+d7gUC9NwpJTko7MAAYzNVd6MF2WT7Q4KIKjy11l1Gc9HQvZ
+  template:
+    metadata:
+      annotations:
+        sealedsecrets.bitnami.com/managed: "true"
+      name: datahub-creds
+      namespace: jupyterhub
+    type: Opaque
