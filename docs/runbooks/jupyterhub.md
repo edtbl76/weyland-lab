@@ -321,4 +321,12 @@ Streaming (no creds):
 
 ---
 
-See [[cube-semantic-layer-b1.7]], [runbooks/cube.md](cube.md).
+## 6. Operational completeness (DoD Pillar 6) — the accepted state
+
+- **Reproducible from git:** singleuser image on `registry.weyland.lab` (`IfNotPresent`, not `:local`/ctr-import), Argo-onboarded Helm values, notebooks git-synced, no un-codified config. (This is what the 2026-09-02 prune incident fixed.)
+- **Secrets restorable:** all ten `jupyterhub`-ns secrets are SealedSecrets in git (`jupyterhub-oidc`, `lakefs-creds`, `iceberg-s3-creds`, `gizmosql-creds`, `tier2-creds`, `neo4j-creds`, `cube-creds`, `mlplat-creds`, `litellm-creds`, `datahub-creds`).
+- **Monitored + alerted:** liveness via the **blackbox probe** on `jupyter.weyland.lab` (synthetic 1:1) + the blackbox `probe_success` down-alert → Telegram. **Metrics scrape is a deliberate accepted gap:** the Z2JH hub's `/hub/metrics` is not exposed for scrape (no `authenticate_prometheus` config) and there is no ServiceMonitor/dashboard — for a solo, on-demand (scale-to-zero, single-user) notebook hub the internal spawn/active-user metrics are low value, and blackbox already answers "is it up." No scraped `job` exists, so the servicemonitor/dashboard coverage guards do not flag it. Revisit only if JupyterHub becomes multi-user.
+- **Backed up:** the hub `sqlite-pvc` holds recreatable state (user list/tokens — re-derived from Keycloak); per-user home PVCs hold scratch only (the library is git-synced, reproducible). No backup by design — state, not data.
+- **Triggered:** the notebook library refreshes by git-sync on every spawn (freshness = a `git push`), not a timer — nothing to schedule.
+
+See [[cube-semantic-layer-b1.7]], [runbooks/cube.md](cube.md), [demos/jupyter-notebook-library.md](../demos/jupyter-notebook-library.md), [diagrams/flow-jupyter-notebook-library.md](../diagrams/flow-jupyter-notebook-library.md).

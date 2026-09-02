@@ -6,6 +6,10 @@
 #   manifests  space-separated k8s manifests whose image tag tracks this build (lockstep — all move together)
 # Paths are relative to nodes/mother/lab/weyland-platform/ (the platform dir), matching build-push-images.sh.
 # ranger is version-pinned (not tag-following) and intentionally omitted — build via build-push-images.sh.
+# weyland-jupyter (JupyterHub singleuser, B81) is tag-pinned (registry.weyland.lab/weyland-jupyter:vN, pullPolicy
+# IfNotPresent) and built MANUALLY (bump the tag in k8s/jupyterhub/jupyterhub-values.yaml, then docker build/push)
+# — the notebook library is git-synced not baked, so the image changes only on a dep/toolkit bump. Intentionally
+# omitted from the tag-following CI loop, same as ranger. See runbooks/jupyterhub.md §2/§3.
 # NOTE: feast-server + weyland-dagster-user-code share context services/weyland-dagster (different Dockerfiles);
 #       weyland-flink + weyland-flink-py share k8s/flink — a change in the shared dir rebuilds both (conservative, correct).
 #
