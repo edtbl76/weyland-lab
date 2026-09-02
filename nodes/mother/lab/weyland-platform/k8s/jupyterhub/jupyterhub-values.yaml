@@ -96,6 +96,13 @@ singleuser:
     GIZMOSQL_PASSWORD:
       valueFrom:
         secretKeyRef: { name: gizmosql-creds, key: GIZMOSQL_PASSWORD }
+    # Tier-2 store creds (B81 query notebook 22, native clients). ClickHouse/Mongo/Timescale/MySQL share ONE
+    # dev password; Cassandra + CockroachDB need none (AllowAllAuthenticator / insecure dev mode). One
+    # consolidated SealedSecret `tier2-creds` holds it; the notebook defaults every Tier-2 host/port to the
+    # in-cluster service address, so only the shared password injects.
+    TIER2_DB_PASSWORD:
+      valueFrom:
+        secretKeyRef: { name: tier2-creds, key: TIER2_DB_PASSWORD }
   lifecycleHooks:
     postStart:
       exec:
