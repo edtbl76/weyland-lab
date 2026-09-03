@@ -1,0 +1,35 @@
+description: FRED macro indicators — latest values, units, and year-over-year change.
+filters:
+  dimensions: []
+  metrics: []
+  tableCalculations: []
+name: Finance — marts overview
+slug: finance-marts-overview
+spaceSlug: shared
+tabs: []
+tiles:
+  - h: 9
+    properties:
+      chartName: Macro indicators — latest value & YoY
+      chartSlug: macro-indicators-latest
+      hideTitle: false
+      title: ""
+    tabUuid: null
+    tileSlug: macro-indicators-latest
+    type: saved_chart
+    w: 24
+    x: 0
+    "y": 0
+  - h: 9
+    properties:
+      chartName: Year-over-year change by indicator
+      chartSlug: macro-yoy-by-indicator
+      hideTitle: false
+      title: ""
+    tabUuid: null
+    tileSlug: macro-yoy-by-indicator
+    type: saved_chart
+    w: 24
+    x: 0
+    "y": 9
+version: 1

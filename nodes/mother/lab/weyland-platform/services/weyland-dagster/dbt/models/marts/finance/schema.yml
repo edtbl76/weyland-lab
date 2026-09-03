@@ -28,6 +28,7 @@ models:
           - not_null
       - name: latest_value
         description: "Value of the most recent non-null observation, in the series' own units."
+        meta: {metrics: {latest_value: {type: sum, label: "Latest value"}}}
       - name: prior_year_date
         description: "Date of the most recent observation on or before one year before latest_date (NULL if none)."
       - name: prior_year_value

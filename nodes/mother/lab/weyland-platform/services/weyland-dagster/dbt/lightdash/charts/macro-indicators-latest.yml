@@ -1,0 +1,35 @@
+chartConfig:
+  config:
+    showTableNames: false
+  type: table
+description: null
+metricQuery:
+  additionalMetrics: []
+  customDimensions: []
+  dimensions:
+    - mart_macro_indicators_series_id
+    - mart_macro_indicators_title
+    - mart_macro_indicators_units
+  exploreName: mart_macro_indicators
+  filters: {}
+  limit: 25
+  metricOverrides: {}
+  metrics:
+    - mart_macro_indicators_latest_value
+    - mart_macro_indicators_avg_yoy_pct
+  sorts:
+    - descending: false
+      fieldId: mart_macro_indicators_series_id
+  tableCalculations: []
+name: Macro indicators — latest value & YoY
+slug: macro-indicators-latest
+spaceSlug: shared
+tableConfig:
+  columnOrder:
+    - mart_macro_indicators_series_id
+    - mart_macro_indicators_title
+    - mart_macro_indicators_units
+    - mart_macro_indicators_latest_value
+    - mart_macro_indicators_avg_yoy_pct
+tableName: mart_macro_indicators
+version: 1

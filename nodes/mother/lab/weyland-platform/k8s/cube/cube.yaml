@@ -87,6 +87,19 @@ data:
           - { name: avg_conscientiousness, sql: conscientiousness, type: avg }
         dimensions:
           - { name: country, sql: country, type: string, primary_key: true }
+
+      - name: macro_indicators
+        sql_table: dbt.mart_macro_indicators
+        measures:
+          - { name: count, type: count }
+          - { name: latest_value, sql: latest_value, type: sum }
+          - { name: avg_yoy_pct, sql: yoy_pct, type: avg }
+        dimensions:
+          - { name: series_id, sql: series_id, type: string, primary_key: true }
+          - { name: title, sql: title, type: string }
+          - { name: units, sql: units, type: string }
+          - { name: frequency, sql: frequency, type: string }
+          - { name: seasonal_adjustment, sql: seasonal_adjustment, type: string }
 ---
 apiVersion: apps/v1
 kind: Deployment

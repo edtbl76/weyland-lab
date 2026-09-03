@@ -118,7 +118,8 @@ ORDER BY series_id;
 
 `fred_macro` is also loaded as a **TimescaleDB hypertable** (time axis = the real observation `date`, not a year —
 unlike WHO GHO). Connect as in `[[timescaledb]]`: `timescaledb.data-mesh.svc:5432`, db `timeseries`, Postgres wire
-(also a Grafana datasource — the "Macro & Markets" dashboard reads it here).
+(also reachable from Superset, which has a TimescaleDB connection). The macro **BI dashboards live in Lightdash +
+Superset** over the `mart_macro_indicators` mart — not Grafana, which is the observability plane, not domain BI.
 
 ```sql
 -- confirm the hypertable is present (name follows the silver table)

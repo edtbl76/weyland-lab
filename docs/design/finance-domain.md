@@ -61,16 +61,25 @@ lakeFS; gold is Iceberg. `Y*` = the *natural-fit / showcase* tier for that datas
 
 ## Consumption & serving (L6/L7) — the "usable, not just stored" layer (was missing)
 
-The domain isn't done when data lands — it's done when someone can *see* it. This tier was absent from the first cut:
+The domain isn't done when data lands — it's done when someone can *see* it. This tier was absent from the first cut.
 
-- **L6 Semantic — Cube + MetricFlow.** Cube measures/dimensions over the finance marts (`avg` yields, YoY CPI,
-  revenue-growth, price-return metrics) + MetricFlow metric defs — governed finance metrics, queried via SQL/REST.
-- **L7 BI / Dashboards:**
-  - **Grafana** — a **"Macro & Markets"** dashboard over the **Timescale** series (macro indicators + ticker price
-    charts) — the natural home for the time-series half, alongside the existing platform Grafana.
-  - **Lightdash** (dbt-native) — explores/charts over the finance marts (company financials, macro trends).
-  - **Superset** — ad-hoc/complex finance viz (a company-financials dashboard, a macro overview) over Trino + Cube.
-  Both Lightdash/Superset are on-demand (KEDA). **Each dashboard is an eyes-on UAT surface (DoD Pillar 3).**
+> **Correction (2026-09-03):** the first version of this section named **Grafana** as a finance BI surface. That was
+> wrong and contradicts the actual architecture. In this lab **Grafana is the observability plane** (cluster/node/pod
+> + pipeline metrics; `arch.md` "Prometheus + Grafana … observability"); it carries **no data-domain analytics**, and
+> Music/Health have none there. Every domain's BI lives in **Lightdash + Superset** (+ **Cube** as the headless
+> semantic layer). Finance follows that exactly. The section also claimed Lightdash/Superset are KEDA scale-to-zero —
+> they are not; both are always-on Helm services.
+
+- **L6 Semantic — Cube + MetricFlow.** A **Cube** cube over the finance marts (`avg` yields, YoY CPI, revenue-growth,
+  price-return measures) + MetricFlow metric defs — governed finance metrics, queried via SQL/REST. Every Music/Health
+  mart already has a cube (`k8s/cube/cube.yaml`); finance adds one per mart for parity.
+- **L7 BI / Dashboards — Lightdash + Superset (NOT Grafana):**
+  - **Lightdash** (dbt-native) — a `finance-marts-overview` dashboard + per-mart charts built from the dbt project's
+    `meta.metrics`, over Trino through the `trino-noauth` proxy — mirrors `health-marts-overview.yml` /
+    `music-marts-overview.yml` under `dbt/lightdash/`.
+  - **Superset** — the finance marts registered as Trino datasets (schema `dbt`) with bar/line charts + a finance
+    dashboard, seeded by `scripts/superset_seed.py` (the marts seeder), exactly as the 7 Music/Health marts are.
+  Both are always-on Helm services (no KEDA). **Each dashboard is an eyes-on UAT surface (DoD Pillar 3).**
 
 ## Governance & ML (L5 / L8)
 
@@ -105,10 +114,11 @@ Mirrors how the mesh itself was built (skeleton first, gated, then the rest):
    registry (the finance genre-classifier analogue).
 
 **Each phase ships its consumption surface, not just storage** — the domain is only "done" when it's usable:
-Phase 1 → a **Grafana "Macro" dashboard** + Cube macro measures; Phase 2 → a **Lightdash/Superset company-financials
-dashboard**; Phase 3 → the **filings-RAG notebook** (B81); Phase 4 → a **Grafana price dashboard** + the broad
-Tier-2 fan-out; Phase 5 → the model in the MLflow registry. Ranger masking + Soda/GE checks land with the marts they
-govern. So a "phase done" = landed + stored across its tiers + a dashboard/notebook a human can put eyes on.
+Phase 1 → **Lightdash + Superset macro dashboards** + a Cube macro cube; Phase 2 → **Lightdash/Superset
+company-financials dashboards**; Phase 3 → the **filings-RAG notebook** (B81); Phase 4 → **Lightdash/Superset price
+dashboards** + the broad Tier-2 fan-out; Phase 5 → the model in the MLflow registry. Ranger masking + Soda/GE checks
+land with the marts they govern. So a "phase done" = landed + stored across its tiers + a dashboard/notebook a human
+can put eyes on. (BI is always Lightdash/Superset — never Grafana, which is observability-only.)
 
 ## Machinery (reuse, don't reinvent)
 
@@ -138,9 +148,9 @@ above). dbt marts go in the dbt project; DataHub emit via the existing emitters.
 2. **Diagrams** — LikeC4 only if a new component (likely none); a `flow-finance-ingestion.md` sequence
    (land→silver→gold→fan-out) is required.
 3. **Demos** — a `demos/finance-domain.md`: CLI ingestion run + **eyes-on UAT of every consumption surface** (the
-   Grafana Macro & Markets dashboards, the Lightdash/Superset company-financials dashboard, the Cube measures, the
-   filings-RAG notebook) — a UI is a deliverable, so each dashboard gets explicit "click here, confirm it renders the
-   right data" steps. Executed, not just written.
+   Lightdash macro/company-financials dashboards, the Superset finance dashboard, the Cube measures, the filings-RAG
+   notebook) — a UI is a deliverable, so each dashboard gets explicit "click here, confirm it renders the right data"
+   steps. Executed, not just written.
 4. **Cleanup** — landers/transforms are idempotent; snapshots reproducible; note it.
 5. **Tracking** — EMA-110 + backlog; memory for any non-obvious source gotcha (XBRL shapes, EDGAR rate etiquette).
 6. **Ops** — Dagster schedule/sensor + freshness for the snapshots; DataHub freshness; the coverage guards see any

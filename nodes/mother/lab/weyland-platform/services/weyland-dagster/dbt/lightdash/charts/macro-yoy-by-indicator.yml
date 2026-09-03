@@ -1,0 +1,41 @@
+chartConfig:
+  config:
+    eChartsConfig:
+      series:
+        - encode:
+            xRef:
+              field: mart_macro_indicators_series_id
+            yRef:
+              field: mart_macro_indicators_avg_yoy_pct
+          type: bar
+    layout:
+      flipAxes: true
+      xField: mart_macro_indicators_series_id
+      yField:
+        - mart_macro_indicators_avg_yoy_pct
+  type: cartesian
+description: null
+metricQuery:
+  additionalMetrics: []
+  customDimensions: []
+  dimensions:
+    - mart_macro_indicators_series_id
+  exploreName: mart_macro_indicators
+  filters: {}
+  limit: 25
+  metricOverrides: {}
+  metrics:
+    - mart_macro_indicators_avg_yoy_pct
+  sorts:
+    - descending: true
+      fieldId: mart_macro_indicators_avg_yoy_pct
+  tableCalculations: []
+name: Year-over-year change by indicator
+slug: macro-yoy-by-indicator
+spaceSlug: shared
+tableConfig:
+  columnOrder:
+    - mart_macro_indicators_series_id
+    - mart_macro_indicators_avg_yoy_pct
+tableName: mart_macro_indicators
+version: 1

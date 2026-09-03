@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""Seed Superset with Music + Health dashboards over the dbt MARTS (`iceberg.dbt.mart_*`) via the REST API:
-registers the 7 marts as Trino datasets, then creates bar/line charts + two dashboards. Brings Superset's data
-side level with Lightdash — ad-hoc BI over the curated/tested marts instead of only raw gold.
+"""Seed Superset with Music + Health + Finance dashboards over the dbt MARTS (`iceberg.dbt.mart_*`) via the REST
+API: registers the 8 marts as Trino datasets, then creates bar/line charts + three dashboards. Brings Superset's
+data side level with Lightdash — ad-hoc BI over the curated/tested marts instead of only raw gold.
 
 Prereq: a Superset DB-admin login (the helm-bootstrapped `admin`, separate from Keycloak OIDC). Run from a box
 that reaches superset.weyland.lab (workstation/rogueone), `requests` installed:
@@ -12,7 +12,7 @@ Env: SUPERSET_URL (default https://superset.weyland.lab), SUPERSET_USER (default
 (REQUIRED — no default; source scripts/.env), SUPERSET_CA_BUNDLE (default ~/.local/share/mkcert/rootCA.pem), TRINO_DB_NAME
 (substring matching the Trino DB connection name, default 'trino').
 
-The 7 marts must exist in `iceberg.dbt` (dbt build) and the Trino connection must reach the `dbt` schema.
+The 8 marts must exist in `iceberg.dbt` (dbt build) and the Trino connection must reach the `dbt` schema.
 Chart `params` mirror the live Superset 6.1.0 schema (echarts_timeseries_bar/line, SIMPLE adhoc metrics).
 """
 import json
@@ -60,7 +60,8 @@ print(f"trino db id={trino_id} ({trino['database_name']})")
 
 # --- register the 7 marts as datasets (schema dbt), reusing any that already exist ---
 MARTS = ["mart_spotify_audio", "mart_genre_audio_profile", "mart_fma_genre_tree", "mart_artist_popularity",
-         "mart_state_health_trends", "mart_country_health", "mart_personality_by_country"]
+         "mart_state_health_trends", "mart_country_health", "mart_personality_by_country",
+         "mart_macro_indicators"]
 existing = {d["table_name"]: d["id"] for d in S.get(f"{BASE}/api/v1/dataset/?q=(page_size:500)").json()["result"]
             if d.get("schema") == "dbt"}
 ds_id = {}
@@ -117,6 +118,15 @@ health = [
 ]
 
 
+print("finance charts:")
+finance = [
+    chart("Marts · Macro YoY by indicator", "mart_macro_indicators", BAR, "series_id",
+          [M("yoy_pct", "AVG", "Avg YoY %")], 25, True),
+    chart("Marts · Macro latest value by indicator", "mart_macro_indicators", BAR, "series_id",
+          [M("latest_value", "SUM", "Latest value")], 25, True),
+]
+
+
 def dashboard(title, chart_ids):
     """Build a 2-charts-per-row dashboard layout (position_json v2, 12-col grid)."""
     pos = {"DASHBOARD_VERSION_KEY": "v2",
@@ -145,4 +155,6 @@ def dashboard(title, chart_ids):
 
 dashboard("Weyland Marts — Music", music)
 dashboard("Weyland Marts — Health", health)
-print(f"\nDone: 7 mart datasets, {len(music) + len(health)} charts, 2 dashboards. Open {BASE} -> Dashboards.")
+dashboard("Weyland Marts — Finance", finance)
+print(f"\nDone: {len(MARTS)} mart datasets, {len(music) + len(health) + len(finance)} charts, 3 dashboards. "
+      f"Open {BASE} -> Dashboards.")
