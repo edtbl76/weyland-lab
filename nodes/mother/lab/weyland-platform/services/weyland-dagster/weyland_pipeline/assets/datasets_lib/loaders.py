@@ -15,6 +15,7 @@ import pyarrow.parquet as pq
 from dagster import MetadataValue, Output, asset
 
 from . import io
+from .timeseries import hypertable_ts
 from weyland_pipeline._otel import traced_load  # B49(b) Phase 2 — one coarse span per dataset-load
 
 
@@ -105,9 +106,11 @@ def _tsdb_engine():
 @traced_load
 def _load_dataset_to_timescale(mc, cfg, dataset, time_col, engine, log) -> dict:
     """Each silver parquet file under parquet/<dataset>/ → a TimescaleDB hypertable in db `timeseries`,
-    partitioned on a derived `ts` timestamptz. WHO GHO's TimeDim is a year → Jan 1 of that year. Rows with
-    no usable year are dropped (a hypertable's time column must be non-null). Table name is dataset-prefixed
-    (who_gho_<indicator>) since TimescaleDB is one flat db — mirrors the Iceberg/DuckDB per-file naming."""
+    partitioned on a derived `ts` timestamptz. The `ts` coercion is dtype-aware (see timeseries.hypertable_ts):
+    a NUMERIC time column is a YEAR (WHO GHO's TimeDim → Jan 1 of that year); a date/ISO-string column is a
+    full date (FRED's `date`). Rows with no usable timestamp are dropped (a hypertable's time column must be
+    non-null). Table name is dataset-prefixed (who_gho_<indicator>) since TimescaleDB is one flat db —
+    mirrors the Iceberg/DuckDB per-file naming."""
     import pandas as pd
     import sqlalchemy
 
@@ -123,7 +126,7 @@ def _load_dataset_to_timescale(mc, cfg, dataset, time_col, engine, log) -> dict:
             df = pq.ParquetFile(_io.BytesIO(data)).read().to_pandas()
             if time_col not in df.columns:
                 raise KeyError(f"time column {time_col!r} not in {list(df.columns)[:10]}")
-            df["ts"] = pd.to_datetime(df[time_col], format="%Y", errors="coerce", utc=True)
+            df["ts"] = hypertable_ts(df[time_col])
             df = df[df["ts"].notna()]
             df.to_sql(table, engine, if_exists="replace", index=False, chunksize=5_000)
             # to_sql made a plain table (dropping any prior hypertable); (re)promote it. migrate_data moves

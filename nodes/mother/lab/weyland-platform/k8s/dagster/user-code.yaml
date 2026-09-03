@@ -152,6 +152,12 @@ spec:
                 secretKeyRef:
                   name: litellm-secrets
                   key: GEMINI_API_KEY
+            # datasets_finance_fred_land asset (B113): free FRED API key for the macro-series lander (fails closed if absent).
+            - name: FRED_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: fred-secret
+                  key: FRED_API_KEY
             # aidlc_kb_ingest asset (B37): reads the brand-neutral AIDLC KB from the MinIO bucket.
             # Creds live in the minio ns (minio-creds) — mirror them into THIS ns as aidlc-kb-minio-secret
             # (see runbook); secretKeyRef can't cross namespaces.

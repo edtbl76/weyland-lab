@@ -24,7 +24,7 @@ OUT="${OUT:-$HOME/sealed-out}"
 SEAL=0; [ "${1:-}" = "--seal" ] && SEAL=1
 
 SECRETS=(
-  # --- weyland (28) ---
+  # --- weyland (29) ---
   weyland/aidlc-kb-minio-secret
   weyland/apisix-secret
   weyland/cosign-signing-key         # B88 — cosign image-signing key. ⚠ BRICKING: lose it and every
@@ -35,6 +35,7 @@ SECRETS=(
   weyland/dagster-postgres-secret
   weyland/dagster-sentry
   weyland/datahub-token
+  weyland/fred-secret                 # B113 finance domain — FRED API key for the dagster user-code FRED lander
   weyland/glitchtip-secret            # ⚠ bricking: Django SECRET_KEY — also escrow off-cluster
   weyland/iceberg-s3-secret
   weyland/keycloak-secret

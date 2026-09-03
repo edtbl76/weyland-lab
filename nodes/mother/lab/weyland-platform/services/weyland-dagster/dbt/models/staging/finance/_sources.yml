@@ -1,0 +1,15 @@
+version: 2
+
+sources:
+  - name: datasets_finance
+    description: "Iceberg gold (Nessie `main`) for the finance domain — produced by the datasets_lib pipeline from the FRED macro series (B113 Phase 1). dbt reads these; it does not write them."
+    database: iceberg          # Trino catalog
+    schema: datasets_finance   # flat Nessie namespace
+    tables:
+      # Single-file raw folders → per-folder Iceberg tables (ice_ident): identifier == the folder name.
+      - name: fred_macro
+        identifier: fred_macro
+        description: "FRED macro series, LONG/tidy: (series_id, date, value) for all 13 series stacked."
+      - name: fred_series_meta
+        identifier: fred_series_meta
+        description: "FRED series dimension: (series_id, title, units, frequency, seasonal_adjustment)."

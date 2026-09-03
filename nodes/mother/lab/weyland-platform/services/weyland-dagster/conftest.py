@@ -49,3 +49,19 @@ def parquet_read():
 def port_components():
     """The dagster-free ``port_components`` module, loaded in isolation (stdlib-only at module scope)."""
     return load_isolated("weyland_pipeline/port_components.py", "port_components")
+
+
+@pytest.fixture
+def fred_parse():
+    """The dagster-free ``datasets_lib/fred_parse`` module (B113), loaded in isolation (pyarrow-only)."""
+    return load_isolated(
+        "weyland_pipeline/assets/datasets_lib/fred_parse.py", "fred_parse"
+    )
+
+
+@pytest.fixture
+def timeseries():
+    """The dagster-free ``datasets_lib/timeseries`` hypertable-ts helper (B113), loaded in isolation."""
+    return load_isolated(
+        "weyland_pipeline/assets/datasets_lib/timeseries.py", "timeseries"
+    )

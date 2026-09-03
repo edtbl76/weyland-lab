@@ -32,14 +32,62 @@ tickers of history. **Finnhub** (60/min) is better, and for a *static* bulk snap
 (**stooq** CSV, or `yfinance` off Yahoo) is the pragmatic pick. Recommendation: bulk-snapshot via stooq/yfinance for
 the build; keep Finnhub in reserve for any later live-refresh.
 
-## Tier mapping (the storage-grid rows this domain adds)
+## Tier mapping — the storage-grid rows this domain adds (FULL fan-out)
 
-| Dataset | dbt mart | Iceberg/Trino | Timescale | ClickHouse | Postgres | Neo4j | Vector (Qdrant/Weaviate/LanceDB) | Feast |
-|---|---|---|---|---|---|---|---|---|
-| FRED macro series | Y (`mart_macro_indicators`) | Y | **Y** (per-series hypertable) | Y (OLAP) | N | N | N | optional |
-| EDGAR XBRL financials | Y (`mart_company_financials`) | Y | N | Y | Y | **Y** (company/industry graph) | optional |
-| EDGAR filing text | N | Y (metadata) | N | N | N | Y (filing→company link) | **Y** (filings RAG) | N |
-| Market OHLCV | Y (`mart_price_daily`) | Y | **Y** (per-ticker hypertable) | Y (OLAP) | N | N | N | optional (returns/vol features) |
+Like Music/Health (each dataset hits 6–11 tiers deliberately, to demonstrate every store with domain-appropriate
+data), the finance datasets fan out broadly — this is why it's the biggest domain. Silver is always Arrow/Parquet on
+lakeFS; gold is Iceberg. `Y*` = the *natural-fit / showcase* tier for that dataset.
+
+| Tier (grid col) | FRED macro | EDGAR XBRL | EDGAR filing text | Market OHLCV |
+|---|---|---|---|---|
+| **dbt mart** | Y* `mart_macro_indicators` | Y* `mart_company_financials` | N (metadata only) | Y* `mart_price_daily` |
+| **Arrow** (silver) | Y | Y | Y | Y |
+| **Iceberg/Trino** | Y | Y | Y (metadata + text ref) | Y |
+| **DuckDB/GizmoSQL** | Y | Y | Y | Y |
+| **TimescaleDB** | Y* hypertable/series | N | N | Y* hypertable/ticker |
+| **ClickHouse** | Y OLAP | Y OLAP | N | Y* OLAP |
+| **Postgres** | N | Y | N | N |
+| **MySQL** | N | Y (relational financials) | N | N |
+| **MongoDB** | N | Y (raw company-facts JSON docs) | Y (filing docs) | N |
+| **CockroachDB** | N | Y (distributed-SQL financials) | N | Y (geo/ticker-partitioned) |
+| **Cassandra** | Y (wide-column series) | N | N | Y* (ticker-partitioned OHLCV) |
+| **OpenSearch** | N | N | Y* (filings **full-text** search) | N |
+| **Qdrant / Weaviate / LanceDB** | N | N | Y* (filings **vector RAG**) | N |
+| **Neo4j** | N | Y* (company→subsidiary→SIC→filing graph) | Y (filing→company edge) | N |
+| **Redpanda / Avro/Kafka** | later (live-refresh) | later | later | later (tick/price stream) |
+| **Lance** | N | N | Y (embedding store) | N |
+| **Feast** | N | optional | N | Y (returns/vol features) |
+| **MLflow** | optional | optional | optional | Y* (a returns/vol model — the ML showcase) |
+
+## Consumption & serving (L6/L7) — the "usable, not just stored" layer (was missing)
+
+The domain isn't done when data lands — it's done when someone can *see* it. This tier was absent from the first cut:
+
+- **L6 Semantic — Cube + MetricFlow.** Cube measures/dimensions over the finance marts (`avg` yields, YoY CPI,
+  revenue-growth, price-return metrics) + MetricFlow metric defs — governed finance metrics, queried via SQL/REST.
+- **L7 BI / Dashboards:**
+  - **Grafana** — a **"Macro & Markets"** dashboard over the **Timescale** series (macro indicators + ticker price
+    charts) — the natural home for the time-series half, alongside the existing platform Grafana.
+  - **Lightdash** (dbt-native) — explores/charts over the finance marts (company financials, macro trends).
+  - **Superset** — ad-hoc/complex finance viz (a company-financials dashboard, a macro overview) over Trino + Cube.
+  Both Lightdash/Superset are on-demand (KEDA). **Each dashboard is an eyes-on UAT surface (DoD Pillar 3).**
+
+## Governance & ML (L5 / L8)
+
+- **L5 Ranger** — a natural finance masking showcase: mask a sensitive/derived financial column for a non-privileged
+  Trino user (like the health `depression_pct` mask), demonstrating column-level authz on the finance marts.
+- **L5 Soda / GE** — DQ checks per dataset (freshness on series, non-null financial keys, XBRL value ranges).
+- **L8 ML lane** — a small **returns/volatility model** on the market data: Feast features → Ray training → MLflow
+  registry — the finance analogue of the genre classifier, exercising the whole feature/ML tier.
+- **L8 JupyterHub** — the **filings-RAG notebook** (Phase 3) + a finance analysis notebook, folded into the B81
+  library.
+
+## Deferred (explicit N/A for the static build, noted so the gap is a decision not an omission)
+
+- **Streaming (Redpanda/Avro + Flink)** — only earns its keep with a **live-refresh** (intraday prices, new
+  filings). The static-snapshot build does NOT stand it up; it's the first item of the deferred live-refresh phase.
+- **Live-refresh / self-built MCP** — deferred (per the sources decision); the free APIs (FRED/Finnhub/EDGAR)
+  support it later without a paid vendor.
 
 ## Build shape — walking skeleton, then expand
 
@@ -52,7 +100,15 @@ Mirrors how the mesh itself was built (skeleton first, gated, then the rest):
    the **Neo4j** company/industry graph.
 3. **Phase 3 — EDGAR filings RAG.** filing text → silver → vector stores (Qdrant/Weaviate/LanceDB) → a
    **`63_rag_sec_filings.ipynb`**-style notebook in the B81 library (retrieve over filings, answer with citations).
-4. **Phase 4 — market OHLCV.** daily prices → Timescale + Iceberg + ClickHouse + `mart_price_daily`.
+4. **Phase 4 — market OHLCV.** daily prices → Timescale + Iceberg + ClickHouse + Cassandra + `mart_price_daily`.
+5. **Phase 5 — ML lane.** a returns/volatility model on the market data: Feast features → Ray training → MLflow
+   registry (the finance genre-classifier analogue).
+
+**Each phase ships its consumption surface, not just storage** — the domain is only "done" when it's usable:
+Phase 1 → a **Grafana "Macro" dashboard** + Cube macro measures; Phase 2 → a **Lightdash/Superset company-financials
+dashboard**; Phase 3 → the **filings-RAG notebook** (B81); Phase 4 → a **Grafana price dashboard** + the broad
+Tier-2 fan-out; Phase 5 → the model in the MLflow registry. Ranger masking + Soda/GE checks land with the marts they
+govern. So a "phase done" = landed + stored across its tiers + a dashboard/notebook a human can put eyes on.
 
 ## Machinery (reuse, don't reinvent)
 
@@ -81,7 +137,10 @@ above). dbt marts go in the dbt project; DataHub emit via the existing emitters.
    `docs/query/finance.md` cookbook; storage-grid rows; platform-map/Port if a new component (none expected).
 2. **Diagrams** — LikeC4 only if a new component (likely none); a `flow-finance-ingestion.md` sequence
    (land→silver→gold→fan-out) is required.
-3. **Demos** — a `demos/finance-domain.md` (CLI ingestion run + the filings-RAG notebook UI), executed.
+3. **Demos** — a `demos/finance-domain.md`: CLI ingestion run + **eyes-on UAT of every consumption surface** (the
+   Grafana Macro & Markets dashboards, the Lightdash/Superset company-financials dashboard, the Cube measures, the
+   filings-RAG notebook) — a UI is a deliverable, so each dashboard gets explicit "click here, confirm it renders the
+   right data" steps. Executed, not just written.
 4. **Cleanup** — landers/transforms are idempotent; snapshots reproducible; note it.
 5. **Tracking** — EMA-110 + backlog; memory for any non-obvious source gotcha (XBRL shapes, EDGAR rate etiquette).
 6. **Ops** — Dagster schedule/sensor + freshness for the snapshots; DataHub freshness; the coverage guards see any

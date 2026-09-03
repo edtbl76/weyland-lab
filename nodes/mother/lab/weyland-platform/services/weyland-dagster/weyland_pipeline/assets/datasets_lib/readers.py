@@ -13,7 +13,9 @@ import pyarrow.csv as pacsv
 from . import io
 
 _PARSE = pacsv.ParseOptions(newlines_in_values=True)  # FMA/Spotify/etc. cells carry embedded newlines
-_EXT_RE = re.compile(r"\.(csv\.gz|csv|xpt|json)$", re.IGNORECASE)
+# .parquet: a domain whose land step already shapes its raw (finance/FRED lands tidy raw parquet, not the
+# source's own format) is read straight through — the broker then re-writes it as silver in every format.
+_EXT_RE = re.compile(r"\.(csv\.gz|csv|xpt|json|parquet)$", re.IGNORECASE)
 
 
 _INVALID_NAME = re.compile(r"[^0-9A-Za-z_]")
@@ -63,6 +65,10 @@ def read_to_table(rel, data, log):
             return pacsv.read_csv(_io.BytesIO(gzip.decompress(data)), parse_options=_PARSE)
         if low.endswith(".csv"):
             return pacsv.read_csv(_io.BytesIO(data), parse_options=_PARSE)
+        if low.endswith(".parquet"):
+            import pyarrow.parquet as pq
+
+            return pq.read_table(_io.BytesIO(data))
         if low.endswith(".xpt"):
             import pandas as pd
 

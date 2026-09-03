@@ -62,6 +62,18 @@ from .datasets_health_transform import (
     datasets_health_store_assets,
     datasets_health_stream_assets,
 )
+from .datasets_finance_fred_land import datasets_finance_fred_land
+from .datasets_finance_transform import (
+    datasets_finance_parquet,
+    datasets_finance_arrow,
+    datasets_finance_avro,
+    datasets_finance_lance,
+    datasets_finance_iceberg,
+    datasets_finance_commit,
+    datasets_finance_checks,
+    datasets_finance_store_assets,
+    datasets_finance_stream_assets,
+)
 from .registrations import (
     bifrost_prompts_registered,
     bifrost_skills_registered,
@@ -130,11 +142,22 @@ all_assets = [
     datasets_health_iceberg,
     datasets_health_commit,
     datasets_health_open_food_facts_parquet,   # streamed silver (broker can't read the 9GB TSV whole)
+    # Finance domain — per-dataset land asset (B113 Phase 1: FRED macro series)
+    datasets_finance_fred_land,
+    # Finance domain — transform (silver + gold)
+    datasets_finance_parquet,
+    datasets_finance_arrow,
+    datasets_finance_avro,
+    datasets_finance_lance,
+    datasets_finance_iceberg,
+    datasets_finance_commit,
     # Health domain — store hydration (data-store-mageddon)
     *datasets_health_store_assets,
     *datasets_music_store_assets,
+    *datasets_finance_store_assets,   # B113 Phase 1 — TimescaleDB + ClickHouse
     *datasets_health_stream_assets,
     *datasets_music_stream_assets,
+    *datasets_finance_stream_assets,  # empty in Phase 1 (no stream_allow yet)
     # B102 — registrations reconcile (Bifrost prompt/skill repos + Realm role prompts)
     bifrost_prompts_registered,
     bifrost_skills_registered,
@@ -145,4 +168,4 @@ all_assets = [
 ]
 
 # Pre-hydration quality gate (build_asset_checks per domain — the second datasets_lib factory)
-all_asset_checks = [*datasets_music_checks, *datasets_health_checks]
+all_asset_checks = [*datasets_music_checks, *datasets_health_checks, *datasets_finance_checks]
