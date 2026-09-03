@@ -36,3 +36,15 @@ data_source weyland_music:
   username: dbt
   catalog: iceberg
   schema: datasets_music
+
+# B113 Phase 1 — the finance-domain gold Iceberg tables (silver/gold datasets_finance: fred_macro,
+# fred_series_meta) so the baseline non-empty scan reaches the FRED datasets that feed mart_macro_indicators.
+# Emitters map `weyland_finance` → iceberg.datasets_finance (same passwordless proxy path; user `dbt`).
+data_source weyland_finance:
+  type: trino
+  host: trino-noauth.data-mesh.svc.cluster.local
+  port: 8080
+  http_scheme: http
+  username: dbt
+  catalog: iceberg
+  schema: datasets_finance

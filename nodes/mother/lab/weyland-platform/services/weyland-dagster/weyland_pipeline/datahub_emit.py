@@ -74,6 +74,7 @@ _SODA_DS_SCHEMA = {
     "weyland": "iceberg.dbt",
     "weyland_health": "iceberg.datasets_health",
     "weyland_music": "iceberg.datasets_music",
+    "weyland_finance": "iceberg.datasets_finance",
 }
 
 
@@ -706,6 +707,7 @@ def emit_lightdash():
 _DOMAINS = {
     "Music": "Music domain — datasets, dbt marts, Tier-2 stores, vectors, graph, Feast features, and BI.",
     "Health": "Health / wellness / personality domain — datasets, dbt marts, stores, Feast features, and BI.",
+    "Finance": "Finance / economic domain — FRED macro series, SEC EDGAR filings + XBRL financials, market data; dbt marts, Timescale/ClickHouse/graph stores, filings RAG, and BI.",
     "AIDLC Knowledge": "The AIDLC knowledge base — engineering-knowledge, consulting-tools, and industry-vertical repositories.",
     "Docs & RAG": "The platform documentation corpus and its retrieval stores (pgvector / OpenSearch / graph).",
     "Platform & Ops": "Operational, observability, and governance data — eval, guardrails, pipelines, CI, alerting, catalog.",
@@ -718,6 +720,7 @@ _DOMAIN_RULES = [
     ("Health", ("datasets_health", "mart_state_health_trends", "mart_country_health", "mart_personality_by_country",
                 "state_health_risk", "brfss", "nhanes", "nhis", "who_gho", "big_five", "cdc_physical", "usda",
                 "open_food_facts")),
+    ("Finance", ("datasets_finance", "mart_macro_indicators", "fred_macro", "fred_series_meta", "fred")),
     ("AIDLC Knowledge", ("aidlc", ":entry", "entry,prod")),
     ("Docs & RAG", ("rag_documents", "rag_chunks", "weyland_chunks", "weylandchunk", "document,prod", "chunk,prod")),
     ("ML & Modeling", ("mlflow", "genre_classifier", "model_catalog", "registered_model", "model_version",
@@ -772,6 +775,8 @@ _PRODUCTS = [
     ("Global Health Indicators", "Health", "WHO GHO population-health indicators by country x year.",
      ("mart_country_health",)),
     ("Personality Profiles", "Health", "Big Five OCEAN traits by country.", ("mart_personality_by_country",)),
+    ("Macro Indicators", "Finance", "FRED macro-economic series (GDP, CPI, unemployment, rates, M2, …) — latest "
+     "value + YoY per series, on a Timescale hypertable.", ("mart_macro_indicators", "fred_macro", "fred_series_meta")),
     ("Weyland Docs", "Docs & RAG", "The platform documentation retrieval corpus.",
      ("rag_documents", "rag_chunks", "weyland_chunks")),
     ("AIDLC Knowledge Base", "AIDLC Knowledge", "The AIDLC KB — engineering-knowledge, consulting-tools, and "

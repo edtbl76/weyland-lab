@@ -26,6 +26,8 @@ NODES = [
      "unless the term notes another unit."),
     ("health-concepts", "Health Concepts", "data-mesh",
      "Business concepts for the health domain — population prevalence, indicators, and personality traits."),
+    ("finance-concepts", "Finance Concepts", "data-mesh",
+     "Business concepts for the finance/economic domain — macro-economic indicators, market series, and filing financials."),
     ("source-schemas", "Source Schemas", "data-mesh",
      "Coded columns from external source schemas we ingest but don't control — MusicBrainz, WHO GHO, and CDC "
      "change envelopes — whose field names are cryptic without a definition."),
@@ -122,6 +124,19 @@ TERMS = [
      "Arithmetic mean of the base measure across the group (suffix _mean).", []),
     ("stat-std", "Std Dev (_std)", "data-platform",
      "Standard deviation of the base measure across the group (suffix _std).", []),
+    # Finance ----------------------------------------------------------------
+    ("macro-indicator", "Macro-Economic Indicator", "finance-concepts",
+     "A FRED time-series measuring the economy — GDP, CPI, unemployment, interest rates, M2, etc. One series per "
+     "series_id, observed over time.", ["series_id", "fred_macro"]),
+    ("yoy", "Year-over-Year (YoY)", "finance-concepts",
+     "Percent change of a series versus the same period one year earlier — the standard way to read an indicator's "
+     "trend net of level.", ["yoy"]),
+    ("seasonal-adjustment", "Seasonal Adjustment", "finance-concepts",
+     "Statistical removal of predictable within-year seasonal variation from a series (FRED SA vs NSA); comparing "
+     "SA and NSA misleads.", ["seasonal_adjustment"]),
+    ("treasury-yield", "Treasury Yield", "finance-concepts",
+     "The interest rate on US Treasury securities by maturity (e.g. DGS2 = 2-year, DGS10 = 10-year); the 10y-2y "
+     "spread turning negative is a classic recession signal.", []),
     # Source schemas: MusicBrainz -------------------------------------------
     ("mb-gid", "GID (Global ID)", "source-schemas",
      "MusicBrainz row-level UUID (the stable public identifier / MBID) for an entity.", ["gid"]),

@@ -1,0 +1,20 @@
+# Soda data-quality — finance-domain SILVER/GOLD (data source weyland_finance = iceberg.datasets_finance).
+# B113 Phase 1: the FRED macro slice — a tidy/long series table + its dimension. Mirrors the mart/silver rigor
+# (music.yml/health.yml/music_silver.yml): row presence, key non-null, and missing_percent(col)<100 "not 100%
+# NULL" tripwires (a min/max check passes vacuously on an all-null column — these do not). fred_macro carries a
+# genuine gap (FRED encodes a missing observation as "." → value NULL), so `value` is NOT asserted non-null —
+# only that the whole column is not 100% NULL. series_id + date are the (series_id, date) grain keys and must be
+# complete. The mart_macro_indicators dbt mart lives in iceberg.dbt and is covered by the `weyland` marts scan +
+# the for-each-dataset baseline (baseline.yml).
+
+checks for fred_macro:
+  - row_count > 0
+  - missing_count(series_id) = 0
+  - missing_count(date) = 0
+  - missing_percent(value) < 100      # the series can carry gaps ("." → NULL), but must not be 100% empty
+
+checks for fred_series_meta:
+  - row_count > 0
+  - duplicate_count(series_id) = 0    # one row per FRED series
+  - missing_count(series_id) = 0
+  - missing_count(title) = 0

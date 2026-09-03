@@ -211,7 +211,10 @@ agents/workflows and platform state. Agents call the tool-server, *not* database
 - **MinIO** — S3-compatible object storage (model artifacts, datasets, backups). Filestash is the UI
   (the community console is stripped). See [runbooks/storage-minio.md](runbooks/storage-minio.md).
 - **Datasets lakehouse (B72/B75)** — a **bronze→silver→gold→stores** lakehouse over public **music** (12
-  datasets) and **health** (8 datasets) sources, on a shared **`datasets_lib`** platform: a domain is a
+  datasets), **health** (8 datasets), and **finance** (**B113** — economic/FRED macro; Phase 1 landed:
+  `fred_macro`/`fred_series_meta` silver → Iceberg gold + a TimescaleDB hypertable on `fred_macro.date` +
+  ClickHouse, with the `mart_macro_indicators` dbt mart — same `datasets_lib` machinery; see
+  [design/finance-domain.md](design/finance-domain.md)) sources, on a shared **`datasets_lib`** platform: a domain is a
   `DomainConfig` + three asset factories (`build_transform_assets` → `build_asset_checks` →
   `build_store_load_assets`). Per-dataset **land** assets write lakeFS `raw/` (bronze); a **brokered**
   fan-out — *one asset per format, process-isolated*, serialized (memory) — produces silver/gold. The
@@ -474,10 +477,10 @@ Weyland organizes data into **domain-scoped stores** — **music** and **health*
 bronze→silver→gold), plus future domains, each own their own storage path, lakeFS repo, and Nessie
 namespace. The `datasets/` MinIO bucket is the top-level envelope; domain data lives in subfolders.
 
-Both domains run on a shared **`datasets_lib`** platform (`weyland_pipeline/assets/datasets_lib/`): a
-per-dataset **land** asset writes lakeFS `raw/` (bronze), then `build_transform_assets(cfg)` — an asset
-factory — fans each raw table out to five silver formats + Iceberg gold. A domain is a `DomainConfig`
-(repo, namespace, per-format allowlists), not a new module. See [runbooks/datasets-lake.md](runbooks/datasets-lake.md).
+These domains (music, health, and finance — B113 Phase 1) run on a shared **`datasets_lib`** platform
+(`weyland_pipeline/assets/datasets_lib/`): a per-dataset **land** asset writes lakeFS `raw/` (bronze), then
+`build_transform_assets(cfg)` — an asset factory — fans each raw table out to five silver formats + Iceberg
+gold. A domain is a `DomainConfig` (repo, namespace, per-format allowlists), not a new module. See [runbooks/datasets-lake.md](runbooks/datasets-lake.md).
 
 **MinIO layout:**
 ```
@@ -488,10 +491,14 @@ datasets/              ← top-level bucket (domain envelope)
   health/              ← lakeFS repo `health` (s3://datasets/health/) — 8 datasets (LIVE)
     raw/               ← bronze: NHANES (.xpt), WHO GHO (.json), Open Food Facts (.csv.gz), BRFSS/NHIS/… (.csv)
     parquet/ arrow/ avro/ lance/  ← silver (multi-format reader: csv / csv.gz / xpt / json)
+  finance/             ← lakeFS repo `finance` (s3://datasets/finance/) — FRED macro (B113 Phase 1)
+    raw/               ← bronze: FRED macro series + series metadata (FRED API JSON, shaped to tidy parquet)
+    parquet/ arrow/ avro/ lance/  ← silver: fred_macro, fred_series_meta
 
 warehouse/             ← Nessie Iceberg warehouse (separate bucket, all domains)
   datasets_music/      ← Iceberg gold — per-file tables (spotify_tracks, audioset_train, musicbrainz_artist, …)
   datasets_health/     ← Iceberg gold — per-file tables (nhanes_2017_2020_DEMO_J, who_gho_life_expectancy, …)
+  datasets_finance/    ← Iceberg gold — per-file tables (fred_macro, fred_series_meta) [B113 Phase 1]
   catalog/             ← model_catalog
   eval/                ← eval_scores (Iceberg data product)
 ```
@@ -501,7 +508,7 @@ otherwise). Naming by folder alone made multi-file folders (usda's 30 CSVs, musi
 train/test) overwrite one table. Oversized tables (>15M rows, e.g. usda `food_nutrient` ~24M) are *deferred*
 from Iceberg (they'd stall the warehouse write) but still land in the file formats.
 
-**Iceberg namespace convention:** flat underscore-prefixed (`datasets_music`, `datasets_health`).
+**Iceberg namespace convention:** flat underscore-prefixed (`datasets_music`, `datasets_health`, `datasets_finance`).
 Trino's native Nessie connector (`catalog.type=nessie`) does **not** expose nested namespaces —
 `TrinoNessieCatalog.listSchemas()` only returns top-level entries and there is no config flag to
 enable recursion. The Trino 463 nested-namespace fix applies only to `catalog.type=rest`.
@@ -509,10 +516,11 @@ Workaround: flat underscore prefixes keep the domain signal without nesting.
 
 ```mermaid
 flowchart LR
-  LAND["per-dataset land assets\nmusic ×12 · health ×8\n(freshness-gated)"]
+  LAND["per-dataset land assets\nmusic ×12 · health ×8 · finance (FRED, B113)\n(freshness-gated)"]
   subgraph LakeFS["lakeFS — raw/ (bronze)"]
     LM["repo music\ns3://datasets/music/"]
     LH["repo health\ns3://datasets/health/"]
+    LF["repo finance\ns3://datasets/finance/"]
   end
   BROKER["datasets_lib broker\nbuild_transform_assets(cfg)\nserialized · per-file · allowlisted"]
   subgraph Silver["silver (lakeFS)"]
@@ -524,18 +532,22 @@ flowchart LR
   subgraph Nessie["Nessie — Iceberg gold (warehouse/)"]
     NM["datasets_music.*"]
     NH["datasets_health.*"]
+    NF["datasets_finance.*"]
   end
   STORES["Tier-2 stores (data-store-mageddon)\nDONE: MySQL · Timescale · Mongo · Cockroach · Cassandra · ClickHouse\nOpenSearch · Neo4j (graph) · Qdrant + Weaviate + LanceDB (vector) · Feast (feature store)"]
   LAND --> LM
   LAND --> LH
+  LAND --> LF
   LM --> BROKER
   LH --> BROKER
+  LF --> BROKER
   BROKER --> PQ
   BROKER --> AR
   BROKER --> AV
   BROKER --> LN
   BROKER --> NM
   BROKER --> NH
+  BROKER --> NF
   PQ --> STORES
 ```
 

@@ -1,4 +1,4 @@
-# DataHub managed-ingestion recipe — ClickHouse (Tier-2 columnar OLAP: datasets_music + datasets_health).
+# DataHub managed-ingestion recipe — ClickHouse (Tier-2 columnar OLAP: datasets_music + datasets_health + datasets_finance).
 # Source-of-record for the ALREADY-LIVE UI-configured source (no committed recipe before → non-durable).
 # In-cluster HTTP (:8123). The `default` user HAS a password (set via the users.d/weyland-users.xml Secret) —
 # DataHub's clickhouse-sqlalchemy can't auth against a no-password user, which is exactly why that password
@@ -14,6 +14,7 @@ source:
       allow:
         - "datasets_music"
         - "datasets_health"
+        - "datasets_finance"   # B113 Phase 1 — FRED macro tables (fred_macro, fred_series_meta) in ClickHouse
     profiling:
       enabled: true
       profile_table_level_only: true   # B80 Stats-wide: row count + size only — cheap, no per-column histogram scans

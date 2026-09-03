@@ -709,8 +709,26 @@ NHIS = {
     "wtkg_a": "Weight without shoes (kilograms), Inhouse", "wtlb_a": "Weight without shoes (pounds), inhouse",
 }
 
+# ── FRED (Federal Reserve Economic Data — St. Louis Fed macro series; finance domain, B113 Phase 1) ───────────
+# One dict covers both silver tables: fred_macro (tidy/long: series_id, date, value) and the fred_series_meta
+# dimension (series_id, title, units, frequency, seasonal_adjustment). The registry key "fred" substring-matches
+# both dataset URNs; a column absent from one table simply doesn't match there.
+FRED = {
+    "series_id": "FRED series identifier (e.g. GDPC1 = real GDP, CPIAUCSL = CPI, UNRATE = unemployment rate, "
+                 "FEDFUNDS = effective federal funds rate, DGS10 = 10-year Treasury yield, M2SL = M2 money stock).",
+    "date": "Observation date (YYYY-MM-DD) of this series value; the TimescaleDB hypertable's time axis.",
+    "value": "Observed value of the series on `date`, in the series' own `units`. NULL where FRED reports a gap "
+             "(the source encodes a missing observation as the literal \".\").",
+    "title": "Human-readable FRED series title (e.g. 'Real Gross Domestic Product').",
+    "units": "Units the series is reported in (e.g. Percent; Billions of Chained 2017 Dollars; Index 2017=100).",
+    "frequency": "Native reporting frequency of the series (Daily, Weekly, Monthly, Quarterly, Annual).",
+    "seasonal_adjustment": "Seasonal-adjustment treatment (Seasonally Adjusted, Not Seasonally Adjusted, "
+                           "Seasonally Adjusted Annual Rate).",
+}
+
 FIELD_DOCS = {
     "open_food_facts": OPEN_FOOD_FACTS,
+    "fred": FRED,
     "usda": USDA_FDC,
     "fma": FMA,
     "audioset": AUDIOSET,

@@ -284,6 +284,9 @@ def soda_scan_op(context):
         ("weyland", "/tmp/soda_marts.json", ["/app/soda/checks/music.yml", "/app/soda/checks/health.yml", _bl]),
         ("weyland_music", "/tmp/soda_music.json", ["/app/soda/checks/music_silver.yml", _bl]),
         ("weyland_health", "/tmp/soda_gold.json", ["/app/soda/checks/health_gold.yml", _bl]),
+        # B113 Phase 1 — finance silver/gold (fred_macro, fred_series_meta); baseline.yml fans row_count>0 across
+        # every datasets_finance table too. mart_macro_indicators is covered by the `weyland` marts scan above.
+        ("weyland_finance", "/tmp/soda_finance.json", ["/app/soda/checks/finance.yml", _bl]),
     ]
     worst = 0
     marts_bad = False

@@ -8,6 +8,7 @@ syntax demos.
 |---|---|---|
 | Trino / Iceberg | [trino.md](trino.md) | the federated query layer — gold Iceberg (`iceberg.datasets_music/health.*`), cross-catalog joins, time-travel |
 | dbt marts | [dbt-marts.md](dbt-marts.md) | the 7 tested marts (`iceberg.dbt.mart_*`) — the curated, source-of-truth analytics tables |
+| Finance domain | [finance.md](finance.md) | domain cookbook (B113 Phase 1) — FRED macro over Trino (`iceberg.datasets_finance.*` + `mart_macro_indicators`), Timescale hypertable, GizmoSQL/ClickHouse |
 | GizmoSQL / DuckDB | [gizmosql.md](gizmosql.md) | embedded OLAP over persisted DuckDB tables via Arrow Flight SQL (music + health datasets) |
 | ClickHouse | [clickhouse.md](clickhouse.md) | OLAP — usda (food/nutrients), OFF, fma, uci, musicbrainz-subset, audioset |
 | Cassandra | [cassandra.md](cassandra.md) | wide-column — who_gho, big_five, lastfm, uci (partition-key queries) |

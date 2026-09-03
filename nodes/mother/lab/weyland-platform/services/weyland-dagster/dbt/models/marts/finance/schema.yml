@@ -1,0 +1,37 @@
+version: 2
+
+models:
+  - name: mart_macro_indicators
+    description: >
+      FRED macro indicators (B113 Phase 1) — one row per series with its latest observation and
+      year-over-year change, joined to the series dimension (title/units/frequency/seasonal adjustment).
+      "Prior year" is the most recent observation on or before one year before the latest date, so YoY works
+      across FRED's mixed frequencies (daily DGS10, monthly UNRATE, quarterly GDPC1). One row per series_id.
+    columns:
+      - name: series_id
+        description: "FRED series identifier (e.g. GDPC1, CPIAUCSL, UNRATE) — unique per row."
+        meta: {metrics: {series_count: {type: count_distinct, label: "Series"}}}
+        tests:
+          - unique
+          - not_null
+      - name: title
+        description: "Human-readable FRED series title."
+      - name: units
+        description: "Units the series is reported in (Percent, Billions of Chained 2017 Dollars, Index, …)."
+      - name: frequency
+        description: "Native reporting frequency of the series (Daily, Monthly, Quarterly, …)."
+      - name: seasonal_adjustment
+        description: "Seasonal-adjustment treatment (Seasonally Adjusted, Not Seasonally Adjusted, …)."
+      - name: latest_date
+        description: "Date of the most recent non-null observation for the series."
+        tests:
+          - not_null
+      - name: latest_value
+        description: "Value of the most recent non-null observation, in the series' own units."
+      - name: prior_year_date
+        description: "Date of the most recent observation on or before one year before latest_date (NULL if none)."
+      - name: prior_year_value
+        description: "Value at prior_year_date (NULL if no prior-year observation exists)."
+      - name: yoy_pct
+        description: "Year-over-year change (%): (latest_value - prior_year_value) / prior_year_value * 100."
+        meta: {metrics: {avg_yoy_pct: {type: average, label: "Avg YoY %"}}}
