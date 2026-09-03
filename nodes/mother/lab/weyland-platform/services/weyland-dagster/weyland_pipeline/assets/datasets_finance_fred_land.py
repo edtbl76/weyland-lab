@@ -38,11 +38,15 @@ def _get_json(url, retries=3, backoff=0.5):
     import json
     import urllib.request
 
+    # Defence-in-depth: every URL here is built from the hardcoded https _FRED_BASE, but assert the scheme
+    # so a future refactor can never hand urlopen a file:// or custom scheme (the B310 concern).
+    if not url.startswith("https://"):
+        raise ValueError(f"refusing non-HTTPS FRED URL: {url!r}")
     last = None
     for attempt in range(retries):
         try:
             req = urllib.request.Request(url, headers={"User-Agent": "weyland-datasets-land/1.0"})
-            with urllib.request.urlopen(req, timeout=60) as r:
+            with urllib.request.urlopen(req, timeout=60) as r:  # nosec B310 — scheme asserted https above; fixed FRED host, no user input
                 return json.loads(r.read())
         except Exception as e:  # noqa: BLE001 — retried; re-raised below if it never succeeds
             last = e
