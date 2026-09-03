@@ -89,15 +89,15 @@ data:
     #
     # EXIT: 0 every job protected, 1 a job with no down alert (net gone / new-service gap), 2 guard broken.
     set -euo pipefail
-    
+
     PROM_POD="${PROM_POD:-prometheus-monitoring-kube-prometheus-prometheus-0}"
     PROM_NS="${PROM_NS:-monitoring}"
-    
+
     # --- accepted, with the reason -------------------------------------------------------------------
     # One row per tolerated job: <job>|<why it needs no down alert>. State the CONDITION. Empty by design —
     # the blanket TargetDown covers everything, so a gap here is a real finding, not a job to wave through.
     ACCEPTED=()
-    
+
     is_accepted() { # is_accepted <job>
       local row e_entry
       for row in ${ACCEPTED[@]+"${ACCEPTED[@]}"}; do
@@ -106,7 +106,7 @@ data:
       done
       return 1
     }
-    
+
     # --- coverage --------------------------------------------------------------------------------------
     #
     # covered_jobs <up-file> <rules-json-file> -> the subset of up-jobs a down/absent alert protects.
@@ -121,7 +121,7 @@ data:
         doc = json.loads(open(sys.argv[2]).read())
     except Exception as e:
         sys.stderr.write(f"FATAL: PrometheusRules JSON did not parse: {e}\n"); sys.exit(3)
-    
+
     scoped, patterns, blanket = set(), [], False
     for pr in doc.get("items", []):
         for grp in (pr.get("spec", {}) or {}).get("groups") or []:
@@ -139,7 +139,7 @@ data:
                 else:
                     scoped.update(lits)
                     patterns.extend(pats)
-    
+
     compiled = []
     for p in patterns:
         try:
@@ -151,16 +151,16 @@ data:
             print(j)
     PY
     }
-    
+
     # --- inputs ----------------------------------------------------------------------------------------
-    
+
     prom_query() { # prom_query <promql> -> raw /api/v1/query response body
       local q
       q="$(python3 -c "import urllib.parse,sys; print(urllib.parse.quote(sys.argv[1]))" "$1")" || return 1
       kubectl get --raw \
         "/api/v1/namespaces/$PROM_NS/pods/$PROM_POD:9090/proxy/api/v1/query?query=$q" 2>/dev/null
     }
-    
+
     up_jobs() {
       local raw
       if [ -n "${UP_RAW_FILE:-}" ]; then raw="$(cat "$UP_RAW_FILE")"
@@ -173,39 +173,39 @@ data:
         if j: print(j)
     " || { echo "FATAL: 'up' query result did not parse" >&2; return 1; }
     }
-    
+
     rules_json() {
       if [ -n "${RULES_JSON_FILE:-}" ]; then cat "$RULES_JSON_FILE"; return 0; fi
       kubectl get prometheusrules -A -o json 2>/dev/null \
         || { echo "FATAL: could not list PrometheusRules" >&2; return 1; }
     }
-    
+
     main() {
       local list_only=0
       [ "${1-}" = "--list" ] && list_only=1
       command -v python3 >/dev/null 2>&1 || { echo "❌ python3 not found on PATH" >&2; exit 2; }
-    
+
       local ups rules upfile rulesfile coveredfile covered
       ups="$(up_jobs)"     || exit 2
       rules="$(rules_json)" || exit 2
-    
+
       upfile="$(mktemp)"; rulesfile="$(mktemp)"; coveredfile="$(mktemp)"
       # shellcheck disable=SC2064
       trap "rm -f '$upfile' '$rulesfile' '$coveredfile'" RETURN
       printf '%s\n' "$ups" | awk 'NF' | sort -u > "$upfile"
       printf '%s'   "$rules" > "$rulesfile"
-    
+
       local total; total="$(wc -l <"$upfile")"
       if [ "$total" -eq 0 ]; then
         echo "❌ ZERO scrape jobs found. 'Checked nothing, found nothing' is the exact shape of bug this" >&2
         echo "   guard exists to catch; it must never be a clean pass." >&2
         exit 2
       fi
-    
+
       covered="$(covered_jobs "$upfile" "$rulesfile")" \
         || { echo "❌ coverage computation failed (PrometheusRules unreadable)" >&2; exit 2; }
       printf '%s\n' "$covered" | awk 'NF' | sort -u > "$coveredfile"
-    
+
       local job gaps=0
       while IFS= read -r job; do
         [ -n "$job" ] || continue
@@ -218,12 +218,12 @@ data:
           gaps=$((gaps + 1))
         fi
       done <"$upfile"
-    
+
       if [ "$list_only" -eq 1 ]; then
         echo "listed $total scrape job(s)."
         return 0
       fi
-    
+
       if [ "$gaps" -ne 0 ]; then
         echo >&2
         echo "❌ $gaps of $total scrape job(s) have no down-alert coverage." >&2
@@ -234,7 +234,7 @@ data:
       fi
       echo "OK — $total scrape job(s), every one protected by a down/absent alert."
     }
-    
+
     if [ -z "${ALERT_COVERAGE_LIB:-}" ]; then
       main "$@"
     fi
