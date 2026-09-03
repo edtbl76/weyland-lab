@@ -6,16 +6,15 @@ syntax demos.
 
 | Store | File | What's in it |
 |---|---|---|
-| Trino / Iceberg | [trino.md](trino.md) | the federated query layer — gold Iceberg (`iceberg.datasets_music/health.*`), cross-catalog joins, time-travel |
-| dbt marts | [dbt-marts.md](dbt-marts.md) | the 7 tested marts (`iceberg.dbt.mart_*`) — the curated, source-of-truth analytics tables |
-| Finance domain | [finance.md](finance.md) | domain cookbook (B113 Phase 1) — FRED macro over Trino (`iceberg.datasets_finance.*` + `mart_macro_indicators`), Timescale hypertable, GizmoSQL/ClickHouse |
-| GizmoSQL / DuckDB | [gizmosql.md](gizmosql.md) | embedded OLAP over persisted DuckDB tables via Arrow Flight SQL (music + health datasets) |
-| ClickHouse | [clickhouse.md](clickhouse.md) | OLAP — usda (food/nutrients), OFF, fma, uci, musicbrainz-subset, audioset |
+| Trino / Iceberg | [trino.md](trino.md) | the federated query layer — gold Iceberg (`iceberg.datasets_music/health/finance.*`), cross-catalog joins, time-travel |
+| dbt marts | [dbt-marts.md](dbt-marts.md) | the 8 tested marts (`iceberg.dbt.mart_*`, incl. `mart_macro_indicators`) — the curated, source-of-truth analytics tables |
+| GizmoSQL / DuckDB | [gizmosql.md](gizmosql.md) | embedded OLAP over persisted DuckDB tables via Arrow Flight SQL (music + health + finance datasets) |
+| ClickHouse | [clickhouse.md](clickhouse.md) | OLAP — usda (food/nutrients), OFF, fma, uci, musicbrainz-subset, audioset, fred_macro |
 | Cassandra | [cassandra.md](cassandra.md) | wide-column — who_gho, big_five, lastfm, uci (partition-key queries) |
 | CockroachDB | [cockroachdb.md](cockroachdb.md) | distributed SQL — brfss, nhis |
 | MongoDB | [mongodb.md](mongodb.md) | documents — who_gho, open_food_facts, aidlc-kb |
 | MySQL | [mysql.md](mysql.md) | 6 health DBs — nhanes, big_five, who_gho, cdc, brfss, nhis |
-| TimescaleDB | [timescaledb.md](timescaledb.md) | hypertables — platform metrics + who_gho time series |
+| TimescaleDB | [timescaledb.md](timescaledb.md) | hypertables — platform metrics + who_gho + fred_macro time series |
 | weyland Postgres | [postgres.md](postgres.md) | general platform PG — RAG corpus (pgvector) + LLM-eval harness (`weyland` DB), Feast offline sources (`feast` DB) |
 | MusicBrainz PG | [musicbrainz-postgres.md](musicbrainz-postgres.md) | full native mbdump — artists/recordings/links |
 | Neo4j | [neo4j.md](neo4j.md) | graphs — music datasets (genre tree, lastfm listens) + AIDLC methodology (`:Entry`) + RAG (`Document`/`Chunk`) + GDS; importable favorites: [AIDLC](neo4j-aidlc-favorites.csv) / [Music](neo4j-music-favorites.csv) |

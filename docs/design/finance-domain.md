@@ -144,7 +144,9 @@ above). dbt marts go in the dbt project; DataHub emit via the existing emitters.
 ## DoD acceptance criteria (the 8 pillars, applied)
 
 1. **Docs** — arch.md domain row; api.md/hosts.md only if a new endpoint (none expected — reuses stores); a
-   `docs/query/finance.md` cookbook; storage-grid rows; platform-map/Port if a new component (none expected).
+   finance sections in the per-store query cookbooks (`query/trino.md`, `dbt-marts.md`, `timescaledb.md`,
+   `clickhouse.md`, `gizmosql.md` — the cookbooks are one-file-per-store, NOT per-domain); storage-grid rows;
+   platform-map/Port if a new component (none expected).
 2. **Diagrams** — LikeC4 only if a new component (likely none); a `flow-finance-ingestion.md` sequence
    (land→silver→gold→fan-out) is required.
 3. **Demos** — a `demos/finance-domain.md`: CLI ingestion run + **eyes-on UAT of every consumption surface** (the

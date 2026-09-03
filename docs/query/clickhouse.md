@@ -73,6 +73,27 @@ SELECT length(caption) AS len, count() AS n FROM datasets_music.lp_musiccaps_mc_
 GROUP BY len ORDER BY len;
 ```
 
+### Finance (`datasets_finance`)
+
+FRED macro (B113 Phase 1) — `fred_macro` (long: `series_id`, `date`, `value`) + `fred_series_meta` — ingested via
+the native `s3()` path. This is the source the Superset **"Weyland Finance — Macro Time Series"** line charts read
+(ClickHouse, not the Timescale hypertable). `value` is NULL for FRED's `"."` gaps.
+
+```sql
+SELECT name FROM system.tables WHERE database = 'datasets_finance';
+
+-- span + coverage per series
+SELECT series_id, min(date) AS first_obs, max(date) AS last_obs, count() AS n
+FROM datasets_finance.fred_macro
+GROUP BY series_id ORDER BY series_id;
+
+-- rates over time (the line-chart shape): monthly average per series
+SELECT toStartOfMonth(date) AS month, series_id, avg(value) AS v
+FROM datasets_finance.fred_macro
+WHERE series_id IN ('FEDFUNDS','DGS2','DGS10') AND value IS NOT NULL
+GROUP BY month, series_id ORDER BY month DESC LIMIT 30;
+```
+
 ### ClickHouse-isms worth knowing
 - `ORDER BY tuple()` = no sorting key (we dump; fine for a lab). Add a real `ORDER BY` if you want fast filters.
 - `SELECT * FROM s3(url, key, secret, 'Parquet')` reads parquet straight from lakeFS — that's how the loader ingests.

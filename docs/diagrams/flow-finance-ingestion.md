@@ -4,7 +4,8 @@ The **finance** data domain (B113 Phase 1) riding the `datasets_lib` platform, s
 Music/Health — a `FINANCE_CFG` `DomainConfig` fed through **transform → asset-checks → store-load**. This is the
 FRED macro slice: ~13 macro series (GDP, CPI, unemployment, Fed funds, treasury yields, M2, PCE, …), static
 full-history snapshot. See [design/finance-domain.md](../design/finance-domain.md),
-[query/finance.md](../query/finance.md), and the generic [flow-datasets-lakehouse.md](flow-datasets-lakehouse.md).
+the per-store [query cookbooks](../query/) (finance sections in `trino.md` / `dbt-marts.md` / `timescaledb.md` /
+`clickhouse.md` / `gizmosql.md`), and the generic [flow-datasets-lakehouse.md](flow-datasets-lakehouse.md).
 
 ```mermaid
 flowchart TB

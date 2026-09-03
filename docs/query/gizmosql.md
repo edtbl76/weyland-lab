@@ -116,6 +116,22 @@ SELECT round(avg(danceability), 3) AS danceability, round(avg(energy), 3) AS ene
 FROM datasets_music.spotify_tracks;
 ```
 
+### Finance (`datasets_finance`)
+
+FRED macro (B113 Phase 1) as persisted DuckDB base tables — `fred_macro` (long: `series_id`, `date`, `value`) +
+`fred_series_meta`. `value` is NULL for FRED's `"."` gaps.
+
+```sql
+-- the finance tables (GetTables surfaces base tables)
+SELECT table_schema, table_name FROM information_schema.tables
+WHERE table_schema = 'datasets_finance' ORDER BY table_name;
+
+-- observations per series (DuckDB aggregates locally)
+SELECT series_id, count(*) AS n_obs, count(value) AS n_present
+FROM datasets_finance.fred_macro
+GROUP BY series_id ORDER BY n_obs DESC;
+```
+
 ## Notes — GizmoSQL / DuckDB-isms
 
 - **DataGrip can't browse non-default schemas in its tree.** The JDBC client only surfaces the *default*

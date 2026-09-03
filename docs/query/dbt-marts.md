@@ -19,6 +19,7 @@ metrics/explores — see [../runbooks/lightdash.md](../runbooks/lightdash.md)). 
 | `mart_state_health_trends` | state × year | BRFSS chronic-condition prevalence (the Feast `state_health_risk` source) |
 | `mart_country_health` | country × year | WHO GHO — 8 indicators pivoted |
 | `mart_personality_by_country` | country | Big Five OCEAN trait means |
+| `mart_macro_indicators` | series | FRED macro: latest value + prior-year value + `yoy_pct`, joined to the series dimension |
 
 ## Music
 
@@ -83,6 +84,33 @@ ORDER BY year DESC, life_expectancy DESC LIMIT 15;
 SELECT country, n_respondents, round(extraversion, 2) AS e, round(openness, 2) AS o
 FROM iceberg.dbt.mart_personality_by_country
 ORDER BY extraversion DESC LIMIT 10;
+```
+
+## Finance
+
+`mart_macro_indicators` (B113 Phase 1) — one row per FRED macro series: latest observation + the value a year
+earlier + `yoy_pct`, joined to the series dimension. YoY is "latest vs the most recent observation on or before
+one year earlier", so it works across the mixed frequencies (daily DGS10, monthly UNRATE, quarterly GDPC1).
+
+```sql
+-- Latest value + year-over-year change per macro series
+SELECT series_id, title, units, latest_date, latest_value, prior_year_value, yoy_pct
+FROM iceberg.dbt.mart_macro_indicators
+ORDER BY series_id;
+```
+
+```sql
+-- Headline vs core inflation (CPI)
+SELECT series_id, title, latest_value, yoy_pct
+FROM iceberg.dbt.mart_macro_indicators
+WHERE series_id IN ('CPIAUCSL', 'CPILFESL') ORDER BY series_id;
+```
+
+```sql
+-- Indicators ranked by year-over-year change (biggest movers first)
+SELECT series_id, title, round(yoy_pct, 2) AS yoy_pct
+FROM iceberg.dbt.mart_macro_indicators
+WHERE yoy_pct IS NOT NULL ORDER BY yoy_pct DESC;
 ```
 
 ## Notes

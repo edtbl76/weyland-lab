@@ -91,6 +91,44 @@ LIMIT 25;
 SELECT * FROM iceberg.datasets_health.who_gho_who_life_expectancy_at_birth_years LIMIT 25;
 ```
 
+## Finance gold (`iceberg.datasets_finance`)
+
+FRED macro (B113 Phase 1) — `fred_macro` (tidy/long: `series_id`, `date`, `value`; one row per series×date) +
+`fred_series_meta` (the dimension). ~13 series at mixed frequencies (daily DGS10, monthly UNRATE, quarterly GDPC1).
+`value` is NULL where FRED reported `"."` — always `WHERE value IS NOT NULL` for aggregates. The curated
+latest-value + YoY view is the `mart_macro_indicators` mart ([dbt-marts.md](dbt-marts.md)).
+
+```sql
+SHOW TABLES FROM iceberg.datasets_finance;            -- fred_macro, fred_series_meta
+DESCRIBE iceberg.datasets_finance.fred_macro;
+
+-- latest non-null observation per series, labelled from the dimension
+WITH latest AS (
+  SELECT series_id, max(date) AS latest_date
+  FROM iceberg.datasets_finance.fred_macro WHERE value IS NOT NULL GROUP BY series_id
+)
+SELECT m.series_id, meta.title, meta.units, f.date AS latest_date, f.value AS latest_value
+FROM latest m
+JOIN iceberg.datasets_finance.fred_macro f ON f.series_id = m.series_id AND f.date = m.latest_date
+LEFT JOIN iceberg.datasets_finance.fred_series_meta meta ON meta.series_id = m.series_id
+ORDER BY m.series_id;
+
+-- CPI year-over-year from the raw monthly index (LAG 12)
+WITH cpi AS (
+  SELECT date, value, lag(value, 12) OVER (ORDER BY date) AS value_year_ago
+  FROM iceberg.datasets_finance.fred_macro WHERE series_id = 'CPIAUCSL' AND value IS NOT NULL
+)
+SELECT date, value, round((value - value_year_ago) / value_year_ago * 100.0, 2) AS yoy_pct
+FROM cpi WHERE value_year_ago IS NOT NULL ORDER BY date DESC LIMIT 24;
+
+-- yield-curve spread (10y − 2y Treasury); negative = the classic inversion signal
+SELECT t10.date, t10.value AS dgs10, t2.value AS dgs2, round(t10.value - t2.value, 2) AS spread_10y_2y
+FROM iceberg.datasets_finance.fred_macro t10
+JOIN iceberg.datasets_finance.fred_macro t2 ON t2.date = t10.date AND t2.series_id = 'DGS2'
+WHERE t10.series_id = 'DGS10' AND t10.value IS NOT NULL AND t2.value IS NOT NULL
+ORDER BY t10.date DESC LIMIT 30;
+```
+
 ## Cross-catalog federation (`iceberg` + `postgresql`)
 
 Trino's whole point: join the lake to the live app DB in one query — no ETL. The `postgresql` catalog is the

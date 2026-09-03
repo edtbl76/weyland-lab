@@ -4,7 +4,8 @@ The finance data domain riding the mesh, FRED macro slice: ~13 macro series land
 the mesh's BI surfaces. Ingestion is the `datasets_lib` three-factory path (same as Music/Health); consumption is
 **Lightdash + Superset + Cube** (not Grafana — that's observability). See
 [design/finance-domain.md](../design/finance-domain.md), [diagrams/flow-finance-ingestion.md](../diagrams/flow-finance-ingestion.md),
-and [query/finance.md](../query/finance.md).
+and the finance sections of the per-store [query cookbooks](../query/) (`trino.md`, `dbt-marts.md`, `timescaledb.md`,
+`clickhouse.md`, `gizmosql.md`).
 
 ## Prerequisites
 
