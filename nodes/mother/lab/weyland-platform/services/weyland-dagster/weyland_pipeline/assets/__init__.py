@@ -63,6 +63,7 @@ from .datasets_health_transform import (
     datasets_health_stream_assets,
 )
 from .datasets_finance_fred_land import datasets_finance_fred_land
+from .datasets_finance_edgar_land import datasets_finance_edgar_land
 from .datasets_finance_transform import (
     datasets_finance_parquet,
     datasets_finance_arrow,
@@ -142,8 +143,9 @@ all_assets = [
     datasets_health_iceberg,
     datasets_health_commit,
     datasets_health_open_food_facts_parquet,   # streamed silver (broker can't read the 9GB TSV whole)
-    # Finance domain — per-dataset land asset (B113 Phase 1: FRED macro series)
+    # Finance domain — per-dataset land assets (B113 Phase 1: FRED macro series; Phase 2: SEC EDGAR XBRL)
     datasets_finance_fred_land,
+    datasets_finance_edgar_land,
     # Finance domain — transform (silver + gold)
     datasets_finance_parquet,
     datasets_finance_arrow,

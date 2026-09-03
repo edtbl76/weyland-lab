@@ -36,3 +36,51 @@ models:
       - name: yoy_pct
         description: "Year-over-year change (%): (latest_value - prior_year_value) / prior_year_value * 100."
         meta: {metrics: {avg_yoy_pct: {type: average, label: "Avg YoY %"}}}
+
+  - name: mart_company_financials
+    description: >
+      SEC EDGAR company financials (B113 Phase 2) — one row per company with the latest ANNUAL (10-K / FY)
+      value of each us-gaap concept pivoted to columns (revenue, net income, assets, liabilities,
+      stockholders' equity, basic EPS, shares outstanding), joined to the company_meta dim for the SIC
+      classification. The latest annual per concept is picked with a window over (cik, concept) ordered by
+      period_end desc. One row per cik.
+    columns:
+      - name: cik
+        description: "SEC Central Index Key — the company's unique SEC identifier (one per row)."
+        tests:
+          - unique
+          - not_null
+      - name: ticker
+        description: "Primary stock ticker for the company (e.g. NVDA, AAPL)."
+        meta: {metrics: {company_count: {type: count_distinct, label: "Companies"}}}
+        tests:
+          - not_null
+      - name: company
+        description: "Legal company name (from the SEC submissions payload)."
+      - name: sic
+        description: "Standard Industrial Classification code (from company_meta; NULL if unjoinable)."
+      - name: sic_description
+        description: "Human-readable SIC industry description."
+      - name: fiscal_year
+        description: "Fiscal year of the latest annual filing the pivoted values are drawn from."
+      - name: revenue
+        description: "Latest annual total revenue (Revenues, or RevenueFromContractWithCustomerExcludingAssessedTax fallback), USD."
+        meta: {metrics: {sum_revenue: {type: sum, label: "Total revenue"}}}
+      - name: net_income
+        description: "Latest annual net income / loss (NetIncomeLoss), USD."
+        meta: {metrics: {sum_net_income: {type: sum, label: "Total net income"}}}
+      - name: assets
+        description: "Latest annual total assets (Assets), USD."
+        meta: {metrics: {sum_assets: {type: sum, label: "Total assets"}}}
+      - name: liabilities
+        description: "Latest annual total liabilities (Liabilities), USD."
+        meta: {metrics: {sum_liabilities: {type: sum, label: "Total liabilities"}}}
+      - name: stockholders_equity
+        description: "Latest annual stockholders' equity (StockholdersEquity), USD."
+        meta: {metrics: {sum_stockholders_equity: {type: sum, label: "Total stockholders equity"}}}
+      - name: eps_basic
+        description: "Latest annual basic earnings per share (EarningsPerShareBasic), USD/share."
+        meta: {metrics: {avg_eps_basic: {type: average, label: "Avg basic EPS"}}}
+      - name: shares_outstanding
+        description: "Latest annual common shares outstanding (CommonStockSharesOutstanding)."
+        meta: {metrics: {sum_shares_outstanding: {type: sum, label: "Total shares outstanding"}}}

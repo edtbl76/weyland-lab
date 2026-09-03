@@ -60,6 +60,14 @@ def fred_parse():
 
 
 @pytest.fixture
+def edgar_parse():
+    """The dagster-free ``datasets_lib/edgar_parse`` module (B113 Phase 2), loaded in isolation (pyarrow-only)."""
+    return load_isolated(
+        "weyland_pipeline/assets/datasets_lib/edgar_parse.py", "edgar_parse"
+    )
+
+
+@pytest.fixture
 def timeseries():
     """The dagster-free ``datasets_lib/timeseries`` hypertable-ts helper (B113), loaded in isolation."""
     return load_isolated(

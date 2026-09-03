@@ -13,3 +13,10 @@ sources:
       - name: fred_series_meta
         identifier: fred_series_meta
         description: "FRED series dimension: (series_id, title, units, frequency, seasonal_adjustment)."
+      # SEC EDGAR XBRL slice (B113 Phase 2) — landed by datasets_finance_edgar_land.
+      - name: company_financials
+        identifier: company_financials
+        description: "SEC EDGAR company facts, LONG/tidy: (cik, ticker, company, concept, unit, period_end, fy, fp, form, filed, value) for ~50 curated companies."
+      - name: company_meta
+        identifier: company_meta
+        description: "SEC EDGAR company dimension: (cik, ticker, company, sic, sic_description, exchange)."
