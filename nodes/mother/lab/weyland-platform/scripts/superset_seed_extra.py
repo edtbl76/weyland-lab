@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
-"""Seed Superset with Food & Nutrition + Music Catalog dashboards over the ALREADY-REGISTERED ClickHouse datasets
-(datasets_health/open_food_facts + usda food, datasets_music/uci_year_prediction + musicbrainz) — the rich raw
-datasets that had 0 charts. Complements superset_seed.py (which covers the dbt marts). No dataset registration —
-these already exist; this only creates charts + 2 dashboards.
+"""Seed Superset with Food & Nutrition + Music Catalog + Finance Time-Series dashboards over the raw ClickHouse
+datasets (datasets_health/open_food_facts + usda food, datasets_music/uci_year_prediction + musicbrainz,
+datasets_finance/fred_macro) — the rich raw datasets that had 0 charts. Complements superset_seed.py (the dbt
+marts). Food/music datasets are pre-registered; fred_macro is registered here (on ClickHouse — the Timescale
+hypertable segfaults on GROUP BY date). Creates charts + 3 dashboards.
 
 NOTE: open_food_facts stores everything as STRING (incl. nutrients), so numeric metrics use SQL-expression
 metrics with the ClickHouse cast `toFloat64OrNull(col)`. Datasets live on the ClickHouse connection.
@@ -139,9 +140,46 @@ def dashboard(title, chart_ids):
     pos["GRID_ID"]["children"] = rows
     did = post("/api/v1/dashboard/",
                {"dashboard_title": title, "position_json": json.dumps(pos), "published": True})["id"]
+    # Link charts to the dashboard (Superset stores this on the slice); a position_json chartId not in the
+    # M2M renders as "no chart definition associated with this component".
+    for cid in chart_ids:
+        S.put(f"{BASE}/api/v1/chart/{cid}", json={"dashboards": [did]})
     print(f"dashboard '{title}' -> {did}")
 
 
+# --- B113 finance: raw FRED macro TIME-SERIES over ClickHouse (long format: series_id, date, value). NOT
+# Timescale — the fred_macro hypertable segfaults the shared timeseries DB on GROUP BY date. Line charts split
+# by series_id via a groupby + an IN filter. Complements the snapshot mart charts in superset_seed.py. ---
+FRED = None
+for d in allds:
+    if d["table_name"] == "fred_macro" and "click" in d["database"]["database_name"].lower():
+        FRED = d["id"]; break
+if FRED is None:  # register on the ClickHouse connection (schema datasets_finance)
+    clickdb = next(x["id"] for x in S.get(f"{BASE}/api/v1/database/?q=(page_size:50)").json()["result"]
+                   if "click" in x["database_name"].lower())
+    FRED = post("/api/v1/dataset/", {"database": clickdb, "schema": "datasets_finance", "table_name": "fred_macro"})["id"]
+print(f"fred_macro (ClickHouse) -> {FRED}")
+
+
+def tsline(name, series):
+    params = {"viz_type": "echarts_timeseries_line", "x_axis": "date",
+              "metrics": [SQLM("avg(value)", "value")], "groupby": ["series_id"],
+              "adhoc_filters": [{"clause": "WHERE", "subject": "series_id", "operator": "IN",
+                                 "comparator": series, "expressionType": "SIMPLE"}], "row_limit": 100000}
+    cid = post("/api/v1/chart/", {"slice_name": name, "viz_type": "echarts_timeseries_line",
+               "datasource_id": FRED, "datasource_type": "table", "params": json.dumps(params)})["id"]
+    print(f"  chart '{name}' -> {cid}")
+    return cid
+
+
+print("finance time-series charts:")
+finance_ts = [
+    tsline("Finance TS · Rates & yields over time", ["FEDFUNDS", "DGS2", "DGS10", "MORTGAGE30US", "UNRATE"]),
+    tsline("Finance TS · Prices & production over time", ["CPIAUCSL", "CPILFESL", "INDPRO"]),
+    tsline("Finance TS · Output & money over time ($B)", ["GDPC1", "M2SL", "PCE"]),
+]
+
 dashboard("Weyland Food & Nutrition", food)
 dashboard("Weyland Music Catalog", musiccat)
-print(f"\nDone: {len(food) + len(musiccat)} charts, 2 dashboards. Open {BASE} -> Dashboards.")
+dashboard("Weyland Finance — Macro Time Series", finance_ts)
+print(f"\nDone: {len(food) + len(musiccat) + len(finance_ts)} charts, 3 dashboards. Open {BASE} -> Dashboards.")
