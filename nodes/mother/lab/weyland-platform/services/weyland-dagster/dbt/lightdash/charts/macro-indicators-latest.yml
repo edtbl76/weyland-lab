@@ -15,7 +15,7 @@ metricQuery:
   limit: 25
   metricOverrides: {}
   metrics:
-    - mart_macro_indicators_latest_value
+    - mart_macro_indicators_sum_latest_value
     - mart_macro_indicators_avg_yoy_pct
   sorts:
     - descending: false
@@ -29,7 +29,7 @@ tableConfig:
     - mart_macro_indicators_series_id
     - mart_macro_indicators_title
     - mart_macro_indicators_units
-    - mart_macro_indicators_latest_value
+    - mart_macro_indicators_sum_latest_value
     - mart_macro_indicators_avg_yoy_pct
 tableName: mart_macro_indicators
 version: 1

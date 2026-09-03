@@ -62,8 +62,20 @@ print(f"trino db id={trino_id} ({trino['database_name']})")
 MARTS = ["mart_spotify_audio", "mart_genre_audio_profile", "mart_fma_genre_tree", "mart_artist_popularity",
          "mart_state_health_trends", "mart_country_health", "mart_personality_by_country",
          "mart_macro_indicators"]
-existing = {d["table_name"]: d["id"] for d in S.get(f"{BASE}/api/v1/dataset/?q=(page_size:500)").json()["result"]
-            if d.get("schema") == "dbt"}
+# Page through ALL datasets: Superset caps page_size at ~100 regardless of what you ask, so a single
+# `page_size:500` silently returns only the first 100 (128 exist as of 2026-09-03) — the dbt marts sit on
+# later pages, so the old one-shot query found ZERO and re-POSTed every mart, aborting on the first 422
+# "already exists". Paginate until a page comes back empty.
+existing = {}
+_page = 0
+while True:
+    _res = S.get(f"{BASE}/api/v1/dataset/?q=(page:{_page},page_size:100)").json()["result"]
+    if not _res:
+        break
+    for d in _res:
+        if d.get("schema") == "dbt":
+            existing[d["table_name"]] = d["id"]
+    _page += 1
 ds_id = {}
 for m in MARTS:
     if m in existing:
@@ -74,12 +86,33 @@ for m in MARTS:
         print(f"  dataset {m} -> {ds_id[m]}")
 
 
+# Existing charts + dashboards by name (same page_size cap → paginate), so a re-run REUSES them instead of
+# POSTing duplicates. Charts match on slice_name, dashboards on dashboard_title.
+def _paginate(kind, keyfield):
+    out, page = {}, 0
+    while True:
+        res = S.get(f"{BASE}/api/v1/{kind}/?q=(page:{page},page_size:100)").json()["result"]
+        if not res:
+            break
+        for r in res:
+            out[r[keyfield]] = r["id"]
+        page += 1
+    return out
+
+
+existing_charts = _paginate("chart", "slice_name")
+existing_dashboards = _paginate("dashboard", "dashboard_title")
+
+
 def M(col, agg, label=None, ctype="DOUBLE"):
     return {"expressionType": "SIMPLE", "column": {"column_name": col, "type": ctype},
             "aggregate": agg, "label": label or f"{agg}({col})", "optionName": f"m_{col}_{agg}".lower()}
 
 
 def chart(name, mart, viz, x, metrics, limit=5000, order_desc=False):
+    if name in existing_charts:
+        print(f"  chart '{name}' (exists) -> {existing_charts[name]}")
+        return existing_charts[name]
     params = {"viz_type": viz, "x_axis": x, "metrics": metrics, "groupby": [], "row_limit": limit}
     if order_desc:
         params["order_desc"] = True
@@ -129,6 +162,9 @@ finance = [
 
 def dashboard(title, chart_ids):
     """Build a 2-charts-per-row dashboard layout (position_json v2, 12-col grid)."""
+    if title in existing_dashboards:
+        print(f"dashboard '{title}' (exists) -> {existing_dashboards[title]}")
+        return existing_dashboards[title]
     pos = {"DASHBOARD_VERSION_KEY": "v2",
            "ROOT_ID": {"type": "ROOT", "id": "ROOT_ID", "children": ["GRID_ID"]},
            "GRID_ID": {"type": "GRID", "id": "GRID_ID", "children": [], "parents": ["ROOT_ID"]},
