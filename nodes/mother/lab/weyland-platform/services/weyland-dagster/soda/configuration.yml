@@ -1,14 +1,18 @@
-# Soda Core data source → Trino via the `trino-noauth` nginx proxy (data-mesh, meshed). Soda's Trino connector
-# ALWAYS sends HTTP Basic auth (like Lightdash's), and Trino — which runs no authenticator — rejects a password over
-# plaintext ("Password not allowed for insecure authentication"). The proxy clears the Authorization header so Trino
-# sees only X-Trino-User: dbt (the same no-auth path dbt uses; Ranger authorizes `dbt` on iceberg.dbt). Do NOT point
-# this at trino.data-mesh directly — it 401s. `http_scheme: http` = plaintext on the LAN (Istio mTLS wraps the hop).
+# Soda Core data source → Trino via the `trino-noauth` nginx proxy (data-mesh, meshed).
+# `auth_type: NoAuthentication` is REQUIRED (2026-09-03): soda-core-trino defaults auth_type to
+# BasicAuthentication, which builds a trino auth object even with no password; trino-python-client >=0.339
+# then raises TrinoAuthError("TLS/SSL is required for authentication") CLIENT-SIDE at connect() — before the
+# request ever reaches the proxy, so the proxy's header-stripping no longer helps. NoAuthentication sends only
+# X-Trino-User: dbt (the same no-auth path dbt uses; Ranger authorizes `dbt`), which is what trino-noauth wants.
+# Without it EVERY data source fails to connect and the whole soda_quality_job dies. Do NOT point this at
+# trino.data-mesh directly — it 401s. `http_scheme: http` = plaintext on the LAN (Istio mTLS wraps the hop).
 # L5 Slice C: an INDEPENDENT contract scan over the published marts, complementary to dbt's in-transform tests.
 data_source weyland:
   type: trino
   host: trino-noauth.data-mesh.svc.cluster.local
   port: 8080
   http_scheme: http
+  auth_type: NoAuthentication
   username: dbt
   catalog: iceberg
   schema: dbt
@@ -22,6 +26,7 @@ data_source weyland_health:
   host: trino-noauth.data-mesh.svc.cluster.local
   port: 8080
   http_scheme: http
+  auth_type: NoAuthentication
   username: dbt
   catalog: iceberg
   schema: datasets_health
@@ -33,6 +38,7 @@ data_source weyland_music:
   host: trino-noauth.data-mesh.svc.cluster.local
   port: 8080
   http_scheme: http
+  auth_type: NoAuthentication
   username: dbt
   catalog: iceberg
   schema: datasets_music
@@ -45,6 +51,7 @@ data_source weyland_finance:
   host: trino-noauth.data-mesh.svc.cluster.local
   port: 8080
   http_scheme: http
+  auth_type: NoAuthentication
   username: dbt
   catalog: iceberg
   schema: datasets_finance
