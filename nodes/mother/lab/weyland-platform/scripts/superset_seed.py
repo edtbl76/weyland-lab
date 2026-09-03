@@ -185,6 +185,13 @@ def dashboard(title, chart_ids):
     pos["GRID_ID"]["children"] = rows
     did = post("/api/v1/dashboard/",
                {"dashboard_title": title, "position_json": json.dumps(pos), "published": True})["id"]
+    # Associate each chart with the dashboard. Superset stores the link on the SLICE (chart.dashboards), and a
+    # position_json referencing a chartId that is NOT in that M2M renders as "no chart definition associated with
+    # this component" — the dashboard POST does not parse position_json into the association, so set it explicitly.
+    for cid in chart_ids:
+        r = S.put(f"{BASE}/api/v1/chart/{cid}", json={"dashboards": [did]})
+        if not r.ok:
+            print(f"  ⚠ could not link chart {cid} to dashboard {did}: {r.status_code} {r.text[:120]}")
     print(f"dashboard '{title}' -> {did}")
     return did
 
