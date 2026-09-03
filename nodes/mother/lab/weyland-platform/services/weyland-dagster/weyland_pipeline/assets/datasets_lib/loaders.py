@@ -131,8 +131,14 @@ def _load_dataset_to_timescale(mc, cfg, dataset, time_col, engine, log) -> dict:
             df.to_sql(table, engine, if_exists="replace", index=False, chunksize=5_000)
             # to_sql made a plain table (dropping any prior hypertable); (re)promote it. migrate_data moves
             # the just-loaded rows into chunks; if_not_exists keeps it idempotent across re-runs.
+            # chunk_time_interval = 5 YEARS, NOT the 7-day default: dataset time-series are low-frequency
+            # (yearly/monthly/quarterly/daily) but can span a CENTURY (FRED fred_macro is 1919→2026). At the
+            # default 7 days that is ~3,900 tiny chunks, and a GROUP BY over the time dimension builds a
+            # ChunkAppend plan large enough to SEGFAULT the backend — taking down the whole shared `timeseries`
+            # DB (who_gho, eval_scores, …) into recovery. 5-year chunks keep any realistic dataset span to a few
+            # dozen chunks. (who_gho only worked by luck: its ~20-year span stayed under ~35 chunks.)
             with engine.begin() as conn:
-                conn.execute(sqlalchemy.text(f"SELECT create_hypertable('{_safe_ident(table)}', 'ts', if_not_exists => TRUE, migrate_data => TRUE)"))  # nosemgrep
+                conn.execute(sqlalchemy.text(f"SELECT create_hypertable('{_safe_ident(table)}', 'ts', if_not_exists => TRUE, migrate_data => TRUE, chunk_time_interval => INTERVAL '5 years')"))  # nosemgrep
             out[table] = int(len(df))
             log.info(f"timescaledb {table}: {len(df):,} rows → hypertable on ts (from {time_col})")
         except Exception as e:  # noqa: BLE001 — per-table resilience
