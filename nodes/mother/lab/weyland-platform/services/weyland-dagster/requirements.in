@@ -83,3 +83,6 @@ sqlglot
 # openlineage-dbt — the `dbt-ol` wrapper emits real OpenLineage RunEvents (run history + column lineage) to DataHub
 # GMS's native OpenLineage REST endpoint after `dbt build`. The operational-lineage half of the B1 OpenLineage tail.
 openlineage-dbt
+# beautifulsoup4 (B113 Phase 3) — strip SEC 10-K filing HTML to plain text in the filings-RAG lander
+# (datasets_finance_edgar_text_land); the section-aware chunker (edgar_text_parse) then segments + chunks it.
+beautifulsoup4

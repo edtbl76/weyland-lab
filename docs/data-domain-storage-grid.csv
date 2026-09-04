@@ -24,3 +24,4 @@ Finance,FRED Series Meta,N,Y,N,N,Y,Y,N,N,N,N,N,Y,N,N,N,N,N,N,N,N,N
 Finance,EDGAR Company Financials,Y (mart_company_financials),Y,N,Y,Y,Y,N,N,Y,Y,N,Y,N,N,N,N,N,N,N,N,N
 Finance,EDGAR Company Meta,N,Y,N,Y,Y,Y,N,N,Y,Y,N,Y,N,N,Y (Company+SIC nodes),N,N,N,N,N,N
 Finance,EDGAR Company Filings,N,Y,N,N,Y,Y,N,N,N,N,N,N,N,N,Y (Filing nodes + FILED),N,N,N,N,N,N
+Finance,EDGAR Filings Text,N,Y,N,N,Y,Y,N,N,N,N,N,N,N,Y (10-K narrative RAG),N,Y,N,N,Y,N,N

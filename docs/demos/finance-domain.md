@@ -73,6 +73,30 @@ Materialize `datasets_finance_edgar_land` (force it — freshness-gated) → tra
 - **Cube:** the `company_financials` cube (`SELECT company_financials.total_revenue`).
 - **DataHub:** Domains → Finance (39 assets); Data Products → Company Financials (20).
 
+## Phase 3 — SEC EDGAR filings-text RAG
+
+The narrative half of EDGAR: each company's **latest 10-K** text, section-aware chunked → the vector stores → a
+retrieval-with-citations notebook.
+
+1. **Land** `datasets_finance_edgar_text_land` (force — freshness-gated) → fetches each US filer's latest 10-K
+   primary document, strips the HTML (bs4), and chunks it **section-aware** (`edgar_text_parse`: Business / Risk
+   Factors / Legal Proceedings / MD&A / Market Risk, whole-doc fallback) → `filings_text` (~a few thousand
+   chunks; ~40 filers — foreign 20-F filers like ASML/BABA yield no 10-K, expected).
+2. **Silver + gold + vectors:** `group:datasets_finance` writes `filings_text` silver/Iceberg; then
+   `group:datasets_finance_stores` runs the vector fan-out — `datasets_finance_qdrant_load` /
+   `_weaviate_load` / `_lancedb_load` embed the `text` column with **bge-small (384)** into collection
+   `datasets_finance_filings_text` (payload carries ticker / accn / section / chunk_id for citations).
+3. **Catalog:** `datahub_catalog_emit_job` → DataHub **SEC Filings** product (Finance domain).
+
+**Eyes-on UAT:**
+- **Notebook** `63_rag_sec_filings.ipynb` (JupyterHub) — ask a cross-company question ("supply-chain / component
+  risks"), see the top-k 10-K chunks (ticker · section · snippet), the **grounded answer with `[n]` citations**
+  via `wl-rag`, the no-context contrast, and the **Risk-Factors-only** section-filtered retrieval.
+- **Trino:** `SELECT ticker, section, count(*) FROM iceberg.datasets_finance.filings_text GROUP BY 1,2 ORDER BY 1,2`
+  — the section distribution per company.
+- **Qdrant** (`qdrant.weyland.lab`): collection `datasets_finance_filings_text` populated, dim 384. See
+  [query/qdrant.md](../query/qdrant.md).
+
 ## Expected result
 
 The 13 FRED macro series are queryable across Iceberg/Trino, TimescaleDB, and ClickHouse; the dbt mart serves

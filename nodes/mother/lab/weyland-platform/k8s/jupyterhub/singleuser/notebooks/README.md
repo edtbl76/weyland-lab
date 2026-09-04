@@ -82,6 +82,7 @@ for training that runs on rogueone via Ray (the `genre-trainer` container) — t
 | `60_rag_llamaindex.ipynb` | **RAG** (retrieve→augment→generate) | embed a question locally with bge-base (matching the corpus, no prefix), retrieve `weyland_chunks` from Qdrant, generate a grounded answer via LiteLLM `wl-rag` — grounded vs no-context contrast. Read-only |
 | `61_gateway_litellm.ipynb` | **LiteLLM** gateway | one OpenAI-compatible front door — the `wl-*` use-case aliases, chat + streaming, live routing (alias→provider/model/latency), vs the MLflow AI Gateway. Read-only |
 | `62_eval_rag.ipynb` | **RAG eval** | the leaderboard (faithfulness/answer_relevancy/context_relevancy per model, Trino over `iceberg.eval` + `postgresql`) + one metric judged LIVE via `wl-judge`, mirroring the harness. Read-only |
+| `63_rag_sec_filings.ipynb` | **Filings RAG** (B113 Phase 3) | retrieve over SEC 10-K narrative chunks (`datasets_finance_filings_text` in Qdrant, embedded with bge-small), answer **with citations** (ticker · 10-K section) via `wl-rag`; grounded-vs-no-context + a Risk-Factors-only section filter. Read-only |
 
 The RAG pieces (embedder · vector store · LLM gateway) each have their own notebook: bge-base here, Qdrant in `30`,
 the gateway in `61`. Eval closes the loop. Query embeddings run locally (bge-base); LiteLLM needs its master key.

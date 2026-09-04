@@ -41,3 +41,14 @@ checks for company_filings:
   - missing_count(cik) = 0
   - missing_count(accn) = 0
   - missing_count(form) = 0
+
+# B113 Phase 3 — SEC EDGAR filings-text slice: section-aware 10-K narrative chunks feeding the vector RAG
+# fan-out (Qdrant/Weaviate/LanceDB). Every chunk must carry non-empty text (an empty chunk embeds to noise) and
+# a section tag; (accn, chunk_id) is the grain, so text/section/cik must be complete.
+checks for filings_text:
+  - row_count > 0
+  - missing_count(cik) = 0
+  - missing_count(accn) = 0
+  - missing_count(section) = 0
+  - missing_count(text) = 0
+  - missing_percent(text) < 100

@@ -50,6 +50,28 @@ qc.query_points("datasets_music_spotify_tracks", query=42, limit=10,
                 query_filter=Filter(must=[FieldCondition(key="track_genre", match=MatchValue(value="metal"))]))
 ```
 
+### Finance — SEC 10-K filings RAG (B113 Phase 3)
+
+`datasets_finance_filings_text` holds the **section-aware 10-K narrative chunks** (~40 mega-caps' latest 10-K:
+Business / Risk Factors / Legal Proceedings / MD&A / Market Risk), embedded with bge-small (384). Payload carries
+`ticker`, `accn`, `section`, `chunk_id`, `filed`, and the chunk `text` — so a hit is both a citation and the
+passage. The `63_rag_sec_filings.ipynb` notebook drives the full retrieve→cite→answer loop; ad-hoc:
+
+```python
+from sentence_transformers import SentenceTransformer
+from qdrant_client.models import Filter, FieldCondition, MatchValue
+m = SentenceTransformer("BAAI/bge-small-en-v1.5")
+qv = m.encode("what risks does the company cite about supply chain and component sourcing?",
+              normalize_embeddings=True).tolist()
+
+# cross-company retrieval
+qc.query_points("datasets_finance_filings_text", query=qv, limit=6, with_payload=True)
+
+# section-scoped: only Risk Factors disclosures (the section tag pays off)
+qc.query_points("datasets_finance_filings_text", query=qv, limit=6, with_payload=True,
+                query_filter=Filter(must=[FieldCondition(key="section", match=MatchValue(value="Risk Factors"))]))
+```
+
 ## Qdrant-isms
 - **Point ids are sequential ints** (0..N-1); the dataset's real id is `payload.row_id`. Payload values are
   stringified (JSON-safe) — filter on strings.

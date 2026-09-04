@@ -147,4 +147,40 @@ were once blocked on general (not finance-specific) defects, now FIXED: the MySQ
 database (`CREATE DATABASE IF NOT EXISTS` + the `--init-file` schema grant, so no per-dataset root grant), and
 the MongoDB loader casts date columns to timestamp so BSON can encode them (`mongo_encode.to_bson_encodable`).
 
-**Deferred / tracked:** ODCS contracts (B157); market OHLCV + filings-RAG + ML lane (Phases 3–5).
+## Phase 3 — SEC EDGAR filings-text RAG (narrative → vectors → citations)
+
+The narrative half of EDGAR: each company's latest **10-K** text, section-aware chunked, embedded, and served
+through the mesh's RAG lane. Structured facts stay in the Phase-2 mart; this is the prose.
+
+```mermaid
+flowchart TB
+  SEC["SEC EDGAR<br/>latest 10-K primary doc (HTML)<br/>~40 US filers · User-Agent"]
+  LAND["datasets_finance_edgar_text_land<br/>bs4 strip → edgar_text_parse<br/>section-aware chunks (whole-doc fallback)"]
+  SILVER[("filings_text silver<br/>cik·ticker·accn·section·chunk_id·text")]
+  GOLD[("Iceberg gold<br/>datasets_finance.filings_text")]
+  subgraph VEC["vector stores (bge-small 384)"]
+    QD["Qdrant<br/>datasets_finance_filings_text"]
+    WV["Weaviate"]
+    LN["LanceDB"]
+  end
+  NB["63_rag_sec_filings.ipynb<br/>retrieve → cite → answer (wl-rag)<br/>+ section-filtered retrieval"]
+  DH["DataHub<br/>SEC Filings product"]
+
+  SEC --> LAND --> SILVER
+  SILVER --> GOLD
+  SILVER --> QD
+  SILVER --> WV
+  SILVER --> LN
+  QD --> NB
+  SILVER --> DH
+```
+
+Only the narrative Items (Business / Risk Factors / Legal Proceedings / MD&A / Market Risk) are emitted — the
+numbers already live in `company_financials`, so Item 8's tables would dilute a text-RAG corpus. Section
+detection anchors on the canonical Item titles and takes each item's **last** occurrence (skipping the
+table-of-contents duplicate), validated against a real Apple 10-K; a filing where fewer than two sections
+resolve falls back to whole-document chunking rather than silently dropping it. Each chunk's payload carries
+`ticker`/`accn`/`section`/`chunk_id` so a retrieval hit is a **citation**, and the `section` tag lets the
+notebook scope retrieval to (say) Risk Factors alone.
+
+**Deferred / tracked:** ODCS contracts (B157); market OHLCV + ML lane (Phases 4–5).

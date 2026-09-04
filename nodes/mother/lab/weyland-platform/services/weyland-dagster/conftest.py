@@ -81,3 +81,11 @@ def mongo_encode():
     return load_isolated(
         "weyland_pipeline/assets/datasets_lib/mongo_encode.py", "mongo_encode"
     )
+
+
+@pytest.fixture
+def edgar_text_parse():
+    """The dagster-free ``datasets_lib/edgar_text_parse`` 10-K section chunker (B113 Phase 3), isolated."""
+    return load_isolated(
+        "weyland_pipeline/assets/datasets_lib/edgar_text_parse.py", "edgar_text_parse"
+    )

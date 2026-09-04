@@ -720,7 +720,7 @@ _DOMAIN_RULES = [
     ("Health", ("datasets_health", "mart_state_health_trends", "mart_country_health", "mart_personality_by_country",
                 "state_health_risk", "brfss", "nhanes", "nhis", "who_gho", "big_five", "cdc_physical", "usda",
                 "open_food_facts")),
-    ("Finance", ("datasets_finance", "mart_macro_indicators", "mart_company_financials", "fred_macro", "fred_series_meta", "fred")),
+    ("Finance", ("datasets_finance", "mart_macro_indicators", "mart_company_financials", "fred_macro", "fred_series_meta", "fred", "filings_text")),
     ("AIDLC Knowledge", ("aidlc", ":entry", "entry,prod")),
     ("Docs & RAG", ("rag_documents", "rag_chunks", "weyland_chunks", "weylandchunk", "document,prod", "chunk,prod")),
     ("ML & Modeling", ("mlflow", "genre_classifier", "model_catalog", "registered_model", "model_version",
@@ -781,6 +781,9 @@ _PRODUCTS = [
      "equity / EPS / shares for ~50 mega-caps + the SIC industry dimension and the 10-K/10-Q filing history "
      "(also a Neo4j company→SIC→filing graph).",
      ("mart_company_financials", "company_financials", "company_meta", "company_filings")),
+    ("SEC Filings", "Finance", "SEC EDGAR 10-K narrative text — section-aware chunks (Business / Risk Factors / "
+     "Legal Proceedings / MD&A / Market Risk) embedded with bge-small into Qdrant/Weaviate/LanceDB for the "
+     "filings-RAG notebook (notebook 63).", ("filings_text",)),
     ("Weyland Docs", "Docs & RAG", "The platform documentation retrieval corpus.",
      ("rag_documents", "rag_chunks", "weyland_chunks")),
     ("AIDLC Knowledge Base", "AIDLC Knowledge", "The AIDLC KB — engineering-knowledge, consulting-tools, and "

@@ -8,11 +8,15 @@ produces datasets_finance_parquet/_arrow/_avro/_lance/_iceberg + _commit.
 Phase 1 (B113) lands the FRED macro-series slice: two tables (fred_macro, fred_series_meta), the base silver
 formats, Iceberg gold, and two Tier-2 stores (TimescaleDB hypertable on fred_macro.date, ClickHouse for both).
 
-Phase 2 (B113) adds the SEC EDGAR XBRL slice: two more tables (company_financials, company_meta) landed by
-datasets_finance_edgar_land. They join the base silver formats + Iceberg gold + ClickHouse (annual financials
-are NOT time-series, so they are deliberately absent from timescale_allow). The allowlists below UNION the FRED
-and EDGAR constants so both slices flow through the one broker. mysql/mongo/cockroach/etc. stay empty for now —
-a later phase expands EDGAR into them.
+Phase 2 (B113) adds the SEC EDGAR XBRL slice: company_financials + company_meta (+ company_filings for the
+graph) landed by datasets_finance_edgar_land. They join the base silver formats + Iceberg gold + ClickHouse +
+CockroachDB + MySQL + MongoDB (annual financials are NOT time-series, so they are absent from timescale_allow).
+
+Phase 3 (B113) adds the SEC EDGAR filings-TEXT slice: one table (filings_text) landed by
+datasets_finance_edgar_text_land — section-aware 10-K narrative chunks that fan out to the VECTOR stores
+(Qdrant/Weaviate/LanceDB) for the filings-RAG notebook, plus the base silver formats + Iceberg gold for a
+Trino-queryable corpus. The allowlists below UNION the FRED + EDGAR-XBRL + filings-text constants so every
+slice flows through the one broker.
 """
 from .datasets_lib.broker import build_transform_assets
 from .datasets_lib.checks import build_asset_checks, build_vector_checks
@@ -22,6 +26,7 @@ from .datasets_lib.edgar_parse import (
     EDGAR_ICEBERG_ALLOW,
     EDGAR_RAW_TABLES,
 )
+from .datasets_lib.edgar_text_parse import FILINGS_TEXT_TABLES
 from .datasets_lib.fred_parse import (
     CLICKHOUSE_ALLOW,
     ICEBERG_ALLOW,
@@ -31,9 +36,10 @@ from .datasets_lib.fred_parse import (
 from .datasets_lib.loaders import build_store_load_assets
 from .datasets_lib.streaming_producer import build_stream_produce_assets
 
-# Union the FRED (Phase 1) + EDGAR (Phase 2) table sets so both slices fan out through the shared broker.
-_ALL_RAW_TABLES = RAW_TABLES | EDGAR_RAW_TABLES
-_ALL_ICEBERG_ALLOW = ICEBERG_ALLOW | EDGAR_ICEBERG_ALLOW
+# Union the FRED (Phase 1) + EDGAR XBRL (Phase 2) + EDGAR filings-text (Phase 3) table sets so every slice fans
+# out through the shared broker.
+_ALL_RAW_TABLES = RAW_TABLES | EDGAR_RAW_TABLES | FILINGS_TEXT_TABLES
+_ALL_ICEBERG_ALLOW = ICEBERG_ALLOW | EDGAR_ICEBERG_ALLOW | FILINGS_TEXT_TABLES
 _ALL_CLICKHOUSE_ALLOW = CLICKHOUSE_ALLOW | EDGAR_CLICKHOUSE_ALLOW
 
 FINANCE_CFG = DomainConfig(
@@ -41,7 +47,8 @@ FINANCE_CFG = DomainConfig(
     repo="finance",
     namespace="datasets_finance",
     group_name="datasets_finance",
-    land_deps=("datasets_finance_fred_land", "datasets_finance_edgar_land"),
+    land_deps=("datasets_finance_fred_land", "datasets_finance_edgar_land",
+               "datasets_finance_edgar_text_land"),
     # Base silver formats — all four raw tables. (Store loaders + the dbt marts read parquet/iceberg.)
     parquet_allow=_ALL_RAW_TABLES, arrow_allow=_ALL_RAW_TABLES, avro_allow=_ALL_RAW_TABLES,
     iceberg_allow=_ALL_ICEBERG_ALLOW,
@@ -60,6 +67,16 @@ FINANCE_CFG = DomainConfig(
     mysql_allow=frozenset({"company_financials", "company_meta"}),
     mongo_allow=frozenset({"company_financials", "company_meta"}),
     cockroach_allow=frozenset({"company_financials", "company_meta"}),
+    # Phase 3 (filings RAG): the section-aware 10-K narrative chunks embed with bge-small (384) and fan out to
+    # Qdrant + Weaviate (+ LanceDB, which defaults to vector_allow). `text` is embedded; the payload carries the
+    # citation fields (ticker/accn/section/chunk_id/filed) AND the chunk text itself so a retrieval hit returns
+    # both the source pointer and the passage the RAG notebook answers from.
+    vector_allow={
+        "filings_text": {
+            "text": ["text"],
+            "payload": ["ticker", "accn", "section", "chunk_id", "filed", "text"],
+        },
+    },
     # Neo4j (Phase 2 graph): the EDGAR company graph — (:Company)-[:IN_INDUSTRY]->(:SIC) from company_meta and
     # (:Company)-[:FILED]->(:Filing) from company_filings. Company is keyed by cik so both specs MERGE onto the
     # SAME nodes (the filing spec attaches to the companies the meta spec created). FRED is tabular, not graph.
