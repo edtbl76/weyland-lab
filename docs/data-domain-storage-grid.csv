@@ -21,3 +21,6 @@ Health,USDA FoodData,N,Y,Y (food embeddings),N,Y,Y,N,N,N,N,N,Y (OLAP food querie
 Health,Open Food Facts,N,Y,Y (product embeddings),N,Y,Y,N,N,Y (doc per product),N,N,Y (OLAP),N,Y (product similarity),N,Y (product similarity),N,Y,Y,N,N
 Finance,FRED Macro Series,Y (mart_macro_indicators),Y,N,N,Y,Y,N,Y (hypertable on date),N,N,N,Y,N,N,N,N,N,N,N,N,N
 Finance,FRED Series Meta,N,Y,N,N,Y,Y,N,N,N,N,N,Y,N,N,N,N,N,N,N,N,N
+Finance,EDGAR Company Financials,Y (mart_company_financials),Y,N,Y,Y,Y,N,N,Y,Y,N,Y,N,N,N,N,N,N,N,N,N
+Finance,EDGAR Company Meta,N,Y,N,Y,Y,Y,N,N,Y,Y,N,Y,N,N,Y (Company+SIC nodes),N,N,N,N,N,N
+Finance,EDGAR Company Filings,N,Y,N,N,Y,Y,N,N,N,N,N,N,N,N,Y (Filing nodes + FILED),N,N,N,N,N,N

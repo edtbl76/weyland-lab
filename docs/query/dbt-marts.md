@@ -20,6 +20,7 @@ metrics/explores — see [../runbooks/lightdash.md](../runbooks/lightdash.md)). 
 | `mart_country_health` | country × year | WHO GHO — 8 indicators pivoted |
 | `mart_personality_by_country` | country | Big Five OCEAN trait means |
 | `mart_macro_indicators` | series | FRED macro: latest value + prior-year value + `yoy_pct`, joined to the series dimension |
+| `mart_company_financials` | company | SEC EDGAR: latest-annual revenue / net income / assets / liabilities / equity / EPS / shares per company, + SIC |
 
 ## Music
 
@@ -111,6 +112,24 @@ WHERE series_id IN ('CPIAUCSL', 'CPILFESL') ORDER BY series_id;
 SELECT series_id, title, round(yoy_pct, 2) AS yoy_pct
 FROM iceberg.dbt.mart_macro_indicators
 WHERE yoy_pct IS NOT NULL ORDER BY yoy_pct DESC;
+```
+
+`mart_company_financials` (Phase 2) — one row per company, latest-annual (10-K/FY) values pivoted to columns.
+
+```sql
+-- Mega-caps by revenue, with margin and the SIC industry
+SELECT ticker, company, sic_description,
+       revenue, net_income, round(net_income * 100.0 / nullif(revenue, 0), 1) AS net_margin_pct
+FROM iceberg.dbt.mart_company_financials
+ORDER BY revenue DESC LIMIT 15;
+```
+
+```sql
+-- Balance-sheet leverage: assets vs liabilities vs equity
+SELECT ticker, assets, liabilities, stockholders_equity,
+       round(liabilities * 1.0 / nullif(stockholders_equity, 0), 2) AS debt_to_equity
+FROM iceberg.dbt.mart_company_financials
+WHERE stockholders_equity IS NOT NULL ORDER BY assets DESC LIMIT 15;
 ```
 
 ## Notes

@@ -129,6 +129,35 @@ WHERE t10.series_id = 'DGS10' AND t10.value IS NOT NULL AND t2.value IS NOT NULL
 ORDER BY t10.date DESC LIMIT 30;
 ```
 
+### EDGAR company financials (B113 Phase 2)
+
+`company_financials` (long: cik, ticker, company, concept, unit, period_end, fy, fp, form, filed, value) +
+`company_meta` (dim: cik, ticker, company, sic, sic_description) + `company_filings` (10-K/10-Q history). ~49
+mega-caps × us-gaap concepts (revenue, net_income, assets, liabilities, stockholders_equity, eps_basic,
+shares_outstanding). The curated latest-annual pivot is `mart_company_financials` ([dbt-marts.md](dbt-marts.md));
+the company→SIC→filing graph is in [neo4j.md](neo4j.md).
+
+```sql
+SHOW TABLES FROM iceberg.datasets_finance;   -- + company_financials, company_meta, company_filings
+
+-- revenue history for one company (annual 10-K)
+SELECT fy, period_end, value AS revenue
+FROM iceberg.datasets_finance.company_financials
+WHERE ticker = 'AAPL' AND concept = 'revenue' AND form = '10-K' AND fp = 'FY'
+ORDER BY period_end DESC;
+
+-- latest-annual net income by industry (financials → meta for the SIC dimension)
+WITH ni AS (
+  SELECT cik, value, row_number() OVER (PARTITION BY cik ORDER BY period_end DESC) AS rn
+  FROM iceberg.datasets_finance.company_financials
+  WHERE concept = 'net_income' AND form = '10-K' AND fp = 'FY' AND value IS NOT NULL
+)
+SELECT m.sic_description, count(*) AS companies, sum(ni.value) AS total_net_income
+FROM ni JOIN iceberg.datasets_finance.company_meta m ON m.cik = ni.cik
+WHERE ni.rn = 1
+GROUP BY m.sic_description ORDER BY total_net_income DESC LIMIT 15;
+```
+
 ## Cross-catalog federation (`iceberg` + `postgresql`)
 
 Trino's whole point: join the lake to the live app DB in one query — no ETL. The `postgresql` catalog is the

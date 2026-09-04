@@ -72,6 +72,29 @@ WHERE rec <> a RETURN rec.name, count(DISTINCT u) AS shared_fans ORDER BY shared
 > this scale. And neo4j stays meshed via the `neo4j-bolt` DestinationRule (TCP keepalive) so long bulk-load
 > Bolt connections don't half-open and hang.
 
+## Dataset graphs — finance (company → SIC → filing, B113)
+
+The EDGAR company graph: `(:Company {cik, ticker, company})-[:IN_INDUSTRY]->(:SIC {sic, sic_description})` +
+`(:Company)-[:FILED]->(:Filing {accn, form, filed, report_date})`. ~49 mega-caps, 28 SIC industries, 1,144
+10-K/10-Q filings. Loaded by `datasets_finance_neo4j_load` from the `company_meta` / `company_filings` silver.
+
+```cypher
+// industry peers: companies sharing an SIC, with their 10-K/10-Q filing counts
+MATCH (c:Company)-[:IN_INDUSTRY]->(:SIC {sic_description: 'Semiconductors & Related Devices'})
+OPTIONAL MATCH (c)-[:FILED]->(f:Filing)
+RETURN c.ticker AS ticker, c.company AS company, count(f) AS filings ORDER BY filings DESC;
+
+// most-recent 10-K per company
+MATCH (c:Company)-[:FILED]->(f:Filing {form: '10-K'})
+WITH c, f ORDER BY f.filed DESC
+WITH c, collect(f)[0] AS latest
+RETURN c.ticker, latest.accn, latest.filed ORDER BY latest.filed DESC LIMIT 15;
+
+// industries ranked by company count
+MATCH (:Company)-[:IN_INDUSTRY]->(s:SIC)
+RETURN s.sic_description AS industry, count(*) AS companies ORDER BY companies DESC;
+```
+
 ## RAG / GraphRAG graph
 `(c:Chunk)-[:BELONGS_TO]->(d:Document)` with `(c1:Chunk)-[:NEXT]->(c2:Chunk)` chaining chunks in order. This is
 the retrieval backbone the tool-server queries.
