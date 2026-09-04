@@ -22,8 +22,10 @@ from dagster import MetadataValue, Output, asset
 
 from .datasets_lib.edgar_parse import (
     CONCEPTS,
+    build_filings_table,
     build_financials_table,
     build_meta_table,
+    parse_company_filings,
     parse_company_financials,
     parse_company_meta,
     select_ciks,
@@ -60,14 +62,15 @@ def _get_json(url, retries=3, backoff=0.5):
 
 
 def fetch_company(cik, ticker, company):
-    """Fetch (financial_rows, meta_dict) for one company. Pure-ish: network in, parsed data out —
+    """Fetch (financial_rows, meta_dict, filing_rows) for one company. Pure-ish: network in, parsed data out —
     the shaping itself is delegated to the dagster-free edgar_parse helpers."""
     facts = _get_json(_FACTS_URL.format(cik=cik))
     time.sleep(_SEC_SLEEP)  # be polite between the two calls
     submissions = _get_json(_SUBMISSIONS_URL.format(cik=cik))
     rows = parse_company_financials(cik, ticker, company, facts)
     meta = parse_company_meta(cik, ticker, submissions)
-    return rows, meta
+    filings = parse_company_filings(cik, ticker, submissions)
+    return rows, meta, filings
 
 
 @asset(group_name="datasets_finance",
@@ -81,13 +84,14 @@ def datasets_finance_edgar_land(context, config: RefreshConfig) -> Output[dict]:
     universe = select_ciks(tickers)   # raises (fail closed) if the ticker map came back empty
     context.log.info(f"EDGAR universe: {len(universe)} companies (first of {len(tickers)} tickers)")
 
-    all_rows, metas, out = [], [], {}
+    all_rows, metas, all_filings, out = [], [], [], {}
     concept_present = {label: 0 for label in CONCEPTS}
     for cik, ticker, company in universe:
         try:
-            rows, meta = fetch_company(cik, ticker, company)
+            rows, meta, filings = fetch_company(cik, ticker, company)
             all_rows.extend(rows)
             metas.append(meta)
+            all_filings.extend(filings)
             out[ticker or str(cik)] = len(rows)
             for label in {r["concept"] for r in rows}:
                 concept_present[label] += 1
@@ -115,14 +119,20 @@ def datasets_finance_edgar_land(context, config: RefreshConfig) -> Output[dict]:
     pq.write_table(meta_tbl, meta_buf)
     finance_put_parquet(client, "company_meta/company_meta.parquet", meta_buf.getvalue())
 
+    filings_tbl = build_filings_table(all_filings)
+    fil_buf = _io.BytesIO()
+    pq.write_table(filings_tbl, fil_buf)
+    finance_put_parquet(client, "company_filings/company_filings.parquet", fil_buf.getvalue())
+
     context.log.info(
         f"landed company_financials ({fin.num_rows:,} rows) + company_meta ({meta_tbl.num_rows} rows) "
-        f"from {companies_ok}/{len(universe)} companies"
+        f"+ company_filings ({filings_tbl.num_rows:,} rows) from {companies_ok}/{len(universe)} companies"
     )
     return Output(out, metadata={
         "companies_ok": MetadataValue.int(companies_ok),
         "financials_rows": MetadataValue.int(fin.num_rows),
         "meta_rows": MetadataValue.int(meta_tbl.num_rows),
+        "filings_rows": MetadataValue.int(filings_tbl.num_rows),
         "concept_present": MetadataValue.json(concept_present),
         "detail": MetadataValue.json(out),
     })

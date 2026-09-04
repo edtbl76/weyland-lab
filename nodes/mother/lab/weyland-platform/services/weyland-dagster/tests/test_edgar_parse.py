@@ -62,6 +62,12 @@ _SUBMISSIONS = {
     "sicDescription": "Electronic Computers",
     "tickers": ["AAPL"],
     "exchanges": ["Nasdaq"],
+    "filings": {"recent": {
+        "accessionNumber": ["0000320193-25-000079", "0000320193-25-000050", "0000320193-24-000010"],
+        "form": ["10-K", "10-Q", "8-K"],
+        "filingDate": ["2025-10-31", "2025-08-01", "2024-01-02"],
+        "reportDate": ["2025-09-27", "2025-06-28", ""],
+    }},
 }
 
 _TICKERS = {str(i): {"cik_str": 1000 + i, "ticker": f"T{i}", "title": f"Company {i}"} for i in range(60)}
@@ -184,6 +190,21 @@ def test_parse_company_meta_missing_fields_are_none(edgar_parse):
 
 # --- build tables: fixed typed silver schema -------------------------------------------------------
 
+def test_parse_company_filings_keeps_only_periodic_forms(edgar_parse):
+    # Only 10-K/10-Q are kept (the 8-K in the fixture is dropped); dates parse; report_date="" → None.
+    rows = edgar_parse.parse_company_filings(320193, "AAPL", _SUBMISSIONS)
+    assert {r["form"] for r in rows} == {"10-K", "10-Q"}
+    assert len(rows) == 2
+    tk = next(r for r in rows if r["form"] == "10-K")
+    assert tk["accn"] == "0000320193-25-000079"
+    assert tk["filed"] == datetime.date(2025, 10, 31)
+    assert tk["report_date"] == datetime.date(2025, 9, 27)
+
+
+def test_parse_company_filings_empty_when_no_recent(edgar_parse):
+    assert edgar_parse.parse_company_filings(1, "X", {"cik": 1}) == []
+
+
 def test_build_financials_table_has_the_fixed_typed_schema(edgar_parse):
     import pyarrow as pa
 
@@ -215,10 +236,11 @@ def test_build_meta_table_schema_and_values(edgar_parse):
 # --- allowlist constants (what the transform config unions with the FRED ones) ---------------------
 
 def test_edgar_allowlists_are_internally_consistent(edgar_parse):
-    assert edgar_parse.EDGAR_TABLES == ("company_financials", "company_meta")
-    assert edgar_parse.EDGAR_RAW_TABLES == {"company_financials", "company_meta"}
+    assert edgar_parse.EDGAR_TABLES == ("company_financials", "company_meta", "company_filings")
+    assert edgar_parse.EDGAR_RAW_TABLES == {"company_financials", "company_meta", "company_filings"}
+    # company_filings is graph data (→ Neo4j), not OLAP, so it is NOT in ClickHouse — but IS in Iceberg (raw+gold).
     assert edgar_parse.EDGAR_CLICKHOUSE_ALLOW == {"company_financials", "company_meta"}
-    assert edgar_parse.EDGAR_ICEBERG_ALLOW == {"company_financials", "company_meta"}
+    assert edgar_parse.EDGAR_ICEBERG_ALLOW == {"company_financials", "company_meta", "company_filings"}
     assert set(edgar_parse.CONCEPTS) == {
         "revenue", "net_income", "assets", "liabilities",
         "stockholders_equity", "eps_basic", "shares_outstanding",

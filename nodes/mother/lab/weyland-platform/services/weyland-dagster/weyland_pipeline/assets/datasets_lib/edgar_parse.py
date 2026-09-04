@@ -52,17 +52,19 @@ CONCEPTS = {
 # Only annual + quarterly filings — the two forms the fact rows are restricted to.
 TARGET_FORMS = ("10-K", "10-Q")
 
-# raw/ folder names the broker fans out (table per folder). Both are single-file folders.
+# raw/ folder names the broker fans out (table per folder). Single-file folders.
 COMPANY_FINANCIALS = "company_financials"
 COMPANY_META = "company_meta"
-EDGAR_TABLES = ("company_financials", "company_meta")
-EDGAR_RAW_TABLES = frozenset({COMPANY_FINANCIALS, COMPANY_META})
+COMPANY_FILINGS = "company_filings"   # Phase 2 graph: the 10-K/10-Q filing history feeding the Neo4j graph
+EDGAR_TABLES = ("company_financials", "company_meta", "company_filings")
+EDGAR_RAW_TABLES = frozenset({COMPANY_FINANCIALS, COMPANY_META, COMPANY_FILINGS})
 
-# ClickHouse (Phase 2): both tables — native s3() ingest of the silver parquet.
+# ClickHouse (Phase 2): the two analytical tables — native s3() ingest of the silver parquet. company_filings
+# is graph data (→ Neo4j), not OLAP, so it stays out of ClickHouse.
 EDGAR_CLICKHOUSE_ALLOW = frozenset({COMPANY_FINANCIALS, COMPANY_META})
 
-# Iceberg gold (Phase 2): both tables — what the dbt mart reads.
-EDGAR_ICEBERG_ALLOW = frozenset({COMPANY_FINANCIALS, COMPANY_META})
+# Iceberg gold (Phase 2): all three — the mart reads financials+meta; filings is catalogued + read by the graph.
+EDGAR_ICEBERG_ALLOW = frozenset({COMPANY_FINANCIALS, COMPANY_META, COMPANY_FILINGS})
 
 # The explicit silver schemas — the code is the source of truth for what the broker writes.
 FINANCIALS_COLUMNS = (
@@ -224,6 +226,34 @@ def parse_company_meta(cik, ticker, submissions_json):
     }
 
 
+def parse_company_filings(cik, ticker, submissions_json):
+    """Pull the 10-K/10-Q filing history from a company's submissions payload — the Neo4j graph's Filing nodes.
+
+    ``filings.recent`` is column-oriented (parallel arrays: accessionNumber, form, filingDate, reportDate, …), so
+    a row is assembled by index. Only ``TARGET_FORMS`` (10-K / 10-Q) are kept, which bounds it to the periodic
+    reports (~45 per company). Returns [{cik, ticker, accn, form, filed (date), report_date (date|None)}, ...];
+    a filer with no recent filings yields [].
+    """
+    recent = (((submissions_json or {}).get("filings") or {}).get("recent")) or {}
+    accns = recent.get("accessionNumber") or []
+    forms = recent.get("form") or []
+    filed = recent.get("filingDate") or []
+    reports = recent.get("reportDate") or []
+    rows = []
+    for i, form in enumerate(forms):
+        if form not in TARGET_FORMS:
+            continue
+        rows.append({
+            "cik": cik,
+            "ticker": ticker,
+            "accn": accns[i] if i < len(accns) else None,
+            "form": form,
+            "filed": parse_edgar_date(filed[i]) if i < len(filed) else None,
+            "report_date": parse_edgar_date(reports[i]) if i < len(reports) else None,
+        })
+    return rows
+
+
 def build_financials_table(rows):
     """Tidy/long fact rows → an Arrow table with the fixed company_financials silver schema.
 
@@ -257,4 +287,19 @@ def build_meta_table(metas):
         "sic": pa.array([m.get("sic") for m in metas], type=pa.string()),
         "sic_description": pa.array([m.get("sic_description") for m in metas], type=pa.string()),
         "exchange": pa.array([m.get("exchange") for m in metas], type=pa.string()),
+    })
+
+
+def build_filings_table(rows):
+    """Filing rows → the company_filings Arrow table (cik:int64, dates:date32, rest string)."""
+    def col(name):
+        return [r.get(name) for r in rows]
+
+    return pa.table({
+        "cik": pa.array(col("cik"), type=pa.int64()),
+        "ticker": pa.array(col("ticker"), type=pa.string()),
+        "accn": pa.array(col("accn"), type=pa.string()),
+        "form": pa.array(col("form"), type=pa.string()),
+        "filed": pa.array(col("filed"), type=pa.date32()),
+        "report_date": pa.array(col("report_date"), type=pa.date32()),
     })

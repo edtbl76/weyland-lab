@@ -49,10 +49,34 @@ FINANCE_CFG = DomainConfig(
     # NOT a year; the dtype-aware coercion in timeseries.hypertable_ts handles both). EDGAR's annual financials
     # are NOT a hypertable, so timescale_allow stays FRED-only.
     timescale_allow=TIMESCALE_ALLOW,
-    # ClickHouse: all four tables — native s3() ingest of the silver parquet.
+    # ClickHouse: the analytical tables (fred_macro/meta + company_financials/meta) — native s3() ingest.
     clickhouse_allow=_ALL_CLICKHOUSE_ALLOW,
-    # All other store allowlists (mysql/mongo/cockroach/cassandra/neo4j/opensearch/vector/lance/stream)
-    # stay empty — a later phase expands EDGAR into them.
+    # Neo4j (Phase 2 graph): the EDGAR company graph — (:Company)-[:IN_INDUSTRY]->(:SIC) from company_meta and
+    # (:Company)-[:FILED]->(:Filing) from company_filings. Company is keyed by cik so both specs MERGE onto the
+    # SAME nodes (the filing spec attaches to the companies the meta spec created). FRED is tabular, not graph.
+    neo4j_allow={
+        "company_meta": {
+            "nodes": [
+                {"label": "Company", "key": "cik", "props": ["ticker", "company", "exchange"]},
+                {"label": "SIC", "key": "sic", "props": ["sic_description"]},
+            ],
+            "edges": [{"rel": "IN_INDUSTRY",
+                       "src": ("Company", "cik", "cik"),
+                       "dst": ("SIC", "sic", "sic"),
+                       "props": []}],
+        },
+        "company_filings": {
+            "nodes": [
+                {"label": "Company", "key": "cik", "props": ["ticker"]},
+                {"label": "Filing", "key": "accn", "props": ["form", "filed", "report_date"]},
+            ],
+            "edges": [{"rel": "FILED",
+                       "src": ("Company", "cik", "cik"),
+                       "dst": ("Filing", "accn", "accn"),
+                       "props": []}],
+        },
+    },
+    # mysql/mongo/cockroach/cassandra/opensearch/vector/lance/stream stay empty — a later phase expands EDGAR.
 )
 
 (
