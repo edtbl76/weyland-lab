@@ -61,7 +61,8 @@ Materialize `datasets_finance_edgar_land` (force it — freshness-gated) → tra
 1. **Land** `group:datasets_finance` (force) → `datasets_finance_edgar_land` fetches ~50 mega-caps' company-facts +
    submissions (User-Agent required) → **20,741 fact rows** (`company_financials`) + `company_meta` +
    **1,144** `company_filings` (10-K/10-Q). Foreign filers (ASML/BABA) yield 0 us-gaap facts — expected.
-2. **Stores + mart:** `group:datasets_finance_stores` (ClickHouse + CockroachDB) + `mart_company_financials` (dbt).
+2. **Stores + mart:** `group:datasets_finance_stores` (ClickHouse + CockroachDB + MySQL + MongoDB — each 20,741
+   facts / 49 dims; MySQL dbs self-provision, Mongo dates encode as timestamps) + `mart_company_financials` (dbt).
 3. **Graph:** `datasets_finance_neo4j_load` → `(:Company)-[:IN_INDUSTRY]->(:SIC)` + `(:Company)-[:FILED]->(:Filing)`.
 4. **Catalog:** `datahub_catalog_emit_job` → DataHub **Company Financials** product.
 

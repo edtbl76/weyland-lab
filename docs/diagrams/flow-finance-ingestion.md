@@ -120,6 +120,8 @@ flowchart TB
   subgraph STORES["stores"]
     CH["ClickHouse"]
     CR["CockroachDB"]
+    MY["MySQL"]
+    MO["MongoDB"]
   end
   MART["dbt · mart_company_financials<br/>latest-annual per company"]
   subgraph GRAPH["Neo4j"]
@@ -131,11 +133,18 @@ flowchart TB
   SEC --> LAND --> GOLD
   GOLD --> CH
   GOLD --> CR
+  GOLD --> MY
+  GOLD --> MO
   GOLD --> MART --> BI
   LAND -.company_meta + company_filings.-> G
   GOLD --> DH
   MART --> DH
 ```
 
-**Deferred / tracked:** MySQL + MongoDB fan-out (loader defects on EDGAR data — MySQL per-table DB grant, Mongo
-`datetime.date` BSON encoding); ODCS contracts (B157); market OHLCV + filings-RAG + ML lane (Phases 3–5).
+`company_financials` + `company_meta` fan out to **five** tabular/document/OLAP stores — ClickHouse,
+CockroachDB, MySQL, MongoDB, and the Iceberg gold — all 20,741 facts + 49 dims. The MySQL and MongoDB loaders
+were once blocked on general (not finance-specific) defects, now FIXED: the MySQL loader self-provisions its
+database (`CREATE DATABASE IF NOT EXISTS` + the `--init-file` schema grant, so no per-dataset root grant), and
+the MongoDB loader casts date columns to timestamp so BSON can encode them (`mongo_encode.to_bson_encodable`).
+
+**Deferred / tracked:** ODCS contracts (B157); market OHLCV + filings-RAG + ML lane (Phases 3–5).
