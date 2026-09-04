@@ -100,6 +100,21 @@ data:
           - { name: units, sql: units, type: string }
           - { name: frequency, sql: frequency, type: string }
           - { name: seasonal_adjustment, sql: seasonal_adjustment, type: string }
+
+      - name: company_financials
+        sql_table: dbt.mart_company_financials
+        measures:
+          - { name: count, type: count }
+          - { name: total_revenue, sql: revenue, type: sum }
+          - { name: total_net_income, sql: net_income, type: sum }
+          - { name: total_assets, sql: assets, type: sum }
+          - { name: avg_eps_basic, sql: eps_basic, type: avg }
+        dimensions:
+          - { name: cik, sql: cik, type: number, primary_key: true }
+          - { name: ticker, sql: ticker, type: string }
+          - { name: company, sql: company, type: string }
+          - { name: sic_description, sql: sic_description, type: string }
+          - { name: fiscal_year, sql: fiscal_year, type: number }
 ---
 apiVersion: apps/v1
 kind: Deployment

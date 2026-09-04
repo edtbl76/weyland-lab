@@ -54,6 +54,24 @@ or the Cube SQL API: `SELECT series_id, measure(avg_yoy_pct) FROM macro_indicato
 Indicators** (8 assets); Glossary → **Finance Concepts** (Macro-Economic Indicator, YoY, Seasonal Adjustment,
 Treasury Yield).
 
+## Phase 2 — SEC EDGAR (structured financials + company graph)
+
+Materialize `datasets_finance_edgar_land` (force it — freshness-gated) → transform → stores → dbt → graph:
+
+1. **Land** `group:datasets_finance` (force) → `datasets_finance_edgar_land` fetches ~50 mega-caps' company-facts +
+   submissions (User-Agent required) → **20,741 fact rows** (`company_financials`) + `company_meta` +
+   **1,144** `company_filings` (10-K/10-Q). Foreign filers (ASML/BABA) yield 0 us-gaap facts — expected.
+2. **Stores + mart:** `group:datasets_finance_stores` (ClickHouse + CockroachDB) + `mart_company_financials` (dbt).
+3. **Graph:** `datasets_finance_neo4j_load` → `(:Company)-[:IN_INDUSTRY]->(:SIC)` + `(:Company)-[:FILED]->(:Filing)`.
+4. **Catalog:** `datahub_catalog_emit_job` → DataHub **Company Financials** product.
+
+**Eyes-on UAT:**
+- **Trino:** `SELECT ticker, revenue, net_income, eps_basic FROM iceberg.dbt.mart_company_financials ORDER BY revenue DESC` — AAPL/AMZN/MSFT/NVDA with real FY values.
+- **Neo4j** (`https://neo4j.weyland.lab`): the semiconductor peer group + filing counts (see [query/neo4j.md](../query/neo4j.md)).
+- **Lightdash:** `Finance — company financials` dashboard. **Superset:** the company charts on `Weyland Marts — Finance`.
+- **Cube:** the `company_financials` cube (`SELECT company_financials.total_revenue`).
+- **DataHub:** Domains → Finance (39 assets); Data Products → Company Financials (20).
+
 ## Expected result
 
 The 13 FRED macro series are queryable across Iceberg/Trino, TimescaleDB, and ClickHouse; the dbt mart serves

@@ -105,3 +105,37 @@ sequenceDiagram
     User->>Dagster: run datahub_catalog_emit_job
     UC->>DH: emit domain + product + glossary + Soda
 ```
+
+## Phase 2 — SEC EDGAR (structured financials + company graph)
+
+Same three-factory path for the EDGAR slice, plus a Neo4j graph. `company_financials` (long facts) +
+`company_meta` (dim) fan out to the tabular/OLAP stores + the `mart_company_financials` mart;
+`company_filings` is graph-only.
+
+```mermaid
+flowchart TB
+  SEC["SEC EDGAR<br/>company-facts XBRL + submissions<br/>~49 mega-caps · User-Agent"]
+  LAND["datasets_finance_edgar_land<br/>company_financials (20,741) · company_meta (49) · company_filings (1,144)"]
+  GOLD[("Iceberg gold<br/>datasets_finance.company_*")]
+  subgraph STORES["stores"]
+    CH["ClickHouse"]
+    CR["CockroachDB"]
+  end
+  MART["dbt · mart_company_financials<br/>latest-annual per company"]
+  subgraph GRAPH["Neo4j"]
+    G["(:Company)-[:IN_INDUSTRY]->(:SIC)<br/>(:Company)-[:FILED]->(:Filing)"]
+  end
+  BI["Lightdash · Superset · Cube"]
+  DH["DataHub<br/>Company Financials product (20)"]
+
+  SEC --> LAND --> GOLD
+  GOLD --> CH
+  GOLD --> CR
+  GOLD --> MART --> BI
+  LAND -.company_meta + company_filings.-> G
+  GOLD --> DH
+  MART --> DH
+```
+
+**Deferred / tracked:** MySQL + MongoDB fan-out (loader defects on EDGAR data — MySQL per-table DB grant, Mongo
+`datetime.date` BSON encoding); ODCS contracts (B157); market OHLCV + filings-RAG + ML lane (Phases 3–5).

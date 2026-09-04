@@ -35,6 +35,24 @@ SELECT count(*) FROM nhis.<table>;
 SELECT <col>, count(*) AS n FROM nhis.<table> GROUP BY <col> ORDER BY n DESC LIMIT 25;
 ```
 
+### Finance — EDGAR company financials (B113 Phase 2)
+
+`company_financials` (long facts) + `company_meta` (dim) fanned out to CockroachDB (distributed SQL) — the same
+tidy silver the OLAP/lakehouse path reads. ~49 mega-caps, 20,741 facts.
+
+```sql
+-- revenue history for one company (annual 10-K), pg-wire so standard SQL
+SELECT fy, period_end, value AS revenue
+FROM company_financials.company_financials
+WHERE ticker = 'AAPL' AND concept = 'revenue' AND form = '10-K' AND fp = 'FY'
+ORDER BY period_end DESC;
+
+-- companies per SIC industry (join to the dim)
+SELECT m.sic_description, count(DISTINCT m.cik) AS companies
+FROM company_meta.company_meta m
+GROUP BY m.sic_description ORDER BY companies DESC;
+```
+
 ### Cockroach-isms
 - It's Postgres **wire**, not dialect — most `pg_catalog` / `information_schema` works, but the version string
   breaks the SQLAlchemy pg dialect (use `cockroachdb://`). For ad-hoc SQL it behaves like Postgres.

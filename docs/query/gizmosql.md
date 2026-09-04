@@ -132,6 +132,19 @@ FROM datasets_finance.fred_macro
 GROUP BY series_id ORDER BY n_obs DESC;
 ```
 
+Phase 2 adds the SEC EDGAR tables — `company_financials` (long facts), `company_meta` (dim), `company_filings`
+(10-K/10-Q history).
+
+```sql
+-- latest annual revenue per company (DuckDB window over the long facts)
+SELECT ticker, company, period_end, value AS revenue FROM (
+  SELECT ticker, company, period_end, value,
+         row_number() OVER (PARTITION BY cik ORDER BY period_end DESC) AS rn
+  FROM datasets_finance.company_financials
+  WHERE concept = 'revenue' AND form = '10-K' AND fp = 'FY' AND value IS NOT NULL
+) WHERE rn = 1 ORDER BY revenue DESC;
+```
+
 ## Notes — GizmoSQL / DuckDB-isms
 
 - **DataGrip can't browse non-default schemas in its tree.** The JDBC client only surfaces the *default*
