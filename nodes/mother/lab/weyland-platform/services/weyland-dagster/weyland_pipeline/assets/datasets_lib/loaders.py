@@ -15,6 +15,7 @@ import pyarrow.parquet as pq
 from dagster import MetadataValue, Output, asset
 
 from . import io
+from .mongo_encode import to_bson_encodable
 from .timeseries import hypertable_ts
 from weyland_pipeline._otel import traced_load  # B49(b) Phase 2 — one coarse span per dataset-load
 
@@ -63,9 +64,32 @@ def _mysql_engine_factory():
     return engine_for
 
 
+def _mysql_ensure_database(dataset, log):
+    """Create the per-dataset database if it does not exist, mirroring the CockroachDB loader. Connecting
+    to a non-existent schema fails ("Unknown database"), so the DB must precede ``engine_for(dataset)``.
+    The historical trap was that ``weyland`` had a per-database grant only on a hand-maintained allowlist,
+    so a NEW domain hit "Access denied to database '<dataset>'". The companion ``--init-file`` grant
+    (mysql.yaml) now gives ``weyland`` schema-level CREATE across ``*.*`` so this self-provisions for every
+    domain — no per-dataset root grant, ever again."""
+    import sqlalchemy
+
+    host = os.environ.get("MYSQL_HOST", "mysql.data-mesh.svc.cluster.local")
+    port = os.environ.get("MYSQL_PORT", "3306")
+    user = os.environ["MYSQL_USER"]
+    pw = urllib.parse.quote_plus(os.environ["MYSQL_PASSWORD"])
+    # server-level connection — NO default schema in the URL, so it does not require the db to exist yet
+    eng = sqlalchemy.create_engine(f"mysql+pymysql://{user}:{pw}@{host}:{port}")
+    try:
+        with eng.begin() as conn:
+            conn.execute(sqlalchemy.text(f"CREATE DATABASE IF NOT EXISTS `{_safe_ident(dataset)}`"))  # nosemgrep
+    finally:
+        eng.dispose()
+
+
 @traced_load
 def _load_dataset_to_mysql(mc, cfg, dataset, engine_for, log) -> dict:
     """Each silver parquet file under parquet/<dataset>/ → a table in MySQL db <dataset>."""
+    _mysql_ensure_database(dataset, log)   # self-provision the db (class fix: no per-dataset root grant)
     prefix = f"{io.branch()}/parquet/{dataset}/"
     out = {}
     for obj in mc.list_objects(cfg.repo, prefix=prefix, recursive=True):
@@ -111,7 +135,6 @@ def _load_dataset_to_timescale(mc, cfg, dataset, time_col, engine, log) -> dict:
     full date (FRED's `date`). Rows with no usable timestamp are dropped (a hypertable's time column must be
     non-null). Table name is dataset-prefixed (who_gho_<indicator>) since TimescaleDB is one flat db —
     mirrors the Iceberg/DuckDB per-file naming."""
-    import pandas as pd
     import sqlalchemy
 
     prefix = f"{io.branch()}/parquet/{dataset}/"
@@ -180,7 +203,7 @@ def _load_dataset_to_mongo(mc, cfg, dataset, client, log) -> dict:
             mc.fget_object(cfg.repo, obj.object_name, tmp.name)   # streamed download to disk, not RAM
             n = 0
             for batch in pq.ParquetFile(tmp.name).iter_batches(batch_size=_MONGO_BATCH):
-                docs = batch.to_pylist()
+                docs = to_bson_encodable(batch).to_pylist()
                 if docs:
                     db[coll].insert_many(docs, ordered=False)
                     n += len(docs)

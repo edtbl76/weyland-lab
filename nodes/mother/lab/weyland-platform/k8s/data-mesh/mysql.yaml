@@ -48,6 +48,11 @@ spec:
             - --max_connections=200
             - --character-set-server=utf8mb4
             - --collation-server=utf8mb4_unicode_ci
+            # B113/B137: runs as root on EVERY startup (idempotent). Grants `weyland` schema-level DDL/DML
+            # across *.* so the dagster loader self-provisions a database per NEW dataset domain (CREATE
+            # DATABASE IF NOT EXISTS) — killing the old per-dataset root-grant toil that broke finance
+            # ("Access denied to database 'company_financials'"). No server-admin privileges are granted.
+            - --init-file=/etc/mysql/init/bootstrap.sql
           readinessProbe:
             exec:
               # SEC-1: read the password from the env (envFrom mysql-secret) instead of inlining it. An exec probe
@@ -64,10 +69,33 @@ spec:
           volumeMounts:
             - name: data
               mountPath: /var/lib/mysql
+            - name: init
+              mountPath: /etc/mysql/init
+              readOnly: true
       volumes:
         - name: data
           persistentVolumeClaim:
             claimName: mysql-data
+        - name: init
+          configMap:
+            name: mysql-bootstrap
+---
+# B113/B137 — the standing grant, run as root by `--init-file` on every mysqld startup. Idempotent: GRANT to
+# an already-granted user is a no-op, so a restart never errors. `weyland` gets the full schema-level DDL/DML
+# set on *.* (create/own any dataset database + its tables) but NONE of the server-admin globals (no FILE,
+# PROCESS, SUPER, SHUTDOWN, RELOAD, GRANT OPTION). This is what lets the loader run CREATE DATABASE IF NOT
+# EXISTS for a new domain instead of needing a hand-issued `GRANT ALL ON <dataset>.*` first.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: mysql-bootstrap
+  namespace: data-mesh
+data:
+  bootstrap.sql: |
+    GRANT SELECT, INSERT, UPDATE, DELETE, CREATE, DROP, ALTER, INDEX, REFERENCES,
+          CREATE TEMPORARY TABLES, LOCK TABLES, CREATE VIEW, SHOW VIEW, TRIGGER,
+          EVENT, EXECUTE, CREATE ROUTINE, ALTER ROUTINE
+      ON *.* TO 'weyland'@'%';
 ---
 apiVersion: v1
 kind: Service

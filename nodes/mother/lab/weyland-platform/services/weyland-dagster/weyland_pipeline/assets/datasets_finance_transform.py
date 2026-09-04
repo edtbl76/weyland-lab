@@ -51,12 +51,14 @@ FINANCE_CFG = DomainConfig(
     timescale_allow=TIMESCALE_ALLOW,
     # ClickHouse: the analytical tables (fred_macro/meta + company_financials/meta) — native s3() ingest.
     clickhouse_allow=_ALL_CLICKHOUSE_ALLOW,
-    # EDGAR store fan-out (Phase 2, "richest domain"): the structured financials + dim into the distributed-SQL
-    # store (same tidy silver parquet the OLAP path reads; filings is graph-only). MySQL + MongoDB are DELIBERATELY
-    # excluded: the shared loaders choke on EDGAR's real data — the MySQL loader targets a per-table database the
-    # `weyland` grant can't create ("Access denied to database 'company_financials'"), and the MongoDB loader
-    # can't BSON-encode a python `datetime.date` (company_financials has real date columns). Both are general
-    # loader defects, not finance-specific; re-add here once fixed.
+    # EDGAR store fan-out (Phase 2, "richest domain"): the structured financials + dim into every tabular/document
+    # store (same tidy silver parquet the OLAP path reads; company_filings is graph-only). MySQL + MongoDB were
+    # once excluded because the shared loaders choked on EDGAR's real data — both are now FIXED (general loader
+    # defects, not finance-specific): the MySQL loader self-provisions its database (CREATE DATABASE IF NOT
+    # EXISTS + the `--init-file` schema grant in mysql.yaml, so no per-dataset root grant), and the MongoDB
+    # loader casts date columns to timestamp so BSON can encode them (`_mongo_encodable`).
+    mysql_allow=frozenset({"company_financials", "company_meta"}),
+    mongo_allow=frozenset({"company_financials", "company_meta"}),
     cockroach_allow=frozenset({"company_financials", "company_meta"}),
     # Neo4j (Phase 2 graph): the EDGAR company graph — (:Company)-[:IN_INDUSTRY]->(:SIC) from company_meta and
     # (:Company)-[:FILED]->(:Filing) from company_filings. Company is keyed by cik so both specs MERGE onto the
@@ -90,7 +92,7 @@ FINANCE_CFG = DomainConfig(
                        "props": []}],
         },
     },
-    # mysql/mongo/cockroach/cassandra/opensearch/vector/lance/stream stay empty — a later phase expands EDGAR.
+    # cassandra/opensearch/vector/lance/stream stay empty — a later phase expands EDGAR.
 )
 
 (

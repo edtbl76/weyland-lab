@@ -73,3 +73,11 @@ def timeseries():
     return load_isolated(
         "weyland_pipeline/assets/datasets_lib/timeseries.py", "timeseries"
     )
+
+
+@pytest.fixture
+def mongo_encode():
+    """The dagster-free ``datasets_lib/mongo_encode`` BSON-safe Arrow coercion (B113 Phase 2), isolated."""
+    return load_isolated(
+        "weyland_pipeline/assets/datasets_lib/mongo_encode.py", "mongo_encode"
+    )
