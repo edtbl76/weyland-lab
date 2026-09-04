@@ -51,6 +51,11 @@ FINANCE_CFG = DomainConfig(
     timescale_allow=TIMESCALE_ALLOW,
     # ClickHouse: the analytical tables (fred_macro/meta + company_financials/meta) — native s3() ingest.
     clickhouse_allow=_ALL_CLICKHOUSE_ALLOW,
+    # EDGAR store fan-out (Phase 2, "richest domain"): the structured financials + dim into the relational /
+    # document / distributed-SQL stores. Same tidy silver parquet the OLAP path reads. filings is graph-only.
+    mysql_allow=frozenset({"company_financials", "company_meta"}),
+    mongo_allow=frozenset({"company_financials", "company_meta"}),
+    cockroach_allow=frozenset({"company_financials", "company_meta"}),
     # Neo4j (Phase 2 graph): the EDGAR company graph — (:Company)-[:IN_INDUSTRY]->(:SIC) from company_meta and
     # (:Company)-[:FILED]->(:Filing) from company_filings. Company is keyed by cik so both specs MERGE onto the
     # SAME nodes (the filing spec attaches to the companies the meta spec created). FRED is tabular, not graph.

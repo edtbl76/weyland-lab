@@ -18,3 +18,26 @@ checks for fred_series_meta:
   - duplicate_count(series_id) = 0    # one row per FRED series
   - missing_count(series_id) = 0
   - missing_count(title) = 0
+
+# B113 Phase 2 — SEC EDGAR XBRL slice: the long financials table, the company dim, and the 10-K/10-Q filing
+# history feeding the Neo4j graph. `value` carries genuine gaps (a company may not report every concept every
+# period) so it is only "not 100% NULL", like fred_macro.value.
+checks for company_financials:
+  - row_count > 0
+  - missing_count(cik) = 0
+  - missing_count(concept) = 0
+  - missing_count(period_end) = 0
+  - missing_percent(value) < 100      # a concept can be absent for a period, but the column must not be all-NULL
+
+checks for company_meta:
+  - row_count > 0
+  - duplicate_count(cik) = 0          # one row per company
+  - missing_count(cik) = 0
+  - missing_count(company) = 0
+
+checks for company_filings:
+  - row_count > 0
+  - duplicate_count(accn) = 0         # accession number is globally unique per filing
+  - missing_count(cik) = 0
+  - missing_count(accn) = 0
+  - missing_count(form) = 0

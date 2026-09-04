@@ -720,7 +720,7 @@ _DOMAIN_RULES = [
     ("Health", ("datasets_health", "mart_state_health_trends", "mart_country_health", "mart_personality_by_country",
                 "state_health_risk", "brfss", "nhanes", "nhis", "who_gho", "big_five", "cdc_physical", "usda",
                 "open_food_facts")),
-    ("Finance", ("datasets_finance", "mart_macro_indicators", "fred_macro", "fred_series_meta", "fred")),
+    ("Finance", ("datasets_finance", "mart_macro_indicators", "mart_company_financials", "fred_macro", "fred_series_meta", "fred")),
     ("AIDLC Knowledge", ("aidlc", ":entry", "entry,prod")),
     ("Docs & RAG", ("rag_documents", "rag_chunks", "weyland_chunks", "weylandchunk", "document,prod", "chunk,prod")),
     ("ML & Modeling", ("mlflow", "genre_classifier", "model_catalog", "registered_model", "model_version",
@@ -777,6 +777,10 @@ _PRODUCTS = [
     ("Personality Profiles", "Health", "Big Five OCEAN traits by country.", ("mart_personality_by_country",)),
     ("Macro Indicators", "Finance", "FRED macro-economic series (GDP, CPI, unemployment, rates, M2, …) — latest "
      "value + YoY per series, on a Timescale hypertable.", ("mart_macro_indicators", "fred_macro", "fred_series_meta")),
+    ("Company Financials", "Finance", "SEC EDGAR XBRL — latest annual revenue / net income / assets / liabilities / "
+     "equity / EPS / shares for ~50 mega-caps + the SIC industry dimension and the 10-K/10-Q filing history "
+     "(also a Neo4j company→SIC→filing graph).",
+     ("mart_company_financials", "company_financials", "company_meta", "company_filings")),
     ("Weyland Docs", "Docs & RAG", "The platform documentation retrieval corpus.",
      ("rag_documents", "rag_chunks", "weyland_chunks")),
     ("AIDLC Knowledge Base", "AIDLC Knowledge", "The AIDLC KB — engineering-knowledge, consulting-tools, and "
