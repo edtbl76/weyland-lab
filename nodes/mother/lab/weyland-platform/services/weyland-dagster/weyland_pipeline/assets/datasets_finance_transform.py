@@ -55,7 +55,13 @@ FINANCE_CFG = DomainConfig(
     # (:Company)-[:FILED]->(:Filing) from company_filings. Company is keyed by cik so both specs MERGE onto the
     # SAME nodes (the filing spec attaches to the companies the meta spec created). FRED is tabular, not graph.
     neo4j_allow={
+        # clear_labels is CRITICAL here: both specs share the :Company label (keyed by cik so they MERGE onto the
+        # SAME nodes). The loader's default clear = every node label in the spec, so without an override whichever
+        # graph runs SECOND would DETACH DELETE :Company and wipe the FIRST graph's Company-edges. Each spec
+        # therefore clears only its OWN non-shared label — DETACH DELETE of that label still removes this spec's
+        # CREATE'd edges (they hang off it), and :Company is left alone (MERGE keeps it idempotent across reruns).
         "company_meta": {
+            "clear_labels": ["SIC"],
             "nodes": [
                 {"label": "Company", "key": "cik", "props": ["ticker", "company", "exchange"]},
                 {"label": "SIC", "key": "sic", "props": ["sic_description"]},
@@ -66,6 +72,7 @@ FINANCE_CFG = DomainConfig(
                        "props": []}],
         },
         "company_filings": {
+            "clear_labels": ["Filing"],
             "nodes": [
                 {"label": "Company", "key": "cik", "props": ["ticker"]},
                 {"label": "Filing", "key": "accn", "props": ["form", "filed", "report_date"]},
