@@ -51,10 +51,12 @@ FINANCE_CFG = DomainConfig(
     timescale_allow=TIMESCALE_ALLOW,
     # ClickHouse: the analytical tables (fred_macro/meta + company_financials/meta) — native s3() ingest.
     clickhouse_allow=_ALL_CLICKHOUSE_ALLOW,
-    # EDGAR store fan-out (Phase 2, "richest domain"): the structured financials + dim into the relational /
-    # document / distributed-SQL stores. Same tidy silver parquet the OLAP path reads. filings is graph-only.
-    mysql_allow=frozenset({"company_financials", "company_meta"}),
-    mongo_allow=frozenset({"company_financials", "company_meta"}),
+    # EDGAR store fan-out (Phase 2, "richest domain"): the structured financials + dim into the distributed-SQL
+    # store (same tidy silver parquet the OLAP path reads; filings is graph-only). MySQL + MongoDB are DELIBERATELY
+    # excluded: the shared loaders choke on EDGAR's real data — the MySQL loader targets a per-table database the
+    # `weyland` grant can't create ("Access denied to database 'company_financials'"), and the MongoDB loader
+    # can't BSON-encode a python `datetime.date` (company_financials has real date columns). Both are general
+    # loader defects, not finance-specific; re-add here once fixed.
     cockroach_allow=frozenset({"company_financials", "company_meta"}),
     # Neo4j (Phase 2 graph): the EDGAR company graph — (:Company)-[:IN_INDUSTRY]->(:SIC) from company_meta and
     # (:Company)-[:FILED]->(:Filing) from company_filings. Company is keyed by cik so both specs MERGE onto the
