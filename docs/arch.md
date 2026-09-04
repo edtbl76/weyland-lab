@@ -215,7 +215,10 @@ agents/workflows and platform state. Agents call the tool-server, *not* database
   `fred_macro`/`fred_series_meta` silver → Iceberg gold + a TimescaleDB hypertable on `fred_macro.date` +
   ClickHouse, with the `mart_macro_indicators` dbt mart; Phase 2 added the **SEC EDGAR XBRL** slice —
   `company_financials`/`company_meta`/`company_filings` (~49 mega-caps, 20,741 facts) → Iceberg + ClickHouse +
-  CockroachDB + the `mart_company_financials` mart + a **Neo4j** company→SIC→filing graph; BI in Lightdash/Superset
+  CockroachDB + MySQL + MongoDB + the `mart_company_financials` mart + a **Neo4j** company→SIC→filing graph;
+  Phase 3 added the **SEC EDGAR filings-text RAG** slice — each mega-cap's latest 10-K narrative, section-aware
+  chunked (`filings_text`, 8,851 chunks) → Iceberg + the **vector stores** (Qdrant/Weaviate/LanceDB, bge-small
+  384) → the `63_rag_sec_filings.ipynb` retrieve-with-citations notebook; BI in Lightdash/Superset
   + Cube — same `datasets_lib` machinery; see [design/finance-domain.md](design/finance-domain.md)) sources, on a
   shared **`datasets_lib`** platform: a domain is a
   `DomainConfig` + three asset factories (`build_transform_assets` → `build_asset_checks` →
