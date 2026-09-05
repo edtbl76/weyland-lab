@@ -23,6 +23,35 @@ recommended follow-ups, not silently filed.
 
 The pattern across all three: **abstraction at *use* is excellent; the leaks are at *provisioning*, *ingestion*, and *governance-completeness* — the edges the paved path was never extended to.**
 
+## The three planes, and where the follow-ups (A–F) landed
+
+```mermaid
+flowchart TB
+    subgraph P3 [Mesh-experience plane — see + govern the mesh AS a mesh]
+        direction LR
+        DH[DataHub: domains · products · lineage · glossary]
+        MCP[operator fleet MCPs]
+        AA["A · check-datahub-coverage<br/>every dataset catalogued, by CI"]
+        EE["E · ODCS contracts<br/>one standard + 3 gates"]
+    end
+    subgraph P2 [Data-product experience plane — declarative build + operate]
+        direction LR
+        DC[DomainConfig + transform/check/store factories]
+        BB["B · build_land_asset<br/>paved ingestion scaffold"]
+        CC["C · build_domain_jobs<br/>generated operate plane"]
+        FF["F · autodiscovery<br/>import = registration"]
+    end
+    subgraph P1 [Infra / utility plane — the invisible foundation]
+        direction LR
+        S[MinIO · Iceberg-Nessie · lakeFS · Trino · Dagster · Argo]
+        DD["D · ensure_repo<br/>repo self-provisions on first land"]
+    end
+    P1 --> P2 --> P3
+```
+
+A–D pave the *product* planes (provisioning + the build/operate edges); A, E, F govern the *mesh* plane
+(catalog completeness, contracts, registration). Each is placed in its plane's grade table below.
+
 ---
 
 ## Plane 1 — Infrastructure / utility
