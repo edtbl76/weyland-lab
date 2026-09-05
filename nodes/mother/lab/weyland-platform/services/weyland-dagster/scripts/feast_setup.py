@@ -27,6 +27,9 @@ _AUDIO = ["danceability", "energy", "key", "loudness", "mode", "speechiness",
           "acousticness", "instrumentalness", "liveness", "valence", "tempo"]
 _CONDS = {"diabetes_pct": ("Diabetes", "Yes"), "asthma_pct": ("Asthma", "Yes"),
           "copd_pct": ("COPD", "Yes"), "depression_pct": ("Depression", "Yes")}
+# B113 Phase 5 — the finance price feature view (entity ticker, time-varying on `date`).
+_PRICE_FEATS = ["ret_1d", "ret_5d", "ret_20d", "vol_5d", "vol_10d", "vol_20d",
+                "volume_ratio", "range_20d", "sma_ratio_20d"]
 
 
 def _pg_url(db):
@@ -95,6 +98,19 @@ def _load_offline_sources():
         hr[col] = pd.to_numeric(hr[col], errors="coerce").astype("float32")
     hr.to_sql("state_health_risk", eng, if_exists="replace", index=False)
     print(f"state_health_risk: {len(hr)} rows ({hr['state'].nunique()} states) (from dbt mart_state_health_trends)")
+
+    # price_features <- mart_price_features (per-(ticker,date) trailing features for the Phase-5 ML lane). The
+    # feature values are time-varying (unlike the static audio features), so event_timestamp = the trading date,
+    # which is what makes Feast's point-in-time join meaningful here. ~hundreds of thousands of rows → chunked.
+    pf = pd.read_sql(
+        "SELECT ticker, date, " + ", ".join(_PRICE_FEATS) + " FROM iceberg.dbt.mart_price_features", conn)
+    pf["ticker"] = pf["ticker"].astype(str)
+    pf["event_timestamp"] = pd.to_datetime(pf["date"], utc=True)
+    pf = pf.drop(columns=["date"])
+    for col in _PRICE_FEATS:
+        pf[col] = pd.to_numeric(pf[col], errors="coerce").astype("float32")
+    pf.to_sql("price_features", eng, if_exists="replace", index=False, chunksize=5000)
+    print(f"price_features: {len(pf)} rows ({pf['ticker'].nunique()} tickers) (from dbt mart_price_features)")
 
     conn.close()
     eng.dispose()

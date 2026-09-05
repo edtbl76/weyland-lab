@@ -97,3 +97,11 @@ def market_parse():
     return load_isolated(
         "weyland_pipeline/assets/datasets_lib/market_parse.py", "market_parse"
     )
+
+
+@pytest.fixture
+def ml_targets():
+    """The dagster-free ``datasets_lib/ml_targets`` forward-target helper (B113 Phase 5), isolated."""
+    return load_isolated(
+        "weyland_pipeline/assets/datasets_lib/ml_targets.py", "ml_targets"
+    )

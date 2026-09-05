@@ -17,6 +17,7 @@ from feast.types import Float32
 
 track = Entity(name="track", join_keys=["track_id"])
 state = Entity(name="state", join_keys=["state"])
+ticker = Entity(name="ticker", join_keys=["ticker"])   # B113 Phase 5 — the finance ML-lane entity
 
 _AUDIO = ["danceability", "energy", "key", "loudness", "mode", "speechiness",
           "acousticness", "instrumentalness", "liveness", "valence", "tempo"]
@@ -50,6 +51,26 @@ state_health_risk = FeatureView(
     online=True,
 )
 
+# B113 Phase 5 — price_features (TIME-VARYING, entity ticker, event time = trading date). The point-in-time
+# join actually bites here (each date has different feature values), so the training-set asset's as-of retrieval
+# is meaningful — the finance analogue of the genre-classifier's Feast consumer.
+price_source = PostgreSQLSource(
+    name="price_features_src",
+    query="SELECT * FROM price_features",
+    timestamp_field="event_timestamp",
+)
+_PRICE_FEATS = ["ret_1d", "ret_5d", "ret_20d", "vol_5d", "vol_10d", "vol_20d",
+                "volume_ratio", "range_20d", "sma_ratio_20d"]
+price_features = FeatureView(
+    name="price_features",
+    entities=[ticker],
+    ttl=timedelta(days=36500),
+    schema=[Field(name=f, dtype=Float32) for f in _PRICE_FEATS],
+    source=price_source,
+    online=True,
+)
+
 # FeatureServices = named bundles a model/consumer requests (train/serve on the same definition).
 recommender_v1 = FeatureService(name="recommender_v1", features=[track_audio_features])
 health_v1 = FeatureService(name="health_v1", features=[state_health_risk])
+finance_v1 = FeatureService(name="finance_v1", features=[price_features])

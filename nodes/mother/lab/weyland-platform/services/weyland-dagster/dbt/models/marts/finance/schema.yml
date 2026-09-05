@@ -123,3 +123,37 @@ models:
         meta: {metrics: {avg_pct_off_52w_high: {type: average, label: "Avg pct off 52w high"}}}
       - name: latest_volume
         description: "Share volume on the most recent bar."
+
+  - name: mart_price_features
+    description: >
+      Per-(ticker, date) modelling features for the B113 Phase-5 ML lane — trailing, as-of-date only (no
+      forward-looking columns, so Feast can serve them online without leakage): lagged returns (1/5/20d),
+      trailing realized volatility (5/10/20d), relative volume, mean intraday range, price-vs-20d-SMA. Loaded
+      into the Feast offline store by scripts/feast_setup.py as the `price_features` FeatureView. One row per
+      (ticker, date) after the ~20-bar warmup.
+    columns:
+      - name: ticker
+        description: "Stock ticker (feature-store entity join key)."
+        tests: [not_null]
+      - name: date
+        description: "Trading date the features are computed as-of (feature-store event timestamp)."
+        tests: [not_null]
+      - name: ret_1d
+        description: "1-day return on the adjusted close."
+      - name: ret_5d
+        description: "5-day return on the adjusted close."
+      - name: ret_20d
+        description: "20-day return on the adjusted close."
+      - name: vol_5d
+        description: "Trailing 5-day realized volatility (stddev of daily returns)."
+      - name: vol_10d
+        description: "Trailing 10-day realized volatility."
+      - name: vol_20d
+        description: "Trailing 20-day realized volatility."
+        tests: [not_null]
+      - name: volume_ratio
+        description: "Volume relative to its trailing 20-day average."
+      - name: range_20d
+        description: "Mean intraday range ((high-low)/close) over the trailing 20 days."
+      - name: sma_ratio_20d
+        description: "Adjusted close relative to its trailing 20-day SMA (price-vs-trend)."
