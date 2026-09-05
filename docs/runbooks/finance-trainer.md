@@ -42,10 +42,26 @@ cd /home/edwardmangini/IdeaProjects/weyland/nodes/mother/lab/weyland-platform/se
 python train_volatility.py --task both        # add --tune for a Ray-Tune sweep (needs a Ray cluster + `ray`)
 ```
 
-`--task {regress,classify,both}` (default `both`). The container path (durable/reproducible) is the same as
-genre-trainer: `entrypoint.sh` opens the forwards + reads the Secrets itself from a mounted kubeconfig — build
-`services/finance-trainer/Dockerfile`, push to `registry.weyland.lab`, `docker run --rm` it. Artifacts go DIRECT
-to MinIO (`s3://mlflow/…`), bypassing the serve-artifacts proxy.
+`--task {regress,classify,both}` (default `both`). Artifacts go DIRECT to MinIO (`s3://mlflow/…`), bypassing the
+serve-artifacts proxy.
+
+## 2b. Or run the container (durable/reproducible — `registry.weyland.lab/finance-trainer`)
+
+`entrypoint.sh` opens the port-forwards + reads the Secrets itself from a mounted kubeconfig, so the container
+needs no host forwards and no creds on the CLI. Build (on a box with docker — rogueone Docker Desktop is
+amd64/x86_64, matching the cluster) + push + run:
+
+```
+cd /home/edwardmangini/IdeaProjects/weyland/nodes/mother/lab/weyland-platform/services
+docker build -t registry.weyland.lab/finance-trainer:v1 finance-trainer
+docker push registry.weyland.lab/finance-trainer:v1
+docker run --rm -v "$HOME/.kube/config":/app/.kube/config:ro --add-host mother:192.168.1.243 registry.weyland.lab/finance-trainer:v1 --task both
+```
+
+Note the kubeconfig mounts to **`/app/.kube/config`** (the image runs as `appuser` with `HOME=/app`), NOT
+`/root/.kube/config`. The image uses a LEAN top-level `requirements.txt` (mlflow/scikit-learn/pandas/numpy/
+minio/pyarrow/boto3/ray[default]) — deliberately NOT genre-trainer's 130-line freeze, which had drifted to an
+unbuildable pin set (`cryptography==50.0.0` vs mlflow's `cryptography<50`).
 
 ## 3. Result
 
