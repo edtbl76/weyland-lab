@@ -220,7 +220,10 @@ agents/workflows and platform state. Agents call the tool-server, *not* database
   chunked (`filings_text`, 8,851 chunks) → Iceberg + the **vector stores** (Qdrant/Weaviate/LanceDB, bge-small
   384) → the `63_rag_sec_filings.ipynb` retrieve-with-citations notebook; Phase 4 added the **market OHLCV**
   slice — full daily price history (`price_daily`, yfinance) for the same tickers → a **Timescale** hypertable
-  + ClickHouse + **Cassandra** (partition by ticker) + `mart_price_daily` (return/volatility/52w hi-lo); BI in
+  + ClickHouse + **Cassandra** (partition by ticker) + `mart_price_daily` (return/volatility/52w hi-lo);
+  Phase 5 added the **ML lane** — `mart_price_features` → **Feast** point-in-time features → a `finance-trainer`
+  (external, Ray-capable, mirrors `genre-trainer`) that registers a **volatility regressor (R²≈0.43)** + a
+  **vol-regime classifier (acc≈0.64)** in **MLflow**; BI in
   Lightdash/Superset + Cube — same `datasets_lib` machinery; see [design/finance-domain.md](design/finance-domain.md)) sources, on a
   shared **`datasets_lib`** platform: a domain is a
   `DomainConfig` + three asset factories (`build_transform_assets` → `build_asset_checks` →

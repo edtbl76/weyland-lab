@@ -168,7 +168,9 @@ def _tune(df, args, task):
     if os.environ.get("RAY_ADDRESS"):
         ray.init(address="auto")
     else:
-        ray.init(include_dashboard=True, dashboard_host="0.0.0.0", ignore_reinit_error=True)
+        # nosec B104 — the LOCAL Ray dashboard binds 0.0.0.0 INSIDE the container; the ephemeral run publishes it
+        # loopback-only (`-p 127.0.0.1:8265:8265`, never the host's 0.0.0.0), same accepted pattern as genre-trainer.
+        ray.init(include_dashboard=True, dashboard_host="0.0.0.0", ignore_reinit_error=True)  # nosec B104
     log(f"[tune:{task}] Ray up — {int(ray.cluster_resources().get('CPU', 0))} CPUs, {args.trials} trials…")
     data_ref = ray.put((Xtr, Xte, ytr, yte))
     experiment = args.experiment

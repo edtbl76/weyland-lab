@@ -217,4 +217,34 @@ hypertable or poisons the mart's returns/volatility; `auto_adjust=False` keeps b
 split/dividend-adjusted `adj_close`. Cassandra keys as `((ticker), row_id uuid)` — one company's whole history
 in one partition, a synthetic uuid clustering column keeping every bar unique.
 
-**Deferred / tracked:** ODCS contracts (B157); the ML lane (Phase 5 — a returns/volatility model over these prices).
+## Phase 5 — the ML lane (Feast → training set → Ray → MLflow)
+
+The finance genre-classifier analogue: a volatility model over the price features. The point-in-time join runs
+MESHED in-cluster (Feast's offline store is STRICT-mTLS Postgres); the external trainer reads the landed parquet.
+
+```mermaid
+flowchart TB
+  PD[("price_daily (Iceberg gold)")]
+  MF["dbt · mart_price_features<br/>per-(ticker,date) trailing features<br/>(lagged returns · vol · volume · range · SMA)"]
+  FS[("Feast offline store<br/>feast Postgres · price_features view<br/>loaded by feast_setup.py")]
+  subgraph MESH["MESHED in-cluster (Dagster)"]
+    TR["price_feast_training_set<br/>get_historical_features (as-of join)<br/>+ forward-5d-vol target · 122,208 rows"]
+  end
+  LK[("lakeFS<br/>finance/parquet/price_feast_training/")]
+  subgraph EXT["external trainer (rogueone) — finance-trainer"]
+    RG["RandomForestRegressor → RMSE/R²<br/>(Ray-Tune capable)"]
+    CL["RandomForestClassifier (vol regime)<br/>→ accuracy/F1"]
+  end
+  ML["MLflow registry<br/>price_volatility_regressor (R²≈0.43)<br/>price_volatility_classifier (acc≈0.64)"]
+
+  PD --> MF --> FS --> TR --> LK
+  LK --> RG --> ML
+  LK --> CL --> ML
+```
+
+The target (`fwd_vol_5d`) is forward-looking and lives in the entity_df, NOT in Feast — Feast serves only the
+trailing as-of features, so there's no leakage; the alignment (`rolling(5).std().shift(-5)`) is unit-tested in
+`ml_targets.py`. Volatility clusters, so both models carry real signal — the design's deliberate choice over a
+returns/direction model, which would score ~coin-flip.
+
+**B113 is complete (all 5 phases).** Deferred/tracked only: ODCS contracts (B157).

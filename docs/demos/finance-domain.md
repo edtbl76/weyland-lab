@@ -117,6 +117,27 @@ Daily price bars for the same ~50 mega-caps, the archetypal time-series slice.
 - **Cassandra:** one ticker's bars by partition — see [query/cassandra.md](../query/cassandra.md).
 - **Lightdash/Superset:** the `mart_price_daily` charts (latest close, annualized volatility per ticker). **Cube:** the `price_daily` cube.
 
+## Phase 5 — the ML lane (Feast → Ray → MLflow)
+
+The finance genre-classifier analogue: a volatility model over the price features, exercising the full ML lane.
+
+1. **Feature mart:** `dbt build mart_price_features` → per-(ticker,date) trailing features (lagged returns,
+   realized vol, volume, range, SMA — no leakage).
+2. **Feast:** `scripts/feast_setup.py` (in the dagster pod) loads `mart_price_features` → the `feast` Postgres
+   offline store as the `price_features` view + `feast apply` + materialize.
+3. **Training set:** materialize `price_feast_training_set` → the MESHED Feast `get_historical_features`
+   point-in-time join (features as-of date + the forward-5d-vol target in the entity_df) → **122,208** rows →
+   lakeFS `finance/parquet/price_feast_training/`.
+4. **Train + register:** run `services/finance-trainer/` on rogueone (`train_volatility.py --task both`) → reads
+   the lakeFS parquet → fits a `RandomForestRegressor` (RMSE/R²) + a `RandomForestClassifier` (vol-regime
+   HIGH/LOW at each ticker's median vol; accuracy/F1), each Ray-Tune-capable → registers both in MLflow.
+   See [runbooks/finance-trainer.md](../runbooks/finance-trainer.md) for the exact run.
+
+**Eyes-on UAT (MLflow `https://mlflow.weyland.lab`):** the **`price-volatility`** experiment + two registered
+models — **`price_volatility_regressor`** (R²≈0.43 — volatility genuinely learnable) and
+**`price_volatility_classifier`** (accuracy≈0.64 — well above the 50% coin-flip). The signal is the point:
+returns are ~unpredictable, but volatility clusters, so the model learns something real.
+
 ## Expected result
 
 The 13 FRED macro series are queryable across Iceberg/Trino, TimescaleDB, and ClickHouse; the dbt mart serves
