@@ -1,0 +1,108 @@
+# ODCS (weyland lab subset) — Company Financials data product. See docs/concepts/data-contracts-odcs.md.
+apiVersion: v3.0.0
+kind: DataContract
+id: weyland-finance-company-financials
+name: Company Financials
+version: 1.0.0
+status: active
+domain: finance
+dataProduct: Company Financials
+tenant: weyland
+
+description:
+  purpose: SEC EDGAR XBRL company facts for ~50 mega-caps — one tidy row per (company, concept, period), the structured half of the finance domain.
+  usage: Filter by concept (us-gaap tag) + fp='FY' for annual facts; join by cik/ticker to company_meta, the Neo4j graph, and the price series.
+  limitations: value carries genuine gaps (a company may not report every concept every period) so it is "not 100% NULL", not non-null per row.
+
+servers:
+  - server: trino-iceberg
+    type: trino
+    catalog: iceberg
+    schema: datasets_finance
+    physicalName: iceberg.datasets_finance.company_financials
+
+schema:
+  - name: company_financials
+    physicalName: iceberg.datasets_finance.company_financials
+    properties:
+      - name: cik
+        logicalType: integer
+        physicalType: bigint
+        description: SEC Central Index Key — the company's unique SEC identifier.
+        required: true
+      - name: ticker
+        logicalType: string
+        physicalType: varchar
+        description: Primary stock ticker (e.g. NVDA, AAPL).
+      - name: company
+        logicalType: string
+        physicalType: varchar
+        description: Company name.
+      - name: concept
+        logicalType: string
+        physicalType: varchar
+        description: XBRL concept / us-gaap tag (e.g. Revenues, Assets).
+        required: true
+      - name: unit
+        logicalType: string
+        physicalType: varchar
+        description: Unit of the value (USD, shares, …).
+      - name: period_end
+        logicalType: date
+        physicalType: varchar
+        description: End of the reporting period the fact covers.
+        required: true
+      - name: fy
+        logicalType: integer
+        physicalType: bigint
+        description: Fiscal year.
+      - name: fp
+        logicalType: string
+        physicalType: varchar
+        description: Fiscal period (FY, Q1…Q4).
+      - name: form
+        logicalType: string
+        physicalType: varchar
+        description: Source filing form (10-K, 10-Q).
+      - name: filed
+        logicalType: date
+        physicalType: varchar
+        description: Date the filing was submitted to the SEC.
+      - name: value
+        logicalType: number
+        physicalType: double
+        description: The reported numeric value, in `unit`.
+
+quality:
+  - property: cik
+    rule: not_null
+  - property: concept
+    rule: not_null
+  - property: period_end
+    rule: not_null
+  - property: value
+    rule: missing_percent < 100
+    description: A concept can be absent for a period, but the column must not be 100% NULL (Soda).
+  - property: table
+    rule: row_count > 0
+
+slaProperties:
+  - property: frequency
+    value: on-demand
+    description: Refreshed by datasets_finance_edgar_land (self-skips if fresh, 30-day window).
+  - property: retention
+    value: indefinite
+
+team:
+  - role: owner
+    username: ed@timberbacklabs.com
+
+support:
+  - channel: runbook
+    url: docs/demos/finance-domain.md
+
+customProperties:
+  - property: medallion_layer
+    value: silver
+  - property: source_system
+    value: SEC EDGAR

@@ -226,8 +226,14 @@ agents/workflows and platform state. Agents call the tool-server, *not* database
   **vol-regime classifier (acc≈0.64)** in **MLflow**; BI in
   Lightdash/Superset + Cube — same `datasets_lib` machinery; see [design/finance-domain.md](design/finance-domain.md)) sources, on a
   shared **`datasets_lib`** platform: a domain is a
-  `DomainConfig` + three asset factories (`build_transform_assets` → `build_asset_checks` →
-  `build_store_load_assets`). Per-dataset **land** assets write lakeFS `raw/` (bronze); a **brokered**
+  `DomainConfig` + the asset factories that pave every self-serve plane — `build_land_asset`
+  (ingestion, B158-E), `build_transform_assets` → `build_asset_checks` → `build_store_load_assets`
+  (silver/gold + DQ + fan-out), and `build_domain_jobs` (the operate plane: land/transform/hydrate jobs
+  generated from one `cfg.land_deps`, B158-C). `lakefs_repo.ensure_repo` self-provisions the repo on
+  first land (B158-D). The plane→surface audit + these paved seams are in
+  [concepts/self-serve-platform-planes.md](concepts/self-serve-platform-planes.md); contracts follow the
+  adopted **ODCS** subset ([concepts/data-contracts-odcs.md](concepts/data-contracts-odcs.md), B158-E) and
+  catalog completeness is CI-guarded (`check-datahub-coverage.sh`, B158-A). Per-dataset **land** assets write lakeFS `raw/` (bronze); a **brokered**
   fan-out — *one asset per format, process-isolated*, serialized (memory) — produces silver/gold. The
   reader dispatches on extension (csv · csv.gz · xpt · json), column names normalize + null-types coerce,
   tables are **per-file** (multi-file folders don't clobber), oversized tables **defer**. **Each format

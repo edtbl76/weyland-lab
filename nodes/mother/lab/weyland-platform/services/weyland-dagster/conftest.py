@@ -105,3 +105,31 @@ def ml_targets():
     return load_isolated(
         "weyland_pipeline/assets/datasets_lib/ml_targets.py", "ml_targets"
     )
+
+
+@pytest.fixture
+def land_core():
+    """The dagster-free ``datasets_lib/land_core`` — the write/fail-closed heart of the land-asset
+    factory (B158 follow-up B), loaded in isolation (pyarrow-only, no dagster/minio)."""
+    return load_isolated(
+        "weyland_pipeline/assets/datasets_lib/land_core.py", "land_core"
+    )
+
+
+@pytest.fixture
+def domain_job_plan():
+    """The dagster-free ``datasets_lib/domain_job_plan`` — the single-sourced land/transform/hydrate job
+    plan for a domain (B158 follow-up C), loaded in isolation (stdlib-only)."""
+    return load_isolated(
+        "weyland_pipeline/assets/datasets_lib/domain_job_plan.py", "domain_job_plan"
+    )
+
+
+@pytest.fixture
+def lakefs_repo():
+    """The ``datasets_lib/lakefs_repo`` bootstrap (B158 follow-up D), loaded in isolation. Module scope is
+    stdlib-only (the lakefs SDK + io are lazy inside ensure_repo), so ``storage_namespace_for`` is testable
+    here; ensure_repo itself is validated live against lakeFS."""
+    return load_isolated(
+        "weyland_pipeline/assets/datasets_lib/lakefs_repo.py", "lakefs_repo"
+    )

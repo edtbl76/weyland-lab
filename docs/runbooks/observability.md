@@ -170,6 +170,49 @@ bash scripts/check-servicemonitor-coverage.sh          # OK — 32 ServiceMonito
 bash scripts/check-servicemonitor-coverage.sh --list   # every monitor + its verdict
 ```
 
+### DataHub catalog coverage — the guard (B158 follow-up A, 2026-09-05)
+
+The **fourth** coverage guard, and the first on the DATA estate rather than infrastructure. The trilogy
+proves a service is SCRAPED / VISUALIZED / ALERTED; **`scripts/check-datahub-coverage.sh`** proves every
+mesh dataset is CATALOGED. It reconciles two planes and a table in the first but not the second is drift:
+
+| Plane | Source |
+|---|---|
+| REALITY | the `iceberg.datasets_*.*` silver/gold + `iceberg.dbt.mart_*` tables Trino exposes |
+| CATALOGED | the dataset URNs DataHub GMS holds (`scrollAcrossEntities`, the emit's own read path) |
+
+Match rule: a Trino `schema.table` is catalogued when some DataHub dataset URN's **last two dotted
+segments** equal `schema.table` — which absorbs the platform prefixes (`iceberg,dbt.mart_x`,
+`trino,iceberg.dbt.mart_x`) and the sibling twins the emit merges, without matching on table name alone.
+
+- **Fails closed.** An empty catalogued set while Trino is non-empty is "GMS unreachable / token missing" →
+  **exit 2**, never "all uncatalogued" (exit 1) and never clean (exit 0). The GMS scroll also asserts it
+  fetched all `total` datasets before grading — a partial page never reads as drift.
+- **Two live-run gotchas the guard already handles** (both found on the first live run, invisible to
+  fixtures): Trino's `nextUri` comes back on its own in-cluster host, so the guard re-points it at the
+  endpoint it was given; and `awk | grep -Fxq` under `set -o pipefail` returns a real match as no-match
+  (grep short-circuits, awk dies with SIGPIPE, pipefail surfaces the 141), so the awk output is captured
+  to a variable first.
+- Runs as CronJob **`datahub-coverage`, 03:05 NY** (`k8s/monitoring/datahub-coverage.yaml`), **unmeshed**,
+  in the **weyland** namespace (it needs the `DATAHUB_GMS_TOKEN` from the local `datahub-token` Secret and
+  reaches trino-noauth + datahub-gms in data-mesh by FQDN). No kubectl, no RBAC.
+- Failure routes to Telegram via the existing `ScheduledJobFailed` rule; freshness via `ScheduledJobStale`
+  (daily 26h budget) — both in `cron-freshness-rules.yaml`. `scripts/tests/datahub-coverage.bats` (12
+  cases, incl. the byte-identity assertion) runs in CI. Regenerate the ConfigMap after editing the guard:
+  `scripts/embed-datahub-coverage.sh`.
+
+Run it by hand from a box that can reach the cluster (rogueone), via port-forwards + the token:
+```
+kubectl -n data-mesh port-forward svc/trino-noauth 18200:8080 &
+kubectl -n data-mesh port-forward svc/datahub-datahub-gms 18201:8080 &
+TOKEN=$(kubectl -n weyland get secret datahub-token -o jsonpath='{.data.token}' | base64 -d)
+TRINO_HTTP=http://localhost:18200 DATAHUB_GMS_URL=http://localhost:18201 DATAHUB_GMS_TOKEN="$TOKEN" \
+  bash scripts/check-datahub-coverage.sh --list   # every mesh table + cataloged/UNCATALOGED verdict
+TRINO_HTTP=http://localhost:18200 DATAHUB_GMS_URL=http://localhost:18201 DATAHUB_GMS_TOKEN="$TOKEN" \
+  bash scripts/check-datahub-coverage.sh           # the gate: OK — all N mesh table(s) catalogued
+```
+Live baseline 2026-09-05: **111/111 mesh tables catalogued, 0 drift** (exit 0).
+
 ### Scheduling alerts (B134, 2026-08-27)
 
 `k8s/monitoring/scheduling-rules.yaml` — two rules for the failure mode that has no natural signal:

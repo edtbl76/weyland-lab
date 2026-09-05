@@ -12,13 +12,13 @@ reader reads .parquet straight through and re-writes silver in every format + Ic
 
 FRED_API_KEY comes from the environment (gitignored scripts/.env → sealed Secret in-cluster); it is NEVER
 logged (it rides in the query string, so only the series id is ever logged) and NEVER committed.
+
+B158 follow-up B: the land scaffold (skip / fail-closed / minio / parquet write / Output) is now generated
+by ``datasets_lib.landers.build_land_asset``; this file carries only the FRED-specific fetch + the
+``_produce`` that shapes the two tables.
 """
-import io as _io
 import os
 import time
-
-import pyarrow.parquet as pq
-from dagster import MetadataValue, Output, asset
 
 from .datasets_lib.fred_parse import (
     SERIES_IDS,
@@ -27,7 +27,7 @@ from .datasets_lib.fred_parse import (
     extract_series_meta,
     observations_to_rows,
 )
-from .finance_common import RefreshConfig, finance_minio, finance_put_parquet, should_skip
+from .datasets_lib.landers import build_land_asset
 
 _FRED_BASE = "https://api.stlouisfed.org/fred"
 
@@ -64,15 +64,11 @@ def fetch_series(series_id, api_key):
     return meta, rows
 
 
-@asset(group_name="datasets_finance",
-       description="Land 13 FRED macro series → finance/raw/fred_macro/ (tidy) + finance/raw/fred_series_meta/ (dim).")
-def datasets_finance_fred_land(context, config: RefreshConfig) -> Output[dict]:
-    if should_skip(context, config):  # materialize with {"force": true} to bypass the local freshness age
-        return Output({"skipped": True}, metadata={"skipped": MetadataValue.bool(True)})
-
+def _produce(context):
+    """Fetch every series → the two tidy tables + a per-series detail dict. A missing API key fails loud;
+    one bad series is logged and skipped (fail-closed on the whole set is the factory's zero-rows guard)."""
     api_key = os.environ.get("FRED_API_KEY")
     if not api_key:
-        # Fail closed — a missing key must be a loud error, not an empty-but-"successful" land.
         raise ValueError("FRED_API_KEY is not set in the environment (expected from the sealed Secret / scripts/.env)")
 
     all_rows, metas, out = [], [], {}
@@ -88,30 +84,15 @@ def datasets_finance_fred_land(context, config: RefreshConfig) -> Output[dict]:
             out[sid] = f"ERROR: {e}"
             context.log.warning(f"FRED {sid}: {e}")
 
-    ok = sum(1 for v in out.values() if isinstance(v, int))
-    if not all_rows:
-        # Every series failed — nothing to write. Fail loudly rather than commit an empty raw layer.
-        raise RuntimeError(f"FRED land produced zero observations across {len(SERIES_IDS)} series: {out}")
+    tables = {} if not all_rows else {
+        "fred_macro": build_macro_table(all_rows),
+        "fred_series_meta": build_meta_table(metas),
+    }
+    return tables, out
 
-    client = finance_minio()
 
-    macro = build_macro_table(all_rows)
-    macro_buf = _io.BytesIO()
-    pq.write_table(macro, macro_buf)
-    finance_put_parquet(client, "fred_macro/fred_macro.parquet", macro_buf.getvalue())
-
-    meta_tbl = build_meta_table(metas)
-    meta_buf = _io.BytesIO()
-    pq.write_table(meta_tbl, meta_buf)
-    finance_put_parquet(client, "fred_series_meta/fred_series_meta.parquet", meta_buf.getvalue())
-
-    context.log.info(
-        f"landed fred_macro ({macro.num_rows:,} rows) + fred_series_meta ({meta_tbl.num_rows} rows) "
-        f"from {ok}/{len(SERIES_IDS)} series"
-    )
-    return Output(out, metadata={
-        "series_ok": MetadataValue.int(ok),
-        "macro_rows": MetadataValue.int(macro.num_rows),
-        "meta_rows": MetadataValue.int(meta_tbl.num_rows),
-        "detail": MetadataValue.json(out),
-    })
+datasets_finance_fred_land = build_land_asset(
+    "datasets_finance_fred_land", "finance", _produce,
+    group="datasets_finance",
+    description="Land 13 FRED macro series → finance/raw/fred_macro/ (tidy) + finance/raw/fred_series_meta/ (dim).",
+)

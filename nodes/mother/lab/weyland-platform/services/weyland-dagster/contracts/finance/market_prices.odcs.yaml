@@ -1,0 +1,89 @@
+# ODCS (weyland lab subset) — Market Prices data product. See docs/concepts/data-contracts-odcs.md.
+apiVersion: v3.0.0
+kind: DataContract
+id: weyland-finance-market-prices
+name: Market Prices
+version: 1.0.0
+status: active
+domain: finance
+dataProduct: Market Prices
+tenant: weyland
+
+description:
+  purpose: Full daily OHLCV history (yfinance) for the finance mega-cap universe — one row per (ticker, date).
+  usage: (ticker, date) is the grain; adj_close is split/dividend-adjusted, close is raw. Feeds mart_price_daily and the ML volatility lane.
+  limitations: yfinance scrapes Yahoo and can break if Yahoo changes; the in-progress bar (NaN close) is dropped at land.
+
+servers:
+  - server: trino-iceberg
+    type: trino
+    catalog: iceberg
+    schema: datasets_finance
+    physicalName: iceberg.datasets_finance.price_daily
+
+schema:
+  - name: price_daily
+    physicalName: iceberg.datasets_finance.price_daily
+    properties:
+      - name: ticker
+        logicalType: string
+        physicalType: varchar
+        description: Stock ticker.
+        required: true
+      - name: date
+        logicalType: date
+        physicalType: varchar
+        description: Trading date.
+        required: true
+      - name: open
+        logicalType: number
+        physicalType: double
+      - name: high
+        logicalType: number
+        physicalType: double
+      - name: low
+        logicalType: number
+        physicalType: double
+      - name: close
+        logicalType: number
+        physicalType: double
+        description: Raw close.
+      - name: adj_close
+        logicalType: number
+        physicalType: double
+        description: Split/dividend-adjusted close.
+      - name: volume
+        logicalType: integer
+        physicalType: bigint
+
+quality:
+  - property: ticker
+    rule: not_null
+  - property: date
+    rule: not_null
+  - property: (ticker,date)
+    rule: duplicate_count = 0
+    description: One row per ticker per trading day (Soda duplicate_count(ticker,date)=0).
+  - property: table
+    rule: row_count > 0
+
+slaProperties:
+  - property: frequency
+    value: on-demand
+    description: Refreshed by datasets_finance_market_land (self-skips if fresh, 30-day window).
+  - property: retention
+    value: indefinite
+
+team:
+  - role: owner
+    username: ed@timberbacklabs.com
+
+support:
+  - channel: runbook
+    url: docs/demos/finance-domain.md
+
+customProperties:
+  - property: medallion_layer
+    value: silver
+  - property: source_system
+    value: yfinance

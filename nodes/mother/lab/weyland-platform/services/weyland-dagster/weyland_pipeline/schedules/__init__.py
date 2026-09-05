@@ -1,5 +1,7 @@
 from dagster import ScheduleDefinition, define_asset_job, AssetSelection, DefaultScheduleStatus, in_process_executor
 
+from weyland_pipeline.assets.datasets_finance_transform import FINANCE_CFG
+from weyland_pipeline.assets.datasets_lib.domain_jobs import build_domain_jobs
 from weyland_pipeline.dbt_assets import weyland_dbt_assets
 
 # Serialize the dataset transforms: each format step re-reads ALL of raw/ into memory, so running the
@@ -30,10 +32,12 @@ weyland_ingestion_job = define_asset_job(
     - AssetSelection.groups("ai_session")
     - AssetSelection.groups("datasets_music")
     - AssetSelection.groups("datasets_health")
+    - AssetSelection.groups("datasets_finance")   # B158: finance land re-downloads FRED/SEC/yfinance — same rule as music/health; was missed at B113 onboarding
     # Store hydration is ON-DEMAND (the hydrate jobs) — static data, and a nightly re-load of every Tier-2
     # store (Cassandra 515k rows, Cockroach ~3M, Mongo 4.5M …) is exactly the ingestion weight we cut.
     - AssetSelection.groups("datasets_health_stores")
     - AssetSelection.groups("datasets_music_stores")
+    - AssetSelection.groups("datasets_finance_stores")
     - AssetSelection.groups("timeseries")
     # dbt has its OWN weekly schedule (weyland_dbt_job, Sun 06:00). all() swept it into the nightly ingestion too,
     # so every night it rebuilt all 37 marts against Trino — and 503'd whenever a heavy aggregation model
@@ -248,3 +252,22 @@ registrations_schedule = ScheduleDefinition(
     execution_timezone="America/New_York",
     default_status=DefaultScheduleStatus.RUNNING,
 )
+
+# Finance domain (B158 follow-up C) — the operate-plane jobs, GENERATED from FINANCE_CFG rather than
+# hand-authored. B113 shipped finance with no land/transform/hydrate job at all, so a finance product could
+# only be run by hand-materializing assets, and its land assets were invisible to the per-domain job model
+# that music/health use — the same blind spot that swept them into the 15-min ingestion cron. build_domain_jobs
+# derives the land job (FINANCE_CFG.land_deps), the transform job (the datasets_finance group MINUS those same
+# land assets — so a transform run never re-fetches), and the hydrate job (datasets_finance_stores) from one
+# single-sourced plan, so the land/transform split cannot drift. The land schedule is STOPPED (static snapshots;
+# enable when a live-refresh cadence is wanted) at 04:50 NY.
+_finance_jobs = build_domain_jobs(
+    FINANCE_CFG,
+    serial_exec=_SERIAL_EXEC,
+    hydrate_exec=_HYDRATE_EXEC,
+    land_cron="50 4 * * *",
+)
+weyland_datasets_finance_land_job = _finance_jobs.land_job
+weyland_datasets_finance_transform_job = _finance_jobs.transform_job
+weyland_datasets_finance_hydrate_job = _finance_jobs.hydrate_job
+weyland_datasets_finance_land_schedule = _finance_jobs.land_schedule

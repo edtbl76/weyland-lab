@@ -70,7 +70,7 @@ spec:
         # every other live CronJob was covered and the watchdog was not.
         - alert: ScheduledJobStale
           expr: |
-            time() - kube_cronjob_status_last_successful_time{cronjob=~"minio-backup|pg-backup|postgres-backup|docs-site-rebuild|pr-staleness-check|cron-freshness-check|port-pr-reconcile|servicemonitor-coverage|dashboard-coverage|alert-coverage"} > 93600
+            time() - kube_cronjob_status_last_successful_time{cronjob=~"minio-backup|pg-backup|postgres-backup|docs-site-rebuild|pr-staleness-check|cron-freshness-check|port-pr-reconcile|servicemonitor-coverage|dashboard-coverage|alert-coverage|datahub-coverage"} > 93600
           for: 1h
           labels:
             severity: warning
@@ -158,7 +158,7 @@ spec:
         # So: add new CronJobs here. CI will tell you if you forget.
         - alert: ScheduledJobFailed
           expr: |
-            kube_job_status_failed{job="kube-state-metrics", job_name=~"(sonar-scan|code-scan-suite|docs-site-rebuild|pr-staleness-check|cron-freshness-check|lancedb-sync|dagster-freshness-check|port-pr-reconcile|servicemonitor-coverage|dashboard-coverage|alert-coverage)-[0-9]+"} > 0
+            kube_job_status_failed{job="kube-state-metrics", job_name=~"(sonar-scan|code-scan-suite|docs-site-rebuild|pr-staleness-check|cron-freshness-check|lancedb-sync|dagster-freshness-check|port-pr-reconcile|servicemonitor-coverage|dashboard-coverage|alert-coverage|datahub-coverage)-[0-9]+"} > 0
           for: 10m
           labels:
             severity: warning

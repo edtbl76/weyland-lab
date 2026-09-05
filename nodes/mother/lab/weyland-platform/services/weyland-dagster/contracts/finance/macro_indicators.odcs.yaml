@@ -1,0 +1,100 @@
+# Open Data Contract Standard (ODCS, Bitol / Linux Foundation) — weyland lab subset (B157 / B158 follow-up E).
+# The canonical, declarative contract for the Macro Indicators data product. It UNIFIES what was scattered:
+# the dbt schema.yml column descriptions/tests, the Soda checks, the DomainConfig owner/domain, and the Trino
+# physical schema — into one file, which the DataHub DataContract then mirrors at runtime. See the decision doc
+# docs/concepts/data-contracts-odcs.md for the adopted subset + rationale. Validated by scripts/check-odcs-contracts.sh.
+apiVersion: v3.0.0
+kind: DataContract
+id: weyland-finance-macro-indicators
+name: Macro Indicators
+version: 1.0.0
+status: active
+domain: finance
+dataProduct: Macro Indicators
+tenant: weyland
+
+description:
+  purpose: FRED (Federal Reserve Economic Data) macro-economic series — level + year-over-year — as the mesh's macro backdrop for the finance domain.
+  usage: Join by series_id to fred_macro for the full history; latest_value / yoy_pct give the current reading without a window function.
+  limitations: FRED encodes a missing observation as "." → NULL, so value can carry genuine gaps; yoy_pct is NULL when no prior-year observation exists.
+
+servers:
+  - server: trino-iceberg
+    type: trino
+    catalog: iceberg
+    schema: dbt
+    physicalName: iceberg.dbt.mart_macro_indicators
+
+schema:
+  - name: mart_macro_indicators
+    physicalName: iceberg.dbt.mart_macro_indicators
+    properties:
+      - name: series_id
+        logicalType: string
+        physicalType: varchar
+        description: FRED series identifier (e.g. GDPC1, CPIAUCSL, UNRATE) — one row per series.
+        required: true
+        unique: true
+      - name: title
+        logicalType: string
+        physicalType: varchar
+        description: Human-readable FRED series title.
+      - name: units
+        logicalType: string
+        physicalType: varchar
+        description: Units the series is reported in (Percent, Index, Billions of Chained 2017 Dollars, …).
+      - name: frequency
+        logicalType: string
+        physicalType: varchar
+        description: Native reporting frequency (Daily, Monthly, Quarterly, …).
+      - name: seasonal_adjustment
+        logicalType: string
+        physicalType: varchar
+        description: Seasonal-adjustment treatment (Seasonally Adjusted, Not Seasonally Adjusted, …).
+      - name: latest_date
+        logicalType: date
+        physicalType: varchar
+        description: Date of the most recent non-null observation for the series.
+        required: true
+      - name: latest_value
+        logicalType: number
+        physicalType: double
+        description: Value of the most recent non-null observation, in the series' own units.
+      - name: yoy_pct
+        logicalType: number
+        physicalType: double
+        description: Year-over-year change (%) — NULL when no prior-year observation exists.
+
+quality:
+  - property: series_id
+    rule: unique
+    description: One row per FRED series (dbt unique test + Soda duplicate_count(series_id)=0 on fred_series_meta).
+  - property: series_id
+    rule: not_null
+  - property: latest_date
+    rule: not_null
+  - property: table
+    rule: row_count > 0
+
+slaProperties:
+  - property: frequency
+    value: on-demand
+    description: Static snapshot; refreshed by the datasets_finance_fred_land job (self-skips if fresh, 30-day window).
+  - property: retention
+    value: indefinite
+    description: Versioned in lakeFS (finance repo) + Nessie (iceberg.dbt); every pipeline run commits one version.
+
+team:
+  - role: owner
+    username: ed@timberbacklabs.com
+    dateIn: "2026-09-03"
+
+support:
+  - channel: runbook
+    url: docs/demos/finance-domain.md
+
+customProperties:
+  - property: medallion_layer
+    value: gold
+  - property: source_system
+    value: FRED

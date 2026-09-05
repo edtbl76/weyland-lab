@@ -1,0 +1,88 @@
+# ODCS (weyland lab subset) — SEC Filings data product. See docs/concepts/data-contracts-odcs.md.
+apiVersion: v3.0.0
+kind: DataContract
+id: weyland-finance-sec-filings
+name: SEC Filings
+version: 1.0.0
+status: active
+domain: finance
+dataProduct: SEC Filings
+tenant: weyland
+
+description:
+  purpose: Section-aware narrative chunks of each mega-cap's latest 10-K — the text-RAG corpus of the finance domain.
+  usage: Retrieve by vector similarity over the `text` column (also hydrated to Qdrant/Weaviate/LanceDB); filter by `section` for scoped retrieval; cite by (ticker, accn, chunk_id).
+  limitations: 10-K only (not 10-Q); foreign filers (20-F) contribute no chunks; narrative Items only (Item 8 tables live in the XBRL product).
+
+servers:
+  - server: trino-iceberg
+    type: trino
+    catalog: iceberg
+    schema: datasets_finance
+    physicalName: iceberg.datasets_finance.filings_text
+
+schema:
+  - name: filings_text
+    physicalName: iceberg.datasets_finance.filings_text
+    properties:
+      - name: cik
+        logicalType: integer
+        physicalType: bigint
+        required: true
+      - name: ticker
+        logicalType: string
+        physicalType: varchar
+        required: true
+      - name: accn
+        logicalType: string
+        physicalType: varchar
+        description: SEC accession number of the source filing.
+      - name: form
+        logicalType: string
+        physicalType: varchar
+        description: Filing form (always 10-K).
+      - name: filed
+        logicalType: date
+        physicalType: varchar
+      - name: section
+        logicalType: string
+        physicalType: varchar
+        description: Canonical 10-K section (Business / Risk Factors / Legal Proceedings / MD&A / Market Risk).
+      - name: chunk_id
+        logicalType: integer
+        physicalType: bigint
+        description: Ordinal chunk index within the filing.
+      - name: text
+        logicalType: string
+        physicalType: varchar
+        description: The chunk text (the embedded/retrieved content).
+        required: true
+
+quality:
+  - property: cik
+    rule: not_null
+  - property: text
+    rule: not_null
+  - property: table
+    rule: row_count > 0
+
+slaProperties:
+  - property: frequency
+    value: on-demand
+    description: Refreshed by datasets_finance_edgar_text_land (self-skips if fresh, 30-day window).
+  - property: retention
+    value: indefinite
+
+team:
+  - role: owner
+    username: ed@timberbacklabs.com
+
+support:
+  - channel: runbook
+    url: docs/demos/finance-domain.md
+
+customProperties:
+  - property: medallion_layer
+    value: silver
+  - property: source_system
+    value: SEC EDGAR

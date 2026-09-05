@@ -63,7 +63,7 @@ steps:
   - name: repo-guards
     image: node:24-alpine
     commands:
-      - apk add --no-cache bash python3 py3-yaml >/dev/null
+      - apk add --no-cache bash python3 py3-yaml jq >/dev/null   # jq: check-odcs-contracts.sh (B157)
       # The mermaid parser needs its own resolution root: ESM ignores NODE_PATH, so a global install
       # does not satisfy a bare `import "mermaid"`. Built here per-run rather than baked into an image.
       # Deliberately NOT @mermaid-js/mermaid-cli — that pulls puppeteer + headless Chromium, which
@@ -86,6 +86,10 @@ steps:
       # upstream condition justifying it still holds (asked of PyPI). When the blocker is fixed,
       # this goes red and names the exception to delete, instead of it rotting unnoticed.
       - bash scripts/check-pip-audit-ignores.sh
+      # B157 — ODCS data-contract conformance. Every *.odcs.yaml must carry the adopted required
+      # fundamentals (id/name/version/status/domain/dataProduct/description/servers/schema/team +
+      # per-property name+logicalType). Structural only — no cluster — so it runs here, not as a CronJob.
+      - bash scripts/check-odcs-contracts.sh
 
   # ── 1b2. Port IaC coverage (B137) ───────────────────────────────────────────
   # SEPARATE from repo-guards because it is the only guard here that talks to a live API and needs
