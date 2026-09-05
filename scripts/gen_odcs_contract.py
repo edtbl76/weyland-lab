@@ -44,7 +44,9 @@ def _logical(physical_type):
 
 def trino_columns(catalog, schema, table):
     """[(name, physical_type)] for a Trino table, in ordinal order — or raise (fail closed)."""
-    sql = (f"SELECT column_name, data_type FROM {catalog}.information_schema.columns "
+    # nosec B608 — catalog/schema/table come from a git-reviewed contract's physicalName (a dev-run CLI arg),
+    # not from untrusted input, and Trino's REST /v1/statement has no bind-parameter API to use instead.
+    sql = (f"SELECT column_name, data_type FROM {catalog}.information_schema.columns "  # nosec B608
            f"WHERE table_schema='{schema}' AND table_name='{table}' ORDER BY ordinal_position")
     body = _post(f"{_TRINO}/v1/statement", sql.encode())
     rows = []
@@ -65,13 +67,13 @@ def trino_columns(catalog, schema, table):
 def _post(url, data):
     req = urllib.request.Request(url, data=data, method="POST",
                                  headers={"X-Trino-User": "odcs-generator", "Content-Type": "text/plain"})
-    with urllib.request.urlopen(req, timeout=60) as r:
+    with urllib.request.urlopen(req, timeout=60) as r:  # nosec B310 — fixed TRINO_HTTP gateway (env-configured in-cluster host), no user-controlled URL
         return json.load(r)
 
 
 def _get(url):
     req = urllib.request.Request(url, headers={"X-Trino-User": "odcs-generator"})
-    with urllib.request.urlopen(req, timeout=60) as r:
+    with urllib.request.urlopen(req, timeout=60) as r:  # nosec B310 — nextUri stays on TRINO_HTTP (host re-pointed by the caller); no user-controlled URL
         return json.load(r)
 
 
