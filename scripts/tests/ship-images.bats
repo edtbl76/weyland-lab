@@ -508,6 +508,21 @@ registry.weyland.lab/weyland-flink:git-2c73c898'
   [[ "$output" == *"weyland-flink"* ]]
 }
 
+@test "FR1.5 deployed_tags_for reads DECLARED spec images, never the {..image} resolved tag (feast digest-reuse false-fail, 2026-09-05)" {
+  # A container built byte-identically across ships shares ONE digest under many tags; the kubelet reports the
+  # running container by the FIRST tag it cached for that digest, so `.status.containerStatuses[].image` can be
+  # a STALE tag that never changes. feast-server rebuilds identically on every dagster ship, so its pod ran on
+  # spec `git-<new>` while containerStatuses reported an old `git-43c031b6`. The old `{..image}` recursive
+  # jsonpath swept that resolved field in, and FR1.5 false-failed EVERY ship on `feast-server(git-43c031b6,
+  # git-<new>)` regardless of SHIP_ROLLOUT_TIMEOUT — a stuck gate, not a slow roll. A kubectl string-stub cannot
+  # model spec-vs-status (it returns a flat image list), so the guard is a source invariant: the query stays
+  # scoped to the pod/template `.spec` and the recursive selector can never re-enter.
+  local body
+  body="$(grep -A14 'deployed_tags_for()' "$SHIP" | grep -vE '^[[:space:]]*#')"   # code lines only, not the comment
+  [[ "$body" != *'{..image}'* ]]
+  [[ "$body" == *'.spec.containers'* ]]
+}
+
 @test "FR1.5 verifies an on-demand image (deleted at rest) from the registry, not from pods" {
   # weyland-flink-py is a BOUNDED application-mode FlinkDeployment (k8s/data-mesh/flink-pyflink.yaml):
   # it reads the lastfm replay to completion, then FINISHES and is DELETED by design ("no steady-state

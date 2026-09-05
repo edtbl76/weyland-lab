@@ -38,13 +38,11 @@ SHIP_POLL_TIMEOUT="${SHIP_POLL_TIMEOUT:-3600}"    # 60m — one `build` step bui
 # The SAME detector CI runs, so the local answer and the pipeline's cannot disagree. Overridable for
 # the test suite only.
 SHIP_DETECT="${SHIP_DETECT:-$(dirname "${BASH_SOURCE[0]}")/ci/detect-changes.sh}"
-# SHIP_ROLLOUT_TIMEOUT is read inside all_bumped_images_live (default 1200s — raised from 600s on 2026-09-04
-# after repeated FR1.5 false-fails: a data-mesh Argo app can take ~10m to converge and roll its LAST workload
-# (feast-server, which shares the weyland-dagster build context so every dagster ship rolls it too), and the
-# old 600s window expired just as that pod became Ready. The rollout genuinely completes — this matches the
-# gate's clock to observed reality and still fails CLOSED if a roll never happens. Deeper fix (tracked): split
-# feast-server into its own build context so dagster-only ships stop rolling it. Not defaulted here: a global
-# assignment would shadow the function's own default.
+# SHIP_ROLLOUT_TIMEOUT is read inside all_bumped_images_live (default 600s — Argo self-heal polls ~3m and the
+# roll follows), not defaulted here: a global assignment would shadow the function's own default. (It was briefly
+# raised to 1200s on 2026-09-04 chasing a "slow feast-server roll" — a MISDIAGNOSIS: the real bug was
+# deployed_tags_for reading the kubelet-resolved stale image tag, false-failing FR1.5 regardless of timeout.
+# Fixed there; reverted to 600s.)
 
 # Credentials live in the gitignored scripts/.env (lab convention). Overridable for the test suite.
 SHIP_ENV_FILE="${SHIP_ENV_FILE:-$REPO_ROOT/scripts/.env}"
@@ -295,7 +293,7 @@ all_bumped_images_live() {
   # TRANSIENT: retry to a timeout that covers self-heal latency + roll, then fail named. PERMANENT — an
   # on-demand image the registry does not carry (the push never landed) — fails NOW: waiting cannot make
   # a missing tag appear. The gate itself now does the waiting, so there is no separate pre-gate loop.
-  local timeout="${SHIP_ROLLOUT_TIMEOUT:-1200}" interval="${SHIP_POLL_INTERVAL-10}" waited=0
+  local timeout="${SHIP_ROLLOUT_TIMEOUT:-600}" interval="${SHIP_POLL_INTERVAL-10}" waited=0
   local img tags checked transient permanent ondemand_ok
   while : ; do
     checked=0; transient=""; permanent=""; ondemand_ok=""
@@ -644,9 +642,19 @@ txn_ok() {
 # smoke_ok already special-cases Job-shaped images; this is the same accommodation for FR1.5.
 deployed_tags_for() {
   local img="${1:?usage: deployed_tags_for <image>}"
+  # DECLARED images only — the pod/template `.spec` — NOT the kubelet-RESOLVED
+  # `.status.containerStatuses[].image`. When two tags point at the SAME digest (feast-server rebuilds
+  # byte-identically every dagster ship, so git-<new> and an older git-<x> share a digest) the kubelet reports
+  # the running container by the FIRST tag it cached for that digest — a stale tag that NEVER changes. The old
+  # `{..image}` recursive selector swept that resolved field in, so FR1.5 saw `feast-server(git-43c031b6,<new>)`
+  # and false-failed on EVERY ship no matter the timeout, though the pod's spec (and the rollout) was on <new>.
+  # The spec image is the honest "what this pod is declared to run"; a genuine partial rollout still shows both
+  # tags across pods' specs (old RS pod on the old tag, new on the new), so the guard is intact.
   {
-    kubectl get pods -A --field-selector=status.phase=Running -o jsonpath='{..image}' 2>/dev/null | tr ' ' '\n'
-    kubectl get cronjob -A -o jsonpath='{..image}' 2>/dev/null | tr ' ' '\n'
+    kubectl get pods -A --field-selector=status.phase=Running \
+      -o jsonpath='{range .items[*]}{range .spec.initContainers[*]}{.image}{"\n"}{end}{range .spec.containers[*]}{.image}{"\n"}{end}{end}' 2>/dev/null
+    kubectl get cronjob -A \
+      -o jsonpath='{range .items[*]}{range .spec.jobTemplate.spec.template.spec.containers[*]}{.image}{"\n"}{end}{end}' 2>/dev/null
   } | grep -E "^${REG//./\\.}/${img}:" | sed 's#.*:##' | sort -u || true
 }
 
