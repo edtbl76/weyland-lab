@@ -20,3 +20,7 @@ sources:
       - name: company_meta
         identifier: company_meta
         description: "SEC EDGAR company dimension: (cik, ticker, company, sic, sic_description, exchange)."
+      # Market daily OHLCV (B113 Phase 4) — landed by datasets_finance_market_land (yfinance).
+      - name: price_daily
+        identifier: price_daily
+        description: "Daily OHLCV bars: (ticker, date, open, high, low, close, adj_close, volume) — full history for the ~50 finance mega-caps."

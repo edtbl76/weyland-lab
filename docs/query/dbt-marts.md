@@ -132,6 +132,17 @@ FROM iceberg.dbt.mart_company_financials
 WHERE stockholders_equity IS NOT NULL ORDER BY assets DESC LIMIT 15;
 ```
 
+**`mart_price_daily`** (B113 Phase 4) — one row per ticker: the latest bar plus trailing-window analytics
+(daily return, 30-day volatility daily + annualized, 52-week high/low, pct off the high).
+
+```sql
+-- Most volatile names and how far off their 52-week high they sit
+SELECT ticker, latest_close, round(volatility_30d_annualized, 3) AS vol_ann,
+       high_52w, low_52w, round(pct_off_52w_high, 3) AS off_high
+FROM iceberg.dbt.mart_price_daily
+ORDER BY vol_ann DESC LIMIT 20;
+```
+
 ## Notes
 
 - `iceberg.dbt` is the dbt output schema (Nessie `main`). Rebuild by materializing `weyland_dbt_assets` in Dagster

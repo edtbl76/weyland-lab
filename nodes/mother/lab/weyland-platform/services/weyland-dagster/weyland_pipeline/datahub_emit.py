@@ -720,7 +720,7 @@ _DOMAIN_RULES = [
     ("Health", ("datasets_health", "mart_state_health_trends", "mart_country_health", "mart_personality_by_country",
                 "state_health_risk", "brfss", "nhanes", "nhis", "who_gho", "big_five", "cdc_physical", "usda",
                 "open_food_facts")),
-    ("Finance", ("datasets_finance", "mart_macro_indicators", "mart_company_financials", "fred_macro", "fred_series_meta", "fred", "filings_text")),
+    ("Finance", ("datasets_finance", "mart_macro_indicators", "mart_company_financials", "mart_price_daily", "fred_macro", "fred_series_meta", "fred", "filings_text", "price_daily")),
     ("AIDLC Knowledge", ("aidlc", ":entry", "entry,prod")),
     ("Docs & RAG", ("rag_documents", "rag_chunks", "weyland_chunks", "weylandchunk", "document,prod", "chunk,prod")),
     ("ML & Modeling", ("mlflow", "genre_classifier", "model_catalog", "registered_model", "model_version",
@@ -784,6 +784,9 @@ _PRODUCTS = [
     ("SEC Filings", "Finance", "SEC EDGAR 10-K narrative text — section-aware chunks (Business / Risk Factors / "
      "Legal Proceedings / MD&A / Market Risk) embedded with bge-small into Qdrant/Weaviate/LanceDB for the "
      "filings-RAG notebook (notebook 63).", ("filings_text",)),
+    ("Market Prices", "Finance", "Daily OHLCV bars (yfinance) for the ~50 mega-caps — full history on a Timescale "
+     "hypertable + ClickHouse + Cassandra, with the mart_price_daily mart (latest close, daily return, 30d "
+     "volatility, 52-week high/low).", ("mart_price_daily", "price_daily")),
     ("Weyland Docs", "Docs & RAG", "The platform documentation retrieval corpus.",
      ("rag_documents", "rag_chunks", "weyland_chunks")),
     ("AIDLC Knowledge Base", "AIDLC Knowledge", "The AIDLC KB — engineering-knowledge, consulting-tools, and "

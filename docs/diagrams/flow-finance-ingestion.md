@@ -183,4 +183,38 @@ resolve falls back to whole-document chunking rather than silently dropping it. 
 `ticker`/`accn`/`section`/`chunk_id` so a retrieval hit is a **citation**, and the `section` tag lets the
 notebook scope retrieval to (say) Risk Factors alone.
 
-**Deferred / tracked:** ODCS contracts (B157); market OHLCV + ML lane (Phases 4–5).
+## Phase 4 — market OHLCV (daily prices → time-series stores → mart)
+
+Daily price bars for the same ~50 mega-caps — the archetypal time-series slice, so it leads with a Timescale
+hypertable (like FRED) and adds Cassandra, the one net-new store for the domain.
+
+```mermaid
+flowchart TB
+  YF["yfinance (Yahoo chart API)<br/>full daily history · ~50 tickers<br/>(stooq CSV now JS-PoW-walled)"]
+  LAND["datasets_finance_market_land<br/>market_parse: drop NaN/in-progress bars<br/>price_daily (ticker·date·OHLC·adj_close·volume)"]
+  GOLD[("Iceberg gold<br/>datasets_finance.price_daily")]
+  subgraph STORES["time-series + OLAP stores"]
+    TS["TimescaleDB<br/>hypertable on date"]
+    CH["ClickHouse"]
+    CA["Cassandra<br/>partition by ticker"]
+  end
+  MART["dbt · mart_price_daily<br/>latest close · daily return · 30d vol · 52w hi/lo"]
+  BI["Lightdash · Superset · Cube"]
+  DH["DataHub<br/>Market Prices product"]
+
+  YF --> LAND
+  LAND --> GOLD
+  LAND --> TS
+  LAND --> CH
+  LAND --> CA
+  GOLD --> MART --> BI
+  GOLD --> DH
+  MART --> DH
+```
+
+The lander drops the in-progress bar (yfinance returns today's row with a NaN close) so no NaN price reaches the
+hypertable or poisons the mart's returns/volatility; `auto_adjust=False` keeps both the raw close and the
+split/dividend-adjusted `adj_close`. Cassandra keys as `((ticker), row_id uuid)` — one company's whole history
+in one partition, a synthetic uuid clustering column keeping every bar unique.
+
+**Deferred / tracked:** ODCS contracts (B157); the ML lane (Phase 5 — a returns/volatility model over these prices).

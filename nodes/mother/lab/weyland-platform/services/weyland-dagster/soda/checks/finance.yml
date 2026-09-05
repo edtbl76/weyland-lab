@@ -52,3 +52,13 @@ checks for filings_text:
   - missing_count(section) = 0
   - missing_count(text) = 0
   - missing_percent(text) < 100
+
+# B113 Phase 4 — market daily OHLCV: the `price_daily` hypertable/analytical source feeding the Timescale +
+# ClickHouse + Cassandra fan-out and the `mart_price_daily` mart. (ticker, date) is the grain — both complete
+# and jointly unique — and close must be present on every landed bar (the lander drops NaN/in-progress bars).
+checks for price_daily:
+  - row_count > 0
+  - missing_count(ticker) = 0
+  - missing_count(date) = 0
+  - missing_count(close) = 0
+  - duplicate_count(ticker, date) = 0     # one bar per (ticker, trading day)

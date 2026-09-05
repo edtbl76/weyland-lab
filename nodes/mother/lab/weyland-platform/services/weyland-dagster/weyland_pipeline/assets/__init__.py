@@ -65,6 +65,7 @@ from .datasets_health_transform import (
 from .datasets_finance_fred_land import datasets_finance_fred_land
 from .datasets_finance_edgar_land import datasets_finance_edgar_land
 from .datasets_finance_edgar_text_land import datasets_finance_edgar_text_land
+from .datasets_finance_market_land import datasets_finance_market_land
 from .datasets_finance_transform import (
     datasets_finance_parquet,
     datasets_finance_arrow,
@@ -148,6 +149,7 @@ all_assets = [
     datasets_finance_fred_land,
     datasets_finance_edgar_land,
     datasets_finance_edgar_text_land,
+    datasets_finance_market_land,
     # Finance domain — transform (silver + gold)
     datasets_finance_parquet,
     datasets_finance_arrow,

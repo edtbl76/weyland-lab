@@ -61,7 +61,7 @@ print(f"trino db id={trino_id} ({trino['database_name']})")
 # --- register the 7 marts as datasets (schema dbt), reusing any that already exist ---
 MARTS = ["mart_spotify_audio", "mart_genre_audio_profile", "mart_fma_genre_tree", "mart_artist_popularity",
          "mart_state_health_trends", "mart_country_health", "mart_personality_by_country",
-         "mart_macro_indicators", "mart_company_financials"]
+         "mart_macro_indicators", "mart_company_financials", "mart_price_daily"]
 # Page through ALL datasets: Superset caps page_size at ~100 regardless of what you ask, so a single
 # `page_size:500` silently returns only the first 100 (128 exist as of 2026-09-03) — the dbt marts sit on
 # later pages, so the old one-shot query found ZERO and re-POSTed every mart, aborting on the first 422
@@ -161,6 +161,10 @@ finance = [
           [M("revenue", "SUM", "Revenue", "BIGINT")], 20, True),
     chart("Marts · Net income by company (top 20)", "mart_company_financials", BAR, "ticker",
           [M("net_income", "SUM", "Net income", "BIGINT")], 20, True),
+    chart("Marts · Latest close by ticker (top 20)", "mart_price_daily", BAR, "ticker",
+          [M("latest_close", "AVG", "Latest close")], 20, True),
+    chart("Marts · Annualized 30d volatility by ticker", "mart_price_daily", BAR, "ticker",
+          [M("volatility_30d_annualized", "AVG", "Annualized volatility")], 20, True),
 ]
 
 

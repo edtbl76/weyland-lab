@@ -89,3 +89,11 @@ def edgar_text_parse():
     return load_isolated(
         "weyland_pipeline/assets/datasets_lib/edgar_text_parse.py", "edgar_text_parse"
     )
+
+
+@pytest.fixture
+def market_parse():
+    """The dagster-free ``datasets_lib/market_parse`` OHLCV shaper (B113 Phase 4), loaded in isolation."""
+    return load_isolated(
+        "weyland_pipeline/assets/datasets_lib/market_parse.py", "market_parse"
+    )

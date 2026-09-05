@@ -84,3 +84,42 @@ models:
       - name: shares_outstanding
         description: "Latest annual common shares outstanding (CommonStockSharesOutstanding)."
         meta: {metrics: {sum_shares_outstanding: {type: sum, label: "Total shares outstanding"}}}
+
+  - name: mart_price_daily
+    description: >
+      Daily market prices (B113 Phase 4) — one row per ticker with the latest bar plus trailing-window
+      analytics: last close, last daily return, 30-trading-day return volatility (daily + annualized ×√252),
+      and the 52-week high/low with pct off the high. Windowed per ticker over the daily OHLCV bars, then the
+      latest bar (row_number desc = 1) is kept. One row per ticker.
+    columns:
+      - name: ticker
+        description: "Stock ticker (e.g. AAPL, NVDA) — one row per ticker."
+        meta: {metrics: {ticker_count: {type: count_distinct, label: "Tickers"}}}
+        tests:
+          - unique
+          - not_null
+      - name: latest_date
+        description: "Date of the most recent complete daily bar for this ticker."
+        tests:
+          - not_null
+      - name: latest_close
+        description: "Most recent close price (raw, unadjusted), USD."
+        meta: {metrics: {avg_latest_close: {type: average, label: "Avg latest close"}}}
+      - name: latest_return
+        description: "Most recent daily return on the adjusted close ((adj_close - prev) / prev)."
+        meta: {metrics: {avg_latest_return: {type: average, label: "Avg latest daily return"}}}
+      - name: volatility_30d
+        description: "Sample stddev of daily returns over the trailing 30 trading days (daily volatility)."
+        meta: {metrics: {avg_volatility_30d: {type: average, label: "Avg 30d volatility (daily)"}}}
+      - name: volatility_30d_annualized
+        description: "30-day daily volatility annualized (×√252)."
+        meta: {metrics: {avg_volatility_annualized: {type: average, label: "Avg 30d volatility (annualized)"}}}
+      - name: high_52w
+        description: "Highest intraday high over the trailing 52 weeks (252 trading days), USD."
+      - name: low_52w
+        description: "Lowest intraday low over the trailing 52 weeks (252 trading days), USD."
+      - name: pct_off_52w_high
+        description: "Fractional distance of the latest close below the 52-week high ((close - high_52w) / high_52w; ≤ 0)."
+        meta: {metrics: {avg_pct_off_52w_high: {type: average, label: "Avg pct off 52w high"}}}
+      - name: latest_volume
+        description: "Share volume on the most recent bar."

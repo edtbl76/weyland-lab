@@ -62,6 +62,24 @@ WHERE series_id = 'FEDFUNDS' AND value IS NOT NULL
 GROUP BY quarter ORDER BY quarter DESC;
 ```
 
+### Market prices (finance, B113 Phase 4)
+
+`price_daily` is a hypertable on the trading `date` — full daily OHLCV history for the ~50 mega-caps (ticker,
+date, open, high, low, close, adj_close, volume). The archetypal time-series: `time_bucket` for resampling,
+window functions for returns.
+
+```sql
+-- monthly average close for one ticker
+SELECT time_bucket('1 month', date) AS month, avg(close) AS avg_close
+FROM price_daily WHERE ticker = 'AAPL'
+GROUP BY month ORDER BY month DESC LIMIT 12;
+
+-- 20-day simple moving average (window over the hypertable)
+SELECT date, close,
+       avg(close) OVER (PARTITION BY ticker ORDER BY date ROWS BETWEEN 19 PRECEDING AND CURRENT ROW) AS sma20
+FROM price_daily WHERE ticker = 'NVDA' ORDER BY date DESC LIMIT 30;
+```
+
 ### Timescale-isms
 - `time_bucket('<interval>', ts)` = the group-by-time primitive (like `date_trunc`, but hypertable-aware).
 - `now() - interval '7 days'` for rolling windows; chunks make range scans fast.

@@ -97,6 +97,26 @@ retrieval-with-citations notebook.
 - **Qdrant** (`qdrant.weyland.lab`): collection `datasets_finance_filings_text` populated, dim 384. See
   [query/qdrant.md](../query/qdrant.md).
 
+## Phase 4 — market OHLCV (daily prices → time-series stores → mart)
+
+Daily price bars for the same ~50 mega-caps, the archetypal time-series slice.
+
+1. **Land** `datasets_finance_market_land` (force — freshness-gated) → yfinance full daily history per ticker
+   (stooq's CSV is now JS-PoW-walled; yfinance's Yahoo chart API serves clean bars). Drops NaN/in-progress bars.
+   → `price_daily` (ticker, date, OHLC, adj_close, volume). Foreign symbols yfinance can't resolve are skipped.
+2. **Silver + gold + stores:** `group:datasets_finance` writes `price_daily` silver/Iceberg; then
+   `group:datasets_finance_stores` fans out — **Timescale** hypertable on `date` + **ClickHouse** + **Cassandra**
+   (partitioned by ticker).
+3. **dbt mart:** `mart_price_daily` — one row per ticker: latest close, daily return, 30-day volatility (daily +
+   annualized), 52-week high/low, pct off the high.
+4. **Catalog:** `datahub_catalog_emit_job` → DataHub **Market Prices** product.
+
+**Eyes-on UAT:**
+- **Trino:** `SELECT ticker, latest_close, round(volatility_30d_annualized,3) AS vol, round(pct_off_52w_high,3) FROM iceberg.dbt.mart_price_daily ORDER BY vol DESC` — the most volatile names on top.
+- **TimescaleDB:** `SELECT ticker, count(*) FROM price_daily GROUP BY 1 ORDER BY 1` — full history per ticker. See [query/timescaledb.md](../query/timescaledb.md).
+- **Cassandra:** one ticker's bars by partition — see [query/cassandra.md](../query/cassandra.md).
+- **Lightdash/Superset:** the `mart_price_daily` charts (latest close, annualized volatility per ticker). **Cube:** the `price_daily` cube.
+
 ## Expected result
 
 The 13 FRED macro series are queryable across Iceberg/Trino, TimescaleDB, and ClickHouse; the dbt mart serves

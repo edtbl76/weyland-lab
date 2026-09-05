@@ -115,6 +115,21 @@ data:
           - { name: company, sql: company, type: string }
           - { name: sic_description, sql: sic_description, type: string }
           - { name: fiscal_year, sql: fiscal_year, type: number }
+
+      # B113 Phase 4 — daily market prices (one row per ticker, latest bar + trailing-window analytics).
+      - name: price_daily
+        sql_table: dbt.mart_price_daily
+        measures:
+          - { name: count, type: count }
+          - { name: avg_latest_close, sql: latest_close, type: avg }
+          - { name: avg_volatility_annualized, sql: volatility_30d_annualized, type: avg }
+          - { name: avg_pct_off_52w_high, sql: pct_off_52w_high, type: avg }
+        dimensions:
+          - { name: ticker, sql: ticker, type: string, primary_key: true }
+          - { name: latest_date, sql: latest_date, type: time }
+          - { name: latest_close, sql: latest_close, type: number }
+          - { name: high_52w, sql: high_52w, type: number }
+          - { name: low_52w, sql: low_52w, type: number }
 ---
 apiVersion: apps/v1
 kind: Deployment

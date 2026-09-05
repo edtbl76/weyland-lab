@@ -15,8 +15,12 @@ CockroachDB + MySQL + MongoDB (annual financials are NOT time-series, so they ar
 Phase 3 (B113) adds the SEC EDGAR filings-TEXT slice: one table (filings_text) landed by
 datasets_finance_edgar_text_land — section-aware 10-K narrative chunks that fan out to the VECTOR stores
 (Qdrant/Weaviate/LanceDB) for the filings-RAG notebook, plus the base silver formats + Iceberg gold for a
-Trino-queryable corpus. The allowlists below UNION the FRED + EDGAR-XBRL + filings-text constants so every
-slice flows through the one broker.
+Trino-queryable corpus.
+
+Phase 4 (B113) adds the market OHLCV slice: one table (price_daily) landed by datasets_finance_market_land
+(yfinance) — full daily-bar history for the same ~50 mega-caps → a Timescale hypertable on `date` + ClickHouse +
+Cassandra (partitioned by ticker) + Iceberg gold + the mart_price_daily mart. The allowlists below UNION the
+FRED + EDGAR-XBRL + filings-text + market constants so every slice flows through the one broker.
 """
 from .datasets_lib.broker import build_transform_assets
 from .datasets_lib.checks import build_asset_checks, build_vector_checks
@@ -34,13 +38,15 @@ from .datasets_lib.fred_parse import (
     TIMESCALE_ALLOW,
 )
 from .datasets_lib.loaders import build_store_load_assets
+from .datasets_lib.market_parse import PRICE_TABLES
 from .datasets_lib.streaming_producer import build_stream_produce_assets
 
-# Union the FRED (Phase 1) + EDGAR XBRL (Phase 2) + EDGAR filings-text (Phase 3) table sets so every slice fans
-# out through the shared broker.
-_ALL_RAW_TABLES = RAW_TABLES | EDGAR_RAW_TABLES | FILINGS_TEXT_TABLES
-_ALL_ICEBERG_ALLOW = ICEBERG_ALLOW | EDGAR_ICEBERG_ALLOW | FILINGS_TEXT_TABLES
-_ALL_CLICKHOUSE_ALLOW = CLICKHOUSE_ALLOW | EDGAR_CLICKHOUSE_ALLOW
+# Union the FRED (Phase 1) + EDGAR XBRL (Phase 2) + EDGAR filings-text (Phase 3) + market OHLCV (Phase 4) table
+# sets so every slice fans out through the shared broker.
+_ALL_RAW_TABLES = RAW_TABLES | EDGAR_RAW_TABLES | FILINGS_TEXT_TABLES | PRICE_TABLES
+_ALL_ICEBERG_ALLOW = ICEBERG_ALLOW | EDGAR_ICEBERG_ALLOW | FILINGS_TEXT_TABLES | PRICE_TABLES
+# ClickHouse: the analytical tables — FRED + EDGAR financials + the daily prices (native s3() ingest).
+_ALL_CLICKHOUSE_ALLOW = CLICKHOUSE_ALLOW | EDGAR_CLICKHOUSE_ALLOW | PRICE_TABLES
 
 FINANCE_CFG = DomainConfig(
     domain="finance",
@@ -48,14 +54,14 @@ FINANCE_CFG = DomainConfig(
     namespace="datasets_finance",
     group_name="datasets_finance",
     land_deps=("datasets_finance_fred_land", "datasets_finance_edgar_land",
-               "datasets_finance_edgar_text_land"),
+               "datasets_finance_edgar_text_land", "datasets_finance_market_land"),
     # Base silver formats — all four raw tables. (Store loaders + the dbt marts read parquet/iceberg.)
     parquet_allow=_ALL_RAW_TABLES, arrow_allow=_ALL_RAW_TABLES, avro_allow=_ALL_RAW_TABLES,
     iceberg_allow=_ALL_ICEBERG_ALLOW,
-    # TimescaleDB: one hypertable — fred_macro — time axis on the real observation `date` (a full ISO date,
-    # NOT a year; the dtype-aware coercion in timeseries.hypertable_ts handles both). EDGAR's annual financials
-    # are NOT a hypertable, so timescale_allow stays FRED-only.
-    timescale_allow=TIMESCALE_ALLOW,
+    # TimescaleDB hypertables on a real `date` axis: fred_macro (Phase 1) + price_daily (Phase 4 — daily OHLCV
+    # is the archetypal time-series). EDGAR's annual financials are NOT a hypertable, so they stay out. The
+    # dtype-aware coercion in timeseries.hypertable_ts handles the full-date axis both tables carry.
+    timescale_allow={**TIMESCALE_ALLOW, "price_daily": "date"},
     # ClickHouse: the analytical tables (fred_macro/meta + company_financials/meta) — native s3() ingest.
     clickhouse_allow=_ALL_CLICKHOUSE_ALLOW,
     # EDGAR store fan-out (Phase 2, "richest domain"): the structured financials + dim into every tabular/document
@@ -67,6 +73,10 @@ FINANCE_CFG = DomainConfig(
     mysql_allow=frozenset({"company_financials", "company_meta"}),
     mongo_allow=frozenset({"company_financials", "company_meta"}),
     cockroach_allow=frozenset({"company_financials", "company_meta"}),
+    # Cassandra (Phase 4): the daily prices, partitioned by ticker — query-first (one company's whole history in
+    # one partition, ~10k rows; a synthetic row_id uuid clustering column keeps every bar unique so nothing
+    # upserts away on the shared ticker key). The one net-new store for the finance domain.
+    cassandra_allow={"price_daily": "ticker"},
     # Phase 3 (filings RAG): the section-aware 10-K narrative chunks embed with bge-small (384) and fan out to
     # Qdrant + Weaviate (+ LanceDB, which defaults to vector_allow). `text` is embedded; the payload carries the
     # citation fields (ticker/accn/section/chunk_id/filed) AND the chunk text itself so a retrieval hit returns
@@ -109,7 +119,7 @@ FINANCE_CFG = DomainConfig(
                        "props": []}],
         },
     },
-    # cassandra/opensearch/vector/lance/stream stay empty — a later phase expands EDGAR.
+    # opensearch/lance/stream stay empty — a later phase may expand the domain.
 )
 
 (

@@ -53,6 +53,24 @@ SELECT count(*) FROM datasets_music.uci_year_prediction WHERE year = '2005';
 SELECT * FROM datasets_music.uci_year_prediction WHERE year = '2005' LIMIT 10;
 ```
 
+### price_daily (`datasets_finance`, partition = `ticker`, B113 Phase 4)
+
+Daily OHLCV for the ~50 mega-caps — **query-first** partitioning: one company's whole price history in a single
+partition (~10k rows, well within Cassandra's partition budget). A synthetic `row_id uuid` clustering column
+keeps every bar unique (nothing upserts away on the shared ticker key).
+
+```sql
+-- one ticker's bars (partition read — the fast path; no ALLOW FILTERING needed)
+SELECT date, open, high, low, close, adj_close, volume
+FROM datasets_finance.price_daily WHERE ticker = 'AAPL';
+
+-- a cross-ticker scan needs ALLOW FILTERING (not the partition key) — prefer ClickHouse/Trino for those
+SELECT ticker, close FROM datasets_finance.price_daily WHERE close > 1000 ALLOW FILTERING;
+```
+
+Because the clustering key is a uuid (not `date`), bars within a partition are NOT date-ordered on disk — sort
+client-side, or use the Timescale/ClickHouse copies for ordered range scans.
+
 ### Cassandra-isms
 - **Partition key required** for efficient reads. Querying a non-key column needs `ALLOW FILTERING` (full scan —
   fine for a lab, slow at scale). That's *why* we chose meaningful partitions (country / user_id / year).

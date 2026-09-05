@@ -86,3 +86,7 @@ openlineage-dbt
 # beautifulsoup4 (B113 Phase 3) — strip SEC 10-K filing HTML to plain text in the filings-RAG lander
 # (datasets_finance_edgar_text_land); the section-aware chunker (edgar_text_parse) then segments + chunks it.
 beautifulsoup4
+# yfinance (B113 Phase 4) — daily OHLCV market data for the finance mega-caps (datasets_finance_market_land).
+# The design's other free source, stooq, now gates its CSV endpoint behind a JS proof-of-work wall; yfinance's
+# Yahoo chart API still serves clean daily bars (verified in-cluster). Pulls curl_cffi/lxml/multitasking/peewee.
+yfinance

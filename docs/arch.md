@@ -218,8 +218,10 @@ agents/workflows and platform state. Agents call the tool-server, *not* database
   CockroachDB + MySQL + MongoDB + the `mart_company_financials` mart + a **Neo4j** company→SIC→filing graph;
   Phase 3 added the **SEC EDGAR filings-text RAG** slice — each mega-cap's latest 10-K narrative, section-aware
   chunked (`filings_text`, 8,851 chunks) → Iceberg + the **vector stores** (Qdrant/Weaviate/LanceDB, bge-small
-  384) → the `63_rag_sec_filings.ipynb` retrieve-with-citations notebook; BI in Lightdash/Superset
-  + Cube — same `datasets_lib` machinery; see [design/finance-domain.md](design/finance-domain.md)) sources, on a
+  384) → the `63_rag_sec_filings.ipynb` retrieve-with-citations notebook; Phase 4 added the **market OHLCV**
+  slice — full daily price history (`price_daily`, yfinance) for the same tickers → a **Timescale** hypertable
+  + ClickHouse + **Cassandra** (partition by ticker) + `mart_price_daily` (return/volatility/52w hi-lo); BI in
+  Lightdash/Superset + Cube — same `datasets_lib` machinery; see [design/finance-domain.md](design/finance-domain.md)) sources, on a
   shared **`datasets_lib`** platform: a domain is a
   `DomainConfig` + three asset factories (`build_transform_assets` → `build_asset_checks` →
   `build_store_load_assets`). Per-dataset **land** assets write lakeFS `raw/` (bronze); a **brokered**

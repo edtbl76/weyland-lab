@@ -94,6 +94,25 @@ WHERE series_id IN ('FEDFUNDS','DGS2','DGS10') AND value IS NOT NULL
 GROUP BY month, series_id ORDER BY month DESC LIMIT 30;
 ```
 
+### Market prices (finance, B113 Phase 4)
+
+`datasets_finance.price_daily` — daily OHLCV for the ~50 mega-caps. ClickHouse's columnar engine makes
+cross-ticker aggregates fast.
+
+```sql
+-- annualized realized volatility per ticker over the last ~1y (252 bars), from daily log-ish returns
+SELECT ticker, round(stddevSamp(ret) * sqrt(252), 3) AS vol_annualized
+FROM (
+  SELECT ticker, close / any(close) OVER (PARTITION BY ticker ORDER BY date ROWS BETWEEN 1 PRECEDING AND 1 PRECEDING) - 1 AS ret
+  FROM datasets_finance.price_daily
+) WHERE ret IS NOT NULL
+GROUP BY ticker ORDER BY vol_annualized DESC LIMIT 20;
+
+-- latest close per ticker
+SELECT ticker, argMax(close, date) AS latest_close, max(date) AS asof
+FROM datasets_finance.price_daily GROUP BY ticker ORDER BY latest_close DESC;
+```
+
 ### ClickHouse-isms worth knowing
 - `ORDER BY tuple()` = no sorting key (we dump; fine for a lab). Add a real `ORDER BY` if you want fast filters.
 - `SELECT * FROM s3(url, key, secret, 'Parquet')` reads parquet straight from lakeFS — that's how the loader ingests.
