@@ -76,6 +76,26 @@ Key connections:
 
 ---
 
+## Seed the marts dashboards
+
+`scripts/superset_seed.py` (idempotent) creates/updates the Music/Health/Finance **marts datasets + charts +
+the three `Weyland Marts — *` dashboards** over the Trino connection — no UI clicking. Re-run it after adding a
+mart; it **updates an existing dashboard's layout** so newly-added charts land on it (before 2026-09-05 it
+early-returned on an existing dashboard and silently skipped laying out new charts). `SUPERSET_PASSWORD` = the
+Helm-bootstrapped DB-admin (`provider=db`, NOT Keycloak), from `scripts/.env` (gitignored):
+
+```
+cd /home/edwardmangini/IdeaProjects/weyland/nodes/mother/lab/weyland-platform/scripts
+set -a; . ./.env; set +a
+python3 superset_seed.py
+```
+
+Run from a box that reaches `superset.weyland.lab` with the mkcert CA (rogueone/mother). Companions:
+`superset_seed_extra.py` (raw ClickHouse marts), `superset_seed_cube.py` (Cube-backed). Prints each dataset/
+chart/dashboard id; ends `Done: N mart datasets, M charts, 3 dashboards`.
+
+---
+
 ## Monitoring
 
 - `SupersetDown` + `SupersetWorkerDown` PrometheusRules in `k8s/data-mesh/superset-alerts.yaml`

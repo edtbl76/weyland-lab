@@ -129,6 +129,20 @@ average}}}`) — Lightdash surfaces them on a dbt refresh, version-controlled in
 **Gotcha:** a metric name must NOT equal a column/dimension name (a `total_plays` metric on the `total_plays`
 column errored ⚠ → renamed `total_plays_sum`). Lightdash field IDs are `<model>_<column-or-metric-name>`.
 
+**Refresh the dbt project (pull from GitHub + recompile — surfaces newly-pushed `meta.metrics`):** Lightdash has
+NO "refresh dbt" menu — it is a REST call that kicks a background compile against the GitHub repo. Run it after
+any mart `schema.yml` push (e.g. B113 Phase 4 added `mart_price_daily` + its metrics). Project uuid
+`c9d08c4a-f6c2-4f12-885e-895e3bde81d8` (not a secret); the PAT lives in `scripts/.env` as `LIGHTDASH_TOKEN`
+(gitignored — mint via Settings → Personal access tokens):
+
+```
+set -a; . /home/edwardmangini/IdeaProjects/weyland/nodes/mother/lab/weyland-platform/scripts/.env; set +a
+curl -sf --cacert /home/edwardmangini/.local/share/mkcert/rootCA.pem -H "Authorization: ApiKey $LIGHTDASH_TOKEN" -X POST https://lightdash.weyland.lab/api/v1/projects/c9d08c4a-f6c2-4f12-885e-895e3bde81d8/refresh
+```
+
+Returns `{"results":{"jobUuid":…}}`; the new metrics/tables surface once that job finishes. Run from a box that
+reaches `lightdash.weyland.lab` with the mkcert CA (rogueone/mother).
+
 **Seed charts programmatically:** `scripts/lightdash_seed.py` creates 12 bar/line charts + a Music and a Health
 dashboard via the REST API — no UI clicking. Mint a Lightdash personal-access-token (Settings → Personal access
 tokens), then:
