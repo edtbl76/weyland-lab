@@ -82,12 +82,12 @@ data:
     # Sourced by scripts/tests/datahub-coverage.bats with DATAHUB_COVERAGE_LIB=1 to exercise is_cataloged
     # without running main.
     set -euo pipefail
-    
+
     TRINO_HTTP="${TRINO_HTTP:-http://trino-noauth.data-mesh.svc.cluster.local:8080}"
     TRINO_USER="${TRINO_USER:-datahub-coverage}"
     GMS_URL="${DATAHUB_GMS_URL:-http://datahub-datahub-gms.data-mesh.svc.cluster.local:8080}"
     GMS_TOKEN="${DATAHUB_GMS_TOKEN:-}"
-    
+
     # --- accepted, with the reason -------------------------------------------------------------------
     #
     # One row per mesh table that legitimately exists in Trino without a DataHub entity:
@@ -95,7 +95,7 @@ data:
     # Same posture as check-servicemonitor-coverage.sh / check-pip-audit-ignores.sh: an exception states
     # the CONDITION that makes it fine, so it is re-checkable rather than trusted. Empty today.
     ACCEPTED=()
-    
+
     is_accepted() { # is_accepted <schema.table>
       local row e_entry
       for row in "${ACCEPTED[@]:-}"; do
@@ -105,7 +105,7 @@ data:
       done
       return 1
     }
-    
+
     # --- the decision --------------------------------------------------------------------------------
     #
     # is_cataloged <schema.table> <newline-separated DataHub names> -> exit 0 catalogued / 1 not.
@@ -126,9 +126,9 @@ data:
       reduced="$(awk -F. '{ if (NF >= 2) print $(NF-1) "." $NF; else print $0 }' <<<"$names")"
       grep -Fxq -- "$key" <<<"$reduced"
     }
-    
+
     # --- live fetch (skipped whenever the fixture env var is SET, even if empty) ----------------------
-    
+
     fetch_trino_tables() { # -> newline schema.table for the mesh data estate, or non-zero on failure
       # datasets_* silver/gold + the dbt marts (the products). Trino REST: POST a statement, follow nextUri.
       local sql body next rows out=""
@@ -153,7 +153,7 @@ data:
       done
       printf '%s' "$out" | sed '/^$/d'
     }
-    
+
     fetch_datahub_names() { # -> newline dataset names from GMS, or non-zero on failure
       [ -z "$GMS_TOKEN" ] && return 1   # no token => cannot read => fail closed (2), never "nothing catalogued"
       local scroll="" q resp urns out="" total="" got=0 page
@@ -183,7 +183,7 @@ data:
       # urn:li:dataset:(urn:li:dataPlatform:<plat>,<name>,<env>) -> <name>
       printf '%s' "$out" | sed -E 's/^urn:li:dataset:\(urn:li:dataPlatform:[^,]+,(.+),[^,]+\)$/\1/' | sed '/^$/d'
     }
-    
+
     main() {
       local list=0 arg
       for arg in "$@"; do
@@ -192,18 +192,18 @@ data:
           *) echo "unknown arg: $arg" >&2; return 2 ;;
         esac
       done
-    
+
       local reality catalogued
       if [ -n "${TRINO_TABLES+x}" ]; then reality="$TRINO_TABLES"; else reality="$(fetch_trino_tables)" || { echo "could not read mesh tables from Trino ($TRINO_HTTP)" >&2; return 2; }; fi
       if [ -n "${DATAHUB_URNS+x}" ]; then catalogued="$DATAHUB_URNS"; else catalogued="$(fetch_datahub_names)" || { echo "could not read datasets from DataHub GMS ($GMS_URL) — token set? " >&2; return 2; }; fi
-    
+
       reality="$(printf '%s\n' "$reality" | sed '/^$/d')"
       catalogued="$(printf '%s\n' "$catalogued" | sed '/^$/d')"
-    
+
       # FAIL CLOSED: an empty either side is a failed read, not an answer.
       if [ -z "$reality" ]; then echo "REALITY set is empty — Trino read failed; refusing to grade coverage (exit 2)" >&2; return 2; fi
       if [ -z "$catalogued" ]; then echo "CATALOGED set is empty while Trino has tables — GMS unreachable or token missing; refusing to report 'all uncatalogued' (exit 2)" >&2; return 2; fi
-    
+
       local key uncat=() verdict tbl
       while IFS= read -r tbl; do
         [ -z "$tbl" ] && continue
@@ -218,21 +218,21 @@ data:
         fi
         [ "$list" -eq 1 ] && printf '  %-40s %s\n' "$key" "$verdict"
       done <<<"$reality"
-    
+
       if [ "$list" -eq 1 ]; then return 0; fi
-    
+
       if [ "${#uncat[@]}" -gt 0 ]; then
         echo "DRIFT — ${#uncat[@]} mesh table(s) exist in Trino but are NOT in DataHub:" >&2
         printf '  - %s\n' "${uncat[@]}" >&2
         echo "Fix: run the datahub_catalog_emit_job (or add the dataset to its domain rules), then re-check." >&2
         return 1
       fi
-    
+
       local n_real; n_real="$(printf '%s\n' "$reality" | grep -c . || true)"
       echo "OK — all $n_real mesh table(s) in Trino are catalogued in DataHub."
       return 0
     }
-    
+
     if [ -z "${DATAHUB_COVERAGE_LIB:-}" ]; then
       main "$@"
     fi
