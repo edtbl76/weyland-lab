@@ -5,7 +5,9 @@ MongoDB driver, port-forward the `mongodb` svc `27017`. In-pod:
 `kubectl -n data-mesh exec -it deploy/mongodb -- mongosh -u weyland -p <pw> --authenticationDatabase admin`.
 
 DB `datasets_health` (doc-per-row): `who_gho_*` collections, `open_food_facts` (~4.5M), and `aidlc_kb.entries`
-(511 frontmatter docs — the methodology corpus, queryable by front-matter).
+(511 frontmatter docs — the methodology corpus, queryable by front-matter). DB `datasets_finance` (B113 Phase 2):
+`company_financials` (20,741 XBRL-fact docs) + `company_meta` (49). Date columns are cast to BSON timestamps at
+load (`mongo_encode.to_bson_encodable`; raw `datetime.date` is not BSON-encodable).
 
 ### Explore
 ```javascript
@@ -55,6 +57,27 @@ use aidlc_kb   // (or datasets_health depending on load target — check `show d
 db.entries.aggregate([{ $group: { _id: "$type", n: { $sum: 1 } } }, { $sort: { n: -1 } }])
 // full-text-ish search on a field
 db.entries.find({ title: /discovery/i }, { title: 1, type: 1, _id: 0 }).limit(20)
+```
+
+### Finance — EDGAR company facts (`datasets_finance`, B113 Phase 2)
+```javascript
+use datasets_finance
+show collections                              // company_financials, company_meta
+db.company_financials.findOne()              // {cik, ticker, company, concept, unit, period_end, fy, fp, form, filed, value}
+
+// latest annual Revenue per company
+db.company_financials.aggregate([
+  { $match: { concept: { $in: ["Revenues","RevenueFromContractWithCustomerExcludingAssessedTax"] }, fp: "FY" } },
+  { $sort: { period_end: -1 } },
+  { $group: { _id: "$ticker", company: { $first: "$company" }, revenue: { $first: "$value" }, asOf: { $first: "$period_end" } } },
+  { $sort: { revenue: -1 } }, { $limit: 20 }
+])
+
+// one company's fact history for a concept
+db.company_financials.find({ ticker: "AAPL", concept: "Assets" }, { fy: 1, period_end: 1, value: 1, _id: 0 }).sort({ period_end: 1 })
+
+// companies by industry (SIC)
+db.company_meta.aggregate([{ $group: { _id: { sic: "$sic", desc: "$sic_description" }, n: { $sum: 1 } } }, { $sort: { n: -1 } }])
 ```
 
 ### Mongo-isms

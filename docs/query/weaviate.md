@@ -53,6 +53,25 @@ res = col.query.near_object(some.uuid, limit=10,
 
 Always `wc.close()` when done (v4 holds a gRPC channel).
 
+## Finance — SEC 10-K filings (B113 Phase 3)
+The EDGAR 10-K narrative chunks land as class **`DatasetsFinanceFilingsText`** (dim 384, bge-small BYO vectors);
+payload props are `ticker` / `accn` / `section` / `chunk_id` / `text` — the same vectors as Qdrant collection
+`datasets_finance_filings_text`, for citation-grounded RAG.
+```python
+col = wc.collections.get("DatasetsFinanceFilingsText")
+col.aggregate.over_all(total_count=True).total_count      # ~8,851 chunks across ~49 filers
+
+# section-scoped retrieval: embed the question, near_vector, filter to Risk Factors
+from sentence_transformers import SentenceTransformer
+from weaviate.classes.query import Filter
+qv = SentenceTransformer("BAAI/bge-small-en-v1.5").encode(
+    "supply chain and component shortage risks", normalize_embeddings=True).tolist()
+res = col.query.near_vector(qv, limit=6,
+        filters=Filter.by_property("section").equal("Risk Factors"),
+        return_properties=["ticker", "accn", "section", "chunk_id", "text"])
+for o in res.objects: print(o.properties["ticker"], o.properties["section"], o.properties["text"][:160])
+```
+
 ## Weaviate-isms
 - **BYO vectors** (`Vectorizer.none()`) — no server-side text vectorizer, so search by **vector or object**,
   not raw text. Embed text queries with bge-small yourself (the loader's model).

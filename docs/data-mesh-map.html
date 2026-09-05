@@ -162,13 +162,13 @@
   <div class="meta">
     <div><div class="n">4</div><div class="l">Principles</div></div>
     <div><div class="n">8</div><div class="l">Layers</div></div>
-    <div><div class="n">9</div><div class="l">Data products</div></div>
+    <div><div class="n">13</div><div class="l">Data products</div></div>
     <div><div class="n">14</div><div class="l">Serving stores</div></div>
-    <div><div class="n">2</div><div class="l">Domains</div></div>
+    <div><div class="n">3</div><div class="l">Domains</div></div>
     <div><div class="n">1</div><div class="l">Query plane</div></div>
   </div>
   <p class="hint"><span class="ar">›</span> the <a href="https://docs.weyland.lab/demos/">▶ demo</a> pills link to
-  live walkthroughs at <b>docs.weyland.lab/demos</b> (UI + CLI, grounded in the real music &amp; health datasets).</p>
+  live walkthroughs at <b>docs.weyland.lab/demos</b> (UI + CLI, grounded in the real music, health &amp; finance datasets).</p>
 
   <div class="sectionlabel">The four principles: how the mesh is defined</div>
   <p class="sublede">Data mesh is an organizing idea before it is a stack. Here is each principle and the concrete
@@ -178,9 +178,9 @@
     <div class="principle">
       <p class="pn">Principle 01</p>
       <h3>Domain-oriented ownership</h3>
-      <p>Two bounded domains, <b>music</b> and <b>health</b>, each own their raw → silver → gold assets, schemas,
-      and pipelines end to end (<b>datasets_music.*</b> / <b>datasets_health.*</b>, per-domain Dagster jobs, per-domain
-      keyspaces/DBs across the polyglot stores). No central data team owns the pipelines.</p>
+      <p>Three bounded domains, <b>music</b>, <b>health</b>, and <b>finance</b>, each own their raw → silver → gold assets,
+      schemas, and pipelines end to end (<b>datasets_music.*</b> / <b>datasets_health.*</b> / <b>datasets_finance.*</b>,
+      per-domain Dagster jobs, per-domain keyspaces/DBs across the polyglot stores). No central data team owns the pipelines.</p>
       <div class="demos-row">
         <a class="demo" href="https://docs.weyland.lab/demos/datasets-lakehouse/">datasets → lakehouse</a>
       </div>
@@ -189,8 +189,9 @@
     <div class="principle">
       <p class="pn">Principle 02</p>
       <h3>Data as a product</h3>
-      <p>Nine <b>DataHub Data Products</b> (Spotify Audio, Chronic Health Trends, Genre Classifier, Model-Eval
-      Leaderboard, AI-Dev Usage…), each <b>versioned</b> (Nessie for tables, lakeFS for files), documented,
+      <p>Thirteen <b>DataHub Data Products</b> (Spotify Audio, Chronic Health Trends, Genre Classifier, Model-Eval
+      Leaderboard, AI-Dev Usage, Macro Indicators, Company Financials, SEC Filings, Market Prices…), each <b>versioned</b>
+      (Nessie for tables, lakeFS for files), documented,
       quality-checked, and discoverable, treated as products with owners and contracts, not incidental tables.</p>
       <div class="demos-row">
         <a class="demo" href="https://docs.weyland.lab/demos/catalog-emit/">catalog emit</a>

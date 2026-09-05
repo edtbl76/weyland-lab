@@ -114,6 +114,16 @@ resource "port_integration" "weyland_cluster" {
   installation_app_type = "K8S EXPORTER"
   title                 = "weyland-cluster"
   config = jsonencode({
+    # createMissingRelatedEntities — the fix for the standing pod->k8s_replicaSet CREATE-FAILURE noise
+    # (~1.5/hr, all jupyterhub `hub`/`proxy`). Those Deployments roll constantly (11+ hub replicasets in
+    # ~14h), so within a single resync a pod entity is occasionally written before its brand-new
+    # replicaset entity lands, and the hard relation errors "does not exist in blueprint k8s_replicaSet".
+    # It self-heals on the next sync (all 563 replicasets DO exist), but leaves permanent FAILURE-level
+    # audit noise that trains the reader to ignore Port failures. With this flag Port creates a stub for
+    # the missing relation target and enriches it on the next pass — the same setting the `linear` and
+    # `sonarqube_direct` integrations below already carry. Lives in `config` (the tofu-safe mapping zone,
+    # per this file's header), not `appSpec`. (B137 tail, 2026-09-05.)
+    "createMissingRelatedEntities" = true
     "resources" = [
       {
         "kind" = "v1/namespaces"

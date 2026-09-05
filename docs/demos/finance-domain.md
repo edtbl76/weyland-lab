@@ -1,11 +1,14 @@
-# Demo — Finance domain (B113 Phase 1: FRED macro, land → mart → BI)
+# Demo — Finance domain (B113, all 5 phases: FRED macro · EDGAR XBRL + graph · filings RAG · market OHLCV · ML lane)
 
-The finance data domain riding the mesh, FRED macro slice: ~13 macro series landed end-to-end and served through
-the mesh's BI surfaces. Ingestion is the `datasets_lib` three-factory path (same as Music/Health); consumption is
-**Lightdash + Superset + Cube** (not Grafana — that's observability). See
+The finance data domain riding the mesh, end to end across all five phases: FRED macro series (Phase 1), SEC EDGAR
+XBRL company facts + a Neo4j company graph (Phase 2), EDGAR 10-K filings-text RAG (Phase 3), market daily OHLCV
+(Phase 4), and the Feast → `finance-trainer` volatility ML lane (Phase 5). Ingestion is the `datasets_lib`
+three-factory path (same as Music/Health); consumption is **Lightdash + Superset + Cube** (not Grafana — that's
+observability), plus the RAG notebook and MLflow. See
 [design/finance-domain.md](../design/finance-domain.md), [diagrams/flow-finance-ingestion.md](../diagrams/flow-finance-ingestion.md),
 and the finance sections of the per-store [query cookbooks](../query/) (`trino.md`, `dbt-marts.md`, `timescaledb.md`,
-`clickhouse.md`, `gizmosql.md`).
+`clickhouse.md`, `cassandra.md`, `neo4j.md`, `qdrant.md`, `weaviate.md`, `mysql.md`, `mongodb.md`, `cockroachdb.md`,
+`gizmosql.md`).
 
 ## Prerequisites
 

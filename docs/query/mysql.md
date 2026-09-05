@@ -3,8 +3,10 @@
 **Connect:** `mysql.data-mesh.svc:3306` (user/dev-password). IntelliJ → MySQL driver, port-forward the `mysql`
 svc `3306`. In-pod: `kubectl -n data-mesh exec -it deploy/mysql -- mysql -u<user> -p<pw>`.
 
-**One database per dataset** (6): `nhanes`, `big_five`, `who_gho`, `cdc_physical_activity`, `brfss`, `nhis`
-(32 tables total; table per silver parquet file).
+**One database per dataset** (table per silver parquet file). Health (6): `nhanes`, `big_five`, `who_gho`,
+`cdc_physical_activity`, `brfss`, `nhis`. Finance (2, B113 Phase 2): `company_financials`, `company_meta` —
+the database self-provisions on first load (`CREATE DATABASE IF NOT EXISTS` + the `mysql.yaml` `--init-file`
+schema grant), so a new domain never needs a per-dataset root grant.
 
 ### Explore
 ```sql
@@ -40,6 +42,28 @@ Coded survey columns — introspect first, then aggregate.
 USE brfss;  SHOW TABLES;
 SELECT _STATE, COUNT(*) AS n FROM brfss.<table> GROUP BY _STATE ORDER BY n DESC;   -- respondents per state
 SELECT GENHLTH, COUNT(*) AS n FROM brfss.<table> GROUP BY GENHLTH ORDER BY GENHLTH; -- 1=Excellent … 5=Poor
+```
+
+### Finance — EDGAR company facts (B113 Phase 2)
+`company_financials` (20,741 rows — one XBRL fact per row: `cik, ticker, company, concept, unit, period_end, fy,
+fp, form, filed, value`) and `company_meta` (49 rows: `cik, ticker, company, sic, sic_description, exchange`).
+```sql
+USE company_financials;  SHOW TABLES;   -- table mirrors the silver parquet (company_financials)
+
+-- latest annual Revenue per company (10-K facts; concept is the XBRL tag)
+SELECT ticker, company, value, period_end
+FROM company_financials.company_financials
+WHERE concept IN ('Revenues','RevenueFromContractWithCustomerExcludingAssessedTax')
+  AND fp = 'FY'
+ORDER BY period_end DESC, value DESC LIMIT 20;
+
+-- one company's fact history for a concept
+SELECT fy, period_end, value FROM company_financials.company_financials
+WHERE ticker = 'AAPL' AND concept = 'Assets' ORDER BY period_end;
+
+-- companies by industry (SIC)
+SELECT sic, sic_description, COUNT(*) AS n
+FROM company_meta.company_meta GROUP BY sic, sic_description ORDER BY n DESC;
 ```
 
 ### MySQL-isms

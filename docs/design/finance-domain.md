@@ -51,7 +51,7 @@ lakeFS; gold is Iceberg. `Y*` = the *natural-fit / showcase* tier for that datas
 | **MongoDB** | N | Y (raw company-facts JSON docs) | Y (filing docs) | N |
 | **CockroachDB** | N | Y (distributed-SQL financials) | N | Y (geo/ticker-partitioned) |
 | **Cassandra** | Y (wide-column series) | N | N | Y* (ticker-partitioned OHLCV) |
-| **OpenSearch** | N | N | Y* (filings **full-text** search) | N |
+| **OpenSearch** | N | N | deferred (filings **full-text** search — not shipped in B113; filings text is served via the vector-RAG row below across Qdrant/Weaviate/LanceDB) | N |
 | **Qdrant / Weaviate / LanceDB** | N | N | Y* (filings **vector RAG**) | N |
 | **Neo4j** | N | Y* (company→subsidiary→SIC→filing graph) | Y (filing→company edge) | N |
 | **Redpanda / Avro/Kafka** | later (live-refresh) | later | later | later (tick/price stream) |
