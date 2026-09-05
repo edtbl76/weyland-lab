@@ -169,10 +169,9 @@ finance = [
 
 
 def dashboard(title, chart_ids):
-    """Build a 2-charts-per-row dashboard layout (position_json v2, 12-col grid)."""
-    if title in existing_dashboards:
-        print(f"dashboard '{title}' (exists) -> {existing_dashboards[title]}")
-        return existing_dashboards[title]
+    """Build a 2-charts-per-row dashboard layout (position_json v2, 12-col grid). Idempotent: on a dashboard
+    that ALREADY exists it UPDATES the layout so newly-added charts appear — the old early-return created the
+    new charts but never laid them out or linked them, so a re-run left the existing dashboard unchanged."""
     pos = {"DASHBOARD_VERSION_KEY": "v2",
            "ROOT_ID": {"type": "ROOT", "id": "ROOT_ID", "children": ["GRID_ID"]},
            "GRID_ID": {"type": "GRID", "id": "GRID_ID", "children": [], "parents": ["ROOT_ID"]},
@@ -191,8 +190,15 @@ def dashboard(title, chart_ids):
                     "meta": {"background": "BACKGROUND_TRANSPARENT"}}
         rows.append(rid)
     pos["GRID_ID"]["children"] = rows
-    did = post("/api/v1/dashboard/",
-               {"dashboard_title": title, "position_json": json.dumps(pos), "published": True})["id"]
+    if title in existing_dashboards:
+        did = existing_dashboards[title]
+        r = S.put(f"{BASE}/api/v1/dashboard/{did}",
+                  json={"position_json": json.dumps(pos), "published": True})
+        if not r.ok:
+            print(f"  ⚠ could not update dashboard {did}: {r.status_code} {r.text[:160]}")
+    else:
+        did = post("/api/v1/dashboard/",
+                   {"dashboard_title": title, "position_json": json.dumps(pos), "published": True})["id"]
     # Associate each chart with the dashboard. Superset stores the link on the SLICE (chart.dashboards), and a
     # position_json referencing a chartId that is NOT in that M2M renders as "no chart definition associated with
     # this component" — the dashboard POST does not parse position_json into the association, so set it explicitly.
