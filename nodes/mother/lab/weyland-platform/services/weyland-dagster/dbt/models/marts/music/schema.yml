@@ -2,22 +2,28 @@ version: 2
 
 models:
   - name: mart_spotify_audio
+    config:
+      contract:
+        enforced: true
     description: >
       ML/analysis-ready Spotify audio features: the 11 audio descriptors + track_genre, one row per track,
       rare genres (< 20 tracks) dropped. The tested source of truth for the genre classifier + Feast
       track_audio_features. Feeds mart_genre_audio_profile.
     columns:
       - name: track_id
+        data_type: varchar
         description: "Spotify track id — unique after dedup."
         meta: {metrics: {track_count: {type: count_distinct, label: "Tracks"}}}
         tests:
           - unique
           - not_null
       - name: track_genre
+        data_type: varchar
         description: "Genre label (>= 20 tracks)."
         tests:
           - not_null
       - name: danceability
+        data_type: double
         description: "Danceability (0–1): suitability for dancing from tempo, rhythm stability, beat strength."
         meta: {metrics: {avg_danceability: {type: average}}}
         tests:
@@ -25,6 +31,7 @@ models:
               min_value: 0
               max_value: 1
       - name: energy
+        data_type: double
         description: "Energy (0–1): perceptual measure of intensity and activity."
         meta: {metrics: {avg_energy: {type: average}}}
         tests:
@@ -32,6 +39,7 @@ models:
               min_value: 0
               max_value: 1
       - name: valence
+        data_type: double
         description: "Valence (0–1): musical positiveness — high = happy/cheerful, low = sad/angry."
         meta: {metrics: {avg_valence: {type: average}}}
         tests:
@@ -39,6 +47,7 @@ models:
               min_value: 0
               max_value: 1
       - name: tempo
+        data_type: double
         description: "Estimated tempo in beats per minute (BPM)."
         meta: {metrics: {avg_tempo: {type: average}}}
         tests:
@@ -46,22 +55,29 @@ models:
               min_value: 0
               max_value: 300
       - name: key
+        data_type: double
         description: "Estimated musical key as a pitch class (0=C … 11=B; -1 if undetected)."
       - name: loudness
+        data_type: double
         description: "Overall loudness averaged across the track, in decibels (~ -60 to 0)."
         meta: {metrics: {avg_loudness: {type: average}}}
       - name: mode
+        data_type: double
         description: "Modality: major (1) / minor (0)."
       - name: speechiness
+        data_type: double
         description: "Speechiness (0–1): presence of spoken words."
         meta: {metrics: {avg_speechiness: {type: average}}}
       - name: acousticness
+        data_type: double
         description: "Acousticness (0–1): confidence the track is acoustic."
         meta: {metrics: {avg_acousticness: {type: average}}}
       - name: instrumentalness
+        data_type: double
         description: "Instrumentalness (0–1): likelihood the track contains no vocals."
         meta: {metrics: {avg_instrumentalness: {type: average}}}
       - name: liveness
+        data_type: double
         description: "Liveness (0–1): probability the track was performed with a live audience."
         meta: {metrics: {avg_liveness: {type: average}}}
 
@@ -128,47 +144,63 @@ models:
         description: "Std dev of tempo across the genre's tracks."
 
   - name: mart_fma_genre_tree
+    config:
+      contract:
+        enforced: true
     description: >
       FMA genre taxonomy dimension — genre_id, title, parent (id + title), and a top-level flag. One row per genre.
     columns:
       - name: genre_id
+        data_type: bigint
         description: "FMA genre id (unique)."
         meta: {metrics: {genre_count: {type: count_distinct, label: "Genres"}}}
         tests:
           - unique
           - not_null
       - name: genre_title
+        data_type: varchar
         description: "Genre name."
         tests:
           - not_null
       - name: parent_id
+        data_type: bigint
         description: "Parent genre id (null / 0 for top-level)."
       - name: parent_title
+        data_type: varchar
         description: "Parent genre name (null for top-level)."
       - name: is_top_level
+        data_type: boolean
         description: "True for root genres."
 
   - name: mart_artist_popularity
+    config:
+      contract:
+        enforced: true
     description: >
       Per-artist Last.fm popularity — total plays + distinct listeners, one row per artist_name, with a
       best-effort MusicBrainz URL joined on mbid.
     columns:
       - name: artist_name
+        data_type: varchar
         description: "Artist name (unique)."
         meta: {metrics: {artist_count: {type: count_distinct, label: "Artists"}}}
         tests:
           - unique
           - not_null
       - name: total_plays
+        data_type: bigint
         description: "Sum of Last.fm play counts for the artist."
         meta: {metrics: {total_plays_sum: {type: sum, label: "Total plays"}, avg_plays: {type: average}, max_plays: {type: max}}}
         tests:
           - dbt_expectations.expect_column_values_to_be_between:
               min_value: 0
       - name: n_listeners
+        data_type: bigint
         description: "Approx-distinct listeners (HyperLogLog)."
         meta: {metrics: {total_listeners: {type: sum, label: "Total listeners"}, avg_listeners: {type: average}}}
       - name: mbid
+        data_type: varchar
         description: "MusicBrainz artist id (mbid)."
       - name: musicbrainz_url
+        data_type: varchar
         description: "Best-effort MusicBrainz artist URL (joined on mbid; null if unmatched)."

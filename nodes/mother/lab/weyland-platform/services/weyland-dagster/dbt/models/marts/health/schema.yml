@@ -2,6 +2,9 @@ version: 2
 
 models:
   - name: mart_state_health_trends
+    config:
+      contract:
+        enforced: true
     description: >
       Chronic-condition prevalence (% "Yes", "Overall" break-out) by US state x year from BRFSS: diabetes,
       asthma, COPD, depression. The tested source for Feast state_health_risk. One row per (state, year).
@@ -10,15 +13,18 @@ models:
           combination_of_columns: [state, year]
     columns:
       - name: state
+        data_type: varchar
         description: "US state / territory abbreviation (BRFSS locationabbr)."
         meta: {metrics: {state_count: {type: count_distinct, label: "States"}}}
         tests:
           - not_null
       - name: year
+        data_type: integer
         description: "BRFSS survey year."
         tests:
           - not_null
       - name: diabetes_pct
+        data_type: double
         description: "Crude prevalence % of diagnosed diabetes."
         meta: {metrics: {avg_diabetes_pct: {type: average, label: "Avg diabetes %"}, max_diabetes_pct: {type: max}}}
         tests:
@@ -26,12 +32,15 @@ models:
               min_value: 0
               max_value: 100
       - name: asthma_pct
+        data_type: double
         description: "Crude prevalence % of current asthma."
         meta: {metrics: {avg_asthma_pct: {type: average, label: "Avg asthma %"}, max_asthma_pct: {type: max}}}
       - name: copd_pct
+        data_type: double
         description: "Crude prevalence % of COPD."
         meta: {metrics: {avg_copd_pct: {type: average, label: "Avg COPD %"}, max_copd_pct: {type: max}}}
       - name: depression_pct
+        data_type: double
         description: "Crude prevalence % of diagnosed depression."
         meta: {metrics: {avg_depression_pct: {type: average, label: "Avg depression %"}, max_depression_pct: {type: max}}}
         tests:
@@ -40,6 +49,9 @@ models:
               max_value: 100
 
   - name: mart_country_health
+    config:
+      contract:
+        enforced: true
     description: >
       WHO GHO population-health indicators by country x year — 8 indicators pivoted, country-total
       disaggregation. One row per (country, year).
@@ -48,15 +60,18 @@ models:
           combination_of_columns: [country, year]
     columns:
       - name: country
+        data_type: varchar
         description: "Country name (WHO GHO)."
         meta: {metrics: {country_count: {type: count_distinct, label: "Countries"}}}
         tests:
           - not_null
       - name: year
+        data_type: integer
         description: "Reporting year."
         tests:
           - not_null
       - name: life_expectancy
+        data_type: double
         description: "Life expectancy at birth, in years."
         meta: {metrics: {avg_life_expectancy: {type: average, label: "Avg life expectancy"}}}
         tests:
@@ -64,42 +79,55 @@ models:
               min_value: 0
               max_value: 120
       - name: healthy_life_expectancy
+        data_type: double
         description: "Healthy life expectancy at birth (HALE), in years."
         meta: {metrics: {avg_healthy_life_expectancy: {type: average}}}
       - name: diabetes_prevalence
+        data_type: double
         description: "Diabetes prevalence among adults (%)."
         meta: {metrics: {avg_diabetes_prevalence: {type: average}}}
       - name: adult_obesity
+        data_type: double
         description: "Adult obesity prevalence (%)."
         meta: {metrics: {avg_adult_obesity: {type: average}}}
       - name: hypertension
+        data_type: double
         description: "Raised blood pressure / hypertension prevalence among adults (%)."
         meta: {metrics: {avg_hypertension: {type: average}}}
       - name: alcohol_consumption
+        data_type: double
         description: "Total alcohol consumption per capita, in litres of pure alcohol."
         meta: {metrics: {avg_alcohol_consumption: {type: average}}}
       - name: tobacco_smoking
+        data_type: double
         description: "Tobacco smoking prevalence among adults (%)."
         meta: {metrics: {avg_tobacco_smoking: {type: average}}}
       - name: mental_health_disorders
+        data_type: double
         description: "Mental-health disorder prevalence (%)."
         meta: {metrics: {avg_mental_health_disorders: {type: average}}}
 
   - name: mart_personality_by_country
+    config:
+      contract:
+        enforced: true
     description: >
       Big Five OCEAN traits aggregated to country level (mean of the 10 Likert items per trait; countries with
       >= 30 respondents). One row per country.
     columns:
       - name: country
+        data_type: varchar
         description: "Country (unique)."
         meta: {metrics: {country_count: {type: count_distinct, label: "Countries"}}}
         tests:
           - unique
           - not_null
       - name: n_respondents
+        data_type: bigint
         description: "Respondents contributing to the country's trait means (>= 30 by construction)."
         meta: {metrics: {total_respondents: {type: sum, label: "Total respondents"}}}
       - name: extraversion
+        data_type: decimal(21,1)
         description: "Mean Extraversion (OCEAN), 1–5 Likert scale."
         meta: {metrics: {avg_extraversion: {type: average, label: "Avg extraversion"}}}
         tests:
@@ -107,15 +135,19 @@ models:
               min_value: 1
               max_value: 5
       - name: neuroticism
+        data_type: decimal(21,1)
         description: "Mean Neuroticism (OCEAN), 1–5 Likert scale."
         meta: {metrics: {avg_neuroticism: {type: average}}}
       - name: agreeableness
+        data_type: decimal(21,1)
         description: "Mean Agreeableness (OCEAN), 1–5 Likert scale."
         meta: {metrics: {avg_agreeableness: {type: average}}}
       - name: conscientiousness
+        data_type: decimal(21,1)
         description: "Mean Conscientiousness (OCEAN), 1–5 Likert scale."
         meta: {metrics: {avg_conscientiousness: {type: average}}}
       - name: openness
+        data_type: decimal(21,1)
         description: "Mean Openness (OCEAN), 1–5 Likert scale."
         meta: {metrics: {avg_openness: {type: average, label: "Avg openness"}}}
         tests:
