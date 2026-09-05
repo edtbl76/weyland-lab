@@ -25,6 +25,52 @@ set -euo pipefail
 
 _here="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 CONTRACTS_ROOT="${CONTRACTS_ROOT:-$_here/nodes/mother/lab/weyland-platform/services/weyland-dagster/contracts}"
+TRINO_HTTP="${TRINO_HTTP:-http://trino-noauth.data-mesh.svc.cluster.local:8080}"
+TRINO_USER="${TRINO_USER:-odcs-conformance}"
+
+# --- optional live schema conformance (--check-schema) -------------------------------------------
+# Assert every column a contract DECLARES actually exists in its Trino physical table. Needs the
+# cluster; not the default. Same Trino REST + nextUri-rewrite as check-datahub-coverage.sh.
+trino_query() { # trino_query <sql> -> first-column rows, or non-zero (fail closed)
+  local sql="$1" body next rows out=""
+  body="$(curl -sS -f -X POST "$TRINO_HTTP/v1/statement" \
+            -H "X-Trino-User: $TRINO_USER" -H 'Content-Type: text/plain' --data "$sql")" || return 1
+  while :; do
+    rows="$(jq -r '.data // [] | .[][]' <<<"$body" 2>/dev/null)" || return 1
+    [ -n "$rows" ] && out+="$rows"$'\n'
+    next="$(jq -r '.nextUri // empty' <<<"$body")"; [ -z "$next" ] && break
+    next="$TRINO_HTTP$(sed -E 's#^[a-zA-Z]+://[^/]+##' <<<"$next")"
+    body="$(curl -sS -f "$next" -H "X-Trino-User: $TRINO_USER")" || return 1
+    [ "$(jq -r '.stats.state // ""' <<<"$body")" = "FAILED" ] && return 1
+  done
+  printf '%s' "$out" | sed '/^$/d'
+}
+
+# contract_tables <json> -> one line per schema table: "<physicalName>\t<col,col,...>"
+contract_tables() {
+  jq -r '.schema[]? | [ (.physicalName // .name), ((.properties // []) | map(.name) | join(",")) ] | @tsv' <<<"$1"
+}
+
+# schema_errors <json> -> prints "table.col not in Trino" for each declared column that is absent; 0 iff none.
+# Returns 2 (not 1) on a Trino read failure so the caller fails closed rather than reading "no drift".
+schema_errors() {
+  local json="$1" phys cols actual missing=0 col
+  while IFS=$'\t' read -r phys cols; do
+    [ -z "$phys" ] && continue
+    # iceberg.datasets_finance.price_daily -> catalog / schema / table
+    local cat sch tbl
+    cat="${phys%%.*}"; local rest="${phys#*.}"; sch="${rest%%.*}"; tbl="${rest#*.}"
+    actual="$(trino_query "SELECT column_name FROM ${cat}.information_schema.columns WHERE table_schema='${sch}' AND table_name='${tbl}'")" \
+      || { echo "TRINO_UNREACHABLE $phys" >&2; return 2; }
+    [ -z "$actual" ] && { echo "  ! $phys — no columns found in Trino (wrong physicalName?)"; missing=1; continue; }
+    IFS=',' read -ra want <<<"$cols"
+    for col in "${want[@]}"; do
+      [ -z "$col" ] && continue
+      grep -Fxq -- "$col" <<<"$actual" || { echo "  ! $phys.$col — declared but not in Trino"; missing=1; }
+    done
+  done < <(contract_tables "$json")
+  [ "$missing" -eq 0 ]
+}
 
 # yaml_to_json <file> -> the doc as JSON on stdout, or non-zero (fail closed) if it will not parse.
 yaml_to_json() {
@@ -74,8 +120,12 @@ validate_doc() {
 }
 
 main() {
-  local list=0 arg
-  for arg in "$@"; do case "$arg" in --list) list=1 ;; *) echo "unknown arg: $arg" >&2; return 2 ;; esac; done
+  local list=0 checkschema=0 arg
+  for arg in "$@"; do case "$arg" in
+    --list) list=1 ;;
+    --check-schema) checkschema=1 ;;
+    *) echo "unknown arg: $arg" >&2; return 2 ;;
+  esac; done
   command -v python3 >/dev/null 2>&1 || { echo "python3 not found" >&2; return 2; }
   command -v jq      >/dev/null 2>&1 || { echo "jq not found" >&2; return 2; }
   [ -d "$CONTRACTS_ROOT" ] || { echo "contracts root missing: $CONTRACTS_ROOT (exit 2)" >&2; return 2; }
@@ -95,6 +145,13 @@ main() {
       errs="$(printf '%s\nduplicate id: %s' "$errs" "$id")"
     fi
     [ -n "$id" ] && ids="$ids"$'\n'"$id"
+    # live column conformance (opt-in) — appends any declared-but-absent columns to this file's errors
+    if [ "$checkschema" -eq 1 ]; then
+      local serr rc
+      serr="$(schema_errors "$json")"; rc=$?
+      if [ "$rc" -eq 2 ]; then echo "❌ Trino unreachable — cannot check schema conformance (exit 2)" >&2; return 2; fi
+      [ -n "$serr" ] && errs="$(printf '%s\n%s' "$errs" "$serr")"
+    fi
     if [ -n "$errs" ]; then
       bad=$((bad + 1))
       echo "  ❌ $(basename "$f"):" >&2

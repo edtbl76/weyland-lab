@@ -2,6 +2,9 @@ version: 2
 
 models:
   - name: mart_macro_indicators
+    config:
+      contract:
+        enforced: true
     description: >
       FRED macro indicators (B113 Phase 1) — one row per series with its latest observation and
       year-over-year change, joined to the series dimension (title/units/frequency/seasonal adjustment).
@@ -9,35 +12,48 @@ models:
       across FRED's mixed frequencies (daily DGS10, monthly UNRATE, quarterly GDPC1). One row per series_id.
     columns:
       - name: series_id
+        data_type: varchar
         description: "FRED series identifier (e.g. GDPC1, CPIAUCSL, UNRATE) — unique per row."
         meta: {metrics: {series_count: {type: count_distinct, label: "Series"}}}
         tests:
           - unique
           - not_null
       - name: title
+        data_type: varchar
         description: "Human-readable FRED series title."
       - name: units
+        data_type: varchar
         description: "Units the series is reported in (Percent, Billions of Chained 2017 Dollars, Index, …)."
       - name: frequency
+        data_type: varchar
         description: "Native reporting frequency of the series (Daily, Monthly, Quarterly, …)."
       - name: seasonal_adjustment
+        data_type: varchar
         description: "Seasonal-adjustment treatment (Seasonally Adjusted, Not Seasonally Adjusted, …)."
       - name: latest_date
+        data_type: date
         description: "Date of the most recent non-null observation for the series."
         tests:
           - not_null
       - name: latest_value
+        data_type: double
         description: "Value of the most recent non-null observation, in the series' own units."
         meta: {metrics: {sum_latest_value: {type: sum, label: "Latest value"}}}
       - name: prior_year_date
+        data_type: date
         description: "Date of the most recent observation on or before one year before latest_date (NULL if none)."
       - name: prior_year_value
+        data_type: double
         description: "Value at prior_year_date (NULL if no prior-year observation exists)."
       - name: yoy_pct
+        data_type: double
         description: "Year-over-year change (%): (latest_value - prior_year_value) / prior_year_value * 100."
         meta: {metrics: {avg_yoy_pct: {type: average, label: "Avg YoY %"}}}
 
   - name: mart_company_financials
+    config:
+      contract:
+        enforced: true
     description: >
       SEC EDGAR company financials (B113 Phase 2) — one row per company with the latest ANNUAL (10-K / FY)
       value of each us-gaap concept pivoted to columns (revenue, net income, assets, liabilities,
@@ -46,46 +62,62 @@ models:
       period_end desc. One row per cik.
     columns:
       - name: cik
+        data_type: bigint
         description: "SEC Central Index Key — the company's unique SEC identifier (one per row)."
         tests:
           - unique
           - not_null
       - name: ticker
+        data_type: varchar
         description: "Primary stock ticker for the company (e.g. NVDA, AAPL)."
         meta: {metrics: {company_count: {type: count_distinct, label: "Companies"}}}
         tests:
           - not_null
       - name: company
+        data_type: varchar
         description: "Legal company name (from the SEC submissions payload)."
       - name: sic
+        data_type: varchar
         description: "Standard Industrial Classification code (from company_meta; NULL if unjoinable)."
       - name: sic_description
+        data_type: varchar
         description: "Human-readable SIC industry description."
       - name: fiscal_year
+        data_type: bigint
         description: "Fiscal year of the latest annual filing the pivoted values are drawn from."
       - name: revenue
+        data_type: double
         description: "Latest annual total revenue (Revenues, or RevenueFromContractWithCustomerExcludingAssessedTax fallback), USD."
         meta: {metrics: {sum_revenue: {type: sum, label: "Total revenue"}}}
       - name: net_income
+        data_type: double
         description: "Latest annual net income / loss (NetIncomeLoss), USD."
         meta: {metrics: {sum_net_income: {type: sum, label: "Total net income"}}}
       - name: assets
+        data_type: double
         description: "Latest annual total assets (Assets), USD."
         meta: {metrics: {sum_assets: {type: sum, label: "Total assets"}}}
       - name: liabilities
+        data_type: double
         description: "Latest annual total liabilities (Liabilities), USD."
         meta: {metrics: {sum_liabilities: {type: sum, label: "Total liabilities"}}}
       - name: stockholders_equity
+        data_type: double
         description: "Latest annual stockholders' equity (StockholdersEquity), USD."
         meta: {metrics: {sum_stockholders_equity: {type: sum, label: "Total stockholders equity"}}}
       - name: eps_basic
+        data_type: double
         description: "Latest annual basic earnings per share (EarningsPerShareBasic), USD/share."
         meta: {metrics: {avg_eps_basic: {type: average, label: "Avg basic EPS"}}}
       - name: shares_outstanding
+        data_type: double
         description: "Latest annual common shares outstanding (CommonStockSharesOutstanding)."
         meta: {metrics: {sum_shares_outstanding: {type: sum, label: "Total shares outstanding"}}}
 
   - name: mart_price_daily
+    config:
+      contract:
+        enforced: true
     description: >
       Daily market prices (B113 Phase 4) — one row per ticker with the latest bar plus trailing-window
       analytics: last close, last daily return, 30-trading-day return volatility (daily + annualized ×√252),
@@ -93,38 +125,51 @@ models:
       latest bar (row_number desc = 1) is kept. One row per ticker.
     columns:
       - name: ticker
+        data_type: varchar
         description: "Stock ticker (e.g. AAPL, NVDA) — one row per ticker."
         meta: {metrics: {ticker_count: {type: count_distinct, label: "Tickers"}}}
         tests:
           - unique
           - not_null
       - name: latest_date
+        data_type: date
         description: "Date of the most recent complete daily bar for this ticker."
         tests:
           - not_null
       - name: latest_close
+        data_type: double
         description: "Most recent close price (raw, unadjusted), USD."
         meta: {metrics: {avg_latest_close: {type: average, label: "Avg latest close"}}}
       - name: latest_return
+        data_type: double
         description: "Most recent daily return on the adjusted close ((adj_close - prev) / prev)."
         meta: {metrics: {avg_latest_return: {type: average, label: "Avg latest daily return"}}}
       - name: volatility_30d
+        data_type: double
         description: "Sample stddev of daily returns over the trailing 30 trading days (daily volatility)."
         meta: {metrics: {avg_volatility_30d: {type: average, label: "Avg 30d volatility (daily)"}}}
       - name: volatility_30d_annualized
+        data_type: double
         description: "30-day daily volatility annualized (×√252)."
         meta: {metrics: {avg_volatility_annualized: {type: average, label: "Avg 30d volatility (annualized)"}}}
       - name: high_52w
+        data_type: double
         description: "Highest intraday high over the trailing 52 weeks (252 trading days), USD."
       - name: low_52w
+        data_type: double
         description: "Lowest intraday low over the trailing 52 weeks (252 trading days), USD."
       - name: pct_off_52w_high
+        data_type: double
         description: "Fractional distance of the latest close below the 52-week high ((close - high_52w) / high_52w; ≤ 0)."
         meta: {metrics: {avg_pct_off_52w_high: {type: average, label: "Avg pct off 52w high"}}}
       - name: latest_volume
+        data_type: bigint
         description: "Share volume on the most recent bar."
 
   - name: mart_price_features
+    config:
+      contract:
+        enforced: true
     description: >
       Per-(ticker, date) modelling features for the B113 Phase-5 ML lane — trailing, as-of-date only (no
       forward-looking columns, so Feast can serve them online without leakage): lagged returns (1/5/20d),
@@ -133,27 +178,38 @@ models:
       (ticker, date) after the ~20-bar warmup.
     columns:
       - name: ticker
+        data_type: varchar
         description: "Stock ticker (feature-store entity join key)."
         tests: [not_null]
       - name: date
+        data_type: date
         description: "Trading date the features are computed as-of (feature-store event timestamp)."
         tests: [not_null]
       - name: ret_1d
+        data_type: double
         description: "1-day return on the adjusted close."
       - name: ret_5d
+        data_type: double
         description: "5-day return on the adjusted close."
       - name: ret_20d
+        data_type: double
         description: "20-day return on the adjusted close."
       - name: vol_5d
+        data_type: double
         description: "Trailing 5-day realized volatility (stddev of daily returns)."
       - name: vol_10d
+        data_type: double
         description: "Trailing 10-day realized volatility."
       - name: vol_20d
+        data_type: double
         description: "Trailing 20-day realized volatility."
         tests: [not_null]
       - name: volume_ratio
+        data_type: double
         description: "Volume relative to its trailing 20-day average."
       - name: range_20d
+        data_type: double
         description: "Mean intraday range ((high-low)/close) over the trailing 20 days."
       - name: sma_ratio_20d
+        data_type: double
         description: "Adjusted close relative to its trailing 20-day SMA (price-vs-trend)."

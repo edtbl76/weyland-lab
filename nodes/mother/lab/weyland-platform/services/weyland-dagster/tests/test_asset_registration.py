@@ -42,37 +42,20 @@ def _imported_names(init_py):
     return names
 
 
-def _all_assets_names(init_py):
-    tree = ast.parse(pathlib.Path(init_py).read_text(encoding="utf-8"))
-    names = set()
-    for node in tree.body:
-        if not isinstance(node, ast.Assign):
-            continue
-        if not any(isinstance(t, ast.Name) and t.id == "all_assets" for t in node.targets):
-            continue
-        if isinstance(node.value, ast.List):
-            for el in node.value.elts:
-                if isinstance(el, ast.Name):
-                    names.add(el.id)
-                elif isinstance(el, ast.Starred) and isinstance(el.value, ast.Name):
-                    names.add(el.value.id)
-    return names
-
-
 def unregistered_land_assets(assets_dir):
-    """Land-asset symbols defined via build_land_asset but not BOTH imported and in all_assets. Empty = clean."""
+    """Land-asset symbols defined via build_land_asset but not IMPORTED in __init__.py. Empty = clean.
+
+    Since B158-F, all_assets is DERIVED from the imports (autodiscovery reads every imported AssetsDefinition
+    from globals), so the import IS the registration — a symbol that is imported cannot fail to register, and
+    one that is not imported will silently never load. This guards exactly that: every build_land_asset must
+    be imported here.
+    """
     init_py = pathlib.Path(assets_dir) / "__init__.py"
     imported = _imported_names(init_py)
-    listed = _all_assets_names(init_py)
     missing = {}
     for sym, mod in _land_asset_symbols(assets_dir).items():
-        problems = []
         if sym not in imported:
-            problems.append("not imported")
-        if sym not in listed:
-            problems.append("not in all_assets")
-        if problems:
-            missing[sym] = f"{mod}: {'; '.join(problems)}"
+            missing[sym] = f"{mod}: not imported (autodiscovery will never register it)"
     return missing
 
 
@@ -95,17 +78,16 @@ def test_the_finance_landers_are_actually_covered():
 
 
 def test_detects_an_unregistered_land_asset(tmp_path):
-    # the negative case: a land module whose build_land_asset symbol is neither imported nor listed is flagged.
+    # the negative case: a land module whose build_land_asset symbol is not imported in __init__ is flagged.
     (tmp_path / "datasets_x_land.py").write_text(
         "from .datasets_lib.landers import build_land_asset\n"
         "foo_land = build_land_asset('foo_land', 'x', None, group='g')\n",
         encoding="utf-8",
     )
-    (tmp_path / "__init__.py").write_text("all_assets = []\n", encoding="utf-8")
+    (tmp_path / "__init__.py").write_text("# foo_land not imported here\n", encoding="utf-8")
     missing = unregistered_land_assets(tmp_path)
     assert "foo_land" in missing
     assert "not imported" in missing["foo_land"]
-    assert "not in all_assets" in missing["foo_land"]
 
 
 def test_a_registered_land_asset_is_not_flagged(tmp_path):
@@ -114,7 +96,6 @@ def test_a_registered_land_asset_is_not_flagged(tmp_path):
         "bar_land = build_land_asset('bar_land', 'y', None, group='g')\n",
         encoding="utf-8",
     )
-    (tmp_path / "__init__.py").write_text(
-        "from .datasets_y_land import bar_land\nall_assets = [bar_land]\n", encoding="utf-8"
-    )
+    # importing it is the registration (autodiscovery collects it) — nothing else needed
+    (tmp_path / "__init__.py").write_text("from .datasets_y_land import bar_land\n", encoding="utf-8")
     assert unregistered_land_assets(tmp_path) == {}

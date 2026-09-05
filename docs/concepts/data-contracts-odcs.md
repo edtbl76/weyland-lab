@@ -51,24 +51,34 @@ ODCS is the **declarative source of truth** an author writes; the DataHub `DataC
 live assertion results. ODCS says *what is promised*; DataHub shows *whether it currently holds*. They are
 complementary, not redundant — this adoption does not remove the DataHub contracts.
 
-## What shipped (this increment)
+## What shipped
 
-- **Contracts** — the finance domain, the B158 live-test domain, fully expressed as ODCS:
-  `contracts/finance/{macro_indicators,company_financials,market_prices,sec_filings}.odcs.yaml`
-  (one per data product), mapped from the real substance above; declared columns verified against Trino.
-- **Conformance gate** — `scripts/check-odcs-contracts.sh` validates every `*.odcs.yaml` against the adopted
-  subset (fail-closed: exit 1 malformed, exit 2 could-not-run), 10 bats cases, wired into CI (`repo-guards`).
+- **Contracts — all three domains** (10 data products). Finance (`contracts/finance/*.odcs.yaml`, 4)
+  hand-authored as the worked pattern; **music + health** (`contracts/{music,health}/*.odcs.yaml`, 6)
+  produced by the generator below. Every declared column verified against Trino.
+- **Structural conformance gate** — `scripts/check-odcs-contracts.sh` validates every `*.odcs.yaml` against
+  the adopted subset (fail-closed: exit 1 malformed, exit 2 could-not-run), 10 bats cases, wired into CI
+  (`repo-guards`).
+- **Live schema conformance** — `check-odcs-contracts.sh --check-schema` asserts each declared column
+  actually exists in the Trino physical table (validated live: all 10 conform; a bogus column is caught).
+  Needs the cluster, so it runs at close-out / as a manual pass rather than in CI.
+- **Products-without-contracts check** — `tests/test_product_contract_coverage.py` fails if any
+  Music/Health/Finance DataHub data product has no ODCS contract (static, in the light lane).
+- **Generator** — `scripts/gen_odcs_contract.py` emits a conformant ODCS contract from the substance
+  (Trino columns+types, Soda quality rules, dbt descriptions); it produced the music/health contracts and
+  bootstraps any new product. Re-running keeps the schema + quality sections in lockstep.
+- **dbt `contract: enforced`** — turned on for the finance marts (`dbt/models/marts/finance/schema.yml`,
+  `config.contract.enforced: true` + `data_type` per column from Trino), so a mart schema change is caught
+  at `dbt build` as well as by the ODCS gate. Validates on the next dbt run.
 
-## Deliberately deferred (tracked, not silent)
+## The two deploy-time validators
 
-- **The other domains** (music, health) — their contracts migrate the same way; finance is the worked
-  pattern. *(Follow-on.)*
-- **Live schema conformance** — a pass that asserts each declared column actually exists in Trino (the
-  structural gate does not; the finance columns were hand-verified against Trino at authoring). *(Follow-on.)*
-- **dbt `contract: enforced`** — turning the dbt models' own contract enforcement on, so a mart schema change
-  is caught at build as well as by the ODCS gate. *(Follow-on.)*
-- **Generating ODCS from the substance** — the contracts are hand-authored today; a generator from dbt
-  `schema.yml` + Soda + DomainConfig would keep them in lockstep automatically. *(Follow-on.)*
+- **`dbt build`** confirms the finance marts' `contract: enforced` (I could not run dbt locally; the
+  `data_type`s are verbatim Trino types + every column is declared, so a break is unlikely and would be
+  loud). Extending enforcement to the music/health marts follows the identical pattern once a finance run
+  confirms it.
+- **The code-server load** confirms nothing here (ODCS is data + repo tooling), but the sibling B158
+  autodiscovery (F) rides the same load.
 
-These are the natural B157 continuation; the decision (adopt the subset), the worked contracts, and the gate
-are done.
+The decision (adopt the subset), all-domain contracts, the structural + live + coverage gates, the
+generator, and dbt enforcement are done. B157 is complete.

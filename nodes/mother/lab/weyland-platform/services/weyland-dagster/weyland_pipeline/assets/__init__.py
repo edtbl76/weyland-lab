@@ -1,3 +1,5 @@
+# ruff: noqa: F401 — B158-F: this __init__ re-exports every asset; the imports ARE the registration
+# (autodiscovery below reads them from globals()), so 'unused import' does not apply.
 from .source_document import source_document
 from .content_hash import content_hash
 from .rag_stream_produce import rag_stream_produce
@@ -87,93 +89,26 @@ from .registrations import (
     langfuse_codified_evals,
 )
 
-all_assets = [
-    source_document,
-    content_hash,
-    rag_stream_produce,
-    eval_testset,
-    eval_run_matrix,
-    eval_scores,
-    model_catalog,
-    aidlc_kb_ingest,
-    aidlc_kb_mongo,
-    ai_session_ingest,
-    iceberg_model_catalog,
-    iceberg_eval_scores,
-    eval_mlflow_log,
-    genre_feast_training_set,
-    price_feast_training_set,
-    mart_spotify_audio_export,
-    # Music domain — per-dataset land assets
-    datasets_music_spotify_land,
-    datasets_music_fma_tracks_land,
-    datasets_music_fma_genres_land,
-    datasets_music_fma_echonest_land,
-    datasets_music_uci_year_prediction_land,
-    datasets_music_lastfm_land,
-    datasets_music_musicbrainz_land,
-    datasets_music_fma_features_land,
-    datasets_music_gtzan_land,
-    datasets_music_lp_musiccaps_mc_land,
-    datasets_music_lp_musiccaps_mtt_land,
-    datasets_music_audioset_land,
-    # Music domain — transform (silver + gold)
-    datasets_music_parquet,
-    datasets_music_arrow,
-    datasets_music_avro,
-    datasets_music_lance,
-    datasets_music_iceberg,
-    datasets_music_commit,
-    # TimescaleDB time-series feeds
-    ts_eval_scores,
-    ts_guardrail_verdicts,
-    ts_dagster_runs,
-    ts_unleash_metrics,
-    ts_datahub_ingestion,
-    # Health domain — per-dataset land assets
-    datasets_health_nhanes_land,
-    datasets_health_big_five_land,
-    datasets_health_who_gho_land,
-    datasets_health_cdc_physical_activity_land,
-    datasets_health_brfss_land,
-    datasets_health_nhis_land,
-    datasets_health_usda_fooddata_land,
-    datasets_health_open_food_facts_land,
-    # Health domain — transform (silver + gold)
-    datasets_health_parquet,
-    datasets_health_arrow,
-    datasets_health_avro,
-    datasets_health_lance,
-    datasets_health_iceberg,
-    datasets_health_commit,
-    datasets_health_open_food_facts_parquet,   # streamed silver (broker can't read the 9GB TSV whole)
-    # Finance domain — per-dataset land assets (B113 Phase 1: FRED macro series; Phase 2: SEC EDGAR XBRL)
-    datasets_finance_fred_land,
-    datasets_finance_edgar_land,
-    datasets_finance_edgar_text_land,
-    datasets_finance_market_land,
-    # Finance domain — transform (silver + gold)
-    datasets_finance_parquet,
-    datasets_finance_arrow,
-    datasets_finance_avro,
-    datasets_finance_lance,
-    datasets_finance_iceberg,
-    datasets_finance_commit,
-    # Health domain — store hydration (data-store-mageddon)
-    *datasets_health_store_assets,
-    *datasets_music_store_assets,
-    *datasets_finance_store_assets,   # B113 Phase 1 — TimescaleDB + ClickHouse
-    *datasets_health_stream_assets,
-    *datasets_music_stream_assets,
-    *datasets_finance_stream_assets,  # empty in Phase 1 (no stream_allow yet)
-    # B102 — registrations reconcile (Bifrost prompt/skill repos + Realm role prompts)
-    bifrost_prompts_registered,
-    bifrost_skills_registered,
-    realm_roles_registered,
-    prompt_federation_synced,
-    langfuse_golden_dataset,
-    langfuse_codified_evals,
-]
+# B158 follow-up F — all_assets / all_asset_checks are DERIVED from the imports above, not hand-listed.
+# The old hand-maintained lists were a SECOND registration that drifted from the imports: B113's
+# `datasets_finance_edgar_land` was imported but left out of `all_assets`, so it silently did not load.
+# Now the import IS the registration. Every imported `AssetsDefinition` (and every imported list of them —
+# the store/stream factory results) joins `all_assets`; every imported `*_checks` list (the per-domain
+# build_asset_checks results) joins `all_asset_checks`. Verified 2026-09-05 to reproduce the previous
+# explicit lists exactly (the imports were already 1:1 with `all_assets`). The registration is guarded by
+# tests/test_asset_registration.py (a land asset that is not imported fails CI), and a wrong derived set
+# fails the dagster code-server load loudly, never silently. `all_asset_checks` is collected by NAME rather
+# than by isinstance so a mis-typed check can never silently empty the quality gate.
+from dagster import AssetsDefinition
 
-# Pre-hydration quality gate (build_asset_checks per domain — the second datasets_lib factory)
-all_asset_checks = [*datasets_music_checks, *datasets_health_checks, *datasets_finance_checks]
+all_assets = []
+for _v in list(globals().values()):
+    if isinstance(_v, AssetsDefinition):
+        all_assets.append(_v)
+    elif isinstance(_v, (list, tuple)) and _v and all(isinstance(_x, AssetsDefinition) for _x in _v):
+        all_assets.extend(_v)
+
+all_asset_checks = []
+for _name, _v in list(globals().items()):
+    if _name.endswith("_checks") and isinstance(_v, (list, tuple)):
+        all_asset_checks.extend(_v)
