@@ -655,7 +655,10 @@ deployed_tags_for() {
       -o jsonpath='{range .items[*]}{range .spec.initContainers[*]}{.image}{"\n"}{end}{range .spec.containers[*]}{.image}{"\n"}{end}{end}' 2>/dev/null
     kubectl get cronjob -A \
       -o jsonpath='{range .items[*]}{range .spec.jobTemplate.spec.template.spec.containers[*]}{.image}{"\n"}{end}{end}' 2>/dev/null
-  } | grep -E "^${REG//./\\.}/${img}:" | sed 's#.*:##' | sort -u || true
+  } | tr ' \t' '\n' | grep -E "^${REG//./\\.}/${img}:" | sed 's#.*:##' | sort -u || true
+  # tr normalizes ANY whitespace to newlines so one image lands per line before the anchored grep — the jsonpath
+  # above emits newlines, but a space-separated list (the shape the bats stubs return, mirroring the old
+  # {..image}) must split too, else only the first image matches and the rest read as absent.
 }
 
 # Images with NO steady-state workload, so a running-pod check cannot verify them even in principle.
