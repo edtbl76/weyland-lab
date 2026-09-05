@@ -11,6 +11,10 @@ NS=weyland
 CRONJOB=code-scan-suite
 JOB=scan-suite-adhoc
 TIMEOUT="${1:-900s}"
+# A bare integer (e.g. `900`) is a natural way to pass the wait, but `kubectl wait --timeout` REQUIRES a unit
+# ("missing unit in duration") and fails the wait — the job runs on, but the script reports it never completed.
+# Normalize a unitless number to seconds so the arg can't silently break the wait.
+[[ "$TIMEOUT" =~ ^[0-9]+$ ]] && TIMEOUT="${TIMEOUT}s"
 
 echo "→ clearing any prior ${JOB} (if present)…"
 kubectl -n "$NS" delete job "$JOB" --ignore-not-found
