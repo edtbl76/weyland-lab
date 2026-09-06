@@ -46,11 +46,17 @@ TRINO_HTTP=http://localhost:18200 bash scripts/check-odcs-contracts.sh --check-s
 ```
 
 **4. dbt `contract: enforced`** — a mart schema change is caught at build, not just by the gate. Confirmed
-by a live `dbt build` on the 4 finance marts (contract types = verbatim Trino types):
+by live `dbt build`s across **all three domains'** marts (contract types = verbatim Trino types):
 
 ```
+# finance (4 marts)
 dbt build --select mart_macro_indicators mart_company_financials mart_price_daily mart_price_features
-# OK created … x4 ; PASS=16 WARN=0 ERROR=0 — the contracts hold against the real schema
+# PASS=16 WARN=0 ERROR=0
+
+# music + health product marts (contract: enforced on all 6)
+dbt build --select mart_spotify_audio mart_artist_popularity mart_fma_genre_tree \
+  mart_state_health_trends mart_country_health mart_personality_by_country
+# PASS=32 WARN=0 ERROR=0 — the contracts hold against the real schema in every domain
 ```
 
 **5. Products-without-contracts** — no data product ships uncontracted:

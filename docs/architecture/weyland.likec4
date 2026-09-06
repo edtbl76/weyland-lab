@@ -123,6 +123,7 @@ model {
           soda = component "Soda" "Data-quality contracts (marts + silver) -> DataHub Assertions"
           greatExpectations = component "Great Expectations" "B77b auto-profiling + validation -> DataHub Assertions + Data Docs"
           geDocs = component "GE Data Docs" "ge-docs.weyland.lab -- served GE profiling/validation reports"
+          datahubCoverage = component "DataHub coverage" "B158 CronJob (ns weyland, 03:05 NY, unmeshed, read-only). Governance-by-CI over the catalog: reconciles every mesh table Trino serves (iceberg.datasets_*.* + the dbt marts) against what DataHub actually catalogues, fail-closed if either side is empty. The catalog analog of Observability's smCoverage - an affirmative check that a data product is discoverable, not trusted to be. Byte-identical embedded script guarded by scripts/embed-datahub-coverage.sh + datahub-coverage.bats"
           storeScaler = component "store-scaler" "Scales Tier-2 stores (Port action target)"
         }
       }
@@ -328,6 +329,8 @@ model {
   weyland.mother.mesh.gov.ranger -> weyland.mother.mesh.query.trino "column masking / policy"
   weyland.mother.mesh.gov.soda -> weyland.mother.mesh.query.trino "data-quality scans"
   weyland.mother.mesh.gov.greatExpectations -> weyland.mother.mesh.query.trino "B77b profiles + validates"
+  weyland.mother.mesh.gov.datahubCoverage -> weyland.mother.mesh.query.trino "reads the live mesh-table list (iceberg.datasets_*.* + dbt marts)"
+  weyland.mother.mesh.gov.datahubCoverage -> weyland.mother.mesh.gov.datahub "reconciles against catalogued entities (GMS scrollAcrossEntities)"
 
   // Storage backends
   weyland.mother.mesh.storage.nessie -> weyland.mother.ops.infra.minio "Iceberg warehouse"

@@ -216,7 +216,9 @@
       <h3>Federated computational governance</h3>
       <p>Governance applied <b>as code</b>, globally, while ownership stays local: <b>DataHub</b> catalog +
       <b>OpenLineage</b> column/run lineage + <b>Soda</b> quality contracts + <b>Ranger</b> column masking +
-      <b>Keycloak</b> identity, one rule set, computed across both domains.</p>
+      <b>Keycloak</b> identity, one rule set, computed across both domains. A nightly
+      <b>catalog-coverage</b> CI guard reconciles every mesh table Trino serves against DataHub (fail-closed),
+      so discoverability is <b>asserted, not assumed</b>.</p>
       <div class="demos-row">
         <a class="demo" href="https://docs.weyland.lab/demos/catalog-emit/">catalog + assertions</a>
       </div>
