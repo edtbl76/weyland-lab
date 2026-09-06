@@ -126,6 +126,14 @@ def domain_job_plan():
 
 
 @pytest.fixture
+def collect():
+    """The dagster-free ``assets/_collect`` autodiscovery helpers (B158 follow-up F), loaded in
+    isolation — no dagster, so the collection loop logic is testable against fake asset/check types
+    that mirror the ``AssetChecksDefinition <: AssetsDefinition`` subclass relationship."""
+    return load_isolated("weyland_pipeline/assets/_collect.py", "_collect")
+
+
+@pytest.fixture
 def lakefs_repo():
     """The ``datasets_lib/lakefs_repo`` bootstrap (B158 follow-up D), loaded in isolation. Module scope is
     stdlib-only (the lakefs SDK + io are lazy inside ensure_repo), so ``storage_namespace_for`` is testable

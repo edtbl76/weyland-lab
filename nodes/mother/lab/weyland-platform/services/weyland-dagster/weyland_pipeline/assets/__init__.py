@@ -99,16 +99,20 @@ from .registrations import (
 # tests/test_asset_registration.py (a land asset that is not imported fails CI), and a wrong derived set
 # fails the dagster code-server load loudly, never silently. `all_asset_checks` is collected by NAME rather
 # than by isinstance so a mis-typed check can never silently empty the quality gate.
-from dagster import AssetsDefinition
+#
+# `AssetChecksDefinition` SUBCLASSES `AssetsDefinition` (dagster 1.13.14), so `isinstance(x,
+# AssetsDefinition)` is TRUE for a standalone asset check. `_is_asset` EXCLUDES checks; without it the
+# collector slurped every imported `*_checks` list into `all_assets` AS WELL AS `all_asset_checks`,
+# registering each check twice → "Duplicate asset check key" at code-server load (2026-09-05). The loop
+# logic lives in the dagster-free `_collect` module so tests/test_collect.py can pin it with fakes.
+from dagster import AssetsDefinition, AssetChecksDefinition
 
-all_assets = []
-for _v in list(globals().values()):
-    if isinstance(_v, AssetsDefinition):
-        all_assets.append(_v)
-    elif isinstance(_v, (list, tuple)) and _v and all(isinstance(_x, AssetsDefinition) for _x in _v):
-        all_assets.extend(_v)
+from ._collect import collect_assets, collect_checks
 
-all_asset_checks = []
-for _name, _v in list(globals().items()):
-    if _name.endswith("_checks") and isinstance(_v, (list, tuple)):
-        all_asset_checks.extend(_v)
+
+def _is_asset(_x):
+    return isinstance(_x, AssetsDefinition) and not isinstance(_x, AssetChecksDefinition)
+
+
+all_assets = collect_assets(list(globals().values()), _is_asset)
+all_asset_checks = collect_checks(list(globals().items()))
