@@ -104,5 +104,6 @@ mirrors outbound — bidirectional in one pass.
   clobbered the native edit; keying on `commitMessage` fixed it → `Inbound: 1`).
 - **Auto-reconcile:** wired as the `prompt_federation_synced` asset in the Dagster `registrations` group (downstream of
   `bifrost_prompts_registered`; user-code image v41), so it runs on the weekly + on-demand reconcile — no manual exec.
-  The asset must be added to BOTH the import and the explicit `all_assets` list in `weyland_pipeline/assets/__init__.py`
-  or it silently won't load.
+  The asset must be imported in `weyland_pipeline/assets/__init__.py` — the import IS the registration now
+  (`all_assets`/`all_asset_checks` are autodiscovered from the imports since B158 follow-up F; there is no
+  explicit list to add to). Miss the import and it silently won't load.
