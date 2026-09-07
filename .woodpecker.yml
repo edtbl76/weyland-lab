@@ -101,6 +101,12 @@ steps:
       # closed: exit 1 names an unreviewed image, exit 2 if the policy can't be parsed. Its in-cluster
       # sibling (k8s/monitoring/image-provenance.yaml) covers chart-rendered non-running workloads.
       - bash scripts/check-image-provenance.sh
+      # B154 Phase 1a — onboarding completeness: every `deployed: true` service in applications.yaml
+      # must be PLACED in the single LikeC4 model (by an explicit `likec4:` id or a normalized match).
+      # The coverage family proves scraped/visualized/alerted/cataloged/registered; this proves placed —
+      # the surface the DoD flags as ungoverned. Fail-closed: exit 1 names an unplaced service, exit 2 if
+      # the registry or model can't be read. Pure file analysis, no cluster.
+      - bash scripts/check-onboarding-completeness.sh
 
   # ── 1b2. Port IaC coverage (B137) ───────────────────────────────────────────
   # SEPARATE from repo-guards because it is the only guard here that talks to a live API and needs

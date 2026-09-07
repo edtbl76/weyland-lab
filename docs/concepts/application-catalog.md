@@ -51,6 +51,25 @@ DoD-checked against it, so drift is impossible by construction (the DoD's cross-
   against the registry. Every deployed Argo app must appear in the registry (component) or its `excluded:` block
   (store / plumbing) — a completeness check with no unaccounted service.
 
+## Onboarding completeness — placement in the model (B154 Phase 1a)
+
+`check-app-registry.sh` proves every Argo app is *in the registry*. It does not prove a registered service is
+*placed in the architecture model* — and the DoD flags exactly that drift ("guards exist; none appear in the
+LikeC4 model"). It bit the `image-provenance` CronJob on 2026-09-07, caught only in a manual re-audit. B154 Phase
+1a closes it with a declarative contract on the registry:
+
+- **`deployed: true|false`** — is this a cluster-hosted workload? `true` (59) must be placed in the single LikeC4
+  model; `false` (7 — the code-review SaaS/IDE tools) is exempt.
+- **`likec4: <id>`** (optional) — the model element id, for a service whose element is subsumed or renamed
+  (e.g. `dbt` → the `dagster` element). Absent → placement resolves by a normalized key/name match (kind-agnostic:
+  component/gateway/store/node).
+
+`scripts/check-onboarding-completeness.sh` (in `repo-guards`, fail-closed 0/1/2) enforces it: a `deployed: true`
+service that resolves to no model element is drift. On its first run it caught three deployed-but-unmodelled
+services (`weyland-agent`, `port-k8s-exporter`, `promptfoo`), now added. This is the first of the DoD §6
+onboarding surfaces to become a paved-road guard; the registry can grow `metrics`/`ingress` flags to drive the
+ServiceMonitor/Kuma checks next. Demo: [../demos/onboarding-completeness.md](../demos/onboarding-completeness.md).
+
 ## Where it lives
 
 - **Registry (source of truth):** `services/weyland-dagster/weyland_pipeline/applications.yaml`

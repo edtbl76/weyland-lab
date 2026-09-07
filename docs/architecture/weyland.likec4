@@ -61,6 +61,7 @@ model {
         neodash = component "NeoDash" "Neo4j dashboard / viz"
         ragIndex = component "rag-index consumers" "5 stream consumers — replay rag.chunks into each store"
         realmOfAgents = component "Realm of Agents" "B17 A2A — 24 corpus-backed specialists in 5 Norse-named groups (Valhalla/Vanaheim/Midgard/the Well) in one multiplexed pod. Gná dispatches; leads act on their own tools or delegate to members and reconcile. Runs on Claude Haiku (REALM_MODEL override via LiteLLM). Tools via the Bifrost VK; every hop MLflow-traced. Reached by the Operator over A2A (delegate_to_realm). Front door realm.weyland.lab — A2A JSON-RPC /a2a binding + the Realm Console (live trace UI via /route/stream SSE); debugged with the A2A Inspector."
+        weylandAgent = component "Weyland Agent" "B70 Part 3 — agentic RAG: a LangGraph loop (retrieve→grade→reflect/re-retrieve→generate, max_attempts=2) + 4 custom LlamaIndex retrievers over the vector backends + MLflow Traces (agentic-rag experiment). Guards via weyland-guard (fail-open); in-process bge query embedding; Ollama gen. The LangGraph viability spike for the Operator (B66). agent.weyland.lab"
         a2aInspector = component "A2A Inspector" "B17 debug UI (inspector.weyland.lab, Keycloak SSO). Validates the Realm's Agent Cards and chats through Gná — protocol-level. Adopted over a2a-ui / LangGraph Studio / Agent Chat UI in a bake-off; Argo-managed."
         kokoro = component "Kokoro TTS" "B111 self-hosted OpenAI-compatible TTS (/v1/audio/speech), $0/no-quota — the media-lane primary (image=Runware, video=Runway; ElevenLabs deferred — free tier blocks library voices via API). Fronted by Bifrost as a custom provider (kokoro/kokoro) + a wl-tts LiteLLM route. kokoro.weyland.lab web UI."
         weylandGuard = component "weyland-guard" "B70 shared guardrail service — /guard/{input,output,act} hooks over the validator set: Prompt Guard 2 injection + Presidio PII + NLI grounding + act-policy + Llama Guard Classify (safety/toxicity). B117 retired LLM Guard. SHADOW default, fail-open callers. The Scan + Classify layers of the B115 guardrails platform. Verdicts -> /metrics + guardrail_verdicts."
@@ -151,6 +152,7 @@ model {
           lancedbExporter = component "LanceDB exporter" "B78 — LanceDB is embedded (no /metrics), so this polls the lakeFS-backed repos for per-table row counts -> Prometheus -> the Vector Stores dashboard. Runs the weyland-dagster image (lockstep tag) for its lancedb runtime"
           glitchtip = component "GlitchTip" "Error tracking -> Port"
           langfuse = component "Langfuse" "LLM observability (B103) — traces/scores/prompts/sessions + online evals (native LLM-as-judge evaluators + git-SSOT Datasets); reuses data-mesh ClickHouse/Valkey/MinIO + weyland-postgres"
+          promptfoo = component "Promptfoo" "LLM eval / red-team harness UI (promptfoo.weyland.lab) — prompt/model eval + adversarial red-team suites over the model fleet"
           kuma = component "Uptime Kuma" "25 monitors -> Telegram"
           kiali = component "Kiali" "Mesh observability UI"
           smCoverage = component "ServiceMonitor coverage" "B148 CronJob (ns monitoring, 02:45 NY, unmeshed, read-only SA). Reconciles every live ServiceMonitor across three planes - intended (.spec.replicas, trustworthy because Argo selfHeal), actual (.status.readyReplicas), observed (Prometheus scrape-pool targets). Exists because data-mesh/trino exported zero metrics for 59 days behind an unlabelled Service and no affirmative check could see it"
@@ -172,6 +174,7 @@ model {
           unleash = component "Unleash" "Feature flags -> Port"
           opencost = component "OpenCost" "k8s cost allocation -> Port"
           portAgent = component "Port agent" "Outbound polling — runs Port self-service actions"
+          portK8sExporter = component "Port K8s Exporter" "B145 — on-prem Ocean k8s exporter (polling, outbound): feeds the entire k8s half of the Port catalog (k8s_workload/pod/namespace/node/replicaSet/cluster + istio_gateway/virtual_service). Ran 38+ days un-onboarded; its resource MAPPING is codified in tofu/port/b137_integrations.tf"
         }
 
         infra = zone "Infra + tooling" {
