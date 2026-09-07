@@ -47,6 +47,20 @@ bash scripts/check-onboarding-completeness.sh   # (REGISTRY_FILE=fixture with a 
 A declared `likec4:` pointing at a non-existent id is drift too (exit 1, "declared likec4:<id> is not in
 the model"). `deployed: false` services (SaaS/IDE, the code-review group) are skipped, never flagged.
 
+The guard runs **three** file checks, all fail-closed (negative cases RUN as bats fixtures):
+
+- **SCHEMA** — an entry with no boolean `deployed` field → exit 1 ("SCHEMA … do not declare a boolean
+  `deployed`"). This closes the guard's own footgun: a missing field would otherwise make the service
+  read as *not deployed* and silently skip the placement check.
+- **PORT** — a `deployed: true` service with no `port_component` → exit 1 ("PORT … declare no
+  `port_component`").
+- **PLACEMENT** — the LikeC4 resolution above.
+
+The other DoD §6 surfaces are owned elsewhere and deliberately not re-checked: ServiceMonitor / dashboard
+/ alert by the live coverage guards, Kuma by the UI (not git-checkable), and arch.md §6 is a curated
+subset (only 14 of 31 ingress services live in it — the rest are documented in their own sections), so
+there is no clean predicate to guard.
+
 **3. Fail-closed — a read that could not run never reads as clean:**
 
 ```

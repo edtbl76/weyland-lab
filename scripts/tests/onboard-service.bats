@@ -12,7 +12,7 @@ setup() {
   MODEL="$BATS_TEST_TMPDIR/model.likec4"
   cat >"$REG" <<'EOF'
 applications:
-  - {key: existing, deployed: true, name: Existing, group: platform, likec4: existing}
+  - {key: existing, deployed: true, name: Existing, group: platform, likec4: existing, port_component: existing}
   # ============ CODE-REVIEW TOOLS ============
   - {key: some-saas, deployed: false, name: Some SaaS, group: code-review}
 excluded:

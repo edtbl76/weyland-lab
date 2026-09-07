@@ -64,9 +64,14 @@ LikeC4 model"). It bit the `image-provenance` CronJob on 2026-09-07, caught only
   (e.g. `dbt` → the `dagster` element). Absent → placement resolves by a normalized key/name match (kind-agnostic:
   component/gateway/store/node).
 
-`scripts/check-onboarding-completeness.sh` (in `repo-guards`, fail-closed 0/1/2) enforces it: a `deployed: true`
-service that resolves to no model element is drift. On its first run it caught three deployed-but-unmodelled
-services (`weyland-agent`, `port-k8s-exporter`, `promptfoo`), now added. This is the first of the DoD §6
+`scripts/check-onboarding-completeness.sh` (in `repo-guards`, fail-closed 0/1/2) enforces **three** file-based
+checks: **SCHEMA** (every entry declares a boolean `deployed` — a missing field would silently skip the
+placement check), **PORT** (every deployed service declares a `port_component`), and **PLACEMENT** (every
+deployed service resolves to a real LikeC4 element). On its first run the placement check caught three
+deployed-but-unmodelled services (`weyland-agent`, `port-k8s-exporter`, `promptfoo`), now added. The other §6
+surfaces are owned by the live coverage guards (ServiceMonitor/dashboard/alert), the Kuma UI (not
+git-checkable), or have no clean predicate (arch.md §6 is a curated subset) — so they are deliberately not
+re-checked here. This is the first of the DoD §6
 onboarding surfaces to become a paved-road guard; the registry can grow `metrics`/`ingress` flags to drive the
 ServiceMonitor/Kuma checks next.
 

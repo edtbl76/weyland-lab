@@ -17,6 +17,15 @@
 # (kind-agnostic: component/gateway/store/node all count). A `deployed: true` service that resolves to
 # nothing is drift — the guard tells you to add the element or declare `likec4:`.
 #
+# THREE CHECKS, all file-based and fail-closed:
+#   SCHEMA    every entry declares a boolean `deployed` — a missing field would SILENTLY exclude a
+#             service from the placement check (the absent-reads-as-not-deployed footgun), so the guard
+#             fails rather than skip. (The other DoD §6 surfaces — ServiceMonitor/dashboard/alert — are
+#             owned by the live coverage guards; Kuma is UI-configured, not git-checkable; and arch.md
+#             §6 is a curated subset with no clean predicate, so none of those are re-checked here.)
+#   PORT      every deployed service declares a `port_component` (a required onboarding surface).
+#   PLACEMENT every deployed service resolves to a real LikeC4 element (above).
+#
 #   usage: scripts/check-onboarding-completeness.sh [--list]
 #          --list   print every deployed service and its resolved element, then exit 0
 #
@@ -79,25 +88,44 @@ def resolve(app):
     hit = next((i for i in elems if k in (nid[i], nnm[i]) or n in (nid[i], nnm[i])), None)
     return hit, None
 
+# Schema completeness FIRST: every entry MUST declare a boolean `deployed`. A missing or non-bool value
+# would silently exclude a service from the placement check below (a.get("deployed") is True) — the
+# absent-field-reads-as-not-deployed footgun, which is exactly the absent-result-as-success class this
+# guard family exists to kill. A deployed service that never declared it would evade the guard entirely.
+schema_bad = [a.get("key", "<no-key>") for a in apps if "deployed" not in a or a["deployed"] not in (True, False)]
 deployed = [a for a in apps if a.get("deployed") is True]
-missing = []
+# Port component: a deployed service needs a Port `component` (the registry declares it) — a required
+# DoD §6 onboarding surface that is checkable right here in the registry.
+no_port = [a["key"] for a in deployed if not a.get("port_component")]
+unplaced = []
 for a in deployed:
     el, ov = resolve(a)
     if listmode:
-        print(f"  {a['key']:28} -> {el or 'UNPLACED'}")
+        print(f"  {a['key']:28} likec4={el or 'UNPLACED':16} port={a.get('port_component') or 'MISSING'}")
         continue
     if el is None:
         why = f"declared likec4:{ov} is not in the model" if ov else "no LikeC4 element matches its key or name"
-        missing.append((a["key"], a.get("name"), why))
+        unplaced.append((a["key"], a.get("name"), why))
 
 if listmode:
     sys.exit(0)
-if missing:
-    print(f"UNPLACED — {len(missing)} deployed service(s) are not in the LikeC4 model:", file=sys.stderr)
-    for k, n, why in missing:
-        print(f"  - {k} ({n}) — {why}", file=sys.stderr)
+
+problems = False
+if schema_bad:
+    problems = True
+    print(f"SCHEMA — {len(schema_bad)} registry entr(y/ies) do not declare a boolean `deployed` (would silently skip the placement check):", file=sys.stderr)
+    for k in schema_bad: print(f"  - {k}", file=sys.stderr)
+if no_port:
+    problems = True
+    print(f"PORT — {len(no_port)} deployed service(s) declare no `port_component` (a deployed service needs a Port component):", file=sys.stderr)
+    for k in no_port: print(f"  - {k}", file=sys.stderr)
+if unplaced:
+    problems = True
+    print(f"UNPLACED — {len(unplaced)} deployed service(s) are not in the LikeC4 model:", file=sys.stderr)
+    for k, n, why in unplaced: print(f"  - {k} ({n}) — {why}", file=sys.stderr)
     print("Fix: add the element to docs/architecture/weyland.likec4, or set `likec4: <id>` on the registry entry.", file=sys.stderr)
+if problems:
     sys.exit(1)
-print(f"OK — all {len(deployed)} deployed service(s) are placed in the LikeC4 model.")
+print(f"OK — all {len(apps)} entries declare `deployed`; all {len(deployed)} deployed service(s) have a Port component and a LikeC4 placement.")
 sys.exit(0)
 PY
