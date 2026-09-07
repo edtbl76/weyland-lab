@@ -720,7 +720,14 @@ pass** (every always-on pod now carries mem-limits + digest-pinned images + owne
 immutable). Two read surfaces: **Gatekeeper Policy Manager** (`gatekeeper.weyland.lab`, the per-resource violation
 Report) and a 6-panel **Grafana** dashboard (violation trend / audit duration / webhook rate, off a ServiceMonitor).
 Gotcha worth remembering: GPM's own pod was **rejected by PodSecurity** (`restricted`) until given a compliant
-`securityContext` — the policy engine's UI had to obey a *different* policy engine.
+`securityContext` — the policy engine's UI had to obey a *different* policy engine. **B88 Phase 3 added a fourth
+dry-run constraint — `require-signed-images`** — which asserts the checkable thing (images from
+`registry.weyland.lab/` or a reviewed publisher; Gatekeeper's Rego has no egress to verify a signature at
+admission). Its `0 violations` is an interval audit of *running pods*, so **the invariant behind the eventual
+dryrun→deny flip is enforced separately** by `scripts/check-image-provenance.sh` (CI, pre-merge — repo-guards) and
+the `image-provenance` CronJob (03:10, enumerates *every declared workload* live incl. non-running + chart-rendered
+images), both judging against the same policy; fail-closed 0/1/2. Runbook: [supply-chain.md § the provenance
+invariant](runbooks/supply-chain.md#the-provenance-invariant--what-makes-0-violations-trustworthy).
 
 **Slice C — Soda (data quality).** An **independent** contract scan over the 7 dbt marts — 53 checks (row presence,
 key uniqueness/completeness, value-range bounds, plus per-column *emptiness tripwires*). Two architecture calls

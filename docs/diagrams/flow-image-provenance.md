@@ -4,8 +4,9 @@ The Gatekeeper `require-signed-images` constraint only AUDITS running pods in dr
 "0 violations" is transient. Two guards turn it into a durable invariant — *every declared image is
 from a reviewed source* — with ONE decision core fed two ways. Runbook:
 [supply-chain.md § the provenance invariant](../runbooks/supply-chain.md#the-provenance-invariant--what-makes-0-violations-trustworthy);
-demo: [image-provenance.md](../demos/image-provenance.md). LikeC4 placement is N/A for the CI guard
-(it deploys nothing); the enumerator CronJob rides the existing `monitoring` Argo app.
+demo: [image-provenance.md](../demos/image-provenance.md). The CI guard deploys nothing (repo tooling);
+the enumerator CronJob is modelled in LikeC4 as `imageProvenance` (platform group, edge to `gatekeeper`)
+alongside its coverage-guard siblings, and rides the existing `monitoring` Argo app.
 
 ## Two feeders, one decision core
 
