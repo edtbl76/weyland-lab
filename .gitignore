@@ -209,3 +209,6 @@ tests/lang/**/__pycache__/
 # reads it — a per-run scratch handoff (target tag baked in), regenerated every ship. Normally consumed
 # within a CI run; a local ship that halts at a gate can leave it in the repo root. Never commit it.
 .ci-build-plan
+
+# mutation testing (B152, on-demand)
+.mutmut-cache/
