@@ -42,3 +42,28 @@ flowchart TD
   run (registry/model unreadable or empty) — never conflated with a clean estate, the coverage-guard rule.
 - **What it caught on first run:** `weyland-agent`, `port-k8s-exporter`, `promptfoo` were deployed but
   absent from the model; all three were added (fix-don't-file) so the live invariant now holds (59/59).
+
+## The scaffolder — landing paved instead of auditing into compliance (Phase 1b)
+
+`scripts/onboard-service.sh` is the other half of the paved road: it writes the two surfaces the guard
+checks, from one command, so a new service starts onboarded-complete.
+
+```mermaid
+flowchart TD
+    I["onboard-service.sh --key --name --group --zone [--kind …]"] --> V{args valid?<br/>kebab key · known group/kind/zone}
+    V -->|no| R1["exit 1 — refuse, name the bad arg"]
+    V -->|yes| DUP{key in registry OR<br/>id already in model?}
+    DUP -->|yes| R2["exit 1 — refuse to duplicate"]
+    DUP -->|no| DR{--dry-run?}
+    DR -->|yes| P["print both additions, write nothing (exit 0)"]
+    DR -->|no| W["append registry entry (deployed:true, likec4:&lt;camelId&gt;)<br/>+ insert element as first in the zone"]
+    W --> G{check-onboarding-completeness passes?}
+    G -->|yes| OK["exit 0 — onboarded (element placed but UNWIRED — wire edges by hand)"]
+    G -->|no| R3["exit 2 — scaffold did not verify; inspect the two files"]
+```
+
+- **Id = camelCase(key)**, written as an explicit `likec4:` on the entry AND as the element id, so the
+  guard resolves it two ways. The tool refuses a duplicate key or id, validates the group/kind/zone
+  against the real files, and `--dry-run` shows exactly what it would write.
+- **Honest boundary:** it *places* the element but never invents relationships — wiring edges is a human
+  judgement the scaffold leaves as a stated follow-up, not a guess.

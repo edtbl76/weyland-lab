@@ -68,7 +68,14 @@ LikeC4 model"). It bit the `image-provenance` CronJob on 2026-09-07, caught only
 service that resolves to no model element is drift. On its first run it caught three deployed-but-unmodelled
 services (`weyland-agent`, `port-k8s-exporter`, `promptfoo`), now added. This is the first of the DoD §6
 onboarding surfaces to become a paved-road guard; the registry can grow `metrics`/`ingress` flags to drive the
-ServiceMonitor/Kuma checks next. Demo: [../demos/onboarding-completeness.md](../demos/onboarding-completeness.md).
+ServiceMonitor/Kuma checks next.
+
+**The scaffolder (Phase 1b).** `scripts/onboard-service.sh` writes both surfaces the guard checks from one
+command — a paved registry entry (`deployed: true`, an explicit `likec4:` id) plus a matching LikeC4 element in
+a chosen zone — then runs the guard to confirm the new service lands onboarded-complete. It validates
+key/group/kind/zone against the real files, refuses a duplicate, supports `--dry-run`, and deliberately leaves
+edge-wiring as a stated human follow-up (it places the element, it does not invent relationships). Demo:
+[../demos/onboarding-completeness.md](../demos/onboarding-completeness.md).
 
 ## Where it lives
 

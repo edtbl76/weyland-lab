@@ -59,6 +59,31 @@ REGISTRY_FILE=/nonexistent ... # → exit 2 "CANNOT RUN — registry unreadable"
 case); `shellcheck --severity=warning` **0**. Runs in the `.woodpecker.yml` `repo-guards` step — pure
 file analysis, secret-free, no cluster.
 
+## The scaffolder (Phase 1b) — RUN 2026-09-07
+
+`onboard-service.sh` writes both surfaces the guard checks, from one command, so a new service starts
+onboarded-complete instead of being audited into compliance.
+
+**Dry-run first (writes nothing):**
+
+```
+bash scripts/onboard-service.sh --key demo-svc --name "Demo Svc" --group ai-serving --zone ai \
+  --capabilities "agent,retrieval-rag" --description "A demo service." --dry-run
+# DRY RUN — would add to the registry (before the CODE-REVIEW / excluded section):
+#   - {key: demo-svc, deployed: true, name: Demo Svc, group: ai-serving, ..., likec4: demoSvc, ...}
+# DRY RUN — would add to LikeC4 (first element in zone 'ai'):
+#         demoSvc = component "Demo Svc" "A demo service."
+```
+
+A real run appends the entry, inserts the element (id = camelCase(key), written as an explicit `likec4:`
+so placement is unambiguous), then runs the Phase-1a guard to confirm — printing `onboarded '<key>'` and
+the honest note that the element is **UNWIRED** (edges are a human follow-up, never guessed).
+
+**Refusals RUN (fail-fast, no mutation):** a duplicate key → exit 1 ("already in the registry"); an
+unknown `--zone`/`--group`/`--kind` → exit 1; a non-kebab key → exit 1; a missing required arg → exit 1.
+`bats scripts/tests/onboard-service.bats` **8 passed** (incl. dry-run-writes-nothing + the end-to-end
+"scaffolded service satisfies the guard"); shellcheck 0.
+
 ## UI walkthrough
 
 N/A — repo tooling, no UI. Placement is visible in the rendered LikeC4 model (`likec4.weyland.lab`); a
