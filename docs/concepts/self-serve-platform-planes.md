@@ -6,7 +6,8 @@ names in *Data Mesh*: an **infrastructure/utility plane** the product author nev
 experience plane** that lets you see and govern all products *as one mesh*. This page audits the weyland
 mesh against those three planes, grades every named surface, and records the gaps. It is the B158
 deliverable; the mesh's design of record is [design/data-mesh-design.md](../design/data-mesh-design.md),
-and the sibling capability lens is B156 (Nick Tune's five data-platform capabilities).
+and the sibling capability lens is [data-platform-capabilities-audit.md](data-platform-capabilities-audit.md)
+(B156 — Nick Tune's five data-platform capabilities).
 
 **Method.** Three independent evidence passes (one per plane) over the repo + live cluster, each grading
 its surfaces **coherent self-serve / partial / gap** against that plane's defining question. Cheap gaps

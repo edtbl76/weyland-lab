@@ -203,10 +203,45 @@ there, so no rsync is needed. After this first creation, every subsequent change
 kubectl get k8simagesignature require-signed-images -o jsonpath='{.status.totalViolations}{"\n"}'
 ```
 
+### The provenance invariant — what makes "0 violations" trustworthy
+
+`totalViolations: 0` from the audit is a **transient observation, not an invariant**. Two blind spots:
+the audit is measured *after* a pod is scheduled (it never sees an unreviewed image at commit time),
+and it only sees what is *running* (a weekly CronJob, a scaled-to-zero store, a Deployment whose new
+image has not rolled are all invisible). "0 at last audit" is therefore the shakiest input to the
+`deny` flip. Two guards turn it into a durable invariant — *every declared image is from a reviewed
+source* — reading the **same** allow/exempt/official rule as the constraint's Rego, from the **same**
+policy (no second copy that can drift):
+
+- **`scripts/check-image-provenance.sh`** — the **CI** guard (in `repo-guards`, secret-free). At PR
+  time it scans every `image:` in the k8s manifests and fails closed: **exit 1** names an unreviewed
+  image, **exit 2** if the policy can't be parsed. This is the invariant *"you cannot merge one."* Run
+  it by hand anytime:
+  ```
+  bash /home/edwardmangini/IdeaProjects/weyland/scripts/check-image-provenance.sh --list
+  ```
+  Honest scope: it reads `image:` strings, not Helm `image.repository`/`.tag` split values (a chart's
+  unqualified `repository` resolves to a registry only at deploy time — judging it statically would
+  cry wolf). Chart-rendered images are the enumerator's job, below.
+
+- **`k8s/monitoring/image-provenance.yaml`** — the **in-cluster** enumerator (nightly `image-provenance`
+  CronJob, 03:10, `monitoring` ns). It enumerates *every declared workload* via kubectl — running or
+  not, including chart-rendered images — and judges each against the **live** `K8sImageSignature`
+  constraint. This closes the audit's non-running blind spot. A failed Job (exit 1/2) raises
+  `kube_job_status_failed` → `ScheduledJobFailed` → Telegram. Its embedded guard is byte-identical to
+  the CI script (`scripts/embed-image-provenance.sh` regenerates it; `image-provenance.bats` asserts
+  no drift).
+
+The three layers stack: **CI** (pre-merge, declared) + **enumerator** (nightly, all declared workloads
+live) + **Gatekeeper audit** (interval, running pods). When all three are green, the estate provably
+conforms to the prefix rule — which is exactly the precondition step 1 below needs. (Provenance is not
+a signature: these prove *where an image comes from*; `cosign verify` in CI proves *who signed it*.)
+
 ### Promoting to `deny` — do not skip a step
 
 1. Sign everything. The ship loop signs images as they are rebuilt, but images that are **not**
-   rebuilt stay unsigned indefinitely. Enumerate what is actually running:
+   rebuilt stay unsigned indefinitely. The provenance invariant above already proves every declared
+   image is from a reviewed *source*; this step is about the *signature*. Enumerate what is running:
    ```
    kubectl get pods -A -o jsonpath='{range .items[*]}{.spec.containers[*].image}{"\n"}{end}' | sort -u
    ```

@@ -1,0 +1,393 @@
+# B88 (image-signature follow-up) — nightly declared-image provenance enumerator.
+#
+# WHY THIS EXISTS: the Gatekeeper `require-signed-images` constraint is an INTERVAL AUDIT OF RUNNING
+# PODS in dryrun. Two blind spots make its "0 violations" a transient observation rather than an
+# invariant: it never sees an unreviewed image before a pod is scheduled, and it never sees a workload
+# that is NOT currently running (a weekly CronJob, a scaled-to-zero store, a Deployment whose new image
+# has not rolled). The CI guard `scripts/check-image-provenance.sh` closes the first blind spot at PR
+# time by scanning the repo manifests. This CronJob closes the second: it enumerates EVERY declared
+# workload live (running or not) and judges each image with the same guard.
+#
+# WHAT IT ADDS OVER THE CI GUARD. The git scan sees `image:` strings in the repo. It cannot see images
+# baked inside upstream Helm charts Argo renders (a chart's `image.repository`/`.tag` is expanded to a
+# real registry only at deploy time). This job reads the FULLY-RESOLVED images off the live workload
+# controllers, so a chart that quietly changes its image source — in a workload that happens not to be
+# running when Gatekeeper's audit fires — is caught here. Together: CI (pre-merge) + this (live, all
+# declared workloads) + the Gatekeeper audit (running pods) make the dryrun->deny flip safe to make.
+#
+# HOW IT WORKS. An initContainer (kubectl) dumps two JSONs to a shared volume: the live
+# K8sImageSignature constraint (the authoritative allow/exempt/excluded lists — no second copy of the
+# policy) and every deployment/statefulset/daemonset/cronjob/job/pod cluster-wide. The main container
+# derives IMAGE_LIST + POLICY_ALLOWED/POLICY_EXEMPT/POLICY_EXCLUDED_NS from those and runs the guard.
+# Because both feeders are injected, the guard's own file-parse/scan paths never run in-cluster — it
+# needs only bash, not pyyaml.
+#
+# READS THE LIVE POLICY, not a mounted copy: it checks declared images against the constraint ACTUALLY
+# DEPLOYED. Argo selfHeal keeps that constraint equal to git, so this is a cached read of git rather
+# than self-graded state — the same soundness argument servicemonitor-coverage makes for reading
+# `.spec.replicas`.
+#
+# FAIL CLOSED (the coverage-guard rule): if the initContainer's kubectl dump fails, the initContainer
+# fails and the Job fails (never a clean pass). If enumeration yields no images, the guard exits 2, not
+# 0. Exit 1 = an unreviewed live image; the failed Job raises kube_job_status_failed, which the
+# ScheduledJobFailed rule (cron-freshness-rules.yaml) already routes to Telegram.
+#
+# UNMESHED: it talks only to the in-cluster API server (no sidecar needed); `sidecar.istio.io/inject:
+# "false"` for the same reason the coverage siblings set it.
+#
+# THE EMBEDDED GUARD IS BYTE-IDENTICAL to scripts/check-image-provenance.sh and image-provenance.bats
+# asserts it. Regenerate after editing the script:  scripts/embed-image-provenance.sh
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: image-provenance-logic
+  namespace: monitoring
+data:
+  check-image-provenance.sh: |
+    #!/usr/bin/env bash
+    # Declared-image provenance invariant (B88 — the image-signature dryrun->deny prerequisite).
+    #
+    # WHY THIS EXISTS: the OPA Gatekeeper `require-signed-images` constraint (k8s/gatekeeper/
+    # image-signatures.yaml) is an INTERVAL AUDIT OF RUNNING PODS, and it ships in dryrun. So its
+    # "0 violations" is two things it is easy to mistake for an invariant but is not:
+    #   - it is measured AFTER a pod is scheduled — it never sees an unreviewed image at COMMIT time; and
+    #   - it only sees what is RUNNING — a weekly CronJob, a scaled-to-zero store, or a Deployment whose
+    #     new image has not rolled are all invisible to it (the file's own promote-to-deny checklist warns
+    #     that "images that are NOT rebuilt stay unsigned indefinitely").
+    # "0 at last audit" is therefore a transient observation, and it is the shakiest input to the eventual
+    # dryrun->deny flip.
+    #
+    # This guard turns it into an INVARIANT: every container/initContainer image DECLARED in the estate is
+    # from a reviewed source. It applies the SAME three-way rule as the constraint's Rego and reads the
+    # SAME policy file as the single source of truth (an image is reviewed iff it is from an allowedRegistry
+    # prefix, OR matches an exemptImages prefix, OR is an implicit single-segment Docker Hub official image).
+    # It NEVER hardcodes a copy of the allow/exempt lists — a copy drifts silently from the Rego, and the
+    # whole point is that the two agree.
+    #
+    # TWO FEEDERS, ONE DECISION CORE:
+    #   - CI (git):        scans the k8s manifests in the repo -> catches an unreviewed image at PR time,
+    #                      before anything deploys. This is the invariant "you cannot MERGE one".
+    #   - in-cluster cron: enumerates ALL declared workloads via kubectl (running or not) -> catches the
+    #                      non-running CronJob/scaled-to-zero blind spot the Gatekeeper audit cannot see.
+    # Both produce an IMAGE_LIST that this script judges. See k8s/monitoring/image-provenance.yaml (cron).
+    #
+    # HONEST SCOPE: the git scan reads `image:` STRING values in k8s manifests (fully-qualified or official
+    # short names, as this repo writes them). It deliberately does NOT reconstruct Helm `image.repository`/
+    # `.tag` split values, because a chart's unqualified `repository: grafana/grafana` is expanded to a real
+    # registry only at deploy time — judging it statically would cry wolf. Chart-internal images are exactly
+    # what the in-cluster enumerator covers, by reading the fully-resolved image the node actually pulled.
+    #
+    #   usage: scripts/check-image-provenance.sh [--list]
+    #          --list   print every declared image and its verdict, then exit 0
+    #
+    # EXIT CODES are the contract, distinct on purpose (the fail-closed rule the coverage guards enforce):
+    #   0  every declared image is reviewed
+    #   1  the estate has a defect — an unreviewed image is declared (named)
+    #   2  the guard could not do its job (policy unparseable, no images found, empty fed list)
+    # Conflating 1 and 2 means a broken guard reads exactly like a clean estate.
+    #
+    # INPUTS (a fixture env var, when SET even if empty, skips the corresponding live/file read):
+    #   IMAGE_LIST          newline list of  <namespace>\t<image>  (or bare <image>) — skips the git scan
+    #   POLICY_ALLOWED      newline allowedRegistries prefixes  } setting EITHER skips parsing POLICY_FILE
+    #   POLICY_EXEMPT       newline exemptImages prefixes       }  (the cron feeds these from the live
+    #   POLICY_EXCLUDED_NS  newline excluded namespaces         }  K8sImageSignature constraint)
+    #   POLICY_FILE         path to image-signatures.yaml (default: the platform policy)
+    #   MANIFEST_ROOT       dir to scan in git mode (default: the platform k8s tree)
+    #
+    # Sourced by scripts/tests/image-provenance.bats with IMAGE_PROVENANCE_LIB=1 to exercise the decision
+    # functions (implicit_official / is_reviewed) without running main.
+    set -euo pipefail
+
+    # common.sh gives $PLATFORM_DIR for the default policy/scan paths. It is present for the CI/dev run;
+    # it is ABSENT in the CronJob's embedded copy (which runs from /opt/ip with the policy + image list fed
+    # via env, so it never needs a default path). Source it when present, and guard PLATFORM_DIR so `set -u`
+    # holds either way — the two `${...:-...}` defaults below are only ever used in the file-scan (CI) path.
+    if [ -r "$(dirname "${BASH_SOURCE[0]}")/lib/common.sh" ]; then
+      # shellcheck source=scripts/lib/common.sh
+      . "$(dirname "${BASH_SOURCE[0]}")/lib/common.sh"
+    fi
+    PLATFORM_DIR="${PLATFORM_DIR:-}"
+
+    POLICY_FILE="${POLICY_FILE:-$PLATFORM_DIR/k8s/gatekeeper/image-signatures.yaml}"
+    MANIFEST_ROOT="${MANIFEST_ROOT:-$PLATFORM_DIR/k8s}"
+
+    # Populated by load_policy; newline-separated. The decision functions read these globals.
+    ALLOWED=""
+    EXEMPT=""
+    EXCLUDED_NS=""
+
+    # --- the decision (identical rule to the constraint's Rego) --------------------------------------
+
+    # is_prefix_in <image> <newline prefixes> -> 0 if the image starts with any non-empty prefix.
+    is_prefix_in() {
+      local img="$1" list="$2" p
+      while IFS= read -r p; do
+        [ -z "$p" ] && continue
+        case "$img" in "$p"*) return 0 ;; esac
+      done <<<"$list"
+      return 1
+    }
+
+    # implicit_official <image> -> 0 for a single-segment Docker Hub OFFICIAL image (library/*), the ONLY
+    # implicit exemption the Rego grants. `postgres:18` is `docker.io/library/postgres:18`; `grafana/x` is
+    # an ORG-scoped image any Hub user can push (the historical bypass) and is NOT covered. Matches the Rego:
+    #   count(split(image,"/")) == 1   AND   not contains(split(image,":")[0], ".")
+    implicit_official() {
+      local img="$1" before
+      case "$img" in */*) return 1 ;; esac      # any namespace/host segment -> not single-segment
+      before="${img%%:*}"                        # the part before the first colon (the repo name)
+      case "$before" in *.*) return 1 ;; esac    # a dot there means a bare hostname, not library/*
+      return 0
+    }
+
+    # is_reviewed <image> -> 0 if from the allowlist, an exempt prefix, or an implicit official image.
+    is_reviewed() {
+      is_prefix_in "$1" "$ALLOWED" && return 0
+      is_prefix_in "$1" "$EXEMPT" && return 0
+      implicit_official "$1" && return 0
+      return 1
+    }
+
+    # is_excluded_ns <namespace> -> 0 if the namespace is in the constraint's excludedNamespaces.
+    is_excluded_ns() {
+      [ -z "$1" ] && return 1
+      local ns
+      while IFS= read -r ns; do
+        [ -z "$ns" ] && continue
+        [ "$ns" = "$1" ] && return 0
+      done <<<"$EXCLUDED_NS"
+      return 1
+    }
+
+    # --- policy load (fixture env wins; else parse the real multi-doc policy file) -------------------
+
+    load_policy() {
+      if [ -n "${POLICY_ALLOWED+x}" ] || [ -n "${POLICY_EXEMPT+x}" ]; then
+        ALLOWED="${POLICY_ALLOWED:-}"
+        EXEMPT="${POLICY_EXEMPT:-}"
+        EXCLUDED_NS="${POLICY_EXCLUDED_NS:-}"
+      else
+        local out
+        out="$(python3 - "$POLICY_FILE" <<'PY'
+    import sys, yaml
+    try:
+        docs = list(yaml.safe_load_all(open(sys.argv[1])))
+    except Exception as e:
+        print("PARSE_ERROR:" + str(e)[:120], file=sys.stderr); sys.exit(3)
+    c = next((d for d in docs if isinstance(d, dict) and d.get("kind") == "K8sImageSignature"), None)
+    if not c:
+        print("no K8sImageSignature constraint in policy", file=sys.stderr); sys.exit(3)
+    params = (c.get("spec") or {}).get("parameters") or {}
+    match = (c.get("spec") or {}).get("match") or {}
+    for r in params.get("allowedRegistries") or []:  print("A\t" + str(r))
+    for r in params.get("exemptImages")     or []:  print("E\t" + str(r))
+    for r in match.get("excludedNamespaces") or []:  print("X\t" + str(r))
+    PY
+    )" || return 1
+        ALLOWED="$(printf '%s\n' "$out" | sed -n 's/^A\t//p')"
+        EXEMPT="$(printf '%s\n' "$out" | sed -n 's/^E\t//p')"
+        EXCLUDED_NS="$(printf '%s\n' "$out" | sed -n 's/^X\t//p')"
+      fi
+      # No policy at all -> we cannot judge anything. Fail closed (main turns this into exit 2).
+      [ -z "$ALLOWED$EXEMPT" ] && return 1
+      return 0
+    }
+
+    # --- image enumeration (fixture env wins; else scan the manifest tree) ---------------------------
+
+    collect_images() {
+      if [ -n "${IMAGE_LIST+x}" ]; then
+        printf '%s\n' "$IMAGE_LIST" | sed '/^[[:space:]]*$/d'
+        return 0
+      fi
+      python3 - "$MANIFEST_ROOT" <<'PY'
+    import sys, glob, yaml
+    root = sys.argv[1]
+    def walk(o, out):
+        if isinstance(o, dict):
+            for k, v in o.items():
+                if k == "image" and isinstance(v, str) and v.strip():
+                    out.append(v.strip())
+                walk(v, out)
+        elif isinstance(o, list):
+            for x in o:
+                walk(x, out)
+    for f in sorted(glob.glob(root + "/**/*.yaml", recursive=True) + glob.glob(root + "/**/*.yml", recursive=True)):
+        try:
+            for doc in yaml.safe_load_all(open(f)):
+                if not isinstance(doc, dict):
+                    continue
+                ns = ((doc.get("metadata") or {}).get("namespace")) or ""
+                imgs = []
+                walk(doc, imgs)
+                for img in imgs:
+                    print(f"{ns}\t{img}")
+        except Exception:
+            # A single unparseable manifest must not silently shrink the estate under audit.
+            print("PARSE_ERROR\t" + f, file=sys.stderr)
+    PY
+    }
+
+    main() {
+      local list=0 arg
+      for arg in "$@"; do
+        case "$arg" in
+          --list) list=1 ;;
+          *) echo "unknown arg: $arg" >&2; return 2 ;;
+        esac
+      done
+
+      load_policy || { echo "could not load the image-signature policy ($POLICY_FILE) — refusing to judge (exit 2)" >&2; return 2; }
+
+      local images
+      images="$(collect_images)" || { echo "could not enumerate declared images — refusing to judge (exit 2)" >&2; return 2; }
+      images="$(printf '%s\n' "$images" | sed '/^[[:space:]]*$/d')"
+
+      if [ -z "$images" ]; then
+        echo "no declared images found (MANIFEST_ROOT=$MANIFEST_ROOT / IMAGE_LIST) — refusing to report a clean estate (exit 2)" >&2
+        return 2
+      fi
+
+      local line ns img verdict unreviewed=() checked=0
+      while IFS= read -r line; do
+        [ -z "$line" ] && continue
+        if [[ "$line" == *$'\t'* ]]; then
+          ns="${line%%$'\t'*}"; img="${line#*$'\t'}"
+        else
+          ns=""; img="$line"
+        fi
+        [ -z "$img" ] && continue
+        if is_excluded_ns "$ns"; then
+          [ "$list" -eq 1 ] && printf '  %-60s %s\n' "$img" "excluded-ns($ns)"
+          continue
+        fi
+        checked=$((checked + 1))
+        if is_reviewed "$img"; then
+          verdict="reviewed"
+        else
+          verdict="UNREVIEWED"
+          unreviewed+=("${ns:+$ns/}$img")
+        fi
+        [ "$list" -eq 1 ] && printf '  %-60s %s\n' "$img" "$verdict"
+      done <<<"$images"
+
+      [ "$list" -eq 1 ] && return 0
+
+      if [ "${#unreviewed[@]}" -gt 0 ]; then
+        echo "UNREVIEWED IMAGES — ${#unreviewed[@]} declared image(s) are from no reviewed source:" >&2
+        printf '  - %s\n' "${unreviewed[@]}" >&2
+        echo "Fix: build it into registry.weyland.lab, or if it is a reviewed third party, add its FULL-PATH" >&2
+        echo "     prefix to exemptImages in k8s/gatekeeper/image-signatures.yaml (never a registry root)." >&2
+        return 1
+      fi
+
+      echo "OK — all $checked declared image(s) are from a reviewed source (allowlist / exempt publisher / official)."
+      return 0
+    }
+
+    if [ -z "${IMAGE_PROVENANCE_LIB:-}" ]; then
+      main "$@"
+    fi
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: image-provenance
+  namespace: monitoring
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: image-provenance
+rules:
+  # Read every workload controller cluster-wide (running or not) + the live constraint. Read-only.
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list"]
+  - apiGroups: ["apps"]
+    resources: ["deployments", "statefulsets", "daemonsets"]
+    verbs: ["get", "list"]
+  - apiGroups: ["batch"]
+    resources: ["cronjobs", "jobs"]
+    verbs: ["get", "list"]
+  - apiGroups: ["constraints.gatekeeper.sh"]
+    resources: ["k8simagesignatures"]
+    verbs: ["get", "list"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: image-provenance
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: image-provenance
+subjects:
+  - kind: ServiceAccount
+    name: image-provenance
+    namespace: monitoring
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: image-provenance
+  namespace: monitoring
+spec:
+  schedule: "10 3 * * *"
+  timeZone: America/New_York
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 0
+      activeDeadlineSeconds: 300
+      template:
+        metadata:
+          labels:
+            # Unmeshed on purpose — the only target is the in-cluster API server. See the header.
+            sidecar.istio.io/inject: "false"
+        spec:
+          restartPolicy: Never
+          serviceAccountName: image-provenance
+          initContainers:
+            # kubectl dumps the live policy + every declared workload to the shared volume. If either
+            # dump fails the initContainer fails and the Job fails — never a clean pass on a bad read.
+            - name: dump
+              image: rancher/kubectl:v1.35.6
+              command: ["/bin/sh", "-c"]
+              args:
+                - |
+                  set -eu
+                  kubectl get k8simagesignature require-signed-images -o json > /shared/policy.json
+                  kubectl get deployments,statefulsets,daemonsets,cronjobs,jobs,pods \
+                    --all-namespaces -o json > /shared/workloads.json
+              volumeMounts:
+                - name: shared
+                  mountPath: /shared
+          containers:
+            - name: check
+              # python for the JSON shaping; bash for the guard. No pyyaml — both feeders are injected,
+              # so the guard's file-parse/scan paths never run here.
+              image: python:3.12-alpine
+              command: ["/bin/sh", "-c"]
+              args:
+                - |
+                  set -eu
+                  apk add --no-cache bash >/dev/null
+                  bash /opt/ip/run.sh
+              volumeMounts:
+                - name: shared
+                  mountPath: /shared
+                - name: logic
+                  mountPath: /opt/ip
+              resources:
+                requests: { cpu: 25m, memory: 64Mi }
+                limits: { memory: 192Mi }
+          volumes:
+            - name: shared
+              emptyDir: {}
+            - name: logic
+              configMap:
+                name: image-provenance-logic

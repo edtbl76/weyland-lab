@@ -94,6 +94,13 @@ steps:
       # weyland-guard and weyland-tool-server; nothing kept them in sync (DoD Pillar 8 finding). Fails
       # closed if they drift (exit 1) or a copy is missing (exit 2). Pure file compare, no cluster.
       - bash scripts/check-verdict-sync.sh
+      # B88 (image-signature follow-up) — declared-image provenance invariant. The Gatekeeper
+      # require-signed-images constraint only AUDITS running pods in dryrun; this asserts at PR time
+      # that every `image:` declared in the k8s manifests is from a reviewed source (the same
+      # allow/exempt/official rule as the constraint's Rego, read from the same policy file). Fails
+      # closed: exit 1 names an unreviewed image, exit 2 if the policy can't be parsed. Its in-cluster
+      # sibling (k8s/monitoring/image-provenance.yaml) covers chart-rendered non-running workloads.
+      - bash scripts/check-image-provenance.sh
 
   # ── 1b2. Port IaC coverage (B137) ───────────────────────────────────────────
   # SEPARATE from repo-guards because it is the only guard here that talks to a live API and needs
