@@ -17,7 +17,9 @@
 #
 #   usage: scripts/onboard-service.sh --key <k> --name "<Name>" --group <group> --zone <zone> \
 #             [--kind component|gateway|store|node] [--datahub-app] [--port-component <id>] \
-#             [--capabilities a,b] [--description "..."] [--dry-run]
+#             [--metrics] [--ingress] [--capabilities a,b] [--description "..."] [--dry-run]
+#     --metrics  the service exposes /metrics (declares the ServiceMonitor+dashboard gate applies)
+#     --ingress  the service has a user-facing host (declares the Kuma + endpoint gates apply)
 #     --zone   the LikeC4 zone the element lands in: ai | mesh | gov | edge | obs | platform
 #     --kind   the LikeC4 element kind (default: component)
 #     --dry-run  print exactly what would be written to each file, change nothing
@@ -36,6 +38,7 @@ LIKEC4_FILE="${LIKEC4_FILE:-$REPO_ROOT/docs/architecture/weyland.likec4}"
 GUARD="$(dirname "${BASH_SOURCE[0]}")/check-onboarding-completeness.sh"
 
 KEY="" NAME="" GROUP="" ZONE="" KIND="component" PORTC="" CAPS="" DESC="" DATAHUB="false" DRY="false"
+METRICS="false" INGRESS="false"
 while [ $# -gt 0 ]; do
   case "$1" in
     --key) KEY="$2"; shift 2 ;;
@@ -47,6 +50,8 @@ while [ $# -gt 0 ]; do
     --capabilities) CAPS="$2"; shift 2 ;;
     --description) DESC="$2"; shift 2 ;;
     --datahub-app) DATAHUB="true"; shift ;;
+    --metrics) METRICS="true"; shift ;;
+    --ingress) INGRESS="true"; shift ;;
     --dry-run) DRY="true"; shift ;;
     *) echo "unknown arg: $1" >&2; exit 1 ;;
   esac
@@ -65,13 +70,15 @@ case " $VALID_ZONES " in *" $ZONE "*) ;; *) echo "invalid --zone '$ZONE' (one of
 
 # The file surgery + validation runs in python (precise insertion; the bash above owns arg contracts).
 KEY="$KEY" NAME="$NAME" GROUP="$GROUP" ZONE="$ZONE" KIND="$KIND" PORTC="$PORTC" CAPS="$CAPS" \
-DESC="$DESC" DATAHUB="$DATAHUB" DRY="$DRY" REGISTRY_FILE="$REGISTRY_FILE" LIKEC4_FILE="$LIKEC4_FILE" \
+DESC="$DESC" DATAHUB="$DATAHUB" METRICS="$METRICS" INGRESS="$INGRESS" DRY="$DRY" \
+REGISTRY_FILE="$REGISTRY_FILE" LIKEC4_FILE="$LIKEC4_FILE" \
 python3 <<'PY' || exit $?
 import os, re, sys
 key=os.environ["KEY"]; name=os.environ["NAME"]; group=os.environ["GROUP"]; zone=os.environ["ZONE"]
 kind=os.environ["KIND"]; portc=os.environ["PORTC"] or key; caps=os.environ["CAPS"]
 desc=os.environ["DESC"] or f"{name} (scaffolded — wire edges + refine placement)."
 datahub=os.environ["DATAHUB"]=="true"; dry=os.environ["DRY"]=="true"
+metrics=os.environ["METRICS"]=="true"; ingress=os.environ["INGRESS"]=="true"
 reg_f=os.environ["REGISTRY_FILE"]; lk_f=os.environ["LIKEC4_FILE"]
 
 if not re.fullmatch(r'[a-z0-9]+(-[a-z0-9]+)*', key):
@@ -87,9 +94,11 @@ if re.search(r'^\s*'+re.escape(cid)+r'\s*=\s*', lk, re.M):
     print(f"LikeC4 element id '{cid}' already exists — pick a different --key", file=sys.stderr); sys.exit(1)
 
 caps_yaml="[" + ", ".join(f'"{c.strip()}"' for c in caps.split(",") if c.strip()) + "]"
-entry=('  - {key: %s, deployed: true, name: %s, group: %s, datahub_application: %s, owns: [], '
-       'capabilities: %s, likec4: %s, port_component: %s, description: "%s"}'
-       % (key, name, group, str(datahub).lower(), caps_yaml, cid, portc, desc.replace('"',"'")))
+entry=('  - {key: %s, deployed: true, metrics: %s, ingress: %s, name: %s, group: %s, '
+       'datahub_application: %s, owns: [], capabilities: %s, likec4: %s, port_component: %s, '
+       'description: "%s"}'
+       % (key, str(metrics).lower(), str(ingress).lower(), name, group, str(datahub).lower(),
+          caps_yaml, cid, portc, desc.replace('"',"'")))
 
 # LikeC4 element line, indented to the chosen zone's body (zone indent + 2).
 zm=re.search(r'^(\s*)'+re.escape(zone)+r'\s*=\s*zone\b[^\n]*\{\s*$', lk, re.M)

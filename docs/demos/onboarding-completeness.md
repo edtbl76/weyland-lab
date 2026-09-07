@@ -47,19 +47,29 @@ bash scripts/check-onboarding-completeness.sh   # (REGISTRY_FILE=fixture with a 
 A declared `likec4:` pointing at a non-existent id is drift too (exit 1, "declared likec4:<id> is not in
 the model"). `deployed: false` services (SaaS/IDE, the code-review group) are skipped, never flagged.
 
-The guard runs **three** file checks, all fail-closed (negative cases RUN as bats fixtures):
+**The full DoD §6 checklist — declare + account.** Each deployed service declares `metrics`/`ingress`;
+the guard hard-verifies the file-checkable gates and accounts the rest. VERIFY negatives RUN (bats):
 
-- **SCHEMA** — an entry with no boolean `deployed` field → exit 1 ("SCHEMA … do not declare a boolean
-  `deployed`"). This closes the guard's own footgun: a missing field would otherwise make the service
-  read as *not deployed* and silently skip the placement check.
-- **PORT** — a `deployed: true` service with no `port_component` → exit 1 ("PORT … declare no
-  `port_component`").
-- **PLACEMENT** — the LikeC4 resolution above.
+- **SCHEMA** — no boolean `deployed` → exit 1 (closes the footgun: a missing field would make the service
+  read as *not deployed* and silently skip). A deployed service that does **not** declare `metrics`/`ingress`
+  → exit 1 ("its DoD §6 gate can't be accounted") — an undeclared conditional gate is an unaccounted gate.
+- **PORT** — `deployed: true` with no `port_component` → exit 1.
+- **PLACEMENT** — no LikeC4 element / a bad `likec4:` → exit 1.
 
-The other DoD §6 surfaces are owned elsewhere and deliberately not re-checked: ServiceMonitor / dashboard
-/ alert by the live coverage guards, Kuma by the UI (not git-checkable), and arch.md §6 is a curated
-subset (only 14 of 31 ingress services live in it — the rest are documented in their own sections), so
-there is no clean predicate to guard.
+`--list` prints the **per-service DoD §6 matrix** — every gate accounted, nothing silent:
+
+```
+bash scripts/check-onboarding-completeness.sh --list
+# service              placement     port metrics                          alert                  kuma             logs / arch§6
+#   weyland-guard      weylandGuard  ok   ServiceMonitor+dash: LIVE(sm/…)  *Down: LIVE(alert-cov) n/a (no ingress) AUTO(Alloy) / curated(n/a)
+#   trino              trino         ok   ServiceMonitor+dash: LIVE(sm/…)  *Down: LIVE(alert-cov) MANUAL (Kuma UI) AUTO(Alloy) / curated(n/a)
+```
+
+The accounted gates are owned where they can actually be verified: ServiceMonitor/dashboard/`*Down` **LIVE**
+(servicemonitor-/dashboard-/alert-coverage reconcile them at runtime, new services included — a metrics
+service with no ServiceMonitor shows there as `blind`); Kuma **MANUAL** (UI-configured, not git); logs
+**AUTO** (Alloy); arch.md §6 **curated** (only 14 of 31 ingress services live in that table — the rest are
+documented in their own sections, so there is no clean predicate).
 
 **3. Fail-closed — a read that could not run never reads as clean:**
 

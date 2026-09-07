@@ -34,14 +34,15 @@ flowchart TD
     C -->|no| E1["exit 1 — name each unplaced service + the fix"]
 ```
 
-- **Three file-based checks (all fail-closed):** **SCHEMA** — every entry must declare a boolean
-  `deployed`; a missing field would silently exclude a service from the placement check (the
-  absent-reads-as-not-deployed footgun this guard family exists to kill), so it fails rather than skip.
-  **PORT** — every deployed service declares a `port_component`. **PLACEMENT** — every deployed service
-  resolves to a real LikeC4 element. The other DoD §6 surfaces are deliberately NOT re-checked here:
-  ServiceMonitor/dashboard/alert are owned by the live coverage guards, Kuma is UI-configured (not
-  git-checkable), and arch.md §6 is a curated subset with no clean predicate — re-checking any of them
-  would add fragility or noise, not coverage.
+- **The full DoD §6 checklist, declare + account.** Each deployed service DECLARES its conditional gates
+  (`metrics`, `ingress`). The guard **VERIFIES** the file-checkable gates and hard-fails on any: SCHEMA
+  (every entry declares `deployed`; every deployed service declares `metrics`+`ingress` — an *undeclared*
+  gate is an unaccounted gate, and a missing `deployed` would silently skip the service), PORT
+  (`port_component`), PLACEMENT (a real LikeC4 element). It **ACCOUNTS** the rest per service in a
+  `--list` matrix so nothing is silently skipped: ServiceMonitor/dashboard + `*Down` alert are LIVE
+  (reconciled by servicemonitor-/dashboard-/alert-coverage, new services included), Kuma is MANUAL
+  (UI-configured, not in git), logs are AUTO (Alloy), arch.md §6 is curated. This is the standing gate
+  for the DoD's "deployed service" cascade row.
 - **Declarative contract, not fuzzy guessing:** placement resolves by an explicit `likec4: <id>`
   (authoritative — for a subsumed/renamed element) else a normalized key/name match. A new service that
   matches nothing is nudged to add the element or declare the id — the onboarding step that was silently

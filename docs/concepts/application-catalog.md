@@ -51,29 +51,30 @@ DoD-checked against it, so drift is impossible by construction (the DoD's cross-
   against the registry. Every deployed Argo app must appear in the registry (component) or its `excluded:` block
   (store / plumbing) — a completeness check with no unaccounted service.
 
-## Onboarding completeness — placement in the model (B154 Phase 1a)
+## Onboarding completeness — the full DoD §6 checklist (B154)
 
-`check-app-registry.sh` proves every Argo app is *in the registry*. It does not prove a registered service is
-*placed in the architecture model* — and the DoD flags exactly that drift ("guards exist; none appear in the
-LikeC4 model"). It bit the `image-provenance` CronJob on 2026-09-07, caught only in a manual re-audit. B154 Phase
-1a closes it with a declarative contract on the registry:
+`check-app-registry.sh` proves every Argo app is *in the registry*, but onboarding a service means clearing the
+DoD's whole [§6 "deployed service" row](../definition-of-done.md) — registry+Port, Kuma monitor, `*Down` alert,
+ServiceMonitor+dashboard (if `/metrics`), logs→Loki, LikeC4 placement, arch.md §6 row — and nothing checked that
+a *newly-onboarded thing* had cleared them all. `scripts/check-onboarding-completeness.sh` (in `repo-guards`,
+fail-closed 0/1/2) is that gate, on a **declare-and-account** model:
 
-- **`deployed: true|false`** — is this a cluster-hosted workload? `true` (59) must be placed in the single LikeC4
-  model; `false` (7 — the code-review SaaS/IDE tools) is exempt.
-- **`likec4: <id>`** (optional) — the model element id, for a service whose element is subsumed or renamed
-  (e.g. `dbt` → the `dagster` element). Absent → placement resolves by a normalized key/name match (kind-agnostic:
-  component/gateway/store/node).
+Each deployed service **declares** which conditional gates apply, via registry fields:
+- **`deployed: true|false`** — a cluster-hosted workload (59 true) or not (7 — the code-review SaaS/IDE tools).
+- **`metrics: true|false`** — exposes `/metrics` → the ServiceMonitor+dashboard gate applies.
+- **`ingress: true|false`** — has a user-facing host → the Kuma + endpoint gates apply.
+- **`likec4: <id>`** (optional) — the model element id for a subsumed/renamed element (e.g. `dbt` → `dagster`);
+  absent → resolved by a normalized key/name match (kind-agnostic: component/gateway/store/node).
 
-`scripts/check-onboarding-completeness.sh` (in `repo-guards`, fail-closed 0/1/2) enforces **three** file-based
-checks: **SCHEMA** (every entry declares a boolean `deployed` — a missing field would silently skip the
-placement check), **PORT** (every deployed service declares a `port_component`), and **PLACEMENT** (every
-deployed service resolves to a real LikeC4 element). On its first run the placement check caught three
-deployed-but-unmodelled services (`weyland-agent`, `port-k8s-exporter`, `promptfoo`), now added. The other §6
-surfaces are owned by the live coverage guards (ServiceMonitor/dashboard/alert), the Kuma UI (not
-git-checkable), or have no clean predicate (arch.md §6 is a curated subset) — so they are deliberately not
-re-checked here. This is the first of the DoD §6
-onboarding surfaces to become a paved-road guard; the registry can grow `metrics`/`ingress` flags to drive the
-ServiceMonitor/Kuma checks next.
+The guard **VERIFIES** the file-checkable gates and hard-fails on any: **SCHEMA** (every entry declares
+`deployed`, and every deployed service declares `metrics`+`ingress` — an *undeclared* conditional gate is an
+unaccounted gate, and a missing `deployed` would silently skip the service), **PORT** (`port_component`), and
+**PLACEMENT** (a real LikeC4 element — on its first run this caught `weyland-agent`, `port-k8s-exporter`,
+`promptfoo`, now added). It **ACCOUNTS** the rest per service in a `--list` DoD §6 matrix so none is silently
+skipped: ServiceMonitor/dashboard and the `*Down` alert are **LIVE** (reconciled at runtime by
+servicemonitor-/dashboard-/alert-coverage, new services included — a metrics service with no ServiceMonitor
+shows up there as `blind`), Kuma is **MANUAL** (UI-configured, not in git), logs are **AUTO** (Alloy scrapes
+every pod), and arch.md §6 is a curated subset reviewed by hand. Run `--list` for the per-service matrix.
 
 **The scaffolder (Phase 1b).** `scripts/onboard-service.sh` writes both surfaces the guard checks from one
 command — a paved registry entry (`deployed: true`, an explicit `likec4:` id) plus a matching LikeC4 element in

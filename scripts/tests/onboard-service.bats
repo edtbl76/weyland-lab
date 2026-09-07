@@ -12,7 +12,7 @@ setup() {
   MODEL="$BATS_TEST_TMPDIR/model.likec4"
   cat >"$REG" <<'EOF'
 applications:
-  - {key: existing, deployed: true, name: Existing, group: platform, likec4: existing, port_component: existing}
+  - {key: existing, deployed: true, metrics: false, ingress: false, name: Existing, group: platform, likec4: existing, port_component: existing}
   # ============ CODE-REVIEW TOOLS ============
   - {key: some-saas, deployed: false, name: Some SaaS, group: code-review}
 excluded:
@@ -85,6 +85,7 @@ run_tool() { REGISTRY_FILE="$REG" LIKEC4_FILE="$MODEL" run "$TOOL" "$@"; }
   [[ "$output" == *"UNWIRED"* ]]          # honest: placed but no edges
   [[ "$output" == *"green"* ]]            # the guard verified it
   grep -q 'key: my-svc, deployed: true' "$REG"
+  grep -q 'metrics: false, ingress: false' "$REG"   # declares its conditional gates (default false)
   grep -q 'likec4: mySvc' "$REG"
   grep -q 'mySvc = component "My Svc"' "$MODEL"
 }

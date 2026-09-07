@@ -17,14 +17,23 @@
 # (kind-agnostic: component/gateway/store/node all count). A `deployed: true` service that resolves to
 # nothing is drift — the guard tells you to add the element or declare `likec4:`.
 #
-# THREE CHECKS, all file-based and fail-closed:
-#   SCHEMA    every entry declares a boolean `deployed` — a missing field would SILENTLY exclude a
-#             service from the placement check (the absent-reads-as-not-deployed footgun), so the guard
-#             fails rather than skip. (The other DoD §6 surfaces — ServiceMonitor/dashboard/alert — are
-#             owned by the live coverage guards; Kuma is UI-configured, not git-checkable; and arch.md
-#             §6 is a curated subset with no clean predicate, so none of those are re-checked here.)
-#   PORT      every deployed service declares a `port_component` (a required onboarding surface).
-#   PLACEMENT every deployed service resolves to a real LikeC4 element (above).
+# THE FULL DoD §6 CHECKLIST — declare + account. Onboarding a service means clearing EVERY §6 gate, and
+# CI can only file-check some of them. So each deployed service DECLARES which conditional gates apply
+# (`metrics`, `ingress`), the guard VERIFIES the file-checkable gates, and ACCOUNTS the rest per service
+# in a matrix (`--list`) — nothing is silently skipped.
+#   VERIFIED here (hard-fail):
+#     SCHEMA     every entry declares a boolean `deployed`; every deployed service also declares boolean
+#                `metrics` + `ingress` — an undeclared conditional gate is an UNACCOUNTED gate (fail),
+#                and a missing `deployed` would silently skip the whole service (the footgun this kills).
+#     PORT       every deployed service declares a `port_component`.
+#     PLACEMENT  every deployed service resolves to a real LikeC4 element.
+#   ACCOUNTED (surfaced in the --list matrix, owned elsewhere — verified there, not re-checked here):
+#     metrics→ServiceMonitor+dashboard  LIVE — servicemonitor-coverage + dashboard-coverage reconcile it
+#                at runtime (a new metrics service with no ServiceMonitor shows up as `blind` there).
+#     *Down alert                       LIVE — alert-coverage.
+#     ingress→Kuma monitor              MANUAL — Kuma monitors are UI-configured, not in git.
+#     logs→Loki                         AUTO — Alloy scrapes every pod's logs.
+#     arch.md §6 row                    curated subset, no clean predicate — reviewed by hand at the gate.
 #
 #   usage: scripts/check-onboarding-completeness.sh [--list]
 #          --list   print every deployed service and its resolved element, then exit 0
@@ -88,36 +97,57 @@ def resolve(app):
     hit = next((i for i in elems if k in (nid[i], nnm[i]) or n in (nid[i], nnm[i])), None)
     return hit, None
 
-# Schema completeness FIRST: every entry MUST declare a boolean `deployed`. A missing or non-bool value
-# would silently exclude a service from the placement check below (a.get("deployed") is True) — the
-# absent-field-reads-as-not-deployed footgun, which is exactly the absent-result-as-success class this
-# guard family exists to kill. A deployed service that never declared it would evade the guard entirely.
-schema_bad = [a.get("key", "<no-key>") for a in apps if "deployed" not in a or a["deployed"] not in (True, False)]
+# SCHEMA FIRST — the declaration must be COMPLETE, because the accounting below is only trustworthy if
+# every deployed service has declared which conditional gates apply. A missing `deployed` would silently
+# skip a service (the absent-reads-as-not-deployed footgun); a deployed service that never declared
+# `metrics`/`ingress` means we cannot know whether it needs a ServiceMonitor or a Kuma monitor — an
+# unaccounted gate. Both fail closed rather than pass by omission.
+schema_bad = []
+for a in apps:
+    k = a.get("key", "<no-key>")
+    if "deployed" not in a or a["deployed"] not in (True, False):
+        schema_bad.append((k, "no boolean `deployed`")); continue
+    if a["deployed"] is True:
+        for fld in ("metrics", "ingress"):
+            if fld not in a or a[fld] not in (True, False):
+                schema_bad.append((k, f"deployed but no boolean `{fld}` (its DoD §6 gate can't be accounted)"))
+
 deployed = [a for a in apps if a.get("deployed") is True]
-# Port component: a deployed service needs a Port `component` (the registry declares it) — a required
-# DoD §6 onboarding surface that is checkable right here in the registry.
 no_port = [a["key"] for a in deployed if not a.get("port_component")]
 unplaced = []
 for a in deployed:
     el, ov = resolve(a)
-    if listmode:
-        print(f"  {a['key']:28} likec4={el or 'UNPLACED':16} port={a.get('port_component') or 'MISSING'}")
-        continue
-    if el is None:
+    if el is None and not listmode:
         why = f"declared likec4:{ov} is not in the model" if ov else "no LikeC4 element matches its key or name"
         unplaced.append((a["key"], a.get("name"), why))
 
+# --list = the comprehensive per-service DoD §6 onboarding matrix. Every gate for every deployed service
+# is shown with its disposition: VERIFIED here, LIVE (owned by a named coverage guard that reconciles it
+# at runtime, incl. for new services), MANUAL (not expressible in git — a human gate), AUTO (handled by
+# platform default), or n/a. Nothing is silently skipped — that is what "onboarding-complete" means.
 if listmode:
+    print("# DoD §6 onboarding matrix — per deployed service")
+    print(f"# {'service':26} {'placement':16} {'port':4} {'metrics':30} {'alert':22} {'kuma':16} logs / arch§6")
+    for a in deployed:
+        el, _ = resolve(a)
+        m = "ServiceMonitor+dash: LIVE(sm/dash-cov)" if a.get("metrics") is True else "n/a (no /metrics)"
+        km = "MANUAL (Kuma UI)" if a.get("ingress") is True else "n/a (no ingress)"
+        print(f"  {a['key']:26} {(el or 'UNPLACED'):16} {('ok' if a.get('port_component') else 'MISS'):4} "
+              f"{m:30} {'*Down: LIVE(alert-cov)':22} {km:16} AUTO(Alloy) / curated(n/a)")
+    print("# VERIFIED-here: placement + port + declaration completeness. LIVE: servicemonitor-coverage /")
+    print("# dashboard-coverage / alert-coverage reconcile these at runtime, new services included.")
+    print("# MANUAL: Kuma monitors are UI-configured (not in git). AUTO: Alloy scrapes all pod logs to Loki.")
+    print("# arch.md §6 is a curated subset (no clean predicate) — reviewed by hand at the DoD gate.")
     sys.exit(0)
 
 problems = False
 if schema_bad:
     problems = True
-    print(f"SCHEMA — {len(schema_bad)} registry entr(y/ies) do not declare a boolean `deployed` (would silently skip the placement check):", file=sys.stderr)
-    for k in schema_bad: print(f"  - {k}", file=sys.stderr)
+    print(f"SCHEMA — {len(schema_bad)} registry declaration(s) incomplete (an unaccounted gate is a silent gap):", file=sys.stderr)
+    for k, why in schema_bad: print(f"  - {k}: {why}", file=sys.stderr)
 if no_port:
     problems = True
-    print(f"PORT — {len(no_port)} deployed service(s) declare no `port_component` (a deployed service needs a Port component):", file=sys.stderr)
+    print(f"PORT — {len(no_port)} deployed service(s) declare no `port_component`:", file=sys.stderr)
     for k in no_port: print(f"  - {k}", file=sys.stderr)
 if unplaced:
     problems = True
@@ -126,6 +156,11 @@ if unplaced:
     print("Fix: add the element to docs/architecture/weyland.likec4, or set `likec4: <id>` on the registry entry.", file=sys.stderr)
 if problems:
     sys.exit(1)
-print(f"OK — all {len(apps)} entries declare `deployed`; all {len(deployed)} deployed service(s) have a Port component and a LikeC4 placement.")
+n_metrics = sum(1 for a in deployed if a.get("metrics") is True)
+n_ingress = sum(1 for a in deployed if a.get("ingress") is True)
+print(f"OK — {len(deployed)} deployed service(s) onboarding-complete: all declare metrics/ingress, "
+      f"have a Port component + LikeC4 placement. Conditional gates accounted "
+      f"(metrics→ServiceMonitor/dashboard {n_metrics} LIVE, ingress→Kuma {n_ingress} MANUAL, alert LIVE, "
+      f"logs AUTO, arch§6 curated). Run --list for the per-service matrix.")
 sys.exit(0)
 PY
