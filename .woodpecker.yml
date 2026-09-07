@@ -90,6 +90,10 @@ steps:
       # fundamentals (id/name/version/status/domain/dataProduct/description/servers/schema/team +
       # per-property name+logicalType). Structural only — no cluster — so it runs here, not as a CronJob.
       - bash scripts/check-odcs-contracts.sh
+      # B152 — architecture guard: the guardrails/verdict.py wire contract is byte-duplicated across
+      # weyland-guard and weyland-tool-server; nothing kept them in sync (DoD Pillar 8 finding). Fails
+      # closed if they drift (exit 1) or a copy is missing (exit 2). Pure file compare, no cluster.
+      - bash scripts/check-verdict-sync.sh
 
   # ── 1b2. Port IaC coverage (B137) ───────────────────────────────────────────
   # SEPARATE from repo-guards because it is the only guard here that talks to a live API and needs

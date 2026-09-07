@@ -1,0 +1,60 @@
+# Architecture contracts for weyland-dagster (B152 — architecture test category).
+#
+# Enforced by import-linter (grimp static AST analysis — no dagster runtime needed, so this runs in
+# the slim no-dagster CI lane exactly where the boundary matters). The rule this pins is the one whose
+# violation took the dagster code server down: the pure "leaf" modules are loaded in isolation by
+# tests/conftest.py `load_isolated` WITHOUT the dagster runtime, so they MUST NOT import dagster (nor a
+# factory that does). If a leaf grows a `import dagster`, the isolated tests can no longer load it and
+# the fast lane silently loses that coverage.
+#
+# tests/test_architecture.py runs this config (expects PASS) AND a planted-violation config
+# (expects the contract to break, by name) so the rule is proven to FAIL on a real violation, not just
+# to load.
+
+[importlinter]
+root_package = weyland_pipeline
+include_external_packages = True
+
+[importlinter:contract:leaves-are-dagster-free]
+name = datasets_lib pure leaves + _collect must not import dagster (they are load_isolated'd without it)
+type = forbidden
+source_modules =
+    weyland_pipeline.assets.datasets_lib.fred_parse
+    weyland_pipeline.assets.datasets_lib.edgar_parse
+    weyland_pipeline.assets.datasets_lib.edgar_text_parse
+    weyland_pipeline.assets.datasets_lib.market_parse
+    weyland_pipeline.assets.datasets_lib.ml_targets
+    weyland_pipeline.assets.datasets_lib.mongo_encode
+    weyland_pipeline.assets.datasets_lib.parquet_read
+    weyland_pipeline.assets.datasets_lib.timeseries
+    weyland_pipeline.assets.datasets_lib.land_core
+    weyland_pipeline.assets.datasets_lib.domain_job_plan
+    weyland_pipeline.assets.datasets_lib.lakefs_repo
+    weyland_pipeline.assets._collect
+forbidden_modules =
+    dagster
+
+[importlinter:contract:leaves-do-not-import-factories]
+name = datasets_lib pure leaves must not import the dagster-bound factories (layering: leaf < factory)
+type = forbidden
+source_modules =
+    weyland_pipeline.assets.datasets_lib.fred_parse
+    weyland_pipeline.assets.datasets_lib.edgar_parse
+    weyland_pipeline.assets.datasets_lib.edgar_text_parse
+    weyland_pipeline.assets.datasets_lib.market_parse
+    weyland_pipeline.assets.datasets_lib.ml_targets
+    weyland_pipeline.assets.datasets_lib.mongo_encode
+    weyland_pipeline.assets.datasets_lib.parquet_read
+    weyland_pipeline.assets.datasets_lib.timeseries
+    weyland_pipeline.assets.datasets_lib.land_core
+    weyland_pipeline.assets.datasets_lib.domain_job_plan
+    weyland_pipeline.assets.datasets_lib.lakefs_repo
+    weyland_pipeline.assets._collect
+forbidden_modules =
+    weyland_pipeline.assets.datasets_lib.broker
+    weyland_pipeline.assets.datasets_lib.landers
+    weyland_pipeline.assets.datasets_lib.loaders
+    weyland_pipeline.assets.datasets_lib.domain_jobs
+    weyland_pipeline.assets.datasets_lib.checks
+    weyland_pipeline.assets.datasets_lib.freshness
+    weyland_pipeline.assets.datasets_lib.streaming
