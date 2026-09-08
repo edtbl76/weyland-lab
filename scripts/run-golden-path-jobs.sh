@@ -21,7 +21,11 @@ set -uo pipefail
 GP_DIR="$REPO_ROOT/golden-paths"
 NS="${GOLDEN_PATH_NS:-weyland}"
 REGISTRY="${GOLDEN_PATH_REGISTRY:-registry.weyland.lab}"
-BUILDKIT="${BUILDKIT_ADDR:-tcp://buildkitd.weyland.svc:1234}"
+# buildkitd is the Woodpecker CI builder and lives in the `woodpecker` namespace (the estate's only
+# buildkitd) — NOT `weyland`. This exerciser builds via buildctl against it, so it runs IN-CLUSTER
+# (a CI step or a pod with buildctl) or through a port-forward to buildkitd.woodpecker.svc:1234; it is
+# not runnable from a host that can't resolve the cluster-internal service.
+BUILDKIT="${BUILDKIT_ADDR:-tcp://buildkitd.woodpecker.svc:1234}"
 DRY=0; TARGETS=()
 for a in "$@"; do case "$a" in --dry-run) DRY=1 ;; *) TARGETS+=("$a") ;; esac; done
 

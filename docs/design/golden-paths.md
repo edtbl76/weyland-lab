@@ -40,6 +40,36 @@ CONTRACT, never the framework — frameworks are interchangeable implementations
 Frontend golden paths satisfy an adapted contract: `/health`+`/ready` via the framework's server (or a
 tiny sidecar route), a build that produces the static/SSR bundle, a smoke that renders the demo route.
 
+## Lifecycle flow
+
+The golden path is one artifact that flows through the whole paved road — from "start a service" to a
+gate-passing, running-on-the-platform deployment. It is also its own language's CI fixture+probe.
+
+```mermaid
+flowchart TD
+    GP["golden-paths/&lt;lang&gt;/&lt;fw&gt;/<br/>(contract: /health /ready /metrics /hello<br/>+ selfcheck + Dockerfile + .smoke)"]
+
+    GP -->|"scripts/new-service.sh &lt;path&gt; &lt;name&gt;"| SVC["real service<br/>(token rewritten, selfcheck dropped,<br/>onboarding declaration printed)"]
+    GP -->|"resolve_fixture()"| FIX["this lane's fixture+probe<br/>(replaces the retired B88 hello app)"]
+
+    subgraph CI["CI lanes (.woodpecker.yml)"]
+        direction LR
+        FIX --> T["run-lang-tests.sh<br/>fixture passes · selfcheck fails · real projects pass"]
+        FIX --> C["coverage-ratchet.sh<br/>no regression vs baseline"]
+        FIX --> S["run-lang-scan.sh<br/>eslint/tsc/clippy/… resolve + run (fail-closed)"]
+    end
+
+    GP -->|"buildkit (Dockerfile)"| IMG["registry.weyland.lab/golden-&lt;lang&gt;-&lt;fw&gt;"]
+    IMG -->|"scripts/run-golden-path-jobs.sh<br/>reads .smoke"| JOB["run-to-completion k8s Job (ns weyland)<br/>start image · curl /ready + /hello · exit 0"]
+    JOB -->|"ttlSecondsAfterFinished / delete"| GONE["torn down — proven runnable, occupies nothing"]
+
+    SVC -->|"applications.yaml · apis.yaml · weyland.likec4"| ONB["check-onboarding-completeness.sh<br/>+ check-api-lifecycle.sh pass by construction"]
+```
+
+The left path is scaffolding a real service; the right/centre is the golden path proving itself as the
+lane fixture and as a buildable, run-to-completion image on the real platform. Both start from the same
+directory and the same contract.
+
 ## Layout + hello replacement
 
 Golden paths live at `golden-paths/<language>/<framework>/`. Each is lane-discoverable (carries the
