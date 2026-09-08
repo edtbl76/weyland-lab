@@ -260,6 +260,14 @@ run_in() {
         if [ "$mode" = selfcheck ]; then (cd "$dir" && npm run --silent test:selfcheck)
         else (cd "$dir" && npm test --silent); fi
       else
+        # A `node --test` project is NOT automatically dependency-free — Fastify uses node:test yet
+        # requires the `fastify` module at load time. Install exactly as the jest branch (and
+        # scan_node) do: package.json present + node_modules absent → npm install, fail closed.
+        # Without this the test loads MODULE_NOT_FOUND in a fresh CI clone (node_modules gitignored).
+        if [ -f "$dir/package.json" ] && [ ! -d "$dir/node_modules" ]; then
+          (cd "$dir" && npm install --no-audit --no-fund --loglevel=error) || {
+            printf 'LANE BROKEN: npm install failed in %s\n' "$dir" >&2; return 2; }
+        fi
         # node --test recurses and has NO path-exclusion flag (only --test-skip-pattern, which
         # matches test NAMES). So exclusion is structural: the deliberate file is named
         # *.selfcheck.* and does not match node's default *.test.* discovery glob. A name filter
