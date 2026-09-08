@@ -107,11 +107,16 @@ deletes it. Fail-closed: a build/apply failure is exit 2, a smoke failure exit 1
 **It runs in CI, not by hand.** `.woodpecker.yml`'s `golden-path-smoke` step invokes it (in a
 `moby/buildkit` step pod that also installs `kubectl`), so the golden paths are built + smoked
 in-cluster on every pipeline run. The Jobs run in a dedicated **`golden-paths`** namespace (no istio
-injection → no sidecar blocking completion), and `k8s/golden-paths/golden-paths-rbac.yaml` grants the
-CI step-pod SA (`woodpecker:default`) Job management ONLY there — least-privilege, mirroring
-`store-scaler-rbac.yaml`. The namespace + RBAC are onboarded by the Argo app
-`k8s/argocd/applications/golden-paths.yaml`. The script is still runnable by hand from any in-cluster
-context (or where `buildkitd` is reachable) for a one-off.
+injection → no sidecar blocking completion), and `k8s/golden-paths/golden-paths-rbac.yaml` grants a
+**dedicated** SA — `golden-path-runner` (in the `woodpecker` namespace, where step pods run) — Job
+management ONLY there. The step runs as that SA via `backend_options.kubernetes.serviceAccountName`,
+which the agent honours because `WOODPECKER_BACKEND_K8S_SERVICE_ACCOUNT_NAME_ALLOW_FROM_STEP=true`
+(woodpecker-values.yaml). It is deliberately NOT the namespace `default` SA: the B95 automount
+hardening (`k8s/rbac-default-sa-noautomount.yaml`) disables automount on every `default` SA, and
+`scripts/check-sa-automount-collisions.sh` fails closed on any RoleBinding to a `default` SA. The
+namespace + RBAC + SA are onboarded by the Argo app `k8s/argocd/applications/golden-paths.yaml`. The
+script is still runnable by hand from any in-cluster context (or where `buildkitd` is reachable) for a
+one-off.
 
 ## Build checklist (21) — durable tracking
 

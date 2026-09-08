@@ -2,17 +2,34 @@
 #
 # The Woodpecker CI step (scripts/run-golden-path-jobs.sh) builds each golden path via buildkitd and
 # runs a run-to-completion k8s Job that starts the image, curls /ready + /hello, exits, and is torn
-# down. The CI step pods run as system:serviceaccount:woodpecker:default (Woodpecker's k8s backend
-# runs step pods under the default SA of WOODPECKER_BACKEND_K8S_NAMESPACE=woodpecker).
+# down. Woodpecker's k8s backend runs step pods in WOODPECKER_BACKEND_K8S_NAMESPACE=woodpecker, and by
+# default under that namespace's `default` ServiceAccount.
 #
-# This grants that SA Job management — plus pod read for `kubectl wait`/`kubectl logs` — ONLY in this
-# dedicated golden-paths namespace, nowhere else. The namespace carries no istio-injection label, so
-# the ephemeral Jobs get no sidecar and can actually reach `condition=complete`.
+# We do NOT bind the `default` SA: k8s/rbac-default-sa-noautomount.yaml disables automount on every
+# `default` SA (B95 — the lancedb-sync collision where RBAC was bound to a token-less `default`), and
+# scripts/check-sa-automount-collisions.sh fails closed on ANY (Cluster)RoleBinding to a `default` SA.
+# Instead the golden-path-smoke step runs under a DEDICATED SA (golden-path-runner, automount ON) via
+# `backend_options.kubernetes.serviceAccountName` in .woodpecker.yml — which the agent honours because
+# WOODPECKER_BACKEND_K8S_SERVICE_ACCOUNT_NAME_ALLOW_FROM_STEP=true (woodpecker-values.yaml). The SA lives
+# in the `woodpecker` namespace (that is where the step pod runs); the Role + RoleBinding live in the
+# `golden-paths` namespace so the grant is scoped to Job management there and NOWHERE else.
+#
+# The golden-paths namespace carries no istio-injection label, so the ephemeral Jobs get no sidecar and
+# can actually reach `condition=complete`.
 ---
 apiVersion: v1
 kind: Namespace
 metadata:
   name: golden-paths
+---
+# The identity the golden-path-smoke CI step pod runs as. In the `woodpecker` namespace because that is
+# where Woodpecker schedules step pods; automount ON so kubectl inside the step has a token to present.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: golden-path-runner
+  namespace: woodpecker
+automountServiceAccountToken: true
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
@@ -37,7 +54,7 @@ metadata:
   namespace: golden-paths
 subjects:
   - kind: ServiceAccount
-    name: default
+    name: golden-path-runner
     namespace: woodpecker
 roleRef:
   kind: Role

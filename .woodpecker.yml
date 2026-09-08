@@ -413,8 +413,11 @@ steps:
   # golden-paths namespace. This is the leg the unit lanes above can't cover: it proves every golden
   # path is a buildable, runnable image ON THE PLATFORM, not just a passing test. Reuses the exact
   # exerciser you run by hand (scripts/run-golden-path-jobs.sh) + the same persistent buildkitd the
-  # image pipeline uses. RBAC is least-privilege: k8s/golden-paths/golden-paths-rbac.yaml grants the
-  # step-pod SA (woodpecker:default) Job management ONLY in the golden-paths namespace.
+  # image pipeline uses. RBAC is least-privilege: k8s/golden-paths/golden-paths-rbac.yaml grants a
+  # DEDICATED SA (golden-path-runner, not `default`) Job management ONLY in the golden-paths namespace;
+  # the step runs as that SA via serviceAccountName below (allowed by the agent's
+  # WOODPECKER_BACKEND_K8S_SERVICE_ACCOUNT_NAME_ALLOW_FROM_STEP). Binding `default` is forbidden by the
+  # B95 automount hardening + check-sa-automount-collisions.sh.
   #
   # ⚠ NO `failure: ignore` — same fail-closed contract as the scan/integration lanes: the script
   # exits 2 on a build/apply failure and 1 on a smoke failure, and both must stay visible.
@@ -424,6 +427,7 @@ steps:
       BUILDKIT_ADDR: tcp://buildkitd:1234       # step runs in ns woodpecker, so the bare service name resolves
     backend_options:
       kubernetes:
+        serviceAccountName: golden-path-runner  # dedicated SA (ns woodpecker) with the golden-paths Job RBAC
         resources:
           requests:
             memory: 512Mi

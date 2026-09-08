@@ -10,6 +10,12 @@ agent:
     WOODPECKER_BACKEND_K8S_STORAGE_CLASS: local-path
     WOODPECKER_BACKEND_K8S_VOLUME_SIZE: 5G
     WOODPECKER_BACKEND_K8S_STORAGE_RWX: false        # single-node k3s → local-path is RWO; steps run sequentially
+    # B153 — let a step opt into a dedicated ServiceAccount via backend_options.kubernetes.serviceAccountName.
+    # OFF by default (privilege-escalation vector in MULTI-tenant clusters); safe here — this is a solo,
+    # single-repo build farm. The golden-path-smoke step uses it to run as `golden-path-runner` instead of
+    # the namespace `default` SA, so its Job-management RBAC (k8s/golden-paths/golden-paths-rbac.yaml) can be
+    # bound to a dedicated SA — never `default`, which the B95 automount hardening + check-sa-automount-collisions.sh forbid.
+    WOODPECKER_BACKEND_K8S_SERVICE_ACCOUNT_NAME_ALLOW_FROM_STEP: 'true'
     WOODPECKER_CONNECT_RETRY_COUNT: '3'
   persistence:
     enabled: false

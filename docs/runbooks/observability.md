@@ -145,7 +145,7 @@ exist and subtracting what does — the inverse question `check-port-iac-coverag
 
 **Why reading `intended` from the cluster is legitimate here** — and normally would not be. Asking the
 cluster what it intends is usually circular: it grades itself, which is how `argocd app rollback`
-fools you. But **Argo `selfHeal` (75 of 78 apps; the 3 without are ConfigMap-only) continuously
+fools you. But **Argo `selfHeal` (75 of 79 apps; the 4 without have no replica-bearing workload — ConfigMap-only or RBAC-only) continuously
 overwrites `.spec.replicas` from git**, so that field stops being cluster state and becomes a cached
 read of git. The mechanism that makes rollback a trap is what makes this field trustworthy. Store
 sleep is deliberately *not* delegated to an external scaler for the same reason

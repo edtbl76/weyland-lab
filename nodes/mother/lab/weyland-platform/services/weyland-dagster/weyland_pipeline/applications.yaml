@@ -9,7 +9,7 @@
 #
 # COMPLETENESS: every deployed Argo CD Application + the non-k8s services (whisper/ollama CTs) + data-mesh
 # sub-components appears here — as an `applications:` entry (a component) or `excluded:` (store/plumbing).
-# scripts/check-app-registry.sh enforces it (78 Argo apps, all accounted). As of 2026-08-22 that guard
+# scripts/check-app-registry.sh enforces it (79 Argo apps, all accounted). As of 2026-08-22 that guard
 # DOES run in CI — the `repo-guards` step in .woodpecker.yml, blocking — so "enforces" now means what it
 # says. (It previously did not, and this comment said so.)
 #
@@ -151,6 +151,7 @@ excluded:
   - {key: pr-lifecycle, kind: plumbing, reason: "B131/B135/B144 — the delivery-pipeline watchdogs. THREE CronJobs now share this Argo app: pr-staleness-check (alerts on PRs left open past their age budget), cron-freshness-check (asks the Woodpecker API whether the nightly-images cron is enabled and its next_exec fresh — a Woodpecker cron is not a k8s object, so kube-state-metrics cannot see it), and port-pr-reconcile (reaps Port githubPullRequest entities whose PR has closed; the Ocean integration fetches only OPEN PRs and never deletes, so closed ones survive forever claiming status:open and inflate two DORA scorecards). None owns lab data nor serves a capability the catalog tracks; they watch the delivery pipeline rather than being part of it. NOTE port-pr-reconcile is the only one that DESTROYS data — it issues DELETE against the live catalog, so it fails closed everywhere. Promote to applications: if any ever grows a Port component of its own."}
   - {key: woodpecker-grpc, kind: plumbing, reason: "B57b — LAN NodePort Service (gRPC :30900) so off-cluster Woodpecker agents register; not a component."}
   - {key: woodpecker-http, kind: plumbing, reason: "B57b — LAN NodePort Service (HTTP :30980) for woodpecker-cli/REST; not a component."}
+  - {key: golden-paths, kind: plumbing, reason: "B153 — Argo app syncing ONLY a Namespace + least-privilege Role/RoleBinding so the Woodpecker CI golden-path-smoke step can build each blessed template and run its run-to-completion smoke Job. No deployed workload lives here (the Jobs are created + torn down per CI run), owns no cataloged data, serves no tracked capability — CI plumbing, same class as pr-lifecycle. Promote to applications: only if it ever grows a standing component."}
   - {key: datahub, kind: plumbing, reason: "the catalog itself — self-referential"}
   - {key: datahub-prerequisites, kind: plumbing, reason: "datahub helm prereqs"}
   - {key: datahub-gms-secret, kind: plumbing, reason: "secret holder"}
