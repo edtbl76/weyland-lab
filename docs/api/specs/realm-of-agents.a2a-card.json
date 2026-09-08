@@ -1,0 +1,217 @@
+{
+  "capabilities": {
+    "pushNotifications": false,
+    "stateTransitionHistory": false,
+    "streaming": false
+  },
+  "defaultInputModes": [
+    "text/plain"
+  ],
+  "defaultOutputModes": [
+    "text/plain"
+  ],
+  "description": "24 corpus-backed agents in five groups (Valhalla, Vanaheim, Midgard, the Well) under the Operator.",
+  "name": "Realm of Agents",
+  "preferredTransport": "JSONRPC",
+  "protocolVersion": "0.3.0",
+  "provider": {
+    "organization": "weyland",
+    "url": "https://realm.weyland.lab"
+  },
+  "skills": [
+    {
+      "description": "Top boss. Takes the request, decides who handles it, runs the confirm rails.",
+      "id": "operator",
+      "name": "the Operator (Root)",
+      "tags": [
+        "root"
+      ]
+    },
+    {
+      "description": "Given a task, picks which agent should do it.",
+      "id": "gna",
+      "name": "Gn\u00e1 (Root)",
+      "tags": [
+        "root"
+      ]
+    },
+    {
+      "description": "Breaks a goal into steps, delegates, merges results, owns the outcome.",
+      "id": "odin",
+      "name": "Odin (Valhalla)",
+      "tags": [
+        "valhalla"
+      ]
+    },
+    {
+      "description": "Decides structure, interfaces, and tradeoffs before code is written.",
+      "id": "mimir",
+      "name": "M\u00edmir (Valhalla)",
+      "tags": [
+        "valhalla"
+      ]
+    },
+    {
+      "description": "Writes the actual code.",
+      "id": "brokkr",
+      "name": "Brokkr (Valhalla)",
+      "tags": [
+        "valhalla"
+      ]
+    },
+    {
+      "description": "Verifies behavior, edge cases, regressions, acceptance criteria.",
+      "id": "forseti",
+      "name": "Forseti (Valhalla)",
+      "tags": [
+        "valhalla"
+      ]
+    },
+    {
+      "description": "Deploy, environments, observability, operational flow.",
+      "id": "hermodr",
+      "name": "Herm\u00f3\u00f0r (Valhalla)",
+      "tags": [
+        "valhalla"
+      ]
+    },
+    {
+      "description": "Guards boundaries \u2014 authz/authn, data exposure, vulnerabilities.",
+      "id": "heimdall",
+      "name": "Heimdall (Valhalla)",
+      "tags": [
+        "valhalla"
+      ]
+    },
+    {
+      "description": "Reviews for correctness and architectural alignment.",
+      "id": "huginn",
+      "name": "Huginn (Valhalla)",
+      "tags": [
+        "valhalla"
+      ]
+    },
+    {
+      "description": "Consistency, simplification, conventions.",
+      "id": "muninn",
+      "name": "Muninn (Valhalla)",
+      "tags": [
+        "valhalla"
+      ]
+    },
+    {
+      "description": "Applies the consulting frameworks; synthesizes insight.",
+      "id": "kvasir",
+      "name": "Kvasir (Vanaheim)",
+      "tags": [
+        "vanaheim"
+      ]
+    },
+    {
+      "description": "Runs the delivery-lifecycle stages methodically.",
+      "id": "njordr",
+      "name": "Nj\u00f6r\u00f0r (Vanaheim)",
+      "tags": [
+        "vanaheim"
+      ]
+    },
+    {
+      "description": "Analyzes a problem through a vertical's lens.",
+      "id": "freyja",
+      "name": "Freyja (Vanaheim)",
+      "tags": [
+        "vanaheim"
+      ]
+    },
+    {
+      "description": "Writes, critiques, and generates prompts.",
+      "id": "bragi",
+      "name": "Bragi (Vanaheim)",
+      "tags": [
+        "vanaheim"
+      ]
+    },
+    {
+      "description": "What's happening right now in metrics, logs, traces. First job: the B109 dashboard audit.",
+      "id": "verdandi",
+      "name": "Ver\u00f0andi (Midgard)",
+      "tags": [
+        "midgard"
+      ]
+    },
+    {
+      "description": "Is the data true and correct? DQ contracts.",
+      "id": "vor",
+      "name": "V\u00f6r (Midgard)",
+      "tags": [
+        "midgard"
+      ]
+    },
+    {
+      "description": "Queries the data for answers.",
+      "id": "saga",
+      "name": "S\u00e1ga (Midgard)",
+      "tags": [
+        "midgard"
+      ]
+    },
+    {
+      "description": "Relationships and lineage across the estate.",
+      "id": "yggdrasil",
+      "name": "Yggdrasil (Midgard)",
+      "tags": [
+        "midgard"
+      ]
+    },
+    {
+      "description": "Keeps the catalog, descriptions, and lineage tidy.",
+      "id": "fulla",
+      "name": "Fulla (Midgard)",
+      "tags": [
+        "midgard"
+      ]
+    },
+    {
+      "description": "Scores the quality of an output.",
+      "id": "tyr",
+      "name": "Tyr (the Well)",
+      "tags": [
+        "the well"
+      ]
+    },
+    {
+      "description": "Grounded answers from the corpus (the existing weyland-agent, B70).",
+      "id": "odroerir",
+      "name": "\u00d3\u00f0r\u0153rir (the Well)",
+      "tags": [
+        "the well"
+      ]
+    },
+    {
+      "description": "Fetches and synthesizes information from the web.",
+      "id": "ratatoskr",
+      "name": "Ratatoskr (the Well)",
+      "tags": [
+        "the well"
+      ]
+    },
+    {
+      "description": "Summaries, changelogs, release notes, postmortems.",
+      "id": "snotra",
+      "name": "Snotra (the Well)",
+      "tags": [
+        "the well"
+      ]
+    },
+    {
+      "description": "PII / injection / grounding guard on inputs and outputs.",
+      "id": "syn",
+      "name": "Syn (the Well)",
+      "tags": [
+        "the well"
+      ]
+    }
+  ],
+  "url": "https://realm.weyland.lab/a2a",
+  "version": "0.3.5"
+}

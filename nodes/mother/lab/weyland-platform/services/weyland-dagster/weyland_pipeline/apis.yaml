@@ -1,0 +1,51 @@
+# ============================================================================
+# Canonical API registry — B155 API lifecycle (the ONE source of truth for API governance).
+# The lifecycle framing B12 lacked: design → published → deprecated → retired, with ownership,
+# versioning, deprecation signalling, consumer visibility, and breaking-change detection.
+#
+# Human-readable inventory (endpoints, prose): docs/api.md. THIS file is the machine-readable catalog
+# the governance runs on. Enforced by scripts/check-api-lifecycle.sh (repo-guards) + the api-drift
+# CronJob (live). Contracts captured as snapshots under docs/api/specs/, diffed by
+# scripts/lib/api_spec_diff.py (the breaking-change engine).
+#
+# SCHEMA — apis[]:
+#   id           stable API id
+#   owner        the applications.yaml service key that OWNS this API (must resolve there)
+#   kind         openapi | a2a | mcp | openai-compat | raw-http   (how its contract is expressed)
+#   status       design | published | deprecated | retired        (the lifecycle stage)
+#   version      governed semver — a BREAKING spec change requires a MAJOR bump (engine enforces)
+#   base         base URL / in-cluster endpoint
+#   consumers    who calls it (services, agents, tools) — [] if none yet
+#   spec         (openapi/a2a) path to the committed contract snapshot under docs/api/specs/
+#   spec_source  (openapi/a2a) how the api-drift cron fetches the LIVE spec to diff vs the snapshot
+#   deprecation  (status: deprecated) { retire_by: YYYY-MM-DD, successor: <api id> }
+#
+# LIFECYCLE RULES (enforced):
+#   - every API declares owner (resolving) + kind + status + version.
+#   - a published openapi/a2a API MUST carry a `spec` snapshot (its contract is captured + diffable).
+#   - deprecated ⇒ deprecation.retire_by + deprecation.successor.
+#   - retired ⇒ no consumers (nothing may still call a retired API).
+#   - a breaking change to a published API's captured spec ⇒ a MAJOR version bump (api_spec_diff.py).
+# ============================================================================
+
+apis:
+
+  # ---- HTTP service boundaries (FastAPI → OpenAPI captured) ----
+  - {id: weyland-tool-server, owner: weyland-tool-server, kind: openapi, status: published, version: "1.0", base: "http://mother:30080", spec: docs/api/specs/weyland-tool-server.openapi.json, spec_source: "http://weyland-tool-server.weyland.svc:8080/openapi.json", consumers: [weyland-operator, mcp-gateway, mcp-servers, claude-code]}
+  - {id: weyland-guard, owner: weyland-guard, kind: openapi, status: published, version: "1.0", base: "http://weyland-guard.weyland.svc:8080", spec: docs/api/specs/weyland-guard.openapi.json, spec_source: "http://weyland-guard.weyland.svc:8080/openapi.json", consumers: [weyland-tool-server, weyland-agent, weyland-operator]}
+  - {id: weyland-agent, owner: weyland-agent, kind: openapi, status: published, version: "1.0", base: "http://weyland-agent.weyland.svc:8080", spec: docs/api/specs/weyland-agent.openapi.json, spec_source: "http://weyland-agent.weyland.svc:8080/openapi.json", consumers: []}
+  - {id: weyland-operator, owner: weyland-operator, kind: openapi, status: published, version: "1.0", base: "http://weyland-operator.weyland.svc:8080", spec: docs/api/specs/weyland-operator.openapi.json, spec_source: "http://weyland-operator.weyland.svc:8080/openapi.json", consumers: []}
+  - {id: realm-of-agents-http, owner: realm-of-agents, kind: openapi, status: published, version: "1.0", base: "https://realm.weyland.lab", spec: docs/api/specs/realm-of-agents.openapi.json, spec_source: "http://realm-of-agents.weyland.svc:8080/openapi.json", consumers: [weyland-operator]}
+
+  # ---- A2A contract (agent card captured) ----
+  - {id: realm-of-agents-a2a, owner: realm-of-agents, kind: a2a, status: published, version: "1.0", base: "https://realm.weyland.lab/a2a", spec: docs/api/specs/realm-of-agents.a2a-card.json, spec_source: "http://realm-of-agents.weyland.svc:8080/.well-known/agent-card.json", consumers: [weyland-operator, a2a-inspector]}
+
+  # ---- MCP contracts (tool-schema surfaces; schema-snapshot capture is a lifecycle follow-on) ----
+  - {id: mcp-gateway, owner: mcp-gateway, kind: mcp, status: published, version: "1.0", base: "https://mcp.weyland.lab", consumers: [weyland-operator]}
+  - {id: mcp-fleet, owner: mcp-servers, kind: mcp, status: published, version: "1.0", base: "http://weyland-mcp-compositor.weyland.svc:8000/mcp", consumers: [mcp-gateway, weyland-operator]}
+  - {id: bifrost, owner: bifrost, kind: openai-compat, status: published, version: "1.0", base: "https://bifrost.weyland.lab", consumers: [litellm, realm-of-agents, claude-code]}
+
+  # ---- OpenAI-shape gateways / model serving ----
+  - {id: litellm-gateway, owner: litellm, kind: openai-compat, status: published, version: "1.0", base: "http://mother:30400/v1", consumers: [weyland-operator, realm-of-agents, weyland-tool-server]}
+  - {id: ollama, owner: ollama, kind: openai-compat, status: published, version: "1.0", base: "http://ollama.weyland.lab:11434/v1", consumers: [litellm, weyland-tool-server, weyland-agent]}
+  - {id: whisper, owner: whisper, kind: openai-compat, status: published, version: "1.0", base: "http://whisper.weyland.lab:9000/v1", consumers: []}

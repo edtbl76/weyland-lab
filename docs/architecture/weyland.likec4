@@ -156,6 +156,7 @@ model {
           kuma = component "Uptime Kuma" "25 monitors -> Telegram"
           kiali = component "Kiali" "Mesh observability UI"
           smCoverage = component "ServiceMonitor coverage" "B148 CronJob (ns monitoring, 02:45 NY, unmeshed, read-only SA). Reconciles every live ServiceMonitor across three planes - intended (.spec.replicas, trustworthy because Argo selfHeal), actual (.status.readyReplicas), observed (Prometheus scrape-pool targets). Exists because data-mesh/trino exported zero metrics for 59 days behind an unlabelled Service and no affirmative check could see it"
+          apiDrift = component "API drift" "B155 CronJob (ns monitoring, 03:20 NY, unmeshed, no RBAC - HTTP only). The runtime half of API lifecycle governance: fetches each catalogued API's LIVE spec (FastAPI /openapi.json on the .svc FQDNs + the realm A2A card) and diffs it against the committed contract snapshot (docs/api/specs/) with the breaking-change engine (api_spec_diff.py). Catches a deployed API that drifted from its governed contract - a route removed, a field dropped, a new required field - without the catalog + snapshot + version being updated. Unreachable sources are skipped (not drift); a breaking diff fails the Job. PR-time governance is check-api-lifecycle.sh over apis.yaml"
         }
 
         platform = zone "Delivery + governance" {

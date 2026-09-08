@@ -107,6 +107,11 @@ steps:
       # the surface the DoD flags as ungoverned. Fail-closed: exit 1 names an unplaced service, exit 2 if
       # the registry or model can't be read. Pure file analysis, no cluster.
       - bash scripts/check-onboarding-completeness.sh
+      # B155 — API lifecycle governance over apis.yaml: every API declares owner (resolving to a real
+      # service) + kind + status + version; a published openapi/a2a API carries a captured contract
+      # snapshot; deprecations declare retire_by+successor; a retired API has no consumers. Breaking
+      # changes are enforced live by the api-drift CronJob + scripts/lib/api_spec_diff.py. File-only.
+      - bash scripts/check-api-lifecycle.sh
 
   # ── 1b2. Port IaC coverage (B137) ───────────────────────────────────────────
   # SEPARATE from repo-guards because it is the only guard here that talks to a live API and needs

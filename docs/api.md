@@ -1,7 +1,15 @@
 # Weyland — API & Endpoint Inventory
 
-Live registry of **every API/endpoint in the lab**. Manual precursor to **B12** (aggregated
-OpenAPI portal). Keep this updated as endpoints are added/changed (see [[feedback-keep-api-hosts-updated]]).
+Live **human-readable** inventory of every API/endpoint in the lab. Keep this updated as endpoints are
+added/changed (see [[feedback-keep-api-hosts-updated]]).
+
+> **Governance lives in the machine-readable catalog** (B155, supersedes the cancelled B12): the API
+> lifecycle — owner · version · status (design→published→deprecated→retired) · consumers · captured
+> contract snapshots · breaking-change detection — is governed in
+> [`apis.yaml`](../nodes/mother/lab/weyland-platform/services/weyland-dagster/weyland_pipeline/apis.yaml)
+> by `check-api-lifecycle.sh` (PR-time) + the `api-drift` CronJob (nightly, live). Concept +
+> conventions: [concepts/api-lifecycle.md](concepts/api-lifecycle.md). This page is the endpoint
+> reference; that catalog is the source of truth for governance.
 
 Hosts & access users: [hosts.md](hosts.md). `mother` = 192.168.1.243, CTs by IP (or the new
 `*.weyland.lab` names once CoreDNS picks them up).
