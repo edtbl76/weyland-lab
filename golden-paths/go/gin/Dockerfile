@@ -1,5 +1,5 @@
 # Golden path Go / gin. Multi-stage: golang build → alpine run. buildkit → registry.weyland.lab/golden-go-gin.
-FROM golang:1.23-alpine AS build
+FROM golang:1.26-alpine AS build
 WORKDIR /app
 COPY go.mod go.sum* ./
 RUN go mod download
