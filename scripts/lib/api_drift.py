@@ -48,7 +48,9 @@ def _load_catalog(path):
 def _fetch(source, timeout=8):
     if source.startswith("http://") or source.startswith("https://"):
         req = urllib.request.Request(source, headers={"Accept": "application/json"})
-        with urllib.request.urlopen(req, timeout=timeout) as r:  # noqa: S310 (trusted in-cluster hosts)
+        # nosec B310 — `source` is a spec_source from the trusted apis.yaml catalog (in-cluster http(s)
+        # hosts the cron reaches); the file: branch below is a deliberate test seam, not user input.
+        with urllib.request.urlopen(req, timeout=timeout) as r:  # nosec B310
             return json.loads(r.read().decode())
     with open(source) as fh:  # local path — test fixture
         return json.load(fh)

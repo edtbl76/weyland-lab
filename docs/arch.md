@@ -80,6 +80,15 @@ rogueone (laptop, 192.168.1.230, RTX 5000 Ada 16 GB) — external; vLLM + dev + 
 **k8s boundary** = deployable services; the **tool-server boundary** = the stable interface between
 agents/workflows and platform state. Agents call the tool-server, *not* databases directly.
 
+**API lifecycle governance (B155).** Every API boundary above is governed across design → published →
+deprecated → retired from the machine-readable catalog [`apis.yaml`](../nodes/mother/lab/weyland-platform/services/weyland-dagster/weyland_pipeline/apis.yaml)
+(owner · kind · status · version · consumers · captured contract snapshot). `check-api-lifecycle.sh`
+(repo-guards) governs the declaration at PR time; the `api-drift` CronJob (03:20) fetches each API's live
+spec and diffs it against the committed snapshot in `docs/api/specs/` with the breaking-change engine
+(`scripts/lib/api_spec_diff.py`), catching a deployed API that drifted from its governed contract.
+Concept + versioning/deprecation policy: [concepts/api-lifecycle.md](concepts/api-lifecycle.md). This
+supersedes the cancelled B12 (a static registry without the lifecycle).
+
 ---
 
 ## 5. Networking & naming

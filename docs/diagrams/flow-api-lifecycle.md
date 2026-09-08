@@ -18,6 +18,7 @@ flowchart TB
         L1["owner resolves · kind/status/version declared"]
         L2["published openapi/a2a ⇒ a snapshot exists"]
         L3["deprecated ⇒ retire_by + successor · retired ⇒ no consumers"]
+        L4["contract LOCK current — re-lock refuses a<br/>breaking change without a MAJOR bump"]
     end
     subgraph RUN ["nightly 03:20 — api-drift CronJob"]
         D1["fetch each API's LIVE spec (spec_source)"]
@@ -25,7 +26,8 @@ flowchart TB
         D3["breaking drift ⇒ fail Job ⇒ Telegram; unreachable ⇒ skip"]
     end
 
-    CAT --> L1 --> L2 --> L3
+    CAT --> L1 --> L2 --> L3 --> L4
+    ENG --> L4
     CAT --> D1 --> D2 --> D3
     SNAP --> D2
     ENG --> D2
@@ -44,8 +46,9 @@ flowchart LR
 
 - **One catalog, two enforcement points:** the lifecycle guard governs the *declaration* at PR time; the
   drift cron governs the *deployed reality* nightly. Both read `apis.yaml`; both fail-closed.
-- **The engine is the objective arbiter of "breaking":** the same classifier runs in the cron (live vs
-  snapshot) and on-demand (a human comparing a proposed spec before bumping). It never guesses — an
-  unknown/mismatched pair is *cannot-compare*, not a silent pass.
+- **The engine is the objective arbiter of "breaking", at BOTH enforcement points:** at PR time the
+  contract lock diffs the changed snapshot against its approved baseline and refuses a breaking change
+  without a major bump (a merge gate); nightly the drift cron diffs the live spec against the snapshot.
+  It never guesses — an unknown/mismatched pair is *cannot-compare*, not a silent pass.
 - **Honest scope:** only typed contracts (OpenAPI/A2A) get snapshots + drift detection; MCP/OpenAI-shape
   APIs are catalogued (owner/version/status) but not yet snapshotted, and the guard says so.

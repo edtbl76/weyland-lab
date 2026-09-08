@@ -84,8 +84,9 @@ PY
   [[ "$output" == *"CANNOT COMPARE"* ]]
 }
 
-@test "every committed snapshot is self-consistent (parses + diffs clean against itself)" {
+@test "every committed contract snapshot is self-consistent (parses + diffs clean against itself)" {
   for f in "$SPECS"/*.json; do
+    [ "$(basename "$f")" = "contract-lock.json" ] && continue   # the lock is not a spec
     run python3 "$ENGINE" "$f" "$f"
     [ "$status" -eq 0 ]
   done

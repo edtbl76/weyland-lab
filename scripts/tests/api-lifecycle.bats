@@ -11,6 +11,8 @@ setup() {
   SPECS="$BATS_TEST_TMPDIR/specs"
   mkdir -p "$SPECS"
   printf '{}' > "$SPECS/svc.openapi.json"
+  # a contract lock matching the OK fixture's spec-backed API (id `a`, v1.0, spec {})
+  printf '{"a": {"version": "1.0", "spec": {}}}' > "$SPECS/contract-lock.json"
   cat >"$REG" <<'EOF'
 applications:
   - {key: svc, deployed: true, metrics: true, ingress: false, name: Svc, group: x, port_component: svc}

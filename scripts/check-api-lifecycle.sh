@@ -15,6 +15,9 @@
 #                is captured + diffable) — a published typed contract with no snapshot is a governance hole
 #   DEPRECATION  status: deprecated ⇒ deprecation.retire_by (a date) + deprecation.successor (an api id)
 #   RETIRED      status: retired ⇒ no consumers (nothing may still call a retired API)
+#   LOCK         the contract lock is current — each snapshot equals its approved baseline + version
+#                (docs/api/specs/contract-lock.json). Re-locking refuses a breaking change that skipped a
+#                MAJOR bump, so this is the PR-time breaking-change enforcement (complements the drift cron).
 #
 #   usage: scripts/check-api-lifecycle.sh [--list]
 #          --list   print every API + its lifecycle status, then exit 0
@@ -46,7 +49,7 @@ case "${1:-}" in
 esac
 
 APIS_FILE="$APIS_FILE" REGISTRY_FILE="$REGISTRY_FILE" SPECS_DIR="$SPECS_DIR" REPO_ROOT="$REPO_ROOT" LIST="$LIST" python3 <<'PY'
-import os, sys, yaml
+import json, os, sys, yaml
 
 apis_f, reg_f, specs_dir, listmode = (os.environ["APIS_FILE"], os.environ["REGISTRY_FILE"],
                                       os.environ["SPECS_DIR"], os.environ["LIST"] == "1")
@@ -101,6 +104,36 @@ for a in apis:
     if a.get("status") == "retired" and (a.get("consumers") or []):
         retired_bad.append(f"{i}: retired but still has consumers {a.get('consumers')}")
 
+# LOCK — the contract lock (docs/api/specs/contract-lock.json) is the PR-time breaking-change arm: it
+# records each snapshot-backed API's APPROVED baseline + version. This asserts the lock is CURRENT — the
+# snapshot equals its locked baseline and the versions agree. A drift means the contract or version
+# changed without re-locking, and re-locking (gen-api-contract-lock.sh) REFUSES a breaking change that
+# skipped a major bump — so a silent breaking change cannot pass here.
+lock_bad = []
+lock_path = os.path.join(specs_dir, "contract-lock.json")
+lock = json.load(open(lock_path)) if os.path.isfile(lock_path) else None
+for a in apis:
+    spec = a.get("spec")
+    if not spec:
+        continue
+    i = a.get("id")
+    snap_path = os.path.join(specs_dir, os.path.basename(spec))
+    if not os.path.isfile(snap_path):
+        continue  # already reported by the SPEC check
+    if lock is None:
+        lock_bad.append(f"{i}: no contract lock exists — run scripts/gen-api-contract-lock.sh")
+        continue
+    entry = lock.get(i)
+    if not entry:
+        lock_bad.append(f"{i}: not in the contract lock — run scripts/gen-api-contract-lock.sh")
+        continue
+    current = json.load(open(snap_path))
+    if json.dumps(current, sort_keys=True) != json.dumps(entry.get("spec"), sort_keys=True):
+        lock_bad.append(f"{i}: snapshot changed vs the locked baseline — re-lock (gen-api-contract-lock.sh, "
+                        "which refuses a breaking change without a major bump)")
+    elif str(entry.get("version")) != str(a.get("version")):
+        lock_bad.append(f"{i}: version '{a.get('version')}' != locked version '{entry.get('version')}' — re-lock")
+
 if listmode:
     print(f"# API lifecycle catalog — {len(apis)} API(s)")
     print(f"# {'id':26} {'owner':20} {'kind':14} {'status':10} version  spec")
@@ -116,6 +149,7 @@ for label, rows, fix in [
     ("SPEC", spec_bad, "capture the contract into docs/api/specs/ and point `spec:` at it"),
     ("DEPRECATION", dep_bad, "a deprecated API needs deprecation.retire_by + deprecation.successor"),
     ("RETIRED", retired_bad, "a retired API must have no consumers — migrate them first"),
+    ("LOCK", lock_bad, "run scripts/gen-api-contract-lock.sh after (re-)capturing a snapshot — it enforces the major-bump-on-breaking rule"),
 ]:
     if rows:
         problems = True
@@ -129,7 +163,8 @@ if problems:
 pub = sum(1 for a in apis if a.get("status") == "published")
 snap = sum(1 for a in apis if a.get("spec"))
 print(f"OK — {len(apis)} API(s) well-governed: all declare owner/kind/status/version, owners resolve, "
-      f"every published typed contract is snapshotted ({snap} snapshots), deprecations + retirements consistent. "
-      f"({pub} published) Breaking changes are enforced live by the api-drift cron + api_spec_diff.py.")
+      f"every published typed contract is snapshotted + locked ({snap} snapshots), deprecations + "
+      f"retirements consistent. ({pub} published) Breaking changes enforced at PR time by the contract "
+      f"lock (major-bump-on-breaking) + live by the api-drift cron.")
 sys.exit(0)
 PY
