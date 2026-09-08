@@ -1,0 +1,15 @@
+# Golden path — Rust / Actix-web (B153). Mature, among the fastest Rust web frameworks. Contract:
+# /health /ready /metrics /hello. `cargo test` runs the 4; `cargo test -- --ignored` runs the selfcheck.
+[package]
+name = "golden-rust-actix"
+version = "1.0.0"
+edition = "2021"
+
+[[bin]]
+name = "server"
+path = "src/main.rs"
+
+[dependencies]
+actix-web = "4"
+serde_json = "1"
+prometheus = "0.13"

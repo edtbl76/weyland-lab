@@ -1,0 +1,20 @@
+# Golden path — Rust / Axum (B153). Tokio-based, tower ecosystem, the most-adopted modern Rust web
+# framework. Contract: /health /ready /metrics /hello. `cargo test` runs the 4; `cargo test -- --ignored`
+# runs ONLY the deliberate failure (the rust lane self-check).
+[package]
+name = "golden-rust-axum"
+version = "1.0.0"
+edition = "2021"
+
+[[bin]]
+name = "server"
+path = "src/main.rs"
+
+[dependencies]
+axum = "0.7"
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "net"] }
+serde_json = "1"
+prometheus = "0.13"
+
+[dev-dependencies]
+tower = { version = "0.5", features = ["util"] }

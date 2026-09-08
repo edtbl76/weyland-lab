@@ -1,0 +1,15 @@
+# Golden path — Rust / Rocket (B153). Ergonomic, macro-driven. Contract: /health /ready /metrics /hello.
+# `cargo test` runs the 4; `cargo test -- --ignored` runs the selfcheck. Binds 8080 via ROCKET_* env.
+[package]
+name = "golden-rust-rocket"
+version = "1.0.0"
+edition = "2021"
+
+[[bin]]
+name = "server"
+path = "src/main.rs"
+
+[dependencies]
+rocket = { version = "0.5", features = ["json"] }
+prometheus = "0.13"
+serde_json = "1"
