@@ -1,0 +1,14 @@
+---
+import { greeting } from '../lib/greeting';
+const { message } = greeting();
+---
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>golden-frontend-astro</title>
+  </head>
+  <body>
+    <main><h1>{message}</h1></main>
+  </body>
+</html>

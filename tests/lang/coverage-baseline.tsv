@@ -21,3 +21,7 @@ go:golden-paths/go/fiber	91.7
 javascript:golden-paths/node/express	100
 javascript:golden-paths/node/fastify	100.00
 typescript:golden-paths/node/nestjs	78.31
+react:golden-paths/frontend/vite-react	100
+react:golden-paths/frontend/remix	100
+react:golden-paths/frontend/astro	100
+nextjs:golden-paths/frontend/nextjs	100
