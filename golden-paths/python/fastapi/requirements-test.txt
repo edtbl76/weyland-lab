@@ -1,0 +1,4 @@
+# The golden-path lane's per-project test deps (installed by run-lang-tests.sh before pytest).
+# httpx backs FastAPI's TestClient; fastapi is imported by the app under test.
+fastapi
+httpx

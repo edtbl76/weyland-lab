@@ -168,6 +168,20 @@ teardown() {
   [ "$(echo "$output" | grep -c 'fix/go')" -eq 1 ]
 }
 
+@test "a selfcheck/ subdir is never discovered as its own project (golden-path shape, B153)" {
+  # A golden path (golden-paths/<lang>/<fw>) carries a selfcheck/ companion. For python (no manifest)
+  # the selfcheck test file used to resolve to its OWN dir → a second, always-failing 'project'.
+  mkdir -p "$SANDBOX/fix/python" "$SANDBOX/scan/gp/selfcheck"
+  : > "$SANDBOX/fix/python/test_hello.py"
+  : > "$SANDBOX/scan/gp/test_gp.py"
+  : > "$SANDBOX/scan/gp/selfcheck/test_deliberate.py"
+  run env WEYLAND_LANG_FIXTURE_DIR="$SANDBOX/fix" WEYLAND_LANG_SCAN_ROOT="$SANDBOX/scan" \
+      bash "$RUNNER" python --list-roots
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"scan/gp"* ]]                                  # the golden path IS a project
+  [ "$(echo "$output" | grep -c 'selfcheck')" -eq 0 ]            # its selfcheck is NOT a separate one
+}
+
 @test "multiple real project roots are all discovered, not just the first" {
   mkdir -p "$SANDBOX/fix/go" "$SANDBOX/scan/a" "$SANDBOX/scan/b"
   printf 'module fixture\ngo 1.22\n' > "$SANDBOX/fix/go/go.mod"

@@ -144,6 +144,11 @@ is_excluded() {
   case "$1" in
     */node_modules/*|*/target/*|*/vendor/*|*/.git/*|*/.venv/*|*/site-packages/*|*/dist/*|*/build/*)
       return 0 ;;
+    # A `selfcheck/` dir is NEVER a standalone project — it is the deliberately-failing companion, run
+    # only in --self-check mode from its owning project's dir. Under the fixture tree it is already
+    # excluded (the whole tree is); this also covers golden-paths/<lang>/<fw>/selfcheck (B153).
+    */selfcheck/*)
+      return 0 ;;
   esac
   return 1
 }
