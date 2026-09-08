@@ -1,0 +1,15 @@
+{
+  "name": "golden-node-fastify",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Golden path — Node/Fastify (B153). Contract: /health /ready /metrics /hello. Tested via node:test + fastify.inject() (dependency-light: no test-runner, no supertest).",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "test:selfcheck": "node --test ./selfcheck/*.selfcheck.js"
+  },
+  "dependencies": {
+    "fastify": "^5.2.0",
+    "prom-client": "^15.1.3"
+  }
+}

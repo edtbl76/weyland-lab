@@ -194,6 +194,14 @@ tests/lang/*/coverage/
 tests/lang/*/.next/
 tests/lang/**/__pycache__/
 
+# B153 golden-path Node services — same policy as the fixtures above: NEVER commit node_modules
+# or build output; the package-lock.json IS committed (reproducible install, like the go.sum /
+# Cargo.lock the other golden paths carry). `dist/` is NestJS's tsc output; `coverage/` is jest's.
+golden-paths/node/*/node_modules/
+golden-paths/node/*/coverage/
+golden-paths/node/*/dist/
+golden-paths/node/*/.next/
+
 # BUILD OUTPUT — ignore it EVERYWHERE, not just under tests/lang/.
 # The first version of this scoped `target/` to the fixture only, and the very next `mvn` run
 # (B88's java test + scan lanes, which execute IN the repo tree) put 105 build artifacts under

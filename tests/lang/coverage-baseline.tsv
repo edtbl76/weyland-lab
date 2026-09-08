@@ -18,3 +18,6 @@ go:golden-paths/go/nethttp	86.7
 go:golden-paths/go/gin	92.3
 go:golden-paths/go/echo	86.7
 go:golden-paths/go/fiber	91.7
+javascript:golden-paths/node/express	100
+javascript:golden-paths/node/fastify	100.00
+typescript:golden-paths/node/nestjs	78.31

@@ -1,0 +1,24 @@
+{
+  "name": "golden-node-express",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Golden path — Node/Express (B153). Contract: /health /ready /metrics /hello. Tested via jest + supertest.",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "test": "jest --testPathIgnorePatterns /node_modules/ /selfcheck/",
+    "test:selfcheck": "jest selfcheck --testPathIgnorePatterns /node_modules/"
+  },
+  "jest": {
+    "testEnvironment": "node",
+    "collectCoverageFrom": ["src/**/*.js", "!src/server.js"]
+  },
+  "dependencies": {
+    "express": "^4.21.2",
+    "prom-client": "^15.1.3"
+  },
+  "devDependencies": {
+    "jest": "^29.7.0",
+    "supertest": "^7.0.0"
+  }
+}
