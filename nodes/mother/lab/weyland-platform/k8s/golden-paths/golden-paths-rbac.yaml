@@ -1,0 +1,45 @@
+# B153 golden-path ephemeral smoke Jobs — least-privilege RBAC.
+#
+# The Woodpecker CI step (scripts/run-golden-path-jobs.sh) builds each golden path via buildkitd and
+# runs a run-to-completion k8s Job that starts the image, curls /ready + /hello, exits, and is torn
+# down. The CI step pods run as system:serviceaccount:woodpecker:default (Woodpecker's k8s backend
+# runs step pods under the default SA of WOODPECKER_BACKEND_K8S_NAMESPACE=woodpecker).
+#
+# This grants that SA Job management — plus pod read for `kubectl wait`/`kubectl logs` — ONLY in this
+# dedicated golden-paths namespace, nowhere else. The namespace carries no istio-injection label, so
+# the ephemeral Jobs get no sidecar and can actually reach `condition=complete`.
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: golden-paths
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: golden-path-runner
+  namespace: golden-paths
+rules:
+  - apiGroups: ["batch"]
+    resources: ["jobs"]
+    verbs: ["create", "delete", "get", "list", "watch"]
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list"]
+  - apiGroups: [""]
+    resources: ["pods/log"]
+    verbs: ["get"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: golden-path-runner
+  namespace: golden-paths
+subjects:
+  - kind: ServiceAccount
+    name: default
+    namespace: woodpecker
+roleRef:
+  kind: Role
+  name: golden-path-runner
+  apiGroup: rbac.authorization.k8s.io

@@ -19,7 +19,9 @@
 set -uo pipefail
 . "$(dirname "$0")/lib/common.sh"
 GP_DIR="$REPO_ROOT/golden-paths"
-NS="${GOLDEN_PATH_NS:-weyland}"
+# The ephemeral Jobs run in their own namespace (k8s/golden-paths/golden-paths-rbac.yaml), where the
+# Woodpecker CI SA is granted Job management and no istio sidecar is injected — not in `weyland`.
+NS="${GOLDEN_PATH_NS:-golden-paths}"
 REGISTRY="${GOLDEN_PATH_REGISTRY:-registry.weyland.lab}"
 # buildkitd is the Woodpecker CI builder and lives in the `woodpecker` namespace (the estate's only
 # buildkitd) — NOT `weyland`. This exerciser builds via buildctl against it, so it runs IN-CLUSTER
@@ -54,9 +56,15 @@ for p in "${paths[@]}"; do
   fi
 
   echo "== $p =="
+  # Same buildctl invocation as the estate's image pipeline (scripts/ci/build-images.sh): the LAN
+  # registry is plain-HTTP, so registry.insecure=true is REQUIRED or the push fails; the registry
+  # buildcache makes re-runs warm. Diverging from these flags is exactly what left this push broken.
   buildctl --addr "$BUILDKIT" build \
     --frontend dockerfile.v0 --local context="$GP_DIR/$p" --local dockerfile="$GP_DIR/$p" \
-    --output "type=image,name=$image,push=true" || { echo "BUILD FAILED: $image" >&2; exit 2; }
+    --output "type=image,name=$image,push=true,registry.insecure=true" \
+    --export-cache "type=registry,ref=${image%:*}:buildcache,mode=max,registry.insecure=true" \
+    --import-cache "type=registry,ref=${image%:*}:buildcache,registry.insecure=true" \
+    || { echo "BUILD FAILED: $image" >&2; exit 2; }
 
   kubectl -n "$NS" delete job "$job" --ignore-not-found >/dev/null 2>&1
   kubectl -n "$NS" apply -f - >/dev/null <<EOF || { echo "APPLY FAILED: $job" >&2; exit 2; }

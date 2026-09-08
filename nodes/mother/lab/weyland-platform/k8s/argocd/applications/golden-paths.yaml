@@ -1,0 +1,19 @@
+# B153 — golden-path ephemeral smoke RBAC (dedicated namespace + least-privilege Role/RoleBinding so
+# the Woodpecker CI step can build each golden path and run its run-to-completion smoke Job). No
+# deployed workloads live here; the Jobs are created + torn down per CI run.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: golden-paths
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/edtbl76/weyland-lab.git
+    targetRevision: main
+    path: nodes/mother/lab/weyland-platform/k8s/golden-paths
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: golden-paths
+  syncPolicy:
+    automated: { selfHeal: true, prune: true }

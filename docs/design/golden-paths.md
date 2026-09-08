@@ -60,7 +60,7 @@ flowchart TD
     end
 
     GP -->|"buildkit (Dockerfile)"| IMG["registry.weyland.lab/golden-&lt;lang&gt;-&lt;fw&gt;"]
-    IMG -->|"scripts/run-golden-path-jobs.sh<br/>reads .smoke"| JOB["run-to-completion k8s Job (ns weyland)<br/>start image · curl /ready + /hello · exit 0"]
+    IMG -->|"golden-path-smoke CI step<br/>run-golden-path-jobs.sh · reads .smoke"| JOB["run-to-completion k8s Job (ns golden-paths)<br/>start image · curl /ready + /hello · exit 0"]
     JOB -->|"ttlSecondsAfterFinished / delete"| GONE["torn down — proven runnable, occupies nothing"]
 
     SVC -->|"applications.yaml · apis.yaml · weyland.likec4"| ONB["check-onboarding-completeness.sh<br/>+ check-api-lifecycle.sh pass by construction"]
@@ -98,10 +98,20 @@ tsconfig or Next. Every golden path carries the estate's eslint config + scan de
 
 ## Ephemeral-Job harness
 
-`k8s/golden-paths/` holds a Job template per golden path (or one parameterized Job). A CronJob or an
-on-demand `scripts/run-golden-path-jobs.sh` builds each image (buildkit on mother), applies the Job,
-waits for completion, asserts exit 0, and deletes it. This is the "spin up to exercise, then tear down"
-loop — it proves the built image runs on the platform without occupying it.
+`scripts/run-golden-path-jobs.sh` is the exerciser: for each golden path it builds the image against
+the estate's persistent **buildkitd** (the Woodpecker CI builder in the `woodpecker` namespace — the
+same `buildctl` invocation and `registry.insecure=true`/buildcache flags as `scripts/ci/build-images.sh`),
+applies a run-to-completion Job that starts the image, curls `/ready` + `/hello`, asserts exit 0, and
+deletes it. Fail-closed: a build/apply failure is exit 2, a smoke failure exit 1.
+
+**It runs in CI, not by hand.** `.woodpecker.yml`'s `golden-path-smoke` step invokes it (in a
+`moby/buildkit` step pod that also installs `kubectl`), so the golden paths are built + smoked
+in-cluster on every pipeline run. The Jobs run in a dedicated **`golden-paths`** namespace (no istio
+injection → no sidecar blocking completion), and `k8s/golden-paths/golden-paths-rbac.yaml` grants the
+CI step-pod SA (`woodpecker:default`) Job management ONLY there — least-privilege, mirroring
+`store-scaler-rbac.yaml`. The namespace + RBAC are onboarded by the Argo app
+`k8s/argocd/applications/golden-paths.yaml`. The script is still runnable by hand from any in-cluster
+context (or where `buildkitd` is reachable) for a one-off.
 
 ## Build checklist (21) — durable tracking
 
