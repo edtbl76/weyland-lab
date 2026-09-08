@@ -59,18 +59,24 @@ for p in "${paths[@]}"; do
   # push=true + registry.insecure=true is REQUIRED: the LAN registry is plain-HTTP, so the push fails
   # without it (same as scripts/ci/build-images.sh — that is the one flag we must NOT diverge on).
   #
-  # --no-cache, and NO registry buildcache, is a DELIBERATE divergence from the estate pipeline, for a
-  # reason specific to golden paths: "one contract, many frameworks" gives every framework in a language
-  # a BYTE-IDENTICAL Dockerfile (all 4 Go paths, all 3 Rust, all 4 Python, all 3 Java). Built back-to-back
-  # on the ONE shared buildkitd, identical Dockerfiles collide in its layer cache — the 2nd path's
-  # `COPY . . && go build` reused the 1st path's layer and compiled the WRONG source (golden-go-fiber
-  # built golden-go-echo's main.go, #92). The estate pipeline never hits this because its images have
-  # distinct Dockerfiles. These are throwaway smoke images, so a cold build per path is the right trade:
-  # correctness (each path builds ITS OWN source) over cache reuse.
+  # UNIQUE CONTEXT DIR PER BUILD + --no-cache + NO registry buildcache: a DELIBERATE divergence from the
+  # estate pipeline, for a reason specific to golden paths. "One contract, many frameworks" gives every
+  # framework in a language a BYTE-IDENTICAL Dockerfile (all 4 Go, 3 Rust, 4 Python, 3 Java) AND the same
+  # filenames (main.go/go.mod/...). Built back-to-back on the ONE shared buildkitd, buildkit's local-source
+  # INCREMENTAL context sync (keyed by a shared context identity + per-file name/size/mtime, NOT disabled
+  # by --no-cache, which only bounds the build-vertex cache) reused a same-named file from the previous
+  # path: golden-go-fiber's build compiled golden-go-echo's main.go (#92/#93). `test-go` never sees it —
+  # it is a plain checkout with no buildkit. The estate pipeline never hits it — distinct Dockerfiles.
+  # Fix: build each path from a FRESH temp copy (unique path + fresh mtimes) so buildkit sees an entirely
+  # new context and cannot reuse a prior path's files. Throwaway smoke images, so a cold build is the
+  # right trade: correctness (each path builds ITS OWN source) over cache reuse.
+  ctx="$(mktemp -d)"
+  cp -R "$GP_DIR/$p/." "$ctx/"
   buildctl --addr "$BUILDKIT" build --no-cache \
-    --frontend dockerfile.v0 --local context="$GP_DIR/$p" --local dockerfile="$GP_DIR/$p" \
+    --frontend dockerfile.v0 --local context="$ctx" --local dockerfile="$ctx" \
     --output "type=image,name=$image,push=true,registry.insecure=true" \
-    || { echo "BUILD FAILED: $image" >&2; exit 2; }
+    || { rm -rf "$ctx"; echo "BUILD FAILED: $image" >&2; exit 2; }
+  rm -rf "$ctx"
 
   kubectl -n "$NS" delete job "$job" --ignore-not-found >/dev/null 2>&1
   kubectl -n "$NS" apply -f - >/dev/null <<EOF || { echo "APPLY FAILED: $job" >&2; exit 2; }
