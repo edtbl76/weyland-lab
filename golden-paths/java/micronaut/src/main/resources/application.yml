@@ -1,0 +1,5 @@
+micronaut:
+  application:
+    name: golden-java-micronaut
+  server:
+    port: 8080

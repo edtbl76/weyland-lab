@@ -39,8 +39,13 @@ for p in "${paths[@]}"; do
   name="golden-$(printf '%s' "$p" | tr '/' '-')"      # golden-paths/python/fastapi -> golden-python-fastapi
   image="$REGISTRY/$name:latest"
   job="gp-$(printf '%s' "$p" | tr '/' '-')"
+  # Each golden path declares its ephemeral smoke command in a `.smoke` file (e.g. `python smoke.py`,
+  # `sh smoke.sh`), run via `sh -c` so it is language-agnostic. Fail closed if it is missing.
+  smoke="$(cat "$GP_DIR/$p/.smoke" 2>/dev/null || true)"
+  [ -n "$smoke" ] || { echo "no .smoke command for $p (add golden-paths/$p/.smoke)" >&2; exit 2; }
+
   if [ "$DRY" -eq 1 ]; then
-    echo "would build $image from golden-paths/$p (buildkit $BUILDKIT) and run Job $job/$NS (python smoke.py)"
+    echo "would build $image from golden-paths/$p (buildkit $BUILDKIT) and run Job $job/$NS (smoke: $smoke)"
     continue
   fi
 
@@ -65,7 +70,7 @@ spec:
       containers:
         - name: smoke
           image: $image
-          command: ["python", "smoke.py"]
+          command: ["sh", "-c", "$smoke"]
           resources: { requests: { cpu: 25m, memory: 64Mi }, limits: { memory: 256Mi } }
 EOF
 
