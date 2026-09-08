@@ -5,6 +5,5 @@
 const { createApp, SERVICE_NAME } = require('./app');
 
 createApp().listen(8080, '0.0.0.0', () => {
-  // eslint-disable-next-line no-console
   console.log(`${SERVICE_NAME} listening on :8080`);
 });

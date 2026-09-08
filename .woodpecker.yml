@@ -341,9 +341,10 @@ steps:
     volumes:
       - ci-cache-npm:/cache/npm
     commands:
-      # Four archetypes on ONE toolchain. TypeScript and JavaScript are dependency-free (node's
-      # built-in runner + native TS type-stripping, 23.6+); React and Next.js cannot be — rendering
-      # a component needs React and a DOM — so those two npm install from their committed lockfiles.
+      # Four archetypes on ONE toolchain. Each lane's fixture is now its GOLDEN PATH (B153 switch,
+      # replacing the retired B88 hello apps): javascript=node/express, typescript=node/nestjs,
+      # react=frontend/vite-react, nextjs=frontend/nextjs — all real services, so all npm install
+      # from their committed lockfiles (roadie's cache makes it a near no-op on the common path).
       - apk add --no-cache bash >/dev/null
       - bash scripts/run-lang-tests.sh typescript --self-check
       - bash scripts/run-lang-tests.sh typescript

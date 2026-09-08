@@ -27,6 +27,11 @@ set -uo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
+# resolve_fixture(): each lane's fixture is its golden path by default; the WEYLAND_LANG_FIXTURE_DIR
+# override keeps the <dir>/<lang> seam the bats guards inject through. See scripts/lib/lang-fixtures.sh.
+# shellcheck source=scripts/lib/lang-fixtures.sh
+. "$REPO_ROOT/scripts/lib/lang-fixtures.sh"
+
 # Overridable for tests. The fixture tree is ALWAYS excluded from real-project discovery so it is
 # never double-counted as production code.
 FIXTURE_DIR="${WEYLAND_LANG_FIXTURE_DIR:-$REPO_ROOT/tests/lang}"
@@ -288,18 +293,21 @@ valid languages: $LANGS"
 
   if [ "$action" = runner ]; then runner_for "$lang"; exit 0; fi
 
-  local fixture="$FIXTURE_DIR/$lang"
+  local fixture; fixture="$(resolve_fixture "$lang" "$REPO_ROOT")"
 
   # THE FIXTURE IS MANDATORY. Its absence is a broken lane, never "nothing to do" — that
   # distinction is the whole reason fixtures exist.
   [ -d "$fixture" ] || die "LANE BROKEN: no $lang fixture at $fixture
 The fixture is what proves this lane can run at all; without it a pass would mean nothing."
 
-  # Real project roots, with the fixture tree removed so it is counted once, as the fixture.
+  # Real project roots, with the fixture removed so it is counted once, as the fixture. Two exclusions:
+  # the tests/lang tree (the override seam + the shell fixture) and the resolved fixture itself — the
+  # golden path serving as this lane's fixture lives OUTSIDE tests/lang, so it needs its own skip.
   local -a real=()
   while IFS= read -r d; do
     [ -n "$d" ] || continue
     case "$d" in "$FIXTURE_DIR"|"$FIXTURE_DIR"/*) continue ;; esac
+    [ "$d" = "$fixture" ] && continue
     real+=("$d")
   done < <(discover_roots "$lang" "$SCAN_ROOT")
 

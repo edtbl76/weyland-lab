@@ -25,7 +25,8 @@
 set -uo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-FIXTURE_DIR="${WEYLAND_LANG_FIXTURE_DIR:-$REPO_ROOT/tests/lang}"
+# shellcheck source=scripts/lib/lang-fixtures.sh
+. "$REPO_ROOT/scripts/lib/lang-fixtures.sh"   # resolve_fixture(): golden path by default (B153 switch)
 
 LANGS="rust java typescript javascript react nextjs"
 
@@ -63,8 +64,12 @@ run_tool() {
   # `npx --no-install <tool>` exits non-zero with a "could not determine executable" style message
   # when the tool is absent. Left alone that reads as a FINDING (rc=1, 2 lines) — a missing scanner
   # reported as a clean scan, which is the same absence-as-success the cargo subcommands showed.
+  # npm changes this message across majors: older npm printed `npm ERR! canceled`; current npm (11)
+  # prints `npm error npx canceled due to missing packages and no YES option`. Matching only the old
+  # strings failed OPEN on the new one — a missing eslint on a golden path read as `rc=1` findings
+  # and the lane stayed green (B153). Match the stable phrase `npx canceled` too, and fail closed.
   case "$out" in
-    *"could not determine executable"*|*"not found"*|*"npm ERR! canceled"*)
+    *"could not determine executable"*|*"not found"*|*"npm ERR! canceled"*|*"npx canceled"*|*"missing packages and no YES option"*)
       printf 'LANE BROKEN: %s is not installed in %s (npx could not resolve it)\n' "$id" "$root" >&2
       return 2 ;;
   esac
@@ -85,35 +90,46 @@ roots_for() {
 
 scan_rust() {
   local root="$1"
-  run_tool clippy      "$root" cargo-clippy cargo clippy --all-targets -- -D warnings
-  run_tool rustfmt     "$root" rustfmt cargo fmt -- --check
-  run_tool cargo-audit "$root" cargo-audit cargo audit
-  run_tool cargo-deny  "$root" cargo-deny cargo deny check
+  local rc=0
+  run_tool clippy      "$root" cargo-clippy cargo clippy --all-targets -- -D warnings || rc=2
+  run_tool rustfmt     "$root" rustfmt cargo fmt -- --check || rc=2
+  run_tool cargo-audit "$root" cargo-audit cargo audit || rc=2
+  run_tool cargo-deny  "$root" cargo-deny cargo deny check || rc=2
+  return $rc
 }
 
 scan_java() {
   # All four ride Maven plugins, so they need no separate install — `mvn <plugin>:check` resolves
   # them on first run. error-prone is a compiler plugin, hence `compile` rather than a goal.
   local root="$1"
-  run_tool spotbugs    "$root" mvn mvn -q -B com.github.spotbugs:spotbugs-maven-plugin:check
-  run_tool pmd         "$root" mvn mvn -q -B org.apache.maven.plugins:maven-pmd-plugin:check
-  run_tool checkstyle  "$root" mvn mvn -q -B org.apache.maven.plugins:maven-checkstyle-plugin:check
-  run_tool error-prone "$root" mvn mvn -q -B -Derror-prone.enabled=true compile
+  local rc=0
+  run_tool spotbugs    "$root" mvn mvn -q -B com.github.spotbugs:spotbugs-maven-plugin:check || rc=2
+  run_tool pmd         "$root" mvn mvn -q -B org.apache.maven.plugins:maven-pmd-plugin:check || rc=2
+  run_tool checkstyle  "$root" mvn mvn -q -B org.apache.maven.plugins:maven-checkstyle-plugin:check || rc=2
+  run_tool error-prone "$root" mvn mvn -q -B -Derror-prone.enabled=true compile || rc=2
+  return $rc
 }
 
 scan_node() {
-  local root="$1" lang="$2"
+  local root="$1" rc=0
   [ -d "$root/node_modules" ] || (cd "$root" && npm install --no-audit --no-fund --loglevel=error) || {
     printf 'LANE BROKEN: npm install failed in %s\n' "$root" >&2; return 2; }
-  run_tool eslint          "$root" npx npx --no-install eslint .
-  run_tool npm-audit       "$root" npm npm audit --audit-level=high
-  run_tool license-checker "$root" npx npx --no-install license-checker --summary
-  case "$lang" in
-    typescript|react|nextjs) run_tool tsc "$root" npx npx --no-install tsc --noEmit ;;
-  esac
-  case "$lang" in
-    nextjs) run_tool next-lint "$root" npx npx --no-install next lint ;;
-  esac
+  run_tool eslint          "$root" npx npx --no-install eslint . || rc=2
+  run_tool npm-audit       "$root" npm npm audit --audit-level=high || rc=2
+  run_tool license-checker "$root" npx npx --no-install license-checker --summary || rc=2
+  # tsc / next lint are CAPABILITY-driven, not lane-driven: the four node lanes share one repo-wide
+  # discovery glob, so a plain-JS project (e.g. golden-paths/node/express) is discovered under the
+  # typescript/react/nextjs lanes too. Gating on the lane would demand a tsconfig + Next on an Express
+  # app; gating on what the project actually IS runs the right scanners wherever it is discovered.
+  # A Next.js project is type-checked by `next build` and linted by `next lint`, never by bare tsc
+  # (which needs next-env.d.ts + .next/types from a build); so tsc is for the non-Next TS projects.
+  if [ -f "$root/tsconfig.json" ] && ! grep -q '"next"[[:space:]]*:' "$root/package.json" 2>/dev/null; then
+    run_tool tsc "$root" npx npx --no-install tsc --noEmit || rc=2
+  fi
+  if [ -f "$root/package.json" ] && grep -q '"next"[[:space:]]*:' "$root/package.json"; then
+    run_tool next-lint "$root" npx npx --no-install next lint || rc=2
+  fi
+  return $rc
 }
 
 main() {
@@ -123,8 +139,9 @@ main() {
 valid: $LANGS" ;; esac
 
   # The fixture is scanned too, exactly as the test lanes run it — it is what proves the scanners
-  # can execute at all when a language has no production code yet (Rust today).
-  local fixture="$FIXTURE_DIR/$lang"
+  # can execute at all. It is the language's golden path (B153 switch); roots_for already excludes it
+  # from the discovered real projects (run-lang-tests owns that), so it is scanned exactly once.
+  local fixture; fixture="$(resolve_fixture "$lang" "$REPO_ROOT")"
   [ -d "$fixture" ] || die "LANE BROKEN: no $lang fixture at $fixture"
 
   local -a targets=("$fixture")
@@ -138,7 +155,7 @@ valid: $LANGS" ;; esac
     case "$lang" in
       rust) scan_rust "$d" || broken=1 ;;
       java) scan_java "$d" || broken=1 ;;
-      typescript|javascript|react|nextjs) scan_node "$d" "$lang" || broken=1 ;;
+      typescript|javascript|react|nextjs) scan_node "$d" || broken=1 ;;
     esac
   done
 

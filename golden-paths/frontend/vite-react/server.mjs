@@ -62,6 +62,5 @@ const server = createServer(async (req, res) => {
 });
 
 server.listen(8080, '0.0.0.0', () => {
-  // eslint-disable-next-line no-console
   console.log(`${SERVICE_NAME} listening on :8080`);
 });

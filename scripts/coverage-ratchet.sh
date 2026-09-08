@@ -26,6 +26,8 @@
 set -uo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+# shellcheck source=scripts/lib/lang-fixtures.sh
+. "$REPO_ROOT/scripts/lib/lang-fixtures.sh"   # resolve_fixture(): golden path by default (B153 switch)
 SCAN_ROOT="${WEYLAND_LANG_SCAN_ROOT:-$REPO_ROOT}"
 FIXTURE_DIR="${WEYLAND_LANG_FIXTURE_DIR:-$REPO_ROOT/tests/lang}"
 BASELINE_FILE="${WEYLAND_COVERAGE_BASELINE:-$REPO_ROOT/tests/lang/coverage-baseline.tsv}"
@@ -162,11 +164,13 @@ run_lang() {
   fi
   supports "$lang" || die "unknown language: '$lang'
 valid (ratcheted): python java go rust typescript javascript react nextjs   (shell: excluded by design)"
-  local -a targets=("$FIXTURE_DIR/$lang")
+  local fixture; fixture="$(resolve_fixture "$lang" "$REPO_ROOT")"
+  local -a targets=("$fixture")
   local d
   while IFS= read -r d; do
     [ -n "$d" ] || continue
     case "$d" in "$FIXTURE_DIR"|"$FIXTURE_DIR"/*) continue ;; esac
+    [ "$d" = "$fixture" ] && continue
     targets+=("$d")
   done < <(bash "$REPO_ROOT/scripts/run-lang-tests.sh" "$lang" --list-roots 2>/dev/null | sed -n 's/^project: //p')
 

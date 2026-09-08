@@ -48,6 +48,24 @@ old `tests/lang/<lang>/` hello fixture is retired (the golden path is the leaner
 artifact that is both the blessed template and the build-infra probe). The lane runners
 (`run-lang-tests.sh`, `run-lang-scan.sh`) discover golden paths by the same marker mechanism.
 
+**Fixture-switch — DONE 2026-09-08.** Each lane's fixture is now its golden path, resolved by
+`scripts/lib/lang-fixtures.sh` `resolve_fixture()` (shared by `run-lang-tests.sh`, `run-lang-scan.sh`,
+`coverage-ratchet.sh`): python→python/fastapi, java→java/spring-boot, go→go/nethttp, rust→rust/axum,
+javascript→node/express, typescript→node/nestjs, react→frontend/vite-react, nextjs→frontend/nextjs.
+`shell` has no golden path, so it keeps its hello fixture. The `WEYLAND_LANG_FIXTURE_DIR` override
+still means `<dir>/<lang>` (the seam the bats guards inject through); only the DEFAULT changed. The
+resolved fixture is excluded from real-project discovery so it is counted once. The eight B88 hello
+fixtures under `tests/lang/` are retired (shell + `coverage-baseline.tsv` remain).
+
+**Scan-lane hardening (prerequisite, DONE 2026-09-08).** Making golden paths the scan fixtures surfaced
+two fail-open bugs in `run-lang-scan.sh`, both fixed + pinned by `scripts/tests/lang-scan-guard.bats`:
+(1) `run_tool`'s "missing scanner" guard matched only old npm strings, so current npm's
+`npx canceled due to missing packages` read as a finding instead of `LANE BROKEN`; (2) `scan_node`/
+`scan_rust`/`scan_java` returned only the LAST tool's status (no `set -e`), masking an earlier missing
+scanner — now they aggregate. `scan_node`'s `tsc`/`next lint` are CAPABILITY-driven (tsconfig / a `next`
+dep) not lane-driven, so a plain-JS path discovered under the TS/React/Next lanes isn't asked for a
+tsconfig or Next. Every golden path carries the estate's eslint config + scan devDeps and scans clean.
+
 ## Ephemeral-Job harness
 
 `k8s/golden-paths/` holds a Job template per golden path (or one parameterized Job). A CronJob or an
