@@ -25,8 +25,8 @@ NS="${GOLDEN_PATH_NS:-golden-paths}"
 REGISTRY="${GOLDEN_PATH_REGISTRY:-registry.weyland.lab}"
 # buildkitd is the Woodpecker CI builder and lives in the `woodpecker` namespace (the estate's only
 # buildkitd) — NOT `weyland`. This exerciser builds via buildctl against it, so it runs IN-CLUSTER
-# (a CI step or a pod with buildctl) or through a port-forward to buildkitd.woodpecker.svc:1234; it is
-# not runnable from a host that can't resolve the cluster-internal service.
+# (the `golden-path-smoke` CI step, or any in-cluster pod with buildctl that can resolve
+# buildkitd.woodpecker.svc:1234); it is not runnable from a host that can't reach the cluster-internal service.
 BUILDKIT="${BUILDKIT_ADDR:-tcp://buildkitd.woodpecker.svc:1234}"
 DRY=0; TARGETS=()
 for a in "$@"; do case "$a" in --dry-run) DRY=1 ;; *) TARGETS+=("$a") ;; esac; done
@@ -56,14 +56,20 @@ for p in "${paths[@]}"; do
   fi
 
   echo "== $p =="
-  # Same buildctl invocation as the estate's image pipeline (scripts/ci/build-images.sh): the LAN
-  # registry is plain-HTTP, so registry.insecure=true is REQUIRED or the push fails; the registry
-  # buildcache makes re-runs warm. Diverging from these flags is exactly what left this push broken.
-  buildctl --addr "$BUILDKIT" build \
+  # push=true + registry.insecure=true is REQUIRED: the LAN registry is plain-HTTP, so the push fails
+  # without it (same as scripts/ci/build-images.sh — that is the one flag we must NOT diverge on).
+  #
+  # --no-cache, and NO registry buildcache, is a DELIBERATE divergence from the estate pipeline, for a
+  # reason specific to golden paths: "one contract, many frameworks" gives every framework in a language
+  # a BYTE-IDENTICAL Dockerfile (all 4 Go paths, all 3 Rust, all 4 Python, all 3 Java). Built back-to-back
+  # on the ONE shared buildkitd, identical Dockerfiles collide in its layer cache — the 2nd path's
+  # `COPY . . && go build` reused the 1st path's layer and compiled the WRONG source (golden-go-fiber
+  # built golden-go-echo's main.go, #92). The estate pipeline never hits this because its images have
+  # distinct Dockerfiles. These are throwaway smoke images, so a cold build per path is the right trade:
+  # correctness (each path builds ITS OWN source) over cache reuse.
+  buildctl --addr "$BUILDKIT" build --no-cache \
     --frontend dockerfile.v0 --local context="$GP_DIR/$p" --local dockerfile="$GP_DIR/$p" \
     --output "type=image,name=$image,push=true,registry.insecure=true" \
-    --export-cache "type=registry,ref=${image%:*}:buildcache,mode=max,registry.insecure=true" \
-    --import-cache "type=registry,ref=${image%:*}:buildcache,registry.insecure=true" \
     || { echo "BUILD FAILED: $image" >&2; exit 2; }
 
   kubectl -n "$NS" delete job "$job" --ignore-not-found >/dev/null 2>&1
