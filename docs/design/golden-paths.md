@@ -61,7 +61,7 @@ Legend: ☐ not started · ◐ template built · ● lane-verified · ★ Job-ve
 
 **Python** — ● FastAPI · ● Flask · ● Litestar · ● Django *(all 4 lane-verified 2026-09-07: 4 tests pass + selfcheck fails + coverage 100% baselined + smoke.py serves; the lane runs fixture + 4 projects green. FastAPI is the reference; the `.coveragerc` (omit test/smoke/selfcheck) keeps coverage on the service code. ★ pending the in-cluster Job run; hello-retirement pending the cross-language fixture-switch.)*
 **Java** — ● Spring Boot · ● Quarkus · ● Micronaut *(all 3 verified 2026-09-07 via `mvn test`: 4 contract tests pass + BUILD SUCCESS + `-Pselfcheck` fails; the java lane discovers all 3. Contract via a REST controller/resource + micrometer `/metrics`. Multi-stage Dockerfile (maven→JRE, curl for the smoke) + `smoke.sh` + `.smoke`. ★ pending the in-cluster Job run; java coverage records on the ratchet's first run.)*
-**Go** — ☐ net/http · ☐ Gin · ☐ Echo · ☐ Fiber
+**Go** — ● net/http · ● Gin · ● Echo · ● Fiber *(all 4 verified 2026-09-07 on go 1.26 + `-race`: 4 contract tests pass + coverage baselined (86.7/92.3/86.7/91.7) + the `deliberate`-tagged selfcheck fails; go lane discovers all 4. prometheus/client_golang `/metrics`; go.mod/go.sum committed; alpine runtime + `smoke.sh`. Fiber = fasthttp, tested via `app.Test`.)*
 **Rust** — ☐ Axum · ☐ Actix-web · ☐ Rocket
 **Node** — ☐ Express · ☐ Fastify · ☐ NestJS
 **Frontend** — ☐ Next.js · ☐ Remix · ☐ Vite+React · ☐ Astro

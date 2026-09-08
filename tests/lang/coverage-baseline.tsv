@@ -14,3 +14,7 @@ python:golden-paths/python/fastapi	100
 python:golden-paths/python/flask	100
 python:golden-paths/python/litestar	100
 python:golden-paths/python/django	100
+go:golden-paths/go/nethttp	86.7
+go:golden-paths/go/gin	92.3
+go:golden-paths/go/echo	86.7
+go:golden-paths/go/fiber	91.7
