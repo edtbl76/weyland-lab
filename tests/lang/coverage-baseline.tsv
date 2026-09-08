@@ -11,3 +11,6 @@ java:nodes/mother/lab/weyland-platform/k8s/flink/health-job	33.0
 java:nodes/mother/lab/weyland-platform/k8s/flink/sql-runner	33.3
 python:nodes/mother/lab/weyland-platform/services/weyland-dagster	3
 python:golden-paths/python/fastapi	100
+python:golden-paths/python/flask	100
+python:golden-paths/python/litestar	100
+python:golden-paths/python/django	100

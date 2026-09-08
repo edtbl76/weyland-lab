@@ -59,7 +59,7 @@ loop — it proves the built image runs on the platform without occupying it.
 
 Legend: ☐ not started · ◐ template built · ● lane-verified · ★ Job-verified + onboarding-decl + hello-retired
 
-**Python** — ● FastAPI *(reference — lane-verified: 4 tests pass, selfcheck fails, coverage 100% baselined, smoke.py serves; ★ pending the in-cluster Job run)* · ☐ Flask · ☐ Litestar · ☐ Django
+**Python** — ● FastAPI · ● Flask · ● Litestar · ● Django *(all 4 lane-verified 2026-09-07: 4 tests pass + selfcheck fails + coverage 100% baselined + smoke.py serves; the lane runs fixture + 4 projects green. FastAPI is the reference; the `.coveragerc` (omit test/smoke/selfcheck) keeps coverage on the service code. ★ pending the in-cluster Job run; hello-retirement pending the cross-language fixture-switch.)*
 **Java** — ☐ Spring Boot · ☐ Quarkus · ☐ Micronaut
 **Go** — ☐ net/http · ☐ Gin · ☐ Echo · ☐ Fiber
 **Rust** — ☐ Axum · ☐ Actix-web · ☐ Rocket

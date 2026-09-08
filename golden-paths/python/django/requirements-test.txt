@@ -1,0 +1,4 @@
+# per-project test deps installed by run-lang-tests.sh before pytest
+django
+gunicorn
+prometheus-client

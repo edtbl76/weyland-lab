@@ -1,0 +1,5 @@
+# per-project test deps installed by run-lang-tests.sh before pytest
+litestar
+uvicorn
+prometheus-client
+httpx

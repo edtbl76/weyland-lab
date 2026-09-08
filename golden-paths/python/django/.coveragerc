@@ -1,0 +1,6 @@
+# Coverage measures the SERVICE code (main.py) — not the test files, the ephemeral smoke, or selfcheck.
+[run]
+omit =
+    test_*.py
+    smoke.py
+    selfcheck/*
