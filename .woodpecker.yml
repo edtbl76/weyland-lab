@@ -289,7 +289,10 @@ steps:
       - bash scripts/run-lang-tests.sh shell
 
   - name: test-java
-    image: maven:3.9-eclipse-temurin-17
+    # temurin-21: the Java golden paths (B153 fixtures) target release 21 and their Dockerfiles build on
+    # this exact image; JDK 21 also compiles the real Flink modules' release-17 target fine (backward-compat)
+    # and their tests are pure JUnit (arithmetic extracted out of the operators — no MiniCluster, no JVM sensitivity).
+    image: maven:3.9-eclipse-temurin-21
     volumes:
       - ci-cache-maven:/root/.m2/repository   # B88 #6 — persist downloaded maven plugins/deps
     commands:
@@ -389,7 +392,7 @@ steps:
       - bash scripts/run-lang-scan.sh rust
 
   - name: scan-java
-    image: maven:3.9-eclipse-temurin-17
+    image: maven:3.9-eclipse-temurin-21   # match test-java: JDK 21 for the release-21 golden paths (see above)
     volumes:
       - ci-cache-maven:/root/.m2/repository   # B88 #6 — same maven cache as test-java
     commands:
