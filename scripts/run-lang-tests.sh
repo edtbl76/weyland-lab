@@ -37,7 +37,7 @@ REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 FIXTURE_DIR="${WEYLAND_LANG_FIXTURE_DIR:-$REPO_ROOT/tests/lang}"
 SCAN_ROOT="${WEYLAND_LANG_SCAN_ROOT:-$REPO_ROOT}"
 
-LANGS="python shell java go rust dotnet kotlin typescript javascript react nextjs"
+LANGS="python shell java go rust dotnet kotlin scala typescript javascript react nextjs"
 
 die() { printf '%s\n' "$*" >&2; exit 2; }
 
@@ -71,6 +71,7 @@ runner_for() {
     rust)                              echo "cargo" ;;
     dotnet)                            echo "dotnet" ;;
     kotlin)                            echo "gradle" ;;
+    scala)                             echo "sbt" ;;
     typescript|javascript|react|nextjs) echo "node" ;;
     *)                                 return 1 ;;
   esac
@@ -95,6 +96,7 @@ test_glob_for() {
     rust)                              echo "*.rs" ;;
     dotnet)                            echo "*Tests.cs" ;;
     kotlin)                            echo "*Test.kt" ;;
+    scala)                             echo "*Test.scala" ;;
     typescript|javascript|react|nextjs) echo "*.test.js *.test.ts *.test.jsx *.test.tsx" ;;
     *)                                 return 1 ;;
   esac
@@ -110,6 +112,7 @@ root_marker_for() {
     rust)                              echo "Cargo.toml" ;;
     dotnet)                            echo "*.sln" ;;   # the solution at the service root (glob — name varies); resolve_root handles it
     kotlin)                            echo "settings.gradle.kts" ;;   # marks the Gradle project root
+    scala)                             echo "build.sbt" ;;   # marks the sbt project root
     typescript|javascript|react|nextjs) echo "package.json" ;;
     python|shell)                      echo "" ;;   # resolved structurally, see resolve_root
     *)                                 return 1 ;;
@@ -264,6 +267,11 @@ run_in() {
       # `gradle test` and includes ONLY it under -Pselfcheck. Tag-based, so a rename cannot silently retire it.
       if [ "$mode" = selfcheck ]; then (cd "$dir" && gradle --no-daemon -q test -Pselfcheck)
       else (cd "$dir" && gradle --no-daemon -q test); fi ;;
+    scala)
+      # The deliberate test lives in a *Deliberate* class; build.sbt's Tests.Filter excludes it from a
+      # normal `sbt test` and includes ONLY it under -Dselfcheck=true. Fail-closed on a rename (see build.sbt).
+      if [ "$mode" = selfcheck ]; then (cd "$dir" && sbt -batch -Dselfcheck=true test)
+      else (cd "$dir" && sbt -batch test); fi ;;
     typescript|javascript|react|nextjs)
       # TWO NODE SHAPES, ONE RUNNER. A project that declares its own `test` script owns how its
       # tests run (React and Next.js need jest + a DOM, which node's built-in runner cannot

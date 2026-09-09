@@ -28,7 +28,7 @@ REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 # shellcheck source=scripts/lib/lang-fixtures.sh
 . "$REPO_ROOT/scripts/lib/lang-fixtures.sh"   # resolve_fixture(): golden path by default (B153 switch)
 
-LANGS="rust java dotnet kotlin typescript javascript react nextjs"
+LANGS="rust java dotnet kotlin scala typescript javascript react nextjs"
 
 die() { printf '%s\n' "$*" >&2; exit 2; }
 
@@ -118,6 +118,16 @@ scan_kotlin() {
   return $rc
 }
 
+scan_scala() {
+  local root="$1"
+  local rc=0
+  # scalafmt (via the sbt-scalafmt plugin, `scalafmtCheckAll`) is the standard Scala style/format gate;
+  # over the project it checks main + test. A format diff exits non-zero — an advisory FINDING; the lane
+  # fails (exit 2) only if sbt itself is missing (fail-closed).
+  run_tool scalafmt "$root" sbt sbt -batch scalafmtCheckAll || rc=2
+  return $rc
+}
+
 scan_java() {
   # All four ride Maven plugins, so they need no separate install — `mvn <plugin>:check` resolves
   # them on first run. error-prone is a compiler plugin, hence `compile` rather than a goal.
@@ -177,6 +187,7 @@ valid: $LANGS" ;; esac
       java) scan_java "$d" || broken=1 ;;
       dotnet) scan_dotnet "$d" || broken=1 ;;
       kotlin) scan_kotlin "$d" || broken=1 ;;
+      scala) scan_scala "$d" || broken=1 ;;
       typescript|javascript|react|nextjs) scan_node "$d" || broken=1 ;;
     esac
   done

@@ -355,6 +355,15 @@ steps:
       - bash scripts/run-lang-tests.sh kotlin
       # (coverage ratchet for kotlin is a fast-follow, like dotnet)
 
+  - name: test-scala
+    image: sbtscala/scala-sbt:eclipse-temurin-21.0.12_8_1.13.0_3.8.4
+    commands:
+      # No sbt/coursier cache volume yet (a cache PVC needs its own ci-caches.yaml entry + Argo sync) —
+      # sbt re-resolves deps per run. Add the cache as a fast-follow once the lane is green.
+      - bash scripts/run-lang-tests.sh scala --self-check
+      - bash scripts/run-lang-tests.sh scala
+      # (coverage ratchet for scala is a fast-follow, like dotnet/kotlin)
+
   - name: test-node
     image: node:24-alpine
     environment:
@@ -425,6 +434,11 @@ steps:
     image: gradle:8.10-jdk21
     commands:
       - bash scripts/run-lang-scan.sh kotlin
+
+  - name: scan-scala
+    image: sbtscala/scala-sbt:eclipse-temurin-21.0.12_8_1.13.0_3.8.4
+    commands:
+      - bash scripts/run-lang-scan.sh scala
 
   - name: scan-node
     image: node:24-alpine
