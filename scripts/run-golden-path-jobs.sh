@@ -18,7 +18,7 @@
 # buildkit access. Fail-closed: a build or apply failure is exit 2, never a silent pass.
 set -uo pipefail
 . "$(dirname "$0")/lib/common.sh"
-GP_DIR="$REPO_ROOT/golden-paths"
+GP_DIR="${GOLDEN_PATH_DIR:-$REPO_ROOT/golden-paths}"   # overridable so the decision logic is bats-testable
 # The ephemeral Jobs run in their own namespace (k8s/golden-paths/golden-paths-rbac.yaml), where the
 # Woodpecker CI SA is granted Job management and no istio sidecar is injected — not in `weyland`.
 NS="${GOLDEN_PATH_NS:-golden-paths}"

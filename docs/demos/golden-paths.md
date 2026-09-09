@@ -73,6 +73,24 @@ builds from a **fresh mktemp context** (identical per-language Dockerfiles were 
 incremental context sync — `golden-go-fiber` had been building `golden-go-echo`'s source); and the Java runtime
 stage copies `smoke.sh` from the context, not the build stage.
 
+## Negative case — watched failing (the exit contract is real)
+
+The exerciser is fail-closed, and it was watched failing repeatedly on the road to green — a step nobody has
+seen fail is not a gate. The contract: **2** = could not run (a build/apply couldn't complete), **1** = an image
+built but its smoke MISBEHAVED, **0** = every path served. Observed live:
+
+- **exit 2 — build failure (#94, java/micronaut):** the runtime stage copied `smoke.sh` from the build stage where
+  it never existed → `failed to compute cache key: "/app/smoke.sh": not found` → the script printed
+  `BUILD FAILED: registry.weyland.lab/golden-java-micronaut:latest` and exited **2**. The CI step went red; nothing
+  read as a pass.
+- **exit 2 — wrong source compiled (#92/#93, go/fiber):** `go build` failed on an import fiber's source never
+  had → `BUILD FAILED` → exit **2** (root-caused to buildkit context reuse; fixed with a fresh mktemp context).
+- **fail-closed decision checks (bats-proven, no cluster):** an explicit target with no Dockerfile, a path missing
+  its `.smoke`, or an empty tree each exit **2** with a named reason (`scripts/tests/run-golden-path-jobs.bats`).
+
+Because each failure is exit 2 (not 1) and the step carries **no `failure: ignore`**, a build that can't run can
+never be mistaken for a clean pass — the exact absence-as-success this whole effort removes.
+
 ## Next
 
 - **B160** — extend the suite to a second wave of languages (Angular, C#/.NET, PHP, Ruby, Elixir, Kotlin, Scala, C/C++, Clojure).

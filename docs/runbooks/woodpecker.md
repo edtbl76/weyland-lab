@@ -208,6 +208,16 @@ caches need anyway. **Apply the PVCs before the run** or step pods hang Pending.
 - Benign agent log: `could not persist agent config at /etc/woodpecker/agent.conf` (agent persistence is off;
   harmless — the agent just re-registers on restart).
 - Single-node k3s → `WOODPECKER_BACKEND_K8S_STORAGE_RWX: false` + `local-path` (RWO; steps run sequentially).
+- **A step can run under a dedicated ServiceAccount (B153):** the agent sets
+  `WOODPECKER_BACKEND_K8S_SERVICE_ACCOUNT_NAME_ALLOW_FROM_STEP: 'true'` (woodpecker-values.yaml), so a step may
+  opt into a named SA via `backend_options.kubernetes.serviceAccountName`. **OFF by default** upstream (a
+  multi-tenant privilege-escalation vector) — safe here (solo, single-repo). Used by the **`golden-path-smoke`**
+  step, which runs as **`golden-path-runner`** (a dedicated SA in ns `woodpecker`, automount on) so its Job-management
+  RBAC is bound to that SA, NOT the namespace `default` SA — which the B95 automount hardening
+  (`k8s/rbac-default-sa-noautomount.yaml`) + `scripts/check-sa-automount-collisions.sh` forbid. Without the flag the
+  agent silently IGNORES `serviceAccountName` and the step runs as `default` → its kube calls get Forbidden. RBAC +
+  SA live in `k8s/golden-paths/golden-paths-rbac.yaml` (Argo app `golden-paths`); the step itself is
+  `scripts/run-golden-path-jobs.sh` (see [demos/golden-paths.md](../demos/golden-paths.md), [design/golden-paths.md](../design/golden-paths.md)).
 
 ## Pointers
 - Values: `k8s/woodpecker/woodpecker-values.yaml` · pipeline: `.woodpecker.yml` + `.yamllint` (repo root)
