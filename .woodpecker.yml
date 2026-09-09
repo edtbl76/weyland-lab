@@ -387,6 +387,13 @@ steps:
       - bash scripts/run-lang-tests.sh elixir   # Phoenix fixture + the Plug golden path (discovered)
       # (coverage ratchet for elixir is a fast-follow, like dotnet/kotlin/scala/php/ruby)
 
+  - name: test-clojure
+    image: clojure:temurin-21-lein   # Debian-based: bash present; lein is the toolchain
+    commands:
+      - bash scripts/run-lang-tests.sh clojure --self-check
+      - bash scripts/run-lang-tests.sh clojure   # Compojure fixture + the Ring golden path (discovered)
+      # (coverage ratchet for clojure is a fast-follow, like dotnet/kotlin/scala/php/ruby/elixir)
+
   - name: test-node
     image: node:24-alpine
     environment:
@@ -479,6 +486,11 @@ steps:
     commands:
       - mix local.hex --force && mix local.rebar --force
       - bash scripts/run-lang-scan.sh elixir
+
+  - name: scan-clojure
+    image: cljkondo/clj-kondo:latest   # ships clj-kondo + bash; lints statically, no lein/dep fetch
+    commands:
+      - bash scripts/run-lang-scan.sh clojure
 
   - name: scan-node
     image: node:24-alpine

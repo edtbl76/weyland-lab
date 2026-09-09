@@ -37,7 +37,7 @@ REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 FIXTURE_DIR="${WEYLAND_LANG_FIXTURE_DIR:-$REPO_ROOT/tests/lang}"
 SCAN_ROOT="${WEYLAND_LANG_SCAN_ROOT:-$REPO_ROOT}"
 
-LANGS="python shell java go rust dotnet kotlin scala php ruby elixir typescript javascript react nextjs"
+LANGS="python shell java go rust dotnet kotlin scala php ruby elixir clojure typescript javascript react nextjs"
 
 die() { printf '%s\n' "$*" >&2; exit 2; }
 
@@ -75,6 +75,7 @@ runner_for() {
     php)                               echo "composer" ;;   # the on-PATH toolchain entry; it installs phpunit (vendor-local)
     ruby)                              echo "bundle" ;;     # the on-PATH toolchain entry; it installs rake/minitest (bundle-local)
     elixir)                            echo "mix" ;;
+    clojure)                           echo "lein" ;;
     typescript|javascript|react|nextjs) echo "node" ;;
     *)                                 return 1 ;;
   esac
@@ -103,6 +104,7 @@ test_glob_for() {
     php)                               echo "*Test.php" ;;
     ruby)                              echo "*_test.rb" ;;
     elixir)                            echo "*_test.exs" ;;
+    clojure)                           echo "*_test.clj" ;;
     typescript|javascript|react|nextjs) echo "*.test.js *.test.ts *.test.jsx *.test.tsx" ;;
     *)                                 return 1 ;;
   esac
@@ -122,6 +124,7 @@ root_marker_for() {
     php)                               echo "composer.json" ;;   # marks the composer project root
     ruby)                              echo "Gemfile" ;;         # marks the bundler project root
     elixir)                            echo "mix.exs" ;;         # marks the mix project root
+    clojure)                           echo "project.clj" ;;     # marks the Leiningen project root
     typescript|javascript|react|nextjs) echo "package.json" ;;
     python|shell)                      echo "" ;;   # resolved structurally, see resolve_root
     *)                                 return 1 ;;
@@ -322,6 +325,15 @@ run_in() {
       else
         (cd "$dir" && mix test)
       fi ;;
+    clojure)
+      # lein resolves deps into ~/.m2, NOT the repo tree, so there is no deps-leak like elixir's deps/
+      # (and compiled output under target/ is already excluded by is_excluded). The deliberate test
+      # carries ^:selfcheck; the :default test-selector (project.clj) excludes it from a normal run and
+      # `lein test :selfcheck` runs ONLY it. Fail-closed on a rename: a removed/renamed tag makes
+      # :selfcheck match zero tests -> "Ran 0 tests" -> exit 0 -> the --self-check guard reports LANE
+      # BROKEN (verified: lein test with 0 tests run exits 0).
+      if [ "$mode" = selfcheck ]; then (cd "$dir" && lein test :selfcheck)
+      else (cd "$dir" && lein test); fi ;;
     typescript|javascript|react|nextjs)
       # TWO NODE SHAPES, ONE RUNNER. A project that declares its own `test` script owns how its
       # tests run (React and Next.js need jest + a DOM, which node's built-in runner cannot

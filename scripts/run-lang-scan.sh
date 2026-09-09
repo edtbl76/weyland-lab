@@ -28,7 +28,7 @@ REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 # shellcheck source=scripts/lib/lang-fixtures.sh
 . "$REPO_ROOT/scripts/lib/lang-fixtures.sh"   # resolve_fixture(): golden path by default (B153 switch)
 
-LANGS="rust java dotnet kotlin scala php ruby elixir typescript javascript react nextjs"
+LANGS="rust java dotnet kotlin scala php ruby elixir clojure typescript javascript react nextjs"
 
 die() { printf '%s\n' "$*" >&2; exit 2; }
 
@@ -164,6 +164,16 @@ scan_elixir() {
   return $rc
 }
 
+scan_clojure() {
+  local root="$1"
+  local rc=0
+  # clj-kondo is THE Clojure linter — a standalone binary. The scan-clojure CI step runs in the
+  # cljkondo/clj-kondo image (binary present), so no install/fetch here; it lints src + test statically.
+  # Probe `clj-kondo` — absent → run_tool's PATH probe fails closed (LANE BROKEN).
+  run_tool clj-kondo "$root" clj-kondo clj-kondo --lint src test || rc=2
+  return $rc
+}
+
 scan_java() {
   # All four ride Maven plugins, so they need no separate install — `mvn <plugin>:check` resolves
   # them on first run. error-prone is a compiler plugin, hence `compile` rather than a goal.
@@ -227,6 +237,7 @@ valid: $LANGS" ;; esac
       php) scan_php "$d" || broken=1 ;;
       ruby) scan_ruby "$d" || broken=1 ;;
       elixir) scan_elixir "$d" || broken=1 ;;
+      clojure) scan_clojure "$d" || broken=1 ;;
       typescript|javascript|react|nextjs) scan_node "$d" || broken=1 ;;
     esac
   done
