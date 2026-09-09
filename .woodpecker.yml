@@ -454,7 +454,12 @@ steps:
       # buildctl ships in moby/buildkit; add bash (the script uses arrays) + kubectl (apply/wait/logs/delete).
       - apk add --no-cache bash curl >/dev/null 2>&1
       - curl -sSfL -o /usr/local/bin/kubectl "https://dl.k8s.io/release/$(curl -sSfL https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl" && chmod +x /usr/local/bin/kubectl
-      - bash scripts/run-golden-path-jobs.sh
+      # Scope by the GOLDEN_PATH_ONLY pipeline variable: unset = ALL 21 (the cron/full-regression default);
+      # set = only those path(s), so a language under development builds+smokes in seconds instead of rebuilding
+      # every path cold. Pass it on a manual trigger, e.g.:
+      #   woodpecker-cli pipeline create --branch main --var GOLDEN_PATH_ONLY=dotnet/aspnet edtbl76/weyland-lab
+      # Multiple: --var GOLDEN_PATH_ONLY='dotnet/aspnet go/echo'. Unquoted so empty → no arg → all paths.
+      - bash scripts/run-golden-path-jobs.sh $GOLDEN_PATH_ONLY
 
   # ── 1f. INTEGRATION tier (B88 gap #2) — black-box the LIVE services in-cluster ────
   # The first test tier above unit. The unit lanes above prove a module in isolation; nothing until

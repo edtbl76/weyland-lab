@@ -53,6 +53,14 @@ bash scripts/run-golden-path-jobs.sh go/echo    # one path
 bash scripts/run-golden-path-jobs.sh --dry-run  # plan only, no build/apply
 ```
 
+Scope a CI run to one language while developing — the step reads the `GOLDEN_PATH_ONLY` pipeline variable
+(unset = all 21, the cron/full-regression default; set = only those path(s), so a new language
+builds+smokes in seconds instead of rebuilding every path cold):
+
+```bash
+woodpecker-cli pipeline create --branch main --var GOLDEN_PATH_ONLY=dotnet/aspnet edtbl76/weyland-lab
+```
+
 ## Validated live — pipeline #95 (2026-09-08)
 
 `golden-path-smoke` green end-to-end. Every one of the 21 paths built via buildkitd and served in-cluster:
