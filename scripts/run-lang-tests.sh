@@ -72,7 +72,7 @@ runner_for() {
     dotnet)                            echo "dotnet" ;;
     kotlin)                            echo "gradle" ;;
     scala)                             echo "sbt" ;;
-    php)                               echo "phpunit" ;;
+    php)                               echo "composer" ;;   # the on-PATH toolchain entry; it installs phpunit (vendor-local)
     typescript|javascript|react|nextjs) echo "node" ;;
     *)                                 return 1 ;;
   esac
