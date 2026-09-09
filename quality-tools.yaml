@@ -67,6 +67,7 @@ tools:
   - {id: npm-audit,      category: sca,         languages: [typescript, javascript, react, nextjs], engine: "npm audit", install: builtin, runner: lang-scan, enabled: true, notes: "B88 — npm dep CVEs; ships with npm, no install"}
   - {id: next-lint,      category: lint,        languages: [nextjs],                    engine: "next lint",   install: npm,        runner: lang-scan,  enabled: true,  notes: "B88 — Next.js's own rule set (App Router, image/font/script correctness) that generic eslint does not carry"}
   - {id: license-checker, category: license,    languages: [typescript, javascript, react, nextjs], engine: license-checker, install: npm, runner: lang-scan, enabled: true, notes: "B88 — npm dependency licence inventory; the JS half of the licence-compliance gap"}
+  - {id: dotnet-format,  category: lint,        languages: [dotnet],                    engine: "dotnet format", install: dotnet-sdk, runner: lang-scan,  enabled: true,  notes: "B160 — .NET style + analyzer gate (dotnet format --verify-no-changes); ships with the SDK, run over the solution so it covers App + tests"}
 
   # ── B88 Phase 3 — software supply chain ──────────────────────────────────────────────────────────
   # THE FINDING: every one of these existed in this lab as KNOWLEDGE and nowhere as IMPLEMENTATION.

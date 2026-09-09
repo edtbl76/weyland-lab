@@ -103,7 +103,7 @@ scan_dotnet() {
   local rc=0
   # `dotnet format` is the standard .NET style + analyzer gate. Run in $root it uses the solution
   # (golden.sln), so it covers App + tests. --verify-no-changes exits non-zero on a diff — an advisory
-  # FINDING, not a broken lane; run_tool fails the lane (2) only if `dotnet` itself is missing.
+  # FINDING, not a broken lane; the lane fails (exit 2) only if `dotnet` itself is missing (fail-closed).
   run_tool dotnet-format "$root" dotnet dotnet format --verify-no-changes || rc=2
   return $rc
 }
