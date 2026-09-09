@@ -28,7 +28,7 @@ REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 # shellcheck source=scripts/lib/lang-fixtures.sh
 . "$REPO_ROOT/scripts/lib/lang-fixtures.sh"   # resolve_fixture(): golden path by default (B153 switch)
 
-LANGS="rust java dotnet typescript javascript react nextjs"
+LANGS="rust java dotnet kotlin typescript javascript react nextjs"
 
 die() { printf '%s\n' "$*" >&2; exit 2; }
 
@@ -108,6 +108,16 @@ scan_dotnet() {
   return $rc
 }
 
+scan_kotlin() {
+  local root="$1"
+  local rc=0
+  # ktlint (via the gradle plugin) is the standard Kotlin style/lint gate; over the project it checks main
+  # + test. ktlintCheck exits non-zero on a violation — an advisory FINDING; the lane fails (exit 2) only
+  # if gradle itself is missing (fail-closed).
+  run_tool ktlint "$root" gradle gradle --no-daemon -q ktlintCheck || rc=2
+  return $rc
+}
+
 scan_java() {
   # All four ride Maven plugins, so they need no separate install — `mvn <plugin>:check` resolves
   # them on first run. error-prone is a compiler plugin, hence `compile` rather than a goal.
@@ -166,6 +176,7 @@ valid: $LANGS" ;; esac
       rust) scan_rust "$d" || broken=1 ;;
       java) scan_java "$d" || broken=1 ;;
       dotnet) scan_dotnet "$d" || broken=1 ;;
+      kotlin) scan_kotlin "$d" || broken=1 ;;
       typescript|javascript|react|nextjs) scan_node "$d" || broken=1 ;;
     esac
   done

@@ -346,6 +346,15 @@ steps:
       - bash scripts/run-lang-tests.sh dotnet
       # (coverage ratchet for dotnet is a fast-follow — the collector wiring differs per toolchain)
 
+  - name: test-kotlin
+    image: gradle:8.10-jdk21
+    commands:
+      # No gradle cache volume yet (a cache PVC needs its own ci-caches.yaml entry + Argo sync) — gradle
+      # re-resolves deps per run. Add the cache as a fast-follow once the lane is green.
+      - bash scripts/run-lang-tests.sh kotlin --self-check
+      - bash scripts/run-lang-tests.sh kotlin
+      # (coverage ratchet for kotlin is a fast-follow, like dotnet)
+
   - name: test-node
     image: node:24-alpine
     environment:
@@ -411,6 +420,11 @@ steps:
     image: mcr.microsoft.com/dotnet/sdk:8.0
     commands:
       - bash scripts/run-lang-scan.sh dotnet
+
+  - name: scan-kotlin
+    image: gradle:8.10-jdk21
+    commands:
+      - bash scripts/run-lang-scan.sh kotlin
 
   - name: scan-node
     image: node:24-alpine
