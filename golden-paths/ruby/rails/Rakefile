@@ -1,0 +1,27 @@
+# frozen_string_literal: true
+
+# Deliberately NOT the stock Rails Rakefile (which loads app tasks): the per-language lane runs the
+# same `rake test` / `rake test:selfcheck` for every Ruby golden path (Rails and Sinatra), so both
+# expose an identical task surface.
+#
+# The deliberately-failing test lives in selfcheck/ and is OUTSIDE the `test` task's test/**/ glob, so
+# a normal run never collects it; `test:selfcheck` runs ONLY it. Directory-based (not a name filter):
+# renaming the deliberate test makes `test:selfcheck` collect zero tests → the lane's --self-check
+# sees exit 0 and fails closed, rather than silently proving nothing.
+require "rake/testtask"
+
+Rake::TestTask.new(:test) do |t|
+  t.libs << "test"
+  t.test_files = FileList["test/**/*_test.rb"]
+  t.warning = false
+end
+
+namespace :test do
+  Rake::TestTask.new(:selfcheck) do |t|
+    t.libs << "selfcheck"
+    t.test_files = FileList["selfcheck/**/*_test.rb"]
+    t.warning = false
+  end
+end
+
+task default: :test

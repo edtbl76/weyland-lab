@@ -1,0 +1,17 @@
+# Golden-path lint config. Findings are advisory (the lane reports counts, never gates), so this keeps
+# the noise floor low rather than chasing zero: the structural cops stay on, the stylistic-opinion and
+# metrics cops that a tiny template trips for no real reason are off.
+AllCops:
+  TargetRubyVersion: 3.3
+  NewCops: disable
+  SuggestExtensions: false
+  Exclude:
+    - "vendor/**/*"
+    - "bin/**/*"
+
+Style/Documentation:
+  Enabled: false
+Metrics:
+  Enabled: false
+Style/StringLiterals:
+  EnforcedStyle: double_quotes

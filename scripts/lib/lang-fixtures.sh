@@ -25,6 +25,7 @@ resolve_fixture() {
     kotlin)     printf '%s/golden-paths/kotlin/ktor\n'          "$repo" ;;
     scala)      printf '%s/golden-paths/scala/http4s\n'         "$repo" ;;
     php)        printf '%s/golden-paths/php/slim\n'             "$repo" ;;
+    ruby)       printf '%s/golden-paths/ruby/rails\n'           "$repo" ;;
     javascript) printf '%s/golden-paths/node/express\n'         "$repo" ;;
     typescript) printf '%s/golden-paths/node/nestjs\n'          "$repo" ;;
     react)      printf '%s/golden-paths/frontend/vite-react\n'  "$repo" ;;

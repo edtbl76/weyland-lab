@@ -1,0 +1,15 @@
+# Golden path — Ruby / Sinatra (B160). Contract: /health /ready /metrics /hello.
+# The idiomatic Ruby micro-framework baseline — the lean sibling of the Rails flagship.
+source "https://rubygems.org"
+
+gem "sinatra", "~> 4.1"
+gem "puma", "~> 6.4"
+gem "rackup", "~> 2.2"
+gem "json"
+
+group :test do
+  gem "rake"
+  gem "rack-test", "~> 2.1"
+  gem "minitest", "~> 5.24"
+  gem "rubocop", "~> 1.65", require: false
+end

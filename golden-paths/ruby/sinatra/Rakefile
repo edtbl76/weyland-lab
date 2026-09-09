@@ -1,0 +1,23 @@
+# frozen_string_literal: true
+
+# Identical task surface to the Rails golden path: the per-language lane runs `rake test` /
+# `rake test:selfcheck` for every Ruby golden path. The deliberately-failing test lives in selfcheck/,
+# OUTSIDE the `test` task's test/**/ glob, so a normal run never collects it and `test:selfcheck` runs
+# ONLY it — directory-based, so a rename fails closed (zero tests → the lane's --self-check sees exit 0).
+require "rake/testtask"
+
+Rake::TestTask.new(:test) do |t|
+  t.libs << "test"
+  t.test_files = FileList["test/**/*_test.rb"]
+  t.warning = false
+end
+
+namespace :test do
+  Rake::TestTask.new(:selfcheck) do |t|
+    t.libs << "selfcheck"
+    t.test_files = FileList["selfcheck/**/*_test.rb"]
+    t.warning = false
+  end
+end
+
+task default: :test

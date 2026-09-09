@@ -37,7 +37,7 @@ REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 FIXTURE_DIR="${WEYLAND_LANG_FIXTURE_DIR:-$REPO_ROOT/tests/lang}"
 SCAN_ROOT="${WEYLAND_LANG_SCAN_ROOT:-$REPO_ROOT}"
 
-LANGS="python shell java go rust dotnet kotlin scala php typescript javascript react nextjs"
+LANGS="python shell java go rust dotnet kotlin scala php ruby typescript javascript react nextjs"
 
 die() { printf '%s\n' "$*" >&2; exit 2; }
 
@@ -73,6 +73,7 @@ runner_for() {
     kotlin)                            echo "gradle" ;;
     scala)                             echo "sbt" ;;
     php)                               echo "composer" ;;   # the on-PATH toolchain entry; it installs phpunit (vendor-local)
+    ruby)                              echo "bundle" ;;     # the on-PATH toolchain entry; it installs rake/minitest (bundle-local)
     typescript|javascript|react|nextjs) echo "node" ;;
     *)                                 return 1 ;;
   esac
@@ -99,6 +100,7 @@ test_glob_for() {
     kotlin)                            echo "*Test.kt" ;;
     scala)                             echo "*Test.scala" ;;
     php)                               echo "*Test.php" ;;
+    ruby)                              echo "*_test.rb" ;;
     typescript|javascript|react|nextjs) echo "*.test.js *.test.ts *.test.jsx *.test.tsx" ;;
     *)                                 return 1 ;;
   esac
@@ -116,6 +118,7 @@ root_marker_for() {
     kotlin)                            echo "settings.gradle.kts" ;;   # marks the Gradle project root
     scala)                             echo "build.sbt" ;;   # marks the sbt project root
     php)                               echo "composer.json" ;;   # marks the composer project root
+    ruby)                              echo "Gemfile" ;;         # marks the bundler project root
     typescript|javascript|react|nextjs) echo "package.json" ;;
     python|shell)                      echo "" ;;   # resolved structurally, see resolve_root
     *)                                 return 1 ;;
@@ -282,6 +285,15 @@ run_in() {
         printf 'LANE BROKEN: composer install failed in %s\n' "$dir" >&2; return 2; }
       if [ "$mode" = selfcheck ]; then (cd "$dir" && vendor/bin/phpunit --group selfcheck)
       else (cd "$dir" && vendor/bin/phpunit --exclude-group selfcheck); fi ;;
+    ruby)
+      # bundle brings the gems (rake/minitest/rack-test); the deliberate test lives in selfcheck/ and is
+      # OUTSIDE the `test` rake task's test/**/ glob, so a normal `rake test` never collects it and
+      # `rake test:selfcheck` runs ONLY it. Directory-based → fail-closed on a rename (a renamed
+      # deliberate test makes test:selfcheck collect nothing → the --self-check guard sees exit 0).
+      (cd "$dir" && bundle install --quiet) || {
+        printf 'LANE BROKEN: bundle install failed in %s\n' "$dir" >&2; return 2; }
+      if [ "$mode" = selfcheck ]; then (cd "$dir" && bundle exec rake test:selfcheck)
+      else (cd "$dir" && bundle exec rake test); fi ;;
     typescript|javascript|react|nextjs)
       # TWO NODE SHAPES, ONE RUNNER. A project that declares its own `test` script owns how its
       # tests run (React and Next.js need jest + a DOM, which node's built-in runner cannot

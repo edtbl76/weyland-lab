@@ -372,6 +372,13 @@ steps:
       - bash scripts/run-lang-tests.sh php
       # (coverage ratchet for php is a fast-follow, like dotnet/kotlin/scala)
 
+  - name: test-ruby
+    image: ruby:3.3   # Debian-based: bash + build-essential (puma C ext) already present, no apk dance
+    commands:
+      - bash scripts/run-lang-tests.sh ruby --self-check
+      - bash scripts/run-lang-tests.sh ruby   # Rails fixture + the Sinatra golden path (discovered)
+      # (coverage ratchet for ruby is a fast-follow, like dotnet/kotlin/scala/php)
+
   - name: test-node
     image: node:24-alpine
     environment:
@@ -453,6 +460,11 @@ steps:
     commands:
       - apk add --no-cache bash >/dev/null
       - bash scripts/run-lang-scan.sh php
+
+  - name: scan-ruby
+    image: ruby:3.3
+    commands:
+      - bash scripts/run-lang-scan.sh ruby
 
   - name: scan-node
     image: node:24-alpine
