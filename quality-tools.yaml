@@ -74,6 +74,7 @@ tools:
   - {id: rubocop,        category: lint,        languages: [ruby],                      engine: rubocop,       install: bundler,       runner: lang-scan,  enabled: true,  notes: "B160 — Ruby style/lint (rubocop, a bundler test-group gem, `bundle exec rubocop`); over both Ruby golden paths (Rails + Sinatra)"}
   - {id: credo,          category: lint,        languages: [elixir],                    engine: credo,         install: mix,           runner: lang-scan,  enabled: true,  notes: "B160 — Elixir static analysis/lint (credo, a mix dev/test dep, `mix credo --strict`); over both Elixir golden paths (Phoenix + Plug)"}
   - {id: clj-kondo,      category: sast,        languages: [clojure],                   engine: clj-kondo,     install: binary,        runner: lang-scan,  enabled: true,  notes: "B160 — Clojure static analysis/lint (clj-kondo, `clj-kondo --lint src test`); the scan-clojure lane runs in the cljkondo/clj-kondo image; over both Clojure golden paths (Compojure + Ring)"}
+  - {id: cppcheck,       category: sast,        languages: [cpp, c],                    engine: cppcheck,      install: apt,           runner: lang-scan,  enabled: true,  notes: "B160 — C/C++ static analysis (cppcheck, `cppcheck --enable=warning,style src`); shared by the scan-cpp and scan-c lanes over the cpp-httplib and libmicrohttpd golden paths"}
 
   # ── B88 Phase 3 — software supply chain ──────────────────────────────────────────────────────────
   # THE FINDING: every one of these existed in this lab as KNOWLEDGE and nowhere as IMPLEMENTATION.

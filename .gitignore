@@ -221,6 +221,12 @@ golden-paths/elixir/*/deps/
 golden-paths/elixir/*/_build/
 golden-paths/elixir/*/cover/
 
+# B160 golden-path C/C++ services — CMake writes build/ (objects + the FetchContent'd cpp-httplib +
+# doctest sources under build/_deps). Reproducible from CMakeLists.txt, NEVER committed; is_excluded
+# also skips build/ at runtime so a stray one can't feed the lane bogus test projects.
+golden-paths/cpp/*/build/
+golden-paths/c/*/build/
+
 # BUILD OUTPUT — ignore it EVERYWHERE, not just under tests/lang/.
 # The first version of this scoped `target/` to the fixture only, and the very next `mvn` run
 # (B88's java test + scan lanes, which execute IN the repo tree) put 105 build artifacts under

@@ -28,7 +28,7 @@ REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 # shellcheck source=scripts/lib/lang-fixtures.sh
 . "$REPO_ROOT/scripts/lib/lang-fixtures.sh"   # resolve_fixture(): golden path by default (B153 switch)
 
-LANGS="rust java dotnet kotlin scala php ruby elixir clojure typescript javascript react nextjs"
+LANGS="rust java dotnet kotlin scala php ruby elixir clojure cpp c typescript javascript react nextjs"
 
 die() { printf '%s\n' "$*" >&2; exit 2; }
 
@@ -174,6 +174,19 @@ scan_clojure() {
   return $rc
 }
 
+scan_cpp() {
+  local root="$1"
+  local rc=0
+  # cppcheck is the C/C++ static analyzer (warning + style). It exits 0 even with findings (no
+  # --error-exitcode), so only the finding COUNT is reported; the lane fails (exit 2) only if cppcheck
+  # itself is missing (fail-closed). Lints src (the FetchContent deps under build/ are not scanned).
+  run_tool cppcheck "$root" cppcheck cppcheck --enable=warning,style --quiet src || rc=2
+  return $rc
+}
+
+# C shares the C/C++ analyzer; a separate function keeps the per-language dispatch uniform.
+scan_c() { scan_cpp "$@"; }
+
 scan_java() {
   # All four ride Maven plugins, so they need no separate install — `mvn <plugin>:check` resolves
   # them on first run. error-prone is a compiler plugin, hence `compile` rather than a goal.
@@ -238,6 +251,8 @@ valid: $LANGS" ;; esac
       ruby) scan_ruby "$d" || broken=1 ;;
       elixir) scan_elixir "$d" || broken=1 ;;
       clojure) scan_clojure "$d" || broken=1 ;;
+      cpp) scan_cpp "$d" || broken=1 ;;
+      c) scan_c "$d" || broken=1 ;;
       typescript|javascript|react|nextjs) scan_node "$d" || broken=1 ;;
     esac
   done

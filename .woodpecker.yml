@@ -394,6 +394,20 @@ steps:
       - bash scripts/run-lang-tests.sh clojure   # Compojure fixture + the Ring golden path (discovered)
       # (coverage ratchet for clojure is a fast-follow, like dotnet/kotlin/scala/php/ruby/elixir)
 
+  - name: test-cpp
+    image: gcc:14   # trixie-based; cmake + git for FetchContent (cpp-httplib + doctest)
+    commands:
+      - apt-get update && apt-get install -y --no-install-recommends cmake git >/dev/null
+      - bash scripts/run-lang-tests.sh cpp --self-check
+      - bash scripts/run-lang-tests.sh cpp
+
+  - name: test-c
+    image: gcc:14
+    commands:
+      - apt-get update && apt-get install -y --no-install-recommends cmake pkg-config libmicrohttpd-dev >/dev/null
+      - bash scripts/run-lang-tests.sh c --self-check
+      - bash scripts/run-lang-tests.sh c
+
   - name: test-node
     image: node:24-alpine
     environment:
@@ -491,6 +505,18 @@ steps:
     image: cljkondo/clj-kondo:latest   # ships clj-kondo + bash; lints statically, no lein/dep fetch
     commands:
       - bash scripts/run-lang-scan.sh clojure
+
+  - name: scan-cpp
+    image: gcc:14
+    commands:
+      - apt-get update && apt-get install -y --no-install-recommends cppcheck >/dev/null
+      - bash scripts/run-lang-scan.sh cpp
+
+  - name: scan-c
+    image: gcc:14
+    commands:
+      - apt-get update && apt-get install -y --no-install-recommends cppcheck >/dev/null
+      - bash scripts/run-lang-scan.sh c
 
   - name: scan-node
     image: node:24-alpine

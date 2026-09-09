@@ -28,6 +28,8 @@ resolve_fixture() {
     ruby)       printf '%s/golden-paths/ruby/rails\n'           "$repo" ;;
     elixir)     printf '%s/golden-paths/elixir/phoenix\n'       "$repo" ;;
     clojure)    printf '%s/golden-paths/clojure/compojure\n'    "$repo" ;;
+    cpp)        printf '%s/golden-paths/cpp/httplib\n'          "$repo" ;;
+    c)          printf '%s/golden-paths/c/libmicrohttpd\n'      "$repo" ;;
     javascript) printf '%s/golden-paths/node/express\n'         "$repo" ;;
     typescript) printf '%s/golden-paths/node/nestjs\n'          "$repo" ;;
     react)      printf '%s/golden-paths/frontend/vite-react\n'  "$repo" ;;

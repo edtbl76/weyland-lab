@@ -37,7 +37,7 @@ REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 FIXTURE_DIR="${WEYLAND_LANG_FIXTURE_DIR:-$REPO_ROOT/tests/lang}"
 SCAN_ROOT="${WEYLAND_LANG_SCAN_ROOT:-$REPO_ROOT}"
 
-LANGS="python shell java go rust dotnet kotlin scala php ruby elixir clojure typescript javascript react nextjs"
+LANGS="python shell java go rust dotnet kotlin scala php ruby elixir clojure cpp c typescript javascript react nextjs"
 
 die() { printf '%s\n' "$*" >&2; exit 2; }
 
@@ -76,6 +76,7 @@ runner_for() {
     ruby)                              echo "bundle" ;;     # the on-PATH toolchain entry; it installs rake/minitest (bundle-local)
     elixir)                            echo "mix" ;;
     clojure)                           echo "lein" ;;
+    cpp|c)                             echo "cmake" ;;
     typescript|javascript|react|nextjs) echo "node" ;;
     *)                                 return 1 ;;
   esac
@@ -105,6 +106,8 @@ test_glob_for() {
     ruby)                              echo "*_test.rb" ;;
     elixir)                            echo "*_test.exs" ;;
     clojure)                           echo "*_test.clj" ;;
+    cpp)                               echo "*_test.cpp" ;;
+    c)                                 echo "*_test.c" ;;
     typescript|javascript|react|nextjs) echo "*.test.js *.test.ts *.test.jsx *.test.tsx" ;;
     *)                                 return 1 ;;
   esac
@@ -125,6 +128,7 @@ root_marker_for() {
     ruby)                              echo "Gemfile" ;;         # marks the bundler project root
     elixir)                            echo "mix.exs" ;;         # marks the mix project root
     clojure)                           echo "project.clj" ;;     # marks the Leiningen project root
+    cpp|c)                             echo "CMakeLists.txt" ;;  # marks the CMake project root
     typescript|javascript|react|nextjs) echo "package.json" ;;
     python|shell)                      echo "" ;;   # resolved structurally, see resolve_root
     *)                                 return 1 ;;
@@ -334,6 +338,23 @@ run_in() {
       # BROKEN (verified: lein test with 0 tests run exits 0).
       if [ "$mode" = selfcheck ]; then (cd "$dir" && lein test :selfcheck)
       else (cd "$dir" && lein test); fi ;;
+    cpp)
+      # cmake configure + build the doctest binary (FetchContent pulls cpp-httplib + doctest into
+      # build/_deps, which is_excluded skips via */build/*). The deliberate test lives in the doctest
+      # "selfcheck" suite; normal excludes it, selfcheck runs ONLY it. Fail-closed on a rename: a removed
+      # suite makes --test-suite=selfcheck match zero cases -> doctest exits 0 -> the guard reports LANE BROKEN.
+      (cd "$dir" && cmake -S . -B build -DCMAKE_BUILD_TYPE=Release >/dev/null 2>&1 && cmake --build build --target unit_tests >/dev/null) || {
+        printf 'LANE BROKEN: cmake build failed in %s\n' "$dir" >&2; return 2; }
+      if [ "$mode" = selfcheck ]; then (cd "$dir" && ./build/unit_tests --test-suite=selfcheck)
+      else (cd "$dir" && ./build/unit_tests --test-suite-exclude=selfcheck); fi ;;
+    c)
+      # cmake configure + build the assert-harness test binary. The `--selfcheck` arg triggers the
+      # deliberate failure; fail-closed on a rename: without that branch, --selfcheck falls through to
+      # the passing checks (exit 0) -> the guard reports LANE BROKEN.
+      (cd "$dir" && cmake -S . -B build >/dev/null 2>&1 && cmake --build build --target unit_tests >/dev/null) || {
+        printf 'LANE BROKEN: cmake build failed in %s\n' "$dir" >&2; return 2; }
+      if [ "$mode" = selfcheck ]; then (cd "$dir" && ./build/unit_tests --selfcheck)
+      else (cd "$dir" && ./build/unit_tests); fi ;;
     typescript|javascript|react|nextjs)
       # TWO NODE SHAPES, ONE RUNNER. A project that declares its own `test` script owns how its
       # tests run (React and Next.js need jest + a DOM, which node's built-in runner cannot
