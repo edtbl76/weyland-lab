@@ -337,6 +337,15 @@ steps:
       - cargo install cargo-llvm-cov --quiet 2>/dev/null || true
       - bash scripts/coverage-ratchet.sh run rust
 
+  - name: test-dotnet
+    image: mcr.microsoft.com/dotnet/sdk:8.0
+    commands:
+      # No NuGet cache volume yet (a cache PVC needs its own ci-caches.yaml entry + Argo sync) — dotnet
+      # restores per run. Add the cache as a fast-follow once the lane is green.
+      - bash scripts/run-lang-tests.sh dotnet --self-check
+      - bash scripts/run-lang-tests.sh dotnet
+      # (coverage ratchet for dotnet is a fast-follow — the collector wiring differs per toolchain)
+
   - name: test-node
     image: node:24-alpine
     environment:
@@ -397,6 +406,11 @@ steps:
       - ci-cache-maven:/root/.m2/repository   # B88 #6 — same maven cache as test-java
     commands:
       - bash scripts/run-lang-scan.sh java
+
+  - name: scan-dotnet
+    image: mcr.microsoft.com/dotnet/sdk:8.0
+    commands:
+      - bash scripts/run-lang-scan.sh dotnet
 
   - name: scan-node
     image: node:24-alpine

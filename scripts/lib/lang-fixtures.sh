@@ -21,6 +21,7 @@ resolve_fixture() {
     java)       printf '%s/golden-paths/java/spring-boot\n'     "$repo" ;;
     go)         printf '%s/golden-paths/go/nethttp\n'           "$repo" ;;
     rust)       printf '%s/golden-paths/rust/axum\n'            "$repo" ;;
+    dotnet)     printf '%s/golden-paths/dotnet/aspnet\n'        "$repo" ;;
     javascript) printf '%s/golden-paths/node/express\n'         "$repo" ;;
     typescript) printf '%s/golden-paths/node/nestjs\n'          "$repo" ;;
     react)      printf '%s/golden-paths/frontend/vite-react\n'  "$repo" ;;

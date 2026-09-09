@@ -37,7 +37,7 @@ REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 FIXTURE_DIR="${WEYLAND_LANG_FIXTURE_DIR:-$REPO_ROOT/tests/lang}"
 SCAN_ROOT="${WEYLAND_LANG_SCAN_ROOT:-$REPO_ROOT}"
 
-LANGS="python shell java go rust typescript javascript react nextjs"
+LANGS="python shell java go rust dotnet typescript javascript react nextjs"
 
 die() { printf '%s\n' "$*" >&2; exit 2; }
 
@@ -69,6 +69,7 @@ runner_for() {
     java)                              echo "mvn" ;;
     go)                                echo "go" ;;
     rust)                              echo "cargo" ;;
+    dotnet)                            echo "dotnet" ;;
     typescript|javascript|react|nextjs) echo "node" ;;
     *)                                 return 1 ;;
   esac
@@ -91,6 +92,7 @@ test_glob_for() {
     java)                              echo "*Test.java *Tests.java" ;;
     go)                                echo "*_test.go" ;;
     rust)                              echo "*.rs" ;;
+    dotnet)                            echo "*Tests.cs" ;;
     typescript|javascript|react|nextjs) echo "*.test.js *.test.ts *.test.jsx *.test.tsx" ;;
     *)                                 return 1 ;;
   esac
@@ -104,6 +106,7 @@ root_marker_for() {
     java)                              echo "pom.xml" ;;
     go)                                echo "go.mod" ;;
     rust)                              echo "Cargo.toml" ;;
+    dotnet)                            echo "*.sln" ;;   # the solution at the service root (glob — name varies); resolve_root handles it
     typescript|javascript|react|nextjs) echo "package.json" ;;
     python|shell)                      echo "" ;;   # resolved structurally, see resolve_root
     *)                                 return 1 ;;
@@ -115,7 +118,7 @@ root_marker_for() {
 # shell there is no manifest: the root is the directory CONTAINING a `tests/` dir when the file sits
 # under one (so pytest/bats run from the project and collect tests/), else the file's own directory.
 resolve_root() {
-  local lang="$1" file="$2" marker dir parent
+  local lang="$1" file="$2" marker dir parent _m
   marker="$(root_marker_for "$lang")"
   dir="$(dirname "$file")"
 
@@ -134,7 +137,12 @@ resolve_root() {
   fi
 
   while [ -n "$dir" ] && [ "$dir" != "/" ] && [ "$dir" != "." ]; do
-    if [ -f "$dir/$marker" ]; then printf '%s\n' "$dir"; return 0; fi
+    # The marker may be a literal filename (pom.xml, go.mod) OR a glob (dotnet's `*.sln`, whose name
+    # varies per project). `find -name` does the pattern match ITSELF, so it handles both AND survives the
+    # `set -f` this runs under (discover_roots disables shell globbing) — a shell glob would never expand.
+    if [ -n "$(find "$dir" -maxdepth 1 -name "$marker" 2>/dev/null | head -1)" ]; then
+      printf '%s\n' "$dir"; return 0
+    fi
     parent="$(dirname "$dir")"
     [ "$parent" = "$dir" ] && break
     dir="$parent"
@@ -242,6 +250,12 @@ run_in() {
       # #[ignore] keeps it out of a normal run; --ignored is the only way to reach it.
       if [ "$mode" = selfcheck ]; then (cd "$dir" && cargo test -- --ignored)
       else (cd "$dir" && cargo test); fi ;;
+    dotnet)
+      # The deliberate test carries the `Category=selfcheck` trait; the normal run filters it OUT and the
+      # self-check runs ONLY it. A trait filter (not a test-NAME filter) does not fail open on a rename —
+      # dropping the trait makes the deliberate test run in the NORMAL lane, which is loud, not silent.
+      if [ "$mode" = selfcheck ]; then (cd "$dir" && dotnet test --nologo --filter 'Category=selfcheck')
+      else (cd "$dir" && dotnet test --nologo --filter 'Category!=selfcheck'); fi ;;
     typescript|javascript|react|nextjs)
       # TWO NODE SHAPES, ONE RUNNER. A project that declares its own `test` script owns how its
       # tests run (React and Next.js need jest + a DOM, which node's built-in runner cannot

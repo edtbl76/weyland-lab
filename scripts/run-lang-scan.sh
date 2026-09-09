@@ -28,7 +28,7 @@ REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 # shellcheck source=scripts/lib/lang-fixtures.sh
 . "$REPO_ROOT/scripts/lib/lang-fixtures.sh"   # resolve_fixture(): golden path by default (B153 switch)
 
-LANGS="rust java typescript javascript react nextjs"
+LANGS="rust java dotnet typescript javascript react nextjs"
 
 die() { printf '%s\n' "$*" >&2; exit 2; }
 
@@ -98,6 +98,16 @@ scan_rust() {
   return $rc
 }
 
+scan_dotnet() {
+  local root="$1"
+  local rc=0
+  # `dotnet format` is the standard .NET style + analyzer gate. Run in $root it uses the solution
+  # (golden.sln), so it covers App + tests. --verify-no-changes exits non-zero on a diff — an advisory
+  # FINDING, not a broken lane; run_tool fails the lane (2) only if `dotnet` itself is missing.
+  run_tool dotnet-format "$root" dotnet dotnet format --verify-no-changes || rc=2
+  return $rc
+}
+
 scan_java() {
   # All four ride Maven plugins, so they need no separate install — `mvn <plugin>:check` resolves
   # them on first run. error-prone is a compiler plugin, hence `compile` rather than a goal.
@@ -155,6 +165,7 @@ valid: $LANGS" ;; esac
     case "$lang" in
       rust) scan_rust "$d" || broken=1 ;;
       java) scan_java "$d" || broken=1 ;;
+      dotnet) scan_dotnet "$d" || broken=1 ;;
       typescript|javascript|react|nextjs) scan_node "$d" || broken=1 ;;
     esac
   done
