@@ -2,7 +2,9 @@
 # API-only, minimal railties: no Active Record, no Action View — just routing + controllers.
 source "https://rubygems.org"
 
-gem "rails", "~> 7.2.0"
+# Rails 8: ActiveSupport 8 dropped the `quirks_mode: true` argument to JSON.generate that 7.2 still
+# passed, so `render json:` works with the current json 3.x gem without pinning json back to 2.x.
+gem "rails", "~> 8.0"
 gem "puma", "~> 6.4"
 
 group :test do

@@ -11,7 +11,7 @@ require "action_controller/railtie"
 
 module GoldenRails
   class Application < Rails::Application
-    config.load_defaults 7.2
+    config.load_defaults 8.0
 
     # API-only: no cookies/sessions/flash middleware, no view layer.
     config.api_only = true
