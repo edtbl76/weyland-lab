@@ -7,8 +7,10 @@ FROM eclipse-temurin:21-jre
 WORKDIR /app
 RUN useradd --uid 10001 --no-create-home --shell /usr/sbin/nologin appuser \
  && apt-get update && apt-get install -y --no-install-recommends curl bash && rm -rf /var/lib/apt/lists/*
-# native-packager `stage` output: bin/<launcher> (a bash script) + lib/*.jar.
+# native-packager `stage` output: bin/<launcher> (a bash script) + lib/*.jar. The launcher's +x bit does
+# not survive the cross-stage COPY here, so restore it explicitly (else exec is Permission denied).
 COPY --from=build /app/target/universal/stage /app
+RUN chmod +x /app/bin/*
 COPY smoke.sh ./
 USER 10001
 EXPOSE 8080
