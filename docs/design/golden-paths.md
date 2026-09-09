@@ -1,5 +1,7 @@
 # Golden paths — blessed per-language service templates (B153)
 
+> Visual index: **[Golden Paths Map](../golden-paths-map.html)** — the contract + the language×framework×status matrix (also in [maps.md](../maps.md)).
+
 A **golden path** is a blessed, paved-road starting point for a service in a given language + framework.
 It is **runnable, ephemeral, and extendable**: it builds a real image, spins up as a **run-to-completion
 k8s Job** that exercises itself in-cluster and exits (never a Deployment), and is the **template a real

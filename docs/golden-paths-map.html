@@ -1,0 +1,160 @@
+<meta charset="utf-8">
+<title>Weyland Golden Paths Map</title>
+<style>
+  :root{
+    --bg:#0f1319; --panel:#171c24; --panel2:#1c222c; --line:#2a323e; --line2:#38424f;
+    --ink:#e8ecf1; --muted:#9aa7b6; --faint:#6b7787; --accent:#5fb3d4; --mono:ui-monospace,SFMono-Regular,Menlo,monospace;
+    --ok:#6bbf8a; --flight:#5fb3d4; --plan:#8a94e0; --gate:#e08a6b; --contract:#e0b155;
+  }
+  @media (prefers-color-scheme:light){
+    :root{ --bg:#f4f5f2; --panel:#ffffff; --panel2:#f7f8f6; --line:#e2e4de; --line2:#d2d5cd;
+      --ink:#1a1e24; --muted:#5a6472; --faint:#8a94a2; --accent:#2c7fa0;
+      --ok:#3d8f5f; --flight:#2c7fa0; --plan:#4048a8; --gate:#c05a34; --contract:#b8860b; }
+  }
+  html,body{margin:0;padding:0}
+  body{background:var(--bg); color:var(--ink); font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif; line-height:1.5; -webkit-font-smoothing:antialiased}
+  .wrap{max-width:1240px; margin:0 auto; padding:44px 22px 80px}
+  .eyebrow{font-family:var(--mono); font-size:12px; letter-spacing:.22em; text-transform:uppercase; color:var(--accent); margin:0 0 16px}
+  .title{font-size:clamp(28px,5vw,48px); line-height:1.03; letter-spacing:-.02em; margin:0 0 16px; font-weight:800; text-wrap:balance; max-width:22ch}
+  .fade{color:var(--muted); font-weight:600}
+  .lede{font-size:clamp(15px,1.6vw,17px); color:var(--muted); max-width:78ch; margin:0 0 26px; text-wrap:pretty}
+  .lede code, .k{font-family:var(--mono); color:var(--ink); font-size:.92em}
+  .legend{display:flex; flex-wrap:wrap; gap:8px 18px; margin:0 0 26px; font-family:var(--mono); font-size:12px; color:var(--muted)}
+  .legend span{display:inline-flex; align-items:center; gap:6px}
+  .dot{width:10px; height:10px; border-radius:2px; flex:none}
+  .contract{border:1px solid var(--line); border-left:3px solid var(--contract); border-radius:8px; background:var(--panel); padding:16px 18px; margin:0 0 8px}
+  .contract h3{margin:0 0 10px; font-size:13px; font-family:var(--mono); font-weight:700; letter-spacing:.04em; color:var(--contract); text-transform:uppercase}
+  .pills{display:flex; flex-wrap:wrap; gap:7px}
+  .pill{font-family:var(--mono); font-size:12px; padding:3px 9px; border:1px solid var(--line2); border-radius:20px; color:var(--ink); background:var(--panel2)}
+  .cnote{font-size:12.5px; color:var(--muted); margin:11px 0 0; text-wrap:pretty}
+  .sec{font-size:12px; font-family:var(--mono); text-transform:uppercase; letter-spacing:.16em; color:var(--faint); margin:34px 0 4px; border-bottom:1px solid var(--line); padding-bottom:6px; display:flex; justify-content:space-between; align-items:baseline}
+  .sec .sub{letter-spacing:0; text-transform:none; color:var(--muted); font-size:11.5px}
+  .lang{margin:16px 0 0}
+  .lang-h{display:flex; align-items:baseline; gap:10px; margin:0 0 8px}
+  .lang-name{font-size:15px; font-weight:700; letter-spacing:-.01em}
+  .lang-note{font-family:var(--mono); font-size:11px; color:var(--faint)}
+  .grid{display:grid; grid-template-columns:repeat(auto-fill,minmax(210px,1fr)); gap:10px}
+  .fw{background:var(--panel); border:1px solid var(--line); border-left:3px solid var(--st,var(--line2)); border-radius:7px; padding:11px 13px; display:flex; flex-direction:column; gap:5px}
+  .fw .top{display:flex; align-items:center; justify-content:space-between; gap:8px}
+  .fw .nm{font-family:var(--mono); font-size:13px; font-weight:700; color:var(--ink)}
+  .fw .badge{font-family:var(--mono); font-size:9.5px; font-weight:700; text-transform:uppercase; letter-spacing:.05em; color:var(--st); border:1px solid var(--st); border-radius:4px; padding:1px 5px; white-space:nowrap}
+  .fw .d{font-size:11.5px; color:var(--muted); text-wrap:pretty}
+  .flow{display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:12px; margin:12px 0 0}
+  .card{border:1px solid var(--line); border-radius:8px; background:var(--panel); padding:14px 16px}
+  .card h3{margin:0 0 8px; font-size:13px; font-family:var(--mono); font-weight:700; letter-spacing:.02em}
+  .card p{margin:0; font-size:12.5px; color:var(--muted); text-wrap:pretty}
+  .foot{margin-top:38px; font-size:12px; color:var(--faint); font-family:var(--mono); text-wrap:pretty; line-height:1.7}
+  .foot a{color:var(--accent); text-decoration:none}
+  b.h{color:var(--ink)}
+</style>
+<div class="wrap">
+  <p class="eyebrow">Weyland · Golden Paths</p>
+  <h1 class="title">Golden Paths <span class="fade">— one contract, many frameworks</span></h1>
+  <p class="lede">A golden path is a <b class="h">blessed, paved-road service template</b> per language/framework — <b class="h">runnable · ephemeral · extendable</b>. Every one conforms to a single framework-agnostic <b class="h">contract</b> (the altitude); the framework lives beneath it, so a language has several golden paths all conforming. Each is both the template a real service scaffolds from (<code>scripts/new-service.sh &lt;path&gt; &lt;name&gt;</code>) and the CI lane's build-infra fixture — they replaced the B88 hello fixtures. Proof is not "tests pass" but <b class="h">the built image serves the contract in-cluster</b>: <code>golden-path-smoke</code> builds each via buildkitd, runs a run-to-completion Job under a dedicated SA, curls <code>/hello</code>, and tears it down. Design: <span class="k">docs/design/golden-paths.md</span>.</p>
+
+  <div class="legend">
+    <span><i class="dot" style="background:var(--ok)"></i>CI-verified (build + test + scan + smoke green)</span>
+    <span><i class="dot" style="background:var(--flight)"></i>in flight (wired, CI verifying)</span>
+    <span><i class="dot" style="background:var(--plan)"></i>planned</span>
+    <span><i class="dot" style="background:var(--gate)"></i>hardware-gated</span>
+  </div>
+
+  <div class="contract">
+    <h3>The contract — every path, every language</h3>
+    <div class="pills">
+      <span class="pill">GET /health</span><span class="pill">GET /ready</span><span class="pill">GET /metrics · Prometheus</span><span class="pill">GET /hello · {service, "hello, weyland"}</span>
+      <span class="pill">lane test</span><span class="pill">deliberate-fail selfcheck</span><span class="pill">coverage baseline</span><span class="pill">non-root multi-stage Dockerfile</span><span class="pill">run-to-completion smoke Job</span><span class="pill">onboarding declaration</span>
+    </div>
+    <p class="cnote">Frontend paths adapt the contract to SSR/render; mobile (B164) adapts it again to a client bundle/render — same altitude, different shape.</p>
+  </div>
+
+  <div class="sec">Wave 1 · B153 — service + frontend <span class="sub">21 paths · all CI-verified (pipeline #95)</span></div>
+
+  <div class="lang"><div class="lang-h"><span class="lang-name">Python</span><span class="lang-note">python:3.12 · pytest</span></div>
+    <div class="grid">
+      <div class="fw" style="--st:var(--ok)"><div class="top"><span class="nm">FastAPI</span><span class="badge">verified</span></div><div class="d">reference path · uvicorn · 100% cov</div></div>
+      <div class="fw" style="--st:var(--ok)"><div class="top"><span class="nm">Flask</span><span class="badge">verified</span></div><div class="d">WSGI baseline</div></div>
+      <div class="fw" style="--st:var(--ok)"><div class="top"><span class="nm">Litestar</span><span class="badge">verified</span></div><div class="d">typed/DI-first</div></div>
+      <div class="fw" style="--st:var(--ok)"><div class="top"><span class="nm">Django</span><span class="badge">verified</span></div><div class="d">batteries-included</div></div>
+    </div></div>
+
+  <div class="lang"><div class="lang-h"><span class="lang-name">Java</span><span class="lang-note">maven temurin-21 · JUnit 5</span></div>
+    <div class="grid">
+      <div class="fw" style="--st:var(--ok)"><div class="top"><span class="nm">Spring Boot</span><span class="badge">verified</span></div><div class="d">micrometer /metrics</div></div>
+      <div class="fw" style="--st:var(--ok)"><div class="top"><span class="nm">Quarkus</span><span class="badge">verified</span></div><div class="d">supersonic/subatomic</div></div>
+      <div class="fw" style="--st:var(--ok)"><div class="top"><span class="nm">Micronaut</span><span class="badge">verified</span></div><div class="d">compile-time DI</div></div>
+    </div></div>
+
+  <div class="lang"><div class="lang-h"><span class="lang-name">Go</span><span class="lang-note">golang:1.26 · go test -race</span></div>
+    <div class="grid">
+      <div class="fw" style="--st:var(--ok)"><div class="top"><span class="nm">net/http</span><span class="badge">verified</span></div><div class="d">stdlib baseline</div></div>
+      <div class="fw" style="--st:var(--ok)"><div class="top"><span class="nm">Gin</span><span class="badge">verified</span></div><div class="d">most-used router</div></div>
+      <div class="fw" style="--st:var(--ok)"><div class="top"><span class="nm">Echo</span><span class="badge">verified</span></div><div class="d">ergonomic router</div></div>
+      <div class="fw" style="--st:var(--ok)"><div class="top"><span class="nm">Fiber</span><span class="badge">verified</span></div><div class="d">fasthttp engine</div></div>
+    </div></div>
+
+  <div class="lang"><div class="lang-h"><span class="lang-name">Rust</span><span class="lang-note">rust:1-slim · cargo test</span></div>
+    <div class="grid">
+      <div class="fw" style="--st:var(--ok)"><div class="top"><span class="nm">Axum</span><span class="badge">verified</span></div><div class="d">tower/tokio · reference</div></div>
+      <div class="fw" style="--st:var(--ok)"><div class="top"><span class="nm">Actix-web</span><span class="badge">verified</span></div><div class="d">actor-based</div></div>
+      <div class="fw" style="--st:var(--ok)"><div class="top"><span class="nm">Rocket</span><span class="badge">verified</span></div><div class="d">ergonomic macros</div></div>
+    </div></div>
+
+  <div class="lang"><div class="lang-h"><span class="lang-name">Node</span><span class="lang-note">node:24-alpine · jest / node:test</span></div>
+    <div class="grid">
+      <div class="fw" style="--st:var(--ok)"><div class="top"><span class="nm">Express</span><span class="badge">verified</span></div><div class="d">jest+supertest · 100%</div></div>
+      <div class="fw" style="--st:var(--ok)"><div class="top"><span class="nm">Fastify</span><span class="badge">verified</span></div><div class="d">node:test · inject()</div></div>
+      <div class="fw" style="--st:var(--ok)"><div class="top"><span class="nm">NestJS</span><span class="badge">verified</span></div><div class="d">TS · DI/modules</div></div>
+    </div></div>
+
+  <div class="lang"><div class="lang-h"><span class="lang-name">Frontend</span><span class="lang-note">node:24-alpine · SSR/render contract</span></div>
+    <div class="grid">
+      <div class="fw" style="--st:var(--ok)"><div class="top"><span class="nm">Next.js</span><span class="badge">verified</span></div><div class="d">App Router · standalone</div></div>
+      <div class="fw" style="--st:var(--ok)"><div class="top"><span class="nm">Remix</span><span class="badge">verified</span></div><div class="d">resource routes · SSR</div></div>
+      <div class="fw" style="--st:var(--ok)"><div class="top"><span class="nm">Vite+React</span><span class="badge">verified</span></div><div class="d">SPA + stdlib sidecar</div></div>
+      <div class="fw" style="--st:var(--ok)"><div class="top"><span class="nm">Astro</span><span class="badge">verified</span></div><div class="d">SSR @astrojs/node</div></div>
+    </div></div>
+
+  <div class="sec">Wave 2 · B160 — extended languages <span class="sub">flagship framework first, per-language batches</span></div>
+
+  <div class="lang"><div class="lang-h"><span class="lang-name">.NET</span><span class="lang-note">mcr dotnet sdk 8 · xunit</span></div>
+    <div class="grid">
+      <div class="fw" style="--st:var(--ok)"><div class="top"><span class="nm">ASP.NET Core</span><span class="badge">verified</span></div><div class="d">minimal API · WebApplicationFactory · #97</div></div>
+    </div></div>
+
+  <div class="lang"><div class="lang-h"><span class="lang-name">Kotlin</span><span class="lang-note">gradle:8.10-jdk21 · JUnit 5</span></div>
+    <div class="grid">
+      <div class="fw" style="--st:var(--flight)"><div class="top"><span class="nm">Ktor</span><span class="badge">in flight</span></div><div class="d">testApplication · shadow jar</div></div>
+    </div></div>
+
+  <div class="lang"><div class="lang-h"><span class="lang-name">Planned (B160)</span><span class="lang-note">flagship per language · net-new toolchains + lanes</span></div>
+    <div class="grid">
+      <div class="fw" style="--st:var(--plan)"><div class="top"><span class="nm">Scala · http4s</span><span class="badge">planned</span></div><div class="d">sbt · JVM</div></div>
+      <div class="fw" style="--st:var(--plan)"><div class="top"><span class="nm">PHP · Slim</span><span class="badge">planned</span></div><div class="d">php + composer</div></div>
+      <div class="fw" style="--st:var(--plan)"><div class="top"><span class="nm">Ruby · Sinatra</span><span class="badge">planned</span></div><div class="d">ruby</div></div>
+      <div class="fw" style="--st:var(--plan)"><div class="top"><span class="nm">Elixir · Phoenix</span><span class="badge">planned</span></div><div class="d">BEAM</div></div>
+      <div class="fw" style="--st:var(--plan)"><div class="top"><span class="nm">Clojure · Ring</span><span class="badge">planned</span></div><div class="d">Ring+Compojure</div></div>
+      <div class="fw" style="--st:var(--plan)"><div class="top"><span class="nm">C++ · Crow</span><span class="badge">planned</span></div><div class="d">gcc/cmake</div></div>
+      <div class="fw" style="--st:var(--plan)"><div class="top"><span class="nm">Angular</span><span class="badge">planned</span></div><div class="d">SSR · reuses node</div></div>
+    </div></div>
+
+  <div class="sec">Wave 3 · B164 — mobile <span class="sub">client/bundle-render contract, not HTTP-serve</span></div>
+  <div class="lang">
+    <div class="grid">
+      <div class="fw" style="--st:var(--plan)"><div class="top"><span class="nm">React Native</span><span class="badge">planned</span></div><div class="d">jest + RTL · metro/expo bundle · flagship</div></div>
+      <div class="fw" style="--st:var(--plan)"><div class="top"><span class="nm">Flutter</span><span class="badge">planned</span></div><div class="d">flutter test · Linux-buildable</div></div>
+      <div class="fw" style="--st:var(--gate)"><div class="top"><span class="nm">Swift · iOS</span><span class="badge">HW-gated</span></div><div class="d">SwiftUI needs macOS + Xcode — no runner in the $0 Linux lab</div></div>
+    </div></div>
+
+  <div class="sec">How a path is exercised</div>
+  <div class="flow">
+    <div class="card"><h3>Scaffold →</h3><p><code>new-service.sh &lt;path&gt; &lt;name&gt;</code> copies the golden path (minus build output + the selfcheck probe), rewrites the <code>golden-*</code> token, and prints the onboarding declaration — a real service that passes the B154/B155 gates by construction.</p></div>
+    <div class="card"><h3>Fixture → lanes</h3><p>Each path is its lane's fixture: <code>run-lang-tests.sh</code> (test + deliberate-fail selfcheck + coverage ratchet) and <code>run-lang-scan.sh</code> (per-language scanners) — every language gets both.</p></div>
+    <div class="card"><h3>→ golden-path-smoke</h3><p>Builds each image via buildkitd from an isolated context, runs a run-to-completion Job (ns <code>golden-paths</code>, SA <code>golden-path-runner</code>), curls the contract, tears it down. Fail-closed: exit 2 build, 1 smoke. Scope one language: <code>--var GOLDEN_PATH_ONLY=&lt;path&gt;</code>.</p></div>
+  </div>
+
+  <p class="foot">
+    Design: <a href="design/golden-paths.md">docs/design/golden-paths.md</a> · Demo: <a href="demos/golden-paths.md">docs/demos/golden-paths.md</a> · Flow: <a href="diagrams/flow-golden-paths.md">docs/diagrams/flow-golden-paths.md</a><br>
+    Backlog: B153 (done) · B160 (extended languages) · B163 (per-framework module depth) · B164 (mobile) · B154/B155 (onboarding + API lifecycle the scaffolds pass).
+  </p>
+</div>

@@ -30,6 +30,17 @@ together, and what each layer does. Each opens full-screen; best viewed on a wid
     &rarr; **[Open the CI Architecture Map](ci-architecture-map.html)** &mdash; **internal only** (not published to Pages)
     &nbsp;&middot;&nbsp; **[Flow diagram](diagrams/flow-build-lanes.md)** &mdash; the build-lane mechanism as Mermaid
 
+!!! abstract "Golden Paths Map"
+    The blessed paved-road **service templates**, one per language/framework, all conforming to a single
+    framework-agnostic **contract** (`/health` `/ready` `/metrics` `/hello` + selfcheck + coverage +
+    Dockerfile + run-to-completion smoke Job + onboarding declaration). The **language &times; framework
+    &times; status** matrix &mdash; Wave 1 (B153, 21 paths, CI-verified), Wave 2 (B160, extended
+    languages), Wave 3 (B164, mobile with its client/bundle contract) &mdash; plus how a path is
+    exercised: scaffold via `new-service.sh`, or as the CI lane fixture &rarr; `golden-path-smoke`.
+
+    &rarr; **[Open the Golden Paths Map](golden-paths-map.html)** &mdash; **internal only** (not published to Pages)
+    &nbsp;&middot;&nbsp; **[Design](design/golden-paths.md)** &middot; **[Demo](demos/golden-paths.md)** &middot; **[Flow](diagrams/flow-golden-paths.md)**
+
 !!! abstract "LLM Routing Map"
     The agentic egress plane: each **use-case alias** (`wl-coding`, `wl-rag`, …) and the **provider
     fallback chain** LiteLLM resolves it to — primary → always-on-free → paid escalation, colour-coded
