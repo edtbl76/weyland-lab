@@ -70,6 +70,7 @@ tools:
   - {id: dotnet-format,  category: lint,        languages: [dotnet],                    engine: "dotnet format", install: dotnet-sdk, runner: lang-scan,  enabled: true,  notes: "B160 — .NET style + analyzer gate (dotnet format --verify-no-changes); ships with the SDK, run over the solution so it covers App + tests"}
   - {id: ktlint,         category: lint,        languages: [kotlin],                    engine: ktlint,        install: gradle-plugin, runner: lang-scan,  enabled: true,  notes: "B160 — Kotlin style/lint (ktlint via the gradle plugin, `gradle ktlintCheck`); over the project so it covers main + test"}
   - {id: scalafmt,       category: lint,        languages: [scala],                     engine: scalafmt,      install: sbt-plugin,    runner: lang-scan,  enabled: true,  notes: "B160 — Scala style/format (scalafmt via the sbt-scalafmt plugin, `sbt scalafmtCheckAll`); over the project so it covers main + test"}
+  - {id: phpstan,        category: sast,        languages: [php],                       engine: phpstan,       install: composer,      runner: lang-scan,  enabled: true,  notes: "B160 — PHP static analysis (phpstan, a composer dev-dep, `vendor/bin/phpstan analyse`); level 5 over src + public"}
 
   # ── B88 Phase 3 — software supply chain ──────────────────────────────────────────────────────────
   # THE FINDING: every one of these existed in this lab as KNOWLEDGE and nowhere as IMPLEMENTATION.

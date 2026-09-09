@@ -37,7 +37,7 @@ REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 FIXTURE_DIR="${WEYLAND_LANG_FIXTURE_DIR:-$REPO_ROOT/tests/lang}"
 SCAN_ROOT="${WEYLAND_LANG_SCAN_ROOT:-$REPO_ROOT}"
 
-LANGS="python shell java go rust dotnet kotlin scala typescript javascript react nextjs"
+LANGS="python shell java go rust dotnet kotlin scala php typescript javascript react nextjs"
 
 die() { printf '%s\n' "$*" >&2; exit 2; }
 
@@ -72,6 +72,7 @@ runner_for() {
     dotnet)                            echo "dotnet" ;;
     kotlin)                            echo "gradle" ;;
     scala)                             echo "sbt" ;;
+    php)                               echo "phpunit" ;;
     typescript|javascript|react|nextjs) echo "node" ;;
     *)                                 return 1 ;;
   esac
@@ -97,6 +98,7 @@ test_glob_for() {
     dotnet)                            echo "*Tests.cs" ;;
     kotlin)                            echo "*Test.kt" ;;
     scala)                             echo "*Test.scala" ;;
+    php)                               echo "*Test.php" ;;
     typescript|javascript|react|nextjs) echo "*.test.js *.test.ts *.test.jsx *.test.tsx" ;;
     *)                                 return 1 ;;
   esac
@@ -113,6 +115,7 @@ root_marker_for() {
     dotnet)                            echo "*.sln" ;;   # the solution at the service root (glob — name varies); resolve_root handles it
     kotlin)                            echo "settings.gradle.kts" ;;   # marks the Gradle project root
     scala)                             echo "build.sbt" ;;   # marks the sbt project root
+    php)                               echo "composer.json" ;;   # marks the composer project root
     typescript|javascript|react|nextjs) echo "package.json" ;;
     python|shell)                      echo "" ;;   # resolved structurally, see resolve_root
     *)                                 return 1 ;;
@@ -272,6 +275,13 @@ run_in() {
       # normal `sbt test` and includes ONLY it under -Dselfcheck=true. Fail-closed on a rename (see build.sbt).
       if [ "$mode" = selfcheck ]; then (cd "$dir" && sbt -batch -Dselfcheck=true test)
       else (cd "$dir" && sbt -batch test); fi ;;
+    php)
+      # composer brings phpunit (dev); the deliberate test carries the PHPUnit `selfcheck` group, so a
+      # normal run excludes it and the self-check runs ONLY it. Group-based → fail-closed on a rename.
+      (cd "$dir" && composer install --no-interaction --no-progress -q) || {
+        printf 'LANE BROKEN: composer install failed in %s\n' "$dir" >&2; return 2; }
+      if [ "$mode" = selfcheck ]; then (cd "$dir" && vendor/bin/phpunit --group selfcheck)
+      else (cd "$dir" && vendor/bin/phpunit --exclude-group selfcheck); fi ;;
     typescript|javascript|react|nextjs)
       # TWO NODE SHAPES, ONE RUNNER. A project that declares its own `test` script owns how its
       # tests run (React and Next.js need jest + a DOM, which node's built-in runner cannot

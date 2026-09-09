@@ -28,7 +28,7 @@ REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 # shellcheck source=scripts/lib/lang-fixtures.sh
 . "$REPO_ROOT/scripts/lib/lang-fixtures.sh"   # resolve_fixture(): golden path by default (B153 switch)
 
-LANGS="rust java dotnet kotlin scala typescript javascript react nextjs"
+LANGS="rust java dotnet kotlin scala php typescript javascript react nextjs"
 
 die() { printf '%s\n' "$*" >&2; exit 2; }
 
@@ -128,6 +128,18 @@ scan_scala() {
   return $rc
 }
 
+scan_php() {
+  local root="$1"
+  local rc=0
+  # composer brings phpstan (dev); install first (like scan_node's npm install), fail closed. Probe
+  # `php` (on PATH) — phpstan lives at vendor/bin, so an absent phpstan is caught by run_tool's
+  # output-based missing-detection ("not found"), not the PATH probe.
+  (cd "$root" && composer install --no-interaction --no-progress -q) || {
+    printf 'LANE BROKEN: composer install failed in %s\n' "$root" >&2; return 2; }
+  run_tool phpstan "$root" php vendor/bin/phpstan analyse --no-progress || rc=2
+  return $rc
+}
+
 scan_java() {
   # All four ride Maven plugins, so they need no separate install — `mvn <plugin>:check` resolves
   # them on first run. error-prone is a compiler plugin, hence `compile` rather than a goal.
@@ -188,6 +200,7 @@ valid: $LANGS" ;; esac
       dotnet) scan_dotnet "$d" || broken=1 ;;
       kotlin) scan_kotlin "$d" || broken=1 ;;
       scala) scan_scala "$d" || broken=1 ;;
+      php) scan_php "$d" || broken=1 ;;
       typescript|javascript|react|nextjs) scan_node "$d" || broken=1 ;;
     esac
   done

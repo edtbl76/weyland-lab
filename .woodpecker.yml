@@ -364,6 +364,14 @@ steps:
       - bash scripts/run-lang-tests.sh scala
       # (coverage ratchet for scala is a fast-follow, like dotnet/kotlin)
 
+  - name: test-php
+    image: composer:2.7
+    commands:
+      - apk add --no-cache bash >/dev/null   # the composer image is alpine; the runner needs bash (arrays)
+      - bash scripts/run-lang-tests.sh php --self-check
+      - bash scripts/run-lang-tests.sh php
+      # (coverage ratchet for php is a fast-follow, like dotnet/kotlin/scala)
+
   - name: test-node
     image: node:24-alpine
     environment:
@@ -439,6 +447,12 @@ steps:
     image: sbtscala/scala-sbt:eclipse-temurin-21.0.12_8_1.13.0_3.8.4
     commands:
       - bash scripts/run-lang-scan.sh scala
+
+  - name: scan-php
+    image: composer:2.7
+    commands:
+      - apk add --no-cache bash >/dev/null
+      - bash scripts/run-lang-scan.sh php
 
   - name: scan-node
     image: node:24-alpine
