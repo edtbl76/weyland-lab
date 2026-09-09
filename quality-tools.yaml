@@ -72,6 +72,7 @@ tools:
   - {id: scalafmt,       category: lint,        languages: [scala],                     engine: scalafmt,      install: sbt-plugin,    runner: lang-scan,  enabled: true,  notes: "B160 — Scala style/format (scalafmt via the sbt-scalafmt plugin, `sbt scalafmtCheckAll`); over the project so it covers main + test"}
   - {id: phpstan,        category: sast,        languages: [php],                       engine: phpstan,       install: composer,      runner: lang-scan,  enabled: true,  notes: "B160 — PHP static analysis (phpstan, a composer dev-dep, `vendor/bin/phpstan analyse`); level 5 over src + public"}
   - {id: rubocop,        category: lint,        languages: [ruby],                      engine: rubocop,       install: bundler,       runner: lang-scan,  enabled: true,  notes: "B160 — Ruby style/lint (rubocop, a bundler test-group gem, `bundle exec rubocop`); over both Ruby golden paths (Rails + Sinatra)"}
+  - {id: credo,          category: lint,        languages: [elixir],                    engine: credo,         install: mix,           runner: lang-scan,  enabled: true,  notes: "B160 — Elixir static analysis/lint (credo, a mix dev/test dep, `mix credo --strict`); over both Elixir golden paths (Phoenix + Plug)"}
 
   # ── B88 Phase 3 — software supply chain ──────────────────────────────────────────────────────────
   # THE FINDING: every one of these existed in this lab as KNOWLEDGE and nowhere as IMPLEMENTATION.

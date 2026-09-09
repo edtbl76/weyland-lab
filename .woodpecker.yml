@@ -379,6 +379,14 @@ steps:
       - bash scripts/run-lang-tests.sh ruby   # Rails fixture + the Sinatra golden path (discovered)
       # (coverage ratchet for ruby is a fast-follow, like dotnet/kotlin/scala/php)
 
+  - name: test-elixir
+    image: elixir:1.17   # Debian-based: bash + build tools present
+    commands:
+      - mix local.hex --force && mix local.rebar --force
+      - bash scripts/run-lang-tests.sh elixir --self-check
+      - bash scripts/run-lang-tests.sh elixir   # Phoenix fixture + the Plug golden path (discovered)
+      # (coverage ratchet for elixir is a fast-follow, like dotnet/kotlin/scala/php/ruby)
+
   - name: test-node
     image: node:24-alpine
     environment:
@@ -465,6 +473,12 @@ steps:
     image: ruby:3.3
     commands:
       - bash scripts/run-lang-scan.sh ruby
+
+  - name: scan-elixir
+    image: elixir:1.17
+    commands:
+      - mix local.hex --force && mix local.rebar --force
+      - bash scripts/run-lang-scan.sh elixir
 
   - name: scan-node
     image: node:24-alpine

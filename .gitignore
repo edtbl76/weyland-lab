@@ -212,6 +212,15 @@ golden-paths/frontend/*/.next/
 golden-paths/frontend/*/.astro/
 golden-paths/frontend/*/next-env.d.ts
 
+# B160 golden-path Elixir services — deps/ (fetched deps) and _build/ (compiled beam) are the mix
+# analogues of node_modules/target: reproducible from mix.exs, NEVER committed. Critically, they also
+# carry the DEPENDENCIES' own *_test.exs files, so a stray committed deps/ would feed the lane's test
+# discovery bogus projects (the same reason is_excluded skips them at runtime). cover/ is ExUnit
+# coverage output. No Gemfile.lock analogue is committed here — mix.exs pins the ~> ranges.
+golden-paths/elixir/*/deps/
+golden-paths/elixir/*/_build/
+golden-paths/elixir/*/cover/
+
 # BUILD OUTPUT — ignore it EVERYWHERE, not just under tests/lang/.
 # The first version of this scoped `target/` to the fixture only, and the very next `mvn` run
 # (B88's java test + scan lanes, which execute IN the repo tree) put 105 build artifacts under

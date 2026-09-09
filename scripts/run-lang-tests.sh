@@ -37,7 +37,7 @@ REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 FIXTURE_DIR="${WEYLAND_LANG_FIXTURE_DIR:-$REPO_ROOT/tests/lang}"
 SCAN_ROOT="${WEYLAND_LANG_SCAN_ROOT:-$REPO_ROOT}"
 
-LANGS="python shell java go rust dotnet kotlin scala php ruby typescript javascript react nextjs"
+LANGS="python shell java go rust dotnet kotlin scala php ruby elixir typescript javascript react nextjs"
 
 die() { printf '%s\n' "$*" >&2; exit 2; }
 
@@ -74,6 +74,7 @@ runner_for() {
     scala)                             echo "sbt" ;;
     php)                               echo "composer" ;;   # the on-PATH toolchain entry; it installs phpunit (vendor-local)
     ruby)                              echo "bundle" ;;     # the on-PATH toolchain entry; it installs rake/minitest (bundle-local)
+    elixir)                            echo "mix" ;;
     typescript|javascript|react|nextjs) echo "node" ;;
     *)                                 return 1 ;;
   esac
@@ -101,6 +102,7 @@ test_glob_for() {
     scala)                             echo "*Test.scala" ;;
     php)                               echo "*Test.php" ;;
     ruby)                              echo "*_test.rb" ;;
+    elixir)                            echo "*_test.exs" ;;
     typescript|javascript|react|nextjs) echo "*.test.js *.test.ts *.test.jsx *.test.tsx" ;;
     *)                                 return 1 ;;
   esac
@@ -119,6 +121,7 @@ root_marker_for() {
     scala)                             echo "build.sbt" ;;   # marks the sbt project root
     php)                               echo "composer.json" ;;   # marks the composer project root
     ruby)                              echo "Gemfile" ;;         # marks the bundler project root
+    elixir)                            echo "mix.exs" ;;         # marks the mix project root
     typescript|javascript|react|nextjs) echo "package.json" ;;
     python|shell)                      echo "" ;;   # resolved structurally, see resolve_root
     *)                                 return 1 ;;
@@ -168,6 +171,13 @@ resolve_root() {
 is_excluded() {
   case "$1" in
     */node_modules/*|*/target/*|*/vendor/*|*/.git/*|*/.venv/*|*/site-packages/*|*/dist/*|*/build/*)
+      return 0 ;;
+    # Elixir's fetched deps (deps/) and compiled output (_build/) are the mix analogues of
+    # node_modules/target — both carry the DEPENDENCIES' own *_test.exs files. Without this, once a
+    # lane runs `mix deps.get` (the CI lane runs --self-check, which does, before the normal run),
+    # discovery finds e.g. deps/phoenix_pubsub/test/*_test.exs, treats the dep as a project, runs its
+    # suite standalone, and reports a dependency's tests as an estate failure.
+    */deps/*|*/_build/*)
       return 0 ;;
     # A `selfcheck/` dir is NEVER a standalone project — it is the deliberately-failing companion, run
     # only in --self-check mode from its owning project's dir. Under the fixture tree it is already
@@ -294,6 +304,24 @@ run_in() {
         printf 'LANE BROKEN: bundle install failed in %s\n' "$dir" >&2; return 2; }
       if [ "$mode" = selfcheck ]; then (cd "$dir" && bundle exec rake test:selfcheck)
       else (cd "$dir" && bundle exec rake test); fi ;;
+    elixir)
+      # mix brings the deps; the deliberate test carries @tag :selfcheck (excluded by test_helper).
+      (cd "$dir" && mix deps.get >/dev/null 2>&1) || {
+        printf 'LANE BROKEN: mix deps.get failed in %s\n' "$dir" >&2; return 2; }
+      if [ "$mode" = selfcheck ]; then
+        # FAIL-CLOSED, and deliberately stronger than a bare exit check: `mix test --only <tag>` exits
+        # non-zero BOTH when the tagged test fails AND when ZERO tests match (a renamed/removed
+        # deliberate test) — so the exit code alone cannot tell "the guard worked" from "the guard's
+        # own test vanished". Assert the REASON: require evidence a test actually FAILED ("N failure"
+        # with N>=1). No failing test ran -> return 0 so the generic --self-check reports LANE BROKEN.
+        # (project.md: assert the failure reason, not just the status.)
+        local out
+        out="$(cd "$dir" && mix test --only selfcheck 2>&1)"
+        printf '%s\n' "$out" | tail -4
+        printf '%s' "$out" | grep -qE '[1-9][0-9]* failure' && return 1 || return 0
+      else
+        (cd "$dir" && mix test)
+      fi ;;
     typescript|javascript|react|nextjs)
       # TWO NODE SHAPES, ONE RUNNER. A project that declares its own `test` script owns how its
       # tests run (React and Next.js need jest + a DOM, which node's built-in runner cannot

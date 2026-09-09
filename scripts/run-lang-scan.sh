@@ -28,7 +28,7 @@ REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 # shellcheck source=scripts/lib/lang-fixtures.sh
 . "$REPO_ROOT/scripts/lib/lang-fixtures.sh"   # resolve_fixture(): golden path by default (B153 switch)
 
-LANGS="rust java dotnet kotlin scala php ruby typescript javascript react nextjs"
+LANGS="rust java dotnet kotlin scala php ruby elixir typescript javascript react nextjs"
 
 die() { printf '%s\n' "$*" >&2; exit 2; }
 
@@ -152,6 +152,18 @@ scan_ruby() {
   return $rc
 }
 
+scan_elixir() {
+  local root="$1"
+  local rc=0
+  # mix brings credo (dev/test dep); fetch first (like scan_php's composer install), fail closed. Probe
+  # `mix` (on PATH) — credo runs as `mix credo`, so an absent credo is caught by run_tool's output-based
+  # missing-detection ("could not be found"), not the PATH probe.
+  (cd "$root" && mix deps.get >/dev/null 2>&1) || {
+    printf 'LANE BROKEN: mix deps.get failed in %s\n' "$root" >&2; return 2; }
+  run_tool credo "$root" mix mix credo --strict || rc=2
+  return $rc
+}
+
 scan_java() {
   # All four ride Maven plugins, so they need no separate install — `mvn <plugin>:check` resolves
   # them on first run. error-prone is a compiler plugin, hence `compile` rather than a goal.
@@ -214,6 +226,7 @@ valid: $LANGS" ;; esac
       scala) scan_scala "$d" || broken=1 ;;
       php) scan_php "$d" || broken=1 ;;
       ruby) scan_ruby "$d" || broken=1 ;;
+      elixir) scan_elixir "$d" || broken=1 ;;
       typescript|javascript|react|nextjs) scan_node "$d" || broken=1 ;;
     esac
   done
