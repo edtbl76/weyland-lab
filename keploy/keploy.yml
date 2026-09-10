@@ -1,0 +1,47 @@
+# Keploy — API-regression capture for the lab (B104).
+#
+# Keploy records real inbound API traffic to an app (via eBPF at the network layer) and generates
+# committed regression test-sets + dependency mocks; `keploy test` later replays them and diffs the
+# responses. It is the record-from-traffic complement to the Bruno collection (bruno/weyland/), which
+# is the hand-authored, assertion-driven client. Both are Git-native (files-as-tests).
+#
+# TARGET: a B160 golden-path image — a self-contained HTTP service (/health /ready /hello /metrics,
+# EXPOSE 8080) with NO external dependencies, so a record/replay cycle needs nothing but the image.
+# Point `command` at any other golden-* image (see golden-paths/) to capture that one instead.
+#
+# REQUIRES: Linux kernel >= 5.10 and eBPF (privileged). OPERATOR-ON-DEMAND — never CI, never scheduled.
+# Recorded test-sets land under keploy/test-sets/ and ARE committed (that is the regression corpus).
+# Full loop + exact commands: docs/runbooks/api-client-bruno-keploy.md.
+
+path: ""
+command: "docker run -p 8080:8080 --name golden-python-fastapi --network keploy-network --rm registry.weyland.lab/golden-python-fastapi:latest"
+port: 8080
+proxyPort: 16789
+dnsPort: 26789
+debug: false
+disableTele: true
+inDocker: true
+generateGithubActions: false
+containerName: "golden-python-fastapi"
+networkName: "keploy-network"
+buildDelay: 30
+
+test:
+  selectedTests: {}
+  ignoredTests: {}
+  globalNoise:
+    global: {}
+    test-sets: {}
+  delay: 10
+  host: "localhost"
+  port: 0
+  apiTimeout: 5
+  ignoreOrdering: true
+  removeUnusedMocks: false
+  mocking: true
+
+record:
+  recordTimer: 0s
+  filters: []
+
+bypassRules: []

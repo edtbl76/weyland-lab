@@ -1,0 +1,26 @@
+meta {
+  name: gateway-models
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{gw}}/v1/models
+}
+
+headers {
+  Authorization: Bearer {{gw_key}}
+}
+
+assert {
+  res.status: eq 200
+  res.body.object: eq list
+}
+
+docs {
+  Lists the LiteLLM gateway's model aliases (wl-coding / wl-agentic / ...).
+  Needs the LITELLM_MASTER_KEY as the `gw_key` secret in the `lan` environment:
+    bru run authenticated --env lan --env-var gw_key=$LITELLM_MASTER_KEY
+  Kept OUT of the default health run so a keyless `bru run tool-server gateway`
+  stays green. This is the pattern for adding any authenticated request.
+}

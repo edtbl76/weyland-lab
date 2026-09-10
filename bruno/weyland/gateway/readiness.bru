@@ -1,0 +1,14 @@
+meta {
+  name: readiness
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{gw}}/health/readiness
+}
+
+assert {
+  res.status: eq 200
+  res.body.status: eq healthy
+}

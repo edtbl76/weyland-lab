@@ -4,6 +4,10 @@
 # =false and reaches trino:8080 over plain HTTP. LIGHT `SELECT 1` at low VUs — Trino's 4-6Gi heap has an
 # OOM history; NEVER point this at heavy aggregations. On-demand; records to tests/perf/baseline.tsv; cleans up.
 #   env: PERF_VUS (default 3) · PERF_DURATION (default 20s) · TRINO_NS (default data-mesh) · K6_IMAGE
+#   GRAFANA: PERF_GRAFANA=1 also streams this run to the in-cluster Prometheus via remote-write (tagged
+#     target=trino) for the "k6 Perf" dashboard (k8s/monitoring/k6-perf-dashboard.yaml). This Job runs
+#     in-cluster, so it reaches the RW receiver directly. Override the endpoint with
+#     K6_PROMETHEUS_RW_SERVER_URL. The TSV baseline is recorded either way.
 set -uo pipefail
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 BASELINE="${PERF_BASELINE_FILE:-$REPO_ROOT/tests/perf/baseline.tsv}"
@@ -12,6 +16,19 @@ VUS="${PERF_VUS:-3}"
 DUR="${PERF_DURATION:-20s}"
 K6_IMG="${K6_IMAGE:-grafana/k6:latest}"
 export KUBECONFIG="${KUBECONFIG:-$HOME/.kube/config}"
+
+# Optional Prometheus remote-write. PERF_GRAFANA=1 defaults to the in-cluster receiver (this Job can
+# reach it); K6_PROMETHEUS_RW_SERVER_URL overrides. Off => the original bare `k6 run`.
+RW_URL="${K6_PROMETHEUS_RW_SERVER_URL:-}"
+[ -z "$RW_URL" ] && [ "${PERF_GRAFANA:-0}" = "1" ] && \
+  RW_URL="http://monitoring-kube-prometheus-prometheus.monitoring.svc.cluster.local:9090/api/v1/write"
+if [ -n "$RW_URL" ]; then
+  K6_CMD='["k6", "run", "-o", "experimental-prometheus-rw", "--quiet", "--tag", "target=trino", "/scripts/trino.js"]'
+  RW_ENV=$'\n            - {name: K6_PROMETHEUS_RW_SERVER_URL, value: "'"$RW_URL"$'"}\n            - {name: K6_PROMETHEUS_RW_TREND_STATS, value: "p(95),p(99),avg"}'
+else
+  K6_CMD='["k6", "run", "--quiet", "/scripts/trino.js"]'
+  RW_ENV=''
+fi
 
 die() { printf '%s\n' "$*" >&2; exit 2; }
 command -v kubectl >/dev/null 2>&1 || die "kubectl not found"
@@ -46,12 +63,12 @@ spec:
       containers:
         - name: k6
           image: $K6_IMG
-          command: ["k6", "run", "--quiet", "/scripts/trino.js"]
+          command: $K6_CMD
           env:
             - {name: BASE, value: "http://trino:8080"}
             - {name: SQL, value: "SELECT 1"}
             - {name: VUS, value: "$VUS"}
-            - {name: DURATION, value: "$DUR"}
+            - {name: DURATION, value: "$DUR"}$RW_ENV
           volumeMounts:
             - {name: s, mountPath: /scripts}
       volumes:

@@ -1,0 +1,67 @@
+# k6 perf dashboard (B104) — visualizes on-demand k6 load runs that push to Prometheus via
+# remote-write (`k6 run -o experimental-prometheus-rw`; the receiver is already enabled on
+# kube-prometheus-stack). Metric names + units were captured live from a real k6 RW run, NOT guessed:
+# durations are the `_p95`/`_p99`/`_avg` gauges in SECONDS, throughput is `k6_http_reqs_total`, errors
+# are `k6_http_req_failed_rate` (0-1). Series are labelled per endpoint (`name`); a run can add
+# `--tag target=<svc>` (scripts/perf-baseline.sh does when RW is on) to legend by target.
+#
+# Perf runs are on-demand + bounded (never scheduled — mother is swapless), so this board shows the
+# MOST RECENT run within Prometheus retention and is empty between runs — that is expected. It pairs
+# with the committed TSV baseline (tests/perf/baseline.tsv) + the ratchet (scripts/perf-ratchet.sh).
+# Provisioned via the grafana_dashboard sidecar, same pattern as vector-stores-grafana-dashboard.yaml.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: k6-perf-grafana-dashboard
+  namespace: monitoring
+  labels:
+    grafana_dashboard: "1"
+data:
+  k6-perf_grafana_dashboard.json: |-
+    {
+      "annotations": {"list": [{"builtIn": 1, "datasource": "-- Grafana --", "enable": true, "hide": true, "name": "Annotations & Alerts", "type": "dashboard"}]},
+      "editable": true,
+      "graphTooltip": 1,
+      "title": "k6 Perf (load tests)",
+      "uid": "k6-perf",
+      "tags": ["perf", "k6", "b104"],
+      "timezone": "browser",
+      "time": {"from": "now-1h", "to": "now"},
+      "refresh": "30s",
+      "schemaVersion": 39,
+      "templating": {"list": []},
+      "panels": [
+        {"type": "row", "title": "k6 load test (most recent on-demand run)", "gridPos": {"h": 1, "w": 24, "x": 0, "y": 0}},
+        {"type": "stat", "title": "Active VUs", "datasource": {"type": "prometheus", "uid": "prometheus"},
+         "gridPos": {"h": 6, "w": 4, "x": 0, "y": 1},
+         "fieldConfig": {"defaults": {"unit": "short"}},
+         "targets": [{"expr": "max(k6_vus)", "refId": "A"}]},
+        {"type": "timeseries", "title": "Request rate (by endpoint)", "datasource": {"type": "prometheus", "uid": "prometheus"},
+         "gridPos": {"h": 6, "w": 10, "x": 4, "y": 1},
+         "fieldConfig": {"defaults": {"unit": "reqps", "custom": {"drawStyle": "line", "fillOpacity": 10}}},
+         "options": {"legend": {"displayMode": "table", "placement": "right", "calcs": ["last"]}},
+         "targets": [{"expr": "sum by (name) (rate(k6_http_reqs_total[1m]))", "legendFormat": "{{name}}", "refId": "A"}]},
+        {"type": "timeseries", "title": "Error rate (by endpoint)", "datasource": {"type": "prometheus", "uid": "prometheus"},
+         "gridPos": {"h": 6, "w": 10, "x": 14, "y": 1},
+         "fieldConfig": {"defaults": {"unit": "percentunit", "min": 0, "custom": {"drawStyle": "line", "fillOpacity": 10}}},
+         "options": {"legend": {"displayMode": "table", "placement": "right", "calcs": ["last", "max"]}},
+         "targets": [{"expr": "max by (name) (k6_http_req_failed_rate)", "legendFormat": "{{name}}", "refId": "A"}]},
+        {"type": "timeseries", "title": "HTTP req duration — p95 / p99 / avg (by endpoint)", "datasource": {"type": "prometheus", "uid": "prometheus"},
+         "gridPos": {"h": 9, "w": 24, "x": 0, "y": 7},
+         "fieldConfig": {"defaults": {"unit": "s", "custom": {"drawStyle": "line", "fillOpacity": 5}}},
+         "options": {"legend": {"displayMode": "table", "placement": "right", "calcs": ["last", "max"]}},
+         "targets": [
+           {"expr": "max by (name) (k6_http_req_duration_p95)", "legendFormat": "p95 {{name}}", "refId": "A"},
+           {"expr": "max by (name) (k6_http_req_duration_p99)", "legendFormat": "p99 {{name}}", "refId": "B"},
+           {"expr": "max by (name) (k6_http_req_duration_avg)", "legendFormat": "avg {{name}}", "refId": "C"}
+         ]},
+        {"type": "timeseries", "title": "Network throughput", "datasource": {"type": "prometheus", "uid": "prometheus"},
+         "gridPos": {"h": 7, "w": 24, "x": 0, "y": 16},
+         "fieldConfig": {"defaults": {"unit": "Bps", "custom": {"drawStyle": "line", "fillOpacity": 10}}},
+         "options": {"legend": {"displayMode": "list", "placement": "bottom", "calcs": []}},
+         "targets": [
+           {"expr": "sum(rate(k6_data_received_total[1m]))", "legendFormat": "received", "refId": "A"},
+           {"expr": "sum(rate(k6_data_sent_total[1m]))", "legendFormat": "sent", "refId": "B"}
+         ]}
+      ]
+    }

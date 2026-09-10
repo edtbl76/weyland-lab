@@ -180,7 +180,7 @@ steps:
   - name: shellcheck
     image: koalaman/shellcheck-alpine:stable
     commands:
-      - shellcheck --severity=warning scripts/*.sh scripts/lib/*.sh scripts/ci/*.sh scripts/integration/*.sh scripts/perf/*.sh
+      - shellcheck --severity=warning scripts/*.sh scripts/lib/*.sh scripts/ci/*.sh scripts/integration/*.sh scripts/perf/*.sh eval/coding-agents/tasks/*/grade.sh
 
   # ── 1c2. shell tests ────────────────────────────────────────────────────────
   # B131/B135 — the repo's FIRST shell test harness. shellcheck above catches malformed shell; it

@@ -49,10 +49,41 @@ negligible (0% errors at the levels above, node untroubled). Raise `PERF_VUS` on
 stay comfortable; the Trino Job runs **sidecar-off** (Trino has no Istio sidecar) so it reaches `trino:8080`
 over plain HTTP.
 
-## Scope + what's next (B104)
+## Live Grafana dashboard (optional)
 
-This delivers the perf **baseline** (B104's unbuilt core). Remaining under B104: a **Grafana dashboard**
-fed by k6's Prometheus output (currently the baseline lives in the TSV), a **regression ratchet** once the
-baseline is trusted (record-mode today, no gating), and the broader **AI-dev-tooling survey refresh** (the
-list needs re-grounding — the shipped categories are evidence it pays off, not that it's spent). **k6 is now
-the lab's adopted load-testing tool** ($0, OSS, self-hosted) — the survey's load/perf category is answered.
+Each run can also stream metrics to Prometheus via k6 remote-write (the receiver is already enabled on
+kube-prometheus-stack), feeding the **"k6 Perf"** dashboard (`k8s/monitoring/k6-perf-dashboard.yaml`,
+uid `k6-perf`). The dashboard exprs + units were captured from a real k6 RW run (durations are the
+`k6_http_req_duration_p95/p99/avg` gauges in **seconds**; errors are `k6_http_req_failed_rate`); series
+are labelled `target=<name>`.
+
+```
+# In-cluster Trino run — reaches the RW receiver directly:
+PERF_GRAFANA=1 bash scripts/perf/trino-baseline.sh
+
+# LAN runs — the RW receiver is a ClusterIP, so give k6 a LAN-reachable RW URL (expose it, or run k6
+# in-cluster); otherwise the TSV is still written, just no live feed:
+K6_PROMETHEUS_RW_SERVER_URL=http://<reachable>/api/v1/write bash scripts/perf-baseline.sh all
+```
+
+Because runs are on-demand + bounded (never scheduled), the dashboard shows the **most recent run within
+Prometheus retention** and is empty between runs — expected. The committed TSV remains the durable record.
+
+## Regression ratchet
+
+`scripts/perf-ratchet.sh` compares each target's latest run against its **floor** (best p95 among prior
+runs) and flags a regression when p95 drifts above `floor*(1+tol)` (default 25%) or the latest error rate
+exceeds the ceiling (default 1%). **Advisory by default** (exit 0) — perf here is on-demand with little
+variance data yet; arm it with `PERF_RATCHET_ENFORCE=1` to gate. **Fail-closed:** a missing/malformed
+baseline is a loud error, never a silent "no regression". Guarded by `scripts/tests/perf-ratchet.bats`.
+
+```
+bash scripts/perf-ratchet.sh                    # advisory table
+PERF_RATCHET_ENFORCE=1 bash scripts/perf-ratchet.sh   # gate (non-zero on regression)
+```
+
+## Scope (B104)
+
+**k6 is the lab's adopted load-testing tool** ($0, OSS, self-hosted) — the survey's load/perf category is
+answered. Baseline (TSV) + live dashboard + regression ratchet are all in place; the broader survey
+refresh lives in [concepts/ai-dev-tooling-survey.md](../concepts/ai-dev-tooling-survey.md).

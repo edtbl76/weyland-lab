@@ -13,6 +13,13 @@
 # Low VUs + light endpoints keep it negligible; raise PERF_VUS only after confirming the node is comfortable.
 #   usage: scripts/perf-baseline.sh [toolserver|gateway|all]   (default: all LAN targets)
 #   env:   PERF_VUS (default 10) · PERF_DURATION (default 30s) · PERF_BASELINE_FILE · K6_IMAGE
+#
+# GRAFANA (optional): set K6_PROMETHEUS_RW_SERVER_URL to a Prometheus remote-write endpoint and each run
+# also streams live metrics there (tagged target=<name>) for the "k6 Perf" dashboard
+# (k8s/monitoring/k6-perf-dashboard.yaml). The receiver is already enabled on kube-prometheus-stack, but
+# it is a ClusterIP — reachable from an in-cluster k6 (see scripts/perf/trino-baseline.sh) but NOT from
+# this LAN docker run unless you expose it (NodePort/ingress) or point at a LAN-reachable RW URL. The TSV
+# baseline is written either way; RW only adds the live dashboard feed.
 set -uo pipefail
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 BASELINE="${PERF_BASELINE_FILE:-$REPO_ROOT/tests/perf/baseline.tsv}"
@@ -20,6 +27,8 @@ K6_IMG="${K6_IMAGE:-grafana/k6:latest}"
 VUS="${PERF_VUS:-10}"
 DUR="${PERF_DURATION:-30s}"
 SCRIPT="$REPO_ROOT/scripts/perf/baseline.js"
+K6_RW_URL="${K6_PROMETHEUS_RW_SERVER_URL:-}"
+RW_TREND="${K6_PROMETHEUS_RW_TREND_STATS:-p(95),p(99),avg}"
 
 die() { printf '%s\n' "$*" >&2; exit 2; }
 command -v docker >/dev/null 2>&1 || die "docker not found (k6 runs via the $K6_IMG image)"
@@ -29,11 +38,21 @@ mkdir -p "$(dirname "$BASELINE")"
 
 run() { # run <name> <base> <paths> [auth]
   local name="$1" base="$2" paths="$3" auth="${4:-}" out
-  printf '→ %s  (%s  paths=%s  vus=%s  dur=%s)\n' "$name" "$base" "$paths" "$VUS" "$DUR"
+  printf '→ %s  (%s  paths=%s  vus=%s  dur=%s%s)\n' "$name" "$base" "$paths" "$VUS" "$DUR" \
+    "$([ -n "$K6_RW_URL" ] && echo '  +remote-write' || true)"
+  # Optional Prometheus remote-write: extra k6 flags + env, only when K6_RW_URL is set. Guarded array
+  # expansion (${a[@]+"${a[@]}"}) because an empty array under `set -u` is an unbound-variable error on
+  # bash < 4.4. --tag target=<name> labels the series so the dashboard can legend by target.
+  local k6flags=(run --quiet) rwenv=()
+  if [ -n "$K6_RW_URL" ]; then
+    k6flags=(run -o experimental-prometheus-rw --quiet --tag "target=$name")
+    rwenv=(-e "K6_PROMETHEUS_RW_SERVER_URL=$K6_RW_URL" -e "K6_PROMETHEUS_RW_TREND_STATS=$RW_TREND")
+  fi
   # --network host so the container reaches the LAN NodePorts. handleSummary prints PERFLINE to stdout.
   out="$(docker run --rm --network host -v "$SCRIPT:/b.js:ro" \
         -e BASE="$base" -e PATHS="$paths" -e VUS="$VUS" -e DURATION="$DUR" -e AUTH="$auth" \
-        "$K6_IMG" run --quiet /b.js 2>/dev/null | grep '^PERFLINE')" || true
+        ${rwenv[@]+"${rwenv[@]}"} \
+        "$K6_IMG" "${k6flags[@]}" /b.js 2>/dev/null | grep '^PERFLINE')" || true
   [ -n "$out" ] || { printf '  x no result (k6 failed or target unreachable)\n' >&2; return 1; }
   # PERFLINE rps p50 p95 p99 err reqs
   # shellcheck disable=SC2086

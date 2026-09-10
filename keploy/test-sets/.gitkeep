@@ -1,0 +1,4 @@
+# Keploy writes recorded regression test-sets here — one dir per `keploy record`
+# session: test-sets/test-set-N/{tests/,mocks.yaml}. These files ARE the
+# regression corpus and are meant to be committed. Empty until the operator runs
+# a record cycle — see docs/runbooks/api-client-bruno-keploy.md.

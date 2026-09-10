@@ -34,7 +34,7 @@ or desk-note."
    *runs* coding agents and even meters their usage (B62 AI-dev usage → Port) — it just can't say if one is
    *better*. **Top shortlist pick.**
 2. **Parallel-agent orchestration** — a supervisor layer over the existing CLIs: one worktree per task, several
-   agents concurrently, a board to compare/approve. OSS: **Vibe Kanban · Emdash · Proliferate**. Medium value
+   agents concurrently, a board to compare/approve. OSS: **Emdash · Proliferate** (Vibe Kanban is dead — sunset). Medium value
    for a solo lab (nice-to-have, not a gap).
 3. **Git-native API + regression** — **Bruno** (API client, collections as committed files) **+ Keploy** (record
    real traffic → generated regression tests). Pairs with **B155** (API lifecycle) and **B152** (contract tests).
@@ -50,6 +50,6 @@ or desk-note."
 
 1. **Coding-agent evaluation harness** (SWE-bench-style task repo + Inspect AI + Langfuse traces) — the one true gap; highest leverage given the lab's agent usage. *Its own item.*
 2. **Bruno + Keploy** — Git-native API client + API regression capture; small, complements B155/B152. *Its own item.*
-3. *(optional)* **Vibe Kanban / Emdash** — parallel-agent supervisor; low-risk trial, lower priority solo.
+3. *(optional)* **Emdash** — parallel-agent supervisor (`generalaction/emdash`, MIT); low-risk trial, lower priority solo.
 
 Comparison-only (recorded, not built): Cursor · Devin · Copilot · Qodo · Mabl · Diffblue · Snyk/Veracode/Checkmarx/Wiz · Mintlify · GitBook · Kiro · Postman-AI.

@@ -595,13 +595,58 @@ Runbook + method + node-safety envelope (mother is swapless/~4.6Gi headroom, so 
 **Survey refresh (2026-09-10) — DONE:** re-grounded the whole landscape against current lab state + the
 $0 lens in [concepts/ai-dev-tooling-survey.md](concepts/ai-dev-tooling-survey.md). Headline: for a lab this
 AI-mature another hosted reviewer / coding CLI adds little; the genuine 2026 gaps are *new categories*.
-Shortlist to actually stand up ($0/OSS/non-duplicative): ① **coding-agent evaluation harness** (SWE-bench-style
-tasks + Inspect AI + Langfuse traces — the one true gap; the lab scores its RAG via B84/B96 but has nothing
-that scores its coding agents), ② **Bruno + Keploy** (Git-native API client + API-regression capture; small,
-complements B155/B152), ③ *(optional)* **Vibe Kanban / Emdash** parallel-agent supervisor. Overlaps NOT to
-double-track: spec-driven→B86 · MCP governance→B17/B19/B115 · local-model→B79/B111 · local RAG→B1/B70/B113.
-**Remaining under B104:** a Grafana dashboard off k6's Prometheus output + a regression ratchet (both
-record-mode today); the shortlist above is the owner's call on whether/what to file as its own item(s).
+Overlaps NOT to double-track: spec-driven→B86 · MCP governance→B17/B19/B115 · local-model→B79/B111 ·
+local RAG→B1/B70/B113.
+
+**Shortlist — BUILDING all three UNDER B104 (2026-09-10; owner: "no backlog items, complete all of it"):**
+- ① **Coding-agent evaluation harness — BUILT.** The one true gap: the lab scores its RAG (B84/B96) but
+  had nothing that scores its coding agents. `eval/coding-agents/` (task fixtures: buggy code + a FAILING
+  stdlib test + prompt + grader + solution) + `scripts/coding-agent-eval.sh` (agent-agnostic runner:
+  isolates each run in a throwaway **git** rundir, Red pre-check so a non-failing fixture is never a free
+  pass, bounded timeout, **fail-closed** grading via a `GRADE:` sentinel) recording agent·task·pass·
+  duration to `tests/eval/coding-agents.tsv`. Agents wired: claude/opencode/codex + mock-pass/mock-noop.
+  Validated $0 end-to-end (mock-pass 2/2, mock-noop 0/2) + **14-case bats** (`scripts/tests/coding-agent-eval.bats`,
+  wired into the shell-tests lane) locking the fail-closed properties (PASS only on real verdict; no-verdict→ERROR;
+  already-passing→RED-BROKEN; overrun→TIMEOUT). Real codex contract observed: it reasons the correct fix;
+  applying it is an **operator on-demand** step (codex's bubblewrap sandbox needs user namespaces disabled on
+  rogueone, so the runbook documents `--dangerously-bypass-approvals-and-sandbox` in the git-isolated rundir,
+  which a bg session's classifier blocks by design). README + [runbooks/coding-agent-eval.md](runbooks/coding-agent-eval.md).
+- ② **Bruno + Keploy — BUILT.** Git-native API tooling, both files-as-tests. **Bruno** collection
+  `bruno/weyland/` (tool-server + gateway health/ready/metrics + an authed gateway-models example) with a
+  `lan` env of LAN NodePorts — validated live via the Bruno CLI (**5 req / 10 assertions green** against
+  the real serving plane, the same endpoints the perf baseline measures). **Keploy** `keploy/keploy.yml`
+  (config grounded in Keploy's documented schema) targets a B160 golden-path image (self-contained, no
+  deps); records real traffic → committed regression test-sets under `keploy/test-sets/` that `keploy
+  test` replays+diffs. Keploy record/replay is **operator-on-demand** (needs kernel ≥5.10 + privileged
+  eBPF). Runbook [runbooks/api-client-bruno-keploy.md](runbooks/api-client-bruno-keploy.md) + per-tool
+  READMEs. Complements the API-lifecycle catalog (B155/apis.yaml) + contract-lock (B152) — those govern,
+  these exercise.
+- ③ **Parallel-agent supervisor — EVALUATED + operator recipe delivered** (git-worktree-per-task board
+  over the CLIs). Runbook [runbooks/parallel-agent-supervisor.md](runbooks/parallel-agent-supervisor.md).
+  Findings: **Vibe Kanban** (BloopAI, the survey's first name) is **dead/sunsetting → rejected**, not
+  carried even as a fallback. Recommended: **Emdash** (`generalaction/emdash`, MIT, active, YC W26) — a
+  desktop app that fits the lab's topology (drives our CLIs, git-worktree-per-task, **Linear + GitHub
+  intake**, **SSH to rogueone/mother**); grounded Linux/macOS install steps in the runbook. Trap
+  recorded: npm `emdash` is an **unrelated Astro CMS** (name collision) — never `npx emdash`. Deliberately
+  NOT deployed as a cluster app: it is an operator-workstation UI (eyes-on), so a full Argo app would
+  trip the registry/doc-count guards for no gain — this stays an on-demand operator recipe, matching the
+  survey's "optional / low for a solo lab" rating.
+
+**Grafana dashboard + regression ratchet — BUILT (2026-09-10), closing B104's tail:**
+- **Dashboard** `k8s/monitoring/k6-perf-dashboard.yaml` (uid `k6-perf`, grafana_dashboard sidecar) — k6
+  runs stream to Prometheus via remote-write (receiver already enabled) and chart request rate / error
+  rate / p95·p99·avg latency / VUs / throughput, legend by `target`. Exprs+units **validated live** (an
+  in-cluster k6 RW run landed `k6_http_reqs_total{target="trino"}` and the p95 gauges). RW opt-in wired
+  into `perf-baseline.sh` (`K6_PROMETHEUS_RW_SERVER_URL`) and `perf/trino-baseline.sh` (`PERF_GRAFANA=1`,
+  reaches the receiver directly in-cluster). Empty between runs by design (on-demand/bounded).
+- **Ratchet** `scripts/perf-ratchet.sh` — compares each target's latest p95 vs its floor (best prior),
+  flags regressions above tolerance (default 25%) or error-ceiling (1%); **advisory by default**,
+  `PERF_RATCHET_ENFORCE=1` gates; **fail-closed** on missing/malformed baseline. 11-case bats
+  (`scripts/tests/perf-ratchet.bats`). Runbook [runbooks/perf-baseline.md](runbooks/perf-baseline.md).
+
+**B104 deliverables are complete** — perf baseline + survey refresh + all three shortlist builds
+(coding-agent eval harness · Bruno+Keploy · parallel-agent supervisor recipe) + dashboard + ratchet.
+Ready for the 8-pillar DoD close-out.
 
 - **AI coding assistants / IDEs** — GitHub Copilot · Cursor · Windsurf · **Codex** (DONE B15). $0 lens: Copilot free tier
  + Codex-via-ChatGPT-sub are viable; Cursor/Windsurf are paid *editors* (free tiers exist) — evaluate vs the B15 CLI

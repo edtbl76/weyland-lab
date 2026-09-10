@@ -1,0 +1,14 @@
+meta {
+  name: metrics
+  type: http
+  seq: 3
+}
+
+get {
+  url: {{ts}}/metrics
+}
+
+assert {
+  res.status: eq 200
+  res.body: contains # HELP
+}

@@ -1,0 +1,13 @@
+meta {
+  name: liveliness
+  type: http
+  seq: 2
+}
+
+get {
+  url: {{gw}}/health/liveliness
+}
+
+assert {
+  res.status: eq 200
+}
