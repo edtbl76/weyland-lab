@@ -5,6 +5,9 @@ dependency mocks; `keploy test` replays them and diffs the responses. It is the 
 complement to the hand-authored Bruno collection (`../bruno/weyland/`).
 
 - **Config:** `keploy.yml` — targets a B160 golden-path image (self-contained, no deps).
-- **Corpus:** `test-sets/` — recorded tests, committed to git (empty until the first record cycle).
+- **Corpus:** `keploy/<test-set>/` (e.g. `keploy/golden-fastapi-smoke/`) — Keploy writes recordings to a
+  `keploy/` subdir of the run dir, so from this folder they land at `keploy/keploy/<test-set>/`. The
+  test-set is named by the `--metadata 'name=...'` you record with. Committed: `tests/` + `config.yaml` +
+  `seed.sh`; `mocks.yaml` is gitignored (Keploy uploads mocks to its registry by hash on a green run).
 - **Requires:** Linux kernel >= 5.10 + eBPF (privileged); **operator-on-demand**, never CI/scheduled.
 - **How to run it:** [../docs/runbooks/api-client-bruno-keploy.md](../docs/runbooks/api-client-bruno-keploy.md).

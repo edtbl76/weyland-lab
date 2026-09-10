@@ -616,7 +616,7 @@ local RAG→B1/B70/B113.
   `lan` env of LAN NodePorts — validated live via the Bruno CLI (**5 req / 10 assertions green** against
   the real serving plane, the same endpoints the perf baseline measures). **Keploy** `keploy/keploy.yml`
   (config grounded in Keploy's documented schema) targets a B160 golden-path image (self-contained, no
-  deps); records real traffic → committed regression test-sets under `keploy/test-sets/` that `keploy
+  deps); records real traffic → committed regression test-sets under `keploy/keploy/<test-set>/` that `keploy
   test` replays+diffs. Keploy record/replay is **operator-on-demand** (needs kernel ≥5.10 + privileged
   eBPF). Runbook [runbooks/api-client-bruno-keploy.md](runbooks/api-client-bruno-keploy.md) + per-tool
   READMEs. Complements the API-lifecycle catalog (B155/apis.yaml) + contract-lock (B152) — those govern,

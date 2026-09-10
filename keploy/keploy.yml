@@ -8,13 +8,15 @@
 # TARGET: a B160 golden-path image — a self-contained HTTP service (/health /ready /hello /metrics,
 # EXPOSE 8080) with NO external dependencies, so a record/replay cycle needs nothing but the image.
 # Point `command` at any other golden-* image (see golden-paths/) to capture that one instead.
+# Host port is 18080 (not 8080) — the Ray dashboard owns 8080 on rogueone; the container still
+# serves 8080, and seed.sh targets http://localhost:18080.
 #
 # REQUIRES: Linux kernel >= 5.10 and eBPF (privileged). OPERATOR-ON-DEMAND — never CI, never scheduled.
 # Recorded test-sets land under keploy/test-sets/ and ARE committed (that is the regression corpus).
 # Full loop + exact commands: docs/runbooks/api-client-bruno-keploy.md.
 
 path: ""
-command: "docker run -p 8080:8080 --name golden-python-fastapi --network keploy-network --rm registry.weyland.lab/golden-python-fastapi:latest"
+command: "docker run -p 18080:8080 --name golden-python-fastapi --network keploy-network --rm registry.weyland.lab/golden-python-fastapi:latest"
 port: 8080
 proxyPort: 16789
 dnsPort: 26789
