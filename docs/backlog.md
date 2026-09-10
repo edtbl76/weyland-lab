@@ -583,6 +583,16 @@ A survey/evaluate item: assess the current AI-augmented dev-tooling landscape ag
 constraint** (free-tier / OSS / self-hostable = build candidate; enterprise-SaaS-only = desk-note & park). Extends
 **B15** (coding agents). DONE = already in the lab. Grouped by category:
 
+**Progress (2026-09-10) — the perf-baseline core (the genuinely-unbuilt gap) is BUILT:** adopted **k6**
+($0 OSS, Grafana-native) as the lab's load-testing tool and stood up an on-demand, bounded HTTP perf
+harness — `scripts/perf-baseline.sh` (LAN targets via docker k6) + `scripts/perf/trino-baseline.sh`
+(in-cluster ephemeral Job) + the k6 scripts under `scripts/perf/`, recording to `tests/perf/baseline.tsv`.
+**First baseline captured (all 3 request-serving services, light serving-plane endpoints, 0% steady-state
+err):** tool-server 465 rps p95 45ms · LiteLLM gateway 2299 rps p95 6ms · Trino `SELECT 1` 180 q/s p95 27ms.
+Runbook + method + node-safety envelope (mother is swapless/~4.6Gi headroom, so bounded-by-design):
+[runbooks/perf-baseline.md](runbooks/perf-baseline.md). **Remaining under B104:** a Grafana dashboard off
+k6's Prometheus output, a regression ratchet (record-mode today), and the broader tooling-survey refresh.
+
 - **AI coding assistants / IDEs** — GitHub Copilot · Cursor · Windsurf · **Codex** (DONE B15). $0 lens: Copilot free tier
  + Codex-via-ChatGPT-sub are viable; Cursor/Windsurf are paid *editors* (free tiers exist) — evaluate vs the B15 CLI
  agents (which we already proved) rather than as replacements.
