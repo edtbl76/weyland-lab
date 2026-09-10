@@ -182,6 +182,18 @@ teardown() {
   [ "$(echo "$output" | grep -c 'selfcheck')" -eq 0 ]            # its selfcheck is NOT a separate one
 }
 
+@test "the coding-agent eval fixture tree is never discovered as a project (B104)" {
+  # eval/coding-agents/tasks/<id>/ ships a deliberately-buggy Red test + a solution/. Discovering it
+  # runs a test built to FAIL and reds the lane (test-python did, 2026-09-10). It must be excluded.
+  mkdir -p "$SANDBOX/fix/python" "$SANDBOX/scan/eval/coding-agents/tasks/py-bug/workdir"
+  : > "$SANDBOX/fix/python/test_hello.py"
+  : > "$SANDBOX/scan/eval/coding-agents/tasks/py-bug/workdir/test_stats.py"
+  run env WEYLAND_LANG_FIXTURE_DIR="$SANDBOX/fix" WEYLAND_LANG_SCAN_ROOT="$SANDBOX/scan" \
+      bash "$RUNNER" python --list-roots
+  [ "$status" -eq 0 ]
+  [ "$(echo "$output" | grep -c 'eval/coding-agents')" -eq 0 ]   # the eval fixture is NOT a project
+}
+
 @test "multiple real project roots are all discovered, not just the first" {
   mkdir -p "$SANDBOX/fix/go" "$SANDBOX/scan/a" "$SANDBOX/scan/b"
   printf 'module fixture\ngo 1.22\n' > "$SANDBOX/fix/go/go.mod"

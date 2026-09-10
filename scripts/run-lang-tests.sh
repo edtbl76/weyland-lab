@@ -191,6 +191,12 @@ is_excluded() {
     # excluded (the whole tree is); this also covers golden-paths/<lang>/<fw>/selfcheck (B153).
     */selfcheck/*)
       return 0 ;;
+    # The coding-agent eval harness (B104) ships task FIXTURES under eval/coding-agents/tasks/<id>/ —
+    # deliberately-buggy code + a "Red" test designed to FAIL + a solution/. Those test_*.py / *_test.*
+    # files are fixtures, NOT real projects; discovering them runs a test built to fail and reds the lane
+    # (test-python failed exactly this way, 2026-09-10). Same rationale as selfcheck/.
+    */eval/coding-agents/*)
+      return 0 ;;
   esac
   return 1
 }
