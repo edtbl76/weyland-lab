@@ -220,6 +220,7 @@ caches need anyway. **Apply the PVCs before the run** or step pods hang Pending.
   `scripts/run-golden-path-jobs.sh` (see [demos/golden-paths.md](../demos/golden-paths.md), [design/golden-paths.md](../design/golden-paths.md)).
 
 ## Pointers
+- **Step catalog (café menu of every CI step + how to select a subset):** [woodpecker-step-menu.md](woodpecker-step-menu.md)
 - Values: `k8s/woodpecker/woodpecker-values.yaml` · pipeline: `.woodpecker.yml` + `.yamllint` (repo root)
 - Port: `ci_pipeline` blueprint + `woodpecker` webhook DS + `weyland_ci_reliability` dashboard (B63) + Launcher `endpoint/woodpecker`
 - STUD.io CI: 3 workflows (main · plugin-scanner · roadie) on the farm via `local`-backend agents on rogueone (B57b DONE) — `flow-woodpecker-studio-ci` + `demos/woodpecker-studio-ci.md`

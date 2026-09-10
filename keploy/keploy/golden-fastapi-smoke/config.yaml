@@ -1,0 +1,6 @@
+preScript: ""
+postScript: ""
+appCommand: ""
+template: {}
+metadata:
+    name: golden-fastapi-smoke
