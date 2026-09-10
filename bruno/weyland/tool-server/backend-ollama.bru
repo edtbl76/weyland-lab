@@ -1,0 +1,14 @@
+meta {
+  name: backend-ollama
+  type: http
+  seq: 10
+}
+
+get {
+  url: {{ts}}/ollama/health
+}
+
+assert {
+  res.status: eq 200
+  res.body.status: eq ok
+}

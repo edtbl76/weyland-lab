@@ -1,0 +1,13 @@
+meta {
+  name: live
+  type: http
+  seq: 2
+}
+
+get {
+  url: {{weaviate}}/v1/.well-known/live
+}
+
+assert {
+  res.status: eq 200
+}

@@ -1,0 +1,14 @@
+meta {
+  name: discovery
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{neo4j}}/
+}
+
+assert {
+  res.status: eq 200
+  res.body.neo4j_version: isString
+}

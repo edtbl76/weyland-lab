@@ -1,0 +1,15 @@
+meta {
+  name: models
+  type: http
+  seq: 5
+}
+
+get {
+  url: {{ts}}/models
+}
+
+assert {
+  res.status: eq 200
+  res.body.available: isArray
+  res.body.default: isString
+}

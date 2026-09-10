@@ -12,13 +12,17 @@ Collection: `bruno/weyland/` (see its README for layout + how to add requests).
 
 ```
 cd bruno/weyland
-npx --yes @usebruno/cli run tool-server gateway --env lan     # keyless smoke, all green (5 req / 10 assert)
-npx --yes @usebruno/cli run authenticated --env lan --env-var gw_key=$LITELLM_MASTER_KEY
+# keyless read surface — 26 requests / 56 assertions, all green:
+npx --yes @usebruno/cli run tool-server gateway qdrant weaviate neo4j ollama rag-embed clickhouse mlflow-gateway --env lan
+# the authenticated example:
+npx --yes @usebruno/cli run authenticated --env lan --env-var gw_key=$LITELLM_API_KEY
 ```
 
-The keyless run asserts health/ready/metrics on the tool-server (`:30080`) and LiteLLM gateway
-(`:30400`) — the same request-serving plane the perf baseline measures ([[perf-baseline]]). Use it as a
-fast correctness check; the perf run is the throughput check.
+The keyless run covers every LAN-reachable read/health endpoint across 9 services (the tool-server
+boundary incl. all 5 vector backends + a real retrieval POST, the LiteLLM gateway, Qdrant, Weaviate,
+Neo4j, Ollama, rag-embed, ClickHouse, MLflow gateway) — the same serving plane the perf baseline
+measures ([[perf-baseline]]). Scope bounds (what's excluded and why) are in the collection README. Use it
+as a fast correctness check; the perf run is the throughput check.
 
 ## Keploy — record → replay (operator-on-demand, privileged)
 

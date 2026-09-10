@@ -1,0 +1,14 @@
+meta {
+  name: tags
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{ollama}}/api/tags
+}
+
+assert {
+  res.status: eq 200
+  res.body.models: isArray
+}

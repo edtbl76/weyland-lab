@@ -1,0 +1,13 @@
+meta {
+  name: readyz
+  type: http
+  seq: 2
+}
+
+get {
+  url: {{qdrant}}/readyz
+}
+
+assert {
+  res.status: eq 200
+}

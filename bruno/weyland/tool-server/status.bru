@@ -1,0 +1,16 @@
+meta {
+  name: status
+  type: http
+  seq: 4
+}
+
+get {
+  url: {{ts}}/status
+}
+
+assert {
+  res.status: eq 200
+  res.body.status: eq ok
+  res.body.service: eq weyland-tool-server
+  res.body.llm.status: eq ok
+}

@@ -1,0 +1,14 @@
+meta {
+  name: backend-neo4j
+  type: http
+  seq: 9
+}
+
+get {
+  url: {{ts}}/neo4j/health
+}
+
+assert {
+  res.status: eq 200
+  res.body.status: eq ok
+}

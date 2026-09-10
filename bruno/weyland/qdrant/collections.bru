@@ -1,0 +1,15 @@
+meta {
+  name: collections
+  type: http
+  seq: 4
+}
+
+get {
+  url: {{qdrant}}/collections
+}
+
+assert {
+  res.status: eq 200
+  res.body.status: eq ok
+  res.body.result.collections: isArray
+}

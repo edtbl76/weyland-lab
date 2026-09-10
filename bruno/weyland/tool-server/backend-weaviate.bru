@@ -1,0 +1,14 @@
+meta {
+  name: backend-weaviate
+  type: http
+  seq: 8
+}
+
+get {
+  url: {{ts}}/weaviate/health
+}
+
+assert {
+  res.status: eq 200
+  res.body.status: eq ok
+}

@@ -10,14 +10,36 @@ client + a runnable smoke of the request-serving plane.
 ```
 bruno/weyland/
   bruno.json                     # collection manifest
-  environments/lan.bru           # base URLs (ts, gw) + gw_key secret var
-  tool-server/  health · ready · metrics
-  gateway/      readiness · liveliness
+  environments/lan.bru           # base URLs for 9 services + gw_key secret var
+  tool-server/   health · ready · status · metrics · models · backend-{pgvector,qdrant,weaviate,neo4j,ollama} · context-search (functional)
+  gateway/       readiness · liveliness              (LiteLLM)
+  qdrant/        healthz · readyz · livez · collections · metrics
+  weaviate/      ready · live · meta
+  neo4j/         discovery
+  ollama/        tags
+  rag-embed/     health
+  clickhouse/    ping
+  mlflow-gateway/ health
   authenticated/ gateway-models  # bearer example (needs gw_key; excluded from the keyless run)
 ```
 
-Base URLs point at the LAN NodePorts from [../../docs/api.md](../../docs/api.md): tool-server
-`192.168.1.243:30080`, LiteLLM gateway `192.168.1.243:30400`.
+Base URLs are the LAN NodePorts / CT IPs from [../../docs/api.md](../../docs/api.md).
+
+## Scope (what's covered, and what's deliberately not)
+
+**Covered:** every **LAN-reachable, read/health, no-auth** endpoint of the request-serving + data-backend
+surface — the tool-server platform boundary (10 endpoints incl. all 5 vector backends + one real
+retrieval POST), the LiteLLM gateway, Qdrant, Weaviate, Neo4j, Ollama, rag-embed, ClickHouse, and the
+MLflow gateway. 26 requests, 56 assertions, all green against live services.
+
+**Deliberately excluded** (with reasons, so "coverage" is honest and bounded):
+- **Mutating / act endpoints** (`/pipeline/trigger`, `/evals/run`, `/context/ask` — LLM cost) — a smoke
+  collection should not fire side-effects; `/context/search` is included because it is read-only.
+- **In-cluster-only services** (weyland-guard, weyland-agent, operator, Trino, the 6-server MCP fleet) —
+  no LAN NodePort; a Bruno run from a workstation can't reach a ClusterIP.
+- **Browser-SSO UIs** (Grafana, Argo, Dagster, …) — forward-auth, not API clients.
+- **Auth'd data queries** (ClickHouse `SELECT`, Neo4j Cypher) — need per-store credentials; only the
+  unauthenticated health/ping/discovery endpoints are asserted.
 
 ## Run it
 
@@ -25,13 +47,14 @@ Open `bruno/weyland` in the Bruno app, or headless via the CLI (`bru`):
 
 ```
 cd bruno/weyland
-npx --yes @usebruno/cli run tool-server gateway --env lan     # keyless smoke — all green
-npx --yes @usebruno/cli run authenticated --env lan --env-var gw_key=$LITELLM_MASTER_KEY
+# keyless read surface — 26 requests / 56 assertions, all green:
+npx --yes @usebruno/cli run tool-server gateway qdrant weaviate neo4j ollama rag-embed clickhouse mlflow-gateway --env lan
+# the authenticated example:
+npx --yes @usebruno/cli run authenticated --env lan --env-var gw_key=$LITELLM_API_KEY
 ```
 
-The keyless run asserts health/ready/metrics on the two request-serving services (5 requests, 10
-assertions) — a fast "is the serving plane answering correctly" check that pairs with the perf baseline
-([[perf-baseline]], which measures throughput on the same endpoints).
+A fast "is the read surface answering correctly" check that pairs with the perf baseline
+([[perf-baseline]], which measures throughput on the same serving plane).
 
 ## Add a request
 

@@ -19,8 +19,8 @@ assert {
 
 docs {
   Lists the LiteLLM gateway's model aliases (wl-coding / wl-agentic / ...).
-  Needs the LITELLM_MASTER_KEY as the `gw_key` secret in the `lan` environment:
-    bru run authenticated --env lan --env-var gw_key=$LITELLM_MASTER_KEY
+  Needs the LITELLM_API_KEY as the `gw_key` secret in the `lan` environment:
+    bru run authenticated --env lan --env-var gw_key=$LITELLM_API_KEY
   Kept OUT of the default health run so a keyless `bru run tool-server gateway`
   stays green. This is the pattern for adding any authenticated request.
 }

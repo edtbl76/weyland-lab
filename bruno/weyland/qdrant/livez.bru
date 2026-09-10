@@ -1,0 +1,13 @@
+meta {
+  name: livez
+  type: http
+  seq: 3
+}
+
+get {
+  url: {{qdrant}}/livez
+}
+
+assert {
+  res.status: eq 200
+}

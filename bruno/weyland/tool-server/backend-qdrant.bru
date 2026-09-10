@@ -1,0 +1,14 @@
+meta {
+  name: backend-qdrant
+  type: http
+  seq: 7
+}
+
+get {
+  url: {{ts}}/qdrant/health
+}
+
+assert {
+  res.status: eq 200
+  res.body.status: eq ok
+}

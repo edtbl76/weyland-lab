@@ -1,0 +1,13 @@
+meta {
+  name: ready
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{weaviate}}/v1/.well-known/ready
+}
+
+assert {
+  res.status: eq 200
+}

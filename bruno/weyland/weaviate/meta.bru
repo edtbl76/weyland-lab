@@ -1,0 +1,15 @@
+meta {
+  name: meta
+  type: http
+  seq: 3
+}
+
+get {
+  url: {{weaviate}}/v1/meta
+}
+
+assert {
+  res.status: eq 200
+  res.body.hostname: isString
+  res.body.modules: isDefined
+}
