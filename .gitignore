@@ -210,6 +210,7 @@ golden-paths/frontend/*/dist/
 golden-paths/frontend/*/build/
 golden-paths/frontend/*/.next/
 golden-paths/frontend/*/.astro/
+golden-paths/frontend/*/.angular/
 golden-paths/frontend/*/next-env.d.ts
 
 # B160 golden-path Elixir services — deps/ (fetched deps) and _build/ (compiled beam) are the mix
