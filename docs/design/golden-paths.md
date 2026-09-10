@@ -28,7 +28,7 @@ CONTRACT, never the framework — frameworks are interchangeable implementations
 | **Observability** | structured logging + `/metrics`; an OTel hook (or a documented stub). |
 | **Scaffold seam** | parameterized name/port placeholders so `scripts/new-service.sh <golden-path> <name>` stamps a real service. |
 
-## The locked framework matrix (21 golden paths)
+## The locked framework matrix (B153 — 21 golden paths; B160 adds 14 more, §"B160 — extended language wave" below → 35 total)
 
 | Language | Frameworks | Lane runner |
 |---|---|---|
@@ -136,6 +136,41 @@ Legend: ☐ not started · ◐ template built · ● lane-verified · ★ Job-ve
 Build order: **FastAPI is the reference** (matches the estate; establishes the contract + Dockerfile +
 Job + onboarding-decl + hello-retirement pattern end-to-end). Then the rest roll out per-language in
 batches, each conforming to the locked contract.
+
+## B160 — extended language wave (14 more paths → 35 total)
+
+B160 adds a second wave of blessed paths, one complete ecosystem at a time, each verified through the
+same build → k8s Job → curl smoke (its own scoped pipeline via `--var GOLDEN_PATH_ONLY=<lang/fw ...>`,
+which scopes only `golden-path-smoke`; the test/scan lanes always run all languages). **11 ecosystems,
+14 paths, all ★ Job-verified in-cluster.** Each non-frontend ecosystem is a **net-new test + scan lane**
+in `run-lang-tests.sh` / `run-lang-scan.sh` (runner + `test_glob` + `root_marker` + a fail-closed
+selfcheck) plus a `.woodpecker.yml` runner image and a `quality-tools.yaml` scanner registration.
+
+- **.NET** — ★ ASP.NET Core (minimal API · xunit + WebApplicationFactory · `Category=selfcheck` trait · `dotnet format`) — #97
+- **Kotlin** — ★ Ktor (`testApplication` · shadow jar · JUnit `@Tag("selfcheck")` · ktlint) — #100
+- **Scala** — ★ http4s (Ember · munit-cats-effect · `Tests.Filter` selfcheck · scalafmt; `sbt stage`, launcher chmod'd) — #102
+- **PHP** — ★ Slim (app driven in-process · phpunit `--group selfcheck` · phpstan; runner is `composer`, the on-PATH entry that installs vendor-local phpunit) — #104
+- **Ruby** — ★ Rails (flagship, the lane fixture) + ★ Sinatra (lean) — minitest, `rake test:selfcheck`, rubocop. **Rails needs `~> 8.0`, not 7.2**: ActiveSupport 8 dropped the `quirks_mode` arg to `JSON.generate` that the current `json` 3.x gem removed, so `render json:` 500s on 7.2 — a patch bump can't fix it — #106
+- **Elixir** — ★ Phoenix (flagship; `mix phx.new` generated then trimmed — `force_ssl` dropped for the LAN plain-HTTP canary, root-scope contract controller) + ★ Plug (lean) — ExUnit, `mix release` on debian-slim. The elixir selfcheck is **fail-closed by asserting the failure REASON** (`mix test --only <tag>` exits non-zero on zero-match too, so a bare exit check would fail open); `deps/`/`_build/` were added to `is_excluded` (they carry deps' own `*_test.exs`) — #107
+- **Clojure** — ★ Ring+Compojure (flagship) + ★ Ring (lean) — Leiningen, `lein uberjar` on temurin-21-jre, clojure.test `:selfcheck` selector. Scan = **clj-kondo** (the lein-cljfmt plugin ArityExceptions on current cljfmt), run in the `cljkondo/clj-kondo` image — #108
+- **C++** — ★ cpp-httplib (single-header, CMake-`FetchContent`ed — swapped from the backlog's Crow example to avoid the asio build and vendoring a 10k-line header) + doctest suite selfcheck — #109
+- **C** — ★ libmicrohttpd (system dep; a `CHECK`-macro harness, **not `assert()`** which `-DNDEBUG` compiles away; `--selfcheck` arg). **C/C++ both need a `trixie-slim` runtime** — `gcc:14` is GLIBC 2.41 and a `bookworm-slim` runtime (2.36) is too old for the binary — #109
+- **Angular** — ★ (frontend; reuses the node lanes) `ng build` SPA, its Karma/browser `ng test` swapped for **headless jest** on the pure greeting (the node lane has no browser); the built app is proven by the smoke — #111
+- **Vue 3 + Vite** — ★ (frontend; reuses the node lanes) `vite build` SPA · vitest + `@vue/test-utils` · **`@vitest/coverage-v8`** so the coverage ratchet gets a figure — #111
+
+**Contract variants (three, one altitude):** the **service** variant serves the four HTTP endpoints
+directly (the JVM/native/scripting ecosystems); the **frontend** variant (Angular/Vue, like B153's
+Next/Remix/Vite/Astro) is an SPA fronted by a stdlib `http` + `prom-client` `server.mjs` sidecar that
+serves the built bundle + the four endpoints, with the service name in `<title>` for the smoke's
+demo-route check; C/C++ additionally **unit-test the pure payload-builders** (no in-process HTTP mock
+exists) with the real server proven by the curl smoke. Angular/Vue add **no net-new lane** — they are
+auto-discovered by the existing node lanes (`package.json` + `*.test.ts`). The **mobile** client/bundle
+variant is tracked separately as **B164**.
+
+Every path's whole chain (tests + selfcheck + scan + image build & serve) was **proven locally in docker
+in the toolchain's own image before each CI run** — which caught, ahead of a wasted round-trip: the Rails
+json-3.x break, the Elixir `deps/` discovery leak, lein-cljfmt's breakage, the gcc-14/glibc skew, a
+comment-parse parity bug, and the vitest coverage gap.
 
 ## Definition of Done (per golden path + the system)
 

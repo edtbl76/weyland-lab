@@ -10,6 +10,15 @@ Dockerfile + a run-to-completion smoke Job + an onboarding-declaration template,
 **replaced the B88 hello fixtures** as the CI test/scan lane fixtures (one artifact is both the template and the
 build-infra probe). Design: [../design/golden-paths.md](../design/golden-paths.md).
 
+**B160 extended the suite to 35 paths across 11 ecosystems** (2026-09-09): the original 21 plus **.NET**
+(ASP.NET Core, #97), **Kotlin** (Ktor, #100), **Scala** (http4s, #102), **PHP** (Slim, #104), **Ruby**
+(Rails + Sinatra, #106), **Elixir** (Phoenix + Plug, #107), **Clojure** (Ring+Compojure + Ring, #108),
+**C++** (cpp-httplib, #109), **C** (libmicrohttpd, #109), **Angular** and **Vue** (frontend, #111). Same
+contract, same ephemeral-Job smoke; each was verified through its own scoped pipeline
+(`--var GOLDEN_PATH_ONLY=<lang/fw ...>`) and proven locally in the toolchain's docker image before the CI
+run. Details + the per-ecosystem engineering notes: [../design/golden-paths.md](../design/golden-paths.md)
+§"B160 — extended language wave"; the visual matrix is [../golden-paths-map.html](../golden-paths-map.html).
+
 The proof that a path is real is not "its tests pass" but "the built image SERVES the contract on the platform".
 That is the **`golden-path-smoke`** CI step: for each path it builds the image against the estate's persistent
 **buildkitd** (`woodpecker` ns), applies a **run-to-completion Job** in the dedicated **`golden-paths`** namespace
