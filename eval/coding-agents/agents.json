@@ -1,0 +1,10 @@
+{
+  "_comment": "Coding agents under evaluation. Each value is a shell command run with cwd set to an ISOLATED copy of the task's workdir. Env available: $PROMPT (task.md contents), $TASK_DIR (the task root, e.g. for a solution/), $TASK_ID. The command must make the fix in-place using files in the cwd. Real-agent runs spend real API quota/time and are ON-DEMAND only (never CI, never scheduled). Model selection is left to each CLI's own config so the $0 gateway routing applies. The two mock-* agents apply/skip the known fix and exist so the harness itself can be validated at $0.",
+  "agents": {
+    "claude": "claude -p \"$PROMPT\" --permission-mode acceptEdits --output-format text",
+    "opencode": "opencode run --format default \"$PROMPT\"",
+    "codex": "codex exec --sandbox workspace-write \"$PROMPT\"",
+    "mock-pass": "cp \"$TASK_DIR\"/solution/* .",
+    "mock-noop": "true"
+  }
+}

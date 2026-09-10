@@ -590,8 +590,18 @@ harness — `scripts/perf-baseline.sh` (LAN targets via docker k6) + `scripts/pe
 **First baseline captured (all 3 request-serving services, light serving-plane endpoints, 0% steady-state
 err):** tool-server 465 rps p95 45ms · LiteLLM gateway 2299 rps p95 6ms · Trino `SELECT 1` 180 q/s p95 27ms.
 Runbook + method + node-safety envelope (mother is swapless/~4.6Gi headroom, so bounded-by-design):
-[runbooks/perf-baseline.md](runbooks/perf-baseline.md). **Remaining under B104:** a Grafana dashboard off
-k6's Prometheus output, a regression ratchet (record-mode today), and the broader tooling-survey refresh.
+[runbooks/perf-baseline.md](runbooks/perf-baseline.md).
+
+**Survey refresh (2026-09-10) — DONE:** re-grounded the whole landscape against current lab state + the
+$0 lens in [concepts/ai-dev-tooling-survey.md](concepts/ai-dev-tooling-survey.md). Headline: for a lab this
+AI-mature another hosted reviewer / coding CLI adds little; the genuine 2026 gaps are *new categories*.
+Shortlist to actually stand up ($0/OSS/non-duplicative): ① **coding-agent evaluation harness** (SWE-bench-style
+tasks + Inspect AI + Langfuse traces — the one true gap; the lab scores its RAG via B84/B96 but has nothing
+that scores its coding agents), ② **Bruno + Keploy** (Git-native API client + API-regression capture; small,
+complements B155/B152), ③ *(optional)* **Vibe Kanban / Emdash** parallel-agent supervisor. Overlaps NOT to
+double-track: spec-driven→B86 · MCP governance→B17/B19/B115 · local-model→B79/B111 · local RAG→B1/B70/B113.
+**Remaining under B104:** a Grafana dashboard off k6's Prometheus output + a regression ratchet (both
+record-mode today); the shortlist above is the owner's call on whether/what to file as its own item(s).
 
 - **AI coding assistants / IDEs** — GitHub Copilot · Cursor · Windsurf · **Codex** (DONE B15). $0 lens: Copilot free tier
  + Codex-via-ChatGPT-sub are viable; Cursor/Windsurf are paid *editors* (free tiers exist) — evaluate vs the B15 CLI
