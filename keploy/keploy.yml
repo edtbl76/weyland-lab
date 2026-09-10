@@ -8,16 +8,20 @@
 # TARGET: a B160 golden-path image — a self-contained HTTP service (/health /ready /hello /metrics,
 # EXPOSE 8080) with NO external dependencies, so a record/replay cycle needs nothing but the image.
 # Point `command` at any other golden-* image (see golden-paths/) to capture that one instead.
-# Host port is 18080 (not 8080) — the Ray dashboard owns 8080 on rogueone; the container still
-# serves 8080, and seed.sh targets http://localhost:18080.
+# PORT CHOICE (rogueone): Ray owns :8080 for BOTH its dashboard AND its Prometheus metrics
+# (a Python-3.11.14 prometheus_client WSGIServer), so an app on 8080 gets Ray on replay, not itself.
+# We move the app to 8091 (the trailing `uvicorn … --port 8091` replaces the image CMD; the image has
+# no ENTRYPOINT) and publish it SAME-PORT (8091:8091, the canonical Keploy form). A host≠container
+# remap (18091→8091) breaks keploy's readiness probe + replay routing — they dial the recorded port,
+# which must equal the app's real port. seed.sh targets http://localhost:8091.
 #
 # REQUIRES: Linux kernel >= 5.10 and eBPF (privileged). OPERATOR-ON-DEMAND — never CI, never scheduled.
 # Recorded test-sets land under keploy/test-sets/ and ARE committed (that is the regression corpus).
 # Full loop + exact commands: docs/runbooks/api-client-bruno-keploy.md.
 
 path: ""
-command: "docker run -p 18080:8080 --name golden-python-fastapi --network keploy-network --rm registry.weyland.lab/golden-python-fastapi:latest"
-port: 8080
+command: "docker run -p 8091:8091 --name golden-python-fastapi --network keploy-network --rm registry.weyland.lab/golden-python-fastapi:latest uvicorn main:app --host 0.0.0.0 --port 8091"
+port: 8091
 proxyPort: 16789
 dnsPort: 26789
 debug: false
@@ -35,6 +39,10 @@ test:
     global: {}
     test-sets: {}
   delay: 10
+  # Poll /health for readiness before the first test. Without it, keploy probes a reserved path the
+  # golden app 404s and waits out the full 3-minute readiness timeout before firing. /health returns
+  # 200, so replay starts immediately. (Equivalent CLI flag: --health-path /health.)
+  healthPath: "/health"
   host: "localhost"
   port: 0
   apiTimeout: 5
