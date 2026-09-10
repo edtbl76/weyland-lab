@@ -311,3 +311,117 @@ MD
   [ "$status" -eq 0 ]
   [[ "$output" == *"EMA-199"* ]]
 }
+
+# --- U-heading ref attribution (the 2026-09-09 B29<-U16/EMA-24 mis-map) --------------------------
+
+@test "backlog_refs: a ref in a ### U<n> heading attaches to U<n>, not the preceding B-section" {
+  lib_source
+  cat > "$STUB_DIR/b.md" <<'MD'
+### B29 — connect thing — **DONE (2026-06-14)**
+Linear: EMA-126.
+
+### U16 — weaviate ui — **FOLDED** [Linear EMA-24]
+MD
+  run backlog_refs "$STUB_DIR/b.md"
+  [ "$status" -eq 0 ]
+  [[ "$(printf '%s' "$output" | grep '^B29')" == *"EMA-126"* ]]
+  [[ "$(printf '%s' "$output" | grep '^U16')" == *"EMA-24"* ]]
+  # the mis-map: B29 must NOT carry U16's EMA-24
+  ! printf '%s' "$output" | grep '^B29' | grep -q 'EMA-24'
+}
+
+# --- priority drift (the class that slipped past this guard twice: B134, B87) --------------------
+
+@test "priority drift: backlog HIGH but Linear Medium FAILS" {
+  cat > "$STUB_DIR/b.md" <<'MD'
+### B200 — thing — **HIGH (2026-09-10)**
+Linear: EMA-200.
+MD
+  printf '{"EMA-200":{"stateType":"backlog","state":"Backlog","project":"Weyland Lab","priority":3,"title":"B200 — thing"}}' > "$STUB_DIR/s.json"
+  BACKLOG_FILE="$STUB_DIR/b.md" LINEAR_SNAPSHOT_JSON="$STUB_DIR/s.json" run bash "$GUARD"
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"PRIORITY DRIFT"* ]]
+  [[ "$output" == *"B200"* ]]
+}
+
+@test "priority match: backlog HIGH and Linear High passes" {
+  cat > "$STUB_DIR/b.md" <<'MD'
+### B200 — thing — **HIGH (2026-09-10)**
+Linear: EMA-200.
+MD
+  printf '{"EMA-200":{"stateType":"backlog","state":"Backlog","project":"Weyland Lab","priority":2,"title":"B200 — thing"}}' > "$STUB_DIR/s.json"
+  BACKLOG_FILE="$STUB_DIR/b.md" LINEAR_SNAPSHOT_JSON="$STUB_DIR/s.json" run bash "$GUARD"
+  [ "$status" -eq 0 ]
+}
+
+@test "priority drift is NOT flagged on a done item (its old tier is history)" {
+  cat > "$STUB_DIR/b.md" <<'MD'
+### B200 — thing — **DONE (2026-09-10)** was HIGH once
+Linear: EMA-200.
+MD
+  printf '{"EMA-200":{"stateType":"completed","state":"Done","project":"Weyland Lab","priority":3,"title":"B200 — thing"}}' > "$STUB_DIR/s.json"
+  BACKLOG_FILE="$STUB_DIR/b.md" LINEAR_SNAPSHOT_JSON="$STUB_DIR/s.json" run bash "$GUARD"
+  [ "$status" -eq 0 ]
+}
+
+# --- full coverage: missing-from-Linear + orphan-in-Linear ---------------------------------------
+
+@test "coverage: a backlog item with NO Linear issue at all FAILS (the B128/B151 class)" {
+  cat > "$STUB_DIR/b.md" <<'MD'
+### B300 — untracked thing — **MEDIUM (2026-09-10)**
+No linear reference here at all.
+MD
+  printf '{"EMA-1":{"stateType":"completed","state":"Done","project":"Weyland Lab","priority":2,"title":"B1 — other done thing"}}' > "$STUB_DIR/s.json"
+  BACKLOG_FILE="$STUB_DIR/b.md" LINEAR_SNAPSHOT_JSON="$STUB_DIR/s.json" run bash "$GUARD"
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"NO LINEAR ISSUE"* ]]
+  [[ "$output" == *"B300"* ]]
+}
+
+@test "coverage: a numbered Linear issue absent from the backlog FAILS (orphan in Linear)" {
+  cat > "$STUB_DIR/b.md" <<'MD'
+### B1 — tracked — **HIGH (2026-09-10)**
+Linear: EMA-1.
+MD
+  printf '{"EMA-1":{"stateType":"backlog","state":"Backlog","project":"Weyland Lab","priority":2,"title":"B1 — tracked"},"EMA-2":{"stateType":"backlog","state":"Backlog","project":"Weyland Lab","priority":3,"title":"B77 — orphaned in linear"}}' > "$STUB_DIR/s.json"
+  BACKLOG_FILE="$STUB_DIR/b.md" LINEAR_SNAPSHOT_JSON="$STUB_DIR/s.json" run bash "$GUARD"
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"NO BACKLOG ITEM"* ]]
+  [[ "$output" == *"B77"* ]]
+}
+
+@test "coverage: a numbered Linear issue in ANOTHER product's project is NOT an orphan" {
+  # The other products keep their own backlogs; a Stud.IO-project issue is not expected here.
+  cat > "$STUB_DIR/b.md" <<'MD'
+### B1 — tracked — **HIGH (2026-09-10)**
+Linear: EMA-1.
+MD
+  printf '{"EMA-1":{"stateType":"backlog","state":"Backlog","project":"Weyland Lab","priority":2,"title":"B1 — tracked"},"EMA-2":{"stateType":"backlog","state":"Backlog","project":"Stud.IO","priority":2,"title":"B114 — studio thing"}}' > "$STUB_DIR/s.json"
+  BACKLOG_FILE="$STUB_DIR/b.md" LINEAR_SNAPSHOT_JSON="$STUB_DIR/s.json" run bash "$GUARD"
+  [ "$status" -eq 0 ]
+}
+
+# --- number-primary matching (narration immunity) ------------------------------------------------
+
+@test "number-primary: an item that narrates a SIBLING's ref reconciles against its OWN numbered issue" {
+  # B66's entry legitimately names its EMA-56 sibling; matching by the B-number in the Linear title
+  # (not the narrated ref) is what keeps that from reading as a wrong-ref/priority drift.
+  cat > "$STUB_DIR/b.md" <<'MD'
+### B66 — operator consolidation — **DONE (2026-09-10)** see sibling [Linear EMA-56]
+MD
+  printf '{"EMA-54":{"stateType":"completed","state":"Done","project":"Weyland Lab","priority":2,"title":"B66 — operator consolidation"},"EMA-56":{"stateType":"completed","state":"Done","project":"Weyland Lab","priority":4,"title":"Operator ENHANCEMENTS sibling"}}' > "$STUB_DIR/s.json"
+  BACKLOG_FILE="$STUB_DIR/b.md" LINEAR_SNAPSHOT_JSON="$STUB_DIR/s.json" run bash "$GUARD"
+  [ "$status" -eq 0 ]
+}
+
+@test "fallback: an item whose Linear title carries NO number is matched by its inline ref" {
+  # B156's real Linear issue is titled "Audit data mesh ..." with no B-number, so number-matching
+  # cannot find it — the inline ref is the fallback join.
+  cat > "$STUB_DIR/b.md" <<'MD'
+### B156 — audit — **DONE (2026-09-07)**
+Linear: EMA-213.
+MD
+  printf '{"EMA-213":{"stateType":"completed","state":"Done","project":"Weyland Lab","priority":2,"title":"Audit data mesh against Nick Tune"}}' > "$STUB_DIR/s.json"
+  BACKLOG_FILE="$STUB_DIR/b.md" LINEAR_SNAPSHOT_JSON="$STUB_DIR/s.json" run bash "$GUARD"
+  [ "$status" -eq 0 ]
+}

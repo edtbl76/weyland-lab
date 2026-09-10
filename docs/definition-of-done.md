@@ -99,20 +99,26 @@ capability is **NOT done** until ALL eight pillars hold. "Ran once" ≠ done.
 > `Backlog`. Checking then found **B143** had also been open for two days after shipping. Neither was
 > visible from inside the checklist, because the checklist is where the claim was made.
 >
-> `scripts/check-linear-sync.sh` compares the two documents that make claims about each other:
+> `scripts/check-linear-sync.sh` compares the two documents that make claims about each other. It
+> reconciles **every** backlog item (widened 2026-09-10 — all ~168 `### B/U<n>` + `**B/U<n>**` items,
+> not just the ~45 with an inline `Linear EMA-##` ref), joining by the **B/U-number in the Linear title**
+> (the inline ref is only a fallback for numberless titles like B156→EMA-213). Five checks:
 >
-> - **A backlog entry marked DONE whose Linear issue is not terminal.** One-way on purpose — an issue
->   closed in Linear while the backlog entry is still open is a normal mid-flight state, not drift.
-> - **An open Linear issue with no project.** This team runs two products (Weyland Lab, Stud.IO) and
->   project assignment is the only thing separating them, so a project-less issue is invisible to *both*
->   filtered views while still counting in the team total. Two High-priority weyland issues were hiding
->   there — one open since 2026-08-12 and absent from every "what's next" answer.
+> - **STATUS drift — a backlog entry marked DONE whose Linear issue is not terminal.** One-way on purpose
+>   — an issue closed in Linear while the backlog entry is still open is a normal mid-flight state.
+> - **A project-less OPEN issue.** This team runs multiple products (Weyland Lab, Stud.IO, …) and project
+>   is the only thing separating them, so a project-less issue is invisible to *both* filtered views.
+> - **PRIORITY drift — a backlog HIGH/MEDIUM/LOW tag that disagrees with the Linear priority** (Linear is
+>   the tier SoT). The class that slipped past the status-only guard twice (B134, B87). Open items only.
+> - **MISSING from Linear — a backlog item with no Linear issue at all** (untracked; the B128/B151 class).
+> - **ORPHAN in Linear — a weyland-numbered open issue no backlog item covers**, scoped away from the
+>   other products' projects, which keep their own backlogs.
 >
 > Runs **blocking in CI** (`.woodpecker.yml` step `linear-sync`, secret `linear_api_key`, events
 > cron+manual) *and* by hand at close-out. Locally it needs `LINEAR_API_KEY` in the gitignored
 > `scripts/.env` (Linear → Settings → Security & access); a read-scoped key is sufficient.
 > Exit **1** = drift; exit **2** = the guard could not run. A missing token must never read as a clean
-> backlog. 23 bats cases; `--list` prints every reference and its verdict.
+> backlog. 32 bats cases; `--list` prints every item's verdict (status · project · tier vs linpri · orphans).
 - **Tier rebalance — keep High / Medium / Low roughly equal. PROPOSE IT, NEVER APPLY IT UNILATERALLY (2026-08-23).**
   Completing work drains the **High** lane, so at close-out re-tier to refill it: promote the strongest
   **Medium → High**, then backfill **Low → Medium** (and, as the tail grows, close or promote stale **Low** items — a

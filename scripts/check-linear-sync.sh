@@ -8,21 +8,32 @@
 # made at all and the issue sat in Backlog; B143 had been open for two days after shipping.
 #
 # `CLAUDE.md` is explicit: the backlog is the ORDERED source of truth, Linear is STATUS. So the two
-# documents make claims about each other, and until now nothing compared them.
+# documents make claims about each other, and this compares them.
 #
-# TWO CHECKS, both mechanically detectable:
+# COVERAGE (widened 2026-09-10): reconciles EVERY backlog item — every `### B/U<n>` heading and every
+# `**B/U<n>**` list entry — not just the ~45 that happen to carry an inline `Linear EMA-##` ref. The
+# join key is the B/U-number in the Linear issue TITLE ("B160 — ..."); the inline ref is only a
+# FALLBACK, used for the handful of weyland issues whose title carries no number (e.g. B156 -> EMA-213
+# titled "Audit data mesh ..."). Number-primary matching also makes narrated SIBLING/SUPERSEDED refs
+# (B66 names its EMA-56 sibling; B155 names the EMA-136 it supersedes) harmless — they are not the key.
 #
-#   A. A backlog entry marked DONE that names a Linear issue NOT in a terminal state.
+# FIVE CHECKS, all mechanically detectable:
+#
+#   A. STATUS drift — a backlog entry marked DONE that names a Linear issue NOT in a terminal state.
 #      Deliberately ONE-WAY: an issue closed in Linear while the backlog entry is still open is a
 #      normal mid-flight state, not drift.
-#   B. An OPEN Linear issue with no project. This workspace runs two products (Weyland Lab and
-#      Stud.IO) on one team, and project assignment is what separates them — so an issue with no
-#      project is invisible to BOTH filtered views while still counting in the team total. Found
-#      EMA-186 and EMA-172 that way; the latter is High priority, was open since 2026-08-12, and
-#      appeared in no "what's next" answer anyone asked.
+#   B. PROJECT-less OPEN issue. This team runs multiple products (Weyland Lab, Stud.IO, ...) and project
+#      is what separates them — an unassigned open issue is invisible to every filtered view. Found
+#      EMA-186 and EMA-172 that way.
+#   C. PRIORITY drift — a backlog HIGH/MEDIUM/LOW tag that disagrees with the Linear priority (Linear is
+#      the tier SoT). The class that slipped past the status-only guard twice (B134, B87). Only for open
+#      items that declare a tier, and only when Linear's priority maps to one (Urgent/None never flag).
+#   D. MISSING from Linear — a backlog item with no Linear issue at all (untracked; the B128/B151 class).
+#   E. ORPHAN in Linear — a weyland-numbered OPEN issue no backlog item covers (fell out of backlog.md),
+#      scoped away from the other products' projects, which keep their own backlogs.
 #
 #   usage: scripts/check-linear-sync.sh [--list]
-#          --list   print every backlog->Linear ref and its verdict, exit 0
+#          --list   print every item's verdict (status/project/tier/linpri + Linear-only orphans), exit 0
 #
 # INPUTS. Live mode needs a Linear personal API key (Settings -> Security & access -> New API key):
 #
@@ -109,40 +120,68 @@ def is_done(line):
 # The first cut scanned only region 2 and silently missed 7 live references — reporting 19 of 45 on
 # its first real run. That is the same "supporting only one format halves coverage" failure this
 # file's own header warns about, committed while writing the warning.
-LIST_ITEM = re.compile(r'^\s*(?:\d+\.|[-*])\s+\*\*(B[\d.]+)\*\*')
+# Item ids are B-numbers AND U-numbers: both carry Linear issues and both drift. Matching only `B`
+# left a `Linear EMA-##` ref living in a `### U16` heading attributed to the PRECEDING `### B` section
+# (its cursor never updated on the U-heading) — the 2026-09-09 B29<-U16/EMA-24 mis-map.
+LIST_ITEM = re.compile(r'^\s*(?:\d+\.|[-*])\s+\*\*((?:B|U)[\d.]+)\*\*')
+# Tier the item DECLARES (first HIGH/MEDIUM/LOW on its own line/heading), for the priority-drift check.
+# Absent for items that state no tier (many do not — tier then lives only in Linear) and for done items.
+TIER = re.compile(r'\b(HIGH|MEDIUM|LOW)\b')
 
-rows, cur, done, seen = [], None, False, set()
+def tier_of(line):
+    m = TIER.search(line)
+    return m.group(1) if m else ""
 
-def add(bnum, done_flag, line):   # param renamed: `is_done` shadowed the function above
+rows, cur, done, tier, seen = [], None, False, "", set()
+items, reffed = {}, set()   # every item number seen (first-seen status/tier wins) · numbers that emitted a ref
+
+def register(num, done_flag, tier_val):
+    # First occurrence wins: the top ordered list (region 1) precedes the ### detail sections, and
+    # CLAUDE.md calls the ordered list the source of truth — so the list's status/tier is authoritative.
+    items.setdefault(num, ('done' if done_flag else 'open', tier_val))
+
+def add(num, done_flag, tier_val, line):   # param renamed: `is_done` shadowed the function above
     for ref in REF.findall(line):
-        key = (bnum, ref)
+        key = (num, ref)
         if key in seen:
             return
         seen.add(key)
-        rows.append(f"{bnum}\t{ref}\t{'done' if done_flag else 'open'}")
+        reffed.add(num)
+        rows.append(f"{num}\t{ref}\t{'done' if done_flag else 'open'}\t{tier_val}")
 
 for line in lines:
     li = LIST_ITEM.match(line)
     if li:
-        # Self-contained: judge status from THIS line, and do not disturb the section cursor.
-        add(li.group(1), is_done(line), line)
+        # Self-contained: judge status + tier from THIS line, and do not disturb the section cursor.
+        register(li.group(1), is_done(line), tier_of(line))
+        add(li.group(1), is_done(line), tier_of(line), line)
         continue
 
-    h = re.match(r'^### (B[\d.]+)\b(.*)$', line)
+    h = re.match(r'^### ((?:B|U)[\d.]+)\b(.*)$', line)
     if h:
         if "(original" in line:
             cur = None                      # inside a collapsed duplicate: ignore its refs
             continue
-        cur, done = h.group(1), is_done(line)
+        cur, done, tier = h.group(1), is_done(line), tier_of(line)
+        register(cur, done, tier)
         # DO NOT `continue` HERE. The `[Linear EMA-46]` form appears INSIDE the heading itself
         # (`— **DONE 2026-08-18 [Linear EMA-46].**`), so skipping to the next line drops every
         # reference written that way — silently, and the dropped half looks like the passing half.
     if cur is None:
         continue
-    add(cur, done, line)
+    add(cur, done, tier, line)
 
-if not rows:
-    print(f"no `Linear: EMA-<n>` references found in {path}", file=sys.stderr)
+# Emit a ref-LESS row for every item that never produced a `Linear: EMA-##` ref, so FULL COVERAGE
+# reconciliation (match-by-B-number against the Linear title) sees it too — this is how an item with
+# no Linear issue at all (the B128/B151 class) becomes visible instead of silently unchecked.
+for num, (st, tv) in items.items():
+    if num not in reffed:
+        rows.append(f"{num}\t-\t{st}\t{tv}")
+
+# Fail closed on a backlog with NO ITEMS at all (empty/garbage) — but items-without-refs is now a
+# checkable state (number-matched), not "checking nothing".
+if not items:
+    print(f"no backlog items (### B/U headings or **B/U** list entries) found in {path}", file=sys.stderr)
     raise SystemExit(2)
 print("\n".join(rows))
 PY
@@ -181,7 +220,7 @@ linear_snapshot() {
   body="$(mktemp)"
   http="$(curl -s -o "$body" -w '%{http_code}' -X POST https://api.linear.app/graphql \
     -H "Authorization: ${LINEAR_API_KEY}" -H 'Content-Type: application/json' \
-    -d "{\"query\":\"{ team(id: \\\"${LINEAR_TEAM}\\\") { issues(first: 250) { nodes { identifier state { type name } project { name } } } } }\"}")" || {
+    -d "{\"query\":\"{ team(id: \\\"${LINEAR_TEAM}\\\") { issues(first: 250) { nodes { identifier title priority state { type name } project { name } } } } }\"}")" || {
       echo "FATAL: could not reach the Linear API (curl transport failure)." >&2; rm -f "$body"; return 1; }
   # The status is read explicitly. `curl -sf | python3` collapses a 401 to empty input, and an empty
   # snapshot reads as "no issues" — a clean pass over nothing.
@@ -203,6 +242,8 @@ for n in nodes:
         "stateType": (n.get("state") or {}).get("type"),
         "state":     (n.get("state") or {}).get("name"),
         "project":   (n.get("project") or {}).get("name") if n.get("project") else None,
+        "priority":  n.get("priority"),   # Linear int: 0 None · 1 Urgent · 2 High · 3 Medium · 4 Low
+        "title":     n.get("title"),      # to derive the B/U/SEC item-number for full-coverage matching
     }
 print(json.dumps(out))
 PY
@@ -242,29 +283,93 @@ if not isinstance(snap, dict) or not snap:
     print("FATAL: the Linear snapshot is EMPTY - refusing to report OK over zero issues.", file=sys.stderr)
     raise SystemExit(2)
 
+import re as _re
 TERMINAL = {"completed", "canceled", "duplicate"}
-refs = [l.split("\t") for l in open(reffile, encoding="utf-8").read().strip().split("\n") if l.strip()]
+# Linear priority int -> the backlog's tier vocabulary. 0 (None) / 1 (Urgent) are not backlog tiers,
+# so an item at those priorities is not tier-compared (no false drift against an unmapped priority).
+PRIORITY_TIER = {2: "HIGH", 3: "MEDIUM", 4: "LOW"}
+# The OTHER products keep their OWN backlogs; this weyland backlog is not expected to contain their
+# numbered issues, so an unmatched numbered issue in one of these projects is never called "orphaned".
+OTHER_PRODUCT_PROJECTS = {"Stud.IO", "start.me Curator"}
+# The item-number carried at the START of a Linear issue title — the full-coverage join key, so items
+# WITHOUT an inline `Linear EMA-##` ref (the majority) still get reconciled by number, not skipped.
+NUM = _re.compile(r'^\s*((?:B|U)[\d.]+|SEC-\d+|B-RT)\b')
+def num_of(title):
+    m = NUM.match(title or "")
+    return m.group(1) if m else None
 
-drift, missing, orphan = [], [], []
-for bnum, ema, status in refs:
+rawrefs = [l.split("\t") for l in open(reffile, encoding="utf-8").read().strip().split("\n") if l.strip()]
+
+# Index every Linear issue by the number in its title (first wins; genuine dupes surface via orphan).
+lin_by_num = {}
+for e, r in snap.items():
+    n = num_of(r.get("title"))
+    if n and n not in lin_by_num:
+        lin_by_num[n] = e
+
+# Collapse the per-ref rows to ONE record per backlog item: its status, tier, and the set of inline
+# refs it names (an entry legitimately narrates SIBLING/SUPERSEDED issues' refs, e.g. B66 mentions its
+# EMA-56 sibling, B155 mentions the EMA-136 it supersedes — so a single ref is a hint, never the key).
+by_num = {}
+for parts in rawrefs:
+    bnum, ema_ref, status = parts[0], parts[1], parts[2]
+    tier = parts[3] if len(parts) > 3 else ""
+    rec = by_num.setdefault(bnum, {"status": status, "tier": tier, "refs": []})
+    if ema_ref != "-" and ema_ref not in rec["refs"]:
+        rec["refs"].append(ema_ref)
+
+backlog_nums = set(by_num)
+drift, missing, orphan, tierdrift, nolinear, orphan_num = [], [], [], [], [], []
+for bnum, rec in by_num.items():
+    status, tier, brefs = rec["status"], rec["tier"], rec["refs"]
+    # PRIMARY join = the B/U number in the Linear title (immune to narrated sibling refs). FALLBACK =
+    # an inline ref, for the handful of weyland issues whose Linear title carries no number (e.g. B156
+    # -> EMA-213 titled "Audit data mesh ..."); prefer a fallback ref that actually exists in Linear.
+    ema = lin_by_num.get(bnum)
+    if ema is None:
+        ema = next((r for r in brefs if r in snap), brefs[0] if brefs else None)
+    if ema is None:
+        nolinear.append((bnum, status, tier))
+        if list_only:
+            print(f"  {bnum:8s} {'(none)':9s} backlog={status:5s} "
+                  f"linear={'(no issue)':12s} project={'-':14s} tier={tier or '-':7s} linpri=-")
+        continue
     row = snap.get(ema)
     if row is None:
-        missing.append((bnum, ema)); continue
+        missing.append((bnum, ema)); continue   # an inline ref pointing at a nonexistent issue — fatal
     st = row.get("stateType") or ""
+    lin_tier = PRIORITY_TIER.get(row.get("priority"))
     if list_only:
         print(f"  {bnum:8s} {ema:9s} backlog={status:5s} "
-              f"linear={row.get('state') or '?':12s} project={row.get('project') or '(none)'}")
+              f"linear={row.get('state') or '?':12s} project={row.get('project') or '(none)':14s} "
+              f"tier={tier or '-':7s} linpri={lin_tier or '-'}")
     if status == "done" and st not in TERMINAL:
         drift.append((bnum, ema, row.get("state")))
+    # PRIORITY DRIFT — the class that slipped past this guard twice (B134, B87): it checked status,
+    # never priority. Only for OPEN items that DECLARE a tier, and only when Linear's priority maps to
+    # a backlog tier — so an item with no stated tier, or at Urgent/None, is never falsely flagged.
+    if status != "done" and tier and lin_tier and lin_tier != tier and st not in TERMINAL:
+        tierdrift.append((bnum, ema, tier, lin_tier))
 
 for ema, row in sorted(snap.items()):
-    if (row.get("stateType") or "") in TERMINAL:
+    stt = row.get("stateType") or ""
+    if stt in TERMINAL:
         continue
     if not row.get("project"):
         orphan.append((ema, row.get("state")))
+    # ORPHAN IN LINEAR — a weyland-numbered OPEN issue that no backlog item covers (fell out of the
+    # backlog). Scoped away from the other products, which keep their own backlogs.
+    n = num_of(row.get("title"))
+    if n and n not in backlog_nums and row.get("project") not in OTHER_PRODUCT_PROJECTS:
+        orphan_num.append((ema, n, row.get("state")))
 
 if list_only:
-    print(f"listed {len(refs)} backlog->Linear reference(s).")
+    if orphan_num:
+        print("  --- Linear issues with a weyland number but NO backlog item ---")
+        for e, n, s in orphan_num:
+            print(f"  {n:8s} {e:9s} {s} (in Linear, absent from backlog.md)")
+    print(f"listed {len(backlog_nums)} backlog item(s); "
+          f"{len(nolinear)} with no Linear issue, {len(orphan_num)} Linear-only.")
     raise SystemExit(0)
 
 if missing:
@@ -274,11 +379,30 @@ if missing:
     raise SystemExit(2)
 
 fail = False
+if nolinear:
+    print("", file=sys.stderr)
+    print("BACKLOG ITEMS WITH NO LINEAR ISSUE (untracked — invisible to every Linear view):", file=sys.stderr)
+    for b, s, t in nolinear:
+        print(f"  {b:8s} backlog={s} tier={t or '-'} — create a Linear issue titled '{b} — ...'", file=sys.stderr)
+    fail = True
+if orphan_num:
+    print("", file=sys.stderr)
+    print("LINEAR ISSUES WITH A WEYLAND NUMBER BUT NO BACKLOG ITEM (fell out of backlog.md):", file=sys.stderr)
+    for e, n, s in orphan_num:
+        print(f"  {n:8s} {e:9s} '{s}' — restore it to backlog.md, or close it if truly dropped", file=sys.stderr)
+    fail = True
 if drift:
     print("", file=sys.stderr)
     print("BACKLOG SAYS DONE, LINEAR SAYS OPEN:", file=sys.stderr)
     for b, e, s in drift:
         print(f"  {b:8s} {e:9s} is still '{s}' in Linear", file=sys.stderr)
+    fail = True
+if tierdrift:
+    print("", file=sys.stderr)
+    print("PRIORITY DRIFT — backlog tier != Linear priority (Linear is the tier source of truth):", file=sys.stderr)
+    for b, e, bt, lt in tierdrift:
+        print(f"  {b:8s} {e:9s} backlog={bt}  linear={lt}", file=sys.stderr)
+    print("  Align both (backlog HIGH/MEDIUM/LOW tag + Linear priority) — a rebalance must move each.", file=sys.stderr)
     fail = True
 if orphan:
     print("", file=sys.stderr)
@@ -294,7 +418,8 @@ if fail:
     print("", file=sys.stderr)
     print("DoD Pillar 5 is the one pillar with no automatic check; this is that check.", file=sys.stderr)
     raise SystemExit(1)
-print(f"OK - {len(refs)} backlog->Linear reference(s) reconciled, no project-less open issues.")
+print(f"OK - {len(backlog_nums)} backlog item(s) reconciled with Linear (status + priority + coverage), "
+      f"no project-less open issues, no orphans.")
 PY
 }
 
