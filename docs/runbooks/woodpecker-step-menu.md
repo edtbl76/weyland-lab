@@ -59,7 +59,6 @@ Notable: `scan-clojure` = `cljkondo/clj-kondo` (static, no lein), others reuse t
 | `golden-path-smoke` | moby/buildkit | builds every golden path via buildkitd → serves each as a run-to-completion k8s Job (SA `golden-path-runner`) → curls the contract → tears down. **Selector:** `--var GOLDEN_PATH_ONLY='python/fastapi go/echo'` scopes it (unset = all) |
 | `test-integration-guard` | alpine | black-box the guard service's decision path |
 | `test-integration-datahub` | redpanda | DataHub MAE/MCE black-box against a throwaway Redpanda |
-| `keploy-api-tests` | python:3.12-slim | **on-demand** (`--var KEPLOY=true`) privileged, **native-mode** keploy replay of `keploy/keploy/<test-set>/` against the golden app. Gated off normal runs; first run confirms eBPF uprobe-attach works in a step pod (see below) |
 
 ## Build → deploy → notify (the ship half, B57a)
 
@@ -85,21 +84,19 @@ The pipeline runs *all* steps in file order; there is no per-step "run just this
 
 ## Off-menu / on-demand steps you can add
 
-**Keploy is now wired** as the on-demand `keploy-api-tests` step above (var-gated, privileged, native-mode
-— it does NOT need docker or a local agent; k3s has no docker daemon, so it runs the app as a plain
-`uvicorn` child and instruments it with eBPF in a privileged pod, which this cluster allows). Two ways to
-run it:
-
-- **In CI, on-demand:** `woodpecker-cli pipeline create --branch main --var KEPLOY=true edtbl76/weyland-lab`.
-  The **first** such run is the experiment — it proves whether keploy's eBPF uprobe-attach works inside a
-  Woodpecker step pod (it works on the bare rogueone host, 7/7).
-- **On the host, any time:** `bash scripts/keploy-verify.sh` on rogueone (docker mode, the proven path).
-
-**Fallback if the in-pod eBPF attach fails:** convert this file to a `.woodpecker/` directory (verified: a
-`.woodpecker/` dir shadows the single `.woodpecker.yml`, so the main pipeline moves into
-`.woodpecker/build.yml` unchanged) and add `.woodpecker/keploy.yml` with `labels: {backend: local}` +
-`when: event: manual`, landing on the rogueone local-backend agent where keploy is proven. (Keploy's own
-`keploy ci scaffold` emits **GitHub Actions**, which the LAN can't webhook — the hand-written step is right.)
+- **Keploy API-regression.** **A k8s step pod cannot run keploy** — TESTED (pipeline #115): keploy needs
+  **Docker** (its installer refuses without it, and on Linux keploy runs its agent inside a docker
+  container), and a k3s step pod has containerd, no docker daemon. It was NOT the eBPF/privileged worry
+  (privileged pods run fine here) — it's a hard docker dependency. So keploy runs two other ways:
+  - **On the host, on-demand (the working path):** `bash scripts/keploy-verify.sh` on rogueone — docker +
+    keploy present, proven 7/7. This is the recommended form for a $0 lab.
+  - **CI path, if ever wanted:** convert this file to a `.woodpecker/` directory (verified: a `.woodpecker/`
+    dir shadows the single `.woodpecker.yml`, so the main pipeline moves into `.woodpecker/build.yml`
+    unchanged) and add `.woodpecker/keploy.yml` with `labels: {backend: local}` + `when: event: manual`,
+    landing on the **rogueone local-backend agent** (which has docker + a proven keploy). Costs: the
+    restructure changes main-pipeline discovery (needs a validation trigger) and the local agent must run
+    keploy with the privileges it needs. Worth it for a real service with downstream deps, not a
+    hello-world. (Keploy's own `keploy ci scaffold` emits **GitHub Actions**, which the LAN can't webhook.)
 
 **Adding a new step:** copy the closest existing step (image + `commands`), keep it in file order at the
 right phase, decide blocking vs `failure: ignore`, and — per the DoD cascade — add its runbook/menu row

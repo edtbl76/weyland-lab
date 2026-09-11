@@ -598,29 +598,12 @@ steps:
     commands:
       - bash scripts/integration/datahub-redpanda-blackbox.sh
 
-  # ── Keploy API-regression (ON-DEMAND: --var KEPLOY=true) ────────────────────
-  # Replays the committed corpus (keploy/keploy/<test-set>/) against the golden app and diffs responses.
-  # NATIVE mode (uvicorn as a plain child process) — k3s has no docker daemon, so keploy's docker mode is
-  # out; native mode wraps the process with eBPF directly. eBPF needs a PRIVILEGED pod — privileged pods
-  # DO run on this cluster (buildkitd is one). Gated on KEPLOY so it never fires on a normal ship/cron run;
-  # order it explicitly:  woodpecker-cli pipeline create --branch main --var KEPLOY=true edtbl76/weyland-lab
-  # First run is the experiment: it confirms whether keploy's uprobe-attach works inside a step pod (it
-  # works on the bare rogueone host, 7/7). If it can't, fall back to a local-backend workflow on rogueone
-  # (docs/runbooks/woodpecker-step-menu.md "Off-menu"). Runs as root (slim image) so keploy needs no sudo.
-  - name: keploy-api-tests
-    image: python:3.12-slim
-    when:
-      - evaluate: 'KEPLOY == "true"'
-    backend_options:
-      kubernetes:
-        securityContext:
-          privileged: true
-    commands:
-      - apt-get update >/dev/null && apt-get install -y --no-install-recommends curl ca-certificates >/dev/null
-      - pip install --quiet -r golden-paths/python/fastapi/requirements.txt
-      - curl --silent -L https://keploy.io/install.sh | bash
-      # keploy reads the corpus from ./keploy, so run from the keploy/ dir; the app source is one level up.
-      - cd keploy && keploy test -c "uvicorn main:app --app-dir ../golden-paths/python/fastapi --host 0.0.0.0 --port 8091" --health-path /health --mappings
+  # NOTE: a Keploy API-regression step was TESTED here (pipeline #115, --var KEPLOY=true) and REMOVED:
+  # keploy needs Docker (its installer refuses without it — "Docker not found, please install docker" —
+  # and on Linux keploy runs its agent inside a docker container). A k3s step pod has no docker daemon,
+  # so keploy cannot run here. It runs ON-DEMAND on the rogueone host instead (`scripts/keploy-verify.sh`,
+  # proven 7/7); the CI path, if ever wanted, is a local-backend workflow on rogueone — see
+  # docs/runbooks/woodpecker-step-menu.md "Off-menu".
 
   # ── 2. detect which images changed since their currently-deployed git-<sha> ──
   - name: detect-changes
