@@ -24,6 +24,30 @@ Neo4j, Ollama, rag-embed, ClickHouse, MLflow gateway) — the same serving plane
 measures ([[perf-baseline]]). Scope bounds (what's excluded and why) are in the collection README. Use it
 as a fast correctness check; the perf run is the throughput check.
 
+### Eyes-on in the Bruno desktop app (UAT)
+
+The CLI proves the collection works; the app is the interactive surface. **Do NOT use the Bruno snap** —
+its file dialogs (and other native widgets) render as **tofu (□)** because the snap's confined, 2018-era
+`gnome-3-28-1804` GTK platform can't resolve host fonts in the sandbox (the system fonts are fine; only
+the snap tofus). Use the **unconfined `.deb` or AppImage** instead:
+
+```
+sudo snap remove bruno   # if the snap is installed
+# .deb (integrates):
+curl -L -o /tmp/bruno.deb https://github.com/usebruno/bruno/releases/download/v4.1.0/bruno_4.1.0_amd64_linux.deb
+sudo apt install /tmp/bruno.deb && bruno
+# — or the AppImage (no root; needs libfuse2, or run --appimage-extract-and-run):
+# curl -L -o ~/bruno.AppImage https://github.com/usebruno/bruno/releases/download/v4.1.0/bruno_4.1.0_x86_64_linux.AppImage
+# chmod +x ~/bruno.AppImage && ~/bruno.AppImage
+```
+
+Then **Open Collection → `bruno/weyland`** (full path `/home/edwardmangini/IdeaProjects/weyland/bruno/weyland`;
+if the picker labels are unreadable you're on the snap — see above). Environment dropdown → **lan**. Send a
+few to confirm they render + assert green: **tool-server/health** (200, `status:ok`), **tool-server/status**
+(richer body, `llm.status:ok`), **qdrant/collections** (real list), **tool-server/context-search** (a POST
+returning `results[]` — a functional call, not just health). For the authed one, set the `gw_key` secret in
+the `lan` env to `LITELLM_API_KEY`.
+
 ## Keploy — record → replay (operator-on-demand, privileged)
 
 Config: `keploy/keploy.yml`. Target: a B160 golden-path image (`registry.weyland.lab/golden-python-fastapi`,

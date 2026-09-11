@@ -56,6 +56,11 @@ npx --yes @usebruno/cli run authenticated --env lan --env-var gw_key=$LITELLM_AP
 A fast "is the read surface answering correctly" check that pairs with the perf baseline
 ([[perf-baseline]], which measures throughput on the same serving plane).
 
+**Desktop app:** open `bruno/weyland` → environment `lan` → send. **Do NOT install the Bruno *snap*** — its
+file dialogs render as tofu (□) (confined old GTK platform can't resolve host fonts); use the unconfined
+`.deb`/AppImage. Full eyes-on steps + the snap fix are in
+[../../docs/runbooks/api-client-bruno-keploy.md](../../docs/runbooks/api-client-bruno-keploy.md).
+
 ## Add a request
 
 Drop a `.bru` file in the relevant folder (see `tool-server/health.bru` for the shape: `meta` / `get` /
