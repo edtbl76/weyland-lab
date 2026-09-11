@@ -28,6 +28,7 @@ metadata:
   namespace: weyland
 spec:
   schedule: "*/30 * * * *"
+  timeZone: America/New_York   # schedules.md Design Rule #1 (one clock); a */30 cron fires the same in any TZ, but the field must be set
   concurrencyPolicy: Forbid
   successfulJobsHistoryLimit: 2
   failedJobsHistoryLimit: 2

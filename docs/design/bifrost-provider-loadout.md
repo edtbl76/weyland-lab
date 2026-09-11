@@ -49,7 +49,7 @@ datasheet can list models the key can't access (that's a `404` on call, not a co
 cheapest *paid source of that model* → premium) with availability fallback. Clients request a **use-case alias**
 (`wl-coding`, `wl-rag`, …); CEL rules resolve it.
 
-### ✅ BUILT 2026-07-31 — 9 use-case alias rules live (`scripts/register_bifrost_routing.py`, idempotent)
+### ~~BUILT 2026-07-31 — 9 use-case alias rules~~ REMOVED — the routing-alias approach was abandoned; `register_bifrost_routing.py` no longer exists (see runbooks/mcp-gateway.md)
 
 **Mechanism (v1.6.7, reverse-engineered — docs page 404'd):** `POST /api/governance/routing-rules`
 `{name, cel_expression, targets:[{provider,model,weight}], scope:"global", priority, chain_rule}`. CEL vars: `model`,
@@ -113,11 +113,11 @@ LiteLLM egress returns 500 "Provider 'kokoro' is not allowed for this virtual ke
 the cheaper DeepSeek source. Cerebras/Groq differ on **capacity not capability** (same tool-calling; Groq-free 8000 TPM
 chokes on the ~21k fleet-tool payload, Cerebras-paid fits it). "Cheapest source of the model," not cheapest provider.
 
-## KEY FINDING (2026-07-30) — Bifrost auto-injects the 91 fleet MCP tools into EVERY chat completion
+## KEY FINDING (2026-07-30) — Bifrost auto-injects the 95 fleet MCP tools into EVERY chat completion
 
 Proven on Groq (both `is_bifrost_error:false`, i.e. Groq's own responses):
 - `groq/openai/gpt-oss-120b` → **`413`** "Request too large … Requested **21789** tokens" (a 3-word prompt; the 21k is
-  the fleet tool schemas — ~91 × ~240 tok — blowing past Groq free-tier **8000 TPM**).
+  the fleet tool schemas — ~95 × ~240 tok — blowing past Groq free-tier **8000 TPM**).
 - `groq/groq/compound` → **`400`** "`tool calling` is not supported with this model" (compound rejects the tools Bifrost
   attached, though our request asked for none).
 

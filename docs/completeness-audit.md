@@ -151,3 +151,81 @@ SealedSecrets/External-Secrets mechanism for all imperative secrets.
 - **[docs] Backlog B59 overclaims component→k8s_workload entity links "codified in tofu"** — Fix: correct to "intentionally NOT codified".
 - **[docs] Backlog B58 claims 28 Argo apps; actual 37** — Fix: update count.
 - **[docs] MinIO console (`minio.weyland.lab`) left out of the forward-auth SSO sweep** — `k8s/minio/ingress.yaml` — Fix: add the forward-auth middleware or delete the dead console ingress.
+
+---
+
+## 2026-09-11 — Full completeness + correctness audit (whole repo)
+
+Method: the 20 CI guards run directly (deterministic layer) + three parallel judgment agents (DoD-artifact
+completeness · docs-vs-repo correctness · cross-refs + contradictions). Every agent finding was
+verified against ground truth before action — which caught false positives (below).
+
+### Deterministic guards — 17/20 clean; the 3 non-passes are NOT doc/DoD defects
+Green: doc-counts (81) · app-registry · onboarding-completeness (61) · cron-budgets (18) · image-provenance
+(126) · quality-tools · sa-automount · odcs-contracts (10) · verdict-sync · port-iac · secret-placeholders
+(67) · pip-audit-ignores · api-lifecycle (12) · linear-sync (170) · mermaid (180 blocks / 345 docs) ·
+dashboard-coverage (38) · alert-coverage (38).
+Non-passes (environment/ops, not documentation): `servicemonitor-coverage` → **`weyland/ray-head` down**
+(intended 1/actual 0) = live-ops; `datahub-coverage` → Trino unreachable from this host (re-run from
+mother); `check-rego-policies` → `opa` not installed locally (CI validates; sibling Python provenance guard
+passed).
+
+### Correctness defects — FIXED 2026-09-11
+- **scan-suite tool count stale (9/10/19 → actual 21, guard-confirmed)** — README.md, hosts.md, api.md (×2),
+  arch.md:145, schedules.md:65. Fixed to 21 (arch.md:1178 already correct).
+- **"ten k8s CronJobs" → 18** (cron-freshness rule covers 18) — schedules.md:53.
+- **arch.md:113 `/mcp` said `fastapi-mcp`** — migrated to **FastMCP** 2026-08-01 (per api.md:52). Fixed.
+- **Uptime Kuma monitor count contradiction (37/25/16)** — authoritative 37 (uptime-kuma.md). Fixed api.md
+  (25→37) + README.md (16→37, and the stale "→ Port.io webhook", now retired).
+- **Dead manifest paths** — code-quality.md `sonar-scan-job.yaml`→`sonar-scan.yaml`, `trivy-scan-job.yaml`→
+  `scan-suite.yaml`; secrets.md `b69-onboarding.yaml`→ the sealed-secrets Helm app in `helm-apps.yaml`.
+- **`register_bifrost_routing.py` documented as live-built** (bifrost-provider-loadout.md:52) but removed —
+  marked removed (aligns with mcp-gateway.md:162; file absent).
+- **`dagster-freshness-check` CronJob missing `timeZone`** (Design Rule #1) — added `America/New_York` to
+  `k8s/dagster/freshness.yaml` (a `*/30` cron; no firing shift).
+- **Undocumented user-facing hosts** — added `datahub.weyland.lab` + `opensearch.weyland.lab` + the lakeFS
+  `mother:30800` NodePort to api.md's Web-UIs table.
+- **Phantom `data-mesh-scaledown` 02:00 CronJob** (schedules.md:29,109) — no manifest exists + Argo selfHeal
+  reverts `replicas:0`; corrected to PARKED / manual store-scaler.
+
+### Verified FALSE POSITIVES (agent flagged, ground truth cleared — no change)
+- `scripts/*.sql` "moved to sql/" — the `.sql` files exist under `services/weyland-dagster/scripts/`; the
+  base-relative doc paths resolve.
+- `flink-rta-sessionjob.yaml` "dead" — the job was deliberately DELETED and both flink.md ("it *was*…") and
+  backlog.md document it as retired.
+- `register_bifrost_*.py` / `feast_setup.py` "wrong path" — base-relative to the platform dir; resolvable.
+
+### Correctness — Bifrost fleet tool count: RESOLVED by live validation (2026-09-11)
+- **91 vs 95 contradiction** (arch.md internally inconsistent; api.md/design/gpu-inference/mcp-gateway said 91).
+  Resolved by **querying the live compositor** (`weyland-mcp-compositor.weyland.svc:8000` MCP `tools/list`) =
+  **95** (context 4 + grafana 52 + trino 6 + k8s 14 + postgres 9 + neo4j 2 + datahub 8). **95 is correct;
+  the "91"s were stale** — fixed all (`91 fleet` / `91/91` / `~91` / `full 91` → 95) across the 5 docs.
+  Lesson: a doc-vs-doc contradiction is resolved against the *running system*, not by picking the
+  "more authoritative" doc.
+
+### Live-ops finding — ray-head "down" ROOT-CAUSED + FIXED (2026-09-11)
+`servicemonitor-coverage` flagged `weyland/ray-head` down (0/1). Diagnosis: the Ray **cluster is fully
+healthy** (`ray status` = 2 nodes / 28 CPU / 1 GPU, no failures), but the readiness probe hit
+`/api/version`, which **500s in Ray 2.56 through a dashboard subprocess-proxy bug**
+(`AttributeError: 'NoneType' has no attribute 'request'`) — so the probe failed for 2.5 days while the
+cluster worked. **Fix:** repoint the probe to `/api/gcs_healthz` (verified 200; reflects real GCS health)
+in `k8s/ray/ray-head.yaml`. A redeploy brings ray-head to 1/1 and clears the guard.
+
+### FLAGGED items — dispositions (2026-09-11)
+- **B157/B158 pillar-2/3 N/A** — FIXED: added explicit diagram/demo-N/A rationale to both entries (as B156).
+- **B72 no DONE date** — FIXED: marked "date unrecorded (predates the DoD)".
+- **`coredns-lan.yaml` stale `dashboard.weyland.lab`→.247** — FIXED: removed the dead Hermes CT-104 zone.
+- **13 orphan-doc candidates** — ACCEPTED as intentional archives (`units/` work-docs + superseded `design/`
+  docs; `design/README.md` is deliberately sparse). No change.
+- **KEDA / Hermes-Kanban in a couple arch.md paragraphs** — ACCEPTED as historical changelog context (KEDA's
+  retirement is stated elsewhere; the lines are "what was added" narrative). No change.
+
+### Remaining historical (NOT auto-fixed — accepted)
+- **13 DONE items cite no doc artifacts** — the mid-July security batch (B89–B101) + 3 pre-DoD items, closed
+  inline in backlog prose; accepted as historical (DoD is retroactive from 2026-07-14).
+- **KEDA / Hermes-Kanban** appear in a couple of arch.md *changelog* paragraphs (their retirements are stated
+  elsewhere) — historical narrative, left as-is.
+
+### Highlights (completeness)
+- **Zero broken internal doc links** (0 of 1,384) and **zero DONE items linking a missing artifact file** —
+  the two highest-value completeness checks are clean.

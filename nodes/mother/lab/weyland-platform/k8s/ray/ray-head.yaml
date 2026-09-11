@@ -104,10 +104,14 @@ spec:
               value: https://grafana.weyland.lab
           readinessProbe:
             # B47: token auth may 401 an unauth'd httpGet probe, and a kubelet httpGet can't inject the Secret
-            # token — so probe via python with the Authorization header from RAY_AUTH_TOKEN (works whether or not
-            # /api/version is auth-exempt). Non-2xx raises → probe fails; 2xx → ready.
+            # token — so probe via python with the Authorization header from RAY_AUTH_TOKEN. Non-2xx raises → probe
+            # fails; 2xx → ready.
+            # 2026-09-11 (audit): probe `/api/gcs_healthz` (reflects real GCS/cluster health, returns 200), NOT
+            # `/api/version` — in Ray 2.56 that endpoint 500s through the dashboard subprocess-proxy
+            # (AttributeError: 'NoneType' has no attribute 'request'), which failed the probe for 2.5d while the
+            # cluster was fully healthy (`ray status` = 2 nodes, no failures) → ray-head stuck 0/1.
             exec:
-              command: ["python", "-c", "import os,urllib.request; urllib.request.urlopen(urllib.request.Request('http://localhost:8265/api/version', headers={'Authorization':'Bearer '+os.environ.get('RAY_AUTH_TOKEN','')}))"]
+              command: ["python", "-c", "import os,urllib.request; urllib.request.urlopen(urllib.request.Request('http://localhost:8265/api/gcs_healthz', headers={'Authorization':'Bearer '+os.environ.get('RAY_AUTH_TOKEN','')}))"]
             initialDelaySeconds: 15
             periodSeconds: 10
           resources:

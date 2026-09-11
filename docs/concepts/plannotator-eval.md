@@ -62,6 +62,16 @@ pinned + attestation-verified, with `PLANNOTATOR_AI`/`PLANNOTATOR_SHARE` disable
 **The install + wiring + UAT are operator steps** (workstation binary + Claude Code plugin/hook + browser
 eyes-on) — batched below. Keep/skip is decided after the eyes-on round-trip.
 
+## Decision — KEPT (2026-09-11)
+
+Installed pinned + attestation-verified (v0.27.14, `--no-extras --model-invocable none`), LAN-hardened
+(`PLANNOTATOR_AI`/`PLANNOTATOR_SHARE=disabled`), and wired into Claude Code (plugin active). **UAT:** the
+**plan-review round-trip** was exercised via the `ExitPlanMode` hook (agent presented the B167 keep-artifacts
+plan → browser review UI → approved → agent executed); the **diff-review** path (`/plannotator-review`) was
+proven to launch + return. **Kept** as a **workstation tool** (beside the agent, like Emdash — no cluster
+footprint). Runbook [../runbooks/plannotator.md](../runbooks/plannotator.md) · demo
+[../demos/plannotator.md](../demos/plannotator.md) (#69) · flow [../diagrams/flow-plannotator.md](../diagrams/flow-plannotator.md).
+
 ## Operator steps (batched — workstation, browser, eyes-on)
 
 1. **Install the binary (pinned + verified), hardened:**

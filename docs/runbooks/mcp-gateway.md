@@ -106,7 +106,7 @@ kubectl -n weyland exec deploy/weyland-guard -- python -c 'import httpx; print(h
 
 ## Bifrost — the agent edge (Phase 3b, `bifrost.weyland.lab`)
 The **coding-agent** front door (`maximhq/bifrost`, `k8s/bifrost/`, Argo app `bifrost`). It connects to the compositor
-as an upstream MCP server and re-exposes **all 91 fleet tools through one `/mcp`** endpoint — so a coding agent (Cline /
+as an upstream MCP server and re-exposes **all 95 fleet tools through one `/mcp`** endpoint — so a coding agent (Cline /
 Cursor / Claude Code) points a single URL at the whole read-only lab. Reads only; **acts still go gateway → tool-server
 `/mcp-act`** (Bifrost never touches the act lane). Two Traefik routers on the one host: `/` (UI) = Keycloak forward-auth;
 `/mcp` = **not** forward-auth (MCP clients can't browser-SSO — the longer path outranks the UI router so agents skip SSO;
@@ -119,7 +119,7 @@ button emits ready-to-paste client config.
 **Re-add the upstream after a PVC loss** (config is currently UI-managed in the PVC — GitOps codification is `TODO(B111)`):
 UI → **MCP Gateway → MCP Catalog → New MCP Server** → Name `weyland_fleet`, Connection Type **HTTP (Streamable)**,
 Connection URL `http://weyland-mcp-compositor.weyland.svc.cluster.local:8000/mcp`, Auth Type **None** → Save. State goes
-green and **Enabled Tools = 91/91**.
+green and **Enabled Tools = 95/95**.
 
 **Verify** the aggregated endpoint (external path through Traefik — proves the `/mcp` router bypasses forward-auth):
 ```
@@ -238,7 +238,7 @@ folders` + `/prompts` + `/prompts/{id}/versions` (`messages:[{role,content}]`; `
   (grafana/mlflow/…). No mcp-specific record is needed (it's on mother/Traefik, not a distinct IP like ollama/whisper).
   The `/etc/hosts` line on rogueone is that workstation's mechanism for **all** `*.weyland.lab` (its resolver is the FiOS
   router, not the LAN DNS) — not an mcp-specific stopgap ([[coredns-cluster-lan-resolution]]).
-- ✅ **Bifrost agent edge** (Phase 3b, 2026-07-30) — `bifrost.weyland.lab` re-exposes all **91/91** fleet tools through
+- ✅ **Bifrost agent edge** (Phase 3b, 2026-07-30) — `bifrost.weyland.lab` re-exposes all **95/95** fleet tools through
   one `/mcp`; external path verified `200`. Coding agents (Cline/Cursor/Claude Code) point one URL at the whole read-only
   lab. Image pinned to the multi-arch index digest (2026-07-30). Loose end: codify the MCP-upstream config as GitOps (`TODO(B111)`).
 

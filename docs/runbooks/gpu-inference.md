@@ -68,7 +68,7 @@ DOCKER_HOST=unix:///var/run/docker.sock docker compose -f nodes/rogueone/service
 Native `vllm` provider — Base URL `http://192.168.1.230:8001` (**no `/v1`** — Bifrost appends it, same as Ollama), API
 key any dummy value, **allow-private-network ON** (Bifrost blocks LAN IPs by default; already enabled from Ollama).
 Model string through Bifrost: `vllm/Qwen/Qwen2.5-7B-Instruct-AWQ`. Smoke it tool-free (see the load-out note on why
-`x-bf-mcp-include-tools:""` — Bifrost auto-injects the 91 fleet tools into chat otherwise):
+`x-bf-mcp-include-tools:""` — Bifrost auto-injects the 95 fleet tools into chat otherwise):
 ```
 kubectl -n weyland exec deploy/weyland-guard -- python -c 'import httpx; r=httpx.post("http://bifrost.weyland.svc.cluster.local:8080/v1/chat/completions",json={"model":"vllm/Qwen/Qwen2.5-7B-Instruct-AWQ","messages":[{"role":"user","content":"hi"}]},headers={"x-bf-mcp-include-tools":""},timeout=90); print(r.status_code)'
 ```

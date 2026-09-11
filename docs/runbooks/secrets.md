@@ -24,7 +24,7 @@ kubectl get secret <name> -o yaml ──kubeseal──▶ SealedSecret CR (encry
 ```
 
 - **Controller**: `kube-system/sealed-secrets-controller` (chart `sealed-secrets` 2.19.1 / controller v0.37.0),
-  installed by the `sealed-secrets` Argo app (`k8s/argocd/applications/b69-onboarding.yaml`). Watches all namespaces.
+  installed by the `sealed-secrets` Helm Application (`k8s/argocd/applications/helm-apps.yaml`, B69 Wave 2). Watches all namespaces.
 - **Sealed CRs**: `k8s/sealed-secrets/sealed/<ns>__<name>.yaml`, applied by the `sealed-secrets-manifests` Argo app
   (`prune:false` — it never auto-deletes a live Secret). Argo shows this app `Progressing` (no health check exists
   for the CRD) — that's normal; the `ownerReferences[0].kind: SealedSecret` on each live Secret is the real proof.

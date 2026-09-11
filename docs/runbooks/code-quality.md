@@ -64,9 +64,9 @@ The suite + B89 triage + B90 dashboard are detailed in the sections below.
 **Scanner fixes (both were broken):**
 - **SonarQube** hard-failed once Flink added `.java` — the Java analyzer needs compiled classes. Fix: a `build-java`
   initContainer (`maven:3.9-eclipse-temurin-17`) `mvn compile`s the Flink modules; scanner passes
-  `-Dsonar.java.binaries=…/target/classes`. `k8s/sonarqube/sonar-scan-job.yaml`.
+  `-Dsonar.java.binaries=…/target/classes`. `k8s/sonarqube/sonar-scan.yaml`.
 - **Trivy** `FATAL 429` — the new Flink `pom.xml` made it fetch transitive POMs from Maven Central, rate-limiting
-  mother's IP. Fix: `--offline-scan`. `k8s/code-quality/trivy-scan-job.yaml`.
+  mother's IP. Fix: `--offline-scan`. `k8s/code-quality/scan-suite.yaml`.
 - Both scan jobs' report containers now **print each finding** (`[SEV] file id :: title`) to the pod log, not just
   counts to Port. Pull with `--tail=-1` (a label selector defaults to `--tail=10`!):
   `kubectl -n weyland logs -l job-name=<trivy|semgrep>-scan-weyland -c report --tail=-1 | grep -E '^\[CRITICAL\]'`.
