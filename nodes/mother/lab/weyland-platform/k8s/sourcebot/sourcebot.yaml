@@ -1,0 +1,162 @@
+# B166 — Sourcebot (the $0 Sourcegraph replacement): Zoekt-backed code search + web UI + MCP for agents.
+# REUSE-FIRST deploy (mirrors the B103 Langfuse pattern): only the ONE stateless all-in-one app pod lives
+# here (web :3000 + backend job-manager + an internal zoekt-webserver, all in the single upstream image);
+# every stateful plane is an EXISTING lab service —
+#   - Postgres  → weyland-postgres (same ns, STRICT mTLS), a DEDICATED `sourcebot` database (operator-created).
+#   - Redis     → valkey.data-mesh (NO AUTH — use a credential-less redis:// URL, same trap Langfuse hit).
+# Sourcebot v5 dropped its embedded Postgres, so reuse voids the "single container" assumption but adds only
+# the app pod's RAM to mother. Prisma runs migrations on boot → sidecar inject + holdApplicationUntilProxyStarts
+# so the first Postgres dial is meshed. UI behind Keycloak forward-auth at sourcebot.weyland.lab; Sourcebot's
+# own auth (first-registered user = owner) sits behind that, LAN-only.
+# Config split: repo connections → config.json ConfigMap (mounted); non-secret env → ConfigMap; secrets
+# (DATABASE_URL, SOURCEBOT_ENCRYPTION_KEY, AUTH_SECRET) → SealedSecret sourcebot-secret (envFrom both).
+# The 60 MB Zoekt index + Sourcebot state live on a small PVC at /data.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: sourcebot-config
+  namespace: weyland
+data:
+  # non-secret env
+  REDIS_URL: redis://valkey.data-mesh.svc:6379   # NO AUTH — no user:pass@ so no AUTH command is sent
+  AUTH_URL: https://sourcebot.weyland.lab        # NextAuth base — must match the ingress host or login redirect breaks
+  CONFIG_PATH: /data/config.json                 # the repo-connections file (mounted below via subPath)
+  SOURCEBOT_TELEMETRY_DISABLED: "true"           # $0 LAN lab — no phone-home
+  PORT: "3000"
+  # Node app — pin the V8 old-space ceiling under the mem limit (same SIGABRT-near-limit lesson as Langfuse)
+  NODE_OPTIONS: "--max-old-space-size=1024"
+---
+# The repo inventory Sourcebot indexes. Public GitHub remote (Argo already clones it), `git` connection type
+# (direct clone, no GitHub API/token needed for a public repo). Add more repos here later (e.g. stud.io).
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: sourcebot-repos
+  namespace: weyland
+data:
+  config.json: |
+    {
+      "$schema": "https://raw.githubusercontent.com/sourcebot-dev/sourcebot/main/schemas/v3/index.json",
+      "connections": {
+        "weyland-lab": {
+          "type": "git",
+          "url": "https://github.com/edtbl76/weyland-lab.git"
+        }
+      }
+    }
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: sourcebot-data
+  namespace: weyland
+spec:
+  accessModes: ["ReadWriteOnce"]
+  resources:
+    requests:
+      storage: 5Gi   # Zoekt shard (~60 MB for weyland-lab) + Sourcebot runtime state; generous headroom
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: sourcebot
+  namespace: weyland
+  labels:
+    app: sourcebot
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate          # single-instance + RWO /data: kill old before new (no storage-lock contention)
+  selector:
+    matchLabels:
+      app: sourcebot
+  template:
+    metadata:
+      labels:
+        app: sourcebot
+        sidecar.istio.io/inject: "true"   # STRICT-mTLS weyland-postgres (same ns)
+      annotations:
+        # migrates on boot → hold the app until the sidecar is ready so Prisma's first Postgres dial is meshed
+        proxy.istio.io/config: '{"holdApplicationUntilProxyStarts": true}'
+    spec:
+      containers:
+        - name: sourcebot
+          # nosemgrep: yaml.kubernetes.security.run-as-non-root.run-as-non-root
+          image: ghcr.io/sourcebot-dev/sourcebot:v5.1.12   # pinned to the bake-off-observed tag
+          imagePullPolicy: IfNotPresent
+          securityContext:
+            allowPrivilegeEscalation: false
+            seccompProfile:
+              type: RuntimeDefault
+          ports:
+            - name: http
+              containerPort: 3000
+          envFrom:
+            - configMapRef: { name: sourcebot-config }
+            - secretRef: { name: sourcebot-secret }
+          volumeMounts:
+            - name: data
+              mountPath: /data
+            - name: repos
+              mountPath: /data/config.json
+              subPath: config.json          # single-file mount coexists with the PVC dir at /data
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 3000
+            initialDelaySeconds: 40         # first boot runs Prisma migrations + the initial Zoekt index
+            periodSeconds: 15
+            failureThreshold: 10
+          resources:
+            requests:
+              cpu: 100m
+              memory: 512Mi
+            limits:
+              memory: 1536Mi   # V8 heap pinned to 1024 via NODE_OPTIONS; +512Mi non-heap headroom
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: sourcebot-data
+        - name: repos
+          configMap:
+            name: sourcebot-repos
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: sourcebot
+  namespace: weyland
+  labels:
+    app: sourcebot
+spec:
+  type: ClusterIP
+  selector:
+    app: sourcebot
+  ports:
+    - name: http
+      port: 3000
+      targetPort: 3000
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: sourcebot
+  namespace: weyland
+  annotations:
+    traefik.ingress.kubernetes.io/router.middlewares: weyland-traefik-forward-auth@kubernetescrd
+spec:
+  tls:
+    - hosts:
+        - sourcebot.weyland.lab
+      secretName: weyland-wildcard-tls
+  rules:
+    - host: sourcebot.weyland.lab
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: sourcebot
+                port:
+                  number: 3000

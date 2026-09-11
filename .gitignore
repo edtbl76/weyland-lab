@@ -246,3 +246,6 @@ golden-paths/c/*/build/
 
 # mutation testing (B152, on-demand)
 .mutmut-cache/
+
+# Serena (B166) code-intelligence MCP — per-project config + LSP symbol cache (regenerable)
+.serena/
