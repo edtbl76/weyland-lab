@@ -25,6 +25,19 @@ Each proven via MCP `tools/list` (+ a real read call, and a write-denial probe w
 > Not built because nothing has needed it. Tracked as **EMA-208 (Low)**; see
 > `docs/concepts/graphify-adoption.md`.
 
+> **Two MCP planes — the fleet is not the only place MCP lives.** This fleet is the **shared, read-only,
+> in-cluster** plane: servers reached through the gateway/FastMCP compositor by the operator and the Realm
+> agents. There is a second, deliberately separate plane: **local, agent-side MCP** wired into a coding
+> agent's own `.mcp.json` (stdio, `uvx`/local process), running *beside* the agent on the workstation.
+> **Serena** (B166 — LSP→MCP code intelligence) lives there, **not** in this fleet, and that is by design:
+> it is **editing-capable** (`replace_symbol_body`, `rename_symbol`, `insert_after_symbol`…), **per-project**
+> and **stateful** (a language server + `.serena/` cache indexed to one repo) — the opposite of a shared
+> read-only service. The rule of thumb: **shared + read-only + in-cluster → the fleet; per-project +
+> editing + beside-the-agent → local `.mcp.json`.** Serena would only join the fleet if the **B66 operator**
+> (which reaches tools through the gateway, not a local `.mcp.json`) needed code navigation — and then only
+> a **read-only subset** (`find_symbol`, `find_referencing_symbols`, `get_symbols_overview`), never the
+> editing tools. See `docs/runbooks/code-intelligence.md` § Serena.
+
 ## Connectivity notes
 - **trino-mcp** → the `trino-noauth` proxy (`trino-noauth.data-mesh.svc:8080`) as `X-Trino-User: mcp` — the same no-auth
   path dbt/Soda/Cube use. Ranger is default-deny, so `mcp` reads only what it's granted and can never write.

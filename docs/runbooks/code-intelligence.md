@@ -63,8 +63,10 @@ Langfuse): Sourcebot's app pod is the only new compute — it reuses `weyland-po
 
 - **Sourcebot** — `sourcebot.weyland.lab` (Keycloak forward-auth; then Sourcebot's own first-user-is-owner login).
 - **Zoekt** — `zoekt.weyland.lab`, **no forward-auth** by design: the open programmatic JSON endpoint
-  (`GET /search?q=<term>&num=N&format=json`) for scripts/agents. Both hosts resolve via the existing
-  `*.weyland.lab` wildcard — **no DNS change needed**.
+  (`GET /search?q=<term>&num=N&format=json`) for scripts/agents. Cluster pods + mother resolve both hosts
+  via the `*.weyland.lab` wildcard, but **rogueone (the workstation) resolves `*.weyland.lab` per-host via
+  `/etc/hosts`** — so add `sourcebot.weyland.lab` and `zoekt.weyland.lab` → the ingress IP there to browse
+  them from rogueone (same as every other new subdomain; see hosts.md DNS note).
 
 **Operator prerequisites before the first sync** (batched — I can't do these: kubeseal + the DB create are
 mother-only, and git is yours):
