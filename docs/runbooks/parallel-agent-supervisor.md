@@ -25,9 +25,11 @@ Install (operator workstation — it is a local desktop app, LAN-safe, no cluste
 
 ```
 # Linux
-curl -L -o emdash.AppImage https://releases.emdash.sh/emdash-x86_64.AppImage   # or the .deb:
-#   https://releases.emdash.sh/emdash-amd64.deb
-chmod +x emdash.AppImage && ./emdash.AppImage
+# .deb (recommended — installs system-wide, no FUSE/sandbox). Verified on rogueone 2026-09-10 (v1.2.4):
+curl -L -o /tmp/emdash.deb https://github.com/generalaction/emdash/releases/download/v1.2.4/emdash-amd64.deb
+sudo apt install /tmp/emdash.deb && emdash
+# — or the AppImage (no root; needs libfuse2, or run --appimage-extract-and-run):
+#   curl -L -o ~/emdash.AppImage https://releases.emdash.sh/emdash-x86_64.AppImage && chmod +x ~/emdash.AppImage && ~/emdash.AppImage
 
 # macOS
 brew install --cask emdash
@@ -36,6 +38,9 @@ brew install --cask emdash
 Then in the app: add a project (a local git repo, or an SSH remote), pick the agent per task, and each
 new task opens its own worktree. Agent selection + provider config is in the app's Providers screen — it
 uses the operator's already-configured CLIs, so the lab's $0 gateway routing applies unchanged.
+
+**Verified 2026-09-10 (eyes-on):** installed the v1.2.4 `.deb` on rogueone, added the weyland project,
+created a task → Emdash opened a git worktree and drove a live Claude Code agent inside it. Working.
 
 ## Trap — the npm `emdash` name collision
 
