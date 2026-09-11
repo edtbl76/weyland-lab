@@ -702,3 +702,79 @@ spec:
     namespace: weyland
   syncPolicy:
     automated: { selfHeal: true, prune: true }
+---
+# B166 — Sourcebot ($0 Sourcegraph replacement: Zoekt search + web UI + MCP). Reuses weyland-postgres + valkey.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: sourcebot
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/edtbl76/weyland-lab.git
+    targetRevision: main
+    path: nodes/mother/lab/weyland-platform/k8s/sourcebot
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: weyland
+  syncPolicy:
+    automated: { selfHeal: true, prune: true }
+---
+# B166 — Zoekt standalone (the search engine bare: un-authed JSON endpoint for scripts/agents + daily index cron).
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: zoekt
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/edtbl76/weyland-lab.git
+    targetRevision: main
+    path: nodes/mother/lab/weyland-platform/k8s/zoekt
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: weyland
+  syncPolicy:
+    automated: { selfHeal: true, prune: true }
+---
+# B166 — Sourcebot: the $0 Sourcegraph replacement (Zoekt-backed code search + web UI + MCP). Reuse-first:
+# only the stateless app pod deploys here; Postgres (weyland-postgres, dedicated `sourcebot` DB) + Redis
+# (valkey.data-mesh) are existing services. Its own Application because k8s/sourcebot/ is a new subdir.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: sourcebot
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/edtbl76/weyland-lab.git
+    targetRevision: main
+    path: nodes/mother/lab/weyland-platform/k8s/sourcebot
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: weyland
+  syncPolicy:
+    automated: { selfHeal: true, prune: true }
+---
+# B166 — Zoekt (standalone): the trigram search engine bare, as the lightweight un-authed JSON search
+# endpoint for scripts/agents (Sourcebot is the human UI + MCP). Index CronJob + webserver, no DB/auth.
+# Its own Application because k8s/zoekt/ is a new subdir.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: zoekt
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/edtbl76/weyland-lab.git
+    targetRevision: main
+    path: nodes/mother/lab/weyland-platform/k8s/zoekt
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: weyland
+  syncPolicy:
+    automated: { selfHeal: true, prune: true }

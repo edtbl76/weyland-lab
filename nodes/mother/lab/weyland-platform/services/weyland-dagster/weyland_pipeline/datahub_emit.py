@@ -917,6 +917,8 @@ _CAPABILITY_TERMS = {
     "uptime-monitoring": ("Uptime Monitoring", "Synthetic up/down monitoring."),
     "llm-gateway": ("LLM Gateway", "Routes and meters LLM traffic."),
     "mcp": ("MCP Tool Gateway", "Model Context Protocol tool aggregation."),
+    "code-search": ("Code Search", "Fast full-text / trigram search across source repositories."),
+    "code-navigation": ("Code Navigation", "Symbol-level go-to-definition / find-references over code."),
 }
 _APP_CAPABILITIES = {
     "weyland-dagster": ["orchestration", "data-production", "catalog-governance"],

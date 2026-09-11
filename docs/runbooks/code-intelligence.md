@@ -52,6 +52,54 @@ for the B66 operator too; local-in-Claude-Code is the $0 first step.
 a web UI for humans, an MCP server + NL Q&A for agents. **Proven** on the real repo: `GuardrailPipeline`
 → **9 files in 0.19ms** over a single 59.7 MB index shard (see the eval doc's bake-off table).
 
+### Deployed on k3s (GitOps) — Sourcebot + standalone Zoekt
+
+Both are standing services (operator decision 2026-09-11), manifests under `k8s/sourcebot/` + `k8s/zoekt/`,
+onboarded as Argo apps `sourcebot` + `zoekt` (`subdir-apps.yaml`, autosync). **Reuse-first** (mirrors
+Langfuse): Sourcebot's app pod is the only new compute — it reuses `weyland-postgres` (a dedicated
+`sourcebot` DB, STRICT-mTLS via a meshed sidecar + `holdApplicationUntilProxyStarts`) and
+`valkey.data-mesh` (no-auth `redis://` URL). Zoekt is bare: a `zoekt-webserver` (`:6070`) + a daily
+`zoekt-index` CronJob (03:35 NY) that shallow-clones the public repo and `zoekt-git-index`es a shared PVC.
+
+- **Sourcebot** — `sourcebot.weyland.lab` (Keycloak forward-auth; then Sourcebot's own first-user-is-owner login).
+- **Zoekt** — `zoekt.weyland.lab`, **no forward-auth** by design: the open programmatic JSON endpoint
+  (`GET /search?q=<term>&num=N&format=json`) for scripts/agents. Both hosts resolve via the existing
+  `*.weyland.lab` wildcard — **no DNS change needed**.
+
+**Operator prerequisites before the first sync** (batched — I can't do these: kubeseal + the DB create are
+mother-only, and git is yours):
+
+1. **Create the dedicated DB** (on mother, superuser from `weyland-postgres-secret`):
+   `kubectl -n weyland exec deploy/weyland-postgres -- psql -U "$POSTGRES_USER" -c 'CREATE DATABASE sourcebot;'`
+2. **Seal the Sourcebot secret** (on mother — generate the keys, never paste):
+   ```bash
+   ENC=$(openssl rand -base64 24); AUTH=$(openssl rand -base64 33)
+   PGPASS=<weyland-postgres superuser password>   # from scripts/.env, not pasted
+   kubectl create secret generic sourcebot-secret -n weyland --dry-run=client -o yaml \
+     --from-literal=DATABASE_URL="postgresql://<pguser>:${PGPASS}@weyland-postgres:5432/sourcebot" \
+     --from-literal=SOURCEBOT_ENCRYPTION_KEY="$ENC" \
+     --from-literal=AUTH_SECRET="$AUTH" \
+     | kubeseal --format yaml \
+     > nodes/mother/lab/weyland-platform/k8s/sealed-secrets/sealed/weyland__sourcebot-secret.yaml
+   ```
+   Then commit that sealed file (the sealed-secrets Argo app applies it; the controller unseals to the
+   `sourcebot-secret` the Deployment's `envFrom` reads). Until it exists, the Sourcebot pod stays pending
+   (missing secret) — expected.
+3. **After sync:** trigger the first Zoekt index so search isn't empty on day one —
+   `kubectl -n weyland create job --from=cronjob/zoekt-index zoekt-index-now`.
+4. **Kuma monitors** (manual, the ingress gate) for `sourcebot.weyland.lab` + `zoekt.weyland.lab`.
+5. **Eyes-on:** open `https://sourcebot.weyland.lab`, sign up as the first user, run a cross-repo search;
+   `curl https://zoekt.weyland.lab/search?q=GuardrailPipeline&format=json` for the programmatic path.
+
+**Re-index cadence:** Sourcebot indexes continuously (its own job-manager); Zoekt is the daily mirror
+(Design Rule #5 — no mid-day auto-runs). For immediate Zoekt freshness after a push, the manual job in
+step 3. Add more repos to Sourcebot by extending the `sourcebot-repos` ConfigMap `connections` (e.g. stud.io).
+
+---
+
+The bake-off deploy below (throwaway Docker) is how search was first **proven** and how to run Sourcebot
+standalone locally without the cluster.
+
 **v5 is a 3-service deploy, not one container** (it dropped embedded Postgres). The bake-off stood it up
 as throwaway containers on an isolated `sb-net` network — Postgres + Redis + the app:
 

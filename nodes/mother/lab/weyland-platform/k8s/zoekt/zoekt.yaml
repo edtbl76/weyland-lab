@@ -1,0 +1,165 @@
+# B166 — Zoekt (standalone): the fast trigram code-search ENGINE, minus Sourcebot's wrapper. This is the
+# same engine Sourcebot runs internally, deployed bare as the lab's LIGHTWEIGHT, UN-AUTHED, JSON search
+# endpoint for scripts + agents (Sourcebot is the human web UI + MCP; this is the programmatic half the
+# operator asked for). No Postgres, no Redis, no auth — one webserver + one index shard on a small PVC.
+#
+# Index cadence: Sourcebot indexes continuously via its own job-manager (not a k8s CronJob, so unbound by
+# the schedules Design Rule #5). Zoekt-standalone is the DAILY lightweight mirror — a pre-dawn CronJob
+# (03:35 NY, inside the 00:00–06:00 window) clones the public weyland-lab and re-indexes; a manual re-index
+# for immediate freshness after a push is `kubectl -n weyland create job --from=cronjob/zoekt-index zoekt-index-now`.
+# The index CronJob needs NO Istio sidecar: it only clones from GitHub (egress) and writes the PVC — it
+# touches no STRICT-mTLS in-cluster service, so it sidesteps the Job-completion-with-sidecar problem entirely.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: zoekt-index
+  namespace: weyland
+spec:
+  accessModes: ["ReadWriteOnce"]   # index CronJob + webserver both land on the single node (mother) → RWO is fine
+  resources:
+    requests:
+      storage: 2Gi   # weyland-lab shard ≈ 60 MB; 2Gi covers growth + a second repo later
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: zoekt-index
+  namespace: weyland
+spec:
+  schedule: "35 3 * * *"          # 03:35 America/New_York — pre-dawn window (Design Rule #5); clear of 03:20 api-drift + 04:00 datasets
+  timeZone: America/New_York
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 1
+      activeDeadlineSeconds: 900    # a wedged clone/index self-kills instead of freezing all future runs (Forbid)
+      template:
+        metadata:
+          labels:
+            app: zoekt-index
+            sidecar.istio.io/inject: "false"   # clones from GitHub egress + writes PVC only — no mesh, so the Job can terminate
+        spec:
+          restartPolicy: Never
+          containers:
+            - name: index
+              # nosemgrep: yaml.kubernetes.security.run-as-non-root.run-as-non-root
+              image: sourcegraph/zoekt-indexserver:0.0.0-20250506123554-490422d1adb4   # pinned (== latest 2025-05-06); has zoekt-git-index AND /usr/bin/git (verified)
+              imagePullPolicy: IfNotPresent
+              securityContext:
+                allowPrivilegeEscalation: false
+                seccompProfile:
+                  type: RuntimeDefault
+              command: ["/bin/sh", "-c"]
+              args:
+                - |
+                  set -e
+                  rm -rf /work/weyland-lab
+                  echo "cloning weyland-lab (shallow) ..."
+                  git clone --depth 1 https://github.com/edtbl76/weyland-lab.git /work/weyland-lab
+                  echo "indexing → /data/index ..."
+                  zoekt-git-index -index /data/index /work/weyland-lab
+                  echo "zoekt index refreshed: $(date -u)"
+              resources:
+                requests: { memory: 256Mi, cpu: 100m }
+                limits: { memory: 768Mi }   # transient; a shallow clone + trigram index of a small repo
+              volumeMounts:
+                - { name: index, mountPath: /data/index }
+                - { name: work, mountPath: /work }
+          volumes:
+            - name: index
+              persistentVolumeClaim: { claimName: zoekt-index }
+            - name: work
+              emptyDir: {}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: zoekt-webserver
+  namespace: weyland
+  labels:
+    app: zoekt-webserver
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate          # single-instance + RWO index share with the CronJob on the same node
+  selector:
+    matchLabels:
+      app: zoekt-webserver
+  template:
+    metadata:
+      labels:
+        app: zoekt-webserver
+        sidecar.istio.io/inject: "false"   # read-only search server, no in-mesh dependency
+    spec:
+      containers:
+        - name: zoekt-webserver
+          # nosemgrep: yaml.kubernetes.security.run-as-non-root.run-as-non-root
+          image: sourcegraph/zoekt-webserver:0.0.0-20250506123554-490422d1adb4   # pinned (== latest 2025-05-06)
+          imagePullPolicy: IfNotPresent
+          securityContext:
+            allowPrivilegeEscalation: false
+            seccompProfile:
+              type: RuntimeDefault
+          # Override the image's default CMD (which appends -indexserver_proxy, expecting an indexserver we
+          # don't run) with a plain read-only server over the CronJob-built shard.
+          command: ["zoekt-webserver", "-index", "/data/index", "-listen", ":6070"]
+          ports:
+            - name: http
+              containerPort: 6070
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 6070
+            initialDelaySeconds: 10
+            periodSeconds: 15
+          resources:
+            requests: { memory: 128Mi, cpu: 50m }
+            limits: { memory: 512Mi }
+          volumeMounts:
+            - { name: index, mountPath: /data/index }
+      volumes:
+        - name: index
+          persistentVolumeClaim: { claimName: zoekt-index }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: zoekt
+  namespace: weyland
+  labels:
+    app: zoekt-webserver
+spec:
+  type: ClusterIP
+  selector:
+    app: zoekt-webserver
+  ports:
+    - name: http
+      port: 6070
+      targetPort: 6070
+---
+# NO forward-auth: Zoekt is deliberately the open, programmatic search endpoint for scripts/agents on the
+# LAN (read-only search over public-repo code). Sourcebot's ingress carries the Keycloak forward-auth; this
+# one intentionally does not — that separation is the whole reason both exist.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: zoekt
+  namespace: weyland
+spec:
+  tls:
+    - hosts:
+        - zoekt.weyland.lab
+      secretName: weyland-wildcard-tls
+  rules:
+    - host: zoekt.weyland.lab
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: zoekt
+                port:
+                  number: 6070

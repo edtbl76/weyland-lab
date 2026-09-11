@@ -188,6 +188,7 @@ spec:
       - rancher/                                  # kubectl (job runner)
       - semitechnologies/                         # Weaviate
       - sonarsource/                              # sonar-scanner-cli
+      - sourcegraph/                              # Zoekt code-search (zoekt-webserver + zoekt-indexserver) — B166
       - timescale/                                # TimescaleDB HA
       - treeverse/                                # lakeFS
       - trinodb/                                  # Trino
