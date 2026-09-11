@@ -43,6 +43,19 @@ mkpath() {
   [[ "$output" != *"== demo/one =="* ]]
 }
 
+@test "discovery prunes build-artifact dirs — a dependency's Dockerfile is NOT a golden path (B104/#114)" {
+  # A shared-workspace lane (test-cpp) leaves CMake FetchContent output at <path>/build/_deps/<lib>/Dockerfile.
+  # The recursive Dockerfile discovery must NOT treat that as a golden path (no .smoke → the full run
+  # failed exactly this way, pipeline #114 exit 2).
+  mkpath cpp/httplib
+  mkdir -p "$GP/cpp/httplib/build/_deps/httplib-src"
+  printf 'FROM alpine:3.20\n' > "$GP/cpp/httplib/build/_deps/httplib-src/Dockerfile"   # a dep's own Dockerfile, no .smoke
+  run bash "$EX" --dry-run
+  [ "$status" -eq 0 ]                                   # NOT exit 2
+  [[ "$output" == *"cpp/httplib"* ]]                    # the real path is planned
+  [[ "$output" != *"build/_deps"* ]]                    # the artifact is not
+}
+
 @test "an explicit target with no Dockerfile fails closed with a reason (exit 2)" {
   mkpath demo/real
   run bash "$EX" demo/nope

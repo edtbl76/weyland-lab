@@ -36,7 +36,15 @@ paths=()
 if [ "${#TARGETS[@]}" -gt 0 ]; then
   for t in "${TARGETS[@]}"; do [ -f "$GP_DIR/$t/Dockerfile" ] && paths+=("$t") || { echo "no golden path with a Dockerfile at $t" >&2; exit 2; }; done
 else
-  while IFS= read -r df; do paths+=("$(dirname "${df#"$GP_DIR"/}")"); done < <(find "$GP_DIR" -name Dockerfile 2>/dev/null | sort)
+  # PRUNE build-artifact dirs before matching Dockerfiles. A golden path is <lang>/<framework>/Dockerfile;
+  # build/ · _deps/ · _build/ · node_modules/ · target/ · deps/ · vendor/ · dist/ hold DEPENDENCIES' own
+  # Dockerfiles (e.g. CMake FetchContent drops cpp-httplib's Dockerfile at cpp/httplib/build/_deps/httplib-src/).
+  # Woodpecker's k8s steps SHARE the workspace, so an earlier lane's build (test-cpp) leaves build/_deps for
+  # this step to trip on — the full run failed exactly this way (pipeline #114, exit 2). Same exclusion
+  # family as .gitignore + run-lang-tests is_excluded, which this discovery had never been given.
+  while IFS= read -r df; do paths+=("$(dirname "${df#"$GP_DIR"/}")"); done < <(
+    find "$GP_DIR" -type d \( -name build -o -name _build -o -name _deps -o -name deps -o -name node_modules -o -name target -o -name vendor -o -name dist \) -prune \
+      -o -type f -name Dockerfile -print 2>/dev/null | sort)
 fi
 [ "${#paths[@]}" -gt 0 ] || { echo "no golden paths found under $GP_DIR" >&2; exit 2; }
 
