@@ -531,6 +531,23 @@ steps:
       # headless render smoke — build the web target (the Flutter client's bundle analogue)
       - cd golden-paths/mobile/flutter && flutter build web && cd -
 
+  # B164 "Swift without iOS" — Tokamak (SwiftUI-compatible API) → WebAssembly via carton, all on Linux.
+  # The whole stack is PINNED: Tokamak's last release is 0.11.1 (Feb 2023) and carton's images stop at
+  # 0.20.1 (carton 1.x is SPM-plugin-only), so the image is swiftwasm/carton:0.20.1 (SwiftWasm Swift 5.9.1)
+  # and Package.resolved is committed. Tests run as wasm XCTest in Node.js (headless). TEST-ONLY for
+  # lang-scan: swift-format shipped with Swift 6.0, absent from this 5.9.1 toolchain — the swift/vapor lane
+  # already covers Swift linting, so there is no scan-swift-tokamak (wiring an un-runnable scanner would
+  # violate the fail-closed contract). This is the Linux-verifiable half of "Swift UI"; the iOS/SwiftUI
+  # on-device surface stays parked on the Mac hardware gate (swift-ios).
+  - name: test-swift-tokamak
+    image: ghcr.io/swiftwasm/carton:0.20.1
+    commands:
+      - bash scripts/run-lang-tests.sh swift-tokamak --self-check
+      - bash scripts/run-lang-tests.sh swift-tokamak
+      # headless web-bundle smoke — carton bundle → Bundle/ (index.html + <hash>.wasm + JS glue),
+      # the Tokamak client's analogue of the RN expo-export / Flutter build-web smokes.
+      - cd golden-paths/mobile/swift-tokamak && carton bundle && cd -
+
   # ── 1e. per-language SCANNERS (B88 Phase 2) ─────────────────────────────────
   # The analysis sibling of the test lanes above. Kept OUT of the scan-suite image on purpose: that
   # image already carries python + a full Go toolchain + a JRE, and adding Rust/Java/Node toolchains

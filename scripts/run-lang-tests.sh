@@ -37,7 +37,7 @@ REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 FIXTURE_DIR="${WEYLAND_LANG_FIXTURE_DIR:-$REPO_ROOT/tests/lang}"
 SCAN_ROOT="${WEYLAND_LANG_SCAN_ROOT:-$REPO_ROOT}"
 
-LANGS="python shell java go rust dotnet kotlin scala php ruby elixir clojure cpp c erlang julia lua swift dart r perl haskell ada typescript javascript react nextjs react-native flutter"
+LANGS="python shell java go rust dotnet kotlin scala php ruby elixir clojure cpp c erlang julia lua swift dart r perl haskell ada typescript javascript react nextjs react-native flutter swift-tokamak"
 
 die() { printf '%s\n' "$*" >&2; exit 2; }
 
@@ -89,6 +89,7 @@ runner_for() {
     typescript|javascript|react|nextjs) echo "node" ;;
     react-native)                      echo "npm" ;;    # B164 mobile CLIENT: jest-expo via `npm test`
     flutter)                           echo "flutter" ;; # B164 mobile CLIENT: `flutter test`
+    swift-tokamak)                     echo "carton" ;;  # B164 "Swift w/o iOS": Tokamak→Wasm via carton
     *)                                 return 1 ;;
   esac
 }
@@ -137,6 +138,10 @@ test_glob_for() {
     # dart golden path's contract_test.dart, so `flutter test` never targets the dart/shelf service.
     react-native)                      echo "*.rn.test.tsx" ;;
     flutter)                           echo "widget_test.dart" ;;
+    # swift-tokamak shares Package.swift with the swift lane; its test files carry a `.tokamak.swift`
+    # infix (distinct from swift's `*Tests.swift`) so `carton test` never targets vapor/swift-ios and
+    # `swift test` never targets this wasm-only client (which fails natively — Tokamak's GTK fallback).
+    swift-tokamak)                     echo "*.tokamak.swift" ;;
     *)                                 return 1 ;;
   esac
 }
@@ -169,6 +174,7 @@ root_marker_for() {
     typescript|javascript|react|nextjs) echo "package.json" ;;
     react-native)                      echo "package.json" ;;   # Expo app root (mobile CLIENT)
     flutter)                           echo "pubspec.yaml" ;;   # Flutter package root (mobile CLIENT)
+    swift-tokamak)                     echo "Package.swift" ;;  # SwiftPM package root (Tokamak/Wasm CLIENT)
     python|shell)                      echo "" ;;   # resolved structurally, see resolve_root
     *)                                 return 1 ;;
   esac
@@ -244,6 +250,11 @@ is_excluded() {
     # swift-ios is deliberately NOT excluded — it rides the swift lane's discovery cleanly
     # (Package.swift + *Tests.swift, no collision) and must keep being found there.
     */golden-paths/mobile/react-native/*|*/golden-paths/mobile/flutter/*)
+      return 0 ;;
+    # swift-tokamak (Tokamak→Wasm) shares Package.swift with the swift lane; exclude it so `swift test`
+    # never targets this wasm-only client (it fails natively — Tokamak's GTK fallback needs gtk.h). Its
+    # own lane runs the fixture directly via resolve_fixture. swift-ios stays discoverable by the swift lane.
+    */golden-paths/mobile/swift-tokamak/*)
       return 0 ;;
   esac
   return 1
@@ -485,6 +496,14 @@ run_in() {
       # package:test fail-open trap as dart/shelf) to force it to run and fail.
       if [ "$mode" = selfcheck ]; then (cd "$dir" && flutter test -t selfcheck --run-skipped)
       else (cd "$dir" && flutter test); fi ;;
+    swift-tokamak)
+      # B164 "Swift without iOS": Tokamak (SwiftUI-compatible) → WebAssembly via carton. Tests run as
+      # wasm XCTest in Node.js (`--environment node`, headless — no browser, no GTK). The deliberate test
+      # is compile-flag-gated: a normal run compiles its body away (passes); selfcheck adds
+      # `-Xswiftc -DSELFCHECK` so it fails. FAIL-CLOSED — remove the `#if SELFCHECK` block and the
+      # selfcheck run stops failing, which the --self-check guard reports as LANE BROKEN.
+      if [ "$mode" = selfcheck ]; then (cd "$dir" && carton test --environment node -Xswiftc -DSELFCHECK)
+      else (cd "$dir" && carton test --environment node); fi ;;
     typescript|javascript|react|nextjs)
       # TWO NODE SHAPES, ONE RUNNER. A project that declares its own `test` script owns how its
       # tests run (React and Next.js need jest + a DOM, which node's built-in runner cannot

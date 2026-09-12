@@ -191,11 +191,11 @@ since gnatcheck/libadalang-tools is a heavy separate crate). All 9 wired into `r
 (`test-*`/`scan-*` per lang). **Pending:** first CI run (golden-path-smoke builds+serves the 9 Dockerfiles
 in-cluster + the new test/scan lanes run) confirms them → then the matrix total moves **35 → 44**.
 
-### Workstream 1 — mobile clients (RN + Flutter + Swift-iOS Linux surface), built + wired 2026-09-11
+### Workstream 1 — mobile clients (RN + Flutter + Swift-iOS + Swift-Tokamak), built + wired 2026-09-11
 
 Mobile is a **CLIENT, not a service**: no HTTP contract, no Dockerfile, no k8s Job — so `golden-path-smoke`
 auto-skips these dirs (Dockerfile-less), and each lane's smoke is instead a **headless bundle/render**, the
-client analogue of a service path's run-to-completion Job. All three built + docker-verified on rogueone:
+client analogue of a service path's run-to-completion Job. All four built + docker-verified on rogueone:
 - **React Native**/Expo — `jest-expo` (4/4 pass · selfcheck fails) · bundle smoke `expo export --platform web` ·
   `eslint` scan. Lane image `node:24` (Debian/glibc — expo's export pulls native modules that fail on musl).
 - **Flutter** — `flutter test` (widget test pass · skip-tagged selfcheck forced with `-t selfcheck --run-skipped`) ·
@@ -203,21 +203,33 @@ client analogue of a service path's run-to-completion Job. All three built + doc
 - **Swift-iOS** — the **Linux-verifiable** part only: a pure-Swift `Greeting` module (5/5) tested by `swift test`;
   the SwiftUI/iOS surface is `#if canImport(SwiftUI)`-guarded so the Linux build stays green. It needs **no lane
   of its own** — it rides `test-swift`'s discovery (`Package.swift` + `*Tests.swift`, verified as 1 discovered
-  project). The iOS/SwiftUI UI is **parked on the Mac hardware gate** (no $0 Linux path to an iOS simulator).
+  project). The on-device iOS/SwiftUI UI is **parked on the Mac hardware gate** (no $0 Linux path to a simulator).
+- **Swift-Tokamak** — **"Swift without iOS":** [Tokamak](https://github.com/TokamakUI/Tokamak) is a
+  SwiftUI-*compatible* API that compiles via the **SwiftWasm** toolchain to WebAssembly and renders to the DOM,
+  so the SwiftUI programming model + build chain are exercised entirely on Linux. `carton test --environment node`
+  (wasm XCTest in Node.js, headless — a native `swift test` fails here because off-wasm Tokamak needs its GTK
+  backend) · self-check compile-flag-gated with `-Xswiftc -DSELFCHECK` · bundle smoke `carton bundle` → `Bundle/`
+  (index.html + `.wasm` + JS glue). Lane image `ghcr.io/swiftwasm/carton:0.20.1`. **The whole stack is PINNED and
+  frozen** — Tokamak's last release is 0.11.1 (Feb 2023) and carton's images stop at 0.20.1 (carton 1.x is
+  SPM-plugin-only); `Package.resolved` is committed. **TEST-ONLY for lang-scan:** swift-format shipped with Swift
+  6.0 and is absent from the pinned SwiftWasm 5.9.1 toolchain, and the `swift/vapor` lane already covers Swift
+  linting, so no scan lane is wired (an un-runnable scanner would violate the fail-closed contract). This is the
+  Linux-verifiable half of the parked `swift-ios` UI — it covers the model + build chain, not on-device iOS testing.
 
-**Discovery collision handling (why the wiring is more than "add a lang"):** react-native shares
-`package.json` + `*.test.tsx` with the node lanes and flutter shares `pubspec.yaml` + `*_test.dart` with the
-dart lane. Fixed in both directions — a path exclusion in `is_excluded()` keeps the node/dart lanes off the
-mobile fixtures (which run directly via `resolve_fixture`, so no coverage is lost), and a distinctive test glob
-keeps the mobile lanes off their siblings: flutter keys on `widget_test.dart` (already unique vs shelf's
-`contract_test.dart`), and RN's test files were renamed to `*.rn.test.tsx` (still matched by jest's default
-discovery) so the react-native lane can't pick up vite-react/nextjs/remix. Verified: react-native + flutter
-each discover **0 real projects** (fixture-only), dart no longer sees flutter, the node lanes no longer see RN,
-and swift still discovers swift-ios. Wired across all 5 surfaces (`run-lang-tests.sh` · `lib/lang-fixtures.sh` ·
-`run-lang-scan.sh` · `quality-tools.yaml` — 31 lang-scan tools, `flutter-analyze` added + `eslint` reused ·
-`.woodpecker.yml` `test-react-native`/`test-flutter`/`scan-react-native`/`scan-flutter`). **Pending:** the same
-first CI run confirms the mobile lanes; the matrix then moves **44 → 47** (44 service + 3 mobile), and B164 closes
-except the parked iOS/SwiftUI UI hardware gate.
+**Discovery collision handling (why the wiring is more than "add a lang"):** each mobile client shares a manifest
++ test-glob with a service lane — react-native/`package.json`+`*.test.tsx` with the node lanes, flutter/`pubspec.yaml`+`*_test.dart`
+with the dart lane, swift-tokamak/`Package.swift`+`*Tests.swift` with the swift lane. Fixed in both directions — a
+path exclusion in `is_excluded()` keeps the service lanes off the mobile fixtures (which run directly via
+`resolve_fixture`, so no coverage is lost), and a distinctive test glob keeps each mobile lane off its siblings:
+flutter keys on `widget_test.dart` (unique vs shelf's `contract_test.dart`), RN's test files were renamed to
+`*.rn.test.tsx`, and swift-tokamak's to `*.tokamak.swift` (all still matched by their native runners' default
+discovery). Verified: react-native, flutter, and swift-tokamak each discover **0 real projects** (fixture-only),
+dart no longer sees flutter, the node lanes no longer see RN, the swift lane sees only vapor + swift-ios (not
+swift-tokamak), and swift-ios still rides the swift lane. Wired across the shared surfaces (`run-lang-tests.sh` ·
+`lib/lang-fixtures.sh` · `run-lang-scan.sh` · `quality-tools.yaml` — 31 lang-scan tools, `flutter-analyze` added +
+`eslint` reused for RN, swift-tokamak test-only · `.woodpecker.yml` `test-react-native`/`test-flutter`/`test-swift-tokamak`
++ `scan-react-native`/`scan-flutter`). **Pending:** the same first CI run confirms the mobile lanes; the matrix
+then moves **44 → 48** (44 service + 4 mobile), and B164 closes except the parked on-device iOS/SwiftUI UI hardware gate.
 
 ## Definition of Done (per golden path + the system)
 

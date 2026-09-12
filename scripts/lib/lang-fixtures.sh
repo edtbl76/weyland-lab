@@ -45,6 +45,7 @@ resolve_fixture() {
     nextjs)     printf '%s/golden-paths/frontend/nextjs\n'      "$repo" ;;
     react-native) printf '%s/golden-paths/mobile/react-native\n' "$repo" ;;  # B164 mobile CLIENT
     flutter)    printf '%s/golden-paths/mobile/flutter\n'       "$repo" ;;    # B164 mobile CLIENT
+    swift-tokamak) printf '%s/golden-paths/mobile/swift-tokamak\n' "$repo" ;; # B164 "Swift w/o iOS" (Tokamak→Wasm)
     shell)      printf '%s/tests/lang/shell\n'                  "$repo" ;;
     *)          return 1 ;;
   esac
