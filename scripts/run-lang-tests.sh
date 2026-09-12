@@ -480,8 +480,12 @@ run_in() {
       # cabal fetches + builds deps (GHC — slow on a cold graph). The selfcheck suite is buildable only
       # under -fselfcheck (buildable: False otherwise), so a normal `cabal test contract` never builds it.
       # Flag-gated → fail-closed (dropping the flag makes selfcheck unbuildable, loud not silent).
-      if [ "$mode" = selfcheck ]; then (cd "$dir" && cabal test selfcheck -fselfcheck)
-      else (cd "$dir" && cabal test contract); fi ;;
+      # CABAL_BUILD_JOBS (set by the CI lane) caps package build parallelism — cabal defaults to $ncpus,
+      # and a full-parallelism build of Scotty's graph (wai/http2/warp/aeson/…) OOM-killed the best-effort
+      # step pod on the RAM-tight node (#122). Unset locally → default speed.
+      local jflag=""; [ -n "${CABAL_BUILD_JOBS:-}" ] && jflag="--jobs=${CABAL_BUILD_JOBS}"
+      if [ "$mode" = selfcheck ]; then (cd "$dir" && cabal test $jflag selfcheck -fselfcheck)
+      else (cd "$dir" && cabal test $jflag contract); fi ;;
     ada)
       # alr build compiles both mains (server + test_runner); the deliberate test is registered ONLY when
       # --selfcheck is passed (Test_Config gate before the suite builds), so a bare ./bin/test_runner never

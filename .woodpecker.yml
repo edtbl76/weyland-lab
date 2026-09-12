@@ -413,6 +413,20 @@ steps:
 
   - name: test-haskell
     image: haskell:9.8
+    # GHC rebuilds Scotty's whole dep graph cold (no cabal cache volume yet) — heavy + best-effort, so
+    # full-parallelism ($ncpus packages at once) OOM-killed the step pod on the RAM-tight node (#122).
+    # Memory request → Burstable (not first-to-die); CABAL_BUILD_JOBS caps package parallelism so peak
+    # stays under the (GHC-sized) 6Gi limit. Same class/fix as test-swift. A cabal cache volume is a
+    # fast-follow (like the kotlin/scala note) that would also make this lane fast.
+    environment:
+      CABAL_BUILD_JOBS: "2"
+    backend_options:
+      kubernetes:
+        resources:
+          requests:
+            memory: 1Gi
+          limits:
+            memory: 6Gi
     commands:
       - cabal update
       - bash scripts/run-lang-tests.sh haskell --self-check
