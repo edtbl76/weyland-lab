@@ -37,7 +37,7 @@ REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 FIXTURE_DIR="${WEYLAND_LANG_FIXTURE_DIR:-$REPO_ROOT/tests/lang}"
 SCAN_ROOT="${WEYLAND_LANG_SCAN_ROOT:-$REPO_ROOT}"
 
-LANGS="python shell java go rust dotnet kotlin scala php ruby elixir clojure cpp c typescript javascript react nextjs"
+LANGS="python shell java go rust dotnet kotlin scala php ruby elixir clojure cpp c erlang julia lua swift dart r perl haskell ada typescript javascript react nextjs react-native flutter"
 
 die() { printf '%s\n' "$*" >&2; exit 2; }
 
@@ -77,7 +77,18 @@ runner_for() {
     elixir)                            echo "mix" ;;
     clojure)                           echo "lein" ;;
     cpp|c)                             echo "cmake" ;;
+    erlang)                            echo "rebar3" ;;
+    julia)                             echo "julia" ;;
+    lua)                               echo "busted" ;;
+    swift)                             echo "swift" ;;
+    dart)                              echo "dart" ;;
+    r)                                 echo "Rscript" ;;
+    perl)                              echo "prove" ;;
+    haskell)                           echo "cabal" ;;
+    ada)                               echo "alr" ;;
     typescript|javascript|react|nextjs) echo "node" ;;
+    react-native)                      echo "npm" ;;    # B164 mobile CLIENT: jest-expo via `npm test`
+    flutter)                           echo "flutter" ;; # B164 mobile CLIENT: `flutter test`
     *)                                 return 1 ;;
   esac
 }
@@ -108,7 +119,24 @@ test_glob_for() {
     clojure)                           echo "*_test.clj" ;;
     cpp)                               echo "*_test.cpp" ;;
     c)                                 echo "*_test.c" ;;
+    erlang)                            echo "*_tests.erl" ;;
+    julia)                             echo "runtests.jl" ;;
+    lua)                               echo "*_spec.lua" ;;
+    swift)                             echo "*Tests.swift" ;;
+    dart)                              echo "*_test.dart" ;;
+    r)                                 echo "test-*.R" ;;
+    perl)                              echo "*.t" ;;
+    haskell)                           echo "*.hs" ;;   # any .hs resolves up to the one *.cabal root (the fixture); discovers "tests exist here"
+    ada)                               echo "*_tests.adb" ;;
     typescript|javascript|react|nextjs) echo "*.test.js *.test.ts *.test.jsx *.test.tsx" ;;
+    # B164 mobile CLIENTS need globs DISTINCT from the service lanes they would otherwise collide
+    # with. react-native shares package.json + *.test.tsx with the node lanes, so its test file is
+    # named *.rn.test.tsx (still matched by jest's default *.test.tsx discovery) and this glob keys
+    # on that infix — otherwise the react-native lane would discover vite-react/nextjs/remix and run
+    # jest on them as if they were Expo apps. flutter's widget_test.dart is already distinct from the
+    # dart golden path's contract_test.dart, so `flutter test` never targets the dart/shelf service.
+    react-native)                      echo "*.rn.test.tsx" ;;
+    flutter)                           echo "widget_test.dart" ;;
     *)                                 return 1 ;;
   esac
 }
@@ -129,7 +157,18 @@ root_marker_for() {
     elixir)                            echo "mix.exs" ;;         # marks the mix project root
     clojure)                           echo "project.clj" ;;     # marks the Leiningen project root
     cpp|c)                             echo "CMakeLists.txt" ;;  # marks the CMake project root
+    erlang)                            echo "rebar.config" ;;   # marks the rebar3 project root
+    julia)                             echo "Project.toml" ;;   # marks the Julia project root
+    lua)                               echo ".busted" ;;        # marks the busted project root
+    swift)                             echo "Package.swift" ;;  # marks the SwiftPM package root
+    dart)                              echo "pubspec.yaml" ;;   # marks the Dart package root
+    r)                                 echo "plumber.R" ;;      # marks the plumber service root
+    perl)                              echo "cpanfile" ;;       # marks the cpanm project root
+    haskell)                           echo "*.cabal" ;;        # the cabal package root (glob — name varies; resolve_root handles it)
+    ada)                               echo "alire.toml" ;;     # marks the Alire crate root
     typescript|javascript|react|nextjs) echo "package.json" ;;
+    react-native)                      echo "package.json" ;;   # Expo app root (mobile CLIENT)
+    flutter)                           echo "pubspec.yaml" ;;   # Flutter package root (mobile CLIENT)
     python|shell)                      echo "" ;;   # resolved structurally, see resolve_root
     *)                                 return 1 ;;
   esac
@@ -196,6 +235,15 @@ is_excluded() {
     # files are fixtures, NOT real projects; discovering them runs a test built to fail and reds the lane
     # (test-python failed exactly this way, 2026-09-10). Same rationale as selfcheck/.
     */eval/coding-agents/*)
+      return 0 ;;
+    # B164 mobile CLIENTS. react-native (package.json + *.test.tsx) and flutter (pubspec.yaml +
+    # *_test.dart) share their manifests with the node and dart SERVICE lanes; without this the dart
+    # lane would run `dart test` on the Flutter app and the node lanes would run `npm test` on the
+    # Expo app, each in the wrong toolchain. Their own lanes run the fixture directly (resolve_fixture
+    # always runs it), so excluding the tree from cross-repo discovery loses no coverage. NOTE:
+    # swift-ios is deliberately NOT excluded — it rides the swift lane's discovery cleanly
+    # (Package.swift + *Tests.swift, no collision) and must keep being found there.
+    */golden-paths/mobile/react-native/*|*/golden-paths/mobile/flutter/*)
       return 0 ;;
   esac
   return 1
@@ -361,6 +409,82 @@ run_in() {
         printf 'LANE BROKEN: cmake build failed in %s\n' "$dir" >&2; return 2; }
       if [ "$mode" = selfcheck ]; then (cd "$dir" && ./build/unit_tests --selfcheck)
       else (cd "$dir" && ./build/unit_tests); fi ;;
+    erlang)
+      # rebar3 fetches deps on demand. The deliberate test runs ONLY under the `selfcheck` profile
+      # (rebar.config names it via eunit_tests), so a normal `rebar3 eunit` excludes it; the selfcheck
+      # run executes exactly that module and asserts the failure reason — fail-closed on a rename.
+      if [ "$mode" = selfcheck ]; then (cd "$dir" && rebar3 as selfcheck eunit)
+      else (cd "$dir" && rebar3 eunit); fi ;;
+    julia)
+      # Pkg.test() instantiates the test env. The deliberate test is env-gated (GOLDEN_SELFCHECK=1),
+      # excluded from a normal run; selfcheck sets the env so it runs and fails.
+      if [ "$mode" = selfcheck ]; then (cd "$dir" && GOLDEN_SELFCHECK=1 julia --project=. -e 'using Pkg; Pkg.test()')
+      else (cd "$dir" && julia --project=. -e 'using Pkg; Pkg.test()'); fi ;;
+    lua)
+      # busted reads .busted (default task excludes #selfcheck); the selfcheck task selects ONLY the
+      # tagged deliberate spec. busted exits non-zero on a zero-tag match too → fail-closed on a rename.
+      if [ "$mode" = selfcheck ]; then (cd "$dir" && busted --run=selfcheck)
+      else (cd "$dir" && busted); fi ;;
+    swift)
+      # swift test compiles + runs. The deliberate test is env-gated (GOLDEN_SELFCHECK=1) in its own
+      # target, so a normal `swift test` skips it; selfcheck sets the env + filters to it so it fails.
+      if [ "$mode" = selfcheck ]; then (cd "$dir" && GOLDEN_SELFCHECK=1 swift test --filter SelfCheckTests)
+      else (cd "$dir" && swift test); fi ;;
+    dart)
+      # dart pub get resolves deps. The deliberate test is @Tags(['selfcheck']) + skipped via
+      # dart_test.yaml, so a normal `dart test` excludes it; selfcheck needs `-t selfcheck --run-skipped`
+      # (bare `-t selfcheck` reports "all skipped" / exit 0 — a fail-open trap) to force it to run + fail.
+      (cd "$dir" && dart pub get >/dev/null 2>&1) || {
+        printf 'LANE BROKEN: dart pub get failed in %s\n' "$dir" >&2; return 2; }
+      if [ "$mode" = selfcheck ]; then (cd "$dir" && dart test -t selfcheck --run-skipped)
+      else (cd "$dir" && dart test); fi ;;
+    r)
+      # install the runtime + test packages if absent (rocker's PPM serves binaries) — the R analogue of
+      # dart pub get. testthat::test_dir defaults stop_on_failure=TRUE → non-zero exit on a real failure.
+      # The deliberate test is env-gated (GOLDEN_SELFCHECK=1); a normal run registers it as an empty skip.
+      (cd "$dir" && Rscript -e 'p<-c("plumber","jsonlite","testthat"); m<-p[!p %in% rownames(installed.packages())]; if(length(m)) install.packages(m)' >/dev/null 2>&1) || {
+        printf 'LANE BROKEN: R package install failed in %s\n' "$dir" >&2; return 2; }
+      if [ "$mode" = selfcheck ]; then (cd "$dir" && GOLDEN_SELFCHECK=1 Rscript -e 'testthat::test_dir("tests")')
+      else (cd "$dir" && Rscript -e 'testthat::test_dir("tests")'); fi ;;
+    perl)
+      # cpanm brings Mojolicious (+Test::Mojo); the deliberate test lives in selfcheck/ (outside t/), so a
+      # bare `prove -l` never collects it. Directory-based → fail-closed on a rename.
+      (cd "$dir" && cpanm --quiet --notest --installdeps .) || {
+        printf 'LANE BROKEN: cpanm --installdeps failed in %s\n' "$dir" >&2; return 2; }
+      if [ "$mode" = selfcheck ]; then (cd "$dir" && prove -l selfcheck/)
+      else (cd "$dir" && prove -l); fi ;;
+    haskell)
+      # cabal fetches + builds deps (GHC — slow on a cold graph). The selfcheck suite is buildable only
+      # under -fselfcheck (buildable: False otherwise), so a normal `cabal test contract` never builds it.
+      # Flag-gated → fail-closed (dropping the flag makes selfcheck unbuildable, loud not silent).
+      if [ "$mode" = selfcheck ]; then (cd "$dir" && cabal test selfcheck -fselfcheck)
+      else (cd "$dir" && cabal test contract); fi ;;
+    ada)
+      # alr build compiles both mains (server + test_runner); the deliberate test is registered ONLY when
+      # --selfcheck is passed (Test_Config gate before the suite builds), so a bare ./bin/test_runner never
+      # runs it. Flag-gated → fail-closed.
+      (cd "$dir" && alr -n build) || {
+        printf 'LANE BROKEN: alr build failed in %s\n' "$dir" >&2; return 2; }
+      if [ "$mode" = selfcheck ]; then (cd "$dir" && ./bin/test_runner --selfcheck)
+      else (cd "$dir" && ./bin/test_runner); fi ;;
+    react-native)
+      # B164 mobile CLIENT (Expo + jest-expo). npm install if node_modules absent (fail closed, like
+      # the node lane). The deliberate test lives in selfcheck/ and is excluded from a normal run by
+      # the package.json `test` script's --testPathIgnorePatterns; `test:selfcheck` targets ONLY it,
+      # so a normal run passes and selfcheck forces the failure. Directory-based → fail-closed on a rename.
+      if [ ! -d "$dir/node_modules" ]; then
+        (cd "$dir" && npm install --no-audit --no-fund --loglevel=error) || {
+          printf 'LANE BROKEN: npm install failed in %s\n' "$dir" >&2; return 2; }
+      fi
+      if [ "$mode" = selfcheck ]; then (cd "$dir" && npm run --silent test:selfcheck)
+      else (cd "$dir" && npm test --silent); fi ;;
+    flutter)
+      # B164 mobile CLIENT. `flutter test` resolves deps + compiles + runs widget tests. The deliberate
+      # test is skip-tagged (dart_test.yaml) so a bare `flutter test` passes; selfcheck needs
+      # `-t selfcheck --run-skipped` (bare `-t selfcheck` reports "all skipped"/exit 0 — the same
+      # package:test fail-open trap as dart/shelf) to force it to run and fail.
+      if [ "$mode" = selfcheck ]; then (cd "$dir" && flutter test -t selfcheck --run-skipped)
+      else (cd "$dir" && flutter test); fi ;;
     typescript|javascript|react|nextjs)
       # TWO NODE SHAPES, ONE RUNNER. A project that declares its own `test` script owns how its
       # tests run (React and Next.js need jest + a DOM, which node's built-in runner cannot

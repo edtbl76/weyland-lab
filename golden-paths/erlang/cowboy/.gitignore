@@ -1,0 +1,6 @@
+# rebar3 build output — compiled beam + fetched deps (cowboy/cowlib/ranch) land here and are
+# re-resolved by `rebar3 eunit`/`rebar3 release`, so they are never committed. The lane fixture and
+# the Docker build both rebuild from rebar.config. (BEAM sibling of the elixir golden paths' ignore.)
+_build/
+rebar.lock
+*.beam

@@ -1,0 +1,5 @@
+# Dart tool cache + build outputs — pubspec.lock IS committed (contract requires it).
+.dart_tool/
+build/
+server
+*.exe

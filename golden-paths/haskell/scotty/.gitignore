@@ -1,0 +1,7 @@
+# Cabal build outputs — cabal.project.freeze IS committed (contract: reproducibility).
+dist-newstyle/
+dist/
+*.hi
+*.o
+.ghc.environment.*
+server

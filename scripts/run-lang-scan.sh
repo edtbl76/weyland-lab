@@ -28,7 +28,7 @@ REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 # shellcheck source=scripts/lib/lang-fixtures.sh
 . "$REPO_ROOT/scripts/lib/lang-fixtures.sh"   # resolve_fixture(): golden path by default (B153 switch)
 
-LANGS="rust java dotnet kotlin scala php ruby elixir clojure cpp c typescript javascript react nextjs"
+LANGS="rust java dotnet kotlin scala php ruby elixir clojure cpp c erlang julia lua swift dart r perl haskell ada typescript javascript react nextjs react-native flutter"
 
 die() { printf '%s\n' "$*" >&2; exit 2; }
 
@@ -105,6 +105,102 @@ scan_dotnet() {
   # (golden.sln), so it covers App + tests. --verify-no-changes exits non-zero on a diff — an advisory
   # FINDING, not a broken lane; the lane fails (exit 2) only if `dotnet` itself is missing (fail-closed).
   run_tool dotnet-format "$root" dotnet dotnet format --verify-no-changes || rc=2
+  return $rc
+}
+
+scan_erlang() {
+  local root="$1"; local rc=0
+  # rebar3 xref (built-in cross-reference static analysis) — no extra install. xref warnings are advisory
+  # FINDINGS (rebar3 exits 0); the lane fails (exit 2) only if rebar3 itself is missing (fail-closed).
+  run_tool xref "$root" rebar3 rebar3 xref || rc=2
+  return $rc
+}
+
+scan_julia() {
+  local root="$1"; local rc=0
+  # JuliaFormatter (the de-facto Julia style tool; Pkg.add'd on demand). Format diffs are an advisory
+  # FINDING; the lane fails (exit 2) only if julia itself is missing (fail-closed).
+  run_tool juliaformatter "$root" julia julia -e 'using Pkg; Pkg.add(name="JuliaFormatter", version="1"); using JuliaFormatter; exit(format(".", overwrite=false) ? 0 : 1)' || rc=2
+  return $rc
+}
+
+scan_lua() {
+  local root="$1"; local rc=0
+  # luacheck is the standard Lua linter (over lua/ + spec/). Warnings are advisory FINDINGS; the lane
+  # fails (exit 2) only if luacheck itself is missing (fail-closed).
+  run_tool luacheck "$root" luacheck luacheck . || rc=2
+  return $rc
+}
+
+scan_swift() {
+  local root="$1"; local rc=0
+  # swift-format (bundled in the Swift 6 toolchain) lint over Sources + Tests. Style warnings are advisory
+  # FINDINGS (lint exits 0); the lane fails (exit 2) only if swift itself is missing (fail-closed).
+  run_tool swift-format "$root" swift swift format lint --recursive Sources Tests || rc=2
+  return $rc
+}
+
+scan_dart() {
+  local root="$1"; local rc=0
+  # dart analyze — the standard Dart static analysis (analysis_options.yaml). Issues are advisory
+  # FINDINGS; the lane fails (exit 2) only if dart itself is missing (fail-closed).
+  run_tool dart-analyze "$root" dart dart analyze || rc=2
+  return $rc
+}
+
+scan_r() {
+  local root="$1"; local rc=0
+  # lintr is an R PACKAGE (no standalone binary for run_tool's command-v to catch), so ensure it is
+  # present here — fail-closed if the install fails; otherwise a missing lintr would read as a finding.
+  (cd "$root" && Rscript -e 'if(!"lintr" %in% rownames(installed.packages())) install.packages("lintr")' >/dev/null 2>&1) || {
+    printf 'LANE BROKEN: lintr install failed in %s\n' "$root" >&2; return 2; }
+  run_tool lintr "$root" Rscript Rscript -e 'print(lintr::lint_dir("."))' || rc=2
+  return $rc
+}
+
+scan_perl() {
+  local root="$1"; local rc=0
+  # perlcritic (Perl::Critic), the standard Perl static analyser; the scan-perl lane cpanm-installs it so
+  # command-v perlcritic fails closed if absent. Violations are advisory FINDINGS.
+  run_tool perlcritic "$root" perlcritic perlcritic lib script || rc=2
+  return $rc
+}
+
+scan_haskell() {
+  local root="$1"; local rc=0
+  # hlint, the standard Haskell linter (the scan-haskell lane cabal-installs it; command-v hlint fails
+  # closed if absent). Hints are advisory FINDINGS.
+  run_tool hlint "$root" hlint hlint src app test || rc=2
+  return $rc
+}
+
+scan_ada() {
+  local root="$1"; local rc=0
+  # No lightweight standard Ada linter ships in the toolchain (gnatcheck/libadalang-tools is a heavy
+  # separate Alire crate), so the scan is the compiler's own -gnatwa (all warnings) + -gnaty (style),
+  # enabled in the .gpr and surfaced by re-running the build. `alr` (command-v) fails closed; warnings
+  # are advisory FINDINGS.
+  run_tool gnat-warnings "$root" alr alr -n build || rc=2
+  return $rc
+}
+
+scan_reactnative() {
+  local root="$1"; local rc=0
+  # B164 mobile CLIENT (Expo). eslint over the app (eslint.config.mjs), like the node lane — reuse the
+  # already-registered `eslint` tool id. npm install if node_modules absent so npx can resolve eslint
+  # (fail closed). Lint findings are advisory; the lane fails (exit 2) only on a missing toolchain.
+  [ -d "$root/node_modules" ] || (cd "$root" && npm install --no-audit --no-fund --loglevel=error) || {
+    printf 'LANE BROKEN: npm install failed in %s\n' "$root" >&2; return 2; }
+  run_tool eslint "$root" npx npx --no-install eslint . || rc=2
+  return $rc
+}
+
+scan_flutter() {
+  local root="$1"; local rc=0
+  # B164 mobile CLIENT. `flutter analyze` is the standard Flutter static analysis (analysis_options.yaml
+  # with flutter_lints). Issues are advisory FINDINGS; the lane fails (exit 2) only if flutter itself is
+  # missing (fail-closed via run_tool's command-v probe).
+  run_tool flutter-analyze "$root" flutter flutter analyze || rc=2
   return $rc
 }
 
@@ -245,6 +341,17 @@ valid: $LANGS" ;; esac
       rust) scan_rust "$d" || broken=1 ;;
       java) scan_java "$d" || broken=1 ;;
       dotnet) scan_dotnet "$d" || broken=1 ;;
+      erlang) scan_erlang "$d" || broken=1 ;;
+      julia) scan_julia "$d" || broken=1 ;;
+      lua) scan_lua "$d" || broken=1 ;;
+      swift) scan_swift "$d" || broken=1 ;;
+      dart) scan_dart "$d" || broken=1 ;;
+      r) scan_r "$d" || broken=1 ;;
+      perl) scan_perl "$d" || broken=1 ;;
+      haskell) scan_haskell "$d" || broken=1 ;;
+      ada) scan_ada "$d" || broken=1 ;;
+      react-native) scan_reactnative "$d" || broken=1 ;;
+      flutter) scan_flutter "$d" || broken=1 ;;
       kotlin) scan_kotlin "$d" || broken=1 ;;
       scala) scan_scala "$d" || broken=1 ;;
       php) scan_php "$d" || broken=1 ;;

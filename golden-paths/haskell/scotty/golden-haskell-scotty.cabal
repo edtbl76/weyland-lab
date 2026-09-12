@@ -1,0 +1,77 @@
+cabal-version:      2.4
+name:               golden-haskell-scotty
+version:            0.1.0
+synopsis:           Golden path — Haskell / Scotty HTTP service (weyland B164)
+description:        Blessed paved-road Scotty service. Conforms to the golden-path
+                    contract (docs/design/golden-paths.md): GET /health /ready /metrics /hello.
+build-type:         Simple
+
+-- Gate for the deliberately-failing selfcheck test-suite. OFF by default, so a
+-- normal `cabal test` cannot build or run it (buildable: False below). Turn it on
+-- ONLY for the selfcheck run: `cabal test selfcheck -fselfcheck`.
+flag selfcheck
+    description: Build and run the deliberately-failing selfcheck test-suite.
+    default:     False
+    manual:      True
+
+common warnings
+    ghc-options: -Wall
+
+-- The contract surface: pure payload builders + the Scotty WAI app.
+library
+    import:           warnings
+    hs-source-dirs:   src
+    exposed-modules:  Lib
+    build-depends:    base       >=4.17 && <5
+                    , scotty
+                    , aeson
+                    , text
+                    , wai
+    default-language: Haskell2010
+
+-- Runnable server. Binds 0.0.0.0:8080.
+executable golden-haskell-scotty
+    import:           warnings
+    hs-source-dirs:   app
+    main-is:          Main.hs
+    -- Warp's timeout manager REQUIRES the threaded RTS; without -threaded the server aborts on
+    -- startup (GHC.Event.Thread: "the TimerManager requires linking against the threaded runtime").
+    ghc-options:      -threaded -rtsopts "-with-rtsopts=-N"
+    build-depends:    base
+                    , golden-haskell-scotty
+                    , scotty
+                    , text
+                    , warp
+    default-language: Haskell2010
+
+-- Contract self-test (the lane probe). `cabal test` runs THIS suite only.
+-- 4 contract checks over the pure builders + the live WAI app (Network.Wai.Test).
+test-suite contract
+    import:           warnings
+    type:             exitcode-stdio-1.0
+    hs-source-dirs:   test
+    main-is:          Spec.hs
+    build-depends:    base
+                    , golden-haskell-scotty
+                    , aeson
+                    , bytestring
+                    , text
+                    , http-types
+                    , hspec
+                    , hspec-wai
+                    , wai-extra
+    default-language: Haskell2010
+
+-- Deliberately-failing selfcheck. EXCLUDED from a normal `cabal test` (it is a
+-- manual test-suite: `cabal test` does not run it), run only under the selfcheck
+-- flag: `cabal test selfcheck --test-show-details=streaming -- ...` -> exit non-zero.
+test-suite selfcheck
+    import:           warnings
+    type:             exitcode-stdio-1.0
+    hs-source-dirs:   test
+    main-is:          Selfcheck.hs
+    build-depends:    base
+                    , hspec
+    default-language: Haskell2010
+    if !flag(selfcheck)
+      buildable: False

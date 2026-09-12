@@ -1,0 +1,8 @@
+# Golden-path dart/shelf scan config. The `dart analyze` lane resolves this; recommended lints
+# are the Dart-ecosystem analog of the estate's eslint config the other golden paths carry.
+include: package:lints/recommended.yaml
+
+analyzer:
+  language:
+    strict-casts: true
+    strict-raw-types: true

@@ -1,0 +1,24 @@
+--  Golden path — Ada / AWS. Two mains: `server` (the AWS service) and `test_runner` (the AUnit
+--  contract + selfcheck harness). The dependency projects (aws, aunit) resolve on GPR_PROJECT_PATH,
+--  which `alr build` exports; auto-gpr-with is disabled in the Dockerfile so these withs are the
+--  single, explicit source of the linkage.
+with "aws";
+with "aunit";
+
+project Golden_Ada_Aws is
+
+   for Source_Dirs use ("src", "test");
+   for Object_Dir use "obj";
+   for Exec_Dir use "bin";
+   for Create_Missing_Dirs use "True";
+   for Main use ("server.adb", "test_runner.adb");
+
+   package Compiler is
+      for Default_Switches ("Ada") use ("-g", "-O2", "-gnatwa", "-gnat2012");
+   end Compiler;
+
+   package Binder is
+      for Switches ("Ada") use ("-Es");  --  symbolic traceback
+   end Binder;
+
+end Golden_Ada_Aws;

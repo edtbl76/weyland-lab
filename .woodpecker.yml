@@ -346,6 +346,76 @@ steps:
       - bash scripts/run-lang-tests.sh dotnet
       # (coverage ratchet for dotnet is a fast-follow — the collector wiring differs per toolchain)
 
+  # B164 extended-language wave — clean keeps. Each verified in its toolchain image on rogueone before wiring.
+  - name: test-erlang
+    image: erlang:27
+    commands:
+      - bash scripts/run-lang-tests.sh erlang --self-check
+      - bash scripts/run-lang-tests.sh erlang
+
+  - name: test-julia
+    image: julia:1.11
+    commands:
+      - bash scripts/run-lang-tests.sh julia --self-check
+      - bash scripts/run-lang-tests.sh julia
+
+  - name: test-lua
+    image: alpine:3.20
+    commands:
+      # OpenResty ships LuaJIT but no luarocks; busted runs on lua5.4 (the handlers are pure string ops,
+      # version-agnostic) — install lua5.4 + luarocks + a C toolchain (busted's deps have C parts).
+      - apk add --no-cache lua5.4 lua5.4-dev luarocks5.4 gcc musl-dev make
+      - luarocks-5.4 install busted
+      - ln -sf /usr/bin/lua5.4 /usr/local/bin/lua
+      - bash scripts/run-lang-tests.sh lua --self-check
+      - bash scripts/run-lang-tests.sh lua
+
+  - name: test-swift
+    image: swift:6.0
+    commands:
+      - bash scripts/run-lang-tests.sh swift --self-check
+      - bash scripts/run-lang-tests.sh swift
+
+  - name: test-dart
+    image: dart:stable
+    commands:
+      - bash scripts/run-lang-tests.sh dart --self-check
+      - bash scripts/run-lang-tests.sh dart
+
+  # B164 extended-language wave — optional/breadth langs (R/Perl/Haskell/Ada). Each docker-verified on rogueone.
+  - name: test-r
+    image: rocker/r-ver:4
+    commands:
+      # the dispatch installs plumber/jsonlite/testthat (rocker PPM binaries) if absent
+      - bash scripts/run-lang-tests.sh r --self-check
+      - bash scripts/run-lang-tests.sh r
+
+  - name: test-perl
+    image: perl:5.40
+    commands:
+      # the dispatch runs `cpanm --installdeps .` (Mojolicious) — cpanm ships in the perl image
+      - bash scripts/run-lang-tests.sh perl --self-check
+      - bash scripts/run-lang-tests.sh perl
+
+  - name: test-haskell
+    image: haskell:9.8
+    commands:
+      - cabal update
+      - bash scripts/run-lang-tests.sh haskell --self-check
+      - bash scripts/run-lang-tests.sh haskell
+
+  - name: test-ada
+    image: ubuntu:24.04
+    commands:
+      # AWS 25.x needs Alire's binary GNAT 14.2.1 (Ubuntu FSF GNAT 13.3 can't compile gnatcoll 25.x); the
+      # build shells out to gcc/git/curl/openssl-dev (see the golden path's Dockerfile). CI-confirms the lane.
+      - apt-get update && apt-get install -y --no-install-recommends build-essential libssl-dev git curl ca-certificates unzip
+      - curl -fsSL https://github.com/alire-project/alire/releases/download/v2.1.1/alr-2.1.1-bin-x86_64-linux.zip -o /tmp/alr.zip
+      - unzip -q /tmp/alr.zip -d /tmp/alr && install -m755 /tmp/alr/bin/alr /usr/local/bin/alr
+      - alr -n --force toolchain --select gnat_native=14.2.1 gprbuild=26.0.1
+      - bash scripts/run-lang-tests.sh ada --self-check
+      - bash scripts/run-lang-tests.sh ada
+
   - name: test-kotlin
     image: gradle:8.10-jdk21
     commands:
@@ -434,6 +504,33 @@ steps:
       - bash scripts/coverage-ratchet.sh run react
       - bash scripts/coverage-ratchet.sh run nextjs
 
+  # B164 mobile workstream — CLIENTS, not services (no HTTP contract, no Dockerfile, no k8s Job, so
+  # golden-path-smoke auto-skips them). The lane's smoke is a HEADLESS BUNDLE/RENDER: the client's
+  # analogue of a service golden path's run-to-completion Job. node:24 (Debian, glibc) NOT node:24-alpine:
+  # expo's export toolchain pulls native modules that fail on musl. swift-ios needs NO lane of its own —
+  # it rides test-swift's discovery (Package.swift + *Tests.swift); the iOS/SwiftUI surface is parked on
+  # the Mac hardware gate and #if canImport(SwiftUI)-guarded so the Linux build stays green.
+  - name: test-react-native
+    image: node:24
+    environment:
+      npm_config_cache: /cache/npm            # same npm cache as test-node
+    volumes:
+      - ci-cache-npm:/cache/npm
+    commands:
+      - bash scripts/run-lang-tests.sh react-native --self-check
+      - bash scripts/run-lang-tests.sh react-native
+      # headless bundle smoke — prove the Expo app actually bundles for web (expo export). node_modules
+      # already installed by the test dispatch above (same step, same pod → workspace persists).
+      - cd golden-paths/mobile/react-native && npm run bundle && cd -
+
+  - name: test-flutter
+    image: ghcr.io/cirruslabs/flutter:stable   # the standard Flutter CI image (Ubuntu; bash + flutter SDK)
+    commands:
+      - bash scripts/run-lang-tests.sh flutter --self-check
+      - bash scripts/run-lang-tests.sh flutter
+      # headless render smoke — build the web target (the Flutter client's bundle analogue)
+      - cd golden-paths/mobile/flutter && flutter build web && cd -
+
   # ── 1e. per-language SCANNERS (B88 Phase 2) ─────────────────────────────────
   # The analysis sibling of the test lanes above. Kept OUT of the scan-suite image on purpose: that
   # image already carries python + a full Go toolchain + a JRE, and adding Rust/Java/Node toolchains
@@ -473,6 +570,64 @@ steps:
     image: mcr.microsoft.com/dotnet/sdk:8.0
     commands:
       - bash scripts/run-lang-scan.sh dotnet
+
+  # B164 extended-language wave — scan lanes (advisory findings; lane fails only if the scanner is missing).
+  - name: scan-erlang
+    image: erlang:27
+    commands:
+      - bash scripts/run-lang-scan.sh erlang
+
+  - name: scan-julia
+    image: julia:1.11
+    commands:
+      - bash scripts/run-lang-scan.sh julia
+
+  - name: scan-lua
+    image: alpine:3.20
+    commands:
+      - apk add --no-cache lua5.4 lua5.4-dev luarocks5.4 gcc musl-dev make
+      - luarocks-5.4 install luacheck
+      - ln -sf /usr/bin/lua5.4 /usr/local/bin/lua
+      - bash scripts/run-lang-scan.sh lua
+
+  - name: scan-swift
+    image: swift:6.0
+    commands:
+      - bash scripts/run-lang-scan.sh swift
+
+  - name: scan-dart
+    image: dart:stable
+    commands:
+      - bash scripts/run-lang-scan.sh dart
+
+  # B164 optional/breadth scan lanes.
+  - name: scan-r
+    image: rocker/r-ver:4
+    commands:
+      # scan_r installs lintr on demand (fail-closed)
+      - bash scripts/run-lang-scan.sh r
+
+  - name: scan-perl
+    image: perl:5.40
+    commands:
+      - cpanm --quiet --notest Perl::Critic
+      - bash scripts/run-lang-scan.sh perl
+
+  - name: scan-haskell
+    image: haskell:9.8
+    commands:
+      - cabal update
+      - cabal install hlint --installdir=/usr/local/bin --overwrite-policy=always
+      - bash scripts/run-lang-scan.sh haskell
+
+  - name: scan-ada
+    image: ubuntu:24.04
+    commands:
+      - apt-get update && apt-get install -y --no-install-recommends build-essential libssl-dev git curl ca-certificates unzip
+      - curl -fsSL https://github.com/alire-project/alire/releases/download/v2.1.1/alr-2.1.1-bin-x86_64-linux.zip -o /tmp/alr.zip
+      - unzip -q /tmp/alr.zip -d /tmp/alr && install -m755 /tmp/alr/bin/alr /usr/local/bin/alr
+      - alr -n --force toolchain --select gnat_native=14.2.1 gprbuild=26.0.1
+      - bash scripts/run-lang-scan.sh ada
 
   - name: scan-kotlin
     image: gradle:8.10-jdk21
@@ -530,6 +685,21 @@ steps:
       - bash scripts/run-lang-scan.sh javascript
       - bash scripts/run-lang-scan.sh react
       - bash scripts/run-lang-scan.sh nextjs
+
+  # B164 mobile scan lanes. react-native reuses eslint (eslint.config.mjs); flutter uses `flutter analyze`.
+  - name: scan-react-native
+    image: node:24
+    environment:
+      npm_config_cache: /cache/npm            # same npm cache as test-node/scan-node
+    volumes:
+      - ci-cache-npm:/cache/npm
+    commands:
+      - bash scripts/run-lang-scan.sh react-native
+
+  - name: scan-flutter
+    image: ghcr.io/cirruslabs/flutter:stable
+    commands:
+      - bash scripts/run-lang-scan.sh flutter
 
   # ── 1e-bis. golden-path ephemeral smoke (B153) — build each golden path via buildkitd and run its
   # run-to-completion Job (start image · curl /ready + /hello · exit 0 · tear down) in the dedicated

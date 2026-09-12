@@ -1,0 +1,8 @@
+# R session + build artifacts. No lockfile is committed: the contract's pin lives in the
+# Dockerfile's version-pinned rocker/r-ver base + Posit Package Manager binary snapshot.
+.Rproj.user/
+.Rhistory
+.RData
+.Rapp.history
+tests/testthat/_snaps/
+*.Rout

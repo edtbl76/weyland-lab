@@ -1,0 +1,20 @@
+name = "golden_ada_aws"
+description = "Golden path - Ada / AWS (Ada Web Server) HTTP service (weyland B164)"
+version = "0.1.0-dev"
+
+authors = ["weyland"]
+maintainers = ["weyland <noreply@weyland.lab>"]
+maintainers-logins = ["weyland"]
+licenses = "MIT OR Apache-2.0 WITH LLVM-exception"
+website = ""
+tags = ["http", "golden-path", "web"]
+
+# server = the AWS service main; test_runner = the AUnit contract + selfcheck harness.
+executables = ["server", "test_runner"]
+
+# AWS (Ada Web Server) serves the contract; AUnit is the self-test framework. Both resolve on
+# gnat_native 14.x - see README "Toolchain" for the exact pin (gnat_native=14.2.1 + gprbuild=26.x),
+# which is the combination that builds AWS 25.x's gnatcoll/libgpr chain cleanly.
+[[depends-on]]
+aws = "^25.2.0"
+aunit = "^24.0.0"

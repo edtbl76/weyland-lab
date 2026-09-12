@@ -1,0 +1,12 @@
+%% Golden path — Erlang / Cowboy (B160-style). OTP application resource file.
+{application, golden_cowboy, [
+    {description, "Golden path — Erlang / Cowboy: /health /ready /metrics /hello"},
+    {vsn, "1.0.0"},
+    {registered, [golden_cowboy_sup]},
+    {mod, {golden_cowboy_app, []}},
+    {applications, [kernel, stdlib, cowboy]},
+    {env, []},
+    {modules, []},
+    {licenses, ["MIT"]},
+    {links, []}
+]}.

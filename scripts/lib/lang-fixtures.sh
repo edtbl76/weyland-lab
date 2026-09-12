@@ -30,10 +30,21 @@ resolve_fixture() {
     clojure)    printf '%s/golden-paths/clojure/compojure\n'    "$repo" ;;
     cpp)        printf '%s/golden-paths/cpp/httplib\n'          "$repo" ;;
     c)          printf '%s/golden-paths/c/libmicrohttpd\n'      "$repo" ;;
+    erlang)     printf '%s/golden-paths/erlang/cowboy\n'        "$repo" ;;
+    julia)      printf '%s/golden-paths/julia/oxygen\n'         "$repo" ;;
+    lua)        printf '%s/golden-paths/lua/openresty\n'        "$repo" ;;
+    swift)      printf '%s/golden-paths/swift/vapor\n'          "$repo" ;;
+    dart)       printf '%s/golden-paths/dart/shelf\n'           "$repo" ;;
+    r)          printf '%s/golden-paths/r/plumber\n'            "$repo" ;;
+    perl)       printf '%s/golden-paths/perl/mojolicious\n'     "$repo" ;;
+    haskell)    printf '%s/golden-paths/haskell/scotty\n'       "$repo" ;;
+    ada)        printf '%s/golden-paths/ada/aws\n'              "$repo" ;;
     javascript) printf '%s/golden-paths/node/express\n'         "$repo" ;;
     typescript) printf '%s/golden-paths/node/nestjs\n'          "$repo" ;;
     react)      printf '%s/golden-paths/frontend/vite-react\n'  "$repo" ;;
     nextjs)     printf '%s/golden-paths/frontend/nextjs\n'      "$repo" ;;
+    react-native) printf '%s/golden-paths/mobile/react-native\n' "$repo" ;;  # B164 mobile CLIENT
+    flutter)    printf '%s/golden-paths/mobile/flutter\n'       "$repo" ;;    # B164 mobile CLIENT
     shell)      printf '%s/tests/lang/shell\n'                  "$repo" ;;
     *)          return 1 ;;
   esac

@@ -1,0 +1,9 @@
+# Golden-path mobile/flutter scan config. The `flutter analyze` (or `dart analyze`) lane resolves
+# this; the Flutter-recommended lints are the Flutter-ecosystem analog of the estate's eslint config
+# the other golden paths carry.
+include: package:flutter_lints/flutter.yaml
+
+analyzer:
+  language:
+    strict-casts: true
+    strict-raw-types: true

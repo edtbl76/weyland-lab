@@ -1,0 +1,6 @@
+# Flutter tool cache + build outputs. pubspec.lock is intentionally NOT committed for an application
+# whose SDK floats to `stable` in CI (a Flutter app pins via the SDK channel, not a committed lock).
+.dart_tool/
+build/
+.flutter-plugins
+.flutter-plugins-dependencies

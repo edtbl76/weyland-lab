@@ -1,0 +1,7 @@
+# Keep the cabal build tree out of the image context (built fresh inside the image).
+dist-newstyle/
+dist/
+.ghc.environment.*
+server
+*.hi
+*.o

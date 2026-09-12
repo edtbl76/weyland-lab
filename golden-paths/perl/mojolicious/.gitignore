@@ -1,0 +1,4 @@
+# local::lib build output (produced by `cpanm --local-lib=local`); deps are declared in cpanfile.
+local/
+.build/
+*.tar.gz

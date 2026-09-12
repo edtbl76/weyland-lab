@@ -1,0 +1,16 @@
+-- busted task profiles (root marker for the lua lane). Test glob: spec/*_spec.lua.
+-- `busted`            → default task: runs the contract specs, EXCLUDES the #selfcheck tag → passes.
+-- `busted --run=selfcheck` (or `busted --tags=selfcheck`) → runs ONLY the #selfcheck spec → FAILS.
+return {
+  _all = {
+    ROOT = { "spec" },
+    pattern = "_spec",
+    lpath = "./lua/?.lua",
+  },
+  default = {
+    ["exclude-tags"] = "selfcheck",
+  },
+  selfcheck = {
+    tags = "selfcheck",
+  },
+}

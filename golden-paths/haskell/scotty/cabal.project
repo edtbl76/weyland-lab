@@ -1,0 +1,2 @@
+-- Golden path — Haskell / Scotty. Single local package.
+packages: .

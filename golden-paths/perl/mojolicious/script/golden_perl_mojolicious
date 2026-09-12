@@ -1,0 +1,13 @@
+#!/usr/bin/env perl
+
+# Golden path — Perl / Mojolicious (B164). Binds 0.0.0.0:8080 and serves the contract app.
+# Runs a foreground Mojo::Server::Daemon (single process, clean SIGTERM) so the smoke can
+# start/stop it — not hypnotoad, which daemonises.
+use Mojo::Base -strict;
+use FindBin;
+use lib "$FindBin::Bin/../lib";
+use Mojo::Server::Daemon;
+
+my $daemon = Mojo::Server::Daemon->new( listen => ['http://*:8080'] );
+$daemon->build_app('GoldenPerlMojolicious');
+$daemon->run;

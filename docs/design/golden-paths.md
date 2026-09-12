@@ -172,6 +172,53 @@ in the toolchain's own image before each CI run** — which caught, ahead of a w
 json-3.x break, the Elixir `deps/` discovery leak, lein-cljfmt's breakage, the gcc-14/glibc skew, a
 comment-parse parity bug, and the vitest coverage gap.
 
+## B164 — extended golden paths: additional-language wave + mobile clients (built + wired 2026-09-11)
+
+B164 (the "extended golden paths" umbrella) adds a second SERVICE-language wave beyond B160, same
+framework-agnostic contract + the prove-in-Docker-before-push cadence. **Clean keeps (5), all built +
+docker-verified on rogueone** (tests pass · selfcheck fails · non-root multi-stage image · all four
+endpoints served): **Erlang**/Cowboy (`rebar3`, eunit) · **Julia**/Oxygen.jl (`Pkg.test`, env-gated selfcheck) ·
+**Lua**/OpenResty (busted, hand-rolled JSON+metrics — nginx as uid 10001) · **Swift**/Vapor (server-side Linux
+toolchain, `swift test`, `swift:6.0-jammy-slim` runtime — NOT the hardware-gated iOS Swift, which stays B164
+workstream 1) · **Dart**/shelf (`dart compile exe`, `-t selfcheck --run-skipped`). Lanes wired: `run-lang-tests.sh`
+(markers + dispatch) + `lib/lang-fixtures.sh` (fixtures) + `run-lang-scan.sh` (scanners: `rebar3 xref` · JuliaFormatter ·
+`luacheck` · `swift format lint` · `dart analyze`) + `quality-tools.yaml` (26 lang-scan tools) + `.woodpecker.yml`
+(`test-*`/`scan-*` per lang) + `golden-path-smoke` auto-discovers the 5 Dockerfiles. **Optional/breadth (4), also all built + docker-verified + wired (2026-09-11):** **R**/plumber (`testthat`,
+`lintr`) · **Perl**/Mojolicious (`prove` + Test::Mojo, `perlcritic`) · **Haskell**/Scotty (`cabal test` + hspec,
+`hlint` — path is hlint-clean) · **Ada**/AWS (Alire binary GNAT 14.2.1, AUnit, scan = compiler `-gnatwa -gnaty`
+since gnatcheck/libadalang-tools is a heavy separate crate). All 9 wired into `run-lang-tests.sh` +
+`lib/lang-fixtures.sh` + `run-lang-scan.sh` + `quality-tools.yaml` + `.woodpecker.yml`
+(`test-*`/`scan-*` per lang). **Pending:** first CI run (golden-path-smoke builds+serves the 9 Dockerfiles
+in-cluster + the new test/scan lanes run) confirms them → then the matrix total moves **35 → 44**.
+
+### Workstream 1 — mobile clients (RN + Flutter + Swift-iOS Linux surface), built + wired 2026-09-11
+
+Mobile is a **CLIENT, not a service**: no HTTP contract, no Dockerfile, no k8s Job — so `golden-path-smoke`
+auto-skips these dirs (Dockerfile-less), and each lane's smoke is instead a **headless bundle/render**, the
+client analogue of a service path's run-to-completion Job. All three built + docker-verified on rogueone:
+- **React Native**/Expo — `jest-expo` (4/4 pass · selfcheck fails) · bundle smoke `expo export --platform web` ·
+  `eslint` scan. Lane image `node:24` (Debian/glibc — expo's export pulls native modules that fail on musl).
+- **Flutter** — `flutter test` (widget test pass · skip-tagged selfcheck forced with `-t selfcheck --run-skipped`) ·
+  render smoke `flutter build web` · `flutter analyze` scan. Lane image `ghcr.io/cirruslabs/flutter:stable`.
+- **Swift-iOS** — the **Linux-verifiable** part only: a pure-Swift `Greeting` module (5/5) tested by `swift test`;
+  the SwiftUI/iOS surface is `#if canImport(SwiftUI)`-guarded so the Linux build stays green. It needs **no lane
+  of its own** — it rides `test-swift`'s discovery (`Package.swift` + `*Tests.swift`, verified as 1 discovered
+  project). The iOS/SwiftUI UI is **parked on the Mac hardware gate** (no $0 Linux path to an iOS simulator).
+
+**Discovery collision handling (why the wiring is more than "add a lang"):** react-native shares
+`package.json` + `*.test.tsx` with the node lanes and flutter shares `pubspec.yaml` + `*_test.dart` with the
+dart lane. Fixed in both directions — a path exclusion in `is_excluded()` keeps the node/dart lanes off the
+mobile fixtures (which run directly via `resolve_fixture`, so no coverage is lost), and a distinctive test glob
+keeps the mobile lanes off their siblings: flutter keys on `widget_test.dart` (already unique vs shelf's
+`contract_test.dart`), and RN's test files were renamed to `*.rn.test.tsx` (still matched by jest's default
+discovery) so the react-native lane can't pick up vite-react/nextjs/remix. Verified: react-native + flutter
+each discover **0 real projects** (fixture-only), dart no longer sees flutter, the node lanes no longer see RN,
+and swift still discovers swift-ios. Wired across all 5 surfaces (`run-lang-tests.sh` · `lib/lang-fixtures.sh` ·
+`run-lang-scan.sh` · `quality-tools.yaml` — 31 lang-scan tools, `flutter-analyze` added + `eslint` reused ·
+`.woodpecker.yml` `test-react-native`/`test-flutter`/`scan-react-native`/`scan-flutter`). **Pending:** the same
+first CI run confirms the mobile lanes; the matrix then moves **44 → 47** (44 service + 3 mobile), and B164 closes
+except the parked iOS/SwiftUI UI hardware gate.
+
 ## Definition of Done (per golden path + the system)
 
 Per path: lane-runs (test + selfcheck + coverage) · buildkit image · ephemeral Job exits 0 · onboarding

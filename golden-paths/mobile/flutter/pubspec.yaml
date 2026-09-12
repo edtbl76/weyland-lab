@@ -1,0 +1,29 @@
+name: golden_flutter
+description: >-
+  Golden path — MOBILE Flutter client (B164, workstream-1). A cross-platform
+  Flutter CLIENT, not an HTTP service. Runnable, ephemeral, extendable. Conforms
+  to the ADAPTED mobile contract (docs/design/golden-paths.md): an app that
+  bundles + builds, a widget test rendering the known payload `hello, weyland`,
+  a deliberately-failing selfcheck, and a headless build smoke (`flutter build web`).
+  NO HTTP endpoints, NO Dockerfile, NO run-to-completion Job.
+publish_to: none
+version: 1.0.0
+
+environment:
+  sdk: ^3.5.0
+  flutter: ">=3.24.0"
+
+# The `sdk: flutter` dependency + the top-level `flutter:` key below are what make this a
+# FLUTTER package rather than a server-Dart one. They are the intrinsic, in-tree signal a lane
+# dispatcher uses to route this to `flutter test` (never `dart test`) — see README "Lane isolation".
+dependencies:
+  flutter:
+    sdk: flutter
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^4.0.0
+
+flutter:
+  uses-material-design: true

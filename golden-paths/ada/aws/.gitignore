@@ -1,0 +1,7 @@
+# Alire / gprbuild build artifacts — the golden path ships sources only; the Dockerfile builds them.
+/obj/
+/bin/
+/alire/
+/config/
+*.ali
+*.o

@@ -1,0 +1,10 @@
+# Golden path Perl / Mojolicious — dependency manifest (the perl lane root marker).
+# `cpanm --installdeps .` reads this. Mojolicious is pure-Perl (no XS/compiler needed) and
+# ships Test::Mojo, so the contract tests need no extra test dependency.
+requires 'perl', '5.040';
+requires 'Mojolicious', '>= 9.0';
+
+on 'develop' => sub {
+    # `perlcritic` — the perl scan lane. Install with `cpanm --with-develop --installdeps .`.
+    requires 'Perl::Critic';
+};

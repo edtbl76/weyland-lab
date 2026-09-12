@@ -1,0 +1,16 @@
+# Golden-path mobile/flutter test config (read by `flutter test`).
+#
+# The `selfcheck` tag is skipped by default, so a plain `flutter test` runs only the widget test
+# and passes (the selfcheck reports as skipped, exit 0). The lane self-check runs
+#   flutter test -t selfcheck --run-skipped
+# which forces the skip-tagged deliberate failure to actually EXECUTE and exit non-zero, proving
+# the runner propagates a real failure.
+#
+# WHY --run-skipped (package:test gotcha, same as dart/shelf): you cannot both exclude a tag from a
+# bare `flutter test` via config AND let a bare `flutter test -t selfcheck` run it — a `skip` config
+# makes `-t selfcheck` report "All tests skipped" (exit 0, a fail-open trap), and `exclude_tags`
+# makes it report "No tests match" (non-zero, but the failing test never runs, proving nothing).
+# Only `--run-skipped` makes the selfcheck genuinely run and fail.
+tags:
+  selfcheck:
+    skip: "deliberately-failing selfcheck; run explicitly with: flutter test -t selfcheck --run-skipped"
