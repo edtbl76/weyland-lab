@@ -447,8 +447,12 @@ run_in() {
     swift)
       # swift test compiles + runs. The deliberate test is env-gated (GOLDEN_SELFCHECK=1) in its own
       # target, so a normal `swift test` skips it; selfcheck sets the env + filters to it so it fails.
-      if [ "$mode" = selfcheck ]; then (cd "$dir" && GOLDEN_SELFCHECK=1 swift test --filter SelfCheckTests)
-      else (cd "$dir" && swift test); fi ;;
+      # SWIFT_BUILD_JOBS (set by the CI lane) caps build parallelism so the compile's PEAK memory stays
+      # bounded on the RAM-tight CI node: a full-parallelism vapor build (BoringSSL/swift-crypto C++ + asm,
+      # ~1057 units) OOM-killed the best-effort step pod mid-compile (#121). Unset locally → default speed.
+      local jflag=""; [ -n "${SWIFT_BUILD_JOBS:-}" ] && jflag="-j ${SWIFT_BUILD_JOBS}"
+      if [ "$mode" = selfcheck ]; then (cd "$dir" && GOLDEN_SELFCHECK=1 swift test $jflag --filter SelfCheckTests)
+      else (cd "$dir" && swift test $jflag); fi ;;
     dart)
       # dart pub get resolves deps. The deliberate test is @Tags(['selfcheck']) + skipped via
       # dart_test.yaml, so a normal `dart test` excludes it; selfcheck needs `-t selfcheck --run-skipped`

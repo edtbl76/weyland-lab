@@ -372,6 +372,20 @@ steps:
 
   - name: test-swift
     image: swift:6.0
+    # The vapor-app fixture compiles Vapor's whole graph (BoringSSL/swift-crypto C++ + asm, ~1057 units).
+    # With no memory request the step pod is best-effort QoS and was OOM-killed mid-compile on the RAM-tight
+    # node (#121) — same class as the syft/trivy step below. A memory request makes it Burstable (a floor,
+    # not first-to-die) + a limit gives headroom; SWIFT_BUILD_JOBS caps build parallelism so PEAK stays under
+    # the limit. MEMORY ONLY — no cpu request (cpu is compressible; avoids mother's cpu-requests wall).
+    environment:
+      SWIFT_BUILD_JOBS: "2"
+    backend_options:
+      kubernetes:
+        resources:
+          requests:
+            memory: 1Gi
+          limits:
+            memory: 4Gi
     commands:
       - bash scripts/run-lang-tests.sh swift --self-check
       - bash scripts/run-lang-tests.sh swift
@@ -541,6 +555,17 @@ steps:
   # on-device surface stays parked on the Mac hardware gate (swift-ios).
   - name: test-swift-tokamak
     image: ghcr.io/swiftwasm/carton:0.20.1
+    # carton compiles Tokamak + OpenCombine + JavaScriptKit to wasm — heavy like test-swift, and equally
+    # best-effort by default. Same memory-request→Burstable fix so a RAM spike doesn't OOM-kill it on the
+    # tight node. (carton drives swift build internally; no straightforward -j knob, so the limit + request
+    # do the bounding here.)
+    backend_options:
+      kubernetes:
+        resources:
+          requests:
+            memory: 1Gi
+          limits:
+            memory: 4Gi
     commands:
       - bash scripts/run-lang-tests.sh swift-tokamak --self-check
       - bash scripts/run-lang-tests.sh swift-tokamak
