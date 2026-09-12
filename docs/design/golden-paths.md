@@ -229,7 +229,14 @@ swift-tokamak), and swift-ios still rides the swift lane. Wired across the share
 `lib/lang-fixtures.sh` · `run-lang-scan.sh` · `quality-tools.yaml` — 31 lang-scan tools, `flutter-analyze` added +
 `eslint` reused for RN, swift-tokamak test-only · `.woodpecker.yml` `test-react-native`/`test-flutter`/`test-swift-tokamak`
 + `scan-react-native`/`scan-flutter`). **Pending:** the same first CI run confirms the mobile lanes; the matrix
-then moves **44 → 48** (44 service + 4 mobile), and B164 closes except the parked on-device iOS/SwiftUI UI hardware gate.
+then moves **44 → 48** (44 service + 4 mobile), and B164 closes.
+
+**Known limitation — on-device iOS/SwiftUI (B168, Very Low).** A golden path that runs a SwiftUI app on an iOS
+**simulator or device** — plus UIKit/SwiftUI-on-iOS rendering and App Store packaging (`.ipa`, signing, TestFlight) —
+requires **macOS + Xcode**, which the $0 / Linux-only / LAN-only lab has no runner for (cloud-macOS runners exist but
+break all three constraints). It is **parked** and unlikely to be actioned unless a Mac enters the lab. This is a
+limitation, **not a coverage hole**: the SwiftUI programming model + build chain are proven on Linux by `swift-tokamak`
+(Tokamak → Wasm) above, and server-side Swift by `swift/vapor`. Tracked as **B168**; ties the hardware-gated set (B149/B150).
 
 ## Definition of Done (per golden path + the system)
 
