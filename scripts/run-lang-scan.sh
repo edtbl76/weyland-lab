@@ -180,7 +180,9 @@ scan_ada() {
   # separate Alire crate), so the scan is the compiler's own -gnatwa (all warnings) + -gnaty (style),
   # enabled in the .gpr and surfaced by re-running the build. `alr` (command-v) fails closed; warnings
   # are advisory FINDINGS.
-  run_tool gnat-warnings "$root" alr alr -n build || rc=2
+  # ADA_BUILD_JOBS (CI lane) caps gprbuild parallelism so the gnatcoll-from-source build stays within the
+  # step pod's memory (same OOM class as test-ada, #124). Unset → default. ${VAR:+...} adds nothing if unset.
+  run_tool gnat-warnings "$root" alr alr -n build ${ADA_BUILD_JOBS:+-- -j${ADA_BUILD_JOBS}} || rc=2
   return $rc
 }
 

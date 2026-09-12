@@ -434,6 +434,19 @@ steps:
 
   - name: test-ada
     image: ubuntu:24.04
+    # Alire builds gnatcoll (AWS's dependency) FROM SOURCE — a source-builder like swift/haskell, and
+    # best-effort by default, so gprbuild's $ncpus fan-out OOM-killed the step pod mid-compile (#124).
+    # Memory request → Burstable; ADA_BUILD_JOBS forwards -j to gprbuild; 6Gi limit gives the gnatcoll
+    # build headroom. Same class/fix as test-swift/test-haskell.
+    environment:
+      ADA_BUILD_JOBS: "2"
+    backend_options:
+      kubernetes:
+        resources:
+          requests:
+            memory: 1Gi
+          limits:
+            memory: 6Gi
     commands:
       # AWS 25.x needs Alire's binary GNAT 14.2.1 (Ubuntu FSF GNAT 13.3 can't compile gnatcoll 25.x); the
       # build shells out to gcc/git/curl/openssl-dev (see the golden path's Dockerfile). CI-confirms the lane.
@@ -678,6 +691,16 @@ steps:
 
   - name: scan-ada
     image: ubuntu:24.04
+    # Same gnatcoll-from-source OOM class as test-ada (scan re-runs `alr build`): Burstable floor + -j cap.
+    environment:
+      ADA_BUILD_JOBS: "2"
+    backend_options:
+      kubernetes:
+        resources:
+          requests:
+            memory: 1Gi
+          limits:
+            memory: 6Gi
     commands:
       - apt-get update && apt-get install -y --no-install-recommends build-essential libssl-dev git curl ca-certificates unzip
       - curl -fsSL https://github.com/alire-project/alire/releases/download/v2.1.1/alr-2.1.1-bin-x86_64-linux.zip -o /tmp/alr.zip

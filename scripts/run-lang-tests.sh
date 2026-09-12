@@ -490,7 +490,10 @@ run_in() {
       # alr build compiles both mains (server + test_runner); the deliberate test is registered ONLY when
       # --selfcheck is passed (Test_Config gate before the suite builds), so a bare ./bin/test_runner never
       # runs it. Flag-gated → fail-closed.
-      (cd "$dir" && alr -n build) || {
+      # ADA_BUILD_JOBS (CI lane) forwards -j to gprbuild so the gnatcoll-from-source build doesn't fan out
+      # to $ncpus and OOM the step pod on the RAM-tight node (#124). Unset locally → default speed.
+      local jflag=""; [ -n "${ADA_BUILD_JOBS:-}" ] && jflag="-- -j${ADA_BUILD_JOBS}"
+      (cd "$dir" && alr -n build $jflag) || {
         printf 'LANE BROKEN: alr build failed in %s\n' "$dir" >&2; return 2; }
       if [ "$mode" = selfcheck ]; then (cd "$dir" && ./bin/test_runner --selfcheck)
       else (cd "$dir" && ./bin/test_runner); fi ;;
