@@ -56,6 +56,20 @@ mkpath() {
   [[ "$output" != *"build/_deps"* ]]                    # the artifact is not
 }
 
+@test "discovery prunes SwiftPM .build/checkouts — a dep's Dockerfile is NOT a golden path (B164/#127)" {
+  # test-swift builds golden-paths/swift/vapor-app, and SwiftPM clones deps into .build/checkouts/<dep>;
+  # swift-nio-ssl ships its OWN docker/Dockerfile there. The shared workspace carries it into this step,
+  # and the full run failed exactly this way (#127 exit 2). The dot-dir `.build` is NOT matched by the
+  # `-name build` prune term, so it needs its own — this guards that it is pruned.
+  mkpath swift/vapor-app
+  mkdir -p "$GP/swift/vapor-app/.build/checkouts/swift-nio-ssl/docker"
+  printf 'FROM alpine:3.20\n' > "$GP/swift/vapor-app/.build/checkouts/swift-nio-ssl/docker/Dockerfile"
+  run bash "$EX" --dry-run
+  [ "$status" -eq 0 ]                                   # NOT exit 2
+  [[ "$output" == *"swift/vapor-app"* ]]                # the real path is planned
+  [[ "$output" != *".build/checkouts"* ]]               # the dep's Dockerfile is not
+}
+
 @test "an explicit target with no Dockerfile fails closed with a reason (exit 2)" {
   mkpath demo/real
   run bash "$EX" demo/nope

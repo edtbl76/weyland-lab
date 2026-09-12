@@ -37,13 +37,15 @@ if [ "${#TARGETS[@]}" -gt 0 ]; then
   for t in "${TARGETS[@]}"; do [ -f "$GP_DIR/$t/Dockerfile" ] && paths+=("$t") || { echo "no golden path with a Dockerfile at $t" >&2; exit 2; }; done
 else
   # PRUNE build-artifact dirs before matching Dockerfiles. A golden path is <lang>/<framework>/Dockerfile;
-  # build/ · _deps/ · _build/ · node_modules/ · target/ · deps/ · vendor/ · dist/ hold DEPENDENCIES' own
-  # Dockerfiles (e.g. CMake FetchContent drops cpp-httplib's Dockerfile at cpp/httplib/build/_deps/httplib-src/).
-  # Woodpecker's k8s steps SHARE the workspace, so an earlier lane's build (test-cpp) leaves build/_deps for
-  # this step to trip on — the full run failed exactly this way (pipeline #114, exit 2). Same exclusion
-  # family as .gitignore + run-lang-tests is_excluded, which this discovery had never been given.
+  # build/ · _deps/ · _build/ · node_modules/ · target/ · deps/ · vendor/ · dist/ · .build/ · dist-newstyle/ ·
+  # .dart_tool/ hold DEPENDENCIES' own Dockerfiles (e.g. CMake FetchContent drops cpp-httplib's Dockerfile at
+  # cpp/httplib/build/_deps/httplib-src/; SwiftPM drops swift-nio-ssl's at swift/vapor-app/.build/checkouts/…/docker/).
+  # Woodpecker's k8s steps SHARE the workspace, so an earlier lane's build (test-cpp, test-swift) leaves those
+  # dirs for this step to trip on — the full run failed exactly this way (#114 build/_deps; #127 .build/checkouts).
+  # Same exclusion family as .gitignore + run-lang-tests is_excluded. NOTE the dot-dirs: `-name build` does NOT
+  # match `.build`, so SwiftPM's `.build` needs its own term (the identical gap fixed in is_excluded).
   while IFS= read -r df; do paths+=("$(dirname "${df#"$GP_DIR"/}")"); done < <(
-    find "$GP_DIR" -type d \( -name build -o -name _build -o -name _deps -o -name deps -o -name node_modules -o -name target -o -name vendor -o -name dist \) -prune \
+    find "$GP_DIR" -type d \( -name build -o -name _build -o -name _deps -o -name deps -o -name node_modules -o -name target -o -name vendor -o -name dist -o -name .build -o -name dist-newstyle -o -name .dart_tool \) -prune \
       -o -type f -name Dockerfile -print 2>/dev/null | sort)
 fi
 [ "${#paths[@]}" -gt 0 ] || { echo "no golden paths found under $GP_DIR" >&2; exit 2; }
