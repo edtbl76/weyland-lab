@@ -114,7 +114,7 @@ capability is **NOT done** until ALL eight pillars hold. "Ran once" ≠ done.
 > - **ORPHAN in Linear — a weyland-numbered open issue no backlog item covers**, scoped away from the
 >   other products' projects, which keep their own backlogs.
 >
-> Runs **blocking in CI** (`.woodpecker.yml` step `linear-sync`, secret `linear_api_key`, events
+> Runs **blocking in CI** (`.woodpecker/ci.yml` step `linear-sync`, secret `linear_api_key`, events
 > cron+manual) *and* by hand at close-out. Locally it needs `LINEAR_API_KEY` in the gitignored
 > `scripts/.env` (Linear → Settings → Security & access); a read-scoped key is sufficient.
 > Exit **1** = drift; exit **2** = the guard could not run. A missing token must never read as a clean

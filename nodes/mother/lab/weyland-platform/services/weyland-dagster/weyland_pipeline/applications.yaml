@@ -10,7 +10,7 @@
 # COMPLETENESS: every deployed Argo CD Application + the non-k8s services (whisper/ollama CTs) + data-mesh
 # sub-components appears here — as an `applications:` entry (a component) or `excluded:` (store/plumbing).
 # scripts/check-app-registry.sh enforces it (81 Argo apps, all accounted). As of 2026-08-22 that guard
-# DOES run in CI — the `repo-guards` step in .woodpecker.yml, blocking — so "enforces" now means what it
+# DOES run in CI — the `repo-guards` step in .woodpecker/ci.yml, blocking — so "enforces" now means what it
 # says. (It previously did not, and this comment said so.)
 #
 # SCHEMA — applications[] (things that get a Port `component`):

@@ -28,9 +28,13 @@
 # `--output 'go-template={{range .}}...{{end}}'` (the payload is a slice). See docs/runbooks/ship-images.md.
 labels:
   backend: kubernetes
+# The full pipeline (all lanes + golden-path-smoke + integration + build/deploy). Runs on every manual/cron
+# trigger EXCEPT an on-demand smoke run (SMOKE_ONLY=true → .woodpecker/smoke.yml runs golden-path-smoke alone).
+# `SMOKE_ONLY != "true"` is Woodpecker's documented optional-skip idiom: an UNSET var (cron, normal manual)
+# reads as empty, so "" != "true" is true and this pipeline runs — cron-safe. event+evaluate in ONE entry = AND.
 when:
-  - event: manual
-  - event: cron
+  - event: [manual, cron]
+    evaluate: 'SMOKE_ONLY != "true"'
 
 steps:
   # ── 1. lint the k8s manifests (syntax) ──────────────────────────────────────

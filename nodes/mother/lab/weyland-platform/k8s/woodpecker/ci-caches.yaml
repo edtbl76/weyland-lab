@@ -2,11 +2,11 @@
 #
 # Every lane reinstalled its toolchain per run — `cargo install cargo-llvm-cov/cargo-audit/cargo-deny`
 # (compiled from source, minutes each), maven plugins, go modules, npm packages, and (since #3) the
-# 109 MB trivy vuln DB. These PVCs persist those across runs; the lanes mount them in `.woodpecker.yml`
+# 109 MB trivy vuln DB. These PVCs persist those across runs; the lanes mount them in `.woodpecker/ci.yml`
 # at each toolchain's cache dir with the matching cache env var.
 #
 # HAND-APPLIED, like `buildkitd-cache` — `k8s/woodpecker/` raw manifests are not Argo-synced (the Helm
-# app deploys woodpecker itself; these are operator-applied). MUST exist before the `.woodpecker.yml`
+# app deploys woodpecker itself; these are operator-applied). MUST exist before the `.woodpecker/ci.yml`
 # mounts reference them, or step pods stay Pending on a missing PVC.
 #
 # RWO + local-path: steps run SEQUENTIALLY on the single node, so one writer at a time keeps each cache

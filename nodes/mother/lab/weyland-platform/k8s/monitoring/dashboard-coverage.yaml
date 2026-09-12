@@ -11,7 +11,7 @@
 # woodpecker:default cannot, and granting the pipeline cluster read to run a periodic lint is a broad,
 # permanent privilege for an occasional check. A dedicated read-only ServiceAccount scoped to exactly
 # `list configmaps` in monitoring (all 34 dashboard ConfigMaps live there) plus the unauthenticated
-# Prometheus ClusterIP is the right trade. The pure decision logic already runs in CI: `.woodpecker.yml`
+# Prometheus ClusterIP is the right trade. The pure decision logic already runs in CI: `.woodpecker/ci.yml`
 # runs `bats scripts/tests/`, which includes `dashboard-coverage.bats`. Only the LIVE run needs a cluster.
 #
 # UNMESHED on purpose — both targets (the Prometheus ClusterIP and the API server) have no istio sidecar,

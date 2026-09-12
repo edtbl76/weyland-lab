@@ -1,0 +1,39 @@
+# On-demand golden-path smoke — build + serve SPECIFIC golden paths WITHOUT the full 58-lane pipeline.
+#
+# WHY: the full pipeline (ci.yml) is ~75 min because it rebuilds every lane's deps from source. When you
+# only need to build+smoke one (or a few) golden paths — e.g. a language under development, or confirming a
+# new path — this runs ONLY golden-path-smoke, scoped by GOLDEN_PATH_ONLY, in a couple minutes.
+#
+#   woodpecker-cli pipeline create edtbl76/weyland-lab --branch main \
+#     --var SMOKE_ONLY=true --var GOLDEN_PATH_ONLY='dart/shelf erlang/cowboy'
+#
+# SMOKE_ONLY=true selects THIS workflow and de-selects ci.yml (its `SMOKE_ONLY != "true"` gate). GOLDEN_PATH_ONLY
+# scopes which paths build (unset here would build ALL — but this workflow is meant to be scoped; pass it).
+# No port-forward: buildkitd is reached in-cluster over ClusterIP DNS (this step runs as a pod in ns woodpecker).
+labels:
+  backend: kubernetes
+when:
+  - event: manual
+    evaluate: 'SMOKE_ONLY == "true"'
+
+steps:
+  # Byte-for-byte the same step as ci.yml's golden-path-smoke (same SA, resources, buildkitd addr, script) —
+  # only the enclosing workflow's `when` differs. Keep the two in sync if either changes.
+  - name: golden-path-smoke
+    image: moby/buildkit:latest
+    environment:
+      BUILDKIT_ADDR: tcp://buildkitd:1234       # step runs in ns woodpecker, so the bare service name resolves
+    backend_options:
+      kubernetes:
+        serviceAccountName: golden-path-runner  # dedicated SA (ns woodpecker) with the golden-paths Job RBAC
+        resources:
+          requests:
+            memory: 512Mi
+          limits:
+            memory: 1Gi
+    commands:
+      # buildctl ships in moby/buildkit; add bash (the script uses arrays) + kubectl (apply/wait/logs/delete).
+      - apk add --no-cache bash curl >/dev/null 2>&1
+      - curl -sSfL -o /usr/local/bin/kubectl "https://dl.k8s.io/release/$(curl -sSfL https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl" && chmod +x /usr/local/bin/kubectl
+      # GOLDEN_PATH_ONLY scopes which paths build (unquoted: empty → all paths; set → only those).
+      - bash scripts/run-golden-path-jobs.sh $GOLDEN_PATH_ONLY

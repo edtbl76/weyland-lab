@@ -9,7 +9,7 @@
 # `default` SA (B95 — the lancedb-sync collision where RBAC was bound to a token-less `default`), and
 # scripts/check-sa-automount-collisions.sh fails closed on ANY (Cluster)RoleBinding to a `default` SA.
 # Instead the golden-path-smoke step runs under a DEDICATED SA (golden-path-runner, automount ON) via
-# `backend_options.kubernetes.serviceAccountName` in .woodpecker.yml — which the agent honours because
+# `backend_options.kubernetes.serviceAccountName` in .woodpecker/ci.yml — which the agent honours because
 # WOODPECKER_BACKEND_K8S_SERVICE_ACCOUNT_NAME_ALLOW_FROM_STEP=true (woodpecker-values.yaml). The SA lives
 # in the `woodpecker` namespace (that is where the step pod runs); the Role + RoleBinding live in the
 # `golden-paths` namespace so the grant is scoped to Job management there and NOWHERE else.

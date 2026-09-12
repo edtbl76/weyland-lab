@@ -17,7 +17,7 @@
 # only runs when someone remembers to run it is the same failure with extra steps. This gets a
 # dedicated read-only ServiceAccount scoped to exactly the four reads it makes.
 #
-# The pure decision logic runs in CI already: `.woodpecker.yml` runs `bats scripts/tests/`, which
+# The pure decision logic runs in CI already: `.woodpecker/ci.yml` runs `bats scripts/tests/`, which
 # includes the 27-case `servicemonitor-coverage.bats`. Only the LIVE reconciliation needs a cluster.
 #
 # NO ISTIO SIDECAR, and this is NOT the sibling pattern — `cron-freshness-check` sets

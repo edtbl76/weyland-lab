@@ -8,7 +8,7 @@
 # data-mesh-map product tile drifting from the emit code's real _PRODUCTS, by hand, because nothing
 # checked it. This is the ServiceMonitor guard's no-positive-signal disease, closed on the data plane.
 #
-# WHY A CRONJOB AND NOT CI. The decision logic runs in CI already (`.woodpecker.yml` -> `bats
+# WHY A CRONJOB AND NOT CI. The decision logic runs in CI already (`.woodpecker/ci.yml` -> `bats
 # scripts/tests/`, which includes datahub-coverage.bats). Only the LIVE reconciliation needs the
 # cluster: it reads the mesh tables from Trino and the catalogued datasets from DataHub GMS, neither of
 # which `woodpecker:default` can reach.
