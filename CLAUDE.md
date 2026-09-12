@@ -17,3 +17,14 @@ Run `/aidlc` (scope auto-detected) to start/resume; `/aidlc --doctor` to validat
 
 ## Operating rules
 Host topology, GitOps, and the lab's hard-won conventions live in the persistent memory index + `docs/`.
+
+### Operational just-dos (do these without asking; don't improvise a substitute)
+- **Every operational task has ONE canonical command — it lives in a `docs/runbooks/*.md`.** Before running or
+  proposing any op, find that command and use it verbatim. Never hand-roll a substitute (a raw `curl`, an ad-hoc
+  `kubectl`) when a script/runbook command exists. If you don't know the command, grep `docs/runbooks/` — don't guess.
+- **Trigger CI actively; never wait for a cron.** Run it: `woodpecker-cli pipeline create edtbl76/weyland-lab --branch main`
+  (creds from `scripts/.env`; watch with `woodpecker-cli pipeline ps edtbl76/weyland-lab <N>`). See `docs/runbooks/woodpecker.md`.
+- **Prove new/changed code in its Docker toolchain image BEFORE the push** (test + selfcheck + build/serve) — CI confirms, it does not discover.
+- **Run the FULL local guard suite before any ship/handoff**, not one guard — the first failure masks later ones.
+- **Fail closed:** an absent, empty, or errored result is NEVER success; read a tool's OUTPUT, not just its exit code.
+- **Ops commands go IN the runbook, not chat.** If an op has no runbook command, that's the gap — add it.

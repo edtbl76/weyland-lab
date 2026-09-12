@@ -364,7 +364,7 @@ steps:
     commands:
       # OpenResty ships LuaJIT but no luarocks; busted runs on lua5.4 (the handlers are pure string ops,
       # version-agnostic) — install lua5.4 + luarocks + a C toolchain (busted's deps have C parts).
-      - apk add --no-cache lua5.4 lua5.4-dev luarocks5.4 gcc musl-dev make
+      - apk add --no-cache bash lua5.4 lua5.4-dev luarocks5.4 gcc musl-dev make   # bash: the lane driver uses arrays (alpine ships only busybox sh)
       - luarocks-5.4 install busted
       - ln -sf /usr/bin/lua5.4 /usr/local/bin/lua
       - bash scripts/run-lang-tests.sh lua --self-check
@@ -602,7 +602,7 @@ steps:
   - name: scan-lua
     image: alpine:3.20
     commands:
-      - apk add --no-cache lua5.4 lua5.4-dev luarocks5.4 gcc musl-dev make
+      - apk add --no-cache bash lua5.4 lua5.4-dev luarocks5.4 gcc musl-dev make   # bash: the lane driver uses arrays (alpine ships only busybox sh)
       - luarocks-5.4 install luacheck
       - ln -sf /usr/bin/lua5.4 /usr/local/bin/lua
       - bash scripts/run-lang-scan.sh lua
