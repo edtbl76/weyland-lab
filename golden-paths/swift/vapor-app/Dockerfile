@@ -1,5 +1,5 @@
 # Golden path Swift / Vapor. Multi-stage: swift build → slim Swift runtime.
-# buildkit → registry.weyland.lab/golden-swift-vapor.
+# buildkit → registry.weyland.lab/golden-swift-vapor-app.
 FROM swift:6.0-jammy AS build
 WORKDIR /build
 # Resolve deps against the committed Package.resolved first (cache-friendly layer).

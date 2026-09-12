@@ -8,7 +8,7 @@ iOS). **Runnable · ephemeral · extendable.** Conforms to the golden-path contr
 ## Run it (locally, needs a Swift toolchain — or use the image)
 
 ```
-swift run Run          # then: curl localhost:8080/hello -> {"service":"golden-swift-vapor","message":"hello, weyland"}
+swift run Run          # then: curl localhost:8080/hello -> {"service":"golden-swift-vapor-app","message":"hello, weyland"}
 ```
 
 ## Test it (the CI lane runs exactly this)
@@ -24,7 +24,7 @@ green. The lane surfaces the failure by setting that env var and filtering to th
 
 ## Ephemeral Job (spin up in-cluster to exercise, then tear down)
 
-Works as the Python FastAPI reference — buildkit builds `registry.weyland.lab/golden-swift-vapor`,
+Works as the Python FastAPI reference — buildkit builds `registry.weyland.lab/golden-swift-vapor-app`,
 `scripts/run-golden-path-jobs.sh` (reads `.smoke`) starts a run-to-completion Job that asserts `/ready`
 + `/hello`'s known payload, exits 0, and is deleted. Never a Deployment. See
 [../../python/fastapi/README.md](../../python/fastapi/README.md).
@@ -32,7 +32,7 @@ Works as the Python FastAPI reference — buildkit builds `registry.weyland.lab/
 ## Scaffold a REAL service FROM this
 
 ```
-scripts/new-service.sh swift/vapor <your-service>
+scripts/new-service.sh swift/vapor-app <your-service>
 ```
 
 Rewrites `serviceName` (in `Sources/App/routes.swift`), fills the onboarding declaration below, and
@@ -69,12 +69,12 @@ API-lifecycle guards then pass.
 |---|---|
 | HTTP surface | `/health` `/ready` `/metrics` `/hello` (`Sources/App/routes.swift`), bound `0.0.0.0:8080` (`configure.swift`) |
 | Self-test | `Tests/AppTests/ContractTests.swift` (XCTVapor over all four) + `Tests/SelfCheckTests/` (env-gated deliberate fail) |
-| Build | multi-stage non-root `Dockerfile` (`swift:6.0-jammy` build → `swift:6.0-jammy-slim` runtime) → `registry.weyland.lab/golden-swift-vapor` |
+| Build | multi-stage non-root `Dockerfile` (`swift:6.0-jammy` build → `swift:6.0-jammy-slim` runtime) → `registry.weyland.lab/golden-swift-vapor-app` |
 | Observability | structured logging (Vapor `Logger`) + `/metrics` (minimal Prometheus counter `golden_hello_requests_total`) |
 | Lane facts | runner `swift`; root marker `Package.swift`; tests `Tests/**/*.swift`; scan `swift-format lint` if available (none-standard otherwise) |
 
 ## `/hello` payload
 
 ```json
-{"service":"golden-swift-vapor","message":"hello, weyland"}
+{"service":"golden-swift-vapor-app","message":"hello, weyland"}
 ```

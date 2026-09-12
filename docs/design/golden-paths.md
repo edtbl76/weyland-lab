@@ -212,7 +212,7 @@ client analogue of a service path's run-to-completion Job. All four built + dock
   (index.html + `.wasm` + JS glue). Lane image `ghcr.io/swiftwasm/carton:0.20.1`. **The whole stack is PINNED and
   frozen** — Tokamak's last release is 0.11.1 (Feb 2023) and carton's images stop at 0.20.1 (carton 1.x is
   SPM-plugin-only); `Package.resolved` is committed. **TEST-ONLY for lang-scan:** swift-format shipped with Swift
-  6.0 and is absent from the pinned SwiftWasm 5.9.1 toolchain, and the `swift/vapor` lane already covers Swift
+  6.0 and is absent from the pinned SwiftWasm 5.9.1 toolchain, and the `swift/vapor-app` lane already covers Swift
   linting, so no scan lane is wired (an un-runnable scanner would violate the fail-closed contract). This is the
   Linux-verifiable half of the parked `swift-ios` UI — it covers the model + build chain, not on-device iOS testing.
 
@@ -236,7 +236,7 @@ then moves **44 → 48** (44 service + 4 mobile), and B164 closes.
 requires **macOS + Xcode**, which the $0 / Linux-only / LAN-only lab has no runner for (cloud-macOS runners exist but
 break all three constraints). It is **parked** and unlikely to be actioned unless a Mac enters the lab. This is a
 limitation, **not a coverage hole**: the SwiftUI programming model + build chain are proven on Linux by `swift-tokamak`
-(Tokamak → Wasm) above, and server-side Swift by `swift/vapor`. Tracked as **B168**; ties the hardware-gated set (B149/B150).
+(Tokamak → Wasm) above, and server-side Swift by `swift/vapor-app`. Tracked as **B168**; ties the hardware-gated set (B149/B150).
 
 ## Definition of Done (per golden path + the system)
 

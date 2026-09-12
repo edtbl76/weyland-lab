@@ -1,7 +1,7 @@
 import Vapor
 
 /// The service identity carried in the `/hello` payload — one token the scaffolder rewrites.
-public let serviceName = "golden-swift-vapor"
+public let serviceName = "golden-swift-vapor-app"
 
 struct StatusResponse: Content {
     let status: String

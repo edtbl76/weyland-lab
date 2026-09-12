@@ -231,6 +231,14 @@ is_excluded() {
     # suite standalone, and reports a dependency's tests as an estate failure.
     */deps/*|*/_build/*)
       return 0 ;;
+    # SwiftPM's `.build/` is the Swift analogue of node_modules/target/deps: `swift build`/`swift test`
+    # clone every dependency into `.build/checkouts/<dep>` (vapor pulls swift-nio, async-http-client, …),
+    # each a real package with its own `*Tests.swift`. Without this, once the FIXTURE builds (the lane
+    # runs --self-check before the normal pass, and CI runs both), discovery descends into those
+    # checkouts and reports ~30 dependency "projects" — several of whose standalone suites fail — as
+    # estate defects. Note the leading dot: `*/build/*` above does NOT match `/.build/`.
+    */.build/*)
+      return 0 ;;
     # A `selfcheck/` dir is NEVER a standalone project — it is the deliberately-failing companion, run
     # only in --self-check mode from its owning project's dir. Under the fixture tree it is already
     # excluded (the whole tree is); this also covers golden-paths/<lang>/<fw>/selfcheck (B153).

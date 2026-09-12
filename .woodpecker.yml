@@ -535,7 +535,7 @@ steps:
   # The whole stack is PINNED: Tokamak's last release is 0.11.1 (Feb 2023) and carton's images stop at
   # 0.20.1 (carton 1.x is SPM-plugin-only), so the image is swiftwasm/carton:0.20.1 (SwiftWasm Swift 5.9.1)
   # and Package.resolved is committed. Tests run as wasm XCTest in Node.js (headless). TEST-ONLY for
-  # lang-scan: swift-format shipped with Swift 6.0, absent from this 5.9.1 toolchain — the swift/vapor lane
+  # lang-scan: swift-format shipped with Swift 6.0, absent from this 5.9.1 toolchain — the swift/vapor-app lane
   # already covers Swift linting, so there is no scan-swift-tokamak (wiring an un-runnable scanner would
   # violate the fail-closed contract). This is the Linux-verifiable half of "Swift UI"; the iOS/SwiftUI
   # on-device surface stays parked on the Mac hardware gate (swift-ios).

@@ -33,7 +33,7 @@ resolve_fixture() {
     erlang)     printf '%s/golden-paths/erlang/cowboy\n'        "$repo" ;;
     julia)      printf '%s/golden-paths/julia/oxygen\n'         "$repo" ;;
     lua)        printf '%s/golden-paths/lua/openresty\n'        "$repo" ;;
-    swift)      printf '%s/golden-paths/swift/vapor\n'          "$repo" ;;
+    swift)      printf '%s/golden-paths/swift/vapor-app\n'      "$repo" ;;   # dir is vapor-app: `vapor` collides with the dep identity under SwiftPM 6.0 (see its Package.swift)
     dart)       printf '%s/golden-paths/dart/shelf\n'           "$repo" ;;
     r)          printf '%s/golden-paths/r/plumber\n'            "$repo" ;;
     perl)       printf '%s/golden-paths/perl/mojolicious\n'     "$repo" ;;

@@ -60,7 +60,7 @@ bash scripts/run-lang-tests.sh swift-tokamak                # must pass
   `-Xswiftc -DSELFCHECK`. Fail-closed: remove the block and the self-check stops failing → LANE BROKEN.
 - **No scan lane.** swift-format shipped with Swift 6.0; the pinned SwiftWasm 5.9.1 toolchain predates it,
   so this path is **test-only** for `lang-scan`. The estate's Swift linting is already proven on the
-  `swift/vapor` server path; adding an un-runnable scanner here would violate the fail-closed contract.
+  `swift/vapor-app` server path; adding an un-runnable scanner here would violate the fail-closed contract.
 - **Discovery isolation.** `is_excluded()` keeps the swift lane off this tree, and the `*.tokamak.swift`
   test glob keeps this lane off vapor/swift-ios — verified as 0 cross-discovered projects each way.
 

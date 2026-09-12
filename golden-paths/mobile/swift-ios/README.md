@@ -49,11 +49,11 @@ docker run --rm -v "$PWD/golden-paths/mobile/swift-ios:/w" -w /w swift:6.0 swift
 The selfcheck lives in a second test target (`SelfCheckTests`). A bare `swift test` runs it too, so
 its `XCTFail` is gated behind `GOLDEN_SELFCHECK=1` and **skipped** otherwise — the bare run is all
 green. The lane surfaces the failure by setting that env var and filtering to the target. This
-mirrors the sibling server-side [`swift/vapor`](../../swift/vapor/README.md) path exactly.
+mirrors the sibling server-side [`swift/vapor-app`](../../swift/vapor-app/README.md) path exactly.
 
-## Isolation from the server-side `swift/vapor` lane
+## Isolation from the server-side `swift/vapor-app` lane
 
-Both this package and `golden-paths/swift/vapor` sit under the **one `swift` test/scan lane** and
+Both this package and `golden-paths/swift/vapor-app` sit under the **one `swift` test/scan lane** and
 carry the **same marker (`Package.swift`) + the same test glob (`*Tests.swift`)** — the runner does
 **not** (and need not) tell them apart by framework:
 
@@ -62,7 +62,7 @@ carry the **same marker (`Package.swift`) + the same test glob (`*Tests.swift`)*
   is the right invocation for either. `vapor`'s runs XCTVapor over HTTP; this one runs the
   Foundation-only `Greeting` tests. The selfcheck (`--filter SelfCheckTests`) and scan
   (`swift format lint --recursive Sources Tests`) apply cleanly to both.
-- **`vapor` is the lane FIXTURE** (`scripts/lib/lang-fixtures.sh` → `golden-paths/swift/vapor`): the
+- **`vapor` is the lane FIXTURE** (`scripts/lib/lang-fixtures.sh` → `golden-paths/swift/vapor-app`): the
   build-infra probe, counted once and excluded from real-project discovery. **This package is
   discovered as an ordinary real swift project** under the same lane and runs alongside it.
 - **This package has no external dependencies** (no `Package.resolved`, no network fetch), so its
