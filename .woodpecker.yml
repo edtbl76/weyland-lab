@@ -684,9 +684,19 @@ steps:
 
   - name: scan-haskell
     image: haskell:9.8
+    # `cabal install hlint` builds hlint + its deps (aeson/conduit/yaml/vector/…) FROM SOURCE — the same
+    # heavy source-build OOM class as test-haskell (#125), and best-effort by default. Burstable request +
+    # --jobs=2 cap + 6Gi limit. run-lang-scan.sh's hlint run itself is light; the install is the heavy part.
+    backend_options:
+      kubernetes:
+        resources:
+          requests:
+            memory: 1Gi
+          limits:
+            memory: 6Gi
     commands:
       - cabal update
-      - cabal install hlint --installdir=/usr/local/bin --overwrite-policy=always
+      - cabal install hlint --jobs=2 --installdir=/usr/local/bin --overwrite-policy=always
       - bash scripts/run-lang-scan.sh haskell
 
   - name: scan-ada
