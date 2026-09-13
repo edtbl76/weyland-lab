@@ -28,15 +28,14 @@
 # `--output 'go-template={{range .}}...{{end}}'` (the payload is a slice). See docs/runbooks/ship-images.md.
 labels:
   backend: kubernetes
-# The full pipeline (all lanes + golden-path-smoke + integration + build/deploy). Runs on every manual/cron
-# trigger EXCEPT an on-demand smoke run (SMOKE_ONLY=smoke → .woodpecker/smoke.yml runs golden-path-smoke alone).
-# Optional-skip idiom: an UNSET var (cron, normal manual) reads as empty, so "" != "smoke" is true and this
-# pipeline runs — cron-safe. The sentinel is the STRING "smoke", NOT a boolean: `--var SMOKE_ONLY=true` gets
-# YAML-coerced to a bool and the string compare then ERRORS, filtering BOTH workflows out → empty pipeline
-# (EOF). A non-boolean word avoids that. event+evaluate in ONE entry = AND.
+# The full pipeline (all lanes + golden-path-smoke + integration + build/deploy). Runs on manual + cron.
+# The on-demand golden-path smoke lives in .woodpecker/smoke.yml, gated on the `deployment` EVENT — so it
+# never runs here and this never runs for a smoke request. Selection is by EVENT, not a variable: Woodpecker
+# only feeds a `--var` to the FIRST workflow's `when: evaluate`, so two workflows can't both gate on one var
+# (a var-gated smoke returned an empty pipeline / HTTP 204). Event filtering has no such limitation.
 when:
-  - event: [manual, cron]
-    evaluate: 'SMOKE_ONLY != "smoke"'
+  - event: manual
+  - event: cron
 
 steps:
   # ── 1. lint the k8s manifests (syntax) ──────────────────────────────────────
