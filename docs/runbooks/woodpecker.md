@@ -78,6 +78,20 @@ tags. Steps: `detect-changes → build → kubeconform → deploy-handoff`.
 - **Tags = `git-<short-sha>`** (was hand-bumped `vN`). `IfNotPresent` + a unique tag → nodes re-pull.
 - **Trigger:** nightly cron `nightly-images` **01:00 NY** (`0 5 * * *` **UTC** — Woodpecker crons are UTC, see
   `schedules.md`) + manual (`woodpecker-cli pipeline create edtbl76/weyland-lab --branch main`). No LAN webhooks.
+- **On-demand golden-path smoke (B164) — build+serve SPECIFIC golden paths in minutes, skipping the ~75-min lane suite:**
+  ```bash
+  woodpecker-cli pipeline create edtbl76/weyland-lab --branch main \
+    --var SMOKE_ONLY=smoke --var GOLDEN_PATH_ONLY='dart/shelf erlang/cowboy'
+  ```
+  `SMOKE_ONLY=smoke` makes every heavy lane skip (they carry `when: *skip_on_smoke` = `SMOKE_ONLY != "smoke"`); only
+  `golden-path-smoke` runs, scoped by `GOLDEN_PATH_ONLY` (space-separated `<lang>/<framework>`; unset = all ~44).
+  Proven #133/#134 (~1 min for one path, ~15 min for all 9 B164 paths). Notes hard-won building this:
+  - **The sentinel is the STRING `smoke`, never a boolean.** `--var SMOKE_ONLY=true` is YAML-coerced to a bool and the
+    string compare then errors → the pipeline is filtered empty (server returns HTTP 204, CLI prints `error: EOF`).
+  - **It's ONE workflow (step-level gate), not two files.** Woodpecker feeds a `--var` only to the FIRST workflow's
+    `when`, so a `.woodpecker/`-split second workflow can't gate on it (also 204/EOF). A single workflow shares the
+    var with every step. (`pipeline deploy`/`deployment`-event selection is a 403 for this token — permission-walled.)
+  - A plain `create` with no var, and the nightly cron, still run the **full** pipeline (manual-full preserved).
 - **Build engine = a persistent `buildkitd` Deployment** (`k8s/woodpecker/buildkitd.yaml`, Argo app
   `woodpecker-buildkitd`), NOT build-in-the-step-pod. The `build` step is a thin `buildctl --addr tcp://buildkitd:1234`
   client that mounts nothing.

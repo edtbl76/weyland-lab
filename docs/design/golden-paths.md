@@ -28,7 +28,7 @@ CONTRACT, never the framework — frameworks are interchangeable implementations
 | **Observability** | structured logging + `/metrics`; an OTel hook (or a documented stub). |
 | **Scaffold seam** | parameterized name/port placeholders so `scripts/new-service.sh <golden-path> <name>` stamps a real service. |
 
-## The locked framework matrix (B153 — 21 golden paths; B160 adds 14 more, §"B160 — extended language wave" below → 35 total)
+## The locked framework matrix (B153 — 21; B160 +14 → 35; B164 +9 service +4 mobile clients → 48 total)
 
 | Language | Frameworks | Lane runner |
 |---|---|---|
@@ -188,8 +188,10 @@ workstream 1) · **Dart**/shelf (`dart compile exe`, `-t selfcheck --run-skipped
 `hlint` — path is hlint-clean) · **Ada**/AWS (Alire binary GNAT 14.2.1, AUnit, scan = compiler `-gnatwa -gnaty`
 since gnatcheck/libadalang-tools is a heavy separate crate). All 9 wired into `run-lang-tests.sh` +
 `lib/lang-fixtures.sh` + `run-lang-scan.sh` + `quality-tools.yaml` + `.woodpecker.yml`
-(`test-*`/`scan-*` per lang). **Pending:** first CI run (golden-path-smoke builds+serves the 9 Dockerfiles
-in-cluster + the new test/scan lanes run) confirms them → then the matrix total moves **35 → 44**.
+(`test-*`/`scan-*` per lang). **CI-CONFIRMED 2026-09-13:** all 58 test + scan lanes green (pipeline #126) and
+all 9 new Dockerfiles built via buildkit + served in-cluster as run-to-completion Jobs + torn down
+(golden-path-smoke, "OK — all 9 golden path(s) served in-cluster and were torn down"). Service-path matrix
+total **35 → 44**.
 
 ### Workstream 1 — mobile clients (RN + Flutter + Swift-iOS + Swift-Tokamak), built + wired 2026-09-11
 
@@ -228,8 +230,9 @@ dart no longer sees flutter, the node lanes no longer see RN, the swift lane see
 swift-tokamak), and swift-ios still rides the swift lane. Wired across the shared surfaces (`run-lang-tests.sh` ·
 `lib/lang-fixtures.sh` · `run-lang-scan.sh` · `quality-tools.yaml` — 31 lang-scan tools, `flutter-analyze` added +
 `eslint` reused for RN, swift-tokamak test-only · `.woodpecker.yml` `test-react-native`/`test-flutter`/`test-swift-tokamak`
-+ `scan-react-native`/`scan-flutter`). **Pending:** the same first CI run confirms the mobile lanes; the matrix
-then moves **44 → 48** (44 service + 4 mobile), and B164 closes.
++ `scan-react-native`/`scan-flutter`). **CI-CONFIRMED 2026-09-13:** all 5 mobile lanes green (pipeline #126).
+The matrix total is now **48 (44 service + 4 mobile clients)**, and **B164 is closed** — only the on-device
+iOS/SwiftUI UI remains, carved out to **B168 (Very Low)** as the documented Mac-hardware-gate limitation.
 
 **Known limitation — on-device iOS/SwiftUI (B168, Very Low).** A golden path that runs a SwiftUI app on an iOS
 **simulator or device** — plus UIKit/SwiftUI-on-iOS rendering and App Store packaging (`.ipa`, signing, TestFlight) —

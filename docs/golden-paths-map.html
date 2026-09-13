@@ -171,23 +171,36 @@
       <div class="fw" style="--st:var(--ok)"><div class="top"><span class="nm">Vue 3 + Vite</span><span class="badge">verified</span></div><div class="d">vite build · vitest · server.mjs · #111</div></div>
     </div></div>
 
-  <div class="sec">Wave 3 · B164 — mobile <span class="sub">client/bundle-render contract, not HTTP-serve</span></div>
-  <div class="lang">
+  <div class="sec">Wave 3 · B164 — +9 service languages + 4 mobile clients <span class="sub">CI-verified 2026-09-13 (#126 lanes · #134 served in-cluster)</span></div>
+  <div class="lang"><div class="lang-h"><span class="lang-name">Service (build + serve, like B153/B160)</span><span class="lang-note">each a net-new test+scan lane + Dockerfile · #134</span></div>
     <div class="grid">
-      <div class="fw" style="--st:var(--plan)"><div class="top"><span class="nm">React Native</span><span class="badge">planned</span></div><div class="d">jest + RTL · metro/expo bundle · flagship</div></div>
-      <div class="fw" style="--st:var(--plan)"><div class="top"><span class="nm">Flutter</span><span class="badge">planned</span></div><div class="d">flutter test · Linux-buildable</div></div>
-      <div class="fw" style="--st:var(--gate)"><div class="top"><span class="nm">Swift · iOS</span><span class="badge">HW-gated</span></div><div class="d">SwiftUI needs macOS + Xcode — no runner in the $0 Linux lab</div></div>
+      <div class="fw" style="--st:var(--ok)"><div class="top"><span class="nm">Erlang · Cowboy</span><span class="badge">verified</span></div><div class="d">rebar3 eunit · rebar3 xref</div></div>
+      <div class="fw" style="--st:var(--ok)"><div class="top"><span class="nm">Julia · Oxygen</span><span class="badge">verified</span></div><div class="d">Pkg.test · JuliaFormatter</div></div>
+      <div class="fw" style="--st:var(--ok)"><div class="top"><span class="nm">Lua · OpenResty</span><span class="badge">verified</span></div><div class="d">busted · luacheck</div></div>
+      <div class="fw" style="--st:var(--ok)"><div class="top"><span class="nm">Swift · Vapor</span><span class="badge">verified</span></div><div class="d">swift test · dir <code>swift/vapor-app</code> (SwiftPM identity)</div></div>
+      <div class="fw" style="--st:var(--ok)"><div class="top"><span class="nm">Dart · shelf</span><span class="badge">verified</span></div><div class="d">dart test · dart analyze</div></div>
+      <div class="fw" style="--st:var(--ok)"><div class="top"><span class="nm">R · plumber</span><span class="badge">verified</span></div><div class="d">testthat · lintr</div></div>
+      <div class="fw" style="--st:var(--ok)"><div class="top"><span class="nm">Perl · Mojolicious</span><span class="badge">verified</span></div><div class="d">prove/Test::Mojo · perlcritic</div></div>
+      <div class="fw" style="--st:var(--ok)"><div class="top"><span class="nm">Haskell · Scotty</span><span class="badge">verified</span></div><div class="d">cabal test · hlint</div></div>
+      <div class="fw" style="--st:var(--ok)"><div class="top"><span class="nm">Ada · AWS</span><span class="badge">verified</span></div><div class="d">AUnit · gnat -gnatwa/-gnaty (Alire GNAT 14.2.1)</div></div>
+    </div></div>
+  <div class="lang"><div class="lang-h"><span class="lang-name">Mobile / Swift-UI clients</span><span class="lang-note">bundle/render contract, not HTTP-serve · golden-path-smoke skips them (no Dockerfile)</span></div>
+    <div class="grid">
+      <div class="fw" style="--st:var(--ok)"><div class="top"><span class="nm">React Native · Expo</span><span class="badge">verified</span></div><div class="d">jest-expo · expo export web · eslint · #126</div></div>
+      <div class="fw" style="--st:var(--ok)"><div class="top"><span class="nm">Flutter</span><span class="badge">verified</span></div><div class="d">flutter test · flutter build web · analyze · #126</div></div>
+      <div class="fw" style="--st:var(--ok)"><div class="top"><span class="nm">Swift · Tokamak→Wasm</span><span class="badge">verified</span></div><div class="d">SwiftUI-shaped → WebAssembly · carton test/bundle · #126</div></div>
+      <div class="fw" style="--st:var(--gate)"><div class="top"><span class="nm">Swift · iOS on-device</span><span class="badge">HW-gated (B168)</span></div><div class="d">simulator/device needs macOS+Xcode; Linux <code>Greeting</code> module verified</div></div>
     </div></div>
 
   <div class="sec">How a path is exercised</div>
   <div class="flow">
     <div class="card"><h3>Scaffold →</h3><p><code>new-service.sh &lt;path&gt; &lt;name&gt;</code> copies the golden path (minus build output + the selfcheck probe), rewrites the <code>golden-*</code> token, and prints the onboarding declaration — a real service that passes the B154/B155 gates by construction.</p></div>
     <div class="card"><h3>Fixture → lanes</h3><p>Each path is its lane's fixture: <code>run-lang-tests.sh</code> (test + deliberate-fail selfcheck + coverage ratchet) and <code>run-lang-scan.sh</code> (per-language scanners) — every language gets both.</p></div>
-    <div class="card"><h3>→ golden-path-smoke</h3><p>Builds each image via buildkitd from an isolated context, runs a run-to-completion Job (ns <code>golden-paths</code>, SA <code>golden-path-runner</code>), curls the contract, tears it down. Fail-closed: exit 2 build, 1 smoke. Scope one language: <code>--var GOLDEN_PATH_ONLY=&lt;path&gt;</code>.</p></div>
+    <div class="card"><h3>→ golden-path-smoke</h3><p>Builds each image via buildkitd from an isolated context, runs a run-to-completion Job (ns <code>golden-paths</code>, SA <code>golden-path-runner</code>), curls the contract, tears it down. Fail-closed: exit 2 build, 1 smoke. <b>On-demand (B164):</b> <code>pipeline create --var SMOKE_ONLY=smoke --var GOLDEN_PATH_ONLY=&lt;paths&gt;</code> skips all lanes and builds/serves just those paths in minutes (#133/#134).</p></div>
   </div>
 
   <p class="foot">
     Design: <a href="design/golden-paths.md">docs/design/golden-paths.md</a> · Demo: <a href="demos/golden-paths.md">docs/demos/golden-paths.md</a> · Flow: <a href="diagrams/flow-golden-paths.md">docs/diagrams/flow-golden-paths.md</a><br>
-    Backlog: B153 (done) · B160 (extended languages) · B163 (per-framework module depth) · B164 (mobile) · B154/B155 (onboarding + API lifecycle the scaffolds pass).
+    Backlog: B153 (done) · B160 (done — extended languages) · B164 (done — +9 service langs + 4 mobile clients + on-demand smoke; on-device iOS → B168) · B163 (per-framework module depth) · B154/B155 (onboarding + API lifecycle the scaffolds pass).
   </p>
 </div>
