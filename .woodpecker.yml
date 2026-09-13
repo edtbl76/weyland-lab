@@ -28,11 +28,14 @@
 # `--output 'go-template={{range .}}...{{end}}'` (the payload is a slice). See docs/runbooks/ship-images.md.
 labels:
   backend: kubernetes
-# The full pipeline (all lanes + golden-path-smoke + integration + build/deploy). Runs on manual + cron.
-# The on-demand golden-path smoke lives in .woodpecker/smoke.yml, gated on the `deployment` EVENT — so it
-# never runs here and this never runs for a smoke request. Selection is by EVENT, not a variable: Woodpecker
-# only feeds a `--var` to the FIRST workflow's `when: evaluate`, so two workflows can't both gate on one var
-# (a var-gated smoke returned an empty pipeline / HTTP 204). Event filtering has no such limitation.
+# ONE pipeline, two modes, selected by the SMOKE_ONLY pipeline variable:
+#   full   (cron, or `pipeline create` with no var) — every lane + golden-path-smoke + integration + CD.
+#   smoke  (`pipeline create --var SMOKE_ONLY=smoke --var GOLDEN_PATH_ONLY='<paths>'`) — ONLY golden-path-smoke
+#          runs (build+serve just those paths, ~minutes); every heavy lane carries `when: *skip_on_smoke`
+#          (`SMOKE_ONLY != "smoke"`) so it is skipped. This is on ONE workflow on purpose: Woodpecker only
+#          feeds a `--var` to the FIRST workflow's gate, so a two-file split can't gate a second workflow on
+#          it (that returned an empty pipeline / HTTP 204). A single workflow shares the var with every step.
+#   golden-path-smoke and notify-port are NOT gated; the fast guards run in both modes (seconds).
 when:
   - event: manual
   - event: cron
@@ -275,6 +278,7 @@ steps:
       - sh scripts/ci/check-rego-policies.sh
 
   - name: test-python
+    when: &skip_on_smoke [{event: [manual, cron], evaluate: 'SMOKE_ONLY != "smoke"'}]
     image: python:3.12-slim
     commands:
       - pip install --quiet --no-cache-dir pytest pytest-cov prometheus_client
@@ -286,6 +290,7 @@ steps:
       - bash scripts/coverage-ratchet.sh run python
 
   - name: test-shell
+    when: *skip_on_smoke
     image: bats/bats:latest
     commands:
       # Same package set as the shell-tests step above; keep them in step if either changes.
@@ -294,6 +299,7 @@ steps:
       - bash scripts/run-lang-tests.sh shell
 
   - name: test-java
+    when: *skip_on_smoke
     # temurin-21: the Java golden paths (B153 fixtures) target release 21 and their Dockerfiles build on
     # this exact image; JDK 21 also compiles the real Flink modules' release-17 target fine (backward-compat)
     # and their tests are pure JUnit (arithmetic extracted out of the operators — no MiniCluster, no JVM sensitivity).
@@ -310,6 +316,7 @@ steps:
       - bash scripts/coverage-ratchet.sh run java
 
   - name: test-go
+    when: *skip_on_smoke
     image: golang:1.26
     environment:                              # B88 #6 — persist the go module + build caches
       GOMODCACHE: /cache/go/mod
@@ -324,6 +331,7 @@ steps:
       - bash scripts/coverage-ratchet.sh run go   # B88 gap #1 — coverage ratchet
 
   - name: test-rust
+    when: *skip_on_smoke
     image: rust:1-slim
     # B88 #6 — persist CARGO_HOME (registry + cargo-installed bins, so cargo-llvm-cov is not recompiled
     # every run). PATH is set LITERALLY (image PATH + the cache bin) rather than with $PATH, so the
@@ -343,6 +351,7 @@ steps:
       - bash scripts/coverage-ratchet.sh run rust
 
   - name: test-dotnet
+    when: *skip_on_smoke
     image: mcr.microsoft.com/dotnet/sdk:8.0
     commands:
       # No NuGet cache volume yet (a cache PVC needs its own ci-caches.yaml entry + Argo sync) — dotnet
@@ -353,18 +362,21 @@ steps:
 
   # B164 extended-language wave — clean keeps. Each verified in its toolchain image on rogueone before wiring.
   - name: test-erlang
+    when: *skip_on_smoke
     image: erlang:27
     commands:
       - bash scripts/run-lang-tests.sh erlang --self-check
       - bash scripts/run-lang-tests.sh erlang
 
   - name: test-julia
+    when: *skip_on_smoke
     image: julia:1.11
     commands:
       - bash scripts/run-lang-tests.sh julia --self-check
       - bash scripts/run-lang-tests.sh julia
 
   - name: test-lua
+    when: *skip_on_smoke
     image: alpine:3.20
     commands:
       # OpenResty ships LuaJIT but no luarocks; busted runs on lua5.4 (the handlers are pure string ops,
@@ -376,6 +388,7 @@ steps:
       - bash scripts/run-lang-tests.sh lua
 
   - name: test-swift
+    when: *skip_on_smoke
     image: swift:6.0
     # The vapor-app fixture compiles Vapor's whole graph (BoringSSL/swift-crypto C++ + asm, ~1057 units).
     # With no memory request the step pod is best-effort QoS and was OOM-killed mid-compile on the RAM-tight
@@ -396,6 +409,7 @@ steps:
       - bash scripts/run-lang-tests.sh swift
 
   - name: test-dart
+    when: *skip_on_smoke
     image: dart:stable
     commands:
       - bash scripts/run-lang-tests.sh dart --self-check
@@ -403,6 +417,7 @@ steps:
 
   # B164 extended-language wave — optional/breadth langs (R/Perl/Haskell/Ada). Each docker-verified on rogueone.
   - name: test-r
+    when: *skip_on_smoke
     image: rocker/r-ver:4
     commands:
       # the dispatch installs plumber/jsonlite/testthat (rocker PPM binaries) if absent
@@ -410,6 +425,7 @@ steps:
       - bash scripts/run-lang-tests.sh r
 
   - name: test-perl
+    when: *skip_on_smoke
     image: perl:5.40
     commands:
       # the dispatch runs `cpanm --installdeps .` (Mojolicious) — cpanm ships in the perl image
@@ -417,6 +433,7 @@ steps:
       - bash scripts/run-lang-tests.sh perl
 
   - name: test-haskell
+    when: *skip_on_smoke
     image: haskell:9.8
     # GHC rebuilds Scotty's whole dep graph cold (no cabal cache volume yet) — heavy + best-effort, so
     # full-parallelism ($ncpus packages at once) OOM-killed the step pod on the RAM-tight node (#122).
@@ -438,6 +455,7 @@ steps:
       - bash scripts/run-lang-tests.sh haskell
 
   - name: test-ada
+    when: *skip_on_smoke
     image: ubuntu:24.04
     # Alire builds gnatcoll (AWS's dependency) FROM SOURCE — a source-builder like swift/haskell, and
     # best-effort by default, so gprbuild's $ncpus fan-out OOM-killed the step pod mid-compile (#124).
@@ -463,6 +481,7 @@ steps:
       - bash scripts/run-lang-tests.sh ada
 
   - name: test-kotlin
+    when: *skip_on_smoke
     image: gradle:8.10-jdk21
     commands:
       # No gradle cache volume yet (a cache PVC needs its own ci-caches.yaml entry + Argo sync) — gradle
@@ -472,6 +491,7 @@ steps:
       # (coverage ratchet for kotlin is a fast-follow, like dotnet)
 
   - name: test-scala
+    when: *skip_on_smoke
     image: sbtscala/scala-sbt:eclipse-temurin-21.0.12_8_1.13.0_3.8.4
     commands:
       # No sbt/coursier cache volume yet (a cache PVC needs its own ci-caches.yaml entry + Argo sync) —
@@ -481,6 +501,7 @@ steps:
       # (coverage ratchet for scala is a fast-follow, like dotnet/kotlin)
 
   - name: test-php
+    when: *skip_on_smoke
     image: composer:2.7
     commands:
       - apk add --no-cache bash >/dev/null   # the composer image is alpine; the runner needs bash (arrays)
@@ -489,6 +510,7 @@ steps:
       # (coverage ratchet for php is a fast-follow, like dotnet/kotlin/scala)
 
   - name: test-ruby
+    when: *skip_on_smoke
     image: ruby:3.3   # Debian-based: bash + build-essential (puma C ext) already present, no apk dance
     commands:
       - bash scripts/run-lang-tests.sh ruby --self-check
@@ -496,6 +518,7 @@ steps:
       # (coverage ratchet for ruby is a fast-follow, like dotnet/kotlin/scala/php)
 
   - name: test-elixir
+    when: *skip_on_smoke
     image: elixir:1.17   # Debian-based: bash + build tools present
     commands:
       - mix local.hex --force && mix local.rebar --force
@@ -504,6 +527,7 @@ steps:
       # (coverage ratchet for elixir is a fast-follow, like dotnet/kotlin/scala/php/ruby)
 
   - name: test-clojure
+    when: *skip_on_smoke
     image: clojure:temurin-21-lein   # Debian-based: bash present; lein is the toolchain
     commands:
       - bash scripts/run-lang-tests.sh clojure --self-check
@@ -511,6 +535,7 @@ steps:
       # (coverage ratchet for clojure is a fast-follow, like dotnet/kotlin/scala/php/ruby/elixir)
 
   - name: test-cpp
+    when: *skip_on_smoke
     image: gcc:14   # trixie-based; cmake + git for FetchContent (cpp-httplib + doctest)
     commands:
       - apt-get update && apt-get install -y --no-install-recommends cmake git >/dev/null
@@ -518,6 +543,7 @@ steps:
       - bash scripts/run-lang-tests.sh cpp
 
   - name: test-c
+    when: *skip_on_smoke
     image: gcc:14
     commands:
       - apt-get update && apt-get install -y --no-install-recommends cmake pkg-config libmicrohttpd-dev >/dev/null
@@ -525,6 +551,7 @@ steps:
       - bash scripts/run-lang-tests.sh c
 
   - name: test-node
+    when: *skip_on_smoke
     image: node:24-alpine
     environment:
       npm_config_cache: /cache/npm            # B88 #6 — persist the npm package cache
@@ -557,6 +584,7 @@ steps:
   # it rides test-swift's discovery (Package.swift + *Tests.swift); the iOS/SwiftUI surface is parked on
   # the Mac hardware gate and #if canImport(SwiftUI)-guarded so the Linux build stays green.
   - name: test-react-native
+    when: *skip_on_smoke
     image: node:24
     environment:
       npm_config_cache: /cache/npm            # same npm cache as test-node
@@ -570,6 +598,7 @@ steps:
       - cd golden-paths/mobile/react-native && npm run bundle && cd -
 
   - name: test-flutter
+    when: *skip_on_smoke
     image: ghcr.io/cirruslabs/flutter:stable   # the standard Flutter CI image (Ubuntu; bash + flutter SDK)
     commands:
       - bash scripts/run-lang-tests.sh flutter --self-check
@@ -586,6 +615,7 @@ steps:
   # violate the fail-closed contract). This is the Linux-verifiable half of "Swift UI"; the iOS/SwiftUI
   # on-device surface stays parked on the Mac hardware gate (swift-ios).
   - name: test-swift-tokamak
+    when: *skip_on_smoke
     image: ghcr.io/swiftwasm/carton:0.20.1
     # carton compiles Tokamak + OpenCombine + JavaScriptKit to wasm — heavy like test-swift, and equally
     # best-effort by default. Same memory-request→Burstable fix so a RAM spike doesn't OOM-kill it on the
@@ -622,6 +652,7 @@ steps:
   # defect this whole item exists to remove, reintroduced in the CI wiring. The exit-code contract
   # in run-lang-scan.sh already does the filtering: findings are 0, broken is 2.
   - name: scan-rust
+    when: *skip_on_smoke
     image: rust:1-slim
     environment:                              # B88 #6 — same cargo cache as test-rust (audit/deny bins persist)
       CARGO_HOME: /cache/cargo
@@ -634,6 +665,7 @@ steps:
       - bash scripts/run-lang-scan.sh rust
 
   - name: scan-java
+    when: *skip_on_smoke
     image: maven:3.9-eclipse-temurin-21   # match test-java: JDK 21 for the release-21 golden paths (see above)
     volumes:
       - ci-cache-maven:/root/.m2/repository   # B88 #6 — same maven cache as test-java
@@ -641,22 +673,26 @@ steps:
       - bash scripts/run-lang-scan.sh java
 
   - name: scan-dotnet
+    when: *skip_on_smoke
     image: mcr.microsoft.com/dotnet/sdk:8.0
     commands:
       - bash scripts/run-lang-scan.sh dotnet
 
   # B164 extended-language wave — scan lanes (advisory findings; lane fails only if the scanner is missing).
   - name: scan-erlang
+    when: *skip_on_smoke
     image: erlang:27
     commands:
       - bash scripts/run-lang-scan.sh erlang
 
   - name: scan-julia
+    when: *skip_on_smoke
     image: julia:1.11
     commands:
       - bash scripts/run-lang-scan.sh julia
 
   - name: scan-lua
+    when: *skip_on_smoke
     image: alpine:3.20
     commands:
       - apk add --no-cache bash lua5.4 lua5.4-dev luarocks5.4 gcc musl-dev make   # bash: the lane driver uses arrays (alpine ships only busybox sh)
@@ -665,29 +701,34 @@ steps:
       - bash scripts/run-lang-scan.sh lua
 
   - name: scan-swift
+    when: *skip_on_smoke
     image: swift:6.0
     commands:
       - bash scripts/run-lang-scan.sh swift
 
   - name: scan-dart
+    when: *skip_on_smoke
     image: dart:stable
     commands:
       - bash scripts/run-lang-scan.sh dart
 
   # B164 optional/breadth scan lanes.
   - name: scan-r
+    when: *skip_on_smoke
     image: rocker/r-ver:4
     commands:
       # scan_r installs lintr on demand (fail-closed)
       - bash scripts/run-lang-scan.sh r
 
   - name: scan-perl
+    when: *skip_on_smoke
     image: perl:5.40
     commands:
       - cpanm --quiet --notest Perl::Critic
       - bash scripts/run-lang-scan.sh perl
 
   - name: scan-haskell
+    when: *skip_on_smoke
     image: haskell:9.8
     # `cabal install hlint` builds hlint + its deps (aeson/conduit/yaml/vector/…) FROM SOURCE — the same
     # heavy source-build OOM class as test-haskell (#125), and best-effort by default. Burstable request +
@@ -705,6 +746,7 @@ steps:
       - bash scripts/run-lang-scan.sh haskell
 
   - name: scan-ada
+    when: *skip_on_smoke
     image: ubuntu:24.04
     # Same gnatcoll-from-source OOM class as test-ada (scan re-runs `alr build`): Burstable floor + -j cap.
     environment:
@@ -724,50 +766,59 @@ steps:
       - bash scripts/run-lang-scan.sh ada
 
   - name: scan-kotlin
+    when: *skip_on_smoke
     image: gradle:8.10-jdk21
     commands:
       - bash scripts/run-lang-scan.sh kotlin
 
   - name: scan-scala
+    when: *skip_on_smoke
     image: sbtscala/scala-sbt:eclipse-temurin-21.0.12_8_1.13.0_3.8.4
     commands:
       - bash scripts/run-lang-scan.sh scala
 
   - name: scan-php
+    when: *skip_on_smoke
     image: composer:2.7
     commands:
       - apk add --no-cache bash >/dev/null
       - bash scripts/run-lang-scan.sh php
 
   - name: scan-ruby
+    when: *skip_on_smoke
     image: ruby:3.3
     commands:
       - bash scripts/run-lang-scan.sh ruby
 
   - name: scan-elixir
+    when: *skip_on_smoke
     image: elixir:1.17
     commands:
       - mix local.hex --force && mix local.rebar --force
       - bash scripts/run-lang-scan.sh elixir
 
   - name: scan-clojure
+    when: *skip_on_smoke
     image: cljkondo/clj-kondo:latest   # ships clj-kondo + bash; lints statically, no lein/dep fetch
     commands:
       - bash scripts/run-lang-scan.sh clojure
 
   - name: scan-cpp
+    when: *skip_on_smoke
     image: gcc:14
     commands:
       - apt-get update && apt-get install -y --no-install-recommends cppcheck >/dev/null
       - bash scripts/run-lang-scan.sh cpp
 
   - name: scan-c
+    when: *skip_on_smoke
     image: gcc:14
     commands:
       - apt-get update && apt-get install -y --no-install-recommends cppcheck >/dev/null
       - bash scripts/run-lang-scan.sh c
 
   - name: scan-node
+    when: *skip_on_smoke
     image: node:24-alpine
     environment:
       npm_config_cache: /cache/npm            # B88 #6 — same npm cache as test-node
@@ -782,6 +833,7 @@ steps:
 
   # B164 mobile scan lanes. react-native reuses eslint (eslint.config.mjs); flutter uses `flutter analyze`.
   - name: scan-react-native
+    when: *skip_on_smoke
     image: node:24
     environment:
       npm_config_cache: /cache/npm            # same npm cache as test-node/scan-node
@@ -791,6 +843,7 @@ steps:
       - bash scripts/run-lang-scan.sh react-native
 
   - name: scan-flutter
+    when: *skip_on_smoke
     image: ghcr.io/cirruslabs/flutter:stable
     commands:
       - bash scripts/run-lang-scan.sh flutter
@@ -848,6 +901,7 @@ steps:
   # (actorless act BLOCKED by policy.gate) plus the route/pipeline contract on the SHADOW model hooks
   # — reaching app.py, the HTTP layer un-importable in the unit lane (0% there). Curl-only, no jq.
   - name: test-integration-guard
+    when: *skip_on_smoke
     image: alpine:latest
     commands:
       - apk add --no-cache bash curl >/dev/null
@@ -858,6 +912,7 @@ steps:
   # its catalog from Postgres+OpenSearch, so a severed event bus is invisible in the UI; only the
   # broker shows it. Uses the deployed redpanda image so rpk matches the broker version.
   - name: test-integration-datahub
+    when: *skip_on_smoke
     image: docker.redpanda.com/redpandadata/redpanda:v24.2.7
     commands:
       - bash scripts/integration/datahub-redpanda-blackbox.sh
@@ -871,6 +926,7 @@ steps:
 
   # ── 2. detect which images changed since their currently-deployed git-<sha> ──
   - name: detect-changes
+    when: *skip_on_smoke
     image: alpine/git:latest
     commands:
       - sh scripts/ci/detect-changes.sh
@@ -881,6 +937,7 @@ steps:
   # BuildKit in an ephemeral step pod EPERM'd on its mounts on this cluster, even privileged+trusted; hence the daemon.)
   # The client-side context filesync uses inotify — fine now that mother's fs.inotify.max_user_instances = 8192.
   - name: build
+    when: *skip_on_smoke
     image: moby/buildkit:latest
     environment:
       BUILDKIT_HOST: tcp://buildkitd:1234
@@ -922,6 +979,7 @@ steps:
 
   # ── 4. schema-validate the manifests that will carry the new tag ────────────
   - name: kubeconform
+    when: *skip_on_smoke
     image: ghcr.io/yannh/kubeconform:latest-alpine
     commands:
       - |
@@ -941,6 +999,7 @@ steps:
     image: alpine:latest
     when:
       - status: success
+        evaluate: 'SMOKE_ONLY != "smoke"'
     environment:
       GITHUB_TOKEN:
         from_secret: github_token
