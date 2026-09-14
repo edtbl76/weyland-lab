@@ -61,6 +61,10 @@ case "$host" in
 esac
 sshuser="${MACHINE_INV_SSH_USER:-$sshuser}"
 
+# Tag the stream with the host being collected — the merge/emit step verifies this matches its own target
+# and fails closed on a mismatch, so `collect <A> | merge <B>` can never silently mislabel A's inventory as B.
+printf 'host:%s\n' "$host"
+
 # Local when the target names this box (hostname or the rogueone dev workstation); else SSH.
 this="$(hostname -s 2>/dev/null || hostname)"
 if [ "$host" = "$this" ] || { [ "$host" = "rogueone" ] && [ "$this" = "rogueone" ]; }; then

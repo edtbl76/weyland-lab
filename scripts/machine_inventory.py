@@ -33,12 +33,31 @@ PORT_API = "https://api.getport.io/v1"
 
 
 def read_stdin_records():
-    """Parse the collector's <kind>\\t<name>\\t<version> lines from stdin into [(kind, name, version)]."""
-    recs = []
+    """Parse the collector's stream: a leading `host:<name>` tag then `<kind>\\t<name>\\t<version>` lines.
+    Returns (collected_host, [(kind, name, version)]). collected_host is None only for a pre-tag collector."""
+    collected_host, recs = None, []
     for line in sys.stdin:
-        parts = line.rstrip("\n").split("\t")
+        line = line.rstrip("\n")
+        if collected_host is None and line.startswith("host:"):
+            collected_host = line[len("host:"):].strip()
+            continue
+        parts = line.split("\t")
         if len(parts) >= 2 and parts[0] and parts[1]:
             recs.append((parts[0], parts[1], parts[2] if len(parts) > 2 else ""))
+    return collected_host, recs
+
+
+def stdin_for(cmd, host):
+    """read_stdin_records + the host-mismatch guard: fail CLOSED if the collected host is not the target,
+    so `collect <A> | <cmd> <B>` never mislabels A's inventory as B (the 2026-09-14 weyland/mother mixup)."""
+    collected_host, recs = read_stdin_records()
+    if collected_host is not None and collected_host != host:
+        sys.exit(f"{cmd}: collected host '{collected_host}' != target '{host}' — refusing to write "
+                 f"{collected_host}'s inventory under '{host}'. Re-run: "
+                 f"collect-machine-inventory.sh {host} | machine_inventory.py {cmd} {host}")
+    if collected_host is None:
+        print(f"{cmd}: warning — collector output carried no host: tag (old collector?); "
+              f"cannot verify it is really {host}", file=sys.stderr)
     return recs
 
 
@@ -50,7 +69,7 @@ def load_sot():
 
 
 def cmd_merge(host):
-    recs = read_stdin_records()
+    recs = stdin_for("merge", host)
     if not recs:
         sys.exit("merge: no records on stdin — did the collector run? (refusing to blank the host)")
     sot = load_sot()
@@ -108,7 +127,7 @@ def port_upsert(token, blueprint, entity):
 
 
 def cmd_emit(host):
-    recs = read_stdin_records()
+    recs = stdin_for("emit", host)
     if not recs:
         sys.exit("emit: no records on stdin — refusing to emit an empty inventory")
     sot = load_sot()
