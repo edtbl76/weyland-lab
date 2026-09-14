@@ -176,10 +176,12 @@ GET  /admin/mode                                                          # curr
 ```
 
 ## Models (baked, offline at runtime)
-`services/weyland-guard/Dockerfile` bakes the in-process Scan models (B117): Meta **Llama Prompt Guard 2**
-(`project-free-llama/Llama-Prompt-Guard-2-22M`, injection — env `PROMPT_GUARD_MODEL` to swap), **Presidio** + spaCy
-`en_core_web_sm` (PII), and `sentence_transformers.CrossEncoder('cross-encoder/nli-deberta-v3-small')` (grounding);
-`HF_HUB_OFFLINE=1` at runtime. `llama_guard.safety` is NOT baked (it POSTs to the external `llama-guard` svc).
+`services/weyland-guard/Dockerfile` bakes the in-process Scan models, exported to ONNX at build (U13): Meta **Llama
+Prompt Guard 2** (`project-free-llama/Llama-Prompt-Guard-2-22M`, injection — env `PROMPT_GUARD_MODEL` to swap) and the
+**NLI cross-encoder** (`cross-encoder/nli-deberta-v3-small`, grounding) now run on **raw ONNX Runtime**
+(`guardrails/validators/onnx_runtime.py` — `OnnxTextClassifier` / `OnnxCrossEncoder`; torch + transformers +
+sentence-transformers dropped, byte-equivalent so verdicts are unchanged), plus **Presidio** + spaCy `en_core_web_sm`
+(PII). `llama_guard.safety` is NOT baked (it POSTs to the external `llama-guard` svc).
 
 ## Build & deploy (registry flow)
 Image is registry-based (NOT `:local`). Consumers deploy off Argo.

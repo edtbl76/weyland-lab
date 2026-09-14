@@ -102,6 +102,11 @@ steps:
       # weyland-guard and weyland-tool-server; nothing kept them in sync (DoD Pillar 8 finding). Fails
       # closed if they drift (exit 1) or a copy is missing (exit 2). Pure file compare, no cluster.
       - bash scripts/check-verdict-sync.sh
+      # U13 — architecture guard: the OnnxBge query-embedder class is duplicated across weyland-tool-server
+      # (main.py) and weyland-agent (retrievers.py); both must embed the SAME model with the SAME pooling or
+      # the agent retrieves against a vector space the index was not built in. Compares the method bodies
+      # modulo docstring; fails closed on drift (exit 1) or a missing/absent class (exit 2). python3 above.
+      - bash scripts/check-onnx-sync.sh
       # B88 (image-signature follow-up) — declared-image provenance invariant. The Gatekeeper
       # require-signed-images constraint only AUDITS running pods in dryrun; this asserts at PR time
       # that every `image:` declared in the k8s manifests is from a reviewed source (the same

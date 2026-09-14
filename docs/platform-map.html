@@ -250,7 +250,7 @@
         <div class="row"><span class="nm"><i class="cdot"></i>whisper.cpp</span><div><div class="rl">CPU speech-to-text (large-v3)</div><span class="ex">whisper.weyland.lab:8080/inference - voice → text</span></div></div>
         <div class="row"><span class="nm"><i class="cdot"></i>Kokoro</span><div><div class="rl">CPU text-to-speech (B111 media lane)</div><span class="ex">kokoro.weyland.lab · /v1/audio/speech - $0 self-hosted TTS, fronted by Bifrost (kokoro/kokoro) + wl-tts route</span></div></div>
         <div class="row"><span class="nm"><i class="cdot"></i>LiteLLM</span><div><div class="rl">OpenAI-compatible model gateway</div><span class="ex">fronts all Gemini + OpenRouter, human-gated egress valve</span></div></div>
-        <div class="row"><span class="nm"><i class="cdot"></i>sentence-transformers</span><div><div class="rl">bge-base-en-v1.5, 768-dim embeddings</div><span class="ex">encodes queries + chunks; baked into tool-server + Dagster images</span></div></div>
+        <div class="row"><span class="nm"><i class="cdot"></i>ONNX Runtime (bge)</span><div><div class="rl">bge-base 768 + bge-small 384, raw onnxruntime</div><span class="ex">encodes queries + chunks; ONNX exports baked into tool-server / agent / Dagster (U13 — torch dropped)</span></div></div>
       </div>
     </section>
 
