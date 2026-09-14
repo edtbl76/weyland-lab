@@ -2230,3 +2230,483 @@ hosts:
       kind: snap
       status: unreviewed
       rationale: ''
+  mother:
+    role: ''
+    packages:
+    - name: base-files
+      kind: apt
+      status: system
+    - name: bash
+      kind: apt
+      status: system
+    - name: bsdutils
+      kind: apt
+      status: system
+    - name: dash
+      kind: apt
+      status: system
+    - name: diffutils
+      kind: apt
+      status: system
+    - name: docker-compose-v2
+      kind: apt
+      status: system
+    - name: docker.io
+      kind: apt
+      status: system
+    - name: efibootmgr
+      kind: apt
+      status: system
+    - name: findutils
+      kind: apt
+      status: system
+    - name: grep
+      kind: apt
+      status: system
+    - name: grub-efi-amd64
+      kind: apt
+      status: system
+    - name: grub-efi-amd64-signed
+      kind: apt
+      status: system
+    - name: gzip
+      kind: apt
+      status: system
+    - name: hostname
+      kind: apt
+      status: system
+    - name: init
+      kind: apt
+      status: system
+    - name: linux-generic
+      kind: apt
+      status: system
+    - name: login
+      kind: apt
+      status: system
+    - name: ncurses-base
+      kind: apt
+      status: system
+    - name: ncurses-bin
+      kind: apt
+      status: system
+    - name: openssh-server
+      kind: apt
+      status: system
+    - name: python3.12-venv
+      kind: apt
+      status: system
+    - name: shim-signed
+      kind: apt
+      status: system
+    - name: ubuntu-minimal
+      kind: apt
+      status: system
+    - name: ubuntu-server
+      kind: apt
+      status: system
+    - name: ubuntu-server-minimal
+      kind: apt
+      status: system
+    - name: ubuntu-standard
+      kind: apt
+      status: system
+    - name: util-linux
+      kind: apt
+      status: system
+    - name: a2a-inspector
+      kind: image
+      status: system
+    - name: feast-server
+      kind: image
+      status: system
+    - name: flink
+      kind: image
+      status: system
+    - name: maven
+      kind: image
+      status: system
+    - name: mr3project/ranger
+      kind: image
+      status: system
+    - name: musicbrainz-docker-musicbrainz
+      kind: image
+      status: system
+    - name: musicbrainz-mb-import
+      kind: image
+      status: system
+    - name: musicbrainz-mbslave
+      kind: image
+      status: system
+    - name: node
+      kind: image
+      status: system
+    - name: node
+      kind: image
+      status: system
+    - name: python
+      kind: image
+      status: system
+    - name: python
+      kind: image
+      status: system
+    - name: python
+      kind: image
+      status: system
+    - name: quay.io/coreos/etcd
+      kind: image
+      status: system
+    - name: quay.io/jupyter/scipy-notebook
+      kind: image
+      status: system
+    - name: rayproject/ray
+      kind: image
+      status: system
+    - name: registry.weyland.lab/a2a-inspector
+      kind: image
+      status: system
+    - name: registry.weyland.lab/ray-head
+      kind: image
+      status: system
+    - name: registry.weyland.lab/realm-of-agents
+      kind: image
+      status: system
+    - name: registry.weyland.lab/realm-of-agents
+      kind: image
+      status: system
+    - name: registry.weyland.lab/realm-of-agents
+      kind: image
+      status: system
+    - name: registry.weyland.lab/realm-of-agents
+      kind: image
+      status: system
+    - name: registry.weyland.lab/realm-of-agents
+      kind: image
+      status: system
+    - name: registry.weyland.lab/realm-of-agents
+      kind: image
+      status: system
+    - name: registry.weyland.lab/realm-of-agents
+      kind: image
+      status: system
+    - name: registry.weyland.lab/realm-of-agents
+      kind: image
+      status: system
+    - name: registry.weyland.lab/realm-of-agents
+      kind: image
+      status: system
+    - name: registry.weyland.lab/realm-of-agents
+      kind: image
+      status: system
+    - name: registry.weyland.lab/realm-of-agents
+      kind: image
+      status: system
+    - name: registry.weyland.lab/realm-of-agents
+      kind: image
+      status: system
+    - name: registry.weyland.lab/realm-of-agents
+      kind: image
+      status: system
+    - name: registry.weyland.lab/realm-of-agents
+      kind: image
+      status: system
+    - name: registry.weyland.lab/realm-of-agents
+      kind: image
+      status: system
+    - name: registry.weyland.lab/realm-of-agents
+      kind: image
+      status: system
+    - name: registry.weyland.lab/realm-of-agents
+      kind: image
+      status: system
+    - name: registry.weyland.lab/realm-of-agents
+      kind: image
+      status: system
+    - name: registry.weyland.lab/realm-of-agents
+      kind: image
+      status: system
+    - name: registry.weyland.lab/realm-of-agents
+      kind: image
+      status: system
+    - name: registry.weyland.lab/weyland-dagster-user-code
+      kind: image
+      status: system
+    - name: registry.weyland.lab/weyland-dagster-user-code
+      kind: image
+      status: system
+    - name: registry.weyland.lab/weyland-jupyter
+      kind: image
+      status: system
+    - name: registry.weyland.lab/weyland-operator
+      kind: image
+      status: system
+    - name: store-scaler
+      kind: image
+      status: system
+    - name: weyland-dagster-base
+      kind: image
+      status: system
+    - name: weyland-dagster-user-code
+      kind: image
+      status: system
+    - name: weyland-dagster-user-code
+      kind: image
+      status: system
+    - name: weyland-flink
+      kind: image
+      status: system
+    - name: weyland-flink-py
+      kind: image
+      status: system
+    - name: weyland-jupyter
+      kind: image
+      status: system
+    - name: weyland-rag-index
+      kind: image
+      status: system
+    - name: weyland-tool-server
+      kind: image
+      status: system
+    - name: weyland/ranger
+      kind: image
+      status: system
+  weyland:
+    role: ''
+    packages:
+    - name: base-files
+      kind: apt
+      status: system
+    - name: bash
+      kind: apt
+      status: system
+    - name: bsdutils
+      kind: apt
+      status: system
+    - name: dash
+      kind: apt
+      status: system
+    - name: diffutils
+      kind: apt
+      status: system
+    - name: docker-compose-v2
+      kind: apt
+      status: system
+    - name: docker.io
+      kind: apt
+      status: system
+    - name: efibootmgr
+      kind: apt
+      status: system
+    - name: findutils
+      kind: apt
+      status: system
+    - name: grep
+      kind: apt
+      status: system
+    - name: grub-efi-amd64
+      kind: apt
+      status: system
+    - name: grub-efi-amd64-signed
+      kind: apt
+      status: system
+    - name: gzip
+      kind: apt
+      status: system
+    - name: hostname
+      kind: apt
+      status: system
+    - name: init
+      kind: apt
+      status: system
+    - name: linux-generic
+      kind: apt
+      status: system
+    - name: login
+      kind: apt
+      status: system
+    - name: ncurses-base
+      kind: apt
+      status: system
+    - name: ncurses-bin
+      kind: apt
+      status: system
+    - name: openssh-server
+      kind: apt
+      status: system
+    - name: python3.12-venv
+      kind: apt
+      status: system
+    - name: shim-signed
+      kind: apt
+      status: system
+    - name: ubuntu-minimal
+      kind: apt
+      status: system
+    - name: ubuntu-server
+      kind: apt
+      status: system
+    - name: ubuntu-server-minimal
+      kind: apt
+      status: system
+    - name: ubuntu-standard
+      kind: apt
+      status: system
+    - name: util-linux
+      kind: apt
+      status: system
+    - name: a2a-inspector
+      kind: image
+      status: system
+    - name: feast-server
+      kind: image
+      status: system
+    - name: flink
+      kind: image
+      status: system
+    - name: maven
+      kind: image
+      status: system
+    - name: mr3project/ranger
+      kind: image
+      status: system
+    - name: musicbrainz-docker-musicbrainz
+      kind: image
+      status: system
+    - name: musicbrainz-mb-import
+      kind: image
+      status: system
+    - name: musicbrainz-mbslave
+      kind: image
+      status: system
+    - name: node
+      kind: image
+      status: system
+    - name: node
+      kind: image
+      status: system
+    - name: python
+      kind: image
+      status: system
+    - name: python
+      kind: image
+      status: system
+    - name: python
+      kind: image
+      status: system
+    - name: quay.io/coreos/etcd
+      kind: image
+      status: system
+    - name: quay.io/jupyter/scipy-notebook
+      kind: image
+      status: system
+    - name: rayproject/ray
+      kind: image
+      status: system
+    - name: registry.weyland.lab/a2a-inspector
+      kind: image
+      status: system
+    - name: registry.weyland.lab/ray-head
+      kind: image
+      status: system
+    - name: registry.weyland.lab/realm-of-agents
+      kind: image
+      status: system
+    - name: registry.weyland.lab/realm-of-agents
+      kind: image
+      status: system
+    - name: registry.weyland.lab/realm-of-agents
+      kind: image
+      status: system
+    - name: registry.weyland.lab/realm-of-agents
+      kind: image
+      status: system
+    - name: registry.weyland.lab/realm-of-agents
+      kind: image
+      status: system
+    - name: registry.weyland.lab/realm-of-agents
+      kind: image
+      status: system
+    - name: registry.weyland.lab/realm-of-agents
+      kind: image
+      status: system
+    - name: registry.weyland.lab/realm-of-agents
+      kind: image
+      status: system
+    - name: registry.weyland.lab/realm-of-agents
+      kind: image
+      status: system
+    - name: registry.weyland.lab/realm-of-agents
+      kind: image
+      status: system
+    - name: registry.weyland.lab/realm-of-agents
+      kind: image
+      status: system
+    - name: registry.weyland.lab/realm-of-agents
+      kind: image
+      status: system
+    - name: registry.weyland.lab/realm-of-agents
+      kind: image
+      status: system
+    - name: registry.weyland.lab/realm-of-agents
+      kind: image
+      status: system
+    - name: registry.weyland.lab/realm-of-agents
+      kind: image
+      status: system
+    - name: registry.weyland.lab/realm-of-agents
+      kind: image
+      status: system
+    - name: registry.weyland.lab/realm-of-agents
+      kind: image
+      status: system
+    - name: registry.weyland.lab/realm-of-agents
+      kind: image
+      status: system
+    - name: registry.weyland.lab/realm-of-agents
+      kind: image
+      status: system
+    - name: registry.weyland.lab/realm-of-agents
+      kind: image
+      status: system
+    - name: registry.weyland.lab/weyland-dagster-user-code
+      kind: image
+      status: system
+    - name: registry.weyland.lab/weyland-dagster-user-code
+      kind: image
+      status: system
+    - name: registry.weyland.lab/weyland-jupyter
+      kind: image
+      status: system
+    - name: registry.weyland.lab/weyland-operator
+      kind: image
+      status: system
+    - name: store-scaler
+      kind: image
+      status: system
+    - name: weyland-dagster-base
+      kind: image
+      status: system
+    - name: weyland-dagster-user-code
+      kind: image
+      status: system
+    - name: weyland-dagster-user-code
+      kind: image
+      status: system
+    - name: weyland-flink
+      kind: image
+      status: system
+    - name: weyland-flink-py
+      kind: image
+      status: system
+    - name: weyland-jupyter
+      kind: image
+      status: system
+    - name: weyland-rag-index
+      kind: image
+      status: system
+    - name: weyland-tool-server
+      kind: image
+      status: system
+    - name: weyland/ranger
+      kind: image
+      status: system

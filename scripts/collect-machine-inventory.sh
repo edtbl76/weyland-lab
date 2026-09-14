@@ -53,12 +53,20 @@ fi
 printf 'sources:%s\n' "${ran:- NONE}" >&2
 SNIPPET
 
+# SSH user per host: weyland (the Proxmox host) has no `emangini` account → root; every other box → emangini
+# (feedback-ssh-conventions). Override for a new client with MACHINE_INV_SSH_USER.
+case "$host" in
+  weyland) sshuser="root" ;;
+  *)       sshuser="emangini" ;;
+esac
+sshuser="${MACHINE_INV_SSH_USER:-$sshuser}"
+
 # Local when the target names this box (hostname or the rogueone dev workstation); else SSH.
 this="$(hostname -s 2>/dev/null || hostname)"
 if [ "$host" = "$this" ] || { [ "$host" = "rogueone" ] && [ "$this" = "rogueone" ]; }; then
   printf 'collecting %s locally...\n' "$host" >&2
   bash -c "$GATHER"
 else
-  printf 'collecting %s over ssh (emangini@%s)...\n' "$host" "$host" >&2
-  ssh -o BatchMode=yes -o ConnectTimeout=10 "emangini@$host" "$GATHER"
+  printf 'collecting %s over ssh (%s@%s)...\n' "$host" "$sshuser" "$host" >&2
+  ssh -o BatchMode=yes -o ConnectTimeout=10 "$sshuser@$host" "$GATHER"
 fi

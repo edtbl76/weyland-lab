@@ -45,8 +45,10 @@ Entities (after a refresh — creds from `tofu/port/.env`):
 ## Onboarding a new machine (B169 / EMA-230)
 
 The same three steps for any additional client: **collect | merge** → curate its discretionary items in the SoT
-→ **emit**. Prereq: the machine is SSH-reachable as `emangini@<host>` (hostname, not IP —
-[feedback-ssh-conventions]). New hosts appear in Port automatically once emitted.
+→ **emit**. Prereq: the machine is SSH-reachable by **key** (not password — the collector uses `BatchMode`; run
+`ssh-copy-id <user>@<host>` once). SSH user per host: **weyland → `root`** (Proxmox host, no `emangini` account),
+every other box → `emangini` (the collector encodes this; override a new client with `MACHINE_INV_SSH_USER=<user>`).
+Hostnames, not IPs ([feedback-ssh-conventions]). New hosts appear in Port automatically once emitted.
 
 ## Notes / gotchas
 
