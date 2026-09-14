@@ -6,6 +6,7 @@ import threading
 from ..verdict import Verdict, Decision, Hook
 
 _DEFAULT_MODEL = "cross-encoder/nli-deberta-v3-small"
+_MODEL_DIR = os.environ.get("GROUNDING_ONNX_DIR", "/app/nli_onnx")   # ONNX export baked at build (U13; see Dockerfile)
 
 # B35 calibrated threshold. grounding.nli measures chunk-ATTRIBUTABILITY (is the answer traceable to
 # the retrieved chunks), NOT truth/faithfulness — good conceptual answers legitimately synthesize
@@ -95,10 +96,13 @@ class GroundingValidator:
     name = "grounding.nli"
     hooks = (Hook.OUTPUT,)
 
-    def __init__(self, cross_encoder=None, threshold: float | None = None, model_name: str = _DEFAULT_MODEL):
+    def __init__(self, cross_encoder=None, threshold: float | None = None,
+                 model_name: str = _DEFAULT_MODEL, model_dir: str = _MODEL_DIR):
         if cross_encoder is None:
-            from sentence_transformers import CrossEncoder
-            cross_encoder = CrossEncoder(model_name)
+            # U13: raw ONNX Runtime, byte-equivalent to the old sentence_transformers CrossEncoder (verified
+            # logit diff 0.0). Tests still inject a fake `cross_encoder`, so this path only runs in the pod.
+            from .onnx_runtime import OnnxCrossEncoder
+            cross_encoder = OnnxCrossEncoder(model_dir)
         self._ce = cross_encoder
         self._threshold = _DEFAULT_THRESHOLD if threshold is None else threshold
 

@@ -1,3 +1,15 @@
+# ── builder: export bge-base(768) + bge-small(384) → ONNX (U13). torch lives ONLY here and is thrown away. ──
+# The RAG-KB embedder (SentenceTransformerResource) is bge-base; the datasets_lib vector-store hydrator is
+# bge-small. We export both once (transformer graph → model.onnx + tokenizer.json); the runtime stage runs them
+# on raw ONNX Runtime — no torch/transformers/sentence-transformers (and no CUDA wheel stack) at runtime.
+FROM python:3.11-slim AS bge-export
+RUN pip install --no-cache-dir torch --index-url https://download.pytorch.org/whl/cpu
+RUN pip install --no-cache-dir "optimum[onnxruntime]" transformers
+RUN python -c "from optimum.onnxruntime import ORTModelForFeatureExtraction as M; from transformers import AutoTokenizer as T; \
+[(M.from_pretrained(n, export=True).save_pretrained(d), T.from_pretrained(n).save_pretrained(d)) \
+ for n, d in [('BAAI/bge-base-en-v1.5', '/export/bge_onnx_base'), ('BAAI/bge-small-en-v1.5', '/export/bge_onnx_small')]]"
+
+# ── runtime ──────────────────────────────────────────────────────────────────────────────────────
 FROM python:3.11-slim
 
 WORKDIR /app
@@ -13,8 +25,13 @@ RUN pip install --no-cache-dir --upgrade "pip>=25"
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Pre-download the embedding model so it's baked into the image
-RUN python -c "from sentence_transformers import SentenceTransformer; SentenceTransformer('BAAI/bge-base-en-v1.5')"
+# U13: the baked ONNX exports (from the builder stage) replace the old sentence-transformers model bake.
+# onnx_embedder.py loads them from /app/bge_onnx_base (768) + /app/bge_onnx_small (384) — its ONNX_MODEL_DIRS
+# defaults point here; ENV makes them explicit for the K8sRunLauncher run-pods spawned from this image.
+COPY --from=bge-export /export/bge_onnx_base /app/bge_onnx_base
+COPY --from=bge-export /export/bge_onnx_small /app/bge_onnx_small
+ENV BGE_BASE_ONNX_DIR=/app/bge_onnx_base \
+    BGE_SMALL_ONNX_DIR=/app/bge_onnx_small
 
 COPY weyland_pipeline/ ./weyland_pipeline/
 COPY feast_repo/ ./feast_repo/

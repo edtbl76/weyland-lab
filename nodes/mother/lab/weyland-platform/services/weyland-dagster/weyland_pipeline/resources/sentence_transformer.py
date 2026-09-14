@@ -1,12 +1,15 @@
 from dagster import ConfigurableResource
-from sentence_transformers import SentenceTransformer
+
+from .onnx_embedder import OnnxEmbedder
 
 
 class SentenceTransformerResource(ConfigurableResource):
     model_name: str = "BAAI/bge-base-en-v1.5"   # B74: 768-dim (was bge-small 384) for conceptual retrieval resolution
 
     def setup_for_execution(self, context) -> None:
-        self._model = SentenceTransformer(self.model_name)
+        # U13: raw ONNX Runtime, byte-equivalent to the old SentenceTransformer(model_name). Name kept for the
+        # dagster resource key + the many `sentence_transformer:` asset params that reference it.
+        self._model = OnnxEmbedder(self.model_name)
 
     def encode(self, text: str) -> list[float]:
         return self._model.encode(text, normalize_embeddings=True).tolist()

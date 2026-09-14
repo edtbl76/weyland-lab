@@ -26,28 +26,21 @@ from guardrails.verdict import Decision, Hook
 
 # ---------------------------------------------------------------- PromptGuard (injection)
 
-def _install_fake_transformers(scores):
-    """Stub `transformers.pipeline` so PromptGuardValidator loads no model.
+class _FakeClassifier:
+    """Stands in for OnnxTextClassifier — U13 injection seam so PromptGuardValidator loads no model.
 
-    `scores` is the list the pipeline returns, e.g. [{"label": "malicious", "score": 0.9}].
+    `scores` is the list of {label, score} the classifier returns, e.g. [{"label": "malicious", "score": 0.9}].
     """
-    class _Pipe:
-        def __init__(self, *a, **k):
-            pass
+    def __init__(self, scores):
+        self._scores = scores
 
-        def __call__(self, text, *a, **k):
-            return [scores]        # top_k=None shape: [[{label,score}, ...]]
-
-    mod = types.ModuleType("transformers")
-    mod.pipeline = lambda *a, **k: _Pipe()
-    sys.modules["transformers"] = mod
+    def __call__(self, text, *a, **k):
+        return self._scores
 
 
 def _prompt_guard(scores):
-    _install_fake_transformers(scores)
     import guardrails.validators.prompt_guard as pg
-    reload(pg)
-    return pg.PromptGuardValidator()
+    return pg.PromptGuardValidator(classifier=_FakeClassifier(scores))
 
 
 def test_injection_blocks_above_threshold():
@@ -66,18 +59,11 @@ def test_injection_passes_when_benign():
 
 def test_injection_fails_open_when_pipeline_raises():
     class _Boom:
-        def __init__(self, *a, **k):
-            pass
-
         def __call__(self, *a, **k):
             raise RuntimeError("model not loaded")
 
-    mod = types.ModuleType("transformers")
-    mod.pipeline = lambda *a, **k: _Boom()
-    sys.modules["transformers"] = mod
     import guardrails.validators.prompt_guard as pg
-    reload(pg)
-    v = pg.PromptGuardValidator().check({"query": "anything"}, Hook.INPUT)
+    v = pg.PromptGuardValidator(classifier=_Boom()).check({"query": "anything"}, Hook.INPUT)
     assert v.decision == Decision.PASS          # fail-open: advisory guards never block on error
     assert "error" in v.reason
 

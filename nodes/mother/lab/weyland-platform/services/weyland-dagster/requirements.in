@@ -1,7 +1,12 @@
 dagster
 dagster-postgres
 dagster-webserver
-sentence-transformers
+# U13: bge query/chunk embedding runs on raw ONNX Runtime now (byte-equivalent to sentence-transformers,
+# verified cosine 1.0). torch + sentence-transformers + transformers + the whole CUDA wheel stack (nvidia-*,
+# triton — ~7 GB, unused on the CPU-only code server) are DROPPED; the bge-base(768)/bge-small(384) ONNX
+# exports are baked in the Dockerfile builder stage. tokenizers stays (the ONNX tokenizer).
+onnxruntime
+tokenizers
 psycopg2-binary
 qdrant-client
 weaviate-client

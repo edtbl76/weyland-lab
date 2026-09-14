@@ -13,7 +13,6 @@ import weaviate
 from fastapi import Depends, FastAPI, Header, HTTPException, Query, Response
 from fastmcp import FastMCP
 from fastmcp.server.providers.openapi import RouteMap, MCPType
-from llama_index.embeddings.huggingface import HuggingFaceEmbedding
 from neo4j import GraphDatabase
 from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
 from pydantic import BaseModel
@@ -33,6 +32,33 @@ sentry_sdk.init(
 )
 
 MODEL_NAME = "BAAI/bge-base-en-v1.5"   # B74: 768-dim — MUST match the ingest embedder (query & index dims must agree)
+MODEL_DIR = os.environ.get("BGE_ONNX_DIR", "/app/bge_onnx")   # ONNX export baked at build time (see Dockerfile)
+
+
+class OnnxBge:
+    """bge-base-en-v1.5 query embedder on raw ONNX Runtime (U13). CLS pooling + L2 normalize —
+    byte-equivalent to sentence-transformers/HuggingFaceEmbedding (verified cosine 1.0 vs ST, so the
+    hydrated Qdrant/Weaviate/Neo4j vectors stay valid; NO re-hydration). Runtime deps are onnxruntime +
+    tokenizers + numpy ONLY — torch/transformers/sentence-transformers are gone (~1.2 GB dropped). The
+    ONNX model + tokenizer.json are exported in the Dockerfile's builder stage."""
+
+    def __init__(self, model_dir: str = MODEL_DIR):
+        import onnxruntime as ort
+        from tokenizers import Tokenizer
+        self._sess = ort.InferenceSession(f"{model_dir}/model.onnx", providers=["CPUExecutionProvider"])
+        self._tok = Tokenizer.from_file(f"{model_dir}/tokenizer.json")
+        self._tok.enable_truncation(max_length=512)
+        self._names = [i.name for i in self._sess.get_inputs()]
+
+    def get_text_embedding(self, text: str) -> list[float]:
+        import numpy as np
+        e = self._tok.encode(text)
+        avail = {"input_ids": e.ids, "attention_mask": e.attention_mask, "token_type_ids": e.type_ids}
+        feed = {n: np.array([avail[n]], dtype=np.int64) for n in self._names}
+        cls = self._sess.run(None, feed)[0][0, 0]     # (1,seq,768) -> CLS token
+        return (cls / np.linalg.norm(cls)).astype(np.float32).tolist()
+
+
 VERSION = "0.7.0"  # B100 Phase 2 — RAG system prompt from the MLflow Prompt Registry (fail-safe, TTL-cached)
 
 PG_HOST = os.getenv("WEYLAND_DB_HOST", "weyland-postgres.weyland.svc.cluster.local")
@@ -102,7 +128,7 @@ validate_required_secrets()
 
 VALID_BACKENDS = {"pgvector", "qdrant", "weaviate", "neo4j"}
 
-embed_model: HuggingFaceEmbedding | None = None
+embed_model: OnnxBge | None = None
 qdrant_client: QdrantClient | None = None
 weaviate_client: weaviate.WeaviateClient | None = None
 neo4j_driver = None
@@ -245,7 +271,7 @@ def _lf_generation(name: str, model: str, input_messages, prompt_name: str,
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     global embed_model, qdrant_client, weaviate_client, neo4j_driver
-    embed_model = HuggingFaceEmbedding(model_name=MODEL_NAME)
+    embed_model = OnnxBge(MODEL_DIR)
     qdrant_client = QdrantClient(host=QDRANT_HOST, port=QDRANT_PORT)
     weaviate_client = weaviate.connect_to_custom(
         http_host=WEAVIATE_HOST,

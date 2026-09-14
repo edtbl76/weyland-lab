@@ -710,12 +710,14 @@ def _weaviate_client():
 
 
 def _embedder():
-    """bge-small-en-v1.5 — the same model the RAG uses; loaded once per process."""
+    """bge-small-en-v1.5 on raw ONNX Runtime (U13) — loaded once per process. Byte-equivalent to the old
+    SentenceTransformer; `.encode(texts, normalize_embeddings=..., batch_size=..., show_progress_bar=...)`
+    keeps the same shape (2-D np array), so the `[v.tolist() for v in vecs]` caller is unchanged."""
     global _EMBEDDER
     if _EMBEDDER is None:
-        from sentence_transformers import SentenceTransformer
+        from weyland_pipeline.resources.onnx_embedder import OnnxEmbedder
 
-        _EMBEDDER = SentenceTransformer(os.environ.get("EMBED_MODEL", "BAAI/bge-small-en-v1.5"))
+        _EMBEDDER = OnnxEmbedder(os.environ.get("EMBED_MODEL", "BAAI/bge-small-en-v1.5"))
     return _EMBEDDER
 
 

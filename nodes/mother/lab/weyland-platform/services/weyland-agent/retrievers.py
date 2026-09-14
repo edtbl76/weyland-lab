@@ -12,12 +12,37 @@ import psycopg2
 import weaviate
 from llama_index.core.retrievers import BaseRetriever
 from llama_index.core.schema import NodeWithScore, QueryBundle, TextNode
-from llama_index.embeddings.huggingface import HuggingFaceEmbedding
 from neo4j import GraphDatabase
 from qdrant_client import QdrantClient
 from weaviate.classes.query import MetadataQuery
 
 MODEL_NAME = "BAAI/bge-base-en-v1.5"   # B74: 768-dim — MUST match the collections + the tool-server query embedder
+MODEL_DIR = os.environ.get("BGE_ONNX_DIR", "/app/bge_onnx")   # ONNX export baked at build time (U13; see Dockerfile)
+
+
+class OnnxBge:
+    """bge-base-en-v1.5 query embedder on raw ONNX Runtime (U13) — CLS pooling + L2 normalize, byte-equivalent
+    to the old HuggingFaceEmbedding (verified cosine 1.0 vs sentence-transformers). Runtime deps: onnxruntime +
+    tokenizers + numpy only (torch/sentence-transformers dropped). MUST stay in sync with the identical class in
+    weyland-tool-server/main.py — both embed the SAME model into the SAME collections."""
+
+    def __init__(self, model_dir: str = MODEL_DIR):
+        import onnxruntime as ort
+        from tokenizers import Tokenizer
+        self._sess = ort.InferenceSession(f"{model_dir}/model.onnx", providers=["CPUExecutionProvider"])
+        self._tok = Tokenizer.from_file(f"{model_dir}/tokenizer.json")
+        self._tok.enable_truncation(max_length=512)
+        self._names = [i.name for i in self._sess.get_inputs()]
+
+    def get_text_embedding(self, text: str) -> list[float]:
+        import numpy as np
+        e = self._tok.encode(text)
+        avail = {"input_ids": e.ids, "attention_mask": e.attention_mask, "token_type_ids": e.type_ids}
+        feed = {n: np.array([avail[n]], dtype=np.int64) for n in self._names}
+        cls = self._sess.run(None, feed)[0][0, 0]     # (1,seq,768) -> CLS token
+        return (cls / np.linalg.norm(cls)).astype(np.float32).tolist()
+
+
 VALID_BACKENDS = {"pgvector", "qdrant", "weaviate", "neo4j"}
 
 PG_HOST = os.getenv("WEYLAND_DB_HOST", "weyland-postgres.weyland.svc.cluster.local")
@@ -34,7 +59,7 @@ NEO4J_URI = os.getenv("NEO4J_URI", "bolt://neo4j.weyland.svc.cluster.local:7687"
 NEO4J_USER = os.getenv("NEO4J_USER", "neo4j")
 NEO4J_PASSWORD = os.getenv("NEO4J_PASSWORD", "")
 
-_embed: HuggingFaceEmbedding | None = None
+_embed: OnnxBge | None = None
 _qdrant: QdrantClient | None = None
 _weaviate = None
 _neo4j = None
@@ -43,7 +68,7 @@ _neo4j = None
 def init() -> None:
     """Load the embedding model + open the persistent clients. Called once at app startup (lifespan)."""
     global _embed, _qdrant, _weaviate, _neo4j
-    _embed = HuggingFaceEmbedding(model_name=MODEL_NAME)
+    _embed = OnnxBge(MODEL_DIR)
     _qdrant = QdrantClient(host=QDRANT_HOST, port=QDRANT_PORT)
     _weaviate = weaviate.connect_to_custom(
         http_host=WEAVIATE_HOST, http_port=WEAVIATE_PORT, http_secure=False,
