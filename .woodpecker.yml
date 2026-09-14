@@ -273,7 +273,7 @@ steps:
     commands:
       - pip install --quiet pyyaml
       - apt-get update -qq >/dev/null && apt-get install -y -qq curl >/dev/null
-      - curl -sSfL -o /usr/local/bin/opa https://openpolicyagent.org/downloads/latest/opa_linux_amd64_static
+      - curl -sSfL --retry 5 --retry-all-errors --retry-delay 3 -o /usr/local/bin/opa https://openpolicyagent.org/downloads/latest/opa_linux_amd64_static
       - chmod +x /usr/local/bin/opa
       - sh scripts/ci/check-rego-policies.sh
 
@@ -474,9 +474,12 @@ steps:
       # AWS 25.x needs Alire's binary GNAT 14.2.1 (Ubuntu FSF GNAT 13.3 can't compile gnatcoll 25.x); the
       # build shells out to gcc/git/curl/openssl-dev (see the golden path's Dockerfile). CI-confirms the lane.
       - apt-get update && apt-get install -y --no-install-recommends build-essential libssl-dev git curl ca-certificates unzip
-      - curl -fsSL https://github.com/alire-project/alire/releases/download/v2.1.1/alr-2.1.1-bin-x86_64-linux.zip -o /tmp/alr.zip
+      - curl -fsSL --retry 5 --retry-all-errors --retry-delay 3 https://github.com/alire-project/alire/releases/download/v2.1.1/alr-2.1.1-bin-x86_64-linux.zip -o /tmp/alr.zip
       - unzip -q /tmp/alr.zip -d /tmp/alr && install -m755 /tmp/alr/bin/alr /usr/local/bin/alr
-      - alr -n --force toolchain --select gnat_native=14.2.1 gprbuild=26.0.1
+      # alr downloads gnat/gprbuild from GitHub INTERNALLY (no curl flag reaches it), and a single 504 on
+      # the gprbuild asset fails the lane — seen 2026-09-14. Retry the whole toolchain install up to 5×,
+      # fail CLOSED on the 5th (never let the last failed attempt's exit be masked into success).
+      - for i in 1 2 3 4 5; do alr -n --force toolchain --select gnat_native=14.2.1 gprbuild=26.0.1 && break; [ "$i" = 5 ] && { echo "alr toolchain failed after 5 attempts"; exit 1; }; echo "alr toolchain attempt $i/5 failed (transient 504?); retrying in 5s"; sleep 5; done
       - bash scripts/run-lang-tests.sh ada --self-check
       - bash scripts/run-lang-tests.sh ada
 
@@ -760,9 +763,12 @@ steps:
             memory: 6Gi
     commands:
       - apt-get update && apt-get install -y --no-install-recommends build-essential libssl-dev git curl ca-certificates unzip
-      - curl -fsSL https://github.com/alire-project/alire/releases/download/v2.1.1/alr-2.1.1-bin-x86_64-linux.zip -o /tmp/alr.zip
+      - curl -fsSL --retry 5 --retry-all-errors --retry-delay 3 https://github.com/alire-project/alire/releases/download/v2.1.1/alr-2.1.1-bin-x86_64-linux.zip -o /tmp/alr.zip
       - unzip -q /tmp/alr.zip -d /tmp/alr && install -m755 /tmp/alr/bin/alr /usr/local/bin/alr
-      - alr -n --force toolchain --select gnat_native=14.2.1 gprbuild=26.0.1
+      # alr downloads gnat/gprbuild from GitHub INTERNALLY (no curl flag reaches it), and a single 504 on
+      # the gprbuild asset fails the lane — seen 2026-09-14. Retry the whole toolchain install up to 5×,
+      # fail CLOSED on the 5th (never let the last failed attempt's exit be masked into success).
+      - for i in 1 2 3 4 5; do alr -n --force toolchain --select gnat_native=14.2.1 gprbuild=26.0.1 && break; [ "$i" = 5 ] && { echo "alr toolchain failed after 5 attempts"; exit 1; }; echo "alr toolchain attempt $i/5 failed (transient 504?); retrying in 5s"; sleep 5; done
       - bash scripts/run-lang-scan.sh ada
 
   - name: scan-kotlin
@@ -876,7 +882,7 @@ steps:
     commands:
       # buildctl ships in moby/buildkit; add bash (the script uses arrays) + kubectl (apply/wait/logs/delete).
       - apk add --no-cache bash curl >/dev/null 2>&1
-      - curl -sSfL -o /usr/local/bin/kubectl "https://dl.k8s.io/release/$(curl -sSfL https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl" && chmod +x /usr/local/bin/kubectl
+      - curl -sSfL --retry 5 --retry-all-errors --retry-delay 3 -o /usr/local/bin/kubectl "https://dl.k8s.io/release/$(curl -sSfL --retry 5 --retry-all-errors --retry-delay 3 https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl" && chmod +x /usr/local/bin/kubectl
       # Scope by the GOLDEN_PATH_ONLY pipeline variable: unset = ALL 21 (the cron/full-regression default);
       # set = only those path(s), so a language under development builds+smokes in seconds instead of rebuilding
       # every path cold. Pass it on a manual trigger, e.g.:
@@ -963,13 +969,13 @@ steps:
       # B88 Phase 3 — syft + cosign + trivy are fetched here rather than baked into moby/buildkit,
       # which is upstream's image and not ours to rebuild. All single static binaries.
       - apk add --no-cache curl bash >/dev/null 2>&1 || true
-      - curl -sSfL https://raw.githubusercontent.com/anchore/syft/main/install.sh | sh -s -- -b /usr/local/bin >/dev/null
-      - curl -sSfL -o /usr/local/bin/cosign https://github.com/sigstore/cosign/releases/latest/download/cosign-linux-amd64
+      - curl -sSfL --retry 5 --retry-all-errors --retry-delay 3 https://raw.githubusercontent.com/anchore/syft/main/install.sh | sh -s -- -b /usr/local/bin >/dev/null
+      - curl -sSfL --retry 5 --retry-all-errors --retry-delay 3 -o /usr/local/bin/cosign https://github.com/sigstore/cosign/releases/latest/download/cosign-linux-amd64
       - chmod +x /usr/local/bin/cosign
       # B88 gap #3 — trivy for the per-build vulnerability scan (supply-chain.sh vuln). Weekly-only
       # trivy meant a base-image CVE sat uncaught until Sunday; this runs it per pushed image (loud,
       # non-fatal). trivy pulls its vuln DB on first run — a cache lives in gap #6.
-      - curl -sSfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b /usr/local/bin >/dev/null
+      - curl -sSfL --retry 5 --retry-all-errors --retry-delay 3 https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b /usr/local/bin >/dev/null
       # Warm trivy's vuln DB ONCE before the scan loop. Without this, the first image's scan races the
       # DB download and trivy returns a valid-looking 0-findings report (observed: a fresh install
       # reported 0 CVEs for an image that really had 327) — an absence-as-success the per-scan guard
