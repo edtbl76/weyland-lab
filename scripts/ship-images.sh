@@ -29,14 +29,16 @@ BASE="main"
 
 # Waits. Overridable so the test suite can drive the poll loops with no wall-clock cost
 # (SHIP_POLL_INTERVAL=0), which is also why they are read with `${VAR-default}` and not `:-`.
-SHIP_POLL_TIMEOUT="${SHIP_POLL_TIMEOUT:-3600}"    # 60m — one `build` step builds BOTH images off the
-# shared services/weyland-dagster context (weyland-dagster-user-code AND feast-server, different
-# Dockerfiles), so a COLD run is two sequential builds + cache export + kubeconform/deploy-handoff/
-# notify-port. On 2026-09-01 that pair took >30m and the old 1800s poll timed out on a pipeline that was
-# still legitimately building feast-server — FR1.3 failed closed on a build that then succeeded. The poll
-# exits the instant the pipeline is terminal, so a longer ceiling only costs time on a genuinely hung run.
-# The SAME detector CI runs, so the local answer and the pipeline's cannot disagree. Overridable for
-# the test suite only.
+SHIP_POLL_TIMEOUT="${SHIP_POLL_TIMEOUT:-7200}"    # 120m — a COLD full run stacks the `build` step (two
+# sequential builds off the shared services/weyland-dagster context — weyland-dagster-user-code AND
+# feast-server, different Dockerfiles — plus cache export + kubeconform/deploy-handoff/notify-port) BEHIND
+# the source-building scan lanes (Ada/Haskell/… compile their toolchain + deps from source) and the
+# golden-path-smoke image builds. On 2026-09-01 the build pair alone took >30m (the old 1800s poll bailed);
+# on 2026-09-14 a full run passed 60m and the 3600s poll bailed on #140 — "ended as: running" on a pipeline
+# that then SUCCEEDED, so the bump PR was never merged (13 such stale PRs had accumulated). The poll exits the
+# instant the pipeline is terminal, so a higher ceiling only costs time on a genuinely hung run — and the
+# pipeline's own 180m cap bounds that. The SAME detector CI runs, so local and pipeline answers cannot
+# disagree. Overridable for the test suite only.
 SHIP_DETECT="${SHIP_DETECT:-$(dirname "${BASH_SOURCE[0]}")/ci/detect-changes.sh}"
 # SHIP_ROLLOUT_TIMEOUT is read inside all_bumped_images_live (default 600s — Argo self-heal polls ~3m and the
 # roll follows), not defaulted here: a global assignment would shadow the function's own default. (It was briefly
