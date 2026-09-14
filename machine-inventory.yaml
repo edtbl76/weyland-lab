@@ -1,0 +1,2232 @@
+# Machine-inventory catalog (B129) — curated keep/remove/rationale per host.
+# status: keep | remove | system (dep baseline) | unreviewed (new, needs a decision).
+# Maintained by scripts/machine_inventory.py; refresh via docs/runbooks/machine-inventory.md.
+hosts:
+  rogueone:
+    role: dev workstation (desktop; GPU)
+    packages:
+    - name: alsa-base
+      kind: apt
+      status: system
+    - name: alsa-utils
+      kind: apt
+      status: system
+    - name: anacron
+      kind: apt
+      status: system
+    - name: antigravity
+      kind: apt
+      status: system
+    - name: appimagelauncher
+      kind: apt
+      status: system
+    - name: apport-gtk
+      kind: apt
+      status: system
+    - name: appstream
+      kind: apt
+      status: system
+    - name: apt-config-icons-hidpi
+      kind: apt
+      status: system
+    - name: apt-transport-https
+      kind: apt
+      status: system
+    - name: at-spi2-core
+      kind: apt
+      status: system
+    - name: avahi-daemon
+      kind: apt
+      status: system
+    - name: baobab
+      kind: apt
+      status: system
+    - name: bat
+      kind: apt
+      status: system
+    - name: bc
+      kind: apt
+      status: system
+    - name: bluez
+      kind: apt
+      status: system
+    - name: bluez-cups
+      kind: apt
+      status: system
+    - name: bridge-utils
+      kind: apt
+      status: system
+    - name: brltty
+      kind: apt
+      status: system
+    - name: bsdutils
+      kind: apt
+      status: system
+    - name: btop
+      kind: apt
+      status: system
+    - name: build-essential
+      kind: apt
+      status: system
+    - name: ca-certificates
+      kind: apt
+      status: system
+    - name: clamtk
+      kind: apt
+      status: system
+    - name: cloud-init
+      kind: apt
+      status: system
+    - name: containerd.io
+      kind: apt
+      status: system
+    - name: cpu-checker
+      kind: apt
+      status: system
+    - name: cups
+      kind: apt
+      status: system
+    - name: cups-bsd
+      kind: apt
+      status: system
+    - name: cups-client
+      kind: apt
+      status: system
+    - name: cups-filters
+      kind: apt
+      status: system
+    - name: curl
+      kind: apt
+      status: system
+    - name: cursor
+      kind: apt
+      status: system
+    - name: cursor-sandbox-apparmor
+      kind: apt
+      status: system
+    - name: dash
+      kind: apt
+      status: system
+    - name: ddgr
+      kind: apt
+      status: system
+    - name: diffutils
+      kind: apt
+      status: system
+    - name: dirmngr
+      kind: apt
+      status: system
+    - name: dmz-cursor-theme
+      kind: apt
+      status: system
+    - name: docker-buildx-plugin
+      kind: apt
+      status: system
+    - name: docker-ce
+      kind: apt
+      status: system
+    - name: docker-ce-cli
+      kind: apt
+      status: system
+    - name: docker-compose
+      kind: apt
+      status: system
+    - name: docker-compose-plugin
+      kind: apt
+      status: system
+    - name: docker-desktop
+      kind: apt
+      status: system
+    - name: dosbox
+      kind: apt
+      status: system
+    - name: earlyoom
+      kind: apt
+      status: system
+    - name: efibootmgr
+      kind: apt
+      status: system
+    - name: eog
+      kind: apt
+      status: system
+    - name: evince
+      kind: apt
+      status: system
+    - name: findutils
+      kind: apt
+      status: system
+    - name: firefox
+      kind: apt
+      status: system
+    - name: flatpak
+      kind: apt
+      status: system
+    - name: fontconfig
+      kind: apt
+      status: system
+    - name: fonts-dejavu-core
+      kind: apt
+      status: system
+    - name: fonts-liberation
+      kind: apt
+      status: system
+    - name: fonts-noto-cjk
+      kind: apt
+      status: system
+    - name: fonts-noto-color-emoji
+      kind: apt
+      status: system
+    - name: fonts-noto-core
+      kind: apt
+      status: system
+    - name: fonts-ubuntu
+      kind: apt
+      status: system
+    - name: foomatic-db-compressed-ppds
+      kind: apt
+      status: system
+    - name: fwupd
+      kind: apt
+      status: system
+    - name: fwupd-signed
+      kind: apt
+      status: system
+    - name: fzf
+      kind: apt
+      status: system
+    - name: gameconqueror
+      kind: apt
+      status: system
+    - name: gamemode
+      kind: apt
+      status: system
+    - name: gdm3
+      kind: apt
+      status: system
+    - name: gh
+      kind: apt
+      status: system
+    - name: ghostscript
+      kind: apt
+      status: system
+    - name: gir1.2-gmenu-3.0
+      kind: apt
+      status: system
+    - name: git
+      kind: apt
+      status: system
+    - name: git-extras
+      kind: apt
+      status: system
+    - name: git-lfs
+      kind: apt
+      status: system
+    - name: gitk
+      kind: apt
+      status: system
+    - name: gnome-accessibility-themes
+      kind: apt
+      status: system
+    - name: gnome-bluetooth-sendto
+      kind: apt
+      status: system
+    - name: gnome-calculator
+      kind: apt
+      status: system
+    - name: gnome-characters
+      kind: apt
+      status: system
+    - name: gnome-clocks
+      kind: apt
+      status: system
+    - name: gnome-control-center
+      kind: apt
+      status: system
+    - name: gnome-disk-utility
+      kind: apt
+      status: system
+    - name: gnome-font-viewer
+      kind: apt
+      status: system
+    - name: gnome-initial-setup
+      kind: apt
+      status: system
+    - name: gnome-keyring
+      kind: apt
+      status: system
+    - name: gnome-logs
+      kind: apt
+      status: system
+    - name: gnome-menus
+      kind: apt
+      status: system
+    - name: gnome-power-manager
+      kind: apt
+      status: system
+    - name: gnome-remote-desktop
+      kind: apt
+      status: system
+    - name: gnome-session-canberra
+      kind: apt
+      status: system
+    - name: gnome-settings-daemon
+      kind: apt
+      status: system
+    - name: gnome-shell
+      kind: apt
+      status: system
+    - name: gnome-software-plugin-flatpak
+      kind: apt
+      status: system
+    - name: gnome-system-monitor
+      kind: apt
+      status: system
+    - name: gnome-terminal
+      kind: apt
+      status: system
+    - name: gnome-text-editor
+      kind: apt
+      status: system
+    - name: gnupg
+      kind: apt
+      status: system
+    - name: gnupg2
+      kind: apt
+      status: system
+    - name: google-chrome-stable
+      kind: apt
+      status: system
+    - name: gpg-agent
+      kind: apt
+      status: system
+    - name: graphviz
+      kind: apt
+      status: system
+    - name: grep
+      kind: apt
+      status: system
+    - name: grub-efi-amd64
+      kind: apt
+      status: system
+    - name: grub-efi-amd64-signed
+      kind: apt
+      status: system
+    - name: gsettings-ubuntu-schemas
+      kind: apt
+      status: system
+    - name: gstreamer1.0-alsa
+      kind: apt
+      status: system
+    - name: gstreamer1.0-packagekit
+      kind: apt
+      status: system
+    - name: gstreamer1.0-plugins-base-apps
+      kind: apt
+      status: system
+    - name: gvfs-fuse
+      kind: apt
+      status: system
+    - name: gzip
+      kind: apt
+      status: system
+    - name: hostname
+      kind: apt
+      status: system
+    - name: hplip
+      kind: apt
+      status: system
+    - name: htop
+      kind: apt
+      status: system
+    - name: httpie
+      kind: apt
+      status: system
+    - name: hyphen-en-ca
+      kind: apt
+      status: system
+    - name: hyphen-en-gb
+      kind: apt
+      status: system
+    - name: hyphen-en-us
+      kind: apt
+      status: system
+    - name: ibus
+      kind: apt
+      status: system
+    - name: ibus-gtk
+      kind: apt
+      status: system
+    - name: ibus-gtk3
+      kind: apt
+      status: system
+    - name: ibus-table
+      kind: apt
+      status: system
+    - name: ibus-table-cangjie-big
+      kind: apt
+      status: system
+    - name: ibus-table-cangjie3
+      kind: apt
+      status: system
+    - name: ibus-table-cangjie5
+      kind: apt
+      status: system
+    - name: im-config
+      kind: apt
+      status: system
+    - name: init
+      kind: apt
+      status: system
+    - name: inputattach
+      kind: apt
+      status: system
+    - name: jq
+      kind: apt
+      status: system
+    - name: k6
+      kind: apt
+      status: system
+    - name: kdump-tools
+      kind: apt
+      status: system
+    - name: kerneloops
+      kind: apt
+      status: system
+    - name: language-pack-en
+      kind: apt
+      status: system
+    - name: language-pack-en-base
+      kind: apt
+      status: system
+    - name: language-pack-gnome-en
+      kind: apt
+      status: system
+    - name: language-pack-gnome-en-base
+      kind: apt
+      status: system
+    - name: language-selector-common
+      kind: apt
+      status: system
+    - name: language-selector-gnome
+      kind: apt
+      status: system
+    - name: laptop-detect
+      kind: apt
+      status: system
+    - name: libatk-adaptor
+      kind: apt
+      status: system
+    - name: libbz2-dev
+      kind: apt
+      status: system
+    - name: libchewing3
+      kind: apt
+      status: system
+    - name: libchewing3-data
+      kind: apt
+      status: system
+    - name: libffi-dev
+      kind: apt
+      status: system
+    - name: libfuse2t64
+      kind: apt
+      status: system
+    - name: libgl1-mesa-dri
+      kind: apt
+      status: system
+    - name: libgl1-mesa-dri
+      kind: apt
+      status: system
+    - name: libglib2.0-bin
+      kind: apt
+      status: system
+    - name: liblzma-dev
+      kind: apt
+      status: system
+    - name: libm17n-0
+      kind: apt
+      status: system
+    - name: libmarisa0
+      kind: apt
+      status: system
+    - name: libncurses-dev
+      kind: apt
+      status: system
+    - name: libnotify-bin
+      kind: apt
+      status: system
+    - name: libnss-mdns
+      kind: apt
+      status: system
+    - name: libnss3-tools
+      kind: apt
+      status: system
+    - name: libopencc-data
+      kind: apt
+      status: system
+    - name: libopencc1.1
+      kind: apt
+      status: system
+    - name: libotf1
+      kind: apt
+      status: system
+    - name: libpam-fprintd
+      kind: apt
+      status: system
+    - name: libpam-gnome-keyring
+      kind: apt
+      status: system
+    - name: libpam-sss
+      kind: apt
+      status: system
+    - name: libpinyin-data
+      kind: apt
+      status: system
+    - name: libpinyin15
+      kind: apt
+      status: system
+    - name: libproxy1-plugin-gsettings
+      kind: apt
+      status: system
+    - name: libproxy1-plugin-networkmanager
+      kind: apt
+      status: system
+    - name: libreadline-dev
+      kind: apt
+      status: system
+    - name: libreoffice-help-common
+      kind: apt
+      status: system
+    - name: libreoffice-help-en-gb
+      kind: apt
+      status: system
+    - name: libreoffice-help-en-us
+      kind: apt
+      status: system
+    - name: libreoffice-l10n-en-gb
+      kind: apt
+      status: system
+    - name: libreoffice-l10n-en-za
+      kind: apt
+      status: system
+    - name: libsasl2-modules
+      kind: apt
+      status: system
+    - name: libsasl2-modules
+      kind: apt
+      status: system
+    - name: libspa-0.2-bluetooth
+      kind: apt
+      status: system
+    - name: libsqlite3-dev
+      kind: apt
+      status: system
+    - name: libssl-dev
+      kind: apt
+      status: system
+    - name: libu2f-udev
+      kind: apt
+      status: system
+    - name: libvirt-clients
+      kind: apt
+      status: system
+    - name: libvirt-daemon-system
+      kind: apt
+      status: system
+    - name: libwmf0.2-7-gtk
+      kind: apt
+      status: system
+    - name: libxml2-dev
+      kind: apt
+      status: system
+    - name: libxmlsec1-dev
+      kind: apt
+      status: system
+    - name: linux-generic-hwe-24.04
+      kind: apt
+      status: system
+    - name: linux-modules-nvidia-595-open-generic-hwe-24.04
+      kind: apt
+      status: system
+    - name: llvm
+      kind: apt
+      status: system
+    - name: login
+      kind: apt
+      status: system
+    - name: m17n-db
+      kind: apt
+      status: system
+    - name: make
+      kind: apt
+      status: system
+    - name: memtest86+
+      kind: apt
+      status: system
+    - name: memtester
+      kind: apt
+      status: system
+    - name: mkcert
+      kind: apt
+      status: system
+    - name: mousetweaks
+      kind: apt
+      status: system
+    - name: msty
+      kind: apt
+      status: system
+    - name: mythes-en-au
+      kind: apt
+      status: system
+    - name: mythes-en-us
+      kind: apt
+      status: system
+    - name: nautilus
+      kind: apt
+      status: system
+    - name: nautilus-sendto
+      kind: apt
+      status: system
+    - name: ncurses-base
+      kind: apt
+      status: system
+    - name: ncurses-bin
+      kind: apt
+      status: system
+    - name: network-manager
+      kind: apt
+      status: system
+    - name: network-manager-config-connectivity-ubuntu
+      kind: apt
+      status: system
+    - name: network-manager-openvpn-gnome
+      kind: apt
+      status: system
+    - name: network-manager-pptp-gnome
+      kind: apt
+      status: system
+    - name: nvidia-container-toolkit
+      kind: apt
+      status: system
+    - name: nvidia-driver-595-open
+      kind: apt
+      status: system
+    - name: okular
+      kind: apt
+      status: system
+    - name: openprinting-ppds
+      kind: apt
+      status: system
+    - name: openssh-server
+      kind: apt
+      status: system
+    - name: orca
+      kind: apt
+      status: system
+    - name: packagekit
+      kind: apt
+      status: system
+    - name: pass
+      kind: apt
+      status: system
+    - name: pcmciautils
+      kind: apt
+      status: system
+    - name: pipewire-pulse
+      kind: apt
+      status: system
+    - name: plymouth-theme-spinner
+      kind: apt
+      status: system
+    - name: policykit-desktop-privileges
+      kind: apt
+      status: system
+    - name: printer-driver-brlaser
+      kind: apt
+      status: system
+    - name: printer-driver-c2esp
+      kind: apt
+      status: system
+    - name: printer-driver-foo2zjs
+      kind: apt
+      status: system
+    - name: printer-driver-m2300w
+      kind: apt
+      status: system
+    - name: printer-driver-min12xxw
+      kind: apt
+      status: system
+    - name: printer-driver-pnm2ppa
+      kind: apt
+      status: system
+    - name: printer-driver-ptouch
+      kind: apt
+      status: system
+    - name: printer-driver-pxljr
+      kind: apt
+      status: system
+    - name: printer-driver-sag-gdi
+      kind: apt
+      status: system
+    - name: printer-driver-splix
+      kind: apt
+      status: system
+    - name: pydf
+      kind: apt
+      status: system
+    - name: python3-netifaces
+      kind: apt
+      status: system
+    - name: python3-pip
+      kind: apt
+      status: system
+    - name: python3-pydrive2
+      kind: apt
+      status: system
+    - name: python3.12-venv
+      kind: apt
+      status: system
+    - name: restic
+      kind: apt
+      status: system
+    - name: rfkill
+      kind: apt
+      status: system
+    - name: seahorse
+      kind: apt
+      status: system
+    - name: shim-signed
+      kind: apt
+      status: system
+    - name: smem
+      kind: apt
+      status: system
+    - name: snapd
+      kind: apt
+      status: system
+    - name: software-properties-gtk
+      kind: apt
+      status: system
+    - name: speech-dispatcher
+      kind: apt
+      status: system
+    - name: spice-vdagent
+      kind: apt
+      status: system
+    - name: sqlitebrowser
+      kind: apt
+      status: system
+    - name: stacer
+      kind: apt
+      status: system
+    - name: stress-ng
+      kind: apt
+      status: system
+    - name: synergy
+      kind: apt
+      status: system
+    - name: systemd-coredump
+      kind: apt
+      status: system
+    - name: systemd-oomd
+      kind: apt
+      status: system
+    - name: tailscale
+      kind: apt
+      status: system
+    - name: tailscale-archive-keyring
+      kind: apt
+      status: system
+    - name: terminator
+      kind: apt
+      status: system
+    - name: tk-dev
+      kind: apt
+      status: system
+    - name: tofu
+      kind: apt
+      status: system
+    - name: tuxguitar
+      kind: apt
+      status: system
+    - name: ubuntu-desktop
+      kind: apt
+      status: system
+    - name: ubuntu-docs
+      kind: apt
+      status: system
+    - name: ubuntu-drivers-common
+      kind: apt
+      status: system
+    - name: ubuntu-minimal
+      kind: apt
+      status: system
+    - name: ubuntu-release-upgrader-gtk
+      kind: apt
+      status: system
+    - name: ubuntu-report
+      kind: apt
+      status: system
+    - name: ubuntu-restricted-addons
+      kind: apt
+      status: system
+    - name: ubuntu-settings
+      kind: apt
+      status: system
+    - name: ubuntu-standard
+      kind: apt
+      status: system
+    - name: ubuntu-wallpapers
+      kind: apt
+      status: system
+    - name: unzip
+      kind: apt
+      status: system
+    - name: update-manager
+      kind: apt
+      status: system
+    - name: update-notifier
+      kind: apt
+      status: system
+    - name: valgrind
+      kind: apt
+      status: system
+    - name: vim
+      kind: apt
+      status: system
+    - name: wget
+      kind: apt
+      status: system
+    - name: whoopsie
+      kind: apt
+      status: system
+    - name: wine
+      kind: apt
+      status: system
+    - name: wireless-tools
+      kind: apt
+      status: system
+    - name: wireplumber
+      kind: apt
+      status: system
+    - name: wpasupplicant
+      kind: apt
+      status: system
+    - name: xcursor-themes
+      kind: apt
+      status: system
+    - name: xdg-desktop-portal-gnome
+      kind: apt
+      status: system
+    - name: xdg-user-dirs
+      kind: apt
+      status: system
+    - name: xdg-user-dirs-gtk
+      kind: apt
+      status: system
+    - name: xdg-utils
+      kind: apt
+      status: system
+    - name: xdotool
+      kind: apt
+      status: system
+    - name: xkb-data
+      kind: apt
+      status: system
+    - name: xorg
+      kind: apt
+      status: system
+    - name: xournalpp
+      kind: apt
+      status: system
+    - name: xvkbd
+      kind: apt
+      status: system
+    - name: xz-utils
+      kind: apt
+      status: system
+    - name: yaru-theme-gnome-shell
+      kind: apt
+      status: system
+    - name: yaru-theme-gtk
+      kind: apt
+      status: system
+    - name: yaru-theme-icon
+      kind: apt
+      status: system
+    - name: yaru-theme-sound
+      kind: apt
+      status: system
+    - name: yelp
+      kind: apt
+      status: system
+    - name: zenity
+      kind: apt
+      status: system
+    - name: zip
+      kind: apt
+      status: system
+    - name: zlib1g-dev
+      kind: apt
+      status: system
+    - name: com.obsproject.Studio
+      kind: flatpak
+      status: unreviewed
+      rationale: ''
+    - name: alpine
+      kind: image
+      status: system
+    - name: alpine
+      kind: image
+      status: system
+    - name: anchore/syft
+      kind: image
+      status: system
+    - name: aquasec/trivy
+      kind: image
+      status: system
+    - name: aquasec/trivy
+      kind: image
+      status: system
+    - name: bats/bats
+      kind: image
+      status: system
+    - name: cljkondo/clj-kondo
+      kind: image
+      status: system
+    - name: codescene/codescene-mcp
+      kind: image
+      status: system
+    - name: cytopia/yamllint
+      kind: image
+      status: system
+    - name: debian
+      kind: image
+      status: system
+    - name: debian
+      kind: image
+      status: system
+    - name: dev-controlroom_backend_test
+      kind: image
+      status: system
+    - name: dev-gearlist_backend_test
+      kind: image
+      status: system
+    - name: dev-go_test
+      kind: image
+      status: system
+    - name: dev-studio_frontend_test
+      kind: image
+      status: system
+    - name: docker.redpanda.com/redpandadata/redpanda
+      kind: image
+      status: system
+    - name: gcr.io/projectsigstore/cosign
+      kind: image
+      status: system
+    - name: ghcr.io/ggml-org/llama.cpp
+      kind: image
+      status: system
+    - name: ghcr.io/keploy/keploy
+      kind: image
+      status: system
+    - name: ghcr.io/sourcebot-dev/sourcebot
+      kind: image
+      status: system
+    - name: ghcr.io/xampprocky/tokei
+      kind: image
+      status: system
+    - name: ghcr.io/yannh/kubeconform
+      kind: image
+      status: system
+    - name: golang
+      kind: image
+      status: system
+    - name: golang
+      kind: image
+      status: system
+    - name: golden-ada-aws
+      kind: image
+      status: system
+    - name: golden-erlang-cowboy
+      kind: image
+      status: system
+    - name: golden-haskell-scotty
+      kind: image
+      status: system
+    - name: golden-lua-openresty
+      kind: image
+      status: system
+    - name: grafana/k6
+      kind: image
+      status: system
+    - name: hadolint/hadolint
+      kind: image
+      status: system
+    - name: keploy/enterprise
+      kind: image
+      status: system
+    - name: koalaman/shellcheck
+      kind: image
+      status: system
+    - name: koalaman/shellcheck-alpine
+      kind: image
+      status: system
+    - name: lmsysorg/sglang
+      kind: image
+      status: system
+    - name: mcp/sonarqube
+      kind: image
+      status: system
+    - name: minio/mc
+      kind: image
+      status: system
+    - name: minio/minio
+      kind: image
+      status: system
+    - name: moby/buildkit
+      kind: image
+      status: system
+    - name: nginx
+      kind: image
+      status: system
+    - name: node
+      kind: image
+      status: system
+    - name: node
+      kind: image
+      status: system
+    - name: nvidia/cuda
+      kind: image
+      status: system
+    - name: openpolicyagent/opa
+      kind: image
+      status: system
+    - name: openresty/openresty
+      kind: image
+      status: system
+    - name: pgvector/pgvector
+      kind: image
+      status: system
+    - name: pipelinecomponents/yamllint
+      kind: image
+      status: system
+    - name: postgres
+      kind: image
+      status: system
+    - name: prom/prometheus
+      kind: image
+      status: system
+    - name: python
+      kind: image
+      status: system
+    - name: python
+      kind: image
+      status: system
+    - name: python
+      kind: image
+      status: system
+    - name: redis
+      kind: image
+      status: system
+    - name: registry.weyland.lab/finance-trainer
+      kind: image
+      status: system
+    - name: registry.weyland.lab/golden-python-fastapi
+      kind: image
+      status: system
+    - name: registry.weyland.lab/scan-suite
+      kind: image
+      status: system
+    - name: registry.weyland.lab/scan-suite
+      kind: image
+      status: system
+    - name: registry.weyland.lab/weyland-agent
+      kind: image
+      status: system
+    - name: registry.weyland.lab/weyland-dagster-user-code
+      kind: image
+      status: system
+    - name: registry.weyland.lab/weyland-guard
+      kind: image
+      status: system
+    - name: registry.weyland.lab/weyland-guard
+      kind: image
+      status: system
+    - name: registry.weyland.lab/weyland-tool-server
+      kind: image
+      status: system
+    - name: ruby
+      kind: image
+      status: system
+    - name: sonarsource/sonar-scanner-cli
+      kind: image
+      status: system
+    - name: sourcegraph/zoekt-indexserver
+      kind: image
+      status: system
+    - name: sourcegraph/zoekt-webserver
+      kind: image
+      status: system
+    - name: sourcegraph/zoekt-webserver
+      kind: image
+      status: system
+    - name: studio-controlroom_backend
+      kind: image
+      status: system
+    - name: studio-controlroom_backend_test
+      kind: image
+      status: system
+    - name: studio-frontend
+      kind: image
+      status: system
+    - name: studio-gearlist_backend
+      kind: image
+      status: system
+    - name: tool-server-u13-test
+      kind: image
+      status: system
+    - name: ubuntu
+      kind: image
+      status: system
+    - name: vllm/vllm-openai
+      kind: image
+      status: system
+    - name: woodpeckerci/woodpecker-agent
+      kind: image
+      status: system
+    - name: woodpeckerci/woodpecker-server
+      kind: image
+      status: system
+    - name: woodpeckerci/woodpecker-server
+      kind: image
+      status: system
+    - name: zricethezav/gitleaks
+      kind: image
+      status: system
+    - name: cli
+      kind: npm
+      status: unreviewed
+      rationale: ''
+    - name: cline
+      kind: npm
+      status: unreviewed
+      rationale: ''
+    - name: codex
+      kind: npm
+      status: unreviewed
+      rationale: ''
+    - name: firebase-tools
+      kind: npm
+      status: unreviewed
+      rationale: ''
+    - name: jsdom
+      kind: npm
+      status: unreviewed
+      rationale: ''
+    - name: mermaid
+      kind: npm
+      status: unreviewed
+      rationale: ''
+    - name: npm
+      kind: npm
+      status: unreviewed
+      rationale: ''
+    - name: opencode-ai
+      kind: npm
+      status: unreviewed
+      rationale: ''
+    - name: pi-coding-agent
+      kind: npm
+      status: unreviewed
+      rationale: ''
+    - name: yarn
+      kind: npm
+      status: unreviewed
+      rationale: ''
+    - name: adbc-driver-flightsql
+      kind: pip
+      status: system
+    - name: adbc-driver-manager
+      kind: pip
+      status: system
+    - name: aiobotocore
+      kind: pip
+      status: system
+    - name: aiohappyeyeballs
+      kind: pip
+      status: system
+    - name: aiohttp
+      kind: pip
+      status: system
+    - name: aioitertools
+      kind: pip
+      status: system
+    - name: aiosignal
+      kind: pip
+      status: system
+    - name: annotated-doc
+      kind: pip
+      status: system
+    - name: annotated-types
+      kind: pip
+      status: system
+    - name: anyio
+      kind: pip
+      status: system
+    - name: argon2-cffi
+      kind: pip
+      status: system
+    - name: argon2-cffi-bindings
+      kind: pip
+      status: system
+    - name: asttokens
+      kind: pip
+      status: system
+    - name: asyncpg
+      kind: pip
+      status: system
+    - name: attrs
+      kind: pip
+      status: system
+    - name: audioop-lts
+      kind: pip
+      status: system
+    - name: audioread
+      kind: pip
+      status: system
+    - name: babel
+      kind: pip
+      status: system
+    - name: backrefs
+      kind: pip
+      status: system
+    - name: bandit
+      kind: pip
+      status: system
+    - name: bcrypt
+      kind: pip
+      status: system
+    - name: beautifulsoup4
+      kind: pip
+      status: system
+    - name: bleach
+      kind: pip
+      status: system
+    - name: boltons
+      kind: pip
+      status: system
+    - name: boolean.py
+      kind: pip
+      status: system
+    - name: botocore
+      kind: pip
+      status: system
+    - name: bracex
+      kind: pip
+      status: system
+    - name: CacheControl
+      kind: pip
+      status: system
+    - name: cachetools
+      kind: pip
+      status: system
+    - name: cairocffi
+      kind: pip
+      status: system
+    - name: CairoSVG
+      kind: pip
+      status: system
+    - name: certifi
+      kind: pip
+      status: system
+    - name: cffi
+      kind: pip
+      status: system
+    - name: cfgv
+      kind: pip
+      status: system
+    - name: charset-normalizer
+      kind: pip
+      status: system
+    - name: click
+      kind: pip
+      status: system
+    - name: click-option-group
+      kind: pip
+      status: system
+    - name: colorama
+      kind: pip
+      status: system
+    - name: comm
+      kind: pip
+      status: system
+    - name: coverage
+      kind: pip
+      status: system
+    - name: cryptography
+      kind: pip
+      status: system
+    - name: cssselect2
+      kind: pip
+      status: system
+    - name: curl_cffi
+      kind: pip
+      status: system
+    - name: cyclonedx-python-lib
+      kind: pip
+      status: system
+    - name: dataclasses-json
+      kind: pip
+      status: system
+    - name: debugpy
+      kind: pip
+      status: system
+    - name: decorator
+      kind: pip
+      status: system
+    - name: defusedxml
+      kind: pip
+      status: system
+    - name: Deprecated
+      kind: pip
+      status: system
+    - name: detect-secrets
+      kind: pip
+      status: system
+    - name: distlib
+      kind: pip
+      status: system
+    - name: docutils
+      kind: pip
+      status: system
+    - name: duckdb
+      kind: pip
+      status: system
+    - name: ecdsa
+      kind: pip
+      status: system
+    - name: et_xmlfile
+      kind: pip
+      status: system
+    - name: exceptiongroup
+      kind: pip
+      status: system
+    - name: execnet
+      kind: pip
+      status: system
+    - name: executing
+      kind: pip
+      status: system
+    - name: face
+      kind: pip
+      status: system
+    - name: fastapi
+      kind: pip
+      status: system
+    - name: fastavro
+      kind: pip
+      status: system
+    - name: fastjsonschema
+      kind: pip
+      status: system
+    - name: filelock
+      kind: pip
+      status: system
+    - name: frogmouth
+      kind: pip
+      status: system
+    - name: frozenlist
+      kind: pip
+      status: system
+    - name: fsspec
+      kind: pip
+      status: system
+    - name: ghp-import
+      kind: pip
+      status: system
+    - name: git-filter-repo
+      kind: pip
+      status: system
+    - name: glom
+      kind: pip
+      status: system
+    - name: google-auth
+      kind: pip
+      status: system
+    - name: googleapis-common-protos
+      kind: pip
+      status: system
+    - name: greenlet
+      kind: pip
+      status: system
+    - name: h11
+      kind: pip
+      status: system
+    - name: httpcore
+      kind: pip
+      status: system
+    - name: httptools
+      kind: pip
+      status: system
+    - name: httpx
+      kind: pip
+      status: system
+    - name: httpx-sse
+      kind: pip
+      status: system
+    - name: hypothesis
+      kind: pip
+      status: system
+    - name: identify
+      kind: pip
+      status: system
+    - name: idna
+      kind: pip
+      status: system
+    - name: importlib_metadata
+      kind: pip
+      status: system
+    - name: importlib_resources
+      kind: pip
+      status: system
+    - name: iniconfig
+      kind: pip
+      status: system
+    - name: ipykernel
+      kind: pip
+      status: system
+    - name: ipython
+      kind: pip
+      status: system
+    - name: ipython_pygments_lexers
+      kind: pip
+      status: system
+    - name: itsdangerous
+      kind: pip
+      status: system
+    - name: jedi
+      kind: pip
+      status: system
+    - name: Jinja2
+      kind: pip
+      status: system
+    - name: jmespath
+      kind: pip
+      status: system
+    - name: joblib
+      kind: pip
+      status: system
+    - name: jsonpatch
+      kind: pip
+      status: system
+    - name: jsonpointer
+      kind: pip
+      status: system
+    - name: jsonschema
+      kind: pip
+      status: system
+    - name: jsonschema-specifications
+      kind: pip
+      status: system
+    - name: jupyter_client
+      kind: pip
+      status: system
+    - name: jupyter_core
+      kind: pip
+      status: system
+    - name: jupyterlab_pygments
+      kind: pip
+      status: system
+    - name: lance-namespace
+      kind: pip
+      status: system
+    - name: lance-namespace-urllib3-client
+      kind: pip
+      status: system
+    - name: langchain-classic
+      kind: pip
+      status: system
+    - name: langchain-community
+      kind: pip
+      status: system
+    - name: langchain-core
+      kind: pip
+      status: system
+    - name: langchain-text-splitters
+      kind: pip
+      status: system
+    - name: langgraph
+      kind: pip
+      status: system
+    - name: langgraph-checkpoint
+      kind: pip
+      status: system
+    - name: langgraph-prebuilt
+      kind: pip
+      status: system
+    - name: langgraph-sdk
+      kind: pip
+      status: system
+    - name: langsmith
+      kind: pip
+      status: system
+    - name: lazy-loader
+      kind: pip
+      status: system
+    - name: librosa
+      kind: pip
+      status: system
+    - name: license-expression
+      kind: pip
+      status: system
+    - name: limits
+      kind: pip
+      status: system
+    - name: linkify-it-py
+      kind: pip
+      status: system
+    - name: llvmlite
+      kind: pip
+      status: system
+    - name: loro
+      kind: pip
+      status: system
+    - name: lxml
+      kind: pip
+      status: system
+    - name: lz4
+      kind: pip
+      status: system
+    - name: mando
+      kind: pip
+      status: system
+    - name: marimo
+      kind: pip
+      status: system
+    - name: Markdown
+      kind: pip
+      status: system
+    - name: markdown-it-py
+      kind: pip
+      status: system
+    - name: MarkupSafe
+      kind: pip
+      status: system
+    - name: marshmallow
+      kind: pip
+      status: system
+    - name: matplotlib-inline
+      kind: pip
+      status: system
+    - name: mcp
+      kind: pip
+      status: system
+    - name: mdit-py-plugins
+      kind: pip
+      status: system
+    - name: mdurl
+      kind: pip
+      status: system
+    - name: mergedeep
+      kind: pip
+      status: system
+    - name: minio
+      kind: pip
+      status: system
+    - name: mistune
+      kind: pip
+      status: system
+    - name: mkdocs
+      kind: pip
+      status: system
+    - name: mkdocs-gen-files
+      kind: pip
+      status: system
+    - name: mkdocs-get-deps
+      kind: pip
+      status: system
+    - name: mkdocs-material
+      kind: pip
+      status: system
+    - name: mkdocs-material-extensions
+      kind: pip
+      status: system
+    - name: mmh3
+      kind: pip
+      status: system
+    - name: msgpack
+      kind: pip
+      status: system
+    - name: msgspec
+      kind: pip
+      status: system
+    - name: multidict
+      kind: pip
+      status: system
+    - name: multitasking
+      kind: pip
+      status: system
+    - name: mutagen
+      kind: pip
+      status: system
+    - name: mypy_extensions
+      kind: pip
+      status: system
+    - name: narwhals
+      kind: pip
+      status: system
+    - name: nbclient
+      kind: pip
+      status: system
+    - name: nbconvert
+      kind: pip
+      status: system
+    - name: nbformat
+      kind: pip
+      status: system
+    - name: nest-asyncio2
+      kind: pip
+      status: system
+    - name: nodeenv
+      kind: pip
+      status: system
+    - name: numba
+      kind: pip
+      status: system
+    - name: numpy
+      kind: pip
+      status: system
+    - name: openpyxl
+      kind: pip
+      status: system
+    - name: opentelemetry-api
+      kind: pip
+      status: system
+    - name: opentelemetry-exporter-otlp-proto-common
+      kind: pip
+      status: system
+    - name: opentelemetry-exporter-otlp-proto-http
+      kind: pip
+      status: system
+    - name: opentelemetry-instrumentation
+      kind: pip
+      status: system
+    - name: opentelemetry-instrumentation-requests
+      kind: pip
+      status: system
+    - name: opentelemetry-instrumentation-threading
+      kind: pip
+      status: system
+    - name: opentelemetry-proto
+      kind: pip
+      status: system
+    - name: opentelemetry-sdk
+      kind: pip
+      status: system
+    - name: opentelemetry-semantic-conventions
+      kind: pip
+      status: system
+    - name: opentelemetry-util-http
+      kind: pip
+      status: system
+    - name: orjson
+      kind: pip
+      status: system
+    - name: ormsgpack
+      kind: pip
+      status: system
+    - name: packageurl-python
+      kind: pip
+      status: system
+    - name: packaging
+      kind: pip
+      status: system
+    - name: paginate
+      kind: pip
+      status: system
+    - name: pandas
+      kind: pip
+      status: system
+    - name: pandocfilters
+      kind: pip
+      status: system
+    - name: parso
+      kind: pip
+      status: system
+    - name: pathspec
+      kind: pip
+      status: system
+    - name: peewee
+      kind: pip
+      status: system
+    - name: pexpect
+      kind: pip
+      status: system
+    - name: pillow
+      kind: pip
+      status: system
+    - name: pip
+      kind: pip
+      status: system
+    - name: pip-api
+      kind: pip
+      status: system
+    - name: pip-requirements-parser
+      kind: pip
+      status: system
+    - name: pip_audit
+      kind: pip
+      status: system
+    - name: platformdirs
+      kind: pip
+      status: system
+    - name: pluggy
+      kind: pip
+      status: system
+    - name: polars
+      kind: pip
+      status: system
+    - name: polars-runtime-32
+      kind: pip
+      status: system
+    - name: pooch
+      kind: pip
+      status: system
+    - name: pre_commit
+      kind: pip
+      status: system
+    - name: prometheus_client
+      kind: pip
+      status: system
+    - name: prompt_toolkit
+      kind: pip
+      status: system
+    - name: propcache
+      kind: pip
+      status: system
+    - name: properdocs
+      kind: pip
+      status: system
+    - name: protobuf
+      kind: pip
+      status: system
+    - name: psutil
+      kind: pip
+      status: system
+    - name: ptyprocess
+      kind: pip
+      status: system
+    - name: pure_eval
+      kind: pip
+      status: system
+    - name: py-cpuinfo
+      kind: pip
+      status: system
+    - name: py-serializable
+      kind: pip
+      status: system
+    - name: pyarrow
+      kind: pip
+      status: system
+    - name: pyasn1
+      kind: pip
+      status: system
+    - name: pyasn1_modules
+      kind: pip
+      status: system
+    - name: pycparser
+      kind: pip
+      status: system
+    - name: pycryptodome
+      kind: pip
+      status: system
+    - name: pydantic
+      kind: pip
+      status: system
+    - name: pydantic-settings
+      kind: pip
+      status: system
+    - name: pydantic_core
+      kind: pip
+      status: system
+    - name: Pygments
+      kind: pip
+      status: system
+    - name: pyiceberg
+      kind: pip
+      status: system
+    - name: PyJWT
+      kind: pip
+      status: system
+    - name: pylance
+      kind: pip
+      status: system
+    - name: pymdown-extensions
+      kind: pip
+      status: system
+    - name: pyparsing
+      kind: pip
+      status: system
+    - name: pypdf
+      kind: pip
+      status: system
+    - name: pyroaring
+      kind: pip
+      status: system
+    - name: pytest
+      kind: pip
+      status: system
+    - name: pytest-asyncio
+      kind: pip
+      status: system
+    - name: pytest-benchmark
+      kind: pip
+      status: system
+    - name: pytest-cov
+      kind: pip
+      status: system
+    - name: pytest-xdist
+      kind: pip
+      status: system
+    - name: python-dateutil
+      kind: pip
+      status: system
+    - name: python-discovery
+      kind: pip
+      status: system
+    - name: python-dotenv
+      kind: pip
+      status: system
+    - name: python-multipart
+      kind: pip
+      status: system
+    - name: pytz
+      kind: pip
+      status: system
+    - name: PyYAML
+      kind: pip
+      status: system
+    - name: pyyaml_env_tag
+      kind: pip
+      status: system
+    - name: pyzmq
+      kind: pip
+      status: system
+    - name: radon
+      kind: pip
+      status: system
+    - name: RapidFuzz
+      kind: pip
+      status: system
+    - name: referencing
+      kind: pip
+      status: system
+    - name: requests
+      kind: pip
+      status: system
+    - name: requests-toolbelt
+      kind: pip
+      status: system
+    - name: rich
+      kind: pip
+      status: system
+    - name: rpds-py
+      kind: pip
+      status: system
+    - name: rsa
+      kind: pip
+      status: system
+    - name: ruamel.yaml
+      kind: pip
+      status: system
+    - name: ruamel.yaml.clib
+      kind: pip
+      status: system
+    - name: ruff
+      kind: pip
+      status: system
+    - name: s3fs
+      kind: pip
+      status: system
+    - name: scikit-learn
+      kind: pip
+      status: system
+    - name: scipy
+      kind: pip
+      status: system
+    - name: semantic-version
+      kind: pip
+      status: system
+    - name: semgrep
+      kind: pip
+      status: system
+    - name: six
+      kind: pip
+      status: system
+    - name: slowapi
+      kind: pip
+      status: system
+    - name: sniffio
+      kind: pip
+      status: system
+    - name: sortedcontainers
+      kind: pip
+      status: system
+    - name: soundfile
+      kind: pip
+      status: system
+    - name: soupsieve
+      kind: pip
+      status: system
+    - name: soxr
+      kind: pip
+      status: system
+    - name: SQLAlchemy
+      kind: pip
+      status: system
+    - name: sse-starlette
+      kind: pip
+      status: system
+    - name: stack-data
+      kind: pip
+      status: system
+    - name: standard-aifc
+      kind: pip
+      status: system
+    - name: standard-chunk
+      kind: pip
+      status: system
+    - name: standard-sunau
+      kind: pip
+      status: system
+    - name: starlette
+      kind: pip
+      status: system
+    - name: stevedore
+      kind: pip
+      status: system
+    - name: strictyaml
+      kind: pip
+      status: system
+    - name: tenacity
+      kind: pip
+      status: system
+    - name: textual
+      kind: pip
+      status: system
+    - name: threadpoolctl
+      kind: pip
+      status: system
+    - name: tinycss2
+      kind: pip
+      status: system
+    - name: tomli
+      kind: pip
+      status: system
+    - name: tomli_w
+      kind: pip
+      status: system
+    - name: tomlkit
+      kind: pip
+      status: system
+    - name: tornado
+      kind: pip
+      status: system
+    - name: traitlets
+      kind: pip
+      status: system
+    - name: trino
+      kind: pip
+      status: system
+    - name: typing-inspect
+      kind: pip
+      status: system
+    - name: typing-inspection
+      kind: pip
+      status: system
+    - name: typing_extensions
+      kind: pip
+      status: system
+    - name: tzdata
+      kind: pip
+      status: system
+    - name: tzlocal
+      kind: pip
+      status: system
+    - name: uc-micro-py
+      kind: pip
+      status: system
+    - name: urllib3
+      kind: pip
+      status: system
+    - name: uuid_utils
+      kind: pip
+      status: system
+    - name: uvicorn
+      kind: pip
+      status: system
+    - name: uvloop
+      kind: pip
+      status: system
+    - name: virtualenv
+      kind: pip
+      status: system
+    - name: watchdog
+      kind: pip
+      status: system
+    - name: watchfiles
+      kind: pip
+      status: system
+    - name: wcmatch
+      kind: pip
+      status: system
+    - name: wcwidth
+      kind: pip
+      status: system
+    - name: webencodings
+      kind: pip
+      status: system
+    - name: websockets
+      kind: pip
+      status: system
+    - name: wrapt
+      kind: pip
+      status: system
+    - name: xdg
+      kind: pip
+      status: system
+    - name: xxhash
+      kind: pip
+      status: system
+    - name: yamllint
+      kind: pip
+      status: system
+    - name: yarl
+      kind: pip
+      status: system
+    - name: yfinance
+      kind: pip
+      status: system
+    - name: zipp
+      kind: pip
+      status: system
+    - name: zstandard
+      kind: pip
+      status: system
+    - name: 1password
+      kind: snap
+      status: unreviewed
+      rationale: ''
+    - name: altair
+      kind: snap
+      status: keep
+      rationale: GraphQL client; occasional use, low cost to keep
+    - name: appimage2deb
+      kind: snap
+      status: keep
+      rationale: AppImage->deb utility; used when installing software
+    - name: bare
+      kind: snap
+      status: unreviewed
+      rationale: ''
+    - name: bcc
+      kind: snap
+      status: unreviewed
+      rationale: ''
+    - name: canonical-livepatch
+      kind: snap
+      status: keep
+      rationale: live kernel-CVE patching; valued (0 patches applied so far)
+    - name: cmake
+      kind: snap
+      status: unreviewed
+      rationale: ''
+    - name: code
+      kind: snap
+      status: unreviewed
+      rationale: ''
+    - name: core
+      kind: snap
+      status: unreviewed
+      rationale: ''
+    - name: core18
+      kind: snap
+      status: unreviewed
+      rationale: ''
+    - name: core20
+      kind: snap
+      status: unreviewed
+      rationale: ''
+    - name: core22
+      kind: snap
+      status: unreviewed
+      rationale: ''
+    - name: core24
+      kind: snap
+      status: unreviewed
+      rationale: ''
+    - name: core26
+      kind: snap
+      status: unreviewed
+      rationale: ''
+    - name: cups
+      kind: snap
+      status: keep
+      rationale: prints regularly; snap is current so the 2024 CUPS CVEs are patched
+    - name: dcgm
+      kind: snap
+      status: unreviewed
+      rationale: ''
+    - name: ddgr
+      kind: snap
+      status: unreviewed
+      rationale: ''
+    - name: dosbox-x
+      kind: snap
+      status: keep
+      rationale: retro gaming, actively used
+    - name: drawio
+      kind: snap
+      status: unreviewed
+      rationale: ''
+    - name: ffmpeg-2404
+      kind: snap
+      status: unreviewed
+      rationale: ''
+    - name: firefox
+      kind: snap
+      status: unreviewed
+      rationale: ''
+    - name: firmware-updater
+      kind: snap
+      status: unreviewed
+      rationale: ''
+    - name: gaming-graphics-core22
+      kind: snap
+      status: unreviewed
+      rationale: ''
+    - name: gaming-graphics-core24
+      kind: snap
+      status: unreviewed
+      rationale: ''
+    - name: gimp
+      kind: snap
+      status: unreviewed
+      rationale: ''
+    - name: glow
+      kind: snap
+      status: unreviewed
+      rationale: ''
+    - name: gnome-3-28-1804
+      kind: snap
+      status: unreviewed
+      rationale: ''
+    - name: gnome-3-38-2004
+      kind: snap
+      status: unreviewed
+      rationale: ''
+    - name: gnome-42-2204
+      kind: snap
+      status: unreviewed
+      rationale: ''
+    - name: gnome-46-2404
+      kind: snap
+      status: unreviewed
+      rationale: ''
+    - name: go
+      kind: snap
+      status: unreviewed
+      rationale: ''
+    - name: graalvm-jdk
+      kind: snap
+      status: unreviewed
+      rationale: ''
+    - name: gtk-common-themes
+      kind: snap
+      status: unreviewed
+      rationale: ''
+    - name: kf6-core24
+      kind: snap
+      status: unreviewed
+      rationale: ''
+    - name: kotlin
+      kind: snap
+      status: unreviewed
+      rationale: ''
+    - name: kubectl
+      kind: snap
+      status: unreviewed
+      rationale: ''
+    - name: lxqt-support-core24
+      kind: snap
+      status: unreviewed
+      rationale: ''
+    - name: mesa-2404
+      kind: snap
+      status: unreviewed
+      rationale: ''
+    - name: musescore
+      kind: snap
+      status: unreviewed
+      rationale: ''
+    - name: nvtop
+      kind: snap
+      status: unreviewed
+      rationale: ''
+    - name: obsidian
+      kind: snap
+      status: unreviewed
+      rationale: ''
+    - name: postman
+      kind: snap
+      status: unreviewed
+      rationale: ''
+    - name: qbittorrent-arnatious
+      kind: snap
+      status: unreviewed
+      rationale: ''
+    - name: rstudio
+      kind: snap
+      status: unreviewed
+      rationale: ''
+    - name: scummvm
+      kind: snap
+      status: keep
+      rationale: retro gaming, actively used
+    - name: slack
+      kind: snap
+      status: unreviewed
+      rationale: ''
+    - name: snap-store
+      kind: snap
+      status: unreviewed
+      rationale: ''
+    - name: snapd
+      kind: snap
+      status: unreviewed
+      rationale: ''
+    - name: snapd-desktop-integration
+      kind: snap
+      status: unreviewed
+      rationale: ''
+    - name: spotify
+      kind: snap
+      status: unreviewed
+      rationale: ''
+    - name: steam
+      kind: snap
+      status: keep
+      rationale: occasional gaming — NOT during GPU training (VRAM contention)
+    - name: sublime-text
+      kind: snap
+      status: unreviewed
+      rationale: ''
+    - name: thunderbird
+      kind: snap
+      status: unreviewed
+      rationale: ''
+    - name: zoom-client
+      kind: snap
+      status: unreviewed
+      rationale: ''

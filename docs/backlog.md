@@ -2471,6 +2471,19 @@ _Audit COMPLETE for rogueone 2026-08-15 (snap + flatpak + apt). mother + weyland
 
 ---
 
+### B169 — Onboard a new machine/client into the machine-inventory catalog — MEDIUM (2026-09-14, B129 follow-on, Linear EMA-230)
+
+Follow-on to [B129]: document + enable onboarding **any additional client** (a new VM, laptop, host) into the
+machine-inventory catalog, so it grows without re-deriving the process each time. The flow: run
+`scripts/collect-machine-inventory.sh <host>` (the SSH-based collector) → curate the new host's **discretionary**
+items (keep/remove + a one-line rationale; the system apt baseline is bulk-tagged `status: system`) in
+`machine-inventory.yaml` → run the Port emitter (or trigger the Port **"Refresh machine inventory"** action) → verify
+the host + its `installed_package` entities land in the Port catalog, with git diffs surfacing future adds/removals as
+`status: unreviewed` drift. Prereq: the machine is SSH-reachable as `emangini@<host>` (hostname, not IP). See
+[runbooks/machine-inventory.md](runbooks/machine-inventory.md) (created in B129). Linear: EMA-230.
+
+---
+
 ### B130 — Proper backups on rogueone (restic → MinIO) — **DONE 2026-08-20 [Linear EMA-189]**
 
 **Shipped:** encrypted, deduplicated, incremental **restic → MinIO** (`s3:…:30990/rogueone-backup`, ~415M deduped), daily **02:30 NY** systemd **user** timer (`enable-linger`), restore-tested. Config git-tracked under `nodes/rogueone/{backup,systemd}`; secrets in the central gitignored `scripts/.env` (sourced). **Scope = the "local-only gap"** — the 3-domain model: code→GitHub, media→Google Drive, **everything-else→restic**. Backs up dotfiles + `~/.config` (curated) + `~/.claude` memory + secrets (`~/.ssh`/`~/.gnupg`/GNOME-keyring/**mkcert root CA**) + curated `~/Documents` + each **allow-listed** git repo's `git ls-files --others` (untracked WIP + gitignored `.env`/local data) **minus reproducible bulk**. **Reporting (both):** Port `backup` blueprint + **weyland Backups** dashboard (see) **and** an Uptime-Kuma **push heartbeat → Telegram** dead-man's-switch (alert). During scoping, the big media (GuitarBooksAndTab courses, music **Stems**) was moved into Google Drive so restic excludes it. **Hard-won gotchas:** (1) restic does **NOT** apply `--exclude` to a path handed to it explicitly via `--files-from` (it honours an explicit target) → the repo bulk (`node_modules`/`.next`/`__pycache__`/Gradle `caches`) must be filtered **in the script** before restic sees it — a first run ballooned to 5.1G before this; (2) `restic forget` defaults to `--group-by host,paths`, so a drifting path-set retains a separate lineage → use `--group-by host`; (3) `kuma.weyland.lab/api/push` sits behind `traefik-forward-auth` (307→Keycloak) → added a `/api/push`-only Ingress **without** the middleware (the push token is its own auth). Docs: [runbooks/backups.md](runbooks/backups.md) · [diagrams/flow-backup.md](diagrams/flow-backup.md) · [demos/backup-restore.md](demos/backup-restore.md) · `nodes/rogueone/backup/README.md`. **Original context (2026-08-15):**
