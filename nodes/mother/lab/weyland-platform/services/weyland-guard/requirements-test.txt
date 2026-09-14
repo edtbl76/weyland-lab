@@ -1,0 +1,4 @@
+# Test-only deps (installed by scripts/run-lang-tests.sh, NOT the runtime image).
+# numpy: tests/test_onnx_runtime.py exercises OnnxCrossEncoder/OnnxTextClassifier, whose adapter logic
+# (softmax, CLS batching, label mapping) is numpy — onnxruntime + tokenizers are stubbed, numpy is real.
+numpy
