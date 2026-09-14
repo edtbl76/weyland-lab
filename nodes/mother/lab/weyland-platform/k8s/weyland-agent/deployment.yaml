@@ -20,7 +20,7 @@ spec:
       enableServiceLinks: false
       containers:
         - name: weyland-agent
-          image: registry.weyland.lab/weyland-agent:v7   # session grouping FIX: propagate_attributes (v6's update_current_trace is a no-op in langfuse 4.x); per-run id → grade/reflect/generate one session
+          image: registry.weyland.lab/weyland-agent:v8   # U13: bge query-embedder on raw ONNX Runtime (retrievers.py OnnxBge) — torch + sentence-transformers dropped (~1.2GB), byte-equivalent so no vector re-hydration. Hand-tagged (NOT in images.tsv change-detection).
           imagePullPolicy: IfNotPresent
           resources:
             # Loads bge in-process (~torch) + langgraph/llama-index/mlflow client; LLM inference is remote (Ollama),

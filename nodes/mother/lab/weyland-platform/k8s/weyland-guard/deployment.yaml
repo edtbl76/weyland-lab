@@ -20,7 +20,7 @@ spec:
       enableServiceLinks: false
       containers:
         - name: weyland-guard
-          image: registry.weyland.lab/weyland-guard:v10   # B117: llm-guard RETIRED → prompt_guard (Llama Prompt Guard 2) + pii.presidio (Presidio direct); toxicity folded into llama_guard.safety
+          image: registry.weyland.lab/weyland-guard:v12   # U13: grounding.nli cross-encoder + prompt_guard classifier on raw ONNX Runtime (onnx_runtime.py) — torch/transformers/sentence-transformers dropped, byte-equivalent (logit diff 0.0). Presidio (spaCy) + remote llama_guard.safety untouched. Hand-tagged (NOT in images.tsv); v11 skipped (pre-U13 orphan).
           imagePullPolicy: IfNotPresent
           resources:
             # Loads 4 models: injection DeBERTa + toxicity + NLI cross-encoder + (B34) the PII NER model. 3Gi covers
