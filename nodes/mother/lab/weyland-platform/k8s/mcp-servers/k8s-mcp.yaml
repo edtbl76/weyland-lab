@@ -3,7 +3,9 @@
 #
 # READ-ONLY BY CONSTRUCTION (defense-in-depth):
 #   1. RBAC — its own ServiceAccount `k8s-mcp` bound to the built-in **view** ClusterRole (get/list/watch only, and
-#      view EXCLUDES Secrets → an agent can't read secrets). The API server denies any write regardless of the tool.
+#      view EXCLUDES Secrets → an agent can't read secrets), PLUS the supplemental `k8s-mcp-crd-read` ClusterRole
+#      (get/list/watch on argocd Applications + Prometheus Operator CRDs, which `view` does not aggregate). Both are
+#      read-only; the API server denies any write regardless of the tool.
 #   2. Server — the `--read-only` flag disables all write tools.
 # The pod auto-uses its in-cluster SA token (same SA the RBAC targets — do NOT disable automount).
 ---
@@ -24,6 +26,37 @@ roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
   name: view
+subjects:
+  - kind: ServiceAccount
+    name: k8s-mcp
+    namespace: weyland
+---
+# Supplemental READ on CRDs the built-in `view` role does not aggregate — argocd Applications (sync/health) and
+# the Prometheus Operator CRDs (rules/monitors). get/list/watch ONLY, so it is still read-only and the
+# defense-in-depth holds (verbs are read-only AND the server runs `--read-only`). Added 2026-09-15 so the fleet
+# MCP can inspect Argo app health + PrometheusRules directly instead of falling back to the operator's kubeconfig.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: k8s-mcp-crd-read
+  labels: { app: k8s-mcp, part-of: mcp-fleet }
+rules:
+  - apiGroups: ["argoproj.io"]
+    resources: ["applications", "applicationsets", "appprojects"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["monitoring.coreos.com"]
+    resources: ["prometheusrules", "servicemonitors", "podmonitors", "probes"]
+    verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: k8s-mcp-crd-read
+  labels: { app: k8s-mcp, part-of: mcp-fleet }
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: k8s-mcp-crd-read
 subjects:
   - kind: ServiceAccount
     name: k8s-mcp
