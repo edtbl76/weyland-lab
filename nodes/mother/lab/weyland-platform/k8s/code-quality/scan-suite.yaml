@@ -35,6 +35,7 @@ data:
     done
     echo "=== scan-suite: all repos processed (rc=${rc}) ==="
     exit "${rc}"
+---
 apiVersion: batch/v1
 kind: CronJob
 metadata:
