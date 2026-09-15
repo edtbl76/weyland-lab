@@ -1,4 +1,5 @@
-# OpenTofu — GitHub lane (B58 IaC, lane b). Codifies the weyland-lab repo (settings, branch protection, webhooks).
+# OpenTofu — GitHub lane (B58 IaC, lane b; B138 expanded to ALL active repos). Codifies repo settings —
+# weyland_lab in repo.tf, the other 7 active repos in repos_generated.tf (imported from live via repos_import.tf).
 # State in MinIO (own key). Brownfield: import the live repo. NO secrets committed — all via env:
 #   AWS_ACCESS_KEY_ID=admin  AWS_SECRET_ACCESS_KEY=weyland_dev_password   (MinIO, for the state backend)
 #   GITHUB_TOKEN=ghp_...                                                  (GitHub PAT — repo scope)

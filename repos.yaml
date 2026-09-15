@@ -27,10 +27,11 @@ owner_default: edtbl76   # confirm per-repo owners; override with a per-repo `ow
 # Lanes the drift guard HARD-FAILS on (CI-blocking). Starts small and grows as each lane is reconciled to
 # full parity — a lane not listed here is still checked and its gaps REPORTED (onboarding-pending), but does
 # not fail CI. This is how the coverage guard ships incrementally without redding the pipeline on day one.
-# Reconciled: pr (pr-staleness REPOS) + catalog (Port github-weyland selectors) 2026-09-15; backup (restic
-# allow-list, all 8 active repos' checkout paths) 2026-09-15. Pending: iac (needs `tofu import`), scan (needs
-# the weyland-lab-only orchestrators generalized), ci (per-repo .woodpecker.yml + Woodpecker activation).
-enforce: [pr, catalog, backup]
+# Reconciled: pr (pr-staleness REPOS) + catalog (Port github-weyland selectors) + backup (restic allow-list,
+# by backup_path) + iac (all 8 active codified in tofu/github/ via import — repo.tf + repos_generated.tf), all
+# 2026-09-15. Pending: scan (needs the weyland-lab-only orchestrators generalized + per-repo review configs),
+# ci (per-repo .woodpecker.yml + Woodpecker activation).
+enforce: [pr, catalog, backup, iac]
 
 repos:
   - name: weyland-lab
@@ -64,7 +65,7 @@ repos:
     lanes: { iac: true, ci: true, scan: true, pr: true, catalog: true, backup: true }
 
   - name: startme-curator
-    visibility: public
+    visibility: private          # PRIVATE (confirmed via tofu import 2026-09-15) — Port/scan/CI tokens need access
     status: active
     backup_path: ~/IdeaProjects/startme-curator
     lanes: { iac: true, ci: true, scan: true, pr: true, catalog: true, backup: true }
@@ -76,7 +77,7 @@ repos:
     lanes: { iac: true, ci: true, scan: true, pr: true, catalog: true, backup: true }
 
   - name: MyBodyGraph
-    visibility: public           # CONFIRM visibility
+    visibility: public           # confirmed public via tofu import 2026-09-15
     status: active
     backup_path: ~/IdeaProjects/MyBodyGraph
     lanes: { iac: true, ci: true, scan: true, pr: true, catalog: true, backup: true }
