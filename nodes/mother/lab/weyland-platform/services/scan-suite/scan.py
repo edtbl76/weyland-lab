@@ -16,7 +16,10 @@ import json, os, subprocess, datetime, urllib.request, glob
 
 SRC = os.environ.get("SCAN_SRC", "/src")
 OUT = os.environ.get("SCAN_OUT", "/out")
-TARGET = "weyland-lab"
+# B138 — the scanned repo's name (the Port label + report title). Every tool already scans /src generically, so
+# multi-repo scanning is just cloning each repo into /src and running this once per repo with SCAN_TARGET set.
+# Defaults to weyland-lab so the single-repo path is unchanged.
+TARGET = os.environ.get("SCAN_TARGET", "weyland-lab")
 PORT_URL = os.environ.get("PORT_INGEST_URL")
 os.makedirs(OUT, exist_ok=True)
 

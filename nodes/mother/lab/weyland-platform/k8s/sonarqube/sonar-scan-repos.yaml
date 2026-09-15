@@ -1,0 +1,100 @@
+# B138 — multi-repo SonarQube for the NON-Java active repos (Python/JS/TS/MDX). Source-level analysis, one
+# Sonar project per repo. SEPARATE from:
+#   - sonar-scan (weyland-lab) — the flagship monorepo with its own deep Flink/Maven bytecode build; unchanged.
+#   - ServiceTransformation — Gradle multi-module, needs `./gradlew classes` (a different pipeline); follow-on.
+# The self-hosted vuln suite (code-scan-suite) already covers ALL 8 repos for SECURITY; this adds Sonar's
+# code-QUALITY metrics for the six that scan cleanly at source level (no compile step, so no per-repo build).
+#
+# An alpine/git initContainer clones each repo into /src/<repo> (with the pr-lifecycle Contents:read token, so
+# it reaches the private freejack/startme-curator); the scanner container then loops those checkouts. Cloning
+# stays in the git image so the scanner image needs nothing extra. Weekly Sun 14:00 UTC — clear of sonar-scan
+# (12:00) and code-scan-suite (13:00). Token in Secret sonarqube-scan-token (global analysis token).
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: sonar-scan-repos-runner
+  namespace: weyland
+data:
+  sonar-all.sh: |
+    #!/bin/sh
+    # Scan every pre-cloned repo under /src (one Sonar project per repo). Best-effort per repo: one failure
+    # never skips the rest, but the job exits nonzero so a persistent failure is visible (never a silent green).
+    set -u
+    : "${SONAR_HOST_URL:?}"
+    : "${SONAR_TOKEN:?}"
+    rc=0
+    for dir in /src/*/; do
+      [ -d "$dir" ] || continue
+      repo=$(basename "$dir")
+      echo "======================= sonar-scan-repos: ${repo} ======================="
+      if ! sonar-scanner \
+          -Dsonar.projectKey="${repo}" \
+          -Dsonar.projectBaseDir="${dir}" \
+          -Dsonar.sources=. \
+          -Dsonar.host.url="${SONAR_HOST_URL}" \
+          -Dsonar.token="${SONAR_TOKEN}" \
+          -Dsonar.scm.disabled=true \
+          -Dsonar.exclusions='**/node_modules/**,**/.git/**,**/build/**,**/dist/**,**/.next/**,**/vendor/**,**/*.min.js'; then
+        echo "!! sonar-scanner failed for ${repo}" >&2
+        rc=1
+      fi
+    done
+    echo "=== sonar-scan-repos: all repos processed (rc=${rc}) ==="
+    exit "${rc}"
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: sonar-scan-repos
+  namespace: weyland
+spec:
+  schedule: "0 14 * * 0"
+  timeZone: Etc/UTC
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 2
+  failedJobsHistoryLimit: 2
+  jobTemplate:
+    spec:
+      backoffLimit: 1
+      template:
+        spec:
+          restartPolicy: Never
+          initContainers:
+            - name: clone
+              image: alpine/git:latest
+              command:
+                - sh
+                - -c
+                - |
+                  set -u
+                  : "${GITHUB_TOKEN:?}"
+                  : "${SONAR_REPOS:?}"
+                  for repo in $SONAR_REPOS; do
+                    echo "cloning edtbl76/${repo}"
+                    git clone --quiet --depth 1 \
+                      "https://oauth2:${GITHUB_TOKEN}@github.com/edtbl76/${repo}.git" "/src/${repo}" \
+                      || echo "!! clone failed for ${repo}" >&2
+                  done
+              env:
+                - name: SONAR_REPOS
+                  value: "Algopedia emangini-tailwind-nextjs-contentlayer startme-curator stud.io freejack MyBodyGraph"
+                - name: GITHUB_TOKEN
+                  valueFrom: { secretKeyRef: { name: pr-lifecycle-github, key: token } }
+              volumeMounts:
+                - { name: src, mountPath: /src }
+          containers:
+            - name: scanner
+              image: sonarsource/sonar-scanner-cli:latest
+              command: ["sh", "/runner/sonar-all.sh"]
+              env:
+                - name: SONAR_HOST_URL
+                  value: http://sonarqube.weyland.svc.cluster.local:9000
+                - name: SONAR_TOKEN
+                  valueFrom: { secretKeyRef: { name: sonarqube-scan-token, key: SONAR_TOKEN } }
+              volumeMounts:
+                - { name: src, mountPath: /src }
+                - { name: runner, mountPath: /runner }
+          volumes:
+            - { name: src, emptyDir: {} }
+            - name: runner
+              configMap: { name: sonar-scan-repos-runner, defaultMode: 0755 }

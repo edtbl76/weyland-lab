@@ -26,7 +26,7 @@ an enforced lane drifts, and an onboarding helper walks a new repo to parity.
 | `pr` | `k8s/pr-lifecycle/pr-staleness.yaml` `REPOS` default | **enforced** |
 | `catalog` | `tofu/port/b137_integrations.tf` `.name \| IN(...)` selector | **enforced** |
 | `iac` | `tofu/github/*.tf` `github_repository` resources | pending — needs `tofu import` per repo |
-| `scan` | `services/scan-suite/scan.py` `TARGET` (+ per-repo `.deepsource`/`.coderabbit`/`.sourcery`) | pending — orchestrators are weyland-lab-only |
+| `scan` | `k8s/code-quality/scan-suite.yaml` `SCAN_REPOS` env | **enforced** — the vuln suite's `scan-all.sh` loops the 21 tools over every repo in `SCAN_REPOS` (clones public+private with the pr-lifecycle `Contents:read` token). SonarQube multi-repo is a follow-on (its Java analyzer needs per-repo compiled binaries). |
 | `backup` | `nodes/rogueone/backup/backup-repos.conf` (local paths) | **enforced** — matched by each repo's SoT `backup_path` (a checkout folder can differ from the repo name; freejack is under `~/Documents/Education`), and an allow-list path claimed by no repo is flagged as an orphan |
 | `ci` | a `.woodpecker.yml` inside each repo + Woodpecker activation | per-repo; verified by the onboard checklist, not centrally |
 

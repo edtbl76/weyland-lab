@@ -25,7 +25,7 @@ REPOS_YAML="${REPOS_YAML:-$ROOT/repos.yaml}"
 PR_STALENESS_FILE="${PR_STALENESS_FILE:-$ROOT/nodes/mother/lab/weyland-platform/k8s/pr-lifecycle/pr-staleness.yaml}"
 PORT_INTEGRATIONS_FILE="${PORT_INTEGRATIONS_FILE:-$ROOT/nodes/mother/lab/weyland-platform/tofu/port/b137_integrations.tf}"
 TOFU_GITHUB_DIR="${TOFU_GITHUB_DIR:-$ROOT/nodes/mother/lab/weyland-platform/tofu/github}"
-SCAN_PY_FILE="${SCAN_PY_FILE:-$ROOT/nodes/mother/lab/weyland-platform/services/scan-suite/scan.py}"
+SCAN_SUITE_FILE="${SCAN_SUITE_FILE:-$ROOT/nodes/mother/lab/weyland-platform/k8s/code-quality/scan-suite.yaml}"
 BACKUP_CONF_FILE="${BACKUP_CONF_FILE:-$ROOT/nodes/rogueone/backup/backup-repos.conf}"
 
 [ -r "$REPOS_YAML" ] || { echo "❌ guard broken: cannot read SoT $REPOS_YAML" >&2; exit 2; }
@@ -34,7 +34,7 @@ REPOS_YAML="$REPOS_YAML" \
 PR_STALENESS_FILE="$PR_STALENESS_FILE" \
 PORT_INTEGRATIONS_FILE="$PORT_INTEGRATIONS_FILE" \
 TOFU_GITHUB_DIR="$TOFU_GITHUB_DIR" \
-SCAN_PY_FILE="$SCAN_PY_FILE" \
+SCAN_SUITE_FILE="$SCAN_SUITE_FILE" \
 BACKUP_CONF_FILE="$BACKUP_CONF_FILE" \
 python3 - <<'PY'
 import os, re, sys, glob
@@ -105,10 +105,11 @@ for tf in glob.glob(os.path.join(os.environ["TOFU_GITHUB_DIR"], "*.tf")):
         if nm: iac.add(nm.group(1))
 actual["iac"] = iac
 
-# scan — the central orchestrator target (scan.py TARGET). Single-repo today by design.
-txt = read(os.environ["SCAN_PY_FILE"], required=False)
-m = re.search(r'^TARGET\s*=\s*"([^"]+)"', txt, re.M)
-actual["scan"] = {m.group(1)} if m else set()
+# scan — the code-scan suite's SCAN_REPOS env (the repos scan-all.sh loops over). B138 generalized the suite
+# from weyland-lab-only to all scan:true repos; this list is what the guard reconciles against the SoT.
+txt = read(os.environ["SCAN_SUITE_FILE"], required=False)
+m = re.search(r'name:\s*SCAN_REPOS\s*\n\s*value:\s*"([^"]+)"', txt)
+actual["scan"] = set(m.group(1).split()) if m else set()
 
 # backup — the restic allow-list is CHECKOUT PATHS, not names; a repo is covered when its SoT `backup_path`
 # is present as a line. Matched by PATH because a checkout folder can differ from the repo name (freejack

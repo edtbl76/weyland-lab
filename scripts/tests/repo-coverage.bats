@@ -12,7 +12,7 @@ setup() {
   export PR_STALENESS_FILE="$TMP/pr.yaml"
   export PORT_INTEGRATIONS_FILE="$TMP/port.tf"
   export TOFU_GITHUB_DIR="$TMP/github"; mkdir -p "$TOFU_GITHUB_DIR"
-  export SCAN_PY_FILE="$TMP/scan.py"
+  export SCAN_SUITE_FILE="$TMP/scan-suite.yaml"
   export BACKUP_CONF_FILE="$TMP/backup.conf"
   cat > "$REPOS_YAML" <<'EOF'
 enforce: [pr, catalog]
@@ -24,7 +24,7 @@ repos:
 EOF
   printf '    REPOS="${PR_REPOS:-edtbl76/weyland-lab edtbl76/freejack}"\n' > "$PR_STALENESS_FILE"
   printf '"query" = ".name | IN(\\"weyland-lab\\", \\"freejack\\")"\n' > "$PORT_INTEGRATIONS_FILE"
-  : > "$SCAN_PY_FILE"; : > "$BACKUP_CONF_FILE"
+  : > "$SCAN_SUITE_FILE"; : > "$BACKUP_CONF_FILE"
 }
 teardown() { rm -rf "$TMP"; }
 
@@ -102,6 +102,36 @@ EOF
   run bash "$GUARD"
   [ "$status" -eq 1 ]
   [[ "$output" == *"orphan"* ]]
+}
+
+@test "scan lane reads SCAN_REPOS from the scan-suite manifest -> parity, exit 0" {
+  cat > "$REPOS_YAML" <<'EOF'
+enforce: [scan]
+repos:
+  - name: weyland-lab
+    lanes: { scan: true }
+  - name: freejack
+    lanes: { scan: true }
+EOF
+  printf '                - name: SCAN_REPOS\n                  value: "weyland-lab freejack"\n' > "$SCAN_SUITE_FILE"
+  run bash "$GUARD"
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"scan"*"parity"* ]]
+}
+
+@test "scan enforced: a scan:true repo missing from SCAN_REPOS -> exit 1" {
+  cat > "$REPOS_YAML" <<'EOF'
+enforce: [scan]
+repos:
+  - name: weyland-lab
+    lanes: { scan: true }
+  - name: freejack
+    lanes: { scan: true }
+EOF
+  printf '                - name: SCAN_REPOS\n                  value: "weyland-lab"\n' > "$SCAN_SUITE_FILE"
+  run bash "$GUARD"
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"missing: freejack"* ]]
 }
 
 @test "fail-closed: missing SoT -> exit 2" {

@@ -1,0 +1,72 @@
+# B138 — SonarQube for ServiceTransformation, the one non-weyland-lab JAVA repo. It is a Gradle multi-module
+# Spring project (build.gradle.kts, settings.gradle.kts, gradlew; modules api/gateway/product-service/…), so —
+# unlike the 6 non-Java repos (sonar-scan-repos, source-level) and weyland-lab (Maven/Flink, sonar-scan) — its
+# Java analyzer needs COMPILED bytecode or it hard-fails. Pipeline: alpine/git clones it → a gradle initContainer
+# runs `./gradlew classes` (compile every module's main sources) → sonar-scanner analyzes with java.binaries
+# pointed (by glob) at each module's build/classes/java/main.
+#
+# ⚠ NEEDS A LIVE VERIFY (documented as a decision, not an oversight): the Gradle build reaches out for the
+# wrapper distribution + dependencies and its JDK/Gradle versions are the project's, none of which can be tested
+# from the repo. First run confirms; iterate on the JDK image or java.binaries glob if it complains. Weekly
+# Sun 15:00 UTC — after sonar-scan-repos (14:00). Token in Secret sonarqube-scan-token.
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: sonar-scan-gradle
+  namespace: weyland
+spec:
+  schedule: "0 15 * * 0"
+  timeZone: Etc/UTC
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 2
+  failedJobsHistoryLimit: 2
+  jobTemplate:
+    spec:
+      backoffLimit: 1
+      template:
+        spec:
+          restartPolicy: Never
+          initContainers:
+            - name: clone
+              image: alpine/git:latest
+              command:
+                - sh
+                - -c
+                - |
+                  set -u
+                  : "${GITHUB_TOKEN:?}"
+                  git clone --quiet --depth 1 \
+                    "https://oauth2:${GITHUB_TOKEN}@github.com/edtbl76/ServiceTransformation.git" /src
+              env:
+                - name: GITHUB_TOKEN
+                  valueFrom: { secretKeyRef: { name: pr-lifecycle-github, key: token } }
+              volumeMounts:
+                - { name: src, mountPath: /src }
+            - name: gradle-build
+              image: gradle:8.10-jdk21
+              workingDir: /src
+              # Compile every module's main sources so Sonar's Java analyzer has bytecode. Use the repo's OWN
+              # wrapper (pinned Gradle version); --no-daemon in a one-shot pod. Best-effort: a module that fails to
+              # compile still lets Sonar analyze what did (the scan step is best-effort too).
+              command: ["sh", "-c", "chmod +x ./gradlew && ./gradlew --no-daemon classes || echo '!! gradle classes returned nonzero — Sonar will analyze whatever compiled'"]
+              volumeMounts:
+                - { name: src, mountPath: /src }
+          containers:
+            - name: scanner
+              image: sonarsource/sonar-scanner-cli:latest
+              args:
+                - -Dsonar.projectKey=ServiceTransformation
+                - -Dsonar.projectBaseDir=/src
+                - -Dsonar.sources=.
+                - -Dsonar.java.binaries=**/build/classes/java/main
+                - -Dsonar.scm.disabled=true
+                - -Dsonar.exclusions=**/node_modules/**,**/.git/**,**/build/**,**/.gradle/**
+              env:
+                - name: SONAR_HOST_URL
+                  value: http://sonarqube.weyland.svc.cluster.local:9000
+                - name: SONAR_TOKEN
+                  valueFrom: { secretKeyRef: { name: sonarqube-scan-token, key: SONAR_TOKEN } }
+              volumeMounts:
+                - { name: src, mountPath: /src }
+          volumes:
+            - { name: src, emptyDir: {} }

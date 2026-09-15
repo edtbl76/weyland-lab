@@ -29,9 +29,9 @@ owner_default: edtbl76   # confirm per-repo owners; override with a per-repo `ow
 # not fail CI. This is how the coverage guard ships incrementally without redding the pipeline on day one.
 # Reconciled: pr (pr-staleness REPOS) + catalog (Port github-weyland selectors) + backup (restic allow-list,
 # by backup_path) + iac (all 8 active codified in tofu/github/ via import — repo.tf + repos_generated.tf), all
-# 2026-09-15. Pending: scan (needs the weyland-lab-only orchestrators generalized + per-repo review configs),
-# ci (per-repo .woodpecker.yml + Woodpecker activation).
-enforce: [pr, catalog, backup, iac]
+# scan (the code-scan suite's SCAN_REPOS — scan-all.sh loops the 21-tool vuln suite over every scan:true repo),
+# all 2026-09-15. Pending: ci (per-repo .woodpecker.yml + Woodpecker activation — a per-repo/bespoke lane).
+enforce: [pr, catalog, backup, iac, scan]
 
 repos:
   - name: weyland-lab
