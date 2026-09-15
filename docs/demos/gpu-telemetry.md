@@ -8,9 +8,10 @@ post-mortem in `dmesg` during the freeze forensics (EMA-186) now surface in Graf
 Runbook: [runbooks/observability.md](../runbooks/observability.md) (dcgm-exporter section) · flow:
 [flow-gpu-telemetry](../diagrams/flow-gpu-telemetry.md).
 
-> **Status: pending live verification.** The manifests (scrape job, dashboard, alerts) are committed; the last
-> step is the one operator action — enabling the exporter on rogueone — after which the steps below are RUN and
-> the dashboard/target checks are confirmed with real output. Until then this demo is the procedure, not a claim.
+> **Status: RUN 2026-09-15.** Exporter enabled on rogueone; all `DCGM_FI_DEV_*` serving on `:9400` (incl.
+> `XID_ERRORS`, in the default field set); Prometheus target `up{job="dcgm-exporter-rogueone"}=1`; metrics flowing
+> (`GPU_TEMP` 56C, `XID_ERRORS` 0 / No Error, `FB_USED` ~6 GiB); dashboard ConfigMap + `dcgm-gpu` PrometheusRule
+> Argo-synced (`monitoring-extras`). GPU: NVIDIA RTX 5000 Ada Laptop, driver 595.71.05.
 
 ## #1 — Enable the exporter (operator, on rogueone)
 
