@@ -125,13 +125,14 @@ teardown() {
 }
 
 @test "FR5.2 one unreachable repo does not silently shrink the watch set" {
-  # The subtle multi-repo failure: repo 3 of 6 401s, the loop swallows it, and the run reports on 5
-  # repos while claiming to cover 6. Every repo must be attempted AND the run must end non-zero.
+  # The subtle multi-repo failure: repo 3 of 8 401s, the loop swallows it, and the run reports on 7
+  # repos while claiming to cover 8. Every repo must be attempted AND the run must end non-zero.
+  # (8 = the repos.yaml pr-lane set: 8 active repos; B138 widened it from 6.)
   export GITHUB_TOKEN=not-a-real-token
   stub curl 0 '403'
   run bash "$LOGIC"
   [ "$status" -ne 0 ]
-  [ "$(calls_to curl | grep -c 'api.github.com')" -eq 6 ]
+  [ "$(calls_to curl | grep -c 'api.github.com')" -eq 8 ]
   [[ "$output" == *"403"* ]]
 }
 
