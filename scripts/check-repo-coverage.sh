@@ -110,16 +110,15 @@ txt = read(os.environ["SCAN_PY_FILE"], required=False)
 m = re.search(r'^TARGET\s*=\s*"([^"]+)"', txt, re.M)
 actual["scan"] = {m.group(1)} if m else set()
 
-# backup — local checkout paths in backup-repos.conf; match basenames case-insensitively to repo names
+# backup — the restic allow-list is CHECKOUT PATHS, not names; a repo is covered when its SoT `backup_path`
+# is present as a line. Matched by PATH because a checkout folder can differ from the repo name (freejack
+# lives under ~/Documents/Education), which name-matching would silently miss.
 conf = read(os.environ["BACKUP_CONF_FILE"], required=False)
-basenames = [ln.strip().rstrip("/").split("/")[-1].lower()
-             for ln in conf.splitlines() if ln.strip() and not ln.strip().startswith("#")]
-bk = set()
-for n in names:
-    key = n.lower()
-    if key in basenames or (key == "weyland-lab" and "weyland" in basenames):
-        bk.add(n)
+conf_paths = {ln.strip() for ln in conf.splitlines() if ln.strip() and not ln.strip().startswith("#")}
+declared_bp = {r["name"]: r.get("backup_path") for r in repos}
+bk = {n for n, bp in declared_bp.items() if bp and bp in conf_paths}
 actual["backup"] = bk
+orphan_bp = sorted(p for p in conf_paths if p not in set(filter(None, declared_bp.values())))
 
 # ci — configured by a .woodpecker.yml inside each repo (+ Woodpecker server activation); not centrally visible.
 actual["ci"] = None  # reported as checklist, never guard-compared
@@ -144,6 +143,14 @@ for lane in ALL_LANES:
     if missing: print(f"  [{tag}] {lane:8} — {verb} missing: {', '.join(missing)}")
     if extra:   print(f"  [{tag}] {lane:8} — {verb} unexpected: {', '.join(extra)}")
     if enforced:
+        fail = 1
+
+# backup allow-list is repo-only: a checkout path no SoT repo claims is a backed-up repo that isn't tracked.
+if orphan_bp:
+    enf = "backup" in enforce
+    mark = "❌" if enf else "•"
+    print(f"  [{'ENFORCED' if enf else 'pending '}] backup   — {mark} orphan path(s) not claimed by any repos.yaml backup_path: {', '.join(orphan_bp)}")
+    if enf:
         fail = 1
 
 if fail:

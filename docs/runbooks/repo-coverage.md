@@ -27,7 +27,7 @@ an enforced lane drifts, and an onboarding helper walks a new repo to parity.
 | `catalog` | `tofu/port/b137_integrations.tf` `.name \| IN(...)` selector | **enforced** |
 | `iac` | `tofu/github/*.tf` `github_repository` resources | pending — needs `tofu import` per repo |
 | `scan` | `services/scan-suite/scan.py` `TARGET` (+ per-repo `.deepsource`/`.coderabbit`/`.sourcery`) | pending — orchestrators are weyland-lab-only |
-| `backup` | `nodes/rogueone/backup/backup-repos.conf` (local paths) | pending — needs each repo's rogueone checkout path |
+| `backup` | `nodes/rogueone/backup/backup-repos.conf` (local paths) | **enforced** — matched by each repo's SoT `backup_path` (a checkout folder can differ from the repo name; freejack is under `~/Documents/Education`), and an allow-list path claimed by no repo is flagged as an orphan |
 | `ci` | a `.woodpecker.yml` inside each repo + Woodpecker activation | per-repo; verified by the onboard checklist, not centrally |
 
 ## Check coverage (the canonical op)

@@ -62,6 +62,48 @@ EOF
   [[ "$output" == *"scan"*"missing: weyland-lab"* ]]
 }
 
+@test "backup matched by backup_path not name (the freejack/Education case) -> exit 0" {
+  cat > "$REPOS_YAML" <<'EOF'
+enforce: [backup]
+repos:
+  - name: freejack
+    backup_path: ~/Documents/Education
+    lanes: { backup: true }
+EOF
+  printf '~/Documents/Education\n' > "$BACKUP_CONF_FILE"
+  run bash "$GUARD"
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"backup"*"parity"* ]]
+}
+
+@test "backup enforced: a repo whose backup_path is absent -> exit 1" {
+  cat > "$REPOS_YAML" <<'EOF'
+enforce: [backup]
+repos:
+  - name: freejack
+    backup_path: ~/Documents/Education
+    lanes: { backup: true }
+EOF
+  : > "$BACKUP_CONF_FILE"
+  run bash "$GUARD"
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"missing: freejack"* ]]
+}
+
+@test "backup enforced: an orphan allow-list path not claimed by any repo -> exit 1" {
+  cat > "$REPOS_YAML" <<'EOF'
+enforce: [backup]
+repos:
+  - name: freejack
+    backup_path: ~/Documents/Education
+    lanes: { backup: true }
+EOF
+  printf '~/Documents/Education\n~/some/orphan/dir\n' > "$BACKUP_CONF_FILE"
+  run bash "$GUARD"
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"orphan"* ]]
+}
+
 @test "fail-closed: missing SoT -> exit 2" {
   rm -f "$REPOS_YAML"
   run bash "$GUARD"
