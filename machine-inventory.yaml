@@ -71,6 +71,9 @@ hosts:
     - name: ca-certificates
       kind: apt
       status: system
+    - name: calibre
+      kind: apt
+      status: system
     - name: clamtk
       kind: apt
       status: system

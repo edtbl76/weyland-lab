@@ -2095,6 +2095,8 @@ Ingest the owner's full personal Kindle library as a RAG corpus for knowledge ma
 
 **Deliverable:** the extraction spike's verdict (which of a/b/c are viable for this account) FIRST, then a `kindle` RAG collection + KM query surface on the existing vector/embed/eval infra. **Scope honesty:** MEDIUM because stage 1 is genuinely uncertain — if de-DRM is dead for this account the corpus shrinks to highlights+personal-docs, which is still a useful KM RAG but not "ALL the text." Relates **B113** (RAG pattern), **B74/B96** (retrieval + eval), **B1** (vector stores).
 
+**EXTRACTION SPIKE DONE 2026-09-15 → [concepts/kindle-rag-eval.md](concepts/kindle-rag-eval.md).** Verdict: **feasible, but extraction is the hard part — the cheap routes are dead.** Proven live on the real Paperwhite Signature Edition: the on-device book copies off fine (`…kfx`, MTP-visible) but is a **DRMION container without an on-device voucher** — the key lives in the Kindle *app*, not the device serial, so the newest $0 tools (Calibre 7.6 + DeDRM 10.0.5 Satsuoni fork + KFX Input 2.34.2 + the device serial) **cannot** decrypt the copied file (DeDRM debug: `encrypted DRMION file without a DRM voucher`; its fallback points at a Kindle-for-PC key). Working full-text route = **Windows VM + Kindle-for-PC** (owner can build one); cheaper pre-check = whether the account still offers "Download & transfer via USB." Highlights floor (b) = `read.amazon.com/notebook` (manual/capped — `My Clippings.txt` isn't populated on the device). **TIER: left at HIGH pending re-evaluation against the other Highs** (the spike lowered ROI — extraction now confirmed to need a VM + per-book effort, not the "90% infra" easy path — so a HIGH→Medium re-tier is on the table, deferred by decision 2026-09-15).
+
 ---
 
 ### B166 — Code-intelligence / code-graph layer (eval + impl) — DONE 2026-09-11 (Linear EMA-227)
@@ -2487,6 +2489,17 @@ items (keep/remove + a one-line rationale; the system apt baseline is bulk-tagge
 the host + its `installed_package` entities land in the Port catalog, with git diffs surfacing future adds/removals as
 `status: unreviewed` drift. Prereq: the machine is SSH-reachable as `emangini@<host>` (hostname, not IP). See
 [runbooks/machine-inventory.md](runbooks/machine-inventory.md) (created in B129). Linear: EMA-230.
+
+---
+
+### B170 — Keep the machine-inventory catalog fresh: host-install → Port step + periodic drift audit — MEDIUM (2026-09-15, B129 follow-on, Linear EMA-231)
+
+Follow-on to [B129]: close the **drift gap** where host-level software installs bypass the machine-inventory catalog until someone remembers to re-collect. Surfaced 2026-09-15 installing Calibre + DeDRM/KFX plugins on rogueone for the B165 Kindle spike — a real install that would have silently gone uncatalogued. Two halves:
+
+1. **A conditional DoD step (NOT a universal 9th pillar).** Most deliverables are GitOps/k8s and install no host software, so a mandatory pillar would be dead weight. Instead add a **conditional line** to `docs/definition-of-done.md` (under cleanup/tracking): *"if this deliverable installed or removed host-level software, refresh the machine-inventory SoT (`collect | merge`) + `emit` to Port before calling it done."* Fires only when it applies.
+2. **A periodic automated drift audit** — the future-add B129's own runbook floated: a scheduled **drift-check CronJob** that re-collects each host and alerts if the `unreviewed` count grows (catches installs nobody recorded). Needs a `docs/schedules.md` row (off-hours, weight, owner) + a freshness signal + a `ScheduledJobStale`/`ScheduledJobFailed` budget, same pattern as the other nightly guards ([[servicemonitor-coverage-b148]]).
+
+**Scope note:** the collector only sees OS package managers (apt/snap/flatpak/pip/npm/images) — app-internal plugins (e.g. Calibre's DeDRM/KFX) are out of scope by design; the DoD step captures the OS-package delta, the drift CronJob keeps it honest. Relates [B129] (the catalog), [B169] (onboarding new clients — sibling follow-on). Linear: EMA-231.
 
 ---
 
