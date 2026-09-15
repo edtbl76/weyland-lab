@@ -115,7 +115,7 @@ def port_token():
     req = urllib.request.Request(f"{PORT_API}/auth/access_token",
                                  data=json.dumps({"clientId": cid, "clientSecret": sec}).encode(),
                                  headers={"Content-Type": "application/json"})
-    return json.load(urllib.request.urlopen(req, timeout=30))["accessToken"]
+    return json.load(urllib.request.urlopen(req, timeout=30))["accessToken"]  # nosec B310 — fixed https Port API URL, not a user scheme
 
 
 def port_upsert(token, blueprint, entity):
@@ -123,7 +123,7 @@ def port_upsert(token, blueprint, entity):
         f"{PORT_API}/blueprints/{blueprint}/entities?upsert=true&merge=true",
         data=json.dumps(entity).encode(),
         headers={"Content-Type": "application/json", "Authorization": f"Bearer {token}"})
-    urllib.request.urlopen(req, timeout=30).read()
+    urllib.request.urlopen(req, timeout=30).read()  # nosec B310 — fixed https Port API URL, not a user scheme
 
 
 def cmd_emit(host):
