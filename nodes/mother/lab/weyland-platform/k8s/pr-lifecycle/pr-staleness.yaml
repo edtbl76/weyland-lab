@@ -48,14 +48,13 @@ data:
 
     AM="http://monitoring-kube-prometheus-alertmanager.monitoring.svc.cluster.local:9093/api/v2/alerts"
 
-    # All six ACTIVE repos, not just weyland-lab. FR5.2 originally scoped this to one repo because the
-    # token only reached one; widened 2026-08-22 once the PAT was granted `Pull requests: read` on the
-    # full set. Space-separated; override with PR_REPOS for a scoped run.
-    #
-    # NOT the same six the `github-weyland` Port integration maps — Port carries `midi_real_book`, this
-    # set carries `startme-curator`. That divergence is real and tracked separately; do not silently
-    # reconcile one to the other here.
-    REPOS="${PR_REPOS:-edtbl76/Algopedia edtbl76/ServiceTransformation edtbl76/emangini-tailwind-nextjs-contentlayer edtbl76/startme-curator edtbl76/stud.io edtbl76/weyland-lab}"
+    # The ACTIVE repos with a PR flow, reconciled to the canonical SoT `repos.yaml` (B138) — every repo whose
+    # `lanes.pr` is true. FR5.2 originally scoped this to one repo (token reach); widened 2026-08-22, then
+    # brought to full parity 2026-09-15 (added freejack + MyBodyGraph). `midi_real_book` is deliberately absent
+    # (SoT `status: stale`, `pr: false`). freejack is PRIVATE — the PR PAT must hold `Pull requests: read` on it
+    # AND MyBodyGraph or they are silently skipped. Space-separated; override with PR_REPOS for a scoped run.
+    # Guarded by scripts/check-repo-coverage.sh (fails if this set drifts from repos.yaml).
+    REPOS="${PR_REPOS:-edtbl76/Algopedia edtbl76/ServiceTransformation edtbl76/emangini-tailwind-nextjs-contentlayer edtbl76/startme-curator edtbl76/stud.io edtbl76/weyland-lab edtbl76/freejack edtbl76/MyBodyGraph}"
 
     # Two budgets, because the two kinds of PR mean different things when they sit.
     #   A CI image-bump PR that is a day old means the ship loop stalled — that is the B135 failure

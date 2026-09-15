@@ -1,0 +1,83 @@
+# Canonical active-repo source of truth (B138 — repo coverage parity).
+#
+# WHY THIS EXISTS: the lab's repo-watching tools each grew their own repo list, onboarded once against
+# whatever set was current that day — they ranged from 1 to 6 repos, two carried a retired-looking repo,
+# and two genuinely-active repos (freejack, MyBodyGraph) were tracked NOWHERE. This file is the ONE declared
+# list every lane reconciles to. A lane that omits a repo must say so here as a reasoned `except` note, never
+# by silence. `scripts/check-repo-coverage.sh` fails when a lane diverges from this file (the drift guard,
+# same posture as check-app-registry.sh / check-port-iac-coverage.sh). `scripts/onboard-repo.sh` is the write
+# side: it propagates a repo across the declarative lanes + prints the per-repo + manual steps.
+#
+# LANES (what "covered" means for each):
+#   iac      declared in tofu/github/ (github_repository resource)
+#   ci       has CI — a .woodpecker.yml in the repo, activated in Woodpecker (server-side)
+#   scan     in the security/quality + AI-review stack (scan-suite / sonarqube / .deepsource / .coderabbit / .sourcery)
+#   pr       watched by the PR-lifecycle staleness check (k8s/pr-lifecycle/pr-staleness.yaml PR_REPOS)
+#   catalog  in the Port github-weyland integration selectors (tofu/port/b137_integrations.tf)
+#   backup   in the restic repo-backup allow-list (nodes/rogueone/backup/backup-repos.conf)
+#
+# A lane marked false MUST carry a matching `except:` note. Per-repo lanes (ci/scan) are configured by files
+# that live IN the target repo (.woodpecker.yml, .deepsource.toml, …) — the guard verifies the central lanes it
+# can see; onboard-repo.sh lists the in-repo files to add for full parity.
+
+owner_default: edtbl76   # confirm per-repo owners; override with a per-repo `owner:` when it differs
+
+# Lanes the drift guard HARD-FAILS on (CI-blocking). Starts small and grows as each lane is reconciled to
+# full parity — a lane not listed here is still checked and its gaps REPORTED (onboarding-pending), but does
+# not fail CI. This is how the coverage guard ships incrementally without redding the pipeline on day one.
+# Reconciled 2026-09-15: pr (pr-staleness REPOS) + catalog (Port github-weyland selectors) are at parity → enforced.
+# Pending (reported, not enforced): iac (needs `tofu import` of each repo), scan (needs the weyland-lab-only
+# orchestrators generalized), ci (per-repo .woodpecker.yml + Woodpecker activation), backup (needs local paths).
+enforce: [pr, catalog]
+
+repos:
+  - name: weyland-lab
+    visibility: public
+    status: active
+    lanes: { iac: true, ci: true, scan: true, pr: true, catalog: true, backup: true }
+
+  - name: stud.io
+    visibility: public
+    status: active
+    lanes: { iac: true, ci: true, scan: true, pr: true, catalog: true, backup: true }
+
+  - name: Algopedia
+    visibility: public
+    status: active
+    lanes: { iac: true, ci: true, scan: true, pr: true, catalog: true, backup: true }
+
+  - name: ServiceTransformation
+    visibility: public
+    status: active
+    lanes: { iac: true, ci: true, scan: true, pr: true, catalog: true, backup: true }
+
+  - name: emangini-tailwind-nextjs-contentlayer
+    visibility: public
+    status: active
+    lanes: { iac: true, ci: true, scan: true, pr: true, catalog: true, backup: true }
+
+  - name: startme-curator
+    visibility: public
+    status: active
+    lanes: { iac: true, ci: true, scan: true, pr: true, catalog: true, backup: true }
+
+  - name: freejack
+    visibility: private          # PRIVATE — the Port github integration + any public-scoped PAT must be granted access
+    status: active
+    lanes: { iac: true, ci: true, scan: true, pr: true, catalog: true, backup: true }
+
+  - name: MyBodyGraph
+    visibility: public           # CONFIRM visibility
+    status: active
+    lanes: { iac: true, ci: true, scan: true, pr: true, catalog: true, backup: true }
+
+  - name: midi_real_book
+    visibility: public           # CONFIRM visibility
+    status: stale                # real repo, dormant — NOT retired (owner confirmed 2026-09-15). Tracked, not scanned/CI'd.
+    lanes: { iac: false, ci: false, scan: false, pr: false, catalog: true, backup: false }
+    except:
+      iac: "dormant — not codified until reactivated"
+      ci: "dormant — no active CI"
+      scan: "dormant — not in the scan/review rotation until reactivated"
+      pr: "dormant — no PR flow"
+      backup: "dormant — reactivate to add to restic allow-list"

@@ -107,15 +107,21 @@ teardown() {
 # FR5.2 originally scoped this to weyland-lab alone. Widened 2026-08-22 at the operator's direction
 # once the PAT was granted read access to all six active repos.
 
-@test "FR5.2 all six active repos are watched, not just weyland-lab" {
+@test "FR5.2 all active PR-flow repos are watched, reconciled to repos.yaml (B138)" {
   PR_STALENESS_LIB=1 source "$LOGIC"
+  # The repos.yaml SoT set where lanes.pr is true (8 active; midi_real_book is stale/pr:false, excluded).
   for r in Algopedia ServiceTransformation emangini-tailwind-nextjs-contentlayer \
-           startme-curator stud.io weyland-lab; do
+           startme-curator stud.io weyland-lab freejack MyBodyGraph; do
     [[ "$REPOS" == *"edtbl76/$r"* ]] || {
       echo "missing repo: edtbl76/$r  (REPOS=$REPOS)"
       return 1
     }
   done
+  # midi_real_book must NOT be watched here (stale, no PR flow).
+  [[ "$REPOS" != *"midi_real_book"* ]] || {
+    echo "midi_real_book should be excluded (SoT status: stale, pr: false)"
+    return 1
+  }
 }
 
 @test "FR5.2 one unreachable repo does not silently shrink the watch set" {

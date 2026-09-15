@@ -87,6 +87,7 @@ LanceDB, Redpanda, Feast). Which dataset lives where: [data-domain-storage-grid.
 - [timescaledb.md](runbooks/timescaledb.md) — TimescaleDB time-series store (B65 Tier-2)
 - [transcription-whisper.md](runbooks/transcription-whisper.md) — whisper.cpp STT (CT 103) + OpenAI shim
 - [trino.md](runbooks/trino.md) — Trino federation query engine (native-Nessie iceberg + postgresql catalogs)
+- [repo-coverage.md](runbooks/repo-coverage.md) — repo coverage parity (B138): `repos.yaml` SoT + `check-repo-coverage.sh` drift guard + `onboard-repo.sh`; reconcile every repo-watching lane (pr/catalog/scan/ci/backup/iac) to one canonical list
 - [unleash.md](runbooks/unleash.md) — Unleash (B43, feature-mgmt): OSS feature flags, meshed Postgres, → Port `feature_flag` webhook; secret-paste + inotify gotchas
 - [uptime-kuma.md](runbooks/uptime-kuma.md) — Uptime Kuma (B43): 37 monitors; Telegram paging (Port webhook retired); LAN-CoreDNS + mkcert-CA gotchas, restore-into-empty
 - [woodpecker.md](runbooks/woodpecker.md) — Woodpecker CI (B56/B57a/B57b) — mixed fleet by `backend` label, LAN NodePorts, the `nightly-images` cron
