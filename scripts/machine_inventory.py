@@ -26,7 +26,7 @@ import urllib.request
 
 import yaml
 
-SOT = os.path.join(os.path.dirname(__file__), "..", "machine-inventory.yaml")
+SOT = os.environ.get("MACHINE_INV_SOT", os.path.join(os.path.dirname(__file__), "..", "machine-inventory.yaml"))
 BASELINE_KINDS = {"apt", "pip", "image"}  # captured but not a keep/remove decision: dep-dominated (apt/pip)
 #                                          # + transient/regenerable (container images). Curate snap/flatpak/npm.
 PORT_API = "https://api.getport.io/v1"

@@ -51,6 +51,15 @@ The same three steps for any additional client: **collect | merge** → curate i
 every other box → `emangini` (the collector encodes this; override a new client with `MACHINE_INV_SSH_USER=<user>`).
 Hostnames, not IPs ([feedback-ssh-conventions]). New hosts appear in Port automatically once emitted.
 
+## How it runs (cadence)
+
+**By hand / on-demand**, not a timer — deliberately. A blind scheduled refresh would keep discovering new
+discretionary installs and piling them up as `unreviewed` with nobody deciding, and each host needs SSH auth +
+human curation anyway. So the refresh is run when you've changed a machine (or periodically by choice), per the
+canonical op above. A scheduled **drift check** (a CronJob that re-collects and alerts if the `unreviewed` count
+grows) is a reasonable future add — it would need a `docs/schedules.md` row (off-hours, weight, owner) + a
+freshness signal, so it's a deliberate follow-on, not a default.
+
 ## Notes / gotchas
 
 - **rogueone is seeded** from the 2026-08-15 audit (the documented KEEPs); its remaining `unreviewed` items are
