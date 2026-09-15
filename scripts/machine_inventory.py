@@ -127,33 +127,38 @@ def port_upsert(token, blueprint, entity):
 
 
 def cmd_emit(host):
-    recs = stdin_for("emit", host)
-    if not recs:
-        sys.exit("emit: no records on stdin — refusing to emit an empty inventory")
+    """Push the committed SoT to Port (no collect/SSH needed — the SoT is the source). `host` is a single
+    host or `all`. Emits one `host` entity + one `installed_package` per cataloged package (kind/status/
+    rationale from the SoT; version is not tracked in the SoT, so it is left blank in Port)."""
     sot = load_sot()
-    entry = (sot.get("hosts") or {}).get(host, {})
-    decided = {(p["kind"], p["name"]): p for p in entry.get("packages", [])}
-    ver = {(k, n): v for k, n, v in recs}
-
+    hosts = sot.get("hosts") or {}
+    targets = sorted(hosts) if host == "all" else [host]
     token = port_token()
-    port_upsert(token, "host", {"identifier": host, "title": host,
-                                "properties": {"role": entry.get("role", "")}})
-    n = 0
-    for (kind, name), v in ver.items():
-        d = decided.get((kind, name), {})
-        ident = f"{host}--{kind}--{name}".replace("/", "_").replace(":", "_")[:255]
-        port_upsert(token, "installed_package", {
-            "identifier": ident, "title": f"{name} ({kind})",
-            "properties": {"kind": kind, "package": name, "version": v,
-                           "status": d.get("status", "unreviewed"), "rationale": d.get("rationale", "")},
-            "relations": {"host": host}})
-        n += 1
-    print(f"emit {host}: upserted 1 host + {n} installed_package entities to Port", file=sys.stderr)
+    total = 0
+    for h in targets:
+        entry = hosts.get(h)
+        if not entry:
+            sys.exit(f"emit: host '{h}' is not in the SoT (have: {', '.join(sorted(hosts)) or 'none'})")
+        port_upsert(token, "host", {"identifier": h, "title": h,
+                                    "properties": {"role": entry.get("role", "")}})
+        n = 0
+        for p in entry.get("packages", []):
+            ident = f"{h}--{p['kind']}--{p['name']}".replace("/", "_").replace(":", "_")[:255]
+            port_upsert(token, "installed_package", {
+                "identifier": ident, "title": f"{p['name']} ({p['kind']})",
+                "properties": {"kind": p["kind"], "package": p["name"],
+                               "status": p.get("status", "unreviewed"), "rationale": p.get("rationale", "")},
+                "relations": {"host": h}})
+            n += 1
+        total += n
+        print(f"emit {h}: 1 host + {n} installed_package entities", file=sys.stderr)
+    print(f"emit: {len(targets)} host(s), {total} package entities upserted to Port", file=sys.stderr)
 
 
 def main():
     if len(sys.argv) != 3 or sys.argv[1] not in ("merge", "emit"):
-        sys.exit("usage: machine_inventory.py {merge|emit} <host>   (reads collector output on stdin)")
+        sys.exit("usage: machine_inventory.py merge <host>   (reads collector output on stdin)\n"
+                 "       machine_inventory.py emit  <host|all> (reads the committed SoT; no stdin)")
     (cmd_merge if sys.argv[1] == "merge" else cmd_emit)(sys.argv[2])
 
 

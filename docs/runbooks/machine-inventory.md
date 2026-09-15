@@ -34,13 +34,14 @@ Blueprints (once, or after editing the blueprint schema):
 ```
 [mother|rogueone] cd nodes/mother/lab/weyland-platform/tofu/port && tofu validate && tofu apply
 ```
-Entities (after a refresh — creds from `tofu/port/.env`):
+Entities (reads the committed SoT — no collect/SSH; creds from `tofu/port/.env`):
 ```
-[rogueone] cd nodes/mother/lab/weyland-platform/tofu/port && set -a && . ./.env && set +a && cd - \
-  && bash scripts/collect-machine-inventory.sh <host> | python3 scripts/machine_inventory.py emit <host>
+[rogueone] set -a && . nodes/mother/lab/weyland-platform/tofu/port/.env && set +a \
+  && python3 scripts/machine_inventory.py emit all      # or a single <host>
 ```
-`emit` upserts one `host` entity + one `installed_package` per collected item (live version from the run,
-`status`/`rationale` from the SoT). Baseline items are emitted too so the Port catalog is complete.
+`emit` upserts one `host` entity + one `installed_package` per cataloged package (`kind`/`status`/`rationale`
+from the SoT). Baseline (`status: system`) items are emitted too so the Port catalog is complete. Version is not
+tracked in the SoT, so it is left blank in Port.
 
 ## Onboarding a new machine (B169 / EMA-230)
 
