@@ -198,6 +198,15 @@ prometheus:
           - targets: ['192.168.1.230:8080']
             labels:
               ray_node_type: worker
+      # B128 — EXTERNAL rogueone DCGM GPU telemetry (off-cluster → no ServiceMonitor). rogueone runs
+      # dcgm.nv-hostengine + dcgm.dcgm-exporter (snap) exposing DCGM_FI_DEV_* on :9400 (util, VRAM, temp,
+      # power, clocks, and Xid fault codes). Not-always-up (laptop) → flaps down on sleep, expected, same
+      # edge posture as the ray-worker target above. The gpu_host label keys the DCGM dashboard + alerts.
+      - job_name: dcgm-exporter-rogueone
+        static_configs:
+          - targets: ['192.168.1.230:9400']
+            labels:
+              gpu_host: rogueone
     retention: 15d
     # Hard size cap BELOW the 20Gi PVC (2026-07-18) — Prometheus drops oldest blocks at whichever comes first,
     # 15d OR 16GB, so a series-count spike can never fill the volume and pressure the root disk (the eviction that

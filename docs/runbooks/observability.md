@@ -314,6 +314,27 @@ dashboard import **#10347**. Token: `pveum user add pve-exporter@pve; pveum aclm
 PVEAuditor; pveum user token add pve-exporter@pve monitoring --privsep 0` (copy the `value` UUID — shown once).
 Verify: `kubectl exec -n monitoring deploy/pve-exporter -- wget -qO- 'http://localhost:9221/pve?target=192.168.1.232' | grep pve_up`.
 
+**rogueone GPU metrics — `dcgm-exporter`** (B128 — EXTERNAL, on rogueone, NOT a cluster deployment): rogueone
+runs `dcgm.nv-hostengine` + `dcgm.dcgm-exporter` (snap) exposing `DCGM_FI_DEV_*` on `:9400`. In-cluster Prometheus
+scrapes it as a **static target** (off-cluster → no ServiceMonitor) via the `dcgm-exporter-rogueone` job in
+`k8s/monitoring/kube-prometheus-stack-values.yaml` (`192.168.1.230:9400`, label `gpu_host: rogueone`) — the same
+pattern as the Ray-worker scrape. Dashboard `k8s/monitoring/dcgm-exporter-dashboard.yaml` (Grafana → **rogueone GPU
+(DCGM)**, uid `dcgm-exporter`); fault/thermal alerts `k8s/monitoring/dcgm-gpu-alerts.yaml` (`GpuXidError` critical,
+`GpuHighTemp` warning). The target **flaps down when rogueone (a laptop) sleeps — expected, not a GPU fault**. It
+carries no dedicated down alert: the blanket `TargetDown` net already covers it (a per-service down alert would be
+redundant — see `alert-coverage.yaml`). `TargetDown` does page on a long sleep, identical to the existing
+`ray-worker-rogueone` target on the same box — a known, tolerated page, not new noise.
+
+Enable the exporter (once, on rogueone — the host engine is already running):
+```
+[rogueone] sudo snap start --enable dcgm.dcgm-exporter
+[rogueone] curl -s localhost:9400/metrics | grep -E 'DCGM_FI_DEV_(GPU_TEMP|XID_ERRORS|GPU_UTIL|FB_USED) '
+```
+The second line is the **fail-closed check**: `DCGM_FI_DEV_XID_ERRORS` and `DCGM_FI_DEV_GPU_TEMP` MUST appear or the
+alerts are blind — if `XID_ERRORS` is absent, add it to the exporter's metrics CSV (`-f`/`DCGM_EXPORTER_COLLECTORS`)
+and restart. Once metrics flow, verify in-cluster: the `dcgm-exporter-rogueone` job is `UP` in Prometheus targets and
+the **rogueone GPU (DCGM)** dashboard populates.
+
 ## Phase 4 — Loki (logs) + Tempo (traces) → unified Grafana; Jaeger retired ✅ (2026-06-21, B48)
 
 Completes the LGTM stack. All three pillars now in Grafana (metrics + logs + traces).

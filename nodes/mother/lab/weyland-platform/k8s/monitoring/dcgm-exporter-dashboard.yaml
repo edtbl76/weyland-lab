@@ -1,0 +1,91 @@
+# B128 — rogueone GPU dashboard (DCGM). The RTX 5000 Ada on rogueone, scraped off-cluster via the static
+# `dcgm-exporter-rogueone` job (192.168.1.230:9400) in kube-prometheus-stack-values.yaml. dcgm-exporter emits
+# DCGM_FI_DEV_* per GPU; this box has one card, so no per-GPU templating is needed. Every panel query filters
+# by job="dcgm-exporter-rogueone" — that scoping is also what satisfies the dashboard-coverage guard (B148
+# sibling): a scrape job is "covered" when a dashboard scopes it by job=. Provisioned via the grafana_dashboard
+# sidecar, same pattern as pve-exporter-dashboard.yaml / apisix-dashboard.yaml.
+#
+# The target flaps DOWN when rogueone (a laptop) sleeps — expected, not a GPU fault. "GPU up" reads DOWN then;
+# the blanket TargetDown net will page on a long sleep, same as the ray-worker-rogueone target (dcgm-gpu-alerts.yaml
+# adds no dedicated down alert — it would be redundant with TargetDown).
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: dcgm-exporter-dashboard
+  namespace: monitoring
+  labels:
+    grafana_dashboard: "1"
+data:
+  dcgm-exporter_grafana_dashboard.json: |-
+    {
+      "annotations": {"list": [{"builtIn": 1, "datasource": "-- Grafana --", "enable": true, "hide": true, "name": "Annotations & Alerts", "type": "dashboard"}]},
+      "editable": true,
+      "graphTooltip": 1,
+      "title": "rogueone GPU (DCGM)",
+      "uid": "dcgm-exporter",
+      "tags": ["gpu", "dcgm", "rogueone", "observability"],
+      "timezone": "browser",
+      "time": {"from": "now-6h", "to": "now"},
+      "refresh": "1m",
+      "schemaVersion": 39,
+      "templating": {"list": []},
+      "panels": [
+        {"type": "row", "title": "rogueone — RTX 5000 Ada", "gridPos": {"h": 1, "w": 24, "x": 0, "y": 0}},
+        {"type": "stat", "title": "GPU up", "datasource": {"type": "prometheus", "uid": "prometheus"},
+         "gridPos": {"h": 6, "w": 4, "x": 0, "y": 1},
+         "fieldConfig": {"defaults": {"unit": "short", "mappings": [{"type": "value", "options": {"0": {"text": "DOWN (asleep?)", "color": "text"}, "1": {"text": "UP", "color": "green"}}}]}},
+         "options": {"colorMode": "background"},
+         "targets": [{"expr": "up{job=\"dcgm-exporter-rogueone\"}", "legendFormat": "gpu", "refId": "A"}]},
+        {"type": "stat", "title": "Last Xid error", "datasource": {"type": "prometheus", "uid": "prometheus"},
+         "gridPos": {"h": 6, "w": 4, "x": 4, "y": 1},
+         "fieldConfig": {"defaults": {"unit": "short", "thresholds": {"steps": [{"value": null, "color": "green"}, {"value": 1, "color": "red"}]}, "mappings": [{"type": "value", "options": {"0": {"text": "none", "color": "green"}}}]}},
+         "options": {"colorMode": "background", "graphMode": "none"},
+         "targets": [{"expr": "DCGM_FI_DEV_XID_ERRORS{job=\"dcgm-exporter-rogueone\"}", "legendFormat": "xid", "refId": "A"}]},
+        {"type": "stat", "title": "Temp", "datasource": {"type": "prometheus", "uid": "prometheus"},
+         "gridPos": {"h": 6, "w": 4, "x": 8, "y": 1},
+         "fieldConfig": {"defaults": {"unit": "celsius", "thresholds": {"steps": [{"value": null, "color": "green"}, {"value": 85, "color": "red"}]}}},
+         "options": {"colorMode": "background", "graphMode": "area"},
+         "targets": [{"expr": "DCGM_FI_DEV_GPU_TEMP{job=\"dcgm-exporter-rogueone\"}", "legendFormat": "temp", "refId": "A"}]},
+        {"type": "stat", "title": "GPU util", "datasource": {"type": "prometheus", "uid": "prometheus"},
+         "gridPos": {"h": 6, "w": 4, "x": 12, "y": 1},
+         "fieldConfig": {"defaults": {"unit": "percent"}},
+         "options": {"colorMode": "value", "graphMode": "area"},
+         "targets": [{"expr": "DCGM_FI_DEV_GPU_UTIL{job=\"dcgm-exporter-rogueone\"}", "legendFormat": "util", "refId": "A"}]},
+        {"type": "stat", "title": "Power", "datasource": {"type": "prometheus", "uid": "prometheus"},
+         "gridPos": {"h": 6, "w": 4, "x": 16, "y": 1},
+         "fieldConfig": {"defaults": {"unit": "watt"}},
+         "options": {"colorMode": "value", "graphMode": "area"},
+         "targets": [{"expr": "DCGM_FI_DEV_POWER_USAGE{job=\"dcgm-exporter-rogueone\"}", "legendFormat": "power", "refId": "A"}]},
+        {"type": "stat", "title": "VRAM used", "datasource": {"type": "prometheus", "uid": "prometheus"},
+         "gridPos": {"h": 6, "w": 4, "x": 20, "y": 1},
+         "fieldConfig": {"defaults": {"unit": "decmbytes"}},
+         "options": {"colorMode": "value", "graphMode": "area"},
+         "targets": [{"expr": "DCGM_FI_DEV_FB_USED{job=\"dcgm-exporter-rogueone\"}", "legendFormat": "used (MiB)", "refId": "A"}]},
+        {"type": "timeseries", "title": "GPU / memory-copy utilization", "datasource": {"type": "prometheus", "uid": "prometheus"},
+         "gridPos": {"h": 8, "w": 12, "x": 0, "y": 7},
+         "fieldConfig": {"defaults": {"unit": "percent", "custom": {"fillOpacity": 10}}},
+         "targets": [
+           {"expr": "DCGM_FI_DEV_GPU_UTIL{job=\"dcgm-exporter-rogueone\"}", "legendFormat": "GPU util", "refId": "A"},
+           {"expr": "DCGM_FI_DEV_MEM_COPY_UTIL{job=\"dcgm-exporter-rogueone\"}", "legendFormat": "mem-copy util", "refId": "B"}]},
+        {"type": "timeseries", "title": "VRAM (framebuffer)", "datasource": {"type": "prometheus", "uid": "prometheus"},
+         "gridPos": {"h": 8, "w": 12, "x": 12, "y": 7},
+         "fieldConfig": {"defaults": {"unit": "decmbytes", "custom": {"fillOpacity": 10, "stacking": {"mode": "normal"}}}},
+         "targets": [
+           {"expr": "DCGM_FI_DEV_FB_USED{job=\"dcgm-exporter-rogueone\"}", "legendFormat": "used", "refId": "A"},
+           {"expr": "DCGM_FI_DEV_FB_FREE{job=\"dcgm-exporter-rogueone\"}", "legendFormat": "free", "refId": "B"}]},
+        {"type": "timeseries", "title": "Temperature", "datasource": {"type": "prometheus", "uid": "prometheus"},
+         "gridPos": {"h": 8, "w": 12, "x": 0, "y": 15},
+         "fieldConfig": {"defaults": {"unit": "celsius", "custom": {"fillOpacity": 10, "thresholdsStyle": {"mode": "line"}}, "thresholds": {"steps": [{"value": null, "color": "green"}, {"value": 85, "color": "red"}]}}},
+         "targets": [{"expr": "DCGM_FI_DEV_GPU_TEMP{job=\"dcgm-exporter-rogueone\"}", "legendFormat": "die temp", "refId": "A"}]},
+        {"type": "timeseries", "title": "Power draw", "datasource": {"type": "prometheus", "uid": "prometheus"},
+         "gridPos": {"h": 8, "w": 12, "x": 12, "y": 15},
+         "fieldConfig": {"defaults": {"unit": "watt", "custom": {"fillOpacity": 10}}},
+         "targets": [{"expr": "DCGM_FI_DEV_POWER_USAGE{job=\"dcgm-exporter-rogueone\"}", "legendFormat": "power", "refId": "A"}]},
+        {"type": "timeseries", "title": "Clocks", "datasource": {"type": "prometheus", "uid": "prometheus"},
+         "gridPos": {"h": 8, "w": 24, "x": 0, "y": 23},
+         "fieldConfig": {"defaults": {"unit": "rothz", "custom": {"fillOpacity": 0}}},
+         "targets": [
+           {"expr": "DCGM_FI_DEV_SM_CLOCK{job=\"dcgm-exporter-rogueone\"} * 1e6", "legendFormat": "SM clock", "refId": "A"},
+           {"expr": "DCGM_FI_DEV_MEM_CLOCK{job=\"dcgm-exporter-rogueone\"} * 1e6", "legendFormat": "mem clock", "refId": "B"}]}
+      ]
+    }

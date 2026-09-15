@@ -342,6 +342,7 @@ not meant for direct browsing. ServiceMonitors: `k8s/monitoring/servicemonitors.
 | LiteLLM gateway | `litellm.weyland.svc:4000` | `/metrics` | `http://mother:30400/metrics` (NodePort) |
 | MinIO | `minio.minio.svc:9000` | `/minio/v2/metrics/cluster` | in-cluster only (`MINIO_PROMETHEUS_AUTH_TYPE=public`, no token) |
 | Proxmox VE (pve-exporter) | `pve-exporter.monitoring.svc:9221` | `/pve?target=192.168.1.232` | per-node/VM/CT metrics; read-only PVEAuditor token. Grafana dashboard #10347. See [runbooks/observability.md](runbooks/observability.md) |
+| rogueone GPU (dcgm-exporter) | `192.168.1.230:9400` (EXTERNAL, on rogueone) | `/metrics` | B128 — `DCGM_FI_DEV_*` (util/VRAM/temp/power/clocks/Xid); static `dcgm-exporter-rogueone` scrape (off-cluster, no ServiceMonitor); flaps down on laptop sleep (expected). Grafana **rogueone GPU (DCGM)**. See [runbooks/observability.md](runbooks/observability.md) |
 
 Stack-internal targets (Prometheus, Alertmanager, Grafana, node-exporter, kube-state-metrics, kubelet,
 cAdvisor) are scraped by the chart's own ServiceMonitors — not listed here.
