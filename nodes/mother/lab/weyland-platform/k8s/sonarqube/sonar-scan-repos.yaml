@@ -75,6 +75,9 @@ spec:
                       "https://oauth2:${GITHUB_TOKEN}@github.com/edtbl76/${repo}.git" "/src/${repo}" \
                       || echo "!! clone failed for ${repo}" >&2
                   done
+                  # The scanner container runs NON-ROOT but the clone ran as root; make /src writable so
+                  # sonar-scanner can create each repo's .scannerwork working dir (else AccessDeniedException).
+                  chmod -R a+w /src
               env:
                 - name: SONAR_REPOS
                   value: "Algopedia emangini-tailwind-nextjs-contentlayer startme-curator stud.io freejack MyBodyGraph"

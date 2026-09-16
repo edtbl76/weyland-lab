@@ -48,7 +48,9 @@ spec:
               # Compile every module's main sources so Sonar's Java analyzer has bytecode. Use the repo's OWN
               # wrapper (pinned Gradle version); --no-daemon in a one-shot pod. Best-effort: a module that fails to
               # compile still lets Sonar analyze what did (the scan step is best-effort too).
-              command: ["sh", "-c", "chmod +x ./gradlew && ./gradlew --no-daemon classes || echo '!! gradle classes returned nonzero — Sonar will analyze whatever compiled'"]
+              # ...then make /src writable: the scanner container runs NON-ROOT but the clone + this build ran
+              # as root, so without this sonar-scanner can't create /src/.scannerwork (AccessDeniedException).
+              command: ["sh", "-c", "chmod +x ./gradlew && ./gradlew --no-daemon classes || echo '!! gradle classes returned nonzero — Sonar will analyze whatever compiled'; chmod -R a+w /src"]
               volumeMounts:
                 - { name: src, mountPath: /src }
           containers:
