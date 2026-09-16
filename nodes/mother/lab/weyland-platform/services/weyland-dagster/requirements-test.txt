@@ -12,3 +12,6 @@ hypothesis==6.140.3
 # produces (not stub objects), so the emitter's own package is a test dep — pinned to the runtime version.
 # It is the heaviest test dep (pulls avro/pydantic); it earns its place by making the 3k-line emitter testable.
 acryl-datahub==1.6.0.15
+# sqlglot: datahub_emit's dbt column-lineage tracing parses SQL with it; the _trace_dbt_columns test needs it,
+# and without it here that test silently skips in the scan lane (importorskip) — losing real coverage.
+sqlglot

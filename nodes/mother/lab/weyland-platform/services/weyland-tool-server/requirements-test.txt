@@ -1,0 +1,8 @@
+# Test-only deps for weyland-tool-server, installed per-project by scripts/run-lang-tests.sh. main.py's HEAVY
+# clients (psycopg2/weaviate/neo4j/qdrant_client/sentry_sdk/fastmcp) are stubbed in conftest.py; what the tests
+# actually exercise is the FastAPI app under TestClient, real Verdict objects, and real Prometheus output — so
+# fastapi (pulls starlette+pydantic), httpx (TestClient transport + the guard/ollama/dagster calls), and
+# prometheus_client are the whole set.
+fastapi
+httpx
+prometheus_client
