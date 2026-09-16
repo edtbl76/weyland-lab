@@ -586,3 +586,64 @@ def test_emit_lightdash_is_noop_without_api_key(datahub_emit, captured, monkeypa
     monkeypatch.delenv("LIGHTDASH_API_KEY", raising=False)
     assert datahub_emit.emit_lightdash() == (0, 0)          # fail-safe: no key → nothing emitted
     assert captured.mcps == []
+
+
+# ── emit_applications: registry → Application entities + owns-pattern attachment ──────────────────────
+class _AppGraph:
+    """Stand-in for DataHubGraph for emit_applications — it does `from ... import DataHubGraph` locally, so we
+    patch the source module attribute. get_urns_by_filter drives the attach phase. (Distinct from the shared
+    fake_graph fixture's _FakeGraph, which carries get_aspect — do NOT reuse this name for that.)"""
+    _urns = {"dataset": ["urn:li:dataset:(urn:li:dataPlatform:dagster,weyland-dagster.fma,PROD)"],
+             "chart": [], "dashboard": []}
+
+    def __init__(self, *a, **k):
+        pass
+
+    def get_urns_by_filter(self, entity_types=None, **k):
+        return self._urns.get((entity_types or ["dataset"])[0], [])
+
+
+def test_emit_applications_builds_entities_and_attaches_by_owns(datahub_emit, captured, monkeypatch):
+    from datahub.metadata.schema_classes import ApplicationPropertiesClass, ApplicationsClass, GlobalTagsClass
+
+    registry = [
+        {"key": "weyland-dagster", "name": "Weyland Dagster", "group": "core-producer",
+         "description": "the pipeline", "datahub_application": True, "owns": ["weyland-dagster"]},
+        {"key": "realm", "name": "Realm of Agents", "group": "ai-serving",
+         "datahub_application": True, "owns": []},                      # modeled now, attaches later (empty owns)
+        {"key": "not-an-app", "name": "Skip Me", "group": "x"},         # no datahub_application → excluded
+    ]
+    monkeypatch.setattr(datahub_emit, "_load_app_registry", lambda: registry)
+    monkeypatch.setattr("datahub.ingestion.graph.client.DataHubGraph", _AppGraph)
+
+    n_apps, n_attached = datahub_emit.emit_applications()
+
+    # only the two datahub_application rows become entities (not-an-app excluded)
+    props = [m for m in captured.mcps if isinstance(m.aspect, ApplicationPropertiesClass)]
+    assert n_apps == 2 and len(props) == 2
+    by_name = {p.aspect.name: p for p in props}
+    assert set(by_name) == {"Weyland Dagster", "Realm of Agents"}
+    wd = by_name["Weyland Dagster"]
+    assert wd.aspect.description == "the pipeline"
+    assert wd.aspect.customProperties["group"] == "core-producer"
+    assert wd.aspect.customProperties["key"] == "weyland-dagster"
+    assert "application:weyland-dagster" in wd.entityUrn
+    # every app gets a group tag
+    tags = [m for m in captured.mcps if isinstance(m.aspect, GlobalTagsClass)]
+    assert len(tags) == 2
+    # attach phase: the one dataset urn matches weyland-dagster's owns pattern → one Applications aspect
+    attach = [m for m in captured.mcps if isinstance(m.aspect, ApplicationsClass)]
+    assert n_attached == 1 and len(attach) == 1
+    assert attach[0].aspect.applications == ["urn:li:application:weyland-dagster"]
+
+
+def test_emit_applications_empty_owns_attaches_nothing(datahub_emit, captured, monkeypatch):
+    from datahub.metadata.schema_classes import ApplicationsClass
+
+    monkeypatch.setattr(datahub_emit, "_load_app_registry",
+                        lambda: [{"key": "realm", "name": "R", "group": "ai-serving",
+                                  "datahub_application": True, "owns": []}])
+    monkeypatch.setattr("datahub.ingestion.graph.client.DataHubGraph", _AppGraph)
+    n_apps, n_attached = datahub_emit.emit_applications()
+    assert n_apps == 1 and n_attached == 0
+    assert not [m for m in captured.mcps if isinstance(m.aspect, ApplicationsClass)]  # empty owns → no attach
