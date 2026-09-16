@@ -4,6 +4,14 @@
 # is unmeshed and SonarQube is PERMISSIVE mTLS, so plaintext is accepted). Kept SEPARATE from code-scan-suite:
 # that one runs server-less file scanners → Port; SonarQube needs its own server. Token in Secret
 # sonarqube-scan-token (global analysis token), created out-of-band, never committed. Weekly Sun 12:00 UTC (08:00 NY).
+#
+# SCOPE (B138 lane model): SonarQube owns CODE QUALITY on real application source. The scan lane (code-scan-suite:
+# trivy/checkov/gitleaks) already owns SECURITY across ALL files including IaC. Scanning `.` naively made SonarQube
+# re-flag the whole infra monorepo — ~280 k8s/Docker/notebook findings that duplicate code-scan-suite and drowned
+# the ~230 real Python/Java findings, so the gate failed on pure noise. `sonar.exclusions` therefore drops the
+# non-code surface: k8s/Argo/Helm YAML + OpenTofu (checkov owns them), Dockerfiles (trivy owns them), notebooks,
+# build artifacts, the golden-paths/ language fixtures (B88/B153 hello-world, no prod code) and eval/ task fixtures
+# (deliberately-buggy coding-agent tasks). What remains is the real code: the Python services + the Flink Java modules.
 apiVersion: batch/v1
 kind: CronJob
 metadata:
@@ -44,7 +52,7 @@ spec:
               args:
                 - -Dsonar.projectKey=weyland-lab
                 - -Dsonar.sources=.
-                - -Dsonar.exclusions=**/node_modules/**,**/.yarn/**,**/.git/**,**/openclaw/**,site-techdocs/**
+                - -Dsonar.exclusions=**/node_modules/**,**/.yarn/**,**/.git/**,**/openclaw/**,site-techdocs/**,golden-paths/**,eval/**,**/*.ipynb,**/*.yaml,**/*.yml,**/*.tf,**/*.tfvars,**/Dockerfile,**/Dockerfile.*,**/*.dockerfile,**/target/**,**/build/**,**/dist/**,**/.next/**,**/_build/**
                 - -Dsonar.java.binaries=nodes/mother/lab/weyland-platform/k8s/flink/health-job/target/classes,nodes/mother/lab/weyland-platform/k8s/flink/sql-runner/target/classes
               volumeMounts:
                 - { name: src, mountPath: /usr/src }
