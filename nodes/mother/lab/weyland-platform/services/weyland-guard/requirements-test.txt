@@ -2,3 +2,7 @@
 # numpy: tests/test_onnx_runtime.py exercises OnnxCrossEncoder/OnnxTextClassifier, whose adapter logic
 # (softmax, CLS batching, label mapping) is numpy — onnxruntime + tokenizers are stubbed, numpy is real.
 numpy
+# fastapi/httpx: tests/test_app.py drives the FastAPI guard service with TestClient (asserts real /health,
+# /ready, /guard/*, /admin/mode responses). psycopg2 is stubbed in conftest, not installed.
+fastapi
+httpx
