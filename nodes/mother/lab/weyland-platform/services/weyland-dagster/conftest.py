@@ -201,3 +201,46 @@ def loaders():
     yield module
     for name in added + [pkg + ".loaders"]:
         sys.modules.pop(name, None)
+
+
+@pytest.fixture
+def datahub_emit():
+    """The DataHub metadata emitter (``weyland_pipeline/datahub_emit.py``), imported with dagster and the asset
+    graph stubbed but the REAL acryl-datahub SDK present — so its builders produce genuine
+    MetadataChangeProposalWrapper aspects the tests assert against (not stubbed objects). ``build_mcps`` and the
+    ``emit_*`` functions are driven with fixture inputs — monkeypatch ``_asset_info``, or pass a capturing emitter
+    that records the MCPs instead of POSTing them. The live DataHub REST round-trip is validated in the running
+    system; here we test the payload-building logic that decides WHAT gets emitted.
+    """
+    import importlib.util
+    import types
+
+    added = []
+
+    def _put(name, module):
+        sys.modules[name] = module
+        added.append(name)
+
+    class _Any:
+        def __call__(self, *a, **k): return self
+        def __getattr__(self, _n): return self
+
+    dagster = types.ModuleType("dagster")
+    dagster.AssetKey = _Any(); dagster.MetadataValue = _Any(); dagster.Output = _Any()
+    dagster.asset = lambda *a, **k: (a[0] if a and callable(a[0]) and not k else (lambda f: f))
+    _put("dagster", dagster)
+
+    root = os.path.join(_ROOT, "weyland_pipeline")
+    wp = types.ModuleType("weyland_pipeline"); wp.__path__ = [root]
+    _put("weyland_pipeline", wp)
+    assets = types.ModuleType("weyland_pipeline.assets"); assets.all_assets = []
+    _put("weyland_pipeline.assets", assets)
+
+    spec = importlib.util.spec_from_file_location(
+        "datahub_emit_isolated", os.path.join(root, "datahub_emit.py"))
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    yield module
+    sys.modules.pop("datahub_emit_isolated", None)
+    for name in added:
+        sys.modules.pop(name, None)

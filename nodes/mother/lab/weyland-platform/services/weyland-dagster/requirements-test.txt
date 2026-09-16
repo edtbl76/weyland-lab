@@ -8,3 +8,7 @@ numpy==2.4.6
 minio==7.2.20
 import-linter==2.15
 hypothesis==6.140.3
+# datahub_emit builds real MetadataChangeProposals; testing them means asserting the REAL aspects the SDK
+# produces (not stub objects), so the emitter's own package is a test dep — pinned to the runtime version.
+# It is the heaviest test dep (pulls avro/pydantic); it earns its place by making the 3k-line emitter testable.
+acryl-datahub==1.6.0.15
