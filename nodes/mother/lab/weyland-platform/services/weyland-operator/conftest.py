@@ -32,3 +32,7 @@ async def _noop_run(*_a, **_k):
 _stub("agent", run=_noop_run)
 _stub("session")
 _stub("telegram", configured=lambda: False, send_message=_noop_run)
+# tools.py does `from langchain_core.tools import tool`; stub it as an identity decorator so the tool functions
+# stay plain callables the tests can invoke directly (no StructuredTool wrapper, no langchain install).
+_stub("langchain_core")
+_stub("langchain_core.tools", tool=lambda f=None, **k: (f if callable(f) else (lambda g: g)))

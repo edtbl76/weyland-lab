@@ -591,3 +591,59 @@ def test_clickhouse_native_s3_ingest_builds_mergetree_and_counts(loaders, monkey
     # lakeFS creds are passed as bound params, never interpolated into the SQL text
     create_params = next(p for s, p in commands if s.startswith("CREATE TABLE"))
     assert create_params["k"] == "k" and create_params["url"].endswith("/repo/main/parquet/who/who.parquet")
+
+
+# ── wave 2: the SQL store-writers, driven against a real in-memory sqlite engine ──────────────────────
+# _load_dataset_to_mysql / _cockroach use pandas.to_sql(engine); we point engine_for at sqlite and READ THE
+# ROWS BACK — a genuine write-path assertion, not a mock. (_timescale is NOT covered: its create_hypertable
+# DDL is Postgres-only and errors on sqlite → it needs a Postgres testcontainer, validated live instead.)
+import sqlalchemy as _sa  # noqa: E402
+
+
+def _parquet_bytes(rows):
+    buf = _io.BytesIO()
+    _pq.write_table(_pa.Table.from_pylist(rows), buf)
+    return buf.getvalue()
+
+
+def test_load_dataset_to_mysql_writes_rows_read_back(loaders, monkeypatch):
+    rows = [{"id": 1, "name": "a"}, {"id": 2, "name": "b"}]
+    monkeypatch.setattr(loaders, "_mysql_ensure_database", lambda dataset, log: None)   # no live CREATE DATABASE
+    monkeypatch.setattr(loaders.io, "branch", lambda: "main", raising=False)
+    monkeypatch.setattr(loaders.io, "fetch", lambda mc, repo, name: _parquet_bytes(rows), raising=False)
+    eng = _sa.create_engine("sqlite://")
+    out = loaders._load_dataset_to_mysql(FakeMC({"people.parquet": rows}), _Cfg(), "demo", lambda ds: eng, _LOG)
+    assert out == {"demo.people": 2}
+    with eng.connect() as c:
+        assert c.execute(_sa.text("SELECT id, name FROM people ORDER BY id")).fetchall() == [(1, "a"), (2, "b")]
+
+
+class _FakeServerEngine:
+    """Stands in for the CockroachDB `defaultdb` server engine — its only job is to accept the `CREATE DATABASE`
+    (sqlite has no such statement), recording nothing else."""
+    def connect(self):
+        class _Conn:
+            def __enter__(self_):
+                return self_
+
+            def __exit__(self_, *a):
+                return False
+
+            def execute(self_, *a, **k):
+                return None
+
+            def commit(self_):
+                pass
+        return _Conn()
+
+
+def test_load_dataset_to_cockroach_writes_rows_read_back(loaders, monkeypatch):
+    rows = [{"id": 1, "v": 10}, {"id": 2, "v": 20}]
+    monkeypatch.setattr(loaders.io, "branch", lambda: "main", raising=False)
+    eng = _sa.create_engine("sqlite://")
+    out = loaders._load_dataset_to_cockroach(
+        FakeMC({"nums.parquet": rows}), _Cfg(), "demo",
+        lambda ds: _FakeServerEngine() if ds == "defaultdb" else eng, _LOG)
+    assert out == {"demo.nums": 2}
+    with eng.connect() as c:
+        assert c.execute(_sa.text("SELECT count(*) FROM nums")).scalar() == 2

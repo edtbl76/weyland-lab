@@ -552,3 +552,37 @@ def test_emit_field_docs_describes_documented_columns(datahub_emit, captured, fa
     assert n_ds == 1 and n_f >= 1
     esm = [m.aspect for m in captured.mcps if isinstance(m.aspect, EditableSchemaMetadataClass)][0]
     assert esm.editableSchemaFieldInfo[0].description == FIELD_DOCS[key][col]   # exact source-doc description
+
+
+# ── wave 2: feast lineage / external-source terms / lightdash no-op ───────────────────────────────────
+def test_emit_feast_links_each_source_to_its_mart(datahub_emit, captured):
+    from datahub.metadata.schema_classes import (DatasetPropertiesClass, GlobalTagsClass,
+                                                  UpstreamLineageClass)
+    n, names = datahub_emit.emit_feast()
+    assert n == len(datahub_emit._FEAST_SOURCES) and names == list(datahub_emit._FEAST_SOURCES)
+    # every feast source gets props + a `feast` tag + an upstream edge to its dbt mart
+    props = [m for m in captured.mcps if isinstance(m.aspect, DatasetPropertiesClass)]
+    tags = [m for m in captured.mcps if isinstance(m.aspect, GlobalTagsClass)]
+    lineage = [m for m in captured.mcps if isinstance(m.aspect, UpstreamLineageClass)]
+    assert len(props) == len(tags) == len(lineage) == n
+    assert all(any("feast" in t.tag for t in m.aspect.tags) for m in tags)
+    # the track_audio_features source must point at the mart_spotify_audio mart
+    taf = next(m for m in lineage if "track_audio_features" in m.entityUrn)
+    assert "mart_spotify_audio" in taf.aspect.upstreams[0].dataset
+
+
+def test_emit_source_terms_cites_external_sources_and_defines_new_terms(datahub_emit, captured, fake_graph):
+    from datahub.metadata.schema_classes import GlossaryTermInfoClass
+    fake_graph(urns=[])   # no datasets → the description-attach pass (part c) is a clean no-op
+    n_cited, n_new, n_fields, n_ds = datahub_emit.emit_source_terms()
+    assert n_new == len(datahub_emit._NEW_TERMS)
+    assert n_fields == 0 and n_ds == 0                       # empty graph → nothing attached
+    terms = [m.aspect for m in captured.mcps if isinstance(m.aspect, GlossaryTermInfoClass)]
+    assert len(terms) == n_cited + n_new
+    assert terms and all(t.termSource == "EXTERNAL" and t.sourceRef for t in terms)   # every emitted term is cited
+
+
+def test_emit_lightdash_is_noop_without_api_key(datahub_emit, captured, monkeypatch):
+    monkeypatch.delenv("LIGHTDASH_API_KEY", raising=False)
+    assert datahub_emit.emit_lightdash() == (0, 0)          # fail-safe: no key → nothing emitted
+    assert captured.mcps == []

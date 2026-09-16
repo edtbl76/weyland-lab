@@ -15,3 +15,6 @@ acryl-datahub==1.6.0.15
 # sqlglot: datahub_emit's dbt column-lineage tracing parses SQL with it; the _trace_dbt_columns test needs it,
 # and without it here that test silently skips in the scan lane (importorskip) — losing real coverage.
 sqlglot
+# sqlalchemy: the mysql/cockroach store-loaders write via pandas.to_sql(engine); the tests drive them against a
+# real in-memory sqlite engine and read the rows back, so it's a genuine write-path test (no live MySQL/CRDB).
+sqlalchemy
