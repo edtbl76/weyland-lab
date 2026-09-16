@@ -24,6 +24,15 @@ if _ROOT not in sys.path:
 os.environ.setdefault("WEYLAND_DB_PASSWORD", "test-pw")
 os.environ.setdefault("NEO4J_PASSWORD", "test-pw")
 
+# main.py int()s several *_PORT env vars at import. In-cluster (the scan runs in the `weyland` namespace),
+# Kubernetes serviceLinks inject QDRANT_PORT / WEAVIATE_PORT etc. as `tcp://<ip>:<port>`, which int() rejects
+# (ValueError at import → the whole suite fails to COLLECT, exit 2). Backends are stubbed in these tests so the
+# real port values are irrelevant — force-set them to valid integers. Direct assignment, NOT setdefault: the
+# serviceLink value is already present, so setdefault would leave the un-parseable `tcp://...` in place.
+for _var, _default in (("WEYLAND_DB_PORT", "5432"), ("QDRANT_PORT", "6333"),
+                       ("WEAVIATE_PORT", "8080"), ("WEAVIATE_GRPC_PORT", "50051")):
+    os.environ[_var] = _default
+
 
 def _mod(name, **attrs):
     m = types.ModuleType(name)
