@@ -141,3 +141,63 @@ def lakefs_repo():
     return load_isolated(
         "weyland_pipeline/assets/datasets_lib/lakefs_repo.py", "lakefs_repo"
     )
+
+
+@pytest.fixture
+def loaders():
+    """The ``datasets_lib/loaders`` store-loaders. Unlike the leaf modules, loaders uses RELATIVE imports
+    (``from . import io``) and imports dagster, so ``load_isolated`` can't reach it. Instead we register a
+    synthetic ``weyland_pipeline.assets.datasets_lib`` package whose ``__path__`` points at the real dir (so
+    the relative imports resolve to the real sibling files), and STUB the heavy edges: dagster (module-scope
+    ``MetadataValue``/``Output``/``asset``), the ``@traced_load`` otel span decorator (→ identity), and the
+    minio-backed ``io`` sibling. What's left is fully exercisable with no dagster runtime, no minio, no live
+    store — the SQL/CQL/Cypher identifier-safety quoting, the multi-value list parser, and the GraphSpec→
+    Cypher compiler. The store-write functions themselves are validated live against the real stores.
+    """
+    import importlib
+    import types
+
+    pkg = "weyland_pipeline.assets.datasets_lib"
+    dl_dir = os.path.join(_ROOT, "weyland_pipeline", "assets", "datasets_lib")
+    added = []
+
+    def _put(name, module):
+        sys.modules[name] = module
+        added.append(name)
+
+    class _Any:  # a permissive stand-in for dagster's MetadataValue/Output (never called in these tests)
+        def __call__(self, *a, **k): return self
+        def __getattr__(self, _n): return self
+
+    dagster = types.ModuleType("dagster")
+    dagster.MetadataValue = _Any()
+    dagster.Output = _Any()
+
+    def _asset(*a, **k):  # supports both @asset and @asset(...)
+        if a and callable(a[0]) and not k:
+            return a[0]
+        return lambda f: f
+
+    dagster.asset = _asset
+    _put("dagster", dagster)
+
+    wp = types.ModuleType("weyland_pipeline"); wp.__path__ = []
+    _put("weyland_pipeline", wp)
+    otel = types.ModuleType("weyland_pipeline._otel"); otel.traced_load = lambda f: f
+    _put("weyland_pipeline._otel", otel)
+    assets = types.ModuleType("weyland_pipeline.assets"); assets.__path__ = []
+    _put("weyland_pipeline.assets", assets)
+    dl = types.ModuleType(pkg); dl.__path__ = [dl_dir]
+    _put(pkg, dl)
+    io_stub = types.ModuleType(pkg + ".io")            # minio-backed; the pure helpers never touch it
+    _put(pkg + ".io", io_stub)
+    me = types.ModuleType(pkg + ".mongo_encode"); me.to_bson_encodable = lambda x: x
+    _put(pkg + ".mongo_encode", me)
+    ts = types.ModuleType(pkg + ".timeseries"); ts.hypertable_ts = lambda *a, **k: None
+    _put(pkg + ".timeseries", ts)
+
+    sys.modules.pop(pkg + ".loaders", None)
+    module = importlib.import_module(pkg + ".loaders")
+    yield module
+    for name in added + [pkg + ".loaders"]:
+        sys.modules.pop(name, None)

@@ -81,6 +81,12 @@ spec:
                 - -Dsonar.exclusions=**/node_modules/**,**/.yarn/**,**/.git/**,**/openclaw/**,site-techdocs/**,golden-paths/**,eval/**,**/*.ipynb,**/*.yaml,**/*.yml,**/*.tf,**/*.tfvars,**/Dockerfile,**/Dockerfile.*,**/*.dockerfile,**/target/**,**/build/**,**/dist/**,**/.next/**,**/_build/**,**/coverage.xml,**/.venv/**
                 - -Dsonar.java.binaries=nodes/mother/lab/weyland-platform/k8s/flink/health-job/target/classes,nodes/mother/lab/weyland-platform/k8s/flink/sql-runner/target/classes
                 - -Dsonar.python.coverage.reportPaths=**/coverage.xml
+                # Coverage measures LOGIC, not generated data. These files are pure module-level data (0 functions):
+                # aidlc_glossary (auto-generated 480-term dict), datasets_field_docs (field-doc dicts), mesh_vocabulary
+                # (vocab data), roles (baked role-prompt strings). Counting them as "coverable" only invites either
+                # ignoring the metric or padding it by importing data — so they are excluded from the coverage denominator
+                # (still analyzed for issues). SonarQube's own guidance: exclude generated/data sources from coverage.
+                - -Dsonar.coverage.exclusions=**/aidlc_glossary.py,**/datasets_field_docs.py,**/mesh_vocabulary.py,**/roles.py
               volumeMounts:
                 - { name: src, mountPath: /usr/src }
           volumes:
