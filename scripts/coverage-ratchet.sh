@@ -107,10 +107,13 @@ cov_go() { # <dir> -> total %
     go tool cover -func=/tmp/cov.out 2>/dev/null | awk '/^total:/{gsub(/%/,"",$3); print $3}' )
 }
 
-cov_python() { # pytest-cov; term-report's TOTAL row
+cov_python() { # pytest-cov; term-report's TOTAL row for the ratchet, + a Cobertura coverage.xml side-effect
+  # The XML is written INTO the project dir (cd "$1" first) so its <sources> root matches the SonarQube
+  # scan's /usr/src layout, and the weekly sonar-scan CronJob consumes it via sonar.python.coverage.reportPaths.
+  # It goes to a FILE, not stdout, so the term-report pipe below is unaffected; CI ignores the file entirely.
   need pytest pytest
   ( cd "$1" && pytest -q -p no:cacheprovider --ignore=selfcheck \
-      --cov=. --cov-report=term-missing 2>/dev/null \
+      --cov=. --cov-report=term-missing --cov-report=xml:coverage.xml 2>/dev/null \
       | awk '/^TOTAL/{gsub(/%/,"",$NF); print $NF}' )
 }
 

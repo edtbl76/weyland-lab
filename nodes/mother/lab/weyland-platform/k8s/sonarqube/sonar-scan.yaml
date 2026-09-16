@@ -12,6 +12,15 @@
 # non-code surface: k8s/Argo/Helm YAML + OpenTofu (checkov owns them), Dockerfiles (trivy owns them), notebooks,
 # build artifacts, the golden-paths/ language fixtures (B88/B153 hello-world, no prod code) and eval/ task fixtures
 # (deliberately-buggy coding-agent tasks). What remains is the real code: the Python services + the Flink Java modules.
+#
+# COVERAGE: the `coverage-python` initContainer mirrors CI's python lane EXACTLY (.woodpecker.yml `test-python`):
+# python:3.12-slim → run-lang-tests.sh python (installs each project's requirements-test.txt, runs the suites) →
+# coverage-ratchet.sh run python. coverage-ratchet's cov_python now also emits a Cobertura coverage.xml per real
+# service (weyland-dagster, weyland-guard); the scanner imports them via sonar.python.coverage.reportPaths, so
+# `coverage` is a real number instead of 0. Best-effort: a test/ratchet failure never fails the scan (CI is the
+# enforcing gate) — a missing report just yields honest 0%, never a false green. The gate stays the strict default
+# "Sonar way" (new_coverage 80% / 0 new violations / hotspots reviewed); wiring coverage makes ONE of its three
+# conditions measurable — new violations + hotspot review remain a separate burndown, tracked in the backlog.
 apiVersion: batch/v1
 kind: CronJob
 metadata:
@@ -41,6 +50,23 @@ spec:
               command: ["sh", "-c", "mvn -q -B -f nodes/mother/lab/weyland-platform/k8s/flink/health-job/pom.xml compile && mvn -q -B -f nodes/mother/lab/weyland-platform/k8s/flink/sql-runner/pom.xml compile"]
               volumeMounts:
                 - { name: src, mountPath: /usr/src }
+            - name: coverage-python
+              # Produce Cobertura coverage.xml for the real Python services, exactly as CI does. Best-effort:
+              # the scan must never fail on a test/ratchet non-zero — CI is the enforcing gate, this only needs
+              # the coverage.xml side-effect. An empty result yields an honest 0%, never a false green.
+              image: python:3.12-slim
+              workingDir: /usr/src
+              command:
+                - sh
+                - -c
+                - |
+                  set -u
+                  pip install --quiet --no-cache-dir pytest pytest-cov prometheus_client || \
+                    { echo "!! pip install failed — coverage skipped, scan proceeds at honest 0%"; exit 0; }
+                  bash scripts/run-lang-tests.sh python || echo "!! run-lang-tests python non-zero (coverage best-effort)"
+                  bash scripts/coverage-ratchet.sh run python || echo "!! coverage-ratchet python non-zero (coverage.xml still emitted where tests ran)"
+              volumeMounts:
+                - { name: src, mountPath: /usr/src }
           containers:
             - name: scanner
               image: sonarsource/sonar-scanner-cli:latest
@@ -52,8 +78,9 @@ spec:
               args:
                 - -Dsonar.projectKey=weyland-lab
                 - -Dsonar.sources=.
-                - -Dsonar.exclusions=**/node_modules/**,**/.yarn/**,**/.git/**,**/openclaw/**,site-techdocs/**,golden-paths/**,eval/**,**/*.ipynb,**/*.yaml,**/*.yml,**/*.tf,**/*.tfvars,**/Dockerfile,**/Dockerfile.*,**/*.dockerfile,**/target/**,**/build/**,**/dist/**,**/.next/**,**/_build/**
+                - -Dsonar.exclusions=**/node_modules/**,**/.yarn/**,**/.git/**,**/openclaw/**,site-techdocs/**,golden-paths/**,eval/**,**/*.ipynb,**/*.yaml,**/*.yml,**/*.tf,**/*.tfvars,**/Dockerfile,**/Dockerfile.*,**/*.dockerfile,**/target/**,**/build/**,**/dist/**,**/.next/**,**/_build/**,**/coverage.xml,**/.venv/**
                 - -Dsonar.java.binaries=nodes/mother/lab/weyland-platform/k8s/flink/health-job/target/classes,nodes/mother/lab/weyland-platform/k8s/flink/sql-runner/target/classes
+                - -Dsonar.python.coverage.reportPaths=**/coverage.xml
               volumeMounts:
                 - { name: src, mountPath: /usr/src }
           volumes:
