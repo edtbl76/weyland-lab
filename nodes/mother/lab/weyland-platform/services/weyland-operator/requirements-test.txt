@@ -1,0 +1,6 @@
+# Test-only deps for weyland-operator, installed per-project by scripts/run-lang-tests.sh — NOT the runtime
+# requirements.txt (which pulls langgraph/langchain/psycopg2/the Telegram SDK into this fast lane). incidents.py
+# imports httpx + prometheus_client at module scope; the heavy siblings (agent/session/telegram) are stubbed in
+# conftest.py, so these two are the whole extra dependency set the pure-logic tests need.
+httpx
+prometheus_client
