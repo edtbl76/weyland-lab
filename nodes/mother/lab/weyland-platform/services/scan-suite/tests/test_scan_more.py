@@ -104,3 +104,88 @@ def test_go_vet_counts_go_error_lines(scan, captured_posts, monkeypatch):
                         _runner({"go": _CP(stderr="a.go:3: bad\nb.go:7: also bad\nnot a location")}))
     scan.go_vet()
     assert _counts(captured_posts, "go-vet") == {"critical": 0, "high": 0, "medium": 2, "low": 0}
+
+
+# ── helpers: load / sh / post_hotspot / _prior_summary / the HTML report ─────────────────────────────
+def test_load_parses_json_and_fails_soft(scan, tmp_path):
+    good = tmp_path / "g.json"; good.write_text('{"a": 1}')
+    assert scan.load(str(good)) == {"a": 1}
+    bad = tmp_path / "b.json"; bad.write_text("not json")
+    assert scan.load(str(bad)) is None                       # parse error → None, never raises
+    assert scan.load(str(tmp_path / "missing.json")) is None  # missing → None
+
+
+def test_sh_never_raises_on_failure(scan, monkeypatch):
+    def boom(*a, **k):
+        raise RuntimeError("boom")
+    monkeypatch.setattr(scan.subprocess, "run", boom)
+    scan.sh(["echo", "hi"])                                   # best-effort: must swallow the exception
+
+
+def test_post_hotspot_noop_without_url(scan, monkeypatch):
+    monkeypatch.setattr(scan, "PORT_URL", None)
+    scan.post_hotspot({"file": "x", "kind": "hotspot"})       # no URL → silent no-op, no raise
+
+
+def test_post_hotspot_posts_when_url_set(scan, monkeypatch):
+    monkeypatch.setattr(scan, "PORT_URL", "http://port/ingest")
+    calls = []
+    monkeypatch.setattr(scan.urllib.request, "urlopen", lambda req, **k: calls.append(req))
+    scan.post_hotspot({"file": "a.py", "kind": "hotspot"})
+    assert len(calls) == 1
+
+
+def test_prior_summary_returns_latest_prior_run(scan):
+    import io as _io
+
+    class _S3:
+        def list_objects_v2(self, **k):
+            return {"CommonPrefixes": [{"Prefix": "2026-01-01/"}, {"Prefix": "2026-02-01/"}, {"Prefix": "2026-03-01/"}]}
+
+        def get_object(self, Bucket, Key):
+            assert Key == "2026-02-01/summary.json"           # the latest prefix strictly BEFORE this run
+            return {"Body": _io.BytesIO(json.dumps({"stamp": "2026-02-01"}).encode())}
+
+    assert scan._prior_summary(_S3(), "bucket", "2026-03-01/") == {"stamp": "2026-02-01"}
+
+
+def test_prior_summary_none_when_no_earlier_run(scan):
+    class _S3:
+        def list_objects_v2(self, **k):
+            return {"CommonPrefixes": [{"Prefix": "2026-05-01/"}]}   # only a LATER run
+
+    assert scan._prior_summary(_S3(), "bucket", "2026-03-01/") is None
+
+
+def test_html_renders_rows_totals_and_deltas(scan, monkeypatch):
+    monkeypatch.setattr(scan, "RESULTS", [
+        {"tool": "bandit", "critical": 1, "high": 0, "medium": 2, "low": 3, "total": 6},
+        {"tool": "ruff", "critical": 0, "high": 0, "medium": 0, "low": 5, "total": 5},
+    ])
+    prior = {"stamp": "2026-01-01", "results": [{"tool": "bandit", "total": 4}, {"tool": "ruff", "total": 9}]}
+    html = scan._html("2026-02-01", {"bandit.json": "http://x/b"}, prior)
+    assert "bandit" in html and "ruff" in html
+    assert 'href="http://x/b"' in html                        # tool name links to its raw JSON
+    assert "+2" in html                                        # bandit 6 vs prior 4 → +2
+    assert "-4" in html                                        # ruff 5 vs prior 9 → -4
+    assert "code-scan-suite" in html
+
+
+def test_html_marks_new_tool_when_no_prior(scan, monkeypatch):
+    monkeypatch.setattr(scan, "RESULTS", [{"tool": "osv", "critical": 0, "high": 1, "medium": 0, "low": 0, "total": 1}])
+    html = scan._html("2026-02-01", {}, None)
+    assert "new" in html and "osv" in html
+
+
+def test_pip_audit_counts_each_vuln_as_high(scan, captured_posts, monkeypatch):
+    out = json.dumps({"dependencies": [{"vulns": [{"id": "A"}, {"id": "B"}]}, {"vulns": []}]})
+    monkeypatch.setattr(scan.subprocess, "run",
+                        _runner({"find": "/src/requirements.txt", "pip-audit": out}))
+    scan.pip_audit()
+    assert _counts(captured_posts, "pip-audit") == {"critical": 0, "high": 2, "medium": 0, "low": 0}
+
+
+def test_headers_is_empty_when_no_hosts_file(scan, captured_posts):
+    # SRC (a tmp dir from conftest) has no docs/hosts.md → no hosts → all-zero, no network
+    scan.headers()
+    assert _counts(captured_posts, "headers") == {"critical": 0, "high": 0, "medium": 0, "low": 0}
