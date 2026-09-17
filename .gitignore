@@ -172,6 +172,12 @@ nodes/mother/lab/weyland-platform/scripts/kuma-backup.json
 __pycache__/
 *.py[cod]
 .pytest_cache/
+# pytest-cov output — REGENERATED on every test run. The `.coverage` SQLite DBs were committed by mistake
+# (16 of them, one per project) so any local `coverage-ratchet.sh run python` dirtied the tree; the Cobertura
+# `coverage.xml` is a scanner input produced fresh in CI + the weekly CronJob and never belongs in git.
+.coverage
+.coverage.*
+**/coverage.xml
 # Virtualenvs and bench output.
 # OBSERVED 2026-08-21: `.venv/` under nodes/mother/lab/weyland-platform/scripts/ existed on disk and was
 # NOT ignored — untracked only by luck, one `git add -A` from committing an entire virtualenv.
