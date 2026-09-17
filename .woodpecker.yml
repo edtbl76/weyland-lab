@@ -939,6 +939,33 @@ steps:
   # proven 7/7); the CI path, if ever wanted, is a local-backend workflow on rogueone — see
   # docs/runbooks/woodpecker-step-menu.md "Off-menu".
 
+  # ── 1g. SonarQube quality gate (B138) — ENFORCE the CaYC gate on THIS change ──────────────────
+  # The weekly sonar-scan (k8s/sonarqube/sonar-scan.yaml) only REPORTS; this step BLOCKS. It re-analyses the
+  # current checkout against the in-cluster SonarQube with `sonar.qualitygate.wait=true`: a RED gate — new-code
+  # coverage < 80%, any new bug/vuln/violation, an unreviewed new hotspot — makes the scanner exit non-zero, which
+  # fails the pipeline, which skips deploy-handoff (`when: status: success`), so the change never reaches a deploy
+  # PR. Reuses the python coverage.xml (test-python) + the compiled Flink classes (test-java) already in the shared
+  # workspace, so no extra build. Needs a `sonar_token` Woodpecker secret = the sonarqube-scan-token SONAR_TOKEN.
+  # ⚠ The -D scope args MUST STAY IN SYNC with k8s/sonarqube/sonar-scan.yaml (same project, same analysis shape).
+  - name: sonar-gate
+    when: *skip_on_smoke
+    image: sonarsource/sonar-scanner-cli:latest
+    environment:
+      SONAR_HOST_URL: http://sonarqube.weyland.svc.cluster.local:9000
+      SONAR_TOKEN:
+        from_secret: sonar_token
+    commands:
+      - >
+        sonar-scanner
+        -Dsonar.projectKey=weyland-lab
+        -Dsonar.sources=.
+        -Dsonar.exclusions=**/node_modules/**,**/.yarn/**,**/.git/**,**/openclaw/**,site-techdocs/**,golden-paths/**,eval/**,**/*.ipynb,**/*.yaml,**/*.yml,**/*.tf,**/*.tfvars,**/Dockerfile,**/Dockerfile.*,**/*.dockerfile,**/target/**,**/build/**,**/dist/**,**/.next/**,**/_build/**,**/coverage.xml,**/.venv/**
+        -Dsonar.java.binaries=nodes/mother/lab/weyland-platform/k8s/flink/health-job/target/classes,nodes/mother/lab/weyland-platform/k8s/flink/sql-runner/target/classes
+        -Dsonar.python.coverage.reportPaths=**/coverage.xml
+        -Dsonar.coverage.exclusions=**/aidlc_glossary.py,**/datasets_field_docs.py,**/mesh_vocabulary.py,**/roles.py,**/weyland_pipeline/assets/*.py,**/weyland_pipeline/resources/**,**/weyland_pipeline/schedules/**,**/weyland_pipeline/definitions.py
+        -Dsonar.qualitygate.wait=true
+        -Dsonar.qualitygate.timeout=300
+
   # ── 2. detect which images changed since their currently-deployed git-<sha> ──
   - name: detect-changes
     when: *skip_on_smoke
