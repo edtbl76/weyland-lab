@@ -637,6 +637,36 @@ def test_emit_applications_builds_entities_and_attaches_by_owns(datahub_emit, ca
     assert attach[0].aspect.applications == ["urn:li:application:weyland-dagster"]
 
 
+def test_emit_file_dataset_builds_schema_lineage_and_returns_urn(datahub_emit, monkeypatch):
+    import pyarrow as pa
+    from datahub.metadata.schema_classes import (DatasetPropertiesClass, GlobalTagsClass,
+                                                 SchemaMetadataClass, UpstreamLineageClass)
+
+    captured = []
+
+    class _Emit:  # emit_file_dataset builds its own DatahubRestEmitter — patch it to capture
+        def __init__(self, *a, **k):
+            pass
+
+        def emit(self, mcp):
+            captured.append(mcp)
+
+    monkeypatch.setattr(datahub_emit, "DatahubRestEmitter", _Emit)
+    schema = pa.schema([("id", pa.int64()), ("name", pa.string())])
+    urn = datahub_emit.emit_file_dataset("lance", "fma_vecs", "s3://b/x", schema, "producer_asset", group="music")
+
+    assert "datasets.fma_vecs" in urn
+    props = [m for m in captured if isinstance(m.aspect, DatasetPropertiesClass)][0]
+    assert props.aspect.customProperties["format"] == "lance"
+    assert props.aspect.customProperties["location"] == "s3://b/x"
+    assert props.aspect.customProperties["dagster_group"] == "music"
+    sm = [m for m in captured if isinstance(m.aspect, SchemaMetadataClass)][0]
+    assert {f.fieldPath for f in sm.aspect.fields} == {"id", "name"}          # arrow schema → column tab
+    assert any(isinstance(m.aspect, GlobalTagsClass) for m in captured)       # group tag
+    lin = [m for m in captured if isinstance(m.aspect, UpstreamLineageClass)][0]
+    assert "producer_asset" in lin.aspect.upstreams[0].dataset                # lineage to the producing asset
+
+
 def test_emit_applications_empty_owns_attaches_nothing(datahub_emit, captured, monkeypatch):
     from datahub.metadata.schema_classes import ApplicationsClass
 

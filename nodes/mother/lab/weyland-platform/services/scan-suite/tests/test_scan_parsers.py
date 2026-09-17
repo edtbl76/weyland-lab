@@ -189,3 +189,24 @@ def test_headers_is_empty_when_no_hosts_file(scan, captured_posts):
     # SRC (a tmp dir from conftest) has no docs/hosts.md → no hosts → all-zero, no network
     scan.headers()
     assert _counts(captured_posts, "headers") == {"critical": 0, "high": 0, "medium": 0, "low": 0}
+
+
+def test_headers_counts_missing_security_headers(scan, captured_posts, monkeypatch):
+    import os
+    docs = os.path.join(scan.SRC, "docs")
+    os.makedirs(docs, exist_ok=True)
+    open(os.path.join(docs, "hosts.md"), "w").write("- realm.weyland.lab is an ingress\n")
+
+    class _Resp:
+        # HSTS present; the other 4 wanted headers (CSP, x-frame-options, x-content-type-options,
+        # referrer-policy) are absent → 4 medium findings for the one reachable HTML host.
+        headers = {"Content-Type": "text/html; charset=utf-8", "strict-transport-security": "max-age=1"}
+
+    monkeypatch.setattr(scan.urllib.request, "urlopen", lambda url, **k: _Resp())
+    scan.headers()
+    assert _counts(captured_posts, "headers") == {"critical": 0, "high": 0, "medium": 4, "low": 0}
+
+
+def test_go_modules_maps_gomod_paths_to_dirs(scan, monkeypatch):
+    monkeypatch.setattr(scan.subprocess, "run", _runner({"find": "/src/a/go.mod\n/src/b/go.mod"}))
+    assert scan._go_modules() == ["/src/a", "/src/b"]
