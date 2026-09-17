@@ -78,7 +78,7 @@ spec:
               args:
                 - -Dsonar.projectKey=weyland-lab
                 - -Dsonar.sources=.
-                - -Dsonar.exclusions=**/node_modules/**,**/.yarn/**,**/.git/**,**/openclaw/**,site-techdocs/**,golden-paths/**,eval/**,**/*.ipynb,**/*.yaml,**/*.yml,**/*.tf,**/*.tfvars,**/Dockerfile,**/Dockerfile.*,**/*.dockerfile,**/target/**,**/build/**,**/dist/**,**/.next/**,**/_build/**,**/coverage.xml,**/.venv/**
+                - -Dsonar.exclusions=**/node_modules/**,**/.yarn/**,**/.git/**,**/openclaw/**,site-techdocs/**,golden-paths/**,eval/**,**/*.ipynb,**/*.yaml,**/*.yml,**/*.tf,**/*.tfvars,**/Dockerfile,**/Dockerfile.*,**/*.dockerfile,**/target/**,**/build/**,**/.build/**,**/dist/**,**/.next/**,**/_build/**,**/coverage.xml,**/.venv/**
                 - -Dsonar.java.binaries=nodes/mother/lab/weyland-platform/k8s/flink/health-job/target/classes,nodes/mother/lab/weyland-platform/k8s/flink/sql-runner/target/classes
                 - -Dsonar.python.coverage.reportPaths=**/coverage.xml
                 # Coverage measures LOGIC, not generated data or pure I/O. Two groups are out of the coverage

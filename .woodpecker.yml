@@ -954,12 +954,30 @@ steps:
       SONAR_HOST_URL: http://sonarqube.weyland.svc.cluster.local:9000
       SONAR_TOKEN:
         from_secret: sonar_token
+    # The JS/TS sensor discovers every tsconfig.json under baseDir to build a TypeScript program graph — a step
+    # that `sonar.exclusions` does NOT govern (exclusions gate issue REPORTING, not program loading). With Node's
+    # embedded runtime that is the analysis's memory peak, and the default 2Gi step-pod cap OOM-killed the scanner
+    # mid-sensor (log dies at "Sensor JavaScript/TypeScript..." with no gate verdict). Same OOMKilled class the
+    # `build` step below already fixed with a 4Gi limit; mirror it here. MEMORY ONLY — no cpu request (cpu is
+    # compressible and never triggers an OOM kill; a request would add to mother's cpu-requests wall).
+    backend_options:
+      kubernetes:
+        resources:
+          requests:
+            memory: 1Gi
+          limits:
+            memory: 4Gi
     commands:
+      # Shared-workspace leak: test-swift-tokamak ran `swift build` earlier in this same workspace, leaving a
+      # vendored `.build/checkouts/JavaScriptKit` (a TS Runtime with its own tsconfig) that a fresh clone — the
+      # weekly sonar-scan.yaml CronJob — never has. Removing it restores this step's tsconfig set to the same
+      # committed source the weekly scans. (java.binaries points at flink target/classes, so DON'T prune target/.)
+      - rm -rf golden-paths/mobile/swift-tokamak/.build
       - >
         sonar-scanner
         -Dsonar.projectKey=weyland-lab
         -Dsonar.sources=.
-        -Dsonar.exclusions=**/node_modules/**,**/.yarn/**,**/.git/**,**/openclaw/**,site-techdocs/**,golden-paths/**,eval/**,**/*.ipynb,**/*.yaml,**/*.yml,**/*.tf,**/*.tfvars,**/Dockerfile,**/Dockerfile.*,**/*.dockerfile,**/target/**,**/build/**,**/dist/**,**/.next/**,**/_build/**,**/coverage.xml,**/.venv/**
+        -Dsonar.exclusions=**/node_modules/**,**/.yarn/**,**/.git/**,**/openclaw/**,site-techdocs/**,golden-paths/**,eval/**,**/*.ipynb,**/*.yaml,**/*.yml,**/*.tf,**/*.tfvars,**/Dockerfile,**/Dockerfile.*,**/*.dockerfile,**/target/**,**/build/**,**/.build/**,**/dist/**,**/.next/**,**/_build/**,**/coverage.xml,**/.venv/**
         -Dsonar.java.binaries=nodes/mother/lab/weyland-platform/k8s/flink/health-job/target/classes,nodes/mother/lab/weyland-platform/k8s/flink/sql-runner/target/classes
         -Dsonar.python.coverage.reportPaths=**/coverage.xml
         -Dsonar.coverage.exclusions=**/aidlc_glossary.py,**/datasets_field_docs.py,**/mesh_vocabulary.py,**/roles.py,**/weyland_pipeline/assets/*.py,**/weyland_pipeline/resources/**,**/weyland_pipeline/schedules/**,**/weyland_pipeline/definitions.py
