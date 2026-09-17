@@ -1,0 +1,26 @@
+# Architecture contracts for weyland-guard (B152 — architecture test category).
+#
+# The guardrail decision logic (guardrails/ incl. validators/) is PURE POLICY: it decides PASS/FLAG/BLOCK and is
+# unit-tested WITHOUT the web framework (conftest stubs psycopg2; no fastapi is needed to test a validator).
+# app.py is the ONLY layer that wires guardrails to HTTP. A guardrail importing fastapi/starlette would invert
+# that — dragging the web framework into the pure policy layer and its isolated tests. verdict.py in particular
+# is a wire contract SHARED byte-for-byte with weyland-tool-server; a framework import there would force fastapi
+# onto every consumer of the shared type.
+#
+# Enforced by import-linter (grimp static AST analysis — no runtime, so this runs in the slim lane with only
+# import-linter installed; the validators' heavy deps like onnxruntime/presidio are parsed, never imported).
+# tests/test_architecture.py runs this config (expects PASS) AND a planted-violation config (expects BROKEN by
+# name), proving the rule catches a real violation, not merely that it loads.
+
+[importlinter]
+root_package = guardrails
+include_external_packages = True
+
+[importlinter:contract:guardrails-are-framework-free]
+name = guardrails (policy + validators + the shared verdict contract) must not import the web framework
+type = forbidden
+source_modules =
+    guardrails
+forbidden_modules =
+    fastapi
+    starlette

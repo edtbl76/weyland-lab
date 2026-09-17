@@ -58,3 +58,43 @@ forbidden_modules =
     weyland_pipeline.assets.datasets_lib.checks
     weyland_pipeline.assets.datasets_lib.freshness
     weyland_pipeline.assets.datasets_lib.streaming
+
+# B152 upper-layering (added this pass). The two contracts above pinned leaf < factory; these pin the rest
+# of the graph so the pipeline's shape can't silently invert.
+
+[importlinter:contract:resources-are-independent]
+name = resources is a pure infra layer — must not import the pipeline layers (assets/schedules/sensors/definitions)
+type = forbidden
+# resources/ holds the dagster ConfigurableResource clients (postgres/qdrant/weaviate/neo4j/onnx). They are
+# COMPOSED BY definitions.py, never the reverse: a resource importing an asset (or a schedule/sensor, or the
+# definitions root) would be a dependency inversion — the infra layer reaching up into the pipeline it serves.
+source_modules =
+    weyland_pipeline.resources
+forbidden_modules =
+    weyland_pipeline.assets
+    weyland_pipeline.schedules
+    weyland_pipeline.sensors
+    weyland_pipeline.definitions
+
+[importlinter:contract:leaves-are-resource-free]
+name = datasets_lib pure leaves must not import the dagster resource clients (only the loaders factory bridges to them)
+type = forbidden
+# The pure leaves are transform logic that load_isolated runs without dagster; the dagster ConfigurableResource
+# clients live one layer up. Only the `loaders` FACTORY bridges leaf→resource (loaders.py imports
+# resources.onnx_embedder). A pure leaf importing a resource would drag the dagster-bound client into the
+# no-dagster isolated-load path — the same failure class the dagster-free contract guards.
+source_modules =
+    weyland_pipeline.assets.datasets_lib.fred_parse
+    weyland_pipeline.assets.datasets_lib.edgar_parse
+    weyland_pipeline.assets.datasets_lib.edgar_text_parse
+    weyland_pipeline.assets.datasets_lib.market_parse
+    weyland_pipeline.assets.datasets_lib.ml_targets
+    weyland_pipeline.assets.datasets_lib.mongo_encode
+    weyland_pipeline.assets.datasets_lib.parquet_read
+    weyland_pipeline.assets.datasets_lib.timeseries
+    weyland_pipeline.assets.datasets_lib.land_core
+    weyland_pipeline.assets.datasets_lib.domain_job_plan
+    weyland_pipeline.assets.datasets_lib.lakefs_repo
+    weyland_pipeline.assets._collect
+forbidden_modules =
+    weyland_pipeline.resources

@@ -35,17 +35,24 @@ def _lint(config: str, cwd: pathlib.Path) -> subprocess.CompletedProcess:
 
 
 def test_real_architecture_contracts_hold():
-    """The production leaves obey the boundary — 0 contracts broken."""
+    """The production graph obeys every boundary — 0 contracts broken. Covers all four contracts:
+    leaves-are-dagster-free, leaves-do-not-import-factories, resources-are-independent (B152 upper
+    layering), and leaves-are-resource-free."""
     r = _lint(".importlinter", SERVICE_ROOT)
     assert r.returncode == 0, f"architecture contracts broken:\n{r.stdout}\n{r.stderr}"
     assert "0 broken" in r.stdout, r.stdout
 
 
 def test_planted_violation_breaks_the_contract():
-    """A leaf that imports dagster MUST break the contract — proven by REASON, not bare exit code."""
+    """Planted violations MUST break the contracts — proven by REASON, not bare exit code. The fixture
+    commits three violations at once: a leaf imports dagster, a leaf imports a resource, and a resource
+    (submodule) imports the assets layer. All three forbidden contracts must report BROKEN."""
     r = _lint(str(FIXTURES / "importlinter-violation.ini"), FIXTURES)
     # A missing binary exits 127 and a bare `!= 0` would pass on it — assert the real failure signal.
-    assert r.returncode == 1, f"expected the violation to break the contract (rc=1), got {r.returncode}:\n{r.stdout}\n{r.stderr}"
-    out = r.stdout.upper()
-    assert "BROKEN" in out, f"import-linter did not report a broken contract:\n{r.stdout}"
-    assert "must not import dagster" in r.stdout, f"the specific forbidden-import reason is missing:\n{r.stdout}"
+    assert r.returncode == 1, f"expected the violations to break the contracts (rc=1), got {r.returncode}:\n{r.stdout}\n{r.stderr}"
+    assert "3 broken" in r.stdout, f"expected all three contracts broken:\n{r.stdout}"
+    # Each contract's specific forbidden import must appear — never just a bare failure count.
+    assert "badleaf_pkg.leaf -> dagster" in r.stdout, f"dagster-free violation not reported:\n{r.stdout}"
+    assert "badleaf_pkg.leaf -> badleaf_pkg.resource" in r.stdout, f"resource-free violation not reported:\n{r.stdout}"
+    # resource SUBMODULE -> assets proves the package-level source_modules covers descendants.
+    assert "badleaf_pkg.resource.thing -> badleaf_pkg.asset" in r.stdout, f"resources-independent violation not reported:\n{r.stdout}"

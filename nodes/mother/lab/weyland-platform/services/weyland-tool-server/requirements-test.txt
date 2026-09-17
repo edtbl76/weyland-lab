@@ -6,3 +6,6 @@
 fastapi
 httpx
 prometheus_client
+# import-linter: tests/test_architecture.py (B152) enforces .importlinter — the shared verdict contract in
+# guardrails/ stays framework-free. grimp does static AST analysis, so no runtime deps are imported.
+import-linter==2.15

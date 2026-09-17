@@ -7,6 +7,8 @@ import java.util.regex.Pattern;
 
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.table.api.bridge.java.StreamTableEnvironment;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * B83 - declarative Flink SQL runner for FlinkSessionJobs.
@@ -19,6 +21,8 @@ import org.apache.flink.table.api.bridge.java.StreamTableEnvironment;
  * changes, swap in a real SQL splitter.
  */
 public final class SqlRunner {
+
+    private static final Logger LOG = LoggerFactory.getLogger(SqlRunner.class);
 
     // SET 'key' = 'value' -> apply to config; executeSql() rejects SET as a statement.
     private static final Pattern SET_STMT =
@@ -42,11 +46,11 @@ public final class SqlRunner {
             }
             Matcher m = SET_STMT.matcher(stmt);
             if (m.matches()) {
-                System.out.println("[sql-runner] SET " + m.group(1) + " = " + m.group(2));
+                LOG.info("SET {} = {}", m.group(1), m.group(2));
                 tEnv.getConfig().getConfiguration().setString(m.group(1), m.group(2));
                 continue;
             }
-            System.out.println("[sql-runner] " + stmt.replaceAll("\\s+", " "));
+            LOG.info("{}", stmt.replaceAll("\\s+", " "));
             tEnv.executeSql(stmt);
         }
     }

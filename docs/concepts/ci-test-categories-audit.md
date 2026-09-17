@@ -72,7 +72,7 @@ No performance/scale NFR exists; mother is capacity-bound ($0 LAN, no swap). Loa
 
 ## Build status (all seven categories resolved in-pass — no deferrals)
 
-1. **Architecture — DONE.** `.importlinter` (2 forbidden contracts: leaves-are-dagster-free + leaf<factory), run by static AST in the slim lane; `tests/test_architecture.py` (real holds + a planted violation breaks by reason); `scripts/check-verdict-sync.sh` + `verdict-sync.bats` (the duplicated-verdict wire contract), wired into `repo-guards`.
+1. **Architecture — DONE (Python), EXTENDED 2026-09-17 (see the addendum below).** `.importlinter` (2 forbidden contracts: leaves-are-dagster-free + leaf<factory), run by static AST in the slim lane; `tests/test_architecture.py` (real holds + a planted violation breaks by reason); `scripts/check-verdict-sync.sh` + `verdict-sync.bats` (the duplicated-verdict wire contract), wired into `repo-guards`. **NOTE:** the original pass shipped only the Python `import-linter` half; the Java ArchUnit this doc named as "applicable — BUILD now" (matrix row 1) was completed in the 2026-09-17 addendum, along with two extensions.
 2. **Property-based — DONE.** `tests/test_property_based.py` (hypothesis) on the pure leaves — `domain_job_plan`'s single-sourced split invariant + `_collect`'s disjointness/flatten. Rides the python lane.
 3. **Contract — COVERED (no new lane).** The top RPC seam (guard↔tool-server verdict wire) is `test_verdict_contract.py`, reinforced by `check-verdict-sync.sh`; data by ODCS (B157), API by B155, live by the integration tier. A second offline seam is disproportionate (see §2 above).
 4. **AOP — COVERED (no new lane).** `test_pipeline.py` / `test_policy.py` / `test_metrics.py` already assert the guard's hook/mode gating, enforcing act gate, and metrics aspect; infra aspects (Istio mTLS, forward-auth) are N/A at unit level.
@@ -82,3 +82,40 @@ No performance/scale NFR exists; mother is capacity-bound ($0 LAN, no swap). Loa
 8. **Fixture languages — evaluated → N/A now, pattern documented.** Go/Rust/TS/JS/React/Next carry only B88 hello-world fixtures with no modules/seams, so architecture and property enforcement would test nothing today. The per-language tools are named (dependency-cruiser TS/JS, go-arch-lint Go, cargo-modules/clippy Rust; the matrix rows above) so the pattern activates the moment real production code lands in any of them — enforcing on empty fixtures now would be a control that measures nothing.
 
 Reporting reuses the existing pattern (Q6): lanes report pass/fail in Woodpecker like the B88 lanes; outcomes flow to Port/Code Health; the standard 8-pillar DoD demo (`demos/` + `flow-*`) is the human-readable record.
+
+## Addendum — architecture category extended (2026-09-17)
+
+The original pass (2026-09-06) shipped the Python `import-linter` architecture lane but left the **Java ArchUnit**
+that §1 / matrix-row-1 named "applicable — BUILD now" unbuilt, and the Python contracts covered only the
+`datasets_lib` leaf<factory boundary. This addendum closes the Java gap and extends the Python contracts. All
+three are self-checking (a planted violation is proven to trip the rule by REASON) and were verified in the CI
+toolchain images (`python:3.12-slim`, `maven:3.9-eclipse-temurin-21`) through the full `test-python` +
+`test-java` lanes and their coverage ratchets — no regression (python held/improved across 15 projects, java
+across 5).
+
+1. **Flink Java ArchUnit — BUILT (completes matrix row 1's Java cell).** `com.tngtech.archunit:archunit-junit5`
+   (test scope) added to both `health-job` and `sql-runner` poms; `src/test/java/lab/weyland/flink/ArchitectureTest.java`
+   in each asserts **no access to standard streams** (a streaming operator must log via slf4j, never `System.out`
+   — a keyed-operator `println` floods TaskManager stdout and costs throughput) + package residence, and a
+   planted `StdoutOffender` fixture proves the rule trips. ArchUnit reads bytecode statically, so the tests run
+   in the existing `test-java` lane (`mvn test`) with no new CI step. **Production fix:** `SqlRunner`'s two
+   `System.out.println` logging lines were converted to slf4j `LOG.info` so the rule holds (and now guards
+   against a stdout regression); `slf4j-api` added `provided` (the Flink dist supplies the binding at runtime).
+
+2. **dagster upper-layering — 2 contracts added** to `weyland-dagster/.importlinter`: `resources-are-independent`
+   (the infra resource clients must not import the pipeline layers assets/schedules/sensors/definitions — they
+   are composed by `definitions.py`, never the reverse) and `leaves-are-resource-free` (the pure leaves must not
+   import the dagster resource clients — only the `loaders` factory bridges leaf→resource). The planted-violation
+   fixture was extended (a package-shaped `resource` submodule) to prove both, and that package-level
+   `source_modules` covers descendants.
+
+3. **guard / tool-server framework-free contracts — NEW `.importlinter` + `tests/test_architecture.py`** in both
+   services (import-linter added to each `requirements-test.txt`): `guardrails-are-framework-free` forbids the
+   guardrail decision logic (guard's policy + validators; the shared `verdict.py` in both) from importing
+   fastapi/starlette — so the policy layer stays unit-testable without the web framework and a framework import
+   can never propagate through the byte-shared `verdict.py` to every consumer. `app.py`/`main.py` remain the only
+   HTTP-wiring layer. A planted fastapi-importing fixture proves each contract trips. This complements (does not
+   duplicate) B152's `check-verdict-sync.sh`, which guards the verdict byte-identity rather than its imports.
+
+These ride the existing lanes (no new `.woodpecker.yml` steps): the Python contracts run as `tests/test_architecture.py`
+in `test-python`; the Java rules as JUnit tests in `test-java`.

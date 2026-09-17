@@ -6,3 +6,6 @@ numpy
 # /ready, /guard/*, /admin/mode responses). psycopg2 is stubbed in conftest, not installed.
 fastapi
 httpx
+# import-linter: tests/test_architecture.py (B152) enforces .importlinter — guardrails stay framework-free.
+# grimp does static AST analysis, so the validators' heavy deps are parsed, never imported.
+import-linter==2.15
