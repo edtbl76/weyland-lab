@@ -75,26 +75,10 @@ spec:
                   value: http://sonarqube.weyland.svc.cluster.local:9000
                 - name: SONAR_TOKEN
                   valueFrom: { secretKeyRef: { name: sonarqube-scan-token, key: SONAR_TOKEN } }
-              args:
-                - -Dsonar.projectKey=weyland-lab
-                - -Dsonar.sources=.
-                - -Dsonar.exclusions=**/node_modules/**,**/.yarn/**,**/.git/**,**/openclaw/**,site-techdocs/**,golden-paths/**,eval/**,**/*.ipynb,**/*.yaml,**/*.yml,**/*.tf,**/*.tfvars,**/Dockerfile,**/Dockerfile.*,**/*.dockerfile,**/target/**,**/build/**,**/.build/**,**/dist/**,**/.next/**,**/_build/**,**/coverage.xml,**/.venv/**
-                - -Dsonar.java.binaries=nodes/mother/lab/weyland-platform/k8s/flink/health-job/target/classes,nodes/mother/lab/weyland-platform/k8s/flink/sql-runner/target/classes
-                - -Dsonar.python.coverage.reportPaths=**/coverage.xml
-                # Coverage measures LOGIC, not generated data or pure I/O. Two groups are out of the coverage
-                # denominator (still fully analyzed for ISSUES):
-                #  (a) generated/data files, 0 functions: aidlc_glossary (auto-gen 480-term dict), datasets_field_docs,
-                #      mesh_vocabulary, roles (baked prompt strings).
-                #  (b) the dagster ASSET-ORCHESTRATION layer — the top-level @asset bodies (assets/*.py), the resource
-                #      clients (resources/), the schedule/Definitions wiring. These are INTEGRATION code: they run the
-                #      pipeline (download→read→write to lakeFS/stores) and are verified by the running system + the
-                #      data-quality checks (Soda/GE), while the extractable transform LOGIC lives in assets/datasets_lib/
-                #      (which stays IN coverage and IS unit-tested). Unit-"covering" the asset bodies means mocking
-                #      dagster + every store client = testing mocks, not correctness — so they leave the coverage
-                #      denominator (still fully ISSUE-scanned). datasets_lib is deliberately NOT matched by assets/*.py
-                #      (it is a subdir). NOTE: source_document/eval_testset carry small logic blocks that ARE unit-tested
-                #      (tests still run + guard); extracting that logic to datasets_lib to re-count it is a follow-on.
-                - -Dsonar.coverage.exclusions=**/aidlc_glossary.py,**/datasets_field_docs.py,**/mesh_vocabulary.py,**/roles.py,**/weyland_pipeline/assets/*.py,**/weyland_pipeline/resources/**,**/weyland_pipeline/schedules/**,**/weyland_pipeline/definitions.py
+              # No args: scope (projectKey/sources/exclusions/java.binaries/coverage.reportPaths/coverage.exclusions)
+              # is read from sonar-project.properties at the repo root (cloned to /usr/src = this scanner's default
+              # baseDir), shared with the CI `sonar-gate` step so the two cannot drift. This weekly run REPORTS only —
+              # it does NOT set sonar.qualitygate.wait; the CI step is the enforcing lane.
               volumeMounts:
                 - { name: src, mountPath: /usr/src }
           volumes:

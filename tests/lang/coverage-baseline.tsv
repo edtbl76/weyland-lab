@@ -1,7 +1,7 @@
-python:nodes/mother/lab/weyland-platform/services/weyland-guard	80
+python:nodes/mother/lab/weyland-platform/services/weyland-guard	93
 java:nodes/mother/lab/weyland-platform/k8s/flink/health-job	33.0
 java:nodes/mother/lab/weyland-platform/k8s/flink/sql-runner	33.3
-python:nodes/mother/lab/weyland-platform/services/weyland-dagster	3
+python:nodes/mother/lab/weyland-platform/services/weyland-dagster	42
 python:golden-paths/python/fastapi	100
 python:golden-paths/python/flask	100
 python:golden-paths/python/litestar	100
@@ -17,3 +17,12 @@ react:golden-paths/frontend/vite-react	100
 react:golden-paths/frontend/remix	100
 react:golden-paths/frontend/astro	100
 nextjs:golden-paths/frontend/nextjs	100
+python:nodes/mother/lab/weyland-platform/scripts	6
+python:nodes/mother/lab/weyland-platform/services/rag-embed	97
+python:nodes/mother/lab/weyland-platform/services/realm-of-agents	65
+python:nodes/mother/lab/weyland-platform/services/scan-suite	80
+python:nodes/mother/lab/weyland-platform/services/store-scaler	98
+python:nodes/mother/lab/weyland-platform/services/weyland-dagster/scripts	28
+python:nodes/mother/lab/weyland-platform/services/weyland-operator	45
+python:nodes/mother/lab/weyland-platform/services/weyland-tool-server	74
+python:scripts	53

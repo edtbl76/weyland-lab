@@ -946,7 +946,9 @@ steps:
   # fails the pipeline, which skips deploy-handoff (`when: status: success`), so the change never reaches a deploy
   # PR. Reuses the python coverage.xml (test-python) + the compiled Flink classes (test-java) already in the shared
   # workspace, so no extra build. Needs a `sonar_token` Woodpecker secret = the sonarqube-scan-token SONAR_TOKEN.
-  # ⚠ The -D scope args MUST STAY IN SYNC with k8s/sonarqube/sonar-scan.yaml (same project, same analysis shape).
+  # SCOPE lives ONCE in sonar-project.properties at the repo root — sonar-scanner auto-reads it (default baseDir =
+  # cwd = the workspace root here), shared with the weekly CronJob so the two cannot drift. This step adds ONLY the
+  # gate-WAIT flags (its enforcing behavior); the CronJob adds nothing and just reports.
   - name: sonar-gate
     when: *skip_on_smoke
     image: sonarsource/sonar-scanner-cli:latest
@@ -973,16 +975,9 @@ steps:
       # weekly sonar-scan.yaml CronJob — never has. Removing it restores this step's tsconfig set to the same
       # committed source the weekly scans. (java.binaries points at flink target/classes, so DON'T prune target/.)
       - rm -rf golden-paths/mobile/swift-tokamak/.build
-      - >
-        sonar-scanner
-        -Dsonar.projectKey=weyland-lab
-        -Dsonar.sources=.
-        -Dsonar.exclusions=**/node_modules/**,**/.yarn/**,**/.git/**,**/openclaw/**,site-techdocs/**,golden-paths/**,eval/**,**/*.ipynb,**/*.yaml,**/*.yml,**/*.tf,**/*.tfvars,**/Dockerfile,**/Dockerfile.*,**/*.dockerfile,**/target/**,**/build/**,**/.build/**,**/dist/**,**/.next/**,**/_build/**,**/coverage.xml,**/.venv/**
-        -Dsonar.java.binaries=nodes/mother/lab/weyland-platform/k8s/flink/health-job/target/classes,nodes/mother/lab/weyland-platform/k8s/flink/sql-runner/target/classes
-        -Dsonar.python.coverage.reportPaths=**/coverage.xml
-        -Dsonar.coverage.exclusions=**/aidlc_glossary.py,**/datasets_field_docs.py,**/mesh_vocabulary.py,**/roles.py,**/weyland_pipeline/assets/*.py,**/weyland_pipeline/resources/**,**/weyland_pipeline/schedules/**,**/weyland_pipeline/definitions.py
-        -Dsonar.qualitygate.wait=true
-        -Dsonar.qualitygate.timeout=300
+      # Scope (projectKey/sources/exclusions/java.binaries/coverage) is read from sonar-project.properties at the
+      # repo root. Only the gate-WAIT is here: a red gate makes the scanner exit non-zero → this step fails.
+      - sonar-scanner -Dsonar.qualitygate.wait=true -Dsonar.qualitygate.timeout=300
 
   # ── 2. detect which images changed since their currently-deployed git-<sha> ──
   - name: detect-changes
