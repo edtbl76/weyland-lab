@@ -26,7 +26,7 @@ class _Vecs:
 
 class _FakeModel:
     def __init__(self, *a, **k):
-        pass
+        """No state needed — the fake model only reports a fixed embedding dimension."""
 
     def get_sentence_embedding_dimension(self):
         return _DIM

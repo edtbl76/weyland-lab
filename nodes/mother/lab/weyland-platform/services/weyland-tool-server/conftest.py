@@ -48,7 +48,11 @@ _mod("sentry_sdk", init=lambda *a, **k: None)
 # DB / vector-store / graph clients: imported at module scope, only USED inside functions (which tests
 # monkeypatch). The annotations `qdrant_client.QdrantClient` / `weaviate.WeaviateClient` are evaluated at
 # import, so the classes must exist as attributes.
-_mod("psycopg2", connect=lambda *a, **k: (_ for _ in ()).throw(RuntimeError("no db in tests")))
+def _no_db(*a, **k):
+    raise RuntimeError("no db in tests")
+
+
+_mod("psycopg2", connect=_no_db)
 _mod("qdrant_client", QdrantClient=type("QdrantClient", (), {}))
 _neo4j = _mod("neo4j", GraphDatabase=type("GraphDatabase", (), {}))
 weaviate = _mod("weaviate", WeaviateClient=type("WeaviateClient", (), {}))
