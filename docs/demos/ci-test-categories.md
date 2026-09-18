@@ -79,6 +79,65 @@ pytest weyland-guard/tests/test_pipeline.py tests/test_policy.py tests/test_metr
 the existing python lane (import-linter + hypothesis are in `requirements-test.txt`); `check-verdict-sync.sh`
 runs in the `repo-guards` step.
 
+## Extension — Java ArchUnit + upper-layering + framework-free contracts (RUN 2026-09-18, CI images)
+
+The 2026-09-06 pass shipped only the Python `import-linter` architecture lane; the **Java ArchUnit** the audit
+named "BUILD now" (matrix row 1) was completed here, plus two Python extensions. Each is self-checking (a planted
+violation trips the rule by reason), verified through the full `test-python` + `test-java` lanes + ratchets (no
+regression) with the SonarQube gate green — pipeline **153** `success`.
+
+**7. Architecture — Flink Java ArchUnit (`mvn test`, existing test-java lane):**
+
+```
+# from k8s/flink/health-job and k8s/flink/sql-runner (maven:3.9-eclipse-temurin-21)
+mvn -B test
+# Running lab.weyland.flink.ArchitectureTest — Tests run: 3, Failures: 0
+#   productionCodeDoesNotAccessStandardStreams · productionClassesResideInTheModulePackage
+#   ruleCatchesAPlantedStandardStreamAccess (the negative case)
+# BUILD SUCCESS  (health-job + sql-runner)
+```
+
+Negative case — the planted `StdoutOffender` (writes `System.out`) MUST trip
+`NO_CLASSES_SHOULD_ACCESS_STANDARD_STREAMS`, asserted by the offending class name, not a bare boolean;
+`ruleCatchesAPlantedStandardStreamAccess` is green precisely because the rule flags it. (`SqlRunner`'s own
+`System.out.println` was moved to slf4j `LOG.info` so the production rule holds.)
+
+**8. Architecture — dagster upper-layering (2 new `.importlinter` contracts):**
+
+```
+# weyland-dagster/ (python:3.12-slim)
+lint-imports    # Contracts: 4 kept, 0 broken  (added: resources-are-independent, leaves-are-resource-free)
+pytest tests/test_architecture.py -q            # 2 passed
+```
+
+Negative case — the extended planted fixture breaks all three forbidden contracts at once:
+
+```
+lint-imports --config tests/arch/fixtures/importlinter-violation.ini
+# leaf→dagster, leaf→resource, resource.thing→asset all BROKEN  → "3 broken", exit 1
+```
+
+**9. Architecture — guard + tool-server framework-free (`import-linter`):**
+
+```
+# weyland-guard/ and weyland-tool-server/ (python:3.12-slim)
+lint-imports    # guardrails-are-framework-free KEPT — Contracts: 1 kept, 0 broken
+pytest tests/test_architecture.py -q            # 2 passed (each service)
+```
+
+Negative case — a planted guardrail importing fastapi breaks the contract:
+
+```
+lint-imports --config tests/arch/fixtures/importlinter-violation.ini
+# fixture guardrail must not import the web framework BROKEN  → "1 broken", exit 1
+```
+
+**CI-validated end-to-end:** pipeline **153** `success` — `test-python` (14 projects + fixture, ratchet
+held/improved across 15), `test-java` (4 projects + fixture, `sql-runner` ratcheted 33.3→34.7%), SonarQube
+`sonar-gate` **PASSED**. The deliberately-bad fixtures (`**/StdoutOffender.java`, `**/tests/arch/fixtures/**`)
+and the intentionally-parallel arch files are `sonar.exclusions` / `sonar.cpd.exclusions`'d so scaffolding does
+not register as new violations or duplication.
+
 ## UI walkthrough
 
 N/A — repo tooling, no UI surface. Outcomes surface on the existing pattern (Q6): lane pass/fail in Woodpecker CI
@@ -86,5 +145,6 @@ like the other B88 lanes; CI/quality outcomes flow to Port / the Code Health das
 
 ## Teardown
 
-Read-only. The tests and guards write only local, gitignored caches (`.pytest_cache/`, `.mutmut-cache/`); nothing
-is deployed or persisted. `run-mutation.sh` is on-demand and mutates a working copy in memory, restoring the source.
+Read-only. The tests and guards write only local, gitignored caches (`.pytest_cache/`, `.mutmut-cache/`,
+`.hypothesis/`, `.import_linter_cache/`, maven `target/`); nothing is deployed or persisted. `run-mutation.sh` is
+on-demand and mutates a working copy in memory, restoring the source.
