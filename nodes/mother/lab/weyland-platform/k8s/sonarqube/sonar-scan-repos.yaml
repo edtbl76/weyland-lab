@@ -23,18 +23,28 @@ data:
     : "${SONAR_HOST_URL:?}"
     : "${SONAR_TOKEN:?}"
     rc=0
+    DEFAULT_EXCL='**/node_modules/**,**/.git/**,**/build/**,**/dist/**,**/.next/**,**/vendor/**,**/*.min.js'
     for dir in /src/*/; do
       [ -d "$dir" ] || continue
       repo=$(basename "$dir")
       echo "======================= sonar-scan-repos: ${repo} ======================="
+      # A repo that ships its OWN sonar-project.properties defines its sources/tests/exclusions — a deliberate
+      # main/test split (e.g. stud.io, which declares sonar.tests). Forcing -Dsonar.sources=. there re-adds its
+      # test dirs to the MAIN set and the scanner aborts ("File ... can't be indexed twice; produce disjoint sets
+      # for main and test files"). So DEFER to the repo's own config when present (pass only projectKey/baseDir/
+      # host/token); supply the source+exclusion defaults ONLY for repos with no properties file of their own.
+      if [ -f "${dir}sonar-project.properties" ]; then
+        set --
+      else
+        set -- -Dsonar.sources=. -Dsonar.exclusions="${DEFAULT_EXCL}"
+      fi
       if ! sonar-scanner \
           -Dsonar.projectKey="${repo}" \
           -Dsonar.projectBaseDir="${dir}" \
-          -Dsonar.sources=. \
           -Dsonar.host.url="${SONAR_HOST_URL}" \
           -Dsonar.token="${SONAR_TOKEN}" \
           -Dsonar.scm.disabled=true \
-          -Dsonar.exclusions='**/node_modules/**,**/.git/**,**/build/**,**/dist/**,**/.next/**,**/vendor/**,**/*.min.js'; then
+          "$@"; then
         echo "!! sonar-scanner failed for ${repo}" >&2
         rc=1
       fi
