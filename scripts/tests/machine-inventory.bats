@@ -1,9 +1,12 @@
 #!/usr/bin/env bats
-# Tests for the machine-inventory merge decision-logic (B129). The collector is env-dependent (real package
-# managers / SSH), so these exercise `machine_inventory.py merge` — the part that MAKES DECISIONS: the
-# host-mismatch guard (fail-closed regression for the 2026-09-14 mother/weyland mixup), the empty-stdin
-# refusal, the baseline-vs-discretionary default status, and decision preservation. SoT path is overridden
-# via MACHINE_INV_SOT so no fixture touches the real catalog. Needs python3 + pyyaml (CI shell-tests installs both).
+# Tests for the machine-inventory decision-logic (B129 merge + B169 verify). The collector and `emit` are
+# env-dependent (real package managers / SSH / the live Port API), so these exercise the parts that MAKE
+# DECISIONS: `merge` (the host-mismatch guard — fail-closed regression for the 2026-09-14 mother/weyland
+# mixup — the empty-stdin refusal, the baseline-vs-discretionary default status, and decision preservation)
+# and `verify`'s read-back pass/fail gate. `verify` normally queries Port; its count comparison is tested
+# offline via the MACHINE_INV_VERIFY_ACTUAL seam (same idiom as MACHINE_INV_SOT), so the fail-closed logic is
+# covered without network. SoT path is overridden via MACHINE_INV_SOT so no fixture touches the real catalog.
+# Needs python3 + pyyaml (CI shell-tests installs both).
 
 setup() {
   TOOL="${BATS_TEST_DIRNAME}/../machine_inventory.py"
@@ -60,6 +63,15 @@ yaml.safe_dump(d,open('$MACHINE_INV_SOT','w'),sort_keys=False)
   [ "$(status_of h snap steam)" = "keep" ]
 }
 
+@test "intra-run duplicate (kind,name) records are deduped (multi-tag image / apt multiarch)" {
+  # crictl lists a repo once per tag; apt multiarch prints the arch-less name per arch. Those arrive as
+  # identical (kind,name) records in ONE collector run and must collapse to ONE cataloged row.
+  printf 'host:h\nimage\treg/app\ttag1\nimage\treg/app\ttag2\nimage\treg/app\ttag3\napt\tlibx\tamd64\napt\tlibx\ti386\n' \
+    | python3 "$TOOL" merge h
+  run python3 -c "import yaml;print(len(yaml.safe_load(open('$MACHINE_INV_SOT'))['hosts']['h']['packages']))"
+  [ "$output" = "2" ]   # image:reg/app + apt:libx — two distinct (kind,name), not five rows
+}
+
 @test "a matching host merges cleanly (the happy path)" {
   run bash -c "printf 'host:h\nsnap\ta\t1\n' | python3 '$TOOL' merge h"
   [ "$status" -eq 0 ]
@@ -70,4 +82,27 @@ yaml.safe_dump(d,open('$MACHINE_INV_SOT','w'),sort_keys=False)
   run bash -c "printf 'snap\ta\t1\n' | python3 '$TOOL' merge h"
   [ "$status" -eq 0 ]
   [[ "$output" == *"carried no host: tag"* ]]
+}
+
+# --- B169: the verify read-back gate (fail CLOSED if the SoT did not actually land in Port) ---
+
+@test "verify FAILS when the Port count != the SoT count (read-back gate, not assumed)" {
+  printf 'host:h\nsnap\ta\t1\nsnap\tb\t1\n' | python3 "$TOOL" merge h   # SoT: 2 packages for h
+  run env MACHINE_INV_VERIFY_ACTUAL=1 python3 "$TOOL" verify h          # Port claims only 1
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"Port has 1 installed_package entities, SoT has 2"* ]]
+}
+
+@test "verify PASSES when the Port count matches the SoT count" {
+  printf 'host:h\nsnap\ta\t1\nsnap\tb\t1\n' | python3 "$TOOL" merge h
+  run env MACHINE_INV_VERIFY_ACTUAL=2 python3 "$TOOL" verify h
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"OK"* ]]
+}
+
+@test "verify refuses a host absent from the SoT (never a false green)" {
+  printf 'host:h\nsnap\ta\t1\n' | python3 "$TOOL" merge h
+  run python3 "$TOOL" verify ghost
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"not in the SoT"* ]]
 }

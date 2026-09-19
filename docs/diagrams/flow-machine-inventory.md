@@ -1,7 +1,8 @@
-# Flow: machine-inventory catalog (B129)
+# Flow: machine-inventory catalog (B129 · verify gate B169)
 
 Collect a host's installed software → merge into the git SoT (baseline vs discretionary, decisions preserved,
-host-mismatch fail-closed) → emit to the Port catalog. Collector is read-only; only the SoT + Port are written.
+host-mismatch fail-closed) → emit to the Port catalog → verify the entities read back (B169, fail-closed).
+Collector is read-only; only the SoT + Port are written; verify is read-only.
 
 ```mermaid
 sequenceDiagram
@@ -13,6 +14,7 @@ sequenceDiagram
     participant SOT as machine-inventory.yaml (git SoT)
     participant EMT as machine_inventory.py emit
     participant PORT as Port (host + installed_package)
+    participant VER as machine_inventory.py verify
     OP->>COL: collect-machine-inventory.sh HOST
     COL->>PM: local, or ssh user@host (weyland=root)
     PM-->>COL: normalized kind/name/version + sources: note
@@ -22,6 +24,10 @@ sequenceDiagram
     OP->>SOT: curate discretionary items (keep/remove + rationale), then commit
     OP->>EMT: emit all  (reads the committed SoT)
     EMT->>PORT: upsert host + installed_package entities (status/rationale from SoT)
+    OP->>VER: verify all  (read-back gate, B169)
+    VER->>PORT: GET host + installed_package entities
+    PORT-->>VER: entity counts
+    VER->>VER: Port count == SoT count? else FAIL CLOSED (exit nonzero)
     Note over MRG,SOT: new discretionary installs land status: unreviewed — the review queue + drift signal
 ```
 

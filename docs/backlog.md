@@ -2481,16 +2481,32 @@ _Audit COMPLETE for rogueone 2026-08-15 (snap + flatpak + apt). mother + weyland
 
 ---
 
-### B169 — Onboard a new machine/client into the machine-inventory catalog — HIGH (↑ Medium→High 2026-09-14 rebalance; 2026-09-14, B129 follow-on, Linear EMA-230)
+### B169 — Onboard a new machine/client into the machine-inventory catalog — DONE 2026-09-19 (B129 follow-on, Linear EMA-230)
 
-Follow-on to [B129]: document + enable onboarding **any additional client** (a new VM, laptop, host) into the
-machine-inventory catalog, so it grows without re-deriving the process each time. The flow: run
-`scripts/collect-machine-inventory.sh <host>` (the SSH-based collector) → curate the new host's **discretionary**
-items (keep/remove + a one-line rationale; the system apt baseline is bulk-tagged `status: system`) in
-`machine-inventory.yaml` → run the Port emitter (or trigger the Port **"Refresh machine inventory"** action) → verify
-the host + its `installed_package` entities land in the Port catalog, with git diffs surfacing future adds/removals as
-`status: unreviewed` drift. Prereq: the machine is SSH-reachable as `emangini@<host>` (hostname, not IP). See
-[runbooks/machine-inventory.md](runbooks/machine-inventory.md) (created in B129). Linear: EMA-230.
+**Shipped:** a repeatable onboarding **process** (not a one-off host add — the ask was reframed to "create the
+process a coding harness can execute," so there was no 4th machine to onboard). Two artifacts + a fail-closed
+gate: (1) `docs/runbooks/machine-inventory.md` "Onboarding a new machine — the executable checklist" — a numbered,
+**role-tagged** procedure (`[harness]` runs autonomously · `[operator]` one-time SSH-key step, handed off ·
+`[decision]` human keep/remove judgment) with a **preflight** that fails loud on the three blockers (IP-not-hostname,
+no SSH key, missing Port creds) and a per-step pass/fail gate; (2) a thin `onboard-machine` Claude Code skill that
+turns the checklist into tracked steps and points at the runbook as SoT. (3) A new **read-back verify gate** —
+`scripts/machine_inventory.py verify <host|all>` — that reads the entities back from Port and fails closed on a
+missing host or a count mismatch, so `emit`'s own exit code is never mistaken for proof the catalog landed (the
+"reads as success" class). bats: `verify`'s pass/fail decision is covered offline via the `MACHINE_INV_VERIFY_ACTUAL`
+seam.
+
+**Bug the gate surfaced + fixed (folded in so B169 ships green):** on its first live run `verify` found Port
+**undercounting** the SoT (mother 55/79, rogueone 707/721). Root cause was NOT drift or an emit collision but
+**duplicate SoT rows** — `merge` built its `existing` set once and never added freshly-appended packages, so a repo
+listed once per tag by crictl (realm-of-agents ×20) or an apt package printed per multiarch collapsed to identical
+`(kind,name)` records that all got appended. Fixed `merge` to dedupe **within a run** too (regression-tested), and
+collapsed the already-duplicated rows one-time (mother 79→55, rogueone 721→708; 111 pure-removal lines, no curated
+decision lost — every dup group was uniform `system`). Documented the **images-at-repo-granularity** modeling stance
+(images are transient/regenerable baseline with no per-item decision; tag churn belongs to B57a provenance / B82 app
+taxonomy, not this inventory). Re-emitted → `verify all` green (55/708/739, `len(packages)` == unique idents, no
+hash suffix needed). The residual drift sibling (host installs bypassing the catalog until re-collect) stays [B170].
+Docs: [runbooks/machine-inventory.md](runbooks/machine-inventory.md) · [demos/machine-inventory.md](demos/machine-inventory.md).
+Linear: EMA-230.
 
 ---
 

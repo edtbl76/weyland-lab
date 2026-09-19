@@ -64,6 +64,54 @@ Read-only on the machines (the collector only reads package managers). Writes ar
 (`machine-inventory.yaml`) and the Port entities (idempotent upserts — re-emitting overwrites, never duplicates).
 No software is installed or removed by this system; it records dispositions, acting on them is manual.
 
-## Onboarding a new client (B169 / EMA-230)
+## Onboarding a new client (B169 / EMA-230) — the process + the read-back gate
 
-Same three steps for any additional machine: `collect | merge` (SSH by key) → curate → `emit`. See the runbook.
+B169 turned onboarding into a **repeatable process a coding harness can execute**: a role-tagged, numbered
+checklist in the runbook (`[harness]` / `[operator]` / `[decision]` steps, a fail-loud preflight, a pass/fail
+gate per step) + a thin `onboard-machine` skill that drives it. The new piece worth demoing is the **read-back
+verify gate** — proof the catalog actually landed in Port, not an assumption from `emit`'s exit code.
+
+### The verify gate fails CLOSED on a fabricated mismatch (RUN 2026-09-19 — the negative case)
+
+```
+[rogueone] MACHINE_INV_VERIFY_ACTUAL=3 python3 scripts/machine_inventory.py verify rogueone
+verify rogueone: FAIL — Port has 3 installed_package entities, SoT has 721 (re-run emit; a persistent gap is real drift)
+# exit 1
+```
+
+The `MACHINE_INV_VERIFY_ACTUAL` seam injects the Port count so the pass/fail decision is testable offline (three
+bats cases). A wrong count exits nonzero — `emit` reporting success can no longer stand in for "the entities are
+in Port."
+
+### The gate caught a real bug on its FIRST live run (RUN 2026-09-19)
+
+Run live against Port, `verify` immediately found the catalog **undercounting** the SoT:
+
+```
+[rogueone] python3 scripts/machine_inventory.py verify all
+verify mother: FAIL — Port has 55 installed_package entities, SoT has 79 …
+verify rogueone: FAIL — Port has 707 installed_package entities, SoT has 721 …
+verify weyland: OK — host entity + 739 installed_package entities in Port (matches SoT)
+```
+
+**Root cause:** duplicate SoT rows — `merge` deduped against the on-disk catalog but not within a single run, so a
+repo listed once per tag by crictl (`realm-of-agents` ×20) or an apt package printed per multiarch collapsed to
+identical `(kind,name)` records that all got appended. Fixed `merge` to dedupe within the run (regression test),
+collapsed the existing duplicates one-time (mother 79→55, rogueone 721→708; 111 pure removals, no curated decision
+lost), and settled the model: **images are cataloged at repo granularity** (transient baseline; tag churn lives in
+B57a provenance / B82 app taxonomy). A gate nobody has watched fail is not a gate — this one failed loud on run one.
+
+### Green after the fix (RUN 2026-09-19)
+
+```
+[rogueone] set -a && . nodes/mother/lab/weyland-platform/tofu/port/.env && set +a \
+  && python3 scripts/machine_inventory.py emit all && python3 scripts/machine_inventory.py verify all
+emit: 3 host(s), 1502 package entities upserted to Port
+verify mother: OK — host entity + 55 installed_package entities in Port (matches SoT)
+verify rogueone: OK — host entity + 708 installed_package entities in Port (matches SoT)
+verify weyland: OK — host entity + 739 installed_package entities in Port (matches SoT)
+# exit 0
+```
+
+`len(packages)` now equals the unique emitted-identifier count for every host (no hash suffix needed). Onboarding
+any real 4th machine is then the same checklist end to end: preflight → (ssh-copy-id) → collect|merge → curate → emit → verify.

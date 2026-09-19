@@ -437,9 +437,6 @@ hosts:
     - name: libgl1-mesa-dri
       kind: apt
       status: system
-    - name: libgl1-mesa-dri
-      kind: apt
-      status: system
     - name: libglib2.0-bin
       kind: apt
       status: system
@@ -510,9 +507,6 @@ hosts:
       kind: apt
       status: system
     - name: libreoffice-l10n-en-za
-      kind: apt
-      status: system
-    - name: libsasl2-modules
       kind: apt
       status: system
     - name: libsasl2-modules
@@ -879,13 +873,7 @@ hosts:
     - name: alpine
       kind: image
       status: system
-    - name: alpine
-      kind: image
-      status: system
     - name: anchore/syft
-      kind: image
-      status: system
-    - name: aquasec/trivy
       kind: image
       status: system
     - name: aquasec/trivy
@@ -901,9 +889,6 @@ hosts:
       kind: image
       status: system
     - name: cytopia/yamllint
-      kind: image
-      status: system
-    - name: debian
       kind: image
       status: system
     - name: debian
@@ -940,9 +925,6 @@ hosts:
       kind: image
       status: system
     - name: ghcr.io/yannh/kubeconform
-      kind: image
-      status: system
-    - name: golang
       kind: image
       status: system
     - name: golang
@@ -996,9 +978,6 @@ hosts:
     - name: node
       kind: image
       status: system
-    - name: node
-      kind: image
-      status: system
     - name: nvidia/cuda
       kind: image
       status: system
@@ -1023,12 +1002,6 @@ hosts:
     - name: python
       kind: image
       status: system
-    - name: python
-      kind: image
-      status: system
-    - name: python
-      kind: image
-      status: system
     - name: redis
       kind: image
       status: system
@@ -1041,16 +1014,10 @@ hosts:
     - name: registry.weyland.lab/scan-suite
       kind: image
       status: system
-    - name: registry.weyland.lab/scan-suite
-      kind: image
-      status: system
     - name: registry.weyland.lab/weyland-agent
       kind: image
       status: system
     - name: registry.weyland.lab/weyland-dagster-user-code
-      kind: image
-      status: system
-    - name: registry.weyland.lab/weyland-guard
       kind: image
       status: system
     - name: registry.weyland.lab/weyland-guard
@@ -1066,9 +1033,6 @@ hosts:
       kind: image
       status: system
     - name: sourcegraph/zoekt-indexserver
-      kind: image
-      status: system
-    - name: sourcegraph/zoekt-webserver
       kind: image
       status: system
     - name: sourcegraph/zoekt-webserver
@@ -1096,9 +1060,6 @@ hosts:
       kind: image
       status: system
     - name: woodpeckerci/woodpecker-agent
-      kind: image
-      status: system
-    - name: woodpeckerci/woodpecker-server
       kind: image
       status: system
     - name: woodpeckerci/woodpecker-server
@@ -2344,15 +2305,6 @@ hosts:
     - name: node
       kind: image
       status: system
-    - name: node
-      kind: image
-      status: system
-    - name: python
-      kind: image
-      status: system
-    - name: python
-      kind: image
-      status: system
     - name: python
       kind: image
       status: system
@@ -2374,66 +2326,6 @@ hosts:
     - name: registry.weyland.lab/realm-of-agents
       kind: image
       status: system
-    - name: registry.weyland.lab/realm-of-agents
-      kind: image
-      status: system
-    - name: registry.weyland.lab/realm-of-agents
-      kind: image
-      status: system
-    - name: registry.weyland.lab/realm-of-agents
-      kind: image
-      status: system
-    - name: registry.weyland.lab/realm-of-agents
-      kind: image
-      status: system
-    - name: registry.weyland.lab/realm-of-agents
-      kind: image
-      status: system
-    - name: registry.weyland.lab/realm-of-agents
-      kind: image
-      status: system
-    - name: registry.weyland.lab/realm-of-agents
-      kind: image
-      status: system
-    - name: registry.weyland.lab/realm-of-agents
-      kind: image
-      status: system
-    - name: registry.weyland.lab/realm-of-agents
-      kind: image
-      status: system
-    - name: registry.weyland.lab/realm-of-agents
-      kind: image
-      status: system
-    - name: registry.weyland.lab/realm-of-agents
-      kind: image
-      status: system
-    - name: registry.weyland.lab/realm-of-agents
-      kind: image
-      status: system
-    - name: registry.weyland.lab/realm-of-agents
-      kind: image
-      status: system
-    - name: registry.weyland.lab/realm-of-agents
-      kind: image
-      status: system
-    - name: registry.weyland.lab/realm-of-agents
-      kind: image
-      status: system
-    - name: registry.weyland.lab/realm-of-agents
-      kind: image
-      status: system
-    - name: registry.weyland.lab/realm-of-agents
-      kind: image
-      status: system
-    - name: registry.weyland.lab/realm-of-agents
-      kind: image
-      status: system
-    - name: registry.weyland.lab/realm-of-agents
-      kind: image
-      status: system
-    - name: registry.weyland.lab/weyland-dagster-user-code
-      kind: image
-      status: system
     - name: registry.weyland.lab/weyland-dagster-user-code
       kind: image
       status: system
@@ -2447,9 +2339,6 @@ hosts:
       kind: image
       status: system
     - name: weyland-dagster-base
-      kind: image
-      status: system
-    - name: weyland-dagster-user-code
       kind: image
       status: system
     - name: weyland-dagster-user-code

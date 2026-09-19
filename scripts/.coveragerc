@@ -1,0 +1,10 @@
+# Coverage config for the `python:scripts` ratchet lane (scripts/coverage-ratchet.sh cd's here and runs
+# `pytest --cov=.`). machine_inventory.py is a CLI tested end-to-end by scripts/tests/machine-inventory.bats
+# (merge decision logic + the B169 verify read-back gate, driven through stdin/SoT/Port seams), NOT by pytest.
+# pytest-cov cannot see a bats-driven subprocess, so the file reports 0% and drags the lane down while being
+# fully tested — exactly the reason coverage-ratchet.sh already EXCLUDES shell orchestrators ("line-coverage
+# of an orchestrator tested by stubbing externals measures almost nothing"). Omit it here for the same reason;
+# its real tests live in the shell-test lane.
+[run]
+omit =
+    machine_inventory.py

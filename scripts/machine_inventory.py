@@ -10,10 +10,18 @@ Two subcommands, both reading the normalized collector output (`collect-machine-
         are REPORTED to stderr (never silently dropped — a human decides). Decisions are version-independent,
         so version is NOT stored here (no churn); the emitter attaches the live version.
 
-    collect-machine-inventory.sh <host> | machine_inventory.py emit <host>
+    machine_inventory.py emit <host|all>
         Upsert the host + its installed_package entities into Port (REST API + client creds, per
-        port-mcp-browser-auth-wedges). Status/rationale come from the SoT; the live version comes from the
-        piped collection. Baseline (status: system) packages are emitted too so the catalog is complete.
+        port-mcp-browser-auth-wedges). Reads the committed SoT (no stdin/SSH). Status/rationale come from the
+        SoT; version is not tracked in the SoT, so it is left blank in Port. Baseline (status: system)
+        packages are emitted too so the catalog is complete.
+
+    machine_inventory.py verify <host|all>
+        The fail-CLOSED onboarding gate (B169): READ BACK from Port and assert the `host` entity exists and
+        its installed_package entity count matches the SoT — so `emit` is verified, never assumed from its own
+        exit code (the "reads as success" bug class). Read-only. Exits nonzero on a missing host or a count
+        mismatch. Test seam: MACHINE_INV_VERIFY_ACTUAL injects the Port count so the pass/fail decision is
+        exercisable offline.
 
 The discretionary kinds (snap/flatpak/npm/image) default to `unreviewed` so a new install is a visible
 review item; the dep-dominated kinds (apt/pip) default to `system` so the catalog is complete without
@@ -23,6 +31,7 @@ import os
 import sys
 import json
 import urllib.request
+import urllib.error
 
 import yaml
 
@@ -88,6 +97,9 @@ def cmd_merge(host):
         if status == "unreviewed":
             pkg["rationale"] = ""
         entry.setdefault("packages", []).append(pkg)
+        existing[key] = pkg  # dedupe WITHIN this run too: a repo listed once per tag (crictl) or an apt
+        #                      package printed per arch (multiarch) arrives as identical (kind,name) records;
+        #                      without this the 2nd..Nth would all append (the mother realm-of-agents x20 bug).
         added += 1
 
     # Report (never auto-drop) anything cataloged but no longer collected — a human decides.
@@ -155,11 +167,71 @@ def cmd_emit(host):
     print(f"emit: {len(targets)} host(s), {total} package entities upserted to Port", file=sys.stderr)
 
 
+def port_get(token, path):
+    req = urllib.request.Request(f"{PORT_API}{path}",
+                                 headers={"Authorization": f"Bearer {token}"})
+    return json.load(urllib.request.urlopen(req, timeout=30))  # nosec B310 — fixed https Port API URL, not a user scheme
+
+
+def port_counts(host):
+    """Return (host_exists, installed_package_count) for `host` from Port. installed_package identifiers are
+    `<host>--<kind>--<name>`, so the host's packages are exactly those whose identifier has the `<host>--`
+    prefix. Test seam: MACHINE_INV_VERIFY_ACTUAL injects the count (host assumed present) so the pass/fail
+    decision in cmd_verify is exercisable without the network."""
+    seam = os.environ.get("MACHINE_INV_VERIFY_ACTUAL")
+    if seam is not None:
+        return True, int(seam)
+    token = port_token()
+    try:
+        port_get(token, f"/blueprints/host/entities/{host}")
+        host_exists = True
+    except urllib.error.HTTPError as e:
+        if e.code == 404:
+            host_exists = False
+        else:
+            raise
+    data = port_get(token, "/blueprints/installed_package/entities")
+    prefix = f"{host}--"
+    count = sum(1 for e in data.get("entities", []) if str(e.get("identifier", "")).startswith(prefix))
+    return host_exists, count
+
+
+def cmd_verify(host):
+    """Fail-CLOSED onboarding gate (B169): confirm the committed SoT actually landed in Port by READING IT
+    BACK — the `host` entity must exist and its installed_package count must match the SoT. `host` is a single
+    host or `all`. Read-only; exits nonzero on any missing host or count mismatch (never a silent green)."""
+    sot = load_sot()
+    hosts = sot.get("hosts") or {}
+    targets = sorted(hosts) if host == "all" else [host]
+    rc = 0
+    for h in targets:
+        entry = hosts.get(h)
+        if not entry:
+            sys.exit(f"verify: host '{h}' is not in the SoT (have: {', '.join(sorted(hosts)) or 'none'})")
+        expected = len(entry.get("packages", []))
+        host_exists, actual = port_counts(h)
+        if not host_exists:
+            print(f"verify {h}: FAIL — no `host` entity in Port (run: machine_inventory.py emit {h})", file=sys.stderr)
+            rc = 1
+            continue
+        if actual != expected:
+            print(f"verify {h}: FAIL — Port has {actual} installed_package entities, SoT has {expected} "
+                  f"(re-run emit; a persistent gap is real drift)", file=sys.stderr)
+            rc = 1
+            continue
+        print(f"verify {h}: OK — host entity + {actual} installed_package entities in Port (matches SoT)",
+              file=sys.stderr)
+    if rc:
+        sys.exit(rc)
+
+
 def main():
-    if len(sys.argv) != 3 or sys.argv[1] not in ("merge", "emit"):
-        sys.exit("usage: machine_inventory.py merge <host>   (reads collector output on stdin)\n"
-                 "       machine_inventory.py emit  <host|all> (reads the committed SoT; no stdin)")
-    (cmd_merge if sys.argv[1] == "merge" else cmd_emit)(sys.argv[2])
+    cmds = {"merge": cmd_merge, "emit": cmd_emit, "verify": cmd_verify}
+    if len(sys.argv) != 3 or sys.argv[1] not in cmds:
+        sys.exit("usage: machine_inventory.py merge  <host>      (reads collector output on stdin)\n"
+                 "       machine_inventory.py emit   <host|all>  (reads the committed SoT; no stdin)\n"
+                 "       machine_inventory.py verify <host|all>  (read-back gate: SoT landed in Port)")
+    cmds[sys.argv[1]](sys.argv[2])
 
 
 if __name__ == "__main__":
