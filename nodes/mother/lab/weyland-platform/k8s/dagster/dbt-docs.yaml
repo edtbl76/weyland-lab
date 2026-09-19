@@ -27,7 +27,7 @@ spec:
     spec:
       containers:
         - name: dbt-docs
-          image: registry.weyland.lab/weyland-dagster-user-code:git-5de488fe   # same weyland-dagster-user-code image as user-code.yaml; tag is CI-managed (git-<sha>, B57a) and kept in lockstep via images.tsv — don't hand-bump.
+          image: registry.weyland.lab/weyland-dagster-user-code:git-fa9c0a5f   # same weyland-dagster-user-code image as user-code.yaml; tag is CI-managed (git-<sha>, B57a) and kept in lockstep via images.tsv — don't hand-bump.
           imagePullPolicy: IfNotPresent
           command: ["sh", "-c"]
           args:
