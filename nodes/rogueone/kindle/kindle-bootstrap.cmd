@@ -8,4 +8,6 @@ copy /y "%SRC%\kindle-vm-setup.ps1" C:\kindle\ >nul
 copy /y "%SRC%\kindle-extract.ps1" C:\kindle\ >nul
 copy /y "%SRC%\kindle-autorun.ps1" C:\kindle\ >nul
 copy /y "%SRC%\kindle-minio.env"  C:\kindle\ >nul 2>nul
-powershell -ExecutionPolicy Bypass -File C:\kindle\kindle-vm-setup.ps1 >> C:\kindle\setup.log 2>&1
+REM No log-only redirect: setup.ps1 prints live to this console AND appends to C:\kindle\setup.log itself,
+REM so the window shows progress instead of sitting blank.
+powershell -ExecutionPolicy Bypass -File C:\kindle\kindle-vm-setup.ps1

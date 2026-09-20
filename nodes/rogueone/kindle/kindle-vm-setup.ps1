@@ -3,7 +3,9 @@
 # ONLY human step is signing into Amazon. Logs to C:\kindle\setup.log. See docs/runbooks/kindle-rag.md.
 # UNTESTED by the author (no Windows here) - the first provisioning run is the proving ground; read the log if it stalls.
 $ErrorActionPreference = 'Continue'   # a single failed step must not abort the whole unattended setup
-function Say($m) { Write-Host ("== " + (Get-Date -Format HH:mm:ss) + " " + $m) }
+# Print to the console AND append to the log — live visible progress, never a blank screen (a quiet console reads
+# as hung). The bootstrap does NOT redirect this to a log-only for the same reason.
+function Say($m) { $l = "== " + (Get-Date -Format HH:mm:ss) + " " + $m; Write-Host $l; try { Add-Content C:\kindle\setup.log $l } catch {} }
 
 # 1) Kindle-for-PC + Calibre via winget (retry - winget's sources may not be ready the instant we log in).
 foreach ($id in 'Amazon.Kindle','calibre.calibre') {
