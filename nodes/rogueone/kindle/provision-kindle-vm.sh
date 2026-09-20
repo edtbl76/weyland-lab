@@ -14,6 +14,11 @@
 #   3. MinIO S3 creds in scripts/.env (KINDLE_MINIO_ACCESS_KEY / KINDLE_MINIO_SECRET_KEY) so the VM can upload.
 set -euo pipefail
 
+# SESSION libvirt (qemu:///session) — QEMU runs as this user, so it can read the ISOs + disk under $HOME with no
+# root and no perms grants (the system connection's `libvirt-qemu` user cannot traverse a 700 home dir). Every
+# virt-install/virsh call in this script inherits it via the env var, matching the virt-viewer session connection.
+export LIBVIRT_DEFAULT_URI="qemu:///session"
+
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 HERE="$REPO_ROOT/nodes/rogueone/kindle"
 VM="${KINDLE_VM_NAME:-kindle-extract}"
@@ -82,7 +87,7 @@ virt-install \
   --disk path="$CFG_ISO",device=cdrom \
   --tpm backend.type=emulator,backend.version=2.0,model=tpm-crb \
   --boot uefi \
-  --network network=default,model=virtio \
+  --network user,model=virtio \
   --graphics spice \
   --noautoconsole
 
