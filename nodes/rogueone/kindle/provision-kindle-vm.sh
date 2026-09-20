@@ -49,8 +49,12 @@ done
 # 3) MinIO creds for the in-guest uploader — from the gitignored scripts/.env
 # shellcheck disable=SC1091
 [ -f "$REPO_ROOT/scripts/.env" ] && { set -a; . "$REPO_ROOT/scripts/.env"; set +a; }
-: "${KINDLE_MINIO_ACCESS_KEY:?add KINDLE_MINIO_ACCESS_KEY to scripts/.env (a MinIO S3 access key that can write $BUCKET)}"
-: "${KINDLE_MINIO_SECRET_KEY:?add KINDLE_MINIO_SECRET_KEY to scripts/.env}"
+# Reuse the lab's existing MinIO S3 creds (AWS_ACCESS_KEY_ID/SECRET in scripts/.env) by default — no new key
+# needed. Override with KINDLE_MINIO_* only if you want a dedicated least-privilege key.
+KINDLE_MINIO_ACCESS_KEY="${KINDLE_MINIO_ACCESS_KEY:-${AWS_ACCESS_KEY_ID:-}}"
+KINDLE_MINIO_SECRET_KEY="${KINDLE_MINIO_SECRET_KEY:-${AWS_SECRET_ACCESS_KEY:-}}"
+: "${KINDLE_MINIO_ACCESS_KEY:?no MinIO S3 key — set AWS_ACCESS_KEY_ID (or KINDLE_MINIO_ACCESS_KEY) in scripts/.env}"
+: "${KINDLE_MINIO_SECRET_KEY:?no MinIO S3 secret — set AWS_SECRET_ACCESS_KEY (or KINDLE_MINIO_SECRET_KEY) in scripts/.env}"
 
 # Build the CONFIG ISO: autounattend.xml (root) + the scripts + a creds env the in-guest setup reads for `mc alias`.
 say "building the unattended config ISO"
