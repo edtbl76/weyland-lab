@@ -1,5 +1,5 @@
 @echo off
-REM B165 — first-logon bootstrap, run by autounattend.xml's FirstLogonCommands off the config CD.
+REM B165 - first-logon bootstrap, run by autounattend.xml's FirstLogonCommands off the config CD.
 REM Copies the Kindle scripts + injected MinIO creds from the CD to C:\kindle, then runs the setup.
 REM %~d0 = the drive letter of THIS batch file = the config CD.
 set SRC=%~d0

@@ -31,6 +31,46 @@ mkdir -p "$WORK"
 say() { printf '== %s\n' "$*"; }
 die() { printf '!! %s\n' "$*" >&2; exit 1; }
 
+CFG_ISO="$WORK/kindle-config.iso"
+
+# (Re)build the config ISO from the CURRENT scripts here + the MinIO creds in scripts/.env. Used by the first-run
+# create AND by --refresh-iso (so a fix to the in-guest scripts can be pushed without recreating the VM).
+build_config_iso() {
+  # shellcheck disable=SC1091
+  [ -f "$REPO_ROOT/scripts/.env" ] && { set -a; . "$REPO_ROOT/scripts/.env"; set +a; }
+  local ak="${KINDLE_MINIO_ACCESS_KEY:-${AWS_ACCESS_KEY_ID:-}}"
+  local sk="${KINDLE_MINIO_SECRET_KEY:-${AWS_SECRET_ACCESS_KEY:-}}"
+  [ -n "$ak" ] || die "no MinIO S3 key - set AWS_ACCESS_KEY_ID (or KINDLE_MINIO_ACCESS_KEY) in scripts/.env"
+  [ -n "$sk" ] || die "no MinIO S3 secret - set AWS_SECRET_ACCESS_KEY (or KINDLE_MINIO_SECRET_KEY) in scripts/.env"
+  say "building the unattended config ISO"
+  local stage; stage="$(mktemp -d)"
+  cp "$HERE/autounattend.xml" "$HERE/kindle-bootstrap.cmd" \
+     "$HERE/kindle-vm-setup.ps1" "$HERE/kindle-extract.ps1" "$HERE/kindle-autorun.ps1" "$stage/"
+  cat > "$stage/kindle-minio.env" <<EOF
+MINIO_ENDPOINT=$MINIO_ENDPOINT
+MINIO_BUCKET=$BUCKET
+MINIO_ACCESS_KEY=$ak
+MINIO_SECRET_KEY=$sk
+EOF
+  genisoimage -quiet -J -r -V KINDLECFG -o "$CFG_ISO" "$stage"
+  rm -rf "$stage"
+  say "config ISO: $CFG_ISO"
+}
+
+# --refresh-iso: rebuild the config disc from the CURRENT (edited) scripts and HOT-SWAP it into the running VM,
+# so a fix to the in-guest scripts reaches the VM without recreating it. Then re-run the bootstrap in the guest.
+if [ "${1:-}" = "--refresh-iso" ]; then
+  virsh dominfo "$VM" >/dev/null 2>&1 || die "VM '$VM' does not exist - run without a flag first."
+  build_config_iso
+  if virsh change-media "$VM" sdc "$CFG_ISO" --update; then
+    say "swapped the fresh config disc into '$VM' (drive sdc)"
+  else
+    die "change-media failed - the config CD may not be sdc (check: virsh domblklist $VM)"
+  fi
+  say "now RE-RUN the bootstrap in the VM: File Explorer -> KINDLECFG drive -> right-click kindle-bootstrap.cmd -> Run as administrator"
+  exit 0
+fi
+
 # --rerun: the VM already exists (Kindle still signed in) → just start it; the in-guest autorun re-extracts.
 if [ "${1:-}" = "--rerun" ]; then
   virsh dominfo "$VM" >/dev/null 2>&1 || die "VM '$VM' does not exist yet — run without --rerun first."
@@ -51,30 +91,8 @@ done
      One-time: download it (https://www.microsoft.com/en-us/evalcenter/download-windows-11-enterprise) and save it there
      (or point KINDLE_WIN_ISO at it), then re-run."
 
-# 3) MinIO creds for the in-guest uploader — from the gitignored scripts/.env
-# shellcheck disable=SC1091
-[ -f "$REPO_ROOT/scripts/.env" ] && { set -a; . "$REPO_ROOT/scripts/.env"; set +a; }
-# Reuse the lab's existing MinIO S3 creds (AWS_ACCESS_KEY_ID/SECRET in scripts/.env) by default — no new key
-# needed. Override with KINDLE_MINIO_* only if you want a dedicated least-privilege key.
-KINDLE_MINIO_ACCESS_KEY="${KINDLE_MINIO_ACCESS_KEY:-${AWS_ACCESS_KEY_ID:-}}"
-KINDLE_MINIO_SECRET_KEY="${KINDLE_MINIO_SECRET_KEY:-${AWS_SECRET_ACCESS_KEY:-}}"
-: "${KINDLE_MINIO_ACCESS_KEY:?no MinIO S3 key — set AWS_ACCESS_KEY_ID (or KINDLE_MINIO_ACCESS_KEY) in scripts/.env}"
-: "${KINDLE_MINIO_SECRET_KEY:?no MinIO S3 secret — set AWS_SECRET_ACCESS_KEY (or KINDLE_MINIO_SECRET_KEY) in scripts/.env}"
-
-# Build the CONFIG ISO: autounattend.xml (root) + the scripts + a creds env the in-guest setup reads for `mc alias`.
-say "building the unattended config ISO"
-STAGE="$(mktemp -d)"; trap 'rm -rf "$STAGE"' EXIT
-cp "$HERE/autounattend.xml" "$HERE/kindle-bootstrap.cmd" \
-   "$HERE/kindle-vm-setup.ps1" "$HERE/kindle-extract.ps1" "$HERE/kindle-autorun.ps1" "$STAGE/"
-cat > "$STAGE/kindle-minio.env" <<EOF
-MINIO_ENDPOINT=$MINIO_ENDPOINT
-MINIO_BUCKET=$BUCKET
-MINIO_ACCESS_KEY=$KINDLE_MINIO_ACCESS_KEY
-MINIO_SECRET_KEY=$KINDLE_MINIO_SECRET_KEY
-EOF
-CFG_ISO="$WORK/kindle-config.iso"
-genisoimage -quiet -J -r -V KINDLECFG -o "$CFG_ISO" "$STAGE"
-say "config ISO: $CFG_ISO"
+# 3) Build the CONFIG ISO (autounattend + scripts + MinIO creds from scripts/.env) — creds resolved inside.
+build_config_iso
 
 # Create + install the VM: unattended Windows (the config ISO's autounattend drives it), vTPM for Win11, both ISOs.
 say "creating VM '$VM' (6GB / 4 vCPU / 64GB disk, vTPM) — unattended Windows install begins now"
