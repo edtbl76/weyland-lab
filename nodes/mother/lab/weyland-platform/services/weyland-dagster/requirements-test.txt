@@ -3,6 +3,7 @@
 # the whole dagster + torch + sentence-transformers runtime into the fast CI test lane. Pinned to the
 # runtime versions in requirements.txt so the tests exercise the same behaviour the pipeline runs.
 pyarrow==25.0.0
+defusedxml==0.7.1   # B165 — kindle_text_parse parses EPUB XML with it; the light lane loads that leaf in isolation
 pandas==2.3.3
 numpy==2.4.6
 minio==7.2.20

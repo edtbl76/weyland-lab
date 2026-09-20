@@ -80,6 +80,18 @@ from .datasets_finance_transform import (
     datasets_finance_store_assets,
     datasets_finance_stream_assets,
 )
+from .datasets_kindle_books_land import datasets_kindle_books_land
+from .datasets_kindle_transform import (
+    datasets_kindle_parquet,
+    datasets_kindle_arrow,
+    datasets_kindle_avro,
+    datasets_kindle_lance,
+    datasets_kindle_iceberg,
+    datasets_kindle_commit,
+    datasets_kindle_checks,
+    datasets_kindle_store_assets,
+    datasets_kindle_stream_assets,
+)
 from .registrations import (
     bifrost_prompts_registered,
     bifrost_skills_registered,

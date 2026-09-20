@@ -1,6 +1,7 @@
 from dagster import ScheduleDefinition, define_asset_job, AssetSelection, DefaultScheduleStatus, in_process_executor
 
 from weyland_pipeline.assets.datasets_finance_transform import FINANCE_CFG
+from weyland_pipeline.assets.datasets_kindle_transform import KINDLE_CFG
 from weyland_pipeline.assets.datasets_lib.domain_jobs import build_domain_jobs
 from weyland_pipeline.dbt_assets import weyland_dbt_assets
 
@@ -33,11 +34,13 @@ weyland_ingestion_job = define_asset_job(
     - AssetSelection.groups("datasets_music")
     - AssetSelection.groups("datasets_health")
     - AssetSelection.groups("datasets_finance")   # B158: finance land re-downloads FRED/SEC/yfinance — same rule as music/health; was missed at B113 onboarding
+    - AssetSelection.groups("datasets_kindle")     # B165: kindle land re-reads the MinIO book corpus + re-chunks — on-demand (books are static), never the 15-min cron
     # Store hydration is ON-DEMAND (the hydrate jobs) — static data, and a nightly re-load of every Tier-2
     # store (Cassandra 515k rows, Cockroach ~3M, Mongo 4.5M …) is exactly the ingestion weight we cut.
     - AssetSelection.groups("datasets_health_stores")
     - AssetSelection.groups("datasets_music_stores")
     - AssetSelection.groups("datasets_finance_stores")
+    - AssetSelection.groups("datasets_kindle_stores")   # B165: the kindle vector loaders (Qdrant/Weaviate/LanceDB) are on-demand hydrate, not nightly
     - AssetSelection.groups("timeseries")
     # dbt has its OWN weekly schedule (weyland_dbt_job, Sun 06:00). all() swept it into the nightly ingestion too,
     # so every night it rebuilt all 37 marts against Trino — and 503'd whenever a heavy aggregation model
@@ -271,3 +274,15 @@ weyland_datasets_finance_land_job = _finance_jobs.land_job
 weyland_datasets_finance_transform_job = _finance_jobs.transform_job
 weyland_datasets_finance_hydrate_job = _finance_jobs.hydrate_job
 weyland_datasets_finance_land_schedule = _finance_jobs.land_schedule
+
+# Kindle domain (B165) — the operate-plane jobs, GENERATED from KINDLE_CFG like finance. NO land_cron: the book
+# corpus is static (changes only when you extract new books in the VM), so land + hydrate are run ON-DEMAND —
+# trigger the land job after an extraction, then the hydrate job to (re)build the kindle vector collection.
+_kindle_jobs = build_domain_jobs(
+    KINDLE_CFG,
+    serial_exec=_SERIAL_EXEC,
+    hydrate_exec=_HYDRATE_EXEC,
+)
+weyland_datasets_kindle_land_job = _kindle_jobs.land_job
+weyland_datasets_kindle_transform_job = _kindle_jobs.transform_job
+weyland_datasets_kindle_hydrate_job = _kindle_jobs.hydrate_job

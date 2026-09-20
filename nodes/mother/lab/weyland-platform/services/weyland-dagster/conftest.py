@@ -100,6 +100,15 @@ def market_parse():
 
 
 @pytest.fixture
+def kindle_text_parse():
+    """The dagster-free ``datasets_lib/kindle_text_parse`` EPUB/TXT chapter chunker (B165), isolated
+    (stdlib + defusedxml; absolute imports only, so ``load_isolated`` reaches it like edgar_text_parse)."""
+    return load_isolated(
+        "weyland_pipeline/assets/datasets_lib/kindle_text_parse.py", "kindle_text_parse"
+    )
+
+
+@pytest.fixture
 def ml_targets():
     """The dagster-free ``datasets_lib/ml_targets`` forward-target helper (B113 Phase 5), isolated."""
     return load_isolated(
