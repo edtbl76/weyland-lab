@@ -103,12 +103,35 @@ future adds/removals surface as `status: unreviewed` drift on the next refresh (
 
 ## How it runs (cadence)
 
-**By hand / on-demand**, not a timer — deliberately. A blind scheduled refresh would keep discovering new
-discretionary installs and piling them up as `unreviewed` with nobody deciding, and each host needs SSH auth +
-human curation anyway. So the refresh is run when you've changed a machine (or periodically by choice), per the
-canonical op above. A scheduled **drift check** (a CronJob that re-collects and alerts if the `unreviewed` count
-grows) is a reasonable future add — it would need a `docs/schedules.md` row (off-hours, weight, owner) + a
-freshness signal, so it's a deliberate follow-on, not a default.
+Two paths: an **on-demand refresh** (the canonical op above — run it when you've changed a machine) and, since
+**B170**, a **nightly drift check** that keeps the catalog current for you.
+
+### Nightly drift check → inventory PR (B170)
+
+`scripts/machine-inv-drift.sh` runs on **rogueone** as a user systemd timer (`nodes/rogueone/systemd/
+machine-inv-drift.{service,timer}`, ~03:45 NY, `Persistent=true` so a missed run fires on next boot). It runs
+*there* because rogueone is where discretionary installs happen and it already holds the fleet SSH keys, `gh`
+auth, and `PR_TOKEN` / Port creds / `KUMA_INVENTORY_PUSH_URL` in `scripts/.env` — no key in the cluster. Each run:
+
+1. **emit + verify** the committed SoT → Port (keeps Port tracking the accepted catalog; the B169 read-back gate).
+2. For each **reachable** host, `collect | machine_inventory.py merge --prune` **inside an isolated git worktree**
+   off `origin/main` (your working checkout is never touched). `--prune` reconciles removals too. An
+   **unreachable** host is **skipped, never pruned** — merge refuses empty stdin, so a host it could not scan can
+   never be blanked.
+3. If the catalog changed → commit on `chore/machine-inventory-drift` and **open or update one inventory PR**.
+   **Merging the PR IS the cataloging** — no hand data-entry. Set keep/remove in the PR if you like, or just merge.
+4. **Kuma heartbeat → Telegram:** `up` when clean + all hosts reachable; `down` on drift or an unreachable host
+   (same dead-man's-switch channel as the restic backup). No ping for > the window (rogueone off for days) also
+   trips it — one monitor covers *ran / drifted / host-unreachable*. `pr-staleness` backstops an ignored PR.
+
+This resolves the old "a blind timer piles up `unreviewed`" worry: the job **doesn't nag you to type anything** —
+it writes the change into a PR and you merge it. Dispositions stay yours but never block accuracy. Manual dry-run
+for a demo/check (no push/PR/Port/Kuma): `bash scripts/machine-inv-drift.sh --dry-run`.
+
+**Setup (one-time, on rogueone):** create an Uptime-Kuma **push** monitor "machine-inventory-drift", put its URL
+in `scripts/.env` as `KUMA_INVENTORY_PUSH_URL`, then
+`cp nodes/rogueone/systemd/machine-inv-drift.{service,timer} ~/.config/systemd/user/ && systemctl --user daemon-reload && systemctl --user enable --now machine-inv-drift.timer`
+(needs `loginctl enable-linger`, already set for the restic backup).
 
 ## Notes / gotchas
 

@@ -72,6 +72,46 @@ yaml.safe_dump(d,open('$MACHINE_INV_SOT','w'),sort_keys=False)
   [ "$output" = "2" ]   # image:reg/app + apt:libx — two distinct (kind,name), not five rows
 }
 
+# --- B170: merge --prune (reconcile removals too — opt-in, empty-safe) ---
+
+@test "merge --prune removes a row for software no longer installed" {
+  printf 'host:h\nsnap\ta\t1\nsnap\tb\t1\n' | python3 "$TOOL" merge h        # SoT: a, b
+  printf 'host:h\nsnap\ta\t1\n' | python3 "$TOOL" merge --prune h            # b uninstalled
+  run python3 -c "import yaml;print(sorted(p['name'] for p in yaml.safe_load(open('$MACHINE_INV_SOT'))['hosts']['h']['packages']))"
+  [ "$output" = "['a']" ]
+}
+
+@test "merge WITHOUT --prune keeps the absent row (reports only — the by-hand path is unchanged)" {
+  printf 'host:h\nsnap\ta\t1\nsnap\tb\t1\n' | python3 "$TOOL" merge h
+  run bash -c "printf 'host:h\nsnap\ta\t1\n' | python3 '$TOOL' merge h"
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"absent"* ]]
+  run python3 -c "import yaml;print(sorted(p['name'] for p in yaml.safe_load(open('$MACHINE_INV_SOT'))['hosts']['h']['packages']))"
+  [ "$output" = "['a', 'b']" ]
+}
+
+@test "merge --prune preserves a curated decision on a still-installed package" {
+  printf 'host:h\nsnap\tsteam\t1\n' | python3 "$TOOL" merge h
+  python3 -c "
+import yaml
+d=yaml.safe_load(open('$MACHINE_INV_SOT'))
+for p in d['hosts']['h']['packages']:
+    if p['name']=='steam': p['status']='keep'; p['rationale']='gaming'
+yaml.safe_dump(d,open('$MACHINE_INV_SOT','w'),sort_keys=False)
+"
+  printf 'host:h\nsnap\tsteam\t1\nsnap\tnew\t1\n' | python3 "$TOOL" merge --prune h
+  [ "$(status_of h snap steam)" = "keep" ]
+}
+
+@test "merge --prune still refuses empty stdin — an unreachable host never wipes the catalog" {
+  printf 'host:h\nsnap\ta\t1\n' | python3 "$TOOL" merge h
+  run bash -c "printf 'host:h\n' | python3 '$TOOL' merge --prune h"
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"no records on stdin"* ]]
+  run python3 -c "import yaml;print(len(yaml.safe_load(open('$MACHINE_INV_SOT'))['hosts']['h']['packages']))"
+  [ "$output" = "1" ]
+}
+
 @test "a matching host merges cleanly (the happy path)" {
   run bash -c "printf 'host:h\nsnap\ta\t1\n' | python3 '$TOOL' merge h"
   [ "$status" -eq 0 ]

@@ -77,7 +77,7 @@ def load_sot():
     return {"hosts": {}}
 
 
-def cmd_merge(host):
+def cmd_merge(host, prune=False):
     recs = stdin_for("merge", host)
     if not recs:
         sys.exit("merge: no records on stdin — did the collector run? (refusing to blank the host)")
@@ -102,8 +102,17 @@ def cmd_merge(host):
         #                      without this the 2nd..Nth would all append (the mother realm-of-agents x20 bug).
         added += 1
 
-    # Report (never auto-drop) anything cataloged but no longer collected — a human decides.
-    absent = [f"{k}:{n}" for (k, n) in existing if (k, n) not in collected]
+    # Anything cataloged but no longer collected. Default (by-hand path): REPORT only, a human decides.
+    # --prune (the B170 reconcile): REMOVE it too, so the catalog tracks uninstalls. Safe because merge
+    # already refuses empty stdin above — an unreachable host yields no records and never reaches here, so
+    # prune can never wipe a host it simply couldn't scan.
+    absent_keys = [(k, n) for (k, n) in existing if (k, n) not in collected]
+    pruned = 0
+    if prune and absent_keys:
+        drop = set(absent_keys)
+        entry["packages"] = [p for p in entry["packages"] if (p["kind"], p["name"]) not in drop]
+        pruned = len(absent_keys)
+    absent = [f"{k}:{n}" for (k, n) in absent_keys]
     entry["packages"].sort(key=lambda p: (p["kind"], p["name"].lower()))
 
     with open(SOT, "w") as f:
@@ -116,7 +125,9 @@ def cmd_merge(host):
     unreviewed = sum(1 for p in entry["packages"] if p.get("status") == "unreviewed")
     if unreviewed:
         print(f"  {unreviewed} item(s) status=unreviewed — curate keep/remove + rationale", file=sys.stderr)
-    if absent:
+    if prune and pruned:
+        print(f"  pruned {pruned} no longer installed: {', '.join(sorted(absent))}", file=sys.stderr)
+    elif absent:
         print(f"  absent (cataloged but not collected this run — decide): {', '.join(sorted(absent))}", file=sys.stderr)
 
 
@@ -226,12 +237,24 @@ def cmd_verify(host):
 
 
 def main():
-    cmds = {"merge": cmd_merge, "emit": cmd_emit, "verify": cmd_verify}
-    if len(sys.argv) != 3 or sys.argv[1] not in cmds:
-        sys.exit("usage: machine_inventory.py merge  <host>      (reads collector output on stdin)\n"
-                 "       machine_inventory.py emit   <host|all>  (reads the committed SoT; no stdin)\n"
-                 "       machine_inventory.py verify <host|all>  (read-back gate: SoT landed in Port)")
-    cmds[sys.argv[1]](sys.argv[2])
+    usage = ("usage: machine_inventory.py merge  [--prune] <host>  (reads collector output on stdin;\n"
+             "                                                      --prune also removes uninstalled rows)\n"
+             "       machine_inventory.py emit   <host|all>        (reads the committed SoT; no stdin)\n"
+             "       machine_inventory.py verify <host|all>        (read-back gate: SoT landed in Port)")
+    args = sys.argv[1:]
+    prune = "--prune" in args
+    args = [a for a in args if a != "--prune"]
+    if len(args) != 2 or args[0] not in ("merge", "emit", "verify"):
+        sys.exit(usage)
+    cmd, target = args
+    if prune and cmd != "merge":
+        sys.exit(f"{cmd}: --prune is only valid for merge\n{usage}")
+    if cmd == "merge":
+        cmd_merge(target, prune=prune)
+    elif cmd == "emit":
+        cmd_emit(target)
+    else:
+        cmd_verify(target)
 
 
 if __name__ == "__main__":

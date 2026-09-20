@@ -1,0 +1,13 @@
+# B170 — nightly, off-hours (~03:45 NY + up to 15 min jitter; rogueone runs in NY local time). Persistent=true
+# so a missed run (box asleep/off) fires on next boot — drift is caught whenever rogueone next comes up, which
+# is exactly when its installs happen. Clear of the 02:30 restic backup. Paired with the .service (USER unit).
+[Unit]
+Description=Nightly machine-inventory drift check (off-hours)
+
+[Timer]
+OnCalendar=*-*-* 03:45:00
+RandomizedDelaySec=900
+Persistent=true
+
+[Install]
+WantedBy=timers.target

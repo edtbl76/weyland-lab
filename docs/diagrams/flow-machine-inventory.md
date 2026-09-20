@@ -33,3 +33,23 @@ sequenceDiagram
 
 Onboarding a new client is the same path (B169 / EMA-230). Demo: [demos/machine-inventory.md](../demos/machine-inventory.md).
 Runbook: [runbooks/machine-inventory.md](../runbooks/machine-inventory.md).
+
+## Nightly drift check (B170)
+
+Runs on rogueone (user timer, `Persistent=true`). Reconciles each reachable host into an isolated worktree,
+opens/updates one inventory PR when the catalog changed, and pushes a Kuma heartbeat (down reaches Telegram).
+An unreachable host is skipped, never pruned. Merging the PR is the only human step.
+
+```mermaid
+flowchart TD
+    T[rogueone timer 03:45 NY<br/>Persistent, survives sleep] --> E[emit plus verify committed SoT to Port]
+    E --> L{for each host}
+    L -->|reachable| M[collect then merge --prune<br/>in isolated worktree]
+    L -->|unreachable| S[skip host, never prune]
+    M --> C{catalog changed}
+    C -->|yes| PR[open or update ONE inventory PR<br/>merging IS the cataloging]
+    C -->|no| OK[clean]
+    PR --> DOWN[Kuma down then Telegram]
+    S --> DOWN
+    OK --> UP[Kuma up]
+```

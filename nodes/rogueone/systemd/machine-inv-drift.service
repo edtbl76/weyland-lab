@@ -1,0 +1,21 @@
+# B170 — nightly machine-inventory drift check → inventory PR. USER unit (uses the user's SSH keys to the
+# fleet, gh auth, git, Port creds + PR_TOKEN + KUMA_INVENTORY_PUSH_URL from scripts/.env — a root unit would
+# find none of those). Mirrors the B130 restic backup. See docs/runbooks/machine-inventory.md.
+#   Install:  cp nodes/rogueone/systemd/machine-inv-drift.{service,timer} ~/.config/systemd/user/
+#             systemctl --user daemon-reload && systemctl --user enable --now machine-inv-drift.timer
+#   REQUIRED: loginctl enable-linger edwardmangini   <- so the timer fires without an active login
+#             (same requirement as restic-backup / ai-session-producer).
+#   Run now:  systemctl --user start machine-inv-drift.service   ·   logs: journalctl --user -u machine-inv-drift
+[Unit]
+Description=machine-inventory drift check → inventory PR (nightly)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+Nice=10
+IOSchedulingClass=idle
+# Invoked via bash (the repo file may not carry the exec bit); the script resolves the repo root from its path.
+ExecStart=/bin/bash /home/edwardmangini/IdeaProjects/weyland/scripts/machine-inv-drift.sh
+StandardOutput=journal
+StandardError=journal

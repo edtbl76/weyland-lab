@@ -115,3 +115,37 @@ verify weyland: OK — host entity + 739 installed_package entities in Port (mat
 
 `len(packages)` now equals the unique emitted-identifier count for every host (no hash suffix needed). Onboarding
 any real 4th machine is then the same checklist end to end: preflight → (ssh-copy-id) → collect|merge → curate → emit → verify.
+
+## Keeping the catalog fresh — the nightly drift check (B170 / EMA-231)
+
+`scripts/machine-inv-drift.sh` runs on rogueone (user timer, `Persistent=true`): it reconciles each reachable
+host into an isolated worktree, opens/updates one inventory PR when the catalog changed, and pushes a Kuma
+heartbeat (down → Telegram). Merging the PR is the only human step — no hand data-entry.
+
+### It found real drift on its first dry-run (RUN 2026-09-19)
+
+```
+[rogueone] bash scripts/machine-inv-drift.sh --dry-run
+collecting rogueone locally...      sources: snap flatpak apt pip npm image(docker)   merge rogueone: +1 new, 709 total
+collecting mother over ssh (emangini@mother)...   sources: snap apt image(docker)     merge mother: +0 new, 55 total
+collecting weyland over ssh (root@weyland)...     sources: apt                        merge weyland: +0 new, 739 total
+── DRY RUN: catalog would change (+3/-0 lines) ──
+@@ hosts: (rogueone)
++    - name: maven
++      kind: image
++      status: system
+signal: down — machine-inventory drift: +3/-0 lines
+```
+
+**UAT:** a `maven` image had been pulled onto rogueone since the last catalog and was never recorded — the check
+caught it on the first run (the exact "installed and forgot" case B170 exists for). The dry-run reconciled it
+inside a throwaway worktree (your checkout untouched — `git worktree list` shows no leftover), printed the diff,
+and signalled `down`. In a real run this becomes an inventory PR + a Telegram ping; merging the PR catalogs the
+`maven` row with zero typing.
+
+### Fail-closed behaviour
+- **Unreachable host = skipped, never pruned.** merge refuses empty stdin, so a host the scanner can't reach can
+  never be blanked; `decide_signal` reports it as `down` ("host(s) unreachable") rather than a false `up`.
+- `--prune` removes rows for uninstalled software, but only from a host that was actually scanned.
+- The whole plumbing (SSH-collect, worktree isolation, prune, diff, signal) is proven by the dry-run above; the
+  `decide_signal` decision (up only when clean AND all reachable) is bats-tested offline (`machine-inv-drift.bats`).
