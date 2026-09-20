@@ -82,12 +82,12 @@ virt-install \
   --name "$VM" \
   --osinfo win11 \
   --ram 6144 --vcpus 4 \
-  --disk path="$WORK/$VM.qcow2",size=64,format=qcow2,bus=virtio \
+  --disk path="$WORK/$VM.qcow2",size=64,format=qcow2,bus=sata \
   --cdrom "$ISO" \
   --disk path="$CFG_ISO",device=cdrom \
   --tpm backend.type=emulator,backend.version=2.0,model=tpm-crb \
   --boot uefi \
-  --network user,model=virtio \
+  --network user,model=e1000e \
   --graphics spice \
   --noautoconsole
 
