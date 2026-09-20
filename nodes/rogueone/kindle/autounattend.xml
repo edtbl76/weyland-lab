@@ -106,7 +106,7 @@
              logging to C:\kindle\setup.log. The drive letter of the CD isn't fixed, so bootstrap.cmd searches. -->
         <SynchronousCommand wcm:action="add">
           <Order>1</Order>
-          <CommandLine>cmd /c for %%d in (D E F G H I J) do if exist %%d:\kindle-bootstrap.cmd call %%d:\kindle-bootstrap.cmd</CommandLine>
+          <CommandLine>cmd /c for %%d in (D E F G H I J) do if exist %%d:\kindle-bootstrap.cmd call %%d:\kindle-bootstrap.cmd auto</CommandLine>
           <Description>run the Kindle VM bootstrap from the config CD</Description>
         </SynchronousCommand>
       </FirstLogonCommands>
