@@ -71,73 +71,70 @@ def _included_kind(rel_posix: str, abs_path: str) -> str | None:
     return None
 
 
-def collect_source_documents() -> list[dict]:
-    log = get_dagster_logger()
+def _clone_repo(tmp_dir, log):
+    """Shallow-clone GIT_REPO_URL @ GIT_REF into tmp_dir, injecting GIT_TOKEN into the HTTPS URL. The token is
+    never echoed into logs and is scrubbed from any error output before raising."""
     repo_url = os.environ["GIT_REPO_URL"]            # e.g. https://github.com/<org>/weyland.git
     git_ref = os.environ.get("GIT_REF", "").strip()  # branch/tag; empty -> default branch
     token = os.environ.get("GIT_TOKEN", "").strip()  # HTTPS PAT (optional for public repos)
-
-    # Inject the token into the HTTPS URL: https://<token>@github.com/...
     clone_url = repo_url
     if token and repo_url.startswith("https://"):
         clone_url = "https://" + token + "@" + repo_url[len("https://"):]
+    cmd = ["git", "clone", "--depth", "1"]
+    if git_ref:
+        cmd += ["--branch", git_ref]
+    cmd += [clone_url, tmp_dir]
+    log.info("Cloning repo (ref=%s) into %s", git_ref or "<default>", tmp_dir)
+    result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, check=False)
+    if result.returncode != 0:
+        stderr = result.stderr.replace(token, "***") if token else result.stderr  # scrub the token
+        raise RuntimeError(f"git clone failed (rc={result.returncode}): {stderr}")
 
+
+def _read_document(abs_path, repo_root, log):
+    """A source-document dict for one file, or None if it is excluded / unreadable / empty."""
+    rel = os.path.relpath(abs_path, repo_root)
+    rel_posix = PurePosixPath(*rel.split(os.sep)).as_posix()
+    if _is_excluded(rel_posix):
+        return None
+    kind = _included_kind(rel_posix, abs_path)
+    if kind is None:
+        return None
+    try:
+        with open(abs_path, "r", encoding="utf-8") as f:
+            content = f.read()
+    except (OSError, UnicodeDecodeError) as exc:
+        log.warning("Skipping unreadable file %s: %s", rel_posix, exc)
+        return None
+    if not content.strip():
+        return None
+    return {
+        "content": content,
+        "source_path": rel_posix,
+        "source_name": PurePosixPath(rel_posix).name,
+        "kind": kind,
+    }
+
+
+def _walk_documents(repo_root, log):
+    """Walk the cloned repo (pruning excluded dirs in-place) → a document dict per included, readable,
+    non-empty file."""
+    documents: list[dict] = []
+    for dirpath, dirnames, filenames in os.walk(repo_root):
+        dirnames[:] = [d for d in dirnames if d not in _EXCLUDE_DIR_COMPONENTS and d != ".git"]
+        for filename in filenames:
+            doc = _read_document(os.path.join(dirpath, filename), repo_root, log)
+            if doc is not None:
+                documents.append(doc)
+    return documents
+
+
+def collect_source_documents() -> list[dict]:
+    log = get_dagster_logger()
     tmp_dir = tempfile.mkdtemp(prefix="weyland-clone-")
     try:
-        cmd = ["git", "clone", "--depth", "1"]
-        if git_ref:
-            cmd += ["--branch", git_ref]
-        cmd += [clone_url, tmp_dir]
-        # Never echo the token-bearing URL into logs.
-        log.info("Cloning repo (ref=%s) into %s", git_ref or "<default>", tmp_dir)
-        result = subprocess.run(
-            cmd,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,
-            check=False,
-        )
-        if result.returncode != 0:
-            # Scrub the token from any error output before raising.
-            stderr = result.stderr.replace(token, "***") if token else result.stderr
-            raise RuntimeError(f"git clone failed (rc={result.returncode}): {stderr}")
-
-        documents: list[dict] = []
-        repo_root = os.path.abspath(tmp_dir)
-        for dirpath, dirnames, filenames in os.walk(repo_root):
-            # Prune excluded directories in-place for efficiency.
-            dirnames[:] = [
-                d for d in dirnames
-                if d not in _EXCLUDE_DIR_COMPONENTS and d != ".git"
-            ]
-            for filename in filenames:
-                abs_path = os.path.join(dirpath, filename)
-                rel = os.path.relpath(abs_path, repo_root)
-                rel_posix = PurePosixPath(*rel.split(os.sep)).as_posix()
-
-                if _is_excluded(rel_posix):
-                    continue
-                kind = _included_kind(rel_posix, abs_path)
-                if kind is None:
-                    continue
-
-                try:
-                    with open(abs_path, "r", encoding="utf-8") as f:
-                        content = f.read()
-                except (OSError, UnicodeDecodeError) as exc:
-                    log.warning("Skipping unreadable file %s: %s", rel_posix, exc)
-                    continue
-
-                if not content.strip():
-                    continue
-
-                documents.append({
-                    "content": content,
-                    "source_path": rel_posix,
-                    "source_name": PurePosixPath(rel_posix).name,
-                    "kind": kind,
-                })
-
+        _clone_repo(tmp_dir, log)
+        documents = _walk_documents(os.path.abspath(tmp_dir), log)
         log.info("Collected %d source files from repo.", len(documents))
         return documents
     finally:

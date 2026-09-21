@@ -235,6 +235,19 @@ steps:
       - apk add --no-cache python3 py3-yaml jq git >/dev/null
       - bats scripts/tests/
 
+  # ── 1c. complexity triage (B162) — ADVISORY ─────────────────────────────────
+  # How the lab READS complexity (deep vs tangled vs shallow): length only NOMINATES, structure + a
+  # codebase-relative z-score decide, the inverse over-split smell is caught in the other direction.
+  # ADVISORY — it prints the graded findings and exits 0 (like graphify's Pillar-8 wiring); the verdict IS
+  # the stop-or-accept decision a human reads. Promote to a blocking `--gate` once the thresholds are
+  # trusted (docs/runbooks/complexity-triage.md). Engine (lizard + tree-sitter) + wrapper have their own
+  # suites in the python/shell lanes; this step RUNS the reading over the real code every build.
+  - name: complexity-triage
+    image: python:3.12-slim
+    commands:
+      - pip install --quiet -r scripts/requirements-test.txt
+      - bash scripts/check-complexity.sh
+
   # ── 1d. unit tests ──────────────────────────────────────────────────────────
   # The repo had ONE test suite and CI had never run it. Worse, it was orphaned: the tests lived in
   # services/weyland-tool-server/tests/ while the code they import moved to services/weyland-guard/

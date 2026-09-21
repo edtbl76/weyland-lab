@@ -57,6 +57,58 @@ def _stored_source_paths(collection) -> set:
     return paths
 
 
+def _write_source(chunks_col, docs_col, source_path, doc_chunks):
+    """Replace one document in Weaviate: delete its old Document + Chunks, insert the Document, its Chunks (each
+    with its embedding + a hasDocument ref), and the previous/next chunk cross-refs. Returns
+    (objects_written, cross_refs_added)."""
+    source_name = doc_chunks[0]["source_name"]
+
+    chunks_col.data.delete_many(
+        where=Filter.by_property("source_path").equal(source_path)
+    )
+    docs_col.data.delete_many(
+        where=Filter.by_property("source_path").equal(source_path)
+    )
+
+    doc_uuid = docs_col.data.insert(
+        properties={
+            "source_path": source_path,
+            "source_name": source_name,
+            "name": source_name,
+        }
+    )
+
+    chunk_uuids = []
+    for chunk in doc_chunks:
+        chunk_uuid = chunks_col.data.insert(
+            properties={
+                "source_path": source_path,
+                "chunk_index": chunk["chunk_index"],
+                "chunk_title": chunk["chunk_title"] or "",
+                "content": chunk["content"],
+            },
+            vector=chunk["embedding"],
+            references={"hasDocument": doc_uuid},
+        )
+        chunk_uuids.append(chunk_uuid)
+
+    for i, chunk_uuid in enumerate(chunk_uuids):
+        if i > 0:
+            chunks_col.data.reference_add(
+                from_uuid=chunk_uuid,
+                from_property="previousChunk",
+                to=chunk_uuids[i - 1],
+            )
+        if i < len(chunk_uuids) - 1:
+            chunks_col.data.reference_add(
+                from_uuid=chunk_uuid,
+                from_property="nextChunk",
+                to=chunk_uuids[i + 1],
+            )
+
+    return len(chunk_uuids) + 1, max(0, 2 * len(chunk_uuids) - 2)
+
+
 @asset(description="Write each changed document's chunks+embeddings to Weaviate with cross-ref linking. Prunes orphan objects whose source_path is no longer collected.")
 def weaviate_write(
     source_document: list[dict],
@@ -82,54 +134,10 @@ def weaviate_write(
 
         if embeddings:
             for source_path, doc_chunks in grouped.items():
-                source_name = doc_chunks[0]["source_name"]
-
-                chunks_col.data.delete_many(
-                    where=Filter.by_property("source_path").equal(source_path)
-                )
-                docs_col.data.delete_many(
-                    where=Filter.by_property("source_path").equal(source_path)
-                )
-
-                doc_uuid = docs_col.data.insert(
-                    properties={
-                        "source_path": source_path,
-                        "source_name": source_name,
-                        "name": source_name,
-                    }
-                )
-
-                chunk_uuids = []
-                for chunk in doc_chunks:
-                    chunk_uuid = chunks_col.data.insert(
-                        properties={
-                            "source_path": source_path,
-                            "chunk_index": chunk["chunk_index"],
-                            "chunk_title": chunk["chunk_title"] or "",
-                            "content": chunk["content"],
-                        },
-                        vector=chunk["embedding"],
-                        references={"hasDocument": doc_uuid},
-                    )
-                    chunk_uuids.append(chunk_uuid)
-
-                for i, chunk_uuid in enumerate(chunk_uuids):
-                    if i > 0:
-                        chunks_col.data.reference_add(
-                            from_uuid=chunk_uuid,
-                            from_property="previousChunk",
-                            to=chunk_uuids[i - 1],
-                        )
-                    if i < len(chunk_uuids) - 1:
-                        chunks_col.data.reference_add(
-                            from_uuid=chunk_uuid,
-                            from_property="nextChunk",
-                            to=chunk_uuids[i + 1],
-                        )
-
+                objects, cross_refs = _write_source(chunks_col, docs_col, source_path, doc_chunks)
                 documents_written += 1
-                objects_written += len(chunk_uuids) + 1
-                cross_refs_total += max(0, 2 * len(chunk_uuids) - 2)
+                objects_written += objects
+                cross_refs_total += cross_refs
 
         # Orphan prune: runs regardless of changes, but ONLY when sources were
         # actually collected (empty set => bad run, skip to avoid wiping the collections).

@@ -104,55 +104,69 @@ def _strip_html(raw):
     return p.text()
 
 
+def _opf_path(zf, names):
+    """The OPF manifest path from META-INF/container.xml, or None."""
+    if "META-INF/container.xml" not in names:
+        return None
+    root = fromstring(zf.read("META-INF/container.xml"))
+    for el in root.iter():
+        if _local(el.tag) == "rootfile" and el.get("full-path"):
+            return el.get("full-path")
+    return None
+
+
+def _parse_opf_spine(zf, opf_path, names):
+    """Parse the OPF: title, author, and the chapters in spine (reading) order. Returns (title, author, chapters)."""
+    opf = fromstring(zf.read(opf_path))
+    base = opf_path.rsplit("/", 1)[0] if "/" in opf_path else ""
+    title, author, manifest, spine = "", "", {}, []
+    for el in opf.iter():
+        lt = _local(el.tag)
+        if lt == "title" and not title:
+            title = (el.text or "").strip()
+        elif lt == "creator" and not author:
+            author = (el.text or "").strip()
+        elif lt == "item":
+            manifest[el.get("id")] = el.get("href")
+        elif lt == "itemref" and el.get("idref"):
+            spine.append(el.get("idref"))
+    chapters = []
+    for idref in spine:
+        href = manifest.get(idref)
+        if not href:
+            continue
+        full = (f"{base}/{href}" if base else href).split("#", 1)[0]
+        if full not in names:
+            continue
+        text = _strip_html(zf.read(full))
+        if text:
+            chapters.append((href.rsplit("/", 1)[-1], text))
+    return title, author, chapters
+
+
+def _all_html_chapters(zf, names):
+    """Fallback: every (x)html entry in archive order → chapters. Used when the OPF spine can't be resolved."""
+    chapters = []
+    for n in names:
+        if n.lower().endswith((".xhtml", ".html", ".htm")):
+            text = _strip_html(zf.read(n))
+            if text:
+                chapters.append((n.rsplit("/", 1)[-1], text))
+    return chapters
+
+
 def extract_epub(data):
     """Parse an EPUB (a zip) → ``(title, author, [(chapter_title, text)])`` in spine (reading) order, using only
     the stdlib. Falls back to reading every (x)html entry when the OPF spine can't be resolved — never returns
     nothing for a non-empty book."""
     zf = zipfile.ZipFile(_io.BytesIO(data))
     names = zf.namelist()
-
-    # 1) container.xml → the OPF path
-    opf_path = None
-    if "META-INF/container.xml" in names:
-        root = fromstring(zf.read("META-INF/container.xml"))
-        for el in root.iter():
-            if _local(el.tag) == "rootfile" and el.get("full-path"):
-                opf_path = el.get("full-path")
-                break
-
     title, author, chapters = "", "", []
+    opf_path = _opf_path(zf, names)
     if opf_path and opf_path in names:
-        opf = fromstring(zf.read(opf_path))
-        base = opf_path.rsplit("/", 1)[0] if "/" in opf_path else ""
-        manifest, spine = {}, []
-        for el in opf.iter():
-            lt = _local(el.tag)
-            if lt == "title" and not title:
-                title = (el.text or "").strip()
-            elif lt == "creator" and not author:
-                author = (el.text or "").strip()
-            elif lt == "item":
-                manifest[el.get("id")] = el.get("href")
-            elif lt == "itemref" and el.get("idref"):
-                spine.append(el.get("idref"))
-        for idref in spine:
-            href = manifest.get(idref)
-            if not href:
-                continue
-            full = f"{base}/{href}" if base else href
-            full = full.split("#", 1)[0]
-            if full not in names:
-                continue
-            text = _strip_html(zf.read(full))
-            if text:
-                chapters.append((href.rsplit("/", 1)[-1], text))
-
+        title, author, chapters = _parse_opf_spine(zf, opf_path, names)
     if not chapters:  # no resolvable spine → read every (x)html entry in archive order
-        for n in names:
-            if n.lower().endswith((".xhtml", ".html", ".htm")):
-                text = _strip_html(zf.read(n))
-                if text:
-                    chapters.append((n.rsplit("/", 1)[-1], text))
+        chapters = _all_html_chapters(zf, names)
     return title, author, chapters
 
 

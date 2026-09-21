@@ -12,6 +12,75 @@ def _group_by_source(embeddings: list[dict]) -> dict:
     return grouped
 
 
+def _write_source(session, source_path, doc_chunks):
+    """Replace one document's graph in a single transaction: DETACH-DELETE its old Document + Chunks, recreate
+    the Document, its Chunks, and the BELONGS_TO / NEXT relationships. Returns (nodes_written, rels_written)."""
+    source_name = doc_chunks[0]["source_name"]
+    with session.begin_transaction() as tx:
+        tx.run(
+            "MATCH (c:Chunk {source_path: $sp}) DETACH DELETE c",
+            sp=source_path,
+        )
+        tx.run(
+            "MATCH (d:Document {source_path: $sp}) DETACH DELETE d",
+            sp=source_path,
+        )
+
+        tx.run(
+            """
+            CREATE (d:Document {
+                source_path: $sp,
+                source_name: $sn,
+                name: $name,
+                ingested_at: datetime()
+            })
+            """,
+            sp=source_path,
+            sn=source_name,
+            name=source_name,
+        )
+
+        for chunk in doc_chunks:
+            tx.run(
+                """
+                CREATE (c:Chunk {
+                    source_path: $sp,
+                    chunk_index: $idx,
+                    chunk_title: $title,
+                    content: $content,
+                    embedding: $embedding
+                })
+                """,
+                sp=source_path,
+                idx=chunk["chunk_index"],
+                title=chunk["chunk_title"] or "",
+                content=chunk["content"],
+                embedding=chunk["embedding"],
+            )
+
+        tx.run(
+            """
+            MATCH (d:Document {source_path: $sp}), (c:Chunk {source_path: $sp})
+            CREATE (c)-[:BELONGS_TO]->(d)
+            """,
+            sp=source_path,
+        )
+
+        tx.run(
+            """
+            MATCH (c1:Chunk {source_path: $sp}), (c2:Chunk {source_path: $sp})
+            WHERE c2.chunk_index = c1.chunk_index + 1
+            CREATE (c1)-[:NEXT]->(c2)
+            """,
+            sp=source_path,
+        )
+
+        tx.commit()
+
+    n = len(doc_chunks)
+    return 1 + n, n + max(0, n - 1)
+
+
 @asset(description="Write Document+Chunk nodes and relationships to Neo4j for each changed document. Prunes orphan nodes whose source_path is no longer collected.")
 def neo4j_write(
     source_document: list[dict],
@@ -33,73 +102,10 @@ def neo4j_write(
         with driver.session() as session:
             if embeddings:
                 for source_path, doc_chunks in grouped.items():
-                    source_name = doc_chunks[0]["source_name"]
-
-                    with session.begin_transaction() as tx:
-                        tx.run(
-                            "MATCH (c:Chunk {source_path: $sp}) DETACH DELETE c",
-                            sp=source_path,
-                        )
-                        tx.run(
-                            "MATCH (d:Document {source_path: $sp}) DETACH DELETE d",
-                            sp=source_path,
-                        )
-
-                        tx.run(
-                            """
-                            CREATE (d:Document {
-                                source_path: $sp,
-                                source_name: $sn,
-                                name: $name,
-                                ingested_at: datetime()
-                            })
-                            """,
-                            sp=source_path,
-                            sn=source_name,
-                            name=source_name,
-                        )
-
-                        for chunk in doc_chunks:
-                            tx.run(
-                                """
-                                CREATE (c:Chunk {
-                                    source_path: $sp,
-                                    chunk_index: $idx,
-                                    chunk_title: $title,
-                                    content: $content,
-                                    embedding: $embedding
-                                })
-                                """,
-                                sp=source_path,
-                                idx=chunk["chunk_index"],
-                                title=chunk["chunk_title"] or "",
-                                content=chunk["content"],
-                                embedding=chunk["embedding"],
-                            )
-
-                        tx.run(
-                            """
-                            MATCH (d:Document {source_path: $sp}), (c:Chunk {source_path: $sp})
-                            CREATE (c)-[:BELONGS_TO]->(d)
-                            """,
-                            sp=source_path,
-                        )
-
-                        tx.run(
-                            """
-                            MATCH (c1:Chunk {source_path: $sp}), (c2:Chunk {source_path: $sp})
-                            WHERE c2.chunk_index = c1.chunk_index + 1
-                            CREATE (c1)-[:NEXT]->(c2)
-                            """,
-                            sp=source_path,
-                        )
-
-                        tx.commit()
-
-                    n = len(doc_chunks)
+                    nodes, rels = _write_source(session, source_path, doc_chunks)
                     documents_written += 1
-                    nodes_written += 1 + n
-                    rels_written += n + max(0, n - 1)
+                    nodes_written += nodes
+                    rels_written += rels
 
             # Orphan prune: runs regardless of changes, but ONLY when sources were
             # actually collected (empty set => bad run, skip to avoid wiping the graph).

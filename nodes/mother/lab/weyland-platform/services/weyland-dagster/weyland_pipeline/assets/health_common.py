@@ -5,6 +5,8 @@ import io as _stdio
 import zipfile
 
 from .datasets_lib import io as _io
+# minio/download carry no health specialization → re-export, don't re-declare (B162: shallow/over-split).
+from .datasets_lib.io import client as health_minio, download as health_download
 from .datasets_lib.freshness import (  # re-exported for land assets
     RefreshConfig,
     check_source_freshness,
@@ -16,20 +18,12 @@ from .datasets_lib.freshness import (  # re-exported for land assets
 _HEALTH_REPO = "health"
 
 
-def health_minio():
-    return _io.client()
-
-
 def health_put(client, key, data, content_type="application/octet-stream"):
     _io.put_raw(client, _HEALTH_REPO, key, data, content_type)
 
 
 def health_fput(client, key, file_path, content_type="text/csv"):
     _io.fput_raw(client, _HEALTH_REPO, key, file_path, content_type)
-
-
-def health_download(url, timeout=600):
-    return _io.download(url, timeout)
 
 
 def health_download_zip(client, url, dest_prefix, log, timeout=1800):

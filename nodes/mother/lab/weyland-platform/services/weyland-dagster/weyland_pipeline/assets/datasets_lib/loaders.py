@@ -303,17 +303,65 @@ def _cql_col(dtype):
 
 
 @traced_load
-def _load_dataset_to_cassandra(session, mc, cfg, dataset, partition_raw, log) -> dict:
-    """Each silver parquet file under parquet/<dataset>/ → a table in keyspace datasets_<domain>. Partition
-    key = the configured natural column when present in the data (query-first — e.g. who_gho by country);
-    otherwise a synthetic row_id (plain dump). A `row_id uuid` clustering column ALWAYS guarantees row
-    uniqueness so nothing upserts away on a shared key. MEMORY-SAFE: temp file + row batches; a prepared
-    INSERT fanned out with execute_concurrent. Table dropped + recreated each run (idempotent)."""
-    import tempfile
+def _cassandra_write_file(session, ks, table, path, partition_raw, log):
+    """Create <ks>.<table> from one silver parquet file and stream its rows in (idempotent: drop + recreate,
+    row_id uuid clustering key so nothing upserts away on a shared key). Partition on the configured natural
+    column when present in the data, else row_id-only. MEMORY-SAFE: row batches + a prepared INSERT fanned out
+    with execute_concurrent. Returns the row count written (0 for an empty file)."""
     import uuid
-
     from cassandra.concurrent import execute_concurrent_with_args
+    pf = pq.ParquetFile(path)
+    if pf.metadata.num_rows == 0:
+        return 0
+    peek = next(pf.iter_batches(batch_size=256)).to_pandas()   # dtypes + column order
+    cols = [_sql_ident(c) for c in peek.columns]
+    cql_types, casters = map(list, zip(*[_cql_col(peek[c].dtype) for c in peek.columns]))
 
+    partition = _sql_ident(partition_raw) if partition_raw else None
+    if partition and partition not in cols:
+        log.warning(f"cassandra {ks}.{table}: partition col {partition!r} not present in "
+                    f"{cols[:12]} — falling back to row_id-only key (plain dump)")
+        partition = None
+    if partition:
+        # A partition key can't be null/empty ("Key may not be empty" — one blank fails the batch).
+        # Force it to text + a sentinel for null/NaN/"" so every row lands and stays queryable.
+        pi = cols.index(partition)
+        cql_types[pi] = "text"
+        casters[pi] = lambda v: "__UNKNOWN__" if (v is None or v != v or str(v) == "") else str(v)
+    pk = f'PRIMARY KEY (("{_q(partition)}"), row_id)' if partition else "PRIMARY KEY (row_id)"
+
+    col_defs = ", ".join(f'"{_q(c)}" {t}' for c, t in zip(cols, cql_types))
+    session.execute(f"DROP TABLE IF EXISTS {_safe_ident(ks)}.{_safe_ident(table)}")  # nosemgrep
+    session.execute(f'CREATE TABLE {_safe_ident(ks)}.{_safe_ident(table)} ({col_defs}, row_id uuid, {pk})')  # nosemgrep
+
+    quoted = ", ".join(f'"{_q(c)}"' for c in cols)
+    marks = ", ".join(["?"] * (len(cols) + 1))
+    ins = session.prepare(f'INSERT INTO {ks}.{table} ({quoted}, row_id) VALUES ({marks})')
+
+    total = pf.metadata.num_rows
+    log.info(f"cassandra {ks}.{table}: writing {total:,} rows…")
+    n, next_mark = 0, _CASS_LOG_EVERY
+    for batch in pf.iter_batches(batch_size=_CQL_BATCH):
+        df = batch.to_pandas()
+        params = [
+            tuple(casters[i](v) for i, v in enumerate(rec)) + (uuid.uuid4(),)
+            for rec in df.itertuples(index=False, name=None)
+        ]
+        execute_concurrent_with_args(session, ins, params, concurrency=64)
+        n += len(params)
+        if n >= next_mark:   # B121: per-N-rows heartbeat so long writes aren't a silent block
+            log.info(f"cassandra {ks}.{table}: {n:,}/{total:,} rows…")
+            next_mark += _CASS_LOG_EVERY
+        del batch, df, params
+    log.info(f"cassandra {ks}.{table}: {n:,} rows"
+             + (f" (partition={partition})" if partition else " (row_id key)"))
+    return n
+
+
+def _load_dataset_to_cassandra(session, mc, cfg, dataset, partition_raw, log) -> dict:
+    """Each silver parquet file under parquet/<dataset>/ → a table in keyspace datasets_<domain>, via
+    _cassandra_write_file (per-table resilience: one file's failure is recorded, never fatal)."""
+    import tempfile
     ks = f"datasets_{cfg.domain}"
     prefix = f"{io.branch()}/parquet/{dataset}/"
     out = {}
@@ -326,53 +374,7 @@ def _load_dataset_to_cassandra(session, mc, cfg, dataset, partition_raw, log) ->
         tmp.close()
         try:
             mc.fget_object(cfg.repo, obj.object_name, tmp.name)   # streamed download to disk
-            pf = pq.ParquetFile(tmp.name)
-            if pf.metadata.num_rows == 0:
-                out[f"{ks}.{table}"] = 0
-                continue
-            peek = next(pf.iter_batches(batch_size=256)).to_pandas()   # dtypes + column order
-            cols = [_sql_ident(c) for c in peek.columns]
-            cql_types, casters = map(list, zip(*[_cql_col(peek[c].dtype) for c in peek.columns]))
-
-            partition = _sql_ident(partition_raw) if partition_raw else None
-            if partition and partition not in cols:
-                log.warning(f"cassandra {ks}.{table}: partition col {partition!r} not present in "
-                            f"{cols[:12]} — falling back to row_id-only key (plain dump)")
-                partition = None
-            if partition:
-                # A partition key can't be null/empty ("Key may not be empty" — one blank fails the batch).
-                # Force it to text + a sentinel for null/NaN/"" so every row lands and stays queryable.
-                pi = cols.index(partition)
-                cql_types[pi] = "text"
-                casters[pi] = lambda v: "__UNKNOWN__" if (v is None or v != v or str(v) == "") else str(v)
-            pk = f'PRIMARY KEY (("{_q(partition)}"), row_id)' if partition else "PRIMARY KEY (row_id)"
-
-            col_defs = ", ".join(f'"{_q(c)}" {t}' for c, t in zip(cols, cql_types))
-            session.execute(f"DROP TABLE IF EXISTS {_safe_ident(ks)}.{_safe_ident(table)}")  # nosemgrep
-            session.execute(f'CREATE TABLE {_safe_ident(ks)}.{_safe_ident(table)} ({col_defs}, row_id uuid, {pk})')  # nosemgrep
-
-            quoted = ", ".join(f'"{_q(c)}"' for c in cols)
-            marks = ", ".join(["?"] * (len(cols) + 1))
-            ins = session.prepare(f'INSERT INTO {ks}.{table} ({quoted}, row_id) VALUES ({marks})')
-
-            total = pf.metadata.num_rows
-            log.info(f"cassandra {ks}.{table}: writing {total:,} rows…")
-            n, next_mark = 0, _CASS_LOG_EVERY
-            for batch in pf.iter_batches(batch_size=_CQL_BATCH):
-                df = batch.to_pandas()
-                params = [
-                    tuple(casters[i](v) for i, v in enumerate(rec)) + (uuid.uuid4(),)
-                    for rec in df.itertuples(index=False, name=None)
-                ]
-                execute_concurrent_with_args(session, ins, params, concurrency=64)
-                n += len(params)
-                if n >= next_mark:   # B121: per-N-rows heartbeat so long writes aren't a silent block
-                    log.info(f"cassandra {ks}.{table}: {n:,}/{total:,} rows…")
-                    next_mark += _CASS_LOG_EVERY
-                del batch, df, params
-            out[f"{ks}.{table}"] = n
-            log.info(f"cassandra {ks}.{table}: {n:,} rows"
-                     + (f" (partition={partition})" if partition else " (row_id key)"))
+            out[f"{ks}.{table}"] = _cassandra_write_file(session, ks, table, tmp.name, partition_raw, log)
         except Exception as e:  # noqa: BLE001 — per-table resilience
             out[f"{ks}.{table}"] = f"ERROR: {e}"
             log.error(f"cassandra {table}: {e}")
@@ -725,23 +727,15 @@ def _weaviate_class(domain, dataset):
     return "".join(p.capitalize() for p in f"datasets_{domain}_{dataset}".split("_"))
 
 
-def _build_vectors(mc, cfg, dataset, spec, log):
-    """Build (dim, records) for a dataset from silver Parquet — the SHARED step both vector backends consume.
-    records = [{id, vector, payload}]. Numeric specs assemble feature columns z-score-normalized (raw features
-    span wild scales → cosine similarity is meaningless without it); text specs concat the columns and embed
-    with bge-small (already unit-normalized). Payload values are stringified (JSON/GraphQL-safe)."""
+def _read_vector_frame(mc, cfg, dataset, spec, prefix, log):
+    """Read the dataset's silver parquet into one DataFrame. A capped/filtered spec does a BOUNDED read
+    (projection + row cap — the fix for the whole-file `pd.read_parquet` that OOMs on OFF's 4.5M × 211
+    all-string file); every other spec reads whole files unchanged. Returns the DataFrame, or None when a
+    whole-file read finds no parquet at all (→ an empty hydration, 0 records)."""
     import tempfile
-    import numpy as np
     import pandas as pd
-
-    from .parquet_read import build_records, needed_columns, read_capped, resolve_text_columns
-
-    prefix = f"{io.branch()}/parquet/{dataset}/"
-    # BOUNDED read — only when the spec opts in with `cap` or `filter`. OFF is the first and (today) only
-    # such vector spec; every existing dataset sets neither and keeps the whole-file read below unchanged.
-    # This is the fix for the whole-file `pd.read_parquet` that OOMs on OFF's 4.5M × 211 all-string file.
+    from .parquet_read import needed_columns, read_capped
     bounded = spec.get("cap") is not None or spec.get("filter") is not None
-
     if bounded:
         if not (spec.get("text") or spec.get("numeric")):
             raise ValueError(
@@ -774,23 +768,33 @@ def _build_vectors(mc, cfg, dataset, spec, log):
                 f"to build an empty collection rather than reporting a hydration that embedded nothing"
             )
         log.info(f"{dataset}: bounded read → {len(df):,} rows, projected {list(df.columns)} (cap {cap}); building vectors…")
-    else:
-        frames = []
-        for obj in mc.list_objects(cfg.repo, prefix=prefix, recursive=True):
-            if not obj.object_name.endswith(".parquet"):
-                continue
-            tmp = tempfile.NamedTemporaryFile(suffix=".parquet", delete=False)
-            tmp.close()
-            try:
-                mc.fget_object(cfg.repo, obj.object_name, tmp.name)
-                frames.append(pd.read_parquet(tmp.name))
-            finally:
-                os.unlink(tmp.name)
-        if not frames:
-            return 0, []
-        df = pd.concat(frames, ignore_index=True) if len(frames) > 1 else frames[0]
-        log.info(f"{dataset}: read {len(frames)} parquet file(s) → {len(df):,} rows; building vectors…")  # B105 phase marker
+        return df
+    frames = []
+    for obj in mc.list_objects(cfg.repo, prefix=prefix, recursive=True):
+        if not obj.object_name.endswith(".parquet"):
+            continue
+        tmp = tempfile.NamedTemporaryFile(suffix=".parquet", delete=False)
+        tmp.close()
+        try:
+            mc.fget_object(cfg.repo, obj.object_name, tmp.name)
+            frames.append(pd.read_parquet(tmp.name))
+        finally:
+            os.unlink(tmp.name)
+    if not frames:
+        return None
+    df = pd.concat(frames, ignore_index=True) if len(frames) > 1 else frames[0]
+    log.info(f"{dataset}: read {len(frames)} parquet file(s) → {len(df):,} rows; building vectors…")  # B105 phase marker
+    return df
 
+
+def _vectors_from_frame(df, spec, dataset, log):
+    """Turn the frame into (dim, vectors): a text spec concats the columns and embeds with bge-small (already
+    unit-normalized); otherwise numeric feature columns are z-score-normalized (raw features span wild scales →
+    cosine similarity is meaningless without it)."""
+    import numpy as np
+    import pandas as pd
+    from .parquet_read import resolve_text_columns
+    bounded = spec.get("cap") is not None or spec.get("filter") is not None
     if spec.get("text"):
         if bounded:
             cols = resolve_text_columns(spec["text"], df.columns)  # fail closed: raises if ALL absent
@@ -805,20 +809,32 @@ def _build_vectors(mc, cfg, dataset, spec, log):
         vectors = [v.tolist() for v in vecs]
         dim = len(vectors[0]) if vectors else 384
         log.info(f"{dataset}: text vectors dim={dim} from {cols} ({len(df):,} rows)")
+        return dim, vectors
+    if spec.get("numeric"):
+        cols = [c for c in spec["numeric"] if c in df.columns]
     else:
-        if spec.get("numeric"):
-            cols = [c for c in spec["numeric"] if c in df.columns]
-        else:
-            excl = set(spec.get("numeric_exclude", [])) | ({spec["id"]} if spec.get("id") else set())
-            cols = [c for c in df.columns if c not in excl and pd.api.types.is_numeric_dtype(df[c])]
-        mat = df[cols].apply(pd.to_numeric, errors="coerce").fillna(0.0).to_numpy(dtype=float)
-        mu, sd = mat.mean(axis=0), mat.std(axis=0)
-        sd[sd == 0] = 1.0
-        mat = np.nan_to_num((mat - mu) / sd, nan=0.0, posinf=0.0, neginf=0.0)
-        vectors = mat.tolist()
-        dim = len(cols)
-        log.info(f"{dataset}: numeric vectors dim={dim} (z-scored) from {cols[:6]}… ({len(df):,} rows)")
+        excl = set(spec.get("numeric_exclude", [])) | ({spec["id"]} if spec.get("id") else set())
+        cols = [c for c in df.columns if c not in excl and pd.api.types.is_numeric_dtype(df[c])]
+    mat = df[cols].apply(pd.to_numeric, errors="coerce").fillna(0.0).to_numpy(dtype=float)
+    mu, sd = mat.mean(axis=0), mat.std(axis=0)
+    sd[sd == 0] = 1.0
+    mat = np.nan_to_num((mat - mu) / sd, nan=0.0, posinf=0.0, neginf=0.0)
+    vectors = mat.tolist()
+    dim = len(cols)
+    log.info(f"{dataset}: numeric vectors dim={dim} (z-scored) from {cols[:6]}… ({len(df):,} rows)")
+    return dim, vectors
 
+
+def _build_vectors(mc, cfg, dataset, spec, log):
+    """Build (dim, records) for a dataset from silver Parquet — the SHARED step both vector backends consume.
+    records = [{id, vector, payload}]. Reads (bounded when the spec caps/filters, else whole-file), then embeds
+    text columns with bge-small or z-scores numeric features. Payload values are stringified (JSON/GraphQL-safe)."""
+    from .parquet_read import build_records
+    prefix = f"{io.branch()}/parquet/{dataset}/"
+    df = _read_vector_frame(mc, cfg, dataset, spec, prefix, log)
+    if df is None:
+        return 0, []
+    dim, vectors = _vectors_from_frame(df, spec, dataset, log)
     return dim, build_records(df, spec, vectors)
 
 

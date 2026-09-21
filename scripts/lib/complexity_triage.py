@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import os
 import statistics
+from collections import namedtuple
 from dataclasses import dataclass, field
 
 import lizard
@@ -128,11 +129,10 @@ def _lang_of(path):
 
 
 # --- stages 1-3: numeric metrics (lizard) ---------------------------------------------------------
-def _numeric_findings(files, cfg):
-    # First pass: gather every function's metrics, grouped by language for the stage-3 population.
-    # For Python we also compute true max-nesting from the AST (lizard can't, honestly).
-    per_lang = {}          # language -> list of (path, fn)
-    nesting_maps = {}      # path -> {def-line: depth} (python only)
+def _gather_functions(files):
+    """First pass: lizard metrics per function grouped by language (the stage-3 population), plus a true
+    max-nesting map per Python file (lizard can't measure it honestly). Returns (per_lang, nesting_maps)."""
+    per_lang, nesting_maps = {}, {}
     for path in files:
         try:
             info = lizard.analyze_file(path)
@@ -145,72 +145,102 @@ def _numeric_findings(files, cfg):
                 nesting_maps[path] = _python_nesting_map(open(path, "rb").read())
             except OSError:
                 nesting_maps[path] = {}
+    return per_lang, nesting_maps
 
+
+def _population_stats(rows):
+    """(nloc_mean, ccn_mean, nloc_sd, ccn_sd, population) for one language's functions."""
+    nlocs = [fn.nloc for _, fn in rows]
+    ccns = [fn.cyclomatic_complexity for _, fn in rows]
+    pop = len(rows)
+    return (statistics.mean(nlocs) if nlocs else 0.0,
+            statistics.mean(ccns) if ccns else 0.0,
+            statistics.pstdev(nlocs) if pop > 1 else 0.0,
+            statistics.pstdev(ccns) if pop > 1 else 0.0,
+            pop)
+
+
+def _zscores(fn, nloc_mean, ccn_mean, nloc_sd, ccn_sd, pop, cfg):
+    """Stage-3 z-scores of a function against its language population, or (None, None) when the population is
+    too small (< min_population) or has no spread — so a small codebase never manufactures an outlier."""
+    usable = pop >= cfg.min_population
+    zloc = (fn.nloc - nloc_mean) / nloc_sd if (nloc_sd and usable) else None
+    zccn = (fn.cyclomatic_complexity - ccn_mean) / ccn_sd if (ccn_sd and usable) else None
+    return zloc, zccn
+
+
+def _finding_for(path, fn, lang, cfg, nesting, zloc, zccn):
+    """Build a Finding for one function, or None when it isn't flagged."""
+    verdict = _numeric_verdict(fn, cfg, zloc, zccn, nesting)
+    if verdict is None:
+        return None
+    v, conf, reason = verdict
+    return Finding(
+        path=path, line=fn.start_line, name=fn.name, language=lang,
+        verdict=v, confidence=conf, reason=reason,
+        metrics={"nloc": fn.nloc, "loc": fn.length, "ccn": fn.cyclomatic_complexity, "nesting": nesting,
+                 "z_loc": round(zloc, 1) if zloc is not None else None,
+                 "z_ccn": round(zccn, 1) if zccn is not None else None},
+    )
+
+
+def _numeric_findings(files, cfg):
+    per_lang, nesting_maps = _gather_functions(files)
     stats, findings = {}, []
     for lang, rows in per_lang.items():
-        nlocs = [fn.nloc for _, fn in rows]
-        ccns = [fn.cyclomatic_complexity for _, fn in rows]
-        pop = len(rows)
-        nloc_mean = statistics.mean(nlocs) if nlocs else 0.0
-        ccn_mean = statistics.mean(ccns) if ccns else 0.0
-        nloc_sd = statistics.pstdev(nlocs) if pop > 1 else 0.0
-        ccn_sd = statistics.pstdev(ccns) if pop > 1 else 0.0
+        nloc_mean, ccn_mean, nloc_sd, ccn_sd, pop = _population_stats(rows)
         stats[lang] = {"functions": pop, "nloc_mean": round(nloc_mean, 1), "ccn_mean": round(ccn_mean, 1)}
-
         for path, fn in rows:
-            zloc = (fn.nloc - nloc_mean) / nloc_sd if (nloc_sd and pop >= cfg.min_population) else None
-            zccn = (fn.cyclomatic_complexity - ccn_mean) / ccn_sd if (ccn_sd and pop >= cfg.min_population) else None
+            zloc, zccn = _zscores(fn, nloc_mean, ccn_mean, nloc_sd, ccn_sd, pop, cfg)
             nesting = nesting_maps.get(path, {}).get(fn.start_line) if lang == "python" else None
-            verdict = _numeric_verdict(fn, cfg, zloc, zccn, nesting)
-            if verdict is None:
-                continue
-            v, conf, reason = verdict
-            findings.append(Finding(
-                path=path, line=fn.start_line, name=fn.name, language=lang,
-                verdict=v, confidence=conf, reason=reason,
-                metrics={"nloc": fn.nloc, "loc": fn.length, "ccn": fn.cyclomatic_complexity,
-                         "nesting": nesting,
-                         "z_loc": round(zloc, 1) if zloc is not None else None,
-                         "z_ccn": round(zccn, 1) if zccn is not None else None},
-            ))
+            f = _finding_for(path, fn, lang, cfg, nesting, zloc, zccn)
+            if f is not None:
+                findings.append(f)
     return findings, stats
 
 
-def _numeric_verdict(fn, cfg, zloc, zccn, nesting):
+_Signals = namedtuple("_Signals", "nloc ccn density nominated outlier tangled deep deep_nesting")
+
+
+def _signals(fn, cfg, zloc, zccn, nesting):
+    """The derived stage-1/2/3 signals for one function — the inputs the verdict decides from."""
     nloc = fn.nloc or 1
     ccn = fn.cyclomatic_complexity
     density = ccn / nloc
     deep_nesting = nesting is not None and nesting >= cfg.nesting_bad
-    ok_nesting = nesting is None or nesting <= cfg.nesting_ok
+    return _Signals(
+        nloc=nloc, ccn=ccn, density=density,
+        nominated=fn.length > cfg.length_warn or nloc > cfg.nloc_warn,
+        outlier=(zloc is not None and zloc >= cfg.z_cut) or (zccn is not None and zccn >= cfg.z_cut),
+        tangled=density >= cfg.density_tangled or deep_nesting or ccn >= cfg.ccn_hard,
+        deep=density <= cfg.density_deep and (nesting is None or nesting <= cfg.nesting_ok),
+        deep_nesting=deep_nesting,
+    )
+
+
+def _tangled_confidence(s, cfg):
+    """TANGLED confidence rises with the number of independent signals that agree."""
+    agree = sum([s.density >= cfg.density_tangled, s.deep_nesting, s.ccn >= cfg.ccn_hard, bool(s.outlier)])
+    return "high" if agree >= 3 else "medium" if agree == 2 else "low"
+
+
+def _numeric_verdict(fn, cfg, zloc, zccn, nesting):
+    s = _signals(fn, cfg, zloc, zccn, nesting)
     nz = nesting if nesting is not None else "n/a"
-    nominated = fn.length > cfg.length_warn or nloc > cfg.nloc_warn
-    outlier = (zloc is not None and zloc >= cfg.z_cut) or (zccn is not None and zccn >= cfg.z_cut)
-    tangled = density >= cfg.density_tangled or deep_nesting or ccn >= cfg.ccn_hard
-    deep = density <= cfg.density_deep and ok_nesting
-
-    # TANGLED regardless of nomination when the cyclomatic count is hard-high; otherwise length must
-    # have nominated it. Confidence rises with the number of independent signals that agree.
-    if tangled and (nominated or ccn >= cfg.ccn_hard):
-        signals = sum([density >= cfg.density_tangled, deep_nesting,
-                       ccn >= cfg.ccn_hard, bool(outlier)])
-        conf = "high" if signals >= 3 else "medium" if signals == 2 else "low"
-        tail = " + codebase outlier" if outlier else ""
-        return TANGLED, conf, f"ccn={ccn}, nloc={nloc}, density={density:.2f}, nesting={nz}{tail}"
-
-    if not nominated:
+    # TANGLED regardless of nomination when the cyclomatic count is hard-high; otherwise length nominated it.
+    if s.tangled and (s.nominated or s.ccn >= cfg.ccn_hard):
+        tail = " + codebase outlier" if s.outlier else ""
+        return TANGLED, _tangled_confidence(s, cfg), f"ccn={s.ccn}, nloc={s.nloc}, density={s.density:.2f}, nesting={nz}{tail}"
+    if not s.nominated:
         return None
-
-    # Stage 3 elevates a codebase-outlier to a human glance even when it looks locally clean — being
-    # unusual for how this codebase writes is itself the signal the user asked for.
-    if outlier:
-        z = ", ".join(s for s in (f"z_loc={zloc:.1f}" if zloc is not None else "",
-                                  f"z_ccn={zccn:.1f}" if zccn is not None else "") if s)
-        return OUTLIER_REVIEW, "medium", f"long and unusual for this codebase ({z}); nloc={nloc}, ccn={ccn}"
-
-    if deep:
-        return DEEP, "low", f"long but shallow control flow (ccn={ccn}/nloc={nloc}, nesting={nz}) — a deep function"
-
-    return OUTLIER_REVIEW, "low", f"long (nloc={nloc}) with moderate structure (ccn={ccn}, nesting={nz})"
+    # Stage 3 elevates a codebase-outlier to a human glance even when it looks locally clean.
+    if s.outlier:
+        z = ", ".join(x for x in (f"z_loc={zloc:.1f}" if zloc is not None else "",
+                                  f"z_ccn={zccn:.1f}" if zccn is not None else "") if x)
+        return OUTLIER_REVIEW, "medium", f"long and unusual for this codebase ({z}); nloc={s.nloc}, ccn={s.ccn}"
+    if s.deep:
+        return DEEP, "low", f"long but shallow control flow (ccn={s.ccn}/nloc={s.nloc}, nesting={nz}) — a deep function"
+    return OUTLIER_REVIEW, "low", f"long (nloc={s.nloc}) with moderate structure (ccn={s.ccn}, nesting={nz})"
 
 
 # --- inverse smell: shallow / delegation duplication (tree-sitter, Python first) -------------------

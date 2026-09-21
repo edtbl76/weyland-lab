@@ -77,16 +77,11 @@ def load_sot():
     return {"hosts": {}}
 
 
-def cmd_merge(host, prune=False):
-    recs = stdin_for("merge", host)
-    if not recs:
-        sys.exit("merge: no records on stdin — did the collector run? (refusing to blank the host)")
-    sot = load_sot()
-    hosts = sot.setdefault("hosts", {})
-    entry = hosts.setdefault(host, {"role": "", "packages": []})
-    existing = {(p["kind"], p["name"]): p for p in entry.get("packages", [])}
-
-    collected = {(k, n) for k, n, _ in recs}
+def _merge_new_packages(entry, existing, recs):
+    """Append packages not already cataloged (curated decisions preserved), deduping WITHIN this run too — a
+    repo listed once per tag (crictl) or an apt package printed per arch (multiarch) arrives as identical
+    (kind,name) records; without the dedupe the 2nd..Nth would all append (the mother realm-of-agents x20 bug).
+    Mutates `entry["packages"]` and `existing`. Returns the count added."""
     added = 0
     for kind, name, _ in recs:
         key = (kind, name)
@@ -97,21 +92,37 @@ def cmd_merge(host, prune=False):
         if status == "unreviewed":
             pkg["rationale"] = ""
         entry.setdefault("packages", []).append(pkg)
-        existing[key] = pkg  # dedupe WITHIN this run too: a repo listed once per tag (crictl) or an apt
-        #                      package printed per arch (multiarch) arrives as identical (kind,name) records;
-        #                      without this the 2nd..Nth would all append (the mother realm-of-agents x20 bug).
+        existing[key] = pkg
         added += 1
+    return added
 
-    # Anything cataloged but no longer collected. Default (by-hand path): REPORT only, a human decides.
-    # --prune (the B170 reconcile): REMOVE it too, so the catalog tracks uninstalls. Safe because merge
-    # already refuses empty stdin above — an unreachable host yields no records and never reaches here, so
-    # prune can never wipe a host it simply couldn't scan.
+
+def _prune_absent(entry, existing, collected, prune):
+    """Packages cataloged but no longer collected. Default (by-hand path): REPORT only, a human decides.
+    --prune (the B170 reconcile): REMOVE them too, so the catalog tracks uninstalls — safe because merge
+    already refused empty stdin, so an unreachable host yields no records and never reaches here. Returns
+    (pruned_count, absent_keys)."""
     absent_keys = [(k, n) for (k, n) in existing if (k, n) not in collected]
     pruned = 0
     if prune and absent_keys:
         drop = set(absent_keys)
         entry["packages"] = [p for p in entry["packages"] if (p["kind"], p["name"]) not in drop]
         pruned = len(absent_keys)
+    return pruned, absent_keys
+
+
+def cmd_merge(host, prune=False):
+    recs = stdin_for("merge", host)
+    if not recs:
+        sys.exit("merge: no records on stdin — did the collector run? (refusing to blank the host)")
+    sot = load_sot()
+    hosts = sot.setdefault("hosts", {})
+    entry = hosts.setdefault(host, {"role": "", "packages": []})
+    existing = {(p["kind"], p["name"]): p for p in entry.get("packages", [])}
+    collected = {(k, n) for k, n, _ in recs}
+
+    added = _merge_new_packages(entry, existing, recs)
+    pruned, absent_keys = _prune_absent(entry, existing, collected, prune)
     absent = [f"{k}:{n}" for (k, n) in absent_keys]
     entry["packages"].sort(key=lambda p: (p["kind"], p["name"].lower()))
 

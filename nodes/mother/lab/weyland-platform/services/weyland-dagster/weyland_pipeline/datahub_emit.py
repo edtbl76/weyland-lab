@@ -413,76 +413,87 @@ def debug_dbt_column_lineage(mart=None):
             print(f"  {out_col:24s} <- " + ", ".join(f"{col}@{name.split('.')[-1]}" for name, col in sorted(ups)))
 
 
+def _dbt_source_ancestors(uid, nodes, seen=None):
+    """All `source.*` unique_ids reachable from `uid` by walking depends_on through ephemeral models."""
+    seen = seen if seen is not None else set()
+    node = nodes.get(uid)
+    if not node:
+        return set()
+    found = set()
+    for dep in node.get("depends_on", {}).get("nodes", []):
+        if dep in seen:
+            continue
+        seen.add(dep)
+        if dep.startswith("source."):
+            found.add(dep)
+        elif dep in nodes:
+            found |= _dbt_source_ancestors(dep, nodes, seen)
+    return found
+
+
+def _dbt_mart_schema_aspects(uid, node, name):
+    """The Dataset props + `dbt` tag + (when columns exist) SchemaMetadata for one materialized mart."""
+    aspects = [
+        DatasetPropertiesClass(name=node["name"], description=node.get("description") or "dbt mart",
+                               customProperties={"materialized": node.get("config", {}).get("materialized", ""),
+                                                 "dbt_unique_id": uid}),
+        GlobalTagsClass(tags=[TagAssociationClass(tag=make_tag_urn("dbt"))]),
+    ]
+    fields = [
+        SchemaFieldClass(fieldPath=col, type=_field_type(meta.get("data_type") or "string"),
+                         nativeDataType=str(meta.get("data_type") or "unknown"),
+                         description=meta.get("description") or None)
+        for col, meta in node.get("columns", {}).items()
+    ]
+    if fields:
+        aspects.append(SchemaMetadataClass(
+            schemaName=name, platform="urn:li:dataPlatform:trino", version=0, hash="",
+            platformSchema=OtherSchemaClass(rawSchema=""), fields=fields))
+    return aspects
+
+
+def _emit_dbt_upstreams(uid, nodes, sources, emitter, emitted_sources):
+    """Emit each gold source as a thin catalog entry (once) and return (upstreams, source_urns) for `uid`."""
+    upstreams, source_urns = [], {}
+    for src_uid in _dbt_source_ancestors(uid, nodes):
+        src = sources.get(src_uid)
+        if not src:
+            continue
+        src_urn = make_dataset_urn(platform="trino", name=_iceberg_name(src), env=ENV)
+        upstreams.append(UpstreamClass(dataset=src_urn, type=DatasetLineageTypeClass.TRANSFORMED))
+        source_urns[_iceberg_name(src).lower().replace('"', "")] = src_urn
+        if src_uid not in emitted_sources:  # thin catalog entry so the lineage node isn't a bare stub
+            for asp in (DatasetPropertiesClass(name=src["name"],
+                                               description=src.get("description") or "Iceberg gold table (dbt source)"),
+                        GlobalTagsClass(tags=[TagAssociationClass(tag=make_tag_urn("gold"))])):
+                emitter.emit(MetadataChangeProposalWrapper(entityUrn=src_urn, aspect=asp))
+            emitted_sources.add(src_uid)
+    return upstreams, source_urns
+
+
 def emit_dbt():
     """Custom-emit the dbt transform tier from the baked `manifest.json` (no Trino/DB connection needed).
     Each materialized mart → a Trino/Iceberg Dataset (`iceberg.dbt.mart_*`) carrying its description, per-column
     docs, a `dbt` tag, and UpstreamLineage to the gold source tables it reads (walking THROUGH the ephemeral
     staging models to the real `source.*` nodes). The gold sources are emitted too (thin props + a `gold` tag) so
-    the lineage nodes aren't bare stubs. Returns (n_marts, [mart names]). Mirrors the DataHub dbt source but
-    stays offline + version-proof, like the other custom emitters here. Reads the COMPILED manifest (MinIO) so the
-    per-mart FineGrainedLineage (column lineage) has SQL to parse; falls back to the baked parse-manifest."""
+    the lineage nodes aren't bare stubs. Returns (n_marts, [mart names], n_col_edges). Mirrors the DataHub dbt
+    source but stays offline + version-proof. Reads the COMPILED manifest (MinIO) so the per-mart FineGrained
+    column lineage has SQL to parse; falls back to the baked parse-manifest."""
     manifest = _load_dbt_manifest()
     nodes, sources = manifest.get("nodes", {}), manifest.get("sources", {})
     col_schema = _sqlglot_schema_from_catalog(_load_dbt_catalog())  # for sqlglot star-expansion / join disambiguation
     col_lineage, col_source_urns = _dbt_column_lineage_all(nodes, sources, col_schema)  # resolved column lineage per mart
 
-    def _source_ancestors(uid, seen=None):
-        """All `source.*` unique_ids reachable from `uid` by walking depends_on through ephemeral models."""
-        seen = seen if seen is not None else set()
-        node = nodes.get(uid)
-        if not node:
-            return set()
-        found = set()
-        for dep in node.get("depends_on", {}).get("nodes", []):
-            if dep in seen:
-                continue
-            seen.add(dep)
-            if dep.startswith("source."):
-                found.add(dep)
-            elif dep in nodes:
-                found |= _source_ancestors(dep, seen)
-        return found
-
     emitter = _gms_emitter()
     emitted_sources = set()
-    marts = []
-    n_col_edges = 0
+    marts, n_col_edges = [], 0
     for uid, node in nodes.items():
         if node.get("resource_type") != "model" or node.get("config", {}).get("materialized") == "ephemeral":
             continue  # skip ephemeral staging — only real (materialized) marts get their own Iceberg table
         name = _iceberg_name(node)
         urn = make_dataset_urn(platform="trino", name=name, env=ENV)
-        fields = [
-            SchemaFieldClass(fieldPath=col, type=_field_type(meta.get("data_type") or "string"),
-                             nativeDataType=str(meta.get("data_type") or "unknown"),
-                             description=meta.get("description") or None)
-            for col, meta in node.get("columns", {}).items()
-        ]
-        aspects = [
-            DatasetPropertiesClass(name=node["name"], description=node.get("description") or "dbt mart",
-                                   customProperties={"materialized": node.get("config", {}).get("materialized", ""),
-                                                     "dbt_unique_id": uid}),
-            GlobalTagsClass(tags=[TagAssociationClass(tag=make_tag_urn("dbt"))]),
-        ]
-        if fields:
-            aspects.append(SchemaMetadataClass(
-                schemaName=name, platform="urn:li:dataPlatform:trino", version=0, hash="",
-                platformSchema=OtherSchemaClass(rawSchema=""), fields=fields))
-        upstreams = []
-        source_urns = {}  # normalized `catalog.schema.table` -> trino URN, for column-lineage resolution
-        for src_uid in _source_ancestors(uid):
-            src = sources.get(src_uid)
-            if not src:
-                continue
-            src_urn = make_dataset_urn(platform="trino", name=_iceberg_name(src), env=ENV)
-            upstreams.append(UpstreamClass(dataset=src_urn, type=DatasetLineageTypeClass.TRANSFORMED))
-            source_urns[_iceberg_name(src).lower().replace('"', "")] = src_urn
-            if src_uid not in emitted_sources:  # thin catalog entry for the gold source so it's not a bare stub
-                for asp in (DatasetPropertiesClass(name=src["name"],
-                                                   description=src.get("description") or "Iceberg gold table (dbt source)"),
-                            GlobalTagsClass(tags=[TagAssociationClass(tag=make_tag_urn("gold"))])):
-                    emitter.emit(MetadataChangeProposalWrapper(entityUrn=src_urn, aspect=asp))
-                emitted_sources.add(src_uid)
+        aspects = _dbt_mart_schema_aspects(uid, node, name)
+        upstreams, _source_urns = _emit_dbt_upstreams(uid, nodes, sources, emitter, emitted_sources)
         if upstreams:
             fine = _fine_from_traced(urn, col_lineage.get(uid, {}), col_source_urns)  # resolved COLUMN lineage
             n_col_edges += sum(len(f.upstreams) for f in fine)
@@ -953,31 +964,9 @@ _APP_CAPABILITIES = {
 }
 
 
-def emit_applications():
-    """B82 — create DataHub Application entities from the canonical registry + attach every cataloged
-    dataset/chart/dashboard to its owning app by producer URN-pattern (FIRST-MATCH, registry order — the file is
-    ordered specific-producer → broad, weyland-dagster last). Application = an app-centric lens *alongside* Domains
-    (business area) + Data Products (bundles). Only rows with `datahub_application: true` become entities; only rows
-    with non-empty `owns` participate in attachment (empty = modeled-now, attaches-later). Idempotent (upsert).
-    Returns (n_apps, n_attached).
-
-    NOTE: `traces` (MLflow experiment ownership for the agent apps) is a v2 follow-up — the MLflow trace→DataHub
-    entity mapping needs its own pass; those apps exist as entities now, their trace assets attach later."""
-    from datahub.ingestion.graph.client import DataHubGraph, DatahubClientConfig
-
-    apps = _load_app_registry()
-    dh_apps = [a for a in apps if a.get("datahub_application")]
-
-    emitter = _gms_emitter()
-    server = os.environ.get("DATAHUB_GMS_URL", "http://datahub-datahub-gms.data-mesh.svc.cluster.local:8080")
-    token = os.environ.get("DATAHUB_GMS_TOKEN", "")
-
-    # 1) create the Application entities (+ docs link, group tag, domain)
-    import time
-    from datahub.metadata.schema_classes import InstitutionalMemoryClass, InstitutionalMemoryMetadataClass
-    made = AuditStampClass(time=int(time.time() * 1000), actor="urn:li:corpuser:datahub")
-
-    # Application Capabilities glossary — node + the descriptive terms (emitted once, idempotent)
+def _emit_capability_glossary(emitter):
+    """Emit the Application Capabilities glossary node + its descriptive terms (idempotent). Returns
+    (cap_node_urn, {term_id: term_urn})."""
     cap_node = f"urn:li:glossaryNode:{_CAP_NODE[0]}"
     emitter.emit(MetadataChangeProposalWrapper(entityUrn=cap_node,
         aspect=GlossaryNodeInfoClass(name=_CAP_NODE[1], definition=_CAP_NODE[2], parentNode=None)))
@@ -987,38 +976,43 @@ def emit_applications():
         cap_urn[tid] = cu
         emitter.emit(MetadataChangeProposalWrapper(entityUrn=cu, aspect=GlossaryTermInfoClass(
             name=tname, definition=tdef, termSource="INTERNAL", parentNode=cap_node)))
+    return cap_node, cap_urn
 
-    aurn = {}
-    for a in dh_apps:
-        key = a["key"]
-        u = f"urn:li:application:{key}"
-        aurn[key] = u
-        emitter.emit(MetadataChangeProposalWrapper(entityUrn=u, aspect=ApplicationPropertiesClass(
-            name=a["name"], description=a.get("description", ""),
-            customProperties={"group": a["group"], "key": key,
-                              "owns_patterns": ", ".join(a.get("owns", [])) or "(none yet — plausibly will)"})))
-        # Documentation — link to the docs-site page (no dead links: only apps present in _APP_DOCS)
-        doc = _APP_DOCS.get(key)
-        if doc:
-            emitter.emit(MetadataChangeProposalWrapper(entityUrn=u, aspect=InstitutionalMemoryClass(
-                elements=[InstitutionalMemoryMetadataClass(
-                    url=f"https://docs.weyland.lab/{doc}/", description=f"Docs — {a['name']}", createStamp=made)])))
-        # Tag by group (core-producer / ai-serving / operational / …)
-        emitter.emit(MetadataChangeProposalWrapper(entityUrn=u, aspect=GlobalTagsClass(
-            tags=[TagAssociationClass(tag=make_tag_urn(a["group"]))])))
-        # Domain (default Platform & Ops; ML/RAG apps overridden)
-        dom = _APP_DOMAIN.get(key, "Platform & Ops")
-        emitter.emit(MetadataChangeProposalWrapper(entityUrn=u, aspect=DomainsClass(
-            domains=[make_domain_urn(dom.lower().replace(" & ", "-").replace(" ", "-"))])))
-        # Capabilities — the descriptive glossary terms for what this app does
-        caps = _APP_CAPABILITIES.get(key, [])
-        if caps:
-            emitter.emit(MetadataChangeProposalWrapper(entityUrn=u, aspect=GlossaryTermsClass(
-                terms=[GlossaryTermAssociationClass(urn=cap_urn[c]) for c in caps], auditStamp=made)))
 
-    # 2) attach each cataloged asset to its owning app (first-match by owns patterns, registry order)
+def _emit_application_entity(a, emitter, cap_urn, made):
+    """Emit one Application entity's aspects — props, docs link, group tag, domain, capability terms — and
+    return its urn."""
+    from datahub.metadata.schema_classes import InstitutionalMemoryClass, InstitutionalMemoryMetadataClass
+    key = a["key"]
+    u = f"urn:li:application:{key}"
+    emitter.emit(MetadataChangeProposalWrapper(entityUrn=u, aspect=ApplicationPropertiesClass(
+        name=a["name"], description=a.get("description", ""),
+        customProperties={"group": a["group"], "key": key,
+                          "owns_patterns": ", ".join(a.get("owns", [])) or "(none yet — plausibly will)"})))
+    doc = _APP_DOCS.get(key)
+    if doc:  # Documentation link — only for apps present in _APP_DOCS (no dead links)
+        emitter.emit(MetadataChangeProposalWrapper(entityUrn=u, aspect=InstitutionalMemoryClass(
+            elements=[InstitutionalMemoryMetadataClass(
+                url=f"https://docs.weyland.lab/{doc}/", description=f"Docs — {a['name']}", createStamp=made)])))
+    emitter.emit(MetadataChangeProposalWrapper(entityUrn=u, aspect=GlobalTagsClass(
+        tags=[TagAssociationClass(tag=make_tag_urn(a["group"]))])))
+    dom = _APP_DOMAIN.get(key, "Platform & Ops")  # default Platform & Ops; ML/RAG apps overridden
+    emitter.emit(MetadataChangeProposalWrapper(entityUrn=u, aspect=DomainsClass(
+        domains=[make_domain_urn(dom.lower().replace(" & ", "-").replace(" ", "-"))])))
+    caps = _APP_CAPABILITIES.get(key, [])
+    if caps:  # descriptive glossary terms for what this app does
+        emitter.emit(MetadataChangeProposalWrapper(entityUrn=u, aspect=GlossaryTermsClass(
+            terms=[GlossaryTermAssociationClass(urn=cap_urn[c]) for c in caps], auditStamp=made)))
+    return u
+
+
+def _attach_assets_to_apps(ordered, emitter, aurn):
+    """Attach every cataloged dataset/chart/dashboard to its owning app by first-match owns-pattern (registry
+    order). Returns a Counter of per-app attachment counts."""
     from collections import Counter
-    ordered = [a for a in dh_apps if a.get("owns")]
+    from datahub.ingestion.graph.client import DataHubGraph, DatahubClientConfig
+    server = os.environ.get("DATAHUB_GMS_URL", "http://datahub-datahub-gms.data-mesh.svc.cluster.local:8080")
+    token = os.environ.get("DATAHUB_GMS_TOKEN", "")
     graph = DataHubGraph(DatahubClientConfig(server=server, token=token))
     counts = Counter()
     for etype in ("dataset", "chart", "dashboard"):
@@ -1029,6 +1023,29 @@ def emit_applications():
                 emitter.emit(MetadataChangeProposalWrapper(
                     entityUrn=urn, aspect=ApplicationsClass(applications=[aurn[match]])))
                 counts[match] += 1
+    return counts
+
+
+def emit_applications():
+    """B82 — create DataHub Application entities from the canonical registry + attach every cataloged
+    dataset/chart/dashboard to its owning app by producer URN-pattern (FIRST-MATCH, registry order — the file is
+    ordered specific-producer → broad, weyland-dagster last). Application = an app-centric lens *alongside* Domains
+    (business area) + Data Products (bundles). Only rows with `datahub_application: true` become entities; only rows
+    with non-empty `owns` participate in attachment (empty = modeled-now, attaches-later). Idempotent (upsert).
+    Returns (n_apps, n_attached).
+
+    NOTE: `traces` (MLflow experiment ownership for the agent apps) is a v2 follow-up — the MLflow trace→DataHub
+    entity mapping needs its own pass; those apps exist as entities now, their trace assets attach later."""
+    import time
+    apps = _load_app_registry()
+    dh_apps = [a for a in apps if a.get("datahub_application")]
+    emitter = _gms_emitter()
+    made = AuditStampClass(time=int(time.time() * 1000), actor="urn:li:corpuser:datahub")
+
+    _cap_node, cap_urn = _emit_capability_glossary(emitter)
+    aurn = {a["key"]: _emit_application_entity(a, emitter, cap_urn, made) for a in dh_apps}
+    counts = _attach_assets_to_apps([a for a in dh_apps if a.get("owns")], emitter, aurn)
+
     # diagnostic — per-app attachment + the zero-asset apps (empty-owns/no-source = expected; a producer at 0 = a pattern miss)
     print("APP ATTACHMENT:", dict(sorted(counts.items(), key=lambda kv: -kv[1])))
     print("ZERO-ASSET APPS:", sorted(a["key"] for a in dh_apps if counts.get(a["key"], 0) == 0))
@@ -1233,41 +1250,50 @@ _FC_EXACT = {
 }
 
 
+# Field-classification rules as DATA, so `_field_class` is a loop, not a 20-branch chain (B162). Order is
+# load-bearing — first match wins, and identifier `_id` precedes the dimension/text suffixes. Each rule is
+# (predicate, class); `_sfx(...)` is the common "endswith any of these suffixes" case.
+_FC_BOOL_PREFIX = ("is_", "has_", "can_", "should_")
+
+
+def _sfx(*suffixes):
+    return lambda l: l.endswith(suffixes)
+
+
+_FC_RULES = [
+    (_sfx("_id", "_key", "_uuid", "_code", "_pk", "_fk", "_gid"), "identifier"),
+    (lambda l: (l.endswith(("_at", "_date", "_time", "_ts", "_timestamp", "_datetime", "_year", "_t"))
+                or "timestamp" in l or "datetime" in l
+                or l.startswith(("created", "modified", "updated", "last_"))), "temporal"),
+    (_sfx("_pct", "_percent", "_mean", "_std", "_count", "_sum", "_avg", "_rate", "_ratio",
+          "_amount", "_total", "_score", "_n", "_num", "_value", "_min", "_max"), "measure"),
+    (_sfx("_lat", "_lon", "_lng"), "geo"),
+    (_sfx("_type", "_category", "_class", "_status", "_group", "_cat"), "dimension"),
+    (_sfx("_name", "_text", "_desc", "_description", "_comment", "_note", "_title", "_url", "_message"), "text"),
+    # domain-specific high-frequency patterns (from the unclassified-field audit)
+    (lambda l: (l.startswith(("value_", "confidence"))
+                or l.endswith(("_order", "_duration", "_bps", "_pps", "_ops", "_bytes")) or l == "duration"), "measure"),
+    (lambda l: "timedimension" in l, "temporal"),
+    (lambda l: l.startswith("caption") or l in ("link", "editor", "track_composer", "abstract"), "text"),
+    (lambda l: l.endswith("_bucket") or l in ("parent", "labels", "release", "entity", "break_out", "pseudo_attribute"), "dimension"),
+    (lambda l: l == "guid", "identifier"),
+]
+
+
 def _field_class(leaf):
     """Broad field category from a leaf column name — drives a define-once field tag + class-level description.
-    Ordered: boolean prefix, then exact-set (geo/id/temporal/measure/dimension/text), then suffix rules for the
-    long tail. First match wins; identifier `_id` is checked before the dimension/text suffixes."""
+    Ordered: boolean prefix, then exact-set (geo/id/temporal/measure/dimension/text), then the `_FC_RULES`
+    suffix/predicate table for the long tail. First match wins; identifier `_id` is checked before the
+    dimension/text suffixes."""
     l = leaf
-    if l.startswith(("is_", "has_", "can_", "should_")):
+    if l.startswith(_FC_BOOL_PREFIX):
         return "boolean"
     for cls, exact in _FC_EXACT.items():
         if l in exact:
             return cls
-    if l.endswith(("_id", "_key", "_uuid", "_code", "_pk", "_fk", "_gid")):
-        return "identifier"
-    if (l.endswith(("_at", "_date", "_time", "_ts", "_timestamp", "_datetime", "_year", "_t"))
-            or "timestamp" in l or "datetime" in l or l.startswith(("created", "modified", "updated", "last_"))):
-        return "temporal"
-    if l.endswith(("_pct", "_percent", "_mean", "_std", "_count", "_sum", "_avg", "_rate", "_ratio",
-                   "_amount", "_total", "_score", "_n", "_num", "_value", "_min", "_max")):
-        return "measure"
-    if l.endswith(("_lat", "_lon", "_lng")):
-        return "geo"
-    if l.endswith(("_type", "_category", "_class", "_status", "_group", "_cat")):
-        return "dimension"
-    if l.endswith(("_name", "_text", "_desc", "_description", "_comment", "_note", "_title", "_url", "_message")):
-        return "text"
-    # domain-specific high-frequency patterns (from the unclassified-field audit)
-    if l.startswith(("value_", "confidence")) or l.endswith(("_order", "_duration", "_bps", "_pps", "_ops", "_bytes")) or l == "duration":
-        return "measure"
-    if "timedimension" in l:
-        return "temporal"
-    if l.startswith("caption") or l in ("link", "editor", "track_composer", "abstract"):
-        return "text"
-    if l.endswith("_bucket") or l in ("parent", "labels", "release", "entity", "break_out", "pseudo_attribute"):
-        return "dimension"
-    if l == "guid":
-        return "identifier"
+    for matches, cls in _FC_RULES:
+        if matches(l):
+            return cls
     return None
 
 
@@ -1307,117 +1333,128 @@ def _mesh_term_index():
     return idx
 
 
-def emit_mesh_glossary(attach=True):
-    """Surface 1 — publish the authored Data-Mesh business vocabulary (mesh_vocabulary) as a second glossary root
-    'Data Mesh', then (attach=True) walk every cataloged dataset's schema and attach each term to matching fields
-    via 'define once, attach everywhere' — collapsing the 22k duplicated ambiguous fields. Field terms live in
-    editableSchemaMetadata, which is a FULL-REPLACE aspect, so we READ-MERGE: existing field info + our term
-    associations, re-emit. Idempotent. Returns (n_nodes, n_terms, n_fields_tagged, n_datasets_touched)."""
-    import time
-
-    from weyland_pipeline.mesh_vocabulary import NODES, TERMS
-
-    emitter = _gms_emitter()
-
-    def _nurn(nid):
-        return f"urn:li:glossaryNode:{nid}"
-
-    n_nodes = 0
+def _emit_glossary_nodes(emitter):
+    """Publish the mesh_vocabulary node tree ('Data Mesh' root + children). Returns n_nodes."""
+    from weyland_pipeline.mesh_vocabulary import NODES
+    n = 0
     for nid, name, parent, defn in NODES:
-        emitter.emit(MetadataChangeProposalWrapper(
-            entityUrn=_nurn(nid),
-            aspect=GlossaryNodeInfoClass(definition=defn, name=name, parentNode=_nurn(parent) if parent else None)))
-        n_nodes += 1
+        emitter.emit(MetadataChangeProposalWrapper(entityUrn=f"urn:li:glossaryNode:{nid}",
+            aspect=GlossaryNodeInfoClass(definition=defn, name=name,
+                                         parentNode=f"urn:li:glossaryNode:{parent}" if parent else None)))
+        n += 1
+    return n
 
-    n_terms = 0
+
+def _emit_glossary_terms(emitter):
+    """Publish every mesh_vocabulary term (INTERNAL source) under its parent node. Returns n_terms."""
+    from weyland_pipeline.mesh_vocabulary import TERMS
+    n = 0
     for tid, name, parent, defn, _attach in TERMS:
-        emitter.emit(MetadataChangeProposalWrapper(
-            entityUrn=f"urn:li:glossaryTerm:{tid}",
+        emitter.emit(MetadataChangeProposalWrapper(entityUrn=f"urn:li:glossaryTerm:{tid}",
             aspect=GlossaryTermInfoClass(definition=defn, name=name, termSource="INTERNAL",
-                                         parentNode=_nurn(parent))))
-        n_terms += 1
+                                         parentNode=f"urn:li:glossaryNode:{parent}")))
+        n += 1
+    return n
 
-    if not attach:
-        return n_nodes, n_terms, 0, 0
 
+def _mesh_match(leaf, idx):
+    """Resolve a field leaf to a term tuple via the mesh index: exact, then stat-suffix base, then a len>=4
+    prefix (`<pattern>_…`). The len>=4 guard stops short patterns (id/op/gid) swallowing unrelated columns."""
+    if leaf in idx:
+        return idx[leaf]
+    for suf in _STAT_SUFFIXES:
+        if leaf.endswith(suf) and leaf[: -len(suf)] in idx:
+            return idx[leaf[: -len(suf)]]
+    for pat, val in idx.items():
+        if len(pat) >= 4 and leaf.startswith(pat + "_"):
+            return val
+    return None
+
+
+def _apply_field_overlay(info, m, name_cls, tag_cls, stamp):
+    """Merge a description / glossary term / type tag onto one field's editable info, never clobbering an
+    existing description or duplicating a term/tag. Mutates `info`; returns True if anything changed."""
+    changed = False
+    # description: the SPECIFIC term definition, else the name-class role description (NOT the type fallback —
+    # a bare "measure" isn't a meaning). Never clobber a real one (source docs / dbt).
+    new_desc = (m[1] if m else None) or (_FIELD_CLASS_DESC.get(name_cls) if name_cls else None)
+    if new_desc and not info.description:
+        info.description = new_desc
+        changed = True
+    if m:
+        term_urn = m[0]
+        existing = list(info.glossaryTerms.terms) if info.glossaryTerms else []
+        if not any(a.urn == term_urn for a in existing):
+            existing.append(GlossaryTermAssociationClass(urn=term_urn))
+            info.glossaryTerms = GlossaryTermsClass(terms=existing, auditStamp=stamp)
+            changed = True
+    if tag_cls:
+        ctag = make_tag_urn(tag_cls)
+        etags = list(info.globalTags.tags) if info.globalTags else []
+        if not any(a.tag == ctag for a in etags):
+            etags.append(TagAssociationClass(tag=ctag))
+            info.globalTags = GlobalTagsClass(tags=etags)
+            changed = True
+    return changed
+
+
+def _attach_mesh_terms(emitter, stamp):
+    """Walk every cataloged dataset's schema and attach mesh terms + class tags to matching fields ('define
+    once, attach everywhere'), read-merging the editable overlay so nothing existing is clobbered. name_cls
+    (from the column name) drives DESCRIPTION + tag; tag_cls falls back to the SCHEMA TYPE for the tag only.
+    Returns (n_fields_tagged, n_datasets_touched)."""
     from datahub.ingestion.graph.client import DataHubGraph, DatahubClientConfig
     server = os.environ.get("DATAHUB_GMS_URL", "http://datahub-datahub-gms.data-mesh.svc.cluster.local:8080")
     token = os.environ.get("DATAHUB_GMS_TOKEN", "")
     graph = DataHubGraph(DatahubClientConfig(server=server, token=token))
-
     idx = _mesh_term_index()
-    now = int(time.time() * 1000)
-    stamp = AuditStampClass(time=now, actor="urn:li:corpuser:datahub")
-
-    def _match(leaf):
-        if leaf in idx:
-            return idx[leaf]
-        for suf in _STAT_SUFFIXES:
-            if leaf.endswith(suf) and leaf[: -len(suf)] in idx:
-                return idx[leaf[: -len(suf)]]
-        # PREFIX: a pattern matches a field starting with `<pattern>_` (data_value → data_value_unit/_footnote).
-        # len>=4 guard so short patterns (id/op/gid) don't greedily swallow unrelated columns.
-        for pat, val in idx.items():
-            if len(pat) >= 4 and leaf.startswith(pat + "_"):
-                return val
-        return None
-
     n_fields = n_ds = 0
     for urn in graph.get_urns_by_filter(entity_types=["dataset"]):
         sm = graph.get_aspect(urn, SchemaMetadataClass)
         if not sm or not sm.fields:
             continue
-        # per-field term/class matches. name_cls (from the column name) drives DESCRIPTION + tag; tag_cls falls
-        # back to the SCHEMA TYPE for the tag only (so every typed field is classified) but never a description.
         want = {}  # fieldPath -> (term-tuple-or-None, name_cls-or-None, tag_cls-or-None)
         for f in sm.fields:
             leaf = _field_leaf(f.fieldPath)
-            m = _match(leaf)
+            m = _mesh_match(leaf, idx)
             name_cls = _field_class(leaf)
             tag_cls = name_cls or _type_class(f)
             if m or tag_cls:
                 want[f.fieldPath] = (m, name_cls, tag_cls)
         if not want:
             continue
-        # READ-MERGE the existing editable overlay so we don't clobber descriptions / other terms / other tags
         esm = graph.get_aspect(urn, EditableSchemaMetadataClass)
         infos = {i.fieldPath: i for i in (esm.editableSchemaFieldInfo if esm else [])}
         touched = 0
         for fp, (m, name_cls, tag_cls) in want.items():
             info = infos.get(fp) or EditableSchemaFieldInfoClass(fieldPath=fp)
-            changed = False
-            # description: the SPECIFIC glossary-term definition, else the name-class role description (NOT the
-            # type fallback — a bare "measure" isn't a meaning). Never clobber a real one (source docs / dbt).
-            new_desc = (m[1] if m else None) or (_FIELD_CLASS_DESC.get(name_cls) if name_cls else None)
-            if new_desc and not info.description:
-                info.description = new_desc
-                changed = True
-            if m:
-                term_urn = m[0]
-                existing = list(info.glossaryTerms.terms) if info.glossaryTerms else []
-                if not any(a.urn == term_urn for a in existing):
-                    existing.append(GlossaryTermAssociationClass(urn=term_urn))
-                    info.glossaryTerms = GlossaryTermsClass(terms=existing, auditStamp=stamp)
-                    changed = True
-            if tag_cls:
-                ctag = make_tag_urn(tag_cls)
-                etags = list(info.globalTags.tags) if info.globalTags else []
-                if not any(a.tag == ctag for a in etags):
-                    etags.append(TagAssociationClass(tag=ctag))
-                    info.globalTags = GlobalTagsClass(tags=etags)
-                    changed = True
-            infos[fp] = info
-            if changed:
+            if _apply_field_overlay(info, m, name_cls, tag_cls, stamp):
                 touched += 1
+            infos[fp] = info
         if not touched:
             continue
-        emitter.emit(MetadataChangeProposalWrapper(
-            entityUrn=urn,
-            aspect=EditableSchemaMetadataClass(
-                created=(esm.created if esm else stamp), lastModified=stamp,
-                editableSchemaFieldInfo=list(infos.values()))))
+        emitter.emit(MetadataChangeProposalWrapper(entityUrn=urn,
+            aspect=EditableSchemaMetadataClass(created=(esm.created if esm else stamp), lastModified=stamp,
+                                               editableSchemaFieldInfo=list(infos.values()))))
         n_fields += touched
         n_ds += 1
+    return n_fields, n_ds
+
+
+def emit_mesh_glossary(attach=True):
+    """Surface 1 — publish the authored Data-Mesh business vocabulary (mesh_vocabulary) as a second glossary root
+    'Data Mesh', then (attach=True) walk every cataloged dataset's schema and attach each term to matching fields
+    via 'define once, attach everywhere' — collapsing the 22k duplicated ambiguous fields. Field terms live in
+    editableSchemaMetadata, a FULL-REPLACE aspect, so the attach READ-MERGEs. Idempotent.
+    Returns (n_nodes, n_terms, n_fields_tagged, n_datasets_touched)."""
+    import time
+    emitter = _gms_emitter()
+    n_nodes = _emit_glossary_nodes(emitter)
+    n_terms = _emit_glossary_terms(emitter)
+    if not attach:
+        return n_nodes, n_terms, 0, 0
+    stamp = AuditStampClass(time=int(time.time() * 1000), actor="urn:li:corpuser:datahub")
+    n_fields, n_ds = _attach_mesh_terms(emitter, stamp)
     return n_nodes, n_terms, n_fields, n_ds
 
 
@@ -1555,51 +1592,71 @@ _DESC_TERM_RULES = [
 ]
 
 
-def emit_source_terms():
-    """Surface 1b — external source citations + description-based term attach. (a) Re-emit the external-standard
-    terms as termSource=EXTERNAL with sourceRef/sourceUrl (name/parent/definition read from mesh_vocabulary so the
-    definition stays single-sourced); (b) define the audio-DSP / nutrition terms the name-matched vocab lacked;
-    (c) walk every field and attach a term wherever its DESCRIPTION matches a known concept — the gap the
-    name-attach leaves. Read-merge (never clobber existing desc/tags/terms), idempotent.
-    Returns (n_cited, n_new, n_fields_attached, n_datasets_touched)."""
-    import time
-    from weyland_pipeline.mesh_vocabulary import TERMS
-
-    emitter = _gms_emitter()
-    node_urn = lambda nid: f"urn:li:glossaryNode:{nid}"
-    term_urn = lambda tid: f"urn:li:glossaryTerm:{tid}"
-    by_id = {t[0]: t for t in TERMS}  # tid -> (tid, name, parent, defn, attach)
-
-    n_cited = 0
+def _emit_cited_terms(emitter, by_id):
+    """(a) Re-emit external-standard terms as termSource=EXTERNAL with sourceRef/sourceUrl (name/parent/
+    definition read from mesh_vocabulary so the definition stays single-sourced). Returns n_cited."""
+    n = 0
     for tid, (ref, url) in _TERM_SOURCES.items():
         t = by_id.get(tid)
         if not t:
             continue
-        emitter.emit(MetadataChangeProposalWrapper(entityUrn=term_urn(tid), aspect=GlossaryTermInfoClass(
-            definition=t[3], name=t[1], parentNode=node_urn(t[2]), termSource="EXTERNAL",
-            sourceRef=ref, sourceUrl=url)))
-        n_cited += 1
+        emitter.emit(MetadataChangeProposalWrapper(entityUrn=f"urn:li:glossaryTerm:{tid}",
+            aspect=GlossaryTermInfoClass(definition=t[3], name=t[1], parentNode=f"urn:li:glossaryNode:{t[2]}",
+                                         termSource="EXTERNAL", sourceRef=ref, sourceUrl=url)))
+        n += 1
+    return n
 
-    n_new = 0
+
+def _emit_new_terms(emitter):
+    """(b) Define the audio-DSP / nutrition terms the name-matched vocab lacked. Returns n_new."""
+    n = 0
     for tid, name, parent, defn, (ref, url) in _NEW_TERMS:
-        emitter.emit(MetadataChangeProposalWrapper(entityUrn=term_urn(tid), aspect=GlossaryTermInfoClass(
-            definition=defn, name=name, parentNode=node_urn(parent), termSource="EXTERNAL",
-            sourceRef=ref, sourceUrl=url)))
-        n_new += 1
+        emitter.emit(MetadataChangeProposalWrapper(entityUrn=f"urn:li:glossaryTerm:{tid}",
+            aspect=GlossaryTermInfoClass(definition=defn, name=name, parentNode=f"urn:li:glossaryNode:{parent}",
+                                         termSource="EXTERNAL", sourceRef=ref, sourceUrl=url)))
+        n += 1
+    return n
 
+
+def _desc_matched_term(desc):
+    """First concept whose substring rule matches a field DESCRIPTION (first-match wins), else None."""
+    for sub, tid in _DESC_TERM_RULES:
+        if sub in desc:
+            return tid
+    return None
+
+
+def _attach_field_terms(fields, infos, stamp):
+    """Attach description-matched glossary terms to each field, mutating `infos` in place (read-merge, never
+    clobbering an existing term). Returns the number of fields touched."""
+    touched = 0
+    for f in fields:
+        info = infos.get(f.fieldPath)
+        desc = (info.description if info and info.description else None) or f.description
+        if not desc:
+            continue
+        tid = _desc_matched_term(desc)
+        if not tid:
+            continue
+        turn = f"urn:li:glossaryTerm:{tid}"
+        info = info or EditableSchemaFieldInfoClass(fieldPath=f.fieldPath)
+        existing = list(info.glossaryTerms.terms) if info.glossaryTerms else []
+        infos[f.fieldPath] = info
+        if any(a.urn == turn for a in existing):
+            continue
+        existing.append(GlossaryTermAssociationClass(urn=turn))
+        info.glossaryTerms = GlossaryTermsClass(terms=existing, auditStamp=stamp)
+        touched += 1
+    return touched
+
+
+def _attach_terms_by_description(emitter, stamp):
+    """(c) Walk every dataset's fields and attach a term wherever its DESCRIPTION matches a known concept —
+    the gap the name-attach leaves. Idempotent. Returns (n_fields_attached, n_datasets_touched)."""
     from datahub.ingestion.graph.client import DataHubGraph, DatahubClientConfig
     server = os.environ.get("DATAHUB_GMS_URL", "http://datahub-datahub-gms.data-mesh.svc.cluster.local:8080")
     token = os.environ.get("DATAHUB_GMS_TOKEN", "")
     graph = DataHubGraph(DatahubClientConfig(server=server, token=token))
-    now = int(time.time() * 1000)
-    stamp = AuditStampClass(time=now, actor="urn:li:corpuser:datahub")
-
-    def _term_for(desc):
-        for sub, tid in _DESC_TERM_RULES:
-            if sub in desc:
-                return tid
-        return None
-
     n_fields = n_ds = 0
     for urn in graph.get_urns_by_filter(entity_types=["dataset"]):
         sm = graph.get_aspect(urn, SchemaMetadataClass)
@@ -1607,24 +1664,7 @@ def emit_source_terms():
             continue
         esm = graph.get_aspect(urn, EditableSchemaMetadataClass)
         infos = {i.fieldPath: i for i in (esm.editableSchemaFieldInfo if esm else [])}
-        touched = 0
-        for f in sm.fields:
-            info = infos.get(f.fieldPath)
-            desc = (info.description if info and info.description else None) or f.description
-            if not desc:
-                continue
-            tid = _term_for(desc)
-            if not tid:
-                continue
-            turn = term_urn(tid)
-            info = info or EditableSchemaFieldInfoClass(fieldPath=f.fieldPath)
-            existing = list(info.glossaryTerms.terms) if info.glossaryTerms else []
-            infos[f.fieldPath] = info
-            if any(a.urn == turn for a in existing):
-                continue
-            existing.append(GlossaryTermAssociationClass(urn=turn))
-            info.glossaryTerms = GlossaryTermsClass(terms=existing, auditStamp=stamp)
-            touched += 1
+        touched = _attach_field_terms(sm.fields, infos, stamp)
         if not touched:
             continue
         emitter.emit(MetadataChangeProposalWrapper(entityUrn=urn, aspect=EditableSchemaMetadataClass(
@@ -1632,6 +1672,23 @@ def emit_source_terms():
             editableSchemaFieldInfo=list(infos.values()))))
         n_fields += touched
         n_ds += 1
+    return n_fields, n_ds
+
+
+def emit_source_terms():
+    """Surface 1b — external source citations + description-based term attach. (a) Re-emit the external-standard
+    terms as termSource=EXTERNAL with sourceRef/sourceUrl; (b) define the audio-DSP / nutrition terms the
+    name-matched vocab lacked; (c) walk every field and attach a term wherever its DESCRIPTION matches a known
+    concept. Read-merge (never clobber existing desc/tags/terms), idempotent.
+    Returns (n_cited, n_new, n_fields_attached, n_datasets_touched)."""
+    import time
+    from weyland_pipeline.mesh_vocabulary import TERMS
+    emitter = _gms_emitter()
+    by_id = {t[0]: t for t in TERMS}  # tid -> (tid, name, parent, defn, attach)
+    n_cited = _emit_cited_terms(emitter, by_id)
+    n_new = _emit_new_terms(emitter)
+    stamp = AuditStampClass(time=int(time.time() * 1000), actor="urn:li:corpuser:datahub")
+    n_fields, n_ds = _attach_terms_by_description(emitter, stamp)
     return n_cited, n_new, n_fields, n_ds
 
 
@@ -1946,6 +2003,71 @@ def emit_ge_assertions(results_path="/tmp/ge_results.json"):
     return n
 
 
+def _emit_assertion(emitter, ts, run_id, urn, check, passed, scope, extra):
+    """Emit one DataHub Assertion (info + a run result) for a dataset check, keyed on stable md5(urn:check) so
+    re-runs update the same assertion and append a fresh result. Reuses the emit_soda_assertions shape."""
+    import hashlib
+    from datahub.emitter.mce_builder import make_assertion_urn
+    from datahub.metadata.schema_classes import (
+        AssertionInfoClass, AssertionResultClass, AssertionResultTypeClass, AssertionRunEventClass,
+        AssertionRunStatusClass, AssertionStdAggregationClass, AssertionStdOperatorClass, AssertionTypeClass,
+        DatasetAssertionInfoClass,
+    )
+    aurn = make_assertion_urn(hashlib.md5(f"{urn}:{check}".encode(), usedforsecurity=False).hexdigest())
+    emitter.emit(MetadataChangeProposalWrapper(entityUrn=aurn, aspect=AssertionInfoClass(
+        type=AssertionTypeClass.DATASET,
+        datasetAssertion=DatasetAssertionInfoClass(
+            dataset=urn, scope=scope, fields=[],
+            aggregation=AssertionStdAggregationClass._NATIVE_,
+            operator=AssertionStdOperatorClass._NATIVE_, nativeType=check),
+        customProperties={"source": "dagster_asset_check", "check": check, **extra},
+        description=check)))
+    emitter.emit(MetadataChangeProposalWrapper(entityUrn=aurn, aspect=AssertionRunEventClass(
+        timestampMillis=ts, runId=run_id, assertionUrn=aurn, asserteeUrn=urn,
+        status=AssertionRunStatusClass.COMPLETE,
+        result=AssertionResultClass(
+            type=AssertionResultTypeClass.SUCCESS if passed else AssertionResultTypeClass.FAILURE))))
+
+
+def _emit_table_assertions(emitter, ts, run_id, key, status, schemas, nulls_md, domain, graph, valid, row_re):
+    """Emit the row / schema / all-null assertions for one `<table>/<name>` detail key, graph.exists-guarded so a
+    naming miss emits nothing rather than a phantom. Returns the number of assertions emitted (0 if the table
+    isn't cataloged as an iceberg dataset)."""
+    from datahub.metadata.schema_classes import DatasetAssertionScopeClass
+    from weyland_pipeline.assets.datasets_lib.writers import ice_ident
+    from weyland_pipeline.assets.datasets_lib.checks import ALL_NULL_ALLOWLIST
+    table, name = key.split("/", 1)
+    urn = _soda_dataset_urn(f"weyland_{domain}", ice_ident(table, name))
+    if not graph.exists(urn):
+        return 0
+    n = 0
+    status = status if isinstance(status, str) else ""
+    if not status.startswith("deferred"):  # a SkipTable isn't a quality failure
+        passed = status.startswith("ok") and not status.startswith("ok (0r")
+        meta = {"status": status[:200]}
+        m = row_re.match(status)
+        if m:
+            meta["row_count"], meta["column_count"] = m.group(1), m.group(2)
+        _emit_assertion(emitter, ts, run_id, urn, "no_error_non_empty", passed, DatasetAssertionScopeClass.DATASET_ROWS, meta)
+        n += 1
+    cols = schemas.get(key) or []
+    if cols:
+        bad = [c for c in cols if not valid.match(str(c))]
+        _emit_assertion(emitter, ts, run_id, urn, "valid_column_names", not bad, DatasetAssertionScopeClass.DATASET_SCHEMA,
+                        {"bad_columns": ",".join(bad)[:200], "column_count": str(len(cols))})
+        n += 1
+    col_nulls = nulls_md.get(key) or {}
+    m2 = row_re.match(status)
+    rc = int(m2.group(1)) if m2 else 0
+    if rc and col_nulls:  # B77 enrich: catch a 100%-null column (silent parse/source failure)
+        allow = ALL_NULL_ALLOWLIST.get(table, ())
+        all_null = sorted(c for c, nc in col_nulls.items() if nc >= rc and c not in allow)
+        _emit_assertion(emitter, ts, run_id, urn, "no_all_null_columns", not all_null, DatasetAssertionScopeClass.DATASET_COLUMN,
+                        {"all_null_columns": ",".join(all_null)[:400], "cols_with_nulls": str(len(col_nulls))})
+        n += 1
+    return n
+
+
 def emit_asset_check_assertions(instance=None):
     """B77 → DataHub: surface the Dagster `@asset_check` pre-hydration GATE (`build_asset_checks`) as per-silver-
     table DataHub **Assertions**, so the Assertions tab reflects the gate — not just Soda's mart scan. This is the
@@ -1963,53 +2085,21 @@ def emit_asset_check_assertions(instance=None):
     phantom. Reuses the `emit_soda_assertions` AssertionInfo/AssertionRunEvent shape + stable md5(urn:check) so
     re-runs update the same assertion and append a fresh run result. Domain list derives from `_SODA_DS_SCHEMA`
     (add a `weyland_<domain>` there and this covers it for free). Non-fatal — failures are logged, never raised."""
-    import hashlib
     import re
     import time
     from dagster import AssetKey, DagsterInstance
-    from datahub.emitter.mce_builder import make_assertion_urn
     from datahub.ingestion.graph.client import DataHubGraph, DatahubClientConfig
-    from datahub.metadata.schema_classes import (
-        AssertionInfoClass,
-        AssertionResultClass,
-        AssertionResultTypeClass,
-        AssertionRunEventClass,
-        AssertionRunStatusClass,
-        AssertionStdAggregationClass,
-        AssertionStdOperatorClass,
-        AssertionTypeClass,
-        DatasetAssertionInfoClass,
-        DatasetAssertionScopeClass,
-    )
-    from weyland_pipeline.assets.datasets_lib.writers import ice_ident
-    from weyland_pipeline.assets.datasets_lib.checks import ALL_NULL_ALLOWLIST
+    # Assertion construction + its datahub imports live in _emit_assertion / _emit_table_assertions (B162).
 
     emitter = _gms_emitter()
     server = os.environ.get("DATAHUB_GMS_URL", "http://datahub-datahub-gms.data-mesh.svc.cluster.local:8080")
     graph = DataHubGraph(DatahubClientConfig(server=server, token=os.environ.get("DATAHUB_GMS_TOKEN", "")))
     inst = instance if instance is not None else DagsterInstance.get()  # op passes context.instance; get() needs $DAGSTER_HOME (absent in user-code pod), so never rely on it
     valid = re.compile(r"^[A-Za-z0-9_]+$")
+    row_re = re.compile(r"ok \((\d+)r x (\d+)c\)")  # parse "ok (123r x 45c)" → row/column counts for assertion metadata
     ts = int(time.time() * 1000)
     run_id = f"assetcheck-{ts}"
     n = 0
-
-    def _assert(urn, check, passed, scope, extra):
-        aurn = make_assertion_urn(hashlib.md5(f"{urn}:{check}".encode(), usedforsecurity=False).hexdigest())
-        emitter.emit(MetadataChangeProposalWrapper(entityUrn=aurn, aspect=AssertionInfoClass(
-            type=AssertionTypeClass.DATASET,
-            datasetAssertion=DatasetAssertionInfoClass(
-                dataset=urn, scope=scope, fields=[],
-                aggregation=AssertionStdAggregationClass._NATIVE_,
-                operator=AssertionStdOperatorClass._NATIVE_, nativeType=check),
-            customProperties={"source": "dagster_asset_check", "check": check, **extra},
-            description=check)))
-        emitter.emit(MetadataChangeProposalWrapper(entityUrn=aurn, aspect=AssertionRunEventClass(
-            timestampMillis=ts, runId=run_id, assertionUrn=aurn, asserteeUrn=urn,
-            status=AssertionRunStatusClass.COMPLETE,
-            result=AssertionResultClass(
-                type=AssertionResultTypeClass.SUCCESS if passed else AssertionResultTypeClass.FAILURE))))
-
-    row_re = re.compile(r"ok \((\d+)r x (\d+)c\)")  # parse "ok (123r x 45c)" → row/column counts for assertion metadata
     domains = [k[len("weyland_"):] for k in _SODA_DS_SCHEMA if k.startswith("weyland_")]
     for domain in domains:
         # PARQUET (not iceberg): no inline-row cap, so deferred big tables still get a verdict. The assertion
@@ -2024,34 +2114,7 @@ def emit_asset_check_assertions(instance=None):
         for key, status in detail.items():
             if "/" not in key:
                 continue
-            table, name = key.split("/", 1)
-            urn = _soda_dataset_urn(f"weyland_{domain}", ice_ident(table, name))
-            if not graph.exists(urn):
-                continue  # table not cataloged as an iceberg dataset (naming miss / never hydrated) → no phantom
-            status = status if isinstance(status, str) else ""
-            if not status.startswith("deferred"):  # a SkipTable isn't a quality failure
-                passed = status.startswith("ok") and not status.startswith("ok (0r")
-                meta = {"status": status[:200]}
-                m = row_re.match(status)
-                if m:
-                    meta["row_count"], meta["column_count"] = m.group(1), m.group(2)
-                _assert(urn, "no_error_non_empty", passed, DatasetAssertionScopeClass.DATASET_ROWS, meta)
-                n += 1
-            cols = schemas.get(key) or []
-            if cols:
-                bad = [c for c in cols if not valid.match(str(c))]
-                _assert(urn, "valid_column_names", not bad, DatasetAssertionScopeClass.DATASET_SCHEMA,
-                        {"bad_columns": ",".join(bad)[:200], "column_count": str(len(cols))})
-                n += 1
-            col_nulls = nulls_md.get(key) or {}
-            m2 = row_re.match(status)
-            rc = int(m2.group(1)) if m2 else 0
-            if rc and col_nulls:  # B77 enrich: catch a 100%-null column (silent parse/source failure)
-                allow = ALL_NULL_ALLOWLIST.get(table, ())
-                all_null = sorted(c for c, nc in col_nulls.items() if nc >= rc and c not in allow)
-                _assert(urn, "no_all_null_columns", not all_null, DatasetAssertionScopeClass.DATASET_COLUMN,
-                        {"all_null_columns": ",".join(all_null)[:400], "cols_with_nulls": str(len(col_nulls))})
-                n += 1
+            n += _emit_table_assertions(emitter, ts, run_id, key, status, schemas, nulls_md, domain, graph, valid, row_re)
     return n
 
 
@@ -2272,22 +2335,40 @@ def emit_tag_assignments():
     return n
 
 
+def _resolve_field_doc(leaf, exact, prefix, suffix):
+    """Description for one column leaf from a source field dictionary: exact (spaces→underscores too), else the
+    longest matching prefix rule, else a suffix rule (`*_100g` etc.). None when nothing matches."""
+    lu = leaf.replace(" ", "_")
+    return (exact.get(leaf) or exact.get(lu)
+            or next((d for p, d in prefix if lu.startswith(p)), None)
+            or next((d for suf, d in suffix.items() if leaf.endswith(suf)), None))
+
+
+def _apply_field_docs(fields, infos, exact, prefix, suffix):
+    """Attach a source-dictionary description to each field that lacks one (mutates `infos`, never clobbering an
+    existing description). Returns the number of fields described."""
+    touched = 0
+    for f in fields:
+        desc = _resolve_field_doc(_field_leaf(f.fieldPath), exact, prefix, suffix)
+        if not desc:
+            continue
+        info = infos.get(f.fieldPath) or EditableSchemaFieldInfoClass(fieldPath=f.fieldPath)
+        if not info.description:
+            info.description = desc
+            infos[f.fieldPath] = info
+            touched += 1
+    return touched
+
+
 def emit_field_docs():
     """#3 real field meaning — attach per-column descriptions transcribed from each dataset's SOURCE field
     dictionary (datasets_field_docs.FIELD_DOCS). Match a dataset by name substring, describe each field by its
-    exact column doc or a suffix rule (`*_100g` etc.), and attach to EVERY store copy (read-merge, never clobbers
-    an existing description). This is the meaning that pattern-classification can't give the domain-specific
-    columns. Returns (datasets touched, fields described)."""
+    exact column doc or a prefix/suffix rule (`*_100g` etc.), and attach to EVERY store copy (read-merge, never
+    clobbers an existing description). This is the meaning that pattern-classification can't give the
+    domain-specific columns. Returns (datasets touched, fields described)."""
     import time
-
     from datahub.ingestion.graph.client import DataHubGraph, DatahubClientConfig
-    from weyland_pipeline.datasets_field_docs import (
-        FIELD_DOCS,
-        FIELD_DOCS_PREFIX,
-        FIELD_DOCS_SUFFIX,
-        GLOBAL_COLS,
-    )
-
+    from weyland_pipeline.datasets_field_docs import FIELD_DOCS, FIELD_DOCS_PREFIX, FIELD_DOCS_SUFFIX, GLOBAL_COLS
     emitter = _gms_emitter()
     server = os.environ.get("DATAHUB_GMS_URL", "http://datahub-datahub-gms.data-mesh.svc.cluster.local:8080")
     token = os.environ.get("DATAHUB_GMS_TOKEN", "")
@@ -2307,20 +2388,7 @@ def emit_field_docs():
             continue
         esm = graph.get_aspect(urn, EditableSchemaMetadataClass)
         infos = {i.fieldPath: i for i in (esm.editableSchemaFieldInfo if esm else [])}
-        touched = 0
-        for f in sm.fields:
-            leaf = _field_leaf(f.fieldPath)
-            lu = leaf.replace(" ", "_")
-            desc = (exact.get(leaf) or exact.get(lu)
-                    or next((d for p, d in prefix if lu.startswith(p)), None)
-                    or next((d for suf, d in suffix.items() if leaf.endswith(suf)), None))
-            if not desc:
-                continue
-            info = infos.get(f.fieldPath) or EditableSchemaFieldInfoClass(fieldPath=f.fieldPath)
-            if not info.description:
-                info.description = desc
-                infos[f.fieldPath] = info
-                touched += 1
+        touched = _apply_field_docs(sm.fields, infos, exact, prefix, suffix)
         if touched:
             emitter.emit(MetadataChangeProposalWrapper(entityUrn=urn, aspect=EditableSchemaMetadataClass(
                 created=(esm.created if esm else stamp), lastModified=stamp,

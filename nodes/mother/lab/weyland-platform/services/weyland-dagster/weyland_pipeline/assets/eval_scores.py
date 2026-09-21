@@ -90,6 +90,29 @@ def _judge(client: httpx.Client, judge_model: str, question: str, contexts, answ
         return scores
 
 
+def _persist_scores(postgres, result_id, judge_model, scores):
+    """Upsert each metric's score for one (result, judge) pair — idempotent on the (result_id, metric, judge)
+    unique key, so a re-run fills gaps without duplicating."""
+    with postgres.get_connection() as conn:
+        with conn.cursor() as cur:
+            for metric, score in scores.items():
+                cur.execute(
+                    "INSERT INTO eval_scores (result_id, metric, judge, score) VALUES (%s, %s, %s, %s) "
+                    "ON CONFLICT (result_id, metric, judge) DO UPDATE SET score = EXCLUDED.score",
+                    (result_id, metric, judge_model, score),
+                )
+
+
+def _log_judge_error(log, judge_model, result_id, exc, errors_logged):
+    """Log the first few judge failures per run (enough to diagnose, not enough to flood a run with identical
+    tracebacks). Returns the new count so the caller keeps the running total."""
+    if errors_logged < 5:
+        log.warning(f"judge {judge_model} failed on result {result_id}: "
+                    f"{type(exc).__name__}: {str(exc)[:300]}")
+        errors_logged += 1
+    return errors_logged
+
+
 @asset(
     group_name="eval",
     description="Judge-panel LLM-as-judge scoring of the latest run's eval_results -> eval_scores.",
@@ -133,24 +156,12 @@ def eval_scores(postgres: PostgresResource) -> Output[dict]:
                 try:
                     scores = _judge(client, judge_model, question, contexts, answer)
                 except Exception as exc:
-                    # B96 — LOG the error. This except used to swallow it entirely, so a run where 351 of 360
-                    # judge calls failed still reported SUCCESS in 85s and wrote a hollow leaderboard
-                    # (2026-07-21, run 8). Log the first few per judge — enough to diagnose, not enough to
-                    # flood a run with 120 identical tracebacks.
-                    if errors_logged < 5:
-                        log.warning(f"judge {judge_model} failed on result {result_id}: "
-                                    f"{type(exc).__name__}: {str(exc)[:300]}")
-                        errors_logged += 1
+                    # B96 — LOG the error (this except used to swallow it entirely; a run where 351/360 judge
+                    # calls failed once reported SUCCESS + a hollow leaderboard, 2026-07-21 run 8).
+                    errors_logged = _log_judge_error(log, judge_model, result_id, exc, errors_logged)
                     failed += 1
                     continue
-                with postgres.get_connection() as conn:
-                    with conn.cursor() as cur:
-                        for metric, score in scores.items():
-                            cur.execute(
-                                "INSERT INTO eval_scores (result_id, metric, judge, score) VALUES (%s, %s, %s, %s) "
-                                "ON CONFLICT (result_id, metric, judge) DO UPDATE SET score = EXCLUDED.score",
-                                (result_id, metric, judge_model, score),
-                            )
+                _persist_scores(postgres, result_id, judge_model, scores)
                 scored += 1
                 if scored % 10 == 0:
                     log.info(f"  scored {scored} pairs so far | {failed} failed")

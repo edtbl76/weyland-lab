@@ -17,6 +17,45 @@ def _group_by_source(embeddings: list[dict]) -> dict:
     return grouped
 
 
+def _write_source(cur, source_path, doc_chunks, meta, incoming_hash):
+    """Upsert one document row (ON CONFLICT by source_path) and replace its chunks (delete + insert each with
+    its embedding). Returns the number of chunks written."""
+    cur.execute(
+        """
+        INSERT INTO rag_documents (name, source_type, source_path, content_hash, metadata)
+        VALUES (%s, %s, %s, %s, %s)
+        ON CONFLICT (source_path) DO UPDATE SET
+            name = EXCLUDED.name,
+            source_type = EXCLUDED.source_type,
+            content_hash = EXCLUDED.content_hash,
+            updated_at = now()
+        RETURNING id
+        """,
+        (meta["source_name"], meta["kind"], source_path, incoming_hash, json.dumps({})),
+    )
+    document_id = cur.fetchone()[0]
+
+    cur.execute("DELETE FROM rag_chunks WHERE document_id = %s", (document_id,))
+
+    for chunk in doc_chunks:
+        metadata = {"title": chunk["chunk_title"]} if chunk["chunk_title"] else {}
+        cur.execute(
+            """
+            INSERT INTO rag_chunks (document_id, chunk_index, content, embedding, metadata)
+            VALUES (%s, %s, %s, %s::vector, %s)
+            """,
+            (
+                document_id,
+                chunk["chunk_index"],
+                chunk["content"],
+                _to_vector(chunk["embedding"]),
+                json.dumps(metadata),
+            ),
+        )
+
+    return len(doc_chunks)
+
+
 @asset(description="Upsert each changed document and write its chunks+embeddings to pgvector. Prunes orphan documents whose source_path is no longer collected.")
 def pgvector_write(
     source_document: list[dict],
@@ -38,45 +77,9 @@ def pgvector_write(
             if embeddings:
                 for source_path, doc_chunks in grouped.items():
                     meta = meta_by_path[source_path]
-                    source_name = meta["source_name"]
-                    source_type = meta["kind"]  # "markdown" | "code"
                     incoming_hash = hash_check[source_path]["incoming_hash"]
-
-                    cur.execute(
-                        """
-                        INSERT INTO rag_documents (name, source_type, source_path, content_hash, metadata)
-                        VALUES (%s, %s, %s, %s, %s)
-                        ON CONFLICT (source_path) DO UPDATE SET
-                            name = EXCLUDED.name,
-                            source_type = EXCLUDED.source_type,
-                            content_hash = EXCLUDED.content_hash,
-                            updated_at = now()
-                        RETURNING id
-                        """,
-                        (source_name, source_type, source_path, incoming_hash, json.dumps({})),
-                    )
-                    document_id = cur.fetchone()[0]
-
-                    cur.execute("DELETE FROM rag_chunks WHERE document_id = %s", (document_id,))
-
-                    for chunk in doc_chunks:
-                        metadata = {"title": chunk["chunk_title"]} if chunk["chunk_title"] else {}
-                        cur.execute(
-                            """
-                            INSERT INTO rag_chunks (document_id, chunk_index, content, embedding, metadata)
-                            VALUES (%s, %s, %s, %s::vector, %s)
-                            """,
-                            (
-                                document_id,
-                                chunk["chunk_index"],
-                                chunk["content"],
-                                _to_vector(chunk["embedding"]),
-                                json.dumps(metadata),
-                            ),
-                        )
-
                     documents_written += 1
-                    chunks_written += len(doc_chunks)
+                    chunks_written += _write_source(cur, source_path, doc_chunks, meta, incoming_hash)
 
             # Orphan prune: runs regardless of changes, but ONLY when sources were
             # actually collected (empty set => bad run, skip to avoid wiping the store).

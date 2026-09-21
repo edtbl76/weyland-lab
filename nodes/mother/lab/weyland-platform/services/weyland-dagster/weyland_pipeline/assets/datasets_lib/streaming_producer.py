@@ -45,11 +45,30 @@ def _ensure_topic(bootstrap, topic):
             raise
 
 
+def _produce_rows(pf, producer, ser, str_cols, topic, key_col, cap, n):
+    """Produce every row of one parquet file to `topic` as an Avro event — str-coercing `str_cols`, keyed by
+    `key_col` — polling periodically and stopping at `cap`. Returns (new_total_n, hit_cap)."""
+    from confluent_kafka.serialization import MessageField, SerializationContext
+    for batch in pf.iter_batches(batch_size=10_000):
+        for row in batch.to_pylist():
+            for c in str_cols:
+                if row.get(c) is not None:
+                    row[c] = str(row[c])
+            key = str(row[key_col]).encode() if key_col and row.get(key_col) is not None else None
+            producer.produce(topic=topic, key=key,
+                             value=ser(row, SerializationContext(topic, MessageField.VALUE)))
+            n += 1
+            if n % _POLL_EVERY == 0:
+                producer.poll(0)
+            if cap and n >= cap:
+                return n, True
+    return n, False
+
+
 def _produce_dataset(cfg, dataset, spec, log) -> dict:
     from confluent_kafka import Producer
     from confluent_kafka.schema_registry import SchemaRegistryClient
     from confluent_kafka.schema_registry.avro import AvroSerializer
-    from confluent_kafka.serialization import MessageField, SerializationContext
 
     bootstrap = os.environ["REDPANDA_BOOTSTRAP"]
     sr = SchemaRegistryClient({"url": os.environ["SCHEMA_REGISTRY_URL"]})
@@ -77,23 +96,7 @@ def _produce_dataset(cfg, dataset, spec, log) -> dict:
                 schema_str, str_cols = _avro_schema(pf.schema_arrow, f"datasets_{cfg.domain}_{dataset}_record")
                 ser = AvroSerializer(sr, schema_str, lambda obj, ctx: obj)
                 log.info(f"{topic}: registering Avro schema ({len(pf.schema_arrow.names)} fields)")
-            done = False
-            for batch in pf.iter_batches(batch_size=10_000):
-                for row in batch.to_pylist():
-                    for c in str_cols:
-                        if row.get(c) is not None:
-                            row[c] = str(row[c])
-                    key = str(row[key_col]).encode() if key_col and row.get(key_col) is not None else None
-                    producer.produce(topic=topic, key=key,
-                                     value=ser(row, SerializationContext(topic, MessageField.VALUE)))
-                    n += 1
-                    if n % _POLL_EVERY == 0:
-                        producer.poll(0)
-                    if cap and n >= cap:
-                        done = True
-                        break
-                if done:
-                    break
+            n, done = _produce_rows(pf, producer, ser, str_cols, topic, key_col, cap, n)
             if done:
                 break
         finally:
