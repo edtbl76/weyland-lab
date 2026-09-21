@@ -153,24 +153,29 @@ def _gather_functions(files):
     return per_lang, nesting_maps
 
 
+_Pop = namedtuple("_Pop", "nloc_mean ccn_mean nloc_sd ccn_sd n")
+
+
 def _population_stats(rows):
-    """(nloc_mean, ccn_mean, nloc_sd, ccn_sd, population) for one language's functions."""
+    """Per-language population stats (means + population stdevs + count) for the stage-3 z-scores."""
     nlocs = [fn.nloc for _, fn in rows]
     ccns = [fn.cyclomatic_complexity for _, fn in rows]
-    pop = len(rows)
-    return (statistics.mean(nlocs) if nlocs else 0.0,
-            statistics.mean(ccns) if ccns else 0.0,
-            statistics.pstdev(nlocs) if pop > 1 else 0.0,
-            statistics.pstdev(ccns) if pop > 1 else 0.0,
-            pop)
+    n = len(rows)
+    return _Pop(
+        nloc_mean=statistics.mean(nlocs) if nlocs else 0.0,
+        ccn_mean=statistics.mean(ccns) if ccns else 0.0,
+        nloc_sd=statistics.pstdev(nlocs) if n > 1 else 0.0,
+        ccn_sd=statistics.pstdev(ccns) if n > 1 else 0.0,
+        n=n,
+    )
 
 
-def _zscores(fn, nloc_mean, ccn_mean, nloc_sd, ccn_sd, pop, cfg):
-    """Stage-3 z-scores of a function against its language population, or (None, None) when the population is
-    too small (< min_population) or has no spread — so a small codebase never manufactures an outlier."""
-    usable = pop >= cfg.min_population
-    zloc = (fn.nloc - nloc_mean) / nloc_sd if (nloc_sd and usable) else None
-    zccn = (fn.cyclomatic_complexity - ccn_mean) / ccn_sd if (ccn_sd and usable) else None
+def _zscores(fn, pop, cfg):
+    """Stage-3 z-scores of a function against its language population `pop`, or (None, None) when the population
+    is too small (< min_population) or has no spread — so a small codebase never manufactures an outlier."""
+    usable = pop.n >= cfg.min_population
+    zloc = (fn.nloc - pop.nloc_mean) / pop.nloc_sd if (pop.nloc_sd and usable) else None
+    zccn = (fn.cyclomatic_complexity - pop.ccn_mean) / pop.ccn_sd if (pop.ccn_sd and usable) else None
     return zloc, zccn
 
 
@@ -193,10 +198,10 @@ def _numeric_findings(files, cfg):
     per_lang, nesting_maps = _gather_functions(files)
     stats, findings = {}, []
     for lang, rows in per_lang.items():
-        nloc_mean, ccn_mean, nloc_sd, ccn_sd, pop = _population_stats(rows)
-        stats[lang] = {"functions": pop, "nloc_mean": round(nloc_mean, 1), "ccn_mean": round(ccn_mean, 1)}
+        pop = _population_stats(rows)
+        stats[lang] = {"functions": pop.n, "nloc_mean": round(pop.nloc_mean, 1), "ccn_mean": round(pop.ccn_mean, 1)}
         for path, fn in rows:
-            zloc, zccn = _zscores(fn, nloc_mean, ccn_mean, nloc_sd, ccn_sd, pop, cfg)
+            zloc, zccn = _zscores(fn, pop, cfg)
             nesting = nesting_maps.get(path, {}).get(fn.start_line) if lang == "python" else None
             f = _finding_for(path, fn, lang, cfg, nesting, zloc, zccn)
             if f is not None:
