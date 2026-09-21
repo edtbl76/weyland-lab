@@ -5,6 +5,12 @@
 # fully tested — exactly the reason coverage-ratchet.sh already EXCLUDES shell orchestrators ("line-coverage
 # of an orchestrator tested by stubbing externals measures almost nothing"). Omit it here for the same reason;
 # its real tests live in the shell-test lane.
+# complexity_triage.py (B162) is exercised by scripts/tests/test_complexity_triage.py, which runs in the
+# TEST lane where run-lang-tests installs requirements-test.txt (lizard + tree-sitter). This RATCHET lane
+# does not install those analysis deps, so the module's top-level `import lizard` is unavailable here — the
+# test importorskips and the file reports 0%, dragging the lane down while being fully tested elsewhere.
+# Same reasoning as machine_inventory.py above: tested in a lane that isn't this one.
 [run]
 omit =
     machine_inventory.py
+    lib/complexity_triage.py

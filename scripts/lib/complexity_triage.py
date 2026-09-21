@@ -1,0 +1,358 @@
+"""B162 complexity-triage engine — how the lab reads complexity, made machine-checkable.
+
+Length only NOMINATES a function; the verdict comes from STRUCTURE (deep vs tangled) and from how the
+function compares to the rest of THIS codebase (stage 3, self-calibrating). The inverse smell — shallow
+pass-through / over-split delegation — is caught in the other direction. Every threshold is a `Config`
+field, so the check is pragmatically adjustable rather than a hardcoded line count.
+
+Ousterhout's own principle applied to the tool: a simple interface (`analyze`) over substantial
+implementation. Numeric metrics come from `lizard` (uniform across ~20 languages, incl. the Flink Java);
+the structural shapes that a metric can't see (delegation / shallow wrappers, decorator-awareness) come
+from `tree-sitter` (Python first; Java/others extend the same two functions).
+"""
+from __future__ import annotations
+
+import os
+import statistics
+from dataclasses import dataclass, field
+
+import lizard
+from tree_sitter_language_pack import get_parser
+
+# --- verdicts -------------------------------------------------------------------------------------
+DEEP = "DEEP"                     # long but a clean signature over sequential work — acceptable
+TANGLED = "TANGLED"              # long AND dense/nested control flow — stop and fix
+OUTLIER_REVIEW = "OUTLIER_REVIEW"  # long AND unusual for this codebase — a human glance
+SHALLOW = "SHALLOW"             # pass-through / over-split delegation — the inverse smell
+
+_EXT_LANG = {
+    ".py": "python", ".java": "java", ".js": "javascript", ".jsx": "javascript",
+    ".ts": "typescript", ".tsx": "typescript", ".go": "go", ".rs": "rust", ".rb": "ruby",
+    ".php": "php", ".scala": "scala", ".swift": "swift", ".kt": "kotlin", ".lua": "lua",
+    ".c": "c", ".h": "c", ".cc": "cpp", ".cpp": "cpp", ".hpp": "cpp", ".cs": "csharp",
+}
+_SKIP_DIRS = {".git", ".venv", "venv", "node_modules", "__pycache__", ".mypy_cache", ".pytest_cache"}
+
+
+@dataclass
+class Config:
+    # stage 1 — nomination (length only nominates; it is never a verdict on its own)
+    length_warn: int = 70          # physical LOC that nominates a function for review
+    nloc_warn: int = 60            # logical LOC that also nominates
+    # stage 2 — structure (deep vs tangled), from cyclomatic density + nesting
+    density_deep: float = 0.15     # ccn/nloc at or below this (+ shallow nesting) => DEEP
+    density_tangled: float = 0.28  # ccn/nloc at or above this => TANGLED
+    nesting_ok: int = 3
+    nesting_bad: int = 5
+    ccn_hard: int = 20             # absolute cyclomatic that is tangled regardless of length
+    # stage 3 — codebase-relative outlier (self-calibrating: "unusual for how WE write")
+    z_cut: float = 2.5
+    min_population: int = 20       # need this many functions in a language before z-scores mean anything
+    # inverse smell — shallow / delegation duplication
+    shallow_max_loc: int = 5
+    delegation_dup_min: int = 3    # N sibling modules delegating to the same target => a finding
+    # framework decorators whose small functions are idiomatic, never classitis
+    exclude_decorators: tuple = (
+        "job", "op", "asset", "sensor", "schedule", "graph", "resource", "multi_asset",  # dagster
+        "get", "post", "put", "delete", "patch", "route", "websocket",                   # fastapi/flask
+        "fixture", "task", "test", "command", "callback",                                # pytest/celery/click
+    )
+
+    @classmethod
+    def from_file(cls, path):
+        """Load the adjustable knobs from a JSON file; unknown keys are ignored, absent keys keep defaults."""
+        import json
+        base = cls()
+        data = json.load(open(path, encoding="utf-8"))
+        for key, value in data.items():
+            if hasattr(base, key) and key != "from_file":
+                setattr(base, key, tuple(value) if key == "exclude_decorators" else value)
+        return base
+
+
+@dataclass
+class Finding:
+    path: str
+    line: int
+    name: str
+    language: str
+    verdict: str
+    confidence: str        # low | medium | high
+    reason: str
+    metrics: dict = field(default_factory=dict)
+
+
+@dataclass
+class Report:
+    findings: list
+    stats: dict            # language -> {"functions": n, "nloc_mean": .., "ccn_mean": ..}
+
+    def counts(self) -> dict:
+        out = {}
+        for f in self.findings:
+            out[f.verdict] = out.get(f.verdict, 0) + 1
+        return out
+
+
+# --- public interface -----------------------------------------------------------------------------
+def analyze(paths, config: Config = None) -> Report:
+    """Triage every function under `paths`. The one entry point; everything else is implementation."""
+    cfg = config or Config()
+    files = list(_iter_code_files(paths))
+    findings, stats = _numeric_findings(files, cfg)
+    findings += _shallow_findings([f for f in files if f.endswith(".py")], cfg)
+    return Report(findings=findings, stats=stats)
+
+
+# --- file discovery -------------------------------------------------------------------------------
+def _iter_code_files(paths):
+    seen = set()
+    for p in paths:
+        if os.path.isfile(p):
+            if os.path.splitext(p)[1] in _EXT_LANG and p not in seen:
+                seen.add(p)
+                yield p
+            continue
+        for dirpath, dirnames, filenames in os.walk(p):
+            dirnames[:] = [d for d in dirnames if d not in _SKIP_DIRS]
+            for fn in filenames:
+                if os.path.splitext(fn)[1] in _EXT_LANG:
+                    full = os.path.join(dirpath, fn)
+                    if full not in seen:
+                        seen.add(full)
+                        yield full
+
+
+def _lang_of(path):
+    return _EXT_LANG.get(os.path.splitext(path)[1], "other")
+
+
+# --- stages 1-3: numeric metrics (lizard) ---------------------------------------------------------
+def _numeric_findings(files, cfg):
+    # First pass: gather every function's metrics, grouped by language for the stage-3 population.
+    # For Python we also compute true max-nesting from the AST (lizard can't, honestly).
+    per_lang = {}          # language -> list of (path, fn)
+    nesting_maps = {}      # path -> {def-line: depth} (python only)
+    for path in files:
+        try:
+            info = lizard.analyze_file(path)
+        except Exception:
+            continue
+        lang = _lang_of(path)
+        per_lang.setdefault(lang, []).extend((path, fn) for fn in info.function_list)
+        if lang == "python":
+            try:
+                nesting_maps[path] = _python_nesting_map(open(path, "rb").read())
+            except OSError:
+                nesting_maps[path] = {}
+
+    stats, findings = {}, []
+    for lang, rows in per_lang.items():
+        nlocs = [fn.nloc for _, fn in rows]
+        ccns = [fn.cyclomatic_complexity for _, fn in rows]
+        pop = len(rows)
+        nloc_mean = statistics.mean(nlocs) if nlocs else 0.0
+        ccn_mean = statistics.mean(ccns) if ccns else 0.0
+        nloc_sd = statistics.pstdev(nlocs) if pop > 1 else 0.0
+        ccn_sd = statistics.pstdev(ccns) if pop > 1 else 0.0
+        stats[lang] = {"functions": pop, "nloc_mean": round(nloc_mean, 1), "ccn_mean": round(ccn_mean, 1)}
+
+        for path, fn in rows:
+            zloc = (fn.nloc - nloc_mean) / nloc_sd if (nloc_sd and pop >= cfg.min_population) else None
+            zccn = (fn.cyclomatic_complexity - ccn_mean) / ccn_sd if (ccn_sd and pop >= cfg.min_population) else None
+            nesting = nesting_maps.get(path, {}).get(fn.start_line) if lang == "python" else None
+            verdict = _numeric_verdict(fn, cfg, zloc, zccn, nesting)
+            if verdict is None:
+                continue
+            v, conf, reason = verdict
+            findings.append(Finding(
+                path=path, line=fn.start_line, name=fn.name, language=lang,
+                verdict=v, confidence=conf, reason=reason,
+                metrics={"nloc": fn.nloc, "loc": fn.length, "ccn": fn.cyclomatic_complexity,
+                         "nesting": nesting,
+                         "z_loc": round(zloc, 1) if zloc is not None else None,
+                         "z_ccn": round(zccn, 1) if zccn is not None else None},
+            ))
+    return findings, stats
+
+
+def _numeric_verdict(fn, cfg, zloc, zccn, nesting):
+    nloc = fn.nloc or 1
+    ccn = fn.cyclomatic_complexity
+    density = ccn / nloc
+    deep_nesting = nesting is not None and nesting >= cfg.nesting_bad
+    ok_nesting = nesting is None or nesting <= cfg.nesting_ok
+    nz = nesting if nesting is not None else "n/a"
+    nominated = fn.length > cfg.length_warn or nloc > cfg.nloc_warn
+    outlier = (zloc is not None and zloc >= cfg.z_cut) or (zccn is not None and zccn >= cfg.z_cut)
+    tangled = density >= cfg.density_tangled or deep_nesting or ccn >= cfg.ccn_hard
+    deep = density <= cfg.density_deep and ok_nesting
+
+    # TANGLED regardless of nomination when the cyclomatic count is hard-high; otherwise length must
+    # have nominated it. Confidence rises with the number of independent signals that agree.
+    if tangled and (nominated or ccn >= cfg.ccn_hard):
+        signals = sum([density >= cfg.density_tangled, deep_nesting,
+                       ccn >= cfg.ccn_hard, bool(outlier)])
+        conf = "high" if signals >= 3 else "medium" if signals == 2 else "low"
+        tail = " + codebase outlier" if outlier else ""
+        return TANGLED, conf, f"ccn={ccn}, nloc={nloc}, density={density:.2f}, nesting={nz}{tail}"
+
+    if not nominated:
+        return None
+
+    # Stage 3 elevates a codebase-outlier to a human glance even when it looks locally clean — being
+    # unusual for how this codebase writes is itself the signal the user asked for.
+    if outlier:
+        z = ", ".join(s for s in (f"z_loc={zloc:.1f}" if zloc is not None else "",
+                                  f"z_ccn={zccn:.1f}" if zccn is not None else "") if s)
+        return OUTLIER_REVIEW, "medium", f"long and unusual for this codebase ({z}); nloc={nloc}, ccn={ccn}"
+
+    if deep:
+        return DEEP, "low", f"long but shallow control flow (ccn={ccn}/nloc={nloc}, nesting={nz}) — a deep function"
+
+    return OUTLIER_REVIEW, "low", f"long (nloc={nloc}) with moderate structure (ccn={ccn}, nesting={nz})"
+
+
+# --- inverse smell: shallow / delegation duplication (tree-sitter, Python first) -------------------
+def _shallow_findings(py_files, cfg):
+    parser = get_parser("python")
+    # (dir, callee_base) -> list of (path, line, fn_name)
+    delegations = {}
+    for path in py_files:
+        try:
+            src = open(path, "rb").read()
+        except OSError:
+            continue
+        root = parser.parse(src).root_node
+        for fn in _iter_nodes(root, "function_definition"):
+            base = _passthrough_target(fn, cfg)
+            if base is None:
+                continue
+            key = (os.path.dirname(path), base)
+            delegations.setdefault(key, []).append((path, fn.start_point[0] + 1,
+                                                     fn.child_by_field_name("name").text.decode()))
+
+    findings = []
+    for (dirpath, base), sites in delegations.items():
+        files = {p for p, _, _ in sites}
+        if len(files) < cfg.delegation_dup_min:
+            continue
+        p0, line0, _ = sorted(sites)[0]
+        names = ", ".join(sorted(os.path.basename(p) for p in files))
+        findings.append(Finding(
+            path=p0, line=line0, name=f"<delegation:{base}>", language="python",
+            verdict=SHALLOW, confidence="medium",
+            reason=f"{len(files)} sibling modules delegate to {base}() — shallow / over-split duplication ({names})",
+            metrics={"siblings": len(files), "target": base},
+        ))
+    return findings
+
+
+def _passthrough_target(fn, cfg):
+    """Return the callee's base name if `fn` is an excludable-free pass-through, else None."""
+    name = fn.child_by_field_name("name").text.decode()
+    if name.startswith("_"):                      # private/dunder — not a public interface smell
+        return None
+    if (fn.end_point[0] - fn.start_point[0] + 1) > cfg.shallow_max_loc:
+        return None
+    if _has_excluded_decorator(fn, cfg):          # dagster @op/@job, FastAPI routes, etc. are idiomatic
+        return None
+    body = fn.child_by_field_name("body")
+    stmts = [c for c in body.named_children]
+    if len(stmts) != 1:
+        return None
+    stmt = stmts[0]
+    if stmt.type not in ("return_statement", "expression_statement"):
+        return None
+    call = next((c for c in stmt.named_children if c.type == "call"), None)
+    if call is None:
+        return None
+    callee = call.child_by_field_name("function")
+    if callee is None:
+        return None
+    return callee.text.decode().split(".")[-1]
+
+
+def _has_excluded_decorator(fn, cfg):
+    parent = fn.parent
+    if parent is None or parent.type != "decorated_definition":
+        return False
+    for c in parent.children:
+        if c.type != "decorator":
+            continue
+        text = c.text.decode().lstrip("@")
+        callable_part = text.split("(")[0]        # "app.get('/x')" -> "app.get"
+        base = callable_part.split(".")[-1].strip()  # -> "get"
+        if base in cfg.exclude_decorators:
+            return True
+    return False
+
+
+def _iter_nodes(root, node_type):
+    stack = [root]
+    while stack:
+        n = stack.pop()
+        if n.type == node_type:
+            yield n
+        stack.extend(n.children)
+
+
+# --- true max control-nesting (tree-sitter) -------------------------------------------------------
+# lizard's 'nd' extension inflates on flat sibling control structures (10 flat `if`s report depth 10),
+# so it double-counts what CCN already measures. We compute real max depth from the AST instead — the
+# one structural signal density can miss: a long, low-density function hiding a deep pyramid.
+_CONTROL_PY = {"if_statement", "for_statement", "while_statement", "with_statement",
+               "try_statement", "match_statement"}
+
+
+def _max_nesting_depth(node, depth):
+    best = depth
+    for c in node.children:
+        d = depth + 1 if c.type in _CONTROL_PY else depth
+        best = max(best, _max_nesting_depth(c, d))
+    return best
+
+
+def _python_nesting_map(src):
+    """{def-line (1-based) -> max control-nesting depth} for every function in a Python source."""
+    root = get_parser("python").parse(src).root_node
+    out = {}
+    for fn in _iter_nodes(root, "function_definition"):
+        body = fn.child_by_field_name("body")
+        out[fn.start_point[0] + 1] = _max_nesting_depth(body, 0) if body is not None else 0
+    return out
+
+
+# --- CLI (advisory report; the shell lane calls this) ---------------------------------------------
+def main(argv=None):
+    import argparse
+    import json
+    ap = argparse.ArgumentParser(description="B162 complexity triage — deep vs tangled vs shallow.")
+    ap.add_argument("paths", nargs="+", help="files or directories to analyze")
+    ap.add_argument("--config", help="JSON file of threshold overrides (the adjustable knobs)")
+    ap.add_argument("--json", action="store_true", help="emit findings as JSON")
+    ap.add_argument("--show-deep", action="store_true", help="include DEEP (acceptable) findings")
+    args = ap.parse_args(argv)
+
+    cfg = Config.from_file(args.config) if args.config and os.path.exists(args.config) else Config()
+    report = analyze(args.paths, cfg)
+    findings = [f for f in report.findings if args.show_deep or f.verdict != DEEP]
+    order = {TANGLED: 0, SHALLOW: 1, OUTLIER_REVIEW: 2, DEEP: 3}
+    findings.sort(key=lambda f: (order.get(f.verdict, 9), -f.metrics.get("nloc", 0)))
+
+    if args.json:
+        print(json.dumps({"counts": report.counts(), "stats": report.stats,
+                          "findings": [vars(f) for f in findings]}, indent=2))
+        return 0
+
+    c = report.counts()
+    print(f"complexity triage: {c.get(TANGLED,0)} TANGLED, {c.get(SHALLOW,0)} SHALLOW, "
+          f"{c.get(OUTLIER_REVIEW,0)} OUTLIER-REVIEW, {c.get(DEEP,0)} DEEP (advisory)")
+    for f in findings:
+        print(f"  {f.verdict:14s} {f.confidence:6s} {f.path}:{f.line}  {f.name}")
+        print(f"                        {f.reason}")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

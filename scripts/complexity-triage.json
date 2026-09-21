@@ -1,0 +1,18 @@
+{
+  "_comment": "B162 complexity-triage knobs (docs/concepts/reading-complexity.md). Length only NOMINATES; structure + codebase-relative outlier decide. Every value is adjustable; the tool is a triage, not a hardcoded line count. Edit here, re-run scripts/check-complexity.sh.",
+
+  "length_warn": 70,
+  "nloc_warn": 60,
+
+  "density_deep": 0.15,
+  "density_tangled": 0.28,
+  "nesting_ok": 3,
+  "nesting_bad": 5,
+  "ccn_hard": 20,
+
+  "z_cut": 2.5,
+  "min_population": 20,
+
+  "shallow_max_loc": 5,
+  "delegation_dup_min": 3
+}

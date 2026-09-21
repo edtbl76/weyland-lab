@@ -1,0 +1,8 @@
+# B162 — deps for the complexity-triage engine (scripts/lib/complexity_triage.py) and its tests.
+# lizard        — cross-language numeric metrics (LOC / cyclomatic / params), ~20 languages incl. the Flink Java.
+# tree-sitter   — the structural layer: true max-nesting, delegation/shallow shapes, decorator-awareness.
+# language-pack — precompiled tree-sitter grammars (python/java/…), pins its own tree-sitter compatibility.
+# Pinned; bump only with `pytest tests/test_complexity_triage.py` green (see docs/runbooks/complexity-triage.md).
+lizard==1.24.0
+tree-sitter==0.26.0
+tree-sitter-language-pack==1.20.0
