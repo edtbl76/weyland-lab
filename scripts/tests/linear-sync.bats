@@ -425,3 +425,58 @@ MD
   BACKLOG_FILE="$STUB_DIR/b.md" LINEAR_SNAPSHOT_JSON="$STUB_DIR/s.json" run bash "$GUARD"
   [ "$status" -eq 0 ]
 }
+
+# --- unnumbered weyland issue with no backlog entry (the EMA-172/191/208 blind spot) -------------
+#
+# The class that hid EMA-172/191/208 for weeks: a weyland-project issue created straight in Linear
+# with NO B-number in its title. The orphan-in-Linear check keys on the title number AND skips
+# terminal issues, so a DONE, unnumbered weyland issue was invisible to reconciliation by
+# construction — the number was both the fix and the precondition for detection. This check closes
+# that: any weyland-project issue whose title carries no number and which no backlog entry
+# references is flagged, open OR done.
+
+@test "unnumbered: a DONE weyland issue with no B-number in its title and no backlog ref FAILS" {
+  cat > "$STUB_DIR/b.md" <<'MD'
+### B1 — tracked — **DONE (2026-09-10)**
+Linear: EMA-1.
+MD
+  printf '{"EMA-1":{"stateType":"completed","state":"Done","project":"Weyland Lab","priority":2,"title":"B1 — tracked"},"EMA-172":{"stateType":"completed","state":"Done","project":"Weyland Lab","priority":2,"title":"Emit deployment events (DORA)"}}' > "$STUB_DIR/s.json"
+  BACKLOG_FILE="$STUB_DIR/b.md" LINEAR_SNAPSHOT_JSON="$STUB_DIR/s.json" run bash "$GUARD"
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"NO NUMBER"* ]]
+  [[ "$output" == *"EMA-172"* ]]
+}
+
+@test "unnumbered: an OPEN weyland issue with no B-number and no backlog ref also FAILS" {
+  cat > "$STUB_DIR/b.md" <<'MD'
+### B1 — tracked — **DONE (2026-09-10)**
+Linear: EMA-1.
+MD
+  printf '{"EMA-1":{"stateType":"completed","state":"Done","project":"Weyland Lab","priority":2,"title":"B1 — tracked"},"EMA-208":{"stateType":"backlog","state":"Backlog","project":"Weyland Lab","priority":4,"title":"Graphify deferred capabilities"}}' > "$STUB_DIR/s.json"
+  BACKLOG_FILE="$STUB_DIR/b.md" LINEAR_SNAPSHOT_JSON="$STUB_DIR/s.json" run bash "$GUARD"
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"EMA-208"* ]]
+}
+
+@test "unnumbered: an unnumbered weyland issue REFERENCED by a backlog inline ref is NOT flagged" {
+  # The B156->EMA-213 fallback join: title has no number but a backlog entry cites it. Must stay OK —
+  # this is the legitimate no-number-in-title case the new check must NOT catch.
+  cat > "$STUB_DIR/b.md" <<'MD'
+### B156 — audit — **DONE (2026-09-07)**
+Linear: EMA-213.
+MD
+  printf '{"EMA-213":{"stateType":"completed","state":"Done","project":"Weyland Lab","priority":2,"title":"Audit data mesh against Nick Tune"}}' > "$STUB_DIR/s.json"
+  BACKLOG_FILE="$STUB_DIR/b.md" LINEAR_SNAPSHOT_JSON="$STUB_DIR/s.json" run bash "$GUARD"
+  [ "$status" -eq 0 ]
+}
+
+@test "unnumbered: an unnumbered issue in ANOTHER product's project is NOT flagged" {
+  # Stud.IO keeps its own backlog and its issues are not B-numbered — never a weyland-backlog gap.
+  cat > "$STUB_DIR/b.md" <<'MD'
+### B1 — tracked — **DONE (2026-09-10)**
+Linear: EMA-1.
+MD
+  printf '{"EMA-1":{"stateType":"completed","state":"Done","project":"Weyland Lab","priority":2,"title":"B1 — tracked"},"EMA-160":{"stateType":"completed","state":"Done","project":"Stud.IO","priority":2,"title":"Build shared PageHeader"}}' > "$STUB_DIR/s.json"
+  BACKLOG_FILE="$STUB_DIR/b.md" LINEAR_SNAPSHOT_JSON="$STUB_DIR/s.json" run bash "$GUARD"
+  [ "$status" -eq 0 ]
+}

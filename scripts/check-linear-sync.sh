@@ -17,7 +17,7 @@
 # titled "Audit data mesh ..."). Number-primary matching also makes narrated SIBLING/SUPERSEDED refs
 # (B66 names its EMA-56 sibling; B155 names the EMA-136 it supersedes) harmless — they are not the key.
 #
-# FIVE CHECKS, all mechanically detectable:
+# SIX CHECKS, all mechanically detectable:
 #
 #   A. STATUS drift — a backlog entry marked DONE that names a Linear issue NOT in a terminal state.
 #      Deliberately ONE-WAY: an issue closed in Linear while the backlog entry is still open is a
@@ -31,6 +31,12 @@
 #   D. MISSING from Linear — a backlog item with no Linear issue at all (untracked; the B128/B151 class).
 #   E. ORPHAN in Linear — a weyland-numbered OPEN issue no backlog item covers (fell out of backlog.md),
 #      scoped away from the other products' projects, which keep their own backlogs.
+#   F. UNNUMBERED weyland issue — a weyland-project issue (OPEN or DONE) whose title carries no weyland
+#      number and which no backlog entry references. This is the class that hid EMA-172/191/208 for
+#      weeks: checks D/E join on the number in the title, and E skips terminal issues, so an issue
+#      created straight in Linear without a B-number is invisible to the whole number-based
+#      reconciliation — the number is both the fix and the precondition for detection. Excludes the
+#      other products (their issues are not B-numbered) and issues a backlog entry already cites by id.
 #
 #   usage: scripts/check-linear-sync.sh [--list]
 #          --list   print every item's verdict (status/project/tier/linpri + Linear-only orphans), exit 0
@@ -319,7 +325,11 @@ for parts in rawrefs:
         rec["refs"].append(ema_ref)
 
 backlog_nums = set(by_num)
-drift, missing, orphan, tierdrift, nolinear, orphan_num = [], [], [], [], [], []
+# Every EMA-id any backlog entry cites inline — the set that makes the fallback join (B156 -> EMA-213,
+# a weyland issue whose Linear title carries no number) legitimate, so the unnumbered check below does
+# not flag an issue the backlog already references by id.
+referenced = {r for rec in by_num.values() for r in rec["refs"]}
+drift, missing, orphan, tierdrift, nolinear, orphan_num, unnumbered = [], [], [], [], [], [], []
 for bnum, rec in by_num.items():
     status, tier, brefs = rec["status"], rec["tier"], rec["refs"]
     # PRIMARY join = the B/U number in the Linear title (immune to narrated sibling refs). FALLBACK =
@@ -353,14 +363,23 @@ for bnum, rec in by_num.items():
 
 for ema, row in sorted(snap.items()):
     stt = row.get("stateType") or ""
+    proj = row.get("project")
+    n = num_of(row.get("title"))
+    # UNNUMBERED WEYLAND ISSUE — the EMA-172/191/208 blind spot. A weyland-project issue whose title
+    # carries no weyland number and which no backlog entry references never got a B-number, so
+    # number-based reconciliation cannot see it — the number is both the fix and the precondition for
+    # detection. Checked for OPEN AND DONE (two of the three that hid here were Done), so it runs
+    # BEFORE the terminal skip below. A project-less issue is the `orphan` (project) finding instead,
+    # so this requires a project; another product's issues keep their own backlog and are excluded.
+    if proj and proj not in OTHER_PRODUCT_PROJECTS and n is None and ema not in referenced:
+        unnumbered.append((ema, row.get("state"), proj))
     if stt in TERMINAL:
         continue
-    if not row.get("project"):
+    if not proj:
         orphan.append((ema, row.get("state")))
     # ORPHAN IN LINEAR — a weyland-numbered OPEN issue that no backlog item covers (fell out of the
     # backlog). Scoped away from the other products, which keep their own backlogs.
-    n = num_of(row.get("title"))
-    if n and n not in backlog_nums and row.get("project") not in OTHER_PRODUCT_PROJECTS:
+    if n and n not in backlog_nums and proj not in OTHER_PRODUCT_PROJECTS:
         orphan_num.append((ema, n, row.get("state")))
 
 if list_only:
@@ -368,8 +387,13 @@ if list_only:
         print("  --- Linear issues with a weyland number but NO backlog item ---")
         for e, n, s in orphan_num:
             print(f"  {n:8s} {e:9s} {s} (in Linear, absent from backlog.md)")
+    if unnumbered:
+        print("  --- Weyland issues with NO number in their title and NO backlog item ---")
+        for e, s, p in unnumbered:
+            print(f"  {'(no #)':8s} {e:9s} {s} in {p} (no B-number, unreferenced by backlog.md)")
     print(f"listed {len(backlog_nums)} backlog item(s); "
-          f"{len(nolinear)} with no Linear issue, {len(orphan_num)} Linear-only.")
+          f"{len(nolinear)} with no Linear issue, {len(orphan_num)} Linear-only, "
+          f"{len(unnumbered)} unnumbered-and-unreferenced.")
     raise SystemExit(0)
 
 if missing:
@@ -390,6 +414,17 @@ if orphan_num:
     print("LINEAR ISSUES WITH A WEYLAND NUMBER BUT NO BACKLOG ITEM (fell out of backlog.md):", file=sys.stderr)
     for e, n, s in orphan_num:
         print(f"  {n:8s} {e:9s} '{s}' — restore it to backlog.md, or close it if truly dropped", file=sys.stderr)
+    fail = True
+if unnumbered:
+    print("", file=sys.stderr)
+    print("WEYLAND ISSUES WITH NO NUMBER IN THEIR TITLE AND NO BACKLOG ITEM (unreconcilable):", file=sys.stderr)
+    for e, s, p in unnumbered:
+        print(f"  {e:9s} '{s}' in {p} — give it a B-number (title 'B<n> — ...') + a backlog entry, "
+              f"or reference it from one", file=sys.stderr)
+    print("  This is the class that hid EMA-172/191/208: a weyland issue created in Linear with no",
+          file=sys.stderr)
+    print("  B-number is invisible to number-based reconciliation — the number is the join key.",
+          file=sys.stderr)
     fail = True
 if drift:
     print("", file=sys.stderr)

@@ -102,7 +102,7 @@ capability is **NOT done** until ALL eight pillars hold. "Ran once" ≠ done.
 > `scripts/check-linear-sync.sh` compares the two documents that make claims about each other. It
 > reconciles **every** backlog item (widened 2026-09-10 — all ~168 `### B/U<n>` + `**B/U<n>**` items,
 > not just the ~45 with an inline `Linear EMA-##` ref), joining by the **B/U-number in the Linear title**
-> (the inline ref is only a fallback for numberless titles like B156→EMA-213). Five checks:
+> (the inline ref is only a fallback for numberless titles like B156→EMA-213). Six checks:
 >
 > - **STATUS drift — a backlog entry marked DONE whose Linear issue is not terminal.** One-way on purpose
 >   — an issue closed in Linear while the backlog entry is still open is a normal mid-flight state.
@@ -113,12 +113,17 @@ capability is **NOT done** until ALL eight pillars hold. "Ran once" ≠ done.
 > - **MISSING from Linear — a backlog item with no Linear issue at all** (untracked; the B128/B151 class).
 > - **ORPHAN in Linear — a weyland-numbered open issue no backlog item covers**, scoped away from the
 >   other products' projects, which keep their own backlogs.
+> - **UNNUMBERED weyland issue — a weyland-project issue (open OR done) whose title carries no number
+>   and which no backlog entry references.** The class that hid EMA-172/191/208 for weeks: the checks
+>   above join on the number in the Linear title (and ORPHAN skips terminal issues), so an issue created
+>   straight in Linear without a B-number is invisible to number-based reconciliation — the number is
+>   both the fix and the precondition for detection.
 >
 > Runs **blocking in CI** (`.woodpecker/ci.yml` step `linear-sync`, secret `linear_api_key`, events
 > cron+manual) *and* by hand at close-out. Locally it needs `LINEAR_API_KEY` in the gitignored
 > `scripts/.env` (Linear → Settings → Security & access); a read-scoped key is sufficient.
 > Exit **1** = drift; exit **2** = the guard could not run. A missing token must never read as a clean
-> backlog. 32 bats cases; `--list` prints every item's verdict (status · project · tier vs linpri · orphans).
+> backlog. 36 bats cases; `--list` prints every item's verdict (status · project · tier vs linpri · orphans · unnumbered).
 - **Tier rebalance — keep High / Medium / Low roughly equal. PROPOSE IT, NEVER APPLY IT UNILATERALLY (2026-08-23).**
   Completing work drains the **High** lane, so at close-out re-tier to refill it: promote the strongest
   **Medium → High**, then backfill **Low → Medium** (and, as the tail grows, close or promote stale **Low** items — a

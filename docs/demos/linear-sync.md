@@ -4,7 +4,7 @@ The pillar that had no checker, and the checker it has now. **Executed 2026-08-2
 
 - **Gate:** [definition-of-done.md](../definition-of-done.md) § 5
 - **Flow:** [diagrams/flow-linear-sync.md](../diagrams/flow-linear-sync.md)
-- **Guard:** `scripts/check-linear-sync.sh` · **Tests:** `scripts/tests/linear-sync.bats` (23 cases)
+- **Guard:** `scripts/check-linear-sync.sh` · **Tests:** `scripts/tests/linear-sync.bats` (36 cases)
 - **CI:** `.woodpecker.yml` step `linear-sync`, **blocking**. Its own step rather than folded into
   `repo-guards` (deliberately secret-free, pure file analysis) or `port-iac-coverage` (different SaaS,
   and a step should hold only the secret it uses). Needs the `linear_api_key` repo secret covering
@@ -78,7 +78,7 @@ cd /tmp && BACKLOG_FILE=/tmp/b2.md LINEAR_API_KEY= LINEAR_ENV_FILE=/tmp/no-such.
 
 Expected: `FATAL: LINEAR_API_KEY is not set` and **`EXIT=2`**.
 
-**6. The test suite** — 23 cases, including the four defects found while building it:
+**6. The test suite** — 36 cases, including the four defects found while building it:
 
 ```
 docker run --rm --entrypoint sh -v "$PWD":/w -w /w bats/bats:latest -c "apk add --no-cache python3 >/dev/null 2>&1; bats scripts/tests/linear-sync.bats"
