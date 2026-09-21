@@ -1,7 +1,8 @@
 # Demo — complexity triage (B162)
 
 **RUN 2026-09-21.** The lab's machine-checkable reading of complexity: length nominates, structure and the
-codebase-relative outlier decide, the inverse smell is caught in the other direction. Advisory, adjustable.
+codebase-relative outlier decide, the inverse smell is caught in the other direction. The degree is the
+autonomous gate; every knob adjustable.
 
 - Engine: `scripts/lib/complexity_triage.py` · lane: `scripts/check-complexity.sh` · knobs:
   `scripts/complexity-triage.json`
@@ -48,13 +49,15 @@ categories, not stop-and-fix).
 
 ## Toolchain-verified (the way CI runs it)
 
-- Engine tests: `pytest test_complexity_triage.py` **8/8** in a clean `python:3.12-slim` with deps installed
-  fresh from `scripts/requirements-test.txt`.
+- Engine tests: `pytest test_complexity_triage.py` **11/11** in a clean `python:3.12-slim` with deps installed
+  fresh from `scripts/requirements-test.txt` (incl. the degree-driven gate logic).
 - Wrapper tests: `bats scripts/tests/complexity.bats` **7/7** in `bats/bats:latest`.
-- The `--gate` posture proven: a stubbed `TANGLED`/`SHALLOW` finding exits 1; a clean run exits 0; a failing
-  engine exits 2 (fail-closed).
+- **The autonomous gate, proven the way CI runs it:** the exact CI step — `pip install -r
+  scripts/requirements-test.txt` then `bash scripts/check-complexity.sh --gate` — **exits 0** in a clean
+  `python:3.12-slim` (1 medium-`TANGLED` doesn't block, 0 `SHALLOW`); the wrapper threads `--gate`, propagates the
+  engine's exit, and fails closed (exit 2) when the engine can't run.
 
 ## Teardown
 
-N/A — repo tooling. The engine + lane stay as the standing advisory check; no cluster workload, nothing to tear
+N/A — repo tooling. The engine + lane stay as the standing degree-driven gate; no cluster workload, nothing to tear
 down.

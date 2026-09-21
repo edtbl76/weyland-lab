@@ -130,3 +130,36 @@ def test_thresholds_are_configurable(tmp_path):
     lax = ct.analyze([str(tmp_path)], ct.Config(length_warn=500, nloc_warn=500))
     assert _by_name(strict, "giant") != []      # nominated at the tight line
     assert _by_name(lax, "giant") == []         # both lines raised above it => not considered
+
+
+# --- the autonomous, degree-driven gate ------------------------------------------------------------
+
+def _f(name, verdict, confidence):
+    return ct.Finding("x.py", 1, name, "python", verdict, confidence, "", {})
+
+
+def test_gate_blocks_high_tangled_and_shallow_but_not_medium_or_below(tmp_path):
+    # The DEGREE is the gating decision: high-confidence TANGLED and any SHALLOW block; medium/low TANGLED,
+    # OUTLIER_REVIEW and DEEP are advisory (a human glance), so they never fail the build.
+    findings = [
+        _f("hi", ct.TANGLED, "high"),
+        _f("med", ct.TANGLED, "medium"),
+        _f("lo", ct.TANGLED, "low"),
+        _f("sh", ct.SHALLOW, "medium"),
+        _f("out", ct.OUTLIER_REVIEW, "medium"),
+        _f("dp", ct.DEEP, "low"),
+    ]
+    blocking = {f.name for f in ct.gating_findings(findings, ct.Config())}
+    assert blocking == {"hi", "sh"}
+
+
+def test_gate_confidence_knob_lowers_the_bar(tmp_path):
+    med = [_f("med", ct.TANGLED, "medium")]
+    assert ct.gating_findings(med, ct.Config(gate_confidence="high")) == []   # medium doesn't block at high
+    assert ct.gating_findings(med, ct.Config(gate_confidence="medium"))       # ...but does at the medium bar
+
+
+def test_gate_shallow_can_be_disabled(tmp_path):
+    sh = [_f("sh", ct.SHALLOW, "medium")]
+    assert ct.gating_findings(sh, ct.Config())                                # SHALLOW blocks by default
+    assert ct.gating_findings(sh, ct.Config(gate_shallow=False)) == []        # ...unless turned off

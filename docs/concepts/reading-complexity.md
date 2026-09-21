@@ -56,13 +56,17 @@ a triage, not a hardcoded line count.
 The inverse direction (`SHALLOW`) catches **delegation duplication**: N sibling modules re-declaring the same
 pass-through to a shared target — over-split wrappers that a single shared helper would collapse.
 
-## Posture: advisory, with a promotion path
+## Posture: the degree IS the autonomous gate
 
-The engine is **advisory** — `scripts/check-complexity.sh` prints the graded findings and exits 0, exactly like
-Graphify's Pillar-8 wiring. The verdict *is* the stop-or-accept call; a human reads it. `--gate` flips it to a
-blocking check (any `TANGLED`/`SHALLOW` → exit 1) once the thresholds are trusted — the documented promotion path,
-deliberately off by default. **The gate posture is decided *from* a run, not up front:** you cannot honestly set a
-block line until you have seen the verdict distribution and its false-positive rate.
+`scripts/check-complexity.sh` runs advisory (prints the graded findings, exits 0); `--gate` makes it **block**.
+The gate is **autonomous and degree-driven** — no human decides per run: it fails the build on the **clearly-bad,
+high-degree findings** (a **high-confidence `TANGLED`** or any **`SHALLOW`**), while **medium/low `TANGLED`,
+`OUTLIER_REVIEW` and `DEEP` stay advisory** (a human glance). The *degree* — the confidence the three stages
+converge on — is itself the stop-or-accept decision, made per finding. The bar (`gate_confidence`,
+`gate_shallow`) is a knob in `scripts/complexity-triage.json`. **The gate could only be turned on *from* a run:**
+the codebase's own distribution set the bar — after the B162 remediation zero high-`TANGLED`/`SHALLOW` remain, so
+the gate passes today and blocks only *new* clear complexity debt. In CI it is the `--gate` step in
+`.woodpecker.yml`.
 
 ## Where CodeScene and SonarQube fit
 

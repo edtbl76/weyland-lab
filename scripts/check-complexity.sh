@@ -38,32 +38,36 @@ if [ "${#paths[@]}" -eq 0 ]; then
 fi
 
 # The engine invocation is overridable (COMPLEXITY_ENGINE) so the wrapper's DECISION logic — advisory vs
-# gate vs fail-closed — is testable without the analysis deps present (bats stubs it). Default runs the
-# real engine; a non-zero exit from either is fail-closed to 2.
+# gate vs fail-closed — is testable without the analysis deps present (bats stubs it). The ENGINE owns the
+# gate: with --gate it exits 1 on the clearly-bad, high-degree findings (high-confidence TANGLED + SHALLOW),
+# 0 otherwise; this wrapper propagates that. Success is marked by the "complexity triage:" summary line — its
+# ABSENCE means the engine crashed (missing deps / bug), which is fail-closed to exit 2, never a silent pass.
+engine_args=()
+[ "$GATE" -eq 1 ] && engine_args+=(--gate)
+
 out=""
 rc=0
 if [ -n "${COMPLEXITY_ENGINE:-}" ]; then
-  out="$("$COMPLEXITY_ENGINE" "${paths[@]}" 2>&1)" || rc=$?
+  out="$("$COMPLEXITY_ENGINE" "${engine_args[@]}" "${paths[@]}" 2>&1)" || rc=$?
 else
   command -v python3 >/dev/null 2>&1 || { echo "FATAL: python3 not found on PATH." >&2; exit 2; }
-  out="$(PYTHONPATH="$ROOT/scripts/lib" python3 "$MODULE" --config "$CONFIG" "${paths[@]}" 2>&1)" || rc=$?
-fi
-
-if [ "$rc" -ne 0 ]; then
-  printf '%s\n' "$out" >&2
-  echo "FATAL: the complexity engine could not run (missing lizard/tree-sitter? — pip install -r scripts/requirements-test.txt)." >&2
-  exit 2
+  out="$(PYTHONPATH="$ROOT/scripts/lib" python3 "$MODULE" --config "$CONFIG" "${engine_args[@]}" "${paths[@]}" 2>&1)" || rc=$?
 fi
 
 printf '%s\n' "$out"
 
-if [ "$GATE" -eq 1 ]; then
-  # A finding line begins with its verdict after leading spaces. The summary line ("complexity triage:
-  # N TANGLED …") starts with a letter, so it never matches this anchor.
-  if printf '%s\n' "$out" | grep -qE '^[[:space:]]+(TANGLED|SHALLOW)\b'; then
-    echo "" >&2
-    echo "GATE FAILED: TANGLED/SHALLOW findings present (see above). Fix them, or run without --gate for advisory." >&2
-    exit 1
-  fi
+if ! printf '%s\n' "$out" | grep -q "complexity triage:"; then
+  echo "FATAL: the complexity engine could not run (missing lizard/tree-sitter? — pip install -r scripts/requirements-test.txt)." >&2
+  exit 2
 fi
-exit 0
+
+if [ "$rc" -eq 0 ]; then
+  exit 0
+fi
+if [ "$GATE" -eq 1 ] && [ "$rc" -eq 1 ]; then
+  echo "" >&2
+  echo "GATE FAILED: the complexity gate blocked the build (see the GATE line above). Fix the findings, or adjust the bar in scripts/complexity-triage.json." >&2
+  exit 1
+fi
+echo "FATAL: unexpected complexity-engine exit ($rc)." >&2
+exit 2

@@ -14,5 +14,9 @@
   "min_population": 20,
 
   "shallow_max_loc": 5,
-  "delegation_dup_min": 3
+  "delegation_dup_min": 3,
+
+  "_gate": "The autonomous, degree-driven gate (scripts/check-complexity.sh --gate). Blocks CI on the clearly-bad, high-degree findings; medium/low TANGLED stay advisory. The degree IS the gating decision.",
+  "gate_confidence": "high",
+  "gate_shallow": true
 }

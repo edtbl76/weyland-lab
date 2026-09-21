@@ -52,6 +52,11 @@ class Config:
     # inverse smell — shallow / delegation duplication
     shallow_max_loc: int = 5
     delegation_dup_min: int = 3    # N sibling modules delegating to the same target => a finding
+    # gating (autonomous, degree-driven) — `--gate` blocks CI on the clearly-bad, high-degree findings; medium/
+    # low TANGLED stay advisory (a human glance). The degree IS the gating decision, made per-finding, no human
+    # in the loop. Raise/lower the bar here.
+    gate_confidence: str = "high"  # TANGLED at or above this confidence blocks --gate (low | medium | high)
+    gate_shallow: bool = True      # a SHALLOW over-split always blocks --gate (a clear defect)
     # framework decorators whose small functions are idiomatic, never classitis
     exclude_decorators: tuple = (
         "job", "op", "asset", "sensor", "schedule", "graph", "resource", "multi_asset",  # dagster
@@ -353,13 +358,33 @@ def _python_nesting_map(src):
     return out
 
 
-# --- CLI (advisory report; the shell lane calls this) ---------------------------------------------
+_CONF_RANK = {"low": 0, "medium": 1, "high": 2}
+
+
+def gating_findings(findings, cfg):
+    """The findings that BLOCK `--gate`: any SHALLOW (a clear over-split) plus every TANGLED at or above the
+    configured confidence bar. Medium/low TANGLED, OUTLIER_REVIEW and DEEP never block — the DEGREE is itself the
+    autonomous gating decision, made per finding with no human in the loop."""
+    floor = _CONF_RANK.get(cfg.gate_confidence, 2)
+    out = []
+    for f in findings:
+        if f.verdict == SHALLOW and cfg.gate_shallow:
+            out.append(f)
+        elif f.verdict == TANGLED and _CONF_RANK.get(f.confidence, 0) >= floor:
+            out.append(f)
+    return out
+
+
+# --- CLI (advisory report, or --gate for autonomous degree-driven gating; the shell lane calls this) ---------
 def main(argv=None):
     import argparse
     import json
+    import sys
     ap = argparse.ArgumentParser(description="B162 complexity triage — deep vs tangled vs shallow.")
     ap.add_argument("paths", nargs="+", help="files or directories to analyze")
     ap.add_argument("--config", help="JSON file of threshold overrides (the adjustable knobs)")
+    ap.add_argument("--gate", action="store_true",
+                    help="exit 1 on gating findings (high-confidence TANGLED + SHALLOW); the autonomous gate")
     ap.add_argument("--json", action="store_true", help="emit findings as JSON")
     ap.add_argument("--show-deep", action="store_true", help="include DEEP (acceptable) findings")
     args = ap.parse_args(argv)
@@ -370,18 +395,26 @@ def main(argv=None):
     order = {TANGLED: 0, SHALLOW: 1, OUTLIER_REVIEW: 2, DEEP: 3}
     findings.sort(key=lambda f: (order.get(f.verdict, 9), -f.metrics.get("nloc", 0)))
 
+    blocking = gating_findings(report.findings, cfg) if args.gate else []
+    gate_rc = 1 if blocking else 0
+
     if args.json:
         print(json.dumps({"counts": report.counts(), "stats": report.stats,
+                          "gate": {"blocking": len(blocking)} if args.gate else None,
                           "findings": [vars(f) for f in findings]}, indent=2))
-        return 0
+        return gate_rc
 
     c = report.counts()
+    mode = "gated" if args.gate else "advisory"
     print(f"complexity triage: {c.get(TANGLED,0)} TANGLED, {c.get(SHALLOW,0)} SHALLOW, "
-          f"{c.get(OUTLIER_REVIEW,0)} OUTLIER-REVIEW, {c.get(DEEP,0)} DEEP (advisory)")
+          f"{c.get(OUTLIER_REVIEW,0)} OUTLIER-REVIEW, {c.get(DEEP,0)} DEEP ({mode})")
     for f in findings:
         print(f"  {f.verdict:14s} {f.confidence:6s} {f.path}:{f.line}  {f.name}")
         print(f"                        {f.reason}")
-    return 0
+    if gate_rc:
+        print(f"\nGATE FAILED: {len(blocking)} blocking finding(s) (TANGLED at confidence>={cfg.gate_confidence}, "
+              f"or SHALLOW). Fix them, or adjust the bar in scripts/complexity-triage.json.", file=sys.stderr)
+    return gate_rc
 
 
 if __name__ == "__main__":

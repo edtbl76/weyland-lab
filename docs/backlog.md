@@ -2057,8 +2057,12 @@ max-nesting) and a **self-calibrating codebase-relative z-score** decide, and th
 caught in the other direction — graded `DEEP` / `TANGLED` / `OUTLIER_REVIEW` / `SHALLOW`. `lizard` (numeric metrics,
 ~20 languages incl. the Flink Java) + `tree-sitter` (structural: true nesting, delegation, decorator-awareness so
 dagster/FastAPI glue is never mistaken for classitis); every threshold a knob in `scripts/complexity-triage.json`;
-advisory lane `scripts/check-complexity.sh` (exit 0; `--gate` is the documented promotion path), wired into
-`.woodpecker.yml` as an advisory step. **Threshold alignment (the reshaped decision):** length stopped being a
+lane `scripts/check-complexity.sh` (advisory bare; `--gate` blocks), wired into `.woodpecker.yml` as an
+**autonomous, degree-driven GATE** — it BLOCKS on a high-confidence `TANGLED` or any `SHALLOW` (the degree is the
+stop-or-accept decision, made per finding; medium/low stay advisory), knob `gate_confidence` in
+`scripts/complexity-triage.json`. It could only be turned on FROM a run: after the remediation zero
+high-`TANGLED`/`SHALLOW` remain, so the gate passes today and blocks only NEW clear complexity debt (proven — the
+exact CI flow `check-complexity.sh --gate` exits 0 in a clean `python:3.12-slim`). **Threshold alignment (the reshaped decision):** length stopped being a
 verdict and became a nominator, so CodeScene is **left on defaults** (its Code Health is already a composite +
 advisory; the lab's depth-aware reading is the engine, not a length-rule tweak — no committed rules file), and the
 SonarQube decision is **gate on cognitive complexity (`S3776`), not raw method length (`java:S138`)** (the live

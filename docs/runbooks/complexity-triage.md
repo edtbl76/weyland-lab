@@ -49,13 +49,16 @@ dagster + FastAPI glue is never mistaken for classitis.
 pinned in `scripts/requirements-test.txt`. The engine's own suite is `scripts/tests/test_complexity_triage.py`
 (8 cases) and the wrapper's is `scripts/tests/complexity.bats` (7 cases). Bump a pin only with both green.
 
-## Posture and the promotion path
+## Posture — the degree IS the autonomous gate (ON)
 
-**Advisory by default** — same as Graphify's Pillar-8 wiring. The verdict IS the stop-or-accept decision; a human
-reads it. `--gate` flips it to a blocking check once the thresholds are trusted. The gate posture is decided FROM
-a run, never up front: you cannot honestly set a block line until you have seen the verdict distribution and its
-false-positive rate. Promotion = run advisory for a cycle or two, tune the knobs against real output, then wire
-`--gate` into CI when `TANGLED`/`SHALLOW` are trustworthy.
+Run bare, it's advisory (prints, exits 0). `--gate` **blocks**, and CI runs `--gate`. The gate is **autonomous
+and degree-driven**: it fails the build on the **clearly-bad, high-degree findings** — a **high-confidence
+`TANGLED`** or any **`SHALLOW`** — while **medium/low `TANGLED`, `OUTLIER_REVIEW`, `DEEP` stay advisory**. No human
+decides per run; the degree the three stages converge on IS the stop-or-accept decision, made per finding. The bar
+is a knob (`gate_confidence`, `gate_shallow` in `scripts/complexity-triage.json`). It could only be turned on FROM
+a run — the codebase's own distribution set the bar, and after the B162 remediation there are **zero
+high-`TANGLED`/`SHALLOW`**, so the gate passes today (the one residual is a medium/adjudicated `TANGLED`) and blocks
+only *new* clear complexity debt. Loosen or tighten by moving `gate_confidence` (`low`|`medium`|`high`).
 
 ## Threshold alignment — CodeScene and SonarQube
 
@@ -65,24 +68,36 @@ The lab's *reading* lives in this engine; the two scanners stay as independent s
   against Complex Method / Bumpy Road / nesting), not a length verdict, and it runs advisory (github-app + MCP),
   not a merge gate. There is deliberately **no committed rules file** — a defaults-matching file would be noise,
   and the lab's depth-aware reading is the triage engine, not a tweak to CodeScene's length rule.
-- **SonarQube** — **decision: gate on cognitive complexity (`python:S3776` / `java:S3776`), not raw method
-  length (`java:S138`).** A long, low-density function is not a defect. The repo customises no Sonar rules
-  (`sonar-project.properties` is scope-only), so the enforced profile is server-side. **Operator step** — confirm
-  the live profile in-cluster (the Sonar API is behind the Keycloak forward-auth, so a host-side call hits the
-  login wall):
+- **SonarQube** — **confirmed live in-cluster 2026-09-21** (the Sonar API is behind the Keycloak forward-auth, so
+  a host-side call hits the login wall; query from inside the pod, `weyland/sonarqube-*`). The project runs the
+  **built-in "Sonar way"** profiles for every language. Relevant active rules: **`python:S3776` / `java:S3776`
+  Cognitive Complexity (threshold 15)** — the depth-aware signal we want — *and* **`S138` "too many lines"**
+  (`python` max 100, `java` max 75) — raw method length, the signal B162 says is not a defect on its own.
+
+  **Decision: keep the built-in profile as-is; do NOT create a custom profile to deactivate `S138`.** SonarQube
+  can't edit a built-in profile — deactivating a rule means copying "Sonar way" to a custom profile and
+  reassigning the project, which then stops tracking Sonar's per-version rule updates and becomes a maintenance
+  liability (a poor trade for a solo $0 lab). After the B162 refactor almost nothing trips `S138` (100/75 is
+  lenient); where a genuinely deep function does, **the triage engine is the lab's authoritative reading** and the
+  `S138` smell is a triaged known-non-issue, not a driver. `S3776` cognitive complexity is already the active,
+  depth-aware gate — so Sonar stays the "second opinion" this posture intends, with zero maintenance. The read is
+  read-only; confirm it again with:
 
   ```
-  kubectl -n weyland-platform exec deploy/sonarqube -- curl -s -u admin:$SONAR_ADMIN_PW "http://localhost:9000/api/rules/search?activation=true&languages=py,java&f=name,params&ps=200" | python3 -c "import sys,json; [print(r['key'], r['name'], [ (p['key'],p.get('defaultValue')) for p in r.get('params',[])]) for r in json.load(sys.stdin)['rules'] if any(k in r['name'].lower() for k in ('lines','complexity','cognitive'))]"
+  kubectl -n weyland exec <sonarqube-pod> -- sh -c 'curl -s -u admin:$SONAR_ADMIN_PW "http://localhost:9000/api/rules/search?activation=true&languages=py,java&ps=500&f=name,params"'
   ```
 
-  If `java:S138` (method length) is active and gating, deactivate it or raise its `maximum`, and keep `S3776`.
+  **If you ever DO want `S138` off** (reversible): copy the profile, deactivate the rule, reassign the project —
+  `POST /api/qualityprofiles/copy` (`fromKey=<py Sonar way key>`, `toName=Weyland way`) → `POST
+  /api/qualityprofiles/deactivate_rule` (`key=<new>`, `rule=python:S138`) → `POST /api/qualityprofiles/add_project`.
 
 ## CI wiring
 
-An advisory step in `.woodpecker.yml` runs the triage on every build — it never blocks (exit 0), it reports.
-See the `complexity-triage` step (image `python:3.12-slim`, installs `scripts/requirements-test.txt`, runs
-`bash scripts/check-complexity.sh`). Not in `quality-tools.yaml` — that registry is the scan *suite*
-(SonarQube/CodeScene/scan-suite); this is a repo-guard like the other `check-*.sh`.
+The `complexity-triage` step in `.woodpecker.yml` runs the triage **with `--gate`** on every build — it BLOCKS on
+a high-confidence `TANGLED` or any `SHALLOW`, and reports the rest. (image `python:3.12-slim`, installs
+`scripts/requirements-test.txt`, runs `bash scripts/check-complexity.sh --gate`.) Not in `quality-tools.yaml` —
+that registry is the scan *suite* (SonarQube/CodeScene/scan-suite); this is a repo-guard like the other
+`check-*.sh`. To temporarily run it non-blocking, drop the `--gate` flag (or raise `gate_confidence`).
 
 ## Remediation log — the B162 pass (2026-09-21)
 
