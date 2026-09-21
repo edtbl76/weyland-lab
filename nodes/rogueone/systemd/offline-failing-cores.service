@@ -1,0 +1,25 @@
+# B150 / EMA-186 — rogueone has two degrading P-cores on the i9-13950HX: core 12 (CPUs 6/7 -> userspace SIGSEGVs)
+# and core 8 (CPUs 4/5 -> kernel oopses -> whole-box freeze). Offlining CPUs 4-7 extinguishes both symptom families
+# (proven: ~40h/0 segfaults, ~49h/0 freezes). But /sys/devices/system/cpu/*/online is NOT persistent — every reboot
+# silently re-onlines them and the box returns to freezing within 6-11 minutes. This oneshot re-applies the offline
+# on every boot so a reboot can't re-expose the failing cores (it had been done by hand after every reboot; this is
+# the last open item on B150). Permanent until the mainboard RMA lands (CPU is soldered).
+#
+# SYSTEM unit — writing /sys/.../online needs root, so this installs to /etc/systemd/system (not a --user unit).
+# Runs early (after sysinit) so a bad core can't freeze the box before it's offlined.
+#
+#   Install (on rogueone):
+#     sudo cp /home/edwardmangini/IdeaProjects/weyland/nodes/rogueone/systemd/offline-failing-cores.service /etc/systemd/system/
+#     sudo systemctl daemon-reload && sudo systemctl enable --now offline-failing-cores.service
+#   Verify:  lscpu | grep -i off-line     (expect: 4-7)
+[Unit]
+Description=Offline rogueone's two failing P-cores (CPUs 4-7) - B150/EMA-186
+After=sysinit.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/bin/sh -c 'for c in 4 5 6 7; do echo 0 > /sys/devices/system/cpu/cpu$c/online; done'
+
+[Install]
+WantedBy=multi-user.target

@@ -2769,6 +2769,8 @@ Linear: EMA-197. Relates B1.5 (dbt transform tier), B131 (dependency lifecycle),
 
 **Backlog-entry added 2026-08-27.** Existed only in Linear (EMA-186, project `rogueone Hardware`) since 2026-08-13 — no B-number, no backlog row — so the item that gates [B149] was unreachable from this file.
 
+**UPDATE 2026-09-20 — the persistence oneshot is BUILT + enabled; the software side is DONE.** The offline (CPUs 4-7 = **2 physical P-cores / 4 threads** of 32; an earlier "4 cores/8 threads" note was an overcount) is now automated by `nodes/rogueone/systemd/offline-failing-cores.service` (installed to `/etc/systemd/system`, `systemctl enable --now`), so a reboot can no longer re-online the failing cores. It was built after a 2026-09-20 reboot with no oneshot re-onlined 4-7 and froze the box — the exact gap the oneshot closes. **Remaining is purely physical: the mainboard RMA** (CPU is soldered); the item stays open on that, but no more manual re-offlining after reboots.
+
 **ROOT CAUSE: the i9-13950HX has degrading cores.** Two adjacent P-cores, two symptom families, one story. Do NOT re-open the RAM, microcode, kernel-version, slab, or container-churn branches — every one is closed with evidence (listed below).
 
 | Physical core | CPUs | Symptom family | Result when offlined |
