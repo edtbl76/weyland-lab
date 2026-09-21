@@ -143,7 +143,7 @@ Re-ordered per RE-grounded audit (aidlc-docs/inception/backlog-reprioritization.
 26. **B32** — NeMo Guardrails evaluation — programmable conversational guardrails (Colang DSL: topical/dialog/jailbreak rails). Deferred from B14 (heavy framework + new language; built for dialog mgmt, not I/O scanning). Evaluate for the **agent layer** (the B66 operator's dialog/topical rails — Hermes retired), not the tool-server I/O pipeline. See detail below.
 27. **B38** — **Fuzzy GraphRAG: LLM concept/entity extraction** — **LOW (2026-08-05; re-tiered from Medium — deeply deferred, low marginal value while the frontmatter graph suffices, GPU-gated).** Over the AIDLC KB (and `docs/`) — extract entities + *emergent* relationships from **prose** (beyond the declared frontmatter links) into Neo4j, à la Microsoft GraphRAG. **Deferred from B37**, which ships the deterministic frontmatter graph (`RELATED_TO`/`SURFACES_AT`/`TAGGED`). Why deferred: heavy on local CPU Ollama (517 docs × extraction passes, re-run on change), fuzzy/non-deterministic, needs an entity/relation schema + canonicalization/dedup ("DDD" = "Domain-Driven Design"), and low marginal value while the author-declared frontmatter already yields a high-precision graph for ~free. **Revisit once** B37 proves corpus value AND/OR a bigger model / GPU lands (pairs with B7 eGPU / B33).
 
-  **REVIEWED 2026-08-27 — the GPU half of the trigger HAS FIRED; the blocker moved.** "Heavy on local CPU Ollama" is no longer the constraint it was written as: [B79] moved Ollama to rogueone and [B111] stood up on-demand vLLM + SGLang on the RTX 5000 Ada. **The real blocker is now rogueone's hardware state** — it runs with **4 cores / 8 threads offline** pending a mainboard RMA ([B150]), and whether it remains the lab's GPU host at all is undecided ([B149]). The GPU exists; the host is compromised. Stop citing CPU Ollama.
+  **REVIEWED 2026-08-27 — the GPU half of the trigger HAS FIRED; the blocker moved.** "Heavy on local CPU Ollama" is no longer the constraint it was written as: [B79] moved Ollama to rogueone and [B111] stood up on-demand vLLM + SGLang on the RTX 5000 Ada. **The real blocker is now rogueone's hardware state** — it runs with **2 cores / 4 threads offline** (CPUs 4-7) pending a mainboard RMA ([B150]), and whether it remains the lab's GPU host at all is undecided ([B149]). The GPU exists; the host is compromised. Stop citing CPU Ollama.
 
   **The other deferral reasons still stand unchanged** — non-deterministic output, an entity/relation schema plus canonicalization/dedup to build ("DDD" = "Domain-Driven Design"), and genuinely low marginal value while B37's author-declared frontmatter graph (510 `:Entry` nodes / 2311 edges) delivers high precision for free.
 
@@ -2765,7 +2765,7 @@ Linear: EMA-197. Relates B1.5 (dbt transform tier), B131 (dependency lifecycle),
 
 ---
 
-### B150 — rogueone hardware: two failing P-cores (core 12 → segfaults, core 8 → kernel freezes) — HIGH (2026-08-13; backlogged 2026-08-27)
+### B150 — rogueone hardware: two failing P-cores (core 12 → segfaults, core 8 → kernel freezes) — LOW (2026-08-13; backlogged 2026-08-27; ↓ High→Low 2026-09-20 — persistence oneshot built + enabled, only the mainboard RMA remains and it is gated on a replacement machine [B149], an external wait not active work)
 
 **Backlog-entry added 2026-08-27.** Existed only in Linear (EMA-186, project `rogueone Hardware`) since 2026-08-13 — no B-number, no backlog row — so the item that gates [B149] was unreachable from this file.
 
@@ -2796,7 +2796,7 @@ echo 0 | sudo tee /sys/devices/system/cpu/cpu4/online /sys/devices/system/cpu/cp
 ```
 **A systemd oneshot to make this survive reboots has been offered repeatedly across six reboots and never built.** It should stop being a manual step — that is the smallest open piece of work here.
 
-**Capacity note:** 4 cores / 8 threads of 32 are disabled, which is a real and permanent-until-RMA loss on the lab's GPU host. This is the fact [B149] has to price in.
+**Capacity note:** 2 physical P-cores / 4 threads (CPUs 4-7) of 32 logical (24 cores) are disabled — 22 of 24 cores stay online — which is a real and permanent-until-RMA loss on the lab's GPU host. This is the fact [B149] has to price in.
 
 **Remaining gap to symbolic analysis:** the first COMPLETE vmcore exists (`/var/crash/202608251044/dump.202608251044`, 2.08 GB, not `dump-incomplete`) and `crash` 8.0.4 is installed, but `vmlinux` debug symbols for `6.17.0-35-generic` are missing (no ddeb repo, no dbgsym package; ~1-2 GB). Optional now that the core hypothesis is confirmed behaviourally.
 
@@ -2846,7 +2846,7 @@ Relates **B88** (the integration tier this spun off from), B136 (Flink modules).
 
 **Open work:** redo the hardware half of the research against *portable* options under that framing. The cloud/burst-rent half, the break-even arithmetic, and the VRAM-not-FLOPS thesis all still stand — it is the local-box tier list that was written for the wrong form factor.
 
-Two further facts B149 must price in, both new as of 2026-08-27: rogueone currently runs with **4 cores / 8 threads of 32 disabled** (permanent until RMA, on the lab's GPU host), and the offlined-cores workaround is holding but is a **workaround on degrading silicon** — the wait is bounded, not indefinite.
+Two further facts B149 must price in, both new as of 2026-08-27: rogueone currently runs with **2 physical cores / 4 threads (CPUs 4-7) of 32 disabled** (permanent until RMA, on the lab's GPU host), and the offlined-cores workaround is holding but is a **workaround on degrading silicon** — the wait is bounded, not indefinite.
 
 Linear: EMA-190 (intended team WEY once that team exists). Relates EMA-186 (rogueone reliability — linked), B111 (on-demand GPU serving), B79 (Ollama/vLLM → rogueone), B128 (DCGM GPU telemetry).
 
