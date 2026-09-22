@@ -131,3 +131,53 @@ export FIXTURE_EXEMPT=$'docker.io/library/\nquay.io/\nghcr.io/\ndocker.io/grafan
   [[ "$output" == *"unreviewedvendor/thing:latest"* ]]
   [[ "$output" != *"weyland-dagster-user-code"* ]]
 }
+
+# --- run.sh: the in-cluster wrapper that feeds the guard from the live dumps -------------------------------
+# The CronJob's `check` container runs /opt/ip/run.sh, which transforms /shared/policy.json (the live
+# K8sImageSignature constraint) + /shared/workloads.json (every declared workload) into the guard's env
+# contract (IMAGE_LIST + POLICY_ALLOWED/EXEMPT/EXCLUDED_NS). It lives only in the ConfigMap (cron glue, not
+# a repo script), so these tests EXTRACT it and drive it with a stub guard that echoes what it was fed.
+extract_run_sh() {
+  awk '/^  run\.sh: \|$/{g=1;next} g && /^  check-image-provenance\.sh: \|$/{g=0} g{sub(/^    /,"");print}' \
+    "$REPO_ROOT/nodes/mother/lab/weyland-platform/k8s/monitoring/image-provenance.yaml"
+}
+
+@test "run.sh: feeds POLICY_* + IMAGE_LIST from the live dumps, across every workload shape" {
+  local d="$BATS_TEST_TMPDIR"
+  extract_run_sh > "$d/run.sh"
+  cat > "$d/policy.json" <<'JSON'
+{"spec":{"parameters":{"allowedRegistries":["registry.weyland.lab/"],"exemptImages":["docker.io/library/","quay.io/"]},"match":{"excludedNamespaces":["kube-system","istio-system"]}}}
+JSON
+  cat > "$d/workloads.json" <<'JSON'
+{"items":[
+ {"kind":"Deployment","metadata":{"namespace":"a"},"spec":{"template":{"spec":{"initContainers":[{"image":"quay.io/init:1"}],"containers":[{"image":"registry.weyland.lab/app:1"}]}}}},
+ {"kind":"CronJob","metadata":{"namespace":"b"},"spec":{"jobTemplate":{"spec":{"template":{"spec":{"containers":[{"image":"docker.io/library/busybox:1"}]}}}}}},
+ {"kind":"Pod","metadata":{"namespace":"c"},"spec":{"containers":[{"image":"ghcr.io/foo/bar:1"}]}}
+]}
+JSON
+  printf '#!/usr/bin/env bash\necho "ALLOWED:$POLICY_ALLOWED"\necho "EXCLUDED:$POLICY_EXCLUDED_NS"\nprintf "IMG:%%s\\n" "$IMAGE_LIST"\n' > "$d/guard"
+  chmod +x "$d/guard"
+  POLICY_JSON="$d/policy.json" WORKLOADS_JSON="$d/workloads.json" GUARD_PATH="$d/guard" run bash "$d/run.sh"
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"ALLOWED:registry.weyland.lab/"* ]]
+  [[ "$output" == *"istio-system"* ]]
+  [[ "$output" == *$'a\tregistry.weyland.lab/app:1'* ]]
+  [[ "$output" == *$'a\tquay.io/init:1'* ]]                 # initContainers included
+  [[ "$output" == *$'b\tdocker.io/library/busybox:1'* ]]    # CronJob shape (jobTemplate)
+  [[ "$output" == *$'c\tghcr.io/foo/bar:1'* ]]              # bare Pod shape
+}
+
+@test "run.sh: fail-closed (exit 2) when the policy dump is missing" {
+  local d="$BATS_TEST_TMPDIR"; extract_run_sh > "$d/run.sh"
+  echo '{"items":[]}' > "$d/workloads.json"; printf '#!/bin/sh\n' > "$d/guard"; chmod +x "$d/guard"
+  POLICY_JSON="$d/nope.json" WORKLOADS_JSON="$d/workloads.json" GUARD_PATH="$d/guard" run bash "$d/run.sh"
+  [ "$status" -eq 2 ]
+}
+
+@test "run.sh: fail-closed (exit 2) when the policy has no allowedRegistries (broken read, not a finding)" {
+  local d="$BATS_TEST_TMPDIR"; extract_run_sh > "$d/run.sh"
+  echo '{"spec":{"parameters":{"allowedRegistries":[],"exemptImages":["x/"]}}}' > "$d/policy.json"
+  echo '{"items":[]}' > "$d/workloads.json"; printf '#!/bin/sh\n' > "$d/guard"; chmod +x "$d/guard"
+  POLICY_JSON="$d/policy.json" WORKLOADS_JSON="$d/workloads.json" GUARD_PATH="$d/guard" run bash "$d/run.sh"
+  [ "$status" -eq 2 ]
+}

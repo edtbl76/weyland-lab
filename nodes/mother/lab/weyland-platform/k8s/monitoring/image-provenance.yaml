@@ -44,6 +44,82 @@ metadata:
   name: image-provenance-logic
   namespace: monitoring
 data:
+  run.sh: |
+    #!/usr/bin/env bash
+    # In-cluster feeder for check-image-provenance.sh — the `check` container of the image-provenance CronJob.
+    # The `dump` initContainer writes the live K8sImageSignature constraint to /shared/policy.json and every
+    # declared workload to /shared/workloads.json; this transforms those into the guard's env contract
+    # (IMAGE_LIST + POLICY_ALLOWED / POLICY_EXEMPT / POLICY_EXCLUDED_NS) and hands off to the guard.
+    #
+    # FAIL CLOSED: a missing/unparseable feed, or a policy with no allowedRegistries, is exit 2 — never a
+    # fed-empty list that the guard would read as a clean estate. (The guard itself also exits 2 on an empty
+    # IMAGE_LIST; this wrapper adds the read-side guards the guard cannot see.)
+    set -euo pipefail
+
+    POLICY="${POLICY_JSON:-/shared/policy.json}"
+    WORKLOADS="${WORKLOADS_JSON:-/shared/workloads.json}"
+    GUARD="${GUARD_PATH:-/opt/ip/check-image-provenance.sh}"
+
+    for f in "$POLICY" "$WORKLOADS" "$GUARD"; do
+      [ -r "$f" ] || { echo "FATAL: $f missing/unreadable — refusing to judge on a partial read (exit 2)." >&2; exit 2; }
+    done
+
+    # --- constraint (/shared/policy.json) → POLICY_ALLOWED / POLICY_EXEMPT / POLICY_EXCLUDED_NS ----------------
+    _policy() { # _policy allowed|exempt|excluded_ns  → newline list
+      python3 - "$POLICY" "$1" <<'PY'
+    import sys, json
+    spec = (json.load(open(sys.argv[1])).get("spec") or {})
+    params, match = (spec.get("parameters") or {}), (spec.get("match") or {})
+    vals = {
+        "allowed":     params.get("allowedRegistries") or [],
+        "exempt":      params.get("exemptImages") or [],
+        "excluded_ns": match.get("excludedNamespaces") or [],
+    }[sys.argv[2]]
+    print("\n".join(str(v) for v in vals))
+    PY
+    }
+
+    POLICY_ALLOWED="$(_policy allowed)"
+    POLICY_EXEMPT="$(_policy exempt)"
+    POLICY_EXCLUDED_NS="$(_policy excluded_ns)"
+
+    # A constraint with no allowedRegistries would flag the whole estate — that is a broken read, not a finding.
+    [ -n "$POLICY_ALLOWED" ] || { echo "FATAL: policy has no allowedRegistries — the constraint read is broken (exit 2)." >&2; exit 2; }
+    export POLICY_ALLOWED POLICY_EXEMPT POLICY_EXCLUDED_NS
+
+    # --- workloads (/shared/workloads.json) → IMAGE_LIST (<ns>\t<image>) ---------------------------------------
+    # Every container/init/ephemeral image, across all workload shapes: Deployment/StatefulSet/DaemonSet/Job
+    # (.spec.template.spec), CronJob (.spec.jobTemplate.spec.template.spec), bare Pod (.spec). De-duplicated.
+    IMAGE_LIST="$(python3 - "$WORKLOADS" <<'PY'
+    import sys, json
+    data = json.load(open(sys.argv[1]))
+    rows, seen = [], set()
+    for it in data.get("items", []):
+        ns = ((it.get("metadata") or {}).get("namespace")) or ""
+        spec = it.get("spec") or {}
+        if "jobTemplate" in spec:        # CronJob
+            ps = (((spec["jobTemplate"] or {}).get("spec") or {}).get("template") or {}).get("spec") or {}
+        elif "template" in spec:         # Deployment / StatefulSet / DaemonSet / Job
+            ps = (spec["template"] or {}).get("spec") or {}
+        elif "containers" in spec:       # bare Pod
+            ps = spec
+        else:
+            continue
+        for key in ("initContainers", "containers", "ephemeralContainers"):
+            for c in (ps.get(key) or []):
+                img = (c or {}).get("image")
+                if isinstance(img, str) and img.strip():
+                    row = "%s\t%s" % (ns, img.strip())
+                    if row not in seen:
+                        seen.add(row); rows.append(row)
+    print("\n".join(rows))
+    PY
+    )"
+    export IMAGE_LIST
+
+    echo "image-provenance: fed $(printf '%s\n' "$IMAGE_LIST" | grep -c .) image(s) · policy $(printf '%s\n' "$POLICY_ALLOWED" | grep -c .) allowed / $(printf '%s\n' "$POLICY_EXEMPT" | grep -c .) exempt / $(printf '%s\n' "$POLICY_EXCLUDED_NS" | grep -c .) excluded-ns"
+
+    exec bash "$GUARD"
   check-image-provenance.sh: |
     #!/usr/bin/env bash
     # Declared-image provenance invariant (B88 — the image-signature dryrun->deny prerequisite).
