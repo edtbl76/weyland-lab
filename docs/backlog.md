@@ -2595,7 +2595,39 @@ rogueone effectively has **no active backups**: both installed backup tools were
 
 ---
 
-### B131 — Open-PR lifecycle: surface AND resolve dependency + CI PRs — **DONE (2026-08-23)**
+### B131 — Open-PR lifecycle: surface AND resolve dependency + CI PRs — **DONE (2026-08-23; resolution half shipped 2026-09-22)**
+
+**RESOLUTION HALF SHIPPED 2026-09-22 — `scripts/check-pr-lifecycle.sh`.** The 2026-08-23 DONE covered only
+the SURFACING half (acceptance (a), the `pr-staleness-check` age-alert); widened acceptance **(b) a routine
+for resolving them** and **(c) superseded-handling** had NOT shipped — the item was marked done with half its
+scope unexecuted (surfaced during the B119 Linear-inbox walk, which is itself the pattern B119 exists to
+catch). The reconciler now closes that gap: it enumerates every open MANAGED PR (dependabot + `ci/image-bump-*`)
+and lands a verdict — **STALE** (dependabot diverged from main → `@dependabot recreate`, which re-cuts against
+current main and cannot regress), **SUPERSEDED** (a newer managed PR on the same target → close; the
+#12-after-#13 backwards-roll trap = acceptance (c)), **MERGEABLE** (dependabot current+green, or the newest
+image-bump ship-loop survivor), **NEEDS-HUMAN** (CI red/pending). Advisory by default; `--apply` performs the
+low-risk resolutions (recreate STALE, close SUPERSEDED) and **NEVER merges**. Fail-closed (unresolvable
+`compare` → exit 2, never "current") because the hazard it exists to stop is a **stale merge silently
+downgrading a hand-remediated CVE** — found live 2026-09-21: PR #63 would have merged aiohttp while
+downgrading `cryptography` 50→48 (reintroducing CVE-2026-69247/69249) + `mlflow` 3.15.1→3.14.0, and GitHub
+reported it `MERGEABLE` (main unprotected). **First live `--apply` (2026-09-22):** closed the 4-deep image-bump
+superseded stack (#95–98, survivor #99 left to merge) and requested recreate on the 3 stale dependabot PRs
+(#63/#72/#80) — 8 rotting PRs → 4 current; verified dependabot re-cut #80/#72/#63 to current (no longer stale).
+**Nightly CronJob shipped:** `pr-lifecycle-reconcile` (`k8s/pr-lifecycle/pr-lifecycle-reconcile.yaml`, 03:25 NY,
+**unmeshed** — GitHub egress only, like zoekt-index; `automountServiceAccountToken: false`) runs the
+**byte-identical** script from a ConfigMap (`scripts/embed-pr-lifecycle.sh` regenerates it; a bats drift case
+asserts no drift), `--apply`. Failure surfaces via `ScheduledJobFailed` (added to `cron-freshness-rules.yaml`
+alongside the daily `ScheduledJobStale` 26h budget; promtool SUCCESS). Write-scoped sealed secret
+`pr-lifecycle-reconcile-github` (distinct from the read-only `pr-lifecycle-github`). **DoD (repo-tooling + CronJob
+lens):** 12 bats green in `bats/bats:latest` (incl. never-merges + no-drift); shellcheck 0; toolchain proven in
+`alpine + apk add bash github-cli python3` before push; `check-cron-freshness-budgets` ok/ok, `check-mermaid` /
+`check-doc-counts`(81) / `check-linear-sync`(177) / `check-sa-automount-collisions` / `check-app-registry` all green;
+`kubectl --dry-run=client` validates both resources. Docs: [runbooks/pr-lifecycle.md](runbooks/pr-lifecycle.md)
+§ "Resolving open PRs" · [diagrams/flow-pr-lifecycle.md](diagrams/flow-pr-lifecycle.md) ·
+[demos/pr-lifecycle-reconcile.md](demos/pr-lifecycle-reconcile.md) (ledger row 83) · `schedules.md` 03:25.
+**Operator steps to finish deploy:** `chmod +x scripts/check-pr-lifecycle.sh scripts/embed-pr-lifecycle.sh`;
+create+seal the write-scoped PAT as `pr-lifecycle-reconcile-github`; `git add` + push (Argo syncs the CronJob).
+Linear EMA-192.
 
 **Shipped: `pr-staleness-check`** (`k8s/pr-lifecycle/pr-staleness.yaml`) — a daily 05:45 NY CronJob that lists open PRs across the **six active repos** via the GitHub API, applies a per-kind age budget, and POSTs a synthetic alert to the **Alertmanager v2** API. No routing change was needed: the top-level route is a catch-all to `telegram`.
 

@@ -1,11 +1,13 @@
 # pr-lifecycle — the delivery-pipeline watchdogs
 
-**Three** CronJobs share the `pr-lifecycle` Argo app (`k8s/pr-lifecycle/`). None deploys anything. Two
-answer the same question about the ship loop — **did the thing that was supposed to happen, happen?** —
-and the third cleans up after it.
+**Four** CronJobs share the `pr-lifecycle` Argo app (`k8s/pr-lifecycle/`). None deploys anything. Three
+answer the same question about the ship loop — **did the thing that was supposed to happen, happen?** — one
+cleans up after it, and the fourth (`pr-lifecycle-reconcile`) is the only one that RESOLVES the PRs the
+others surface.
 
-| CronJob | Schedule (NY) | Asks | Acts |
+| CronJob | Schedule (NY) | Asks / does | Acts |
 |---|---|---|---|
+| `pr-lifecycle-reconcile` | 03:25 daily | are open managed PRs stale or superseded? | `@dependabot recreate` stale · **closes** superseded · **never merges** (§ "Resolving open PRs") |
 | `cron-freshness-check` | 04:30 daily | is the Woodpecker `nightly-images` cron enabled, with a future `next_exec`? | alert `ScheduledWorkNotRunning` (critical) |
 | `port-pr-reconcile` | 05:15 daily | does Port still believe a closed PR is open? | **DELETES** the stale entity |
 | `pr-staleness-check` | 05:45 daily | is a PR sitting open past its age budget? | alert `OpenPullRequestStale` (warning) |
@@ -49,7 +51,7 @@ job's own manifest:
 |---|---|---|
 | every 30m | `dagster-freshness-check` | 2h |
 | every 6h | `lancedb-sync` | 8h |
-| daily | `minio-backup` · `pg-backup` · `postgres-backup` · `docs-site-rebuild` · `pr-staleness-check` · `cron-freshness-check` · `port-pr-reconcile` | 26h |
+| daily | `minio-backup` · `pg-backup` · `postgres-backup` · `docs-site-rebuild` · `pr-staleness-check` · `cron-freshness-check` · `port-pr-reconcile` · `pr-lifecycle-reconcile` | 26h |
 | weekly (Sun) | `sonar-scan` · `code-scan-suite` | 8d |
 
 **Budgets are per-cadence deliberately.** A blanket "no success in 24h" would false-fire on both
@@ -234,7 +236,8 @@ cron has never been scheduled — the created-disabled state.
 
 | Secret | Namespace | Holds | Sealed CR |
 |---|---|---|---|
-| `pr-lifecycle-github` | `weyland` | GitHub PAT, `Pull requests: read` on the six active repos | `k8s/sealed-secrets/sealed/weyland__pr-lifecycle-github.yaml` |
+| `pr-lifecycle-github` | `weyland` | GitHub PAT, `Pull requests: read` on the active repos | `k8s/sealed-secrets/sealed/weyland__pr-lifecycle-github.yaml` |
+| `pr-lifecycle-reconcile-github` | `weyland` | GitHub PAT, `Pull requests: **write**` on `edtbl76/weyland-lab` (recreate posts a comment, close closes a PR) — distinct from the read-only token above, least-privilege per job | `k8s/sealed-secrets/sealed/weyland__pr-lifecycle-reconcile-github.yaml` |
 | `cron-freshness-woodpecker` | `weyland` | Woodpecker API token (user-scoped) | `k8s/sealed-secrets/sealed/weyland__cron-freshness-woodpecker.yaml` |
 | `port-pr-reconcile-creds` | `weyland` | Port **organization** clientId / clientSecret (B144) | `k8s/sealed-secrets/sealed/weyland__port-pr-reconcile-creds.yaml` |
 
@@ -277,6 +280,72 @@ tripwire, every later test would be vacuously green against an empty file.
 are reached through `GH_STATE_FN` / `PORT_DELETE_FN` indirection rather than called by name. A plain PATH
 stub cannot intercept them — a shell function always beats an executable of the same name, so the real
 `curl` implementation would shadow the stub and the test would hit the live API while appearing to pass.
+
+## Resolving open PRs — `check-pr-lifecycle.sh` (B131 resolution half)
+
+The other three watchdogs **surface** — they alert or reap, but none *resolves the dependency/CI PRs
+themselves*. That was B131's widened acceptance (b) "a routine for resolving them" + (c) superseded-handling,
+which shipped 2026-09-22 (the original DONE covered only the `pr-staleness-check` alert). It ships two ways
+from **one** decision core (`scripts/check-pr-lifecycle.sh`): the **operator command** below, and the nightly
+**`pr-lifecycle-reconcile` CronJob** (03:25, `--apply`) that embeds the byte-identical script (see
+[Where the logic lives](#where-the-logic-lives)). Advisory by default (prints, mutates nothing):
+
+```
+bash scripts/check-pr-lifecycle.sh
+```
+
+It enumerates every open **managed** PR (dependabot + `ci/image-bump-*`) and lands a verdict:
+
+| Verdict | Meaning | Recommendation |
+|---|---|---|
+| `STALE` | a **dependabot** PR whose branch has diverged from main (`compare.status` = diverged/behind) | `@dependabot recreate` — re-cut against current main |
+| `SUPERSEDED` | a **newer** managed PR targets the same dir+package | close (merging the older rolls that dep backwards) |
+| `MERGEABLE` | dependabot: current + CI-green · image-bump: the newest survivor | merge (the image-bump survivor IS the ship loop) |
+| `NEEDS-HUMAN` | current but CI red / pending | review |
+
+**Why `STALE` never merges — the regression trap.** A stale dependabot branch carries **pre-remediation
+pins**: merging it can silently DOWNGRADE a dependency main has already hand-remediated (found 2026-09-21 —
+PR #63 would have merged aiohttp while downgrading `cryptography` 50→48, reintroducing CVE-2026-69247/69249,
+and `mlflow` 3.15.1→3.14.0). GitHub reports it `MERGEABLE` because `main` is unprotected, so the guard must
+not trust `mergeStateStatus`; it leans on the `compare` API and resolves via `@dependabot recreate` (which
+re-cuts against current main and therefore **cannot** regress). Over-flagging `STALE` costs one harmless
+recreate; failing OPEN would merge a downgrade — so the guard **fails closed** (an unresolvable `compare` is
+exit 2, never "current").
+
+`ci/image-bump` PRs are class-distinct: they are the B57a ship loop, not dependabot's, so `@dependabot
+recreate` is meaningless for them — only the **newest survives** (older siblings are `SUPERSEDED` → closed;
+the survivor is `MERGEABLE` → merge to ship). This is the #12-after-#13 backwards-roll trap B131 was widened
+to cover.
+
+To perform the low-risk resolutions (recreate STALE dependabot PRs, close SUPERSEDED) — **never merges**:
+
+```
+bash scripts/check-pr-lifecycle.sh --apply
+```
+
+Exit codes: **0** ran (advisory or `--apply` done) · **2** the guard could not do its job (`gh`/API/transport).
+`gh` carries its own auth (keyring locally; `GH_TOKEN` in the cron). The `GH_BIN` seam lets
+`scripts/tests/pr-lifecycle.bats` stub `gh` (12 tests, run in `bats/bats:latest`) so the DECISION logic is tested
+without touching a live PR — the two load-bearing invariants being *advisory never mutates* and *`--apply` never
+merges*, plus a no-drift case (below).
+
+**Run the nightly cron by hand** (either host with `kubectl`; it is on **mother**):
+
+```
+kubectl -n weyland create job pr-lifecycle-reconcile-adhoc --from=cronjob/pr-lifecycle-reconcile
+kubectl -n weyland logs job/pr-lifecycle-reconcile-adhoc
+```
+
+The tail line is the summary: `pr-lifecycle: N open (S stale, U superseded, M mergeable, H needs-human)`. The
+Job runs **unmeshed** (only egress to GitHub via `gh`), so it terminates on its own; a non-zero exit fails the
+Job → `kube_job_status_failed` → `ScheduledJobFailed` → Telegram (there is no self-POST to Alertmanager).
+
+**After editing `scripts/check-pr-lifecycle.sh`, regenerate the embedded copy** — the CronJob runs the
+byte-identical script from its ConfigMap, and `scripts/tests/pr-lifecycle.bats` fails on drift:
+
+```
+bash scripts/embed-pr-lifecycle.sh
+```
 
 ## Related
 

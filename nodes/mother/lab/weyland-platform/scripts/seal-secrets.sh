@@ -48,6 +48,9 @@ SECRETS=(
   weyland/open-webui-oauth
   weyland/port-creds
   weyland/pr-lifecycle-github     # B131 — read-only GitHub PAT for the open-PR staleness watchdog
+  weyland/pr-lifecycle-reconcile-github # B131 (resolution half) — WRITE-scoped PAT (Pull requests: write on
+                                  # edtbl76/weyland-lab) for the pr-lifecycle-reconcile CronJob: recreate posts
+                                  # a comment, close closes a PR. Distinct from the read-only token above.
   weyland/port-pr-reconcile-creds # B144 — Port org creds for the githubPullRequest reaper. DELIBERATELY NOT
                                   # weyland/port-creds: that one is mounted by dagster-user-code and, as of
                                   # 2026-08-25, holds the literal placeholders YOUR_ID / YOUR_SECRET (401).

@@ -1,0 +1,81 @@
+# Linear — feature evaluation (B119)
+
+> The "master the tool" pass for Linear, the same treatment done for Port (B60) and DataHub (B80).
+> Method: walk Linear's features **one at a time, against real workspace data** (pulled live via the
+> Linear MCP), and for each land an **adoption decision** for the lab's workflow. The lab is **solo, $0,
+> LAN-only**; **`docs/backlog.md` is the durable, ordered record** and **Linear is the working/reasoning
+> + status surface** ([[linear-status-source-of-truth]]). A feature is worth adopting only if it earns its
+> place under those constraints — collaboration features that assume multiple people usually do not.
+>
+> This doc is a **living record**: each feature gets a row in the table below and a detail section as we
+> get to it. B119 closes when the walk is complete and the adopted set is settled.
+
+## Adoption decisions (running)
+
+| Feature | Verdict | The decision |
+|---|---|---|
+| **Inbox / notifications** | **ADOPT WITH LOW TRUST — an event *pointer*, not a state source** | Keep the GitHub↔Linear connection ON for surface-consolidation (Linear = GitHub dev events, Port = ops events). But the Inbox mirrors the *event* ("review requested"), not the PR's *state* (mergeable / stale / superseded) — so **GitHub remains the source of truth for PR state, and nothing is actioned from the Inbox's signal alone.** Same discipline as issue drift: verify mechanically, don't trust the tool's view. |
+
+## Inbox / notifications
+
+**Real data (MCP `get_notifications`, 2026-09-21):** the *entire* inbox is **21 notifications, 100%
+`pullRequestReviewRequested`, every one a dependabot dependency-bump PR** surfaced via the GitHub
+integration. Zero issue-assignment / mention / comment / status-change notifications. Nearly all share
+one identical `readAt` timestamp (a single bulk "mark all read"); the few with distinct `readAt` are the
+ones actually engaged.
+
+**Why the feed looks like this:** Linear's Inbox is a *collaboration* feed — assignments, @mentions,
+comments, review hand-offs *between people* — and Linear suppresses self-triggered notifications. In a
+**solo** workspace none of those fire, so the only traffic is from **external actors**: here, dependabot
+via the GitHub integration.
+
+**Verdict — ADOPT WITH LOW TRUST — an event *pointer*, not a state source.** The consolidation value is
+real: **aggregation collapses surfaces** — GitHub-origin notifications landing in Linear means one fewer
+place to monitor (GitHub's own notifications tab), a net reduction for a solo operator across weyland +
+Stud.IO's many repos. So keep the connection. But a decisive caveat emerged on contact with real data
+(below): the Inbox mirrors the *event*, not the *state*, so it cannot be trusted as a source of truth.
+
+**The decisive finding — the Inbox is an event pointer, not a state source.** Actioning the weyland slice of
+the inbox exposed how thin the mirror is. Of 21 notifications only 3 mapped to open weyland-lab PRs, and
+against `main` those were: **#80** quic-go — clean / current / safe; **#72** soupsieve — wanted but the
+branch is **stale** and would clobber main's curated `requirements.txt`; **#63** aiohttp — **stale and
+regressive**, its bump already satisfied on main while merging it would *downgrade* `cryptography` 50→48
+(reintroducing CVE-2026-69247/69249) and `mlflow` 3.15.1→3.14.0. **The most dangerous item presented in the
+inbox identically to the safe one** — "dependabot requested your review," with no currency or quality signal.
+The Inbox aggregates the *existence* of PRs, never their *actionability*.
+
+**Why the sync can't be trusted, and the discipline that follows.** This is the lab's recurring pattern:
+never trust a tool's own view of external state — verify mechanically. Issue-state drift is not trusted to
+Linear's UI, it is guarded by `check-linear-sync.sh` ([[linear-status-source-of-truth]]). The Inbox has no
+equivalent guard over GitHub PR state, so it is a **low-trust event feed**. **GitHub (or a mechanical check)
+remains the source of truth for PR state, and nothing is merged/closed on the Inbox's signal alone** — proven
+here, where "review requested" would have led straight into a silent security downgrade.
+
+**The division of labor (decided):**
+
+- **Linear Inbox = code/dev notifications** — GitHub PR + linked-issue activity across all repos, with the
+  inbox lifecycle (snooze bumps for later, archive done ones, priority). Plays to Linear's native
+  GitHub-integration strength. **Keep git connected to Linear.**
+- **Port = operational aggregator** — CI outcomes (`ci_pipeline`, B63), GlitchTip errors (`glitchtip_issue`),
+  uptime — already ingested via webhook. A *different class* of event; Port's catalog/dashboard shape fits
+  runtime state, Linear's inbox shape fits actionable dev items. Neither is forced into the other's grain.
+
+**Root-cause / standing hazard (bigger than these 3 PRs).** In a **LAN = no-webhooks** + **Woodpecker
+post-merge CI** + **hand-remediated-CVE** setup, dependabot branches sit and go **stale**, silently carrying
+pre-remediation resolutions. Merging accumulated stale PRs is therefore a regression trap — and **blanket
+dependabot auto-merge is UNSAFE** (it would have applied #63's cryptography/mlflow downgrade unattended).
+
+**Resolved — and it answered the "keep Linear updated vs. move the notifications" question.** The right
+workflow is not to make Linear's mirror smarter but to **keep the source clean so any mirror is trustworthy
+by construction**. That routine shipped as `scripts/check-pr-lifecycle.sh` (the unbuilt resolution half of
+**B131**): it classifies every open managed PR (STALE / SUPERSEDED / MERGEABLE / NEEDS-HUMAN) and, on
+`--apply`, `@dependabot recreate`s the stale ones (re-cut against current main — cannot regress) and closes
+superseded ones, never merging. With the PR set kept current + minimal, the GitHub↔Linear mirror is accurate
+without any Linear-side automation, and the residual reaching the Inbox is only genuinely-actionable items.
+So the Inbox stays adopted (low-trust pointer), the reconciler is the accuracy mechanism, and the surface
+question is moot because the volume is near-zero. See [runbooks/pr-lifecycle.md](../runbooks/pr-lifecycle.md)
+§ "Resolving open PRs".
+
+**Latent value to revisit:** the Inbox is also the delivery surface for **subscription** notifications and
+**automation / SLA** triggers. It is empty of that value *today* only because nothing the lab runs emits to
+it — reconsider its weight if later features (automations, SLAs, a parked/stale-issue rule) start feeding it.

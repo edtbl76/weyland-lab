@@ -1,0 +1,16 @@
+---
+apiVersion: bitnami.com/v1alpha1
+kind: SealedSecret
+metadata:
+  name: pr-lifecycle-reconcile-github
+  namespace: weyland
+spec:
+  encryptedData:
+    token: AgCKPfibwxJWiGXGiW9y+m/IdKGFLmPVlWyOxKIVuwGSoQUXNSKvG3ory5oXIeyvIC2jkpyqA+rqTqhdrcK5tCehJbTxslcyez9RlFs+X5e4EkLWhC90xAYs4ShFCGzwlUPFaaBWZAqV1KVpjJUDjm7WuzDwlG+bB7arNfEdBVtsFDsUyNzlFJvwdGIaXPU1EvhEAoi1uzjFBfZbC84wNax/MPSwfxhq8xTru4Tzs2wRnwMQIWr84gU8rDKQy/QMCNNTSJv2wo0/2rpQbxX2On/tKt7bvupNSGkuoT4N3n3vhe9xniyrGtSXXE5bahIyyn4g1Xlxj/t9L9fGainDdukZhkqugFysrx4eS9cXgkhvr527cFLwbucoqE/Oa4CIeaMPgcARsXZ0R9GbcXNsu/dBavALbpxckEpNzp3G+ZR7LMCSdhec1iuDIVvKpm5hs5TT7TcZ3rpjnXq0TWjO+VGRtZlbPg7Jh62qCjsilIijiW7PJiONSLLYwG4QYnF6U0cYMT993dytHkET0/sAifY/qxCEz39Zs6yO6wbMyzZt6EaCQgolkacI4o4jcPia7O6btmRP68PGPEosAgwDUMj1/C1foH70t/r/0GobZQL+MGKSKIBK91+JGR72NVtucO1oRxoga11JfmfigSdTYVuSF2+dxp7J1vHH5PMeiSSVwVuETPMsfpcZFYMgXhM9ziM=
+  template:
+    metadata:
+      annotations:
+        sealedsecrets.bitnami.com/managed: "true"
+      name: pr-lifecycle-reconcile-github
+      namespace: weyland
+    type: Opaque

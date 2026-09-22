@@ -1,0 +1,224 @@
+#!/usr/bin/env bash
+# B131 — Open-PR lifecycle: the RESOLUTION half (acceptance (b) resolve-routine + (c) superseded-handling).
+#
+# B131 shipped only the SURFACING half — `pr-staleness.yaml`, a daily age-threshold Telegram alert. This is
+# the routine that actually RESOLVES the managed PRs it surfaces, so "open" always means "someone still has
+# to decide" rather than "rotting unnoticed". See docs/concepts/linear-evaluation.md (the B119 walk that
+# motivated it) and docs/runbooks/pr-lifecycle.md.
+#
+# WHAT IT DOES. Enumerates open MANAGED PRs (dependabot + `ci/image-bump-*`), and for each lands a verdict:
+#   STALE        — branch has diverged from main (compare.status = diverged|behind). Merging a stale bump can
+#                  silently REGRESS main (a stale branch carries pre-remediation pins — e.g. it would downgrade
+#                  a hand-remediated CVE fix). NEVER merge; `@dependabot recreate` re-cuts it against current
+#                  main (which cannot regress) and auto-closes it if the bump is already satisfied.
+#   SUPERSEDED   — a NEWER managed PR targets the same directory+package. Merging the older one after the newer
+#                  rolls that dependency BACKWARDS (the #12-after-#13 trap). Close it, referencing the newer.
+#   NEEDS-HUMAN  — current but CI is red (or it is a major-version bump). A person decides.
+#   MERGEABLE    — current AND CI-green. Safe to merge (left to a human in v1; a future --merge could gate it).
+#
+# WHY A SAFE PRIMITIVE INSTEAD OF A PERFECT DETECTOR. mergeStateStatus lies (reports a regressive PR as
+# "MERGEABLE" when main is unprotected); the compare-API file list truncates at 300 files (a very-behind PR's
+# real change drops off → false "current"). Rather than reason about a 3-way merge outcome per ecosystem, we
+# lean on the cheap, reliable `compare.status` and the SAFE action `@dependabot recreate` — which re-resolves
+# against current main and therefore cannot introduce a downgrade. Over-flagging "stale" costs one harmless
+# recreate, never a regression. Fail OPEN here would mean merging a downgrade, so the guard fails CLOSED.
+#
+#   usage: scripts/check-pr-lifecycle.sh [--apply] [--repo <owner/repo>]
+#          (default): advisory — print each managed PR's verdict + recommendation, exit 0.
+#          --apply  : perform the low-risk resolutions — `@dependabot recreate` STALE, close SUPERSEDED.
+#                     Merges are NEVER automated here.
+#          --repo   : target repository (default edtbl76/weyland-lab).
+#
+# EXIT CODES: 0 = ran (advisory, or --apply completed). 2 = the guard could not do its job (gh/API/transport).
+#   Distinct on purpose: a guard that cannot see must never look like a clean sweep (B131's own first-run bug).
+#
+# ENV: GH_BIN — the GitHub CLI to invoke (default `gh`); overridable so the DECISION logic is testable with a
+#      stub (bats), the same seam pattern as COMPLEXITY_ENGINE in check-complexity.sh. `gh` carries its own
+#      auth (keyring locally; GH_TOKEN in CI).
+set -euo pipefail
+
+GH_BIN="${GH_BIN:-gh}"
+REPO="edtbl76/weyland-lab"
+APPLY=0
+
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --apply) APPLY=1; shift ;;
+    --repo)  REPO="${2:?--repo needs a value}"; shift 2 ;;
+    -h|--help) sed -n '2,40p' "$0"; exit 0 ;;
+    *) echo "FATAL: unknown argument: $1" >&2; exit 2 ;;
+  esac
+done
+
+command -v "$GH_BIN" >/dev/null 2>&1 || { echo "FATAL: '$GH_BIN' not found on PATH." >&2; exit 2; }
+
+# A branch is MANAGED if it is a dependabot update or a CI image-bump — the two classes of machine-authored PR
+# that rot the same way. Keyed on the branch PREFIX (what the PR IS), never the author (who pushed the button).
+is_managed() {
+  case "$1" in
+    dependabot/*|ci/image-bump-*|ci-image-bump-*) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+# Only dependabot PRs are re-cuttable with `@dependabot recreate`; ci/image-bump PRs are the ship loop
+# (authored by the B57a image CI), so their resolution is close-the-older + merge-the-survivor, never recreate.
+is_dependabot() { case "$1" in dependabot/*) return 0 ;; *) return 1 ;; esac }
+
+# The "package key" for superseded-detection: a dependabot branch encodes ecosystem + directory + package, e.g.
+# dependabot/pip/<dir>/<package-or-group>-<hash>. We normalise to "<ecosystem>|<dir>|<package>" by dropping the
+# trailing -<hash>; two open PRs with the same key target the same thing, so the OLDER is superseded.
+pkg_key() {
+  # strip the leading "dependabot/", then strip a trailing "-<hexhash>" the resolver appends.
+  printf '%s\n' "$1" | sed -E 's#^dependabot/##; s#-[0-9a-f]{8,}$##'
+}
+
+# --- gather open managed PRs -------------------------------------------------------------------------------
+# Read the body, not just an exit code: `gh ... | jq` collapses an API failure to empty input that looks like
+# "no open PRs". We capture stdout AND status, and a transport failure is exit 2, never a clean sweep.
+raw=""
+if ! raw="$("$GH_BIN" pr list --repo "$REPO" --state open --limit 200 \
+      --json number,title,headRefName,createdAt,isDraft,statusCheckRollup 2>&1)"; then
+  echo "FATAL: could not list PRs for $REPO (gh transport/auth failure):" >&2
+  echo "$raw" >&2
+  exit 2
+fi
+
+# Parse into TSV rows: number \t branch \t createdAt \t ci \t title. python3 keeps us off a jq dependency and
+# lets us reduce statusCheckRollup to a single ci verdict (fail > pending > pass) deterministically.
+rows="$(printf '%s' "$raw" | python3 -c '
+import sys, json
+try:
+    prs = json.load(sys.stdin)
+except Exception as e:
+    sys.stderr.write("FATAL: PR list was not valid JSON: %s\n" % e); sys.exit(2)
+for p in prs:
+    roll = p.get("statusCheckRollup") or []
+    states = set()
+    for c in roll:
+        s = (c.get("conclusion") or c.get("state") or "").upper()
+        states.add(s)
+    if states & {"FAILURE","ERROR","TIMED_OUT","ACTION_REQUIRED","CANCELLED"}:
+        ci = "fail"
+    elif states & {"PENDING","IN_PROGRESS","QUEUED","EXPECTED",""}:
+        ci = "pending"
+    else:
+        ci = "pass"
+    print("\t".join([str(p["number"]), p["headRefName"], p.get("createdAt",""), ci,
+                     (p.get("title","").replace("\t"," ").replace("\n"," "))]))
+' )" || { echo "FATAL: could not parse the PR list." >&2; exit 2; }
+
+# --- classify ---------------------------------------------------------------------------------------------
+# First pass: collect managed PRs and their package keys (for superseded detection).
+# Initialise as EMPTY arrays, not a bare `declare -a`: under `set -u` an older bash (the bats/bats:latest
+# image) throws "unbound variable" on ${#arr[@]} for a declared-but-never-assigned array.
+NUMS=(); BRANCHES=(); CREATED=(); CI=(); TITLES=(); KEYS=()
+while IFS=$'\t' read -r num branch created ci title; do
+  [ -n "${num:-}" ] || continue
+  is_managed "$branch" || continue
+  NUMS+=("$num"); BRANCHES+=("$branch"); CREATED+=("$created"); CI+=("$ci"); TITLES+=("$title")
+  KEYS+=("$(pkg_key "$branch")")
+done <<< "$rows"
+
+n_open=${#NUMS[@]}
+
+# Superseded: for each package key with >1 open PR, the newest createdAt is the survivor; the rest are superseded.
+declare -A SUPERSEDED_BY   # num -> superseding num
+for ((i=0; i<n_open; i++)); do
+  for ((j=0; j<n_open; j++)); do
+    [ "$i" -eq "$j" ] && continue
+    if [ "${KEYS[$i]}" = "${KEYS[$j]}" ] && [ "${CREATED[$j]}" \> "${CREATED[$i]}" ]; then
+      SUPERSEDED_BY["${NUMS[$i]}"]="${NUMS[$j]}"
+    fi
+  done
+done
+
+# compare.status for one branch: ahead|behind|diverged|identical. Fail closed — an empty/failed status is NOT
+# treated as "current" (that would be the exact fail-open that merges a stale downgrade).
+compare_status() {
+  local branch="$1" out
+  if ! out="$("$GH_BIN" api "repos/$REPO/compare/main...$branch" --jq '.status' 2>&1)"; then
+    echo "ERROR"; return 0
+  fi
+  case "$out" in ahead|behind|diverged|identical) echo "$out" ;; *) echo "ERROR" ;; esac
+}
+
+# age in whole days from an ISO-8601 createdAt (best-effort; blank/unparseable -> "?").
+age_days() {
+  local iso="$1" t0 now
+  [ -n "$iso" ] || { echo "?"; return; }
+  t0="$(date -d "$iso" +%s 2>/dev/null)" || { echo "?"; return; }
+  now="$(date +%s)"
+  echo $(( (now - t0) / 86400 ))
+}
+
+stale=0; superseded=0; mergeable=0; needshuman=0
+ACT_RECREATE=(); ACT_CLOSE=()
+
+echo "Open managed PRs in $REPO:"
+for ((i=0; i<n_open; i++)); do
+  num="${NUMS[$i]}"; branch="${BRANCHES[$i]}"; ci="${CI[$i]}"; title="${TITLES[$i]}"
+  age="$(age_days "${CREATED[$i]}")"
+
+  if [ -n "${SUPERSEDED_BY[$num]:-}" ]; then
+    # Any class: a newer managed PR on the same target makes this one a backwards-roll if merged. Close it.
+    verdict="SUPERSEDED"; rec="close (superseded by #${SUPERSEDED_BY[$num]})"
+    superseded=$((superseded+1)); ACT_CLOSE+=("$num:${SUPERSEDED_BY[$num]}")
+  elif is_dependabot "$branch"; then
+    # Dependabot PRs are the regression hazard: a diverged branch carries pre-remediation pins. `compare` is
+    # decision-relevant here, so fail closed if it cannot be resolved (an unknown state is NOT "current").
+    st="$(compare_status "$branch")"
+    if [ "$st" = "ERROR" ]; then
+      echo "FATAL: could not compare main...$branch (fail closed — a stale bump can regress main)." >&2
+      exit 2
+    fi
+    if [ "$st" = "diverged" ] || [ "$st" = "behind" ]; then
+      verdict="STALE"; rec="@dependabot recreate (re-cut against current main)"
+      stale=$((stale+1)); ACT_RECREATE+=("$num")
+    elif [ "$ci" = "fail" ] || [ "$ci" = "pending" ]; then
+      verdict="NEEDS-HUMAN"; rec="current but CI $ci — review"
+      needshuman=$((needshuman+1))
+    else
+      verdict="MERGEABLE"; rec="current + CI green — merge the bump"
+      mergeable=$((mergeable+1))
+    fi
+  else
+    # ci/image-bump SURVIVOR (newest of its chain): this IS the ship loop. Merging it deploys the latest tags;
+    # divergence from main is expected and not a regression (older siblings are already SUPERSEDED above). No
+    # `@dependabot recreate` — it isn't dependabot's PR. CI decides whether it is ready to ship.
+    if [ "$ci" = "fail" ] || [ "$ci" = "pending" ]; then
+      verdict="NEEDS-HUMAN"; rec="image-bump, CI $ci — review"
+      needshuman=$((needshuman+1))
+    else
+      verdict="MERGEABLE"; rec="image-bump survivor, CI green — merge to ship"
+      mergeable=$((mergeable+1))
+    fi
+  fi
+  printf '  #%s [%s] %s (age %sd, ci=%s) -> %s\n' "$num" "$verdict" "$title" "$age" "$ci" "$rec"
+done
+
+# --- apply (optional) -------------------------------------------------------------------------------------
+if [ "$APPLY" -eq 1 ]; then
+  echo "Applying resolutions:"
+  for num in "${ACT_RECREATE[@]:-}"; do
+    [ -n "$num" ] || continue
+    if "$GH_BIN" pr comment "$num" --repo "$REPO" --body "@dependabot recreate" >/dev/null 2>&1; then
+      echo "  #$num: requested @dependabot recreate"
+    else
+      echo "FATAL: could not comment on #$num." >&2; exit 2
+    fi
+  done
+  for pair in "${ACT_CLOSE[@]:-}"; do
+    [ -n "$pair" ] || continue
+    num="${pair%%:*}"; by="${pair##*:}"
+    if "$GH_BIN" pr close "$num" --repo "$REPO" --comment "Superseded by #$by (merging this after #$by would roll the dependency backwards)." >/dev/null 2>&1; then
+      echo "  #$num: closed (superseded by #$by)"
+    else
+      echo "FATAL: could not close #$num." >&2; exit 2
+    fi
+  done
+fi
+
+# The success marker — its ABSENCE means the guard died before finishing, which is fail-closed to non-zero by
+# `set -e`, never a silent green. (Mirrors check-complexity.sh's "complexity triage:" line.)
+echo "pr-lifecycle: $n_open open ($stale stale, $superseded superseded, $mergeable mergeable, $needshuman needs-human)"
