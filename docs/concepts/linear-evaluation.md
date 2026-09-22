@@ -15,6 +15,7 @@
 | Feature | Verdict | The decision |
 |---|---|---|
 | **Inbox / notifications** | **ADOPT WITH LOW TRUST — an event *pointer*, not a state source** | Keep the GitHub↔Linear connection ON for surface-consolidation (Linear = GitHub dev events, Port = ops events). But the Inbox mirrors the *event* ("review requested"), not the PR's *state* (mergeable / stale / superseded) — so **GitHub remains the source of truth for PR state, and nothing is actioned from the Inbox's signal alone.** Same discipline as issue drift: verify mechanically, don't trust the tool's view. |
+| **Workflow states** | **KEEP the 7 states as-is — a `Parked` *state* was REJECTED; "on hold" is a label, not a state** | The 7 EMA states (Backlog · Todo · In Progress · In Review · Done · Canceled · Duplicate) cover the lifecycle. Held/deferred items *are* invisible in Linear (the binary sync guard collapses HELD/BLOCKED/DEFERRED → "open"; the B86 pattern) — but a `Parked` **state** is the wrong fix: a workflow state is *mutually exclusive*, so parking an issue overwrites the lifecycle position it was parked *from*, and un-park becomes ambiguous. "On hold" is an orthogonal **facet**, so it belongs on a **label**. Shipped instead (2026-09-22): `parked:held` (external blocker) + `parked:deferred` (deliberate), tagged on B134/B150/B86 — each keeps its real state *and* priority. Fully MCP-automatable; no Linear-UI hand-off. |
 
 ## Inbox / notifications
 
@@ -79,3 +80,34 @@ question is moot because the volume is near-zero. See [runbooks/pr-lifecycle.md]
 **Latent value to revisit:** the Inbox is also the delivery surface for **subscription** notifications and
 **automation / SLA** triggers. It is empty of that value *today* only because nothing the lab runs emits to
 it — reconsider its weight if later features (automations, SLAs, a parked/stale-issue rule) start feeding it.
+
+## Workflow states
+
+**Real data (MCP `list_issue_statuses`, EMA team, 2026-09-22):** **7** states — `Backlog` · `Todo` ·
+`In Progress` · `In Review` · `Done` · `Canceled` · `Duplicate`. So the normal lifecycle *is* covered; the
+B119 evidence's "only Backlog / Done / Canceled" was wrong (corrected here). What's **missing** is a
+**Parked / On-Hold** state.
+
+**The gap is a visibility gap, and the sync guard shows why.** `check-linear-sync.sh` reconciles every backlog
+item to a **binary** `done | open` (terminal = `completed|canceled|duplicate`; everything else = open). So the
+backlog's rich status vocabulary — **HELD FOR HARDWARE** (B134, B150), **BLOCKED-BY** (B80←B77), **PARKED**
+(store sleep), **DEFERRED** (B86), MOOT, WON'T-DO, PARTIAL — all collapses to "open." In Linear, a
+held-for-hardware item is indistinguishable from a not-yet-started one. That is exactly the B86 failure mode:
+an evaluated item whose decisions went unexecuted had no state that said *decided-but-deferred*, so it read as
+either "Done" or "not started."
+
+**Decision — ADOPT one `Parked` state (backlog-type).** A single state for "acknowledged/decided, but
+deliberately not being worked now — held, blocked, or deferred." One state, not a Held/Blocked/Deferred split:
+for a solo $0 lab the backlog prose already carries the *why* (`HELD FOR HARDWARE`, `BLOCKED-BY-B77`), and more
+states is overhead. Status mapping: **HELD / BLOCKED / PARKED / DEFERRED → `Parked`**; WON'T-DO / MOOT →
+`Canceled` (terminal, unchanged); PARTIAL → `In Progress`; DONE → `Done`.
+
+**Rollout (state creation is Linear-UI-only — no MCP tool exists):**
+1. **Add the `Parked` state** in Linear → team `emangini` → Settings → Workflow: a **backlog-type** state
+   (so it never reads as active or done), placed alongside `Backlog`.
+2. **Move the parked items to it** (via `save_issue`, once the state exists) — initial set: **B134**
+   (HELD FOR HARDWARE), **B150** (held for the mainboard RMA), **B86** (reopened / deferred); audit the rest
+   (B80's blocked-by, the store-scaler sleep) in the same pass.
+3. **Optionally enforce it** — extend `check-linear-sync.sh` to map a backlog item's `HELD|BLOCKED|PARKED|DEFERRED`
+   marker to the `Parked` Linear state and flag drift, upgrading the guard from binary `done|open` to
+   `done|parked|open`. Follow-on, after the state exists and the items are moved.
