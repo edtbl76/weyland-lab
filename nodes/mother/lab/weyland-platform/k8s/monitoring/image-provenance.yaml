@@ -312,7 +312,10 @@ rules:
     resources: ["cronjobs", "jobs"]
     verbs: ["get", "list"]
   - apiGroups: ["constraints.gatekeeper.sh"]
-    resources: ["k8simagesignatures"]
+    # SINGULAR — a Gatekeeper constraint's resource name is its lowercased Kind, NOT pluralised
+    # (`kubectl api-resources` → `k8simagesignature`). The plural `k8simagesignatures` matched nothing, so the
+    # SA got Forbidden on the constraint read since inception (masked 3d by the shell-less-image StartError).
+    resources: ["k8simagesignature"]
     verbs: ["get", "list"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
