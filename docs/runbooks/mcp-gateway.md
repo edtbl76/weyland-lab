@@ -226,6 +226,30 @@ folders` + `/prompts` + `/prompts/{id}/versions` (`messages:[{role,content}]`; `
 
 **GITHUB (parked):** remote MCP has no DCR → make a GitHub App (read-only) → paste its `client_id` + Bifrost's OAuth callback URL.
 
+## Fleet server reliability — pin images, verify the RUNTIME (2026-09-22)
+
+Two fleet servers were crashlooping for weeks/months, both the same class — an **unpinned image that drifted into
+a changed CLI/config**, invisible because the pod stayed in the aggregate while its backing server was dead:
+
+- **`k8s-mcp`** (`kubernetes-mcp-server`, backs `weyland_fleet-k8s_*`) — `image: …:latest` drifted onto a build that
+  **dropped `--read-only`/`--port` for a TOML config**; the binary rejected the old flags → usage + exit 1, 270
+  restarts. Fix: a `k8s-mcp-config` ConfigMap (`port`/`bind_address`/`read_only`) + `args: ["--config", …]`, image
+  **pinned by digest**.
+- **`datahub-mcp`** (`mcp-server-datahub`) — `:0.1` froze `mcp 1.29.0`, whose streamable-http server let a
+  client-disconnect `ClosedResourceError` crash the whole serving TaskGroup → 946 restarts (amplified by the
+  compositor's reconnect storm — one bug, two symptoms). Fix: pin `mcp-server-datahub==0.6.0` + `mcp==1.30.0`
+  (1.30 isolates session crashes; 0.6.0 keeps `--transport http`, which 0.7.x dropped), rebuilt `:0.3`.
+
+**Transferable rules (grafana/trino/neo4j/postgres-mcp can drift the same way):**
+1. **Pin MCP-server images by digest or a fixed version, never `:latest`** — `:latest` silently pulls a binary
+   whose CLI/config changed.
+2. **Verify the RUNTIME after any bump** — run the container's real entrypoint, confirm it starts/serves; a version
+   check + `kubectl --dry-run` are NOT enough (both bugs passed those and failed at startup). See memory
+   `feedback-verify-runtime-not-version`.
+3. A crashlooping backing server does NOT remove its tools from `weyland_fleet` — bifrost still advertises them, so
+   they fail at *execution* ("not available or not permitted"), and bifrost only re-discovers a recovered server on
+   a **rollout restart**.
+
 ## Current state + loose ends
 - Phase 1 (gateway + auth + actor) ✅ and Phase 2 (enforcing act gate) ✅ — both **proven + LIVE**; `policy.gate` is
   **enforcing (`block`)** as of 2026-07-29 (no-actor / unknown-actor / direct acts denied; `weyland-operator` via the gateway passes).
