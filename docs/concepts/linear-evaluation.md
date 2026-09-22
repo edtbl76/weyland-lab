@@ -88,26 +88,47 @@ it — reconsider its weight if later features (automations, SLAs, a parked/stal
 B119 evidence's "only Backlog / Done / Canceled" was wrong (corrected here). What's **missing** is a
 **Parked / On-Hold** state.
 
-**The gap is a visibility gap, and the sync guard shows why.** `check-linear-sync.sh` reconciles every backlog
+**The gap is real — the sync guard shows why.** `check-linear-sync.sh` reconciles every backlog
 item to a **binary** `done | open` (terminal = `completed|canceled|duplicate`; everything else = open). So the
-backlog's rich status vocabulary — **HELD FOR HARDWARE** (B134, B150), **BLOCKED-BY** (B80←B77), **PARKED**
-(store sleep), **DEFERRED** (B86), MOOT, WON'T-DO, PARTIAL — all collapses to "open." In Linear, a
-held-for-hardware item is indistinguishable from a not-yet-started one. That is exactly the B86 failure mode:
-an evaluated item whose decisions went unexecuted had no state that said *decided-but-deferred*, so it read as
-either "Done" or "not started."
+backlog's rich status vocabulary — **HELD FOR HARDWARE** (B134, B150), **BLOCKED-BY**, **PARKED** (store-scaler
+sleep), **DEFERRED** (B86), MOOT, WON'T-DO, PARTIAL — all collapses to "open." In Linear, a held-for-hardware
+item is indistinguishable from a not-yet-started one. That is exactly the B86 failure mode: a decided-but-deferred
+item had no signal that said so.
 
-**Decision — ADOPT one `Parked` state (backlog-type).** A single state for "acknowledged/decided, but
-deliberately not being worked now — held, blocked, or deferred." One state, not a Held/Blocked/Deferred split:
-for a solo $0 lab the backlog prose already carries the *why* (`HELD FOR HARDWARE`, `BLOCKED-BY-B77`), and more
-states is overhead. Status mapping: **HELD / BLOCKED / PARKED / DEFERRED → `Parked`**; WON'T-DO / MOOT →
-`Canceled` (terminal, unchanged); PARTIAL → `In Progress`; DONE → `Done`.
+**First decision — ADD a `Parked` state — was REJECTED on contact with the operator (2026-09-22).** The initial
+verdict here was "add one backlog-type `Parked` state." That was wrong, and the reason is worth keeping: **a
+workflow state is mutually exclusive** — an issue is in exactly one. Moving a held item to `Parked` therefore
+*erases where it was* when it was parked. A held-in-`In Review` item and a held-before-`Todo` item both flatten
+to the same bucket, and on un-park the correct return state is ambiguous. The state destroys orthogonal
+information (lifecycle position) to record one bit (held / not-held). (A `Parked` *project* status — a different
+screen, `Settings → Project statuses` — is even further off: it parks the whole container and severs the
+originating-project link. Neither the issue-state nor the project-state route is right.)
 
-**Rollout (state creation is Linear-UI-only — no MCP tool exists):**
-1. **Add the `Parked` state** in Linear → team `emangini` → Settings → Workflow: a **backlog-type** state
-   (so it never reads as active or done), placed alongside `Backlog`.
-2. **Move the parked items to it** (via `save_issue`, once the state exists) — initial set: **B134**
-   (HELD FOR HARDWARE), **B150** (held for the mainboard RMA), **B86** (reopened / deferred); audit the rest
-   (B80's blocked-by, the store-scaler sleep) in the same pass.
-3. **Optionally enforce it** — extend `check-linear-sync.sh` to map a backlog item's `HELD|BLOCKED|PARKED|DEFERRED`
-   marker to the `Parked` Linear state and flag drift, upgrading the guard from binary `done|open` to
-   `done|parked|open`. Follow-on, after the state exists and the items are moved.
+**Correct mechanism — a label facet, not a state.** "On hold" is not a lifecycle *phase*; it is a *facet* that
+can co-exist with any phase. Facets belong on **labels** (additive, non-exclusive), not the state machine
+(exclusive, lossy). A `parked:*` label leaves the issue's real state and priority intact and additionally carries
+the hold + its reason. Bonus over the state path: labels are fully MCP-automatable (`create_issue_label` +
+`save_issue addLabels`, append-only) — no Linear-UI hand-off. This is the **state-vs-facet** rule: whenever adding
+a value would *overwrite* an orthogonal fact, it is a facet (label), not a state.
+
+**Shipped 2026-09-22 (two workspace labels, color `#78828F`):**
+- **`parked:held`** — on hold behind an external blocker the lab can't act on now (hardware, an RMA, an upstream
+  issue). Applied to **B134 / EMA-195** (HELD FOR HARDWARE) and **B150 / EMA-186** (mainboard RMA, gated on B149).
+- **`parked:deferred`** — deliberately deferred; a decision, not a blocker. Applied to **B86 / EMA-76**
+  (REOPENED / DEFERRED).
+
+Each issue kept its priority label and its `Backlog` state (verified in the `save_issue` response) — the
+orthogonality proof. The specific *why* still lives in the `docs/backlog.md` entry; the label is the queryable
+facet, the backlog is the prose. Terminal mappings are unchanged: WON'T-DO / MOOT → `Canceled`, DONE → `Done`.
+
+**Verdict — KEEP the 7 states as-is; do NOT add `Parked`.** The lifecycle set is complete. The hold/deferred
+visibility gap is closed by the `parked:*` label facet instead. This also settles part of the **Labels** feature
+(next on the walk): labels are the right home for orthogonal, queryable facets — priority is the open question there.
+
+**Not-yet-tagged candidates (follow-up audit, not done here):** the operator named exactly B134/B150/B86, so only
+those were tagged. Audit later for a `parked:*` fit — e.g. any BLOCKED-BY relation (B80), the parked store-scaler
+sleep — before tagging.
+
+**Optional enforcement (follow-on):** teach `check-linear-sync.sh` to match a backlog `HELD|BLOCKED|DEFERRED`
+marker to a `parked:*` label and flag drift — upgrading the guard from binary `done|open` to `done|parked|open`.
+Deferred until the facet has proven itself.
