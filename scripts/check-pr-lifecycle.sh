@@ -200,21 +200,30 @@ done
 # --- apply (optional) -------------------------------------------------------------------------------------
 if [ "$APPLY" -eq 1 ]; then
   echo "Applying resolutions:"
+  # Writes go through the REST API (`gh api`), NOT `gh pr comment` / `gh pr close`: those use GraphQL
+  # mutations (addComment / closePullRequest) that a fine-grained PAT — the sealed pr-lifecycle-reconcile-github
+  # this CronJob runs as — cannot access ("Resource not accessible by personal access token"), even with
+  # Pull requests: write. Found 2026-09-22 when the first scheduled run failed on exactly that. REST
+  # (issues/<n>/comments, pulls/<n>) is fully supported for fine-grained PATs. The real gh error is surfaced,
+  # not swallowed (the first-run failure hid behind a generic "could not comment").
   for num in "${ACT_RECREATE[@]:-}"; do
     [ -n "$num" ] || continue
-    if "$GH_BIN" pr comment "$num" --repo "$REPO" --body "@dependabot recreate" >/dev/null 2>&1; then
+    if out="$("$GH_BIN" api -X POST "repos/$REPO/issues/$num/comments" -f body="@dependabot recreate" 2>&1)"; then
       echo "  #$num: requested @dependabot recreate"
     else
-      echo "FATAL: could not comment on #$num." >&2; exit 2
+      echo "FATAL: could not comment @dependabot recreate on #$num: $out" >&2; exit 2
     fi
   done
   for pair in "${ACT_CLOSE[@]:-}"; do
     [ -n "$pair" ] || continue
     num="${pair%%:*}"; by="${pair##*:}"
-    if "$GH_BIN" pr close "$num" --repo "$REPO" --comment "Superseded by #$by (merging this after #$by would roll the dependency backwards)." >/dev/null 2>&1; then
+    # Comment THEN close (two REST calls; `gh pr close --comment` did both in one GraphQL mutation).
+    "$GH_BIN" api -X POST "repos/$REPO/issues/$num/comments" \
+      -f body="Superseded by #$by (merging this after #$by would roll the dependency backwards)." >/dev/null 2>&1 || true
+    if out="$("$GH_BIN" api -X PATCH "repos/$REPO/pulls/$num" -f state=closed 2>&1)"; then
       echo "  #$num: closed (superseded by #$by)"
     else
-      echo "FATAL: could not close #$num." >&2; exit 2
+      echo "FATAL: could not close #$num: $out" >&2; exit 2
     fi
   done
 fi

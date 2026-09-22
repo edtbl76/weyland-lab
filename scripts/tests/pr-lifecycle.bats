@@ -40,8 +40,8 @@ _wire_mixed() {
   stub_case gh 'compare/main...dependabot/npm_and_yarn/svc-c/left-pad-cccccccc' 0 'ahead'
   stub_case gh 'compare/main...dependabot/docker/svc-d/img-dddddddd'            0 'identical'
   stub_case gh 'compare/main...dependabot/docker/svc-d/img-eeeeeeee'            0 'identical'
-  stub_case gh 'pr comment' 0 ''
-  stub_case gh 'pr close'   0 ''
+  stub_case gh 'issues' 0 ''
+  stub_case gh 'pulls'  0 ''
 }
 
 @test "the guard exists" {
@@ -74,24 +74,24 @@ _wire_mixed() {
   _wire_mixed
   run bash "$GUARD"
   [ "$status" -eq 0 ]
-  not_called_with gh 'pr comment'
-  not_called_with gh 'pr close'
-  not_called_with gh 'pr merge'
+  not_called_with gh '-X POST'
+  not_called_with gh '-X PATCH'
+  not_called_with gh 'merge'
 }
 
 @test "--apply: recreates STALE and closes SUPERSEDED, but NEVER merges" {
   _wire_mixed
   run bash "$GUARD" --apply
   [ "$status" -eq 0 ]
-  # STALE #11 gets a recreate comment; SUPERSEDED #20 is closed referencing #21.
-  called_with gh 'pr comment 11'
+  # STALE #11 gets a recreate comment (REST issue-comment); SUPERSEDED #20 is closed (REST PATCH state=closed).
+  called_with gh 'issues/11/comments'
   called_with gh '@dependabot recreate'
-  called_with gh 'pr close 20'
-  # the CRITICAL safety guarantee.
-  not_called_with gh 'pr merge'
+  called_with gh 'pulls/20'
+  # the CRITICAL safety guarantee — never a merge, by any route.
+  not_called_with gh 'merge'
   # MERGEABLE #10 is left for a human — not touched.
-  not_called_with gh 'pr comment 10'
-  not_called_with gh 'pr close 10'
+  not_called_with gh 'issues/10/comments'
+  not_called_with gh 'pulls/10'
 }
 
 @test "fail closed: gh pr list transport/auth failure -> exit 2, not a clean sweep" {
@@ -140,13 +140,13 @@ _wire_mixed() {
     {"number":40,"title":"ci: image bump (old)","headRefName":"ci/image-bump-git-aaaa1111","createdAt":"2026-09-01T00:00:00Z","isDraft":false,"statusCheckRollup":[{"conclusion":"SUCCESS"}]},
     {"number":41,"title":"ci: image bump (new)","headRefName":"ci/image-bump-git-bbbb2222","createdAt":"2026-09-02T00:00:00Z","isDraft":false,"statusCheckRollup":[{"conclusion":"SUCCESS"}]}
   ]'
-  stub_case gh 'pr close'   0 ''
-  stub_case gh 'pr comment' 0 ''
+  stub_case gh 'issues' 0 ''
+  stub_case gh 'pulls'  0 ''
   run bash "$GUARD" --apply
   [ "$status" -eq 0 ]
-  called_with gh 'pr close 40'
+  called_with gh 'pulls/40'
   not_called_with gh '@dependabot recreate'
-  not_called_with gh 'pr merge'
+  not_called_with gh 'merge'
 }
 
 @test "unknown argument fails closed (exit 2)" {
