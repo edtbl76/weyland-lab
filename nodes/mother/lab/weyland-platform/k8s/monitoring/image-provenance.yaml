@@ -355,7 +355,11 @@ spec:
             # kubectl dumps the live policy + every declared workload to the shared volume. If either
             # dump fails the initContainer fails and the Job fails — never a clean pass on a bad read.
             - name: dump
-              image: rancher/kubectl:v1.35.6
+              # alpine/k8s bundles kubectl v1.35.6 (cluster-matched) AND /bin/sh. NOT rancher/kubectl:v1.35.6,
+              # which is distroless (no shell) — this `/bin/sh -c` init hit `exec /bin/sh: no such file` →
+              # Init:StartError on every run (found 2026-09-22, broken ~3d). docs-site-rebuild keeps
+              # rancher/kubectl because it calls `command: ["kubectl", ...]` directly and needs no shell.
+              image: alpine/k8s:1.35.6
               command: ["/bin/sh", "-c"]
               args:
                 - |
