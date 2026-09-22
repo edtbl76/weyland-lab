@@ -23,7 +23,7 @@ spec:
     spec:
       containers:
         - name: datahub-mcp
-          image: registry.weyland.lab/mcp-server-datahub:0.2   # 0.2 = mcp-server-datahub 0.7.1 + mcp 1.30.0 (session-crash isolation; fixes the disconnect crashloop). Rebuild from services/mcp-server-datahub/Dockerfile.
+          image: registry.weyland.lab/mcp-server-datahub:0.3   # 0.3 = mcp-server-datahub 0.6.0 + mcp 1.30.0 — keeps `--transport http` (0.7.x dropped it → 0.2 crashlooped) AND gets the mcp-1.30 session-crash fix. Runtime-verified. Rebuild from services/mcp-server-datahub/Dockerfile.
           args: ["--transport", "http"]
           ports:
             - { name: http, containerPort: 8000 }
