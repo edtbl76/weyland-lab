@@ -10,6 +10,9 @@ setup() {
   TMP="$(mktemp -d)"
   export REPOS_YAML="$TMP/repos.yaml"
   export PR_STALENESS_FILE="$TMP/pr.yaml"
+  # The reconcile script is the SECOND pr-lane consumer; by default point it at the SAME fixture as staleness so
+  # the two agree (tests that exercise reconcile drift override PR_RECONCILE_FILE explicitly).
+  export PR_RECONCILE_FILE="$PR_STALENESS_FILE"
   export PORT_INTEGRATIONS_FILE="$TMP/port.tf"
   export TOFU_GITHUB_DIR="$TMP/github"; mkdir -p "$TOFU_GITHUB_DIR"
   export SCAN_SUITE_FILE="$TMP/scan-suite.yaml"
@@ -132,6 +135,24 @@ EOF
   run bash "$GUARD"
   [ "$status" -eq 1 ]
   [[ "$output" == *"missing: freejack"* ]]
+}
+
+@test "reconcile pr-lane drift is caught independently of staleness -> exit 1" {
+  # staleness matches the SoT, but the reconcile script's REPOS default drops freejack — the two pr-lane
+  # consumers (surface + resolve) silently disagree on coverage. The guard must catch it, exit 1.
+  export PR_RECONCILE_FILE="$TMP/reconcile.sh"
+  printf '    REPOS="${PR_REPOS:-edtbl76/weyland-lab}"\n' > "$PR_RECONCILE_FILE"
+  run bash "$GUARD"
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"pr(recon)"*"missing: freejack"* ]]
+}
+
+@test "fail-closed: reconcile config with no REPOS line -> exit 2" {
+  export PR_RECONCILE_FILE="$TMP/reconcile.sh"
+  printf 'no repos line here\n' > "$PR_RECONCILE_FILE"
+  run bash "$GUARD"
+  [ "$status" -eq 2 ]
+  [[ "$output" == *"guard broken"* ]]
 }
 
 @test "fail-closed: missing SoT -> exit 2" {

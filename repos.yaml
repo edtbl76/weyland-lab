@@ -12,7 +12,8 @@
 #   iac      declared in tofu/github/ (github_repository resource)
 #   ci       has CI — a .woodpecker.yml in the repo, activated in Woodpecker (server-side)
 #   scan     in the security/quality + AI-review stack (scan-suite / sonarqube / .deepsource / .coderabbit / .sourcery)
-#   pr       watched by the PR-lifecycle staleness check (k8s/pr-lifecycle/pr-staleness.yaml PR_REPOS)
+#   pr       watched by BOTH pr-lifecycle consumers — the staleness check (k8s/pr-lifecycle/pr-staleness.yaml
+#            PR_REPOS) AND the reconcile CronJob (scripts/check-pr-lifecycle.sh REPOS); guarded as pr + pr(recon)
 #   catalog  in the Port github-weyland integration selectors (tofu/port/b137_integrations.tf)
 #   backup   in the restic repo-backup allow-list (nodes/rogueone/backup/backup-repos.conf) — matched by
 #            `backup_path` (the rogueone checkout path), NOT the repo name, because a checkout folder can be

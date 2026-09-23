@@ -2,10 +2,14 @@
 # B131 (resolution half) — check-pr-lifecycle.sh decision logic.
 #
 # The script's whole job is deciding what to do with what `gh` reports, so `gh` is stubbed (stub_dispatch:
-# one binary, many hats — `pr list`, `api compare`, `pr comment`, `pr close`) and every assertion is on the
-# DECISION reached, never the canned JSON. The safety assertion the suite exists to hold: --apply NEVER merges,
-# and it NEVER acts on a PR it could not classify (fail closed). A stray real merge/close would touch live PRs,
-# so no test may let `gh` run for real.
+# one binary, many hats — `pr list`, `api compare`, `api issues/comments`, `api pulls`) and every assertion is
+# on the DECISION reached, never the canned JSON. The safety assertion the suite exists to hold: --apply NEVER
+# merges, and it NEVER acts on a PR it could not classify (fail closed). A stray real merge/close would touch
+# live PRs, so no test may let `gh` run for real.
+#
+# MULTI-REPO (B138 parity): the guard now defaults to the full pr-lane repo set (repos.yaml). Single-repo tests
+# scope with `--repo edtbl76/test` so one stubbed repo drives them; multi-repo behaviour is exercised via
+# PR_REPOS + per-repo `pr list --repo <r>` stub cases.
 
 setup() {
   load helper
@@ -50,7 +54,7 @@ _wire_mixed() {
 
 @test "advisory: classifies each managed PR and prints the summary marker, exit 0" {
   _wire_mixed
-  run bash "$GUARD"
+  run bash "$GUARD" --repo edtbl76/test
   [ "$status" -eq 0 ]
   # #11 diverged -> STALE; #10 ahead+green -> MERGEABLE; #12 ci red -> NEEDS-HUMAN; #20 older -> SUPERSEDED.
   echo "$output" | grep -q '#11 \[STALE\]'
@@ -58,21 +62,24 @@ _wire_mixed() {
   echo "$output" | grep -q '#12 \[NEEDS-HUMAN\]'
   echo "$output" | grep -q '#20 \[SUPERSEDED\]'
   echo "$output" | grep -q '#21 \[MERGEABLE\]'
-  # summary line: 5 managed open (13 is a human feature branch, excluded).
-  echo "$output" | grep -qE 'pr-lifecycle: 5 open \(1 stale, 1 superseded, 2 mergeable, 1 needs-human\)'
+  # per-repo line + grand total: 5 managed open (13 is a human feature branch, excluded).
+  echo "$output" | grep -qE 'pr-lifecycle: edtbl76/test: 5 open \(1 stale, 1 superseded, 2 mergeable, 1 needs-human\)'
+  echo "$output" | grep -qE 'pr-lifecycle-total: 1 repos, 5 open \(1 stale, 1 superseded, 2 mergeable, 1 needs-human\)'
+  # the audit log emits a structured per-run summary line (the Loki record).
+  echo "$output" | grep -qE 'pr-lifecycle-audit run=summary .* repos=1 open=5 stale=1 superseded=1 mergeable=2 needs_human=1 failed=0'
 }
 
 @test "advisory: a non-managed (human) branch is ignored" {
   _wire_mixed
-  run bash "$GUARD"
+  run bash "$GUARD" --repo edtbl76/test
   [ "$status" -eq 0 ]
   not_called_with gh 'compare/main...feature/my-thing'
-  ! echo "$output" | grep -q '#13'
+  not_called_with gh '#13'
 }
 
 @test "advisory NEVER mutates — no comment, no close, no merge" {
   _wire_mixed
-  run bash "$GUARD"
+  run bash "$GUARD" --repo edtbl76/test
   [ "$status" -eq 0 ]
   not_called_with gh '-X POST'
   not_called_with gh '-X PATCH'
@@ -81,7 +88,7 @@ _wire_mixed() {
 
 @test "--apply: recreates STALE and closes SUPERSEDED, but NEVER merges" {
   _wire_mixed
-  run bash "$GUARD" --apply
+  run bash "$GUARD" --apply --repo edtbl76/test
   [ "$status" -eq 0 ]
   # STALE #11 gets a recreate comment (REST issue-comment); SUPERSEDED #20 is closed (REST PATCH state=closed).
   called_with gh 'issues/11/comments'
@@ -92,12 +99,15 @@ _wire_mixed() {
   # MERGEABLE #10 is left for a human — not touched.
   not_called_with gh 'issues/10/comments'
   not_called_with gh 'pulls/10'
+  # the audit log records each applied action with its result (the Loki resolution history).
+  echo "$output" | grep -qE 'repo=edtbl76/test pr=11 verdict=STALE action=recreate result=ok'
+  echo "$output" | grep -qE 'repo=edtbl76/test pr=20 verdict=SUPERSEDED action=close by=21 result=ok'
 }
 
 @test "fail closed: gh pr list transport/auth failure -> exit 2, not a clean sweep" {
   stub_dispatch gh
   stub_case gh 'pr list' 1 'HTTP 401: Bad credentials'
-  run bash "$GUARD"
+  run bash "$GUARD" --repo edtbl76/test
   [ "$status" -eq 2 ]
   echo "$output" | grep -q 'could not list PRs'
 }
@@ -106,7 +116,7 @@ _wire_mixed() {
   stub_dispatch gh
   stub_case gh 'pr list' 0 '[{"number":11,"title":"x","headRefName":"dependabot/pip/svc-b/aiohttp-bbbbbbbb","createdAt":"2026-09-02T00:00:00Z","isDraft":false,"statusCheckRollup":[{"conclusion":"SUCCESS"}]}]'
   # compare unmatched -> stub_dispatch exits 0 with EMPTY output -> compare_status must read that as ERROR.
-  run bash "$GUARD"
+  run bash "$GUARD" --repo edtbl76/test
   [ "$status" -eq 2 ]
   echo "$output" | grep -q 'could not compare'
 }
@@ -114,9 +124,9 @@ _wire_mixed() {
 @test "no open managed PRs -> clean summary, exit 0" {
   stub_dispatch gh
   stub_case gh 'pr list' 0 '[{"number":13,"title":"human","headRefName":"feature/x","createdAt":"2026-09-04T00:00:00Z","isDraft":false,"statusCheckRollup":[]}]'
-  run bash "$GUARD"
+  run bash "$GUARD" --repo edtbl76/test
   [ "$status" -eq 0 ]
-  echo "$output" | grep -qE 'pr-lifecycle: 0 open \(0 stale, 0 superseded, 0 mergeable, 0 needs-human\)'
+  echo "$output" | grep -qE 'pr-lifecycle-total: 1 repos, 0 open \(0 stale, 0 superseded, 0 mergeable, 0 needs-human\)'
 }
 
 @test "ci/image-bump: survivor is MERGEABLE (ship loop), older is SUPERSEDED, and compare is NOT called" {
@@ -125,7 +135,7 @@ _wire_mixed() {
     {"number":40,"title":"ci: image bump (old)","headRefName":"ci/image-bump-git-aaaa1111","createdAt":"2026-09-01T00:00:00Z","isDraft":false,"statusCheckRollup":[{"conclusion":"SUCCESS"}]},
     {"number":41,"title":"ci: image bump (new)","headRefName":"ci/image-bump-git-bbbb2222","createdAt":"2026-09-02T00:00:00Z","isDraft":false,"statusCheckRollup":[{"conclusion":"SUCCESS"}]}
   ]'
-  run bash "$GUARD"
+  run bash "$GUARD" --repo edtbl76/test
   [ "$status" -eq 0 ]
   echo "$output" | grep -q '#40 \[SUPERSEDED\]'
   echo "$output" | grep -q '#41 \[MERGEABLE\]'
@@ -142,11 +152,41 @@ _wire_mixed() {
   ]'
   stub_case gh 'issues' 0 ''
   stub_case gh 'pulls'  0 ''
-  run bash "$GUARD" --apply
+  run bash "$GUARD" --apply --repo edtbl76/test
   [ "$status" -eq 0 ]
   called_with gh 'pulls/40'
   not_called_with gh '@dependabot recreate'
   not_called_with gh 'merge'
+}
+
+@test "multi-repo: loops PR_REPOS and aggregates the grand total across repos" {
+  stub_dispatch gh
+  # one stale dependabot PR, returned for BOTH repos (generic 'pr list' + a diverged compare).
+  stub_case gh 'pr list' 0 '[{"number":11,"title":"x","headRefName":"dependabot/pip/svc-b/aiohttp-bbbbbbbb","createdAt":"2026-09-02T00:00:00Z","isDraft":false,"statusCheckRollup":[{"conclusion":"SUCCESS"}]}]'
+  stub_case gh 'compare/main...dependabot/pip/svc-b/aiohttp-bbbbbbbb' 0 'diverged'
+  run env PR_REPOS="edtbl76/r1 edtbl76/r2" bash "$GUARD"
+  [ "$status" -eq 0 ]
+  echo "$output" | grep -q 'Open managed PRs in edtbl76/r1'
+  echo "$output" | grep -q 'Open managed PRs in edtbl76/r2'
+  # grand total sums 1 stale per repo -> 2 repos, 2 open, 2 stale.
+  echo "$output" | grep -qE 'pr-lifecycle-total: 2 repos, 2 open \(2 stale, 0 superseded, 0 mergeable, 0 needs-human\)'
+  echo "$output" | grep -qE 'pr-lifecycle-audit run=summary .* repos=2 open=2 stale=2 .* failed=0'
+}
+
+@test "multi-repo fail-closed: one unreachable repo exits 2 but the others are still reconciled" {
+  stub_dispatch gh
+  # good repo: a clean image-bump survivor (no compare needed) -> reconciles fine.
+  stub_case gh 'pr list --repo edtbl76/good' 0 '[{"number":41,"title":"ci: image bump","headRefName":"ci/image-bump-git-bbbb2222","createdAt":"2026-09-02T00:00:00Z","isDraft":false,"statusCheckRollup":[{"conclusion":"SUCCESS"}]}]'
+  # bad repo: pr list transport failure.
+  stub_case gh 'pr list --repo edtbl76/bad' 1 'HTTP 500: upstream'
+  run env PR_REPOS="edtbl76/good edtbl76/bad" bash "$GUARD"
+  # a single unreachable repo must force a non-zero exit — never a silent shrink of the watch set.
+  [ "$status" -eq 2 ]
+  # but the good repo was STILL fully reconciled (isolation via subshell).
+  echo "$output" | grep -q 'Open managed PRs in edtbl76/good'
+  echo "$output" | grep -q '#41 \[MERGEABLE\]'
+  # and the failure is named explicitly, fail closed.
+  echo "$output" | grep -qE 'could not reconcile.*edtbl76/bad'
 }
 
 @test "unknown argument fails closed (exit 2)" {

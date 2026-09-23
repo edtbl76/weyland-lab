@@ -23,7 +23,7 @@ an enforced lane drifts, and an onboarding helper walks a new repo to parity.
 
 | Lane | Central config the guard reads | Notes |
 |---|---|---|
-| `pr` | `k8s/pr-lifecycle/pr-staleness.yaml` `REPOS` default | **enforced** |
+| `pr` | `k8s/pr-lifecycle/pr-staleness.yaml` `REPOS` (surface) **+** `scripts/check-pr-lifecycle.sh` `REPOS` (reconcile) | **enforced** — two consumers, guarded as `pr` + `pr(recon)`; keep both lists identical. Reconcile `--apply` needs a **write** PAT (staleness only reads). |
 | `catalog` | `tofu/port/b137_integrations.tf` `.name \| IN(...)` selector | **enforced** |
 | `iac` | `tofu/github/*.tf` `github_repository` resources | pending — needs `tofu import` per repo |
 | `scan` | `k8s/code-quality/scan-suite.yaml` `SCAN_REPOS` env | **enforced** — the vuln suite's `scan-all.sh` loops the 21 tools over every repo in `SCAN_REPOS` (clones public+private with the pr-lifecycle `Contents:read` token). SonarQube multi-repo is a follow-on (its Java analyzer needs per-repo compiled binaries). |
@@ -49,7 +49,8 @@ enforced lanes green, 1 = an enforced lane drifted, 2 = guard broken.
    ```
    It prints, per lane the repo should join, the exact step — and, for a **private** repo, the access grants
    required first (Port github-ocean token, pr-lifecycle PAT, scan/CI tokens) or the lane silently skips it.
-3. **Do the central edits** (pr-staleness `REPOS` + its bats, Port `IN(...)` selectors, backup path, `tofu import`
+3. **Do the central edits** (pr-staleness `REPOS` + its bats, the reconcile `REPOS` in `scripts/check-pr-lifecycle.sh`
+   then `bash scripts/embed-pr-lifecycle.sh` to re-embed, Port `IN(...)` selectors, backup path, `tofu import`
    for iac), the **per-repo files** in the target repo (`.woodpecker.yml`, scan configs), and the **manual** steps
    (Woodpecker activation, private-repo access).
 4. **Verify:** `bash scripts/check-repo-coverage.sh` — the lanes you brought to parity now show `✓`. Promote a lane

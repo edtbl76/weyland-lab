@@ -17,12 +17,14 @@
 # never a silent pass. Exit 0 = enforced lanes in parity; exit 1 = an enforced lane drifted; exit 2 = guard broken.
 #
 # Test seams (override any path for bats fixtures):
-#   REPOS_YAML, PR_STALENESS_FILE, PORT_INTEGRATIONS_FILE, TOFU_GITHUB_DIR, SCAN_PY_FILE, BACKUP_CONF_FILE
+#   REPOS_YAML, PR_STALENESS_FILE, PR_RECONCILE_FILE, PORT_INTEGRATIONS_FILE, TOFU_GITHUB_DIR, SCAN_SUITE_FILE,
+#   BACKUP_CONF_FILE
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 REPOS_YAML="${REPOS_YAML:-$ROOT/repos.yaml}"
 PR_STALENESS_FILE="${PR_STALENESS_FILE:-$ROOT/nodes/mother/lab/weyland-platform/k8s/pr-lifecycle/pr-staleness.yaml}"
+PR_RECONCILE_FILE="${PR_RECONCILE_FILE:-$ROOT/scripts/check-pr-lifecycle.sh}"
 PORT_INTEGRATIONS_FILE="${PORT_INTEGRATIONS_FILE:-$ROOT/nodes/mother/lab/weyland-platform/tofu/port/b137_integrations.tf}"
 TOFU_GITHUB_DIR="${TOFU_GITHUB_DIR:-$ROOT/nodes/mother/lab/weyland-platform/tofu/github}"
 SCAN_SUITE_FILE="${SCAN_SUITE_FILE:-$ROOT/nodes/mother/lab/weyland-platform/k8s/code-quality/scan-suite.yaml}"
@@ -32,6 +34,7 @@ BACKUP_CONF_FILE="${BACKUP_CONF_FILE:-$ROOT/nodes/rogueone/backup/backup-repos.c
 
 REPOS_YAML="$REPOS_YAML" \
 PR_STALENESS_FILE="$PR_STALENESS_FILE" \
+PR_RECONCILE_FILE="$PR_RECONCILE_FILE" \
 PORT_INTEGRATIONS_FILE="$PORT_INTEGRATIONS_FILE" \
 TOFU_GITHUB_DIR="$TOFU_GITHUB_DIR" \
 SCAN_SUITE_FILE="$SCAN_SUITE_FILE" \
@@ -144,6 +147,28 @@ for lane in ALL_LANES:
     if missing: print(f"  [{tag}] {lane:8} — {verb} missing: {', '.join(missing)}")
     if extra:   print(f"  [{tag}] {lane:8} — {verb} unexpected: {', '.join(extra)}")
     if enforced:
+        fail = 1
+
+# pr lane has TWO consumers — pr-staleness (surface) AND pr-lifecycle-reconcile (resolve, 2026-09-23). Both must
+# carry the IDENTICAL repo set, or the two watchers silently disagree on what they cover. The loop above checked
+# staleness's REPOS; this checks the reconcile script's REPOS default against the SoT pr-lane too.
+rec_txt = read(os.environ["PR_RECONCILE_FILE"])
+m = re.search(r'REPOS="\$\{PR_REPOS:-([^}]*)\}"', rec_txt)
+if not m:
+    die_broken("could not find REPOS=\"${PR_REPOS:-...}\" in the reconcile script")
+actual_pr_recon = {strip_owner(t) for t in m.group(1).split()}
+exp_pr = expected["pr"]
+enf_pr = "pr" in enforce
+tag = "ENFORCED" if enf_pr else "pending "
+missing = sorted(exp_pr - actual_pr_recon)
+extra   = sorted(actual_pr_recon - exp_pr)
+if not missing and not extra:
+    print(f"  [{tag}] pr(recon) — ✓ parity ({len(exp_pr)} repos)")
+else:
+    verb = "❌" if enf_pr else "•"
+    if missing: print(f"  [{tag}] pr(recon) — {verb} missing: {', '.join(missing)}")
+    if extra:   print(f"  [{tag}] pr(recon) — {verb} unexpected: {', '.join(extra)}")
+    if enf_pr:
         fail = 1
 
 # backup allow-list is repo-only: a checkout path no SoT repo claims is a backed-up repo that isn't tracked.

@@ -18,6 +18,8 @@
 | **Workflow states** | **KEEP the 7 states as-is — a `Parked` *state* was REJECTED; "on hold" is a label, not a state** | The 7 EMA states (Backlog · Todo · In Progress · In Review · Done · Canceled · Duplicate) cover the lifecycle. Held/deferred items *are* invisible in Linear (the binary sync guard collapses HELD/BLOCKED/DEFERRED → "open"; the B86 pattern) — but a `Parked` **state** is the wrong fix: a workflow state is *mutually exclusive*, so parking an issue overwrites the lifecycle position it was parked *from*, and un-park becomes ambiguous. "On hold" is an orthogonal **facet**, so it belongs on a **label**. Shipped instead (2026-09-22): `parked:held` (external blocker) + `parked:deferred` (deliberate), tagged on B134/B150/B86 — each keeps its real state *and* priority. Fully MCP-automatable; no Linear-UI hand-off. |
 | **Priority — field vs. label** | **ADOPT the native `priority` field as sole SoT; RETIRED the `High`/`Medium`/`Low` labels (done 2026-09-22)** | Priority is a single exclusive value → a **field**, not a facet (the mirror image of the parking call). It was carried *twice* — the native field **and** redundant priority labels — which guarantees drift: **28 of 224 issues disagreed** (13 hard contradictions + ~15 field-unset-but-labelled), *all* in terminal `Done`/`Canceled` items; the open queue was already 100% field-consistent. Decisive dependency check: `check-linear-sync.sh` already treats the **backlog** tier as SoT and compares the Linear **field** (`n.get("priority")`), never the label — so nothing depended on it. Retired `High`/`Medium`/`Low`/`Maturity`; the field (governed by `docs/backlog.md`, the Gold standard) is the only priority mechanism. Labels become a pure **facet** space: type (`Tech Debt`/`Bug`/`Feature`/…) + operational (`parked:*`). |
 | **Projects / Initiatives / Milestones** | **Projects: KEEP (already core, guard-enforced). Initiatives: DON'T ADOPT. Milestones: skip.** | Projects are the product separator (`Weyland Lab` / `Stud.IO` / `rogueone Hardware`), enforced by `check-linear-sync` check B (no project-less open issue). **Initiatives** (0 defined) sit *above* projects to group many projects toward a themed goal — nothing for that layer to organize at a solo 2–3-product scale; projects are already the top level, so an initiative would be empty ceremony. **Milestones** exist only on the `Service Transformation` project (as a course TOC); real work is sequenced by backlog B-numbers + Linear **epics** (parent issues), so milestones would duplicate that with a weaker mechanism. Container-hierarchy rule: adopt the nesting level with real fan-out (Project→Issue), skip levels without it (Initiative→Project, Project→Milestone). `Service Transformation` (0 issues, seeded milestones) is a **planned track the operator keeps — explicitly NOT to be archived.** |
+| **Reviews (code diffs)** | **ADOPT as a low-trust cross-repo triage QUEUE — NOT the decision surface** | Linear's Reviews is the *workbench* view of the same population the Inbox only *points* at: the fleet's open dependabot PRs (100% of the 15 diffs pulled, across 5 repos), all requesting review, **zero ever reviewed in Linear**. Richer than the Inbox (`mergeStatus`, diff stats, threads, in-app approve) but the **same trust ceiling** — `mergeStatus: "ready"` means *mergeable*, not *safe*: #72/#63 read `ready` while `check-pr-lifecycle.sh` classified them STALE/regressive (#63 = a silent cryptography downgrade). Keep it as a cross-repo triage queue (real consolidation, free on the GitHub↔Linear connection), but the **mechanical reconciler stays the SoT for PR actionability** — nothing merged/approved on Linear's review signal alone. As of B176 that reconciler covers *every* repo the queue aggregates, so view and resolver are finally the same scope. Same discipline as the Inbox (verdict #1). |
+| **Agent (coding sessions) + Skills** | **DON'T ADOPT the Agent (paid cloud, duplicates local Claude Code); DO invest in portable skills (git SoT + Bifrost registry)** | Linear's "Agent" = **coding sessions**: delegate an issue → Linear spins a coding session in its **managed cloud sandbox** (Claude Code/Codex), drafts a PR. It **costs AI credits** (not $0) and **runs in the cloud, not the LAN** — duplicating the local Claude Code workflow the lab already runs free. Fails both hard constraints → don't adopt. BUT its "skills" are just **repo files** (`skills.md` / Claude Code skills), which the lab already owns: `register_bifrost_skills.py` is the git SoT, and Bifrost **serves them as a Claude Code marketplace**. So a skill is a portable artifact with a swappable consumer — invest there ($0, LAN, local Claude Code now; the Linear Agent later if ever paid). Seeded 4 loop-skills (DoD gate, master-the-tool walk, pr-lifecycle reconcile, full-guard-suite) — executes B175. |
 
 ## Inbox / notifications
 
@@ -222,3 +224,73 @@ homelab's rolling backlog. Cycles get their own verdict later in the walk; curre
 seeded-milestone state as clutter and proposed archiving it; the operator vetoed emphatically. It is a
 **planned track kept deliberately** (seeded, not yet populated), not dead scaffolding — recorded here so no
 future pass re-proposes archiving it.
+
+## Reviews (code diffs in Linear)
+
+**Real data (MCP `list_diffs`, 2026-09-22):** 15 diffs (~13 open), **100% dependabot dependency bumps** across 5
+repos (weyland-lab, stud.io, emangini-tailwind-nextjs-contentlayer, midi_real_book, gearlist-in-stud.io), every one
+`isReviewRequested` → the operator, all `currentDecision: pending`, most `needsAttention`. **`lastSubmittedDecision:
+null` on every one — zero reviews have ever been submitted through Linear.** A couple carry `sourcery-ai` bot comments.
+
+**The finding: Reviews is the *workbench* view of the exact population the Inbox only *points* at.** Same dependabot
+PRs as the Inbox verdict — but richer: it carries `mergeStatus` (ready/blocked/behind), diff stats, review threads
+(`get_diff_threads`), and it can approve/comment in-app (`submit_diff_review`). Where the Inbox is a bare event
+pointer, Reviews is a fuller mirror plus an action surface.
+
+**But the trust ceiling is identical, and the data proves it.** `mergeStatus: "ready"` means *mergeable*, not *safe*.
+#72 (soupsieve) and #63 (aiohttp) both showed `"ready"` — yet those are the exact PRs `check-pr-lifecycle.sh`
+classified **STALE / regressive** (#63 would silently downgrade `cryptography` 50→48, re-opening a CVE). Approving
+from Linear's "ready" alone walks straight into the silent-downgrade trap. Reviews has *more* signal than the Inbox
+but still **no currency/quality judgment** — "ready to merge" is not "correct to merge."
+
+**Verdict — ADOPT as a low-trust cross-repo triage QUEUE; do NOT make it the decision surface.**
+- **Value:** one place to *see* every open PR needing attention across all repos — genuine consolidation for a solo
+  operator, and better than the Inbox for triage (state + diffstat inline). Rides **free** on the GitHub↔Linear
+  connection already kept for the Inbox.
+- **Ceiling:** the mechanical `check-pr-lifecycle.sh` stays the source of truth for PR *actionability*
+  (STALE/SUPERSEDED/MERGEABLE/NEEDS-HUMAN); **nothing is approved or merged on Linear's review signal alone**. The
+  reconciler resolves, Linear displays, GitHub is the state SoT.
+- **Reality check:** 0 reviews ever submitted via Linear → don't force it into the workflow as an approval tool. It
+  is a queue you glance at, not a gate you operate.
+
+**The loop closed (B176, 2026-09-23).** When this verdict was reached, the reconciler that backs the queue's
+actionability covered only weyland-lab, while the queue aggregated 5 repos. **B176** extended the reconciler to
+*every* pr-lane repo in `repos.yaml` — so the queue and its mechanical resolver are now the same scope, and the
+fleet's stale/superseded PRs were resolved (advisory + `--apply` verified across all 8). The Reviews queue is a
+trustworthy *view* precisely because the source it mirrors is kept clean by construction — the "keep the source
+clean so any mirror is trustworthy" principle from the Inbox verdict, now applied fleet-wide.
+
+**Net:** Reviews and the Inbox are the same population, two views — pointer vs. workbench — and both get the same
+treatment: a low-trust surface, with the mechanical reconciler as the truth.
+
+## Agent (coding sessions) + Skills
+
+**Real data (MCP `list_agent_skills` + Linear docs, 2026-09-22):** **zero agent skills exist.** The "Agent" is
+Linear's **coding-sessions** feature — delegating an issue to `@linear` starts a coding session in a **managed
+cloud sandbox** (Claude Code or Codex), which drafts a PR and drops the diff in the Reviews tab. Usage **draws
+from AI credits** ($20/user promo, then paid top-up); supported on Basic/Business/Enterprise.
+
+**Verdict — DON'T ADOPT the Agent as a coding surface.** It fails both hard constraints: it runs in **Linear's
+cloud, not the LAN**, and it **costs AI credits, not $0**. And it **duplicates** what the lab already does for
+free — local Claude Code (this very evaluation runs in it) does agentic coding on the repos, on the LAN, at $0. A
+cloud, paid agent buys nothing the lab lacks. Same rejection logic as initiatives: a feature assuming budget/scale
+the lab doesn't have.
+
+**But the Skills concept is real, portable, and worth investing in — separately from the paid Agent.** Linear-agent
+skills aren't a proprietary Linear store; the docs are explicit that sessions use **repo files** — a `skills.md`
+and "the existing Claude Code or Codex setup your team already uses." So a skill is a **portable artifact with a
+swappable consumer**: the same file feeds local Claude Code (LAN, $0) and *would* feed the Linear cloud agent if
+ever paid. The lab already has the registry: **`register_bifrost_skills.py`** (a git-versioned `SKILLS` list) is
+the SoT, and Bifrost **serves the skills as a Claude Code / Codex plugin marketplace**
+(`/api/skills/serve/claude-code/...`), so they install straight into the coding agents.
+
+**Shipped 2026-09-23 — 4 loop-skills seeded (executes B175).** The existing ~21 skills codify runbooks/gotchas
+("how to do X"); the four new ones are **loop-shaped** — the forwardfuture loop-library shape, with explicit
+**checkpoints + a terminal condition** that stops the loop: `dod-8-pillar-gate`, `master-the-tool-walk`,
+`pr-lifecycle-reconcile`, `full-guard-suite-preship`. Authored into the git SoT (syntax-verified, idempotent, 25
+skills total); they register to Bifrost on the next `dagster-user-code` redeploy (or the weekly
+`bifrost_skills_registered` asset), then serve to Claude Code via the marketplace. This answers B175's open
+"Bifrost-SoT vs docs-catalog" question — **Bifrost-SoT** — and seeds the library with the lab's real loops.
+
+**Net:** the Agent is a paid cloud duplicate of local Claude Code (skip); the Skills are a $0, LAN-native, portable
+investment (done — seeded B175's loop library in the Bifrost registry, consumable by local Claude Code today).

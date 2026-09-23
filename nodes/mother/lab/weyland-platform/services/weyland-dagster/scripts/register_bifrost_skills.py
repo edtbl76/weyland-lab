@@ -260,6 +260,74 @@ Pattern (see register_bifrost_mcp_clients.py / _prompts.py / _skills.py):
 - **Idempotent**: fetch existing (by name), create only what's absent; never duplicate on re-run.
 - Make each item's write **atomic**; on partial failure, don't leave half-state.
 - If the change needs a reload to take effect (in-memory caches), the script should say so — a DB/state write alone often does nothing until a restart."""),
+
+    # ============================ recurring loops (B175 loop library) ============================
+    # Loop-shaped skills: a repeatable agentic workflow with explicit CHECKPOINTS and a TERMINAL CONDITION
+    # (what stops the loop) — the forwardfuture loop-library shape, richer than the "how to do X" skills above.
+    ("dod-8-pillar-gate", "loop",
+     "Run the weyland Definition-of-Done 8-pillar gate on a change; nothing is done until every pillar passes or a gap is logged.",
+     """Use before declaring ANY weyland change "done" — the completion gate (docs/definition-of-done.md).
+
+Run all 8 pillars IN ORDER. The FIRST failure masks later ones, so fix and re-run from the top; never skip ahead:
+1. **Docs** — arch/hosts/api/schedules/runbooks updated for the change (grep docs/ for stale references).
+2. **C4 / diagrams** — context/component diagrams reflect new or changed pieces; `check-mermaid.sh` green.
+3. **Sequence** — a sequence diagram exists for any new cross-service flow.
+4. **Demos** — an E2E demo exists AND was RUN against live infra (authored is not done).
+5. **Cleanup** — dead code/config/old resources removed FIRST, not left beside the new.
+6. **Linear** — the item is tracked; `check-linear-sync.sh` exits 0 across the WHOLE tracker (fix every drift it names, not just this item).
+7. **Ops** — the operational command lives verbatim in a docs/runbooks/*.md; run the FULL local guard suite (see `full-guard-suite-preship`).
+8. **Scan** — the code-scan/quality guards pass (shellcheck + the relevant check-*.sh + bats), verified in the REAL toolchain image.
+
+CHECKPOINT after each pillar: state PASS with the evidence (the command output) or GAP with what is missing. Never tick a pillar you did not verify — writing the tick is not the work.
+
+TERMINAL CONDITION: STOP when all 8 read PASS with evidence, or a pillar is a deliberate logged N/A. If any pillar is a real GAP it is NOT done — surface it plainly and keep the item open; never emit a "done" summary with an open pillar."""),
+
+    ("master-the-tool-walk", "loop",
+     "Evaluate an underused tool feature-by-feature against REAL workspace data, land an adoption verdict per feature, record in a living doc.",
+     """Use to systematically evaluate an underused tool (Linear, Port, DataHub, ...) for adoption — the B60/B80/B119 "master the tool" pass.
+
+Walk the tool's features ONE AT A TIME. For EACH feature, run the loop:
+1. **Pull REAL data** for that feature via its MCP/API — never reason from the docs or assumptions; read what the workspace actually contains.
+2. **Land an adoption VERDICT** against the lab's constraints (solo, $0, LAN-only): ADOPT / ADOPT-low-trust / DON'T-ADOPT, with the reason. A feature assuming scale, budget, or multiple people usually does not earn its place — say so.
+3. **RECORD** the verdict in the living evaluation doc (a table row + a detail section) as you go — the doc is the durable output, not chat.
+
+CHECKPOINT per feature: the verdict must cite the real data you pulled (a count, an example), not a hunch. If contact with the operator or the data reverses a verdict, REVISE the record — that reversal is the value of the walk, not a failure.
+
+Recurring modeling rule: an exclusive single value wants a FIELD; an orthogonal co-existing fact wants a LABEL/tag; adopt a container nesting level only where real fan-out exists.
+
+TERMINAL CONDITION: STOP when every candidate feature has a recorded verdict and the adopted set is settled. The walk is done when the doc is complete — not when you run out of features to mention."""),
+
+    ("pr-lifecycle-reconcile", "loop",
+     "Reconcile open machine-authored PRs across the fleet — recreate stale, close superseded, NEVER merge — advisory then apply.",
+     """Use to resolve open MANAGED PRs (dependabot + ci/image-bump) across the repos.yaml pr-lane set. Canonical: scripts/check-pr-lifecycle.sh (B131/B176); runbook docs/runbooks/pr-lifecycle.md.
+
+The loop, per repo:
+1. Enumerate open managed PRs; classify each — STALE (dependabot branch diverged from main via compare.status), SUPERSEDED (newer managed PR, same dir+package), MERGEABLE (current + CI-green), NEEDS-HUMAN (CI red/pending).
+2. **Advisory first** (`bash scripts/check-pr-lifecycle.sh`) — read the plan, mutate nothing.
+3. **Apply** (`--apply`) the low-risk resolutions ONLY: `@dependabot recreate` STALE (re-cut against current main — cannot regress), close SUPERSEDED. **NEVER merge** — merging is the one action that can ship a regression, so it always stays with a human.
+
+CHECKPOINTS (all fail-closed):
+- `mergeStateStatus` / "ready" LIES on an unprotected main — a stale bump reported MERGEABLE can silently downgrade a hand-remediated dependency. Trust `compare.status`, not the merge flag.
+- An absent/errored compare is NOT "current" — exit 2, never act on a PR you could not classify.
+- One unreachable repo forces a non-zero exit — never a silent shrink of the watch set.
+- Read the OUTPUT of each apply (result=ok per action), not just the exit code.
+
+TERMINAL CONDITION: STOP when every managed PR across every pr-lane repo is classified and the STALE/SUPERSEDED resolutions are applied (0 failures). MERGEABLE + NEEDS-HUMAN remain for a human — that is the correct resting state, not incomplete work."""),
+
+    ("full-guard-suite-preship", "loop",
+     "Run the FULL local guard suite before any ship/handoff — not one guard — because the first failure masks later ones.",
+     """Use before any ship, push-prompt, or handoff of a weyland change. Run the WHOLE guard set, not just the guard for the thing you touched.
+
+Why the whole set: the guards are interdependent and the FIRST failure masks later ones — a change that adds an Argo app trips check-doc-counts AND check-app-registry; a new script must pass shellcheck AND its bats AND the embedded-copy byte-identity drift check. Running one guard and shipping green is how drift accumulates.
+
+The loop:
+1. Run each guard and READ its output — a guard's exit code is NOT its verdict; some print FAILED / a cross mark while exiting 0 (promtool, `woodpecker --output json`, `curl -sf`). Gate on the printed result, and never trust `$?` at the end of a pipeline (it is the last command's status).
+2. On the FIRST failure, fix it, then re-run FROM THE TOP — a later guard may have been masked.
+3. Run shell tests + guards in the REAL toolchain image (bats/bats:latest + the deps the CI step apk-adds), not a convenient local shell — CI confirms, it does not discover.
+
+CHECKPOINT: an absent, empty, or errored result is NEVER success (fail closed). Verifying nothing is not verifying successfully.
+
+TERMINAL CONDITION: STOP when the entire suite is green — every guard exit 0 AND its output shows no failure — in one clean top-to-bottom pass. A suite still reporting drift is NOT done, even if the piece you changed is perfect."""),
 ]
 
 def main():

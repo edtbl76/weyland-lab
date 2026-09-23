@@ -20,6 +20,14 @@
 # (automountServiceAccountToken: false). Its failures surface the standard way: exit 2 → failed Job →
 # kube_job_status_failed → the ScheduledJobFailed rule (cron-freshness-rules.yaml) → Telegram. No self-alert.
 #
+# MULTI-REPO + AUDIT (2026-09-23, B138 parity). It now reconciles EVERY pr-lane repo in repos.yaml (the same set
+# pr-staleness watches), not just weyland-lab — so the --repo arg is gone (the embedded script defaults to the
+# full set, guarded against the SoT by check-repo-coverage.sh). The per-PR resolution history + per-run summary
+# are emitted as structured `pr-lifecycle-audit` lines on stdout → Loki (the "audit.log"), and metrics are
+# derived from those logs (LogQL / a Loki recording rule). That is WHY adding metrics did not reintroduce the
+# mesh: there is no in-cluster Pushgateway push, so the Job stays unmeshed. The token must reach every pr-lane
+# repo (env note below) or that repo fails closed.
+#
 # 03:25 NY (Design Rule #5, docs/schedules.md — pre-dawn only): 5m after api-drift (03:20, ~5s), 10m before
 # zoekt-index (03:35), inside the coverage-guard cluster. Chosen because 04:00–06:00 is fully taken and the
 # pr-lifecycle watchdogs there (04:30/05:15/05:45) leave no gap; running BEFORE pr-staleness (05:45) also
@@ -57,14 +65,29 @@ data:
     # against current main and therefore cannot introduce a downgrade. Over-flagging "stale" costs one harmless
     # recreate, never a regression. Fail OPEN here would mean merging a downgrade, so the guard fails CLOSED.
     #
+    # MULTI-REPO (B138 repo-coverage parity, 2026-09-23). Reconciles EVERY repo whose `lanes.pr` is true in the
+    # canonical SoT `repos.yaml` — the same 8-repo set `pr-staleness.yaml` watches, kept BYTE-IDENTICAL so ONE
+    # `check-repo-coverage.sh` regex guards both against the SoT. `midi_real_book` is deliberately absent (SoT
+    # `status: stale`, `lanes.pr: false`). Each repo is reconciled INDEPENDENTLY in a subshell: an unreachable or
+    # unclassifiable repo is collected and forces exit 2 at the end — never a silent shrink of the watch set (the
+    # same fail-closed posture pr-staleness uses). `freejack` + `startme-curator` are PRIVATE — the token must hold
+    # access or they fail closed, never a silent skip.
+    #
+    # AUDIT LOG (2026-09-23). Every run, and every applied action, emits a structured, parseable `pr-lifecycle-audit`
+    # line to stdout. The Job's stdout ships to Loki, so the per-PR resolution history is queryable in Grafana; the
+    # per-run summary metrics are derived from those lines (LogQL / a Loki recording rule), which is why this needs
+    # NO Pushgateway and the Job stays unmeshed (GitHub egress only).
+    #
     #   usage: scripts/check-pr-lifecycle.sh [--apply] [--repo <owner/repo>]
-    #          (default): advisory — print each managed PR's verdict + recommendation, exit 0.
+    #          (default): advisory over ALL pr-lane repos — print each managed PR's verdict + recommendation, exit 0.
     #          --apply  : perform the low-risk resolutions — `@dependabot recreate` STALE, close SUPERSEDED.
     #                     Merges are NEVER automated here.
-    #          --repo   : target repository (default edtbl76/weyland-lab).
+    #          --repo   : reconcile ONLY this repo (testing / a targeted run); overrides the repo set.
+    #          env PR_REPOS : override the whole set (space-separated owner/repo); default = the pr-lane set below.
     #
-    # EXIT CODES: 0 = ran (advisory, or --apply completed). 2 = the guard could not do its job (gh/API/transport).
-    #   Distinct on purpose: a guard that cannot see must never look like a clean sweep (B131's own first-run bug).
+    # EXIT CODES: 0 = ran (advisory, or --apply completed) with every repo reconciled. 2 = the guard could not do
+    #   its job for at least one repo (gh/API/transport, or an unresolvable compare). Distinct on purpose: a guard
+    #   that cannot see must never look like a clean sweep (B131's own first-run bug).
     #
     # ENV: GH_BIN — the GitHub CLI to invoke (default `gh`); overridable so the DECISION logic is testable with a
     #      stub (bats), the same seam pattern as COMPLEXITY_ENGINE in check-complexity.sh. `gh` carries its own
@@ -72,17 +95,24 @@ data:
     set -euo pipefail
 
     GH_BIN="${GH_BIN:-gh}"
-    REPO="edtbl76/weyland-lab"
     APPLY=0
+    SINGLE_REPO=""
+
+    # Canonical PR-lane repo set — reconciled to repos.yaml (B138), kept BYTE-IDENTICAL to pr-staleness.yaml's
+    # REPOS default so scripts/check-repo-coverage.sh guards BOTH consumers against the SoT with one regex.
+    # midi_real_book is absent (SoT status: stale, lanes.pr: false). Override with PR_REPOS for a scoped run.
+    REPOS="${PR_REPOS:-edtbl76/Algopedia edtbl76/ServiceTransformation edtbl76/emangini-tailwind-nextjs-contentlayer edtbl76/startme-curator edtbl76/stud.io edtbl76/weyland-lab edtbl76/freejack edtbl76/MyBodyGraph}"
 
     while [ $# -gt 0 ]; do
       case "$1" in
         --apply) APPLY=1; shift ;;
-        --repo)  REPO="${2:?--repo needs a value}"; shift 2 ;;
-        -h|--help) sed -n '2,40p' "$0"; exit 0 ;;
+        --repo)  SINGLE_REPO="${2:?--repo needs a value}"; shift 2 ;;
+        -h|--help) sed -n '2,53p' "$0"; exit 0 ;;
         *) echo "FATAL: unknown argument: $1" >&2; exit 2 ;;
       esac
     done
+    # --repo scopes the run to a single repo (testing / targeted); otherwise the full pr-lane set (or PR_REPOS).
+    [ -n "$SINGLE_REPO" ] && REPOS="$SINGLE_REPO"
 
     command -v "$GH_BIN" >/dev/null 2>&1 || { echo "FATAL: '$GH_BIN' not found on PATH." >&2; exit 2; }
 
@@ -107,20 +137,53 @@ data:
       printf '%s\n' "$1" | sed -E 's#^dependabot/##; s#-[0-9a-f]{8,}$##'
     }
 
-    # --- gather open managed PRs -------------------------------------------------------------------------------
-    # Read the body, not just an exit code: `gh ... | jq` collapses an API failure to empty input that looks like
-    # "no open PRs". We capture stdout AND status, and a transport failure is exit 2, never a clean sweep.
-    raw=""
-    if ! raw="$("$GH_BIN" pr list --repo "$REPO" --state open --limit 200 \
-          --json number,title,headRefName,createdAt,isDraft,statusCheckRollup 2>&1)"; then
-      echo "FATAL: could not list PRs for $REPO (gh transport/auth failure):" >&2
-      echo "$raw" >&2
-      exit 2
-    fi
+    # compare.status for one branch in <repo>: ahead|behind|diverged|identical. Fail closed — an empty/failed status
+    # is NOT treated as "current" (that would be the exact fail-open that merges a stale downgrade).
+    compare_status() {
+      local repo="$1" branch="$2" out
+      if ! out="$("$GH_BIN" api "repos/$repo/compare/main...$branch" --jq '.status' 2>&1)"; then
+        echo "ERROR"; return 0
+      fi
+      case "$out" in ahead|behind|diverged|identical) echo "$out" ;; *) echo "ERROR" ;; esac
+    }
 
-    # Parse into TSV rows: number \t branch \t createdAt \t ci \t title. python3 keeps us off a jq dependency and
-    # lets us reduce statusCheckRollup to a single ci verdict (fail > pending > pass) deterministically.
-    rows="$(printf '%s' "$raw" | python3 -c '
+    # age in whole days from an ISO-8601 createdAt (best-effort; blank/unparseable -> "?").
+    age_days() {
+      local iso="$1" t0 now
+      [ -n "$iso" ] || { echo "?"; return; }
+      t0="$(date -d "$iso" +%s 2>/dev/null)" || { echo "?"; return; }
+      now="$(date +%s)"
+      echo $(( (now - t0) / 86400 ))
+    }
+
+    # Structured, Loki-friendly audit line: one event per line, `key=value`, greppable and LogQL-parseable. This is
+    # the "audit.log" — the durable per-PR + per-run record shipped to Loki; metrics are derived from it downstream.
+    audit() { printf 'pr-lifecycle-audit %s\n' "$*"; }
+    NOW_ISO="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+
+    # --- reconcile ONE repo ------------------------------------------------------------------------------------
+    # Called once per repo, in a subshell from the main loop, so an `exit 2` here (unreachable repo / unresolvable
+    # compare) fails ONLY this repo — the parent collects it and exits 2 at the end. Per-repo counts are appended to
+    # $SUMFILE (a subshell cannot set parent vars) for the grand total. The DECISION CORE below is unchanged from the
+    # single-repo version proven by scripts/tests/pr-lifecycle.bats — only wrapped in a function with local state.
+    reconcile_repo() {
+      local REPO="$1"
+      local raw="" rows
+
+      # --- gather open managed PRs -----------------------------------------------------------------------------
+      # Read the body, not just an exit code: `gh ... | jq` collapses an API failure to empty input that looks like
+      # "no open PRs". We capture stdout AND status, and a transport failure is exit 2, never a clean sweep.
+      if ! raw="$("$GH_BIN" pr list --repo "$REPO" --state open --limit 200 \
+            --json number,title,headRefName,createdAt,isDraft,statusCheckRollup 2>&1)"; then
+        audit "ts=$NOW_ISO repo=$REPO action=list result=fail reason=gh-transport"
+        echo "FATAL: could not list PRs for $REPO (gh transport/auth failure):" >&2
+        echo "$raw" >&2
+        exit 2
+      fi
+
+      # Parse into TSV rows: number \t branch \t createdAt \t ci \t title. python3 keeps us off a jq dependency and
+      # lets us reduce statusCheckRollup to a single ci verdict (fail > pending > pass) deterministically.
+      rows="$(printf '%s' "$raw" | python3 -c '
     import sys, json
     try:
         prs = json.load(sys.stdin)
@@ -140,131 +203,158 @@ data:
             ci = "pass"
         print("\t".join([str(p["number"]), p["headRefName"], p.get("createdAt",""), ci,
                          (p.get("title","").replace("\t"," ").replace("\n"," "))]))
-    ' )" || { echo "FATAL: could not parse the PR list." >&2; exit 2; }
+    ' )" || { audit "ts=$NOW_ISO repo=$REPO action=parse result=fail"; echo "FATAL: could not parse the PR list for $REPO." >&2; exit 2; }
 
-    # --- classify ---------------------------------------------------------------------------------------------
-    # First pass: collect managed PRs and their package keys (for superseded detection).
-    # Initialise as EMPTY arrays, not a bare `declare -a`: under `set -u` an older bash (the bats/bats:latest
-    # image) throws "unbound variable" on ${#arr[@]} for a declared-but-never-assigned array.
-    NUMS=(); BRANCHES=(); CREATED=(); CI=(); TITLES=(); KEYS=()
-    while IFS=$'\t' read -r num branch created ci title; do
-      [ -n "${num:-}" ] || continue
-      is_managed "$branch" || continue
-      NUMS+=("$num"); BRANCHES+=("$branch"); CREATED+=("$created"); CI+=("$ci"); TITLES+=("$title")
-      KEYS+=("$(pkg_key "$branch")")
-    done <<< "$rows"
+      # --- classify --------------------------------------------------------------------------------------------
+      # First pass: collect managed PRs and their package keys (for superseded detection).
+      # Initialise as EMPTY arrays, not a bare `declare -a`: under `set -u` an older bash (the bats/bats:latest
+      # image) throws "unbound variable" on ${#arr[@]} for a declared-but-never-assigned array.
+      local -a NUMS=() BRANCHES=() CREATED=() CI=() TITLES=() KEYS=()
+      local num branch created ci title
+      while IFS=$'\t' read -r num branch created ci title; do
+        [ -n "${num:-}" ] || continue
+        is_managed "$branch" || continue
+        NUMS+=("$num"); BRANCHES+=("$branch"); CREATED+=("$created"); CI+=("$ci"); TITLES+=("$title")
+        KEYS+=("$(pkg_key "$branch")")
+      done <<< "$rows"
 
-    n_open=${#NUMS[@]}
+      local n_open=${#NUMS[@]}
 
-    # Superseded: for each package key with >1 open PR, the newest createdAt is the survivor; the rest are superseded.
-    declare -A SUPERSEDED_BY   # num -> superseding num
-    for ((i=0; i<n_open; i++)); do
-      for ((j=0; j<n_open; j++)); do
-        [ "$i" -eq "$j" ] && continue
-        if [ "${KEYS[$i]}" = "${KEYS[$j]}" ] && [ "${CREATED[$j]}" \> "${CREATED[$i]}" ]; then
-          SUPERSEDED_BY["${NUMS[$i]}"]="${NUMS[$j]}"
-        fi
+      # Superseded: for each package key with >1 open PR, the newest createdAt is the survivor; the rest superseded.
+      local -A SUPERSEDED_BY=()   # num -> superseding num
+      local i j
+      for ((i=0; i<n_open; i++)); do
+        for ((j=0; j<n_open; j++)); do
+          [ "$i" -eq "$j" ] && continue
+          if [ "${KEYS[$i]}" = "${KEYS[$j]}" ] && [ "${CREATED[$j]}" \> "${CREATED[$i]}" ]; then
+            SUPERSEDED_BY["${NUMS[$i]}"]="${NUMS[$j]}"
+          fi
+        done
       done
-    done
 
-    # compare.status for one branch: ahead|behind|diverged|identical. Fail closed — an empty/failed status is NOT
-    # treated as "current" (that would be the exact fail-open that merges a stale downgrade).
-    compare_status() {
-      local branch="$1" out
-      if ! out="$("$GH_BIN" api "repos/$REPO/compare/main...$branch" --jq '.status' 2>&1)"; then
-        echo "ERROR"; return 0
+      local stale=0 superseded=0 mergeable=0 needshuman=0
+      local -a ACT_RECREATE=() ACT_CLOSE=()
+      local age verdict rec st
+
+      echo "Open managed PRs in $REPO:"
+      for ((i=0; i<n_open; i++)); do
+        num="${NUMS[$i]}"; branch="${BRANCHES[$i]}"; ci="${CI[$i]}"; title="${TITLES[$i]}"
+        age="$(age_days "${CREATED[$i]}")"
+
+        if [ -n "${SUPERSEDED_BY[$num]:-}" ]; then
+          # Any class: a newer managed PR on the same target makes this one a backwards-roll if merged. Close it.
+          verdict="SUPERSEDED"; rec="close (superseded by #${SUPERSEDED_BY[$num]})"
+          superseded=$((superseded+1)); ACT_CLOSE+=("$num:${SUPERSEDED_BY[$num]}")
+        elif is_dependabot "$branch"; then
+          # Dependabot PRs are the regression hazard: a diverged branch carries pre-remediation pins. `compare` is
+          # decision-relevant here, so fail closed if it cannot be resolved (an unknown state is NOT "current").
+          st="$(compare_status "$REPO" "$branch")"
+          if [ "$st" = "ERROR" ]; then
+            audit "ts=$NOW_ISO repo=$REPO pr=$num action=classify result=fail reason=compare-unresolved"
+            echo "FATAL: could not compare main...$branch in $REPO (fail closed — a stale bump can regress main)." >&2
+            exit 2
+          fi
+          if [ "$st" = "diverged" ] || [ "$st" = "behind" ]; then
+            verdict="STALE"; rec="@dependabot recreate (re-cut against current main)"
+            stale=$((stale+1)); ACT_RECREATE+=("$num")
+          elif [ "$ci" = "fail" ] || [ "$ci" = "pending" ]; then
+            verdict="NEEDS-HUMAN"; rec="current but CI $ci — review"
+            needshuman=$((needshuman+1))
+          else
+            verdict="MERGEABLE"; rec="current + CI green — merge the bump"
+            mergeable=$((mergeable+1))
+          fi
+        else
+          # ci/image-bump SURVIVOR (newest of its chain): this IS the ship loop. Merging it deploys the latest tags;
+          # divergence from main is expected and not a regression (older siblings are already SUPERSEDED above). No
+          # `@dependabot recreate` — it isn't dependabot's PR. CI decides whether it is ready to ship.
+          if [ "$ci" = "fail" ] || [ "$ci" = "pending" ]; then
+            verdict="NEEDS-HUMAN"; rec="image-bump, CI $ci — review"
+            needshuman=$((needshuman+1))
+          else
+            verdict="MERGEABLE"; rec="image-bump survivor, CI green — merge to ship"
+            mergeable=$((mergeable+1))
+          fi
+        fi
+        printf '  #%s [%s] %s (age %sd, ci=%s) -> %s\n' "$num" "$verdict" "$title" "$age" "$ci" "$rec"
+      done
+
+      # --- apply (optional) ------------------------------------------------------------------------------------
+      if [ "$APPLY" -eq 1 ]; then
+        echo "Applying resolutions in $REPO:"
+        # Writes go through the REST API (`gh api`), NOT `gh pr comment` / `gh pr close`: those use GraphQL
+        # mutations (addComment / closePullRequest) that a fine-grained PAT — the sealed pr-lifecycle-reconcile-github
+        # this CronJob runs as — cannot access ("Resource not accessible by personal access token"), even with
+        # Pull requests: write. Found 2026-09-22 when the first scheduled run failed on exactly that. REST
+        # (issues/<n>/comments, pulls/<n>) is fully supported for fine-grained PATs. The real gh error is surfaced,
+        # not swallowed (the first-run failure hid behind a generic "could not comment").
+        local out
+        for num in "${ACT_RECREATE[@]:-}"; do
+          [ -n "$num" ] || continue
+          if out="$("$GH_BIN" api -X POST "repos/$REPO/issues/$num/comments" -f body="@dependabot recreate" 2>&1)"; then
+            echo "  #$num: requested @dependabot recreate"
+            audit "ts=$NOW_ISO repo=$REPO pr=$num verdict=STALE action=recreate result=ok"
+          else
+            audit "ts=$NOW_ISO repo=$REPO pr=$num verdict=STALE action=recreate result=fail"
+            echo "FATAL: could not comment @dependabot recreate on #$num in $REPO: $out" >&2; exit 2
+          fi
+        done
+        local pair by
+        for pair in "${ACT_CLOSE[@]:-}"; do
+          [ -n "$pair" ] || continue
+          num="${pair%%:*}"; by="${pair##*:}"
+          # Comment THEN close (two REST calls; `gh pr close --comment` did both in one GraphQL mutation).
+          "$GH_BIN" api -X POST "repos/$REPO/issues/$num/comments" \
+            -f body="Superseded by #$by (merging this after #$by would roll the dependency backwards)." >/dev/null 2>&1 || true
+          if out="$("$GH_BIN" api -X PATCH "repos/$REPO/pulls/$num" -f state=closed 2>&1)"; then
+            echo "  #$num: closed (superseded by #$by)"
+            audit "ts=$NOW_ISO repo=$REPO pr=$num verdict=SUPERSEDED action=close by=$by result=ok"
+          else
+            audit "ts=$NOW_ISO repo=$REPO pr=$num verdict=SUPERSEDED action=close by=$by result=fail"
+            echo "FATAL: could not close #$num in $REPO: $out" >&2; exit 2
+          fi
+        done
       fi
-      case "$out" in ahead|behind|diverged|identical) echo "$out" ;; *) echo "ERROR" ;; esac
+
+      # Per-repo summary line + audit record; then the machine counts for the grand total. Only reached on success
+      # (any fatal above already exited this subshell), so a repo that failed contributes NO counts — correct.
+      printf 'pr-lifecycle: %s: %s open (%s stale, %s superseded, %s mergeable, %s needs-human)\n' \
+        "$REPO" "$n_open" "$stale" "$superseded" "$mergeable" "$needshuman"
+      audit "run=repo ts=$NOW_ISO repo=$REPO open=$n_open stale=$stale superseded=$superseded mergeable=$mergeable needs_human=$needshuman"
+      echo "$n_open $stale $superseded $mergeable $needshuman" >> "$SUMFILE"
     }
 
-    # age in whole days from an ISO-8601 createdAt (best-effort; blank/unparseable -> "?").
-    age_days() {
-      local iso="$1" t0 now
-      [ -n "$iso" ] || { echo "?"; return; }
-      t0="$(date -d "$iso" +%s 2>/dev/null)" || { echo "?"; return; }
-      now="$(date +%s)"
-      echo $(( (now - t0) / 86400 ))
-    }
-
-    stale=0; superseded=0; mergeable=0; needshuman=0
-    ACT_RECREATE=(); ACT_CLOSE=()
-
-    echo "Open managed PRs in $REPO:"
-    for ((i=0; i<n_open; i++)); do
-      num="${NUMS[$i]}"; branch="${BRANCHES[$i]}"; ci="${CI[$i]}"; title="${TITLES[$i]}"
-      age="$(age_days "${CREATED[$i]}")"
-
-      if [ -n "${SUPERSEDED_BY[$num]:-}" ]; then
-        # Any class: a newer managed PR on the same target makes this one a backwards-roll if merged. Close it.
-        verdict="SUPERSEDED"; rec="close (superseded by #${SUPERSEDED_BY[$num]})"
-        superseded=$((superseded+1)); ACT_CLOSE+=("$num:${SUPERSEDED_BY[$num]}")
-      elif is_dependabot "$branch"; then
-        # Dependabot PRs are the regression hazard: a diverged branch carries pre-remediation pins. `compare` is
-        # decision-relevant here, so fail closed if it cannot be resolved (an unknown state is NOT "current").
-        st="$(compare_status "$branch")"
-        if [ "$st" = "ERROR" ]; then
-          echo "FATAL: could not compare main...$branch (fail closed — a stale bump can regress main)." >&2
-          exit 2
-        fi
-        if [ "$st" = "diverged" ] || [ "$st" = "behind" ]; then
-          verdict="STALE"; rec="@dependabot recreate (re-cut against current main)"
-          stale=$((stale+1)); ACT_RECREATE+=("$num")
-        elif [ "$ci" = "fail" ] || [ "$ci" = "pending" ]; then
-          verdict="NEEDS-HUMAN"; rec="current but CI $ci — review"
-          needshuman=$((needshuman+1))
-        else
-          verdict="MERGEABLE"; rec="current + CI green — merge the bump"
-          mergeable=$((mergeable+1))
-        fi
-      else
-        # ci/image-bump SURVIVOR (newest of its chain): this IS the ship loop. Merging it deploys the latest tags;
-        # divergence from main is expected and not a regression (older siblings are already SUPERSEDED above). No
-        # `@dependabot recreate` — it isn't dependabot's PR. CI decides whether it is ready to ship.
-        if [ "$ci" = "fail" ] || [ "$ci" = "pending" ]; then
-          verdict="NEEDS-HUMAN"; rec="image-bump, CI $ci — review"
-          needshuman=$((needshuman+1))
-        else
-          verdict="MERGEABLE"; rec="image-bump survivor, CI green — merge to ship"
-          mergeable=$((mergeable+1))
-        fi
-      fi
-      printf '  #%s [%s] %s (age %sd, ci=%s) -> %s\n' "$num" "$verdict" "$title" "$age" "$ci" "$rec"
+    # --- main loop over the repo set ---------------------------------------------------------------------------
+    SUMFILE="$(mktemp)"; : > "$SUMFILE"
+    FAILED=""
+    nrepos=0
+    for REPO in $REPOS; do
+      nrepos=$((nrepos+1))
+      # Subshell isolation: one repo's fatal (unreachable / unresolvable compare) fails only that repo. Collected
+      # here and turned into a non-zero exit at the end — a single bad repo never silently shrinks the watch set.
+      ( reconcile_repo "$REPO" ) || FAILED="${FAILED} ${REPO}"
     done
 
-    # --- apply (optional) -------------------------------------------------------------------------------------
-    if [ "$APPLY" -eq 1 ]; then
-      echo "Applying resolutions:"
-      # Writes go through the REST API (`gh api`), NOT `gh pr comment` / `gh pr close`: those use GraphQL
-      # mutations (addComment / closePullRequest) that a fine-grained PAT — the sealed pr-lifecycle-reconcile-github
-      # this CronJob runs as — cannot access ("Resource not accessible by personal access token"), even with
-      # Pull requests: write. Found 2026-09-22 when the first scheduled run failed on exactly that. REST
-      # (issues/<n>/comments, pulls/<n>) is fully supported for fine-grained PATs. The real gh error is surfaced,
-      # not swallowed (the first-run failure hid behind a generic "could not comment").
-      for num in "${ACT_RECREATE[@]:-}"; do
-        [ -n "$num" ] || continue
-        if out="$("$GH_BIN" api -X POST "repos/$REPO/issues/$num/comments" -f body="@dependabot recreate" 2>&1)"; then
-          echo "  #$num: requested @dependabot recreate"
-        else
-          echo "FATAL: could not comment @dependabot recreate on #$num: $out" >&2; exit 2
-        fi
-      done
-      for pair in "${ACT_CLOSE[@]:-}"; do
-        [ -n "$pair" ] || continue
-        num="${pair%%:*}"; by="${pair##*:}"
-        # Comment THEN close (two REST calls; `gh pr close --comment` did both in one GraphQL mutation).
-        "$GH_BIN" api -X POST "repos/$REPO/issues/$num/comments" \
-          -f body="Superseded by #$by (merging this after #$by would roll the dependency backwards)." >/dev/null 2>&1 || true
-        if out="$("$GH_BIN" api -X PATCH "repos/$REPO/pulls/$num" -f state=closed 2>&1)"; then
-          echo "  #$num: closed (superseded by #$by)"
-        else
-          echo "FATAL: could not close #$num: $out" >&2; exit 2
-        fi
-      done
-    fi
+    # Grand total across every repo that succeeded.
+    T_open=0; T_stale=0; T_superseded=0; T_mergeable=0; T_needshuman=0
+    while read -r o s u m h; do
+      [ -n "${o:-}" ] || continue
+      T_open=$((T_open+o)); T_stale=$((T_stale+s)); T_superseded=$((T_superseded+u))
+      T_mergeable=$((T_mergeable+m)); T_needshuman=$((T_needshuman+h))
+    done < "$SUMFILE"
+    rm -f "$SUMFILE"
+
+    nfailed=0; for _r in $FAILED; do nfailed=$((nfailed+1)); done
+    audit "run=summary ts=$NOW_ISO repos=$nrepos open=$T_open stale=$T_stale superseded=$T_superseded mergeable=$T_mergeable needs_human=$T_needshuman failed=$nfailed"
 
     # The success marker — its ABSENCE means the guard died before finishing, which is fail-closed to non-zero by
     # `set -e`, never a silent green. (Mirrors check-complexity.sh's "complexity triage:" line.)
-    echo "pr-lifecycle: $n_open open ($stale stale, $superseded superseded, $mergeable mergeable, $needshuman needs-human)"
+    if [ -n "$FAILED" ]; then
+      echo "pr-lifecycle-total: $nrepos repos, $T_open open ($T_stale stale, $T_superseded superseded, $T_mergeable mergeable, $T_needshuman needs-human) — FAILED:$FAILED"
+      echo "FATAL: could not reconcile:$FAILED (fail closed — a repo that cannot be read must not look like a clean sweep)." >&2
+      exit 2
+    fi
+    echo "pr-lifecycle-total: $nrepos repos, $T_open open ($T_stale stale, $T_superseded superseded, $T_mergeable mergeable, $T_needshuman needs-human)"
 ---
 apiVersion: batch/v1
 kind: CronJob
@@ -303,10 +393,13 @@ spec:
                   set -e
                   # bash (the script uses arrays), gh (GitHub CLI, reads GH_TOKEN), python3 (JSON reducer).
                   apk add --no-cache bash github-cli python3 ca-certificates >/dev/null
-                  bash /opt/pr-lifecycle-reconcile/check-pr-lifecycle.sh --apply --repo edtbl76/weyland-lab
+                  bash /opt/pr-lifecycle-reconcile/check-pr-lifecycle.sh --apply
               env:
-                # A WRITE-scoped PAT (Pull requests: write on edtbl76/weyland-lab) — recreate posts a comment,
-                # close closes a PR. Distinct from pr-lifecycle-github (read-only), least-privilege per job.
+                # A WRITE-scoped PAT — recreate posts an issue comment, close PATCHes a PR to closed (REST, not
+                # GraphQL; see the apply block). MULTI-REPO (2026-09-23, B138 parity): must hold Pull requests:
+                # write + issues on EVERY pr-lane repo in repos.yaml — INCLUDING private freejack + startme-curator
+                # — or those repos fail closed (exit 2 -> failed Job -> ScheduledJobFailed -> Telegram), never a
+                # silent skip. Distinct from pr-lifecycle-github (read-only), least-privilege for the reconcile lane.
                 - name: GH_TOKEN
                   valueFrom: { secretKeyRef: { name: pr-lifecycle-reconcile-github, key: token } }
               volumeMounts:

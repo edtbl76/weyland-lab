@@ -296,7 +296,10 @@ from **one** decision core (`scripts/check-pr-lifecycle.sh`): the **operator com
 bash scripts/check-pr-lifecycle.sh
 ```
 
-It enumerates every open **managed** PR (dependabot + `ci/image-bump-*`) and lands a verdict:
+It reconciles **every repo whose `lanes.pr` is true in `repos.yaml`** (the B138 pr-lane set — the same 8 repos
+`pr-staleness` watches; `midi_real_book` is excluded as `stale`), enumerating each repo's open **managed** PRs
+(dependabot + `ci/image-bump-*`) and landing a verdict. Override the set with `PR_REPOS`, or scope to a single
+repo with `--repo <owner/repo>` (testing / targeted):
 
 | Verdict | Meaning | Recommendation |
 |---|---|---|
@@ -325,11 +328,14 @@ To perform the low-risk resolutions (recreate STALE dependabot PRs, close SUPERS
 bash scripts/check-pr-lifecycle.sh --apply
 ```
 
-Exit codes: **0** ran (advisory or `--apply` done) · **2** the guard could not do its job (`gh`/API/transport).
-`gh` carries its own auth (keyring locally; `GH_TOKEN` in the cron). The `GH_BIN` seam lets
-`scripts/tests/pr-lifecycle.bats` stub `gh` (12 tests, run in `bats/bats:latest`) so the DECISION logic is tested
-without touching a live PR — the two load-bearing invariants being *advisory never mutates* and *`--apply` never
-merges*, plus a no-drift case (below).
+Exit codes: **0** ran (advisory or `--apply` done) across **every** repo · **2** the guard could not do its job
+for at least one repo (`gh`/API/transport, or an unresolvable `compare`). Per-repo work is isolated (each repo
+runs in a subshell), but any single failure forces exit 2 — a repo that cannot be read must never look like a
+clean sweep (the same fail-closed posture `pr-staleness` uses). `gh` carries its own auth (keyring locally;
+`GH_TOKEN` in the cron). The `GH_BIN` seam lets `scripts/tests/pr-lifecycle.bats` stub `gh` (14 tests, run in
+`bats/bats:latest` + `python3`) so the DECISION logic is tested without touching a live PR — the load-bearing
+invariants being *advisory never mutates*, *`--apply` never merges*, *one bad repo never shrinks the watch set*,
+plus a no-drift case (below).
 
 **Run the nightly cron by hand** (either host with `kubectl`; it is on **mother**):
 
@@ -338,9 +344,45 @@ kubectl -n weyland create job pr-lifecycle-reconcile-adhoc --from=cronjob/pr-lif
 kubectl -n weyland logs job/pr-lifecycle-reconcile-adhoc
 ```
 
-The tail line is the summary: `pr-lifecycle: N open (S stale, U superseded, M mergeable, H needs-human)`. The
-Job runs **unmeshed** (only egress to GitHub via `gh`), so it terminates on its own; a non-zero exit fails the
-Job → `kube_job_status_failed` → `ScheduledJobFailed` → Telegram (there is no self-POST to Alertmanager).
+The tail line is the grand total: `pr-lifecycle-total: R repos, N open (S stale, U superseded, M mergeable,
+H needs-human)` (per-repo `pr-lifecycle: <repo>: …` lines precede it). The Job runs **unmeshed** (only egress to
+GitHub via `gh`), so it terminates on its own; a non-zero exit fails the Job → `kube_job_status_failed` →
+`ScheduledJobFailed` → Telegram (there is no self-POST to Alertmanager).
+
+### Multi-repo coverage + the audit log (2026-09-23)
+
+The reconciler covers **every `lanes.pr: true` repo in `repos.yaml`**, not just `weyland-lab`. The repo set is
+kept **byte-identical** to `pr-staleness.yaml`'s and is guarded against the SoT by `scripts/check-repo-coverage.sh`
+(the `pr(recon)` lane), so the surface (staleness) and resolve (reconcile) watchers can never silently diverge —
+add a repo in `repos.yaml`, reconcile both consumers, or the guard fails CI.
+
+**Token reach (blocking for private repos).** The CronJob's sealed `pr-lifecycle-reconcile-github` PAT must hold
+`Pull requests: write` + `Issues: write` on **every** pr-lane repo — including private **`freejack`** +
+**`startme-curator`** — or those repos fail closed (exit 2 → failed Job → Telegram), never a silent skip. When
+onboarding a new pr-lane repo, re-scope the PAT and re-seal it (secret `pr-lifecycle-reconcile-github`, key
+`token`, ns `weyland`; seal on mother per `docs/runbooks/sealed-secrets.md`). Advisory (read-only) needs only
+read; `--apply` needs the writes.
+
+**The audit log (Loki) + metrics.** Every run, and every applied action, emits a structured `pr-lifecycle-audit`
+line to stdout; **Alloy ships it to Loki**, so the per-PR resolution history is queryable in Grafana — no
+Pushgateway, and the Job stays unmeshed. Useful queries (Grafana → Explore → Loki, or a dashboard panel):
+
+```
+{namespace="weyland", pod=~"pr-lifecycle-reconcile.*"} |= "pr-lifecycle-audit"
+```
+
+```
+sum by (repo) (count_over_time({namespace="weyland"} |= "action=recreate result=ok" [7d]))
+```
+
+```
+count_over_time({namespace="weyland"} |= "pr-lifecycle-audit run=summary" | logfmt | failed > 0 [7d])
+```
+
+Reconcile *failures* already page via `ScheduledJobFailed` (non-zero exit); the Loki lines are the durable
+**record** of what was resolved and the source for any count/trend panel. Native Prometheus counters would need
+either `remote_write` on the Loki ruler (currently alerting-only) or a Pushgateway (which would re-mesh the Job) —
+both deferred as unnecessary for the lab.
 
 **After editing `scripts/check-pr-lifecycle.sh`, regenerate the embedded copy** — the CronJob runs the
 byte-identical script from its ConfigMap, and `scripts/tests/pr-lifecycle.bats` fails on drift:
