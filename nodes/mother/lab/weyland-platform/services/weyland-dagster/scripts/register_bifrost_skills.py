@@ -332,8 +332,14 @@ TERMINAL CONDITION: STOP when the entire suite is green — every guard exit 0 A
 
 def main():
     c = httpx.Client(base_url=BASE, timeout=30)
-    existing = {s["name"] for s in c.get("/api/skills?limit=1000").json().get("skills") or []}   # limit: default is 50, we have more
-    created = skipped = 0
+    # Best-effort pre-fetch to skip a POST we don't need. The REAL idempotency guarantee is the "already exists"
+    # catch below: the list endpoint paginates and IGNORES limit (observed 2026-09-23 — it returned 1 of 21
+    # existing skills), so the pre-fetch alone is unreliable and must NOT be trusted to decide "new vs existing".
+    try:
+        existing = {s["name"] for s in c.get("/api/skills?limit=1000").json().get("skills") or []}
+    except Exception:
+        existing = set()
+    created = skipped = failed = 0
     for name, category, description, body in SKILLS:
         if name in existing:
             skipped += 1; continue
@@ -342,10 +348,15 @@ def main():
             "skill_md_body": body, "compatibility": COMPAT, "allowed_tools": "",
             "license": "MIT", "metadata": {"category": category},
         })
-        ok = r.status_code < 300
-        print(f"skill  {'CREATED' if ok else 'FAILED '} [{category}] {name}{'' if ok else ' ' + r.text[:140]}")
-        created += ok
-    print(f"\ndone. {created} created, {skipped} existing. {len(SKILLS)} skills total.")
+        if r.status_code < 300:
+            print(f"skill  CREATED [{category}] {name}"); created += 1
+        elif "already exists" in r.text:
+            skipped += 1   # idempotent: it IS registered; the paginated pre-fetch simply missed it. Not a failure.
+        else:
+            print(f"skill  FAILED  [{category}] {name} {r.text[:140]}"); failed += 1
+    print(f"\ndone. {created} created, {skipped} existing, {failed} failed. {len(SKILLS)} skills total.")
+    if failed:
+        raise SystemExit(1)   # a REAL failure (not an already-exists collision) fails the run — fail closed.
 
 if __name__ == "__main__":
     main()
