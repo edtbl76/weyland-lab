@@ -16,6 +16,8 @@
 |---|---|---|
 | **Inbox / notifications** | **ADOPT WITH LOW TRUST — an event *pointer*, not a state source** | Keep the GitHub↔Linear connection ON for surface-consolidation (Linear = GitHub dev events, Port = ops events). But the Inbox mirrors the *event* ("review requested"), not the PR's *state* (mergeable / stale / superseded) — so **GitHub remains the source of truth for PR state, and nothing is actioned from the Inbox's signal alone.** Same discipline as issue drift: verify mechanically, don't trust the tool's view. |
 | **Workflow states** | **KEEP the 7 states as-is — a `Parked` *state* was REJECTED; "on hold" is a label, not a state** | The 7 EMA states (Backlog · Todo · In Progress · In Review · Done · Canceled · Duplicate) cover the lifecycle. Held/deferred items *are* invisible in Linear (the binary sync guard collapses HELD/BLOCKED/DEFERRED → "open"; the B86 pattern) — but a `Parked` **state** is the wrong fix: a workflow state is *mutually exclusive*, so parking an issue overwrites the lifecycle position it was parked *from*, and un-park becomes ambiguous. "On hold" is an orthogonal **facet**, so it belongs on a **label**. Shipped instead (2026-09-22): `parked:held` (external blocker) + `parked:deferred` (deliberate), tagged on B134/B150/B86 — each keeps its real state *and* priority. Fully MCP-automatable; no Linear-UI hand-off. |
+| **Priority — field vs. label** | **ADOPT the native `priority` field as sole SoT; RETIRED the `High`/`Medium`/`Low` labels (done 2026-09-22)** | Priority is a single exclusive value → a **field**, not a facet (the mirror image of the parking call). It was carried *twice* — the native field **and** redundant priority labels — which guarantees drift: **28 of 224 issues disagreed** (13 hard contradictions + ~15 field-unset-but-labelled), *all* in terminal `Done`/`Canceled` items; the open queue was already 100% field-consistent. Decisive dependency check: `check-linear-sync.sh` already treats the **backlog** tier as SoT and compares the Linear **field** (`n.get("priority")`), never the label — so nothing depended on it. Retired `High`/`Medium`/`Low`/`Maturity`; the field (governed by `docs/backlog.md`, the Gold standard) is the only priority mechanism. Labels become a pure **facet** space: type (`Tech Debt`/`Bug`/`Feature`/…) + operational (`parked:*`). |
+| **Projects / Initiatives / Milestones** | **Projects: KEEP (already core, guard-enforced). Initiatives: DON'T ADOPT. Milestones: skip.** | Projects are the product separator (`Weyland Lab` / `Stud.IO` / `rogueone Hardware`), enforced by `check-linear-sync` check B (no project-less open issue). **Initiatives** (0 defined) sit *above* projects to group many projects toward a themed goal — nothing for that layer to organize at a solo 2–3-product scale; projects are already the top level, so an initiative would be empty ceremony. **Milestones** exist only on the `Service Transformation` project (as a course TOC); real work is sequenced by backlog B-numbers + Linear **epics** (parent issues), so milestones would duplicate that with a weaker mechanism. Container-hierarchy rule: adopt the nesting level with real fan-out (Project→Issue), skip levels without it (Initiative→Project, Project→Milestone). `Service Transformation` (0 issues, seeded milestones) is a **planned track the operator keeps — explicitly NOT to be archived.** |
 
 ## Inbox / notifications
 
@@ -132,3 +134,91 @@ sleep — before tagging.
 **Optional enforcement (follow-on):** teach `check-linear-sync.sh` to match a backlog `HELD|BLOCKED|DEFERRED`
 marker to a `parked:*` label and flag drift — upgrading the guard from binary `done|open` to `done|parked|open`.
 Deferred until the facet has proven itself.
+
+## Priority — field vs. label
+
+**Real data (live pull of all 224 EMA issues + `scripts/check-linear-sync.sh`, 2026-09-22).** Priority was carried
+**two ways**: Linear's native `priority` field (Urgent/High/Medium/Low/None — built-in, *exclusive*, sortable) *and*
+redundant `High`/`Medium`/`Low` labels (+ a legacy `Maturity`).
+
+**The model error, and it's the mirror of parking.** Priority is a single *exclusive* value, so it is field-shaped,
+not facet-shaped. Parking was a facet wrongly forced into the exclusive *state* machine; priority was an exclusive
+value wrongly *also* kept as a facet (label). Same state-vs-facet rule, opposite direction. Two stores for one
+exclusive value is duplicated mutable state with no reconciler — it *must* drift.
+
+**And it had drifted — 28 of 224 issues disagreed:**
+- **13 hard contradictions** — both set, to *different* real priorities. E.g. **B89** field `High` / label `Low`;
+  **B99** `Medium`/`High`; **B96** `Medium`/`High`; **B115** `Medium`/`High`; **B92** & **SEC-1** `Medium`/`Low`;
+  **B74** `Low`/`Medium`. The drift has *no direction* (sometimes field higher, sometimes label) — the signature of
+  two independently-edited copies, with no heuristic to recover which is right.
+- **~15 field-unset-but-labelled** — older items where the field was never set (`No priority`) and only a stale label
+  claimed a tier (B43, B50, B51, B55, B56, B58, B59, B61, B62, B111…).
+- **Crucially, every drifting item is `Done`/`Canceled`.** The *open* queue is already 100% field-consistent
+  (`field == label` on every open item that has a label; recent items carry the field and *no* priority label at all —
+  the field already won in practice). So the drift is historical debris, not active mis-prioritization — there was
+  nothing live to adjudicate.
+
+**Decisive dependency finding — nothing depended on the label.** `scripts/check-linear-sync.sh` reconciles the
+backlog's declared tier against the Linear **`priority` field** (reads `n.get("priority")`, maps `{2:HIGH, 3:MEDIUM,
+4:LOW}`), and **never reads the `High`/`Medium`/`Low` labels.** It already encodes **`docs/backlog.md` as the tier SoT**
+(the Gold standard) and flags the *field* when it disagrees — its own header cites B134/B87 as the priority drift that
+"slipped past the status-only guard twice." So retiring the labels breaks zero tooling.
+
+**Decision — ADOPT the field as sole SoT; RETIRE the priority labels.** Priority lives in the native field, governed by
+`docs/backlog.md`. Done 2026-09-22: retired `High` / `Medium` / `Low` / legacy `Maturity` via `retire_issue_label`
+(reversible with `restore_issue_label`; retired labels can't be applied to new issues but stay visible on the terminal
+items that already carry them). No field-backfill was needed — the open queue was already correct, and terminal items'
+priority is history.
+
+**Left undone, deliberately:** the ~150 `Done`/`Canceled` items keep their historical priority label (churning them to
+strip a harmless, frozen label is the over-engineering the lab avoids). **Optional cosmetic follow-on:** strip the
+redundant (but *agreeing*) priority label off the ~57 open items so the working board is field-only — ~57 reversible
+writes, pure tidiness.
+
+**This also settles the Labels feature's core question.** Labels were conflating two shapes: a field-shaped concept
+(priority → moved to the field) and genuine facets (type: `Tech Debt`/`Bug`/`Feature`/`Improvement`/`Spike`; plus the
+new operational `parked:*`). After this pass, labels are a **pure facet space** and priority is a field — the
+state-vs-facet rule applied consistently across the whole workspace. Remaining label ideas to *spend* the freed space
+(a `spike`/research flag, a domain/pillar tag) are open, low-priority options, not commitments.
+
+## Projects / Initiatives / Milestones
+
+**Real data (live, 2026-09-22).** **5 projects:** `Weyland Lab` (Backlog — the homelab), `Stud.IO` (Backlog —
+the separate product), `rogueone Hardware` (Backlog — host faults; EMA-186 lives here), `start.me Curator`
+(Completed — B132), `Service Transformation` (Backlog; k8s/Java/Spring; **0 issues**; 7 seeded course-module
+milestones at 0%). **Initiatives: 0.** **Milestones: only on `Service Transformation`.** Cycles: cycle 7 is
+current (4 issues, all Stud.IO); weyland runs continuous.
+
+**Projects — KEEP, already adopted correctly.** Projects are the one container the lab genuinely needs: the
+**product separator** (`Weyland Lab` / `Stud.IO` / `rogueone Hardware`), and it is *guard-enforced* —
+`check-linear-sync.sh` check B fails on any project-less open issue (how EMA-186 / EMA-172 were caught;
+[[linear-status-source-of-truth]]). `start.me Curator` (Completed) shows the pattern working end to end: a
+bounded effort grouped under a project and closed.
+
+**Initiatives — DON'T ADOPT, and the emptiness is correct.** Initiatives sit *above* projects — they group
+**multiple projects toward one themed goal**, a portfolio layer for an org running many projects against a
+strategy. This is a solo lab with 2–3 products where **projects are already the top level**; an initiative
+would be a container with nothing to contain. It is the "collaboration/scale feature that doesn't earn its
+place" criterion from this doc's opening, applied to hierarchy depth.
+
+**The container-hierarchy rule (the general principle).** Linear nests Initiative › Project › Milestone ›
+Issue. A nesting level earns its keep only where there is real *fan-out* at that level — multiple children
+that need grouping AND a decision made at the parent's granularity. The lab has fan-out at **Project→Issue**
+(many issues per product) but **none** at Initiative→Project (2–3 projects, no themed super-goal) or
+Project→Milestone (backlog B-numbers already sequence within a product). So the useful depth is exactly two
+levels; the other two are empty scaffolding. Adopt the level where the fan-out is; skip the levels where it
+is not.
+
+**Milestones — skip.** The only milestones that exist are the dead-track course TOC. Real work is already
+sequenced by the backlog's B-numbers and Linear **epics** (parent issues — e.g. UX Redesign epic EMA-153 with
+its 8 sub-issues, the Module 1–5 epics). Milestones would duplicate that grouping with a second, weaker
+mechanism; the backlog is the phase record.
+
+**Cycles (adjacent) — appropriate light use.** `Stud.IO` (active product dev) runs a cadence (cycle 7, 4
+issues); `weyland` (continuous ops/build) does not. That split is right — sprints fit product delivery, not a
+homelab's rolling backlog. Cycles get their own verdict later in the walk; current usage is sound.
+
+**`Service Transformation` — retained by operator directive (do NOT archive).** I flagged its 0-issue /
+seeded-milestone state as clutter and proposed archiving it; the operator vetoed emphatically. It is a
+**planned track kept deliberately** (seeded, not yet populated), not dead scaffolding — recorded here so no
+future pass re-proposes archiving it.

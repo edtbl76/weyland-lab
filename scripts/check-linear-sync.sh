@@ -25,9 +25,14 @@
 #   B. PROJECT-less OPEN issue. This team runs multiple products (Weyland Lab, Stud.IO, ...) and project
 #      is what separates them — an unassigned open issue is invisible to every filtered view. Found
 #      EMA-186 and EMA-172 that way.
-#   C. PRIORITY drift — a backlog HIGH/MEDIUM/LOW tag that disagrees with the Linear priority (Linear is
-#      the tier SoT). The class that slipped past the status-only guard twice (B134, B87). Only for open
-#      items that declare a tier, and only when Linear's priority maps to one (Urgent/None never flag).
+#   C. PRIORITY drift — a backlog HIGH/MEDIUM/LOW tag that disagrees with the Linear priority FIELD. The
+#      backlog is the tier SoT (CLAUDE.md; see the `register()` note below — the ordered list's tier is
+#      authoritative), so this flags where Linear's priority field has drifted from it. The class that
+#      slipped past the status-only guard twice (B134, B87). Only for open items that declare a tier, and
+#      only when Linear's priority maps to one (Urgent/None never flag).
+#      NOTE (2026-09-22, B119): the redundant Linear High/Medium/Low *labels* were RETIRED — priority now
+#      lives ONLY in the native `priority` field, which is exactly what this check reads (`n.get("priority")`
+#      below). Do NOT add label-reading logic here. Rationale: docs/concepts/linear-evaluation.md.
 #   D. MISSING from Linear — a backlog item with no Linear issue at all (untracked; the B128/B151 class).
 #   E. ORPHAN in Linear — a weyland-numbered OPEN issue no backlog item covers (fell out of backlog.md),
 #      scoped away from the other products' projects, which keep their own backlogs.
