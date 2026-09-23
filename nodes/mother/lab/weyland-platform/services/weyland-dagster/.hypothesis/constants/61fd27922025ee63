@@ -1,0 +1,4 @@
+# file: /code/nodes/mother/lab/weyland-platform/services/weyland-dagster/weyland_pipeline/assets/datasets_lib/readers.py
+# hypothesis_version: 6.140.3
+
+['.csv', '.csv.gz', '.json', '.parquet', '.xpt', '/', '[^0-9A-Za-z_]', '_', 'object', 'replace', 'utf-8', 'value', 'xport']

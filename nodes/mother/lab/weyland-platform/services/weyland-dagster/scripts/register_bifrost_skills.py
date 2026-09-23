@@ -19,7 +19,6 @@ a handful of generic dev skills. compatibility=claude-code,codex; allowed_tools 
 Idempotent: skills created only if absent (matched by name).
 """
 import os
-import httpx
 
 BASE = os.getenv("BIFROST_URL", "http://bifrost.weyland.svc.cluster.local:8080")
 VERSION = "1.0.0"
@@ -331,6 +330,7 @@ TERMINAL CONDITION: STOP when the entire suite is green — every guard exit 0 A
 ]
 
 def main():
+    import httpx  # lazy: only main() needs it, so importing this module (the SKILLS list) needs no deps — see tests/test_bifrost_skills.py
     c = httpx.Client(base_url=BASE, timeout=30)
     # Best-effort pre-fetch to skip a POST we don't need. The REAL idempotency guarantee is the "already exists"
     # catch below: the list endpoint paginates and IGNORES limit (observed 2026-09-23 — it returned 1 of 21

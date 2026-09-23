@@ -1,0 +1,4 @@
+# file: /code/nodes/mother/lab/weyland-platform/services/weyland-dagster/scripts/sync_prompts.py
+# hypothesis_version: 6.140.3
+
+[0.0, 1000.0, 200, 400, 1000, '+00:00', '0', '1', 'BIFROST_URL', 'LANGFUSE_HOST', 'LANGFUSE_PUBLIC_KEY', 'LANGFUSE_SECRET_KEY', 'MLFLOW_TRACKING_URI', 'SYNC_INBOUND', 'SYNC_MLFLOW', 'Z', '\\{(\\w+)\\}', '\\{\\{\\s*(\\w+)\\s*\\}\\}', '__main__', '_system', 'chat', 'commit', 'commitMessage', 'commit_message', 'content', 'createdAt', 'creation_timestamp', 'id', 'is_latest', 'label', 'labels', 'langfuse', 'limit', 'message', 'messages', 'mlflow', 'name', 'order_index', 'production', 'prompt', 'prompts', 'role', 'synced-from-bifrost', 'system', 'tags', 'type', 'updatedAt', 'user', 'version_number', 'versions', '{\\1}', '{{\\1}}']
