@@ -27,39 +27,51 @@ KINDLE_TEXT_TABLES = frozenset({"books"})
 _WS = re.compile(r"\s+")
 
 
+def _greedy_take(words, i, n, chunk_size):
+    """Greedily take words from index ``i`` up to ``chunk_size`` chars. Returns (chunk_words, next_index)."""
+    cur, clen, j = [], 0, i
+    while j < n:
+        add = len(words[j]) + (1 if cur else 0)
+        if cur and clen + add > chunk_size:
+            break
+        cur.append(words[j])
+        clen += add
+        j += 1
+    return cur, j
+
+
+def _overlap_backstep(cur, overlap):
+    """How many trailing words of ``cur`` to carry into the next chunk (~``overlap`` chars), capped so we never
+    re-emit the whole chunk — this guarantees forward progress."""
+    ov, olen = [], 0
+    for w in reversed(cur):
+        add = len(w) + (1 if ov else 0)
+        if olen + add > overlap:
+            break
+        ov.insert(0, w)
+        olen += add
+    return min(len(ov), len(cur) - 1)
+
+
 def _chunk_text(body, chunk_size, overlap):
     """Greedy word-boundary chunks of at most ``chunk_size`` chars, each carrying ~``overlap`` chars of the
     previous chunk's tail so context isn't hard-cut. Always makes forward progress.
 
-    COPIED VERBATIM from ``edgar_text_parse._chunk_text`` on purpose: a leaf module in ``datasets_lib`` must use
-    absolute imports only (it is loaded in isolation by the test harness's ``load_isolated`` and the B152 arch
-    contract forbids the ``from .`` sibling import), so the shared chunker is duplicated rather than imported.
-    Keep the two in sync; they are byte-identical."""
+    COPIED VERBATIM from ``edgar_text_parse._chunk_text`` (with its ``_greedy_take`` / ``_overlap_backstep``
+    helpers) on purpose: a leaf module in ``datasets_lib`` must use absolute imports only (it is loaded in
+    isolation by the test harness's ``load_isolated`` and the B152 arch contract forbids the ``from .`` sibling
+    import), so the shared chunker is duplicated rather than imported. Keep the two in sync; they are
+    byte-identical."""
     words = body.split()
     n = len(words)
     chunks = []
     i = 0
     while i < n:
-        cur, clen, j = [], 0, i
-        while j < n:
-            add = len(words[j]) + (1 if cur else 0)
-            if cur and clen + add > chunk_size:
-                break
-            cur.append(words[j])
-            clen += add
-            j += 1
+        cur, j = _greedy_take(words, i, n, chunk_size)
         chunks.append(" ".join(cur))
         if j >= n:
             break
-        ov, olen = [], 0
-        for w in reversed(cur):
-            add = len(w) + (1 if ov else 0)
-            if olen + add > overlap:
-                break
-            ov.insert(0, w)
-            olen += add
-        back = min(len(ov), len(cur) - 1)
-        i = j - back
+        i = j - _overlap_backstep(cur, overlap)
     return chunks
 
 
@@ -75,20 +87,20 @@ class _TextStripper(HTMLParser):
 
     def __init__(self):
         super().__init__(convert_charrefs=True)
-        self._skip = 0
+        self._skip_depth = 0
         self._parts = []
 
     def handle_starttag(self, tag, attrs):
         if tag in self._SKIP:
-            self._skip += 1
+            self._skip_depth += 1
 
     def handle_endtag(self, tag):
-        if tag in self._SKIP and self._skip:
-            self._skip -= 1
+        if tag in self._SKIP and self._skip_depth:
+            self._skip_depth -= 1
         self._parts.append(" ")  # block edge → separator
 
     def handle_data(self, data):
-        if not self._skip:
+        if not self._skip_depth:
             self._parts.append(data)
 
     def text(self):
@@ -99,7 +111,8 @@ def _strip_html(raw):
     p = _TextStripper()
     try:
         p.feed(raw.decode("utf-8", "replace") if isinstance(raw, bytes) else raw)
-    except Exception:  # noqa: BLE001 — a malformed chapter yields whatever text parsed so far, never aborts the book
+    except Exception:  # noqa: BLE001
+        # A malformed chapter yields whatever text parsed so far; it never aborts the book.
         pass
     return p.text()
 
@@ -115,10 +128,8 @@ def _opf_path(zf, names):
     return None
 
 
-def _parse_opf_spine(zf, opf_path, names):
-    """Parse the OPF: title, author, and the chapters in spine (reading) order. Returns (title, author, chapters)."""
-    opf = fromstring(zf.read(opf_path))
-    base = opf_path.rsplit("/", 1)[0] if "/" in opf_path else ""
+def _opf_metadata(opf):
+    """Walk the OPF once → (title, author, {item id: href}, [spine idrefs in reading order])."""
     title, author, manifest, spine = "", "", {}, []
     for el in opf.iter():
         lt = _local(el.tag)
@@ -130,6 +141,11 @@ def _parse_opf_spine(zf, opf_path, names):
             manifest[el.get("id")] = el.get("href")
         elif lt == "itemref" and el.get("idref"):
             spine.append(el.get("idref"))
+    return title, author, manifest, spine
+
+
+def _spine_chapters(zf, base, manifest, spine, names):
+    """Resolve spine idrefs → ``[(chapter_file, text)]`` in reading order, skipping unresolved/absent/empty ones."""
     chapters = []
     for idref in spine:
         href = manifest.get(idref)
@@ -141,6 +157,15 @@ def _parse_opf_spine(zf, opf_path, names):
         text = _strip_html(zf.read(full))
         if text:
             chapters.append((href.rsplit("/", 1)[-1], text))
+    return chapters
+
+
+def _parse_opf_spine(zf, opf_path, names):
+    """Parse the OPF: title, author, and the chapters in spine (reading) order. Returns (title, author, chapters)."""
+    opf = fromstring(zf.read(opf_path))
+    base = opf_path.rsplit("/", 1)[0] if "/" in opf_path else ""
+    title, author, manifest, spine = _opf_metadata(opf)
+    chapters = _spine_chapters(zf, base, manifest, spine, names)
     return title, author, chapters
 
 

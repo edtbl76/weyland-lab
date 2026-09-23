@@ -111,22 +111,28 @@ def analyze(paths, config: Config = None) -> Report:
 
 
 # --- file discovery -------------------------------------------------------------------------------
+def _is_code_file(path):
+    """True when the path's extension is a language we triage."""
+    return os.path.splitext(path)[1] in _EXT_LANG
+
+
+def _walk_code_files(root):
+    """Every code file under a directory, pruning the vendored/cache dirs in `_SKIP_DIRS`."""
+    for dirpath, dirnames, filenames in os.walk(root):
+        dirnames[:] = [d for d in dirnames if d not in _SKIP_DIRS]
+        for fn in filenames:
+            if _is_code_file(fn):
+                yield os.path.join(dirpath, fn)
+
+
 def _iter_code_files(paths):
     seen = set()
     for p in paths:
-        if os.path.isfile(p):
-            if os.path.splitext(p)[1] in _EXT_LANG and p not in seen:
-                seen.add(p)
-                yield p
-            continue
-        for dirpath, dirnames, filenames in os.walk(p):
-            dirnames[:] = [d for d in dirnames if d not in _SKIP_DIRS]
-            for fn in filenames:
-                if os.path.splitext(fn)[1] in _EXT_LANG:
-                    full = os.path.join(dirpath, fn)
-                    if full not in seen:
-                        seen.add(full)
-                        yield full
+        candidates = [p] if os.path.isfile(p) else _walk_code_files(p)
+        for full in candidates:
+            if _is_code_file(full) and full not in seen:
+                seen.add(full)
+                yield full
 
 
 def _lang_of(path):
@@ -231,7 +237,11 @@ def _signals(fn, cfg, zloc, zccn, nesting):
 def _tangled_confidence(s, cfg):
     """TANGLED confidence rises with the number of independent signals that agree."""
     agree = sum([s.density >= cfg.density_tangled, s.deep_nesting, s.ccn >= cfg.ccn_hard, bool(s.outlier)])
-    return "high" if agree >= 3 else "medium" if agree == 2 else "low"
+    if agree >= 3:
+        return "high"
+    if agree == 2:
+        return "medium"
+    return "low"
 
 
 def _numeric_verdict(fn, cfg, zloc, zccn, nesting):
@@ -277,7 +287,7 @@ def _shallow_findings(py_files, cfg):
         files = {p for p, _, _ in sites}
         if len(files) < cfg.delegation_dup_min:
             continue
-        p0, line0, _ = sorted(sites)[0]
+        p0, line0, _ = min(sites)
         names = ", ".join(sorted(os.path.basename(p) for p in files))
         findings.append(Finding(
             path=p0, line=line0, name=f"<delegation:{base}>", language="python",
@@ -298,7 +308,7 @@ def _passthrough_target(fn, cfg):
     if _has_excluded_decorator(fn, cfg):          # dagster @op/@job, FastAPI routes, etc. are idiomatic
         return None
     body = fn.child_by_field_name("body")
-    stmts = [c for c in body.named_children]
+    stmts = list(body.named_children)
     if len(stmts) != 1:
         return None
     stmt = stmts[0]
@@ -373,9 +383,9 @@ def gating_findings(findings, cfg):
     floor = _CONF_RANK.get(cfg.gate_confidence, 2)
     out = []
     for f in findings:
-        if f.verdict == SHALLOW and cfg.gate_shallow:
-            out.append(f)
-        elif f.verdict == TANGLED and _CONF_RANK.get(f.confidence, 0) >= floor:
+        shallow_block = f.verdict == SHALLOW and cfg.gate_shallow
+        tangled_block = f.verdict == TANGLED and _CONF_RANK.get(f.confidence, 0) >= floor
+        if shallow_block or tangled_block:
             out.append(f)
     return out
 
@@ -407,18 +417,17 @@ def main(argv=None):
         print(json.dumps({"counts": report.counts(), "stats": report.stats,
                           "gate": {"blocking": len(blocking)} if args.gate else None,
                           "findings": [vars(f) for f in findings]}, indent=2))
-        return gate_rc
-
-    c = report.counts()
-    mode = "gated" if args.gate else "advisory"
-    print(f"complexity triage: {c.get(TANGLED,0)} TANGLED, {c.get(SHALLOW,0)} SHALLOW, "
-          f"{c.get(OUTLIER_REVIEW,0)} OUTLIER-REVIEW, {c.get(DEEP,0)} DEEP ({mode})")
-    for f in findings:
-        print(f"  {f.verdict:14s} {f.confidence:6s} {f.path}:{f.line}  {f.name}")
-        print(f"                        {f.reason}")
-    if gate_rc:
-        print(f"\nGATE FAILED: {len(blocking)} blocking finding(s) (TANGLED at confidence>={cfg.gate_confidence}, "
-              f"or SHALLOW). Fix them, or adjust the bar in scripts/complexity-triage.json.", file=sys.stderr)
+    else:
+        c = report.counts()
+        mode = "gated" if args.gate else "advisory"
+        print(f"complexity triage: {c.get(TANGLED,0)} TANGLED, {c.get(SHALLOW,0)} SHALLOW, "
+              f"{c.get(OUTLIER_REVIEW,0)} OUTLIER-REVIEW, {c.get(DEEP,0)} DEEP ({mode})")
+        for f in findings:
+            print(f"  {f.verdict:14s} {f.confidence:6s} {f.path}:{f.line}  {f.name}")
+            print(f"                        {f.reason}")
+        if gate_rc:
+            print(f"\nGATE FAILED: {len(blocking)} blocking finding(s) (TANGLED at confidence>={cfg.gate_confidence}, "
+                  f"or SHALLOW). Fix them, or adjust the bar in scripts/complexity-triage.json.", file=sys.stderr)
     return gate_rc
 
 

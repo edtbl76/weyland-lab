@@ -45,15 +45,21 @@ def _ensure_topic(bootstrap, topic):
             raise
 
 
+def _coerce_str_cols(row, str_cols):
+    """In-place str-coerce the columns whose Avro type is 'string' but whose source value isn't (skipping nulls)."""
+    for c in str_cols:
+        if row.get(c) is not None:
+            row[c] = str(row[c])
+    return row
+
+
 def _produce_rows(pf, producer, ser, str_cols, topic, key_col, cap, n):
     """Produce every row of one parquet file to `topic` as an Avro event — str-coercing `str_cols`, keyed by
     `key_col` — polling periodically and stopping at `cap`. Returns (new_total_n, hit_cap)."""
     from confluent_kafka.serialization import MessageField, SerializationContext
     for batch in pf.iter_batches(batch_size=10_000):
         for row in batch.to_pylist():
-            for c in str_cols:
-                if row.get(c) is not None:
-                    row[c] = str(row[c])
+            _coerce_str_cols(row, str_cols)
             key = str(row[key_col]).encode() if key_col and row.get(key_col) is not None else None
             producer.produce(topic=topic, key=key,
                              value=ser(row, SerializationContext(topic, MessageField.VALUE)))

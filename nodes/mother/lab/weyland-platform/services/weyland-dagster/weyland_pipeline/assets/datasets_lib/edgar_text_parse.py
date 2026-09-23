@@ -83,6 +83,32 @@ def split_sections(text):
     return out
 
 
+def _greedy_take(words, i, n, chunk_size):
+    """Greedily take words from index ``i`` up to ``chunk_size`` chars. Returns (chunk_words, next_index)."""
+    cur, clen, j = [], 0, i
+    while j < n:
+        add = len(words[j]) + (1 if cur else 0)
+        if cur and clen + add > chunk_size:
+            break
+        cur.append(words[j])
+        clen += add
+        j += 1
+    return cur, j
+
+
+def _overlap_backstep(cur, overlap):
+    """How many trailing words of ``cur`` to carry into the next chunk (~``overlap`` chars), capped so we never
+    re-emit the whole chunk — this guarantees forward progress."""
+    ov, olen = [], 0
+    for w in reversed(cur):
+        add = len(w) + (1 if ov else 0)
+        if olen + add > overlap:
+            break
+        ov.insert(0, w)
+        olen += add
+    return min(len(ov), len(cur) - 1)
+
+
 def _chunk_text(body, chunk_size, overlap):
     """Greedy word-boundary chunks of at most ``chunk_size`` chars, each carrying ~``overlap`` chars of the
     previous chunk's tail so context isn't hard-cut. Always makes forward progress."""
@@ -91,27 +117,11 @@ def _chunk_text(body, chunk_size, overlap):
     chunks = []
     i = 0
     while i < n:
-        cur, clen, j = [], 0, i
-        while j < n:
-            add = len(words[j]) + (1 if cur else 0)
-            if cur and clen + add > chunk_size:
-                break
-            cur.append(words[j])
-            clen += add
-            j += 1
+        cur, j = _greedy_take(words, i, n, chunk_size)
         chunks.append(" ".join(cur))
         if j >= n:
             break
-        # trailing words within `overlap` chars, capped so we never re-emit the whole chunk (guarantees progress)
-        ov, olen = [], 0
-        for w in reversed(cur):
-            add = len(w) + (1 if ov else 0)
-            if olen + add > overlap:
-                break
-            ov.insert(0, w)
-            olen += add
-        back = min(len(ov), len(cur) - 1)
-        i = j - back
+        i = j - _overlap_backstep(cur, overlap)
     return chunks
 
 

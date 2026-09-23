@@ -1398,10 +1398,37 @@ def _apply_field_overlay(info, m, name_cls, tag_cls, stamp):
     return changed
 
 
+def _wanted_field_overlays(sm, idx):
+    """fieldPath -> (term-tuple-or-None, name_cls-or-None, tag_cls-or-None) for every field that has a mesh
+    match or a class tag. name_cls (from the column name) drives DESCRIPTION + tag; tag_cls falls back to the
+    SCHEMA TYPE for the tag only. Empty when nothing in the schema matches."""
+    want = {}
+    for f in sm.fields:
+        leaf = _field_leaf(f.fieldPath)
+        m = _mesh_match(leaf, idx)
+        name_cls = _field_class(leaf)
+        tag_cls = name_cls or _type_class(f)
+        if m or tag_cls:
+            want[f.fieldPath] = (m, name_cls, tag_cls)
+    return want
+
+
+def _merge_field_overlays(esm, want, stamp):
+    """Read-merge the editable overlay: apply each wanted overlay onto the existing (or new) field info so
+    nothing existing is clobbered. Returns (all field infos, count changed)."""
+    infos = {i.fieldPath: i for i in (esm.editableSchemaFieldInfo if esm else [])}
+    touched = 0
+    for fp, (m, name_cls, tag_cls) in want.items():
+        info = infos.get(fp) or EditableSchemaFieldInfoClass(fieldPath=fp)
+        if _apply_field_overlay(info, m, name_cls, tag_cls, stamp):
+            touched += 1
+        infos[fp] = info
+    return list(infos.values()), touched
+
+
 def _attach_mesh_terms(emitter, stamp):
     """Walk every cataloged dataset's schema and attach mesh terms + class tags to matching fields ('define
-    once, attach everywhere'), read-merging the editable overlay so nothing existing is clobbered. name_cls
-    (from the column name) drives DESCRIPTION + tag; tag_cls falls back to the SCHEMA TYPE for the tag only.
+    once, attach everywhere'), read-merging the editable overlay so nothing existing is clobbered.
     Returns (n_fields_tagged, n_datasets_touched)."""
     from datahub.ingestion.graph.client import DataHubGraph, DatahubClientConfig
     server = os.environ.get("DATAHUB_GMS_URL", "http://datahub-datahub-gms.data-mesh.svc.cluster.local:8080")
@@ -1413,29 +1440,16 @@ def _attach_mesh_terms(emitter, stamp):
         sm = graph.get_aspect(urn, SchemaMetadataClass)
         if not sm or not sm.fields:
             continue
-        want = {}  # fieldPath -> (term-tuple-or-None, name_cls-or-None, tag_cls-or-None)
-        for f in sm.fields:
-            leaf = _field_leaf(f.fieldPath)
-            m = _mesh_match(leaf, idx)
-            name_cls = _field_class(leaf)
-            tag_cls = name_cls or _type_class(f)
-            if m or tag_cls:
-                want[f.fieldPath] = (m, name_cls, tag_cls)
+        want = _wanted_field_overlays(sm, idx)
         if not want:
             continue
         esm = graph.get_aspect(urn, EditableSchemaMetadataClass)
-        infos = {i.fieldPath: i for i in (esm.editableSchemaFieldInfo if esm else [])}
-        touched = 0
-        for fp, (m, name_cls, tag_cls) in want.items():
-            info = infos.get(fp) or EditableSchemaFieldInfoClass(fieldPath=fp)
-            if _apply_field_overlay(info, m, name_cls, tag_cls, stamp):
-                touched += 1
-            infos[fp] = info
+        field_infos, touched = _merge_field_overlays(esm, want, stamp)
         if not touched:
             continue
         emitter.emit(MetadataChangeProposalWrapper(entityUrn=urn,
             aspect=EditableSchemaMetadataClass(created=(esm.created if esm else stamp), lastModified=stamp,
-                                               editableSchemaFieldInfo=list(infos.values()))))
+                                               editableSchemaFieldInfo=field_infos)))
         n_fields += touched
         n_ds += 1
     return n_fields, n_ds

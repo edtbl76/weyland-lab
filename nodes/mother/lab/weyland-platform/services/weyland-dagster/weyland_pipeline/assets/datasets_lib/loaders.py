@@ -309,6 +309,7 @@ def _cassandra_write_file(session, ks, table, path, partition_raw, log):
     column when present in the data, else row_id-only. MEMORY-SAFE: row batches + a prepared INSERT fanned out
     with execute_concurrent. Returns the row count written (0 for an empty file)."""
     import uuid
+    import pandas as pd
     from cassandra.concurrent import execute_concurrent_with_args
     pf = pq.ParquetFile(path)
     if pf.metadata.num_rows == 0:
@@ -327,7 +328,8 @@ def _cassandra_write_file(session, ks, table, path, partition_raw, log):
         # Force it to text + a sentinel for null/NaN/"" so every row lands and stays queryable.
         pi = cols.index(partition)
         cql_types[pi] = "text"
-        casters[pi] = lambda v: "__UNKNOWN__" if (v is None or v != v or str(v) == "") else str(v)
+        # null / NaN / NaT / "" all collapse to a queryable sentinel (a partition key may not be empty).
+        casters[pi] = lambda v: "__UNKNOWN__" if (v is None or pd.isna(v) or str(v) == "") else str(v)
     pk = f'PRIMARY KEY (("{_q(partition)}"), row_id)' if partition else "PRIMARY KEY (row_id)"
 
     col_defs = ", ".join(f'"{_q(c)}" {t}' for c, t in zip(cols, cql_types))
@@ -727,48 +729,56 @@ def _weaviate_class(domain, dataset):
     return "".join(p.capitalize() for p in f"datasets_{domain}_{dataset}".split("_"))
 
 
-def _read_vector_frame(mc, cfg, dataset, spec, prefix, log):
-    """Read the dataset's silver parquet into one DataFrame. A capped/filtered spec does a BOUNDED read
-    (projection + row cap — the fix for the whole-file `pd.read_parquet` that OOMs on OFF's 4.5M × 211
-    all-string file); every other spec reads whole files unchanged. Returns the DataFrame, or None when a
-    whole-file read finds no parquet at all (→ an empty hydration, 0 records)."""
+def _read_bounded_vector_frame(mc, cfg, dataset, spec, prefix, log):
+    """BOUNDED read (projection + row cap) — the fix for the whole-file `pd.read_parquet` that OOMs on OFF's
+    4.5M × 211 all-string file. Fail-closes on 0 rows rather than building an empty collection."""
     import tempfile
     import pandas as pd
     from .parquet_read import needed_columns, read_capped
-    bounded = spec.get("cap") is not None or spec.get("filter") is not None
-    if bounded:
-        if not (spec.get("text") or spec.get("numeric")):
-            raise ValueError(
-                f"{dataset}: a capped/filtered vector spec must declare `text` or `numeric` columns to "
-                f"project; got keys {sorted(spec)}"
-            )
-        projection = needed_columns(spec)
-        filter_col = spec.get("filter")
-        cap = spec.get("cap")
-        frames = []
-        collected = 0
-        for obj in mc.list_objects(cfg.repo, prefix=prefix, recursive=True):
-            if not obj.object_name.endswith(".parquet"):
-                continue
-            tmp = tempfile.NamedTemporaryFile(suffix=".parquet", delete=False)
-            tmp.close()
-            try:
-                mc.fget_object(cfg.repo, obj.object_name, tmp.name)
-                remaining = (cap - collected) if cap is not None else None
-                frames.append(read_capped(tmp.name, projection, filter_col=filter_col, cap=remaining))
-            finally:
-                os.unlink(tmp.name)
-            collected += len(frames[-1])
-            if cap is not None and collected >= cap:
-                break  # cap reached — do not fetch or read any more files
-        df = pd.concat(frames, ignore_index=True) if len(frames) > 1 else (frames[0] if frames else pd.DataFrame())
-        if df.empty:
-            raise ValueError(
-                f"{dataset}: bounded read produced 0 rows (filter {filter_col!r}, cap {cap}) — refusing "
-                f"to build an empty collection rather than reporting a hydration that embedded nothing"
-            )
-        log.info(f"{dataset}: bounded read → {len(df):,} rows, projected {list(df.columns)} (cap {cap}); building vectors…")
-        return df
+    if not (spec.get("text") or spec.get("numeric")):
+        raise ValueError(
+            f"{dataset}: a capped/filtered vector spec must declare `text` or `numeric` columns to "
+            f"project; got keys {sorted(spec)}"
+        )
+    projection = needed_columns(spec)
+    filter_col = spec.get("filter")
+    cap = spec.get("cap")
+    frames = []
+    collected = 0
+    for obj in mc.list_objects(cfg.repo, prefix=prefix, recursive=True):
+        if not obj.object_name.endswith(".parquet"):
+            continue
+        tmp = tempfile.NamedTemporaryFile(suffix=".parquet", delete=False)
+        tmp.close()
+        try:
+            mc.fget_object(cfg.repo, obj.object_name, tmp.name)
+            remaining = (cap - collected) if cap is not None else None
+            frames.append(read_capped(tmp.name, projection, filter_col=filter_col, cap=remaining))
+        finally:
+            os.unlink(tmp.name)
+        collected += len(frames[-1])
+        if cap is not None and collected >= cap:
+            break  # cap reached — do not fetch or read any more files
+    if not frames:
+        df = pd.DataFrame()
+    elif len(frames) > 1:
+        df = pd.concat(frames, ignore_index=True)
+    else:
+        df = frames[0]
+    if df.empty:
+        raise ValueError(
+            f"{dataset}: bounded read produced 0 rows (filter {filter_col!r}, cap {cap}) — refusing "
+            f"to build an empty collection rather than reporting a hydration that embedded nothing"
+        )
+    log.info(f"{dataset}: bounded read → {len(df):,} rows, projected {list(df.columns)} (cap {cap}); building vectors…")
+    return df
+
+
+def _read_whole_vector_frame(mc, cfg, dataset, prefix, log):
+    """Whole-file read of every silver parquet under `prefix`. Returns the DataFrame, or None when no parquet
+    is found at all (→ an empty hydration, 0 records)."""
+    import tempfile
+    import pandas as pd
     frames = []
     for obj in mc.list_objects(cfg.repo, prefix=prefix, recursive=True):
         if not obj.object_name.endswith(".parquet"):
@@ -785,6 +795,16 @@ def _read_vector_frame(mc, cfg, dataset, spec, prefix, log):
     df = pd.concat(frames, ignore_index=True) if len(frames) > 1 else frames[0]
     log.info(f"{dataset}: read {len(frames)} parquet file(s) → {len(df):,} rows; building vectors…")  # B105 phase marker
     return df
+
+
+def _read_vector_frame(mc, cfg, dataset, spec, prefix, log):
+    """Read the dataset's silver parquet into one DataFrame. A capped/filtered spec does a BOUNDED read;
+    every other spec reads whole files unchanged. Returns the DataFrame, or None when a whole-file read finds
+    no parquet at all (→ an empty hydration, 0 records)."""
+    bounded = spec.get("cap") is not None or spec.get("filter") is not None
+    if bounded:
+        return _read_bounded_vector_frame(mc, cfg, dataset, spec, prefix, log)
+    return _read_whole_vector_frame(mc, cfg, dataset, prefix, log)
 
 
 def _vectors_from_frame(df, spec, dataset, log):
