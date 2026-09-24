@@ -77,11 +77,29 @@
 # EXIT CODES are distinct on purpose. 1 = the estate has drift. 2 = the guard could not do its job.
 # Conflating them means a missing token reads exactly like a clean backlog — and "checked nothing,
 # found nothing" is the precise bug this whole family of guards exists to catch.
+# 3 (B178) = LINEAR ITSELF IS UNREACHABLE — curl transport failure/timeout, or HTTP 000/429/5xx. Split
+# from 2 because the CI step treats it differently: an external-SaaS outage WARNs and continues rather
+# than hard-blocking the whole pipeline (incl. deploys), while a genuinely broken guard (no key, a 401,
+# an unparseable or empty response) stays 2 and still blocks. 3 is still never a pass — nothing was
+# verified, and the step says so.
 set -euo pipefail
 
 BACKLOG_FILE="${BACKLOG_FILE:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/docs/backlog.md}"
 REPOS_FILE="${REPOS_FILE:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/repos.yaml}"
 LINEAR_TEAM="${LINEAR_TEAM:-EMA}"
+# Overridable so bats can exercise the transport/HTTP-status classification against a local stub.
+LINEAR_API_URL="${LINEAR_API_URL:-https://api.linear.app/graphql}"
+
+# linear_http_class <http-code> -> 0 ok · 3 Linear unreachable/degraded · 1 broken request/credentials.
+# 000 (no response), 429 (rate limited) and 5xx are the SaaS's problem, not ours → 3. Anything else
+# non-200 (401/403/400...) means OUR key or query is wrong → 1 (exit 2, blocks).
+linear_http_class() {
+  case "${1-}" in
+    200)              return 0 ;;
+    000|429|5??)      return 3 ;;
+    *)                return 1 ;;
+  esac
+}
 
 # --- the decision --------------------------------------------------------------------------------
 #
@@ -272,13 +290,17 @@ linear_snapshot() {
   fi
   local body http
   body="$(mktemp)"
-  http="$(curl -s -o "$body" -w '%{http_code}' -X POST https://api.linear.app/graphql \
+  # Bounded: an unbounded curl against a hung SaaS pins the CI step for minutes (B178, the port-iac lesson).
+  http="$(curl -s --connect-timeout 10 --max-time 30 -o "$body" -w '%{http_code}' -X POST "$LINEAR_API_URL" \
     -H "Authorization: ${LINEAR_API_KEY}" -H 'Content-Type: application/json' \
     -d "{\"query\":\"{ team(id: \\\"${LINEAR_TEAM}\\\") { issues(first: 250) { nodes { identifier title priority state { type name } project { name } } } } }\"}")" || {
-      echo "FATAL: could not reach the Linear API (curl transport failure)." >&2; rm -f "$body"; return 1; }
+      echo "UNREACHABLE: could not reach the Linear API (transport failure/timeout)." >&2; rm -f "$body"; return 3; }
   # The status is read explicitly. `curl -sf | python3` collapses a 401 to empty input, and an empty
   # snapshot reads as "no issues" — a clean pass over nothing.
-  if [ "$http" != "200" ]; then
+  local cls=0; linear_http_class "$http" || cls=$?
+  if [ "$cls" = 3 ]; then
+    echo "UNREACHABLE: Linear API returned HTTP ${http} (outage/rate-limit — not a guard defect)." >&2; rm -f "$body"; return 3
+  elif [ "$cls" != 0 ]; then
     echo "FATAL: Linear API returned HTTP ${http}." >&2; rm -f "$body"; return 1
   fi
   python3 - "$body" <<'PY' || { rm -f "$body"; return 1; }
@@ -330,11 +352,14 @@ linear_projects() {
   fi
   local body http
   body="$(mktemp)"
-  http="$(curl -s -o "$body" -w '%{http_code}' -X POST https://api.linear.app/graphql \
+  http="$(curl -s --connect-timeout 10 --max-time 30 -o "$body" -w '%{http_code}' -X POST "$LINEAR_API_URL" \
     -H "Authorization: ${LINEAR_API_KEY}" -H 'Content-Type: application/json' \
     -d "{\"query\":\"{ team(id: \\\"${LINEAR_TEAM}\\\") { projects(first: 250) { nodes { name } } } }\"}")" || {
-      echo "FATAL: could not reach the Linear API for projects (curl transport failure)." >&2; rm -f "$body"; return 1; }
-  if [ "$http" != "200" ]; then
+      echo "UNREACHABLE: could not reach the Linear API for projects (transport failure/timeout)." >&2; rm -f "$body"; return 3; }
+  local cls=0; linear_http_class "$http" || cls=$?
+  if [ "$cls" = 3 ]; then
+    echo "UNREACHABLE: Linear API (projects) returned HTTP ${http} (outage/rate-limit)." >&2; rm -f "$body"; return 3
+  elif [ "$cls" != 0 ]; then
     echo "FATAL: Linear API (projects) returned HTTP ${http}." >&2; rm -f "$body"; return 1
   fi
   python3 - "$body" <<'PY' || { rm -f "$body"; return 1; }
@@ -358,7 +383,8 @@ main() {
 
   local refs snap
   refs="$(backlog_refs "$BACKLOG_FILE")" || exit 2
-  snap="$(linear_snapshot)"              || exit 2
+  # Propagate 3 (Linear unreachable) distinctly; every other snapshot failure is a broken guard (2).
+  snap="$(linear_snapshot)"              || { rc=$?; [ "$rc" = 3 ] && exit 3; exit 2; }
 
   # CHECK G — repos.yaml active-repo <-> Linear project parity. Runs LIVE (no issue snapshot) or when a
   # projects fixture is explicitly provided. A pure A-F snapshot test (LINEAR_SNAPSHOT_JSON set, no
@@ -367,7 +393,7 @@ main() {
   local check_g=0 projs="[]" repos_tsv=""
   if [ -z "${LINEAR_SNAPSHOT_JSON:-}" ] || [ -n "${LINEAR_PROJECTS_JSON:-}" ]; then
     check_g=1
-    projs="$(linear_projects)"          || exit 2
+    projs="$(linear_projects)"          || { rc=$?; [ "$rc" = 3 ] && exit 3; exit 2; }
     repos_tsv="$(repos_projects "$REPOS_FILE")" || exit 2
   fi
 

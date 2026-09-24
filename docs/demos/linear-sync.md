@@ -6,7 +6,10 @@ grown from 2 checks to **seven (A–G)** since — most recently **check G** (re
 
 - **Gate:** [definition-of-done.md](../definition-of-done.md) § 5
 - **Flow:** [diagrams/flow-linear-sync.md](../diagrams/flow-linear-sync.md)
-- **Guard:** `scripts/check-linear-sync.sh` · **Tests:** `scripts/tests/linear-sync.bats` (43 cases)
+- **Guard:** `scripts/check-linear-sync.sh` · **Tests:** `scripts/tests/linear-sync.bats` (46 cases)
+- **Exit codes:** `0` clean · `1` drift · `2` broken guard (no key, 401, unparseable/empty response) — blocks ·
+  `3` **Linear unreachable** (transport failure/timeout, HTTP 000/429/5xx; B178) — the CI step WARNs and continues so a
+  Linear outage cannot hard-block the pipeline.
 - **CI:** `.woodpecker.yml` step `linear-sync`, **blocking**. Its own step rather than folded into
   `repo-guards` (deliberately secret-free, pure file analysis) or `port-iac-coverage` (different SaaS,
   and a step should hold only the secret it uses). Needs the `linear_api_key` repo secret covering
@@ -81,14 +84,15 @@ cd /tmp && BACKLOG_FILE=/tmp/b2.md LINEAR_API_KEY= LINEAR_ENV_FILE=/tmp/no-such.
 
 Expected: `FATAL: LINEAR_API_KEY is not set` and **`EXIT=2`**.
 
-**6. The test suite** — 43 cases (36 for checks A–F + 7 for check G). `py3-yaml` is required — check G
+**6. The test suite** — 46 cases (36 for checks A–F + 7 for check G + 3 for the B178 outage split, which run against
+a local HTTP stub: transport failure → 3, HTTP 503 → 3, HTTP 401 → 2). `py3-yaml` is required — check G
 parses `repos.yaml` with pyyaml, exactly as the CI `linear-sync` step now does:
 
 ```
 docker run --rm --entrypoint sh -v "$PWD":/w -w /w bats/bats:latest -c "apk add --no-cache python3 py3-yaml >/dev/null 2>&1; bats scripts/tests/linear-sync.bats"
 ```
 
-Expected: `43 tests, 0 failures`.
+Expected: `46 tests, 0 failures`.
 
 ## Check G — repo ↔ Linear-project parity (added 2026-09-23)
 

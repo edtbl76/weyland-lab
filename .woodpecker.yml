@@ -189,7 +189,9 @@ steps:
         from_secret: linear_api_key
     commands:
       - apk add --no-cache bash curl python3 py3-yaml >/dev/null
-      - bash scripts/check-linear-sync.sh
+      # B178: exit 3 = Linear itself UNREACHABLE (outage/rate-limit) → WARN and continue, so a Linear outage
+      # cannot hard-block the whole pipeline. exit 1 (drift) and 2 (broken guard: no key/401/bad response) block.
+      - 'rc=0; bash scripts/check-linear-sync.sh || rc=$?; if [ "$rc" = "3" ]; then echo "WARN - Linear unreachable, backlog/Linear sync NOT verified this run (non-blocking, B178)"; exit 0; fi; exit "$rc"'
 
   # ── 1c. shellcheck the shell surface ────────────────────────────────────────
   # --severity=warning on purpose. At `note` the repo has 3 findings, and two of them are noise that
@@ -1097,4 +1099,8 @@ steps:
       - |
         printf '{"number":%s,"status":"%s","repo":"%s","branch":"%s","commit":"%s","event":"%s","url":"%s"}' \
           "$CI_PIPELINE_NUMBER" "$CI_PIPELINE_STATUS" "$CI_REPO" "$CI_COMMIT_BRANCH" "$CI_COMMIT_SHA" "$CI_PIPELINE_EVENT" "$CI_PIPELINE_URL" > /tmp/port.json
-        curl -sf -X POST "$PORT_INGEST_URL" -H "Content-Type: application/json" -d @/tmp/port.json
+        # B178: bounded + best-effort. This is a telemetry side-channel (the B63 CI-reliability signal), not a
+        # gate — a Port outage must not turn a fully green pipeline red on its last step. A failed post is still
+        # visible: the WARN below, and a missing run on the Port dashboard.
+        curl -sf --connect-timeout 10 --max-time 20 -X POST "$PORT_INGEST_URL" -H "Content-Type: application/json" -d @/tmp/port.json \
+          || echo "WARN - could not post CI status to Port (non-blocking, B178)"

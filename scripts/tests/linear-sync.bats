@@ -602,3 +602,59 @@ YML
   [ "$status" -eq 0 ]
   [[ "$output" == *"OK"* ]]
 }
+
+# --- B178: Linear UNREACHABLE (exit 3) is distinct from a broken guard (exit 2) ------------------
+# The CI step WARNs and continues on 3 (an external-SaaS outage must not block the pipeline) but still
+# blocks on 2. The classification is the decision under test, so it is exercised against a LOCAL HTTP
+# stub that answers a chosen status — never the real API.
+
+b178_backlog() {
+  cat > "$STUB_DIR/b.md" <<'MD'
+### B1 — x — **DONE (2026-09-10)**
+Linear: EMA-1.
+MD
+}
+
+# start_stub <http-code> — a local server answering every POST with <http-code>; sets STUB_PORT/STUB_PID
+start_stub() {
+  python3 - "$1" > "$STUB_DIR/stub.port" 2>/dev/null <<'PY' &
+import http.server, socketserver, sys
+code = int(sys.argv[1])
+class H(http.server.BaseHTTPRequestHandler):
+    def do_POST(self):
+        self.send_response(code); self.end_headers(); self.wfile.write(b"{}")
+    def log_message(self, *a): pass
+s = socketserver.TCPServer(("127.0.0.1", 0), H)
+print(s.server_address[1], flush=True)
+s.serve_forever()
+PY
+  STUB_PID=$!
+  for _ in $(seq 1 50); do [ -s "$STUB_DIR/stub.port" ] && break; sleep 0.1; done
+  STUB_PORT="$(cat "$STUB_DIR/stub.port")"
+}
+
+@test "B178: Linear transport failure (nothing listening) exits 3, not 2" {
+  b178_backlog
+  BACKLOG_FILE="$STUB_DIR/b.md" LINEAR_API_KEY=dummy LINEAR_ENV_FILE="$STUB_DIR/none.env" \
+    LINEAR_API_URL="http://127.0.0.1:1/graphql" run bash "$GUARD"
+  [ "$status" -eq 3 ]
+  [[ "$output" == *"UNREACHABLE"* ]]
+}
+
+@test "B178: Linear answering HTTP 503 (outage) exits 3" {
+  b178_backlog; start_stub 503
+  BACKLOG_FILE="$STUB_DIR/b.md" LINEAR_API_KEY=dummy LINEAR_ENV_FILE="$STUB_DIR/none.env" \
+    LINEAR_API_URL="http://127.0.0.1:$STUB_PORT/graphql" run bash "$GUARD"
+  kill "$STUB_PID" 2>/dev/null || true
+  [ "$status" -eq 3 ]
+  [[ "$output" == *"HTTP 503"* ]]
+}
+
+@test "B178: Linear answering HTTP 401 (bad key) is a BROKEN guard — exit 2, still blocks" {
+  b178_backlog; start_stub 401
+  BACKLOG_FILE="$STUB_DIR/b.md" LINEAR_API_KEY=dummy LINEAR_ENV_FILE="$STUB_DIR/none.env" \
+    LINEAR_API_URL="http://127.0.0.1:$STUB_PORT/graphql" run bash "$GUARD"
+  kill "$STUB_PID" 2>/dev/null || true
+  [ "$status" -eq 2 ]
+  [[ "$output" == *"HTTP 401"* ]]
+}

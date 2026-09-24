@@ -106,9 +106,21 @@ tags. Steps: `detect-changes → build → kubeconform → deploy-handoff`.
   proving ground" for the golden paths). Production lanes (test-python/shell/java, scan-java, the two integration
   lanes) keep `when: *skip_on_smoke` and always run. The selector reads `ci-langs.yaml` (the manifest: production
   lanes + `fixture_trigger_paths`) and fails closed — an undeterminable diff, any change under a trigger path, or a
-  missing/unparseable manifest all yield `1`. Tests: `scripts/tests/ci-select-fixtures.bats`. **Phase 2 (pending):
-  reclaim mother headroom + move the nightly full matrix off the batch window + memory-request the remaining lanes so
-  the FULL run is also OOM-safe** — until then, the full matrix can still be killed under memory pressure ([B177]).
+  missing/unparseable manifest all yield `1`. Tests: `scripts/tests/ci-select-fixtures.bats`. `golden-path-smoke` is
+  lean-gated too (`SMOKE_ONLY == "smoke" || RUN_FIXTURES != "0"`), so a lean run skips the all-~44-paths build.
+  **Full-matrix memory safety (B177 Phase 2 — closed on evidence, 2026-09-24):**
+  - **Per-step caps already exist.** The `woodpecker` ns has the B93 `default-memory` LimitRange (128Mi request / 2Gi
+    limit) on every step that declares no resources; the heavy compile lanes carry explicit 4–6Gi limits. Measured
+    #168 step peaks: most < 1 GiB, heaviest ~1.2–2.8 GiB. Mother's kubelet already reserves 2Gi system + 1Gi kube with
+    `eviction-hard memory.available<1.5Gi` (`nodes/mother/host/rancher/k3s/config.yaml`).
+  - **The nightly full matrix is not the problem.** 19 recorded `nightly-images` cron runs: **0 killed**; every failure
+    was a code-level lane (sonar-gate, scan-erlang, test-haskell, linear-sync, test-python). Memory is flat day and
+    night (~4–7 GiB free), so moving the 01:00 cron buys nothing.
+  - **Ad-hoc FULL runs are the exposure.** The only two kills (#169/#170) were full runs launched ~23:43–00:45, as the
+    Dagster pre-dawn batch started; free memory dipped to 1.36 GiB (below the eviction threshold) and the kernel
+    OOM-killer fired. **So: trigger ad-hoc runs LEAN (above).** If you genuinely need the full matrix on demand, run it
+    outside 00:00–01:00, or let the 01:00 nightly do it. If the nightly itself ever starts getting killed, the remaining
+    lever is capacity (headroom on mother) — a sizing decision, not a CI change.
 - **Build engine = a persistent `buildkitd` Deployment** (`k8s/woodpecker/buildkitd.yaml`, Argo app
   `woodpecker-buildkitd`), NOT build-in-the-step-pod. The `build` step is a thin `buildctl --addr tcp://buildkitd:1234`
   client that mounts nothing.
