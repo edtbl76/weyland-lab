@@ -56,7 +56,7 @@ spec:
           # No initContainer clone any more — scan-all.sh clones each repo itself (public + private).
           containers:
             - name: scan-suite
-              image: registry.weyland.lab/scan-suite:git-69d22237   # bump after the scan.py SCAN_TARGET rebuild
+              image: registry.weyland.lab/scan-suite:git-2865e839   # bump after the scan.py SCAN_TARGET rebuild
               imagePullPolicy: IfNotPresent
               command: ["sh", "/runner/scan-all.sh"]
               env:
