@@ -235,7 +235,7 @@ steps:
       # git, 0 with it. This is the SECOND time this exact step has been silently red for a missing
       # tool — jq was the first, two days earlier. A green local run hides both, because a dev box
       # has git and jq.
-      - apk add --no-cache python3 py3-yaml jq git >/dev/null
+      - apk add --no-cache python3 py3-yaml jq git curl >/dev/null   # curl: port-iac-coverage.bats live-branch test reaches the curl check (B178)
       - bats scripts/tests/
 
   # ── 1c. complexity triage (B162) — GATING ───────────────────────────────────
@@ -319,7 +319,7 @@ steps:
     image: bats/bats:latest
     commands:
       # Same package set as the shell-tests step above; keep them in step if either changes.
-      - apk add --no-cache python3 py3-yaml jq git bash >/dev/null
+      - apk add --no-cache python3 py3-yaml jq git bash curl >/dev/null   # curl: port-iac-coverage.bats live-branch test (B178)
       - bash scripts/run-lang-tests.sh shell --self-check
       - bash scripts/run-lang-tests.sh shell
 
