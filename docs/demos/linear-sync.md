@@ -1,12 +1,13 @@
 # Demo — DoD Pillar 5 reconciliation (backlog ↔ Linear)
 
 The pillar that had no checker, and the checker it has now. **Executed 2026-08-26** (DONE); the guard has
-grown from 2 checks to **seven (A–G)** since — most recently **check G** (repo↔Linear-project parity,
-2026-09-23; see § "Check G" below).
+grown from 2 checks to **eight (A–H)** since — most recently **check H** (every project in exactly one
+initiative) and **initiative-driven scope** (2026-09-24; see § "Check H" below), after **check G**
+(repo↔Linear-project parity, 2026-09-23).
 
 - **Gate:** [definition-of-done.md](../definition-of-done.md) § 5
 - **Flow:** [diagrams/flow-linear-sync.md](../diagrams/flow-linear-sync.md)
-- **Guard:** `scripts/check-linear-sync.sh` · **Tests:** `scripts/tests/linear-sync.bats` (43 cases)
+- **Guard:** `scripts/check-linear-sync.sh` · **Tests:** `scripts/tests/linear-sync.bats` (53 cases)
 - **Exit codes:** `0` clean · `1` drift · `2` the guard could not do its job (no key, Linear unreachable/timeout,
   non-200, unparseable/empty response). Both 1 and 2 block — a Linear outage fails the pipeline (fail-closed).
 - **CI:** `.woodpecker.yml` step `linear-sync`, **blocking**. Its own step rather than folded into
@@ -61,7 +62,7 @@ bash scripts/check-linear-sync.sh --list
 fixtures, so the guard is seen failing rather than assumed capable of it:
 
 ```
-cd /tmp && printf '### B143 — woodpecker — **DONE (2026-08-24)**\nLinear: EMA-199.\n' > b.md && printf '{"EMA-199":{"stateType":"backlog","state":"Backlog","project":"Weyland Lab"}}' > s.json && BACKLOG_FILE=/tmp/b.md LINEAR_SNAPSHOT_JSON=/tmp/s.json bash ~/IdeaProjects/weyland/scripts/check-linear-sync.sh; echo "EXIT=$?"
+cd /tmp && printf '### B143 — woodpecker — **DONE (2026-08-24)**\nLinear: EMA-199.\n' > b.md && printf '{"EMA-199":{"stateType":"backlog","state":"Backlog","project":"Weyland Lab"}}' > s.json && printf '{"Lab & Systems":["Weyland Lab","rogueone Hardware"]}' > ini.json && BACKLOG_FILE=/tmp/b.md LINEAR_SNAPSHOT_JSON=/tmp/s.json LINEAR_INITIATIVES_JSON=/tmp/ini.json bash ~/IdeaProjects/weyland/scripts/check-linear-sync.sh; echo "EXIT=$?"
 ```
 
 Expected: `B143  EMA-199  is still 'Backlog' in Linear` and **`EXIT=1`**.
@@ -69,7 +70,7 @@ Expected: `B143  EMA-199  is still 'Backlog' in Linear` and **`EXIT=1`**.
 **4. Negative case B — an open issue with no project.** The EMA-172 shape:
 
 ```
-cd /tmp && printf '### B1 — thing — **DONE (2026-08-01)**\nLinear: EMA-10.\n' > b2.md && printf '{"EMA-10":{"stateType":"completed","state":"Done","project":"Weyland Lab"},"EMA-172":{"stateType":"backlog","state":"Backlog","project":null}}' > s2.json && BACKLOG_FILE=/tmp/b2.md LINEAR_SNAPSHOT_JSON=/tmp/s2.json bash ~/IdeaProjects/weyland/scripts/check-linear-sync.sh; echo "EXIT=$?"
+cd /tmp && printf '### B1 — thing — **DONE (2026-08-01)**\nLinear: EMA-10.\n' > b2.md && printf '{"EMA-10":{"stateType":"completed","state":"Done","project":"Weyland Lab"},"EMA-172":{"stateType":"backlog","state":"Backlog","project":null}}' > s2.json && printf '{"Lab & Systems":["Weyland Lab","rogueone Hardware"]}' > ini.json && BACKLOG_FILE=/tmp/b2.md LINEAR_SNAPSHOT_JSON=/tmp/s2.json LINEAR_INITIATIVES_JSON=/tmp/ini.json bash ~/IdeaProjects/weyland/scripts/check-linear-sync.sh; echo "EXIT=$?"
 ```
 
 Expected: `OPEN ISSUES WITH NO PROJECT` naming `EMA-172`, and **`EXIT=1`**.
@@ -83,14 +84,14 @@ cd /tmp && BACKLOG_FILE=/tmp/b2.md LINEAR_API_KEY= LINEAR_ENV_FILE=/tmp/no-such.
 
 Expected: `FATAL: LINEAR_API_KEY is not set` and **`EXIT=2`**.
 
-**6. The test suite** — 43 cases (36 for checks A–F + 7 for check G). `py3-yaml` is required — check G
+**6. The test suite** — 53 cases (36 for checks A–F + 8 for check G + 6 for the initiative scope + 3 for check H). `py3-yaml` is required — check G
 parses `repos.yaml` with pyyaml, exactly as the CI `linear-sync` step now does:
 
 ```
 docker run --rm --entrypoint sh -v "$PWD":/w -w /w bats/bats:latest -c "apk add --no-cache python3 py3-yaml >/dev/null 2>&1; bats scripts/tests/linear-sync.bats"
 ```
 
-Expected: `43 tests, 0 failures`.
+Expected: `53 tests, 0 failures`.
 
 ## Check G — repo ↔ Linear-project parity (added 2026-09-23)
 
@@ -117,13 +118,54 @@ cd /tmp && printf '### B1 — x — **DONE**\nLinear: EMA-1.\n' > gb.md \
   && printf '{"EMA-1":{"stateType":"completed","state":"Done","project":"Weyland Lab","priority":2,"title":"B1 — x"}}' > gs.json \
   && printf 'repos:\n  - name: NewRepo\n    status: active\n' > grepos.yaml \
   && printf '["Weyland Lab"]' > gp.json \
-  && BACKLOG_FILE=/tmp/gb.md LINEAR_SNAPSHOT_JSON=/tmp/gs.json LINEAR_PROJECTS_JSON=/tmp/gp.json \
+  && printf '{"Lab & Systems":["Weyland Lab"]}' > gi.json \
+  && BACKLOG_FILE=/tmp/gb.md LINEAR_SNAPSHOT_JSON=/tmp/gs.json LINEAR_PROJECTS_JSON=/tmp/gp.json LINEAR_INITIATIVES_JSON=/tmp/gi.json \
      REPOS_FILE=/tmp/grepos.yaml bash ~/IdeaProjects/weyland/scripts/check-linear-sync.sh; echo "EXIT=$?"
 ```
 
 Expected: `ACTIVE REPOS WITH NO linear_project` naming `NewRepo`, and **`EXIT=1`**. Zero live projects, or
 an unreadable `repos.yaml`, is **`EXIT=2`** (fail closed — a token/API failure must not read as "all mapped").
 `onboard-repo.sh <repo>` prints the create-project step; automating it is [B159].
+
+## Check H + initiative-driven scope (added 2026-09-24)
+
+Checks E (orphan) and F (unnumbered) apply only to the **weyland scope** = the projects of the Linear
+initiative `Lab & Systems` (`LINEAR_SCOPE_INITIATIVE`), read live. It replaced a hard-coded "other products"
+denylist that silently treated every new repo project as weyland. Check H: every live project sits in
+**exactly one** initiative. Live `--list` tail (RUN 2026-09-24):
+
+```
+  --- weyland scope = initiative 'Lab & Systems': Weyland Lab, rogueone Hardware ---
+  --- live Linear project -> initiative (check H) ---
+  Algopedia                                  -> My Work
+  MyBodyGraph                                -> Health and Fitness
+  OJay Floyd                                 -> Helper Tools
+  Service Transformation                     -> My Work
+  Stud.IO                                    -> Music Studio
+  Weyland Lab                                -> Lab & Systems
+  emangini-tailwind-nextjs-contentlayer      -> My Work
+  freejack                                   -> Learning
+  rogueone Hardware                          -> Lab & Systems
+  start.me Curator                           -> Helper Tools
+```
+
+Live verdict: `OK - 182 backlog item(s) reconciled ... weyland scope = 'Lab & Systems' (2 project(s)); 9 active
+repo(s) mapped 1:1 to live projects; 10 live project(s) each in exactly one initiative.`
+
+**Negative case — a project filed under no initiative:**
+
+```
+cd /tmp && printf '### B1 — x — **DONE**\nLinear: EMA-1.\n' > hb.md \
+  && printf '{"EMA-1":{"stateType":"completed","state":"Done","project":"Weyland Lab","priority":2,"title":"B1 — x"}}' > hs.json \
+  && printf 'repos:\n  - name: weyland-lab\n    status: active\n    linear_project: "Weyland Lab"\n' > hrepos.yaml \
+  && printf '["Weyland Lab","Orphan Project"]' > hp.json \
+  && printf '{"Lab & Systems":["Weyland Lab"]}' > hi.json \
+  && BACKLOG_FILE=/tmp/hb.md LINEAR_SNAPSHOT_JSON=/tmp/hs.json LINEAR_PROJECTS_JSON=/tmp/hp.json LINEAR_INITIATIVES_JSON=/tmp/hi.json \
+     REPOS_FILE=/tmp/hrepos.yaml bash ~/IdeaProjects/weyland/scripts/check-linear-sync.sh; echo "EXIT=$?"
+```
+
+Expected: `LIVE PROJECTS IN NO INITIATIVE` naming `Orphan Project`, and **`EXIT=1`**. A missing or EMPTY
+`Lab & Systems` initiative is **`EXIT=2`** — an empty scope would check nothing and report OK.
 
 ## What it found on its own first runs
 

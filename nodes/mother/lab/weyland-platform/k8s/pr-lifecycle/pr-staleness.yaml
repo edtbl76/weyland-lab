@@ -54,7 +54,7 @@ data:
     # (SoT `status: stale`, `pr: false`). freejack is PRIVATE — the PR PAT must hold `Pull requests: read` on it
     # AND MyBodyGraph or they are silently skipped. Space-separated; override with PR_REPOS for a scoped run.
     # Guarded by scripts/check-repo-coverage.sh (fails if this set drifts from repos.yaml).
-    REPOS="${PR_REPOS:-edtbl76/Algopedia edtbl76/ServiceTransformation edtbl76/emangini-tailwind-nextjs-contentlayer edtbl76/startme-curator edtbl76/stud.io edtbl76/weyland-lab edtbl76/freejack edtbl76/MyBodyGraph}"
+    REPOS="${PR_REPOS:-edtbl76/Algopedia edtbl76/ServiceTransformation edtbl76/emangini-tailwind-nextjs-contentlayer edtbl76/startme-curator edtbl76/stud.io edtbl76/weyland-lab edtbl76/freejack edtbl76/MyBodyGraph edtbl76/OJayFloyd}"
 
     # Two budgets, because the two kinds of PR mean different things when they sit.
     #   A CI image-bump PR that is a day old means the ship loop stalled — that is the B135 failure

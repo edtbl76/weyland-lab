@@ -59,7 +59,7 @@ SINGLE_REPO=""
 # Canonical PR-lane repo set — reconciled to repos.yaml (B138), kept BYTE-IDENTICAL to pr-staleness.yaml's
 # REPOS default so scripts/check-repo-coverage.sh guards BOTH consumers against the SoT with one regex.
 # midi_real_book is absent (SoT status: stale, lanes.pr: false). Override with PR_REPOS for a scoped run.
-REPOS="${PR_REPOS:-edtbl76/Algopedia edtbl76/ServiceTransformation edtbl76/emangini-tailwind-nextjs-contentlayer edtbl76/startme-curator edtbl76/stud.io edtbl76/weyland-lab edtbl76/freejack edtbl76/MyBodyGraph}"
+REPOS="${PR_REPOS:-edtbl76/Algopedia edtbl76/ServiceTransformation edtbl76/emangini-tailwind-nextjs-contentlayer edtbl76/startme-curator edtbl76/stud.io edtbl76/weyland-lab edtbl76/freejack edtbl76/MyBodyGraph edtbl76/OJayFloyd}"
 
 while [ $# -gt 0 ]; do
   case "$1" in

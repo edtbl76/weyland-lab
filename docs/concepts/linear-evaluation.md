@@ -17,7 +17,7 @@
 | **Inbox / notifications** | **ADOPT WITH LOW TRUST — an event *pointer*, not a state source** | Keep the GitHub↔Linear connection ON for surface-consolidation (Linear = GitHub dev events, Port = ops events). But the Inbox mirrors the *event* ("review requested"), not the PR's *state* (mergeable / stale / superseded) — so **GitHub remains the source of truth for PR state, and nothing is actioned from the Inbox's signal alone.** Same discipline as issue drift: verify mechanically, don't trust the tool's view. |
 | **Workflow states** | **KEEP the 7 states as-is — a `Parked` *state* was REJECTED; "on hold" is a label, not a state** | The 7 EMA states (Backlog · Todo · In Progress · In Review · Done · Canceled · Duplicate) cover the lifecycle. Held/deferred items *are* invisible in Linear (the binary sync guard collapses HELD/BLOCKED/DEFERRED → "open"; the B86 pattern) — but a `Parked` **state** is the wrong fix: a workflow state is *mutually exclusive*, so parking an issue overwrites the lifecycle position it was parked *from*, and un-park becomes ambiguous. "On hold" is an orthogonal **facet**, so it belongs on a **label**. Shipped instead (2026-09-22): `parked:held` (external blocker) + `parked:deferred` (deliberate), tagged on B134/B150/B86 — each keeps its real state *and* priority. Fully MCP-automatable; no Linear-UI hand-off. |
 | **Priority — field vs. label** | **ADOPT the native `priority` field as sole SoT; RETIRED the `High`/`Medium`/`Low` labels (done 2026-09-22)** | Priority is a single exclusive value → a **field**, not a facet (the mirror image of the parking call). It was carried *twice* — the native field **and** redundant priority labels — which guarantees drift: **28 of 224 issues disagreed** (13 hard contradictions + ~15 field-unset-but-labelled), *all* in terminal `Done`/`Canceled` items; the open queue was already 100% field-consistent. Decisive dependency check: `check-linear-sync.sh` already treats the **backlog** tier as SoT and compares the Linear **field** (`n.get("priority")`), never the label — so nothing depended on it. Retired `High`/`Medium`/`Low`/`Maturity`; the field (governed by `docs/backlog.md`, the Gold standard) is the only priority mechanism. Labels become a pure **facet** space: type (`Tech Debt`/`Bug`/`Feature`/…) + operational (`parked:*`). |
-| **Projects / Initiatives / Milestones** | **Projects: KEEP (already core, guard-enforced). Initiatives: DON'T ADOPT. Milestones: skip.** | Projects are the product separator (`Weyland Lab` / `Stud.IO` / `rogueone Hardware`), enforced by `check-linear-sync` check B (no project-less open issue). **Initiatives** (0 defined) sit *above* projects to group many projects toward a themed goal — nothing for that layer to organize at a solo 2–3-product scale; projects are already the top level, so an initiative would be empty ceremony. **Milestones** exist only on the `Service Transformation` project (as a course TOC); real work is sequenced by backlog B-numbers + Linear **epics** (parent issues), so milestones would duplicate that with a weaker mechanism. Container-hierarchy rule: adopt the nesting level with real fan-out (Project→Issue), skip levels without it (Initiative→Project, Project→Milestone). `Service Transformation` (0 issues, seeded milestones) is a **planned track the operator keeps — explicitly NOT to be archived.** |
+| **Projects / Initiatives / Milestones** | **Projects: KEEP (already core, guard-enforced). Initiatives: ADOPTED 2026-09-24 (revisited — was DON'T ADOPT; see § Initiatives (revisited)). Milestones: skip.** | Projects are the product separator (`Weyland Lab` / `Stud.IO` / `rogueone Hardware`), enforced by `check-linear-sync` check B (no project-less open issue). **Initiatives** (0 defined) sit *above* projects to group many projects toward a themed goal — nothing for that layer to organize at a solo 2–3-product scale; projects are already the top level, so an initiative would be empty ceremony. **Milestones** exist only on the `Service Transformation` project (as a course TOC); real work is sequenced by backlog B-numbers + Linear **epics** (parent issues), so milestones would duplicate that with a weaker mechanism. Container-hierarchy rule: adopt the nesting level with real fan-out (Project→Issue), skip levels without it (Initiative→Project, Project→Milestone). `Service Transformation` (0 issues, seeded milestones) is a **planned track the operator keeps — explicitly NOT to be archived.** |
 | **Reviews (code diffs)** | **ADOPT as a low-trust cross-repo triage QUEUE — NOT the decision surface** | Linear's Reviews is the *workbench* view of the same population the Inbox only *points* at: the fleet's open dependabot PRs (100% of the 15 diffs pulled, across 5 repos), all requesting review, **zero ever reviewed in Linear**. Richer than the Inbox (`mergeStatus`, diff stats, threads, in-app approve) but the **same trust ceiling** — `mergeStatus: "ready"` means *mergeable*, not *safe*: #72/#63 read `ready` while `check-pr-lifecycle.sh` classified them STALE/regressive (#63 = a silent cryptography downgrade). Keep it as a cross-repo triage queue (real consolidation, free on the GitHub↔Linear connection), but the **mechanical reconciler stays the SoT for PR actionability** — nothing merged/approved on Linear's review signal alone. As of B176 that reconciler covers *every* repo the queue aggregates, so view and resolver are finally the same scope. Same discipline as the Inbox (verdict #1). |
 | **Agent (coding sessions) + Skills** | **DON'T ADOPT the Agent (paid cloud, duplicates local Claude Code); DO invest in portable skills (git SoT + Bifrost registry)** | Linear's "Agent" = **coding sessions**: delegate an issue → Linear spins a coding session in its **managed cloud sandbox** (Claude Code/Codex), drafts a PR. It **costs AI credits** (not $0) and **runs in the cloud, not the LAN** — duplicating the local Claude Code workflow the lab already runs free. Fails both hard constraints → don't adopt. BUT its "skills" are just **repo files** (`skills.md` / Claude Code skills), which the lab already owns: `register_bifrost_skills.py` is the git SoT, and Bifrost **serves them as a Claude Code marketplace**. So a skill is a portable artifact with a swappable consumer — invest there ($0, LAN, local Claude Code now; the Linear Agent later if ever paid). Seeded 4 loop-skills (DoD gate, master-the-tool walk, pr-lifecycle reconcile, full-guard-suite) — executes B175. |
 | **Views (custom views)** | **ADOPT — 19 workspace views (10 question views + a High × open-project set), each answering a recurring question no other surface answers** | Views are free, native, and shared. The bar: a view must answer a question this workspace actually asks, better than any existing surface. Ten clear it (In flight · Parked · Tier spread · Shipped this week · Opened recently, still open · Blocking chains · Hygiene tripwire · Tech Debt · Stale backlog · Repo portfolio). Skipped: per-product (project pages), by-state (66/70 open are Backlog), by-assignee (solo, 0 assigned), cycle (built in), and any "what's next" ranking (`backlog.md` order is the SoT; Linear priority is only the tier). Created via the GraphQL API 2026-09-24, every one verified against a live count. |
@@ -198,7 +198,7 @@ current (4 issues, all Stud.IO); weyland runs continuous.
 [[linear-status-source-of-truth]]). `start.me Curator` (Completed) shows the pattern working end to end: a
 bounded effort grouped under a project and closed.
 
-**Initiatives — DON'T ADOPT, and the emptiness is correct.** Initiatives sit *above* projects — they group
+**Initiatives — DON'T ADOPT (2026-09-22; SUPERSEDED 2026-09-24, see § Initiatives (revisited) below).** Initiatives sit *above* projects — they group
 **multiple projects toward one themed goal**, a portfolio layer for an org running many projects against a
 strategy. This is a solo lab with 2–3 products where **projects are already the top level**; an initiative
 would be a container with nothing to contain. It is the "collaboration/scale feature that doesn't earn its
@@ -211,6 +211,44 @@ that need grouping AND a decision made at the parent's granularity. The lab has 
 Project→Milestone (backlog B-numbers already sequence within a product). So the useful depth is exactly two
 levels; the other two are empty scaffolding. Adopt the level where the fan-out is; skip the levels where it
 is not.
+
+### Initiatives (revisited, 2026-09-24) — ADOPTED, and they drive the guard's scope
+
+**What changed is the evidence, not the rule.** The container-hierarchy rule above still holds — adopt a level
+where there is real fan-out. On 2026-09-22 there were 2–3 live projects; after the scaffold-all decision
+(every active repo maps 1:1 to a project, 2026-09-23) plus OJay Floyd there are **10**, spanning unrelated
+domains. That is fan-out at Initiative→Project, so the level now earns its place.
+
+**The map (operator-chosen, project by project):**
+
+| Initiative | Projects |
+|---|---|
+| **Lab & Systems** | Weyland Lab, rogueone Hardware |
+| **Music Studio** | Stud.IO |
+| **Helper Tools** | start.me Curator, OJay Floyd |
+| **Learning** | freejack |
+| **My Work** | Service Transformation, Algopedia, emangini-tailwind-nextjs-contentlayer |
+| **Health and Fitness** | MyBodyGraph |
+
+"Weyland is both an initiative and a project" resolved as: the **initiative is Lab & Systems** (the lab plus the
+physical machines it runs on), the **project stays Weyland Lab**. OJay Floyd (financial-services app grounded in
+accounting + economics; roadmap = an accounting text) was created with this pass — repo `edtbl76/OJayFloyd`
+(public), project, Helper Tools, and onboarded in `repos.yaml` across every enforced lane.
+
+**Why it is more than labelling: initiative membership IS the weyland scope.** `check-linear-sync.sh` checks E
+(orphan) and F (unnumbered) apply only to issues whose work `docs/backlog.md` governs. That used to be a
+hard-coded denylist of "other products" (`Stud.IO`, `start.me Curator`), which went stale the moment a new
+project appeared — every new repo project was silently treated as weyland. Now the scope is **the projects of
+the `Lab & Systems` initiative, read live** (`LINEAR_SCOPE_INITIATIVE`). Filing a project under that initiative
+is the one act that puts it in scope; a missing or empty scope initiative is exit 2 (fail closed — "nothing
+in scope" would check nothing and report OK).
+
+**New check H** keeps the map honest: every live (non-canceled) project must sit in **exactly one** initiative
+— in none, it is in no one's scope; in two, the scope is ambiguous. `scripts/onboard-repo.sh` prints the
+initiative step alongside the project step.
+
+**Plan note.** Workspace initiatives are available on this plan; *team* initiatives (`leadTeam`) require the
+Business plan, so the six were created without a lead team.
 
 **Milestones — skip.** The only milestones that exist are the dead-track course TOC. Real work is already
 sequenced by the backlog's B-numbers and Linear **epics** (parent issues — e.g. UX Redesign epic EMA-153 with

@@ -109,9 +109,9 @@ teardown() {
 
 @test "FR5.2 all active PR-flow repos are watched, reconciled to repos.yaml (B138)" {
   PR_STALENESS_LIB=1 source "$LOGIC"
-  # The repos.yaml SoT set where lanes.pr is true (8 active; midi_real_book is stale/pr:false, excluded).
+  # The repos.yaml SoT set where lanes.pr is true (9 active; midi_real_book is stale/pr:false, excluded).
   for r in Algopedia ServiceTransformation emangini-tailwind-nextjs-contentlayer \
-           startme-curator stud.io weyland-lab freejack MyBodyGraph; do
+           startme-curator stud.io weyland-lab freejack MyBodyGraph OJayFloyd; do
     [[ "$REPOS" == *"edtbl76/$r"* ]] || {
       echo "missing repo: edtbl76/$r  (REPOS=$REPOS)"
       return 1
@@ -125,14 +125,18 @@ teardown() {
 }
 
 @test "FR5.2 one unreachable repo does not silently shrink the watch set" {
-  # The subtle multi-repo failure: repo 3 of 8 401s, the loop swallows it, and the run reports on 7
-  # repos while claiming to cover 8. Every repo must be attempted AND the run must end non-zero.
-  # (8 = the repos.yaml pr-lane set: 8 active repos; B138 widened it from 6.)
+  # The subtle multi-repo failure: repo 3 of N 401s, the loop swallows it, and the run reports on N-1
+  # repos while claiming to cover N. Every repo must be attempted AND the run must end non-zero.
+  # N is DERIVED from the repos.yaml pr-lane set (lanes.pr: true) — not hard-coded — so onboarding a repo
+  # (B138 widened 6→8; OJayFloyd made 9) never breaks this test for the wrong reason.
+  local want
+  want="$(python3 -c "import yaml;print(sum(1 for r in yaml.safe_load(open('$REPO_ROOT/repos.yaml'))['repos'] if (r.get('lanes') or {}).get('pr') is True))")"
+  [ "$want" -ge 1 ]
   export GITHUB_TOKEN=not-a-real-token
   stub curl 0 '403'
   run bash "$LOGIC"
   [ "$status" -ne 0 ]
-  [ "$(calls_to curl | grep -c 'api.github.com')" -eq 8 ]
+  [ "$(calls_to curl | grep -c 'api.github.com')" -eq "$want" ]
   [[ "$output" == *"403"* ]]
 }
 

@@ -44,11 +44,15 @@ sequenceDiagram
     L-->>G: HTTP status checked explicitly — a 401 must not read as "no issues"
     Note over G: match on state.TYPE, never the display name —<br/>this workspace has two `started` states
 
+    G->>L: { initiatives { name projects { name } } }
+    L-->>G: initiative to project map, 50x50 page, hasNextPage is fatal
+    Note over G: weyland scope = projects of Lab & Systems<br/>missing or empty scope initiative -> exit 2
+
     loop every ref
         G->>G: A backlog=done AND state not terminal -> DRIFT<br/>C priority tag != Linear field -> PRIORITY DRIFT
     end
     loop every issue
-        G->>G: B open AND no project -> ORPHAN<br/>D/E/F missing / orphan-num / unnumbered
+        G->>G: B open AND no project -> ORPHAN<br/>D missing, E/F orphan-num / unnumbered IF project in scope
     end
 
     G->>L: { team(EMA) { projects { name } } }
@@ -57,13 +61,18 @@ sequenceDiagram
     loop every ACTIVE repo
         G->>G: G no linear_project, or a name not in live projects -> PARITY GAP
     end
+    loop every LIVE project
+        G->>G: H in zero initiatives, or in two or more -> INITIATIVE GAP
+    end
 ```
 
 ## The checks
 
-Seven now (A–G); the three highest-signal are drawn — status (A), project (B), and repo↔project parity
-(G). Priority drift (C), missing-from-Linear (D), orphan-in-Linear (E) and unnumbered (F) run the same way
-and are listed in the guard header.
+Eight now (A–H); the highest-signal are drawn — status (A), project (B), repo↔project parity (G) and
+project↔initiative membership (H). Priority drift (C), missing-from-Linear (D), orphan-in-Linear (E) and
+unnumbered (F) run the same way and are listed in the guard header. E and F apply only inside the
+**weyland scope** — the projects of the `Lab & Systems` initiative, read live (2026-09-24; it replaced a
+hard-coded "other products" denylist that went stale with every new project).
 
 ```mermaid
 flowchart TD
@@ -81,11 +90,16 @@ flowchart TD
     K -- yes --> OK4["mapped 1:1"]
     K -- no --> L2["<b>PARITY GAP</b> — exit 1<br/>no project, or a stale/renamed name"]
 
-    H["cannot read backlog / no API key / HTTP != 200 /<br/>empty snapshot / zero projects / unreadable repos.yaml"] --> I["<b>exit 2</b><br/>guard broken, NOT a clean estate"]
+    M["H: for each LIVE project"] --> N{"in exactly ONE<br/>initiative?"}
+    N -- yes --> OK5["scoped"]
+    N -- no --> N2["<b>INITIATIVE GAP</b> — exit 1<br/>in no one's scope, or ambiguous"]
+
+    H["cannot read backlog / no API key / HTTP != 200 /<br/>empty snapshot / zero projects / unreadable repos.yaml /<br/>scope initiative missing or empty"] --> I["<b>exit 2</b><br/>guard broken, NOT a clean estate"]
 
     style D fill:#ffdddd,stroke:#cc0000
     style G fill:#ffdddd,stroke:#cc0000
     style L2 fill:#ffdddd,stroke:#cc0000
+    style N2 fill:#ffdddd,stroke:#cc0000
     style I fill:#ffe8cc,stroke:#cc8800
 ```
 
@@ -97,4 +111,5 @@ That substitution — absence standing for success — is the defect this whole 
 
 **The invariant:** every backlog item claiming DONE is closed in the system that owns status, every open
 issue is reachable from a project filter, and every active repo in `repos.yaml` maps 1:1 to a live Linear
-project (check G, 2026-09-23). None of it is assertable by hand any more.
+project (check G, 2026-09-23), and every live project sits in exactly one initiative (check H, 2026-09-24).
+None of it is assertable by hand any more.

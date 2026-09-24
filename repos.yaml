@@ -100,6 +100,13 @@ repos:
     backup_path: ~/IdeaProjects/MyBodyGraph
     lanes: { iac: true, ci: true, scan: true, pr: true, catalog: true, backup: true }
 
+  - name: OJayFloyd
+    visibility: public           # created public via `gh repo create` 2026-09-24
+    status: active               # financial services app (accounting + economics; roadmap = an accounting text)
+    linear_project: "OJay Floyd" # initiative: Helper Tools
+    backup_path: ~/IdeaProjects/OJayFloyd
+    lanes: { iac: true, ci: true, scan: true, pr: true, catalog: true, backup: true }
+
   - name: midi_real_book
     visibility: public           # CONFIRM visibility
     status: stale                # real repo, dormant — NOT retired (owner confirmed 2026-09-15). Tracked, not scanned/CI'd.

@@ -17,7 +17,11 @@
 # titled "Audit data mesh ..."). Number-primary matching also makes narrated SIBLING/SUPERSEDED refs
 # (B66 names its EMA-56 sibling; B155 names the EMA-136 it supersedes) harmless — they are not the key.
 #
-# SEVEN CHECKS, all mechanically detectable:
+# EIGHT CHECKS, all mechanically detectable. "WEYLAND SCOPE" (checks E/F) = the projects of the Linear
+# initiative $LINEAR_SCOPE_INITIATIVE (default "Lab & Systems") — the projects whose work docs/backlog.md
+# governs. It is read LIVE from Linear (B119 initiatives, 2026-09-24), replacing a hard-coded denylist of
+# "other products" that silently treated every new project (Algopedia, freejack, ...) as weyland. Adding a
+# project to that initiative is the ONE act that puts it in scope. No/empty scope initiative = exit 2.
 #
 #   A. STATUS drift — a backlog entry marked DONE that names a Linear issue NOT in a terminal state.
 #      Deliberately ONE-WAY: an issue closed in Linear while the backlog entry is still open is a
@@ -35,24 +39,28 @@
 #      below). Do NOT add label-reading logic here. Rationale: docs/concepts/linear-evaluation.md.
 #   D. MISSING from Linear — a backlog item with no Linear issue at all (untracked; the B128/B151 class).
 #   E. ORPHAN in Linear — a weyland-numbered OPEN issue no backlog item covers (fell out of backlog.md),
-#      scoped away from the other products' projects, which keep their own backlogs.
+#      only for projects in the weyland scope; the other initiatives' projects keep their own records.
 #   F. UNNUMBERED weyland issue — a weyland-project issue (OPEN or DONE) whose title carries no weyland
 #      number and which no backlog entry references. This is the class that hid EMA-172/191/208 for
 #      weeks: checks D/E join on the number in the title, and E skips terminal issues, so an issue
 #      created straight in Linear without a B-number is invisible to the whole number-based
-#      reconciliation — the number is both the fix and the precondition for detection. Excludes the
-#      other products (their issues are not B-numbered) and issues a backlog entry already cites by id.
+#      reconciliation — the number is both the fix and the precondition for detection. Only for projects
+#      in the weyland scope (others are not B-numbered), minus issues a backlog entry already cites by id.
 #   G. REPO<->PROJECT parity — every ACTIVE repo in repos.yaml maps 1:1 to a live Linear Project (the
 #      scaffold-all decision, 2026-09-23; docs/concepts/linear-evaluation.md). The map is the repo's
 #      `linear_project:` NAME. G1 = an active repo with NO linear_project (a repo added to repos.yaml
 #      but never given a project — the onboarding gap); G2 = a linear_project naming a project Linear
 #      no longer has (rename/delete/typo). Read from a PROJECTS query, NOT the issue snapshot — an empty
 #      project has zero issues and so never appears there, and the empty scaffolds are exactly the ones
-#      repos map to. `stale` repos are excluded (no project until reactivated).
+#      repos map to. `stale` repos NEED no project, but ANY repo that declares a linear_project must have
+#      it resolve (a stale/planned repo's mapping can't silently rot either).
+#   H. PROJECT<->INITIATIVE — every live (non-canceled) project sits in EXACTLY one initiative. Initiatives
+#      drive scope, so a project in NO initiative is in no one's scope (it could quietly hold weyland work)
+#      and one in TWO is ambiguous. Runs with check G.
 #
 #   usage: scripts/check-linear-sync.sh [--list]
 #          --list   print every item's verdict (status/project/tier/linpri + Linear-only orphans +
-#                   repo->project map), exit 0
+#                   repo->project map + weyland scope + project->initiative map), exit 0
 #
 # INPUTS. Live mode needs a Linear personal API key (Settings -> Security & access -> New API key):
 #
@@ -65,6 +73,10 @@
 #   LINEAR_PROJECTS_JSON  ["Weyland Lab", "Algopedia", ...] — the live project NAMES for check G. When
 #                         UNSET in snapshot mode, check G is not exercised (so the A-F fixtures need no
 #                         projects/repos stub); live mode always queries projects and always runs G.
+#   LINEAR_INITIATIVES_JSON {"Lab & Systems": ["Weyland Lab", ...], ...} — initiative -> project NAMES.
+#                         REQUIRED in snapshot mode (the weyland scope for E/F comes from it; a snapshot run
+#                         never falls back to the live API); live mode queries initiatives.
+#   LINEAR_SCOPE_INITIATIVE which initiative is the weyland scope — default "Lab & Systems"
 #   BACKLOG_FILE          defaults to docs/backlog.md
 #   REPOS_FILE            defaults to repos.yaml — the active-repo <-> linear_project SoT for check G
 #
@@ -83,6 +95,7 @@ set -euo pipefail
 BACKLOG_FILE="${BACKLOG_FILE:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/docs/backlog.md}"
 REPOS_FILE="${REPOS_FILE:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/repos.yaml}"
 LINEAR_TEAM="${LINEAR_TEAM:-EMA}"
+LINEAR_SCOPE_INITIATIVE="${LINEAR_SCOPE_INITIATIVE:-Lab & Systems}"
 
 # --- the decision --------------------------------------------------------------------------------
 #
@@ -234,11 +247,18 @@ try:
     d = yaml.safe_load(open(sys.argv[1], encoding="utf-8")) or {}
 except Exception as exc:
     print(f"FATAL: could not parse repos.yaml: {exc}", file=sys.stderr); raise SystemExit(1)
-active = [r for r in (d.get("repos") or []) if isinstance(r, dict) and r.get("status") == "active"]
+repos = [r for r in (d.get("repos") or []) if isinstance(r, dict)]
+active = [r for r in repos if r.get("status") == "active"]
 if not active:
     print("FATAL: no active repos found in repos.yaml", file=sys.stderr); raise SystemExit(1)
-for r in active:
-    print(f"{r.get('name','?')}\t{r.get('linear_project') or '-'}")
+# `<repo>\t<linear_project|->\t<required 1|0>`: an ACTIVE repo MUST map (required=1); a non-active repo
+# that DECLARES a linear_project is emitted too (required=0) so its mapping is still validated.
+for r in repos:
+    lp = r.get("linear_project") or "-"
+    if r.get("status") == "active":
+        print(f"{r.get('name','?')}\t{lp}\t1")
+    elif lp != "-":
+        print(f"{r.get('name','?')}\t{lp}\t0")
 PY
 }
 
@@ -334,7 +354,7 @@ linear_projects() {
   body="$(mktemp)"
   http="$(curl -s --connect-timeout 10 --max-time 30 -o "$body" -w '%{http_code}' -X POST https://api.linear.app/graphql \
     -H "Authorization: ${LINEAR_API_KEY}" -H 'Content-Type: application/json' \
-    -d "{\"query\":\"{ team(id: \\\"${LINEAR_TEAM}\\\") { projects(first: 250) { nodes { name } } } }\"}")" || {
+    -d "{\"query\":\"{ team(id: \\\"${LINEAR_TEAM}\\\") { projects(first: 250, filter: { status: { type: { nin: [\\\"canceled\\\"] } } }) { nodes { name } } } }\"}")" || {
       echo "FATAL: could not reach the Linear API for projects (curl transport failure/timeout)." >&2; rm -f "$body"; return 1; }
   if [ "$http" != "200" ]; then
     echo "FATAL: Linear API (projects) returned HTTP ${http}." >&2; rm -f "$body"; return 1
@@ -353,6 +373,61 @@ PY
   rm -f "$body"
 }
 
+# --- reading Linear initiatives (weyland scope + check H) ----------------------------------------
+#
+# linear_initiatives -> a JSON object {initiative-name: [project names]}.
+#
+# The weyland scope for E/F is one initiative's membership, so this is REQUIRED on every run. In snapshot
+# mode it must come from LINEAR_INITIATIVES_JSON — a fixture run never falls back to the live API (that
+# would make tests depend on the network and on whatever key sits in scripts/.env).
+linear_initiatives() {
+  if [ -n "${LINEAR_INITIATIVES_JSON:-}" ]; then
+    [ -r "$LINEAR_INITIATIVES_JSON" ] || { echo "FATAL: cannot read $LINEAR_INITIATIVES_JSON" >&2; return 1; }
+    cat "$LINEAR_INITIATIVES_JSON"
+    return 0
+  fi
+  if [ -n "${LINEAR_SNAPSHOT_JSON:-}" ]; then
+    echo "FATAL: snapshot mode needs LINEAR_INITIATIVES_JSON — the weyland scope ('${LINEAR_SCOPE_INITIATIVE}') comes from it." >&2
+    return 1
+  fi
+  if [ -z "${LINEAR_API_KEY:-}" ]; then
+    local envf="${LINEAR_ENV_FILE:-$(dirname "${BASH_SOURCE[0]}")/.env}"
+    # shellcheck disable=SC1090
+    [ -r "$envf" ] && { set -a; . "$envf"; set +a; }
+  fi
+  if [ -z "${LINEAR_API_KEY:-}" ]; then
+    echo "FATAL: LINEAR_API_KEY is not set for the initiatives query (env or scripts/.env)." >&2; return 1
+  fi
+  local body http
+  body="$(mktemp)"
+  http="$(curl -s --connect-timeout 10 --max-time 30 -o "$body" -w '%{http_code}' -X POST https://api.linear.app/graphql \
+    -H "Authorization: ${LINEAR_API_KEY}" -H 'Content-Type: application/json' \
+    -d '{"query":"{ initiatives(first: 50) { pageInfo { hasNextPage } nodes { name projects(first: 50) { pageInfo { hasNextPage } nodes { name } } } } }"}')" || {
+      echo "FATAL: could not reach the Linear API for initiatives (curl transport failure/timeout)." >&2; rm -f "$body"; return 1; }
+  if [ "$http" != "200" ]; then
+    echo "FATAL: Linear API (initiatives) returned HTTP ${http}." >&2; rm -f "$body"; return 1
+  fi
+  python3 - "$body" <<'PY' || { rm -f "$body"; return 1; }
+import json, sys
+doc = json.load(open(sys.argv[1], encoding="utf-8"))
+if "errors" in doc:
+    print("FATAL: Linear GraphQL errors (initiatives): " + json.dumps(doc["errors"])[:300], file=sys.stderr)
+    raise SystemExit(1)
+conn = (doc.get("data") or {}).get("initiatives") or {}
+nodes = conn.get("nodes")
+if nodes is None:
+    print("FATAL: unexpected Linear initiatives response shape", file=sys.stderr); raise SystemExit(1)
+# 50x50 keeps under Linear's 10000 query-complexity cap (100x100 was rejected at 11110). A truncated page
+# would silently drop members, so any hasNextPage is fatal — widen the query, never trust a partial map.
+if (conn.get("pageInfo") or {}).get("hasNextPage") or any(
+        ((n.get("projects") or {}).get("pageInfo") or {}).get("hasNextPage") for n in nodes):
+    print("FATAL: Linear initiatives response is paginated (>50) - a partial membership map would "
+          "mis-scope the checks; add pagination.", file=sys.stderr); raise SystemExit(1)
+print(json.dumps({n["name"]: [p["name"] for p in (n.get("projects") or {}).get("nodes", [])] for n in nodes}))
+PY
+  rm -f "$body"
+}
+
 main() {
   local list_only=0
   [ "${1-}" = "--list" ] && list_only=1
@@ -361,6 +436,8 @@ main() {
   local refs snap
   refs="$(backlog_refs "$BACKLOG_FILE")" || exit 2
   snap="$(linear_snapshot)"              || exit 2
+  local inits
+  inits="$(linear_initiatives)"          || exit 2
 
   # CHECK G — repos.yaml active-repo <-> Linear project parity. Runs LIVE (no issue snapshot) or when a
   # projects fixture is explicitly provided. A pure A-F snapshot test (LINEAR_SNAPSHOT_JSON set, no
@@ -386,11 +463,14 @@ main() {
   printf '%s\n' "$refs" > "$dir/refs.tsv"
   printf '%s' "$projs" > "$dir/projs.json"
   printf '%s\n' "$repos_tsv" > "$dir/repos.tsv"
+  printf '%s' "$inits" > "$dir/inits.json"
 
-  python3 - "$dir/snap.json" "$dir/refs.tsv" "$list_only" "$dir/projs.json" "$dir/repos.tsv" "$check_g" <<'PY'
+  python3 - "$dir/snap.json" "$dir/refs.tsv" "$list_only" "$dir/projs.json" "$dir/repos.tsv" "$check_g" \
+    "$dir/inits.json" "$LINEAR_SCOPE_INITIATIVE" <<'PY'
 import json, sys
 snapfile, reffile, list_only = sys.argv[1], sys.argv[2], sys.argv[3] == "1"
 projsfile, reposfile, check_g = sys.argv[4], sys.argv[5], sys.argv[6] == "1"
+initsfile, SCOPE_INITIATIVE = sys.argv[7], sys.argv[8]
 try:
     snap = json.load(open(snapfile, encoding="utf-8"))
 except Exception as exc:
@@ -400,12 +480,32 @@ if not isinstance(snap, dict) or not snap:
     print("FATAL: the Linear snapshot is EMPTY - refusing to report OK over zero issues.", file=sys.stderr)
     raise SystemExit(2)
 
+# WEYLAND SCOPE = the projects of the scope initiative (Lab & Systems), read live. This replaced a
+# hard-coded "other products" denylist that went stale the moment a new product project appeared
+# (Algopedia's unnumbered issues were flagged as weyland work). Fail closed: a missing or empty scope
+# initiative would make E/F check NOTHING and report OK, so it is exit 2, never "nothing in scope".
+try:
+    inits = json.load(open(initsfile, encoding="utf-8"))
+except Exception as exc:
+    print(f"FATAL: could not parse the Linear initiatives list: {exc}", file=sys.stderr)
+    raise SystemExit(2)
+if not isinstance(inits, dict) or SCOPE_INITIATIVE not in inits:
+    print(f"FATAL: initiative '{SCOPE_INITIATIVE}' not found in Linear - it defines the weyland scope "
+          f"(which projects this backlog governs); refusing to reconcile over an unknown scope.", file=sys.stderr)
+    raise SystemExit(2)
+scope = set(inits.get(SCOPE_INITIATIVE) or [])
+if not scope:
+    print(f"FATAL: initiative '{SCOPE_INITIATIVE}' has NO projects - an empty scope would check nothing "
+          f"and report OK.", file=sys.stderr)
+    raise SystemExit(2)
+
 # CHECK G — repos.yaml active-repo <-> Linear project parity (the scaffold-all decision, 2026-09-23).
 # G1: an active repo with no linear_project (SoT/onboarding gap). G2: a linear_project naming a project
 # Linear no longer has (rename/delete/typo). Fail closed: zero live projects, or no active repos, is a
 # broken guard (exit 2), never a pass over nothing. Parsed here (before the reconciliation loops) so an
 # exit-2 condition is never masked by an exit-1 finding.
 repo_noproj, repo_missing = [], []
+h_none, h_multi = [], []
 if check_g:
     try:
         live_projects = set(json.load(open(projsfile, encoding="utf-8")))
@@ -420,22 +520,36 @@ if check_g:
     if not repo_rows:
         print("FATAL: no active repos parsed from repos.yaml for check G.", file=sys.stderr)
         raise SystemExit(2)
+    # Rows are <repo>\t<linear_project|->\t<required>. G1 applies only to ACTIVE repos (required=1);
+    # G2 applies to ANY repo that declares a project, so a stale repo's name can't rot unnoticed.
     for parts in repo_rows:
         repo = parts[0]
         lp = parts[1] if len(parts) > 1 else "-"
+        required = (parts[2] if len(parts) > 2 else "1") == "1"
         if not lp or lp == "-":
-            repo_noproj.append(repo)
+            if required:
+                repo_noproj.append(repo)
         elif lp not in live_projects:
             repo_missing.append((repo, lp))
+    # CHECK H — every live project sits in EXACTLY one initiative. Initiatives drive scope, so a project
+    # in none is in no one's scope (weyland work could hide there unchecked) and one in two is ambiguous.
+    # Only LIVE projects count: an initiative may still list a completed/canceled project.
+    member_of = {}
+    for ini, projects in inits.items():
+        for p in projects or []:
+            member_of.setdefault(p, []).append(ini)
+    for p in sorted(live_projects):
+        where = member_of.get(p, [])
+        if not where:
+            h_none.append(p)
+        elif len(where) > 1:
+            h_multi.append((p, sorted(where)))
 
 import re as _re
 TERMINAL = {"completed", "canceled", "duplicate"}
 # Linear priority int -> the backlog's tier vocabulary. 0 (None) / 1 (Urgent) are not backlog tiers,
 # so an item at those priorities is not tier-compared (no false drift against an unmapped priority).
 PRIORITY_TIER = {2: "HIGH", 3: "MEDIUM", 4: "LOW"}
-# The OTHER products keep their OWN backlogs; this weyland backlog is not expected to contain their
-# numbered issues, so an unmatched numbered issue in one of these projects is never called "orphaned".
-OTHER_PRODUCT_PROJECTS = {"Stud.IO", "start.me Curator"}
 # The item-number carried at the START of a Linear issue title — the full-coverage join key, so items
 # WITHOUT an inline `Linear EMA-##` ref (the majority) still get reconciled by number, not skipped.
 NUM = _re.compile(r'^\s*((?:B|U)[\d.]+|SEC-\d+|B-RT)\b')
@@ -509,16 +623,16 @@ for ema, row in sorted(snap.items()):
     # number-based reconciliation cannot see it — the number is both the fix and the precondition for
     # detection. Checked for OPEN AND DONE (two of the three that hid here were Done), so it runs
     # BEFORE the terminal skip below. A project-less issue is the `orphan` (project) finding instead,
-    # so this requires a project; another product's issues keep their own backlog and are excluded.
-    if proj and proj not in OTHER_PRODUCT_PROJECTS and n is None and ema not in referenced:
+    # so this requires a project; only weyland-scope projects count (other products keep their own backlog).
+    if proj and proj in scope and n is None and ema not in referenced:
         unnumbered.append((ema, row.get("state"), proj))
     if stt in TERMINAL:
         continue
     if not proj:
         orphan.append((ema, row.get("state")))
     # ORPHAN IN LINEAR — a weyland-numbered OPEN issue that no backlog item covers (fell out of the
-    # backlog). Scoped away from the other products, which keep their own backlogs.
-    if n and n not in backlog_nums and proj not in OTHER_PRODUCT_PROJECTS:
+    # backlog). Only weyland-scope projects count; other products keep their own backlogs.
+    if n and n not in backlog_nums and proj in scope:
         orphan_num.append((ema, n, row.get("state")))
 
 if list_only:
@@ -530,12 +644,21 @@ if list_only:
         print("  --- Weyland issues with NO number in their title and NO backlog item ---")
         for e, s, p in unnumbered:
             print(f"  {'(no #)':8s} {e:9s} {s} in {p} (no B-number, unreferenced by backlog.md)")
+    print(f"  --- weyland scope = initiative '{SCOPE_INITIATIVE}': {', '.join(sorted(scope))} ---")
     if check_g:
-        print("  --- repos.yaml active-repo -> Linear project (check G) ---")
-        for parts in [l.split("\t") for l in open(reposfile, encoding="utf-8").read().strip().split("\n") if l.strip()]:
+        print("  --- repos.yaml repo -> Linear project (check G) ---")
+        for parts in repo_rows:
             repo = parts[0]; lp = parts[1] if len(parts) > 1 else "-"
-            verdict = "OK" if (lp and lp != "-" and lp in live_projects) else ("NO PROJECT FIELD" if (not lp or lp == "-") else "MISSING IN LINEAR")
+            required = (parts[2] if len(parts) > 2 else "1") == "1"
+            if not lp or lp == "-":
+                verdict = "NO PROJECT FIELD" if required else "none (not active)"
+            else:
+                verdict = "OK" if lp in live_projects else "MISSING IN LINEAR"
             print(f"  {repo:42s} -> {lp:34s} [{verdict}]")
+        print("  --- live Linear project -> initiative (check H) ---")
+        for p in sorted(live_projects):
+            where = member_of.get(p, [])
+            print(f"  {p:42s} -> {' + '.join(sorted(where)) or '(NO INITIATIVE)'}")
     print(f"listed {len(backlog_nums)} backlog item(s); "
           f"{len(nolinear)} with no Linear issue, {len(orphan_num)} Linear-only, "
           f"{len(unnumbered)} unnumbered-and-unreferenced.")
@@ -589,9 +712,9 @@ if orphan:
     print("OPEN ISSUES WITH NO PROJECT (invisible to every filtered view):", file=sys.stderr)
     for e, s in orphan:
         print(f"  {e:9s} {s}", file=sys.stderr)
-    print("  Assign each a project (Weyland Lab / rogueone Hardware / Stud.IO) — this team runs",
+    print("  Assign each a project — this team runs several products, and project is the only thing",
           file=sys.stderr)
-    print("  two products, and project is the only thing separating them.", file=sys.stderr)
+    print("  separating them (and the only thing an initiative can scope).", file=sys.stderr)
     fail = True
 if repo_noproj:
     print("", file=sys.stderr)
@@ -608,6 +731,20 @@ if repo_missing:
     for r, lp in repo_missing:
         print(f"  {r:42s} -> '{lp}' — create/rename the project, or fix the SoT name", file=sys.stderr)
     fail = True
+if h_none:
+    print("", file=sys.stderr)
+    print("LIVE PROJECTS IN NO INITIATIVE (initiatives drive scope — an unfiled project is in no one's scope):",
+          file=sys.stderr)
+    for p in h_none:
+        print(f"  {p:42s} — add it to exactly one initiative (Lab & Systems if docs/backlog.md governs it)",
+              file=sys.stderr)
+    fail = True
+if h_multi:
+    print("", file=sys.stderr)
+    print("PROJECTS IN MORE THAN ONE INITIATIVE (scope is ambiguous — keep exactly one):", file=sys.stderr)
+    for p, where in h_multi:
+        print(f"  {p:42s} in {' + '.join(where)}", file=sys.stderr)
+    fail = True
 
 if fail:
     print("", file=sys.stderr)
@@ -615,7 +752,10 @@ if fail:
     raise SystemExit(1)
 print(f"OK - {len(backlog_nums)} backlog item(s) reconciled with Linear (status + priority + coverage), "
       f"no project-less open issues, no orphans"
-      + (f"; {len(repo_rows)} active repo(s) mapped 1:1 to live projects." if check_g else "."))
+      + f", weyland scope = '{SCOPE_INITIATIVE}' ({len(scope)} project(s))"
+      + (f"; {sum(1 for r in repo_rows if (r[2] if len(r) > 2 else '1') == '1')} active repo(s) mapped 1:1 "
+         f"to live projects; {len(live_projects)} live project(s) each in exactly one initiative."
+         if check_g else "."))
 PY
 }
 

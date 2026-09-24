@@ -90,7 +90,7 @@ spec:
                   chmod -R a+w /src
               env:
                 - name: SONAR_REPOS
-                  value: "Algopedia emangini-tailwind-nextjs-contentlayer startme-curator stud.io freejack MyBodyGraph"
+                  value: "Algopedia emangini-tailwind-nextjs-contentlayer startme-curator stud.io freejack MyBodyGraph OJayFloyd"
                 - name: GITHUB_TOKEN
                   valueFrom: { secretKeyRef: { name: pr-lifecycle-github, key: token } }
               volumeMounts:

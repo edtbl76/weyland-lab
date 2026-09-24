@@ -62,7 +62,7 @@ spec:
               env:
                 # B138 — the active repos with scan:true (reconciled to repos.yaml by check-repo-coverage.sh).
                 - name: SCAN_REPOS
-                  value: "Algopedia ServiceTransformation emangini-tailwind-nextjs-contentlayer startme-curator stud.io weyland-lab freejack MyBodyGraph"
+                  value: "Algopedia ServiceTransformation emangini-tailwind-nextjs-contentlayer startme-curator stud.io weyland-lab freejack MyBodyGraph OJayFloyd"
                 # Clone credential: the pr-lifecycle token, now also granted Contents: read (clones public+private).
                 - name: GITHUB_TOKEN
                   valueFrom: { secretKeyRef: { name: pr-lifecycle-github, key: token } }

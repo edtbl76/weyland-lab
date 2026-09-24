@@ -43,7 +43,7 @@ resource "port_integration" "github_weyland" {
           # B138 — reconciled to repos.yaml (lanes.catalog=true): the 8 active + midi_real_book (stale, still
           # cataloged). freejack is PRIVATE — the github-ocean integration's GitHub token must be granted access
           # to it or it is silently absent. Guarded by scripts/check-repo-coverage.sh.
-          "query" = ".name | IN(\"midi_real_book\", \"stud.io\", \"weyland-lab\", \"Algopedia\", \"emangini-tailwind-nextjs-contentlayer\", \"ServiceTransformation\", \"startme-curator\", \"freejack\", \"MyBodyGraph\")"
+          "query" = ".name | IN(\"midi_real_book\", \"stud.io\", \"weyland-lab\", \"Algopedia\", \"emangini-tailwind-nextjs-contentlayer\", \"ServiceTransformation\", \"startme-curator\", \"freejack\", \"MyBodyGraph\", \"OJayFloyd\")"
           "include" = [
             "teams",
           ]
@@ -82,7 +82,7 @@ resource "port_integration" "github_weyland" {
       {
         "kind" = "pull-request"
         "selector" = {
-          "query" = ".base.repo.name | IN(\"weyland-lab\", \"stud.io\", \"midi_real_book\", \"Algopedia\", \"emangini-tailwind-nextjs-contentlayer\", \"ServiceTransformation\", \"startme-curator\", \"freejack\", \"MyBodyGraph\")"
+          "query" = ".base.repo.name | IN(\"weyland-lab\", \"stud.io\", \"midi_real_book\", \"Algopedia\", \"emangini-tailwind-nextjs-contentlayer\", \"ServiceTransformation\", \"startme-curator\", \"freejack\", \"MyBodyGraph\", \"OJayFloyd\")"
         }
         "port" = {
           "entity" = {

@@ -75,6 +75,12 @@ if entry.get("status", "active") == "active":
         print("     then add `linear_project: \"<Project Name>\"` to this repo's entry in repos.yaml.")
         print("     Linear MCP: save_project(name=\"<Project Name>\", addTeams=[\"EMA\"], lead=\"me\","
               " links=[{url, title}]).\n")
+    # Initiative (check H): initiatives drive scope, so the project must sit in EXACTLY one initiative.
+    print("Linear initiative (every live project in EXACTLY one — ENFORCED by check-linear-sync.sh check H):")
+    print("   • attach the project to its initiative (Lab & Systems ONLY if docs/backlog.md governs its work —")
+    print("     that membership is what puts its issues in the weyland B-number checks; otherwise Music Studio /")
+    print("     Helper Tools / Learning / My Work / Health and Fitness, or a new initiative).")
+    print("     Linear MCP: save_project(id=\"<project>\", addInitiatives=[\"<Initiative>\"]).\n")
 
 want = [l for l in ORDER if lanes.get(l) is True]
 skip = [l for l in ORDER if lanes.get(l) is not True]
@@ -88,5 +94,6 @@ if skip:
     print("\nLanes intentionally skipped (lanes.<x> not true — keep a reasoned `except` note in repos.yaml): "
           + ", ".join(skip))
 print("\nWhen done: `bash scripts/check-repo-coverage.sh` — enforced lanes must show ✓ parity;")
-print("           `bash scripts/check-linear-sync.sh` — check G must map this repo to a live project.")
+print("           `bash scripts/check-linear-sync.sh` — check G must map this repo to a live project,")
+print("           and check H must find that project in exactly one initiative.")
 PY

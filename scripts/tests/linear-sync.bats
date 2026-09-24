@@ -21,6 +21,11 @@ setup() {
   load helper
   setup_stubs
   GUARD="$REPO_ROOT/scripts/check-linear-sync.sh"
+  # Default initiatives fixture (B119 initiatives): the weyland scope is the "Lab & Systems" initiative's
+  # projects. Every test gets a DEFINED scope; the scope/H tests below override it.
+  printf '%s' '{"Lab & Systems":["Weyland Lab","rogueone Hardware"],"Music Studio":["Stud.IO"],"My Work":["Algopedia"]}' \
+    > "$STUB_DIR/initiatives.json"
+  export LINEAR_INITIATIVES_JSON="$STUB_DIR/initiatives.json"
 }
 
 teardown() {
@@ -601,4 +606,112 @@ YML
   BACKLOG_FILE="$STUB_DIR/b.md" LINEAR_SNAPSHOT_JSON="$STUB_DIR/s.json" run bash "$GUARD"
   [ "$status" -eq 0 ]
   [[ "$output" == *"OK"* ]]
+}
+
+# --- Initiative-driven scope (B119 initiatives, 2026-09-24) ---------------------------------------
+# The weyland scope (checks E/F: "numbered issue must be in backlog.md", "issue must carry a B-number")
+# is the live project membership of the "Lab & Systems" initiative — NOT a hard-coded denylist. The old
+# denylist {Stud.IO, start.me Curator} silently treated every OTHER project (Algopedia, freejack, ...) as
+# weyland, so the first un-numbered issue there would have failed CI. Fail-closed: no scope → exit 2.
+
+scope_backlog() {
+  cat > "$STUB_DIR/b.md" <<'MD'
+### B1 — x — **DONE (2026-09-10)**
+Linear: EMA-1.
+MD
+}
+
+@test "scope: an un-numbered issue in a project OUTSIDE Lab & Systems is NOT flagged (the stale-denylist bug)" {
+  scope_backlog
+  printf '{"EMA-1":{"stateType":"completed","state":"Done","project":"Weyland Lab","priority":2,"title":"B1 — x"},"EMA-9":{"stateType":"completed","state":"Done","project":"Algopedia","priority":0,"title":"Add A* pathfinding"}}' > "$STUB_DIR/s.json"
+  BACKLOG_FILE="$STUB_DIR/b.md" LINEAR_SNAPSHOT_JSON="$STUB_DIR/s.json" run bash "$GUARD"
+  [ "$status" -eq 0 ]
+}
+
+@test "scope: an un-numbered issue in a Lab & Systems project IS flagged" {
+  scope_backlog
+  printf '{"EMA-1":{"stateType":"completed","state":"Done","project":"Weyland Lab","priority":2,"title":"B1 — x"},"EMA-9":{"stateType":"completed","state":"Done","project":"rogueone Hardware","priority":2,"title":"Core 12 segfaults"}}' > "$STUB_DIR/s.json"
+  BACKLOG_FILE="$STUB_DIR/b.md" LINEAR_SNAPSHOT_JSON="$STUB_DIR/s.json" run bash "$GUARD"
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"EMA-9"* ]]
+}
+
+@test "scope: a numbered open issue in an out-of-scope project is NOT a weyland orphan" {
+  scope_backlog
+  printf '{"EMA-1":{"stateType":"completed","state":"Done","project":"Weyland Lab","priority":2,"title":"B1 — x"},"EMA-9":{"stateType":"backlog","state":"Backlog","project":"Algopedia","priority":3,"title":"B777 — someone elses numbering"}}' > "$STUB_DIR/s.json"
+  BACKLOG_FILE="$STUB_DIR/b.md" LINEAR_SNAPSHOT_JSON="$STUB_DIR/s.json" run bash "$GUARD"
+  [ "$status" -eq 0 ]
+}
+
+@test "scope: a MISSING Lab & Systems initiative is exit 2 — never 'nothing in scope'" {
+  scope_backlog
+  printf '{"EMA-1":{"stateType":"completed","state":"Done","project":"Weyland Lab","priority":2,"title":"B1 — x"}}' > "$STUB_DIR/s.json"
+  printf '{"Music Studio":["Stud.IO"]}' > "$STUB_DIR/ini.json"
+  BACKLOG_FILE="$STUB_DIR/b.md" LINEAR_SNAPSHOT_JSON="$STUB_DIR/s.json" LINEAR_INITIATIVES_JSON="$STUB_DIR/ini.json" run bash "$GUARD"
+  [ "$status" -eq 2 ]
+  [[ "$output" == *"Lab & Systems"* ]]
+}
+
+@test "scope: an EMPTY Lab & Systems initiative is exit 2" {
+  scope_backlog
+  printf '{"EMA-1":{"stateType":"completed","state":"Done","project":"Weyland Lab","priority":2,"title":"B1 — x"}}' > "$STUB_DIR/s.json"
+  printf '{"Lab & Systems":[]}' > "$STUB_DIR/ini.json"
+  BACKLOG_FILE="$STUB_DIR/b.md" LINEAR_SNAPSHOT_JSON="$STUB_DIR/s.json" LINEAR_INITIATIVES_JSON="$STUB_DIR/ini.json" run bash "$GUARD"
+  [ "$status" -eq 2 ]
+}
+
+@test "scope: snapshot mode with NO initiatives source is exit 2" {
+  scope_backlog
+  printf '{"EMA-1":{"stateType":"completed","state":"Done","project":"Weyland Lab","priority":2,"title":"B1 — x"}}' > "$STUB_DIR/s.json"
+  unset LINEAR_INITIATIVES_JSON
+  BACKLOG_FILE="$STUB_DIR/b.md" LINEAR_SNAPSHOT_JSON="$STUB_DIR/s.json" run bash "$GUARD"
+  [ "$status" -eq 2 ]
+}
+
+# --- Check H: every live project sits in EXACTLY one initiative ------------------------------------
+# Initiatives drive scope, so a project in NO initiative is in no one's scope (it could silently hold
+# weyland work), and one in TWO is ambiguous. H runs with check G (live, or a projects fixture).
+
+h_setup() {
+  scope_backlog
+  printf '{"EMA-1":{"stateType":"completed","state":"Done","project":"Weyland Lab","priority":2,"title":"B1 — x"}}' > "$STUB_DIR/s.json"
+  printf 'repos:\n  - name: weyland-lab\n    status: active\n    linear_project: "Weyland Lab"\n' > "$STUB_DIR/repos.yaml"
+}
+
+@test "H: a live project in NO initiative FAILS and is named" {
+  h_setup
+  printf '["Weyland Lab","Orphan Project"]' > "$STUB_DIR/p.json"
+  BACKLOG_FILE="$STUB_DIR/b.md" LINEAR_SNAPSHOT_JSON="$STUB_DIR/s.json" LINEAR_PROJECTS_JSON="$STUB_DIR/p.json" \
+    REPOS_FILE="$STUB_DIR/repos.yaml" run bash "$GUARD"
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"Orphan Project"* ]]
+  [[ "$output" == *"initiative"* ]]
+}
+
+@test "H: a project in TWO initiatives FAILS" {
+  h_setup
+  printf '["Weyland Lab"]' > "$STUB_DIR/p.json"
+  printf '{"Lab & Systems":["Weyland Lab"],"My Work":["Weyland Lab"]}' > "$STUB_DIR/ini.json"
+  BACKLOG_FILE="$STUB_DIR/b.md" LINEAR_SNAPSHOT_JSON="$STUB_DIR/s.json" LINEAR_PROJECTS_JSON="$STUB_DIR/p.json" \
+    LINEAR_INITIATIVES_JSON="$STUB_DIR/ini.json" REPOS_FILE="$STUB_DIR/repos.yaml" run bash "$GUARD"
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"Weyland Lab"* ]]
+}
+
+@test "H: every live project in exactly one initiative PASSES" {
+  h_setup
+  printf '["Weyland Lab","rogueone Hardware","Stud.IO","Algopedia"]' > "$STUB_DIR/p.json"
+  BACKLOG_FILE="$STUB_DIR/b.md" LINEAR_SNAPSHOT_JSON="$STUB_DIR/s.json" LINEAR_PROJECTS_JSON="$STUB_DIR/p.json" \
+    REPOS_FILE="$STUB_DIR/repos.yaml" run bash "$GUARD"
+  [ "$status" -eq 0 ]
+}
+
+@test "G: a NON-active repo that DECLARES a linear_project must still resolve" {
+  h_setup
+  printf 'repos:\n  - name: weyland-lab\n    status: active\n    linear_project: "Weyland Lab"\n  - name: old-thing\n    status: stale\n    linear_project: "Ghost Project"\n' > "$STUB_DIR/repos.yaml"
+  printf '["Weyland Lab"]' > "$STUB_DIR/p.json"
+  BACKLOG_FILE="$STUB_DIR/b.md" LINEAR_SNAPSHOT_JSON="$STUB_DIR/s.json" LINEAR_PROJECTS_JSON="$STUB_DIR/p.json" \
+    REPOS_FILE="$STUB_DIR/repos.yaml" run bash "$GUARD"
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"Ghost Project"* ]]
 }
