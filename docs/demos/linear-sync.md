@@ -14,8 +14,8 @@ grown from 2 checks to **seven (A–G)** since — most recently **check G** (re
   and a step should hold only the secret it uses). Needs the `linear_api_key` repo secret covering
   **cron + manual** — a secret that does not cover the triggering event is a whole-config PARSE error,
   not a failed step. Unlike `check-secret-placeholders.sh` and `check-servicemonitor-coverage.sh` this
-  one *can* run in CI: those need cluster read, this makes one outbound HTTPS call with a read-scoped
-  token.
+  one *can* run in CI: those need cluster read, this makes one outbound HTTPS call that needs only read
+  scope (the CI secret should be a read-only key; the local `scripts/.env` key is write-capable).
 
 ## The point
 

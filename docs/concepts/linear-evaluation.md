@@ -20,6 +20,7 @@
 | **Projects / Initiatives / Milestones** | **Projects: KEEP (already core, guard-enforced). Initiatives: DON'T ADOPT. Milestones: skip.** | Projects are the product separator (`Weyland Lab` / `Stud.IO` / `rogueone Hardware`), enforced by `check-linear-sync` check B (no project-less open issue). **Initiatives** (0 defined) sit *above* projects to group many projects toward a themed goal — nothing for that layer to organize at a solo 2–3-product scale; projects are already the top level, so an initiative would be empty ceremony. **Milestones** exist only on the `Service Transformation` project (as a course TOC); real work is sequenced by backlog B-numbers + Linear **epics** (parent issues), so milestones would duplicate that with a weaker mechanism. Container-hierarchy rule: adopt the nesting level with real fan-out (Project→Issue), skip levels without it (Initiative→Project, Project→Milestone). `Service Transformation` (0 issues, seeded milestones) is a **planned track the operator keeps — explicitly NOT to be archived.** |
 | **Reviews (code diffs)** | **ADOPT as a low-trust cross-repo triage QUEUE — NOT the decision surface** | Linear's Reviews is the *workbench* view of the same population the Inbox only *points* at: the fleet's open dependabot PRs (100% of the 15 diffs pulled, across 5 repos), all requesting review, **zero ever reviewed in Linear**. Richer than the Inbox (`mergeStatus`, diff stats, threads, in-app approve) but the **same trust ceiling** — `mergeStatus: "ready"` means *mergeable*, not *safe*: #72/#63 read `ready` while `check-pr-lifecycle.sh` classified them STALE/regressive (#63 = a silent cryptography downgrade). Keep it as a cross-repo triage queue (real consolidation, free on the GitHub↔Linear connection), but the **mechanical reconciler stays the SoT for PR actionability** — nothing merged/approved on Linear's review signal alone. As of B176 that reconciler covers *every* repo the queue aggregates, so view and resolver are finally the same scope. Same discipline as the Inbox (verdict #1). |
 | **Agent (coding sessions) + Skills** | **DON'T ADOPT the Agent (paid cloud, duplicates local Claude Code); DO invest in portable skills (git SoT + Bifrost registry)** | Linear's "Agent" = **coding sessions**: delegate an issue → Linear spins a coding session in its **managed cloud sandbox** (Claude Code/Codex), drafts a PR. It **costs AI credits** (not $0) and **runs in the cloud, not the LAN** — duplicating the local Claude Code workflow the lab already runs free. Fails both hard constraints → don't adopt. BUT its "skills" are just **repo files** (`skills.md` / Claude Code skills), which the lab already owns: `register_bifrost_skills.py` is the git SoT, and Bifrost **serves them as a Claude Code marketplace**. So a skill is a portable artifact with a swappable consumer — invest there ($0, LAN, local Claude Code now; the Linear Agent later if ever paid). Seeded 4 loop-skills (DoD gate, master-the-tool walk, pr-lifecycle reconcile, full-guard-suite) — executes B175. |
+| **Views (custom views)** | **ADOPT — 20 workspace views (10 question views + a High × project set), each answering a recurring question no other surface answers** | Views are free, native, and shared. The bar: a view must answer a question this workspace actually asks, better than any existing surface. Ten clear it (In flight · Parked · Tier spread · Shipped this week · Opened recently, still open · Blocking chains · Hygiene tripwire · Tech Debt · Stale backlog · Repo portfolio). Skipped: per-product (project pages), by-state (66/70 open are Backlog), by-assignee (solo, 0 assigned), cycle (built in), and any "what's next" ranking (`backlog.md` order is the SoT; Linear priority is only the tier). Created via the GraphQL API 2026-09-24, every one verified against a live count. |
 
 ## Inbox / notifications
 
@@ -325,3 +326,40 @@ skills total); they register to Bifrost on the next `dagster-user-code` redeploy
 
 **Net:** the Agent is a paid cloud duplicate of local Claude Code (skip); the Skills are a $0, LAN-native, portable
 investment (done — seeded B175's loop library in the Bifrost registry, consumable by local Claude Code today).
+
+
+## Views (custom views)
+
+**Real data (live GraphQL, 2026-09-24):** **0 custom views.** 70 open issues — Stud.IO 40 · Weyland Lab 29 · rogueone Hardware 1. **66 of 70 sit in Backlog** (3 In Progress, 1 Todo). **0 assigned** (solo), so the built-in *My issues* is permanently empty. Labels on open issues: Feature 16 · Tech Debt 13 · Bug 2 · `parked:held` 2 · `parked:deferred` 1. Tier spread: Stud.IO **18 H / 16 M / 6 L** (top-heavy), Weyland Lab 7 / 11 / 11. 3 issues in a cycle (Stud.IO only).
+
+**Verdict — ADOPT, 10 views.** A first pass proposed only *Parked* ("a facet with no other surface"); the operator pushed back, rightly — the real bar is **a question this workspace actually asks, answered better than by any existing surface**. The adopted set (workspace-level, shared):
+
+| View | Filter | Question it answers | Live count |
+|---|---|---|---|
+| **In flight** | state = started | "What am I working on?" — replaces the empty *My issues* | 3 |
+| **Parked** | label starts with `parked:` | the surface for the parked facet (workflow-states verdict: parked is a label) | 3 (B134, B150, B86) |
+| **Tier spread** | open; grouped priority × project | DoD Pillar 5 tier-rebalance input (priority FIELD is the SoT) | 70 |
+| **Shipped this week** | completed in last 7d | weekly review / close-out evidence | 6 |
+| **Opened recently, still open** | created < 14d, open | the dangling-record tripwire (create it → complete it) | 4 |
+| **Blocking chains** | open; has blocking or blocked-by relation | dependencies gating other work | 2 (EMA-195 → EMA-218) |
+| **Hygiene tripwire** | open; no project OR no priority | should always be empty — the UI mirror of `check-linear-sync` checks B/C | 0 |
+| **Tech Debt** | label Tech Debt, open; grouped by project | batch debt triage | 13 |
+| **Stale backlog** | open; untouched 60d+ | grooming candidates — *reads 0 until ~late Oct: the 2026-09-22 label strip touched every open issue* | 0 |
+| **Repo portfolio** (Projects view) | all non-canceled projects; grouped by status | the repos ⊆ projects picture (which repos have work vs. empty scaffolds) | 9 |
+
+**Not adopted:** per-product views (the 9 project pages are that), state views (66/70 Backlog — nothing to slice), assignee views (solo), cycle views (built in, Stud.IO-only), and any "what's next" ranking view — `backlog.md`'s ordered list is the SoT for sequencing and Linear's priority field carries only the tier, so a ranked view would be a second, drifting ordering.
+
+**How they were built.** The Linear MCP can *list* custom views but not create them, so they were created with the GraphQL `customViewCreate` mutation (idempotent by name), and grouping via `viewPreferencesCreate` (organization-level; keys `issueGrouping` / `issueSubGrouping` / `viewOrdering` / `projectGrouping`, read back from `viewPreferencesValues` rather than guessed). Every view was verified by querying its issues/projects and matching an independent count.
+
+**Findings along the way:**
+- **One straggler from the priority-label migration:** EMA-101 (B108) still carried the retired `Low` label — one of the silently dropped MCP writes from the 61-issue strip. Removed; its priority *field* was already Low.
+- **Blocking chains is 2, not the raw 3:** a naive scan counts EMA-111 and EMA-30, which "block" **EMA-46 — already completed**. Linear's `hasBlockingRelations` correctly ignores blocks on finished work, so the view is right; those two relations are stale and could be removed.
+- **The local `LINEAR_API_KEY` has WRITE scope** (it created these views), while `check-linear-sync.sh` describes its token as read-scoped. The guard only needs read; least privilege says the CI secret `linear_api_key` should be a read-only key.
+
+**Addendum (2026-09-24, operator request) — the "High × project" set.** One `High · <project>` view per live project
+(9: Algopedia, emangini-tailwind-nextjs-contentlayer, freejack, MyBodyGraph, rogueone Hardware, Service Transformation,
+start.me Curator, Stud.IO, Weyland Lab) — open issues at priority High, filtered by **project ID** so a project rename
+doesn't break the view — plus a **`High — all projects`** index grouped by project. Created for *every* project, not just
+the two with High work today, so a view fills itself in when work lands (mirrors the repos ⊆ projects 1:1 mapping).
+Verified against an independent count: Stud.IO 18 · Weyland Lab 7 · the other 7 empty · index 25. Workspace total: **20
+custom views**.
