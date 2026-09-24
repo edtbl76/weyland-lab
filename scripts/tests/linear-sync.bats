@@ -480,3 +480,125 @@ MD
   BACKLOG_FILE="$STUB_DIR/b.md" LINEAR_SNAPSHOT_JSON="$STUB_DIR/s.json" run bash "$GUARD"
   [ "$status" -eq 0 ]
 }
+
+# --- check G: repos.yaml active-repo <-> Linear project parity ------------------------------------
+#
+# Every ACTIVE repo in repos.yaml maps 1:1 to a Linear Project (the scaffold-all decision, 2026-09-23).
+# The map is the `linear_project:` field (the project NAME — resolvable via a projects query; an empty
+# project never appears in the ISSUE snapshot, so parity cannot be derived from issues). Two drifts:
+#   G1. an active repo with NO linear_project (SoT gap) — a repo added to repos.yaml with no project.
+#   G2. a linear_project naming a project Linear does not have (renamed/deleted/typo).
+# Fail-closed: zero live projects, or an unreadable repos file, is exit 2 — never a pass over nothing.
+# G is exercised only when a projects fixture is provided (LINEAR_PROJECTS_JSON) — the A-F snapshot
+# tests above deliberately do not stub projects, so they never trip G.
+
+# a backlog+issue pair that passes A-F, so ONLY check G decides the outcome
+g_pass_af() {
+  cat > "$STUB_DIR/b.md" <<'MD'
+### B1 — x — **DONE (2026-09-10)**
+Linear: EMA-1.
+MD
+  printf '{"EMA-1":{"stateType":"completed","state":"Done","project":"Weyland Lab","priority":2,"title":"B1 — x"}}' > "$STUB_DIR/s.json"
+}
+
+@test "G: every active repo's linear_project resolving to a live project PASSES" {
+  g_pass_af
+  cat > "$STUB_DIR/repos.yaml" <<'YML'
+repos:
+  - name: weyland-lab
+    status: active
+    linear_project: "Weyland Lab"
+  - name: Algopedia
+    status: active
+    linear_project: "Algopedia"
+YML
+  printf '["Weyland Lab","Algopedia","rogueone Hardware"]' > "$STUB_DIR/p.json"
+  BACKLOG_FILE="$STUB_DIR/b.md" LINEAR_SNAPSHOT_JSON="$STUB_DIR/s.json" \
+    LINEAR_PROJECTS_JSON="$STUB_DIR/p.json" REPOS_FILE="$STUB_DIR/repos.yaml" run bash "$GUARD"
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"OK"* ]]
+}
+
+@test "G1: an active repo with NO linear_project FAILS (the onboarding gap)" {
+  g_pass_af
+  cat > "$STUB_DIR/repos.yaml" <<'YML'
+repos:
+  - name: weyland-lab
+    status: active
+    linear_project: "Weyland Lab"
+  - name: NewRepo
+    status: active
+YML
+  printf '["Weyland Lab"]' > "$STUB_DIR/p.json"
+  BACKLOG_FILE="$STUB_DIR/b.md" LINEAR_SNAPSHOT_JSON="$STUB_DIR/s.json" \
+    LINEAR_PROJECTS_JSON="$STUB_DIR/p.json" REPOS_FILE="$STUB_DIR/repos.yaml" run bash "$GUARD"
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"NewRepo"* ]]
+  [[ "$output" == *"linear_project"* ]]
+}
+
+@test "G2: a linear_project naming a project Linear does not have FAILS" {
+  g_pass_af
+  cat > "$STUB_DIR/repos.yaml" <<'YML'
+repos:
+  - name: weyland-lab
+    status: active
+    linear_project: "Weyland Lab"
+  - name: Algopedia
+    status: active
+    linear_project: "Ghost Project"
+YML
+  printf '["Weyland Lab","Algopedia"]' > "$STUB_DIR/p.json"
+  BACKLOG_FILE="$STUB_DIR/b.md" LINEAR_SNAPSHOT_JSON="$STUB_DIR/s.json" \
+    LINEAR_PROJECTS_JSON="$STUB_DIR/p.json" REPOS_FILE="$STUB_DIR/repos.yaml" run bash "$GUARD"
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"Algopedia"* ]]
+  [[ "$output" == *"Ghost Project"* ]]
+}
+
+@test "G: a STALE repo needs no project — not flagged" {
+  g_pass_af
+  cat > "$STUB_DIR/repos.yaml" <<'YML'
+repos:
+  - name: weyland-lab
+    status: active
+    linear_project: "Weyland Lab"
+  - name: midi_real_book
+    status: stale
+YML
+  printf '["Weyland Lab"]' > "$STUB_DIR/p.json"
+  BACKLOG_FILE="$STUB_DIR/b.md" LINEAR_SNAPSHOT_JSON="$STUB_DIR/s.json" \
+    LINEAR_PROJECTS_JSON="$STUB_DIR/p.json" REPOS_FILE="$STUB_DIR/repos.yaml" run bash "$GUARD"
+  [ "$status" -eq 0 ]
+}
+
+@test "G: ZERO live projects is exit 2 — refuse to verify parity over nothing" {
+  g_pass_af
+  cat > "$STUB_DIR/repos.yaml" <<'YML'
+repos:
+  - name: weyland-lab
+    status: active
+    linear_project: "Weyland Lab"
+YML
+  printf '[]' > "$STUB_DIR/p.json"
+  BACKLOG_FILE="$STUB_DIR/b.md" LINEAR_SNAPSHOT_JSON="$STUB_DIR/s.json" \
+    LINEAR_PROJECTS_JSON="$STUB_DIR/p.json" REPOS_FILE="$STUB_DIR/repos.yaml" run bash "$GUARD"
+  [ "$status" -eq 2 ]
+}
+
+@test "G: an unreadable repos file is exit 2, not a pass" {
+  g_pass_af
+  printf '["Weyland Lab"]' > "$STUB_DIR/p.json"
+  BACKLOG_FILE="$STUB_DIR/b.md" LINEAR_SNAPSHOT_JSON="$STUB_DIR/s.json" \
+    LINEAR_PROJECTS_JSON="$STUB_DIR/p.json" REPOS_FILE="$STUB_DIR/nope.yaml" run bash "$GUARD"
+  [ "$status" -eq 2 ]
+}
+
+@test "G is NOT exercised in snapshot mode without a projects fixture (A-F tests stay clean)" {
+  # No LINEAR_PROJECTS_JSON -> check G is skipped entirely, even though the real repos.yaml has repos.
+  # This is what keeps the 36 A-F tests from each needing a projects+repos stub.
+  g_pass_af
+  BACKLOG_FILE="$STUB_DIR/b.md" LINEAR_SNAPSHOT_JSON="$STUB_DIR/s.json" run bash "$GUARD"
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"OK"* ]]
+}

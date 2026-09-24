@@ -17,7 +17,7 @@
 # titled "Audit data mesh ..."). Number-primary matching also makes narrated SIBLING/SUPERSEDED refs
 # (B66 names its EMA-56 sibling; B155 names the EMA-136 it supersedes) harmless — they are not the key.
 #
-# SIX CHECKS, all mechanically detectable:
+# SEVEN CHECKS, all mechanically detectable:
 #
 #   A. STATUS drift — a backlog entry marked DONE that names a Linear issue NOT in a terminal state.
 #      Deliberately ONE-WAY: an issue closed in Linear while the backlog entry is still open is a
@@ -42,19 +42,31 @@
 #      created straight in Linear without a B-number is invisible to the whole number-based
 #      reconciliation — the number is both the fix and the precondition for detection. Excludes the
 #      other products (their issues are not B-numbered) and issues a backlog entry already cites by id.
+#   G. REPO<->PROJECT parity — every ACTIVE repo in repos.yaml maps 1:1 to a live Linear Project (the
+#      scaffold-all decision, 2026-09-23; docs/concepts/linear-evaluation.md). The map is the repo's
+#      `linear_project:` NAME. G1 = an active repo with NO linear_project (a repo added to repos.yaml
+#      but never given a project — the onboarding gap); G2 = a linear_project naming a project Linear
+#      no longer has (rename/delete/typo). Read from a PROJECTS query, NOT the issue snapshot — an empty
+#      project has zero issues and so never appears there, and the empty scaffolds are exactly the ones
+#      repos map to. `stale` repos are excluded (no project until reactivated).
 #
 #   usage: scripts/check-linear-sync.sh [--list]
-#          --list   print every item's verdict (status/project/tier/linpri + Linear-only orphans), exit 0
+#          --list   print every item's verdict (status/project/tier/linpri + Linear-only orphans +
+#                   repo->project map), exit 0
 #
 # INPUTS. Live mode needs a Linear personal API key (Settings -> Security & access -> New API key):
 #
 #   LINEAR_API_KEY        read from the environment, or from the gitignored scripts/.env
 #   LINEAR_TEAM           team key, default EMA
 #
-# For testing (and offline runs) point this at a fixture instead — it skips the API entirely:
+# For testing (and offline runs) point these at fixtures instead — they skip the API entirely:
 #
 #   LINEAR_SNAPSHOT_JSON  {"EMA-207": {"stateType": "...", "state": "...", "project": "..."|null}}
+#   LINEAR_PROJECTS_JSON  ["Weyland Lab", "Algopedia", ...] — the live project NAMES for check G. When
+#                         UNSET in snapshot mode, check G is not exercised (so the A-F fixtures need no
+#                         projects/repos stub); live mode always queries projects and always runs G.
 #   BACKLOG_FILE          defaults to docs/backlog.md
+#   REPOS_FILE            defaults to repos.yaml — the active-repo <-> linear_project SoT for check G
 #
 # HOW IT RUNS: **blocking in CI** — `.woodpecker.yml` step `linear-sync` (its own step, because
 # `repo-guards` is deliberately secret-free), secret `linear_api_key`, events cron+manual. Also run by
@@ -68,6 +80,7 @@
 set -euo pipefail
 
 BACKLOG_FILE="${BACKLOG_FILE:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/docs/backlog.md}"
+REPOS_FILE="${REPOS_FILE:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/repos.yaml}"
 LINEAR_TEAM="${LINEAR_TEAM:-EMA}"
 
 # --- the decision --------------------------------------------------------------------------------
@@ -198,6 +211,36 @@ print("\n".join(rows))
 PY
 }
 
+# --- parsing repos.yaml (check G) ----------------------------------------------------------------
+#
+# repos_projects <repos-file> -> `<repo>\t<linear_project|->` per ACTIVE repo.
+#
+# The scaffold-all decision (2026-09-23): every ACTIVE repo maps 1:1 to a Linear Project, recorded as
+# the `linear_project:` NAME. `stale` repos are excluded (no project until reactivated). Uses pyyaml
+# (as check-repo-coverage.sh does — the CI `linear-sync` step apk-adds `py3-yaml`). FAILS CLOSED: an
+# unreadable/unparseable file, or zero active repos, is a broken guard, never an empty pass.
+repos_projects() { # repos_projects <repos-file>
+  local f="${1:?usage: repos_projects <repos-file>}"
+  [ -r "$f" ] || { echo "FATAL: cannot read repos file: $f" >&2; return 1; }
+  python3 - "$f" <<'PY' || return 1
+import sys
+try:
+    import yaml
+except ImportError as e:
+    print(f"FATAL: pyyaml unavailable ({e}) — the linear-sync step must apk-add py3-yaml", file=sys.stderr)
+    raise SystemExit(1)
+try:
+    d = yaml.safe_load(open(sys.argv[1], encoding="utf-8")) or {}
+except Exception as exc:
+    print(f"FATAL: could not parse repos.yaml: {exc}", file=sys.stderr); raise SystemExit(1)
+active = [r for r in (d.get("repos") or []) if isinstance(r, dict) and r.get("status") == "active"]
+if not active:
+    print("FATAL: no active repos found in repos.yaml", file=sys.stderr); raise SystemExit(1)
+for r in active:
+    print(f"{r.get('name','?')}\t{r.get('linear_project') or '-'}")
+PY
+}
+
 # --- reading Linear ------------------------------------------------------------------------------
 #
 # linear_snapshot -> a JSON object keyed by issue identifier.
@@ -261,6 +304,53 @@ PY
   rm -f "$body"
 }
 
+# --- reading Linear projects (check G) -----------------------------------------------------------
+#
+# linear_projects -> a JSON array of live project NAMES.
+#
+# A SEPARATE query from linear_snapshot on purpose: an EMPTY project (0 issues) never appears in the
+# issue snapshot's `project { name }`, so repo↔project parity cannot be derived from issues — the
+# scaffolded-but-empty projects are exactly the ones a repo maps to. The fixture path skips the API.
+linear_projects() {
+  if [ -n "${LINEAR_PROJECTS_JSON:-}" ]; then
+    [ -r "$LINEAR_PROJECTS_JSON" ] || { echo "FATAL: cannot read $LINEAR_PROJECTS_JSON" >&2; return 1; }
+    cat "$LINEAR_PROJECTS_JSON"
+    return 0
+  fi
+  # Load the key HERE, not relying on linear_snapshot having done it: both functions run under command
+  # substitution (`projs="$(linear_projects)"`), so an `export` inside linear_snapshot's subshell never
+  # reaches this one. This mirrors linear_snapshot's own load block (kept in step deliberately).
+  if [ -z "${LINEAR_API_KEY:-}" ]; then
+    local envf="${LINEAR_ENV_FILE:-$(dirname "${BASH_SOURCE[0]}")/.env}"
+    # shellcheck disable=SC1090
+    [ -r "$envf" ] && { set -a; . "$envf"; set +a; }
+  fi
+  if [ -z "${LINEAR_API_KEY:-}" ]; then
+    echo "FATAL: LINEAR_API_KEY is not set for the projects query (env or scripts/.env)." >&2; return 1
+  fi
+  local body http
+  body="$(mktemp)"
+  http="$(curl -s -o "$body" -w '%{http_code}' -X POST https://api.linear.app/graphql \
+    -H "Authorization: ${LINEAR_API_KEY}" -H 'Content-Type: application/json' \
+    -d "{\"query\":\"{ team(id: \\\"${LINEAR_TEAM}\\\") { projects(first: 250) { nodes { name } } } }\"}")" || {
+      echo "FATAL: could not reach the Linear API for projects (curl transport failure)." >&2; rm -f "$body"; return 1; }
+  if [ "$http" != "200" ]; then
+    echo "FATAL: Linear API (projects) returned HTTP ${http}." >&2; rm -f "$body"; return 1
+  fi
+  python3 - "$body" <<'PY' || { rm -f "$body"; return 1; }
+import json, sys
+doc = json.load(open(sys.argv[1], encoding="utf-8"))
+if "errors" in doc:
+    print("FATAL: Linear GraphQL errors (projects): " + json.dumps(doc["errors"])[:300], file=sys.stderr)
+    raise SystemExit(1)
+nodes = (((doc.get("data") or {}).get("team") or {}).get("projects") or {}).get("nodes")
+if nodes is None:
+    print("FATAL: unexpected Linear projects response shape", file=sys.stderr); raise SystemExit(1)
+print(json.dumps([n.get("name") for n in nodes if n.get("name")]))
+PY
+  rm -f "$body"
+}
+
 main() {
   local list_only=0
   [ "${1-}" = "--list" ] && list_only=1
@@ -269,6 +359,17 @@ main() {
   local refs snap
   refs="$(backlog_refs "$BACKLOG_FILE")" || exit 2
   snap="$(linear_snapshot)"              || exit 2
+
+  # CHECK G — repos.yaml active-repo <-> Linear project parity. Runs LIVE (no issue snapshot) or when a
+  # projects fixture is explicitly provided. A pure A-F snapshot test (LINEAR_SNAPSHOT_JSON set, no
+  # LINEAR_PROJECTS_JSON) does NOT exercise G — that is what keeps those tests from each needing a
+  # projects+repos stub. Both inputs fail closed (exit 2) rather than skip silently.
+  local check_g=0 projs="[]" repos_tsv=""
+  if [ -z "${LINEAR_SNAPSHOT_JSON:-}" ] || [ -n "${LINEAR_PROJECTS_JSON:-}" ]; then
+    check_g=1
+    projs="$(linear_projects)"          || exit 2
+    repos_tsv="$(repos_projects "$REPOS_FILE")" || exit 2
+  fi
 
   # BY FILE, NOT BY INTERPOLATION. The first cut pasted "$refs" straight into an unquoted heredoc,
   # which lets any `$` in the data reach the shell and mangles the script silently.
@@ -281,10 +382,13 @@ main() {
   local dir="$WORKDIR"
   printf '%s' "$snap"  > "$dir/snap.json"
   printf '%s\n' "$refs" > "$dir/refs.tsv"
+  printf '%s' "$projs" > "$dir/projs.json"
+  printf '%s\n' "$repos_tsv" > "$dir/repos.tsv"
 
-  python3 - "$dir/snap.json" "$dir/refs.tsv" "$list_only" <<'PY'
+  python3 - "$dir/snap.json" "$dir/refs.tsv" "$list_only" "$dir/projs.json" "$dir/repos.tsv" "$check_g" <<'PY'
 import json, sys
 snapfile, reffile, list_only = sys.argv[1], sys.argv[2], sys.argv[3] == "1"
+projsfile, reposfile, check_g = sys.argv[4], sys.argv[5], sys.argv[6] == "1"
 try:
     snap = json.load(open(snapfile, encoding="utf-8"))
 except Exception as exc:
@@ -293,6 +397,34 @@ except Exception as exc:
 if not isinstance(snap, dict) or not snap:
     print("FATAL: the Linear snapshot is EMPTY - refusing to report OK over zero issues.", file=sys.stderr)
     raise SystemExit(2)
+
+# CHECK G — repos.yaml active-repo <-> Linear project parity (the scaffold-all decision, 2026-09-23).
+# G1: an active repo with no linear_project (SoT/onboarding gap). G2: a linear_project naming a project
+# Linear no longer has (rename/delete/typo). Fail closed: zero live projects, or no active repos, is a
+# broken guard (exit 2), never a pass over nothing. Parsed here (before the reconciliation loops) so an
+# exit-2 condition is never masked by an exit-1 finding.
+repo_noproj, repo_missing = [], []
+if check_g:
+    try:
+        live_projects = set(json.load(open(projsfile, encoding="utf-8")))
+    except Exception as exc:
+        print(f"FATAL: could not parse the Linear projects list: {exc}", file=sys.stderr)
+        raise SystemExit(2)
+    if not live_projects:
+        print("FATAL: no Linear projects returned - refusing to verify repo<->project parity over zero "
+              "projects (token/API failure looks exactly like 'all mapped').", file=sys.stderr)
+        raise SystemExit(2)
+    repo_rows = [l.split("\t") for l in open(reposfile, encoding="utf-8").read().strip().split("\n") if l.strip()]
+    if not repo_rows:
+        print("FATAL: no active repos parsed from repos.yaml for check G.", file=sys.stderr)
+        raise SystemExit(2)
+    for parts in repo_rows:
+        repo = parts[0]
+        lp = parts[1] if len(parts) > 1 else "-"
+        if not lp or lp == "-":
+            repo_noproj.append(repo)
+        elif lp not in live_projects:
+            repo_missing.append((repo, lp))
 
 import re as _re
 TERMINAL = {"completed", "canceled", "duplicate"}
@@ -396,6 +528,12 @@ if list_only:
         print("  --- Weyland issues with NO number in their title and NO backlog item ---")
         for e, s, p in unnumbered:
             print(f"  {'(no #)':8s} {e:9s} {s} in {p} (no B-number, unreferenced by backlog.md)")
+    if check_g:
+        print("  --- repos.yaml active-repo -> Linear project (check G) ---")
+        for parts in [l.split("\t") for l in open(reposfile, encoding="utf-8").read().strip().split("\n") if l.strip()]:
+            repo = parts[0]; lp = parts[1] if len(parts) > 1 else "-"
+            verdict = "OK" if (lp and lp != "-" and lp in live_projects) else ("NO PROJECT FIELD" if (not lp or lp == "-") else "MISSING IN LINEAR")
+            print(f"  {repo:42s} -> {lp:34s} [{verdict}]")
     print(f"listed {len(backlog_nums)} backlog item(s); "
           f"{len(nolinear)} with no Linear issue, {len(orphan_num)} Linear-only, "
           f"{len(unnumbered)} unnumbered-and-unreferenced.")
@@ -453,13 +591,29 @@ if orphan:
           file=sys.stderr)
     print("  two products, and project is the only thing separating them.", file=sys.stderr)
     fail = True
+if repo_noproj:
+    print("", file=sys.stderr)
+    print("ACTIVE REPOS WITH NO linear_project IN repos.yaml (every active repo maps 1:1 to a project):",
+          file=sys.stderr)
+    for r in repo_noproj:
+        print(f"  {r:42s} — create a Linear project for it and add `linear_project: \"<name>\"` "
+              f"(run scripts/onboard-repo.sh)", file=sys.stderr)
+    fail = True
+if repo_missing:
+    print("", file=sys.stderr)
+    print("repos.yaml linear_project NAMES A PROJECT LINEAR DOES NOT HAVE (renamed, deleted, or a typo):",
+          file=sys.stderr)
+    for r, lp in repo_missing:
+        print(f"  {r:42s} -> '{lp}' — create/rename the project, or fix the SoT name", file=sys.stderr)
+    fail = True
 
 if fail:
     print("", file=sys.stderr)
     print("DoD Pillar 5 is the one pillar with no automatic check; this is that check.", file=sys.stderr)
     raise SystemExit(1)
 print(f"OK - {len(backlog_nums)} backlog item(s) reconciled with Linear (status + priority + coverage), "
-      f"no project-less open issues, no orphans.")
+      f"no project-less open issues, no orphans"
+      + (f"; {len(repo_rows)} active repo(s) mapped 1:1 to live projects." if check_g else "."))
 PY
 }
 

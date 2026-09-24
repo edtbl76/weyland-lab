@@ -22,6 +22,15 @@
 # A lane marked false MUST carry a matching `except:` note. Per-repo lanes (ci/scan) are configured by files
 # that live IN the target repo (.woodpecker.yml, .deepsource.toml, …) — the guard verifies the central lanes it
 # can see; onboard-repo.sh lists the in-repo files to add for full parity.
+#
+# LINEAR PROJECT MAPPING (`linear_project`): every ACTIVE repo maps 1:1 to a Linear Project (team EMA), so the
+# board mirrors the active-repo set. The value is the project NAME (the raw Linear GraphQL API exposes only
+# id/slugId/name — the "P-EMA-N" identifier is an MCP-only synthetic and is NOT resolvable by the CI guard).
+# `scripts/check-linear-sync.sh` check G resolves each active repo's name against the live projects query and
+# fails CI on a gap (repo with no project) or a stale name (renamed/deleted project). A rename therefore forces
+# a one-line update here — which is correct hygiene, not a flaw. Linear Projects is a SUPERSET of repos: non-repo
+# projects exist (e.g. "rogueone Hardware" = physical-machine faults, no repo) and carry no entry here. A `stale`
+# repo gets no project until reactivated. Scaffolded 2026-09-23 per docs/concepts/linear-evaluation.md.
 
 owner_default: edtbl76   # confirm per-repo owners; override with a per-repo `owner:` when it differs
 
@@ -38,54 +47,63 @@ repos:
   - name: weyland-lab
     visibility: public
     status: active
+    linear_project: "Weyland Lab"
     backup_path: ~/IdeaProjects/weyland
     lanes: { iac: true, ci: true, scan: true, pr: true, catalog: true, backup: true }
 
   - name: stud.io
     visibility: public
     status: active
+    linear_project: "Stud.IO"
     backup_path: ~/Documents/Studio/STUD.io
     lanes: { iac: true, ci: true, scan: true, pr: true, catalog: true, backup: true }
 
   - name: Algopedia
     visibility: public
     status: active
+    linear_project: "Algopedia"
     backup_path: ~/PycharmProjects/Algopedia
     lanes: { iac: true, ci: true, scan: true, pr: true, catalog: true, backup: true }
 
   - name: ServiceTransformation
     visibility: public
     status: active
+    linear_project: "Service Transformation"
     backup_path: ~/IdeaProjects/ServiceTransformation
     lanes: { iac: true, ci: true, scan: true, pr: true, catalog: true, backup: true }
 
   - name: emangini-tailwind-nextjs-contentlayer
     visibility: public
     status: active
+    linear_project: "emangini-tailwind-nextjs-contentlayer"
     backup_path: ~/IdeaProjects/emangini-tailwind-nextjs-contentlayer
     lanes: { iac: true, ci: true, scan: true, pr: true, catalog: true, backup: true }
 
   - name: startme-curator
     visibility: private          # PRIVATE (confirmed via tofu import 2026-09-15) — Port/scan/CI tokens need access
     status: active
+    linear_project: "start.me Curator"
     backup_path: ~/IdeaProjects/startme-curator
     lanes: { iac: true, ci: true, scan: true, pr: true, catalog: true, backup: true }
 
   - name: freejack
     visibility: private          # PRIVATE — the Port github integration + any public-scoped PAT must be granted access
     status: active
+    linear_project: "freejack"
     backup_path: ~/Documents/Education   # checked out under "Education", NOT "freejack" — match by path
     lanes: { iac: true, ci: true, scan: true, pr: true, catalog: true, backup: true }
 
   - name: MyBodyGraph
     visibility: public           # confirmed public via tofu import 2026-09-15
     status: active
+    linear_project: "MyBodyGraph"
     backup_path: ~/IdeaProjects/MyBodyGraph
     lanes: { iac: true, ci: true, scan: true, pr: true, catalog: true, backup: true }
 
   - name: midi_real_book
     visibility: public           # CONFIRM visibility
     status: stale                # real repo, dormant — NOT retired (owner confirmed 2026-09-15). Tracked, not scanned/CI'd.
+    # linear_project: none — stale repos get no Linear Project until reactivated.
     lanes: { iac: false, ci: false, scan: false, pr: false, catalog: true, backup: false }
     except:
       iac: "dormant — not codified until reactivated"

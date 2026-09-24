@@ -225,6 +225,37 @@ seeded-milestone state as clutter and proposed archiving it; the operator vetoed
 **planned track kept deliberately** (seeded, not yet populated), not dead scaffolding — recorded here so no
 future pass re-proposes archiving it.
 
+### Refinement (2026-09-23) — Projects mirror the active-repo set 1:1
+
+**Operator decision:** every ACTIVE repo in `repos.yaml` gets a Linear Project, so the board mirrors the
+active-repo set. This is the *scaffold-all* choice over my *lazy-align* lean — the operator wants the projects
+present now, not created-on-first-issue. Executed 2026-09-23: created 4 empty projects for the previously
+unmapped active repos — **`Algopedia` (P-EMA-6)**, **`emangini-tailwind-nextjs-contentlayer` (P-EMA-7)**,
+**`freejack` (P-EMA-8)**, **`MyBodyGraph` (P-EMA-9)** — each in team EMA, lead Edward Mangini, with a GitHub
+link resource. A live `list_issues` sweep confirmed those repos had **no misfiled work** (every hit merely
+*mentioned* the repo name in a Weyland Lab issue), so the new projects are genuinely empty scaffolds.
+
+**The model — `repos ⊆ projects`, not `repos = projects`.** Projects is a *superset*: `rogueone Hardware`
+(P-EMA-4) is a legitimate project with no repo (physical-machine faults), and future cross-repo tracks will be
+too. So the join is one-directional — every active repo has a project; not every project has a repo. A `stale`
+repo (`midi_real_book`) gets no project until reactivated.
+
+**The SoT is `repos.yaml`** — each active repo carries a `linear_project: "<Project Name>"` field. (I first
+stored the `P-EMA-N` identifier for rename-stability, but discovered the raw Linear GraphQL API exposes only
+`id`/`slugId`/`name` — `P-EMA-N` is an **MCP-only synthetic** the CI guard can't resolve — so the value is the
+project **name**. A rename now fails the guard with a clear "update repos.yaml" message, which is correct
+hygiene, not a flaw.) Map: weyland-lab→"Weyland Lab", stud.io→"Stud.IO", ServiceTransformation→"Service
+Transformation", startme-curator→"start.me Curator", Algopedia→"Algopedia",
+emangini-tailwind-nextjs-contentlayer→"emangini-tailwind-nextjs-contentlayer", freejack→"freejack",
+MyBodyGraph→"MyBodyGraph".
+
+**Guarded (2026-09-23).** `check-linear-sync.sh` gained **check G** — every active repo's `linear_project`
+resolves against a live Linear **projects** query (not the issue snapshot: an empty project has no issues and
+so never appears there). G1 flags an active repo with no `linear_project` (the onboarding gap); G2 flags a name
+Linear no longer has. Fail-closed (zero projects / unreadable SoT = exit 2). 43 bats, TDD Red→Green, live run
+green (8/8 mapped). `onboard-repo.sh` prints the create-project step when a new repo is added. The `linear-sync`
+CI step apk-adds `py3-yaml` for the `repos.yaml` parse.
+
 ## Reviews (code diffs in Linear)
 
 **Real data (MCP `list_diffs`, 2026-09-22):** 15 diffs (~13 open), **100% dependabot dependency bumps** across 5

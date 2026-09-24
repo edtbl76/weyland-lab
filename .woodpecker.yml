@@ -184,7 +184,7 @@ steps:
       LINEAR_API_KEY:
         from_secret: linear_api_key
     commands:
-      - apk add --no-cache bash curl python3 >/dev/null
+      - apk add --no-cache bash curl python3 py3-yaml >/dev/null
       - bash scripts/check-linear-sync.sh
 
   # ── 1c. shellcheck the shell surface ────────────────────────────────────────

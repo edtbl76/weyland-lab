@@ -63,6 +63,19 @@ if vis == "private":
     print("   • the pr-lifecycle PAT (sealed secret pr-lifecycle-github/token) → `Pull requests: read` on this repo")
     print("   • any scan/CI tokens that will touch it\n")
 
+# Linear project (check G of check-linear-sync.sh): every ACTIVE repo maps 1:1 to a Linear Project.
+# repos ⊆ projects — a repo without one fails Pillar 5. `stale` repos need none until reactivated.
+if entry.get("status", "active") == "active":
+    lp = entry.get("linear_project")
+    print("Linear project (every active repo maps 1:1 — ENFORCED by check-linear-sync.sh check G):")
+    if lp:
+        print(f"   • already mapped → \"{lp}\". Confirm it resolves: `bash scripts/check-linear-sync.sh --list`.\n")
+    else:
+        print("   • CREATE a Linear Project (team EMA, lead you) for this repo — add a GitHub link resource —")
+        print("     then add `linear_project: \"<Project Name>\"` to this repo's entry in repos.yaml.")
+        print("     Linear MCP: save_project(name=\"<Project Name>\", addTeams=[\"EMA\"], lead=\"me\","
+              " links=[{url, title}]).\n")
+
 want = [l for l in ORDER if lanes.get(l) is True]
 skip = [l for l in ORDER if lanes.get(l) is not True]
 print("Lanes this repo should join (from repos.yaml):")
@@ -74,5 +87,6 @@ for l in want:
 if skip:
     print("\nLanes intentionally skipped (lanes.<x> not true — keep a reasoned `except` note in repos.yaml): "
           + ", ".join(skip))
-print("\nWhen done: `bash scripts/check-repo-coverage.sh` — enforced lanes must show ✓ parity.")
+print("\nWhen done: `bash scripts/check-repo-coverage.sh` — enforced lanes must show ✓ parity;")
+print("           `bash scripts/check-linear-sync.sh` — check G must map this repo to a live project.")
 PY
