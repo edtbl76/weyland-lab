@@ -35,7 +35,8 @@ labels:
 #          (`SMOKE_ONLY != "smoke"`) so it is skipped. This is on ONE workflow on purpose: Woodpecker only
 #          feeds a `--var` to the FIRST workflow's gate, so a two-file split can't gate a second workflow on
 #          it (that returned an empty pipeline / HTTP 204). A single workflow shares the var with every step.
-#   golden-path-smoke and notify-port are NOT gated; the fast guards run in both modes (seconds).
+#   notify-port is NOT gated (the CI-reliability signal posts in every mode). golden-path-smoke runs in
+#   SMOKE mode and in a FULL/nightly run, but is lean-gated (B177): it SKIPS when RUN_FIXTURES=0.
 when:
   - event: manual
   - event: cron
@@ -893,6 +894,12 @@ steps:
   # ⚠ NO `failure: ignore` — same fail-closed contract as the scan/integration lanes: the script
   # exits 2 on a build/apply failure and 1 on a smoke failure, and both must stay visible.
   - name: golden-path-smoke
+    # B177: runs in SMOKE mode (scoped by GOLDEN_PATH_ONLY) OR a full/nightly run (RUN_FIXTURES unset → "" != "0");
+    # SKIPS in a lean run (RUN_FIXTURES=0), where only production code changed and rebuilding all ~44 golden
+    # paths is wasted (and fragile — a flaky apt mirror in one path's Docker build fails the whole step).
+    when:
+      - event: [manual, cron]
+        evaluate: 'SMOKE_ONLY == "smoke" || RUN_FIXTURES != "0"'
     image: moby/buildkit:latest
     environment:
       BUILDKIT_ADDR: tcp://buildkitd:1234       # step runs in ns woodpecker, so the bare service name resolves
