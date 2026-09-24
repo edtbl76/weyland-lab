@@ -92,6 +92,23 @@ tags. Steps: `detect-changes → build → kubeconform → deploy-handoff`.
     `when`, so a `.woodpecker/`-split second workflow can't gate on it (also 204/EOF). A single workflow shares the
     var with every step. (`pipeline deploy`/`deployment`-event selection is a 403 for this token — permission-walled.)
   - A plain `create` with no var, and the nightly cron, still run the **full** pipeline (manual-full preserved).
+- **Lean language matrix (B177) — skip the ~46 fixture-language lanes when you didn't touch them.** CI steps run
+  SEQUENTIALLY (RWO workspace), so a full run is ~30 min of golden-path lanes on the RAM-tight node. When a change
+  is production/docs/scripts only (not `golden-paths/`), gate the fixture lanes off with `RUN_FIXTURES=0`. Compute it
+  from the working tree **BEFORE you push** (an empty post-push diff fails closed to the full matrix — by design):
+  ```bash
+  RUN_FIXTURES="$(bash scripts/ci/select-fixtures.sh)"   # 1 = full matrix, 0 = skip fixtures (fail-closed to 1)
+  # ... git push ...
+  woodpecker-cli pipeline create edtbl76/weyland-lab --branch main --var RUN_FIXTURES="$RUN_FIXTURES"
+  ```
+  Fixture lanes carry `when: *fixture` (`SMOKE_ONLY != "smoke" && RUN_FIXTURES != "0"`); an UNSET var reads `"" != "0"`
+  → runs, so a plain `create` and the nightly cron still do the **full** matrix (the safe default — B160's "CI is the
+  proving ground" for the golden paths). Production lanes (test-python/shell/java, scan-java, the two integration
+  lanes) keep `when: *skip_on_smoke` and always run. The selector reads `ci-langs.yaml` (the manifest: production
+  lanes + `fixture_trigger_paths`) and fails closed — an undeterminable diff, any change under a trigger path, or a
+  missing/unparseable manifest all yield `1`. Tests: `scripts/tests/ci-select-fixtures.bats`. **Phase 2 (pending):
+  reclaim mother headroom + move the nightly full matrix off the batch window + memory-request the remaining lanes so
+  the FULL run is also OOM-safe** — until then, the full matrix can still be killed under memory pressure ([B177]).
 - **Build engine = a persistent `buildkitd` Deployment** (`k8s/woodpecker/buildkitd.yaml`, Argo app
   `woodpecker-buildkitd`), NOT build-in-the-step-pod. The `build` step is a thin `buildctl --addr tcp://buildkitd:1234`
   client that mounts nothing.
