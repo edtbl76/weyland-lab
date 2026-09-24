@@ -27,6 +27,14 @@
 # cannot classify is a loud error -- never a skip and never an implicit pass. An absent result must
 # not stand for a successful one; that class of bug has bitten this repo repeatedly, twice inside
 # the very guard built to prevent it.
+#
+# EXIT CODES (B178): 0 = live matches code · 1 = real DRIFT, or a broken guard (missing python/curl,
+# empty/garbage payload) -- these BLOCK · 2 = Port itself is UNREACHABLE (no token, connect/read
+# timeout, non-200 auth). Exit 2 is DISTINCT from drift on purpose: it is still a loud "could not
+# verify" (never a silent pass), but it lets the CI step WARN-and-continue rather than hard-fail the
+# ENTIRE pipeline -- including deploys -- on an external-SaaS outage. An external dependency being
+# down must not gate a code deploy; a real drift finding still must. The guard reports the condition
+# honestly; only the pipeline step's policy is lenient about an outage.
 set -euo pipefail
 
 . "$(dirname "${BASH_SOURCE[0]}")/lib/common.sh"
@@ -193,10 +201,13 @@ port_token() {
   local body tok
   # -sS not -sf: `curl -sf` collapses EVERY non-2xx to exit 0 with empty output, which is how three
   # separate gates in this repo reported success on an error. Read the body and require the field.
-  body="$(curl -sS -X POST https://api.port.io/v1/auth/access_token \
+  # --connect-timeout/--max-time bound a Port outage: without them a hung endpoint blocks the step (and
+  # the whole pipeline) for curl's default multi-minute wait. Found 2026-09-24 — api.port.io/auth timed
+  # out (0 bytes in 45s+) during a Port outage and pinned the pipeline (B178).
+  body="$(curl -sS --connect-timeout 10 --max-time 25 -X POST https://api.port.io/v1/auth/access_token \
     -H 'Content-Type: application/json' \
     -d "{\"clientId\":\"$PORT_CLIENT_ID\",\"clientSecret\":\"$PORT_CLIENT_SECRET\"}")" || {
-      echo "❌ could not reach api.port.io for a token" >&2; return 1; }
+      echo "❌ could not reach api.port.io for a token (timeout/transport) -- Port unreachable" >&2; return 1; }
   tok="$(printf '%s' "$body" | python3 -c 'import sys,json;print(json.load(sys.stdin).get("accessToken",""))' 2>/dev/null || true)"
   [ -n "$tok" ] || { echo "❌ Port returned no accessToken (check the credentials in $PORT_ENV_FILE)" >&2; return 1; }
   printf '%s' "$tok"
@@ -204,8 +215,8 @@ port_token() {
 
 port_get() {   # port_get <path> <out-file> <token>
   local path="$1" out="$2" tok="$3" code
-  code="$(curl -sS -o "$out" -w '%{http_code}' "https://api.port.io/v1/$path" -H "Authorization: Bearer $tok")" || {
-    echo "❌ GET /v1/$path failed at the transport layer" >&2; return 1; }
+  code="$(curl -sS --connect-timeout 10 --max-time 25 -o "$out" -w '%{http_code}' "https://api.port.io/v1/$path" -H "Authorization: Bearer $tok")" || {
+    echo "❌ GET /v1/$path failed at the transport layer (timeout) -- Port unreachable" >&2; return 1; }
   [ "$code" = "200" ] || { echo "❌ GET /v1/$path returned HTTP $code" >&2; return 1; }
 }
 
@@ -229,10 +240,12 @@ main() {
   bps="${PORT_LIVE_BLUEPRINTS_JSON:-}"; sc="${PORT_LIVE_SCORECARDS_JSON:-}"; ig="${PORT_LIVE_INTEGRATIONS_JSON:-}"
   if [ -z "$bps" ] || [ -z "$sc" ] || [ -z "$ig" ]; then
     command -v curl >/dev/null 2>&1 || { echo "❌ curl not found and no snapshot files given" >&2; exit 1; }
-    local tok; tok="$(port_token)"
-    bps="${bps:-$work/bps.json}";  [ -s "$bps" ] || port_get blueprints   "$bps" "$tok"
-    sc="${sc:-$work/sc.json}";     [ -s "$sc" ]  || port_get scorecards   "$sc"  "$tok"
-    ig="${ig:-$work/ig.json}";     [ -s "$ig" ]  || port_get integration  "$ig"  "$tok"
+    # Port UNREACHABLE (no token / timeout / non-200) → exit 2, DISTINCT from drift (exit 1), so the CI
+    # step can warn-and-continue on a Port outage instead of hard-blocking the whole pipeline (B178).
+    local tok; tok="$(port_token)" || exit 2
+    bps="${bps:-$work/bps.json}";  [ -s "$bps" ] || port_get blueprints   "$bps" "$tok" || exit 2
+    sc="${sc:-$work/sc.json}";     [ -s "$sc" ]  || port_get scorecards   "$sc"  "$tok"  || exit 2
+    ig="${ig:-$work/ig.json}";     [ -s "$ig" ]  || port_get integration  "$ig"  "$tok"  || exit 2
   fi
   for f in "$bps" "$sc" "$ig"; do
     [ -s "$f" ] || { echo "❌ live payload missing or empty: $f" >&2; exit 1; }
