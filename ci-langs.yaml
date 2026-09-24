@@ -1,0 +1,46 @@
+# CI language-matrix selection (B177 — lean + safe CI runs).
+#
+# WHY: CI steps run STRICTLY SEQUENTIALLY (WOODPECKER_BACKEND_K8S_STORAGE_RWX: false → RWO workspace),
+# so a full run is ~30 min of the ~48 fixture-language lanes (B153/B160 golden paths) executing one after
+# another on a RAM-tight node (mother ~98%). Most pushes touch weyland-dagster / scripts / docs / k8s —
+# NOT the golden paths — so running all 48 fixture lanes every time is wasted wall-clock and needless
+# OOM-exposure. This manifest lets a run be SELECTIVE: fixture lanes run only when fixture/lane code
+# actually changed (or on the nightly full matrix); production-code lanes always run.
+#
+# MECHANISM (reuses the PROVEN `--var` + `when: evaluate` pattern already used for SMOKE_ONLY — NOT the
+# LAN-unreliable Woodpecker `when: path`): `scripts/ci/select-fixtures.sh` reads this file, diffs the repo,
+# and emits RUN_FIXTURES=0|1, passed to `woodpecker-cli pipeline create --var RUN_FIXTURES=...`. Every
+# fixture lane in .woodpecker.yml gates on `RUN_FIXTURES != "0"`; an UNSET var (a plain manual run, or the
+# nightly cron, which passes no var) reads as "" != "0" → RUNS — the full matrix. So the DEFAULT is safe
+# (full run); leanness is an explicit opt-in the trigger wrapper computes.
+#
+# FAIL-CLOSED: an undeterminable diff, a missing/unparseable manifest, or a change under ANY
+# fixture_trigger_path all yield RUN_FIXTURES=1 (run everything). "Skip" is only ever chosen on a
+# git diff that SUCCEEDED and matched none of the trigger paths.
+#
+# COARSE ON PURPOSE (it's a lab): a change to ONE golden path re-runs ALL fixture lanes, not just that
+# language. Golden-path edits are rare and usually touch shared scaffolding, so running the whole matrix
+# then is correct and cheap to reason about. Per-language precision is a possible future refinement if
+# golden-path edits ever become frequent (they are not). Runbook: docs/runbooks/woodpecker.md.
+
+# Lanes that ALWAYS run — they cover REAL production code, not hello-world fixtures. These keep the
+# plain `when: *skip_on_smoke` gate in .woodpecker.yml (never gated by RUN_FIXTURES). Listed here as the
+# documented source of truth for "what is production" (the split B88/B152 draw); the guard/tests read it.
+production_lanes:
+  - test-python              # weyland-dagster / weyland-guard / weyland-tool-server / scripts
+  - test-shell               # the shell guard suite (300+ bats) — real decision logic
+  - test-java                # the 2 real Flink modules
+  - scan-java                # Flink static analysis (real code)
+  - test-integration-guard   # black-boxes the LIVE deployed weyland-guard
+  - test-integration-datahub # black-boxes the LIVE DataHub→Redpanda consumer
+
+# A change under ANY of these path PREFIXES means a fixture language — or the lane machinery itself —
+# changed, so the full fixture matrix must run. Matched as literal prefixes against `git diff --name-only`.
+fixture_trigger_paths:
+  - golden-paths/          # the B153/B160 per-language golden paths (the fixtures themselves)
+  - tests/lang/            # shared language-test fixtures + the coverage baseline
+  - scripts/run-lang-tests.sh   # the test-lane runner — affects EVERY language lane
+  - scripts/run-lang-scan.sh    # the scan-lane runner — affects every scan lane
+  - scripts/coverage-ratchet.sh # per-lane coverage gate — affects every test lane
+  - .woodpecker.yml        # the lane definitions + gates themselves
+  - ci-langs.yaml          # this manifest — a change to it re-runs everything (fail-safe)
