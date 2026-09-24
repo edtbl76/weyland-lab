@@ -54,9 +54,11 @@ teardown() { teardown_stubs; }
   [ "$output" = "0" ]
 }
 
-@test "an empty (successful) diff skips fixtures (0) — nothing changed" {
+@test "an EMPTY diff fails closed to the full matrix (1) — ambiguous, not 'nothing changed'" {
+  # Run after a push, HEAD == origin/main, so the diff is empty even if the push touched golden paths.
+  # "0" (skip) must require POSITIVE evidence of a non-fixture-only change; empty is not that.
   SELECT_CHANGED_FILES=$'' CI_LANGS_FILE="$MANIFEST" run bash "$GUARD"
-  [ "$output" = "0" ]
+  [ "$output" = "1" ]
 }
 
 @test "a mixed change (fixture + non-fixture) runs the full matrix (1)" {

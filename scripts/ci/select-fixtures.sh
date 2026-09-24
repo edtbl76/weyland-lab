@@ -57,8 +57,15 @@ prefixes = [p for p in (doc.get("fixture_trigger_paths") or []) if p]
 if not prefixes:
     print("1"); sys.exit(0)                       # no trigger paths declared → cannot be lean → run all
 changed = [ln.strip() for ln in os.environ.get("CHANGED", "").splitlines() if ln.strip()]
+if not changed:
+    print("1"); sys.exit(0)                       # EMPTY diff is AMBIGUOUS, not "nothing changed": run it
+    #                                               after a push (HEAD == origin/main) and it is empty even
+    #                                               though the push may have touched golden paths. Fail
+    #                                               closed to the full matrix; "0" needs POSITIVE evidence
+    #                                               of a non-fixture-only change. Run the selector BEFORE
+    #                                               pushing (dirty tree) to get the lean signal.
 for f in changed:
     if any(f.startswith(pre) for pre in prefixes):
         print("1"); sys.exit(0)                   # a fixture/lane path changed → run the full matrix
-print("0")                                        # diff succeeded, matched nothing → skip fixtures
+print("0")                                        # diff had changes, NONE under a fixture path → skip fixtures
 PY
