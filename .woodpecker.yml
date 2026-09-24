@@ -157,7 +157,7 @@ steps:
       # B178: exit 2 = Port itself UNREACHABLE (external outage) → WARN and continue, so a Port outage
       # does not hard-block the ENTIRE pipeline (incl. deploys). exit 1 = real IaC drift → still blocks.
       # `|| rc=$?` captures the code without the step shell aborting first.
-      - rc=0; bash scripts/check-port-iac-coverage.sh || rc=$?; if [ "$rc" = "2" ]; then echo "WARN: Port unreachable — IaC coverage NOT verified this run (non-blocking; B178)"; exit 0; fi; exit "$rc"
+      - 'rc=0; bash scripts/check-port-iac-coverage.sh || rc=$?; if [ "$rc" = "2" ]; then echo "WARN - Port unreachable, IaC coverage NOT verified this run (non-blocking, B178)"; exit 0; fi; exit "$rc"'
 
   # ── 1b3. DoD Pillar 5 — backlog/Linear reconciliation (B148 follow-on) ──────
   # SEPARATE from repo-guards for the same reason as the step above: it needs a credential, and
