@@ -40,36 +40,52 @@ sequenceDiagram
     B-->>G: 26 refs as `<B-num> <EMA-id> <done|open>`
     Note over G: status = FIRST status-or-priority token on the line.<br/>A bare `\bDONE\b` search reads a 1574-char entry's<br/>prose about OTHER items as its own.
 
-    G->>L: { team(EMA) { issues { identifier state{type name} project{name} } } }
+    G->>L: { team(EMA) { issues { identifier state{type name} project{name} priority } } }
     L-->>G: HTTP status checked explicitly — a 401 must not read as "no issues"
     Note over G: match on state.TYPE, never the display name —<br/>this workspace has two `started` states
 
     loop every ref
-        G->>G: backlog=done AND state not terminal -> DRIFT
+        G->>G: A backlog=done AND state not terminal -> DRIFT<br/>C priority tag != Linear field -> PRIORITY DRIFT
     end
-    loop every OPEN issue
-        G->>G: no project -> ORPHAN
+    loop every issue
+        G->>G: B open AND no project -> ORPHAN<br/>D/E/F missing / orphan-num / unnumbered
+    end
+
+    G->>L: { team(EMA) { projects { name } } }
+    Note over G: a SEPARATE query — an empty project has 0 issues,<br/>so parity cannot come from the issue snapshot
+    G->>B: read repos.yaml active-repo linear_project map
+    loop every ACTIVE repo
+        G->>G: G no linear_project, or a name not in live projects -> PARITY GAP
     end
 ```
 
-## The two checks
+## The checks
+
+Seven now (A–G); the three highest-signal are drawn — status (A), project (B), and repo↔project parity
+(G). Priority drift (C), missing-from-Linear (D), orphan-in-Linear (E) and unnumbered (F) run the same way
+and are listed in the guard header.
 
 ```mermaid
 flowchart TD
-    A["for each backlog ref"] --> B{"backlog says DONE?"}
+    A["A: for each backlog ref"] --> B{"backlog says DONE?"}
     B -- no --> OK1["fine — open in both"]
     B -- yes --> C{"Linear state.type<br/>terminal?"}
     C -- yes --> OK2["reconciled"]
     C -- no --> D["<b>DRIFT</b> — exit 1"]
 
-    E["for each OPEN issue"] --> F{"has a project?"}
+    E["B: for each OPEN issue"] --> F{"has a project?"}
     F -- yes --> OK3["findable"]
     F -- no --> G["<b>ORPHAN</b> — exit 1<br/>invisible to every filtered view"]
 
-    H["cannot read backlog / no API key /<br/>HTTP != 200 / empty snapshot"] --> I["<b>exit 2</b><br/>guard broken, NOT a clean backlog"]
+    J["G: for each ACTIVE repo in repos.yaml"] --> K{"linear_project set<br/>AND names a live project?"}
+    K -- yes --> OK4["mapped 1:1"]
+    K -- no --> L2["<b>PARITY GAP</b> — exit 1<br/>no project, or a stale/renamed name"]
+
+    H["cannot read backlog / no API key / HTTP != 200 /<br/>empty snapshot / zero projects / unreadable repos.yaml"] --> I["<b>exit 2</b><br/>guard broken, NOT a clean estate"]
 
     style D fill:#ffdddd,stroke:#cc0000
     style G fill:#ffdddd,stroke:#cc0000
+    style L2 fill:#ffdddd,stroke:#cc0000
     style I fill:#ffe8cc,stroke:#cc8800
 ```
 
@@ -79,5 +95,6 @@ while the backlog entry is still open is a normal mid-flight state, not drift.
 **Exit 1 and exit 2 are never conflated.** A missing `LINEAR_API_KEY` must not read as a clean backlog.
 That substitution — absence standing for success — is the defect this whole family of guards exists for.
 
-**The invariant:** every backlog item claiming DONE is closed in the system that owns status, and every
-open issue is reachable from a project filter. Neither is assertable by hand any more.
+**The invariant:** every backlog item claiming DONE is closed in the system that owns status, every open
+issue is reachable from a project filter, and every active repo in `repos.yaml` maps 1:1 to a live Linear
+project (check G, 2026-09-23). None of it is assertable by hand any more.

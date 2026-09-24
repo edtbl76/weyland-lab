@@ -2027,6 +2027,8 @@ One repeatable path that wires a new application or repo into the WHOLE estate i
 
 The **application half** of onboarding, split out of **B154** (EMA-211). B154 Phase 1 builds the paved-path scaffolding + completeness guard as management tooling (shell/Python generating the required surfaces from one declaration). This item writes the actual onboarding **service(s)** that represent the onboarding flow as real code — a proper application, not a management script — per the **platform-vs-application split** (shell/Python-as-management is the interim; real services are the destination, tracked alongside **B9**). Deliberately **Medium and later**: do it once the Phase 1 paved path proves the shape, so the service encodes a flow that already works rather than being designed in the abstract. Relates **B154** (the paved path this productizes), **B138** (repo coverage parity), **B82** (application taxonomy), **B9** (platform/application split).
 
+**Scope add (2026-09-23) — Linear project creation is part of the automated flow.** As of 2026-09-23 every active repo maps 1:1 to a Linear Project (`repos.yaml` `linear_project`), enforced by `check-linear-sync.sh` **check G**; `onboard-repo.sh` currently *prints* the create-project step (Phase 1 guide). Phase 2 must **execute** it: create the 1:1 Linear Project (name + GitHub link, team EMA) via the Linear API and **write `linear_project: "<name>"` back into `repos.yaml`**, so onboarding a repo no longer leaves the project (or the SoT line) to be done by hand. Without this, Phase 2 would automate every surface except the one added last.
+
 ---
 
 ### B160 — Extend the golden-path language suite (B153 follow-on) — DONE 2026-09-09 (Linear EMA-217)

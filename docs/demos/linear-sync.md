@@ -1,10 +1,12 @@
 # Demo — DoD Pillar 5 reconciliation (backlog ↔ Linear)
 
-The pillar that had no checker, and the checker it has now. **Executed 2026-08-26** (DONE).
+The pillar that had no checker, and the checker it has now. **Executed 2026-08-26** (DONE); the guard has
+grown from 2 checks to **seven (A–G)** since — most recently **check G** (repo↔Linear-project parity,
+2026-09-23; see § "Check G" below).
 
 - **Gate:** [definition-of-done.md](../definition-of-done.md) § 5
 - **Flow:** [diagrams/flow-linear-sync.md](../diagrams/flow-linear-sync.md)
-- **Guard:** `scripts/check-linear-sync.sh` · **Tests:** `scripts/tests/linear-sync.bats` (36 cases)
+- **Guard:** `scripts/check-linear-sync.sh` · **Tests:** `scripts/tests/linear-sync.bats` (43 cases)
 - **CI:** `.woodpecker.yml` step `linear-sync`, **blocking**. Its own step rather than folded into
   `repo-guards` (deliberately secret-free, pure file analysis) or `port-iac-coverage` (different SaaS,
   and a step should hold only the secret it uses). Needs the `linear_api_key` repo secret covering
@@ -43,10 +45,11 @@ printf 'LINEAR_API_KEY=lin_api_YOUR_KEY_HERE\n' >> /home/edwardmangini/IdeaProje
 bash scripts/check-linear-sync.sh
 ```
 
-Expected: `OK - 26 backlog->Linear reference(s) reconciled, no project-less open issues.` (exit 0)
+Expected (current): `OK - 179 backlog item(s) reconciled with Linear (status + priority + coverage), no
+project-less open issues, no orphans; 8 active repo(s) mapped 1:1 to live projects.` (exit 0)
 
 **2. Every reference and its verdict**, including closed issues with no project (listed, not failed —
-only open work needs to be findable):
+only open work needs to be findable) and the repo→project map (check G):
 
 ```
 bash scripts/check-linear-sync.sh --list
@@ -78,13 +81,47 @@ cd /tmp && BACKLOG_FILE=/tmp/b2.md LINEAR_API_KEY= LINEAR_ENV_FILE=/tmp/no-such.
 
 Expected: `FATAL: LINEAR_API_KEY is not set` and **`EXIT=2`**.
 
-**6. The test suite** — 36 cases, including the four defects found while building it:
+**6. The test suite** — 43 cases (36 for checks A–F + 7 for check G). `py3-yaml` is required — check G
+parses `repos.yaml` with pyyaml, exactly as the CI `linear-sync` step now does:
 
 ```
-docker run --rm --entrypoint sh -v "$PWD":/w -w /w bats/bats:latest -c "apk add --no-cache python3 >/dev/null 2>&1; bats scripts/tests/linear-sync.bats"
+docker run --rm --entrypoint sh -v "$PWD":/w -w /w bats/bats:latest -c "apk add --no-cache python3 py3-yaml >/dev/null 2>&1; bats scripts/tests/linear-sync.bats"
 ```
 
-Expected: `23 tests, 0 failures`.
+Expected: `43 tests, 0 failures`.
+
+## Check G — repo ↔ Linear-project parity (added 2026-09-23)
+
+Every ACTIVE repo in `repos.yaml` maps 1:1 to a live Linear Project (`linear_project:` = the project
+NAME). Check G resolves each against a live **projects** query — not the issue snapshot, because an empty
+scaffold project has zero issues and never appears there. Live `--list` map (RUN 2026-09-23):
+
+```
+--- repos.yaml active-repo -> Linear project (check G) ---
+  weyland-lab                            -> Weyland Lab                        [OK]
+  stud.io                                -> Stud.IO                            [OK]
+  Algopedia                              -> Algopedia                          [OK]
+  ServiceTransformation                  -> Service Transformation             [OK]
+  emangini-tailwind-nextjs-contentlayer  -> emangini-tailwind-nextjs-contentlayer [OK]
+  startme-curator                        -> start.me Curator                   [OK]
+  freejack                               -> freejack                           [OK]
+  MyBodyGraph                            -> MyBodyGraph                        [OK]
+```
+
+**Negative case — a repo added with no project (the onboarding gap), against fixtures:**
+
+```
+cd /tmp && printf '### B1 — x — **DONE**\nLinear: EMA-1.\n' > gb.md \
+  && printf '{"EMA-1":{"stateType":"completed","state":"Done","project":"Weyland Lab","priority":2,"title":"B1 — x"}}' > gs.json \
+  && printf 'repos:\n  - name: NewRepo\n    status: active\n' > grepos.yaml \
+  && printf '["Weyland Lab"]' > gp.json \
+  && BACKLOG_FILE=/tmp/gb.md LINEAR_SNAPSHOT_JSON=/tmp/gs.json LINEAR_PROJECTS_JSON=/tmp/gp.json \
+     REPOS_FILE=/tmp/grepos.yaml bash ~/IdeaProjects/weyland/scripts/check-linear-sync.sh; echo "EXIT=$?"
+```
+
+Expected: `ACTIVE REPOS WITH NO linear_project` naming `NewRepo`, and **`EXIT=1`**. Zero live projects, or
+an unreadable `repos.yaml`, is **`EXIT=2`** (fail closed — a token/API failure must not read as "all mapped").
+`onboard-repo.sh <repo>` prints the create-project step; automating it is [B159].
 
 ## What it found on its own first runs
 
@@ -101,6 +138,8 @@ Worth reading as a record of how a guard earns trust — it was wrong three time
 
 ## Teardown
 
-Steps 1, 2, 6 are read-only. Steps 3–5 write fixtures under `/tmp`:
-`rm -f /tmp/b.md /tmp/s.json /tmp/b2.md /tmp/s2.json`. Nothing mutates Linear or the backlog — the
-guard has no write path at all, and the API key needs only read scope.
+Steps 1, 2, 6 and the check-G `--list` are read-only. Steps 3–5 and the check-G negative case write
+fixtures under `/tmp`:
+`rm -f /tmp/b.md /tmp/s.json /tmp/b2.md /tmp/s2.json /tmp/gb.md /tmp/gs.json /tmp/grepos.yaml /tmp/gp.json`.
+Nothing mutates Linear or the backlog — the guard has no write path at all, and the API key needs only
+read scope.
