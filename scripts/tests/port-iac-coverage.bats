@@ -312,29 +312,3 @@ PY
   [[ "$output" == *"Deliberately UI-managed"* ]]
   [[ "$output" == *"Integration-owned"* ]]
 }
-
-# --- B178: Port-unreachable (exit 2) is DISTINCT from real drift (exit 1) -----------------------
-# So the CI step can warn-and-continue on a Port OUTAGE without hard-blocking the whole pipeline,
-# while a genuine IaC drift still blocks. Found 2026-09-24 when a Port outage pinned the pipeline.
-
-@test "Port UNREACHABLE (cannot authenticate) exits 2 — reserved for outages, not drift (B178)" {
-  # No PORT_LIVE_*_JSON → the live branch runs and calls port_token; empty creds + a nonexistent
-  # env file make auth fail deterministically with no network. That must be exit 2, not 1.
-  write_code
-  run env PORT_TF_DIR="$TFDIR" PORT_ENV_FILE="$WORK/none.env" PORT_CLIENT_ID="" PORT_CLIENT_SECRET="" \
-    bash "$GUARD"
-  [ "$status" -eq 2 ]
-}
-
-@test "a drift finding is exit 1 (BLOCKS), never exit 2 (2 is reserved for Port-unreachable) (B178)" {
-  write_live; write_code
-  # a live blueprint with no code definition — the canonical drift this guard exists to catch
-  python3 - "$WORK/bp.json" <<'PY'
-import json,sys
-p=sys.argv[1]; d=json.load(open(p))
-d["blueprints"].append({"identifier":"deployment","relations":{}})
-json.dump(d,open(p,"w"))
-PY
-  run guard
-  [ "$status" -eq 1 ]
-}

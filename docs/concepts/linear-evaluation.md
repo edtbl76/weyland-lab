@@ -252,7 +252,7 @@ MyBodyGraph→"MyBodyGraph".
 **Guarded (2026-09-23).** `check-linear-sync.sh` gained **check G** — every active repo's `linear_project`
 resolves against a live Linear **projects** query (not the issue snapshot: an empty project has no issues and
 so never appears there). G1 flags an active repo with no `linear_project` (the onboarding gap); G2 flags a name
-Linear no longer has. Fail-closed (zero projects / unreadable SoT = exit 2). 43 bats at the time (46 after B178's outage split), TDD Red→Green, live run
+Linear no longer has. Fail-closed (zero projects / unreadable SoT = exit 2). 43 bats, TDD Red→Green, live run
 green (8/8 mapped). `onboard-repo.sh` prints the create-project step when a new repo is added. The `linear-sync`
 CI step apk-adds `py3-yaml` for the `repos.yaml` parse.
 

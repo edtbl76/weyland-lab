@@ -155,10 +155,7 @@ steps:
         from_secret: port_client_secret
     commands:
       - apk add --no-cache bash curl python3 >/dev/null
-      # B178: exit 2 = Port itself UNREACHABLE (external outage) → WARN and continue, so a Port outage
-      # does not hard-block the ENTIRE pipeline (incl. deploys). exit 1 = real IaC drift → still blocks.
-      # `|| rc=$?` captures the code without the step shell aborting first.
-      - 'rc=0; bash scripts/check-port-iac-coverage.sh || rc=$?; if [ "$rc" = "2" ]; then echo "WARN - Port unreachable, IaC coverage NOT verified this run (non-blocking, B178)"; exit 0; fi; exit "$rc"'
+      - bash scripts/check-port-iac-coverage.sh
 
   # ── 1b3. DoD Pillar 5 — backlog/Linear reconciliation (B148 follow-on) ──────
   # SEPARATE from repo-guards for the same reason as the step above: it needs a credential, and
@@ -189,9 +186,7 @@ steps:
         from_secret: linear_api_key
     commands:
       - apk add --no-cache bash curl python3 py3-yaml >/dev/null
-      # B178: exit 3 = Linear itself UNREACHABLE (outage/rate-limit) → WARN and continue, so a Linear outage
-      # cannot hard-block the whole pipeline. exit 1 (drift) and 2 (broken guard: no key/401/bad response) block.
-      - 'rc=0; bash scripts/check-linear-sync.sh || rc=$?; if [ "$rc" = "3" ]; then echo "WARN - Linear unreachable, backlog/Linear sync NOT verified this run (non-blocking, B178)"; exit 0; fi; exit "$rc"'
+      - bash scripts/check-linear-sync.sh
 
   # ── 1c. shellcheck the shell surface ────────────────────────────────────────
   # --severity=warning on purpose. At `note` the repo has 3 findings, and two of them are noise that
@@ -238,7 +233,7 @@ steps:
       # git, 0 with it. This is the SECOND time this exact step has been silently red for a missing
       # tool — jq was the first, two days earlier. A green local run hides both, because a dev box
       # has git and jq.
-      - apk add --no-cache python3 py3-yaml jq git curl >/dev/null   # curl: port-iac-coverage.bats live-branch test reaches the curl check (B178)
+      - apk add --no-cache python3 py3-yaml jq git >/dev/null
       - bats scripts/tests/
 
   # ── 1c. complexity triage (B162) — GATING ───────────────────────────────────
@@ -322,7 +317,7 @@ steps:
     image: bats/bats:latest
     commands:
       # Same package set as the shell-tests step above; keep them in step if either changes.
-      - apk add --no-cache python3 py3-yaml jq git bash curl >/dev/null   # curl: port-iac-coverage.bats live-branch test (B178)
+      - apk add --no-cache python3 py3-yaml jq git bash >/dev/null
       - bash scripts/run-lang-tests.sh shell --self-check
       - bash scripts/run-lang-tests.sh shell
 
@@ -1099,8 +1094,5 @@ steps:
       - |
         printf '{"number":%s,"status":"%s","repo":"%s","branch":"%s","commit":"%s","event":"%s","url":"%s"}' \
           "$CI_PIPELINE_NUMBER" "$CI_PIPELINE_STATUS" "$CI_REPO" "$CI_COMMIT_BRANCH" "$CI_COMMIT_SHA" "$CI_PIPELINE_EVENT" "$CI_PIPELINE_URL" > /tmp/port.json
-        # B178: bounded + best-effort. This is a telemetry side-channel (the B63 CI-reliability signal), not a
-        # gate — a Port outage must not turn a fully green pipeline red on its last step. A failed post is still
-        # visible: the WARN below, and a missing run on the Port dashboard.
-        curl -sf --connect-timeout 10 --max-time 20 -X POST "$PORT_INGEST_URL" -H "Content-Type: application/json" -d @/tmp/port.json \
-          || echo "WARN - could not post CI status to Port (non-blocking, B178)"
+        # Bounded so a hung Port fails fast rather than pinning the step.
+        curl -sf --connect-timeout 10 --max-time 20 -X POST "$PORT_INGEST_URL" -H "Content-Type: application/json" -d @/tmp/port.json

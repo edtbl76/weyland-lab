@@ -139,22 +139,15 @@ question and is the only thing that can catch the disease recurring.
 
 It reads the **`.tf` files**, not `tofu state`: state answers "what does tofu know about", and a resource can sit
 in state with no code behind it — exactly the condition B60's unexecuted `state rm` left the component entities in
-for weeks. It fails closed on an empty live list or an unparseable `.tf`. Covered by 20 bats tests in
-`scripts/tests/port-iac-coverage.bats`, each mutation-verified.
-
-**Exit codes (B178):** `0` = live matches code · `1` = real DRIFT, or a broken guard (missing python/curl,
-empty/garbage payload) — **blocks** · `2` = Port itself is **UNREACHABLE** (no token / connect+read timeout /
-non-200 auth; the curls are bounded by `--connect-timeout 10 --max-time 25`). Exit 2 is distinct from drift on
-purpose so an **external Port outage does not hard-block the whole pipeline** — it is still a loud "could not
-verify" (never a silent pass), but the CI step treats it as a warning.
+for weeks. It fails closed on an unreachable API, an empty live list, or an unparseable `.tf`. Covered by 18 bats
+tests in `scripts/tests/port-iac-coverage.bats`, each mutation-verified. The Port curls are bounded
+(`--connect-timeout 10 --max-time 25`) so a hung API fails the step fast instead of pinning it — it still fails.
 
 **CI wiring:** step `port-iac-coverage` in `.woodpecker.yml` — it is the one guard here that needs credentials
 (`port_client_id` / `port_client_secret`), which is why it is a separate step from `repo-guards` (pure file
-analysis, no secrets). The step runs the guard and translates the exit code: `2` → print a WARN and `exit 0`
-(non-blocking, so a Port outage cannot pin the pipeline incl. deploys); `1` → `exit 1` (real drift still blocks);
-`0` → pass. This replaced the old `failure: ignore`-until-creds-exist wiring, which would have made **every**
-Port failure — outage or drift — silently advisory. Found 2026-09-24: a Port outage timed out the auth endpoint
-and killed the entire pipeline for pipelines that only touched unrelated code.
+analysis, no secrets). It is a **hard gate**: any non-zero exit — drift, a broken guard, or Port being unreachable —
+fails the pipeline. (A warn-and-continue path for Port outages was added during the 2026-09-24 Port outage and
+**removed the same day**: fail-closed is the policy; an outage blocking CI is accepted.)
 
 ## OpenTofu port-provider gotchas
 
