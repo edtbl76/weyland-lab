@@ -189,6 +189,85 @@ _wire_mixed() {
   echo "$output" | grep -qE 'could not reconcile.*edtbl76/bad'
 }
 
+# --- STALE = main changed what the PR touches, not merely "behind" (2026-09-25) ------------------------------
+# `behind` alone made STALE unreachable to escape on a busy trunk: main takes ~16 commits/day, so every nightly
+# `@dependabot recreate` was behind again by morning and weyland-lab #63/#72/#80 looped on recreate for days
+# with ZERO overlap. The regression the rule exists for (2026-09-21, #63 downgrading cryptography) needs main
+# to have changed the PR's OWN dependency files. So: STALE iff main changed a file in a DIRECTORY the PR touches
+# since the merge base. Anything unprovable (lookup failed / empty / truncated) stays STALE — over-flagging costs
+# one harmless recreate; under-flagging merges a downgrade. Stub shapes observed on the live API 2026-09-25:
+# `pulls/<n>/files` -> one filename per line; `compare/<branch>...main` -> "<commits> <files>" then filenames.
+
+_one_dependabot_pr() {
+  local ci="${1:-SUCCESS}"
+  printf '[{"number":30,"title":"Bump aiohttp","headRefName":"dependabot/pip/svc/genre-trainer/aiohttp-ffffffff","createdAt":"2026-09-01T00:00:00Z","isDraft":false,"statusCheckRollup":[{"conclusion":"%s"}]}]' "$ci"
+}
+
+_wire_behind() {   # $1 = CI conclusion, then the main-side answer (exit, stdout)
+  stub_dispatch gh
+  stub_case gh 'pr list' 0 "$(_one_dependabot_pr "$1")"
+  stub_case gh 'compare/main...dependabot/pip/svc/genre-trainer/aiohttp-ffffffff' 0 'diverged'
+  stub_case gh 'pulls/30/files' 0 "$(printf 'svc/genre-trainer/requirements.in\nsvc/genre-trainer/requirements.txt')"
+}
+
+@test "behind, but main changed NOTHING the PR touches + CI green -> MERGEABLE, no recreate" {
+  _wire_behind SUCCESS
+  stub_case gh 'compare/dependabot/pip/svc/genre-trainer/aiohttp-ffffffff...main' 0 "$(printf '16 3\n.woodpecker.yml\ndocs/backlog.md\nsvc/weyland-dagster/requirements.txt')"
+  run bash "$GUARD" --repo edtbl76/test --apply
+  [ "$status" -eq 0 ]
+  echo "$output" | grep -q '#30 \[MERGEABLE\]'
+  not_called_with gh 'issues/30/comments'
+}
+
+@test "the #63 replay: main changed a dependency file in the PR's directory -> STALE + recreate" {
+  _wire_behind SUCCESS
+  # main hand-remediated cryptography in the SAME requirements file the stale PR carries.
+  stub_case gh 'compare/dependabot/pip/svc/genre-trainer/aiohttp-ffffffff...main' 0 "$(printf '4 2\nsvc/genre-trainer/requirements.txt\ndocs/backlog.md')"
+  run bash "$GUARD" --repo edtbl76/test
+  [ "$status" -eq 0 ]
+  echo "$output" | grep -q '#30 \[STALE\]'
+}
+
+@test "overlap is by DIRECTORY: main edited requirements.in, PR touches only requirements.txt -> STALE" {
+  stub_dispatch gh
+  stub_case gh 'pr list' 0 "$(_one_dependabot_pr SUCCESS)"
+  stub_case gh 'compare/main...dependabot/pip/svc/genre-trainer/aiohttp-ffffffff' 0 'behind'
+  stub_case gh 'pulls/30/files' 0 'svc/genre-trainer/requirements.txt'
+  stub_case gh 'compare/dependabot/pip/svc/genre-trainer/aiohttp-ffffffff...main' 0 "$(printf '1 1\nsvc/genre-trainer/requirements.in')"
+  run bash "$GUARD" --repo edtbl76/test
+  echo "$output" | grep -q '#30 \[STALE\]'
+}
+
+@test "unprovable: the main-side lookup returns nothing -> STALE, never MERGEABLE" {
+  _wire_behind SUCCESS
+  run bash "$GUARD" --repo edtbl76/test
+  [ "$status" -eq 0 ]
+  echo "$output" | grep -q '#30 \[STALE\]'
+}
+
+@test "unprovable: the main-side compare is TRUNCATED (300 files) -> STALE" {
+  _wire_behind SUCCESS
+  stub_case gh 'compare/dependabot/pip/svc/genre-trainer/aiohttp-ffffffff...main' 0 "$(printf '40 300\ndocs/backlog.md')"
+  run bash "$GUARD" --repo edtbl76/test
+  echo "$output" | grep -q '#30 \[STALE\]'
+}
+
+@test "unprovable: the PR's own file list is empty -> STALE" {
+  stub_dispatch gh
+  stub_case gh 'pr list' 0 "$(_one_dependabot_pr SUCCESS)"
+  stub_case gh 'compare/main...dependabot/pip/svc/genre-trainer/aiohttp-ffffffff' 0 'diverged'
+  stub_case gh 'compare/dependabot/pip/svc/genre-trainer/aiohttp-ffffffff...main' 0 "$(printf '2 1\ndocs/backlog.md')"
+  run bash "$GUARD" --repo edtbl76/test
+  echo "$output" | grep -q '#30 \[STALE\]'
+}
+
+@test "behind, no overlap, but CI red -> NEEDS-HUMAN (not STALE, not MERGEABLE)" {
+  _wire_behind FAILURE
+  stub_case gh 'compare/dependabot/pip/svc/genre-trainer/aiohttp-ffffffff...main' 0 "$(printf '16 1\ndocs/backlog.md')"
+  run bash "$GUARD" --repo edtbl76/test
+  echo "$output" | grep -q '#30 \[NEEDS-HUMAN\]'
+}
+
 @test "unknown argument fails closed (exit 2)" {
   stub_dispatch gh
   run bash "$GUARD" --wat

@@ -49,14 +49,15 @@ data:
     # motivated it) and docs/runbooks/pr-lifecycle.md.
     #
     # WHAT IT DOES. Enumerates open MANAGED PRs (dependabot + `ci/image-bump-*`), and for each lands a verdict:
-    #   STALE        — branch has diverged from main (compare.status = diverged|behind). Merging a stale bump can
+    #   STALE        — branch is behind main AND main has since changed a file in a directory the PR touches
+    #                  (drift_overlap; unprovable = overlap). Plain `behind` is not enough (2026-09-25). Merging a stale bump can
     #                  silently REGRESS main (a stale branch carries pre-remediation pins — e.g. it would downgrade
     #                  a hand-remediated CVE fix). NEVER merge; `@dependabot recreate` re-cuts it against current
     #                  main (which cannot regress) and auto-closes it if the bump is already satisfied.
     #   SUPERSEDED   — a NEWER managed PR targets the same directory+package. Merging the older one after the newer
     #                  rolls that dependency BACKWARDS (the #12-after-#13 trap). Close it, referencing the newer.
     #   NEEDS-HUMAN  — current but CI is red (or it is a major-version bump). A person decides.
-    #   MERGEABLE    — current AND CI-green. Safe to merge (left to a human in v1; a future --merge could gate it).
+    #   MERGEABLE    — current (or behind only on unrelated directories) AND CI-green. Safe to merge (left to a human).
     #
     # WHY A SAFE PRIMITIVE INSTEAD OF A PERFECT DETECTOR. mergeStateStatus lies (reports a regressive PR as
     # "MERGEABLE" when main is unprotected); the compare-API file list truncates at 300 files (a very-behind PR's
@@ -145,6 +146,38 @@ data:
         echo "ERROR"; return 0
       fi
       case "$out" in ahead|behind|diverged|identical) echo "$out" ;; *) echo "ERROR" ;; esac
+    }
+
+    # Does main's drift since the merge base touch what this PR touches? (2026-09-25.) Being merely `behind` made
+    # STALE inescapable on a busy trunk: main takes ~16 commits/day, so each nightly recreate was behind again by
+    # morning and weyland-lab #63/#72/#80 looped on recreate for days with ZERO overlap. The regression STALE guards
+    # against (#63, 2026-09-21: downgrading a hand-remediated cryptography pin) needs main to have changed the PR's
+    # OWN dependency files — so overlap is judged by DIRECTORY (a main edit to requirements.in still stales a PR that
+    # only touches requirements.txt). Prints "overlap" or "clear". Anything unprovable — a failed/empty lookup, or a
+    # compare GitHub truncated (300 files / 250 commits) — prints "overlap": over-flagging costs one harmless
+    # recreate; under-flagging could merge a downgrade.
+    drift_overlap() {
+      local repo="$1" num="$2" branch="$3" pr_files main_out head
+      pr_files="$("$GH_BIN" api "repos/$repo/pulls/$num/files" --paginate --jq '.[].filename' 2>/dev/null)" || { echo overlap; return 0; }
+      [ -n "$pr_files" ] || { echo overlap; return 0; }
+      main_out="$("$GH_BIN" api "repos/$repo/compare/$branch...main" \
+        --jq '"\(.total_commits) \(.files|length)", (.files[].filename)' 2>/dev/null)" || { echo overlap; return 0; }
+      head="$(printf '%s\n' "$main_out" | head -n1)"
+      case "$head" in
+        [0-9]*" "[0-9]*) ;;
+        *) echo overlap; return 0 ;;
+      esac
+      # GitHub caps compare at 250 commits / 300 files — past that the file list is incomplete, so no proof.
+      if [ "${head% *}" -gt 250 ] || [ "${head#* }" -ge 300 ]; then echo overlap; return 0; fi
+      local pr_dirs main_dirs
+      # dirname per line; a root-level file (no `/`) maps to "." so two root files still count as overlapping.
+      pr_dirs="$(printf '%s\n' "$pr_files" | sed 's|/[^/]*$||; t; s|.*|.|' | sort -u)"
+      main_dirs="$(printf '%s\n' "$main_out" | tail -n +2 | sed 's|/[^/]*$||; t; s|.*|.|' | sort -u)"
+      if [ -n "$(comm -12 <(printf '%s\n' "$pr_dirs") <(printf '%s\n' "$main_dirs"))" ]; then
+        echo overlap
+      else
+        echo clear
+      fi
     }
 
     # age in whole days from an ISO-8601 createdAt (best-effort; blank/unparseable -> "?").
@@ -254,8 +287,9 @@ data:
             echo "FATAL: could not compare main...$branch in $REPO (fail closed — a stale bump can regress main)." >&2
             exit 2
           fi
-          if [ "$st" = "diverged" ] || [ "$st" = "behind" ]; then
-            verdict="STALE"; rec="@dependabot recreate (re-cut against current main)"
+          # Behind main is only a hazard when main's drift touches the PR's directories (see drift_overlap).
+          if { [ "$st" = "diverged" ] || [ "$st" = "behind" ]; } && [ "$(drift_overlap "$REPO" "$num" "$branch")" = "overlap" ]; then
+            verdict="STALE"; rec="@dependabot recreate (main changed what it touches — re-cut against current main)"
             stale=$((stale+1)); ACT_RECREATE+=("$num")
           elif [ "$ci" = "fail" ] || [ "$ci" = "pending" ]; then
             verdict="NEEDS-HUMAN"; rec="current but CI $ci — review"

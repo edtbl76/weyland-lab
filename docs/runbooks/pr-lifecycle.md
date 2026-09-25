@@ -303,7 +303,7 @@ repo with `--repo <owner/repo>` (testing / targeted):
 
 | Verdict | Meaning | Recommendation |
 |---|---|---|
-| `STALE` | a **dependabot** PR whose branch has diverged from main (`compare.status` = diverged/behind) | `@dependabot recreate` — re-cut against current main |
+| `STALE` | a **dependabot** PR whose branch is behind main (`compare.status` = diverged/behind) **and** main has since changed a file in a **directory the PR touches** (unprovable = stale) | `@dependabot recreate` — re-cut against current main |
 | `SUPERSEDED` | a **newer** managed PR targets the same dir+package | close (merging the older rolls that dep backwards) |
 | `MERGEABLE` | dependabot: current + CI-green · image-bump: the newest survivor | merge (the image-bump survivor IS the ship loop) |
 | `NEEDS-HUMAN` | current but CI red / pending | review |
@@ -316,6 +316,17 @@ not trust `mergeStateStatus`; it leans on the `compare` API and resolves via `@d
 re-cuts against current main and therefore **cannot** regress). Over-flagging `STALE` costs one harmless
 recreate; failing OPEN would merge a downgrade — so the guard **fails closed** (an unresolvable `compare` is
 exit 2, never "current").
+
+**STALE means main touched the PR's directories — not merely "behind" (2026-09-25).** The first rule flagged any
+branch behind main. On a trunk taking ~16 commits a day that was inescapable: each nightly recreate was behind
+again by morning, and weyland-lab #63/#72/#80 looped on `@dependabot recreate` from 2026-09-22 with **zero**
+overlap (none of the 38 files main changed touched their dependency files), so they could never reach
+`MERGEABLE`. The 2026-09-21 downgrade needed main to have edited the PR's *own* requirements file. So the check
+is now: behind **and** main changed a file in a directory the PR touches since the merge base (`drift_overlap`:
+`pulls/<n>/files` vs `compare/<branch>...main`). Judged by **directory**, so a main edit to `requirements.in`
+still stales a PR that only touches `requirements.txt`. Anything unprovable — a failed or empty lookup, or a
+compare GitHub truncated (>250 commits / 300 files) — counts as overlap, i.e. `STALE`: the harmless recreate is
+still the default whenever the guard cannot prove safety.
 
 `ci/image-bump` PRs are class-distinct: they are the B57a ship loop, not dependabot's, so `@dependabot
 recreate` is meaningless for them — only the **newest survives** (older siblings are `SUPERSEDED` → closed;
