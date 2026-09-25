@@ -112,8 +112,14 @@ provider `insecure = true` (self-signed cert). No phantom here — bpg's source 
 ## GitHub lane (done) — `tofu/github/`
 `integrations/github` provider (`~> 6.0`), auth via env `GITHUB_TOKEN` (PAT, `repo` scope), `owner = "edtbl76"`.
 The **weyland-lab repo** codified (`repo.tf`) via CLI import — strip computed fields (`etag`, `fork`) + create-only
-template fields (`gitignore_template`, `source_owner/repo`); pin `has_downloads`. `ignore_vulnerability_alerts_during_read`
-is deprecated (cosmetic warning, kept to avoid a perpetual diff). Branch protection / webhooks can be added here later.
+template fields (`gitignore_template`, `source_owner/repo`); leave `has_downloads` UNSET (deprecated by GitHub, reads false live — pinning it was a permanent plan diff, removed 2026-09-24). `ignore_vulnerability_alerts_during_read`
+is deprecated (cosmetic warning, kept to avoid a perpetual diff). Webhooks can be added here later.
+
+**Branch protection — stud.io (codified 2026-09-25, `stud_io_protection.tf`).** stud.io's `main` has two layers,
+both imported (`-generate-config-out`, then cleaned): classic branch protection (PR required, 0 approvals) and the
+`main` ruleset (same rule; repo admins may bypass). The required status check `ci/woodpecker/pr/main` was REMOVED:
+since B57 put stud.io CI on weyland's LAN-only Woodpecker (2026-08-18), GitHub can't deliver PR webhooks to it, so no
+PR could ever satisfy the check and every merge needed an admin bypass. Change protection here, never in the UI.
 
 ## Deliberately NOT codified (justified skips)
 - **Port entities, dashboards, and most pages**: live **data**, not authored config. tofu would fight the writers
