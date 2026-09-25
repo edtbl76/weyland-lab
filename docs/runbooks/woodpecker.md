@@ -192,9 +192,21 @@ run, no error, no metric — and `next_exec` simply freezes at its first-ever sl
 
 | Repo | Secret | Events |
 |---|---|---|
-| 2 `weyland-lab` | `github_token` | `cron`, `manual` |
-| 2 `weyland-lab` | `port_ingest_url` | `cron`, `manual` |
-| 1 `stud.io` | `sonar_token`, `minio_svc_access_key`, `minio_svc_secret_key` | `push`, `manual` |
+| 2 `weyland-lab` | `cosign_key`, `github_token`, `port_client_id`, `port_client_secret`, `port_ingest_url` | `cron`, `manual` |
+| 2 `weyland-lab` | `linear_api_key` (**READ-ONLY** key = `LINEAR_API_KEY_RO` in `scripts/.env`), `sonar_token` | `cron`, `manual`, `push` |
+| 1 `stud.io` | `sonar_token`, `minio_svc_access_key`, `minio_svc_secret_key` | `manual`, `push` |
+| 1 `stud.io` | `port_ingest_url` | `manual`, `pull_request`, `push` |
+
+(Re-listed live 2026-09-24 with `woodpecker-cli repo secret ls <repo>` — the table had drifted: `cosign_key`,
+`port_client_*`, `linear_api_key` and `sonar_token` were missing.)
+
+**Rotate/set a repo secret** (canonical command; value read from `scripts/.env`, never pasted; re-state EVERY
+event — see below). `linear_api_key` holds the **read-only** Linear key: `check-linear-sync.sh` only reads, and
+the write-capable `LINEAR_API_KEY` stays local for the view/initiative scripts (least privilege, 2026-09-24):
+
+```bash
+set -a && . /home/edwardmangini/IdeaProjects/weyland/scripts/.env && set +a && woodpecker-cli repo secret update --repository edtbl76/weyland-lab --name linear_api_key --value "$LINEAR_API_KEY_RO" --event cron --event manual --event push
+```
 
 The **events list is part of the secret**, not decoration: a secret that exists but does not cover the triggering
 event produces a whole-config **PARSE** error ("secret not found"), not a failed step.

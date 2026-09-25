@@ -17,7 +17,8 @@ resource "github_repository" "weyland_lab" {
   has_projects                = true
   has_wiki                    = true
   has_discussions             = false
-  has_downloads               = true
+  # has_downloads deliberately UNSET: deprecated by GitHub (no UI), live reads false, and pinning `true`
+  # was a permanent plan diff. Unset = unmanaged, matching every repo in repos_generated.tf.
 
   allow_merge_commit          = true
   allow_squash_merge          = true
