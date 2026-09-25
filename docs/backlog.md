@@ -3688,7 +3688,7 @@ Linear: TBD. Relates **B135** (added the gate this extends), B131, B49 (observab
 
 ---
 
-### B139 — Overnight window collision: nightly image build vs the 02:17 ingestion — **LOW (measured 2026-08-23; was MEDIUM)**
+### B139 — Overnight window collision: nightly image build vs the 02:17 ingestion — **DONE 2026-09-25 (closed as a Spike: measured 2026-08-23, no collision — do not move the cron; Linear EMA-226)**
 
 **Measure first, then decide.** The `nightly-images` Woodpecker cron fires at **01:00 NY**; `weyland_ingestion_job` fires at **02:17**. That is a **77-minute window**, and nobody knows how long a three-image build takes — the cron was created `enabled:false` on 2026-08-18 and had never run until it was enabled 2026-08-22, so there is no cron-triggered duration on record.
 
