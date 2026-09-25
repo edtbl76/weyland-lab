@@ -392,7 +392,7 @@ investment (done — seeded B175's loop library in the Bifrost registry, consuma
 **Findings along the way:**
 - **One straggler from the priority-label migration:** EMA-101 (B108) still carried the retired `Low` label — one of the silently dropped MCP writes from the 61-issue strip. Removed; its priority *field* was already Low.
 - **Blocking chains is 2, not the raw 3:** a naive scan counts EMA-111 and EMA-30, which "block" **EMA-46 — already completed**. Linear's `hasBlockingRelations` correctly ignores blocks on finished work, so the view is right; those two relations are stale and could be removed.
-- **The local `LINEAR_API_KEY` has WRITE scope** (it created these views), while `check-linear-sync.sh` describes its token as read-scoped. The guard only needs read; least privilege says the CI secret `linear_api_key` should be a read-only key.
+- **The local `LINEAR_API_KEY` has WRITE scope** (it created these views), while `check-linear-sync.sh` describes its token as read-scoped. The guard only needs read; least privilege says the CI secret `linear_api_key` should be a read-only key. **Done 2026-09-24:** `linear_api_key` now holds a read-only key (`LINEAR_API_KEY_RO`; writes return `FORBIDDEN`), green on CI pipeline 182; rotation command in `docs/runbooks/woodpecker.md`.
 
 **Addendum (2026-09-24, operator request) — the "High × project" set.** One `High · <project>` view per **open** project
 (8: Algopedia, emangini-tailwind-nextjs-contentlayer, freejack, MyBodyGraph, rogueone Hardware, Service Transformation,

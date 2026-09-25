@@ -25,10 +25,10 @@ an enforced lane drifts, and an onboarding helper walks a new repo to parity.
 |---|---|---|
 | `pr` | `k8s/pr-lifecycle/pr-staleness.yaml` `REPOS` (surface) **+** `scripts/check-pr-lifecycle.sh` `REPOS` (reconcile) | **enforced** — two consumers, guarded as `pr` + `pr(recon)`; keep both lists identical. Reconcile `--apply` needs a **write** PAT (staleness only reads). |
 | `catalog` | `tofu/port/b137_integrations.tf` `.name \| IN(...)` selector | **enforced** |
-| `iac` | `tofu/github/*.tf` `github_repository` resources | pending — needs `tofu import` per repo |
+| `iac` | `tofu/github/*.tf` `github_repository` resources | **enforced** (since 2026-09-15) — `tofu import` per repo, then codify the imported state |
 | `scan` | `k8s/code-quality/scan-suite.yaml` `SCAN_REPOS` env | **enforced** — the vuln suite's `scan-all.sh` loops the 21 tools over every repo in `SCAN_REPOS` (clones public+private with the pr-lifecycle `Contents:read` token). SonarQube multi-repo is a follow-on (its Java analyzer needs per-repo compiled binaries). |
 | `backup` | `nodes/rogueone/backup/backup-repos.conf` (local paths) | **enforced** — matched by each repo's SoT `backup_path` (a checkout folder can differ from the repo name; freejack is under `~/Documents/Education`), and an allow-list path claimed by no repo is flagged as an orphan |
-| `ci` | a `.woodpecker.yml` inside each repo + Woodpecker activation | per-repo; verified by the onboard checklist, not centrally |
+| `ci` | **Woodpecker activation**, read by an anonymous `GET /api/repos/lookup/<owner>/<repo>` (in-cluster `woodpecker-server`, else `http://mother:30980`; override `WOODPECKER_URL`) | **enforced** (2026-09-24) — `lanes.ci: true` ⇔ activated. Before this `ci: true` was an unchecked claim (7 of 9 repos said it with no pipeline); those are now `ci: false` + `except.ci`. No secret needed (repo-guards stays secret-free). **Private-repo limit:** anonymously a private repo answers `401` whether activated or not, so `ci: true` on a PRIVATE repo is unverifiable and the guard exits 2 — the first private repo to get CI needs an authenticated lookup added to the guard (a read token in the step) at that time. Unreachable Woodpecker = exit 2. |
 
 ## Check coverage (the canonical op)
 
@@ -53,7 +53,14 @@ enforced lanes green, 1 = an enforced lane drifted, 2 = guard broken.
    then `bash scripts/embed-pr-lifecycle.sh` to re-embed, Port `IN(...)` selectors, backup path, `tofu import`
    for iac), the **per-repo files** in the target repo (`.woodpecker.yml`, scan configs), and the **manual** steps
    (Woodpecker activation, private-repo access).
-4. **Verify:** `bash scripts/check-repo-coverage.sh` — the lanes you brought to parity now show `✓`. Promote a lane
+4. **CI lane — start at `ci: false`, flip to `true` on activation.** A new repo has no pipeline yet, so add it
+   with `ci: false` + `except: { ci: "no pipeline yet ..." }`. When the repo gets its `.woodpecker.yml` **and** is
+   activated (`woodpecker-cli repo add <owner>/<repo>`), flip `lanes.ci: true` and drop the `except.ci` note **in
+   the same change**. The guard fails either way round — `ci: true` before activation ("missing"), or activated
+   while still `ci: false` ("unexpected") — so the flip cannot be forgotten or done early. `onboard-repo.sh` prints
+   this step even while `ci` is false. The same rule applies when **updating** an existing repo (adding or removing
+   its pipeline, or deactivating it in Woodpecker): change `lanes.ci` in the same change.
+5. **Verify:** `bash scripts/check-repo-coverage.sh` — the lanes you brought to parity now show `✓`. Promote a lane
    into `enforce:` once it is at full parity so future drift blocks CI.
 
 ## Reconcile drift (guard went red)

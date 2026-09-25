@@ -18,7 +18,10 @@
 #
 # Test seams (override any path for bats fixtures):
 #   REPOS_YAML, PR_STALENESS_FILE, PR_RECONCILE_FILE, PORT_INTEGRATIONS_FILE, TOFU_GITHUB_DIR, SCAN_SUITE_FILE,
-#   BACKUP_CONF_FILE
+#   BACKUP_CONF_FILE, WOODPECKER_REPOS_JSON ({"<repo>": "active"|"inactive"|"unknown"}), WOODPECKER_URL
+#
+# The ci lane is the ONE lane read over the network (Woodpecker activation, anonymous — no secret); every other
+# lane is pure file analysis. Unreachable Woodpecker = exit 2. See docs/runbooks/repo-coverage.md.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -124,8 +127,59 @@ bk = {n for n, bp in declared_bp.items() if bp and bp in conf_paths}
 actual["backup"] = bk
 orphan_bp = sorted(p for p in conf_paths if p not in set(filter(None, declared_bp.values())))
 
-# ci — configured by a .woodpecker.yml inside each repo (+ Woodpecker server activation); not centrally visible.
-actual["ci"] = None  # reported as checklist, never guard-compared
+# ci — Woodpecker ACTIVATION per repo (2026-09-24). Until then `ci: true` was an unchecked claim: 7 of 9 repos
+# said it and had no pipeline. Activation is read with an ANONYMOUS lookup (no secret — repo-guards stays
+# secret-free): 200 + active:true = activated; 404, or 401 on a PUBLIC repo = not activated. A PRIVATE repo
+# answers 401 whether activated or not, so it is "unknown" — acceptable only when the SoT says ci:false (nothing
+# is being claimed); a ci:true claim that cannot be verified is exit 2. Fixture seam: WOODPECKER_REPOS_JSON =
+# {"<repo>": "active"|"inactive"|"unknown"}, which must answer for EVERY SoT repo.
+import json, urllib.request, urllib.error
+owner_default = sot.get("owner_default", "edtbl76")
+
+def wp_state_live(base, r):
+    url = f"{base}/api/repos/lookup/{r.get('owner', owner_default)}/{r['name']}"
+    try:
+        with urllib.request.urlopen(url, timeout=15) as resp:
+            body = json.load(resp)
+            return "active" if body.get("active") is True else "inactive"
+    except urllib.error.HTTPError as e:
+        if e.code == 404:
+            return "inactive"
+        if e.code == 401:
+            return "unknown" if r.get("visibility") == "private" else "inactive"
+        die_broken(f"Woodpecker lookup of {r['name']} returned HTTP {e.code}")
+    except Exception as e:
+        die_broken(f"Woodpecker lookup of {r['name']} failed: {e}")
+
+def wp_base():
+    cands = [os.environ["WOODPECKER_URL"]] if os.environ.get("WOODPECKER_URL") else \
+        ["http://woodpecker-server.woodpecker.svc.cluster.local", "http://mother:30980"]
+    for c in cands:
+        try:
+            with urllib.request.urlopen(f"{c}/healthz", timeout=5) as resp:
+                if resp.status in (200, 204):
+                    return c
+        except Exception:
+            continue
+    die_broken(f"Woodpecker unreachable at {', '.join(cands)} — cannot verify the ci lane")
+
+fx = os.environ.get("WOODPECKER_REPOS_JSON")
+if fx:
+    try:
+        wp = json.loads(read(fx))
+    except Exception as e:
+        die_broken(f"cannot parse WOODPECKER_REPOS_JSON: {e}")
+    unanswered = [n for n in names if n not in wp]
+    if unanswered:
+        die_broken(f"WOODPECKER_REPOS_JSON does not answer for: {', '.join(unanswered)}")
+else:
+    base = wp_base()
+    wp = {r["name"]: wp_state_live(base, r) for r in repos}
+unverifiable = sorted(n for n in expected["ci"] if wp.get(n) == "unknown")
+if unverifiable:
+    die_broken(f"ci:true claimed but Woodpecker activation is unverifiable anonymously (private repo): "
+               f"{', '.join(unverifiable)}")
+actual["ci"] = {n for n, st in wp.items() if st == "active"}
 
 # --- compare ------------------------------------------------------------------------------
 fail = 0
@@ -135,9 +189,6 @@ for lane in ALL_LANES:
     act = actual[lane]
     enforced = lane in enforce
     tag = "ENFORCED" if enforced else "pending "
-    if act is None:
-        print(f"  [{tag}] {lane:8} — per-repo (.woodpecker.yml in each repo); verify via onboard-repo checklist")
-        continue
     missing = sorted(exp - act)      # expected here but absent
     extra   = sorted(act - exp)      # present here but NOT expected (stale/retired lingering, or off-SoT)
     if not missing and not extra:

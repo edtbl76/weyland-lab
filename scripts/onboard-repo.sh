@@ -52,7 +52,9 @@ STEPS = {
     "scan":    ("in-repo", "Add .deepsource.toml + .coderabbit.yaml + .sourcery.yaml to the {n} repo, AND generalize "
                            "the central scan orchestrators (scan-suite.yaml / sonar-scan.yaml / scan.py) to iterate repos.yaml."),
     "ci":      ("in-repo", "Add a .woodpecker.yml to the {n} repo AND activate it in Woodpecker "
-                           "(woodpecker-cli repo add {owner}/{n}); server-side, not in this tree."),
+                           "(woodpecker-cli repo add {owner}/{n}); THEN flip `lanes.ci: true` in repos.yaml and drop "
+                           "its `except.ci` note. The guard compares ci against Woodpecker activation, so flip it only "
+                           "AFTER activation (claimed-but-not-activated fails, and so does activated-but-still-false)."),
 }
 ORDER = ["catalog", "pr", "backup", "iac", "scan", "ci"]
 
@@ -89,6 +91,12 @@ for l in want:
     kind, tmpl = STEPS[l]
     enf = "ENFORCED by check-repo-coverage.sh" if l in enforce else "pending (guard reports, does not block)"
     print(f"\n  [{l}] ({kind}; {enf})")
+    print("    " + tmpl.format(n=name, owner=owner, slug=name.replace('-', '_').replace('.', '_')))
+# ci is the lane a repo usually JOINS LATER (it needs a pipeline first), so while it is false the step is still
+# shown — otherwise a repo onboarded with `ci: false` would never be told how to flip it (2026-09-24).
+if "ci" in skip and entry.get("status", "active") == "active":
+    kind, tmpl = STEPS["ci"]
+    print(f"\n  [ci] (in-repo; NOT YET — lanes.ci is false; do this when the repo gets a pipeline)")
     print("    " + tmpl.format(n=name, owner=owner, slug=name.replace('-', '_').replace('.', '_')))
 if skip:
     print("\nLanes intentionally skipped (lanes.<x> not true — keep a reasoned `except` note in repos.yaml): "

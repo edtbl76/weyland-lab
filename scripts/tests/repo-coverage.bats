@@ -28,6 +28,9 @@ EOF
   printf '    REPOS="${PR_REPOS:-edtbl76/weyland-lab edtbl76/freejack}"\n' > "$PR_STALENESS_FILE"
   printf '"query" = ".name | IN(\\"weyland-lab\\", \\"freejack\\")"\n' > "$PORT_INTEGRATIONS_FILE"
   : > "$SCAN_SUITE_FILE"; : > "$BACKUP_CONF_FILE"
+  # ci lane: Woodpecker activation per repo. A fixture answers for EVERY repo so no test touches the network.
+  export WOODPECKER_REPOS_JSON="$TMP/wp.json"
+  printf '{"weyland-lab":"inactive","freejack":"inactive"}' > "$WOODPECKER_REPOS_JSON"
 }
 teardown() { rm -rf "$TMP"; }
 
@@ -167,4 +170,69 @@ EOF
   run bash "$GUARD"
   [ "$status" -eq 2 ]
   [[ "$output" == *"guard broken"* ]]
+}
+
+# --- ci lane: repos.yaml `lanes.ci` vs Woodpecker ACTIVATION (2026-09-24) ---------------------------------------
+# `ci: true` used to be an unchecked claim: 7 of 9 repos said it and had no pipeline. The ci lane is now compared
+# against Woodpecker's per-repo activation. Fixture values: active | inactive | unknown (an anonymous lookup of a
+# PRIVATE repo cannot tell activated from not — 401 either way).
+
+ci_sot() {
+  printf 'enforce: [ci]\nrepos:\n  - name: weyland-lab\n    lanes: { ci: true }\n  - name: freejack\n    visibility: private\n    lanes: { ci: false }\n' > "$REPOS_YAML"
+}
+
+@test "ci: a ci:true repo that IS activated in Woodpecker -> parity" {
+  ci_sot
+  printf '{"weyland-lab":"active","freejack":"inactive"}' > "$WOODPECKER_REPOS_JSON"
+  run bash "$GUARD"
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"ci       — ✓ parity (1 repos)"* ]]
+}
+
+@test "ci: a ci:true repo NOT activated in Woodpecker -> exit 1 (the 7-repo false claim)" {
+  ci_sot
+  printf '{"weyland-lab":"inactive","freejack":"inactive"}' > "$WOODPECKER_REPOS_JSON"
+  run bash "$GUARD"
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"ci"*"missing: weyland-lab"* ]]
+}
+
+@test "ci: a ci:false repo that IS activated -> exit 1 (flip it to true)" {
+  ci_sot
+  printf '{"weyland-lab":"active","freejack":"active"}' > "$WOODPECKER_REPOS_JSON"
+  run bash "$GUARD"
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"ci"*"unexpected: freejack"* ]]
+}
+
+@test "ci: a ci:true repo whose activation is UNKNOWABLE -> exit 2, named" {
+  ci_sot
+  printf '{"weyland-lab":"unknown","freejack":"inactive"}' > "$WOODPECKER_REPOS_JSON"
+  run bash "$GUARD"
+  [ "$status" -eq 2 ]
+  [[ "$output" == *"weyland-lab"* ]]
+  [[ "$output" == *"guard broken"* ]]
+}
+
+@test "ci: a ci:false PRIVATE repo whose activation is unknown is NOT a failure" {
+  ci_sot
+  printf '{"weyland-lab":"active","freejack":"unknown"}' > "$WOODPECKER_REPOS_JSON"
+  run bash "$GUARD"
+  [ "$status" -eq 0 ]
+}
+
+@test "ci: a fixture that does not answer for every repo -> exit 2" {
+  ci_sot
+  printf '{"weyland-lab":"active"}' > "$WOODPECKER_REPOS_JSON"
+  run bash "$GUARD"
+  [ "$status" -eq 2 ]
+  [[ "$output" == *"freejack"* ]]
+}
+
+@test "ci: Woodpecker unreachable (live mode) -> exit 2, never a pass" {
+  ci_sot
+  unset WOODPECKER_REPOS_JSON
+  WOODPECKER_URL="http://127.0.0.1:9" run bash "$GUARD"
+  [ "$status" -eq 2 ]
+  [[ "$output" == *"Woodpecker"* ]]
 }

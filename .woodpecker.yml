@@ -85,7 +85,8 @@ steps:
       - bash scripts/check-app-registry.sh
       # B138 — every repo-watching lane (pr-staleness, Port github integration, …) must match the canonical
       # repos.yaml SoT for its ENFORCED lanes, or a repo silently goes unwatched (found 1..6-repo divergence).
-      # Pure file analysis; pending lanes are reported, not enforced, so the guard grows incrementally.
+      # File analysis, plus the ci lane: an ANONYMOUS Woodpecker activation lookup (no secret, in-cluster svc).
+      # Pending lanes are reported, not enforced, so the guard grows incrementally.
       - bash scripts/check-repo-coverage.sh
       - bash scripts/check-quality-tools.sh
       - bash scripts/check-sa-automount-collisions.sh
