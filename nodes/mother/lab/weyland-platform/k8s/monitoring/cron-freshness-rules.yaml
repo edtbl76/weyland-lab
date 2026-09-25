@@ -71,7 +71,7 @@ spec:
         # every other live CronJob was covered and the watchdog was not.
         - alert: ScheduledJobStale
           expr: |
-            time() - kube_cronjob_status_last_successful_time{cronjob=~"minio-backup|pg-backup|postgres-backup|docs-site-rebuild|pr-staleness-check|cron-freshness-check|port-pr-reconcile|pr-lifecycle-reconcile|servicemonitor-coverage|dashboard-coverage|alert-coverage|datahub-coverage|image-provenance|api-drift|zoekt-index"} > 93600
+            time() - kube_cronjob_status_last_successful_time{cronjob=~"docs-site-rebuild|pr-staleness-check|cron-freshness-check|port-pr-reconcile|pr-lifecycle-reconcile|servicemonitor-coverage|dashboard-coverage|alert-coverage|datahub-coverage|image-provenance|api-drift|zoekt-index"} > 93600
           for: 1h
           labels:
             severity: warning
@@ -80,6 +80,26 @@ spec:
           annotations:
             summary: "Daily CronJob {{ $labels.cronjob }} has not succeeded in over 26h"
             description: "Last success was {{ $value | humanizeDuration }} ago in namespace {{ $labels.namespace }}. A daily job silently not running is the failure mode that cost four days on nightly-images."
+
+        # BACKUPS — the same daily 26h budget, but CRITICAL (2026-09-25). minio-backup sat in ImagePullBackOff for
+        # 13 DAYS (2026-09-11 -> 25; minio/mc vanished from Docker Hub). ScheduledBackupFailed below is critical but
+        # keys on kube_job_status_failed — and a pod that cannot pull its image never FAILS, the Job just stays
+        # active. So the backups paged critical only for the failure mode that did not happen; the one that did
+        # ("has not succeeded at all") was a `warning` among ~300 Telegram messages a day, and nobody saw it. A
+        # backup that has not SUCCEEDED within budget is lost data whatever the cause — failed, stuck, suspended —
+        # so this rule pages at the same severity as the failure rule. Kept as `ScheduledJobStale` (not a new
+        # name) so check-cron-freshness-budgets.sh still verifies the budget. Guarded: cron-freshness-rules.bats.
+        - alert: ScheduledJobStale
+          expr: |
+            time() - kube_cronjob_status_last_successful_time{cronjob=~"minio-backup|pg-backup|postgres-backup"} > 93600
+          for: 1h
+          labels:
+            severity: critical
+            source: cron-freshness
+            cadence: daily
+          annotations:
+            summary: "BACKUP {{ $labels.cronjob }} has not succeeded in over 26h — data is unprotected"
+            description: "Last success was {{ $value | humanizeDuration }} ago in namespace {{ $labels.namespace }}. Whatever the cause (failed, stuck pulling its image, suspended), the MinIO buckets (mlflow models, tofu state — irreplaceable) or database dumps are not being backed up. The 2026-09 incident was 13 days of this at warning."
 
         # weekly (Sunday) → 8d budget. sonar-scan 08:00 · code-scan-suite 09:00.
         # NOT 24h: on 2026-08-23 sonar-scan read 160.8h since last success and was entirely on
