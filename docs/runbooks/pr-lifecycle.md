@@ -51,8 +51,15 @@ job's own manifest:
 |---|---|---|
 | every 30m | `dagster-freshness-check` | 2h |
 | every 6h | `lancedb-sync` | 8h |
-| daily | `minio-backup` · `pg-backup` · `postgres-backup` · `docs-site-rebuild` · `pr-staleness-check` · `cron-freshness-check` · `port-pr-reconcile` · `pr-lifecycle-reconcile` | 26h |
+| daily — **backups, CRITICAL** | `minio-backup` · `pg-backup` · `postgres-backup` | 26h |
+| daily | `docs-site-rebuild` · `pr-staleness-check` · `cron-freshness-check` · `port-pr-reconcile` · `pr-lifecycle-reconcile` | 26h |
 | weekly (Sun) | `sonar-scan` · `code-scan-suite` | 8d |
+
+**The backups' freshness rule pages CRITICAL (2026-09-25)** — the same severity as their failure rule. A backup
+Job stuck in `ImagePullBackOff` never *fails*, so `ScheduledBackupFailed` alone missed 13 days of no MinIO backup
+(storage-minio.md § "mc client image"). "Has not succeeded within budget" is lost data whatever the cause.
+Behaviour-tested with `promtool test rules` (a 28h-stale backup → critical, a 28h-stale non-backup → warning);
+structure pinned by `scripts/tests/cron-freshness-rules.bats`.
 
 **Budgets are per-cadence deliberately.** A blanket "no success in 24h" would false-fire on both
 weekly jobs every single week, and a permanently-lit alert is worse than no alert — which is exactly

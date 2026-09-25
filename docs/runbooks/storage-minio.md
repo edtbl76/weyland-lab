@@ -208,7 +208,8 @@ Verify against the live store before bumping (read-only): `mc alias set src http
 **Why no CRITICAL alert fired for 13 days.** `ScheduledBackupFailed` (critical) matches `kube_job_status_failed` —
 but a pod stuck in `ImagePullBackOff` never FAILS; the Job stays active forever. Only the warning-level
 `ScheduledJobStale` / `KubeJobNotCompleted` fired, every 4h, among ~12 standing warnings (~300 Telegram
-messages/day). A backup that cannot start must page as loudly as one that fails.
+messages/day). A backup that cannot start must page as loudly as one that fails — **fixed 2026-09-25:** the
+backups' `ScheduledJobStale` rule is now `critical` (see pr-lifecycle.md § budgets), so this outage pages on day 2.
 
 ### 7. Web UI — Filestash (the MinIO console is dead)
 **The MinIO community web console was stripped/removed in 2025** — login fails with a
