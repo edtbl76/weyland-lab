@@ -81,6 +81,14 @@ The provider's **source type (`port-labs`) ≠ its resource prefix (`port_`)**. 
 - Add a resource: write the block (or generate + strip `provider`), `tofu import …`, `tofu plan` until no-op.
 - Change config: edit the `.tf`, `tofu plan`, `tofu apply`. State round-trips through MinIO automatically.
 - New lane: new `tofu/<lane>/` dir + its own `backend "s3"` key.
+- **Format before you push — CI enforces it.** `scripts/check-tofu-fmt.sh` (the `repo-guards` step, 2026-09-24)
+  runs `tofu fmt -check` on every `.tf` directory under `nodes/` (a new lane is picked up automatically). Exit 1 =
+  a directory needs formatting; exit 2 = a file does not parse (or no tofu / no directories). Fix, then confirm the
+  change is whitespace-only:
+  ```
+  [rogueone] cd /home/edwardmangini/IdeaProjects/weyland/nodes/mother/lab/weyland-platform/tofu/<lane> && tofu fmt && git diff -w --stat .
+  ```
+  Check the whole repo the way CI does: `bash /home/edwardmangini/IdeaProjects/weyland/scripts/check-tofu-fmt.sh`.
 
 ## Proxmox lane (done) — `tofu/proxmox/`
 All **3 guests imported** (brownfield CLI `tofu import <addr> <node>/<vmid>`, e.g. `weyland/103`): CTs

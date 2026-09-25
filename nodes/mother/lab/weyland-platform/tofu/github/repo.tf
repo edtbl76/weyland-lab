@@ -1,22 +1,22 @@
 # weyland-lab repo — codified from the live GitHub repo. Computed fields (etag, fork) + create-only template
 # fields (gitignore_template, license_template, source_owner/repo, archive_on_destroy) dropped. Imported.
 resource "github_repository" "weyland_lab" {
-  name                        = "weyland-lab"
-  description                 = ""
-  homepage_url                = ""
-  visibility                  = "public"
-  topics                      = []
-  is_template                 = false
-  archived                    = false
-  auto_init                   = false
+  name         = "weyland-lab"
+  description  = ""
+  homepage_url = ""
+  visibility   = "public"
+  topics       = []
+  is_template  = false
+  archived     = false
+  auto_init    = false
 
-  vulnerability_alerts                    = true   # B89: enable Dependabot vulnerability alerts (trivy GIT-0003)
+  vulnerability_alerts                    = true # B89: enable Dependabot vulnerability alerts (trivy GIT-0003)
   ignore_vulnerability_alerts_during_read = false
 
-  has_issues                  = true
-  has_projects                = true
-  has_wiki                    = true
-  has_discussions             = false
+  has_issues      = true
+  has_projects    = true
+  has_wiki        = true
+  has_discussions = false
   # has_downloads deliberately UNSET: deprecated by GitHub (no UI), live reads false, and pinning `true`
   # was a permanent plan diff. Unset = unmanaged, matching every repo in repos_generated.tf.
 

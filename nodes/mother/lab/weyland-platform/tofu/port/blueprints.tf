@@ -108,11 +108,11 @@ resource "port_blueprint" "security_scan" {
         title               = "Target Repo"
       }
       tool = {
-        date_format = null
-        default     = null
-        description = null
-        enum        = null
-        enum_colors = null
+        date_format         = null
+        default             = null
+        description         = null
+        enum                = null
+        enum_colors         = null
         format              = null
         icon                = null
         max_length          = null

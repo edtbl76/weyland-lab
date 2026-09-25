@@ -318,8 +318,8 @@ resource "port_blueprint" "component" {
         title       = "Data Application"
       }
     }
-    number_props  = null
-    object_props  = null
+    number_props = null
+    object_props = null
     string_props = {
       datahub_application_url = {
         date_format         = null

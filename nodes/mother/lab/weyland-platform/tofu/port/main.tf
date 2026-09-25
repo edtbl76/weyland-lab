@@ -18,12 +18,12 @@ terraform {
     bucket                      = "tofu-state"
     key                         = "port/terraform.tfstate"
     region                      = "us-east-1"
-    use_path_style              = true   # MinIO requires path-style addressing
-    skip_credentials_validation = true   # the AWS-isms below don't apply to MinIO
+    use_path_style              = true # MinIO requires path-style addressing
+    skip_credentials_validation = true # the AWS-isms below don't apply to MinIO
     skip_requesting_account_id  = true
     skip_metadata_api_check     = true
     skip_region_validation      = true
-    skip_s3_checksum            = true   # MinIO chokes on the newer AWS checksum trailers
+    skip_s3_checksum            = true # MinIO chokes on the newer AWS checksum trailers
   }
 }
 

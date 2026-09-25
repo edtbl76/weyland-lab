@@ -9,7 +9,7 @@ terraform {
 
   required_providers {
     proxmox = {
-      source = "bpg/proxmox"   # version unpinned for the first init; pin to whatever it installs (see lock file)
+      source = "bpg/proxmox" # version unpinned for the first init; pin to whatever it installs (see lock file)
     }
   }
 
@@ -28,5 +28,5 @@ terraform {
 }
 
 provider "proxmox" {
-  insecure = true   # Proxmox ships a self-signed cert; endpoint + api_token come from env (PROXMOX_VE_*).
+  insecure = true # Proxmox ships a self-signed cert; endpoint + api_token come from env (PROXMOX_VE_*).
 }

@@ -28,5 +28,5 @@ terraform {
 }
 
 provider "github" {
-  owner = "edtbl76"   # token from env GITHUB_TOKEN
+  owner = "edtbl76" # token from env GITHUB_TOKEN
 }

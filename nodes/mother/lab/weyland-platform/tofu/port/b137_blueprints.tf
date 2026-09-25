@@ -588,7 +588,7 @@ resource "port_blueprint" "deployment" {
         unit        = null
       }
     }
-    object_props  = null
+    object_props = null
     string_props = {
       pull_request_url = {
         date_format         = null

@@ -72,7 +72,7 @@ steps:
   - name: repo-guards
     image: node:24-alpine
     commands:
-      - apk add --no-cache bash python3 py3-yaml jq >/dev/null   # jq: check-odcs-contracts.sh (B157)
+      - apk add --no-cache bash python3 py3-yaml jq opentofu >/dev/null   # jq: check-odcs-contracts.sh (B157); opentofu: check-tofu-fmt.sh
       # The mermaid parser needs its own resolution root: ESM ignores NODE_PATH, so a global install
       # does not satisfy a bare `import "mermaid"`. Built here per-run rather than baked into an image.
       # Deliberately NOT @mermaid-js/mermaid-cli — that pulls puppeteer + headless Chromium, which
@@ -89,6 +89,9 @@ steps:
       # Pending lanes are reported, not enforced, so the guard grows incrementally.
       - bash scripts/check-repo-coverage.sh
       - bash scripts/check-quality-tools.sh
+      # Every OpenTofu dir under nodes/ must pass `tofu fmt -check` — 7 files had drifted unnoticed (2026-09-24),
+      # burying real diffs in re-alignment noise. Parse errors are exit 2, not a formatting finding.
+      - bash scripts/check-tofu-fmt.sh
       - bash scripts/check-sa-automount-collisions.sh
       # B140 — a CronJob's cadence lives on three surfaces (manifest schedule · schedules.md ·
       # the freshness budget). Nothing kept them honest, so relaxing a schedule silently made
