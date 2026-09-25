@@ -1,0 +1,25 @@
+# Weekly DOCKER image prune on mother — the sibling of weyland-image-prune.service, which prunes only k3s's
+# containerd (`k3s crictl rmi --prune`) and never touches Docker's separate image store (/var/lib/containerd).
+# Found 2026-09-25: Docker held 202 images (3 in use), ~270 GiB — leftovers from building images by hand on
+# mother (CI has built through the in-cluster BuildKit since B57a). Pruning them took the rootfs 81% -> 58% and
+# cleared NodeRootDiskWarning. Nothing pruned them before, so they would simply grow back.
+#
+# `-a --filter until=168h`: removes every image no container uses that is older than 7 days — recent hand-builds
+# stay cached, and images used by existing containers (running or stopped) are never removed.
+#
+# Deploy (manual rsync — paired with weyland-docker-prune.timer):
+#   rsync -av nodes/mother/host/systemd/weyland-docker-prune.{service,timer} emangini@mother:/tmp/
+#   sudo install -m 0644 /tmp/weyland-docker-prune.service /tmp/weyland-docker-prune.timer /etc/systemd/system/
+#   sudo systemctl daemon-reload && sudo systemctl enable --now weyland-docker-prune.timer
+# Verify (runs it once now, then shows the result):
+#   sudo systemctl start weyland-docker-prune.service && systemctl status weyland-docker-prune.service --no-pager
+[Unit]
+Description=Prune unused Docker images older than 7 days (mother rootfs)
+Wants=docker.service
+After=docker.service
+
+[Service]
+Type=oneshot
+# Bare `docker` (not an absolute path): systemd >= 239 resolves it via /usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin,
+# so it works whether Docker is packaged at /usr/bin (docker-ce) or /usr/local/bin.
+ExecStart=docker image prune -af --filter until=168h

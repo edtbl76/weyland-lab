@@ -1,0 +1,16 @@
+# Weekly trigger for weyland-docker-prune.service — Sun 00:10 America/New_York, pinned to the NY zone in the
+# OnCalendar spec itself (Design Rule #1: one clock; mother's host clock is UTC, a bare time would drift an hour
+# with DST). Pre-dawn per Design Rule #5 (no mid-day auto-runs): the free slot between the 00:05
+# feast_materialize_job and the 00:20 timeseries job, hours clear of the 02:17 HEAVY ingestion. (The older sibling
+# weyland-image-prune runs Sun 11:00 NY — it predates Rule #5; see docs/schedules.md.)
+# Persistent = catch-up if the box was off at fire time.
+[Unit]
+Description=Weekly Docker image prune
+
+[Timer]
+OnCalendar=Sun 00:10 America/New_York
+Persistent=true
+RandomizedDelaySec=120
+
+[Install]
+WantedBy=timers.target
