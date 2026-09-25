@@ -125,6 +125,16 @@ this webhook. See [[project-backlog]] B89 (drive the findings to zero) as the fo
 `requirements.txt` (from each service's `pip freeze`). osv now reads real versions → phantoms gone. To re-pin after an
 intentional bump: rebuild the image (or exec the running pod) and `pip freeze > requirements.txt`.
 
+**Remediating a pin: edit BOTH files (2026-09-25).** Dependabot treats `requirements.in` as the pip-compile
+SOURCE. genre-trainer's `.in` was never updated when `main` hand-remediated `.txt` (cryptography 50.0.0, mlflow
+3.15.1, aiohttp 3.14.3), so every dependabot re-cut of weyland-lab #63 regenerated `.txt` from the stale `.in` and
+downgraded them again, re-opening 4 CVEs. Only Sourcery's check stopped the merge. `scripts/check-requirements-sync.sh`
+(the `repo-guards` CI step) now fails when any exact `==` pin in a `requirements.in` disagrees with, or is missing
+from, its `requirements.txt`. Loose `.in` entries (`>=`, bare names) are not compared. Check by hand:
+```
+[rogueone] bash /home/edwardmangini/IdeaProjects/weyland/scripts/check-requirements-sync.sh
+```
+
 **B92 (ranger creds, 2026-07-20):** the last real finding — `ranger.yaml`'s ConfigMap shipped 9 plaintext dev passwords —
 is fixed: they now live in the `ranger-admin-secret` SealedSecret and a `render-install-props` initContainer substitutes
 them into `install.properties` at startup (see [ranger.md](ranger.md)). **`KSV-0109` is now blanket-accepted** in

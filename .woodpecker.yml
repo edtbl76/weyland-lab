@@ -92,6 +92,9 @@ steps:
       # Every OpenTofu dir under nodes/ must pass `tofu fmt -check` — 7 files had drifted unnoticed (2026-09-24),
       # burying real diffs in re-alignment noise. Parse errors are exit 2, not a formatting finding.
       - bash scripts/check-tofu-fmt.sh
+      # Every exact pin in a service's requirements.in must match its requirements.txt. dependabot compiles FROM
+      # the .in, so a stale pin there regenerated a cryptography/mlflow downgrade on every re-cut (#63, 2026-09-25).
+      - bash scripts/check-requirements-sync.sh
       - bash scripts/check-sa-automount-collisions.sh
       # B140 — a CronJob's cadence lives on three surfaces (manifest schedule · schedules.md ·
       # the freshness budget). Nothing kept them honest, so relaxing a schedule silently made
