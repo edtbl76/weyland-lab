@@ -115,8 +115,9 @@ for dirpath, _, files in os.walk(root):
                 n = (d.get("metadata") or {}).get("name")
                 s = (d.get("spec") or {}).get("schedule")
                 tz = (d.get("spec") or {}).get("timeZone") or ""
+                ttl = ((d.get("spec") or {}).get("jobTemplate") or {}).get("spec", {}).get("ttlSecondsAfterFinished")
                 if n and s:
-                    print(f"{n}\t{s}\t{tz}")
+                    print(f"{n}\t{s}\t{tz}\t{'' if ttl is None else ttl}")
 PY
 }
 
@@ -192,7 +193,7 @@ main() {
 
   local fail=0 checked=0 name sched tz period budget row fcount
   printf '%-26s %-16s %-10s %-10s %-13s %s\n' "CRONJOB" "SCHEDULE" "PERIOD" "BUDGET" "SCHEDULES.MD" "FAILURE"
-  while IFS=$'\t' read -r name sched tz; do
+  while IFS=$'\t' read -r name sched tz ttl; do
     [ -n "$name" ] || continue
     checked=$((checked + 1))
 
@@ -237,6 +238,17 @@ main() {
     # would be noise — the kind that teaches people to silence a guard.
     if [ -z "$tz" ] && [ "$period" -ge 86400 ]; then
       echo "  ❌ ${name} sets no spec.timeZone — a fixed-time schedule then runs in UTC, not NY (Design Rule #1)" >&2
+      fail=1
+    fi
+
+    # A failed Job must not alert FOREVER (2026-09-25). With no TTL a failed Job lives until someone
+    # deletes it by hand, and ScheduledJobFailed / KubeJobFailed fire the whole time — through every later
+    # success (pr-lifecycle-reconcile-29834365: 3 days; sonar-repos-eyeson-2: 9). Permanently-lit alerts are
+    # how 13 days of no MinIO backup went unread. B140 WANTS a failure to alert even after later successes,
+    # so this is a BOUND, not instant resolution: >= 24h keeps a failure visible (and its pod's logs) for a
+    # day+; the lab standard is 72h (259200).
+    if ! [[ "${ttl:-}" =~ ^[0-9]+$ ]] || [ "$ttl" -lt 86400 ]; then
+      echo "  ❌ ${name}: jobTemplate.spec.ttlSecondsAfterFinished is ${ttl:-unset} — must be >= 86400 (lab standard 259200), or a failed Job alerts forever" >&2
       fail=1
     fi
   done <<<"$jobs"

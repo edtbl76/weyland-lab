@@ -49,6 +49,7 @@ spec:
   failedJobsHistoryLimit: 2
   jobTemplate:
     spec:
+      ttlSecondsAfterFinished: 259200   # 72h: a failed Job alerts (and keeps its logs) for 3 days, then clears — never forever (2026-09-25)
       backoffLimit: 1
       template:
         spec:

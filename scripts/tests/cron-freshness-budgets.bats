@@ -185,3 +185,45 @@ PY
   [ "$status" -eq 0 ]
   [[ "$output" == *"minio-backup"* ]]
 }
+
+# --- failed Jobs must not alert FOREVER (2026-09-25) ---------------------------------------
+# No CronJob set ttlSecondsAfterFinished, so a failed Job lived until someone deleted it by hand —
+# and ScheduledJobFailed / KubeJobFailed kept firing the whole time: `pr-lifecycle-reconcile-29834365`
+# (a first-run token failure, fixed that day) fired for 3 days, `sonar-repos-eyeson-2` for 9, through
+# every later success. Permanently-lit alerts are how the real one (13 days of no MinIO backup) went
+# unread. B140 WANTS a failure to alert even after later successes — so the fix is a BOUND, not
+# instant resolution: every CronJob sets a TTL of at least 24h (a failure stays visible for a day+).
+
+_ttl_fixture() {  # _ttl_fixture <ttl-line-or-empty> -> a k8s dir with one real-named CronJob
+  mkdir -p "$STUB_DIR/k8s"
+  { printf 'apiVersion: batch/v1\nkind: CronJob\nmetadata: { name: minio-backup, namespace: minio }\n'
+    printf 'spec:\n  schedule: "30 22 * * *"\n  timeZone: America/New_York\n  jobTemplate:\n    spec:\n'
+    [ -n "$1" ] && printf '      %s\n' "$1"
+    printf '      template: { spec: { containers: [ { name: x, image: y } ] } }\n'; } > "$STUB_DIR/k8s/cj.yaml"
+}
+
+@test "ttl: every CronJob in the repo sets ttlSecondsAfterFinished >= 24h" {
+  run "$GUARD"
+  [ "$status" -eq 0 ]
+  [[ "$output" != *"ttlSecondsAfterFinished"* ]]
+}
+
+@test "ttl: a CronJob with NO ttlSecondsAfterFinished FAILS and is named" {
+  _ttl_fixture ""
+  CRON_K8S_DIR="$STUB_DIR/k8s" run "$GUARD"
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"minio-backup"*"ttlSecondsAfterFinished"* ]]
+}
+
+@test "ttl: a TTL under 24h FAILS — a failure must stay visible long enough to be seen" {
+  _ttl_fixture "ttlSecondsAfterFinished: 600"
+  CRON_K8S_DIR="$STUB_DIR/k8s" run "$GUARD"
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"minio-backup"*"ttlSecondsAfterFinished"* ]]
+}
+
+@test "ttl: a 72h TTL passes" {
+  _ttl_fixture "ttlSecondsAfterFinished: 259200"
+  CRON_K8S_DIR="$STUB_DIR/k8s" run "$GUARD"
+  [ "$status" -eq 0 ]
+}

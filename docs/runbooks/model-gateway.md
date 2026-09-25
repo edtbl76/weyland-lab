@@ -154,8 +154,9 @@ The valve lives on mother (k3s control plane) — Hermes has no kubectl and `/mc
 ./valve.sh open      # scale to 1
 ./valve.sh status
 ```
-The `LiteLLMEgressEnabled` alert (Telegram, via B5 Alertmanager) fires the whole time replicas > 0, so you
-can't forget the valve is open.
+**Is it open?** `./valve.sh status`. There is no longer an "egress enabled" alert: `LiteLLMEgressEnabled` fired the
+whole time replicas > 0, and LiteLLM is the permanent agentic lane, so it was lit permanently — pure noise, removed
+2026-09-25. The alert that guards the $0 budget is **`LiteLLMSpendObserved`** (> $5 of paid spend in 24h).
 
 ## 4. Wire Hermes (CT 104) — optional, default stays local
 

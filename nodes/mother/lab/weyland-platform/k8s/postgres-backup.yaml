@@ -28,6 +28,7 @@ spec:
   failedJobsHistoryLimit: 3
   jobTemplate:
     spec:
+      ttlSecondsAfterFinished: 259200   # 72h: a failed Job alerts (and keeps its logs) for 3 days, then clears — never forever (2026-09-25)
       backoffLimit: 1
       activeDeadlineSeconds: 1800  # 30 min — a wedged run (e.g. a stuck native-sidecar init) self-kills instead of
                                    # freezing ALL future backups via concurrencyPolicy: Forbid (the 12–13d wedge B45 caught).

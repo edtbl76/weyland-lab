@@ -11,16 +11,11 @@ spec:
   groups:
     - name: litellm-egress
       rules:
-        # Gate-open: fires the whole time the proxy is up. kube-state-metrics only —
-        # works even if LiteLLM's /metrics is unavailable. Primary signal.
-        - alert: LiteLLMEgressEnabled
-          expr: kube_deployment_status_replicas{namespace="weyland",deployment="litellm"} > 0
-          for: 2m
-          labels:
-            severity: warning
-          annotations:
-            summary: "LiteLLM hosted-model egress is RUNNING (off-LAN model access enabled)"
-            description: "Close the valve to disable: kubectl scale deploy/litellm -n weyland --replicas=0"
+        # LiteLLMEgressEnabled (gate-open: fired whenever replicas > 0) was REMOVED 2026-09-25. LiteLLM is the
+        # permanent agentic lane (gateway-lane-separation) and has run for 100+ days, so a "the valve is open"
+        # alert was lit permanently — one of ~12 standing warnings that buried 13 days of no MinIO backup. The
+        # valve is still there (valve.sh); what guards the $0 budget is SPEND, below. `./valve.sh status` answers
+        # "is it open?" on demand. (weyland-operator's INCIDENT_SKIP_ALERTS still names it — harmless, never fires.)
         # Spend: metric name CONFIRMED from /metrics (B55): litellm_spend_metric_total (counter; the series
         # materializes once a request logs spend). Threshold $5/24h (2026-08-04): the weyland-operator runs LOCAL
         # gpt-oss:20b as its primary brain and Haiku only as a HEALTH FAILOVER, so steady-state paid spend is ≈ $0.

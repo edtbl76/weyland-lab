@@ -147,6 +147,12 @@ scaled down — they back live services or the mesh.
    (`timeseries` 12:25 · `datahub_catalog_emit` 12:40 · `catalog` 12:50) firing at noon *on top of* a manual
    datasets-hydrate saturated mother (RAM 97% / CPU 105%, control plane unreachable). New periodic schedules are
    daily-overnight, not intraday. This rule is mirrored in the DoD.
+6. **Every k8s CronJob sets `jobTemplate.spec.ttlSecondsAfterFinished: 259200` (72h; 2026-09-25, incident-driven).**
+   Without it a failed Job lives until deleted by hand and `ScheduledJobFailed` / `KubeJobFailed` fire forever,
+   through every later success — `sonar-repos-eyeson-2` fired for 9 days, `pr-lifecycle-reconcile-29834365` for 3.
+   Those permanently-lit alerts are how 13 days of no MinIO backup went unread. 72h is a BOUND, not instant
+   resolution (B140 wants a failure to alert even after later successes): it stays visible, with its logs, for
+   three days. Guarded: `scripts/check-cron-freshness-budgets.sh` fails on a CronJob with no TTL or one under 24h.
 
 ## Change log
 
