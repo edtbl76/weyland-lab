@@ -82,7 +82,9 @@ if entry.get("status", "active") == "active":
     print("   • attach the project to its initiative (Lab & Systems ONLY if docs/backlog.md governs its work —")
     print("     that membership is what puts its issues in the weyland B-number checks; otherwise Music Studio /")
     print("     Helper Tools / Learning / My Work / Health and Fitness, or a new initiative).")
-    print("     Linear MCP: save_project(id=\"<project>\", addInitiatives=[\"<Initiative>\"]).\n")
+    print("     Linear MCP: save_project(id=\"<project>\", addInitiatives=[\"<Initiative>\"]).")
+    print("   • create its `High · <project>` workspace view (idempotent — skips existing, verifies every view):")
+    print("     set -a && . scripts/.env && set +a && python3 scripts/linear-high-project-views.py\n")
 
 want = [l for l in ORDER if lanes.get(l) is True]
 skip = [l for l in ORDER if lanes.get(l) is not True]
