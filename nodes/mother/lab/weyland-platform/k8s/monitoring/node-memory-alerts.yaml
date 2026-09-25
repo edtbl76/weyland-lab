@@ -20,14 +20,9 @@ spec:
     - name: node-memory
       rules:
         # --- node-level pressure (node-exporter) ---
-        - alert: NodeMemoryWarning
-          expr: |
-            (1 - node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes) > 0.90
-          for: 5m
-          labels: { severity: warning }
-          annotations:
-            summary: "{{ $labels.instance }} memory {{ $value | humanizePercentage }} used"
-            description: "Node RAM is running low. On this SINGLE-node cluster there is nowhere to reschedule — if it reaches the OOM line the kernel starts killing pods and the node can go unreachable. Find the hog: `kubectl top pods -A --sort-by=memory | tail`."
+        # NodeMemoryWarning (> 90%, 5m) was REMOVED 2026-09-25 — an exact duplicate of kube-prometheus-stack's built-in
+        # NodeMemoryHighUtilization (> 90%, 15m), so one condition sent two Telegram messages every 4h. The built-in
+        # covers the > 90% warning; this file keeps the > 95% CRITICAL page, which nothing else provides.
         - alert: NodeMemoryCritical
           expr: |
             (1 - node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes) > 0.95
