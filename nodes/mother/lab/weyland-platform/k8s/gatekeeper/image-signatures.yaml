@@ -180,7 +180,6 @@ spec:
       - grafana/                                  # mcp-grafana + pyroscope
       - langfuse/                                 # Langfuse web + worker
       - lightdash/                                # Lightdash BI
-      - minio/                                    # mc client
       - moby/                                     # BuildKit
       - neo4jlabs/                                # NeoDash
       - opensearchproject/                        # OpenSearch + Dashboards

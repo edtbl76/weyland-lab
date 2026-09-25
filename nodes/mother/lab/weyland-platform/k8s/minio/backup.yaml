@@ -40,9 +40,17 @@ spec:
       template:
         spec:
           restartPolicy: Never
+          # Chainguard's image defaults to uid 65532; the old minio/mc ran as root and every file on this PVC is
+          # root-owned, so `mc mirror --overwrite` needs root to replace them. Explicit, not accidental.
+          securityContext:
+            runAsUser: 0
           containers:
             - name: mc
-              image: minio/mc@sha256:a7fe349ef4bd8521fb8497f55c6042871b2ae640607cf99d9bede5e9bdf11727  # pinned from :latest 2026-07-10  # nosemgrep: yaml.kubernetes.security.run-as-non-root.run-as-non-root
+              # 2026-09-25: minio/mc VANISHED from Docker Hub (whole repo, not just this digest) and both mc CronJobs sat in
+              # ImagePullBackOff for 13 days (no MinIO backup since 2026-09-11). Now the Chainguard mc client MIRRORED into
+              # the lab registry (source cgr.dev/chainguard/minio-client:latest-dev, same digest) so an upstream deletion
+              # cannot break this again. Refresh procedure: docs/runbooks/storage-minio.md "mc client image".
+              image: registry.weyland.lab/minio-client:cg-2026-09-25@sha256:f0dd93b48af1f8a641edcd3c64661c8dbe05189bd2ef2f8cea216eb18af10bf8  # nosemgrep: yaml.kubernetes.security.run-as-non-root.run-as-non-root
               # B47 hardening: drop priv-esc + seccomp (see arch)
               securityContext:
                 allowPrivilegeEscalation: false

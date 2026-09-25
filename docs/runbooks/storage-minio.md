@@ -180,10 +180,35 @@ Fix: `sudo chown 1000:1000 /mnt/minio` on mother (the deployment pins `runAsUser
 
 **Validate (functional S3 round-trip):**
 ```bash
-kubectl run mc -it --rm --restart=Never --image=minio/mc -n minio --command -- sh
+kubectl run mc -it --rm --restart=Never --image=registry.weyland.lab/minio-client:cg-2026-09-25 --overrides='{"spec":{"securityContext":{"runAsUser":0}}}' -n minio --command -- sh
 # inside: mc alias set lab http://minio.minio.svc.cluster.local:9000 admin weyland_dev_password
 #         mc mb lab/smoke ; echo hi | mc pipe lab/smoke/o ; mc cat lab/smoke/o ; mc rb --force lab/smoke
 ```
+
+### mc client image — MIRRORED in the lab registry (2026-09-25)
+**`minio/mc` no longer exists on Docker Hub** — the whole repository is gone (`repository does not exist`), and
+`quay.io/minio/mc` refuses anonymous pulls. The two `mc` CronJobs (`minio/minio-backup`, `data-mesh/lancedb-sync`)
+pinned `minio/mc@sha256:a7fe…` and sat in `ImagePullBackOff` from 2026-09-11 to 2026-09-25: **no MinIO backup for
+13 days**, and `concurrencyPolicy: Forbid` meant each stuck Job blocked every later run.
+
+They now run `registry.weyland.lab/minio-client:cg-2026-09-25@sha256:f0dd93b4…` — Chainguard's `mc`
+(`cgr.dev/chainguard/minio-client:latest-dev`, the `-dev` variant because the jobs need `sh`) **copied into the lab
+registry**, so an upstream deletion can never break the backups again. Chainguard's image runs as uid 65532; the jobs
+set `runAsUser: 0` because every file already on the backup PVCs is root-owned (the old image ran as root).
+
+**Refresh the mirror** (new upstream digest → new dated tag → bump both CronJobs' `image:` to the new digest):
+```
+[rogueone] docker buildx imagetools inspect cgr.dev/chainguard/minio-client:latest-dev
+```
+```
+[rogueone] docker buildx imagetools create -t registry.weyland.lab/minio-client:cg-<YYYY-MM-DD> cgr.dev/chainguard/minio-client:latest-dev@<digest>
+```
+Verify against the live store before bumping (read-only): `mc alias set src http://mother:30990 …` then `mc ls src/tofu-state`.
+
+**Why no CRITICAL alert fired for 13 days.** `ScheduledBackupFailed` (critical) matches `kube_job_status_failed` —
+but a pod stuck in `ImagePullBackOff` never FAILS; the Job stays active forever. Only the warning-level
+`ScheduledJobStale` / `KubeJobNotCompleted` fired, every 4h, among ~12 standing warnings (~300 Telegram
+messages/day). A backup that cannot start must page as loudly as one that fails.
 
 ### 7. Web UI — Filestash (the MinIO console is dead)
 **The MinIO community web console was stripped/removed in 2025** — login fails with a
