@@ -66,7 +66,7 @@ resource "github_repository" "ServiceTransformation" {
 resource "github_repository" "emangini_tailwind_nextjs_contentlayer" {
   name                        = "emangini-tailwind-nextjs-contentlayer"
   visibility                  = "public"
-  homepage_url                = "https://tailwind-css-starter-blog-three-xi.vercel.app"
+  homepage_url                = "https://emangini.com"
   allow_auto_merge            = false
   allow_forking               = true
   allow_merge_commit          = true
