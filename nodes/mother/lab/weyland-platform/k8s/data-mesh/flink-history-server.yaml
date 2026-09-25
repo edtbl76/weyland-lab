@@ -44,6 +44,14 @@ spec:
           ports:
             - containerPort: 8082
               name: web
+          # 2026-09-25: no probe meant `1/1 Ready` the instant the JVM started, so ship-images.sh's SMOKE gate (which
+          # requires a readinessProbe) failed every flink image bump. /config is the History Server's cheapest REST
+          # call and answers only once the web server is up. Readiness only — a slow archive refresh never restarts it.
+          readinessProbe:
+            httpGet: { path: /config, port: 8082 }
+            initialDelaySeconds: 10
+            periodSeconds: 15
+            failureThreshold: 4
           resources:
             requests:
               cpu: 100m

@@ -313,7 +313,7 @@ repo with `--repo <owner/repo>` (testing / targeted):
 | `STALE` | a **dependabot** PR whose branch is behind main (`compare.status` = diverged/behind) **and** main has since changed a file in a **directory the PR touches** (unprovable = stale) | `@dependabot recreate` — re-cut against current main |
 | `SUPERSEDED` | a **newer** managed PR targets the same dir+package | close (merging the older rolls that dep backwards) |
 | `MERGEABLE` | dependabot: current + CI-green · image-bump: the newest survivor | merge (the image-bump survivor IS the ship loop) |
-| `NEEDS-HUMAN` | current but CI red / pending | review |
+| `NEEDS-HUMAN` | current but CI red / pending — **or its diff lowers a pinned version (REGRESSIVE)**, or the diff could not be read | review; a REGRESSIVE bump is closed and its source pins fixed, never merged |
 
 **Why `STALE` never merges — the regression trap.** A stale dependabot branch carries **pre-remediation
 pins**: merging it can silently DOWNGRADE a dependency main has already hand-remediated (found 2026-09-21 —
@@ -323,6 +323,16 @@ not trust `mergeStateStatus`; it leans on the `compare` API and resolves via `@d
 re-cuts against current main and therefore **cannot** regress). Over-flagging `STALE` costs one harmless
 recreate; failing OPEN would merge a downgrade — so the guard **fails closed** (an unresolvable `compare` is
 exit 2, never "current").
+
+**A "bump" can be a downgrade — the diff is read before MERGEABLE (2026-09-25).** weyland-lab #63 ("Bump aiohttp
+3.14.1 → 3.14.3") downgraded `cryptography` 50.0.0 → 48.0.1 and `mlflow` 3.15.1 → 3.14.0 (4 CVEs re-opened); #72
+("Bump soupsieve") downgraded `dagster-dbt` 0.29.14 → 0.10.9. Both were dependabot recompiling a stale
+`requirements.in` (now guarded by `scripts/check-requirements-sync.sh`), and with CI green this script called them
+MERGEABLE — only a Sourcery check stopped #63. `pr_downgrades` reads every otherwise-mergeable dependabot PR's diff
+(pip `==`, `go.mod`/`go.sum`, npm/yarn lockfiles); any pin that goes DOWN → `NEEDS-HUMAN` with
+`REGRESSIVE — downgrades <pkg old->new>`, plus a `verdict=REGRESSIVE` audit line. An unreadable diff is
+`NEEDS-HUMAN` too. `--apply` never acts on either. Verified against the real #63/#72 diffs (flagged) and #80,
+stud.io #124, blog #96 (clean).
 
 **STALE means main touched the PR's directories — not merely "behind" (2026-09-25).** The first rule flagged any
 branch behind main. On a trunk taking ~16 commits a day that was inescapable: each nightly recreate was behind

@@ -56,6 +56,19 @@ spec:
     resource:
       memory: "1600m"
       cpu: 0.25          # node CPU-requests are saturated; JM is coordination-only, runs fine throttled (lab)
+    # 2026-09-25: the operator-built JM Deployment (`weyland-flink`) had NO probe, so it read `1/1 Ready` the instant the
+    # JVM started and ship-images.sh's SMOKE gate failed every flink image bump. JM-ONLY podTemplate (merged with the
+    # shared one above): the REST API on 8081 lives on the JobManager, NOT the TaskManagers, so a probe in the shared
+    # podTemplate would mark every TM unready. /config answers once the REST endpoint is up. Readiness only.
+    podTemplate:
+      spec:
+        containers:
+          - name: flink-main-container
+            readinessProbe:
+              httpGet: { path: /config, port: 8081 }
+              initialDelaySeconds: 20
+              periodSeconds: 15
+              failureThreshold: 4
   taskManager:
     resource:
       memory: "2048m"

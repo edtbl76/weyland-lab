@@ -44,8 +44,26 @@ _wire_mixed() {
   stub_case gh 'compare/main...dependabot/npm_and_yarn/svc-c/left-pad-cccccccc' 0 'ahead'
   stub_case gh 'compare/main...dependabot/docker/svc-d/img-dddddddd'            0 'identical'
   stub_case gh 'compare/main...dependabot/docker/svc-d/img-eeeeeeee'            0 'identical'
+  # MERGEABLE candidates now have their diff read for downgrades (2026-09-25) — genuine upgrades here.
+  stub_case gh 'pr diff 10 ' 0 "$(_diff_up_go)"
+  stub_case gh 'pr diff 21 ' 0 "$(_diff_up_docker)"
   stub_case gh 'issues' 0 ''
   stub_case gh 'pulls'  0 ''
+}
+
+# Unified diffs, shaped like real `gh pr diff` output (observed on weyland-lab #63/#72/#80, 2026-09-25).
+_diff_up_go() {
+  printf '%s\n' 'diff --git a/svc-a/go.mod b/svc-a/go.mod' '--- a/svc-a/go.mod' '+++ b/svc-a/go.mod' '@@ -5 +5 @@' \
+    '-	github.com/quic-go/quic-go v0.59.0' '+	github.com/quic-go/quic-go v0.59.1'
+}
+_diff_up_docker() {
+  printf '%s\n' 'diff --git a/svc-d/Dockerfile b/svc-d/Dockerfile' '--- a/svc-d/Dockerfile' '+++ b/svc-d/Dockerfile' '@@ -1 +1 @@' \
+    '-FROM img:1.0' '+FROM img:1.2'
+}
+_diff_up_pip() {
+  printf '%s\n' 'diff --git a/svc/genre-trainer/requirements.txt b/svc/genre-trainer/requirements.txt' \
+    '--- a/svc/genre-trainer/requirements.txt' '+++ b/svc/genre-trainer/requirements.txt' '@@ -1,2 +1,2 @@' \
+    '-aiohttp==3.14.1' '+aiohttp==3.14.3'
 }
 
 @test "the guard exists" {
@@ -208,6 +226,7 @@ _wire_behind() {   # $1 = CI conclusion, then the main-side answer (exit, stdout
   stub_case gh 'pr list' 0 "$(_one_dependabot_pr "$1")"
   stub_case gh 'compare/main...dependabot/pip/svc/genre-trainer/aiohttp-ffffffff' 0 'diverged'
   stub_case gh 'pulls/30/files' 0 "$(printf 'svc/genre-trainer/requirements.in\nsvc/genre-trainer/requirements.txt')"
+  stub_case gh 'pr diff 30 ' 0 "$(_diff_up_pip)"
 }
 
 @test "behind, but main changed NOTHING the PR touches + CI green -> MERGEABLE, no recreate" {
@@ -266,6 +285,89 @@ _wire_behind() {   # $1 = CI conclusion, then the main-side answer (exit, stdout
   stub_case gh 'compare/dependabot/pip/svc/genre-trainer/aiohttp-ffffffff...main' 0 "$(printf '16 1\ndocs/backlog.md')"
   run bash "$GUARD" --repo edtbl76/test
   echo "$output" | grep -q '#30 \[NEEDS-HUMAN\]'
+}
+
+# --- REGRESSIVE: a "bump" whose diff DOWNGRADES a pin is never MERGEABLE (2026-09-25) --------------------------
+# weyland-lab #63 was titled "Bump aiohttp 3.14.1 -> 3.14.3" and downgraded cryptography 50.0.0 -> 48.0.1 and mlflow
+# 3.15.1 -> 3.14.0 (re-opening 4 CVEs); #72 ("Bump soupsieve") downgraded dagster-dbt 0.29.14 -> 0.10.9. Both came
+# from dependabot recompiling a stale requirements.in. Only a Sourcery check stopped #63 — with CI green the reconciler
+# called such a PR MERGEABLE. The title is not evidence: every otherwise-mergeable dependabot PR has its DIFF read, and
+# any pinned version that goes DOWN makes it NEEDS-HUMAN. An unreadable diff is NEEDS-HUMAN too (unproven != safe).
+
+_wire_one_current() {   # $1 = the PR's diff (a current, CI-green dependabot PR #50)
+  stub_dispatch gh
+  stub_case gh 'pr list' 0 '[{"number":50,"title":"Bump aiohttp from 3.14.1 to 3.14.3","headRefName":"dependabot/pip/svc/genre-trainer/security-and-patches-abcdef12","createdAt":"2026-09-01T00:00:00Z","isDraft":false,"statusCheckRollup":[{"conclusion":"SUCCESS"}]}]'
+  stub_case gh 'compare/main...dependabot/pip/svc/genre-trainer/security-and-patches-abcdef12' 0 'ahead'
+  [ -n "$1" ] && stub_case gh 'pr diff 50 ' 0 "$1"
+  stub_case gh 'issues' 0 ''
+  stub_case gh 'pulls'  0 ''
+}
+
+@test "REGRESSIVE: the #63 case — a pip 'bump' that downgrades cryptography + mlflow -> NEEDS-HUMAN, named" {
+  _wire_one_current "$(printf '%s\n' 'diff --git a/svc/genre-trainer/requirements.txt b/svc/genre-trainer/requirements.txt' \
+    '--- a/svc/genre-trainer/requirements.txt' '+++ b/svc/genre-trainer/requirements.txt' '@@ -1,5 +1,5 @@' \
+    '-aiohttp==3.14.1' '+aiohttp==3.14.3' '-cryptography==50.0.0' '+cryptography==48.0.1' \
+    '-mlflow==3.15.1' '+mlflow==3.14.0')"
+  run bash "$GUARD" --repo edtbl76/test
+  [ "$status" -eq 0 ]
+  echo "$output" | grep -q '#50 \[NEEDS-HUMAN\]'
+  echo "$output" | grep -q 'REGRESSIVE'
+  echo "$output" | grep -q 'cryptography 50.0.0->48.0.1'
+  echo "$output" | grep -q 'mlflow 3.15.1->3.14.0'
+}
+
+@test "REGRESSIVE: the #72 case — an ancient version on a renamed-case line is still caught" {
+  _wire_one_current "$(printf '%s\n' 'diff --git a/r.txt b/r.txt' '--- a/r.txt' '+++ b/r.txt' '@@ -1,3 +1,3 @@' \
+    '-dagster-dbt==0.29.14' '+dagster-dbt==0.10.9' '-soupsieve==2.6     # pinned' '+soupsieve==2.9')"
+  run bash "$GUARD" --repo edtbl76/test
+  echo "$output" | grep -q '#50 \[NEEDS-HUMAN\]'
+  echo "$output" | grep -q 'dagster-dbt 0.29.14->0.10.9'
+}
+
+@test "REGRESSIVE: a go.sum module downgrade is caught" {
+  _wire_one_current "$(printf '%s\n' 'diff --git a/go.sum b/go.sum' '--- a/go.sum' '+++ b/go.sum' '@@ -1,2 +1,2 @@' \
+    '-golang.org/x/net v0.30.0 h1:abc=' '+golang.org/x/net v0.28.0 h1:def=')"
+  run bash "$GUARD" --repo edtbl76/test
+  echo "$output" | grep -q '#50 \[NEEDS-HUMAN\]'
+  echo "$output" | grep -q 'golang.org/x/net 0.30.0->0.28.0'
+}
+
+@test "REGRESSIVE: a yarn (berry) lockfile downgrade is caught" {
+  _wire_one_current "$(printf '%s\n' 'diff --git a/yarn.lock b/yarn.lock' '--- a/yarn.lock' '+++ b/yarn.lock' '@@ -1,4 +1,4 @@' \
+    ' "nanoid@npm:^3.3.16":' '-  version: 3.3.19' '+  version: 3.3.16' '   linkType: hard')"
+  run bash "$GUARD" --repo edtbl76/test
+  echo "$output" | grep -q '#50 \[NEEDS-HUMAN\]'
+  echo "$output" | grep -q 'nanoid 3.3.19->3.3.16'
+}
+
+@test "REGRESSIVE: an npm package-lock downgrade is caught" {
+  _wire_one_current "$(printf '%s\n' 'diff --git a/package-lock.json b/package-lock.json' '--- a/package-lock.json' '+++ b/package-lock.json' '@@ -1,4 +1,4 @@' \
+    '     "node_modules/next": {' '-      "version": "16.3.3",' '+      "version": "16.2.11",')"
+  run bash "$GUARD" --repo edtbl76/test
+  echo "$output" | grep -q '#50 \[NEEDS-HUMAN\]'
+  echo "$output" | grep -q 'next 16.3.3->16.2.11'
+}
+
+@test "a genuine upgrade stays MERGEABLE (the check does not over-fire)" {
+  _wire_one_current "$(_diff_up_pip)"
+  run bash "$GUARD" --repo edtbl76/test
+  echo "$output" | grep -q '#50 \[MERGEABLE\]'
+}
+
+@test "an UNREADABLE diff is NEEDS-HUMAN — unproven is not safe" {
+  _wire_one_current ""
+  run bash "$GUARD" --repo edtbl76/test
+  [ "$status" -eq 0 ]
+  echo "$output" | grep -q '#50 \[NEEDS-HUMAN\]'
+  echo "$output" | grep -q 'could not read the diff'
+}
+
+@test "--apply takes NO action on a REGRESSIVE PR (no comment, no close, no merge)" {
+  _wire_one_current "$(printf '%s\n' 'diff --git a/r.txt b/r.txt' '--- a/r.txt' '+++ b/r.txt' '@@ -1 +1 @@' '-cryptography==50.0.0' '+cryptography==48.0.1')"
+  run bash "$GUARD" --repo edtbl76/test --apply
+  echo "$output" | grep -q '#50 \[NEEDS-HUMAN\]'
+  not_called_with gh 'issues/50/comments'
+  not_called_with gh 'merge'
 }
 
 @test "unknown argument fails closed (exit 2)" {

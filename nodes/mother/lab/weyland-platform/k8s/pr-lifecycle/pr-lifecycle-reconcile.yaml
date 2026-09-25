@@ -56,7 +56,8 @@ data:
     #                  main (which cannot regress) and auto-closes it if the bump is already satisfied.
     #   SUPERSEDED   — a NEWER managed PR targets the same directory+package. Merging the older one after the newer
     #                  rolls that dependency BACKWARDS (the #12-after-#13 trap). Close it, referencing the newer.
-    #   NEEDS-HUMAN  — current but CI is red (or it is a major-version bump). A person decides.
+    #   NEEDS-HUMAN  — current but CI is red, OR its DIFF lowers a pinned version (REGRESSIVE — pr_downgrades; the
+    #                  title is not evidence), OR that diff could not be read. A person decides; --apply never acts on it.
     #   MERGEABLE    — current (or behind only on unrelated directories) AND CI-green. Safe to merge (left to a human).
     #
     # WHY A SAFE PRIMITIVE INSTEAD OF A PERFECT DETECTOR. mergeStateStatus lies (reports a regressive PR as
@@ -108,7 +109,7 @@ data:
       case "$1" in
         --apply) APPLY=1; shift ;;
         --repo)  SINGLE_REPO="${2:?--repo needs a value}"; shift 2 ;;
-        -h|--help) sed -n '2,53p' "$0"; exit 0 ;;
+        -h|--help) sed -n '2,54p' "$0"; exit 0 ;;
         *) echo "FATAL: unknown argument: $1" >&2; exit 2 ;;
       esac
     done
@@ -178,6 +179,49 @@ data:
       else
         echo clear
       fi
+    }
+
+    # Does this PR's DIFF lower any pinned version? (2026-09-25.) weyland-lab #63 was titled "Bump aiohttp 3.14.1 -> 3.14.3"
+    # and downgraded cryptography 50.0.0 -> 48.0.1 + mlflow 3.15.1 -> 3.14.0 (4 CVEs re-opened); #72 "Bump soupsieve"
+    # downgraded dagster-dbt 0.29.14 -> 0.10.9 — both dependabot recompiling a stale requirements.in. With CI green this
+    # script called them MERGEABLE; only a Sourcery check stopped #63. The title is not evidence, so the diff is read.
+    # Prints NONE, UNREADABLE, or "pkg old->new, ..." for every pin that goes DOWN. Understands pip `name==ver`,
+    # go.mod / go.sum `module vX`, and npm (package-lock `"node_modules/x"` + `"version"`) / yarn (`"x@...":` + `version`)
+    # lockfiles. Anything it cannot read is UNREADABLE — the caller treats that as NEEDS-HUMAN, never as safe.
+    pr_downgrades() {
+      local repo="$1" num="$2" diff
+      diff="$("$GH_BIN" pr diff "$num" --repo "$repo" 2>/dev/null)" || { echo UNREADABLE; return 0; }
+      printf '%s\n' "$diff" | grep -q '^diff --git ' || { echo UNREADABLE; return 0; }
+      printf '%s\n' "$diff" | python3 -c '
+    import re, sys
+    def key(v):
+        return [(0, int(p)) if p.isdigit() else (1, p) for p in re.split(r"[.+\-_]", v.lstrip("v"))]
+    def lower(new, old):
+        try:
+            return key(new) < key(old)
+        except TypeError:
+            return False
+    old, new, cur = {}, {}, None
+    for line in sys.stdin.read().splitlines():
+        if line.startswith(("+++", "---", "diff --git", "@@")):
+            continue
+        sign, body = line[:1], line[1:]
+        side = new if sign == "+" else old if sign == "-" else None
+        m = re.match(r"\s*([A-Za-z0-9][A-Za-z0-9._\-]*)(?:\[[^\]]*\])?\s*==\s*([^\s;#\\]+)", body)      # pip
+        if m and side is not None:
+            side[re.sub(r"[-_.]+", "-", m.group(1)).lower()] = m.group(2); continue
+        m = re.match(r"\s*([a-z0-9][^\s]*\.[^\s]+/[^\s]+|[a-z0-9.\-]+\.[a-z]{2,}/[^\s]+)\s+v([0-9][^\s/]*)(/go\.mod)?\s", body + " ")
+        if m and side is not None and not m.group(3):                                                    # go.mod / go.sum
+            side[m.group(1)] = m.group(2); continue
+        m = re.match(r"\s*\"node_modules/(.+)\":", body) or re.match(r"^\s*\"?(@?[^@\s\"]+)@[^\"]*\"?.*:\s*$", body)
+        if m:
+            cur = m.group(1).split("node_modules/")[-1]; continue                                        # lock entry header
+        m = re.match(r"\s*\"?version\"?:?\s+\"?([0-9][^\"\s,]*)\"?,?\s*$", body)
+        if m and side is not None and cur:
+            side.setdefault(cur, m.group(1))                                                             # lock version
+    downs = [f"{k} {old[k]}->{new[k]}" for k in sorted(old) if k in new and lower(new[k], old[k])]
+    print(", ".join(downs) if downs else "NONE")
+    ' 2>/dev/null || echo UNREADABLE
     }
 
     # age in whole days from an ISO-8601 createdAt (best-effort; blank/unparseable -> "?").
@@ -267,7 +311,7 @@ data:
 
       local stale=0 superseded=0 mergeable=0 needshuman=0
       local -a ACT_RECREATE=() ACT_CLOSE=()
-      local age verdict rec st
+      local age verdict rec st down
 
       echo "Open managed PRs in $REPO:"
       for ((i=0; i<n_open; i++)); do
@@ -295,8 +339,20 @@ data:
             verdict="NEEDS-HUMAN"; rec="current but CI $ci — review"
             needshuman=$((needshuman+1))
           else
-            verdict="MERGEABLE"; rec="current + CI green — merge the bump"
-            mergeable=$((mergeable+1))
+            # Last gate before MERGEABLE: the DIFF must not lower any pin (see pr_downgrades). A REGRESSIVE bump gets no
+            # action from --apply — NEEDS-HUMAN is never mutated — so it waits for a person instead of being merged.
+            down="$(pr_downgrades "$REPO" "$num")"
+            if [ "$down" = "NONE" ]; then
+              verdict="MERGEABLE"; rec="current + CI green — merge the bump"
+              mergeable=$((mergeable+1))
+            elif [ "$down" = "UNREADABLE" ]; then
+              verdict="NEEDS-HUMAN"; rec="could not read the diff to rule out a downgrade — review before merging"
+              needshuman=$((needshuman+1))
+            else
+              verdict="NEEDS-HUMAN"; rec="REGRESSIVE — downgrades ${down} — do NOT merge (close; fix the source pins)"
+              needshuman=$((needshuman+1))
+              audit "ts=$NOW_ISO repo=$REPO pr=$num verdict=REGRESSIVE downgrades=\"${down}\""
+            fi
           fi
         else
           # ci/image-bump SURVIVOR (newest of its chain): this IS the ship loop. Merging it deploys the latest tags;
