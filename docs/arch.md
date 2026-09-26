@@ -180,7 +180,7 @@ supersedes the cancelled B12 (a static registry without the lifecycle).
 | Obsidian vault | (local) | personal notes — **no longer a RAG source** (retired in B25b). The RAG now ingests the GitHub repo (`docs/` + `nodes/`) via Dagster git-pull. |
 | Claude Code | (local CLI) | **Harness — primary** coding agent. MCP client of tool-server `/mcp` (validated 2026-06-14), **Bifrost** `/mcp`, and **Linear** (hosted MCP). Instructions `CLAUDE.md`; AIDLC installed (`.claude/`). Memory = Claude-only auto-memory (B182). See §8d. |
 | Codex | (local CLI + ChatGPT desktop) | **Harness — peer** (2026-09-25). Codex CLI 0.157.0 on the ChatGPT sub (GPT-5.5); MCP client of **Bifrost** + **Linear**; Linear "Work on issue" launcher (`codex://` → ChatGPT desktop); sandbox needs the AppArmor `bwrap` profile ([runbooks/coding-agents.md](runbooks/coding-agents.md)). Instructions `AGENTS.md`. See §8d. |
-| Editors — IntelliJ + VS Code | (local IDEs) | **Hosts, not harnesses.** IntelliJ 2026.2 is agent-agnostic: AI Assistant's ACP registry (11 agents incl. Claude Agent, Codex, OpenCode, Cline, Junie) + Claude Code / Codex / ProxyAI plugins + IntelliJ's MCP server. VS Code 1.139: Codex extension (Claude Code extension recommended). Config stays with the harness. See §8d. |
+| Editors — IntelliJ + VS Code | (local IDEs) | **Hosts, not harnesses.** IntelliJ 2026.2 is agent-agnostic: AI Assistant's ACP registry (11 agents incl. Claude Agent, Codex, OpenCode, Cline, Junie) + Claude Code / Codex / ProxyAI plugins + IntelliJ's MCP server. VS Code 1.139: Codex extension + Claude Code extensions. Config stays with the harness. See §8d. |
 | Coding agents (B15) | (local CLIs, rogueone) | **Harnesses** — opencode / Cline / Pi — `$0` agentic coding TUIs; drive hosted models **direct** (Mistral/OpenRouter/Gemini free, or ChatGPT sub → GPT-5.5), bypassing the gateway; opencode also reaches Bifrost `/mcp`. See §8b / §8d. |
 | Ray edge worker | `ray-worker.service` → mother `:6379` | **Permanent native systemd Ray worker** — joins the always-on Ray head for heavy training / HP-sweep compute. Not-always-up (laptop): drops from the cluster on sleep, systemd auto-rejoins on wake. `services/ray-head/ray-worker.service`. |
 | genre-trainer | (native docker engine, `registry.weyland.lab`) | Remote model-training container — reads lakeFS silver, trains, logs to MLflow (artifact direct to MinIO). Runs on rogueone's **native** engine (`DOCKER_HOST=unix:///var/run/docker.sock`; Docker Desktop retired B127 → full 128 GB, no VM RAM cap). `services/genre-trainer/`. |
@@ -1084,7 +1084,7 @@ inside one?*
 **Editors host harnesses; they are not a layer of their own.** IntelliJ (primary) runs any of them — its AI Assistant
 **ACP agent registry** holds 11 (Claude Agent, Codex, OpenCode, Cline, Junie, Gemini CLI, Copilot, …) beside the Claude
 Code / Codex plugins — and VS Code (secondary) runs Codex through its extension, with Claude Code's extension
-recommended for parity. Because MCP wiring and instructions live with the **harness** (`~/.codex/`, Claude Code's
+installed beside it. Because MCP wiring and instructions live with the **harness** (`~/.codex/`, Claude Code's
 `.mcp.json`, `AGENTS.md`), switching editors changes nothing about what an agent can reach; VS Code's native
 `mcp.json` Linear entry serves only Copilot Chat.
 

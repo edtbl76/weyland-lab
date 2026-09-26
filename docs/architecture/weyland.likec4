@@ -43,7 +43,7 @@ model {
     genreTrainer = component "genre-trainer" "Trainer — reads silver, logs to MLflow"
     financeTrainer = component "finance-trainer" "Volatility trainer (B113) — reads the Feast-joined lakeFS training set, registers regressor + regime classifier in MLflow"
     ragEmbed = component "rag-embed" "bge-base (768-dim) embed service :8900 (warm GPU) — B74"
-    editors = component "Editors (IntelliJ, VS Code)" "Hosts, not harnesses. IntelliJ 2026.2 = agent-agnostic: AI Assistant's ACP registry (Claude Agent, Codex, OpenCode, Cline, Junie, Gemini CLI, Copilot, …) + Claude Code / Codex / ProxyAI plugins + IntelliJ's MCP server. VS Code 1.139 = Codex extension (Claude Code extension recommended); native mcp.json Linear entry for Copilot Chat"
+    editors = component "Editors (IntelliJ, VS Code)" "Hosts, not harnesses. IntelliJ 2026.2 = agent-agnostic: AI Assistant's ACP registry (Claude Agent, Codex, OpenCode, Cline, Junie, Gemini CLI, Copilot, …) + Claude Code / Codex / ProxyAI plugins + IntelliJ's MCP server. VS Code 1.139 = Codex + Claude Code extensions; native mcp.json Linear entry for Copilot Chat"
     // ---- Harnesses (multi-harness: any of these can drive the same repos + platform; see concepts/multi-harness.md) ----
     claudeCode = component "Claude Code" "Harness — primary coding agent (Anthropic). MCP client of tool-server + Bifrost + Linear; instructions CLAUDE.md (+AGENTS.md); AIDLC installed (.claude/). Memory today = Claude-only auto-memory"
     codex = component "Codex" "Harness — OpenAI Codex CLI + ChatGPT desktop (ChatGPT-sub GPT-5.5). MCP client of Bifrost + Linear (2026-09-25); Linear 'Work on issue' launcher (codex://); instructions AGENTS.md"
