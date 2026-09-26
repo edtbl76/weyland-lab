@@ -15,7 +15,7 @@ available in every other — with **no second copy that can drift**.
 | Layer | Where it lives | Which harnesses see it |
 |---|---|---|
 | **Rules / conventions** | `AGENTS.md`, `CLAUDE.md`, `docs/`, AIDLC `aidlc/spaces/default/memory/*.md` | every harness that reads the repo (Codex/OpenCode/Pi read `AGENTS.md`; Claude Code reads `CLAUDE.md`) |
-| **Working memory** (lessons, decisions, corrections, references) | Claude Code auto-memory: `~/.claude/projects/-home-edwardmangini-IdeaProjects-weyland/memory/` — ~190 Markdown notes + a `MEMORY.md` index, frontmatter (`name`/`description`/`type`) + `[[wikilinks]]` | **Claude Code only**; local to rogueone, not in git, not backed up by anything but restic |
+| **Working memory** (lessons, decisions, corrections, references) | Claude Code auto-memory: `~/.claude/projects/-home-edwardmangini-IdeaProjects-weyland/memory/` — ~190 Markdown notes + a `MEMORY.md` index, frontmatter (`name`/`description`/`type`) + `[[wikilinks]]` | **written by Claude Code only**; since 2026-09-25 `AGENTS.md` points other rogueone harnesses at the index read-only (a stopgap); local to rogueone, not in git, backed up only by restic |
 | **Operator session memory** | Postgres (`weyland-operator`, per Telegram session) | the operator only; conversational state, not lessons |
 | **Retrieval corpus** | `context_ask` / `context_search` (the lab RAG over docs + knowledge repos) | any MCP client of the tool-server / Bifrost — read-only, rebuilt from sources |
 

@@ -1077,7 +1077,7 @@ inside one?*
 | Work tracking | ✅ | Linear hosted MCP (Claude Code + Codex) + `docs/backlog.md` |
 | Skills / prompts | ✅ | Bifrost skill marketplace + Prompt Repository (git-sourced) |
 | Retrieval | ✅ | `context_ask` / `context_search` |
-| Rules & conventions | ⚠ partial | repo files — but the lab's conventions live in `CLAUDE.md`, and `AGENTS.md` (what Codex/OpenCode/Pi read) still holds the upstream AI-DLC contributor guide |
+| Rules & conventions | ✅ (fixed 2026-09-25) | `AGENTS.md` is the harness-neutral home of the lab's conventions + hard rules (Codex/OpenCode/Pi read it; `CLAUDE.md` imports it). It previously held the upstream AI-DLC contributor guide — now archived at `design/aidlc-upstream-agents-guide.md` |
 | **Memory** (lessons, decisions, corrections) | ❌ | **Claude Code auto-memory only** (~190 notes on rogueone) — **B182, shared store TBD** |
 
 **The shared-memory component — placed now, decided later.** The C4 model carries a `sharedMemory` element at the

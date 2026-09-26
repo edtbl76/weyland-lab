@@ -16,7 +16,7 @@ Flow: [flow-aidlc-workflow.md](../diagrams/flow-aidlc-workflow.md). Demo: [demos
 
 - **Engine + content:** `.claude/` — `tools/` (TypeScript CLI, run via bun), `hooks/` (17), `agents/` (14),
   `aidlc-common/` (stages + protocols), `scopes/`, `sensors/`, `knowledge/`, `skills/aidlc/`
-- **Project surface:** `AGENTS.md` (repo root) + a **thin** `CLAUDE.md` (19 lines: `@AGENTS.md` + lab conventions)
+- **Project surface:** `AGENTS.md` (repo root) = the **harness-neutral** lab conventions + hard rules (read by every harness) + a **thin** `CLAUDE.md` (`@AGENTS.md` + the `/aidlc` commands). Until 2026-09-25 `AGENTS.md` held the upstream framework's contributor guide — archived at `docs/design/aidlc-upstream-agents-guide.md`
 - **Workspace (state + artifacts):** `aidlc/spaces/default/` — `memory/` (the org/team/project rule layers),
   `intents/<record>/` (per-workflow artifacts), audit shards
 - **Upstream pin:** `awslabs/aidlc-workflows`, **`v2` branch, commit `4d0968f`** — internal version **`2.6.18`**

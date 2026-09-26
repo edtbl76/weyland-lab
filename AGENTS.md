@@ -1,60 +1,54 @@
-# AI-DLC — one core, many harnesses
+# weyland — homelab AI/data platform (instructions for every agent harness)
 
-This directory contains a native implementation of the AI-DLC (AI-Driven
-Development Life Cycle) methodology that ships to many CLI harnesses — today
-Claude Code, Kiro CLI, Kiro IDE, Codex CLI, Cursor, opencode, and GitHub Copilot, and any capable CLI you port it to — from
-a single hand-authored source.
+Solo, $0, LAN-only homelab run by one person (Edward). This file is **harness-neutral**: Claude Code, Codex, OpenCode,
+Cline and Pi all read it (Claude Code via `CLAUDE.md`, which imports it). Put project-wide rules HERE, not in a
+harness-specific file, so every agent gets them. See `docs/concepts/multi-harness.md`.
 
-## Project Structure
+## Project conventions (the quality bar)
+- **Definition of Done** — the 8-pillar gate in `docs/definition-of-done.md`; nothing is "done" until it passes.
+- **Backlog** = `docs/backlog.md` (ordered source of truth, B-numbered); **Linear** (workspace emangini, team EMA) =
+  status. A new backlog item gets a Linear issue in the same change; `scripts/check-linear-sync.sh` must exit 0.
+- **Docs** — arch/hosts/api/schedules/runbooks/demos/diagrams under `docs/`; keep them current on every change.
+  Architecture model: `docs/architecture/weyland.likec4`. Design records: `docs/design/`; concepts: `docs/concepts/`.
+- **Knowledge libraries** — `knowledge-repos/` feed Bifrost skills/prompts + the DataHub glossary (data, not workflow).
+- **Decisions already made** live in `docs/backlog.md`, `docs/concepts/*` verdict tables and the runbooks. **Check them
+  before proposing anything** — re-proposing a rejected option (e.g. KEDA, Cyrus) wastes the owner's time.
 
-- `core/` — **The hand-authored, harness-neutral source of truth.** Tools, stages (`aidlc-common/`), agents, memory (the rule/method layer), scopes, sensors, knowledge, hooks, and the 3 session skills. Prose names the harness directory with the `{{HARNESS_DIR}}` token; the packager substitutes `.claude`/`.kiro`/`.codex`/`.aidlc`/`.cursor` per tree.
-- `harness/<name>/` — **The thin per-harness authored surface.** Each holds `manifest.ts` (how to project `core/` into that harness's dist) plus the orchestrator skill and harness-specific files; `harness/codex/`, `harness/opencode/`, and `harness/copilot/` add an `emit.ts` (per-shell emissions). `claude/`, `kiro/`, `kiro-ide/`, `codex/`, `cursor/`, `opencode/`, `copilot/`.
-- `plugins/<name>/` — **Optional, owned AIDLC plugins** (the plugin mechanism; design in the single chapter `docs/reference/18-plugin-mechanism.md`, authoring guide `docs/harness-engineering/10-authoring-a-plugin.md`). Each holds `.aidlc-plugin/plugin.json` (the declarative manifest) + core-shaped subtrees (`stages/`, `contributions/`, `sensors/`, `tools/`, …) + `tests/`. `bun scripts/package.ts` emits a real host plugin per harness at `dist/plugins/<name>/{claude,codex,copilot,cursor,kiro,kiro-ide,opencode}/`; a compose hook merges the plugin into an install (new stages + the additive contribution seam). Plugins add, the install selects: `tools/data/harness.json` `plugins` filters the enabled graph/scope/runner surfaces while keeping installed files re-enableable. `plugins/test-pro/` is the reference fixture. Guarded by `tests/integration/t188-plugin-compose.test.ts` (mechanism) + `plugins/test-pro/tests/` (content, wired into the integration tier).
-- `scripts/package.ts` — **The build entry.** `bun scripts/package.ts` regenerates every `dist/<harness>/`; `bun scripts/package.ts --check` is the byte-parity drift guard (CI tier). `manifest-types.ts` is the shared manifest contract.
-- `dist/<harness>/` — **GENERATED, committed, drift-guarded.** `dist/claude/.claude/`, `dist/kiro/.kiro/` (+ `AGENTS.md`), `dist/kiro-ide/.kiro/` (+ `AGENTS.md`), `dist/codex/` (`.codex/` + `.agents/` + `AGENTS.md`), `dist/cursor/` (`.cursor/` + `aidlc/` + `AGENTS.md`), `dist/opencode/` (`.aidlc/` + `.opencode/` + `opencode.json` + `AGENTS.md`), `dist/copilot/` (`.aidlc/` + `.github/` + `AGENTS.md`). Never hand-edit — `package.ts --check` fails CI on drift. Users copy `dist/<harness>/` into their project.
-- `tests/` — All-TypeScript test suite (`t*.test.ts`, run via bun), four levels (smoke/unit/integration/e2e). Run `bash tests/run-tests.sh --help` for levels and profiles.
-- `docs/guide/` — User Guide: getting started, workflows, scopes, agents, customization, troubleshooting
-- `docs/harness-engineering/` — Harness Engineer Guide: reshaping AIDLC through configuration (stages, agents, scopes, rules, sensors, knowledge) without code, plus porting AIDLC to a new harness
-- `docs/reference/` — Developer Reference: architecture, orchestrator, stage protocol, hooks, testing, contributing
+## Operational just-dos (do these without asking; don't improvise a substitute)
+- **Every operational task has ONE canonical command — it lives in a `docs/runbooks/*.md`.** Find it and use it
+  verbatim. Never hand-roll a substitute (a raw `curl`, an ad-hoc `kubectl`). If no runbook command exists, that is
+  the gap — add it to the runbook.
+- **Trigger CI actively; never wait for a cron:** `woodpecker-cli pipeline create edtbl76/weyland-lab --branch main`
+  (creds from `scripts/.env`; see `docs/runbooks/woodpecker.md`).
+- **Prove new/changed code in its Docker toolchain image BEFORE the push** — CI confirms, it does not discover.
+- **Run the FULL local guard suite before any handoff** (the `repo-guards` step in `.woodpecker.yml`), not one guard —
+  the first failure masks later ones.
+- **Fail closed:** an absent, empty, or errored result is NEVER success. Read a tool's OUTPUT, not just its exit code.
+- **Ship image bumps with `scripts/ship-images.sh`**, never a hand merge.
 
-## How It Works
+## Hard rules (apply to every harness)
+- **The owner handles ALL git** — never commit, push, or open/merge PRs unless explicitly asked.
+- **Secrets never pass through chat or output.** Read them from the gitignored `scripts/.env`
+  (`set -a && . scripts/.env && set +a`); never ask the owner to paste a token; never `echo`/`printf` a secret value.
+- **Cluster is read-only for agents** except a write the owner explicitly authorized. Changes go through git → Argo CD
+  (every app runs `selfHeal: true`, so live edits and `kubectl rollout undo` are silently reverted).
+- **Docker verification runs as the invoking user** (`--user "$(id -u):$(id -g)"`) or with `:ro` mounts — a root
+  container writing into the repo breaks git for the owner.
+- **Commands handed to the owner:** absolute paths only (never relative), one step, the host label (`[rogueone]`,
+  `[mother]`) on its own line OUTSIDE the code fence. The agent session runs on **rogueone**; `kubectl` runs on mother.
+- **$0 budget.** Free tiers or self-hosted; cloud is fine only if genuinely free (not a trial).
+- **Ask before changing** anything non-trivial: propose, get a yes, then build. Ask one question at a time; lead with a
+  recommendation, not a menu. Don't create records (issues, docs) you won't complete.
+- **No emojis** in anything written for the owner or the repo.
 
-The hand-authored source lives in `core/` (harness-neutral) + `harness/<name>/`
-(per-CLI surfaces); `bun scripts/package.ts` regenerates the `dist/<harness>/`
-trees. The core uses the same building blocks in every harness:
+## Agent memory
+Durable lessons and decisions currently live in Claude Code's auto-memory:
+`/home/edwardmangini/.claude/projects/-home-edwardmangini-IdeaProjects-weyland/memory/` — `MEMORY.md` is the index,
+one Markdown note per fact. **Other harnesses on rogueone: read `MEMORY.md` and the notes it links before proposing
+work (read-only — do not edit them).** A shared, harness-neutral memory store is planned (B182,
+`docs/design/shared-agent-memory-design.md`); until it exists, a rule every harness must follow belongs in THIS file.
 
-- **Skills** (`skills/aidlc/`) — Orchestrator (`SKILL.md`), stage protocol, and 33 stage files across 5 phases (initialization, ideation, inception, construction, operation)
-- **Agents** (`agents/`) — 14 `aidlc-<role>-agent.md` files: 11 domain-expert personas (product, design, delivery, architect, aws-platform, compliance, devsecops, developer, quality, pipeline-deploy, operations), 2 review-only agents (product-lead, architecture-reviewer), and the adaptive-workflows composer (aidlc-composer-agent)
-- **Method/rules** (`memory/`) — Layered config in the space memory layer: `org.md` (framework defaults), `team.md` (affirmed practices), `project.md` (project overrides), and `phases/<phase>.md` for ideation/inception/construction/operation
-- **Sensors** (`sensors/`) — Deterministic verification manifests (advisory): `aidlc-claim-sources.md`, `aidlc-required-sections.md`, `aidlc-upstream-coverage.md`, `aidlc-traceability.md`, `aidlc-linter.md`, `aidlc-type-check.md`
-- **Knowledge** (`knowledge/`) — Methodology reference. Per-agent under `aidlc-<agent>-agent/`; cross-agent material in `aidlc-shared/`
-- **Tools** (`tools/`) — TypeScript CLI tools, all prefixed `aidlc-*.ts` and run via bun
-- **Hooks** (`hooks/`) — 17 framework hooks, all prefixed `aidlc-*.ts`, covering audit emission, sensor dispatch, stage-graph rebuild, session lifecycle, state validation, subagent tracking, statusline rendering, human-turn recording, exact stage-rule delivery, forwarding-loop enforcement, reviewer read-scope enforcement, review-receipt write-freeze enforcement, code-generation plan-approval enforcement, direct state-transition enforcement, and token-usage folding (the Claude-only usage-ledger producer)
-
-## Working on This Project
-
-- **Edit `core/` (or `harness/<name>/`), never `dist/`.** `dist/<harness>/` is generated. After editing, run `bun scripts/package.ts` to regenerate and `bun scripts/package.ts --check` to confirm no drift (the CI guard fails on a hand-edited or stale dist).
-- The orchestrator skill (`harness/<name>/skills/aidlc/SKILL.md`) is per-harness; the engine and methodology live in `core/`.
-- User-facing onboarding is rendered from `core/templates/onboarding.md` plus each harness's `onboarding.fills.ts`. Edit the shared template for common behavior and `harness/<name>/onboarding.fills.ts` for harness-specific commands, prerequisites, or conventions; the packager emits `dist/claude/.claude/CLAUDE.md` and the Kiro/Codex/Cursor/opencode/Copilot `AGENTS.md` files.
-- "harness" has three senses in this repo: `harness/` (top-level, the per-CLI distribution surfaces — this effort), `docs/harness-engineering/` (the Harness Engineer Guide), and `tests/harness/` (test-suite helper library) — unrelated.
-- See `docs/guide/` (User Guide), `docs/harness-engineering/` (Harness Engineer Guide), and `docs/reference/` (Developer Reference) for full documentation
-
-## Test Suite
-
-Run `bash tests/run-tests.sh --help` for levels and flags. See `docs/reference/09-testing.md` for full strategy.
-
-## Utility Handler Checklist
-
-See `docs/reference/11-contributing.md` § "Adding a Utility Handler" before implementing a new `/aidlc --*` command.
-
-## Documentation Policy
-
-IMPORTANT: When adding, removing, or renaming files, directories, commands, or flags — grep `docs/` and `README.md` for stale references and update them in the same commit.
-
-## Changelog Policy
-
-IMPORTANT: Every user-visible PR bumps `core/tools/aidlc-version.ts` (the authored source; the per-harness `dist/<harness>/.../tools/aidlc-version.ts` copies are regenerated by `bun scripts/package.ts`), bumps the README badge, and adds a matching `## [X.Y.Z] - YYYY-MM-DD` heading + bullet(s) to `CHANGELOG.md` in the same commit. Patch versions accumulate through a release-prep cycle; the eventual minor cut (e.g. `v0.7.0`) consolidates them. Pure doc sweeps, internal refactors, and test-only changes do NOT bump — those live in commit messages and the design notes under `docs/`. The pin in `tests/unit/t68-version-changelog-sync.test.ts` enforces that the shipped `aidlc-version.ts`, the latest `CHANGELOG.md` heading, and the README badge agree.
-
-Each entry follows the shape: `## [N.N.N] - YYYY-MM-DD` heading, one-paragraph summary that includes any upgrade instruction, then a flat bullet list focused on what users actually invoke (commands, flags, errors they see, breaking changes for CI/scripts).
-
-Conflict-trap: when two PRs both bump `aidlc-version.ts` to the same patch number, the second-to-merge resolves by rebasing and re-bumping (e.g. `0.6.5` → `0.6.6`) plus renaming its `## [0.6.5]` heading to match. t68 catches a missed CHANGELOG bullet AND duplicate `## [N.N.N]` headings post-rebase. (CHANGELOG version link references were removed in v0.6.9 — a distributed file should not embed a repository host — so there is no longer a `[N.N.N]:` link reference to keep in sync; t68 guards that none reappear.)
+## AI-DLC
+Structured development uses **AI-DLC v2**, installed for **Claude Code only** (`.claude/`, invoked with `/aidlc`;
+workspace `aidlc/spaces/default/`; rule layers in `aidlc/spaces/default/memory/`). Runbook:
+`docs/runbooks/aidlc-workflow.md`. Other harnesses follow the conventions above but do not run the `/aidlc` engine.

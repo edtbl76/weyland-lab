@@ -30,15 +30,19 @@ bottleneck ([runbooks/coding-agents.md](../runbooks/coding-agents.md)).
 | **Prompts** | Bifrost Prompt Repository (federated to Langfuse/MLflow) | live |
 | **Retrieval** | `context_ask` / `context_search` (the lab RAG) | live |
 | **Model egress** | LiteLLM / Bifrost (agentic), MLflow AI Gateway (chat/eval) | live |
-| **Rules & conventions** | repo files every harness reads: `AGENTS.md`, `docs/`, AIDLC rule files | live — see the gap below |
+| **Rules & conventions** | `AGENTS.md` (harness-neutral; `CLAUDE.md` imports it), `docs/`, AIDLC rule files | live |
 | **Memory** (lessons, decisions, corrections) | **Shared agent memory — TBD** | **planned (B182)** |
 
 ## What is still per-harness
 
-- **Memory.** Durable working memory lives only in Claude Code's auto-memory. Codex, OpenCode and the rest cannot
-  read it — a lesson Claude learned is invisible to them. This is the gap B182 closes.
-- **Instructions.** Codex, OpenCode and Pi read `AGENTS.md`; Claude Code reads `CLAUDE.md`. The lab's conventions
-  (DoD, backlog/Linear, operating rules) currently live in `CLAUDE.md`, so the other harnesses do not get them.
+- **Memory.** Durable working memory lives only in Claude Code's auto-memory, and only Claude Code writes it.
+  Interim (2026-09-25): `AGENTS.md` tells harnesses on rogueone to read its `MEMORY.md` index read-only — a stopgap,
+  not sharing (no writes, not reachable from mother). This is the gap B182 closes.
+- **Instructions — fixed 2026-09-25.** Codex, OpenCode and Pi read `AGENTS.md`; Claude Code reads `CLAUDE.md`, which
+  now just imports `AGENTS.md` plus Claude-only specifics. The lab's conventions and hard rules moved into `AGENTS.md`
+  (it previously held the upstream AI-DLC contributor guide, archived at `design/aidlc-upstream-agents-guide.md`), so
+  every harness gets the same rules. Until B182 lands, `AGENTS.md` also points non-Claude harnesses at Claude's memory
+  index (read-only).
 - **MCP wiring.** Each harness has its own config file (`~/.claude.json`/`.mcp.json`, `~/.codex/config.toml`,
   `~/.config/opencode/opencode.json`). Bifrost keeps that down to one entry per harness.
 
