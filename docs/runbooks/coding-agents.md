@@ -173,6 +173,37 @@ cd <project> && pi --provider mistral --model mistral-large-latest              
 GPT-5.5-via-sub path: `codex login` (→ Sign in with ChatGPT), then `cd <project> && codex "<task>"` (approve its
 sandbox / file-write prompts). Installed; the GPT-sub lane is covered by **Codex (native) + Cline (proven)**.
 
+**Codex + Linear (2026-09-25, B119/B181).** Codex CLI 0.157.0 + the ChatGPT desktop app (`chatgpt` package, which
+registers the `codex://` handler Linear's "Work on issue → Codex" uses). Codex reads Linear through Linear's hosted
+MCP server (OAuth, one-time). Verified: `codex exec` fetched EMA-239's title + status via `linear/get_issue`.
+
+[rogueone]
+```
+codex mcp add linear --url https://mcp.linear.app/mcp && codex mcp login linear
+```
+
+### Codex sandbox (bubblewrap) on Ubuntu 24.04
+
+Symptom: `warning: Codex's Linux sandbox uses bubblewrap and needs access to create user namespaces.` Cause: Ubuntu
+24.04 sets `kernel.apparmor_restrict_unprivileged_userns=1`, and `/usr/bin/bwrap` has no AppArmor profile granting
+`userns` — raw repro: `bwrap --unshare-user --ro-bind / / true` → `bwrap: setting up uid map: Permission denied`. MCP
+calls still work (they don't go through the sandbox); shell commands Codex runs do not get sandboxed. Fix = the
+per-binary profile in `nodes/rogueone/apparmor/bwrap` (the global restriction stays on). Install + load:
+
+[rogueone]
+```
+sudo install -m 0644 /home/edwardmangini/IdeaProjects/weyland/nodes/rogueone/apparmor/bwrap /etc/apparmor.d/bwrap && sudo apparmor_parser -r /etc/apparmor.d/bwrap
+```
+
+Verify — both must print their marker (an absent marker is a failure, not a pass):
+
+[rogueone]
+```
+bwrap --unshare-user --ro-bind / / echo bwrap-ok && codex sandbox -- echo codex-sandbox-ok
+```
+
+Rollback: `sudo apparmor_parser -R /etc/apparmor.d/bwrap && sudo rm /etc/apparmor.d/bwrap`. Tracked host change: B180.
+
 **Verdict:** opencode, Cline, and Pi all **proven in-hand** (user-confirmed) across multiple `$0` drivers; Codex installed
 as the native GPT-sub option. Clean tool protocols, real multi-step tool-use — the **model/provider** was always the
 variable, never the harness. Best driver = **ChatGPT-sub GPT-5.5** (Cline/Codex); best keyed-free = **Mistral / OpenRouter**

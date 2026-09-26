@@ -1,0 +1,18 @@
+# AppArmor profile: let bubblewrap create user namespaces on rogueone (Ubuntu 24.04).
+#
+# Why: Ubuntu 24.04 sets kernel.apparmor_restrict_unprivileged_userns=1, so an unprivileged process may only
+# create a user namespace if its AppArmor profile grants `userns`. /usr/bin/bwrap ships with no profile, so
+# Codex CLI's Linux sandbox (bubblewrap) cannot start: "Codex's Linux sandbox uses bubblewrap and needs access to
+# create user namespaces" (found 2026-09-25, codex-cli 0.157.0). This is Ubuntu's documented per-binary
+# exception; the system-wide restriction stays ON for every other program.
+#
+# Install / verify: docs/runbooks/coding-agents.md § "Codex sandbox (bubblewrap) on Ubuntu 24.04".
+# Tracked host change: B180.
+abi <abi/4.0>,
+include <tunables/global>
+
+profile bwrap /usr/bin/bwrap flags=(unconfined) {
+  userns,
+
+  include if exists <local/bwrap>
+}

@@ -163,7 +163,7 @@ Re-ordered per RE-grounded audit (aidlc-docs/inception/backlog-reprioritization.
 
 29. **B45** — **Operator incident-response (agent-in-the-loop)** — **DONE 2026-08-04.** The **operator** enriches firing incidents rather than just re-paging them. `incidents.py`: a 180 s loop reads `ALERTS{alertstate="firing"}` from Prometheus **off the critical alert path** (one query unifies every firing rule incl. the blackbox synthetic downs), dedups via Postgres (`operator_incidents`), and for each **new** incident runs the agent to correlate recent logs + pod status via the MCP fleet → posts a proactive Telegram digest. **Enrich-only** (proposals dropped); noise-filtered (`severity=none` + Watchdog/InfoInhibitor/LiteLLMEgressEnabled). **Hard constraint held:** never in the paging path — direct Kuma/Alertmanager→Telegram stays the pager, so if the loop dies paging is unaffected. **Earned its keep on run 1** — surfaced a **12-day postgres-backup outage** (a wedged meshed Job + `concurrencyPolicy: Forbid` silently blocking every subsequent run) buried under 8 noise alerts; hardened with `activeDeadlineSeconds`. **Brain reliability (the enabling work):** the autonomous path needs an always-up brain, so the operator moved to **local `qwen2.5:7b` primary + Haiku health-failover** on a curated FLAT toolset (gpt-oss:20b won't fit rogueone's shared 16 GB GPU; the full 91 tools *and* the two-stage routers both broke small-model selection — see [[operator-local-brain-qwen25-flat]]). Metrics `operator_incident_sweeps_total` / `operator_incidents_notified_total` / `operator_brain_selected_total`; alerts `WeylandOperatorDown` + `WeylandOperatorSweepErrors`. **DoD swept 2026-08-04** (arch entry + `flow-incident-sweep`/`flow-operator-brain` sequences + LikeC4 + runbook + demos + prometheusrule). **Brain reliability VALIDATED in production 2026-08-06** (v20, ~1.5 days post-deploy): 24h `operator_brain_selected_total` = 100% local-primary (3/3), **0 failover** (`local_down` + `local_error` both 0), operator-attributed Haiku spend **$0** — the design behaved; local carried the load, Haiku a zero-cost backstop. Reschedulable check documented in `runbooks/operator.md` § Reliability check. Closes **Linear EMA-56** with **B32** (NeMo, done via B115).
 
-30. **B39** — **Figma ↔ code design workflow (bucket)** — **HIGH · IN PROGRESS (2026-08-05; B114 folded in — Stud.IO is very active).** [Linear EMA-30 — tracked in the Stud.IO project, as its primary target; cross-product item.] The bidirectional Figma↔code loop via the official Figma MCP (Claude Code `figma` plugin): **design → code** (Figma → UI code) + **code → design** [B114 — extract Stud.IO's UI into a Figma design system via `figma-generate-library`/`figma-generate-design` + Code Connect]. Primary target = **Stud.IO**; also the lab UI surfaces. — Original: stand up a design-to-code pipeline using the **Figma MCP** (already available in-session): pull Figma designs/components into implemented UI code (and optionally code→Figma sync). Gives the lab's UI surfaces — U16 (Weaviate UI), B3 (Backstage), future dashboards — a consistent design system instead of ad-hoc per-tool UIs. $0: Figma has a free tier. **Open:** (1) Figma account + design system/tokens; (2) which UI to target first; (3) where design artifacts live (a `design/` area in the repo?); (4) Figma-MCP auth in headless/cron vs interactive-only.
+30. **B39** — **Figma ↔ code design workflow (bucket)** — **HIGH · IN PROGRESS (2026-08-05; B114 folded in — Stud.IO is very active).** [Linear EMA-30 — tracked in the Stud.IO project, as its primary target; cross-product item.] The bidirectional Figma↔code loop via the official Figma MCP (Claude Code `figma` plugin): **design → code** (Figma → UI code) + **code → design** [B114 — extract Stud.IO's UI into a Figma design system via `figma-generate-library`/`figma-generate-design` + Code Connect]. Primary target = **Stud.IO**; also the lab UI surfaces. — Original: stand up a design-to-code pipeline using the **Figma MCP** (already available in-session): pull Figma designs/components into implemented UI code (and optionally code→Figma sync). Gives the lab's UI surfaces — U16 (Weaviate UI), B3 (Backstage), future dashboards — a consistent design system instead of ad-hoc per-tool UIs. Figma **Pro** (already paid — updated 2026-09-25): includes Figma Make (prompt → functional app + Supabase backend + GitHub push, 3,000 AI credits/mo), the prototyping path for OJay Floyd / MyBodyGraph — see B181. **Open:** (1) Figma account + design system/tokens; (2) which UI to target first; (3) where design artifacts live (a `design/` area in the repo?); (4) Figma-MCP auth in headless/cron vs interactive-only.
 
 29. **B40** — **Mermaid rendering in TechDocs (B3 IDP)** — **CLOSED 2026-08-05 — moot.** TechDocs was a Backstage feature; **Backstage retired (B59)**. Docs are now MkDocs Material (`docs.weyland.lab`), which renders mermaid natively — the whole basis of this item is gone. Historical: our `docs/` mermaid diagrams render as code blocks in the IDP's TechDocs (GitHub renders them fine, so no urgency). No official Backstage Mermaid addon exists. **Revisit approach (user-set):** (1) **try the community frontend plugin first** (`backstage-plugin-techdocs-addon-mermaid`) — interactive client-side render, but wiring it into the **new frontend system** is the risk; (2) **if that fails, fall back to build-time SVG pre-render** (`mkdocs-mermaid-to-svg` + mermaid-cli → static vector SVGs, no frontend change; optionally the official **LightBox** addon for click-to-zoom). Catalog graph + TechDocs themselves already work — this is the one parked polish item.
 
@@ -2034,6 +2034,8 @@ The **application half** of onboarding, split out of **B154** (EMA-211). B154 Ph
 
 **Scope add (2026-09-23) — Linear project creation is part of the automated flow.** As of 2026-09-23 every active repo maps 1:1 to a Linear Project (`repos.yaml` `linear_project`), enforced by `check-linear-sync.sh` **check G**; `onboard-repo.sh` currently *prints* the create-project step (Phase 1 guide). Phase 2 must **execute** it: create the 1:1 Linear Project (name + GitHub link, team EMA) via the Linear API and **write `linear_project: "<name>"` back into `repos.yaml`**, so onboarding a repo no longer leaves the project (or the SoT line) to be done by hand. Without this, Phase 2 would automate every surface except the one added last.
 
+**Scope add (2026-09-25) — a Linear project template PER PROJECT TYPE, created by the onboarding automation.** Deferred here from the B119 Settings walk: projects come in several types — **repo-backed** (Algopedia, OJay Floyd, MyBodyGraph, Stud.IO…), **hardware** (rogueone Hardware), **track/course** (Service Transformation), and possibly **applications** (B82 taxonomy) — and only the repo type is scripted today. A standalone template was skipped because copying onboarding STEPS into Linear drifts from `onboard-repo.sh` (two steps were added to it this week). When Phase 2 makes onboarding a real service, design the types properly and have the service create each project FROM its type's template (Linear `save_project(template=…)`), whose description holds POINTERS, not steps: **Type**, **Initiative** (and whether `docs/backlog.md` governs it — Lab & Systems only), **Repo/live link**, and a link to the onboarding runbook on docs.weyland.lab. The exactly-one-initiative rule stays enforced by `check-linear-sync` check H.
+
 ---
 
 ### B160 — Extend the golden-path language suite (B153 follow-on) — DONE 2026-09-09 (Linear EMA-217)
@@ -2400,9 +2402,28 @@ roadmap"); the cloud agents (Devin, Factory, Lovable, …) are paid or duplicate
 MyBodyGraph — has no launcher, so the path today is manual "Copy as prompt" → paste.
 
 **Mechanism.** Settings → Account → Code & reviews → **custom links**: a URL template with query params Linear fills
-with the issue + a custom prompt (custom *scripts* need the desktop app → out).
+with the issue + a custom prompt (custom *scripts* need the desktop app → out). Linear documents the template
+variables only for custom scripts (`{{prompt}}`, `{{issue.identifier}}`, `{{issue.branchName}}`, `{{project.name}}`,
+`{{workDir}}`, `{{tool.command}}` — linear.app/docs/open-issues-with-custom-scripts); whether custom links take the
+same set is unverified — read the custom-link dialog's helper text before relying on any.
+
+**Claude Code (added 2026-09-25 — the first target).** Codex *desktop* already works as a launcher here (the `chatgpt`
+package registers `codex://` → `/usr/share/applications/chatgpt.desktop`). Claude Code has the equivalent via its
+documented deep link `claude-cli://open?q=<url-encoded prompt, ≤5000 chars>&cwd=<abs path>&repo=<owner/name>`
+(code.claude.com/docs/en/deep-links); the handler is already registered on rogueone
+(`~/.local/share/applications/claude-code-url-handler.desktop` → `claude --handle-uri %u`, opens in
+`x-terminal-emulator` = terminator). The prompt is prefilled, never auto-submitted. Candidate custom link — pass the
+issue **ID**, not `{{prompt}}`, because a full issue body can exceed the 5000-char cap and Claude Code reads the issue
+itself through the Linear MCP:
+```
+claude-cli://open?cwd=/home/edwardmangini/IdeaProjects/weyland&q=Work%20on%20Linear%20issue%20{{issue.identifier}}.%20Read%20it%20with%20the%20Linear%20MCP%20first.
+```
+Verify: (a) `xdg-open` a test `claude-cli://` link on rogueone opens terminator + Claude Code with the prompt
+prefilled; (b) the placeholder expands when launched from a real issue. Fixed `cwd` = weyland; other repos get their
+own link if needed.
 
 **Scope.**
+0. Claude Code launcher (above) — test the handler, add the custom link, confirm on one issue.
 1. Inventory the apps on the **start.me "Weyland Lab" page** (the startme-curator taxonomy is the source).
 2. For each, verify (against the real app, not assumed) whether it accepts a prompt/context via URL — Figma Make first.
 3. Configure the ones that do as Linear custom-link tools with a prompt template; list the ones with no URL entry
@@ -2423,6 +2444,10 @@ routinely and tracks them nowhere. The repo holds **15 unit files across 3 machi
 | rogueone | `restic-backup.{service,timer}` · `machine-inv-drift.{service,timer}` · `ai-session-producer.{service,timer}` · `offline-failing-cores.service` (`nodes/rogueone/systemd/`) |
 | weyland | `whisper-server.service` · `whisper-shim.service` (`nodes/weyland/whisper/`) |
 | (under `services/`) | `rag-embed.service` · `ray-worker.service` |
+
+Not only systemd: host config lands too — e.g. `nodes/rogueone/apparmor/bwrap` (2026-09-25, lets Codex's
+bubblewrap sandbox create user namespaces on Ubuntu 24.04; install in `docs/runbooks/coding-agents.md`) and
+`nodes/rogueone/systemd/ollama-gpu-guardrails.conf` (a drop-in). The SoT should cover these host files, not just units.
 
 Each is deployed by a hand `rsync` + `systemctl enable`, so nothing records **what is actually installed and enabled
 on which host**; a unit can exist in git but never be installed, or be installed with no git copy. And a failed host
@@ -2451,6 +2476,7 @@ Evaluate **Warp Software Factory** (warp.dev's agentic software-development offe
 - **Constraint gate FIRST** — $0 / self-hosted / LAN-only. Warp is commercial; if it's paid-cloud-only it likely fails like the Linear Agent (B119) — record that cleanly, but check for a free/self-host tier first.
 - **Overlap with what the lab already runs** — AIDLC (AGENTS.md), Bifrost skills/prompts, `weyland-operator` (LangGraph), Claude Code + the B175 loop library, the B17 realm-of-agents A2A roster. New capability, or a repackaging of what's already here?
 - **Concepts worth stealing** even if the product isn't adopted — the "software factory" framing, orchestration/verification patterns, guardrails.
+- **Comparator — Blocks (added 2026-09-25).** Blocks (blocks.team) calls itself *"the Agentic Software Factory for Linear"*: @blocks in Linear/Slack hands work to hosted Claude Code/Codex/OpenCode agents that plan, split issues, and open PRs — **unattended**. Free Hobby tier: 250 compute min/mo, BYO model keys. Rejected as a standalone adopt (the B119 issue→agent→PR pattern, run in their cloud), but it is the natural **comparison point** for Warp: *what does a "software factory" give a solo lab that interactive Claude Code doesn't?* Its free tier allows a real trial on a PUBLIC repo (7 of 9 active repos are public) where Warp may not. Warp's own Linear integration ("turn Linear issues into work for your factory") is also input here.
 
 **Deliverable:** a concise verdict + rationale in `docs/concepts/`; DON'T-ADOPT → one-paragraph why; ADOPT (or adopt-a-concept) → a bounded plan. $0 unless a compelling free path exists.
 
