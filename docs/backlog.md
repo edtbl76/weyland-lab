@@ -2437,11 +2437,14 @@ each comment); hosted-fallback rate limits (back off, never a partial score).
 | 2 | added Acceptance criteria, Edge cases, Out of scope | 70 | 90 | 82 | 44 | 12 |
 | 3 | (same, re-run) | 70 | 90 | 82 | 44 | 12 |
 | 4 | added Technical context table and a Priority & scope section | 75 | 90 | 82 | 84 | **12** |
+| 5 | re-run, no change (2026-09-26) | 75 | 90 | 82 | 84 | **12** |
 
 Other dimensions held steady (objective 82, expected behavior 84, dependencies 82, repro 84). **Open question #1:**
 priority & scope stayed at exactly 12 through a written priority rationale, ordered scope, minimum slice and time-box —
-so it likely reads Linear's structured fields (estimate? due date? cycle?) or penalizes size, not the text. Test one
-field at a time. Deterministic run-to-run (runs 2 and 3 identical) — a useful property to match.
+so it likely reads Linear's structured fields (estimate? due date? cycle?) or penalizes size, not the text. **The
+lab does not use estimates** (team estimation is off by the owner's choice, 2026-09-26), so that hypothesis stays
+untested — and the lab's own scorer must **not** penalize a missing estimate: priority/scope is judged from the
+native priority field + the written rationale and scope boundary. Deterministic run-to-run (runs 2 and 3 identical) — a useful property to match.
 
 Relates B119, B182, B84/B100 (LLM judges).
 
