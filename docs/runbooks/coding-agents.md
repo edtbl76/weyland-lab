@@ -189,7 +189,7 @@ Each harness keeps its own config file, but they all point at the same shared se
   `~/.local/share/JetBrains/acp-agents/installed.json`: Claude Agent, Codex, OpenCode, Cline, Junie, Gemini CLI,
   Copilot, …) plus the Claude Code, Codex launcher and ProxyAI (→ LiteLLM) plugins.
 - **VS Code 1.139** — Codex extension (uses `~/.codex/config.toml`, so Linear + Bifrost are already there); Claude Code
-  extension installed (`anthropic.claude-code`). Copilot Chat's own Linear entry lives in `~/.config/Code/User/mcp.json`.
+  extension installed (`anthropic.claude-code`). Copilot Chat's own Linear entry lives in `~/.config/Code/User/mcp.json`. **Linear Connect** (`linear.linear-connect`, installed 2026-09-25) is Linear's official auth provider for VS Code — it adds no UI of its own; it gives other extensions a Linear sign-in session.
 
 [rogueone]
 ```
