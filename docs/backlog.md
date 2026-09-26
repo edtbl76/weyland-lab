@@ -73,6 +73,9 @@ Re-ordered per RE-grounded audit (aidlc-docs/inception/backlog-reprioritization.
 - **B180** — **Track host systemd units (mother, rogueone, weyland) in a YAML SoT + the Port inventory** — **HIGH (2026-09-25, Linear EMA-238).** The lab's own host-level services/timers are tracked nowhere: the repo holds 15 unit files across 3 machines, each deployed by a hand `rsync` + `systemctl enable`, with no record of what is actually installed/enabled where, no repo↔host drift check, and no failure alerting for host timers (unlike k8s CronJobs). Audit the hosts, add a `host-units.yaml` SoT, catalog them in Port beside the B129 machine inventory, guard drift, and give every host timer a failure signal. See detail below.
 - **B181** — **"Work on issue" / Copy-as-prompt launchers in Linear for the apps on the start.me Weyland Lab page (Figma Make first)** — **MEDIUM (2026-09-25, Linear EMA-239).** Linear's built-in coding-tool launchers are mostly unusable here (terminal tools need the Linear desktop app — no Linux build; the cloud agents are paid), so apps we actually use for greenfield work — Figma Make for OJay Floyd / MyBodyGraph prototyping — have no issue→app hand-off. Configure Linear **custom-link** coding tools for the start.me Weyland Lab apps that accept a prompt via URL. See detail below.
 - **B182** — **Shared agent memory across harnesses (Claude Code, Codex, OpenCode, Pi, Open WebUI, operator)** — **HIGH (2026-09-25, Linear EMA-240).** The lab is multi-harness, but durable agent memory lives only in Claude Code's auto-memory, which no other harness can read — Codex (connected to Linear 2026-09-25) sees none of it. One shared store every harness reads and writes; candidate = an MCP memory server (Basic Memory) behind the Bifrost MCP gateway — store, transport and gateway all TBD. ContextStream rejected (a second, proprietary store). Concept `docs/concepts/multi-harness.md`, design `docs/design/shared-agent-memory-design.md`. See detail below.
+- **B183** — **Evaluate Figma Make Connectors, Designs and Skills** — **HIGH (2026-09-25, Linear EMA-241).** Figma Make (in the existing Figma Pro plan) has three surfaces worth a real evaluation for the lab's prototyping/UX work — MCP **Connectors** (the Linear connector reads issues/projects/docs into Make and writes back), **Designs** (existing designs / a design system as context) and **Skills** (standing instructions). Verdict per surface + credit cost observed. Found in the B119 integrations walk; linked (not parented) to the Stud.IO UX epic EMA-153. See detail below.
+- **B184** — **Adopt Slack (free) + audit every Slack integration across the platform** — **HIGH (2026-09-25, Linear EMA-242).** A free Slack workspace for the lab — useful even purely as a demo surface, since nearly every platform tool ships a Slack integration. Adopt it (free-plan limits verified first — an app cap would decide which integrations earn a slot), then audit EVERY component for its Slack integration (send/receive, overlap with today's Telegram alerting, verdict), then wire the chosen set with a channel map + demos. Found in the B119 integrations walk. See detail below.
+- **B185** — **Free time tracking per Linear issue (ActivityWatch + Linear-derived cycle time)** — **HIGH (2026-09-25, Linear EMA-243).** No time tracking today; Rize is paid and Reclaim's Linear link is paid-only. Recommended: **ActivityWatch** (automatic, local on rogueone — Linear tab titles carry the issue ID, so hours per issue are derivable) + **Linear status-history cycle time** (already in the API); **Clockify** (free, native Linear button) as the fallback. Found in the B119 integrations walk. See detail below.
 - **B178** — **CI resilience: a Port (external SaaS) outage must not hard-block the whole pipeline** — **RETIRED (2026-09-24, Linear EMA-236) — built, then REVERTED the same day by operator call.** During a Port outage `port-iac-coverage`'s unbounded auth curl hung and fail-fast killed every pipeline. A warn-and-continue path was built (distinct "unreachable" exit codes for `port-iac-coverage` + `linear-sync`, a best-effort `notify-port`) and CI-verified, then **removed: it was a stopgap for one outage, and the lab's policy is fail-closed** — a run where a guard verified nothing must not come out green, even if the cause is a vendor outage. **Kept:** bounded curls (`--connect-timeout`/`--max-time`) on all three, so a hung SaaS fails the step FAST instead of pinning it — still a hard fail. See detail below.
 - **B177** — **Lean + safe CI language matrix: selective per-language runs + full-matrix headroom** — **DONE (2026-09-24, Linear EMA-235).** CI steps run STRICTLY SEQUENTIALLY (RWO workspace, proven from #168 timestamps), so a full run is ~30 min of ~46 fixture-language golden-path lanes on a RAM-tight node (mother ~98%) → #169/#170 were OOM-killed mid-run. **Phase 1 (DONE, CI-verified by lean run #178 — 21 of 67 steps, 21/21 green):** `ci-langs.yaml` manifest + `scripts/ci/select-fixtures.sh` (fail-closed selector, 12 bats) + a `&fixture` gate on the 46 fixture lanes (`RUN_FIXTURES != "0"`, the proven `--var`+`evaluate` pattern) so a change that doesn't touch `golden-paths/` runs only the production lanes; unset var / nightly cron = full matrix (safe default); `golden-path-smoke` lean-gated too. **Phase 2 (DONE — closed on evidence):** per-step caps already exist (B93 LimitRange 128Mi/2Gi + explicit heavy-lane limits) and mother's kubelet reserves are set; 19 nightly cron runs, 0 killed (failures were all code-level); memory is flat day/night so moving the cron buys nothing. The only kills were ad-hoc FULL runs launched ~midnight into the Dagster batch start → runbook now says trigger ad-hoc runs lean. Residual = capacity, only if the nightly ever starts getting killed. See detail below.
 - **B176** — **PR-lifecycle reconciler: cover ALL pr-lane repos + Loki audit log** — **DONE (2026-09-23, Linear EMA-234).** Built, verified + exercised in prod (fleet `--apply` ran clean 2026-09-23); commit / deploy / PAT re-scope are the operator's routine steps. Extends the B131 reconcile half from weyland-lab-only to **every `lanes.pr: true` repo in `repos.yaml`** (the B138 8-repo pr-lane set, byte-identical to `pr-staleness`, guarded by a new `pr(recon)` lane in `check-repo-coverage.sh`). Each repo is reconciled in a subshell (per-repo fail-closed isolation — one unreachable repo forces exit 2, never a silent shrink). Emits structured `pr-lifecycle-audit` lines → Alloy → Loki (the audit.log); metrics via LogQL (no Pushgateway, Job stays unmeshed — the Loki ruler is alerting-only). **Op follow-up (runbook-captured, latent):** re-scope + re-seal the PAT for private-repo writes — no private-repo PRs exist today, so not a completion blocker. See detail below.
@@ -2391,6 +2394,76 @@ merges — that stays a human action).
  and **rotate** the value. Flagged twice by the automated security review. Low-risk on the LAN, but the password
  is committed in git. Do **all four at once** — piecemeal (ClickHouse-only) is inconsistent and gives no real
  benefit while the other three stay inline. Also the ClickHouse `users.d` Secret is already out-of-band (good).
+
+### B185 — Free time tracking per Linear issue (ActivityWatch + Linear-derived cycle time) — HIGH (2026-09-25, Linear EMA-243)
+
+**Why.** The lab has no time tracking. Found in the B119 Linear integrations walk (2026-09-25): **Rize** is paid and
+**Reclaim.ai**'s Linear integration is paid-only (Lite gets Google Tasks/Slack/Zoom/Meet). Free options compared:
+
+| Option | How it captures time | Linear link | $0 | Fit |
+|---|---|---|---|---|
+| **Clockify** | manual start/stop — a timer button on each Linear issue (browser extension) | **yes** — on Clockify's integrations list; the free plan includes the extension | free forever | closest free Rize/Toggl equivalent; cloud (fine — free) |
+| **ActivityWatch** | **automatic** — runs on rogueone, records active window + Chrome tab title | **indirect** — Linear tab titles carry the issue ID (`EMA-241 …`) | free, open source, local | lab-native: zero clicks, local data, Grafana-able |
+| **Linear's own timestamps** | nothing to run — status history (started/completed) is in the API | native | free | elapsed time per issue, **not** hours worked |
+| Toggl Track | manual timer extension | **no** — Linear not on its supported-app list | free tier | worse than Clockify |
+| solidtime / Kimai | self-hosted timers | not confirmed (solidtime: a discussion thread only) | free, open source | a service to run for no gain |
+
+**Recommendation.** Skip timer apps — a solo operator switching issues rarely starts/stops a timer consistently.
+**ActivityWatch** for hours per issue (derived from issue IDs in tab titles) + **Linear-derived cycle time** for
+time-to-done (`check-linear-sync.sh` already queries the API). **Clockify** is the fallback if an explicit per-issue
+button is wanted.
+
+**Scope.**
+1. Install ActivityWatch + its browser watcher on rogueone; confirm Linear tab titles carry the issue ID.
+2. Report: hours per EMA/B issue (ActivityWatch) + cycle time (Linear status history).
+3. Decide where it surfaces (Grafana panel / Port / weekly note) and whether it stays local-only.
+4. DoD: runbook, demo, the host install tracked under B180, docs.
+
+Relates B119, B180.
+
+### B184 — Adopt Slack (free) + audit every Slack integration across the platform — HIGH (2026-09-25, Linear EMA-242)
+
+**Why.** Found in the B119 Linear integrations walk (2026-09-25). The lab has no chat workspace: alerts and the
+operator run over **Telegram**. Nearly every tool in the platform ships a Slack integration, so a free Slack
+workspace is useful even purely as a **demo surface** — "how this looks in a real org's chat" is part of what the lab
+shows. No earlier Slack decision exists (the only prior mention: a dead Slack automation pruned from Port, B59).
+
+**Scope.**
+1. **Adopt (free plan).** Create the workspace; verify the free-plan limits against Slack's current plan page before
+   designing anything (message-history window; any cap on installed apps/integrations — a cap decides which
+   integrations earn a slot). Connect Linear first.
+2. **Audit every component** for its Slack integration: what it sends/receives, what it would duplicate (Telegram
+   alerting via Alertmanager; the operator's Telegram front door), $0 on the free plan, verdict (adopt / demo-only /
+   skip). Candidates to check — not an assumed list: Linear, Grafana/Alertmanager, Uptime Kuma, GlitchTip, Woodpecker,
+   Argo CD notifications, Port, Dagster, DataHub, Langfuse, MLflow, Keycloak, GitHub, Figma, the weyland-operator
+   (Slack as a second front door), and the Linear-directory entries that need Slack (Graph, Alkemi, Blocks).
+3. **Wire the chosen set** — webhook URLs / bot tokens sealed (SealedSecrets), never pasted; one documented channel
+   map; a demo per integration.
+4. DoD: concept doc (audit table + channel map), runbook, demos run live, arch.md + C4 placement (Slack as an `ext`).
+
+Relates B119, B51 (alerting), B66 (operator).
+
+### B183 — Evaluate Figma Make Connectors, Designs and Skills — HIGH (2026-09-25, Linear EMA-241)
+
+**Why.** Found in the B119 Linear integrations walk (2026-09-25): Figma Make's **Linear connector** was judged ADOPT —
+$0 extra on the existing Figma Pro plan (Make needs a Full seat on a paid plan; verified MCP connectors are available
+on all plans), and it reads Linear issues/projects/documents into a Make session and creates/updates issues back.
+Connector context counts toward Make's 3,000 AI credits/mo. The connector is one of three Make surfaces; evaluate all
+three against real work before building a workflow on any of them.
+
+**Status (2026-09-25).** Connectors **enabled** in Figma Make: **Linear** and **GitHub** (OAuth, one-time per user).
+Nothing evaluated yet — enabling is setup, not a verdict.
+
+**Scope.**
+1. **Connectors** (Linear + GitHub enabled) — does a prototype built from a real Linear issue beat Copy-as-prompt? Credits per connector-heavy
+   prompt (observed, not assumed). Which other verified connectors earn a place (GitHub?).
+2. **Designs** — can Make build against an existing design system so output matches the real app, not a generic look?
+3. **Skills** — what they are in practice; whether they carry standing instructions (the Claude Code skills idea) so UX
+   rules are encoded once, not per prompt.
+4. Record a verdict per surface + setup for anything adopted (`docs/concepts/linear-evaluation.md`, B39).
+
+Consumers: OJay Floyd / MyBodyGraph prototyping; the Stud.IO UX redesign is **related** (Linear EMA-153, linked — this
+is a weyland item, not part of the Stud.IO project). Relates B39 (Figma ↔ code, EMA-30), B119.
 
 ### B182 — Shared agent memory across harnesses — HIGH (2026-09-25, Linear EMA-240)
 
