@@ -20,6 +20,19 @@ Coding harnesses call hosted models **directly**, not through the MLflow AI Gate
 loop — see [arch.md §8a](../arch.md)). Model choice is a driver, not an architecture: the harness was never the
 bottleneck ([runbooks/coding-agents.md](../runbooks/coding-agents.md)).
 
+## Editors — where the harnesses run
+
+The IDEs are **hosts, not harnesses**: they run the harnesses above rather than being a separate agent layer.
+
+| Editor | Harnesses it hosts | Linear / MCP reach | Notes |
+|---|---|---|---|
+| **IntelliJ IDEA** (primary, 2026.2) | **Agent-agnostic.** AI Assistant's **ACP agent registry** (`~/.local/share/JetBrains/acp-agents/installed.json`) has 11 installed: Claude Agent, **Codex**, **OpenCode**, **Cline**, Junie, Gemini CLI, GitHub Copilot, Grok Build, Kimi CLI, Mistral Vibe, Qwen Code. Plus plugins: **Claude Code**, **Codex launcher**, ProxyAI (→ LiteLLM), Copilot | each agent brings its own config (Claude Code / Codex already reach Linear + Bifrost) | also runs IntelliJ's own **MCP server** plugin (exposes the IDE to agents) and CodeScene / Sourcery (B106) |
+| **VS Code** (1.139, secondary) | **Codex** extension (`openai.chatgpt`) — reads `~/.codex/config.toml`, so Linear + Bifrost come with it; **Claude Code** extension recommended for parity (`anthropic.claude-code`) | via the harness extensions; also a native `linear` entry in `~/.config/Code/User/mcp.json` (used only by Copilot Chat) | Copilot Chat stays available but is not the path |
+
+Rule of thumb: pick the harness first, then open it in whichever editor is at hand. Configuration lives with the
+harness (`~/.codex/`, Claude Code's `.mcp.json`), never per editor — so switching editors changes nothing about what
+the agent can reach.
+
 ## What is shared (harness-neutral)
 
 | Concern | Shared component | Status |

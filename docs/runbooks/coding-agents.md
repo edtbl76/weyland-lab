@@ -183,6 +183,24 @@ Each harness keeps its own config file, but they all point at the same shared se
 | opencode | `~/.config/opencode/opencode.json` | yes (`mcp.bifrost`) | via Bifrost's Linear upstream | `AGENTS.md` |
 | Pi | `~/.pi/agent/` | no MCP configured | — | `AGENTS.md` |
 
+**Editors (hosts, not harnesses).** Config stays with the harness, so any editor below reaches the same servers:
+
+- **IntelliJ 2026.2** — AI Assistant's **ACP agent registry** (Settings → Tools → AI Assistant → Agents; installed list in
+  `~/.local/share/JetBrains/acp-agents/installed.json`: Claude Agent, Codex, OpenCode, Cline, Junie, Gemini CLI,
+  Copilot, …) plus the Claude Code, Codex launcher and ProxyAI (→ LiteLLM) plugins.
+- **VS Code 1.139** — Codex extension (uses `~/.codex/config.toml`, so Linear + Bifrost are already there); Claude Code
+  extension recommended for parity. Copilot Chat's own Linear entry lives in `~/.config/Code/User/mcp.json`.
+
+[rogueone]
+```
+code --install-extension openai.chatgpt && code --install-extension anthropic.claude-code && code --list-extensions
+```
+
+[rogueone]
+```
+code --add-mcp '{"name":"linear","type":"http","url":"https://mcp.linear.app/mcp"}'
+```
+
 Memory is the one surface that is NOT shared yet — Claude Code's auto-memory is Claude-only (B182, design TBD:
 [design/shared-agent-memory-design.md](../design/shared-agent-memory-design.md)). Check what each harness has with
 `codex mcp list` / `claude mcp list`.
