@@ -2671,6 +2671,19 @@ them, with no second copy to drift (the KEDA / Cyrus re-proposals are what drift
 5. DoD: arch.md entry, C4 placement (the `sharedMemory` element is placed now at the model root, view `harnesses`, status TBD), sequence diagram, a live
    demo, runbook.
 
+**Technical context (added after the SpecBot recheck, 70/100).** rogueone: the memory dir
+`/home/edwardmangini/.claude/projects/-home-edwardmangini-IdeaProjects-weyland/memory/` (migrate from, then retire),
+`~/.codex/config.toml`, `~/.config/opencode/opencode.json`, Claude Code `.mcp.json`. mother: Bifrost
+(`k8s/bifrost/bifrost.yaml`, MCP clients in `scripts/register_bifrost_mcp_clients.py`, `https://bifrost.weyland.lab/mcp`),
+weyland-operator + Open WebUI (read-only). Repo: `AGENTS.md` § Agent memory (stopgap to replace), the design/concept docs,
+arch.md §8d, the LikeC4 `sharedMemory` element. Candidate: Basic Memory (AGPL-3.0). APIs: MCP; Bifrost's MCP client
+registration (`docs/runbooks/mcp-gateway.md`).
+
+**Priority & scope.** High because every added harness multiplies the drift (Codex joined 2026-09-25; re-proposals of
+rejected options already happened). Order: verify → decide → stand up → migrate → wire Claude Code + Codex (must-have),
+then OpenCode, then read-only operator / Open WebUI → DoD. Minimum shippable slice: Claude Code ↔ Codex on one store
+(criteria 1–4). Time-box candidate verification to one session; if none passes concurrency + transport, re-plan.
+
 **Acceptance criteria (added 2026-09-25 after SpecBot scored the issue 51/100 — pass/fail each).**
 - [ ] A note written from Claude Code is returned by a search from Codex within one minute, and vice versa.
 - [ ] Claude's existing memory (~190 notes + `MEMORY.md`) is in the shared store with **no parallel copy left** — store
