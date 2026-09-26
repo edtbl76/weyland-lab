@@ -152,6 +152,58 @@ stub_git_pushed() {
   [[ "$output" == *"unpigz invalid deflate"* ]]
 }
 
+# --- RUN_FIXTURES pass-through (lean ship, 2026-09-26) ---------------------------------------------
+# The loop creates its own pipeline, so the runbook's "trigger ad-hoc runs LEAN" advice had no way in:
+# every ship was a ~110-min full matrix, and pipeline #191 was killed at minute 108 under node load.
+
+@test "RUN_FIXTURES: unset adds no --var, so the default ship stays the full matrix" {
+  unset RUN_FIXTURES
+  SHIP_IMAGES_LIB=1 source "$SHIP"
+  run pipeline_create_vars
+  [ "$status" -eq 0 ]
+  [ -z "$output" ]
+}
+
+@test "RUN_FIXTURES=0 passes --var RUN_FIXTURES=0 (lean) and =1 passes it explicitly" {
+  SHIP_IMAGES_LIB=1 source "$SHIP"
+  RUN_FIXTURES=0 run pipeline_create_vars
+  [ "$status" -eq 0 ]
+  [ "$output" = "--var RUN_FIXTURES=0" ]
+  RUN_FIXTURES=1 run pipeline_create_vars
+  [ "$output" = "--var RUN_FIXTURES=1" ]
+}
+
+@test "RUN_FIXTURES rejects anything but 0/1 — a boolean filters the pipeline empty (runbook: HTTP 204)" {
+  SHIP_IMAGES_LIB=1 source "$SHIP"
+  RUN_FIXTURES=true run pipeline_create_vars
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"RUN_FIXTURES must be 0 or 1"* ]]
+}
+
+@test "RUN_FIXTURES=0 reaches the real pipeline create call" {
+  stub_git_pushed
+  stub_dispatch woodpecker-cli
+  stub_case woodpecker-cli 'pipeline create' 0 '42 pending'
+  stub_case woodpecker-cli 'pipeline show' 0 '42 failure'
+  stub_case woodpecker-cli 'log' 0 'stop here'
+  stub_dispatch kubectl
+  stub_case kubectl 'get' 0 'registry.weyland.lab/scan-suite:git-2c73c898'
+  RUN_FIXTURES=0 run bash "$SHIP"
+  called_with woodpecker-cli 'pipeline create edtbl76/weyland-lab --branch main --var RUN_FIXTURES=0'
+}
+
+@test "RUN_FIXTURES invalid aborts at FR1.3 BEFORE any pipeline is created" {
+  stub_git_pushed
+  stub_dispatch woodpecker-cli
+  stub_case woodpecker-cli 'pipeline create' 0 '42 pending'
+  stub_dispatch kubectl
+  stub_case kubectl 'get' 0 'registry.weyland.lab/scan-suite:git-2c73c898'
+  RUN_FIXTURES=yes run bash "$SHIP"
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"RUN_FIXTURES must be 0 or 1"* ]]
+  ! called_with woodpecker-cli 'pipeline create'
+}
+
 @test "FR1.3 polls until the pipeline reaches a terminal state" {
   stub_git_pushed
   stub_dispatch kubectl
