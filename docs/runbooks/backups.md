@@ -1,5 +1,8 @@
 # Backups Runbook — rogueone (restic → MinIO, B130)
 
+> This runbook covers rogueone only. The catalog of every backup in the lab, and the known gaps, is
+> [../dr.md](../dr.md).
+
 rogueone's active backup: encrypted, deduplicated, incremental **restic** snapshots to the lab **MinIO** (S3), on
 a daily off-hours systemd timer, with **Port** (see) + **Uptime Kuma** (alert) reporting. Replaced the removed Déjà
 Dup / duplicati (both dormant, pruned in B129). Config lives at `nodes/rogueone/{backup,systemd}`; the code-side

@@ -5,7 +5,13 @@ Cline and Pi all read it (Claude Code via `CLAUDE.md`, which imports it). Put pr
 harness-specific file, so every agent gets them. See `docs/concepts/multi-harness.md`.
 
 ## Project conventions (the quality bar)
-- **Definition of Done** — the 8-pillar gate in `docs/definition-of-done.md`; nothing is "done" until it passes.
+- **Definition of Done** — the 9-pillar gate in `docs/definition-of-done.md`; nothing is "done" until it passes.
+  Pillar 9 is disaster recovery: every stateful system has a row in `docs/dr.md` with a tested restore.
+- **Closing Gaps** — the owner's term for the prework an issue needs because doing it exposed a gap in the wider
+  estate (e.g. B194 had no DR catalog to add a Linear backup to, so `docs/dr.md` came first). When the owner says
+  "Closing Gaps", or you find one: close the gap BEFORE the issue's own work, and ask three questions — does a
+  **DoD gate** need adding or tightening, what **documentation** must now exist, and what **audit** (a guard, a
+  drill, a sweep) keeps the gap closed? Record the gap in the issue and the backlog so it isn't lost.
 - **Backlog** = `docs/backlog.md` (ordered source of truth, B-numbered); **Linear** (workspace emangini, team EMA) =
   status. A new backlog item gets a Linear issue in the same change; `scripts/check-linear-sync.sh` must exit 0.
 - **Every issue an agent drafts is implementation-ready** — beyond Why/Scope it carries **Technical context** (the

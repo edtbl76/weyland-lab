@@ -365,7 +365,7 @@ the SoT, and Bifrost **serves the skills as a Claude Code / Codex plugin marketp
 
 **Shipped 2026-09-23 — 4 loop-skills seeded (executes B175).** The existing ~21 skills codify runbooks/gotchas
 ("how to do X"); the four new ones are **loop-shaped** — the forwardfuture loop-library shape, with explicit
-**checkpoints + a terminal condition** that stops the loop: `dod-8-pillar-gate`, `master-the-tool-walk`,
+**checkpoints + a terminal condition** that stops the loop: `dod-8-pillar-gate` (renamed `dod-gate` 2026-09-26 when DoD Pillar 9 was added; its pillar list had also drifted from the DoD), `master-the-tool-walk`,
 `pr-lifecycle-reconcile`, `full-guard-suite-preship`. Authored into the git SoT (syntax-verified, idempotent, 25
 skills total); they register to Bifrost on the next `dagster-user-code` redeploy (or the weekly
 `bifrost_skills_registered` asset), then serve to Claude Code via the marketplace. This answers B175's open

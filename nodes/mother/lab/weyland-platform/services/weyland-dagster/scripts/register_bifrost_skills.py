@@ -263,23 +263,26 @@ Pattern (see register_bifrost_mcp_clients.py / _prompts.py / _skills.py):
     # ============================ recurring loops (B175 loop library) ============================
     # Loop-shaped skills: a repeatable agentic workflow with explicit CHECKPOINTS and a TERMINAL CONDITION
     # (what stops the loop) — the forwardfuture loop-library shape, richer than the "how to do X" skills above.
-    ("dod-8-pillar-gate", "loop",
-     "Run the weyland Definition-of-Done 8-pillar gate on a change; nothing is done until every pillar passes or a gap is logged.",
-     """Use before declaring ANY weyland change "done" — the completion gate (docs/definition-of-done.md).
+    ("dod-gate", "loop",
+     "Run the weyland Definition-of-Done gate (all 9 pillars) on a change; nothing is done until every pillar passes or a gap is logged.",
+     """Use before declaring ANY weyland change "done" — the completion gate (docs/definition-of-done.md, the source of truth; re-read it, this is a summary).
 
-Run all 8 pillars IN ORDER. The FIRST failure masks later ones, so fix and re-run from the top; never skip ahead:
-1. **Docs** — arch/hosts/api/schedules/runbooks updated for the change (grep docs/ for stale references).
-2. **C4 / diagrams** — context/component diagrams reflect new or changed pieces; `check-mermaid.sh` green.
-3. **Sequence** — a sequence diagram exists for any new cross-service flow.
-4. **Demos** — an E2E demo exists AND was RUN against live infra (authored is not done).
-5. **Cleanup** — dead code/config/old resources removed FIRST, not left beside the new.
-6. **Linear** — the item is tracked; `check-linear-sync.sh` exits 0 across the WHOLE tracker (fix every drift it names, not just this item).
-7. **Ops** — the operational command lives verbatim in a docs/runbooks/*.md; run the FULL local guard suite (see `full-guard-suite-preship`).
-8. **Scan** — the code-scan/quality guards pass (shellcheck + the relevant check-*.sh + bats), verified in the REAL toolchain image.
+Run all 9 pillars IN ORDER. The FIRST failure masks later ones, so fix and re-run from the top; never skip ahead:
+1. **Docs** — arch/hosts/api/schedules/runbooks updated for the change; the relevance sweep across every docs/ section (grep for stale references).
+2. **Diagrams** — LikeC4 placement + a `docs/diagrams/flow-*.md` sequence diagram for any new cross-service flow; `check-mermaid.sh` green.
+3. **Demos** — an E2E demo exists AND was RUN against live infra (authored is not done).
+4. **Cleanup** — dead code/config/old resources removed, not left beside the new.
+5. **Close-out** — the item is tracked; `check-linear-sync.sh` exits 0 across the WHOLE tracker (fix every drift it names, not just this item).
+6. **Ops** — reproducible from git, secrets restorable, monitored + alerted, backed up if stateful, triggered if it must stay fresh; the operational command lives verbatim in a docs/runbooks/*.md.
+7. **Scan** — the code-scan/quality guards pass (shellcheck + the relevant check-*.sh + bats), verified in the REAL toolchain image; run the FULL local guard suite (see `full-guard-suite-preship`).
+8. **Cascade** — walk the DoD trigger table: what else must move because this moved (registry, timers, images, repos, call sites, the reverse sweep).
+9. **DR** — every system holding state has a `docs/dr.md` row with a restore procedure and a restore test that actually ran; blast radius stated.
+
+A gap found along the way is a **Closing Gaps** item: close it first, and ask whether a DoD gate, documentation, or an audit must be added so it stays closed.
 
 CHECKPOINT after each pillar: state PASS with the evidence (the command output) or GAP with what is missing. Never tick a pillar you did not verify — writing the tick is not the work.
 
-TERMINAL CONDITION: STOP when all 8 read PASS with evidence, or a pillar is a deliberate logged N/A. If any pillar is a real GAP it is NOT done — surface it plainly and keep the item open; never emit a "done" summary with an open pillar."""),
+TERMINAL CONDITION: STOP when all 9 read PASS with evidence, or a pillar is a deliberate logged N/A. If any pillar is a real GAP it is NOT done — surface it plainly and keep the item open; never emit a "done" summary with an open pillar."""),
 
     ("master-the-tool-walk", "loop",
      "Evaluate an underused tool feature-by-feature against REAL workspace data, land an adoption verdict per feature, record in a living doc.",

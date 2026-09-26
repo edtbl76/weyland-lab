@@ -35,5 +35,5 @@ def test_skill_names_are_unique():
 def test_loop_skills_are_present():
     # The B175 loop-library seed — guard that the four loop-shaped skills stay registered.
     names = {s[0] for s in reg.SKILLS}
-    expected = {"dod-8-pillar-gate", "master-the-tool-walk", "pr-lifecycle-reconcile", "full-guard-suite-preship"}
+    expected = {"dod-gate", "master-the-tool-walk", "pr-lifecycle-reconcile", "full-guard-suite-preship"}
     assert expected <= names, f"missing loop skills: {sorted(expected - names)}"

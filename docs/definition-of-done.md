@@ -2,7 +2,7 @@
 
 The weyland Definition of Done — the hard gate every body of work passes before it's "done." This page is the
 **canonical, published** version (the RAG corpus + the shared reference); it supersedes any private note. A
-capability is **NOT done** until ALL eight pillars hold. "Ran once" ≠ done.
+capability is **NOT done** until ALL nine pillars hold. "Ran once" ≠ done.
 
 > Added 2026-07-14; grown through B64 (render-verify), B69 (operational completeness), B111 (metrics-scrape
 > ServiceMonitor + Grafana dashboard made explicit monitoring criteria), 2026-08-05 (tier rebalance at close-out —
@@ -12,7 +12,9 @@ capability is **NOT done** until ALL eight pillars hold. "Ran once" ≠ done.
 > dataset could ship uncatalogued and a new timer undocumented without a single check going red), and
 > 2026-09-01 (**Pillar 5 — full-tracker reconciliation on every DoD run**, not just the unit in hand: the
 > Linear ↔ backlog sync is a standing sweep the gate drives to clean each time, because grading only the
-> current item let drift accumulate on every other one).
+> current item let drift accumulate on every other one), and 2026-09-26 (B194 — **Pillar 9, disaster recovery**:
+> "backed up" was one bullet inside Pillar 6, so a backup could run nightly for months with no restore ever tried,
+> its copy on the same disk as the original, and no single page listing what the lab could lose).
 > Applies retroactively and going forward.
 
 ## 1. Documentation sweep (every batch)
@@ -184,8 +186,9 @@ open gap = not done:
     list in the blackbox config — Flink session cluster, GPU benches) and **(b) DNS aliases** that aren't HTTPS
     ingresses (e.g. `ollama.weyland.lab` → the LAN IP:11434). Kuma is **supplementary** (UI / status page / push-heartbeat monitors / the Port `uptime_monitor`
     blueprint), NOT the coverage-of-record — don't reconcile against Kuma's PVC state.
-- **Backed up (if stateful)** — any PVC/DB/object store with non-reproducible data has a **tested** backup
-  (CronJob + rotation); reproducible stores say so.
+- **Backed up (if stateful)** — any PVC/DB/object store with non-reproducible data has a backup (CronJob +
+  rotation); reproducible stores say so. **Graded in full by Pillar 9** (restore tested, blast radius, a
+  [dr.md](dr.md) row) — this bullet only asks that the job exists.
 - **Triggered** — anything that must stay fresh has a schedule/sensor + a freshness signal, not manual-only.
 
 ## 7. Security & code-quality scan (every batch that touches code)
@@ -245,6 +248,7 @@ becomes confidently wrong.
 | **A repo** | every lane in the coverage matrix — CI, Port integration selectors, PR-lifecycle `PR_REPOS`, code-review stack, scan-suite, `tofu/github/` |
 | **A classification used on ≥2 surfaces** | the single registry (see the cross-cutting rule below) — never re-encode it per surface |
 | **A shared type / function / module** | every **call site** — `bash scripts/graphify.sh affected "<symbol>"` names them with file:line. This row exists because the other rows are all about infrastructure surfaces (services, endpoints, timers, docs) and none of them cover CODE cascade. Found 2026-08-26: `guardrails/verdict.py` is duplicated byte-for-byte between `weyland-guard` and `weyland-tool-server`, where `Hook` values are URL paths and `Decision` values are parsed from the response — a wire contract kept in sync by nothing, and no Pillar 8 row would have asked about it |
+| **State** (a DB, PVC, bucket, or SaaS system the lab depends on) | a **[dr.md](dr.md) row** (mechanism, copy location + blast radius, RPO, retention, alert, restore command, last restore test); the backup job itself cascades through the timer row above; a restore drill before done (Pillar 9) |
 | **A retirement / rename** | **the reverse sweep** — this is the one most often skipped |
 
 ### Answering the code half — `scripts/graphify.sh affected`
@@ -291,6 +295,26 @@ sealed secret plus the `seal-secrets.sh` allow-list plus the count in `secrets.m
 §6/§9/§10b, and the freshness rule — which turned out to be missing **the watchdog itself**. Running the
 timer reconciliation the same batch also surfaced three *unrelated* backup CronJobs that had no row and were
 silently running on the wrong clock. None of that was the feature; all of it was the feature's wake.
+
+## 9. Disaster recovery (every batch that adds or changes state)
+
+**The question:** if this is lost, how do we get it back, and have we proven it? [dr.md](dr.md) is the catalog, and
+this pillar gates on it. Pillar 6 asks that a backup *runs*; this pillar asks that it *restores*.
+
+- **A dr.md row** for every system that holds non-reproducible state: the data, the mechanism, where the copy lands,
+  cadence / RPO, retention, the alert when it stops, the restore command, and the **date of the last restore test**.
+- **A restore test that actually ran** — restore into scratch and compare, the way the rogueone restic demo diffs
+  byte-identical. "The job is green" is not a restore test. A new backup is not done until its first drill.
+- **Blast radius stated** — say which physical medium the copy lives on. A copy on the same disk as the original
+  protects against deletion, not disk loss; write that down rather than letting the row imply more.
+- **Restore command in a runbook** — verbatim, per the operational just-dos. A restore improvised under pressure is
+  where the second outage comes from.
+- **Reproducible systems say so** — a row stating the rebuild path (re-hydrate, re-sync from git) instead of a backup.
+- **Escrowed keys named** — any key a restore depends on (SealedSecrets controller key, restic password) is listed
+  with where it is escrowed.
+
+N/A only for a change that adds or alters no state at all, stated in one line. A gap found here is a **Closing Gaps**
+item: it goes into dr.md's gap list and the backlog, not into silence.
 
 ## Cross-cutting: verify the render, sweep for drift
 
@@ -339,7 +363,7 @@ deliverable the other surfaces are graded against in the drift sweep above.
 
 ## Applying this to REPO TOOLING (something that deploys nothing)
 
-**Five of the eight pillars presume the thing runs somewhere.** LikeC4 placement, a UI walkthrough with
+**Five of the nine pillars presume the thing runs somewhere.** LikeC4 placement, a UI walkthrough with
 real URLs, a Kuma monitor, a `*Down` rule, a schedules row — all of it assumes a deployed workload. A
 repo guard (`scripts/check-*.sh`, `scripts/graphify.sh`) deploys nothing, so those pillars evaluate to
 N/A every time.
@@ -359,6 +383,7 @@ in the LikeC4 model or `tools.md`, and that was never written down. So:
 | **6 Ops** | Not N/A — **restated**: say explicitly whether it runs **by hand at close-out, in CI, or on a timer, and why**. Each has a real trade: a by-hand guard only runs when someone remembers; a CI guard needs whatever credentials it reads; a CronJob needs a schedules row + freshness budget + failure rule. Record the choice, not just the outcome. |
 | **7 Scan** | `shellcheck --severity=warning` and a `bats` suite. Both are already CI steps. |
 | **8 Cascade** | Unchanged, and usually the only one doing real work on a tooling change. |
+| **9 DR** | **N/A** when the tool holds no state; say so in one line. A tool that writes state (a snapshot, a cache worth keeping) gets a dr.md row. |
 
 **Exit codes are part of the contract**, not an implementation detail: **1** = the estate has a defect,
 **2** = the guard could not do its job. Conflating them means a missing credential reads exactly like a
@@ -368,6 +393,7 @@ clean estate — which is the failure this entire document exists to prevent.
 
 Every capability must be **placed** (arch/diagrams), **operable** (runbook/api/hosts), **demonstrable** (UI+CLI
 demo, executed), **investigable** (sequence diagram + history), **reversible** (cleanup), **closed out** (Linear +
-backlog), **operationally durable** (reproducible / secret-restorable / monitored / backed-up / triggered), and
-**scanned** (the security / code-quality gate, findings triaged not ignored).
-Add all eight pillars as explicit acceptance criteria in every design/plan doc.
+backlog), **operationally durable** (reproducible / secret-restorable / monitored / backed-up / triggered),
+**scanned** (the security / code-quality gate, findings triaged not ignored), and **recoverable** (a dr.md row
+and a restore that was actually tested).
+Add all nine pillars as explicit acceptance criteria in every design/plan doc.

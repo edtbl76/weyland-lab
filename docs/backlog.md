@@ -2459,6 +2459,17 @@ list and detail, not status history or comments. Same class of gap B137 found in
 source** the walk pointed at five other times (Airbyte, Fivetran, Sheets, Span/Jellyfish, Basedash) — B185 cycle time,
 EMA-172 DORA and B119.1 OKR progress all need it. One job, both purposes.
 
+**Closing Gaps (2026-09-26, done before the build).** The lab had no DR catalog to add a Linear backup to. Closed:
+`docs/dr.md` (every backup, where its copy physically lives, RPO, retention, alert, restore, last restore test) and
+**DoD Pillar 9 — disaster recovery** (a dr.md row + a restore that actually ran; Pillar 6 only asks that a backup
+exists), plus a "State" row in the Pillar 8 cascade table. Writing dr.md surfaced seven estate gaps, listed in its
+§ Closing Gaps: core Postgres dumps on the same USB disk as MinIO; no restore drill for the three cluster backups;
+the MinIO mirror keeps no history; `rogueone-backup` not mirrored to NVMe; no off-site copy; Linear (this item); manual
+key escrows with no export date. **Also found:** the Bifrost `dod-8-pillar-gate` skill listed the wrong pillars, and
+`register_bifrost_skills.py` only CREATES skills (an edited body never reaches Bifrost), so the skill was renamed
+`dod-gate`; the stale `dod-8-pillar-gate` still sits in Bifrost until deleted. The read-only key already exists
+(`LINEAR_API_KEY_RO` in `scripts/.env`, also the CI secret `linear_api_key`); only its in-cluster SealedSecret is new.
+
 **Scope.** (1) Dagster asset, nightly pre-dawn (Design Rule #5, schedules.md row), pages the Linear GraphQL API →
 timestamped MinIO snapshot (issues + state history, comments, projects, initiatives + updates, labels, templates, views,
 cycles). (2) Retention + freshness alert. (3) Restore drill into a scratch team; document what the API can't restore.
