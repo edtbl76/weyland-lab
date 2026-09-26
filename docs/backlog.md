@@ -77,6 +77,10 @@ Re-ordered per RE-grounded audit (aidlc-docs/inception/backlog-reprioritization.
 - **B184** — **Adopt Slack (free) + audit every Slack integration across the platform** — **HIGH (2026-09-25, Linear EMA-242).** A free Slack workspace for the lab — useful even purely as a demo surface, since nearly every platform tool ships a Slack integration. Adopt it (free-plan limits verified first — an app cap would decide which integrations earn a slot), then audit EVERY component for its Slack integration (send/receive, overlap with today's Telegram alerting, verdict), then wire the chosen set with a channel map + demos. Found in the B119 integrations walk. See detail below.
 - **B185** — **Free time tracking per Linear issue (ActivityWatch + Linear-derived cycle time)** — **HIGH (2026-09-25, Linear EMA-243).** No time tracking today; Rize is paid and Reclaim's Linear link is paid-only. Recommended: **ActivityWatch** (automatic, local on rogueone — Linear tab titles carry the issue ID, so hours per issue are derivable) + **Linear status-history cycle time** (already in the API); **Clockify** (free, native Linear button) as the fallback. Found in the B119 integrations walk. See detail below.
 - **B186** — **Configure GitLens in VS Code (Community; Pro only if it earns its cost)** — **HIGH (2026-09-25, Linear EMA-244).** VS Code is now a harness host (Codex + Claude Code extensions); GitLens is its git layer. Community is free and covers Commit Graph / Visual File History / Worktrees on public + local repos (most lab repos are public); Pro is ~$8/user/mo billed annually (~$96/yr — not $0, the owner's call) and mostly duplicates what's in place (PR triage, Claude/Codex AI) and it has **no Linear integration**. Upgrade only if a private repo needs it. See detail below.
+- **B187** — **Spike: Claude + Obsidian workflow (claude-obsidian, with graphify's Obsidian export)** — **MEDIUM (2026-09-25, Linear EMA-245).** Get hands-on competent with the Claude Code + Obsidian knowledge workflow (`AgriciDaniel/claude-obsidian`: ingest → linked, cited notes → vault-grounded Q&A → answers saved back), plus graphify's opt-in `--obsidian` export of the code graph. Doubles as evidence for B182 — Obsidian's Markdown + wikilinks is the same format as Claude's memory and Basic Memory. See detail below.
+- **B188** — **PostHog for the product apps (deferred until OJay Floyd / MyBodyGraph have users)** — **LOW · HELD (2026-09-25, Linear EMA-246, `parked:held`).** PostHog's free cloud tier (analytics, session replay, errors → Linear issues) is the natural analytics layer for the product apps, but nothing needs it until OJay Floyd or MyBodyGraph ships to real users. Un-hold then, and evaluate it together with website feedback/bug capture (Iteration X / Marker.io, rejected in the B119 walk only for lack of users). See detail below.
+- **B189** — **Spike: test management + quality visibility (Kiwi TCMS vs Allure Report vs ReportPortal)** — **MEDIUM (2026-09-25, Linear EMA-248; Testiny added — hosted, free to 3 users, Linear on free).** Quality visibility is scattered (Woodpecker logs, SonarQube coverage, Port `ci_pipeline`); nothing shows which tests exist, their history or flakiness. Compare the free self-hosted options on one real bats + pytest suite — Kiwi TCMS (imports JUnit/pytest/**TAP**, and bats emits TAP natively), Allure Report (CI-generated reports), ReportPortal (results analytics; likely heavy on mother). Linear linkage is the deciding requirement — Testomat was ruled out because its free tier has no Linear links. See detail below.
+- **B190** — **Build our own issue-readiness scorer (replace SpecBot)** — **HIGH (2026-09-25, Linear EMA-249).** SpecBot (adopted in the B119 walk) scored EMA-240 51/100 and exposed a systemic gap, but it is a capped third-party cloud judge with an opaque rubric that can't gate CI. Reconstruct its 8-dimension rubric from its published output (black-box), score with the lab's own LLM judge via LiteLLM (deterministic section checks first), trigger by CLI + CI sweep (no LAN webhooks), post an idempotent comment, calibrate against SpecBot (±10 on 8 of 10), optionally gate open High issues below 80. See detail below.
 - **B178** — **CI resilience: a Port (external SaaS) outage must not hard-block the whole pipeline** — **RETIRED (2026-09-24, Linear EMA-236) — built, then REVERTED the same day by operator call.** During a Port outage `port-iac-coverage`'s unbounded auth curl hung and fail-fast killed every pipeline. A warn-and-continue path was built (distinct "unreachable" exit codes for `port-iac-coverage` + `linear-sync`, a best-effort `notify-port`) and CI-verified, then **removed: it was a stopgap for one outage, and the lab's policy is fail-closed** — a run where a guard verified nothing must not come out green, even if the cause is a vendor outage. **Kept:** bounded curls (`--connect-timeout`/`--max-time`) on all three, so a hung SaaS fails the step FAST instead of pinning it — still a hard fail. See detail below.
 - **B177** — **Lean + safe CI language matrix: selective per-language runs + full-matrix headroom** — **DONE (2026-09-24, Linear EMA-235).** CI steps run STRICTLY SEQUENTIALLY (RWO workspace, proven from #168 timestamps), so a full run is ~30 min of ~46 fixture-language golden-path lanes on a RAM-tight node (mother ~98%) → #169/#170 were OOM-killed mid-run. **Phase 1 (DONE, CI-verified by lean run #178 — 21 of 67 steps, 21/21 green):** `ci-langs.yaml` manifest + `scripts/ci/select-fixtures.sh` (fail-closed selector, 12 bats) + a `&fixture` gate on the 46 fixture lanes (`RUN_FIXTURES != "0"`, the proven `--var`+`evaluate` pattern) so a change that doesn't touch `golden-paths/` runs only the production lanes; unset var / nightly cron = full matrix (safe default); `golden-path-smoke` lean-gated too. **Phase 2 (DONE — closed on evidence):** per-step caps already exist (B93 LimitRange 128Mi/2Gi + explicit heavy-lane limits) and mother's kubelet reserves are set; 19 nightly cron runs, 0 killed (failures were all code-level); memory is flat day/night so moving the cron buys nothing. The only kills were ad-hoc FULL runs launched ~midnight into the Dagster batch start → runbook now says trigger ad-hoc runs lean. Residual = capacity, only if the nightly ever starts getting killed. See detail below.
 - **B176** — **PR-lifecycle reconciler: cover ALL pr-lane repos + Loki audit log** — **DONE (2026-09-23, Linear EMA-234).** Built, verified + exercised in prod (fleet `--apply` ran clean 2026-09-23); commit / deploy / PAT re-scope are the operator's routine steps. Extends the B131 reconcile half from weyland-lab-only to **every `lanes.pr: true` repo in `repos.yaml`** (the B138 8-repo pr-lane set, byte-identical to `pr-staleness`, guarded by a new `pr(recon)` lane in `check-repo-coverage.sh`). Each repo is reconciled in a subshell (per-repo fail-closed isolation — one unreachable repo forces exit 2, never a silent shrink). Emits structured `pr-lifecycle-audit` lines → Alloy → Loki (the audit.log); metrics via LogQL (no Pushgateway, Job stays unmeshed — the Loki ruler is alerting-only). **Op follow-up (runbook-captured, latent):** re-scope + re-seal the PAT for private-repo writes — no private-repo PRs exist today, so not a completion blocker. See detail below.
@@ -109,6 +113,7 @@ Re-ordered per RE-grounded audit (aidlc-docs/inception/backlog-reprioritization.
 - **B117** — **weyland-guard scanner modernization (retire LLM Guard)** — the Scan layer's three `llm_guard.*` validators (injection · toxicity · PII) run on **protectai/llm-guard**, whose maintenance cadence dropped after the Palo Alto acquisition (repo not dead — PRs into late-2025, docs 2026 — but slowed; the replacements are purpose-built + better-maintained regardless). Swap to actively-maintained tools — and it **consolidates rather than adds**: (1) **PII → Microsoft Presidio** called directly (near drop-in — llm-guard's `Sensitive` scanner already *just wraps* Presidio, B34; Presidio is MIT + actively released through 2026); (2) **injection → Meta Llama Prompt Guard 2** (86M/22M classifier, served via llama.cpp — same pattern as the B115 Llama Guard, its injection sibling); (3) **toxicity → folded into Llama Guard** (its unsafe S-categories already cover hate/harassment/sexual/etc. — drop a separate scanner; **decided 2026-08-04, option A** over Detoxify [stagnant] / Guardrails-AI toxic [LLM-backed, slower]). Net: **drop the llm-guard dependency entirely**; the three capabilities land on the **Meta guard family (Prompt Guard + Llama Guard) + Presidio**, all actively maintained + mostly already deployed. Retire `guardrails/validators/llm_guard.py`; new `prompt_guard` + `pii_presidio` validators; all land in **SHADOW** first (measure FP on real traffic before enforcing), like the originals. Design: `design/guard-scanner-modernization.md`. Relates B115 (Scan/Classify), B34 (PII), B35 (grounding), B14 (guards). **DONE BUILT + VALIDATED + DoD-SWEPT 2026-08-05 (SHADOW).** Guard image **v10**: `prompt_guard.injection` (Prompt Guard 2 — a DeBERTa *encoder classifier*, NOT llama.cpp-servable, so it runs **in-process** like the grounding CrossEncoder, not as a service — corrected mid-build) + `pii.presidio` (Presidio direct) live; `llm_guard.py` + the `llm-guard` dep **removed**; toxicity folded into `llama_guard.safety`. **Validation (direct `.check()`):** injection → BLOCK @ 0.998 / benign → PASS @ 0.001; email+SSN answer → BLOCK @ 1.0 (EMAIL_ADDRESS) / clean → PASS. DoD swept (arch/api/concepts/platform-map/likec4 + flow-guardrails + runbook + demo). **Remaining before "done":** measure the new validators' FP rate on a clean day of `guardrail_verdicts` before any SHADOW→`block` promotion.
 - **B118** — **Stud.IO code-quality / CI: DeepSource + CodeScene + the 2nd Woodpecker track** — **DONE 2026-08-19 [Linear EMA-107, under B57/EMA-46].** **Found already ~live** — the review stack was running on the public `edtbl76/stud.io` repo (STUD.io carried its own `.deepsource.toml`/`.coderabbit.yaml`/`.pr_agent.toml`/`.mcp.json` predating B106). **Verified on stud.io PR #121** (`gh pr checks`): **DeepSource** (7 analyzers), **CodeScene** (Code Health Review, project 78184), and **Sourcery** post checks; **CodeRabbit** + **Qodo Merge** review in the conversation. The **2nd Woodpecker track → Port CI signal** landed in **B63** (`ci_pipeline` → `weyland_ci_reliability`, stud.io #14/#15). **Full-parity close-out shipped:** STUD.io repo `docs/arch/code-review-stack.md` (new) + reconciled stale docs (`workflow.md` said CodeScene "not a CI gate" — it is; `github.md` said "two AI reviewers" — it's five); weyland `applications.yaml` code-review entries + the 6 Port `component` entities updated to cover **both** public repos (weyland-lab + stud.io); weyland `runbooks/code-review-stack.md` gained a STUD.io-parity section. **Greptile is installed too** (App access confirmed across weyland-lab + stud.io + emangini-tailwind) — it reviews via a PR comment (not a check-run) and wasn't observed on the recent Dependabot PRs; confirm on the next human PR. So the full stack is present on stud.io. Docs: [runbooks/code-review-stack.md](runbooks/code-review-stack.md) · [diagrams/flow-studio-code-review.md](diagrams/flow-studio-code-review.md) · [demos/studio-code-review.md](demos/studio-code-review.md). **Original scope (for the record):** part of the Stud.IO cluster (with B46 product backlog + B39 Figma workflow). Add **DeepSource** (automated static analysis + autofix PRs) + **CodeScene** (behavioral code-health — hotspots, tech-debt, knowledge-map; complements the existing code-maat hotspots) to the code-quality suite (alongside SonarQube/Trivy/Semgrep). Wire the **other Woodpecker track** (Stud.IO's test/prod CI pipeline, per the B46 seed) so its runs feed the Port CI signal + DORA deployment-frequency. Feeds the Port **Code Health** dashboard + Stud.IO. Scope: **Stud.IO-first.** **Scope expanded by the B106 decision (2026-08-08)** → this now wires the **CI/repo side of the adopted 7-tool stack:** DeepSource (Autofix PRs + Port `security_scan`/`code_quality` feed), CodeScene (CI), **PR-Agent** (self-hosted via LiteLLM/Bifrost — Action/CLI), **Greptile** (PR-native, once a PR flow exists); **Sourcery + Continue are IDE-side installs** (out of B118's CI scope). $0 check **resolved** — all free OSS/public-repo or self-host. Paid **Qodo cancelled**; **CodeRabbit** kept on the free tier. Relates B106 (the eval), B47 (code-quality triage), B56 (Woodpecker), B60 (Port), B46/B39 (Stud.IO).
 - **B119** — **Linear feature evaluation (master the tool)** — **HIGH (2026-08-05; evidence added 2026-08-26; ↑ Medium→High 2026-08-27 — this stopped being a "go learn the tool" survey and became four evidenced defects with obvious candidate fixes).**
+  - **B119.1** — **OKRs in Linear initiatives (objective = initiative, key results + check-ins native)** — **HIGH (2026-09-25, Linear EMA-247, sub-issue of B119).** No free OKR tool has both a Linear integration and an MCP server (Tability has both but is trial-only; Perdoo / Weekdone / Profit.co have neither), while Linear Initiatives (6, adopted 2026-09-24) already hold the goals and the work and are MCP-readable. Objective = initiative; key results = measurable targets in a fixed format in each initiative's description (metric, baseline → target, date); check-ins = native initiative updates (On track / At risk / Off track). Only gap: no KR score — a small Linear-API script if numbers are wanted. Scope: KR format + cadence → draft 2–4 KRs per initiative for the owner to approve → write them in → decide on scoring (+ an optional guard that every initiative has KRs).
 
   **EVIDENCE ADDED 2026-08-27 (from a full-backlog triage pass):**
   - **The priority/label duplication is a DATA-MODEL DEFECT, and it has already drifted on 12 issues.** Every issue carries BOTH Linear's native `priority` field AND a redundant `High`/`Medium`/`Low` **label**. Two fields encoding one fact always drift, and these have: **priority High / label Low** — EMA-78. **priority Medium / label High** — EMA-87, EMA-90. **priority Medium / label Low** — EMA-82, EMA-84, EMA-88. **priority Low / label High** — EMA-53, EMA-29. **priority Low / label Medium** — EMA-19, EMA-65, EMA-83, EMA-94. Two more carry no priority label at all (EMA-189, EMA-208). **Candidate fix: retire the priority labels entirely and use the native field** — the labels add nothing the field lacks, cost a second write on every change, and are the sole source of this drift. (Note the second-order effect: any convention that reads the *label* — e.g. tier-spread reporting — silently disagrees with the field.)
@@ -2396,6 +2401,105 @@ merges — that stays a human action).
  is committed in git. Do **all four at once** — piecemeal (ClickHouse-only) is inconsistent and gives no real
  benefit while the other three stay inline. Also the ClickHouse `users.d` Secret is already out-of-band (good).
 
+### B190 — Build our own issue-readiness scorer (replace SpecBot) — HIGH (2026-09-25, Linear EMA-249)
+
+**Why.** SpecBot (adopted in the B119 walk, 2026-09-25) scored EMA-240 (B182) **51/100** — acceptance criteria 12,
+edge cases 10, priority/scope 12 — a real, systemic gap (fixed at the source: templates + `AGENTS.md`). But it is a
+third-party cloud judge: 25 analyses/month free, opaque rubric and model, nothing the lab can gate CI on.
+
+**Scope.** (1) Reconstruct the rubric from SpecBot's published comments (black-box — no decompiling): 8 dimensions
+(objective/problem · expected behavior · acceptance criteria · edge cases · technical context · dependencies ·
+reproduction steps · priority & scope clarity), 0–100 each, weighted total, threshold 80, blockers vs suggested fixes,
+confidence. (2) Scorer: LLM judge via LiteLLM (agentic lane; `qwen2.5:7b` was the reliable local judge in B84/B100),
+structured JSON, deterministic section checks first. (3) Trigger: `scripts/issue-readiness.sh EMA-###` + a scheduled/CI
+sweep (no LAN webhooks), posting a comment (write key from `scripts/.env`). (4) Calibrate against SpecBot before
+retiring it. (5) Optional gate: open High issues below 80 fail CI.
+
+**Acceptance criteria.**
+- [ ] `issue-readiness EMA-240` prints 8 scores, total, blockers, fixes; exits non-zero below 80.
+- [ ] On ≥10 issues scored by both, the total is within ±10 of SpecBot's on ≥8, and EMA-240's pre-fix blockers match.
+- [ ] A missing Acceptance-criteria section scores ≤20 on that dimension with no LLM call (unit-tested).
+- [ ] Re-scoring an unchanged issue updates its one comment (idempotent).
+- [ ] Gateway down → exit 2 "scorer unavailable", never a score (bats asserts the reason, not just the status).
+- [ ] bats + pytest in the Docker toolchain image and CI; runbook + demo.
+
+**Edge cases.** Empty / very long descriptions (visible truncation note); bucket and Stud.IO issues (right template or
+explicit skip); malformed JSON / out-of-range scores (retry once, then exit 2); model drift (model + rubric version in
+each comment); hosted-fallback rate limits (back off, never a partial score).
+
+**Out of scope.** Auto-rewriting issues; scoring projects/initiatives/docs; receiving webhooks; paid scorers.
+
+Relates B119, B182, B84/B100 (LLM judges).
+
+### B189 — Spike: test management + quality visibility (Kiwi TCMS vs Allure Report vs ReportPortal) — MEDIUM (2026-09-25, Linear EMA-248)
+
+**Why.** Quality visibility is scattered: pass/fail in Woodpecker logs, coverage in SonarQube, CI outcomes on Port's
+`ci_pipeline`. Nothing shows **which tests exist, their history, or flakiness**. Found in the B119 integrations walk
+(2026-09-25) via the test-management entries (Testomat, Testsigma, Testmo).
+
+| Candidate | What it is | Check |
+|---|---|---|
+| **Kiwi TCMS** | open-source test management, self-hosted; plugins import JUnit XML, pytest and **TAP** — bats emits TAP natively | license, footprint on mother, **Linear link** (the deciding requirement) |
+| **Testiny** | hosted test management — **free for up to 3 users, issue-tracker integrations incl. Linear on the free plan** (checked 2026-09-25) | the only hosted free option with a Linear link (Testomat's free tier has none); import formats for bats/pytest results |
+| **Allure Report** | Apache-2.0 report generator run in CI; reports + history, no test management | where reports are served; history retention |
+| **ReportPortal** | open-source, self-hosted results analytics (history, flakiness, failure triage) | resource footprint (likely heavy — mother is at its RAM ceiling, B134), Linear link |
+
+**Other tools seen (with their Linear integrations), not candidates:**
+
+| Tool | Linear integration | Why not |
+|---|---|---|
+| Testomat.io | links tests/runs to Linear issues — **not on the free tier** (owner-verified) | free tier has no Linear links |
+| Qase | Linear integration unverified | free: 30-day history caps trends |
+| Testsigma | AI test generation traceable to Linear cycles | paid |
+| Testmo | links test results to Linear issues | paid (trial only) |
+| Kualitee | two-way Linear ↔ Kualitee issue sync | paid |
+| TestOrchestrator | test cases generated from Linear issues, results posted back | pricing unverified |
+
+**Scope.** (1) Feed one real bats suite + one pytest suite from CI into each candidate. (2) Compare visibility
+(inventory, history, flakiness), Linear linkage, cost on mother, CI wiring effort. (3) Verdict; wire the winner into CI
+(a Woodpecker step publishing results) with a runbook.
+
+Relates B119, B88 (per-language test lanes), B152 (test categories audit).
+
+### B188 — PostHog for the product apps (deferred until OJay Floyd / MyBodyGraph have users) — LOW · HELD (2026-09-25, Linear EMA-246)
+
+**Held — depends on OJay Floyd and MyBodyGraph** (Linear projects of the same names; both have zero issues and no
+users yet). Linear cannot make an issue "blocked by" a project, so the dependency is carried by the `parked:held`
+label (the B119 convention for an external blocker) and this text. **Unblock condition:** either app ships to real users.
+
+**What.** PostHog — free cloud tier: product analytics, session replay, error capture, with a Linear integration that
+creates/links Linear issues from PostHog. Found in the B119 integrations walk (2026-09-25).
+
+**When un-held, evaluate as one user-facing stack** for the product apps, not scattered tools: PostHog (check free
+limits then) · website feedback / bug capture (Iteration X, Marker.io — rejected in the walk only for lack of users) ·
+overlaps to settle (PostHog errors vs GlitchTip, PostHog flags vs Unleash).
+
+Relates B119, B183 (Figma Make prototyping for the same apps).
+
+### B187 — Spike: Claude + Obsidian workflow (claude-obsidian, with graphify's Obsidian export) — MEDIUM (2026-09-25, Linear EMA-245)
+
+**Why.** The Claude Code + Obsidian knowledge workflow is a widely used pattern worth being competent in. Checked
+2026-09-25:
+- **claude-obsidian** (`AgriciDaniel/claude-obsidian`) — local-first Claude Code workflow run from an Obsidian vault:
+  ingest sources into linked, cited Markdown notes; ask questions grounded in the vault; save answers back as notes;
+  maintain the vault. Similar projects exist (`az9713/claude-code-obsidian` — capture/search/synthesis skills); pick
+  one deliberately.
+- **graphify** — already adopted narrowly (EMA-191, the structural code graph behind DoD Pillar 8). Its README
+  documents an opt-in `--obsidian` export (`--obsidian-dir` for the location) that writes the graph as an Obsidian vault.
+
+**Tie-in to B182.** Obsidian notes are Markdown + `[[wikilinks]]` — the format of Claude's auto-memory and of Basic
+Memory, the leading B182 store candidate. The spike doubles as evidence: is an Obsidian vault a usable human front end
+for a shared memory store?
+
+**Scope.**
+1. Vault on rogueone; one claude-obsidian workflow end to end (ingest → query → save answer as a note).
+2. `graphify --obsidian` over weyland; does browsing it add anything over `graphify.sh affected` / god-nodes?
+3. Record what carries over to B182 (format, linking, search quality) and what doesn't.
+4. Verdict: working habit / demo-only / skip; runbook if kept.
+
+History: the Obsidian `weyland.md` note was retired as a RAG source in B25b — different use (that was ingestion;
+this is a working vault). Relates B182, graphify (EMA-191), B25b.
+
 ### B186 — Configure GitLens in VS Code (Community; Pro only if it earns its cost) — HIGH (2026-09-25, Linear EMA-244)
 
 **Why.** VS Code became a harness host on 2026-09-25 (Codex + Claude Code extensions — `docs/concepts/multi-harness.md`).
@@ -2463,12 +2567,57 @@ shows. No earlier Slack decision exists (the only prior mention: a dead Slack au
    alerting via Alertmanager; the operator's Telegram front door), $0 on the free plan, verdict (adopt / demo-only /
    skip). Candidates to check — not an assumed list: Linear, Grafana/Alertmanager, Uptime Kuma, GlitchTip, Woodpecker,
    Argo CD notifications, Port, Dagster, DataHub, Langfuse, MLflow, Keycloak, GitHub, Figma, the weyland-operator
-   (Slack as a second front door), and the Linear-directory entries that need Slack (Graph, Alkemi, Blocks).
+   (Slack as a second front door), and the Linear-directory entries that need Slack (Graph, Alkemi, Blocks, **Axolo** —
+   a Slack channel per PR synced with its Linear issue; weigh it against a solo reviewer, where a per-PR channel has
+   no one to coordinate).
 3. **Wire the chosen set** — webhook URLs / bot tokens sealed (SealedSecrets), never pasted; one documented channel
    map; a demo per integration.
 4. DoD: concept doc (audit table + channel map), runbook, demos run live, arch.md + C4 placement (Slack as an `ext`).
 
-Relates B119, B51 (alerting), B66 (operator).
+**Incident management on Slack — free alternatives (added 2026-09-25).** incident.io's free Basic plan was
+considered and set aside: the parts that would be used (API/webhooks, MCP, AI summaries/root cause, multiple
+schedules, private incidents) are all paid. Free, self-hosted candidates to evaluate in the audit:
+- **Keep** (keephq) — open-source alert management → incidents + workflows; Slack **and Linear** integrations in the
+  repo; AI via your own model (Ollama / Anthropic listed backends — fits the lab's gateways). Verify: license,
+  Alertmanager as an alert source, maintenance activity.
+- **OneUptime** (Community Edition, Apache-2.0) — incidents, on-call schedules, status pages, Slack. Verify: API.
+- Ruled out: Grafana OnCall OSS (archived March 2026), Grafana Cloud IRM (paid, ~$20/active user + $19/mo).
+- **Runframe** (hosted, **free for up to 5 users**) — incident response, on-call + escalation, status page, **AI
+  post-incident reviews**, Linear follow-ups. The hosted, zero-RAM counterpart to the self-hosted two (they give API +
+  own-model control; it costs nothing on mother). Verify on the free tier: Alertmanager as a source, Slack, Linear.
+- Cost that matters most: RAM on mother (at its ceiling, B134) — each is another service + database.
+
+**Requirement — alert → Linear follow-up issue (added 2026-09-25).** Nothing in the lab turns an alert into an issue:
+Alertmanager/Kuma → Telegram only pages; the operator's B45 sweep dedups incidents in Postgres and sends a Telegram
+digest but files nothing; GlitchTip → Port makes `glitchtip_issue` catalog entities, not Linear issues. The chosen
+incident tool (Keep / OneUptime / Runframe all advertise Linear follow-ups) must close this — a qualifying alert or
+incident produces a deduplicated Linear issue. Fallback if none fits: a small Alertmanager webhook receiver.
+
+**Requirement — at least ONE pager rotation, exercised (added 2026-09-25, owner).** A solo lab still runs and tests
+on-call: set up a rotation between **two Telegram channels** (or Telegram + Slack) with an escalation step, and fire a
+test page through it so handoff and escalation are proven, not assumed. Rotation tools and their Linear integrations:
+
+| Tool | Linear integration | Cost | Note |
+|---|---|---|---|
+| **OneUptime** | (verify) | free, self-hosted | on-call schedules + escalation built in |
+| **Runframe** | Linear follow-ups from incidents | free up to 5 users | on-call + escalation built in |
+| **Keep** | Linear provider (create/update issues) | free, open source | rotation via workflows |
+| **Pagerly** | sets Linear **triage responsibility** from Slack round-robin rotations | $19/team/mo (30-day trial) | Slack-based |
+| **Opsgenie Triage** | rotates Linear **triage responsibility** from Opsgenie schedules | Opsgenie (not used) | Atlassian |
+| **Rootly** | auto-creates Linear issues from Slack/Teams incidents | $20/user/mo | full incident platform |
+
+Linear's own **triage responsibility** (a person who owns incoming Triage) is the Linear-side target these rotate;
+exercise it too. Preferred path: the rotation lives in the chosen free incident tool; fallback: an Alertmanager route
+that alternates receivers.
+
+**Telegram ↔ Slack — decide the split (or the deliberate overlap).** An incident tool routes between channels; it is
+not one. Default proposal to test, not a decision: **Telegram = paging** (phone push; the operator's front door and
+its B45 incident sweep stay there) and **Slack = incident work** (a channel per incident, roles, timeline,
+post-incident review, status page). Overlap is fine where it earns it — e.g. a critical page lands on Telegram AND
+opens the incident channel in Slack — but it must be designed, not accidental: the same alert must never simply ping
+twice. Record the final routing table (alert class → Telegram / Slack / both, and why) in the B184 concept doc.
+
+Relates B119, B51 (alerting), B66 (operator), B45 (incident sweep).
 
 ### B183 — Evaluate Figma Make Connectors, Designs and Skills — HIGH (2026-09-25, Linear EMA-241)
 
@@ -2521,6 +2670,26 @@ them, with no second copy to drift (the KEDA / Cyrus re-proposals are what drift
 4. Wire each harness and prove a write in one is read in another (Claude Code ↔ Codex first).
 5. DoD: arch.md entry, C4 placement (the `sharedMemory` element is placed now at the model root, view `harnesses`, status TBD), sequence diagram, a live
    demo, runbook.
+
+**Acceptance criteria (added 2026-09-25 after SpecBot scored the issue 51/100 — pass/fail each).**
+- [ ] A note written from Claude Code is returned by a search from Codex within one minute, and vice versa.
+- [ ] Claude's existing memory (~190 notes + `MEMORY.md`) is in the shared store with **no parallel copy left** — store
+  count equals migrated count, and Claude Code reads from the store.
+- [ ] Two harnesses writing different notes at the same moment both succeed; neither note is lost or corrupted.
+- [ ] With the store stopped, recall **reports it unreachable** — never an empty result read as "no memory".
+- [ ] A write containing a token-shaped string is rejected or flagged.
+- [ ] Each harness in scope (Claude Code, Codex, OpenCode; operator + Open WebUI read-only) has a documented config
+  line and a passing read test.
+- [ ] Decisions table filled with evidence; DoD: arch.md §8d updated from TBD, C4 `sharedMemory` moved under its host,
+  flow diagram, live demo, runbook.
+
+**Edge cases & failure modes.** Store down / rogueone asleep → fail closed. Concurrent edits of one note → conflict
+visible, never silent last-write-wins. Migration interrupted → re-runnable, counts verified before the old directory is
+retired. A harness without MCP (Pi) → decided in or out, not assumed. Duplicate/contradicting notes → search surfaces
+the latest decision.
+
+**Out of scope.** Operator session memory (Postgres chat state); the RAG corpus (`context_ask`); standing rules (they
+stay in `AGENTS.md`); paid memory services.
 
 Relates B181 (Codex + Linear), B17/B19 (MCP gateway), B175 (Bifrost skills — the same "portable artifact, swappable
 consumer" idea), B15 (coding-agent harnesses).
