@@ -79,8 +79,10 @@ Re-ordered per RE-grounded audit (aidlc-docs/inception/backlog-reprioritization.
 - **B186** — **Configure GitLens in VS Code (Community; Pro only if it earns its cost)** — **HIGH (2026-09-25, Linear EMA-244).** VS Code is now a harness host (Codex + Claude Code extensions); GitLens is its git layer. Community is free and covers Commit Graph / Visual File History / Worktrees on public + local repos (most lab repos are public); Pro is ~$8/user/mo billed annually (~$96/yr — not $0, the owner's call) and mostly duplicates what's in place (PR triage, Claude/Codex AI) and it has **no Linear integration**. Upgrade only if a private repo needs it. See detail below.
 - **B187** — **Spike: Claude + Obsidian workflow (claude-obsidian, with graphify's Obsidian export)** — **MEDIUM (2026-09-25, Linear EMA-245).** Get hands-on competent with the Claude Code + Obsidian knowledge workflow (`AgriciDaniel/claude-obsidian`: ingest → linked, cited notes → vault-grounded Q&A → answers saved back), plus graphify's opt-in `--obsidian` export of the code graph. Doubles as evidence for B182 — Obsidian's Markdown + wikilinks is the same format as Claude's memory and Basic Memory. See detail below.
 - **B188** — **PostHog for the product apps (deferred until OJay Floyd / MyBodyGraph have users)** — **LOW · HELD (2026-09-25, Linear EMA-246, `parked:held`).** PostHog's free cloud tier (analytics, session replay, errors → Linear issues) is the natural analytics layer for the product apps, but nothing needs it until OJay Floyd or MyBodyGraph ships to real users. Un-hold then, and evaluate it together with website feedback/bug capture (Iteration X / Marker.io, rejected in the B119 walk only for lack of users). See detail below.
-- **B189** — **Spike: test management + quality visibility (Kiwi TCMS vs Allure Report vs ReportPortal)** — **MEDIUM (2026-09-25, Linear EMA-248; Testiny added — hosted, free to 3 users, Linear on free).** Quality visibility is scattered (Woodpecker logs, SonarQube coverage, Port `ci_pipeline`); nothing shows which tests exist, their history or flakiness. Compare the free self-hosted options on one real bats + pytest suite — Kiwi TCMS (imports JUnit/pytest/**TAP**, and bats emits TAP natively), Allure Report (CI-generated reports), ReportPortal (results analytics; likely heavy on mother). Linear linkage is the deciding requirement — Testomat was ruled out because its free tier has no Linear links. See detail below.
+- **B189** — **Spike: test management + quality visibility (self-hosted vs hosted-free with Linear)** — **MEDIUM (2026-09-25, Linear EMA-248; Testiny added — hosted, free to 3 users, Linear on free).** Quality visibility is scattered (Woodpecker logs, SonarQube coverage, Port `ci_pipeline`); nothing shows which tests exist, their history or flakiness. Compare the free self-hosted options on one real bats + pytest suite — Kiwi TCMS (imports JUnit/pytest/**TAP**, and bats emits TAP natively), Allure Report (CI-generated reports), ReportPortal (results analytics; likely heavy on mother). Linear linkage is the deciding requirement — Testomat was ruled out because its free tier has no Linear links. See detail below.
 - **B190** — **Build our own issue-readiness scorer (replace SpecBot)** — **HIGH (2026-09-25, Linear EMA-249).** SpecBot (adopted in the B119 walk) scored EMA-240 51/100 and exposed a systemic gap, but it is a capped third-party cloud judge with an opaque rubric that can't gate CI. Reconstruct its 8-dimension rubric from its published output (black-box), score with the lab's own LLM judge via LiteLLM (deterministic section checks first), trigger by CLI + CI sweep (no LAN webhooks), post an idempotent comment, calibrate against SpecBot (±10 on 8 of 10), optionally gate open High issues below 80. See detail below.
+- **B191** — **Spike: screen-recorded demos kept in sync with the runbooks (Playwright + VHS → MinIO + YouTube)** — **MEDIUM (2026-09-26, Linear EMA-250).** Demos are written walkthroughs that must be run, but nothing records that they were or what the screen showed. Record one demo end to end — Playwright video for the UI UAT steps, a VHS `.tape` for the CLI steps — store the master copy in MinIO (`demo-recordings`), publish **unlisted to YouTube via its API** (Linear's pre-installed YouTube integration plays it inline on the B-item's issue), embed on the docs page, and add a manifest + guard that flags a recording STALE when its demo doc or runbook changes. Both kept on purpose: text = source of truth, recording = proof. Decide whether recordings join DoD Pillar 3. See detail below.
+- **B192** — **Spike: Jam (jam.dev) — UI bug capture into Linear, with an MCP agents can read** — **MEDIUM (2026-09-26, Linear EMA-251).** **Found as a Linear integration** in the B119 walk; site **https://jam.dev**. A Chrome extension (works on Linux) that captures screen recording + console + network + browser info into a Linear issue, with an MCP server harnesses can read captures through, and webhooks. Free tier: 30 Jams, 5 recording links, 5-minute recordings — far below the lab's ~30 issues/hour, so the spike judges whether the capture + MCP workflow is worth it within or beyond the cap, or whether a lab-owned version belongs in B191. See detail below.
 - **B178** — **CI resilience: a Port (external SaaS) outage must not hard-block the whole pipeline** — **RETIRED (2026-09-24, Linear EMA-236) — built, then REVERTED the same day by operator call.** During a Port outage `port-iac-coverage`'s unbounded auth curl hung and fail-fast killed every pipeline. A warn-and-continue path was built (distinct "unreachable" exit codes for `port-iac-coverage` + `linear-sync`, a best-effort `notify-port`) and CI-verified, then **removed: it was a stopgap for one outage, and the lab's policy is fail-closed** — a run where a guard verified nothing must not come out green, even if the cause is a vendor outage. **Kept:** bounded curls (`--connect-timeout`/`--max-time`) on all three, so a hung SaaS fails the step FAST instead of pinning it — still a hard fail. See detail below.
 - **B177** — **Lean + safe CI language matrix: selective per-language runs + full-matrix headroom** — **DONE (2026-09-24, Linear EMA-235).** CI steps run STRICTLY SEQUENTIALLY (RWO workspace, proven from #168 timestamps), so a full run is ~30 min of ~46 fixture-language golden-path lanes on a RAM-tight node (mother ~98%) → #169/#170 were OOM-killed mid-run. **Phase 1 (DONE, CI-verified by lean run #178 — 21 of 67 steps, 21/21 green):** `ci-langs.yaml` manifest + `scripts/ci/select-fixtures.sh` (fail-closed selector, 12 bats) + a `&fixture` gate on the 46 fixture lanes (`RUN_FIXTURES != "0"`, the proven `--var`+`evaluate` pattern) so a change that doesn't touch `golden-paths/` runs only the production lanes; unset var / nightly cron = full matrix (safe default); `golden-path-smoke` lean-gated too. **Phase 2 (DONE — closed on evidence):** per-step caps already exist (B93 LimitRange 128Mi/2Gi + explicit heavy-lane limits) and mother's kubelet reserves are set; 19 nightly cron runs, 0 killed (failures were all code-level); memory is flat day/night so moving the cron buys nothing. The only kills were ad-hoc FULL runs launched ~midnight into the Dagster batch start → runbook now says trigger ad-hoc runs lean. Residual = capacity, only if the nightly ever starts getting killed. See detail below.
 - **B176** — **PR-lifecycle reconciler: cover ALL pr-lane repos + Loki audit log** — **DONE (2026-09-23, Linear EMA-234).** Built, verified + exercised in prod (fleet `--apply` ran clean 2026-09-23); commit / deploy / PAT re-scope are the operator's routine steps. Extends the B131 reconcile half from weyland-lab-only to **every `lanes.pr: true` repo in `repos.yaml`** (the B138 8-repo pr-lane set, byte-identical to `pr-staleness`, guarded by a new `pr(recon)` lane in `check-repo-coverage.sh`). Each repo is reconciled in a subshell (per-repo fail-closed isolation — one unreachable repo forces exit 2, never a silent shrink). Emits structured `pr-lifecycle-audit` lines → Alloy → Loki (the audit.log); metrics via LogQL (no Pushgateway, Job stays unmeshed — the Loki ruler is alerting-only). **Op follow-up (runbook-captured, latent):** re-scope + re-seal the PAT for private-repo writes — no private-repo PRs exist today, so not a completion blocker. See detail below.
@@ -93,7 +95,7 @@ Re-ordered per RE-grounded audit (aidlc-docs/inception/backlog-reprioritization.
 14. **U18** — **DONE 2026-06-17 (as KEY RETIREMENT, not lockdown).** B25b removed the SFTP ingestion that U18 was hardening → the `weyland-lab` key had zero consumers (repo grep clean). Retired it instead: deleted rogueone `authorized_keys` line + the orphaned `weyland-lab-ssh-key` k8s Secret. See detail below.
 15. **B20** — Home Assistant integration — **LOW (↓ Medium→Low 2026-09-06 — demoted at close-out as the weakest Medium: least aligned with the AI/data-platform core (a smart-home tangent), vaguest scope, 78d at Medium without rising, no dependency pull. Was: 2026-08-05; ↑ Low→Medium 2026-08-27 — had been promoted as the most EXECUTABLE item on the board: deployment decided, specs + integration map written, design now committed, genuinely $0, nothing blocking. Lands on **weyland (Proxmox), not mother**, so it costs nothing on the capacity-contended k8s node and is unaffected by rogueone's hardware state [B150]).** **Home Assistant as a STANDALONE home-automation hub** — one pane over the consumer/physical environment (Nest · Google Home/Cast · Alexa/Echo · Smart TVs). **Decoupled from agents since 2026-08-03**: the guarded act-tool (operator → HA REST API through the guard/act confirm rails + `policy.gate` for physical side effects) is a **separate, optional follow-on**, NOT the core. Deployment decided: a **Proxmox HAOS VM**, bridged LAN (local integrations need mDNS/SSDP discovery a k8s pod cannot do). Design: [docs/concepts/home-assistant.md](concepts/home-assistant.md). See detail below.
 16. **B28** — OpenClaw rehabilitation (or retire) — **DONE RESOLVED 2026-06-25: SUPERSEDED by B66.** The keep/retire/reuse decision is no longer standalone — it's the "base agent" workstream of the consolidated [B66] Operator Agent Platform (Hermes-base vs reuse-OpenClaw's-responsiveness, decided at B66 build time). OpenClaw is NOT auto-retired (reuse candidate). Both original Qs (keep-vs-retire, refactor-vs-rewrite) move to B66.
-17. **U14** — n8n workflow → git — **LOW (2026-08-05).** audit active n8n workflows before working on this. See detail below.
+17. **U14** — n8n workflow → git — **MEDIUM (↑ Low→Medium 2026-09-26 — n8n got a real job; was LOW 2026-08-05).** audit active n8n workflows before working on this. **2026-09-26: n8n has a real job** — the lab's Linear automation hub (it reaches the LAN; hosted builders don't), starting with a Linear weekly digest to Telegram. See detail below.
 18. **B34** — Evaluate + bake PII guard — **DONE 2026-07-29.** Baked presidio + ai4privacy NER, activated `llm_guard.pii` (SHADOW). Recall proven; entity set calibrated on real answers (dropped IP/UUID/CRYPTO noise, kept regex-precise + PERSON). Measured FP: 3/20, **all false positives** (NER tags tech nouns as PERSON) — so it **stays shadow/advisory**, enforcement value is on the export/PII-data paths not RAG-over-docs. Also shipped a live guard mode toggle (`/admin/mode`, Bearer-gated). See detail below.
 19. **B35** — Grounding guard calibration — **DONE 2026-07-28.** Switched whole-answer→**sentence-level** scoring (whole-answer NLI over-flagged 58%), calibrated the threshold `0.5`→**`0.15`** from labeled golden-set shadow data, and found grounding.nli measures chunk-**attributability** not faithfulness → **kept in shadow/advisory** (true faithfulness gating = LLM-judge lane B84). Fixed an OOM the heavier scorer introduced (2Gi→2560Mi + bounded/serialized NLI). See detail below.
 - **B36** — Hermes dashboard performance — **MOOT 2026-07-23** (Hermes retired; the dashboard died with CT-104). The B66 operator has no such web dashboard.
@@ -1256,6 +1258,18 @@ tools load.
  0-active-workflows audit result. Close when n8n has live workflows worth versioning.
 - Relates to [B97] (n8n key) and [B45] (incident-response — purpose #1 partially delivers it off the agent lane).
 - **REVIEWED 2026-08-27 — KEEP PARKED at LOW. Retirement was raised again and again declined (operator).** Recording the counter-evidence so the next review starts from it rather than rediscovering it: **three of the four candidate purposes above have since been claimed by other tools** — #1 alert enrichment → [B45] operator incident-response (done); #2 cross-tool sync → `scripts/check-linear-sync.sh` + the `port-pr-reconcile` CronJob (done, **as tested shell in git**); #3 external API ingestion → Dagster owns it. Only **#4 (weekly digest/roll-up)** is genuinely unserved. The pattern is that the lab keeps solving n8n's use cases *without* n8n, each time as scripts-and-CronJobs in git rather than UI-held workflow state — a revealed preference that cuts against the versioning half too, since the untested `n8n import:workflow` restore path only matters once something is worth restoring. Cost while parked is small but non-zero: a deployment plus a **10Gi PVC** on mother, for zero active workflows. **Re-examine retirement if #4 also gets solved elsewhere** — at that point every stated purpose is spoken for and "it could fill gaps" no longer has a gap to point at.
+- **2026-09-26 — n8n HAS A REAL JOB (found in the B119 Linear integrations walk).** The directory lists four hosted
+  no-code builders for Linear (Zapier, IFTTT, Integrately, viaSocket) — none can reach the LAN, and n8n (self-hosted,
+  already running, has a **Linear node**) can. So n8n becomes **the lab's Linear automation hub**, starting with the
+  unclaimed purpose #4:
+  1. **Linear weekly digest** — a scheduled n8n workflow pulls the week from Linear (issues opened / closed, the
+     High lane, stale items, B119.1 OKR check-ins, B190 readiness scores once they exist) and sends one Telegram
+     digest (Slack too once B184 lands). Runs pre-dawn per `docs/schedules.md` Design Rule #5, gets a schedules.md row.
+  2. **Then any Linear automation a hosted builder would have done** — built in n8n, not a SaaS builder.
+  3. **Versioning becomes real:** live workflows → export to `k8s/n8n/workflows.json` + a TESTED `n8n import:workflow`
+     restore (the gap noted above), so the workflows are in git like everything else.
+  **Acceptance:** the digest runs on schedule and lands in Telegram with correct counts (checked against a Linear
+  query); the workflow is in git and restores from it on a fresh n8n; the Linear key comes from a Secret, never the UI.
 
 ### U16 — Weaviate UI (React frontend) — **FOLDED INTO [B81] 2026-08-27** (thread (b) of the [B78] maturity bucket; Linear EMA-24 closed as merged into EMA-71)
 **Folded 2026-08-27 — the need is real and already met better elsewhere; only the *bespoke React app* is dropped.** The three jobs it was scoped for are covered:
@@ -2401,6 +2415,98 @@ merges — that stays a human action).
  is committed in git. Do **all four at once** — piecemeal (ClickHouse-only) is inconsistent and gives no real
  benefit while the other three stay inline. Also the ClickHouse `users.d` Secret is already out-of-band (good).
 
+### B192 — Spike: Jam (jam.dev) — UI bug capture into Linear, with an MCP agents can read — MEDIUM (2026-09-26, Linear EMA-251)
+
+**Found as a Linear integration** in the B119 integrations walk (2026-09-26). **Site: https://jam.dev** (pricing:
+https://jam.dev/pricing).
+
+**What.** Chrome extension (works in Chrome on Linux): one click captures screen recording + console logs + network
+requests + browser/device info and files a Linear issue. Also an **MCP server** ("Debug Jams via MCP") so Claude Code /
+Codex / OpenCode can read the captured evidence directly, plus webhooks. Fits the Bug template's Evidence section and
+prove-the-layer-first debugging of the lab's own UIs (Grafana, Port, DataHub, apps).
+
+**Blocker.** Free tier = 30 Jams, 5 recording links, 5-minute recordings; the lab files ~30 issues an hour in a working
+session, so the free tier alone runs out in an afternoon (first recorded DON'T for that reason; kept as a spike).
+
+**Questions.** 30 per month or lifetime, and what paid costs? Does the MCP let a harness debug from a Jam without the
+bug being re-described? Does the created issue fit the Bug template? What would a lab-owned equivalent take (→ B191)?
+**Comparator: BetterBugs** (betterbugs.io — also a Linear integration): free = 10 recording links/mo, 5-minute recordings,
+console + network included, Linear on free unconfirmed, **MCP server paid-only** — so Jam leads on the MCP angle.
+**Also seen (2026-09-26):** Claap (bug videos → Linear; free 10 videos/user, 300 min, Linear included — far too few at the
+lab's rate), Supercut (screen recordings → Linear issues; tiers unverified).
+
+**Technical context.** rogueone: Chrome + the Jam extension; harness MCP configs (`~/.codex/config.toml`, Claude Code
+`.mcp.json`). External: jam.dev account, Linear integration, Jam MCP. Linear: the Bug template.
+
+**Acceptance criteria.**
+- [ ] One real lab-UI bug captured with Jam and filed; the Linear issue shows recording, console and network data.
+- [ ] Codex or Claude Code reads that Jam via MCP and names the failing request/error unprompted (output captured).
+- [ ] Cap answered (per month vs lifetime) with a usage estimate at the lab's rate.
+- [ ] Verdict in `docs/concepts/linear-evaluation.md`: adopt (for which bugs), don't, or build lab-owned (→ B191).
+
+**Edge cases.** Captures include tokens, cookies and internal hostnames on screen / in network logs — check Jam's
+redaction before capturing anything behind Keycloak; cap hit mid-session → fall back to the plain Bug template, never
+block filing; Jam MCP login per harness from `scripts/.env`, never pasted.
+
+**Out of scope.** Paying without an explicit owner decision; replacing the Bug template or B191; end-user session replay
+for the product apps (B188).
+
+Relates B119, B191, B188.
+
+### B191 — Spike: screen-recorded demos kept in sync with the runbooks (Playwright + VHS → MinIO + YouTube) — MEDIUM (2026-09-26, Linear EMA-250)
+
+**Why.** DoD Pillar 3 demos are written walkthroughs that must be RUN, but nothing records that they were or what the
+screen showed. Recordings add evidence and let the eyes-on UAT check be reviewed afterwards. Owner's call
+(2026-09-26): keep **both** — recordings + runbooks/demo docs, in sync; text is the source of truth, the recording its
+proof. Found in the B119 walk (Loom / Descript embeds).
+
+**Scope.** One demo with UI + CLI parts → Playwright script walks the UAT steps with video on (Playwright MCP already
+in the lab) → VHS `.tape` runs the CLI steps (asciinema as comparison) → master copy in MinIO `demo-recordings` →
+**published unlisted to YouTube** by the same command (YouTube Data API; added 2026-09-26 — Linear's **pre-installed
+YouTube integration** plays it inline on the B-item's Linear issue and in docs) → embedded on the docs-site page
+(`youtube-nocookie` player, MinIO copy as the LAN fallback) → a manifest per recording (doc path + commit + date +
+MinIO key + YouTube ID) and a guard that flags STALE when the demo doc or runbook changed after recording; re-recording
+uploads a new video and updates every link (YouTube can't swap a video's file) → decide on DoD Pillar 3.
+
+**Technical context.** `docs/demos/*.md` + `docs/demos/README.md` (ledger), `docs/runbooks/*.md`, new
+`scripts/record-demo.sh` + per-demo Playwright spec / `.tape`, MinIO `s3.weyland.lab`, docs-site (MkDocs embeds),
+`docs/definition-of-done.md` Pillar 3 (only if adopted). External: the owner's YouTube channel (unlisted), YouTube Data
+API v3 (OAuth client + refresh token in `scripts/.env`; an upload costs ~1,600 of 10,000 daily quota units → ~6/day);
+Linear's pre-installed YouTube embed.
+
+**Acceptance criteria.**
+- [ ] One demo: Playwright UI video + VHS CLI clip, one command, both embedded and playing on its docs page.
+- [ ] The same command uploads both unlisted to YouTube; the video plays inline on the B-item's Linear issue; the
+  manifest records the IDs.
+- [ ] Upload failure (quota, expired auth) exits non-zero with the reason; the MinIO copy still lands.
+- [ ] Re-running regenerates both with no manual steps.
+- [ ] Editing the demo doc or its runbook makes the guard report the recording STALE (tested).
+- [ ] A failed recording exits non-zero — never an empty/truncated video published as success.
+- [ ] Verdict on DoD Pillar 3 recorded with reasons.
+
+**Edge cases.** Keycloak forward-auth UIs (script logs in with a test identity from `scripts/.env`, never records the
+login page as the demo); secrets on screen/terminal (masked, reviewed before publishing); flaky timing (wait on page
+state, not sleeps); large files (size cap + bucket retention); **unlisted ≠ private** — recordings show `*.weyland.lab`
+hostnames, IPs and layouts, so review before upload and keep anything sensitive MinIO-only; YouTube quota/processing
+delay (queue uploads; docs fall back to the MinIO copy until processed).
+
+**Additive only (owner, 2026-09-26).** Recordings ADD to demos; they remove nothing. Every demo keeps its written UI
+walkthrough + UAT steps, its CLI walkthrough with expected output, and the rule that it is RUN live against real
+infra. A recording never substitutes for any of those, and adopting it into DoD Pillar 3 can only add a requirement.
+
+**Comparator: Ranger CLI (added 2026-09-26).** Ranger (found as a Linear integration in the B119 walk; ranger.net) has
+a local CLI — `npm install -g @ranger-testing/ranger-cli`, `ranger setup` in a project, `ranger go` — that launches a
+browser against a locally built UI, tests a feature and returns a verdict (a "Feature Review"). Compare it with the
+Playwright walk: does the browser run on rogueone and reach `*.weyland.lab`; are its verdicts better or cheaper than a
+scripted Playwright run or an agent driving the Playwright MCP; what does the account allow (pricing is custom annual
+contracts, no published free tier). Owner already has an account.
+
+**Out of scope.** Voice-over/editing/captions (Descript); recording every demo; public (listed) videos; Loom (YouTube
+covers external sharing and is automatable; Loom is not). Replacing, shortening or
+retiring any written demo content.
+
+Relates B119, DoD Pillar 3, B183.
+
 ### B190 — Build our own issue-readiness scorer (replace SpecBot) — HIGH (2026-09-25, Linear EMA-249)
 
 **Why.** SpecBot (adopted in the B119 walk, 2026-09-25) scored EMA-240 (B182) **51/100** — acceptance criteria 12,
@@ -2448,7 +2554,7 @@ native priority field + the written rationale and scope boundary. Deterministic 
 
 Relates B119, B182, B84/B100 (LLM judges).
 
-### B189 — Spike: test management + quality visibility (Kiwi TCMS vs Allure Report vs ReportPortal) — MEDIUM (2026-09-25, Linear EMA-248)
+### B189 — Spike: test management + quality visibility (self-hosted vs hosted-free with Linear) — MEDIUM (2026-09-25, Linear EMA-248)
 
 **Why.** Quality visibility is scattered: pass/fail in Woodpecker logs, coverage in SonarQube, CI outcomes on Port's
 `ci_pipeline`. Nothing shows **which tests exist, their history, or flakiness**. Found in the B119 integrations walk
@@ -2458,6 +2564,8 @@ Relates B119, B182, B84/B100 (LLM judges).
 |---|---|---|
 | **Kiwi TCMS** | open-source test management, self-hosted; plugins import JUnit XML, pytest and **TAP** — bats emits TAP natively | license, footprint on mother, **Linear link** (the deciding requirement) |
 | **Testiny** | hosted test management — **free for up to 3 users, issue-tracker integrations incl. Linear on the free plan** (checked 2026-09-25) | the only hosted free option with a Linear link (Testomat's free tier has none); import formats for bats/pytest results |
+| **QA Sphere** | hosted test management — free for up to 3 users with integrations; logs failed runs as Linear issues (Linear on free appears included) — added 2026-09-26 | second hosted free option with a Linear link, beside Testiny |
+| **TestDino** | hosted **Playwright** test reporting/analytics; raises Linear issues from failures — free 5,000 executions/mo, 1 user, 1 project, 90-day retention; Linear on free unverified — added 2026-09-26 | Playwright-specific; also relevant to B191's Playwright recordings |
 | **Allure Report** | Apache-2.0 report generator run in CI; reports + history, no test management | where reports are served; history retention |
 | **ReportPortal** | open-source, self-hosted results analytics (history, flakiness, failure triage) | resource footprint (likely heavy — mother is at its RAM ceiling, B134), Linear link |
 
@@ -2471,6 +2579,11 @@ Relates B119, B182, B84/B100 (LLM judges).
 | Testmo | links test results to Linear issues | paid (trial only) |
 | Kualitee | two-way Linear ↔ Kualitee issue sync | paid |
 | TestOrchestrator | test cases generated from Linear issues, results posted back | pricing unverified |
+| Currents | Playwright/Cypress dashboard; failing tests → Linear issues | paid from $49/mo (TestDino covers this free) |
+| TestCollab | syncs defects with Linear | 14-day trial only |
+| TestLodge | auto-creates a Linear issue when a test fails | from $34/mo |
+| TestMu AI (LambdaTest, renamed 2026-01) | one-click bug logging from cloud runs | free tiers tiny (e.g. 100 lifetime automation minutes) |
+| Reflect | AI end-to-end web tests → Linear | limits unverified; a cloud runner likely can't reach `*.weyland.lab` |
 
 **Scope.** (1) Feed one real bats suite + one pytest suite from CI into each candidate. (2) Compare visibility
 (inventory, history, flakiness), Linear linkage, cost on mother, CI wiring effort. (3) Verdict; wire the winner into CI
@@ -2554,6 +2667,7 @@ Relates B119, the multi-harness editors.
 | **ActivityWatch** | **automatic** — runs on rogueone, records active window + Chrome tab title | **indirect** — Linear tab titles carry the issue ID (`EMA-241 …`) | free, open source, local | lab-native: zero clicks, local data, Grafana-able |
 | **Linear's own timestamps** | nothing to run — status history (started/completed) is in the API | native | free | elapsed time per issue, **not** hours worked |
 | Toggl Track | manual timer extension | **no** — Linear not on its supported-app list | free tier | worse than Clockify |
+| Harvest | manual timer; time entries per Linear issue (a Linear-directory integration, seen 2026-09-26) | **yes** | reportedly 1 seat / 2 projects free | another manual-timer option beside Clockify |
 | solidtime / Kimai | self-hosted timers | not confirmed (solidtime: a discussion thread only) | free, open source | a service to run for no gain |
 
 **Recommendation.** Skip timer apps — a solo operator switching issues rarely starts/stops a timer consistently.
@@ -2608,7 +2722,10 @@ schedules, private incidents) are all paid. Free, self-hosted candidates to eval
 Alertmanager/Kuma → Telegram only pages; the operator's B45 sweep dedups incidents in Postgres and sends a Telegram
 digest but files nothing; GlitchTip → Port makes `glitchtip_issue` catalog entities, not Linear issues. The chosen
 incident tool (Keep / OneUptime / Runframe all advertise Linear follow-ups) must close this — a qualifying alert or
-incident produces a deduplicated Linear issue. Fallback if none fits: a small Alertmanager webhook receiver.
+incident produces a deduplicated Linear issue. Fallbacks if none fits, in order: (a) a small Alertmanager webhook
+receiver (dedups); (b) Linear's pre-installed **Create issues via email** — a team/template intake address + an
+Alertmanager email receiver (zero new services, but needs outbound SMTP, e.g. a free Gmail app login, and does NOT
+deduplicate — repeat firings file repeat issues).
 
 **Requirement — at least ONE pager rotation, exercised (added 2026-09-25, owner).** A solo lab still runs and tests
 on-call: set up a rotation between **two Telegram channels** (or Telegram + Slack) with an escalation step, and fire a
