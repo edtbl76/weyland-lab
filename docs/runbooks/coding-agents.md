@@ -173,6 +173,20 @@ cd <project> && pi --provider mistral --model mistral-large-latest              
 GPT-5.5-via-sub path: `codex login` (→ Sign in with ChatGPT), then `cd <project> && codex "<task>"` (approve its
 sandbox / file-write prompts). Installed; the GPT-sub lane is covered by **Codex (native) + Cline (proven)**.
 
+**Harness wiring — the shared surfaces (multi-harness, see [concepts/multi-harness.md](../concepts/multi-harness.md)).**
+Each harness keeps its own config file, but they all point at the same shared servers:
+
+| Harness | Config | Bifrost `/mcp` | Linear MCP | Instructions |
+|---|---|---|---|---|
+| Claude Code | `~/.claude.json` / `.mcp.json` | yes | yes | `CLAUDE.md` (+ `AGENTS.md`) |
+| Codex | `~/.codex/config.toml` | yes (`mcp_servers."bifrost"`) | yes (`linear`) | `AGENTS.md` |
+| opencode | `~/.config/opencode/opencode.json` | yes (`mcp.bifrost`) | via Bifrost's Linear upstream | `AGENTS.md` |
+| Pi | `~/.pi/agent/` | no MCP configured | — | `AGENTS.md` |
+
+Memory is the one surface that is NOT shared yet — Claude Code's auto-memory is Claude-only (B182, design TBD:
+[design/shared-agent-memory-design.md](../design/shared-agent-memory-design.md)). Check what each harness has with
+`codex mcp list` / `claude mcp list`.
+
 **Codex + Linear (2026-09-25, B119/B181).** Codex CLI 0.157.0 + the ChatGPT desktop app (`chatgpt` package, which
 registers the `codex://` handler Linear's "Work on issue → Codex" uses). Codex reads Linear through Linear's hosted
 MCP server (OAuth, one-time). Verified: `codex exec` fetched EMA-239's title + status via `linear/get_issue`.

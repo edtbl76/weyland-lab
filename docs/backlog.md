@@ -72,6 +72,7 @@ Re-ordered per RE-grounded audit (aidlc-docs/inception/backlog-reprioritization.
 - **B179** — **Investigate Warp Software Factory for the lab** — **HIGH (2026-09-24, Linear EMA-237).** Evaluate warp.dev's agentic software-development offering against REAL lab context and land an ADOPT / DON'T-ADOPT verdict (same discipline as B174/B119): what it actually is (agent orchestration / multi-agent build pipelines / hosted terminal-agent), fit against the lab's hard constraints ($0 / self-hosted / LAN — a paid-cloud-only product likely fails like the Linear Agent, but check for a free/self-host tier first), overlap with what already exists (AIDLC, Bifrost skills/prompts, weyland-operator, Claude Code + the B175 loop library, the B17 A2A roster), and any "software factory" concepts worth stealing even if the product isn't adopted. Deliverable: a `docs/concepts/` verdict + rationale. See detail below.
 - **B180** — **Track host systemd units (mother, rogueone, weyland) in a YAML SoT + the Port inventory** — **HIGH (2026-09-25, Linear EMA-238).** The lab's own host-level services/timers are tracked nowhere: the repo holds 15 unit files across 3 machines, each deployed by a hand `rsync` + `systemctl enable`, with no record of what is actually installed/enabled where, no repo↔host drift check, and no failure alerting for host timers (unlike k8s CronJobs). Audit the hosts, add a `host-units.yaml` SoT, catalog them in Port beside the B129 machine inventory, guard drift, and give every host timer a failure signal. See detail below.
 - **B181** — **"Work on issue" / Copy-as-prompt launchers in Linear for the apps on the start.me Weyland Lab page (Figma Make first)** — **MEDIUM (2026-09-25, Linear EMA-239).** Linear's built-in coding-tool launchers are mostly unusable here (terminal tools need the Linear desktop app — no Linux build; the cloud agents are paid), so apps we actually use for greenfield work — Figma Make for OJay Floyd / MyBodyGraph prototyping — have no issue→app hand-off. Configure Linear **custom-link** coding tools for the start.me Weyland Lab apps that accept a prompt via URL. See detail below.
+- **B182** — **Shared agent memory across harnesses (Claude Code, Codex, OpenCode, Pi, Open WebUI, operator)** — **HIGH (2026-09-25, Linear EMA-240).** The lab is multi-harness, but durable agent memory lives only in Claude Code's auto-memory, which no other harness can read — Codex (connected to Linear 2026-09-25) sees none of it. One shared store every harness reads and writes; candidate = an MCP memory server (Basic Memory) behind the Bifrost MCP gateway — store, transport and gateway all TBD. ContextStream rejected (a second, proprietary store). Concept `docs/concepts/multi-harness.md`, design `docs/design/shared-agent-memory-design.md`. See detail below.
 - **B178** — **CI resilience: a Port (external SaaS) outage must not hard-block the whole pipeline** — **RETIRED (2026-09-24, Linear EMA-236) — built, then REVERTED the same day by operator call.** During a Port outage `port-iac-coverage`'s unbounded auth curl hung and fail-fast killed every pipeline. A warn-and-continue path was built (distinct "unreachable" exit codes for `port-iac-coverage` + `linear-sync`, a best-effort `notify-port`) and CI-verified, then **removed: it was a stopgap for one outage, and the lab's policy is fail-closed** — a run where a guard verified nothing must not come out green, even if the cause is a vendor outage. **Kept:** bounded curls (`--connect-timeout`/`--max-time`) on all three, so a hung SaaS fails the step FAST instead of pinning it — still a hard fail. See detail below.
 - **B177** — **Lean + safe CI language matrix: selective per-language runs + full-matrix headroom** — **DONE (2026-09-24, Linear EMA-235).** CI steps run STRICTLY SEQUENTIALLY (RWO workspace, proven from #168 timestamps), so a full run is ~30 min of ~46 fixture-language golden-path lanes on a RAM-tight node (mother ~98%) → #169/#170 were OOM-killed mid-run. **Phase 1 (DONE, CI-verified by lean run #178 — 21 of 67 steps, 21/21 green):** `ci-langs.yaml` manifest + `scripts/ci/select-fixtures.sh` (fail-closed selector, 12 bats) + a `&fixture` gate on the 46 fixture lanes (`RUN_FIXTURES != "0"`, the proven `--var`+`evaluate` pattern) so a change that doesn't touch `golden-paths/` runs only the production lanes; unset var / nightly cron = full matrix (safe default); `golden-path-smoke` lean-gated too. **Phase 2 (DONE — closed on evidence):** per-step caps already exist (B93 LimitRange 128Mi/2Gi + explicit heavy-lane limits) and mother's kubelet reserves are set; 19 nightly cron runs, 0 killed (failures were all code-level); memory is flat day/night so moving the cron buys nothing. The only kills were ad-hoc FULL runs launched ~midnight into the Dagster batch start → runbook now says trigger ad-hoc runs lean. Residual = capacity, only if the nightly ever starts getting killed. See detail below.
 - **B176** — **PR-lifecycle reconciler: cover ALL pr-lane repos + Loki audit log** — **DONE (2026-09-23, Linear EMA-234).** Built, verified + exercised in prod (fleet `--apply` ran clean 2026-09-23); commit / deploy / PAT re-scope are the operator's routine steps. Extends the B131 reconcile half from weyland-lab-only to **every `lanes.pr: true` repo in `repos.yaml`** (the B138 8-repo pr-lane set, byte-identical to `pr-staleness`, guarded by a new `pr(recon)` lane in `check-repo-coverage.sh`). Each repo is reconciled in a subshell (per-repo fail-closed isolation — one unreachable repo forces exit 2, never a silent shrink). Emits structured `pr-lifecycle-audit` lines → Alloy → Loki (the audit.log); metrics via LogQL (no Pushgateway, Job stays unmeshed — the Loki ruler is alerting-only). **Op follow-up (runbook-captured, latent):** re-scope + re-seal the PAT for private-repo writes — no private-repo PRs exist today, so not a completion blocker. See detail below.
@@ -2391,6 +2392,39 @@ merges — that stays a human action).
  is committed in git. Do **all four at once** — piecemeal (ClickHouse-only) is inconsistent and gives no real
  benefit while the other three stay inline. Also the ClickHouse `users.d` Secret is already out-of-band (good).
 
+### B182 — Shared agent memory across harnesses — HIGH (2026-09-25, Linear EMA-240)
+
+**Why.** The lab is **multi-harness**: Claude Code, Codex (CLI + ChatGPT desktop), OpenCode, Cline, Pi, Open WebUI and
+the weyland-operator all work against the same repos and platform (the AIDLC framework is packaged for 7 harnesses upstream; this repo installs the Claude Code one).
+Durable agent memory — decisions, lessons, corrections — lives only in **Claude Code's auto-memory**
+(`~/.claude/projects/-home-edwardmangini-IdeaProjects-weyland/memory/`, ~190 Markdown notes + a `MEMORY.md` index),
+which no other harness reads. Found 2026-09-25 when Codex was connected to Linear (B181): it works, but knows none of
+what Claude has learned. Repo files every harness reads (`AGENTS.md`, `docs/`, AIDLC `project.md` rules) carry the
+*rules*; nothing shared carries the *working memory*.
+
+**Goal.** One memory store every harness reads and writes; a lesson learned in one agent is available in all of
+them, with no second copy to drift (the KEDA / Cyrus re-proposals are what drift costs).
+
+**Candidates (none decided — `docs/design/shared-agent-memory-design.md` holds the TBDs).**
+- *Gateway:* the **Bifrost MCP gateway** — Claude Code and Codex already connect to it (`~/.codex/config.toml`
+  `mcp_servers."bifrost"`), so one server there reaches every Bifrost client. Alternative: per-harness direct MCP.
+- *Store:* **Basic Memory** (open source; Markdown notes with `[[wikilinks]]` — the format Claude's memory already
+  uses); alternatives: the reference MCP `memory` server (JSON knowledge graph), mem0/OpenMemory, Graphiti.
+- *Rejected:* **ContextStream** (2026-09-25) — cloud is acceptable when free, and its free tier is 10k credits/mo,
+  but per-operation cost is unpublished and it is a second, proprietary store: duplication, not the fix.
+
+**Scope.**
+1. Verify candidates against the real thing (license, HTTP vs stdio transport — Bifrost-reachable?, concurrent
+   writes from two agents, search quality).
+2. Decide store + gateway + where the Markdown lives (git-tracked?); record in the design doc.
+3. Migrate Claude's existing memory into the shared store without forking it (one store, not two).
+4. Wire each harness and prove a write in one is read in another (Claude Code ↔ Codex first).
+5. DoD: arch.md entry, C4 placement (the `sharedMemory` element is placed now at the model root, view `harnesses`, status TBD), sequence diagram, a live
+   demo, runbook.
+
+Relates B181 (Codex + Linear), B17/B19 (MCP gateway), B175 (Bifrost skills — the same "portable artifact, swappable
+consumer" idea), B15 (coding-agent harnesses).
+
 ### B181 — "Work on issue" / Copy-as-prompt launchers in Linear for the start.me Weyland Lab apps (Figma Make first) — MEDIUM (2026-09-25, Linear EMA-239)
 
 **Why.** Found in the B119 Settings walk (2026-09-25). Linear's "Work on issue" hand-off (`W` `O`) only covers its
@@ -2407,8 +2441,13 @@ variables only for custom scripts (`{{prompt}}`, `{{issue.identifier}}`, `{{issu
 `{{workDir}}`, `{{tool.command}}` — linear.app/docs/open-issues-with-custom-scripts); whether custom links take the
 same set is unverified — read the custom-link dialog's helper text before relying on any.
 
-**Claude Code (added 2026-09-25 — the first target).** Codex *desktop* already works as a launcher here (the `chatgpt`
-package registers `codex://` → `/usr/share/applications/chatgpt.desktop`). Claude Code has the equivalent via its
+**Codex — DONE (2026-09-25).** Codex *desktop* works as a launcher here (the `chatgpt` package registers `codex://` →
+`/usr/share/applications/chatgpt.desktop`), and Codex CLI now reads Linear itself through Linear's hosted MCP
+(`codex mcp add linear …`, OAuth; verified `linear/get_issue` on EMA-239). Codex's bubblewrap sandbox needed an
+AppArmor exception on Ubuntu 24.04 (`nodes/rogueone/apparmor/bwrap`, installed + verified). Both in
+`docs/runbooks/coding-agents.md`.
+
+**Claude Code (added 2026-09-25 — the next target).** Claude Code has the equivalent via its
 documented deep link `claude-cli://open?q=<url-encoded prompt, ≤5000 chars>&cwd=<abs path>&repo=<owner/name>`
 (code.claude.com/docs/en/deep-links); the handler is already registered on rogueone
 (`~/.local/share/applications/claude-code-url-handler.desktop` → `claude --handle-uri %u`, opens in

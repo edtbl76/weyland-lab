@@ -75,7 +75,11 @@ this page) links to the live tool.
 | **LiteLLM** | <https://litellm.weyland.lab> | Model gateway (unified LLM API) |
 | **Ollama** | <https://ollama.weyland.lab> | Local model serving API |
 | **Whisper** | <https://whisper.weyland.lab> | Speech-to-text transcription API |
-| **Coding agents (B15)** | local CLIs — [runbook](runbooks/coding-agents.md) | `$0` agentic coding TUIs (opencode / Cline / Pi / Codex) → hosted models direct or ChatGPT sub (GPT-5.5) |
+| **Claude Code** | local CLI (rogueone) — [concept](concepts/multi-harness.md) | Primary harness — MCP client of the tool-server, Bifrost and Linear |
+| **Codex** | local CLI + ChatGPT desktop — [runbook](runbooks/coding-agents.md) | Peer harness on the ChatGPT sub — MCP client of Bifrost + Linear; Linear "Work on issue" launcher |
+| **Coding agents (B15)** | local CLIs — [runbook](runbooks/coding-agents.md) | `$0` agentic coding TUIs (opencode / Cline / Pi) → hosted models direct or ChatGPT sub (GPT-5.5) |
+| **Bifrost** | <https://bifrost.weyland.lab> | Agent edge — the MCP gateway every harness uses + skill/prompt registry |
+| **Shared agent memory** | *planned — B182* | One memory store for every harness; all components TBD ([design](design/shared-agent-memory-design.md)) |
 
 ## Observability & Cost
 

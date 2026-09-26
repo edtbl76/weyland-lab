@@ -1,0 +1,92 @@
+# Multi-Harness Agents
+
+**weyland is not a Claude Code lab — it is a multi-harness lab.** Several agent front-ends ("harnesses") drive the
+same repos and the same platform, and each can be swapped for another. This page is the shape of that layer: which
+harnesses exist, what they share, what is still per-harness, and the one missing shared component — **memory**.
+
+## The harnesses
+
+| Harness | Where | Model / brain | Reaches the platform through | Reads its instructions from |
+|---|---|---|---|---|
+| **Claude Code** | rogueone (terminal) | Anthropic (Claude) | MCP: tool-server, **Bifrost**, **Linear**, CodeScene, Context7, Serena, Figma | `CLAUDE.md` (imports `AGENTS.md`); AIDLC in `.claude/` |
+| **Codex** (CLI + ChatGPT desktop) | rogueone | GPT-5.5 via ChatGPT sign-in (sub-included) | MCP: **Bifrost**, **Linear**, Keploy; Linear "Work on issue" launcher (`codex://`) | `AGENTS.md` |
+| **OpenCode** | rogueone (TUI) | free hosted (Gemini / Mistral / OpenRouter / Groq), direct | MCP: **Bifrost** | `AGENTS.md` |
+| **Cline** | rogueone (IDE) | ChatGPT sign-in or free keyed providers | (per its own config) | its rules + `AGENTS.md` |
+| **Pi** | rogueone (TUI) | free hosted, direct | no MCP configured | `AGENTS.md` |
+| **Open WebUI** | mother — `chat.weyland.lab` | Ollama (rogueone) + the guarded `weyland-operator` lane | Ollama `/v1`, nemo-guardrails | its own system prompts |
+| **weyland-operator** | mother — Telegram | local `qwen2.5:7b` (Haiku failover via LiteLLM) | tool-server `/mcp` + `/mcp-act`, the governed MCP gateway, the Realm of Agents | its own prompts (Bifrost-federated) |
+
+Coding harnesses call hosted models **directly**, not through the MLflow AI Gateway (it cannot carry a multi-turn tool
+loop — see [arch.md §8a](../arch.md)). Model choice is a driver, not an architecture: the harness was never the
+bottleneck ([runbooks/coding-agents.md](../runbooks/coding-agents.md)).
+
+## What is shared (harness-neutral)
+
+| Concern | Shared component | Status |
+|---|---|---|
+| **Tools** | **Bifrost** MCP gateway (aggregates the MCP fleet + compositor) and the tool-server | live |
+| **Work tracking** | **Linear** (hosted MCP) + `docs/backlog.md` | live — Claude Code and Codex both read/write issues |
+| **Skills** | Bifrost skill marketplace (`register_bifrost_skills.py` = git source of truth) | live |
+| **Prompts** | Bifrost Prompt Repository (federated to Langfuse/MLflow) | live |
+| **Retrieval** | `context_ask` / `context_search` (the lab RAG) | live |
+| **Model egress** | LiteLLM / Bifrost (agentic), MLflow AI Gateway (chat/eval) | live |
+| **Rules & conventions** | repo files every harness reads: `AGENTS.md`, `docs/`, AIDLC rule files | live — see the gap below |
+| **Memory** (lessons, decisions, corrections) | **Shared agent memory — TBD** | **planned (B182)** |
+
+## What is still per-harness
+
+- **Memory.** Durable working memory lives only in Claude Code's auto-memory. Codex, OpenCode and the rest cannot
+  read it — a lesson Claude learned is invisible to them. This is the gap B182 closes.
+- **Instructions.** Codex, OpenCode and Pi read `AGENTS.md`; Claude Code reads `CLAUDE.md`. The lab's conventions
+  (DoD, backlog/Linear, operating rules) currently live in `CLAUDE.md`, so the other harnesses do not get them.
+- **MCP wiring.** Each harness has its own config file (`~/.claude.json`/`.mcp.json`, `~/.codex/config.toml`,
+  `~/.config/opencode/opencode.json`). Bifrost keeps that down to one entry per harness.
+
+## Shared agent memory (planned — every component TBD)
+
+One store that every harness reads and writes. Nothing is decided; the design record holds the options and criteria:
+[../design/shared-agent-memory-design.md](../design/shared-agent-memory-design.md).
+
+- **Store:** TBD — candidates Basic Memory (Markdown + wikilinks, the format Claude's memory already uses), the MCP
+  reference `memory` server, mem0 OpenMemory, Graphiti. ContextStream rejected (a second, proprietary store).
+- **Gateway:** TBD — Bifrost is the leading candidate because Claude Code, Codex and OpenCode already connect to it.
+- **Host / transport / source of truth / migration:** TBD.
+- **Fixed constraints:** $0 (cloud acceptable if free), **one store not two**, reachable over MCP, human-readable
+  notes, fail closed, no secrets in memory.
+
+```mermaid
+flowchart LR
+  subgraph H["Harnesses"]
+    CC["Claude Code"]
+    CX["Codex"]
+    OC["OpenCode / Cline / Pi"]
+    OW["Open WebUI"]
+    OP["weyland-operator"]
+  end
+  BF["Bifrost MCP gateway"]
+  LN["Linear MCP"]
+  MEM["Shared agent memory<br/>(TBD, B182)"]
+  CC --> BF
+  CX --> BF
+  OC --> BF
+  CC --> LN
+  CX --> LN
+  CC -.->|planned| MEM
+  CX -.->|planned| MEM
+  OC -.->|planned| MEM
+  OP -.->|planned| MEM
+  OW -.->|planned| MEM
+```
+
+The C4 placement is the `harnesses` view of the LikeC4 model (`docs/architecture/weyland.likec4`), where
+`sharedMemory` sits at the model root until its host is decided:
+
+```likec4-view
+harnesses
+```
+
+Sequence: [diagrams/flow-multi-harness.md](../diagrams/flow-multi-harness.md).
+
+Related: [arch.md §8b](../arch.md) (coding agents), [runbooks/coding-agents.md](../runbooks/coding-agents.md),
+[federated-prompts.md](federated-prompts.md) (the same "one source, many consumers" pattern for prompts),
+[linear-evaluation.md](linear-evaluation.md) (Codex + Linear, B181).

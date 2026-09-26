@@ -12,7 +12,7 @@ runbooks: [b6-minio](runbooks/storage-minio.md) · [b7-ollama](runbooks/model-se
 [timescaledb](runbooks/timescaledb.md) · [datasets-lake](runbooks/datasets-lake.md) · [argocd](runbooks/argocd.md) ·
 concepts: [llm-inference-cpu-vs-gpu](concepts/llm-inference-cpu-vs-gpu.md) · ops: [test.md](validation/test-commands.md)
 
-**Architecture (C4) — interactive LikeC4** (B64): explore every view at [likec4.weyland.lab](https://likec4.weyland.lab), or embedded in-page — [Context](diagrams/c4-context.md) · [Node topology](diagrams/c4-container.md) · [Components — mother, sliced into planes](diagrams/c4-component-mother.md). One model (`docs/architecture/weyland.likec4`) auto-generates the whole hierarchy; runbook [runbooks/likec4.md](runbooks/likec4.md). **Flows** (Mermaid sequence, see §9 for the grouped table): [ingestion](diagrams/flow-ingestion.md) · [RAG query](diagrams/flow-rag-query.md) · [RAG stream indexer](diagrams/flow-rag-stream.md) · [backend dispatch](diagrams/flow-backend-dispatch.md) · [voice chat](diagrams/flow-voice-chat.md) · [eval pipeline](diagrams/flow-eval.md) · [eval scoring](diagrams/flow-eval-scoring.md) · [semantic/consumption](diagrams/flow-semantic-consumption.md) · [health/status](diagrams/flow-health-status.md) · [pipeline trigger](diagrams/flow-pipeline-trigger.md) · [agent MCP](diagrams/flow-agent-mcp.md) · [mesh mTLS](diagrams/flow-mesh-mtls.md) · [tracing](diagrams/flow-tracing.md) · [guardrails](diagrams/flow-guardrails.md) · [act-tool](diagrams/flow-act-tool.md) · [ingress/TLS](diagrams/flow-ingress-tls.md) · [model gateway](diagrams/flow-model-gateway.md) · [AI Gateway](diagrams/flow-mlflow-gateway.md) · [coding agents](diagrams/flow-coding-agents.md) · [model catalog](diagrams/flow-model-catalog.md) · [roadmap-sync](diagrams/flow-roadmap-sync.md) · [alerting](diagrams/flow-alerting.md) · [deploy](diagrams/flow-deploy.md) · [MLflow](diagrams/flow-mlflow.md)
+**Architecture (C4) — interactive LikeC4** (B64): explore every view at [likec4.weyland.lab](https://likec4.weyland.lab), or embedded in-page — [Context](diagrams/c4-context.md) · [Node topology](diagrams/c4-container.md) · [Components — mother, sliced into planes](diagrams/c4-component-mother.md). One model (`docs/architecture/weyland.likec4`) auto-generates the whole hierarchy; runbook [runbooks/likec4.md](runbooks/likec4.md). **Flows** (Mermaid sequence, see §9 for the grouped table): [ingestion](diagrams/flow-ingestion.md) · [RAG query](diagrams/flow-rag-query.md) · [RAG stream indexer](diagrams/flow-rag-stream.md) · [backend dispatch](diagrams/flow-backend-dispatch.md) · [voice chat](diagrams/flow-voice-chat.md) · [eval pipeline](diagrams/flow-eval.md) · [eval scoring](diagrams/flow-eval-scoring.md) · [semantic/consumption](diagrams/flow-semantic-consumption.md) · [health/status](diagrams/flow-health-status.md) · [pipeline trigger](diagrams/flow-pipeline-trigger.md) · [agent MCP](diagrams/flow-agent-mcp.md) · [mesh mTLS](diagrams/flow-mesh-mtls.md) · [tracing](diagrams/flow-tracing.md) · [guardrails](diagrams/flow-guardrails.md) · [act-tool](diagrams/flow-act-tool.md) · [ingress/TLS](diagrams/flow-ingress-tls.md) · [model gateway](diagrams/flow-model-gateway.md) · [AI Gateway](diagrams/flow-mlflow-gateway.md) · [coding agents](diagrams/flow-coding-agents.md) · [multi-harness](diagrams/flow-multi-harness.md) · [model catalog](diagrams/flow-model-catalog.md) · [roadmap-sync](diagrams/flow-roadmap-sync.md) · [alerting](diagrams/flow-alerting.md) · [deploy](diagrams/flow-deploy.md) · [MLflow](diagrams/flow-mlflow.md)
 
 ---
 
@@ -178,8 +178,9 @@ supersedes the cancelled B12 (a static registry without the lifecycle).
 | vLLM (B111 bench) | `rogueone:8001/v1` (Bifrost `vllm`) | **On-demand** GPU serving — `Qwen2.5-7B-Instruct-AWQ`; continuous-batching throughput bench (~15× vs serial). Native Docker engine only; VRAM-capped. `scripts/vllm-bench.sh`, [runbooks/gpu-inference.md](runbooks/gpu-inference.md). |
 | SGLang (B111 bench) | `rogueone:8002/v1` (Bifrost `sgl`) | **On-demand** GPU serving — `Llama-3.2-1B`; **RadixAttention prefix-caching** bench (~6.2× faster TTFT on cache hits) for agent/RAG. `scripts/sglang-bench.sh`, [runbooks/gpu-inference.md](runbooks/gpu-inference.md). |
 | Obsidian vault | (local) | personal notes — **no longer a RAG source** (retired in B25b). The RAG now ingests the GitHub repo (`docs/` + `nodes/`) via Dagster git-pull. |
-| Claude Code | (local CLI) | Dev assistant; MCP client of tool-server `/mcp` (validated 2026-06-14). |
-| Coding agents (B15) | (local CLIs, rogueone) | opencode / Cline / Pi / Codex — `$0` agentic coding TUIs; drive hosted models **direct** (Mistral/OpenRouter/Gemini free, or ChatGPT sub → GPT-5.5), bypassing the gateway. See §8b. |
+| Claude Code | (local CLI) | **Harness — primary** coding agent. MCP client of tool-server `/mcp` (validated 2026-06-14), **Bifrost** `/mcp`, and **Linear** (hosted MCP). Instructions `CLAUDE.md`; AIDLC installed (`.claude/`). Memory = Claude-only auto-memory (B182). See §8d. |
+| Codex | (local CLI + ChatGPT desktop) | **Harness — peer** (2026-09-25). Codex CLI 0.157.0 on the ChatGPT sub (GPT-5.5); MCP client of **Bifrost** + **Linear**; Linear "Work on issue" launcher (`codex://` → ChatGPT desktop); sandbox needs the AppArmor `bwrap` profile ([runbooks/coding-agents.md](runbooks/coding-agents.md)). Instructions `AGENTS.md`. See §8d. |
+| Coding agents (B15) | (local CLIs, rogueone) | **Harnesses** — opencode / Cline / Pi — `$0` agentic coding TUIs; drive hosted models **direct** (Mistral/OpenRouter/Gemini free, or ChatGPT sub → GPT-5.5), bypassing the gateway; opencode also reaches Bifrost `/mcp`. See §8b / §8d. |
 | Ray edge worker | `ray-worker.service` → mother `:6379` | **Permanent native systemd Ray worker** — joins the always-on Ray head for heavy training / HP-sweep compute. Not-always-up (laptop): drops from the cluster on sleep, systemd auto-rejoins on wake. `services/ray-head/ray-worker.service`. |
 | genre-trainer | (native docker engine, `registry.weyland.lab`) | Remote model-training container — reads lakeFS silver, trains, logs to MLflow (artifact direct to MinIO). Runs on rogueone's **native** engine (`DOCKER_HOST=unix:///var/run/docker.sock`; Docker Desktop retired B127 → full 128 GB, no VM RAM cap). `services/genre-trainer/`. |
 
@@ -1061,6 +1062,61 @@ Runbook [runbooks/aidlc-workflow.md](runbooks/aidlc-workflow.md), demo
 [diagrams/flow-aidlc-workflow.md](diagrams/flow-aidlc-workflow.md). Relates B86 (framework eval), B126 (borrow
 notations), B37 (KB ingest).
 
+### 8d. Multi-harness agents + shared memory (B182, 2026-09-25)
+
+§8b says *which model drives the keyboard*; this is the layer above it: **the lab is multi-harness.** Claude Code,
+Codex (CLI + ChatGPT desktop), OpenCode, Cline, Pi, Open WebUI and the weyland-operator all drive the same repos and
+the same platform, and any coding task can be picked up by more than one of them. Claude Code is the primary
+harness, not the only one — Codex became a peer on 2026-09-25 (Linear "Work on issue" launcher + Linear MCP + Bifrost
+MCP, B181). The architecture therefore has to answer, per concern, *is this shared across harnesses or trapped
+inside one?*
+
+| Concern | Harness-neutral today? | Mechanism |
+|---|---|---|
+| Tools | ✅ | **Bifrost** MCP gateway — one config entry per harness reaches the whole fleet |
+| Work tracking | ✅ | Linear hosted MCP (Claude Code + Codex) + `docs/backlog.md` |
+| Skills / prompts | ✅ | Bifrost skill marketplace + Prompt Repository (git-sourced) |
+| Retrieval | ✅ | `context_ask` / `context_search` |
+| Rules & conventions | ⚠ partial | repo files — but the lab's conventions live in `CLAUDE.md`, and `AGENTS.md` (what Codex/OpenCode/Pi read) still holds the upstream AI-DLC contributor guide |
+| **Memory** (lessons, decisions, corrections) | ❌ | **Claude Code auto-memory only** (~190 notes on rogueone) — **B182, shared store TBD** |
+
+**The shared-memory component — placed now, decided later.** The C4 model carries a `sharedMemory` element at the
+model **root** (its host is undecided) with *planned* edges from every harness; view `harnesses`. Every part is TBD
+in [design/shared-agent-memory-design.md](design/shared-agent-memory-design.md). The options as they stand:
+
+| Option | Shape | For | Against | Status |
+|---|---|---|---|---|
+| **Basic Memory behind Bifrost** | MCP server; Markdown + SQLite index; `[[wikilinks]]` | same note format as Claude's memory → one store, not a migration; human-readable; Bifrost already reaches Claude Code/Codex/OpenCode | AGPL-3.0; HTTP transport vs Bifrost unverified; concurrent writers unproven | **leading candidate** |
+| MCP reference `memory` server | JSONL knowledge graph | MIT, tiny | a different model than Claude's notes → a real migration | candidate |
+| mem0 OpenMemory | self-hosted memory server + dashboard | purpose-built, local-first | another service on a RAM-capped mother (B134) | candidate |
+| Graphiti | temporal knowledge graph | time-aware facts | needs a graph DB + LLM extraction — heavy for ~190 notes | candidate |
+| Per-harness native memory | each tool's own | zero work | **the problem** — N stores that drift | rejected |
+| **ContextStream** | hosted context + memory SaaS | free tier (10k credits/mo); cloud is fine when free | per-operation cost unpublished; a second proprietary store; its code half duplicates Sourcebot/graphify/Serena | **rejected 2026-09-25** |
+
+**Why a gateway-hosted store rather than a file convention.** The lab already solved this shape twice: prompts
+(Bifrost = source of truth, federated out — [concepts/federated-prompts.md](concepts/federated-prompts.md)) and skills
+(git → Bifrost marketplace → any harness). Memory is the same "one source, many consumers" problem; putting it behind
+the MCP gateway every harness already speaks makes adding a harness a one-line config, not a sync job. Fixed
+constraints: $0 (cloud acceptable if free), **one store not two**, human-readable notes, fail closed, no secrets.
+
+```mermaid
+flowchart LR
+  CC["Claude Code"] --> BF["Bifrost MCP"]
+  CX["Codex"] --> BF
+  OC["OpenCode / Cline / Pi"] --> BF
+  CC --> LN["Linear MCP"]
+  CX --> LN
+  CC -.->|planned| MEM["Shared memory (TBD)"]
+  CX -.->|planned| MEM
+  OC -.->|planned| MEM
+  OP["weyland-operator"] -.->|planned| MEM
+  OW["Open WebUI"] -.->|planned| MEM
+```
+
+Concept [concepts/multi-harness.md](concepts/multi-harness.md) · design
+[design/shared-agent-memory-design.md](design/shared-agent-memory-design.md) · C4 view `harnesses` · flow
+[diagrams/flow-multi-harness.md](diagrams/flow-multi-harness.md) · B182 / EMA-240.
+
 ---
 
 ## 9. Key flows
@@ -1094,6 +1150,7 @@ observed; **Control/ops** = scheduled and operational paths.
 | Security/mesh | Ingress / TLS front door | [flow-ingress-tls.md](diagrams/flow-ingress-tls.md) |
 | Control/ops | Model-gateway routing (B26) | [flow-model-gateway.md](diagrams/flow-model-gateway.md) |
 | Control/ops | Coding agents — dev → agent → direct provider (B15) | [flow-coding-agents.md](diagrams/flow-coding-agents.md) |
+| Control/ops | Multi-harness — Linear issue → Codex / Claude Code → Linear MCP + Bifrost (shared memory planned, B182) | [flow-multi-harness.md](diagrams/flow-multi-harness.md) |
 | Control/ops | AI-DLC workflow — `/aidlc` forwarding loop (next → directive → stage → report) (B133) | [flow-aidlc-workflow.md](diagrams/flow-aidlc-workflow.md) |
 | Control/ops | model_catalog refresh (B26) | [flow-model-catalog.md](diagrams/flow-model-catalog.md) |
 | Control/ops | Roadmap-sync -> Hermes Kanban (B27) | [flow-roadmap-sync.md](diagrams/flow-roadmap-sync.md) |
