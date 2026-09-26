@@ -1323,6 +1323,49 @@ Flows: [flow-ship-loop.md](diagrams/flow-ship-loop.md) · [flow-weyland-image-ci
 Runbooks: [ship-images.md](runbooks/ship-images.md) · [pr-lifecycle.md](runbooks/pr-lifecycle.md).
 Demo: [ship-images.md](demos/ship-images.md).
 
+### 10c. Disaster recovery — the catalog, and backing up a SaaS system of record (B194, 2026-09-26)
+
+**The catalog came first.** Adding a Linear backup exposed that the lab had backups but no picture of them: four
+backup mechanisms documented in four places, none with a recorded restore except rogueone's restic repo. So
+[dr.md](dr.md) now lists every protected system with where its copy physically lives, what it can lose, the alert,
+the restore command and the date of the last restore test, and **DoD Pillar 9** gates on it. Writing the catalog found
+seven gaps, the worst being that the core Postgres dumps sit on the same USB disk as MinIO (one disk failure loses
+both), and that no cluster backup has ever been restored. The gaps live in dr.md § Closing Gaps.
+
+**Linear is a system of record the lab doesn't host.** `docs/backlog.md` in git holds the ordered list and the detail;
+Linear holds status history, comments, projects, initiatives, templates and views, and none of it was backed up. The
+same class as B137's Port finding: config that lived only somewhere it could not be recovered from.
+
+**Comparative placement — why a Dagster asset and not the alternatives:**
+
+| Option | Verdict | Why |
+|---|---|---|
+| **Dagster asset + MinIO** (chosen) | adopt | Dagster already owns scheduled API ingestion (the FRED/EDGAR landers), runs in the pod that holds MinIO credentials, and `dagster-freshness-check` already alerts per job on "failed" and "stale". The same snapshot is the future Linear data source for the lakehouse (B185 cycle time, EMA-172 DORA, B119.1 OKRs). |
+| k8s CronJob + a script | reject | Works, but duplicates what Dagster gives for free (run history, metadata per run, asset lineage into the dbt layer Slice 3 needs). |
+| Hosted backup (Cloudback, SimpleBackups) | reject | Paid past a trial, and it puts a copy of the workspace in a third party's cloud — the opposite of LAN-first. Kept as comparators. |
+| Linear's manual CSV export | fallback only | Manual, loses history and comments, no schedule. |
+| Airbyte / Fivetran Linear connectors | reject for backup | Built for analytics sync, not a faithful restore copy; a second platform to run for one source. |
+
+**Design decisions that carry the weight:**
+- **Selections built from the live schema**, one `__type` per node type (full-schema introspection costs 65,536 and
+  Linear caps a query at 10,000). New Linear fields are captured without a code change; only connections and object
+  lists are chosen explicitly, which keeps every page's cost predictable (max observed 1,176).
+- **Fail closed, including on HTTP 200.** Linear returns some errors inside a 200 (a bad cursor), so any `errors`
+  field fails the run. A required entity that comes back empty, missing issue history, or a cursor that stops
+  advancing all refuse to write. A revoked key is its own error that names the fix.
+- **Raw JSON, not Parquet.** A restore needs every field as Linear returned it; the lakehouse view (Slice 3) derives
+  from the JSON.
+- **Manifest last.** A snapshot directory without `manifest.json` is incomplete by construction.
+- **Read-only key.** Verified: Linear refuses a mutation with it (`FORBIDDEN`). A backup job never needs write.
+
+**Proven before deploy:** the export against live Linear matched an independent count (254 issues = 254, archived
+included, 1,037 history events); the asset materialized in the real `dagster-user-code` image against a throwaway
+MinIO (22 objects, manifest last, lifecycle rule applied); and a revoked key failed with the rotate message and wrote
+nothing.
+
+Flow: [flow-linear-backup.md](diagrams/flow-linear-backup.md). Runbook: [linear-backup.md](runbooks/linear-backup.md).
+DR catalog: [dr.md](dr.md).
+
 ---
 
 ## 11. Operational lessons (why the CTs are tuned the way they are)

@@ -69,6 +69,7 @@ spec:
                       weyland_timeseries_job)             echo  21600 ;;  # every 4h     -> 6h
                       datahub_catalog_emit_job)           echo  28800 ;;  # every 6h     -> 8h
                       soda_quality_job)                   echo 108000 ;;  # daily 05:30  -> 30h
+                      linear_backup_job)                  echo 108000 ;;  # daily 05:20  -> 30h (B194 Linear backup, docs/dr.md)
                       weyland_datasets_music_land_job)    echo 108000 ;;  # daily 03:00  -> 30h
                       weyland_datasets_health_land_job)   echo 108000 ;;  # daily 04:00  -> 30h
                       weyland_dbt_job)                    echo 691200 ;;  # weekly Sun   -> 8d

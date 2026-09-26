@@ -48,7 +48,10 @@ weyland_ingestion_job = define_asset_job(
     # it here; marts are built weekly, and nothing in the nightly ingestion depends on fresh marts. [[dbt-transform-tier]]
     - AssetSelection.assets(weyland_dbt_assets)
     # B102 — the registrations reconcile has its own weekly schedule; never sweep it into the 15-min ingestion cron.
-    - AssetSelection.groups("registrations"),
+    - AssetSelection.groups("registrations")
+    # B194 — the Linear backup has its own nightly schedule (05:20); it calls an external API and writes a snapshot,
+    # so a second run inside the ingestion job would double the API load and the MinIO writes.
+    - AssetSelection.groups("linear_backup"),
 )
 
 # B72 — the brokered fan-out (all per-format assets, each isolated in its own process);
@@ -252,6 +255,22 @@ registrations_schedule = ScheduleDefinition(
     job=registrations_reconcile_job,
     cron_schedule="0 5 * * 0",  # weekly Sun 05:00
     name="registrations_schedule",
+    execution_timezone="America/New_York",
+    default_status=DefaultScheduleStatus.RUNNING,
+)
+
+# B194 — nightly Linear workspace backup → s3://linear-backup (docs/dr.md, docs/runbooks/linear-backup.md). 05:20 NY:
+# pre-dawn (Design Rule #5), light (~70 API calls, ~16s, ~1.2 MB), in the free minute between port-pr-reconcile (05:15)
+# and docs-site-rebuild (05:30). RUNNING by default — a backup that ships stopped is not a backup. Failure and
+# staleness alert through dagster-freshness-check (k8s/dagster/freshness.yaml).
+linear_backup_job = define_asset_job(
+    name="linear_backup_job",
+    selection=AssetSelection.groups("linear_backup"),
+)
+linear_backup_schedule = ScheduleDefinition(
+    job=linear_backup_job,
+    cron_schedule="20 5 * * *",  # daily 05:20 — per docs/schedules.md
+    name="linear_backup_schedule",
     execution_timezone="America/New_York",
     default_status=DefaultScheduleStatus.RUNNING,
 )

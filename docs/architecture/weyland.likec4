@@ -307,6 +307,8 @@ model {
   // Datasets lakehouse / hydration
   weyland.mother.ai.dagster -> weyland.mother.mesh.storage.lakefs "write bronze/silver + commit"
   weyland.mother.ai.dagster -> weyland.mother.mesh.storage.nessie "write gold Iceberg"
+  weyland.mother.ai.dagster -> linear "B194 nightly backup — read-only GraphQL export (05:20)"
+  weyland.mother.ai.dagster -> weyland.mother.ops.infra.minio "B194 Linear snapshots -> linear-backup (90d)"
   weyland.mother.ai.dagster -> weyland.mother.mesh.query.dbtDocs "run dbt (7 marts)"
   weyland.mother.ai.dagster -> weyland.mother.mesh.gov.datahub "catalog emit (6h)"
   weyland.mother.ai.dagster -> weyland.mother.mesh.stores.mysql "hydrate health datasets"

@@ -158,6 +158,16 @@ spec:
                 secretKeyRef:
                   name: fred-secret
                   key: FRED_API_KEY
+            # linear_workspace_snapshot asset (B194): READ-ONLY Linear key for the nightly backup (fails closed if absent).
+            # optional: true — if the Secret is missing (e.g. Argo applies this Deployment before the SealedSecret), only
+            # the backup run fails, with "LINEAR_API_KEY_RO is not set"; without it the WHOLE code server would sit in
+            # CreateContainerConfigError and every Dagster job would stop. The watchdog still alerts on the failed run.
+            - name: LINEAR_API_KEY_RO
+              valueFrom:
+                secretKeyRef:
+                  name: linear-backup-secret
+                  key: LINEAR_API_KEY_RO
+                  optional: true
             # aidlc_kb_ingest asset (B37): reads the brand-neutral AIDLC KB from the MinIO bucket.
             # Creds live in the minio ns (minio-creds) — mirror them into THIS ns as aidlc-kb-minio-secret
             # (see runbook); secretKeyRef can't cross namespaces.

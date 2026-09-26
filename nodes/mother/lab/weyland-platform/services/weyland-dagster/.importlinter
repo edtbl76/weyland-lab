@@ -30,6 +30,7 @@ source_modules =
     weyland_pipeline.assets.datasets_lib.land_core
     weyland_pipeline.assets.datasets_lib.domain_job_plan
     weyland_pipeline.assets.datasets_lib.lakefs_repo
+    weyland_pipeline.assets.datasets_lib.linear_export
     weyland_pipeline.assets._collect
 forbidden_modules =
     dagster
@@ -49,6 +50,7 @@ source_modules =
     weyland_pipeline.assets.datasets_lib.land_core
     weyland_pipeline.assets.datasets_lib.domain_job_plan
     weyland_pipeline.assets.datasets_lib.lakefs_repo
+    weyland_pipeline.assets.datasets_lib.linear_export
     weyland_pipeline.assets._collect
 forbidden_modules =
     weyland_pipeline.assets.datasets_lib.broker
@@ -95,6 +97,7 @@ source_modules =
     weyland_pipeline.assets.datasets_lib.land_core
     weyland_pipeline.assets.datasets_lib.domain_job_plan
     weyland_pipeline.assets.datasets_lib.lakefs_repo
+    weyland_pipeline.assets.datasets_lib.linear_export
     weyland_pipeline.assets._collect
 forbidden_modules =
     weyland_pipeline.resources

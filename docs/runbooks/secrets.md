@@ -34,9 +34,10 @@ kubectl get secret <name> -o yaml ──kubeseal──▶ SealedSecret CR (encry
 
 ## What is and isn't sealed
 
-**Sealed (55):** every credential we created imperatively — nothing else recreates them, so they must be in git.
+**Sealed (69):** every credential we created imperatively — nothing else recreates them, so they must be in git.
 The authoritative list is the `SECRETS=(…)` array in `scripts/seal-secrets.sh` — this count trails it, so when the
-two disagree the array wins (it read 53 here against 54 in the array before B135 added the 55th).
+two disagree the array wins (it read 53 here against 54 in the array before B135 added the 55th, and 55 against 68
+when B194 added `weyland/linear-backup-secret`, the 69th, on 2026-09-26).
 
 **Deliberately NOT sealed** (do not add these):
 - **Chart/operator-generated** secrets — their chart/operator recreates them on install, so they're already
@@ -137,7 +138,7 @@ kubectl -n <ns> rollout restart deploy/<consumer>
 ```
 
 **Seal only the ONE secret you changed**, not `--seal` across the whole allow-list: each seal produces
-fresh ciphertext, so a full run rewrites all 56 CRs and buries the real change in the diff.
+fresh ciphertext, so a full run rewrites all 69 CRs and buries the real change in the diff.
 
 **Verify by decoding the STORED value and authenticating with it** — never by `DATA n`. See the guard below.
 

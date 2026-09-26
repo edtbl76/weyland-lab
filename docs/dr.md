@@ -33,7 +33,7 @@ thing is not done until it has a row here with a restore procedure and a dated r
 | **SealedSecrets controller key** | decrypts every committed SealedSecret | manual export ([runbooks/secrets.md](runbooks/secrets.md)) | off-cluster (password manager / offline) | on key rotation | — | none | `kubectl apply` the exported key | **unverified** (export date unknown) |
 | **restic password + `scripts/.env`** | the restic encryption key and every credential | manual escrow ([runbooks/backups.md](runbooks/backups.md)) | password manager | on change | — | none | copy back | **unverified** |
 | **Port catalog config** | blueprints, schema | IaC (B137) | GitHub (+ tofu state in `tofu-state`) | every push | full history | — | `tofu apply` | **unverified** |
-| **Linear** | status, comments, projects, initiatives, labels, templates, views | **none today** → B194 nightly snapshot | planned: MinIO `linear-backup` (+ NVMe mirror) | planned: daily 05:20 NY | planned: 90 days | planned: `dagster-freshness-check` budget | planned: B194 restore drill | **never** |
+| **Linear** | status, history, comments, projects, initiatives, labels, templates, views (21 entities) | `linear_backup_job` Dagster asset, read-only key ([runbooks/linear-backup.md](runbooks/linear-backup.md)) — **B194, built 2026-09-26, live once deployed** | MinIO `linear-backup` on **mother USB**, mirrored to **NVMe** by `minio-backup` | daily 05:20 NY / 1 day | 90 days (MinIO lifecycle) | `dagster-freshness-check` (failed run, or no success in 30h) | B194 Slice 2 restore drill (scratch team) | **never** (export verified against a live count, 254 = 254, 2026-09-26; a restore is Slice 2) |
 | **Reproducible stores** — vector stores, hydrated datasets | rebuilt from source | hydration / land jobs ([runbooks/datasets-hydration.md](runbooks/datasets-hydration.md)) | the sources themselves | — | — | — | re-run hydration | **unverified** per store |
 
 **Not yet catalogued (unverified coverage):** Keycloak realm and users (presumed inside the core `pg_dumpall` —
@@ -60,7 +60,7 @@ Each one needs either a row above or a written "reproducible" reason.
    dated snapshots.
 4. **`rogueone-backup` is not mirrored to NVMe.** It lives only on the USB disk.
 5. **No off-site copy of lab data** ([runbooks/backups.md](runbooks/backups.md) § Offsite has the 3-2-1 plan).
-6. **Linear has no backup.** B194 closes this.
+6. **Linear had no backup.** B194 Slice 1 builds the nightly snapshot; the restore drill (Slice 2) is still open.
 7. **Manual escrows can't be checked.** The SealedSecrets key and the restic password have no record of when they
    were last exported.
 

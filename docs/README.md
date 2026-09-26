@@ -57,6 +57,7 @@ LanceDB, Redpanda, Feast). Which dataset lives where: [data-domain-storage-grid.
 - [langfuse.md](runbooks/langfuse.md) — Langfuse LLM observability (B103) — sessions, online evals, OOM/Redis gotchas
 - [lightdash.md](runbooks/lightdash.md) — Lightdash dbt-native BI: trino-noauth proxy, PAT dbt project, metrics-as-code, S3, seed/content-as-code
 - [likec4.md](runbooks/likec4.md) — LikeC4 architecture diagrams (B64) — one model → explorer + mkdocs
+- [linear-backup.md](runbooks/linear-backup.md) — nightly Linear workspace snapshot → MinIO `linear-backup` (B194): operate, verify, install, rotate the read-only key
 - [mcp-fleet.md](runbooks/mcp-fleet.md) — MCP server fleet (B17+B19 Phase 3) — 6 read-only servers + FastMCP compositor
 - [mcp-gateway.md](runbooks/mcp-gateway.md) — `weyland-mcp-gateway` — mesh / fleet governance, Keycloak auth proxy
 - [mlflow-gateway.md](runbooks/mlflow-gateway.md) — MLflow AI Gateway (B100 P4) — 17 endpoints + guardrails + budget

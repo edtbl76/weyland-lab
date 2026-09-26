@@ -2470,6 +2470,21 @@ key escrows with no export date. **Also found:** the Bifrost `dod-8-pillar-gate`
 `dod-gate`; the stale `dod-8-pillar-gate` still sits in Bifrost until deleted. The read-only key already exists
 (`LINEAR_API_KEY_RO` in `scripts/.env`, also the CI secret `linear_api_key`); only its in-cluster SealedSecret is new.
 
+**Slice 1 — BUILT 2026-09-26, pending deploy.** Dagster asset `linear_workspace_snapshot` (job `linear_backup_job`,
+schedule 05:20 NY, RUNNING by default) → `s3://linear-backup/snapshots/<ts>/` (21 entity files, manifest last, 90-day
+lifecycle), NVMe mirror via `minio-backup`, `dagster-freshness-check` 30h budget, `LINEAR_API_KEY_RO` via
+`weyland/linear-backup-secret` (allow-listed; `optional: true` so a missing Secret fails only the backup, not the whole
+code server). Proven: live export 254 issues = an independent live count; real-image materialize against a throwaway
+MinIO; revoked key fails with the rotate message and writes nothing; 16 new unit tests (324 pass overall), 4/4 import
+contracts, 662 bats, all repo guards, kubeconform, bandit/ruff clean, CodeScene 10.0 / 9.38. Docs: `dr.md` row,
+`runbooks/linear-backup.md`, `diagrams/flow-linear-backup.md`, `demos/linear-backup.md` (ledger 84, PARTIAL until the
+live run), `arch.md` §10c, `schedules.md`, LikeC4. **Also fixed on the way:** `schedules.md` had no rows for
+`registrations_reconcile_job` or `soda_quality_job`; `seal-secrets.sh` headers read weyland 29 / jupyterhub 7 (real
+32 / 10) and `secrets.md` said 55 (real 69). **Found, not fixed:** `dagster-freshness-check` only sees jobs that have
+at least one run, so a monitored job whose schedule never fires is silent (an absence gap — add a "never ran" check).
+**Remaining:** create + verify + seal the Secret, push, ship the image, run the live demo; then Slice 2 (restore drill)
+and Slice 3 (lakehouse view).
+
 **Scope.** (1) Dagster asset, nightly pre-dawn (Design Rule #5, schedules.md row), pages the Linear GraphQL API →
 timestamped MinIO snapshot (issues + state history, comments, projects, initiatives + updates, labels, templates, views,
 cycles). (2) Retention + freshness alert. (3) Restore drill into a scratch team; document what the API can't restore.

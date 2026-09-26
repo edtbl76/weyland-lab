@@ -60,6 +60,14 @@ def fred_parse():
 
 
 @pytest.fixture
+def linear_export():
+    """The dagster-free ``datasets_lib/linear_export`` module (B194), loaded in isolation (stdlib-only)."""
+    return load_isolated(
+        "weyland_pipeline/assets/datasets_lib/linear_export.py", "linear_export"
+    )
+
+
+@pytest.fixture
 def edgar_parse():
     """The dagster-free ``datasets_lib/edgar_parse`` module (B113 Phase 2), loaded in isolation (pyarrow-only)."""
     return load_isolated(
