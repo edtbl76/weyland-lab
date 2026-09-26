@@ -76,6 +76,7 @@ Re-ordered per RE-grounded audit (aidlc-docs/inception/backlog-reprioritization.
 - **B183** — **Evaluate Figma Make Connectors, Designs and Skills** — **HIGH (2026-09-25, Linear EMA-241).** Figma Make (in the existing Figma Pro plan) has three surfaces worth a real evaluation for the lab's prototyping/UX work — MCP **Connectors** (the Linear connector reads issues/projects/docs into Make and writes back), **Designs** (existing designs / a design system as context) and **Skills** (standing instructions). Verdict per surface + credit cost observed. Found in the B119 integrations walk; linked (not parented) to the Stud.IO UX epic EMA-153. See detail below.
 - **B184** — **Adopt Slack (free) + audit every Slack integration across the platform** — **HIGH (2026-09-25, Linear EMA-242).** A free Slack workspace for the lab — useful even purely as a demo surface, since nearly every platform tool ships a Slack integration. Adopt it (free-plan limits verified first — an app cap would decide which integrations earn a slot), then audit EVERY component for its Slack integration (send/receive, overlap with today's Telegram alerting, verdict), then wire the chosen set with a channel map + demos. Found in the B119 integrations walk. See detail below.
 - **B185** — **Free time tracking per Linear issue (ActivityWatch + Linear-derived cycle time)** — **HIGH (2026-09-25, Linear EMA-243).** No time tracking today; Rize is paid and Reclaim's Linear link is paid-only. Recommended: **ActivityWatch** (automatic, local on rogueone — Linear tab titles carry the issue ID, so hours per issue are derivable) + **Linear status-history cycle time** (already in the API); **Clockify** (free, native Linear button) as the fallback. Found in the B119 integrations walk. See detail below.
+- **B186** — **Configure GitLens in VS Code (Community; Pro only if it earns its cost)** — **HIGH (2026-09-25, Linear EMA-244).** VS Code is now a harness host (Codex + Claude Code extensions); GitLens is its git layer. Community is free and covers Commit Graph / Visual File History / Worktrees on public + local repos (most lab repos are public); Pro is ~$8/user/mo billed annually (~$96/yr — not $0, the owner's call) and mostly duplicates what's in place (PR triage, Linear MCP, Claude/Codex AI). Upgrade only if a private repo needs it. See detail below.
 - **B178** — **CI resilience: a Port (external SaaS) outage must not hard-block the whole pipeline** — **RETIRED (2026-09-24, Linear EMA-236) — built, then REVERTED the same day by operator call.** During a Port outage `port-iac-coverage`'s unbounded auth curl hung and fail-fast killed every pipeline. A warn-and-continue path was built (distinct "unreachable" exit codes for `port-iac-coverage` + `linear-sync`, a best-effort `notify-port`) and CI-verified, then **removed: it was a stopgap for one outage, and the lab's policy is fail-closed** — a run where a guard verified nothing must not come out green, even if the cause is a vendor outage. **Kept:** bounded curls (`--connect-timeout`/`--max-time`) on all three, so a hung SaaS fails the step FAST instead of pinning it — still a hard fail. See detail below.
 - **B177** — **Lean + safe CI language matrix: selective per-language runs + full-matrix headroom** — **DONE (2026-09-24, Linear EMA-235).** CI steps run STRICTLY SEQUENTIALLY (RWO workspace, proven from #168 timestamps), so a full run is ~30 min of ~46 fixture-language golden-path lanes on a RAM-tight node (mother ~98%) → #169/#170 were OOM-killed mid-run. **Phase 1 (DONE, CI-verified by lean run #178 — 21 of 67 steps, 21/21 green):** `ci-langs.yaml` manifest + `scripts/ci/select-fixtures.sh` (fail-closed selector, 12 bats) + a `&fixture` gate on the 46 fixture lanes (`RUN_FIXTURES != "0"`, the proven `--var`+`evaluate` pattern) so a change that doesn't touch `golden-paths/` runs only the production lanes; unset var / nightly cron = full matrix (safe default); `golden-path-smoke` lean-gated too. **Phase 2 (DONE — closed on evidence):** per-step caps already exist (B93 LimitRange 128Mi/2Gi + explicit heavy-lane limits) and mother's kubelet reserves are set; 19 nightly cron runs, 0 killed (failures were all code-level); memory is flat day/night so moving the cron buys nothing. The only kills were ad-hoc FULL runs launched ~midnight into the Dagster batch start → runbook now says trigger ad-hoc runs lean. Residual = capacity, only if the nightly ever starts getting killed. See detail below.
 - **B176** — **PR-lifecycle reconciler: cover ALL pr-lane repos + Loki audit log** — **DONE (2026-09-23, Linear EMA-234).** Built, verified + exercised in prod (fleet `--apply` ran clean 2026-09-23); commit / deploy / PAT re-scope are the operator's routine steps. Extends the B131 reconcile half from weyland-lab-only to **every `lanes.pr: true` repo in `repos.yaml`** (the B138 8-repo pr-lane set, byte-identical to `pr-staleness`, guarded by a new `pr(recon)` lane in `check-repo-coverage.sh`). Each repo is reconciled in a subshell (per-repo fail-closed isolation — one unreachable repo forces exit 2, never a silent shrink). Emits structured `pr-lifecycle-audit` lines → Alloy → Loki (the audit.log); metrics via LogQL (no Pushgateway, Job stays unmeshed — the Loki ruler is alerting-only). **Op follow-up (runbook-captured, latent):** re-scope + re-seal the PAT for private-repo writes — no private-repo PRs exist today, so not a completion blocker. See detail below.
@@ -2394,6 +2395,32 @@ merges — that stays a human action).
  and **rotate** the value. Flagged twice by the automated security review. Low-risk on the LAN, but the password
  is committed in git. Do **all four at once** — piecemeal (ClickHouse-only) is inconsistent and gives no real
  benefit while the other three stay inline. Also the ClickHouse `users.d` Secret is already out-of-band (good).
+
+### B186 — Configure GitLens in VS Code (Community; Pro only if it earns its cost) — HIGH (2026-09-25, Linear EMA-244)
+
+**Why.** VS Code became a harness host on 2026-09-25 (Codex + Claude Code extensions — `docs/concepts/multi-harness.md`).
+GitLens (GitKraken, `eamodio.gitlens`) is the standard git layer for it. It is VS Code-only — the JetBrains version is
+"coming soon"; IntelliJ keeps its built-in git tooling.
+
+**Tiers (gitkraken.com, checked 2026-09-25).**
+
+| Tier | Price | What matters here |
+|---|---|---|
+| **Community** | free | blame, Git CodeLens, hovers, Home/Commits views, remote-provider integrations; **Commit Graph, Visual File History, Worktrees on public + local repos only** |
+| **Pro** | ~$8/user/mo billed annually (~$96/yr) — **not $0** | the above on private repos; Launchpad (PRs across GitHub/GitLab); Cloud Workspaces/Patches; Jira/Linear issue integrations; GitKraken AI (250k credits/week) |
+
+**Initial read.** Community likely covers the lab — weyland-lab and most active repos are public. Pro's extras mostly
+duplicate what's in place: PR triage (`check-pr-lifecycle.sh` + Linear Reviews), Linear (Linear MCP), AI (Claude Code /
+Codex). Upgrade only if a private repo needs the graph/history often enough to be worth ~$96/yr — the lab is $0, so
+that is the owner's call.
+
+**Scope.**
+1. Install GitLens Community; configure blame/CodeLens density, Commit Graph and Worktrees on weyland-lab.
+2. List which active repos are private (`repos.yaml`) — the only place Pro adds anything.
+3. If any need it, trial Pro on one private repo; record upgrade / no-upgrade with the reason.
+4. Record in `docs/runbooks/coding-agents.md` (Editors) + `docs/concepts/multi-harness.md`.
+
+Relates B119, the multi-harness editors.
 
 ### B185 — Free time tracking per Linear issue (ActivityWatch + Linear-derived cycle time) — HIGH (2026-09-25, Linear EMA-243)
 
