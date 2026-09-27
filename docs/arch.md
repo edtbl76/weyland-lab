@@ -1363,6 +1363,14 @@ included, 1,037 history events); the asset materialized in the real `dagster-use
 MinIO (22 objects, manifest last, lifecycle rule applied); and a revoked key failed with the rotate message and wrote
 nothing.
 
+**The restore, proven (Slice 2).** `scripts/linear_restore.py` rebuilds issues and threaded comments through the
+write API and verifies a read-back field by field; `--drill` does it in a scratch team and always tears down. What the
+API cannot put back (identifiers, authors, timestamps, history) is carried in a provenance header rather than lost
+silently. The first live drill failed in two instructive ways: restored `@SpecBot` mentions re-invoked the agent
+(every new issue also triggers its auto-review), and Linear re-renders markdown escapes. Both are fixed and tested;
+the second drill passed with 0 mismatches. Structural limit: Linear Free caps the workspace at 250 issues, so a full
+restore on Free needs archiving first or a temporary upgrade.
+
 Flow: [flow-linear-backup.md](diagrams/flow-linear-backup.md). Runbook: [linear-backup.md](runbooks/linear-backup.md).
 DR catalog: [dr.md](dr.md).
 

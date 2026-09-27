@@ -1,0 +1,33 @@
+version: 2
+
+models:
+  - name: mart_linear_issue_cycle_time
+    description: "B185 — one row per completed Linear issue: lead time (created → completed, always) and cycle time (first started → completed, only when work was started). Built from the B194 snapshot lakehouse tables."
+    columns:
+      - name: issue_id
+        tests: [unique, not_null]
+      - name: identifier
+        tests: [not_null]
+      - name: lead_time_hours
+        description: "Hours from creation to completion."
+        tests: [not_null]
+      - name: cycle_time_hours
+        description: "Hours from first start to completion; null when the issue never entered a started state."
+      - name: kind
+        description: "The single-select Kind label (Bug · Feature · Improvement · Tech Debt · Spike)."
+
+  - name: mart_linear_weekly_flow
+    description: "EMA-172 — weekly throughput and lead-time percentiles of completed Linear issues (the Linear side of DORA change lead time)."
+    columns:
+      - name: week_start
+        tests: [unique, not_null]
+      - name: issues_completed
+        tests: [not_null]
+
+  - name: mart_linear_initiative_progress
+    description: "B119.1 — per initiative (objective): projects, issues by state type, open High work, percent complete, and the latest check-in."
+    columns:
+      - name: initiative_id
+        tests: [unique, not_null]
+      - name: initiative
+        tests: [not_null]

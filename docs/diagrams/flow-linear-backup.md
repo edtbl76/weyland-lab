@@ -38,5 +38,30 @@ sequenceDiagram
     end
 ```
 
+## Restore drill (B194 Slice 2)
+
+`scripts/linear_restore.py --drill` proves a snapshot restores. It always tears down, even when verification fails.
+
+```mermaid
+sequenceDiagram
+    participant O as operator (rogueone)
+    participant M as MinIO linear-backup
+    participant R as linear_restore.py
+    participant L as Linear GraphQL API (write key)
+    O->>M: mc cp snapshots/ts/ (manifest.json required)
+    O->>R: --snapshot dir --issues EMA-54,EMA-13,EMA-240 --drill
+    R->>L: teamCreate (scratch team, its workflow states)
+    loop each issue, parents first
+        R->>L: issueCreate (mapped state + labels, parentId, provenance header, mentions neutralized)
+        loop each comment, oldest first
+            R->>L: commentCreate (parentId for replies)
+        end
+    end
+    R->>L: read back each issue + its comments
+    R->>R: verify every field against the snapshot (bot comments ignored)
+    R->>L: issueDelete each (children first), then teamDelete
+    R-->>O: report: restored, dropped per issue, mismatches, exit 0/1/2
+```
+
 The second copy is out of band: `minio-backup` (22:30) mirrors `linear-backup` to mother's NVMe with the other
 irreplaceable buckets ([dr.md](../dr.md) § Blast radius).

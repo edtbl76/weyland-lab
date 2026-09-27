@@ -1,0 +1,26 @@
+version: 2
+
+sources:
+  - name: linear
+    description: "Iceberg `linear.*` (Nessie `main`) — the latest B194 Linear snapshot flattened by the `linear_lakehouse_tables` Dagster asset (nightly, after the 05:20 backup). Current state only; history lives in the raw snapshots in s3://linear-backup. dbt reads these; it does not write them. Timestamps are ISO-8601 strings — cast with from_iso8601_timestamp."
+    database: iceberg
+    schema: linear
+    tables:
+      - name: issues
+        description: "One row per issue (archived included): ids of team/project/parent/state, priority, comma-joined label_ids, created/started/completed/canceled/archived timestamps."
+      - name: issue_state_changes
+        description: "Issue history reduced to workflow-state transitions (from_state_id → to_state_id, created_at) — the input to cycle time."
+      - name: workflow_states
+        description: "Workflow state dimension: id, name, type (backlog/unstarted/started/completed/canceled/duplicate)."
+      - name: issue_labels
+        description: "Label dimension; parent_id points at the label group (e.g. the `Kind` group)."
+      - name: projects
+        description: "Linear projects: status, progress, health, dates."
+      - name: initiatives
+        description: "Linear initiatives (the objectives in the B119.1 OKR model): status, health, target date, owner."
+      - name: initiative_projects
+        description: "Initiative ↔ project links."
+      - name: initiative_updates
+        description: "Initiative check-ins (health + body) — the B119.1 OKR check-in record."
+      - name: project_updates
+        description: "Project updates (health + body)."

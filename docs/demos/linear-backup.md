@@ -16,6 +16,20 @@ run live with the runbook's canonical command:
 | Key in the pod | present, 48 chars (checked without printing it) |
 | Watchdog sees the job | **pending** — the CLI run above used an ephemeral Dagster instance (no `DAGSTER_HOME` in the pod), so it never reached the run DB; the 02:00 UTC `dagster-freshness-check` did not list it. The first scheduled run (05:20 NY) is the proof; confirm `check linear_backup_job status=SUCCESS` in the next watchdog log |
 
+## Restore drill (live, 2026-09-27)
+
+`scripts/linear_restore.py --drill` against the 01:39 UTC snapshot:
+
+| Check | Result |
+|---|---|
+| Issues restored into a scratch team | EMA-54 (parent) + EMA-13 (its sub-issue) + EMA-240; 23 comments incl. 5 threaded replies |
+| Verification (title, description, priority, state, parent link, every comment in order) | **0 mismatches**, exit 0 |
+| Reported as dropped | the retired team label `High`, cycle, project |
+| Teardown | issues deleted, scratch team deleted; issue count back to 246, only team EMA remains |
+| First drill (before the fixes) | failed usefully: SpecBot re-invoked by restored `@mentions` (43 comments read back vs 15) and a Linear escape (`*` → `\*`) — both fixed, both now tested |
+
+Run it: see [../runbooks/linear-backup.md](../runbooks/linear-backup.md) § Restore.
+
 ## Proven before deploy (2026-09-26)
 
 | Check | Result |

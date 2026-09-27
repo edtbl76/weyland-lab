@@ -32,8 +32,20 @@ API keys themselves. Recorded so a restore doesn't assume them.
 
 ## Operate
 
-Run a backup now — **UI (recorded):** Dagster (`dagster.weyland.lab`) → Jobs → `linear_backup_job` → **Launch run**.
-That run goes through the daemon into Dagster's run database, so `dagster-freshness-check` sees it.
+Run a backup now, **recorded** (the canonical command — it is exactly what the UI's **Launch run** does: the run goes
+through the daemon into Dagster's run database, so `dagster-freshness-check` sees it and its 30h budget resets):
+
+[mother]
+```
+kubectl exec -n weyland deploy/dagster-user-code -- python3 -c "import json,urllib.request;q='mutation(\$p:ExecutionParams!){launchRun(executionParams:\$p){__typename ... on LaunchRunSuccess{run{runId status}} ... on PythonError{message}}}';v={'p':{'selector':{'repositoryLocationName':'weyland_pipeline','repositoryName':'__repository__','jobName':'linear_backup_job'},'runConfigData':{}}};r=urllib.request.Request('http://dagster-webserver.weyland.svc.cluster.local:3000/graphql',data=json.dumps({'query':q,'variables':v}).encode(),headers={'Content-Type':'application/json'});print(json.load(urllib.request.urlopen(r))['data']['launchRun'])"
+```
+
+Then run the watchdog once instead of waiting for its next tick, read its line for the job, and remove the ad-hoc Job:
+
+[mother]
+```
+kubectl -n weyland create job dagster-freshness-check-now --from=cronjob/dagster-freshness-check && kubectl -n weyland wait --for=condition=complete job/dagster-freshness-check-now --timeout=150s && kubectl -n weyland logs job/dagster-freshness-check-now -c check | grep linear_backup_job; kubectl -n weyland delete job dagster-freshness-check-now
+```
 
 **CLI (writes a real snapshot, NOT recorded):** the user-code pod has no `DAGSTER_HOME`, so `dagster job execute`
 runs on an ephemeral in-memory instance. The snapshot lands in MinIO like any other, but the run never reaches the
@@ -119,6 +131,37 @@ cd /home/edwardmangini/IdeaProjects/weyland/nodes/mother/lab/weyland-platform/se
 
 ## Restore
 
-Not yet drilled — the restore drill (recreate sample issues + comments in a scratch team from a snapshot, and
-document what Linear's API cannot restore: original ids, authorship, timestamps) is **B194 Slice 2**. Until it runs,
-[../dr.md](../dr.md) lists Linear's last restore test as **never**.
+`scripts/linear_restore.py` (tests: `scripts/tests/test_linear_restore.py`) rebuilds issues + comments from a
+snapshot with the **write** key (`LINEAR_API_KEY` in `scripts/.env`). Download the snapshot first (a directory without
+`manifest.json` is refused as incomplete):
+
+[rogueone]
+```
+mkdir -p /home/edwardmangini/linear-restore && mc cp -r "weyland/linear-backup/snapshots/$(mc ls weyland/linear-backup/snapshots/ | tail -1 | awk '{print $NF}')" /home/edwardmangini/linear-restore/
+```
+
+**The drill** (scratch team → restore → read back + verify every field → delete the issues and the team, always):
+
+[rogueone]
+```
+cd /home/edwardmangini/IdeaProjects/weyland && set -a && . scripts/.env && set +a && python3 scripts/linear_restore.py --snapshot /home/edwardmangini/linear-restore/<ts> --issues EMA-54,EMA-13,EMA-240 --drill
+```
+
+**A real restore** into an existing team (kept): replace `--drill` with `--team-id <team uuid>`. Exit 0 = restored and
+verified; 1 = a mismatch or teardown failure; 2 = could not run.
+
+| Restored | Not restorable (carried in a provenance header) | Dropped, reported per issue |
+|---|---|---|
+| title, description, priority, state (by name, else type), workspace labels, due date, parent links (when the parent is restored too), comments with reply threading | original identifier (EMA-n is reissued), creator and comment authors (everything is created by the key's user), created/updated timestamps, the history log, reactions | team-scoped labels, cycle, project, milestone, assignee, estimate |
+
+**Limits found by the drill (2026-09-27):**
+- **SpecBot auto-reviews every new issue** — each restored issue spends one of its capped monthly analyses. Restored
+  text has its `@mentions` neutralized (an invisible word joiner), otherwise every `@SpecBot` in an old comment
+  re-invokes the agent (the first drill read back 43 comments on an issue restored with 15).
+- **Linear re-renders markdown** (`*` → `\*`, `-` bullets → `*`); verification compares meaning, not bytes.
+- **The Free plan stops issue creation above 250 issues.** The workspace sits at ~246, so a full-workspace restore on
+  Free is impossible: restore selectively, or archive first, or upgrade for the duration of a disaster recovery.
+- Comments written by bots are ignored when verifying (they are not part of what was restored).
+
+**Last drill: 2026-09-27** — EMA-54 + its sub-issue EMA-13 + EMA-240 (15 comments, 5 threaded replies): 3 issues,
+23 comments, parent link and every field verified, torn down (issue count back to 246, only team EMA remains).

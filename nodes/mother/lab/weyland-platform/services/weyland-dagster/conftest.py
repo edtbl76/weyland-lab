@@ -60,6 +60,14 @@ def fred_parse():
 
 
 @pytest.fixture
+def linear_tables():
+    """The dagster-free ``datasets_lib/linear_tables`` module (B194 Slice 3), loaded in isolation (pyarrow-only)."""
+    return load_isolated(
+        "weyland_pipeline/assets/datasets_lib/linear_tables.py", "linear_tables"
+    )
+
+
+@pytest.fixture
 def linear_export():
     """The dagster-free ``datasets_lib/linear_export`` module (B194), loaded in isolation (stdlib-only)."""
     return load_isolated(

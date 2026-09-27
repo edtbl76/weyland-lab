@@ -21,6 +21,7 @@ import time
 import httpx
 from dagster import Failure, MetadataValue, Output, asset
 
+from .datasets_lib.linear_tables import TABLES_ALL, build_tables
 from .datasets_lib.linear_export import (
     LinearAuthError,
     LinearExportError,
@@ -30,6 +31,7 @@ from .datasets_lib.linear_export import (
 )
 
 LINEAR_URL = "https://api.linear.app/graphql"
+LAKEHOUSE_NAMESPACE = "linear"
 BUCKET = os.getenv("LINEAR_BACKUP_BUCKET", "linear-backup")
 RETENTION_DAYS = 90
 _RETRY_STATUS = {429, 500, 502, 503, 504}
@@ -142,3 +144,64 @@ def linear_workspace_snapshot(context) -> Output:
             "counts": MetadataValue.json(counts),
         },
     )
+
+
+def _latest_complete_snapshot(client):
+    """(prefix, manifest) of the newest snapshot that HAS a manifest — a directory without one is incomplete."""
+    prefixes = sorted({o.object_name.split("/")[1] for o in client.list_objects(BUCKET, prefix="snapshots/", recursive=True)
+                       if o.object_name.endswith("/manifest.json")})
+    if not prefixes:
+        raise Failure(description=f"no complete snapshot (with manifest.json) in s3://{BUCKET}/snapshots/")
+    prefix = f"snapshots/{prefixes[-1]}/"
+    manifest = json.loads(client.get_object(BUCKET, prefix + "manifest.json").read())
+    return prefix, manifest
+
+
+def _read_snapshot(client, prefix):
+    snap = {}
+    for obj in client.list_objects(BUCKET, prefix=prefix, recursive=True):
+        if obj.object_name.endswith(".json.gz"):
+            entity = obj.object_name[len(prefix):-len(".json.gz")]
+            snap[entity] = json.loads(gzip.decompress(client.get_object(BUCKET, obj.object_name).read()))
+    return snap
+
+
+def _publish(catalog, name, table):
+    """Overwrite `linear.<name>` with `table`. The tables are DERIVED (the snapshot is the source of truth), so when the
+    declared schema changes the table is dropped and recreated rather than evolved in place."""
+    ident = f"{LAKEHOUSE_NAMESPACE}.{name}"
+    if catalog.table_exists(ident):
+        existing = catalog.load_table(ident)
+        if [f.name for f in existing.schema().fields] != table.schema.names:
+            catalog.drop_table(ident)
+    iceberg_table = catalog.create_table_if_not_exists(ident, schema=table.schema)
+    iceberg_table.overwrite(table)
+    return table.num_rows
+
+
+@asset(
+    group_name="linear_backup",
+    deps=[linear_workspace_snapshot],
+    description="B194 Slice 3 — the latest complete Linear snapshot flattened into Iceberg `linear.*` (issues, "
+                "issue_state_changes, workflow_states, issue_labels, projects, initiatives, initiative_projects, "
+                "initiative/project updates) for the dbt marts: B185 cycle time, EMA-172 flow, B119.1 OKR progress.",
+)
+def linear_lakehouse_tables(context) -> Output:
+    from ..iceberg_publish import _catalog
+
+    client = _minio()
+    prefix, manifest = _latest_complete_snapshot(client)
+    tables = build_tables(_read_snapshot(client, prefix), manifest.get("started_at", prefix))
+    catalog = _catalog()
+    from pyiceberg.exceptions import NamespaceAlreadyExistsError
+
+    try:
+        catalog.create_namespace(LAKEHOUSE_NAMESPACE)
+    except NamespaceAlreadyExistsError:
+        context.log.debug(f"namespace {LAKEHOUSE_NAMESPACE} already exists")
+    rows = {name: _publish(catalog, name, tables[name]) for name in TABLES_ALL}
+    if rows["issues"] == 0:
+        raise Failure(description=f"published an EMPTY linear.issues from {prefix} — refusing to call that success")
+    context.log.info(f"linear lakehouse: {rows} from s3://{BUCKET}/{prefix}")
+    return Output(value=rows, metadata={"snapshot": f"s3://{BUCKET}/{prefix}", "rows": MetadataValue.json(rows),
+                                        "issues": rows["issues"]})
