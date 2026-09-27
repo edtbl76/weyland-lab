@@ -3509,6 +3509,31 @@ Linear: EMA-194. Memory: [[aidlc-v2-migration]]. Supersedes [[methodaidlc-user-a
 
 ### B134 — CPU request management: right-size reservations + move more systems on-demand — **HIGH — HELD FOR HARDWARE (↑ Medium→High 2026-09-26 — it now gates two High items; ↓ High→Medium 2026-09-19; reframed → resource right-sizing + state-aware on-demand)**
 
+**The hardware candidate (2026-09-26, not yet bought — likely).** A **Ryzen AI Max+ 395 ("Strix Halo")** box: 16C/32T
+Zen 5 + a Radeon 8060S iGPU (40 CU, RDNA 3.5, gfx1151) sharing ONE pool of soldered LPDDR5X (64/96/128 GB; no
+upgrade later). Planned as **Proxmox**, mirroring Weyland's own layout:
+
+| On the new box | Runs | Why |
+|---|---|---|
+| **k3s worker VM** | joins mother's cluster as a 2nd node | the CPU + RAM this item needs |
+| **Inference LXC** (the CT 102 pattern) | Ollama/llama.cpp on **Vulkan**, `/dev/dri` + `/dev/kfd` bound in | the GPU — Bifrost/LiteLLM route to it as one more OpenAI-compatible provider |
+
+- **Buy the 128 GB model.** VM, LXC and GPU all come out of one fixed pool; ~48 GB to the k3s VM + the rest to
+  inference (a 70B-class model fits) adds ~2/3 of mother's RAM to the cluster. 64 GB forces RAM *or* GPU.
+- **GPU in an LXC, not the VM.** iGPU passthrough to a VM is unreliable (no clean reset / isolation); an LXC shares the
+  host kernel's `amdgpu`, exactly how CT 102 works today.
+- **GPU software (checked 2026-09-26):** Vulkan is the reliable Linux path for gfx1151; ROCm is still maturing (AMD
+  targets ROCm 8.0 for first-class gfx1151 support); vLLM runs with effort. Does NOT replace rogueone: training,
+  `rag-embed`, and the B111 vLLM/SGLang work stay on CUDA.
+- **Do NOT form a 2-node Proxmox cluster** — it loses quorum when either box is down. Two standalone Proxmox hosts (or
+  add a QDevice); Kubernetes is what spans the machines.
+- **Networking:** the MS-A2 has 10GbE; Strix Halo boxes vary (2.5–10GbE). Pods on the new node reach MinIO/Postgres on
+  mother over it — prefer 10GbE.
+- **What moves:** stateless workloads first (the relief this item needs). Stateful stores, their local-path PVs and
+  the backups stay pinned to mother (docs/dr.md blast radius unchanged). The join brings node labels + pinning, and a
+  pass over the single-node assumptions (schedules.md Design Rule #4 "one node, one RAM pool", hostPath backups).
+- Unblocks on landing: **B159**, **B161** Phase 2, **B44**. Purchase is the owner's call ($0 budget otherwise).
+
 **↑ HIGH 2026-09-26 — the cost/benefit gate below has flipped.** The 09-19 hold reasoned that only **B44** (Medium) needed mother memory, so building a sleep platform for one marginal tool was disproportionate. Now it blocks two High items: **B159** (onboarding services, EMA-216) and **B161** (Dify Phase 2, EMA-218). It also gates B44, B76 and the ReportPortal candidate in B189. Mother memory is the lab's ranking bottleneck, so B134 moves up to match what it blocks.
 
 **HELD FOR HARDWARE 2026-09-19 (EMA-195).** Reframed to *resource right-sizing (CPU/mem) + state-aware on-demand* and worked through per-app. Findings: **CPU is ~5× over-reserved (81% req / 17% used) but cosmetic** (blocks scheduling, no active failure); **memory is the binding constraint at ~94%** and is *honest* (can't right-size down — the only lever is sleeping idle services). Per-app categorization → **SLEEPABLE now:** ray-head, kokoro (~2.3Gi); **PARKED SCHEDULED** (blocked by a scheduled DataHub/dagster consumer, sleepable only via wake-before-schedule): trino, cassandra, cockroachdb, mongodb, clickhouse, mlflow, weaviate, superset (~15Gi); **CORE/substrate** (never sleeps) + **USER-UP** (DataHub). **Linchpin:** DataHub managed-ingestion (daily/weekly) is the dominant sleep-killer. **Cost/benefit gate → HOLD:** only **B44** (Grafana OnCall, Medium, half-usable at N=1) is gated on mother memory and needs ~1–2Gi of the ~15; building the sleep platform (idle-reaper + UP/STARTING/ASLEEP/DOWN monitor model + DataHub wake-before-schedule + `svc-power` CLI) to free headroom one marginal tool wants is disproportionate — **hardware solves it more cheaply** (the always-on core just lands on a new node). Aligns with the 2026-08-27 mechanism deferral (ceding `/spec/replicas` to an external actor was rejected; the reaper *is* that actor). Full design + categorization banked in the EMA-195 comments = the post-hardware execution plan. **Cheap independent win, needs none of the machinery:** Item 3 — a Pending/FailedScheduling-duration alert (both original outages were silent). Demoted, not dropped: the need is real, the timing isn't.
