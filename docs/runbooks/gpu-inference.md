@@ -33,7 +33,7 @@ The util fraction is the WHOLE budget for the vLLM process, not just weights. Se
 `Available KV cache memory: -0.22 GiB` → `RuntimeError: Engine core initialization failed`. For the 7B AWQ:
 - `0.25` (~4GB) → **FAILS** — weights (2.98GB) + CUDA graphs (0.49GB) alone ate the budget, leaving negative KV cache.
 - `0.55` (~8.8GB) → works — weights ~5.5 (AWQ 4-bit) + graphs/overhead ~1 + KV ~2.3.
-With the ~5.5GB baseline (desktop — **no iGPU on rogueone** — + rag-embed), 0.55 puts the card at ~14/16 → **keep Ollama
+With the ~5.5GB baseline (desktop — **no iGPU on rogueone** — + rag-embed, which left the GPU on 2026-09-27, so re-measure), 0.55 puts the card at ~14/16 → **keep Ollama
 idle/unloaded during a vLLM bench**, or drop to a smaller model. Freeze risk if you overcommit: [[rogueone-gpu-freeze-vram]].
 
 ## Operate — vLLM (P1, use case b: throughput)

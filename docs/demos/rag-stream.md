@@ -17,7 +17,7 @@ cross the orchestrator (design invariants I1–I3, I6). Diagram:
 sequenceDiagram
     participant DAG as Dagster rag_stream_produce
     participant PGM as Postgres rag_manifest
-    participant EMB as rag-embed (rogueone GPU 8900)
+    participant EMB as rag-embed (rogueone CPU 8900)
     participant SR as Redpanda Schema Registry
     participant TOPIC as rag.chunks (Redpanda)
     participant Q as qdrant consumer
@@ -45,7 +45,7 @@ sequenceDiagram
 
 - **Redpanda** (`redpanda.data-mesh.svc.cluster.local:9092`, schema registry `:8081`) — pod `redpanda-0`, ns
   `data-mesh`. Serves the `rag.chunks` topic.
-- **rag-embed** warm GPU service on **rogueone** (`192.168.1.230:8900`) — native systemd unit `rag-embed.service`
+- **rag-embed** warm CPU service on **rogueone** (GPU until 2026-09-27) (`192.168.1.230:8900`) — native systemd unit `rag-embed.service`
   holding `bge-base-en-v1.5` (768-dim, B74) on the RTX 5000 Ada.
 - **Five store consumers** (image `weyland-rag-index:local`, one binary, `STORE` env each):
   - ns `data-mesh`: `rag-index-qdrant`, `rag-index-weaviate`, `rag-index-opensearch` (sidecar OFF).

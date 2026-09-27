@@ -1,8 +1,11 @@
-# rag-embed — warm GPU embedding service on rogueone (native systemd, sibling to ray-worker.service).
+# rag-embed — warm embedding service on rogueone, CPU (native systemd, sibling to ray-worker.service).
+# CPU since 2026-09-27: the GPU was never a requirement (the B-RAG-STREAM move was to get the model OFF mother's
+# OOMing dagster-user-code pod, not onto a GPU). Its ~3 GB of VRAM was pushing Ollama's 30B eval models onto CPU.
+# Workload = nightly incremental batches (~64 chunks, ~5-15s each on CPU); queries never call it.
 # Deploy: rsync services/rag-embed/ to rogueone:~/rag-embed/, build the venv, then enable this unit.
 # Reached from the k8s producer over the LAN at http://rogueone.weyland.lab:8900 (add to LAN DNS if absent).
 [Unit]
-Description=weyland RAG embedding service (bge-base 768-dim, GPU) — B74
+Description=weyland RAG embedding service (bge-base 768-dim, CPU) — B74
 After=network-online.target
 Wants=network-online.target
 
@@ -10,7 +13,7 @@ Wants=network-online.target
 User=edwardmangini
 WorkingDirectory=/home/edwardmangini/rag-embed
 Environment=EMBED_MODEL=BAAI/bge-base-en-v1.5
-Environment=EMBED_DEVICE=cuda
+Environment=EMBED_DEVICE=cpu
 Environment=EMBED_BATCH_SIZE=64
 ExecStart=/home/edwardmangini/rag-embed/venv/bin/uvicorn app:app --host 0.0.0.0 --port 8900
 Restart=on-failure

@@ -3608,7 +3608,7 @@ upgrade later). Planned as **Proxmox**, mirroring Weyland's own layout:
   host kernel's `amdgpu`, exactly how CT 102 works today.
 - **GPU software (checked 2026-09-26):** Vulkan is the reliable Linux path for gfx1151; ROCm is still maturing (AMD
   targets ROCm 8.0 for first-class gfx1151 support); vLLM runs with effort. Does NOT replace rogueone: training,
-  `rag-embed`, and the B111 vLLM/SGLang work stay on CUDA.
+  and the B111 vLLM/SGLang work stay on CUDA (`rag-embed` moved to CPU on 2026-09-27 — it can move to this box's CPU).
 - **Do NOT form a 2-node Proxmox cluster** — it loses quorum when either box is down. Two standalone Proxmox hosts (or
   add a QDevice); Kubernetes is what spans the machines.
 - **Networking:** the MS-A2 has 10GbE; Strix Halo boxes vary (2.5–10GbE). Pods on the new node reach MinIO/Postgres on

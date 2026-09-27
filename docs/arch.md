@@ -813,7 +813,7 @@ orchestrator removes the cause.
 
 | Aspect | Retired in-process chain | Streaming reference-boundary |
 |---|---|---|
-| Where embedding runs | in the orchestrator process (model loaded per run) | warm GPU service `rag-embed` (loaded once) |
+| Where embedding runs | in the orchestrator process (model loaded per run) | warm service `rag-embed` on rogueone (loaded once; CPU since 2026-09-27) |
 | Payload path | pickled `list[dict]`, re-read 5x | one batch in flight, published then dropped |
 | Peak memory | the whole corpus of vectors | bounded by one batch |
 | Fan-out | 5 `*_write` assets in one run | 5 independent consumers, own consumer groups |
@@ -830,7 +830,7 @@ orchestrator removes the cause.
 | I3 | **Reference boundary at the orchestrator** | Dagster carries only the manifest (paths + hashes + current-path set); no chunk or vector crosses it |
 | I4 | **Per-store failure isolation + independent retry** | one consumer group per store, committing offsets independently; rebuild-one-store = reset that group's offset |
 | I5 | **Whole-state orphan prune** | the producer diffs the current-path set against `rag_manifest` and emits one tombstone per removed doc; each consumer deletes-by-`source_path`, so there is no per-store scan |
-| I6 | **Warm model** | `rag-embed` holds `bge-base-en-v1.5` (768-dim, B74) resident on the GPU; model + CUDA context load once at startup, so every request is warm |
+| I6 | **Warm model** | `rag-embed` holds `bge-base-en-v1.5` (768-dim, B74) resident (CPU since 2026-09-27); the model loads once at startup, so every request is warm |
 
 **The pieces.**
 - **Producer** = the Dagster op/asset `rag_stream_produce` (self-contained: clone + hash + chunk with LlamaIndex
@@ -841,9 +841,11 @@ orchestrator removes the cause.
   never yields `aidlc-kb/` paths **and** the manifest query filters `source_path NOT LIKE 'aidlc-kb/%'`, the
   producer **structurally cannot** tombstone the KB corpus - the old prune-exclusion guard is now a property of the
   data model, not a runtime check.
-- **Embed** = **`rag-embed`**, a warm native systemd GPU service on **rogueone** (`192.168.1.230:8900`,
-  `bge-base-en-v1.5`, `POST /embed` returning L2-normalized 768-dim vectors, B74). ~1-1.5 GB VRAM reserved warm next to
-  Ollama; the standing reservation is the only real cost.
+- **Embed** = **`rag-embed`**, a warm native systemd service on **rogueone** (`192.168.1.230:8900`,
+  `bge-base-en-v1.5`, `POST /embed` returning L2-normalized 768-dim vectors, B74). Runs on **CPU since
+  2026-09-27**. The move to rogueone was to get the model out of mother's OOMing `dagster-user-code` pod; the GPU was
+  incidental, and by September its ~3 GB of VRAM (bge-base, not the designed bge-small) was pushing Ollama's 30B eval
+  models onto CPU. The workload is small nightly batches (~5-15 s per 64 chunks on CPU); queries never call it.
 - **Bus** = the Redpanda topic **`rag.chunks`** (Confluent-Avro via Redpanda's built-in schema registry, subject
   `rag.chunks-value` = the `RagChunk` record; partition key `source_path` so a doc's chunks are ordered and its
   tombstone is ordered after its upserts). One schema, two record types via an `op` discriminator: `upsert` (text +
@@ -870,7 +872,7 @@ flowchart TB
     PROD["rag_stream_produce op\nchunk (LlamaIndex) then embed then publish\none batch in flight"]
     MAN["rag_manifest (Postgres)\nsource_path PK + content_hash\nchange-detection + prune state\ndecoupled from rag_documents"]
   end
-  EMB["rag-embed - rogueone GPU (warm)\nbge-base-en-v1.5 :8900\nPOST /embed then 768-dim vectors"]
+  EMB["rag-embed - rogueone CPU (warm)\nbge-base-en-v1.5 :8900\nPOST /embed then 768-dim vectors"]
   TOPIC["Redpanda topic rag.chunks\nConfluent-Avro, key = source_path\nupsert + delete (tombstone)"]
   subgraph CONS["5 independent consumers - one image, one group each"]
     Q["rag-index-qdrant\n(data-mesh, sidecar off)"]

@@ -540,7 +540,7 @@ above too.
 
 | Subsystem | Health check | Runbook | Demo |
 |---|---|---|---|
-| rag-embed (rogueone GPU service) | `curl -s http://192.168.1.230:8900/health` | - | [rag-stream](../demos/rag-stream.md) |
+| rag-embed (rogueone CPU service) | `curl -s http://192.168.1.230:8900/health` | - | [rag-stream](../demos/rag-stream.md) |
 | rag_stream_produce (producer, Dagster op) | `kubectl -n weyland get pods \| grep dagster-user-code` | - | [rag-stream](../demos/rag-stream.md) |
 | rag-index-qdrant (consumer) | `kubectl -n data-mesh get pods \| grep rag-index-qdrant` | - | [rag-stream](../demos/rag-stream.md) |
 | rag-index-weaviate (consumer) | `kubectl -n data-mesh get pods \| grep rag-index-weaviate` | - | [rag-stream](../demos/rag-stream.md) |

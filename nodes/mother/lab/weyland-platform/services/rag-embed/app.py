@@ -1,7 +1,7 @@
-"""RAG embedding service (B-RAG-STREAM step 2) — warm, GPU, rogueone.
+"""RAG embedding service (B-RAG-STREAM step 2) — warm, rogueone, CPU.
 
-A standing FastAPI service that holds BAAI/bge-small-en-v1.5 resident on the RTX 5000 Ada and exposes a
-batched /embed. The model + CUDA context load ONCE at startup, so every request is warm — this is the
+A standing FastAPI service that holds the embedding model (EMBED_MODEL; bge-base-en-v1.5 since B74) resident and
+exposes a batched /embed. The model loads ONCE at startup, so every request is warm — this is the
 "embed exactly once, warm model" half of the streaming-indexer design (invariants I1, I6).
 
 Contract (the producer is the only client):
@@ -18,13 +18,13 @@ from pydantic import BaseModel
 from sentence_transformers import SentenceTransformer
 
 MODEL_NAME = os.environ.get("EMBED_MODEL", "BAAI/bge-small-en-v1.5")
-DEVICE = os.environ.get("EMBED_DEVICE", "cuda")
+DEVICE = os.environ.get("EMBED_DEVICE", "cpu")  # CPU since 2026-09-27; see rag-embed.service
 BATCH_SIZE = int(os.environ.get("EMBED_BATCH_SIZE", "64"))
 
 app = FastAPI(title="weyland rag-embed", version="1.0")
 
-# Load once at import (systemd starts one worker) — the warm model. Fails fast + loud if CUDA is missing,
-# rather than silently falling back to CPU and pretending to be the "GPU service".
+# Load once at import (systemd starts one worker) — the warm model. An explicit device, never auto-detect: if
+# EMBED_DEVICE names a device that is missing it fails fast + loud instead of silently landing somewhere else.
 _model = SentenceTransformer(MODEL_NAME, device=DEVICE)
 _DIM = _model.get_sentence_embedding_dimension()
 

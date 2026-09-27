@@ -27,13 +27,13 @@ from the tool-server) and its miss = a broken agentic RAG, exactly like a wrong-
 | Path | Embedder | Where | Change |
 |---|---|---|---|
 | **KB** (`aidlc-kb/`) | Dagster `SentenceTransformerResource` → `OnnxEmbedder` (CPU, mother; U13) | `weyland_pipeline/resources/sentence_transformer.py` (`model_name`) + `resources/onnx_embedder.py` (`ONNX_MODEL_DIRS`) + the Dockerfile **builder-stage ONNX export** | edit + rebuild user-code image |
-| **docs/code** | **rogueone GPU service** `rag-embed` (`:8900`) | `services/rag-embed/rag-embed.service` (`EMBED_MODEL` env) | flip env + `systemctl restart` (no rebuild — model auto-downloads). **Still `sentence-transformers` — U13 left rag-embed alone (GPU, torch justified)** |
+| **docs/code** | **rogueone CPU service** `rag-embed` (`:8900`) | `services/rag-embed/rag-embed.service` (`EMBED_MODEL` env) | flip env + `systemctl restart` (no rebuild — model auto-downloads). **Still `sentence-transformers`** (U13 left it alone while it ran on the GPU; CPU since 2026-09-27, so an ONNX move is now possible) |
 | **Query — tool-server** | in-process `OnnxBge` (raw ONNX Runtime; U13) | `weyland-tool-server/main.py` (`MODEL_NAME`) + the Dockerfile **builder-stage ONNX export** | edit + rebuild tool-server image |
 | **Query — weyland-agent** (B70 agentic RAG) | in-process `OnnxBge` (raw ONNX Runtime; U13 — byte-identical class to tool-server, guarded by `scripts/check-onnx-sync.sh`) | `weyland-agent/retrievers.py` (`MODEL_NAME`) + the Dockerfile **builder-stage ONNX export** | edit + rebuild weyland-agent image (**not** in `images.tsv` — build + push it manually) |
 | *(the 5 `rag-index` consumers)* | **none — they only WRITE the pre-computed vector** | `services/rag-index/` | no model change; just need the target collections at the new dim |
 
 The docs/code path is the sneaky one: `rag_stream_produce` (Dagster) chunks the docs, POSTs the text to the **rogueone
-`rag-embed` GPU service**, gets vectors back, and publishes them — so the Dagster `SentenceTransformerResource` change
+`rag-embed` service**, gets vectors back, and publishes them — so the Dagster `SentenceTransformerResource` change
 does **not** touch docs/code. Query + KB + docs/code must all be the same model, or query-vs-index dims disagree.
 
 ## The docs/code write path (streaming — NOT the old direct assets)
