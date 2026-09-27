@@ -720,6 +720,8 @@ h_setup() {
 # The fetch was ONE `issues(first: 250)` page without includeArchived: at 251 issues it silently dropped the
 # rest, and archiving a completed issue (the fix for the Free plan's 250-issue cap) would have turned its
 # backlog DONE entry into "Linear does not know this issue" — FATAL.
+# Each case sets a dummy LINEAR_API_KEY and a nonexistent LINEAR_ENV_FILE: these tests first passed only on a dev box
+# because the guard loaded the REAL key from scripts/.env, and failed in CI (#197), which has none.
 
 _page() { # _page <file> <hasNextPage true|false> <endCursor> <identifiers...>
   local f="$1" more="$2" cur="$3"; shift 3
@@ -734,7 +736,7 @@ _page() { # _page <file> <hasNextPage true|false> <endCursor> <identifiers...>
   _page "$STUB_DIR/p1.json" true c1 EMA-1 EMA-2
   _page "$STUB_DIR/p2.json" false c2 EMA-3
   LINEAR_SYNC_LIB=1 source "$GUARD"
-  LINEAR_PAGE_FILES="$STUB_DIR/p1.json,$STUB_DIR/p2.json" run linear_snapshot
+  LINEAR_API_KEY=test-not-a-key LINEAR_ENV_FILE=/nonexistent LINEAR_PAGE_FILES="$STUB_DIR/p1.json,$STUB_DIR/p2.json" run linear_snapshot
   [ "$status" -eq 0 ]
   [[ "$output" == *'"EMA-1"'* && "$output" == *'"EMA-3"'* ]]
 }
@@ -742,7 +744,7 @@ _page() { # _page <file> <hasNextPage true|false> <endCursor> <identifiers...>
 @test "snapshot: a page that says hasNextPage but runs out is FATAL, never a short snapshot" {
   _page "$STUB_DIR/p1.json" true c1 EMA-1
   LINEAR_SYNC_LIB=1 source "$GUARD"
-  LINEAR_PAGE_FILES="$STUB_DIR/p1.json" run linear_snapshot
+  LINEAR_API_KEY=test-not-a-key LINEAR_ENV_FILE=/nonexistent LINEAR_PAGE_FILES="$STUB_DIR/p1.json" run linear_snapshot
   [ "$status" -ne 0 ]
   [[ "$output" == *"FATAL"* && "$output" == *"more pages"* ]]
 }
@@ -751,7 +753,7 @@ _page() { # _page <file> <hasNextPage true|false> <endCursor> <identifiers...>
   _page "$STUB_DIR/p1.json" true c1 EMA-1
   printf '{"errors":[{"message":"complexity"}]}' > "$STUB_DIR/p2.json"
   LINEAR_SYNC_LIB=1 source "$GUARD"
-  LINEAR_PAGE_FILES="$STUB_DIR/p1.json,$STUB_DIR/p2.json" run linear_snapshot
+  LINEAR_API_KEY=test-not-a-key LINEAR_ENV_FILE=/nonexistent LINEAR_PAGE_FILES="$STUB_DIR/p1.json,$STUB_DIR/p2.json" run linear_snapshot
   [ "$status" -ne 0 ]
   [[ "$output" == *"complexity"* ]]
 }
