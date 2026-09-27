@@ -150,7 +150,7 @@ def neutralize_mentions(text):
     """`@name` -> `@<word-joiner>name`. Restoring a mention verbatim re-invokes agents (the first live drill re-ran
     SpecBot on every `@SpecBot` in EMA-240's comments). The joiner is invisible and `_norm` removes it, so verification
     still compares the text as equal."""
-    return re.sub(r"@(?=[A-Za-z0-9_])", "@" + WORD_JOINER, text or "")
+    return re.sub(r"@(?=\w)", "@" + WORD_JOINER, text or "")
 
 
 def _label_problem(label):
