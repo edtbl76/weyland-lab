@@ -715,3 +715,47 @@ h_setup() {
   [ "$status" -eq 1 ]
   [[ "$output" == *"Ghost Project"* ]]
 }
+
+# --- issue snapshot pagination + archived issues (2026-09-27) ---------------------------------------------
+# The fetch was ONE `issues(first: 250)` page without includeArchived: at 251 issues it silently dropped the
+# rest, and archiving a completed issue (the fix for the Free plan's 250-issue cap) would have turned its
+# backlog DONE entry into "Linear does not know this issue" — FATAL.
+
+_page() { # _page <file> <hasNextPage true|false> <endCursor> <identifiers...>
+  local f="$1" more="$2" cur="$3"; shift 3
+  local nodes="" id
+  for id in "$@"; do
+    nodes="${nodes:+$nodes,}{\"identifier\":\"$id\",\"title\":\"B1 — t\",\"priority\":3,\"state\":{\"type\":\"completed\",\"name\":\"Done\"},\"project\":{\"name\":\"Weyland Lab\"}}"
+  done
+  printf '{"data":{"team":{"issues":{"pageInfo":{"hasNextPage":%s,"endCursor":"%s"},"nodes":[%s]}}}}' "$more" "$cur" "$nodes" > "$f"
+}
+
+@test "snapshot: follows every page — issues past the first 250 are not dropped" {
+  _page "$STUB_DIR/p1.json" true c1 EMA-1 EMA-2
+  _page "$STUB_DIR/p2.json" false c2 EMA-3
+  LINEAR_SYNC_LIB=1 source "$GUARD"
+  LINEAR_PAGE_FILES="$STUB_DIR/p1.json,$STUB_DIR/p2.json" run linear_snapshot
+  [ "$status" -eq 0 ]
+  [[ "$output" == *'"EMA-1"'* && "$output" == *'"EMA-3"'* ]]
+}
+
+@test "snapshot: a page that says hasNextPage but runs out is FATAL, never a short snapshot" {
+  _page "$STUB_DIR/p1.json" true c1 EMA-1
+  LINEAR_SYNC_LIB=1 source "$GUARD"
+  LINEAR_PAGE_FILES="$STUB_DIR/p1.json" run linear_snapshot
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"FATAL"* && "$output" == *"more pages"* ]]
+}
+
+@test "snapshot: GraphQL errors on a later page are FATAL" {
+  _page "$STUB_DIR/p1.json" true c1 EMA-1
+  printf '{"errors":[{"message":"complexity"}]}' > "$STUB_DIR/p2.json"
+  LINEAR_SYNC_LIB=1 source "$GUARD"
+  LINEAR_PAGE_FILES="$STUB_DIR/p1.json,$STUB_DIR/p2.json" run linear_snapshot
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"complexity"* ]]
+}
+
+@test "snapshot: the live query includes archived issues" {
+  grep -q 'includeArchived: true' "$GUARD"
+}

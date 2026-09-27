@@ -51,6 +51,11 @@ source:
       sources: Yes
       seeds: Yes
       snapshots: Yes
+      # OFF (2026-09-27): DataHub 1.6.0 (and 1.7.0.13) emits dbt semantic models (semantic_models.yml, MetricFlow)
+      # with columns typed "entity:primary", then crashes resolving that as a Trino type
+      # (sql_types.resolve_trino_modified_type → KeyError 'entity:primary') — the whole run fails. Semantic models
+      # are served by MetricFlow/Cube, not needed in the catalog; re-enable when the connector is fixed.
+      semantic_models: No
     stateful_ingestion:
       enabled: true
       remove_stale_metadata: true

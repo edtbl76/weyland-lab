@@ -79,6 +79,22 @@ values, out of git).
   on each key lets the pod start before every value is populated. Create the Secret **once**, out-of-band, with
   values pulled from the source secrets in `weyland`. Some sources still need their password **in the live source
   config too** (mongo `connect_uri`) — [[datahub-ingestion-secrets-durable]].
+- **Keep NO UI Secrets — they shadow the env (found 2026-09-27).** A UI Secret with the same name wins over the pod
+  env, and UI Secrets are encrypted with DataHub's encryption key, which the chart regenerates (it is not sealed).
+  After a regeneration every UI Secret failed to decrypt ("AES-GCM Tag mismatch") and resolved EMPTY: the dbt source
+  failed daily for 10+ days on `NoCredentialsError` while its env value was never used; sources whose services
+  tolerate an empty credential kept reporting SUCCESS. Fix applied: all 7 undecryptable UI Secrets deleted, and the
+  missing `MINIO_ACCESS_KEY` / `MINIO_SECRET_KEY` added to `datahub-ingestion-secrets` (copied from `nessie-secret`
+  s3-access-key / s3-secret-key, resealed). Rule: every `${VAR}` a recipe uses is a key in `datahub-ingestion-secrets`
+  and an `extraEnvs` entry; the UI Secrets list stays empty. Check: `listSecrets` returns `[]`.
+  With creds fixed, dbt then failed on a second, masked bug: DataHub 1.6.0 (and 1.7.0.13) emits dbt semantic models
+  with columns typed `entity:primary` and crashes resolving that as a Trino type (`KeyError: 'entity:primary'`).
+  `entities_enabled.semantic_models: No` in `dbt.recipe.yaml` (pushed to the live source) → **dbt SUCCESS
+  2026-09-27**, first success in at least 10 days.
+- **A failing ingestion alerts nobody.** The dbt and MLflow sources both failed every day for 10+ days unnoticed.
+  MLflow's cause: MLflow 3's built-in "MLflow Demo" experiment logs dataset inputs with no schema, and the DataHub
+  1.6.0 (and 1.7.0.13) mlflow source crashes on `json.loads(None)`; the demo experiment was soft-deleted
+  (`POST /api/2.0/mlflow/experiments/restore` brings it back). Alerting on ingestion failures is still open.
 - **Actions pod OOM.** `acryl-datahub-actions` runs ingestion; profiling-enabled Postgres/MusicBrainz runs
   exit-137'd at 512 Mi → hung ingestions. Ceiling raised to 1 Gi (request stays 256 Mi so it reserves little idle).
   If a big profiling run still exit-137s, bump further or sleep idle stores ([[store-scaler-easy-button]]) to free RAM.

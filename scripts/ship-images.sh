@@ -577,6 +577,60 @@ except Exception as e:
   esac
 }
 
+# FR-DRAIN (2026-09-27) — never roll dagster-user-code under a run that is executing in it. Runs launch INTO the
+# user-code pod (DefaultRunLauncher), so the rollout kills them; Dagster then keeps them STARTED and the one-run
+# queue stays blocked until someone cancels by hand. Found when a lean ship at 04:30 NY killed the scheduled
+# datahub_catalog_emit_job. QUEUED runs are fine — they launch on the new pod once it is up.
+SHIP_DAGSTER_IMAGE="${SHIP_DAGSTER_IMAGE:-weyland-dagster-user-code}"
+
+bump_restarts_dagster() { # bump_restarts_dagster <diff-file> — true when the bump rolls the Dagster code pod
+  bumped_images "${1:?usage: bump_restarts_dagster <diff-file>}" | grep -qx "$SHIP_DAGSTER_IMAGE"
+}
+
+# One line per in-flight run ("RUN <job> <runId>"), or RUNS_NONE, or RUNS_ERR <why>. Asked from the pod
+# itself via the webserver's GraphQL — the same path the TXN gate uses.
+dagster_inflight_runs() {
+  kubectl -n weyland exec deploy/dagster-user-code -- python3 -c '
+import json, urllib.request
+q = {"query": "{ runsOrError(filter:{statuses:[STARTED,STARTING]}, limit: 50){ __typename ... on Runs { results { runId jobName } } } }"}
+try:
+    r = urllib.request.Request("http://dagster-webserver.weyland.svc.cluster.local:3000/graphql",
+        data=json.dumps(q).encode(), headers={"Content-Type": "application/json"})
+    res = json.load(urllib.request.urlopen(r, timeout=25))["data"]["runsOrError"]
+    if res["__typename"] != "Runs":
+        print("RUNS_ERR " + res["__typename"]); raise SystemExit
+    runs = res["results"]
+    print("\n".join("RUN %s %s" % (x["jobName"], x["runId"][:8]) for x in runs) if runs else "RUNS_NONE")
+except SystemExit:
+    raise
+except Exception as e:
+    print("RUNS_ERR " + type(e).__name__ + " " + str(e)[:120])
+' 2>/dev/null
+}
+
+# wait_dagster_idle — 0 when nothing is executing; waits up to SHIP_DAGSTER_DRAIN_TIMEOUT (default 1800s) for
+# in-flight runs to finish. 1 = still running at the deadline (names them); 2 = could not ask (fail closed:
+# not knowing is not the same as idle).
+wait_dagster_idle() {
+  local timeout="${SHIP_DAGSTER_DRAIN_TIMEOUT:-1800}" interval="${SHIP_POLL_INTERVAL-10}" waited=0 out
+  while :; do
+    out="$(dagster_inflight_runs)"
+    case "$out" in
+      RUNS_NONE) return 0 ;;
+      RUN\ *) ;;
+      *) printf '  could not list Dagster runs: %s\n' "${out:-no answer}" >&2; return 2 ;;
+    esac
+    if [ "$waited" -ge "$timeout" ]; then
+      printf '  still executing after %ss:\n%s\n' "$timeout" "$out" >&2
+      return 1
+    fi
+    [ "$waited" -eq 0 ] && printf '  waiting for in-flight Dagster runs to finish:\n%s\n' "$out" >&2
+    sleep "$interval"
+    waited=$((waited + interval))
+    [ "$interval" = "0" ] && waited=$((waited + 1))   # make progress even at interval 0 (tests)
+  done
+}
+
 # held — a deliberate hold, NOT a failure. The PR is left OPEN (cleanup keeps a branch backing an open
 # PR), git is unchanged, nothing deployed. Exit 3 is distinct from 0 (shipped) and 1 (a failed gate).
 held() {
@@ -1182,6 +1236,19 @@ main() {
   # FR-FLAG (B88 #5) — the Unleash deploy kill-switch, checked HERE (before the merge) because that is
   # the only selfHeal-proof hold point. A hold leaves the PR open and deploys nothing; fail-open.
   ship_flag_allows || held "$pr_num"
+
+  # FR-DRAIN — a dagster-user-code rollout kills the runs executing in it; wait for them, or stop with the PR open.
+  if bump_restarts_dagster "$diff_file"; then
+    printf '→ FR-DRAIN: no Dagster run is executing in the pod this bump replaces\n'
+    local drain_rc=0
+    wait_dagster_idle || drain_rc=$?
+    if [ "$drain_rc" -ne 0 ]; then
+      FAILED_GATE="FR-DRAIN"
+      FAILED_REASON="no Dagster run executing before rolling dagster-user-code (rc ${drain_rc}; see the runs above). The PR stays open — re-run once they finish, or cancel them in dagster.weyland.lab"
+      abort
+    fi
+    printf '  ✓ FR-DRAIN\n'
+  fi
 
   printf '→ merging PR #%s\n' "$pr_num"
   gh pr merge "$pr_num" --repo "$REPO" --squash --delete-branch >/dev/null 2>&1 || {

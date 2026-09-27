@@ -292,39 +292,70 @@ linear_snapshot() {
     echo "       then add LINEAR_API_KEY=lin_api_... to the gitignored scripts/.env." >&2
     return 1
   fi
-  local body http
-  body="$(mktemp)"
-  # Bounded so a hung API FAILS FAST instead of pinning the CI step for minutes. Still fails closed.
-  http="$(curl -s --connect-timeout 10 --max-time 30 -o "$body" -w '%{http_code}' -X POST https://api.linear.app/graphql \
-    -H "Authorization: ${LINEAR_API_KEY}" -H 'Content-Type: application/json' \
-    -d "{\"query\":\"{ team(id: \\\"${LINEAR_TEAM}\\\") { issues(first: 250) { nodes { identifier title priority state { type name } project { name } } } } }\"}")" || {
-      echo "FATAL: could not reach the Linear API (curl transport failure/timeout)." >&2; rm -f "$body"; return 1; }
-  # The status is read explicitly. `curl -sf | python3` collapses a 401 to empty input, and an empty
-  # snapshot reads as "no issues" — a clean pass over nothing.
-  if [ "$http" != "200" ]; then
-    echo "FATAL: Linear API returned HTTP ${http}." >&2; rm -f "$body"; return 1
-  fi
-  python3 - "$body" <<'PY' || { rm -f "$body"; return 1; }
-import json, sys
-doc = json.load(open(sys.argv[1], encoding="utf-8"))
-if "errors" in doc:
-    print("FATAL: Linear GraphQL errors: " + json.dumps(doc["errors"])[:300], file=sys.stderr)
+  # Every page, archived included (2026-09-27). The old single `issues(first: 250)` page silently dropped issue
+  # 251+, and without includeArchived an archived DONE issue (the Free plan's 250-issue cap is relieved by
+  # archiving) would read as "Linear does not know this issue". LINEAR_PAGE_FILES (comma-separated saved
+  # responses) replaces the HTTP call in tests, exactly as LINEAR_SNAPSHOT_JSON replaces the whole fetch.
+  LINEAR_TEAM="$LINEAR_TEAM" python3 - <<'PY'
+import json, os, sys, urllib.error, urllib.request
+
+QUERY = ("query($team: String!, $after: String) { team(id: $team) { issues(first: 250, after: $after, "
+         "includeArchived: true) { pageInfo { hasNextPage endCursor } nodes { identifier title priority "
+         "state { type name } project { name } } } } }")
+files = [f for f in os.environ.get("LINEAR_PAGE_FILES", "").split(",") if f]
+
+
+def fatal(msg):
+    print("FATAL: " + msg, file=sys.stderr)
     raise SystemExit(1)
-nodes = (((doc.get("data") or {}).get("team") or {}).get("issues") or {}).get("nodes")
-if nodes is None:
-    print("FATAL: unexpected Linear response shape", file=sys.stderr); raise SystemExit(1)
-out = {}
-for n in nodes:
-    out[n["identifier"]] = {
-        "stateType": (n.get("state") or {}).get("type"),
-        "state":     (n.get("state") or {}).get("name"),
-        "project":   (n.get("project") or {}).get("name") if n.get("project") else None,
-        "priority":  n.get("priority"),   # Linear int: 0 None · 1 Urgent · 2 High · 3 Medium · 4 Low
-        "title":     n.get("title"),      # to derive the B/U/SEC item-number for full-coverage matching
-    }
+
+
+def fetch(page_no, after):
+    if files:
+        if page_no >= len(files):
+            fatal("Linear said there are more pages but none came back — refusing a short snapshot")
+        return json.load(open(files[page_no], encoding="utf-8"))
+    req = urllib.request.Request(
+        "https://api.linear.app/graphql",
+        data=json.dumps({"query": QUERY, "variables": {"team": os.environ["LINEAR_TEAM"], "after": after}}).encode(),
+        headers={"Authorization": os.environ["LINEAR_API_KEY"], "Content-Type": "application/json"})
+    try:
+        # Bounded so a hung API FAILS FAST instead of pinning the CI step. Still fails closed.
+        with urllib.request.urlopen(req, timeout=30) as resp:  # noqa: S310  # nosec B310 — fixed https URL
+            return json.load(resp)
+    except urllib.error.HTTPError as exc:
+        fatal(f"Linear API returned HTTP {exc.code}.")
+    except (urllib.error.URLError, TimeoutError) as exc:
+        fatal(f"could not reach the Linear API ({exc}).")
+
+
+out, after, seen, page_no = {}, None, set(), 0
+while True:
+    doc = fetch(page_no, after)
+    if "errors" in doc:
+        fatal("Linear GraphQL errors: " + json.dumps(doc["errors"])[:300])
+    issues = (((doc.get("data") or {}).get("team") or {}).get("issues") or {})
+    nodes = issues.get("nodes")
+    if nodes is None:
+        fatal("unexpected Linear response shape")
+    for n in nodes:
+        out[n["identifier"]] = {
+            "stateType": (n.get("state") or {}).get("type"),
+            "state":     (n.get("state") or {}).get("name"),
+            "project":   (n.get("project") or {}).get("name") if n.get("project") else None,
+            "priority":  n.get("priority"),   # Linear int: 0 None · 1 Urgent · 2 High · 3 Medium · 4 Low
+            "title":     n.get("title"),      # to derive the B/U/SEC item-number for full-coverage matching
+        }
+    info = issues.get("pageInfo") or {}
+    if not info.get("hasNextPage"):
+        break
+    after = info.get("endCursor")
+    if not after or after in seen:
+        fatal(f"Linear pagination cursor did not advance ({after!r}) — refusing a short snapshot")
+    seen.add(after)
+    page_no += 1
 print(json.dumps(out))
 PY
-  rm -f "$body"
 }
 
 # --- reading Linear projects (check G) -----------------------------------------------------------

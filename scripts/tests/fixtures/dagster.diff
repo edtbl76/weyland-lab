@@ -1,0 +1,9 @@
+diff --git a/nodes/mother/lab/weyland-platform/k8s/dagster/user-code.yaml b/nodes/mother/lab/weyland-platform/k8s/dagster/user-code.yaml
+index 5555555..6666666 100644
+--- a/nodes/mother/lab/weyland-platform/k8s/dagster/user-code.yaml
++++ b/nodes/mother/lab/weyland-platform/k8s/dagster/user-code.yaml
+@@ -42,7 +42,7 @@ spec:
+       containers:
+         - name: user-code
+-          image: registry.weyland.lab/weyland-dagster-user-code:git-2c73c898   # tag is CI-managed
++          image: registry.weyland.lab/weyland-dagster-user-code:git-9a4996c6   # tag is CI-managed

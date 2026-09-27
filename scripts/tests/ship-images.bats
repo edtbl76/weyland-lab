@@ -207,6 +207,72 @@ stub_git_pushed() {
   ! called_with woodpecker-cli 'pipeline create'
 }
 
+# --- FR-DRAIN: never roll dagster-user-code under an in-flight run (2026-09-27) --------------------------------
+# A lean ship merged a dagster-user-code bump at 04:30 NY; the rollout killed the scheduled datahub_catalog_emit_job
+# mid-run, Dagster left it STARTED, and the one-run queue stayed blocked until the run was cancelled by hand.
+
+@test "FR-DRAIN: only a bump that restarts dagster-user-code needs the drain" {
+  SHIP_IMAGES_LIB=1 source "$SHIP"
+  run bump_restarts_dagster "$FIXTURES/dagster.diff"
+  [ "$status" -eq 0 ]
+  run bump_restarts_dagster "$FIXTURES/tags-only.diff"
+  [ "$status" -ne 0 ]
+}
+
+@test "FR-DRAIN: idle Dagster passes at once" {
+  stub_dispatch kubectl
+  stub_case kubectl 'exec' 0 'RUNS_NONE'
+  SHIP_IMAGES_LIB=1 source "$SHIP"
+  SHIP_DAGSTER_DRAIN_TIMEOUT=0 SHIP_POLL_INTERVAL=0 run wait_dagster_idle
+  [ "$status" -eq 0 ]
+}
+
+@test "FR-DRAIN: a run still in flight at the deadline fails and NAMES the run" {
+  stub_dispatch kubectl
+  stub_case kubectl 'exec' 0 'RUN datahub_catalog_emit_job 3c0fb7f7'
+  SHIP_IMAGES_LIB=1 source "$SHIP"
+  SHIP_DAGSTER_DRAIN_TIMEOUT=0 SHIP_POLL_INTERVAL=0 run wait_dagster_idle
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"datahub_catalog_emit_job"* ]]
+}
+
+@test "FR-DRAIN: waits for a run to finish, then passes" {
+  stub_seq kubectl
+  stub_seq_add kubectl 0 'RUN weyland_ingestion_job abc'
+  stub_seq_add kubectl 0 'RUNS_NONE'
+  SHIP_IMAGES_LIB=1 source "$SHIP"
+  SHIP_DAGSTER_DRAIN_TIMEOUT=5 SHIP_POLL_INTERVAL=0 run wait_dagster_idle
+  [ "$status" -eq 0 ]
+}
+
+@test "FR-DRAIN: an unreadable Dagster is exit 2, never read as idle" {
+  stub_dispatch kubectl
+  stub_case kubectl 'exec' 0 'RUNS_ERR URLError connection refused'
+  SHIP_IMAGES_LIB=1 source "$SHIP"
+  SHIP_DAGSTER_DRAIN_TIMEOUT=0 SHIP_POLL_INTERVAL=0 run wait_dagster_idle
+  [ "$status" -eq 2 ]
+  [[ "$output" == *"connection refused"* ]]
+}
+
+@test "FR-DRAIN: an in-flight run stops the loop BEFORE the merge" {
+  stub_git_pushed
+  stub_dispatch woodpecker-cli
+  stub_case woodpecker-cli 'pipeline create' 0 '42 pending'
+  stub_case woodpecker-cli 'pipeline show' 0 '42 success'
+  stub_dispatch gh
+  stub_case gh 'pr list' 0 '13	ci/image-bump-9a4996c6	weyland-ci'
+  stub_case gh 'isCrossRepository' 0 'false'
+  stub_case gh 'pr view' 0 'weyland-ci'
+  stub_case gh 'pr diff' 0 "$(cat "$FIXTURES/dagster.diff")"
+  stub_dispatch kubectl
+  stub_case kubectl 'exec' 0 'RUN datahub_catalog_emit_job 3c0fb7f7'
+  stub_case kubectl 'get' 0 'registry.weyland.lab/weyland-dagster-user-code:git-2c73c898'
+  SHIP_DAGSTER_DRAIN_TIMEOUT=0 SHIP_POLL_INTERVAL=0 run bash "$SHIP"
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"FR-DRAIN"* && "$output" == *"datahub_catalog_emit_job"* ]]
+  not_called_with gh 'pr merge'
+}
+
 @test "FR1.3 polls until the pipeline reaches a terminal state" {
   stub_git_pushed
   stub_dispatch kubectl
