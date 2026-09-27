@@ -2518,7 +2518,22 @@ live run), `arch.md` §10c, `schedules.md`, LikeC4. **Also fixed on the way:** `
 `registrations_reconcile_job` or `soda_quality_job`; `seal-secrets.sh` headers read weyland 29 / jupyterhub 7 (real
 32 / 10) and `secrets.md` said 55 (real 69). **Found, not fixed:** `dagster-freshness-check` only sees jobs that have
 at least one run, so a monitored job whose schedule never fires is silent (an absence gap — add a "never ran" check).
-**Remaining:** Slice 2 (restore drill) and Slice 3 (lakehouse view).
+**Slice 2 — DONE 2026-09-27 (restore drill).** `scripts/linear_restore.py` (18 tests; CodeScene 9.38): `--drill` =
+scratch team → restore issues + threaded comments → read back + verify every field → delete issues + team, always.
+Live: EMA-54 + sub-issue EMA-13 + EMA-240 → 3 issues, 23 comments, 0 mismatches, torn down (count back to 246). The
+first drill failed usefully: restored `@SpecBot` mentions re-invoked the agent (43 comments read back vs 15) — mentions
+now neutralized, bot comments ignored in verification; Linear escapes markdown (`*` → `\*`); ruff B012 caught a
+`return` in `finally` that would have swallowed restore errors. Limits recorded: SpecBot auto-reviews every new issue
+(each restore spends a capped analysis); **Linear Free caps the workspace at 250 issues (currently 246)**, so a full
+restore on Free needs archiving or a temporary upgrade. dr.md: Linear's last restore test = 2026-09-27.
+**Slice 3 — DONE 2026-09-27 (lakehouse view).** `linear_lakehouse_tables` (same job, after the snapshot) publishes
+Iceberg `linear.*` (9 tables, explicit schemas; leaf `linear_tables.py`, 6 tests) and three dbt marts:
+`mart_linear_issue_cycle_time` (B185), `mart_linear_weekly_flow` (EMA-172), `mart_linear_initiative_progress`
+(B119.1). Live (`git-263c8407`): 255 issues / 188 state changes published; marts built; one query per consumer in
+`docs/query/dbt-marts.md` § Linear. Found: 123 of 138 completed issues have no Kind (the 09-25 backfill covered open
+issues only); shipping `dagster-user-code` at ~04:30 killed the in-flight scheduled `datahub_catalog_emit_job` and
+Dagster left it STARTED, blocking the one-run queue until cancelled by hand — the ship loop does not check for
+in-flight Dagster runs. The Sonar gate caught one new-code rule (S6353) the local pre-ship suite did not run.
 
 **Scope.** (1) Dagster asset, nightly pre-dawn (Design Rule #5, schedules.md row), pages the Linear GraphQL API →
 timestamped MinIO snapshot (issues + state history, comments, projects, initiatives + updates, labels, templates, views,

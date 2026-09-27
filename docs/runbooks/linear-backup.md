@@ -6,13 +6,29 @@ Catalogued in [../dr.md](../dr.md); timer in [../schedules.md](../schedules.md) 
 
 | | |
 |---|---|
-| What runs | Dagster asset `linear_workspace_snapshot` (group `linear_backup`), job `linear_backup_job`, schedule `linear_backup_schedule` |
+| What runs | Dagster assets `linear_workspace_snapshot` → `linear_lakehouse_tables` (group `linear_backup`), job `linear_backup_job`, schedule `linear_backup_schedule` |
 | Code | `services/weyland-dagster/weyland_pipeline/assets/linear_backup.py` (transport, MinIO, asset) + `assets/datasets_lib/linear_export.py` (the export logic, dagster-free, tested in `tests/test_linear_export.py`) |
 | Writes | `s3://linear-backup/snapshots/<UTC yyyy-mm-ddTHHMMSSZ>/<entity>.json.gz` × 21, then `manifest.json` **last** |
 | Retention | 90 days — a MinIO lifecycle rule (`expire-snapshots`) the asset re-applies on every run |
 | Second copy | `minio-backup` mirrors the bucket to mother's NVMe nightly (22:30) |
 | Key | `LINEAR_API_KEY_RO` — **read-only** (Linear refuses mutations with it: `FORBIDDEN`), Secret `weyland/linear-backup-secret`, sealed |
 | Alerts | `dagster-freshness-check` (every 30m): last run FAILED, or no success within 30h |
+
+## Lakehouse view (Slice 3)
+
+After each snapshot the same job runs `linear_lakehouse_tables`, which flattens the newest snapshot that has a
+manifest into Iceberg `linear.*` (Nessie `main`, via Trino `iceberg.linear.*`): `issues`, `issue_state_changes`,
+`workflow_states`, `issue_labels`, `projects`, `initiatives`, `initiative_projects`, `initiative_updates`,
+`project_updates`. Every table is overwritten each run (current state; the raw snapshots keep the history) with an
+explicit schema; a changed schema drops and recreates the table (the tables are derived). An empty `issues` fails the
+run. The dbt marts on top — `mart_linear_issue_cycle_time` (B185), `mart_linear_weekly_flow` (EMA-172),
+`mart_linear_initiative_progress` (B119.1) — build with the weekly `weyland_dbt_job`; queries in
+[../query/dbt-marts.md](../query/dbt-marts.md) § Linear. Build just those three now (recorded, via the Dagster API):
+
+[mother]
+```
+kubectl exec -n weyland deploy/dagster-user-code -- python3 -c "import json,urllib.request;q='mutation(\$p:ExecutionParams!){launchRun(executionParams:\$p){__typename ... on LaunchRunSuccess{run{runId}} ... on PythonError{message}}}';v={'p':{'selector':{'repositoryLocationName':'weyland_pipeline','repositoryName':'__repository__','jobName':'weyland_dbt_job','assetSelection':[{'path':[m]} for m in ['mart_linear_issue_cycle_time','mart_linear_weekly_flow','mart_linear_initiative_progress']]},'runConfigData':{}}};r=urllib.request.Request('http://dagster-webserver.weyland.svc.cluster.local:3000/graphql',data=json.dumps({'query':q,'variables':v}).encode(),headers={'Content-Type':'application/json'});print(json.load(urllib.request.urlopen(r))['data']['launchRun'])"
+```
 
 ## What a snapshot holds
 

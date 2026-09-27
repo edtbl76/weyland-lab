@@ -1,6 +1,6 @@
 # Query cookbook — dbt marts (Trino / Iceberg)
 
-The dbt transform tier (B1.5) materializes **7 tested marts** as Iceberg tables in the **`iceberg.dbt`** schema on
+The dbt transform tier (B1.5) materializes **14 tested marts** as Iceberg tables in the **`iceberg.dbt`** schema on
 the Nessie `main` ref. Query them via Trino — IntelliJ (`jdbc:trino://trino.weyland.lab` or the svc `:8080`), the
 Trino CLI, **Superset** (ad-hoc SQL — plain tables on the Trino connection), or **Lightdash** (dbt-native governed
 metrics/explores — see [../runbooks/lightdash.md](../runbooks/lightdash.md)). The model DAG / lineage / test UI is
@@ -21,6 +21,9 @@ metrics/explores — see [../runbooks/lightdash.md](../runbooks/lightdash.md)). 
 | `mart_personality_by_country` | country | Big Five OCEAN trait means |
 | `mart_macro_indicators` | series | FRED macro: latest value + prior-year value + `yoy_pct`, joined to the series dimension |
 | `mart_company_financials` | company | SEC EDGAR: latest-annual revenue / net income / assets / liabilities / equity / EPS / shares per company, + SIC |
+| `mart_linear_issue_cycle_time` | completed Linear issue | B185 — lead time (created → done) and cycle time (first started → done), + project, priority, Kind |
+| `mart_linear_weekly_flow` | ISO week | EMA-172 — issues completed, lead-time p50/p85, cycle-time p50 (the Linear side of DORA change lead time) |
+| `mart_linear_initiative_progress` | initiative | B119.1 — projects, issues by state type, open High, % complete, last check-in |
 
 ## Music
 
@@ -141,6 +144,41 @@ SELECT ticker, latest_close, round(volatility_30d_annualized, 3) AS vol_ann,
        high_52w, low_52w, round(pct_off_52w_high, 3) AS off_high
 FROM iceberg.dbt.mart_price_daily
 ORDER BY vol_ann DESC LIMIT 20;
+```
+
+## Linear (B194 Slice 3)
+
+Built from `iceberg.linear.*`, which the nightly `linear_backup_job` publishes from the latest Linear snapshot
+(current state; history lives in the raw snapshots). Results below are from the first live build, 2026-09-27.
+
+**B185 — lead and cycle time by Kind** (123 of 138 completed issues carry no Kind: the 2026-09-25 Kind backfill
+covered open issues only):
+
+```sql
+SELECT coalesce(kind, '(none)') AS kind, count(*) AS completed,
+       round(approx_percentile(lead_time_hours, 0.5), 1)  AS lead_p50_h,
+       count(cycle_time_hours)                            AS with_cycle,
+       round(approx_percentile(cycle_time_hours, 0.5), 1) AS cycle_p50_h
+FROM iceberg.dbt.mart_linear_issue_cycle_time
+GROUP BY 1 ORDER BY completed DESC;
+```
+
+**EMA-172 — weekly throughput and lead time** (the 2026-08-03 week's p50 of 0h is 47 issues imported already done):
+
+```sql
+SELECT cast(week_start AS date) AS week, issues_completed,
+       round(lead_time_p50_hours, 1) AS lead_p50_h, round(lead_time_p85_hours, 1) AS lead_p85_h
+FROM iceberg.dbt.mart_linear_weekly_flow
+ORDER BY week_start DESC LIMIT 8;
+```
+
+**B119.1 — initiative progress** (Lab & Systems 73.7%: 126 of 190 done, 19 canceled, 14 open High):
+
+```sql
+SELECT initiative, status, projects, issues_total, issues_completed, issues_canceled,
+       open_high, pct_complete, last_check_in_at
+FROM iceberg.dbt.mart_linear_initiative_progress
+ORDER BY issues_total DESC;
 ```
 
 ## Notes

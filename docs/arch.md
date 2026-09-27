@@ -1371,6 +1371,12 @@ silently. The first live drill failed in two instructive ways: restored `@SpecBo
 the second drill passed with 0 mismatches. Structural limit: Linear Free caps the workspace at 250 issues, so a full
 restore on Free needs archiving first or a temporary upgrade.
 
+**The data source (Slice 3).** The same job flattens the newest snapshot into Iceberg `linear.*` (explicit Arrow
+schemas — several columns are all-null today, and an inferred null type is rejected by Iceberg), and three dbt marts
+serve the consumers the B119 walk kept pointing at: B185 cycle time, EMA-172 weekly flow (the Linear side of DORA
+change lead time) and B119.1 initiative progress. One export, two purposes: the backup and the analytics source,
+instead of an Airbyte/Fivetran connector for the second.
+
 Flow: [flow-linear-backup.md](diagrams/flow-linear-backup.md). Runbook: [linear-backup.md](runbooks/linear-backup.md).
 DR catalog: [dr.md](dr.md).
 

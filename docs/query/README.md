@@ -7,7 +7,7 @@ syntax demos.
 | Store | File | What's in it |
 |---|---|---|
 | Trino / Iceberg | [trino.md](trino.md) | the federated query layer — gold Iceberg (`iceberg.datasets_music/health/finance.*`), cross-catalog joins, time-travel |
-| dbt marts | [dbt-marts.md](dbt-marts.md) | the 8 tested marts (`iceberg.dbt.mart_*`, incl. `mart_macro_indicators`) — the curated, source-of-truth analytics tables |
+| dbt marts | [dbt-marts.md](dbt-marts.md) | the 14 tested marts (`iceberg.dbt.mart_*`, incl. `mart_macro_indicators` and the 3 Linear marts) — the curated, source-of-truth analytics tables |
 | GizmoSQL / DuckDB | [gizmosql.md](gizmosql.md) | embedded OLAP over persisted DuckDB tables via Arrow Flight SQL (music + health + finance datasets) |
 | ClickHouse | [clickhouse.md](clickhouse.md) | OLAP — usda (food/nutrients), OFF, fma, uci, musicbrainz-subset, audioset, fred_macro |
 | Cassandra | [cassandra.md](cassandra.md) | wide-column — who_gho, big_five, lastfm, uci (partition-key queries) |

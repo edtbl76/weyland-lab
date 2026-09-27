@@ -29,6 +29,9 @@ sequenceDiagram
         A->>M: ensure bucket + 90-day lifecycle rule
         A->>M: put snapshots/ts/entity.json.gz x 21
         A->>M: put snapshots/ts/manifest.json (last, marks complete)
+        A->>M: linear_lakehouse_tables reads the newest complete snapshot
+        A->>A: flatten to typed tables (explicit schemas)
+        A->>M: overwrite Iceberg linear.* via Nessie (dbt marts read these)
     else key rejected or export partial
         A-->>S: Failure, nothing written
     end

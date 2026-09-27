@@ -16,6 +16,18 @@ run live with the runbook's canonical command:
 | Key in the pod | present, 48 chars (checked without printing it) |
 | Watchdog sees the job | **pending** — the CLI run above used an ephemeral Dagster instance (no `DAGSTER_HOME` in the pod), so it never reached the run DB; the 02:00 UTC `dagster-freshness-check` did not list it. The first scheduled run (05:20 NY) is the proof; confirm `check linear_backup_job status=SUCCESS` in the next watchdog log |
 
+## Lakehouse view (live, 2026-09-27)
+
+Shipped in `git-263c8407`; one recorded `linear_backup_job` run (snapshot → `linear_lakehouse_tables`), then the three
+Linear marts built through Dagster:
+
+| Check | Result |
+|---|---|
+| `iceberg.linear.*` row counts (Trino) | issues 255, issue_state_changes 188, workflow_states 7, projects 10, initiatives 6, initiative_projects 10, issue_labels 11, initiative_updates 0 |
+| B185 `mart_linear_issue_cycle_time` | 138 completed issues (= the snapshot's completed count); median lead time by Kind; 36 with a cycle time |
+| EMA-172 `mart_linear_weekly_flow` | weekly throughput + lead-time p50/p85 (e.g. 19 done week of 08-24, p50 71.6h) |
+| B119.1 `mart_linear_initiative_progress` | Lab & Systems 73.7% (126/190, 14 open High), Music Studio 0/40 (18 open High) — open-High counts match the live priority spread |
+
 ## Restore drill (live, 2026-09-27)
 
 `scripts/linear_restore.py --drill` against the 01:39 UTC snapshot:
