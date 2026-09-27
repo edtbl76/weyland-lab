@@ -87,6 +87,7 @@ Re-ordered per RE-grounded audit (aidlc-docs/inception/backlog-reprioritization.
 - **B193** — **Spike: share Linear outward, read-only (project links vs initiative roadmaps)** — **LOW (2026-09-26, Linear EMA-252).** Found in the B119 walk's Customer Experience category: the one need there that doesn't wait on users — show the lab's work to people outside Linear (family, a portfolio beside B191's YouTube demos); Linear shows projects only to members or paid guests. Lindie (read-only project links, free for 1 project), Helium Rooms (read-only board rooms), Feedvote (client portal + public roadmap). See detail below.
 - **B194** — **Nightly Linear workspace export to MinIO (backup/DR + the Linear data source)** — **HIGH (2026-09-26, Linear EMA-253).** Nothing backs up Linear — status, comments, projects, initiatives (soon the B119.1 OKRs), labels, templates, views — while Postgres / MinIO / rogueone are all backed up (the B137 Port lesson again). A nightly pre-dawn Dagster asset pages the Linear API (read-only key) into a timestamped MinIO snapshot, with a freshness alert, a restore drill into a scratch team, and a lakehouse view that feeds B185 (cycle time), EMA-172 (DORA) and B119.1 (OKR progress). Found via Cloudback / SimpleBackups in the B119 walk; the sixth pointer to the same job. See detail below.
 - **B195** — **Store the Linear team intake email as a secret (scripts/.env + SealedSecret)** — **MEDIUM (2026-09-26, Linear EMA-254).** The team intake address is enabled and is a capability address (anyone holding it can file issues unauthenticated; this repo is public). Owner adds `LINEAR_INTAKE_EMAIL` to `scripts/.env`; create `monitoring/linear-intake`, add it to the `seal-secrets.sh` allow-list, seal per the secrets runbook, verify the stored length, index it with its rotation step. Prerequisite for B184's email fallback. See detail below.
+- **B196** — **Guard the Dagster watchdog: budgets must match schedules, and a never-run job must alert** — **MEDIUM (2026-09-27, Linear EMA-255).** Found shipping B194: three nightly jobs kept 6–8h watchdog budgets for seven weeks after moving to nightly (false `DagsterJobStale` every 30m; fixed by hand 2026-09-27), because `check-cron-freshness-budgets.sh` covers CronJobs only; and a budgeted job with no runs is invisible to the watchdog's SQL. Scope: a repo guard comparing `ScheduleDefinition`s with the `threshold_for` table (+ bats, in `repo-guards`), and a `DagsterJobNeverRan` alert with an accepted-STOPPED list.
 - **B178** — **CI resilience: a Port (external SaaS) outage must not hard-block the whole pipeline** — **RETIRED (2026-09-24, Linear EMA-236) — built, then REVERTED the same day by operator call.** During a Port outage `port-iac-coverage`'s unbounded auth curl hung and fail-fast killed every pipeline. A warn-and-continue path was built (distinct "unreachable" exit codes for `port-iac-coverage` + `linear-sync`, a best-effort `notify-port`) and CI-verified, then **removed: it was a stopgap for one outage, and the lab's policy is fail-closed** — a run where a guard verified nothing must not come out green, even if the cause is a vendor outage. **Kept:** bounded curls (`--connect-timeout`/`--max-time`) on all three, so a hung SaaS fails the step FAST instead of pinning it — still a hard fail. See detail below.
 - **B177** — **Lean + safe CI language matrix: selective per-language runs + full-matrix headroom** — **DONE (2026-09-24, Linear EMA-235).** CI steps run STRICTLY SEQUENTIALLY (RWO workspace, proven from #168 timestamps), so a full run is ~30 min of ~46 fixture-language golden-path lanes on a RAM-tight node (mother ~98%) → #169/#170 were OOM-killed mid-run. **Phase 1 (DONE, CI-verified by lean run #178 — 21 of 67 steps, 21/21 green):** `ci-langs.yaml` manifest + `scripts/ci/select-fixtures.sh` (fail-closed selector, 12 bats) + a `&fixture` gate on the 46 fixture lanes (`RUN_FIXTURES != "0"`, the proven `--var`+`evaluate` pattern) so a change that doesn't touch `golden-paths/` runs only the production lanes; unset var / nightly cron = full matrix (safe default); `golden-path-smoke` lean-gated too. **Phase 2 (DONE — closed on evidence):** per-step caps already exist (B93 LimitRange 128Mi/2Gi + explicit heavy-lane limits) and mother's kubelet reserves are set; 19 nightly cron runs, 0 killed (failures were all code-level); memory is flat day/night so moving the cron buys nothing. The only kills were ad-hoc FULL runs launched ~midnight into the Dagster batch start → runbook now says trigger ad-hoc runs lean. Residual = capacity, only if the nightly ever starts getting killed. See detail below.
 - **B176** — **PR-lifecycle reconciler: cover ALL pr-lane repos + Loki audit log** — **DONE (2026-09-23, Linear EMA-234).** Built, verified + exercised in prod (fleet `--apply` ran clean 2026-09-23); commit / deploy / PAT re-scope are the operator's routine steps. Extends the B131 reconcile half from weyland-lab-only to **every `lanes.pr: true` repo in `repos.yaml`** (the B138 8-repo pr-lane set, byte-identical to `pr-staleness`, guarded by a new `pr(recon)` lane in `check-repo-coverage.sh`). Each repo is reconciled in a subshell (per-repo fail-closed isolation — one unreachable repo forces exit 2, never a silent shrink). Emits structured `pr-lifecycle-audit` lines → Alloy → Loki (the audit.log); metrics via LogQL (no Pushgateway, Job stays unmeshed — the Loki ruler is alerting-only). **Op follow-up (runbook-captured, latent):** re-scope + re-seal the PAT for private-repo writes — no private-repo PRs exist today, so not a completion blocker. See detail below.
@@ -2422,6 +2423,41 @@ merges — that stays a human action).
  and **rotate** the value. Flagged twice by the automated security review. Low-risk on the LAN, but the password
  is committed in git. Do **all four at once** — piecemeal (ClickHouse-only) is inconsistent and gives no real
  benefit while the other three stay inline. Also the ClickHouse `users.d` Secret is already out-of-band (good).
+
+### B196 — Guard the Dagster watchdog: budgets must match schedules, and a never-run job must alert — MEDIUM (2026-09-27, Linear EMA-255)
+
+**Why.** `dagster-freshness-check` (`k8s/dagster/freshness.yaml`, every 30m) alerts per job on FAILED or on no success
+within a per-job budget. Two gaps, found shipping B194: (1) **budgets drift from schedules silently** —
+`weyland_catalog_job`, `weyland_timeseries_job` and `datahub_catalog_emit_job` went nightly on 2026-08-07 but kept
+6–8h budgets, so for seven weeks they fired false `DagsterJobStale` every 30 minutes (fixed by hand 2026-09-27, 30h);
+`check-cron-freshness-budgets.sh` covers k8s CronJobs only. (2) **A never-run job is invisible** — the SQL lists only
+jobs with a row in `runs`, so a budgeted job whose schedule never fires (or ships STOPPED) never alerts; B194's
+`linear_backup_job` sat in that state until its first scheduled run. Same absence-as-success class as B135's `absent()`.
+
+**Scope.** (1) `scripts/check-dagster-watchdog-budgets.sh` + bats in `repo-guards`: parse every `ScheduleDefinition`
+(cron, job, `default_status`) and the `threshold_for` table; fail on a RUNNING schedule with no budget, a budget under
+~1.25× the cron interval, or a budget naming a deleted job. (2) Watchdog: `DagsterJobNeverRan` for a budgeted job with
+no runs, except an explicit accepted list of STOPPED schedules with reasons. (3) DoD Pillar 6 "Triggered" + runbook.
+
+**Technical context.** `k8s/dagster/freshness.yaml` (changed); `weyland_pipeline/definitions.py` +
+`schedules/__init__.py` (read); `scripts/check-cron-freshness-budgets.sh` (the sibling pattern); `.woodpecker.yml`
+`repo-guards` (wiring).
+
+**Acceptance criteria.**
+- [ ] Passes on the current repo; FAILS by named reason on each of: budget under interval, RUNNING schedule without a
+  budget, budget for a deleted job (a bats case each).
+- [ ] Reverting a 2026-09-27 fix (catalog → 28800) fails naming `weyland_catalog_job`.
+- [ ] A budgeted never-run job fires `DagsterJobNeverRan`; an accepted STOPPED job does not.
+- [ ] Exit 1 = defect, 2 = cannot run.
+
+**Edge cases.** Factory-generated schedules (`build_domain_jobs`) must be seen or the guard exits 2, never passes by
+missing them; weekly/monthly crons need their real interval; code `default_status` STOPPED but RUNNING in the UI (the
+datasets land schedules) goes in the accepted list with the live exception stated.
+
+**Out of scope.** Dagster's native run-status sensor (broken on this line, dagster#21526); re-tuning budgets beyond ~2×.
+
+Relates B194, B94, B135.
+
 
 ### B195 — Store the Linear team intake email as a secret (scripts/.env + SealedSecret) — MEDIUM (2026-09-26, Linear EMA-254)
 
