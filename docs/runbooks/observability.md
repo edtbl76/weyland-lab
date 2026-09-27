@@ -213,6 +213,34 @@ TRINO_HTTP=http://localhost:18200 DATAHUB_GMS_URL=http://localhost:18201 DATAHUB
 ```
 Live baseline 2026-09-05: **111/111 mesh tables catalogued, 0 drift** (exit 0).
 
+### Dagster job watchdog — budgets and the guard (B94, B196 2026-09-27)
+
+`dagster-freshness-check` (`k8s/dagster/freshness.yaml`, `*/30`) reads the Dagster run database and, per job in its
+`BUDGETS` block, fires to Alertmanager → Telegram:
+
+| Alert | Condition |
+|---|---|
+| `DagsterJobFailed` | the job's most recent run is FAILURE |
+| `DagsterJobStale` | the last SUCCESS is older than the job's budget |
+| `DagsterJobNeverRan` | the job is budgeted but has no run at all (B196 — a schedule that never fires was invisible before) |
+
+The watchdog fails the Job (so `ScheduledJobFailed` fires) when psql errors or returns no runs — an empty run list is
+never "0 alerts".
+
+**The rule:** every Dagster schedule whose code `default_status` is RUNNING has exactly one `BUDGETS` row at ≥ 110% of
+its cron interval, and no STOPPED schedule has one. `scripts/check-dagster-watchdog-budgets.sh` enforces it in
+`repo-guards` (exit 1 names the job; exit 2 = could not parse, never a pass). Enabling or stopping a schedule means
+changing its code `default_status` AND the budget in the same change — a UI toggle alone is drift.
+
+Check the rule locally, then run the watchdog now instead of waiting for its next tick:
+```
+bash /home/edwardmangini/IdeaProjects/weyland/scripts/check-dagster-watchdog-budgets.sh --list
+```
+[mother]
+```
+kubectl -n weyland create job dagster-freshness-check-now --from=cronjob/dagster-freshness-check && kubectl -n weyland wait --for=condition=complete job/dagster-freshness-check-now --timeout=150s && kubectl -n weyland logs job/dagster-freshness-check-now -c check; kubectl -n weyland delete job dagster-freshness-check-now
+```
+
 ### Scheduling alerts (B134, 2026-08-27)
 
 `k8s/monitoring/scheduling-rules.yaml` — two rules for the failure mode that has no natural signal:

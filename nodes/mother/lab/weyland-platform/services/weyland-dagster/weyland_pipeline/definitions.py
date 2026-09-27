@@ -517,13 +517,13 @@ datahub_catalog_emit_schedule = ScheduleDefinition(
     default_status=DefaultScheduleStatus.RUNNING,
 )
 
-# L5 Slice C — daily data-quality scan of the marts. STOPPED by default: enable it in the Dagster UI once a
-# manual soda_quality_job run passes, so it doesn't red-flag nightly before the marts/connection are verified.
+# L5 Slice C — daily data-quality scan of the marts. Shipped STOPPED until a manual soda_quality_job run passed, then
+# enabled in the UI; the default below matches that live state (B196).
 soda_quality_schedule = ScheduleDefinition(
     job=soda_quality_job,
     cron_schedule="30 5 * * *",  # daily 05:30, after the nightly dbt build has republished the marts
     execution_timezone="America/New_York",
-    default_status=DefaultScheduleStatus.STOPPED,
+    default_status=DefaultScheduleStatus.RUNNING,  # enabled in the UI after a passing run; code matched to live 2026-09-27 (B196)
 )
 
 # B69 Wave 4 — un-freeze the eval harness. The B4 leaderboard was manual-only, so it silently stopped being
@@ -534,21 +534,21 @@ soda_quality_schedule = ScheduleDefinition(
 # scan-suite (09:00) and the image prune (11:00), and every day carries the 02:17 ingestion. Two hours between
 # the two jobs so the matrix finishes before judging starts (they're chained by data, not by a sensor).
 #
-# STOPPED by default, exactly like soda_quality_schedule above: Ollama MOVED TO ROGUEONE in B79, so the eval
-# path hasn't been exercised since. Enable both in the Dagster UI only AFTER a manual run comes back green —
-# scheduling an already-broken heavy job just manufactures weekly noise.
+# Shipped STOPPED (Ollama had moved to rogueone in B79) and enabled in the UI once a manual run came back green;
+# the defaults below were matched to that live state on 2026-09-27 (B196), because the watchdog budget guard reads
+# the code default and a code/UI mismatch is exactly the drift it exists to catch.
 weyland_eval_schedule = ScheduleDefinition(
     job=weyland_eval_job,
     cron_schedule="0 3 * * 6",  # Sat 03:00 — question-gen + run-matrix (HEAVY: RAG × 6 models)
     execution_timezone="America/New_York",
-    default_status=DefaultScheduleStatus.STOPPED,
+    default_status=DefaultScheduleStatus.RUNNING,  # enabled in the UI; code matched to live 2026-09-27 (B196)
 )
 
 weyland_eval_score_schedule = ScheduleDefinition(
     job=weyland_eval_score_job,
     cron_schedule="0 5 * * 6",  # Sat 05:00 — 3-judge panel scores the matrix written at 03:00
     execution_timezone="America/New_York",
-    default_status=DefaultScheduleStatus.STOPPED,
+    default_status=DefaultScheduleStatus.RUNNING,  # enabled in the UI; code matched to live 2026-09-27 (B196)
 )
 
 defs = Definitions(

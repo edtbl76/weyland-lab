@@ -55,28 +55,42 @@ spec:
                   set -e
                   AM=http://monitoring-kube-prometheus-alertmanager.monitoring.svc.cluster.local:9093/api/v2/alerts
 
-                  # Per-job staleness budget = ~2x the schedule interval, so ONE missed run doesn't page.
-                  # Only SCHEDULED jobs belong here. On-demand jobs (hydrate/transform/aidlc_kb/__ASSET_JOB)
-                  # and event-driven ones (lancedb_sync — its sensor idles for weeks BY DESIGN) must NOT be
-                  # listed, or they alert forever for being idle, which is their correct state.
-                  # ai_session is deliberately absent: its schedule is STOPPED and the job has never succeeded
-                  # (B94 audit). Add it here once the schedule is enabled and a run passes — a known-open item
-                  # should not page every 30 minutes.
-                  threshold_for() {
-                    case "$1" in
-                      weyland_ingestion_job)              echo 108000 ;;  # daily 02:17  -> 30h
-                      weyland_catalog_job)                echo 108000 ;;  # daily 00:50  -> 30h (was 6h->8h; daily since 2026-08-07, budget fixed 2026-09-27)
-                      weyland_timeseries_job)             echo 108000 ;;  # daily 00:20  -> 30h (was 4h->6h; daily since 2026-08-07, budget fixed 2026-09-27)
-                      datahub_catalog_emit_job)           echo 108000 ;;  # daily 00:35  -> 30h (was 6h->8h; daily since 2026-08-07, budget fixed 2026-09-27)
-                      soda_quality_job)                   echo 108000 ;;  # daily 05:30  -> 30h
-                      linear_backup_job)                  echo 108000 ;;  # daily 05:20  -> 30h (B194 Linear backup, docs/dr.md)
-                      weyland_datasets_music_land_job)    echo 108000 ;;  # daily 03:00  -> 30h
-                      weyland_datasets_health_land_job)   echo 108000 ;;  # daily 04:00  -> 30h
-                      weyland_dbt_job)                    echo 691200 ;;  # weekly Sun   -> 8d
-                      weyland_eval_job)                   echo 691200 ;;  # weekly Sat   -> 8d
-                      weyland_eval_score_job)             echo 691200 ;;  # weekly Sat   -> 8d
-                      *)                                  echo 0      ;;  # 0 = not monitored
-                    esac
+                  JOBS_FILE="${JOBS_FILE:-/tmp/jobs.txt}"
+
+                  # Istio sidecar-on-a-Job: the injected istio-proxy runs forever, so without this the Job never
+                  # completes (pod stuck "error"/0/2) and concurrencyPolicy:Forbid deadlocks the next run. Tell the
+                  # pilot-agent (15020) / Envoy admin (15000) to quit so the pod terminates. On EXIT, so a psql
+                  # failure or the fail-closed exit below still releases the pod instead of waiting out the deadline.
+                  quit_sidecar() { for _p in 15020 15000; do wget -q -O- --post-data='' "http://localhost:$_p/quitquitquit" 2>/dev/null && break; done || true; }
+                  trap quit_sidecar EXIT
+
+                  # Per-job staleness budget = ~1.25x-2x the schedule interval, so ONE late run doesn't page.
+                  # ONE ROW PER JOB WHOSE SCHEDULE IS RUNNING — no more, no less. scripts/check-dagster-watchdog-budgets.sh
+                  # (repo-guards, B196) parses this block against every ScheduleDefinition and fails CI on: a RUNNING
+                  # schedule with no row, a budget under 1.10x its cron interval, a row for a STOPPED schedule, or a row
+                  # naming a job with no schedule. On-demand jobs (hydrate/transform/aidlc_kb/__ASSET_JOB) and
+                  # event-driven ones (lancedb_sync — its sensor idles for weeks BY DESIGN) must NOT be listed, or they
+                  # alert forever for being idle, which is their correct state.
+                  # Every listed job must also have RUN at least once: a listed job with no row in `runs` fires
+                  # DagsterJobNeverRan (B196) — a schedule that never fires is the silent failure the query alone missed.
+                  BUDGETS=$(cat <<'BUDGETS_EOF'
+                  feast_materialize_job              108000  # daily 00:05  -> 30h (unwatched until 2026-09-27, B196)
+                  weyland_timeseries_job             108000  # daily 00:20  -> 30h (was 4h->6h; daily since 2026-08-07, budget fixed 2026-09-27)
+                  datahub_catalog_emit_job           108000  # daily 00:35  -> 30h (was 6h->8h; daily since 2026-08-07, budget fixed 2026-09-27)
+                  weyland_catalog_job                108000  # daily 00:50  -> 30h (was 6h->8h; daily since 2026-08-07, budget fixed 2026-09-27)
+                  weyland_ingestion_job              108000  # daily 02:17  -> 30h
+                  weyland_datasets_music_land_job    108000  # daily 03:00  -> 30h
+                  weyland_datasets_health_land_job   108000  # daily 04:00  -> 30h
+                  linear_backup_job                  108000  # daily 05:20  -> 30h (B194 Linear backup, docs/dr.md)
+                  soda_quality_job                   108000  # daily 05:30  -> 30h
+                  registrations_reconcile_job        691200  # weekly Sun 05:00 -> 8d (unwatched until 2026-09-27, B196)
+                  weyland_dbt_job                    691200  # weekly Sun 06:00 -> 8d
+                  weyland_eval_job                   691200  # weekly Sat 03:00 -> 8d
+                  weyland_eval_score_job             691200  # weekly Sat 05:00 -> 8d
+                  BUDGETS_EOF
+                  )
+                  threshold_for() {   # 0 = not monitored
+                    echo "$BUDGETS" | awk -v j="$1" '$1==j {print $2; f=1; exit} END {if (!f) print 0}'
                   }
 
                   fire() {   # fire <alertname> <job> <severity> <summary> <description>
@@ -101,7 +115,13 @@ spec:
 
                   PGPASSWORD="$DAGSTER_PG_PASSWORD" psql -t -A -F'|' \
                     -h weyland-postgres.weyland.svc.cluster.local -U weyland -d dagster \
-                    -c "$SQL" > /tmp/jobs.txt
+                    -c "$SQL" > "$JOBS_FILE"
+
+                  # Fail closed: an empty run list is the database answering nothing, not every job being healthy.
+                  if ! grep -q '|' "$JOBS_FILE"; then
+                    echo "no runs returned from the dagster run database — refusing to report 0 alerts"
+                    exit 1
+                  fi
 
                   ALERTS=0
                   while IFS='|' read -r JOB STATUS AGE; do
@@ -121,12 +141,20 @@ spec:
                         "$JOB has not completed successfully within its expected cadence — it may be failing, its schedule may be STOPPED, or the daemon may be stuck. Check https://dagster.weyland.lab/automation for the schedule state."
                       ALERTS=$((ALERTS+1))
                     fi
-                  done < /tmp/jobs.txt
+                  done < "$JOBS_FILE"
+
+                  # A budgeted job with NO row in `runs` never appears above, so it could never alert (B196) — the
+                  # budget promised a watch that was not happening. Found with B194's linear_backup_job, which sat
+                  # there until its first scheduled run.
+                  NEVER=$(echo "$BUDGETS" | awk 'NF && $1 !~ /^#/ {print $1}')
+                  for JOB in $NEVER; do
+                    grep -q "^$JOB|" "$JOBS_FILE" && continue
+                    fire "DagsterJobNeverRan" "$JOB" "warning" \
+                      "Dagster job $JOB has a freshness budget but has never run" \
+                      "$JOB is watched by dagster-freshness-check but has no run in the run database: its schedule may be STOPPED in the UI, never loaded, or the job renamed. Check https://dagster.weyland.lab/automation."
+                    ALERTS=$((ALERTS+1))
+                  done
                   echo "done — $ALERTS alert(s) fired"
-                  # Istio sidecar-on-a-Job: the injected istio-proxy runs forever, so without this the Job never
-                  # completes (pod stuck "error"/0/2) and concurrencyPolicy:Forbid deadlocks the next run. Tell the
-                  # pilot-agent (15020) / Envoy admin (15000) to quit so the pod terminates cleanly.
-                  for _p in 15020 15000; do wget -q -O- --post-data='' "http://localhost:$_p/quitquitquit" 2>/dev/null && break; done || true
               env:
                 - name: DAGSTER_PG_PASSWORD
                   valueFrom: { secretKeyRef: { name: dagster-postgres-secret, key: password } }

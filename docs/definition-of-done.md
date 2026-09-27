@@ -189,7 +189,12 @@ open gap = not done:
 - **Backed up (if stateful)** — any PVC/DB/object store with non-reproducible data has a backup (CronJob +
   rotation); reproducible stores say so. **Graded in full by Pillar 9** (restore tested, blast radius, a
   [dr.md](dr.md) row) — this bullet only asks that the job exists.
-- **Triggered** — anything that must stay fresh has a schedule/sensor + a freshness signal, not manual-only.
+- **Triggered** — anything that must stay fresh has a schedule/sensor + a freshness signal, not manual-only. The
+  freshness signal is **GUARDED, not hand-ticked**: a k8s CronJob needs a budget in `cron-freshness-rules.yaml`
+  (`scripts/check-cron-freshness-budgets.sh`), and a Dagster schedule whose code `default_status` is RUNNING needs a
+  budget row in `k8s/dagster/freshness.yaml` at ≥ 110% of its interval, with none for a STOPPED schedule
+  (`scripts/check-dagster-watchdog-budgets.sh`, B196). Both run in `repo-guards`. A budgeted Dagster job that has never
+  run fires `DagsterJobNeverRan`, so a schedule that never fires is not silently "fresh".
 
 ## 7. Security & code-quality scan (every batch that touches code)
 

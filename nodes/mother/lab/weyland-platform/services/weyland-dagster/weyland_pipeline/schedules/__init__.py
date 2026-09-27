@@ -131,7 +131,9 @@ weyland_ai_session_schedule = ScheduleDefinition(
     cron_schedule="5 0 * * *",  # daily 00:05 — OVERNIGHT-ONLY (also STOPPED/OFF; no mid-day auto-runs, 2026-08-07) — per docs/schedules.md
     name="weyland_ai_session_schedule",
     execution_timezone="America/New_York",
-    default_status=DefaultScheduleStatus.RUNNING,
+    # STOPPED to match live (2026-09-27, B196): the code said RUNNING while the UI held it STOPPED and the job had
+    # never passed. check-dagster-watchdog-budgets.sh reads this default — enable it here AND add its budget.
+    default_status=DefaultScheduleStatus.STOPPED,
 )
 
 # Music domain — land all music datasets (on-demand; FMA zip is ~342MB, new B75 sources vary).
@@ -203,7 +205,7 @@ weyland_datasets_music_land_schedule = ScheduleDefinition(
     cron_schedule="0 3 * * *",  # 3 AM daily — assets self-skip if fresh (30-day window)
     name="weyland_datasets_music_land_schedule",
     execution_timezone="America/New_York",
-    default_status=DefaultScheduleStatus.STOPPED,  # enable when ready for automation
+    default_status=DefaultScheduleStatus.RUNNING,  # enabled in the UI and running nightly; code matched to live 2026-09-27 (B196)
 )
 
 weyland_datasets_health_land_schedule = ScheduleDefinition(
@@ -211,7 +213,7 @@ weyland_datasets_health_land_schedule = ScheduleDefinition(
     cron_schedule="0 4 * * *",  # 4 AM daily — assets self-skip if fresh (7-day window)
     name="weyland_datasets_health_land_schedule",
     execution_timezone="America/New_York",
-    default_status=DefaultScheduleStatus.STOPPED,  # enable when ready for automation
+    default_status=DefaultScheduleStatus.RUNNING,  # enabled in the UI and running nightly; code matched to live 2026-09-27 (B196)
 )
 
 # B65 Tier-2 — TimescaleDB time-series writes: sync eval/guardrail/dagster/unleash/datahub → hypertables.
