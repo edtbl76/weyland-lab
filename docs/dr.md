@@ -61,7 +61,7 @@ Each one needs either a row above or a written "reproducible" reason.
    dated snapshots.
 4. **`rogueone-backup` is not mirrored to NVMe.** It lives only on the USB disk.
 5. **No off-site copy of lab data** ([runbooks/backups.md](runbooks/backups.md) § Offsite has the 3-2-1 plan).
-6. **Linear had no backup.** Closed 2026-09-27: nightly snapshot (B194 Slice 1) + a passing restore drill (Slice 2). Limit: the Free plan caps issues at 250, so a full-workspace restore needs archiving or a temporary upgrade.
+6. **Linear had no backup.** Closed 2026-09-27: nightly snapshot (B194 Slice 1) + a passing restore drill (Slice 2). Limit: the Free plan caps issues at 250, so a full-workspace restore needs archiving or a temporary upgrade. Alert drill 2026-09-27: a skipped run fired `DagsterJobStale` → Telegram.
 7. **Manual escrows can't be checked.** The SealedSecrets key and the restic password have no record of when they
    were last exported.
 
