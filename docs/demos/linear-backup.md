@@ -4,8 +4,17 @@ The nightly Linear snapshot, and the checks that prove it is a real backup rathe
 diagram: [../diagrams/flow-linear-backup.md](../diagrams/flow-linear-backup.md). Runbook:
 [../runbooks/linear-backup.md](../runbooks/linear-backup.md). DR row: [../dr.md](../dr.md).
 
-**Status: PARTIAL.** Proven before deploy on 2026-09-26 (below). The live walkthrough runs after the new
-`dagster-user-code` image ships; that run flips ledger row 84 to DONE.
+**Status: DONE (live, 2026-09-27).** Shipped in `dagster-user-code:git-473df840` (lean ship, pipeline #192) and
+run live with the runbook's canonical command:
+
+| Live check (2026-09-27 01:39 UTC) | Result |
+|---|---|
+| `dagster job execute -j linear_backup_job` in the pod | `RUN_SUCCESS`; 254 issues, 126 comments, 1,038 history events; 8.2s |
+| Real bucket `linear-backup` | snapshot `2026-09-27T013914Z/`: 22 objects, `manifest.json` last |
+| Manifest issue count vs an independent live count | **254 = 254** |
+| Retention rule | `expire-snapshots` Enabled, prefix `snapshots/`, 90 days |
+| Key in the pod | present, 48 chars (checked without printing it) |
+| Watchdog sees the job | **pending** — the CLI run above used an ephemeral Dagster instance (no `DAGSTER_HOME` in the pod), so it never reached the run DB; the 02:00 UTC `dagster-freshness-check` did not list it. The first scheduled run (05:20 NY) is the proof; confirm `check linear_backup_job status=SUCCESS` in the next watchdog log |
 
 ## Proven before deploy (2026-09-26)
 
@@ -32,7 +41,8 @@ diagram: [../diagrams/flow-linear-backup.md](../diagrams/flow-linear-backup.md).
 
 ## CLI walkthrough (after deploy)
 
-Run a backup now:
+Run a backup now (CLI — writes a real snapshot but is not recorded in Dagster's run DB; use the UI's **Launch run**
+when the run must count for the watchdog):
 
 [mother]
 ```

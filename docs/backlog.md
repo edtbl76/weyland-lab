@@ -2470,7 +2470,7 @@ key escrows with no export date. **Also found:** the Bifrost `dod-8-pillar-gate`
 `dod-gate`; the stale `dod-8-pillar-gate` still sits in Bifrost until deleted. The read-only key already exists
 (`LINEAR_API_KEY_RO` in `scripts/.env`, also the CI secret `linear_api_key`); only its in-cluster SealedSecret is new.
 
-**Slice 1 — BUILT 2026-09-26, pending deploy.** Dagster asset `linear_workspace_snapshot` (job `linear_backup_job`,
+**Slice 1 — LIVE 2026-09-27** (`dagster-user-code:git-473df840`, lean ship #192; live run 01:39 UTC: 254 issues = live count 254, 22 objects manifest-last, 90d lifecycle; demo ledger 84 DONE). **Shipping it surfaced two more gaps, both closed:** `scripts/linear-high-project-views.py` (B119) had no tests and had dropped `scripts/` coverage 69→65%, failing every pipeline — 9 tests added (→ 82%); and `ship-images.sh` could not ship LEAN (always a ~110-min full matrix; #191 was killed at minute 108 under node load) — it now passes `RUN_FIXTURES` through (5 bats, runbooks updated). Built 2026-09-26: Dagster asset `linear_workspace_snapshot` (job `linear_backup_job`,
 schedule 05:20 NY, RUNNING by default) → `s3://linear-backup/snapshots/<ts>/` (21 entity files, manifest last, 90-day
 lifecycle), NVMe mirror via `minio-backup`, `dagster-freshness-check` 30h budget, `LINEAR_API_KEY_RO` via
 `weyland/linear-backup-secret` (allow-listed; `optional: true` so a missing Secret fails only the backup, not the whole
@@ -2482,8 +2482,7 @@ live run), `arch.md` §10c, `schedules.md`, LikeC4. **Also fixed on the way:** `
 `registrations_reconcile_job` or `soda_quality_job`; `seal-secrets.sh` headers read weyland 29 / jupyterhub 7 (real
 32 / 10) and `secrets.md` said 55 (real 69). **Found, not fixed:** `dagster-freshness-check` only sees jobs that have
 at least one run, so a monitored job whose schedule never fires is silent (an absence gap — add a "never ran" check).
-**Remaining:** create + verify + seal the Secret, push, ship the image, run the live demo; then Slice 2 (restore drill)
-and Slice 3 (lakehouse view).
+**Remaining:** Slice 2 (restore drill) and Slice 3 (lakehouse view).
 
 **Scope.** (1) Dagster asset, nightly pre-dawn (Design Rule #5, schedules.md row), pages the Linear GraphQL API →
 timestamped MinIO snapshot (issues + state history, comments, projects, initiatives + updates, labels, templates, views,
@@ -3533,6 +3532,17 @@ upgrade later). Planned as **Proxmox**, mirroring Weyland's own layout:
   the backups stay pinned to mother (docs/dr.md blast radius unchanged). The join brings node labels + pinning, and a
   pass over the single-node assumptions (schedules.md Design Rule #4 "one node, one RAM pool", hostPath backups).
 - Unblocks on landing: **B159**, **B161** Phase 2, **B44**. Purchase is the owner's call ($0 budget otherwise).
+- **Storage: 4 TB is plenty.** Today mother's root disk uses 685 / 1,178 GiB and MinIO 580 GiB of 3.9 TiB (17%, 22
+  buckets). The box needs ~300–600 GB for a model library (a 70B Q4 is ~40 GB) + ~100–200 GB for node images/ephemeral.
+- **DR bonus — a stated goal of the purchase:** the spare space holds a full MinIO copy, putting backups on a
+  **second machine** for the first time. Closes two docs/dr.md gaps (core Postgres dumps and `rogueone-backup` exist
+  only on mother's USB disk). Same house, so still not off-site. Add the dr.md rows when it lands.
+- **vLLM / SGLang (checked 2026-09-26): possible, experimental.** Neither lists gfx1151 as supported. vLLM needs a
+  build against ROCm nightly and `--enforce-eager` (a HIP-graph stability bug), and decodes well below llama.cpp on the
+  same box. SGLang runs from community images (e.g. a `gfx1151` build dated 2026-09-23). Memory bandwidth (~256 GB/s)
+  caps single-stream speed whatever the engine; vLLM/SGLang pay off under concurrency, which a one-user lab rarely has.
+  **Default serving = Ollama/llama.cpp on Vulkan;** vLLM/SGLang here are B111-style experiments — the CUDA path on
+  rogueone stays primary.
 
 **↑ HIGH 2026-09-26 — the cost/benefit gate below has flipped.** The 09-19 hold reasoned that only **B44** (Medium) needed mother memory, so building a sleep platform for one marginal tool was disproportionate. Now it blocks two High items: **B159** (onboarding services, EMA-216) and **B161** (Dify Phase 2, EMA-218). It also gates B44, B76 and the ReportPortal candidate in B189. Mother memory is the lab's ranking bottleneck, so B134 moves up to match what it blocks.
 

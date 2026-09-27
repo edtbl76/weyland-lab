@@ -32,7 +32,13 @@ API keys themselves. Recorded so a restore doesn't assume them.
 
 ## Operate
 
-Run a backup now (in the user-code pod, recorded under the job name so the watchdog sees it):
+Run a backup now — **UI (recorded):** Dagster (`dagster.weyland.lab`) → Jobs → `linear_backup_job` → **Launch run**.
+That run goes through the daemon into Dagster's run database, so `dagster-freshness-check` sees it.
+
+**CLI (writes a real snapshot, NOT recorded):** the user-code pod has no `DAGSTER_HOME`, so `dagster job execute`
+runs on an ephemeral in-memory instance. The snapshot lands in MinIO like any other, but the run never reaches the
+run database — the watchdog cannot see it, and it does not reset the 30h budget (found 2026-09-27: a CLI run at
+01:39 UTC was absent from the 02:00 watchdog check). Use it to test the export, not to satisfy the alert:
 
 [mother]
 ```

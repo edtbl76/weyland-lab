@@ -237,7 +237,7 @@ constraint) — a `mysqld-exporter` is the follow-up. Same 7-point gate applies 
   `s3://<repo>/main/lancedb` via object_store S3 opts + LAKEFS creds). ANN index when ≥2000 rows; else exact.
   Distinct value = object-storage-native / larger-than-memory (the natural OFF home).
 - **Query:** in-process — `scripts/lancedb_query.py` + [../query/lancedb.md](../query/lancedb.md) (no server/port).
-- **Catalog:** `emit_lancedb` custom emitter (platform `lancedb`) in the 6h `datahub_catalog_emit_job`.
+- **Catalog:** `emit_lancedb` custom emitter (platform `lancedb`) in the nightly (00:35) `datahub_catalog_emit_job`.
 - **UI — Lance Data Viewer** (`lancedb.weyland.lab`, forward-auth): the viewer is **filesystem-only** (mounts
   `/data`, no S3), so a job **`mc mirror`s** the tables from lakeFS → a `lancedb-viewer-data` PVC it reads RO.
   lakeFS stays source of truth. `k8s/data-mesh/lancedb-viewer.yaml`. Pin the viewer image tag to the Lance

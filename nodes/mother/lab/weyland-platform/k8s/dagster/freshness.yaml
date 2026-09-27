@@ -65,9 +65,9 @@ spec:
                   threshold_for() {
                     case "$1" in
                       weyland_ingestion_job)              echo 108000 ;;  # daily 02:17  -> 30h
-                      weyland_catalog_job)                echo  28800 ;;  # every 6h     -> 8h
-                      weyland_timeseries_job)             echo  21600 ;;  # every 4h     -> 6h
-                      datahub_catalog_emit_job)           echo  28800 ;;  # every 6h     -> 8h
+                      weyland_catalog_job)                echo 108000 ;;  # daily 00:50  -> 30h (was 6h->8h; daily since 2026-08-07, budget fixed 2026-09-27)
+                      weyland_timeseries_job)             echo 108000 ;;  # daily 00:20  -> 30h (was 4h->6h; daily since 2026-08-07, budget fixed 2026-09-27)
+                      datahub_catalog_emit_job)           echo 108000 ;;  # daily 00:35  -> 30h (was 6h->8h; daily since 2026-08-07, budget fixed 2026-09-27)
                       soda_quality_job)                   echo 108000 ;;  # daily 05:30  -> 30h
                       linear_backup_job)                  echo 108000 ;;  # daily 05:20  -> 30h (B194 Linear backup, docs/dr.md)
                       weyland_datasets_music_land_job)    echo 108000 ;;  # daily 03:00  -> 30h
