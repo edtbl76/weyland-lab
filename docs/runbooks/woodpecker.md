@@ -118,7 +118,10 @@ tags. Steps: `detect-changes → build → kubeconform → deploy-handoff`.
     night (~4–7 GiB free), so moving the 01:00 cron buys nothing.
   - **Ad-hoc FULL runs are the exposure.** The only two kills (#169/#170) were full runs launched ~23:43–00:45, as the
     Dagster pre-dawn batch started; free memory dipped to 1.36 GiB (below the eviction threshold) and the kernel
-    OOM-killer fired. **So: trigger ad-hoc runs LEAN (above).** If you genuinely need the full matrix on demand, run it
+    OOM-killer fired. **So: trigger ad-hoc runs LEAN (above)** — including image ships: `RUN_FIXTURES=0
+    bash scripts/ship-images.sh` (the loop passes it through since 2026-09-26; see `ship-images.md`). A third kill,
+    **#191 (2026-09-26, 15:05–16:54, daytime)**, was a full ad-hoc ship: the agent lost the API server
+    (`http2: client connection lost`) and the server expired the task (`queue: task expired`) at minute 108. If you genuinely need the full matrix on demand, run it
     outside 00:00–01:00, or let the 01:00 nightly do it. If the nightly itself ever starts getting killed, the remaining
     lever is capacity (headroom on mother) — a sizing decision, not a CI change.
 - **Build engine = a persistent `buildkitd` Deployment** (`k8s/woodpecker/buildkitd.yaml`, Argo app

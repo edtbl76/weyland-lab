@@ -141,6 +141,23 @@ Needs the `repo` scope, which covers PR list / merge / close.
 bash /home/edwardmangini/IdeaProjects/weyland/scripts/ship-images.sh
 ```
 
+**Lean ship — when the change doesn't touch `golden-paths/`** (the woodpecker runbook's "trigger ad-hoc runs LEAN"):
+compute the selector BEFORE you push (after the push the diff is empty and it fails closed to `1`), then pass it:
+
+```
+RUN_FIXTURES="$(bash /home/edwardmangini/IdeaProjects/weyland/scripts/ci/select-fixtures.sh)"
+```
+
+```
+RUN_FIXTURES=0 bash /home/edwardmangini/IdeaProjects/weyland/scripts/ship-images.sh
+```
+
+`RUN_FIXTURES=0` skips the ~46 fixture-language lanes and the all-paths golden smoke; every production lane
+(test-python/shell/java, scan-java, the integration lanes, sonar-gate, build, kubeconform, deploy-handoff) still
+runs. Unset = the full matrix, as before. Anything but `0`/`1` aborts at FR1.3 before a pipeline is created (a
+boolean is YAML-coerced and filters the pipeline empty). Added 2026-09-26 after pipeline #191 (a full ad-hoc run)
+was killed at minute 108 when mother came under load (`queue: task expired` after the agent lost the API server).
+
 **Run it against a no-op change the first time.** A failed gate then costs nothing, and every gate
 still executes.
 

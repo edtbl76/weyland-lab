@@ -773,6 +773,20 @@ affected_apps() {
 # "can't evaluate field Number in type []*woodpecker.Pipeline". Hence the range.
 WP_FIELDS='go-template={{range .}}{{.Number}} {{.Status}}{{"\n"}}{{end}}'
 
+# pipeline_create_vars — the extra `pipeline create` arguments for RUN_FIXTURES (2026-09-26).
+# The loop creates its own pipeline, so the woodpecker runbook's "trigger ad-hoc runs LEAN" advice had no way
+# in: every ship ran the full ~110-min matrix, and #191 was killed at minute 108 under node load. Opt-in only —
+# UNSET adds nothing, so the default ship (and every existing caller) stays the full matrix. Only the STRINGS
+# 0 and 1 are accepted: `--var RUN_FIXTURES=true` is YAML-coerced to a bool, the pipeline's `when` compare
+# errors, and the server filters the pipeline empty (HTTP 204) — refuse it here instead of shipping nothing.
+pipeline_create_vars() {
+  [ -n "${RUN_FIXTURES+x}" ] || return 0
+  case "$RUN_FIXTURES" in
+    0 | 1) printf -- '--var RUN_FIXTURES=%s' "$RUN_FIXTURES" ;;
+    *) printf 'RUN_FIXTURES must be 0 or 1 (got %q) — use 0 for a lean ship when golden-paths/ is untouched\n' "$RUN_FIXTURES"; return 1 ;;
+  esac
+}
+
 # First non-blank line's Nth field, so a trailing newline from the template cannot become an answer.
 wp_field() {
   awk -v n="$1" 'NF { print $n; exit }'
@@ -1063,9 +1077,15 @@ main() {
   # "→ triggering pipeline" and returned to a clean prompt; no pipeline was created and nothing said
   # why. Capture the status explicitly, keep stderr in a file so it cannot be mistaken for output,
   # and let the guard run.
-  local num create_rc errfile create_err
+  local num create_rc errfile create_err extra
+  if ! extra="$(pipeline_create_vars)"; then
+    FAILED_GATE="FR1.3"
+    FAILED_REASON="a valid RUN_FIXTURES before creating the pipeline — ${extra}"
+    abort
+  fi
   errfile="$(mktemp)"
-  num="$(woodpecker-cli pipeline create "$REPO" --branch "$BASE" --output "$WP_FIELDS" 2>"$errfile" | wp_field 1)" && create_rc=0 || create_rc=$?
+  # shellcheck disable=SC2086  # $extra is either empty or exactly `--var RUN_FIXTURES=<0|1>` — split on purpose
+  num="$(woodpecker-cli pipeline create "$REPO" --branch "$BASE" $extra --output "$WP_FIELDS" 2>"$errfile" | wp_field 1)" && create_rc=0 || create_rc=$?
   create_err="$(cat "$errfile")"
   rm -f "$errfile"
   # A number, or nothing. `--output json` is accepted and silently ignored by woodpecker-cli v3, so

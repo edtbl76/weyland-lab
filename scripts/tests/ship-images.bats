@@ -188,7 +188,7 @@ stub_git_pushed() {
   stub_case woodpecker-cli 'log' 0 'stop here'
   stub_dispatch kubectl
   stub_case kubectl 'get' 0 'registry.weyland.lab/scan-suite:git-2c73c898'
-  RUN_FIXTURES=0 run bash "$SHIP"
+  RUN_FIXTURES=0 SHIP_POLL_TIMEOUT=2 SHIP_POLL_INTERVAL=0 run bash "$SHIP"
   called_with woodpecker-cli 'pipeline create edtbl76/weyland-lab --branch main --var RUN_FIXTURES=0'
 }
 
@@ -196,9 +196,12 @@ stub_git_pushed() {
   stub_git_pushed
   stub_dispatch woodpecker-cli
   stub_case woodpecker-cli 'pipeline create' 0 '42 pending'
+  stub_case woodpecker-cli 'pipeline show' 0 '42 failure'   # terminal, so a missing guard fails fast in the Red run
+  stub_case woodpecker-cli 'log' 0 'stop here'
   stub_dispatch kubectl
   stub_case kubectl 'get' 0 'registry.weyland.lab/scan-suite:git-2c73c898'
-  RUN_FIXTURES=yes run bash "$SHIP"
+  # Bounded poll: if the guard is missing (the Red run), the loop must fail fast, not wait out 120 min.
+  RUN_FIXTURES=yes SHIP_POLL_TIMEOUT=2 SHIP_POLL_INTERVAL=0 run bash "$SHIP"
   [ "$status" -ne 0 ]
   [[ "$output" == *"RUN_FIXTURES must be 0 or 1"* ]]
   ! called_with woodpecker-cli 'pipeline create'
