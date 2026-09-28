@@ -41,6 +41,10 @@ Proxmox, SaaS). Part of the IaC track (B58).
   that annotation). Set on **all** helm apps.
 - **Helm→Argo adoption shows a bigger diff** than raw apps (Argo swaps Helm's `managed-by` metadata for its
   tracking) — expected; do helm syncs **deliberately, one at a time**, not all-at-once blind.
+- **After adopting a Helm release, delete its release Secrets — never `helm uninstall`.** Argo takes over the objects
+  but Helm's `sh.helm.release.v1.<name>.v*` Secrets stay behind, so `helm list` keeps showing a release Argo now owns.
+  `helm uninstall` would DELETE the workload. Remove only the records (done for headlamp 2026-09-28):
+  `kubectl -n <ns> delete secret -l owner=helm,name=<release>` — then confirm the app is still Synced + Healthy.
 - **`releaseName` must match the LIVE helm release** or chart-templated names diverge → duplicates. The
   kube-prometheus-stack release is literally named **`monitoring`**, not `kube-prometheus-stack`.
 - **Multi-source helm-with-git-values:** one source = the chart (`chart:` + `targetRevision:` = chart version),
