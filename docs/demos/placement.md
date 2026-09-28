@@ -61,10 +61,42 @@ Expect a count in the thousands and no `node_filesystem_` lines.
 
 ## UI walkthrough (UAT)
 
-Grafana Explore → Prometheus (`https://grafana.weyland.lab/explore`):
-1. Query `up{job="systemd-rogueone"}` — **confirm** one series, value 1 while rogueone is awake.
-2. Query `node_systemd_unit_state{job="systemd-rogueone",state="active",name="rag-embed.service"}` — **confirm** 1.
-3. Query `kube_cronjob_created{cronjob="placement-coverage"}` — **confirm** one series in `monitoring`.
+Grafana 13, about 3 minutes. rogueone must be awake (it is the machine you are on).
+
+**Open Explore**
+1. Go to `https://grafana.weyland.lab` and sign in (Keycloak).
+2. In the left menu, click **Explore** (the compass icon). If the menu is collapsed, click the ☰ icon at the top left
+   first.
+3. At the top left of the query pane, open the data-source dropdown and choose **Prometheus**.
+4. On the query row, find the **Builder | Code** toggle on the right and click **Code**. A single text box appears.
+5. Under the text box, open **Options** and set **Type** to **Instant**. (Instant gives one row per series in a table;
+   Range would draw a graph instead.)
+
+For each check: clear the text box, paste the query, press **Shift+Enter** (or click **Run query** at the top right),
+then read the **Table** panel below.
+
+**Check 1: Prometheus is scraping rogueone's exporter**
+```
+up{job="systemd-rogueone"}
+```
+Confirm: exactly **1 row**; `instance` is `192.168.1.230:9100`, `host` is `rogueone`; **Value = 1**.
+A 0, or no rows, fails the check (the exporter is down or unreachable).
+
+**Check 2: the exporter reports a real lab service as running**
+```
+node_systemd_unit_state{job="systemd-rogueone",state="active",name="rag-embed.service"}
+```
+Confirm: exactly **1 row**; `name` is `rag-embed.service`, `state` is `active`, `type` is `simple`; **Value = 1**.
+A 0 means the service is not active on rogueone right now.
+
+**Check 3: the nightly check exists in the cluster**
+```
+kube_cronjob_created{cronjob="placement-coverage"}
+```
+Confirm: exactly **1 row**; `namespace` is `monitoring`, `cronjob` is `placement-coverage`. The **Value is a large
+number** (e.g. `1790566521`): the CronJob's creation time in Unix seconds, not a 1. Any value passes; no rows fails.
+
+Reply with pass/fail for each (or a screenshot of the three tables).
 
 ## Teardown
 

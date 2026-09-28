@@ -119,7 +119,13 @@ grafana:
       auth_url: https://keycloak.weyland.lab/realms/weyland/protocol/openid-connect/auth
       token_url: https://keycloak.weyland.lab/realms/weyland/protocol/openid-connect/token
       api_url: https://keycloak.weyland.lab/realms/weyland/protocol/openid-connect/userinfo
-      role_attribute_path: "'Admin'"   # single-operator lab — every SSO login lands as Org Admin
+      # Single-operator lab — every SSO login lands as Org Admin. NOT the bare literal "'Admin'": grafana.ini strips a
+      # value's surrounding quotes, leaving the JMESPath `Admin` (a field lookup → null), so logins silently fell back
+      # to Viewer — found 2026-09-28 when Explore was denied (`action:datasources:explore`) and grafana.db held
+      # ed@timberbacklabs.com as Viewer. An expression that does not start AND end with a quote survives the ini parser.
+      role_attribute_path: "email && 'Admin'"
+      # Fail closed: a login whose role cannot be mapped is REFUSED instead of silently becoming Viewer.
+      role_attribute_strict: true
       tls_client_ca: /etc/grafana/mkcert-rootCA.pem   # verify Keycloak's cert against the mounted mkcert root
   resources:
     # 256Mi was too tight — Grafana + its 2 sidecars run ~310Mi and OOMKilled (→502s).
