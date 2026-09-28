@@ -22,6 +22,7 @@ below are pushed.
 | Drill: a rogueone row for a unit that is not running | exit 1, names it |
 | Drill: rogueone silent for 24h (wrong exporter port) | exit 2, `no systemd series ... in the last 24h` |
 | Drill: Prometheus unreachable | exit 2 |
+| First in-cluster Job (2026-09-28, runbook command) | ran end to end in `monitoring`; exit 1 naming `systemd-hostnamed.service` — a stock D-Bus-activated unit, active only briefly, that the exporter's first hours had not seen. Added to `host_os_units`; a 15-day `max_over_time` sweep found no other uncovered unit |
 
 ## CLI walkthrough
 
