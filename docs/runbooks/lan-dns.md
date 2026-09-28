@@ -55,7 +55,8 @@ getent hosts registry-1.docker.io                               # host DNS resto
    rsync -av nodes/mother/host/systemd/resolved.conf.d/weyland-lab.conf emangini@mother:/tmp/weyland-lab.conf
    ```
    then on mother: `sudo install -m 0644 /tmp/weyland-lab.conf /etc/systemd/resolved.conf.d/weyland-lab.conf && sudo systemctl restart systemd-resolved`
-2. **Manifest**: push `k8s/coredns-lan.yaml`, sync the `coredns-lan` Argo app (manual-sync), scale the deploy back to 1.
+2. **Manifest**: push `k8s/coredns-lan.yaml` — the `coredns-lan` Argo app auto-syncs with selfHeal since 2026-09-28
+   (`prune: false`); `replicas` comes from git, so set it back to 1 in the manifest rather than scaling by hand.
 
 ## Verify (all must pass)
 ```

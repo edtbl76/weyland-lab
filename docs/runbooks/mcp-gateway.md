@@ -89,14 +89,15 @@ for a demo via `/admin/mode`, Bearer `GUARD_ADMIN_TOKEN`): operator act → allo
 ## Anti-spoof — the act endpoints are gateway-only (Istio, 2026-07-29)
 `policy.gate` blocks acts with no/unknown actor, but the tool-server trusts `X-Forwarded-Consumer` from any caller — so
 a direct in-cluster POST to `/pipeline/trigger` with a forged `X-Forwarded-Consumer: weyland-operator` would still fire.
-Closed by an Istio **`AuthorizationPolicy`** (`k8s/istio/authz-toolserver-act.yaml`, Argo app `istio-config` — **manual
-sync**): a DENY rule scoped to the act paths (`/mcp-act*`, `/pipeline/trigger`, `/evals/run`, `/evals/score`), keyed on
+Closed by an Istio **`AuthorizationPolicy`** (`k8s/istio/authz-toolserver-act.yaml`, Argo app `istio-config` —
+**auto-sync with selfHeal since 2026-09-28**, `prune: false`): a DENY rule scoped to the act paths (`/mcp-act*`, `/pipeline/trigger`, `/evals/run`, `/evals/score`), keyed on
 `notPrincipals: [cluster.local/ns/weyland/sa/weyland-mcp-gateway]`. Any source that isn't the gateway SA — **including a
 plaintext caller with no principal** — is denied at L7 before the app runs; read paths stay open. Requires the gateway
 **meshed with its own SA** (both ends meshed → auto-mTLS carries the SPIFFE identity).
 
-**Ordering:** mesh the gateway FIRST (auto-sync `mcp-gateway`), confirm it's up, THEN sync `istio-config` — if the policy
-lands while the gateway is un-meshed (no principal) the gateway's own acts get denied too.
+**Ordering:** mesh the gateway FIRST (auto-sync `mcp-gateway`), confirm it's up, THEN push the policy change —
+`istio-config` now auto-syncs, so the ordering is enforced by **commit order**, not a manual sync. If the policy lands
+while the gateway is un-meshed (no principal) the gateway's own acts get denied too.
 
 Verify (mother) — a forged direct act from a non-gateway pod is denied at L7 (`403 RBAC`), while the operator via the
 gateway still `pass`es its `policy.gate`:
