@@ -2437,8 +2437,11 @@ Interpretation stated: "every LikeC4 component" = the non-cluster nodes' compone
 placed by the live k8s rows and `check-onboarding-completeness`). Lessons: the OS-unit list must come from what the
 exporter reports, not a `systemctl` listing (missed 39 timers/one-shots); "running" = active in > 50% of the HOST's
 samples over 24h, not any moment (on-demand OS helpers) and not the unit's own samples (they exist only while loaded).
-Findings for follow-up: `trino-noauth-proxy` is kubectl-applied and `headlamp` / `istiod` / Argo CD are Helm-installed
-outside Argo (Pillar 6 reproducibility).
+GitOps gaps it exposed, FIXED 2026-09-28: `trino-noauth-proxy` (kubectl-applied) → the `lightdash` app's third source;
+`headlamp` (Helm, "deferred") → the `headlamp` Argo app (chart 0.42.0 + its Ingress and admin token, all diffed clean
+against live first). `istiod` (istioctl) and Argo CD itself are the recorded deliberate exceptions (runbooks/argocd.md).
+Side finding: the ServiceMonitor-coverage rationale claimed the apps without selfHeal own no replicas — `coredns-lan`
+and `istio-config` (Kiali) do; the prose is corrected.
 
 **Closing Gaps prework for B134** (the Strix Halo purchase). Blocks EMA-195.
 

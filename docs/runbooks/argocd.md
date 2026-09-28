@@ -24,7 +24,7 @@ Proxmox, SaaS). Part of the IaC track (B58).
    (annotation-based tracking — lands on resource metadata, NOT the pod template → **sync does not restart pods**).
 3. **Sync** = pure adoption (stamps ownership, goes green). Then flip to `automated: {selfHeal, prune}` once trusted.
 
-## Apps onboarded (81)
+## Apps onboarded (82)
 - **Raw** (20, auto-sync): open-webui + subdir apps (`dagster`, `glitchtip`, `minio`, `mlflow`, `n8n`,
   `sonarqube`, `unleash`, `uptime-kuma`, `litellm`) + loose-file apps via include-globs (`postgres`, `qdrant`,
   `weaviate`, `neo4j`, `neodash`, `weyland-tool-server`, `apisix`) + raw-extras (`loki-rules`,
@@ -32,7 +32,7 @@ Proxmox, SaaS). Part of the IaC track (B58).
 - **Helm** (8, multi-source — chart from helm repo + values from git via `$values`): `loki`, `alloy`, `tempo`,
   `kube-prometheus-stack`, `opencost`, `woodpecker`, `keda`, `keda-http-add-on`. File: `applications/helm-apps.yaml`.
 - **NOT onboarded (deliberate — still running, just not GitOps-tracked):** istio (istioctl), argocd (self),
-  port-agent (Port outbound-polling action agent), traefik/coredns/rbac (k3s system), code-quality (run-once Jobs); **headlamp deferred**.
+  port-agent (Port outbound-polling action agent), traefik/coredns/rbac (k3s system), code-quality (run-once Jobs). **headlamp onboarded 2026-09-28** (`headlamp` app in `helm-apps.yaml`: chart 0.42.0 + its Ingress and admin token), and `trino-noauth-proxy` is now the `lightdash` app's third source — both found outside Argo by the B198 placement inventory.
 
 ## Hard-won gotchas
 - **Server-Side Apply for big CRDs.** keda `scaledjobs` + kube-prometheus-stack `prometheuses`/`alertmanagers`

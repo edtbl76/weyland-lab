@@ -1,6 +1,6 @@
-# Standalone plain Ingress for Headlamp (U9). Headlamp itself is a Helm release
-# (headlamp chart, namespace headlamp); this Ingress is a separate object Helm does
-# not own, so no chart-schema guessing and no drift on Helm-managed resources.
+# Standalone plain Ingress for Headlamp (U9). Headlamp itself is the headlamp Helm chart, deployed by the `headlamp`
+# Argo app (helm-apps.yaml, since 2026-09-28); this Ingress is a separate object the chart does not own, carried by that
+# app's directory source — so no chart-schema guessing and no drift on chart-managed resources.
 # TLS uses the shared wildcard cert — the Secret must exist in the headlamp namespace.
 # Keycloak SSO gate — local forward-auth Middleware (cross-ns middleware refs are blocked), targets the shared
 # traefik-forward-auth service in weyland.

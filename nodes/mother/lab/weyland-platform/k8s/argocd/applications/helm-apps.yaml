@@ -457,6 +457,15 @@ spec:
     - repoURL: https://github.com/edtbl76/weyland-lab.git
       targetRevision: main
       ref: values
+    # trino-noauth-proxy (the unauthenticated Trino front Lightdash + the coverage guards query) lives beside the
+    # values file but was kubectl-applied 2026-07-08 and never deployed by Argo — found by the B198 placement
+    # inventory (`managed: kubectl (not argo)`). Adopted here 2026-09-28; the only live change is the repo's
+    # container securityContext (allowPrivilegeEscalation false + RuntimeDefault seccomp), never applied until now.
+    - repoURL: https://github.com/edtbl76/weyland-lab.git
+      targetRevision: main
+      path: nodes/mother/lab/weyland-platform/k8s/lightdash
+      directory:
+        include: 'trino-noauth-proxy.yaml'
   destination:
     server: https://kubernetes.default.svc
     namespace: data-mesh
@@ -595,6 +604,43 @@ spec:
   destination:
     server: https://kubernetes.default.svc
     namespace: kube-system
+  syncPolicy:
+    automated: { selfHeal: true, prune: true }
+    syncOptions:
+      - ServerSideApply=true
+---
+# Headlamp (k8s dashboard UI) — Helm-installed 2026-06-09 and listed "headlamp deferred" in runbooks/argocd.md; onboarded
+# 2026-09-28 (B198 placement inventory found it `managed: helm (not argo)`). Chart pinned to the DEPLOYED 0.42.0,
+# releaseName = the live release `headlamp`; `helm template` of this exact chart + values diffed clean against live, so
+# adoption changes nothing on the workload. The second source carries its Ingress (+ forward-auth Middleware) and the
+# kube-system admin ServiceAccount/token — both also never Argo-deployed, both diffed clean against live.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: headlamp
+  namespace: argocd
+spec:
+  project: default
+  sources:
+    - repoURL: https://kubernetes-sigs.github.io/headlamp/
+      chart: headlamp
+      targetRevision: 0.42.0
+      helm:
+        releaseName: headlamp
+        valueFiles:
+          - $values/nodes/mother/lab/weyland-platform/k8s/headlamp-values.yaml
+    - repoURL: https://github.com/edtbl76/weyland-lab.git
+      targetRevision: main
+      ref: values
+    - repoURL: https://github.com/edtbl76/weyland-lab.git
+      targetRevision: main
+      path: nodes/mother/lab/weyland-platform/k8s
+      directory:
+        recurse: false
+        include: '{headlamp-ingress.yaml,headlamp-admin-token.yaml}'
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: headlamp
   syncPolicy:
     automated: { selfHeal: true, prune: true }
     syncOptions:

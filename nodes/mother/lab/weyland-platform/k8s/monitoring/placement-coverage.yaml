@@ -362,7 +362,8 @@ data:
     #   move      movable | every-node | pinned: <reason> | hardware-bound: <reason>
     #   strix     any (the scheduler may place it on either node) | k3s-worker (deliberately moved) | inference-lxc |
     #             stays | every-node | tbd (an owner decision, with `why`)
-    #   managed   how it is deployed: argo | k3s | operator (<Kind>) | helm (not argo) | kubectl (not argo) | systemd | pve
+    #   managed   how it is deployed: argo | k3s | operator (<Kind>) | istioctl / helm (deliberate exceptions, runbooks/argocd.md)
+    #             | systemd | pve. "not argo" with no recorded decision is a GitOps gap — fix it, do not record it.
     #   scope     lab (default) | stud.io (a separate product — recorded, not planned here) | personal (the owner's own
     #             tools, confirmed by the owner) | unused (a removal candidate) | unknown (owner not confirmed — never guess)
     #   likec4    the element id in docs/architecture/weyland.likec4, when the model has one
@@ -420,11 +421,11 @@ data:
 
     workloads:
       # ---- mother (k3s) — seeded from the live cluster 2026-09-27 ----
-      - {id: "k8s:argocd/Deployment/argocd-applicationset-controller", host: "mother", state: "stateless", move: "movable", strix: "any", managed: "helm (not argo)"}
-      - {id: "k8s:argocd/Deployment/argocd-redis", host: "mother", state: "stateless", move: "movable", strix: "any", managed: "helm (not argo)"}
-      - {id: "k8s:argocd/Deployment/argocd-repo-server", host: "mother", state: "stateless", move: "movable", strix: "any", managed: "helm (not argo)"}
-      - {id: "k8s:argocd/Deployment/argocd-server", host: "mother", state: "stateless", move: "movable", strix: "any", managed: "helm (not argo)"}
-      - {id: "k8s:argocd/StatefulSet/argocd-application-controller", host: "mother", state: "stateless", move: "movable", strix: "any", managed: "helm (not argo)"}
+      - {id: "k8s:argocd/Deployment/argocd-applicationset-controller", host: "mother", state: "stateless", move: "movable", strix: "any", managed: "helm (Argo CD itself — deliberate, runbooks/argocd.md)"}
+      - {id: "k8s:argocd/Deployment/argocd-redis", host: "mother", state: "stateless", move: "movable", strix: "any", managed: "helm (Argo CD itself — deliberate, runbooks/argocd.md)"}
+      - {id: "k8s:argocd/Deployment/argocd-repo-server", host: "mother", state: "stateless", move: "movable", strix: "any", managed: "helm (Argo CD itself — deliberate, runbooks/argocd.md)"}
+      - {id: "k8s:argocd/Deployment/argocd-server", host: "mother", state: "stateless", move: "movable", strix: "any", managed: "helm (Argo CD itself — deliberate, runbooks/argocd.md)"}
+      - {id: "k8s:argocd/StatefulSet/argocd-application-controller", host: "mother", state: "stateless", move: "movable", strix: "any", managed: "helm (Argo CD itself — deliberate, runbooks/argocd.md)"}
       - {id: "k8s:data-mesh/CronJob/lancedb-sync", host: "mother", state: "pvc:local-path", move: "pinned: local-path PV on mother", strix: "stays", managed: "argo"}
       - {id: "k8s:data-mesh/CronJob/pg-backup", host: "mother", state: "pvc:local-path", move: "pinned: local-path PV on mother", strix: "stays", managed: "argo"}
       - {id: "k8s:data-mesh/Deployment/clickhouse", host: "mother", state: "pvc:local-path", move: "pinned: local-path PV on mother", strix: "stays", managed: "argo"}
@@ -457,7 +458,7 @@ data:
       - {id: "k8s:data-mesh/Deployment/superset-worker", host: "mother", state: "stateless", move: "movable", strix: "any", managed: "argo"}
       - {id: "k8s:data-mesh/Deployment/timescaledb", host: "mother", state: "pvc:local-path", move: "pinned: local-path PV on mother", strix: "stays", managed: "argo"}
       - {id: "k8s:data-mesh/Deployment/trino", host: "mother", state: "stateless", move: "movable", strix: "k3s-worker", managed: "argo", why: "largest stateless memory request (5.5Gi); OOM-killed at node pressure 2026-09-27"}
-      - {id: "k8s:data-mesh/Deployment/trino-noauth-proxy", host: "mother", state: "stateless", move: "movable", strix: "any", managed: "kubectl (not argo)"}
+      - {id: "k8s:data-mesh/Deployment/trino-noauth-proxy", host: "mother", state: "stateless", move: "movable", strix: "any", managed: "argo"}
       - {id: "k8s:data-mesh/Deployment/valkey", host: "mother", state: "stateless", move: "movable", strix: "any", managed: "argo"}
       - {id: "k8s:data-mesh/Deployment/weyland-flink", host: "mother", state: "stateless", move: "movable", strix: "any", managed: "operator (FlinkDeployment)"}
       - {id: "k8s:data-mesh/StatefulSet/cassandra", host: "mother", state: "pvc:local-path", move: "pinned: local-path PV on mother", strix: "stays", managed: "argo"}
@@ -466,8 +467,8 @@ data:
       - {id: "k8s:gatekeeper-system/Deployment/gatekeeper-audit", host: "mother", state: "stateless", move: "movable", strix: "any", managed: "argo"}
       - {id: "k8s:gatekeeper-system/Deployment/gatekeeper-controller-manager", host: "mother", state: "stateless", move: "movable", strix: "any", managed: "argo"}
       - {id: "k8s:gatekeeper-system/Deployment/gatekeeper-policy-manager", host: "mother", state: "stateless", move: "movable", strix: "any", managed: "argo"}
-      - {id: "k8s:headlamp/Deployment/headlamp", host: "mother", state: "stateless", move: "movable", strix: "any", managed: "helm (not argo)"}
-      - {id: "k8s:istio-system/Deployment/istiod", host: "mother", state: "stateless", move: "movable", strix: "any", managed: "helm (not argo)"}
+      - {id: "k8s:headlamp/Deployment/headlamp", host: "mother", state: "stateless", move: "movable", strix: "any", managed: "argo"}
+      - {id: "k8s:istio-system/Deployment/istiod", host: "mother", state: "stateless", move: "movable", strix: "any", managed: "istioctl (deliberate — IstioOperator in git, runbooks/argocd.md)"}
       - {id: "k8s:istio-system/Deployment/kiali", host: "mother", state: "stateless", move: "movable", strix: "any", managed: "argo"}
       - {id: "k8s:jupyterhub/Deployment/hub", host: "mother", state: "pvc:local-path", move: "pinned: local-path PV on mother", strix: "stays", managed: "argo"}
       - {id: "k8s:jupyterhub/Deployment/proxy", host: "mother", state: "stateless", move: "movable", strix: "any", managed: "argo"}
