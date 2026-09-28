@@ -487,8 +487,11 @@ spec:
   syncPolicy:
     automated: { selfHeal: true, prune: true }
 ---
-# Istio MESH CONFIG (STRICT-mTLS PeerAuthentication, Telemetry, Kiali, VirtualServices, PodMonitor). MANUAL-first
-# (mesh blast radius) + ServerSideApply. Install CR (istio-install.yaml, IstioOperator) EXCLUDED — istioctl-managed.
+# Istio MESH CONFIG (STRICT-mTLS PeerAuthentication, Telemetry, Kiali, VirtualServices, PodMonitor). Was MANUAL-first
+# (mesh blast radius); moved to its planned next step 2026-09-28 after the diff review — Synced + Healthy against main,
+# no out-of-sync resource — so selfHeal on, prune still OFF (a STRICT PeerAuthentication is never auto-deleted). Kiali
+# is a Deployment here, so selfHeal also keeps its replicas a cached read of git for servicemonitor-coverage.
+# ServerSideApply. Install CR (istio-install.yaml, IstioOperator) EXCLUDED — istioctl-managed.
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
@@ -505,7 +508,8 @@ spec:
   destination:
     server: https://kubernetes.default.svc
     namespace: istio-system
-  syncPolicy: # manual — review diff first; then add `automated: { selfHeal: true, prune: false }`
+  syncPolicy:
+    automated: { selfHeal: true, prune: false }
     syncOptions:
       - ServerSideApply=true
 ---

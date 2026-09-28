@@ -159,7 +159,11 @@ spec:
   destination:
     server: https://kubernetes.default.svc
     namespace: kube-system
-  # manual sync — no `automated` block (sync via Argo UI/CLI).
+  # selfHeal since 2026-09-28 (was manual): Synced + Healthy against main with no diff when switched. prune:false — a
+  # DNS object is never auto-deleted. selfHeal is what makes live state a cached read of git (runbooks/observability.md,
+  # servicemonitor-coverage).
+  syncPolicy:
+    automated: { selfHeal: true, prune: false }
 ---
 # coredns-lan (weyland ns — ConfigMap + Deployment + Service). LOAD-BEARING DNS. MANUAL-sync.
 apiVersion: argoproj.io/v1alpha1
@@ -179,7 +183,11 @@ spec:
   destination:
     server: https://kubernetes.default.svc
     namespace: weyland
-  # manual sync — no `automated` block (sync via Argo UI/CLI).
+  # selfHeal since 2026-09-28 (was manual): Synced + Healthy against main with no diff when switched. prune:false — a
+  # DNS object is never auto-deleted. It owns a Deployment, so selfHeal is also what keeps its `.spec.replicas` a cached
+  # read of git for the servicemonitor-coverage guard (runbooks/observability.md).
+  syncPolicy:
+    automated: { selfHeal: true, prune: false }
 ---
 # rag-index consumers (weyland ns) — the two loose ones not under the data-mesh app.
 apiVersion: argoproj.io/v1alpha1

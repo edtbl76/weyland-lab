@@ -2440,8 +2440,9 @@ samples over 24h, not any moment (on-demand OS helpers) and not the unit's own s
 GitOps gaps it exposed, FIXED 2026-09-28: `trino-noauth-proxy` (kubectl-applied) → the `lightdash` app's third source;
 `headlamp` (Helm, "deferred") → the `headlamp` Argo app (chart 0.42.0 + its Ingress and admin token, all diffed clean
 against live first). `istiod` (istioctl) and Argo CD itself are the recorded deliberate exceptions (runbooks/argocd.md).
-Side finding: the ServiceMonitor-coverage rationale claimed the apps without selfHeal own no replicas — `coredns-lan`
-and `istio-config` (Kiali) do; the prose is corrected.
+Side finding, FIXED: the ServiceMonitor-coverage rationale claimed the apps without selfHeal own no replicas — `coredns-lan`
+and `istio-config` (Kiali) do. The last three manual apps (`coredns-custom`, `coredns-lan`, `istio-config`) now run
+selfHeal with `prune: false` (all Synced with no diff when switched), so the premise holds for all 82 apps.
 
 **Closing Gaps prework for B134** (the Strix Halo purchase). Blocks EMA-195.
 
