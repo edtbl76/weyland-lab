@@ -134,6 +134,7 @@ model {
           greatExpectations = component "Great Expectations" "B77b auto-profiling + validation -> DataHub Assertions + Data Docs"
           geDocs = component "GE Data Docs" "ge-docs.weyland.lab -- served GE profiling/validation reports"
           datahubCoverage = component "DataHub coverage" "B158 CronJob (ns weyland, 03:05 NY, unmeshed, read-only). Governance-by-CI over the catalog: reconciles every mesh table Trino serves (iceberg.datasets_*.* + the dbt marts) against what DataHub actually catalogues, fail-closed if either side is empty. The catalog analog of Observability's smCoverage - an affirmative check that a data product is discoverable, not trusted to be. Byte-identical embedded script guarded by scripts/embed-datahub-coverage.sh + datahub-coverage.bats"
+          datahubIngestionWatchdog = component "DataHub ingestion watchdog" "B197 CronJob (ns weyland, 05:55 NY daily, unmeshed). Per DataHub managed-ingestion source, from GMS GraphQL: latest run FAILURE/ABORTED -> DataHubIngestionFailed; no SUCCESS within 2x its schedule -> DataHubIngestionStale; never ran -> DataHubIngestionNeverRan; posted to Alertmanager -> Telegram. Exists because dbt + MLflow ingestion failed daily for 10+ days in silence. Byte-identical embedded script (scripts/embed-datahub-ingestion-watchdog.sh + bats)"
           storeScaler = component "store-scaler" "Scales Tier-2 stores (Port action target)"
         }
       }
@@ -370,6 +371,8 @@ model {
   weyland.mother.mesh.gov.greatExpectations -> weyland.mother.mesh.query.trino "B77b profiles + validates"
   weyland.mother.mesh.gov.datahubCoverage -> weyland.mother.mesh.query.trino "reads the live mesh-table list (iceberg.datasets_*.* + dbt marts)"
   weyland.mother.mesh.gov.datahubCoverage -> weyland.mother.mesh.gov.datahub "reconciles against catalogued entities (GMS scrollAcrossEntities)"
+  weyland.mother.mesh.gov.datahubIngestionWatchdog -> weyland.mother.mesh.gov.datahub "reads ingestion sources + run history (GMS GraphQL listIngestionSources)"
+  weyland.mother.mesh.gov.datahubIngestionWatchdog -> weyland.mother.ops.obs.grafana "posts DataHubIngestion* alerts to Alertmanager"
 
   // Storage backends
   weyland.mother.mesh.storage.nessie -> weyland.mother.ops.infra.minio "Iceberg warehouse"

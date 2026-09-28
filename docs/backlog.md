@@ -2507,6 +2507,14 @@ B148 (the coverage-guard family), docs/dr.md.
 
 ### B197 — Alert on failing DataHub ingestion runs — MEDIUM (2026-09-27, Linear EMA-256)
 
+**IN PROGRESS 2026-09-28.** Built: `scripts/datahub_ingestion_check.py` (29 pytest cases) + the
+`datahub-ingestion-watchdog` CronJob (ns `weyland`, daily 05:55 NY, script embedded byte-identical, bats-asserted),
+freshness + failure rules, schedules.md row, placement row, LikeC4 element, runbook section with run-now + drill
+commands, flow diagram, demo, arch.md §10e. Chose GMS GraphQL over the TimescaleDB copy (it lags a day and depends on
+another job). Cadence corrected from `*/30` to daily before shipping (Design Rule #5; the pr-staleness lesson). Live
+read against GMS: `checked 17 source(s): 0 alert(s) fired`. Remaining: push → in-cluster run → live alert drill →
+Telegram UAT.
+
 **Why.** Found closing B194: `dbt - Weyland` (undecryptable UI secrets → `NoCredentialsError`, then a masked
 `entity:primary` connector bug) and `MLFlow - Weyland` (MLflow 3's demo experiment crashed the connector) failed every
 day for 10+ days and nothing alerted — dbt docs, tests and column lineage silently stopped reaching the catalog.

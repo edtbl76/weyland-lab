@@ -1418,6 +1418,24 @@ manifest sat in a directory Argo read only Helm values from — now the `lightda
 against live before adoption). `istiod` (istioctl, from the IstioOperator in git) and Argo CD itself remain the
 recorded deliberate exceptions in `runbooks/argocd.md`, plus the k3s-managed kube-system components.
 
+### 10e. DataHub ingestion watchdog (B197, 2026-09-28)
+
+**The problem.** `dbt - Weyland` and `MLFlow - Weyland` failed every day for 10+ days in September 2026 and nothing
+alerted: dbt docs, tests and column lineage stopped reaching the catalog while every existing check stayed green (the
+DataHub coverage guard asks whether a table is catalogued, and the Iceberg source catalogs the same tables).
+
+**The design.** A daily CronJob (05:55 NY) reads every managed-ingestion source and its last 20 runs from GMS GraphQL
+and posts one alert per broken source to Alertmanager → Telegram: `DataHubIngestionFailed`, `DataHubIngestionStale`
+(no success within 2x the schedule — which is what catches a run orphaned in RUNNING) or `DataHubIngestionNeverRan`.
+
+| Decision | Chosen | Rejected | Why |
+|---|---|---|---|
+| Source of run status | GMS GraphQL | TimescaleDB `datahub_ingestion_runs` | that copy is refreshed by a nightly job — alerts would lag a day and inherit that job's failures |
+| Cadence | daily 05:55 NY | every 30 minutes (the Dagster watchdog) | Design Rule #5; a re-fired alert is a new Telegram message (the `pr-staleness-check` lesson) |
+| Budget | 2x schedule, 1h floor | one schedule interval | one late run should not page; the 15-minute `datahub-documents` source must not flap |
+| Unscheduled sources | alert unless an accepted on-demand URN | skip them | a UI-created source nobody scheduled is exactly a silent gap |
+| Could not read | exit 2 → `ScheduledJobFailed` | log and pass | the class this exists to close is absence read as health |
+
 ## 11. Operational lessons (why the CTs are tuned the way they are)
 
 Both stem from the **same root: an LXC exposes the *host's* resources, not the container's cgroup**,

@@ -162,6 +162,7 @@ workloads:
   - {id: "k8s:opensearch/StatefulSet/opensearch-cluster-master", host: "mother", state: "pvc:local-path", move: "pinned: local-path PV on mother", strix: "stays", managed: "argo"}
   - {id: "k8s:port-agent/Deployment/port-agent", host: "mother", state: "stateless", move: "movable", strix: "any", managed: "argo"}
   - {id: "k8s:port-k8s-exporter/Deployment/weyland-cluster-port-k8s-exporter", host: "mother", state: "stateless", move: "movable", strix: "any", managed: "argo"}
+  - {id: "k8s:weyland/CronJob/datahub-ingestion-watchdog", host: "mother", state: "stateless", move: "movable", strix: "any", managed: "argo"}
   - {id: "k8s:weyland/CronJob/code-scan-suite", host: "mother", state: "stateless", move: "movable", strix: "any", managed: "argo"}
   - {id: "k8s:weyland/CronJob/cron-freshness-check", host: "mother", state: "stateless", move: "movable", strix: "any", managed: "argo"}
   - {id: "k8s:weyland/CronJob/dagster-freshness-check", host: "mother", state: "stateless", move: "movable", strix: "any", managed: "argo"}

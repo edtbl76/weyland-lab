@@ -91,10 +91,11 @@ values, out of git).
   with columns typed `entity:primary` and crashes resolving that as a Trino type (`KeyError: 'entity:primary'`).
   `entities_enabled.semantic_models: No` in `dbt.recipe.yaml` (pushed to the live source) → **dbt SUCCESS
   2026-09-27**, first success in at least 10 days.
-- **A failing ingestion alerts nobody.** The dbt and MLflow sources both failed every day for 10+ days unnoticed.
+- **A failing ingestion used to alert nobody** (fixed by the ingestion watchdog below, B197). The dbt and MLflow
+  sources both failed every day for 10+ days unnoticed.
   MLflow's cause: MLflow 3's built-in "MLflow Demo" experiment logs dataset inputs with no schema, and the DataHub
   1.6.0 (and 1.7.0.13) mlflow source crashes on `json.loads(None)`; the demo experiment was soft-deleted
-  (`POST /api/2.0/mlflow/experiments/restore` brings it back). Alerting on ingestion failures is still open.
+  (`POST /api/2.0/mlflow/experiments/restore` brings it back).
 - **Actions pod OOM.** `acryl-datahub-actions` runs ingestion; profiling-enabled Postgres/MusicBrainz runs
   exit-137'd at 512 Mi → hung ingestions. Ceiling raised to 1 Gi (request stays 256 Mi so it reserves little idle).
   If a big profiling run still exit-137s, bump further or sleep idle stores ([[store-scaler-easy-button]]) to free RAM.
@@ -102,6 +103,41 @@ values, out of git).
   reporting ([[glitchtip-oversized-event-drop]]).
 - **Global "browse all Data Contracts"** GraphQL nulls every hit — a DataHub resolver bug, not our data; the
   per-dataset Validations tab works. Don't chase it ([[datahub-datacontract-browse-broken]]).
+
+## Ingestion watchdog (B197, 2026-09-28)
+
+`datahub-ingestion-watchdog` (CronJob, ns `weyland`, daily **05:55 NY**; script `scripts/datahub_ingestion_check.py`)
+reads every managed-ingestion source and its last 20 runs from GMS GraphQL and posts to Alertmanager → Telegram:
+
+| Alert | When |
+|---|---|
+| `DataHubIngestionFailed` | the latest run is FAILURE or ABORTED |
+| `DataHubIngestionStale` | no SUCCESS within 2x the source's schedule (1h floor) — a run orphaned in RUNNING or a CANCELLED run is not a success; also a source with no schedule that is not an accepted on-demand one |
+| `DataHubIngestionNeverRan` | a scheduled source with no run at all |
+
+Each alert carries `ingestion_source="<name>"`. One message per broken source per day (the next morning re-sends it
+while the condition holds). GMS unreachable, GraphQL errors, or an empty/partial source list is exit 2, and an alert
+that cannot be POSTed is exit 1 — both fail the Job, so `ScheduledJobFailed` pages; never a silent pass. Accepted
+on-demand sources are listed by URN in the script (`ACCEPTED_ON_DEMAND`: `[CLI] dbt`).
+
+**Run it now** instead of waiting for 05:55:
+
+[mother]
+```
+kubectl -n weyland create job datahub-ingestion-watchdog-now --from=cronjob/datahub-ingestion-watchdog && kubectl -n weyland wait --for=condition=complete job/datahub-ingestion-watchdog-now --timeout=180s; kubectl -n weyland logs job/datahub-ingestion-watchdog-now; kubectl -n weyland delete job datahub-ingestion-watchdog-now
+```
+Expect `checked 17 source(s): 0 alert(s) fired` on a healthy catalog.
+
+**Alert drill** — one real alert for one source (a budget shrunk to ~17s makes it stale), then clean up:
+
+[mother]
+```
+kubectl -n weyland create job datahub-ingestion-watchdog-drill --from=cronjob/datahub-ingestion-watchdog --dry-run=client -o json | python3 -c "import json,sys;j=json.load(sys.stdin);c=j['spec']['template']['spec']['containers'][0];c['env']+=[{'name':'ONLY_SOURCE','value':'Trino - Weyland'},{'name':'BUDGET_FACTOR','value':'0.0001'}];print(json.dumps(j))" | kubectl create -f - && kubectl -n weyland wait --for=condition=complete job/datahub-ingestion-watchdog-drill --timeout=180s; kubectl -n weyland logs job/datahub-ingestion-watchdog-drill; kubectl -n weyland delete job datahub-ingestion-watchdog-drill
+```
+Expect `ALERT DataHubIngestionStale source='Trino - Weyland'`, the alert active in Alertmanager, and a Telegram message.
+
+**After editing the script:** `bash scripts/embed-datahub-ingestion-watchdog.sh` (the bats identity test fails until
+you do).
 
 ## Links
 - [[datahub-governance-layer]] · [[datahub-ingestion-secrets-durable]] · [[datahub-ingest-gated-services]] ·
