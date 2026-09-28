@@ -43,6 +43,7 @@ model {
     genreTrainer = component "genre-trainer" "Trainer — reads silver, logs to MLflow"
     financeTrainer = component "finance-trainer" "Volatility trainer (B113) — reads the Feast-joined lakeFS training set, registers regressor + regime classifier in MLflow"
     ragEmbed = component "rag-embed" "bge-base (768-dim) embed service :8900 (warm, CPU since 2026-09-27) — B74"
+    dcgmExporter = component "dcgm-exporter" "B128 — NVIDIA DCGM GPU telemetry (snap dcgm-exporter + nv-hostengine) :9400, scraped by Prometheus (job dcgm-exporter-rogueone)"
     editors = component "Editors (IntelliJ, VS Code)" "Hosts, not harnesses. IntelliJ 2026.2 = agent-agnostic: AI Assistant's ACP registry (Claude Agent, Codex, OpenCode, Cline, Junie, Gemini CLI, Copilot, …) + Claude Code / Codex / ProxyAI plugins + IntelliJ's MCP server. VS Code 1.139 = Codex + Claude Code extensions; native mcp.json Linear entry for Copilot Chat"
     // ---- Harnesses (multi-harness: any of these can drive the same repos + platform; see concepts/multi-harness.md) ----
     claudeCode = component "Claude Code" "Harness — primary coding agent (Anthropic). MCP client of tool-server + Bifrost + Linear; instructions CLAUDE.md (+AGENTS.md); AIDLC installed (.claude/). Memory today = Claude-only auto-memory"
@@ -164,6 +165,7 @@ model {
           kuma = component "Uptime Kuma" "25 monitors -> Telegram"
           kiali = component "Kiali" "Mesh observability UI"
           smCoverage = component "ServiceMonitor coverage" "B148 CronJob (ns monitoring, 02:45 NY, unmeshed, read-only SA). Reconciles every live ServiceMonitor across three planes - intended (.spec.replicas, trustworthy because Argo selfHeal), actual (.status.readyReplicas), observed (Prometheus scrape-pool targets). Exists because data-mesh/trino exported zero metrics for 59 days behind an unlabelled Service and no affirmative check could see it"
+          placementCoverage = component "Placement coverage" "B198 CronJob (ns monitoring, 03:40 NY, unmeshed, Prometheus-only). Reconciles placement.yaml — where every workload runs, what it holds, whether it can move, its Strix Halo target — against kube-state-metrics workloads, node-exporter systemd units (rogueone, last 24h) and pve-exporter guests. Byte-identical embedded script + inventory (scripts/embed-placement.sh + placement.bats)"
           apiDrift = component "API drift" "B155 CronJob (ns monitoring, 03:20 NY, unmeshed, no RBAC - HTTP only). The runtime half of API lifecycle governance: fetches each catalogued API's LIVE spec (FastAPI /openapi.json on the .svc FQDNs + the realm A2A card) and diffs it against the committed contract snapshot (docs/api/specs/) with the breaking-change engine (api_spec_diff.py). Catches a deployed API that drifted from its governed contract - a route removed, a field dropped, a new required field - without the catalog + snapshot + version being updated. Unreachable sources are skipped (not drift); a breaking diff fails the Job. PR-time governance is check-api-lifecycle.sh over apis.yaml"
         }
 
@@ -381,6 +383,8 @@ model {
   weyland.mother.ops.infra.istiod -> weyland.mother.ai.toolServer "inject Envoy sidecars"
   weyland.mother.ops.obs.grafana -> weyland.mother.ai.toolServer "scrape /metrics"
   weyland.mother.ops.obs.grafana -> rogueone.rayWorker "scrape :8080 (static target)"
+  weyland.mother.ops.obs.grafana -> rogueone.dcgmExporter "scrape :9400 (static target, B128)"
+  weyland.mother.ops.obs.placementCoverage -> weyland.mother.ops.obs.grafana "reads kube-state-metrics, node-exporter systemd units and pve-exporter series"
   weyland.mother.ops.obs.kiali -> weyland.mother.ops.obs.grafana "Envoy mesh metrics"
   weyland.mother.ops.platform.argocd -> github "GitOps reconcile (81 apps)"
   weyland.mother.ops.platform.opencost -> weyland.mother.ops.obs.grafana "cost metrics"

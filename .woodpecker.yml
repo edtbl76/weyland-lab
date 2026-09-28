@@ -104,6 +104,9 @@ steps:
       # at >= 110% of its interval, and no STOPPED one does. Budgets drifted 7 weeks after catalog/timeseries/emit went
       # nightly (false DagsterJobStale every 30m), and feast/registrations ran unwatched. Pure AST + YAML, no cluster.
       - bash scripts/check-dagster-watchdog-budgets.sh
+      # B198 — placement inventory (placement.yaml): schema, known hosts, and every LikeC4 node / host-native component
+      # has a row. The live half (running workloads vs rows) is the nightly placement-coverage CronJob. Pure file analysis.
+      - bash scripts/check-placement.sh
       # B142 — a `pip-audit --ignore-vuln` exception is scoped to a vuln ID and NOTHING else, so
       # unlike osv-scanner.toml's version-scoped PackageOverrides it can never expire on its own.
       # This asserts each accepted ID is really wired into scan.py's IGNORED_VULNS, and that the

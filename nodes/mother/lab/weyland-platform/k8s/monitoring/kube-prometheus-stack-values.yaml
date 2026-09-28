@@ -207,6 +207,16 @@ prometheus:
           - targets: ['192.168.1.230:9400']
             labels:
               gpu_host: rogueone
+      # B198 — rogueone's systemd units for the placement-coverage CronJob (scripts/placement_check.py --live). The
+      # exporter runs ONLY the systemd collector (--collector.disable-defaults --collector.systemd, services + timers),
+      # so it adds no filesystem/memory series: node-disk-alerts / node-memory-alerts match node_filesystem_* without a
+      # job filter and would otherwise start judging a laptop by mother's thresholds. Not-always-up (laptop) → flaps
+      # down on sleep like the two targets above; the placement check reads the last 24h for exactly that reason.
+      - job_name: systemd-rogueone
+        static_configs:
+          - targets: ['192.168.1.230:9100']
+            labels:
+              host: rogueone
     retention: 15d
     # Hard size cap BELOW the 20Gi PVC (2026-07-18) — Prometheus drops oldest blocks at whichever comes first,
     # 15d OR 16GB, so a series-count spike can never fill the volume and pressure the root disk (the eviction that

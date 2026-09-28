@@ -117,6 +117,7 @@ data:
     ACCEPTED=(
       "ray-head|Ray ships its own provisioned Grafana dashboards (Data / Default / Serve / Serve Deployment, tagged rayVersion:*) through the KubeRay operator, NOT as grafana_dashboard ConfigMaps — so this guard cannot see them, but the coverage is real and out-of-band."
       "ray-worker-rogueone|Same Ray-owned dashboards as ray-head."
+      "systemd-rogueone|B198 placement signal, not a charted service: a node-exporter on rogueone running ONLY the systemd collector (--collector.disable-defaults) so the nightly placement-coverage CronJob can read which services run there. Its single metric family (node_systemd_unit_state) is consumed by scripts/placement_check.py --live, not by a dashboard."
       "opencost|OpenCost has its own first-class cost UI; its metrics drive that view (and the LiteLLM cost board) rather than a dedicated Grafana dashboard."
       "weyland-blackbox|Blackbox probe success/latency for the ~38 LAN endpoints is surfaced in Uptime Kuma — the lab's uptime surface — not Grafana."
       "weyland-lan-dns|LAN DNS reachability is a blackbox-style probe surfaced in Uptime Kuma alongside weyland-blackbox."

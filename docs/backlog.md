@@ -89,6 +89,7 @@ Re-ordered per RE-grounded audit (aidlc-docs/inception/backlog-reprioritization.
 - **B193** — **Spike: share Linear outward, read-only (project links vs initiative roadmaps)** — **LOW (2026-09-26, Linear EMA-252).** Found in the B119 walk's Customer Experience category: the one need there that doesn't wait on users — show the lab's work to people outside Linear (family, a portfolio beside B191's YouTube demos); Linear shows projects only to members or paid guests. Lindie (read-only project links, free for 1 project), Helium Rooms (read-only board rooms), Feedvote (client portal + public roadmap). See detail below.
 - **B195** — **Store the Linear team intake email as a secret (scripts/.env + SealedSecret)** — **MEDIUM (2026-09-26, Linear EMA-254).** The team intake address is enabled and is a capability address (anyone holding it can file issues unauthenticated; this repo is public). Owner adds `LINEAR_INTAKE_EMAIL` to `scripts/.env`; create `monitoring/linear-intake`, add it to the `seal-secrets.sh` allow-list, seal per the secrets runbook, verify the stored length, index it with its rotation step. Prerequisite for B184's email fallback. See detail below.
 - **B197** — **Alert on failing DataHub ingestion runs** — **MEDIUM (2026-09-27, Linear EMA-256).** The dbt and MLflow DataHub sources failed every day for 10+ days with no alert (found closing B194; both now fixed). Scope: a per-source ingestion watchdog (latest run FAILED, or no SUCCESS within ~2× its schedule → Alertmanager → Telegram), exit 2 when GMS is unreadable, never-ran and stuck-RUNNING sources count as not-succeeded, plus a freshness rule, schedules.md row, runbook section and a live alert drill.
+- **B198** — **Placement inventory: where every workload runs, and whether it can move** — **HIGH (2026-09-27, Linear EMA-257) — Closing Gaps prework for B134 (blocks EMA-195).** Only Kubernetes placement is guarded today (applications.yaml + onboarding-completeness → LikeC4); host-native services (rogueone systemd units, Ollama, the GPU LXC) are hand-listed and have drifted — three STUD.io GitHub Actions runners, `mosquitto` and `dcgm-exporter` run on rogueone with no entry, and nothing reads rogueone's running services at all. Scope: one `placement.yaml` (every workload → host, state, movability, Strix Halo target), a check that fails on a running workload with no row or a row with nothing running, and the host-side signal it needs. It is the migration plan for the Strix Halo.
 - **B178** — **CI resilience: a Port (external SaaS) outage must not hard-block the whole pipeline** — **RETIRED (2026-09-24, Linear EMA-236) — built, then REVERTED the same day by operator call.** During a Port outage `port-iac-coverage`'s unbounded auth curl hung and fail-fast killed every pipeline. A warn-and-continue path was built (distinct "unreachable" exit codes for `port-iac-coverage` + `linear-sync`, a best-effort `notify-port`) and CI-verified, then **removed: it was a stopgap for one outage, and the lab's policy is fail-closed** — a run where a guard verified nothing must not come out green, even if the cause is a vendor outage. **Kept:** bounded curls (`--connect-timeout`/`--max-time`) on all three, so a hung SaaS fails the step FAST instead of pinning it — still a hard fail. See detail below.
 - **B177** — **Lean + safe CI language matrix: selective per-language runs + full-matrix headroom** — **DONE (2026-09-24, Linear EMA-235).** CI steps run STRICTLY SEQUENTIALLY (RWO workspace, proven from #168 timestamps), so a full run is ~30 min of ~46 fixture-language golden-path lanes on a RAM-tight node (mother ~98%) → #169/#170 were OOM-killed mid-run. **Phase 1 (DONE, CI-verified by lean run #178 — 21 of 67 steps, 21/21 green):** `ci-langs.yaml` manifest + `scripts/ci/select-fixtures.sh` (fail-closed selector, 12 bats) + a `&fixture` gate on the 46 fixture lanes (`RUN_FIXTURES != "0"`, the proven `--var`+`evaluate` pattern) so a change that doesn't touch `golden-paths/` runs only the production lanes; unset var / nightly cron = full matrix (safe default); `golden-path-smoke` lean-gated too. **Phase 2 (DONE — closed on evidence):** per-step caps already exist (B93 LimitRange 128Mi/2Gi + explicit heavy-lane limits) and mother's kubelet reserves are set; 19 nightly cron runs, 0 killed (failures were all code-level); memory is flat day/night so moving the cron buys nothing. The only kills were ad-hoc FULL runs launched ~midnight into the Dagster batch start → runbook now says trigger ad-hoc runs lean. Residual = capacity, only if the nightly ever starts getting killed. See detail below.
 - **B176** — **PR-lifecycle reconciler: cover ALL pr-lane repos + Loki audit log** — **DONE (2026-09-23, Linear EMA-234).** Built, verified + exercised in prod (fleet `--apply` ran clean 2026-09-23); commit / deploy / PAT re-scope are the operator's routine steps. Extends the B131 reconcile half from weyland-lab-only to **every `lanes.pr: true` repo in `repos.yaml`** (the B138 8-repo pr-lane set, byte-identical to `pr-staleness`, guarded by a new `pr(recon)` lane in `check-repo-coverage.sh`). Each repo is reconciled in a subshell (per-repo fail-closed isolation — one unreachable repo forces exit 2, never a silent shrink). Emits structured `pr-lifecycle-audit` lines → Alloy → Loki (the audit.log); metrics via LogQL (no Pushgateway, Job stays unmeshed — the Loki ruler is alerting-only). **Op follow-up (runbook-captured, latent):** re-scope + re-seal the PAT for private-repo writes — no private-repo PRs exist today, so not a completion blocker. See detail below.
@@ -2425,6 +2426,63 @@ merges — that stays a human action).
  is committed in git. Do **all four at once** — piecemeal (ClickHouse-only) is inconsistent and gives no real
  benefit while the other three stay inline. Also the ClickHouse `users.d` Secret is already out-of-band (good).
 
+### B198 — Placement inventory: where every workload runs, and whether it can move — HIGH (2026-09-27, Linear EMA-257)
+
+**Closing Gaps prework for B134** (the Strix Halo purchase). Blocks EMA-195.
+
+**Why.** When the Strix Halo box lands, workloads move: a second k3s node, an inference LXC, a MinIO copy. Moving
+things safely needs one answer per workload — where does it run now, what does it hold, can it move, where should it
+go — and today there is no such list. Kubernetes placement is guarded (`applications.yaml` + `check-onboarding-
+completeness.sh` require a LikeC4 node), but **host-native services are hand-listed and have already drifted**: a
+2026-09-27 spot check of rogueone found three STUD.io GitHub Actions runners (`actions.runner.edtbl76-stud.io.*`),
+`mosquitto` and `dcgm-exporter` running with no LikeC4 entry, and `rag-embed` described as a GPU service for two
+months after the reason for the GPU was gone. Nothing reads what rogueone actually runs: Prometheus scrapes only its
+Ray worker and `dcgm-exporter`, and no `node_systemd_unit_state` metric exists anywhere. With one k8s node, "which node
+does this pod need?" has never been asked; with two it must be, or pods land wherever they fit.
+
+**Scope.**
+1. **`placement.yaml`** (repo root, beside `machine-inventory.yaml`): one row per workload — k8s workloads (by Argo
+   app / owner), host-native systemd services, LXC/VM guests, Docker-native services. Fields: `host` (mother, rogueone,
+   weyland-host, ct-102, …), `kind`, `state` (stateless | pvc:local-path | host-path | external), `resources`
+   (cpu/mem/gpu need), `movability` (movable | pinned: reason | hardware-bound: reason), `strix_target` (k3s-worker |
+   inference-lxc | stays | tbd), `scope` (lab | stud.io | personal) so out-of-scope units are decided, not ignored.
+2. **Host-side signal:** node-exporter with the systemd collector on rogueone (and the Proxmox host), scraped by
+   Prometheus — which also gives rogueone host metrics it lacks today.
+3. **`scripts/check-placement.sh`** + bats: repo side in `repo-guards` (every Argo app / deployed service and every
+   LikeC4 node component has a row; every row names a known host); live side as a nightly coverage CronJob in the
+   servicemonitor-coverage family (a running pod or enabled systemd service with no row, or a row with nothing
+   running, fails by name). Exit 1 = drift, 2 = cannot read.
+4. **The Strix Halo migration plan** = the rows with `strix_target != stays`, rendered as a section in B134.
+5. Docs: `docs/hosts.md` points at the file; runbook section; DoD Pillar 1 documentation sweep gains "placement row".
+
+**Technical context.** `machine-inventory.yaml` + `scripts/machine_inventory.py` (B129 — packages, not services; the
+pattern for a host-collected inventory); `applications.yaml`, `scripts/check-onboarding-completeness.sh` (k8s
+placement guard); `docs/architecture/weyland.likec4` (node → component placement); `k8s/monitoring/` (scrape configs,
+the coverage CronJobs); rogueone systemd units (`rag-embed`, `ray-worker`, `ollama`, `woodpecker-agent-*`,
+`actions.runner.*`, `mosquitto`, `snap.dcgm.*`); `docs/dr.md` (state/blast radius per store — `state` must agree).
+
+**Acceptance criteria.**
+- [ ] Every Argo-deployed workload, every LikeC4 node component and every enabled non-system systemd service on
+  rogueone has exactly one `placement.yaml` row; the repo check passes on main and fails by name on a missing row
+  (bats case each for k8s / LikeC4 / host service).
+- [ ] The live check reads rogueone's systemd units through Prometheus and fails naming an enabled service with no
+  row (proven by a live drill: an extra row for a unit that is not running fails; removing a real row fails).
+- [ ] The three STUD.io runners, `mosquitto` and `dcgm-exporter` are each decided (`scope` + row) — not left out.
+- [ ] B134 carries the migration table generated from the rows with a non-`stays` target.
+- [ ] Exit 1 = drift, exit 2 = the check could not read a source (Prometheus down, no systemd metrics) — never a pass.
+
+**Edge cases & failure modes.** rogueone is a laptop and not always on: its systemd series going absent is "cannot
+read" (exit 2) for that host, not "nothing running". System units (sshd, cron, snapd, …) must be excluded by an
+explicit allow-list, not a regex that can swallow a real service. CronJob-spawned pods map to their CronJob, not the
+pod. On-demand workloads (vLLM/SGLang benches, parked stores) have a row with `state` noting on-demand so "nothing
+running" is not drift for them.
+
+**Out of scope.** Actually moving anything (that is B134 once the hardware lands); scheduling rules / node affinity
+manifests (they follow from the rows, in B134); STUD.io's own placement beyond recording its scope.
+
+Relates B134 (the purchase this plans), B129 (machine inventory), B154 (onboarding completeness / LikeC4 placement),
+B148 (the coverage-guard family), docs/dr.md.
+
 ### B197 — Alert on failing DataHub ingestion runs — MEDIUM (2026-09-27, Linear EMA-256)
 
 **Why.** Found closing B194: `dbt - Weyland` (undecryptable UI secrets → `NoCredentialsError`, then a masked
@@ -3619,6 +3677,9 @@ upgrade later). Planned as **Proxmox**, mirroring Weyland's own layout:
   the backups stay pinned to mother (docs/dr.md blast radius unchanged). The join brings node labels + pinning, and a
   pass over the single-node assumptions (schedules.md Design Rule #4 "one node, one RAM pool", hostPath backups).
 - Unblocks on landing: **B159**, **B161** Phase 2, **B44**. Purchase is the owner's call ($0 budget otherwise).
+- **Prework — B198 (placement inventory, Closing Gaps).** What moves to this box is decided per workload in
+  `placement.yaml` (host, state, movability, `strix_target`), with a check that it matches what actually runs; the
+  migration plan for this purchase is the set of rows whose target is not `stays`. Do B198 before the hardware lands.
 - **Storage: 4 TB is plenty.** Today mother's root disk uses 685 / 1,178 GiB and MinIO 580 GiB of 3.9 TiB (17%, 22
   buckets). The box needs ~300–600 GB for a model library (a 70B Q4 is ~40 GB) + ~100–200 GB for node images/ephemeral.
 - **DR bonus — a stated goal of the purchase:** the spare space holds a full MinIO copy, putting backups on a
