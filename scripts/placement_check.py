@@ -34,10 +34,14 @@ SCOPES = {"lab", "stud.io", "personal", "unused", "unknown"}
 MOVE_FIXED = {"movable", "every-node"}
 MOVE_REASONED = ("pinned:", "hardware-bound:")
 KSM = {"Deployment": "deployment", "StatefulSet": "statefulset", "DaemonSet": "daemonset", "CronJob": "cronjob"}
-# A unit is RUNNING when it was active in more than half of the last 24h's samples. Not "active at any moment": D-Bus-
-# activated OS helpers (systemd-hostnamed, flatpak-system-helper) run for seconds and exit, and any-moment made each a
-# nightly finding (2026-09-28). A sleeping laptop yields no samples, so sleep does not count against a unit.
-UNIT_QUERY = 'avg_over_time(node_systemd_unit_state{state="active",instance="%s"}[24h]) > 0.5'
+# A unit is RUNNING when it was active in more than half of the HOST's samples over the last 24h. Not "active at any
+# moment": D-Bus-activated OS helpers (systemd-hostnamed, flatpak-system-helper) run for minutes and exit, and any-moment
+# made each a nightly finding (2026-09-28). The denominator is the host's own series (node_systemd_system_running), not
+# the unit's — an on-demand unit's series exists only while it is loaded, so averaging over its own samples scored
+# flatpak-system-helper 1.0. Measured on rogueone: real services and timers 1.0; those helpers 0.017 / 0.006. A
+# sleeping laptop yields no samples for either side, so sleep does not count against a unit.
+UNIT_QUERY = ('sum_over_time(node_systemd_unit_state{state="active",instance="%s"}[24h])'
+              ' / on(instance) group_left count_over_time(node_systemd_system_running{instance="%s"}[24h]) > 0.5')
 CLUSTER_NODE = "mother"
 
 
@@ -168,7 +172,7 @@ def active_units(query, hosts):
         inst = (h or {}).get("node_exporter")
         if not inst:
             continue
-        res = _result(query(UNIT_QUERY % inst))
+        res = _result(query(UNIT_QUERY % (inst, inst)))
         if not res:
             raise CannotRead(f"{host}: no systemd series from {inst} in the last 24h (asleep or exporter down)")
         out[host] = {m["metric"]["name"] for m in res if m["metric"]["name"].endswith((".service", ".timer"))}

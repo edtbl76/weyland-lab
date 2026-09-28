@@ -250,7 +250,7 @@ def test_the_unit_query_looks_back_24h():
     seen = []
     pc.active_units(lambda q: seen.append(q) or _vec({"name": "a.service", "state": "active",
                                                       "instance": "192.168.1.230:9100"}), _doc()["hosts"])
-    assert "[24h]" in seen[0] and "avg_over_time" in seen[0]
+    assert "[24h]" in seen[0]
 
 
 def test_a_unit_counts_as_running_only_if_active_most_of_the_day():
@@ -261,6 +261,10 @@ def test_a_unit_counts_as_running_only_if_active_most_of_the_day():
     pc.active_units(lambda q: seen.append(q) or _vec({"name": "a.service", "state": "active",
                                                       "instance": "192.168.1.230:9100"}), _doc()["hosts"])
     assert "> 0.5" in seen[0]
+    # The denominator is the HOST's samples, not the unit's: an on-demand unit's series exists only while it is
+    # loaded, so averaging over its own samples scored flatpak-system-helper 1.0 after a few minutes up (2026-09-28).
+    assert "sum_over_time(node_systemd_unit_state" in seen[0]
+    assert "count_over_time(node_systemd_system_running" in seen[0]
 
 
 def test_pve_guests():
