@@ -61,42 +61,23 @@ Expect a count in the thousands and no `node_filesystem_` lines.
 
 ## UI walkthrough (UAT)
 
-Grafana 13, about 3 minutes. rogueone must be awake (it is the machine you are on).
+**Open this link** (signed in to Grafana through Keycloak). It opens Explore with all three checks already run:
 
-**Open Explore**
-1. Go to `https://grafana.weyland.lab` and sign in (Keycloak).
-2. In the left menu, click **Explore** (the compass icon). If the menu is collapsed, click the ☰ icon at the top left
-   first.
-3. At the top left of the query pane, open the data-source dropdown and choose **Prometheus**.
-4. On the query row, find the **Builder | Code** toggle on the right and click **Code**. A single text box appears.
-5. Under the text box, open **Options** and set **Type** to **Instant**. (Instant gives one row per series in a table;
-   Range would draw a graph instead.)
+[UAT — placement checks in Grafana Explore](https://grafana.weyland.lab/explore?schemaVersion=1&orgId=1&panes=%7B%22uat%22%3A%7B%22datasource%22%3A%22prometheus%22%2C%22queries%22%3A%5B%7B%22refId%22%3A%22A%22%2C%22expr%22%3A%22up%7Bjob%3D%5C%22systemd-rogueone%5C%22%7D%22%2C%22instant%22%3Atrue%2C%22range%22%3Afalse%2C%22editorMode%22%3A%22code%22%2C%22format%22%3A%22table%22%2C%22datasource%22%3A%7B%22type%22%3A%22prometheus%22%2C%22uid%22%3A%22prometheus%22%7D%7D%2C%7B%22refId%22%3A%22B%22%2C%22expr%22%3A%22node_systemd_unit_state%7Bjob%3D%5C%22systemd-rogueone%5C%22%2Cstate%3D%5C%22active%5C%22%2Cname%3D%5C%22rag-embed.service%5C%22%7D%22%2C%22instant%22%3Atrue%2C%22range%22%3Afalse%2C%22editorMode%22%3A%22code%22%2C%22format%22%3A%22table%22%2C%22datasource%22%3A%7B%22type%22%3A%22prometheus%22%2C%22uid%22%3A%22prometheus%22%7D%7D%2C%7B%22refId%22%3A%22C%22%2C%22expr%22%3A%22kube_cronjob_created%7Bcronjob%3D%5C%22placement-coverage%5C%22%7D%22%2C%22instant%22%3Atrue%2C%22range%22%3Afalse%2C%22editorMode%22%3A%22code%22%2C%22format%22%3A%22table%22%2C%22datasource%22%3A%7B%22type%22%3A%22prometheus%22%2C%22uid%22%3A%22prometheus%22%7D%7D%5D%2C%22range%22%3A%7B%22from%22%3A%22now-15m%22%2C%22to%22%3A%22now%22%7D%7D%7D)
 
-For each check: clear the text box, paste the query, press **Shift+Enter** (or click **Run query** at the top right),
-then read the **Table** panel below.
+Pass (Raw or Table view, one result series per query):
 
-**Check 1: Prometheus is scraping rogueone's exporter**
-```
-up{job="systemd-rogueone"}
-```
-Confirm: exactly **1 row**; `instance` is `192.168.1.230:9100`, `host` is `rogueone`; **Value = 1**.
-A 0, or no rows, fails the check (the exporter is down or unreachable).
+| Query | Pass |
+|---|---|
+| A `up{job="systemd-rogueone"}` | `instance="192.168.1.230:9100"`, `host="rogueone"`, value **1** |
+| B `node_systemd_unit_state{…name="rag-embed.service"}` | `state="active"`, `type="simple"`, value **1** |
+| C `kube_cronjob_created{cronjob="placement-coverage"}` | `namespace="monitoring"`; the value is the CronJob's creation time in Unix seconds (any value passes) |
 
-**Check 2: the exporter reports a real lab service as running**
-```
-node_systemd_unit_state{job="systemd-rogueone",state="active",name="rag-embed.service"}
-```
-Confirm: exactly **1 row**; `name` is `rag-embed.service`, `state` is `active`, `type` is `simple`; **Value = 1**.
-A 0 means the service is not active on rogueone right now.
+**Passed 2026-09-28 (owner, eyes-on):** A = 1, B = 1, C = 1790566521 in `monitoring`.
 
-**Check 3: the nightly check exists in the cluster**
-```
-kube_cronjob_created{cronjob="placement-coverage"}
-```
-Confirm: exactly **1 row**; `namespace` is `monitoring`, `cronjob` is `placement-coverage`. The **Value is a large
-number** (e.g. `1790566521`): the CronJob's creation time in Unix seconds, not a 1. Any value passes; no rows fails.
-
-Reply with pass/fail for each (or a screenshot of the three tables).
+If the link lands on the Grafana home page instead of Explore, your Grafana role is below Editor: Explore needs
+`datasources:explore`. That was the case until 2026-09-28 (the SSO role-mapping fix in
+`k8s/monitoring/kube-prometheus-stack-values.yaml`); sign out and back in after a role change.
 
 ## Teardown
 

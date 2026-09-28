@@ -40,6 +40,20 @@ against rogueone's system trust store (the mkcert root is installed there). Stat
 `https://grafana.weyland.lab/login/generic_oauth`). `tofu apply` outputs the client secret (`sensitive`) which
 drops into that app's k8s Secret. Pattern files: `tofu/keycloak/{grafana,datahub,superset,glitchtip,jupyterhub,open-webui}.tf`.
 
+**Role mapping fails SILENTLY unless you make it strict.** Grafana mapped every SSO login to `Viewer` from the B1.1
+cutover until 2026-09-28, although `role_attribute_path: "'Admin'"` was meant to make everyone Admin. Grafana's ini
+reader strips a value's surrounding quotes, so the JMESPath became a field lookup for `Admin`, which returned
+nothing, and Grafana quietly fell back to Viewer. Symptom: Explore links land on the home page, and the Grafana log
+shows `Access denied … permissions="action:datasources:explore"`. Fixed with `role_attribute_path: "email && 'Admin'"`
+(an expression that does not start and end with a quote) plus `role_attribute_strict: true`, so an unmappable login
+is refused instead of downgraded. A role change applies at the user's NEXT login: sign out and back in. Check the
+stored role from a copy of the DB (the image has no sqlite3):
+```
+kubectl -n monitoring cp -c grafana $(kubectl -n monitoring get pod -l app.kubernetes.io/name=grafana -o jsonpath='{.items[0].metadata.name}'):/var/lib/grafana/grafana.db /tmp/grafana.db && sqlite3 /tmp/grafana.db "select u.login, ou.role from org_user ou join user u on u.id=ou.user_id"
+```
+Apply the same check to any other app with a role expression: the failure looks like a permissions bug, not an SSO
+bug.
+
 **2. Forward-auth (auth-host mode)** — for UIs with no native OIDC. A single `traefik-forward-auth` Deployment
 (`thomseddon/traefik-forward-auth:2`, ns `weyland`) is the **one** OIDC client for **all** gated subdomains:
 - `AUTH_HOST=auth.weyland.lab` + `COOKIE_DOMAIN=weyland.lab` → **one** client, **one** redirect URI
