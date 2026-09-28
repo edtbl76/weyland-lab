@@ -3680,6 +3680,19 @@ upgrade later). Planned as **Proxmox**, mirroring Weyland's own layout:
 - **Prework — B198 (placement inventory, Closing Gaps).** What moves to this box is decided per workload in
   `placement.yaml` (host, state, movability, `strix_target`), with a check that it matches what actually runs; the
   migration plan for this purchase is the set of rows whose target is not `stays`. Do B198 before the hardware lands.
+- **Migration table (generated 2026-09-27 by `scripts/check-placement.sh --migration`; regenerate, don't hand-edit):**
+
+| Workload | Now on | State | Target | Why |
+|---|---|---|---|---|
+| `k8s:data-mesh/Deployment/trino` | mother | stateless | k3s-worker | largest stateless memory request (5.5Gi); OOM-killed at node pressure 2026-09-27 |
+| `systemd:rogueone/rag-embed.service` | rogueone | stateless | k3s-worker | CPU-only since 2026-09-27; on a laptop the nightly indexer needs the laptop awake — as a Deployment on an always-on node it does not |
+| `pve:lxc/103` | weyland | none | tbd | whisper.cpp on Vulkan could move to the Strix inference LXC and free weyland's CPU — owner decision |
+
+**Summary:** 195 rows — any: 113, every-node: 3, k3s-worker: 2, stays: 76, tbd: 1
+
+  `any` = stateless, the scheduler may place it on either node once the worker joins; `stays` = pinned (every
+  local-path PV is bound to mother) or hardware-bound (rogueone's CUDA). Moving a `stays` store is a data migration,
+  decided per store here.
 - **Storage: 4 TB is plenty.** Today mother's root disk uses 685 / 1,178 GiB and MinIO 580 GiB of 3.9 TiB (17%, 22
   buckets). The box needs ~300–600 GB for a model library (a 70B Q4 is ~40 GB) + ~100–200 GB for node images/ephemeral.
 - **DR bonus — a stated goal of the purchase:** the spare space holds a full MinIO copy, putting backups on a

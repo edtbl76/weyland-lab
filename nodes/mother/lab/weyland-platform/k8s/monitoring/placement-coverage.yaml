@@ -379,26 +379,37 @@ data:
     # service cannot hide behind one.
     host_os_units:
       rogueone:
-        [accounts-daemon.service, anacron.service, apparmor.service, avahi-daemon.service, blk-availability.service,
-         bluetooth.service, bolt.service, clamav-freshclam.service, cloud-config.service, cloud-final.service,
-         cloud-init-local.service, cloud-init.service, colord.service, console-setup.service, cron.service,
-         cups-browsed.service, cups.service, dbus.service, dmesg.service, e2scrub_reap.service, earlyoom.service,
-         fwupd.service, gdm.service, getty@.service, gnome-remote-desktop.service, gpu-manager.service,
-         grub-common.service, grub-initrd-fallback.service, kdump-tools.service, kerneloops.service,
-         keyboard-setup.service, libvirtd.service, libvirt-guests.service, lvm2-monitor.service, ModemManager.service,
-         networkd-dispatcher.service, NetworkManager-dispatcher.service, NetworkManager.service,
-         NetworkManager-wait-online.service, nvidia-cdi-refresh.service, nvidia-hibernate.service,
-         nvidia-persistenced.service, nvidia-resume.service, nvidia-suspend.service, polkit.service,
-         power-profiles-daemon.service, qemu-kvm.service, rsyslog.service, rtkit-daemon.service, secureboot-db.service,
-         setvtrgb.service, snap.canonical-livepatch.canonical-livepatchd.service, snap.cups.cups-browsed.service,
-         snap.cups.cupsd.service, snapd.apparmor.service, snapd.autoimport.service, snapd.core-fixup.service,
+        [accounts-daemon.service, alsa-restore.service, anacron.service, anacron.timer, apparmor.service,
+         apport-autoreport.timer, apt-daily-upgrade.timer, apt-daily.timer, avahi-daemon.service,
+         blk-availability.service, bluetooth.service, bolt.service, clamav-freshclam.service, cloud-config.service,
+         cloud-final.service, cloud-init-local.service, cloud-init.service, colord.service, console-setup.service,
+         cron.service, cups-browsed.service, cups.service, dbus.service, dmesg.service, dpkg-db-backup.timer,
+         e2scrub_all.timer, e2scrub_reap.service, earlyoom.service, fstrim.timer, fwupd-refresh.timer, fwupd.service,
+         gdm.service, 'getty@.service', gnome-remote-desktop.service, gpu-manager.service, grub-common.service,
+         grub-initrd-fallback.service, kdump-tools.service, kerneloops.service, keyboard-setup.service,
+         kmod-static-nodes.service, libvirt-guests.service, libvirtd.service, logrotate.timer, lvm2-monitor.service,
+         man-db.timer, ModemManager.service, motd-news.timer, networkd-dispatcher.service,
+         NetworkManager-dispatcher.service, NetworkManager-wait-online.service, NetworkManager.service,
+         nvidia-cdi-refresh.service, nvidia-hibernate.service, nvidia-persistenced.service, nvidia-resume.service,
+         nvidia-suspend.service, packagekit.service, plymouth-quit-wait.service, plymouth-read-write.service,
+         plymouth-start.service, polkit.service, power-profiles-daemon.service, qemu-kvm.service, rsyslog.service,
+         rtkit-daemon.service, secureboot-db.service, setvtrgb.service,
+         snap.canonical-livepatch.canonical-livepatchd.service, snap.cups.cups-browsed.service, snap.cups.cupsd.service,
+         snapd.apparmor.service, snapd.autoimport.service, snapd.core-fixup.service,
          snapd.recovery-chooser-trigger.service, snapd.seeded.service, snapd.service, snapd.system-shutdown.service,
-         ssh.service, ssl-cert.service, sssd.service, switcheroo-control.service, sysstat.service,
-         systemd-journald.service, systemd-logind.service, systemd-machined.service, systemd-oomd.service,
-         systemd-pstore.service, systemd-resolved.service, systemd-timesyncd.service, systemd-udevd.service,
-         thermald.service, ua-reboot-cmds.service, ubuntu-advantage.service, udisks2.service, ufw.service,
-         unattended-upgrades.service, upower.service, user@1000.service, virtlockd.service, virtlogd.service,
-         wpa_supplicant.service]
+         ssh.service, ssl-cert.service, sssd.service, switcheroo-control.service, sysstat-collect.timer,
+         sysstat-summary.timer, sysstat.service, 'systemd-backlight@backlight:nvidia_0.service',
+         'systemd-backlight@leds:tpacpi::kbd_backlight.service', systemd-binfmt.service,
+         'systemd-fsck@dev-disk-by\x2duuid-EA48\x2d6AE6.service',
+         systemd-journal-flush.service, systemd-journald.service, systemd-logind.service, systemd-machined.service,
+         systemd-modules-load.service, systemd-oomd.service, systemd-pstore.service, systemd-random-seed.service,
+         systemd-remount-fs.service, systemd-resolved.service, systemd-sysctl.service, systemd-timesyncd.service,
+         systemd-tmpfiles-clean.timer, systemd-tmpfiles-setup-dev-early.service, systemd-tmpfiles-setup-dev.service,
+         systemd-tmpfiles-setup.service, systemd-udev-trigger.service, systemd-udevd.service,
+         systemd-update-utmp.service, systemd-user-sessions.service, thermald.service, ua-reboot-cmds.service,
+         ua-timer.timer, ubuntu-advantage.service, udisks2.service, ufw.service, unattended-upgrades.service,
+         update-notifier-download.timer, update-notifier-motd.timer, upower.service, 'user-runtime-dir@1000.service',
+         'user@1000.service', virtlockd.service, virtlogd.service, wpa_supplicant.service]
 
     workloads:
       # ---- mother (k3s) — seeded from the live cluster 2026-09-27 ----
@@ -576,7 +587,7 @@ data:
       - {id: "systemd:rogueone/tor@default.service", host: "rogueone", state: "host-path: /var/lib/tor", move: "movable", strix: "stays", managed: "systemd", scope: "unknown", why: "installed 2026-09-24 in a bulk apt install; client only on 127.0.0.1:9050 — owner not confirmed"}
       - {id: "systemd:rogueone/prometheus-node-exporter.service", host: "rogueone", state: "stateless", move: "hardware-bound: reports rogueone's own units", strix: "stays", managed: "systemd", why: "B198 — systemd-only exporter feeding the placement-coverage check"}
       - {id: "systemd:rogueone/openvpn.service", host: "rogueone", state: "none", move: "pinned: the owner's laptop", strix: "stays", managed: "systemd", scope: "personal"}
-      - {id: "systemd:rogueone/synergy.service", host: "rogueone", state: "none", move: "pinned: the owner's laptop", strix: "stays", managed: "systemd", scope: "personal"}
+      - {id: "user-systemd:rogueone/synergy.service", host: "rogueone", state: "none", move: "pinned: the owner's laptop", strix: "stays", managed: "systemd", scope: "personal"}
       - {id: "systemd:rogueone/tailscaled.service", host: "rogueone", state: "none", move: "pinned: the owner's laptop", strix: "stays", managed: "systemd", scope: "unknown", why: "owner not confirmed"}
       - {id: "systemd:rogueone/woodpecker-agent-1.service", host: "rogueone", state: "stateless", move: "pinned: STUD.io CI local backend (host docker)", strix: "stays", managed: "systemd", scope: "stud.io", likec4: "studioAgents"}
       - {id: "systemd:rogueone/woodpecker-agent-2.service", host: "rogueone", state: "stateless", move: "pinned: STUD.io CI local backend (host docker)", strix: "stays", managed: "systemd", scope: "stud.io", likec4: "studioAgents"}

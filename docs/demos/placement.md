@@ -1,0 +1,70 @@
+# Demo — placement inventory (B198)
+
+Where every workload in the lab runs, what state it holds, whether it can move, and where it goes when the Strix
+Halo box lands (B134) — and the two checks that keep that answer true. Sequence diagram:
+[../diagrams/flow-placement.md](../diagrams/flow-placement.md). Runbook:
+[../runbooks/observability.md](../runbooks/observability.md#placement-inventory--placementyaml-and-its-checks-b198-2026-09-27).
+
+**Status: PARTIAL (2026-09-27).** Repo and live checks run clean from rogueone against the real Prometheus, and every
+failure mode was drilled live. Pending: the first in-cluster `placement-coverage` Job run after the inventory fixes
+below are pushed.
+
+| Live check (2026-09-27) | Result |
+|---|---|
+| Rows | 195 — 158 Kubernetes workloads, 25 rogueone services/timers, 3 user timers + 7 declared tools, 2 Proxmox guests |
+| kube-state-metrics vs `kubectl` | 121 Deployments, 13 StatefulSets, 3 DaemonSets, 21 CronJobs — identical |
+| rogueone exporter | systemd collector only; 1,160 `node_systemd_unit_state` series; job `systemd-rogueone` up; 118 active services + timers |
+| Repo check | `OK — 195 rows, repo check clean` |
+| Live check | `OK — 195 rows, live check clean` (exit 0) |
+| Drill: a k8s row removed (trino) | exit 1, `running with no row` + a row to paste |
+| Drill: a row for a workload that does not exist | exit 1, `row names something that is not running` |
+| Drill: a rogueone service row removed (ollama) | exit 1, names `systemd:rogueone/ollama.service` |
+| Drill: a rogueone row for a unit that is not running | exit 1, names it |
+| Drill: rogueone silent for 24h (wrong exporter port) | exit 2, `no systemd series ... in the last 24h` |
+| Drill: Prometheus unreachable | exit 2 |
+
+## CLI walkthrough
+
+Repo check (what `repo-guards` runs):
+
+[rogueone]
+```
+bash /home/edwardmangini/IdeaProjects/weyland/scripts/check-placement.sh
+```
+Expect `OK — placement.yaml: <N> rows, repo check clean.`
+
+The Strix Halo migration table:
+
+[rogueone]
+```
+bash /home/edwardmangini/IdeaProjects/weyland/scripts/check-placement.sh --migration
+```
+Expect a table with Trino and `rag-embed` as `k3s-worker`, `whisper` as `tbd`, and a summary line of counts.
+
+Live check, in-cluster (what the CronJob runs nightly):
+
+[mother]
+```
+kubectl -n monitoring create job placement-coverage-now --from=cronjob/placement-coverage && kubectl -n monitoring wait --for=condition=complete job/placement-coverage-now --timeout=300s; kubectl -n monitoring logs job/placement-coverage-now; kubectl -n monitoring delete job placement-coverage-now
+```
+Expect `OK — placement.yaml: <N> rows, live check clean.`
+
+rogueone's exporter answering:
+
+[rogueone]
+```
+curl -s localhost:9100/metrics | grep -c '^node_systemd_unit_state'
+```
+Expect a count in the thousands and no `node_filesystem_` lines.
+
+## UI walkthrough (UAT)
+
+Grafana Explore → Prometheus (`https://grafana.weyland.lab/explore`):
+1. Query `up{job="systemd-rogueone"}` — **confirm** one series, value 1 while rogueone is awake.
+2. Query `node_systemd_unit_state{job="systemd-rogueone",state="active",name="rag-embed.service"}` — **confirm** 1.
+3. Query `kube_cronjob_created{cronjob="placement-coverage"}` — **confirm** one series in `monitoring`.
+
+## Teardown
+
+Read-only: the checks read files and Prometheus. The drills above used temporary copies of `placement.yaml`; nothing
+to remove.

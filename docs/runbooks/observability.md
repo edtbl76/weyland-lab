@@ -213,6 +213,37 @@ TRINO_HTTP=http://localhost:18200 DATAHUB_GMS_URL=http://localhost:18201 DATAHUB
 ```
 Live baseline 2026-09-05: **111/111 mesh tables catalogued, 0 drift** (exit 0).
 
+### Placement inventory — placement.yaml and its checks (B198, 2026-09-27)
+
+[`placement.yaml`](../../placement.yaml) records where every workload runs, what state it holds, whether it can move,
+and its Strix Halo target (B134). Two checks keep it honest (`scripts/placement_check.py`; exit 1 = drift named,
+2 = a source could not be read):
+
+| Check | Where | What fails it |
+|---|---|---|
+| repo | `bash scripts/check-placement.sh` in `repo-guards` | a bad field or enum, an unknown host, a LikeC4 node / host-native component with no row, a pvc/host-path row marked movable |
+| live | `placement-coverage` CronJob (monitoring, 03:40 NY) | a running Deployment/StatefulSet/DaemonSet/CronJob, active rogueone service/timer or Proxmox guest with no row; a row naming nothing running (unless `on_demand`) |
+
+The live check reads Prometheus only: kube-state-metrics, pve-exporter, and rogueone's systemd-only node-exporter
+(job `systemd-rogueone`, config `nodes/rogueone/systemd/prometheus-node-exporter.default`). rogueone is read over the
+**last 24h** because it sleeps; no series in 24h is exit 2, never "nothing running". User-level units
+(`systemctl --user`) and tools are declared rows (`user-systemd:` / `tool:`) the exporter cannot see.
+
+**Adding a workload:** add its row (the live check prints one to start from), then re-embed so the CronJob reads it:
+```
+bash /home/edwardmangini/IdeaProjects/weyland/scripts/embed-placement.sh && bash /home/edwardmangini/IdeaProjects/weyland/scripts/check-placement.sh
+```
+**Run the live check now** instead of waiting for 03:40:
+
+[mother]
+```
+kubectl -n monitoring create job placement-coverage-now --from=cronjob/placement-coverage && kubectl -n monitoring wait --for=condition=complete job/placement-coverage-now --timeout=300s; kubectl -n monitoring logs job/placement-coverage-now; kubectl -n monitoring delete job placement-coverage-now
+```
+**The Strix Halo migration table** (rows whose target is k3s-worker / inference-lxc / tbd, plus counts):
+```
+bash /home/edwardmangini/IdeaProjects/weyland/scripts/check-placement.sh --migration
+```
+
 ### Dagster job watchdog — budgets and the guard (B94, B196 2026-09-27)
 
 `dagster-freshness-check` (`k8s/dagster/freshness.yaml`, `*/30`) reads the Dagster run database and, per job in its

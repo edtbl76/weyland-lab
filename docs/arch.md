@@ -1384,6 +1384,38 @@ DR catalog: [dr.md](dr.md).
 
 ---
 
+### 10d. Placement inventory — where every workload runs, and whether it can move (B198, 2026-09-27)
+
+**The problem.** Buying a second machine (the Strix Halo box, B134) turns a question the lab never had to ask — *which
+node does this need?* — into one it must answer for ~200 workloads. Kubernetes placement was already guarded
+(`applications.yaml` → `check-onboarding-completeness.sh` → a LikeC4 element), but host-native services were
+hand-listed and had drifted: rogueone ran three STUD.io runners, a GPU exporter and several stock-installed services
+with no model entry, `rag-embed` was described as a GPU service two months after the reason for the GPU was gone, and
+nothing read what rogueone actually ran.
+
+**The design.** One file, [`placement.yaml`](../placement.yaml), one row per workload: `host`, `state`, `move`,
+`strix` target, `managed`, `scope`. The migration plan for B134 is a *query* over it (`check-placement.sh
+--migration`), not a separate document that could drift from it. Two checks hold it honest — repo mode on every push,
+live mode nightly — with the coverage family's exit contract (1 = drift named, 2 = could not read).
+
+| Decision | Chosen | Rejected | Why |
+|---|---|---|---|
+| Live source | Prometheus only (kube-state-metrics, pve-exporter, node-exporter systemd) | kubectl + a ServiceAccount; SSH to hosts | all three facts are already scraped series; no RBAC, no credentials, one ClusterIP |
+| Host signal on rogueone | node-exporter with **only** the systemd collector | the full default collectors | `node-disk-alerts` matches `node_filesystem_*` without a job filter — a full exporter would judge a laptop by mother's disk thresholds |
+| A sleeping laptop | read the last 24h; nothing in 24h = exit 2 | instant query | an instant query at 03:40 would read "nothing running" every night the laptop is closed |
+| Inventory in the CronJob | embedded byte-identical (`embed-placement.sh`, asserted in bats) | fetch `main` from GitHub at run time | the house pattern for coverage CronJobs; no egress dependency in a guard |
+| Granularity | per workload (Deployment/StatefulSet/DaemonSet/CronJob, unit, guest) | per Argo app | two nodes schedule workloads, not apps — an app can span both |
+| Unconfirmed ownership | `scope: unknown` | a guessed scope | a guess written into an inventory reads as fact to the next reader |
+
+**What the first run established.** Every local-path PV (47/47) is bound to node `mother`, so all 41 stateful
+workloads are pinned: moving one is a data migration, decided per store in B134. 113 stateless workloads (31 Gi of
+memory requests) may run on either node; two are deliberate moves (Trino — the 5.5 Gi request OOM-killed at node
+pressure on 2026-09-27 — and `rag-embed`, whose nightly indexer should not depend on a laptop being awake). Some
+workloads are not deployed by Argo: `trino-noauth-proxy` (kubectl-applied 2026-07-08; its manifest sits in a
+directory Argo reads only Helm values from), and Helm-installed `headlamp`, `istiod` and Argo CD itself (5 workloads),
+plus the k3s-managed kube-system components — recorded in the `managed` column. The first two are Pillar 6
+reproducibility findings.
+
 ## 11. Operational lessons (why the CTs are tuned the way they are)
 
 Both stem from the **same root: an LXC exposes the *host's* resources, not the container's cgroup**,

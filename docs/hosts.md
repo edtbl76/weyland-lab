@@ -3,6 +3,11 @@
 Every machine/container in the lab. Keep updated as hosts change (see
 [[feedback-keep-api-hosts-updated]]). Endpoints: [api.md](api.md).
 
+> **Which workload runs where** is not in this table — it is [`placement.yaml`](../placement.yaml) (B198): every
+> Kubernetes workload, host-native service, user timer and Proxmox guest, with its state, whether it can move, and its
+> Strix Halo target. It is reconciled against the live estate nightly (`placement-coverage`) and against the LikeC4
+> model on every push (`scripts/check-placement.sh`).
+
 > **IP confidence:** ✅ = confirmed this session (2026-06). ⚠ = from `weyland.md` (RE note, may be
 > stale) — **verify and correct in place.**
 
