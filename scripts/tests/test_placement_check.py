@@ -327,6 +327,17 @@ def test_main_is_2_when_the_inventory_has_no_rows(tmp_path):
     assert pc.main(["--repo", "--file", str(p), "--model", str(m)]) == 2
 
 
+def test_live_mode_without_a_prometheus_url_is_2(tmp_path, monkeypatch, capsys):
+    # No baked-in URL (Sonar S5332, 2026-09-28): the CronJob passes --prometheus explicitly; a bare --live with neither the
+    # flag nor PROMETHEUS_URL must refuse, never guess an endpoint.
+    import yaml
+    monkeypatch.delenv("PROMETHEUS_URL", raising=False)
+    p = tmp_path / "placement.yaml"
+    p.write_text(yaml.safe_dump(_doc()))
+    assert pc.main(["--live", "--file", str(p)]) == 2
+    assert "PROMETHEUS_URL" in capsys.readouterr().err
+
+
 def test_the_real_inventory_passes_repo_mode():
     root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
     assert pc.main(["--repo", "--file", os.path.join(root, "placement.yaml"),

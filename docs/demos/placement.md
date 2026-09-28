@@ -5,8 +5,9 @@ Halo box lands (B134) — and the two checks that keep that answer true. Sequenc
 [../diagrams/flow-placement.md](../diagrams/flow-placement.md). Runbook:
 [../runbooks/observability.md](../runbooks/observability.md#placement-inventory--placementyaml-and-its-checks-b198-2026-09-27).
 
-**Status: DONE (2026-09-28).** Repo and live checks run clean, every failure mode was drilled live, and the in-cluster
-`placement-coverage` Job (runbook command) returned `OK — placement.yaml: 195 rows, live check clean.`
+**Status: PARTIAL (2026-09-28) — UAT pending.** Repo and live checks run clean, every failure mode was drilled live, and
+the in-cluster `placement-coverage` Job (runbook command) returned `OK — placement.yaml: 195 rows, live check clean.`
+Open: the three eyes-on UAT steps below (DoD Pillar 3 — a green check is not a human looking).
 
 | Live check (2026-09-27) | Result |
 |---|---|

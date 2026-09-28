@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """Placement inventory guard (B198) — placement.yaml against the architecture model and the live estate.
 
 WHY THIS EXISTS: before the Strix Halo box (B134) lands, every workload needs one answer — where it runs, what state it
@@ -26,7 +25,8 @@ import urllib.request
 
 import yaml
 
-ID_PREFIXES = ("k8s:", "systemd:", "pve:", "tool:", "user-systemd:")
+SYSTEMD = "systemd:"
+ID_PREFIXES = ("k8s:", SYSTEMD, "pve:", "tool:", "user-systemd:")
 DECLARED_ONLY = ("tool:", "user-systemd:")  # not visible to Prometheus: declared, never live-checked
 STRIX = {"any", "k3s-worker", "inference-lxc", "stays", "every-node", "tbd"}
 NEEDS_WHY = {"k3s-worker", "inference-lxc", "tbd"}
@@ -100,7 +100,7 @@ _ELEMENT = re.compile(r'^\s*(\w+)\s*=\s*(\w+)\s+"')
 
 
 def _model_block(text):
-    m = re.search(r"^model\s*\{", text, re.M)
+    m = re.search(r"^model\s*\{", text, re.MULTILINE)
     if not m:
         return ""
     depth, i = 1, m.end()
@@ -110,6 +110,23 @@ def _model_block(text):
     return text[m.end():i - 1]
 
 
+def _is_placed(kind, stack):
+    """A node is always placed; any other element is placed when its nearest enclosing node is not the k3s node."""
+    if kind == "node":
+        return True
+    in_node = next((s for s in reversed(stack) if s[1] == "node"), None)
+    return bool(in_node) and in_node[0] != CLUSTER_NODE
+
+
+def _track_braces(code, stack):
+    """Keep the element stack aligned on lines that open or close a block without declaring an element."""
+    net = code.count("{") - code.count("}")
+    for _ in range(-net):
+        if stack:
+            stack.pop()
+    stack.extend([("", "")] * max(net, 0))
+
+
 def likec4_placed_elements(text):
     """Every `node` element, plus every element nested inside a node other than the k3s node (whose components are k8s
     workloads, placed by the live k8s rows and by check-onboarding-completeness)."""
@@ -117,21 +134,14 @@ def likec4_placed_elements(text):
     for line in _model_block(text).splitlines():
         code = line.split("//", 1)[0]
         m = _ELEMENT.match(code)
-        if m:
-            eid, kind = m.group(1), m.group(2)
-            in_node = next((s for s in reversed(stack) if s[1] == "node"), None)
-            if kind == "node":
-                placed.add(eid)
-            elif in_node and in_node[0] != CLUSTER_NODE:
-                placed.add(eid)
-            if code.count("{") > code.count("}"):
-                stack.append((eid, kind))
+        if not m:
+            _track_braces(code, stack)
             continue
-        for _ in range(code.count("}") - code.count("{")):
-            if stack:
-                stack.pop()
-        for _ in range(code.count("{") - code.count("}")):
-            stack.append(("", ""))
+        eid, kind = m.group(1), m.group(2)
+        if _is_placed(kind, stack):
+            placed.add(eid)
+        if code.count("{") > code.count("}"):
+            stack.append((eid, kind))
     if not placed:
         raise CannotRead("no node elements parsed from the LikeC4 model")
     return placed
@@ -143,7 +153,7 @@ def check_model(doc, model_text):
     named = {r.get("likec4") for r in doc.get("workloads") or [] if r.get("likec4")}
     out = [f"LikeC4 element '{e}' has no placement row (add a row with likec4: {e})"
            for e in sorted(placed - named - hosts)]
-    all_ids = set(re.findall(r'^\s*(\w+)\s*=\s*\w+\s+"', _model_block(model_text), re.M))
+    all_ids = set(re.findall(r'^\s*(\w+)\s*=\s*\w+\s+"', _model_block(model_text), re.MULTILINE))
     out += [f"row likec4 '{e}' is not an element in the LikeC4 model" for e in sorted(named - all_ids)]
     return out
 
@@ -196,8 +206,8 @@ def _running_set(rid, k8s, units, pve):
         return k8s
     if rid.startswith("pve:"):
         return pve
-    host = rid[len("systemd:"):].split("/", 1)[0]
-    return {f"systemd:{host}/{u}" for u in units.get(host, set())} if host in units else None
+    host = rid[len(SYSTEMD):].split("/", 1)[0]
+    return {f"{SYSTEMD}{host}/{u}" for u in units.get(host, set())} if host in units else None
 
 
 def check_live(doc, k8s, units, pve):
@@ -206,10 +216,10 @@ def check_live(doc, k8s, units, pve):
     os_units = doc.get("host_os_units") or {}
     running = set(k8s) | set(pve)
     for host, us in units.items():
-        running |= {f"systemd:{host}/{u}" for u in us if u not in set(os_units.get(host, []))}
+        running |= {f"{SYSTEMD}{host}/{u}" for u in us if u not in set(os_units.get(host, []))}
     out = []
     for rid in sorted(running - ids):
-        host = rid[len("systemd:"):].split("/", 1)[0] if rid.startswith("systemd:") else "mother"
+        host = rid[len(SYSTEMD):].split("/", 1)[0] if rid.startswith(SYSTEMD) else "mother"
         out.append(f"{rid}: running with no row — add:\n{suggest_row(rid, host)}")
     for r in rows:
         rid = r["id"]
@@ -253,7 +263,7 @@ def _prom(url):
     def query(q):
         full = f"{url.rstrip('/')}/api/v1/query?" + urllib.parse.urlencode({"query": q})
         try:
-            with urllib.request.urlopen(full, timeout=30) as resp:  # noqa: S310  # nosec B310 — in-cluster http URL
+            with urllib.request.urlopen(full, timeout=30) as resp:  # nosec B310 — URL comes from --prometheus / PROMETHEUS_URL
                 return json.load(resp)
         except (OSError, ValueError) as exc:
             raise CannotRead(f"Prometheus unreachable at {url}: {exc}") from exc
@@ -267,6 +277,8 @@ def _run(args):
         return []
     findings = validate_schema(doc)
     if args.live:
+        if not args.prometheus:
+            raise CannotRead("--live needs --prometheus <url> or PROMETHEUS_URL (the placement-coverage CronJob passes it)")
         q = _prom(args.prometheus)
         findings += check_live(doc, k8s_objects(q), active_units(q, doc.get("hosts") or {}), pve_guests(q))
     else:
@@ -284,8 +296,8 @@ def main(argv=None):
     mode.add_argument("--migration", action="store_true", help="print the Strix Halo migration table")
     ap.add_argument("--file", default=os.path.join(root, "placement.yaml"))
     ap.add_argument("--model", default=os.path.join(root, "docs/architecture/weyland.likec4"))
-    ap.add_argument("--prometheus", default=os.environ.get(
-        "PROMETHEUS_URL", "http://monitoring-kube-prometheus-prometheus.monitoring.svc.cluster.local:9090"))
+    # No baked-in URL: the CronJob passes --prometheus explicitly, and a guessed endpoint is not a reading (S5332).
+    ap.add_argument("--prometheus", default=os.environ.get("PROMETHEUS_URL"))
     args = ap.parse_args(argv)
     try:
         findings = _run(args)
