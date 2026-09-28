@@ -66,7 +66,7 @@ data:
     DECLARED_ONLY = ("tool:", "user-systemd:")  # not visible to Prometheus: declared, never live-checked
     STRIX = {"any", "k3s-worker", "inference-lxc", "stays", "every-node", "tbd"}
     NEEDS_WHY = {"k3s-worker", "inference-lxc", "tbd"}
-    SCOPES = {"lab", "stud.io", "unused"}
+    SCOPES = {"lab", "stud.io", "personal", "unused", "unknown"}
     MOVE_FIXED = {"movable", "every-node"}
     MOVE_REASONED = ("pinned:", "hardware-bound:")
     KSM = {"Deployment": "deployment", "StatefulSet": "statefulset", "DaemonSet": "daemonset", "CronJob": "cronjob"}
@@ -356,7 +356,8 @@ data:
     #   strix     any (the scheduler may place it on either node) | k3s-worker (deliberately moved) | inference-lxc |
     #             stays | every-node | tbd (an owner decision, with `why`)
     #   managed   how it is deployed: argo | k3s | operator (<Kind>) | helm (not argo) | kubectl (not argo) | systemd | pve
-    #   scope     lab (default) | stud.io (a separate product — recorded, not planned here) | unused (a removal candidate)
+    #   scope     lab (default) | stud.io (a separate product — recorded, not planned here) | personal (the owner's own
+    #             tools, confirmed by the owner) | unused (a removal candidate) | unknown (owner not confirmed — never guess)
     #   likec4    the element id in docs/architecture/weyland.likec4, when the model has one
     #   on_demand true = normally NOT running (benches, trainers); the live check does not treat "not running" as drift
     #   why       the reason, required for k3s-worker / inference-lxc / tbd / unused
@@ -570,7 +571,13 @@ data:
       - {id: "systemd:rogueone/offline-failing-cores.service", host: "rogueone", state: "none", move: "hardware-bound: rogueone's failing P-cores (B150)", strix: "stays", managed: "systemd"}
       - {id: "systemd:rogueone/docker.service", host: "rogueone", state: "host-path: /var/lib/docker", move: "pinned: container runtime for the B111 benches + STUD.io CI", strix: "stays", managed: "systemd"}
       - {id: "systemd:rogueone/containerd.service", host: "rogueone", state: "host-path: /var/lib/containerd", move: "pinned: docker's runtime", strix: "stays", managed: "systemd"}
-      - {id: "systemd:rogueone/mosquitto.service", host: "rogueone", state: "host-path: /var/lib/mosquitto", move: "movable", strix: "stays", managed: "systemd", scope: "unused", why: "stock install, listens on localhost only, no clients (checked 2026-09-27) — removal candidate"}
+      - {id: "systemd:rogueone/mosquitto.service", host: "rogueone", state: "host-path: /var/lib/mosquitto", move: "movable", strix: "stays", managed: "systemd", scope: "unknown", why: "installed 2026-09-24 in a bulk apt install; localhost only, no clients seen — owner not confirmed"}
+      - {id: "systemd:rogueone/tor.service", host: "rogueone", state: "none", move: "movable", strix: "stays", managed: "systemd", scope: "unknown", why: "installed 2026-09-24 in a bulk apt install; client only on 127.0.0.1:9050 — owner not confirmed"}
+      - {id: "systemd:rogueone/tor@default.service", host: "rogueone", state: "host-path: /var/lib/tor", move: "movable", strix: "stays", managed: "systemd", scope: "unknown", why: "installed 2026-09-24 in a bulk apt install; client only on 127.0.0.1:9050 — owner not confirmed"}
+      - {id: "systemd:rogueone/prometheus-node-exporter.service", host: "rogueone", state: "stateless", move: "hardware-bound: reports rogueone's own units", strix: "stays", managed: "systemd", why: "B198 — systemd-only exporter feeding the placement-coverage check"}
+      - {id: "systemd:rogueone/openvpn.service", host: "rogueone", state: "none", move: "pinned: the owner's laptop", strix: "stays", managed: "systemd", scope: "personal"}
+      - {id: "systemd:rogueone/synergy.service", host: "rogueone", state: "none", move: "pinned: the owner's laptop", strix: "stays", managed: "systemd", scope: "personal"}
+      - {id: "systemd:rogueone/tailscaled.service", host: "rogueone", state: "none", move: "pinned: the owner's laptop", strix: "stays", managed: "systemd", scope: "unknown", why: "owner not confirmed"}
       - {id: "systemd:rogueone/woodpecker-agent-1.service", host: "rogueone", state: "stateless", move: "pinned: STUD.io CI local backend (host docker)", strix: "stays", managed: "systemd", scope: "stud.io", likec4: "studioAgents"}
       - {id: "systemd:rogueone/woodpecker-agent-2.service", host: "rogueone", state: "stateless", move: "pinned: STUD.io CI local backend (host docker)", strix: "stays", managed: "systemd", scope: "stud.io", likec4: "studioAgents"}
       - {id: "systemd:rogueone/woodpecker-agent-3.service", host: "rogueone", state: "stateless", move: "pinned: STUD.io CI local backend (host docker)", strix: "stays", managed: "systemd", scope: "stud.io", likec4: "studioAgents"}

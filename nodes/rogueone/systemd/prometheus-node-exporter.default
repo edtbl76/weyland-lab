@@ -1,0 +1,15 @@
+# B198 — rogueone's node-exporter, SYSTEMD COLLECTOR ONLY. Installed as /etc/default/prometheus-node-exporter
+# (the Ubuntu package's EnvironmentFile; its unit runs `prometheus-node-exporter $ARGS`).
+#
+# WHY ONLY SYSTEMD: the exporter exists so the nightly placement-coverage CronJob (scripts/placement_check.py --live)
+# can read which services and timers run on rogueone. The default collectors would add node_filesystem_* / memory
+# series, and k8s/monitoring/node-disk-alerts.yaml matches node_filesystem_* with no job filter — a laptop would then be
+# judged by mother's disk thresholds. `unit-include` keeps services + timers only (the check ignores other types).
+# Scraped by Prometheus as job `systemd-rogueone` (k8s/monitoring/kube-prometheus-stack-values.yaml).
+#
+# Install (package without recommends — the "collectors" recommend adds its own timers):
+#   sudo apt install -y --no-install-recommends prometheus-node-exporter
+#   sudo install -m 644 nodes/rogueone/systemd/prometheus-node-exporter.default /etc/default/prometheus-node-exporter
+#   sudo systemctl restart prometheus-node-exporter
+# Verify: curl -s localhost:9100/metrics | grep -c '^node_systemd_unit_state'
+ARGS="--collector.disable-defaults --collector.systemd --collector.systemd.unit-include=.+[.](service|timer) --web.listen-address=:9100"
