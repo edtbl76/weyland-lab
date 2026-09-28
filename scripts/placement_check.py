@@ -34,7 +34,10 @@ SCOPES = {"lab", "stud.io", "personal", "unused", "unknown"}
 MOVE_FIXED = {"movable", "every-node"}
 MOVE_REASONED = ("pinned:", "hardware-bound:")
 KSM = {"Deployment": "deployment", "StatefulSet": "statefulset", "DaemonSet": "daemonset", "CronJob": "cronjob"}
-UNIT_QUERY = 'last_over_time(node_systemd_unit_state{state="active",instance="%s"}[24h]) == 1'
+# A unit is RUNNING when it was active in more than half of the last 24h's samples. Not "active at any moment": D-Bus-
+# activated OS helpers (systemd-hostnamed, flatpak-system-helper) run for seconds and exit, and any-moment made each a
+# nightly finding (2026-09-28). A sleeping laptop yields no samples, so sleep does not count against a unit.
+UNIT_QUERY = 'avg_over_time(node_systemd_unit_state{state="active",instance="%s"}[24h]) > 0.5'
 CLUSTER_NODE = "mother"
 
 

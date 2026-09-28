@@ -250,7 +250,17 @@ def test_the_unit_query_looks_back_24h():
     seen = []
     pc.active_units(lambda q: seen.append(q) or _vec({"name": "a.service", "state": "active",
                                                       "instance": "192.168.1.230:9100"}), _doc()["hosts"])
-    assert "[24h]" in seen[0] and "last_over_time" in seen[0]
+    assert "[24h]" in seen[0] and "avg_over_time" in seen[0]
+
+
+def test_a_unit_counts_as_running_only_if_active_most_of_the_day():
+    # D-Bus-activated OS helpers (systemd-hostnamed, flatpak-system-helper) are active for seconds and then exit; any-
+    # moment-in-24h made each one a nightly finding (2026-09-28). A workload is active across most samples; a helper
+    # is not. Sleep does not count against a unit: a sleeping laptop produces no samples at all.
+    seen = []
+    pc.active_units(lambda q: seen.append(q) or _vec({"name": "a.service", "state": "active",
+                                                      "instance": "192.168.1.230:9100"}), _doc()["hosts"])
+    assert "> 0.5" in seen[0]
 
 
 def test_pve_guests():
