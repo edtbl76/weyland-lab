@@ -226,7 +226,10 @@ and its Strix Halo target (B134). Two checks keep it honest (`scripts/placement_
 
 The live check reads Prometheus only: kube-state-metrics, pve-exporter, and rogueone's systemd-only node-exporter
 (job `systemd-rogueone`, config `nodes/rogueone/systemd/prometheus-node-exporter.default`). rogueone is read over the
-**last 24h** because it sleeps; no series in 24h is exit 2, never "nothing running". User-level units
+**last 24h** because it sleeps; no series in 24h is exit 2, never "nothing running". A unit counts as running when
+it was active in more than half of the host's samples that day, so on-demand OS helpers that run for minutes
+(`systemd-hostnamed`, `flatpak-system-helper`) are not workloads; a row for a service that is deliberately up less than
+half the day needs `on_demand: true`. User-level units
 (`systemctl --user`) and tools are declared rows (`user-systemd:` / `tool:`) the exporter cannot see.
 
 **Adding a workload:** add its row (the live check prints one to start from), then re-embed so the CronJob reads it:

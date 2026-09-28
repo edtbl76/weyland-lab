@@ -27,7 +27,7 @@ sequenceDiagram
     C->>F: read the embedded copy (byte-identical, asserted in bats)
     C->>P: four kube_*_created queries
     C->>P: pve_guest_info
-    C->>P: last_over_time unit state, 24h (rogueone sleeps)
+    C->>P: unit active samples / host samples over 24h, keep above 0.5
     alt every source answered
         C->>C: running minus rows, rows minus running (on_demand and declared rows skipped)
         alt no difference

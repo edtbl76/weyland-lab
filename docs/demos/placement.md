@@ -5,9 +5,8 @@ Halo box lands (B134) — and the two checks that keep that answer true. Sequenc
 [../diagrams/flow-placement.md](../diagrams/flow-placement.md). Runbook:
 [../runbooks/observability.md](../runbooks/observability.md#placement-inventory--placementyaml-and-its-checks-b198-2026-09-27).
 
-**Status: PARTIAL (2026-09-27).** Repo and live checks run clean from rogueone against the real Prometheus, and every
-failure mode was drilled live. Pending: the first in-cluster `placement-coverage` Job run after the inventory fixes
-below are pushed.
+**Status: DONE (2026-09-28).** Repo and live checks run clean, every failure mode was drilled live, and the in-cluster
+`placement-coverage` Job (runbook command) returned `OK — placement.yaml: 195 rows, live check clean.`
 
 | Live check (2026-09-27) | Result |
 |---|---|
@@ -23,6 +22,7 @@ below are pushed.
 | Drill: rogueone silent for 24h (wrong exporter port) | exit 2, `no systemd series ... in the last 24h` |
 | Drill: Prometheus unreachable | exit 2 |
 | First in-cluster Job (2026-09-28, runbook command) | ran end to end in `monitoring`; exit 1 naming `systemd-hostnamed.service` — a stock D-Bus-activated unit, active only briefly, that the exporter's first hours had not seen. Added to `host_os_units`; a 15-day `max_over_time` sweep found no other uncovered unit |
+| Second in-cluster Job (2026-09-28) | exit 1 naming `flatpak-system-helper.service` — another on-demand helper. Root cause, not another row: the check counted any unit active at ANY moment in 24h. Fixed to "active in > 50% of the host's samples" (measured: real services/timers 1.0, the two helpers 0.017 / 0.006); live check clean, the three rogueone drills re-run and still fail correctly |
 
 ## CLI walkthrough
 
