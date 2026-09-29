@@ -141,9 +141,11 @@ deliberate restart (a k3s upgrade or a reboot). Install and verify on mother:
 
 [mother]
 ```
-sudo install -m 0644 /tmp/weyland-k3s.conf /etc/needrestart/conf.d/weyland-k3s.conf && sudo needrestart -r l -b | grep -i k3s
+sudo install -m 0644 /tmp/weyland-k3s.conf /etc/needrestart/conf.d/weyland-k3s.conf && sudo needrestart -r l -u NeedRestart::UI::stdio 2>&1 | grep -iE "Services to be restarted|restarts being deferred|k3s"
 ```
-(copy the file to `/tmp` first: `rsync -av nodes/mother/host/needrestart/weyland-k3s.conf emangini@mother:/tmp/`
+PASS: `systemctl restart k3s.service` is listed under **"Service restarts being deferred"** and nothing under
+"Services to be restarted" (verified on mother 2026-09-29). Not `-b` (batch mode lists k3s either way) and not the
+default dialog UI (it waits invisibly behind a pipe). (copy the file to `/tmp` first: `rsync -av nodes/mother/host/needrestart/weyland-k3s.conf emangini@mother:/tmp/`
 from the repo). **How to tell it happened:** the API server's start time jumps
 (`process_start_time_seconds{job="apiserver"}`) and the k3s journal shows `Stopping k3s.service` during an
 `apt.systemd.daily` run.
