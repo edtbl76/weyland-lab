@@ -4,8 +4,14 @@ A DataHub ingestion source that fails, stops, or never runs now reaches Telegram
 [../diagrams/flow-datahub-ingestion-watchdog.md](../diagrams/flow-datahub-ingestion-watchdog.md). Runbook:
 [../runbooks/datahub.md](../runbooks/datahub.md#ingestion-watchdog-b197-2026-09-28).
 
-**Status: PARTIAL (2026-09-28)** — logic tested (29 pytest cases) and run once against the live GMS
-(`checked 17 source(s): 0 alert(s) fired`). Pending: the in-cluster Job and the alert drill after push, and the UAT.
+**Status: DONE (2026-09-28).**
+
+| Live check | Result |
+|---|---|
+| In-cluster Job (runbook command) | `checked 17 source(s): 0 alert(s) fired` |
+| Alert drill (`ONLY_SOURCE=Trino - Weyland`, `BUDGET_FACTOR=0.0001`) | `ALERT DataHubIngestionStale source='Trino - Weyland'`; active in Alertmanager, receiver `telegram` |
+| UAT | owner received the Telegram message |
+| CI #202 | 68/68 steps green, including the SonarQube gate |
 
 ## CLI walkthrough
 
