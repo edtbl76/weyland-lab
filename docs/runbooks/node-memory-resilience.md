@@ -126,6 +126,28 @@ kubectl delete ns eviction-test
 kubectl delete priorityclass eviction-test-low
 ```
 
+## Unattended upgrades must never restart k3s (2026-09-29)
+
+Ubuntu's `unattended-upgrades` runs `needrestart` after installing packages, and `needrestart` restarts every service
+it thinks uses an old library — **including `k3s.service`**. On 2026-09-29 at 06:30 UTC it upgraded `dracut-install`,
+`python3-jwt` and `python3-requests`, then ran `systemctl restart k3s.service` (see
+`/var/log/unattended-upgrades/unattended-upgrades-dpkg.log`). On a single node that is a control-plane restart: every
+API connection dropped, and the nightly image build's in-flight CI step pod (CI #203) was killed mid-build. k3s is a
+static Go binary; none of those packages mattered to it.
+
+Fix: `nodes/mother/host/needrestart/weyland-k3s.conf` (`$nrconf{override_rc}{qr(^k3s\.service$)} = 0;`) moves k3s to
+needrestart's "deferred" list, as Docker already is. Updates still install; k3s picks up libraries at its next
+deliberate restart (a k3s upgrade or a reboot). Install and verify on mother:
+
+[mother]
+```
+sudo install -m 0644 /tmp/weyland-k3s.conf /etc/needrestart/conf.d/weyland-k3s.conf && sudo needrestart -r l -b | grep -i k3s
+```
+(copy the file to `/tmp` first: `rsync -av nodes/mother/host/needrestart/weyland-k3s.conf emangini@mother:/tmp/`
+from the repo). **How to tell it happened:** the API server's start time jumps
+(`process_start_time_seconds{job="apiserver"}`) and the k3s journal shows `Stopping k3s.service` during an
+`apt.systemd.daily` run.
+
 ## Reference
 
 - Incident + A/B result: B99 (`docs/backlog.md`), EMA-90.
