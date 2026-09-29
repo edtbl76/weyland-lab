@@ -150,6 +150,18 @@ from the repo). **How to tell it happened:** the API server's start time jumps
 (`process_start_time_seconds{job="apiserver"}`) and the k3s journal shows `Stopping k3s.service` during an
 `apt.systemd.daily` run.
 
+## Unexplained: 35 containers stopped at once, 2026-09-29 05:14 UTC (open)
+
+Between 05:14:03 and 05:14:35 UTC, 35 containers across every namespace (Argo CD, CoreDNS, Traefik, kube-state-metrics,
+node-exporter, Nessie, lakeFS, Superset, Gatekeeper, trino-noauth-proxy, …) exited — almost all cleanly (exit 0 or
+143 = SIGTERM), so they were told to stop; not an OOM kill. What is known: the API server did NOT restart then
+(`process_start_time_seconds{job="apiserver"}` unchanged until the separate 06:30 needrestart restart above); the k3s
+journal logs nothing about killing them; the host journal shows systemd recording each `cri-containerd-*.scope`
+exit, preceded only by `Couldn't move process … to requested cgroup … Device or resource busy` for one pod at 05:13:49
+and 05:14:02. No package or timer activity was found in 05:13:55–05:14:04. Cause not determined. If it recurs: capture
+`sudo journalctl --since <T-2m> --until <T+30s> --no-pager` UNFILTERED on mother while it is fresh, plus
+`systemctl list-jobs` and `dmesg -T | tail -50`.
+
 ## Reference
 
 - Incident + A/B result: B99 (`docs/backlog.md`), EMA-90.

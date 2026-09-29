@@ -21,6 +21,31 @@ spec:
     metadata:
       labels: { app: trino-mcp }
     spec:
+      # mcp-trino tests the Trino connection ONCE at startup and exits 1 if it fails ("Failed to connect to Trino ...
+      # connection refused"), with no retry. So any moment the Trino path is down while this pod starts — a Trino OOM
+      # restart, or the 2026-09-29 05:14 UTC event that restarted 35 containers at once, trino-noauth-proxy included —
+      # became a CrashLoopBackOff (24 restarts in 37 days). This init container waits until Trino reports it is serving
+      # (`"starting":false` on /v1/info, through the same trino-noauth proxy the server uses), so a blip means waiting
+      # in Init, not crash-looping. Once running, the server survives Trino outages (queries fail, the process stays up).
+      initContainers:
+        - name: wait-for-trino
+          image: alpine:latest
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              until wget -q -T 5 -O- http://trino-noauth.data-mesh.svc.cluster.local:8080/v1/info 2>/dev/null | grep -q '"starting":false'; do
+                echo "waiting for Trino (trino-noauth) to be ready"; sleep 5
+              done
+              echo "Trino ready"
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 10001
+            allowPrivilegeEscalation: false
+            capabilities: { drop: ["ALL"] }
+            seccompProfile: { type: RuntimeDefault }
+          resources:
+            requests: { memory: 8Mi, cpu: 5m }
+            limits: { memory: 32Mi }
       containers:
         - name: trino-mcp
           image: ghcr.io/tuannvm/mcp-trino:4.3.1   # pinned (ghcr tag is 4.3.1, no "v")
