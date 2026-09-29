@@ -84,7 +84,11 @@ def run_one_model(spec: dict, postgres: PostgresResource) -> dict:
                 try:
                     resp = client.post(
                         f"{TOOL_SERVER_URL}/context/ask",
-                        json={"query": question, "backend": EVAL_BACKEND, "limit": EVAL_ASK_LIMIT, "model": model},
+                        # langfuse=False: every traced ask fires up to 9 online LLM-as-judge rules on gpt-oss:20b,
+                        # which evicted the model under test twice per question (2026-09-29). The answers are
+                        # recorded in eval_results + MLflow already.
+                        json={"query": question, "backend": EVAL_BACKEND, "limit": EVAL_ASK_LIMIT, "model": model,
+                              "langfuse": False},
                     )
                     resp.raise_for_status()
                     data = resp.json()

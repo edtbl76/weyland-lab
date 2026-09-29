@@ -300,3 +300,48 @@ def test_evals_runs_shapes_rows(client, monkeypatch):
     run = body["runs"][0]
     assert run["id"] == 5 and run["status"] == "scored" and run["question_count"] == 42
     assert run["created_at"] == "2026-09-16T12:00:00"
+
+
+# ── B197 follow-up: eval traffic must not feed the Langfuse online evaluators ─────────────────────────────────────
+# Every `rag-generate` observation triggers up to 9 online evaluation rules, each an LLM-as-judge call to gpt-oss:20b on
+# rogueone. The offline eval (weyland_eval_job) asks 120 questions through /context/ask, so its own traffic made the
+# judge evict the model under test twice per question (found 2026-09-29: 8 alternating model loads in 40 min). The
+# eval records its answers in eval_results + MLflow already; it opts out of Langfuse with `langfuse: false`.
+class _FakeLangfuse:
+    def __init__(self):
+        self.observations = []
+
+    def get_prompt(self, *a, **k):
+        return None
+
+    def start_as_current_observation(self, **kw):
+        self.observations.append(kw.get("name"))
+        from contextlib import nullcontext
+        return nullcontext(type("G", (), {"update": lambda self, **k: None})())
+
+    def flush(self):
+        pass
+
+
+def _stub_ask(monkeypatch):
+    lf = _FakeLangfuse()
+    monkeypatch.setattr(main, "_lf", lf)
+    monkeypatch.setattr(main, "SEARCH_FNS", {"pgvector": lambda q, n: [{"content": "c", "source": "s", "chunk_index": 0}]})
+    monkeypatch.setattr(main, "_ollama_chat", lambda messages, model: "an answer")
+    monkeypatch.setattr(main, "_guard", lambda *a, **k: None)
+    return lf
+
+
+def test_context_ask_traces_to_langfuse_by_default(client, monkeypatch):
+    lf = _stub_ask(monkeypatch)
+    r = client.post("/context/ask", json={"query": "q", "backend": "pgvector"})
+    assert r.status_code == 200
+    assert lf.observations == ["rag-generate"]
+
+
+def test_context_ask_with_langfuse_false_creates_no_observation(client, monkeypatch):
+    lf = _stub_ask(monkeypatch)
+    r = client.post("/context/ask", json={"query": "q", "backend": "pgvector", "langfuse": False})
+    assert r.status_code == 200
+    assert r.json()["answer"] == "an answer"   # the answer is unaffected — only the Langfuse trace is skipped
+    assert lf.observations == []

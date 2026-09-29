@@ -527,12 +527,13 @@ soda_quality_schedule = ScheduleDefinition(
 )
 
 # B69 Wave 4 — un-freeze the eval harness. The B4 leaderboard was manual-only, so it silently stopped being
-# refreshed and the "which model is defensible?" answer aged out. Two jobs, run in order: the matrix first
-# (question-gen + RAG × models), then the 3-judge scoring pass over its results.
+# refreshed and the "which model is defensible?" answer aged out. ONE job, in order: question-gen, the RAG × models
+# matrix, then the 3-judge scoring pass over its results (eval_scores deps on eval_run_matrix).
 #
 # WEEKLY, on SATURDAY — the one genuinely quiet day: Sunday already carries dbt (06:00), sonar (08:00),
-# scan-suite (09:00) and the image prune (11:00), and every day carries the 02:17 ingestion. Two hours between
-# the two jobs so the matrix finishes before judging starts (they're chained by data, not by a sensor).
+# scan-suite (09:00) and the image prune (11:00), and every day carries the 02:17 ingestion. Scoring used to be a
+# second schedule two hours later, trusting the matrix to finish in two hours; when it didn't, the judges scored the
+# wrong run and fought the matrix for the GPU (removed 2026-09-29).
 #
 # Shipped STOPPED (Ollama had moved to rogueone in B79) and enabled in the UI once a manual run came back green;
 # the defaults below were matched to that live state on 2026-09-27 (B196), because the watchdog budget guard reads
@@ -544,18 +545,13 @@ weyland_eval_schedule = ScheduleDefinition(
     default_status=DefaultScheduleStatus.RUNNING,  # enabled in the UI; code matched to live 2026-09-27 (B196)
 )
 
-weyland_eval_score_schedule = ScheduleDefinition(
-    job=weyland_eval_score_job,
-    cron_schedule="0 5 * * 6",  # Sat 05:00 — 3-judge panel scores the matrix written at 03:00
-    execution_timezone="America/New_York",
-    default_status=DefaultScheduleStatus.RUNNING,  # enabled in the UI; code matched to live 2026-09-27 (B196)
-)
+# (weyland_eval_score_schedule removed 2026-09-29: scoring now runs inside weyland_eval_job, after the matrix.)
 
 defs = Definitions(
     assets=[*all_assets, weyland_dbt_assets],
     asset_checks=all_asset_checks,
     jobs=[feast_materialize_job, weyland_ingestion_job, weyland_eval_job, weyland_eval_score_job, weyland_catalog_job, weyland_aidlc_kb_job, weyland_ai_session_job, datahub_catalog_emit_job, datahub_asset_check_assertions_job, ge_validate_job, weyland_datasets_music_transform_job, weyland_datasets_music_land_job, weyland_datasets_health_land_job, weyland_datasets_health_transform_job, weyland_datasets_health_hydrate_job, weyland_datasets_music_hydrate_job, weyland_datasets_finance_land_job, weyland_datasets_finance_transform_job, weyland_datasets_finance_hydrate_job, weyland_datasets_kindle_land_job, weyland_datasets_kindle_transform_job, weyland_datasets_kindle_hydrate_job, weyland_timeseries_job, weyland_lancedb_sync_job, weyland_dbt_job, soda_quality_job, registrations_reconcile_job, linear_backup_job],
-    schedules=[feast_materialize_schedule, weyland_ingestion_schedule, weyland_catalog_schedule, weyland_ai_session_schedule, datahub_catalog_emit_schedule, weyland_timeseries_schedule, weyland_datasets_music_land_schedule, weyland_datasets_health_land_schedule, weyland_datasets_finance_land_schedule, weyland_dbt_schedule, soda_quality_schedule, weyland_eval_schedule, weyland_eval_score_schedule, registrations_schedule, linear_backup_schedule],
+    schedules=[feast_materialize_schedule, weyland_ingestion_schedule, weyland_catalog_schedule, weyland_ai_session_schedule, datahub_catalog_emit_schedule, weyland_timeseries_schedule, weyland_datasets_music_land_schedule, weyland_datasets_health_land_schedule, weyland_datasets_finance_land_schedule, weyland_dbt_schedule, soda_quality_schedule, weyland_eval_schedule, registrations_schedule, linear_backup_schedule],
     sensors=[datasets_music_raw_sensor, lancedb_sync_sensor],
     resources={
         "postgres": PostgresResource(

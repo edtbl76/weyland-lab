@@ -228,12 +228,12 @@ def _span(name: str, span_type: str = "UNKNOWN"):
 
 @contextmanager
 def _lf_generation(name: str, model: str, input_messages, prompt_name: str,
-                   session_id: str | None = None, user_id: str | None = None):
+                   session_id: str | None = None, user_id: str | None = None, enabled: bool = True):
     """B103 — a fail-safe Langfuse generation LINKED to the Langfuse prompt version (SDK v4), running ALONGSIDE the
     MLflow span. Yields a generation handle (call `.update(output=...)`), or None if Langfuse is off/broken. A tracing
     failure never interrupts the request; flushes on exit so the trace lands on this request/response server. Setup and
     yield are separated so a broken SDK call can't double-yield. `session_id` groups related asks into one session."""
-    if _lf is None:
+    if _lf is None or not enabled:
         yield None
         return
     prop_cm = gen_cm = gen = None
@@ -349,6 +349,10 @@ class AskRequest(BaseModel):
     # Optional Langfuse session grouping — pass a stable id (e.g. an open-webui conversation id)
     # to collapse a multi-turn exchange into one session; unset → this ask is its own session.
     session_id: str | None = None
+    # False = do not trace this ask to Langfuse. For bulk/offline callers (the weyland_eval_job matrix): each
+    # `rag-generate` observation fires up to 9 online LLM-as-judge rules on rogueone's gpt-oss:20b, which evicted the
+    # model under test twice per eval question (2026-09-29). MLflow tracing is unaffected.
+    langfuse: bool = True
 
 
 def _to_vector(values) -> str:
@@ -653,7 +657,7 @@ def context_ask(request: AskRequest, actor: str | None = Depends(_actor)):
         ]
         with _span("generate", span_type="LLM") as gspan, \
              _lf_generation("rag-generate", model, messages, "rag_system",
-                            request.session_id or request_id, actor) as lgen:   # B103 — Langfuse link + session, dual with MLflow
+                            request.session_id or request_id, actor, enabled=request.langfuse) as lgen:   # B103 — Langfuse link + session, dual with MLflow
             if gspan is not None:
                 gspan.set_inputs({"model": model, "context_chunks": len(chunks), "prompt_version": loaded_version("rag_system")})
             try:

@@ -115,6 +115,10 @@ def _log_judge_error(log, judge_model, result_id, exc, errors_logged):
 
 @asset(
     group_name="eval",
+    # Scores what THIS weyland_eval_job run's matrix wrote. It used to run on its own Sat 05:00 schedule, two hours
+    # after the matrix started: a matrix still running then was either scored unfinished or the previous run was
+    # re-scored, and the judge panel competed with the matrix for rogueone's single GPU (2026-09-29).
+    deps=["eval_run_matrix"],
     description="Judge-panel LLM-as-judge scoring of the latest run's eval_results -> eval_scores.",
 )
 def eval_scores(postgres: PostgresResource) -> Output[dict]:

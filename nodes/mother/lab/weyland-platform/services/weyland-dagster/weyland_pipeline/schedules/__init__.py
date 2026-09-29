@@ -81,11 +81,17 @@ weyland_catalog_job = define_asset_job(
     selection=AssetSelection.groups("catalog"),
 )
 
-# Eval (B4), triggered on demand (no schedule). Split so the expensive matrix and the
-# cheaper scoring run independently — re-score a run without re-running the matrix.
+# Eval (B4). weyland_eval_job runs the WHOLE chain in one run — question-gen, the model matrix, then the judge-panel
+# scoring, the Iceberg publish and the MLflow log — so scoring always follows the matrix it scores and never competes
+# with it for rogueone's single GPU (the old Sat 05:00 score schedule did both; 2026-09-29). weyland_eval_score_job
+# stays for on-demand RE-scoring without re-running the matrix.
+# dagster/max_runtime 36000 (10h) overrides the instance-wide 4h run_monitoring cap: this job is allowed to be slow
+# (6 models x 20 questions on a laptop GPU, then 3 judges); the cap is only a backstop for a genuinely hung run.
 weyland_eval_job = define_asset_job(
-    name="weyland_eval_job",  # question-gen + run-matrix
-    selection=AssetSelection.assets("eval_testset", "eval_run_matrix"),
+    name="weyland_eval_job",  # question-gen + run-matrix + scoring
+    selection=AssetSelection.assets("eval_testset", "eval_run_matrix", "eval_scores", "iceberg_eval_scores",
+                                    "eval_mlflow_log"),
+    tags={"dagster/max_runtime": 36000},
     # in_process so the graph-backed eval_run_matrix's per-model DynamicOut steps run SERIALLY —
     # the 16 GB GPU holds one model at a time (OLLAMA_MAX_LOADED_MODELS=1); parallel model loads
     # would race evictions. drain_gpu clears the card before each load.

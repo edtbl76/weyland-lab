@@ -85,8 +85,7 @@ spec:
                   soda_quality_job                   108000  # daily 05:30  -> 30h
                   registrations_reconcile_job        691200  # weekly Sun 05:00 -> 8d (unwatched until 2026-09-27, B196)
                   weyland_dbt_job                    691200  # weekly Sun 06:00 -> 8d
-                  weyland_eval_job                   691200  # weekly Sat 03:00 -> 8d
-                  weyland_eval_score_job             691200  # weekly Sat 05:00 -> 8d
+                  weyland_eval_job                   691200  # weekly Sat 03:00 -> 8d (now also scores; the separate score schedule is gone)
                   BUDGETS_EOF
                   )
                   threshold_for() {   # 0 = not monitored
