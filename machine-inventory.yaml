@@ -5,6 +5,9 @@ hosts:
   rogueone:
     role: dev workstation (desktop; GPU)
     packages:
+    - name: agda
+      kind: apt
+      status: system
     - name: alsa-base
       kind: apt
       status: system
@@ -15,6 +18,12 @@ hosts:
       kind: apt
       status: system
     - name: antigravity
+      kind: apt
+      status: system
+    - name: apache2-bin
+      kind: apt
+      status: system
+    - name: apache2-dev
       kind: apt
       status: system
     - name: appimagelauncher
@@ -33,6 +42,9 @@ hosts:
       kind: apt
       status: system
     - name: at-spi2-core
+      kind: apt
+      status: system
+    - name: autotools-dev
       kind: apt
       status: system
     - name: avahi-daemon
@@ -71,10 +83,28 @@ hosts:
     - name: ca-certificates
       kind: apt
       status: system
+    - name: cadical
+      kind: apt
+      status: system
     - name: calibre
       kind: apt
       status: system
+    - name: can-utils
+      kind: apt
+      status: system
+    - name: cbmc
+      kind: apt
+      status: system
+    - name: chatgpt
+      kind: apt
+      status: system
     - name: clamtk
+      kind: apt
+      status: system
+    - name: clang
+      kind: apt
+      status: system
+    - name: clojure
       kind: apt
       status: system
     - name: cloud-init
@@ -107,10 +137,22 @@ hosts:
     - name: cursor-sandbox-apparmor
       kind: apt
       status: system
+    - name: dafny
+      kind: apt
+      status: system
     - name: dash
       kind: apt
       status: system
     - name: ddgr
+      kind: apt
+      status: system
+    - name: debhelper
+      kind: apt
+      status: system
+    - name: default-jdk
+      kind: apt
+      status: system
+    - name: dh-autoreconf
       kind: apt
       status: system
     - name: diffutils
@@ -119,7 +161,13 @@ hosts:
     - name: dirmngr
       kind: apt
       status: system
+    - name: dkms
+      kind: apt
+      status: system
     - name: dmz-cursor-theme
+      kind: apt
+      status: system
+    - name: dnsmasq-base
       kind: apt
       status: system
     - name: docker-buildx-plugin
@@ -206,6 +254,9 @@ hosts:
     - name: gdm3
       kind: apt
       status: system
+    - name: genisoimage
+      kind: apt
+      status: system
     - name: gh
       kind: apt
       status: system
@@ -290,10 +341,16 @@ hosts:
     - name: gnome-text-editor
       kind: apt
       status: system
+    - name: gnss-sdr
+      kind: apt
+      status: system
     - name: gnupg
       kind: apt
       status: system
     - name: gnupg2
+      kind: apt
+      status: system
+    - name: gnuradio
       kind: apt
       status: system
     - name: google-chrome-stable
@@ -383,6 +440,12 @@ hosts:
     - name: inputattach
       kind: apt
       status: system
+    - name: iptables
+      kind: apt
+      status: system
+    - name: iverilog
+      kind: apt
+      status: system
     - name: jq
       kind: apt
       status: system
@@ -393,6 +456,12 @@ hosts:
       kind: apt
       status: system
     - name: kerneloops
+      kind: apt
+      status: system
+    - name: kframework
+      kind: apt
+      status: system
+    - name: kicad
       kind: apt
       status: system
     - name: language-pack-en
@@ -416,10 +485,19 @@ hosts:
     - name: laptop-detect
       kind: apt
       status: system
+    - name: leiningen
+      kind: apt
+      status: system
     - name: libatk-adaptor
       kind: apt
       status: system
+    - name: libboost-all-dev
+      kind: apt
+      status: system
     - name: libbz2-dev
+      kind: apt
+      status: system
+    - name: libcairo2-dev
       kind: apt
       status: system
     - name: libchewing3
@@ -440,6 +518,9 @@ hosts:
     - name: libglib2.0-bin
       kind: apt
       status: system
+    - name: libgtest-dev
+      kind: apt
+      status: system
     - name: liblzma-dev
       kind: apt
       status: system
@@ -447,6 +528,9 @@ hosts:
       kind: apt
       status: system
     - name: libmarisa0
+      kind: apt
+      status: system
+    - name: libmbedtls-dev
       kind: apt
       status: system
     - name: libncurses-dev
@@ -479,10 +563,16 @@ hosts:
     - name: libpam-sss
       kind: apt
       status: system
+    - name: libpango1.0-dev
+      kind: apt
+      status: system
     - name: libpinyin-data
       kind: apt
       status: system
     - name: libpinyin15
+      kind: apt
+      status: system
+    - name: libprotobuf-dev
       kind: apt
       status: system
     - name: libproxy1-plugin-gsettings
@@ -533,16 +623,31 @@ hosts:
     - name: libwmf0.2-7-gtk
       kind: apt
       status: system
+    - name: libxcb-present-dev
+      kind: apt
+      status: system
     - name: libxml2-dev
       kind: apt
       status: system
     - name: libxmlsec1-dev
       kind: apt
       status: system
+    - name: libyaml-cpp-dev
+      kind: apt
+      status: system
+    - name: libzmq3-dev
+      kind: apt
+      status: system
     - name: linux-generic-hwe-24.04
       kind: apt
       status: system
+    - name: linux-headers-6.17.0-35-generic
+      kind: apt
+      status: system
     - name: linux-modules-nvidia-595-open-generic-hwe-24.04
+      kind: apt
+      status: system
+    - name: lld
       kind: apt
       status: system
     - name: llvm
@@ -557,6 +662,9 @@ hosts:
     - name: make
       kind: apt
       status: system
+    - name: maude
+      kind: apt
+      status: system
     - name: memtest86+
       kind: apt
       status: system
@@ -564,6 +672,15 @@ hosts:
       kind: apt
       status: system
     - name: mkcert
+      kind: apt
+      status: system
+    - name: mlir-18-tools
+      kind: apt
+      status: system
+    - name: mosquitto
+      kind: apt
+      status: system
+    - name: mosquitto-clients
       kind: apt
       status: system
     - name: mousetweaks
@@ -602,10 +719,22 @@ hosts:
     - name: network-manager-pptp-gnome
       kind: apt
       status: system
+    - name: nodejs
+      kind: apt
+      status: system
+    - name: npm
+      kind: apt
+      status: system
     - name: nvidia-container-toolkit
       kind: apt
       status: system
+    - name: nvidia-dkms-595-open
+      kind: apt
+      status: system
     - name: nvidia-driver-595-open
+      kind: apt
+      status: system
+    - name: obfs4proxy
       kind: apt
       status: system
     - name: okular
@@ -623,6 +752,9 @@ hosts:
     - name: packagekit
       kind: apt
       status: system
+    - name: pandoc
+      kind: apt
+      status: system
     - name: pass
       kind: apt
       status: system
@@ -630,6 +762,9 @@ hosts:
       kind: apt
       status: system
     - name: pipewire-pulse
+      kind: apt
+      status: system
+    - name: pkg-config
       kind: apt
       status: system
     - name: plymouth-theme-spinner
@@ -668,7 +803,19 @@ hosts:
     - name: printer-driver-splix
       kind: apt
       status: system
+    - name: prometheus-node-exporter
+      kind: apt
+      status: system
+    - name: protobuf-compiler
+      kind: apt
+      status: system
     - name: pydf
+      kind: apt
+      status: system
+    - name: python3-can
+      kind: apt
+      status: system
+    - name: python3-dev
       kind: apt
       status: system
     - name: python3-netifaces
@@ -683,10 +830,22 @@ hosts:
     - name: python3.12-venv
       kind: apt
       status: system
+    - name: qemu-system-arm
+      kind: apt
+      status: system
+    - name: qemu-system-misc
+      kind: apt
+      status: system
+    - name: racket
+      kind: apt
+      status: system
     - name: restic
       kind: apt
       status: system
     - name: rfkill
+      kind: apt
+      status: system
+    - name: scons
       kind: apt
       status: system
     - name: seahorse
@@ -710,13 +869,25 @@ hosts:
     - name: spice-vdagent
       kind: apt
       status: system
+    - name: spin
+      kind: apt
+      status: system
+    - name: sqlite3
+      kind: apt
+      status: system
     - name: sqlitebrowser
+      kind: apt
+      status: system
+    - name: ssl-cert
       kind: apt
       status: system
     - name: stacer
       kind: apt
       status: system
     - name: stress-ng
+      kind: apt
+      status: system
+    - name: swig
       kind: apt
       status: system
     - name: synergy
@@ -741,6 +912,9 @@ hosts:
       kind: apt
       status: system
     - name: tofu
+      kind: apt
+      status: system
+    - name: tor
       kind: apt
       status: system
     - name: tuxguitar
@@ -788,7 +962,13 @@ hosts:
     - name: valgrind
       kind: apt
       status: system
+    - name: verilator
+      kind: apt
+      status: system
     - name: vim
+      kind: apt
+      status: system
+    - name: virtinst
       kind: apt
       status: system
     - name: wget
@@ -873,6 +1053,9 @@ hosts:
     - name: alpine
       kind: image
       status: system
+    - name: alpine/k8s
+      kind: image
+      status: system
     - name: anchore/syft
       kind: image
       status: system
@@ -882,10 +1065,16 @@ hosts:
     - name: bats/bats
       kind: image
       status: system
+    - name: cgr.dev/chainguard/minio-client
+      kind: image
+      status: system
     - name: cljkondo/clj-kondo
       kind: image
       status: system
     - name: codescene/codescene-mcp
+      kind: image
+      status: system
+    - name: contiker/contiki-ng
       kind: image
       status: system
     - name: cytopia/yamllint
@@ -910,6 +1099,12 @@ hosts:
       kind: image
       status: system
     - name: gcr.io/projectsigstore/cosign
+      kind: image
+      status: system
+    - name: ghcr.io/astral-sh/ruff
+      kind: image
+      status: system
+    - name: ghcr.io/containers/kubernetes-mcp-server
       kind: image
       status: system
     - name: ghcr.io/ggml-org/llama.cpp
@@ -951,6 +1146,9 @@ hosts:
     - name: keploy/enterprise
       kind: image
       status: system
+    - name: klee/klee
+      kind: image
+      status: system
     - name: koalaman/shellcheck
       kind: image
       status: system
@@ -958,6 +1156,12 @@ hosts:
       kind: image
       status: system
     - name: lmsysorg/sglang
+      kind: image
+      status: system
+    - name: maven
+      kind: image
+      status: system
+    - name: mcp-server-datahub
       kind: image
       status: system
     - name: mcp/sonarqube
@@ -987,6 +1191,12 @@ hosts:
     - name: openresty/openresty
       kind: image
       status: system
+    - name: p4lang/behavioral-model
+      kind: image
+      status: system
+    - name: p4lang/p4c
+      kind: image
+      status: system
     - name: pgvector/pgvector
       kind: image
       status: system
@@ -1002,6 +1212,9 @@ hosts:
     - name: python
       kind: image
       status: system
+    - name: rancher/kubectl
+      kind: image
+      status: system
     - name: redis
       kind: image
       status: system
@@ -1009,6 +1222,12 @@ hosts:
       kind: image
       status: system
     - name: registry.weyland.lab/golden-python-fastapi
+      kind: image
+      status: system
+    - name: registry.weyland.lab/mcp-server-datahub
+      kind: image
+      status: system
+    - name: registry.weyland.lab/minio-client
       kind: image
       status: system
     - name: registry.weyland.lab/scan-suite
@@ -1068,46 +1287,9 @@ hosts:
     - name: zricethezav/gitleaks
       kind: image
       status: system
-    - name: cli
-      kind: npm
-      status: unreviewed
-      rationale: ''
-    - name: cline
-      kind: npm
-      status: unreviewed
-      rationale: ''
-    - name: codex
-      kind: npm
-      status: unreviewed
-      rationale: ''
-    - name: firebase-tools
-      kind: npm
-      status: unreviewed
-      rationale: ''
-    - name: jsdom
-      kind: npm
-      status: unreviewed
-      rationale: ''
-    - name: mermaid
-      kind: npm
-      status: unreviewed
-      rationale: ''
-    - name: npm
-      kind: npm
-      status: unreviewed
-      rationale: ''
-    - name: opencode-ai
-      kind: npm
-      status: unreviewed
-      rationale: ''
-    - name: pi-coding-agent
-      kind: npm
-      status: unreviewed
-      rationale: ''
-    - name: yarn
-      kind: npm
-      status: unreviewed
-      rationale: ''
+    - name: absl-py
+      kind: pip
+      status: system
     - name: adbc-driver-flightsql
       kind: pip
       status: system
@@ -1144,7 +1326,13 @@ hosts:
     - name: argon2-cffi-bindings
       kind: pip
       status: system
+    - name: astroid
+      kind: pip
+      status: system
     - name: asttokens
+      kind: pip
+      status: system
+    - name: astunparse
       kind: pip
       status: system
     - name: asyncpg
@@ -1213,16 +1401,28 @@ hosts:
     - name: charset-normalizer
       kind: pip
       status: system
+    - name: clarabel
+      kind: pip
+      status: system
     - name: click
       kind: pip
       status: system
     - name: click-option-group
       kind: pip
       status: system
+    - name: cloudpickle
+      kind: pip
+      status: system
+    - name: cmake
+      kind: pip
+      status: system
     - name: colorama
       kind: pip
       status: system
     - name: comm
+      kind: pip
+      status: system
+    - name: contourpy
       kind: pip
       status: system
     - name: coverage
@@ -1234,7 +1434,22 @@ hosts:
     - name: cssselect2
       kind: pip
       status: system
+    - name: cuda-bindings
+      kind: pip
+      status: system
+    - name: cuda-pathfinder
+      kind: pip
+      status: system
+    - name: cuda-toolkit
+      kind: pip
+      status: system
     - name: curl_cffi
+      kind: pip
+      status: system
+    - name: cvxpy
+      kind: pip
+      status: system
+    - name: cycler
       kind: pip
       status: system
     - name: cyclonedx-python-lib
@@ -1256,6 +1471,9 @@ hosts:
       kind: pip
       status: system
     - name: detect-secrets
+      kind: pip
+      status: system
+    - name: dill
       kind: pip
       status: system
     - name: distlib
@@ -1285,6 +1503,9 @@ hosts:
     - name: face
       kind: pip
       status: system
+    - name: Farama-Notifications
+      kind: pip
+      status: system
     - name: fastapi
       kind: pip
       status: system
@@ -1297,6 +1518,15 @@ hosts:
     - name: filelock
       kind: pip
       status: system
+    - name: flatbuffers
+      kind: pip
+      status: system
+    - name: FMPy
+      kind: pip
+      status: system
+    - name: fonttools
+      kind: pip
+      status: system
     - name: frogmouth
       kind: pip
       status: system
@@ -1304,6 +1534,9 @@ hosts:
       kind: pip
       status: system
     - name: fsspec
+      kind: pip
+      status: system
+    - name: gast
       kind: pip
       status: system
     - name: ghp-import
@@ -1318,13 +1551,28 @@ hosts:
     - name: google-auth
       kind: pip
       status: system
+    - name: google-pasta
+      kind: pip
+      status: system
     - name: googleapis-common-protos
       kind: pip
       status: system
     - name: greenlet
       kind: pip
       status: system
+    - name: grpcio
+      kind: pip
+      status: system
+    - name: gymnasium
+      kind: pip
+      status: system
     - name: h11
+      kind: pip
+      status: system
+    - name: h5py
+      kind: pip
+      status: system
+    - name: highspy
       kind: pip
       status: system
     - name: httpcore
@@ -1366,6 +1614,9 @@ hosts:
     - name: ipython_pygments_lexers
       kind: pip
       status: system
+    - name: isort
+      kind: pip
+      status: system
     - name: itsdangerous
       kind: pip
       status: system
@@ -1402,6 +1653,12 @@ hosts:
     - name: jupyterlab_pygments
       kind: pip
       status: system
+    - name: keras
+      kind: pip
+      status: system
+    - name: kiwisolver
+      kind: pip
+      status: system
     - name: lance-namespace
       kind: pip
       status: system
@@ -1435,7 +1692,13 @@ hosts:
     - name: langsmith
       kind: pip
       status: system
+    - name: lark
+      kind: pip
+      status: system
     - name: lazy-loader
+      kind: pip
+      status: system
+    - name: libclang
       kind: pip
       status: system
     - name: librosa
@@ -1448,6 +1711,9 @@ hosts:
       kind: pip
       status: system
     - name: linkify-it-py
+      kind: pip
+      status: system
+    - name: lit
       kind: pip
       status: system
     - name: llvmlite
@@ -1480,7 +1746,13 @@ hosts:
     - name: marshmallow
       kind: pip
       status: system
+    - name: matplotlib
+      kind: pip
+      status: system
     - name: matplotlib-inline
+      kind: pip
+      status: system
+    - name: mccabe
       kind: pip
       status: system
     - name: mcp
@@ -1516,7 +1788,16 @@ hosts:
     - name: mkdocs-material-extensions
       kind: pip
       status: system
+    - name: ml_dtypes
+      kind: pip
+      status: system
     - name: mmh3
+      kind: pip
+      status: system
+    - name: mpmath
+      kind: pip
+      status: system
+    - name: ms_ivy
       kind: pip
       status: system
     - name: msgpack
@@ -1537,6 +1818,9 @@ hosts:
     - name: mypy_extensions
       kind: pip
       status: system
+    - name: namex
+      kind: pip
+      status: system
     - name: narwhals
       kind: pip
       status: system
@@ -1552,6 +1836,9 @@ hosts:
     - name: nest-asyncio2
       kind: pip
       status: system
+    - name: networkx
+      kind: pip
+      status: system
     - name: nodeenv
       kind: pip
       status: system
@@ -1559,6 +1846,54 @@ hosts:
       kind: pip
       status: system
     - name: numpy
+      kind: pip
+      status: system
+    - name: nvidia-cublas
+      kind: pip
+      status: system
+    - name: nvidia-cuda-cupti
+      kind: pip
+      status: system
+    - name: nvidia-cuda-nvrtc
+      kind: pip
+      status: system
+    - name: nvidia-cuda-runtime
+      kind: pip
+      status: system
+    - name: nvidia-cudnn-cu13
+      kind: pip
+      status: system
+    - name: nvidia-cufft
+      kind: pip
+      status: system
+    - name: nvidia-cufile
+      kind: pip
+      status: system
+    - name: nvidia-curand
+      kind: pip
+      status: system
+    - name: nvidia-cusolver
+      kind: pip
+      status: system
+    - name: nvidia-cusparse
+      kind: pip
+      status: system
+    - name: nvidia-cusparselt-cu13
+      kind: pip
+      status: system
+    - name: nvidia-nccl-cu13
+      kind: pip
+      status: system
+    - name: nvidia-nvjitlink
+      kind: pip
+      status: system
+    - name: nvidia-nvshmem-cu13
+      kind: pip
+      status: system
+    - name: nvidia-nvtx
+      kind: pip
+      status: system
+    - name: onnxruntime
       kind: pip
       status: system
     - name: openpyxl
@@ -1594,10 +1929,22 @@ hosts:
     - name: opentelemetry-util-http
       kind: pip
       status: system
+    - name: opt_einsum
+      kind: pip
+      status: system
+    - name: optree
+      kind: pip
+      status: system
+    - name: ordered-set
+      kind: pip
+      status: system
     - name: orjson
       kind: pip
       status: system
     - name: ormsgpack
+      kind: pip
+      status: system
+    - name: osqp
       kind: pip
       status: system
     - name: packageurl-python
@@ -1645,7 +1992,13 @@ hosts:
     - name: platformdirs
       kind: pip
       status: system
+    - name: playwright
+      kind: pip
+      status: system
     - name: pluggy
+      kind: pip
+      status: system
+    - name: ply
       kind: pip
       status: system
     - name: polars
@@ -1714,6 +2067,12 @@ hosts:
     - name: pydantic_core
       kind: pip
       status: system
+    - name: pydot
+      kind: pip
+      status: system
+    - name: pyee
+      kind: pip
+      status: system
     - name: Pygments
       kind: pip
       status: system
@@ -1724,6 +2083,9 @@ hosts:
       kind: pip
       status: system
     - name: pylance
+      kind: pip
+      status: system
+    - name: pylint
       kind: pip
       status: system
     - name: pymdown-extensions
@@ -1777,6 +2139,9 @@ hosts:
     - name: pyzmq
       kind: pip
       status: system
+    - name: qdldl
+      kind: pip
+      status: system
     - name: radon
       kind: pip
       status: system
@@ -1819,10 +2184,16 @@ hosts:
     - name: scipy
       kind: pip
       status: system
+    - name: scs
+      kind: pip
+      status: system
     - name: semantic-version
       kind: pip
       status: system
     - name: semgrep
+      kind: pip
+      status: system
+    - name: setuptools
       kind: pip
       status: system
     - name: six
@@ -1844,6 +2215,9 @@ hosts:
       kind: pip
       status: system
     - name: soxr
+      kind: pip
+      status: system
+    - name: sparsediffpy
       kind: pip
       status: system
     - name: SQLAlchemy
@@ -1873,7 +2247,19 @@ hosts:
     - name: strictyaml
       kind: pip
       status: system
+    - name: sympy
+      kind: pip
+      status: system
+    - name: tarjan
+      kind: pip
+      status: system
     - name: tenacity
+      kind: pip
+      status: system
+    - name: tensorflow
+      kind: pip
+      status: system
+    - name: termcolor
       kind: pip
       status: system
     - name: textual
@@ -1894,6 +2280,12 @@ hosts:
     - name: tomlkit
       kind: pip
       status: system
+    - name: torch
+      kind: pip
+      status: system
+    - name: torchvision
+      kind: pip
+      status: system
     - name: tornado
       kind: pip
       status: system
@@ -1901,6 +2293,9 @@ hosts:
       kind: pip
       status: system
     - name: trino
+      kind: pip
+      status: system
+    - name: triton
       kind: pip
       status: system
     - name: typing-inspect
@@ -1954,6 +2349,9 @@ hosts:
     - name: websockets
       kind: pip
       status: system
+    - name: wheel
+      kind: pip
+      status: system
     - name: wrapt
       kind: pip
       status: system
@@ -1970,6 +2368,9 @@ hosts:
       kind: pip
       status: system
     - name: yfinance
+      kind: pip
+      status: system
+    - name: z3-solver
       kind: pip
       status: system
     - name: zipp
@@ -2277,90 +2678,6 @@ hosts:
       status: system
     - name: util-linux
       kind: apt
-      status: system
-    - name: a2a-inspector
-      kind: image
-      status: system
-    - name: feast-server
-      kind: image
-      status: system
-    - name: flink
-      kind: image
-      status: system
-    - name: maven
-      kind: image
-      status: system
-    - name: mr3project/ranger
-      kind: image
-      status: system
-    - name: musicbrainz-docker-musicbrainz
-      kind: image
-      status: system
-    - name: musicbrainz-mb-import
-      kind: image
-      status: system
-    - name: musicbrainz-mbslave
-      kind: image
-      status: system
-    - name: node
-      kind: image
-      status: system
-    - name: python
-      kind: image
-      status: system
-    - name: quay.io/coreos/etcd
-      kind: image
-      status: system
-    - name: quay.io/jupyter/scipy-notebook
-      kind: image
-      status: system
-    - name: rayproject/ray
-      kind: image
-      status: system
-    - name: registry.weyland.lab/a2a-inspector
-      kind: image
-      status: system
-    - name: registry.weyland.lab/ray-head
-      kind: image
-      status: system
-    - name: registry.weyland.lab/realm-of-agents
-      kind: image
-      status: system
-    - name: registry.weyland.lab/weyland-dagster-user-code
-      kind: image
-      status: system
-    - name: registry.weyland.lab/weyland-jupyter
-      kind: image
-      status: system
-    - name: registry.weyland.lab/weyland-operator
-      kind: image
-      status: system
-    - name: store-scaler
-      kind: image
-      status: system
-    - name: weyland-dagster-base
-      kind: image
-      status: system
-    - name: weyland-dagster-user-code
-      kind: image
-      status: system
-    - name: weyland-flink
-      kind: image
-      status: system
-    - name: weyland-flink-py
-      kind: image
-      status: system
-    - name: weyland-jupyter
-      kind: image
-      status: system
-    - name: weyland-rag-index
-      kind: image
-      status: system
-    - name: weyland-tool-server
-      kind: image
-      status: system
-    - name: weyland/ranger
-      kind: image
       status: system
   weyland:
     role: ''
