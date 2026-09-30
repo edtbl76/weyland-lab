@@ -12,7 +12,8 @@
 #      never pruned — merge refuses empty stdin, so a host we could not scan can never be blanked.
 #   3. If the catalog changed → commit it on ONE branch and open (or update) a single inventory PR. Merging the
 #      PR IS the cataloging — no hand data-entry.
-#   4. Push a Kuma heartbeat: `up` when clean AND every host was reachable; `down` (→ Telegram, same channel as
+#   4. B180: `placement_check.py --hosts` — host units + config files vs the committed placement.yaml.
+#   5. Push a Kuma heartbeat: `up` when clean AND every host was reachable AND placement is clean; `down` (→ Telegram, same channel as
 #      the restic dead-man's-switch) on drift or an unreachable host. No ping for > the heartbeat window (box
 #      off for days) also trips Kuma — one monitor covers ran / drifted / host-unreachable.
 #
@@ -33,21 +34,30 @@ HOSTS="${MACHINE_INV_HOSTS:-rogueone mother weyland}"
 COLLECT_CMD="${MACHINE_INV_COLLECT_CMD:-bash $REPO_ROOT/scripts/collect-machine-inventory.sh}"
 INV_CMD="${MACHINE_INV_PY_CMD:-python3 $REPO_ROOT/scripts/machine_inventory.py}"
 PORT_ENV="${MACHINE_INV_PORT_ENV:-$REPO_ROOT/nodes/mother/lab/weyland-platform/tofu/port/.env}"
+PLACEMENT_CMD="${MACHINE_INV_PLACEMENT_CMD:-python3 $REPO_ROOT/scripts/placement_check.py --hosts --file}"
 
-# decide_signal <drift 0|1> <unreachable-hosts> <summary> — the pure Kuma/Telegram decision. Prints
-# "<up|down>\t<msg>". `up` ONLY when the catalog is clean AND every host was reachable; anything else is `down`
-# so it reaches Telegram. Kept separate + side-effect-free so bats can pin every state without a network.
+# decide_signal <drift 0|1> <unreachable-hosts> <summary> [<placement-rc>] — the pure Kuma/Telegram decision.
+# Prints "<up|down>\t<msg>". `up` ONLY when the catalog is clean, every host was reachable AND the B180 host
+# placement check (placement_check.py --hosts) exited 0; anything else is `down` so it reaches Telegram. Kept
+# separate + side-effect-free so bats can pin every state without a network.
 decide_signal() {
-  local drift="$1" unreachable="$2" summary="$3"
+  local drift="$1" unreachable="$2" summary="$3" placement="${4:-0}" state msg
   if [ -n "$unreachable" ] && [ "$drift" = "1" ]; then
-    printf 'down\tmachine-inventory drift (%s) + unreachable:%s\n' "$summary" "$unreachable"
+    state=down; msg="machine-inventory drift ($summary) + unreachable:$unreachable"
   elif [ -n "$unreachable" ]; then
-    printf 'down\tmachine-inventory: host(s) unreachable:%s\n' "$unreachable"
+    state=down; msg="machine-inventory: host(s) unreachable:$unreachable"
   elif [ "$drift" = "1" ]; then
-    printf 'down\tmachine-inventory drift: %s\n' "$summary"
+    state=down; msg="machine-inventory drift: $summary"
   else
-    printf 'up\tmachine-inventory: clean, all hosts reachable\n'
+    state=up; msg="machine-inventory: clean, all hosts reachable"
   fi
+  case "$placement" in
+    0) ;;
+    1) state=down; msg="$msg; placement: host drift" ;;
+    2) state=down; msg="$msg; placement: host check could not read" ;;
+    *) state=down; msg="$msg; placement: host check exited $placement" ;;
+  esac
+  printf '%s\t%s\n' "$state" "$msg"
 }
 
 kuma_push() {  # kuma_push <up|down> <msg> — dead-man's-switch heartbeat (same mechanism as restic, B130)
@@ -131,9 +141,14 @@ main() {
     echo "catalog in sync — no drift"
   fi
 
-  # 4) heartbeat → Telegram on down (drift or unreachable)
+  # 4) B180 host placement: every inventoried unit/config file installed + identical, no hand-installed unit
+  #    outside the inventory, no failed unit, no stale timer — checked against the COMMITTED placement.yaml.
+  local placement=0
+  $PLACEMENT_CMD "$wt/placement.yaml" || placement=$?
+
+  # 5) heartbeat → Telegram on down (drift, unreachable, or placement)
   local sig state msg
-  sig="$(decide_signal "$drift" "$unreachable" "$summary")"
+  sig="$(decide_signal "$drift" "$unreachable" "$summary" "$placement")"
   state="${sig%%$'\t'*}"; msg="${sig#*$'\t'}"
   echo "signal: $state — $msg"
   [ "$dry" = "0" ] && kuma_push "$state" "$msg"

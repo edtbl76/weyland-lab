@@ -1,4 +1,4 @@
-# Flow — placement inventory check (B198)
+# Flow — placement inventory check (B198, host check B180)
 
 How `placement.yaml` stays true. On every push, `repo-guards` runs the repo check against the file and the LikeC4
 model. Every night at 03:40 NY the `placement-coverage` CronJob runs the live check: it reads three families of series
@@ -37,5 +37,32 @@ sequenceDiagram
         end
     else a source is empty or unreachable
         C-->>AM: exit 2, Job fails, never a pass
+    end
+```
+
+**Host check (B180).** Nightly on rogueone, inside `machine-inv-drift` (03:45 NY), `placement_check.py --hosts` reads
+every host over its `access` path and compares the installed unit and config files with their repo copies. The
+result joins the machine-inventory result in one Kuma heartbeat.
+
+```mermaid
+sequenceDiagram
+    participant D as machine-inv-drift (rogueone, 03:45 NY)
+    participant F as placement.yaml (origin/main worktree)
+    participant H as host (local, ssh mother, ssh weyland pct exec 103)
+    participant G as repo copies (source)
+    participant K as Uptime Kuma to Telegram
+    D->>F: unit and host_config rows per host, with access
+    D->>H: one bash gather per host
+    H-->>D: F path and base64 content, U unit files, X failed units, T timer last trigger
+    alt every host answered
+        D->>G: read each row's source
+        D->>D: compare ignoring comment lines, unlisted units, failed units, timers older than 2x every
+        alt no finding
+            D-->>K: up (when the machine inventory is also clean)
+        else findings
+            D-->>K: down, placement host drift
+        end
+    else a host could not be read
+        D-->>K: down, placement host check could not read
     end
 ```

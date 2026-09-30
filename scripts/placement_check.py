@@ -16,10 +16,15 @@ MODES
 EXIT CODES (the coverage-guard contract): 0 clean · 1 drift, named · 2 a source could not be read — never a pass.
 """
 import argparse
+import base64
+import glob
 import json
 import os
 import re
+import shlex
+import subprocess  # nosec B404 — runs the fixed ssh/bash gather for the inventory's own hosts
 import sys
+import time
 import urllib.parse
 import urllib.request
 
@@ -43,6 +48,19 @@ KSM = {"Deployment": "deployment", "StatefulSet": "statefulset", "DaemonSet": "d
 UNIT_QUERY = ('sum_over_time(node_systemd_unit_state{state="active",instance="%s"}[24h])'
               ' / on(instance) group_left count_over_time(node_systemd_system_running{instance="%s"}[24h]) > 0.5')
 CLUSTER_NODE = "mother"
+# B180 — repo files that are INSTALLED onto a host (units, drop-ins, /etc configs, apparmor, an installed script).
+# Every file these match must be referenced by exactly one inventory `source`. Files run in place from the repo
+# (the restic backup scripts, the GPU bench compose file, nodes/openclaw/bin, the vLLM helpers) are deliberately not
+# matched: nothing installs them, so there is no host copy to drift.
+HOST_FILE_GLOBS = (
+    "nodes/*/host/**/*",
+    "nodes/rogueone/systemd/*",
+    "nodes/rogueone/apparmor/*",
+    "nodes/weyland/whisper/*.service",
+    "nodes/weyland/whisper/shim.py",
+    "nodes/mother/lab/weyland-platform/services/*/*.service",
+)
+UNIT_PREFIXES = (SYSTEMD, "user-systemd:")
 
 
 class CannotRead(Exception):
@@ -91,7 +109,91 @@ def validate_schema(doc):
     for host in (doc.get("host_os_units") or {}):
         if host not in hosts:
             findings.append(f"host_os_units: unknown host '{host}'")
+    for e in doc.get("host_config") or []:
+        eid = e.get("id")
+        if eid in seen:
+            findings.append(f"{eid}: duplicate id")
+        seen.add(eid)
+        findings.extend(_host_config_findings(e, hosts))
     return findings
+
+
+def _host_config_findings(e, hosts):
+    eid = e.get("id", "<no id>")
+    out = []
+    if not str(eid).startswith("file:"):
+        out.append(f"{eid}: host_config id must start with file:")
+    if e.get("host") not in hosts:
+        out.append(f"{eid}: unknown host '{e.get('host')}'")
+    if not str(e.get("path") or "").startswith("/"):
+        out.append(f"{eid}: path '{e.get('path')}' must be absolute (where the file is installed)")
+    if not e.get("source"):
+        out.append(f"{eid}: host_config needs a `source` (its repo path)")
+    return out
+
+
+# --- B180: sources + repo host files -------------------------------------------------------------------------------
+
+def _sourced(doc):
+    """Every inventory entry that names a repo `source`: unit rows and host_config entries."""
+    return [e for e in (doc.get("workloads") or []) + (doc.get("host_config") or []) if e.get("source")]
+
+
+def check_sources(doc, root):
+    return [f"{e['id']}: source '{e['source']}' does not exist in the repo"
+            for e in _sourced(doc) if not os.path.isfile(os.path.join(root, e["source"]))]
+
+
+def repo_host_files(root):
+    found = set()
+    for pattern in HOST_FILE_GLOBS:
+        found |= {os.path.relpath(p, root) for p in glob.glob(os.path.join(root, pattern), recursive=True)
+                  if os.path.isfile(p)}
+    return found
+
+
+def check_repo_host_files(doc, root):
+    refs = {}
+    for e in _sourced(doc):
+        refs[e["source"]] = refs.get(e["source"], 0) + 1
+    out = []
+    for rel in sorted(repo_host_files(root)):
+        n = refs.get(rel, 0)
+        if n == 0:
+            out.append(f"{rel}: installed-on-a-host file with no inventory entry (add a unit row or host_config entry)")
+        elif n > 1:
+            out.append(f"{rel}: referenced by {n} inventory entries (exactly one expected)")
+    return out
+
+
+# --- B180: installed content vs git --------------------------------------------------------------------------------
+
+def effective(text):
+    """The lines that change behaviour: comment (#, ;) and blank lines removed, surrounding whitespace ignored."""
+    return [ln.strip() for ln in text.splitlines() if ln.strip() and not ln.strip().startswith(("#", ";"))]
+
+
+def compare_installed(repo_text, host_text):
+    if host_text is None:
+        return "NOT INSTALLED"
+    if host_text == repo_text:
+        return "same"
+    return "comment-only" if effective(host_text) == effective(repo_text) else "DRIFT"
+
+
+def check_installed_units(doc, installed):
+    """installed: {host: {unit file names hand-installed on it}} → each must be an inventoried unit row or an
+    allow-listed OS/installer unit (host_os_units)."""
+    known = {r["id"] for r in doc.get("workloads") or [] if r["id"].startswith(UNIT_PREFIXES)}
+    os_units = doc.get("host_os_units") or {}
+    out = []
+    for host, units in sorted(installed.items()):
+        for u in sorted(units):
+            if u in set(os_units.get(host, [])):
+                continue
+            if f"{SYSTEMD}{host}/{u}" not in known and f"user-systemd:{host}/{u}" not in known:
+                out.append(f"{host}: unit {u} is installed on the host but not in the inventory")
+    return out
 
 
 # --- LikeC4 -------------------------------------------------------------------------------------------------------
@@ -157,6 +259,143 @@ def check_model(doc, model_text):
     out += [f"row likec4 '{e}' is not an element in the LikeC4 model" for e in sorted(named - all_ids)]
     return out
 
+
+
+# --- B180: the nightly host check ---------------------------------------------------------------------------------
+# One gather per host (local bash, or over SSH / `pct exec`): the installed copy of every inventoried file, the
+# hand-installed unit files, the failed units, and each tracked timer's last trigger. Run by machine-inv-drift
+# (rogueone, nightly), which already holds the fleet SSH keys and reports through Kuma → Telegram.
+
+_UNIT_FIND = "-maxdepth 1 -type f \\( -name '*.service' -o -name '*.timer' \\) -printf 'U %f\\n'"
+
+
+def host_script(paths, timers, user):
+    """The bash gather for one host. `timers`: (name, is_user_unit) pairs — each timer is queried in its OWN scope, since
+    one host can carry both (rogueone). `user`: also list ~/.config/systemd/user and its failed units."""
+    lines = ["set -u"]
+    for p in paths:
+        q = shlex.quote(p)
+        lines.append(f'if [ -r {q} ]; then printf "F %s %s\\n" {q} "$(base64 -w0 {q})"; else printf "F %s -\\n" {q}; fi')
+    lines.append(f"find /etc/systemd/system {_UNIT_FIND}")
+    if user:
+        lines.append(f'[ -d "$HOME/.config/systemd/user" ] && find "$HOME/.config/systemd/user" {_UNIT_FIND}')
+        lines.append("systemctl --user --failed --no-legend --plain | awk '{print \"X \"$1}'")
+    lines.append("systemctl --failed --no-legend --plain | awk '{print \"X \"$1}'")
+    for t, is_user in timers:
+        q = shlex.quote(t)
+        scope = "--user " if is_user else ""
+        # `--timestamp=unix` is ignored by `show --value` on systemd 255 (it returns "Tue 2026-09-29 02:56:39 EDT",
+        # observed 2026-09-29), so convert the human date on the host; empty or "n/a" = never triggered.
+        lines.append(f'v=$(systemctl {scope}show -p LastTriggerUSec --value {q} 2>/dev/null); '
+                     f'e=$([ -n "$v" ] && [ "$v" != n/a ] && date -d "$v" +%s 2>/dev/null); '
+                     f'printf "T %s %s\\n" {q} "${{e:--}}"')
+    return "\n".join(lines) + "\n"
+
+
+def parse_host_output(text):
+    g = {"files": {}, "units": set(), "failed": set(), "timers": {}}
+    lines = [ln for ln in text.splitlines() if ln.strip()]
+    if not lines:
+        raise CannotRead("the host gather returned nothing")
+    for ln in lines:
+        kind, _, rest = ln.partition(" ")
+        if kind == "F":
+            path, _, data = rest.rpartition(" ")
+            g["files"][path] = None if data == "-" else base64.b64decode(data).decode("utf-8", "replace")
+        elif kind == "U":
+            g["units"].add(rest.strip())
+        elif kind == "X":
+            g["failed"].add(rest.strip())
+        elif kind == "T":
+            name, _, val = rest.partition(" ")
+            g["timers"][name] = int(val) if val.strip().isdigit() else None
+    return g
+
+
+def every_seconds(every):
+    m = re.fullmatch(r"(\d+)([mhd])", str(every))
+    if not m:
+        raise CannotRead(f"cannot parse every '{every}' (use e.g. 4h, 1d, 7d)")
+    return int(m.group(1)) * {"m": 60, "h": 3600, "d": 86400}[m.group(2)]
+
+
+def _host_entries(doc, host):
+    units = [r for r in doc.get("workloads") or [] if r.get("host") == host and r["id"].startswith(UNIT_PREFIXES)]
+    files = [e for e in doc.get("host_config") or [] if e.get("host") == host]
+    return units, files
+
+
+def _file_findings(entries, g, repo_read):
+    out = []
+    for e in entries:
+        path = e.get("path")
+        if not path:
+            continue
+        installed = g["files"].get(path)
+        status = compare_installed(repo_read(e["source"]), installed) if e.get("source") else (
+            "NOT INSTALLED" if installed is None else "same")
+        if status in ("DRIFT", "NOT INSTALLED"):
+            out.append(f"{e['id']}: {status} at {path}" + (f" (repo: {e['source']})" if status == "DRIFT" else ""))
+    return out
+
+
+def _unit_state_findings(units, g, now):
+    out = []
+    for r in units:
+        name = r["id"].split("/", 1)[1]
+        if name in g["failed"]:
+            out.append(f"{r['id']}: unit is in the failed state")
+        if r.get("every"):
+            last = g["timers"].get(name)
+            if last is None:
+                out.append(f"{r['id']}: timer has never triggered")
+            elif now - last > 2 * every_seconds(r["every"]):
+                out.append(f"{r['id']}: timer stale — last fired {int((now - last) / 3600)}h ago, every {r['every']}")
+    return out
+
+
+def check_hosts(doc, gathered, repo_read, now):
+    out = []
+    for host, g in sorted(gathered.items()):
+        units, files = _host_entries(doc, host)
+        out += _file_findings(units + files, g, repo_read)
+        out += _unit_state_findings(units, g, now)
+        out += check_installed_units(doc, {host: g["units"]})
+    return out
+
+
+def _gather(access, script):
+    """Run the gather on one host: `local`, `ssh <target>`, or `ssh <target> pct exec <ctid>`."""
+    parts = access.split()
+    if parts == ["local"]:
+        cmd = ["bash", "-s"]
+    elif parts[:1] == ["ssh"] and len(parts) == 2:
+        cmd = ["ssh", "-o", "BatchMode=yes", "-o", "ConnectTimeout=10", parts[1], "bash -s"]
+    elif parts[:1] == ["ssh"] and parts[2:4] == ["pct", "exec"] and len(parts) == 5:
+        cmd = ["ssh", "-o", "BatchMode=yes", "-o", "ConnectTimeout=10", parts[1], f"pct exec {parts[4]} -- bash -s"]
+    else:
+        raise CannotRead(f"unknown access '{access}'")
+    res = subprocess.run(cmd, input=script, capture_output=True, text=True, timeout=120)  # nosec B603 — fixed argv
+    if res.returncode != 0 and not res.stdout.strip():
+        raise CannotRead(f"{access}: gather failed ({res.stderr.strip()[:200]})")
+    return res.stdout
+
+
+def gather_all(doc):
+    gathered = {}
+    for host, h in sorted((doc.get("hosts") or {}).items()):
+        access = (h or {}).get("access")
+        if not access:
+            continue
+        units, files = _host_entries(doc, host)
+        paths = [e["path"] for e in units + files if e.get("path")]
+        timers = [(r["id"].split("/", 1)[1], r["id"].startswith("user-systemd:")) for r in units if r.get("every")]
+        user = any(r["id"].startswith("user-systemd:") for r in units)
+        try:
+            gathered[host] = parse_host_output(_gather(access, host_script(paths, timers, user)))
+        except (CannotRead, OSError, subprocess.TimeoutExpired) as exc:
+            raise CannotRead(f"{host}: {exc}") from exc
+    return gathered
 
 # --- live ---------------------------------------------------------------------------------------------------------
 
@@ -276,6 +515,9 @@ def _run(args):
         print(migration_table(doc))
         return []
     findings = validate_schema(doc)
+    if args.hosts:
+        root = os.path.dirname(os.path.abspath(args.file))
+        return findings + check_hosts(doc, gather_all(doc), lambda src: _read_repo(root, src), time.time())
     if args.live:
         if not args.prometheus:
             raise CannotRead("--live needs --prometheus <url> or PROMETHEUS_URL (the placement-coverage CronJob passes it)")
@@ -284,7 +526,17 @@ def _run(args):
     else:
         with open(args.model, encoding="utf-8") as f:
             findings += check_model(doc, f.read())
+        root = os.path.dirname(os.path.abspath(args.file))   # sources are repo paths, relative to placement.yaml
+        findings += check_sources(doc, root) + check_repo_host_files(doc, root)
     return findings
+
+
+def _read_repo(root, src):
+    path = os.path.join(root, src)
+    if not os.path.isfile(path):
+        return None
+    with open(path, encoding="utf-8", errors="replace") as f:
+        return f.read()
 
 
 def main(argv=None):
@@ -294,6 +546,8 @@ def main(argv=None):
     mode.add_argument("--repo", action="store_true", help="schema + LikeC4 checks (default)")
     mode.add_argument("--live", action="store_true", help="reconcile against Prometheus")
     mode.add_argument("--migration", action="store_true", help="print the Strix Halo migration table")
+    mode.add_argument("--hosts", action="store_true",
+                      help="B180: gather each host over its `access` and compare installed units/files with git")
     ap.add_argument("--file", default=os.path.join(root, "placement.yaml"))
     ap.add_argument("--model", default=os.path.join(root, "docs/architecture/weyland.likec4"))
     # No baked-in URL: the CronJob passes --prometheus explicitly, and a guessed endpoint is not a reading (S5332).
@@ -311,7 +565,8 @@ def main(argv=None):
     if findings:
         print(f"❌ placement drift: {len(findings)} finding(s). Fix placement.yaml (or the model).", file=sys.stderr)
         return 1
-    print(f"OK — placement.yaml: {len(_load(args.file)['workloads'])} rows, {'live' if args.live else 'repo'} check clean.")
+    mode_name = "live" if args.live else "hosts" if args.hosts else "repo"
+    print(f"OK — placement.yaml: {len(_load(args.file)['workloads'])} rows, {mode_name} check clean.")
     return 0
 
 

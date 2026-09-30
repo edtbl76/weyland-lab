@@ -216,13 +216,21 @@ Live baseline 2026-09-05: **111/111 mesh tables catalogued, 0 drift** (exit 0).
 ### Placement inventory — placement.yaml and its checks (B198, 2026-09-27)
 
 [`placement.yaml`](../../placement.yaml) records where every workload runs, what state it holds, whether it can move,
-and its Strix Halo target (B134). Two checks keep it honest (`scripts/placement_check.py`; exit 1 = drift named,
+and its Strix Halo target (B134). Three checks keep it honest (`scripts/placement_check.py`; exit 1 = drift named,
 2 = a source could not be read):
 
 | Check | Where | What fails it |
 |---|---|---|
 | repo | `bash scripts/check-placement.sh` in `repo-guards` | a bad field or enum, an unknown host, a LikeC4 node / host-native component with no row, a pvc/host-path row marked movable |
 | live | `placement-coverage` CronJob (monitoring, 03:40 NY) | a running Deployment/StatefulSet/DaemonSet/CronJob, active rogueone service/timer or Proxmox guest with no row; a row naming nothing running (unless `on_demand`) |
+| host | `placement_check.py --hosts` inside the nightly `machine-inv-drift` (rogueone, 03:45 NY; Kuma → Telegram) — B180 | on mother, rogueone and whisper: a unit or `host_config` file with a repo `source` that is missing or differs from it (comment-only differences pass), a unit file in `/etc/systemd/system` or `~/.config/systemd/user` with no row (and not in `host_os_units`), a failed unit, a timer that never fired or last fired more than 2x its `every` ago |
+
+The repo check also asserts that every host file under `nodes/*/host/`, `nodes/rogueone/{systemd,apparmor}/`,
+`nodes/weyland/whisper/` and the `services/*/*.service` units is referenced by exactly one row, and that each `source`
+exists. The host check reaches each host by its `access` field in `hosts:` (`local`, `ssh emangini@mother`,
+`ssh root@weyland pct exec 103`). Unit and config rows also appear in Port as `installed_package` kinds
+`systemd-unit` / `host-config` (status `system`), emitted with the machine inventory; a guest that is not a cataloged
+machine (whisper) is filed under the host it `runs_on`.
 
 The live check reads Prometheus only: kube-state-metrics, pve-exporter, and rogueone's systemd-only node-exporter
 (job `systemd-rogueone`, config `nodes/rogueone/systemd/prometheus-node-exporter.default`). rogueone is read over the
@@ -242,6 +250,17 @@ bash /home/edwardmangini/IdeaProjects/weyland/scripts/embed-placement.sh && bash
 ```
 kubectl -n monitoring create job placement-coverage-now --from=cronjob/placement-coverage && kubectl -n monitoring wait --for=condition=complete job/placement-coverage-now --timeout=300s; kubectl -n monitoring logs job/placement-coverage-now; kubectl -n monitoring delete job placement-coverage-now
 ```
+**Run the host check now** (every host; exit 1 names each finding, 2 = a host could not be read):
+
+[rogueone]
+```
+python3 /home/edwardmangini/IdeaProjects/weyland/scripts/placement_check.py --hosts --file /home/edwardmangini/IdeaProjects/weyland/placement.yaml
+```
+**A host file differs** (`DRIFT`): the repo copy is the source of truth. Install it with the deploy command in its
+header (for example `weyland-image-prune.timer`, moved to Sun 00:15 NY on 2026-09-29), or, if the host copy is the
+correct one, copy it into the repo. **A hand-installed unit with no row:** add a row (scope `unknown` when the owner
+is not confirmed), or add an OS/package unit to `host_os_units`.
+
 **The Strix Halo migration table** (rows whose target is k3s-worker / inference-lxc / tbd, plus counts):
 ```
 bash /home/edwardmangini/IdeaProjects/weyland/scripts/check-placement.sh --migration

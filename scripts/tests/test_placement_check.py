@@ -342,3 +342,209 @@ def test_the_real_inventory_passes_repo_mode():
     root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
     assert pc.main(["--repo", "--file", os.path.join(root, "placement.yaml"),
                     "--model", os.path.join(root, "docs/architecture/weyland.likec4")]) == 0
+
+
+# --- B180: host config + host files --------------------------------------------------------------------------------
+# One inventory: host units (systemd:/user-systemd: rows) gain `source` (repo path) + `path` (installed path), and a
+# `host_config` section holds host files that are not units (drop-ins, /etc configs, apparmor, installed scripts).
+
+def _hc(**kw):
+    e = {"id": "file:mother/etc/sysctl.d/99-weyland-buildkit.conf", "host": "mother",
+         "path": "/etc/sysctl.d/99-weyland-buildkit.conf", "source": "nodes/mother/host/sysctl.d/99-weyland-buildkit.conf",
+         "owner": "B57"}
+    e.update(kw)
+    return e
+
+
+def test_a_well_formed_host_config_entry_passes(tmp_path):
+    doc = _doc()
+    doc["host_config"] = [_hc()]
+    (tmp_path / "nodes/mother/host/sysctl.d").mkdir(parents=True)
+    (tmp_path / "nodes/mother/host/sysctl.d/99-weyland-buildkit.conf").write_text("x=1\n")
+    assert pc.check_sources(doc, str(tmp_path)) == []
+
+
+@pytest.mark.parametrize("field,value,expect", [
+    ("host", "atlantis", "unknown host"),
+    ("path", "etc/relative.conf", "absolute"),
+    ("source", None, "source"),
+])
+def test_a_malformed_host_config_entry_is_named(tmp_path, field, value, expect):
+    doc = _doc()
+    doc["host_config"] = [_hc(**{field: value})]
+    assert any(expect in f for f in pc.validate_schema(doc)), pc.validate_schema(doc)
+
+
+def test_a_source_that_does_not_exist_is_a_finding(tmp_path):
+    doc = _doc()
+    doc["host_config"] = [_hc(source="nodes/mother/host/gone.conf")]
+    assert any("gone.conf" in f and "does not exist" in f for f in pc.check_sources(doc, str(tmp_path)))
+
+
+def test_a_unit_row_source_is_checked_too(tmp_path):
+    doc = _doc()
+    doc["workloads"].append({"id": "systemd:mother/weyland-image-prune.timer", "host": "mother", "state": "none",
+                             "move": "pinned: prunes mother's images", "strix": "stays", "managed": "systemd",
+                             "source": "nodes/mother/host/systemd/weyland-image-prune.timer",
+                             "path": "/etc/systemd/system/weyland-image-prune.timer"})
+    assert any("weyland-image-prune.timer" in f for f in pc.check_sources(doc, str(tmp_path)))
+
+
+def test_every_host_file_in_the_repo_must_be_referenced_once(tmp_path):
+    for rel in ("nodes/mother/host/sysctl.d/99-weyland-buildkit.conf", "nodes/rogueone/systemd/orphan.timer"):
+        (tmp_path / rel).parent.mkdir(parents=True, exist_ok=True)
+        (tmp_path / rel).write_text("x\n")
+    doc = _doc()
+    doc["host_config"] = [_hc()]
+    findings = pc.check_repo_host_files(doc, str(tmp_path))
+    assert any("orphan.timer" in f and "no inventory entry" in f for f in findings), findings
+    assert not any("99-weyland-buildkit" in f for f in findings)
+
+
+def test_a_host_file_referenced_twice_is_a_finding(tmp_path):
+    rel = "nodes/mother/host/sysctl.d/99-weyland-buildkit.conf"
+    (tmp_path / rel).parent.mkdir(parents=True)
+    (tmp_path / rel).write_text("x\n")
+    doc = _doc()
+    doc["host_config"] = [_hc(), _hc(id="file:mother/etc/other.conf", path="/etc/other.conf")]
+    assert any("99-weyland-buildkit" in f and "2 inventory entries" in f
+               for f in pc.check_repo_host_files(doc, str(tmp_path)))
+
+
+# --- B180: installed content vs git --------------------------------------------------------------------------------
+
+def test_effective_content_ignores_comments_and_blank_lines():
+    a = "# header v1\n[Service]\n\nEnvironment=X=1\n"
+    b = "# header v2 — reworded\n[Service]\nEnvironment=X=1\n\n"
+    assert pc.effective(a) == pc.effective(b)
+    assert pc.effective(a) != pc.effective("[Service]\nEnvironment=X=2\n")
+
+
+def test_compare_installed_reports_missing_drift_and_comment_only():
+    repo = {"a": "[S]\nX=1\n", "b": "[S]\nX=1\n", "c": "# old\n[S]\nX=1\n", "d": "[S]\nX=1\n"}
+    host = {"a": "[S]\nX=1\n", "b": "[S]\nX=2\n", "c": "# new\n[S]\nX=1\n", "d": None}
+    got = {k: pc.compare_installed(repo[k], host[k]) for k in repo}
+    assert got == {"a": "same", "b": "DRIFT", "c": "comment-only", "d": "NOT INSTALLED"}
+
+
+def test_every_hand_installed_unit_must_be_inventoried():
+    doc = _doc()
+    doc["workloads"].append({"id": "systemd:mother/weyland-image-prune.timer", "host": "mother", "state": "none",
+                             "move": "pinned: x", "strix": "stays", "managed": "systemd"})
+    installed = {"mother": {"weyland-image-prune.timer", "mystery.service"}}
+    findings = pc.check_installed_units(doc, installed)
+    assert any("mystery.service" in f and "not in the inventory" in f for f in findings)
+    assert not any("weyland-image-prune" in f for f in findings)
+
+
+# --- B180: the nightly host check (one SSH gather per host) --------------------------------------------------------
+import base64
+
+
+def _b64(t):
+    return base64.b64encode(t.encode()).decode()
+
+
+def test_parse_host_output_reads_files_units_failed_and_timers():
+    out = "\n".join([
+        f"F /etc/a.conf {_b64('[S]\nX=1\n')}",
+        "F /etc/missing.conf -",
+        "U weyland-image-prune.timer",
+        "U weyland-image-prune.service",
+        "X broken.service",
+        "T weyland-image-prune.timer 1790000000",
+        "T never.timer -",
+    ])
+    g = pc.parse_host_output(out)
+    assert g["files"] == {"/etc/a.conf": "[S]\nX=1\n", "/etc/missing.conf": None}
+    assert g["units"] == {"weyland-image-prune.timer", "weyland-image-prune.service"}
+    assert g["failed"] == {"broken.service"}
+    assert g["timers"] == {"weyland-image-prune.timer": 1790000000, "never.timer": None}
+
+
+def test_parse_host_output_with_no_lines_refuses():
+    with pytest.raises(pc.CannotRead):
+        pc.parse_host_output("")
+
+
+def _host_doc():
+    doc = _doc()
+    doc["hosts"]["mother"]["access"] = "ssh emangini@mother"
+    doc["workloads"].append({"id": "systemd:mother/weyland-image-prune.timer", "host": "mother", "state": "none",
+                             "move": "pinned: x", "strix": "stays", "managed": "systemd", "every": "7d",
+                             "source": "t.timer", "path": "/etc/systemd/system/weyland-image-prune.timer"})
+    doc["host_config"] = [{"id": "file:mother/etc/a.conf", "host": "mother", "path": "/etc/a.conf", "source": "a.conf"}]
+    return doc
+
+
+def _gathered(**kw):
+    g = {"files": {"/etc/a.conf": "[S]\nX=1\n", "/etc/systemd/system/weyland-image-prune.timer": "[T]\nOnCalendar=x\n"},
+         "units": {"weyland-image-prune.timer"}, "failed": set(), "timers": {"weyland-image-prune.timer": NOW - 3600}}
+    g.update(kw)
+    return {"mother": g}
+
+
+NOW = 1790600000
+REPO = {"a.conf": "[S]\nX=1\n", "t.timer": "[T]\nOnCalendar=x\n"}
+
+
+def test_a_host_matching_the_inventory_is_clean():
+    assert pc.check_hosts(_host_doc(), _gathered(), REPO.get, NOW) == []
+
+
+def test_drift_and_not_installed_are_findings_comment_only_is_not():
+    g = _gathered(files={"/etc/a.conf": "# reworded\n[S]\nX=1\n", "/etc/systemd/system/weyland-image-prune.timer": None})
+    findings = pc.check_hosts(_host_doc(), g, REPO.get, NOW)
+    assert any("weyland-image-prune.timer" in f and "NOT INSTALLED" in f for f in findings)
+    assert not any("/etc/a.conf" in f for f in findings)          # comment-only: information, not drift
+    g = _gathered(files={"/etc/a.conf": "[S]\nX=2\n", "/etc/systemd/system/weyland-image-prune.timer": "[T]\nOnCalendar=x\n"})
+    assert any("/etc/a.conf" in f and "DRIFT" in f for f in pc.check_hosts(_host_doc(), g, REPO.get, NOW))
+
+
+def test_a_failed_inventoried_unit_is_a_finding():
+    g = _gathered(failed={"weyland-image-prune.timer"})
+    assert any("weyland-image-prune.timer" in f and "failed" in f for f in pc.check_hosts(_host_doc(), g, REPO.get, NOW))
+
+
+def test_a_timer_that_has_not_fired_within_twice_its_period_is_stale():
+    g = _gathered(timers={"weyland-image-prune.timer": NOW - 15 * 86400})   # 15 days > 2 x 7d
+    assert any("weyland-image-prune.timer" in f and "stale" in f for f in pc.check_hosts(_host_doc(), g, REPO.get, NOW))
+    g = _gathered(timers={"weyland-image-prune.timer": None})
+    assert any("never" in f for f in pc.check_hosts(_host_doc(), g, REPO.get, NOW))
+
+
+def test_an_uninventoried_hand_installed_unit_is_a_finding():
+    g = _gathered(units={"weyland-image-prune.timer", "mystery.service"})
+    assert any("mystery.service" in f for f in pc.check_hosts(_host_doc(), g, REPO.get, NOW))
+
+
+@pytest.mark.parametrize("every,seconds", [("4h", 14400), ("1d", 86400), ("7d", 604800)])
+def test_every_parses(every, seconds):
+    assert pc.every_seconds(every) == seconds
+
+
+def test_the_host_script_asks_for_every_inventoried_path_and_timer():
+    script = pc.host_script(["/etc/a.conf"], [("weyland-image-prune.timer", False)], user=False)
+    assert "/etc/a.conf" in script and "weyland-image-prune.timer" in script and "--user" not in script
+    assert "--user show" in pc.host_script([], [("restic-backup.timer", True)], user=True)
+
+
+def test_a_system_timer_on_a_host_with_user_units_is_queried_without_user():
+    # 2026-09-29: rogueone has both scopes; the system timer studio-masterdb-backup.timer was asked with --user,
+    # came back empty and was reported "never triggered" although it fired that night.
+    script = pc.host_script([], [("studio-masterdb-backup.timer", False), ("restic-backup.timer", True)], user=True)
+    timer_lines = {ln.split("show")[0] + ln.split("--value ")[1].split(";")[0]
+                   for ln in script.splitlines() if "LastTriggerUSec" in ln}
+    assert timer_lines == {"v=$(systemctl studio-masterdb-backup.timer 2>/dev/null)",
+                           "v=$(systemctl --user restic-backup.timer 2>/dev/null)"}
+
+
+def test_gather_all_passes_each_timer_its_own_scope(monkeypatch):
+    doc = {"hosts": {"rogueone": {"access": "local"}}, "workloads": [
+        {"id": "systemd:rogueone/studio-masterdb-backup.timer", "host": "rogueone", "every": "1d"},
+        {"id": "user-systemd:rogueone/restic-backup.timer", "host": "rogueone", "every": "1d"}]}
+    seen = {}
+    monkeypatch.setattr(pc, "host_script", lambda paths, timers, user: seen.setdefault("t", (timers, user)) and "")
+    monkeypatch.setattr(pc, "_gather", lambda access, script: "U x.service")
+    pc.gather_all(doc)
+    assert seen["t"] == ([("studio-masterdb-backup.timer", False), ("restic-backup.timer", True)], True)

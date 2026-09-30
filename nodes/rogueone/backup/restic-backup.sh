@@ -45,7 +45,7 @@ done < "$DIR/backup-paths.conf"
 # exclude a path we hand it explicitly via --files-from (it honours an explicitly-listed target even
 # if a pattern matches), so the collapsed untracked dirs (node_modules/, .next/, __pycache__/, …)
 # must be filtered here or they ride in.
-BULK_RE='(^|/)(node_modules|\.next|\.nuxt|\.svelte-kit|dist|build|target|out|\.gradle|\.venv|venv|__pycache__|\.pytest_cache|\.mypy_cache|\.ruff_cache|\.cache|caches|\.turbo|\.parcel-cache|vendor|\.idea|\.tox|\.terraform|jdbc-drivers|wrapper|coverage|htmlcov|perf-reports|\.hypothesis|\.benchmarks|\.roadie-cache|\.playwright-mcp|\.worktrees)(/|$)|\.(pyc|class|hprof|log)$'
+BULK_RE='(^|/)(node_modules|\.next|\.nuxt|\.svelte-kit|dist|build|\.build|target|out|\.gradle|\.venv|venv|__pycache__|\.pytest_cache|\.mypy_cache|\.ruff_cache|\.cache|caches|\.turbo|\.parcel-cache|vendor|\.idea|\.tox|\.terraform|jdbc-drivers|wrapper|coverage|htmlcov|perf-reports|\.hypothesis|\.benchmarks|\.roadie-cache|\.playwright-mcp|\.worktrees)(/|$)|\.(pyc|class|hprof|log)$'
 
 while IFS= read -r raw; do
   line="$(trim "${raw%%#*}")"; [[ -z "$line" ]] && continue

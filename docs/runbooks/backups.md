@@ -67,6 +67,13 @@ Full restore: drop `--include`; restore reconstructs the absolute tree under `--
 - **restic won't exclude a path you hand it explicitly** via `--files-from` — it honours an explicit target. The
   git-repo bulk (`node_modules`/`.next`/`__pycache__`/Gradle `caches`) is therefore filtered **in the script**
   (`BULK_RE`) before restic sees it. A first run ballooned to **5.1G** before this fix (target ~800M).
+- **One unreadable file fails the whole night.** restic exits **3** ("snapshot created, but some source files could
+  not be read") and the script treats any non-zero as failure — deliberately, since an incomplete backup must not
+  report green. From 2026-09-25 to 09-29 every night failed on the Swift `.build/` dirs in three golden paths:
+  gitignored (so `git ls-files --others` lists them), not in `BULK_RE` (which had `build`, not `.build`), and
+  root-owned by a Sep 11 container build, so unreadable. Fixed by adding `\.build` to `BULK_RE` (2026-09-29, found
+  by the B180 host check's failed-unit finding). When a night fails, read the `"message_type":"error"` lines in
+  `journalctl --user -u restic-backup` first: an unreadable path is almost always reproducible bulk to filter.
 - **`restic forget` defaults to `--group-by host,paths`** — the backup's path SET drifts as the allow-list changes,
   which would retain a separate lineage per path-set and bloat retention. Use `--group-by host`.
 - **`RESTIC_PASSWORD` is the encryption key** — lose it and the repo is unrecoverable ciphertext; escrow it (it lives

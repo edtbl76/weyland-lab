@@ -66,7 +66,7 @@ resource "port_blueprint" "installed_package" {
         date_format         = null
         default             = null
         description         = "package manager / source"
-        enum                = ["snap", "flatpak", "apt", "pip", "npm", "image"]
+        enum                = ["snap", "flatpak", "apt", "pip", "npm", "image", "systemd-unit", "host-config"]
         enum_colors         = null
         format              = null
         icon                = null

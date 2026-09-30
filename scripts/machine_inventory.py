@@ -39,6 +39,11 @@ SOT = os.environ.get("MACHINE_INV_SOT", os.path.join(os.path.dirname(__file__), 
 BASELINE_KINDS = {"apt", "pip", "image"}  # captured but not a keep/remove decision: dep-dominated (apt/pip)
 #                                          # + transient/regenerable (container images). Curate snap/flatpak/npm.
 PORT_API = "https://api.getport.io/v1"
+# B180: the host systemd units + host config files tracked in placement.yaml ride the same Port catalog as
+# kinds `systemd-unit` / `host-config` (status `system` — placement.yaml, not a keep/remove review, owns them).
+PLACEMENT = os.environ.get("MACHINE_INV_PLACEMENT",
+                           os.path.join(os.path.dirname(__file__), "..", "placement.yaml"))
+UNIT_PREFIXES = ("systemd:", "user-systemd:")
 
 
 def read_stdin_records():
@@ -142,6 +147,34 @@ def cmd_merge(host, prune=False):
         print(f"  absent (cataloged but not collected this run — decide): {', '.join(sorted(absent))}", file=sys.stderr)
 
 
+def placement_packages(host):
+    """placement.yaml's unit rows + host_config rows for `host`, as installed_package dicts. A placement host that
+    is not a machine (the whisper LXC) is filed under the host it `runs_on`, its names prefixed `<guest>/`; a guest that is itself a cataloged
+    machine (mother) keeps its own rows.
+    A missing placement.yaml is an error, never zero rows (fail closed)."""
+    if not os.path.exists(PLACEMENT):
+        sys.exit(f"placement.yaml not found at {PLACEMENT} (set MACHINE_INV_PLACEMENT)")
+    with open(PLACEMENT) as f:
+        doc = yaml.safe_load(f) or {}
+    phosts = doc.get("hosts") or {}
+    machines = set((load_sot().get("hosts") or {}))
+
+    def owner(h):  # `runs_on`, not `on` — YAML 1.1 reads a bare `on:` key as boolean True
+        return h == host or (h not in machines and (phosts.get(h) or {}).get("runs_on") == host)
+
+    out = []
+    for r in doc.get("workloads") or []:
+        if r["id"].startswith(UNIT_PREFIXES) and owner(r.get("host")):
+            name = r["id"].split("/", 1)[1]
+            out.append({"kind": "systemd-unit", "name": name if r["host"] == host else f"{r['host']}/{name}",
+                        "status": "system", "rationale": r.get("why") or r.get("move", "")})
+    for r in doc.get("host_config") or []:
+        if owner(r.get("host")):
+            out.append({"kind": "host-config", "name": r["path"] if r["host"] == host else f"{r['host']}{r['path']}",
+                        "status": "system", "rationale": r.get("why", "")})
+    return out
+
+
 def port_token():
     cid, sec = os.environ.get("PORT_CLIENT_ID"), os.environ.get("PORT_CLIENT_SECRET")
     if not cid or not sec:
@@ -176,7 +209,7 @@ def cmd_emit(host):
         port_upsert(token, "host", {"identifier": h, "title": h,
                                     "properties": {"role": entry.get("role", "")}})
         n = 0
-        for p in entry.get("packages", []):
+        for p in entry.get("packages", []) + placement_packages(h):
             ident = f"{h}--{p['kind']}--{p['name']}".replace("/", "_").replace(":", "_")[:255]
             port_upsert(token, "installed_package", {
                 "identifier": ident, "title": f"{p['name']} ({p['kind']})",
@@ -230,7 +263,7 @@ def cmd_verify(host):
         entry = hosts.get(h)
         if not entry:
             sys.exit(f"verify: host '{h}' is not in the SoT (have: {', '.join(sorted(hosts)) or 'none'})")
-        expected = len(entry.get("packages", []))
+        expected = len(entry.get("packages", [])) + len(placement_packages(h))
         host_exists, actual = port_counts(h)
         if not host_exists:
             print(f"verify {h}: FAIL — no `host` entity in Port (run: machine_inventory.py emit {h})", file=sys.stderr)

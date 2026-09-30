@@ -34,9 +34,9 @@
 
 hosts:
   weyland:    {kind: proxmox-host, always_on: true, note: "Minisforum MS-A2 (.232); hosts VM 101 mother + CT 103 whisper"}
-  mother:     {kind: qemu-vm, on: weyland, pve_id: "qemu/101", always_on: true, note: "the only k3s node today"}
-  whisper:    {kind: lxc, on: weyland, pve_id: "lxc/103", always_on: true, note: "whisper.cpp CPU STT (.246)"}
-  rogueone:   {kind: laptop, always_on: false, node_exporter: "192.168.1.230:9100", note: "RTX 5000 Ada 16 GB, 128 GB RAM (.230); sleeps — not always on; systemd-only node-exporter (B198)"}
+  mother:     {access: "ssh emangini@mother", kind: qemu-vm, runs_on: weyland, pve_id: "qemu/101", always_on: true, note: "the only k3s node today"}
+  whisper:    {access: "ssh root@weyland pct exec 103", kind: lxc, runs_on: weyland, pve_id: "lxc/103", always_on: true, note: "whisper.cpp CPU STT (.246)"}
+  rogueone:   {access: "local", kind: laptop, always_on: false, node_exporter: "192.168.1.230:9100", note: "RTX 5000 Ada 16 GB, 128 GB RAM (.230); sleeps — not always on; systemd-only node-exporter (B198)"}
   strix-halo: {kind: planned, always_on: true, note: "B134 purchase: k3s worker VM + inference LXC; no rows until it lands"}
 
 # OS / desktop units on a watched host that are not workloads. Exact unit names — never a pattern, so a new lab
@@ -59,6 +59,7 @@ host_os_units:
      plymouth-read-write.service, plymouth-start.service, polkit.service, power-profiles-daemon.service,
      qemu-kvm.service, rsyslog.service, rtkit-daemon.service, secureboot-db.service, setvtrgb.service,
      snap.canonical-livepatch.canonical-livepatchd.service, snap.cups.cups-browsed.service, snap.cups.cupsd.service,
+     snap.mesa-2404.component-monitor.service, snap.scummvm.daemon.service,
      snapd.apparmor.service, snapd.autoimport.service, snapd.core-fixup.service,
      snapd.recovery-chooser-trigger.service, snapd.seeded.service, snapd.service, snapd.system-shutdown.service,
      ssh.service, ssl-cert.service, sssd.service, switcheroo-control.service, sysstat-collect.timer,
@@ -74,6 +75,8 @@ host_os_units:
      ua-timer.timer, ubuntu-advantage.service, udisks2.service, ufw.service, unattended-upgrades.service,
      update-notifier-download.timer, update-notifier-motd.timer, upower.service, 'user-runtime-dir@1000.service',
      'user@1000.service', virtlockd.service, virtlogd.service, wpa_supplicant.service]
+  # whisper LXC (Proxmox CT template): the snakeoil-cert regenerator the template ships in /etc/systemd/system.
+  whisper: [proxmox-regenerate-snakeoil.service]
 
 workloads:
   # ---- mother (k3s) — seeded from the live cluster 2026-09-27 ----
@@ -240,11 +243,11 @@ workloads:
 
   # ---- rogueone (host-native) ----
   - {id: "systemd:rogueone/ollama.service", host: "rogueone", state: "model-library: /usr/share/ollama/.ollama/models (104G)", move: "hardware-bound: CUDA (RTX 5000 Ada)", strix: "stays", managed: "systemd", likec4: "ollama", why: "CUDA serving stays primary (B134); the Strix box adds its own Vulkan Ollama in the inference LXC as a second provider"}
-  - {id: "systemd:rogueone/rag-embed.service", host: "rogueone", state: "stateless", move: "movable", strix: "k3s-worker", managed: "systemd", likec4: "ragEmbed", why: "CPU-only since 2026-09-27; on a laptop the nightly indexer needs the laptop awake — as a Deployment on an always-on node it does not"}
-  - {id: "systemd:rogueone/ray-worker.service", host: "rogueone", state: "stateless", move: "hardware-bound: CUDA (RTX 5000 Ada)", strix: "stays", managed: "systemd", likec4: "rayWorker"}
+  - {id: "systemd:rogueone/rag-embed.service", host: "rogueone", state: "stateless", move: "movable", strix: "k3s-worker", managed: "systemd", likec4: "ragEmbed", why: "CPU-only since 2026-09-27; on a laptop the nightly indexer needs the laptop awake — as a Deployment on an always-on node it does not", source: "nodes/mother/lab/weyland-platform/services/rag-embed/rag-embed.service", path: "/etc/systemd/system/rag-embed.service"}
+  - {id: "systemd:rogueone/ray-worker.service", host: "rogueone", state: "stateless", move: "hardware-bound: CUDA (RTX 5000 Ada)", strix: "stays", managed: "systemd", likec4: "rayWorker", source: "nodes/mother/lab/weyland-platform/services/ray-head/ray-worker.service", path: "/etc/systemd/system/ray-worker.service"}
   - {id: "systemd:rogueone/snap.dcgm.dcgm-exporter.service", host: "rogueone", state: "stateless", move: "hardware-bound: NVIDIA GPU telemetry", strix: "stays", managed: "systemd", likec4: "dcgmExporter"}
   - {id: "systemd:rogueone/snap.dcgm.nv-hostengine.service", host: "rogueone", state: "stateless", move: "hardware-bound: NVIDIA GPU telemetry", strix: "stays", managed: "systemd", likec4: "dcgmExporter"}
-  - {id: "systemd:rogueone/offline-failing-cores.service", host: "rogueone", state: "none", move: "hardware-bound: rogueone's failing P-cores (B150)", strix: "stays", managed: "systemd"}
+  - {id: "systemd:rogueone/offline-failing-cores.service", host: "rogueone", state: "none", move: "hardware-bound: rogueone's failing P-cores (B150)", strix: "stays", managed: "systemd", source: "nodes/rogueone/systemd/offline-failing-cores.service", path: "/etc/systemd/system/offline-failing-cores.service", owner: "B150"}
   - {id: "systemd:rogueone/docker.service", host: "rogueone", state: "host-path: /var/lib/docker", move: "pinned: container runtime for the B111 benches + STUD.io CI", strix: "stays", managed: "systemd"}
   - {id: "systemd:rogueone/containerd.service", host: "rogueone", state: "host-path: /var/lib/containerd", move: "pinned: docker's runtime", strix: "stays", managed: "systemd"}
   - {id: "systemd:rogueone/mosquitto.service", host: "rogueone", state: "host-path: /var/lib/mosquitto", move: "movable", strix: "stays", managed: "systemd", scope: "unknown", why: "installed 2026-09-24 in a bulk apt install; localhost only, no clients seen — owner not confirmed"}
@@ -261,10 +264,13 @@ workloads:
   - {id: "systemd:rogueone/actions.runner.edtbl76-stud.io.controlroom-2.service", host: "rogueone", state: "stateless", move: "pinned: STUD.io GitHub Actions runner", strix: "stays", managed: "systemd", scope: "stud.io"}
   - {id: "systemd:rogueone/actions.runner.edtbl76-stud.io.controlroom-3.service", host: "rogueone", state: "stateless", move: "pinned: STUD.io GitHub Actions runner", strix: "stays", managed: "systemd", scope: "stud.io"}
   - {id: "systemd:rogueone/actions.runner.edtbl76-stud.io.controlroom-4.service", host: "rogueone", state: "stateless", move: "pinned: STUD.io GitHub Actions runner", strix: "stays", managed: "systemd", scope: "stud.io"}
-  - {id: "systemd:rogueone/studio-masterdb-backup.timer", host: "rogueone", state: "none", move: "pinned: STUD.io backup timer", strix: "stays", managed: "systemd", scope: "stud.io"}
-  - {id: "user-systemd:rogueone/restic-backup.timer", host: "rogueone", state: "none", move: "pinned: backs up rogueone's own home to MinIO (B130)", strix: "stays", managed: "systemd --user"}
-  - {id: "user-systemd:rogueone/ai-session-producer.timer", host: "rogueone", state: "none", move: "pinned: mirrors rogueone's Claude sessions to MinIO (B62)", strix: "stays", managed: "systemd --user"}
-  - {id: "user-systemd:rogueone/machine-inv-drift.timer", host: "rogueone", state: "none", move: "pinned: inventories rogueone's own packages (B129)", strix: "stays", managed: "systemd --user"}
+  - {id: "systemd:rogueone/studio-masterdb-backup.timer", host: "rogueone", state: "none", move: "pinned: STUD.io backup timer", strix: "stays", managed: "systemd", scope: "stud.io", path: "/etc/systemd/system/studio-masterdb-backup.timer", every: "1d"}
+  - {id: "systemd:rogueone/studio-masterdb-backup.service", host: "rogueone", state: "none", move: "pinned: STUD.io backup (run by its timer)", strix: "stays", managed: "systemd", scope: "stud.io", path: "/etc/systemd/system/studio-masterdb-backup.service", on_demand: true}
+  - {id: "systemd:rogueone/actions.runner.edtbl76-stud.io.controlroom.service", host: "rogueone", state: "none", move: "pinned: STUD.io GitHub Actions runner (disabled)", strix: "stays", managed: "systemd", scope: "stud.io", path: "/etc/systemd/system/actions.runner.edtbl76-stud.io.controlroom.service", on_demand: true}
+  - {id: "systemd:rogueone/woodpecker-weyland-pilot.service", host: "rogueone", state: "none", move: "pinned: disabled Woodpecker agent pilot", strix: "stays", managed: "systemd", scope: "unknown", why: "disabled; binary under ~/Documents/Studio/woodpecker-weyland-pilot — owner not confirmed", path: "/etc/systemd/system/woodpecker-weyland-pilot.service", on_demand: true}
+  - {id: "user-systemd:rogueone/restic-backup.timer", host: "rogueone", state: "none", move: "pinned: backs up rogueone's own home to MinIO (B130)", strix: "stays", managed: "systemd --user", source: "nodes/rogueone/systemd/restic-backup.timer", path: "/home/edwardmangini/.config/systemd/user/restic-backup.timer", owner: "B130", every: "1d"}
+  - {id: "user-systemd:rogueone/ai-session-producer.timer", host: "rogueone", state: "none", move: "pinned: mirrors rogueone's Claude sessions to MinIO (B62)", strix: "stays", managed: "systemd --user", source: "nodes/rogueone/systemd/ai-session-producer.timer", path: "/home/edwardmangini/.config/systemd/user/ai-session-producer.timer", every: "4h"}
+  - {id: "user-systemd:rogueone/machine-inv-drift.timer", host: "rogueone", state: "none", move: "pinned: inventories rogueone's own packages (B129)", strix: "stays", managed: "systemd --user", source: "nodes/rogueone/systemd/machine-inv-drift.timer", path: "/home/edwardmangini/.config/systemd/user/machine-inv-drift.timer", owner: "B170", every: "1d"}
   # ---- rogueone (on-demand / tools: declared, not live-checked) ----
   - {id: "tool:rogueone/vllm", host: "rogueone", state: "model-library: HF cache", move: "hardware-bound: CUDA (B111)", strix: "stays", managed: "docker", likec4: "vllm", on_demand: true}
   - {id: "tool:rogueone/sglang", host: "rogueone", state: "model-library: HF cache", move: "hardware-bound: CUDA (B111)", strix: "stays", managed: "docker", likec4: "sglang", on_demand: true}
@@ -274,6 +280,34 @@ workloads:
   - {id: "tool:rogueone/claude-code", host: "rogueone", state: "none", move: "pinned: the dev workstation", strix: "stays", managed: "desktop", likec4: "claudeCode"}
   - {id: "tool:rogueone/codex", host: "rogueone", state: "none", move: "pinned: the dev workstation", strix: "stays", managed: "desktop", likec4: "codex"}
   - {id: "tool:rogueone/coding-agents", host: "rogueone", state: "none", move: "pinned: the dev workstation", strix: "stays", managed: "desktop", likec4: "codingAgents"}
+  # ---- mother (host units; B180) ----
+  - {id: "systemd:mother/k3s.service", host: "mother", state: "host-path: /var/lib/rancher/k3s", move: "pinned: the k3s server — the cluster itself", strix: "stays", managed: "k3s installer", path: "/etc/systemd/system/k3s.service"}
+  - {id: "systemd:mother/weyland-image-prune.timer", host: "mother", state: "none", move: "pinned: prunes mother's containerd image store", strix: "stays", managed: "systemd", source: "nodes/mother/host/systemd/weyland-image-prune.timer", path: "/etc/systemd/system/weyland-image-prune.timer", every: "7d"}
+  - {id: "systemd:mother/weyland-image-prune.service", host: "mother", state: "none", move: "pinned: prunes mother's containerd image store", strix: "stays", managed: "systemd", on_demand: true, source: "nodes/mother/host/systemd/weyland-image-prune.service", path: "/etc/systemd/system/weyland-image-prune.service"}
+  - {id: "systemd:mother/weyland-docker-prune.timer", host: "mother", state: "none", move: "pinned: prunes mother's Docker image store", strix: "stays", managed: "systemd", source: "nodes/mother/host/systemd/weyland-docker-prune.timer", path: "/etc/systemd/system/weyland-docker-prune.timer", every: "7d"}
+  - {id: "systemd:mother/weyland-docker-prune.service", host: "mother", state: "none", move: "pinned: prunes mother's Docker image store", strix: "stays", managed: "systemd", on_demand: true, source: "nodes/mother/host/systemd/weyland-docker-prune.service", path: "/etc/systemd/system/weyland-docker-prune.service"}
+  # ---- whisper (CT 103 on weyland; B180) ----
+  - {id: "systemd:whisper/whisper-server.service", host: "whisper", state: "model-library: whisper.cpp models", move: "movable", strix: "tbd", managed: "systemd", source: "nodes/weyland/whisper/whisper-server.service", path: "/etc/systemd/system/whisper-server.service", why: "rides with the whisper LXC (pve:lxc/103) — owner decision"}
+  - {id: "systemd:whisper/whisper-shim.service", host: "whisper", state: "stateless", move: "movable", strix: "tbd", managed: "systemd", source: "nodes/weyland/whisper/whisper-shim.service", path: "/etc/systemd/system/whisper-shim.service", why: "rides with the whisper LXC (pve:lxc/103) — owner decision"}
+  # ---- rogueone (the timers' services, run only when their timer fires; B180) ----
+  - {id: "user-systemd:rogueone/restic-backup.service", host: "rogueone", state: "none", move: "pinned: backs up rogueone's own home", strix: "stays", managed: "systemd --user", on_demand: true, source: "nodes/rogueone/systemd/restic-backup.service", path: "/home/edwardmangini/.config/systemd/user/restic-backup.service", owner: "B130"}
+  - {id: "user-systemd:rogueone/ai-session-producer.service", host: "rogueone", state: "none", move: "pinned: mirrors rogueone's Claude sessions", strix: "stays", managed: "systemd --user", on_demand: true, source: "nodes/rogueone/systemd/ai-session-producer.service", path: "/home/edwardmangini/.config/systemd/user/ai-session-producer.service"}
+  - {id: "user-systemd:rogueone/machine-inv-drift.service", host: "rogueone", state: "none", move: "pinned: inventories each host from rogueone", strix: "stays", managed: "systemd --user", on_demand: true, source: "nodes/rogueone/systemd/machine-inv-drift.service", path: "/home/edwardmangini/.config/systemd/user/machine-inv-drift.service", owner: "B170"}
+  - {id: "user-systemd:rogueone/disable-scroll-lock.service", host: "rogueone", state: "none", move: "pinned: the owner's desktop session", strix: "stays", managed: "systemd --user", scope: "unknown", why: "keyboard Scroll Lock LED tweak for the X session; no repo copy — owner not confirmed", path: "/home/edwardmangini/.config/systemd/user/disable-scroll-lock.service"}
   # ---- weyland (Proxmox guests) ----
   - {id: "pve:qemu/101", host: "weyland", state: "host-path: local-lvm disk", move: "pinned: the k3s server + every local-path PV", strix: "stays", managed: "pve", likec4: "mother"}
   - {id: "pve:lxc/103", host: "weyland", state: "none", move: "movable", strix: "tbd", managed: "pve", likec4: "whisper", why: "whisper.cpp on Vulkan could move to the Strix inference LXC and free weyland's CPU — owner decision"}
+
+# Host files that are not units (drop-ins, /etc configs, apparmor, an installed script) — B180. `path` is where the file
+# is installed; `source` its repo copy. The nightly host check (machine-inv-drift) reads `path` on each host and compares
+# it with `source`, ignoring comment/blank-line-only differences.
+host_config:
+  - {id: "file:mother/etc/needrestart/conf.d/weyland-k3s.conf", host: "mother", path: "/etc/needrestart/conf.d/weyland-k3s.conf", source: "nodes/mother/host/needrestart/weyland-k3s.conf", why: "needrestart must never auto-restart k3s (2026-09-29)"}
+  - {id: "file:mother/etc/rancher/k3s/config.yaml", host: "mother", path: "/etc/rancher/k3s/config.yaml", source: "nodes/mother/host/rancher/k3s/config.yaml", why: "kubelet reserves + eviction-hard (node-memory-resilience runbook)"}
+  - {id: "file:mother/etc/sysctl.d/99-weyland-buildkit.conf", host: "mother", path: "/etc/sysctl.d/99-weyland-buildkit.conf", source: "nodes/mother/host/sysctl.d/99-weyland-buildkit.conf", owner: "B57a"}
+  - {id: "file:mother/etc/systemd/resolved.conf.d/weyland-lab.conf", host: "mother", path: "/etc/systemd/resolved.conf.d/weyland-lab.conf", source: "nodes/mother/host/systemd/resolved.conf.d/weyland-lab.conf", why: "mother resolves *.weyland.lab (lan-dns runbook)"}
+  - {id: "file:rogueone/etc/systemd/system/ollama.service.d/gpu-guardrails.conf", host: "rogueone", path: "/etc/systemd/system/ollama.service.d/gpu-guardrails.conf", source: "nodes/rogueone/systemd/ollama-gpu-guardrails.conf", why: "Ollama VRAM guardrails (one model, 30s keep-alive, 6 GiB overhead)"}
+  - {id: "file:rogueone/etc/systemd/system/ollama.service.d/override.conf", host: "rogueone", path: "/etc/systemd/system/ollama.service.d/override.conf", source: "nodes/rogueone/systemd/ollama-host.conf", why: "OLLAMA_HOST=0.0.0.0 — the cluster reaches Ollama over the LAN (had no repo copy until B180)"}
+  - {id: "file:rogueone/etc/default/prometheus-node-exporter", host: "rogueone", path: "/etc/default/prometheus-node-exporter", source: "nodes/rogueone/systemd/prometheus-node-exporter.default", owner: "B198"}
+  - {id: "file:rogueone/etc/apparmor.d/bwrap", host: "rogueone", path: "/etc/apparmor.d/bwrap", source: "nodes/rogueone/apparmor/bwrap", why: "lets Codex's bubblewrap sandbox create user namespaces (coding-agents runbook)"}
+  - {id: "file:whisper/root/whisper-shim/shim.py", host: "whisper", path: "/root/whisper-shim/shim.py", source: "nodes/weyland/whisper/shim.py", why: "the OpenAI-compatible /v1 shim whisper-shim.service runs"}

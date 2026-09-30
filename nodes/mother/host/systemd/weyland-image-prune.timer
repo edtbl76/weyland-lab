@@ -1,13 +1,14 @@
-# Weekly trigger for weyland-image-prune.service. mother's host clock is UTC, so this is Sun 15:00 UTC (= 11:00
-# America/New_York) — a quiet window clear of the 05:00–10:00 UTC DataHub train and the 06:17 UTC Dagster heavy job.
-# Persistent = catch-up if the box was off at fire time.
+# Weekly trigger for weyland-image-prune.service. Sun 00:15 America/New_York, pinned to NY in the spec (mother's host
+# clock is UTC — Design Rule #1). Moved 2026-09-29 (B180) from Sun 15:00 UTC = 11:00 NY, a mid-day slot Design Rule
+# #5 forbids; now beside its sibling weyland-docker-prune (00:10), before the 00:20 `timeseries`. Jitter 2 min so it
+# cannot reach 00:20. Persistent = catch-up if the box was off at fire time.
 [Unit]
 Description=Weekly k3s/containerd image prune
 
 [Timer]
-OnCalendar=Sun 15:00
+OnCalendar=Sun 00:15 America/New_York
 Persistent=true
-RandomizedDelaySec=600
+RandomizedDelaySec=120
 
 [Install]
 WantedBy=timers.target

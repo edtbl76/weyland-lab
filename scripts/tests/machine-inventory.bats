@@ -146,3 +146,68 @@ yaml.safe_dump(d,open('$MACHINE_INV_SOT','w'),sort_keys=False)
   [ "$status" -ne 0 ]
   [[ "$output" == *"not in the SoT"* ]]
 }
+
+# --- B180: placement.yaml's host units + host config files are emitted as installed_package kinds
+#     systemd-unit / host-config, and verify counts them (read-back covers them too) ---
+
+placement_fixture() {
+  cat > "$TMP/placement.yaml" <<'YAML'
+hosts:
+  h:  {kind: laptop}
+  ct: {kind: lxc, runs_on: h}
+  m:  {kind: qemu-vm, runs_on: h}
+workloads:
+  - {id: "systemd:h/a.service", host: "h", why: "does a"}
+  - {id: "user-systemd:h/b.timer", host: "h", move: "pinned: b"}
+  - {id: "systemd:ct/c.service", host: "ct"}
+  - {id: "systemd:m/k3s.service", host: "m"}
+  - {id: "k8s:ns/deployment/x", host: "mother"}
+host_config:
+  - {id: "file:h/etc/x.conf", host: "h", path: "/etc/x.conf", source: "nodes/h/x.conf", why: "x"}
+YAML
+  export MACHINE_INV_PLACEMENT="$TMP/placement.yaml"
+}
+
+@test "verify counts placement units + host config (a guest's rows go to the host it runs on)" {
+  placement_fixture
+  printf 'host:h\nsnap\ta\t1\nsnap\tb\t1\n' | python3 "$TOOL" merge h   # 2 packages + 2 units + 2 uncataloged-guest units + 1 file
+  run env MACHINE_INV_VERIFY_ACTUAL=7 python3 "$TOOL" verify h
+  [ "$status" -eq 0 ]
+  run env MACHINE_INV_VERIFY_ACTUAL=2 python3 "$TOOL" verify h
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"Port has 2 installed_package entities, SoT has 7"* ]]
+}
+
+@test "placement rows become systemd-unit / host-config packages with status system" {
+  placement_fixture
+  run python3 -c "
+import sys; sys.path.insert(0, '${BATS_TEST_DIRNAME}/..')
+import machine_inventory as m
+for p in sorted(m.placement_packages('h'), key=lambda p: p['name']): print(p['kind'], p['name'], p['status'], p['rationale'])"
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"host-config /etc/x.conf system x"* ]]
+  [[ "$output" == *"systemd-unit a.service system does a"* ]]
+  [[ "$output" == *"systemd-unit b.timer system pinned: b"* ]]
+  [[ "$output" == *"systemd-unit ct/c.service system"* ]]
+  [[ "$output" != *"deployment"* ]]
+}
+
+@test "a guest that is itself a cataloged machine keeps its own rows (never double-counted on its parent)" {
+  placement_fixture
+  printf 'host:m\nsnap\tz\t1\n' | python3 "$TOOL" merge m
+  run python3 -c "
+import sys; sys.path.insert(0, '${BATS_TEST_DIRNAME}/..')
+import machine_inventory as m
+print([p['name'] for p in m.placement_packages('h')], [p['name'] for p in m.placement_packages('m')])"
+  [ "$status" -eq 0 ]
+  [[ "$output" != *"m/k3s.service"* ]]
+  [[ "$output" == *"['k3s.service']"* ]]
+}
+
+@test "verify FAILS when placement.yaml is missing (never counts it as zero rows)" {
+  export MACHINE_INV_PLACEMENT="$TMP/nope.yaml"
+  printf 'host:h\nsnap\ta\t1\n' | python3 "$TOOL" merge h
+  run env MACHINE_INV_VERIFY_ACTUAL=1 python3 "$TOOL" verify h
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"placement.yaml not found"* ]]
+}

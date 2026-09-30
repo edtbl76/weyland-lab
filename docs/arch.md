@@ -1418,6 +1418,25 @@ manifest sat in a directory Argo read only Helm values from — now the `lightda
 against live before adoption). `istiod` (istioctl, from the IstioOperator in git) and Argo CD itself remain the
 recorded deliberate exceptions in `runbooks/argocd.md`, plus the k3s-managed kube-system components.
 
+**Host files (B180, 2026-09-29).** Host systemd units and host config files became rows in the same file rather
+than a second `host-units.yaml`: a unit is a workload with a placement like any other, and two inventories of the same
+units would drift from each other. Unit rows gained `source` (repo copy), `path` (installed location), `owner` and
+`every` (timers); non-unit files (drop-ins, `/etc` configs, apparmor, the whisper shim) sit under `host_config:`.
+
+| Decision | Chosen | Rejected | Why |
+|---|---|---|---|
+| Where the SoT lives | rows in `placement.yaml` | a separate `host-units.yaml` | one inventory; the owner chose it ("one inventory") |
+| How hosts are read | SSH from rogueone inside the nightly `machine-inv-drift` (keys already there), `access:` per host | an agent on each host; node-exporter textfile | the B129 run already SSHes all three hosts and owns the Kuma heartbeat; no new daemon, no key in the cluster |
+| What "identical" means | same lines after dropping comment and blank lines | byte-identical | repo copies carry deploy headers the installed copies predate; a comment edit is not drift |
+| Timer health | last trigger within 2x `every`, each timer in its OWN systemd scope | one scope per host | rogueone carries system and user timers; asking a system timer with `--user` reads "never triggered" (the first run's false finding) |
+| Port | `installed_package` kinds `systemd-unit` / `host-config`, status `system` | a new blueprint | the machine inventory already relates packages to hosts; a guest that is not a machine (whisper) files under the host it `runs_on` |
+
+The first run found real faults, not only gaps: the rogueone restic backup had failed every night since 2026-09-25
+(Swift `.build/` dirs, root-owned and unfiltered — fixed), the Ollama `OLLAMA_HOST` drop-in every in-cluster LLM call
+depends on had no repo copy (now `nodes/rogueone/systemd/ollama-host.conf`), and `weyland-image-prune` ran at 11:00 NY
+against Design Rule #5 (moved to 00:15). Also found: YAML 1.1 reads a bare `on:` key as boolean `True`, so the
+`hosts:` parent field had silently been `True: weyland` — renamed `runs_on`.
+
 ### 10e. DataHub ingestion watchdog (B197, 2026-09-28)
 
 **The problem.** `dbt - Weyland` and `MLFlow - Weyland` failed every day for 10+ days in September 2026 and nothing

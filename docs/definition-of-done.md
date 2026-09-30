@@ -26,6 +26,11 @@ capability is **NOT done** until ALL nine pillars hold. "Ran once" ≠ done.
   service or timer, a Proxmox guest — with its `state`, `move` and `strix` target. GUARDED, not hand-ticked: the
   nightly `placement-coverage` CronJob fails naming anything running with no row (and prints the row to add); run
   `scripts/embed-placement.sh` after editing the file so the CronJob reads the same inventory.
+  **Host units and host config files** (B180) also carry `source` (the repo copy) and `path` (where it is installed),
+  and a timer carries `every`; a non-unit host file (a drop-in, an `/etc` config, an apparmor profile) goes under
+  `host_config:`. GUARDED: `check-placement.sh` fails on a host file in the repo with no row, and the nightly
+  `machine-inv-drift` host check fails (Kuma → Telegram) on a file not installed or differing from its repo copy, a
+  hand-installed unit with no row, a failed unit, or a stale timer.
 - **schedules.md — the timer reconciliation check (every batch that adds/moves/removes a timer).** `docs/schedules.md`
   is the single source of truth for **every timer class** — Dagster schedules, DataHub managed ingestion, k8s
   CronJobs, node systemd timers, **and Woodpecker crons**. On any timer change, **reconcile the live timer against

@@ -3260,6 +3260,16 @@ push a Kuma heartbeat (only `restic-backup` and `machine-inv-drift` do).
 
 Relates B129 / B169 (machine inventory), B130 (restic, the heartbeat precedent).
 
+**Built 2026-09-29 (awaiting push, tofu apply, the prune-timer install and CI).** Owner decision: ONE inventory — the
+units and host files are rows in `placement.yaml` (unit rows gain `source`/`path`/`owner`/`every`; new `host_config:`
+section), not a `host-units.yaml`. Repo ↔ inventory in `check-placement.sh` (every host file referenced once, every
+`source` exists); host ↔ inventory via `placement_check.py --hosts` inside `machine-inv-drift` (Kuma → Telegram):
+installed and identical ignoring comments, no unlisted unit, no failed unit, no timer older than 2x `every`. Port:
+`installed_package` kinds `systemd-unit` / `host-config`. First run found and fixed: the rogueone restic backup
+failing nightly since 09-25 (Swift `.build/`), the Ollama `OLLAMA_HOST` drop-in with no repo copy, the 11:00 NY prune
+(moved to 00:15), and a system/user timer-scope bug in the check itself. Runbook: `runbooks/observability.md`
+§ Placement inventory; design: `arch.md` §10d.
+
 ### B179 — Investigate Warp Software Factory for the lab — HIGH (2026-09-24, Linear EMA-237)
 
 Evaluate **Warp Software Factory** (warp.dev's agentic software-development offering) and decide whether anything in it is worth adopting — same discipline as B174 (Jev/TypeSafe AI) and B119 ("master the tool"): understand it against REAL lab context, land an **ADOPT / DON'T-ADOPT** verdict with rationale, don't adopt on hype.
