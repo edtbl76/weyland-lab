@@ -148,32 +148,41 @@ def cmd_merge(host, prune=False):
         print(f"  absent (cataloged but not collected this run — decide): {', '.join(sorted(absent))}", file=sys.stderr)
 
 
-def placement_packages(host):
-    """placement.yaml's unit rows + host_config rows for `host`, as installed_package dicts. A placement host that
-    is not a machine (the whisper LXC) is filed under the host it `runs_on`, its names prefixed `<guest>/`; a guest that is itself a cataloged
-    machine (mother) keeps its own rows.
-    A missing placement.yaml is an error, never zero rows (fail closed)."""
+def _load_placement():
     if not os.path.exists(PLACEMENT):
         sys.exit(f"placement.yaml not found at {PLACEMENT} (set MACHINE_INV_PLACEMENT)")
     with open(PLACEMENT) as f:
-        doc = yaml.safe_load(f) or {}
+        return yaml.safe_load(f) or {}
+
+
+def _owned_by(host, doc):
+    """A predicate: does a placement row on host `h` belong to machine `host`? Its own rows, plus those of a guest that
+    `runs_on` it and is not itself a cataloged machine (`runs_on`, not `on` — YAML 1.1 reads a bare `on:` as True)."""
     phosts = doc.get("hosts") or {}
-    machines = set((load_sot().get("hosts") or {}))
+    machines = set(load_sot().get("hosts") or {})
+    return lambda h: h == host or (h not in machines and (phosts.get(h) or {}).get("runs_on") == host)
 
-    def owner(h):  # `runs_on`, not `on` — YAML 1.1 reads a bare `on:` key as boolean True
-        return h == host or (h not in machines and (phosts.get(h) or {}).get("runs_on") == host)
 
-    out = []
-    for r in doc.get("workloads") or []:
-        if r["id"].startswith(UNIT_PREFIXES) and owner(r.get("host")):
-            name = r["id"].split("/", 1)[1]
-            out.append({"kind": "systemd-unit", "name": name if r["host"] == host else f"{r['host']}/{name}",
-                        "status": "system", "rationale": r.get("why") or r.get("move", "")})
-    for r in doc.get("host_config") or []:
-        if owner(r.get("host")):
-            out.append({"kind": "host-config", "name": r["path"] if r["host"] == host else f"{r['host']}{r['path']}",
-                        "status": "system", "rationale": r.get("why", "")})
-    return out
+def _placement_name(host, row_host, name):
+    """A guest's row is prefixed with the guest: `whisper/whisper-shim.service`, `whisper/root/whisper-shim/shim.py`."""
+    if row_host == host:
+        return name
+    return f"{row_host}/{name.lstrip('/')}"
+
+
+def placement_packages(host):
+    """placement.yaml's unit rows + host_config rows for `host`, as installed_package dicts. A placement host that is not
+    a machine (the whisper LXC) is filed under the host it `runs_on`, its names prefixed `<guest>/`; a guest that is itself
+    a cataloged machine (mother) keeps its own rows. A missing placement.yaml is an error, never zero rows (fail closed)."""
+    doc = _load_placement()
+    owned = _owned_by(host, doc)
+    units = [{"kind": "systemd-unit", "name": _placement_name(host, r["host"], r["id"].split("/", 1)[1]),
+              "status": "system", "rationale": r.get("why") or r.get("move", "")}
+             for r in doc.get("workloads") or [] if r["id"].startswith(UNIT_PREFIXES) and owned(r.get("host"))]
+    files = [{"kind": "host-config", "name": _placement_name(host, r["host"], r["path"]),
+              "status": "system", "rationale": r.get("why", "")}
+             for r in doc.get("host_config") or [] if owned(r.get("host"))]
+    return units + files
 
 
 def port_identifier(host, pkg):

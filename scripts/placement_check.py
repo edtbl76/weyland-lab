@@ -31,8 +31,9 @@ import urllib.request
 import yaml
 
 SYSTEMD = "systemd:"
-ID_PREFIXES = ("k8s:", SYSTEMD, "pve:", "tool:", "user-systemd:")
-DECLARED_ONLY = ("tool:", "user-systemd:")  # not visible to Prometheus: declared, never live-checked
+USER_SYSTEMD = "user-systemd:"
+ID_PREFIXES = ("k8s:", SYSTEMD, "pve:", "tool:", USER_SYSTEMD)
+DECLARED_ONLY = ("tool:", USER_SYSTEMD)  # not visible to Prometheus: declared, never live-checked
 STRIX = {"any", "k3s-worker", "inference-lxc", "stays", "every-node", "tbd"}
 NEEDS_WHY = {"k3s-worker", "inference-lxc", "tbd"}
 SCOPES = {"lab", "stud.io", "personal", "unused", "unknown"}
@@ -60,7 +61,7 @@ HOST_FILE_GLOBS = (
     "nodes/weyland/whisper/shim.py",
     "nodes/mother/lab/weyland-platform/services/*/*.service",
 )
-UNIT_PREFIXES = (SYSTEMD, "user-systemd:")
+UNIT_PREFIXES = (SYSTEMD, USER_SYSTEMD)
 
 
 class CannotRead(Exception):
@@ -168,6 +169,10 @@ def check_repo_host_files(doc, root):
 
 # --- B180: installed content vs git --------------------------------------------------------------------------------
 
+NOT_INSTALLED = "NOT INSTALLED"
+DRIFT = "DRIFT"
+
+
 def effective(text):
     """The lines that change behaviour: comment (#, ;) and blank lines removed, surrounding whitespace ignored."""
     return [ln.strip() for ln in text.splitlines() if ln.strip() and not ln.strip().startswith(("#", ";"))]
@@ -175,10 +180,10 @@ def effective(text):
 
 def compare_installed(repo_text, host_text):
     if host_text is None:
-        return "NOT INSTALLED"
+        return NOT_INSTALLED
     if host_text == repo_text:
         return "same"
-    return "comment-only" if effective(host_text) == effective(repo_text) else "DRIFT"
+    return "comment-only" if effective(host_text) == effective(repo_text) else DRIFT
 
 
 def check_installed_units(doc, installed):
@@ -191,7 +196,7 @@ def check_installed_units(doc, installed):
         for u in sorted(units):
             if u in set(os_units.get(host, [])):
                 continue
-            if f"{SYSTEMD}{host}/{u}" not in known and f"user-systemd:{host}/{u}" not in known:
+            if f"{SYSTEMD}{host}/{u}" not in known and f"{USER_SYSTEMD}{host}/{u}" not in known:
                 out.append(f"{host}: unit {u} is installed on the host but not in the inventory")
     return out
 
@@ -332,10 +337,16 @@ def _file_findings(entries, g, repo_read):
         if not path:
             continue
         installed = g["files"].get(path)
-        status = compare_installed(repo_read(e["source"]), installed) if e.get("source") else (
-            "NOT INSTALLED" if installed is None else "same")
-        if status in ("DRIFT", "NOT INSTALLED"):
-            out.append(f"{e['id']}: {status} at {path}" + (f" (repo: {e['source']})" if status == "DRIFT" else ""))
+        if e.get("source"):
+            status = compare_installed(repo_read(e["source"]), installed)
+        elif installed is None:
+            status = NOT_INSTALLED
+        else:
+            status = "same"
+        if status == DRIFT:
+            out.append(f"{e['id']}: {DRIFT} at {path} (repo: {e['source']})")
+        elif status == NOT_INSTALLED:
+            out.append(f"{e['id']}: {NOT_INSTALLED} at {path}")
     return out
 
 
@@ -389,8 +400,8 @@ def gather_all(doc):
             continue
         units, files = _host_entries(doc, host)
         paths = [e["path"] for e in units + files if e.get("path")]
-        timers = [(r["id"].split("/", 1)[1], r["id"].startswith("user-systemd:")) for r in units if r.get("every")]
-        user = any(r["id"].startswith("user-systemd:") for r in units)
+        timers = [(r["id"].split("/", 1)[1], r["id"].startswith(USER_SYSTEMD)) for r in units if r.get("every")]
+        user = any(r["id"].startswith(USER_SYSTEMD) for r in units)
         try:
             gathered[host] = parse_host_output(_gather(access, host_script(paths, timers, user)))
         except (CannotRead, OSError, subprocess.TimeoutExpired) as exc:
@@ -565,7 +576,11 @@ def main(argv=None):
     if findings:
         print(f"❌ placement drift: {len(findings)} finding(s). Fix placement.yaml (or the model).", file=sys.stderr)
         return 1
-    mode_name = "live" if args.live else "hosts" if args.hosts else "repo"
+    mode_name = "repo"
+    if args.live:
+        mode_name = "live"
+    elif args.hosts:
+        mode_name = "hosts"
     print(f"OK — placement.yaml: {len(_load(args.file)['workloads'])} rows, {mode_name} check clean.")
     return 0
 
