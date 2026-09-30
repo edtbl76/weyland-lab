@@ -37,10 +37,12 @@ from the environment, so source the gitignored `.env` first (without it: "Unable
 ```
 cd /home/edwardmangini/IdeaProjects/weyland/nodes/mother/lab/weyland-platform/tofu/port && set -a && . ./.env && set +a && tofu validate && tofu apply
 ```
-Entities (reads the committed SoT — no collect/SSH; creds from `tofu/port/.env`):
+Entities (reads the committed SoT plus `placement.yaml`'s units and host config files — no collect/SSH; creds from
+`tofu/port/.env`; one Port request per package, so `all` takes over 10 minutes):
+
+[rogueone]
 ```
-[rogueone] set -a && . nodes/mother/lab/weyland-platform/tofu/port/.env && set +a \
-  && python3 scripts/machine_inventory.py emit all      # or a single <host>
+cd /home/edwardmangini/IdeaProjects/weyland && set -a && . nodes/mother/lab/weyland-platform/tofu/port/.env && set +a && python3 scripts/machine_inventory.py emit all && python3 scripts/machine_inventory.py verify all
 ```
 `emit` upserts one `host` entity + one `installed_package` per cataloged package (`kind`/`status`/`rationale`
 from the SoT). Baseline (`status: system`) items are emitted too so the Port catalog is complete. Version is not
