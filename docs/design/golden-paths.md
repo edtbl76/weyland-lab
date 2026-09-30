@@ -158,6 +158,13 @@ selfcheck) plus a `.woodpecker.yml` runner image and a `quality-tools.yaml` scan
 - **Angular** — ★ (frontend; reuses the node lanes) `ng build` SPA, its Karma/browser `ng test` swapped for **headless jest** on the pure greeting (the node lane has no browser); the built app is proven by the smoke — #111
 - **Vue 3 + Vite** — ★ (frontend; reuses the node lanes) `vite build` SPA · vitest + `@vue/test-utils` · **`@vitest/coverage-v8`** so the coverage ratchet gets a figure — #111
 
+**Node lockfile rule (2026-09-30).** Every node golden path commits `package-lock.json`, and the lanes install with
+`npm ci` through `npm_install_locked` (`scripts/lib/lang-fixtures.sh`): no lockfile is `LANE BROKEN` (exit 2), never a
+float to whatever npm published last. Angular and Vue were the two without one — CI 212 then broke on `ignore@7.0.11`,
+resolved three minutes after it was published while its tarball still 404'd. Guarded by
+`scripts/tests/npm-locked-install.bats` (it also fails if any node golden path lacks a lockfile). A new node path:
+`npm install --package-lock-only` in `node:24-alpine`, commit the lockfile.
+
 **Contract variants (three, one altitude):** the **service** variant serves the four HTTP endpoints
 directly (the JVM/native/scripting ecosystems); the **frontend** variant (Angular/Vue, like B153's
 Next/Remix/Vite/Astro) is an SPA fronted by a stdlib `http` + `prom-client` `server.mjs` sidecar that

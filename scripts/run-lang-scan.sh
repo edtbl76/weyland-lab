@@ -191,8 +191,7 @@ scan_reactnative() {
   # B164 mobile CLIENT (Expo). eslint over the app (eslint.config.mjs), like the node lane — reuse the
   # already-registered `eslint` tool id. npm install if node_modules absent so npx can resolve eslint
   # (fail closed). Lint findings are advisory; the lane fails (exit 2) only on a missing toolchain.
-  [ -d "$root/node_modules" ] || (cd "$root" && npm install --no-audit --no-fund --loglevel=error) || {
-    printf 'LANE BROKEN: npm install failed in %s\n' "$root" >&2; return 2; }
+  npm_install_locked "$root" || return 2
   run_tool eslint "$root" npx npx --no-install eslint . || rc=2
   return $rc
 }
@@ -299,8 +298,7 @@ scan_java() {
 
 scan_node() {
   local root="$1" rc=0
-  [ -d "$root/node_modules" ] || (cd "$root" && npm install --no-audit --no-fund --loglevel=error) || {
-    printf 'LANE BROKEN: npm install failed in %s\n' "$root" >&2; return 2; }
+  npm_install_locked "$root" || return 2
   run_tool eslint          "$root" npx npx --no-install eslint . || rc=2
   run_tool npm-audit       "$root" npm npm audit --audit-level=high || rc=2
   run_tool license-checker "$root" npx npx --no-install license-checker --summary || rc=2

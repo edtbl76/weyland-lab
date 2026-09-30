@@ -50,3 +50,19 @@ resolve_fixture() {
     *)          return 1 ;;
   esac
 }
+
+# npm_install_locked <dir> — install a node project's dependencies from its COMMITTED lockfile. `npm ci` installs exactly
+# package-lock.json (and fails if package.json disagrees with it); `npm install` would instead resolve ranges to
+# whatever is newest — how CI 212 (2026-09-30) broke on `ignore@7.0.11`, pulled three minutes after publish while its
+# tarball still 404'd. No lockfile = the lane cannot pin what it tests: exit 2 (LANE BROKEN), npm never runs.
+# node_modules already present (a CI cache) = nothing to do.
+npm_install_locked() {
+  local dir="$1"
+  [ -d "$dir/node_modules" ] && return 0
+  if [ ! -f "$dir/package-lock.json" ]; then
+    printf 'LANE BROKEN: no package-lock.json in %s — commit one (npm install --package-lock-only)\n' "$dir" >&2
+    return 2
+  fi
+  (cd "$dir" && npm ci --no-audit --no-fund --loglevel=error) || {
+    printf 'LANE BROKEN: npm ci failed in %s\n' "$dir" >&2; return 2; }
+}

@@ -503,8 +503,7 @@ run_in() {
       # the package.json `test` script's --testPathIgnorePatterns; `test:selfcheck` targets ONLY it,
       # so a normal run passes and selfcheck forces the failure. Directory-based → fail-closed on a rename.
       if [ ! -d "$dir/node_modules" ]; then
-        (cd "$dir" && npm install --no-audit --no-fund --loglevel=error) || {
-          printf 'LANE BROKEN: npm install failed in %s\n' "$dir" >&2; return 2; }
+        npm_install_locked "$dir" || return 2
       fi
       if [ "$mode" = selfcheck ]; then (cd "$dir" && npm run --silent test:selfcheck)
       else (cd "$dir" && npm test --silent); fi ;;
@@ -535,8 +534,7 @@ run_in() {
         # Dependencies must exist before jest can run. Install only when absent — a real CI cache
         # makes this a no-op on the common path (roadie's pattern: named cache volume + skip).
         if [ ! -d "$dir/node_modules" ]; then
-          (cd "$dir" && npm install --no-audit --no-fund --loglevel=error) || {
-            printf 'LANE BROKEN: npm install failed in %s\n' "$dir" >&2; return 2; }
+          npm_install_locked "$dir" || return 2
         fi
         if [ "$mode" = selfcheck ]; then (cd "$dir" && npm run --silent test:selfcheck)
         else (cd "$dir" && npm test --silent); fi
@@ -546,8 +544,7 @@ run_in() {
         # scan_node) do: package.json present + node_modules absent → npm install, fail closed.
         # Without this the test loads MODULE_NOT_FOUND in a fresh CI clone (node_modules gitignored).
         if [ -f "$dir/package.json" ] && [ ! -d "$dir/node_modules" ]; then
-          (cd "$dir" && npm install --no-audit --no-fund --loglevel=error) || {
-            printf 'LANE BROKEN: npm install failed in %s\n' "$dir" >&2; return 2; }
+          npm_install_locked "$dir" || return 2
         fi
         # node --test recurses and has NO path-exclusion flag (only --test-skip-pattern, which
         # matches test NAMES). So exclusion is structural: the deliberate file is named
