@@ -30,9 +30,12 @@ one-line `rationale`; commit the diff (that diff IS the drift record).
 
 ## Publish to Port
 
-Blueprints (once, or after editing the blueprint schema):
+Blueprints (once, or after editing the blueprint schema). The provider reads `PORT_CLIENT_ID`/`PORT_CLIENT_SECRET`
+from the environment, so source the gitignored `.env` first (without it: "Unable to find client ID"):
+
+[rogueone]
 ```
-[mother|rogueone] cd nodes/mother/lab/weyland-platform/tofu/port && tofu validate && tofu apply
+cd /home/edwardmangini/IdeaProjects/weyland/nodes/mother/lab/weyland-platform/tofu/port && set -a && . ./.env && set +a && tofu validate && tofu apply
 ```
 Entities (reads the committed SoT — no collect/SSH; creds from `tofu/port/.env`):
 ```
