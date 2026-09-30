@@ -29,6 +29,13 @@ def _src(name, cron="0 1 * * *", tz="America/New_York", runs=None, urn=None):
             "executions": {"executionRequests": runs if runs is not None else [_run("SUCCESS", 6 * H)]}}
 
 
+@pytest.fixture(autouse=True)
+def _fixed_clock(monkeypatch):
+    # main() reads the wall clock; the fixtures are dated from NOW. Without this pin the main() tests passed until
+    # 2026-09-30, when the default 6h-old SUCCESS became 48h+ old and read as stale (a time bomb, found in CI 211).
+    monkeypatch.setattr(dh.time, "time", lambda: NOW)
+
+
 def _page(sources, total=None):
     return {"data": {"listIngestionSources": {"total": len(sources) if total is None else total,
                                               "ingestionSources": sources}}}
