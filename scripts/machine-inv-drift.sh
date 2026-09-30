@@ -5,7 +5,7 @@
 #
 # WHAT IT DOES each run:
 #   1. Emit + read-back verify the COMMITTED catalog to Port (keeps Port tracking the accepted SoT; reuses the
-#      B169 verify gate). Non-fatal to the scan.
+#      B169 verify gate; emit deletes entities the SoT dropped). Non-fatal to the scan, but a failure turns Kuma down.
 #   2. For each REACHABLE host: `collect | machine_inventory.py merge --prune` — reconcile the catalog (add new
 #      installs, drop uninstalls, preserve your keep/remove decisions). This runs inside an ISOLATED git
 #      worktree off origin/main, so your working checkout is never touched. An UNREACHABLE host is SKIPPED,
@@ -36,12 +36,12 @@ INV_CMD="${MACHINE_INV_PY_CMD:-python3 $REPO_ROOT/scripts/machine_inventory.py}"
 PORT_ENV="${MACHINE_INV_PORT_ENV:-$REPO_ROOT/nodes/mother/lab/weyland-platform/tofu/port/.env}"
 PLACEMENT_CMD="${MACHINE_INV_PLACEMENT_CMD:-python3 $REPO_ROOT/scripts/placement_check.py --hosts --file}"
 
-# decide_signal <drift 0|1> <unreachable-hosts> <summary> [<placement-rc>] — the pure Kuma/Telegram decision.
-# Prints "<up|down>\t<msg>". `up` ONLY when the catalog is clean, every host was reachable AND the B180 host
-# placement check (placement_check.py --hosts) exited 0; anything else is `down` so it reaches Telegram. Kept
+# decide_signal <drift 0|1> <unreachable-hosts> <summary> [<placement-rc>] [<port-failed 0|1>] — the pure Kuma/
+# Telegram decision. Prints "<up|down>\t<msg>". `up` ONLY when the catalog is clean, every host was reachable, the
+# B180 host placement check (placement_check.py --hosts) exited 0 AND the Port emit + read-back verify passed; anything else is `down` so it reaches Telegram. Kept
 # separate + side-effect-free so bats can pin every state without a network.
 decide_signal() {
-  local drift="$1" unreachable="$2" summary="$3" placement="${4:-0}" state msg
+  local drift="$1" unreachable="$2" summary="$3" placement="${4:-0}" port="${5:-0}" state msg
   if [ -n "$unreachable" ] && [ "$drift" = "1" ]; then
     state=down; msg="machine-inventory drift ($summary) + unreachable:$unreachable"
   elif [ -n "$unreachable" ]; then
@@ -57,6 +57,7 @@ decide_signal() {
     2) state=down; msg="$msg; placement: host check could not read" ;;
     *) state=down; msg="$msg; placement: host check exited $placement" ;;
   esac
+  if [ "$port" != "0" ]; then state=down; msg="$msg; port: emit/verify failed"; fi
   printf '%s\t%s\n' "$state" "$msg"
 }
 
@@ -102,10 +103,16 @@ main() {
   [ -f "$REPO_ROOT/scripts/.env" ] && { set -a; . "$REPO_ROOT/scripts/.env"; set +a; }
 
   # 1) keep Port synced with the ACCEPTED (committed) catalog + read-back verify (B169). Never blocks the scan.
-  if [ "$dry" = "0" ] && [ -f "$PORT_ENV" ]; then
+  # A failure no longer blocks the scan but DOES reach Kuma (it used to be stdout-only, so verify failed every night
+  # unseen until 2026-09-30). A missing PORT_ENV on a real run is itself a failure — nothing was synced.
+  local port_failed=0
+  if [ "$dry" = "0" ]; then
     # shellcheck disable=SC1090  # PORT_ENV is a runtime path (gitignored .env), not a constant to follow
-    ( set -a; . "$PORT_ENV"; set +a; $INV_CMD emit all && $INV_CMD verify all ) \
-      || echo "!! emit/verify reported an issue (see above) — continuing to the scan" >&2
+    if [ ! -f "$PORT_ENV" ]; then
+      echo "!! $PORT_ENV missing — Port not synced" >&2; port_failed=1
+    elif ! ( set -a; . "$PORT_ENV"; set +a; $INV_CMD emit all && $INV_CMD verify all ); then
+      echo "!! emit/verify reported an issue (see above) — continuing to the scan" >&2; port_failed=1
+    fi
   fi
 
   # isolated worktree off origin/main so the live checkout is never dirtied
@@ -148,7 +155,7 @@ main() {
 
   # 5) heartbeat → Telegram on down (drift, unreachable, or placement)
   local sig state msg
-  sig="$(decide_signal "$drift" "$unreachable" "$summary" "$placement")"
+  sig="$(decide_signal "$drift" "$unreachable" "$summary" "$placement" "$port_failed")"
   state="${sig%%$'\t'*}"; msg="${sig#*$'\t'}"
   echo "signal: $state — $msg"
   [ "$dry" = "0" ] && kuma_push "$state" "$msg"

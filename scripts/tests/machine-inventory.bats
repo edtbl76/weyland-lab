@@ -211,3 +211,32 @@ print([p['name'] for p in m.placement_packages('h')], [p['name'] for p in m.plac
   [ "$status" -ne 0 ]
   [[ "$output" == *"placement.yaml not found"* ]]
 }
+
+# --- emit reconciles: Port entities no longer in the SoT are deleted (2026-09-30: 38 stale entities made verify
+#     fail every night — mother's pruned Docker images, rogueone's removed npm packages) ---
+
+@test "stale_identifiers: only this host's entities absent from the SoT (never another host's)" {
+  run python3 -c "
+import sys; sys.path.insert(0, '${BATS_TEST_DIRNAME}/..')
+import machine_inventory as m
+print(sorted(m.stale_identifiers('h', ['h--snap--a', 'h--npm--gone', 'h2--npm--gone', 'hx--snap--a'], {'h--snap--a'})))"
+  [ "$status" -eq 0 ]
+  [ "$output" = "['h--npm--gone']" ]
+}
+
+@test "stale_identifiers refuses an empty SoT for the host (an empty catalog never wipes Port)" {
+  run python3 -c "
+import sys; sys.path.insert(0, '${BATS_TEST_DIRNAME}/..')
+import machine_inventory as m
+m.stale_identifiers('h', ['h--snap--a'], set())"
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"refusing to delete"* ]]
+}
+
+@test "the Port identifier is <host>--<kind>--<name> with / and : made safe" {
+  run python3 -c "
+import sys; sys.path.insert(0, '${BATS_TEST_DIRNAME}/..')
+import machine_inventory as m
+print(m.port_identifier('weyland', {'kind': 'systemd-unit', 'name': 'whisper/a:b.service'}))"
+  [ "$output" = "weyland--systemd-unit--whisper_a_b.service" ]
+}

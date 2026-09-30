@@ -64,3 +64,16 @@ setup() {
   [[ "$output" == down* ]]
   [[ "$output" == *"placement: host check exited 127"* ]]
 }
+
+# The Port emit + read-back verify (B169) used to be reported only on stdout, so a verify failing every night never
+# reached Kuma (found 2026-09-30). 5th arg = 1 when emit/verify failed.
+@test "decide_signal: Port emit/verify failed => down, even when everything else is clean" {
+  run decide_signal 0 "" "none" 0 1
+  [[ "$output" == down* ]]
+  [[ "$output" == *"port: emit/verify failed"* ]]
+}
+
+@test "decide_signal: Port ok (0) keeps up" {
+  run decide_signal 0 "" "none" 0 0
+  [[ "$output" == up* ]]
+}

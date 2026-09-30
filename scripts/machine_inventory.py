@@ -30,6 +30,7 @@ hundreds of hand-written rationales. See docs/runbooks/machine-inventory.md.
 import os
 import sys
 import json
+import urllib.parse
 import urllib.request
 import urllib.error
 
@@ -175,6 +176,28 @@ def placement_packages(host):
     return out
 
 
+def port_identifier(host, pkg):
+    """The installed_package identifier: `<host>--<kind>--<name>`, with / and : made safe, capped at 255."""
+    return f"{host}--{pkg['kind']}--{pkg['name']}".replace("/", "_").replace(":", "_")[:255]
+
+
+def stale_identifiers(host, port_ids, wanted):
+    """Port installed_package identifiers of `host` that the SoT no longer has — what emit deletes. The host is
+    matched on the exact `<host>--` prefix, so another host's entities are never touched. An EMPTY wanted set is
+    refused: an empty catalog is a read problem, never a reason to wipe the host in Port (fail closed)."""
+    if not wanted:
+        sys.exit(f"emit: {host} has no cataloged packages — refusing to delete its Port entities")
+    prefix = f"{host}--"
+    return [i for i in port_ids if i.startswith(prefix) and i not in wanted]
+
+
+def port_delete(token, blueprint, identifier):
+    req = urllib.request.Request(
+        f"{PORT_API}/blueprints/{blueprint}/entities/{urllib.parse.quote(identifier, safe='')}",
+        headers={"Authorization": f"Bearer {token}"}, method="DELETE")
+    urllib.request.urlopen(req, timeout=30).read()  # nosec B310 — fixed https Port API URL, not a user scheme
+
+
 def port_token():
     cid, sec = os.environ.get("PORT_CLIENT_ID"), os.environ.get("PORT_CLIENT_SECRET")
     if not cid or not sec:
@@ -196,7 +219,9 @@ def port_upsert(token, blueprint, entity):
 def cmd_emit(host):
     """Push the committed SoT to Port (no collect/SSH needed — the SoT is the source). `host` is a single
     host or `all`. Emits one `host` entity + one `installed_package` per cataloged package (kind/status/
-    rationale from the SoT; version is not tracked in the SoT, so it is left blank in Port)."""
+    rationale from the SoT; version is not tracked in the SoT, so it is left blank in Port), then DELETES the host's
+    installed_package entities the SoT no longer has — `merge --prune` drops uninstalled packages from the SoT, and
+    without this Port kept them forever and `verify` failed on the count."""
     sot = load_sot()
     hosts = sot.get("hosts") or {}
     targets = sorted(hosts) if host == "all" else [host]
@@ -209,8 +234,10 @@ def cmd_emit(host):
         port_upsert(token, "host", {"identifier": h, "title": h,
                                     "properties": {"role": entry.get("role", "")}})
         n = 0
+        wanted = set()
         for p in entry.get("packages", []) + placement_packages(h):
-            ident = f"{h}--{p['kind']}--{p['name']}".replace("/", "_").replace(":", "_")[:255]
+            ident = port_identifier(h, p)
+            wanted.add(ident)
             port_upsert(token, "installed_package", {
                 "identifier": ident, "title": f"{p['name']} ({p['kind']})",
                 "properties": {"kind": p["kind"], "package": p["name"],
@@ -218,7 +245,11 @@ def cmd_emit(host):
                 "relations": {"host": h}})
             n += 1
         total += n
-        print(f"emit {h}: 1 host + {n} installed_package entities", file=sys.stderr)
+        have = [e.get("identifier", "") for e in port_get(token, "/blueprints/installed_package/entities").get("entities", [])]
+        stale = stale_identifiers(h, have, wanted)
+        for ident in stale:
+            port_delete(token, "installed_package", ident)
+        print(f"emit {h}: 1 host + {n} installed_package entities, {len(stale)} stale deleted", file=sys.stderr)
     print(f"emit: {len(targets)} host(s), {total} package entities upserted to Port", file=sys.stderr)
 
 

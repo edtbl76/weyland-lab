@@ -29,6 +29,7 @@ Re-ordered per RE-grounded audit (aidlc-docs/inception/backlog-reprioritization.
 - **B29** — Connect Claude Code → weyland system-view MCP — **DONE (2026-06-14)**: registered via `claude mcp add weyland --transport http http://192.168.1.243:30080/mcp`; validated live — `status` tool returned all 4 backends ok + 6 Ollama models. Claude Code is now a first-class MCP consumer alongside Hermes.
 - **B119** — Linear feature evaluation (master the tool) — **DONE (2026-09-26, Linear EMA-139)**: walked every Linear surface — features, the full integrations directory (294 checked; adopted Codex MCP, Figma Make, VS Code MCP, SpecBot), and Settings (workspace + team, incl. AI & Agents). Every verdict is in `docs/concepts/linear-evaluation.md`; follow-ups filed as B182–B195 + B119.1 (OKRs, still open). Detail section below.
 - **B194** — Nightly Linear workspace export to MinIO (backup/DR + the Linear data source) — **DONE (2026-09-27, Linear EMA-253)**: nightly snapshot (05:20 NY, read-only key, 90-day retention, NVMe mirror) verified 254 = live count; restore drill passing (`scripts/linear_restore.py --drill`, 0 mismatches); lakehouse `iceberg.linear.*` + 3 marts for B185 / EMA-172 / B119.1; alert drill 2026-09-27: a skipped run fired `DagsterJobStale` into Alertmanager → Telegram. Closing Gaps along the way: `docs/dr.md` + DoD Pillar 9, lean ships, FR-DRAIN, archive-inclusive linear-sync, DataHub dbt/MLflow ingestion repaired. Detail section below.
+- **B199** — mother runs out of memory overnight and stalls (CI killed, node NotReady) — **HIGH (2026-09-30, Linear EMA-258).** MemAvailable falls to ~1.6 GB and load1 to ~590 for 1–5 min several nights; the Woodpecker server expires the running CI task (pipelines 169/170/186/191/206–209 killed), and 09-30 06:44Z hit `NodeNotReady`. Attribute each stall to pods/jobs, fix the cause, alert on it. See §B199.
 - **B196** — Guard the Dagster watchdog: budgets must match schedules, and a never-run job must alert — **DONE (2026-09-27, Linear EMA-255)**: `scripts/check-dagster-watchdog-budgets.sh` in `repo-guards` (AST-parses every schedule incl. the `build_domain_jobs` factory against the watchdog `BUDGETS` block; 14 bats cases incl. reverting catalog to 8h fails naming `weyland_catalog_job`); watchdog fires `DagsterJobNeverRan`, fails closed on an empty run list, releases the sidecar on every exit (8 bats cases on the deployed script). First run found `feast_materialize_job` + `registrations_reconcile_job` unwatched and six code/live `default_status` mismatches — all fixed (code = live, no exception list). Live watchdog run checked all 13 budgeted jobs; CI #198 green. Detail section below.
 - **B198** — Placement inventory: where every workload runs, and whether it can move — **DONE (2026-09-28, Linear EMA-257)**: `placement.yaml` (196 rows) checked on every push (`check-placement.sh` in repo-guards) and nightly (`placement-coverage`, Prometheus only, incl. a systemd-only node-exporter on rogueone). All 9 DoD pillars: in-cluster Job clean, drills fail by name / refuse, owner UAT passed in Grafana, CI #201 green incl. the SonarQube gate (after fixing 4 findings). Migration table in B134. Along the way: Headlamp + trino-noauth-proxy onboarded to Argo, the last 3 manual Argo apps given selfHeal, and Grafana SSO fixed (every login had silently been Viewer). Detail section below.
 - **B197** — Alert on failing DataHub ingestion runs — **DONE (2026-09-28, Linear EMA-256)**: `datahub-ingestion-watchdog` CronJob (ns `weyland`, daily 05:55 NY) reads every ingestion source from GMS GraphQL and posts `DataHubIngestionFailed` / `Stale` / `NeverRan` to Alertmanager → Telegram; exit 2 when GMS is unreadable, exit 1 when an alert cannot be delivered. 29 pytest cases; in-cluster run clean (17 sources); live drill reached Telegram (owner UAT); CI #202 green incl. SonarQube. Cadence corrected from `*/30` to daily before shipping (Design Rule #5). Detail section below.
@@ -2425,6 +2426,29 @@ merges — that stays a human action).
  and **rotate** the value. Flagged twice by the automated security review. Low-risk on the LAN, but the password
  is committed in git. Do **all four at once** — piecemeal (ClickHouse-only) is inconsistent and gives no real
  benefit while the other three stay inline. Also the ClickHouse `users.d` Secret is already out-of-band (good).
+
+### B199 — mother runs out of memory overnight and stalls (CI killed, node NotReady) — HIGH (2026-09-30, Linear EMA-258)
+
+**Why.** Found 2026-09-30 while running B180's CI: pipelines 206, 207, 208 (nightly-images) and 209 all died with no
+code verdict. The Woodpecker server log shows `queue: resubmitting expired task` then `task expired` (the agents lost
+gRPC keepalive), the same pattern as pipelines 169/170 (09-24), 186 (09-25), 191 (09-26). At each kill mother itself
+stopped answering: node-exporter has no samples, agents lose the API server (`http2: client connection lost`), and at
+06:44Z the node went `NodeNotReady`. Prometheus 2026-09-30: MemAvailable 1.6 GB, load1 454 then 589 across the
+04:59–05:04Z gap, recovering to 4.9 GB / load 9 by 05:10; IO stall ~5% and CPU wait ~0.2 throughout — memory
+exhaustion, not disk or CPU. MemAvailable sits at 2.5–4.5 GB before the spikes (78 Gi node, no swap, ~69 Gi baseline:
+`runbooks/node-capacity.md`), so an overnight job plus a CI run tips it over.
+
+**Scope.** (1) Attribute each stall to named pods/jobs from `container_memory_working_set_bytes` in the 10 minutes
+before (the 00:05–00:20 cluster, 01:00 nightly-images, 02:17 ingestion, CI step pods with 4Gi limits). (2) Fix the
+cause from that attribution — candidates, none chosen: stagger/cap jobs, lower CI step memory, keep full CI out of the
+pre-dawn window, park idle Tier-2 stores, raise RAM toward the ~80 Gi host ceiling. (3) Alerts: MemAvailable under a
+floor for 2 min, a scrape-gap/`up==0` rule for mother's node-exporter (a stall stops the exporter too), and a signal
+for a CI run killed by task expiry.
+
+**Acceptance.** Every listed stall attributed and written into `runbooks/node-capacity.md`; 7 consecutive nights with
+no scrape gap, no `NodeNotReady`, no `task expired`; a full CI run started at 01:00 NY completes (or full CI is
+enforced daytime-only, with the reason); the MemAvailable rule proven by a promtool unit test and reaching Telegram.
+Out of scope: moving workloads to the Strix Halo (B134). Relates B180, B134, B123.
 
 ### B198 — Placement inventory: where every workload runs, and whether it can move — DONE (2026-09-28; was HIGH, Linear EMA-257)
 
