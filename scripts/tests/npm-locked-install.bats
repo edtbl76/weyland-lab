@@ -52,12 +52,12 @@ teardown() { teardown_stubs; rm -rf "$PROJ"; }
 }
 
 @test "every node golden path commits a lockfile (so the lane never floats)" {
-  root="${BATS_TEST_DIRNAME}/../.."
+  root="$(cd "${BATS_TEST_DIRNAME}/../.." && pwd)"   # absolute: the lane runs bats from scripts/tests, not the root
   missing=""
   while IFS= read -r pj; do
     d="$(dirname "$pj")"
     case "$d" in *node_modules*) continue ;; esac
-    [ -f "$d/package-lock.json" ] || missing="$missing $d"
+    [ -f "$root/$d/package-lock.json" ] || missing="$missing $d"
   done < <(cd "$root" && find golden-paths -name package.json -not -path '*/node_modules/*' -not -path '*/.*/*')
   [ -z "$missing" ] || { echo "no package-lock.json:$missing"; false; }
 }
