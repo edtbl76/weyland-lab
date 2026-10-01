@@ -106,52 +106,63 @@ data:
 
     # --- schema -------------------------------------------------------------------------------------------------------
 
-    def _row_findings(r, hosts):
-        rid = r.get("id", "<no id>")
+    def _identity_findings(rid, r, hosts):
         out = []
         if not str(rid).startswith(ID_PREFIXES):
             out.append(f"{rid}: id prefix must be one of {', '.join(ID_PREFIXES)}")
         if r.get("host") not in hosts:
             out.append(f"{rid}: unknown host '{r.get('host')}'")
-        strix, move, scope = r.get("strix"), str(r.get("move", "")), r.get("scope", "lab")
-        if strix not in STRIX:
-            out.append(f"{rid}: strix '{strix}' is not one of {sorted(STRIX)}")
-        if strix in NEEDS_WHY and not r.get("why"):
-            out.append(f"{rid}: strix '{strix}' is a decision and needs a `why`")
-        if scope not in SCOPES:
-            out.append(f"{rid}: scope '{scope}' is not one of {sorted(SCOPES)}")
-        if scope == "unused" and not r.get("why"):
-            out.append(f"{rid}: scope 'unused' needs a `why`")
-        if move.startswith(MOVE_REASONED):
-            if not move.split(":", 1)[1].strip():
-                out.append(f"{rid}: move '{move}' needs a reason after the colon")
-        elif move not in MOVE_FIXED:
-            out.append(f"{rid}: move '{move}' is not movable / every-node / pinned: <reason> / hardware-bound: <reason>")
-        state = str(r.get("state", ""))
-        if state.startswith(("pvc", "host-path")) and move in MOVE_FIXED and rid.startswith("k8s:"):
-            out.append(f"{rid}: state '{state}' is bound to one node, so it cannot be `{move}` (pvc/host-path is pinned)")
         return out
 
 
-    def validate_schema(doc):
-        hosts = doc.get("hosts") or {}
-        rows = doc.get("workloads") or []
-        findings, seen = [], set()
-        for r in rows:
-            rid = r.get("id")
-            if rid in seen:
-                findings.append(f"{rid}: duplicate id")
-            seen.add(rid)
-            findings.extend(_row_findings(r, hosts))
-        for host in (doc.get("host_os_units") or {}):
-            if host not in hosts:
-                findings.append(f"host_os_units: unknown host '{host}'")
-        for e in doc.get("host_config") or []:
+    def _decision_findings(rid, r):
+        """strix and scope: an enum each, and the deliberate values need a `why`."""
+        strix, scope, has_why = r.get("strix"), r.get("scope", "lab"), bool(r.get("why"))
+        checks = [
+            (strix not in STRIX, f"strix '{strix}' is not one of {sorted(STRIX)}"),
+            (strix in NEEDS_WHY and not has_why, f"strix '{strix}' is a decision and needs a `why`"),
+            (scope not in SCOPES, f"scope '{scope}' is not one of {sorted(SCOPES)}"),
+            (scope == "unused" and not has_why, "scope 'unused' needs a `why`"),
+        ]
+        return [f"{rid}: {msg}" for failed, msg in checks if failed]
+
+
+    def _move_findings(rid, r):
+        move = str(r.get("move", ""))
+        if move.startswith(MOVE_REASONED):
+            return [] if move.split(":", 1)[1].strip() else [f"{rid}: move '{move}' needs a reason after the colon"]
+        if move not in MOVE_FIXED:
+            return [f"{rid}: move '{move}' is not movable / every-node / pinned: <reason> / hardware-bound: <reason>"]
+        state = str(r.get("state", ""))
+        node_bound = state.startswith(("pvc", "host-path"))
+        if node_bound and rid.startswith("k8s:"):
+            return [f"{rid}: state '{state}' is bound to one node, so it cannot be `{move}` (pvc/host-path is pinned)"]
+        return []
+
+
+    def _row_findings(r, hosts):
+        rid = r.get("id", "<no id>")
+        return _identity_findings(rid, r, hosts) + _decision_findings(rid, r) + _move_findings(rid, r)
+
+
+    def _entries_findings(entries, seen, check):
+        """Duplicate-id findings across every section (ids share one namespace) plus each entry's own `check`."""
+        findings = []
+        for e in entries:
             eid = e.get("id")
             if eid in seen:
                 findings.append(f"{eid}: duplicate id")
             seen.add(eid)
-            findings.extend(_host_config_findings(e, hosts))
+            findings.extend(check(e))
+        return findings
+
+
+    def validate_schema(doc):
+        hosts = doc.get("hosts") or {}
+        seen = set()
+        findings = _entries_findings(doc.get("workloads") or [], seen, lambda r: _row_findings(r, hosts))
+        findings += [f"host_os_units: unknown host '{h}'" for h in (doc.get("host_os_units") or {}) if h not in hosts]
+        findings += _entries_findings(doc.get("host_config") or [], seen, lambda e: _host_config_findings(e, hosts))
         return findings
 
 
@@ -229,11 +240,10 @@ data:
         os_units = doc.get("host_os_units") or {}
         out = []
         for host, units in sorted(installed.items()):
-            for u in sorted(units):
-                if u in set(os_units.get(host, [])):
-                    continue
-                if f"{SYSTEMD}{host}/{u}" not in known and f"{USER_SYSTEMD}{host}/{u}" not in known:
-                    out.append(f"{host}: unit {u} is installed on the host but not in the inventory")
+            accounted = set(os_units.get(host, [])) | {rid.split("/", 1)[1] for rid in known
+                                                       if rid.split("/", 1)[0].split(":", 1)[1] == host}
+            out += [f"{host}: unit {u} is installed on the host but not in the inventory"
+                    for u in sorted(units) if u not in accounted]
         return out
 
 
@@ -333,6 +343,24 @@ data:
         return "\n".join(lines) + "\n"
 
 
+    def _parse_file(g, rest):
+        path, _, data = rest.rpartition(" ")
+        g["files"][path] = None if data == "-" else base64.b64decode(data).decode("utf-8", "replace")
+
+
+    def _parse_timer(g, rest):
+        name, _, val = rest.partition(" ")
+        g["timers"][name] = int(val) if val.strip().isdigit() else None
+
+
+    _HOST_LINE = {  # the gather's line kinds (see host_script)
+        "F": _parse_file,
+        "U": lambda g, rest: g["units"].add(rest.strip()),
+        "X": lambda g, rest: g["failed"].add(rest.strip()),
+        "T": _parse_timer,
+    }
+
+
     def parse_host_output(text):
         g = {"files": {}, "units": set(), "failed": set(), "timers": {}}
         lines = [ln for ln in text.splitlines() if ln.strip()]
@@ -340,16 +368,9 @@ data:
             raise CannotRead("the host gather returned nothing")
         for ln in lines:
             kind, _, rest = ln.partition(" ")
-            if kind == "F":
-                path, _, data = rest.rpartition(" ")
-                g["files"][path] = None if data == "-" else base64.b64decode(data).decode("utf-8", "replace")
-            elif kind == "U":
-                g["units"].add(rest.strip())
-            elif kind == "X":
-                g["failed"].add(rest.strip())
-            elif kind == "T":
-                name, _, val = rest.partition(" ")
-                g["timers"][name] = int(val) if val.strip().isdigit() else None
+            handler = _HOST_LINE.get(kind)
+            if handler:
+                handler(g, rest)
         return g
 
 
@@ -386,18 +407,24 @@ data:
         return out
 
 
+    def _timer_finding(r, last, now):
+        """None when the timer fired within 2x its interval."""
+        if last is None:
+            return f"{r['id']}: timer has never triggered"
+        if now - last > 2 * every_seconds(r["every"]):
+            return f"{r['id']}: timer stale — last fired {int((now - last) / 3600)}h ago, every {r['every']}"
+        return None
+
+
     def _unit_state_findings(units, g, now):
         out = []
         for r in units:
             name = r["id"].split("/", 1)[1]
             if name in g["failed"]:
                 out.append(f"{r['id']}: unit is in the failed state")
-            if r.get("every"):
-                last = g["timers"].get(name)
-                if last is None:
-                    out.append(f"{r['id']}: timer has never triggered")
-                elif now - last > 2 * every_seconds(r["every"]):
-                    out.append(f"{r['id']}: timer stale — last fired {int((now - last) / 3600)}h ago, every {r['every']}")
+            timer = _timer_finding(r, g["timers"].get(name), now) if r.get("every") else None
+            if timer:
+                out.append(timer)
         return out
 
 
@@ -411,21 +438,37 @@ data:
         return out
 
 
+    _SSH = ["ssh", "-o", "BatchMode=yes", "-o", "ConnectTimeout=10"]
+
+
+    def _access_cmd(access):
+        """argv for an `access` form: `local`, `ssh <target>`, or `ssh <target> pct exec <ctid>`. Anything else is refused."""
+        match access.split():
+            case ["local"]:
+                return ["bash", "-s"]
+            case ["ssh", target]:
+                return _SSH + [target, "bash -s"]
+            case ["ssh", target, "pct", "exec", ctid]:
+                return _SSH + [target, f"pct exec {ctid} -- bash -s"]
+            case _:
+                raise CannotRead(f"unknown access '{access}'")
+
+
     def _gather(access, script):
-        """Run the gather on one host: `local`, `ssh <target>`, or `ssh <target> pct exec <ctid>`."""
-        parts = access.split()
-        if parts == ["local"]:
-            cmd = ["bash", "-s"]
-        elif parts[:1] == ["ssh"] and len(parts) == 2:
-            cmd = ["ssh", "-o", "BatchMode=yes", "-o", "ConnectTimeout=10", parts[1], "bash -s"]
-        elif parts[:1] == ["ssh"] and parts[2:4] == ["pct", "exec"] and len(parts) == 5:
-            cmd = ["ssh", "-o", "BatchMode=yes", "-o", "ConnectTimeout=10", parts[1], f"pct exec {parts[4]} -- bash -s"]
-        else:
-            raise CannotRead(f"unknown access '{access}'")
+        """Run the gather on one host over its `access` path."""
+        cmd = _access_cmd(access)
         res = subprocess.run(cmd, input=script, capture_output=True, text=True, timeout=120)  # nosec B603 — fixed argv
         if res.returncode != 0 and not res.stdout.strip():
             raise CannotRead(f"{access}: gather failed ({res.stderr.strip()[:200]})")
         return res.stdout
+
+
+    def _host_script_for(doc, host):
+        units, files = _host_entries(doc, host)
+        paths = [e["path"] for e in units + files if e.get("path")]
+        timers = [(r["id"].split("/", 1)[1], r["id"].startswith(USER_SYSTEMD)) for r in units if r.get("every")]
+        user = any(r["id"].startswith(USER_SYSTEMD) for r in units)
+        return host_script(paths, timers, user)
 
 
     def gather_all(doc):
@@ -434,12 +477,8 @@ data:
             access = (h or {}).get("access")
             if not access:
                 continue
-            units, files = _host_entries(doc, host)
-            paths = [e["path"] for e in units + files if e.get("path")]
-            timers = [(r["id"].split("/", 1)[1], r["id"].startswith(USER_SYSTEMD)) for r in units if r.get("every")]
-            user = any(r["id"].startswith(USER_SYSTEMD) for r in units)
             try:
-                gathered[host] = parse_host_output(_gather(access, host_script(paths, timers, user)))
+                gathered[host] = parse_host_output(_gather(access, _host_script_for(doc, host)))
             except (CannotRead, OSError, subprocess.TimeoutExpired) as exc:
                 raise CannotRead(f"{host}: {exc}") from exc
         return gathered
@@ -496,6 +535,18 @@ data:
         return {f"{SYSTEMD}{host}/{u}" for u in units.get(host, set())} if host in units else None
 
 
+    def _row_host(rid):
+        return rid[len(SYSTEMD):].split("/", 1)[0] if rid.startswith(SYSTEMD) else "mother"
+
+
+    def _expected_but_absent(r, k8s, units, pve):
+        """A live-checked row whose workload the live sources do not show (declared-only and on_demand rows are skipped)."""
+        if r["id"].startswith(DECLARED_ONLY) or r.get("on_demand"):
+            return False
+        live = _running_set(r["id"], k8s, units, pve)
+        return live is not None and r["id"] not in live
+
+
     def check_live(doc, k8s, units, pve):
         rows = doc.get("workloads") or []
         ids = {r["id"] for r in rows}
@@ -503,17 +554,9 @@ data:
         running = set(k8s) | set(pve)
         for host, us in units.items():
             running |= {f"{SYSTEMD}{host}/{u}" for u in us if u not in set(os_units.get(host, []))}
-        out = []
-        for rid in sorted(running - ids):
-            host = rid[len(SYSTEMD):].split("/", 1)[0] if rid.startswith(SYSTEMD) else "mother"
-            out.append(f"{rid}: running with no row — add:\n{suggest_row(rid, host)}")
-        for r in rows:
-            rid = r["id"]
-            if rid.startswith(DECLARED_ONLY) or r.get("on_demand"):
-                continue
-            live = _running_set(rid, k8s, units, pve)
-            if live is not None and rid not in live:
-                out.append(f"{rid}: row names something that is not running (remove the row, or mark on_demand: true)")
+        out = [f"{rid}: running with no row — add:\n{suggest_row(rid, _row_host(rid))}" for rid in sorted(running - ids)]
+        out += [f"{r['id']}: row names something that is not running (remove the row, or mark on_demand: true)"
+                for r in rows if _expected_but_absent(r, k8s, units, pve)]
         return out
 
 
@@ -894,9 +937,9 @@ data:
       - {id: "systemd:rogueone/studio-masterdb-backup.service", host: "rogueone", state: "none", move: "pinned: STUD.io backup (run by its timer)", strix: "stays", managed: "systemd", scope: "stud.io", path: "/etc/systemd/system/studio-masterdb-backup.service", on_demand: true}
       - {id: "systemd:rogueone/actions.runner.edtbl76-stud.io.controlroom.service", host: "rogueone", state: "none", move: "pinned: STUD.io GitHub Actions runner (disabled)", strix: "stays", managed: "systemd", scope: "stud.io", path: "/etc/systemd/system/actions.runner.edtbl76-stud.io.controlroom.service", on_demand: true}
       - {id: "systemd:rogueone/woodpecker-weyland-pilot.service", host: "rogueone", state: "none", move: "pinned: disabled Woodpecker agent pilot", strix: "stays", managed: "systemd", scope: "unknown", why: "disabled; binary under ~/Documents/Studio/woodpecker-weyland-pilot — owner not confirmed", path: "/etc/systemd/system/woodpecker-weyland-pilot.service", on_demand: true}
-      - {id: "user-systemd:rogueone/restic-backup.timer", host: "rogueone", state: "none", move: "pinned: backs up rogueone's own home to MinIO (B130)", strix: "stays", managed: "systemd --user", source: "nodes/rogueone/systemd/restic-backup.timer", path: "/home/edwardmangini/.config/systemd/user/restic-backup.timer", owner: "B130", every: "1d"}
+      - {id: "user-systemd:rogueone/restic-backup.timer", host: "rogueone", state: "none", move: "pinned: backs up rogueone's own home to MinIO (B130)", strix: "stays", managed: "systemd --user", source: "nodes/rogueone/systemd/restic-backup.timer", path: "/home/edwardmangini/.config/systemd/user/restic-backup.timer", owner: "B130", every: "1d", likec4: "resticBackup"}
       - {id: "user-systemd:rogueone/ai-session-producer.timer", host: "rogueone", state: "none", move: "pinned: mirrors rogueone's Claude sessions to MinIO (B62)", strix: "stays", managed: "systemd --user", source: "nodes/rogueone/systemd/ai-session-producer.timer", path: "/home/edwardmangini/.config/systemd/user/ai-session-producer.timer", every: "4h"}
-      - {id: "user-systemd:rogueone/machine-inv-drift.timer", host: "rogueone", state: "none", move: "pinned: inventories rogueone's own packages (B129)", strix: "stays", managed: "systemd --user", source: "nodes/rogueone/systemd/machine-inv-drift.timer", path: "/home/edwardmangini/.config/systemd/user/machine-inv-drift.timer", owner: "B170", every: "1d"}
+      - {id: "user-systemd:rogueone/machine-inv-drift.timer", host: "rogueone", state: "none", move: "pinned: inventories rogueone's own packages (B129)", strix: "stays", managed: "systemd --user", source: "nodes/rogueone/systemd/machine-inv-drift.timer", path: "/home/edwardmangini/.config/systemd/user/machine-inv-drift.timer", owner: "B170", every: "1d", likec4: "machineInvDrift"}
       # ---- rogueone (on-demand / tools: declared, not live-checked) ----
       - {id: "tool:rogueone/vllm", host: "rogueone", state: "model-library: HF cache", move: "hardware-bound: CUDA (B111)", strix: "stays", managed: "docker", likec4: "vllm", on_demand: true}
       - {id: "tool:rogueone/sglang", host: "rogueone", state: "model-library: HF cache", move: "hardware-bound: CUDA (B111)", strix: "stays", managed: "docker", likec4: "sglang", on_demand: true}

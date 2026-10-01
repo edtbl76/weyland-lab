@@ -23,7 +23,8 @@ sequenceDiagram
     MRG->>SOT: add new (apt/pip/image = system, else = unreviewed), preserve decisions, report absent
     OP->>SOT: curate discretionary items (keep/remove + rationale), then commit
     OP->>EMT: emit all  (reads the committed SoT)
-    EMT->>PORT: upsert host + installed_package entities (status/rationale from SoT)
+    EMT->>PORT: upsert host + installed_package entities (status/rationale from SoT, plus placement.yaml units and host config files, B180)
+    EMT->>PORT: delete this host's entities the SoT no longer has (refused when the host's SoT is empty)
     OP->>VER: verify all  (read-back gate, B169)
     VER->>PORT: GET host + installed_package entities
     PORT-->>VER: entity counts
@@ -37,12 +38,14 @@ Runbook: [runbooks/machine-inventory.md](../runbooks/machine-inventory.md).
 ## Nightly drift check (B170)
 
 Runs on rogueone (user timer, `Persistent=true`). Reconciles each reachable host into an isolated worktree,
-opens/updates one inventory PR when the catalog changed, and pushes a Kuma heartbeat (down reaches Telegram).
+opens/updates one inventory PR when the catalog changed, runs the B180 host placement check, and pushes a Kuma
+heartbeat (down reaches Telegram) that is `up` only when all of it passed.
 An unreachable host is skipped, never pruned. Merging the PR is the only human step.
 
 ```mermaid
 flowchart TD
     T[rogueone timer 03:45 NY<br/>Persistent, survives sleep] --> E[emit plus verify committed SoT to Port]
+    E -->|emit or verify failed| DOWN
     E --> L{for each host}
     L -->|reachable| M[collect then merge --prune<br/>in isolated worktree]
     L -->|unreachable| S[skip host, never prune]
@@ -51,5 +54,7 @@ flowchart TD
     C -->|no| OK[clean]
     PR --> DOWN[Kuma down then Telegram]
     S --> DOWN
-    OK --> UP[Kuma up]
+    OK --> H{host placement check<br/>placement_check.py --hosts}
+    H -->|drift or unreadable| DOWN
+    H -->|clean| UP[Kuma up]
 ```

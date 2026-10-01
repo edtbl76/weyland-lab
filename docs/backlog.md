@@ -3294,6 +3294,16 @@ failing nightly since 09-25 (Swift `.build/`), the Ollama `OLLAMA_HOST` drop-in 
 (moved to 00:15), and a system/user timer-scope bug in the check itself. Runbook: `runbooks/observability.md`
 § Placement inventory; design: `arch.md` §10d.
 
+**DoD Pillar 8 — cascade (written down, each closed):** a host timer (`weyland-image-prune` moved) → `schedules.md`
+row + off-hours rule + freshness (the host check's stale-timer finding); a timer with no row (`studio-masterdb-backup`,
+`ai-session-producer`) → rows added; the nightly job grew a check → `machine-inventory.md` runbook, `schedules.md` row,
+`flow-machine-inventory.md`, LikeC4 (`machineInvDrift` + `resticBackup` components, linked from their placement rows);
+Port blueprint enum → tofu applied; `emit` now deletes → the machine-inventory demo's teardown note; the restic scope
+changed → restore drill re-run, `dr.md` date updated; a shared module changed (`placement_check.py`) → the CronJob's
+embedded copy re-embedded (byte-identity bats); `lang-fixtures.sh` helper → both lanes' five install sites. Reverse sweep:
+no rename or retirement; the `on:` key renamed `runs_on` (nothing read it). Not cascading: no endpoint, host, image,
+repo or dataset changed.
+
 ### B179 — Investigate Warp Software Factory for the lab — HIGH (2026-09-24, Linear EMA-237)
 
 Evaluate **Warp Software Factory** (warp.dev's agentic software-development offering) and decide whether anything in it is worth adopting — same discipline as B174 (Jev/TypeSafe AI) and B119 ("master the tool"): understand it against REAL lab context, land an **ADOPT / DON'T-ADOPT** verdict with rationale, don't adopt on hype.

@@ -50,6 +50,8 @@ model {
     codex = component "Codex" "Harness — OpenAI Codex CLI + ChatGPT desktop (ChatGPT-sub GPT-5.5). MCP client of Bifrost + Linear (2026-09-25); Linear 'Work on issue' launcher (codex://); instructions AGENTS.md"
     codingAgents = component "Coding agents" "Harnesses — opencode / Cline / Pi (B15) — $0 dev coding TUIs; drive hosted models DIRECT, not through the gateway; instructions AGENTS.md"
     studioAgents = component "STUD.io CI agents" "4 Woodpecker local-backend agents (B57b) — run STUD.io's CI on the host shell + native docker; register to weyland's Woodpecker over the :30900 gRPC NodePort"
+    machineInvDrift = component "machine-inv-drift" "B170 + B180 nightly host job (user timer, 03:45 NY). Collects every host's packages into machine-inventory.yaml (one inventory PR on drift), syncs + read-back-verifies the Port catalog (deleting entities the inventory dropped), and runs the placement host check over SSH: every systemd unit and host config file in placement.yaml installed and identical to its repo copy, no unlisted or failed unit, no stale timer. One Kuma push heartbeat, down on any finding"
+    resticBackup = component "restic backup" "B130 nightly user timer (02:30 NY) — encrypted incremental backup of rogueone's local-only state to MinIO rogueone-backup; Port backup entity + Kuma push heartbeat"
   }
 
   weyland = system "weyland" "Home AI lab on a Minisforum MS-A2 (Proxmox, .232). LAN-only." {
@@ -220,6 +222,11 @@ model {
   weyland.mother.ops.obs.grafana -> telegram "Alertmanager notifications"
   weyland.mother.ops.obs.lancedbExporter -> weyland.mother.ops.obs.grafana "LanceDB row-count metrics"
   weyland.mother.ops.obs.kuma -> telegram "uptime alerts"
+  rogueone.machineInvDrift -> weyland.mother "SSH: collect packages + host placement check"
+  rogueone.machineInvDrift -> weyland.whisper "SSH via pct exec 103: host placement check"
+  rogueone.machineInvDrift -> port "emit + verify host / installed_package entities"
+  rogueone.machineInvDrift -> weyland.mother.ops.obs.kuma "push heartbeat (down on drift, unreachable host, placement or Port failure)"
+  rogueone.resticBackup -> weyland.mother.ops.obs.kuma "push heartbeat"
   weyland.mother.ops.obs.smCoverage -> weyland.mother.ops.obs.grafana "reads /api/v1/targets via the Prometheus ClusterIP - which ServiceMonitors actually yield scrape pools"
   weyland.mother.ops.obs.smCoverage -> weyland.mother.ops.platform.argocd "intended state is .spec.replicas, which selfHeal keeps equal to git - the only reason reading it from the cluster is sound"
 

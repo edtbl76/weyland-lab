@@ -61,7 +61,8 @@ decisions). Each package relates to its host.
 ## Cleanup / teardown
 
 Read-only on the machines (the collector only reads package managers). Writes are the git SoT
-(`machine-inventory.yaml`) and the Port entities (idempotent upserts — re-emitting overwrites, never duplicates).
+(`machine-inventory.yaml`) and the Port entities (idempotent upserts — re-emitting overwrites, never duplicates —
+and, since 2026-09-30, deletion of a host's entities the SoT no longer has; an empty SoT never deletes).
 No software is installed or removed by this system; it records dispositions, acting on them is manual.
 
 ## Onboarding a new client (B169 / EMA-230) — the process + the read-back gate

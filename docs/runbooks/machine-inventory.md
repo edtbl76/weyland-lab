@@ -12,8 +12,8 @@ per discretionary item, so "what's installed and why" is a catalog we diff over 
   `status ∈ keep | remove | system | unreviewed`. **system** = dep-dominated baseline (apt/pip) + transient
   images, captured for completeness with no per-item rationale. **unreviewed** = a new discretionary item
   (snap/flatpak/npm) awaiting a decision — the review queue and the drift signal.
-- `scripts/machine_inventory.py {merge,emit} <host>` — folds the collector output into the SoT (merge) or
-  upserts Port entities (emit). Both read the collector output on stdin.
+- `scripts/machine_inventory.py {merge,emit,verify} <host>` — `merge` folds the collector output (stdin) into the
+  SoT; `emit` reads the committed SoT plus `placement.yaml` and syncs Port; `verify` reads Port back.
 - Port blueprints `host` + `installed_package` — `tofu/port/machine_inventory.tf`.
 
 ## Refresh a host (the canonical op)
@@ -46,7 +46,11 @@ cd /home/edwardmangini/IdeaProjects/weyland && set -a && . nodes/mother/lab/weyl
 ```
 `emit` upserts one `host` entity + one `installed_package` per cataloged package (`kind`/`status`/`rationale`
 from the SoT). Baseline (`status: system`) items are emitted too so the Port catalog is complete. Version is not
-tracked in the SoT, so it is left blank in Port.
+tracked in the SoT, so it is left blank in Port. It also emits each host's systemd units and host config files from
+`placement.yaml` (B180) as kinds `systemd-unit` / `host-config` (status `system`; a guest that is not a cataloged
+machine, like whisper, is filed under the host it `runs_on`), and then **deletes** the host's `installed_package`
+entities the SoT no longer has — `merge --prune` drops uninstalled packages, and before 2026-09-30 Port kept them
+forever (38 stale entities made `verify` fail every night). It refuses to delete when a host's SoT is empty.
 
 Then **verify by read-back** — `emit`'s own success is not proof the entities landed (the "reads as success"
 trap); this reads them back from Port and fails closed on a missing host or a count mismatch:
@@ -119,14 +123,19 @@ machine-inv-drift.{service,timer}`, ~03:45 NY, `Persistent=true` so a missed run
 auth, and `PR_TOKEN` / Port creds / `KUMA_INVENTORY_PUSH_URL` in `scripts/.env` — no key in the cluster. Each run:
 
 1. **emit + verify** the committed SoT → Port (keeps Port tracking the accepted catalog; the B169 read-back gate).
+   A failure no longer only prints: it turns the heartbeat `down` (step 5).
 2. For each **reachable** host, `collect | machine_inventory.py merge --prune` **inside an isolated git worktree**
    off `origin/main` (your working checkout is never touched). `--prune` reconciles removals too. An
    **unreachable** host is **skipped, never pruned** — merge refuses empty stdin, so a host it could not scan can
    never be blanked.
 3. If the catalog changed → commit on `chore/machine-inventory-drift` and **open or update one inventory PR**.
    **Merging the PR IS the cataloging** — no hand data-entry. Set keep/remove in the PR if you like, or just merge.
-4. **Kuma heartbeat → Telegram:** `up` when clean + all hosts reachable; `down` on drift or an unreachable host
-   (same dead-man's-switch channel as the restic backup). No ping for > the window (rogueone off for days) also
+4. **Host placement check (B180)** — `placement_check.py --hosts` against the committed `placement.yaml`: every
+   inventoried unit and host config file installed and identical to its repo copy, no unlisted unit, no failed
+   unit, no stale timer (runbook `observability.md` § Placement inventory).
+5. **Kuma heartbeat → Telegram:** `up` when the catalog is clean, all hosts were reachable, the host check passed
+   and the Port emit + verify passed; `down` otherwise, naming which (same dead-man's-switch channel as the restic
+   backup). No ping for > the window (rogueone off for days) also
    trips it — one monitor covers *ran / drifted / host-unreachable*. `pr-staleness` backstops an ignored PR.
 
 This resolves the old "a blind timer piles up `unreviewed`" worry: the job **doesn't nag you to type anything** —

@@ -111,6 +111,9 @@ What the first run found (before the drills): the rogueone restic backup failing
 `OLLAMA_HOST` drop-in with no repo copy, `weyland-image-prune` running mid-day (moved to 00:15 NY), and a
 system/user timer-scope bug in the check itself. All fixed.
 
+**Teardown:** none needed. The drills ran on throwaway copies of the inventory in a scratch directory; nothing on
+the hosts was changed. The only live writes are the Port entities `emit` keeps in step with the inventory.
+
 ### CLI walkthrough
 
 Host check (every host; exit 1 names each finding, 2 = a host could not be read):

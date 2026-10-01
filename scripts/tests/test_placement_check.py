@@ -548,3 +548,19 @@ def test_gather_all_passes_each_timer_its_own_scope(monkeypatch):
     monkeypatch.setattr(pc, "_gather", lambda access, script: "U x.service")
     pc.gather_all(doc)
     assert seen["t"] == ([("studio-masterdb-backup.timer", False), ("restic-backup.timer", True)], True)
+
+
+@pytest.mark.parametrize("access,argv_tail", [
+    ("local", ["bash", "-s"]),
+    ("ssh emangini@mother", ["emangini@mother", "bash -s"]),
+    ("ssh root@weyland pct exec 103", ["root@weyland", "pct exec 103 -- bash -s"]),
+])
+def test_access_forms_map_to_a_fixed_argv(access, argv_tail):
+    assert pc._access_cmd(access)[-len(argv_tail):] == argv_tail
+
+
+@pytest.mark.parametrize("access", ["ssh", "ssh a b", "ssh -o ConnectTimeout=5 host", "ssh h pct enter 103",
+                                    "telnet h", "local extra"])
+def test_an_unknown_access_form_is_refused_never_guessed(access):
+    with pytest.raises(pc.CannotRead, match="unknown access"):
+        pc._access_cmd(access)
