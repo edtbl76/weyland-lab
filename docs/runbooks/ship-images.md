@@ -199,7 +199,7 @@ first time its image is bumped. Images with no matching Deployment/StatefulSet (
 
 It did exactly that on 2026-10-01: the first ship to bump `weyland-rag-index` since the gate existed (the PyJWT/urllib3
 CVE fix, PR #122) stopped at `SMOKE` naming all five rag-index consumers — Kafka consumer loops with no HTTP surface, so
-no probe. Fix: `services/rag-index/heartbeat.py` — the consumer touches `/tmp/ready` on every pass of its poll loop
+no probe. Fix: `services/rag-index/heartbeat.py` — the consumer touches `/app/.heartbeat` (app-owned, not world-writable `/tmp` — Sonar S5443) on every pass of its poll loop
 (after the store is ensured and the topic subscribed), and each Deployment's `readinessProbe` runs
 `python heartbeat.py check` (fresh within 60s). A workload with no HTTP port still gets a probe that asks a real
 question; the answer here is "connected, subscribed, and still polling".

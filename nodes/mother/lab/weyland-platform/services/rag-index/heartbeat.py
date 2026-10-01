@@ -13,17 +13,17 @@ Dependency-free on purpose: the probe runs it every few seconds inside the consu
 import os
 import sys
 import time
+from pathlib import Path
 
-PATH = os.environ.get("RAG_INDEX_HEARTBEAT", "/tmp/ready")  # nosec B108 — container-local file, not shared tmp
+# In the app's own directory (owned by the non-root app user), NOT /tmp: a world-writable directory would let any
+# process create or touch the file and fake readiness (Sonar S5443).
+PATH = os.environ.get("RAG_INDEX_HEARTBEAT", "/app/.heartbeat")
 MAX_AGE = 60
 
 
 def beat(path=None):
     """Touch the heartbeat file (create it on the first beat)."""
-    path = path or PATH
-    with open(path, "a"):
-        pass
-    os.utime(path, None)
+    Path(path or PATH).touch()   # creates on the first beat, bumps the mtime after
 
 
 def is_fresh(path=None, max_age=MAX_AGE):

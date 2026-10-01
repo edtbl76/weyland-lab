@@ -8,7 +8,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY schema.py consumer.py probe.py heartbeat.py ./
 COPY stores ./stores
 # B47: run as non-root. The consumer reads /app + streams to Kafka/stores; its one local write is the readiness
-# heartbeat in /tmp (heartbeat.py). No privileged port.
+# heartbeat file /app/.heartbeat (heartbeat.py). No privileged port.
 RUN useradd -u 10001 -m appuser && chown -R appuser /app
 USER appuser
 CMD ["python", "consumer.py"]
