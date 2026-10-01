@@ -204,6 +204,18 @@ no probe. Fix: `services/rag-index/heartbeat.py` — the consumer touches `/app/
 `python heartbeat.py check` (fresh within 60s). A workload with no HTTP port still gets a probe that asks a real
 question; the answer here is "connected, subscribed, and still polling".
 
+**And the cost of having no probe, the same day (incident, 2026-10-01 15:13–15:47 NY).** The re-ship (`git-c6ece648`,
+PR #123) also rebuilt `weyland-dagster-base`, whose Dockerfile installed Dagster **unpinned**. It pulled 1.13.25, whose
+`dagster-postgres` uses the psycopg v3 dialect without declaring it: `dagster-webserver` and `dagster-daemon`
+crash-looped on `ModuleNotFoundError: No module named 'psycopg'` and the Dagster scheduler + UI were down ~34 min
+(user-code stayed up; overnight-only schedules, so none were missed). `SMOKE` stopped the ship — but only AFTER the
+rollout, because with no readinessProbe Kubernetes treated the crashing pods' predecessors as replaceable. Restored by
+reverting the two image tags in git (`git-ef734fc8`, commit ddd9d445 — the only durable rollback under selfHeal).
+Fixed: the base installs a frozen `services/weyland-dagster-base/requirements.txt` (constrained to the user-code
+image's exact versions — one Dagster release everywhere), and both workloads now carry probes (webserver
+`GET /server_info`, daemon `dagster-daemon liveness-check`), so a bad image stalls the rollout with the old pods still
+serving instead of replacing them. Proven against a real Postgres before the push.
+
 **Why `DETECT` is a gate and not a quiet pre-check.** On 2026-08-24 the loop was run from
 `nodes/.../tofu/port` with a real dbt-core/sqlparse bump committed on `main`. It printed
 `✓ nothing to ship` and exited **0**; three images were genuinely stale. `detect-changes.sh` resolved both

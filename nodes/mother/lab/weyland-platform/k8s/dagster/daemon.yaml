@@ -19,6 +19,15 @@ spec:
         - name: dagster-daemon
           image: registry.weyland.lab/weyland-dagster-base:git-ef734fc8
           imagePullPolicy: IfNotPresent
+          # Readiness = Dagster's own check that the daemon is heartbeating to its storage (2026-10-01). Without a probe a
+          # broken image went "Ready" the moment the process started.
+          readinessProbe:
+            exec:
+              command: ["dagster-daemon", "liveness-check"]
+            initialDelaySeconds: 30
+            periodSeconds: 30
+            timeoutSeconds: 20
+            failureThreshold: 3
           resources:
             requests: { memory: 256Mi, cpu: 100m }
             limits: { memory: 768Mi }

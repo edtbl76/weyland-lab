@@ -1,0 +1,21 @@
+# weyland-dagster-base — the dagster-webserver + dagster-daemon image (k8s/dagster/webserver.yaml, daemon.yaml).
+# PINNED to the SAME Dagster release as the user-code image (services/weyland-dagster/requirements.txt) — the
+# scheduler, the UI and the pipeline code must run one Dagster version. Bump them together.
+#
+# Why pinned (2026-10-01): the Dockerfile used to `pip install dagster dagster-graphql dagster-webserver
+# dagster-postgres` unpinned. A routine rebuild (ship of git-c6ece648) pulled Dagster 1.13.25, whose dagster-postgres
+# switched SQLAlchemy to the psycopg (v3) dialect without declaring the dependency: webserver + daemon crash-looped on
+# `ModuleNotFoundError: No module named 'psycopg'` and Dagster's scheduler and UI were down ~34 min. psycopg is pinned
+# explicitly here for the same reason the user-code image pins it.
+#
+# requirements.txt is the full frozen set the Dockerfile installs; regenerate it in python:3.11-slim (the base) with
+#   pip install -r requirements.in && pip freeze > requirements.txt
+dagster==1.13.14
+dagster-graphql==1.13.14
+dagster-webserver==1.13.14
+dagster-postgres==0.29.14
+dagster-pipes==1.13.14
+dagster-shared==1.13.14
+psycopg==3.3.4
+psycopg-binary==3.3.4
+psycopg2-binary==2.9.12
