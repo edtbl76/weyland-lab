@@ -17,7 +17,7 @@ spec:
     spec:
       containers:
         - name: dagster-daemon
-          image: registry.weyland.lab/weyland-dagster-base:git-ef734fc8
+          image: registry.weyland.lab/weyland-dagster-base:git-e7211304
           imagePullPolicy: IfNotPresent
           # Readiness = Dagster's own check that the daemon is heartbeating to its storage (2026-10-01). Without a probe a
           # broken image went "Ready" the moment the process started.
