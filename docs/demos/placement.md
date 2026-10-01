@@ -91,9 +91,10 @@ unit rows carry `source` (repo copy), `path` (installed location) and, for a tim
 apparmor and the whisper shim sit under `host_config:`. The host check reads each host over its `access` path and
 runs nightly inside `machine-inv-drift` (03:45 NY), whose Kuma heartbeat goes down on any finding.
 
-**Status: RUN 2026-09-30.** Host check clean on all three hosts; every drill below failed the way it should; the
+**Status: DONE (2026-10-01).** Host check clean on all three hosts; every drill below failed the way it should; the
 nightly job's dry run ran the host check inside itself; the Port read-back matched on all three hosts; CI #216 passed
-every step including the SonarQube gate (0 new issues, new-code coverage 85.9%).
+every step including the SonarQube gate (0 new issues, new-code coverage 85.9%), CI #217 green on the
+final commit, and the owner passed the Port UAT.
 
 | Run (2026-09-30, on a throwaway copy of the inventory — nothing on the hosts changed) | Result |
 |---|---|
@@ -133,7 +134,14 @@ Expect the `hosts check clean` line before the `signal:` line.
 Signed in to Port, open each link:
 
 1. [whisper-server.service in Port](https://app.port.io/installed_packageEntity?identifier=weyland--systemd-unit--whisper_whisper-server.service)
-   — pass: `Kind` = `systemd-unit`, `Status` = `system`, related `Host` = `weyland`.
+   — pass: the title reads `whisper/whisper-server.service (systemd-unit)` and Details shows **Host** `weyland`.
 2. [mother's needrestart config in Port](https://app.port.io/installed_packageEntity?identifier=mother--host-config--_etc_needrestart_conf.d_weyland-k3s.conf)
-   — pass: `Kind` = `host-config`, `Status` = `system`, related `Host` = `mother`.
-3. [Installed Packages](https://app.port.io/installed_packages) — pass: the page loads and lists packages.
+   — pass: the title reads `/etc/needrestart/conf.d/weyland-k3s.conf (host-config)` and Details shows **Host** `mother`.
+3. [Installed Packages](https://app.port.io/installed_packages) — pass: the table has **Kind** and **Status** columns
+   and the result count equals the `emit` total (1660 on 2026-09-30).
+
+Port's package page shows Title, dates and Host only; Kind and Status are columns on the list page (the kind is also in
+the title).
+
+**Passed 2026-10-01 (owner, eyes-on):** whisper-server.service → Host `weyland`; weyland-k3s.conf → Host `mother`;
+Installed Packages 1660 results with Kind/Status columns.
