@@ -1,6 +1,6 @@
 # Golden path — Frontend / Angular
 
-Blessed paved-road Angular 19 SPA. **Runnable · ephemeral · extendable.** Satisfies the frontend
+Blessed paved-road Angular 20 SPA (20.3 — moved from 19 on 2026-10-01: Angular 19 gets no security fixes; 7 high CVEs in `@angular/*` 19.2 are fixed only from 20.3). **Runnable · ephemeral · extendable.** Satisfies the frontend
 adaptation of the golden-path contract ([docs/design/golden-paths.md](../../../docs/design/golden-paths.md)):
 the demo route renders the greeting, and the contract endpoints `/health` `/ready` `/metrics` `/hello`
 are served by a tiny stdlib static server (the "sidecar route" the adapted contract allows).

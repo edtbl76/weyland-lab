@@ -1,8 +1,8 @@
 # Golden path Node/Express. Multi-stage: prod deps → alpine runtime. buildkit → registry.weyland.lab/golden-node-express.
 FROM node:24-alpine AS build
 WORKDIR /app
-COPY package.json package-lock.json* ./
-RUN npm install --omit=dev --no-audit --no-fund --loglevel=error
+COPY package.json package-lock.json ./
+RUN npm ci --omit=dev --no-audit --no-fund --loglevel=error
 
 FROM node:24-alpine
 WORKDIR /app

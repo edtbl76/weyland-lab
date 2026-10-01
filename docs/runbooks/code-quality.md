@@ -98,7 +98,9 @@ time scanned) and advisories published since 09-27 against unchanged pins; triag
 `cryptography<50`, but the 09-25 CVE fix pinned `cryptography==50.0.0`, so its image could not be rebuilt (it builds
 on demand, so nothing failed visibly). mlflow / mlflow-skinny / mlflow-tracing → 3.16.1 (`cryptography<51`). Proven in
 `python:3.11-slim` (each image's base): full install, `pip check` clean, bumped modules import at the new versions.
-Still open: Angular 19 in the angular golden path (7 high, fixed only in Angular 20+) — owner decision.
+The angular golden path moved Angular 19.2 → **20.3.33** (TypeScript 5.9) the same day (owner decision): 7 high → 0 in a
+Trivy scan of the new lockfile; clean `npm ci`, tests, selfcheck, `ng build` and the image smoke all pass. Its Dockerfile now
+installs with `npm ci` (was `npm install`, which could drift from the lockfile).
 
 ## B69 — weekly CronJobs + the scan-suite (2026-07-18)
 

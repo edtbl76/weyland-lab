@@ -61,3 +61,14 @@ teardown() { teardown_stubs; rm -rf "$PROJ"; }
   done < <(cd "$root" && find golden-paths -name package.json -not -path '*/node_modules/*' -not -path '*/.*/*')
   [ -z "$missing" ] || { echo "no package-lock.json:$missing"; false; }
 }
+
+@test "every node golden-path Dockerfile installs with npm ci (the image build never floats either)" {
+  root="$(cd "${BATS_TEST_DIRNAME}/../.." && pwd)"
+  floating=""
+  while IFS= read -r df; do
+    d="$(dirname "$df")"
+    [ -f "$root/$d/package.json" ] || continue
+    grep -q 'npm install' "$root/$df" && floating="$floating $d"
+  done < <(cd "$root" && find golden-paths -name Dockerfile -not -path '*/node_modules/*' -not -path '*/.*/*')
+  [ -z "$floating" ] || { echo "Dockerfile uses npm install (use npm ci):$floating"; false; }
+}

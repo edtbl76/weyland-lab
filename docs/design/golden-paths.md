@@ -163,7 +163,10 @@ selfcheck) plus a `.woodpecker.yml` runner image and a `quality-tools.yaml` scan
 float to whatever npm published last. Angular and Vue were the two without one — CI 212 then broke on `ignore@7.0.11`,
 resolved three minutes after it was published while its tarball still 404'd. Guarded by
 `scripts/tests/npm-locked-install.bats` (it also fails if any node golden path lacks a lockfile). A new node path:
-`npm install --package-lock-only` in `node:24-alpine`, commit the lockfile.
+`npm install --package-lock-only` in `node:24-alpine`, commit the lockfile. The **image** builds follow the same rule: every node golden-path Dockerfile
+copies `package-lock.json` (required, no `*`) and installs with `npm ci` (all nine switched from `npm install`
+2026-10-01, each image rebuilt and smoke-passed); the same bats file fails a Dockerfile that goes back to `npm install`.
+The angular path moved to Angular 20.3 the same day (Angular 19 gets no security fixes).
 
 **Contract variants (three, one altitude):** the **service** variant serves the four HTTP endpoints
 directly (the JVM/native/scripting ecosystems); the **frontend** variant (Angular/Vue, like B153's

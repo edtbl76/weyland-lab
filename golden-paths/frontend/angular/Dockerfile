@@ -2,16 +2,16 @@
 # buildkit → registry.weyland.lab/golden-frontend-angular.
 FROM node:24-alpine AS build
 WORKDIR /app
-COPY package.json package-lock.json* ./
-RUN npm install --no-audit --no-fund --loglevel=error
+COPY package.json package-lock.json ./
+RUN npm ci --no-audit --no-fund --loglevel=error
 COPY . .
 RUN npm run build
 
 FROM node:24-alpine
 WORKDIR /app
 RUN adduser -D -u 10001 appuser && apk add --no-cache curl
-COPY package.json package-lock.json* ./
-RUN npm install --omit=dev --no-audit --no-fund --loglevel=error
+COPY package.json package-lock.json ./
+RUN npm ci --omit=dev --no-audit --no-fund --loglevel=error
 COPY --from=build /app/dist ./dist
 COPY server.mjs smoke.sh ./
 USER 10001
