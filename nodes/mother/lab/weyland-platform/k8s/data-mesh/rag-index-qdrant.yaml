@@ -26,6 +26,15 @@ spec:
         - name: rag-index
           image: registry.weyland.lab/weyland-rag-index:git-7e708988
           imagePullPolicy: IfNotPresent
+          # Readiness = connected to the store + subscribed + the poll loop passed in the last 60s (heartbeat.py).
+          # Without it Ready meant only "PID 1 is alive" and ship-images' SMOKE gate refused the rollout.
+          readinessProbe:
+            exec:
+              command: ["python", "heartbeat.py", "check"]
+            initialDelaySeconds: 10
+            periodSeconds: 15
+            timeoutSeconds: 5
+            failureThreshold: 3
           # B47 hardening: non-root uid 10001 + drop caps + no priv-esc + seccomp
           securityContext:
             runAsNonRoot: true

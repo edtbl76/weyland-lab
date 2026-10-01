@@ -197,6 +197,13 @@ Making it a hard failure turns the probe into a shipping requirement: a workload
 first time its image is bumped. Images with no matching Deployment/StatefulSet (CI images that run as Jobs) are
 **named as unchecked** rather than silently passed, and an empty workload table fails closed.
 
+It did exactly that on 2026-10-01: the first ship to bump `weyland-rag-index` since the gate existed (the PyJWT/urllib3
+CVE fix, PR #122) stopped at `SMOKE` naming all five rag-index consumers — Kafka consumer loops with no HTTP surface, so
+no probe. Fix: `services/rag-index/heartbeat.py` — the consumer touches `/tmp/ready` on every pass of its poll loop
+(after the store is ensured and the topic subscribed), and each Deployment's `readinessProbe` runs
+`python heartbeat.py check` (fresh within 60s). A workload with no HTTP port still gets a probe that asks a real
+question; the answer here is "connected, subscribed, and still polling".
+
 **Why `DETECT` is a gate and not a quiet pre-check.** On 2026-08-24 the loop was run from
 `nodes/.../tofu/port` with a real dbt-core/sqlparse bump committed on `main`. It printed
 `✓ nothing to ship` and exited **0**; three images were genuinely stale. `detect-changes.sh` resolved both

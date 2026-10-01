@@ -10,6 +10,7 @@ import os
 import sys
 import time
 
+import heartbeat
 from confluent_kafka import DeserializingConsumer, KafkaError, KafkaException
 from confluent_kafka.admin import AdminClient, NewTopic
 from confluent_kafka.error import ConsumeError
@@ -60,6 +61,7 @@ def main() -> None:
 
     try:
         while True:
+            heartbeat.beat()   # readiness: connected + subscribed + the loop is still passing (heartbeat.py)
             try:
                 msg = consumer.poll(1.0)
             except ConsumeError as e:  # transient (e.g. topic metadata not yet propagated) — log + retry
