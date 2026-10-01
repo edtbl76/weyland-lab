@@ -83,7 +83,7 @@ frozenlist==1.8.0
 fsspec==2026.4.0
 geomet==1.1.0
 gitdb==4.0.12
-GitPython==3.1.59
+GitPython==3.1.60
 giturlparse==0.15.0
 google-auth==2.56.0
 gql==4.0.0
@@ -206,7 +206,7 @@ pydantic==2.13.4
 pydantic_core==2.46.4
 Pygments==2.20.0
 pyiceberg==0.11.1
-PyJWT==2.13.0
+PyJWT==2.14.0
 pylance==8.0.0
 pymongo==4.17.0
 PyMySQL==1.2.0
@@ -280,7 +280,7 @@ tzdata==2026.3
 tzlocal==5.4.4
 universal_pathlib==0.3.10
 update-checker==0.18.0
-urllib3==2.7.0
+urllib3==2.8.0
 uvicorn==0.34.0
 uvicorn-worker==0.3.0
 uvloop==0.22.1

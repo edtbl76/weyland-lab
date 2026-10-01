@@ -85,6 +85,21 @@ RBAC (`KSV-0046`) → `/.trivyignore` (each documented). See [[cve-remediation-m
 **Accepted residuals:** `KSV-0118`/`KSV-0014` (readOnlyRootFilesystem, ~195 high) + `run-as-non-root` on root
 third-party images — systemic, blanket-applying breaks writers; documented, not per-item fixed.
 
+**2026-10-01 triage (B180 DoD, scan diff vs 2026-09-27, weyland-lab):** kubescape `failedResources` 148 → 151 with the
+control set unchanged (137): the new `placement-coverage` (B198) and `datahub-ingestion-watchdog` (B197) CronJobs fail
+exactly the controls the existing coverage CronJobs (`servicemonitor-coverage`, `dashboard-coverage`) already carry —
+the house CronJob pattern, accepted with them. `C-0012` (credentials in config) on `datahub-ingestion-watchdog-logic` is
+a **false positive**: the ConfigMap holds only the variable/argument names (`token`, `DATAHUB_GMS_TOKEN`); the value
+comes from the `datahub-token` Secret via `secretKeyRef`. Trivy/osv increases are new lockfiles (angular, vue — first
+time scanned) and advisories published since 09-27 against unchanged pins; triaged in B180's close-out.
+**Remediated the same day:** PyJWT 2.13.0 → 2.14.0 (1 critical + 5 high: auth bypass / token forgery), GitPython
+3.1.59 → 3.1.60 (RCE, ReDoS), urllib3 2.7.0 → 2.8.0 (2 high) in `weyland-dagster`, `genre-trainer` (.in + .txt) and
+`rag-index`. Found on the way: **genre-trainer's requirements did not resolve on main** — mlflow 3.15.1 requires
+`cryptography<50`, but the 09-25 CVE fix pinned `cryptography==50.0.0`, so its image could not be rebuilt (it builds
+on demand, so nothing failed visibly). mlflow / mlflow-skinny / mlflow-tracing → 3.16.1 (`cryptography<51`). Proven in
+`python:3.11-slim` (each image's base): full install, `pip check` clean, bumped modules import at the new versions.
+Still open: Angular 19 in the angular golden path (7 high, fixed only in Angular 20+) — owner decision.
+
 ## B69 — weekly CronJobs + the scan-suite (2026-07-18)
 
 The three on-demand Jobs were folded into **two weekly CronJobs** (both `Sun`, `Etc/UTC`; see [schedules.md](../schedules.md)):

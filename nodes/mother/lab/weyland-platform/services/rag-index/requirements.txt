@@ -33,6 +33,6 @@ qdrant-client==1.18.0
 requests==2.34.2
 typing-inspection==0.4.2
 typing_extensions==4.16.0
-urllib3==2.7.0
+urllib3==2.8.0
 validators==0.35.0
 weaviate-client==4.22.0
