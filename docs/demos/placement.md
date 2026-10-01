@@ -83,3 +83,57 @@ If the link lands on the Grafana home page instead of Explore, your Grafana role
 
 Read-only: the checks read files and Prometheus. The drills above used temporary copies of `placement.yaml`; nothing
 to remove.
+
+## Host units and host config files (B180)
+
+The systemd units and host config files on mother, rogueone and the whisper LXC are rows in `placement.yaml` too:
+unit rows carry `source` (repo copy), `path` (installed location) and, for a timer, `every`; drop-ins, `/etc` configs,
+apparmor and the whisper shim sit under `host_config:`. The host check reads each host over its `access` path and
+runs nightly inside `machine-inv-drift` (03:45 NY), whose Kuma heartbeat goes down on any finding.
+
+**Status: RUN 2026-09-30.** Host check clean on all three hosts; every drill below failed the way it should; the
+nightly job's dry run ran the host check inside itself; the Port read-back matched on all three hosts; CI #216 passed
+every step including the SonarQube gate (0 new issues, new-code coverage 85.9%).
+
+| Run (2026-09-30, on a throwaway copy of the inventory — nothing on the hosts changed) | Result |
+|---|---|
+| Baseline | `OK — placement.yaml: 210 rows, hosts check clean.` exit 0 |
+| Drill: a real line added to the repo copy of mother's `weyland-k3s.conf` | exit 1, `DRIFT at /etc/needrestart/conf.d/weyland-k3s.conf` |
+| Drill: only a comment added to it | exit 0 — comment-only differences pass |
+| Drill: the `restic-backup.timer` row removed | exit 1, `rogueone: unit restic-backup.timer is installed on the host but not in the inventory` |
+| Drill: that timer's `every` set to 1m | exit 1, `timer stale — last fired 15h ago, every 1m` |
+| Drill: mother's access pointed at a host that does not exist | exit 2, `gather failed (ssh: Could not resolve hostname ...)` — never a pass |
+| Nightly job, dry run | `OK — placement.yaml: 210 rows, hosts check clean.` inside `machine-inv-drift.sh --dry-run` |
+| Port | `verify` OK — mother 36, rogueone 882, weyland 742 `installed_package` entities, matching the inventory |
+
+What the first run found (before the drills): the rogueone restic backup failing nightly since 09-25, the Ollama
+`OLLAMA_HOST` drop-in with no repo copy, `weyland-image-prune` running mid-day (moved to 00:15 NY), and a
+system/user timer-scope bug in the check itself. All fixed.
+
+### CLI walkthrough
+
+Host check (every host; exit 1 names each finding, 2 = a host could not be read):
+
+[rogueone]
+```
+python3 /home/edwardmangini/IdeaProjects/weyland/scripts/placement_check.py --hosts --file /home/edwardmangini/IdeaProjects/weyland/placement.yaml
+```
+Expect `OK — placement.yaml: <N> rows, hosts check clean.`
+
+The nightly job without side effects (no push, PR, Port write or Kuma ping):
+
+[rogueone]
+```
+bash /home/edwardmangini/IdeaProjects/weyland/scripts/machine-inv-drift.sh --dry-run
+```
+Expect the `hosts check clean` line before the `signal:` line.
+
+### UI walkthrough (UAT) — Port
+
+Signed in to Port, open each link:
+
+1. [whisper-server.service in Port](https://app.port.io/installed_packageEntity?identifier=weyland--systemd-unit--whisper_whisper-server.service)
+   — pass: `Kind` = `systemd-unit`, `Status` = `system`, related `Host` = `weyland`.
+2. [mother's needrestart config in Port](https://app.port.io/installed_packageEntity?identifier=mother--host-config--_etc_needrestart_conf.d_weyland-k3s.conf)
+   — pass: `Kind` = `host-config`, `Status` = `system`, related `Host` = `mother`.
+3. [Installed Packages](https://app.port.io/installed_packages) — pass: the page loads and lists packages.
