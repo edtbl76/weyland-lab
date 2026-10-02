@@ -142,5 +142,12 @@ spec:
               value: "true"
             - name: INCIDENT_SWEEP_INTERVAL
               value: "180"
+            # Can a sweep SPEND MONEY? (2026-10-02, owner decision.) "false" = no: sweeps run on the free local model
+            # only — no Haiku failover and no delegate_to_realm (the Realm runs on paid Haiku) — and while the local
+            # model is busy (an eval holds rogueone's Ollama for up to ~5h) they defer and retry; paging is unaffected.
+            # "true" = sweeps get the full paid path back and enrich immediately; in the 14d to 2026-10-02 that path
+            # cost $12.44. Telegram chat always keeps Haiku + the Realm. See docs/runbooks/operator.md § Sweeps spend nothing by default.
+            - name: INCIDENT_SWEEP_ALLOW_PAID
+              value: "false"
             - name: PROMETHEUS_URL
               value: http://prometheus-operated.monitoring.svc.cluster.local:9090

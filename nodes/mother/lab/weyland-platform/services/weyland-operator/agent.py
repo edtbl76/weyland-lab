@@ -82,19 +82,22 @@ _BRAIN_SELECTED = Counter("operator_brain_selected_total", "Operator brain selec
 FLEET_RETRY_INTERVAL = float(os.getenv("OPERATOR_FLEET_RETRY", "30"))   # seconds between fleet-load attempts
 
 
-def _build_agent(base_url: str, model: str, api_key: str, timeout: float, fleet_tools: list):
+def _build_agent(base_url: str, model: str, api_key: str, timeout: float, fleet_tools: list, realm: bool = True):
     """Compile one ReAct agent over READ_TOOLS + the given fleet tools + REALM + ACT. Flat — no router wrappers.
-    `timeout` is per-LLM-call: SHORT for local (stall → failover), long for the Haiku fallback."""
+    `timeout` is per-LLM-call: SHORT for local (stall → failover), long for the Haiku fallback. `realm=False` leaves
+    out delegate_to_realm — the Realm runs on the PAID wl-agentic Haiku lane whichever brain calls it."""
     llm = ChatOpenAI(base_url=base_url, api_key=api_key, model=model, timeout=timeout, temperature=0)
-    return create_react_agent(llm, READ_TOOLS + fleet_tools + REALM_TOOLS + ACT_TOOLS)
+    return create_react_agent(llm, READ_TOOLS + fleet_tools + (REALM_TOOLS if realm else []) + ACT_TOOLS)
 
 
 def _install_fleet(fleet: list) -> None:
-    """(Re)compile both brains over `fleet` — Haiku gets all of it; local gets the curated subset. Swapping the module
-    globals is safe mid-request: run() reads them once per call."""
-    global _local_agent, _fallback_agent
+    """(Re)compile the brains over `fleet` — Haiku gets all of it; local gets the curated subset; the UNPAID brain is
+    the local one without delegate_to_realm (what allow_fallback=False runs on — it can spend nothing). Swapping the
+    module globals is safe mid-request: run() reads them once per call."""
+    global _local_agent, _fallback_agent, _unpaid_agent
     local = [t for t in fleet if any(a in t.name for a in LOCAL_FLEET_ALLOW)] if LOCAL_FLEET_ALLOW else fleet
     _local_agent = _build_agent(LOCAL_BASE_URL, LOCAL_MODEL, LOCAL_API_KEY, LOCAL_TIMEOUT, local)
+    _unpaid_agent = _build_agent(LOCAL_BASE_URL, LOCAL_MODEL, LOCAL_API_KEY, LOCAL_TIMEOUT, local, realm=False)
     _fallback_agent = (_build_agent(FALLBACK_BASE_URL, FALLBACK_MODEL, FALLBACK_API_KEY, OLLAMA_TIMEOUT, fleet)
                        if FALLBACK_ENABLED else None)
     print(f"[agent] local '{LOCAL_MODEL}' → {len(local)}/{len(fleet)} fleet tools (curated flat: "
@@ -131,7 +134,7 @@ _health = {"at": 0.0, "ok": True}   # cached liveness of the local engine: (mono
 
 
 class LocalUnavailable(Exception):
-    """The local brain is down or failed, and the caller said not to fail over to paid Haiku (`allow_fallback=False`).
+    """The local brain is down or failed, and the caller said not to spend money (`allow_fallback=False`).
     The incident sweep uses this to defer and retry later instead of paying (2026-10-02: during eval runs, sweeps on
     Haiku — which then delegated to the Realm, itself on paid Haiku — cost $12.44 in 14 days on a $0 budget)."""
 
@@ -227,8 +230,9 @@ async def run(message: str, history: list | None = None,
     """Run the operator on a user message (+ optional prior [(role, text)] turns). Returns (reply, proposal). Local is
     primary; on a health-precheck miss or a mid-flight error we re-run the same messages on the Haiku fallback. ASYNC —
     the composed MCP fleet's tools (langchain-mcp-adapters) are async-only, so we drive the graph with `ainvoke`.
-    `allow_fallback=False` (automatic callers — the incident sweep) never reaches Haiku: a down or failing local brain
-    raises LocalUnavailable instead. A person chatting keeps the failover so the operator still answers them."""
+    `allow_fallback=False` (automatic callers — the incident sweep) can spend NOTHING: it runs on the unpaid local brain
+    (no delegate_to_realm — the Realm is on paid Haiku), and a down or failing local brain raises LocalUnavailable
+    instead of failing over to Haiku. A person chatting keeps both so the operator still answers them."""
     messages = [("system", load_prompt("operator_system", SYSTEM))]   # B100 P2 — live from the Prompt Registry (fail-safe)
     if history:
         messages += history
@@ -264,12 +268,13 @@ async def _invoke(brain_agent, model: str, brain: str, reason: str, messages: li
 
 
 async def _run_local_only(messages: list, session_id: str | None, user_id: str | None) -> tuple[str, dict | None]:
-    """The no-fallback path (allow_fallback=False): the local brain or LocalUnavailable — never paid Haiku."""
+    """The no-fallback path (allow_fallback=False): the unpaid local brain or LocalUnavailable — never paid Haiku, never
+    the Realm."""
     if not await _local_healthy():
         _BRAIN_SELECTED.labels("none", "local_down").inc()
         raise LocalUnavailable(f"local brain {LOCAL_MODEL} failed its health pre-check")
     try:
-        return await _invoke(_local_agent, LOCAL_MODEL, "local", "primary", messages, session_id, user_id)
+        return await _invoke(_unpaid_agent, LOCAL_MODEL, "local", "primary", messages, session_id, user_id)
     except Exception as exc:
         _mark_local_down()
         _BRAIN_SELECTED.labels("none", "local_error").inc()

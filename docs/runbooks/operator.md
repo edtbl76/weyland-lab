@@ -119,16 +119,38 @@ Kuma/Alertmanager→Telegram stays the pager, so if this loop dies paging is una
 `WeylandOperatorSweepDeferred` (`k8s/weyland-operator/prometheusrule.yaml`). See
 [flow-incident-sweep.md](../diagrams/flow-incident-sweep.md).
 
-**The sweep never pays (2026-10-02).** It calls the agent with `allow_fallback=False`: when the local brain is busy or
-down it gets `LocalUnavailable`, stops that sweep, records nothing, and the next sweep retries (`outcome="deferred"`;
-`operator_brain_selected_total{brain="none"}`). Telegram chat keeps the Haiku failover. Why: in the 14 days to
-2026-10-02, sweeps during eval runs failed over to Haiku ($0.26), and Haiku then called `delegate_to_realm`, which runs
-the Realm of Agents on the paid `wl-agentic` Haiku lane ($12.18) — caught by `BifrostSpendObserved`. Deferring up to
-~5h during an eval is normal; `WeylandOperatorSweepDeferred` fires after 6h straight (local brain really gone — use
-the troubleshooting block below). Check it is deferring rather than paying:
+### Sweeps spend nothing by default — and how to switch them to Haiku
+
+**Decision (owner, 2026-10-02):** automatic incident sweeps run on the **free local model only**. Telegram chat is
+unchanged — it still fails over to Haiku and can still use `delegate_to_realm`.
+
+| | Sweep (default, `INCIDENT_SWEEP_ALLOW_PAID=false`) | Sweep (`true`) / Telegram chat |
+|---|---|---|
+| Model | local `qwen2.5:7b` only | local first, **Haiku** when the local model is busy or down |
+| `delegate_to_realm` | **removed** (the Realm runs on paid Haiku) | available |
+| Local model busy (an eval) | defers; the next sweep (3 min) retries; paging unaffected | answers immediately on Haiku |
+| Cost | $0 | paid — the sweep path cost **$12.44 in the 14 days to 2026-10-02** |
+
+**Why it is off.** The lab's budget is $0. In the 14 days to 2026-10-02, sweeps that ran while an eval held rogueone's
+Ollama failed over to Haiku ($0.26), and Haiku then called `delegate_to_realm`, which runs the Realm of Agents on the
+paid `wl-agentic` Haiku lane ($12.18) — caught by `BifrostSpendObserved`. What a sweep gives up: while an eval runs
+(up to ~5h), a new alert still pages you at once, but the operator's written incident summary waits for the local
+model.
+
+**How it works.** `incidents.py` calls `agent.run(..., allow_fallback=INCIDENT_SWEEP_ALLOW_PAID)`. With `false` the run
+goes to `_unpaid_agent` (the local model compiled without `delegate_to_realm`); a busy or down local model raises
+`LocalUnavailable`, the sweep stops, records nothing, and the next sweep retries (`outcome="deferred"`,
+`operator_brain_selected_total{brain="none"}`). `WeylandOperatorSweepDeferred` fires after 6h of continuous deferring
+(local model really gone — use the troubleshooting block below).
+
+**To switch sweeps to Haiku** (immediate enrichment, paid): in `k8s/weyland-operator/deployment.yaml` set
+`INCIDENT_SWEEP_ALLOW_PAID` to `"true"`, commit + push, and let Argo roll the pod (an env change needs no image build).
+Expect `BifrostSpendObserved` (> $1/24h) to fire during eval weeks — that is the cost showing up, not a fault. To switch
+back, set it to `"false"`. Check which way it is running:
 ```
-sum by (brain, reason) (increase(operator_brain_selected_total[24h]))      # sweeps on a busy brain show brain="none"
-sum by (outcome) (increase(operator_incident_sweeps_total[24h]))
+sum by (brain, reason) (increase(operator_brain_selected_total[24h]))   # false: brain="none" while busy · true: brain="haiku"
+sum by (outcome) (increase(operator_incident_sweeps_total[24h]))        # false: outcome="deferred" while busy
+sum(increase(bifrost_cost_total[24h]))                                  # false: ~$0 · true: the sweep's Haiku + Realm spend
 ```
 
 ## Diagnosing a slow / stalled local brain

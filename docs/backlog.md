@@ -2466,7 +2466,8 @@ posts one continuous alert (`endsAt`), two superseded built-in memory alerts dis
 of 3,618 messages/14d. Spend alerts reviewed 2026-10-02: `LiteLLMEgressEnabled` was already deleted (2026-09-25);
 `BifrostSpendObserved` is real signal — it caught $12.44/14d on a $0 budget, traced to incident sweeps that failed over
 to Haiku during eval runs and then delegated to the Realm (paid `wl-agentic`). Fixed: the sweep calls the agent with
-`allow_fallback=False` and defers instead of paying (`runbooks/operator.md` § Incident sweep; new alert
+`allow_fallback=False`, runs on a local brain without `delegate_to_realm`, and defers instead of paying — owner's
+switch `INCIDENT_SWEEP_ALLOW_PAID` (default false) restores Haiku (`runbooks/operator.md` § Sweeps spend nothing; new alert
 `WeylandOperatorSweepDeferred`, promtool-tested). Found alongside, fixed 2026-10-02: (1) `LiteLLMSpendObserved` could
 never fire — per-series $5, and LiteLLM prices its Bifrost-routed lanes at $0; rewritten to sum only the DIRECT
 provider routes Bifrost cannot see, at $1/24h, so the two spend alerts partition paid egress (promtool-tested;

@@ -63,7 +63,7 @@ def agent_mod():
                    _module("langgraph.prebuilt", create_react_agent=lambda llm, tools: _FakeAgent(llm, tools)))
         # load_fleet_tools pops the next scripted result: a list = loaded, None = configured but failed (retry)
         mp.setitem(sys.modules, "fleet", _module("fleet", load_fleet_tools=lambda: FLEET_RESULTS.pop(0)))
-        mp.setitem(sys.modules, "realm", _module("realm", REALM_TOOLS=[]))
+        mp.setitem(sys.modules, "realm", _module("realm", REALM_TOOLS=[types.SimpleNamespace(name="delegate_to_realm")]))
         mp.setitem(sys.modules, "tools", _module("tools", READ_TOOLS=[], ACT_TOOLS=[]))
         mp.setitem(sys.modules, "prompts", _module("prompts", load_prompt=lambda _n, fallback: fallback))
         spec = importlib.util.spec_from_file_location("operator_agent_under_test", os.path.join(_HERE, "agent.py"))
@@ -75,8 +75,8 @@ def agent_mod():
 @pytest.fixture
 def brains(agent_mod, monkeypatch):
     """Fresh call counters, and a switch for whether the local engine passes its health pre-check."""
-    agent_mod._local_agent.calls = agent_mod._fallback_agent.calls = 0
-    agent_mod._local_agent.fail = False
+    agent_mod._local_agent.calls = agent_mod._fallback_agent.calls = agent_mod._unpaid_agent.calls = 0
+    agent_mod._local_agent.fail = agent_mod._unpaid_agent.fail = False
     state = {"healthy": True}
 
     async def healthy():
@@ -92,12 +92,12 @@ def test_without_fallback_a_down_local_engine_is_local_unavailable_not_haiku(bra
     with pytest.raises(agent.LocalUnavailable):
         asyncio.run(agent.run("investigate", [], allow_fallback=False))
     assert agent._fallback_agent.calls == 0
-    assert agent._local_agent.calls == 0          # a failed pre-check does not even try the local engine
+    assert agent._unpaid_agent.calls == 0         # a failed pre-check does not even try the local engine
 
 
 def test_without_fallback_a_local_error_mid_request_is_local_unavailable_not_haiku(brains):
     agent, _ = brains
-    agent._local_agent.fail = True
+    agent._unpaid_agent.fail = True
     with pytest.raises(agent.LocalUnavailable, match="stalled"):
         asyncio.run(agent.run("investigate", [], allow_fallback=False))
     assert agent._fallback_agent.calls == 0
@@ -127,9 +127,13 @@ def _tool(name):
     return types.SimpleNamespace(name=name)
 
 
+def _names(brain):
+    return [t.name for t in brain.tools if t.name != "delegate_to_realm"]
+
+
 def test_a_failed_import_time_load_leaves_the_fleet_not_ready(agent_mod):
     assert agent_mod.fleet_ready() is False
-    assert agent_mod._local_agent.tools == [] and agent_mod._fallback_agent.tools == []
+    assert _names(agent_mod._local_agent) == [] and _names(agent_mod._fallback_agent) == []
 
 
 def test_the_retry_loop_keeps_trying_until_the_fleet_loads_then_rebuilds_both_brains(agent_mod):
@@ -137,11 +141,38 @@ def test_the_retry_loop_keeps_trying_until_the_fleet_loads_then_rebuilds_both_br
     asyncio.run(asyncio.wait_for(agent_mod.fleet_retry_loop(interval=0), timeout=5))
     assert FLEET_RESULTS == []                                       # three attempts: two failures, then a load
     assert agent_mod.fleet_ready() is True
-    assert [t.name for t in agent_mod._fallback_agent.tools] == ["k8s_pods_list", "grafana_list_teams"]
-    assert [t.name for t in agent_mod._local_agent.tools] == ["k8s_pods_list"]   # curated LOCAL_FLEET_ALLOW subset
+    assert _names(agent_mod._fallback_agent) == ["k8s_pods_list", "grafana_list_teams"]
+    assert _names(agent_mod._local_agent) == ["k8s_pods_list"]                   # curated LOCAL_FLEET_ALLOW subset
+    assert _names(agent_mod._unpaid_agent) == ["k8s_pods_list"]                  # the sweep's brain is rebuilt too
 
 
 def test_the_retry_loop_returns_at_once_when_the_fleet_is_already_loaded(agent_mod):
     FLEET_RESULTS[:] = []                                            # any further load attempt would IndexError
     asyncio.run(asyncio.wait_for(agent_mod.fleet_retry_loop(interval=0), timeout=5))
     assert agent_mod.fleet_ready() is True
+
+
+# --- 2026-10-02: the unpaid path also cannot reach the Realm ------------------------------------------------------------
+# delegate_to_realm hands work to the Realm of Agents, which runs on the paid wl-agentic Haiku lane whichever brain
+# calls it — $12.18 of the $12.44 found on 2026-10-02 came through it. So allow_fallback=False runs on a local brain
+# compiled WITHOUT that tool; a person chatting keeps it.
+
+
+def _tool_names(brain):
+    return [t.name for t in brain.tools]
+
+
+def test_the_unpaid_brain_has_no_delegate_to_realm(agent_mod):
+    assert "delegate_to_realm" not in _tool_names(agent_mod._unpaid_agent)
+    assert agent_mod._unpaid_agent.model == agent_mod.LOCAL_MODEL               # same free local model
+
+
+def test_a_person_chatting_keeps_delegate_to_realm(agent_mod):
+    assert "delegate_to_realm" in _tool_names(agent_mod._local_agent)
+    assert "delegate_to_realm" in _tool_names(agent_mod._fallback_agent)
+
+
+def test_without_fallback_the_unpaid_brain_answers_not_the_chat_brain(brains):
+    agent, _ = brains
+    asyncio.run(agent.run("investigate", [], allow_fallback=False))
+    assert agent._unpaid_agent.calls == 1 and agent._local_agent.calls == 0

@@ -7,9 +7,9 @@ small-model tool selection). **Haiku** (via LiteLLM, the full flat 91-tool fleet
 request routes to it when the local engine fails a fast cached health pre-check, or errors/stalls past a short 60s
 per-call timeout. So a rogueone/Ollama outage — or the card saturating (e.g. on-demand llama-guard-8b resident) —
 **degrades to paid cloud instead of going dark**, and steady-state Haiku spend ≈ **$0**. **Only a person chatting fails
-over** (2026-10-02): the incident sweep calls with `allow_fallback=False`, so a busy or down local brain raises
-`LocalUnavailable` and the sweep defers (`brain="none"`) instead of paying — see
-[flow-incident-sweep.md](flow-incident-sweep.md). See
+over** (2026-10-02): by default (`INCIDENT_SWEEP_ALLOW_PAID=false`) the incident sweep runs on the local brain compiled
+without `delegate_to_realm` (the Realm is on paid Haiku), so a busy or down local brain raises `LocalUnavailable` and
+the sweep defers (`brain="none"`) instead of paying — see [flow-incident-sweep.md](flow-incident-sweep.md). See
 [flow-operator.md](flow-operator.md), [flow-incident-sweep.md](flow-incident-sweep.md),
 [runbooks/operator.md](../runbooks/operator.md).
 

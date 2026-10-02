@@ -109,3 +109,14 @@ def test_any_other_enrichment_error_still_notifies(sweep):
     sweep["agent"] = RuntimeError("fleet down")
     assert asyncio.run(incidents.sweep_once(None)) == "ok"
     assert len(sweep["sent"]) == 2 and "enrichment failed: fleet down" in sweep["sent"][0][1]
+
+
+def test_the_sweep_can_be_switched_back_to_paid_haiku(sweep, monkeypatch):
+    # INCIDENT_SWEEP_ALLOW_PAID=true restores the Haiku failover (and the Realm) for sweeps — the owner's switch.
+    monkeypatch.setattr(incidents, "SWEEP_ALLOW_PAID", True)
+    asyncio.run(incidents.sweep_once(None))
+    assert sweep["runs"] and all(kw.get("allow_fallback") is True for kw in sweep["runs"])
+
+
+def test_the_paid_switch_defaults_off():
+    assert incidents.SWEEP_ALLOW_PAID is False

@@ -28,15 +28,15 @@ sequenceDiagram
         Note over W: _is_incident() — drop severity="none" + INCIDENT_SKIP_ALERTS<br/>(Watchdog, InfoInhibitor, LiteLLMEgressEnabled)
         W->>DB: incidents_recorded() → already-notified fingerprints
         loop each NEW incident (cap INCIDENT_MAX_ENRICH=5/sweep)
-            W->>A: run(investigation_prompt, allow_fallback=False) — "investigate, do NOT act"
+            W->>A: run(investigation_prompt, allow_fallback=INCIDENT_SWEEP_ALLOW_PAID) — "investigate, do NOT act"
             alt local brain healthy
                 A->>F: correlate recent logs + pod/deploy status
                 F-->>A: logs + pod state
                 A-->>W: concise incident summary (proposal DROPPED — enrich only)
                 W->>TG: 🚨 <alert> — <who>\n\n<summary>
                 W->>DB: incident_record(fingerprint) — notify once per firing episode
-            else local brain busy / down (e.g. an eval holds rogueone's Ollama)
-                A-->>W: LocalUnavailable — never fails over to paid Haiku
+            else local brain busy / down (e.g. an eval holds rogueone's Ollama), ALLOW_PAID=false
+                A-->>W: LocalUnavailable — no paid Haiku, no Realm
                 Note over W: stop this sweep, record nothing → the next sweep retries (outcome="deferred")
             end
         end
@@ -45,7 +45,10 @@ sequenceDiagram
     Note over W: operator_incident_sweeps_total{outcome=ok|deferred|error} · operator_incidents_notified_total<br/>WeylandOperatorSweepDeferred fires after 6h of deferring
 ```
 
-**No paid failover (2026-10-02).** A sweep enriches on the local brain only. A person chatting on Telegram still fails
-over to Haiku, but an automatic sweep does not: in 14 days to 2026-10-02, sweeps that ran during eval runs failed over
-to Haiku, Haiku handed work to the Realm of Agents (`delegate_to_realm`, itself on the paid `wl-agentic` Haiku lane),
-and the two together cost $12.44 on a $0 budget. A deferred alert is still paged directly; only its enrichment waits.
+**Sweeps spend nothing by default (2026-10-02, owner decision).** With `INCIDENT_SWEEP_ALLOW_PAID=false` (the
+default) a sweep runs on the local model only, compiled **without** `delegate_to_realm`, and never fails over to Haiku.
+A person chatting on Telegram keeps both. Why: in the 14 days to 2026-10-02, sweeps that ran during eval runs failed
+over to Haiku, Haiku handed work to the Realm of Agents (`delegate_to_realm`, itself on the paid `wl-agentic` Haiku
+lane), and the two together cost $12.44 on a $0 budget. A deferred alert is still paged directly; only its enrichment
+waits. Set the env to `"true"` in `k8s/weyland-operator/deployment.yaml` to give sweeps the paid path back —
+[runbooks/operator.md](../runbooks/operator.md) § Sweeps spend nothing by default.

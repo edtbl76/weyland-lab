@@ -24,6 +24,11 @@ import telegram
 PROMETHEUS_URL = os.getenv("PROMETHEUS_URL", "http://prometheus-operated.monitoring.svc.cluster.local:9090")
 SWEEP_INTERVAL = int(os.getenv("INCIDENT_SWEEP_INTERVAL", "180"))    # seconds between sweeps
 MAX_ENRICH_PER_SWEEP = int(os.getenv("INCIDENT_MAX_ENRICH", "5"))    # bound the agent runs in an alert storm
+# The owner's switch (2026-10-02). false (default): sweeps spend NOTHING — local brain only, no Haiku failover, no
+# delegate_to_realm; while the local brain is busy (an eval) they defer. true: sweeps get the full paid path back
+# (Haiku failover + the Realm) and enrich immediately, at a cost — in the 14d to 2026-10-02 that path cost $12.44.
+# Flip it in k8s/weyland-operator/deployment.yaml; see docs/runbooks/operator.md § Sweeps spend nothing by default.
+SWEEP_ALLOW_PAID = os.getenv("INCIDENT_SWEEP_ALLOW_PAID", "false").lower() in ("1", "true", "yes")
 # Who receives the incident digest — a dedicated chat if set, else the first Telegram-allowlisted user.
 _CHAT_ID = os.getenv("INCIDENT_CHAT_ID", "") or next(
     iter([s.strip() for s in os.getenv("TELEGRAM_ALLOWED_USERS", "").split(",") if s.strip()]), "")
@@ -79,11 +84,11 @@ def _investigation_prompt(labels: dict) -> str:
 
 
 async def _enrich_and_notify(client: httpx.AsyncClient, labels: dict) -> None:
-    """Enrich one alert on the LOCAL brain only and post it. agent.LocalUnavailable propagates: a sweep never fails
-    over to paid Haiku (2026-10-02) — the caller defers and the next sweep retries."""
+    """Enrich one alert and post it. Unless SWEEP_ALLOW_PAID, this runs on the unpaid local brain only and
+    agent.LocalUnavailable propagates — the caller defers and the next sweep retries (2026-10-02)."""
     try:
         reply, _proposal = await agent.run(_investigation_prompt(labels), [],   # ENRICH-ONLY — proposal dropped
-                                           allow_fallback=False)
+                                           allow_fallback=SWEEP_ALLOW_PAID)
     except agent.LocalUnavailable:
         raise
     except Exception as exc:
