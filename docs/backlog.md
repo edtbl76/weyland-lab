@@ -2473,8 +2473,10 @@ provider routes Bifrost cannot see, at $1/24h, so the two spend alerts partition
 `litellm-routes.bats` guards that every `openai/` route goes to Bifrost). (2) The operator image installed its packages
 unpinned (the 2026-10-01 Dagster-outage class) and v23 carried 38 known CVEs — now `requirements.in/.txt`, frozen to
 v23 with only the 7 CVE-fixed packages moved (pip-audit clean). (3) The operator was outside `images.tsv` (B135 phase
-2), so `ship-images.sh` reported "nothing to ship" for this fix — operator moved in; eight images remain. Still open:
-nights 2–7.
+2), so `ship-images.sh` reported "nothing to ship" for this fix — operator moved in; eight images remain. (4) The
+operator's fleet load was one-shot: after the 2026-10-01 stall the live pod ran 31h with 0 fleet tools while `/ready`
+said ready — now it retries every 30s and `/ready` is 503 until the fleet loads (proven in the real image against a
+Keycloak that comes up late). Still open: nights 2–7.
 
 ### B198 — Placement inventory: where every workload runs, and whether it can move — DONE (2026-09-28; was HIGH, Linear EMA-257)
 

@@ -32,6 +32,7 @@ _LATENCY = Histogram("operator_request_seconds", "End-to-end /operator/ask laten
 _ready = {"ok": False}
 _ingress_task = None
 _sweep_task = None
+_fleet_task = None
 
 
 @asynccontextmanager
@@ -47,7 +48,10 @@ async def lifespan(app: FastAPI):
         print(f"[mlflow] langchain autolog disabled: {exc}", flush=True)
     # Telegram ingress + Postgres sessions (Part 2). Both gated on a bot token so the HTTP /operator/ask surface
     # still runs standalone (no DB/token) for testing + probes.
-    global _ingress_task, _sweep_task
+    global _ingress_task, _sweep_task, _fleet_task
+    if not agent.fleet_ready():               # 2026-10-02 — retry the MCP fleet load; /ready stays 503 until it lands
+        _fleet_task = asyncio.create_task(agent.fleet_retry_loop())
+        print("[fleet] not loaded at startup — retrying in the background; /ready is 503 until it loads", flush=True)
     if telegram.configured():
         try:
             session.init()
@@ -63,7 +67,7 @@ async def lifespan(app: FastAPI):
         print("[telegram] no TELEGRAM_BOT_TOKEN — ingress disabled (HTTP /operator/ask only)", flush=True)
     _ready["ok"] = True
     yield
-    for _t in (_ingress_task, _sweep_task):
+    for _t in (_ingress_task, _sweep_task, _fleet_task):
         if _t:
             _t.cancel()
 
@@ -111,9 +115,12 @@ def health():
 
 @app.get("/ready")
 def ready():
-    if _ready["ok"]:
+    # Not Ready until the MCP fleet has loaded (2026-10-02): a one-shot load that failed after the 2026-10-01 node stall
+    # left the pod answering with ZERO fleet tools for 31h while this probe said ready. A pod that never loads stays
+    # unready -> WeylandOperatorDown / KubeDeploymentReplicasMismatch / KubeDeploymentRolloutStuck page it.
+    if _ready["ok"] and agent.fleet_ready():
         return {"status": "ready"}
-    return JSONResponse(status_code=503, content={"status": "loading"})
+    return JSONResponse(status_code=503, content={"status": "loading", "fleet_loaded": agent.fleet_ready()})
 
 
 @app.get("/metrics")

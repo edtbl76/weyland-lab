@@ -11,6 +11,7 @@ FULL flat fleet (it handles all ~91): a request routes to it when the local engi
 errors/stalls past the short LOCAL_TIMEOUT — so a rogueone/Ollama outage OR a local fumble degrades to paid cloud
 instead of going dark, and steady-state Haiku spend ≈ $0. Set OPERATOR_LLM_FALLBACK=0 for local-only. Both agents are
 compiled once at import; `run()` picks local unless it's unavailable."""
+import asyncio
 import os
 import time
 from contextlib import contextmanager
@@ -78,10 +79,7 @@ SYSTEM = (
 _BRAIN_SELECTED = Counter("operator_brain_selected_total", "Operator brain selections by brain + reason",
                           ["brain", "reason"])
 
-_FLEET = load_fleet_tools()   # load the MCP fleet ONCE — Haiku gets all of it; local gets the curated subset below
-_LOCAL_FLEET = [t for t in _FLEET if any(a in t.name for a in LOCAL_FLEET_ALLOW)] if LOCAL_FLEET_ALLOW else _FLEET
-print(f"[agent] local '{LOCAL_MODEL}' → {len(_LOCAL_FLEET)}/{len(_FLEET)} fleet tools (curated flat: "
-      f"{sorted(t.name for t in _LOCAL_FLEET)}); fallback '{FALLBACK_MODEL}' → all {len(_FLEET)}", flush=True)
+FLEET_RETRY_INTERVAL = float(os.getenv("OPERATOR_FLEET_RETRY", "30"))   # seconds between fleet-load attempts
 
 
 def _build_agent(base_url: str, model: str, api_key: str, timeout: float, fleet_tools: list):
@@ -91,9 +89,40 @@ def _build_agent(base_url: str, model: str, api_key: str, timeout: float, fleet_
     return create_react_agent(llm, READ_TOOLS + fleet_tools + REALM_TOOLS + ACT_TOOLS)
 
 
-_local_agent = _build_agent(LOCAL_BASE_URL, LOCAL_MODEL, LOCAL_API_KEY, LOCAL_TIMEOUT, _LOCAL_FLEET)
-_fallback_agent = (_build_agent(FALLBACK_BASE_URL, FALLBACK_MODEL, FALLBACK_API_KEY, OLLAMA_TIMEOUT, _FLEET)
-                   if FALLBACK_ENABLED else None)
+def _install_fleet(fleet: list) -> None:
+    """(Re)compile both brains over `fleet` — Haiku gets all of it; local gets the curated subset. Swapping the module
+    globals is safe mid-request: run() reads them once per call."""
+    global _local_agent, _fallback_agent
+    local = [t for t in fleet if any(a in t.name for a in LOCAL_FLEET_ALLOW)] if LOCAL_FLEET_ALLOW else fleet
+    _local_agent = _build_agent(LOCAL_BASE_URL, LOCAL_MODEL, LOCAL_API_KEY, LOCAL_TIMEOUT, local)
+    _fallback_agent = (_build_agent(FALLBACK_BASE_URL, FALLBACK_MODEL, FALLBACK_API_KEY, OLLAMA_TIMEOUT, fleet)
+                       if FALLBACK_ENABLED else None)
+    print(f"[agent] local '{LOCAL_MODEL}' → {len(local)}/{len(fleet)} fleet tools (curated flat: "
+          f"{sorted(t.name for t in local)}); fallback '{FALLBACK_MODEL}' → all {len(fleet)}", flush=True)
+
+
+# Load the MCP fleet at import. None = a secret is wired but the load failed (Keycloak/gateway not up yet, e.g. right
+# after a node stall): start with no fleet, report NOT Ready (app /ready), and let fleet_retry_loop keep trying.
+_first_fleet = load_fleet_tools()
+_fleet = {"loaded": _first_fleet is not None}
+_install_fleet(_first_fleet or [])
+
+
+def fleet_ready() -> bool:
+    """True once the fleet has loaded (or no secret is wired, so there is none to load). Gates the /ready probe."""
+    return _fleet["loaded"]
+
+
+async def fleet_retry_loop(interval: float = FLEET_RETRY_INTERVAL) -> None:
+    """Retry the fleet load until it succeeds, then rebuild both brains with it. Returns at once if already loaded.
+    load_fleet_tools blocks (asyncio.run inside), so each attempt runs in a worker thread."""
+    while not _fleet["loaded"]:
+        await asyncio.sleep(interval)
+        fleet = await asyncio.to_thread(load_fleet_tools)
+        if fleet is not None:
+            _install_fleet(fleet)
+            _fleet["loaded"] = True
+            print(f"[fleet] loaded on retry — {len(fleet)} tools; operator Ready", flush=True)
 
 _health = {"at": 0.0, "ok": True}   # cached liveness of the local engine: (monotonic checked-at, healthy?)
 

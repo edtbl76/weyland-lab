@@ -7,8 +7,10 @@ LangChain tools via langchain-mcp-adapters, namespaced `grafana_*`, `trino_*`, `
 
 Token refresh: MultiServerMCPClient is stateless (a fresh MCP session per tool call), so a custom `httpx.Auth` mints a
 FRESH operator client_credentials token on EVERY request (reusing `act._token()`, which caches + refreshes ~30s before
-expiry). No stale-token failures on a long-running operator. If no token is wired (OPERATOR_CLIENT_SECRET unset) the
-fleet is skipped and the operator runs with its base tools.
+expiry). No stale-token failures on a long-running operator. If no secret is wired (OPERATOR_CLIENT_SECRET unset) the
+fleet is skipped by design and the operator runs with its base tools. If a secret IS wired but loading fails (Keycloak
+or the gateway not up yet), load_fleet_tools returns None and agent.fleet_retry_loop keeps trying — the operator is not
+Ready until it loads (2026-10-02: a one-shot load left the live pod blind for 31h after a node stall).
 
 Curation: these are READ tools (safe — no confirm-step needed). All load by default; set `FLEET_PREFIXES=k8s,grafana`
 to narrow to specific subsystems if the full set (~90 tools) degrades gpt-oss:20b's tool selection."""
@@ -17,7 +19,7 @@ import os
 
 import httpx
 
-from act import GATEWAY, _token
+from act import CLIENT_SECRET, GATEWAY, _token
 
 FLEET_URL = os.getenv("FLEET_URL", GATEWAY.rstrip("/") + "/mcp-fleet")
 _ALLOW = [p.strip() for p in os.getenv("FLEET_PREFIXES", "").split(",") if p.strip()]      # subsystem filter
@@ -105,10 +107,14 @@ def _sanitize_schema(s):
 
 
 def load_fleet_tools():
-    """Return the fleet's read tools as LangChain tools (empty list on any failure — the operator must still start)."""
-    if not _token():
-        print("[fleet] no operator token (OPERATOR_CLIENT_SECRET unset) — fleet tools NOT loaded", flush=True)
+    """Return the fleet's read tools as LangChain tools. [] = no secret wired (fleet off by design); None = a secret is
+    wired but loading failed — the caller retries and must not report Ready. Never raises (the operator must start)."""
+    if not CLIENT_SECRET:
+        print("[fleet] OPERATOR_CLIENT_SECRET unset — fleet tools NOT loaded (by design: no secret wired)", flush=True)
         return []
+    if not _token():
+        print("[fleet] cannot mint the operator token from Keycloak — fleet NOT loaded, will retry", flush=True)
+        return None
     try:
         from langchain_mcp_adapters.client import MultiServerMCPClient
         client = MultiServerMCPClient(
@@ -132,5 +138,5 @@ def load_fleet_tools():
         print(f"[fleet] loaded {len(tools)} read tools from {FLEET_URL}", flush=True)
         return tools
     except Exception as exc:
-        print(f"[fleet] failed to load fleet tools ({exc}) — running with base tools", flush=True)
-        return []
+        print(f"[fleet] failed to load fleet tools ({exc}) — will retry", flush=True)
+        return None

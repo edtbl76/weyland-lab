@@ -29,8 +29,9 @@ class _FakeLLM:
 class _FakeAgent:
     """Records each invoke; `fail` makes it raise like a stalled or erroring local engine."""
 
-    def __init__(self, llm):
+    def __init__(self, llm, tools=()):
         self.model = llm.model
+        self.tools = list(tools)
         self.calls = 0
         self.fail = False
 
@@ -39,6 +40,9 @@ class _FakeAgent:
         if self.fail:
             raise TimeoutError(f"{self.model} stalled")
         return {"messages": [types.SimpleNamespace(content=f"answer from {self.model}", tool_calls=[])]}
+
+
+FLEET_RESULTS = [None]   # import-time load: Keycloak not up yet (the 2026-10-01 restart)
 
 
 def _module(name, **attrs):
@@ -56,8 +60,9 @@ def agent_mod():
         mp.setitem(sys.modules, "langchain_openai", _module("langchain_openai", ChatOpenAI=_FakeLLM))
         mp.setitem(sys.modules, "langgraph", _module("langgraph"))
         mp.setitem(sys.modules, "langgraph.prebuilt",
-                   _module("langgraph.prebuilt", create_react_agent=lambda llm, _tools: _FakeAgent(llm)))
-        mp.setitem(sys.modules, "fleet", _module("fleet", load_fleet_tools=lambda: []))
+                   _module("langgraph.prebuilt", create_react_agent=lambda llm, tools: _FakeAgent(llm, tools)))
+        # load_fleet_tools pops the next scripted result: a list = loaded, None = configured but failed (retry)
+        mp.setitem(sys.modules, "fleet", _module("fleet", load_fleet_tools=lambda: FLEET_RESULTS.pop(0)))
         mp.setitem(sys.modules, "realm", _module("realm", REALM_TOOLS=[]))
         mp.setitem(sys.modules, "tools", _module("tools", READ_TOOLS=[], ACT_TOOLS=[]))
         mp.setitem(sys.modules, "prompts", _module("prompts", load_prompt=lambda _n, fallback: fallback))
@@ -111,3 +116,32 @@ def test_a_person_chatting_still_fails_over_to_haiku(brains):
     reply, _ = asyncio.run(agent.run("what is broken?", []))
     assert reply == "answer from claude-haiku"
     assert agent._fallback_agent.calls == 1
+
+
+# --- 2026-10-02: the fleet loads with retries, and the operator is not Ready until it has ----------------------------
+# Found live: the pod restarted during the 2026-10-01 node stall, could not mint its Keycloak token, and ran 31h with
+# ZERO fleet tools while /ready said ready — the load was one-shot at import.
+
+
+def _tool(name):
+    return types.SimpleNamespace(name=name)
+
+
+def test_a_failed_import_time_load_leaves_the_fleet_not_ready(agent_mod):
+    assert agent_mod.fleet_ready() is False
+    assert agent_mod._local_agent.tools == [] and agent_mod._fallback_agent.tools == []
+
+
+def test_the_retry_loop_keeps_trying_until_the_fleet_loads_then_rebuilds_both_brains(agent_mod):
+    FLEET_RESULTS[:] = [None, None, [_tool("k8s_pods_list"), _tool("grafana_list_teams")]]
+    asyncio.run(asyncio.wait_for(agent_mod.fleet_retry_loop(interval=0), timeout=5))
+    assert FLEET_RESULTS == []                                       # three attempts: two failures, then a load
+    assert agent_mod.fleet_ready() is True
+    assert [t.name for t in agent_mod._fallback_agent.tools] == ["k8s_pods_list", "grafana_list_teams"]
+    assert [t.name for t in agent_mod._local_agent.tools] == ["k8s_pods_list"]   # curated LOCAL_FLEET_ALLOW subset
+
+
+def test_the_retry_loop_returns_at_once_when_the_fleet_is_already_loaded(agent_mod):
+    FLEET_RESULTS[:] = []                                            # any further load attempt would IndexError
+    asyncio.run(asyncio.wait_for(agent_mod.fleet_retry_loop(interval=0), timeout=5))
+    assert agent_mod.fleet_ready() is True

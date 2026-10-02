@@ -70,9 +70,14 @@ only pull langchain-core), else it silently no-ops.
   syncs and verifies it ([ship-images.md](ship-images.md)). The hand-built `:vN` flow (last: `v23`) is retired.
 - **Dependencies are pinned:** `services/weyland-operator/requirements.in` (source) → `requirements.txt` (frozen, what
   the Dockerfile installs). Regenerate per the `.in` header; never `pip install` an unpinned name in the Dockerfile.
-- **After a ship, confirm the fleet loaded** — `/ready` does not check it (a failed fleet load starts the pod with 0
-  tools): `kubectl -n weyland logs deploy/weyland-operator -c weyland-operator | grep -E '\[fleet\] (loaded|failed|no operator)'`
-  should print `loaded N read tools`.
+- **The fleet gates readiness (2026-10-02).** With `OPERATOR_CLIENT_SECRET` wired, the pod is NOT Ready until the MCP
+  fleet loads; a failed load (Keycloak or the gateway not up yet, e.g. after a node stall) retries every
+  `OPERATOR_FLEET_RETRY` (30s) in the background and `/ready` answers `503 {"fleet_loaded": false}` meanwhile. Before
+  this, the load was one-shot: after the 2026-10-01 stall the pod ran 31h with 0 fleet tools while `/ready` said ready,
+  and its log blamed an "unset" secret that was in fact set. A pod that never loads stays unready and pages
+  (`WeylandOperatorDown`, `KubeDeploymentReplicasMismatch`, `KubeDeploymentRolloutStuck`). Check what it did:
+  `kubectl -n weyland logs deploy/weyland-operator -c weyland-operator | grep -E '\[fleet\]'` — expect
+  `loaded N read tools`; `cannot mint the operator token from Keycloak` means Keycloak, not the secret.
 - Manifests: `k8s/weyland-operator/{deployment,service,servicemonitor}.yaml`; Argo app in `subdir-apps.yaml`. **Meshed**;
   memory request kept low (256Mi, no torch — the operator calls the tool-server for retrieval).
 - **Secret** `weyland-operator-secret` (`TELEGRAM_BOT_TOKEN` + `TELEGRAM_ALLOWED_USERS`) — SealedSecret (GitOps) or a
