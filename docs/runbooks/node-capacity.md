@@ -92,17 +92,33 @@ not ask the cluster):
 ```
 bash /home/edwardmangini/IdeaProjects/weyland/scripts/store-park.sh wait cockroachdb
 ```
-**Park it again** the same way with `park` (then push and `wait`). `status` shows every store's git setting next to
+`wake` and `park` also **resume / pause the store's DataHub ingestion schedule** in the same command (via
+`scripts/datahub_schedule.py`: a temporary port-forward to GMS and the token from the cluster Secret
+`weyland/datahub-token`, never printed; every change is read back, and `status` prints a config fingerprint so you can
+see the recipe came through untouched). **Park it again** the same way with `park` (then push and `wait`). `status` shows every store's git setting next to
 what is running; `all` works in place of a store name. Stores: `cassandra`, `mongodb`, `cockroachdb`,
 `superset-worker`. Tested in `scripts/tests/store-park.bats`. The store-scaler easy button does NOT stick (selfHeal
 reverts a live scale) — git is the only switch. While parked:
 - Its Down alert stays silent — the alerts compare running to DESIRED replicas (`scripts/tests/parked-store-alerts.bats`).
-- Its weekly DataHub ingestion is turned off in DataHub's UI and listed as parked in the ingestion watchdog.
+- Its DataHub ingestion schedule is paused (by `store-park.sh`) and the source is listed as parked in the ingestion
+  watchdog (`scripts/datahub_ingestion_check.py` PARKED).
 - The daily `datahub_catalog_emit_job` logs a warning for the CockroachDB profile step and carries on.
 - On-demand Dagster hydrate jobs that write to it (`weyland_datasets_{music,health,finance}_hydrate_job`,
   `weyland_aidlc_kb_job` for Mongo) need the store woken first.
 
 **Undo** when the new hardware lands: the checklist is in `docs/backlog.md` B134 § "Undo on hardware" (EMA-195).
+
+**Tested live 2026-10-01/02 (wake → Ready → data intact → park → parked):** `store-park.sh wake cockroachdb` changed
+one line; after the push, `wait` reported `Ready (1/1)` ~4 min after Argo applied it (Argo itself takes up to ~3 min —
+`argocd app sync data-mesh` skips that); the data survived parking (`brfss.brfss_2020` 212,705 rows,
+`nhis.nhis_adult_2022_adult22` 27,651, `company_financials` 20,741); `park` + push → `wait` reported `parked (0/0)`.
+Alerts: `CockroachdbDown` was **pending** (never firing) for 3.5 min while the woken pod started — the new rule doing
+its job; it fires only if a woken store is not Ready within 5 min. The four parked stores freed memory immediately:
+MemAvailable 2.7–6 GB → **12.0 GB**, pod working set 72 → 66 GB.
+
+**DataHub schedules, live 2026-10-02:** `park all` paused `Cassandra - Weyland` (was `15 4 * * 0`), `MongoDB - Weyland`
+(`45 3 * * *`) and `CockroachDB - Weyland` (`30 3 * * *`), each read back. A live `wake cockroachdb` → `park cockroachdb`
+round trip restored then re-paused the exact schedule with the config fingerprint unchanged (`7b77707637c5`) throughout.
 
 ## The overnight stalls (B199, measured 2026-10-01)
 

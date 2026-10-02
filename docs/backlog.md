@@ -2450,6 +2450,15 @@ no scrape gap, no `NodeNotReady`, no `task expired`; a full CI run started at 01
 enforced daytime-only, with the reason); the MemAvailable rule proven by a promtool unit test and reaching Telegram.
 Out of scope: moving workloads to the Strix Halo (B134). Relates B180, B134, B123.
 
+**Progress 2026-10-01/02 (In Progress — the 7-night clock is running).** Attribution done (above, and
+`runbooks/node-capacity.md` § The overnight stalls): page-cache thrash from chronic overcommit, triggers incidental.
+Fix shipped (option A, owner decision): Cassandra, MongoDB, CockroachDB and the Superset worker **parked by default**
+(`replicas: 0` in git) — MemAvailable 2.7–6 → 12.0 GB. ClickHouse NOT parked (Langfuse's live store). Down alerts now
+compare running to desired replicas (promtool-proven, `parked-store-alerts.bats`); the DataHub watchdog lists the three
+parked sources by name; `scripts/store-park.sh` wakes/parks/waits (12 bats + a live wake→park drill on CockroachDB,
+data intact). Undo on hardware recorded in B134 (EMA-195). The three DataHub schedules are paused by `store-park.sh` (live-tested,
+config untouched). Still open: 7 clean nights; the MemAvailable / scrape-gap alert (acceptance item 4).
+
 ### B198 — Placement inventory: where every workload runs, and whether it can move — DONE (2026-09-28; was HIGH, Linear EMA-257)
 
 **DONE 2026-09-28 (DoD graded).** Both open items closed: CI #201 passed all 68 steps including the SonarQube gate
@@ -3821,7 +3830,7 @@ has headroom, reverse every item below in one change:
 | MongoDB | `k8s/data-mesh/mongodb.yaml` | `replicas: 0` → `1` |
 | CockroachDB | `k8s/data-mesh/cockroachdb.yaml` | `replicas: 0` → `1` |
 | Superset Celery worker | `k8s/superset/superset-values.yaml` `supersetWorker.replicas.replicaCount` | `0` → `1` (or drop the block) |
-| DataHub ingestions for those three stores (`CockroachDB - Weyland` daily 03:30, `MongoDB - Weyland` daily 03:45, `Cassandra - Weyland` Sun 04:15) | DataHub UI → Ingestion → each source → re-enable its schedule | restore the schedule; remove the three names from `PARKED` in `scripts/datahub_ingestion_check.py`, then `scripts/embed-datahub-ingestion-watchdog.sh` |
+| DataHub ingestions for those three stores (`CockroachDB - Weyland` daily 03:30, `MongoDB - Weyland` daily 03:45, `Cassandra - Weyland` Sun 04:15) | paused by `scripts/store-park.sh` | `bash scripts/store-park.sh wake all` restores BOTH the replicas and these schedules in one command (then push + `wait all`); then remove the three names from `PARKED` in `scripts/datahub_ingestion_check.py` and run `scripts/embed-datahub-ingestion-watchdog.sh` |
 | Docs that say "parked" | `docs/runbooks/node-capacity.md` § Parked stores, `docs/schedules.md`, `placement.yaml` rows | revert the notes |
 
 Keep the B199 alert change: `CassandraDown` / `MongodbDown` / `CockroachdbDown` / `SupersetWorkerDown` now compare

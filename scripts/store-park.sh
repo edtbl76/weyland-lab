@@ -33,6 +33,26 @@ file_of() {
 kind_of() { case "$1" in cassandra) echo statefulset ;; *) echo deployment ;; esac; }
 app_of() { case "$1" in superset-worker) echo superset ;; *) echo data-mesh ;; esac; }   # its Argo application
 
+# Its DataHub ingestion source and the schedule `wake` restores (America/New_York). The Superset worker has none.
+TZ_NY="America/New_York"
+dh_name_of() { case "$1" in cassandra) echo "Cassandra - Weyland" ;; mongodb) echo "MongoDB - Weyland" ;;
+                            cockroachdb) echo "CockroachDB - Weyland" ;; *) echo "" ;; esac; }
+dh_cron_of() { case "$1" in cassandra) echo "15 4 * * 0" ;; mongodb) echo "45 3 * * *" ;; cockroachdb) echo "30 3 * * *" ;; esac; }
+
+# datahub <args...> — run scripts/datahub_schedule.py against the real GMS: a temporary local port-forward to
+# data-mesh/datahub-datahub-gms and the token from the cluster Secret weyland/datahub-token, held only in this
+# process's environment (never printed, never written). STORE_PARK_DATAHUB_CMD replaces all of it (the bats seam).
+datahub() {
+  if [ -n "${STORE_PARK_DATAHUB_CMD:-}" ]; then "$STORE_PARK_DATAHUB_CMD" "$@"; return; fi
+  local port=$(( 20000 + RANDOM % 10000 )) pf rc token
+  token="$(kubectl -n weyland get secret datahub-token -o jsonpath='{.data.token}' 2>/dev/null | base64 -d 2>/dev/null)"
+  [ -n "$token" ] || { echo "DataHub: cannot read the token from Secret weyland/datahub-token" >&2; return 2; }
+  kubectl -n data-mesh port-forward svc/datahub-datahub-gms "$port:8080" >/dev/null 2>&1 & pf=$!
+  for _ in $(seq 1 30); do (exec 3<>"/dev/tcp/127.0.0.1/$port") 2>/dev/null && break; sleep 0.5; done
+  DATAHUB_GMS_URL="http://127.0.0.1:$port" DATAHUB_GMS_TOKEN="$token" python3 "$REPO_ROOT/scripts/datahub_schedule.py" "$@"
+  rc=$?; kill "$pf" 2>/dev/null; wait "$pf" 2>/dev/null; return $rc
+}
+
 # replica_line <store> -> "<line-number> <value>" of the ONE line that sets its replicas; fails closed otherwise.
 # Data-mesh stores: the workload's `  replicas: N` (the only 2-space `replicas:` in the file). Superset worker: the
 # `    replicaCount: N` inside the top-level `supersetWorker:` block (other components have their own blocks).
@@ -78,15 +98,25 @@ cmd="${1:-}"; target="${2:-}"
 CHANGED=""
 case "$cmd" in
   status)
+    names=(); for s in $STORES; do n="$(dh_name_of "$s")"; [ -n "$n" ] && names+=("$n"); done
+    dh_out="$(datahub status "${names[@]}" 2>&1)" || dh_out=""
     for s in $STORES; do
       rl="$(replica_line "$s")" || exit 2; read -r _ v <<<"$rl"
-      printf '%-16s git=%s  live(desired/ready)=%s\n' "$s" "$v" "$(live "$s")"
+      n="$(dh_name_of "$s")"; d="-"
+      if [ -n "$n" ]; then d="$(printf '%s\n' "$dh_out" | grep -F "$n: " | head -1)"; d="${d#"$n: "}"; d="${d:-?}"; fi
+      printf '%-16s git=%s  live(desired/ready)=%-4s datahub=%s\n' "$s" "$v" "$(live "$s")" "$d"
     done ;;
   wake|park)
     [ -n "$target" ] || die "usage: store-park.sh $cmd <store|all>"
     list="$(expand "$target")" || exit 2
     want=1; [ "$cmd" = park ] && want=0
     for s in $list; do set_replicas "$s" "$want"; done
+    dh_failed=""
+    for s in $list; do
+      n="$(dh_name_of "$s")"; [ -n "$n" ] || continue
+      if [ "$want" = 0 ]; then datahub pause "$n" || dh_failed="$dh_failed $s"
+      else datahub resume "$n" "$(dh_cron_of "$s")" "$TZ_NY" || dh_failed="$dh_failed $s"; fi
+    done
     if [ -n "$CHANGED" ]; then
       echo
       apps="$(for s in $list; do app_of "$s"; done | sort -u | tr '\n' ' ')"
@@ -95,6 +125,11 @@ case "$cmd" in
       for a in $apps; do echo "  argocd app sync $a"; done
       echo "Then wait until it is really there:"
       echo "  bash $REPO_ROOT/scripts/store-park.sh wait $target"
+    fi
+    if [ -n "$dh_failed" ]; then
+      echo "!! DataHub schedule NOT changed for:$dh_failed — the git edit above IS done. Re-run this command to retry" >&2
+      echo "   the schedule (the git edit is then a no-op), or set it in the DataHub UI." >&2
+      exit 2
     fi ;;
   wait)
     [ -n "$target" ] || die "usage: store-park.sh wait <store|all>"

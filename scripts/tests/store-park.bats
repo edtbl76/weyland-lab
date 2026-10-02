@@ -10,6 +10,13 @@ setup() {
   cp "$REAL/data-mesh/cassandra.yaml" "$REAL/data-mesh/mongodb.yaml" "$REAL/data-mesh/cockroachdb.yaml" "$T/data-mesh/"
   cp "$REAL/superset/superset-values.yaml" "$T/superset/"
   export STORE_PARK_ROOT="$T" STORE_PARK_NO_KUBECTL=1
+  # DataHub stub: records each call; exits with $DH_RC (default 0). Never touches a real GMS.
+  cat > "$T/dh" <<'STUB'
+#!/usr/bin/env bash
+echo "$*" >> "$DH_LOG"; [ "$1" = status ] && for n in "${@:2}"; do echo "$n: paused"; done; exit "${DH_RC:-0}"
+STUB
+  chmod +x "$T/dh"
+  export STORE_PARK_DATAHUB_CMD="$T/dh" DH_LOG="$T/dh.log"; : > "$T/dh.log"
   S="${BATS_TEST_DIRNAME}/../store-park.sh"
 }
 teardown() { rm -rf "$T"; }
@@ -114,4 +121,41 @@ STUB
   [[ "$output" == *"argocd app sync data-mesh"* ]]
   run bash "$S" wake superset-worker
   [[ "$output" == *"argocd app sync superset"* ]]
+}
+
+# --- DataHub: one command parks the store AND pauses its ingestion schedule (and wake restores it) ---------------------
+
+@test "park pauses the store's DataHub schedule" {
+  bash "$S" wake cockroachdb >/dev/null; : > "$DH_LOG"
+  run bash "$S" park cockroachdb
+  [ "$status" -eq 0 ]
+  grep -qx "pause CockroachDB - Weyland" "$DH_LOG"
+}
+
+@test "wake restores the store's exact DataHub schedule" {
+  run bash "$S" wake mongodb
+  [ "$status" -eq 0 ]
+  grep -qx "resume MongoDB - Weyland 45 3 \* \* \* America/New_York" "$DH_LOG"
+  run bash "$S" wake cassandra
+  grep -qx "resume Cassandra - Weyland 15 4 \* \* 0 America/New_York" "$DH_LOG"
+}
+
+@test "the superset worker has no DataHub ingestion, so no DataHub call" {
+  run bash "$S" wake superset-worker
+  [ "$status" -eq 0 ]
+  [ ! -s "$DH_LOG" ]
+}
+
+@test "a DataHub failure is exit 2 and says the git edit is done but the schedule is not" {
+  run env DH_RC=2 bash "$S" wake cockroachdb
+  [ "$status" -eq 2 ]
+  [[ "$output" == *"schedule NOT changed"* ]]
+  [ "$(replicas_of cockroachdb)" = 1 ]
+}
+
+@test "status shows each store's DataHub schedule" {
+  run bash "$S" status
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"cockroachdb"*"datahub=paused"* ]]
+  [[ "$output" == *"superset-worker"*"datahub=-"* ]]
 }
