@@ -2457,7 +2457,9 @@ Fix shipped (option A, owner decision): Cassandra, MongoDB, CockroachDB and the 
 compare running to desired replicas (promtool-proven, `parked-store-alerts.bats`); the DataHub watchdog lists the three
 parked sources by name; `scripts/store-park.sh` wakes/parks/waits (12 bats + a live wake→park drill on CockroachDB,
 data intact). Undo on hardware recorded in B134 (EMA-195). The three DataHub schedules are paused by `store-park.sh` (live-tested,
-config untouched). Still open: 7 clean nights; the MemAvailable / scrape-gap alert (acceptance item 4).
+config untouched). Alerts done 2026-10-02: `NodeMemoryThrashing` (PSI > 10%, 2m — replayed: 4 fires in 13.5 days, all at real freezes)
+and `NodeFroze` (scrape gap; 17 = one per freeze episode), promtool-tested in CI (`alert-rules.bats`). Night 1 (10-01→02)
+clean: 0 freezes, min MemAvailable 9.1 GB, 01:00 build passed. Still open: nights 2–7; a Telegram delivery drill.
 
 ### B198 — Placement inventory: where every workload runs, and whether it can move — DONE (2026-09-28; was HIGH, Linear EMA-257)
 

@@ -1,0 +1,225 @@
+# promtool unit tests for the B199 alerts (2026-10-02). Thresholds come from measured data — see
+# docs/runbooks/node-capacity.md § The overnight stalls. Run by scripts/tests/alert-rules.bats (CI shell-tests).
+rule_files:
+- rules.yaml
+evaluation_interval: 30s
+tests:
+- name: 'NodeMemoryThrashing: 17% stall (the 2026-09-30 freeze) fires'
+  interval: 30s
+  input_series:
+  - series: node_pressure_memory_waiting_seconds_total{instance="192.168.1.243:9100",job="node-exporter"}
+    values: 0.0 5.1 10.2 15.3 20.4 25.5 30.6 35.7 40.8 45.9 51.0 56.1 61.2 66.3 71.4
+      76.5 81.6 86.7 91.8 96.9
+  alert_rule_test:
+  - eval_time: 5m
+    alertname: NodeMemoryThrashing
+    exp_alerts:
+    - exp_labels:
+        instance: 192.168.1.243:9100
+        job: node-exporter
+        severity: critical
+      exp_annotations:
+        summary: "192.168.1.243:9100 is thrashing on memory (17% of time stalled)\
+          \ \u2014 a node freeze is minutes away"
+- name: 'NodeMemoryThrashing: 6% stall (busiest pre-park midday, no freeze) is silent'
+  interval: 30s
+  input_series:
+  - series: node_pressure_memory_waiting_seconds_total{instance="192.168.1.243:9100",job="node-exporter"}
+    values: 0.0 1.8 3.6 5.4 7.2 9.0 10.8 12.6 14.4 16.2 18.0 19.8 21.6 23.4 25.2 27.0
+      28.8 30.6 32.4 34.2
+  alert_rule_test:
+  - eval_time: 5m
+    alertname: NodeMemoryThrashing
+    exp_alerts: []
+- name: 'NodeMemoryThrashing: 2.5% stall (a parked night) is silent'
+  interval: 30s
+  input_series:
+  - series: node_pressure_memory_waiting_seconds_total{instance="192.168.1.243:9100",job="node-exporter"}
+    values: 0.0 0.75 1.5 2.25 3.0 3.75 4.5 5.25 6.0 6.75 7.5 8.25 9.0 9.75 10.5 11.25
+      12.0 12.75 13.5 14.25
+  alert_rule_test:
+  - eval_time: 5m
+    alertname: NodeMemoryThrashing
+    exp_alerts: []
+- name: 'NodeFroze: 90s of silence (3 missed samples) fires after recovery'
+  interval: 30s
+  input_series:
+  - series: node_memory_MemAvailable_bytes{instance="192.168.1.243:9100",job="node-exporter"}
+    values: 5e9 5e9 5e9 5e9 5e9 5e9 5e9 _ _ _ 5e9 5e9 5e9 5e9 5e9 5e9
+  alert_rule_test:
+  - eval_time: 6m
+    alertname: NodeFroze
+    exp_alerts:
+    - exp_labels:
+        instance: 192.168.1.243:9100
+        job: node-exporter
+        severity: warning
+      exp_annotations:
+        summary: "192.168.1.243:9100 froze \u2014 node-exporter went silent for ~1\
+          \ min or more in the last 5 min"
+- name: 'NodeFroze: an unbroken series is silent'
+  interval: 30s
+  input_series:
+  - series: node_memory_MemAvailable_bytes{instance="192.168.1.243:9100",job="node-exporter"}
+    values: 5e9x20
+  alert_rule_test:
+  - eval_time: 8m
+    alertname: NodeFroze
+    exp_alerts: []
+- name: 'NodeFroze: one missed scrape (normal jitter) is silent'
+  interval: 30s
+  input_series:
+  - series: node_memory_MemAvailable_bytes{instance="192.168.1.243:9100",job="node-exporter"}
+    values: 5e9 5e9 5e9 5e9 5e9 5e9 5e9 _ 5e9 5e9 5e9 5e9 5e9 5e9 5e9 5e9
+  alert_rule_test:
+  - eval_time: 6m
+    alertname: NodeFroze
+    exp_alerts: []
+- name: 'CassandraDown: parked (wants 0, has 0) is silent'
+  interval: 1m
+  input_series:
+  - series: kube_statefulset_replicas{namespace="data-mesh",statefulset="cassandra",instance="ksm"}
+    values: '0x15'
+  - series: kube_statefulset_status_replicas_ready{namespace="data-mesh",statefulset="cassandra",instance="ksm"}
+    values: '0x15'
+  alert_rule_test:
+  - eval_time: 12m
+    alertname: CassandraDown
+    exp_alerts: []
+- name: 'CassandraDown: broken (wants 1, has 0 for 10m) fires'
+  interval: 1m
+  input_series:
+  - series: kube_statefulset_replicas{namespace="data-mesh",statefulset="cassandra",instance="ksm"}
+    values: 1x15
+  - series: kube_statefulset_status_replicas_ready{namespace="data-mesh",statefulset="cassandra",instance="ksm"}
+    values: '0x15'
+  alert_rule_test:
+  - eval_time: 12m
+    alertname: CassandraDown
+    exp_alerts:
+    - exp_labels:
+        namespace: data-mesh
+        statefulset: cassandra
+        severity: warning
+- name: 'CassandraDown: running (wants 1, has 1) is silent'
+  interval: 1m
+  input_series:
+  - series: kube_statefulset_replicas{namespace="data-mesh",statefulset="cassandra",instance="ksm"}
+    values: 1x15
+  - series: kube_statefulset_status_replicas_ready{namespace="data-mesh",statefulset="cassandra",instance="ksm"}
+    values: 1x15
+  alert_rule_test:
+  - eval_time: 12m
+    alertname: CassandraDown
+    exp_alerts: []
+- name: 'MongodbDown: parked (wants 0, has 0) is silent'
+  interval: 1m
+  input_series:
+  - series: kube_deployment_spec_replicas{namespace="data-mesh",deployment="mongodb",instance="ksm"}
+    values: '0x15'
+  - series: kube_deployment_status_replicas_available{namespace="data-mesh",deployment="mongodb",instance="ksm"}
+    values: '0x15'
+  alert_rule_test:
+  - eval_time: 12m
+    alertname: MongodbDown
+    exp_alerts: []
+- name: 'MongodbDown: broken (wants 1, has 0 for 10m) fires'
+  interval: 1m
+  input_series:
+  - series: kube_deployment_spec_replicas{namespace="data-mesh",deployment="mongodb",instance="ksm"}
+    values: 1x15
+  - series: kube_deployment_status_replicas_available{namespace="data-mesh",deployment="mongodb",instance="ksm"}
+    values: '0x15'
+  alert_rule_test:
+  - eval_time: 12m
+    alertname: MongodbDown
+    exp_alerts:
+    - exp_labels:
+        namespace: data-mesh
+        deployment: mongodb
+        severity: warning
+- name: 'MongodbDown: running (wants 1, has 1) is silent'
+  interval: 1m
+  input_series:
+  - series: kube_deployment_spec_replicas{namespace="data-mesh",deployment="mongodb",instance="ksm"}
+    values: 1x15
+  - series: kube_deployment_status_replicas_available{namespace="data-mesh",deployment="mongodb",instance="ksm"}
+    values: 1x15
+  alert_rule_test:
+  - eval_time: 12m
+    alertname: MongodbDown
+    exp_alerts: []
+- name: 'CockroachdbDown: parked (wants 0, has 0) is silent'
+  interval: 1m
+  input_series:
+  - series: kube_deployment_spec_replicas{namespace="data-mesh",deployment="cockroachdb",instance="ksm"}
+    values: '0x15'
+  - series: kube_deployment_status_replicas_available{namespace="data-mesh",deployment="cockroachdb",instance="ksm"}
+    values: '0x15'
+  alert_rule_test:
+  - eval_time: 12m
+    alertname: CockroachdbDown
+    exp_alerts: []
+- name: 'CockroachdbDown: broken (wants 1, has 0 for 10m) fires'
+  interval: 1m
+  input_series:
+  - series: kube_deployment_spec_replicas{namespace="data-mesh",deployment="cockroachdb",instance="ksm"}
+    values: 1x15
+  - series: kube_deployment_status_replicas_available{namespace="data-mesh",deployment="cockroachdb",instance="ksm"}
+    values: '0x15'
+  alert_rule_test:
+  - eval_time: 12m
+    alertname: CockroachdbDown
+    exp_alerts:
+    - exp_labels:
+        namespace: data-mesh
+        deployment: cockroachdb
+        severity: warning
+- name: 'CockroachdbDown: running (wants 1, has 1) is silent'
+  interval: 1m
+  input_series:
+  - series: kube_deployment_spec_replicas{namespace="data-mesh",deployment="cockroachdb",instance="ksm"}
+    values: 1x15
+  - series: kube_deployment_status_replicas_available{namespace="data-mesh",deployment="cockroachdb",instance="ksm"}
+    values: 1x15
+  alert_rule_test:
+  - eval_time: 12m
+    alertname: CockroachdbDown
+    exp_alerts: []
+- name: 'SupersetWorkerDown: parked (wants 0, has 0) is silent'
+  interval: 1m
+  input_series:
+  - series: kube_deployment_spec_replicas{namespace="data-mesh",deployment="superset-worker",instance="ksm"}
+    values: '0x15'
+  - series: kube_deployment_status_replicas_available{namespace="data-mesh",deployment="superset-worker",instance="ksm"}
+    values: '0x15'
+  alert_rule_test:
+  - eval_time: 12m
+    alertname: SupersetWorkerDown
+    exp_alerts: []
+- name: 'SupersetWorkerDown: broken (wants 1, has 0 for 10m) fires'
+  interval: 1m
+  input_series:
+  - series: kube_deployment_spec_replicas{namespace="data-mesh",deployment="superset-worker",instance="ksm"}
+    values: 1x15
+  - series: kube_deployment_status_replicas_available{namespace="data-mesh",deployment="superset-worker",instance="ksm"}
+    values: '0x15'
+  alert_rule_test:
+  - eval_time: 12m
+    alertname: SupersetWorkerDown
+    exp_alerts:
+    - exp_labels:
+        namespace: data-mesh
+        deployment: superset-worker
+        severity: warning
+- name: 'SupersetWorkerDown: running (wants 1, has 1) is silent'
+  interval: 1m
+  input_series:
+  - series: kube_deployment_spec_replicas{namespace="data-mesh",deployment="superset-worker",instance="ksm"}
+    values: 1x15
+  - series: kube_deployment_status_replicas_available{namespace="data-mesh",deployment="superset-worker",instance="ksm"}
+    values: 1x15
+  alert_rule_test:
+  - eval_time: 12m
+    alertname: SupersetWorkerDown
+    exp_alerts: []

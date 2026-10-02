@@ -66,6 +66,26 @@ a page-cache thrash that freezes the whole node, k3s included, **without an OOM 
 OOM backstop only fires when even that fails. If a pod died, check `journalctl -k | grep -i oom_memcg` on mother;
 if nothing died but the node went silent, it was the thrash below.
 
+## The two freeze alerts (B199, 2026-10-02)
+
+The generic threshold alerts (`NodeMemoryCritical` > 95% used, the built-in `NodeMemoryHighUtilization` > 90%) fired
+~57 times in 13 days and became background — and the freeze itself never reported, because Prometheus runs ON mother
+and freezes with it. Two specific alerts in `k8s/monitoring/node-memory-alerts.yaml`:
+
+| Alert | Fires when | Why that threshold |
+|---|---|---|
+| `NodeMemoryThrashing` (critical) | tasks stall on memory (PSI `node_pressure_memory_waiting`) > 10% of the time for 2 min | 17.2% at the 09-30 freeze, 6.1% at the busiest pre-park midday, 2.5% on a parked night |
+| `NodeFroze` (warning) | node-exporter missed 2+ of its 10 samples in 5 min (≥ ~60-90s of silence), seen after recovery | records every freeze, once — the count the 7-night acceptance needs |
+
+Replayed over 13.5 days of history: `NodeMemoryThrashing` would have fired **4 times, each at a real freeze** (09-21
+02:43, 09-26 07:36, 09-29 01:01, 10-01 02:36) and never otherwise; `NodeFroze` **17 times, one per freeze episode**.
+Behaviour is pinned by promtool unit tests on the real rule text (`scripts/tests/alert-rules.bats`, fixtures in
+`scripts/tests/fixtures/alert-rules/`), run in CI's shell-tests step (Alpine `prometheus` = promtool).
+
+**When `NodeMemoryThrashing` pages:** something just pushed mother over — check what started in the last minutes
+(a CI run, a CronJob, a woken store), and free memory: `bash scripts/store-park.sh park <store>` + push, or stop the job.
+**When `NodeFroze` pages:** a freeze already happened and recovered; look at MemAvailable and `pgmajfault` around it.
+
 ## Parked stores (B199, 2026-10-01 — undo with B134 when hardware lands)
 
 **Parked by default** (`replicas: 0` committed to git; Argo enforces it, so a live scale is reverted within ~3 min):

@@ -31,6 +31,30 @@ spec:
           annotations:
             summary: "{{ $labels.instance }} memory {{ $value | humanizePercentage }} used — OOM imminent"
             description: "Node is near total RAM exhaustion. The OOM-killer is about to rampage (it takes down trino/network/etc and the node goes unreachable — the 2026-07-22 incident). Act NOW: `kubectl top pods -A --sort-by=memory | tail`, then delete/scale the offender."
+        # --- B199 (2026-10-02): the page-cache-thrash freeze ---
+        # mother froze 27 times in 13 days with NodeMemoryCritical firing ~1.6x/day among ~4 memory alerts/day — the
+        # threshold alerts became background, and the freeze itself never reported (Prometheus runs ON mother, so it
+        # freezes too). These two are specific: THRASHING is the leading signal, FROZE is the after-the-fact record.
+        #
+        # Thrashing: share of time tasks stall waiting on memory (PSI). Measured: 17.2% during the 09-30 freeze, 6.1%
+        # at the busiest pre-park midday (no freeze), 2.5% on a parked night. 10% for 2m sits between them.
+        - alert: NodeMemoryThrashing
+          expr: rate(node_pressure_memory_waiting_seconds_total{job="node-exporter"}[2m]) > 0.10
+          for: 2m
+          labels: { severity: critical }
+          annotations:
+            summary: "{{ $labels.instance }} is thrashing on memory ({{ $value | humanizePercentage }} of time stalled) — a node freeze is minutes away"
+            description: "Tasks are stalling on page-cache reclaim; without swap this freezes the whole node (k3s included) for 1-3 min with no OOM kill (B199). Free memory now: park a store (`bash scripts/store-park.sh park <store>` + push) or stop the job that just started. Runbook: docs/runbooks/node-capacity.md."
+        # Froze: node-exporter is scraped every 30s (10 samples per 5m). 2+ missing = >= 60-90s of total silence — the
+        # node was frozen. Evaluated after recovery, so it reports every freeze, once, for the next ~5 min.
+        - alert: NodeFroze
+          expr: |
+            count_over_time(node_memory_MemAvailable_bytes{job="node-exporter"}[5m]) < 9
+            and count_over_time(node_memory_MemAvailable_bytes{job="node-exporter"}[5m]) > 0
+          labels: { severity: warning }
+          annotations:
+            summary: "{{ $labels.instance }} froze — node-exporter went silent for ~1 min or more in the last 5 min"
+            description: "A node-wide freeze (B199 class): k3s, CI tasks and every scrape stalled. Usually memory thrash — check MemAvailable and pgmajfault around it. Runbook: docs/runbooks/node-capacity.md § The overnight stalls."
         # Meta: node-exporter gone → the two above can't fire. absent() catches that blind spot.
         - alert: NodeExporterMissing
           expr: absent(node_memory_MemAvailable_bytes)
