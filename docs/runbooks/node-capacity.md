@@ -86,6 +86,23 @@ Behaviour is pinned by promtool unit tests on the real rule text (`scripts/tests
 (a CI run, a CronJob, a woken store), and free memory: `bash scripts/store-park.sh park <store>` + push, or stop the job.
 **When `NodeFroze` pages:** a freeze already happened and recovered; look at MemAvailable and `pgmajfault` around it.
 
+## Telegram noise (B199, 2026-10-02)
+
+3,618 Telegram messages in 14 days (~258/day; Alertmanager received 169,142 alert posts) — the volume that buried
+real pages, including 13 days of no MinIO backup. Measured by rebuilding each `(alertname, namespace)` group's
+messages from `ALERTS` history (fire + 4h repeats + membership changes + resolve) against
+`alertmanager_notifications_total{integration="telegram"}`:
+
+| Source | 14-day msgs | Fix |
+|---|---|---|
+| `dagster-freshness-check` (`*/30`) posted alerts with no `endsAt` → auto-resolved in 5m → a NEW firing+resolved pair every run (~96/day per stuck job) | ~2,400 | `endsAt` 45m ahead: one continuous alert, 4h repeats, one resolve (`k8s/dagster/freshness.yaml`, tested in `dagster-freshness.bats`) |
+| Built-ins `NodeMemoryMajorPagesFaults` + `NodeMemoryHighUtilization` | ~287 | disabled (`defaultRules.disabled`) — replaced by `NodeMemoryThrashing` / `NodeFroze` |
+| `InfoInhibitor` (must never notify; the values file's route tree dropped the chart's null route) | 40 | routed to `null` (amtool route test) |
+
+Kept on purpose: the three daily synthetic posters (auto-resolve = 2 msgs/day; persistent would add 4h repeats);
+`KubeJobFailed` (covers every Job — `ScheduledJobFailed` lists only 20); `NodeMemoryRequestsNearCeiling` (requests,
+not usage). Open: `LiteLLMEgressEnabled` / `BifrostSpendObserved` page every 4h about deliberate states (owner call).
+
 ## Parked stores (B199, 2026-10-01 — undo with B134 when hardware lands)
 
 **Parked by default** (`replicas: 0` committed to git; Argo enforces it, so a live scale is reverted within ~3 min):

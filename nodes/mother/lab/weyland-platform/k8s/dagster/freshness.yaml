@@ -19,8 +19,10 @@
 # the QUERY was wrong. Revisit the native sensor on a Dagster major upgrade.
 #
 # Meshed for STRICT-mTLS Postgres; weyland ns (same ns as dagster + its PG secret).
-# NOTE: alerts carry no endsAt, so Alertmanager auto-resolves them after `resolve_timeout` (5m) and this CronJob
-# re-fires them every 30m while the condition persists — deliberate: a stuck job should keep nagging.
+# NOTE: alerts carry an endsAt 45m ahead (> the 30m cadence), so a persisting condition is ONE continuous alert:
+# Telegram sends it once, repeats every 4h (Alertmanager repeat_interval), and resolves once ~45m after it clears.
+# Before 2026-10-02 they had no endsAt and auto-resolved in 5m, so every run re-fired a new firing+resolved pair —
+# ~2,400 of 3,618 Telegram messages in 14 days (B199 noise fix). A stuck job still nags, every 4h not every 30m.
 apiVersion: batch/v1
 kind: CronJob
 metadata:
@@ -94,8 +96,12 @@ spec:
 
                   fire() {   # fire <alertname> <job> <severity> <summary> <description>
                     echo "ALERT $1 job=$2 :: $4"
+                    # endsAt 45m ahead (> the 30m cadence): each run EXTENDS one continuous alert instead of posting a new
+                    # one that auto-resolves in 5m — a firing+resolved Telegram pair every run (~96/day per stuck job).
+                    # Alertmanager then sends once, repeats every 4h while it persists, resolves once (B199, 2026-10-02).
+                    ends="$(date -u -d "@$(( $(date +%s) + 2700 ))" +%Y-%m-%dT%H:%M:%SZ)"
                     wget -q -O- --header='Content-Type: application/json' \
-                      --post-data="[{\"labels\":{\"alertname\":\"$1\",\"severity\":\"$3\",\"namespace\":\"weyland\",\"job_name\":\"$2\",\"source\":\"dagster-watchdog\"},\"annotations\":{\"summary\":\"$4\",\"description\":\"$5\"}}]" \
+                      --post-data="[{\"labels\":{\"alertname\":\"$1\",\"severity\":\"$3\",\"namespace\":\"weyland\",\"job_name\":\"$2\",\"source\":\"dagster-watchdog\"},\"annotations\":{\"summary\":\"$4\",\"description\":\"$5\"},\"endsAt\":\"$ends\"}]" \
                       "$AM" || echo "  !! alertmanager POST failed"
                   }
 

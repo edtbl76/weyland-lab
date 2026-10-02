@@ -20,6 +20,16 @@ kubeScheduler:
 kubeProxy:
   enabled: false
 
+# Built-in rules turned off because a specific lab rule replaced them (B199 noise fix, 2026-10-02). They fired ~287
+# Telegram messages in 14 days without ever distinguishing "busy" from "about to freeze":
+#   NodeMemoryMajorPagesFaults (158) and NodeMemoryHighUtilization (129) → replaced by NodeMemoryThrashing (PSI) and
+#   NodeFroze in k8s/monitoring/node-memory-alerts.yaml (replayed: 4 thrash fires in 13.5 days, all at real freezes).
+# NodeMemoryCritical (> 95% used) stays. KubeJobFailed stays: it covers every Job, the lab's ScheduledJobFailed only 20.
+defaultRules:
+  disabled:
+    NodeMemoryMajorPagesFaults: true
+    NodeMemoryHighUtilization: true
+
 alertmanager:
   enabled: true
   config:
@@ -30,6 +40,12 @@ alertmanager:
       group_interval: 5m
       repeat_interval: 4h
       routes:
+        # InfoInhibitor exists only to inhibit severity=info alerts; it must never notify. The chart's default config
+        # routes it to "null", but this values file replaces the whole route tree, so it reached Telegram (40 messages
+        # in 14 days) — B199 noise fix, 2026-10-02.
+        - receiver: 'null'
+          matchers:
+            - alertname = "InfoInhibitor"
         # B69 dead-man's-switch: the always-firing Watchdog pings hc-ping.com every 5m. If the pings STOP
         # (Prometheus/Alertmanager/the whole cluster is dead), healthchecks.io alerts you EXTERNALLY — the one
         # thing an in-cluster monitor can't do.

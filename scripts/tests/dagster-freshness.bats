@@ -93,3 +93,19 @@ rows() {
   [ "$status" -ne 0 ]
   grep -q 'quitquitquit' "$STUB_LOG"
 }
+
+# B199 noise fix (2026-10-02): alerts used to carry no endsAt, so Alertmanager resolved each after 5m and this */30
+# check re-fired a NEW alert every run — a "firing" + "resolved" Telegram pair twice an hour per stuck job (~96/day;
+# ~2,400 of the 3,618 messages in 14 days). An endsAt beyond the 30-min cadence keeps it ONE continuous alert:
+# one message, the 4h repeat while it persists, one resolved when it clears.
+@test "a fired alert carries an endsAt ~45 min ahead, so each run extends ONE alert instead of a new pair" {
+  stub psql 0 "$(rows 'weyland_dbt_job|FAILURE|600')"
+  run sh "$LOGIC"
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"ALERT DagsterJobFailed"* ]]
+  body="$(grep -m1 'post-data' "$STUB_LOG")"
+  [[ "$body" == *'"endsAt":"'* ]] || { echo "no endsAt: $body"; return 1; }
+  ends="$(printf '%s' "$body" | sed -E 's/.*"endsAt":"([^"]+)".*/\1/')"
+  secs=$(( $(date -u -d "$(echo "$ends" | sed 's/T/ /;s/Z//')" +%s) - $(date -u +%s) ))
+  [ "$secs" -ge 2400 ] && [ "$secs" -le 3000 ] || { echo "endsAt $ends is ${secs}s away, want 40-50 min"; return 1; }
+}

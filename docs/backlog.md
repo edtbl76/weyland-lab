@@ -2461,7 +2461,9 @@ config untouched). Alerts done 2026-10-02: `NodeMemoryThrashing` (PSI > 10%, 2m 
 and `NodeFroze` (scrape gap; 17 = one per freeze episode), promtool-tested in CI (`alert-rules.bats`). Night 1 (10-01→02)
 clean: 0 freezes, min MemAvailable 9.1 GB, 01:00 build passed. Live 2026-10-02: both rules loaded and evaluating (health ok);
 Telegram drill — a DRILL `NodeFroze` posted to Alertmanager was delivered (telegram sent 13,409 → 13,410, failed
-unchanged at 17). Still open: nights 2–7.
+unchanged at 17). Telegram noise cut 2026-10-02 (`node-capacity.md` § Telegram noise): dagster-freshness
+posts one continuous alert (`endsAt`), two superseded built-in memory alerts disabled, `InfoInhibitor` → null — ~2,700
+of 3,618 messages/14d. Still open: nights 2–7; `LiteLLMEgressEnabled` / `BifrostSpendObserved` (owner decision).
 
 ### B198 — Placement inventory: where every workload runs, and whether it can move — DONE (2026-09-28; was HIGH, Linear EMA-257)
 
