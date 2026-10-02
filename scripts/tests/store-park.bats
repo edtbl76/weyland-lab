@@ -92,3 +92,26 @@ replicas_of() {  # replicas_of <store> -> the replica count git sets
   [ "$status" -eq 2 ]
   [[ "$output" == *"cluster"* ]]
 }
+
+# wait must SAY what it is waiting for — silent polling read as a hang in the first live drill (2026-10-01).
+@test "wait prints progress while the cluster catches up, then reports Ready" {
+  mkdir -p "$T/bin"; echo 0 > "$T/n"
+  cat > "$T/bin/kubectl" <<'STUB'
+#!/usr/bin/env bash
+n=$(cat "$STUB_N"); echo $((n+1)) > "$STUB_N"
+if [ "$n" -lt 2 ]; then printf '0/'; else printf '1/1'; fi
+STUB
+  chmod +x "$T/bin/kubectl"
+  bash "$S" wake cockroachdb >/dev/null
+  run env -u STORE_PARK_NO_KUBECTL PATH="$T/bin:$PATH" STUB_N="$T/n" STORE_PARK_POLL=0 STORE_PARK_PROGRESS_EVERY=1 bash "$S" wait cockroachdb
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"waiting"*"git wants 1"*"desired=0"* ]]
+  [[ "$output" == *"cockroachdb: Ready (1/1)"* ]]
+}
+
+@test "wake points at the sync that skips Argo's ~3 min poll" {
+  run bash "$S" wake cassandra
+  [[ "$output" == *"argocd app sync data-mesh"* ]]
+  run bash "$S" wake superset-worker
+  [[ "$output" == *"argocd app sync superset"* ]]
+}

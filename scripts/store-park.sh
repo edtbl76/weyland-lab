@@ -18,6 +18,8 @@ REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 K="${STORE_PARK_ROOT:-$REPO_ROOT/nodes/mother/lab/weyland-platform/k8s}"   # bats seam: a copy of the manifests
 STORES="cassandra mongodb cockroachdb superset-worker"
 WAIT_TIMEOUT="${STORE_PARK_WAIT_TIMEOUT:-600}"
+POLL="${STORE_PARK_POLL:-10}"                     # seconds between checks (bats sets 0)
+PROGRESS_EVERY="${STORE_PARK_PROGRESS_EVERY:-3}"  # print a progress line every N checks (~30s)
 
 die() { printf '%s\n' "$*" >&2; exit 2; }
 
@@ -29,6 +31,7 @@ file_of() {
   esac
 }
 kind_of() { case "$1" in cassandra) echo statefulset ;; *) echo deployment ;; esac; }
+app_of() { case "$1" in superset-worker) echo superset ;; *) echo data-mesh ;; esac; }   # its Argo application
 
 # replica_line <store> -> "<line-number> <value>" of the ONE line that sets its replicas; fails closed otherwise.
 # Data-mesh stores: the workload's `  replicas: N` (the only 2-space `replicas:` in the file). Superset worker: the
@@ -86,7 +89,11 @@ case "$cmd" in
     for s in $list; do set_replicas "$s" "$want"; done
     if [ -n "$CHANGED" ]; then
       echo
-      echo "Now commit + push the file(s) above with git (this script never pushes); Argo applies it within ~3 min. Then:"
+      apps="$(for s in $list; do app_of "$s"; done | sort -u | tr '\n' ' ')"
+      echo "Now commit + push the file(s) above with git (this script never pushes). Argo applies it on its own"
+      echo "within ~3 min; to apply it now instead:"
+      for a in $apps; do echo "  argocd app sync $a"; done
+      echo "Then wait until it is really there:"
       echo "  bash $REPO_ROOT/scripts/store-park.sh wait $target"
     fi ;;
   wait)
@@ -96,17 +103,23 @@ case "$cmd" in
     deadline=$(( $(date +%s) + WAIT_TIMEOUT ))
     for s in $list; do
       rl="$(replica_line "$s")" || exit 2; read -r _ want <<<"$rl"
+      n=0
       while :; do
         st="$(live "$s")"; desired="${st%/*}"; ready="${st#*/}"; ready="${ready:-0}"
         [ "$st" = "?" ] && die "$s: cannot read its state from the cluster — not reporting Ready"
         if [ "$desired" = "$want" ] && [ "$ready" = "$want" ]; then
           echo "$s: $( [ "$want" = 1 ] && echo "Ready (1/1)" || echo "parked (0/0)" )"; break
         fi
+        n=$((n + 1))
+        if [ $((n % PROGRESS_EVERY)) -eq 1 ] || [ "$PROGRESS_EVERY" -eq 1 ]; then
+          hint=""; [ "$desired" != "$want" ] && hint=" — Argo has not applied the push yet (argocd app sync $(app_of "$s") to skip the ~3 min poll)"
+          echo "$s: waiting — git wants $want, cluster has desired=$desired ready=$ready$hint"
+        fi
         if [ "$(date +%s)" -ge "$deadline" ]; then
           echo "$s: NOT there yet — git wants $want, cluster has desired=$desired ready=$ready (pushed? Argo synced?)" >&2
           exit 1
         fi
-        sleep 10
+        sleep "$POLL"
       done
     done ;;
   *) die "usage: store-park.sh status | wake <store|all> | park <store|all> | wait <store|all>   (stores: $STORES)" ;;
