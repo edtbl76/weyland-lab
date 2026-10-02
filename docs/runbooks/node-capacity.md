@@ -79,9 +79,23 @@ if nothing died but the node went silent, it was the thrash below.
 
 **ClickHouse is NOT parked** — Langfuse uses it as its live trace store (`k8s/langfuse/langfuse.yaml`).
 
-**Wake one** (e.g. to run a hydrate job or a notebook against it): set its `replicas` to `1` in the manifest, push, and
-wait for Argo. **Park it again** by setting it back to `0` and pushing. The store-scaler easy button does NOT stick
-(selfHeal reverts it). While parked:
+**Wake one** (e.g. to run a hydrate job or a notebook against it) — the script edits the one line in git; you push:
+
+[rogueone]
+```
+bash /home/edwardmangini/IdeaProjects/weyland/scripts/store-park.sh wake cockroachdb
+```
+Push the file it names, then wait until it is really Ready (exit 0 = Ready, 1 = not there within 10 min, 2 = could
+not ask the cluster):
+
+[rogueone]
+```
+bash /home/edwardmangini/IdeaProjects/weyland/scripts/store-park.sh wait cockroachdb
+```
+**Park it again** the same way with `park` (then push and `wait`). `status` shows every store's git setting next to
+what is running; `all` works in place of a store name. Stores: `cassandra`, `mongodb`, `cockroachdb`,
+`superset-worker`. Tested in `scripts/tests/store-park.bats`. The store-scaler easy button does NOT stick (selfHeal
+reverts a live scale) — git is the only switch. While parked:
 - Its Down alert stays silent — the alerts compare running to DESIRED replicas (`scripts/tests/parked-store-alerts.bats`).
 - Its weekly DataHub ingestion is turned off in DataHub's UI and listed as parked in the ingestion watchdog.
 - The daily `datahub_catalog_emit_job` logs a warning for the CockroachDB profile step and carries on.
