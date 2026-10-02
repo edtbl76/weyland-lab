@@ -36,6 +36,15 @@ ACCEPTED_ON_DEMAND = {
     "urn:li:dataHubIngestionSource:cli-151c2b7711eb626e440af8c75a9082e9":
         "[CLI] dbt — created by a one-off `datahub ingest` CLI run (2026-07-12); scheduled dbt ingestion is 'dbt - Weyland'",
 }
+# Sources whose store is PARKED by default (replicas: 0 in git) — B199, 2026-10-01. Keyed by NAME (the ingestion-source
+# URNs are UI-generated and not recorded anywhere). While parked, the ingestion either fails (store down) or has its
+# schedule paused in DataHub; neither is news. Undo with B134 (EMA-195) § Undo on hardware: remove the name here.
+_PARKED_WHY = "store parked by default (replicas: 0) — B199 2026-10-01; un-park with B134 (EMA-195)"
+PARKED = {
+    "Cassandra - Weyland": _PARKED_WHY,
+    "CockroachDB - Weyland": _PARKED_WHY,
+    "MongoDB - Weyland": _PARKED_WHY,
+}
 QUERY = ("query($start:Int!,$count:Int!){ listIngestionSources(input:{start:$start,count:$count}) { total "
          "ingestionSources { urn name type schedule { interval timezone } "
          f"executions(start:0,count:{RUNS}) "
@@ -85,6 +94,8 @@ def _runs(source):
 
 def _verdict(source, now, factor):
     name, cron = source["name"], (source.get("schedule") or {}).get("interval")
+    if name in PARKED:
+        return None
     runs = _runs(source)
     if not cron:
         if source["urn"] in ACCEPTED_ON_DEMAND:

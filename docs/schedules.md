@@ -65,9 +65,9 @@ Heavy = embeds/writes or large scans (guard the node's RAM). Light = metadata/re
 | **05:55** | k8s CronJob | `datahub-ingestion-watchdog` (**B197** — per DataHub ingestion source, from GMS GraphQL: latest run FAILURE/ABORTED → `DataHubIngestionFailed`; no SUCCESS within 2x its schedule (1h floor) → `DataHubIngestionStale` (catches runs orphaned in RUNNING); a scheduled source that never ran → `DataHubIngestionNeverRan`; posted to Alertmanager → Telegram. Exists because `dbt - Weyland` and `MLFlow - Weyland` failed daily for 10+ days in silence. GMS unreachable or an empty/partial source list = exit 2 → `ScheduledJobFailed`. ns `weyland` (the `datahub-token` Secret), unmeshed. Script embedded byte-identical (`scripts/embed-datahub-ingestion-watchdog.sh`, asserted in bats). Covered by the daily `ScheduledJobStale` (26h) + `ScheduledJobFailed`. `spec.timeZone: America/New_York`.) | daily | **light** — one paged GraphQL read, ~2s; 48Mi/25m. At 05:55: after the last daily DataHub ingestion (dbt 05:00) and the Sunday scans (04:15–04:45), before the 06:00 Sunday `weyland_dbt_job`. Daily, not `*/30`: Design Rule #5 and the `pr-staleness-check` lesson — a re-fired alert is a new Telegram message. |
 | 03:00 | DataHub | Neo4j | daily | light |
 | 03:15 | DataHub | Postgres (weyland core) | daily | med |
-| **03:30** | DataHub | **CockroachDB** | weekly (Sun) | med |
-| 03:45 | DataHub | MongoDB | weekly (Sun) | med |
-| 04:15 | DataHub | Cassandra (datasets_music + datasets_health) | weekly (Sun) | med — profiling excl. lastfm |
+| ~~03:30~~ | DataHub | ~~**CockroachDB**~~ — **PAUSED while the store is parked (B199, 2026-10-01)**; schedule off in DataHub, re-enable with B134. (DataHub actually ran it **daily**, not weekly as this row said — corrected 2026-10-01 from the DataHub UI.) | ~~daily~~ | — |
+| ~~03:45~~ | DataHub | ~~MongoDB~~ — **PAUSED while the store is parked (B199)**; re-enable with B134. (Ran **daily** in DataHub, not weekly — corrected 2026-10-01.) | ~~daily~~ | — |
+| ~~04:15~~ | DataHub | ~~Cassandra (datasets_music + datasets_health)~~ — **PAUSED while the store is parked (B199)**; re-enable with B134 | ~~weekly (Sun)~~ | — |
 | 04:30 | DataHub | ClickHouse (datasets_music + datasets_health) | weekly (Sun) | med — profiling cheap (columnar) |
 | 04:45 | DataHub | Postgres — MusicBrainz | weekly (Sun) | **heavy scan** |
 | 05:00 | DataHub | dbt (marts + tests-as-assertions + column lineage; reads `s3://warehouse/_dbt_artifacts/`, siblings onto `iceberg.dbt.*`) | daily | light — recommend 05:00 to clear the 01:00–04:45 DataHub train. Daily connector over **weekly** (Sun 06:00) artifacts = harmless idempotent re-ingest most days; fresh artifacts land ≤1 day after a build. |
@@ -165,6 +165,11 @@ scaled down — they back live services or the mesh.
    three days. Guarded: `scripts/check-cron-freshness-budgets.sh` fails on a CronJob with no TTL or one under 24h.
 
 ## Change log
+- 2026-10-01 — **B199: Cassandra, MongoDB, CockroachDB and the Superset worker parked by default** (`replicas: 0` in
+  git) to stop mother's overnight page-cache-thrash freezes (27 in 13 days). Their DataHub ingestions — CockroachDB
+  03:30 and MongoDB 03:45 (both actually DAILY, not weekly as documented) and Cassandra Sun 04:15 — are PAUSED in
+  DataHub while parked; the watchdog lists the three as parked (`datahub_ingestion_check.py` PARKED). Undo with B134 (EMA-195) § Undo on hardware;
+  runbook `node-capacity.md` § Parked stores.
 - 2026-09-29 — **B180: every host timer now has a row, and the host check keeps it true.** `placement.yaml` tracks
   mother/rogueone/whisper systemd units + host config files; `placement_check.py --hosts` (inside the nightly
   `machine-inv-drift`) proves each is installed, identical to its repo copy, not failed, and — for a timer — fired

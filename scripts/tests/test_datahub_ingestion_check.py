@@ -183,3 +183,27 @@ def test_main_is_1_when_an_alert_cannot_be_delivered(monkeypatch):
     monkeypatch.setattr(dh, "_gms", lambda url, token: lambda q, v: _page([_src("bad", runs=[_run("FAILURE", H)])]))
     monkeypatch.setattr(dh, "_post_alert", boom)
     assert dh.main(["--gms", "http://gms", "--alertmanager", "http://am", "--token", "t"]) == 1
+
+
+# --- B199 (2026-10-01): sources whose store is parked by default (replicas: 0) --------------------------------------
+# Their ingestion either fails (store down) or has its schedule paused; neither is news while the store is parked.
+# Undo with B134 (EMA-195) — remove the name from PARKED when the store is un-parked.
+
+def test_a_parked_source_whose_latest_run_failed_is_quiet():
+    s = _src("MongoDB - Weyland", runs=[_run("FAILURE", H)])
+    assert dh.verdicts([s], NOW) == []
+
+
+def test_a_parked_source_with_its_schedule_paused_is_quiet():
+    s = _src("CockroachDB - Weyland", cron=None, runs=[_run("SUCCESS", 30 * 24 * H)])
+    assert dh.verdicts([s], NOW) == []
+
+
+def test_the_three_parked_sources_are_exactly_the_parked_stores():
+    assert set(dh.PARKED) == {"Cassandra - Weyland", "CockroachDB - Weyland", "MongoDB - Weyland"}
+    assert all("B199" in why and "B134" in why for why in dh.PARKED.values())
+
+
+def test_a_source_that_is_not_parked_still_alerts_on_failure():
+    s = _src("Clickhouse - Weyland", runs=[_run("FAILURE", H)])
+    assert [v[0] for v in dh.verdicts([s], NOW)] == ["DataHubIngestionFailed"]

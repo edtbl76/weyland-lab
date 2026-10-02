@@ -3810,6 +3810,24 @@ Linear: EMA-195. Surfaced during the B133 DoD sweep. Relates B130 (backups), [[s
 
 ---
 
+**Undo on hardware (added 2026-10-01 by B199, owner's request — do this when the new hardware lands).** To stop
+mother freezing from page-cache thrash before the hardware arrives (B199, EMA-258), four always-on workloads were
+**parked by default** — `replicas: 0` committed to git, so Argo enforces it. When the new hardware is in and mother
+has headroom, reverse every item below in one change:
+
+| Parked | Where | Undo |
+|---|---|---|
+| Cassandra | `k8s/data-mesh/cassandra.yaml` (StatefulSet) | `replicas: 0` → `1` |
+| MongoDB | `k8s/data-mesh/mongodb.yaml` | `replicas: 0` → `1` |
+| CockroachDB | `k8s/data-mesh/cockroachdb.yaml` | `replicas: 0` → `1` |
+| Superset Celery worker | `k8s/superset/superset-values.yaml` `supersetWorker.replicas.replicaCount` | `0` → `1` (or drop the block) |
+| DataHub ingestions for those three stores (`CockroachDB - Weyland` daily 03:30, `MongoDB - Weyland` daily 03:45, `Cassandra - Weyland` Sun 04:15) | DataHub UI → Ingestion → each source → re-enable its schedule | restore the schedule; remove the three names from `PARKED` in `scripts/datahub_ingestion_check.py`, then `scripts/embed-datahub-ingestion-watchdog.sh` |
+| Docs that say "parked" | `docs/runbooks/node-capacity.md` § Parked stores, `docs/schedules.md`, `placement.yaml` rows | revert the notes |
+
+Keep the B199 alert change: `CassandraDown` / `MongodbDown` / `CockroachdbDown` / `SupersetWorkerDown` now compare
+running to DESIRED replicas, which is correct whether a store is parked or not (`scripts/tests/parked-store-alerts.bats`).
+ClickHouse was NOT parked — Langfuse uses it as its live trace store.
+
 ### B135 — Automate the image build→deploy cadence (script / skill / agent) — **DONE (2026-08-23)**
 
 **Shipped: `scripts/ship-images.sh`** — the seven-step hand-run loop is now one command with machine gates. It short-circuits without triggering a pipeline when nothing changed, triggers and polls Woodpecker, closes superseded bump PRs, merges the new one only under three conditions, syncs **only the affected** Argo apps, then verifies against the live cluster. Approval did not disappear; it stopped being a human click. In a solo lab reviewer, approver and on-call are the same person, so a click adds no independent judgement — the gate replaces it with something that cannot be absent-mindedly waved through.

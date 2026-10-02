@@ -60,9 +60,54 @@ kubectl top pods -A --sort-by=memory | head -15
   fleet → **aggregate saturation** (the baseline crept up), not a leak. There is nothing to "fix" at
   the process level — this is a capacity-shape problem.
 
-**What it is NOT:** with swap disabled, the node does not silently degrade — it either has headroom or
-the kernel OOM-kills the largest offender. If a pod died, that's the backstop working, not a bug.
-Trace which cgroup was killed with `journalctl -k | grep -i oom_memcg` on mother.
+**Correction (B199, 2026-10-01): with swap disabled the node DOES silently degrade.** It cannot page anonymous
+memory out, so under pressure the kernel evicts and re-reads *file-backed* pages (binaries, JARs, mmapped data) —
+a page-cache thrash that freezes the whole node, k3s included, **without an OOM kill and without a log line**. The
+OOM backstop only fires when even that fails. If a pod died, check `journalctl -k | grep -i oom_memcg` on mother;
+if nothing died but the node went silent, it was the thrash below.
+
+## Parked stores (B199, 2026-10-01 — undo with B134 when hardware lands)
+
+**Parked by default** (`replicas: 0` committed to git; Argo enforces it, so a live scale is reverted within ~3 min):
+
+| Workload | ~Returns | Manifest |
+|---|---|---|
+| Cassandra | ~3.8 GB | `k8s/data-mesh/cassandra.yaml` (StatefulSet) |
+| MongoDB | ~1.8 GB | `k8s/data-mesh/mongodb.yaml` |
+| CockroachDB | ~1.3 GB | `k8s/data-mesh/cockroachdb.yaml` |
+| Superset Celery worker | ~2.1 GB | `k8s/superset/superset-values.yaml` → `supersetWorker.replicas.replicaCount` |
+
+**ClickHouse is NOT parked** — Langfuse uses it as its live trace store (`k8s/langfuse/langfuse.yaml`).
+
+**Wake one** (e.g. to run a hydrate job or a notebook against it): set its `replicas` to `1` in the manifest, push, and
+wait for Argo. **Park it again** by setting it back to `0` and pushing. The store-scaler easy button does NOT stick
+(selfHeal reverts it). While parked:
+- Its Down alert stays silent — the alerts compare running to DESIRED replicas (`scripts/tests/parked-store-alerts.bats`).
+- Its weekly DataHub ingestion is turned off in DataHub's UI and listed as parked in the ingestion watchdog.
+- The daily `datahub_catalog_emit_job` logs a warning for the CockroachDB profile step and carries on.
+- On-demand Dagster hydrate jobs that write to it (`weyland_datasets_{music,health,finance}_hydrate_job`,
+  `weyland_aidlc_kb_job` for Mongo) need the store woken first.
+
+**Undo** when the new hardware lands: the checklist is in `docs/backlog.md` B134 § "Undo on hardware" (EMA-195).
+
+## The overnight stalls (B199, measured 2026-10-01)
+
+**27 node-wide freezes of 1–3 minutes in 13 days** (2026-09-18 → 10-01), found as gaps in mother's node-exporter
+samples. During each, every journal stops, k3s misses its own heartbeats and every API watch errors, Woodpecker
+expires the running CI task (pipelines show `killed`), and once (09-30 02:44 NY) the node went `NotReady`.
+
+| What | Value |
+|---|---|
+| Pod working set, any night | **72–75 GB of 78 GB** — `weyland` ~30.5 GB, `data-mesh` ~30.4 GB; no single dominant pod (top 25 are 1–5 GB) |
+| "Calm" state | MemAvailable 4–6 GB, yet **500–1,400 MB/s disk reads and ~1,000–1,700 major faults/s** — already thrashing |
+| At the tip | major faults 9,000–17,000/s, disk reads 1.6–2.8 GB/s, load1 350–590, memory stall 14% → freeze |
+| CPU / IO-device pressure | low throughout — this is memory, not disk or CPU |
+
+**Triggers are incidental** — whatever adds the last few hundred MB: a CI step pod (+0.8–2.3 GB; the 00:40–01:13
+cluster), the 03:25 `pr-lifecycle-reconcile` CronJob starting (03:25 on 09-25/26/27/30, with 5–6 GB "free"),
+the 01:00 nightly-images build. Moving a trigger moves the stall; it does not remove it. The cause is the
+baseline. Timeline query (port-forward `svc/monitoring-kube-prometheus-prometheus` and scan
+`node_memory_MemAvailable_bytes{instance="192.168.1.243:9100"}` at a 30s step for gaps ≥ 60s).
 
 ## Resizing mother's RAM (procedure)
 

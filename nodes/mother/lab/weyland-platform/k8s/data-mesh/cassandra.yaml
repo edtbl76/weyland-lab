@@ -29,7 +29,10 @@ metadata:
   namespace: data-mesh
 spec:
   serviceName: cassandra
-  replicas: 1
+  # PARKED by default — B199 (2026-10-01): mother runs at 72-75 of 78 GB and freezes from page-cache thrash; parking
+  # the idle Tier-2 stores returns ~9 GB. Wake: set replicas: 1 here and push (Argo selfHeal reverts a live scale).
+  # UNDO when new hardware lands — tracked in B134 (EMA-195) § Undo on hardware.
+  replicas: 0
   selector:
     matchLabels:
       app: cassandra
@@ -100,7 +103,8 @@ spec:
       rules:
         # StatefulSet metric (not deployment_status like the other stores — Cassandra is a StatefulSet).
         - alert: CassandraDown
-          expr: kube_statefulset_status_replicas_ready{namespace="data-mesh", statefulset="cassandra"} == 0
+          # B199 (2026-10-01): parked by default (replicas: 0 in git) — fires only when git wants it running and it is not.
+          expr: max by (namespace, statefulset) (kube_statefulset_status_replicas_ready{namespace="data-mesh", statefulset="cassandra"}) < max by (namespace, statefulset) (kube_statefulset_replicas{namespace="data-mesh", statefulset="cassandra"})
           for: 5m
           labels: { severity: warning }
           annotations:

@@ -39,6 +39,13 @@ supersetNode:
 
 # Same Recreate strategy on the Celery worker.
 supersetWorker:
+  # PARKED by default — B199 (2026-10-01): mother runs at 72-75 of 78 GB and freezes from page-cache thrash; parking
+  # the idle Tier-2 stores returns ~9 GB. Wake: set replicas: 1 here and push (Argo selfHeal reverts a live scale).
+  # UNDO when new hardware lands — tracked in B134 (EMA-195) § Undo on hardware.
+  # (No async queries / scheduled reports are configured, so a parked worker blocks nothing in use.)
+  replicas:
+    enabled: true
+    replicaCount: 0
   podAnnotations:
     sidecar.istio.io/inject: "true"
   strategy:

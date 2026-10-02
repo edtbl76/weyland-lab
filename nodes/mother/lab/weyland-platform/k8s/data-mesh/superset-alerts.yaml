@@ -15,7 +15,8 @@ spec:
           annotations:
             summary: "Superset has 0 available replicas — the BI / SQL exploration layer is down (superset.weyland.lab unreachable)."
         - alert: SupersetWorkerDown
-          expr: kube_deployment_status_replicas_available{namespace="data-mesh", deployment="superset-worker"} == 0
+          # B199 (2026-10-01): parked by default (replicas: 0 in git) — fires only when git wants it running and it is not.
+          expr: max by (namespace, deployment) (kube_deployment_status_replicas_available{namespace="data-mesh", deployment="superset-worker"}) < max by (namespace, deployment) (kube_deployment_spec_replicas{namespace="data-mesh", deployment="superset-worker"})
           for: 5m
           labels: { severity: warning }
           annotations:

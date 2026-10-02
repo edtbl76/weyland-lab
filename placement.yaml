@@ -88,7 +88,7 @@ workloads:
   - {id: "k8s:data-mesh/CronJob/lancedb-sync", host: "mother", state: "pvc:local-path", move: "pinned: local-path PV on mother", strix: "stays", managed: "argo"}
   - {id: "k8s:data-mesh/CronJob/pg-backup", host: "mother", state: "pvc:local-path", move: "pinned: local-path PV on mother", strix: "stays", managed: "argo"}
   - {id: "k8s:data-mesh/Deployment/clickhouse", host: "mother", state: "pvc:local-path", move: "pinned: local-path PV on mother", strix: "stays", managed: "argo"}
-  - {id: "k8s:data-mesh/Deployment/cockroachdb", host: "mother", state: "pvc:local-path", move: "pinned: local-path PV on mother", strix: "stays", managed: "argo"}
+  - {id: "k8s:data-mesh/Deployment/cockroachdb", host: "mother", state: "pvc:local-path", move: "pinned: local-path PV on mother", strix: "stays", managed: "argo", on_demand: true, why: "parked by default (replicas: 0) — B199 2026-10-01; undo with B134 (EMA-195)"}
   - {id: "k8s:data-mesh/Deployment/cube", host: "mother", state: "stateless", move: "movable", strix: "any", managed: "argo"}
   - {id: "k8s:data-mesh/Deployment/datahub-acryl-datahub-actions", host: "mother", state: "stateless", move: "movable", strix: "any", managed: "argo"}
   - {id: "k8s:data-mesh/Deployment/datahub-datahub-frontend", host: "mother", state: "stateless", move: "movable", strix: "any", managed: "argo"}
@@ -103,7 +103,7 @@ workloads:
   - {id: "k8s:data-mesh/Deployment/lakefs", host: "mother", state: "stateless", move: "movable", strix: "any", managed: "argo"}
   - {id: "k8s:data-mesh/Deployment/lancedb-viewer", host: "mother", state: "pvc:local-path", move: "pinned: local-path PV on mother", strix: "stays", managed: "argo"}
   - {id: "k8s:data-mesh/Deployment/lightdash-backend", host: "mother", state: "stateless", move: "movable", strix: "any", managed: "argo"}
-  - {id: "k8s:data-mesh/Deployment/mongodb", host: "mother", state: "pvc:local-path", move: "pinned: local-path PV on mother", strix: "stays", managed: "argo"}
+  - {id: "k8s:data-mesh/Deployment/mongodb", host: "mother", state: "pvc:local-path", move: "pinned: local-path PV on mother", strix: "stays", managed: "argo", on_demand: true, why: "parked by default (replicas: 0) — B199 2026-10-01; undo with B134 (EMA-195)"}
   - {id: "k8s:data-mesh/Deployment/musicbrainz-postgres", host: "mother", state: "pvc:local-path", move: "pinned: local-path PV on mother", strix: "stays", managed: "argo"}
   - {id: "k8s:data-mesh/Deployment/mysql", host: "mother", state: "pvc:local-path", move: "pinned: local-path PV on mother", strix: "stays", managed: "argo"}
   - {id: "k8s:data-mesh/Deployment/nessie", host: "mother", state: "stateless", move: "movable", strix: "any", managed: "argo"}
@@ -114,13 +114,13 @@ workloads:
   - {id: "k8s:data-mesh/Deployment/redpanda-console", host: "mother", state: "stateless", move: "movable", strix: "any", managed: "argo"}
   - {id: "k8s:data-mesh/Deployment/store-scaler", host: "mother", state: "stateless", move: "movable", strix: "any", managed: "argo"}
   - {id: "k8s:data-mesh/Deployment/superset", host: "mother", state: "stateless", move: "movable", strix: "any", managed: "argo"}
-  - {id: "k8s:data-mesh/Deployment/superset-worker", host: "mother", state: "stateless", move: "movable", strix: "any", managed: "argo"}
+  - {id: "k8s:data-mesh/Deployment/superset-worker", host: "mother", state: "stateless", move: "movable", strix: "any", managed: "argo", on_demand: true, why: "parked by default (replicas: 0) — B199 2026-10-01; undo with B134 (EMA-195)"}
   - {id: "k8s:data-mesh/Deployment/timescaledb", host: "mother", state: "pvc:local-path", move: "pinned: local-path PV on mother", strix: "stays", managed: "argo"}
   - {id: "k8s:data-mesh/Deployment/trino", host: "mother", state: "stateless", move: "movable", strix: "k3s-worker", managed: "argo", why: "largest stateless memory request (5.5Gi); OOM-killed at node pressure 2026-09-27"}
   - {id: "k8s:data-mesh/Deployment/trino-noauth-proxy", host: "mother", state: "stateless", move: "movable", strix: "any", managed: "argo"}
   - {id: "k8s:data-mesh/Deployment/valkey", host: "mother", state: "stateless", move: "movable", strix: "any", managed: "argo"}
   - {id: "k8s:data-mesh/Deployment/weyland-flink", host: "mother", state: "stateless", move: "movable", strix: "any", managed: "operator (FlinkDeployment)"}
-  - {id: "k8s:data-mesh/StatefulSet/cassandra", host: "mother", state: "pvc:local-path", move: "pinned: local-path PV on mother", strix: "stays", managed: "argo"}
+  - {id: "k8s:data-mesh/StatefulSet/cassandra", host: "mother", state: "pvc:local-path", move: "pinned: local-path PV on mother", strix: "stays", managed: "argo", on_demand: true, why: "parked by default (replicas: 0) — B199 2026-10-01; undo with B134 (EMA-195)"}
   - {id: "k8s:data-mesh/StatefulSet/opensearch-cluster-master", host: "mother", state: "pvc:local-path", move: "pinned: local-path PV on mother", strix: "stays", managed: "argo"}
   - {id: "k8s:data-mesh/StatefulSet/redpanda", host: "mother", state: "pvc:local-path", move: "pinned: local-path PV on mother", strix: "stays", managed: "argo"}
   - {id: "k8s:gatekeeper-system/Deployment/gatekeeper-audit", host: "mother", state: "stateless", move: "movable", strix: "any", managed: "argo"}
