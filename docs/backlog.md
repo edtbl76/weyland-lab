@@ -2459,7 +2459,9 @@ parked sources by name; `scripts/store-park.sh` wakes/parks/waits (12 bats + a l
 data intact). Undo on hardware recorded in B134 (EMA-195). The three DataHub schedules are paused by `store-park.sh` (live-tested,
 config untouched). Alerts done 2026-10-02: `NodeMemoryThrashing` (PSI > 10%, 2m — replayed: 4 fires in 13.5 days, all at real freezes)
 and `NodeFroze` (scrape gap; 17 = one per freeze episode), promtool-tested in CI (`alert-rules.bats`). Night 1 (10-01→02)
-clean: 0 freezes, min MemAvailable 9.1 GB, 01:00 build passed. Still open: nights 2–7; a Telegram delivery drill.
+clean: 0 freezes, min MemAvailable 9.1 GB, 01:00 build passed. Live 2026-10-02: both rules loaded and evaluating (health ok);
+Telegram drill — a DRILL `NodeFroze` posted to Alertmanager was delivered (telegram sent 13,409 → 13,410, failed
+unchanged at 17). Still open: nights 2–7.
 
 ### B198 — Placement inventory: where every workload runs, and whether it can move — DONE (2026-09-28; was HIGH, Linear EMA-257)
 
