@@ -116,13 +116,16 @@ def fleet_ready() -> bool:
 async def fleet_retry_loop(interval: float = FLEET_RETRY_INTERVAL) -> None:
     """Retry the fleet load until it succeeds, then rebuild both brains with it. Returns at once if already loaded.
     load_fleet_tools blocks (asyncio.run inside), so each attempt runs in a worker thread."""
-    while not _fleet["loaded"]:
+    if _fleet["loaded"]:
+        return
+    while True:   # a timed retry of a failing external call — not waiting on in-process state, so not an Event
         await asyncio.sleep(interval)
         fleet = await asyncio.to_thread(load_fleet_tools)
         if fleet is not None:
             _install_fleet(fleet)
             _fleet["loaded"] = True
             print(f"[fleet] loaded on retry — {len(fleet)} tools; operator Ready", flush=True)
+            return
 
 _health = {"at": 0.0, "ok": True}   # cached liveness of the local engine: (monotonic checked-at, healthy?)
 
@@ -231,35 +234,43 @@ async def run(message: str, history: list | None = None,
         messages += history
     messages.append(("user", message))
 
-    if not allow_fallback and not await _local_healthy():
-        _BRAIN_SELECTED.labels("none", "local_down").inc()
-        raise LocalUnavailable(f"local brain {LOCAL_MODEL} failed its health pre-check")
+    if not allow_fallback:
+        return await _run_local_only(messages, session_id, user_id)
 
     reason = "local_down"   # why we'd use the fallback, if we do
-    if not allow_fallback or _fallback_agent is None or await _local_healthy():
+    if _fallback_agent is None or await _local_healthy():
         try:
-            with _lf_generation("operator-ask", LOCAL_MODEL, messages, "operator_system", session_id, user_id) as lgen:
-                result = await _local_agent.ainvoke({"messages": messages})
-                _BRAIN_SELECTED.labels("local", "primary").inc()
-                msgs = result["messages"]
-                if lgen is not None:
-                    lgen.update(output=msgs[-1].content)
-                return msgs[-1].content, _extract_proposal(msgs)
+            return await _invoke(_local_agent, LOCAL_MODEL, "local", "primary", messages, session_id, user_id)
         except Exception as exc:
-            if not allow_fallback:
-                _mark_local_down()
-                _BRAIN_SELECTED.labels("none", "local_error").inc()
-                raise LocalUnavailable(f"local brain {LOCAL_MODEL} failed: {exc}") from exc
             if _fallback_agent is None:
                 raise
             print(f"[agent] local brain failed ({exc}) — falling back to {FALLBACK_MODEL}", flush=True)
             _mark_local_down()
             reason = "local_error"
+    # fresh attempt on Haiku (reads are idempotent)
+    return await _invoke(_fallback_agent, FALLBACK_MODEL, "haiku", reason, messages, session_id, user_id)
 
-    with _lf_generation("operator-ask", FALLBACK_MODEL, messages, "operator_system", session_id, user_id) as lgen:
-        result = await _fallback_agent.ainvoke({"messages": messages})   # fresh attempt on Haiku (reads are idempotent)
-        _BRAIN_SELECTED.labels("haiku", reason).inc()
+
+async def _invoke(brain_agent, model: str, brain: str, reason: str, messages: list,
+                  session_id: str | None, user_id: str | None) -> tuple[str, dict | None]:
+    """One traced invoke of `brain_agent`; counts the selection only when it answered."""
+    with _lf_generation("operator-ask", model, messages, "operator_system", session_id, user_id) as lgen:
+        result = await brain_agent.ainvoke({"messages": messages})
+        _BRAIN_SELECTED.labels(brain, reason).inc()
         msgs = result["messages"]
         if lgen is not None:
             lgen.update(output=msgs[-1].content)
         return msgs[-1].content, _extract_proposal(msgs)
+
+
+async def _run_local_only(messages: list, session_id: str | None, user_id: str | None) -> tuple[str, dict | None]:
+    """The no-fallback path (allow_fallback=False): the local brain or LocalUnavailable — never paid Haiku."""
+    if not await _local_healthy():
+        _BRAIN_SELECTED.labels("none", "local_down").inc()
+        raise LocalUnavailable(f"local brain {LOCAL_MODEL} failed its health pre-check")
+    try:
+        return await _invoke(_local_agent, LOCAL_MODEL, "local", "primary", messages, session_id, user_id)
+    except Exception as exc:
+        _mark_local_down()
+        _BRAIN_SELECTED.labels("none", "local_error").inc()
+        raise LocalUnavailable(f"local brain {LOCAL_MODEL} failed: {exc}") from exc
