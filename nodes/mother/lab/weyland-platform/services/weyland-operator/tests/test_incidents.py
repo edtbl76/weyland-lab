@@ -5,6 +5,10 @@ real-signal-only, (b) fingerprint each firing episode stably so it notifies once
 investigation prompt that never asks the agent to act. Those decisions are the pure functions tested here; the
 async Prometheus/agent/Telegram round-trips (stubbed siblings) are validated live.
 """
+import asyncio
+
+import pytest
+
 import incidents
 
 
@@ -51,3 +55,57 @@ def test_investigation_prompt_is_enrich_only_and_names_the_alert():
     prompt = incidents._investigation_prompt({"alertname": "PodCrashLooping", "severity": "critical", "pod": "api-1"})
     assert "PodCrashLooping" in prompt and "api-1" in prompt
     assert "Do NOT" in prompt          # ENRICH-ONLY — never asks the agent to act
+
+
+# --- 2026-10-02: a sweep never pays — when the local brain is busy it defers, it does not fail over to Haiku ---------
+
+A = {"alertname": "TargetDown", "severity": "warning", "pod": "pod-a"}
+B = {"alertname": "TargetDown", "severity": "warning", "pod": "pod-b"}
+
+
+@pytest.fixture
+def sweep(monkeypatch):
+    """sweep_once with Prometheus, the agent, Telegram and the incident store replaced by recorders."""
+    rec = {"runs": [], "sent": [], "recorded": [], "cleared": None, "agent": None}
+
+    async def firing(_client):
+        return [A, B]
+
+    async def run(message, history, **kw):
+        rec["runs"].append(kw)
+        if rec["agent"] is not None:
+            raise rec["agent"]
+        return ("enriched", None)
+
+    async def send(_client, chat, text):
+        rec["sent"].append((chat, text))
+
+    monkeypatch.setattr(incidents, "_firing", firing)
+    monkeypatch.setattr(incidents, "_CHAT_ID", "42")
+    monkeypatch.setattr(incidents.agent, "run", run)
+    monkeypatch.setattr(incidents.telegram, "send_message", send, raising=False)
+    monkeypatch.setattr(incidents.session, "incidents_recorded", lambda: set(), raising=False)
+    monkeypatch.setattr(incidents.session, "incident_record", lambda fp, _l: rec["recorded"].append(fp), raising=False)
+    monkeypatch.setattr(incidents.session, "incidents_clear_resolved",
+                        lambda fps: rec.__setitem__("cleared", fps), raising=False)
+    return rec
+
+
+def test_a_sweep_asks_the_agent_without_the_paid_fallback(sweep):
+    assert asyncio.run(incidents.sweep_once(None)) == "ok"
+    assert sweep["runs"] and all(kw.get("allow_fallback") is False for kw in sweep["runs"])
+    assert len(sweep["sent"]) == 2 and len(sweep["recorded"]) == 2
+
+
+def test_local_unavailable_defers_the_sweep_sends_nothing_and_records_nothing(sweep):
+    sweep["agent"] = incidents.agent.LocalUnavailable("local brain unavailable")
+    assert asyncio.run(incidents.sweep_once(None)) == "deferred"
+    assert sweep["sent"] == [] and sweep["recorded"] == []    # unrecorded -> the next sweep retries them
+    assert len(sweep["runs"]) == 1                            # stops at the first: no point asking again this sweep
+    assert sweep["cleared"] is not None                       # still forgets alerts that resolved meanwhile
+
+
+def test_any_other_enrichment_error_still_notifies(sweep):
+    sweep["agent"] = RuntimeError("fleet down")
+    assert asyncio.run(incidents.sweep_once(None)) == "ok"
+    assert len(sweep["sent"]) == 2 and "enrichment failed: fleet down" in sweep["sent"][0][1]

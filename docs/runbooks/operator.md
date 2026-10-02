@@ -107,8 +107,21 @@ digest. **Enrich-only** — any act the agent proposes is dropped. **Hard rule:*
 Kuma/Alertmanager→Telegram stays the pager, so if this loop dies paging is unaffected. Noise filter: skips
 `severity=none` + `INCIDENT_SKIP_ALERTS` (Watchdog, InfoInhibitor, LiteLLMEgressEnabled). Gated on
 `INCIDENT_SWEEP_ENABLED=true` + Telegram configured + a target chat. Metrics `operator_incident_sweeps_total{outcome}` /
-`operator_incidents_notified_total`; alerts `WeylandOperatorDown` + `WeylandOperatorSweepErrors`
-(`k8s/weyland-operator/prometheusrule.yaml`). See [flow-incident-sweep.md](../diagrams/flow-incident-sweep.md).
+`operator_incidents_notified_total`; alerts `WeylandOperatorDown` + `WeylandOperatorSweepErrors` +
+`WeylandOperatorSweepDeferred` (`k8s/weyland-operator/prometheusrule.yaml`). See
+[flow-incident-sweep.md](../diagrams/flow-incident-sweep.md).
+
+**The sweep never pays (2026-10-02).** It calls the agent with `allow_fallback=False`: when the local brain is busy or
+down it gets `LocalUnavailable`, stops that sweep, records nothing, and the next sweep retries (`outcome="deferred"`;
+`operator_brain_selected_total{brain="none"}`). Telegram chat keeps the Haiku failover. Why: in the 14 days to
+2026-10-02, sweeps during eval runs failed over to Haiku ($0.26), and Haiku then called `delegate_to_realm`, which runs
+the Realm of Agents on the paid `wl-agentic` Haiku lane ($12.18) — caught by `BifrostSpendObserved`. Deferring up to
+~5h during an eval is normal; `WeylandOperatorSweepDeferred` fires after 6h straight (local brain really gone — use
+the troubleshooting block below). Check it is deferring rather than paying:
+```
+sum by (brain, reason) (increase(operator_brain_selected_total[24h]))      # sweeps on a busy brain show brain="none"
+sum by (outcome) (increase(operator_incident_sweeps_total[24h]))
+```
 
 ## Diagnosing a slow / stalled local brain
 The local brain shares rogueone's **16 GB GPU** (RAG embedder + on-demand llama-guard-8b + the display). If the operator
@@ -136,6 +149,9 @@ sum by (brain, reason) (increase(operator_brain_selected_total[24h]))
 # operator failover cost — expect ≈0. NOTE this is ALL claude-haiku through LiteLLM, not operator-only; the
 # operator's attributed Haiku spend is $0 whenever the brain metric above shows 0 haiku selections:
 sum(increase(litellm_spend_metric_total{requested_model="claude-haiku"}[24h]))
+# ...plus what the Haiku brain triggered downstream: the Realm runs on wl-agentic via Bifrost, which LiteLLM prices
+# at $0 — only Bifrost sees that cost (2026-10-02: $12.18 of the $12.44):
+sum(increase(bifrost_cost_total[24h]))
 ```
 **Healthy** = local carries ~100%, `haiku` selections 0, operator Haiku spend $0. **Flaking** = frequent
 `local_down`/`local_error` failover or non-zero operator Haiku spend → chase rogueone/Ollama (VRAM contention / model

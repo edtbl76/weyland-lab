@@ -79,22 +79,36 @@ def _investigation_prompt(labels: dict) -> str:
 
 
 async def _enrich_and_notify(client: httpx.AsyncClient, labels: dict) -> None:
+    """Enrich one alert on the LOCAL brain only and post it. agent.LocalUnavailable propagates: a sweep never fails
+    over to paid Haiku (2026-10-02) — the caller defers and the next sweep retries."""
     try:
-        reply, _proposal = await agent.run(_investigation_prompt(labels), [])   # ENRICH-ONLY — proposal dropped
+        reply, _proposal = await agent.run(_investigation_prompt(labels), [],   # ENRICH-ONLY — proposal dropped
+                                           allow_fallback=False)
+    except agent.LocalUnavailable:
+        raise
     except Exception as exc:
         reply = f"(enrichment failed: {exc})"
     await telegram.send_message(client, int(_CHAT_ID), f"🚨 {labels.get('alertname', '?')} — {_who(labels)}\n\n{reply}")
     _NOTIFIED.inc()
 
 
-async def sweep_once(client: httpx.AsyncClient) -> None:
+async def sweep_once(client: httpx.AsyncClient) -> str:
+    """One sweep. Returns "ok", or "deferred" when the local brain is unavailable — the un-notified alerts stay
+    unrecorded, so the next sweep retries them (paging is unaffected: it never goes through this loop)."""
     firing = {_fingerprint(l): l for l in await _firing(client) if _is_incident(l)}
     recorded = session.incidents_recorded()
     new_fps = [fp for fp in firing if fp not in recorded]
+    outcome = "ok"
     for fp in new_fps[:MAX_ENRICH_PER_SWEEP]:          # cap per sweep; a storm overflow is picked up next sweep
-        await _enrich_and_notify(client, firing[fp])
+        try:
+            await _enrich_and_notify(client, firing[fp])
+        except agent.LocalUnavailable as exc:
+            print(f"[incidents] local brain unavailable — deferring {len(new_fps)} new incident(s): {exc}", flush=True)
+            outcome = "deferred"
+            break                                      # the rest would hit the same busy engine
         session.incident_record(fp, firing[fp])        # record only AFTER a successful notify
     session.incidents_clear_resolved(set(firing))      # forget alerts no longer firing → a re-fire notifies again
+    return outcome
 
 
 async def sweep_loop() -> None:
@@ -103,8 +117,7 @@ async def sweep_loop() -> None:
     async with httpx.AsyncClient() as client:
         while True:
             try:
-                await sweep_once(client)
-                _SWEEPS.labels("ok").inc()
+                _SWEEPS.labels(await sweep_once(client)).inc()
             except asyncio.CancelledError:
                 raise
             except Exception as exc:

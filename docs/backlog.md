@@ -2463,7 +2463,12 @@ clean: 0 freezes, min MemAvailable 9.1 GB, 01:00 build passed. Live 2026-10-02: 
 Telegram drill — a DRILL `NodeFroze` posted to Alertmanager was delivered (telegram sent 13,409 → 13,410, failed
 unchanged at 17). Telegram noise cut 2026-10-02 (`node-capacity.md` § Telegram noise): dagster-freshness
 posts one continuous alert (`endsAt`), two superseded built-in memory alerts disabled, `InfoInhibitor` → null — ~2,700
-of 3,618 messages/14d. Still open: nights 2–7; `LiteLLMEgressEnabled` / `BifrostSpendObserved` (owner decision).
+of 3,618 messages/14d. Spend alerts reviewed 2026-10-02: `LiteLLMEgressEnabled` was already deleted (2026-09-25);
+`BifrostSpendObserved` is real signal — it caught $12.44/14d on a $0 budget, traced to incident sweeps that failed over
+to Haiku during eval runs and then delegated to the Realm (paid `wl-agentic`). Fixed: the sweep calls the agent with
+`allow_fallback=False` and defers instead of paying (`runbooks/operator.md` § Incident sweep; new alert
+`WeylandOperatorSweepDeferred`, promtool-tested). Found alongside: `LiteLLMSpendObserved` sees only the direct
+`claude-haiku` route ($0.26/14d) — LiteLLM prices the Bifrost-routed lanes at $0. Still open: nights 2–7.
 
 ### B198 — Placement inventory: where every workload runs, and whether it can move — DONE (2026-09-28; was HIGH, Linear EMA-257)
 

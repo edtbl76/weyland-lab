@@ -32,3 +32,15 @@ spec:
           annotations:
             summary: "weyland-operator incident sweep is erroring (> 3 in 15m)"
             description: "The B45 incident-enrichment loop is failing — firing alerts won't be enriched (paging still works). Check: kubectl -n weyland logs deploy/weyland-operator | grep '\\[incidents\\]'"
+        # 2026-10-02: the sweep never fails over to paid Haiku — while the local brain (rogueone Ollama) is busy or
+        # down it DEFERS and retries. An eval keeps Ollama busy up to ~5h, so deferring that long is normal; every
+        # 30m window deferring for 6h straight means the local brain is really gone and enrichment has stopped.
+        # Thresholds tested in scripts/tests/fixtures/alert-rules/operator-sweep.test.yaml.
+        - alert: WeylandOperatorSweepDeferred
+          expr: increase(operator_incident_sweeps_total{outcome="deferred"}[30m]) > 0
+          for: 6h
+          labels:
+            severity: warning
+          annotations:
+            summary: "weyland-operator incident sweep has deferred for 6h — its local brain is unavailable"
+            description: "The sweep only enriches on the local brain (qwen on rogueone Ollama) and never fails over to paid Haiku, so new firing alerts are not being enriched (paging still works). Check rogueone's Ollama: curl http://192.168.1.230:11434/api/tags, and kubectl -n weyland logs deploy/weyland-operator | grep 'local brain unavailable'"

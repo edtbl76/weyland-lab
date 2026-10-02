@@ -73,7 +73,8 @@ SYSTEM = (
 )
 
 # Which brain served each request + why. reason: primary (local ok) | local_down (pre-check miss) | local_error (invoke
-# threw). Watch operator_brain_selected_total{brain,reason} — Haiku selections are the failover signal.
+# threw). Watch operator_brain_selected_total{brain,reason} — Haiku selections are the failover signal; brain="none"
+# is a no-fallback caller (the incident sweep) that deferred instead of paying.
 _BRAIN_SELECTED = Counter("operator_brain_selected_total", "Operator brain selections by brain + reason",
                           ["brain", "reason"])
 
@@ -95,6 +96,12 @@ _fallback_agent = (_build_agent(FALLBACK_BASE_URL, FALLBACK_MODEL, FALLBACK_API_
                    if FALLBACK_ENABLED else None)
 
 _health = {"at": 0.0, "ok": True}   # cached liveness of the local engine: (monotonic checked-at, healthy?)
+
+
+class LocalUnavailable(Exception):
+    """The local brain is down or failed, and the caller said not to fail over to paid Haiku (`allow_fallback=False`).
+    The incident sweep uses this to defer and retry later instead of paying (2026-10-02: during eval runs, sweeps on
+    Haiku — which then delegated to the Realm, itself on paid Haiku — cost $12.44 in 14 days on a $0 budget)."""
 
 
 async def _local_healthy() -> bool:
@@ -183,17 +190,24 @@ def _lf_generation(name: str, model: str, input_data, prompt_name: str,
 
 
 async def run(message: str, history: list | None = None,
-              session_id: str | None = None, user_id: str | None = None) -> tuple[str, dict | None]:
+              session_id: str | None = None, user_id: str | None = None,
+              allow_fallback: bool = True) -> tuple[str, dict | None]:
     """Run the operator on a user message (+ optional prior [(role, text)] turns). Returns (reply, proposal). Local is
     primary; on a health-precheck miss or a mid-flight error we re-run the same messages on the Haiku fallback. ASYNC —
-    the composed MCP fleet's tools (langchain-mcp-adapters) are async-only, so we drive the graph with `ainvoke`."""
+    the composed MCP fleet's tools (langchain-mcp-adapters) are async-only, so we drive the graph with `ainvoke`.
+    `allow_fallback=False` (automatic callers — the incident sweep) never reaches Haiku: a down or failing local brain
+    raises LocalUnavailable instead. A person chatting keeps the failover so the operator still answers them."""
     messages = [("system", load_prompt("operator_system", SYSTEM))]   # B100 P2 — live from the Prompt Registry (fail-safe)
     if history:
         messages += history
     messages.append(("user", message))
 
+    if not allow_fallback and not await _local_healthy():
+        _BRAIN_SELECTED.labels("none", "local_down").inc()
+        raise LocalUnavailable(f"local brain {LOCAL_MODEL} failed its health pre-check")
+
     reason = "local_down"   # why we'd use the fallback, if we do
-    if _fallback_agent is None or await _local_healthy():
+    if not allow_fallback or _fallback_agent is None or await _local_healthy():
         try:
             with _lf_generation("operator-ask", LOCAL_MODEL, messages, "operator_system", session_id, user_id) as lgen:
                 result = await _local_agent.ainvoke({"messages": messages})
@@ -203,6 +217,10 @@ async def run(message: str, history: list | None = None,
                     lgen.update(output=msgs[-1].content)
                 return msgs[-1].content, _extract_proposal(msgs)
         except Exception as exc:
+            if not allow_fallback:
+                _mark_local_down()
+                _BRAIN_SELECTED.labels("none", "local_error").inc()
+                raise LocalUnavailable(f"local brain {LOCAL_MODEL} failed: {exc}") from exc
             if _fallback_agent is None:
                 raise
             print(f"[agent] local brain failed ({exc}) — falling back to {FALLBACK_MODEL}", flush=True)

@@ -6,7 +6,10 @@ FLAT toolset** (READ_TOOLS + ~14 ops tools, *not* the full ~91 and *not* the two
 small-model tool selection). **Haiku** (via LiteLLM, the full flat 91-tool fleet) is a **health failover only**: a
 request routes to it when the local engine fails a fast cached health pre-check, or errors/stalls past a short 60s
 per-call timeout. So a rogueone/Ollama outage — or the card saturating (e.g. on-demand llama-guard-8b resident) —
-**degrades to paid cloud instead of going dark**, and steady-state Haiku spend ≈ **$0**. See
+**degrades to paid cloud instead of going dark**, and steady-state Haiku spend ≈ **$0**. **Only a person chatting fails
+over** (2026-10-02): the incident sweep calls with `allow_fallback=False`, so a busy or down local brain raises
+`LocalUnavailable` and the sweep defers (`brain="none"`) instead of paying — see
+[flow-incident-sweep.md](flow-incident-sweep.md). See
 [flow-operator.md](flow-operator.md), [flow-incident-sweep.md](flow-incident-sweep.md),
 [runbooks/operator.md](../runbooks/operator.md).
 
@@ -38,5 +41,5 @@ sequenceDiagram
         Note over R: operator_brain_selected_total{brain="haiku",reason="local_down"}
         R-->>C: reply (paid)
     end
-    Note over R: Haiku selections are the failover signal — watch operator_brain_selected_total — sustained > $5/24h → LiteLLMSpendObserved
+    Note over R: Haiku selections are the failover signal — watch operator_brain_selected_total — any paid spend through Bifrost → BifrostSpendObserved
 ```

@@ -20,12 +20,13 @@ teardown() { rm -rf "$T"; }
   [ "$status" -eq 0 ] || { echo "promtool missing: apk add prometheus"; return 1; }
 }
 
-@test "the node-memory and parked-store alerts behave as measured (promtool test rules)" {
-  python3 - "$K" "$T" "${BATS_TEST_DIRNAME}/fixtures/alert-rules/node-and-parked.test.yaml" <<'PY'
+# promtool_test <fixture> <manifest under k8s/>... — extract the real rules from the manifests, run the fixture.
+promtool_test() {
+  local fixture="$1"; shift
+  python3 - "$K" "$T" "${BATS_TEST_DIRNAME}/fixtures/alert-rules/$fixture" "$@" <<'PY' || return 1
 import sys, yaml
 K, T, test_path = sys.argv[1:4]
-files = ["monitoring/node-memory-alerts.yaml", "data-mesh/cassandra.yaml", "data-mesh/mongodb.yaml",
-         "data-mesh/cockroachdb.yaml", "data-mesh/superset-alerts.yaml"]
+files = sys.argv[4:]
 groups, ann = [], {}
 for f in files:
     for d in yaml.safe_load_all(open(f"{K}/{f}")):
@@ -51,4 +52,13 @@ PY
   [ "$status" -eq 0 ] && [[ "$output" == *SUCCESS* ]] || { echo "$output"; return 1; }
   run promtool test rules "$T/test.yaml"
   [ "$status" -eq 0 ] && [[ "$output" == *SUCCESS* ]] || { echo "$output" | tail -30; return 1; }
+}
+
+@test "the node-memory and parked-store alerts behave as measured (promtool test rules)" {
+  promtool_test node-and-parked.test.yaml monitoring/node-memory-alerts.yaml data-mesh/cassandra.yaml \
+    data-mesh/mongodb.yaml data-mesh/cockroachdb.yaml data-mesh/superset-alerts.yaml
+}
+
+@test "the operator sweep alerts only when deferral outlasts an eval run (promtool test rules)" {
+  promtool_test operator-sweep.test.yaml weyland-operator/prometheusrule.yaml
 }
