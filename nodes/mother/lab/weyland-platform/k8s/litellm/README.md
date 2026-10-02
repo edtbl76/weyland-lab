@@ -46,7 +46,8 @@ Never add to `fallback_providers` or the auxiliary lanes (keeps background work 
 
 ## Privacy note
 Free tiers (Gemini free, OpenRouter free) may log/train on prompts. Fine for lab escalation; don't send
-anything sensitive. Paid OpenRouter routes don't, but cost money — watch `LiteLLMSpendObserved`.
+anything sensitive. Paid OpenRouter routes don't, but cost money — watch `LiteLLMSpendObserved` (direct
+routes) and `BifrostSpendObserved` (routes via Bifrost); see `docs/runbooks/model-gateway.md` § 3.
 
 ## Registries to update after deploy
 `docs/hosts.md` (litellm.weyland.lab, NodePort 30400) · `docs/api.md` (/v1 endpoint) · `docs/arch.md` (egress edge).

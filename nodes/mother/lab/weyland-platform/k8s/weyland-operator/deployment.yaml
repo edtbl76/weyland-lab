@@ -22,7 +22,7 @@ spec:
       enableServiceLinks: false
       containers:
         - name: weyland-operator
-          image: registry.weyland.lab/weyland-operator:v23   # session grouping FIX: propagate_attributes (v22's update_current_trace doesn't exist in langfuse 4.x → no-op); Telegram chat_id → one session
+          image: registry.weyland.lab/weyland-operator:v23   # CI-built + tag-following since 2026-10-02 (scripts/ci/images.tsv): ship-images.sh moves this to git-<sha>
           imagePullPolicy: IfNotPresent
           resources:
             # No torch/embedder — just langgraph/langchain/mlflow client + fastapi; LLM inference is remote (Ollama).

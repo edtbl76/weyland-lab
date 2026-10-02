@@ -466,8 +466,9 @@ runs `bats scripts/tests/` over the whole directory, so a new suite file needs n
 - [argocd.md](argocd.md) — the sync mechanism and why the refresh annotation is forbidden
 - [code-quality.md](code-quality.md) — the scan-suite gate
 - `docs/schedules.md` — the CronJob's slot
-- `scripts/ci/images.tsv` — which images are in change detection. **Nine are not** (`weyland-operator`,
-  `weyland-mcp-gateway`, `weyland-mcp-compositor`, `weyland-guard`, `weyland-agent`,
+- `scripts/ci/images.tsv` — which images are in change detection. **Eight are not**
+  (`weyland-mcp-gateway`, `weyland-mcp-compositor`, `weyland-guard`, `weyland-agent`,
   `realm-of-agents`, `ray-head`, `a2a-inspector`, `mcp-server-datahub`); `ranger` is deliberately
-  version-pinned and excluded. Bringing those nine in is **B135 phase 2** — until it ships,
-  `ship-images.sh` reports success while a third of the fleet is unwatched.
+  version-pinned and excluded. Bringing those eight in is **B135 phase 2** — until it ships,
+  `ship-images.sh` reports "nothing to ship" for a change to any of them (seen 2026-10-02: an
+  operator fix pushed, ship printed nothing to ship). `weyland-operator` moved in 2026-10-02.

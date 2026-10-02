@@ -65,11 +65,14 @@ propose (LLM) → store pending_action → "⚠️ Confirm …? yes/no" → user
 only pull langchain-core), else it silently no-ops.
 
 ## Build & deploy (registry flow)
-- Build + push (**rogueone**): `docker build -t registry.weyland.lab/weyland-operator:vN <services/weyland-operator> && docker push registry.weyland.lab/weyland-operator:vN`
-- **Registry manifest defect (B101 — fixed):** the manifest PUT intermittently doesn't finalize on the first push
-  (tag absent → `ImagePullBackOff: not found`). Push via **`scripts/push-image.sh registry.weyland.lab/weyland-operator:vN`**
-  — it pushes, verifies the tag landed in `/v2/.../tags/list`, and auto-re-pushes if not (a re-push re-sends the small
-  manifest, which lands). Deploy in one command instead of a manual round-trip.
+- **Ship with `bash /home/edwardmangini/IdeaProjects/weyland/scripts/ship-images.sh`** after the push — since
+  2026-10-02 the operator is in `scripts/ci/images.tsv`, so CI builds it at `git-<sha>` and the ship loop bumps,
+  syncs and verifies it ([ship-images.md](ship-images.md)). The hand-built `:vN` flow (last: `v23`) is retired.
+- **Dependencies are pinned:** `services/weyland-operator/requirements.in` (source) → `requirements.txt` (frozen, what
+  the Dockerfile installs). Regenerate per the `.in` header; never `pip install` an unpinned name in the Dockerfile.
+- **After a ship, confirm the fleet loaded** — `/ready` does not check it (a failed fleet load starts the pod with 0
+  tools): `kubectl -n weyland logs deploy/weyland-operator -c weyland-operator | grep -E '\[fleet\] (loaded|failed|no operator)'`
+  should print `loaded N read tools`.
 - Manifests: `k8s/weyland-operator/{deployment,service,servicemonitor}.yaml`; Argo app in `subdir-apps.yaml`. **Meshed**;
   memory request kept low (256Mi, no torch — the operator calls the tool-server for retrieval).
 - **Secret** `weyland-operator-secret` (`TELEGRAM_BOT_TOKEN` + `TELEGRAM_ALLOWED_USERS`) — SealedSecret (GitOps) or a

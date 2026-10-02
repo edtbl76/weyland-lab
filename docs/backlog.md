@@ -2467,8 +2467,14 @@ of 3,618 messages/14d. Spend alerts reviewed 2026-10-02: `LiteLLMEgressEnabled` 
 `BifrostSpendObserved` is real signal — it caught $12.44/14d on a $0 budget, traced to incident sweeps that failed over
 to Haiku during eval runs and then delegated to the Realm (paid `wl-agentic`). Fixed: the sweep calls the agent with
 `allow_fallback=False` and defers instead of paying (`runbooks/operator.md` § Incident sweep; new alert
-`WeylandOperatorSweepDeferred`, promtool-tested). Found alongside: `LiteLLMSpendObserved` sees only the direct
-`claude-haiku` route ($0.26/14d) — LiteLLM prices the Bifrost-routed lanes at $0. Still open: nights 2–7.
+`WeylandOperatorSweepDeferred`, promtool-tested). Found alongside, fixed 2026-10-02: (1) `LiteLLMSpendObserved` could
+never fire — per-series $5, and LiteLLM prices its Bifrost-routed lanes at $0; rewritten to sum only the DIRECT
+provider routes Bifrost cannot see, at $1/24h, so the two spend alerts partition paid egress (promtool-tested;
+`litellm-routes.bats` guards that every `openai/` route goes to Bifrost). (2) The operator image installed its packages
+unpinned (the 2026-10-01 Dagster-outage class) and v23 carried 38 known CVEs — now `requirements.in/.txt`, frozen to
+v23 with only the 7 CVE-fixed packages moved (pip-audit clean). (3) The operator was outside `images.tsv` (B135 phase
+2), so `ship-images.sh` reported "nothing to ship" for this fix — operator moved in; eight images remain. Still open:
+nights 2–7.
 
 ### B198 — Placement inventory: where every workload runs, and whether it can move — DONE (2026-09-28; was HIGH, Linear EMA-257)
 
@@ -3866,7 +3872,7 @@ ClickHouse was NOT parked — Langfuse uses it as its live trace store.
 
 **Shipped:** `scripts/ship-images.sh` · `scripts/ci/detect-changes.sh` (shallow-clone fix) · `scripts/ci/open-deploy-pr.sh` · `scripts/tests/{ship-images,pr-staleness,cron-freshness,open-deploy-pr}.bats` · `k8s/monitoring/cron-freshness-rules.yaml` · `k8s/pr-lifecycle/cron-freshness.yaml` · `k8s/argocd/argocd-lan.yaml` · probes on `k8s/dagster/user-code.yaml` + `k8s/data-mesh/feast-server.yaml` · sealed `cron-freshness-woodpecker` · docs: `arch.md` §10b + §6 + §9, `runbooks/ship-images.md`, `runbooks/pr-lifecycle.md`, `diagrams/flow-ship-loop.md`, `demos/ship-images.md`, `schedules.md`.
 
-**Residual, tracked not hidden:** **B135 phase 2** — nine images outside `images.tsv` (`weyland-operator`, `weyland-mcp-gateway`, `weyland-mcp-compositor`, `weyland-guard`, `weyland-agent`, `realm-of-agents`, `ray-head`, `a2a-inspector`, `mcp-server-datahub`) are hand-built and uncovered; until they are in, the loop reports success while a third of the fleet is unwatched. **B140** (smoke layer that exercises a real transaction), **B139** (measured: worst 11-image build 15m14s vs a 77-minute window — no collision), **EMA-77** (the demo's three unrun live paths, deferred by decision).
+**Residual, tracked not hidden:** **B135 phase 2** — nine images outside `images.tsv` (`weyland-operator` — moved in 2026-10-02 —, `weyland-mcp-gateway`, `weyland-mcp-compositor`, `weyland-guard`, `weyland-agent`, `realm-of-agents`, `ray-head`, `a2a-inspector`, `mcp-server-datahub`) are hand-built and uncovered; until they are in, the loop reports success while a third of the fleet is unwatched. **B140** (smoke layer that exercises a real transaction), **B139** (measured: worst 11-image build 15m14s vs a 77-minute window — no collision), **EMA-77** (the demo's three unrun live paths, deferred by decision).
 
 **DoD:** pillars 1, 2, 4, 6 pass; 3 is MEDIUM with live execution deferred to EMA-77; 7 partial (the 19-tool `run-scan-suite.sh` still to run on mother); 8 (cascading changes) graded at close-out — it surfaced the freshness rule missing **the watchdog itself**, a stale `applications.yaml` reason, and three unrelated backup CronJobs with no `schedules.md` row running on the wrong clock.
 

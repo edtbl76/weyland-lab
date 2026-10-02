@@ -156,7 +156,12 @@ The valve lives on mother (k3s control plane) — Hermes has no kubectl and `/mc
 ```
 **Is it open?** `./valve.sh status`. There is no longer an "egress enabled" alert: `LiteLLMEgressEnabled` fired the
 whole time replicas > 0, and LiteLLM is the permanent agentic lane, so it was lit permanently — pure noise, removed
-2026-09-25. The alert that guards the $0 budget is **`LiteLLMSpendObserved`** (> $5 of paid spend in 24h).
+2026-09-25. Two alerts guard the $0 budget, and they **partition** paid egress (2026-10-02): **`BifrostSpendObserved`**
+(> $1 in 24h through Bifrost — every `openai/` route LiteLLM sends there, which LiteLLM itself prices at $0) and
+**`LiteLLMSpendObserved`** (> $1 in 24h on LiteLLM's **direct** provider routes that bypass Bifrost: `claude-haiku`,
+`anthropic/*`, `gemini/*`, `gemini-pro`, `openrouter/*`). The old `LiteLLMSpendObserved` compared each series to $5 and
+could not see the Bifrost-routed money, so it never fired while $12.44 was spent in 14 days.
+`scripts/tests/litellm-routes.bats` guards the split: every `openai/` route must point at Bifrost.
 
 ## 4. Wire Hermes (CT 104) — optional, default stays local
 
@@ -253,4 +258,5 @@ pct exec 104 -- bash -lc "journalctl -u hermes-gateway --no-pager -n 80 | grep -
 
 Free tiers (Gemini free, OpenRouter `:free`) may log/train on prompts and are off-LAN — fine for lab
 escalation, not for anything sensitive. Paid OpenRouter routes don't train but cost money — watch the
-`LiteLLMSpendObserved` alert and OpenRouter's account credit limit.
+`LiteLLMSpendObserved` alert (direct `openrouter/*`) or `BifrostSpendObserved` (`wl-*` via Bifrost) and OpenRouter's
+account credit limit.

@@ -9,8 +9,8 @@
 # HEADER CORRECTED 2026-08-21. It previously said "all 8 images" (it builds 11) and described the retired
 # `:vN` hand-bump convention as if it were current. It also does NOT build `ranger` — the codekb claimed it
 # did; there is no `build ranger` line here. Nothing in this repo builds ranger, or the nine other `:vN`
-# images (weyland-operator, weyland-guard, realm-of-agents, ray-head, …); those are built by hand and
-# undocumented. B135 phase 2 brings them into CI.
+# images (weyland-guard, realm-of-agents, ray-head, …); those are built by hand and undocumented.
+# B135 phase 2 brings them into CI (weyland-operator moved into scripts/ci/images.tsv 2026-10-02).
 #
 # TAG DEFAULTS TO THE CI CONVENTION (`git-<short-sha>`) so an emergency build lands on the tag the manifests
 # already reference and the node re-pulls it. The old `:v1` default was a trap: it pushed tags no manifest

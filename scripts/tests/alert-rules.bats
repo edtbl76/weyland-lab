@@ -62,3 +62,7 @@ PY
 @test "the operator sweep alerts only when deferral outlasts an eval run (promtool test rules)" {
   promtool_test operator-sweep.test.yaml weyland-operator/prometheusrule.yaml
 }
+
+@test "the two spend alerts partition paid egress without double-counting (promtool test rules)" {
+  promtool_test spend.test.yaml litellm/prometheusrule.yaml bifrost/prometheusrule.yaml
+}

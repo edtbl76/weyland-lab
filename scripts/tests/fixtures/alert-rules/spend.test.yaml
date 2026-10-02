@@ -1,0 +1,55 @@
+# promtool unit tests for the two paid-spend alerts (2026-10-02). They PARTITION paid egress:
+#   BifrostSpendObserved  — everything LiteLLM (and the Realm) sends through Bifrost (LiteLLM prices those at $0).
+#   LiteLLMSpendObserved  — LiteLLM's DIRECT provider routes, which bypass Bifrost (claude-haiku, anthropic/*,
+#                           gemini/*, gemini-pro, openrouter/*). Bifrost-routed series (api_provider="openai") and the
+#                           local ollama lane are excluded so the same dollar is never counted twice.
+# Measured 2026-10-02 over 14d: direct claude-haiku $0.26 (61 requests) — never visible to Bifrost, and far below the
+# old per-series $5 threshold, so the old rule could not fire. Run by scripts/tests/alert-rules.bats.
+rule_files:
+- rules.yaml
+evaluation_interval: 1m
+tests:
+- name: 'LiteLLMSpendObserved: $1.20 on a direct route in a day fires'
+  interval: 10m
+  input_series:
+  - series: litellm_spend_metric_total{api_provider="anthropic",requested_model="claude-haiku"}
+    values: 0+0.01x144
+  alert_rule_test:
+  - eval_time: 24h
+    alertname: LiteLLMSpendObserved
+    exp_alerts:
+    - exp_labels:
+        severity: warning
+- name: 'LiteLLMSpendObserved: spend split across two direct routes is summed ($0.60 + $0.60 fires)'
+  interval: 10m
+  input_series:
+  - series: litellm_spend_metric_total{api_provider="anthropic",requested_model="claude-haiku"}
+    values: 0+0.005x144
+  - series: litellm_spend_metric_total{api_provider="gemini",requested_model="gemini-pro"}
+    values: 0+0.005x144
+  alert_rule_test:
+  - eval_time: 24h
+    alertname: LiteLLMSpendObserved
+    exp_alerts:
+    - exp_labels:
+        severity: warning
+- name: 'LiteLLMSpendObserved: Bifrost-routed spend is not double-counted (silent)'
+  interval: 10m
+  input_series:
+  - series: litellm_spend_metric_total{api_provider="openai",requested_model="openai-mini"}
+    values: 0+0.1x144
+  - series: litellm_spend_metric_total{api_provider="ollama_chat",requested_model="wl-judge-oss"}
+    values: 0+0.1x144
+  alert_rule_test:
+  - eval_time: 24h
+    alertname: LiteLLMSpendObserved
+    exp_alerts: []
+- name: 'LiteLLMSpendObserved: the measured direct baseline ($0.26 in 14d) is silent'
+  interval: 1h
+  input_series:
+  - series: litellm_spend_metric_total{api_provider="anthropic",requested_model="claude-haiku"}
+    values: 0+0.0008x336
+  alert_rule_test:
+  - eval_time: 14d
+    alertname: LiteLLMSpendObserved
+    exp_alerts: []

@@ -17,15 +17,21 @@ spec:
         # valve is still there (valve.sh); what guards the $0 budget is SPEND, below. `./valve.sh status` answers
         # "is it open?" on demand. (weyland-operator's INCIDENT_SKIP_ALERTS still names it — harmless, never fires.)
         # Spend: metric name CONFIRMED from /metrics (B55): litellm_spend_metric_total (counter; the series
-        # materializes once a request logs spend). Threshold $5/24h (2026-08-04): the weyland-operator runs LOCAL
-        # gpt-oss:20b as its primary brain and Haiku only as a HEALTH FAILOVER, so steady-state paid spend is ≈ $0.
-        # Sustained spend now means either the local engine (rogueone/Ollama) has been DOWN long enough that Haiku
-        # carried real load, or a route meant to be free is hitting a paid model — both worth a look.
+        # materializes once a request logs spend).
+        # REWRITTEN 2026-10-02 — it could never fire. It compared EACH series to $5, and LiteLLM prices the routes it
+        # sends through Bifrost (`openai/...` + api_base bifrost) at ~$0 — 463 wl-agentic Haiku requests that cost
+        # $12.18 at Bifrost logged $0 here. Bifrost already watches that money (BifrostSpendObserved, $1/24h). What
+        # ONLY this rule can see is the DIRECT provider routes that bypass Bifrost — claude-haiku (the operator's chat
+        # failover), anthropic/*, gemini/*, gemini-pro, openrouter/* — which LiteLLM prices correctly. So the two
+        # alerts PARTITION paid egress: this one sums every series EXCEPT the Bifrost hop (api_provider="openai") and
+        # the local Ollama lane, at the same $1/24h. Measured baseline: direct $0.26 in the 14d to 2026-10-02.
+        # Tested in scripts/tests/fixtures/alert-rules/spend.test.yaml. The api_provider="openai" ⇒ Bifrost mapping
+        # is guarded by scripts/tests/litellm-routes.bats (no direct openai route may exist).
         - alert: LiteLLMSpendObserved
-          expr: increase(litellm_spend_metric_total[24h]) > 5
+          expr: sum(increase(litellm_spend_metric_total{api_provider!~"openai|ollama_chat"}[24h])) > 1
           for: 0m
           labels:
             severity: warning
           annotations:
-            summary: "LiteLLM reported > $5 spend in 24h (operator Haiku should be ~$0 — failover or misroute?)"
-            description: "The operator's Haiku is failover-only (local gpt-oss primary). Sustained spend suggests rogueone/Ollama has been unavailable (check operator_brain_selected_total{brain=\"haiku\"}) or a free route hit a paid model — check LiteLLM logs."
+            summary: "LiteLLM direct-to-provider routes spent > $1 in 24h (spend Bifrost cannot see)"
+            description: "Paid spend on a LiteLLM route that bypasses Bifrost (claude-haiku, anthropic/*, gemini/*, gemini-pro, openrouter/*). The usual source is the operator's Telegram chat failing over to claude-haiku while rogueone's Ollama is busy or down (check operator_brain_selected_total{brain=\"haiku\"}). Break it down: sum by (requested_model) (increase(litellm_spend_metric_total{api_provider!~\"openai|ollama_chat\"}[24h]))"

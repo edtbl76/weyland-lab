@@ -34,8 +34,8 @@ _NOTIFIED = Counter("operator_incidents_notified_total", "Incidents enriched + n
 # Alerts that fire BY DESIGN (not incidents), so the digest stays real-signal-only. `severity="none"` is always skipped
 # (Watchdog dead-man's-switch + InfoInhibitor are kube-prometheus-stack built-ins that fire forever); the named set is
 # for intentional awareness alerts (LiteLLMEgressEnabled = the egress gate is open, fires the whole time LiteLLM runs).
-# NOTE: LiteLLMSpendObserved is NOT skipped — its threshold was raised to >$5/24h (above the operator's expected Haiku
-# baseline), so if it fires it's a genuine runaway worth enriching. Env-overridable via INCIDENT_SKIP_ALERTS (comma list).
+# NOTE: the spend alerts (LiteLLMSpendObserved / BifrostSpendObserved, $1/24h each) are NOT skipped — paid spend on a
+# $0 budget is always worth enriching. Env-overridable via INCIDENT_SKIP_ALERTS (comma list).
 _SKIP_ALERTNAMES = {s.strip() for s in os.getenv(
     "INCIDENT_SKIP_ALERTS", "Watchdog,InfoInhibitor,LiteLLMEgressEnabled").split(",") if s.strip()}
 
