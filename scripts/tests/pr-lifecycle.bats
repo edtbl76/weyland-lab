@@ -187,42 +187,21 @@ _wire_image_bump_pair() {
   stub_case gh 'pulls'  0 ''
 }
 
-# 2026-10-02: closing a superseded bump PR left its branch behind — 29 of the 36 stale ci/image-bump-* branches
-# on GitHub were closed by this job. GitHub does not delete a head branch on CLOSE (only, optionally, on merge).
+# 2026-10-02: this job's token is Pull requests + Issues: write ONLY — deleting a branch needs Contents: write, which
+# would let an unattended job push to 8 repos. So it closes superseded bump PRs and NEVER deletes a branch; the stale
+# branches it leaves are swept by ship-images.sh, which runs with the owner's login (ship-images.bats).
 
-@test "ci/image-bump: --apply deletes the superseded PR's branch after closing it" {
+@test "--apply closes a superseded image-bump PR but never deletes its branch (least-privilege token)" {
   _wire_image_bump_pair
-  stub_case gh 'git/refs' 0 ''
   run bash "$GUARD" --apply --repo edtbl76/test
   [ "$status" -eq 0 ]
   called_with gh 'pulls/40'
-  called_with gh '-X DELETE repos/edtbl76/test/git/refs/heads/ci/image-bump-git-aaaa1111'
-  not_called_with gh 'git/refs/heads/ci/image-bump-git-bbbb2222'      # the survivor's branch is never touched
-  echo "$output" | grep -qE 'pr=40 verdict=SUPERSEDED action=delete-branch branch=ci/image-bump-git-aaaa1111 result=ok'
-}
-
-@test "a failed branch delete is reported, but the close stands and the run still succeeds" {
-  _wire_image_bump_pair
-  stub_case gh 'git/refs' 1 'HTTP 403: Resource not accessible by personal access token'
-  run bash "$GUARD" --apply --repo edtbl76/test
-  [ "$status" -eq 0 ]
-  echo "$output" | grep -qE 'pr=40 verdict=SUPERSEDED action=close by=41 result=ok'
-  echo "$output" | grep -qE 'pr=40 verdict=SUPERSEDED action=delete-branch branch=ci/image-bump-git-aaaa1111 result=fail'
-  echo "$output" | grep -q 'HTTP 403'
-}
-
-@test "dependabot: a superseded PR is closed but its branch is left to dependabot (it deletes its own)" {
-  _wire_mixed
-  stub_case gh 'git/refs' 0 ''
-  run bash "$GUARD" --apply --repo edtbl76/test
-  [ "$status" -eq 0 ]
-  called_with gh 'pulls/20'
   not_called_with gh 'git/refs'
+  not_called_with gh '-X DELETE'
 }
 
 @test "advisory never deletes a branch" {
   _wire_image_bump_pair
-  stub_case gh 'git/refs' 0 ''
   run bash "$GUARD" --repo edtbl76/test
   [ "$status" -eq 0 ]
   not_called_with gh 'git/refs'

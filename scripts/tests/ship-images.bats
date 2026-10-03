@@ -1401,3 +1401,78 @@ assert d['properties']['deploymentStatus']=='Success'
   run lead_time_hours "2026-08-27T06:00:00-04:00" "2026-08-27T13:00:00Z"
   [ "$output" = "3.0" ]
 }
+
+
+# --- 2026-10-02: the ship sweeps stale ci/image-bump-* branches ------------------------------------------------------
+# 36 had piled up on GitHub: the nightly pr-lifecycle job closes superseded bump PRs, and its least-privilege token
+# (Pull requests + Issues: write) cannot delete branches — that needs Contents: write, which would let an unattended job
+# push to 8 repos. The ship runs with the owner's own gh login, so the cleanup lives here instead.
+
+_wire_branches() {
+  stub_dispatch gh
+  stub_case gh 'repos/edtbl76/weyland-lab/branches' 0 "$(printf '%s\n' main ci/image-bump-closed ci/image-bump-merged ci/image-bump-open ci/image-bump-nopr feature/x)"
+  stub_case gh '--head ci/image-bump-closed' 0 'CLOSED'
+  stub_case gh '--head ci/image-bump-merged' 0 'MERGED,CLOSED'
+  stub_case gh '--head ci/image-bump-open'   0 'CLOSED,OPEN'
+  stub_case gh '--head ci/image-bump-nopr'   0 ''
+}
+
+@test "sweep deletes bump branches whose PRs are all closed or merged" {
+  _wire_branches
+  stub_case gh 'git/refs' 0 ''
+  SHIP_IMAGES_LIB=1 source "$SHIP"
+  run sweep_stale_bump_branches
+  [ "$status" -eq 0 ]
+  called_with gh '-X DELETE repos/edtbl76/weyland-lab/git/refs/heads/ci/image-bump-closed'
+  called_with gh '-X DELETE repos/edtbl76/weyland-lab/git/refs/heads/ci/image-bump-merged'
+  [[ "$output" == *"2 deleted"* ]] || { echo "$output"; return 1; }
+}
+
+@test "sweep keeps a branch with an OPEN PR, a branch with NO PR yet (a pipeline mid-flight), and non-bump branches" {
+  _wire_branches
+  stub_case gh 'git/refs' 0 ''
+  SHIP_IMAGES_LIB=1 source "$SHIP"
+  run sweep_stale_bump_branches
+  [ "$status" -eq 0 ]
+  not_called_with gh 'git/refs/heads/ci/image-bump-open'
+  not_called_with gh 'git/refs/heads/ci/image-bump-nopr'
+  not_called_with gh 'git/refs/heads/feature/x'
+  not_called_with gh 'git/refs/heads/main'
+}
+
+@test "sweep that cannot list branches warns, deletes nothing, and never fails the ship" {
+  stub_dispatch gh
+  stub_case gh 'repos/edtbl76/weyland-lab/branches' 1 'HTTP 502: Bad Gateway'
+  SHIP_IMAGES_LIB=1 source "$SHIP"
+  run sweep_stale_bump_branches
+  [ "$status" -eq 0 ]
+  not_called_with gh 'git/refs'
+  [[ "$output" == *"could not list branches"* && "$output" == *"502"* ]] || { echo "$output"; return 1; }
+}
+
+@test "sweep that cannot read a branch's PRs keeps it (unknown is not closed)" {
+  stub_dispatch gh
+  stub_case gh 'repos/edtbl76/weyland-lab/branches' 0 'ci/image-bump-unknown'
+  stub_case gh '--head ci/image-bump-unknown' 1 'HTTP 401'
+  SHIP_IMAGES_LIB=1 source "$SHIP"
+  run sweep_stale_bump_branches
+  [ "$status" -eq 0 ]
+  not_called_with gh 'git/refs'
+}
+
+@test "a failed delete is reported and the sweep carries on" {
+  _wire_branches
+  stub_case gh 'git/refs/heads/ci/image-bump-closed' 1 'HTTP 422: Reference does not exist'
+  stub_case gh 'git/refs/heads/ci/image-bump-merged' 0 ''
+  SHIP_IMAGES_LIB=1 source "$SHIP"
+  run sweep_stale_bump_branches
+  [ "$status" -eq 0 ]
+  called_with gh 'git/refs/heads/ci/image-bump-merged'
+  [[ "$output" == *"ci/image-bump-closed"*"422"* && "$output" == *"1 deleted"*"1 failed"* ]] || { echo "$output"; return 1; }
+}
+
+@test "the sweep runs on every successful exit of main (shipped, already deployed, two nothing-to-ship exits)" {
+  # Wiring check on the source: each success return in main is preceded by the sweep.
+  run grep -c 'sweep_stale_bump_branches$' "$SHIP"
+  [ "$output" -eq 4 ] || { echo "found $output call sites, want 4"; return 1; }
+}

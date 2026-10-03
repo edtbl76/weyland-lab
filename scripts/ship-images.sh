@@ -742,6 +742,37 @@ registry_has_tag() {
 
 # Open image-bump PRs as `<number><TAB><branch><TAB><author>`, newest first. Go-template rather than
 # --jq: gh ships the template engine in-process, and jq is one more thing to install.
+# sweep_stale_bump_branches — delete every ci/image-bump-* branch whose PRs are ALL closed or merged (2026-10-02).
+# 36 had piled up: the nightly pr-lifecycle job closes superseded bump PRs, but its least-privilege token cannot delete
+# branches (that needs Contents: write — push rights on 8 repos for an unattended job). This script runs with the
+# owner's own gh login, so the sweep lives here. KEEPS a branch with an open PR, a branch with NO PR yet (a pipeline
+# mid-flight pushes its branch before opening the PR), and any branch whose PR state it cannot read — unknown is not
+# closed. Never fails the ship: the deploy is already verified when this runs; problems are reported, not fatal.
+sweep_stale_bump_branches() {
+  local names b states out deleted=0 failed=0 kept=0
+  if ! names="$(gh api "repos/$REPO/branches" --paginate -q '.[].name' 2>&1)"; then
+    printf '  ⚠ branch sweep: could not list branches — skipped: %s\n' "$names" >&2
+    return 0
+  fi
+  for b in $(printf '%s\n' "$names" | grep -E '^ci/image-bump-' || true); do
+    if ! states="$(gh pr list --repo "$REPO" --head "$b" --state all --json state -q '[.[].state]|join(",")' 2>&1)"; then
+      printf '  ⚠ branch sweep: could not read the PRs of %s — kept: %s\n' "$b" "$states" >&2
+      kept=$((kept+1)); continue
+    fi
+    case ",$states," in
+      ,,|*,OPEN,*) kept=$((kept+1)); continue ;;   # no PR yet (in flight) or still open
+    esac
+    if out="$(gh api -X DELETE "repos/$REPO/git/refs/heads/$b" 2>&1)"; then
+      deleted=$((deleted+1))
+    else
+      failed=$((failed+1))
+      printf '  ⚠ branch sweep: could not delete %s: %s\n' "$b" "$out" >&2
+    fi
+  done
+  printf '→ branch sweep: %s deleted, %s failed, %s kept (open PR / no PR yet / unreadable)\n' "$deleted" "$failed" "$kept"
+  return 0
+}
+
 open_bump_prs() {
   gh pr list --repo "$REPO" --state open --limit 50 \
     --json number,headRefName,author \
@@ -1092,6 +1123,7 @@ main() {
   open_prs="$(open_bump_prs)"
   if [ -z "$open_prs" ] && live_carries_tag "$newtag"; then
     printf '✓ already deployed — %s is live and no image-bump PR is open. Nothing to do.\n' "$newtag"
+    sweep_stale_bump_branches
     return 0
   fi
 
@@ -1117,6 +1149,7 @@ main() {
   if [ ! -s "$plan" ]; then
     rm -f "$plan"
     printf '✓ nothing to ship — no image build context changed since its deployed tag.\n'
+    sweep_stale_bump_branches
     return 0
   fi
   rm -f "$plan"
@@ -1179,6 +1212,7 @@ main() {
     if live_carries_tag "$newtag"; then
       printf '✓ nothing to ship — %s is already live and the pipeline built no new images.\n' "$newtag"
       ORPHAN_BRANCH=""
+      sweep_stale_bump_branches
       return 0
     fi
     FAILED_GATE="FR1.4"
@@ -1339,6 +1373,7 @@ main() {
   local pr_url=""
   [ -n "${pr_num:-}" ] && pr_url="https://github.com/${REPO}/pull/${pr_num}"
   emit_deployment "$newtag" "weyland-lab" "$(commit_iso "$newtag")" "" "$pr_url" || true
+  sweep_stale_bump_branches
 }
 
 # Source guard: `SHIP_IMAGES_LIB=1 source ship-images.sh` loads the predicates without running.

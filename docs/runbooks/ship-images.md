@@ -461,6 +461,18 @@ runs `bats scripts/tests/` over the whole directory, so a new suite file needs n
 
 ---
 
+## Stale bump branches are swept at the end of every ship
+
+Every successful exit (shipped, already deployed, both nothing-to-ship paths) ends with
+`sweep_stale_bump_branches`: it deletes each `ci/image-bump-*` branch whose PRs are **all** closed or merged, and
+prints `→ branch sweep: N deleted, N failed, N kept`. It **keeps** a branch with an open PR, one with no PR yet (a
+pipeline mid-flight pushes its branch before opening the PR), and one whose PR state it cannot read. It never fails
+the ship. Why here (2026-10-02): 36 stale branches had piled up because the nightly `pr-lifecycle-reconcile` job
+closes superseded bump PRs, and its least-privilege token (Pull requests + Issues: write) cannot delete a branch —
+that needs Contents: write, i.e. push rights on all 8 pr-lane repos for an unattended job. This script runs with your
+own `gh` login. Merged PRs' branches are also removed by the repo's `delete_branch_on_merge` setting (on since
+2026-10-02).
+
 ## When the ship stops at the SonarQube gate
 
 FR1.3 fails with `QUALITY GATE STATUS: FAILED` in the `sonar-gate` step log. The log names the gate, not the finding.

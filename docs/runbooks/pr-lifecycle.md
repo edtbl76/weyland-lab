@@ -384,6 +384,12 @@ kept **byte-identical** to `pr-staleness.yaml`'s and is guarded against the SoT 
 (the `pr(recon)` lane), so the surface (staleness) and resolve (reconcile) watchers can never silently diverge —
 add a repo in `repos.yaml`, reconcile both consumers, or the guard fails CI.
 
+**It closes, it never deletes branches (2026-10-02).** Closing a superseded `ci/image-bump-*` PR leaves its branch
+on GitHub; this job does not delete it, because its token is deliberately Pull requests + Issues: write only, and a
+branch delete needs Contents: write (push rights on every pr-lane repo, for an unattended job). `ship-images.sh` sweeps
+those branches at the end of every ship, with the owner's login ([ship-images.md](ship-images.md) § Stale bump
+branches). Do not widen this token to fix branch clutter.
+
 **Token reach (blocking for private repos).** The CronJob's sealed `pr-lifecycle-reconcile-github` PAT must hold
 `Pull requests: write` + `Issues: write` on **every** pr-lane repo — including private **`freejack`** +
 **`startme-curator`** — or those repos fail closed (exit 2 → failed Job → Telegram), never a silent skip. When

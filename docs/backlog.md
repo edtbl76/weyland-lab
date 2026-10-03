@@ -2478,8 +2478,9 @@ v23 with only the 7 CVE-fixed packages moved (pip-audit clean). (3) The operator
 operator's fleet load was one-shot: after the 2026-10-01 stall the live pod ran 31h with 0 fleet tools while `/ready`
 said ready — now it retries every 30s and `/ready` is 503 until the fleet loads (proven in the real image against a
 Keycloak that comes up late). (5) 36 stale `ci/image-bump-*` branches on GitHub: the nightly pr-lifecycle job closed
-superseded bump PRs without deleting their branches (29), and the repo kept branches on merge (7) — job now deletes the
-branch it closes (`pr-lifecycle.bats`), repo `delete_branch_on_merge` on, all 36 deleted. (6) The SonarQube API
+superseded bump PRs without deleting their branches (29), and the repo kept branches on merge (7). The job's token
+cannot delete branches by design (Contents: write = push rights on 8 repos), so `ship-images.sh` now sweeps stale bump
+branches at every successful exit (`ship-images.bats`); repo `delete_branch_on_merge` on; all 36 deleted. (6) The SonarQube API
 command in `complexity-triage.md` returned 401 (curled in-pod with a password the pod lacks) — replaced by
 `scripts/sonar_api.py` (`gate` subcommand, in `ship-images.md` § SonarQube gate). Still open: nights 2–7.
 
