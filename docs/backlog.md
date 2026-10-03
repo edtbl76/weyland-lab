@@ -2427,6 +2427,60 @@ merges — that stays a human action).
  is committed in git. Do **all four at once** — piecemeal (ClickHouse-only) is inconsistent and gives no real
  benefit while the other three stay inline. Also the ClickHouse `users.d` Secret is already out-of-band (good).
 
+### B200 — Parallel CI across more build agents on new hardware — LOW — HELD FOR HARDWARE (2026-10-03, Linear EMA-286)
+
+**Why.** A full CI run is **68 steps, ~86 min, strictly sequential** (#241: sum of step time = wall clock, 5,202 s).
+weyland-lab is ONE workflow pinned `labels: {backend: kubernetes}`, so it uses one of mother's 2 k8s agents, and the
+workspace is a local-path **RWO** PVC (`WOODPECKER_BACKEND_K8S_STORAGE_RWX: false`), so steps cannot overlap. 46 of the
+68 steps are fixture lanes (the B88/B153 sample apps — no production code); `golden-path-smoke` alone is ~28 min. The
+B177 lean trigger (`RUN_FIXTURES=0`, ~9 min) covers everyday pushes, but every full run (the nightly, any change under a
+`fixture_trigger_paths` entry) still takes ~86 min AND adds its memory to mother — the node B199 shows stalling, and
+where the only CI kills happened (#169/#170/#191). **Owner decision (2026-10-03):** parallelise onto **more build agents
+on additional hardware**, not onto rogueone.
+
+**Scope.**
+1. **Agents on the new node(s).** Woodpecker kubernetes-backend agents whose step pods schedule on the new hardware
+   (agent replicas + capacity in `k8s/woodpecker/woodpecker-values.yaml`; step `nodeSelector`/affinity via
+   `backend_options.kubernetes`), so fixture work stops landing on mother.
+2. **Split the pipeline into workflows** (`.woodpecker/*.yml`). A workflow gets its own workspace PVC, so the RWO volume
+   stops serialising across workflows. Proposed: `platform` (lint, guards, production tests, integration lanes,
+   sonar-gate, build, deploy-handoff — cluster-dependent, stays on mother) + fixture workflows grouped by language
+   family (pinned to the new node) + `golden-path-smoke`. `depends_on` orders `sonar-gate`/`notify-port` after all.
+3. **golden-path-smoke in parallel** — partition the ~44 cold buildkit builds (`GOLDEN_PATH_ONLY` groups, or concurrent
+   builds in `scripts/run-golden-path-jobs.sh`; Job names are already run-scoped, 2026-10-03) within buildkitd's memory.
+4. **Keep the lean trigger** — `scripts/ci/select-fixtures.sh` + `ci-langs.yaml` must gate the fixture workflows the same
+   way they gate the lanes today.
+
+**Technical context.** Woodpecker server v3.17 (SQLite, ns `woodpecker`) + 2 k8s agents on mother; STUD.io's 4
+local-backend agents on rogueone (systemd, B57b) are out of scope (below). Files: `.woodpecker.yml` (68 steps, `&fixture`
+/ `&skip_on_smoke` anchors), `k8s/woodpecker/woodpecker-values.yaml`, `k8s/limitranges.yaml` (128Mi/2Gi default; heavy
+lanes 4–6Gi), `ci-langs.yaml`, `scripts/ci/select-fixtures.sh`, `scripts/run-golden-path-jobs.sh`, the buildkitd
+Deployment (ns `woodpecker`), the `ci-cache-*` PVCs (go/maven/… — node-local RWO, so cache placement follows the node).
+Step peaks measured (#168): most < 1 GiB, heaviest 1.2–2.8 GiB. Hardware is B134 (EMA-195): a 2nd k3s node.
+
+**Acceptance criteria.**
+- A full run's wall clock is **≤ 40 min** on two consecutive nightly runs (from ~86).
+- Fixture step pods run on the new node — **0 fixture pods on mother** in a full run (pod `spec.nodeName`).
+- No CI pod is OOM-killed or evicted, and mother's MemAvailable during a full run is no lower than during a lean run.
+- A lean run (`RUN_FIXTURES=0`) still skips every fixture workflow and still takes ~9 min.
+- Any failing lane in any workflow fails the pipeline; `notify-port` posts exactly one status per pipeline.
+- `woodpecker-cli lint` passes on every workflow file; `scripts/tests/ci-select-fixtures.bats` covers the workflow gating.
+
+**Edge cases & failure modes.**
+- **The new node is down** — fixture workflows must FAIL or alert, never sit Pending forever with a green-looking
+  pipeline (alert on a workflow pending > N min).
+- buildkitd contention when several workflows build at once (one buildkitd today) — cap concurrency or add a builder.
+- `ci-cache-*` PVCs are RWO local-path: a cache bound to mother cannot mount on the new node — recreate per node.
+- Secrets (`sonar_token`, `linear_api_key`, …) must be available to whichever workflow uses them, and to no other.
+- Each workflow clones the repo — fine on LAN, but count it.
+
+**Out of scope.** rogueone's local-backend agents (assessed 2026-10-03: capacity is ample — ≥ 93 GB available in 9 days
+of sysstat, peak CPU 19% of 28 online cores, 1.6 TB disk, STUD.io idle — but the owner declined: it is the workstation,
+steps would run as the owner with the Docker socket, and CI would depend on rogueone's uptime). RWX storage (NFS /
+Longhorn) to parallelise steps within one workflow. Push webhooks.
+
+Blocked by **B134** (EMA-195, the hardware). Relates B177 (lean trigger), B199 (mother memory), B57b (the mixed fleet).
+
 ### B199 — mother runs out of memory overnight and stalls (CI killed, node NotReady) — HIGH (2026-09-30, Linear EMA-258)
 
 **Why.** Found 2026-09-30 while running B180's CI: pipelines 206, 207, 208 (nightly-images) and 209 all died with no
@@ -3795,7 +3849,7 @@ upgrade later). Planned as **Proxmox**, mirroring Weyland's own layout:
 - **What moves:** stateless workloads first (the relief this item needs). Stateful stores, their local-path PVs and
   the backups stay pinned to mother (docs/dr.md blast radius unchanged). The join brings node labels + pinning, and a
   pass over the single-node assumptions (schedules.md Design Rule #4 "one node, one RAM pool", hostPath backups).
-- Unblocks on landing: **B159**, **B161** Phase 2, **B44**. Purchase is the owner's call ($0 budget otherwise).
+- Unblocks on landing: **B159**, **B161** Phase 2, **B44**, **B200** (parallel CI on more build agents). Purchase is the owner's call ($0 budget otherwise).
 - **Prework — B198 (placement inventory, Closing Gaps).** What moves to this box is decided per workload in
   `placement.yaml` (host, state, movability, `strix_target`), with a check that it matches what actually runs; the
   migration plan for this purchase is the set of rows whose target is not `stays`. Do B198 before the hardware lands.
