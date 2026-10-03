@@ -1,0 +1,34 @@
+# B182 — shared agent memory: Basic Memory serving ONE directory of Markdown notes over MCP (streamable HTTP).
+# The directory (~/agent-memory/weyland) IS the store: Claude Code writes it natively (its memory dir is a symlink to
+# it) and every other agent reaches the same files over MCP — directly on rogueone, or via Bifrost from mother.
+# USER unit (the notes live in the user's home; restic backs up ~/agent-memory). See docs/runbooks/shared-agent-memory.md.
+#   Install:  uv tool install basic-memory==0.23.2      (pinned; bump deliberately, re-run the acceptance check)
+#             cp nodes/rogueone/systemd/basic-memory.service ~/.config/systemd/user/
+#             systemctl --user daemon-reload && systemctl --user enable --now basic-memory.service
+#   REQUIRED: loginctl enable-linger edwardmangini   <- runs without an active login (already on for this user)
+#   Check:    uv run --with mcp python scripts/check-shared-memory.py   ·   logs: journalctl --user -u basic-memory
+#   Firewall: the server has NO auth — only localhost and mother (Bifrost) may reach :8765 (runbook § Firewall).
+[Unit]
+Description=Basic Memory — shared agent memory over MCP (B182)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+# Never rewrite the existing notes. The defaults rewrote 207 of 213 on first index (added permalink:, re-wrapped
+# descriptions, changed timestamp format, prepended frontmatter to MEMORY.md); with these two off: 0 rewritten.
+Environment=BASIC_MEMORY_DISABLE_PERMALINKS=true
+Environment=BASIC_MEMORY_ENSURE_FRONTMATTER_ON_SYNC=false
+# Semantic search (local bge-small-en-v1.5): found 3/5 known answers vs 2/5 keyword-only; ~1.4 GB RSS.
+Environment=BASIC_MEMORY_SEMANTIC_SEARCH_ENABLED=true
+# Register the project (idempotent: "already exists" is fine; a real failure makes ExecStart fail on --project).
+ExecStartPre=-/home/edwardmangini/.local/bin/basic-memory project add weyland /home/edwardmangini/agent-memory/weyland
+# localhost ONLY until the ufw rule (runbook § Firewall) admits mother; then --host 0.0.0.0 so Bifrost can reach it.
+ExecStart=/home/edwardmangini/.local/bin/basic-memory mcp --transport streamable-http --host 127.0.0.1 --port 8765 --project weyland
+Restart=on-failure
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=default.target

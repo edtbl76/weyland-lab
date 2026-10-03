@@ -62,6 +62,28 @@ across harnesses instead of across sessions.
 |---|---|
 | **ContextStream** (2026-09-25) | Free tier is real (10k credits/mo, 15 projects) and cloud is fine when free, but per-operation credit cost is unpublished and it is a second, proprietary store — duplication, not the fix. Its code-intelligence half duplicates Sourcebot/Zoekt, graphify and Serena. |
 
+## Verification evidence — Basic Memory 0.23.2 (2026-10-03)
+
+Run in a throwaway `python:3.12-slim` container on rogueone, as the invoking user, against a **copy** of the real
+memory directory (213 notes). Probe: an MCP client over streamable HTTP (`basic-memory mcp --transport
+streamable-http`). Nothing touched the live directory or the cluster.
+
+| Check | Result |
+|---|---|
+| Streamable HTTP (Bifrost-reachable transport) | **Pass** — 21 MCP tools (`search_notes`, `read_note`, `write_note`, `edit_note`, `build_context`, `recent_activity`, …) |
+| Indexes the existing notes in place | **Pass** — all 213 indexed in ~20 s; frontmatter + `[[wikilinks]]` read as-is |
+| **Leaves the files alone** | **Fail by default, pass when configured** — the defaults REWROTE 207 of 213 notes on first index (added `permalink:`, re-wrapped long `description:` lines, changed timestamps `2026-08-24T15:01:54.273Z` → `2026-08-24 15:01:54.273000+00:00`, prepended a frontmatter block to `MEMORY.md`). With `disable_permalinks=true` + `ensure_frontmatter_on_sync=false`: **0 of 213 rewritten** |
+| A plain-file edit (how Claude Code writes memory) is picked up | **Pass** — a note written straight to disk was searchable within seconds |
+| Two clients writing at the same moment | **Pass** — both notes written, both intact |
+| Search finds the right note (5 questions with a known answer, top 5) | **3/5 with semantic search, 2/5 keyword-only.** Missed: KEDA → `store-scaler-easy-button`, "trigger CI without cron" → the canonical-op-command note |
+| Rejects a token-shaped write | **Fail** — accepted a `ghp_…` string. A guard is needed outside the store (hook or scan) |
+| Server memory | **1.4 GB** with semantic search (local `bge-small-en-v1.5` via fastembed); **268 MB** keyword-only. Semantic can instead call an OpenAI-compatible embedding endpoint (`semantic_embedding_api_base`) |
+| License | AGPL-3.0 — fine for internal, unmodified use |
+
+Not yet tested: the other store candidates. The reference `memory` server (JSONL graph), OpenMemory and Graphiti
+all keep their own store format, so each would be a **second copy** of the Markdown notes — the shape the "one
+store" constraint rules out. That is from their documented architecture, not a run.
+
 ## Decisions
 
 None yet. Record each decision here with date, the option chosen, the alternatives rejected, and the evidence
