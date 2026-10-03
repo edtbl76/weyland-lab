@@ -95,9 +95,9 @@ incomplete index) · 2 could not check (scanner failed, store unreachable). Logs
 ```
 journalctl --user -u agent-memory-watch --since -1h --no-pager -o cat | grep agent-memory-watch:
 ```
-**One-time Kuma setup:** in Uptime Kuma create a **Push** monitor "agent-memory" (heartbeat interval **20 min**), put
-its push URL in `scripts/.env` as `KUMA_MEMORY_PUSH_URL`. Until then the watchdog logs
-`KUMA_MEMORY_PUSH_URL unset — verdict NOT reported to Kuma`.
+**Kuma (set up 2026-10-03):** a **Push** monitor "agent-memory" (heartbeat interval **1200 s**, Telegram notification);
+its push URL — **without** the `?status=…` query, which the watchdog appends — is `KUMA_MEMORY_PUSH_URL` in
+`scripts/.env`. If that variable is missing the watchdog logs `KUMA_MEMORY_PUSH_URL unset — verdict NOT reported to Kuma`.
 
 **A secret was found:** list where, with values redacted, then remove the line from the note:
 ```

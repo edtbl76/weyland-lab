@@ -3246,9 +3246,9 @@ on — the operator's interface), the other stores (each keeps its own format = 
   write landed in Claude's dir (both < 1 s); no parallel copy; concurrent writes intact; store down → exit 2
   "unreachable"; token flagged; decisions + DoD docs. `scripts/check-shared-memory.py` is the acceptance check (4/4).
 - **Still open:** (a) criterion 6 for **OpenCode** (a read test) and the **operator / Open WebUI** read path — the operator
-  gets tools from the governed MCP gateway, not Bifrost, so its read-only key has no consumer yet; (b) the Kuma push
-  monitor `agent-memory` + `KUMA_MEMORY_PUSH_URL` (owner, UI); (c) a live Codex CLI session (the test drove Codex's
-  route, not its model); (d) Linear EMA-240 update (the Linear MCP needs re-auth).
+  gets tools from the governed MCP gateway, not Bifrost, so its read-only key has no consumer yet; (b) a live Codex
+  CLI session (the test drove Codex's route, not its model). Done 2026-10-03: the Kuma push monitor `agent-memory`
+  (20-min heartbeat, Telegram) + `KUMA_MEMORY_PUSH_URL` — the watchdog reports up; Linear EMA-240 updated.
 
 **Why.** The lab is **multi-harness**: Claude Code, Codex (CLI + ChatGPT desktop), OpenCode, Cline, Pi, Open WebUI and
 the weyland-operator all work against the same repos and platform (the AIDLC framework is packaged for 7 harnesses upstream; this repo installs the Claude Code one).
