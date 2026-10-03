@@ -49,7 +49,7 @@ def test_requests_go_to_the_lan_nodeport_with_basic_auth_and_the_params(monkeypa
     _serve(monkeypatch, {"rules/search": {"rules": []}}, seen)
     assert sa.main(["rules/search", "activation=true", "languages=py,java"]) == 0
     req = seen[0]
-    assert req.full_url.startswith("http://192.168.1.243:30969/api/rules/search?")
+    assert req.full_url.startswith("http://mother.weyland.lab:30969/api/rules/search?")
     assert "activation=true" in req.full_url and "languages=py%2Cjava" in req.full_url
     assert req.get_header("Authorization").startswith("Basic ")
 

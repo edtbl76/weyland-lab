@@ -4,7 +4,7 @@
     sonar_api.py gate [projectKey]          # why the quality gate passed/failed: conditions + new-code issues + hotspots
     sonar_api.py <api-path> [key=value ...]  # any GET, raw JSON — e.g. rules/search activation=true languages=py,java
 
-Reaches Sonar through the LAN NodePort `sonarqube-api-lan` (192.168.1.243:30969 -> sonarqube:9000) as `admin`, with
+Reaches Sonar through the LAN NodePort `sonarqube-api-lan` (mother.weyland.lab:30969 -> sonarqube:9000) as `admin`, with
 the password from SONAR_ADMIN_PW in the gitignored scripts/.env — load it first, never paste it:
     set -a && . /home/edwardmangini/IdeaProjects/weyland/scripts/.env && set +a
 The password is only ever sent as a Basic-auth header; it is never printed.
@@ -20,7 +20,9 @@ import urllib.error
 import urllib.parse
 import urllib.request
 
-SONAR_URL = os.environ.get("SONAR_URL", "http://192.168.1.243:30969").rstrip("/")
+# Plain HTTP on purpose — the NodePort is the ONLY machine path: the HTTPS ingress (sonarqube.weyland.lab) is behind
+# Keycloak forward-auth and answers an API call with a 307 to the browser login. LAN-only; reviewed SAFE in Sonar.
+SONAR_URL = os.environ.get("SONAR_URL", "http://mother.weyland.lab:30969").rstrip("/")
 PROJECT = "weyland-lab"
 
 
@@ -40,7 +42,7 @@ def get(path: str, params: dict) -> dict:
             return json.load(r)
     except urllib.error.HTTPError as exc:
         raise CannotRead(f"GET /api/{path} -> HTTP {exc.code}: {exc.read()[:300]!r}") from exc
-    except (urllib.error.URLError, OSError, ValueError) as exc:
+    except (OSError, ValueError) as exc:   # OSError covers urllib.error.URLError
         raise CannotRead(f"GET /api/{path} failed: {exc}") from exc
 
 
