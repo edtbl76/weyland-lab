@@ -107,6 +107,12 @@ cd /home/edwardmangini/IdeaProjects/weyland && docker run --rm -v "$PWD:/code:ro
 - **Nothing to ship:** `✓ nothing to ship — no image build context changed since its deployed tag.`, exit 0, no
   pipeline triggered.
 - **Full ship:** pipeline → PR → three gates pass → merge → scoped `argocd app sync` → `✓ shipped — git-<sha> is
+- **Every successful exit ends with the branch sweep line** — `→ branch sweep: N deleted, N failed, N kept (open PR
+  / no PR yet / unreadable)`. RUN 2026-10-02 against GitHub (after the 36 stale branches were cleared): `0 deleted,
+  0 failed, 0 kept`.
+- **A ship stopped at the SonarQube gate** — read why with
+  `set -a && . /home/edwardmangini/IdeaProjects/weyland/scripts/.env && set +a && python3 /home/edwardmangini/IdeaProjects/weyland/scripts/sonar_api.py gate`.
+  RUN 2026-10-02: after the S3776/S7484 fix it printed `gate weyland-lab: OK` · `new-code issues: 0` (exit 0).
   live and smoke-verified.`
 - **Gate refusal:** the run names the gate that stopped it and **leaves the PR open**. A refusal is a success of
   the gate, not a failure of the loop.

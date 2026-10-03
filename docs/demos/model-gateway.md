@@ -137,7 +137,7 @@ Same single-dispatch on `/context/ask` (backend is a **body** field there, not a
 Mostly **read-only** — these calls create no lab data (LiteLLM is a stateless proxy; `/context/*`
 reads the vector stores; `model_catalog` is refreshed by its own 6h asset, replace-by-source). The
 one stateful lever is the **egress valve** — if you opened it only for the demo, close it so no
-off-LAN calls stay possible (`./valve.sh status` shows whether it is open; the spend alert `LiteLLMSpendObserved` guards cost):
+off-LAN calls stay possible (`./valve.sh status` shows whether it is open; the spend alerts guard cost — `BifrostSpendObserved` for routes via Bifrost, `LiteLLMSpendObserved` for the direct routes that bypass it, $1/24h each, see [runbooks/model-gateway.md](../runbooks/model-gateway.md) §3):
 
 ```
 [mother] ./valve.sh close

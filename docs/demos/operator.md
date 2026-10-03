@@ -80,6 +80,17 @@ Confirm the ingress + confirm-step metrics:
 [mother] kubectl -n weyland exec deploy/weyland-operator -- python -c "import urllib.request; print([l for l in urllib.request.urlopen('http://localhost:8080/metrics').read().decode().splitlines() if 'operator_telegram_messages_total' in l and not l.startswith('#')])"
 ```
 
+## The MCP fleet loaded (readiness, 2026-10-02)
+
+The pod is not Ready until the fleet has loaded; a failed load retries every 30 s. Confirm it loaded:
+
+```
+[mother] kubectl -n weyland logs deploy/weyland-operator -c weyland-operator | grep -E '\[fleet\]'
+```
+→ `[fleet] loaded 95 read tools from http://weyland-mcp-gateway.weyland.svc.cluster.local:8080/mcp-fleet` (RUN
+2026-10-02 on `git-9cb55524`). `cannot mint the operator token from Keycloak — will retry` means it is still waiting
+on Keycloak, and `/ready` answers `503 {"fleet_loaded": false}` meanwhile.
+
 ## Local-primary brain + Haiku failover (B45 follow-up)
 
 The brain is local `qwen2.5:7b` ($0); Haiku is a health failover only. Confirm local is actually serving (not silently

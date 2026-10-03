@@ -38,6 +38,8 @@ sequenceDiagram
     Note over Op,K8s: Both gates read the same diff file, so it is deleted only after both run. Deleting it early is how FR1.5 once passed on an empty list, verifying nothing.
     Op->>Port: EMA-172 — record a deployment entity (DORA), AFTER the gates
     Note over Op,Port: Describes only a ship the gates already proved. Cannot abort the run,<br/>but a failed emit is LOUD: a silent miss makes deployment-frequency<br/>indistinguishable from a lab that stopped deploying.
+    Op->>GH: branch sweep — delete ci/image-bump-* branches whose PRs are ALL closed/merged
+    Note over Op,GH: Runs on every successful exit (also "already deployed" / "nothing to ship").<br/>Keeps open-PR, no-PR-yet and unreadable branches — never fails the ship.<br/>Lives here because the nightly pr-lifecycle token cannot delete branches (2026-10-02).
 ```
 
 ## The DORA emit (EMA-172)
