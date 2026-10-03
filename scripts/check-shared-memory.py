@@ -62,6 +62,7 @@ async def call(url: str, tool: str, args: dict):
 
 
 NEED_TOOLS = {"search_notes", "write_note", "read_note", "delete_note", "list_directory"}
+NATIVE_WAIT_S = 60.0   # how long step 4 waits for a plain-file note to become searchable (--timeout)
 
 
 async def step_indexed(url: str, directory: str) -> bool:
@@ -69,7 +70,7 @@ async def step_indexed(url: str, directory: str) -> bool:
     "(page size 10, 214 total items)"."""
     files = note_files(directory)
     res = await call(url, "list_directory", {"dir_name": "/", "depth": 10, "file_name_glob": "*.md", "page_size": 1})
-    m = re.search(r"(\d+) total items", text(res))
+    m = re.search(r"\b(\d{1,9}) total items", text(res))
     if is_error(res) or not m:
         print(f"2. indexed FAIL — could not read the index total from list_directory: {text(res)[:200]!r}")
         return False
@@ -98,27 +99,32 @@ async def step_mcp_write(url: str, directory: str, tag: str) -> bool:
     return True
 
 
-async def step_native(url: str, directory: str, tag: str, timeout: float) -> bool:
-    """4. a note written straight to disk (how Claude Code writes memory) is searchable within `timeout`."""
-    marker = f"nativeprobe{tag}"
-    path = os.path.join(directory, f"_check-native-{tag}.md")
+def _write_probe(path: str, tag: str, marker: str) -> None:
     with open(path, "w", encoding="utf-8") as fh:
         fh.write(f"---\nname: check-native-{tag}\ndescription: written as a plain file by check-shared-memory\n"
                  f"metadata:\n  type: project\n---\n\n{marker}\n")
+
+
+async def step_native(url: str, directory: str, tag: str) -> bool:
+    """4. a note written straight to disk (how Claude Code writes memory) is searchable within NATIVE_WAIT_S."""
+    marker = f"nativeprobe{tag}"
+    path = os.path.join(directory, f"_check-native-{tag}.md")
+    await asyncio.to_thread(_write_probe, path, tag, marker)
     t0 = time.monotonic()
     try:
-        while time.monotonic() - t0 < timeout:
-            if marker in text(await call(url, "search_notes", {"query": marker})):
-                print(f"4. native OK — a plain-file note was searchable after {time.monotonic() - t0:.0f}s")
-                return True
-            await asyncio.sleep(2)
+        async with asyncio.timeout(NATIVE_WAIT_S):
+            while marker not in text(await call(url, "search_notes", {"query": marker})):
+                await asyncio.sleep(2)
+        print(f"4. native OK — a plain-file note was searchable after {time.monotonic() - t0:.0f}s")
+        return True
+    except TimeoutError:
+        print(f"4. native FAIL — a plain-file note was not searchable within {NATIVE_WAIT_S:.0f}s")
+        return False
     finally:
-        os.remove(path)
-    print(f"4. native FAIL — a plain-file note was not searchable within {timeout:.0f}s")
-    return False
+        await asyncio.to_thread(os.remove, path)
 
 
-async def run(url: str, directory: str, timeout: float, read_only: bool = False) -> int:
+async def run(url: str, directory: str, read_only: bool = False) -> int:
     if not os.path.isdir(directory):
         print(f"cannot read the store directory {directory}", file=sys.stderr)
         return 2
@@ -137,7 +143,7 @@ async def run(url: str, directory: str, timeout: float, read_only: bool = False)
     if not read_only:
         tag = uuid.uuid4().hex[:10]
         results["mcp write"] = await step_mcp_write(url, directory, tag)
-        results["native"] = await step_native(url, directory, tag, timeout)
+        results["native"] = await step_native(url, directory, tag)
     failed = [name for name, ok in results.items() if not ok]
     if failed:
         print(f"FAILED: {', '.join(failed)}")
@@ -155,7 +161,9 @@ def main(argv=None) -> int:
     ap.add_argument("--read-only", action="store_true", help="checks 1-2 only; write no probe notes")
     a = ap.parse_args(argv)
     try:
-        return asyncio.run(run(a.url, os.path.expanduser(a.dir), a.timeout, a.read_only))
+        global NATIVE_WAIT_S
+        NATIVE_WAIT_S = a.timeout
+        return asyncio.run(run(a.url, os.path.expanduser(a.dir), a.read_only))
     except CannotReach as exc:
         print(f"UNREACHABLE mid-check — {exc}", file=sys.stderr)
         return 2
