@@ -3417,6 +3417,12 @@ Evaluate **Warp Software Factory** (warp.dev's agentic software-development offe
 
 ### B177 — Lean + safe CI language matrix: selective per-language runs + full-matrix headroom — DONE (2026-09-24, Linear EMA-235)
 
+**Follow-up 2026-10-03 (gap found in use):** the selector answered LEAN for a change to `scripts/run-golden-path-jobs.sh`,
+which skips `golden-path-smoke` — the only step that runs it. Added it, `scripts/lib/common.sh` and the
+`k8s/golden-paths/` RBAC to `fixture_trigger_paths`, plus an audit test (`ci-select-fixtures.bats`) that fails if any
+script a lean-gated step runs, or anything it sources, is missing from the list. Also found: ad-hoc runs had been
+triggered FULL (~86 min) instead of lean (~9 min) — the runbook's after-push form is now spelled out in `woodpecker.md`.
+
 **Diagnosis (proven, not assumed).** CI steps run **strictly sequentially** — `WOODPECKER_BACKEND_K8S_STORAGE_RWX: false` (RWO workspace) serializes them, confirmed by #168's step timestamps being back-to-back with zero overlap. So the failure is not a parallel burst but a **~30-min sequential run on a memory-saturated node** (`mother` ~98% actual, ~1.5Gi free): any heavy compile step (haskell 356s, ada 216s, swift 175s) or transient platform spike exceeds headroom and OOM-kills the running step → the pipeline is killed (#169 at `scan-haskell`, #170 at `test-julia`; #168 squeaked through). An earlier "67-wide parallel burst" read was wrong — the timestamps disproved it.
 
 **Phase 1 — selective runs (DONE 2026-09-24; CI-verified by lean run #178: 21 of 67 steps instantiated, 21/21 success).** Because sequential runtime = SUM of lanes, skipping the ~46 fixture-language golden-path lanes when they didn't change collapses ~30 min → a few min. Real production code = Python (weyland-dagster/guard/tool-server/scripts) + Java (2 Flink modules) + shell (the bats suite); the rest are B153/B160 hello-world fixtures. Pieces:

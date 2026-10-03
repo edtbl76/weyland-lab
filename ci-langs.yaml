@@ -42,5 +42,11 @@ fixture_trigger_paths:
   - scripts/run-lang-tests.sh   # the test-lane runner — affects EVERY language lane
   - scripts/run-lang-scan.sh    # the scan-lane runner — affects every scan lane
   - scripts/coverage-ratchet.sh # per-lane coverage gate — affects every test lane
+  # 2026-10-03: the golden-path smoke machinery. A change to the smoke runner selected LEAN and so skipped
+  # golden-path-smoke, the only step that runs it. Kept honest by ci-select-fixtures.bats: every script a lean-gated
+  # step runs (and every file it sources) must be listed here.
+  - scripts/run-golden-path-jobs.sh   # golden-path-smoke's runner (build, run-scoped Jobs, teardown)
+  - scripts/lib/common.sh             # sourced by the lane + smoke runners
+  - nodes/mother/lab/weyland-platform/k8s/golden-paths/   # the smoke Jobs' namespace + RBAC
   - .woodpecker.yml        # the lane definitions + gates themselves
   - ci-langs.yaml          # this manifest — a change to it re-runs everything (fail-safe)

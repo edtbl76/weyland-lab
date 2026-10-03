@@ -82,3 +82,54 @@ teardown() { teardown_stubs; }
   SELECT_CHANGED_FILES=$'vendor/x/golden-paths/go/main.go\ndocs/notes.md' CI_LANGS_FILE="$MANIFEST" run bash "$GUARD"
   [ "$output" = "0" ]
 }
+
+# --- 2026-10-03: the golden-path smoke machinery is a trigger too --------------------------------------------------------
+# A change to scripts/run-golden-path-jobs.sh (the run-scoped Job names, pipeline #242) selected LEAN (0), which skips
+# golden-path-smoke — the one step that exercises that script. Its RBAC and the lib it sources have the same blind spot.
+
+@test "a change to the golden-path smoke runner runs the full matrix (1)" {
+  SELECT_CHANGED_FILES=$'scripts/run-golden-path-jobs.sh' CI_LANGS_FILE="$MANIFEST" run bash "$GUARD"
+  [ "$output" = "1" ]
+}
+
+@test "a change to the golden-paths k8s RBAC runs the full matrix (1)" {
+  SELECT_CHANGED_FILES=$'nodes/mother/lab/weyland-platform/k8s/golden-paths/golden-paths-rbac.yaml' CI_LANGS_FILE="$MANIFEST" run bash "$GUARD"
+  [ "$output" = "1" ]
+}
+
+@test "a change to scripts/lib/common.sh (sourced by the lane runners) runs the full matrix (1)" {
+  SELECT_CHANGED_FILES=$'scripts/lib/common.sh' CI_LANGS_FILE="$MANIFEST" run bash "$GUARD"
+  [ "$output" = "1" ]
+}
+
+# The audit that keeps the gap closed: every script a fixture-gated step runs — and every file that script sources —
+# must be a trigger path, or a change to it gets a lean run that never exercises it.
+@test "every script a lean-gated step runs (and what it sources) is in fixture_trigger_paths" {
+  run python3 - "$REPO_ROOT" <<'PY'
+import os, re, sys, yaml
+root = sys.argv[1]
+wp = yaml.safe_load(open(f"{root}/.woodpecker.yml"))
+trig = yaml.safe_load(open(f"{root}/ci-langs.yaml"))["fixture_trigger_paths"]
+gated = [s for s in wp["steps"] if 'RUN_FIXTURES != "0"' in str(s.get("when", ""))]
+if not gated:
+    sys.exit("no lean-gated steps found — the guard is checking nothing")
+scripts = set()
+for s in gated:
+    for c in s.get("commands") or []:
+        scripts.update(re.findall(r"(scripts/[\w./-]+\.sh)", str(c)))
+seen, todo = set(), list(scripts)
+while todo:                                   # follow `. "$(dirname "$0")/lib/x.sh"` style sources
+    f = todo.pop()
+    if f in seen or not os.path.exists(f"{root}/{f}"):
+        continue
+    seen.add(f)
+    for m in re.findall(r'^\s*(?:\.|source)\s+"?\$\(dirname "\$(?:0|\{BASH_SOURCE\[0\]\})"\)/([\w./-]+)"?', open(f"{root}/{f}").read(), re.M):
+        todo.append(os.path.normpath(os.path.join(os.path.dirname(f), m)))
+missing = sorted(f for f in seen if not any(f.startswith(t) for t in trig))
+print(f"{len(gated)} lean-gated steps, {len(seen)} scripts checked")
+if missing:
+    print("NOT a trigger path (a change here would skip the step that runs it):", missing); sys.exit(1)
+PY
+  [ "$status" -eq 0 ] || { echo "$output"; return 1; }
+  [[ "$output" == *"scripts checked"* ]] || { echo "$output"; return 1; }
+}

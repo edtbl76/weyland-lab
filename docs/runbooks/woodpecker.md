@@ -106,7 +106,13 @@ tags. Steps: `detect-changes → build → kubeconform → deploy-handoff`.
   proving ground" for the golden paths). Production lanes (test-python/shell/java, scan-java, the two integration
   lanes) keep `when: *skip_on_smoke` and always run. The selector reads `ci-langs.yaml` (the manifest: production
   lanes + `fixture_trigger_paths`) and fails closed — an undeterminable diff, any change under a trigger path, or a
-  missing/unparseable manifest all yield `1`. Tests: `scripts/tests/ci-select-fixtures.bats`. `golden-path-smoke` is
+  missing/unparseable manifest all yield `1`. Tests: `scripts/tests/ci-select-fixtures.bats`.
+  **Trigger paths cover the machinery, not just the fixtures (2026-10-03):** the golden-path smoke runner
+  (`scripts/run-golden-path-jobs.sh`), the `scripts/lib/common.sh` it sources and the `k8s/golden-paths/` RBAC were
+  missing, so a change to the smoke runner got a LEAN run that skipped `golden-path-smoke`, the only step that runs it.
+  An audit in `ci-select-fixtures.bats` now fails if any script a lean-gated step runs, or anything it sources, is not
+  a trigger path. **After a push**, compute the selector against the pre-push commit:
+  `RUN_FIXTURES="$(SELECT_BASE=<origin/main before the push> bash scripts/ci/select-fixtures.sh)"`. `golden-path-smoke` is
   lean-gated too (`SMOKE_ONLY == "smoke" || RUN_FIXTURES != "0"`), so a lean run skips the all-~44-paths build.
   **Full-matrix memory safety (B177 Phase 2 — closed on evidence, 2026-09-24):**
   - **Per-step caps already exist.** The `woodpecker` ns has the B93 `default-memory` LimitRange (128Mi request / 2Gi
