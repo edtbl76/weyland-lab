@@ -1110,6 +1110,9 @@ hosts:
     - name: ghcr.io/ggml-org/llama.cpp
       kind: image
       status: system
+    - name: ghcr.io/google/osv-scanner
+      kind: image
+      status: system
     - name: ghcr.io/keploy/keploy
       kind: image
       status: system
@@ -1206,6 +1209,9 @@ hosts:
     - name: postgres
       kind: image
       status: system
+    - name: prom/alertmanager
+      kind: image
+      status: system
     - name: prom/prometheus
       kind: image
       status: system
@@ -1234,6 +1240,9 @@ hosts:
       kind: image
       status: system
     - name: registry.weyland.lab/weyland-agent
+      kind: image
+      status: system
+    - name: registry.weyland.lab/weyland-dagster-base
       kind: image
       status: system
     - name: registry.weyland.lab/weyland-dagster-user-code
