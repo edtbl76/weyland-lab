@@ -28,6 +28,16 @@ REGISTRY="${GOLDEN_PATH_REGISTRY:-registry.weyland.lab}"
 # (the `golden-path-smoke` CI step, or any in-cluster pod with buildctl that can resolve
 # buildkitd.woodpecker.svc:1234); it is not runnable from a host that can't reach the cluster-internal service.
 BUILDKIT="${BUILDKIT_ADDR:-tcp://buildkitd.woodpecker.svc:1234}"
+# RUN-SCOPED Job names (2026-10-03). Pipelines #238 (manual) and #239 (nightly-images) ran this step at the same time;
+# both used gp-<lang>-<framework>, and each deletes that Job before applying its own, so they killed each other's
+# smoke Jobs mid-run (13 + 12 "SMOKE FAILED", no log). Every Job name now ends in the run: p<CI_PIPELINE_NUMBER> in CI,
+# h<epoch> by hand, or GOLDEN_PATH_RUN_ID. It must keep the name a valid k8s name (lowercase alnum + '-', <= 63).
+RUN_ID="${GOLDEN_PATH_RUN_ID:-}"
+if [ -z "$RUN_ID" ]; then
+  if [ -n "${CI_PIPELINE_NUMBER:-}" ]; then RUN_ID="p${CI_PIPELINE_NUMBER}"; else RUN_ID="h$(date +%s)"; fi
+fi
+[[ "$RUN_ID" =~ ^[a-z0-9]([a-z0-9-]{0,18}[a-z0-9])?$ ]] || {
+  echo "GOLDEN_PATH_RUN_ID / run id '$RUN_ID' is not a valid k8s name suffix (lowercase alnum + '-', <= 20 chars)" >&2; exit 2; }
 DRY=0; TARGETS=()
 for a in "$@"; do case "$a" in --dry-run) DRY=1 ;; *) TARGETS+=("$a") ;; esac; done
 
@@ -54,7 +64,8 @@ fail=0
 for p in "${paths[@]}"; do
   name="golden-$(printf '%s' "$p" | tr '/' '-')"      # golden-paths/python/fastapi -> golden-python-fastapi
   image="$REGISTRY/$name:latest"
-  job="gp-$(printf '%s' "$p" | tr '/' '-')"
+  job="gp-$(printf '%s' "$p" | tr '/' '-')-${RUN_ID}"      # run-scoped: an overlapping pipeline has its own
+  [ "${#job}" -le 63 ] || { echo "Job name $job is longer than 63 characters" >&2; exit 2; }
   # Each golden path declares its ephemeral smoke command in a `.smoke` file (e.g. `python smoke.py`,
   # `sh smoke.sh`), run via `sh -c` so it is language-agnostic. Fail closed if it is missing.
   smoke="$(cat "$GP_DIR/$p/.smoke" 2>/dev/null || true)"
@@ -92,7 +103,7 @@ for p in "${paths[@]}"; do
   kubectl -n "$NS" apply -f - >/dev/null <<EOF || { echo "APPLY FAILED: $job" >&2; exit 2; }
 apiVersion: batch/v1
 kind: Job
-metadata: { name: $job, namespace: $NS, labels: { app: golden-path, "golden-path/name": "$name" } }
+metadata: { name: $job, namespace: $NS, labels: { app: golden-path, "golden-path/name": "$name", "golden-path/run": "$RUN_ID" } }
 spec:
   backoffLimit: 0
   activeDeadlineSeconds: 180

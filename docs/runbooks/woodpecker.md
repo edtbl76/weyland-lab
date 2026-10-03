@@ -276,6 +276,8 @@ caches need anyway. **Apply the PVCs before the run** or step pods hang Pending.
   agent silently IGNORES `serviceAccountName` and the step runs as `default` → its kube calls get Forbidden. RBAC +
   SA live in `k8s/golden-paths/golden-paths-rbac.yaml` (Argo app `golden-paths`); the step itself is
   `scripts/run-golden-path-jobs.sh` (see [demos/golden-paths.md](../demos/golden-paths.md), [design/golden-paths.md](../design/golden-paths.md)).
+  Its smoke Jobs are named per run (`gp-<path>-p<CI_PIPELINE_NUMBER>`), so a manual pipeline that overlaps the
+  nightly-images cron no longer deletes the cron's Jobs (the #238/#239 collision, 2026-10-03).
 
 ## Pointers
 - **Step catalog (café menu of every CI step + how to select a subset):** [woodpecker-step-menu.md](woodpecker-step-menu.md)

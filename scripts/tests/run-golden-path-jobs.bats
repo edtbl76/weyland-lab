@@ -90,3 +90,54 @@ mkpath() {
   [ "$status" -eq 2 ]
   [[ "$output" == *"no golden paths found"* ]]
 }
+
+# --- 2026-10-03: run-scoped Job names ---------------------------------------------------------------------------------
+# Pipelines #238 (manual) and #239 (nightly-images) ran golden-path-smoke at the same time (06:01-06:31 UTC). Both used
+# the Job name gp-<lang>-<framework> and each DELETES that Job before applying its own, so they killed each other's
+# smoke Jobs mid-run: 13 + 12 "SMOKE FAILED" with no log. The Job name now carries the run: p<CI_PIPELINE_NUMBER> in CI,
+# h<epoch> by hand, or GOLDEN_PATH_RUN_ID.
+
+@test "in CI the Job name carries the pipeline number" {
+  mkpath demo/one
+  CI_PIPELINE_NUMBER=240 run bash "$EX" --dry-run
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"run Job gp-demo-one-p240/"* ]] || { echo "$output"; return 1; }
+}
+
+@test "two overlapping pipelines get DIFFERENT Job names for the same path (the #238/#239 collision)" {
+  mkpath demo/one
+  CI_PIPELINE_NUMBER=238 run bash "$EX" --dry-run
+  a="$(grep -o 'run Job [^/]*' <<<"$output")"
+  CI_PIPELINE_NUMBER=239 run bash "$EX" --dry-run
+  b="$(grep -o 'run Job [^/]*' <<<"$output")"
+  [ -n "$a" ] && [ -n "$b" ] && [ "$a" != "$b" ] || { echo "a=$a b=$b"; return 1; }
+}
+
+@test "by hand (no CI number) the Job name still carries a run suffix" {
+  mkpath demo/one
+  run env -u CI_PIPELINE_NUMBER bash "$EX" --dry-run
+  [ "$status" -eq 0 ]
+  [[ "$output" =~ run\ Job\ gp-demo-one-h[0-9]+/ ]] || { echo "$output"; return 1; }
+}
+
+@test "a GOLDEN_PATH_RUN_ID that would make an invalid k8s name fails closed with a reason (exit 2)" {
+  mkpath demo/one
+  GOLDEN_PATH_RUN_ID='Bad_ID!' run bash "$EX" --dry-run
+  [ "$status" -eq 2 ]
+  [[ "$output" == *"GOLDEN_PATH_RUN_ID"* ]] || { echo "$output"; return 1; }
+}
+
+@test "the live run deletes, applies, waits on and tears down ONLY its own run-scoped Job" {
+  mkpath demo/one
+  setup_stubs
+  stub buildctl 0 ''
+  stub_dispatch kubectl
+  stub_case kubectl 'wait' 0 ''
+  CI_PIPELINE_NUMBER=240 run bash "$EX" demo/one
+  [ "$status" -eq 0 ] || { echo "$output"; teardown_stubs; return 1; }
+  called_with kubectl 'delete job gp-demo-one-p240'
+  called_with kubectl 'job/gp-demo-one-p240'
+  # never the unscoped name another pipeline is using
+  ! calls_to kubectl | grep -qE 'gp-demo-one( |$)' || { calls_to kubectl; teardown_stubs; return 1; }
+  teardown_stubs
+}

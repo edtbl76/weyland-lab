@@ -25,6 +25,12 @@ That is the **`golden-path-smoke`** CI step: for each path it builds the image a
 that starts the image and curls `/ready` + `/hello`, asserts exit 0, prints the log, and **tears the Job down** —
 golden paths are never Deployments. Fail-closed: a build/apply failure is exit 2, a smoke failure exit 1.
 
+**Job names are run-scoped (2026-10-03):** `gp-<lang>-<framework>-<run>`, where `<run>` is `p<pipeline number>` in CI
+(e.g. `gp-go-gin-p240`), `h<epoch>` by hand, or `GOLDEN_PATH_RUN_ID`; each Job is also labelled `golden-path/run`.
+Before this, two overlapping runs used the same names and deleted each other's Jobs mid-smoke — pipelines #238
+(manual) and #239 (nightly-images) failed together on 2026-10-03, 13 + 12 `SMOKE FAILED` with no log. List one run's
+Jobs while it is going: `kubectl -n golden-paths get jobs -l golden-path/run=p240`.
+
 ## Sequence
 
 ```mermaid
