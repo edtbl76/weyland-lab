@@ -102,6 +102,18 @@ The angular golden path moved Angular 19.2 → **20.3.33** (TypeScript 5.9) the 
 Trivy scan of the new lockfile; clean `npm ci`, tests, selfcheck, `ng build` and the image smoke all pass. Its Dockerfile now
 installs with `npm ci` (was `npm install`, which could drift from the lockfile).
 
+**2026-10-02 DoD scan (weyland-lab, vs the 10-01 run):** every critical/high count held or fell (trivy 14C/91H → 13C/79H,
+osv 811 → 761, pip-audit 27 → 10 — the operator's pinned requirements), and an identity diff of gitleaks / bandit /
+semgrep / hadolint criticals+highs found the SAME findings, not swaps. Ten trivy entries were new — all advisories
+published after their files last changed. **Fixed:** `virtualenv` 21.6.1 → 21.7.13 in `genre-trainer` (.in + .txt; it
+needs `python-discovery>=1.6`, so 1.4.4 → 1.6.1 too) — proven by building the real image (`python:3.11-slim`), importing
+ray/mlflow/virtualenv and creating a venv with it; `devalue` 5.9.2 → 5.9.4 in the astro golden path (lockfile-only
+`npm update devalue`) — `npm ci`, 5/5 tests and `astro build` pass in `node:24-alpine`. **Accepted** (no upstream fix —
+each package's latest release IS the advisory's `last_affected`): braces 3.0.3, http-cache-semantics 4.2.0, node-forge
+1.4.0, golden-path fixtures only — by advisory ID with an expiry (`.trivyignore` `exp:2027-01-02`, `osv-scanner.toml`
+`ignoreUntil`), so a new advisory on the same version still fires. Proven with the suite's own scanner versions
+(osv-scanner v1.9.1, trivy 0.72.0): zero remaining hits on the five packages outside untracked `node_modules`.
+
 ## B69 — weekly CronJobs + the scan-suite (2026-07-18)
 
 The three on-demand Jobs were folded into **two weekly CronJobs** (both `Sun`, `Etc/UTC`; see [schedules.md](../schedules.md)):

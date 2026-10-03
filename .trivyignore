@@ -74,3 +74,17 @@ KSV-0017
 # gateway SSRF window). Compensating: LAN-only, no external ingress, single tenant. REVISIT + bump both client
 # and server the moment mlflow ships a patched release (as 3.14->3.15.1 cleared CVE-2026-64849).
 CVE-2026-71211
+
+# ---- 2026-10-02 DoD scan triage (golden-path fixtures, no upstream fix) ----
+# Three npm advisories published Sep 3-18 against packages whose LATEST release is still the last affected version
+# (checked 2026-10-02: braces 3.0.3, http-cache-semantics 4.2.0, node-forge 1.4.0 are each `npm view` latest and each
+# advisory's `last_affected`), so there is nothing to bump to. They are flagged ONLY in golden-paths/*/package-lock.json:
+# the B88 sample apps — CI-lane fixtures and ephemeral smoke Jobs, no durable deployment and no production data.
+#   CVE-2026-93687  braces 3.0.3 — stack-exhaustion DoS on deeply nested patterns (build-time glob tooling; 8 samples).
+#   CVE-2026-93748  http-cache-semantics 4.2.0 — max-stale can disclose cross-user cached responses (astro, angular).
+#   CVE-2026-85393  node-forge 1.4.0 — RSA PKCS#1 v1.5 signature check accepts extra nested DigestAlgorithm
+#                   (react-native dev tooling; nothing here verifies untrusted signatures).
+# The same IDs are accepted in osv-scanner.toml. `exp:` makes each re-surface on 2027-01-02 — bump then if a fix exists.
+CVE-2026-93687 exp:2027-01-02
+CVE-2026-93748 exp:2027-01-02
+CVE-2026-85393 exp:2027-01-02

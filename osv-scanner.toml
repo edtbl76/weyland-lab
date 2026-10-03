@@ -36,3 +36,24 @@ Accepted 2026-08-20.
 # Left as a note rather than a silent deletion: the accept was DATED and this records that the date was met.
 # Do NOT re-add it. The 1.12.x path the old note prescribed is BLOCKED — both dagster-dbt (`dbt-core<1.12`) and
 # dbt-metricflow (`dbt-core<1.12.0`) forbid it; 1.11.14 is the supported route.
+
+# ---- 2026-10-02 DoD scan triage — golden-path fixtures, NO UPSTREAM FIX (same three as .trivyignore) ----
+# Each package's latest npm release is still the advisory's `last_affected` (checked 2026-10-02), so nothing can be
+# bumped. Flagged only in golden-paths/*/package-lock.json — the B88 sample apps (CI fixtures + ephemeral smoke Jobs,
+# no durable deployment, no production data). Accepted by advisory ID, not by package version, so a NEW advisory on the
+# same version still fires; `ignoreUntil` forces a re-check on 2027-01-02.
+
+[[IgnoredVulns]]
+id = "GHSA-vfj7-8cjw-p6xm"
+ignoreUntil = 2027-01-02
+reason = "braces <=3.0.3 (CVE-2026-93687): stack-exhaustion DoS on deeply nested brace patterns. No fixed release (3.0.3 is latest). Build-time glob tooling in 8 golden-path sample apps; no untrusted patterns reach it. Accepted 2026-10-02."
+
+[[IgnoredVulns]]
+id = "GHSA-ch52-4w7c-c8xp"
+ignoreUntil = 2027-01-02
+reason = "http-cache-semantics <=4.2.0 (CVE-2026-93748): max-stale can disclose cross-user cached responses. No fixed release (4.2.0 is latest). Only in the astro + angular golden-path samples, single-user fixtures with no shared cache. Accepted 2026-10-02."
+
+[[IgnoredVulns]]
+id = "GHSA-86w9-cpqp-85rv"
+ignoreUntil = 2027-01-02
+reason = "node-forge <=1.4.0 (CVE-2026-85393 / CVE-2026-33894): RSA PKCS#1 v1.5 verification accepts extra nested DigestAlgorithm. No fixed release (1.4.0 is latest). Only in the react-native golden-path sample's dev tooling; nothing verifies untrusted signatures. Accepted 2026-10-02."
