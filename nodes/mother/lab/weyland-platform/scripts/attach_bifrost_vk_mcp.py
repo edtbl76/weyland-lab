@@ -27,12 +27,17 @@ import sqlite3, json, sys
 DB = "/app/data/config.db"
 
 # VK name -> the MCP clients (by name) attached to it. Names must match config_mcp_clients.name exactly.
+# An entry is a client name (all its tools) or (name, [tools]) to scope a client to some of its tools.
+# B182 (2026-10-03): Agent_Memory — coding agents read AND write the shared memory; the operator only recalls.
+MEMORY_READ = ["search_notes", "read_note", "view_note", "read_content", "build_context", "recent_activity",
+               "list_directory", "search", "fetch"]
 SCOPING = {
-    "coding-agents": ["weyland_fleet", "Context7", "Hugging_Face", "Linear", "Perplexity", "Playwright", "GitHub_Remote"],
-    "operator":      ["Excalidraw", "Malwarebytes"],
+    "coding-agents": ["weyland_fleet", "Context7", "Hugging_Face", "Linear", "Perplexity", "Playwright", "GitHub_Remote",
+                      "Agent_Memory"],
+    "operator":      ["Excalidraw", "Malwarebytes", ("Agent_Memory", MEMORY_READ)],
     "chat-eval":     [],   # explicitly toolless
 }
-TOOLS = json.dumps(["*"])   # tools_to_execute — all tools of each attached client
+ALL_TOOLS = ["*"]   # tools_to_execute when an entry names only the client
 
 con = sqlite3.connect(DB, timeout=30)
 cur = con.cursor()
@@ -45,20 +50,21 @@ for vk_name, client_names in SCOPING.items():
         print(f"WARN  vk '{vk_name}' not found — skipping", file=sys.stderr); continue
     vid = vk_id[vk_name]
     cur.execute("delete from governance_virtual_key_mcp_configs where virtual_key_id=?", (vid,))
-    for cname in client_names:
+    for entry in client_names:
+        cname, tools = (entry, ALL_TOOLS) if isinstance(entry, str) else entry
         cid = client_id.get(cname)
         if cid is None:
             print(f"WARN  client '{cname}' not found (register it first) — skipping for {vk_name}", file=sys.stderr); continue
         cur.execute(
             "insert into governance_virtual_key_mcp_configs (virtual_key_id, mcp_client_id, tools_to_execute) values (?,?,?)",
-            (vid, cid, TOOLS))
+            (vid, cid, json.dumps(tools)))
         changed += 1
 con.commit()
 
 print("attached VK -> clients:")
-for vk_name, mcid, cname in cur.execute(
-        "select v.name, m.mcp_client_id, c.name from governance_virtual_key_mcp_configs m "
+for vk_name, mcid, cname, tools in cur.execute(
+        "select v.name, m.mcp_client_id, c.name, m.tools_to_execute from governance_virtual_key_mcp_configs m "
         "join governance_virtual_keys v on v.id=m.virtual_key_id "
         "join config_mcp_clients c on c.id=m.mcp_client_id order by v.name, m.mcp_client_id"):
-    print(f"  {vk_name:14} -> {cname} (client#{mcid})")
+    print(f"  {vk_name:14} -> {cname} (client#{mcid}){'' if tools == json.dumps(ALL_TOOLS) else ' tools=' + tools}")
 print(f"\n{changed} rows written. NOW: kubectl -n weyland rollout restart deploy/bifrost  (tools do NOT flow until reload).")

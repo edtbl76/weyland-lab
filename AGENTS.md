@@ -52,11 +52,19 @@ harness-specific file, so every agent gets them. See `docs/concepts/multi-harnes
 - **No emojis** in anything written for the owner or the repo.
 
 ## Agent memory
-Durable lessons and decisions currently live in Claude Code's auto-memory:
-`/home/edwardmangini/.claude/projects/-home-edwardmangini-IdeaProjects-weyland/memory/` — `MEMORY.md` is the index,
-one Markdown note per fact. **Other harnesses on rogueone: read `MEMORY.md` and the notes it links before proposing
-work (read-only — do not edit them).** A shared, harness-neutral memory store is planned (B182,
-`docs/design/shared-agent-memory-design.md`); until it exists, a rule every harness must follow belongs in THIS file.
+Durable lessons and decisions live in ONE shared store (B182, 2026-10-03): the Markdown notes in
+`/home/edwardmangini/agent-memory/weyland/` on rogueone — `MEMORY.md` is the index, one note per fact (frontmatter
+`name` / `description` / `metadata.type`, `[[name]]` links). Claude Code's auto-memory path is a symlink to it, and
+**Basic Memory** serves the same files over MCP (`http://127.0.0.1:8765/mcp` on rogueone; `Agent_Memory-*` tools via
+Bifrost for the coding-agents key; the operator key gets read-only tools). Every harness:
+- **Read `MEMORY.md` and the notes it links before proposing work** — or search with `Agent_Memory-search_notes`.
+- **Record a durable lesson as one note** (a file in that directory, or `Agent_Memory-write_note`), and add a one-line
+  pointer to `MEMORY.md`. Update an existing note rather than duplicating it.
+- **Never write a secret into memory** — a watchdog (`agent-memory-watch`, every 15 min) scans the notes with gitleaks
+  and alerts.
+- **If the store does not answer, say so** — unreachable is not "no memory".
+
+Runbook: `docs/runbooks/shared-agent-memory.md`. A rule every harness must follow still belongs in THIS file.
 
 ## AI-DLC
 Structured development uses **AI-DLC v2**, installed for **Claude Code only** (`.claude/`, invoked with `/aidlc`;

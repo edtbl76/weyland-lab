@@ -1,7 +1,7 @@
 # Shared Agent Memory — Design (B182)
 
-**Status: PROPOSED — every component is TBD.** This record exists so the architecture shows the component and its
-open decisions *before* anything is built. Nothing here is decided until the "Decisions" table says so.
+**Status: DECIDED + BUILT (2026-10-03)** — Basic Memory on rogueone, serving the existing notes in place; see
+"Decisions". Runbook: [../runbooks/shared-agent-memory.md](../runbooks/shared-agent-memory.md).
 Tracking: backlog **B182**, Linear **EMA-240**. Concept: [../concepts/multi-harness.md](../concepts/multi-harness.md).
 
 ## Goal
@@ -23,25 +23,24 @@ Failure mode this fixes: a lesson recorded in Claude's memory is invisible to Co
 so Codex can re-propose what was already rejected — the same drift class as the KEDA and Cyrus re-proposals, but
 across harnesses instead of across sessions.
 
-## Components — all TBD
+## Components (all decided 2026-10-03 — see Decisions)
 
 | Component | Options on the table | Status |
 |---|---|---|
-| **Store** | **Basic Memory** (AGPL-3.0; Markdown files + SQLite index, Postgres optional; `[[wikilinks]]`) · MCP reference `memory` server (MIT; JSONL knowledge graph) · mem0 **OpenMemory** (self-hosted, local-first; also a hosted variant) · Graphiti (temporal knowledge graph) · ~~ContextStream~~ (rejected) | **TBD** |
-| **Transport** | streamable HTTP (reachable by a gateway and by harnesses on other hosts) · stdio (local-only; one process per harness — concurrency risk) | **TBD** — depends on the store |
-| **Gateway** | **Bifrost MCP gateway** (Claude Code, Codex and OpenCode already connect to it) · the governed MCP gateway (operator's path, Keycloak `client_credentials`) · direct per-harness MCP config | **TBD** — Bifrost is the leading candidate, not a decision |
-| **Host** | mother (k8s, always-on, backed up) · rogueone (where the agents run; not always-on) | **TBD** |
-| **Source of truth for the notes** | git-tracked Markdown in this repo · a separate private repo · the store's own DB | **TBD** |
-| **Migration of Claude's memory** | point the store at the existing directory · move the directory into the store and have Claude Code use the store's tools · keep Claude's native memory as a cache of the shared store | **TBD** — must end with ONE store |
-| **Write policy** | any harness writes · writes gated/reviewed · per-harness namespaces + one shared namespace | **TBD** |
+| **Store** | **Basic Memory** (AGPL-3.0; Markdown files + SQLite index, Postgres optional; `[[wikilinks]]`) · MCP reference `memory` server (MIT; JSONL knowledge graph) · mem0 **OpenMemory** (self-hosted, local-first; also a hosted variant) · Graphiti (temporal knowledge graph) · ~~ContextStream~~ (rejected) | **Decided: Basic Memory** |
+| **Transport** | streamable HTTP (reachable by a gateway and by harnesses on other hosts) · stdio (local-only; one process per harness — concurrency risk) | **Decided: streamable HTTP** |
+| **Gateway** | **Bifrost MCP gateway** (Claude Code, Codex and OpenCode already connect to it) · the governed MCP gateway (operator's path, Keycloak `client_credentials`) · direct per-harness MCP config | **Decided: Bifrost** |
+| **Host** | mother (k8s, always-on, backed up) · rogueone (where the agents run; **always on** — the operator's interface, owner 2026-10-03) | **Decided: rogueone** |
+| **Source of truth for the notes** | git-tracked Markdown in this repo · a separate private repo · the store's own DB | **Decided: the files, in place** |
+| **Migration of Claude's memory** | point the store at the existing directory · move the directory into the store and have Claude Code use the store's tools · keep Claude's native memory as a cache of the shared store | **Decided: in place (symlink)** — ONE store |
+| **Write policy** | any harness writes · writes gated/reviewed · per-harness namespaces + one shared namespace | **Decided: coding agents write, operator reads** |
 
 ## Constraints (fixed — these are not TBD)
 
 - **$0.** Free forever, not a trial. Cloud is acceptable **if free** (decided 2026-09-25); self-hosted is not a
   requirement on its own.
 - **One store, not two.** Any option that leaves Claude's memory and the shared store as parallel copies fails.
-- **Harness-neutral.** Reachable over MCP (every harness except Pi speaks MCP today; Pi needs a path or is out of
-  scope — TBD).
+- **Harness-neutral.** Reachable over MCP (every harness except Pi speaks MCP today; Pi uses the files directly).
 - **Readable without the tool.** The notes stay human-readable text (Markdown/JSONL), so losing the server never
   loses the memory.
 - **Fail closed.** A harness that cannot reach the store must say so, never proceed as if memory were empty.
@@ -86,20 +85,26 @@ store" constraint rules out. That is from their documented architecture, not a r
 
 ## Decisions
 
-None yet. Record each decision here with date, the option chosen, the alternatives rejected, and the evidence
-(a test against the real tool, not its README).
+| Date | Component | Decision | Alternatives rejected | Evidence |
+|---|---|---|---|---|
+| 2026-10-03 | **Store** | **Basic Memory 0.23.2** (AGPL-3.0), frozen in `nodes/rogueone/basic-memory/requirements.txt` | reference `memory` server, OpenMemory, Graphiti — each keeps its own store format, i.e. a second copy of the notes | the verification table above |
+| 2026-10-03 | **Source of truth for the notes** | **The Markdown files themselves**, moved to `~/agent-memory/weyland/` (harness-neutral); Claude Code's memory path is a **symlink** to it. One copy, no sync | git-tracked notes synced to replicas (owner: git is slow with extra hops, and memory must not leave the LAN); a mother-side replica (pointless once rogueone is always on) | 214 files moved, checksums identical before/after; the service changes 0 of them |
+| 2026-10-03 | **Migration of Claude's memory** | Point the store at the existing notes **in place** — Claude Code keeps native memory (always-loaded `MEMORY.md`, plain-file writes) | retire native memory and write only via MCP (loses the always-in-context index) | `check-shared-memory.py` step 4: a plain-file note is searchable in < 1 s |
+| 2026-10-03 | **Host** | **rogueone** (user unit `basic-memory.service`) | mother — would force native memory to retire or a synced second copy; also mother's RAM ceiling (B134) | rogueone always on (owner); 1.5 GB RSS vs ~101 GB free |
+| 2026-10-03 | **Transport + gateway** | **Streamable HTTP on :8765**, registered in **Bifrost** as `Agent_Memory`; coding-agents key = all 21 tools, operator key = read-only | stdio per harness (one process each, no shared server) | Bifrost logs `Connected to MCP server 'Agent_Memory'`; Codex's exact route + key found a Claude-written note and wrote one that landed in Claude's dir, both < 1 s |
+| 2026-10-03 | **Access control** | Basic Memory has no auth → **ufw on rogueone admits only mother (192.168.1.243) to :8765**; everything else on rogueone unchanged (default allow, forwarding ACCEPT) | an authenticating proxy in front (more moving parts for one LAN client) | from a mother pod: reached; from a non-mother source (a Docker container on rogueone): blocked |
+| 2026-10-03 | **Write policy** | Any coding agent writes; the operator recalls only. Secrets are FLAGGED, not rejected: `agent-memory-watch` (gitleaks every 15 min → Kuma) | rejecting at write time (Basic Memory has no hook for it) | the store accepted a `ghp_…` note; gitleaks 8.21.2 flags one, passes a clean note |
+| 2026-10-03 | **Pi** | Out of scope for MCP; it can read/write the files directly (same host) per `AGENTS.md` | a wrapper | — |
 
 ## Open questions
 
-- Does Basic Memory serve streamable HTTP in a form Bifrost can register as an MCP client? (HTTPS client config is
-  documented; verify against a running server.)
-- Can Claude Code's auto-memory be pointed at an external store, or does "one store" mean Claude Code uses the
-  store's MCP tools and its native memory is retired?
-- Does Open WebUI need write access, or read-only recall?
-- Pi has no MCP support configured — include via a wrapper, or out of scope?
+- **Answered 2026-10-03:** Bifrost registers it (streamable HTTP, verified live). Claude Code keeps native memory —
+  its path is a symlink to the store. Pi: direct file access, no MCP.
+- **Still open:** Open WebUI — which Bifrost key does it use, and should it get the read-only memory tools? The operator
+  reaches tools through the governed MCP gateway (`/mcp-fleet`), not Bifrost, so its read access is not yet wired.
 
 ## Architecture placement
 
-The LikeC4 model places `sharedMemory` at the **model root** (host TBD) with **planned** edges from Claude Code,
-Codex, the coding agents, the operator and Open WebUI; view `harnesses`. Once the host and gateway are decided, move
-the element under its host and replace the planned edges with the real path.
+`sharedMemory` sits under **rogueone** in the LikeC4 model (moved 2026-10-03): Claude Code reads/writes its files
+directly; Codex and the other coding agents reach it through Bifrost; the operator and Open WebUI edges stay
+**planned** until their read path is wired. Flow: [../diagrams/flow-shared-memory.md](../diagrams/flow-shared-memory.md).

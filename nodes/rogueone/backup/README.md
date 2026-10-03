@@ -70,11 +70,13 @@ Restore a known file to a scratch dir and diff it against the live copy:
 ```
 set -a; . nodes/rogueone/backup/.env; set +a
 restic snapshots
-restic restore latest --target /tmp/restore-test --include "$HOME/.claude/projects"
-diff -r "$HOME/.claude/projects/"*/memory /tmp/restore-test/"$HOME"/.claude/projects/*/memory && echo "RESTORE OK"
+restic restore latest --target /tmp/restore-test --include "$HOME/agent-memory"
+diff -r "$HOME/agent-memory" /tmp/restore-test/"$HOME"/agent-memory && echo "RESTORE OK"
 rm -rf /tmp/restore-test
 ```
-Run this after the first backup and whenever the include set changes materially.
+Run this after the first backup and whenever the include set changes materially. **2026-10-03 (B182):** the agent
+memory notes moved from `~/.claude/projects/*/memory` (now a **symlink**) to `~/agent-memory/weyland`, so this drill
+restores `~/agent-memory` — restoring the old path would bring back only the symlink and "pass" without the notes.
 
 ## Operate
 

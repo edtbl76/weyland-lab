@@ -1,0 +1,19 @@
+# B182 — shared agent memory watchdog: gitleaks over ~/agent-memory + a read-only health check of the Basic Memory
+# store, pushed to an Uptime-Kuma push monitor (KUMA_MEMORY_PUSH_URL in scripts/.env). USER unit (docker + the notes in
+# the user's home). See docs/runbooks/shared-agent-memory.md § Watchdog.
+#   Install:  cp nodes/rogueone/systemd/agent-memory-watch.{service,timer} ~/.config/systemd/user/
+#             systemctl --user daemon-reload && systemctl --user enable --now agent-memory-watch.timer
+#   Run now:  systemctl --user start agent-memory-watch.service   ·   logs: journalctl --user -u agent-memory-watch
+[Unit]
+Description=shared agent memory watchdog — secrets scan + store health → Kuma (B182)
+After=network-online.target basic-memory.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+Nice=10
+IOSchedulingClass=idle
+# Invoked via bash (the repo file may not carry the exec bit); the script resolves the repo root from its path.
+ExecStart=/bin/bash /home/edwardmangini/IdeaProjects/weyland/scripts/agent-memory-watch.sh
+StandardOutput=journal
+StandardError=journal

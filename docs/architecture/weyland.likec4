@@ -29,13 +29,8 @@ model {
   port = ext "Port.io" "IDP / catalog + self-service actions (SaaS)"
   linear = ext "Linear" "Roadmap / task status (ingested by Port); hosted MCP server (mcp.linear.app) read/written by the harnesses"
 
-  // ---- Shared agent memory (B182) — PLANNED, every component TBD (store, transport, gateway, host) ----
-  // Placed at the root on purpose: its host is not decided. Candidate: Basic Memory behind the Bifrost MCP gateway.
-  // Design: docs/design/shared-agent-memory-design.md.
-  sharedMemory = component "Shared agent memory (TBD)" "B182 — PLANNED. One memory store every harness reads + writes (decisions, lessons, corrections). Store / transport / gateway / host all TBD; candidate = Basic Memory (Markdown + wikilinks) behind the Bifrost MCP gateway. Today: Claude-only auto-memory"
-
-  // ---- rogueone: external laptop, not always-on ----
-  rogueone = node "rogueone" "RTX 5000 Ada laptop (.230) — GPU inference + training edge. Not always-on." {
+  // ---- rogueone: external laptop, always on (the operator's interface — owner, 2026-10-03) ----
+  rogueone = node "rogueone" "RTX 5000 Ada laptop (.230) — GPU inference + training edge. Always on (the operator's interface)." {
     ollama = component "Ollama" "LLM serving — ollama.weyland.lab :11434 (moved here B79)"
     vllm = component "vLLM" "On-demand GPU bench :8001/v1 — Qwen2.5-7B-AWQ, continuous batching (B111)"
     sglang = component "SGLang" "On-demand GPU bench :8002/v1 — Llama-3.2-1B, RadixAttention prefix caching (B111)"
@@ -46,8 +41,9 @@ model {
     dcgmExporter = component "dcgm-exporter" "B128 — NVIDIA DCGM GPU telemetry (snap dcgm-exporter + nv-hostengine) :9400, scraped by Prometheus (job dcgm-exporter-rogueone)"
     editors = component "Editors (IntelliJ, VS Code)" "Hosts, not harnesses. IntelliJ 2026.2 = agent-agnostic: AI Assistant's ACP registry (Claude Agent, Codex, OpenCode, Cline, Junie, Gemini CLI, Copilot, …) + Claude Code / Codex / ProxyAI plugins + IntelliJ's MCP server. VS Code 1.139 = Codex + Claude Code extensions; native mcp.json Linear entry for Copilot Chat"
     // ---- Harnesses (multi-harness: any of these can drive the same repos + platform; see concepts/multi-harness.md) ----
-    claudeCode = component "Claude Code" "Harness — primary coding agent (Anthropic). MCP client of tool-server + Bifrost + Linear; instructions CLAUDE.md (+AGENTS.md); AIDLC installed (.claude/). Memory today = Claude-only auto-memory"
+    claudeCode = component "Claude Code" "Harness — primary coding agent (Anthropic). MCP client of tool-server + Bifrost + Linear; instructions CLAUDE.md (+AGENTS.md); AIDLC installed (.claude/). Memory = the shared store (its auto-memory dir is a symlink to it, B182)"
     codex = component "Codex" "Harness — OpenAI Codex CLI + ChatGPT desktop (ChatGPT-sub GPT-5.5). MCP client of Bifrost + Linear (2026-09-25); Linear 'Work on issue' launcher (codex://); instructions AGENTS.md"
+    sharedMemory = component "Shared agent memory" "B182 (2026-10-03) — Basic Memory 0.23.2 (user unit basic-memory.service) serving the notes in ~/agent-memory/weyland over MCP (streamable HTTP :8765). The notes ARE the store: Claude Code's memory path is a symlink to them; other agents use the Agent_Memory tools via Bifrost. No auth — ufw admits only mother. Watchdog: gitleaks + health every 15 min → Kuma"
     codingAgents = component "Coding agents" "Harnesses — opencode / Cline / Pi (B15) — $0 dev coding TUIs; drive hosted models DIRECT, not through the gateway; instructions AGENTS.md"
     studioAgents = component "STUD.io CI agents" "4 Woodpecker local-backend agents (B57b) — run STUD.io's CI on the host shell + native docker; register to weyland's Woodpecker over the :30900 gRPC NodePort"
     machineInvDrift = component "machine-inv-drift" "B170 + B180 nightly host job (user timer, 03:45 NY). Collects every host's packages into machine-inventory.yaml (one inventory PR on drift), syncs + read-back-verifies the Port catalog (deleting entities the inventory dropped), and runs the placement host check over SSH: every systemd unit and host config file in placement.yaml installed and identical to its repo copy, no unlisted or failed unit, no stale timer. One Kuma push heartbeat, down on any finding"
@@ -269,11 +265,12 @@ model {
   rogueone.claudeCode -> linear "Linear MCP — read/update issues"
   linear -> rogueone.codex "'Work on issue' launcher (codex:// → ChatGPT desktop)"
   // Planned (B182) — every edge below is TBD until the design decides store + transport + gateway
-  rogueone.claudeCode -> sharedMemory "read/write memory (planned, B182)"
-  rogueone.codex -> sharedMemory "read/write memory (planned, B182)"
-  rogueone.codingAgents -> sharedMemory "read/write memory (planned, B182)"
-  weyland.mother.ai.operator -> sharedMemory "read/write memory (planned, B182)"
-  weyland.mother.ai.openWebui -> sharedMemory "read memory (planned, B182)"
+  rogueone.claudeCode -> rogueone.sharedMemory "reads/writes the notes natively — its memory dir is a symlink to the store (B182)"
+  rogueone.codex -> rogueone.sharedMemory "read/write memory — Agent_Memory tools via Bifrost (B182)"
+  weyland.mother.ops.edge.bifrost -> rogueone.sharedMemory "Agent_Memory MCP client → :8765 (coding-agents key: all 21 tools; operator key: read-only) — ufw admits only mother (B182)"
+  rogueone.codingAgents -> rogueone.sharedMemory "read/write memory — Agent_Memory tools via Bifrost, or the files directly (Pi) (B182)"
+  weyland.mother.ai.operator -> rogueone.sharedMemory "recall (planned — its tools come from the MCP gateway, not Bifrost, B182)"
+  weyland.mother.ai.openWebui -> rogueone.sharedMemory "recall (planned, B182)"
   edward -> rogueone.codingAgents "codes with (B15)"
   rogueone.codingAgents -> hostedModels "direct: Gemini/Mistral/OpenRouter free + ChatGPT sub (GPT-5.5) — bypasses the gateway"
 
@@ -440,7 +437,7 @@ views {
       rogueone.codingAgents,
       weyland.mother.ai.openWebui,
       weyland.mother.ai.operator,
-      sharedMemory,
+      rogueone.sharedMemory,
       weyland.mother.ops.edge.bifrost,
       weyland.mother.ai.toolServer,
       weyland.mother.ai.litellm,

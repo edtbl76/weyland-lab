@@ -44,32 +44,33 @@ the agent can reach.
 | **Retrieval** | `context_ask` / `context_search` (the lab RAG) | live |
 | **Model egress** | LiteLLM / Bifrost (agentic), MLflow AI Gateway (chat/eval) | live |
 | **Rules & conventions** | `AGENTS.md` (harness-neutral; `CLAUDE.md` imports it), `docs/`, AIDLC rule files | live |
-| **Memory** (lessons, decisions, corrections) | **Shared agent memory — TBD** | **planned (B182)** |
+| **Memory** (lessons, decisions, corrections) | **Shared agent memory** — the notes in `~/agent-memory/weyland` on rogueone, served by Basic Memory over MCP (`Agent_Memory` via Bifrost) | **live (B182, 2026-10-03)** |
 
 ## What is still per-harness
 
-- **Memory.** Durable working memory lives only in Claude Code's auto-memory, and only Claude Code writes it.
-  Interim (2026-09-25): `AGENTS.md` tells harnesses on rogueone to read its `MEMORY.md` index read-only — a stopgap,
-  not sharing (no writes, not reachable from mother). This is the gap B182 closes.
+- **Memory — fixed 2026-10-03 (B182).** No longer per-harness: see "Shared agent memory" below. What stays per-harness
+  is only the *recall habit*: Claude Code loads `MEMORY.md` automatically; the others are told to by `AGENTS.md`.
 - **Instructions — fixed 2026-09-25.** Codex, OpenCode and Pi read `AGENTS.md`; Claude Code reads `CLAUDE.md`, which
   now just imports `AGENTS.md` plus Claude-only specifics. The lab's conventions and hard rules moved into `AGENTS.md`
   (it previously held the upstream AI-DLC contributor guide, archived at `design/aidlc-upstream-agents-guide.md`), so
-  every harness gets the same rules. Until B182 lands, `AGENTS.md` also points non-Claude harnesses at Claude's memory
-  index (read-only).
+  every harness gets the same rules, including how to read and write the shared memory.
 - **MCP wiring.** Each harness has its own config file (`~/.claude.json`/`.mcp.json`, `~/.codex/config.toml`,
   `~/.config/opencode/opencode.json`). Bifrost keeps that down to one entry per harness.
 
-## Shared agent memory (planned — every component TBD)
+## Shared agent memory (live — B182, 2026-10-03)
 
-One store that every harness reads and writes. Nothing is decided; the design record holds the options and criteria:
-[../design/shared-agent-memory-design.md](../design/shared-agent-memory-design.md).
+One store every harness reads and writes: **the directory of Markdown notes** `~/agent-memory/weyland` on rogueone
+(always on). Two views of the same files — no copy, no sync:
 
-- **Store:** TBD — candidates Basic Memory (Markdown + wikilinks, the format Claude's memory already uses), the MCP
-  reference `memory` server, mem0 OpenMemory, Graphiti. ContextStream rejected (a second, proprietary store).
-- **Gateway:** TBD — Bifrost is the leading candidate because Claude Code, Codex and OpenCode already connect to it.
-- **Host / transport / source of truth / migration:** TBD.
-- **Fixed constraints:** $0 (cloud acceptable if free), **one store not two**, reachable over MCP, human-readable
-  notes, fail closed, no secrets in memory.
+- **Native:** Claude Code's auto-memory path is a symlink to it, so Claude keeps its always-loaded `MEMORY.md` index
+  and plain-file writes. Pi (no MCP) uses the files directly.
+- **Shared:** **Basic Memory 0.23.2** serves the files over MCP on `:8765`; Bifrost registers it as `Agent_Memory`
+  (coding-agents key: all tools · operator key: read-only). rogueone's ufw admits only mother to that port.
+- **Guarded:** `agent-memory-watch` scans the notes for secrets (gitleaks) and checks the store every 15 min → Kuma.
+
+Decisions and evidence: [../design/shared-agent-memory-design.md](../design/shared-agent-memory-design.md) · runbook
+[../runbooks/shared-agent-memory.md](../runbooks/shared-agent-memory.md) · flow
+[../diagrams/flow-shared-memory.md](../diagrams/flow-shared-memory.md).
 
 ```mermaid
 flowchart LR
@@ -82,17 +83,16 @@ flowchart LR
   end
   BF["Bifrost MCP gateway"]
   LN["Linear MCP"]
-  MEM["Shared agent memory<br/>(TBD, B182)"]
+  MEM["Shared agent memory<br/>Basic Memory :8765 (rogueone)"]
   CC --> BF
   CX --> BF
   OC --> BF
   CC --> LN
   CX --> LN
-  CC -.->|planned| MEM
-  CX -.->|planned| MEM
-  OC -.->|planned| MEM
-  OP -.->|planned| MEM
-  OW -.->|planned| MEM
+  CC -->|native files| MEM
+  BF -->|Agent_Memory| MEM
+  OP -.->|planned: read-only| MEM
+  OW -.->|planned: read-only| MEM
 ```
 
 The C4 placement is the `harnesses` view of the LikeC4 model (`docs/architecture/weyland.likec4`), where

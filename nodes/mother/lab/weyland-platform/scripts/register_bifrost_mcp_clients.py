@@ -29,6 +29,9 @@ HTTP = [
     ("Hugging_Face",  "https://huggingface.co/mcp",                                        "oauth"),
     ("Linear",        "https://mcp.linear.app/mcp",                                        "oauth"),
     ("GitHub_Remote", "https://api.githubcopilot.com/mcp/",                                "oauth"),
+    # B182 — shared agent memory: Basic Memory on rogueone (user unit basic-memory.service). No auth on the server;
+    # rogueone's ufw admits ONLY mother (192.168.1.243) to :8765 — which is where Bifrost's pod traffic comes from.
+    ("Agent_Memory",  "http://192.168.1.230:8765/mcp",                                     "none"),
 ]
 
 # (name, command, args, envs) — in-pod stdio off the mcp-runtime volume (node + system chromium).

@@ -23,8 +23,9 @@ Environment=BASIC_MEMORY_ENSURE_FRONTMATTER_ON_SYNC=false
 Environment=BASIC_MEMORY_SEMANTIC_SEARCH_ENABLED=true
 # Register the project (idempotent: "already exists" is fine; a real failure makes ExecStart fail on --project).
 ExecStartPre=-/home/edwardmangini/.local/bin/basic-memory project add weyland /home/edwardmangini/agent-memory/weyland
-# localhost ONLY until the ufw rule (runbook § Firewall) admits mother; then --host 0.0.0.0 so Bifrost can reach it.
-ExecStart=/home/edwardmangini/.local/bin/basic-memory mcp --transport streamable-http --host 127.0.0.1 --port 8765 --project weyland
+# Listens on the LAN so Bifrost (mother) can reach it. The server has NO auth: ufw on rogueone admits ONLY mother
+# (192.168.1.243) to :8765 and denies everyone else; loopback is unaffected (runbook § Firewall, enabled 2026-10-03).
+ExecStart=/home/edwardmangini/.local/bin/basic-memory mcp --transport streamable-http --host 0.0.0.0 --port 8765 --project weyland
 Restart=on-failure
 RestartSec=10
 StandardOutput=journal

@@ -3227,6 +3227,29 @@ is a weyland item, not part of the Stud.IO project). Relates B39 (Figma ↔ code
 
 ### B182 — Shared agent memory across harnesses — HIGH (2026-09-25, Linear EMA-240)
 
+**BUILT 2026-10-03 — minimum slice live (Claude Code ↔ Codex); still IN PROGRESS for the remaining harnesses.**
+Decided with the owner: **Basic Memory 0.23.2 on rogueone, serving the existing notes in place** — the notes moved to
+`~/agent-memory/weyland` (214 files, checksums identical) and Claude Code's memory path is a **symlink** to it, so native
+memory (always-loaded `MEMORY.md`, plain-file writes) is kept and there is ONE copy, no sync. Rejected: git-backed
+replicas (owner: git is slow with extra hops, memory must not leave the LAN), a mother-side replica (rogueone is always
+on — the operator's interface), the other stores (each keeps its own format = a second copy). Evidence + decisions:
+`docs/design/shared-agent-memory-design.md`.
+- **Verified first, on a copy:** Basic Memory's DEFAULTS rewrote 207 of 213 notes on first index → the unit pins
+  `disable_permalinks` + `ensure_frontmatter_on_sync=false` (0 rewritten). It accepts token-shaped writes → flagged by a
+  watchdog instead. Its dependency `fastmcp==4.0.0b1` is a pre-release, and uv's `--prerelease=allow` alone pulled
+  betas of pydantic/sentry/logfire → installed from a pip-frozen list (`nodes/rogueone/basic-memory/requirements.txt`).
+- **Live:** user unit `basic-memory.service` (:8765, MCP streamable HTTP); **ufw enabled on rogueone** with default
+  allow — only :8765 restricted, to mother (proven both sides); Bifrost client `Agent_Memory` (coding-agents key: all 21
+  tools, operator key: read-only); `agent-memory-watch` user timer every 15 min (gitleaks 8.21.2 + read-only health →
+  Kuma push); `~/agent-memory` added to restic (restore drill: 214 notes byte-identical from snapshot `f6e36e17`).
+- **Acceptance:** criteria 1–5 + 7 met — Claude-written note found over Codex's exact Bifrost route and a Codex-route
+  write landed in Claude's dir (both < 1 s); no parallel copy; concurrent writes intact; store down → exit 2
+  "unreachable"; token flagged; decisions + DoD docs. `scripts/check-shared-memory.py` is the acceptance check (4/4).
+- **Still open:** (a) criterion 6 for **OpenCode** (a read test) and the **operator / Open WebUI** read path — the operator
+  gets tools from the governed MCP gateway, not Bifrost, so its read-only key has no consumer yet; (b) the Kuma push
+  monitor `agent-memory` + `KUMA_MEMORY_PUSH_URL` (owner, UI); (c) a live Codex CLI session (the test drove Codex's
+  route, not its model); (d) Linear EMA-240 update (the Linear MCP needs re-auth).
+
 **Why.** The lab is **multi-harness**: Claude Code, Codex (CLI + ChatGPT desktop), OpenCode, Cline, Pi, Open WebUI and
 the weyland-operator all work against the same repos and platform (the AIDLC framework is packaged for 7 harnesses upstream; this repo installs the Claude Code one).
 Durable agent memory — decisions, lessons, corrections — lives only in **Claude Code's auto-memory**

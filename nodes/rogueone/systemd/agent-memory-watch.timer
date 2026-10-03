@@ -1,0 +1,12 @@
+# B182 — run the shared agent memory watchdog every 15 min. The Kuma push monitor's heartbeat interval should be
+# ~20 min, so a watchdog that stops running alerts as well (dead-man's switch).
+[Unit]
+Description=shared agent memory watchdog every 15 min (B182)
+
+[Timer]
+OnBootSec=5min
+OnUnitActiveSec=15min
+Persistent=true
+
+[Install]
+WantedBy=timers.target

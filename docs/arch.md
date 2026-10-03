@@ -1065,7 +1065,7 @@ Runbook [runbooks/aidlc-workflow.md](runbooks/aidlc-workflow.md), demo
 [diagrams/flow-aidlc-workflow.md](diagrams/flow-aidlc-workflow.md). Relates B86 (framework eval), B126 (borrow
 notations), B37 (KB ingest).
 
-### 8d. Multi-harness agents + shared memory (B182, 2026-09-25)
+### 8d. Multi-harness agents + shared memory (B182, 2026-09-25; built 2026-10-03)
 
 §8b says *which model drives the keyboard*; this is the layer above it: **the lab is multi-harness.** Claude Code,
 Codex (CLI + ChatGPT desktop), OpenCode, Cline, Pi, Open WebUI and the weyland-operator all drive the same repos and
@@ -1081,7 +1081,7 @@ inside one?*
 | Skills / prompts | ✅ | Bifrost skill marketplace + Prompt Repository (git-sourced) |
 | Retrieval | ✅ | `context_ask` / `context_search` |
 | Rules & conventions | ✅ (fixed 2026-09-25) | `AGENTS.md` is the harness-neutral home of the lab's conventions + hard rules (Codex/OpenCode/Pi read it; `CLAUDE.md` imports it). It previously held the upstream AI-DLC contributor guide — now archived at `design/aidlc-upstream-agents-guide.md` |
-| **Memory** (lessons, decisions, corrections) | ❌ | **Claude Code auto-memory only** (~190 notes on rogueone) — **B182, shared store TBD** |
+| **Memory** (lessons, decisions, corrections) | ✅ (2026-10-03) | **One store**: the notes in `~/agent-memory/weyland` on rogueone, served by **Basic Memory** over MCP (`Agent_Memory` via Bifrost); Claude Code's memory dir is a symlink to it — B182 |
 
 **Editors host harnesses; they are not a layer of their own.** IntelliJ (primary) runs any of them — its AI Assistant
 **ACP agent registry** holds 11 (Claude Agent, Codex, OpenCode, Cline, Junie, Gemini CLI, Copilot, …) beside the Claude
@@ -1090,42 +1090,46 @@ installed beside it. Because MCP wiring and instructions live with the **harness
 `.mcp.json`, `AGENTS.md`), switching editors changes nothing about what an agent can reach; VS Code's native
 `mcp.json` Linear entry serves only Copilot Chat.
 
-**The shared-memory component — placed now, decided later.** The C4 model carries a `sharedMemory` element at the
-model **root** (its host is undecided) with *planned* edges from every harness; view `harnesses`. Every part is TBD
-in [design/shared-agent-memory-design.md](design/shared-agent-memory-design.md). The options as they stand:
+**The shared-memory component — decided and built 2026-10-03.** The store **is the directory of Markdown notes**
+(`~/agent-memory/weyland`, ~214 notes + the `MEMORY.md` index) on rogueone, which is always on. Two views of the same
+files, no copy and no sync:
 
-| Option | Shape | For | Against | Status |
-|---|---|---|---|---|
-| **Basic Memory behind Bifrost** | MCP server; Markdown + SQLite index; `[[wikilinks]]` | same note format as Claude's memory → one store, not a migration; human-readable; Bifrost already reaches Claude Code/Codex/OpenCode | AGPL-3.0; HTTP transport vs Bifrost unverified; concurrent writers unproven | **leading candidate** |
-| MCP reference `memory` server | JSONL knowledge graph | MIT, tiny | a different model than Claude's notes → a real migration | candidate |
-| mem0 OpenMemory | self-hosted memory server + dashboard | purpose-built, local-first | another service on a RAM-capped mother (B134) | candidate |
-| Graphiti | temporal knowledge graph | time-aware facts | needs a graph DB + LLM extraction — heavy for ~190 notes | candidate |
-| Per-harness native memory | each tool's own | zero work | **the problem** — N stores that drift | rejected |
-| **ContextStream** | hosted context + memory SaaS | free tier (10k credits/mo); cloud is fine when free | per-operation cost unpublished; a second proprietary store; its code half duplicates Sourcebot/graphify/Serena | **rejected 2026-09-25** |
+- **Native** — Claude Code's auto-memory path is a **symlink** to the directory, so it keeps its always-loaded
+  `MEMORY.md` index and plain-file writes.
+- **Shared** — **Basic Memory 0.23.2** (user unit `basic-memory.service`) serves the same files over MCP on `:8765`;
+  Bifrost registers it as `Agent_Memory` — the coding-agents key gets all 21 tools, the operator key the read-only set.
 
-**Why a gateway-hosted store rather than a file convention.** The lab already solved this shape twice: prompts
-(Bifrost = source of truth, federated out — [concepts/federated-prompts.md](concepts/federated-prompts.md)) and skills
-(git → Bifrost marketplace → any harness). Memory is the same "one source, many consumers" problem; putting it behind
-the MCP gateway every harness already speaks makes adding a harness a one-line config, not a sync job. Fixed
-constraints: $0 (cloud acceptable if free), **one store not two**, human-readable notes, fail closed, no secrets.
+| Decision | Chosen | Why not the alternative |
+|---|---|---|
+| Store | Basic Memory (Markdown + SQLite index) | reference `memory` server / OpenMemory / Graphiti keep their own format → a second copy of the notes |
+| Source of truth | the files, in place | git-backed replicas: git is slow with extra hops, and memory must not leave the LAN (owner) |
+| Host | rogueone | mother would retire native memory or need a synced copy; rogueone is always on |
+| Access | ufw on rogueone admits only mother to `:8765` | the server has no auth; a proxy adds parts for one LAN client |
+| Secrets | flagged within 15 min (`agent-memory-watch`: gitleaks → Kuma) | the store accepts any write, so a pre-write reject is not available |
+
+**Verified, not assumed** (evidence in the design doc): with Basic Memory's defaults the first index rewrote 207 of 213
+notes, so the unit pins `disable_permalinks` + `ensure_frontmatter_on_sync=false` (0 rewritten). Over Codex's exact
+Bifrost route, a note Claude Code wrote was found — and a note Codex wrote landed in Claude Code's directory — each in
+under a second. Acceptance check: `scripts/check-shared-memory.py`. Runbook:
+[runbooks/shared-agent-memory.md](runbooks/shared-agent-memory.md).
 
 ```mermaid
 flowchart LR
-  CC["Claude Code"] --> BF["Bifrost MCP"]
-  CX["Codex"] --> BF
-  OC["OpenCode / Cline / Pi"] --> BF
-  CC --> LN["Linear MCP"]
-  CX --> LN
-  CC -.->|planned| MEM["Shared memory (TBD)"]
-  CX -.->|planned| MEM
-  OC -.->|planned| MEM
-  OP["weyland-operator"] -.->|planned| MEM
-  OW["Open WebUI"] -.->|planned| MEM
+  CC["Claude Code"] -->|native files, symlinked dir| NOTES[("~/agent-memory/weyland notes")]
+  BM["Basic Memory :8765 (rogueone)"] --- NOTES
+  CX["Codex"] --> BF["Bifrost MCP"]
+  OC["OpenCode / Cline"] --> BF
+  BF -->|Agent_Memory, ufw: mother only| BM
+  PI["Pi"] -->|files| NOTES
+  OP["weyland-operator"] -.->|planned: read-only| BM
+  OW["Open WebUI"] -.->|planned: read-only| BM
+  W["agent-memory-watch (15 min)"] -->|gitleaks + health| NOTES
+  W --> K["Kuma push"]
 ```
 
 Concept [concepts/multi-harness.md](concepts/multi-harness.md) · design
 [design/shared-agent-memory-design.md](design/shared-agent-memory-design.md) · C4 view `harnesses` · flow
-[diagrams/flow-multi-harness.md](diagrams/flow-multi-harness.md) · B182 / EMA-240.
+[diagrams/flow-multi-harness.md](diagrams/flow-multi-harness.md) · flow [diagrams/flow-shared-memory.md](diagrams/flow-shared-memory.md) · B182 / EMA-240.
 
 ---
 
