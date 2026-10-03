@@ -84,8 +84,10 @@ The lab's *reading* lives in this engine; the two scanners stay as independent s
   read-only; confirm it again with:
 
   ```
-  kubectl -n weyland exec <sonarqube-pod> -- sh -c 'curl -s -u admin:$SONAR_ADMIN_PW "http://localhost:9000/api/rules/search?activation=true&languages=py,java&ps=500&f=name,params"'
+  set -a && . /home/edwardmangini/IdeaProjects/weyland/scripts/.env && set +a && python3 /home/edwardmangini/IdeaProjects/weyland/scripts/sonar_api.py rules/search activation=true languages=py,java ps=500 f=name,params
   ```
+  (Replaced 2026-10-02: the old command curled from inside the sonarqube pod with `$SONAR_ADMIN_PW`, which the pod
+  does not carry — it returned 401. `scripts/sonar_api.py` goes through the LAN NodePort `sonarqube-api-lan`.)
 
   **If you ever DO want `S138` off** (reversible): copy the profile, deactivate the rule, reassign the project —
   `POST /api/qualityprofiles/copy` (`fromKey=<py Sonar way key>`, `toName=Weyland way`) → `POST

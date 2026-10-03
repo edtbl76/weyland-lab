@@ -321,7 +321,7 @@ data:
         if [ -n "${SUPERSEDED_BY[$num]:-}" ]; then
           # Any class: a newer managed PR on the same target makes this one a backwards-roll if merged. Close it.
           verdict="SUPERSEDED"; rec="close (superseded by #${SUPERSEDED_BY[$num]})"
-          superseded=$((superseded+1)); ACT_CLOSE+=("$num:${SUPERSEDED_BY[$num]}")
+          superseded=$((superseded+1)); ACT_CLOSE+=("$num:${SUPERSEDED_BY[$num]}:$branch")
         elif is_dependabot "$branch"; then
           # Dependabot PRs are the regression hazard: a diverged branch carries pre-remediation pins. `compare` is
           # decision-relevant here, so fail closed if it cannot be resolved (an unknown state is NOT "current").
@@ -389,10 +389,10 @@ data:
             echo "FATAL: could not comment @dependabot recreate on #$num in $REPO: $out" >&2; exit 2
           fi
         done
-        local pair by
+        local pair by rest
         for pair in "${ACT_CLOSE[@]:-}"; do
           [ -n "$pair" ] || continue
-          num="${pair%%:*}"; by="${pair##*:}"
+          num="${pair%%:*}"; rest="${pair#*:}"; by="${rest%%:*}"; branch="${rest#*:}"
           # Comment THEN close (two REST calls; `gh pr close --comment` did both in one GraphQL mutation).
           "$GH_BIN" api -X POST "repos/$REPO/issues/$num/comments" \
             -f body="Superseded by #$by (merging this after #$by would roll the dependency backwards)." >/dev/null 2>&1 || true
@@ -403,6 +403,17 @@ data:
             audit "ts=$NOW_ISO repo=$REPO pr=$num verdict=SUPERSEDED action=close by=$by result=fail"
             echo "FATAL: could not close #$num in $REPO: $out" >&2; exit 2
           fi
+          # Delete a closed ci/image-bump branch (2026-10-02): GitHub keeps a head branch on CLOSE, and this job had left
+          # 29 of them. Image-bump branches only — dependabot deletes its own branch when its PR closes. A failed delete
+          # is reported (audit result=fail + the gh error) but is not fatal: the close it follows already landed.
+          case "$branch" in ci/image-bump-*|ci-image-bump-*)
+            if out="$("$GH_BIN" api -X DELETE "repos/$REPO/git/refs/heads/$branch" 2>&1)"; then
+              audit "ts=$NOW_ISO repo=$REPO pr=$num verdict=SUPERSEDED action=delete-branch branch=$branch result=ok"
+            else
+              audit "ts=$NOW_ISO repo=$REPO pr=$num verdict=SUPERSEDED action=delete-branch branch=$branch result=fail"
+              echo "  WARN: closed #$num but could not delete branch $branch in $REPO: $out" >&2
+            fi ;;
+          esac
         done
       fi
 

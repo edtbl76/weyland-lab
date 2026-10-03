@@ -461,6 +461,19 @@ runs `bats scripts/tests/` over the whole directory, so a new suite file needs n
 
 ---
 
+## When the ship stops at the SonarQube gate
+
+FR1.3 fails with `QUALITY GATE STATUS: FAILED` in the `sonar-gate` step log. The log names the gate, not the finding.
+Read exactly which condition failed and which new-code issues tripped it:
+
+```
+set -a && . /home/edwardmangini/IdeaProjects/weyland/scripts/.env && set +a && python3 /home/edwardmangini/IdeaProjects/weyland/scripts/sonar_api.py gate
+```
+
+It prints each gate condition, every unresolved new-code issue as `<severity> <rule> <file>:<line>`, and the hotspots
+to review; exit 1 = the gate is failing. The gate blocks on ANY new violation (`new_violations > 0`), so fix the named
+lines, push, and ship again. First used 2026-10-02 (S3776 + S7484 in the operator's `agent.py`).
+
 ## Related
 
 - [argocd.md](argocd.md) — the sync mechanism and why the refresh annotation is forbidden

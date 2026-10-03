@@ -177,6 +177,57 @@ _diff_up_pip() {
   not_called_with gh 'merge'
 }
 
+_wire_image_bump_pair() {
+  stub_dispatch gh
+  stub_case gh 'pr list' 0 '[
+    {"number":40,"title":"ci: image bump (old)","headRefName":"ci/image-bump-git-aaaa1111","createdAt":"2026-09-01T00:00:00Z","isDraft":false,"statusCheckRollup":[{"conclusion":"SUCCESS"}]},
+    {"number":41,"title":"ci: image bump (new)","headRefName":"ci/image-bump-git-bbbb2222","createdAt":"2026-09-02T00:00:00Z","isDraft":false,"statusCheckRollup":[{"conclusion":"SUCCESS"}]}
+  ]'
+  stub_case gh 'issues' 0 ''
+  stub_case gh 'pulls'  0 ''
+}
+
+# 2026-10-02: closing a superseded bump PR left its branch behind — 29 of the 36 stale ci/image-bump-* branches
+# on GitHub were closed by this job. GitHub does not delete a head branch on CLOSE (only, optionally, on merge).
+
+@test "ci/image-bump: --apply deletes the superseded PR's branch after closing it" {
+  _wire_image_bump_pair
+  stub_case gh 'git/refs' 0 ''
+  run bash "$GUARD" --apply --repo edtbl76/test
+  [ "$status" -eq 0 ]
+  called_with gh 'pulls/40'
+  called_with gh '-X DELETE repos/edtbl76/test/git/refs/heads/ci/image-bump-git-aaaa1111'
+  not_called_with gh 'git/refs/heads/ci/image-bump-git-bbbb2222'      # the survivor's branch is never touched
+  echo "$output" | grep -qE 'pr=40 verdict=SUPERSEDED action=delete-branch branch=ci/image-bump-git-aaaa1111 result=ok'
+}
+
+@test "a failed branch delete is reported, but the close stands and the run still succeeds" {
+  _wire_image_bump_pair
+  stub_case gh 'git/refs' 1 'HTTP 403: Resource not accessible by personal access token'
+  run bash "$GUARD" --apply --repo edtbl76/test
+  [ "$status" -eq 0 ]
+  echo "$output" | grep -qE 'pr=40 verdict=SUPERSEDED action=close by=41 result=ok'
+  echo "$output" | grep -qE 'pr=40 verdict=SUPERSEDED action=delete-branch branch=ci/image-bump-git-aaaa1111 result=fail'
+  echo "$output" | grep -q 'HTTP 403'
+}
+
+@test "dependabot: a superseded PR is closed but its branch is left to dependabot (it deletes its own)" {
+  _wire_mixed
+  stub_case gh 'git/refs' 0 ''
+  run bash "$GUARD" --apply --repo edtbl76/test
+  [ "$status" -eq 0 ]
+  called_with gh 'pulls/20'
+  not_called_with gh 'git/refs'
+}
+
+@test "advisory never deletes a branch" {
+  _wire_image_bump_pair
+  stub_case gh 'git/refs' 0 ''
+  run bash "$GUARD" --repo edtbl76/test
+  [ "$status" -eq 0 ]
+  not_called_with gh 'git/refs'
+}
+
 @test "multi-repo: loops PR_REPOS and aggregates the grand total across repos" {
   stub_dispatch gh
   # one stale dependabot PR, returned for BOTH repos (generic 'pr list' + a diverged compare).
