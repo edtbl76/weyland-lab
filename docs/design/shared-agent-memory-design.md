@@ -100,8 +100,13 @@ store" constraint rules out. That is from their documented architecture, not a r
 
 - **Answered 2026-10-03:** Bifrost registers it (streamable HTTP, verified live). Claude Code keeps native memory —
   its path is a symlink to the store. Pi: direct file access, no MCP.
-- **Still open:** Open WebUI — which Bifrost key does it use, and should it get the read-only memory tools? The operator
-  reaches tools through the governed MCP gateway (`/mcp-fleet`), not Bifrost, so its read access is not yet wired.
+- **Operator — decided + built 2026-10-03 (option A):** memory joins the compositor fleet as a READ-ONLY upstream, so
+  the operator recalls through the same governed gateway (`/mcp-fleet`, Keycloak actor) as every other read tool. The
+  alternative — the operator calling Bifrost with the read-only operator key — was rejected: a new sealed secret, a
+  second tool source in the operator, and the key also carries Excalidraw/Malwarebytes. The allowlist is enforced by
+  compositor middleware (hide + refuse; 7 read tools) because FastMCP 3.4.5's `include_tags` config filtered out
+  everything. The operator's local brain gets `memory_search_notes` + `memory_read_note` in `LOCAL_FLEET_ALLOW`.
+- **Still open:** Open WebUI — which key it uses, and whether it should recall at all.
 
 ## Architecture placement
 

@@ -41,6 +41,7 @@ sequenceDiagram
     end
 ```
 
-**What is not wired yet:** the weyland-operator gets its tools from the governed MCP gateway (`/mcp-fleet`), not
-Bifrost, so its read-only `Agent_Memory` access on the operator key has no consumer yet. Open WebUI's key is
-undecided. Both are planned edges in the C4 `harnesses` view.
+**The operator recalls through its own governed path (2026-10-03):** the compositor mounts the store as a READ-ONLY
+`memory` upstream — its middleware hides and refuses every memory tool except 7 read tools — so the operator gets
+`memory_search_notes` etc. via the MCP gateway's `/mcp-fleet`, with its Keycloak identity, like every other read tool.
+Open WebUI's access is still undecided (a planned edge in the C4 `harnesses` view).

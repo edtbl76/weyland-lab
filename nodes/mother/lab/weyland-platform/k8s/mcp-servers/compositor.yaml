@@ -18,7 +18,7 @@ spec:
     spec:
       containers:
         - name: weyland-mcp-compositor
-          image: registry.weyland.lab/weyland-mcp-compositor:v2
+          image: registry.weyland.lab/weyland-mcp-compositor:v2   # CI-built + tag-following since 2026-10-03 (scripts/ci/images.tsv): ship-images.sh moves this to git-<sha>
           ports:
             - { name: http, containerPort: 8000 }
           env:
@@ -28,6 +28,11 @@ spec:
             # /mcp now handshakes cleanly, so the compositor aggregates its RAG read tools (status/context_search/
             # context_ask/list_models) into the fleet. Verified end-to-end before flipping this back on.
             - { name: CONTEXT_URL, value: "http://weyland-tool-server.weyland.svc.cluster.local:8080/mcp" }
+            # B182 (2026-10-03) — the shared agent memory (Basic Memory on rogueone, user unit basic-memory.service).
+            # READ-ONLY in the fleet: config.py's allowlist + the ReadOnlyAllowlist middleware hide AND refuse its
+            # write/delete tools (7 read tools pass: memory_search_notes, memory_read_note, …). rogueone's ufw admits
+            # only mother to :8765 — this unmeshed pod egresses from mother's IP (verified: reached, HTTP 406).
+            - { name: MEMORY_URL, value: "http://192.168.1.230:8765/mcp" }
           readinessProbe:
             tcpSocket: { port: 8000 }
             initialDelaySeconds: 5

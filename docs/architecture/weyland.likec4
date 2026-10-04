@@ -269,7 +269,7 @@ model {
   rogueone.codex -> rogueone.sharedMemory "read/write memory — Agent_Memory tools via Bifrost (B182)"
   weyland.mother.ops.edge.bifrost -> rogueone.sharedMemory "Agent_Memory MCP client → :8765 (coding-agents key: all 21 tools; operator key: read-only) — ufw admits only mother (B182)"
   rogueone.codingAgents -> rogueone.sharedMemory "read/write memory — Agent_Memory tools via Bifrost, or the files directly (Pi) (B182)"
-  weyland.mother.ai.operator -> rogueone.sharedMemory "recall (planned — its tools come from the MCP gateway, not Bifrost, B182)"
+  weyland.mother.ai.operator -> rogueone.sharedMemory "recall — memory_* READ-ONLY tools via the governed gateway /mcp-fleet → compositor (writes hidden + refused), B182"
   weyland.mother.ai.openWebui -> rogueone.sharedMemory "recall (planned, B182)"
   edward -> rogueone.codingAgents "codes with (B15)"
   rogueone.codingAgents -> hostedModels "direct: Gemini/Mistral/OpenRouter free + ChatGPT sub (GPT-5.5) — bypasses the gateway"

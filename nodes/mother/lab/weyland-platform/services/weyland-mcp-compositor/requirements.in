@@ -1,0 +1,8 @@
+# weyland-mcp-compositor — the human-maintained SOURCE; requirements.txt is the frozen OUTPUT the Dockerfile installs.
+# Pinned 2026-10-03 (B182): the Dockerfile used to 'pip install fastmcp' UNPINNED (the class that took Dagster down
+# 2026-10-01). Versions = what ran in :v2, except the CVE floors below. Regenerate in python:3.12-slim with pip-tools,
+# holding the rest at their current versions:  pip-compile --no-header --strip-extras --no-annotate -c <current freeze> -o requirements.txt requirements.in
+fastmcp==3.4.5
+# CVE floors — raised past what :v2 carried (pip-audit 2026-10-03)
+pyjwt==2.15.0                    # 2.13.0: PYSEC-2026-4140/4141/4142/4147/4150/4151
+cryptography==50.0.0

@@ -172,6 +172,15 @@ def test_a_person_chatting_keeps_delegate_to_realm(agent_mod):
     assert "delegate_to_realm" in _tool_names(agent_mod._fallback_agent)
 
 
+def test_the_local_brain_may_recall_shared_memory(agent_mod):
+    # B182 (2026-10-03): the compositor fleet exposes the shared memory's read tools as memory_*; the local brain's
+    # curated allowlist must admit the recall pair or the operator cannot use memory without paid Haiku.
+    allow = agent_mod.LOCAL_FLEET_ALLOW
+    assert any(a in "memory_search_notes" for a in allow)
+    assert any(a in "memory_read_note" for a in allow)
+    assert not any(a in "memory_build_context" for a in allow)   # curated: recall pair only
+
+
 def test_without_fallback_the_unpaid_brain_answers_not_the_chat_brain(brains):
     agent, _ = brains
     asyncio.run(agent.run("investigate", [], allow_fallback=False))

@@ -82,6 +82,16 @@ path, POST init/initialized/tools-list there, read responses off the stream (her
   into one endpoint, tools namespaced `grafana_*`/`trino_*`/… (~90). The gateway routes **`/mcp-fleet` → compositor**;
   `/mcp` still → tool-server (RAG). The tool-server's own `fastapi-mcp` is NOT composed (its mount hangs FastMCP's proxy
   client) — RAG stays a separate endpoint; that's fine, agent-side aggregation is Bifrost's job.
+- **Shared agent memory joins the fleet READ-ONLY (B182, 2026-10-03).** Upstream `memory` → Basic Memory on rogueone
+  (`MEMORY_URL` in `k8s/mcp-servers/compositor.yaml`). Upstreams + allowlists now live in `config.py` (unit-tested,
+  `tests/test_config.py`); a `ReadOnlyAllowlist` middleware in `app.py` **hides AND refuses** any memory tool not on
+  the allowlist — 7 pass (`memory_search_notes`, `memory_read_note`, `memory_view_note`, `memory_read_content`,
+  `memory_build_context`, `memory_recent_activity`, `memory_list_directory`); write/delete/move/project tools and any a
+  future version adds stay out. FastMCP 3.4.5's per-server `tools`/`include_tags` config could NOT do this (the tag
+  is not applied; include_tags hid all 21 — observed). With one upstream FastMCP does not prefix tool names; with
+  several it does (`memory_*`). Proven in a real container: 7 listed, `memory_write_note` refused, search works.
+  The compositor's `fastmcp` is now pinned (`requirements.in/.txt`; it was unpinned) and the image is CI-built
+  (`images.tsv`, 2026-10-03).
 - **The operator (B66) uses the fleet.** It loads the `/mcp-fleet` tools via `langchain-mcp-adapters` (per-request
   Keycloak token via a custom `httpx.Auth`), sanitizes their schemas (`fleet._sanitize_schema` — MCP servers emit
   inconsistent schemas), and binds them flat (`ainvoke` — MCP tools are async-only). `FLEET_ROUTING=1` switches to

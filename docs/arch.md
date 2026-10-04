@@ -1121,7 +1121,7 @@ flowchart LR
   OC["OpenCode / Cline"] --> BF
   BF -->|Agent_Memory, ufw: mother only| BM
   PI["Pi"] -->|files| NOTES
-  OP["weyland-operator"] -.->|planned: read-only| BM
+  OP["weyland-operator"] -->|recall: /mcp-fleet → compositor memory_*, read-only| BM
   OW["Open WebUI"] -.->|planned: read-only| BM
   W["agent-memory-watch (15 min)"] -->|gitleaks + health| NOTES
   W --> K["Kuma push"]

@@ -47,7 +47,9 @@ LOCAL_API_KEY = os.getenv("LLM_API_KEY", "ollama")
 LOCAL_FLEET_ALLOW = [s.strip() for s in os.getenv(
     "LOCAL_FLEET_ALLOW",
     "k8s_pods_list,k8s_pods_get,k8s_pods_log,k8s_events,k8s_nodes_top,k8s_resources_list,"
-    "grafana_query_prometheus,grafana_query_loki,trino_execute_query,postgres_execute_sql").split(",") if s.strip()]
+    "grafana_query_prometheus,grafana_query_loki,trino_execute_query,postgres_execute_sql,"
+    # B182 (2026-10-03): recall from the shared agent memory — the compositor fleet exposes its read tools as memory_*
+    "memory_search_notes,memory_read_note").split(",") if s.strip()]
 
 # FALLBACK — Haiku via LiteLLM, FULL flat fleet (handles all ~91 tools). Used ONLY when the local engine is unavailable.
 FALLBACK_ENABLED = _bool(os.getenv("OPERATOR_LLM_FALLBACK", "1"))

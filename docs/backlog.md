@@ -3248,8 +3248,12 @@ on — the operator's interface), the other stores (each keeps its own format = 
 - **OpenCode + Codex read tests PASSED 2026-10-03:** real sessions — `opencode run` (Gemini 2.5 Flash) and
   `codex exec --sandbox read-only` — each called the `Agent_Memory` search tool through Bifrost and returned a
   Claude-written note (28 s each). Per-harness config table in the runbook.
-- **Still open:** (a) the **operator / Open WebUI** read path — the operator
-  gets tools from the governed MCP gateway, not Bifrost, so its read-only key has no consumer yet. Done 2026-10-03: the Kuma push monitor `agent-memory`
+- **Operator recall BUILT 2026-10-03 (option A, owner):** memory is a READ-ONLY upstream of the compositor fleet —
+  `config.py` allowlist + `ReadOnlyAllowlist` middleware hide AND refuse every memory tool but 7 read tools (FastMCP
+  3.4.5's `include_tags` config filtered out everything — observed); proven in a real container. The operator gets
+  `memory_search_notes` / `memory_read_note` in its local allowlist. Along the way the compositor's unpinned `fastmcp`
+  was pinned (+ pyjwt/cryptography CVE floors) and the image moved into `images.tsv`.
+- **Still open:** Open WebUI's read path (undecided). Done 2026-10-03: the Kuma push monitor `agent-memory`
   (20-min heartbeat, Telegram) + `KUMA_MEMORY_PUSH_URL` — the watchdog reports up; Linear EMA-240 updated.
 
 **Why.** The lab is **multi-harness**: Claude Code, Codex (CLI + ChatGPT desktop), OpenCode, Cline, Pi, Open WebUI and
@@ -3965,7 +3969,7 @@ ClickHouse was NOT parked — Langfuse uses it as its live trace store.
 
 **Shipped:** `scripts/ship-images.sh` · `scripts/ci/detect-changes.sh` (shallow-clone fix) · `scripts/ci/open-deploy-pr.sh` · `scripts/tests/{ship-images,pr-staleness,cron-freshness,open-deploy-pr}.bats` · `k8s/monitoring/cron-freshness-rules.yaml` · `k8s/pr-lifecycle/cron-freshness.yaml` · `k8s/argocd/argocd-lan.yaml` · probes on `k8s/dagster/user-code.yaml` + `k8s/data-mesh/feast-server.yaml` · sealed `cron-freshness-woodpecker` · docs: `arch.md` §10b + §6 + §9, `runbooks/ship-images.md`, `runbooks/pr-lifecycle.md`, `diagrams/flow-ship-loop.md`, `demos/ship-images.md`, `schedules.md`.
 
-**Residual, tracked not hidden:** **B135 phase 2** — nine images outside `images.tsv` (`weyland-operator` — moved in 2026-10-02 —, `weyland-mcp-gateway`, `weyland-mcp-compositor`, `weyland-guard`, `weyland-agent`, `realm-of-agents`, `ray-head`, `a2a-inspector`, `mcp-server-datahub`) are hand-built and uncovered; until they are in, the loop reports success while a third of the fleet is unwatched. **B140** (smoke layer that exercises a real transaction), **B139** (measured: worst 11-image build 15m14s vs a 77-minute window — no collision), **EMA-77** (the demo's three unrun live paths, deferred by decision).
+**Residual, tracked not hidden:** **B135 phase 2** — nine images outside `images.tsv` (`weyland-operator` — moved in 2026-10-02 —, `weyland-mcp-gateway`, `weyland-mcp-compositor` — moved in 2026-10-03 —, `weyland-mcp-compositor`, `weyland-guard`, `weyland-agent`, `realm-of-agents`, `ray-head`, `a2a-inspector`, `mcp-server-datahub`) are hand-built and uncovered; until they are in, the loop reports success while a third of the fleet is unwatched. **B140** (smoke layer that exercises a real transaction), **B139** (measured: worst 11-image build 15m14s vs a 77-minute window — no collision), **EMA-77** (the demo's three unrun live paths, deferred by decision).
 
 **DoD:** pillars 1, 2, 4, 6 pass; 3 is MEDIUM with live execution deferred to EMA-77; 7 partial (the 19-tool `run-scan-suite.sh` still to run on mother); 8 (cascading changes) graded at close-out — it surfaced the freshness rule missing **the watchdog itself**, a stale `applications.yaml` reason, and three unrelated backup CronJobs with no `schedules.md` row running on the wrong clock.
 

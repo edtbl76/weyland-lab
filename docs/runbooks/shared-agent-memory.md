@@ -95,6 +95,7 @@ Bifrost logs `Connected to MCP server 'Agent_Memory'` when it can reach the stor
 | Codex | Bifrost `/mcp`, coding-agents key | `~/.codex/config.toml` `[mcp_servers."bifrost"]` + `http_headers.x-bf-vk` | 2026-10-03: a real `codex exec --sandbox read-only` session called `bifrost/Agent_Memory-search_notes` and returned the Claude-written note (28 s); also its exact route both directions, < 1 s |
 | OpenCode | Bifrost `/mcp`, its key | `~/.config/opencode/opencode.json` `mcp.bifrost` (`type: remote`, `headers.x-bf-vk`) | 2026-10-03: `opencode run -m gemini-direct/gemini-2.5-flash` called `bifrost_Agent_Memory-search_notes` and returned the Claude-written note (28 s) |
 | Pi / Cline | the files directly (same host) | `AGENTS.md` § Agent memory | — |
+| weyland-operator (recall only) | the governed gateway `/mcp-fleet` → the compositor's READ-ONLY `memory` upstream (`memory_*`, 7 tools; writes hidden and refused) | `k8s/mcp-servers/compositor.yaml` `MEMORY_URL`; operator `LOCAL_FLEET_ALLOW` += `memory_search_notes,memory_read_note` | compositor container 2026-10-03: 7 listed, `memory_write_note` refused, search works; live check after ship (`[fleet] loaded` count + a recall) |
 
 **OpenCode needs its provider keys in the environment:** its providers read `{env:GEMINI_API_KEY}` etc., so run it
 with `scripts/.env` loaded (`set -a && . /home/edwardmangini/IdeaProjects/weyland/scripts/.env && set +a`) or the model
