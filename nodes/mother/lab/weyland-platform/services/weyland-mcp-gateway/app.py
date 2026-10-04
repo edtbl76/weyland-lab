@@ -40,7 +40,9 @@ JWKS_URL = os.environ["KEYCLOAK_JWKS_URL"]                 # https://keycloak.we
 ISSUER = os.environ["KEYCLOAK_ISSUER"]                     # https://keycloak.weyland.lab/realms/weyland
 AUDIENCE = os.environ.get("KEYCLOAK_AUDIENCE") or None     # optional; Keycloak often sets aud=account, so default off
 ACTOR_CLAIM = os.environ.get("ACTOR_CLAIM", "azp")         # client_credentials → azp = the agent's client_id
-ALLOWED_PREFIXES = ("/mcp-fleet", "/mcp-memory", "/mcp-act", "/mcp",     # /mcp-fleet → compositor (read fleet); /mcp-act + /mcp → tool-server
+FLEET_PATH = "/mcp-fleet"                                 # → COMPOSITOR (the read-only fleet)
+MEMORY_PATH = "/mcp-memory"                               # → MEMORY (the memory-only compositor)
+ALLOWED_PREFIXES = (FLEET_PATH, MEMORY_PATH, "/mcp-act", "/mcp",     # /mcp-fleet → compositor (read fleet); /mcp-act + /mcp → tool-server
                     "/pipeline/trigger", "/evals/run", "/evals/score")  # + the tool-server act endpoints the operator
                                                           #   calls directly (not via MCP) — routed here for a verified actor
 
@@ -81,10 +83,10 @@ def identity(claims: dict) -> tuple[str | None, str | None]:
 
 def target_url(path: str) -> str | None:
     """The backend URL for `path`, or None when its backend is not configured (→ 404)."""
-    if path.startswith("/mcp-fleet") and COMPOSITOR:
-        return COMPOSITOR + "/mcp" + path[len("/mcp-fleet"):]
-    if path.startswith("/mcp-memory"):
-        return MEMORY + "/mcp" + path[len("/mcp-memory"):] if MEMORY else None
+    if path.startswith(FLEET_PATH) and COMPOSITOR:
+        return COMPOSITOR + "/mcp" + path[len(FLEET_PATH):]
+    if path.startswith(MEMORY_PATH):
+        return MEMORY + "/mcp" + path[len(MEMORY_PATH):] if MEMORY else None
     return TOOL_SERVER + path
 
 
@@ -130,10 +132,10 @@ async def _health(_: Request) -> PlainTextResponse:
 
 app = Starlette(routes=[
     Route("/health", _health),
-    Route("/mcp-fleet/{path:path}", _proxy, methods=["GET", "POST", "DELETE"]),
-    Route("/mcp-fleet", _proxy, methods=["GET", "POST", "DELETE"]),
-    Route("/mcp-memory/{path:path}", _proxy, methods=["GET", "POST", "DELETE"]),
-    Route("/mcp-memory", _proxy, methods=["GET", "POST", "DELETE"]),
+    Route(FLEET_PATH + "/{path:path}", _proxy, methods=["GET", "POST", "DELETE"]),
+    Route(FLEET_PATH, _proxy, methods=["GET", "POST", "DELETE"]),
+    Route(MEMORY_PATH + "/{path:path}", _proxy, methods=["GET", "POST", "DELETE"]),
+    Route(MEMORY_PATH, _proxy, methods=["GET", "POST", "DELETE"]),
     Route("/mcp-act/{path:path}", _proxy, methods=["GET", "POST", "DELETE"]),
     Route("/mcp-act", _proxy, methods=["GET", "POST", "DELETE"]),
     Route("/mcp/{path:path}", _proxy, methods=["GET", "POST", "DELETE"]),
