@@ -1,0 +1,8 @@
+# weyland-mcp-gateway — direct deps (pinned 2026-10-04; they were unpinned in the Dockerfile).
+# requirements.txt is the full frozen set from the running v4 image, with PyJWT + cryptography raised to the same
+# fixed versions the compositor uses; checked with pip-audit.
+starlette==1.3.1
+uvicorn[standard]==0.52.0
+httpx==0.28.1
+pyjwt[crypto]==2.15.0
+cryptography==50.0.0

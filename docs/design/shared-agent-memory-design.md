@@ -106,10 +106,18 @@ store" constraint rules out. That is from their documented architecture, not a r
   second tool source in the operator, and the key also carries Excalidraw/Malwarebytes. The allowlist is enforced by
   compositor middleware (hide + refuse; 7 read tools) because FastMCP 3.4.5's `include_tags` config filtered out
   everything. The operator's local brain gets `memory_search_notes` + `memory_read_note` in `LOCAL_FLEET_ALLOW`.
-- **Still open:** Open WebUI — which key it uses, and whether it should recall at all.
+- **Open WebUI — decided + built 2026-10-04 (owner):** it recalls through the governed MCP gateway as EACH PERSON.
+  Open WebUI (0.10.2, native MCP tool servers) connects to `/mcp-memory` with `system_oauth`, which forwards the
+  signed-in user's own Keycloak token; the gateway validates it and sets `X-Forwarded-User` (the person) beside
+  `X-Forwarded-Consumer` (the client). `/mcp-memory` routes to a memory-ONLY compositor (same image, every other
+  upstream off), so chat users get the 7 read tools with the operator's guarantees (writes hidden + refused, semantic
+  search, invented filters dropped) — not the 102-tool fleet, which Open WebUI cannot filter per connection.
+  **Rejected:** a Bifrost virtual key — one shared identity for every person ("bad juju for security", owner) and a
+  stored secret, and it bypasses the compositor fixes the operator needed to answer correctly. This mirrors a real
+  architecture: user identity propagated from the IdP through the gateway to the backend.
 
 ## Architecture placement
 
 `sharedMemory` sits under **rogueone** in the LikeC4 model (moved 2026-10-03): Claude Code reads/writes its files
-directly; Codex and the other coding agents reach it through Bifrost; the operator and Open WebUI edges stay
-**planned** until their read path is wired. Flow: [../diagrams/flow-shared-memory.md](../diagrams/flow-shared-memory.md).
+directly; Codex and the other coding agents reach it through Bifrost; the operator recalls via `/mcp-fleet` and
+Open WebUI via `/mcp-memory` (both through the governed MCP gateway). Flow: [../diagrams/flow-shared-memory.md](../diagrams/flow-shared-memory.md).

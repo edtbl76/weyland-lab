@@ -149,6 +149,7 @@ model {
           mcpGateway = gateway "weyland-mcp-gateway" "MCP gateway (mesh governance) — Keycloak-authed front door for tool-server /mcp + /mcp-act; injects the verified actor into guardrail_verdicts, unblocking the enforcing act policy gate"
           mcpFleet = component "MCP server fleet (6)" "Read-only MCP servers over lab subsystems (grafana / trino / k8s / postgres / neo4j / datahub) — one protocol for agents to query the platform"
           mcpCompositor = component "weyland-mcp-compositor" "FastMCP proxy — aggregates the 6 fleet servers into one endpoint with ~90 namespaced tools; gateway routes /mcp-fleet here"
+          mcpCompositorMemory = component "weyland-mcp-compositor-memory" "B182 (2026-10-04) — the same compositor image mounting ONLY the shared agent memory: its 7 read tools (writes hidden + refused), semantic search, invented filters dropped. The gateway routes /mcp-memory here — for Open WebUI's per-user recall"
           bifrost = gateway "Bifrost" "Agent-edge MCP front door (maximhq/bifrost, B111) — closes the MCP-gateway deliverable. The coding-agents VK aggregates 232 tools (the 95-tool compositor fleet + Context7/Linear/GitHub/Perplexity/Playwright/HuggingFace) into one /mcp for Claude Code + Codex + OpenCode. Also a Prompt Repository (241) + Skills Repository (583) served as a Claude Code/Codex plugin marketplace (git-served, /api/skills/serve open). Provider egress + per-VK budgets + sealed keys."
         }
 
@@ -270,7 +271,9 @@ model {
   weyland.mother.ops.edge.bifrost -> rogueone.sharedMemory "Agent_Memory MCP client → :8765 (coding-agents key: all 21 tools; operator key: read-only) — ufw admits only mother (B182)"
   rogueone.codingAgents -> rogueone.sharedMemory "read/write memory — Agent_Memory tools via Bifrost, or the files directly (Pi) (B182)"
   weyland.mother.ai.operator -> rogueone.sharedMemory "recall — memory_* READ-ONLY tools via the governed gateway /mcp-fleet → compositor (writes hidden + refused), B182"
-  weyland.mother.ai.openWebui -> rogueone.sharedMemory "recall (planned, B182)"
+  weyland.mother.ai.openWebui -> weyland.mother.ops.edge.mcpGateway "recall shared memory as the signed-in PERSON — MCP tool server /mcp-memory, auth system_oauth (the user's Keycloak token; no stored secret), B182"
+  weyland.mother.ops.edge.mcpGateway -> weyland.mother.ops.edge.mcpCompositorMemory "/mcp-memory → memory-only compositor; sets X-Forwarded-Consumer (client) + X-Forwarded-User (person) from the validated JWT"
+  weyland.mother.ops.edge.mcpCompositorMemory -> rogueone.sharedMemory "7 read tools → Basic Memory :8765 (ufw: mother only), B182"
   edward -> rogueone.codingAgents "codes with (B15)"
   rogueone.codingAgents -> hostedModels "direct: Gemini/Mistral/OpenRouter free + ChatGPT sub (GPT-5.5) — bypasses the gateway"
 
@@ -428,7 +431,7 @@ views {
   }
 
   view harnesses {
-    title "Harnesses — multi-harness agents + shared services (shared memory TBD, B182)"
+    title "Harnesses — multi-harness agents + shared services + the shared agent memory (B182)"
     include
       edward,
       rogueone.editors,
@@ -439,6 +442,8 @@ views {
       weyland.mother.ai.operator,
       rogueone.sharedMemory,
       weyland.mother.ops.edge.bifrost,
+      weyland.mother.ops.edge.mcpGateway,
+      weyland.mother.ops.edge.mcpCompositorMemory,
       weyland.mother.ai.toolServer,
       weyland.mother.ai.litellm,
       rogueone.ollama,

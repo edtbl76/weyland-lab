@@ -44,4 +44,6 @@ sequenceDiagram
 **The operator recalls through its own governed path (2026-10-03):** the compositor mounts the store as a READ-ONLY
 `memory` upstream — its middleware hides and refuses every memory tool except 7 read tools — so the operator gets
 `memory_search_notes` etc. via the MCP gateway's `/mcp-fleet`, with its Keycloak identity, like every other read tool.
-Open WebUI's access is still undecided (a planned edge in the C4 `harnesses` view).
+**Open WebUI recalls as the signed-in person (2026-10-04):** an MCP tool server on the gateway's `/mcp-memory`
+(memory-only compositor, same 7 read tools) with `system_oauth` — the user's own Keycloak token, so the gateway sets
+`X-Forwarded-User`. No shared key.

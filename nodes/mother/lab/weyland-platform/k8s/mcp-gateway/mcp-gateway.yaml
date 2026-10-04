@@ -34,7 +34,7 @@ spec:
       serviceAccountName: weyland-mcp-gateway
       containers:
         - name: weyland-mcp-gateway
-          image: registry.weyland.lab/weyland-mcp-gateway:v4
+          image: registry.weyland.lab/weyland-mcp-gateway:v4   # CI-built + tag-following since 2026-10-04 (scripts/ci/images.tsv): ship-images.sh moves this to git-<sha>
           imagePullPolicy: IfNotPresent
           securityContext:
             runAsNonRoot: true
@@ -57,6 +57,10 @@ spec:
             # Read /mcp → the FastMCP compositor (aggregated read-only fleet). Acts stay on TOOL_SERVER_URL.
             - name: COMPOSITOR_URL
               value: http://weyland-mcp-compositor.weyland.svc.cluster.local:8000
+            # B182 (2026-10-04): /mcp-memory → the memory-ONLY compositor (7 read tools), for Open WebUI's per-user
+            # recall. Unset → /mcp-memory is a 404 (never the tool-server).
+            - name: MEMORY_COMPOSITOR_URL
+              value: http://weyland-mcp-compositor-memory.weyland.svc.cluster.local:8000
             # JWKS over internal HTTP (no CA); issuer validated against the external URL that Keycloak stamps on tokens.
             - name: KEYCLOAK_JWKS_URL
               value: http://keycloak.weyland.svc.cluster.local:8080/realms/weyland/protocol/openid-connect/certs

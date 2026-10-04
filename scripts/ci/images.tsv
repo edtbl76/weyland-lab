@@ -26,4 +26,5 @@ scan-suite	services/scan-suite	k8s/code-quality/scan-suite.yaml
 guardrails-structure	services/guardrails-structure	k8s/guardrails-structure/guardrails-structure.yaml
 nemo-guardrails	services/nemo-guardrails	k8s/nemo-guardrails/nemo-guardrails.yaml
 weyland-operator	services/weyland-operator	k8s/weyland-operator/deployment.yaml
-weyland-mcp-compositor	services/weyland-mcp-compositor	k8s/mcp-servers/compositor.yaml
+weyland-mcp-compositor	services/weyland-mcp-compositor	k8s/mcp-servers/compositor.yaml k8s/mcp-servers/compositor-memory.yaml
+weyland-mcp-gateway	services/weyland-mcp-gateway	k8s/mcp-gateway/mcp-gateway.yaml

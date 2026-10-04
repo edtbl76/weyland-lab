@@ -27,6 +27,16 @@ edges make up the mesh-governance layer:
 3. **Pass through** — stream the raw MCP Streamable-HTTP (JSON-RPC / SSE) to the backend `/mcp` (read) + `/mcp-act`
    (act) mounts.
 
+**`/mcp-memory` + per-user identity (B182, 2026-10-04).** A fourth route sends `/mcp-memory` to the memory-ONLY
+compositor (`MEMORY_COMPOSITOR_URL` → `weyland-mcp-compositor-memory`, the shared agent memory's 7 read tools;
+unset → **404**, never a fall-through to the tool-server). Built for Open WebUI, which forwards each signed-in
+person's own Keycloak token (`system_oauth`). The gateway now sets two identity headers from the VALIDATED token,
+stripping any client-supplied copy: `X-Forwarded-Consumer` = the client (`azp`, unchanged — `policy.gate` keys on it)
+and `X-Forwarded-User` = the person (`preferred_username`; absent for a machine token, whose username is
+`service-account-<client>`). Pure functions `identity()` + `target_url()`, tested in `tests/test_gateway.py`
+(routing, identity, spoofed headers stripped, 401 without a token, 404 when unconfigured). Proven 2026-10-04 in local
+containers with a real Keycloak token: 7 unprefixed tools, `write_note` refused, no/forged token → 401.
+
 **Gotcha — the header allowlist.** `fastapi-mcp` (0.4.0) forwards only an **allowlist** of headers from the MCP request
 into each tool invocation (`FastApiMCP(app, headers=[...])`, default `['authorization']`). So the gateway-set
 `x-forwarded-consumer` was silently dropped and `_actor` saw `None` (verdicts recorded NULL actor). Fix: both mounts
@@ -67,7 +77,7 @@ sequenceDiagram
 ```
 
 ## Deploy
-- **Gateway** (built on rogueone like weyland-guard/agent): `docker build -t registry.weyland.lab/weyland-mcp-gateway:vN services/weyland-mcp-gateway && docker push …`; manifests `k8s/mcp-gateway/mcp-gateway.yaml` (ServiceAccount `weyland-mcp-gateway` + Deployment + Service + Ingress `mcp.weyland.lab`, **meshed** — Istio sidecar + its own SA so the tool-server can authorize it by SPIFFE identity; stays PERMISSIVE so Traefik ingress still reaches it plaintext; gateway→tool-server + gateway→keycloak auto-mTLS); Argo app `mcp-gateway` in `subdir-apps.yaml`. Meshing was a **manifest-only** change (SA + `sidecar.istio.io/inject` label — no image rebuild).
+- **Gateway** — **CI-built since 2026-10-04** (`scripts/ci/images.tsv`; ship with `scripts/ship-images.sh`, which moves the tag to `git-<sha>`). Its deps are pinned (`requirements.txt`, frozen from the running v4 + pip-audited; they were unpinned). Before that it was hand-built (`docker build -t registry.weyland.lab/weyland-mcp-gateway:vN …`, last `v4`). Manifests `k8s/mcp-gateway/mcp-gateway.yaml` (ServiceAccount `weyland-mcp-gateway` + Deployment + Service + Ingress `mcp.weyland.lab`, **meshed** — Istio sidecar + its own SA so the tool-server can authorize it by SPIFFE identity; stays PERMISSIVE so Traefik ingress still reaches it plaintext; gateway→tool-server + gateway→keycloak auto-mTLS); Argo app `mcp-gateway` in `subdir-apps.yaml`. Meshing was a **manifest-only** change (SA + `sidecar.istio.io/inject` label — no image rebuild).
 - **Keycloak clients** (OpenTofu, `tofu/keycloak/mcp-agents.tf`) — one `service_accounts_enabled` (client_credentials) client per agent; `client_id` = the actor. Apply: `TF_VAR_operator_password=… tofu apply`. Secret via `tofu output -raw mcp_operator_client_secret`.
 - **Act gate** rides the weyland-guard image (`policy.py` + the `x-forwarded-consumer` allowlist on the tool-server).
 - **JWKS** is fetched from the in-cluster keycloak svc over HTTP (`http://keycloak.weyland.svc:8080/realms/weyland/…/certs`) — no CA trust needed; the token `iss` is still validated against `https://keycloak.weyland.lab/realms/weyland`.

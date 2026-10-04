@@ -1122,7 +1122,8 @@ flowchart LR
   BF -->|Agent_Memory, ufw: mother only| BM
   PI["Pi"] -->|files| NOTES
   OP["weyland-operator"] -->|recall: /mcp-fleet → compositor memory_*, read-only| BM
-  OW["Open WebUI"] -.->|planned: read-only| BM
+  OW["Open WebUI"] -->|recall as the person: /mcp-memory, user's Keycloak token| GW["MCP gateway"]
+  GW -->|memory-only compositor, 7 read tools| BM
   W["agent-memory-watch (15 min)"] -->|gitleaks + health| NOTES
   W --> K["Kuma push"]
 ```

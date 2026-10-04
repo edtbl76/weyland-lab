@@ -3263,7 +3263,12 @@ on — the operator's interface), the other stores (each keeps its own format = 
   **Verified live 2026-10-04 (`git-6d677329`):** three recall questions through `/operator/ask` answered from the right
   notes on the free local brain (no Haiku), 0 truncations — after one more fix (the 7B invented a `tags` filter; the
   compositor now drops filters our notes never carry). Demo § 3d.
-- **Still open:** Open WebUI's read path (undecided). Done 2026-10-03: the Kuma push monitor `agent-memory`
+- **Open WebUI read path BUILT 2026-10-04 (owner: per-user, not a shared key):** Open WebUI (pinned to its running
+  0.10.2 digest — it was `:main`) is an MCP client of the governed gateway's new `/mcp-memory` route with `system_oauth`
+  (each person's own Keycloak token → `X-Forwarded-User`), served by a memory-ONLY compositor (same image, 7 read
+  tools, the operator's search fixes). The gateway moved into CI (`images.tsv`), its deps pinned + pip-audited; tests
+  added. Proven in local containers with a real token. **Remaining:** ship, add the connection once in the admin UI
+  (runbook), live chat test. Done 2026-10-03: the Kuma push monitor `agent-memory`
   (20-min heartbeat, Telegram) + `KUMA_MEMORY_PUSH_URL` — the watchdog reports up; Linear EMA-240 updated.
 
 **Why.** The lab is **multi-harness**: Claude Code, Codex (CLI + ChatGPT desktop), OpenCode, Cline, Pi, Open WebUI and

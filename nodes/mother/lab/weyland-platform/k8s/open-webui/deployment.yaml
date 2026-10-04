@@ -26,14 +26,18 @@ spec:
       # B1.1 — combined CA bundle (system + mkcert root) so the OIDC back-channel verifies Keycloak's cert.
       initContainers:
         - name: ca-bundle
-          image: ghcr.io/open-webui/open-webui:main
+          image: ghcr.io/open-webui/open-webui@sha256:a26effeb220e132482bf7e0560b3404843e7bc40d23051144e062960df8df6b0   # same pin as the app container
           command: ["sh", "-c", "cat /etc/ssl/certs/ca-certificates.crt /mkcert/rootCA.pem > /cabundle/ca-bundle.crt"]
           volumeMounts:
             - { name: mkcert-ca, mountPath: /mkcert, readOnly: true }
             - { name: ca-bundle, mountPath: /cabundle }
       containers:
         - name: open-webui
-          image: ghcr.io/open-webui/open-webui:main   # TODO: pin to a release tag for reproducibility  # nosemgrep: yaml.kubernetes.security.run-as-non-root.run-as-non-root
+          # PINNED 2026-10-04 to the digest that has been running since 2026-08-03 — a `:main` build reporting version
+          # 0.10.2 (/api/version); it is NOT the v0.10.2 release (release index sha256:9fcea9c6…, a different build), so
+          # pinning the release could be a DB-migration downgrade. Native MCP tool servers (B182 memory) depend on this
+          # version. Moving to a release tag is a deliberate upgrade: back up the PVC first.
+          image: ghcr.io/open-webui/open-webui@sha256:a26effeb220e132482bf7e0560b3404843e7bc40d23051144e062960df8df6b0  # nosemgrep: yaml.kubernetes.security.run-as-non-root.run-as-non-root
           # B47 hardening: drop priv-esc + seccomp (see arch)
           securityContext:
             allowPrivilegeEscalation: false
@@ -42,6 +46,13 @@ spec:
           ports:
             - containerPort: 8080
           env:
+            # B182 (2026-10-04) — shared agent memory as an MCP tool server, read-only, AS THE SIGNED-IN PERSON: the gateway's
+            # /mcp-memory (memory-only compositor, 7 read tools) with auth_type system_oauth (the user's own Keycloak token;
+            # the gateway sets X-Forwarded-User). PersistentConfig: this env applies only while the DB has no
+            # tool_server.connections — on the live PVC it already holds [] (2026-10-04), so the connection is added once in
+            # Admin → Settings → External Tools (runbooks/shared-agent-memory.md). Kept here so a rebuilt PVC gets it.
+            - name: TOOL_SERVER_CONNECTIONS
+              value: '[{"url":"http://weyland-mcp-gateway.weyland.svc.cluster.local:8080/mcp-memory","path":"","type":"mcp","auth_type":"system_oauth","key":"","config":{"enable":true},"info":{"id":"agent-memory","name":"Agent memory","description":"Shared agent memory: read-only recall, as you (B182)"}}]'
             # --- Chat: native Ollama integration (CT 102) ---
             - name: OLLAMA_BASE_URL
               value: http://192.168.1.230:11434

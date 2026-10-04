@@ -96,6 +96,7 @@ Bifrost logs `Connected to MCP server 'Agent_Memory'` when it can reach the stor
 | OpenCode | Bifrost `/mcp`, its key | `~/.config/opencode/opencode.json` `mcp.bifrost` (`type: remote`, `headers.x-bf-vk`) | 2026-10-03: `opencode run -m gemini-direct/gemini-2.5-flash` called `bifrost_Agent_Memory-search_notes` and returned the Claude-written note (28 s) |
 | Pi / Cline | the files directly (same host) | `AGENTS.md` § Agent memory | — |
 | weyland-operator (recall only) | the governed gateway `/mcp-fleet` → the compositor's READ-ONLY `memory` upstream (`memory_*`, 7 tools; writes hidden and refused) | `k8s/mcp-servers/compositor.yaml` `MEMORY_URL`; operator `LOCAL_FLEET_ALLOW` += `memory_search_notes,memory_read_note` | compositor live 2026-10-03: 102 fleet tools, 7 `memory_*`, `memory_write_note` refused. The operator's 7B called `memory_search_notes` correctly but answered EMPTY — its prompt did not fit Ollama's window (operator.md). Fixed 2026-10-04: `qwen2.5:7b-operator` (32K), tool results capped, fleet memory searches made semantic; proven in-pod ("what caused the rogueone GPU freeze?" → "a kernel bug", 2/2). Live recall check after ship |
+| Open WebUI (recall only, as the signed-in person) | the governed gateway `/mcp-memory` → the memory-ONLY compositor (7 read tools, unprefixed; writes hidden and refused) — an MCP tool server with `system_oauth`, so each call carries the user's own Keycloak token | `k8s/open-webui/deployment.yaml` `TOOL_SERVER_CONNECTIONS` (fresh PVC) **+ once in the admin UI on the live PVC** (below); gateway `MEMORY_COMPOSITOR_URL`; `k8s/mcp-servers/compositor-memory.yaml` | 2026-10-04 local containers, real Keycloak token: 7 tools, the right note #1 (an invented `tags` filter dropped), `write_note` refused, no/forged token → 401. Live chat test after ship |
 
 **OpenCode needs its provider keys in the environment:** its providers read `{env:GEMINI_API_KEY}` etc., so run it
 with `scripts/.env` loaded (`set -a && . /home/edwardmangini/IdeaProjects/weyland/scripts/.env && set +a`) or the model
@@ -151,3 +152,26 @@ Then remove `Agent_Memory` from the two Bifrost scripts and re-run the three reg
   two yielded streams (was three), `is_error` / `input_schema` (were camelCase).
 - **Search quality is moderate**: 3 of 5 known answers in the top 5 with semantic search (2 of 5 keyword-only). The
   `MEMORY.md` index stays the primary recall path; search is the second.
+
+## Open WebUI — connect the memory tool server (once, on the live PVC)
+
+Open WebUI keeps tool-server connections in its database (PersistentConfig): the live PVC already stores
+`tool_server.connections = []`, so the `TOOL_SERVER_CONNECTIONS` env in the manifest is ignored there (it only seeds a
+fresh PVC). Add it once, as an Open WebUI admin, in `https://chat.weyland.lab` → **Admin Panel → Settings → External
+Tools → +** (labels as of 0.10.2):
+
+| Field | Value |
+|---|---|
+| Type | **MCP** (Streamable HTTP) |
+| URL | `http://weyland-mcp-gateway.weyland.svc.cluster.local:8080/mcp-memory` |
+| Auth | **OAuth** (`system_oauth` — forwards the signed-in user's Keycloak token; no key) |
+| ID / Name | `agent-memory` / `Agent memory` |
+
+Then, in a chat: enable the **Agent memory** tool (the `+` / tools menu) and use a model with **native** function
+calling and a context window that fits the tool schemas — `qwen2.5:7b-operator` (32K) works; the stock Ollama tags run
+with ~2K per request and Ollama silently cuts the prompt (operator.md § the prompt must fit). Ask: *"Search the agent
+memory: what caused the rogueone GPU freeze?"* → the answer cites `rogueone-gpu-freeze-vram` (a kernel bug).
+
+**Who searched:** every call reaches the memory compositor with `X-Forwarded-Consumer: open-webui` and
+`X-Forwarded-User: <your Keycloak username>`, set by the gateway from the validated token (a client cannot supply its
+own). A user who has not signed in through Keycloak has no token → the gateway answers 401.

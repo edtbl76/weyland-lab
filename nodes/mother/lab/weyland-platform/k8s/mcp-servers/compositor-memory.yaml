@@ -1,0 +1,72 @@
+# weyland-mcp-compositor-memory — B182 (2026-10-04). The SAME compositor image as weyland-mcp-compositor, mounting ONLY
+# the shared agent memory (Basic Memory on rogueone): every other upstream URL is set empty, which config.py skips.
+# So it serves the memory's 7 READ tools — unprefixed (search_notes, read_note, …: FastMCP prefixes only with several
+# upstreams) — with the same guarantees as the fleet's memory_* tools: writes hidden AND refused (ReadOnlyAllowlist),
+# searches made semantic, invented filters dropped (config.rewrite_arguments).
+#
+# WHY a separate deployment: the gateway's /mcp-memory routes here for Open WebUI, which authenticates as EACH PERSON
+# (`system_oauth` forwards the user's Keycloak token; the gateway sets X-Forwarded-User). /mcp-fleet would hand chat
+# users the whole 102-tool read fleet (k8s, SQL, …) — Open WebUI cannot filter a connection's tools. Chosen over a
+# shared Bifrost virtual key (one identity for everyone, a stored secret) — owner, 2026-10-04.
+#
+# Unmeshed like the fleet compositor; egresses from mother's IP, the only source rogueone's ufw admits to :8765.
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: weyland-mcp-compositor-memory
+  namespace: weyland
+  labels: { app: weyland-mcp-compositor-memory, part-of: mcp-fleet }
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: weyland-mcp-compositor-memory }
+  template:
+    metadata:
+      labels: { app: weyland-mcp-compositor-memory }
+    spec:
+      automountServiceAccountToken: false
+      containers:
+        - name: weyland-mcp-compositor
+          image: registry.weyland.lab/weyland-mcp-compositor:git-6d677329   # lockstep with compositor.yaml (scripts/ci/images.tsv)
+          ports:
+            - { name: http, containerPort: 8000 }
+          env:
+            - { name: PORT, value: "8000" }
+            - { name: MEMORY_URL, value: "http://192.168.1.230:8765/mcp" }
+            # Every other upstream OFF (an empty URL skips it — config.build_servers).
+            - { name: CONTEXT_URL, value: "" }
+            - { name: GRAFANA_URL, value: "" }
+            - { name: TRINO_URL, value: "" }
+            - { name: K8S_URL, value: "" }
+            - { name: POSTGRES_URL, value: "" }
+            - { name: NEO4J_URL, value: "" }
+            - { name: DATAHUB_URL, value: "" }
+          readinessProbe:
+            tcpSocket: { port: 8000 }
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            tcpSocket: { port: 8000 }
+            periodSeconds: 20
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 10001
+            allowPrivilegeEscalation: false
+            capabilities: { drop: ["ALL"] }
+            seccompProfile: { type: RuntimeDefault }
+          resources:
+            requests: { memory: 96Mi, cpu: 25m }
+            limits: { memory: 256Mi }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: weyland-mcp-compositor-memory
+  namespace: weyland
+  labels: { app: weyland-mcp-compositor-memory, part-of: mcp-fleet }
+spec:
+  type: ClusterIP
+  selector: { app: weyland-mcp-compositor-memory }
+  ports:
+    - { name: http, port: 8000, targetPort: 8000 }
