@@ -87,6 +87,19 @@ kubectl -n weyland rollout restart deploy/bifrost
 Bifrost logs `Connected to MCP server 'Agent_Memory'` when it can reach the store. Tools then appear as
 `Agent_Memory-search_notes`, `Agent_Memory-write_note`, … (21 on the coding-agents key).
 
+## Per-harness config (B182 criterion 6)
+
+| Harness | How it reaches the store | Config | Read test |
+|---|---|---|---|
+| Claude Code | native files — its memory path is a symlink to the store | `~/.claude/projects/-home-edwardmangini-IdeaProjects-weyland/memory` → `~/agent-memory/weyland` | `check-shared-memory.py` step 4 (plain-file note searchable < 1 s) |
+| Codex | Bifrost `/mcp`, coding-agents key | `~/.codex/config.toml` `[mcp_servers."bifrost"]` + `http_headers.x-bf-vk` | 2026-10-03: a real `codex exec --sandbox read-only` session called `bifrost/Agent_Memory-search_notes` and returned the Claude-written note (28 s); also its exact route both directions, < 1 s |
+| OpenCode | Bifrost `/mcp`, its key | `~/.config/opencode/opencode.json` `mcp.bifrost` (`type: remote`, `headers.x-bf-vk`) | 2026-10-03: `opencode run -m gemini-direct/gemini-2.5-flash` called `bifrost_Agent_Memory-search_notes` and returned the Claude-written note (28 s) |
+| Pi / Cline | the files directly (same host) | `AGENTS.md` § Agent memory | — |
+
+**OpenCode needs its provider keys in the environment:** its providers read `{env:GEMINI_API_KEY}` etc., so run it
+with `scripts/.env` loaded (`set -a && . /home/edwardmangini/IdeaProjects/weyland/scripts/.env && set +a`) or the model
+call fails with `Missing or invalid Authorization header` — the memory side is unaffected.
+
 ## Watchdog
 
 `scripts/agent-memory-watch.sh`, every 15 min (user timer `agent-memory-watch.timer`): gitleaks 8.21.2 over

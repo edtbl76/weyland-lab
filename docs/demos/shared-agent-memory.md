@@ -38,6 +38,33 @@ A. Claude Code native write -> found via Codex's route: True after 0s
 B. write via Codex's route -> file in Claude Code's memory dir: True after 0s
 ```
 
+**3b. OpenCode — a real agent session (criterion 6).** A note written natively, then OpenCode on Gemini asked to find it
+using only the memory tool (run from `/tmp`, so it cannot read the repo's notes instead):
+
+[rogueone]
+```
+cd /tmp && set -a && . /home/edwardmangini/IdeaProjects/weyland/scripts/.env && set +a && opencode run -m gemini-direct/gemini-2.5-flash "Use ONLY the Agent_Memory search_notes tool (from the bifrost MCP server) — do not read any files. Find the memory note whose text contains the word quokka<tag> and reply with exactly that note's name field, nothing else."
+```
+```
+⚙ bifrost_Agent_Memory-search_notes {"output_format":"json","query":"quokka9302a9d9"}
+_opencode-probe-9302a9d9
+```
+RUN 2026-10-03, 28 s, exit 0. (It answers with the note's title — the file name — because permalinks are off.)
+
+**3c. Codex — a real agent session.** Same shape as 3b, on Codex's ChatGPT-plan model:
+
+[rogueone]
+```
+cd /tmp && codex exec --skip-git-repo-check --ephemeral --sandbox read-only "Use ONLY the Agent_Memory search_notes tool from the bifrost MCP server — do not run shell commands or read files. Find the memory note whose text contains the word wombat<tag> and reply with exactly that note's title, nothing else."
+```
+```
+approval: never
+mcp: bifrost/Agent_Memory-search_notes started
+mcp: bifrost/Agent_Memory-search_notes (completed)
+_codex-probe-1184b8de
+```
+RUN 2026-10-03, 28 s, exit 0, ~10k tokens (ChatGPT plan, not a paid API).
+
 **4. The firewall — only mother reaches :8765.**
 
 [mother]
