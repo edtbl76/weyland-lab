@@ -22,7 +22,7 @@ spec:
       enableServiceLinks: false
       containers:
         - name: weyland-operator
-          image: registry.weyland.lab/weyland-operator:git-d760d03c   # CI-built + tag-following since 2026-10-02 (scripts/ci/images.tsv): ship-images.sh moves this to git-<sha>
+          image: registry.weyland.lab/weyland-operator:git-4a8d88f5   # CI-built + tag-following since 2026-10-02 (scripts/ci/images.tsv): ship-images.sh moves this to git-<sha>
           imagePullPolicy: IfNotPresent
           resources:
             # No torch/embedder — just langgraph/langchain/mlflow client + fastapi; LLM inference is remote (Ollama).
