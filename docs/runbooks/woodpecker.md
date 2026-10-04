@@ -128,7 +128,11 @@ tags. Steps: `detect-changes → build → kubeconform → deploy-handoff`.
     bash scripts/ship-images.sh` (the loop passes it through since 2026-09-26; see `ship-images.md`). A third kill,
     **#191 (2026-09-26, 15:05–16:54, daytime)**, was a full ad-hoc ship: the agent lost the API server
     (`http2: client connection lost`) and the server expired the task (`queue: task expired`) at minute 108. If you genuinely need the full matrix on demand, run it
-    outside 00:00–01:00, or let the 01:00 nightly do it. If the nightly itself ever starts getting killed, the remaining
+    outside 00:00–01:00, or let the 01:00 nightly do it. **Even a LEAN run is killed if it is still running when the
+    nightly fires** (#252, 2026-10-04, a lean ship started 00:54): at 05:01 UTC the server logged `database is locked`
+    (SQLite, while the cron created the full matrix), the agent's lease extension failed (`sql: no rows in result
+    set`), and the server expired the task (`queue: task expired`) — every remaining step `killed`. Nothing is wrong
+    with the change; re-run the ship once the nightly is past. Do not start a ship after ~00:30. If the nightly itself ever starts getting killed, the remaining
     lever is capacity (headroom on mother) — a sizing decision, not a CI change.
 - **Build engine = a persistent `buildkitd` Deployment** (`k8s/woodpecker/buildkitd.yaml`, Argo app
   `woodpecker-buildkitd`), NOT build-in-the-step-pod. The `build` step is a thin `buildctl --addr tcp://buildkitd:1234`
