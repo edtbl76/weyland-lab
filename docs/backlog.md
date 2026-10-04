@@ -3253,6 +3253,13 @@ on — the operator's interface), the other stores (each keeps its own format = 
   3.4.5's `include_tags` config filtered out everything — observed); proven in a real container. The operator gets
   `memory_search_notes` / `memory_read_note` in its local allowlist. Along the way the compositor's unpinned `fastmcp`
   was pinned (+ pyjwt/cryptography CVE floors) and the image moved into `images.tsv`.
+- **Live 2026-10-03, the local brain recalled NOTHING — and went blank on every fleet question.** The tool call was
+  right; the answer was empty. Root cause 2026-10-04: Ollama ran `qwen2.5:7b` with a ~2K-token window and silently cut
+  the operator's ~6K-token prompt — 801 times in 14 days, long before B182; the memory tools only tipped it from
+  "luck" to "always empty". Closing the gap (operator.md § the prompt must fit): a 32K `qwen2.5:7b-operator`
+  (`nodes/rogueone/ollama/`), local tool results capped, fleet memory searches made semantic (text/hybrid missed the
+  answering note entirely), a memory line in `operator_system`, and `EmptyReply` so a blank never reaches anyone.
+  **Audit:** the `truncating input prompt` journal check (expect 0) after any model/prompt/tool-set change.
 - **Still open:** Open WebUI's read path (undecided). Done 2026-10-03: the Kuma push monitor `agent-memory`
   (20-min heartbeat, Telegram) + `KUMA_MEMORY_PUSH_URL` — the watchdog reports up; Linear EMA-240 updated.
 

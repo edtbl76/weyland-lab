@@ -90,6 +90,13 @@ path, POST init/initialized/tools-list there, read responses off the stream (her
   future version adds stay out. FastMCP 3.4.5's per-server `tools`/`include_tags` config could NOT do this (the tag
   is not applied; include_tags hid all 21 — observed). With one upstream FastMCP does not prefix tool names; with
   several it does (`memory_*`). Proven in a real container: 7 listed, `memory_write_note` refused, search works.
+  **Memory searches through the fleet are SEMANTIC (2026-10-04)** — `config.rewrite_arguments` turns a
+  `memory_search_notes` call asked as default/`text`/`hybrid` into `search_type: semantic`; `title`/`permalink` (exact
+  lookups) and an explicit `semantic`/`vector` pass as asked. Why, measured: for "rogueone GPU freeze" the answering note
+  (`rogueone-gpu-freeze-vram`) is #1 by semantic search and absent from the top 10 by text and by the default hybrid,
+  whose full-text half dominates short keyword queries — what a small model writes (the operator's 7B also picks
+  `text` on its own). Proven in a real container: rewritten calls rank it #1; an un-rewritten control does not. Only the
+  fleet is affected — coding agents reach Basic Memory through Bifrost, untouched.
   The compositor's `fastmcp` is now pinned (`requirements.in/.txt`; it was unpinned) and the image is CI-built
   (`images.tsv`, 2026-10-03).
 - **The operator (B66) uses the fleet.** It loads the `/mcp-fleet` tools via `langchain-mcp-adapters` (per-request

@@ -75,8 +75,10 @@ spec:
             # on-demand llama-guard-8b OFF; if the card saturates it health-fails-over to Haiku (which gets the full 91).
             - name: OLLAMA_BASE_URL
               value: http://192.168.1.230:11434/v1
+            # qwen2.5:7b built with a 32K window (nodes/rogueone/ollama/qwen2.5-7b-operator.Modelfile). The stock tag ran
+            # with ~2K per request and Ollama silently cut the ~6K-token prompt (2026-10-04). Build it on rogueone first.
             - name: OLLAMA_MODEL
-              value: qwen2.5:7b
+              value: qwen2.5:7b-operator
             - name: LLM_API_KEY
               value: ollama          # Ollama ignores the key; any non-empty string satisfies the OpenAI client
             # FALLBACK brain — Haiku via LiteLLM (flat fleet, handles all ~91 tools). Used ONLY when the local engine

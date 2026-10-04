@@ -167,6 +167,38 @@ kubectl -n weyland exec deploy/weyland-operator -- python -c "import urllib.requ
 ```
 - **`<100% on GPU`** → CPU offload (VRAM contended). Free it: `./scripts/llama-guard-8b.sh stop` on rogueone (llama-guard-8b holds ~6 GB; it's on-demand). The 14.4 GB gpt-oss:20b never fits the shared card — that's why the brain is a 7B.
 - **tool-call leaked into `content`** (a `</tool_call>` blob, no `tool_calls`) → too many / router-wrapped tools; the local brain needs the **curated FLAT set**, not routers or the full 91.
+- **The prompt must FIT the context window — Ollama cuts it SILENTLY (root-caused 2026-10-04).** The stock
+  `qwen2.5:7b` ran with ~2K tokens per request; the operator's prompt is ~5K tokens of tool schemas alone (~6.5K with
+  the memory tools). Ollama logged `truncating input prompt limit=2050 prompt=5979` **801 times in 14 days** and threw
+  away the system prompt and often the question. Replies were luck — and once B182 added the memory tools, every fleet
+  answer came back EMPTY (`{"content": ""}`, `finish=stop`). Fixed three ways:
+  1. **`qwen2.5:7b-operator`** — the same weights with `num_ctx 32768` (Ollama splits it across 2 parallel slots, so
+     each request gets 16K). Scoped to the operator; OLLAMA_CONTEXT_LENGTH would raise VRAM for every model on the
+     card. ~6.1 GiB on the GPU. Source: `nodes/rogueone/ollama/qwen2.5-7b-operator.Modelfile`. Build/rebuild on rogueone
+     (after an Ollama reinstall or a `qwen2.5:7b` re-pull):
+     ```
+     ollama create qwen2.5:7b-operator -f /home/edwardmangini/IdeaProjects/weyland/nodes/rogueone/ollama/qwen2.5-7b-operator.Modelfile
+     ```
+  2. **Tool results capped for the local brains** (`LOCAL_TOOL_RESULT_CAP`, 12000 chars, a LangGraph `pre_model_hook`):
+     one `k8s_pods_list_in_namespace` is ~18K tokens — on its own more than a slot. The cut adds a note telling the
+     model to narrow the query. Haiku (200K window) is not capped.
+  3. **Memory searches are semantic** (compositor, `config.rewrite_arguments`) — see mcp-fleet.md.
+  **Audit — run after any model, prompt or tool-set change (expect 0 lines):**
+  ```
+  journalctl -u ollama --since "-1d" --no-pager | grep "truncating input prompt"
+  ```
+- **An EMPTY final reply is a failure, not an answer (2026-10-03).** The symptom above. `agent._invoke` raises
+  `EmptyReply` (no text AND no `propose_act`) so a blank never reaches anyone:
+  - **a person chatting** → fails over to Haiku for THAT request (`reason="local_empty"`); local is NOT marked down.
+  - **the incident sweep** (no paid fallback) → posts the alert with `(enrichment failed: … empty reply)`. It does NOT
+    defer: deferral is for a busy engine and retries; an empty reply can repeat, and a deferral would never post.
+  - **both brains empty** → an error to the user (Telegram `⚠️ Something went wrong`, `/operator/ask` 502), never blank.
+  Non-zero `local_empty` in the reliability check = go back to the truncation audit.
+  Reproduce (read-only; plain `python -c` in the pod rebuilds the same agent):
+  ```
+  kubectl -n weyland exec deploy/weyland-operator -- python -c "import asyncio, agent; r=asyncio.run(agent._local_agent.ainvoke({'messages':[('system', agent.load_prompt('operator_system', agent.SYSTEM)), ('user','How many pods are running in the weyland namespace?')]})); print([(type(m).__name__, repr(str(m.content)[:60])) for m in r['messages'][2:]])"
+  ```
+  The last `AIMessage` must have text (2026-10-04 on the 32K model: "There are 20 running pods in the `weyland` namespace.").
 - **Ollama `/v1` won't disable qwen3 thinking** — `think:false`, `/no_think`, and `chat_template_kwargs.enable_thinking:false` are ALL no-ops on this build (the reasoning field stays populated); use a **non-thinking** model (qwen2.5:7b), don't fight it. See [[operator-local-brain-qwen25-flat]].
 
 ## Reliability check (periodic — run ~1 day after any brain/image roll)
@@ -174,7 +206,7 @@ kubectl -n weyland exec deploy/weyland-operator -- python -c "import urllib.requ
 Confirm local-primary is actually carrying the load and Haiku is a rare/zero backstop — off the fleet Grafana
 Prometheus (datasource `prometheus`):
 ```
-# brain selection over 24h — expect ~100% local (reason=primary), ~0 haiku (local_down / local_error):
+# brain selection over 24h — expect ~100% local (reason=primary), ~0 haiku (local_down / local_error / local_empty):
 sum by (brain, reason) (increase(operator_brain_selected_total[24h]))
 # operator failover cost — expect ≈0. NOTE this is ALL claude-haiku through LiteLLM, not operator-only; the
 # operator's attributed Haiku spend is $0 whenever the brain metric above shows 0 haiku selections:
@@ -185,7 +217,8 @@ sum(increase(bifrost_cost_total[24h]))
 ```
 **Healthy** = local carries ~100%, `haiku` selections 0, operator Haiku spend $0. **Flaking** = frequent
 `local_down`/`local_error` failover or non-zero operator Haiku spend → chase rogueone/Ollama (VRAM contention / model
-not fully on GPU — see the troubleshooting block above). Also glance at the pod's restart count while you're here.
+not fully on GPU — see the troubleshooting block above). `local_empty` failover is NOT an engine fault — the engine
+answered with nothing; check the truncation audit above first. Also glance at the pod's restart count while you're here.
 **Validated 2026-08-06** (v20, ~1.5 days post-deploy): 3/3 local-primary, **0 failover**, operator Haiku **$0**
 (fleet-wide Haiku was $0.157 from *other* consumers, not the operator) — design behaved.
 

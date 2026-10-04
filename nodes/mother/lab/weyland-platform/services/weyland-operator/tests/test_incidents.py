@@ -111,6 +111,15 @@ def test_any_other_enrichment_error_still_notifies(sweep):
     assert len(sweep["sent"]) == 2 and "enrichment failed: fleet down" in sweep["sent"][0][1]
 
 
+def test_an_empty_local_reply_notifies_with_the_reason_it_does_not_defer(sweep):
+    # 2026-10-03: qwen2.5:7b replies empty after a fleet tool call EVERY time — it is bad output, not a busy engine.
+    # Deferring would retry it forever and the incident would never be posted; post it with the reason instead.
+    sweep["agent"] = incidents.agent.EmptyReply("qwen2.5:7b returned an empty reply")
+    assert asyncio.run(incidents.sweep_once(None)) == "ok"
+    assert len(sweep["sent"]) == 2 and len(sweep["recorded"]) == 2
+    assert "enrichment failed: qwen2.5:7b returned an empty reply" in sweep["sent"][0][1]
+
+
 def test_the_sweep_can_be_switched_back_to_paid_haiku(sweep, monkeypatch):
     # INCIDENT_SWEEP_ALLOW_PAID=true restores the Haiku failover (and the Realm) for sweeps — the owner's switch.
     monkeypatch.setattr(incidents, "SWEEP_ALLOW_PAID", True)

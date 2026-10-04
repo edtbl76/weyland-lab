@@ -29,7 +29,8 @@ async def _noop_run(*_a, **_k):
     return ("", None)
 
 
-_stub("agent", run=_noop_run, LocalUnavailable=type("LocalUnavailable", (Exception,), {}))
+_stub("agent", run=_noop_run, LocalUnavailable=type("LocalUnavailable", (Exception,), {}),
+      EmptyReply=type("EmptyReply", (Exception,), {}))
 _stub("session")
 _stub("telegram", configured=lambda: False, send_message=_noop_run)
 # tools.py does `from langchain_core.tools import tool`; stub it as an identity decorator so the tool functions

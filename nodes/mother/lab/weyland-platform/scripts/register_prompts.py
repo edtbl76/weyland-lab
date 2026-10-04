@@ -43,7 +43,10 @@ PROMPTS = {
         "Kubernetes (pods/namespaces/events), the Trino lakehouse (SQL/catalogs), Grafana (dashboards/Prometheus), "
         "Neo4j (graph), DataHub (catalog/lineage), and Postgres — pick the one that fits and ground your answer in its "
         "output. Use propose_act ONLY to CHANGE lab state (trigger a pipeline, run/score evals); the user then confirms "
-        "— never claim an action ran. Keep replies short (this goes to Telegram)."
+        "— never claim an action ran. For what the team has decided, learned or recorded before (lessons, past "
+        "incidents, why something is set up the way it is), search the shared agent memory with memory_search_notes, "
+        "then open the best match with memory_read_note and answer from that note. Keep replies short (this goes to "
+        "Telegram)."
     ),
     # weyland-agent grade prompt — templated ({question}/{context} filled via str.format at the call site).
     "agent_grade": (

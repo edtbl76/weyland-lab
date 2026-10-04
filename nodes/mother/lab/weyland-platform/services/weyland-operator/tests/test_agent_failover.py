@@ -29,17 +29,21 @@ class _FakeLLM:
 class _FakeAgent:
     """Records each invoke; `fail` makes it raise like a stalled or erroring local engine."""
 
-    def __init__(self, llm, tools=()):
+    def __init__(self, llm, tools=(), pre_model_hook=None):
         self.model = llm.model
         self.tools = list(tools)
+        self.pre_model_hook = pre_model_hook
         self.calls = 0
         self.fail = False
+        self.empty = False      # answer with no text, as qwen2.5:7b does after a fleet tool call (2026-10-03)
+        self.trace = []         # earlier messages in the run (e.g. a propose_act tool call)
 
     async def ainvoke(self, _state):
         self.calls += 1
         if self.fail:
             raise TimeoutError(f"{self.model} stalled")
-        return {"messages": [types.SimpleNamespace(content=f"answer from {self.model}", tool_calls=[])]}
+        final = types.SimpleNamespace(content="" if self.empty else f"answer from {self.model}", tool_calls=[])
+        return {"messages": self.trace + [final]}
 
 
 FLEET_RESULTS = [None]   # import-time load: Keycloak not up yet (the 2026-10-01 restart)
@@ -60,7 +64,7 @@ def agent_mod():
         mp.setitem(sys.modules, "langchain_openai", _module("langchain_openai", ChatOpenAI=_FakeLLM))
         mp.setitem(sys.modules, "langgraph", _module("langgraph"))
         mp.setitem(sys.modules, "langgraph.prebuilt",
-                   _module("langgraph.prebuilt", create_react_agent=lambda llm, tools: _FakeAgent(llm, tools)))
+                   _module("langgraph.prebuilt", create_react_agent=lambda llm, tools, **kw: _FakeAgent(llm, tools, **kw)))
         # load_fleet_tools pops the next scripted result: a list = loaded, None = configured but failed (retry)
         mp.setitem(sys.modules, "fleet", _module("fleet", load_fleet_tools=lambda: FLEET_RESULTS.pop(0)))
         mp.setitem(sys.modules, "realm", _module("realm", REALM_TOOLS=[types.SimpleNamespace(name="delegate_to_realm")]))
@@ -76,7 +80,9 @@ def agent_mod():
 def brains(agent_mod, monkeypatch):
     """Fresh call counters, and a switch for whether the local engine passes its health pre-check."""
     agent_mod._local_agent.calls = agent_mod._fallback_agent.calls = agent_mod._unpaid_agent.calls = 0
-    agent_mod._local_agent.fail = agent_mod._unpaid_agent.fail = False
+    for b in (agent_mod._local_agent, agent_mod._fallback_agent, agent_mod._unpaid_agent):
+        b.fail = b.empty = False
+        b.trace = []
     state = {"healthy": True}
 
     async def healthy():
@@ -106,7 +112,7 @@ def test_without_fallback_a_local_error_mid_request_is_local_unavailable_not_hai
 def test_without_fallback_a_healthy_local_engine_answers(brains):
     agent, _ = brains
     reply, _ = asyncio.run(agent.run("investigate", [], allow_fallback=False))
-    assert reply == "answer from qwen2.5:7b"
+    assert reply == "answer from qwen2.5:7b-operator"
     assert agent._fallback_agent.calls == 0
 
 
@@ -116,6 +122,71 @@ def test_a_person_chatting_still_fails_over_to_haiku(brains):
     reply, _ = asyncio.run(agent.run("what is broken?", []))
     assert reply == "answer from claude-haiku"
     assert agent._fallback_agent.calls == 1
+
+
+# --- 2026-10-03: an EMPTY reply is a failure, never an answer ---------------------------------------------------------
+# Found live: after any fleet tool call, qwen2.5:7b's final turn came back from Ollama as `{"content": ""}` (finish=stop,
+# 40 tokens spent, no tool call). No exception, so no failover — the person got a blank reply and the metrics counted a
+# local success. The engine itself is healthy, so an empty reply fails over THIS request without marking it down.
+
+
+def test_a_person_chatting_gets_haiku_when_the_local_reply_is_empty(brains, monkeypatch):
+    agent, _ = brains
+    downs = []
+    monkeypatch.setattr(agent, "_mark_local_down", lambda: downs.append(1))
+    agent._local_agent.empty = True
+    reply, _ = asyncio.run(agent.run("which pods are down?", []))
+    assert reply == "answer from claude-haiku"
+    assert agent._fallback_agent.calls == 1
+    assert downs == []                            # a healthy engine with bad output stays primary for the next request
+
+
+def test_without_fallback_an_empty_local_reply_is_empty_reply_not_haiku(brains, monkeypatch):
+    # NOT LocalUnavailable: that defers the incident sweep to retry later, and this failure is persistent — the
+    # incident would never be posted. EmptyReply lets the sweep post the alert with the reason. Still spends nothing.
+    agent, _ = brains
+    downs = []
+    monkeypatch.setattr(agent, "_mark_local_down", lambda: downs.append(1))
+    agent._unpaid_agent.empty = True
+    with pytest.raises(agent.EmptyReply, match="empty reply"):
+        asyncio.run(agent.run("investigate", [], allow_fallback=False))
+    assert agent._fallback_agent.calls == 0
+    assert downs == []
+
+
+def test_when_both_brains_reply_empty_it_is_an_error_not_a_blank_answer(brains):
+    agent, _ = brains
+    agent._local_agent.empty = agent._fallback_agent.empty = True
+    with pytest.raises(agent.EmptyReply, match="claude-haiku"):
+        asyncio.run(agent.run("which pods are down?", []))
+
+
+def test_whitespace_only_is_empty_too(brains):
+    agent, _ = brains
+    agent._unpaid_agent.empty = True
+    agent._unpaid_agent.trace = []
+    real = agent._unpaid_agent.ainvoke
+
+    async def blank(state):
+        out = await real(state)
+        out["messages"][-1].content = "  \n"
+        return out
+    agent._unpaid_agent.ainvoke = blank
+    try:
+        with pytest.raises(agent.EmptyReply, match="empty reply"):
+            asyncio.run(agent.run("investigate", [], allow_fallback=False))
+    finally:
+        del agent._unpaid_agent.ainvoke
+
+
+def test_an_empty_reply_that_proposes_an_action_still_stands(brains):
+    agent, _ = brains
+    agent._local_agent.empty = True
+    agent._local_agent.trace = [types.SimpleNamespace(content="", tool_calls=[
+        {"name": "propose_act", "args": {"tool": "launch_job", "summary": "run ingestion", "job_name": "ingest"}}])]
+    reply, proposal = asyncio.run(agent.run("run the ingestion pipeline", []))
+    assert proposal == {"tool": "launch_job", "summary": "run ingestion", "job_name": "ingest"}
+    assert agent._fallback_agent.calls == 0       # the app shows the confirm step from the proposal, not the text
 
 
 # --- 2026-10-02: the fleet loads with retries, and the operator is not Ready until it has ----------------------------
@@ -185,3 +256,51 @@ def test_without_fallback_the_unpaid_brain_answers_not_the_chat_brain(brains):
     agent, _ = brains
     asyncio.run(agent.run("investigate", [], allow_fallback=False))
     assert agent._unpaid_agent.calls == 1 and agent._local_agent.calls == 0
+
+
+# --- 2026-10-04: the local brain's prompt must FIT its context window --------------------------------------------------
+# Root cause of the empty replies: Ollama ran qwen2.5:7b with a ~2K-token window per request and silently cut the
+# ~5-6.5K-token prompt ("truncating input prompt limit=2050 prompt=5979", 801x in 14 days). The fix is a 32K variant
+# (nodes/rogueone/ollama/qwen2.5-7b-operator.Modelfile) plus a cap on tool results — one pod list was ~18K tokens.
+
+
+class _Msg:
+    """Stands in for a langchain message: `type` + pydantic-style model_copy (the slim test lane has no langchain)."""
+
+    def __init__(self, type_, content):
+        self.type, self.content = type_, content
+
+    def model_copy(self, update):
+        m = _Msg(self.type, self.content)
+        m.__dict__.update(update)
+        return m
+
+
+def test_the_local_brain_defaults_to_the_32k_operator_model(agent_mod):
+    assert agent_mod.LOCAL_MODEL == "qwen2.5:7b-operator"
+
+
+def test_an_oversized_tool_result_is_capped_with_a_note_and_the_rest_pass_untouched(agent_mod):
+    cap = agent_mod.LOCAL_TOOL_RESULT_CAP
+    big, small, ai = _Msg("tool", "x" * (cap + 500)), _Msg("tool", "short"), _Msg("ai", "y" * (cap + 500))
+    out = agent_mod._cap_tool_results({"messages": [big, small, ai]})["llm_input_messages"]
+    assert out[0].content.startswith("x" * cap) and "truncated 500 more characters" in out[0].content
+    assert out[1] is small and out[2] is ai                 # small tool results and model turns are never touched
+    assert len(big.content) == cap + 500                    # the graph state keeps the full result; only the LLM input
+
+
+def test_a_content_block_tool_result_is_measured_by_its_text(agent_mod):
+    cap = agent_mod.LOCAL_TOOL_RESULT_CAP
+    blocks = _Msg("tool", [{"type": "text", "text": "z" * (cap + 10)}])   # langchain-mcp-adapters returns blocks
+    out = agent_mod._cap_tool_results({"messages": [blocks]})["llm_input_messages"]
+    assert isinstance(out[0].content, str) and "truncated 10 more characters" in out[0].content
+
+
+def test_only_the_local_brains_cap_tool_results(agent_mod):
+    assert agent_mod._local_agent.pre_model_hook is agent_mod._cap_tool_results
+    assert agent_mod._unpaid_agent.pre_model_hook is agent_mod._cap_tool_results
+    assert agent_mod._fallback_agent.pre_model_hook is None     # Haiku has a 200K window — give it everything
+
+
+def test_the_prompt_sends_recall_questions_to_shared_memory(agent_mod):
+    assert "memory_search_notes" in agent_mod.SYSTEM and "memory_read_note" in agent_mod.SYSTEM

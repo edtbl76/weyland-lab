@@ -29,6 +29,13 @@ MEMORY_READ_TOOLS = ("search_notes", "read_note", "view_note", "read_content", "
 
 READ_ONLY = {"memory": MEMORY_READ_TOOLS}
 
+# The fleet's memory searches are SEMANTIC (2026-10-04, measured): for "rogueone GPU freeze" the answering note is #1 by
+# semantic search and absent from the top 10 by text and by the default hybrid, whose full-text half dominates short
+# keyword queries — the kind a small model writes (the operator's 7B also passes search_type="text" on its own).
+# Exact lookups (title, permalink) and an explicit semantic/vector search are left as asked.
+SEMANTIC_SEARCH = {("memory", "search_notes")}
+REWRITE_TO_SEMANTIC = (None, "text", "hybrid")
+
 
 def build_servers(env) -> dict:
     """The MCPConfig `mcpServers` mapping for the upstreams whose URL is set in `env` (or defaulted)."""
@@ -41,17 +48,31 @@ def build_servers(env) -> dict:
     return servers
 
 
-def is_blocked(tool_name: str, servers: dict) -> bool:
-    """True when `tool_name` belongs to a mounted READ-ONLY upstream and is not on its allowlist.
+def _owned_by(upstream: str, tool_name: str, servers: dict) -> str | None:
+    """The upstream's own name for `tool_name` if `upstream` is mounted and owns it, else None.
 
     With several upstreams FastMCP prefixes each tool with its upstream name (`memory_search_notes`); with one upstream
     it does not (observed) — then every tool belongs to that one."""
+    if upstream not in servers:
+        return None
+    if len(servers) == 1:
+        return tool_name
+    prefix = f"{upstream}_"
+    return tool_name[len(prefix):] if tool_name.startswith(prefix) else None
+
+
+def is_blocked(tool_name: str, servers: dict) -> bool:
+    """True when `tool_name` belongs to a mounted READ-ONLY upstream and is not on its allowlist."""
     for upstream, allowed in READ_ONLY.items():
-        if upstream not in servers:
-            continue
-        if len(servers) == 1:
-            return tool_name not in allowed
-        prefix = f"{upstream}_"
-        if tool_name.startswith(prefix):
-            return tool_name[len(prefix):] not in allowed
+        bare = _owned_by(upstream, tool_name, servers)
+        if bare is not None:
+            return bare not in allowed
     return False
+
+
+def rewrite_arguments(tool_name: str, args: dict, servers: dict) -> dict:
+    """The arguments to forward for `tool_name`: a memory search asked as default/text/hybrid becomes semantic."""
+    for upstream, tool in SEMANTIC_SEARCH:
+        if _owned_by(upstream, tool_name, servers) == tool and args.get("search_type") in REWRITE_TO_SEMANTIC:
+            return {**args, "search_type": "semantic"}
+    return args

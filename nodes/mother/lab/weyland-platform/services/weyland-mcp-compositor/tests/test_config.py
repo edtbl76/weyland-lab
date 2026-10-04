@@ -66,3 +66,40 @@ def test_single_upstream_names_are_unprefixed_and_still_filtered():
 
 def test_without_the_memory_upstream_nothing_is_blocked():
     assert not config.is_blocked("memory_delete_note", config.build_servers({}))
+
+
+# --- 2026-10-04: the fleet's memory searches are SEMANTIC ---------------------------------------------------------------
+# Measured: for "rogueone GPU freeze" the note that answers it (rogueone-gpu-freeze-vram) is #1 by semantic/vector search
+# and ABSENT from the top 10 by text and by the default hybrid (its full-text half dominates short keyword queries — the
+# kind a small model writes). The operator's 7B brain also passes search_type="text" on its own. So the fleet rewrites
+# default/text/hybrid to semantic; an explicit exact lookup (title, permalink) is left alone.
+
+
+def test_a_default_text_or_hybrid_memory_search_becomes_semantic():
+    servers = config.build_servers(MEM)
+    for given in ({"query": "q"}, {"query": "q", "search_type": "text"}, {"query": "q", "search_type": "hybrid"},
+                  {"query": "q", "search_type": None}):
+        out = config.rewrite_arguments("memory_search_notes", dict(given), servers)
+        assert out == {"query": "q", "search_type": "semantic"}, given
+
+
+def test_an_exact_lookup_or_explicit_vector_search_is_left_alone():
+    servers = config.build_servers(MEM)
+    for st in ("title", "permalink", "semantic", "vector"):
+        assert config.rewrite_arguments("memory_search_notes", {"query": "q", "search_type": st}, servers)["search_type"] == st
+
+
+def test_other_tools_arguments_are_never_rewritten():
+    servers = config.build_servers(MEM)
+    args = {"query": "q", "search_type": "text"}
+    assert config.rewrite_arguments("memory_read_note", dict(args), servers) == args
+    assert config.rewrite_arguments("datahub_search", dict(args), servers) == args
+
+
+def test_single_upstream_unprefixed_search_is_rewritten_too():
+    only_memory = {"memory": {"url": "http://store:8765/mcp", "transport": "http"}}
+    assert config.rewrite_arguments("search_notes", {"query": "q"}, only_memory)["search_type"] == "semantic"
+
+
+def test_without_the_memory_upstream_nothing_is_rewritten():
+    assert config.rewrite_arguments("memory_search_notes", {"query": "q"}, config.build_servers({})) == {"query": "q"}

@@ -37,9 +37,14 @@ def _bool(v: str) -> bool:
     return str(v).lower() in ("1", "true", "yes")
 
 
-# PRIMARY — local model on rogueone, direct to Ollama ($0). Default qwen2.5:7b: fast, non-thinking, clean tool-calls.
+# PRIMARY — local model on rogueone, direct to Ollama ($0). qwen2.5:7b (fast, non-thinking, clean tool-calls) built as
+# `qwen2.5:7b-operator` with a 32K window (nodes/rogueone/ollama/qwen2.5-7b-operator.Modelfile). The stock tag ran with
+# ~2K per request and Ollama silently cut the ~6K-token prompt — the cause of the 2026-10-03 empty replies.
 LOCAL_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://192.168.1.230:11434/v1")
-LOCAL_MODEL = os.getenv("OLLAMA_MODEL", "qwen2.5:7b")
+LOCAL_MODEL = os.getenv("OLLAMA_MODEL", "qwen2.5:7b-operator")
+# Cap each tool result the LOCAL brain sees (chars, ~4/token). One `k8s_pods_list_in_namespace` is ~18K tokens — on its
+# own more than a 16K slot. The graph keeps the full result; only the model's input is trimmed. Haiku is not capped.
+LOCAL_TOOL_RESULT_CAP = int(os.getenv("LOCAL_TOOL_RESULT_CAP", "12000"))
 LOCAL_API_KEY = os.getenv("LLM_API_KEY", "ollama")
 # A small model tool-calls cleanly only on a FEW real tools. Curate the fleet (namespaced k8s_/grafana_/trino_/…) to the
 # ops core for the LOCAL brain. Comma substrings matched against tool names; empty → the full fleet. Anything outside
@@ -72,24 +77,47 @@ SYSTEM = (
     "consulting frameworks, observability/SQL/data-quality/lineage/catalog, research, eval, content — call "
     "delegate_to_realm to hand it to the Realm of Agents (24 experts; Gná routes it) and report their answer. To CHANGE "
     "lab state (trigger a pipeline, run/score evals) you cannot act directly — call propose_act and the user confirms; "
-    "never claim an action ran. Keep replies short (Telegram)."
+    "never claim an action ran. For what the team has decided, learned or recorded before (lessons, past incidents, why "
+    "something is set up the way it is), search the shared agent memory with memory_search_notes, then open the best "
+    "match with memory_read_note and answer from that note. Keep replies short (Telegram)."
 )
 
 # Which brain served each request + why. reason: primary (local ok) | local_down (pre-check miss) | local_error (invoke
-# threw). Watch operator_brain_selected_total{brain,reason} — Haiku selections are the failover signal; brain="none"
-# is a no-fallback caller (the incident sweep) that deferred instead of paying.
+# threw) | local_empty (answered with no text — EmptyReply). Watch operator_brain_selected_total{brain,reason} — Haiku
+# selections are the failover signal; brain="none" is a no-fallback caller (the incident sweep) that did not pay.
 _BRAIN_SELECTED = Counter("operator_brain_selected_total", "Operator brain selections by brain + reason",
                           ["brain", "reason"])
 
 FLEET_RETRY_INTERVAL = float(os.getenv("OPERATOR_FLEET_RETRY", "30"))   # seconds between fleet-load attempts
 
 
-def _build_agent(base_url: str, model: str, api_key: str, timeout: float, fleet_tools: list, realm: bool = True):
+def _cap_tool_results(state: dict) -> dict:
+    """LangGraph pre_model_hook for the LOCAL brains: trim any tool result over LOCAL_TOOL_RESULT_CAP before the model
+    sees it, with a note saying how much was cut. Returned as `llm_input_messages`, so the graph state keeps the full
+    result. Duck-typed (`type == "tool"`, `model_copy`) so the slim test lane needs no langchain."""
+    out = []
+    for m in state["messages"]:
+        if getattr(m, "type", None) == "tool":
+            text = _text(m.content)
+            if len(text) > LOCAL_TOOL_RESULT_CAP:
+                more = len(text) - LOCAL_TOOL_RESULT_CAP
+                m = m.model_copy(update={"content": f"{text[:LOCAL_TOOL_RESULT_CAP]}\n[... truncated {more} more "
+                                                    f"characters — narrow the query (namespace, labelSelector, a "
+                                                    f"shorter time range) if the answer needs them]"})
+        out.append(m)
+    return {"llm_input_messages": out}
+
+
+def _build_agent(base_url: str, model: str, api_key: str, timeout: float, fleet_tools: list, realm: bool = True,
+                 cap: bool = False):
     """Compile one ReAct agent over READ_TOOLS + the given fleet tools + REALM + ACT. Flat — no router wrappers.
     `timeout` is per-LLM-call: SHORT for local (stall → failover), long for the Haiku fallback. `realm=False` leaves
     out delegate_to_realm — the Realm runs on the PAID wl-agentic Haiku lane whichever brain calls it."""
     llm = ChatOpenAI(base_url=base_url, api_key=api_key, model=model, timeout=timeout, temperature=0)
-    return create_react_agent(llm, READ_TOOLS + fleet_tools + (REALM_TOOLS if realm else []) + ACT_TOOLS)
+    tools = READ_TOOLS + fleet_tools + (REALM_TOOLS if realm else []) + ACT_TOOLS
+    if cap:   # `cap` = a small-window local brain; see _cap_tool_results
+        return create_react_agent(llm, tools, pre_model_hook=_cap_tool_results)
+    return create_react_agent(llm, tools)
 
 
 def _install_fleet(fleet: list) -> None:
@@ -98,8 +126,8 @@ def _install_fleet(fleet: list) -> None:
     module globals is safe mid-request: run() reads them once per call."""
     global _local_agent, _fallback_agent, _unpaid_agent
     local = [t for t in fleet if any(a in t.name for a in LOCAL_FLEET_ALLOW)] if LOCAL_FLEET_ALLOW else fleet
-    _local_agent = _build_agent(LOCAL_BASE_URL, LOCAL_MODEL, LOCAL_API_KEY, LOCAL_TIMEOUT, local)
-    _unpaid_agent = _build_agent(LOCAL_BASE_URL, LOCAL_MODEL, LOCAL_API_KEY, LOCAL_TIMEOUT, local, realm=False)
+    _local_agent = _build_agent(LOCAL_BASE_URL, LOCAL_MODEL, LOCAL_API_KEY, LOCAL_TIMEOUT, local, cap=True)
+    _unpaid_agent = _build_agent(LOCAL_BASE_URL, LOCAL_MODEL, LOCAL_API_KEY, LOCAL_TIMEOUT, local, realm=False, cap=True)
     _fallback_agent = (_build_agent(FALLBACK_BASE_URL, FALLBACK_MODEL, FALLBACK_API_KEY, OLLAMA_TIMEOUT, fleet)
                        if FALLBACK_ENABLED else None)
     print(f"[agent] local '{LOCAL_MODEL}' → {len(local)}/{len(fleet)} fleet tools (curated flat: "
@@ -139,6 +167,19 @@ class LocalUnavailable(Exception):
     """The local brain is down or failed, and the caller said not to spend money (`allow_fallback=False`).
     The incident sweep uses this to defer and retry later instead of paying (2026-10-02: during eval runs, sweeps on
     Haiku — which then delegated to the Realm, itself on paid Haiku — cost $12.44 in 14 days on a $0 budget)."""
+
+
+class EmptyReply(Exception):
+    """A brain finished with no text and proposed nothing — a failure, never an answer. Found live 2026-10-03: after
+    any fleet tool call qwen2.5:7b's final turn came back from Ollama as `{"content": ""}` (finish=stop, tokens spent,
+    no tool call); with no exception there was no failover, so the person got a blank reply counted as a success."""
+
+
+def _text(content) -> str:
+    """The reply's text, whether the model returned a string or a list of content blocks."""
+    if isinstance(content, list):
+        return "".join(b.get("text", "") if isinstance(b, dict) else str(b) for b in content)
+    return content or ""
 
 
 async def _local_healthy() -> bool:
@@ -247,6 +288,12 @@ async def run(message: str, history: list | None = None,
     if _fallback_agent is None or await _local_healthy():
         try:
             return await _invoke(_local_agent, LOCAL_MODEL, "local", "primary", messages, session_id, user_id)
+        except EmptyReply as exc:
+            if _fallback_agent is None:
+                raise
+            # the engine answered — its output was bad. Fail over THIS request; keep local primary for the next one.
+            print(f"[agent] {exc} — falling back to {FALLBACK_MODEL}", flush=True)
+            reason = "local_empty"
         except Exception as exc:
             if _fallback_agent is None:
                 raise
@@ -259,14 +306,18 @@ async def run(message: str, history: list | None = None,
 
 async def _invoke(brain_agent, model: str, brain: str, reason: str, messages: list,
                   session_id: str | None, user_id: str | None) -> tuple[str, dict | None]:
-    """One traced invoke of `brain_agent`; counts the selection only when it answered."""
+    """One traced invoke of `brain_agent`; counts the selection only when it answered. No text and no proposal is
+    EmptyReply — an answer that says nothing is not an answer (a proposal alone is: the app shows its confirm step)."""
     with _lf_generation("operator-ask", model, messages, "operator_system", session_id, user_id) as lgen:
         result = await brain_agent.ainvoke({"messages": messages})
-        _BRAIN_SELECTED.labels(brain, reason).inc()
         msgs = result["messages"]
         if lgen is not None:
             lgen.update(output=msgs[-1].content)
-        return msgs[-1].content, _extract_proposal(msgs)
+        proposal = _extract_proposal(msgs)
+        if not _text(msgs[-1].content).strip() and proposal is None:
+            raise EmptyReply(f"{model} returned an empty reply")
+        _BRAIN_SELECTED.labels(brain, reason).inc()
+        return msgs[-1].content, proposal
 
 
 async def _run_local_only(messages: list, session_id: str | None, user_id: str | None) -> tuple[str, dict | None]:
@@ -277,6 +328,11 @@ async def _run_local_only(messages: list, session_id: str | None, user_id: str |
         raise LocalUnavailable(f"local brain {LOCAL_MODEL} failed its health pre-check")
     try:
         return await _invoke(_unpaid_agent, LOCAL_MODEL, "local", "primary", messages, session_id, user_id)
+    except EmptyReply:
+        # healthy engine, bad output: not marked down, and NOT LocalUnavailable — that defers the sweep to retry, and
+        # this failure is persistent, so the incident would never post. The sweep posts it with the reason instead.
+        _BRAIN_SELECTED.labels("none", "local_empty").inc()
+        raise
     except Exception as exc:
         _mark_local_down()
         _BRAIN_SELECTED.labels("none", "local_error").inc()

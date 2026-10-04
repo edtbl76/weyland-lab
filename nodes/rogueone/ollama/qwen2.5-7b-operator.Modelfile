@@ -1,0 +1,15 @@
+# qwen2.5:7b-operator — the weyland-operator's local brain with a context window that fits its prompt (2026-10-04).
+#
+# WHY: Ollama ran qwen2.5:7b with a ~2K-token window per request ("truncating input prompt limit=2050 prompt=5979" in
+# `journalctl -u ollama`; 801 times in 14 days). The operator's prompt is ~5K tokens of tool schemas alone (~6.5K with
+# the shared-memory tools), so Ollama silently cut the system prompt and often the question: replies were luck, and
+# with the memory tools added (B182) every fleet answer came back EMPTY. 16K holds the prompt plus a conversation
+# and tool results. Cost: ~0.9 GiB more KV cache on the shared 16 GB card (qwen2.5-7B: ~57 KB/token at f16).
+#
+# Scoped to the operator on purpose: OLLAMA_CONTEXT_LENGTH would raise VRAM for EVERY model on the card (the eval
+# loop's large models included — see the desktop-freeze guardrails in nodes/rogueone/systemd/).
+#
+# Build / rebuild (rogueone):
+#   ollama create qwen2.5:7b-operator -f /home/edwardmangini/IdeaProjects/weyland/nodes/rogueone/ollama/qwen2.5-7b-operator.Modelfile
+FROM qwen2.5:7b
+PARAMETER num_ctx 32768
