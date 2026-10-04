@@ -11,6 +11,25 @@ auth (set on first login). Single container, SQLite state on a PVC.
   Keycloak, in front of Kuma's own built-in login). The backup-script auth below is a separate API path, unaffected.
 - Backup (monitors + notification): `scripts/kuma-backup.json` — **gitignored** (inline dev-password basic
   auth + the Port ingest key). Local-only.
+- **Kuma's own login** (behind Keycloak): user `admin`, password = `LAB_PASSWORD` in `scripts/.env` (the lab dev
+  password). Recorded 2026-10-03 after it was unknown when needed. The API is reachable for scripts via
+  `kubectl -n weyland port-forward svc/uptime-kuma 13001:3001` (the UI hostname sits behind forward-auth); the
+  `uptime-kuma-api` Python client logs in with those credentials.
+
+## Push monitors — the heartbeat interval must outlast the job's cadence
+
+A push monitor turns **down** when no push arrives within its heartbeat interval. Kuma's default is **60 s** — fine for
+nothing that pushes on a timer. Set the interval to the job's cadence plus slack, or the monitor goes red a minute
+after every successful push (found 2026-10-03: `machine-inventory-drift` and `agent-memory` were both left at 60 s).
+
+| Push monitor | Pushed by | Cadence | Heartbeat interval | Env var (`scripts/.env`, no `?query`) |
+|---|---|---|---|---|
+| `rogueone-backup` | `restic-backup.timer` (rogueone) | daily 02:30 | **93600 s** (26 h) | `KUMA_BACKUP_PUSH_URL` |
+| `machine-inventory-drift` | `machine-inv-drift.timer` (rogueone) | nightly ~03:45 | **93600 s** (26 h) — fixed from 60 s 2026-10-03 | `KUMA_INVENTORY_PUSH_URL` |
+| `agent-memory` | `agent-memory-watch.timer` (rogueone, B182) | every 15 min | **1200 s** (20 min) — fixed from 60 s 2026-10-03 | `KUMA_MEMORY_PUSH_URL` |
+
+A **down** push is not the same as a missed one: `machine-inventory-drift` pushes `down` on purpose when it finds
+host-software drift (it opens a `chore(inventory)` PR); it goes green again on the first clean night.
 
 ## Gotchas (all hit during bring-up — don't repeat)
 1. **DNS — `*.weyland.lab` is `ENOTFOUND` from the pod by default.** The pod must point at the LAN CoreDNS,
