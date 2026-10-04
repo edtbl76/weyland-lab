@@ -9,6 +9,7 @@ import json
 import os
 import sys
 import urllib.error
+import urllib.parse
 
 import pytest
 
@@ -93,3 +94,39 @@ def test_a_passing_gate_is_exit_0(monkeypatch):
     _serve(monkeypatch, {"qualitygates/project_status": ok, "issues/search": {"total": 0, "issues": []},
                          "hotspots/search": HOTSPOTS})
     assert sa.main(["gate"]) == 0
+
+
+# review-safe (2026-10-03): mark a file's new-code hotspots REVIEWED/SAFE with a stated reason — the command the
+# runbook lacked when moving 7 in-cluster http:// URLs into a new file re-raised them as new hotspots.
+CFG = "nodes/x/config.py"
+TO_REVIEW = {"paging": {"total": 3}, "hotspots": [
+    {"key": "AAA", "line": 13, "component": f"weyland-lab:{CFG}", "vulnerabilityProbability": "LOW", "message": "http"},
+    {"key": "BBB", "line": 14, "component": f"weyland-lab:{CFG}", "vulnerabilityProbability": "LOW", "message": "http"},
+    {"key": "CCC", "line": 9, "component": "weyland-lab:other.py", "vulnerabilityProbability": "LOW", "message": "x"}]}
+REASON = "in-cluster ClusterIP traffic; the upstream services serve plain HTTP"
+
+
+def test_review_safe_reviews_only_that_files_hotspots_with_the_reason(monkeypatch, capsys):
+    monkeypatch.setenv("SONAR_ADMIN_PW", "pw")
+    seen = []
+    _serve(monkeypatch, {"hotspots/search": TO_REVIEW, "hotspots/change_status": {}}, seen)
+    assert sa.main(["review-safe", CFG, REASON]) == 0
+    posts = [r for r in seen if r.get_method() == "POST"]
+    assert len(posts) == 2                                  # CCC is in another file — untouched
+    body = posts[0].data.decode()
+    assert "hotspot=AAA" in body and "status=REVIEWED" in body and "resolution=SAFE" in body
+    assert "ClusterIP" in urllib.parse.unquote_plus(body)
+    assert f"reviewed SAFE {CFG}:14 BBB" in capsys.readouterr().out
+
+
+def test_review_safe_with_nothing_to_review_fails_closed(monkeypatch, capsys):
+    monkeypatch.setenv("SONAR_ADMIN_PW", "pw")
+    _serve(monkeypatch, {"hotspots/search": TO_REVIEW})
+    assert sa.main(["review-safe", "no/such/file.py", REASON]) == 2   # a typo'd path must not read as "done"
+    assert "no new-code hotspots to review in no/such/file.py" in capsys.readouterr().err
+
+
+def test_review_safe_refuses_without_a_reason(monkeypatch, capsys):
+    monkeypatch.setenv("SONAR_ADMIN_PW", "pw")
+    assert sa.main(["review-safe", CFG]) == 2
+    assert "a reason is required" in capsys.readouterr().err

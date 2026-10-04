@@ -486,6 +486,18 @@ It prints each gate condition, every unresolved new-code issue as `<severity> <r
 to review; exit 1 = the gate is failing. The gate blocks on ANY new violation (`new_violations > 0`), so fix the named
 lines, push, and ship again. First used 2026-10-02 (S3776 + S7484 in the operator's `agent.py`).
 
+**Hotspots** (`new_security_hotspots_reviewed < 100`) are reviewed, not fixed, when the flagged code is genuinely safe.
+Mark every new-code hotspot in one file REVIEWED/SAFE; the reason is stored as the review comment, so write a real one:
+
+```
+set -a && . /home/edwardmangini/IdeaProjects/weyland/scripts/.env && set +a && python3 /home/edwardmangini/IdeaProjects/weyland/scripts/sonar_api.py review-safe <repo-relative file> "<why it is safe>"
+```
+
+It prints `reviewed SAFE <file>:<line> <key>` per hotspot; exit 2 if the file has none to review (a typo'd path is not
+"done"). Run `gate` again to confirm, then re-run the ship; no push is needed. Moving code to a new file or line raises
+NEW hotspots even if the code was reviewed before. First used 2026-10-03: 7 in-cluster `http://` URLs moved from the
+compositor's `app.py` to `config.py`.
+
 ## Related
 
 - [argocd.md](argocd.md) — the sync mechanism and why the refresh annotation is forbidden
