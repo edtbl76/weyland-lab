@@ -96,6 +96,18 @@ path, POST init/initialized/tools-list there, read responses off the stream (her
   Keycloak token via a custom `httpx.Auth`), sanitizes their schemas (`fleet._sanitize_schema` — MCP servers emit
   inconsistent schemas), and binds them flat (`ainvoke` — MCP tools are async-only). `FLEET_ROUTING=1` switches to
   6 subsystem routers for a weaker local brain.
+- **The operator reads the fleet ONCE, at startup** (`[fleet] loaded N read tools` in its log). A compositor change
+  (new upstream, new allowlist) does not reach the operator until it restarts. Live 2026-10-03: compositor and operator
+  shipped together and both pods started in the same second; the operator listed the fleet from the OLD compositor pod
+  still serving during the rolling update, and loaded 95 tools instead of 102. Check the count, and if it is stale,
+  restart the operator by deleting its pod (the Deployment recreates it; unlike `rollout restart`, this leaves no
+  template drift for Argo's selfHeal to revert):
+
+  [mother]
+  ```
+  kubectl -n weyland delete pod -l app=weyland-operator && kubectl -n weyland rollout status deploy/weyland-operator --timeout=300s && sleep 20 && kubectl -n weyland logs deploy/weyland-operator | grep "\[fleet\] loaded"
+  ```
+  Expect `[fleet] loaded 102 read tools` (95 cluster tools + 7 `memory_*`).
 
 ## The LLM lane — two-lane rule (learned here, 2026-07-30)
 The operator's brain is **Haiku via LiteLLM**, NOT the MLflow AI Gateway. The MLflow Gateway *normalizes/validates*
