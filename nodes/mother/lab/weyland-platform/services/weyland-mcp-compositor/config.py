@@ -35,6 +35,10 @@ READ_ONLY = {"memory": MEMORY_READ_TOOLS}
 # Exact lookups (title, permalink) and an explicit semantic/vector search are left as asked.
 SEMANTIC_SEARCH = {("memory", "search_notes")}
 REWRITE_TO_SEMANTIC = (None, "text", "hybrid")
+# Frontmatter filters our notes never carry (they hold name/description/metadata.type; 0 of 215 have tags) — any value
+# guarantees an empty result. Live 2026-10-04 the 7B passed tags="reason" and answered "no notes" while the answering
+# note ranked #1 unfiltered. Dropped from the fleet's memory searches; after_date/project/paging still apply.
+DROP_FILTERS = ("tags", "status", "metadata_filters", "categories", "note_types", "entity_types")
 
 
 def build_servers(env) -> dict:
@@ -71,8 +75,13 @@ def is_blocked(tool_name: str, servers: dict) -> bool:
 
 
 def rewrite_arguments(tool_name: str, args: dict, servers: dict) -> dict:
-    """The arguments to forward for `tool_name`: a memory search asked as default/text/hybrid becomes semantic."""
+    """The arguments to forward for `tool_name`: a memory search asked as default/text/hybrid becomes semantic, and
+    loses the filters our notes never carry. Returns `args` itself when nothing changes (never mutates it)."""
     for upstream, tool in SEMANTIC_SEARCH:
-        if _owned_by(upstream, tool_name, servers) == tool and args.get("search_type") in REWRITE_TO_SEMANTIC:
-            return {**args, "search_type": "semantic"}
+        if _owned_by(upstream, tool_name, servers) != tool:
+            continue
+        out = {k: v for k, v in args.items() if k not in DROP_FILTERS}
+        if out.get("search_type") in REWRITE_TO_SEMANTIC:
+            out["search_type"] = "semantic"
+        return out if out != args else args
     return args

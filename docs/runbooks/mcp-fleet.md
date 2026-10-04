@@ -97,6 +97,9 @@ path, POST init/initialized/tools-list there, read responses off the stream (her
   whose full-text half dominates short keyword queries — what a small model writes (the operator's 7B also picks
   `text` on its own). Proven in a real container: rewritten calls rank it #1; an un-rewritten control does not. Only the
   fleet is affected — coding agents reach Basic Memory through Bifrost, untouched.
+  It also **drops frontmatter filters our notes never carry** (`tags`, `status`, `metadata_filters`, `categories`,
+  `note_types`, `entity_types` — 0 of 215 notes have tags): live 2026-10-04 the operator's 7B passed `tags="reason"`,
+  got nothing, and answered "no notes" while the answering note ranked #1 unfiltered. `after_date`/`project`/paging stay.
   The compositor's `fastmcp` is now pinned (`requirements.in/.txt`; it was unpinned) and the image is CI-built
   (`images.tsv`, 2026-10-03).
 - **The operator (B66) uses the fleet.** It loads the `/mcp-fleet` tools via `langchain-mcp-adapters` (per-request

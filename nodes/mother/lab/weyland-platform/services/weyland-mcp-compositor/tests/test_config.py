@@ -103,3 +103,30 @@ def test_single_upstream_unprefixed_search_is_rewritten_too():
 
 def test_without_the_memory_upstream_nothing_is_rewritten():
     assert config.rewrite_arguments("memory_search_notes", {"query": "q"}, config.build_servers({})) == {"query": "q"}
+
+
+# --- 2026-10-04 (live): filters our notes never carry are dropped ------------------------------------------------------
+# Live through /operator/ask, the 7B asked memory_search_notes(query="operator sweep", tags="reason") — 0 of the 215
+# notes carry frontmatter tags (they hold name/description/metadata.type), so the filter guaranteed an empty result and
+# the operator answered "no notes about that" while the answering note ranked #1 unfiltered.
+
+
+def test_frontmatter_filters_our_notes_never_carry_are_dropped():
+    servers = config.build_servers(MEM)
+    asked = {"query": "operator sweep", "tags": "reason", "status": "done", "metadata_filters": {"x": 1},
+             "categories": ["c"], "note_types": ["note"], "entity_types": ["entity"]}
+    assert config.rewrite_arguments("memory_search_notes", asked, servers) == {"query": "operator sweep",
+                                                                                "search_type": "semantic"}
+
+
+def test_filters_that_can_match_are_kept():
+    servers = config.build_servers(MEM)
+    asked = {"query": "q", "after_date": "1 week", "project": "weyland", "page_size": 5, "search_type": "title"}
+    assert config.rewrite_arguments("memory_search_notes", dict(asked), servers) == asked
+
+
+def test_the_callers_arguments_are_not_mutated():
+    servers = config.build_servers(MEM)
+    asked = {"query": "q", "tags": "x"}
+    config.rewrite_arguments("memory_search_notes", asked, servers)
+    assert asked == {"query": "q", "tags": "x"}

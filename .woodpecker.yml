@@ -378,6 +378,16 @@ steps:
       PATH: /cache/cargo/bin:/usr/local/cargo/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
     volumes:
       - ci-cache-cargo:/cache/cargo
+    # OOM-killed mid-compile (exit 137, nightly #253, 2026-10-04) during the cargo-llvm-cov coverage rebuild — the
+    # first failure in 10 nightlies (81-113s each). No memory request = best-effort QoS, first to die when the node is
+    # tight; same class + fix as test-swift / the syft-trivy step. MEMORY ONLY — no cpu request (mother's cpu wall).
+    backend_options:
+      kubernetes:
+        resources:
+          requests:
+            memory: 1Gi
+          limits:
+            memory: 4Gi
     commands:
       - bash scripts/run-lang-tests.sh rust --self-check
       - bash scripts/run-lang-tests.sh rust

@@ -65,6 +65,19 @@ _codex-probe-1184b8de
 ```
 RUN 2026-10-03, 28 s, exit 0, ~10k tokens (ChatGPT plan, not a paid API).
 
+**3d. The operator — recall on the FREE local brain, through the read-only fleet.** RUN 2026-10-04 (live, `git-4a8d88f5`):
+
+```
+kubectl -n weyland exec deploy/weyland-operator -- python -c "import json,urllib.request; r=urllib.request.Request('http://localhost:8080/operator/ask',data=json.dumps({'message':'What does our shared memory say caused the rogueone GPU freeze?'}).encode(),headers={'content-type':'application/json'}); print(json.load(urllib.request.urlopen(r,timeout=300))['reply'])"
+```
+→ (8 s) "The shared memory indicates that the rogueone GPU freeze was caused by a kernel bug, not the GPU or RAM issues …
+Root Cause: A kernel bug (conclusive on 2026-08-13)" — the note `rogueone-gpu-freeze-vram`. Same run: "is the lab
+healthy?" (2 s) and "how many pods are running in weyland?" (6 s) answered correctly; `operator_brain_selected_total
+{brain="local",reason="primary"} 4` (no Haiku) and **0** `truncating input prompt` lines in `journalctl -u ollama`.
+A fourth question missed ("no notes") because the model added `tags="reason"` — fixed in the compositor (filters our
+notes never carry are dropped); re-run after that ships. Why it needed a 32K model and capped tool results:
+runbooks/operator.md § the prompt must fit.
+
 **4. The firewall — only mother reaches :8765.**
 
 [mother]
