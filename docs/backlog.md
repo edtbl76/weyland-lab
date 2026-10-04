@@ -3260,6 +3260,9 @@ on — the operator's interface), the other stores (each keeps its own format = 
   (`nodes/rogueone/ollama/`), local tool results capped, fleet memory searches made semantic (text/hybrid missed the
   answering note entirely), a memory line in `operator_system`, and `EmptyReply` so a blank never reaches anyone.
   **Audit:** the `truncating input prompt` journal check (expect 0) after any model/prompt/tool-set change.
+  **Verified live 2026-10-04 (`git-6d677329`):** three recall questions through `/operator/ask` answered from the right
+  notes on the free local brain (no Haiku), 0 truncations — after one more fix (the 7B invented a `tags` filter; the
+  compositor now drops filters our notes never carry). Demo § 3d.
 - **Still open:** Open WebUI's read path (undecided). Done 2026-10-03: the Kuma push monitor `agent-memory`
   (20-min heartbeat, Telegram) + `KUMA_MEMORY_PUSH_URL` — the watchdog reports up; Linear EMA-240 updated.
 

@@ -75,7 +75,10 @@ Root Cause: A kernel bug (conclusive on 2026-08-13)" — the note `rogueone-gpu-
 healthy?" (2 s) and "how many pods are running in weyland?" (6 s) answered correctly; `operator_brain_selected_total
 {brain="local",reason="primary"} 4` (no Haiku) and **0** `truncating input prompt` lines in `journalctl -u ollama`.
 A fourth question missed ("no notes") because the model added `tags="reason"` — fixed in the compositor (filters our
-notes never carry are dropped); re-run after that ships. Why it needed a 32K model and capped tool results:
+notes never carry are dropped). **Re-run on `git-6d677329`:** "why must the operator sweep not use Haiku?" (7 s) →
+"it runs on a free local model only and never fails over to Haiku when Ollama is busy" (`operator-sweep-spends-nothing`);
+"where does kubectl run?" (4 s) → "either mother or rogueone …" (`feedback-kubectl-runs-on-mother`); the GPU-freeze
+question again correct (5 s). All on `brain="local"`, 0 truncations. Why it needed a 32K model and capped tool results:
 runbooks/operator.md § the prompt must fit.
 
 **4. The firewall — only mother reaches :8765.**
