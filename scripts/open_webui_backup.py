@@ -29,6 +29,7 @@ import tarfile
 import time
 
 IN_PROGRESS = ".inprogress-"
+DB_FILE = "webui.db"                     # Open WebUI's whole state (WAL mode)
 
 
 class BackupInvalid(Exception):
@@ -99,8 +100,9 @@ def run(data_dir: str, root: str, keep: int) -> str:
     work = os.path.join(root, IN_PROGRESS + ts)
     os.makedirs(work)
     try:
-        snapshot(os.path.join(data_dir, "webui.db"), os.path.join(work, "webui.db"))
-        stats = verify(os.path.join(work, "webui.db"))
+        copy = os.path.join(work, DB_FILE)
+        snapshot(os.path.join(data_dir, DB_FILE), copy)
+        stats = verify(copy)
         for name in ("vector_db", "uploads"):
             archive(data_dir, name, work)
         files = sorted(os.listdir(work))
