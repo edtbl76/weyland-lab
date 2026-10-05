@@ -115,7 +115,7 @@ WebUI: 4 weeks) refreshes its Keycloak token on first use after a break; past th
 `invalid_grant: Token is not active`, the app drops the session and calls downstream with NO token — the MCP
 gateway's `/mcp-memory` returned 401 and the chat model invented an answer. Idle = max ends a session only at the cap.
 Realm-wide on purpose: a client's session cannot outlive the realm idle timeout. Apps that hold their own login must
-expire it at the same 10h (Open WebUI: Admin → Settings → General → JWT Expiration = `10h`).
+expire it at the same 10h (Open WebUI: Admin Panel → Settings → Authentication → JWT Expiration = `10h`).
 
 ## Gotchas
 
