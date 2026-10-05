@@ -29,7 +29,8 @@ PY
 }
 
 @test "each backup CronJob is named by exactly ONE ScheduledJobStale rule, at severity critical" {
-  for j in minio-backup pg-backup postgres-backup; do
+  # open-webui-backup joined 2026-10-04 (Open WebUI's users/chats/settings had no backup — DoD pillar 9 gap).
+  for j in minio-backup pg-backup postgres-backup open-webui-backup; do
     run stale_rules_for "$j"
     [ "$status" -eq 0 ]
     [ "$(printf '%s\n' "$output" | grep -c .)" -eq 1 ] || { echo "$j: $output"; return 1; }
@@ -47,4 +48,20 @@ PY
     run stale_rules_for "$j"
     [[ "$output" == warning$'\t'* ]] || { echo "$j: $output"; return 1; }
   done
+}
+
+@test "a FAILED open-webui-backup Job pages critical via ScheduledBackupFailed (exactly one failure rule)" {
+  run python3 - "$RULES" <<'PY'
+import re, sys, yaml
+doc = yaml.safe_load(open(sys.argv[1]))
+hits = []
+for g in doc["spec"]["groups"]:
+    for r in g["rules"]:
+        m = re.search(r'job_name=~"\(([^)]+)\)-\[0-9\]\+"', r.get("expr", ""))
+        if m and "open-webui-backup" in m.group(1).split("|"):
+            hits.append((r["alert"], r["labels"]["severity"]))
+print(hits)
+sys.exit(0 if hits == [("ScheduledBackupFailed", "critical")] else 1)
+PY
+  [ "$status" -eq 0 ] || { echo "$output"; return 1; }
 }

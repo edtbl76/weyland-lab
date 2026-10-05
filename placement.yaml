@@ -173,6 +173,7 @@ workloads:
   - {id: "k8s:weyland/CronJob/docs-site-rebuild", host: "mother", state: "stateless", move: "movable", strix: "any", managed: "argo"}
   - {id: "k8s:weyland/CronJob/port-pr-reconcile", host: "mother", state: "stateless", move: "movable", strix: "any", managed: "argo"}
   - {id: "k8s:weyland/CronJob/postgres-backup", host: "mother", state: "host-path: /mnt/minio/backups", move: "pinned: host path on mother", strix: "stays", managed: "argo"}
+  - {id: "k8s:weyland/CronJob/open-webui-backup", host: "mother", state: "pvc:local-path", move: "pinned: local-path PV on mother", strix: "stays", managed: "argo"}
   - {id: "k8s:weyland/CronJob/pr-lifecycle-reconcile", host: "mother", state: "stateless", move: "movable", strix: "any", managed: "argo"}
   - {id: "k8s:weyland/CronJob/pr-staleness-check", host: "mother", state: "stateless", move: "movable", strix: "any", managed: "argo"}
   - {id: "k8s:weyland/CronJob/sonar-scan", host: "mother", state: "stateless", move: "movable", strix: "any", managed: "argo"}
@@ -231,6 +232,7 @@ workloads:
   - {id: "k8s:weyland/Deployment/weyland-guard", host: "mother", state: "stateless", move: "movable", strix: "any", managed: "argo"}
   - {id: "k8s:weyland/Deployment/weyland-lan-dns", host: "mother", state: "stateless", move: "movable", strix: "any", managed: "argo"}
   - {id: "k8s:weyland/Deployment/weyland-mcp-compositor", host: "mother", state: "stateless", move: "movable", strix: "any", managed: "argo"}
+  - {id: "k8s:weyland/Deployment/weyland-mcp-compositor-memory", host: "mother", state: "stateless", move: "movable", strix: "any", managed: "argo"}
   - {id: "k8s:weyland/Deployment/weyland-mcp-gateway", host: "mother", state: "stateless", move: "movable", strix: "any", managed: "argo"}
   - {id: "k8s:weyland/Deployment/weyland-operator", host: "mother", state: "stateless", move: "movable", strix: "any", managed: "argo"}
   - {id: "k8s:weyland/Deployment/weyland-postgres", host: "mother", state: "pvc:local-path", move: "pinned: local-path PV on mother", strix: "stays", managed: "argo"}

@@ -1,7 +1,6 @@
-# First Argo CD onboard — open-webui (non-critical chat UI, weyland ns). OBSERVE-ONLY: no syncPolicy.automated
-# → manual sync; no prune. Argo SHOWS Synced/OutOfSync + health and touches nothing until you click Sync.
-# Brownfield-safe proof. Source = the public weyland-lab repo (Argo pulls — LAN-safe). Once trusted, this
-# Application moves into a git-managed clusters/weyland/ path (app-of-apps) and gets automated sync.
+# First Argo CD onboard — open-webui (chat UI, weyland ns). Started observe-only (manual sync) as the brownfield-safe
+# proof; now AUTOMATED with selfHeal + prune (below). Source = the public weyland-lab repo (Argo pulls — LAN-safe).
+# selfHeal reverts a manual scale-down — a restore pauses auto-sync first (docs/runbooks/open-webui.md § Restore).
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:

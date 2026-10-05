@@ -36,6 +36,7 @@ thing is not done until it has a row here with a restore procedure and a dated r
 | **Port catalog config** | blueprints, schema | IaC (B137) | GitHub (+ tofu state in `tofu-state`) | every push | full history | — | `tofu apply` | **unverified** |
 | **Linear** | status, history, comments, projects, initiatives, labels, templates, views (21 entities) | `linear_backup_job` Dagster asset, read-only key ([runbooks/linear-backup.md](runbooks/linear-backup.md)) — **B194, LIVE 2026-09-27** (`git-473df840`) | MinIO `linear-backup` on **mother USB**, mirrored to **NVMe** by `minio-backup` | daily 05:20 NY / 1 day | 90 days (MinIO lifecycle) | `dagster-freshness-check` (failed run, or no success in 30h) | `scripts/linear_restore.py` ([runbooks/linear-backup.md](runbooks/linear-backup.md) § Restore) | **2026-09-27** — drill: 3 issues + 23 comments (threads, parent link) restored into a scratch team, every field verified, torn down |
 | **Linear lakehouse tables** (`iceberg.linear.*` + the 3 `mart_linear_*`) | derived from the newest snapshot | rebuilt by `linear_lakehouse_tables` + dbt | — | nightly | — | — | re-run `linear_backup_job`, rebuild the marts | reproducible (no backup needed) |
+| **Open WebUI** | users, chats, settings (incl. the `agent-memory` tool-server connection), model presets — `webui.db` + `vector_db/` + `uploads/` on PVC `open-webui-data` | `open-webui-backup` CronJob: SQLite online backup API + tarballs, fails closed (`k8s/open-webui/backup.yaml`, `scripts/open_webui_backup.py`) — added 2026-10-04 | mother **NVMe** (PVC `open-webui-backup`) | daily 23:45 NY / 1 day | 7 most recent | `ScheduledJobStale` (critical, 26h) + `ScheduledBackupFailed` (critical) | [runbooks/open-webui.md](runbooks/open-webui.md) § Restore | **pending** — the non-destructive drill runs after the first backup (runbook § Restore drill) |
 | **Reproducible stores** — vector stores, hydrated datasets | rebuilt from source | hydration / land jobs ([runbooks/datasets-hydration.md](runbooks/datasets-hydration.md)) | the sources themselves | — | — | — | re-run hydration | **unverified** per store |
 
 **Not yet catalogued (unverified coverage):** Keycloak realm and users (presumed inside the core `pg_dumpall` —
@@ -47,7 +48,7 @@ Each one needs either a row above or a written "reproducible" reason.
 | Medium | Holds | Survives |
 |---|---|---|
 | mother **USB** (`/mnt/minio`) | MinIO itself, the `rogueone-backup` restic repo, **and** the core Postgres dumps | nothing on this disk survives the disk |
-| mother **NVMe** | the MinIO bucket mirror, the data-mesh Postgres dumps | a USB failure, not a mother failure |
+| mother **NVMe** | the MinIO bucket mirror, the data-mesh Postgres dumps, the Open WebUI backups | a USB failure, not a mother failure |
 | GitHub | code, config, IaC | anything local |
 | Google Drive | media and documents | anything local |
 | **Off-site copy of lab data** | **none** | — |
@@ -65,6 +66,10 @@ Each one needs either a row above or a written "reproducible" reason.
 6. **Linear had no backup.** Closed 2026-09-27: nightly snapshot (B194 Slice 1) + a passing restore drill (Slice 2). Limit: the Free plan caps issues at 250, so a full-workspace restore needs archiving or a temporary upgrade. Alert drill 2026-09-27: a skipped run fired `DagsterJobStale` → Telegram.
 7. **Manual escrows can't be checked.** The SealedSecrets key and the restic password have no record of when they
    were last exported.
+8. **Open WebUI had no backup** — users, chats, settings and the memory tool-server connection lived only on its PVC,
+   and its image was unpinned `:main`, so any restart could migrate the database with no copy. Found 2026-10-04 when
+   the 0.11.4 upgrade needed a backup first. Closed: nightly `open-webui-backup` + the image pinned by digest; restore
+   drill pending the first run.
 
 ## Adding a row (DoD Pillar 9)
 

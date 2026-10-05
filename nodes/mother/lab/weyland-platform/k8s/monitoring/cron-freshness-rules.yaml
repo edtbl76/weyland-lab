@@ -91,7 +91,7 @@ spec:
         # name) so check-cron-freshness-budgets.sh still verifies the budget. Guarded: cron-freshness-rules.bats.
         - alert: ScheduledJobStale
           expr: |
-            time() - kube_cronjob_status_last_successful_time{cronjob=~"minio-backup|pg-backup|postgres-backup"} > 93600
+            time() - kube_cronjob_status_last_successful_time{cronjob=~"minio-backup|pg-backup|postgres-backup|open-webui-backup"} > 93600
           for: 1h
           labels:
             severity: critical
@@ -153,14 +153,14 @@ spec:
         # were never affected — only these two.
         - alert: ScheduledBackupFailed
           expr: |
-            kube_job_status_failed{job="kube-state-metrics", job_name=~"(minio-backup|pg-backup|postgres-backup)-[0-9]+"} > 0
+            kube_job_status_failed{job="kube-state-metrics", job_name=~"(minio-backup|pg-backup|postgres-backup|open-webui-backup)-[0-9]+"} > 0
           for: 10m
           labels:
             severity: critical
             source: cron-freshness
           annotations:
             summary: "Backup job {{ $labels.job_name }} FAILED in {{ $labels.namespace }}"
-            description: "A backup CronJob ran and failed. Data products, catalog metadata or the MinIO buckets (mlflow models, tofu state — both irreplaceable) may now be unprotected. Freshness alerts will NOT catch this if a later run succeeds."
+            description: "A backup CronJob ran and failed. Data products, catalog metadata, the MinIO buckets (mlflow models, tofu state — both irreplaceable) or Open WebUI (users, chats, settings) may now be unprotected. Freshness alerts will NOT catch this if a later run succeeds."
 
         # THIS LIST STAYS A LIST, and that is a considered decision rather than an oversight — it was
         # briefly rewritten as a generic `kube_job_owner{owner_kind="CronJob"}` join on 2026-08-26
