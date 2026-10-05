@@ -34,7 +34,7 @@ spec:
       serviceAccountName: weyland-mcp-gateway
       containers:
         - name: weyland-mcp-gateway
-          image: registry.weyland.lab/weyland-mcp-gateway:git-78585118   # CI-built + tag-following since 2026-10-04 (scripts/ci/images.tsv): ship-images.sh moves this to git-<sha>
+          image: registry.weyland.lab/weyland-mcp-gateway:git-73df7e9d   # CI-built + tag-following since 2026-10-04 (scripts/ci/images.tsv): ship-images.sh moves this to git-<sha>
           imagePullPolicy: IfNotPresent
           securityContext:
             runAsNonRoot: true
