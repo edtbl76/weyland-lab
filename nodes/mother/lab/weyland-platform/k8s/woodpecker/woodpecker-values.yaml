@@ -61,6 +61,16 @@ server:
     # sidecars (`woodpecker.sqlite`, `-wal`, `-shm`) with no stray file named after the DSN.
     # WAL confirmed active by the presence of those `-wal`/`-shm` files; they exist in no other journal mode.
     WOODPECKER_DATABASE_DATASOURCE: '/var/lib/woodpecker/woodpecker.sqlite?_journal_mode=WAL&_busy_timeout=15000'
+    # ONE connection (B201, 2026-10-05). WAL did not end the locks: 9 × "database is locked" on 2026-10-04 05:01-08:26Z
+    # (7 × the metrics writer, 2 × "obtain cron list"), and at 05:01 one lost an agent's lease extension → `queue: task
+    # expired` killed in-flight pipeline #252 the moment the 01:00 nightly fired. SQLite admits ONE writer at a time
+    # however many connections are open; with the default pool of 100 the metrics writer, the cron scheduler, lease
+    # extensions and the log store (database by default) race each other INSIDE SQLite and the loser past the 15s busy
+    # timeout gets SQLITE_BUSY. A pool of 1 queues them in Go's database/sql instead — SQLite never sees two writers.
+    # This is the lever the 08-22 note said to pull "only if locks persist"; they did. Flag verified present in the
+    # v3.18.0 binary. Cost: a slow query makes the next caller wait its turn (fine for one person's CI). Signal:
+    # Loki rules WoodpeckerDatabaseLocked / WoodpeckerTaskExpired (k8s/loki/loki-rules-configmap.yaml).
+    WOODPECKER_DATABASE_MAX_CONNECTIONS: '1'
   # GitHub OAuth client + secret live in the woodpecker-secret you create (WOODPECKER_GITHUB_CLIENT/SECRET).
   extraSecretNamesForEnvFrom:
     - woodpecker-secret

@@ -37,6 +37,27 @@ data:
           # data-store-mageddon: a store-load table/dataset failed inside a datasets hydrate job. Catches even a
           # single per-table failure the loader swallows (it logs `<store> <db>.<table>: <exc>` at ERROR but keeps
           # going) — the "don't silently drop a table" signal. Generalizes to every store's hydrate job.
+          # B201 (2026-10-05) — Woodpecker's SQLite store. `database is locked` preceded the `task expired` kill of
+          # in-flight pipeline #252 when the 01:00 nightly fired (9 locks on 2026-10-04 05:01-08:26Z). Fixed with a
+          # one-connection pool (woodpecker-values.yaml); these say if it comes back. Any single occurrence matters.
+          - alert: WoodpeckerDatabaseLocked
+            expr: sum (count_over_time({namespace="woodpecker", container="server"} |= `database is locked` [10m])) > 0
+            for: 0m
+            labels:
+              severity: warning
+              source: loki
+            annotations:
+              summary: "Woodpecker's SQLite store reported `database is locked`"
+              description: "{{ $value }} lock error(s) in 10m on woodpecker-server — a lock on the cron list or an agent lease can kill an in-flight pipeline (`task expired`). See runbooks/woodpecker.md and B201."
+          - alert: WoodpeckerTaskExpired
+            expr: sum (count_over_time({namespace="woodpecker", container="server"} |= `task expired` [10m])) > 0
+            for: 0m
+            labels:
+              severity: warning
+              source: loki
+            annotations:
+              summary: "A Woodpecker pipeline was killed: `task expired`"
+              description: "The server expired an in-flight task (agent lost its lease) — the pipeline's remaining steps are `killed`, with no code verdict. Re-run it; see runbooks/woodpecker.md (the nightly-cron kill) and B201."
           - alert: WeylandDatasetHydrationFailure
             expr: sum (count_over_time({namespace="weyland"} |~ `hydrate_job` |~ `(?i)\b(error|exception|traceback)` [10m])) > 0
             for: 1m

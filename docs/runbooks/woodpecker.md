@@ -132,7 +132,12 @@ tags. Steps: `detect-changes → build → kubeconform → deploy-handoff`.
     nightly fires** (#252, 2026-10-04, a lean ship started 00:54): at 05:01 UTC the server logged `database is locked`
     (SQLite, while the cron created the full matrix), the agent's lease extension failed (`sql: no rows in result
     set`), and the server expired the task (`queue: task expired`) — every remaining step `killed`. Nothing is wrong
-    with the change; re-run the ship once the nightly is past. Do not start a ship after ~00:30. If the nightly itself ever starts getting killed, the remaining
+    with the change; re-run the ship once the nightly is past. Do not start a ship after ~00:30.
+    **Fixed at the root 2026-10-05 (B201):** `WOODPECKER_DATABASE_MAX_CONNECTIONS: '1'` (woodpecker-values.yaml) — SQLite
+    admits one writer; a 100-connection pool made the metrics writer, cron scheduler, lease extensions and log store
+    race inside it (9 locks on 10-04). Alerts `WoodpeckerDatabaseLocked` / `WoodpeckerTaskExpired` (Loki ruler,
+    `k8s/loki/loki-rules-configmap.yaml`) — both fire on the 10-04 incident replayed. Keep the 00:30 rule until a lean
+    run started ~00:55 has survived the nightly (B201 acceptance), then drop it. If the nightly itself ever starts getting killed, the remaining
     lever is capacity (headroom on mother) — a sizing decision, not a CI change.
 - **Build engine = a persistent `buildkitd` Deployment** (`k8s/woodpecker/buildkitd.yaml`, Argo app
   `woodpecker-buildkitd`), NOT build-in-the-step-pod. The `build` step is a thin `buildctl --addr tcp://buildkitd:1234`
