@@ -85,6 +85,17 @@ RBAC (`KSV-0046`) → `/.trivyignore` (each documented). See [[cve-remediation-m
 **Accepted residuals:** `KSV-0118`/`KSV-0014` (readOnlyRootFilesystem, ~195 high) + `run-as-non-root` on root
 third-party images — systemic, blanket-applying breaks writers; documented, not per-item fixed.
 
+**2026-10-05 triage (B182 DoD, scan `2026-10-05T19-11-32Z` diff vs `2026-10-04T13-34-17Z`, weyland-lab; critical/high
+only):** **trivy 0 new.** **kubescape +10** — the two new manifests (`mcp-servers/compositor-memory.yaml`,
+`open-webui/backup.yaml`) fail exactly the 5 controls the existing fleet compositor already carries (C-0009/C-0050/C-0270
+resource + CPU limits — CPU limits are deliberately absent on mother's single node; C-0211 security context; C-0237 image
+signature) — the house pattern, accepted. **osv +2, REAL, fixed:** `pytest==8.4.2` in the new gateway
+`requirements-test.txt` (GHSA-6w46-j5rx-g56g / PYSEC-2026-1845, tmpdir handling) → 9.0.3; tests 13/13 + pip-audit clean in
+`python:3.12-slim`. In the batch's own files bandit/semgrep/hadolint raised nothing above medium. The weyland-lab gitleaks
+critical is `scripts/tests/secret-placeholders.bats:114`, a deliberate fixture of the secret guard's own tests (not this
+batch). Method: a diff of (resource, control) / (target, vuln-id)
+sets between the two archived reports — a raw total is a repo-wide baseline, never a verdict on a batch.
+
 **2026-10-01 triage (B180 DoD, scan diff vs 2026-09-27, weyland-lab):** kubescape `failedResources` 148 → 151 with the
 control set unchanged (137): the new `placement-coverage` (B198) and `datahub-ingestion-watchdog` (B197) CronJobs fail
 exactly the controls the existing coverage CronJobs (`servicemonitor-coverage`, `dashboard-coverage`) already carry —

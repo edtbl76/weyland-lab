@@ -3233,7 +3233,10 @@ is a weyland item, not part of the Stud.IO project). Relates B39 (Figma ↔ code
 `/mcp-memory`), C4 (`mcpCompositorMemory` + edges, validated), `flow-shared-memory.md` (recall sequence incl. the
 expired-session and side-door branches), demo § 3d/3e RUN with negatives + UI UAT, runbooks (shared-agent-memory,
 mcp-gateway § Audit, mcp-fleet § Locked, open-webui, operator § prompt must fit, keycloak § Session lifetime),
-platform-map cards, dr.md (store: restic drill; Open WebUI: nightly backup + drill), Linear sync clean. Out of scope,
+platform-map cards, dr.md (store: restic drill; Open WebUI: nightly backup + drill), Linear sync clean; found + fixed
+in the sweep: `chat.weyland.lab` had no blackbox probe (added, `probe_success=1`). Pillar 7: scan diff vs the 10-04
+weekly — trivy 0 new, kubescape +10 = the house pattern on the 2 new manifests (accepted), osv +2 = pytest 8.4.2 in the
+gateway test pins → 9.0.3 (code-quality.md § 2026-10-05). Out of scope,
 unchanged: Pi/Cline (files directly). Open option, not filed: a Bifrost path that can present a Keycloak token, which
 would let the fleet compositor admit the gateway alone.
 **Built 2026-10-03 — minimum slice (Claude Code ↔ Codex); the rest followed 2026-10-04 → 05.**
