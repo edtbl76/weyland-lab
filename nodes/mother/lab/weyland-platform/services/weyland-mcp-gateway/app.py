@@ -90,25 +90,53 @@ def target_url(path: str) -> str | None:
     return TOOL_SERVER + path
 
 
+def _logfmt(value) -> str:
+    """A logfmt value: `-` for none, quoted (with escapes) when it holds a space, quote, `=` or backslash."""
+    if value is None or value == "":
+        return "-"
+    v = str(value)
+    if any(c in v for c in ' "=\\'):
+        return '"' + v.replace("\\", "\\\\").replace('"', '\\"') + '"'
+    return v
+
+
+def audit_line(method: str, path: str, actor, user, status: int) -> str:
+    """The structured audit record for one request (2026-10-05): who reached which backend, and the outcome.
+    Same shape as `pr-lifecycle-audit` — a tag + logfmt — so Loki can `|= "mcp-gateway-audit" | logfmt`."""
+    return (f"mcp-gateway-audit method={_logfmt(method)} path={_logfmt(path)} actor={_logfmt(actor)} "
+            f"user={_logfmt(user)} status={status}")
+
+
 async def _proxy(request: Request) -> StreamingResponse | JSONResponse:
+    """Every request — forwarded or denied — leaves exactly one audit line. actor/user come only from the validated
+    token (`_handle`), never from a header the client sent."""
+    resp, actor, user = await _handle(request)
+    print(audit_line(request.method, request.url.path, actor, user, resp.status_code), flush=True)
+    return resp
+
+
+async def _handle(request: Request) -> tuple:
+    """(response, actor, user). actor/user are None until the token has been validated."""
     path = request.url.path
     if not any(path == p or path.startswith(p + "/") or path.startswith(p) for p in ALLOWED_PREFIXES):
-        return JSONResponse({"error": "not found"}, status_code=404)
+        return JSONResponse({"error": "not found"}, status_code=404), None, None
 
     try:
         claims = _claims_from_bearer(request)
     except Exception as exc:                              # bad/expired/forged token → 401, never 500
-        return JSONResponse({"error": "unauthorized", "detail": str(exc)}, status_code=401)
+        return JSONResponse({"error": "unauthorized", "detail": str(exc)}, status_code=401), None, None
     actor, user = identity(claims) if claims else (None, None)
     if not actor:
-        return JSONResponse({"error": "unauthorized", "detail": "missing/invalid Bearer token"}, status_code=401)
+        return (JSONResponse({"error": "unauthorized", "detail": "missing/invalid Bearer token"}, status_code=401),
+                None, None)
 
     # /mcp-fleet → the compositor (aggregated read-only fleet), /mcp-memory → the memory-only compositor, each
     # rewritten to its /mcp mount. Everything else — RAG reads (/mcp) and acts (/mcp-act, /pipeline, /evals) — goes
     # to the tool-server.
     url = target_url(path)
     if url is None:
-        return JSONResponse({"error": "not found", "detail": f"{path} has no backend configured"}, status_code=404)
+        return (JSONResponse({"error": "not found", "detail": f"{path} has no backend configured"}, status_code=404),
+                actor, user)
 
     headers = {k: v for k, v in request.headers.items() if k.lower() not in _DROP_REQ}
     headers["X-Forwarded-Consumer"] = actor              # the whole point — set from the VALIDATED claim
@@ -123,7 +151,7 @@ async def _proxy(request: Request) -> StreamingResponse | JSONResponse:
     return StreamingResponse(
         resp.aiter_raw(), status_code=resp.status_code, headers=out_headers,
         background=BackgroundTask(resp.aclose),          # close the upstream stream once the client finishes
-    )
+    ), actor, user
 
 
 async def _health(_: Request) -> PlainTextResponse:

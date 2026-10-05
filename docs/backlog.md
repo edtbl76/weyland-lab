@@ -3267,8 +3267,11 @@ on — the operator's interface), the other stores (each keeps its own format = 
   0.10.2 digest — it was `:main`) is an MCP client of the governed gateway's new `/mcp-memory` route with `system_oauth`
   (each person's own Keycloak token → `X-Forwarded-User`), served by a memory-ONLY compositor (same image, 7 read
   tools, the operator's search fixes). The gateway moved into CI (`images.tsv`), its deps pinned + pip-audited; tests
-  added. Proven in local containers with a real token. **Remaining:** ship, add the connection once in the admin UI
-  (runbook), live chat test. Done 2026-10-03: the Kuma push monitor `agent-memory`
+  added. Proven in local containers with a real token. **LIVE 2026-10-04:** connection added (admin UI), the **Lab
+  Recall** preset (Builtin Tools off — Open WebUI's own `search_notes`/knowledge/memories tools shadowed ours) answered
+  "what caused the rogueone GPU freeze?" from the right note on Open WebUI **0.11.4** (upgraded after a new nightly
+  backup + passing restore drill — Open WebUI had no backup, DR gap #8). Audit: the gateway writes one `mcp-gateway-audit`
+  logfmt line per request (actor, user, path, status — denials too) → Loki, 7 days (2026-10-05). Done 2026-10-03: the Kuma push monitor `agent-memory`
   (20-min heartbeat, Telegram) + `KUMA_MEMORY_PUSH_URL` — the watchdog reports up; Linear EMA-240 updated.
 
 **Why.** The lab is **multi-harness**: Claude Code, Codex (CLI + ChatGPT desktop), OpenCode, Cline, Pi, Open WebUI and

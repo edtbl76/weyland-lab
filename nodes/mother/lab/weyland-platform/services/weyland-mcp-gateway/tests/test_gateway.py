@@ -106,3 +106,47 @@ def test_an_unconfigured_memory_route_answers_404_before_forwarding(monkeypatch)
     client, seen = _client_with(gw, monkeypatch, PERSON)
     assert client.post("/mcp-memory", json={}, headers={"Authorization": "Bearer t"}).status_code == 404
     assert seen == []
+
+
+# --- 2026-10-05: one structured AUDIT line per request — who reached which backend --------------------------------------
+# The gateway set X-Forwarded-User but nothing recorded it, so "which person read the shared memory, when" had no answer.
+# Format follows `pr-lifecycle-audit`: a tag + logfmt pairs on stdout → Alloy → Loki (`|= "mcp-gateway-audit" | logfmt`).
+# Denials are audited too, and the user comes from the VALIDATED token, never from a header the client sent.
+
+
+def _audit_lines(out):
+    return [l for l in out.splitlines() if l.startswith("mcp-gateway-audit ")]
+
+
+def test_a_person_reaching_memory_is_audited_with_client_user_path_and_status(gw, monkeypatch, capsys):
+    client, _ = _client_with(gw, monkeypatch, PERSON)
+    client.post("/mcp-memory", json={}, headers={"Authorization": "Bearer t", "X-Forwarded-User": "admin"})
+    (line,) = _audit_lines(capsys.readouterr().out)
+    assert line == "mcp-gateway-audit method=POST path=/mcp-memory actor=open-webui user=edward status=200"
+
+
+def test_a_machine_call_is_audited_with_no_user(gw, monkeypatch, capsys):
+    client, _ = _client_with(gw, monkeypatch, OPERATOR)
+    client.post("/mcp-fleet", json={}, headers={"Authorization": "Bearer t"})
+    (line,) = _audit_lines(capsys.readouterr().out)
+    assert "actor=weyland-operator user=- status=200" in line
+
+
+def test_a_request_without_a_token_is_audited_as_a_401(gw, monkeypatch, capsys):
+    client, _ = _client_with(gw, monkeypatch, None)
+    client.post("/mcp-memory", json={})
+    (line,) = _audit_lines(capsys.readouterr().out)
+    assert line == "mcp-gateway-audit method=POST path=/mcp-memory actor=- user=- status=401"
+
+
+def test_an_unconfigured_route_is_audited_as_a_404_with_who_asked(monkeypatch, capsys):
+    gw = _load(monkeypatch, MEMORY_COMPOSITOR_URL="")
+    client, _ = _client_with(gw, monkeypatch, PERSON)
+    client.post("/mcp-memory", json={}, headers={"Authorization": "Bearer t"})
+    (line,) = _audit_lines(capsys.readouterr().out)
+    assert "actor=open-webui user=edward status=404" in line
+
+
+def test_a_value_with_spaces_or_quotes_is_quoted_so_logfmt_parses_it(gw):
+    assert gw.audit_line("GET", "/mcp", "a b", 'x"y', 200) == \
+        'mcp-gateway-audit method=GET path=/mcp actor="a b" user="x\\"y" status=200'

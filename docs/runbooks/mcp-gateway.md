@@ -37,6 +37,16 @@ and `X-Forwarded-User` = the person (`preferred_username`; absent for a machine 
 (routing, identity, spoofed headers stripped, 401 without a token, 404 when unconfigured). Proven 2026-10-04 in local
 containers with a real Keycloak token: 7 unprefixed tools, `write_note` refused, no/forged token → 401.
 
+**Audit — one line per request (2026-10-05).** Every request, forwarded or denied, leaves exactly one structured
+stdout line, same shape as `pr-lifecycle-audit` (a tag + logfmt), shipped to Loki by Alloy:
+`mcp-gateway-audit method=POST path=/mcp-memory actor=open-webui user=edward status=200`. `actor`/`user` come only from
+the VALIDATED token (`-` when there is none: a 401, or a machine with no person); a client-sent `X-Forwarded-User`
+never reaches the record. Tested in `tests/test_gateway.py`. Who read the shared memory (Loki keeps **7 days**):
+```
+{namespace="weyland", container="weyland-mcp-gateway"} |= "mcp-gateway-audit" | logfmt | path="/mcp-memory"
+```
+Add `| user!="-"` for people only, `| status!="200"` for denials.
+
 **Gotcha — the header allowlist.** `fastapi-mcp` (0.4.0) forwards only an **allowlist** of headers from the MCP request
 into each tool invocation (`FastApiMCP(app, headers=[...])`, default `['authorization']`). So the gateway-set
 `x-forwarded-consumer` was silently dropped and `_actor` saw `None` (verdicts recorded NULL actor). Fix: both mounts
