@@ -1,0 +1,48 @@
+# The compositors are locked to their front doors (2026-10-05, owner). Before this ANY pod could call them directly,
+# skipping the MCP gateway's Keycloak identity check and its `mcp-gateway-audit` line — the audit trail had a side door.
+# Plain NetworkPolicies, enforced by k3s's built-in network-policy controller (not disabled in the server args); the
+# compositors are unmeshed, so an Istio AuthorizationPolicy would not apply to them. INGRESS only: both must still reach
+# their upstreams (rogueone's Basic Memory :8765, the fleet servers). Kubelet's tcpSocket probes come from the node and
+# are allowed by the controller. Labels are cross-checked against the Deployments by scripts/tests/compositor-netpol.bats.
+#
+# Smoke (from a pod NOT allowed — expect a timeout; from the gateway — expect HTTP 4xx = reached):
+#   kubectl -n weyland exec deploy/weyland-guard -- python -c "import httpx; httpx.post('http://weyland-mcp-compositor-memory.weyland.svc.cluster.local:8000/mcp', timeout=5)"
+---
+# The shared agent memory: ONLY the MCP gateway (/mcp-memory — each person's own Keycloak token, X-Forwarded-User,
+# one audit line per request). Open WebUI reaches it through the gateway, never directly.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: weyland-mcp-compositor-memory-front-door-only
+  namespace: weyland
+spec:
+  podSelector:
+    matchLabels: { app: weyland-mcp-compositor-memory }
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels: { app: weyland-mcp-gateway }
+      ports:
+        - { protocol: TCP, port: 8000 }
+---
+# The read fleet: the MCP gateway (/mcp-fleet — the operator, Keycloak client_credentials) AND Bifrost (its
+# `weyland_fleet` MCP client — Claude Code / Codex / OpenCode, gated by Bifrost virtual keys). Bifrost is the agent
+# edge and cannot present a 5-minute Keycloak token, so it is the one documented second door (owner, 2026-10-05).
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: weyland-mcp-compositor-front-door-only
+  namespace: weyland
+spec:
+  podSelector:
+    matchLabels: { app: weyland-mcp-compositor }
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels: { app: weyland-mcp-gateway }
+        - podSelector:
+            matchLabels: { app: bifrost }
+      ports:
+        - { protocol: TCP, port: 8000 }

@@ -9,7 +9,7 @@ LiteLLM** (the agentic lane); tools are aggregated by the **compositor** and fro
 The fleet is self-describing — this queries the compositor and prints every server and its tools as they actually are:
 
 ```
-kubectl -n weyland exec -i deploy/weyland-guard -- python - < scripts/list_mcp_fleet.py
+kubectl -n weyland exec -i deploy/weyland-mcp-gateway -c weyland-mcp-gateway -- python - < /home/edwardmangini/IdeaProjects/weyland/nodes/mother/lab/weyland-platform/scripts/list_mcp_fleet.py
 ```
 
 Or ask the operator on Telegram: **"what tools do you have?"** / **"what can you tell me about the lab?"**

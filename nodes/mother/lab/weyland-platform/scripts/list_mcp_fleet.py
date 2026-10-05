@@ -1,8 +1,9 @@
 """List the MCP fleet — every server and its tools — by querying the compositor's aggregated tools/list (so it reflects
 what's ACTUALLY live, not a hardcoded doc). B17+B19 Phase 3.
 
-Run from a pod that can reach the compositor + has httpx (the guard pod does):
-    kubectl -n weyland exec -i deploy/weyland-guard -- python - < scripts/list_mcp_fleet.py
+Run from a pod the compositor ADMITS + has httpx. Since 2026-10-05 the compositor only accepts the MCP gateway and
+Bifrost (k8s/mcp-servers/netpol-compositors.yaml), so the guard pod is refused — use the gateway pod:
+    kubectl -n weyland exec -i deploy/weyland-mcp-gateway -c weyland-mcp-gateway -- python - < /home/edwardmangini/IdeaProjects/weyland/nodes/mother/lab/weyland-platform/scripts/list_mcp_fleet.py
 """
 import collections
 import json

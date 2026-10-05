@@ -194,4 +194,5 @@ invented a note ("Operator Sweep Procedures") and a reason. Checked 2026-10-05: 
 **Who searched:** the gateway writes one `mcp-gateway-audit` line per request (runbooks/mcp-gateway.md § Audit) —
 query Loki (7-day retention): `{namespace="weyland", container="weyland-mcp-gateway"} |= "mcp-gateway-audit" | logfmt | path="/mcp-memory"`. Every call also reaches the memory compositor with `X-Forwarded-Consumer: open-webui` and
 `X-Forwarded-User: <your Keycloak username>`, set by the gateway from the validated token (a client cannot supply its
-own). A user who has not signed in through Keycloak has no token → the gateway answers 401.
+own). A user who has not signed in through Keycloak has no token → the gateway answers 401. And there is no way
+around the gateway: the memory compositor admits only the gateway pod (NetworkPolicy, 2026-10-05).

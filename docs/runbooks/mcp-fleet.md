@@ -102,6 +102,14 @@ path, POST init/initialized/tools-list there, read responses off the stream (her
   got nothing, and answered "no notes" while the answering note ranked #1 unfiltered. `after_date`/`project`/paging stay.
   The compositor's `fastmcp` is now pinned (`requirements.in/.txt`; it was unpinned) and the image is CI-built
   (`images.tsv`, 2026-10-03).
+**Locked to the front doors (2026-10-05, owner).** `k8s/mcp-servers/netpol-compositors.yaml` — NetworkPolicies
+(k3s's built-in controller; the compositors are unmeshed, so Istio authz would not apply): the **memory** compositor
+admits ONLY the MCP gateway; the **fleet** compositor admits the MCP gateway and **Bifrost** (`weyland_fleet`, the
+coding agents' edge, gated by virtual keys — it cannot present a 5-minute Keycloak token). Ingress only; egress stays
+open (rogueone :8765, the fleet servers). Before this any pod could call them, skipping the gateway's identity check
+and its audit line. Labels are cross-checked against the Deployments (`scripts/tests/compositor-netpol.bats`).
+Consequence: run ad-hoc fleet scripts from the gateway pod, not the guard pod.
+
 - **The operator (B66) uses the fleet.** It loads the `/mcp-fleet` tools via `langchain-mcp-adapters` (per-request
   Keycloak token via a custom `httpx.Auth`), sanitizes their schemas (`fleet._sanitize_schema` — MCP servers emit
   inconsistent schemas), and binds them flat (`ainvoke` — MCP tools are async-only). `FLEET_ROUTING=1` switches to
@@ -127,7 +135,7 @@ direct-to-Anthropic A/B). LiteLLM is a *transparent* passthrough (tools + tool_c
 Guardrails for the agent live at its EDGE (`weyland-guard` input/output + the act confirm-step), never inline in the LLM path.
 
 ## Demo + list
-- **List servers + tools (live):** `kubectl -n weyland exec -i deploy/weyland-guard -- python - < scripts/list_mcp_fleet.py`
+- **List servers + tools (live):** `kubectl -n weyland exec -i deploy/weyland-mcp-gateway -c weyland-mcp-gateway -- python - < /home/edwardmangini/IdeaProjects/weyland/nodes/mother/lab/weyland-platform/scripts/list_mcp_fleet.py`
 - **Per-tool-set demos** (Telegram prompts): [demos/mcp-fleet.md](../demos/mcp-fleet.md)
 
 ## What's next

@@ -51,6 +51,9 @@ initialize / tools-list / the `search_notes` call / close; the same query showed
 `actor=- user=- status=401` — when Open WebUI's Keycloak refresh token had expired (`invalid_grant: Token is not
 active`) and it called with no token. A no-token probe carrying a spoofed `X-Forwarded-User` logged `user=-`.
 
+**The compositors behind it are locked to the gateway** (+ Bifrost for the fleet) — NetworkPolicies, see
+mcp-fleet.md § Locked to the front doors. A call that skips the gateway is refused, so the audit trail has no side door.
+
 **Gotcha — the header allowlist.** `fastapi-mcp` (0.4.0) forwards only an **allowlist** of headers from the MCP request
 into each tool invocation (`FastApiMCP(app, headers=[...])`, default `['authorization']`). So the gateway-set
 `x-forwarded-consumer` was silently dropped and `_actor` saw `None` (verdicts recorded NULL actor). Fix: both mounts

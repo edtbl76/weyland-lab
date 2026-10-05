@@ -84,7 +84,7 @@ All read-only (enforced per-server: flag / RBAC / Ranger / Postgres READ-ONLY tx
 **Composed** by `weyland-mcp-compositor` (`http://weyland-mcp-compositor.weyland.svc:8000/mcp`, FastMCP) into one endpoint
 with per-server tool prefixes; reached through the **gateway at `mcp.weyland.lab/mcp-fleet`** (Keycloak-authed). The B66
 operator consumes `/mcp-fleet` with Haiku via **LiteLLM** (agentic lane — NOT the MLflow Gateway, which mangles MCP tool
-schemas). List them live: `kubectl -n weyland exec -i deploy/weyland-guard -- python - < scripts/list_mcp_fleet.py`.
+schemas). List them live: `kubectl -n weyland exec -i deploy/weyland-mcp-gateway -c weyland-mcp-gateway -- python - < /home/edwardmangini/IdeaProjects/weyland/nodes/mother/lab/weyland-platform/scripts/list_mcp_fleet.py`.
 Demo: [demos/mcp-fleet.md](demos/mcp-fleet.md).
 
 ## Bifrost — agent-edge MCP front door (B17+B19 Phase 3b)

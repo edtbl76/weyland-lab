@@ -42,7 +42,7 @@ apis:
 
   # ---- MCP contracts (tool-schema surfaces; schema-snapshot capture is a lifecycle follow-on) ----
   - {id: mcp-gateway, owner: mcp-gateway, kind: mcp, status: published, version: "1.0", base: "https://mcp.weyland.lab", consumers: [weyland-operator]}
-  - {id: mcp-fleet, owner: mcp-servers, kind: mcp, status: published, version: "1.0", base: "http://weyland-mcp-compositor.weyland.svc:8000/mcp", consumers: [mcp-gateway, weyland-operator]}
+  - {id: mcp-fleet, owner: mcp-servers, kind: mcp, status: published, version: "1.0", base: "http://weyland-mcp-compositor.weyland.svc:8000/mcp", consumers: [mcp-gateway, weyland-operator, bifrost]}
   - {id: bifrost, owner: bifrost, kind: openai-compat, status: published, version: "1.0", base: "https://bifrost.weyland.lab", consumers: [litellm, realm-of-agents, claude-code]}
 
   # ---- OpenAI-shape gateways / model serving ----
