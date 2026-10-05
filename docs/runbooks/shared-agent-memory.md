@@ -172,6 +172,25 @@ calling and a context window that fits the tool schemas — `qwen2.5:7b-operator
 with ~2K per request and Ollama silently cuts the prompt (operator.md § the prompt must fit). Ask: *"Search the agent
 memory: what caused the rogueone GPU freeze?"* → the answer cites `rogueone-gpu-freeze-vram` (a kernel bug).
 
+**The `Lab Recall` preset (the recommended way, 2026-10-05).** Workspace → Models → **+**; it lives in `webui.db`
+(nightly `open-webui-backup`), so recreate it from here after a fresh install:
+
+| Field | Value |
+|---|---|
+| Name / ID | `Lab Recall` / `lab-recall` |
+| Base model | `qwen2.5:7b-operator` |
+| Tools | **Agent memory** ticked |
+| Capabilities | **Builtin Tools OFF** — Open WebUI's own `search_notes` (Notes), `search_knowledge_files`, `search_memories` otherwise shadow ours |
+| Access | **Public** (or a grant) — a private custom model with no grant is hidden from the chat picker |
+
+System prompt (verbatim):
+```
+You answer questions about the weyland lab. For anything the team decided, learned or recorded before, call agent-memory_search_notes, then agent-memory_read_note on the best match, and answer from that note. Say so if no note matches. If the agent-memory tool is unavailable or returns an error, say that shared memory could not be reached. Never describe a note you did not read.
+```
+The last two sentences exist because, with its Keycloak token expired, the tool failed to connect and the model
+invented a note ("Operator Sweep Procedures") and a reason. Checked 2026-10-05: a question with no matching note
+("…the lab's coffee machine?") answers "no note matches".
+
 **Who searched:** the gateway writes one `mcp-gateway-audit` line per request (runbooks/mcp-gateway.md § Audit) —
 query Loki (7-day retention): `{namespace="weyland", container="weyland-mcp-gateway"} |= "mcp-gateway-audit" | logfmt | path="/mcp-memory"`. Every call also reaches the memory compositor with `X-Forwarded-Consumer: open-webui` and
 `X-Forwarded-User: <your Keycloak username>`, set by the gateway from the validated token (a client cannot supply its
