@@ -148,9 +148,9 @@ model {
           apisix = gateway "APISIX" "API/data-plane gateway — fronts tool-server + backends"
           mcpGateway = gateway "weyland-mcp-gateway" "MCP gateway (mesh governance) — Keycloak-authed front door for tool-server /mcp + /mcp-act; injects the verified actor into guardrail_verdicts, unblocking the enforcing act policy gate"
           mcpFleet = component "MCP server fleet (6)" "Read-only MCP servers over lab subsystems (grafana / trino / k8s / postgres / neo4j / datahub) — one protocol for agents to query the platform"
-          mcpCompositor = component "weyland-mcp-compositor" "FastMCP proxy — aggregates the 6 fleet servers into one endpoint with ~90 namespaced tools; gateway routes /mcp-fleet here"
+          mcpCompositor = component "weyland-mcp-compositor" "FastMCP proxy — aggregates the 6 fleet servers + the tool-server RAG (context) + the shared agent memory (READ-ONLY, B182) into one endpoint: 8 upstreams, 102 namespaced tools (2026-10-04). Gateway routes /mcp-fleet here; Bifrost weyland_fleet reads it too. NetworkPolicy: only the gateway + Bifrost may connect (2026-10-05)"
           mcpCompositorMemory = component "weyland-mcp-compositor-memory" "B182 (2026-10-04) — the same compositor image mounting ONLY the shared agent memory: its 7 read tools (writes hidden + refused), semantic search, invented filters dropped. The gateway routes /mcp-memory here — for Open WebUI's per-user recall"
-          bifrost = gateway "Bifrost" "Agent-edge MCP front door (maximhq/bifrost, B111) — closes the MCP-gateway deliverable. The coding-agents VK aggregates 232 tools (the 95-tool compositor fleet + Context7/Linear/GitHub/Perplexity/Playwright/HuggingFace) into one /mcp for Claude Code + Codex + OpenCode. Also a Prompt Repository (241) + Skills Repository (583) served as a Claude Code/Codex plugin marketplace (git-served, /api/skills/serve open). Provider egress + per-VK budgets + sealed keys."
+          bifrost = gateway "Bifrost" "Agent-edge MCP front door (maximhq/bifrost, B111) — closes the MCP-gateway deliverable. The coding-agents VK aggregates the compositor fleet (102 read tools, 2026-10-04) + Context7/Linear/GitHub/Perplexity/Playwright/HuggingFace) into one /mcp for Claude Code + Codex + OpenCode. Also a Prompt Repository (241) + Skills Repository (583) served as a Claude Code/Codex plugin marketplace (git-served, /api/skills/serve open). Provider egress + per-VK budgets + sealed keys."
         }
 
         obs = zone "Observability" {
@@ -232,7 +232,7 @@ model {
   weyland.mother.ai.operator -> weyland.mother.ops.edge.mcpGateway "act via the governed MCP gateway (Keycloak client_credentials) — live; policy.gate enforces (block) on the verified actor"
   weyland.mother.ops.edge.mcpGateway -> weyland.mother.ai.toolServer "authed proxy of /mcp + /mcp-act; injects X-Forwarded-Consumer actor; act endpoints locked to this SA (Istio AuthorizationPolicy)"
   weyland.mother.ops.edge.mcpGateway -> weyland.mother.ops.edge.keycloak "validate Bearer JWT (JWKS)"
-  weyland.mother.ops.edge.mcpFleet -> weyland.mother.ops.edge.mcpCompositor "FastMCP composition → ~90 namespaced read tools"
+  weyland.mother.ops.edge.mcpFleet -> weyland.mother.ops.edge.mcpCompositor "FastMCP composition → 102 namespaced read tools (2026-10-04)"
   weyland.mother.ops.edge.mcpCompositor -> weyland.mother.ops.edge.mcpGateway "one MCP endpoint; gateway routes /mcp-fleet here"
   weyland.mother.ai.operator -> weyland.mother.ops.edge.mcpGateway "read the fleet via /mcp-fleet (local qwen2.5:7b curated ~14-tool subset; Haiku failover gets all ~91)"
 
@@ -244,7 +244,7 @@ model {
   weyland.mother.ai.litellm -> weyland.mother.ops.edge.bifrost "hosted-lane LLM egress (2026-08-01) — LiteLLM→Bifrost→provider (anthropic/groq/opencode-zen/gemini/xai); Bifrost records provider cost/tokens/latency + per-VK (realm-llm). Local ollama lanes stay direct."
   rogueone.codingAgents -> weyland.mother.ops.edge.bifrost "MCP tools via /mcp (coding-agents VK, 232 tools) + install skills from the marketplace"
   rogueone.claudeCode -> weyland.mother.ops.edge.bifrost "MCP tools + skill marketplace (/api/skills/serve)"
-  weyland.mother.ops.edge.bifrost -> weyland.mother.ops.edge.mcpCompositor "aggregates the 95-tool read fleet (weyland_fleet upstream)"
+  weyland.mother.ops.edge.bifrost -> weyland.mother.ops.edge.mcpCompositor "aggregates the 102-tool read fleet (weyland_fleet upstream) — the one non-gateway caller the compositor NetworkPolicy admits"
   weyland.mother.ops.edge.bifrost -> hostedModels "provider egress — per-VK budgets + sealed keys"
   weyland.mother.ops.edge.bifrost -> weyland.mother.ai.kokoro "media tts — Kokoro custom provider (kokoro/kokoro)"
   weyland.mother.ai.operator -> rogueone.ollama "brain — local qwen2.5:7b /v1 (primary; Haiku failover on health-precheck miss / 60s timeout)"

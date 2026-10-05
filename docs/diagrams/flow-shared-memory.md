@@ -47,3 +47,48 @@ sequenceDiagram
 **Open WebUI recalls as the signed-in person (2026-10-04):** an MCP tool server on the gateway's `/mcp-memory`
 (memory-only compositor, same 7 read tools) with `system_oauth` — the user's own Keycloak token, so the gateway sets
 `X-Forwarded-User`. No shared key.
+
+## Read-only recall — the operator and Open WebUI (2026-10-04 → 05)
+
+Both READ through the governed MCP gateway, never Bifrost: the operator as its Keycloak client, Open WebUI as **each
+signed-in person**. Every request leaves an audit line; the compositors admit no one but the gateway (and Bifrost, for
+the fleet). Runbooks: [mcp-gateway.md](../runbooks/mcp-gateway.md) § Audit · [open-webui.md](../runbooks/open-webui.md).
+
+```mermaid
+sequenceDiagram
+    participant P as Person (browser)
+    participant OW as Open WebUI (Lab Recall)
+    participant KC as Keycloak
+    participant OP as weyland-operator
+    participant GW as MCP gateway
+    participant L as Loki
+    participant CM as memory-only compositor
+    participant CF as fleet compositor
+    participant BM as Basic Memory :8765 (rogueone)
+    participant X as any other pod
+
+    P->>OW: ask Lab Recall what caused the GPU freeze
+    OW->>KC: refresh the person's token (session lives 10h, same as the Open WebUI login)
+    KC-->>OW: access token (azp open-webui, preferred_username emangini)
+    OW->>GW: POST /mcp-memory, Bearer = the person's token (system_oauth)
+    GW->>GW: validate JWT (JWKS) and set X-Forwarded-Consumer + X-Forwarded-User
+    GW->>L: mcp-gateway-audit path=/mcp-memory actor=open-webui user=emangini status=200
+    GW->>CM: tools/call search_notes
+    CM->>CM: allowlist (7 read tools), search made semantic, invented filters dropped
+    CM->>BM: search_notes (semantic)
+    BM-->>OW: rogueone-gpu-freeze-vram (via CM and GW)
+    OW-->>P: a kernel bug, conclusive 2026-08-13
+    alt the Keycloak session has lapsed
+        OW->>GW: POST /mcp-memory with NO token
+        GW->>L: mcp-gateway-audit actor=- user=- status=401
+        GW-->>OW: 401
+        OW-->>P: shared memory could not be reached (never an invented note)
+    end
+    OP->>GW: /mcp-fleet memory_search_notes (client_credentials, azp weyland-operator)
+    GW->>L: mcp-gateway-audit path=/mcp-fleet actor=weyland-operator user=- status=200
+    GW->>CF: tools/call memory_search_notes
+    CF->>BM: search_notes (semantic)
+    X->>CM: direct POST /mcp
+    CM--xX: refused by NetworkPolicy (no side door around the audit)
+```
+

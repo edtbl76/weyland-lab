@@ -78,7 +78,7 @@ Re-ordered per RE-grounded audit (aidlc-docs/inception/backlog-reprioritization.
 - **B179** — **Investigate Warp Software Factory for the lab** — **HIGH (2026-09-24, Linear EMA-237).** Evaluate warp.dev's agentic software-development offering against REAL lab context and land an ADOPT / DON'T-ADOPT verdict (same discipline as B174/B119): what it actually is (agent orchestration / multi-agent build pipelines / hosted terminal-agent), fit against the lab's hard constraints ($0 / self-hosted / LAN — a paid-cloud-only product likely fails like the Linear Agent, but check for a free/self-host tier first), overlap with what already exists (AIDLC, Bifrost skills/prompts, weyland-operator, Claude Code + the B175 loop library, the B17 A2A roster), and any "software factory" concepts worth stealing even if the product isn't adopted. Deliverable: a `docs/concepts/` verdict + rationale. See detail below.
 - **B180** — **Track host systemd units (mother, rogueone, weyland) in a YAML SoT + the Port inventory** — **DONE (2026-10-01; was HIGH, Linear EMA-238).** Units and host config files are rows in `placement.yaml`; repo check in CI, host check nightly in `machine-inv-drift` (Kuma → Telegram), Port kinds `systemd-unit`/`host-config`. Demo `demos/placement.md`. The lab's own host-level services/timers are tracked nowhere: the repo holds 15 unit files across 3 machines, each deployed by a hand `rsync` + `systemctl enable`, with no record of what is actually installed/enabled where, no repo↔host drift check, and no failure alerting for host timers (unlike k8s CronJobs). Audit the hosts, add a `host-units.yaml` SoT, catalog them in Port beside the B129 machine inventory, guard drift, and give every host timer a failure signal. See detail below.
 - **B181** — **"Work on issue" / Copy-as-prompt launchers in Linear for the apps on the start.me Weyland Lab page (Figma Make first)** — **MEDIUM (2026-09-25, Linear EMA-239).** Linear's built-in coding-tool launchers are mostly unusable here (terminal tools need the Linear desktop app — no Linux build; the cloud agents are paid), so apps we actually use for greenfield work — Figma Make for OJay Floyd / MyBodyGraph prototyping — have no issue→app hand-off. Configure Linear **custom-link** coding tools for the start.me Weyland Lab apps that accept a prompt via URL. See detail below.
-- **B182** — **Shared agent memory across harnesses (Claude Code, Codex, OpenCode, Pi, Open WebUI, operator)** — **HIGH (2026-09-25, Linear EMA-240).** The lab is multi-harness, but durable agent memory lives only in Claude Code's auto-memory, which no other harness can read — Codex (connected to Linear 2026-09-25) sees none of it. One shared store every harness reads and writes; candidate = an MCP memory server (Basic Memory) behind the Bifrost MCP gateway — store, transport and gateway all TBD. ContextStream rejected (a second, proprietary store). Concept `docs/concepts/multi-harness.md`, design `docs/design/shared-agent-memory-design.md`. See detail below.
+- **B182** — **Shared agent memory across harnesses (Claude Code, Codex, OpenCode, Pi, Open WebUI, operator)** — **DONE (2026-10-05, Linear EMA-240).** One store (Basic Memory on rogueone, the notes in place); Claude Code native, Codex/OpenCode read+write via Bifrost, the operator and Open WebUI read-only via the governed MCP gateway — Open WebUI as each signed-in person, audited in Loki; compositors locked to the gateway (+ Bifrost). Was HIGH. The lab is multi-harness, but durable agent memory lives only in Claude Code's auto-memory, which no other harness can read — Codex (connected to Linear 2026-09-25) sees none of it. One shared store every harness reads and writes; candidate = an MCP memory server (Basic Memory) behind the Bifrost MCP gateway — store, transport and gateway all TBD. ContextStream rejected (a second, proprietary store). Concept `docs/concepts/multi-harness.md`, design `docs/design/shared-agent-memory-design.md`. See detail below.
 - **B183** — **Evaluate Figma Make Connectors, Designs and Skills** — **HIGH (2026-09-25, Linear EMA-241).** Figma Make (in the existing Figma Pro plan) has three surfaces worth a real evaluation for the lab's prototyping/UX work — MCP **Connectors** (the Linear connector reads issues/projects/docs into Make and writes back), **Designs** (existing designs / a design system as context) and **Skills** (standing instructions). Verdict per surface + credit cost observed. Found in the B119 integrations walk; linked (not parented) to the Stud.IO UX epic EMA-153. See detail below.
 - **B184** — **Adopt Slack (free) + audit every Slack integration across the platform** — **HIGH (2026-09-25, Linear EMA-242).** A free Slack workspace for the lab — useful even purely as a demo surface, since nearly every platform tool ships a Slack integration. Adopt it (free-plan limits verified first — an app cap would decide which integrations earn a slot), then audit EVERY component for its Slack integration (send/receive, overlap with today's Telegram alerting, verdict), then wire the chosen set with a channel map + demos. Found in the B119 integrations walk. See detail below.
 - **B185** — **Free time tracking per Linear issue (ActivityWatch + Linear-derived cycle time)** — **HIGH (2026-09-25, Linear EMA-243).** No time tracking today; Rize is paid and Reclaim's Linear link is paid-only. Recommended: **ActivityWatch** (automatic, local on rogueone — Linear tab titles carry the issue ID, so hours per issue are derivable) + **Linear status-history cycle time** (already in the API); **Clockify** (free, native Linear button) as the fallback. Found in the B119 integrations walk. See detail below.
@@ -3225,9 +3225,18 @@ Nothing evaluated yet — enabling is setup, not a verdict.
 Consumers: OJay Floyd / MyBodyGraph prototyping; the Stud.IO UX redesign is **related** (Linear EMA-153, linked — this
 is a weyland item, not part of the Stud.IO project). Relates B39 (Figma ↔ code, EMA-30), B119.
 
-### B182 — Shared agent memory across harnesses — HIGH (2026-09-25, Linear EMA-240)
+### B182 — Shared agent memory across harnesses — DONE (2026-10-05, Linear EMA-240; was HIGH, filed 2026-09-25)
 
-**BUILT 2026-10-03 — minimum slice live (Claude Code ↔ Codex); still IN PROGRESS for the remaining harnesses.**
+**DONE 2026-10-05 — every harness in scope live, DoD passed.** Claude Code (native) · Codex + OpenCode (Bifrost, read+write)
+· weyland-operator (read-only, `/mcp-fleet`) · Open WebUI (read-only as the signed-in person, `/mcp-memory`). DoD
+2026-10-05: arch.md §8d (operator + Open WebUI + audit + lock, with the alternatives), api.md (`/mcp-fleet`,
+`/mcp-memory`), C4 (`mcpCompositorMemory` + edges, validated), `flow-shared-memory.md` (recall sequence incl. the
+expired-session and side-door branches), demo § 3d/3e RUN with negatives + UI UAT, runbooks (shared-agent-memory,
+mcp-gateway § Audit, mcp-fleet § Locked, open-webui, operator § prompt must fit, keycloak § Session lifetime),
+platform-map cards, dr.md (store: restic drill; Open WebUI: nightly backup + drill), Linear sync clean. Out of scope,
+unchanged: Pi/Cline (files directly). Open option, not filed: a Bifrost path that can present a Keycloak token, which
+would let the fleet compositor admit the gateway alone.
+**Built 2026-10-03 — minimum slice (Claude Code ↔ Codex); the rest followed 2026-10-04 → 05.**
 Decided with the owner: **Basic Memory 0.23.2 on rogueone, serving the existing notes in place** — the notes moved to
 `~/agent-memory/weyland` (214 files, checksums identical) and Claude Code's memory path is a **symlink** to it, so native
 memory (always-loaded `MEMORY.md`, plain-file writes) is kept and there is ONE copy, no sync. Rejected: git-backed
@@ -3316,15 +3325,15 @@ then OpenCode, then read-only operator / Open WebUI → DoD. Minimum shippable s
 (criteria 1–4). Time-box candidate verification to one session; if none passes concurrency + transport, re-plan.
 
 **Acceptance criteria (added 2026-09-25 after SpecBot scored the issue 51/100 — pass/fail each).**
-- [ ] A note written from Claude Code is returned by a search from Codex within one minute, and vice versa.
-- [ ] Claude's existing memory (~190 notes + `MEMORY.md`) is in the shared store with **no parallel copy left** — store
+- [x] A note written from Claude Code is returned by a search from Codex within one minute, and vice versa.
+- [x] Claude's existing memory (~190 notes + `MEMORY.md`) is in the shared store with **no parallel copy left** — store
   count equals migrated count, and Claude Code reads from the store.
-- [ ] Two harnesses writing different notes at the same moment both succeed; neither note is lost or corrupted.
-- [ ] With the store stopped, recall **reports it unreachable** — never an empty result read as "no memory".
-- [ ] A write containing a token-shaped string is rejected or flagged.
-- [ ] Each harness in scope (Claude Code, Codex, OpenCode; operator + Open WebUI read-only) has a documented config
+- [x] Two harnesses writing different notes at the same moment both succeed; neither note is lost or corrupted.
+- [x] With the store stopped, recall **reports it unreachable** — never an empty result read as "no memory".
+- [x] A write containing a token-shaped string is rejected or flagged.
+- [x] Each harness in scope (Claude Code, Codex, OpenCode; operator + Open WebUI read-only) has a documented config
   line and a passing read test.
-- [ ] Decisions table filled with evidence; DoD: arch.md §8d updated from TBD, C4 `sharedMemory` moved under its host,
+- [x] Decisions table filled with evidence; DoD: arch.md §8d updated from TBD, C4 `sharedMemory` moved under its host,
   flow diagram, live demo, runbook.
 
 **Edge cases & failure modes.** Store down / rogueone asleep → fail closed. Concurrent edits of one note → conflict

@@ -147,7 +147,7 @@ button emits ready-to-paste client config.
 **Re-add the upstream after a PVC loss** (config is currently UI-managed in the PVC — GitOps codification is `TODO(B111)`):
 UI → **MCP Gateway → MCP Catalog → New MCP Server** → Name `weyland_fleet`, Connection Type **HTTP (Streamable)**,
 Connection URL `http://weyland-mcp-compositor.weyland.svc.cluster.local:8000/mcp`, Auth Type **None** → Save. State goes
-green and **Enabled Tools = 95/95**.
+green and **Enabled Tools = 102/102** (2026-10-04: the 6 servers + `context_*` + 7 read-only `memory_*`; it was 95 before B182).
 
 **Verify** the aggregated endpoint (external path through Traefik — proves the `/mcp` router bypasses forward-auth):
 ```

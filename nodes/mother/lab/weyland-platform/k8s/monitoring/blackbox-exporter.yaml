@@ -107,6 +107,7 @@ spec:
         - https://argocd.weyland.lab
         - https://auth.weyland.lab            # forward-auth — the SSO gate itself
         - https://bifrost.weyland.lab
+        - https://chat.weyland.lab            # Open WebUI — native OIDC (not forward-auth), root serves the app; probe added 2026-10-05 (B182 DoD found it missing)
         - https://clickhouse.weyland.lab
         - https://cockroachdb.weyland.lab
         - https://cube.weyland.lab

@@ -56,7 +56,8 @@ Durable lessons and decisions live in ONE shared store (B182, 2026-10-03): the M
 `/home/edwardmangini/agent-memory/weyland/` on rogueone — `MEMORY.md` is the index, one note per fact (frontmatter
 `name` / `description` / `metadata.type`, `[[name]]` links). Claude Code's auto-memory path is a symlink to it, and
 **Basic Memory** serves the same files over MCP (`http://127.0.0.1:8765/mcp` on rogueone; `Agent_Memory-*` tools via
-Bifrost for the coding-agents key; the operator key gets read-only tools). Every harness:
+Bifrost for the coding-agents key). The weyland-operator and Open WebUI READ it through the governed MCP gateway
+(`/mcp-fleet`, `/mcp-memory` — Open WebUI as the signed-in person, every request audited). Every harness:
 - **Read `MEMORY.md` and the notes it links before proposing work** — or search with `Agent_Memory-search_notes`.
 - **Record a durable lesson as one note** (a file in that directory, or `Agent_Memory-write_note`), and add a one-line
   pointer to `MEMORY.md`. Update an existing note rather than duplicating it.

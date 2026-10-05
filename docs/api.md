@@ -56,11 +56,15 @@ Hosts & access users: [hosts.md](hosts.md). `mother` = 192.168.1.243, CTs by IP 
 ## MCP gateway (`weyland-mcp-gateway` — B17+B19)
 `https://mcp.weyland.lab` — the Keycloak-authed front door for the tool-server's MCP mounts. Validates a Keycloak Bearer
 JWT (realm `weyland`, JWKS), injects `X-Forwarded-Consumer` = the token `azp` (the agent's `client_id` = the **actor**),
-and stream-proxies to the tool-server. Un-authed → **401**. Runbook: [runbooks/mcp-gateway.md](runbooks/mcp-gateway.md).
+and stream-proxies to the tool-server or a compositor. For a person's token it also sets `X-Forwarded-User` (the
+`preferred_username`). Every request leaves one `mcp-gateway-audit` logfmt line in Loki (actor, user, path, status).
+Un-authed → **401**. Runbook: [runbooks/mcp-gateway.md](runbooks/mcp-gateway.md).
 
 | Route | Method | Purpose |
 |---|---|---|
 | `/health` | GET | liveness (no auth) |
+| `/mcp-fleet` | MCP | the read-only fleet compositor (102 tools, incl. 7 read-only `memory_*`) — the B66 operator's tools |
+| `/mcp-memory` | MCP | **B182 (2026-10-04):** the memory-ONLY compositor (7 read tools, unprefixed) — Open WebUI's per-user recall (`system_oauth` = each person's Keycloak token); unconfigured → 404. Both compositors admit only this gateway (+ Bifrost for the fleet) — NetworkPolicy |
 | `/mcp` · `/mcp-act` | MCP | authed proxy of the tool-server's read / act MCP mounts; forwards the verified actor → `guardrail_verdicts.actor`, which the enforcing `policy.gate` (weyland-guard ACT hook) keys on. The tool-server **act** endpoints (`/mcp-act`, `/pipeline/trigger`, `/evals/*`) are locked to this gateway's SPIFFE identity by an Istio `AuthorizationPolicy` — a direct/forged act → `403 RBAC` |
 
 Agents authenticate via Keycloak `client_credentials` (per-agent clients, `tofu/keycloak/mcp-agents.tf`); `client_id` = the actor.

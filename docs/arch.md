@@ -178,7 +178,7 @@ supersedes the cancelled B12 (a static registry without the lifecycle).
 | vLLM (B111 bench) | `rogueone:8001/v1` (Bifrost `vllm`) | **On-demand** GPU serving — `Qwen2.5-7B-Instruct-AWQ`; continuous-batching throughput bench (~15× vs serial). Native Docker engine only; VRAM-capped. `scripts/vllm-bench.sh`, [runbooks/gpu-inference.md](runbooks/gpu-inference.md). |
 | SGLang (B111 bench) | `rogueone:8002/v1` (Bifrost `sgl`) | **On-demand** GPU serving — `Llama-3.2-1B`; **RadixAttention prefix-caching** bench (~6.2× faster TTFT on cache hits) for agent/RAG. `scripts/sglang-bench.sh`, [runbooks/gpu-inference.md](runbooks/gpu-inference.md). |
 | Obsidian vault | (local) | personal notes — **no longer a RAG source** (retired in B25b). The RAG now ingests the GitHub repo (`docs/` + `nodes/`) via Dagster git-pull. |
-| Claude Code | (local CLI) | **Harness — primary** coding agent. MCP client of tool-server `/mcp` (validated 2026-06-14), **Bifrost** `/mcp`, and **Linear** (hosted MCP). Instructions `CLAUDE.md`; AIDLC installed (`.claude/`). Memory = Claude-only auto-memory (B182). See §8d. |
+| Claude Code | (local CLI) | **Harness — primary** coding agent. MCP client of tool-server `/mcp` (validated 2026-06-14), **Bifrost** `/mcp`, and **Linear** (hosted MCP). Instructions `CLAUDE.md`; AIDLC installed (`.claude/`). Memory = the shared store (its auto-memory dir is a symlink to it, B182). See §8d. |
 | Codex | (local CLI + ChatGPT desktop) | **Harness — peer** (2026-09-25). Codex CLI 0.157.0 on the ChatGPT sub (GPT-5.5); MCP client of **Bifrost** + **Linear**; Linear "Work on issue" launcher (`codex://` → ChatGPT desktop); sandbox needs the AppArmor `bwrap` profile ([runbooks/coding-agents.md](runbooks/coding-agents.md)). Instructions `AGENTS.md`. See §8d. |
 | Editors — IntelliJ + VS Code | (local IDEs) | **Hosts, not harnesses.** IntelliJ 2026.2 is agent-agnostic: AI Assistant's ACP registry (11 agents incl. Claude Agent, Codex, OpenCode, Cline, Junie) + Claude Code / Codex / ProxyAI plugins + IntelliJ's MCP server. VS Code 1.139: Codex extension + Claude Code extensions. Config stays with the harness. See §8d. |
 | Coding agents (B15) | (local CLIs, rogueone) | **Harnesses** — opencode / Cline / Pi — `$0` agentic coding TUIs; drive hosted models **direct** (Mistral/OpenRouter/Gemini free, or ChatGPT sub → GPT-5.5), bypassing the gateway; opencode also reaches Bifrost `/mcp`. See §8b / §8d. |
@@ -1112,6 +1112,28 @@ notes, so the unit pins `disable_permalinks` + `ensure_frontmatter_on_sync=false
 Bifrost route, a note Claude Code wrote was found — and a note Codex wrote landed in Claude Code's directory — each in
 under a second. Acceptance check: `scripts/check-shared-memory.py`. Runbook:
 [runbooks/shared-agent-memory.md](runbooks/shared-agent-memory.md).
+
+**Read-only recall for the operator and Open WebUI (built 2026-10-04 → 05).** The two non-coding harnesses READ the
+store; neither writes. Both go through the governed **MCP gateway** (Keycloak), not Bifrost:
+
+| Harness | Route | Identity | Why this, not the alternative |
+|---|---|---|---|
+| weyland-operator | `/mcp-fleet` → the fleet compositor's READ-ONLY `memory` upstream (7 tools; writes hidden **and** refused by compositor middleware) | the operator's `client_credentials` client | a Bifrost key would add a second sealed secret and tool source, and the operator key also carries Excalidraw/Malwarebytes |
+| Open WebUI | `/mcp-memory` → a **memory-only** compositor (same image, every other upstream off) | **each person's own Keycloak token** (`system_oauth`); the gateway sets `X-Forwarded-User` | a Bifrost virtual key = one shared identity for everyone plus a stored secret (owner: "bad juju for security"); `/mcp-fleet` would hand chat users all 102 read tools |
+
+- **Audit:** the gateway writes one `mcp-gateway-audit` logfmt line per request — `actor`, `user`, `path`, `status`,
+  denials included — to Loki (7 days). Proven live: `actor=open-webui user=emangini status=200`, and an expired
+  session's call as `user=- status=401`.
+- **No side door:** NetworkPolicies admit only the gateway to the memory compositor, and the gateway + Bifrost (the
+  coding agents' edge) to the fleet compositor.
+- **Recall quality was the hard part, not the plumbing.** The operator's 7B answered blank because Ollama silently
+  cut its ~6K-token prompt to ~2K (801 truncations in 14 days) → a 32K `qwen2.5:7b-operator` + capped tool results;
+  the default memory search missed the answering note entirely → the compositor makes memory searches **semantic**
+  and drops filters the notes never carry. In Open WebUI, its built-in tools (`search_notes` for Notes, knowledge,
+  memories) shadowed ours → the **Lab Recall** preset turns them off; and an expired Keycloak session made the model
+  invent a note → sessions aligned at 10h and a "never describe a note you did not read" instruction.
+- **Prerequisites closed along the way:** Open WebUI had no backup and an unpinned `:main` image → nightly
+  `open-webui-backup` (drilled) and v0.11.4 pinned by digest; the gateway's deps were unpinned → pinned + CI-built.
 
 ```mermaid
 flowchart LR

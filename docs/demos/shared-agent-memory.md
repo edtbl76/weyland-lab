@@ -81,6 +81,26 @@ notes never carry are dropped). **Re-run on `git-6d677329`:** "why must the oper
 question again correct (5 s). All on `brain="local"`, 0 truncations. Why it needed a 32K model and capped tool results:
 runbooks/operator.md § the prompt must fit.
 
+**3e. Open WebUI — recall AS THE SIGNED-IN PERSON, audited.** RUN 2026-10-05 (Open WebUI 0.11.4, gateway
+`git-78585118`). In `https://chat.weyland.lab`, model **Lab Recall**: *"What does shared memory say about why the operator
+sweep must not use Haiku?"* → called `agent-memory_search_notes` and quoted `operator-sweep-spends-nothing` ("free local
+model only (`_unpaid_agent`) … never fail over to Haiku"). Who asked, from Loki:
+```
+{namespace="weyland", container="weyland-mcp-gateway"} |= "mcp-gateway-audit" | logfmt | path="/mcp-memory"
+```
+```
+mcp-gateway-audit method=POST path=/mcp-memory actor=open-webui user=emangini status=200
+```
+Negative cases, all RUN 2026-10-05:
+- **Expired Keycloak session** → Open WebUI called with no token: `actor=- user=- status=401` (the model then invented a
+  note — fixed: sessions aligned at 10h + the Lab Recall "never describe a note you did not read" line; a question with
+  no matching note now answers "no note matches").
+- **Spoofed identity** — a no-token POST carrying `X-Forwarded-User: spoofed-admin` → `401`, audited `user=-`.
+- **Side door** — from the `open-webui` pod straight to either compositor → `ConnectError`; from the meshed
+  `weyland-guard` pod → `503 server: envoy … remote connection failure` (refused, NOT reached); from the gateway pod →
+  the compositor's own `406`. Command: runbooks/mcp-fleet.md § Locked to the front doors.
+- **Write attempt** through `/mcp-memory` → `write_note is not allowed through the read-only fleet`.
+
 **4. The firewall — only mother reaches :8765.**
 
 [mother]
@@ -120,6 +140,14 @@ after the service started: identical.
    `list_directory`, `search`, `fetch`).
 3. **Uptime Kuma** — once `KUMA_MEMORY_PUSH_URL` is set (runbook § Watchdog): the **agent-memory** push monitor is
    green and updates every ~15 min.
+4. **Open WebUI** — `https://chat.weyland.lab`, signed in through Keycloak. **Admin Panel → Settings → External Tools**:
+   `agent-memory`, URL `http://weyland-mcp-gateway.weyland.svc.cluster.local:8080/mcp-memory`, auth **OAuth**. **Workspace →
+   Models → Lab Recall**: base `qwen2.5:7b-operator`, **Agent memory** ticked, **Builtin Tools** off, the system prompt
+   from the runbook. **Admin → Settings → Authentication → JWT Expiration** = `10h`.
+5. **Lab Recall chat** — ask *"What caused the rogueone GPU freeze?"*: confirm a **View Result from
+   agent-memory_search_notes** block appears and the answer says **a kernel bug (conclusive 2026-08-13)**. Ask about
+   something memory does not hold (*"…the lab's coffee machine?"*): it must say no note matches, not invent one.
+6. **Grafana → Explore → Loki** — the audit query above shows your own Keycloak username on the `/mcp-memory` lines.
 
 ## Expected result
 
@@ -127,3 +155,5 @@ after the service started: identical.
 - Any coding agent finds a note another one wrote, in under a second, through Bifrost.
 - Only mother can reach the server; everything else on rogueone is unchanged.
 - A secret written into memory is flagged within 15 min; a store that stops answering is reported as unreachable.
+- The operator and Open WebUI READ through the governed gateway (writes refused); Open WebUI as the signed-in person,
+  every request audited in Loki; nothing else in the cluster can reach the compositors.

@@ -79,7 +79,8 @@ path, POST init/initialized/tools-list there, read responses off the stream (her
 
 ## Composition + the operator (done 2026-07-30)
 - **`weyland-mcp-compositor`** (`services/weyland-mcp-compositor/`, FastMCP `create_proxy`) aggregates the **6 servers**
-  into one endpoint, tools namespaced `grafana_*`/`trino_*`/… (~90). The gateway routes **`/mcp-fleet` → compositor**;
+  (+ the tool-server's RAG `context_*` and, since B182, the read-only `memory_*`: 8 upstreams, **102 tools** on
+  2026-10-04) into one endpoint, tools namespaced `grafana_*`/`trino_*`/…. The gateway routes **`/mcp-fleet` → compositor**;
   `/mcp` still → tool-server (RAG). The tool-server's own `fastapi-mcp` is NOT composed (its mount hangs FastMCP's proxy
   client) — RAG stays a separate endpoint; that's fine, agent-side aggregation is Bifrost's job.
 - **Shared agent memory joins the fleet READ-ONLY (B182, 2026-10-03).** Upstream `memory` → Basic Memory on rogueone
@@ -109,6 +110,11 @@ coding agents' edge, gated by virtual keys — it cannot present a 5-minute Keyc
 open (rogueone :8765, the fleet servers). Before this any pod could call them, skipping the gateway's identity check
 and its audit line. Labels are cross-checked against the Deployments (`scripts/tests/compositor-netpol.bats`).
 Consequence: run ad-hoc fleet scripts from the gateway pod, not the guard pod.
+**Verified live 2026-10-05:** from the unmeshed `open-webui` pod both compositors → `ConnectError`; from the meshed
+`weyland-guard` pod → **503** with `server: envoy`, `upstream connect error … remote connection failure` (its sidecar
+reporting the refusal — read the body, not just the status: a 503 here is BLOCKED, not reached); from the gateway pod →
+the compositor's own 406. Through the gateway with a real token: `/mcp-memory` 7 tools (search → the right note),
+`/mcp-fleet` 102 tools. Bifrost `weyland_fleet-k8s_namespaces_list` answered. Both compositors Ready, 0 restarts.
 
 - **The operator (B66) uses the fleet.** It loads the `/mcp-fleet` tools via `langchain-mcp-adapters` (per-request
   Keycloak token via a custom `httpx.Auth`), sanitizes their schemas (`fleet._sanitize_schema` — MCP servers emit
