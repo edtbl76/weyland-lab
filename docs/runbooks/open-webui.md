@@ -62,6 +62,12 @@ forward). The backup's version is the image that was running at its timestamp (`
    and `GET /api/version`. Then check sign-in, a chat, **Lab Recall**, and the `agent-memory` connection.
 5. Rollback = revert the commit AND restore the pre-upgrade backup (the database has been migrated forward).
 
+## Login lifetime — 10h, with Keycloak (2026-10-05)
+
+Admin → Settings → General → **JWT Expiration = `10h`** (stored in the DB as `auth.jwt_expiry`; it was `4w`), matching
+the Keycloak realm's 10h session (runbooks/keycloak.md § Session lifetime). With a longer Open WebUI login, the first
+tool call after the Keycloak session lapsed went out with no token (`mcp-gateway-audit … user=- status=401`).
+
 ## Shared agent memory (MCP tool server)
 
 The `agent-memory` connection (gateway `/mcp-memory`, `system_oauth` = each person's own Keycloak token) and the

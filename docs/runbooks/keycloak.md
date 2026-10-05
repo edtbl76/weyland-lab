@@ -107,6 +107,16 @@ tofu plan     # dry-run against the live server
 tofu apply    # then wire any new client secret into the app's k8s Secret
 ```
 
+## Session lifetime — 10h idle = 10h max (2026-10-05)
+
+`realm.tf` sets `sso_session_idle_timeout = "10h"` and `sso_session_max_lifespan = "10h"` (they were the defaults,
+30m / 10h): one sign-in per workday. **Why:** an app that keeps its OWN login longer than the Keycloak session (Open
+WebUI: 4 weeks) refreshes its Keycloak token on first use after a break; past the 30-minute idle limit Keycloak answers
+`invalid_grant: Token is not active`, the app drops the session and calls downstream with NO token — the MCP
+gateway's `/mcp-memory` returned 401 and the chat model invented an answer. Idle = max ends a session only at the cap.
+Realm-wide on purpose: a client's session cannot outlive the realm idle timeout. Apps that hold their own login must
+expire it at the same 10h (Open WebUI: Admin → Settings → General → JWT Expiration = `10h`).
+
 ## Gotchas
 
 - **Meshed, or Postgres resets the JDBC connection.** The `sidecar.istio.io/inject` label is load-bearing

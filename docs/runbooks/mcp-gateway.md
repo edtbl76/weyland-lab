@@ -46,6 +46,10 @@ never reaches the record. Tested in `tests/test_gateway.py`. Who read the shared
 {namespace="weyland", container="weyland-mcp-gateway"} |= "mcp-gateway-audit" | logfmt | path="/mcp-memory"
 ```
 Add `| user!="-"` for people only, `| status!="200"` for denials.
+**Verified live 2026-10-05:** a Lab Recall question in Open WebUI logged `actor=open-webui user=emangini status=200` for
+initialize / tools-list / the `search_notes` call / close; the same query showed the failure just before it —
+`actor=- user=- status=401` — when Open WebUI's Keycloak refresh token had expired (`invalid_grant: Token is not
+active`) and it called with no token. A no-token probe carrying a spoofed `X-Forwarded-User` logged `user=-`.
 
 **Gotcha — the header allowlist.** `fastapi-mcp` (0.4.0) forwards only an **allowlist** of headers from the MCP request
 into each tool invocation (`FastApiMCP(app, headers=[...])`, default `['authorization']`). So the gateway-set
