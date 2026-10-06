@@ -2432,8 +2432,13 @@ merges — that stays a human action).
 
 **FIX BUILT 2026-10-05 (owner: fix, don't file) — In Progress until proven.** `WOODPECKER_DATABASE_MAX_CONNECTIONS: '1'`
 (the 08-22 note's unpulled lever; flag verified in the v3.18.0 binary) + Loki alerts `WoodpeckerDatabaseLocked` /
-`WoodpeckerTaskExpired`, both replayed against the 10-04 incident (each = 1 at 05:05Z) and quiet now. Remaining:
-the night proof (criteria 2–3), the DR row (criterion 5), and a live alert delivery.
+`WoodpeckerTaskExpired`, both replayed against the 10-04 incident (each = 1 at 05:05Z) and quiet now. **Live
+2026-10-05:** server rolled with the 1-connection pool (Ready, 0 restarts; repos + the `nightly-images` cron intact via
+the API); the Loki ruler evaluates both rules (16× each in 20 min, no errors). **DR built 2026-10-05:** nightly
+`woodpecker-backup` (23:50 NY, uid 1000, SQLite online backup → NVMe PVC, keep 7, fails closed on empty `users`/
+`pipelines`), sharing ONE script with `open-webui-backup` (`scripts/sqlite_backup.py`, 9 tests; the Open WebUI-only
+script retired), both critical backup alerts, dr.md row, runbook § Backup + restore. Remaining: the first backup + the
+restore drill (criterion 5), the night proof (criteria 2–3), and a live alert delivery.
 
 **Why.** Found 2026-10-04 (B182 ship, B199 night 3): pipeline **#252**, a lean ad-hoc ship started 00:54 NY, was killed
 20 s after the 01:00 `nightly-images` cron fired. Server: `database is locked` (05:01:15Z) → the agent's lease extension

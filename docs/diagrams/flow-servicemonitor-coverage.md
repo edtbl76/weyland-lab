@@ -51,7 +51,7 @@ sequenceDiagram
 
     RES->>RES: ServiceMonitor.selector → Service.metadata.labels
     RES->>RES: Service.spec.selector → workload template labels
-    Note over RES: intended = .spec.replicas (a cached read of git —<br/>Argo selfHeal on all 82 apps keeps it honest)<br/>actual = .status.readyReplicas<br/>unresolvable → -1
+    Note over RES: intended = .spec.replicas (a cached read of git —<br/>Argo selfHeal on all 83 apps keeps it honest)<br/>actual = .status.readyReplicas<br/>unresolvable → -1
 
     loop every ServiceMonitor
     CLS->>CLS: classify(intended, actual, targets)

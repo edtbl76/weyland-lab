@@ -123,3 +123,24 @@ spec:
     namespace: woodpecker
   syncPolicy:
     automated: { selfHeal: true, prune: true }
+---
+# B201 (2026-10-05) — nightly backup of Woodpecker's SQLite state (users, repos, CI secrets, the nightly cron, history).
+# Raw manifest in the woodpecker helm dir; include-glob so it does NOT collide with the helm `woodpecker` Application.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: woodpecker-backup
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/edtbl76/weyland-lab.git
+    targetRevision: main
+    path: nodes/mother/lab/weyland-platform/k8s/woodpecker
+    directory:
+      include: 'woodpecker-backup.yaml'
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: woodpecker
+  syncPolicy:
+    automated: { selfHeal: true, prune: true }

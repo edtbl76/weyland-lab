@@ -249,6 +249,38 @@ either fails. It exists because a Woodpecker cron is **not a Kubernetes object**
 kube-state-metrics cannot see it and no `kube_cronjob_*` metric ever will. It also fails loudly on zero crons
 found, so a wiped database reads as an alert rather than a quiet green.
 
+## Backup + restore — `woodpecker-backup` (B201, 2026-10-05)
+
+Until 2026-10-05 the SQLite file above had NO backup (the table above is the by-hand rebuild — repos, trust flags and
+the cron, but not the secret VALUES). `k8s/woodpecker/woodpecker-backup.yaml` (Argo app `woodpecker-backup`): a CronJob
+at **23:50 NY** runs `scripts/sqlite_backup.py --db woodpecker.sqlite --require users --require pipelines` (the script
+shared with `open-webui-backup`; embedded by `scripts/embed-sqlite-backup.sh`) **as uid 1000** — the server's own user
+— and writes a consistent snapshot (SQLite online backup API) + `manifest.json` to PVC `woodpecker-backup` (mother NVMe),
+keeps 7. Fails closed on a missing/corrupt db or an empty `users`/`pipelines` table → `ScheduledBackupFailed` (critical);
+`ScheduledJobStale` after 26h. **The copy holds the repo secrets in the clear** (Woodpecker stores them unencrypted) —
+same boundary as the live PVC.
+
+Run one now (and before any Woodpecker upgrade):
+```
+kubectl -n woodpecker create job --from=cronjob/woodpecker-backup woodpecker-backup-manual-$(date +%s)
+```
+Expect `sqlite-backup OK (woodpecker.sqlite): /backup/woodpecker/<ts> — counts={'users': N, 'pipelines': N} files=['woodpecker.sqlite']`.
+
+**Restore drill (non-destructive)** — opens the newest backup READ-ONLY in a throwaway pod; prints integrity, the
+counts and the real table list:
+```
+kubectl -n woodpecker run woodpecker-restore-drill --rm -i --restart=Never --image=python:3.12-alpine --overrides='{"spec":{"automountServiceAccountToken":false,"securityContext":{"runAsUser":1000,"runAsGroup":1000,"runAsNonRoot":true},"containers":[{"name":"drill","image":"python:3.12-alpine","stdin":true,"command":["python3","-c","import glob,json,os,shutil,sqlite3; d=sorted(glob.glob(\"/backup/woodpecker/2*\"))[-1]; m=json.load(open(d+\"/manifest.json\")); shutil.copy(d+\"/woodpecker.sqlite\",\"/tmp/r.db\"); c=sqlite3.connect(\"/tmp/r.db\"); q=lambda s: c.execute(s).fetchone()[0]; print(\"backup\",os.path.basename(d),\"integrity\",q(\"pragma integrity_check\"),\"manifest\",m[\"counts\"]); print(\"tables:\",sorted(r[0] for r in c.execute(\"select name from sqlite_master where type=\u0027table\u0027\")))"],"volumeMounts":[{"name":"b","mountPath":"/backup","readOnly":true}]}],"volumes":[{"name":"b","persistentVolumeClaim":{"claimName":"woodpecker-backup"}}]}}'
+```
+Pass = `integrity ok`, counts matching the manifest, and the tables include `users`, `pipelines`, the repos, secrets
+and crons tables. Record the date in `docs/dr.md`.
+
+**Restore (destructive).** Argo selfHeal reverts a scale-down, so pause the `woodpecker` app first:
+`argocd app set woodpecker --sync-policy none --grpc-web` → `kubectl -n woodpecker scale statefulset/woodpecker-server
+--replicas=0` → a one-off pod (uid 1000) mounting `data-woodpecker-server-0` (rw) + `woodpecker-backup` (ro) copies the
+chosen `woodpecker.sqlite` over `/data/woodpecker.sqlite` and DELETES `woodpecker.sqlite-wal` / `-shm` → scale back to 1
+→ `argocd app set woodpecker --sync-policy automated --self-heal --auto-prune --grpc-web`. Verify with
+`woodpecker-cli repo ls` (both repos) and `woodpecker-cli repo cron ls edtbl76/weyland-lab` (`nightly-images`).
+
 ## Toolchain caches (B88 #6)
 
 Five persistent PVCs (`k8s/woodpecker/ci-caches.yaml`, ns `woodpecker`, RWO local-path, **hand-applied** like

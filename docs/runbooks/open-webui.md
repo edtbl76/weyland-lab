@@ -12,8 +12,9 @@ upgrade procedure below: a new version migrates `webui.db` on start, and a downg
 
 ## Backup — `open-webui-backup` (nightly 23:45 NY)
 
-`k8s/open-webui/backup.yaml`: a CronJob runs `scripts/open_webui_backup.py` (embedded byte-identical by
-`scripts/embed-open-webui-backup.sh`; tests `scripts/tests/test_open_webui_backup.py` + `open-webui-backup.bats`).
+`k8s/open-webui/backup.yaml`: a CronJob runs `scripts/sqlite_backup.py --db webui.db --require user --count chat
+--archive vector_db --archive uploads` — the SQLite backup script shared with `woodpecker-backup` (embedded byte-identical
+by `scripts/embed-sqlite-backup.sh`; tests `scripts/tests/test_sqlite_backup.py` + `sqlite-backup.bats`).
 - **What:** a consistent snapshot of `webui.db` (SQLite online backup API — a file copy of a live WAL db is not one) +
   `vector_db.tar.gz` + `uploads.tar.gz` + `manifest.json` (written last: integrity, user/chat counts, files).
   `cache/` (~0.9 GB of re-downloadable model files) is skipped.
@@ -25,7 +26,7 @@ Run one now (before an upgrade, or to test):
 ```
 kubectl -n weyland create job --from=cronjob/open-webui-backup open-webui-backup-manual-$(date +%s) && kubectl -n weyland wait --for=condition=complete --timeout=180s job -l app=open-webui-backup --field-selector status.successful=1 ; kubectl -n weyland logs -l app=open-webui-backup --tail=3
 ```
-Expect `open-webui-backup OK: /backup/open-webui/<ts> — users=N chats=N tool_servers_configured=True files=[...]`.
+Expect `sqlite-backup OK (webui.db): /backup/open-webui/<ts> — counts={'user': N, 'chat': N} files=[...]`.
 
 ## Restore drill (non-destructive — run after the first backup, and after any change to the backup)
 
