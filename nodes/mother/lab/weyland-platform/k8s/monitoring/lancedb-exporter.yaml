@@ -106,7 +106,7 @@ spec:
     spec:
       containers:
         - name: exporter
-          image: registry.weyland.lab/weyland-dagster-user-code:git-d8d2d5fb   # bumped in lockstep by the ship-loop (images.tsv); lancedb + prometheus_client only
+          image: registry.weyland.lab/weyland-dagster-user-code:git-3ac01553   # bumped in lockstep by the ship-loop (images.tsv); lancedb + prometheus_client only
           imagePullPolicy: IfNotPresent
           command: ["python", "/exporter/exporter.py"]
           ports:
