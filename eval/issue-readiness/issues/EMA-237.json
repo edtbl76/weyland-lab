@@ -1,0 +1,12 @@
+{
+ "identifier": "EMA-237",
+ "uuid": "ac202012-c2b6-4df6-8b8e-bde2f2b97f57",
+ "title": "B179 \u2014 Investigate Warp Software Factory for the lab",
+ "description": "**Investigate Warp Software Factory** ([warp.dev](<http://warp.dev>)'s agentic software-development offering) and decide whether anything in it is worth adopting for the lab. Framed like the other evaluation items (cf. B174 Jev/TypeSafe AI, B119 \"master the tool\"): understand it against REAL lab context, land an ADOPT / DON'T-ADOPT verdict with rationale, don't adopt on hype.\n\n**Questions to answer:**\n\n* **What it actually is** \u2014 Warp Software Factory's model (agent orchestration? multi-agent build pipelines? a hosted IDE/terminal-agent product?), how it runs, and what problem it claims to solve.\n* **Fit against the lab's hard constraints** \u2014 $0, self-hosted, LAN-only. Warp is a commercial product; if it's paid-cloud-only it likely fails the same test as the Linear Agent (B119) \u2014 record that cleanly if so, but check for a free/self-host tier first.\n* **Overlap with what the lab already runs** \u2014 the AIDLC methodology (AGENTS.md), Bifrost skills/prompts registries, `weyland-operator` (LangGraph), Claude Code + the loop library (B175), the realm-of-agents A2A roster (B17). Does Warp offer a concept the lab lacks, or is it a repackaging of capabilities already present?\n* **Concepts worth stealing even if the product isn't adopted** \u2014 the \"software factory\" framing, any orchestration/verification patterns, guardrails.\n\n**Deliverable:** a concise verdict + rationale in the same vein as `docs/concepts/`; if DON'T-ADOPT, say why in one paragraph; if ADOPT (or adopt-a-concept), a bounded plan. $0 unless a compelling free path exists.",
+ "priority": 2,
+ "labels": [
+  "Spike"
+ ],
+ "project": "Weyland Lab",
+ "relations": 0
+}

@@ -1,0 +1,18 @@
+# gpt-oss:20b-judge — gpt-oss:20b with a context window that fits a judge prompt (2026-10-06, B190).
+#
+# WHY: Ollama loads gpt-oss:20b with a 4096-token window (`/api/ps` context_length 4096). The B190 issue-readiness
+# scorer sends a rubric plus an issue of up to 20,000 characters (~6.5K tokens with the reply), so a long issue would
+# be cut. gpt-oss runs on Ollama's newer engine, and whether that engine logs the "truncating input prompt" warning the
+# old runner does (the tell for qwen2.5:7b in B182) is unverified, so the cut could be silent. 16K holds the largest
+# prompt the scorer sends, with room for the reply.
+#
+# Why gpt-oss and not qwen2.5:7b for judging: on 5 calibration issues (2026-10-06) the 7B rated every present section
+# 90-100 and put its reasons where verbatim quotes were asked for; gpt-oss graded 70-90 and its quotes were real.
+#
+# Served as LiteLLM `wl-judge-oss` (k8s/litellm/configmap.yaml), which also carries the Langfuse online evaluators.
+# Scoped to that alias on purpose: OLLAMA_CONTEXT_LENGTH would raise VRAM for EVERY model on the card.
+#
+# Build / rebuild (rogueone):
+#   ollama create gpt-oss:20b-judge -f /home/edwardmangini/IdeaProjects/weyland/nodes/rogueone/ollama/gpt-oss-20b-judge.Modelfile
+FROM gpt-oss:20b
+PARAMETER num_ctx 16384

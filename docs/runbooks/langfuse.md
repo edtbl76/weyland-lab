@@ -112,7 +112,7 @@ The ONLINE eval lane, complementing the offline B84 MLflow suite; shared fixture
 `../design/langfuse-evaluation-design.md`.
 
 - **Judge model** = LiteLLM (one Langfuse LLM Connection → `http://litellm.weyland.svc.cluster.local:4000/v1`, master
-  key). Aliases added for eval: **`wl-judge-oss`** (gpt-oss:20b, free local, the production/codified judge) and
+  key). Aliases added for eval: **`wl-judge-oss`** (gpt-oss:20b, free local, the production/codified judge — since 2026-10-06 the 16K-window build `gpt-oss:20b-judge`, `nodes/rogueone/ollama/gpt-oss-20b-judge.Modelfile`, because Ollama's 4K default could cut a long prompt silently; it is also the B190 issue-readiness judge) and
   **`claude-haiku`** (quality lane). `k8s/litellm/configmap.yaml`.
 - **Evaluators are NATIVE, created via the API.** Langfuse's eval engine IS public API — under `/api/public/unstable/`
   (`evaluators` + `evaluation-rules`), NOT `/eval-configs` (which 404s — the path that misled the first probe).

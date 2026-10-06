@@ -162,7 +162,7 @@
         {role:"fallback", prov:"groq", model:"gpt-oss-120b", tier:"free", badges:["hosted"]},
       ]},
       { alias:"wl-judge", purpose:"Eval scoring / LLM-as-judge", chain:[
-        {role:"primary", prov:"ollama", model:"qwen2.5:7b", tier:"free", badges:["local"]},
+        {role:"primary", prov:"ollama", model:"qwen2.5:7b-operator", tier:"free", badges:["local","32K ctx"]},
         {role:"fallback", prov:"groq", model:"gpt-oss-120b", tier:"free", badges:["hosted"]},
         {role:"fallback", prov:"gemini", model:"2.5-flash", tier:"free", badges:["hosted"]},
       ]},

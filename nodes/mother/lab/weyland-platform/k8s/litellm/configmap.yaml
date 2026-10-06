@@ -79,13 +79,18 @@ data:
         litellm_params:
           model: ollama_chat/qwen3:30b-a3b
           api_base: http://192.168.1.230:11434
+      # Both judges run context-raised builds (nodes/rogueone/ollama/*.Modelfile — same weights, only num_ctx raised).
+      # Ollama's defaults are ~2K for qwen2.5:7b and 4K for gpt-oss:20b, and a longer prompt is cut SILENTLY (801 cuts
+      # in 14 days on the operator, B182). wl-judge shares the operator's 32K qwen build: one model resident, not two.
+      # wl-judge-oss is the 16K gpt-oss build — the B190 issue-readiness scorer's judge (a rubric + an issue of up to
+      # 20K chars); on calibration the 7B rated every section 90-100, gpt-oss graded 70-90 with real quotes (2026-10-06).
       - model_name: wl-judge          # eval / LLM-as-judge · free local
         litellm_params:
-          model: ollama_chat/qwen2.5:7b
+          model: ollama_chat/qwen2.5:7b-operator
           api_base: http://192.168.1.230:11434
       - model_name: wl-judge-oss      # B103 eval — stronger free-local judge (gpt-oss:20b) for Langfuse ONLINE evaluators
-        litellm_params:                # (high-volume production sampling, $0). Golden-set dataset runs use claude-haiku.
-          model: ollama_chat/gpt-oss:20b
+        litellm_params:                # (high-volume production sampling, $0) + the B190 scorer. Golden-set runs use haiku.
+          model: ollama_chat/gpt-oss:20b-judge
           api_base: http://192.168.1.230:11434
       - model_name: wl-search         # web-grounded · perplexity sonar (via Bifrost; id is perplexity/sonar, NOT the /v1/models perplexity/perplexity/sonar which 400s invalid_model)
         litellm_params:

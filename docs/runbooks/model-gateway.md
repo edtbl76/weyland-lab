@@ -61,7 +61,7 @@ Clients send a **use-case alias** as the `model` and LiteLLM routes it to a prim
 | `wl-default` / `wl-speed` | groq `gpt-oss-120b` (free) | → gemini-flash → anthropic *(speed: → cerebras → gemini)* |
 | `wl-coding` | opencode-zen `kimi-k3` (funded, tools) | → anthropic → deepseek → groq |
 | `wl-agentic` | anthropic `claude-haiku-4.5` (tools) | → openai → cerebras → gemini |
-| `wl-rag` / `wl-judge` | ollama local (`gpt-oss:20b` / `qwen2.5:7b`) | → groq → gemini |
+| `wl-rag` / `wl-judge` | ollama local (`gpt-oss:20b` / `qwen2.5:7b-operator` — qwen2.5:7b with a 32K window, so a long judge prompt is not silently truncated) | → groq → gemini |
 | `wl-reason` | ollama `qwen3:30b-a3b` (local) | → deepseek-reasoner → groq |
 | `wl-search` | perplexity `sonar` (web) | → xai grok |
 | `wl-big-oss` | openrouter `minimax-m3` | → groq |

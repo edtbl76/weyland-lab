@@ -202,6 +202,34 @@ steps:
       - apk add --no-cache bash curl python3 py3-yaml >/dev/null
       - bash scripts/check-linear-sync.sh
 
+  # ── 1b4. B190 — issue readiness (LEAN CI ONLY, ADVISORY) ────────────────────
+  # The lab's own replacement for SpecBot: scores every open High issue in project Weyland Lab on 8 dimensions and
+  # keeps ONE comment per issue up to date. Rules decide what a rule can (no acceptance criteria, no priority, no
+  # dependencies named); gpt-oss:20b (LiteLLM `wl-judge-oss`, free, local on rogueone) judges the rest and must quote
+  # the issue for every score of 50+. Only issues whose content changed since their last score are re-scored (a digest
+  # in the comment), so most runs score nothing and finish in seconds.
+  #
+  # MANUAL ONLY — never the 01:00 nightly cron: that window is where B199 (mother memory) and B201 (Woodpecker lock)
+  # are being measured, and the judge displaces the operator's model on rogueone's GPU while it scores.
+  #
+  # ADVISORY (`failure: ignore`) until it is calibrated against SpecBot (B190 criterion 2): an issue below 80 shows red
+  # here without blocking images. Exit 2 (judge or Linear unreachable) is also red — never a silent pass.
+  #
+  # NEEDS secrets `litellm_api_key` and `linear_comment_key` (write scope: it posts comments) on edtbl76/weyland-lab,
+  # events cron+manual — a secret that does not cover the triggering event is a whole-config PARSE error.
+  - name: issue-readiness
+    when: [{event: manual, evaluate: 'SMOKE_ONLY != "smoke"'}]
+    image: alpine:latest
+    failure: ignore
+    environment:
+      LITELLM_API_KEY:
+        from_secret: litellm_api_key
+      LINEAR_API_KEY:
+        from_secret: linear_comment_key
+    commands:
+      - apk add --no-cache bash python3 >/dev/null
+      - bash scripts/issue-readiness.sh --sweep
+
   # ── 1c. shellcheck the shell surface ────────────────────────────────────────
   # --severity=warning on purpose. At `note` the repo has 3 findings, and two of them are noise that
   # can never be fixed: SC2016 fires on the deliberately-single-quoted node heredoc in

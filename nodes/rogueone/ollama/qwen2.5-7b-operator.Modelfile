@@ -6,7 +6,10 @@
 # with the memory tools added (B182) every fleet answer came back EMPTY. 16K holds the prompt plus a conversation
 # and tool results. Cost: ~0.9 GiB more KV cache on the shared 16 GB card (qwen2.5-7B: ~57 KB/token at f16).
 #
-# Scoped to the operator on purpose: OLLAMA_CONTEXT_LENGTH would raise VRAM for EVERY model on the card (the eval
+# Also the LiteLLM `wl-judge` primary since 2026-10-06: every judge prompt over ~2K tokens was exposed to the same
+# silent cut. One build for both = one model resident on the card, not two.
+#
+# Scoped to these callers on purpose: OLLAMA_CONTEXT_LENGTH would raise VRAM for EVERY model on the card (the eval
 # loop's large models included — see the desktop-freeze guardrails in nodes/rogueone/systemd/).
 #
 # Build / rebuild (rogueone):

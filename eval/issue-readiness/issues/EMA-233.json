@@ -1,0 +1,12 @@
+{
+ "identifier": "EMA-233",
+ "uuid": "2dd0808b-ee12-44ba-aa60-a59e43b47d28",
+ "title": "B175 \u2014 Loop library: catalog reusable agentic loops (workflows-as-prompts)",
+ "description": "Catalog the lab's reusable AI-agent **loops** \u2014 structured prompt-workflows with checkpoints and explicit stopping conditions \u2014 modeled on the Forward Future Loop Library.\n\n**What a \"loop\" is:** a reusable agent workflow = a detailed prompt with built-in checkpoints + terminal conditions (stopping rules that prevent runaway loops / wasted cycles). Each catalog entry: title \u00b7 category (Engineering / Operations / Evaluation / Content / Design) \u00b7 description \u00b7 the full prompt \u00b7 terminal condition.\n\n**Why for the lab:** the lab already runs many repeatable agentic loops ad-hoc \u2014 the DoD 8-pillar pass, code-scan-suite triage, the pr-lifecycle reconcile (B131), golden-path verify (B153/B160), the eval loops (B84/B96), the operator incident sweep (B45/B66), machine-inventory onboarding (B169). Codifying them as a versioned, discoverable library gives repeatability + a stopping-condition discipline that matches the Claude Code `/loop` command's self-pacing.\n\n**Where it fits (evaluate):** the lab already has the **Bifrost prompt repo** (`register_bifrost_prompts.py`) + **skills repo** (`register_bifrost_skills.py`) \u2014 a loop library is the natural extension (a loop = a prompt with a terminal condition). The `/loop` command + the AIDLC stages are also loop-shaped. Decide: register loops into Bifrost as the SoT vs. a curated docs catalog vs. both; seed with the lab's existing recurring workflows.\n\n**Deliverable:** a loop library (SoT + discovery surface) seeded with the lab's real recurring workflows, each with an explicit terminal condition. $0 (existing Bifrost / docs infra).\n\nRef: [https://signals.forwardfuture.com/loop-library/](<https://signals.forwardfuture.com/loop-library/>)",
+ "priority": 2,
+ "labels": [
+  "Feature"
+ ],
+ "project": "Weyland Lab",
+ "relations": 0
+}
