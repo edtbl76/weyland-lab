@@ -171,7 +171,7 @@ model {
 
         platform = zone "Delivery + governance" {
           argocd = component "Argo CD" "GitOps CD — app-of-apps, 83 apps"
-          woodpecker = component "Woodpecker CI" "CI/CD — mixed fleet (B57b): weyland jobs = k8s backend (pods), STUD.io CI = local backend (rogueone agents). LAN NodePorts :30980 (CLI/REST) + :30900 (agent gRPC)"
+          woodpecker = component "Woodpecker CI" "CI/CD — mixed fleet (B57b): weyland jobs = k8s backend (pods), STUD.io CI = local backend (rogueone agents). LAN NodePorts :30980 (CLI/REST) + :30900 (agent gRPC). State: one SQLite file (WAL, 1-connection pool since B201) on a local-path PVC, backed up nightly by woodpecker-backup (23:50, drilled); Loki alerts on database-locked / task-expired"
           buildkitd = component "buildkitd" "B57a — persistent BuildKit daemon; the weyland image CI's build step is a thin buildctl client to it (:1234). Daemonless BuildKit couldn't mount in an ephemeral step pod on k3s."
           gatekeeper = component "OPA Gatekeeper" "Admission control + Policy Manager"
           keda = component "KEDA" "RETIRED 2026-08-22 — autoscaling / run-mode engine; installed 62 days, never used. Kept in the model only until the next diagram sweep confirms nothing references it"

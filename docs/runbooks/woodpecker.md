@@ -137,7 +137,18 @@ tags. Steps: `detect-changes → build → kubeconform → deploy-handoff`.
     admits one writer; a 100-connection pool made the metrics writer, cron scheduler, lease extensions and log store
     race inside it (9 locks on 10-04). Alerts `WoodpeckerDatabaseLocked` / `WoodpeckerTaskExpired` (Loki ruler,
     `k8s/loki/loki-rules-configmap.yaml`) — both fire on the 10-04 incident replayed. Keep the 00:30 rule until a lean
-    run started ~00:55 has survived the nightly (B201 acceptance), then drop it. If the nightly itself ever starts getting killed, the remaining
+    run started ~00:55 has survived the nightly (B201 acceptance), then drop it.
+    **Proven on demand 2026-10-06 03:01Z (no waiting for 01:00):** lean #270 started, then the REAL `nightly-images`
+    cron fired via the API (`POST /api/repos/2/cron/2` → #271, event `cron`) 20 s later — the #252 collision. #270
+    finished `success`; #271 ran 17 steps clean until stopped; server + agents logged **0** `database is locked` /
+    `task expired` / lease failures (51 server lines scanned). Repeated twice more the same hour (#272/#273,
+    #274/#275): 3/3 lean runs `success`, 0 locks. The "no ship after 00:30" rule can go once 7 lock-free nights confirm it.
+    **Alert delivery drill** (proves a Loki-rule alert reaches Telegram; expires in 2 min, labelled `drill=true`):
+    ```
+    kubectl -n weyland exec deploy/weyland-guard -c weyland-guard -- python -c "import json,datetime as dt,urllib.request; n=dt.datetime.now(dt.timezone.utc); a=[{'labels':{'alertname':'WoodpeckerTaskExpired','severity':'warning','source':'loki','drill':'true'},'annotations':{'summary':'DRILL — WoodpeckerTaskExpired (delivery test; nothing is wrong)'},'startsAt':n.isoformat(),'endsAt':(n+dt.timedelta(minutes=2)).isoformat()}]; print(urllib.request.urlopen(urllib.request.Request('http://monitoring-kube-prometheus-alertmanager.monitoring.svc.cluster.local:9093/api/v2/alerts',data=json.dumps(a).encode(),headers={'content-type':'application/json'},method='POST'),timeout=10).status)"
+    ```
+    Pass = `alertmanager_notifications_total{integration="telegram"}` +1, `…_failed_total` unchanged (2026-10-06:
+    13,476 → 13,477, failed 17 → 17). If the nightly itself ever starts getting killed, the remaining
     lever is capacity (headroom on mother) — a sizing decision, not a CI change.
 - **Build engine = a persistent `buildkitd` Deployment** (`k8s/woodpecker/buildkitd.yaml`, Argo app
   `woodpecker-buildkitd`), NOT build-in-the-step-pod. The `build` step is a thin `buildctl --addr tcp://buildkitd:1234`
@@ -271,8 +282,10 @@ counts and the real table list:
 ```
 kubectl -n woodpecker run woodpecker-restore-drill --rm -i --restart=Never --image=python:3.12-alpine --overrides='{"spec":{"automountServiceAccountToken":false,"securityContext":{"runAsUser":1000,"runAsGroup":1000,"runAsNonRoot":true},"containers":[{"name":"drill","image":"python:3.12-alpine","stdin":true,"command":["python3","-c","import glob,json,os,shutil,sqlite3; d=sorted(glob.glob(\"/backup/woodpecker/2*\"))[-1]; m=json.load(open(d+\"/manifest.json\")); shutil.copy(d+\"/woodpecker.sqlite\",\"/tmp/r.db\"); c=sqlite3.connect(\"/tmp/r.db\"); q=lambda s: c.execute(s).fetchone()[0]; print(\"backup\",os.path.basename(d),\"integrity\",q(\"pragma integrity_check\"),\"manifest\",m[\"counts\"]); print(\"tables:\",sorted(r[0] for r in c.execute(\"select name from sqlite_master where type=\u0027table\u0027\")))"],"volumeMounts":[{"name":"b","mountPath":"/backup","readOnly":true}]}],"volumes":[{"name":"b","persistentVolumeClaim":{"claimName":"woodpecker-backup"}}]}}'
 ```
-Pass = `integrity ok`, counts matching the manifest, and the tables include `users`, `pipelines`, the repos, secrets
-and crons tables. Record the date in `docs/dr.md`.
+Pass = `integrity ok`, counts matching the manifest, and the tables include `users`, `pipelines`, `repos`, `secrets`,
+`crons`. Record the date in `docs/dr.md`. **First drill 2026-10-05** on `20261006T025115Z`: passed (users 1, pipelines
+284); 20 tables, incl. `log_entries` — the step logs live in this SQLite file too (the log store defaults to the
+database), the heaviest writer during a pipeline and one more reason for the one-connection pool.
 
 **Restore (destructive).** Argo selfHeal reverts a scale-down, so pause the `woodpecker` app first:
 `argocd app set woodpecker --sync-policy none --grpc-web` → `kubectl -n woodpecker scale statefulset/woodpecker-server

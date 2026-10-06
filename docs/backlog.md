@@ -2437,8 +2437,23 @@ merges — that stays a human action).
 the API); the Loki ruler evaluates both rules (16× each in 20 min, no errors). **DR built 2026-10-05:** nightly
 `woodpecker-backup` (23:50 NY, uid 1000, SQLite online backup → NVMe PVC, keep 7, fails closed on empty `users`/
 `pipelines`), sharing ONE script with `open-webui-backup` (`scripts/sqlite_backup.py`, 9 tests; the Open WebUI-only
-script retired), both critical backup alerts, dr.md row, runbook § Backup + restore. Remaining: the first backup + the
-restore drill (criterion 5), the night proof (criteria 2–3), and a live alert delivery.
+script retired), both critical backup alerts, dr.md row, runbook § Backup + restore. **First backups + drill 2026-10-05:**
+woodpecker `users 1 / pipelines 284` (as uid 1000), open-webui `user 2 / chat 5` through the shared script; drill on
+`20261006T025115Z` passed (integrity ok, `repos`/`secrets`/`crons` present). Remaining: the night proof (criteria 2–3)
+and a live alert delivery.
+
+**DoD graded 2026-10-06 (on everything built; the item stays In Progress for criterion 3's 7-night soak).**
+1 Docs: runbook woodpecker.md (lock fix, backup + restore, the on-demand collision + alert drill commands),
+arch.md + platform-map Woodpecker state, schedules row 23:50, placement row, Argo app count 83 across the docs.
+2 Diagrams: `flow-sqlite-backup.md` (both backups + the failure/stale alert branches + the drill); C4 Woodpecker
+description (validated). 3 Demo: `sqlite-backups.md` RUN — both backups, the Woodpecker drill, live negatives (exit 2,
+0 left behind), the #252 collision 3× on demand, the Telegram DRILL; ledger row 89. 4 Cleanup: Jobs TTL 72h, drill pods
+`--rm`, the collision's cron runs stopped by hand. 5 Tracking: EMA-287 In Progress + comments; sync clean; memory
+`woodpecker-sqlite-lock-pool`. 6 Ops: GitOps (Argo app), both critical backup alerts, the two Loki alerts proven.
+7 Scan: SonarQube gate OK (#269, after fixing S5754 — argparse SystemExit swallowed); bandit 1 MEDIUM B608 (table names
+come only from the CronJob's own args — accepted), semgrep 0, shellcheck clean. 8 Cascade: shared script replaced the
+Open WebUI-only one (its runbook + DR row updated), registry plumbing entry shipped (Dagster `git-3ac01553`).
+9 DR: Woodpecker row + drill 2026-10-05.
 
 **Why.** Found 2026-10-04 (B182 ship, B199 night 3): pipeline **#252**, a lean ad-hoc ship started 00:54 NY, was killed
 20 s after the 01:00 `nightly-images` cron fired. Server: `database is locked` (05:01:15Z) → the agent's lease extension
@@ -2467,10 +2482,10 @@ the Woodpecker store (whichever store it ends on).
 
 **Acceptance criteria (pass/fail).**
 - [x] Each lock in the 10-04 window attributed to a named writer (7 × metrics writer, 2 × cron list; the 05:01 one cost #252's lease), recorded in `woodpecker.md` and `woodpecker-values.yaml`.
-- [ ] A lean CI run started at 00:55 NY survives the 01:00 nightly (both finish with a code verdict) — run 3 nights.
+- [x] A lean CI run survives the nightly cron firing on top of it — **3/3 on demand 2026-10-06** (the real `nightly-images` cron fired via `POST /api/repos/2/cron/2` 20 s after each lean start, instead of waiting for 01:00): lean #270/#272/#274 all `success`; cron #271/#273/#275 ran 16–17 steps clean until stopped; server log readable (155 lines), 0 `database is locked` / `task expired`.
 - [ ] 0 × `database is locked` over 7 consecutive nights after the fix (Loki).
-- [ ] An alert fires on `database is locked` and on a `task expired` kill, proven (rule test or drill) and reaching Telegram.
-- [ ] `dr.md` has a Woodpecker row with a restore that was actually run; the "no ship after 00:30" rule is removed or kept with the reason.
+- [x] An alert fires on `database is locked` and on a `task expired` kill, proven (rule test or drill) and reaching Telegram — both rules replayed on the 10-04 incident (=1), live in the ruler; DRILL delivered 2026-10-06 (telegram 13,476 → 13,477, failed unchanged).
+- [x] `dr.md` has a Woodpecker row with a restore that was actually run (drill 2026-10-05); the "no ship after 00:30" rule is KEPT, with the reason (until criterion 2 proves the pool fix), in `woodpecker.md`.
 
 **Edge cases & failure modes.** A migration to Postgres must carry repos, secrets, crons (`enabled:true`) and pipeline
 history — verify counts before/after (the 08-22 roll's check). WAL is not trivially reversible (journal_mode lives in the
