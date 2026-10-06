@@ -58,6 +58,17 @@ data:
         pass
 
 
+    class UsageError(Exception):
+        pass
+
+
+    class _Parser(argparse.ArgumentParser):
+        """argparse that RAISES on a bad command line instead of calling sys.exit(), so main() reports it as exit 2."""
+
+        def error(self, message):
+            raise UsageError(message)
+
+
     def snapshot(src_db: str, dst_db: str) -> None:
         """Copy a live (WAL) SQLite db consistently, including WAL-only commits."""
         if not os.path.exists(src_db):
@@ -144,7 +155,7 @@ data:
 
 
     def main(argv: list) -> int:
-        p = argparse.ArgumentParser(prog="sqlite_backup.py", description=__doc__.split("\n", 1)[0])
+        p = _Parser(prog="sqlite_backup.py", description=__doc__.split("\n", 1)[0])
         p.add_argument("--db", required=True)
         p.add_argument("--require", action="append", default=[])
         p.add_argument("--count", action="append", default=[])
@@ -154,7 +165,8 @@ data:
         p.add_argument("backup_root")
         try:
             args = p.parse_args(argv)
-        except SystemExit:
+        except UsageError as exc:
+            print(f"sqlite-backup FAILED: {exc}\n{p.format_usage().strip()}", file=sys.stderr)
             return 2
         if not args.require:
             print("sqlite-backup FAILED: no --require table — a check that checks nothing is not a backup", file=sys.stderr)

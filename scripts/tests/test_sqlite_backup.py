@@ -133,3 +133,9 @@ def test_the_manifest_is_written_last(tmp_path):
     names = os.listdir(os.path.join(root, b))
     m = json.load(open(os.path.join(root, b, "manifest.json")))
     assert set(m["files"]) == set(names) - {"manifest.json"}  # it lists every file already written
+
+
+def test_a_bad_command_line_is_exit_2_with_the_reason(tmp_path, capsys):
+    # argparse would sys.exit() itself; the script reports a usage error as its own exit 2 (fail closed) instead.
+    assert sb.main(["--require", "user", "--keep", "7", str(tmp_path), str(tmp_path / "b")]) == 2   # no --db
+    assert "--db" in capsys.readouterr().err
