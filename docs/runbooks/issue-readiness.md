@@ -54,11 +54,14 @@ Every kind also needs the issue's **priority** field set. What counts:
 **When a Linear template changes**, change `REQUIRED` with it and refresh the fixture snapshot; the test
 `test_every_required_section_is_a_heading_its_template_has` fails if the code demands a heading the template lacks.
 
-## Retiring SpecBot
+## SpecBot — out of the workflow, kept as a backup
 
-`AGENTS.md` and the Backlog item template name this check (changed 2026-10-07). The SpecBot integration itself is
-uninstalled in Linear → Settings → Integrations → SpecBot (owner action; 7 of its 25 free checks this month went to
-B190's calibration).
+`AGENTS.md` and the Backlog item template name this check (changed 2026-10-07). The SpecBot integration stays
+**installed as a backup** (owner, 2026-10-07: "until we're confident that our solution is good enough"): `@SpecBot` in an
+issue comment still asks it for a second opinion (25 free checks a month; 7 went to B190's calibration in October). It
+also still auto-reviews new issues, so the Linear restore drill keeps neutralizing `@mentions`
+([linear-backup.md](linear-backup.md)). When the owner is confident, it is uninstalled in Linear → Settings →
+Integrations → SpecBot.
 
 ## Research harness — the LLM readiness score B190 dropped
 
@@ -75,8 +78,8 @@ cd /home/edwardmangini/IdeaProjects/weyland/scripts && LITELLM_API_KEY=x LITELLM
 ```
 The defect test (does the judge see a damaged section?) and cross-judge agreement:
 ```
-cd /home/edwardmangini/IdeaProjects/weyland/scripts && set -a && . ./.env && set +a && python3 issue_readiness_eval.py defects ../eval/issue-readiness/issues/*.json
+cd /home/edwardmangini/IdeaProjects/weyland/scripts && set -a && . ./.env && set +a && LITELLM_API_BASE=http://192.168.1.243:30400 python3 issue_readiness_eval.py defects ../eval/issue-readiness/issues/*.json
 ```
 ```
-cd /home/edwardmangini/IdeaProjects/weyland/scripts && set -a && . ./.env && set +a && python3 issue_readiness_eval.py agreement --model-b wl-default ../eval/issue-readiness/issues/*.json
+cd /home/edwardmangini/IdeaProjects/weyland/scripts && set -a && . ./.env && set +a && LITELLM_API_BASE=http://192.168.1.243:30400 python3 issue_readiness_eval.py agreement --model-b wl-default ../eval/issue-readiness/issues/*.json
 ```

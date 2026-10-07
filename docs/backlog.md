@@ -87,7 +87,7 @@ Re-ordered per RE-grounded audit (aidlc-docs/inception/backlog-reprioritization.
 - **B187** — **Spike: Claude + Obsidian workflow (claude-obsidian, with graphify's Obsidian export)** — **MEDIUM (2026-09-25, Linear EMA-245).** Get hands-on competent with the Claude Code + Obsidian knowledge workflow (`AgriciDaniel/claude-obsidian`: ingest → linked, cited notes → vault-grounded Q&A → answers saved back), plus graphify's opt-in `--obsidian` export of the code graph. Doubles as evidence for B182 — Obsidian's Markdown + wikilinks is the same format as Claude's memory and Basic Memory. See detail below.
 - **B188** — **PostHog for the product apps (deferred until OJay Floyd / MyBodyGraph have users)** — **LOW · HELD (2026-09-25, Linear EMA-246, `parked:held`).** PostHog's free cloud tier (analytics, session replay, errors → Linear issues) is the natural analytics layer for the product apps, but nothing needs it until OJay Floyd or MyBodyGraph ships to real users. Un-hold then, and evaluate it together with website feedback/bug capture (Iteration X / Marker.io, rejected in the B119 walk only for lack of users). See detail below.
 - **B189** — **Spike: test management + quality visibility (self-hosted vs hosted-free with Linear)** — **MEDIUM (2026-09-25, Linear EMA-248; Testiny added — hosted, free to 3 users, Linear on free).** Quality visibility is scattered (Woodpecker logs, SonarQube coverage, Port `ci_pipeline`); nothing shows which tests exist, their history or flakiness. Compare the free self-hosted options on one real bats + pytest suite — Kiwi TCMS (imports JUnit/pytest/**TAP**, and bats emits TAP natively), Allure Report (CI-generated reports), ReportPortal (results analytics; likely heavy on mother). Linear linkage is the deciding requirement — Testomat was ruled out because its free tier has no Linear links. See detail below.
-- **B190** — **Replace SpecBot: check every issue against the lab's implementation-ready standard** — **HIGH (2026-09-25, rewritten 2026-10-06, Linear EMA-249).** SpecBot's job here is enforcing `AGENTS.md`'s required issue sections before delegation; it is capped (25/month), cloud-only and cannot gate CI. A deterministic per-kind section check (CLI + lean-CI step + one comment listing what is missing) replaces it, and `AGENTS.md` / the templates stop naming SpecBot. An LLM 0-100 quality score was built and dropped on evidence: no text-based readiness score predicted agent PR outcomes (AUC ~0.51, n=200). See detail below.
+- **B190** — **Replace SpecBot: check every issue against the lab's implementation-ready standard** — **DONE 2026-10-07** (HIGH, 2026-09-25, rewritten 2026-10-06, Linear EMA-249). SpecBot's job here is enforcing `AGENTS.md`'s required issue sections before delegation; it is capped (25/month), cloud-only and cannot gate CI. A deterministic per-kind section check (CLI + lean-CI step + one comment listing what is missing) replaces it, and `AGENTS.md` / the templates stop naming SpecBot. An LLM 0-100 quality score was built and dropped on evidence: no text-based readiness score predicted agent PR outcomes (AUC ~0.51, n=200). See detail below.
 - **B191** — **Spike: screen-recorded demos kept in sync with the runbooks (Playwright + VHS → MinIO + YouTube)** — **MEDIUM (2026-09-26, Linear EMA-250).** Demos are written walkthroughs that must be run, but nothing records that they were or what the screen showed. Record one demo end to end — Playwright video for the UI UAT steps, a VHS `.tape` for the CLI steps — store the master copy in MinIO (`demo-recordings`), publish **unlisted to YouTube via its API** (Linear's pre-installed YouTube integration plays it inline on the B-item's issue), embed on the docs page, and add a manifest + guard that flags a recording STALE when its demo doc or runbook changes. Both kept on purpose: text = source of truth, recording = proof. Decide whether recordings join DoD Pillar 3. See detail below.
 - **B192** — **Spike: Jam (jam.dev) — UI bug capture into Linear, with an MCP agents can read** — **MEDIUM (2026-09-26, Linear EMA-251).** **Found as a Linear integration** in the B119 walk; site **https://jam.dev**. A Chrome extension (works on Linux) that captures screen recording + console + network + browser info into a Linear issue, with an MCP server harnesses can read captures through, and webhooks. Free tier: 30 Jams, 5 recording links, 5-minute recordings — far below the lab's ~30 issues/hour, so the spike judges whether the capture + MCP workflow is worth it within or beyond the cap, or whether a lab-owned version belongs in B191. See detail below.
 - **B193** — **Spike: share Linear outward, read-only (project links vs initiative roadmaps)** — **LOW (2026-09-26, Linear EMA-252).** Found in the B119 walk's Customer Experience category: the one need there that doesn't wait on users — show the lab's work to people outside Linear (family, a portfolio beside B191's YouTube demos); Linear shows projects only to members or paid guests. Lindie (read-only project links, free for 1 project), Helium Rooms (read-only board rooms), Feedvote (client portal + public roadmap). See detail below.
@@ -3004,7 +3004,7 @@ retiring any written demo content.
 
 Relates B119, DoD Pillar 3, B183.
 
-### B190 — Replace SpecBot: check every issue against the lab's implementation-ready standard — HIGH (2026-09-25, rewritten 2026-10-06, Linear EMA-249)
+### B190 — Replace SpecBot: check every issue against the lab's implementation-ready standard — **DONE 2026-10-07** (HIGH, 2026-09-25, rewritten 2026-10-06, Linear EMA-249)
 
 **The job SpecBot does here.** `AGENTS.md` requires every issue an agent drafts to be implementation-ready — beyond Why
 and Scope it carries **Technical context**, **Acceptance criteria**, **Edge cases & failure modes** and **Out of scope**
@@ -3019,16 +3019,16 @@ open High issues in Weyland Lab; and ONE comment per issue naming exactly what i
 `AGENTS.md` points at the check, the templates' "Run @SpecBot" line goes.
 
 **Acceptance criteria.**
-- [ ] Every section `AGENTS.md` requires for the issue's kind is checked: present, and not just the template's
+- [x] Every section `AGENTS.md` requires for the issue's kind is checked: present, and not just the template's
       placeholder or guidance text (unit-tested per kind, incl. bold pseudo-headings like `**Acceptance criteria**`).
-- [ ] Acceptance criteria hold at least one real criterion (a checkbox or bullet that is not the placeholder).
-- [ ] The issue's priority field is set.
-- [ ] `issue-readiness.sh EMA-###` prints READY or NOT READY with every missing item named; exit 0 / 1.
-- [ ] One comment per issue, updated in place, never duplicated; unchanged result = no write.
-- [ ] Linear unreachable or the key missing → exit 2 "linear unavailable", never READY (bats asserts the reason).
-- [ ] Lean CI runs it over open High Weyland Lab issues and shows the non-compliant ones (advisory first).
-- [ ] `AGENTS.md`'s readiness rule names this check, not SpecBot; the Linear templates no longer say "Run @SpecBot".
-- [ ] pytest + bats in the Docker toolchain image and CI; runbook + demo.
+- [x] Acceptance criteria hold at least one real criterion (a checkbox or bullet that is not the placeholder).
+- [x] The issue's priority field is set.
+- [x] `issue-readiness.sh EMA-###` prints READY or NOT READY with every missing item named; exit 0 / 1.
+- [x] One comment per issue, updated in place, never duplicated; unchanged result = no write.
+- [x] Linear unreachable or the key missing → exit 2 "linear unavailable", never READY (bats asserts the reason).
+- [x] Lean CI runs it over open High Weyland Lab issues and shows the non-compliant ones (advisory first).
+- [x] `AGENTS.md`'s readiness rule names this check, not SpecBot; the Linear templates no longer say "Run @SpecBot".
+- [x] pytest + bats in the Docker toolchain image and CI; runbook + demo.
 
 **Edge cases & failure modes.** A section present under a variant heading (bold line, "Edge cases" without "& failure
 modes") counts; a heading with only the template's guidance does not. A Bucket is checked against the Bucket template
@@ -3049,6 +3049,27 @@ the lab's written standard, enforced exactly. The working path was the owner's q
 things, why are we focused on it?" — replace the JOB, not the tool's output.
 
 Relates B119 (found in the walk), B182 (EMA-240, the first issue SpecBot scored).
+
+**DoD graded 2026-10-07 — 9 pillars.** **1 docs** — runbook `runbooks/issue-readiness.md`, verdict
+`concepts/issue-readiness.md` (all five measurements), `AGENTS.md` readiness rule, `woodpecker.md` secret + command,
+step menu, `concepts/linear-evaluation.md` (SpecBot superseded), judge-build notes in `model-gateway.md` /
+`langfuse.md` / `llm-routing-map.html`. **2 diagrams** — `diagrams/flow-issue-readiness.md` (mermaid green); LikeC4
+N/A (a script + a CI step, no deployed workload). **3 demo** — `demos/issue-readiness.md` RUN 2026-10-07 + ledger row
+90; owner UAT eyes-on: EMA-249's READY comment and the Backlog item template. **4 cleanup** — scratch SonarQube project
+deleted + its token revoked, unused CI secret `litellm_api_key` deleted, the 8K test model removed, the 0-100 scorer's
+comments taken over (exactly one readiness comment on each of the 12 open High issues). **5 tracking** — EMA-249 Done,
+`check-linear-sync` green, memory notes `issue-readiness-check-b190` + `feedback-replace-the-job-not-the-tool`.
+**6 ops** — lean-CI step advisory, exit 2 on any Linear failure (never READY), runs in < 1 s. **7 scan** — SonarQube
+gate OK on #281 (0 new issues; the seeded `random` hotspot in the research benchmark reviewed safe), bandit (only that
+B311), semgrep 0, shellcheck, complexity gate. CI #279 had failed the gate on 18 issues + 9 hotspots — the regexes on
+issue text were rewritten as string parsing (Sonar's backtracking hotspots); a scratch-project precheck proved 0 before
+the re-push. **8 cascade** — Linear Backlog item template line replaced via the API (SpecBot → this check); judge builds
+`qwen2.5:7b-operator` (32K, `wl-judge`) and `gpt-oss:20b-judge` (8K, `wl-judge-oss`) kept — they protect every judge
+from Ollama's silent prompt cut. **9 DR** — N/A: no new state (comments are regenerated from the issue on every run;
+Linear itself is covered by B194's nightly export; the Modelfiles rebuild the judge models). **SpecBot stays installed
+as a backup** (owner, 2026-10-07: "until we're confident that our solution is good enough"), out of the workflow.
+**B201 side note:** lean #279 overlapped the 01:00 nightly #280 — no step killed, no `database is locked` /
+`task expired` in the server log.
 
 ### B189 — Spike: test management + quality visibility (self-hosted vs hosted-free with Linear) — MEDIUM (2026-09-25, Linear EMA-248)
 

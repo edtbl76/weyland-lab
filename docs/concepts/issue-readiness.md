@@ -6,7 +6,7 @@
 |---|---|---|
 | **Rules check of the lab's written standard** (`scripts/issue-readiness.sh`) | **ADOPT** — replaces SpecBot | It does the job SpecBot did here: enforce `AGENTS.md`'s implementation-ready sections per issue kind before delegation. Exact, free, unlimited, under a second, gateable in CI. |
 | LLM 0-100 readiness score (our own judge) | **DON'T ADOPT** — built, measured, dropped | No text-based readiness score predicted agent outcomes (AUC ~0.51 on 200 issues). The judge does see quality, but there is no evidence that quality, as judged, matters to the outcome. |
-| SpecBot (Linear integration) | **RETIRED** | Same text-only approach as above, no published accuracy, mis-scores sections the text contradicts, 25 checks/month free ($5-19/seat/month beyond), cloud-only, no CI gate. |
+| SpecBot (Linear integration) | **OUT OF THE WORKFLOW — kept installed as a backup** (owner, 2026-10-07: "until we're confident that our solution is good enough") | Same text-only approach as above, no published accuracy, mis-scores sections the text contradicts, 25 checks/month free ($5-19/seat/month beyond), cloud-only, no CI gate. |
 | Other free tools (issueready, IssueGauge, RequirementLinter, Atlassian Rovo Readiness Checker, Linear Triage Intelligence) | DON'T ADOPT | GitHub- or Jira-only, alpha, need a paid API key, or a paid Linear plan — and none publishes outcome validation. |
 
 **Re-open only with new evidence:** an outcome dataset where a readiness score predicts agent success on issues like
@@ -80,7 +80,8 @@ lab's Linear issues + Claude Code; n = 200 cannot rule out a weak effect (AUC �
 ## Consequences
 
 * `AGENTS.md`'s readiness rule names `scripts/issue-readiness.sh` (must print READY); the Backlog item template's
-  "Run @SpecBot" line was replaced (2026-10-07). Uninstalling the SpecBot integration is a Linear settings action.
+  "Run @SpecBot" line was replaced (2026-10-07). SpecBot stays installed as a second opinion (`@SpecBot` in a
+  comment) until the owner is confident in the check; uninstalling it is then a Linear settings action.
 * The lean-CI step `issue-readiness` checks open High Weyland Lab issues, advisory, under a second.
 * The judge builds stay: `wl-judge` → `qwen2.5:7b-operator` (32K) and `wl-judge-oss` → `gpt-oss:20b-judge` (8K) —
   Ollama's 2K / 4K defaults cut long judge prompts silently for every other judge (Langfuse evaluators) too.
