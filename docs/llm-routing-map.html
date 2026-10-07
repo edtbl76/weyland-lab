@@ -95,8 +95,14 @@
       egress <i>through</i> <b>Bifrost</b> (LiteLLM &rarr; Bifrost &rarr; provider), so every funded call is recorded
       with cost&nbsp;/&nbsp;tokens&nbsp;/&nbsp;latency and attributed to the <code>realm-llm</code> virtual key &mdash; no
       LiteLLM DB. LiteLLM still owns the aliases and the fallback chains below; the <b>local Ollama</b> lanes
-      (<code>wl-rag</code>&nbsp;&middot;&nbsp;<code>wl-reason</code>&nbsp;&middot;&nbsp;<code>wl-judge</code>) stay direct
+      (<code>wl-rag</code>&nbsp;&middot;&nbsp;<code>wl-reason</code>&nbsp;&middot;&nbsp;<code>wl-judge</code>&nbsp;&middot;&nbsp;<code>wl-judge-oss</code>) stay direct
       to rogueone.</p>
+    <p class="sub" style="margin-top:10px"><b>Not on this map &mdash; decision models (B174, 2026-10-07):</b> the operator's
+      incident-sweep <b>shadow</b> calls a decision model (typed choice, not text) on the Jev / SystemOne API, direct from
+      <code>weyland-operator</code>: <b>Jev</b> at <code>api.typesafe.ai</code> (paid from the owner's prepaid TypeSafe credit,
+      about $0.0001 a sweep, the one off-LAN model call that does NOT go LiteLLM &rarr; Bifrost; its own spend alert
+      <code>OperatorDecideSpendObserved</code>) or <b>Clef-flash</b> on rogueone <code>:8004</code> (free, on demand). Runbook:
+      <code>docs/runbooks/decision-models.md</code>.</p>
     <span class="status">◆ <b>LIVE</b> — LiteLLM aliases + fallback &nbsp;·&nbsp; hosted lanes egress through Bifrost (per-VK cost obs)</span>
   </header>
 
@@ -165,6 +171,9 @@
         {role:"primary", prov:"ollama", model:"qwen2.5:7b-operator", tier:"free", badges:["local","32K ctx"]},
         {role:"fallback", prov:"groq", model:"gpt-oss-120b", tier:"free", badges:["hosted"]},
         {role:"fallback", prov:"gemini", model:"2.5-flash", tier:"free", badges:["hosted"]},
+      ]},
+      { alias:"wl-judge-oss", purpose:"Stronger local judge (B103/B190) — Langfuse online evaluators; no fallback", chain:[
+        {role:"primary", prov:"ollama", model:"gpt-oss:20b-judge", tier:"free", badges:["local","8K ctx","no fallback"]},
       ]},
       { alias:"wl-search", purpose:"Web-grounded answers", chain:[
         {role:"primary", prov:"perplexity", model:"sonar", tier:"funded", badges:["web"]},

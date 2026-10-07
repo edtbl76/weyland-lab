@@ -4,13 +4,19 @@ Use-case **aliases → provider fallback chains**, served by **LiteLLM**. A clie
 (e.g. `wl-coding`); LiteLLM picks the **primary** and fails over down the chain on network / 5xx / 429 /
 timeout — server-side and transparent. Left node = primary; each `→` is the next fallback. Colour = cost tier.
 Hosted rungs egress **through Bifrost** (LiteLLM → Bifrost → provider) for per-VK cost/usage attribution; the
-local **Ollama** lanes (`wl-rag` · `wl-reason` · `wl-judge`) stay direct to rogueone.
+local **Ollama** lanes (`wl-rag` · `wl-reason` · `wl-judge` · `wl-judge-oss`) stay direct to rogueone.
 
 Every chain has a **free, always-on** rung so a call lands for $0 — usually the primary, and `wl-search` now carries a
 free `wl-default` (groq) tail as its guaranteed lander (a non-web answer, but it always returns). The chat lanes keep
 free rungs while escalating to funded providers before that tail; the media lane `wl-tts` grounds on its free
 **primary** — self-hosted Kokoro. For the full interactive view see the
 **[LLM Routing Map](llm-routing-map.html)** (internal). This diagram is copy-paste-able — grab the fenced block below.
+
+**Not on this map — decision models (B174, 2026-10-07).** The operator's incident-sweep shadow calls a decision
+model (a typed choice, not text) on the Jev / SystemOne API, direct from `weyland-operator`: **Jev** at
+`api.typesafe.ai` (paid from the owner's prepaid TypeSafe credit, about $0.0001 a sweep, the one off-LAN model call
+that does not go LiteLLM → Bifrost; spend alert `OperatorDecideSpendObserved`) or **Clef-flash** on rogueone `:8004`
+(free, on demand). See [runbooks/decision-models.md](runbooks/decision-models.md).
 
 **Legend** — <span style="color:#5fa37e">■ free</span> ($0 self-hosted / free tier) ·
 <span style="color:#5f93c4">■ funded</span> (prepaid credits) ·
@@ -35,7 +41,8 @@ flowchart LR
 
   %% Retrieval, eval, search
   wrag(["wl-rag"]):::alias --> wrag1["ollama · gpt-oss:20b (local)"]:::free --> wrag2["groq · gpt-oss-120b"]:::free --> wrag3["gemini · 2.5-flash"]:::free
-  wjdg(["wl-judge"]):::alias --> wjdg1["ollama · qwen2.5:7b (local)"]:::free --> wjdg2["groq · gpt-oss-120b"]:::free --> wjdg3["gemini · 2.5-flash"]:::free
+  wjdg(["wl-judge"]):::alias --> wjdg1["ollama · qwen2.5:7b-operator (local)"]:::free --> wjdg2["groq · gpt-oss-120b"]:::free --> wjdg3["gemini · 2.5-flash"]:::free
+  wjos(["wl-judge-oss"]):::alias --> wjos1["ollama · gpt-oss:20b-judge (local, no fallback)"]:::free
   wsch(["wl-search"]):::alias --> wsch1["perplexity · sonar (web)"]:::funded --> wsch2["xai · grok-4.5 (web)"]:::funded --> wsch3["groq · gpt-oss-120b"]:::free
 
   %% Media — text-to-speech (audio_speech endpoint, not chat)
