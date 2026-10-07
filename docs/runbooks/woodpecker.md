@@ -143,6 +143,14 @@ tags. Steps: `detect-changes → build → kubeconform → deploy-handoff`.
     finished `success`; #271 ran 17 steps clean until stopped; server + agents logged **0** `database is locked` /
     `task expired` / lease failures (51 server lines scanned). Repeated twice more the same hour (#272/#273,
     #274/#275): 3/3 lean runs `success`, 0 locks. The "no ship after 00:30" rule can go once 7 lock-free nights confirm it.
+    **Soak check (one per night, B201 criterion 3)** — in Grafana → Explore → Loki (agents: the Grafana MCP
+    `query_loki_logs`), over the night 04:00–11:00 UTC (00:00–07:00 NY), and its control:
+    ```
+    {namespace="woodpecker", container="server"} |~ "database is locked|task expired"
+    ```
+    Pass = 0 lines **and** the same selector WITHOUT the filter returns lines for that window (a query that cannot see
+    the stream also returns 0). Positive control: 2026-10-04 04:00–06:00 UTC returns the #252 incident's lines. Tally:
+    `docs/backlog.md` B201.
     **Alert delivery drill** (proves a Loki-rule alert reaches Telegram; expires in 2 min, labelled `drill=true`):
     ```
     kubectl -n weyland exec deploy/weyland-guard -c weyland-guard -- python -c "import json,datetime as dt,urllib.request; n=dt.datetime.now(dt.timezone.utc); a=[{'labels':{'alertname':'WoodpeckerTaskExpired','severity':'warning','source':'loki','drill':'true'},'annotations':{'summary':'DRILL — WoodpeckerTaskExpired (delivery test; nothing is wrong)'},'startsAt':n.isoformat(),'endsAt':(n+dt.timedelta(minutes=2)).isoformat()}]; print(urllib.request.urlopen(urllib.request.Request('http://monitoring-kube-prometheus-alertmanager.monitoring.svc.cluster.local:9093/api/v2/alerts',data=json.dumps(a).encode(),headers={'content-type':'application/json'},method='POST'),timeout=10).status)"

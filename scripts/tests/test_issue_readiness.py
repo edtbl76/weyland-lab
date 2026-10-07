@@ -375,3 +375,27 @@ def test_only_http_urls_are_ever_opened(monkeypatch):
     with pytest.raises(ir.LinearError, match="scheme"):
         ir._post_json("file:///etc/passwd", {}, {}, 5)
     assert not opened
+
+
+def test_a_real_line_that_quotes_template_wording_still_counts():
+    # Found while rewriting the 11 old issues (2026-10-07): a line was dropped as "guidance" whenever it CONTAINED a
+    # template phrase, so "A verdict + rationale in docs/concepts/: DON'T ADOPT, because ..." counted as empty.
+    spike = TEMPLATES["spike"]
+    filled = (spike.replace("* What it actually is\n* ", "* What it actually is: a hosted agent factory\n")
+              .replace("$0 — free forever, not a trial (cloud is fine if free). Check this FIRST.",
+                       "$0 — free forever, not a trial: the free tier covers 1 seat, verified on the pricing page.")
+              .replace("What the lab already runs that covers this.", "Claude Code + Emdash already run parallel agents.")
+              .replace("Affected systems, files, services and APIs — host, path, role in this change.\n\n", "")
+              .replace("| (host / repo) | (path or service) | (changed / read / retired) |", "| rogueone | warp CLI | read |")
+              .replace("- [ ] (criterion)", "- [ ] The verdict cites the pricing page.")
+              .replace("* (edge case)", "* The free tier is withdrawn mid-spike: verdict DON'T ADOPT.")
+              .replace("* (not doing)", "* Paid tiers.")
+              .replace("A verdict + rationale in `docs/concepts/`. DON'T ADOPT → one paragraph why; ADOPT → a bounded plan.",
+                       "A verdict + rationale in `docs/concepts/warp.md`: DON'T ADOPT with the cost evidence."))
+    r = ir.check(ir.Issue("EMA-0", "u", "B1 — x", filled, 2, ["Spike"]))
+    assert r.ready, r.missing
+
+
+def test_the_untouched_guidance_line_alone_is_still_empty():
+    assert not ir._meaningful("What breaks, what's absent, what fails closed.\n")
+    assert not ir._meaningful("$0 — free forever, not a trial (cloud is fine if free). Check this FIRST.\n")

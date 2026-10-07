@@ -2483,7 +2483,7 @@ the Woodpecker store (whichever store it ends on).
 **Acceptance criteria (pass/fail).**
 - [x] Each lock in the 10-04 window attributed to a named writer (7 × metrics writer, 2 × cron list; the 05:01 one cost #252's lease), recorded in `woodpecker.md` and `woodpecker-values.yaml`.
 - [x] A lean CI run survives the nightly cron firing on top of it — **3/3 on demand 2026-10-06** (the real `nightly-images` cron fired via `POST /api/repos/2/cron/2` 20 s after each lean start, instead of waiting for 01:00): lean #270/#272/#274 all `success`; cron #271/#273/#275 ran 16–17 steps clean until stopped; server log readable (155 lines), 0 `database is locked` / `task expired`.
-- [ ] 0 × `database is locked` over 7 consecutive nights after the fix (Loki).
+- [ ] 0 × `database is locked` over 7 consecutive nights after the fix (Loki). **2/7 (2026-10-07):** nights 10-05→06 and 10-06→07, 0 matching lines in 1,782 server lines (10-05 20:10Z → 10-07; Loki, with the unfiltered stream and the 10-04 incident as controls; check in `runbooks/woodpecker.md` § Soak check). Night 2 included a real collision: lean #279 still running when the 01:00 nightly #280 fired — no step killed.
 - [x] An alert fires on `database is locked` and on a `task expired` kill, proven (rule test or drill) and reaching Telegram — both rules replayed on the 10-04 incident (=1), live in the ruler; DRILL delivered 2026-10-06 (telegram 13,476 → 13,477, failed unchanged).
 - [x] `dr.md` has a Woodpecker row with a restore that was actually run (drill 2026-10-05); the "no ship after 00:30" rule is KEPT, with the reason (until criterion 2 proves the pool fix), in `woodpecker.md`.
 
@@ -2609,7 +2609,10 @@ command in `complexity-triage.md` returned 401 (curled in-pod with a password th
 finished with a code verdict (#239 golden-path-smoke, #253 test-rust OOM at its 2Gi step limit — fixed with a memory
 request, #260 sonar-gate). Night 3 also saw #252 killed by `task expired` — Woodpecker's SQLite locking, NOT a memory
 stall (mother had 6.5 GB free); owner 2026-10-05: count night 3 clean for B199, file the lock as **B201** (EMA-287). Clock: **4/7**.
-Still open: nights 5–7.
+**Nights 5–6 clean (checked 2026-10-07 with the queries now in `runbooks/node-capacity.md` § Night check):** min
+MemAvailable 5.8 / 5.1 GB, node-exporter 840/840, Ready never dropped, memory-stall (PSI) peak 1.9% / 4.7% (alert at
+10%). 01:00 runs: #277 `success`; #280 failed ONLY at `sonar-gate` (B190 code, fixed in b7995b23) — and ran with lean #279
+overlapping it, no memory trouble. Clock: **6/7**. Still open: night 7 (10-07→08).
 
 ### B198 — Placement inventory: where every workload runs, and whether it can move — DONE (2026-09-28; was HIGH, Linear EMA-257)
 

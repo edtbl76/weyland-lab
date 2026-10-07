@@ -86,6 +86,20 @@ Behaviour is pinned by promtool unit tests on the real rule text (`scripts/tests
 (a CI run, a CronJob, a woken store), and free memory: `bash scripts/store-park.sh park <store>` + push, or stop the job.
 **When `NodeFroze` pages:** a freeze already happened and recovered; look at MemAvailable and `pgmajfault` around it.
 
+**Night check (B199's 7-night acceptance)** — Grafana → Explore → Prometheus (agents: the Grafana MCP
+`query_prometheus`), each an INSTANT query at the night's end, 07:00 NY = `T11:00:00Z` (EDT; `T12:00:00Z` in EST):
+
+| Check | PromQL | Clean |
+|---|---|---|
+| Lowest free memory (GB) | `min_over_time(node_memory_MemAvailable_bytes{instance="192.168.1.243:9100"}[7h]) / 1e9` | no collapse (nights 1-6: 5.1–9.1) |
+| No scrape gap (= no freeze) | `count_over_time(node_memory_MemAvailable_bytes{instance="192.168.1.243:9100"}[7h])` | **840** (7 h × 2/min) |
+| Never NotReady | `min_over_time(kube_node_status_condition{node="mother",condition="Ready",status="true"}[7h])` | 1 |
+| Memory-stall peak | `max_over_time(rate(node_pressure_memory_waiting_seconds_total{instance="192.168.1.243:9100"}[2m])[7h:1m])` | < 0.10 (`NodeMemoryThrashing`'s line) |
+
+Plus the 01:00 `nightly-images` run did not die of memory (`woodpecker-cli pipeline ls`; a code-gate failure is not a
+stall). Check the conditions, not `ALERTS`: neither alert has ever fired through Prometheus, so "no alert" alone cannot
+tell a clean night from a broken rule. Tally: `docs/backlog.md` B199.
+
 ## Telegram noise (B199, 2026-10-02)
 
 3,618 Telegram messages in 14 days (~258/day; Alertmanager received 169,142 alert posts) — the volume that buried

@@ -57,14 +57,26 @@ REQUIRED = {
 }
 TEMPLATE = {BACKLOG_ITEM: "Backlog item", "bug": "Bug", "spike": "Spike", "bucket": "Bucket"}
 
-# Guidance the templates pre-fill — a section holding only these is still empty.
+# The guidance lines the Linear templates pre-fill, WHOLE (normalized: list marker / checkbox stripped, lowercase,
+# whitespace collapsed). A line is guidance only if it IS one of these or a trimmed piece of one; a line that merely
+# QUOTES template wording and adds real content counts (2026-10-07: matching phrases anywhere in a line dropped
+# "A verdict + rationale in docs/concepts/: DON'T ADOPT, because ..." as empty). Keep in step with the templates.
 TEMPLATE_GUIDANCE = (
-    "testable, pass/fail", "what breaks, what's absent", "affected systems, files, services",
-    "the regression test fails on the bug", "| where | what | role |", "| -- | -- | -- |", "(host / repo)",
-    "logs, ids, the exact command run", "what the lab already runs that covers this",
-    "$0 — free forever, not a trial", "sub-issues — each with its own kind",
-    "when this bucket is done, even if follow-ons remain",
-    "what it actually is", "a verdict + rationale in",          # the Spike template pre-fills these two
+    "testable, pass/fail — each one a check someone (or an agent) can run.",
+    "what breaks, what's absent, what fails closed.",
+    "affected systems, files, services and apis — host, path, role in this change.",
+    "affected systems, files, services and apis.",
+    "| where | what | role |", "| -- | -- | -- |",
+    "| (host / repo) | (path or service) | (changed / read / retired) |",
+    "| (host / repo) | (path or service) | (changed / read) |",
+    "the regression test fails on the bug and passes on the fix.",
+    "logs, ids, the exact command run and its output (an exit code is not a verdict).",
+    "what the lab already runs that covers this.",
+    "$0 — free forever, not a trial (cloud is fine if free). check this first.",
+    "what it actually is",
+    "a verdict + rationale in `docs/concepts/`. don't adopt → one paragraph why; adopt → a bounded plan.",
+    "sub-issues — each with its own kind and b-number.",
+    "when this bucket is done, even if follow-ons remain (move those to new items).",
 )
 CHECKBOXES = ("[ ]", "[x]", "[X]")
 
@@ -168,9 +180,17 @@ def parse_sections(markdown):
     return sections
 
 
+def _normalized(line):
+    return " ".join((_strip_marker(line) or line).lower().split())
+
+
+def _is_guidance(line):
+    text = _normalized(line)
+    return bool(text) and any(text == g or text in g for g in TEMPLATE_GUIDANCE)
+
+
 def _content_lines(body):
-    return [ln for ln in body.splitlines()
-            if not _is_placeholder(ln) and not any(g in ln.lower() for g in TEMPLATE_GUIDANCE)]
+    return [ln for ln in body.splitlines() if not _is_placeholder(ln) and not _is_guidance(ln)]
 
 
 PLACEHOLDER_WORDS = {"tbd", "tba", "todo", "wip", "n/a", "na", "xxx", "...", "?", "-"}
