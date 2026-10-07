@@ -1,0 +1,560 @@
+[
+ {
+  "id": "alert:ScheduledJobStale",
+  "source": "real-sweep",
+  "request": "An alert is FIRING \u2014 investigate and summarize. Do NOT propose or take any action.\nAlert: ScheduledJobStale (severity warning) on 10.42.0.3:8080.\nCorrelate the most recent logs and the pod/deployment status for the affected service, and give a concise incident summary: what's wrong, the likely cause, and the current state. If it's a synthetic/endpoint down, say whether the pod is running vs the ingress/SSO/cert path failing.",
+  "ok": [
+   "k8s_pods_list",
+   "k8s_pods_list_in_namespace",
+   "k8s_pods_get",
+   "k8s_pods_log",
+   "k8s_events_list",
+   "k8s_resources_list",
+   "grafana_query_loki_logs",
+   "grafana_query_prometheus"
+  ]
+ },
+ {
+  "id": "alert:KubeJobFailed",
+  "source": "real-sweep",
+  "request": "An alert is FIRING \u2014 investigate and summarize. Do NOT propose or take any action.\nAlert: KubeJobFailed (severity warning) on 10.42.0.3:8080.\nCorrelate the most recent logs and the pod/deployment status for the affected service, and give a concise incident summary: what's wrong, the likely cause, and the current state. If it's a synthetic/endpoint down, say whether the pod is running vs the ingress/SSO/cert path failing.",
+  "ok": [
+   "k8s_pods_list",
+   "k8s_pods_list_in_namespace",
+   "k8s_pods_get",
+   "k8s_pods_log",
+   "k8s_events_list",
+   "k8s_resources_list",
+   "grafana_query_loki_logs"
+  ]
+ },
+ {
+  "id": "alert:ScheduledJobFailed",
+  "source": "real-sweep",
+  "request": "An alert is FIRING \u2014 investigate and summarize. Do NOT propose or take any action.\nAlert: ScheduledJobFailed (severity warning) on 10.42.0.3:8080.\nCorrelate the most recent logs and the pod/deployment status for the affected service, and give a concise incident summary: what's wrong, the likely cause, and the current state. If it's a synthetic/endpoint down, say whether the pod is running vs the ingress/SSO/cert path failing.",
+  "ok": [
+   "k8s_pods_list",
+   "k8s_pods_list_in_namespace",
+   "k8s_pods_get",
+   "k8s_pods_log",
+   "k8s_events_list",
+   "k8s_resources_list",
+   "grafana_query_loki_logs"
+  ]
+ },
+ {
+  "id": "alert:ScheduledJobNeverSucceeded",
+  "source": "real-sweep",
+  "request": "An alert is FIRING \u2014 investigate and summarize. Do NOT propose or take any action.\nAlert: ScheduledJobNeverSucceeded (severity critical) on 10.42.0.3:8080.\nCorrelate the most recent logs and the pod/deployment status for the affected service, and give a concise incident summary: what's wrong, the likely cause, and the current state. If it's a synthetic/endpoint down, say whether the pod is running vs the ingress/SSO/cert path failing.",
+  "ok": [
+   "k8s_pods_list",
+   "k8s_pods_list_in_namespace",
+   "k8s_pods_get",
+   "k8s_pods_log",
+   "k8s_events_list",
+   "k8s_resources_list",
+   "grafana_query_loki_logs"
+  ]
+ },
+ {
+  "id": "alert:KubeJobNotCompleted",
+  "source": "real-sweep",
+  "request": "An alert is FIRING \u2014 investigate and summarize. Do NOT propose or take any action.\nAlert: KubeJobNotCompleted (severity warning) on ?.\nCorrelate the most recent logs and the pod/deployment status for the affected service, and give a concise incident summary: what's wrong, the likely cause, and the current state. If it's a synthetic/endpoint down, say whether the pod is running vs the ingress/SSO/cert path failing.",
+  "ok": [
+   "k8s_pods_list",
+   "k8s_pods_list_in_namespace",
+   "k8s_pods_get",
+   "k8s_pods_log",
+   "k8s_events_list",
+   "k8s_resources_list",
+   "grafana_query_loki_logs"
+  ]
+ },
+ {
+  "id": "alert:KubePodOOMKilled",
+  "source": "real-sweep",
+  "request": "An alert is FIRING \u2014 investigate and summarize. Do NOT propose or take any action.\nAlert: KubePodOOMKilled (severity warning) on 10.42.0.3:8080.\nCorrelate the most recent logs and the pod/deployment status for the affected service, and give a concise incident summary: what's wrong, the likely cause, and the current state. If it's a synthetic/endpoint down, say whether the pod is running vs the ingress/SSO/cert path failing.",
+  "ok": [
+   "k8s_pods_list",
+   "k8s_pods_list_in_namespace",
+   "k8s_pods_get",
+   "k8s_pods_log",
+   "k8s_events_list"
+  ]
+ },
+ {
+  "id": "alert:KubePodNotReady",
+  "source": "real-sweep",
+  "request": "An alert is FIRING \u2014 investigate and summarize. Do NOT propose or take any action.\nAlert: KubePodNotReady (severity warning) on dagster-webserver-c4dc4bf8f-5h965.\nCorrelate the most recent logs and the pod/deployment status for the affected service, and give a concise incident summary: what's wrong, the likely cause, and the current state. If it's a synthetic/endpoint down, say whether the pod is running vs the ingress/SSO/cert path failing.",
+  "ok": [
+   "k8s_pods_list",
+   "k8s_pods_list_in_namespace",
+   "k8s_pods_get",
+   "k8s_pods_log",
+   "k8s_events_list"
+  ]
+ },
+ {
+  "id": "alert:KubePodCrashLooping",
+  "source": "real-sweep",
+  "request": "An alert is FIRING \u2014 investigate and summarize. Do NOT propose or take any action.\nAlert: KubePodCrashLooping (severity warning) on 10.42.0.3:8080.\nCorrelate the most recent logs and the pod/deployment status for the affected service, and give a concise incident summary: what's wrong, the likely cause, and the current state. If it's a synthetic/endpoint down, say whether the pod is running vs the ingress/SSO/cert path failing.",
+  "ok": [
+   "k8s_pods_list",
+   "k8s_pods_list_in_namespace",
+   "k8s_pods_get",
+   "k8s_pods_log",
+   "k8s_events_list"
+  ]
+ },
+ {
+  "id": "alert:KubeContainerWaiting",
+  "source": "real-sweep",
+  "request": "An alert is FIRING \u2014 investigate and summarize. Do NOT propose or take any action.\nAlert: KubeContainerWaiting (severity warning) on 10.42.0.3:8080.\nCorrelate the most recent logs and the pod/deployment status for the affected service, and give a concise incident summary: what's wrong, the likely cause, and the current state. If it's a synthetic/endpoint down, say whether the pod is running vs the ingress/SSO/cert path failing.",
+  "ok": [
+   "k8s_pods_list",
+   "k8s_pods_list_in_namespace",
+   "k8s_pods_get",
+   "k8s_pods_log",
+   "k8s_events_list"
+  ]
+ },
+ {
+  "id": "alert:KubeDeploymentReplicasMismatch",
+  "source": "real-sweep",
+  "request": "An alert is FIRING \u2014 investigate and summarize. Do NOT propose or take any action.\nAlert: KubeDeploymentReplicasMismatch (severity warning) on 10.42.0.3:8080.\nCorrelate the most recent logs and the pod/deployment status for the affected service, and give a concise incident summary: what's wrong, the likely cause, and the current state. If it's a synthetic/endpoint down, say whether the pod is running vs the ingress/SSO/cert path failing.",
+  "ok": [
+   "k8s_pods_list",
+   "k8s_pods_list_in_namespace",
+   "k8s_pods_get",
+   "k8s_pods_log",
+   "k8s_events_list",
+   "k8s_resources_list"
+  ]
+ },
+ {
+  "id": "alert:KubeDeploymentRolloutStuck",
+  "source": "real-sweep",
+  "request": "An alert is FIRING \u2014 investigate and summarize. Do NOT propose or take any action.\nAlert: KubeDeploymentRolloutStuck (severity warning) on 10.42.0.3:8080.\nCorrelate the most recent logs and the pod/deployment status for the affected service, and give a concise incident summary: what's wrong, the likely cause, and the current state. If it's a synthetic/endpoint down, say whether the pod is running vs the ingress/SSO/cert path failing.",
+  "ok": [
+   "k8s_pods_list",
+   "k8s_pods_list_in_namespace",
+   "k8s_pods_get",
+   "k8s_pods_log",
+   "k8s_events_list",
+   "k8s_resources_list"
+  ]
+ },
+ {
+  "id": "alert:NodeMemoryHighUtilization",
+  "source": "real-sweep",
+  "request": "An alert is FIRING \u2014 investigate and summarize. Do NOT propose or take any action.\nAlert: NodeMemoryHighUtilization (severity warning) on 192.168.1.243:9100.\nCorrelate the most recent logs and the pod/deployment status for the affected service, and give a concise incident summary: what's wrong, the likely cause, and the current state. If it's a synthetic/endpoint down, say whether the pod is running vs the ingress/SSO/cert path failing.",
+  "ok": [
+   "k8s_nodes_top",
+   "grafana_query_prometheus"
+  ]
+ },
+ {
+  "id": "alert:NodeMemoryCritical",
+  "source": "real-sweep",
+  "request": "An alert is FIRING \u2014 investigate and summarize. Do NOT propose or take any action.\nAlert: NodeMemoryCritical (severity critical) on 192.168.1.243:9100.\nCorrelate the most recent logs and the pod/deployment status for the affected service, and give a concise incident summary: what's wrong, the likely cause, and the current state. If it's a synthetic/endpoint down, say whether the pod is running vs the ingress/SSO/cert path failing.",
+  "ok": [
+   "k8s_nodes_top",
+   "grafana_query_prometheus"
+  ]
+ },
+ {
+  "id": "alert:NodeMemoryMajorPagesFaults",
+  "source": "real-sweep",
+  "request": "An alert is FIRING \u2014 investigate and summarize. Do NOT propose or take any action.\nAlert: NodeMemoryMajorPagesFaults (severity warning) on 192.168.1.243:9100.\nCorrelate the most recent logs and the pod/deployment status for the affected service, and give a concise incident summary: what's wrong, the likely cause, and the current state. If it's a synthetic/endpoint down, say whether the pod is running vs the ingress/SSO/cert path failing.",
+  "ok": [
+   "k8s_nodes_top",
+   "grafana_query_prometheus"
+  ]
+ },
+ {
+  "id": "alert:NodeMemoryWarning",
+  "source": "real-sweep",
+  "request": "An alert is FIRING \u2014 investigate and summarize. Do NOT propose or take any action.\nAlert: NodeMemoryWarning (severity warning) on 192.168.1.243:9100.\nCorrelate the most recent logs and the pod/deployment status for the affected service, and give a concise incident summary: what's wrong, the likely cause, and the current state. If it's a synthetic/endpoint down, say whether the pod is running vs the ingress/SSO/cert path failing.",
+  "ok": [
+   "k8s_nodes_top",
+   "grafana_query_prometheus"
+  ]
+ },
+ {
+  "id": "alert:NodeMemoryRequestsNearCeiling",
+  "source": "real-sweep",
+  "request": "An alert is FIRING \u2014 investigate and summarize. Do NOT propose or take any action.\nAlert: NodeMemoryRequestsNearCeiling (severity warning) on ?.\nCorrelate the most recent logs and the pod/deployment status for the affected service, and give a concise incident summary: what's wrong, the likely cause, and the current state. If it's a synthetic/endpoint down, say whether the pod is running vs the ingress/SSO/cert path failing.",
+  "ok": [
+   "k8s_nodes_top",
+   "grafana_query_prometheus",
+   "k8s_resources_list"
+  ]
+ },
+ {
+  "id": "alert:NodeRootDiskWarning",
+  "source": "real-sweep",
+  "request": "An alert is FIRING \u2014 investigate and summarize. Do NOT propose or take any action.\nAlert: NodeRootDiskWarning (severity warning) on 192.168.1.243:9100.\nCorrelate the most recent logs and the pod/deployment status for the affected service, and give a concise incident summary: what's wrong, the likely cause, and the current state. If it's a synthetic/endpoint down, say whether the pod is running vs the ingress/SSO/cert path failing.",
+  "ok": [
+   "grafana_query_prometheus"
+  ]
+ },
+ {
+  "id": "alert:NodeRootDiskCritical",
+  "source": "real-sweep",
+  "request": "An alert is FIRING \u2014 investigate and summarize. Do NOT propose or take any action.\nAlert: NodeRootDiskCritical (severity critical) on 192.168.1.243:9100.\nCorrelate the most recent logs and the pod/deployment status for the affected service, and give a concise incident summary: what's wrong, the likely cause, and the current state. If it's a synthetic/endpoint down, say whether the pod is running vs the ingress/SSO/cert path failing.",
+  "ok": [
+   "grafana_query_prometheus"
+  ]
+ },
+ {
+  "id": "alert:BifrostSpendObserved",
+  "source": "real-sweep",
+  "request": "An alert is FIRING \u2014 investigate and summarize. Do NOT propose or take any action.\nAlert: BifrostSpendObserved (severity warning) on ?.\nCorrelate the most recent logs and the pod/deployment status for the affected service, and give a concise incident summary: what's wrong, the likely cause, and the current state. If it's a synthetic/endpoint down, say whether the pod is running vs the ingress/SSO/cert path failing.",
+  "ok": [
+   "grafana_query_prometheus"
+  ]
+ },
+ {
+  "id": "alert:TargetDown",
+  "source": "real-sweep",
+  "request": "An alert is FIRING \u2014 investigate and summarize. Do NOT propose or take any action.\nAlert: TargetDown (severity warning) on ray-worker-rogueone.\nCorrelate the most recent logs and the pod/deployment status for the affected service, and give a concise incident summary: what's wrong, the likely cause, and the current state. If it's a synthetic/endpoint down, say whether the pod is running vs the ingress/SSO/cert path failing.",
+  "ok": [
+   "grafana_query_prometheus",
+   "k8s_pods_list",
+   "k8s_pods_list_in_namespace",
+   "k8s_pods_get",
+   "k8s_pods_log",
+   "k8s_events_list"
+  ]
+ },
+ {
+  "id": "alert:WeylandOperatorSweepErrors",
+  "source": "real-sweep",
+  "request": "An alert is FIRING \u2014 investigate and summarize. Do NOT propose or take any action.\nAlert: WeylandOperatorSweepErrors (severity warning) on 10.42.0.222:8080.\nCorrelate the most recent logs and the pod/deployment status for the affected service, and give a concise incident summary: what's wrong, the likely cause, and the current state. If it's a synthetic/endpoint down, say whether the pod is running vs the ingress/SSO/cert path failing.",
+  "ok": [
+   "k8s_pods_list",
+   "k8s_pods_list_in_namespace",
+   "k8s_pods_get",
+   "k8s_pods_log",
+   "k8s_events_list",
+   "grafana_query_loki_logs",
+   "grafana_query_prometheus"
+  ]
+ },
+ {
+  "id": "alert:AlertmanagerClusterFailedToSendAlerts",
+  "source": "real-sweep",
+  "request": "An alert is FIRING \u2014 investigate and summarize. Do NOT propose or take any action.\nAlert: AlertmanagerClusterFailedToSendAlerts (severity critical) on ?.\nCorrelate the most recent logs and the pod/deployment status for the affected service, and give a concise incident summary: what's wrong, the likely cause, and the current state. If it's a synthetic/endpoint down, say whether the pod is running vs the ingress/SSO/cert path failing.",
+  "ok": [
+   "k8s_pods_list",
+   "k8s_pods_list_in_namespace",
+   "k8s_pods_get",
+   "k8s_pods_log",
+   "k8s_events_list",
+   "grafana_query_loki_logs",
+   "grafana_query_prometheus"
+  ]
+ },
+ {
+  "id": "alert:AlertmanagerFailedToSendAlerts",
+  "source": "real-sweep",
+  "request": "An alert is FIRING \u2014 investigate and summarize. Do NOT propose or take any action.\nAlert: AlertmanagerFailedToSendAlerts (severity warning) on 10.42.0.32:9093.\nCorrelate the most recent logs and the pod/deployment status for the affected service, and give a concise incident summary: what's wrong, the likely cause, and the current state. If it's a synthetic/endpoint down, say whether the pod is running vs the ingress/SSO/cert path failing.",
+  "ok": [
+   "k8s_pods_list",
+   "k8s_pods_list_in_namespace",
+   "k8s_pods_get",
+   "k8s_pods_log",
+   "k8s_events_list",
+   "grafana_query_loki_logs",
+   "grafana_query_prometheus"
+  ]
+ },
+ {
+  "id": "chat:0",
+  "source": "real-chat",
+  "request": "What does shared memory say about where kubectl runs?",
+  "ok": [
+   "memory_search_notes"
+  ]
+ },
+ {
+  "id": "chat:1",
+  "source": "real-chat",
+  "request": "What does our shared memory say caused the rogueone GPU freeze?",
+  "ok": [
+   "memory_search_notes"
+  ]
+ },
+ {
+  "id": "chat:2",
+  "source": "real-chat",
+  "request": "What does shared memory say about why the operator sweep must not use Haiku?",
+  "ok": [
+   "memory_search_notes"
+  ]
+ },
+ {
+  "id": "chat:3",
+  "source": "real-chat",
+  "request": "How many pods are running in the weyland namespace?",
+  "ok": [
+   "k8s_pods_list_in_namespace"
+  ]
+ },
+ {
+  "id": "chat:4",
+  "source": "real-chat",
+  "request": "is the lab healthy?",
+  "ok": [
+   "status"
+  ]
+ },
+ {
+  "id": "chat:5",
+  "source": "real-chat",
+  "request": "list the trino catalogs",
+  "ok": [
+   "trino_execute_query"
+  ]
+ },
+ {
+  "id": "written:0",
+  "source": "written",
+  "request": "Is qdrant up?",
+  "ok": [
+   "status"
+  ]
+ },
+ {
+  "id": "written:1",
+  "source": "written",
+  "request": "Are all the vector backends healthy right now?",
+  "ok": [
+   "status"
+  ]
+ },
+ {
+  "id": "written:2",
+  "source": "written",
+  "request": "What does the knowledge base say about the data mesh storage tier? Give me the raw chunks, no summary.",
+  "ok": [
+   "context_search"
+  ]
+ },
+ {
+  "id": "written:3",
+  "source": "written",
+  "request": "Find passages in the knowledge base that mention Nessie.",
+  "ok": [
+   "context_search"
+  ]
+ },
+ {
+  "id": "written:4",
+  "source": "written",
+  "request": "Using the knowledge base, explain how the B57 image CI works.",
+  "ok": [
+   "context_ask"
+  ]
+ },
+ {
+  "id": "written:5",
+  "source": "written",
+  "request": "Answer from the docs: what is the DR restore procedure for Woodpecker?",
+  "ok": [
+   "context_ask"
+  ]
+ },
+ {
+  "id": "written:6",
+  "source": "written",
+  "request": "Show me the error logs from the dagster namespace in the last hour in Loki.",
+  "ok": [
+   "grafana_query_loki_logs"
+  ]
+ },
+ {
+  "id": "written:7",
+  "source": "written",
+  "request": "What log patterns does Loki detect for the woodpecker server this morning?",
+  "ok": [
+   "grafana_query_loki_patterns"
+  ]
+ },
+ {
+  "id": "written:8",
+  "source": "written",
+  "request": "How many log streams does Loki hold for namespace weyland?",
+  "ok": [
+   "grafana_query_loki_stats"
+  ]
+ },
+ {
+  "id": "written:9",
+  "source": "written",
+  "request": "What is mother's CPU usage over the last 6 hours in Prometheus?",
+  "ok": [
+   "grafana_query_prometheus"
+  ]
+ },
+ {
+  "id": "written:10",
+  "source": "written",
+  "request": "What's the p95 request latency of weyland-guard from its histogram?",
+  "ok": [
+   "grafana_query_prometheus_histogram"
+  ]
+ },
+ {
+  "id": "written:11",
+  "source": "written",
+  "request": "How many rows are in the iceberg finance.filings table?",
+  "ok": [
+   "trino_execute_query"
+  ]
+ },
+ {
+  "id": "written:12",
+  "source": "written",
+  "request": "Run SELECT count(*) FROM tpch.tiny.orders on the lakehouse.",
+  "ok": [
+   "trino_execute_query"
+  ]
+ },
+ {
+  "id": "written:13",
+  "source": "written",
+  "request": "Any warning events in the cluster recently?",
+  "ok": [
+   "k8s_events_list"
+  ]
+ },
+ {
+  "id": "written:14",
+  "source": "written",
+  "request": "Why is the flink jobmanager pod being evicted? Show cluster events.",
+  "ok": [
+   "k8s_events_list"
+  ]
+ },
+ {
+  "id": "written:15",
+  "source": "written",
+  "request": "Which node is using the most memory right now?",
+  "ok": [
+   "k8s_nodes_top"
+  ]
+ },
+ {
+  "id": "written:16",
+  "source": "written",
+  "request": "Get the details of pod weyland-guard-7d9f8c6b5-x2k4p in namespace weyland.",
+  "ok": [
+   "k8s_pods_get"
+  ]
+ },
+ {
+  "id": "written:17",
+  "source": "written",
+  "request": "List every pod in the cluster.",
+  "ok": [
+   "k8s_pods_list"
+  ]
+ },
+ {
+  "id": "written:18",
+  "source": "written",
+  "request": "Show the pods in the data-mesh namespace.",
+  "ok": [
+   "k8s_pods_list_in_namespace"
+  ]
+ },
+ {
+  "id": "written:19",
+  "source": "written",
+  "request": "Show me the last logs of pod llama-guard-5f6d7c8b9-abcde in weyland.",
+  "ok": [
+   "k8s_pods_log"
+  ]
+ },
+ {
+  "id": "written:20",
+  "source": "written",
+  "request": "List the CronJobs in the weyland namespace.",
+  "ok": [
+   "k8s_resources_list"
+  ]
+ },
+ {
+  "id": "written:21",
+  "source": "written",
+  "request": "What Argo CD Applications exist?",
+  "ok": [
+   "k8s_resources_list"
+  ]
+ },
+ {
+  "id": "written:22",
+  "source": "written",
+  "request": "How many guardrail verdicts were recorded in Postgres today?",
+  "ok": [
+   "postgres_execute_sql"
+  ]
+ },
+ {
+  "id": "written:23",
+  "source": "written",
+  "request": "Query the operator_incidents table for the last 5 incidents.",
+  "ok": [
+   "postgres_execute_sql"
+  ]
+ },
+ {
+  "id": "written:24",
+  "source": "written",
+  "request": "What did we decide about KEDA? Check memory.",
+  "ok": [
+   "memory_search_notes"
+  ]
+ },
+ {
+  "id": "written:25",
+  "source": "written",
+  "request": "Open the memory note called woodpecker-sqlite-lock-pool.",
+  "ok": [
+   "memory_read_note"
+  ]
+ },
+ {
+  "id": "written:26",
+  "source": "written",
+  "request": "Have the realm's architecture expert review our Kafka-vs-Redpanda choice.",
+  "ok": [
+   "delegate_to_realm"
+  ]
+ },
+ {
+  "id": "written:27",
+  "source": "written",
+  "request": "Write a data-quality plan for the finance domain with the specialist agents.",
+  "ok": [
+   "delegate_to_realm"
+  ]
+ },
+ {
+  "id": "written:28",
+  "source": "written",
+  "request": "Trigger the weyland_ingestion_job pipeline.",
+  "ok": [
+   "propose_act"
+  ]
+ },
+ {
+  "id": "written:29",
+  "source": "written",
+  "request": "Kick off an eval run of the golden set.",
+  "ok": [
+   "propose_act"
+  ]
+ }
+]

@@ -1,0 +1,811 @@
+[
+ {
+  "type": "function",
+  "function": {
+   "name": "status",
+   "description": "Get the consolidated health of the weyland lab: server, embedding model, LLM endpoint, and all four vector\n    backends (pgvector, qdrant, weaviate, neo4j). Use this for 'is the lab healthy / is X up' questions. No arguments.",
+   "parameters": {
+    "properties": {},
+    "type": "object"
+   }
+  }
+ },
+ {
+  "type": "function",
+  "function": {
+   "name": "context_search",
+   "description": "Retrieve raw knowledge-base chunks (no answer generation) for a query. backend is one of\n    pgvector|qdrant|weaviate|neo4j (default pgvector). Use when you want the source chunks, not a synthesized answer.",
+   "parameters": {
+    "properties": {
+     "query": {
+      "type": "string"
+     },
+     "backend": {
+      "default": "pgvector",
+      "type": "string"
+     }
+    },
+    "required": [
+     "query"
+    ],
+    "type": "object"
+   }
+  }
+ },
+ {
+  "type": "function",
+  "function": {
+   "name": "context_ask",
+   "description": "Answer a question from the knowledge base using RAG (retrieve + generate an answer). backend defaults to\n    pgvector. Use this for 'what does the docs/KB say about X' questions. Slower (it generates an answer).",
+   "parameters": {
+    "properties": {
+     "query": {
+      "type": "string"
+     },
+     "backend": {
+      "default": "pgvector",
+      "type": "string"
+     }
+    },
+    "required": [
+     "query"
+    ],
+    "type": "object"
+   }
+  }
+ },
+ {
+  "type": "function",
+  "function": {
+   "name": "grafana_query_loki_logs",
+   "description": "Executes a log query against a Loki or VictoriaLogs datasource and returns matching log entries (or metric samples on Loki). Defaults to the last hour, a limit of 10 entries, and 'backward' direction (newest first). The `logql` parameter takes LogQL on Loki and LogsQL on VictoriaLogs (e.g., Loki: `{app=\"foo\"} |= \"error\"`; VictoriaLogs: `{app=\"foo\"} \"error\"`). To count matching log lines precisely, use a `count_over_time()` metric query with queryType='instant'. Prefer using `query_loki_stats` first to cheaply check whether a stream contains data (avoiding expensive queries against empty streams) and `list_loki_label_names` / `list_loki_label_values` to verify labels exist before querying. Note: `query_loki_stats` returns approximate storage-level counts, not exact log line counts.",
+   "parameters": {
+    "additionalProperties": false,
+    "properties": {
+     "datasourceUid": {
+      "type": "string",
+      "description": "The UID of the datasource to query"
+     },
+     "direction": {
+      "type": "string",
+      "description": "Optionally, the direction of the query: 'forward' (oldest first) or 'backward' (newest first, default)"
+     },
+     "endRfc3339": {
+      "type": "string",
+      "description": "Optionally, the end time of the query in RFC3339 format or relative time (e.g. 'now')"
+     },
+     "limit": {
+      "type": "integer",
+      "description": "Optionally, the maximum number of log lines to return (default max: 100, configurable by MCP server).",
+      "default": 10
+     },
+     "logql": {
+      "type": "string",
+      "description": "The LogQL query to execute against Loki. This can be a simple label matcher or a complex query with filters, parsers, and expressions. Supports full LogQL syntax including label matchers, filter operators, pattern expressions, and pipeline operations."
+     },
+     "queryType": {
+      "type": "string",
+      "description": "Query type: 'range' (default) or 'instant'. Instant queries return a single value at one point in time. Range queries return values over a time window. Use 'instant' for metric queries when you want the current value."
+     },
+     "startRfc3339": {
+      "type": "string",
+      "description": "Optionally, the start time of the query in RFC3339 format or relative time (e.g. 'now-1h')"
+     },
+     "stepSeconds": {
+      "type": "integer",
+      "description": "Resolution step in seconds for range metric queries. When running metric queries with queryType='range', this controls the time resolution of the returned data points."
+     }
+    },
+    "required": [
+     "datasourceUid",
+     "logql"
+    ],
+    "type": "object"
+   }
+  }
+ },
+ {
+  "type": "function",
+  "function": {
+   "name": "grafana_query_loki_patterns",
+   "description": "Retrieves detected log patterns from a Loki datasource for a given stream selector and time range. Returns a list of patterns, each containing a pattern string and a total count of occurrences. Patterns help identify common log structures and anomalies. The `logql` parameter must be a stream selector (e.g., `{job=\"nginx\"}`) and does not support line filters or aggregations. Defaults to the last hour if the time range is omitted. **Not supported on VictoriaLogs** datasources - use a `| stats` pipeline instead.",
+   "parameters": {
+    "additionalProperties": false,
+    "properties": {
+     "datasourceUid": {
+      "type": "string",
+      "description": "The UID of the datasource to query"
+     },
+     "endRfc3339": {
+      "type": "string",
+      "description": "Optionally, the end time of the query in RFC3339 format or relative time (e.g. 'now') (defaults to now)"
+     },
+     "logql": {
+      "type": "string",
+      "description": "A LogQL stream selector to identify the logs to analyze for patterns (e.g. {job=\"foo\", namespace=\"bar\"})"
+     },
+     "startRfc3339": {
+      "type": "string",
+      "description": "Optionally, the start time of the query in RFC3339 format or relative time (e.g. 'now-1h') (defaults to 1 hour ago)"
+     },
+     "step": {
+      "type": "string",
+      "description": "Optionally, the query resolution step (e.g. '5m')"
+     }
+    },
+    "required": [
+     "datasourceUid",
+     "logql"
+    ],
+    "type": "object"
+   }
+  }
+ },
+ {
+  "type": "function",
+  "function": {
+   "name": "grafana_query_loki_stats",
+   "description": "Retrieves index-level statistics about log streams matching a given selector within a Loki or VictoriaLogs datasource and time range. Returns an object containing the count of streams, chunks, entries, and total bytes (e.g., `{\"streams\": 5, \"chunks\": 50, \"entries\": 10000, \"bytes\": 512000}`). **Important**: the `entries` count reflects storage-level index entries (chunk metadata), NOT the number of individual log lines matching the selector. To count actual matching log lines, use `query_loki_logs` with a `count_over_time()` metric query instead. On VictoriaLogs only `entries` is populated; the other fields remain zero. The `logql` parameter **must** be a simple label selector (e.g., `{app=\"nginx\", env=\"prod\"}`) and does not support line filters, parsers, or aggregations. Defaults to the last hour if the time range is omitted.",
+   "parameters": {
+    "additionalProperties": false,
+    "properties": {
+     "datasourceUid": {
+      "type": "string",
+      "description": "The UID of the datasource to query"
+     },
+     "endRfc3339": {
+      "type": "string",
+      "description": "Optionally, the end time of the query in RFC3339 format or relative time (e.g. 'now')"
+     },
+     "logql": {
+      "type": "string",
+      "description": "The LogQL matcher expression to execute. This parameter only accepts label matcher expressions and does not support full LogQL queries. Line filters, pattern operations, and metric aggregations are not supported by the stats API endpoint. Only simple label selectors can be used here."
+     },
+     "startRfc3339": {
+      "type": "string",
+      "description": "Optionally, the start time of the query in RFC3339 format or relative time (e.g. 'now-1h')"
+     }
+    },
+    "required": [
+     "datasourceUid",
+     "logql"
+    ],
+    "type": "object"
+   }
+  }
+ },
+ {
+  "type": "function",
+  "function": {
+   "name": "grafana_query_prometheus",
+   "description": "WORKFLOW: list_prometheus_metric_names -> list_prometheus_label_values -> query_prometheus. Query a PromQL-compatible datasource (Prometheus, Thanos, Mimir, Cloud Monitoring, etc.) using a PromQL expression. Supports instant queries (single point) and range queries (time range). Time: RFC3339 or relative expressions like 'now'\\, 'now-1h'.",
+   "parameters": {
+    "additionalProperties": false,
+    "properties": {
+     "datasourceUid": {
+      "type": "string",
+      "description": "The UID of the datasource to query"
+     },
+     "endTime": {
+      "type": "string",
+      "description": "The end time. Supported formats are RFC3339 or relative to now (e.g. 'now', 'now-1.5h', 'now-2h45m'). Valid time units are 'ns', 'us' (or '\u00b5s'), 'ms', 's', 'm', 'h', 'd'."
+     },
+     "expr": {
+      "type": "string",
+      "description": "The PromQL expression to query"
+     },
+     "projectName": {
+      "type": "string",
+      "description": "GCP project name to query (Cloud Monitoring datasources only). Overrides or substitutes the defaultProject configured on the datasource."
+     },
+     "queryType": {
+      "type": "string",
+      "description": "The type of query to use. Either 'range' or 'instant'"
+     },
+     "startTime": {
+      "type": "string",
+      "description": "The start time. Required if queryType is 'range', ignored if queryType is 'instant' Supported formats are RFC3339 or relative to now (e.g. 'now', 'now-1.5h', 'now-2h45m'). Valid time units are 'ns', 'us' (or '\u00b5s'), 'ms', 's', 'm', 'h', 'd'."
+     },
+     "stepSeconds": {
+      "type": "integer",
+      "description": "The time series step size in seconds. Required if queryType is 'range', ignored if queryType is 'instant'"
+     }
+    },
+    "required": [
+     "datasourceUid",
+     "expr",
+     "endTime"
+    ],
+    "type": "object"
+   }
+  }
+ },
+ {
+  "type": "function",
+  "function": {
+   "name": "grafana_query_prometheus_histogram",
+   "description": "Query Prometheus histogram percentiles. DISCOVER FIRST: Use list_prometheus_metric_names with regex='.*_bucket$' to find histograms.\n\nGenerates histogram_quantile PromQL. Example: metric='http_duration', percentile=95, labels='job=\"api\"'\n\nTime formats: 'now-1h', '2026-02-02T19:00:00Z', '1738519200000' (Unix ms)",
+   "parameters": {
+    "additionalProperties": false,
+    "properties": {
+     "datasourceUid": {
+      "type": "string",
+      "description": "The UID of the Prometheus datasource"
+     },
+     "endTime": {
+      "type": "string",
+      "description": "End time (default: now). Supports RFC3339, relative, or Unix ms."
+     },
+     "labels": {
+      "type": "string",
+      "description": "Label selector (e.g. job=\"api\", service=\"gateway\")"
+     },
+     "metric": {
+      "type": "string",
+      "description": "Base histogram metric name (without _bucket suffix)"
+     },
+     "percentile": {
+      "type": "number",
+      "description": "Percentile to calculate (e.g. 50, 90, 95, 99)"
+     },
+     "projectName": {
+      "type": "string",
+      "description": "GCP project name to query (Cloud Monitoring datasources only). Overrides or substitutes the defaultProject configured on the datasource."
+     },
+     "rateInterval": {
+      "type": "string",
+      "description": "Rate interval for the query (default: 5m)"
+     },
+     "startTime": {
+      "type": "string",
+      "description": "Start time (default: now-1h). Supports RFC3339, relative (now-1h), or Unix ms."
+     },
+     "stepSeconds": {
+      "type": "integer",
+      "description": "Step size in seconds for range query (default: 60)"
+     }
+    },
+    "required": [
+     "datasourceUid",
+     "metric",
+     "percentile"
+    ],
+    "type": "object"
+   }
+  }
+ },
+ {
+  "type": "function",
+  "function": {
+   "name": "trino_execute_query",
+   "description": "Execute SQL queries on Trino's fast distributed query engine for big data analytics. By default, only read-only queries (SELECT, SHOW, DESCRIBE, EXPLAIN) are allowed for security. When TRINO_ALLOW_WRITE_QUERIES=true is set, supports all SQL statements including INSERT, UPDATE, DELETE, CREATE, DROP, and other DML/DDL operations. Perfect for complex analytics, aggregations, joins, and cross-system data exploration on large datasets.",
+   "parameters": {
+    "type": "object",
+    "properties": {
+     "query": {
+      "description": "SQL query to execute. By default read-only queries only; DML/DDL requires TRINO_ALLOW_WRITE_QUERIES=true",
+      "type": "string"
+     }
+    },
+    "required": [
+     "query"
+    ]
+   }
+  }
+ },
+ {
+  "type": "function",
+  "function": {
+   "name": "k8s_events_list",
+   "description": "List Kubernetes events (warnings, errors, state changes) for debugging and troubleshooting in the current cluster from all namespaces",
+   "parameters": {
+    "type": "object",
+    "properties": {
+     "fieldSelector": {
+      "type": "string",
+      "description": "Optional Kubernetes field selector to filter events by field values (e.g. 'type=Warning', 'involvedObject.name=my-pod'). Supported fields: involvedObject.kind, involvedObject.name, involvedObject.namespace, involvedObject.uid, involvedObject.apiVersion, involvedObject.resourceVersion, involvedObject.fieldPath, reason, reportingComponent, source, type. See https://kubernetes.io/docs/concepts/overview/working-with-objects/field-selectors/",
+      "pattern": "^[.\\-A-Za-z0-9]+([=!,]{1,2}[./\\-A-Za-z0-9]+)+$"
+     },
+     "namespace": {
+      "type": "string",
+      "description": "Optional Namespace to retrieve the events from. If not provided, will list events from all namespaces"
+     }
+    }
+   }
+  }
+ },
+ {
+  "type": "function",
+  "function": {
+   "name": "k8s_nodes_top",
+   "description": "List the resource consumption (CPU and memory) as recorded by the Kubernetes Metrics Server for the specified Kubernetes Nodes or all nodes in the cluster",
+   "parameters": {
+    "type": "object",
+    "properties": {
+     "label_selector": {
+      "type": "string",
+      "description": "Kubernetes label selector (e.g. 'node-role.kubernetes.io/worker=') to filter nodes by label (Optional, only applicable when name is not provided)",
+      "pattern": "^([/_.\\-A-Za-z0-9=, ()!])+$"
+     },
+     "name": {
+      "type": "string",
+      "description": "Name of the Node to get the resource consumption from (Optional, all Nodes if not provided)"
+     }
+    }
+   }
+  }
+ },
+ {
+  "type": "function",
+  "function": {
+   "name": "k8s_pods_get",
+   "description": "Get a Kubernetes Pod in the current or provided namespace with the provided name",
+   "parameters": {
+    "type": "object",
+    "properties": {
+     "name": {
+      "type": "string",
+      "description": "Name of the Pod"
+     },
+     "namespace": {
+      "type": "string",
+      "description": "Namespace to get the Pod from"
+     }
+    },
+    "required": [
+     "name"
+    ]
+   }
+  }
+ },
+ {
+  "type": "function",
+  "function": {
+   "name": "k8s_pods_list",
+   "description": "List all the Kubernetes pods in the current cluster from all namespaces",
+   "parameters": {
+    "type": "object",
+    "properties": {
+     "fieldSelector": {
+      "type": "string",
+      "description": "Optional Kubernetes field selector to filter pods by field values (e.g. 'status.phase=Running', 'spec.nodeName=node1'). Supported fields: metadata.name, metadata.namespace, spec.nodeName, spec.restartPolicy, spec.schedulerName, spec.serviceAccountName, status.phase (Pending/Running/Succeeded/Failed/Unknown), status.podIP, status.nominatedNodeName. Note: CrashLoopBackOff is a container state, not a pod phase, so it cannot be filtered directly. See https://kubernetes.io/docs/concepts/overview/working-with-objects/field-selectors/",
+      "pattern": "^[.\\-A-Za-z0-9]+([=!,]{1,2}[./\\-A-Za-z0-9]+)+$"
+     },
+     "labelSelector": {
+      "type": "string",
+      "description": "Optional Kubernetes label selector (e.g. 'app=myapp,env=prod' or 'app in (myapp,yourapp)'), use this option when you want to filter the pods by label",
+      "pattern": "^([/_.\\-A-Za-z0-9=, ()!])+$"
+     }
+    }
+   }
+  }
+ },
+ {
+  "type": "function",
+  "function": {
+   "name": "k8s_pods_list_in_namespace",
+   "description": "List all the Kubernetes pods in the specified namespace in the current cluster",
+   "parameters": {
+    "type": "object",
+    "properties": {
+     "fieldSelector": {
+      "type": "string",
+      "description": "Optional Kubernetes field selector to filter pods by field values (e.g. 'status.phase=Running', 'spec.nodeName=node1'). Supported fields: metadata.name, metadata.namespace, spec.nodeName, spec.restartPolicy, spec.schedulerName, spec.serviceAccountName, status.phase (Pending/Running/Succeeded/Failed/Unknown), status.podIP, status.nominatedNodeName. Note: CrashLoopBackOff is a container state, not a pod phase, so it cannot be filtered directly. See https://kubernetes.io/docs/concepts/overview/working-with-objects/field-selectors/",
+      "pattern": "^[.\\-A-Za-z0-9]+([=!,]{1,2}[./\\-A-Za-z0-9]+)+$"
+     },
+     "labelSelector": {
+      "type": "string",
+      "description": "Optional Kubernetes label selector (e.g. 'app=myapp,env=prod' or 'app in (myapp,yourapp)'), use this option when you want to filter the pods by label",
+      "pattern": "^([/_.\\-A-Za-z0-9=, ()!])+$"
+     },
+     "namespace": {
+      "type": "string",
+      "description": "Namespace to list pods from"
+     }
+    },
+    "required": [
+     "namespace"
+    ]
+   }
+  }
+ },
+ {
+  "type": "function",
+  "function": {
+   "name": "k8s_pods_log",
+   "description": "Get the logs of a Kubernetes Pod in the current or provided namespace with the provided name",
+   "parameters": {
+    "type": "object",
+    "properties": {
+     "container": {
+      "type": "string",
+      "description": "Name of the Pod container to get the logs from (Optional)"
+     },
+     "name": {
+      "type": "string",
+      "description": "Name of the Pod to get the logs from"
+     },
+     "namespace": {
+      "type": "string",
+      "description": "Namespace to get the Pod logs from"
+     },
+     "previous": {
+      "type": "boolean",
+      "description": "Return previous terminated container logs (Optional)"
+     },
+     "tail": {
+      "type": "integer",
+      "description": "Number of lines to retrieve from the end of the logs (Optional, default: 100)",
+      "default": 100,
+      "minimum": 0
+     }
+    },
+    "required": [
+     "name"
+    ]
+   }
+  }
+ },
+ {
+  "type": "function",
+  "function": {
+   "name": "k8s_resources_list",
+   "description": "List Kubernetes resources and objects in the current cluster by providing their apiVersion and kind and optionally the namespace and label selector\n(common apiVersion and kind include: v1 Pod, v1 Service, v1 Node, apps/v1 Deployment, networking.k8s.io/v1 Ingress, route.openshift.io/v1 Route)",
+   "parameters": {
+    "type": "object",
+    "properties": {
+     "apiVersion": {
+      "type": "string",
+      "description": "apiVersion of the resources (examples of valid apiVersion are: v1, apps/v1, networking.k8s.io/v1)"
+     },
+     "fieldSelector": {
+      "type": "string",
+      "description": "Optional Kubernetes field selector to filter resources by field values (e.g. 'status.phase=Running', 'metadata.name=myresource'). Supported fields vary by resource type. For Pods: metadata.name, metadata.namespace, spec.nodeName, spec.restartPolicy, spec.schedulerName, spec.serviceAccountName, status.phase (Pending/Running/Succeeded/Failed/Unknown), status.podIP, status.nominatedNodeName. See https://kubernetes.io/docs/concepts/overview/working-with-objects/field-selectors/",
+      "pattern": "^[.\\-A-Za-z0-9]+([=!,]{1,2}[./\\-A-Za-z0-9]+)+$"
+     },
+     "kind": {
+      "type": "string",
+      "description": "kind of the resources (examples of valid kind are: Pod, Service, Deployment, Ingress)"
+     },
+     "labelSelector": {
+      "type": "string",
+      "description": "Optional Kubernetes label selector (e.g. 'app=myapp,env=prod' or 'app in (myapp,yourapp)'), use this option when you want to filter the resources by label",
+      "pattern": "^([/_.\\-A-Za-z0-9=, ()!])+$"
+     },
+     "namespace": {
+      "type": "string",
+      "description": "Optional Namespace to retrieve the namespaced resources from (ignored in case of cluster scoped resources). If not provided, will list resources from all namespaces"
+     }
+    },
+    "required": [
+     "apiVersion",
+     "kind"
+    ]
+   }
+  }
+ },
+ {
+  "type": "function",
+  "function": {
+   "name": "postgres_execute_sql",
+   "description": "Execute a read-only SQL query",
+   "parameters": {
+    "properties": {
+     "sql": {
+      "default": "all",
+      "description": "SQL to run",
+      "type": "string"
+     }
+    },
+    "type": "object"
+   }
+  }
+ },
+ {
+  "type": "function",
+  "function": {
+   "name": "memory_search_notes",
+   "description": "Search across all content in the knowledge base with advanced syntax support.",
+   "parameters": {
+    "properties": {
+     "query": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "string"
+       }
+      ],
+      "default": null,
+      "description": "Optional search query string (supports boolean operators, phrases, patterns).\n  Omit or pass None for filter-only searches using metadata_filters, tags, or status."
+     },
+     "project": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "string"
+       }
+      ],
+      "default": null,
+      "description": "Project name to search in. Optional - server will resolve using hierarchy.\n    If unknown, use list_memory_projects() to discover available projects."
+     },
+     "project_id": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "string"
+       }
+      ],
+      "default": null,
+      "description": "Project external_id (UUID). Prefer this over `project` when known \u2014\n    it routes to the exact project regardless of name collisions across cloud\n    workspaces. Takes precedence over `project`. Get from list_memory_projects()."
+     },
+     "search_all_projects": {
+      "default": false,
+      "type": "boolean",
+      "description": "Optional opt-in to search every accessible project. Ignored when\n    `project` or `project_id` is supplied."
+     },
+     "page": {
+      "default": 1,
+      "type": "integer",
+      "description": "The page number of results to return (default 1)"
+     },
+     "page_size": {
+      "default": 10,
+      "type": "integer",
+      "description": "The number of results to return per page (default 10)"
+     },
+     "search_type": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "string"
+       }
+      ],
+      "default": null,
+      "description": "Type of search to perform, one of:\n        \"text\", \"title\", \"permalink\", \"vector\", \"semantic\", \"hybrid\".\n        Default is dynamic: \"hybrid\" when semantic search is enabled, otherwise \"text\"."
+     },
+     "output_format": {
+      "default": "text",
+      "enum": [
+       "text",
+       "json"
+      ],
+      "type": "string",
+      "description": "\"text\" preserves existing structured search response behavior.\n\"json\" returns a machine-readable dictionary payload."
+     },
+     "note_types": {
+      "anyOf": [
+       {
+        "items": {
+         "type": "string"
+        },
+        "type": "array"
+       },
+       {
+        "type": "string"
+       }
+      ],
+      "default": null,
+      "description": "Optional list of note types to search (e.g., [\"note\", \"person\"])"
+     },
+     "entity_types": {
+      "anyOf": [
+       {
+        "items": {
+         "type": "string"
+        },
+        "type": "array"
+       },
+       {
+        "type": "string"
+       }
+      ],
+      "default": null,
+      "description": "Optional list of entity types to filter by (e.g., [\"entity\", \"observation\"])"
+     },
+     "categories": {
+      "anyOf": [
+       {
+        "items": {
+         "type": "string"
+        },
+        "type": "array"
+       },
+       {
+        "type": "string"
+       }
+      ],
+      "default": null,
+      "description": "Optional list of observation categories for exact matching (e.g.,\n       [\"requirement\"]). Pair with entity_types=[\"observation\"] to return only\n       observations whose category matches exactly."
+     },
+     "after_date": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "string"
+       }
+      ],
+      "default": null,
+      "description": "Optional date filter for recent content (e.g., \"1 week\", \"2d\", \"2024-01-01\")"
+     },
+     "metadata_filters": {
+      "anyOf": [
+       {
+        "additionalProperties": true,
+        "type": "object",
+        "properties": {}
+       },
+       {
+        "type": "string"
+       }
+      ],
+      "default": null,
+      "description": "Optional structured frontmatter filters (e.g., {\"status\": \"in-progress\"})"
+     },
+     "tags": {
+      "anyOf": [
+       {
+        "items": {
+         "type": "string"
+        },
+        "type": "array"
+       },
+       {
+        "type": "string"
+       }
+      ],
+      "default": null,
+      "description": "Optional tag filter (frontmatter tags); shorthand for metadata_filters[\"tags\"].\n  Accepts a list ([\"a\", \"b\"]) or a comma-separated string (\"a,b\"), matching the\n  write_note tags convention and the tag: query shorthand."
+     },
+     "status": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "string"
+       }
+      ],
+      "default": null,
+      "description": "Optional status filter (frontmatter status); shorthand for metadata_filters[\"status\"]"
+     },
+     "min_similarity": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "string"
+       }
+      ],
+      "default": null,
+      "description": "Optional float to override the global semantic_min_similarity threshold\n           for this query. E.g., 0.0 to see all vector results, or 0.8 for high precision.\n           Only applies to vector and hybrid search types."
+     }
+    },
+    "type": "object",
+    "additionalProperties": false
+   }
+  }
+ },
+ {
+  "type": "function",
+  "function": {
+   "name": "memory_read_note",
+   "description": "Read a markdown note by title or permalink.",
+   "parameters": {
+    "properties": {
+     "identifier": {
+      "type": "string",
+      "description": "The title or permalink of the note to read\n       Can be a full memory:// URL, a permalink, a title, or search text"
+     },
+     "project": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "string"
+       }
+      ],
+      "default": null,
+      "description": "Project name to read from. Optional - server will resolve using the\n    hierarchy above. If unknown, use list_memory_projects() to discover\n    available projects."
+     },
+     "project_id": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "string"
+       }
+      ],
+      "default": null,
+      "description": "Project external_id (UUID). Prefer this over `project` when known \u2014\n    it routes to the exact project regardless of name collisions across cloud\n    workspaces. Takes precedence over `project`. Get from list_memory_projects()."
+     },
+     "page": {
+      "default": 1,
+      "type": "integer",
+      "description": "Page of fallback-search results to use when the identifier does not\nresolve to a note directly (default: 1). A direct or exact-title match\nalways returns the full note content \u2014 page/page_size never chunk the\nnote itself, and the title-match lookup pages through fixed-size pages\nof title results until an exact match is found or results are\nexhausted, regardless of page or page_size."
+     },
+     "page_size": {
+      "default": 10,
+      "type": "integer",
+      "description": "Number of fallback-search results per page (default: 10). When no\nmatch is found, this caps how many related-note suggestions are listed."
+     },
+     "output_format": {
+      "default": "text",
+      "enum": [
+       "text",
+       "json"
+      ],
+      "type": "string",
+      "description": "\"text\" returns markdown content or guidance text.\n\"json\" returns a structured object with title/permalink/file_path/content/frontmatter."
+     },
+     "include_frontmatter": {
+      "default": false,
+      "type": "boolean",
+      "description": "When output_format=\"json\", whether content should include the\nopening YAML frontmatter block."
+     }
+    },
+    "required": [
+     "identifier"
+    ],
+    "type": "object",
+    "additionalProperties": false
+   }
+  }
+ },
+ {
+  "type": "function",
+  "function": {
+   "name": "delegate_to_realm",
+   "description": "Hand a specialist task to the Realm of Agents \u2014 24 expert agents in five groups: Valhalla (engineering:\n    architecture, coding, testing, devops, security, code review), Vanaheim (knowledge: consulting frameworks, AIDLC\n    delivery, industry analysis, prompt engineering), Midgard (data & platform: observability/Grafana, SQL, data quality,\n    graph/lineage, catalog), and the Well (research, eval-judging, content, safety). Gn\u00e1 routes the task to the right\n    agent, which uses its own tools or delegates to its team, then returns one answer. Use this for work beyond your own\n    read tools \u2014 e.g. 'audit the Grafana dashboards', 'review this SQL', 'apply a SWOT to X', 'trace the lineage of Y'.\n    Returns which agent handled it and its answer.",
+   "parameters": {
+    "properties": {
+     "task": {
+      "type": "string"
+     }
+    },
+    "required": [
+     "task"
+    ],
+    "type": "object"
+   }
+  }
+ },
+ {
+  "type": "function",
+  "function": {
+   "name": "propose_act",
+   "description": "Propose an ACTION that changes lab state. You CANNOT run actions directly \u2014 call this to propose one, and the\n    user is asked to confirm before anything runs. Use it for: triggering a Dagster pipeline job\n    (tool=\"pipeline_trigger\", job_name one of weyland_ingestion_job|weyland_eval_job|weyland_eval_score_job),\n    running the eval matrix (tool=\"evals_run\"), or scoring the latest eval run (tool=\"evals_score\"). summary = a\n    one-line description of what will happen and its cost/impact. Never claim an action ran \u2014 proposing is all you can do.",
+   "parameters": {
+    "properties": {
+     "tool": {
+      "type": "string"
+     },
+     "summary": {
+      "type": "string"
+     },
+     "job_name": {
+      "default": "",
+      "type": "string"
+     }
+    },
+    "required": [
+     "tool",
+     "summary"
+    ],
+    "type": "object"
+   }
+  }
+ }
+]

@@ -1,0 +1,415 @@
+[
+{
+"id": "alert:ScheduledJobStale",
+"pick": "k8s_events_list",
+"ok": true,
+"ms": 621,
+"confidence": 0.2207
+},
+{
+"id": "alert:KubeJobFailed",
+"pick": "k8s_events_list",
+"ok": true,
+"ms": 637,
+"confidence": 0.3653
+},
+{
+"id": "alert:ScheduledJobFailed",
+"pick": "k8s_pods_log",
+"ok": true,
+"ms": 625,
+"confidence": 0.2252
+},
+{
+"id": "alert:ScheduledJobNeverSucceeded",
+"pick": "k8s_events_list",
+"ok": true,
+"ms": 628,
+"confidence": 0.2403
+},
+{
+"id": "alert:KubeJobNotCompleted",
+"pick": "k8s_events_list",
+"ok": true,
+"ms": 630,
+"confidence": 0.5551
+},
+{
+"id": "alert:KubePodOOMKilled",
+"pick": "k8s_pods_log",
+"ok": true,
+"ms": 635,
+"confidence": 0.585
+},
+{
+"id": "alert:KubePodNotReady",
+"pick": "k8s_pods_log",
+"ok": true,
+"ms": 639,
+"confidence": 0.5778
+},
+{
+"id": "alert:KubePodCrashLooping",
+"pick": "k8s_pods_log",
+"ok": true,
+"ms": 650,
+"confidence": 0.6241
+},
+{
+"id": "alert:KubeContainerWaiting",
+"pick": "k8s_pods_log",
+"ok": true,
+"ms": 628,
+"confidence": 0.5174
+},
+{
+"id": "alert:KubeDeploymentReplicasMismatch",
+"pick": "k8s_events_list",
+"ok": true,
+"ms": 637,
+"confidence": 0.2205
+},
+{
+"id": "alert:KubeDeploymentRolloutStuck",
+"pick": "k8s_pods_log",
+"ok": true,
+"ms": 624,
+"confidence": 0.3054
+},
+{
+"id": "alert:NodeMemoryHighUtilization",
+"pick": "k8s_nodes_top",
+"ok": true,
+"ms": 635,
+"confidence": 0.6483
+},
+{
+"id": "alert:NodeMemoryCritical",
+"pick": "k8s_nodes_top",
+"ok": true,
+"ms": 633,
+"confidence": 0.6032
+},
+{
+"id": "alert:NodeMemoryMajorPagesFaults",
+"pick": "grafana_query_loki_logs",
+"ok": false,
+"ms": 675,
+"confidence": 0.2739
+},
+{
+"id": "alert:NodeMemoryWarning",
+"pick": "k8s_nodes_top",
+"ok": true,
+"ms": 641,
+"confidence": 0.3906
+},
+{
+"id": "alert:NodeMemoryRequestsNearCeiling",
+"pick": "k8s_nodes_top",
+"ok": true,
+"ms": 636,
+"confidence": 0.4417
+},
+{
+"id": "alert:NodeRootDiskWarning",
+"pick": "grafana_query_loki_logs",
+"ok": false,
+"ms": 631,
+"confidence": 0.4749
+},
+{
+"id": "alert:NodeRootDiskCritical",
+"pick": "grafana_query_loki_logs",
+"ok": false,
+"ms": 633,
+"confidence": 0.4737
+},
+{
+"id": "alert:BifrostSpendObserved",
+"pick": "grafana_query_loki_logs",
+"ok": false,
+"ms": 633,
+"confidence": 0.4698
+},
+{
+"id": "alert:TargetDown",
+"pick": "k8s_pods_log",
+"ok": true,
+"ms": 628,
+"confidence": 0.4991
+},
+{
+"id": "alert:WeylandOperatorSweepErrors",
+"pick": "grafana_query_loki_logs",
+"ok": true,
+"ms": 641,
+"confidence": 0.4607
+},
+{
+"id": "alert:AlertmanagerClusterFailedToSendAlerts",
+"pick": "k8s_events_list",
+"ok": true,
+"ms": 629,
+"confidence": 0.2352
+},
+{
+"id": "alert:AlertmanagerFailedToSendAlerts",
+"pick": "grafana_query_loki_logs",
+"ok": true,
+"ms": 644,
+"confidence": 0.2552
+},
+{
+"id": "chat:0",
+"pick": "memory_search_notes",
+"ok": true,
+"ms": 647,
+"confidence": 0.6208
+},
+{
+"id": "chat:1",
+"pick": "memory_search_notes",
+"ok": true,
+"ms": 636,
+"confidence": 0.5376
+},
+{
+"id": "chat:2",
+"pick": "memory_search_notes",
+"ok": true,
+"ms": 644,
+"confidence": 0.5729
+},
+{
+"id": "chat:3",
+"pick": "k8s_pods_list_in_namespace",
+"ok": true,
+"ms": 651,
+"confidence": 0.9517
+},
+{
+"id": "chat:4",
+"pick": "status",
+"ok": true,
+"ms": 634,
+"confidence": 0.8038
+},
+{
+"id": "chat:5",
+"pick": "trino_execute_query",
+"ok": true,
+"ms": 663,
+"confidence": 0.8539
+},
+{
+"id": "written:0",
+"pick": "status",
+"ok": true,
+"ms": 632,
+"confidence": 0.8437
+},
+{
+"id": "written:1",
+"pick": "status",
+"ok": true,
+"ms": 646,
+"confidence": 0.9086
+},
+{
+"id": "written:2",
+"pick": "context_search",
+"ok": true,
+"ms": 677,
+"confidence": 0.8868
+},
+{
+"id": "written:3",
+"pick": "context_search",
+"ok": true,
+"ms": 641,
+"confidence": 0.6711
+},
+{
+"id": "written:4",
+"pick": "memory_search_notes",
+"ok": false,
+"ms": 650,
+"confidence": 0.3017
+},
+{
+"id": "written:5",
+"pick": "context_ask",
+"ok": true,
+"ms": 690,
+"confidence": 0.4233
+},
+{
+"id": "written:6",
+"pick": "grafana_query_loki_logs",
+"ok": true,
+"ms": 668,
+"confidence": 0.8692
+},
+{
+"id": "written:7",
+"pick": "grafana_query_loki_patterns",
+"ok": true,
+"ms": 679,
+"confidence": 0.7565
+},
+{
+"id": "written:8",
+"pick": "grafana_query_loki_stats",
+"ok": true,
+"ms": 709,
+"confidence": 0.7327
+},
+{
+"id": "written:9",
+"pick": "grafana_query_prometheus",
+"ok": true,
+"ms": 665,
+"confidence": 0.8334
+},
+{
+"id": "written:10",
+"pick": "grafana_query_prometheus_histogram",
+"ok": true,
+"ms": 652,
+"confidence": 0.4712
+},
+{
+"id": "written:11",
+"pick": "trino_execute_query",
+"ok": true,
+"ms": 652,
+"confidence": 0.7834
+},
+{
+"id": "written:12",
+"pick": "trino_execute_query",
+"ok": true,
+"ms": 640,
+"confidence": 0.8589
+},
+{
+"id": "written:13",
+"pick": "k8s_events_list",
+"ok": true,
+"ms": 644,
+"confidence": 0.9276
+},
+{
+"id": "written:14",
+"pick": "k8s_events_list",
+"ok": true,
+"ms": 655,
+"confidence": 0.8159
+},
+{
+"id": "written:15",
+"pick": "k8s_nodes_top",
+"ok": true,
+"ms": 642,
+"confidence": 0.9346
+},
+{
+"id": "written:16",
+"pick": "k8s_pods_get",
+"ok": true,
+"ms": 659,
+"confidence": 0.9448
+},
+{
+"id": "written:17",
+"pick": "k8s_pods_list",
+"ok": true,
+"ms": 643,
+"confidence": 0.9581
+},
+{
+"id": "written:18",
+"pick": "k8s_pods_list_in_namespace",
+"ok": true,
+"ms": 646,
+"confidence": 0.9662
+},
+{
+"id": "written:19",
+"pick": "k8s_pods_log",
+"ok": true,
+"ms": 655,
+"confidence": 0.9419
+},
+{
+"id": "written:20",
+"pick": "k8s_resources_list",
+"ok": true,
+"ms": 654,
+"confidence": 0.7834
+},
+{
+"id": "written:21",
+"pick": "k8s_resources_list",
+"ok": true,
+"ms": 649,
+"confidence": 0.7386
+},
+{
+"id": "written:22",
+"pick": "postgres_execute_sql",
+"ok": true,
+"ms": 648,
+"confidence": 0.9298
+},
+{
+"id": "written:23",
+"pick": "postgres_execute_sql",
+"ok": true,
+"ms": 652,
+"confidence": 0.9042
+},
+{
+"id": "written:24",
+"pick": "memory_search_notes",
+"ok": true,
+"ms": 649,
+"confidence": 0.632
+},
+{
+"id": "written:25",
+"pick": "memory_read_note",
+"ok": true,
+"ms": 664,
+"confidence": 0.965
+},
+{
+"id": "written:26",
+"pick": "delegate_to_realm",
+"ok": true,
+"ms": 655,
+"confidence": 0.4896
+},
+{
+"id": "written:27",
+"pick": "delegate_to_realm",
+"ok": true,
+"ms": 657,
+"confidence": 0.4927
+},
+{
+"id": "written:28",
+"pick": "propose_act",
+"ok": true,
+"ms": 650,
+"confidence": 0.8509
+},
+{
+"id": "written:29",
+"pick": "propose_act",
+"ok": true,
+"ms": 651,
+"confidence": 0.8495
+}
+]
