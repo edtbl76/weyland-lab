@@ -27,6 +27,7 @@ model {
   hostedModels = ext "Hosted LLM providers" "OpenAI / Anthropic / Gemini / Mistral / Cohere / DeepSeek / Together / OpenRouter / xAI — fronted by LiteLLM + the AI Gateway (gated egress)"
   huggingface = ext "Hugging Face Hub" "Model weights (bge-base RAG / bge-small datasets, GGUF) at setup"
   port = ext "Port.io" "IDP / catalog + self-service actions (SaaS)"
+  typesafe = ext "TypeSafe AI (Jev)" "Hosted decision model (POST /v1/systemone) — the operator's B174 decision-model shadow, paid from the owner's TypeSafe credit"
   linear = ext "Linear" "Roadmap / task status (ingested by Port); hosted MCP server (mcp.linear.app) read/written by the harnesses"
 
   // ---- rogueone: external laptop, always on (the operator's interface — owner, 2026-10-03) ----
@@ -34,6 +35,7 @@ model {
     ollama = component "Ollama" "LLM serving — ollama.weyland.lab :11434 (moved here B79)"
     vllm = component "vLLM" "On-demand GPU bench :8001/v1 — Qwen2.5-7B-AWQ, continuous batching (B111)"
     sglang = component "SGLang" "On-demand GPU bench :8002/v1 — Llama-3.2-1B, RadixAttention prefix caching (B111)"
+    clefFlash = component "Clef-flash" "On-demand decision model :8004 (B174) — Cloudflare's Apache-2.0 9B, Jev-compatible POST /v1/systemone; 4-bit ~8.5 GB, so never beside the operator's qwen (scripts/clef-flash.sh)"
     rayWorker = component "Ray edge worker" "Native worker — joins mother's Ray head :6379"
     genreTrainer = component "genre-trainer" "Trainer — reads silver, logs to MLflow"
     financeTrainer = component "finance-trainer" "Volatility trainer (B113) — reads the Feast-joined lakeFS training set, registers regressor + regime classifier in MLflow"
@@ -248,6 +250,8 @@ model {
   weyland.mother.ops.edge.bifrost -> hostedModels "provider egress — per-VK budgets + sealed keys"
   weyland.mother.ops.edge.bifrost -> weyland.mother.ai.kokoro "media tts — Kokoro custom provider (kokoro/kokoro)"
   weyland.mother.ai.operator -> rogueone.ollama "brain — local qwen2.5:7b /v1 (primary; Haiku failover on health-precheck miss / 60s timeout)"
+  weyland.mother.ai.operator -> typesafe "B174 decision-model shadow — after each incident sweep, Jev's first-tool pick vs qwen's (evidence only)"
+  weyland.mother.ai.operator -> rogueone.clefFlash "B174 decision-model shadow, on demand — OPERATOR_DECIDE_URL repointed while Clef-flash runs"
   weyland.mother.ai.operator -> weyland.mother.ai.pg "session memory (STRICT mTLS) + incident dedup (operator_incidents)"
   weyland.mother.ai.operator -> weyland.mother.ops.obs.grafana "B45 incident sweep — reads firing Prometheus ALERTS off the critical path (enrich-only)"
   rogueone.claudeCode -> weyland.mother.ai.toolServer "MCP /mcp"

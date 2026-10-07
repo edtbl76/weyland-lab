@@ -63,6 +63,10 @@ PY
   promtool_test operator-sweep.test.yaml weyland-operator/prometheusrule.yaml
 }
 
+@test "the decision-model shadow alerts on all-errors and on spend, not on sparse normal use (promtool test rules)" {
+  promtool_test operator-decide.test.yaml weyland-operator/prometheusrule.yaml
+}
+
 @test "the two spend alerts partition paid egress without double-counting (promtool test rules)" {
   promtool_test spend.test.yaml litellm/prometheusrule.yaml bifrost/prometheusrule.yaml
 }

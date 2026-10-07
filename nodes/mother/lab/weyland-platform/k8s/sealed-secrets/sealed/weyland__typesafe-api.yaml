@@ -1,0 +1,16 @@
+---
+apiVersion: bitnami.com/v1alpha1
+kind: SealedSecret
+metadata:
+  name: typesafe-api
+  namespace: weyland
+spec:
+  encryptedData:
+    TYPESAFE_API_KEY: AgB9ii5hLzP/VMPm9ED19Sovr5KM43KfGH+xdeVdxD+Zy7ImiLiK8grsn8D8zJ8fpgbZkhlpE0v8uXWZMXXg4jnMFIdR5xE/hIyJ4FH5Av/5sS8yaKarLEQYxBSC2Zlups7cW+irTCmGfabt2oIiUk62QHzE8yidduyRkUWzaHNIVW7K1fwqiE88mxq0YPcsbd+m+sQj/C3Mu11U9DlXt+pBv5p+UlbxN0U9c4viaZdePCJTaHZLaQsNwLQIwyKWYNFLV766iOh96C92qGJ4r0ywVtrM1/cfZZQn5qdnIzrPr5+X9t89k3wqTY7J4WQxHmOQRO9hh0QY7XcHDIf10cv1hutMh8ELDowvZHVmr5EjexV//7Gqfy10i6mHuSgcc4SKIgkCcgD4Pd+agkc1u4NohILNrrjQDyFE/BVVHH9Phgn4yrbk43YyzHHCSXBwegGwKZ2QtBUJ6VbQS5AFHkX5h1HmABR9hdzOq94k66Cc1Yl6t/uVPCqFeD4hUaGV0EjO9JqyXpzl9qVGDGrtSGxwcB5eEZH1yPocZsHhYaqFPmAstNzr8z/GRcL56fsqki/o5ebzBo7zJuNmBs2e7TXFUSnOICS1EL9dF4BcB05lF9y4Rb1jsEtGPhxMxoeXNoNyNNak8MsfvdVNPjzpqxO+WsWHyK55b8Cbw5sKrQPn5MfX1XpsI5r4HuiHX/+sf50bFBr+06JEcpi+c4rannZjjS2Htk8IuVzowkKte9cR/Unq4StPeV1PnM5DQRVnwtGdGJEAF54mUrSvd4k7lRcqBSOjrSr5MvJgLbk/sC9vPswwhfXhOhC08u/YyhnhzLmNvMwEmFZTVl5dMg==
+  template:
+    metadata:
+      annotations:
+        sealedsecrets.bitnami.com/managed: "true"
+      name: typesafe-api
+      namespace: weyland
+    type: Opaque

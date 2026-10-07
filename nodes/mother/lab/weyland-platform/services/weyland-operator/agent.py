@@ -21,6 +21,7 @@ from langchain_openai import ChatOpenAI
 from langgraph.prebuilt import create_react_agent
 from prometheus_client import Counter
 
+import decide
 from prompts import load_prompt
 from tools import ACT_TOOLS, READ_TOOLS
 from fleet import load_fleet_tools
@@ -124,8 +125,9 @@ def _install_fleet(fleet: list) -> None:
     """(Re)compile the brains over `fleet` — Haiku gets all of it; local gets the curated subset; the UNPAID brain is
     the local one without delegate_to_realm (what allow_fallback=False runs on — it can spend nothing). Swapping the
     module globals is safe mid-request: run() reads them once per call."""
-    global _local_agent, _fallback_agent, _unpaid_agent
+    global _local_agent, _fallback_agent, _unpaid_agent, _unpaid_tools
     local = [t for t in fleet if any(a in t.name for a in LOCAL_FLEET_ALLOW)] if LOCAL_FLEET_ALLOW else fleet
+    _unpaid_tools = READ_TOOLS + local + ACT_TOOLS   # what a sweep's brain can call (no Realm) — B174 shadow options
     _local_agent = _build_agent(LOCAL_BASE_URL, LOCAL_MODEL, LOCAL_API_KEY, LOCAL_TIMEOUT, local, cap=True)
     _unpaid_agent = _build_agent(LOCAL_BASE_URL, LOCAL_MODEL, LOCAL_API_KEY, LOCAL_TIMEOUT, local, realm=False, cap=True)
     _fallback_agent = (_build_agent(FALLBACK_BASE_URL, FALLBACK_MODEL, FALLBACK_API_KEY, OLLAMA_TIMEOUT, fleet)
@@ -139,6 +141,16 @@ def _install_fleet(fleet: list) -> None:
 _first_fleet = load_fleet_tools()
 _fleet = {"loaded": _first_fleet is not None}
 _install_fleet(_first_fleet or [])
+
+
+def sweep_tools() -> list[tuple[str, str]]:
+    """(name, description) of every tool the sweep's unpaid brain can call — the options the B174 shadow chooses from."""
+    return [(t.name, t.description or "") for t in _unpaid_tools]
+
+
+def sweep_rules() -> str:
+    """The system prompt the sweep's brain runs under (live from the Prompt Registry, fail-safe to SYSTEM)."""
+    return load_prompt("operator_system", SYSTEM)
 
 
 def fleet_ready() -> bool:
@@ -269,25 +281,26 @@ def _lf_generation(name: str, model: str, input_data, prompt_name: str,
 
 async def run(message: str, history: list | None = None,
               session_id: str | None = None, user_id: str | None = None,
-              allow_fallback: bool = True) -> tuple[str, dict | None]:
+              allow_fallback: bool = True, trace: dict | None = None) -> tuple[str, dict | None]:
     """Run the operator on a user message (+ optional prior [(role, text)] turns). Returns (reply, proposal). Local is
     primary; on a health-precheck miss or a mid-flight error we re-run the same messages on the Haiku fallback. ASYNC —
     the composed MCP fleet's tools (langchain-mcp-adapters) are async-only, so we drive the graph with `ainvoke`.
     `allow_fallback=False` (automatic callers — the incident sweep) can spend NOTHING: it runs on the unpaid local brain
     (no delegate_to_realm — the Realm is on paid Haiku), and a down or failing local brain raises LocalUnavailable
-    instead of failing over to Haiku. A person chatting keeps both so the operator still answers them."""
+    instead of failing over to Haiku. A person chatting keeps both so the operator still answers them.
+    `trace`, if given, gets `first_tool` — the first tool the answering brain called (B174 shadow baseline)."""
     messages = [("system", load_prompt("operator_system", SYSTEM))]   # B100 P2 — live from the Prompt Registry (fail-safe)
     if history:
         messages += history
     messages.append(("user", message))
 
     if not allow_fallback:
-        return await _run_local_only(messages, session_id, user_id)
+        return await _run_local_only(messages, session_id, user_id, trace)
 
     reason = "local_down"   # why we'd use the fallback, if we do
     if _fallback_agent is None or await _local_healthy():
         try:
-            return await _invoke(_local_agent, LOCAL_MODEL, "local", "primary", messages, session_id, user_id)
+            return await _invoke(_local_agent, LOCAL_MODEL, "local", "primary", messages, session_id, user_id, trace)
         except EmptyReply as exc:
             if _fallback_agent is None:
                 raise
@@ -301,16 +314,18 @@ async def run(message: str, history: list | None = None,
             _mark_local_down()
             reason = "local_error"
     # fresh attempt on Haiku (reads are idempotent)
-    return await _invoke(_fallback_agent, FALLBACK_MODEL, "haiku", reason, messages, session_id, user_id)
+    return await _invoke(_fallback_agent, FALLBACK_MODEL, "haiku", reason, messages, session_id, user_id, trace)
 
 
 async def _invoke(brain_agent, model: str, brain: str, reason: str, messages: list,
-                  session_id: str | None, user_id: str | None) -> tuple[str, dict | None]:
+                  session_id: str | None, user_id: str | None, trace: dict | None = None) -> tuple[str, dict | None]:
     """One traced invoke of `brain_agent`; counts the selection only when it answered. No text and no proposal is
     EmptyReply — an answer that says nothing is not an answer (a proposal alone is: the app shows its confirm step)."""
     with _lf_generation("operator-ask", model, messages, "operator_system", session_id, user_id) as lgen:
         result = await brain_agent.ainvoke({"messages": messages})
         msgs = result["messages"]
+        if trace is not None:
+            trace["first_tool"] = decide.first_tool_called(msgs)
         if lgen is not None:
             lgen.update(output=msgs[-1].content)
         proposal = _extract_proposal(msgs)
@@ -320,14 +335,15 @@ async def _invoke(brain_agent, model: str, brain: str, reason: str, messages: li
         return msgs[-1].content, proposal
 
 
-async def _run_local_only(messages: list, session_id: str | None, user_id: str | None) -> tuple[str, dict | None]:
+async def _run_local_only(messages: list, session_id: str | None, user_id: str | None,
+                          trace: dict | None = None) -> tuple[str, dict | None]:
     """The no-fallback path (allow_fallback=False): the unpaid local brain or LocalUnavailable — never paid Haiku, never
     the Realm."""
     if not await _local_healthy():
         _BRAIN_SELECTED.labels("none", "local_down").inc()
         raise LocalUnavailable(f"local brain {LOCAL_MODEL} failed its health pre-check")
     try:
-        return await _invoke(_unpaid_agent, LOCAL_MODEL, "local", "primary", messages, session_id, user_id)
+        return await _invoke(_unpaid_agent, LOCAL_MODEL, "local", "primary", messages, session_id, user_id, trace)
     except EmptyReply:
         # healthy engine, bad output: not marked down, and NOT LocalUnavailable — that defers the sweep to retry, and
         # this failure is persistent, so the incident would never post. The sweep posts it with the reason instead.

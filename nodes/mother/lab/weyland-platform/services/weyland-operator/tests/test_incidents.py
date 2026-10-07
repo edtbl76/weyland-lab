@@ -129,3 +129,61 @@ def test_the_sweep_can_be_switched_back_to_paid_haiku(sweep, monkeypatch):
 
 def test_the_paid_switch_defaults_off():
     assert incidents.SWEEP_ALLOW_PAID is False
+
+
+# --- B174: the decision-model shadow rides the sweep, after the agent, and never changes it -----------------------------
+
+@pytest.fixture
+def shadow(sweep, monkeypatch):
+    """The sweep with the decision-model shadow switched on; records every shadow call."""
+    calls = []
+
+    async def run(message, history, trace=None, **kw):
+        sweep["runs"].append(kw)
+        if sweep["agent"] is not None:
+            raise sweep["agent"]
+        if trace is not None:
+            trace["first_tool"] = "k8s_pods_list"
+        return ("enriched", None)
+
+    async def fake_shadow(client, rules, request, tools, actual, alert):
+        calls.append({"request": request, "tools": tools, "actual": actual, "alert": alert, "rules": rules})
+        return {"choice": "k8s_pods_log", "outcome": "disagree"}
+
+    monkeypatch.setattr(incidents.agent, "run", run)
+    monkeypatch.setattr(incidents.agent, "sweep_tools", lambda: [("k8s_pods_list", "List pods")], raising=False)
+    monkeypatch.setattr(incidents.agent, "sweep_rules", lambda: "operator rules", raising=False)
+    monkeypatch.setattr(incidents.decide, "shadow", fake_shadow)
+    monkeypatch.setattr(incidents.decide, "SHADOW", True)
+    return calls
+
+
+def test_shadow_compares_against_the_tool_the_agent_called_first(sweep, shadow):
+    assert asyncio.run(incidents.sweep_once(None)) == "ok"
+    assert len(shadow) == 2 and len(sweep["sent"]) == 2               # both alerts enriched AND shadowed
+    call = shadow[0]
+    assert call["actual"] == "k8s_pods_list"                           # read off the agent's own trace
+    assert call["request"] == incidents._investigation_prompt(A)       # the SAME prompt the agent saw
+    assert call["tools"] == [("k8s_pods_list", "List pods")] and call["rules"] == "operator rules"
+    assert call["alert"] == "TargetDown"
+    assert "k8s_pods_log" not in sweep["sent"][0][1]                   # the pick never reaches the digest
+
+
+def test_no_shadow_call_when_the_sweep_defers(sweep, shadow):
+    # a deferred alert is retried next sweep — asking the paid model now would pay twice for one comparison
+    sweep["agent"] = incidents.agent.LocalUnavailable("busy")
+    assert asyncio.run(incidents.sweep_once(None)) == "deferred"
+    assert shadow == []
+
+
+def test_no_shadow_call_when_the_enrichment_failed(sweep, shadow):
+    # no trace → no baseline to compare with → nothing worth paying for
+    sweep["agent"] = RuntimeError("fleet down")
+    assert asyncio.run(incidents.sweep_once(None)) == "ok"
+    assert shadow == [] and len(sweep["sent"]) == 2
+
+
+def test_shadow_is_off_by_default_and_then_never_called(sweep, shadow, monkeypatch):
+    monkeypatch.setattr(incidents.decide, "SHADOW", False)
+    asyncio.run(incidents.sweep_once(None))
+    assert shadow == [] and len(sweep["sent"]) == 2

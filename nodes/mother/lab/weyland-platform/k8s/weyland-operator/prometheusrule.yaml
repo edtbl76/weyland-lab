@@ -44,3 +44,25 @@ spec:
           annotations:
             summary: "weyland-operator incident sweep has deferred for 6h — its local brain is unavailable"
             description: "The sweep only enriches on the local brain (qwen on rogueone Ollama) and never fails over to paid Haiku, so new firing alerts are not being enriched (paging still works). Check rogueone's Ollama: curl http://192.168.1.230:11434/api/tags, and kubectl -n weyland logs deploy/weyland-operator | grep 'local brain unavailable'"
+        # B174 — the decision-model shadow (decide.py): after each sweep the operator asks Jev (TypeSafe, paid from the
+        # owner's prepaid credit) which tool to open with. Failing: errors and NO success for an hour — a bad key, the
+        # credit ran out (401/402), or TypeSafe is down. `unless`, not `== 0`: a success series that was never created
+        # is an EMPTY vector, and `== 0` on it would silently never fire. Tested in alert-rules/operator-decide.test.yaml.
+        - alert: OperatorDecideShadowFailing
+          expr: sum(increase(operator_decide_shadow_total{outcome="error"}[1h])) > 0 unless sum(increase(operator_decide_shadow_total{outcome!="error"}[1h])) > 0
+          for: 1h
+          labels:
+            severity: warning
+          annotations:
+            summary: "weyland-operator decision-model shadow has only errored for 2h"
+            description: "Every shadow call failed (no agreement evidence is being collected; the sweep itself is unaffected). Likely the TypeSafe key or credit. Check: kubectl -n weyland logs deploy/weyland-operator | grep '\\[decide\\]'"
+        # Paid spend on a $0 budget is always alerted (same $1/24h as BifrostSpendObserved). Jev bills input tokens at
+        # $0.042 per million; a sweep sends ~2K, so normal use is cents a month — this catches a loop, not normal use.
+        - alert: OperatorDecideSpendObserved
+          expr: sum(increase(operator_decide_input_tokens_total{backend="jev"}[24h])) * 0.042 / 1e6 > 1
+          for: 0m
+          labels:
+            severity: warning
+          annotations:
+            summary: "weyland-operator decision-model shadow spent > $1 of TypeSafe credit in 24h"
+            description: "Jev input tokens x $0.042/M exceeded $1 in 24h — far above the ~2K tokens a sweep. Turn the shadow off (OPERATOR_DECIDE_SHADOW=false in k8s/weyland-operator/deployment.yaml) and check the sweep rate."

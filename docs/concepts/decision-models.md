@@ -9,9 +9,18 @@ Cloudflare's **Clef** and **Clef-flash** (2026-10-01) use the same API and are o
 
 | Option | Verdict | Why |
 |---|---|---|
-| **Jev** (TypeSafe AI) | **DON'T ADOPT — fails the $0 gate** | Proprietary and hosted only: `POST https://api.typesafe.ai/v1/systemone`, with no weights, no self-host and no on-prem. $0.042 per million input tokens (output free). The $5 signup credit ended 2026-09-27 ("new signups no longer get free credits"). It is also on Cloudflare Workers AI (`typesafe/jev`) and other gateways at the same per-token price. Whether Workers AI's free 10,000 neurons/day covers it is **unknown**: Cloudflare's pricing page doesn't say, and unknown is not a pass. Every call would also send lab state (alerts, pod names, requests) to a third party. |
+| **Jev** (TypeSafe AI) | **DON'T ADOPT — fails the $0 gate.** The owner overrode this for the shadow below (2026-10-07), paid from $25 of prepaid credit, accepting that alert text leaves the LAN | Proprietary and hosted only: `POST https://api.typesafe.ai/v1/systemone`, with no weights, no self-host and no on-prem. $0.042 per million input tokens (output free). The $5 signup credit ended 2026-09-27 ("new signups no longer get free credits"). It is also on Cloudflare Workers AI (`typesafe/jev`) and other gateways at the same per-token price. Whether Workers AI's free 10,000 neurons/day covers it is **unknown**: Cloudflare's pricing page doesn't say, and unknown is not a pass. Every call would also send lab state (alerts, pod names, requests) to a third party. |
 | **Clef-flash** (Cloudflare, Apache-2.0, 9B) | **DON'T ADOPT now — measured, no gain at the best-fit seam** | This is the free path, and it runs on rogueone. On the operator's first tool choice (59 labelled cases) it tied the current model: 54 vs 54 correct, median 644 ms vs 687 ms. It also can't replace that model, because it picks a tool name but not the tool's arguments. It needs 8.5 GB of graphics memory in 4-bit, so it can't share the 16 GB card with the operator's model. |
 | **Clef** (27B) | DON'T ADOPT | Does not fit the lab's hardware; the model card was tested on one H200. |
+
+**Owner decision (2026-10-07): run both in SHADOW on the incident sweep.** With $25 of TypeSafe credit, the owner
+chose to collect evidence on real alerts rather than stop at the 59-case benchmark. After each sweep's agent run, the
+operator asks the decision model which tool to open with and counts agreement with qwen's actual first tool:
+- **Jev** is the live default, at about $0.0001 a sweep.
+- **Clef-flash** is the on-demand alternative on rogueone.
+
+Nothing acts on the answer, so this is evidence-gathering, not adoption. How it runs:
+[runbooks/decision-models.md](../runbooks/decision-models.md).
 
 **Re-open when** a lab decision has no LLM in the loop (it needs a typed choice, not tool arguments), or when a larger
 card ends the GPU contention (B134/B159). The benchmark below re-runs in about 10 minutes.
@@ -70,7 +79,12 @@ card ends the GPU contention (B134/B159). The benchmark below re-runs in about 1
 |---|---|---|---|---|---|---|
 | qwen2.5:7b-operator (current, GPU) | **54/59** | 22/23 | 6/6 | 26/30 | 687 ms | 2,445 ms |
 | Clef-flash, 4-bit NF4 (GPU, 8.5 GB peak) | **54/59** | 19/23 | 6/6 | 29/30 | 644 ms | 677 ms |
+| Jev `jev-1.13.0` (TypeSafe API, from rogueone) | **53/59** | 18/23 | 6/6 | 29/30 | 166 ms | 204 ms |
 | Clef-flash, bf16 (CPU, 12 cores) | not measured | | | | > 12 min | |
+
+- **Jev's run was paid from the owner's $25 TypeSafe credit (2026-10-07).** It used 119,076 input tokens, about
+  $0.005, or roughly $0.00008 per decision. Jev missed 5 node memory and disk alerts, sending them to
+  `k8s_events_list`, and one written realm request, which it sent to memory search.
 
 - **Repeatability.** Clef-flash is deterministic: two runs made the same 59 picks. qwen is not: at temperature 0, two
   runs disagreed on 3 of 59 picks, and the first scored 53.
@@ -109,9 +123,12 @@ timeout. The live operator sets no `max_tokens` either; it relies on `OPERATOR_L
 
 Reproduce: [`eval/decision-model/`](../../eval/decision-model/README.md).
 
-## Integration shape (if it is ever re-opened)
+## Integration shape (built 2026-10-07 as a shadow)
 
-- **Where:** a `wl-decide` HTTP service on rogueone exposing the Jev-compatible `POST /v1/systemone` (Clef's own
-  `systemone()` helper). Callers would code against the Jev API, so moving between Jev and Clef is a URL change.
+- **A client inside the operator, not a new service.** `decide.py` speaks the Jev API, so Jev and Clef-flash differ
+  only by URL and model name. A standalone `wl-decide` service was considered and not built: it would have had no
+  consumer, and an always-on Clef would hold the GPU the operator's model needs.
+- **Clef-flash runs on demand.** `clef-flash/server.py` wraps Clef's own `systemone()` helper on rogueone `:8004`,
+  through `scripts/clef-flash.sh`.
 - **Not an MCP tool:** a decision model is called by code, not chosen by an agent.
 - **Not inline in weyland-guard:** that service runs on mother's CPU, and a 9B model is the wrong size for it.

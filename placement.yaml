@@ -280,6 +280,7 @@ workloads:
   # ---- rogueone (on-demand / tools: declared, not live-checked) ----
   - {id: "tool:rogueone/vllm", host: "rogueone", state: "model-library: HF cache", move: "hardware-bound: CUDA (B111)", strix: "stays", managed: "docker", likec4: "vllm", on_demand: true}
   - {id: "tool:rogueone/sglang", host: "rogueone", state: "model-library: HF cache", move: "hardware-bound: CUDA (B111)", strix: "stays", managed: "docker", likec4: "sglang", on_demand: true}
+  - {id: "tool:rogueone/clef-flash", host: "rogueone", state: "model-library: HF cache", move: "hardware-bound: CUDA (B174)", strix: "stays", managed: "docker", likec4: "clefFlash", on_demand: true, owner: "B174", why: "Jev-compatible decision model for the operator's shadow; ~8.5 GB, so it cannot sit beside the operator's qwen"}
   - {id: "tool:rogueone/genre-trainer", host: "rogueone", state: "stateless", move: "hardware-bound: CUDA training", strix: "stays", managed: "ray job", likec4: "genreTrainer", on_demand: true}
   - {id: "tool:rogueone/finance-trainer", host: "rogueone", state: "stateless", move: "hardware-bound: CUDA training", strix: "stays", managed: "ray job", likec4: "financeTrainer", on_demand: true}
   - {id: "tool:rogueone/editors", host: "rogueone", state: "none", move: "pinned: the dev workstation", strix: "stays", managed: "desktop", likec4: "editors"}

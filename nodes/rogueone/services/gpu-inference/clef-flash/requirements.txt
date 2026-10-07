@@ -1,0 +1,11 @@
+# Clef-flash on-demand server (B174). torch comes from the base image (pytorch/pytorch:2.14.1-cuda13.0 — the build the
+# 2026-10-07 benchmark ran on). transformers/bitsandbytes are the versions benchmarked; the rest is what pip resolved
+# for them IN that base image (pip freeze, 2026-10-07) — not "latest", which conflicted (huggingface_hub 2.x).
+transformers==5.19.0
+bitsandbytes==0.50.2
+accelerate==1.15.0
+safetensors==0.8.0
+huggingface_hub==1.33.0
+hf-xet==1.7.0
+tokenizers==0.23.2
+pillow==12.3.0

@@ -9,7 +9,7 @@ verdict.
 | `cases.json` | 59 cases: 23 real incident-sweep prompts (one per alert name, 2026-09-07 to 10-07), 6 real chat requests, and 30 written requests (two per tool). `ok` lists every tool that is a correct first move. |
 | `system.txt`, `tools.json` | The operator's system prompt and its 21 local tool schemas, copied from a live MLflow `operator` trace (2026-10-07) |
 | `run.py` | The runners and the scorer |
-| `result_qwen.json`, `result_clef_gpu4.json` | Run 2026-10-07 on rogueone (qwen re-run through `run.py`; it varies by about 3 picks between runs at temperature 0) |
+| `result_qwen.json`, `result_clef_gpu4.json`, `result_jev.json` | Run 2026-10-07 on rogueone (qwen re-run through `run.py`; it varies by about 3 picks between runs at temperature 0) |
 
 All commands run on **rogueone**. Score the saved runs:
 ```
@@ -52,3 +52,11 @@ rm -rf /tmp/clef-venv /home/edwardmangini/.cache/huggingface/hub/models--Cloudfl
 
 A case with no tool, or an error, scores as wrong. The qwen runner caps output at 256 tokens: uncapped, it once
 generated about 20K tokens instead of a tool call.
+
+## Re-run Jev (paid)
+
+This uses the TypeSafe credit: about 119K input tokens, roughly $0.005 a run. The key comes from `scripts/.env` and
+is never printed.
+```
+cd /home/edwardmangini/IdeaProjects/weyland && set -a && . scripts/.env && set +a && python3 eval/decision-model/run.py jev
+```

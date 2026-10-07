@@ -37,6 +37,7 @@ SECRETS=(
   weyland/datahub-token
   weyland/fred-secret                 # B113 finance domain — FRED API key for the dagster user-code FRED lander
   weyland/linear-backup-secret        # B194 — READ-ONLY Linear API key (LINEAR_API_KEY_RO) for the nightly Linear backup asset
+  weyland/typesafe-api                # B174 — TypeSafe (Jev) API key for the operator's decision-model shadow (prepaid credit)
   weyland/glitchtip-secret            # ⚠ bricking: Django SECRET_KEY — also escrow off-cluster
   weyland/iceberg-s3-secret
   weyland/keycloak-secret

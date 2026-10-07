@@ -1,0 +1,415 @@
+[
+{
+"id": "alert:ScheduledJobStale",
+"pick": "k8s_events_list",
+"ok": true,
+"ms": 154,
+"confidence": 0.23
+},
+{
+"id": "alert:KubeJobFailed",
+"pick": "k8s_events_list",
+"ok": true,
+"ms": 153,
+"confidence": 0.6
+},
+{
+"id": "alert:ScheduledJobFailed",
+"pick": "k8s_events_list",
+"ok": true,
+"ms": 186,
+"confidence": 0.33
+},
+{
+"id": "alert:ScheduledJobNeverSucceeded",
+"pick": "k8s_events_list",
+"ok": true,
+"ms": 158,
+"confidence": 0.26
+},
+{
+"id": "alert:KubeJobNotCompleted",
+"pick": "k8s_events_list",
+"ok": true,
+"ms": 196,
+"confidence": 0.79
+},
+{
+"id": "alert:KubePodOOMKilled",
+"pick": "k8s_events_list",
+"ok": true,
+"ms": 174,
+"confidence": 0.42
+},
+{
+"id": "alert:KubePodNotReady",
+"pick": "k8s_pods_get",
+"ok": true,
+"ms": 182,
+"confidence": 0.93
+},
+{
+"id": "alert:KubePodCrashLooping",
+"pick": "k8s_events_list",
+"ok": true,
+"ms": 184,
+"confidence": 0.4
+},
+{
+"id": "alert:KubeContainerWaiting",
+"pick": "k8s_events_list",
+"ok": true,
+"ms": 187,
+"confidence": 0.48
+},
+{
+"id": "alert:KubeDeploymentReplicasMismatch",
+"pick": "k8s_events_list",
+"ok": true,
+"ms": 156,
+"confidence": 0.44
+},
+{
+"id": "alert:KubeDeploymentRolloutStuck",
+"pick": "k8s_events_list",
+"ok": true,
+"ms": 177,
+"confidence": 0.42
+},
+{
+"id": "alert:NodeMemoryHighUtilization",
+"pick": "k8s_nodes_top",
+"ok": true,
+"ms": 190,
+"confidence": 0.36
+},
+{
+"id": "alert:NodeMemoryCritical",
+"pick": "k8s_events_list",
+"ok": false,
+"ms": 158,
+"confidence": 0.28
+},
+{
+"id": "alert:NodeMemoryMajorPagesFaults",
+"pick": "grafana_query_prometheus",
+"ok": true,
+"ms": 175,
+"confidence": 0.22
+},
+{
+"id": "alert:NodeMemoryWarning",
+"pick": "k8s_events_list",
+"ok": false,
+"ms": 164,
+"confidence": 0.21
+},
+{
+"id": "alert:NodeMemoryRequestsNearCeiling",
+"pick": "k8s_events_list",
+"ok": false,
+"ms": 170,
+"confidence": 0.33
+},
+{
+"id": "alert:NodeRootDiskWarning",
+"pick": "k8s_events_list",
+"ok": false,
+"ms": 179,
+"confidence": 0.27
+},
+{
+"id": "alert:NodeRootDiskCritical",
+"pick": "k8s_events_list",
+"ok": false,
+"ms": 155,
+"confidence": 0.31
+},
+{
+"id": "alert:BifrostSpendObserved",
+"pick": "grafana_query_prometheus",
+"ok": true,
+"ms": 160,
+"confidence": 0.39
+},
+{
+"id": "alert:TargetDown",
+"pick": "k8s_pods_get",
+"ok": true,
+"ms": 158,
+"confidence": 0.73
+},
+{
+"id": "alert:WeylandOperatorSweepErrors",
+"pick": "k8s_events_list",
+"ok": true,
+"ms": 208,
+"confidence": 0.19
+},
+{
+"id": "alert:AlertmanagerClusterFailedToSendAlerts",
+"pick": "k8s_events_list",
+"ok": true,
+"ms": 271,
+"confidence": 0.41
+},
+{
+"id": "alert:AlertmanagerFailedToSendAlerts",
+"pick": "k8s_events_list",
+"ok": true,
+"ms": 192,
+"confidence": 0.26
+},
+{
+"id": "chat:0",
+"pick": "memory_search_notes",
+"ok": true,
+"ms": 165,
+"confidence": 1.0
+},
+{
+"id": "chat:1",
+"pick": "memory_search_notes",
+"ok": true,
+"ms": 154,
+"confidence": 1.0
+},
+{
+"id": "chat:2",
+"pick": "memory_search_notes",
+"ok": true,
+"ms": 162,
+"confidence": 1.0
+},
+{
+"id": "chat:3",
+"pick": "k8s_pods_list_in_namespace",
+"ok": true,
+"ms": 158,
+"confidence": 1.0
+},
+{
+"id": "chat:4",
+"pick": "status",
+"ok": true,
+"ms": 159,
+"confidence": 1.0
+},
+{
+"id": "chat:5",
+"pick": "trino_execute_query",
+"ok": true,
+"ms": 163,
+"confidence": 1.0
+},
+{
+"id": "written:0",
+"pick": "status",
+"ok": true,
+"ms": 180,
+"confidence": 1.0
+},
+{
+"id": "written:1",
+"pick": "status",
+"ok": true,
+"ms": 152,
+"confidence": 1.0
+},
+{
+"id": "written:2",
+"pick": "context_search",
+"ok": true,
+"ms": 178,
+"confidence": 0.99
+},
+{
+"id": "written:3",
+"pick": "context_search",
+"ok": true,
+"ms": 147,
+"confidence": 0.83
+},
+{
+"id": "written:4",
+"pick": "context_ask",
+"ok": true,
+"ms": 152,
+"confidence": 0.7
+},
+{
+"id": "written:5",
+"pick": "context_ask",
+"ok": true,
+"ms": 149,
+"confidence": 0.79
+},
+{
+"id": "written:6",
+"pick": "grafana_query_loki_logs",
+"ok": true,
+"ms": 160,
+"confidence": 0.99
+},
+{
+"id": "written:7",
+"pick": "grafana_query_loki_patterns",
+"ok": true,
+"ms": 150,
+"confidence": 0.99
+},
+{
+"id": "written:8",
+"pick": "grafana_query_loki_stats",
+"ok": true,
+"ms": 178,
+"confidence": 0.98
+},
+{
+"id": "written:9",
+"pick": "grafana_query_prometheus",
+"ok": true,
+"ms": 206,
+"confidence": 0.96
+},
+{
+"id": "written:10",
+"pick": "grafana_query_prometheus_histogram",
+"ok": true,
+"ms": 162,
+"confidence": 0.95
+},
+{
+"id": "written:11",
+"pick": "trino_execute_query",
+"ok": true,
+"ms": 174,
+"confidence": 1.0
+},
+{
+"id": "written:12",
+"pick": "trino_execute_query",
+"ok": true,
+"ms": 170,
+"confidence": 1.0
+},
+{
+"id": "written:13",
+"pick": "k8s_events_list",
+"ok": true,
+"ms": 166,
+"confidence": 1.0
+},
+{
+"id": "written:14",
+"pick": "k8s_events_list",
+"ok": true,
+"ms": 151,
+"confidence": 0.91
+},
+{
+"id": "written:15",
+"pick": "k8s_nodes_top",
+"ok": true,
+"ms": 169,
+"confidence": 0.98
+},
+{
+"id": "written:16",
+"pick": "k8s_pods_get",
+"ok": true,
+"ms": 165,
+"confidence": 1.0
+},
+{
+"id": "written:17",
+"pick": "k8s_pods_list",
+"ok": true,
+"ms": 160,
+"confidence": 1.0
+},
+{
+"id": "written:18",
+"pick": "k8s_pods_list_in_namespace",
+"ok": true,
+"ms": 204,
+"confidence": 1.0
+},
+{
+"id": "written:19",
+"pick": "k8s_pods_log",
+"ok": true,
+"ms": 166,
+"confidence": 0.97
+},
+{
+"id": "written:20",
+"pick": "k8s_resources_list",
+"ok": true,
+"ms": 166,
+"confidence": 1.0
+},
+{
+"id": "written:21",
+"pick": "k8s_resources_list",
+"ok": true,
+"ms": 150,
+"confidence": 0.96
+},
+{
+"id": "written:22",
+"pick": "postgres_execute_sql",
+"ok": true,
+"ms": 160,
+"confidence": 0.94
+},
+{
+"id": "written:23",
+"pick": "postgres_execute_sql",
+"ok": true,
+"ms": 178,
+"confidence": 0.95
+},
+{
+"id": "written:24",
+"pick": "memory_search_notes",
+"ok": true,
+"ms": 160,
+"confidence": 1.0
+},
+{
+"id": "written:25",
+"pick": "memory_read_note",
+"ok": true,
+"ms": 173,
+"confidence": 0.77
+},
+{
+"id": "written:26",
+"pick": "delegate_to_realm",
+"ok": true,
+"ms": 176,
+"confidence": 0.71
+},
+{
+"id": "written:27",
+"pick": "memory_search_notes",
+"ok": false,
+"ms": 180,
+"confidence": 0.54
+},
+{
+"id": "written:28",
+"pick": "propose_act",
+"ok": true,
+"ms": 140,
+"confidence": 1.0
+},
+{
+"id": "written:29",
+"pick": "propose_act",
+"ok": true,
+"ms": 174,
+"confidence": 1.0
+}
+]

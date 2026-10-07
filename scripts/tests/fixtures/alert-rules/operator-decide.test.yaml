@@ -1,0 +1,57 @@
+# promtool unit tests for the B174 decision-model shadow alerts (2026-10-07). A sweep (and so a shadow call) happens
+# only when a NEW alert fires, so calls are sparse — a few an hour. Run by scripts/tests/alert-rules.bats (CI).
+rule_files:
+- rules.yaml
+evaluation_interval: 1m
+tests:
+- name: 'OperatorDecideShadowFailing: only errors for 2h fires'
+  interval: 10m
+  input_series:
+  - series: operator_decide_shadow_total{backend="jev",outcome="error",confident="false"}
+    values: 0+1x18
+  alert_rule_test:
+  - eval_time: 2h30m
+    alertname: OperatorDecideShadowFailing
+    exp_alerts:
+    - exp_labels:
+        severity: warning
+- name: 'OperatorDecideShadowFailing: errors mixed with successes are silent'
+  interval: 10m
+  input_series:
+  - series: operator_decide_shadow_total{backend="jev",outcome="error",confident="false"}
+    values: 0+1x18
+  - series: operator_decide_shadow_total{backend="jev",outcome="agree",confident="true"}
+    values: 0+1x18
+  alert_rule_test:
+  - eval_time: 2h30m
+    alertname: OperatorDecideShadowFailing
+    exp_alerts: []
+- name: 'OperatorDecideShadowFailing: no calls at all is silent (no alerts firing, no sweeps)'
+  interval: 10m
+  input_series:
+  - series: operator_decide_shadow_total{backend="jev",outcome="agree",confident="true"}
+    values: 5x18
+  alert_rule_test:
+  - eval_time: 2h30m
+    alertname: OperatorDecideShadowFailing
+    exp_alerts: []
+- name: 'OperatorDecideSpendObserved: 30M tokens in a day (~$1.26) fires'
+  interval: 1h
+  input_series:
+  - series: operator_decide_input_tokens_total{backend="jev"}
+    values: 0+1250000x24
+  alert_rule_test:
+  - eval_time: 24h
+    alertname: OperatorDecideSpendObserved
+    exp_alerts:
+    - exp_labels:
+        severity: warning
+- name: 'OperatorDecideSpendObserved: a busy normal day (100 sweeps x 2K tokens) is silent'
+  interval: 1h
+  input_series:
+  - series: operator_decide_input_tokens_total{backend="jev"}
+    values: 0+8400x24
+  alert_rule_test:
+  - eval_time: 24h
+    alertname: OperatorDecideSpendObserved
+    exp_alerts: []

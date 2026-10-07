@@ -1,7 +1,8 @@
-"""B174 micro-benchmark: the operator's first tool choice — qwen2.5:7b-operator (current path) vs Clef-flash.
+"""B174 micro-benchmark: the operator's first tool choice — qwen2.5:7b-operator (current path) vs Clef-flash vs Jev.
 
     python3 run.py qwen                 # needs Ollama on rogueone with qwen2.5:7b-operator
     python3 run.py clef --mode gpu4     # needs torch + transformers>=5.10.2 + bitsandbytes; ~8.5 GB VRAM
+    python3 run.py jev                  # PAID: TYPESAFE_API_KEY from scripts/.env; ~0.13M input tokens (~$0.006)
     python3 run.py score                # prints the comparison table from the result files
 
 Each case in cases.json lists every tool that is a correct FIRST move; a run writes result_<runner>.json beside this
@@ -14,6 +15,7 @@ import os
 import statistics
 import sys
 import time
+import urllib.error
 import urllib.request
 from pathlib import Path
 
@@ -22,6 +24,11 @@ OLLAMA_URL = os.environ.get("OLLAMA_URL", "http://localhost:11434/v1/chat/comple
 QWEN_MODEL = os.environ.get("QWEN_MODEL", "qwen2.5:7b-operator")
 # The revision benchmarked 2026-10-07. Pinned because run.py imports and EXECUTES the repo's joint_schema_model.py.
 CLEF_REVISION = "17f0b0ad64efb65d273590632833508766b2aae6"
+JEV_URL = os.environ.get("TYPESAFE_URL", "https://api.typesafe.ai/v1/systemone")
+JEV_MODEL = os.environ.get("JEV_MODEL", "jev-1.13.0")   # pinned, not jev-latest, so a rerun measures the same model
+JEV_RETRY_STATUSES = (429, 529)   # rate-limited / overloaded: the API reference says back off and retry
+JEV_TRIES = 4
+INSTRUCTIONS = "Which ONE tool should the operator call first to handle the request?"
 SWEEP = "real-sweep"
 SWEEP_DROPS = {"delegate_to_realm"}   # the incident sweep is compiled without it (INCIDENT_SWEEP_ALLOW_PAID=false)
 SOURCES = (SWEEP, "real-chat", "written")
@@ -35,6 +42,14 @@ def tools_for(case, tools):
     if case["source"] != SWEEP:
         return tools
     return [t for t in tools if t["function"]["name"] not in SWEEP_DROPS]
+
+
+def systemone_request(model, case, system, tools):
+    """The Jev / SystemOne request body — the same for Jev and Clef-flash, so the two see an identical question."""
+    criteria = {t["function"]["name"]: " ".join(t["function"]["description"].split())[:400]
+                for t in tools_for(case, tools)}
+    return {"model": model, "state": {"operator_rules": system, "request": case["request"]},
+            "questions": {"tool": {"type": "choice", "criteria": criteria, "instructions": INSTRUCTIONS}}}
 
 
 def qwen_pick(case, system, tools):
@@ -64,13 +79,34 @@ def clef_runner(mode):
     model, processor = load_release_model(path, device="cpu" if mode == "cpu" else "cuda", **kwargs)
 
     def pick(case, system, tools):
-        criteria = {t["function"]["name"]: " ".join(t["function"]["description"].split())[:400]
-                    for t in tools_for(case, tools)}
-        answer = systemone(model, processor, {
-            "model": "clef-flash", "state": {"operator_rules": system, "request": case["request"]},
-            "questions": {"tool": {"type": "choice", "criteria": criteria,
-                                   "instructions": "Which ONE tool should the operator call first to handle the request?"}},
-        })["answers"]["tool"]
+        answer = systemone(model, processor, systemone_request("clef-flash", case, system, tools))["answers"]["tool"]
+        return answer["choice"], answer.get("confidence")
+    return pick
+
+
+def jev_runner(usage):
+    """Jev over TypeSafe's hosted API. Counts input tokens into `usage` so the run reports what it cost."""
+    key = os.environ.get("TYPESAFE_API_KEY")
+    if not key:
+        sys.exit("run.py: TYPESAFE_API_KEY is not set — load scripts/.env first (set -a && . scripts/.env && set +a)")
+    if not JEV_URL.startswith("https://"):
+        sys.exit(f"run.py: TYPESAFE_URL must be https: {JEV_URL}")
+    headers = {"Authorization": f"Bearer {key}", "Content-Type": "application/json"}
+
+    def pick(case, system, tools):
+        body = json.dumps(systemone_request(JEV_MODEL, case, system, tools)).encode()
+        for attempt in range(JEV_TRIES):
+            try:
+                with urllib.request.urlopen(urllib.request.Request(JEV_URL, body, headers),  # noqa: S310  # nosec B310
+                                            timeout=60) as response:
+                    reply = json.load(response)
+                break
+            except urllib.error.HTTPError as error:
+                if error.code not in JEV_RETRY_STATUSES or attempt == JEV_TRIES - 1:
+                    raise ValueError(f"jev HTTP {error.code}: {error.read()[:300]!r}") from error
+                time.sleep(2 ** attempt)
+        usage["input_tokens"] += reply.get("usage", {}).get("input_tokens", 0)
+        answer = reply["answers"]["tool"]
         return answer["choice"], answer.get("confidence")
     return pick
 
@@ -106,13 +142,17 @@ def score():
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument("runner", choices=("qwen", "clef", "score"))
+    parser.add_argument("runner", choices=("qwen", "clef", "jev", "score"))
     parser.add_argument("--mode", choices=("gpu4", "cpu"), default="gpu4", help="clef only")
     args = parser.parse_args()
     if args.runner == "score":
         score()
     elif args.runner == "qwen":
         run("qwen", qwen_pick)
+    elif args.runner == "jev":
+        usage = {"input_tokens": 0}
+        run("jev", jev_runner(usage))
+        print(f"jev input tokens {usage['input_tokens']} (~${usage['input_tokens'] * 0.042 / 1e6:.4f})")
     else:
         run(f"clef_{args.mode}", clef_runner(args.mode))
 

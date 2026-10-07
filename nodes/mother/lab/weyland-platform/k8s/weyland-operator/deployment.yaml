@@ -151,5 +151,20 @@ spec:
             # cost $12.44. Telegram chat always keeps Haiku + the Realm. See docs/runbooks/operator.md § Sweeps spend nothing by default.
             - name: INCIDENT_SWEEP_ALLOW_PAID
               value: "false"
+            # B174 (2026-10-07, owner decision) — decision-model SHADOW: after each sweep's agent run, ask a decision
+            # model which tool to open with and count agreement with qwen's actual first tool
+            # (operator_decide_shadow_total). Evidence only — nothing acts on it. This IS a paid call, separate from
+            # INCIDENT_SWEEP_ALLOW_PAID: Jev bills ~2K input tokens a sweep (~$0.0001) to the owner's prepaid TypeSafe
+            # credit; OperatorDecideSpendObserved fires above $1/24h. "false" turns it off. To compare Clef-flash
+            # instead, run scripts/clef-flash.sh start on rogueone and set URL http://192.168.1.230:8004/v1/systemone +
+            # MODEL clef-flash (no key is sent over http). docs/runbooks/decision-models.md.
+            - name: OPERATOR_DECIDE_SHADOW
+              value: "true"
+            - name: OPERATOR_DECIDE_URL
+              value: https://api.typesafe.ai/v1/systemone
+            - name: OPERATOR_DECIDE_MODEL
+              value: jev-1.13.0
+            - name: TYPESAFE_API_KEY
+              valueFrom: { secretKeyRef: { name: typesafe-api, key: TYPESAFE_API_KEY, optional: true } }
             - name: PROMETHEUS_URL
               value: http://prometheus-operated.monitoring.svc.cluster.local:9090

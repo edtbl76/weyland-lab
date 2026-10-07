@@ -153,6 +153,16 @@ sum by (outcome) (increase(operator_incident_sweeps_total[24h]))        # false:
 sum(increase(bifrost_cost_total[24h]))                                  # false: ~$0 · true: the sweep's Haiku + Realm spend
 ```
 
+### Decision-model shadow (B174)
+
+After each sweep's agent run, `decide.py` asks a decision model (Jev by default; Clef-flash on demand) which tool the
+operator should have opened with, and counts agreement with qwen's actual first tool
+(`operator_decide_shadow_total{backend,outcome,confident}`). Evidence only: its pick never reaches the digest, and a
+deferred or failed run is not shadowed. It **is** a paid call, but it is separate from `INCIDENT_SWEEP_ALLOW_PAID`: Jev
+bills about $0.0001 a sweep to the owner's prepaid TypeSafe credit, and `OperatorDecideSpendObserved` fires above $1 in
+24h. Switch: `OPERATOR_DECIDE_SHADOW`. Setup, how to read the evidence, and the Clef procedure:
+[decision-models.md](decision-models.md).
+
 ## Diagnosing a slow / stalled local brain
 The local brain shares rogueone's **16 GB GPU** (RAG embedder + on-demand llama-guard-8b + the display). If the operator
 hangs or every request fails over to Haiku, **prove which layer before swapping models** — isolate with bounded direct

@@ -18,6 +18,7 @@ import httpx
 from prometheus_client import Counter
 
 import agent
+import decide
 import session
 import telegram
 
@@ -85,16 +86,26 @@ def _investigation_prompt(labels: dict) -> str:
 
 async def _enrich_and_notify(client: httpx.AsyncClient, labels: dict) -> None:
     """Enrich one alert and post it. Unless SWEEP_ALLOW_PAID, this runs on the unpaid local brain only and
-    agent.LocalUnavailable propagates — the caller defers and the next sweep retries (2026-10-02)."""
+    agent.LocalUnavailable propagates — the caller defers and the next sweep retries (2026-10-02).
+    B174: after a successful run, the decision-model shadow (decide.py) is asked the same question and compared with
+    the tool the agent called first — evidence only; its pick never reaches the digest. No run, no shadow: a deferred
+    or failed enrichment has no baseline, and asking the paid model then would pay for nothing."""
+    prompt = _investigation_prompt(labels)
+    trace: dict = {}
+    enriched = False
     try:
-        reply, _proposal = await agent.run(_investigation_prompt(labels), [],   # ENRICH-ONLY — proposal dropped
-                                           allow_fallback=SWEEP_ALLOW_PAID)
+        reply, _proposal = await agent.run(prompt, [], allow_fallback=SWEEP_ALLOW_PAID,   # ENRICH-ONLY — proposal dropped
+                                           trace=trace)
+        enriched = True
     except agent.LocalUnavailable:
         raise
     except Exception as exc:
         reply = f"(enrichment failed: {exc})"
     await telegram.send_message(client, int(_CHAT_ID), f"🚨 {labels.get('alertname', '?')} — {_who(labels)}\n\n{reply}")
     _NOTIFIED.inc()
+    if enriched and decide.enabled():
+        await decide.shadow(client, agent.sweep_rules(), prompt, agent.sweep_tools(),
+                            actual=trace.get("first_tool"), alert=labels.get("alertname", "?"))
 
 
 async def sweep_once(client: httpx.AsyncClient) -> str:

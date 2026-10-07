@@ -122,6 +122,19 @@ scripts/llama-guard-8b.sh stop      # free VRAM (GGUF stays cached)
   on the guard deployment to `http://192.168.1.230:8003` — but it's on-demand, so normally the guard stays on the
   always-on 1B and the 8B is a manual stronger pass.
 
+## Clef-flash: a decision model for the operator's shadow (B174), on demand
+
+Cloudflare's Apache-2.0 decision model (9B, Qwen3.5 backbone plus its own decision head) behind the Jev / SystemOne API
+(`POST /v1/systemone`, `GET /health`) on **:8004**.
+- **Runs under transformers, not llama.cpp or Ollama.** The decision head is the model repo's own Python, so the
+  revision is pinned to a full commit.
+- **About 8.5 GB of graphics memory in 4-bit**, so it can't share the card with the operator's qwen (6.6 GB) and the
+  desktop. The wrapper unloads qwen on `start`, and on `stop` it reloads qwen and fails unless qwen is back fully on
+  the GPU.
+- **Wrapper:** `scripts/clef-flash.sh {start|stop|status|logs|smoke}`.
+
+How the operator uses it, and when: [decision-models.md](decision-models.md).
+
 ## Measured baseline (2026-07-31, Qwen2.5-7B-Instruct-AWQ, 128-tok gens)
 
 Continuous batching — tok/s scales ~linearly with concurrency, latency ~flat (full explanation in the demo):

@@ -105,5 +105,23 @@ services:
             - driver: nvidia
               count: 1
               capabilities: [gpu]
+  clef-flash:
+    # B174 — Cloudflare Clef-flash (Apache-2.0 decision model) behind the Jev / SystemOne API on :8004. ON DEMAND ONLY:
+    # 4-bit it holds ~8.5 GB of the 16 GB card, so it cannot sit beside the operator's qwen2.5:7b-operator. Use
+    # scripts/clef-flash.sh start|stop (stop reloads qwen onto the GPU). docs/runbooks/decision-models.md.
+    build: ./clef-flash
+    image: weyland-clef-flash:local
+    container_name: clef-flash
+    ports:
+      - "8004:8080"
+    volumes:
+      - hf-cache:/root/.cache/huggingface   # the SAME cache vllm/sglang/llama-guard use
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
 volumes:
   hf-cache:

@@ -10,7 +10,7 @@ WORKDIR /app
 COPY requirements.txt /tmp/requirements.txt
 RUN pip install --no-cache-dir -r /tmp/requirements.txt
 
-COPY tools.py agent.py guard.py telegram.py session.py ingress.py act.py prompts.py fleet.py realm.py incidents.py app.py /app/
+COPY tools.py agent.py guard.py telegram.py session.py ingress.py act.py prompts.py fleet.py realm.py decide.py incidents.py app.py /app/
 
 RUN useradd -u 10001 -m appuser && chown -R appuser /app
 USER appuser

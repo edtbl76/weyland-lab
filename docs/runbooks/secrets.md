@@ -34,10 +34,10 @@ kubectl get secret <name> -o yaml ──kubeseal──▶ SealedSecret CR (encry
 
 ## What is and isn't sealed
 
-**Sealed (69):** every credential we created imperatively — nothing else recreates them, so they must be in git.
+**Sealed (70):** every credential we created imperatively — nothing else recreates them, so they must be in git.
 The authoritative list is the `SECRETS=(…)` array in `scripts/seal-secrets.sh` — this count trails it, so when the
 two disagree the array wins (it read 53 here against 54 in the array before B135 added the 55th, and 55 against 68
-when B194 added `weyland/linear-backup-secret`, the 69th, on 2026-09-26).
+when B194 added `weyland/linear-backup-secret`, the 69th, on 2026-09-26; B174 added `weyland/typesafe-api`, the 70th, on 2026-10-07).
 
 **Deliberately NOT sealed** (do not add these):
 - **Chart/operator-generated** secrets — their chart/operator recreates them on install, so they're already
