@@ -12,7 +12,7 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))  # scripts/ on path
 
-import issue_readiness as ir
+import readiness_judge as ir
 import issue_readiness_eval as ev
 
 DOC = """The backup has never been restored, so nobody knows it works.
@@ -132,7 +132,7 @@ class ScriptedJudge:
         dims = json.loads(user.split("DIMENSIONS_JSON:", 1)[1].split("\n", 1)[0])
         weak = {op.dimension for op in ev.OPERATORS.values() if op.sections[0][1].strip() in user}
         description = user.split("Description:\n", 1)[1]
-        quote = next(ln for ln in description.splitlines() if len(ln.split()) >= 4)   # text this version still has
+        quote = next((ln for ln in description.splitlines() if len(ln.split()) >= 4), "")   # text it still has
         return json.dumps({"scores": {d: {"score": self.low if d in weak else self.high,
                                           "evidence": quote, "reason": "", "fix": ""}
                                       for d in dims}}), "fake"
@@ -163,10 +163,15 @@ def test_run_agreement_compares_two_judges(tmp_path, capsys):
     assert rep["pairs"] > 0 and rep["within"] == rep["pairs"]
 
 
+SNAPSHOT_ISSUE = ir.Issue("EMA-0", "u", "t", "d", 2, [], "Weyland Lab", 0)
+
+
 def test_snapshot_writes_one_file_per_issue(tmp_path):
+    import dataclasses
+
     class Lin:
         def issue(self, ident):
-            return ir.Issue(ident, "u", "t", "d", 2, [], "Weyland Lab", 0)
+            return dataclasses.replace(SNAPSHOT_ISSUE, identifier=ident)
     ev.snapshot(["EMA-1", "EMA-2"], str(tmp_path), Lin())
     assert sorted(p.name for p in tmp_path.iterdir()) == ["EMA-1.json", "EMA-2.json"]
     assert ev._load([str(tmp_path / "EMA-1.json")])[0].identifier == "EMA-1"
@@ -215,3 +220,71 @@ def test_an_unusable_judgement_is_a_failed_case_not_an_abort(tmp_path, capsys):
     bad = [c for c in cases if c["operator"] == "vague_acceptance"]
     assert bad and bad[0]["invalid"] and not bad[0]["passed"]
     assert len(cases) > 1                                   # the run went on to the other operators
+
+
+# ── outcomes: does the score predict whether an agent's PR was merged? (arXiv 2512.21426 replication data) ──
+
+
+def test_auc_is_the_probability_a_merged_issue_outscores_an_unmerged_one():
+    assert ev.auc([0.9, 0.8, 0.2, 0.1], [1, 1, 0, 0]) == 1.0
+    assert ev.auc([0.1, 0.2, 0.8, 0.9], [1, 1, 0, 0]) == 0.0
+    assert ev.auc([0.5, 0.5, 0.5, 0.5], [1, 0, 1, 0]) == 0.5      # ties count half
+
+
+def test_auc_needs_both_outcomes():
+    import pytest
+    with pytest.raises(ValueError):
+        ev.auc([0.1, 0.2], [1, 1])
+
+
+def test_bootstrap_interval_brackets_the_point_estimate():
+    scores = [i / 100 for i in range(100)]
+    labels = [1 if i > 40 else 0 for i in range(100)]
+    lo, hi = ev.auc_interval(scores, labels, rounds=200, seed=1)
+    assert lo <= ev.auc(scores, labels) <= hi and hi - lo < 0.2
+
+
+def _paper_rows():
+    def row(issue, pr, merged, agent="Copilot", state="closed", body="body text here"):
+        return {"issue_id": issue, "pr_id": pr, "agent": agent, "state_pr": state, "merged": merged,
+                "title_issue": f"t{issue}", "body_issue": body, "repo_key": "o/r", "number_issue": issue}
+    return [row("1", "a", "True"), row("2", "b", "False"), row("3", "c", "True"), row("3", "d", "False"),
+            row("4", "e", "True", agent=""), row("5", "f", "False", state="open"), row("6", "g", "True"),
+            row("7", "h", "False"), row("8", "i", "False")]
+
+
+def test_population_is_closed_copilot_prs_one_per_issue_without_conflicting_outcomes():
+    pop = ev.outcome_population(_paper_rows())
+    assert sorted(p["issue_id"] for p in pop) == ["1", "2", "6", "7", "8"]   # 3 conflicts, 4 not Copilot, 5 open
+
+
+def test_sample_is_stratified_and_reproducible():
+    pop = ev.outcome_population(_paper_rows())
+    a = ev.stratified_sample(pop, per_class=2, seed=190)
+    assert a == ev.stratified_sample(pop, per_class=2, seed=190)
+    assert sorted(r["merged"] for r in a) == ["False", "False", "True", "True"]
+
+
+def test_run_outcomes_scores_once_per_issue_resumes_and_summarizes(tmp_path):
+    import csv as _csv
+    data = tmp_path / "data.csv"
+    rows = _paper_rows()
+    for r in rows:
+        r["body_issue"] = DOC if r["merged"] == "True" else "fix it"
+    with open(data, "w", newline="") as f:
+        w = _csv.DictWriter(f, fieldnames=list(rows[0]))
+        w.writeheader()
+        w.writerows(rows)
+    calls = []
+
+    def judge(messages):
+        calls.append(1)
+        return ScriptedJudge(high=80)(messages)
+    out = str(tmp_path / "out.jsonl")
+    ev.run_outcomes(str(data), out, judge, per_class=2, seed=190)
+    assert len(calls) == 4                                    # one judgement per sampled issue
+    ev.run_outcomes(str(data), out, judge, per_class=2, seed=190)
+    assert len(calls) == 4                                    # resumed: nothing re-scored
+    rep = ev.summarize_outcomes(out)
+    assert rep["scored"] == 4 and rep["errors"] == 0
+    assert "our judge, rules off (mean)" in rep["auc"] and "our product total" in rep["auc"]

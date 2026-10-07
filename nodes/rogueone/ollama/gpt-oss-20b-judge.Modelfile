@@ -1,18 +1,23 @@
 # gpt-oss:20b-judge — gpt-oss:20b with a context window that fits a judge prompt (2026-10-06, B190).
 #
-# WHY: Ollama loads gpt-oss:20b with a 4096-token window (`/api/ps` context_length 4096). The B190 issue-readiness
-# scorer sends a rubric plus an issue of up to 20,000 characters (~6.5K tokens with the reply), so a long issue would
-# be cut. gpt-oss runs on Ollama's newer engine, and whether that engine logs the "truncating input prompt" warning the
-# old runner does (the tell for qwen2.5:7b in B182) is unverified, so the cut could be silent. 16K holds the largest
-# prompt the scorer sends, with room for the reply.
+# WHY: Ollama loads gpt-oss:20b with a 4096-token window (`/api/ps` context_length 4096). B190's issue-readiness judge
+# (now a research harness, scripts/readiness_judge.py) sends a rubric plus an issue of up to 16,000 characters.
+# Measured on this model: prompt ~= 1450 + chars/3.6 tokens, reply ~450-550 — the largest real issue (EMA-195, 11.5K chars) used 5,075 tokens, so 4K would cut it.
 #
-# Why gpt-oss and not qwen2.5:7b for judging: on 5 calibration issues (2026-10-06) the 7B rated every present section
-# 90-100 and put its reasons where verbatim quotes were asked for; gpt-oss graded 70-90 and its quotes were real.
+# WHY 8K AND NOT 16K: the 20b model does not fit the 16 GB card beside the desktop (~4.5 GB of graphics). At 16K only
+# 8.2 of 13.1 GiB sat on the GPU and a judgement took ~70 s; at 8K, 9.5 GiB and ~48 s. 8K holds the largest prompt the
+# scorer sends (its 16,000-char cap -> ~6.9K tokens), one slot (`n_slots = 1, n_ctx_slot = 8192`). The scorer also
+# refuses any reply that filled the window (JUDGE_CONTEXT in scripts/readiness_judge.py — keep the two in step), and
+# Ollama logs each request's `truncated = 0|1` (`journalctl -u ollama | grep truncated`).
 #
-# Served as LiteLLM `wl-judge-oss` (k8s/litellm/configmap.yaml), which also carries the Langfuse online evaluators.
+# Why gpt-oss and not qwen2.5:7b for judging: in the B190 defect test (eval/issue-readiness/) gpt-oss caught 32 of 39
+# deliberately damaged sections; qwen2.5:7b caught 9 of 38 and rated nearly everything 85-90.
+#
+# Served as LiteLLM `wl-judge-oss` (k8s/litellm/configmap.yaml): the Langfuse online evaluators and the B190 research
+# harness. (The production issue-readiness check is rules-only and uses no model — docs/concepts/issue-readiness.md.)
 # Scoped to that alias on purpose: OLLAMA_CONTEXT_LENGTH would raise VRAM for EVERY model on the card.
 #
 # Build / rebuild (rogueone):
 #   ollama create gpt-oss:20b-judge -f /home/edwardmangini/IdeaProjects/weyland/nodes/rogueone/ollama/gpt-oss-20b-judge.Modelfile
 FROM gpt-oss:20b
-PARAMETER num_ctx 16384
+PARAMETER num_ctx 8192

@@ -1,73 +1,82 @@
-# Issue readiness — the lab's own scorer (B190, replaces SpecBot)
+# Issue readiness — the check that replaced SpecBot (B190)
 
-Is a Linear issue ready to hand to a coding agent without the agent guessing? `scripts/issue-readiness.sh` scores an
-issue on 8 dimensions, prints the breakdown, and keeps ONE comment on the issue up to date. Threshold **80** — the same
-bar `AGENTS.md` sets for delegating an issue. It replaces SpecBot (a third-party judge: 25 analyses a month, an opaque
-rubric and model, nothing CI could gate on).
+Is a Linear issue implementation-ready by the lab's standard? `AGENTS.md` requires every issue an agent drafts to
+carry, beyond Why and Scope, **Technical context**, **Acceptance criteria**, **Edge cases & failure modes** and **Out of
+scope** — per issue kind, the sections of its Linear template. `scripts/issue-readiness.sh` checks exactly that, by
+rule, prints **READY** or **NOT READY** with every missing item named, and keeps ONE comment on the issue current.
+Run it before delegating an issue — it must print READY. Why it is rules and not an LLM score:
+[concepts/issue-readiness.md](../concepts/issue-readiness.md).
 
 | Piece | Where |
 |---|---|
-| Scorer | `scripts/issue_readiness.py` (logic) · `scripts/issue-readiness.sh` (wrapper: reads `scripts/.env`) |
-| Judge | LiteLLM `wl-judge-oss` → Ollama `gpt-oss:20b-judge` on rogueone (gpt-oss:20b, 16K window — `nodes/rogueone/ollama/gpt-oss-20b-judge.Modelfile`). Free, local |
-| CI | `.woodpecker.yml` step `issue-readiness` — LEAN (manual) runs only, advisory (`failure: ignore`) |
-| Judge eval | `scripts/issue_readiness_eval.py` + issue snapshots in `eval/issue-readiness/issues/` |
-| Tests | `scripts/tests/test_issue_readiness.py`, `test_issue_readiness_eval.py` (pytest) · `issue-readiness.bats` |
+| Check | `scripts/issue_readiness.py` (logic) · `scripts/issue-readiness.sh` (wrapper: reads `scripts/.env`) |
+| CI | `.woodpecker.yml` step `issue-readiness` — LEAN (manual) runs only, advisory (`failure: ignore`), secret `linear_comment_key` (write) |
+| Standard | `REQUIRED` in `scripts/issue_readiness.py` ⇄ the Linear templates (snapshot: `scripts/tests/fixtures/issue-readiness/linear-templates.json`) |
+| Tests | `scripts/tests/test_issue_readiness.py` (pytest) · `scripts/tests/issue-readiness.bats` |
 
 All commands run on **rogueone**.
 
-## Score an issue
+## Check an issue
 
 ```
 bash /home/edwardmangini/IdeaProjects/weyland/scripts/issue-readiness.sh EMA-249
 ```
-Prints 8 dimension scores (each marked `rule` or `llm`), the total, blockers and suggested fixes, and creates or updates
-the issue's one comment (`**Issue readiness (weyland scorer)**`). `--no-comment` scores only; `--json` is
-machine-readable. Exit **0** READY (total ≥ 80 and no blockers) or skipped · **1** NOT READY · **2** the judge or Linear
-was unreachable, or the judge's answer was unusable — **never a guessed score**.
+Prints `READY` or `NOT READY` and one `missing:` line per gap, then creates or updates the issue's one comment
+(`**Issue readiness (weyland check)**`). `--no-comment` checks only (the read-only key is enough); `--json` is
+machine-readable. Exit **0** READY · **1** NOT READY · **2** Linear unreachable, the key missing, or a usage error —
+an error is **never** READY.
 
-Sweep every open High issue in project Weyland Lab (what CI runs):
+Every open High issue in project Weyland Lab (what CI runs):
 ```
 bash /home/edwardmangini/IdeaProjects/weyland/scripts/issue-readiness.sh --sweep
 ```
-The sweep re-scores only an issue whose content changed since its last comment: each comment carries a `digest` of
-everything the score depends on (title, description, priority, labels, linked issues, rubric version). Unchanged issues
-print `unchanged since last score` and cost nothing. A single-issue run always re-scores.
 
-## How a score is made
+## The standard
 
-1. **Rules first, no model call.** A rule decides what the text can settle:
-   | Rule | Score |
-   |---|---|
-   | No Acceptance criteria section, or only the template placeholder | Acceptance criteria **10** + blocker |
-   | No Edge cases section | Edge cases **10** |
-   | A Bug (label) with no Repro section | Reproduction **10** + blocker |
-   | No dependency named and no Linear link (write `Dependencies: none` if there are none) | Dependencies **15** |
-   | No Why / problem statement (an opening paragraph counts) | Objective capped at **50** |
-   | No Expected behavior / outcome section | Expected behavior capped at **50** |
-   | No Technical context section | Technical context capped at **50** |
-   | No Out of scope list | Priority and scope capped at **60** |
-   | No priority set | Priority and scope capped at **30** |
-   A missing estimate is never penalized (the lab does not use estimates). Reproduction is **n/a** on anything that is
-   not a Bug and is left out of the total.
-2. **The judge scores the rest** — temperature 0, JSON only, every requested dimension an integer 0-100 (one retry,
-   then exit 2). Every score of 50 or more must quote the issue; the CODE checks the quote is really there (most of its
-   3-word runs occur in the issue) and caps an unsupported score at 40. Model scores are capped at 90.
-3. **Three votes, the median per dimension** — one outlier judgement cannot move a verdict (see § Proving the judge).
-4. **Total = the rounded mean** of the applicable dimensions (SpecBot's own formula). READY needs ≥ 80 and no blocker.
+| Kind (how it is detected) | Required sections |
+|---|---|
+| Backlog item (default) | Why · Scope · Technical context · Acceptance criteria · Edge cases & failure modes · Out of scope |
+| Bug (label `Bug`) | Observed · Expected · Repro · Evidence · Technical context · Acceptance criteria · Edge cases & failure modes |
+| Spike (label `Spike`) | Questions to answer · Constraint gate · Overlap · Technical context · Acceptance criteria · Edge cases & failure modes · Out of scope · Deliverable |
+| Bucket (label `Bucket`, or `(bucket)` in the title) | Purpose · Exit criteria |
 
-## Proving the judge
+Every kind also needs the issue's **priority** field set. What counts:
 
-Re-run all three whenever the judge model, its LiteLLM alias, the prompt or the rubric changes, and record the result
-below. The defect test is the one that matters: it is the evidence that the judge reads QUALITY inside a section — the
-part no rule can check.
+* A section counts when it has real content — not just the template's guidance line or placeholder (`(criterion)`,
+  `* (edge case)`, the empty table row), and not a stand-in word (`TBD`, `todo`, `N/A`).
+* **Acceptance criteria** need at least one real checkbox or bullet — prose alone is not a pass/fail check.
+* Headings may be `##` or a line-opening bold run (`**Acceptance criteria**`, `**Why.** ...`); a heading counts when
+  it starts with the section's name, so `Edge cases` satisfies `Edge cases & failure modes`. An opening paragraph
+  before any heading counts as the Why (or a Bucket's Purpose).
+* An issue created from a template and never filled in is NOT READY with every section listed (tested against the
+  real template bodies).
 
+**When a Linear template changes**, change `REQUIRED` with it and refresh the fixture snapshot; the test
+`test_every_required_section_is_a_heading_its_template_has` fails if the code demands a heading the template lacks.
+
+## Retiring SpecBot
+
+`AGENTS.md` and the Backlog item template name this check (changed 2026-10-07). The SpecBot integration itself is
+uninstalled in Linear → Settings → Integrations → SpecBot (owner action; 7 of its 25 free checks this month went to
+B190's calibration).
+
+## Research harness — the LLM readiness score B190 dropped
+
+Kept so the verdict in [concepts/issue-readiness.md](../concepts/issue-readiness.md) can be re-tested when the judge
+model or hardware changes. `scripts/readiness_judge.py` is the judge as built (8 dimensions, quote-checked, median of
+votes; it never posts comments); `scripts/issue_readiness_eval.py` measures it. The judge is LiteLLM `wl-judge-oss` →
+`gpt-oss:20b-judge` on rogueone (~50 s a judgement: the 20b model does not fit the 16 GB card beside the desktop).
+Each run displaces the operator's model from the GPU while it lasts.
+
+The decisive measurement — does a readiness score predict whether an agent's PR is merged? It needs the paper's data
+(clone `https://github.com/DaREf-MS/pr_prediction_from_issues` to `/tmp/pr_pred`); ~3 h for 200 issues; resumable:
+```
+cd /home/edwardmangini/IdeaProjects/weyland/scripts && LITELLM_API_KEY=x LITELLM_API_BASE=http://127.0.0.1:11434/v1 ISSUE_READINESS_MODEL=gpt-oss:20b-judge python3 issue_readiness_eval.py outcomes /tmp/pr_pred/data/all_data_clean.csv --rubric-csv /tmp/pr_pred/data/final_scores.csv --out /tmp/issue-readiness-outcomes.jsonl
+```
+The defect test (does the judge see a damaged section?) and cross-judge agreement:
 ```
 cd /home/edwardmangini/IdeaProjects/weyland/scripts && set -a && . ./.env && set +a && python3 issue_readiness_eval.py defects ../eval/issue-readiness/issues/*.json
 ```
 ```
 cd /home/edwardmangini/IdeaProjects/weyland/scripts && set -a && . ./.env && set +a && python3 issue_readiness_eval.py agreement --model-b wl-default ../eval/issue-readiness/issues/*.json
-```
-Refresh the snapshots (read key is enough):
-```
-cd /home/edwardmangini/IdeaProjects/weyland/scripts && set -a && . ./.env && set +a && LINEAR_API_KEY=$LINEAR_API_KEY_RO python3 issue_readiness_eval.py snapshot EMA-195 EMA-233 EMA-237 EMA-242 EMA-243 EMA-249 EMA-252 EMA-254 EMA-255 EMA-256 EMA-257 EMA-258
 ```

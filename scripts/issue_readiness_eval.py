@@ -21,13 +21,15 @@ rules are measured by their own tests.
   issue_readiness_eval.py agreement --model-b wl-default eval/issue-readiness/issues/*.json
 """
 import argparse
+import csv
 import json
+import random
 import os
 import re
 import sys
 from collections import namedtuple
 
-import issue_readiness as ir
+import readiness_judge as ir
 
 DROP_REQUIRED = 20           # the damaged dimension must fall at least this far ...
 DAMAGED_MAX = 60             # ... and land at or below this — "acceptable" after damage means the judge missed it
@@ -147,6 +149,152 @@ def stability(runs):
             for k, v in runs.items()}
 
 
+# ── outcomes: does the score predict whether an agent's PR got merged? ──────
+# Data: the replication package of "What Makes a GitHub Issue Ready for Copilot?" (arXiv 2512.21426,
+# https://github.com/DaREf-MS/pr_prediction_from_issues) — GitHub issues handed to Copilot, each with whether the PR it
+# produced was merged, plus the paper's own 32-criterion LLM rubric scores. The only issue-readiness ground truth found
+# (2026-10-06); SpecBot publishes no accuracy data at all.
+
+
+def auc(scores, labels):
+    """P(a merged issue scores above an unmerged one); ties count half (Mann-Whitney)."""
+    pos = [s for s, y in zip(scores, labels) if y]
+    neg = [s for s, y in zip(scores, labels) if not y]
+    if not pos or not neg:
+        raise ValueError("AUC needs both outcomes")
+    wins = sum((p > n) + 0.5 * (p == n) for p in pos for n in neg)
+    return wins / (len(pos) * len(neg))
+
+
+def auc_interval(scores, labels, rounds=1000, seed=0):
+    """Bootstrap 95% interval for the AUC (resampling issues with replacement)."""
+    rng, pairs, out = random.Random(seed), list(zip(scores, labels)), []
+    while len(out) < rounds:
+        draw = [rng.choice(pairs) for _ in pairs]
+        try:
+            out.append(auc(*zip(*draw)))
+        except ValueError:
+            continue
+    out.sort()
+    return out[int(0.025 * rounds)], out[int(0.975 * rounds) - 1]
+
+
+def outcome_population(rows):
+    """Closed Copilot PRs, one row per issue; an issue whose PRs disagree on the outcome is dropped."""
+    by_issue = {}
+    for r in rows:
+        if r["agent"] == "Copilot" and r["state_pr"] == "closed":
+            by_issue.setdefault(r["issue_id"], []).append(r)
+    return [v[0] for v in by_issue.values() if len({r["merged"] for r in v}) == 1]
+
+
+def stratified_sample(population, per_class, seed):
+    rng = random.Random(seed)
+    out = []
+    for outcome in ("True", "False"):
+        group = sorted((r for r in population if r["merged"] == outcome), key=lambda r: r["issue_id"])
+        out += rng.sample(group, per_class)
+    return out
+
+
+def _paper_issue(row):
+    # GitHub has no Linear priority or links: priority is set to High and relations left 0 so the Linear-only rules
+    # cannot decide the outcome; the per-dimension and judge-only figures in the summary isolate the judge anyway.
+    return ir.Issue(f"{row['repo_key']}#{row['number_issue']}", row["issue_id"], row["title_issue"] or "",
+                    row["body_issue"] or "", 2, [], None, 0)
+
+
+def _read_csv(path):
+    csv.field_size_limit(10 ** 9)
+    with open(path, newline="", encoding="utf-8") as f:
+        return list(csv.DictReader(f))
+
+
+def run_outcomes(data_csv, out_path, llm, per_class=100, seed=190):
+    """Score a stratified sample, one JSON line per issue; resumable — already-scored issues are skipped."""
+    done = set()
+    if os.path.exists(out_path):
+        with open(out_path) as f:
+            done = {json.loads(line)["issue_id"] for line in f if line.strip()}
+    sample = stratified_sample(outcome_population(_read_csv(data_csv)), per_class, seed)
+    with open(out_path, "a") as out:
+        for row in sample:
+            if row["issue_id"] in done:
+                continue
+            rec = {"issue_id": row["issue_id"], "pr_id": row["pr_id"], "merged": row["merged"] == "True",
+                   "body_len": len(row["body_issue"] or "")}
+            try:
+                raw, product = _raw_and_product(_paper_issue(row), llm)
+                rec.update(raw=raw, total=product.total, scores={d: s.score for d, s in product.scores.items()},
+                           sources={d: s.source for d, s in product.scores.items()})
+            except (ir.ScorerInvalid, ir.ScorerUnavailable) as e:
+                rec.update(error=str(e))
+            out.write(json.dumps(rec) + "\n")
+            out.flush()
+
+
+def _raw_and_product(issue, llm):
+    """ONE judgement of every dimension (rules off = the judge's own view), then the scorer's rules applied to the
+    same judgement = the product's total. Both are measured from the same call."""
+    dims = judgeable(issue)
+    messages, _ = ir.build_messages(issue, dims)
+    scores, _, model = ir.judge(llm, messages, dims)
+    raw = {d: ir._supported(s, issue.description) for d, s in scores.items()}
+    product = ir._combine(issue, ir.issue_kind(issue), ir.plan(issue), raw, None, model, False)
+    return {d: s.score for d, s in raw.items()}, product
+
+
+def summarize_outcomes(out_path, rubric_csv=None):
+    """AUC (with a bootstrap 95% interval) of every predictor against the merge outcome, on the scored records."""
+    with open(out_path) as f:
+        recs = [json.loads(line) for line in f if line.strip()]
+    ok = [r for r in recs if "error" not in r]
+    labels = [r["merged"] for r in ok]
+    series = {**_our_series(ok), **(_paper_series(ok, rubric_csv) if rubric_csv else {})}
+    report = {"scored": len(ok), "errors": len(recs) - len(ok), "merged": sum(labels), "auc": {}}
+    for name, vals in series.items():
+        report["auc"][name] = [round(auc(vals, labels), 3)] + [round(x, 3) for x in auc_interval(vals, labels)]
+    return report
+
+
+def _our_series(ok):
+    series = {"our product total": [r["total"] for r in ok],
+              "our judge, rules off (mean)": [sum(r["raw"].values()) / len(r["raw"]) for r in ok],
+              "issue length (shorter = higher)": [-r["body_len"] for r in ok]}
+    for dim in sorted({d for r in ok for d in r["raw"]}):
+        series[f"our judge: {dim}"] = [r["raw"].get(dim, 0) for r in ok]
+    return series
+
+
+def _paper_series(ok, rubric_csv):
+    paper = {row["pr_id"]: row for row in _read_csv(rubric_csv)}
+    series = {"paper 32-criterion mean": [_rubric_mean(paper.get(r["pr_id"])) for r in ok]}
+    for crit in ("scope", "context_guidance"):              # the paper's strongest positive single criteria
+        series[f"paper {crit}"] = [_num((paper.get(r["pr_id"]) or {}).get(crit)) for r in ok]
+    return series
+
+
+def _num(v):
+    try:
+        return float(v)
+    except (TypeError, ValueError):
+        return 0.0
+
+
+def _rubric_mean(row):
+    if not row:
+        return 0
+    vals = []
+    for k, v in row.items():
+        if k in ("pr_id", "issue_id"):
+            continue
+        try:
+            vals.append(float(v))
+        except (TypeError, ValueError):
+            pass
+    return sum(vals) / len(vals) if vals else 0
+
+
 # ── CLI ─────────────────────────────────────────────────────────────────────
 
 
@@ -208,6 +356,13 @@ def main(argv=None):
     s.add_argument("--dir", default="eval/issue-readiness/issues")
     d = sub.add_parser("defects")
     d.add_argument("files", nargs="+")
+    o = sub.add_parser("outcomes", help="score a sample of the arXiv 2512.21426 issues; AUC vs merged")
+    o.add_argument("data_csv", help="pr_prediction_from_issues/data/all_data_clean.csv")
+    o.add_argument("--out", required=True, help="JSON-lines results (resumable)")
+    o.add_argument("--rubric-csv", help="pr_prediction_from_issues/data/final_scores.csv (the paper's own scores)")
+    o.add_argument("--per-class", type=int, default=100)
+    o.add_argument("--seed", type=int, default=190)
+    o.add_argument("--summary-only", action="store_true")
     g = sub.add_parser("agreement")
     g.add_argument("files", nargs="+")
     g.add_argument("--model-b", required=True)
@@ -215,7 +370,14 @@ def main(argv=None):
     if args.cmd == "snapshot":
         snapshot(args.ids, args.dir, ir.Linear(os.environ.get("LINEAR_API_KEY")))
         return 0
+    if args.cmd == "outcomes" and args.summary_only:
+        print(json.dumps(summarize_outcomes(args.out, args.rubric_csv), indent=1))
+        return 0
     llm = ir.litellm_client(os.environ)
+    if args.cmd == "outcomes":
+        run_outcomes(args.data_csv, args.out, llm, args.per_class, args.seed)
+        print(json.dumps(summarize_outcomes(args.out, args.rubric_csv), indent=1))
+        return 0
     if args.cmd == "defects":
         cases = run_defects(_load(args.files), llm)
         return 0 if cases and all(c["passed"] for c in cases) else 1

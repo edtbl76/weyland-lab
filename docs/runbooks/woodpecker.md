@@ -223,7 +223,7 @@ run, no error, no metric — and `next_exec` simply freezes at its first-ever sl
 |---|---|---|
 | 2 `weyland-lab` | `cosign_key`, `github_token`, `port_client_id`, `port_client_secret`, `port_ingest_url` | `cron`, `manual` |
 | 2 `weyland-lab` | `linear_api_key` (**READ-ONLY** key = `LINEAR_API_KEY_RO` in `scripts/.env`), `sonar_token` | `cron`, `manual`, `push` |
-| 2 `weyland-lab` | `linear_comment_key` (**write** key = `LINEAR_API_KEY` — the B190 `issue-readiness` step posts one comment per issue), `litellm_api_key` (`LITELLM_API_KEY`) | `cron`, `manual`, `push` |
+| 2 `weyland-lab` | `linear_comment_key` (**write** key = `LINEAR_API_KEY` — the B190 `issue-readiness` step posts one comment per issue) | `cron`, `manual`, `push` |
 | 1 `stud.io` | `sonar_token`, `minio_svc_access_key`, `minio_svc_secret_key` | `manual`, `push` |
 | 1 `stud.io` | `port_ingest_url` | `manual`, `pull_request`, `push` |
 
@@ -238,11 +238,11 @@ the write-capable `LINEAR_API_KEY` stays local for the view/initiative scripts (
 set -a && . /home/edwardmangini/IdeaProjects/weyland/scripts/.env && set +a && woodpecker-cli repo secret update --repository edtbl76/weyland-lab --name linear_api_key --value "$LINEAR_API_KEY_RO" --event cron --event manual --event push
 ```
 
-The B190 `issue-readiness` step's two secrets (create once with `add`; rotate with `update` and the same flags). They
-must exist BEFORE `.woodpecker.yml` references them — a missing secret fails the whole config, every step:
+The B190 `issue-readiness` step's secret (create once with `add`; rotate with `update` and the same flags). It must
+exist BEFORE `.woodpecker.yml` references it — a missing secret fails the whole config, every step:
 
 ```bash
-set -a && . /home/edwardmangini/IdeaProjects/weyland/scripts/.env && set +a && woodpecker-cli repo secret add --repository edtbl76/weyland-lab --name linear_comment_key --value "$LINEAR_API_KEY" --event cron --event manual --event push && woodpecker-cli repo secret add --repository edtbl76/weyland-lab --name litellm_api_key --value "$LITELLM_API_KEY" --event cron --event manual --event push
+set -a && . /home/edwardmangini/IdeaProjects/weyland/scripts/.env && set +a && woodpecker-cli repo secret add --repository edtbl76/weyland-lab --name linear_comment_key --value "$LINEAR_API_KEY" --event cron --event manual --event push
 ```
 
 The **events list is part of the secret**, not decoration: a secret that exists but does not cover the triggering

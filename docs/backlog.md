@@ -87,7 +87,7 @@ Re-ordered per RE-grounded audit (aidlc-docs/inception/backlog-reprioritization.
 - **B187** — **Spike: Claude + Obsidian workflow (claude-obsidian, with graphify's Obsidian export)** — **MEDIUM (2026-09-25, Linear EMA-245).** Get hands-on competent with the Claude Code + Obsidian knowledge workflow (`AgriciDaniel/claude-obsidian`: ingest → linked, cited notes → vault-grounded Q&A → answers saved back), plus graphify's opt-in `--obsidian` export of the code graph. Doubles as evidence for B182 — Obsidian's Markdown + wikilinks is the same format as Claude's memory and Basic Memory. See detail below.
 - **B188** — **PostHog for the product apps (deferred until OJay Floyd / MyBodyGraph have users)** — **LOW · HELD (2026-09-25, Linear EMA-246, `parked:held`).** PostHog's free cloud tier (analytics, session replay, errors → Linear issues) is the natural analytics layer for the product apps, but nothing needs it until OJay Floyd or MyBodyGraph ships to real users. Un-hold then, and evaluate it together with website feedback/bug capture (Iteration X / Marker.io, rejected in the B119 walk only for lack of users). See detail below.
 - **B189** — **Spike: test management + quality visibility (self-hosted vs hosted-free with Linear)** — **MEDIUM (2026-09-25, Linear EMA-248; Testiny added — hosted, free to 3 users, Linear on free).** Quality visibility is scattered (Woodpecker logs, SonarQube coverage, Port `ci_pipeline`); nothing shows which tests exist, their history or flakiness. Compare the free self-hosted options on one real bats + pytest suite — Kiwi TCMS (imports JUnit/pytest/**TAP**, and bats emits TAP natively), Allure Report (CI-generated reports), ReportPortal (results analytics; likely heavy on mother). Linear linkage is the deciding requirement — Testomat was ruled out because its free tier has no Linear links. See detail below.
-- **B190** — **Build our own issue-readiness scorer (replace SpecBot)** — **HIGH (2026-09-25, Linear EMA-249).** SpecBot (adopted in the B119 walk) scored EMA-240 51/100 and exposed a systemic gap, but it is a capped third-party cloud judge with an opaque rubric that can't gate CI. Reconstruct its 8-dimension rubric from its published output (black-box), score with the lab's own LLM judge via LiteLLM (deterministic section checks first), trigger by CLI + CI sweep (no LAN webhooks), post an idempotent comment, calibrate against SpecBot (±10 on 8 of 10), optionally gate open High issues below 80. See detail below.
+- **B190** — **Replace SpecBot: check every issue against the lab's implementation-ready standard** — **HIGH (2026-09-25, rewritten 2026-10-06, Linear EMA-249).** SpecBot's job here is enforcing `AGENTS.md`'s required issue sections before delegation; it is capped (25/month), cloud-only and cannot gate CI. A deterministic per-kind section check (CLI + lean-CI step + one comment listing what is missing) replaces it, and `AGENTS.md` / the templates stop naming SpecBot. An LLM 0-100 quality score was built and dropped on evidence: no text-based readiness score predicted agent PR outcomes (AUC ~0.51, n=200). See detail below.
 - **B191** — **Spike: screen-recorded demos kept in sync with the runbooks (Playwright + VHS → MinIO + YouTube)** — **MEDIUM (2026-09-26, Linear EMA-250).** Demos are written walkthroughs that must be run, but nothing records that they were or what the screen showed. Record one demo end to end — Playwright video for the UI UAT steps, a VHS `.tape` for the CLI steps — store the master copy in MinIO (`demo-recordings`), publish **unlisted to YouTube via its API** (Linear's pre-installed YouTube integration plays it inline on the B-item's issue), embed on the docs page, and add a manifest + guard that flags a recording STALE when its demo doc or runbook changes. Both kept on purpose: text = source of truth, recording = proof. Decide whether recordings join DoD Pillar 3. See detail below.
 - **B192** — **Spike: Jam (jam.dev) — UI bug capture into Linear, with an MCP agents can read** — **MEDIUM (2026-09-26, Linear EMA-251).** **Found as a Linear integration** in the B119 walk; site **https://jam.dev**. A Chrome extension (works on Linux) that captures screen recording + console + network + browser info into a Linear issue, with an MCP server harnesses can read captures through, and webhooks. Free tier: 30 Jams, 5 recording links, 5-minute recordings — far below the lab's ~30 issues/hour, so the spike judges whether the capture + MCP workflow is worth it within or beyond the cap, or whether a lab-owned version belongs in B191. See detail below.
 - **B193** — **Spike: share Linear outward, read-only (project links vs initiative roadmaps)** — **LOW (2026-09-26, Linear EMA-252).** Found in the B119 walk's Customer Experience category: the one need there that doesn't wait on users — show the lab's work to people outside Linear (family, a portfolio beside B191's YouTube demos); Linear shows projects only to members or paid guests. Lindie (read-only project links, free for 1 project), Helium Rooms (read-only board rooms), Feedvote (client portal + public roadmap). See detail below.
@@ -1271,7 +1271,7 @@ tools load.
   already running, has a **Linear node**) can. So n8n becomes **the lab's Linear automation hub**, starting with the
   unclaimed purpose #4:
   1. **Linear weekly digest** — a scheduled n8n workflow pulls the week from Linear (issues opened / closed, the
-     High lane, stale items, B119.1 OKR check-ins, B190 readiness scores once they exist) and sends one Telegram
+     High lane, stale items, B119.1 OKR check-ins, B190 readiness results once they exist) and sends one Telegram
      digest (Slack too once B184 lands). Runs pre-dawn per `docs/schedules.md` Design Rule #5, gets a schedules.md row.
   2. **Then any Linear automation a hosted builder would have done** — built in n8n, not a SaaS builder.
   3. **Versioning becomes real:** live workflows → export to `k8s/n8n/workflows.json` + a TESTED `n8n import:workflow`
@@ -3004,59 +3004,51 @@ retiring any written demo content.
 
 Relates B119, DoD Pillar 3, B183.
 
-### B190 — Build our own issue-readiness scorer (replace SpecBot) — HIGH (2026-09-25, Linear EMA-249)
+### B190 — Replace SpecBot: check every issue against the lab's implementation-ready standard — HIGH (2026-09-25, rewritten 2026-10-06, Linear EMA-249)
 
-**Why.** SpecBot (adopted in the B119 walk, 2026-09-25) scored EMA-240 (B182) **51/100** — acceptance criteria 12,
-edge cases 10, priority/scope 12 — a real, systemic gap (fixed at the source: templates + `AGENTS.md`). But it is a
-third-party cloud judge: 25 analyses/month free, opaque rubric and model, nothing the lab can gate CI on.
+**The job SpecBot does here.** `AGENTS.md` requires every issue an agent drafts to be implementation-ready — beyond Why
+and Scope it carries **Technical context**, **Acceptance criteria**, **Edge cases & failure modes** and **Out of scope**
+— and named SpecBot as the check before delegating. SpecBot earned that place by catching EMA-240 with none of those
+sections (51/100), which produced the templates and the rule. Its 0-100 score was a stand-in for "meets the lab's
+standard"; the standard itself is the lab's, written down, and checkable without a judge. SpecBot is also capped (25
+checks/month free; the lab files far more issues than that), cloud-only and cannot gate CI.
 
-**Scope.** (1) Reconstruct the rubric from SpecBot's published comments (black-box — no decompiling): 8 dimensions
-(objective/problem · expected behavior · acceptance criteria · edge cases · technical context · dependencies ·
-reproduction steps · priority & scope clarity), 0–100 each, weighted total, threshold 80, blockers vs suggested fixes,
-confidence. (2) Scorer: LLM judge via LiteLLM (agentic lane; `qwen2.5:7b` was the reliable local judge in B84/B100),
-structured JSON, deterministic section checks first. (3) Trigger: `scripts/issue-readiness.sh EMA-###` + a scheduled/CI
-sweep (no LAN webhooks), posting a comment (write key from `scripts/.env`). (4) Calibrate against SpecBot before
-retiring it. (5) Optional gate: open High issues below 80 fail CI.
+**Scope.** A deterministic check of an issue against the section list for its kind (Backlog item, Bug, Spike, Bucket —
+the Linear templates), run three ways: `scripts/issue-readiness.sh EMA-###` before delegating; a lean-CI step over the
+open High issues in Weyland Lab; and ONE comment per issue naming exactly what is missing. Then retire SpecBot:
+`AGENTS.md` points at the check, the templates' "Run @SpecBot" line goes.
 
 **Acceptance criteria.**
-- [ ] `issue-readiness EMA-240` prints 8 scores, total, blockers, fixes; exits non-zero below 80.
-- [ ] On ≥10 issues scored by both, the total is within ±10 of SpecBot's on ≥8, and EMA-240's pre-fix blockers match.
-- [ ] A missing Acceptance-criteria section scores ≤20 on that dimension with no LLM call (unit-tested).
-- [ ] Re-scoring an unchanged issue updates its one comment (idempotent).
-- [ ] Gateway down → exit 2 "scorer unavailable", never a score (bats asserts the reason, not just the status).
-- [ ] bats + pytest in the Docker toolchain image and CI; runbook + demo.
+- [ ] Every section `AGENTS.md` requires for the issue's kind is checked: present, and not just the template's
+      placeholder or guidance text (unit-tested per kind, incl. bold pseudo-headings like `**Acceptance criteria**`).
+- [ ] Acceptance criteria hold at least one real criterion (a checkbox or bullet that is not the placeholder).
+- [ ] The issue's priority field is set.
+- [ ] `issue-readiness.sh EMA-###` prints READY or NOT READY with every missing item named; exit 0 / 1.
+- [ ] One comment per issue, updated in place, never duplicated; unchanged result = no write.
+- [ ] Linear unreachable or the key missing → exit 2 "linear unavailable", never READY (bats asserts the reason).
+- [ ] Lean CI runs it over open High Weyland Lab issues and shows the non-compliant ones (advisory first).
+- [ ] `AGENTS.md`'s readiness rule names this check, not SpecBot; the Linear templates no longer say "Run @SpecBot".
+- [ ] pytest + bats in the Docker toolchain image and CI; runbook + demo.
 
-**Edge cases.** Empty / very long descriptions (visible truncation note); bucket and Stud.IO issues (right template or
-explicit skip); malformed JSON / out-of-range scores (retry once, then exit 2); model drift (model + rubric version in
-each comment); hosted-fallback rate limits (back off, never a partial score).
+**Edge cases & failure modes.** A section present under a variant heading (bold line, "Edge cases" without "& failure
+modes") counts; a heading with only the template's guidance does not. A Bucket is checked against the Bucket template
+(Purpose, Exit criteria), not the Backlog item list. An opening paragraph before any heading counts as the Why. An empty
+description is NOT READY with every section listed. Linear rate limits or 5xx → exit 2, no comment written.
 
-**Enforcement comparators (added 2026-09-26, from the B119 walk).** **LineGuard** and **Required** (both Linear
-integrations; pricing unknown) watch issue changes and, when a rule fails (a required field missing for a workflow
-state), **move the issue back and comment with what's missing**. That is the gentler, in-Linear form of B190's
-optional gate: e.g. "can't enter In Progress below 80 / without Acceptance criteria". The lab's scorer can do the same
-by polling the API (move back + comment) — no webhooks needed. Together: templates shape → B190 scores → the gate
-enforces, closing B119's original finding that nothing enforces fields.
+**Out of scope.** Scoring how GOOD a section is (see the verdict below); auto-rewriting issues; webhooks (no LAN
+ingress); paid tools.
 
-**Out of scope.** Auto-rewriting issues; scoring projects/initiatives/docs; receiving webhooks; paid scorers.
+**Verdict on an LLM quality score (tried and dropped, 2026-10-06).** B190 first rebuilt SpecBot's 8-dimension 0-100
+score with a local judge and calibrated it against SpecBot. The evidence, in
+[concepts/issue-readiness.md](concepts/issue-readiness.md): (1) SpecBot mis-scores sections the text contradicts
+(Acceptance criteria 90 on issues with none); (2) a judge (gpt-oss:20b) detects a deliberately damaged section 82% of
+the time — qwen2.5:7b 24%; (3) **on 200 GitHub issues handed to Copilot with known outcomes (arXiv 2512.21426), no
+text-based readiness score predicts whether the agent's PR is merged** — ours AUC 0.51 (95% 0.43-0.58), the paper's own
+32-criterion LLM rubric 0.51, issue length 0.52. A precise-looking quality score has nothing behind it, so the check is
+the lab's written standard, enforced exactly. The working path was the owner's question: "If SpecBot doesn't predict
+things, why are we focused on it?" — replace the JOB, not the tool's output.
 
-**Reverse-engineering evidence so far (EMA-240, 2026-09-25 — 4 runs).**
-
-| Run | Change to the issue | Total | AC | Edge | Tech ctx | Prio/scope |
-|---|---|---|---|---|---|---|
-| 1 | original (Why / Goal / Scope) | 51 | 12 | 10 | 44 | 12 |
-| 2 | added Acceptance criteria, Edge cases, Out of scope | 70 | 90 | 82 | 44 | 12 |
-| 3 | (same, re-run) | 70 | 90 | 82 | 44 | 12 |
-| 4 | added Technical context table and a Priority & scope section | 75 | 90 | 82 | 84 | **12** |
-| 5 | re-run, no change (2026-09-26) | 75 | 90 | 82 | 84 | **12** |
-
-Other dimensions held steady (objective 82, expected behavior 84, dependencies 82, repro 84). **Open question #1:**
-priority & scope stayed at exactly 12 through a written priority rationale, ordered scope, minimum slice and time-box —
-so it likely reads Linear's structured fields (estimate? due date? cycle?) or penalizes size, not the text. **The
-lab does not use estimates** (team estimation is off by the owner's choice, 2026-09-26), so that hypothesis stays
-untested — and the lab's own scorer must **not** penalize a missing estimate: priority/scope is judged from the
-native priority field + the written rationale and scope boundary. Deterministic run-to-run (runs 2 and 3 identical) — a useful property to match.
-
-Relates B119, B182, B84/B100 (LLM judges).
+Relates B119 (found in the walk), B182 (EMA-240, the first issue SpecBot scored).
 
 ### B189 — Spike: test management + quality visibility (self-hosted vs hosted-free with Linear) — MEDIUM (2026-09-25, Linear EMA-248)
 

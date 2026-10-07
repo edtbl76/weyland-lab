@@ -25,7 +25,7 @@ when you'd want it. The operational runbook (deploy, triggers, gotchas, secrets)
 | `repo-guards` | node:24-alpine | mermaid parse · doc-counts · app-registry · quality-tools · SA-automount · cron-freshness · pip-audit · ODCS · verdict-sync (5+ guards; fail-closed) |
 | `port-iac-coverage` | alpine | Port blueprints/entities ↔ OpenTofu coverage |
 | `linear-sync` | alpine | **DoD Pillar 5** — full backlog ↔ Linear reconciliation (status · project · priority · missing · orphan) |
-| `issue-readiness` | alpine | **B190** — scores open High Weyland Lab issues for agent-readiness (8 dimensions, threshold 80) and keeps one comment per issue; only changed issues are re-scored. LEAN (manual) runs only, advisory (`failure: ignore`); secrets `litellm_api_key` + `linear_comment_key` (write). [issue-readiness.md](issue-readiness.md) |
+| `issue-readiness` | alpine | **B190** — checks open High Weyland Lab issues against the `AGENTS.md` implementation-ready standard (required sections per kind, a real acceptance criterion, priority) and keeps one comment per issue naming what is missing; replaced SpecBot. Rules only, under a second. LEAN (manual) runs only, advisory (`failure: ignore`); secret `linear_comment_key` (write). [issue-readiness.md](issue-readiness.md) |
 | `shellcheck` | koalaman/shellcheck-alpine | `--severity=warning` over `scripts/*.sh` + `scripts/{lib,ci,integration,perf}` + `eval/coding-agents/tasks/*/grade.sh` |
 | `shell-tests` | bats/bats | the whole `scripts/tests/` bats suite (+apk python3/py3-yaml/jq/git) |
 | `rego-policies` | python:3.12-slim | compile + test the Gatekeeper Rego policies |

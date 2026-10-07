@@ -203,27 +203,24 @@ steps:
       - bash scripts/check-linear-sync.sh
 
   # ── 1b4. B190 — issue readiness (LEAN CI ONLY, ADVISORY) ────────────────────
-  # The lab's own replacement for SpecBot: scores every open High issue in project Weyland Lab on 8 dimensions and
-  # keeps ONE comment per issue up to date. Rules decide what a rule can (no acceptance criteria, no priority, no
-  # dependencies named); gpt-oss:20b (LiteLLM `wl-judge-oss`, free, local on rogueone) judges the rest and must quote
-  # the issue for every score of 50+. Only issues whose content changed since their last score are re-scored (a digest
-  # in the comment), so most runs score nothing and finish in seconds.
+  # The check that replaced SpecBot. AGENTS.md requires every issue an agent drafts to be implementation-ready (beyond
+  # Why/Scope: Technical context, Acceptance criteria, Edge cases & failure modes, Out of scope — per kind, the Linear
+  # templates). This checks every open High issue in project Weyland Lab against that standard, by rule (no model —
+  # an LLM readiness score was dropped on evidence: docs/concepts/issue-readiness.md), and keeps ONE comment per issue
+  # naming what is missing. Under a second; nothing on the GPU.
   #
-  # MANUAL ONLY — never the 01:00 nightly cron: that window is where B199 (mother memory) and B201 (Woodpecker lock)
-  # are being measured, and the judge displaces the operator's model on rogueone's GPU while it scores.
+  # MANUAL ONLY: it writes Linear comments, and the lean run is the one the owner triggers after a push.
+  # ADVISORY (`failure: ignore`): a non-compliant issue shows red here without blocking images. Exit 2 (Linear
+  # unreachable) is also red — never a silent pass.
   #
-  # ADVISORY (`failure: ignore`) until it is calibrated against SpecBot (B190 criterion 2): an issue below 80 shows red
-  # here without blocking images. Exit 2 (judge or Linear unreachable) is also red — never a silent pass.
-  #
-  # NEEDS secrets `litellm_api_key` and `linear_comment_key` (write scope: it posts comments) on edtbl76/weyland-lab,
-  # events cron+manual — a secret that does not cover the triggering event is a whole-config PARSE error.
+  # NEEDS secret `linear_comment_key` (WRITE scope — it posts comments; `linear_api_key` is read-only) on
+  # edtbl76/weyland-lab, events cron+manual+push — a secret that does not cover the triggering event is a whole-config
+  # PARSE error.
   - name: issue-readiness
     when: [{event: manual, evaluate: 'SMOKE_ONLY != "smoke"'}]
     image: alpine:latest
     failure: ignore
     environment:
-      LITELLM_API_KEY:
-        from_secret: litellm_api_key
       LINEAR_API_KEY:
         from_secret: linear_comment_key
     commands:
