@@ -27,6 +27,7 @@ import urllib.error
 import urllib.parse
 import urllib.request
 from dataclasses import dataclass, field
+from typing import Optional
 
 MARKER = "**Issue readiness (weyland check)**"
 LEGACY_MARKERS = ("**Issue readiness (weyland scorer)**",)   # the dropped 0-100 scorer's comments are taken over
@@ -40,20 +41,21 @@ PREAMBLE = "(opening paragraph)"        # text before the first heading — EMA-
 # that count — a heading counts when it STARTS with one of these, so "Edge cases" satisfies "Edge cases & failure
 # modes".) The templates' closing "Backlog" / "Fix + regression test" / "Priority rule" sections are instructions,
 # not content, and are not required. Keep in step with the templates when either changes.
+BACKLOG_ITEM = "backlog item"           # the default kind
 WHY = ("Why", ("why", "problem", "purpose", PREAMBLE))
 TECH = ("Technical context", ("technical context",))
 AC = ("Acceptance criteria", ("acceptance criteria",))
 EDGE = ("Edge cases & failure modes", ("edge cases",))
 OOS = ("Out of scope", ("out of scope", "in scope / out of scope"))
 REQUIRED = {
-    "backlog item": [WHY, ("Scope", ("scope", "in scope")), TECH, AC, EDGE, OOS],
+    BACKLOG_ITEM: [WHY, ("Scope", ("scope", "in scope")), TECH, AC, EDGE, OOS],
     "bug": [("Observed", ("observed",)), ("Expected", ("expected",)), ("Repro", ("repro", "steps to reproduce")),
             ("Evidence", ("evidence",)), TECH, AC, EDGE],
     "spike": [("Questions to answer", ("questions to answer",)), ("Constraint gate", ("constraint gate",)),
               ("Overlap", ("overlap",)), TECH, AC, EDGE, OOS, ("Deliverable", ("deliverable",))],
     "bucket": [("Purpose", ("purpose", PREAMBLE)), ("Exit criteria", ("exit criteria",))],
 }
-TEMPLATE = {"backlog item": "Backlog item", "bug": "Bug", "spike": "Spike", "bucket": "Bucket"}
+TEMPLATE = {BACKLOG_ITEM: "Backlog item", "bug": "Bug", "spike": "Spike", "bucket": "Bucket"}
 
 # Guidance the templates pre-fill — a section holding only these is still empty.
 TEMPLATE_GUIDANCE = (
@@ -64,12 +66,57 @@ TEMPLATE_GUIDANCE = (
     "when this bucket is done, even if follow-ons remain",
     "what it actually is", "a verdict + rationale in",          # the Spike template pre-fills these two
 )
-PLACEHOLDER_LINE = re.compile(r"^\s*([-*]\s*(\[[ xX]\])?\s*)?(\([^)]*\))?\s*$")
-LIST_ITEM = re.compile(r"^\s*(?:[-*+]|\d+[.)])\s+(?:\[[ xX]\]\s*)?(?P<text>\S.*)$")
-HEADING = re.compile(r"^#{1,4}\s+(?P<h>.*?)\s*#*\s*$")
-# A bold run that OPENS a line and is short is a pseudo-heading ("**Why.** It broke." / "**Acceptance criteria**");
-# bold mid-sentence is emphasis, not a section.
-BOLD_HEADING = re.compile(r"^\*\*(?P<h>[^*\n]{2,48}?)[.:]?\*\*[.:]?\s*(?P<rest>.*)$")
+CHECKBOXES = ("[ ]", "[x]", "[X]")
+
+
+# Line parsing is plain string handling, not regular expressions: issue text is untrusted input, and the regex forms
+# these replaced were flagged for polynomial backtracking (SonarQube hotspots, CI #279).
+
+
+def heading_of(line):
+    """(heading text, rest of the line) for a `#`-`####` heading or a line-opening short bold run, else None.
+    A bold run that OPENS a line and is 2-48 chars is a pseudo-heading ("**Why.** It broke." / "**Acceptance
+    criteria**"); bold mid-sentence is emphasis, not a section."""
+    if line.startswith("#"):
+        level = len(line) - len(line.lstrip("#"))
+        if 1 <= level <= 4 and line[level:level + 1] in (" ", "\t"):
+            text = line[level:].strip().rstrip("#").strip()
+            return (text, "") if text else None
+        return None
+    if line.startswith("**"):
+        end = line.find("**", 2)
+        text = line[2:end] if end > 2 else ""
+        if not 2 <= len(text) <= 48 or "*" in text:
+            return None
+        rest = line[end + 2:]
+        rest = rest[1:] if rest[:1] in (".", ":") else rest
+        return text.rstrip(".:").strip(), rest.strip()
+    return None
+
+
+def _strip_marker(line):
+    """The text of a list item (`- `, `* `, `+ `, `1. `, `1) `, with an optional checkbox), or None if not one."""
+    s = line.lstrip()
+    if s[:1] in ("-", "*", "+") and s[1:2] in (" ", "\t"):
+        s = s[2:]
+    else:
+        digits = len(s) - len(s.lstrip("0123456789"))
+        if not digits or s[digits:digits + 1] not in (".", ")") or s[digits + 1:digits + 2] not in (" ", "\t"):
+            return None
+        s = s[digits + 2:]
+    s = s.lstrip()
+    for box in CHECKBOXES:
+        if s.startswith(box):
+            s = s[len(box):].lstrip()
+    return s
+
+
+def _is_placeholder(line):
+    """Blank, a bare bullet / checkbox, or only a `(parenthesised placeholder)` — the template's empty slots."""
+    s = line.strip()
+    item = _strip_marker(s) if s[:1] in ("-", "*") else s
+    rest = (item if item is not None else s).strip()
+    return not rest or (rest.startswith("(") and rest.endswith(")") and ")" not in rest[1:-1])
 
 
 class LinearError(Exception):
@@ -88,7 +135,7 @@ class Issue:
     description: str
     priority: int                       # Linear native field: 0 none, 1 urgent, 2 high, 3 medium, 4 low
     labels: list = field(default_factory=list)
-    project: str = None
+    project: Optional[str] = None
 
 
 @dataclass
@@ -110,10 +157,10 @@ def parse_sections(markdown):
     heading is kept under PREAMBLE."""
     sections, current = {PREAMBLE: ""}, PREAMBLE
     for line in (markdown or "").splitlines():
-        m = HEADING.match(line) or BOLD_HEADING.match(line)
-        if m:
-            current = m.group("h").strip().rstrip(".:").lower()
-            sections[current] = (m.groupdict().get("rest") or "") + "\n"
+        h = heading_of(line)
+        if h:
+            current = h[0].rstrip(".:").lower()
+            sections[current] = h[1] + "\n"
         else:
             sections[current] += line + "\n"
     if not sections[PREAMBLE].strip():
@@ -123,7 +170,7 @@ def parse_sections(markdown):
 
 def _content_lines(body):
     return [ln for ln in body.splitlines()
-            if not PLACEHOLDER_LINE.match(ln) and not any(g in ln.lower() for g in TEMPLATE_GUIDANCE)]
+            if not _is_placeholder(ln) and not any(g in ln.lower() for g in TEMPLATE_GUIDANCE)]
 
 
 PLACEHOLDER_WORDS = {"tbd", "tba", "todo", "wip", "n/a", "na", "xxx", "...", "?", "-"}
@@ -131,14 +178,14 @@ PLACEHOLDER_WORDS = {"tbd", "tba", "todo", "wip", "n/a", "na", "xxx", "...", "?"
 
 def _meaningful(body):
     """Real content, not just the template's guidance, placeholders or a stand-in word ("TBD")."""
-    words = [re.sub(r"^[-*+]\s*|^\d+[.)]\s*", "", ln).strip().lower().rstrip(".") for ln in _content_lines(body)]
+    words = [(_strip_marker(ln) or ln).strip().lower().rstrip(".") for ln in _content_lines(body)]
     real = [w for w in words if w and w not in PLACEHOLDER_WORDS]
     return len(re.findall(r"[A-Za-z0-9]", " ".join(real))) >= 2
 
 
 def _has_criterion(body):
     """At least one list item that is a real criterion — prose alone is not a pass/fail check."""
-    return any(LIST_ITEM.match(ln) and _meaningful(ln) for ln in _content_lines(body))
+    return any(_strip_marker(ln) and _meaningful(ln) for ln in _content_lines(body))
 
 
 def _bodies(sections, aliases):
@@ -153,7 +200,7 @@ def issue_kind(issue):
         return "spike"
     if "bucket" in labels or "(bucket)" in issue.title.lower():
         return "bucket"
-    return "backlog item"
+    return BACKLOG_ITEM
 
 
 def check(issue):
@@ -238,7 +285,7 @@ def _post_json(url, payload, headers, timeout):
             if e.code != 429 or attempt == RATE_LIMIT_TRIES - 1:
                 raise LinearError(f"HTTP {e.code} from {url}") from e
             time.sleep(_retry_after(e))
-        except (urllib.error.URLError, TimeoutError, OSError, ValueError) as e:
+        except (OSError, ValueError) as e:     # URLError and TimeoutError are OSErrors
             raise LinearError(f"{url}: {e}") from e
 
 

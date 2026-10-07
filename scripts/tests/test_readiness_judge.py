@@ -337,27 +337,8 @@ class FakeLinear:
         self.writes.append(("update", comment_id, body))
 
 
-def test_first_score_creates_one_comment():
-    lin = FakeLinear()
-    assert ir.upsert_comment(lin, "u-1", f"{ir.MARKER} x") == "created"
-    assert lin.writes[0][0] == "create"
 
 
-def test_rescoring_updates_the_same_comment():
-    lin = FakeLinear([{"id": "c1", "body": f"{ir.MARKER} old", "user": "me"}])
-    assert ir.upsert_comment(lin, "u-1", f"{ir.MARKER} new") == "updated"
-    assert lin.writes == [("update", "c1", f"{ir.MARKER} new")]
-
-
-def test_unchanged_score_writes_nothing():
-    lin = FakeLinear([{"id": "c1", "body": f"{ir.MARKER} same", "user": "me"}])
-    assert ir.upsert_comment(lin, "u-1", f"{ir.MARKER} same") == "unchanged"
-    assert not lin.writes
-
-
-def test_someone_elses_comment_with_the_marker_is_not_ours():
-    lin = FakeLinear([{"id": "c9", "body": f"quoting {ir.MARKER}", "user": "someone"}])
-    assert ir.upsert_comment(lin, "u-1", f"{ir.MARKER} x") == "created"
 
 
 # ── CLI exit codes ──────────────────────────────────────────────────────────
@@ -474,10 +455,10 @@ def test_no_fallbacks_switch_reaches_the_gateway(monkeypatch):
         sent.update(payload)
         return {"choices": [{"message": {"content": "{}"}}], "model": "wl-default"}, {}
     monkeypatch.setattr(ir, "_post_json", fake_post)
-    ir.litellm_client({"LITELLM_API_KEY": "k", "ISSUE_READINESS_NO_FALLBACKS": "1"})([])
+    ir.litellm_client({"LITELLM_API_KEY": "k", "LITELLM_API_BASE": "http://gw", "ISSUE_READINESS_NO_FALLBACKS": "1"})([])
     assert sent["disable_fallbacks"] is True
     sent.clear()
-    ir.litellm_client({"LITELLM_API_KEY": "k"})([])
+    ir.litellm_client({"LITELLM_API_KEY": "k", "LITELLM_API_BASE": "http://gw"})([])
     assert "disable_fallbacks" not in sent
 
 
@@ -620,7 +601,7 @@ def test_a_reply_that_exhausted_the_context_window_is_invalid(monkeypatch):
                 "usage": {"prompt_tokens": ir.JUDGE_CONTEXT - 10, "completion_tokens": 10}}, {}
     monkeypatch.setattr(ir, "_post_json", fake_post)
     with pytest.raises(ir.ScorerInvalid, match="context"):
-        ir.litellm_client({"LITELLM_API_KEY": "k"})([])
+        ir.litellm_client({"LITELLM_API_KEY": "k", "LITELLM_API_BASE": "http://gw"})([])
 
 
 def test_the_description_cap_fits_the_window():
@@ -629,18 +610,6 @@ def test_the_description_cap_fits_the_window():
 
 
 # ── the sweep's time budget: what it could not reach is deferred, never passed ──
-
-
-def test_the_sweep_defers_issues_past_its_budget(monkeypatch, capsys):
-    a, b = issue(), issue(title="B998 — second")
-    b.identifier, b.uuid = "EMA-998", "u-998"
-    clock = iter([0, 0, 10_000, 10_000, 10_000])
-    monkeypatch.setattr(ir.time, "monotonic", lambda: next(clock))
-    rc = ir.main(["--sweep", "--no-comment", "--budget", "60"], llm=FakeLLM(answer(judged(a), 90)),
-                 linear=FakeLinear(issues=[a, b]))
-    out = capsys.readouterr().out
-    assert "EMA-999" in out and "EMA-998  deferred" in out
-    assert rc == 1                                        # deferred is not a pass
 
 
 
@@ -656,3 +625,9 @@ def test_only_http_urls_are_ever_opened(monkeypatch):
     with pytest.raises(ir.ScorerUnavailable, match="scheme"):
         ir._post_json("file:///etc/passwd", {}, {}, 5, ir.ScorerUnavailable)
     assert not opened
+
+
+
+def test_no_gateway_url_is_unavailable_not_a_hardcoded_default():
+    with pytest.raises(ir.ScorerUnavailable, match="LITELLM_API_BASE"):
+        ir.litellm_client({"LITELLM_API_KEY": "k"})

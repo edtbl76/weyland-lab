@@ -30,6 +30,7 @@ import sys
 from collections import namedtuple
 
 import readiness_judge as ir
+from issue_readiness import heading_of
 
 DROP_REQUIRED = 20           # the damaged dimension must fall at least this far ...
 DAMAGED_MAX = 60             # ... and land at or below this — "acceptable" after damage means the judge missed it
@@ -57,7 +58,9 @@ OPERATORS = {
                                                                                  "3. Document.\n"),
         (AC, "- [ ] The code is written.\n- [ ] The PR is merged.\n")), False),
 }
-SYSTEM_NAME = re.compile(r"`[^`\n]*`|https?://\S+|\b[\w.-]+(?:/[\w.-]+)+\b|\b(?:mother|rogueone|weyland)\b", re.I)
+SYSTEM_NAMES = (re.compile(r"`[^`\n]*`"), re.compile(r"https?://\S+"),       # code spans, URLs,
+                re.compile(r"\b[\w.-]+(?:/[\w.-]+)+"),                           # paths,
+                re.compile(r"\b(?:mother|rogueone|weyland)\b", re.I))               # the lab's hosts
 
 
 # ── damage ──────────────────────────────────────────────────────────────────
@@ -65,13 +68,10 @@ SYSTEM_NAME = re.compile(r"`[^`\n]*`|https?://\S+|\b[\w.-]+(?:/[\w.-]+)+\b|\b(?:
 
 def _heading(line):
     """(heading text, the line to keep) for a heading line, else None. A bold heading keeps only its bold run."""
-    m = ir.HEADING.match(line)
-    if m:
-        return m.group("h").strip().rstrip(".:").lower(), line
-    m = ir.BOLD_HEADING.match(line)
-    if m:
-        return m.group("h").strip().rstrip(".:").lower(), f"**{m.group('h')}**"
-    return None
+    h = heading_of(line)
+    if not h:
+        return None
+    return h[0].rstrip(".:").lower(), (line if line.startswith("#") else f"**{h[0]}**")
 
 
 def _replace(markdown, aliases, body):
@@ -99,7 +99,8 @@ def damage(markdown, op_name):
         if not hit:
             return None
     if op.scrub:
-        markdown = SYSTEM_NAME.sub("the relevant component", markdown)
+        for pattern in SYSTEM_NAMES:
+            markdown = pattern.sub("the relevant component", markdown)
     return markdown
 
 

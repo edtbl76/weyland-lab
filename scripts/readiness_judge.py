@@ -46,13 +46,15 @@ import urllib.error
 import urllib.parse
 import urllib.request
 from dataclasses import dataclass, field
+from typing import Optional
+
+from issue_readiness import PREAMBLE, _is_placeholder, parse_sections   # one parser for both: no duplicate regexes
 
 RUBRIC_VERSION = "2"                    # 2: priority_scope demands concrete exclusions (judge eval, 2026-10-06)
 THRESHOLD = 80
 JUDGE_CONTEXT = 8192                   # num_ctx of gpt-oss:20b-judge (nodes/rogueone/ollama/gpt-oss-20b-judge.Modelfile)
 MAX_DESCRIPTION_CHARS = 16000          # measured: prompt ~= 1450 + chars/3.6 tokens, reply ~450-550 -> ~6.9K of the 8K
 BORDERLINE = 5                         # a total within this of THRESHOLD gets 3 votes (widest repeat spread seen: 4)
-SWEEP_BUDGET = 600                     # seconds of scoring per sweep; the rest is deferred to the next run
 MARKER = "**Issue readiness (weyland scorer)**"
 SWEEP_PROJECT = "Weyland Lab"
 DEFAULT_VOTES = 3                      # judgements per score; the median per dimension (see vote())
@@ -91,7 +93,6 @@ RUBRIC = {
                       "written. Never penalize a missing estimate.",
 }
 
-PREAMBLE = "(opening paragraph)"        # text before the first heading — how EMA-240 / EMA-243 state their problem
 
 SECTION_ALIASES = {
     "objective": ("why", "purpose", "observed", "questions to answer", "problem", PREAMBLE),
@@ -109,7 +110,6 @@ TEMPLATE_GUIDANCE = (
     "testable, pass/fail", "what breaks, what's absent", "affected systems, files, services",
     "the regression test fails on the bug", "| where | what | role |", "| -- | -- | -- |", "(host / repo)",
 )
-PLACEHOLDER_LINE = re.compile(r"^\s*([-*]\s*(\[[ x]\])?\s*)?(\([^)]*\))?\s*$")
 
 # (max score, reason, fix) when a section a rule can see is missing. The model may score lower, never higher.
 CAPS = {
@@ -149,7 +149,7 @@ class Issue:
     description: str
     priority: int                       # Linear native field: 0 none, 1 urgent, 2 high, 3 medium, 4 low
     labels: list = field(default_factory=list)
-    project: str = None
+    project: Optional[str] = None
     relations: int = 0                  # Linear blocks / blocked-by / related links, both directions
 
 
@@ -160,7 +160,7 @@ QUOTE_MATCH = 0.6                       # share of the quote's 3-word runs that 
 
 
 @dataclass
-class Score:
+class Rating:
     score: int
     reason: str
     fix: str = ""
@@ -170,7 +170,7 @@ class Score:
 
 @dataclass
 class Plan:
-    fixed: dict                          # dim -> Score, decided by a rule (never sent to the model)
+    fixed: dict                          # dim -> Rating, decided by a rule (never sent to the model)
     caps: dict                           # dim -> (max score, reason, fix) applied to the model's score
     na: set                              # dims that do not apply to this kind of issue
     judged: list                         # dims the model is asked for
@@ -182,39 +182,18 @@ class Result:
     kind: str
     scores: dict = field(default_factory=dict)
     na: set = field(default_factory=set)
-    total: int = None
-    status: str = None
+    total: Optional[int] = None
+    status: Optional[str] = None
     blockers: list = field(default_factory=list)
     fixes: list = field(default_factory=list)
-    model: str = None
-    confidence: int = None
+    model: Optional[str] = None
+    confidence: Optional[int] = None
     truncated: bool = False
-    skipped: str = None
-    digest: str = None
+    skipped: Optional[str] = None
+    digest: Optional[str] = None
 
 
 # ── reading the issue ───────────────────────────────────────────────────────
-
-
-HEADING = re.compile(r"^#{1,4}\s+(?P<h>.*?)\s*#*\s*$")
-# A bold run that OPENS a line and is short is a pseudo-heading ("**Why.** It broke." / "**Acceptance criteria**") —
-# EMA-240 and the backlog-style issues are written that way. Bold mid-sentence is emphasis, not a section.
-BOLD_HEADING = re.compile(r"^\*\*(?P<h>[^*\n]{2,48}?)[.:]?\*\*[.:]?\s*(?P<rest>.*)$")
-
-
-def parse_sections(markdown):
-    """{lowercased heading text: body} for `#` headings and line-opening bold pseudo-headings."""
-    sections, current = {PREAMBLE: ""}, PREAMBLE
-    for line in (markdown or "").splitlines():
-        m = HEADING.match(line) or BOLD_HEADING.match(line)
-        if m:
-            current = m.group("h").strip().rstrip(".:").lower()
-            sections[current] = (m.groupdict().get("rest") or "") + "\n"
-        else:
-            sections[current] += line + "\n"
-    if not sections[PREAMBLE].strip():
-        del sections[PREAMBLE]
-    return sections
 
 
 def _normalize(text):
@@ -246,7 +225,7 @@ def states_dependencies(issue, sections):
 def _meaningful(body):
     """True when a section holds real content, not just the template's guidance and placeholders."""
     kept = [ln for ln in body.splitlines()
-            if not PLACEHOLDER_LINE.match(ln) and not any(g in ln.lower() for g in TEMPLATE_GUIDANCE)]
+            if not _is_placeholder(ln) and not any(g in ln.lower() for g in TEMPLATE_GUIDANCE)]
     return len(re.findall(r"[A-Za-z0-9]", " ".join(kept))) >= 6     # placeholders are already gone; this stops "TBD"
 
 
@@ -275,12 +254,12 @@ def plan(issue):
     fixed = {}
     na = set() if kind == "bug" else {"reproduction"}
     if not has_section(sections, "acceptance_criteria"):
-        fixed["acceptance_criteria"] = Score(10, "No acceptance criteria (or only the template placeholder).",
+        fixed["acceptance_criteria"] = Rating(10, "No acceptance criteria (or only the template placeholder).",
                                              BLOCKER_TEXT["acceptance_criteria"], "rule")
     if not has_section(sections, "edge_cases"):
-        fixed["edge_cases"] = Score(10, "No edge cases section.", "Document edge cases and failure modes.", "rule")
+        fixed["edge_cases"] = Rating(10, "No edge cases section.", "Document edge cases and failure modes.", "rule")
     if kind == "bug" and not has_section(sections, "reproduction"):
-        fixed["reproduction"] = Score(10, "Bug with no reproduction steps.", BLOCKER_TEXT["reproduction"], "rule")
+        fixed["reproduction"] = Rating(10, "Bug with no reproduction steps.", BLOCKER_TEXT["reproduction"], "rule")
     caps = {dim: CAPS[dim] for dim in ("expected_behavior", "technical_context", "objective")
             if not has_section(sections, dim)}
     if not has_section(sections, "out_of_scope"):
@@ -288,7 +267,7 @@ def plan(issue):
     if not issue.priority:
         caps["priority_scope"] = CAPS["priority"]
     if not states_dependencies(issue, sections):
-        fixed["dependencies"] = Score(15, "No dependencies named and no linked issues.",
+        fixed["dependencies"] = Rating(15, "No dependencies named and no linked issues.",
                                       "Name what this depends on or blocks — or write 'Dependencies: none'.", "rule")
     judged = [d for d, _ in DIMENSIONS if d not in fixed and d not in na]
     return Plan(fixed, caps, na, judged)
@@ -319,8 +298,11 @@ def build_messages(issue, dims):
 
 
 def parse_judgement(text, dims):
-    """The model's reply -> ({dim: Score}, confidence). Anything short of a complete, in-range answer is invalid."""
-    cleaned = re.sub(r"^```(?:json)?\s*|\s*```$", "", (text or "").strip())
+    """The model's reply -> ({dim: Rating}, confidence). Anything short of a complete, in-range answer is invalid."""
+    cleaned = (text or "").strip()
+    if cleaned.startswith("```"):                         # a fenced reply: drop the fence lines, keep the JSON
+        cleaned = cleaned.split("\n", 1)[1] if "\n" in cleaned else ""
+    cleaned = cleaned[:-3] if cleaned.endswith("```") else cleaned
     try:
         data = json.loads(cleaned)
         scores, out = data["scores"], {}
@@ -329,7 +311,7 @@ def parse_judgement(text, dims):
             value = entry["score"]
             if isinstance(value, bool) or not isinstance(value, int) or not 0 <= value <= 100:
                 raise ValueError(f"{dim} score {value!r} is not an integer 0-100")
-            out[dim] = Score(value, str(entry.get("reason", "")), str(entry.get("fix", "")),
+            out[dim] = Rating(value, str(entry.get("reason", "")), str(entry.get("fix", "")),
                              evidence=str(entry.get("evidence") or ""))
         confidence = data.get("confidence")
         return out, confidence if isinstance(confidence, int) else None
@@ -378,10 +360,10 @@ def _verdicts(scores):
 def _supported(s, description):
     """A model score >= EVIDENCE_FLOOR stands only if its quote is really in the issue; otherwise it is capped."""
     if s.score > JUDGE_MAX:
-        s = Score(JUDGE_MAX, s.reason, s.fix, s.source, s.evidence)
+        s = Rating(JUDGE_MAX, s.reason, s.fix, s.source, s.evidence)
     if s.score < EVIDENCE_FLOOR or quoted(s.evidence, description):
         return s
-    return Score(UNSUPPORTED_CAP, f"judge scored {s.score} but its evidence was not found in the issue",
+    return Rating(UNSUPPORTED_CAP, f"judge scored {s.score} but its evidence was not found in the issue",
                  s.fix, "rule", s.evidence)
 
 
@@ -435,7 +417,7 @@ def _combine(issue, kind, p, judged, confidence, model, truncated):
             continue
         s = p.fixed.get(dim) or judged[dim]
         if dim in p.caps and s.score > p.caps[dim][0]:
-            s = Score(*p.caps[dim], "rule")
+            s = Rating(*p.caps[dim], "rule")
         scores[dim] = s
     total = total_of(s.score for s in scores.values())
     blockers, fixes = _verdicts(scores)
@@ -496,23 +478,6 @@ def render_json(r):
     })
 
 
-def our_comment(linear, issue_uuid):
-    """The scorer's own comment on an issue (our user + MARKER), or None."""
-    me = linear.viewer_id()
-    return next((c for c in linear.comments_on(issue_uuid) if c["user"] == me and MARKER in c["body"]), None)
-
-
-def upsert_comment(linear, issue_uuid, body):
-    c = our_comment(linear, issue_uuid)
-    if c is None:
-        linear.create_comment(issue_uuid, body)
-        return "created"
-    if c["body"].strip() == body.strip():
-        return "unchanged"
-    linear.update_comment(c["id"], body)
-    return "updated"
-
-
 # ── clients ─────────────────────────────────────────────────────────────────
 
 
@@ -541,7 +506,7 @@ def _post_json(url, payload, headers, timeout, error, with_headers=False):
             if e.code != 429 or attempt == RATE_LIMIT_TRIES - 1:
                 raise error(f"HTTP {e.code} from {url}") from e
             time.sleep(_retry_after(e))
-        except (urllib.error.URLError, TimeoutError, OSError, ValueError) as e:
+        except (OSError, ValueError) as e:     # URLError and TimeoutError are OSErrors
             raise error(f"{url}: {e}") from e
 
 
@@ -555,7 +520,9 @@ def litellm_client(env):
     key = env.get("LITELLM_API_KEY")
     if not key:
         raise ScorerUnavailable("LITELLM_API_KEY is not set")
-    base = env.get("LITELLM_API_BASE", "http://192.168.1.243:30400").rstrip("/")
+    base = (env.get("LITELLM_API_BASE") or "").rstrip("/")
+    if not base:
+        raise ScorerUnavailable("LITELLM_API_BASE is not set (e.g. the LiteLLM NodePort, docs/runbooks/model-gateway.md)")
     url = base + ("/chat/completions" if base.endswith("/v1") else "/v1/chat/completions")
     model = env.get("ISSUE_READINESS_MODEL", DEFAULT_MODEL)
 
@@ -624,12 +591,6 @@ class Linear:
         return [{"id": c["id"], "body": c["body"], "user": (c.get("user") or {}).get("id")}
                 for c in d["issue"]["comments"]["nodes"]]
 
-    def create_comment(self, issue_uuid, body):
-        self.q("mutation($i:String!,$b:String!){commentCreate(input:{issueId:$i,body:$b}){success}}",
-               i=issue_uuid, b=body)
-
-    def update_comment(self, comment_id, body):
-        self.q("mutation($c:String!,$b:String!){commentUpdate(id:$c,input:{body:$b}){success}}", c=comment_id, b=body)
 
 
 # ── CLI ─────────────────────────────────────────────────────────────────────
@@ -652,7 +613,6 @@ def _args(argv):
     ap.add_argument("--no-comment", action="store_true", help="do not write the Linear comment")
     ap.add_argument("--json", action="store_true", help="print JSON instead of text")
     ap.add_argument("--votes", type=int, default=DEFAULT_VOTES, help="judgements per score (median per dimension)")
-    ap.add_argument("--budget", type=int, default=SWEEP_BUDGET, help="sweep only: seconds of scoring before deferring")
     args = ap.parse_args(argv)
     if sum(bool(x) for x in (args.identifier, args.issue_file, args.sweep)) != 1:
         raise UsageError("give exactly one of: an issue id, --issue-file, --sweep")
@@ -671,34 +631,14 @@ def _issues(args, linear):
     return [linear.issue(args.identifier)]
 
 
-def _unchanged(args, linear, iss):
-    """Sweep only: the issue's last score was of exactly this content, so scoring again would change nothing."""
-    if not args.sweep or args.no_comment:
-        return False
-    c = our_comment(linear, iss.uuid)
-    return c is not None and f"digest {digest(iss)}" in c["body"]
-
-
 def _run(args, llm, linear):
-    worst, deferred, started = 0, 0, time.monotonic()
+    worst = 0
     for iss in _issues(args, linear):
-        if _unchanged(args, linear, iss):
-            print(f"{iss.identifier}  unchanged since last score (digest {digest(iss)})", flush=True)
-            continue
-        if args.sweep and time.monotonic() - started > args.budget:
-            print(f"{iss.identifier}  deferred — sweep time budget ({args.budget}s) spent; scored next run", flush=True)
-            deferred += 1
-            continue
         r = score(iss, llm, args.votes, adaptive=args.sweep)
         print(render_json(r) if args.json else render_text(r), flush=True)
-        if r.skipped:
-            continue
-        if not args.no_comment:
-            print(f"  comment: {upsert_comment(linear, iss.uuid, render_comment(r))}", file=sys.stderr)
-        worst = max(worst, 0 if r.status == "READY" else 1)
-    if deferred:
-        print(f"{deferred} issue(s) deferred — not scored this run, so not a pass", flush=True)
-    return max(worst, 1 if deferred else 0)
+        if not r.skipped:
+            worst = max(worst, 0 if r.status == "READY" else 1)
+    return worst
 
 
 def main(argv=None, llm=None, linear=None, env=None):
