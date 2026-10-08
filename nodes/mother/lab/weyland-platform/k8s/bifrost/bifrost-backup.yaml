@@ -1,23 +1,24 @@
-# woodpecker-backup — nightly backup of Woodpecker's state (B201, 2026-10-05; docs/dr.md row "Woodpecker CI").
-# Woodpecker keeps users, repos, repo SECRETS (sonar/github/linear tokens, MinIO keys), the `nightly-images` cron and the
-# pipeline history in ONE SQLite file (woodpecker.sqlite, WAL mode) on the RWO PVC data-woodpecker-server-0 — and
-# nothing backed it up. Losing it means re-activating every repo and re-entering every CI secret by hand.
+# bifrost-backup — nightly backup of Bifrost's configuration database (B202 Closing Gaps, 2026-10-08; docs/dr.md row
+# "Bifrost"). Bifrost keeps its whole configuration in ONE SQLite file (config.db, WAL mode) on the RWO PVC bifrost-data:
+# 22 provider keys, 4 virtual keys + governance (budgets, model configs, pricing), 10 MCP clients + OAuth configs, the
+# Prompt Repository (~280 prompts) and the Skills Repository (~589). Register scripts rebuild only part of it, and the
+# v2 upgrade (B202) migrates this database — so a tested copy comes first. logs.db (request logs, ~370 MB) is NOT backed
+# up: it is observability history, not configuration, and Bifrost recreates it empty.
 #
-# The logic is scripts/sqlite_backup.py (shared with open-webui-backup), embedded BYTE-IDENTICAL below by
-# scripts/embed-sqlite-backup.sh (scripts/tests/sqlite-backup.bats asserts no drift; behaviour: tests/test_sqlite_backup.py).
-# Consistent snapshot via SQLite's online backup API; fails CLOSED (exit 2 → failed Job → ScheduledBackupFailed,
-# critical) on a missing db, a corrupt copy, or an empty/missing `users` or `pipelines` table; keeps 7.
-# Restore: docs/runbooks/woodpecker.md § Backup + restore. Argo app `woodpecker-backup` (raw-extras.yaml, include-glob so
-# it does not collide with the helm `woodpecker` Application, which consumes only *-values.yaml).
+# The logic is scripts/sqlite_backup.py (shared with open-webui-backup and woodpecker-backup), embedded BYTE-IDENTICAL
+# below by scripts/embed-sqlite-backup.sh (scripts/tests/sqlite-backup.bats asserts no drift). Consistent snapshot via
+# SQLite's online backup API; fails CLOSED (exit 2 → failed Job → ScheduledBackupFailed, critical) on a missing db, a
+# corrupt copy, or an empty/missing config_providers, governance_virtual_keys, prompts or skills table; keeps 7.
+# Restore: docs/runbooks/mcp-gateway.md § Backup + restore. Deployed by the `bifrost` Argo app (the whole directory).
 #
-# The copy holds the repo secrets in the clear (Woodpecker stores them unencrypted in SQLite) — same trust boundary as
-# the live PVC: both are local-path on mother, readable only via the cluster. State that, don't let the row imply more.
+# The copy holds the provider API keys in the clear (Bifrost stores them in config.db) — same trust boundary as the live
+# PVC: both are local-path on mother, readable only via the cluster.
 ---
 apiVersion: v1
 kind: ConfigMap
 metadata:
   name: sqlite-backup-logic
-  namespace: woodpecker
+  namespace: weyland
 data:
   sqlite_backup.py: |
     #!/usr/bin/env python3
@@ -188,28 +189,27 @@ data:
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
-  name: woodpecker-backup
-  namespace: woodpecker
+  name: bifrost-backup
+  namespace: weyland
 spec:
   accessModes: [ReadWriteOnce]
   storageClassName: local-path
   resources:
     requests:
       # local-path reports the underlying disk capacity (50Gi) as status.capacity, and a PVC request can't be LESS than
-      # that → must be >= 50Gi or Argo sync fails "field can not be less than capacity" (same as data-mesh-backup).
+      # that → must be >= 50Gi or Argo sync fails "field can not be less than capacity" (same as woodpecker-backup).
       # Lands on mother's NVMe.
       storage: 50Gi
 ---
 apiVersion: batch/v1
 kind: CronJob
 metadata:
-  name: woodpecker-backup
-  namespace: woodpecker
+  name: bifrost-backup
+  namespace: weyland
 spec:
-  # 23:50 America/New_York — the end of the backup train (22:30 minio · 23:00 pg · 23:30 postgres · 23:45 open-webui),
-  # under the same documented carve-out to Design Rule #5 (docs/schedules.md). Seconds of work, and 70 min before the
-  # 01:00 nightly-images cron — Woodpecker is idle then, so the snapshot never competes with a pipeline's writes.
-  schedule: "50 23 * * *"
+  # 23:55 America/New_York — the end of the backup train (22:30 minio · 23:00 pg · 23:30 postgres · 23:45 open-webui ·
+  # 23:50 woodpecker), under the same documented carve-out to Design Rule #5 (docs/schedules.md). Seconds of work.
+  schedule: "55 23 * * *"
   timeZone: America/New_York
   concurrencyPolicy: Forbid
   successfulJobsHistoryLimit: 3
@@ -221,24 +221,27 @@ spec:
       template:
         metadata:
           labels:
-            app: woodpecker-backup
+            app: bifrost-backup
             sidecar.istio.io/inject: "false"   # no network at all: a local file copy, so nothing to mesh
         spec:
           restartPolicy: Never
           automountServiceAccountToken: false
-          # The SAME uid/gid as woodpecker-server (runAsUser/runAsGroup 1000, fsGroup 1000): its files are owned by
-          # 1000, and a WAL-mode SQLite reader must also write the -shm lock file — non-root works here (unlike Open WebUI).
+          # The SAME uid/gid as the bifrost container (runAsUser 10001, fsGroup 10001): config.db is owned by 10001, and a
+          # WAL-mode SQLite reader must also write the -shm lock file.
           securityContext:
             runAsNonRoot: true
-            runAsUser: 1000
-            runAsGroup: 1000
-            fsGroup: 1000
+            runAsUser: 10001
+            runAsGroup: 10001
+            fsGroup: 10001
             seccompProfile: { type: RuntimeDefault }
           containers:
             - name: backup
               image: python:3.12-alpine        # stdlib only: sqlite3
-              command: ["python3", "/opt/backup/sqlite_backup.py", "--db", "woodpecker.sqlite",
-                        "--require", "users", "--require", "pipelines", "--keep", "7", "/data", "/backup/woodpecker"]
+              command: ["python3", "/opt/backup/sqlite_backup.py", "--db", "config.db",
+                        "--require", "config_providers", "--require", "governance_virtual_keys",
+                        "--require", "prompts", "--require", "skills",
+                        "--count", "config_mcp_clients", "--count", "prompt_versions",
+                        "--keep", "7", "/data", "/backup/bifrost"]
               securityContext:
                 allowPrivilegeEscalation: false
                 capabilities: { drop: ["ALL"] }
@@ -252,8 +255,8 @@ spec:
           volumes:
             # RWO is fine: local-path pins both PVCs to mother, and RWO allows several pods on one node.
             - name: data
-              persistentVolumeClaim: { claimName: data-woodpecker-server-0 }
+              persistentVolumeClaim: { claimName: bifrost-data }
             - name: backup
-              persistentVolumeClaim: { claimName: woodpecker-backup }
+              persistentVolumeClaim: { claimName: bifrost-backup }
             - name: logic
               configMap: { name: sqlite-backup-logic }

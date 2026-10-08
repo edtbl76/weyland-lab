@@ -254,6 +254,40 @@ folders` + `/prompts` + `/prompts/{id}/versions` (`messages:[{role,content}]`; `
 
 **GITHUB (parked):** remote MCP has no DCR → make a GitHub App (read-only) → paste its `client_id` + Bifrost's OAuth callback URL.
 
+## Bifrost backup + restore — `bifrost-backup` (B202 Closing Gaps, 2026-10-08)
+
+Until 2026-10-08 Bifrost's `config.db` had NO backup, though it holds the 22 provider keys, the 4 virtual keys and their
+governance (budgets, model configs, pricing), 10 MCP clients and their OAuth configs, the Prompt Repository (~280) and
+the Skills Repository (~589). The register scripts rebuild only part of that. `k8s/bifrost/bifrost-backup.yaml`
+(deployed by the `bifrost` Argo app) runs a CronJob at **23:55 NY**: `scripts/sqlite_backup.py --db config.db --require
+config_providers --require governance_virtual_keys --require prompts --require skills` (the script shared with
+`open-webui-backup` and `woodpecker-backup`, embedded by `scripts/embed-sqlite-backup.sh`), **as uid 10001**, Bifrost's
+own user. It writes a consistent snapshot plus `manifest.json` to PVC `bifrost-backup` (mother NVMe) and keeps 7. It
+fails closed → `ScheduledBackupFailed` (critical); `ScheduledJobStale` after 26h. `logs.db` (request logs, ~370 MB) is
+not backed up: observability history, recreated empty. **The copy holds the provider keys in the clear**, the same
+boundary as the live PVC. The data PVC `bifrost-data` is only **1 GiB** and `logs.db` grows; check free space before an
+upgrade that migrates the database.
+
+Run one now (and **before any Bifrost upgrade**):
+```
+kubectl -n weyland create job --from=cronjob/bifrost-backup bifrost-backup-manual-$(date +%s)
+```
+Expect `sqlite-backup OK (config.db): /backup/bifrost/<ts> — counts={'config_providers': 22, 'governance_virtual_keys': 4, 'prompts': …, 'skills': …, 'config_mcp_clients': 10, 'prompt_versions': …} files=['config.db']`.
+
+**Restore drill (non-destructive)** — opens the newest backup in a throwaway pod (copied to `/tmp`, never written back)
+and prints integrity, the manifest counts and the same tables' counts read from the copy:
+```
+kubectl -n weyland run bifrost-restore-drill --rm -i --restart=Never --image=python:3.12-alpine --overrides='{"metadata":{"labels":{"sidecar.istio.io/inject":"false"}},"spec":{"automountServiceAccountToken":false,"securityContext":{"runAsUser":10001,"runAsGroup":10001,"runAsNonRoot":true},"containers":[{"name":"drill","image":"python:3.12-alpine","stdin":true,"command":["python3","-c","import glob,json,os,shutil,sqlite3; d=sorted(glob.glob(\"/backup/bifrost/2*\"))[-1]; m=json.load(open(d+\"/manifest.json\")); shutil.copy(d+\"/config.db\",\"/tmp/r.db\"); c=sqlite3.connect(\"/tmp/r.db\"); q=lambda s: c.execute(s).fetchone()[0]; print(\"backup\",os.path.basename(d),\"integrity\",q(\"pragma integrity_check\"),\"manifest\",m[\"counts\"]); print(\"live-shape counts:\",{t:q(\"select count(*) from \"+t) for t in [\"config_providers\",\"governance_virtual_keys\",\"config_mcp_clients\",\"prompts\",\"skills\"]})"],"volumeMounts":[{"name":"b","mountPath":"/backup","readOnly":true}]}],"volumes":[{"name":"b","persistentVolumeClaim":{"claimName":"bifrost-backup"}}]}}'
+```
+Pass = `integrity ok` and the counts matching the manifest. Record the date in `docs/dr.md`.
+
+**Restore (destructive).** Argo selfHeal reverts a scale-down, so pause the `bifrost` app first:
+`argocd app set bifrost --sync-policy none --grpc-web` → `kubectl -n weyland scale deploy/bifrost --replicas=0` → a
+one-off pod (uid 10001, no sidecar) mounting `bifrost-data` (rw) + `bifrost-backup` (ro) copies the chosen `config.db`
+over `/data/config.db` and DELETES `config.db-wal` / `config.db-shm` → scale back to 1 → `argocd app set bifrost
+--sync-policy automated --self-heal --auto-prune --grpc-web`. Verify the Prompt and Skills counts in the UI and run one
+`wl-default` call through LiteLLM.
+
 ## Fleet server reliability — pin images, verify the RUNTIME (2026-09-22)
 
 Two fleet servers were crashlooping for weeks/months, both the same class — an **unpinned image that drifted into

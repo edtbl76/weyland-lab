@@ -9,6 +9,9 @@ query, a DataHub reindex) can tip the node into memory pressure. That presents a
 misbehaving" — UIs go sluggish, kubectl lags — when in fact **nothing is stuck; the node is simply
 full.**
 
+B199's flow (parked stores, the two freeze alerts, the night check): [diagrams/flow-node-memory.md](../diagrams/flow-node-memory.md);
+demo: [demos/node-memory.md](../demos/node-memory.md).
+
 ## The hard ceiling
 
 | Layer | RAM | Notes |

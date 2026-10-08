@@ -9,7 +9,7 @@ set -euo pipefail
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 P="$here/nodes/mother/lab/weyland-platform/k8s"
 SCRIPT="$here/scripts/sqlite_backup.py"
-MANIFESTS=("$P/open-webui/backup.yaml" "$P/woodpecker/woodpecker-backup.yaml")
+MANIFESTS=("$P/open-webui/backup.yaml" "$P/woodpecker/woodpecker-backup.yaml" "$P/bifrost/bifrost-backup.yaml")
 
 [ -r "$SCRIPT" ] || { echo "missing $SCRIPT" >&2; exit 1; }
 for m in "${MANIFESTS[@]}"; do

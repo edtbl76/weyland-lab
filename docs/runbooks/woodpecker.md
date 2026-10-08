@@ -148,9 +148,13 @@ tags. Steps: `detect-changes → build → kubeconform → deploy-handoff`.
     ```
     {namespace="woodpecker", container="server"} |~ "database is locked|task expired"
     ```
-    Pass = 0 lines **and** the same selector WITHOUT the filter returns lines for that window (a query that cannot see
-    the stream also returns 0). Positive control: 2026-10-04 04:00–06:00 UTC returns the #252 incident's lines. Tally:
-    `docs/backlog.md` B201.
+    Pass = 0 lines **and** proof that Loki can see this stream (a query that cannot see the stream also returns 0).
+    The server logs at **error level only**, so a healthy night writes **nothing** — "the unfiltered selector returns
+    lines for the window" fails on every clean night (found 2026-10-08: no server line since 2026-10-06 18:03 across
+    several pipelines). The stream proof is instead: (a) the unfiltered selector over a wider window back to the
+    pod's last line returns that line, from the **same** pod (`kubectl -n woodpecker logs woodpecker-server-0
+    --tail=1 --timestamps` names it), and (b) the positive control: 2026-10-04 04:00–06:00 UTC returns the #252
+    incident's lines. Tally: `docs/backlog.md` B201.
     **Alert delivery drill** (proves a Loki-rule alert reaches Telegram; expires in 2 min, labelled `drill=true`):
     ```
     kubectl -n weyland exec deploy/weyland-guard -c weyland-guard -- python -c "import json,datetime as dt,urllib.request; n=dt.datetime.now(dt.timezone.utc); a=[{'labels':{'alertname':'WoodpeckerTaskExpired','severity':'warning','source':'loki','drill':'true'},'annotations':{'summary':'DRILL — WoodpeckerTaskExpired (delivery test; nothing is wrong)'},'startsAt':n.isoformat(),'endsAt':(n+dt.timedelta(minutes=2)).isoformat()}]; print(urllib.request.urlopen(urllib.request.Request('http://monitoring-kube-prometheus-alertmanager.monitoring.svc.cluster.local:9093/api/v2/alerts',data=json.dumps(a).encode(),headers={'content-type':'application/json'},method='POST'),timeout=10).status)"

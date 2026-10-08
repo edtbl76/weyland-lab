@@ -39,3 +39,8 @@ PY
   run check "$K/woodpecker/woodpecker-backup.yaml" data-woodpecker-server-0 woodpecker.sqlite users pipelines
   [ "$status" -eq 0 ] || { echo "$output"; return 1; }
 }
+
+@test "bifrost-backup runs the identical embedded script against config.db, requiring providers + VKs + prompts + skills" {
+  run check "$K/bifrost/bifrost-backup.yaml" bifrost-data config.db config_providers governance_virtual_keys prompts skills
+  [ "$status" -eq 0 ] || { echo "$output"; return 1; }
+}

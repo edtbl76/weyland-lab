@@ -38,6 +38,7 @@ thing is not done until it has a row here with a restore procedure and a dated r
 | **Linear lakehouse tables** (`iceberg.linear.*` + the 3 `mart_linear_*`) | derived from the newest snapshot | rebuilt by `linear_lakehouse_tables` + dbt | — | nightly | — | — | re-run `linear_backup_job`, rebuild the marts | reproducible (no backup needed) |
 | **Open WebUI** | users, chats, settings (incl. the `agent-memory` tool-server connection), model presets — `webui.db` + `vector_db/` + `uploads/` on PVC `open-webui-data` | `open-webui-backup` CronJob: SQLite online backup API + tarballs, fails closed (`k8s/open-webui/backup.yaml`, `scripts/sqlite_backup.py`) — added 2026-10-04 | mother **NVMe** (PVC `open-webui-backup`) | daily 23:45 NY / 1 day | 7 most recent | `ScheduledJobStale` (critical, 26h) + `ScheduledBackupFailed` (critical) | [runbooks/open-webui.md](runbooks/open-webui.md) § Restore | **2026-10-04** — non-destructive drill on backup `20261005T031438Z`: integrity ok, users 2 / chats 3 / models 1 (match live), the `agent-memory` connection present, both archives readable. Full restore (overwrite) not yet exercised |
 | **Woodpecker CI** | users, repos + trust flags, repo **secrets** (in the clear), the `nightly-images` cron, pipeline history — `woodpecker.sqlite` on PVC `data-woodpecker-server-0` | `woodpecker-backup` CronJob: SQLite online backup API, fails closed (`k8s/woodpecker/woodpecker-backup.yaml`, `scripts/sqlite_backup.py`) — added 2026-10-05 (B201) | mother **NVMe** (PVC `woodpecker-backup`) | daily 23:50 NY / 1 day | 7 most recent | `ScheduledJobStale` (critical, 26h) + `ScheduledBackupFailed` (critical) | [runbooks/woodpecker.md](runbooks/woodpecker.md) § Backup + restore | **2026-10-05** — non-destructive drill on backup `20261006T025115Z`: integrity ok, users 1 / pipelines 284 (match the manifest), tables incl. `repos`, `secrets`, `crons`, `log_entries`. Full restore (overwrite) not yet exercised |
+| **Bifrost** (agent edge) | provider keys, virtual keys + governance (budgets, model configs, pricing), MCP clients + OAuth configs, the Prompt Repository (~280) and Skills Repository (~589) — `config.db` on PVC `bifrost-data` (1 GiB). `logs.db` (request logs) is not backed up: observability history, recreated empty | `bifrost-backup` CronJob: SQLite online backup API, fails closed (`k8s/bifrost/bifrost-backup.yaml`, `scripts/sqlite_backup.py`) — added 2026-10-08 (B202 Closing Gaps) | mother **NVMe** (PVC `bifrost-backup`) | daily 23:55 NY / 1 day | 7 most recent | `ScheduledJobStale` (critical, 26h) + `ScheduledBackupFailed` (critical) | [runbooks/mcp-gateway.md](runbooks/mcp-gateway.md) § Bifrost backup + restore | **never** — the drill runs after the first backup lands (B202) |
 | **Reproducible stores** — vector stores, hydrated datasets | rebuilt from source | hydration / land jobs ([runbooks/datasets-hydration.md](runbooks/datasets-hydration.md)) | the sources themselves | — | — | — | re-run hydration | **unverified** per store |
 
 **Not yet catalogued (unverified coverage):** Keycloak realm and users (presumed inside the core `pg_dumpall` —
@@ -49,7 +50,7 @@ Each one needs either a row above or a written "reproducible" reason.
 | Medium | Holds | Survives |
 |---|---|---|
 | mother **USB** (`/mnt/minio`) | MinIO itself, the `rogueone-backup` restic repo, **and** the core Postgres dumps | nothing on this disk survives the disk |
-| mother **NVMe** | the MinIO bucket mirror, the data-mesh Postgres dumps, the Open WebUI + Woodpecker backups | a USB failure, not a mother failure |
+| mother **NVMe** | the MinIO bucket mirror, the data-mesh Postgres dumps, the Open WebUI, Woodpecker and Bifrost backups | a USB failure, not a mother failure |
 | GitHub | code, config, IaC | anything local |
 | Google Drive | media and documents | anything local |
 | **Off-site copy of lab data** | **none** | — |
@@ -71,6 +72,10 @@ Each one needs either a row above or a written "reproducible" reason.
    and its image was unpinned `:main`, so any restart could migrate the database with no copy. Found 2026-10-04 when
    the 0.11.4 upgrade needed a backup first. Closed: nightly `open-webui-backup` + the image pinned by digest; restore
    drill passed 2026-10-04 (non-destructive).
+9. **Bifrost had no backup** — its whole configuration (provider and virtual keys, governance, MCP clients, ~280 prompts,
+   ~589 skills) lived only in `config.db` on a 1 GiB PVC, and the v2 upgrade (B202) migrates that database. Found
+   2026-10-08 while scoping B202. Being closed: nightly `bifrost-backup` (23:55 NY); the restore drill is pending its
+   first backup.
 
 ## Adding a row (DoD Pillar 9)
 
