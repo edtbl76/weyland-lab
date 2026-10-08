@@ -9,6 +9,7 @@ they feed lab systems independently of any AIDLC workflow.
 | `engineering-knowledge-repository/` | ~397 | `ek-` | Bifrost KB skills |
 | `consulting-tools-repository/` | ~62 | `ct-` | Bifrost KB skills + domain-lens prompts |
 | `industry-vertical-repository/<v>/` | ~58 | `iv-<v>-` | Bifrost KB skills + per-vertical prompts |
+| `loop-library/` (B175) | 11 | `loop-` | Bifrost Prompt Repository folder `loop-library` — reusable agent loops, each with a terminal condition. See its [README](loop-library/README.md) |
 
 **Consumers** (all under `nodes/mother/lab/weyland-platform/scripts/`, read via `KB_ROOT` = this dir):
 - `register_aidlc_kb_skills.py` → 511 Bifrost KB skills

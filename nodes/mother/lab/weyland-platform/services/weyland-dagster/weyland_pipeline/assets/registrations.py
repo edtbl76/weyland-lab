@@ -7,6 +7,8 @@ prompts), folded into idempotent Dagster assets so it's GitOps-reproducible + sc
 - **bifrost_prompts / bifrost_skills** — shell out to the self-contained (httpx-only) register scripts bundled in the
   image at `/app/scripts/`; their hardcoded data is the source of truth, and each is idempotent (existing entries
   skipped, no version churn on re-run).
+- **bifrost_loops** (B175) — publishes the loop library from git (`knowledge-repos/loop-library`, bundled as
+  `/app/scripts/loop_library.json`). Git wins: a changed loop gets a new version, so it is NOT skip-if-exists.
 - **realm_roles** — the Realm owns its per-agent prompts (`roster.py`/`roles.py`), so we PULL them live from the Realm's
   `GET /prompts` and register each as `role-<key>` in the Bifrost prompt-repo — no prompt duplicated outside the Realm.
 
@@ -48,7 +50,15 @@ def bifrost_prompts_registered() -> Output:
 
 
 @asset(group_name=_GROUP,
-       deps=[bifrost_prompts_registered],
+       description="B175 — publish the loop library (knowledge-repos/loop-library, bundled as scripts/loop_library.json) "
+                   "into the Bifrost Prompt Repository folder `loop-library`. Git wins: a changed loop gets a new "
+                   "version, an unchanged one posts nothing, a loop removed from git is reported as an orphan.")
+def bifrost_loops_registered() -> Output:
+    return _run_script("register_bifrost_loops.py")
+
+
+@asset(group_name=_GROUP,
+       deps=[bifrost_prompts_registered, bifrost_loops_registered],
        description="B103 prompt federation — bidirectional sync (sync_prompts.py): pull native Langfuse/MLflow prompt "
                    "edits back to Bifrost, then mirror the Bifrost SoT out to Langfuse + MLflow. Runs AFTER the Bifrost "
                    "repo is reconciled. Uses the LANGFUSE_* env on the user-code pod (DefaultRunLauncher runs it here).")

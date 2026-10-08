@@ -23,6 +23,9 @@ harness-specific file, so every agent gets them. See `docs/concepts/multi-harnes
 - **Docs** — arch/hosts/api/schedules/runbooks/demos/diagrams under `docs/`; keep them current on every change.
   Architecture model: `docs/architecture/weyland.likec4`. Design records: `docs/design/`; concepts: `docs/concepts/`.
 - **Knowledge libraries** — `knowledge-repos/` feed Bifrost skills/prompts + the DataHub glossary (data, not workflow).
+  Recurring agent workflows live in the **loop library** (`knowledge-repos/loop-library/`, B175): before running a
+  repeatable workflow (CI watch, DoD gate, soak check, …) use its loop, and every new loop needs a checkable terminal
+  condition (`scripts/check-loop-library.sh`).
 - **Decisions already made** live in `docs/backlog.md`, `docs/concepts/*` verdict tables and the runbooks. **Check them
   before proposing anything** — re-proposing a rejected option (e.g. KEDA, Cyrus) wastes the owner's time.
 

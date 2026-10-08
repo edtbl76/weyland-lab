@@ -144,6 +144,10 @@ steps:
       # snapshot; deprecations declare retire_by+successor; a retired API has no consumers. Breaking
       # changes are enforced live by the api-drift CronJob + scripts/lib/api_spec_diff.py. File-only.
       - bash scripts/check-api-lifecycle.sh
+      # B175 — the loop library (knowledge-repos/loop-library): every loop carries a checkable terminal condition, and
+      # the bundle the Dagster publisher reads (services/weyland-dagster/scripts/loop_library.json) is byte-identical
+      # to a fresh bundle of the Markdown. Fail-closed 0/1/2. python3 + py3-yaml above.
+      - bash scripts/check-loop-library.sh
 
   # ── 1b2. Port IaC coverage (B137) ───────────────────────────────────────────
   # SEPARATE from repo-guards because it is the only guard here that talks to a live API and needs

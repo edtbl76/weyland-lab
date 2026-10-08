@@ -1,0 +1,107 @@
+{
+ "source": "knowledge-repos/loop-library",
+ "loops": [
+  {
+   "id": "ci-watch",
+   "title": "The CI watch",
+   "category": "Operations",
+   "description": "After a push, trigger the lean pipeline and watch it to a terminal state, fixing what fails, until main is green with the Sonar gate passed.",
+   "terminal_condition": "The pipeline is success with \"QUALITY GATE STATUS - PASSED\" in the sonar-gate log, or the same step fails twice after a fix (stop and hand off), or three fix-and-retrigger rounds have run.",
+   "pacing": "One check per expected run time (about 70 minutes for a full lean run), never a short polling timer.",
+   "source": "docs/runbooks/woodpecker.md (Pipelines; weyland image CI to CD), docs/runbooks/ship-images.md (When the ship stops at the SonarQube gate)",
+   "prompt": "The owner has pushed to main. Get the lean CI pipeline green.\n\n1. Trigger it with the canonical command in `docs/runbooks/woodpecker.md` (`woodpecker-cli pipeline create\n   edtbl76/weyland-lab --branch main`, creds from `scripts/.env`). Never wait for the nightly cron.\n2. Check in once per expected run time, not on a short timer. Each check: list every step that is not `success`.\n   Read the step's log, not just its state.\n3. When a step fails, prove the layer before fixing: read the failing log lines, reproduce locally in the step's own\n   toolchain image where possible, fix, run the full local guard suite (`repo-guards` in `.woodpecker.yml`), and hand\n   the owner the push (the owner does all git). Then retrigger.\n4. The Sonar gate: read `QUALITY GATE STATUS` in the `sonar-gate` log. If it failed only because a new hotspot is\n   unreviewed and the hotspot is genuinely safe, mark it with `scripts/sonar_api.py review-safe <file> \"<reason>\"`\n   and retrigger. Never mark a real finding safe to get green.\n5. Report each check in one or two lines: run number, passed/failed step counts, what is next.\n\nStop when the terminal condition holds. On a repeat failure of the same step after a fix, stop and report the step,\nthe log lines, and what you tried. Never claim green without reading the sonar-gate log text."
+  },
+  {
+   "id": "dod-gate",
+   "title": "The Definition of Done gate",
+   "category": "Engineering",
+   "description": "Grade a finished backlog item against the 9-pillar Definition of Done, close every gap found, and only then mark it DONE in the backlog and Linear.",
+   "terminal_condition": "Every one of the 9 pillars carries evidence or a one-line N/A with its reason, the backlog item and its Linear issue both say DONE, and scripts/check-linear-sync.sh exits 0; or a pillar needs a decision only the owner can make (stop and ask).",
+   "source": "docs/definition-of-done.md, scripts/check-linear-sync.sh",
+   "prompt": "The owner said \"DoD\" for backlog item {{item}}. Grade it against `docs/definition-of-done.md` and close every gap.\n\nFor each pillar in order (1 Docs, 2 Diagrams, 3 Demos, 4 Cleanup, 5 Tracking, 6 Ops, 7 Scan, 8 Cascade, 9 DR):\n1. Read the pillar's rules in `docs/definition-of-done.md`. For repo tooling, use its \"Applying this to REPO TOOLING\"\n   table.\n2. Find the evidence: a file path, a command and its output, a guard's exit code. An unasked question and an empty\n   answer look identical, so look, do not assume.\n3. If the pillar has a gap, close it now (fix, don't file), then re-check. If it genuinely does not apply, write a\n   one-line N/A with the reason.\n\nThen run the full local guard suite and `scripts/check-linear-sync.sh`. Write the DONE paragraph into the item in\n`docs/backlog.md` (one line per pillar, evidence named), flip its list entry to DONE with the date, and set the\nLinear issue to Done with a comment.\n\nStop when the terminal condition holds. If a pillar needs an owner decision (a cost, a hardware dependency, a\ndeferral), stop and ask one question with your recommendation; do not mark the item DONE."
+  },
+  {
+   "id": "eval-run",
+   "title": "The RAG eval run",
+   "category": "Evaluation",
+   "description": "Run the RAG eval harness end to end (generate and run, then score), watch it to completion, and report the leaderboard against the previous run.",
+   "terminal_condition": "The newest eval_runs row is complete and scored and the leaderboard is reported against the previous run, or a job fails twice (stop and report the error).",
+   "pacing": "One check per expected stage time (run about 40-60 minutes, scoring about 15-60 minutes). The eval holds rogueone's Ollama, so incident sweeps defer while it runs.",
+   "source": "docs/runbooks/eval-harness.md (Operating — trigger & query; Golden question set)",
+   "prompt": "Run the RAG eval and report the result.\n\n1. Trigger `weyland_eval_job` with the trigger in `docs/runbooks/eval-harness.md` § \"Operating\". It generates the\n   questions and runs the model matrix.\n2. Check progress with the runbook's progress queries once per expected stage time. Count errors per model, not just\n   the run's status.\n3. When the run completes, trigger `weyland_eval_score_job` and watch it the same way.\n4. Run the leaderboard query for this run and the previous one. Report each model's faithfulness, answer relevancy\n   and context relevancy, and the change from the previous run.\n5. A judge score is not ground truth: say which judge scored it and flag any model with errors or empty answers.\n\nStop when the terminal condition holds."
+  },
+  {
+   "id": "golden-path-verify",
+   "title": "The golden-path verify",
+   "category": "Engineering",
+   "description": "Prove every golden-path template still builds, starts and answers its smoke check, and fix or report the ones that do not.",
+   "terminal_condition": "Every golden path in the run prints SMOKE OK, or each failing path is named with the log line that shows why and either fixed and re-run green or reported to the owner.",
+   "source": "docs/design/golden-paths.md (Ephemeral-Job harness), scripts/run-golden-path-jobs.sh",
+   "prompt": "Verify the golden paths ({{paths_or_all}}).\n\n1. Run the harness described in `docs/design/golden-paths.md` (`scripts/run-golden-path-jobs.sh`, which the CI step\n   `golden-path-smoke` also runs). Each path builds its image, runs it as a short Kubernetes Job, and checks `/ready`\n   and `/hello`.\n2. Read each path's result line. `SMOKE OK` is a pass; anything else is a fail, including a build that never\n   finished.\n3. For each failure, find the first error in its build or Job log. Reproduce the build locally in Docker as the\n   invoking user. Fix it in the path's directory and re-run only that path.\n4. A path that cannot be fixed in this pass (an upstream image gone, a toolchain bug): report it with the log line\n   and the suspected cause.\n\nStop when the terminal condition holds. Report passed and failed counts and every fix."
+  },
+  {
+   "id": "incident-enrich",
+   "title": "The incident enrichment",
+   "category": "Operations",
+   "description": "For one firing alert, correlate recent logs and pod status and write a short incident summary, without taking any action.",
+   "terminal_condition": "One summary is written for the alert (what is wrong, the likely cause, the current state), within at most six tool calls; no action is proposed or taken.",
+   "source": "docs/runbooks/operator.md (Incident sweep (B45)), nodes/mother/lab/weyland-platform/services/weyland-operator/incidents.py",
+   "prompt": "An alert is FIRING. Investigate and summarize. Do NOT propose or take any action.\nAlert: {{alertname}} (severity {{severity}}) on {{target}}.\n\n1. Open with the tool that reads live state for this alert's kind: pods, events or logs for a pod or job alert;\n   Prometheus or node usage for a node, disk or spend alert. Do not open with the knowledge base.\n2. Correlate the most recent logs and the pod or deployment status for the affected service. Use at most six tool\n   calls in total.\n3. If it is a synthetic or endpoint-down alert, say whether the pod is running versus the ingress, SSO or\n   certificate path failing.\n\nWrite a concise incident summary: what is wrong, the likely cause, and the current state. If the evidence does not\nshow a cause, say \"cause not shown\" rather than guessing. Stop when the summary is written."
+  },
+  {
+   "id": "issue-readiness-sweep",
+   "title": "The issue readiness sweep",
+   "category": "Engineering",
+   "description": "Bring every open High issue in Weyland Lab up to the implementation-ready standard so any of them can be handed to an agent.",
+   "terminal_condition": "The sweep prints READY for every open High issue in project Weyland Lab, or an issue needs a decision only the owner can make (stop and list those issues).",
+   "source": "docs/runbooks/issue-readiness.md (Check an issue; The standard)",
+   "prompt": "Make every open High issue in Linear project Weyland Lab implementation-ready.\n\n1. Run the sweep from `docs/runbooks/issue-readiness.md` (`bash scripts/issue-readiness.sh --sweep --no-comment`).\n   Read every `missing:` line.\n2. For each NOT READY issue, read the issue and its `docs/backlog.md` entry, then write the missing sections from\n   the issue's kind (Backlog item, Bug, Spike or Bucket; the table in the runbook). Use real facts from the repo:\n   paths, hosts, services, commands. Never invent a fact; where a fact is unknown, write that it is unknown.\n3. Keep every existing word the issue already has; add, do not rewrite. Acceptance criteria must be checkable\n   pass/fail items.\n4. Re-run the check on that issue. It must print READY before you move on.\n\nStop when the terminal condition holds. Report the issues changed and any that need the owner, with the question\neach one needs answered."
+  },
+  {
+   "id": "machine-onboarding",
+   "title": "The machine onboarding",
+   "category": "Operations",
+   "description": "Bring a new host into the machine inventory and the Port catalog by running the onboarding checklist, step by step, each with its pass/fail gate.",
+   "terminal_condition": "machine_inventory.py verify <host> prints \"verify <host> OK\" (exit 0), or a step tagged [operator] or [decision] is reached (stop and hand the owner that exact step).",
+   "source": "docs/runbooks/machine-inventory.md (Onboarding a new machine (B169))",
+   "prompt": "Onboard host {{host}} (SSH user {{user}}) into the machine inventory.\n\nFollow `docs/runbooks/machine-inventory.md` § \"Onboarding a new machine\" in order, steps 0 to 4. Each step has a\ngate; a step whose gate is not met stops the process. Never assume a pass.\n\n1. Step 0, preflight: the host is a hostname, not an IP; SSH key auth works with BatchMode; the Port credentials\n   file exists. A failed check is not a pass.\n2. Step 1 is [operator]: if SSH key auth failed, stop and hand the owner `ssh-copy-id {{user}}@{{host}}`, then re-run\n   preflight when they say it is done.\n3. Step 2: collect and merge. Read the `sources:` line and the new/unreviewed counts.\n4. Step 3 is [decision]: pre-triage the obvious platform runtimes as keep, then hand the owner only the genuine\n   per-app calls.\n5. Step 4: emit, then verify. Emit's own success is not proof; only verify is.\n\nStop when the terminal condition holds. Report each step's gate result."
+  },
+  {
+   "id": "mcp-fleet-debug",
+   "title": "The MCP fleet debug",
+   "category": "Operations",
+   "description": "When agents lose MCP tools, find which server or layer is broken by smoking each one directly, prove the layer, and fix it.",
+   "terminal_condition": "Every fleet server returns a non-empty tools/list through the smoke, or the failing layer (server, gateway, auth, network) is proven by a direct test and the fix is named or applied.",
+   "source": "docs/runbooks/mcp-fleet.md (Verify — the reusable MCP smoke; Connectivity notes; Deploy gotchas)",
+   "prompt": "Agents report missing or failing MCP tools ({{symptom}}). Find the broken layer.\n\n1. List the fleet's servers from `docs/runbooks/mcp-fleet.md` § \"The 6 servers\".\n2. Smoke each server directly with the reusable smoke in that runbook (initialize, then tools/list), from the guard\n   pod. Note which servers answer and with how many tools. SSE servers use the threaded reader the runbook gives.\n3. A server that answers directly but not through the gateway or compositor is a gateway or auth problem; one that\n   does not answer directly is the server itself. Prove the layer with one direct test before changing anything.\n4. Check the runbook's Deploy gotchas for the failing server before inventing a fix.\n\nStop when the terminal condition holds. Report each server's tool count, the proven failing layer, and the fix."
+  },
+  {
+   "id": "nightly-soak-check",
+   "title": "The nightly soak check",
+   "category": "Operations",
+   "description": "Each morning, check last night against a soak's written acceptance query, record the result, and close the item when the clean-night target is reached.",
+   "terminal_condition": "The soak reaches its target count of consecutive clean nights (record it and close the item), or a night fails its check (record the failure with the evidence and stop for the owner).",
+   "pacing": "Once a day, after the night window has ended. Never more often.",
+   "source": "docs/runbooks/node-capacity.md (Night check, B199), docs/runbooks/woodpecker.md (Soak check, B201)",
+   "prompt": "Check last night for the soak on {{item}}.\n\n1. Open the item's written acceptance check in its runbook (for example `docs/runbooks/node-capacity.md` Night check\n   for B199, `docs/runbooks/woodpecker.md` Soak check for B201). Run it exactly as written, in Grafana Explore or\n   through the Grafana MCP, over last night's window.\n2. Run the control the runbook names too (an unfiltered query, or a known positive window). A query that returns\n   nothing proves nothing until the control shows the data source works.\n3. Decide clean or failed against the runbook's thresholds. Do not reinterpret a threshold.\n4. Record the night in the item in `docs/backlog.md` and as a comment on its Linear issue: the date, the numbers,\n   and the running count (for example \"night 6 of 7 clean\").\n\nStop when the terminal condition holds. On the final clean night, also do the item's close-out step (for B201, drop\nthe temporary rule its runbook names). On a failed night, stop and report the evidence; do not restart the count\nwithout the owner."
+  },
+  {
+   "id": "pr-lifecycle-reconcile",
+   "title": "The PR lifecycle reconcile",
+   "category": "Operations",
+   "description": "Give every open dependabot and image-bump PR across the watched repos a verdict, and act on it, without ever merging a stale or regressive bump.",
+   "terminal_condition": "Every managed open PR has a verdict from check-pr-lifecycle.sh, every MERGEABLE, STALE and SUPERSEDED action is taken or listed for the owner, and every NEEDS-HUMAN PR is reported with its reason.",
+   "source": "docs/runbooks/pr-lifecycle.md (Resolving open PRs — check-pr-lifecycle.sh)",
+   "prompt": "Reconcile the open managed PRs ({{repo_or_all}}).\n\n1. Run the advisory command from `docs/runbooks/pr-lifecycle.md` (`bash scripts/check-pr-lifecycle.sh`, or with\n   `--repo` for one repo). It mutates nothing.\n2. Read each verdict:\n   - STALE: recreate it (`@dependabot recreate`); never merge a stale branch, it can downgrade pins main already fixed;\n   - SUPERSEDED: close it;\n   - MERGEABLE: merge it only with the owner's go-ahead (the owner handles git), or let the nightly reconcile do it;\n   - NEEDS-HUMAN: read the reason, especially a REGRESSIVE diff that lowers a pinned version, and report it.\n3. Never trust GitHub's mergeable flag alone; the script reads the compare API and the diff for a reason.\n\nStop when the terminal condition holds. Report counts per verdict and every PR that needs the owner."
+  },
+  {
+   "id": "scan-triage",
+   "title": "The code-scan triage",
+   "category": "Engineering",
+   "description": "Work the scan-suite findings to zero real ones, highest severity first, fixing real issues and recording an accepted reason for each false or tolerated one.",
+   "terminal_condition": "Every finding at or above High is fixed, accepted in its scanner's ignore file with a written reason, or proven a false positive, and a rerun of the same scanners shows no untriaged High finding.",
+   "source": "docs/runbooks/code-quality.md (B47 triage + scanner fixes; B69 weekly CronJobs + the scan-suite)",
+   "prompt": "Triage the latest code-scan-suite findings for weyland-lab ({{scanner_or_all}}).\n\n1. Read the current counts per scanner and severity (Port `security_scan`, or the scan-suite run's output; see\n   `docs/runbooks/code-quality.md`). Work Critical first, then High.\n2. For each finding, prove what it is before deciding:\n   - a secret (gitleaks): treat as real until proven otherwise; rotate, then purge;\n   - a dependency CVE: check the version actually installed (an unpinned requirement makes the scanner read 0.0.0 and\n     match every CVE);\n   - a manifest or code finding: read the line and the rule.\n3. Decide one of: fix it, accept it in that scanner's ignore file with a one-line reason (`.trivyignore`,\n   `osv-scanner.toml`, and so on), or record it as a false positive with the evidence.\n4. Rerun the scanner that found it and confirm the finding is gone or accepted.\n\nStop when the terminal condition holds. Report the before and after counts per scanner, each fix, and each accepted\nitem with its reason."
+  }
+ ]
+}

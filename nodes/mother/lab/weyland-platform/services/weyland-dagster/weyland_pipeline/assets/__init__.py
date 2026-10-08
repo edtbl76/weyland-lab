@@ -94,6 +94,7 @@ from .datasets_kindle_transform import (
 )
 from .linear_backup import linear_lakehouse_tables, linear_workspace_snapshot
 from .registrations import (
+    bifrost_loops_registered,
     bifrost_prompts_registered,
     bifrost_skills_registered,
     realm_roles_registered,

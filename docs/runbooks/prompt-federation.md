@@ -28,6 +28,11 @@ flowchart LR
 
 ## Edit a prompt (the everyday flow)
 
+**Exception: the `loop-library` folder (B175).** Those prompts come from git (`knowledge-repos/loop-library/`) and
+the `bifrost_loops_registered` asset re-publishes the git text as a new version whenever Bifrost differs, so an edit
+made in Bifrost, Langfuse or MLflow is overwritten on the next reconcile. Edit loops in git
+([knowledge-repos/loop-library/README.md](../../knowledge-repos/loop-library/README.md)).
+
 1. **Author in Bifrost** — the Prompt Repository UI (or `register_bifrost_prompts.py` for the durable, GitOps set;
    app prompts live in the `app-integrated` folder). Bifrost is model-agnostic (`{{var}}` mustache variables,
    auto-extracted).

@@ -2315,6 +2315,14 @@ Investigate **Jev** (TypeSafe AI, typesafe.ai) — evaluate for the lab and deci
 
 ### B175 — Loop library: catalog reusable agentic loops (workflows-as-prompts) — HIGH (2026-09-22, Linear EMA-233)
 
+**Progress (2026-10-08): built, awaiting the image ship + first publish.**
+- **Decision (owner):** git is the source of truth, published to Bifrost's Prompt Repository. The library is `knowledge-repos/loop-library/`, one Markdown file per loop (frontmatter: id, title, category, description, terminal_condition, optional pacing and source; then the full prompt). Commands stay in runbooks; loops point to the sections.
+- **Seeded with 11 real workflows:** ci-watch, dod-gate, issue-readiness-sweep, scan-triage, golden-path-verify, nightly-soak-check, incident-enrich, machine-onboarding, mcp-fleet-debug, pr-lifecycle-reconcile, eval-run.
+- **Guarded:** `scripts/loop_library.py` (17 pytest) plus `scripts/check-loop-library.sh` in CI `repo-guards` (7 bats). A loop without a checkable terminal condition, or a stale bundle, fails by name; an empty library is exit 2.
+- **Published:** `scripts/embed-loops.sh` writes the bundle into the Dagster image (the placement pattern); the new Dagster asset `bifrost_loops_registered` (weekly registrations job, ordered before the prompt federation) runs `register_bifrost_loops.py` (9 pytest). Git wins: a changed loop gets a new version, an unchanged one posts nothing, a removed one is reported as an orphan.
+- **Verified:** a live dry run would create 11 (23 POSTs, 0 failed); Dagster loads with the asset (154 assets); 19 repo guards, mermaid 208, bats 800/800; scratch Sonar gate PASSED with 0 new issues (a complexity finding fixed; the `http://` default replaced by a required `BIFROST_URL`).
+- **Docs:** library README (format, checks, publishing), `flow-loop-library.md`, demo `loop-library.md` (ledger 92, partial), knowledge-repos index, `AGENTS.md`, prompt-federation runbook (edit loops in git), schedules row.
+
 Catalog the lab's reusable AI-agent **loops** — structured prompt-workflows with checkpoints and explicit stopping conditions — modeled on [signals.forwardfuture.com/loop-library](https://signals.forwardfuture.com/loop-library/). Prompted by the user 2026-09-22.
 
 **What a "loop" is:** a reusable agent workflow = a detailed prompt with built-in checkpoints + a **terminal condition** (an explicit stopping rule that prevents runaway loops / wasted cycles). The reference library catalogs each as **title · category** (Engineering / Operations / Evaluation / Content / Design) **· author · description · full prompt · engagement metrics** — examples like "the production error sweep", "the full product evaluation loop", "the ticket-to-PR-ready loop".
