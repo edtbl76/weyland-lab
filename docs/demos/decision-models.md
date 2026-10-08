@@ -87,6 +87,14 @@ This runs after the key is sealed and the operator image is shipped.
 2. **Grafana Alerting:** `OperatorDecideShadowFailing` and `OperatorDecideSpendObserved` are listed and inactive.
 3. **Telegram:** the incident digest looks exactly as before. The shadow's pick never appears in it.
 
+**UAT result (2026-10-07):** the owner saw both alert rules and ran the Explore query. Shipped as
+`weyland-operator:git-ab941110` (CI #286, PR #140). First live shadow pick:
+`[decide] alert=KubePodOOMKilled backend=jev pick=k8s_events_list confidence=0.42 operator=k8s_pods_list outcome=disagree`.
+Both picks are valid first moves for that alert under the benchmark's labels. The same evening it showed that
+`increase()` hides a series' first increment (the row read 0), so the cookbook and runbook now give the running-total
+query for early days. The **App Services** dashboard gained a row for the operator's brain, sweep and shadow
+metrics.
+
 ## Expected result
 - Each enriched sweep adds one `operator_decide_shadow_total` sample, with about 2K Jev input tokens.
 - The sweep's behavior and digest are unchanged.

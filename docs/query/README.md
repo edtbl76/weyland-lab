@@ -25,6 +25,7 @@ syntax demos.
 | LanceDB | [lancedb.md](lancedb.md) | embedded/serverless vector store (Lance-native, on object storage) — same vectors as Qdrant/Weaviate, queried in-process |
 | Feast | [feast.md](feast.md) | feature store — online serving by entity key (REST/SDK) + point-in-time training retrieval; `feast.weyland.lab` (+ `/docs` Swagger) |
 | Cube + MetricFlow | [cube.md](cube.md) | semantic layer (B1.7 L6) — governed metrics over the 7 marts; Cube SQL/REST (`MEASURE()`) + MetricFlow `mf query` |
+| Prometheus (PromQL) | [prometheus.md](prometheus.md) | platform metrics, not datasets — the operator's decision-model shadow (B174: agreement, confident agreement, Jev spend, latency) and its brain/sweep counters; run in Grafana Explore |
 
 **Connecting:** each store's access (svc / ingress / port-forward / creds) is in its runbook and
 [../hosts.md](../hosts.md). Most are reachable from IntelliJ via the k8s-plugin port-forward, or in-pod via

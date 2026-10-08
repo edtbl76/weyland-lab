@@ -13,7 +13,9 @@ The verdict so far and the benchmark: [concepts/decision-models.md](../concepts/
 | Switches | `k8s/weyland-operator/deployment.yaml`: `OPERATOR_DECIDE_SHADOW`, `OPERATOR_DECIDE_URL`, `OPERATOR_DECIDE_MODEL` |
 | Key | Secret `weyland/typesafe-api` (`TYPESAFE_API_KEY`), sealed (`seal-secrets.sh` allow-list); sent **only over https** |
 | Metrics | `operator_decide_shadow_total{backend,outcome,confident}` (`outcome` = `agree` · `disagree` · `no_baseline` · `error`) · `operator_decide_input_tokens_total{backend}` · `operator_decide_seconds{backend}` |
-| Alerts | `OperatorDecideShadowFailing` (only errors for 2h) · `OperatorDecideSpendObserved` (more than $1 of Jev in 24h), in `k8s/weyland-operator/prometheusrule.yaml` |
+| Alerts | `OperatorDecideShadowFailing` (only errors for 2h) · `OperatorDecideSpendObserved` (more than $1 of Jev in 24h), in `k8s/weyland-operator/prometheusrule.yaml`. In Grafana: **Alerting**, then **Alert rules**, under **Data source-managed** (search `OperatorDecide`) |
+| Queries | [query/prometheus.md](../query/prometheus.md) § Operator: decision-model shadow |
+| Dashboard | Grafana **App Services**, row *weyland-operator — brain, incident sweep, decision-model shadow* (`k8s/monitoring/app-services-dashboard.yaml`): shadow picks since pod start, agreement rate (all and confident), Jev spend, plus the brain and sweep counters |
 | Tests | `services/weyland-operator/tests/test_decide.py` + `test_incidents.py` · `clef-flash/tests/test_server.py` · `scripts/tests/clef-flash.bats` · `scripts/tests/fixtures/alert-rules/operator-decide.test.yaml` |
 
 ## First-time setup: the TypeSafe key
@@ -45,7 +47,16 @@ kubectl -n weyland annotate secret typesafe-api sealedsecrets.bitnami.com/manage
 
 ## Read the evidence
 
-In Grafana Explore (Prometheus):
+The queries live in the query registry: [query/prometheus.md](../query/prometheus.md) § Operator: decision-model
+shadow, which also has the agreement-rate and latency queries. To run one:
+
+1. Open `https://grafana.weyland.lab`, then **Explore** in the left menu.
+2. Pick the **Prometheus** data source (top left).
+3. Switch the query editor from **Builder** to **Code** (right of the query row).
+4. Set the time range (top right) to at least the query's window, for example **Last 24 hours** for `[24h]`.
+5. Paste the query and click **Run query**.
+
+The main one:
 ```
 sum by (backend, outcome, confident) (increase(operator_decide_shadow_total[7d]))
 ```
@@ -54,6 +65,8 @@ sum by (backend, outcome, confident) (increase(operator_decide_shadow_total[7d])
   is whether confident picks are right often enough to route on (the B174 benchmark: 38 of 38 at confidence 0.5 or
   higher).
 - **`no_baseline`:** qwen called no tool, so there was nothing to compare against.
+- **A 0 can hide a call.** `increase()` can't see a series' first increment. While samples are few, read the running
+  total, `sum by (backend, outcome, confident) (operator_decide_shadow_total)`. The cookbook explains why.
 - **Per alert:** each call also logs a line, `[decide] alert=<name> backend=<jev|clef> pick=<tool> confidence=<c>
   operator=<tool> outcome=<…>`. Read them with:
 
