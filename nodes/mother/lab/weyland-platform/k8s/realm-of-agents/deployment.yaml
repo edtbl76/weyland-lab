@@ -20,7 +20,7 @@ spec:
       enableServiceLinks: false
       containers:
         - name: realm-of-agents
-          image: registry.weyland.lab/realm-of-agents:v21   # v21 — Langfuse session tracing (langchain CallbackHandler, one session per dispatch); was v20 (operator realm-routing domain→realm map)
+          image: registry.weyland.lab/realm-of-agents:git-549c54fa   # v21 — Langfuse session tracing (langchain CallbackHandler, one session per dispatch); was v20 (operator realm-routing domain→realm map)
           imagePullPolicy: IfNotPresent
           resources:
             # No torch/embedder — langgraph/langchain client + fastapi only; inference is remote (LiteLLM). Low request
