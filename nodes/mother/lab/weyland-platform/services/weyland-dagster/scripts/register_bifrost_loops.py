@@ -25,6 +25,7 @@ FOLDER = "loop-library"
 FOLDER_DESCRIPTION = ("Reusable agent loops (B175): a prompt with checkpoints and an explicit terminal condition. "
                       "Source of truth: knowledge-repos/loop-library in git — edit there, not here.")
 PREFIX = "loop-"
+BIFROST_HEADERS = {"X-Bifrost-Setup-Token": os.environ["BIFROST_SETUP_TOKEN"]} if os.getenv("BIFROST_SETUP_TOKEN") else {}  # B202: v2.2.6+ setup lock (auth off)
 API = "/api/prompt-repo"
 
 
@@ -111,7 +112,7 @@ class _Http:
 
     def __init__(self, base: str):
         import httpx
-        self._c = httpx.Client(base_url=base, timeout=30)
+        self._c = httpx.Client(base_url=base, timeout=30, headers=BIFROST_HEADERS)
 
     def get(self, path):
         r = self._c.get(path)

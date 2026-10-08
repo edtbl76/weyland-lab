@@ -51,6 +51,10 @@ spec:
             httpGet: { path: /ready, port: 8080 }
             periodSeconds: 10
           env:
+            # B202 (the operator's Bifrost register scripts are piped into THIS pod — runbooks/mcp-gateway.md) — Bifrost v2.2.6+ setup token: with Bifrost's dashboard auth off, every /api call must send it as
+            # X-Bifrost-Setup-Token (401 without). Optional so the pod starts before the secret exists; v1.6.7 ignores it.
+            - name: BIFROST_SETUP_TOKEN
+              valueFrom: { secretKeyRef: { name: bifrost-setup-token, key: BIFROST_SETUP_TOKEN, optional: true } }
             - name: WEYLAND_DB_HOST
               value: weyland-postgres.weyland.svc.cluster.local
             - name: WEYLAND_DB_PORT

@@ -616,7 +616,8 @@ for _p in PROMPTS:
         _m[0] = ("system", _m[0][1].rstrip() + SKILL_CLAUSE)
 
 def main():
-    c = httpx.Client(base_url=BASE, timeout=30)
+    BIFROST_HEADERS = {"X-Bifrost-Setup-Token": os.environ["BIFROST_SETUP_TOKEN"]} if os.getenv("BIFROST_SETUP_TOKEN") else {}  # B202: v2.2.6+ setup lock (auth off)
+    c = httpx.Client(base_url=BASE, timeout=30, headers=BIFROST_HEADERS)
     folders = {f["name"]: f["id"] for f in c.get("/api/prompt-repo/folders").json().get("folders") or []}
     for name, desc in FOLDERS:
         if name not in folders:

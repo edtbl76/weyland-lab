@@ -47,7 +47,8 @@ STDIO = [
      RUNTIME_ENVS + ["PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD"]),
 ]
 
-c = httpx.Client(base_url=BASE, timeout=30)
+BIFROST_HEADERS = {"X-Bifrost-Setup-Token": os.environ["BIFROST_SETUP_TOKEN"]} if os.getenv("BIFROST_SETUP_TOKEN") else {}  # B202: v2.2.6+ setup lock (auth off)
+c = httpx.Client(base_url=BASE, timeout=30, headers=BIFROST_HEADERS)
 existing = {cl["config"]["name"] for cl in (c.get("/api/mcp/clients").json().get("clients") or [])}
 
 def create(name, body):

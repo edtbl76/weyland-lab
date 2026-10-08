@@ -30,6 +30,7 @@ import re
 import httpx
 
 BIFROST = os.getenv("BIFROST_URL", "http://bifrost.weyland.svc.cluster.local:8080")
+BIFROST_HEADERS = {"X-Bifrost-Setup-Token": os.environ["BIFROST_SETUP_TOKEN"]} if os.getenv("BIFROST_SETUP_TOKEN") else {}  # B202: v2.2.6+ setup lock (auth off)
 LANGFUSE_HOST = os.getenv("LANGFUSE_HOST", "http://langfuse.weyland.svc:3000")
 MLFLOW_URI = os.getenv("MLFLOW_TRACKING_URI", "http://mlflow.weyland.svc.cluster.local:5000")
 STAMP = "synced-from-bifrost"          # provenance prefix — Phase-2 inbound skips versions whose origin is this
@@ -59,7 +60,7 @@ def _to_mlflow_text(messages):
 
 def read_bifrost():
     """Every Bifrost prompt's LATEST version as {name, messages:[{role,content}], commit}."""
-    c = httpx.Client(base_url=BIFROST, timeout=30)
+    c = httpx.Client(base_url=BIFROST, timeout=30, headers=BIFROST_HEADERS)
     prompts = c.get("/api/prompt-repo/prompts", params={"limit": 1000}).json().get("prompts") or []
     out = []
     for p in prompts:
@@ -146,7 +147,7 @@ def _epoch(v):
 
 
 def _bifrost_ids():
-    c = httpx.Client(base_url=BIFROST, timeout=30)
+    c = httpx.Client(base_url=BIFROST, timeout=30, headers=BIFROST_HEADERS)
     return {p["name"]: p["id"] for p in (c.get("/api/prompt-repo/prompts", params={"limit": 1000}).json().get("prompts") or [])}
 
 
@@ -187,7 +188,7 @@ def reconcile_inbound(bifrost_items):
     regardless of stamping. Conflict (edited natively in BOTH stores) = last-write-wins by version timestamp + a WARNING."""
     canon = {it["name"]: _hash(it["messages"]) for it in bifrost_items}
     ids = _bifrost_ids()
-    c_bf = httpx.Client(base_url=BIFROST, timeout=30)
+    c_bf = httpx.Client(base_url=BIFROST, timeout=30, headers=BIFROST_HEADERS)
     c_lf = httpx.Client(base_url=LANGFUSE_HOST, timeout=30,
                         auth=(os.environ["LANGFUSE_PUBLIC_KEY"], os.environ["LANGFUSE_SECRET_KEY"]))
     pulled = 0

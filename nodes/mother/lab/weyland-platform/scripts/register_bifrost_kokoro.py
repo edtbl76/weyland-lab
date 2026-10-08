@@ -39,7 +39,8 @@ DUMMY_KEY = {"name": f"{PROVIDER}-dummy", "value": "not-needed", "models": ["*"]
 
 
 def main():
-    c = httpx.Client(base_url=BASE, timeout=30)
+    BIFROST_HEADERS = {"X-Bifrost-Setup-Token": os.environ["BIFROST_SETUP_TOKEN"]} if os.getenv("BIFROST_SETUP_TOKEN") else {}  # B202: v2.2.6+ setup lock (auth off)
+    c = httpx.Client(base_url=BASE, timeout=30, headers=BIFROST_HEADERS)
     if c.get(f"/api/providers/{PROVIDER}").status_code == 200:
         print(f"provider {PROVIDER} already exists — skipping (idempotent)")
         return

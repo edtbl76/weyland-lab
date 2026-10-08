@@ -334,7 +334,8 @@ TERMINAL CONDITION: STOP when the entire suite is green — every guard exit 0 A
 
 def main():
     import httpx  # lazy: only main() needs it, so importing this module (the SKILLS list) needs no deps — see tests/test_bifrost_skills.py
-    c = httpx.Client(base_url=BASE, timeout=30)
+    BIFROST_HEADERS = {"X-Bifrost-Setup-Token": os.environ["BIFROST_SETUP_TOKEN"]} if os.getenv("BIFROST_SETUP_TOKEN") else {}  # B202: v2.2.6+ setup lock (auth off)
+    c = httpx.Client(base_url=BASE, timeout=30, headers=BIFROST_HEADERS)
     # Best-effort pre-fetch to skip a POST we don't need. The REAL idempotency guarantee is the "already exists"
     # catch below: the list endpoint paginates and IGNORES limit (observed 2026-09-23 — it returned 1 of 21
     # existing skills), so the pre-fetch alone is unreliable and must NOT be trusted to decide "new vs existing".

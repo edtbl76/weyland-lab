@@ -93,7 +93,8 @@ def bifrost_skills_registered() -> Output:
                    "(the Realm stays the single source of truth; no prompt duplicated in the pipeline).")
 def realm_roles_registered() -> Output:
     prompts = httpx.get(f"{REALM_URL}/prompts", timeout=30).json()
-    c = httpx.Client(base_url=BIFROST_URL, timeout=30)
+    BIFROST_HEADERS = {"X-Bifrost-Setup-Token": os.environ["BIFROST_SETUP_TOKEN"]} if os.getenv("BIFROST_SETUP_TOKEN") else {}  # B202: v2.2.6+ setup lock (auth off)
+    c = httpx.Client(base_url=BIFROST_URL, timeout=30, headers=BIFROST_HEADERS)
     fname = "realm-of-agents"
     folders = {f["name"]: f["id"] for f in c.get("/api/prompt-repo/folders").json().get("folders") or []}
     if fname not in folders:

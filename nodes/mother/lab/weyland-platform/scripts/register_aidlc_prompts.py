@@ -119,7 +119,8 @@ def build():
 LOADER = r'''
 import os, httpx
 BASE = os.getenv("BIFROST_URL", "http://bifrost.weyland.svc.cluster.local:8080")
-c = httpx.Client(base_url=BASE, timeout=60)
+BIFROST_HEADERS = {"X-Bifrost-Setup-Token": os.environ["BIFROST_SETUP_TOKEN"]} if os.getenv("BIFROST_SETUP_TOKEN") else {}  # B202: v2.2.6+ setup lock (auth off)
+c = httpx.Client(base_url=BASE, timeout=60, headers=BIFROST_HEADERS)
 folders = {f["name"]: f["id"] for f in c.get("/api/prompt-repo/folders").json().get("folders") or []}
 for name, desc in FOLDERS:
     if name not in folders:

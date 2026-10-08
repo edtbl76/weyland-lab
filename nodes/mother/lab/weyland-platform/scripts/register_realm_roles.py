@@ -8,12 +8,16 @@ After this, the Realm's `prompts.load_role()` can resolve each agent's system pr
 so a prompt is editable in the Bifrost UI without a rebuild — fail-safe to the baked `roles.py` fallback if Bifrost is
 unreachable or the prompt is unregistered. Idempotent: matched by name, existing prompts skipped. Mirrors the
 `register_bifrost_prompts.py` API contract (POST /api/prompt-repo/{folders,prompts,prompts/{id}/versions}); the
-prompt-repo API is un-authed in-cluster.
+prompt-repo API needs the setup token from Bifrost v2.2.6 (B202): pass BIFROST_SETUP_TOKEN into the exec.
 """
+import os
+
 import httpx
 
 from config import BIFROST_API_URL
 from roster import ROSTER, fallback_prompt
+
+BIFROST_HEADERS = {"X-Bifrost-Setup-Token": os.environ["BIFROST_SETUP_TOKEN"]} if os.getenv("BIFROST_SETUP_TOKEN") else {}  # B202: v2.2.6+ setup lock (auth off)
 
 FOLDER = ("realm-of-agents",
           "Per-agent role/system prompts for the B17 Realm of Agents (role-<key>). The Realm fetches these live via "
@@ -22,7 +26,7 @@ FOLDER = ("realm-of-agents",
 
 
 def main():
-    c = httpx.Client(base_url=BIFROST_API_URL, timeout=30)
+    c = httpx.Client(base_url=BIFROST_API_URL, timeout=30, headers=BIFROST_HEADERS)
     folders = {f["name"]: f["id"] for f in c.get("/api/prompt-repo/folders").json().get("folders") or []}
     if FOLDER[0] not in folders:
         folders[FOLDER[0]] = c.post("/api/prompt-repo/folders",

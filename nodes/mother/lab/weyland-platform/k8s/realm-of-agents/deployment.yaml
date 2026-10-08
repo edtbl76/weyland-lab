@@ -80,6 +80,10 @@ spec:
             # Bifrost endpoints — default the LAN ingress (CoreDNS forwards *.weyland.lab). To skip TLS to the self-signed
             # ingress, repoint BIFROST_MCP_URL/BIFROST_API_URL at the in-cluster Bifrost Service (plain http). To verify
             # the ingress cert instead, mount the lab CA and set BIFROST_CA_BUNDLE (never disable verification).
+            # B202 — Bifrost v2.2.6+ setup token: with Bifrost's dashboard auth off, every /api call must send it as
+            # X-Bifrost-Setup-Token (401 without). Optional so the pod starts before the secret exists; v1.6.7 ignores it.
+            - name: BIFROST_SETUP_TOKEN
+              valueFrom: { secretKeyRef: { name: bifrost-setup-token, key: BIFROST_SETUP_TOKEN, optional: true } }
             - name: BIFROST_MCP_URL
               value: http://bifrost.weyland.svc.cluster.local:8080/mcp
             - name: BIFROST_API_URL

@@ -30,7 +30,8 @@ CAPS = {
 }
 # UNCAPPED (cost $0 / not $-metered by Bifrost): ollama, vllm, sgl, huggingface, groq
 
-c = httpx.Client(base_url=BASE, timeout=30)
+BIFROST_HEADERS = {"X-Bifrost-Setup-Token": os.environ["BIFROST_SETUP_TOKEN"]} if os.getenv("BIFROST_SETUP_TOKEN") else {}  # B202: v2.2.6+ setup lock (auth off)
+c = httpx.Client(base_url=BASE, timeout=30, headers=BIFROST_HEADERS)
 
 def upsert(provider, cap):
     mcs = c.get("/api/governance/model-configs?limit=500").json().get("model_configs") or []

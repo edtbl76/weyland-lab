@@ -4,18 +4,10 @@ WORKDIR /app
 
 # No torch / embedder — every agent reasons via LiteLLM (wl-* lanes) and reaches tools over MCP (Bifrost VK), so the pod
 # stays light. langgraph + langchain-openai drive each ReAct loop; langchain-mcp-adapters loads the VK tool surface.
-RUN pip install --no-cache-dir \
-    fastapi \
-    uvicorn \
-    httpx \
-    prometheus-client \
-    langgraph \
-    langchain \
-    langchain-openai \
-    langchain-mcp-adapters==0.3.1 \
-    mcp==1.24.0 \
-    mlflow \
-    langfuse
+# Pinned 2026-10-08 (B202): requirements.txt is the exact package set of the live v21 image; requirements.in is the
+# human-maintained source (see its header for how to regenerate). This used to `pip install` the list unpinned.
+COPY requirements.txt /tmp/requirements.txt
+RUN pip install --no-cache-dir -r /tmp/requirements.txt
 
 COPY config.py roster.py roles.py obs.py prompts.py llm.py fleet.py agents.py realms.py router.py cards.py a2a.py stream.py console.html app.py /app/
 

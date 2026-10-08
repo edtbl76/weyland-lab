@@ -146,7 +146,8 @@ def build(root):
 LOADER = r'''
 import os, httpx
 BASE = os.getenv("BIFROST_URL", "http://bifrost.weyland.svc.cluster.local:8080")
-c = httpx.Client(base_url=BASE, timeout=60)
+BIFROST_HEADERS = {"X-Bifrost-Setup-Token": os.environ["BIFROST_SETUP_TOKEN"]} if os.getenv("BIFROST_SETUP_TOKEN") else {}  # B202: v2.2.6+ setup lock (auth off)
+c = httpx.Client(base_url=BASE, timeout=60, headers=BIFROST_HEADERS)
 existing, _off = set(), 0            # paginate — the skills list caps at 100/page
 while True:
     _r = c.get("/api/skills?limit=100&offset=%d" % _off).json()

@@ -1,0 +1,16 @@
+---
+apiVersion: bitnami.com/v1alpha1
+kind: SealedSecret
+metadata:
+  name: bifrost-setup-token
+  namespace: weyland
+spec:
+  encryptedData:
+    BIFROST_SETUP_TOKEN: AgA0D4e9O6vBLSXrIn47L4IaL13HuW3A2wMV3Cr1T15O1cbaGhoV1UuNXqxj+b/PR/AUlPBx0/t3mVhtKZQOuQFrt7xD0udtfv9Tz17I5ea9lsd0Mp9SAfXQvi+wqa7DLVafRZMX3XopSZzQEz0GVBzTmIZdvI9ZIK8QZk3ZIi6j9331gQ46iL6VE1FQfTlzkN+4VP4jIcyTvGYHQVzneztEK7oWLqdtlrJRHGYPWw58c+rSbmmiuxufuvAc0Y/ULznEqt6vjnpW0U8AK+j5aJblg/GmQ0nLKmWfOi/VGQlJPh/OfMyMzYmPU0cCvJzlfQVQ9hVpeC4anH79ATMn6vNVbNxEifyvZQNyPocBh5oRI+DdowH8cg5lYGQmxp1MhyEuLjDFzPIl8AB1LQ3aX1jgNzd/1IxXnM8+gLCVCR2p8qFBNXunVZXe45kNyz9JBYA9Y7RkjxZgwv6f/fdyt9kG92XX3HOvQli5LpFChgb7ru3PUmGnaVLQT5rIJiAEY2mjsFTswCnC8Q/ne9cwNlcwFDVsw6cpifDIP1BlS1WUYMlcV/dyMYF6dhs4niDmGH0q+FXW3xlhE5+jah1C/I193XuYBttRzWrBJYaPMobvbH+TxAm1zaOL2z7e1nDcZn6f34GQwPKe0IAEzZCoFKAAx+oZnxJ/e5Dl+R3rtp7gCa6IuiSaAGSbEfIC8jUc+C/BQ175djsUrybMgJcFoFAtkA9zsqjebGh7lj9VOtomHpqvN8xeTvnuTw0ujin2s+eImqGHpLXp9aY/3n+YsCPG
+  template:
+    metadata:
+      annotations:
+        sealedsecrets.bitnami.com/managed: "true"
+      name: bifrost-setup-token
+      namespace: weyland
+    type: Opaque

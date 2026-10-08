@@ -122,3 +122,12 @@ def test_the_bundle_must_hold_loops(tmp_path):
 def test_the_shipped_bundle_is_readable_and_every_loop_has_a_terminal_condition():
     shipped = loops.read_bundle(loops.BUNDLE)
     assert shipped and all(len(x["terminal_condition"]) >= 25 for x in shipped)
+
+
+def test_the_setup_token_header_follows_the_environment(monkeypatch):
+    # B202: from Bifrost v2.2.6 (auth off → setup lock) every /api call needs X-Bifrost-Setup-Token; no token, no header
+    import importlib
+    monkeypatch.setenv("BIFROST_SETUP_TOKEN", "t0ken")
+    assert importlib.reload(loops).BIFROST_HEADERS == {"X-Bifrost-Setup-Token": "t0ken"}
+    monkeypatch.delenv("BIFROST_SETUP_TOKEN")
+    assert importlib.reload(loops).BIFROST_HEADERS == {}

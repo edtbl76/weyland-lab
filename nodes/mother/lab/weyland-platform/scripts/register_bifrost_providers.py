@@ -29,7 +29,8 @@ MAP = {  # bifrost provider -> env var (must be present as env on the Bifrost po
     "elevenlabs": "ELEVEN_LABS_API_KEY", "together-api-key": "TOGETHER_API_KEY",
 }
 
-c = httpx.Client(base_url=BASE, timeout=30)
+BIFROST_HEADERS = {"X-Bifrost-Setup-Token": os.environ["BIFROST_SETUP_TOKEN"]} if os.getenv("BIFROST_SETUP_TOKEN") else {}  # B202: v2.2.6+ setup lock (auth off)
+c = httpx.Client(base_url=BASE, timeout=30, headers=BIFROST_HEADERS)
 print(f"mode = {'PURGE plaintext' if PURGE else 'ADD env-refs (non-destructive)'}\n")
 
 for prov, var in MAP.items():

@@ -503,9 +503,8 @@ compositor's `app.py` to `config.py`.
 - [argocd.md](argocd.md) — the sync mechanism and why the refresh annotation is forbidden
 - [code-quality.md](code-quality.md) — the scan-suite gate
 - `docs/schedules.md` — the CronJob's slot
-- `scripts/ci/images.tsv` — which images are in change detection. **Six are not**
-  (`weyland-guard`, `weyland-agent`,
-  `realm-of-agents`, `ray-head`, `a2a-inspector`, `mcp-server-datahub`); `ranger` is deliberately
-  version-pinned and excluded. Bringing those six in is **B135 phase 2** — until it ships,
+- `scripts/ci/images.tsv` — which images are in change detection. **Five are not**
+  (`weyland-guard`, `weyland-agent`, `ray-head`, `a2a-inspector`, `mcp-server-datahub`); `ranger` is deliberately
+  version-pinned and excluded. Bringing those five in is **B135 phase 2** — until it ships,
   `ship-images.sh` reports "nothing to ship" for a change to any of them (seen 2026-10-02: an
-  operator fix pushed, ship printed nothing to ship). `weyland-operator` moved in 2026-10-02, `weyland-mcp-compositor` 2026-10-03.
+  operator fix pushed, ship printed nothing to ship). `weyland-operator` moved in 2026-10-02, `weyland-mcp-compositor` 2026-10-03, `realm-of-agents` 2026-10-08 (B202, pinned from its live v21 freeze).

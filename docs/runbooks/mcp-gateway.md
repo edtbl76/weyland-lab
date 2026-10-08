@@ -254,6 +254,46 @@ folders` + `/prompts` + `/prompts/{id}/versions` (`messages:[{role,content}]`; `
 
 **GITHUB (parked):** remote MCP has no DCR → make a GitHub App (read-only) → paste its `client_id` + Bifrost's OAuth callback URL.
 
+## Bifrost setup token (B202, from v2.2.6)
+
+From **v2.2.6**, while Bifrost's dashboard auth is off (the lab's setting, `auth_config.is_enabled = false`), every
+non-public `/api` call needs the **setup token**: header `X-Bifrost-Setup-Token`, or the `bifrost_setup_session` cookie
+the dashboard gets from `POST /api/session/setup`. Without it, 401; with a wrong token, 403. `/health`, `/api/version`,
+inference (`/v1`) and `/mcp` are not affected.
+
+| Piece | Where |
+|---|---|
+| The token | `BIFROST_SETUP_TOKEN` in `scripts/.env` (64 chars, generated 2026-10-08), sealed as `weyland/bifrost-setup-token` |
+| Bifrost | env `BIFROST_SETUP_TOKEN` on the `bifrost` container (`k8s/bifrost/bifrost.yaml`, with the v2.2.6 pin) |
+| Callers | env `BIFROST_SETUP_TOKEN` on `dagster-user-code` (registrations, `sync_prompts.py`), `realm-of-agents` (live role-prompt reads) and `weyland-guard` (the pod the register scripts are piped into); each sends `X-Bifrost-Setup-Token` when the variable is set |
+| Guard | `scripts/tests/test_bifrost_setup_token.py` finds every Python file that calls a Bifrost `/api` path and fails if one does not send the header |
+
+**First-time setup.** Each step runs on rogueone. **1. Create the Secret** from `scripts/.env`, without printing it:
+
+[rogueone]
+```
+set -a && . /home/edwardmangini/IdeaProjects/weyland/scripts/.env && set +a && kubectl -n weyland create secret generic bifrost-setup-token --from-literal=BIFROST_SETUP_TOKEN="$BIFROST_SETUP_TOKEN" --dry-run=client -o yaml | kubectl -n weyland apply -f -
+```
+
+**2. Check the STORED value.** It must print `64`:
+```
+kubectl -n weyland get secret bifrost-setup-token -o jsonpath='{.data.BIFROST_SETUP_TOKEN}' | base64 -d | wc -c
+```
+
+**3. Seal it into the repo** ([secrets.md](secrets.md) § Rotate / re-seal):
+
+[rogueone]
+```
+kubectl -n weyland annotate secret bifrost-setup-token sealedsecrets.bitnami.com/managed=true --overwrite && kubectl -n weyland get secret bifrost-setup-token -o yaml | kubeseal --format yaml > /home/edwardmangini/IdeaProjects/weyland/nodes/mother/lab/weyland-platform/k8s/sealed-secrets/sealed/weyland__bifrost-setup-token.yaml
+```
+
+**The dashboard** (`bifrost.weyland.lab`) asks for the token once per browser session on v2.2.6+. Paste the
+`BIFROST_SETUP_TOKEN` value from `scripts/.env`. Enabling dashboard auth instead would lift the lock, but it also turns
+inference auth on for the first admin, and B202 chose the token (owner, 2026-10-08).
+
+**Rotate:** generate a new value in `scripts/.env`, repeat steps 1-3, push, and roll `bifrost`, `dagster-user-code`,
+`realm-of-agents` and `weyland-guard` (env from a Secret is read at start).
+
 ## Bifrost backup + restore — `bifrost-backup` (B202 Closing Gaps, 2026-10-08)
 
 Until 2026-10-08 Bifrost's `config.db` had NO backup, though it holds the 22 provider keys, the 4 virtual keys and their
@@ -277,9 +317,12 @@ Expect `sqlite-backup OK (config.db): /backup/bifrost/<ts> — counts={'config_p
 **Restore drill (non-destructive)** — opens the newest backup in a throwaway pod (copied to `/tmp`, never written back)
 and prints integrity, the manifest counts and the same tables' counts read from the copy:
 ```
-kubectl -n weyland run bifrost-restore-drill --rm -i --restart=Never --image=python:3.12-alpine --overrides='{"metadata":{"labels":{"sidecar.istio.io/inject":"false"}},"spec":{"automountServiceAccountToken":false,"securityContext":{"runAsUser":10001,"runAsGroup":10001,"runAsNonRoot":true},"containers":[{"name":"drill","image":"python:3.12-alpine","stdin":true,"command":["python3","-c","import glob,json,os,shutil,sqlite3; d=sorted(glob.glob(\"/backup/bifrost/2*\"))[-1]; m=json.load(open(d+\"/manifest.json\")); shutil.copy(d+\"/config.db\",\"/tmp/r.db\"); c=sqlite3.connect(\"/tmp/r.db\"); q=lambda s: c.execute(s).fetchone()[0]; print(\"backup\",os.path.basename(d),\"integrity\",q(\"pragma integrity_check\"),\"manifest\",m[\"counts\"]); print(\"live-shape counts:\",{t:q(\"select count(*) from \"+t) for t in [\"config_providers\",\"governance_virtual_keys\",\"config_mcp_clients\",\"prompts\",\"skills\"]})"],"volumeMounts":[{"name":"b","mountPath":"/backup","readOnly":true}]}],"volumes":[{"name":"b","persistentVolumeClaim":{"claimName":"bifrost-backup"}}]}}'
+kubectl -n weyland run bifrost-restore-drill --restart=Never --image=python:3.12-alpine --overrides='{"metadata":{"labels":{"sidecar.istio.io/inject":"false"}},"spec":{"automountServiceAccountToken":false,"securityContext":{"runAsUser":10001,"runAsGroup":10001,"runAsNonRoot":true},"containers":[{"name":"drill","image":"python:3.12-alpine","command":["python3","-c","import glob,json,os,shutil,sqlite3; d=sorted(glob.glob(\"/backup/bifrost/2*\"))[-1]; m=json.load(open(d+\"/manifest.json\")); shutil.copy(d+\"/config.db\",\"/tmp/r.db\"); c=sqlite3.connect(\"/tmp/r.db\"); q=lambda s: c.execute(s).fetchone()[0]; print(\"backup\",os.path.basename(d),\"integrity\",q(\"pragma integrity_check\"),\"manifest\",m[\"counts\"]); print(\"live-shape counts:\",{t:q(\"select count(*) from \"+t) for t in [\"config_providers\",\"governance_virtual_keys\",\"config_mcp_clients\",\"prompts\",\"skills\"]})"],"volumeMounts":[{"name":"b","mountPath":"/backup","readOnly":true}]}],"volumes":[{"name":"b","persistentVolumeClaim":{"claimName":"bifrost-backup"}}]}}' >/dev/null && kubectl -n weyland wait --for=jsonpath='{.status.phase}'=Succeeded pod/bifrost-restore-drill --timeout=180s >/dev/null; kubectl -n weyland logs bifrost-restore-drill; kubectl -n weyland delete pod bifrost-restore-drill
 ```
-Pass = `integrity ok` and the counts matching the manifest. Record the date in `docs/dr.md`.
+Pass = `integrity ok` and the counts matching the manifest. Record the date in `docs/dr.md`. It runs detached and reads the
+pod's log: `kubectl run -i --rm` lost the output of this fast-exiting pod (2026-10-08). **First drill 2026-10-08** on
+`20261008T200346Z`: integrity ok; providers 22, virtual keys 4, MCP clients 10, prompts 280, skills 589, all matching the
+manifest.
 
 **Restore (destructive).** Argo selfHeal reverts a scale-down, so pause the `bifrost` app first:
 `argocd app set bifrost --sync-policy none --grpc-web` → `kubectl -n weyland scale deploy/bifrost --replicas=0` → a
