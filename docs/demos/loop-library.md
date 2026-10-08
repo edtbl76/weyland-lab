@@ -42,10 +42,17 @@ DRY summary {'created': 11, 'updated': 0, 'unchanged': 0, 'failed': 0, 'orphans'
 ```
 kubectl -n weyland exec deploy/dagster-user-code -- env BIFROST_URL=http://bifrost.weyland.svc.cluster.local:8080 python /app/scripts/register_bifrost_loops.py
 ```
-Expect `11 created` on the first run, then `11 unchanged` on a re-run: the publisher posts nothing when git and
-Bifrost agree.
+RUN 2026-10-08 on the shipped image `weyland-dagster-user-code:git-26bd0d33`:
+```
+folder  CREATED loop-library
+prompt  CREATED loop-library/loop-ci-watch
+… (11 loops)
+done. 11 created, 0 updated, 0 unchanged, 0 failed, 0 orphan(s). 11 loops in git.
+```
+The re-run printed `0 created, 0 updated, 11 unchanged`, so it posts nothing when git and Bifrost agree. A read-back
+compared every published prompt's latest version with the git text: 11 of 11 identical.
 
-## UI walkthrough (UAT, eyes on)
+## UI walkthrough (UAT, eyes on) — DONE 2026-10-08 (owner)
 1. **Bifrost:** open the Prompt Repository, then the **loop-library** folder. Eleven `loop-*` prompts are listed. Open
    `loop-ci-watch`: the text starts with the title, then `Stop when:`, then the full prompt.
 2. **Langfuse:** after the same reconcile, the prompt federation mirrors the loops (`loop-*` prompts).
