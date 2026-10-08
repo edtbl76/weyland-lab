@@ -7,16 +7,11 @@ Repository shapes OBSERVED live on 2026-10-08: GET /folders -> {"folders":[{id,n
 {"prompts":[{id,name,folder_id}]}, GET /prompts/{id}/versions -> {"versions":[{is_latest, messages:[{message:{role,
 content}}]}]}. No httpx and no network: the client is injected.
 """
-import importlib.util
 import json
-from pathlib import Path
 
 import pytest
 
-_SPEC = importlib.util.spec_from_file_location(
-    "register_bifrost_loops", Path(__file__).resolve().parents[1] / "scripts" / "register_bifrost_loops.py")
-loops = importlib.util.module_from_spec(_SPEC)
-_SPEC.loader.exec_module(loops)
+import register_bifrost_loops as loops   # conftest.py puts scripts/ on sys.path (bare-name import, as the script runs)
 
 LOOP = {"id": "ci-watch", "title": "The CI watch", "category": "Operations", "description": "Watch CI.",
         "terminal_condition": "The pipeline reaches success, or a step fails twice.", "prompt": "Trigger it."}
