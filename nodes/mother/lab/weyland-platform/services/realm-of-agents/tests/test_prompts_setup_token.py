@@ -11,12 +11,23 @@ import pytest
 import prompts
 
 
+def _prompt(name, content, role="system"):
+    """One list entry in the shape Bifrost v1.6.7 actually returns (observed 2026-10-09, GET /api/prompt-repo/prompts):
+    each message is WRAPPED — {"id", "message": {"role", "content"}, "order_index", ...} — under latest_version."""
+    return {"id": f"id-{name}", "name": name, "folder": {}, "latest_version": {
+        "is_latest": True, "messages": [{"id": 1, "order_index": 0, "message": {"role": role, "content": content}}]}}
+
+
 class _Reply:
+    # Bifrost IGNORES the name/limit query params and returns every prompt, newest first (observed: 280 items, first
+    # `loop-scan-triage`), so the role prompt is NOT items[0].
     def raise_for_status(self):
         return None
 
     def json(self):
-        return {"prompts": [{"messages": [{"role": "system", "content": "you are the scout"}]}]}
+        return {"prompts": [_prompt("loop-scan-triage", "a loop", role="user"),
+                            _prompt("role-scout", "you are the scout"),
+                            _prompt("role-other", "you are someone else")]}
 
 
 @pytest.fixture
@@ -52,3 +63,10 @@ def test_no_token_sends_no_extra_header(monkeypatch, capture):
     module = _reload(monkeypatch, None)
     module._fetch("scout")
     assert capture["headers"] == {"x-bf-vk": "vk-realm"}
+
+
+def test_the_role_prompt_is_found_by_exact_name_not_list_position(monkeypatch, capture):
+    module = _reload(monkeypatch, None)
+    assert module._fetch("scout") == "you are the scout"
+    assert module._fetch("other") == "you are someone else"
+    assert module._fetch("missing") is None          # absent → the baked fallback, never another agent's prompt

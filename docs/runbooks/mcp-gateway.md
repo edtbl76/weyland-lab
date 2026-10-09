@@ -305,8 +305,8 @@ config_providers --require governance_virtual_keys --require prompts --require s
 own user. It writes a consistent snapshot plus `manifest.json` to PVC `bifrost-backup` (mother NVMe) and keeps 7. It
 fails closed → `ScheduledBackupFailed` (critical); `ScheduledJobStale` after 26h. `logs.db` (request logs, ~370 MB) is
 not backed up: observability history, recreated empty. **The copy holds the provider keys in the clear**, the same
-boundary as the live PVC. The data PVC `bifrost-data` is only **1 GiB** and `logs.db` grows; check free space before an
-upgrade that migrates the database.
+boundary as the live PVC. The data PVC `bifrost-data` requests 1 GiB, but `local-path` does not enforce that: it lives on mother's disk (404 GB
+free on 2026-10-09, 454 MB used).
 
 Run one now (and **before any Bifrost upgrade**):
 ```

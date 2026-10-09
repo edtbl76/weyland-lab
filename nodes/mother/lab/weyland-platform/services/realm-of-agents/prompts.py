@@ -21,16 +21,19 @@ def _fetch(key: str) -> str | None:
     """Return the first (system) message body of Bifrost prompt `role-<key>`, or None on any failure."""
     try:
         headers = {**BIFROST_HEADERS, **({"x-bf-vk": BIFROST_VK} if BIFROST_VK else {})}
+        # Bifrost IGNORES name/limit here and returns every prompt, newest first (observed 2026-10-09) — so select by
+        # exact name, never by list position (items[0] was some other prompt, so every agent fell back silently).
         r = httpx.get(f"{BIFROST_API_URL}/api/prompt-repo/prompts",
-                      params={"name": f"role-{key}", "limit": 1}, headers=headers, timeout=8, verify=HTTPX_VERIFY)
+                      params={"limit": 1000}, headers=headers, timeout=8, verify=HTTPX_VERIFY)
         r.raise_for_status()
-        items = (r.json() or {}).get("prompts") or r.json() or []
-        if not items:
+        items = (r.json() or {}).get("prompts") or []
+        match = next((p for p in items if p.get("name") == f"role-{key}"), None)
+        if match is None:
             return None
-        msgs = (items[0].get("latest_version") or items[0]).get("messages") or []
-        for m in msgs:
-            if m.get("role") == "system" and m.get("content"):
-                return m["content"]
+        for m in (match.get("latest_version") or {}).get("messages") or []:
+            msg = m.get("message") or m          # each message is wrapped: {"message": {"role", "content"}, ...}
+            if msg.get("role") == "system" and msg.get("content"):
+                return msg["content"]
     except Exception:
         return None
     return None

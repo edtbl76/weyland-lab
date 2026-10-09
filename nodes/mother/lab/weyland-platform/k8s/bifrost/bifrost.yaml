@@ -95,12 +95,20 @@ spec:
           # Pinned to the multi-arch INDEX digest of `latest` as of 2026-07-30 (not a per-arch manifest, so it still
           # resolves on any node arch — same rationale as LiteLLM). To bump: `docker buildx imagetools inspect
           # maximhq/bifrost:latest` on a box with docker → copy the top-level Digest → update below. Deliberate only.
-          image: maximhq/bifrost@sha256:bf2208978308477a9f667dfc04cef3153197aeaca8618befefbecde3ed3378b7   # latest @ 2026-07-30
+          # B202 (2026-10-09): v2.2.6 — the multi-arch OCI index (amd64 + arm64, `imagetools inspect maximhq/bifrost:v2.2.6`).
+          # Was v1.6.7 (sha256:bf220897…, `latest` @ 2026-07-30). Rollback = revert this line in git (selfHeal reverts a
+          # `kubectl rollout undo`) + restore config.db from bifrost-backup if the v2 migration damaged it
+          # (docs/runbooks/mcp-gateway.md § Bifrost backup + restore).
+          image: maximhq/bifrost@sha256:d0b4708ace1aa175766f94afa715fd9bba3a1b56c1dc2afff15a21edf3ae4e2a   # v2.2.6
           envFrom:                       # B111 key-sealing: provider API keys as env, from the bifrost-provider-keys
             - secretRef:                 # SealedSecret. Each provider's key is set to `env.VAR` (register_bifrost_providers.py)
                 name: bifrost-provider-keys
                 optional: true           # optional → pod still boots if the Secret isn't applied yet (chicken-and-egg safe)
           env:
+            # B202 — v2.2.6 setup lock: dashboard auth is off, so every non-public /api call needs this token
+            # (X-Bifrost-Setup-Token). Callers read the same Secret (runbooks/mcp-gateway.md § Bifrost setup token).
+            - name: BIFROST_SETUP_TOKEN
+              valueFrom: { secretKeyRef: { name: bifrost-setup-token, key: BIFROST_SETUP_TOKEN } }
             # B111 — expose the initContainer-staged stdio MCP runtime (node + chromium) to Bifrost's process spawner.
             - { name: PATH, value: "/runtime/bin:/runtime/usr/bin:/usr/local/bin:/usr/bin:/bin:/sbin" }
             - { name: LD_LIBRARY_PATH, value: "/runtime/usr/lib:/runtime/usr/lib/pulseaudio:/runtime/lib" }  # pulseaudio subdir = chromium's libpulse
