@@ -220,6 +220,7 @@ required** for tools to flow. See memory `bifrost-vk-mcp-attach`.
 
 **Restore-from-scratch (order matters):**
 1. apply `bifrost.yaml` (initContainer stages the runtime)
+1a. `kubectl -n weyland exec -i deploy/weyland-guard -- env BIFROST_URL=http://bifrost.weyland.svc.cluster.local:8080 python - < scripts/register_bifrost_client_config.py`  (`/metrics` public again under the v2.2.6 setup lock — § Bifrost setup token)
 2. `kubectl -n weyland exec -i deploy/weyland-guard -- python - < scripts/register_bifrost_mcp_clients.py`  (create clients)
 3. `kubectl -n weyland exec -i deploy/bifrost -c bifrost -- /runtime/usr/bin/python3 - < scripts/attach_bifrost_vk_mcp.py`  (scope VKs)
 4. `kubectl -n weyland rollout restart deploy/bifrost`  (reload — tools do NOT flow until this)
@@ -259,7 +260,17 @@ folders` + `/prompts` + `/prompts/{id}/versions` (`messages:[{role,content}]`; `
 From **v2.2.6**, while Bifrost's dashboard auth is off (the lab's setting, `auth_config.is_enabled = false`), every
 non-public `/api` call needs the **setup token**: header `X-Bifrost-Setup-Token`, or the `bifrost_setup_session` cookie
 the dashboard gets from `POST /api/session/setup`. Without it, 401; with a wrong token, 403. `/health`, `/api/version`,
-inference (`/v1`) and `/mcp` are not affected.
+inference (`/v1`) and `/mcp` are not affected. **`/metrics` IS affected** (found 2026-10-09 after the upgrade: Prometheus
+got 401, `up{job="bifrost"}` = 0, `bifrost_cost_total` gone, so `BifrostSpendObserved` was blind). The fix is the
+operator setting `client_config.whitelisted_routes` (exact match, or a trailing `*` for a prefix), which exempts a route
+from the lock. It lives only in `config.db`, so `scripts/register_bifrost_client_config.py` (idempotent) sets it to
+include `/metrics`. It round-trips the FULL `client_config` because `PUT /api/config` resets fields a partial body leaves
+out, then reads it back:
+```
+kubectl -n weyland exec -i deploy/weyland-guard -- env BIFROST_URL=http://bifrost.weyland.svc.cluster.local:8080 python - < /home/edwardmangini/IdeaProjects/weyland/nodes/mother/lab/weyland-platform/scripts/register_bifrost_client_config.py
+```
+Expect `updated: whitelisted_routes = ['/metrics']` (or `unchanged: …` on a re-run). Verify with the Prometheus query
+`up{job="bifrost"}` = 1 within a scrape interval.
 
 | Piece | Where |
 |---|---|

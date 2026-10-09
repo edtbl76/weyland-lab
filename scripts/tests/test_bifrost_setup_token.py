@@ -15,7 +15,7 @@ ROOTS = [REPO / "nodes", REPO / "scripts"]
 API_CALL = re.compile(r"""(?:["'}])(?:/api/(?:prompt-repo|skills|providers|mcp|governance|plugins|config)\b)""")
 SKIP_PARTS = {"tests", "test", ".venv", "node_modules", "__pycache__", "site-packages"}
 KNOWN = {"register_bifrost_prompts.py", "register_bifrost_loops.py", "sync_prompts.py", "prompts.py",
-         "register_bifrost_providers.py", "register_bifrost_mcp_clients.py"}
+         "register_bifrost_providers.py", "register_bifrost_mcp_clients.py", "register_bifrost_client_config.py"}
 
 
 def callers() -> list[Path]:
