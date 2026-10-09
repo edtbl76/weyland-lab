@@ -1,15 +1,17 @@
-# Flow: SQLite app-store backups — Open WebUI + Woodpecker (2026-10-04 / 05)
+# Flow: SQLite app-store backups — Open WebUI + Woodpecker + Bifrost (2026-10-04 / 05 / 08)
 
-Two apps keep their whole state in ONE SQLite file in WAL mode on a RWO PVC on mother: Open WebUI (`webui.db` — users,
-chats, settings, presets) and Woodpecker (`woodpecker.sqlite` — users, repos, CI secrets, the nightly cron, pipeline
-history, step logs). One script, `scripts/sqlite_backup.py`, embedded byte-identical into each CronJob's ConfigMap,
-backs both up; each job declares which tables must be non-empty. A backup that proves nothing fails CLOSED and pages.
+Three apps keep their whole state in ONE SQLite file in WAL mode on a RWO PVC on mother: Open WebUI (`webui.db` — users,
+chats, settings, presets), Woodpecker (`woodpecker.sqlite` — users, repos, CI secrets, the nightly cron, pipeline
+history, step logs) and Bifrost (`config.db` — providers and keys, virtual keys and budgets, MCP clients, ~280 prompts,
+~589 skills, the owned `client_config`; B202, before its v2 migration; its request-log `logs.db` is not backed up). One script, `scripts/sqlite_backup.py`, embedded byte-identical into each CronJob's ConfigMap,
+backs all three up; each job declares which tables must be non-empty. A backup that proves nothing fails CLOSED and pages.
 Runbooks: [open-webui.md](../runbooks/open-webui.md) · [woodpecker.md](../runbooks/woodpecker.md) § Backup + restore ·
+[mcp-gateway.md](../runbooks/mcp-gateway.md) § Bifrost backup + restore ·
 catalog [dr.md](../dr.md) · demo [sqlite-backups.md](../demos/sqlite-backups.md).
 
 ```mermaid
 sequenceDiagram
-    participant CJ as CronJob (open-webui-backup 23:45 · woodpecker-backup 23:50 NY)
+    participant CJ as CronJob (open-webui-backup 23:45 · woodpecker-backup 23:50 · bifrost-backup 23:55 NY)
     participant S as sqlite_backup.py
     participant D as data PVC (live db, WAL)
     participant B as backup PVC (mother NVMe)

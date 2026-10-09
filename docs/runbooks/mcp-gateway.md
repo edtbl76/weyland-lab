@@ -156,13 +156,15 @@ curl -sk -o /dev/null -w '%{http_code}\n' -X POST https://bifrost.weyland.lab/mc
 **B111** = adopt Bifrost's full agentic-gateway feature set (virtual keys, budgets, governance) — bake-off vs LiteLLM; that
 work also does the config-as-GitOps (init-seed `config.json` + SealedSecret'd virtual keys, since the repo is public).
 
-## Bifrost governance — budgets + key-sealing (B111, v1.6.7)
+## Bifrost governance — budgets + key-sealing (B111 on v1.6.7; re-verified on v2.2.6, B202)
 
-**Per-provider budget caps** (`scripts/register_bifrost_governance.py`, idempotent). v1.6.7 budgets are on a
+**Per-provider budget caps** (`scripts/register_bifrost_governance.py`, idempotent). Budgets are on a
 **model-config** `(provider, model_name:"*", scope:"global")` via `POST /api/governance/model-configs` with nested
-`budgets:[{max_limit, reset_duration:"1M"}]` — NOT on VKs (the VK-budget field in the getbifrost docs is a newer,
-unreleased schema; v1.6.7 IS the latest release). `POST /api/governance/budgets` = 405 (read-only). 18 caps set:
-Anthropic $20, others $10/mo. Verify: UI → Budgets & Limits, or `GET /api/governance/model-configs`.
+`budgets:[{max_limit, reset_duration:"1M"}]` — NOT on VKs. That was the only working mechanism on v1.6.7 (the VK-budget
+field in the getbifrost docs was then unreleased); it survived the v2.2.6 migration unchanged, and the lab has not
+adopted VK budgets. `POST /api/governance/budgets` = 405 (read-only). Anthropic $20, others $10/mo; **25 model-configs,
+all with budgets** (2026-10-09, after the v2.2.6 roll; the script re-ran clean). Verify: UI → Budgets & Limits, or
+`GET /api/governance/model-configs` (with `X-Bifrost-Setup-Token` from v2.2.6 — § Bifrost setup token).
 
 **Key-sealing** — provider keys never sit as plaintext in the PVC. Flow:
 ```
@@ -184,7 +186,7 @@ Restore-from-scratch: apply SealedSecret → restart → run `register_bifrost_p
 well: **`chain_rule` is NOT on-failure fallback** (verified — a rule → down provider, vLLM off `502 connection refused`
 = the documented trigger, with `chain_rule:true` + a second same-CEL rung did **not** cascade), and **adaptive
 load-balancing** (weighted targets + capacity/error-aware failover) is **Enterprise-locked** (only static routing is OSS).
-VK `provider_configs` auto-fallback IS OSS + transparent but can't resolve self-hosted (vllm/ollama) keys in v1.6.7.
+VK `provider_configs` auto-fallback IS OSS + transparent but can't resolve self-hosted (vllm/ollama) keys in v1.6.7 (not re-tested on v2.2.6; routing stays in LiteLLM by decision).
 So the 9 `wl-*` use-case aliases + fallback chains live in **LiteLLM** — see [runbooks/model-gateway.md](model-gateway.md)
 (§ Use-case router). Bifrost keeps what it's good at OSS: the MCP agent edge, provider egress, budgets, key vault,
 observability. `scripts/register_bifrost_routing.py` is **obsolete** (removed).

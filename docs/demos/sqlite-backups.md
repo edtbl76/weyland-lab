@@ -1,10 +1,12 @@
-# Demo — SQLite app-store backups (Open WebUI + Woodpecker) and Woodpecker's lock fix (B182 / B201)
+# Demo — SQLite app-store backups (Open WebUI + Woodpecker + Bifrost) and Woodpecker's lock fix (B182 / B201 / B202)
 
 Two apps keep their whole state in one live SQLite file on mother, and neither had a backup: Open WebUI (users, chats,
 settings, presets) and Woodpecker (users, repos, CI secrets, the nightly cron, pipeline history). One tested script,
 `scripts/sqlite_backup.py`, backs both up every night and fails closed. Woodpecker's `database is locked` — which
 killed an in-flight pipeline when the nightly cron fired — is fixed with a one-connection pool and watched by two Loki
-alerts. **The restore drill and the recreated collision ARE the validation.** All RUN 2026-10-05/06.
+alerts. **The restore drill and the recreated collision ARE the validation.** All RUN 2026-10-05/06. **Bifrost's**
+`config.db` (providers, keys, budgets, MCP clients, prompts, skills) joined on 2026-10-08 (B202, before its v2
+migration) — step 6.
 
 ## Sequence diagram
 See [../diagrams/flow-sqlite-backup.md](../diagrams/flow-sqlite-backup.md).
@@ -58,6 +60,19 @@ RUN 3× 2026-10-06 03:01–03:34Z: lean **#270 / #272 / #274 all `success`** whi
 (event `cron`) ran 16–17 steps clean (each stopped after the lean run finished, so no full run landed in the 00:00–01:00
 window). Server log: **0** `database is locked` / `task expired`. Before the fix the same overlap killed #252 in 20 s.
 
+**6. Bifrost (B202) — run now, nightly, and the restore drill.** Run one now (also before any Bifrost upgrade):
+```
+kubectl -n weyland create job --from=cronjob/bifrost-backup bifrost-backup-manual-$(date +%s)
+```
+The first nightly run (23:55 NY, 2026-10-08 → `kubectl -n weyland logs job/bifrost-backup-29858635`):
+```
+sqlite-backup OK (config.db): /backup/bifrost/20261009T035501Z — counts={'config_providers': 22, 'governance_virtual_keys': 4, 'prompts': 280, 'skills': 589, 'config_mcp_clients': 10, 'prompt_versions': 287} files=['config.db']
+```
+Runs as uid 10001, Bifrost's own user. The non-destructive drill (command in runbooks/mcp-gateway.md § Bifrost backup +
+restore — a detached pod opens a COPY of the newest backup), RUN 2026-10-08 on `20261008T200346Z`: `integrity ok`;
+providers 22, virtual keys 4, MCP clients 10, prompts 280, skills 589 — every count matching the manifest. The
+pre-upgrade backup `20261009T041944Z` (same counts) was the rollback point for the v2.2.6 migration.
+
 **5. The alerts reach Telegram** — a labelled DRILL `WoodpeckerTaskExpired` (command in runbooks/woodpecker.md):
 `alertmanager_notifications_total{integration="telegram"}` 13,476 → **13,477**, failed unchanged at 17.
 
@@ -67,7 +82,9 @@ window). Server log: **0** `database is locked` / `task expired`. Before the fix
    `WoodpeckerTaskExpired` listed, state **Normal**.
 3. **Argo CD** (`https://argocd.weyland.lab`) → app **woodpecker-backup**: Synced + Healthy; CronJob `woodpecker-backup`
    schedule `50 23 * * *` America/New_York.
-4. **Woodpecker** (`https://woodpecker.weyland.lab`) → weyland-lab: #270/#272/#274 green; #271/#273/#275 (cron) killed by
+4. **Argo CD** → app **bifrost**: Synced + Healthy; CronJob `bifrost-backup` schedule `55 23 * * *` America/New_York,
+   last run Complete.
+5. **Woodpecker** (`https://woodpecker.weyland.lab`) → weyland-lab: #270/#272/#274 green; #271/#273/#275 (cron) killed by
    the operator — expected, they were only the collision.
 
 ## Expected result

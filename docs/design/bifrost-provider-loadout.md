@@ -210,6 +210,9 @@ cerebras/parasail/replicate/runway/runware/wafer/elevenlabs). Free/self-hosted (
 `POST /api/governance/budgets` is **405** (read-only view). In v1.6.7 VKs carry identity + tool-scoping, NOT budgets (the
 VK `budget` field the docs show doesn't exist yet — v1.6.7 IS the latest release, no upgrade available). Verify:
 `GET /api/governance/model-configs`. The 3 consumer VKs (coding-agents/operator/chat-eval) exist for edge auth; values sealed.
+**Update 2026-10-09 (B202, v2.2.6):** the model-config budgets survived the v2 migration unchanged (25, all with budgets)
+and `register_bifrost_governance.py` re-ran clean. VK budgets are not adopted. From v2.2.6 every inference call needs a
+virtual key (`enforce_auth_on_inference`), and `/api` needs the setup token (runbooks/mcp-gateway.md).
 
 ## Budget/Limit posture (the point of tracking paywalls)
 

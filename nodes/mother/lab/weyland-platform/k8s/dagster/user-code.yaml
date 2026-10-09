@@ -82,7 +82,7 @@ spec:
             # B103 prompt federation — sync_prompts.py mirrors Bifrost prompts → Langfuse. Project keys reused from the
             # already-sealed litellm-secrets (same weyland ns) to avoid a duplicate sealed CR.
             # B202 (the Bifrost registrations + sync_prompts.py run here) — Bifrost v2.2.6+ setup token: with Bifrost's dashboard auth off, every /api call must send it as
-            # X-Bifrost-Setup-Token (401 without). Optional so the pod starts before the secret exists; v1.6.7 ignores it.
+            # X-Bifrost-Setup-Token (401 without). Optional so the pod starts before the secret exists.
             - name: BIFROST_SETUP_TOKEN
               valueFrom: { secretKeyRef: { name: bifrost-setup-token, key: BIFROST_SETUP_TOKEN, optional: true } }
             - name: LANGFUSE_HOST

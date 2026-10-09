@@ -9,4 +9,7 @@ RUN pip install --no-cache-dir --break-system-packages -r /tmp/requirements.txt
 WORKDIR /app
 COPY server.py /app/
 EXPOSE 8080
+# Runs as root on purpose: it shares the hf-cache volume at /root/.cache/huggingface with the vllm, sglang and
+# llama-guard containers (all root); on-demand, LAN-only on rogueone (B174).
+# nosemgrep: dockerfile.security.missing-user.missing-user
 CMD ["python", "server.py"]

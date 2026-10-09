@@ -88,3 +88,10 @@ CVE-2026-71211
 CVE-2026-93687 exp:2027-01-02
 CVE-2026-93748 exp:2027-01-02
 CVE-2026-85393 exp:2027-01-02
+
+# ---- 2026-10-09 B202 DoD scan triage (realm-of-agents) ----
+# realm-of-agents/requirements.txt pins cryptography 49.0.0 because mlflow 3.15.x (matching the MLflow 3.15.1 server
+# the Realm traces to) requires cryptography<50; the fix is 50.0.0. The CVE is in PKCS#7 EnvelopedData decryption, which
+# the Realm never performs (it only makes TLS client calls). Lift it when the MLflow server and its clients move to 3.16+.
+# Same ID in osv-scanner.toml. `exp:` re-surfaces it on 2027-01-09.
+CVE-2026-69247 exp:2027-01-09

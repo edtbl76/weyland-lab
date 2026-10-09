@@ -102,8 +102,19 @@ Two Traefik routers on the one host (MCP clients can't browser-SSO, so the paths
 
 | Path | Auth | Purpose |
 |---|---|---|
-| `/` (UI) | **Keycloak** forward-auth | Bifrost admin — MCP catalog, virtual keys, observability |
-| `/mcp` | Bifrost virtual-key (none in-cluster) | aggregated MCP endpoint the coding agents point at |
+| `/` (UI) | **Keycloak** forward-auth, then the **setup token** once per browser session (v2.2.6+) | Bifrost admin — MCP catalog, virtual keys, observability |
+| `/mcp` | Bifrost virtual key (`x-bf-vk`) | aggregated MCP endpoint the coding agents point at |
+
+In-cluster (`bifrost.weyland.svc.cluster.local:8080`, Bifrost **v2.2.6** since 2026-10-09, B202):
+
+| Path | Auth | Callers |
+|---|---|---|
+| `/v1/*` (inference) | **virtual key required** (`enforce_auth_on_inference`, 2026-10-09); none → 401 | LiteLLM's hosted lanes (`realm-llm`) |
+| `/api/*` (management) | `X-Bifrost-Setup-Token` (dashboard auth off); none → 401, wrong → 403 | the register scripts, Dagster `registrations`, the Realm's role-prompt reads |
+| `/metrics` | public (`client_config.whitelisted_routes`) | Prometheus |
+| `/health`, `/api/version` | public | probes |
+
+The owned settings and the token: [runbooks/mcp-gateway.md](runbooks/mcp-gateway.md) § Bifrost setup token.
 
 Reads only — the compositor fleet is read-only, and **acts still go gateway → tool-server `/mcp-act`** (Bifrost never
 touches the act lane). The longer `/mcp` path outranks the forward-auth'd `/` router in Traefik, so agent requests skip

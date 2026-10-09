@@ -83,6 +83,17 @@ lockfile). Env per app: `LANGFUSE_HOST`, `LANGFUSE_PUBLIC_KEY`/`SECRET_KEY` (fro
 - **Linked:** exercise an app (e.g. `POST /context/ask`), open the trace in Langfuse → the generation header shows a
   `Prompt: <name> - vN` chip (clickable → all traces on that version).
 
+## Run the registrations group now (don't wait for Sunday 05:00)
+
+`registrations_reconcile_job` re-applies the Bifrost prompt and skill repos, the loop library, the Realm role prompts and
+this sync (idempotent). Launch it on demand after a Bifrost change (an upgrade, a restore, a token rotation):
+```
+kubectl exec -n weyland deploy/dagster-user-code -- python3 -c "import json,urllib.request;q='mutation(\$p:ExecutionParams!){launchRun(executionParams:\$p){__typename ... on LaunchRunSuccess{run{runId status}} ... on PythonError{message}}}';v={'p':{'selector':{'repositoryLocationName':'weyland_pipeline','repositoryName':'__repository__','jobName':'registrations_reconcile_job'},'runConfigData':{}}};r=urllib.request.Request('http://dagster-webserver.weyland.svc.cluster.local:3000/graphql',data=json.dumps({'query':q,'variables':v}).encode(),headers={'Content-Type':'application/json'});print(json.load(urllib.request.urlopen(r))['data']['launchRun'])"
+```
+Expect `LaunchRunSuccess` with a `runId`; follow it in Dagster (`dagster.weyland.lab` → Runs) until every step is
+`SUCCESS`. From Bifrost v2.2.6 the steps need `BIFROST_SETUP_TOKEN` on `dagster-user-code` (a 401 in a step log means
+the Secret is missing).
+
 ## Gotchas
 
 - **langfuse SDK vs REST:** SDK 3.x/4.x caps `packaging<26` → conflicts with the dagster mega-lockfile. Use REST for

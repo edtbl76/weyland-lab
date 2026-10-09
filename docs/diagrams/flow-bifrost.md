@@ -21,5 +21,28 @@ sequenceDiagram
     Note over A,B: same VK also serves the 241-prompt repo and the 583-skill plugin marketplace (git-served)
 ```
 
+## Who authenticates how (v2.2.6, B202 — 2026-10-09)
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant L as LiteLLM (hosted lanes)
+    participant R as Register scripts · Dagster registrations · Realm
+    participant P as Prometheus
+    participant B as Bifrost v2.2.6
+    L->>B: POST /v1/chat/completions (x-bf-vk = realm-llm)
+    B->>B: enforce_auth_on_inference - a virtual key is required
+    B-->>L: 200 (no key - 401)
+    R->>B: GET or POST /api/... (X-Bifrost-Setup-Token)
+    B->>B: setup lock (dashboard auth off) - token checked
+    B-->>R: 200 (none - 401, wrong - 403)
+    P->>B: GET /metrics
+    B->>B: client_config.whitelisted_routes includes /metrics
+    B-->>P: 200 (bifrost_cost_total for BifrostSpendObserved)
+```
+
+The three settings live in `config.db` and are restored by `register_bifrost_client_config.py`; the token is the sealed
+`bifrost-setup-token` Secret (runbook § Bifrost setup token).
+
 **Read-only fleet;** write/act tools live on the separate `/mcp-act` mount (Keycloak-authed, `policy.gate`).
 Demo: [demos/bifrost.md](../demos/bifrost.md). Runbook: [runbooks/mcp-gateway.md](../runbooks/mcp-gateway.md).
