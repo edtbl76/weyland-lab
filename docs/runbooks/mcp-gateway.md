@@ -220,7 +220,7 @@ required** for tools to flow. See memory `bifrost-vk-mcp-attach`.
 
 **Restore-from-scratch (order matters):**
 1. apply `bifrost.yaml` (initContainer stages the runtime)
-1a. `kubectl -n weyland exec -i deploy/weyland-guard -- env BIFROST_URL=http://bifrost.weyland.svc.cluster.local:8080 python - < scripts/register_bifrost_client_config.py`  (`/metrics` public again under the v2.2.6 setup lock — § Bifrost setup token)
+1a. `kubectl -n weyland exec -i deploy/weyland-guard -- env BIFROST_URL=http://bifrost.weyland.svc.cluster.local:8080 python - < scripts/register_bifrost_client_config.py`  (the owned `client_config`: `/metrics` public under the setup lock, CORS origins, inference auth — § Bifrost setup token)
 2. `kubectl -n weyland exec -i deploy/weyland-guard -- python - < scripts/register_bifrost_mcp_clients.py`  (create clients)
 3. `kubectl -n weyland exec -i deploy/bifrost -c bifrost -- /runtime/usr/bin/python3 - < scripts/attach_bifrost_vk_mcp.py`  (scope VKs)
 4. `kubectl -n weyland rollout restart deploy/bifrost`  (reload — tools do NOT flow until this)
@@ -260,17 +260,40 @@ folders` + `/prompts` + `/prompts/{id}/versions` (`messages:[{role,content}]`; `
 From **v2.2.6**, while Bifrost's dashboard auth is off (the lab's setting, `auth_config.is_enabled = false`), every
 non-public `/api` call needs the **setup token**: header `X-Bifrost-Setup-Token`, or the `bifrost_setup_session` cookie
 the dashboard gets from `POST /api/session/setup`. Without it, 401; with a wrong token, 403. `/health`, `/api/version`,
-inference (`/v1`) and `/mcp` are not affected. **`/metrics` IS affected** (found 2026-10-09 after the upgrade: Prometheus
-got 401, `up{job="bifrost"}` = 0, `bifrost_cost_total` gone, so `BifrostSpendObserved` was blind). The fix is the
-operator setting `client_config.whitelisted_routes` (exact match, or a trailing `*` for a prefix), which exempts a route
-from the lock. It lives only in `config.db`, so `scripts/register_bifrost_client_config.py` (idempotent) sets it to
-include `/metrics`. It round-trips the FULL `client_config` because `PUT /api/config` resets fields a partial body leaves
-out, then reads it back:
+inference (`/v1`) and `/mcp` are not affected by the lock (they use virtual keys). **`/metrics` IS affected** (found
+2026-10-09 after the upgrade: Prometheus got 401, `up{job="bifrost"}` = 0, `bifrost_cost_total` gone, so
+`BifrostSpendObserved` was blind).
+
+**The `client_config` settings the lab owns** live only in `config.db`, so `scripts/register_bifrost_client_config.py`
+(idempotent) sets them and restores them after a rebuild:
+
+| Setting | Value | Why |
+|---|---|---|
+| `whitelisted_routes` | includes `/metrics` | exempts the scrape from the setup lock (exact match, or a trailing `*` for a prefix) |
+| `allowed_origins` | includes `https://bifrost.weyland.lab` | CORS. Empty already means localhost-only; this makes it explicit (the dashboard's "Restrict CORS origins") |
+| `enforce_auth_on_inference` | `true` | every inference call needs a virtual key; dashboard credentials do not count. All callers already send one (LiteLLM `realm-llm`; Claude Code, Codex, OpenCode `x-bf-vk` on `/mcp`; the Realm), checked 2026-10-09 against 30 days of `logs.db` |
+
+It round-trips the FULL `client_config` because `PUT /api/config` resets fields a partial body leaves out, sends
+`enforce_auth_on_inference` explicitly (an omitted key keeps the stored value), then reads it back:
 ```
 kubectl -n weyland exec -i deploy/weyland-guard -- env BIFROST_URL=http://bifrost.weyland.svc.cluster.local:8080 python - < /home/edwardmangini/IdeaProjects/weyland/nodes/mother/lab/weyland-platform/scripts/register_bifrost_client_config.py
 ```
-Expect `updated: whitelisted_routes = ['/metrics']` (or `unchanged: …` on a re-run). Verify with the Prometheus query
-`up{job="bifrost"}` = 1 within a scrape interval.
+Expect `updated: …` (or `unchanged: client_config already as owned` on a re-run). A changed `allowed_origins` makes
+Bifrost flag "restart required" (CORS itself swaps live), so restart once after a change:
+`kubectl -n weyland rollout restart deploy/bifrost`. Verify:
+- `up{job="bifrost"}` = 1 in Prometheus within a scrape interval;
+- inference auth: no key → `401`, the `realm-llm` key → `200` (`GET /v1/models` costs nothing; the key is read inside
+  the LiteLLM pod and never printed):
+```
+kubectl -n weyland exec deploy/litellm -- python -c "import os,urllib.request as u,urllib.error as e
+def c(h):
+  try: return u.urlopen(u.Request('http://bifrost.weyland.svc.cluster.local:8080/v1/models',headers=h),timeout=15).status
+  except e.HTTPError as x: return x.code
+print('no key:',c({}),'| realm-llm key:',c({'x-bf-vk':os.environ['BIFROST_REALM_VK']}))"
+```
+**Undo** a setting: change it in the script (`LIST_FIELDS` / `FLAG_FIELDS`) and re-run; to turn inference auth off,
+set the flag to `False`. **The dashboard's setup checklist** (v2.2.6): CORS and inference auth are done here; "Set up
+dashboard auth" stays off by decision (the setup token, B202, 2026-10-08), so "I accept the risk - hide for everyone".
 
 | Piece | Where |
 |---|---|
