@@ -78,7 +78,7 @@ Re-ordered per RE-grounded audit (aidlc-docs/inception/backlog-reprioritization.
 - **B175** — **Loop library: catalog reusable agentic loops (workflows-as-prompts)** — **DONE 2026-10-08** (HIGH, 2026-09-22, Linear EMA-233). A catalog of reusable AI-agent LOOPS — prompt-workflows with checkpoints + explicit stopping conditions — modeled on [forwardfuture.com/loop-library](https://signals.forwardfuture.com/loop-library/). A "loop" = a detailed prompt with built-in checkpoints + a terminal condition (stops runaway loops); each entry = title · category (Engineering/Operations/Evaluation/Content/Design) · description · full prompt · terminal condition. The lab already runs many ad-hoc — the DoD 8-pillar pass, code-scan-suite triage, the pr-lifecycle reconcile (B131), golden-path verify, eval loops (B84/B96), the operator incident sweep (B45/B66), inventory onboarding (B169) — so codify them as a versioned, discoverable library with explicit stopping rules (matching the `/loop` command's self-pacing). Natural extension of the Bifrost prompt repo + skills repo; decide Bifrost-SoT vs docs-catalog vs both, seed with the lab's real workflows. $0. See detail below.
 - **B202** — **Upgrade Bifrost v1.6.7 → v2.2.6 (major)** — **DONE 2026-10-09** (HIGH, 2026-10-08, Linear EMA-288). v2.2.6 rolled and verified; `config.db` backed up nightly and drilled; the setup token on all 14 `/api` callers; virtual key required on inference, CORS explicit, `/metrics` whitelisted (`register_bifrost_client_config.py`); the Realm now loads its 24 Bifrost role prompts (0 since B17) and its pinned deps carry no critical/high CVE. See detail below.
 - **B203** — **Bifrost v2: scope VK→MCP through the API (retire the config.db write) + alert on unhealthy MCP clients** — **DONE 2026-10-09** (MEDIUM, 2026-10-09, Linear EMA-289). B202 follow-up the owner asked to complete: v2.2.6's governance API attaches MCP clients to virtual keys by name and applies it live (proven on a throwaway key: 0 → 2 → 0 tools, no restart), so `attach_bifrost_vk_mcp.py` (a direct SQLite write + a mandatory Bifrost restart) is replaced; and a daily watchdog alerts when any MCP client is not `healthy` (Linear sat disconnected unnoticed before B202). See §B203.
-- **B179** — **Investigate Warp Software Factory for the lab** — **HIGH (2026-09-24, Linear EMA-237).** Evaluate warp.dev's agentic software-development offering against REAL lab context and land an ADOPT / DON'T-ADOPT verdict (same discipline as B174/B119): what it actually is (agent orchestration / multi-agent build pipelines / hosted terminal-agent), fit against the lab's hard constraints ($0 / self-hosted / LAN — a paid-cloud-only product likely fails like the Linear Agent, but check for a free/self-host tier first), overlap with what already exists (AIDLC, Bifrost skills/prompts, weyland-operator, Claude Code + the B175 loop library, the B17 A2A roster), and any "software factory" concepts worth stealing even if the product isn't adopted. Deliverable: a `docs/concepts/` verdict + rationale. See detail below.
+- **B179** — **Software-factory experiments: Emdash · Vibe Kanban · OpenHands for unattended issue → PR orchestration** — **HIGH (2026-09-24, Linear EMA-237; re-scoped 2026-10-09 from evaluation to experiment).** Warp Factories: DON'T ADOPT (metered by design; self-hosted only on Enterprise) — [concepts/software-factory.md](concepts/software-factory.md). The experiment: run one READY issue through each tool and measure whether it reaches a PR unattended, at what cost and quality; OpenHands only on a local model ($0). See §B179.
 - **B180** — **Track host systemd units (mother, rogueone, weyland) in a YAML SoT + the Port inventory** — **DONE (2026-10-01; was HIGH, Linear EMA-238).** Units and host config files are rows in `placement.yaml`; repo check in CI, host check nightly in `machine-inv-drift` (Kuma → Telegram), Port kinds `systemd-unit`/`host-config`. Demo `demos/placement.md`. The lab's own host-level services/timers are tracked nowhere: the repo holds 15 unit files across 3 machines, each deployed by a hand `rsync` + `systemctl enable`, with no record of what is actually installed/enabled where, no repo↔host drift check, and no failure alerting for host timers (unlike k8s CronJobs). Audit the hosts, add a `host-units.yaml` SoT, catalog them in Port beside the B129 machine inventory, guard drift, and give every host timer a failure signal. See detail below.
 - **B181** — **"Work on issue" / Copy-as-prompt launchers in Linear for the apps on the start.me Weyland Lab page (Figma Make first)** — **MEDIUM (2026-09-25, Linear EMA-239).** Linear's built-in coding-tool launchers are mostly unusable here (terminal tools need the Linear desktop app — no Linux build; the cloud agents are paid), so apps we actually use for greenfield work — Figma Make for OJay Floyd / MyBodyGraph prototyping — have no issue→app hand-off. Configure Linear **custom-link** coding tools for the start.me Weyland Lab apps that accept a prompt via URL. See detail below.
 - **B182** — **Shared agent memory across harnesses (Claude Code, Codex, OpenCode, Pi, Open WebUI, operator)** — **DONE (2026-10-05, Linear EMA-240).** One store (Basic Memory on rogueone, the notes in place); Claude Code native, Codex/OpenCode read+write via Bifrost, the operator and Open WebUI read-only via the governed MCP gateway — Open WebUI as each signed-in person, audited in Loki; compositors locked to the gateway (+ Bifrost). Was HIGH. The lab is multi-harness, but durable agent memory lives only in Claude Code's auto-memory, which no other harness can read — Codex (connected to Linear 2026-09-25) sees none of it. One shared store every harness reads and writes; candidate = an MCP memory server (Basic Memory) behind the Bifrost MCP gateway — store, transport and gateway all TBD. ContextStream rejected (a second, proprietary store). Concept `docs/concepts/multi-harness.md`, design `docs/design/shared-agent-memory-design.md`. See detail below.
@@ -180,7 +180,7 @@ Re-ordered per RE-grounded audit (aidlc-docs/inception/backlog-reprioritization.
   **⚠ OVERLAPS EMA-208 (Graphify Stage 4, "in-lab semantic pass") — decide ownership before either is built.** Both propose running an LLM over prose to extract graph structure, and they intersect on `docs/`. Graphify was adopted **deliberately as structure-only** — no embeddings by design, graph-RAG keeps retrieval (see `docs/concepts/graphify-adoption.md`) — so a semantic pass landing there would quietly reverse that decision. Whichever item owns the semantic pass over documentation, it should be one of them, not both.
 
 27b. **B126** — **Trial / adopt a spec-driven framework (B86 follow-up)** — **MERGED INTO [B86] 2026-08-27 (was LOW; Linear EMA-146 closed as merged into EMA-76).** Never a separate item: its part **(b) was the same four notations** B86's evaluation concluded should be adopted, so it duplicated B86's execution half. B86 was reopened the same day precisely because those four were never implemented — folding B126 in puts the decision and its execution back in one place. **Full scope, the trial half, and B126's opportunistic gate are all preserved in the B86 entry.** Original text follows for the record. **(2026-08-11; B86 follow-up.)** [B86] decided the Method is a lifecycle *superset* of OpenSpec / Spec Kit / BMAD / Kiro → **cross-pollinate artifact notations, don't migrate**. This item = actually execute a slice of that: **(a)** trial **OpenSpec** (brownfield delta model) or **Spec Kit** (constitution + `analyze` gate) on **one small unit** to feel the discipline first-hand ($0 / MIT / agent-agnostic / reversible); and/or **(b)** fold the borrowed notations into the Method — **delta specs** (ADDED/MODIFIED/REMOVED) into Iteration-N artifacts · **EARS notation** into Requirements Analysis · a checkable **constitution** rendering of the always-enforced baseline · **context-engineered unit files** (BMAD). No tool migration; **not Kiro** ($0 violation — managed AWS / Bedrock-locked / no BYOK). Eval + decision matrix: `docs/concepts/spec-driven-frameworks.md`; memory `spec-driven-frameworks-b86`. **Gate:** low-priority/opportunistic — do it when the Method's Requirements/Units stages are next being revised, not as a standalone push.
-27c. **B86.1** — **The spec-driven framework selector: a prompt or PRD in, a recommendation (BMAD / AI-DLC / OpenSpec / Spec Kit, or none) out** — **HIGH (2026-10-09, Linear EMA-290, sub-issue of EMA-76).** Owner, 2026-10-09: don't choose one framework — evaluate all four (B86, re-scoped to a measured bake-off) and build a selector. An LLM only extracts facts from the document; versioned rules calibrated on the bake-off decide (the B190 lesson). Repurposed the same day from "SDD constitution". See §B86.1.
+27c. **B86.1** — **The spec-driven framework selector: a prompt or PRD in, a recommendation (BMAD / AI-DLC / OpenSpec / Spec Kit, or none) out** — **HIGH (2026-10-09, Linear EMA-290, sub-issue of EMA-76) — DEFERRED 2026-10-09 with B86 (may need hardware).** Owner, 2026-10-09: don't choose one framework — evaluate all four (B86, re-scoped to a measured bake-off) and build a selector. An LLM only extracts facts from the document; versioned rules calibrated on the bake-off decide (the B190 lesson). Repurposed the same day from "SDD constitution". See §B86.1.
 
 28. **B44** — **Grafana OnCall** (incident lifecycle) — **MEDIUM — GATED ON B134 (↑ Low→Medium 2026-09-14 rebalance; still capacity-gated — needs [B134] to reclaim mother's node before its 4 always-on workloads can land, so Medium = "next capability once B134 frees the node," not start-now; prior: ↑ Low→Med 2026-08-08, ↓ Med→Low 2026-08-27 — parked, NOT dropped, tied to [B149]/[B150]).** The "drop it entirely" gate below has technically been met (the data mesh + agent platform are stable and it was never stood up) — but dropping it is the wrong call, because **the blocker is capacity, not merit**. Reviewed 2026-08-27: — **What it uniquely adds, honestly scoped:** acknowledgment and **incident-as-an-object** (state, owner, timeline of who did what when). Today an alert fires → Telegram → and NOTHING records whether it was seen, acted on, or resolved; the estate has no memory of an incident. That is a real hole. **Escalation chains and on-call rotations are structurally worthless at N=1** and are most of the product's surface — so realistically ~a third of the tool would ever be used. — **Partially covered already, for free:** Grafana's own alerting carries state (Pending/Alerting/Resolved) with state history, annotations give a timeline, and Alertmanager silences are a crude ack — all already deployed. And the DoD's P1/P2 postmortem requirement is demonstrably servable in markdown (the B150 rogueone investigation — freezes #6-#10 with uptimes, dumps and falsified hypotheses — is a better incident record than tooling would have produced). — **Why parked rather than dropped:** by the lab's own admission bar (the B85 test: `$0`, single-node-feasible, non-redundant, earns its keep as a NEW capability, **breadth-for-learning counts**), incident lifecycle is a genuine category the grid lacks — it passes on breadth. What fails today is purely the **4 always-on workloads (oncall + celery + Redis + a Postgres role) on mother**, the node [B134] existed to reclaim capacity on and whose own manifests call it ~98% committed. — **TIED TO THE HARDWARE DECISIONS (linked in Linear 2026-08-27):** capacity on mother is not fixed. [B149] (what machine to buy) and [B150] (rogueone's failing P-cores / mainboard RMA) both change the estate's shape, and a resolution there is the natural trigger to re-examine this. **Re-promote when:** estate capacity materially increases, OR a second operator appears, OR alert volume gets high enough that "did I already look at this?" becomes a real question — the two conditions that make the ack/state half load-bearing rather than nice. Original assessment follows. Operational value is low (solo operator = no rotations; incidents already covered by Alertmanager→Telegram + Kuma + the B45 sweep) — but kept for **demo/showcase value** (a lab showpiece of the incident-lifecycle stack). Adds structured incident timeline + postmortem log on top of existing Alertmanager→Telegram alerting. Cruft: 2 always-on pods (oncall + celery) + Redis + a Postgres DB role. **Gate:** only worth it if a real multi-service incident workflow need emerges (escalation chains, on-call rotation, postmortem process). At N=1 with Telegram already covering paging, this is a "do we ever actually use it?" bet. If it hasn't been stood up by the time the data mesh + agent platform are stable, **drop it entirely**. Grafana plugin enable only — no new Grafana pod.
 
@@ -1698,7 +1698,9 @@ platform now. Revisit for the one net-new (online eval on *production* traces) w
 
 **Recommendation:** graduate **RDF / Fuseki** to a real build when a semantic-graph / SPARQL need surfaces (the KB taxonomy is the natural trigger); keep **Ignite / Tarantool / Derby / Firebird** parked-but-recorded (available, not committed); treat the **[NO]** and **~** buckets as **closed with rationale** so they aren't re-litigated. **Re-eval trigger** (as B67): a concrete need the committed stack can't meet.
 
-### B86 — Spec-driven framework SELECTOR: evaluate BMAD · AI-DLC · OpenSpec · Spec Kit, then recommend one (or none) per project — **HIGH (re-scoped 2026-10-09, Linear EMA-76)**
+### B86 — Spec-driven framework SELECTOR: evaluate BMAD · AI-DLC · OpenSpec · Spec Kit, then recommend one (or none) per project — **HIGH (re-scoped 2026-10-09, Linear EMA-76) — DEFERRED 2026-10-09**
+
+**DEFERRED 2026-10-09 (owner): "it may need hardware."** The bake-off waits for that; scope, sections and the B86.1 design stand. Linear `parked:deferred` on EMA-76 and EMA-290.
 
 **RE-SCOPED 2026-10-09 (owner).** Not "choose one framework" and not "borrow notations into AI-DLC": evaluate the four
 major spec-driven frameworks on equal footing, then build a **selector** that reads a prompt or a PRD and says which
@@ -1795,7 +1797,7 @@ Eval + decision matrix: `docs/concepts/spec-driven-frameworks.md`. Memory: `spec
 
 ---
 
-### B86.1 — The spec-driven framework selector: a prompt or PRD in, a recommendation (or none) out — HIGH (2026-10-09, Linear EMA-290, sub-issue of EMA-76)
+### B86.1 — The spec-driven framework selector: a prompt or PRD in, a recommendation (or none) out — HIGH (2026-10-09, Linear EMA-290, sub-issue of EMA-76) — DEFERRED 2026-10-09 with B86 (blocked on its bake-off)
 
 **Repurposed 2026-10-09 (owner):** created minutes earlier as "SDD constitution", re-scoped the same day to the selector.
 
@@ -2186,6 +2188,8 @@ One repeatable path that wires a new application or repo into the WHOLE estate i
 ---
 
 ### B159 — Onboarding services: represent the onboarding flow as real services (B154 Phase 2) — HIGH (↑ Medium→High 2026-09-14 rebalance — refill High after demoting B76/B87; B154 Phase 2, Linear EMA-216)
+
+**DEFERRED 2026-10-09 (owner): waiting on new hardware.** Linear `parked:deferred` on EMA-216; the scope below stands.
 
 **BLOCKED BY B134 (EMA-195) — recorded 2026-09-26.** The onboarding service(s) are a new always-on workload on mother, which is memory-bound (~4.6Gi headroom at peak, B134 re-measure 2026-08-27). Same hardware gate as B161 Dify Phase 2. Resume when B134 frees memory or delivers an on-demand workload manager.
 
@@ -3911,7 +3915,75 @@ embedded copy re-embedded (byte-identity bats); `lang-fixtures.sh` helper → bo
 no rename or retirement; the `on:` key renamed `runs_on` (nothing read it). Not cascading: no endpoint, host, image,
 repo or dataset changed.
 
-### B179 — Investigate Warp Software Factory for the lab — HIGH (2026-09-24, Linear EMA-237)
+### B179 — Software-factory experiments: Emdash · Vibe Kanban · OpenHands for unattended issue → PR orchestration — HIGH (2026-09-24; re-scoped 2026-10-09 from evaluation to experiment, Linear EMA-237)
+
+**Re-scoped 2026-10-09 (owner).** The Warp evaluation is done: **DON'T ADOPT Warp Factories** (metered by design — the
+$0 plan bills 20% above API rates, self-hosted only on Enterprise, Oz proprietary and hosted); verdict and sources in
+[concepts/software-factory.md](concepts/software-factory.md). This item is now the **experiment**: three free tools on
+the one gap the owner named as legitimate, **unattended orchestration** (a ticket starts an agent run that ends in a PR
+with nobody steering). Every other factory stage already exists (triage `issue-readiness.sh`, spec AI-DLC v2, implement
+the subscription CLIs, review B106's bots, verify Woodpecker + the guards, workflows the B175 loop library).
+
+**Questions to answer.**
+1. Can any of Emdash, Vibe Kanban or OpenHands take a READY Low-priority issue to a reviewable PR with no human step
+   after the start? Where does each stop if not?
+2. What does a run cost (subscription usage / tokens, time) and how good is the PR (CI, review-bot findings, rework to
+   merge)? This is Warp's "cost per PR", measured here at $0.
+3. Can a Linear issue START the run (API, CLI or webhook-free poll — the LAN has no inbound webhooks), or does a person
+   still dispatch it? That decides whether the gap is closed or only narrowed.
+4. Is a local model viable for OpenHands, its only $0 route? (Owner: "if not, that's fine.")
+
+**Constraint gate.** $0: Emdash and Vibe Kanban drive the Claude Code / Codex / OpenCode subscriptions the lab already
+pays for — no metered API. OpenHands calls a model API, so its arm runs ONLY on a local model; a Claude/GPT key would be
+metered spend and is out. LAN / self-hosted: all three run on rogueone. Reversible: each works in scratch worktrees; no
+lab repo state changes except the trial PRs, which are reviewed like any other.
+
+**Overlap.** B119 (Linear evaluation) found the same gap and rejected the hosted answers (Linear's agent, Blocks).
+B175 (loop library) and AI-DLC v2 are the workflows a factory would run. B106 is the review stage. B190 is the
+triage gate that picks the trial issue. B86 / B159 are deferred on new hardware, which is also what would make the
+local-model arm comfortable. B174 measured the GPU contention the local-model arm runs into.
+
+**Deliverable.** [concepts/software-factory.md](concepts/software-factory.md) completed with the measured trial table
+(per tool: reached a PR unattended? where it stopped; time; usage; PR quality; setup effort; constraint notes) and a
+verdict per tool — ADOPT (with a bounded rollout), ADOPT-A-CONCEPT, or DON'T ADOPT — plus the answer on the local model.
+A runbook (`docs/runbooks/software-factory.md`) with the pinned install and run commands for whatever is adopted.
+
+**Technical context.**
+
+| Where | What | Role |
+| -- | -- | -- |
+| rogueone (always-on, 128 GB RAM, RTX 5000 Ada 16 GB) | where all three trials run | the trial host |
+| Claude Code / Codex / OpenCode on the subscriptions | the agents Emdash and Vibe Kanban drive | the $0 implement stage |
+| Emdash (open-source desktop app), Vibe Kanban (Apache-2.0, Rust; sunsetting into community maintenance), OpenHands (MIT core) | the three tools | installed at pinned versions for the trial |
+| Ollama on rogueone (`qwen2.5:7b-operator` resident) | the operator's brain | must be unloaded for the local-model arm; restore afterwards |
+| `scripts/issue-readiness.sh` | picks a READY Low issue for the trial | read |
+| Woodpecker CI, PR-Agent / CodeRabbit (B106) | verify + review of each trial PR | read |
+| `docs/concepts/software-factory.md` | the verdict doc | changed — trial table + per-tool verdicts |
+
+**Acceptance criteria.**
+- [ ] The same READY issue is run through each of the three tools (OpenHands on a local model), and the trial table
+  records, per tool: PR reached unattended (yes / where it stopped), time to PR, usage, CI result, review-bot findings,
+  rework to merge, setup effort.
+- [ ] No metered model API is used in any run (subscriptions or the local model only), stated per run.
+- [ ] Question 3 answered with evidence: whether a Linear issue can start the run without a person.
+- [ ] The local-model arm is either run (after the GPU driver mismatch is fixed and the operator's model unloaded, then
+  restored and verified) or recorded as not viable with the reason.
+- [ ] A verdict per tool in the concepts doc; for any ADOPT, a runbook with pinned versions.
+
+**Edge cases & failure modes.**
+- **A tool that stalls** is a result — record the stage, don't keep nudging it (a nudged run is not unattended).
+- **The GPU is unusable until rogueone reboots** (2026-10-09: kernel module 595.91.07 vs userspace 595.99.02) — the
+  local-model arm waits; the other two do not need the GPU.
+- **Unloading the operator's model** sends the operator's incident sweep to defer (it never fails over to paid); restore
+  it and confirm `/api/ps` shows it loaded again.
+- **Vibe Kanban's sunset:** a winner nobody maintains is a liability; weigh it in the verdict.
+- **Trial PRs** go through normal review and CI; none merges without the owner.
+
+**Out of scope.**
+- Warp Factories / any paid tier (verdict recorded). Building a custom orchestrator (only if all three fail, as a
+  follow-up). New hardware.
+
+**History (kept for the record).**
 
 Evaluate **Warp Software Factory** (warp.dev's agentic software-development offering) and decide whether anything in it is worth adopting — same discipline as B174 (Jev/TypeSafe AI) and B119 ("master the tool"): understand it against REAL lab context, land an **ADOPT / DON'T-ADOPT** verdict with rationale, don't adopt on hype.
 
