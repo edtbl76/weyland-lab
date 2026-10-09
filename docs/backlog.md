@@ -180,6 +180,7 @@ Re-ordered per RE-grounded audit (aidlc-docs/inception/backlog-reprioritization.
   **⚠ OVERLAPS EMA-208 (Graphify Stage 4, "in-lab semantic pass") — decide ownership before either is built.** Both propose running an LLM over prose to extract graph structure, and they intersect on `docs/`. Graphify was adopted **deliberately as structure-only** — no embeddings by design, graph-RAG keeps retrieval (see `docs/concepts/graphify-adoption.md`) — so a semantic pass landing there would quietly reverse that decision. Whichever item owns the semantic pass over documentation, it should be one of them, not both.
 
 27b. **B126** — **Trial / adopt a spec-driven framework (B86 follow-up)** — **MERGED INTO [B86] 2026-08-27 (was LOW; Linear EMA-146 closed as merged into EMA-76).** Never a separate item: its part **(b) was the same four notations** B86's evaluation concluded should be adopted, so it duplicated B86's execution half. B86 was reopened the same day precisely because those four were never implemented — folding B126 in puts the decision and its execution back in one place. **Full scope, the trial half, and B126's opportunistic gate are all preserved in the B86 entry.** Original text follows for the record. **(2026-08-11; B86 follow-up.)** [B86] decided the Method is a lifecycle *superset* of OpenSpec / Spec Kit / BMAD / Kiro → **cross-pollinate artifact notations, don't migrate**. This item = actually execute a slice of that: **(a)** trial **OpenSpec** (brownfield delta model) or **Spec Kit** (constitution + `analyze` gate) on **one small unit** to feel the discipline first-hand ($0 / MIT / agent-agnostic / reversible); and/or **(b)** fold the borrowed notations into the Method — **delta specs** (ADDED/MODIFIED/REMOVED) into Iteration-N artifacts · **EARS notation** into Requirements Analysis · a checkable **constitution** rendering of the always-enforced baseline · **context-engineered unit files** (BMAD). No tool migration; **not Kiro** ($0 violation — managed AWS / Bedrock-locked / no BYOK). Eval + decision matrix: `docs/concepts/spec-driven-frameworks.md`; memory `spec-driven-frameworks-b86`. **Gate:** low-priority/opportunistic — do it when the Method's Requirements/Units stages are next being revised, not as a standalone push.
+27c. **B86.1** — **The spec-driven framework selector: a prompt or PRD in, a recommendation (BMAD / AI-DLC / OpenSpec / Spec Kit, or none) out** — **HIGH (2026-10-09, Linear EMA-290, sub-issue of EMA-76).** Owner, 2026-10-09: don't choose one framework — evaluate all four (B86, re-scoped to a measured bake-off) and build a selector. An LLM only extracts facts from the document; versioned rules calibrated on the bake-off decide (the B190 lesson). Repurposed the same day from "SDD constitution". See §B86.1.
 
 28. **B44** — **Grafana OnCall** (incident lifecycle) — **MEDIUM — GATED ON B134 (↑ Low→Medium 2026-09-14 rebalance; still capacity-gated — needs [B134] to reclaim mother's node before its 4 always-on workloads can land, so Medium = "next capability once B134 frees the node," not start-now; prior: ↑ Low→Med 2026-08-08, ↓ Med→Low 2026-08-27 — parked, NOT dropped, tied to [B149]/[B150]).** The "drop it entirely" gate below has technically been met (the data mesh + agent platform are stable and it was never stood up) — but dropping it is the wrong call, because **the blocker is capacity, not merit**. Reviewed 2026-08-27: — **What it uniquely adds, honestly scoped:** acknowledgment and **incident-as-an-object** (state, owner, timeline of who did what when). Today an alert fires → Telegram → and NOTHING records whether it was seen, acted on, or resolved; the estate has no memory of an incident. That is a real hole. **Escalation chains and on-call rotations are structurally worthless at N=1** and are most of the product's surface — so realistically ~a third of the tool would ever be used. — **Partially covered already, for free:** Grafana's own alerting carries state (Pending/Alerting/Resolved) with state history, annotations give a timeline, and Alertmanager silences are a crude ack — all already deployed. And the DoD's P1/P2 postmortem requirement is demonstrably servable in markdown (the B150 rogueone investigation — freezes #6-#10 with uptimes, dumps and falsified hypotheses — is a better incident record than tooling would have produced). — **Why parked rather than dropped:** by the lab's own admission bar (the B85 test: `$0`, single-node-feasible, non-redundant, earns its keep as a NEW capability, **breadth-for-learning counts**), incident lifecycle is a genuine category the grid lacks — it passes on breadth. What fails today is purely the **4 always-on workloads (oncall + celery + Redis + a Postgres role) on mother**, the node [B134] existed to reclaim capacity on and whose own manifests call it ~98% committed. — **TIED TO THE HARDWARE DECISIONS (linked in Linear 2026-08-27):** capacity on mother is not fixed. [B149] (what machine to buy) and [B150] (rogueone's failing P-cores / mainboard RMA) both change the estate's shape, and a resolution there is the natural trigger to re-examine this. **Re-promote when:** estate capacity materially increases, OR a second operator appears, OR alert volume gets high enough that "did I already look at this?" becomes a real question — the two conditions that make the ack/state half load-bearing rather than nice. Original assessment follows. Operational value is low (solo operator = no rotations; incidents already covered by Alertmanager→Telegram + Kuma + the B45 sweep) — but kept for **demo/showcase value** (a lab showpiece of the incident-lifecycle stack). Adds structured incident timeline + postmortem log on top of existing Alertmanager→Telegram alerting. Cruft: 2 always-on pods (oncall + celery) + Redis + a Postgres DB role. **Gate:** only worth it if a real multi-service incident workflow need emerges (escalation chains, on-call rotation, postmortem process). At N=1 with Telegram already covering paging, this is a "do we ever actually use it?" bet. If it hasn't been stood up by the time the data mesh + agent platform are stable, **drop it entirely**. Grafana plugin enable only — no new Grafana pod.
 
@@ -1697,9 +1698,72 @@ platform now. Revisit for the one net-new (online eval on *production* traces) w
 
 **Recommendation:** graduate **RDF / Fuseki** to a real build when a semantic-graph / SPARQL need surfaces (the KB taxonomy is the natural trigger); keep **Ignite / Tarantool / Derby / Firebird** parked-but-recorded (available, not committed); treat the **[NO]** and **~** buckets as **closed with rationale** so they aren't re-litigated. **Re-eval trigger** (as B67): a concrete need the committed stack can't meet.
 
-### B86 — Evaluate spec-driven dev frameworks: OpenSpec · Spec Kit · BMAD · Kiro (vs AI-DLC) — **REOPENED / DEFERRED (2026-08-27)** — was DONE 2026-08-11
+### B86 — Spec-driven framework SELECTOR: evaluate BMAD · AI-DLC · OpenSpec · Spec Kit, then recommend one (or none) per project — **HIGH (re-scoped 2026-10-09, Linear EMA-76)**
 
-**REOPENED 2026-08-27 — closing this was wrong bookkeeping.** The evaluation half is genuinely finished and its verdict stands (see below). But the evaluation's *output* was a decision to **adopt four specific things**, and **none of the four has been implemented** — verified 2026-08-27: `core/` contains no reference to EARS, delta specs, a constitution, an `analyze` gate, or context-engineered story files. An evaluation that concludes "borrow these four" is not DONE while zero are borrowed. Correct state is **DEFERRED**, tracking the adoption.
+**RE-SCOPED 2026-10-09 (owner).** Not "choose one framework" and not "borrow notations into AI-DLC": evaluate the four
+major spec-driven frameworks on equal footing, then build a **selector** that reads a prompt or a PRD and says which
+framework is the most cost-effective / useful for that project — **or none**. This item is the evaluation (the
+bake-off); the selector is the sub-issue **B86.1 (EMA-290)**. Kiro stays excluded ($0 violation: managed AWS, Bedrock
+lock-in, capped free tier). The 2026-08-11 verdict ("cross-pollinate into the Method, don't migrate") is history below;
+the constitution borrowing it proposed is no longer its own work item — a constitution is one of Spec Kit's outputs, so
+the selector recommends it when Spec Kit wins.
+
+**Why.** The four frameworks cover different slices of delivery: OpenSpec (brownfield delta specs), Spec Kit
+(constitution → specify → plan → tasks, with consistency gates), BMAD (role-agent planning + context-engineered story
+files), AI-DLC v2 (the lab's installed lifecycle: ideation → operation, scoped by `--scope`). Each costs tokens, time and
+questions; a one-line fix pays that overhead for nothing, a new service may need all of it. The only evaluation so far
+(2026-08-11) was desk research against a since-retired Method; nothing was ever RUN.
+
+**Scope.**
+1. **Install the three external frameworks** beside AI-DLC v2 on rogueone (all $0, MIT / open, agent-agnostic), each
+   pinned to a version, isolated per trial (worktree or scratch repo) so none touches the lab repo's workflow.
+2. **The bake-off** — run all four on the SAME three real lab tasks, chosen from the backlog to span the range: a small
+   fix (e.g. a Low bug), a feature on existing code (brownfield), and a new service (greenfield). Same model (Claude
+   Code), same task statement. Record per run: tokens and $ (equivalent), wall time, number of questions asked,
+   artifacts produced (and their size), whether the result passed its acceptance criteria, rework needed.
+3. **Findings** — `docs/concepts/spec-driven-frameworks.md` rewritten from the measured runs: a per-framework profile
+   (what it is good at, what it costs, where it hurts) and the measured cost/quality table the selector is calibrated on.
+
+**Questions to answer.** (1) For each task shape (small fix / brownfield feature / greenfield service), which framework delivers a passing result at the lowest cost in tokens, time and questions? (2) Where does each framework's overhead NOT pay off — where does "no framework" (plain Claude Code) win? (3) Which project facts (greenfield vs brownfield, size, discovery needed, risk, operational lifetime) actually change the winner — these become the selector's features. (4) Does AI-DLC's `--scope` (bugfix / feature / mvp / enterprise) already cover the range well enough to make a second framework redundant for the lab?
+
+**Constraint gate.** $0: BMAD, OpenSpec and Spec Kit are MIT/open and run in Claude Code on the subscription — no metered API; Kiro fails this gate and stays out. LAN / self-hosted: all three are local CLIs and prompt packs, no cloud service. Reversible: each installs into a scratch worktree only; nothing lands on `main`.
+
+**Overlap.** AI-DLC v2 (B133) is one of the four and stays installed — measured, not replaced. B190 (issue-readiness rules check) is the rules-not-LLM precedent B86.1 follows. B62 (AI dev usage telemetry) supplies the per-session token / $ accounting. B104 (AI dev-tooling survey) routed spec-driven frameworks here — this item owns the topic.
+
+**Deliverable.** `docs/concepts/spec-driven-frameworks.md` rewritten from the measured runs (one 12-row trial table + a per-framework profile of the project shapes it wins on — B86.1's calibration input); `docs/runbooks/sdd-frameworks.md` (pinned install + run commands, so any trial repeats); the recommendation the bake-off supports per project shape, including where "none" wins.
+
+**Technical context.**
+
+| Where | What | Role |
+| -- | -- | -- |
+| rogueone, Claude Code | the harness every trial runs in | the constant across trials |
+| `.claude/` + `aidlc/` | AI-DLC v2 (installed) | one of the four; trials use `/aidlc --scope …` |
+| BMAD (`bmad-method`), OpenSpec (`@fission-ai/openspec`), Spec Kit (`github/spec-kit`, `specify` CLI) | the three externals | installed per trial in a scratch worktree, pinned versions |
+| `docs/concepts/spec-driven-frameworks.md` | the 2026-08-11 desk evaluation | rewritten from the measured runs |
+| Claude Code session transcripts (`~/.claude/projects/…`), `scripts/ai_session_feeder.py` (B62) | token / $ accounting per session | the cost measurement |
+
+**Acceptance criteria.**
+- [ ] 12 trial runs recorded (4 frameworks × 3 tasks), each with tokens, $-equivalent, wall time, questions asked,
+  artifacts, and pass/fail against the task's own acceptance criteria — in one table in the concepts doc.
+- [ ] Every framework version pinned and the install/run commands in a runbook (`docs/runbooks/sdd-frameworks.md`), so a
+  trial is repeatable.
+- [ ] The lab repo is untouched by the trials (scratch worktrees; `git status` clean on `main` afterwards).
+- [ ] The concepts doc states, per framework, the project shapes it wins on — the input B86.1 is calibrated from.
+
+**Edge cases & failure modes.**
+- **Unequal footing:** different prompts or models across frameworks make the comparison meaningless — one task text,
+  one model, one harness.
+- **A framework that cannot finish a task** is a result (record where it stalled), not a reason to drop it.
+- **Token cost of 12 runs:** cap each run (a turn/time budget stated up front) and use the Claude Code subscription, not
+  metered API spend ($0 rule).
+- **Framework installs writing into the repo** (`.bmad/`, `openspec/`, `.specify/`): only inside the scratch worktrees.
+
+**Out of scope.**
+- The selector itself (B86.1). Kiro. Migrating the lab off AI-DLC.
+
+**History (kept for the record).**
+
+**[superseded by the 2026-10-09 re-scope] REOPENED 2026-08-27 — closing this was wrong bookkeeping.** The evaluation half is genuinely finished and its verdict stands (see below). But the evaluation's *output* was a decision to **adopt four specific things**, and **none of the four has been implemented** — verified 2026-08-27: `core/` contains no reference to EARS, delta specs, a constitution, an `analyze` gate, or context-engineered story files. An evaluation that concludes "borrow these four" is not DONE while zero are borrowed. Correct state is **DEFERRED**, tracking the adoption.
 
 **REMAINING SCOPE — the four cross-pollinations, none started:**
 1. **OpenSpec delta specs** (`ADDED` / `MODIFIED` / `REMOVED`) → the Iteration-N delta.
@@ -1717,9 +1781,8 @@ platform now. Revisit for the one net-new (online eval on *production* traces) w
 
 Eval + decision matrix: `docs/concepts/spec-driven-frameworks.md`. Memory: `spec-driven-frameworks-b86`, `aidlc-v2-migration`.
 
----
 
-**EVALUATION VERDICT (2026-08-11, stands unchanged).**
+**EVALUATION VERDICT (2026-08-11 — superseded by the 2026-10-09 re-scope: desk research, never run).**
 **Added 2026-07-17.** Compare four external **spec-driven / agentic-development** approaches against the project's own AIDLC **Method** (`.methodaidlc/`, the user's own IP — see [[methodaidlc-user-authored]]):
 - **OpenSpec** — open spec format + workflow for spec-first AI coding (change proposals → specs → implementation, agent-agnostic).
 - **GitHub Spec Kit** (`spec-kit`) — GitHub's spec-driven toolkit (`/specify` → `/plan` → `/tasks`), agent-agnostic CLI.
@@ -1728,6 +1791,63 @@ Eval + decision matrix: `docs/concepts/spec-driven-frameworks.md`. Memory: `spec
 **Goal:** map what each does, where they overlap/diverge from the Method's stages (validated-intent → requirements → design → construction → operations), and whether any patterns/artifacts/tooling are worth adopting into — or cross-pollinating with — the Method. **Output** = a comparison doc + decision matrix (`docs/concepts/` or `aidlc-docs/`). Research/maturity item — evaluate first, no commitment to adopt. All four are free/OSS or free-tier, so $0-friendly to trial.
 
 **DONE 2026-08-11.** Four parallel web-research passes → comparison doc + decision matrix at `docs/concepts/spec-driven-frameworks.md` (published, committed). **Finding:** the four externals are *coding workflows* clustered in requirements→implementation; the Method is a *delivery-lifecycle superset* — it owns the discovery front-end (Opportunity Framing → Validated Intent) **and** the operations/telemetry → continuous-discovery loop that none of them touch. **Decision — cross-pollinate artifact notations, do NOT migrate:** borrow (1) OpenSpec **delta specs** (ADDED/MODIFIED/REMOVED) → the Method's Iteration-N delta; (2) Spec Kit **constitution + `analyze` consistency gate** → a checkable baseline; (3) Kiro **EARS notation** → Requirements Analysis (+ steering-file pattern); (4) BMAD **context-engineered story/unit files**. **Kiro disqualified as a tool** ($0 violation — managed AWS, Bedrock-locked, no BYOK, capped free tier). Optional follow-up: trial OpenSpec or Spec Kit on one small unit ($0/MIT/reversible). Memory `spec-driven-frameworks-b86`.
+
+
+---
+
+### B86.1 — The spec-driven framework selector: a prompt or PRD in, a recommendation (or none) out — HIGH (2026-10-09, Linear EMA-290, sub-issue of EMA-76)
+
+**Repurposed 2026-10-09 (owner):** created minutes earlier as "SDD constitution", re-scoped the same day to the selector.
+
+**Why.** Owner, 2026-10-09: rather than choosing one framework, "dump in a prompt or a PRD and it will tell us which one
+to use (if any)". The lab's lesson from B190 shapes the design: an LLM asked to SCORE issue readiness predicted
+outcomes no better than chance (AUC ~0.51) and was replaced by a rules check that works. So the LLM only EXTRACTS
+facts from the document; deterministic rules, calibrated on B86's measured bake-off, make the decision.
+
+**Scope.**
+1. **Extraction** — one structured-output LLM call (via LiteLLM, a `$0` lane) turns the prompt/PRD into a fixed feature
+   record: greenfield vs brownfield, size (files / services touched), people/teams involved, discovery needed (is the
+   problem itself unsettled?), risk / compliance, operational lifetime, existing specs present. Every field allows
+   `unknown`; nothing is guessed.
+2. **Rules** — a versioned rubric (`selector-rules.yaml`) mapping features to a recommendation: BMAD / AI-DLC (+ which
+   `--scope`) / OpenSpec / Spec Kit / **none**, each rule citing the B86 trial that justifies it. Deterministic, unit
+   tested.
+3. **Output** — the pick, the runner-up, the reasons (which features fired which rules), the expected cost band from the
+   bake-off, and the features read as `unknown` (what to clarify).
+4. **Surface** — a CLI `scripts/select-sdd-framework.py <file|->`; optionally published as a Bifrost prompt/skill so any
+   coding agent can call it (decided after the CLI works).
+
+**Technical context.**
+
+| Where | What | Role |
+| -- | -- | -- |
+| `docs/concepts/spec-driven-frameworks.md` (B86 output) | measured per-framework profiles + cost table | read — the calibration source |
+| `scripts/select-sdd-framework.py` (new) + `selector-rules.yaml` (new) | extraction + rules + report | new |
+| LiteLLM `wl-*` lane (`mother:30400`) | the extraction call | read — `$0` lane, structured output |
+| `scripts/issue-readiness.sh` (B190) | the rules-not-LLM precedent | read — design precedent |
+| Bifrost Prompt / Skills Repository | optional distribution to coding agents | maybe changed |
+
+**Acceptance criteria.**
+- [ ] B86's bake-off is done first; every rule in `selector-rules.yaml` cites the trial(s) it comes from.
+- [ ] Run on the three B86 trial tasks' own statements, the selector picks the framework the bake-off measured as best
+  for each (or `none` where none earned its overhead).
+- [ ] A one-line bug report yields `none`; a vague product idea with unsettled discovery yields the framework that
+  covers discovery; a PRD for a change to existing code yields a brownfield framework — fixtures, tests written Red first.
+- [ ] Missing facts come back as `unknown` and listed, never filled in; an unreachable extraction model exits non-zero,
+  never a default pick.
+- [ ] A runbook section with the command; repo guards and CI green.
+
+**Edge cases & failure modes.**
+- **LLM drift in extraction:** the same PRD read twice must give the same features — temperature 0, a fixed schema,
+  and a test on a stored fixture.
+- **Thin evidence:** three tasks are a small calibration set; the report says which rules rest on one trial.
+- **A PRD that asks for a framework by name** is a stated constraint, reported as such, not overridden.
+- **Prompt injection in a pasted PRD:** the extraction prompt treats the document as data; the output is only the
+  fixed feature record.
+
+**Out of scope.**
+- Running the chosen framework automatically. Re-scoring frameworks without new trial evidence. Kiro.
+- The constitution as a lab-wide artifact (dropped 2026-10-09; Spec Kit produces one when it is the pick).
 
 ### B87 — Vet + live-validate all E2E demos (E1–E12) — MEDIUM (↑ Low→Medium 2026-09-14 rebalance; maturity pass; DoD-aligned anti-fabrication QA) [Linear EMA-77]
 **PAUSED — DEFERRED 2026-07-20.** Deliberately batched: validate **all** demos in one sweep once the core build is done, rather than re-validating piecemeal as each new capability churns the demos underneath. Trigger: end of the core work (the demos stay MEDIUM until then, which is the honest state — not a gap being ignored).
