@@ -110,7 +110,7 @@ In-cluster (`bifrost.weyland.svc.cluster.local:8080`, Bifrost **v2.2.6** since 2
 | Path | Auth | Callers |
 |---|---|---|
 | `/v1/*` (inference) | **virtual key required** (`enforce_auth_on_inference`, 2026-10-09); none → 401 | LiteLLM's hosted lanes (`realm-llm`) |
-| `/api/*` (management) | `X-Bifrost-Setup-Token` (dashboard auth off); none → 401, wrong → 403 | the register scripts, Dagster `registrations`, the Realm's role-prompt reads |
+| `/api/*` (management) | `X-Bifrost-Setup-Token` (dashboard auth off); none → 401, wrong → 403 | the register scripts (incl. `register_bifrost_vk_mcp.py` — VK→MCP scoping via `PUT /api/governance/virtual-keys/{id}`, B203), Dagster `registrations`, the Realm's role-prompt reads, the daily `bifrost-mcp-watchdog` (`GET /api/mcp/clients`) |
 | `/metrics` | public (`client_config.whitelisted_routes`) | Prometheus |
 | `/health`, `/api/version` | public | probes |
 

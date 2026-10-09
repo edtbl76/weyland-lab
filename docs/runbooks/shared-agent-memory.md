@@ -69,7 +69,7 @@ docker run --rm alpine:3.20 sh -c 'apk add -q curl >/dev/null; curl -s -o /dev/n
 ## Bifrost registration (how mother's agents reach it)
 
 Source of truth: `Agent_Memory` in `scripts/register_bifrost_mcp_clients.py` and in `SCOPING` of
-`scripts/attach_bifrost_vk_mcp.py` (coding-agents = all tools; operator = `MEMORY_READ`). Order matters
+`scripts/register_bifrost_vk_mcp.py` (coding-agents = all tools; operator = `MEMORY_READ`; applied through the API, no restart — B203). Order matters
 ([mcp-gateway.md](mcp-gateway.md) § Restore):
 
 [mother]
@@ -78,11 +78,7 @@ kubectl -n weyland exec -i deploy/weyland-guard -- python - < /home/edwardmangin
 ```
 [mother]
 ```
-kubectl -n weyland exec -i deploy/bifrost -c bifrost -- /runtime/usr/bin/python3 - < /home/edwardmangini/IdeaProjects/weyland/nodes/mother/lab/weyland-platform/scripts/attach_bifrost_vk_mcp.py
-```
-[mother]
-```
-kubectl -n weyland rollout restart deploy/bifrost
+kubectl -n weyland exec -i deploy/weyland-guard -- env BIFROST_URL=http://bifrost.weyland.svc.cluster.local:8080 python - < /home/edwardmangini/IdeaProjects/weyland/nodes/mother/lab/weyland-platform/scripts/register_bifrost_vk_mcp.py
 ```
 Bifrost logs `Connected to MCP server 'Agent_Memory'` when it can reach the store. Tools then appear as
 `Agent_Memory-search_notes`, `Agent_Memory-write_note`, … (21 on the coding-agents key).

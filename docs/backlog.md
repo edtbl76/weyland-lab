@@ -76,7 +76,8 @@ Re-ordered per RE-grounded audit (aidlc-docs/inception/backlog-reprioritization.
 - **B162** — **System-complexity bucket: reward DEEP modules, re-evaluate method line-count thresholds (Ousterhout)** — **DONE 2026-09-21 (Linear EMA-219).** A standing bucket to steer the codebase toward **deep modules** — John Ousterhout's *A Philosophy of Software Design*: a good module hides significant implementation behind a **simple interface**; "shallow modules" and over-decomposition ("classitis") add interface cost for little functionality. The lab's scan suite (SonarQube, CodeScene, the B106 stack) flags method **length / cyclomatic complexity** on conventional thresholds that penalize long methods per se — which can push toward exactly the shallow, chopped-up decomposition Ousterhout warns against. Re-evaluate those thresholds so they measure **interface-vs-implementation depth and information hiding**, not raw line counts: which methods are long **because** they hide real complexity behind a clean signature (keep) vs. long because they're tangled (fix), and where a "too-short-method" or "too-many-small-classes" smell should instead be surfaced. Deliverable: a reviewed threshold/rule set (CodeScene `rules_config` + SonarQube quality profile) + a short design note on how the lab reads complexity. Relates B106 (code-review stack), B120 (quality-tools registry), B47 (findings triage), B9 (the platform/application split — "management shell is bad juju"). See detail below.
 - **B174** — **Investigate Jev / TypeSafe AI (System One decision model)** — **DONE 2026-10-07** (HIGH, 2026-09-21, Linear EMA-232). TypeSafe AI's non-LLM "System One" model: send program state + typed questions (situation + allowed actions) → a decision + confidence in ~70-500ms, claimed ~200× faster / ~400× cheaper than LLMs on classification. Maps onto the lab's decision seams — operator tool-routing (B66), weyland-guard verdict (B70/B115), MCP `policy.gate` (B17/B19), eval classifiers (B84/B96). **Constraint gate FIRST:** self-hostable / free / LAN-runnable, or cloud-only + paid? Deliverable: eval/decision doc + per-seam overlap table + adopt-where/complement/skip call. **Eval DONE 2026-10-07 → DON'T ADOPT** ([concepts/decision-models.md](concepts/decision-models.md)): Jev fails the $0 gate; its free Apache-2.0 equivalent Clef-flash tied the operator's model on first tool choice (54/59 vs 54/59). See detail below.
 - **B175** — **Loop library: catalog reusable agentic loops (workflows-as-prompts)** — **DONE 2026-10-08** (HIGH, 2026-09-22, Linear EMA-233). A catalog of reusable AI-agent LOOPS — prompt-workflows with checkpoints + explicit stopping conditions — modeled on [forwardfuture.com/loop-library](https://signals.forwardfuture.com/loop-library/). A "loop" = a detailed prompt with built-in checkpoints + a terminal condition (stops runaway loops); each entry = title · category (Engineering/Operations/Evaluation/Content/Design) · description · full prompt · terminal condition. The lab already runs many ad-hoc — the DoD 8-pillar pass, code-scan-suite triage, the pr-lifecycle reconcile (B131), golden-path verify, eval loops (B84/B96), the operator incident sweep (B45/B66), inventory onboarding (B169) — so codify them as a versioned, discoverable library with explicit stopping rules (matching the `/loop` command's self-pacing). Natural extension of the Bifrost prompt repo + skills repo; decide Bifrost-SoT vs docs-catalog vs both, seed with the lab's real workflows. $0. See detail below.
-- **B202** — **Upgrade Bifrost v1.6.7 → v2.2.6 (major)** — **HIGH (2026-10-08, Linear EMA-288).** In progress: backup live and drilled, v2 audit done, setup token shipped, v2.2.6 rolled and verified (2026-10-09; `/metrics` whitelisted after the lock hid it); VK→MCP attach matches on v2, fixed Realm image shipped (24/24 prompts); left: the dashboard token entry (owner), DoD. The agent edge runs `maximhq/bifrost` v1.6.7 (digest-pinned 2026-07-30); latest is v2.2.6 (2026-10-06), a major line with breaking changes (governance API paths, cost schema, span attributes, plugin hooks). **Closing Gaps first:** Bifrost has no `docs/dr.md` row and no tested restore, yet its PVC holds every provider, virtual key, MCP client, ~280 prompts and ~600 skills, and v2 migrates that database. See detail below.
+- **B202** — **Upgrade Bifrost v1.6.7 → v2.2.6 (major)** — **DONE 2026-10-09** (HIGH, 2026-10-08, Linear EMA-288). v2.2.6 rolled and verified; `config.db` backed up nightly and drilled; the setup token on all 14 `/api` callers; virtual key required on inference, CORS explicit, `/metrics` whitelisted (`register_bifrost_client_config.py`); the Realm now loads its 24 Bifrost role prompts (0 since B17) and its pinned deps carry no critical/high CVE. See detail below.
+- **B203** — **Bifrost v2: scope VK→MCP through the API (retire the config.db write) + alert on unhealthy MCP clients** — **MEDIUM (2026-10-09, Linear EMA-289).** Built and verified locally; awaiting push for the watchdog's Argo deploy + drill. B202 follow-up the owner asked to complete: v2.2.6's governance API attaches MCP clients to virtual keys by name and applies it live (proven on a throwaway key: 0 → 2 → 0 tools, no restart), so `attach_bifrost_vk_mcp.py` (a direct SQLite write + a mandatory Bifrost restart) is replaced; and a daily watchdog alerts when any MCP client is not `healthy` (Linear sat disconnected unnoticed before B202). See §B203.
 - **B179** — **Investigate Warp Software Factory for the lab** — **HIGH (2026-09-24, Linear EMA-237).** Evaluate warp.dev's agentic software-development offering against REAL lab context and land an ADOPT / DON'T-ADOPT verdict (same discipline as B174/B119): what it actually is (agent orchestration / multi-agent build pipelines / hosted terminal-agent), fit against the lab's hard constraints ($0 / self-hosted / LAN — a paid-cloud-only product likely fails like the Linear Agent, but check for a free/self-host tier first), overlap with what already exists (AIDLC, Bifrost skills/prompts, weyland-operator, Claude Code + the B175 loop library, the B17 A2A roster), and any "software factory" concepts worth stealing even if the product isn't adopted. Deliverable: a `docs/concepts/` verdict + rationale. See detail below.
 - **B180** — **Track host systemd units (mother, rogueone, weyland) in a YAML SoT + the Port inventory** — **DONE (2026-10-01; was HIGH, Linear EMA-238).** Units and host config files are rows in `placement.yaml`; repo check in CI, host check nightly in `machine-inv-drift` (Kuma → Telegram), Port kinds `systemd-unit`/`host-config`. Demo `demos/placement.md`. The lab's own host-level services/timers are tracked nowhere: the repo holds 15 unit files across 3 machines, each deployed by a hand `rsync` + `systemctl enable`, with no record of what is actually installed/enabled where, no repo↔host drift check, and no failure alerting for host timers (unlike k8s CronJobs). Audit the hosts, add a `host-units.yaml` SoT, catalog them in Port beside the B129 machine inventory, guard drift, and give every host timer a failure signal. See detail below.
 - **B181** — **"Work on issue" / Copy-as-prompt launchers in Linear for the apps on the start.me Weyland Lab page (Figma Make first)** — **MEDIUM (2026-09-25, Linear EMA-239).** Linear's built-in coding-tool launchers are mostly unusable here (terminal tools need the Linear desktop app — no Linux build; the cloud agents are paid), so apps we actually use for greenfield work — Figma Make for OJay Floyd / MyBodyGraph prototyping — have no issue→app hand-off. Configure Linear **custom-link** coding tools for the start.me Weyland Lab apps that accept a prompt via URL. See detail below.
@@ -2314,7 +2315,9 @@ Investigate **Jev** (TypeSafe AI, typesafe.ai) — evaluate for the lab and deci
 
 ---
 
-### B202 — Upgrade Bifrost v1.6.7 → v2.2.6 (major) — HIGH (2026-10-08, Linear EMA-288)
+### B202 — Upgrade Bifrost v1.6.7 → v2.2.6 (major) — **DONE 2026-10-09** (HIGH, 2026-10-08, Linear EMA-288)
+
+**DONE 2026-10-09.** Bifrost runs v2.2.6 (digest-pinned, Argo Synced/Healthy). Acceptance: (1) `dr.md` row + nightly `bifrost-backup` + restore drill; (2) the v2 breaking-change audit below; (3) the digest roll; (4) every register script exits 0 and `registrations_reconcile_job` run `8df8cb1e` is SUCCESS on all 7 steps; (5) `wl-default` 200 through LiteLLM → Bifrost, logged with cost, `bifrost_cost_total` scraped (after whitelisting `/metrics`); (6) MCP 10 clients healthy, 282 tools, prompts 280 / skills 589 equal to the pre-upgrade baseline. Found and fixed on the way: the setup lock on `/metrics`; the Realm had never loaded a Bifrost role prompt (0 → 24); the Realm image was unpinned (now pinned and CI-built); its pins exposed 1 critical + 15 high CVEs (bumped 6 packages, `git-4c4cc301`, live: 24/24 prompts, 282 tools; cryptography's one HIGH accepted until MLflow moves to 3.16+). Hardening from v2's setup checklist: a virtual key is required on inference, CORS explicit; dashboard auth stays off by decision (setup token). The 9-pillar record is below.
 
 **Progress (2026-10-08) — Closing Gaps step built, awaiting push + first backup + drill.**
 - **Backup:** `k8s/bifrost/bifrost-backup.yaml` (deployed by the `bifrost` Argo app), a CronJob at 23:55 NY running the shared `scripts/sqlite_backup.py`. It snapshots `config.db` as uid 10001 and fails closed unless `config_providers` (22), `governance_virtual_keys` (4), `prompts` and `skills` (589) are non-empty; it keeps 7 on NVMe PVC `bifrost-backup`. `logs.db` is excluded (request logs).
@@ -2385,12 +2388,12 @@ Prompted by the owner 2026-10-08. **Why.** Bifrost (`bifrost.weyland.lab`, the a
 | `docs/runbooks/mcp-gateway.md`, `model-gateway.md` | Bifrost operating notes | changed — version + any new gotchas |
 
 **Acceptance criteria.**
-- [ ] `docs/dr.md` has a Bifrost row, and a restore of the `bifrost-data` backup was tested on a scratch pod (prompt and skill counts match).
-- [ ] The v2 breaking changes are listed with, for each, the lab caller it affects or "none" (recorded in the backlog item).
-- [ ] `k8s/bifrost/bifrost.yaml` pins the v2.2.6 multi-arch index digest, rolled through Argo (Synced + Healthy).
-- [ ] After the roll, every Bifrost register script and every Dagster `registrations` asset exits 0.
-- [ ] A `wl-default` call through LiteLLM succeeds and appears in Bifrost's logs with a cost; `bifrost_cost_total` is still scraped.
-- [ ] The coding-agent MCP fleet (`/mcp`) lists its tools, and Prompt and Skills repository counts equal the pre-upgrade counts.
+- [x] `docs/dr.md` has a Bifrost row, and a restore of the `bifrost-data` backup was tested on a scratch pod (prompt and skill counts match).
+- [x] The v2 breaking changes are listed with, for each, the lab caller it affects or "none" (recorded in the backlog item).
+- [x] `k8s/bifrost/bifrost.yaml` pins the v2.2.6 multi-arch index digest, rolled through Argo (Synced + Healthy).
+- [x] After the roll, every Bifrost register script and every Dagster `registrations` asset exits 0.
+- [x] A `wl-default` call through LiteLLM succeeds and appears in Bifrost's logs with a cost; `bifrost_cost_total` is still scraped.
+- [x] The coding-agent MCP fleet (`/mcp`) lists its tools, and Prompt and Skills repository counts equal the pre-upgrade counts.
 
 **Edge cases & failure modes.**
 - The v2 migration fails or half-applies `config.db` → restore the backup and pin back to the v1.6.7 digest (the git revert is the rollback; `selfHeal` makes a `kubectl rollout undo` revert itself).
@@ -2405,6 +2408,92 @@ Prompted by the owner 2026-10-08. **Why.** Bifrost (`bifrost.weyland.lab`, the a
 - The Bifrost object-storage / marketplace wiring (a separate, UI-only decision).
 
 ---
+
+### B203 — Bifrost v2: scope VK→MCP through the API + alert on unhealthy MCP clients — MEDIUM (2026-10-09, Linear EMA-289)
+
+**Progress (2026-10-09).**
+- **Recorded:** EMA-289 READY (`issue-readiness.sh`), `check-linear-sync.sh` 207 OK.
+- **API scoping proven first** on a throwaway key `b203-probe` (0 → 2 → 0 `/mcp` tools, no restart; deleted). A PUT with
+  only `mcp_configs` leaves name/budgets/provider configs/rate limits alone (each applied only when present — source read).
+- **`register_bifrost_vk_mcp.py`** (14 tests, Red first, fixtures in the shapes observed live): live run →
+  `coding-agents: unchanged (8)`, `operator: unchanged (3)`, `chat-eval: unchanged (0)`, exit 0. Criterion 1's forced
+  difference ran the REAL `reconcile()` on a throwaway key: grant Context7 + 2 Agent_Memory tools → `/mcp` 4; re-run
+  `unchanged`; narrow to Context7 → `/mcp` 2; no restart; key deleted.
+- **`attach_bifrost_vk_mcp.py` deleted**; references updated (runbooks `mcp-gateway.md` scoping + restore order — the
+  restart step is gone — and `shared-agent-memory.md`, `arch.md`, `hosts.md`, the demo). The live `bifrost-restore`
+  skill still told agents to run the deleted script and `register_bifrost_skills.py` is create-only, so its source text
+  was fixed AND the live skill re-published (`PUT /api/skills/{id}`, body read back identical to git). Memory note
+  `bifrost-vk-mcp-attach` (the name two notes already linked to) + index pointer.
+- **`bifrost-mcp-watchdog`** (`scripts/bifrost_mcp_health_check.py`, 18 tests Red first; `k8s/bifrost/bifrost-mcp-watchdog.yaml`
+  03:50 NY; embedder + bats drift; `ScheduledJobStale`/`ScheduledJobFailed`; schedules row; placement row + re-embed;
+  runbook § MCP watchdog with run-now + drill). Live run of the script from weyland-guard: `checked 10 MCP client(s): 0
+  alert(s) fired`. Hardened past its sibling: `python:3.12-alpine` as uid 65534, read-only root, no privilege
+  escalation, all capabilities dropped (proven to run that way; semgrep k8s clean; image provenance OK; kubeconform 5/5).
+- **Checks:** bats 10/10 (watchdog drift, placement, sqlite-backup, datahub watchdog), full repo guards pass (mermaid
+  210), CI python lane 350 + the scripts project (the one failure is the local root-owned dagster lint cache, not in CI),
+  coverage ratchet held, scratch Sonar 0 issues / 0 hotspots, bandit clean.
+
+**Why.** Two weak spots in the Bifrost agent edge, both visible after B202:
+1. **VK→MCP scoping is a database hack.** `scripts/attach_bifrost_vk_mcp.py` writes the `governance_virtual_key_mcp_configs`
+   join table straight into `config.db` (run inside the Bifrost pod with the staged `/runtime` python) and then REQUIRES a
+   `rollout restart`, because v1.6.7's API could not attach runtime-registered clients ("failed to get MCP client: not
+   found"). On v2.2.6, `PUT /api/governance/virtual-keys/{id}` takes `mcp_configs: [{mcp_client_name, tools_to_execute}]`,
+   resolves the client by NAME and reloads the key in memory — proven 2026-10-09 on a throwaway key `b203-probe`: `/mcp`
+   listed 0 tools, 2 after granting Context7 (no restart), 0 after revoking; the key was deleted.
+2. **Nothing alerts when an MCP client drops.** Linear's client was disconnected before the B202 upgrade and nobody
+   noticed; the fleet rule "a crashlooping backing server keeps its tools advertised" (runbooks/mcp-gateway.md) means a
+   dead client fails only at tool-call time. Bifrost exports no client-state metric; `GET /api/mcp/clients` reports each
+   client's `state` (v2: `healthy`), and v2.1 added `last_failure`.
+
+**Scope.**
+1. `nodes/mother/lab/weyland-platform/scripts/register_bifrost_vk_mcp.py` — the same `SCOPING` (coding-agents 8 clients,
+   operator 3 incl. Agent_Memory read-only, chat-eval none), applied with the API: per key, compare the live `mcp_configs`
+   with the desired set, PUT only on a difference, read back. Runs in weyland-guard with the setup token like every
+   other register script. Delete `attach_bifrost_vk_mcp.py`; drop the restart step from the restore order.
+2. A daily watchdog CronJob `bifrost-mcp-watchdog` (03:50 NY, `k8s/bifrost/`): one `BifrostMCPClientUnhealthy` alert per
+   client whose state is not `healthy` (with `last_failure` when present) → Alertmanager → Telegram; the
+   `datahub-ingestion-watchdog` pattern (embedded byte-identical script, bats drift test, exit 2 on an unreadable or
+   empty client list, exit 1 on an undelivered alert, `ScheduledJobStale`/`ScheduledJobFailed`).
+3. Docs: runbook sections, `schedules.md`, `placement.yaml`, demo, flow diagram, memory.
+
+**Technical context.**
+
+| Where | What | Role |
+| -- | -- | -- |
+| `scripts/attach_bifrost_vk_mcp.py` | SQLite write of VK→MCP rows + restart | retired |
+| `scripts/register_bifrost_vk_mcp.py` (new) | `GET /api/governance/virtual-keys`, `PUT …/{id}` `mcp_configs` | new — the source of truth for scoping |
+| `scripts/bifrost_mcp_health_check.py` (repo `scripts/`, new) | `GET /api/mcp/clients` → per-client verdict → Alertmanager v2 | new — the watchdog logic |
+| `k8s/bifrost/bifrost-mcp-watchdog.yaml` (new) | ConfigMap (embedded script) + CronJob, ns weyland, unmeshed, `bifrost-setup-token` Secret | new |
+| `k8s/monitoring/cron-freshness-rules.yaml` | `ScheduledJobStale` / `ScheduledJobFailed` regexes | changed |
+| `scripts/tests/test_bifrost_setup_token.py` | derives every `/api` caller | picks up both new scripts |
+| `docs/runbooks/mcp-gateway.md`, `docs/schedules.md`, `placement.yaml`, `docs/demos/bifrost.md` | operations | changed |
+
+**Acceptance criteria.**
+- [ ] `register_bifrost_vk_mcp.py` run live reports every key `unchanged` (the live scoping already equals `SCOPING`), and a
+  forced difference on a throwaway key is applied and read back without a Bifrost restart.
+- [ ] `attach_bifrost_vk_mcp.py` is gone and no doc or script references it except as history; the restore order has no
+  restart step for scoping.
+- [ ] `bifrost-mcp-watchdog` deployed by Argo: a manual run with all clients healthy exits 0 and fires nothing; a drill
+  (one named client treated as unhealthy) delivers exactly one `BifrostMCPClientUnhealthy` alert to Telegram.
+- [ ] An unreadable `/api/mcp/clients` (no token, or an empty list) exits 2 — proven in tests.
+- [ ] Unit tests (written Red first) for both scripts; bats drift test; full repo guards, Sonar, CI green.
+
+**Edge cases & failure modes.**
+- **A client missing from Bifrost** (not yet registered after a rebuild): the register script must not silently drop it
+  from a key — report it and exit non-zero, so the restore order is followed.
+- **OAuth clients needing re-auth** (Hugging_Face, Linear): their state is not `healthy` until a human re-authorizes; the
+  alert is correct and names the client.
+- **Partial tool scoping** (operator → Agent_Memory read-only): `tools_to_execute` lists must round-trip exactly; order
+  differences are not a change.
+- **The PUT replaces the whole `mcp_configs` set** (proven: `[]` revoked Context7), so the script always sends the full
+  desired set per key, never a delta.
+- **Alert storm:** one alert per unhealthy client per day (daily cadence, Design Rule #5 and the pr-staleness lesson).
+
+**Out of scope.**
+- Virtual MCPs (named tool bundles) — the per-key `mcp_configs` allowlist covers today's scoping; adopt bundles only if
+  scoping grows.
+- A Prometheus metric for client state (Bifrost does not export one; an exporter is more than this needs).
+- Prompt-cache auto-injection, VK rotation (B202 review: low value today).
 
 ### B175 — Loop library: catalog reusable agentic loops (workflows-as-prompts) — **DONE 2026-10-08** (HIGH, 2026-09-22, Linear EMA-233)
 

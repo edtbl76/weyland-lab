@@ -210,22 +210,27 @@ not its unsupported glibc download. Mem raised 512Mi→1.5Gi for headless chromi
 (always exit 0)** so a failed apk/npm can't block Bifrost from booting. Perplexity inherits `PERPLEXITY_API_KEY` from the
 pod env (`bifrost-provider-keys`).
 
-**VK -> client scoping (durable, B111 2026-08-01):** a VK only serves the tools of the MCP clients *attached* to it, and
-the governance **API cannot attach** runtime-registered clients (`PUT .../virtual-keys/{id}` with `mcp_configs` 500s
-"failed to get MCP client: not found"). The attachment is a row in `governance_virtual_key_mcp_configs` (config.db),
-keyed by the client's **integer PK**. Codified in **`scripts/attach_bifrost_vk_mcp.py`** — declarative scoping
-(coding-agents -> fleet/Context7/HF/Linear/Perplexity/Playwright/GitHub; operator -> Excalidraw/Malwarebytes;
-chat-eval -> none), resolved by client **name** (survives PVC-restore PK reassignment), idempotent + atomic. Runs IN the
-bifrost pod (no system python/sqlite3 → use `/runtime/usr/bin/python3`, staged by the initContainer). A DB write alone
-does nothing — the `/mcp` multiplexer builds its per-VK tool registry in memory at boot, so a **rollout restart is
-required** for tools to flow. See memory `bifrost-vk-mcp-attach`.
+**VK -> client scoping (durable; through the API since B203, 2026-10-09):** a VK only serves the tools of the MCP clients
+*granted* to it. Codified in **`scripts/register_bifrost_vk_mcp.py`** (`SCOPING`: coding-agents -> fleet / Context7 / HF /
+Linear / Perplexity / Playwright / GitHub / Agent_Memory; operator -> Excalidraw / Malwarebytes / Agent_Memory read-only;
+chat-eval -> none; any other key, e.g. `realm-llm`, is never touched). It uses v2's `PUT /api/governance/virtual-keys/{id}`
+with `mcp_configs: [{mcp_client_name, tools_to_execute}]`: the client is resolved by NAME, the PUT carries the key's WHOLE
+set (Bifrost replaces it), and the key reloads in memory, so **no restart** — proven 2026-10-09 (`/mcp` 0 → 4 → 2 tools on a
+throwaway key as grants changed). Idempotent (compares first, writes only a difference, reads back); exits 1 on a missing
+key, an unregistered client (it never drops a grant silently) or a read-back mismatch:
+```
+kubectl -n weyland exec -i deploy/weyland-guard -- env BIFROST_URL=http://bifrost.weyland.svc.cluster.local:8080 python - < /home/edwardmangini/IdeaProjects/weyland/nodes/mother/lab/weyland-platform/scripts/register_bifrost_vk_mcp.py
+```
+Expect `<key>: unchanged (N client(s))` per key, or `updated → …`. **History:** until B203 this was
+`attach_bifrost_vk_mcp.py`, a direct `config.db` write plus a mandatory `rollout restart`, because v1.6.7's API could not
+attach runtime-registered clients ("failed to get MCP client: not found"). Retired 2026-10-09.
 
 **Restore-from-scratch (order matters):**
 1. apply `bifrost.yaml` (initContainer stages the runtime)
 1a. `kubectl -n weyland exec -i deploy/weyland-guard -- env BIFROST_URL=http://bifrost.weyland.svc.cluster.local:8080 python - < scripts/register_bifrost_client_config.py`  (the owned `client_config`: `/metrics` public under the setup lock, CORS origins, inference auth — § Bifrost setup token)
 2. `kubectl -n weyland exec -i deploy/weyland-guard -- python - < scripts/register_bifrost_mcp_clients.py`  (create clients)
-3. `kubectl -n weyland exec -i deploy/bifrost -c bifrost -- /runtime/usr/bin/python3 - < scripts/attach_bifrost_vk_mcp.py`  (scope VKs)
-4. `kubectl -n weyland rollout restart deploy/bifrost`  (reload — tools do NOT flow until this)
+3. `kubectl -n weyland exec -i deploy/weyland-guard -- env BIFROST_URL=http://bifrost.weyland.svc.cluster.local:8080 python - < scripts/register_bifrost_vk_mcp.py`  (scope VKs — applies live, no restart since B203)
+4. (no step — the restart the old `attach_bifrost_vk_mcp.py` needed is gone)
 5. re-authorize Hugging_Face + Linear in the UI (OAuth grant is interactive).
 6. `kubectl -n weyland exec -i deploy/weyland-guard -- python - < scripts/register_bifrost_prompts.py`  (Prompt Repository — 89 prompts / 10 folders)
 7. `kubectl -n weyland exec -i deploy/weyland-guard -- python - < scripts/register_bifrost_skills.py`  (Skills Repository — 20 lab/generic Agent Skills)
@@ -366,6 +371,34 @@ one-off pod (uid 10001, no sidecar) mounting `bifrost-data` (rw) + `bifrost-back
 over `/data/config.db` and DELETES `config.db-wal` / `config.db-shm` → scale back to 1 → `argocd app set bifrost
 --sync-policy automated --self-heal --auto-prune --grpc-web`. Verify the Prompt and Skills counts in the UI and run one
 `wl-default` call through LiteLLM.
+
+## MCP watchdog — `bifrost-mcp-watchdog` (B203, 2026-10-09)
+
+A Bifrost MCP client that drops keeps its tools advertised on `/mcp`; the failure only shows when an agent calls one
+(Linear sat disconnected before the B202 upgrade with nothing noticing), and Bifrost exports no client-state metric.
+`k8s/bifrost/bifrost-mcp-watchdog.yaml` (deployed by the `bifrost` Argo app) runs daily at **03:50 NY**: it reads
+`GET /api/mcp/clients` with the setup token and posts one **`BifrostMCPClientUnhealthy`** alert per enabled client whose
+`state` is not `healthy` (v2.1's `last_failure` goes into the message) to Alertmanager → Telegram. A client disabled in
+Bifrost is skipped. Exit 2 (no token, the API locked or unreachable, an empty or partial list) or exit 1 (an alert not
+delivered) fails the Job → `ScheduledJobFailed`; no success in 26h → `ScheduledJobStale`. The logic is
+`scripts/bifrost_mcp_health_check.py`, embedded byte-identical (`scripts/embed-bifrost-mcp-watchdog.sh`; the
+`bifrost-mcp-watchdog.bats` drift test).
+
+**Run it now** (expect `checked 10 MCP client(s): 0 alert(s) fired`):
+```
+kubectl -n weyland create job bifrost-mcp-watchdog-now --from=cronjob/bifrost-mcp-watchdog && kubectl -n weyland wait --for=condition=complete job/bifrost-mcp-watchdog-now --timeout=180s; kubectl -n weyland logs job/bifrost-mcp-watchdog-now; kubectl -n weyland delete job bifrost-mcp-watchdog-now
+```
+
+**Drill** — one labelled alert (`drill="true"`, summary starting `DRILL`) for a healthy client, to prove the path to
+Telegram:
+```
+kubectl -n weyland create job bifrost-mcp-watchdog-drill --from=cronjob/bifrost-mcp-watchdog --dry-run=client -o json | python3 -c "import json,sys;j=json.load(sys.stdin);c=j['spec']['template']['spec']['containers'][0];c['env']+=[{'name':'DRILL_CLIENT','value':'Context7'}];print(json.dumps(j))" | kubectl create -f - && kubectl -n weyland wait --for=condition=complete job/bifrost-mcp-watchdog-drill --timeout=180s; kubectl -n weyland logs job/bifrost-mcp-watchdog-drill; kubectl -n weyland delete job bifrost-mcp-watchdog-drill
+```
+
+**When it fires:** open the client in `https://bifrost.weyland.lab` (MCP catalog). An OAuth client (`Hugging_Face`,
+`Linear`) usually needs re-authorizing there; a backing server that crashed and recovered is only re-discovered after
+`kubectl -n weyland rollout restart deploy/bifrost` (§ Fleet server reliability, rule 3). The alert repeats each morning
+while the client stays unhealthy.
 
 ## Fleet server reliability — pin images, verify the RUNTIME (2026-09-22)
 

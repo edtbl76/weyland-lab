@@ -241,6 +241,7 @@ workloads:
   - {id: "k8s:weyland/StatefulSet/weyland-apisix-etcd", host: "mother", state: "pvc:local-path", move: "pinned: local-path PV on mother", strix: "stays", managed: "argo"}
   - {id: "k8s:woodpecker/CronJob/woodpecker-backup", host: "mother", state: "pvc:local-path", move: "pinned: local-path PV on mother", strix: "stays", managed: "argo"}
   - {id: "k8s:weyland/CronJob/bifrost-backup", host: "mother", state: "pvc:local-path", move: "pinned: local-path PV on mother", strix: "stays", managed: "argo"}
+  - {id: "k8s:weyland/CronJob/bifrost-mcp-watchdog", host: "mother", state: "stateless", move: "movable", strix: "any", managed: "argo"}
   - {id: "k8s:woodpecker/Deployment/buildkitd", host: "mother", state: "pvc:local-path", move: "pinned: local-path PV on mother", strix: "stays", managed: "argo"}
   - {id: "k8s:woodpecker/StatefulSet/woodpecker-agent", host: "mother", state: "stateless", move: "movable", strix: "any", managed: "argo"}
   - {id: "k8s:woodpecker/StatefulSet/woodpecker-server", host: "mother", state: "pvc:local-path", move: "pinned: local-path PV on mother", strix: "stays", managed: "argo"}

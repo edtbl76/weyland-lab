@@ -113,6 +113,26 @@ kubectl -n weyland exec deploy/litellm -- python -c "import os,httpx;r=httpx.pos
 
 Read-only apart from step 3's no-op re-run and step 5's one free-lane call; nothing to tear down.
 
+### Key scoping through the API, and the MCP watchdog (B203, 2026-10-09)
+
+**6. Each key's MCP grants match git** — expect `coding-agents: unchanged (8 client(s))`, `operator: unchanged (3 client(s))`,
+`chat-eval: unchanged (0 client(s))`. A change applies live (no Bifrost restart since v2.2.6):
+
+[rogueone]
+```
+kubectl -n weyland exec -i deploy/weyland-guard -- env BIFROST_URL=http://bifrost.weyland.svc.cluster.local:8080 python - < /home/edwardmangini/IdeaProjects/weyland/nodes/mother/lab/weyland-platform/scripts/register_bifrost_vk_mcp.py
+```
+
+**7. The watchdog sees every client healthy** — expect `checked 10 MCP client(s): 0 alert(s) fired`; then the drill
+(runbooks/mcp-gateway.md § MCP watchdog) sends exactly one Telegram message starting `DRILL`:
+
+[rogueone]
+```
+kubectl -n weyland create job bifrost-mcp-watchdog-now --from=cronjob/bifrost-mcp-watchdog && kubectl -n weyland wait --for=condition=complete job/bifrost-mcp-watchdog-now --timeout=180s; kubectl -n weyland logs job/bifrost-mcp-watchdog-now; kubectl -n weyland delete job bifrost-mcp-watchdog-now
+```
+**UAT:** Telegram shows the `DRILL — Context7 …` message; Argo CD → app **bifrost** lists CronJob `bifrost-mcp-watchdog`
+(`50 3 * * *`, America/New_York). Teardown: the commands delete their Jobs; the drill alert resolves on its own.
+
 ## The picture
 
 ```likec4-view
@@ -121,7 +141,7 @@ bifrostEdge
 
 **A PVC loss restores from the nightly `bifrost-backup`** (B202; [sqlite-backups.md](sqlite-backups.md), runbook
 § Bifrost backup + restore). Without a backup, rebuild in order: `register_bifrost_client_config.py` →
-`register_bifrost_mcp_clients.py` → `attach_bifrost_vk_mcp.py` → `rollout restart` → `register_bifrost_prompts.py` /
+`register_bifrost_mcp_clients.py` → `register_bifrost_vk_mcp.py` (no restart since B203) → `register_bifrost_prompts.py` /
 `register_aidlc_prompts.py` → `register_bifrost_skills.py` → `register_aidlc_kb_skills.py`
 (`register_aidlc_skills.py` is retired; its 52 stage skills are only in the backup). Full order in
 [runbooks/mcp-gateway.md](../runbooks/mcp-gateway.md).

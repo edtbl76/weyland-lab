@@ -39,9 +39,16 @@ sequenceDiagram
     P->>B: GET /metrics
     B->>B: client_config.whitelisted_routes includes /metrics
     B-->>P: 200 (bifrost_cost_total for BifrostSpendObserved)
+    R->>B: PUT /api/governance/virtual-keys/ID mcp_configs (register_bifrost_vk_mcp.py, B203)
+    B->>B: resolve clients by name, reload the key in memory - no restart
+    participant W as bifrost-mcp-watchdog (daily 03:50)
+    participant AM as Alertmanager to Telegram
+    W->>B: GET /api/mcp/clients (X-Bifrost-Setup-Token)
+    B-->>W: every client with its state
+    W->>AM: BifrostMCPClientUnhealthy per client not healthy
 ```
 
-The three settings live in `config.db` and are restored by `register_bifrost_client_config.py`; the token is the sealed
+The three settings live in `config.db` and are restored by `register_bifrost_client_config.py`; VK→MCP scoping by `register_bifrost_vk_mcp.py` (B203); the token is the sealed
 `bifrost-setup-token` Secret (runbook § Bifrost setup token).
 
 **Read-only fleet;** write/act tools live on the separate `/mcp-act` mount (Keycloak-authed, `policy.gate`).

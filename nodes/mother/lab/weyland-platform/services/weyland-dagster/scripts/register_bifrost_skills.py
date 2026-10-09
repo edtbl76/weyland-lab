@@ -61,10 +61,10 @@ Verify the code-location loaded in the Dagster UI (no import error) before decla
 Order matters — each step depends on the prior:
 1. Apply `bifrost.yaml` (the `mcp-runtime` initContainer stages node+chromium for stdio MCP servers).
 2. `kubectl -n weyland exec -i deploy/weyland-guard -- python - < scripts/register_bifrost_mcp_clients.py` — recreate MCP clients (API).
-3. `kubectl -n weyland exec -i deploy/bifrost -c bifrost -- /runtime/usr/bin/python3 - < scripts/attach_bifrost_vk_mcp.py` — attach clients to VKs. The governance **API cannot attach** runtime-registered clients ("failed to get MCP client: not found"); this writes the `governance_virtual_key_mcp_configs` join by INTEGER PK, resolved by client name.
-4. `kubectl -n weyland rollout restart deploy/bifrost` — REQUIRED: the /mcp multiplexer builds its per-VK tool registry in memory at boot; tools do NOT flow until this.
-5. `... exec -i deploy/weyland-guard -- python - < scripts/register_bifrost_prompts.py` — reload the Prompt Repository.
-6. Re-authorize Hugging_Face + Linear in the Bifrost UI (OAuth grant is interactive)."""),
+3. `kubectl -n weyland exec -i deploy/weyland-guard -- env BIFROST_URL=http://bifrost.weyland.svc.cluster.local:8080 python - < scripts/register_bifrost_vk_mcp.py` — grant clients to VKs through the governance API (by client name, applied live — no restart; Bifrost v2.2.6+, B203).
+4. `... exec -i deploy/weyland-guard -- python - < scripts/register_bifrost_prompts.py` — reload the Prompt Repository.
+5. Re-authorize Hugging_Face + Linear in the Bifrost UI (OAuth grant is interactive).
+Prefer restoring `config.db` from the nightly `bifrost-backup` (runbook mcp-gateway.md § Bifrost backup + restore) — it keeps everything, including skills these scripts cannot regenerate."""),
 
     ("sealed-secrets", "deploy",
      "Manage cluster secrets as GitOps with Sealed Secrets — encrypt, commit, and adopt without bricking.",
