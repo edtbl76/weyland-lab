@@ -1074,6 +1074,9 @@ hosts:
     - name: codescene/codescene-mcp
       kind: image
       status: system
+    - name: compositor-local
+      kind: image
+      status: system
     - name: contiker/contiki-ng
       kind: image
       status: system
@@ -1096,6 +1099,9 @@ hosts:
       kind: image
       status: system
     - name: docker.redpanda.com/redpandadata/redpanda
+      kind: image
+      status: system
+    - name: gateway-local
       kind: image
       status: system
     - name: gcr.io/projectsigstore/cosign
@@ -1212,7 +1218,13 @@ hosts:
     - name: python
       kind: image
       status: system
+    - name: pytorch/pytorch
+      kind: image
+      status: system
     - name: rancher/kubectl
+      kind: image
+      status: system
+    - name: realm-of-agents
       kind: image
       status: system
     - name: redis
@@ -1242,10 +1254,19 @@ hosts:
     - name: registry.weyland.lab/weyland-guard
       kind: image
       status: system
+    - name: registry.weyland.lab/weyland-mcp-compositor
+      kind: image
+      status: system
+    - name: registry.weyland.lab/weyland-operator
+      kind: image
+      status: system
     - name: registry.weyland.lab/weyland-tool-server
       kind: image
       status: system
     - name: ruby
+      kind: image
+      status: system
+    - name: semgrep/semgrep
       kind: image
       status: system
     - name: sonarsource/sonar-scanner-cli
@@ -1276,6 +1297,15 @@ hosts:
       kind: image
       status: system
     - name: vllm/vllm-openai
+      kind: image
+      status: system
+    - name: weyland-clef-flash
+      kind: image
+      status: system
+    - name: weyland-mcp-compositor
+      kind: image
+      status: system
+    - name: weyland-operator
       kind: image
       status: system
     - name: woodpeckerci/woodpecker-agent
