@@ -255,7 +255,7 @@ object store. `download.zip` works from the DB regardless. TODO: wire Bifrost ob
 
 **Prompt Repository (B111 2026-08-01):** 89 model-agnostic, reusable prompts across 10 folders (system-prompts, coding,
 rag-retrieval, data-analytics, eval-judge, agentic-operator, search-web, guardrails-safety, content-ops, meta-prompt-eng)
-codified in **`scripts/register_bifrost_prompts.py`** (idempotent, source of truth). Suggested `wl-*` lane per prompt is
+codified in **`scripts/register_bifrost_prompts.py`** (idempotent, source of truth). **Since 2026-10-10 an edit in git reaches Bifrost:** a prompt whose git messages differ from its live latest version gets a new version — but only when that latest version is the registrar's own (`commit_message` `lane: …`); a version written by anyone else (prompt federation's `reconciled-from-<source>:…` for a native Langfuse / MLflow edit, a UI edit) is reported as a CONFLICT and never overwritten. Summary line: `N created, U updated, S unchanged, C conflict, F failed`. To make git win after a native edit, apply the edit to git, or remove the native version in the UI. Suggested `wl-*` lane per prompt is
 in each version's `commit_message`; provider/model left empty so any caller picks the lane. API: `POST /api/prompt-repo/
 folders` + `/prompts` + `/prompts/{id}/versions` (`messages:[{role,content}]`; `{{var}}` auto-extracted — do NOT send a
 `variables` field, it 400s). Distinct from the MLflow Prompt Registry, which holds the app-integrated prompts

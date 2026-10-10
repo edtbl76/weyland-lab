@@ -6,7 +6,8 @@ prompts), folded into idempotent Dagster assets so it's GitOps-reproducible + sc
 
 - **bifrost_prompts / bifrost_skills** — shell out to the self-contained (httpx-only) register scripts bundled in the
   image at `/app/scripts/`; their hardcoded data is the source of truth, and each is idempotent (no version churn on
-  re-run). Prompts skip existing entries; skills (B204) also publish a new patch version of a skill whose git
+  re-run). Prompts (2026-10-10) publish a new version of a prompt whose git messages changed — unless a native edit (prompt
+  federation) or a UI edit wrote its latest version, which is reported as a conflict and left alone; skills (B204) also publish a new patch version of a skill whose git
   description / body / category changed, so an edit in git reaches Bifrost.
 - **bifrost_loops** (B175) — publishes the loop library from git (`knowledge-repos/loop-library`, bundled as
   `/app/scripts/loop_library.json`). Git wins: a changed loop gets a new version, so it is NOT skip-if-exists.

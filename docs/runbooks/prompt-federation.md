@@ -112,6 +112,9 @@ the Secret is missing).
 `sync_prompts.py` now runs `reconcile_inbound()` FIRST (pull native edits back to Bifrost), then re-reads Bifrost and
 mirrors outbound — bidirectional in one pass.
 
+- **Git vs native edits (2026-10-10):** `register_bifrost_prompts.py` now publishes git edits to Bifrost, but never over a
+  native edit: if a prompt's latest Bifrost version is `reconciled-from-…` (or any non-`lane:` commit), the registrar
+  reports a CONFLICT and leaves it. The first live dry run found one: `operator_system` (`reconciled-from-mlflow:1d513895d36d`).
 - **Inbound reconcile:** native edits made *in* Langfuse (playground) / MLflow flow back to Bifrost. Loop-safety =
   content-hash compare + a `synced-from-bifrost:<hash>` provenance stamp; conflict = **last-write-wins by timestamp**
   (with a WARNING). **GOTCHA:** native-edit detection keys on the VERSION-level **`commitMessage`**, NOT Langfuse

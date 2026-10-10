@@ -21,11 +21,16 @@ them against whatever lane they choose; the suggested LiteLLM use-case lane is r
 single authoring SoT, and sync_prompts.py mirrors everything OUT to Langfuse (runtime fetch -> trace linkage) + MLflow
 (catalog mirror). The apps fetch these from Langfuse at runtime. See docs/design/prompt-federation-design.md.
 
-Idempotent: folders/prompts created only if absent (matched by name); existing prompts are skipped (no duplicate
-version churn on re-run). To revise a prompt, edit here, delete that prompt in the UI, and re-run — or bump it in the UI.
+Git wins, but never over a person (B204 follow-on, 2026-10-10): a prompt absent from Bifrost is created; one whose live
+latest version differs from git gets a NEW VERSION — but ONLY when that latest version was written by this registrar
+(commit_message `lane: …`). Any other author (prompt federation's `reconciled-from-<source>:…` for a native Langfuse /
+MLflow edit, a UI edit) is a CONFLICT: reported and counted, never overwritten. An equal prompt gets nothing, so a
+re-run changes nothing. Only names in PROMPTS are touched. Live shape (observed 2026-10-10, values not just keys): the
+list returns every prompt in one response, each `latest_version.messages` entry WRAPPED as
+{"message": {role, content}, "order_index"}. Any unreadable list or failed write fails the run (exit 1).
 """
 import os
-import httpx
+import sys
 
 BASE = os.getenv("BIFROST_URL", "http://bifrost.weyland.svc.cluster.local:8080")
 
@@ -615,28 +620,104 @@ for _p in PROMPTS:
     if _p["name"] in SKILL_AWARE and _m and _m[0][0] == "system":
         _m[0] = ("system", _m[0][1].rstrip() + SKILL_CLAUSE)
 
-def main():
+REGISTRAR_COMMIT = "lane: "   # every version this script writes starts with this
+
+
+def _git_messages(prompt):
+    return [{"role": role, "content": content} for role, content in prompt["messages"]]
+
+
+def _live_messages(latest_version):
+    """The live version's messages in order, unwrapped from {"message": {...}, "order_index"}."""
+    rows = sorted((latest_version or {}).get("messages") or [], key=lambda m: m.get("order_index", 0))
+    out = []
+    for row in rows:
+        m = row.get("message") or row
+        out.append({"role": m.get("role"), "content": m.get("content")})
+    return out
+
+
+def decide(prompt, live):
+    """Pure: ("create" | "update" | "unchanged" | "conflict", payload or None) for one git prompt."""
+    want = _git_messages(prompt)
+    if live is None:
+        return "create", {"commit_message": f"{REGISTRAR_COMMIT}{prompt['lane']}", "messages": want}
+    latest = live.get("latest_version") or {}
+    if _live_messages(latest) == want:
+        return "unchanged", None
+    if not str(latest.get("commit_message") or "").startswith(REGISTRAR_COMMIT):
+        return "conflict", None   # someone other than this registrar wrote the latest version — never overwrite it
+    return "update", {"commit_message": f"{REGISTRAR_COMMIT}{prompt['lane']}", "messages": want}
+
+
+def _read(client, path, key):
+    r = client.get(path)
+    if r.status_code != 200:
+        raise RuntimeError(f"GET {path} {r.status_code} (is BIFROST_SETUP_TOKEN set?): {r.text[:200]}")
+    rows = r.json().get(key)
+    if not isinstance(rows, list):
+        raise RuntimeError(f"GET {path} returned no {key} array — refusing to read it as empty")
+    return rows
+
+
+def _ensure_folders(client, names):
+    folders = {f["name"]: f["id"] for f in _read(client, "/api/prompt-repo/folders", "folders")}
+    desc = dict(FOLDERS)
+    for name in sorted(set(names) - set(folders)):
+        r = client.post("/api/prompt-repo/folders", json={"name": name, "description": desc.get(name, "")})
+        if r.status_code >= 300:
+            raise RuntimeError(f"creating folder {name}: {r.status_code} {r.text[:200]}")
+        folders[name] = r.json()["folder"]["id"]
+        print(f"folder  CREATED {name}")
+    return folders
+
+
+def _reconcile_one(client, prompt, live, folders):
+    """Decide and write one prompt. Returns created / updated / unchanged / conflict / failed."""
+    action, payload = decide(prompt, live)
+    label = f"{prompt['folder']}/{prompt['name']}"
+    if action == "conflict":
+        commit = (live.get("latest_version") or {}).get("commit_message")
+        print(f"prompt  CONFLICT {label} — latest version is not this registrar's ({commit!r}); left as is")
+        return action
+    if action == "unchanged":
+        return action
+    pid = live["id"] if live else None
+    if pid is None:
+        r = client.post("/api/prompt-repo/prompts", json={"name": prompt["name"], "folder_id": folders[prompt["folder"]]})
+        if r.status_code >= 300:
+            print(f"prompt  FAILED  {label} create: {r.status_code} {r.text[:120]}")
+            return "failed"
+        pid = r.json()["prompt"]["id"]
+    r = client.post(f"/api/prompt-repo/prompts/{pid}/versions", json=payload)
+    if r.status_code >= 300:
+        print(f"prompt  FAILED  {label} {action}: {r.status_code} {r.text[:120]}")
+        return "failed"
+    print(f"prompt  {action.upper()}D {label}")
+    return action + "d"
+
+
+def reconcile(client, prompts):
+    """Make Bifrost's prompts match git without overwriting anyone else's edit. Returns the five counts."""
+    folders = _ensure_folders(client, {p["folder"] for p in prompts})
+    live = {p["name"]: p for p in _read(client, "/api/prompt-repo/prompts", "prompts")}
+    counts = {"created": 0, "updated": 0, "unchanged": 0, "conflict": 0, "failed": 0}
+    for prompt in prompts:
+        counts[_reconcile_one(client, prompt, live.get(prompt["name"]), folders)] += 1
+    return counts
+
+
+def _client():
+    import httpx  # lazy: importing this module (the PROMPTS data) must not need it — the CI test lane has no httpx
     BIFROST_HEADERS = {"X-Bifrost-Setup-Token": os.environ["BIFROST_SETUP_TOKEN"]} if os.getenv("BIFROST_SETUP_TOKEN") else {}  # B202: v2.2.6+ setup lock (auth off)
-    c = httpx.Client(base_url=BASE, timeout=30, headers=BIFROST_HEADERS)
-    folders = {f["name"]: f["id"] for f in c.get("/api/prompt-repo/folders").json().get("folders") or []}
-    for name, desc in FOLDERS:
-        if name not in folders:
-            folders[name] = c.post("/api/prompt-repo/folders", json={"name": name, "description": desc}).json()["folder"]["id"]
-            print(f"folder  CREATED {name}")
-    existing = {p["name"] for p in c.get("/api/prompt-repo/prompts").json().get("prompts") or []}
-    created = skipped = 0
-    for p in PROMPTS:
-        if p["name"] in existing:
-            skipped += 1; continue
-        pid = c.post("/api/prompt-repo/prompts", json={"name": p["name"], "folder_id": folders[p["folder"]]}).json()["prompt"]["id"]
-        r = c.post(f"/api/prompt-repo/prompts/{pid}/versions", json={
-            "commit_message": f"lane: {p['lane']}",
-            "messages": [{"role": role, "content": content} for role, content in p["messages"]],
-        })
-        ok = r.status_code < 300
-        print(f"prompt  {'CREATED' if ok else 'FAILED '} {p['folder']}/{p['name']}{'' if ok else ' ' + r.text[:120]}")
-        created += ok
-    print(f"\ndone. {created} created, {skipped} existing. {len(PROMPTS)} prompts across {len(FOLDERS)} folders.")
+    return httpx.Client(base_url=BASE, timeout=30, headers=BIFROST_HEADERS)
+
+
+def main():
+    n = reconcile(_client(), PROMPTS)
+    print(f"\ndone. {n['created']} created, {n['updated']} updated, {n['unchanged']} unchanged, "
+          f"{n['conflict']} conflict, {n['failed']} failed. {len(PROMPTS)} prompts across {len(FOLDERS)} folders.")
+    return 1 if n["failed"] else 0
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())
