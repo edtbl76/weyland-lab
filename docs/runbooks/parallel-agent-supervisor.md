@@ -7,10 +7,10 @@ The survey ([concepts/ai-dev-tooling-survey.md](../concepts/ai-dev-tooling-surve
 new capability, since the worktree-per-task pattern is already achievable directly with the CLIs. This
 runbook is the operator recipe if/when that convenience is wanted; nothing is deployed into the cluster.
 
-## Recommended: Emdash (active, MIT)
+## Recommended: Emdash (active, Apache-2.0)
 
 [`generalaction/emdash`](https://github.com/generalaction/emdash) — the **open-source agentic development
-environment** (YC W26, MIT). A **desktop app** that runs 30+ CLI agents in parallel, each task in its own
+environment** (YC W26, Apache-2.0 — corrected 2026-10-09 from GitHub's licence field). A **desktop app** that runs 30+ CLI agents in parallel, each task in its own
 git worktree, and reviews/merges from one dashboard. It fits this lab's topology unusually well:
 
 - drives the CLIs already installed here (Claude Code, codex, opencode);

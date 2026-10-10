@@ -78,8 +78,8 @@ Re-ordered per RE-grounded audit (aidlc-docs/inception/backlog-reprioritization.
 - **B175** — **Loop library: catalog reusable agentic loops (workflows-as-prompts)** — **DONE 2026-10-08** (HIGH, 2026-09-22, Linear EMA-233). A catalog of reusable AI-agent LOOPS — prompt-workflows with checkpoints + explicit stopping conditions — modeled on [forwardfuture.com/loop-library](https://signals.forwardfuture.com/loop-library/). A "loop" = a detailed prompt with built-in checkpoints + a terminal condition (stops runaway loops); each entry = title · category (Engineering/Operations/Evaluation/Content/Design) · description · full prompt · terminal condition. The lab already runs many ad-hoc — the DoD 8-pillar pass, code-scan-suite triage, the pr-lifecycle reconcile (B131), golden-path verify, eval loops (B84/B96), the operator incident sweep (B45/B66), inventory onboarding (B169) — so codify them as a versioned, discoverable library with explicit stopping rules (matching the `/loop` command's self-pacing). Natural extension of the Bifrost prompt repo + skills repo; decide Bifrost-SoT vs docs-catalog vs both, seed with the lab's real workflows. $0. See detail below.
 - **B202** — **Upgrade Bifrost v1.6.7 → v2.2.6 (major)** — **DONE 2026-10-09** (HIGH, 2026-10-08, Linear EMA-288). v2.2.6 rolled and verified; `config.db` backed up nightly and drilled; the setup token on all 14 `/api` callers; virtual key required on inference, CORS explicit, `/metrics` whitelisted (`register_bifrost_client_config.py`); the Realm now loads its 24 Bifrost role prompts (0 since B17) and its pinned deps carry no critical/high CVE. See detail below.
 - **B203** — **Bifrost v2: scope VK→MCP through the API (retire the config.db write) + alert on unhealthy MCP clients** — **DONE 2026-10-09** (MEDIUM, 2026-10-09, Linear EMA-289). B202 follow-up the owner asked to complete: v2.2.6's governance API attaches MCP clients to virtual keys by name and applies it live (proven on a throwaway key: 0 → 2 → 0 tools, no restart), so `attach_bifrost_vk_mcp.py` (a direct SQLite write + a mandatory Bifrost restart) is replaced; and a daily watchdog alerts when any MCP client is not `healthy` (Linear sat disconnected unnoticed before B202). See §B203.
-- **B204** — **`register_bifrost_skills.py` publishes a new version when a skill's content changed (it is create-only)** — **LOW (2026-10-09, Linear EMA-291).** Found in B203: an edited skill in git never reaches Bifrost (the live `bifrost-restore` skill pointed agents at a deleted script until re-published by hand). **The B179 trial task** — Emdash, Vibe Kanban and OpenHands each attempt it unattended. Full spec in Linear EMA-291 and §B204.
-- **B179** — **Software-factory experiments: Emdash · Vibe Kanban · OpenHands for unattended issue → PR orchestration** — **HIGH (2026-09-24, Linear EMA-237; re-scoped 2026-10-09 from evaluation to experiment).** Warp Factories: DON'T ADOPT (metered by design; self-hosted only on Enterprise) — [concepts/software-factory.md](concepts/software-factory.md). The experiment: run one READY issue through each tool and measure whether it reaches a PR unattended, at what cost and quality; OpenHands only on a local model ($0). See §B179.
+- **B204** — **`register_bifrost_skills.py` publishes a new version when a skill's content changed (it is create-only)** — **LOW (2026-10-09, Linear EMA-291).** Found in B203: an edited skill in git never reaches Bifrost (the live `bifrost-restore` skill pointed agents at a deleted script until re-published by hand). **The B179 trial task** — Emdash and OpenHands each attempt it unattended. Full spec in Linear EMA-291 and §B204.
+- **B179** — **Software-factory experiments: Emdash · OpenHands for unattended issue → PR orchestration** — **HIGH (2026-09-24, Linear EMA-237; re-scoped 2026-10-09 from evaluation to experiment).** Warp Factories: DON'T ADOPT (metered by design; self-hosted only on Enterprise) — [concepts/software-factory.md](concepts/software-factory.md). The experiment: run one READY issue through each tool and measure whether it reaches a PR unattended, at what cost and quality; OpenHands only on a local model ($0). See §B179.
 - **B180** — **Track host systemd units (mother, rogueone, weyland) in a YAML SoT + the Port inventory** — **DONE (2026-10-01; was HIGH, Linear EMA-238).** Units and host config files are rows in `placement.yaml`; repo check in CI, host check nightly in `machine-inv-drift` (Kuma → Telegram), Port kinds `systemd-unit`/`host-config`. Demo `demos/placement.md`. The lab's own host-level services/timers are tracked nowhere: the repo holds 15 unit files across 3 machines, each deployed by a hand `rsync` + `systemctl enable`, with no record of what is actually installed/enabled where, no repo↔host drift check, and no failure alerting for host timers (unlike k8s CronJobs). Audit the hosts, add a `host-units.yaml` SoT, catalog them in Port beside the B129 machine inventory, guard drift, and give every host timer a failure signal. See detail below.
 - **B181** — **"Work on issue" / Copy-as-prompt launchers in Linear for the apps on the start.me Weyland Lab page (Figma Make first)** — **MEDIUM (2026-09-25, Linear EMA-239).** Linear's built-in coding-tool launchers are mostly unusable here (terminal tools need the Linear desktop app — no Linux build; the cloud agents are paid), so apps we actually use for greenfield work — Figma Make for OJay Floyd / MyBodyGraph prototyping — have no issue→app hand-off. Configure Linear **custom-link** coding tools for the start.me Weyland Lab apps that accept a prompt via URL. See detail below.
 - **B182** — **Shared agent memory across harnesses (Claude Code, Codex, OpenCode, Pi, Open WebUI, operator)** — **DONE (2026-10-05, Linear EMA-240).** One store (Basic Memory on rogueone, the notes in place); Claude Code native, Codex/OpenCode read+write via Bifrost, the operator and Open WebUI read-only via the governed MCP gateway — Open WebUI as each signed-in person, audited in Loki; compositors locked to the gateway (+ Bifrost). Was HIGH. The lab is multi-harness, but durable agent memory lives only in Claude Code's auto-memory, which no other harness can read — Codex (connected to Linear 2026-09-25) sees none of it. One shared store every harness reads and writes; candidate = an MCP memory server (Basic Memory) behind the Bifrost MCP gateway — store, transport and gateway all TBD. ContextStream rejected (a second, proprietary store). Concept `docs/concepts/multi-harness.md`, design `docs/design/shared-agent-memory-design.md`. See detail below.
@@ -3925,19 +3925,19 @@ criteria, edge cases and out of scope — is in Linear **EMA-291** and is not du
 already exists, compare git's description / body / category with the live one and, when different, PUT a new version one
 patch above `latest_version`; equal skills are untouched; a failed PUT exits 1; tests Red first with fakes.
 
-### B179 — Software-factory experiments: Emdash · Vibe Kanban · OpenHands for unattended issue → PR orchestration — HIGH (2026-09-24; re-scoped 2026-10-09 from evaluation to experiment, Linear EMA-237)
+### B179 — Software-factory experiments: Emdash · OpenHands for unattended issue → PR orchestration — HIGH (2026-09-24; re-scoped 2026-10-09 from evaluation to experiment, Linear EMA-237)
 
-**Re-scoped 2026-10-09 (owner).** The Warp evaluation is done: **DON'T ADOPT Warp Factories** (metered by design — the
+**Vibe Kanban REMOVED 2026-10-09 (owner: "Vibe Kanban is dead").** It was already rejected in B104 (dead / sunsetting) and should never have been added; dropped from the test and the evaluation. **Re-scoped 2026-10-09 (owner).** The Warp evaluation is done: **DON'T ADOPT Warp Factories** (metered by design — the
 $0 plan bills 20% above API rates, self-hosted only on Enterprise, Oz proprietary and hosted); verdict and sources in
-[concepts/software-factory.md](concepts/software-factory.md). This item is now the **experiment**: three free tools on
+[concepts/software-factory.md](concepts/software-factory.md). This item is now the **experiment**: two free tools on
 the one gap the owner named as legitimate, **unattended orchestration** (a ticket starts an agent run that ends in a PR
 with nobody steering). Every other factory stage already exists (triage `issue-readiness.sh`, spec AI-DLC v2, implement
 the subscription CLIs, review B106's bots, verify Woodpecker + the guards, workflows the B175 loop library).
 
-**Progress (2026-10-09) — setup.** EMA-237 In Progress. Pinned: Emdash v1.2.7 (Apache-2.0; can send Linear tickets to an agent natively — relevant to question 3), Vibe Kanban 0.1.44 (sunsetting), OpenHands CLI 1.16.0 (PyPI, Python 3.12). Install commands in [runbooks/software-factory.md](runbooks/software-factory.md) — the owner runs them (they fetch third-party executables). **Trial task: B204 / EMA-291** (owner-chosen 2026-10-09) — no open Low or Medium issue was a small, well-specified code change, so today's real skills-registrar gap was filed for it. Trial runs stop at a reviewable branch; pushing / opening a PR is the owner's call.
+**Progress (2026-10-09) — setup.** EMA-237 In Progress. Pinned: Emdash v1.2.7 (can send Linear tickets to an agent natively — relevant to question 3), OpenHands CLI 1.16.0 (PyPI, Python 3.12). Install commands in [runbooks/software-factory.md](runbooks/software-factory.md) — the owner runs them (they fetch third-party executables). **Trial task: B204 / EMA-291** (owner-chosen 2026-10-09) — no open Low or Medium issue was a small, well-specified code change, so today's real skills-registrar gap was filed for it. Trial runs stop at a reviewable branch; pushing / opening a PR is the owner's call.
 
 **Questions to answer.**
-1. Can any of Emdash, Vibe Kanban or OpenHands take a READY Low-priority issue to a reviewable PR with no human step
+1. Can Emdash or OpenHands take a READY Low-priority issue to a reviewable PR with no human step
    after the start? Where does each stop if not?
 2. What does a run cost (subscription usage / tokens, time) and how good is the PR (CI, review-bot findings, rework to
    merge)? This is Warp's "cost per PR", measured here at $0.
@@ -3945,9 +3945,9 @@ the subscription CLIs, review B106's bots, verify Woodpecker + the guards, workf
    still dispatch it? That decides whether the gap is closed or only narrowed.
 4. Is a local model viable for OpenHands, its only $0 route? (Owner: "if not, that's fine.")
 
-**Constraint gate.** $0: Emdash and Vibe Kanban drive the Claude Code / Codex / OpenCode subscriptions the lab already
+**Constraint gate.** $0: Emdash drives the Claude Code / Codex / OpenCode subscriptions the lab already
 pays for — no metered API. OpenHands calls a model API, so its arm runs ONLY on a local model; a Claude/GPT key would be
-metered spend and is out. LAN / self-hosted: all three run on rogueone. Reversible: each works in scratch worktrees; no
+metered spend and is out. LAN / self-hosted: both run on rogueone. Reversible: each works in scratch worktrees; no
 lab repo state changes except the trial PRs, which are reviewed like any other.
 
 **Overlap.** B119 (Linear evaluation) found the same gap and rejected the hosted answers (Linear's agent, Blocks).
@@ -3964,16 +3964,16 @@ A runbook (`docs/runbooks/software-factory.md`) with the pinned install and run 
 
 | Where | What | Role |
 | -- | -- | -- |
-| rogueone (always-on, 128 GB RAM, RTX 5000 Ada 16 GB) | where all three trials run | the trial host |
-| Claude Code / Codex / OpenCode on the subscriptions | the agents Emdash and Vibe Kanban drive | the $0 implement stage |
-| Emdash (open-source desktop app), Vibe Kanban (Apache-2.0, Rust; sunsetting into community maintenance), OpenHands (MIT core) | the three tools | installed at pinned versions for the trial |
+| rogueone (always-on, 128 GB RAM, RTX 5000 Ada 16 GB) | where both trials run | the trial host |
+| Claude Code / Codex / OpenCode on the subscriptions | the agents Emdash drives | the $0 implement stage |
+| Emdash (open-source desktop app; B104's recommended parallel-agent supervisor), OpenHands (MIT core) | the two tools | installed at pinned versions for the trial |
 | Ollama on rogueone (`qwen2.5:7b-operator` resident) | the operator's brain | must be unloaded for the local-model arm; restore afterwards |
 | `scripts/issue-readiness.sh` | picks a READY Low issue for the trial | read |
 | Woodpecker CI, PR-Agent / CodeRabbit (B106) | verify + review of each trial PR | read |
 | `docs/concepts/software-factory.md` | the verdict doc | changed — trial table + per-tool verdicts |
 
 **Acceptance criteria.**
-- [ ] The same READY issue is run through each of the three tools (OpenHands on a local model), and the trial table
+- [ ] The same READY issue is run through each of the two tools (OpenHands on a local model), and the trial table
   records, per tool: PR reached unattended (yes / where it stopped), time to PR, usage, CI result, review-bot findings,
   rework to merge, setup effort.
 - [ ] No metered model API is used in any run (subscriptions or the local model only), stated per run.
@@ -3989,11 +3989,10 @@ A runbook (`docs/runbooks/software-factory.md`) with the pinned install and run 
   `dcgm-exporter` would fail on restart. It does not block the local-model arm; a reboot clears it.
 - **Unloading the operator's model** sends the operator's incident sweep to defer (it never fails over to paid); restore
   it and confirm `/api/ps` shows it loaded again.
-- **Vibe Kanban's sunset:** a winner nobody maintains is a liability; weigh it in the verdict.
 - **Trial PRs** go through normal review and CI; none merges without the owner.
 
 **Out of scope.**
-- Warp Factories / any paid tier (verdict recorded). Building a custom orchestrator (only if all three fail, as a
+- Warp Factories / any paid tier (verdict recorded). Building a custom orchestrator (only if both fail, as a
   follow-up). New hardware.
 
 **History (kept for the record).**
