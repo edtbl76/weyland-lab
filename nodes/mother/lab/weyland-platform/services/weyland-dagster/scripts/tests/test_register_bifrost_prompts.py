@@ -147,6 +147,19 @@ def test_prompts_shared_with_the_mlflow_registrar_have_identical_text():
         assert as_mlflow == mlflow_prompts[p["name"]], f"{p['name']} differs between the two registrars"
 
 
+def test_the_operators_baked_fallback_is_the_same_operator_system_prompt():
+    # weyland-operator/agent.py bakes SYSTEM as load_prompt("operator_system", SYSTEM)'s fallback (used when the registry
+    # is unreachable). It had drifted from the registered text in both directions (Realm sentence only in the fallback,
+    # "NEVER propose a job…" only in the registry) — so the operator behaved differently whenever MLflow was down.
+    import ast
+    import pathlib
+    agent = pathlib.Path(__file__).resolve().parents[3] / "weyland-operator" / "agent.py"
+    tree = ast.parse(agent.read_text())
+    system = next(ast.literal_eval(n.value) for n in tree.body
+                  if isinstance(n, ast.Assign) and getattr(n.targets[0], "id", "") == "SYSTEM")
+    assert system == _mlflow_registrar_prompts()["operator_system"]
+
+
 def test_importing_the_module_needs_no_httpx():
     # The CI test lane has no httpx; the SoT data must import without it.
     import sys

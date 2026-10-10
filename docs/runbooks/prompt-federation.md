@@ -118,6 +118,14 @@ mirrors outbound — bidirectional in one pass.
   copies drifting apart: `scripts/register_prompts.py` (MLflow) carried a sentence the Bifrost registrar lacked. The fix
   is to make the git copies agree. Then the registrar sees equal messages and reports `unchanged`, whatever the commit
   marker.
+- **Three git copies of each app prompt, one text.** `rag_system`, `operator_system`, `agent_grade` and `agent_reflect`
+  live in `scripts/register_prompts.py` (MLflow), `register_bifrost_prompts.py` (Bifrost) and, for `operator_system`, the
+  operator's baked fallback `SYSTEM` in `weyland-operator/agent.py`. `test_register_bifrost_prompts.py` fails if they
+  differ.
+- **Changing a shared app prompt: go-live order.** `register_prompts.py` writes UNSTAMPED MLflow versions, and the inbound
+  pass pulls any unstamped MLflow text that differs from Bifrost, however old. Ship the Dagster image, then re-run
+  `register_prompts.py` (command in [mlflow.md](mlflow.md)) BEFORE the registrations job. Otherwise the job's inbound pass
+  pulls the old MLflow text back over the new Bifrost version and the registrar reports a CONFLICT again.
 - **Inbound reconcile:** native edits made *in* Langfuse (playground) / MLflow flow back to Bifrost. Loop-safety =
   content-hash compare + a `synced-from-bifrost:<hash>` provenance stamp; conflict = **last-write-wins by timestamp**
   (with a WARNING). **GOTCHA:** native-edit detection keys on the VERSION-level **`commitMessage`**, NOT Langfuse

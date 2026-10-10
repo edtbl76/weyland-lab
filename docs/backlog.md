@@ -80,7 +80,8 @@ Re-ordered per RE-grounded audit (aidlc-docs/inception/backlog-reprioritization.
 - **B203** — **Bifrost v2: scope VK→MCP through the API (retire the config.db write) + alert on unhealthy MCP clients** — **DONE 2026-10-09** (MEDIUM, 2026-10-09, Linear EMA-289). B202 follow-up the owner asked to complete: v2.2.6's governance API attaches MCP clients to virtual keys by name and applies it live (proven on a throwaway key: 0 → 2 → 0 tools, no restart), so `attach_bifrost_vk_mcp.py` (a direct SQLite write + a mandatory Bifrost restart) is replaced; and a daily watchdog alerts when any MCP client is not `healthy` (Linear sat disconnected unnoticed before B202). See §B203.
 - **B205** — **Architecture tests fail when `.import_linter_cache` isn't writable (run `lint-imports` without a shared cache)** — **LOW (2026-10-10, Linear EMA-292, label `agent-ready`).** `test_architecture.py` in weyland-dagster / weyland-guard / weyland-tool-server shells out to `lint-imports`, which reads and writes `.import_linter_cache/` in the checkout; a root-owned or read-only cache makes both tests fail with `Permission denied`, reading as an architecture regression. Fix: `--no-cache` (or a `tmp_path` `--cache-dir`). Repro run exactly as written (2 failed, `os error 13`); the fix proven against the root-owned cache (`4 kept, 0 broken` / planted `3 broken`). **The B179 run-3 task** — picked up by an Emdash automation via the `agent-ready` label. Full spec in Linear EMA-292 (not duplicated here). **Implemented 2026-10-10 by B179 run 3**
   (unattended, all 5 criteria met): `--no-cache` in the three `_lint()` helpers; the 6 tests pass in this checkout with the
-  code mounted read-only. Label removed. Closes once CI is green on the push. Run 3 also found `scripts/issue-readiness.sh`
+  code mounted read-only. Label removed. **DONE 2026-10-10:** pushed as `4521d9c1`; lean CI #314 green (22/22, incl.
+  `test-python` and `sonar-gate`). Run 3 also found `scripts/issue-readiness.sh`
   stored non-executable (mode fixed in the same change).
 - **B204** — **`register_bifrost_skills.py` publishes a new version when a skill's content changed (it is create-only)** — **DONE 2026-10-10** (LOW, 2026-10-09, Linear EMA-291). Built unattended by Emdash → Claude Code in the B179 trial (run 2), reviewed and shipped as `weyland-dagster-user-code:git-8cd485b4`. Found in B203: an edited skill in git never reaches Bifrost (the live `bifrost-restore` skill pointed agents at a deleted script until re-published by hand). **The B179 trial task** — Emdash and OpenHands each attempt it unattended. Full spec in Linear EMA-291 and §B204.
 - **B179** — **Software-factory experiments: Emdash · OpenHands for unattended issue → PR orchestration** — **HIGH (2026-09-24, Linear EMA-237; re-scoped 2026-10-09 from evaluation to experiment).** Warp Factories: DON'T ADOPT (metered by design; self-hosted only on Enterprise) — [concepts/software-factory.md](concepts/software-factory.md). The experiment: run one READY issue through each tool and measure whether it reaches a PR unattended, at what cost and quality; OpenHands only on a local model ($0). See §B179.
@@ -3933,7 +3934,11 @@ memory-search sentence (B182) had been added to `scripts/register_prompts.py` (t
 `register_bifrost_prompts.py`, so federation pulled MLflow's newer copy into Bifrost. Git's Bifrost copy now matches the
 live text byte for byte, so the next run reports it unchanged (0 conflicts). **Guard so it can't drift again:**
 `test_prompts_shared_with_the_mlflow_registrar_have_identical_text` fails when the two registrars disagree on any of the
-four shared prompts (Red on the old copy: `operator_system differs between the two registrars`).
+four shared prompts (Red on the old copy: `operator_system differs between the two registrars`). **Third copy unified
+(owner: yes):** the operator's baked fallback `SYSTEM` (`agent.py`) had the Realm sentence the registry lacked, and lacked
+"NEVER propose a job…". All three now carry one text, with the Realm sentence conditional ("if you have it": the unpaid
+sweep brain has no `delegate_to_realm`). A second test holds `SYSTEM` to the registered text (Red first). Go-live order is
+in `prompt-federation.md`: ship, re-run `register_prompts.py`, then the registrations job.
 
 **The B179 trial task** (owner, 2026-10-09): written so an unattended agent can do it without asking. The full spec —
 Why, Scope, Technical context (observed API shapes: the skills list pages at 100 and ignores `limit`; each item carries
