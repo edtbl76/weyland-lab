@@ -38,6 +38,23 @@ measured the same way.
 to PR; subscription usage or tokens consumed; the PR's quality (CI result, review-bot findings, how much rework it
 needed to merge); setup effort; and anything it needed outside the $0 / LAN constraints.
 
+## Trial results
+
+| Run | Tool / agent | Mode | Reached a branch unattended? | Time | Usage | Tests | Spec criteria | Notes |
+|---|---|---|---|---|---|---|---|---|
+| 1 (2026-10-09) | Emdash 1.2.7 → Claude Code, Opus 5.5, from Linear EMA-291 | Auto-approve on (Claude Code bypass mode) | **Yes, after one human step**: Claude Code's bypass-mode warning must be accepted at launch | 22:59:36 → ~23:05 working (23:08 incl. summary) | 52 turns, 21 shell commands; 46k output tokens, 253k cache-write, 5.7M cache-read (subscription) | 35/35 pass in the CI image (32 new, written Red first); setup-token guard passes; agent ran the full guard suite | Met all six **as written** | Left its worktree once: loaded `scripts/.env` in the main checkout and curled Bifrost `/api` (redirected to Keycloak); tried `ssh mother … kubectl exec` (refused: no key). No commits, no pushes; reverted its own coverage-baseline rewrite. Its summary flagged the one thing it could not verify (the live API shape) |
+
+**The spec was wrong, and only a live read caught it.** A read-only dry run of the agent's code against live Bifrost
+(589 skills; every `latest_version` a string, as assumed) showed its first real run would publish new versions of all
+25 git skills, every week: the skills LIST returns `skill_md_body` empty — only `GET /api/skills/{id}` carries the body.
+EMA-291 claimed list items carry the body (the key exists; nobody checked its value), the agent built exactly that,
+and its fakes encoded the same assumption. The defect is the spec author's (this lab's), not the tool's — and it is
+the stubbed-test lesson again: observe the real contract's VALUES, not its keys, before handing a task to an agent.
+
+**Observed behaviour worth keeping:** Emdash pushes the task branch to GitHub the moment the task is created (empty,
+at `main`), so every task publishes a branch; its Create Task dialog defaults to GitHub issues (Linear is reachable but
+not obvious); "auto-approve" maps to Claude Code's bypass mode, which needs one human acceptance per session.
+
 ## Is a local model viable?
 
 **Only as one bounded arm of the OpenHands experiment.** The facts:
