@@ -3966,14 +3966,15 @@ A runbook (`docs/runbooks/software-factory.md`) with the pinned install and run 
   rework to merge, setup effort.
 - [ ] No metered model API is used in any run (subscriptions or the local model only), stated per run.
 - [ ] Question 3 answered with evidence: whether a Linear issue can start the run without a person.
-- [ ] The local-model arm is either run (after the GPU driver mismatch is fixed and the operator's model unloaded, then
+- [ ] The local-model arm is either run (with the operator's model unloaded, then
   restored and verified) or recorded as not viable with the reason.
 - [ ] A verdict per tool in the concepts doc; for any ADOPT, a runbook with pinned versions.
 
 **Edge cases & failure modes.**
 - **A tool that stalls** is a result — record the stage, don't keep nudging it (a nudged run is not unattended).
-- **The GPU is unusable until rogueone reboots** (2026-10-09: kernel module 595.91.07 vs userspace 595.99.02) — the
-  local-model arm waits; the other two do not need the GPU.
+- **GPU driver mismatch** (2026-10-09: kernel module 595.91.07 vs userspace 595.99.02 after an unattended upgrade):
+  validated — CUDA works (operator model 29/29 layers on GPU, 91.7 tok/s warm), only NVML tools (`nvidia-smi`) fail and
+  `dcgm-exporter` would fail on restart. It does not block the local-model arm; a reboot clears it.
 - **Unloading the operator's model** sends the operator's incident sweep to defer (it never fails over to paid); restore
   it and confirm `/api/ps` shows it loaded again.
 - **Vibe Kanban's sunset:** a winner nobody maintains is a liability; weigh it in the verdict.

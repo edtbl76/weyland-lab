@@ -37,7 +37,7 @@ needed to merge); setup effort; and anything it needed outside the $0 / LAN cons
 
 ## Is a local model viable?
 
-**Only as one bounded arm of the OpenHands experiment, and it is not available today.** The facts:
+**Only as one bounded arm of the OpenHands experiment.** The facts:
 
 - **The card is a 16 GB RTX 5000 Ada on rogueone, and it is already spoken for.** The operator's brain
   (`qwen2.5:7b-operator`) lives there; B174 measured that a second model (Clef-flash, 8.5 GB in 4-bit) cannot sit beside
@@ -47,12 +47,13 @@ needed to merge); setup effort; and anything it needed outside the $0 / LAN cons
   needs tens of thousands of tokens of context. On 16 GB that means a small context, or spilling to CPU (rogueone has
   128 GB of RAM, but the B111 MoE note records that offloaded layers make speed claims misleading). Expect it to be
   markedly slower and weaker than Claude; how much is what the arm would measure.
-- **The GPU is unusable right now.** On 2026-10-09 rogueone's NVIDIA management library reported a driver/library
-  version mismatch: the loaded kernel module is 595.91.07, the installed userspace is 595.99.02 (a driver upgrade
-  without a reboot). Until rogueone reboots, no local-model arm can run.
+- **The GPU works; only its management tools are affected.** On 2026-10-09 an unattended upgrade at 06:25 moved the
+  driver userspace to 595.99.02 while the loaded kernel module stayed 595.91.07 (rogueone has been up since 2026-09-20).
+  `nvidia-smi` (NVML) now refuses to run, but CUDA does not: validated the same day, the operator's model loaded fully
+  onto the GPU (29/29 layers, 11.4 GB free) and generated at 91.7 tokens/s warm. The running `dcgm-exporter` still reports
+  (it started before the upgrade, with the old library loaded) but would fail if restarted; a reboot clears all of it.
 
-So: one OpenHands run on a local coding model, scheduled when the operator's model can be unloaded, after the driver
-mismatch is fixed. If it cannot reach a PR, the conclusion is that OpenHands is not a $0 option for this lab, and that
+So: one OpenHands run on a local coding model, scheduled when the operator's model can be unloaded. If it cannot reach a PR, the conclusion is that OpenHands is not a $0 option for this lab, and that
 is an acceptable result. The owner's B86/B159 deferrals (new hardware) are the longer answer: a larger card changes
 this section.
 
