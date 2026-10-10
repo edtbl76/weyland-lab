@@ -119,6 +119,34 @@ def test_a_list_without_a_prompts_array_fails_closed():
         reg.reconcile(Odd([]), [PROMPT])
 
 
+# --- the MLflow registrar declares the same app prompts; the two git copies must agree ---------------------------------
+
+def _mlflow_registrar_prompts():
+    """PROMPTS from scripts/register_prompts.py (B100, MLflow), read with ast: that module imports mlflow at the top."""
+    import ast
+    import pathlib
+    path = pathlib.Path(__file__).resolve().parents[4] / "scripts" / "register_prompts.py"
+    tree = ast.parse(path.read_text())
+    for node in tree.body:
+        if isinstance(node, ast.Assign) and getattr(node.targets[0], "id", "") == "PROMPTS":
+            return ast.literal_eval(node.value)
+    raise AssertionError(f"no PROMPTS dict in {path}")
+
+
+def test_prompts_shared_with_the_mlflow_registrar_have_identical_text():
+    # 2026-10-10: operator_system drifted (a B182 sentence went into the MLflow copy only); prompt federation pulled the
+    # MLflow text into Bifrost and this registrar reported a CONFLICT. Both copies are git — they must say the same thing.
+    import re
+    mlflow_prompts = _mlflow_registrar_prompts()
+    shared = [p for p in reg.PROMPTS if p["name"] in mlflow_prompts]
+    assert {p["name"] for p in shared} == {"rag_system", "operator_system", "agent_grade", "agent_reflect"}
+    for p in shared:
+        messages = reg._git_messages(p)
+        assert len(messages) == 1, p["name"]
+        as_mlflow = re.sub(r"\{\{\s*(\w+)\s*\}\}", r"{\1}", messages[0]["content"])   # Bifrost {{v}} = MLflow {v}
+        assert as_mlflow == mlflow_prompts[p["name"]], f"{p['name']} differs between the two registrars"
+
+
 def test_importing_the_module_needs_no_httpx():
     # The CI test lane has no httpx; the SoT data must import without it.
     import sys

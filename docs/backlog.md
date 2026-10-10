@@ -3928,7 +3928,12 @@ repo or dataset changed.
 `git-361b5975`** (full-matrix CI #312 green; FR1.5 / SMOKE / TXN pass). **Verified live:** `registrations_reconcile_job`
 run `7cc3bc43` SUCCESS, all 7 steps: prompts `0 created, 0 updated, 100 unchanged, 1 conflict, 0 failed` (the conflict is
 `operator_system`, as the dry run predicted), skills 25 unchanged, federation `Inbound: 0`, Langfuse and MLflow 0
-upserted / 280 unchanged. Open owner decision: copy the MLflow edit of `operator_system` into git, or leave it native.
+upserted / 280 unchanged. **Conflict resolved (owner: copy it into git):** the "native" edit was not hand-made — the
+memory-search sentence (B182) had been added to `scripts/register_prompts.py` (the B100 MLflow registrar) but not to
+`register_bifrost_prompts.py`, so federation pulled MLflow's newer copy into Bifrost. Git's Bifrost copy now matches the
+live text byte for byte, so the next run reports it unchanged (0 conflicts). **Guard so it can't drift again:**
+`test_prompts_shared_with_the_mlflow_registrar_have_identical_text` fails when the two registrars disagree on any of the
+four shared prompts (Red on the old copy: `operator_system differs between the two registrars`).
 
 **The B179 trial task** (owner, 2026-10-09): written so an unattended agent can do it without asking. The full spec —
 Why, Scope, Technical context (observed API shapes: the skills list pages at 100 and ignores `limit`; each item carries
