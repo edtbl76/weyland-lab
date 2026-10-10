@@ -26,8 +26,11 @@ pytestmark = pytest.mark.skipif(
 
 
 def _lint(config: str, cwd: pathlib.Path) -> subprocess.CompletedProcess:
+    # --no-cache: never read or write `.import_linter_cache/` in the checkout. A stale cache left by a root
+    # container (or a read-only mount) made lint-imports exit 1 with "Permission denied" and no contract
+    # report, which read as an architecture regression (B205).
     return subprocess.run(
-        ["lint-imports", "--config", config],
+        ["lint-imports", "--no-cache", "--config", config],
         cwd=str(cwd),
         capture_output=True,
         text=True,
