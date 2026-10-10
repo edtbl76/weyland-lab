@@ -244,7 +244,8 @@ attach runtime-registered clients ("failed to get MCP client: not found"). Retir
 9. `python3 scripts/register_aidlc_kb_skills.py | kubectl -n weyland exec -i deploy/weyland-guard -- python -`  (511 knowledge-base entries: 395 engineering-knowledge + 60 consulting-tools + 56 industry-vertical)
 
 **Skills Repository (B111 2026-08-01):** 20 Agent Skills (Anthropic-style: frontmatter cols + `skill_md_body`) codified in
-**`scripts/register_bifrost_skills.py`** (idempotent) — lab-ops skills from our runbooks (deploy-via-argo, dagster-redeploy,
+**`scripts/register_bifrost_skills.py`** (idempotent; B204: a skill whose description / body / category changed in git
+gets a new version via `PUT /api/skills/{id}`, one patch above `latest_version`; an equal one is untouched) — lab-ops skills from our runbooks (deploy-via-argo, dagster-redeploy,
 bifrost-restore, diagnose-pod-oom, k8s-rwo-recreate, wake-sleep-store, swap-embedding-model, run-eval-suite, use-model-gateway,
 remote-training-rogueone, weyland-conventions, …) + generic dev skills. API: `POST /api/skills {name (kebab), version (semver),
 description, skill_md_body, compatibility, allowed_tools, license, metadata}`. Bifrost SERVES them as a Claude Code / Codex

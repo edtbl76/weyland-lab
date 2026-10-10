@@ -5,8 +5,9 @@ prompts), folded into idempotent Dagster assets so it's GitOps-reproducible + sc
 `kubectl exec`. Weekly reconcile + on-demand (`registrations_reconcile_job`).
 
 - **bifrost_prompts / bifrost_skills** — shell out to the self-contained (httpx-only) register scripts bundled in the
-  image at `/app/scripts/`; their hardcoded data is the source of truth, and each is idempotent (existing entries
-  skipped, no version churn on re-run).
+  image at `/app/scripts/`; their hardcoded data is the source of truth, and each is idempotent (no version churn on
+  re-run). Prompts skip existing entries; skills (B204) also publish a new patch version of a skill whose git
+  description / body / category changed, so an edit in git reaches Bifrost.
 - **bifrost_loops** (B175) — publishes the loop library from git (`knowledge-repos/loop-library`, bundled as
   `/app/scripts/loop_library.json`). Git wins: a changed loop gets a new version, so it is NOT skip-if-exists.
 - **realm_roles** — the Realm owns its per-agent prompts (`roster.py`/`roles.py`), so we PULL them live from the Realm's

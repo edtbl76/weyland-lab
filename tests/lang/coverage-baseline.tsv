@@ -22,7 +22,7 @@ python:nodes/mother/lab/weyland-platform/services/rag-embed	97
 python:nodes/mother/lab/weyland-platform/services/realm-of-agents	65
 python:nodes/mother/lab/weyland-platform/services/scan-suite	80
 python:nodes/mother/lab/weyland-platform/services/store-scaler	98
-python:nodes/mother/lab/weyland-platform/services/weyland-dagster/scripts	28
+python:nodes/mother/lab/weyland-platform/services/weyland-dagster/scripts	55
 python:nodes/mother/lab/weyland-platform/services/weyland-operator	45
 python:nodes/mother/lab/weyland-platform/services/weyland-tool-server	74
 python:scripts	69

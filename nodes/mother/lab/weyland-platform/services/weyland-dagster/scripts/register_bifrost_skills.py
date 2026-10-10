@@ -13,12 +13,19 @@ API contract (reverse-engineered from /app/main, 2026-08-01; prefix /api/skills)
   name = kebab-case (lowercase/digits/single-hyphens); version = semver MAJOR.MINOR.PATCH; skill_md_body non-empty.
   Frontmatter (name/description/license/compatibility/allowed_tools) are COLUMNS — skill_md_body is the BODY only;
   Bifrost reconstructs the full SKILL.md when serving. GET/DELETE /api/skills/{id}; versions at /api/skills/{id}/versions.
+- GET /api/skills?offset=N -> {skills, total, limit, offset}: pages of 100, ignores limit, and every item's skill_md_body
+  is EMPTY. GET /api/skills/{id} -> {skill:{..., skill_md_body, latest_version}} carries the real body (observed 2026-10-09).
+- PUT /api/skills/{id} {description, skill_md_body, version, compatibility, allowed_tools, license, metadata} publishes a
+  new version; a version that already exists -> 409.
 
 DESIGN (per the 2026-08-01 scoping decision): lab-operational skills (codifying weyland runbooks + hard-won gotchas) PLUS
 a handful of generic dev skills. compatibility=claude-code,codex; allowed_tools left broad so a skill works in any agent.
-Idempotent: skills created only if absent (matched by name).
+Reconciling (B204): a skill absent from Bifrost is created at VERSION; one whose description / body / category differ
+from git gets a new version (PUT /api/skills/{id}, patch above its latest_version); an equal one is left alone, so a
+re-run writes nothing. Only names in SKILLS are touched.
 """
 import os
+import re
 
 BASE = os.getenv("BIFROST_URL", "http://bifrost.weyland.svc.cluster.local:8080")
 VERSION = "1.0.0"
@@ -332,35 +339,106 @@ CHECKPOINT: an absent, empty, or errored result is NEVER success (fail closed). 
 TERMINAL CONDITION: STOP when the entire suite is green — every guard exit 0 AND its output shows no failure — in one clean top-to-bottom pass. A suite still reporting drift is NOT done, even if the piece you changed is perfect."""),
 ]
 
-def main():
-    import httpx  # lazy: only main() needs it, so importing this module (the SKILLS list) needs no deps — see tests/test_bifrost_skills.py
-    BIFROST_HEADERS = {"X-Bifrost-Setup-Token": os.environ["BIFROST_SETUP_TOKEN"]} if os.getenv("BIFROST_SETUP_TOKEN") else {}  # B202: v2.2.6+ setup lock (auth off)
-    c = httpx.Client(base_url=BASE, timeout=30, headers=BIFROST_HEADERS)
-    # Best-effort pre-fetch to skip a POST we don't need. The REAL idempotency guarantee is the "already exists"
-    # catch below: the list endpoint paginates and IGNORES limit (observed 2026-09-23 — it returned 1 of 21
-    # existing skills), so the pre-fetch alone is unreliable and must NOT be trusted to decide "new vs existing".
+_SEMVER = re.compile(r"^(\d+)\.(\d+)\.(\d+)$")
+
+
+def bump_patch(version):
+    """`1.1.0` -> `1.1.1`. Anything not strictly MAJOR.MINOR.PATCH raises — a version is never guessed (B204)."""
+    m = _SEMVER.match(version) if isinstance(version, str) else None
+    if not m:
+        raise ValueError(f"latest_version {version!r} is not semver MAJOR.MINOR.PATCH")
+    major, minor, patch = m.groups()
+    return f"{major}.{minor}.{int(patch) + 1}"
+
+
+def _fields(category, description, body):
+    """The body every write sends (POST adds name + VERSION; PUT adds the bumped version)."""
+    return {"description": description, "skill_md_body": body, "compatibility": COMPAT, "allowed_tools": "",
+            "license": "MIT", "metadata": {"category": category}}
+
+
+def plan(skill, live):
+    """Pure decision (no network): ("create" | "update" | "unchanged", payload or None).
+
+    `live` is the skill from GET /api/skills/{id} (the one place its real body lives), or None when absent. Compared
+    exactly as stored, so a trailing-newline difference is a change. Raises ValueError on a non-semver latest_version.
+    """
+    name, category, description, body = skill
+    if live is None:
+        return "create", {"name": name, "version": VERSION, **_fields(category, description, body)}
+    if (live.get("description"), live.get("skill_md_body"), (live.get("metadata") or {}).get("category")) \
+            == (description, body, category):
+        return "unchanged", None
+    return "update", {**_fields(category, description, body), "version": bump_patch(live.get("latest_version"))}
+
+
+def live_index(client):
+    """name -> id for every skill in Bifrost. The list pages by `offset` and IGNORES `limit` (observed 2026-09-23 and
+    2026-10-09), so page until an empty page. Any error raises: an unreachable Bifrost or a 401 (missing setup token)
+    must never read as "nothing exists", which would POST every skill."""
+    index, offset = {}, 0
+    while True:
+        r = client.get("/api/skills", params={"offset": offset})
+        r.raise_for_status()
+        page = r.json().get("skills") or []
+        if not page:
+            return index
+        index.update({s["name"]: s["id"] for s in page})
+        offset += len(page)
+
+
+def _reconcile_one(client, skill, index):
+    """Read, decide and write ONE skill. Returns "created" / "updated" / "unchanged" / "failed"."""
+    name, category = skill[0], skill[1]
+    live = None
+    if name in index:
+        r = client.get(f"/api/skills/{index[name]}")   # the list's skill_md_body is always EMPTY — read the real one
+        if r.status_code >= 300:
+            print(f"skill  FAILED  [{category}] {name} read: {r.status_code} {r.text[:140]}")
+            return "failed"
+        live = r.json()["skill"]
     try:
-        existing = {s["name"] for s in c.get("/api/skills?limit=1000").json().get("skills") or []}
-    except Exception:
-        existing = set()
-    created = skipped = failed = 0
-    for name, category, description, body in SKILLS:
-        if name in existing:
-            skipped += 1; continue
-        r = c.post("/api/skills", json={
-            "name": name, "version": VERSION, "description": description,
-            "skill_md_body": body, "compatibility": COMPAT, "allowed_tools": "",
-            "license": "MIT", "metadata": {"category": category},
-        })
-        if r.status_code < 300:
-            print(f"skill  CREATED [{category}] {name}"); created += 1
-        elif "already exists" in r.text:
-            skipped += 1   # idempotent: it IS registered; the paginated pre-fetch simply missed it. Not a failure.
-        else:
-            print(f"skill  FAILED  [{category}] {name} {r.text[:140]}"); failed += 1
-    print(f"\ndone. {created} created, {skipped} existing, {failed} failed. {len(SKILLS)} skills total.")
-    if failed:
-        raise SystemExit(1)   # a REAL failure (not an already-exists collision) fails the run — fail closed.
+        action, payload = plan(skill, live)
+    except ValueError as e:
+        print(f"skill  FAILED  [{category}] {name} {e}")
+        return "failed"
+    if action == "unchanged":
+        return "unchanged"
+    if action == "create":
+        r = client.post("/api/skills", json=payload)
+    else:
+        r = client.put(f"/api/skills/{index[name]}", json=payload)
+    if r.status_code >= 300:
+        # Includes a POST answered "already exists": the index is complete now, so that means it was compared
+        # against nothing — fail closed rather than report a skill we never checked as fine.
+        print(f"skill  FAILED  [{category}] {name} {action}: {r.status_code} {r.text[:140]}")
+        return "failed"
+    print(f"skill  {action.upper()}D [{category}] {name}" + (f" -> {payload['version']}" if action == "update" else ""))
+    return action + "d"
+
+
+def reconcile(client, skills):
+    """Create the missing, publish a new version of the changed, leave the equal alone. Returns the four counts.
+    Only names in `skills` are read or written — the KB / AIDLC skills other registrars own are never touched."""
+    counts = {"created": 0, "updated": 0, "unchanged": 0, "failed": 0}
+    index = live_index(client)
+    for skill in skills:
+        counts[_reconcile_one(client, skill, index)] += 1
+    return counts
+
+
+def _client():
+    import httpx  # lazy: only a live run needs it, so importing this module (the SKILLS list) needs no deps — see tests/test_bifrost_skills.py
+    BIFROST_HEADERS = {"X-Bifrost-Setup-Token": os.environ["BIFROST_SETUP_TOKEN"]} if os.getenv("BIFROST_SETUP_TOKEN") else {}  # B202: v2.2.6+ setup lock (auth off)
+    return httpx.Client(base_url=BASE, timeout=30, headers=BIFROST_HEADERS)
+
+
+def main():
+    n = reconcile(_client(), SKILLS)
+    print(f"\ndone. {n['created']} created, {n['updated']} updated, {n['unchanged']} unchanged, {n['failed']} failed. "
+          f"{len(SKILLS)} skills total.")
+    if n["failed"]:
+        raise SystemExit(1)   # any failed read / POST / PUT fails the run — fail closed.
 
 if __name__ == "__main__":
     main()

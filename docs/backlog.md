@@ -3925,6 +3925,16 @@ criteria, edge cases and out of scope — is in Linear **EMA-291** and is not du
 already exists, compare git's description / body / category with the live one and, when different, PUT a new version one
 patch above `latest_version`; equal skills are untouched; a failed PUT exits 1; tests Red first with fakes.
 
+**Progress (2026-10-09) — implemented on branch `ed/ema-291-…`, awaiting owner review.** `register_bifrost_skills.py` now
+has a pure `plan()` (create / update / unchanged) + `bump_patch()` (strict semver, raises otherwise), `live_index()` (pages
+by `offset` until empty; any error raises, so a 401 or outage can't read as "nothing exists" — the old pre-fetch swallowed
+it into an empty set) and `reconcile()`, which reads each git skill's real body from `GET /api/skills/{id}`. Summary:
+`done. N created, U updated, S unchanged, F failed.` A POST answered "already exists" now counts as failed (the index is
+complete, so that skill was never compared). 21 new tests, written Red first (fakes mirror the shapes observed live).
+Read-only dry run against live Bifrost (GET only; writes recorded, never sent): **25 unchanged, 0 would-write**, index 589;
+`bifrost-restore` body equals git (1075 chars) and a one-newline edit plans `1.1.0 → 1.1.1`.
+**Reviewed into `main` 2026-10-09 (B179 run 2's code):** applied cleanly on `e8a24953`; Sonar precheck found one CRITICAL (`reconcile()` cognitive complexity 19 > 15) → per-skill body extracted into `_reconcile_one()`; re-verified: 24/24 tests, an independent live read-only dry run gives 25 unchanged / 0 writes and, with one byte changed, exactly one PUT at `1.1.0 → 1.1.1`; Sonar 0 issues (the one hotspot, the plain-http default URL, predates this change); guards pass. Next: commit, then ship the Dagster user-code image (the weekly asset runs the copy in the image).
+
 ### B179 — Software-factory experiments: Emdash · OpenHands for unattended issue → PR orchestration — HIGH (2026-09-24; re-scoped 2026-10-09 from evaluation to experiment, Linear EMA-237)
 
 **Vibe Kanban REMOVED 2026-10-09 (owner: "Vibe Kanban is dead").** It was already rejected in B104 (dead / sunsetting) and should never have been added; dropped from the test and the evaluation. **Re-scoped 2026-10-09 (owner).** The Warp evaluation is done: **DON'T ADOPT Warp Factories** (metered by design — the
