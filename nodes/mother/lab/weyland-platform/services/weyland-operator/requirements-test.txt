@@ -4,3 +4,4 @@
 # conftest.py, so these two are the whole extra dependency set the pure-logic tests need.
 httpx
 prometheus_client
+fastapi==0.141.1   # tests/test_app_ask.py drives POST /operator/ask through TestClient (pinned to requirements.txt)

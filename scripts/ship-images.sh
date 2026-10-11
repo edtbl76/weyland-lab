@@ -541,6 +541,29 @@ except Exception as e:
 ' 2>/dev/null
 }
 
+# Operator (2026-10-10): ask a REAL read-only question through POST /operator/ask and require a grounded answer — a
+# reply with a number in it. `/ready` only says the fleet loaded; this proves the brain answers using a tool. FREE-ONLY:
+# `"allow_paid": false` runs the unpaid local brain (the incident sweep's path), so a down local brain is a 503 and a
+# failed transaction — an automatic check never spends money on the Haiku fallback. Shape observed live 2026-10-10:
+# {"message": ..., "reply": "There are 20 Kubernetes namespaces in the current cluster."} in 7.2 s from a cold model.
+txn_operator() {
+  local pod="${1:?usage: txn_operator <pod>}"
+  kubectl -n weyland exec "$pod" -- python3 -c '
+import json, re, urllib.request, urllib.error
+body = {"message": "How many Kubernetes namespaces are there? Use your tools and answer with the number.",
+        "allow_paid": False}
+try:
+    r = urllib.request.Request("http://weyland-operator.weyland.svc.cluster.local:8080/operator/ask",
+        data=json.dumps(body).encode(), headers={"Content-Type": "application/json"})
+    reply = str(json.load(urllib.request.urlopen(r, timeout=180)).get("reply") or "")
+    print("TXN_OK" if re.search(r"\d", reply) else "TXN_FAIL no number in the reply: " + reply[:120])
+except urllib.error.HTTPError as e:
+    print("TXN_FAIL " + str(e.code) + " " + e.read().decode(errors="replace")[:160])
+except Exception as e:
+    print("TXN_FAIL " + type(e).__name__ + " " + str(e)[:120])
+' 2>/dev/null
+}
+
 # ship_flag_allows — B88 #5, the Unleash deploy kill-switch. Returns 0 = ship allowed, 1 = HELD.
 #
 # WHY BEFORE THE MERGE, and why global. Every Argo app is `selfHeal: true`, so Argo re-syncs to git
@@ -656,6 +679,7 @@ txn_ok() {
       weyland-dagster-user-code|weyland-dagster-base) verdict="$(txn_dagster "$pod")" ;;
       feast-server)              verdict="$(txn_feast "$pod")" ;;
       weyland-tool-server)       verdict="$(txn_tool_server "$pod")" ;;
+      weyland-operator)          verdict="$(txn_operator "$pod")" ;;
       # NAMED, never silently passed — same discipline as smoke_ok. A CI image that runs as a Job has
       # no transaction to make; saying so is honest, implying it was verified is not.
       *) unchecked="${unchecked} ${img}"; continue ;;

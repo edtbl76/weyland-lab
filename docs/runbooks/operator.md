@@ -9,6 +9,9 @@ on mother, not an LXC. `weyland-operator.weyland.svc:8080` (ClusterIP, no ingres
 ## The three parts (as built)
 1. **Agent core** — `create_react_agent(llm, tools)`; read tools (`status`, `context_search`, `context_ask`)
    called freely; native tool-calling. `POST /operator/ask {message}` is the stateless test/probe surface.
+   Optional `"allow_paid": false` (API 1.1, 2026-10-10) makes a request **free-only**: the unpaid local brain, no
+   Haiku fallback and no Realm; a down local brain returns `503`. Automatic callers use it, e.g. the ship-images
+   operator transaction. People omit it and keep the fallback.
 2. **Ingress + memory** — a Telegram `getUpdates` long-poll task; per allowlisted message: guard-in → load session →
    agent → guard-out → reply → persist. History is the last 10 turns in Postgres (`operator_sessions`, per `chat_id`).
 3. **Act + confirm-step** — the agent can only `propose_act`; the **app** fires (via `act.py`) only on an explicit

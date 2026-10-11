@@ -81,6 +81,9 @@ def _actor(x_forwarded_consumer: str | None = Header(default=None)) -> str | Non
 
 class AskRequest(BaseModel):
     message: str
+    # False = spend nothing: the unpaid local brain only (agent.run allow_fallback=False, the incident sweep's path).
+    # For automatic callers such as the ship-images TXN check. A person chatting keeps the default.
+    allow_paid: bool = True
 
 
 @app.post("/operator/ask")
@@ -91,7 +94,11 @@ async def operator_ask(req: AskRequest, actor: str | None = Depends(_actor)):
         raise HTTPException(403, "blocked by input guard")
     t0 = time.monotonic()
     try:
-        reply, proposal = await agent.run(req.message, session_id=request_id, user_id=actor)
+        reply, proposal = await agent.run(req.message, session_id=request_id, user_id=actor,
+                                          allow_fallback=req.allow_paid)
+    except agent.LocalUnavailable as exc:
+        _REQS.labels("error").inc()
+        raise HTTPException(503, f"local brain unavailable (free-only request): {exc}")
     except Exception as exc:
         _REQS.labels("error").inc()
         raise HTTPException(502, f"operator run failed: {exc}")

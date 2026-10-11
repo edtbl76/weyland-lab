@@ -1049,6 +1049,43 @@ txn_stub_pod() {
   [[ "$output" != *"no transaction"* ]]   # dagster-base is checked via txn_dagster, not unchecked
 }
 
+# 2026-10-10: the operator shipped with "no transaction defined" — probe-checked only. Its transaction asks a
+# real read-only question through POST /operator/ask and needs a grounded answer (a number). It must SPEND
+# NOTHING: an automatic caller, like the incident sweep, runs free-only ("allow_paid": false), so a down local
+# brain is a failed transaction, never a silent paid answer from Haiku.
+@test "TXN checks the operator with a real question, passing on a grounded answer" {
+  SHIP_IMAGES_LIB=1 source "$SHIP"
+  printf '+ registry.weyland.lab/weyland-operator:git-9a4996c6\n' > "$STUB_DIR/d.diff"
+  txn_stub_pod
+  stub_case kubectl 'exec' 0 'TXN_OK'
+  run txn_ok 'git-9a4996c6' "$STUB_DIR/d.diff"
+  [ "$status" -eq 0 ]
+  [[ "$output" != *"no transaction"* ]]   # the operator is CHECKED, not silently unchecked
+  [[ "$output" == *"1 service(s) answered"* ]]
+}
+
+@test "TXN asks the operator FREE-ONLY — the probe sends allow_paid false to /operator/ask" {
+  SHIP_IMAGES_LIB=1 source "$SHIP"
+  printf '+ registry.weyland.lab/weyland-operator:git-9a4996c6\n' > "$STUB_DIR/d.diff"
+  txn_stub_pod
+  stub_case kubectl 'exec' 0 'TXN_OK'
+  run txn_ok 'git-9a4996c6' "$STUB_DIR/d.diff"
+  # The probe is a multi-line `python3 -c` argument, so read the whole call log (calls_to sees line 1 only).
+  grep -q '/operator/ask' "$STUB_LOG"
+  grep -q '"allow_paid": False' "$STUB_LOG"
+}
+
+@test "TXN FAILS when the operator's free local brain is down — named, not paid around" {
+  SHIP_IMAGES_LIB=1 source "$SHIP"
+  printf '+ registry.weyland.lab/weyland-operator:git-9a4996c6\n' > "$STUB_DIR/d.diff"
+  txn_stub_pod
+  stub_case kubectl 'exec' 0 'TXN_FAIL 503 local brain unavailable (free-only request)'
+  run txn_ok 'git-9a4996c6' "$STUB_DIR/d.diff"
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"weyland-operator"* ]]
+  [[ "$output" == *"local brain unavailable"* ]]
+}
+
 @test "FLAG: a DISABLED weyland-ship-enabled HOLDS the ship (the only held verdict)" {
   SHIP_IMAGES_LIB=1 source "$SHIP"
   txn_stub_pod

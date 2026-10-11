@@ -3,6 +3,11 @@
     "schemas": {
       "AskRequest": {
         "properties": {
+          "allow_paid": {
+            "default": true,
+            "title": "Allow Paid",
+            "type": "boolean"
+          },
           "message": {
             "title": "Message",
             "type": "string"
