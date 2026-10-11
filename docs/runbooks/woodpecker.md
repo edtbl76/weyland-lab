@@ -153,8 +153,12 @@ tags. Steps: `detect-changes → build → kubeconform → deploy-handoff`.
     lines for the window" fails on every clean night (found 2026-10-08: no server line since 2026-10-06 18:03 across
     several pipelines). The stream proof is instead: (a) the unfiltered selector over a wider window back to the
     pod's last line returns that line, from the **same** pod (`kubectl -n woodpecker logs woodpecker-server-0
-    --tail=1 --timestamps` names it), and (b) the positive control: 2026-10-04 04:00–06:00 UTC returns the #252
-    incident's lines. Tally: `docs/backlog.md` B201.
+    --tail=1 --timestamps` names it), and (b) the positive control: the SAME `|~` filter with that last line's message
+    added as an alternative (e.g. `|~ "cannot close log stream|database is locked|task expired"`) over `now-7d` returns
+    it, which proves the line filter matches on this stream. The old control (2026-10-04's #252 incident) aged out of
+    Loki's 7-day retention (`loki-values.yaml` `retention_period: 168h`) on 2026-10-11 and now returns 0, like a
+    blind query. If the pod's last line is itself older than 7 days, neither proof is possible: record the night as
+    **unprovable**, never as a pass. Tally: `docs/backlog.md` B201.
     **Alert delivery drill** (proves a Loki-rule alert reaches Telegram; expires in 2 min, labelled `drill=true`):
     ```
     kubectl -n weyland exec deploy/weyland-guard -c weyland-guard -- python -c "import json,datetime as dt,urllib.request; n=dt.datetime.now(dt.timezone.utc); a=[{'labels':{'alertname':'WoodpeckerTaskExpired','severity':'warning','source':'loki','drill':'true'},'annotations':{'summary':'DRILL — WoodpeckerTaskExpired (delivery test; nothing is wrong)'},'startsAt':n.isoformat(),'endsAt':(n+dt.timedelta(minutes=2)).isoformat()}]; print(urllib.request.urlopen(urllib.request.Request('http://monitoring-kube-prometheus-alertmanager.monitoring.svc.cluster.local:9093/api/v2/alerts',data=json.dumps(a).encode(),headers={'content-type':'application/json'},method='POST'),timeout=10).status)"
