@@ -3938,7 +3938,11 @@ four shared prompts (Red on the old copy: `operator_system differs between the t
 (owner: yes):** the operator's baked fallback `SYSTEM` (`agent.py`) had the Realm sentence the registry lacked, and lacked
 "NEVER propose a job…". All three now carry one text, with the Realm sentence conditional ("if you have it": the unpaid
 sweep brain has no `delegate_to_realm`). A second test holds `SYSTEM` to the registered text (Red first). Go-live order is
-in `prompt-federation.md`: ship, re-run `register_prompts.py`, then the registrations job.
+in `prompt-federation.md`: ship, re-run `register_prompts.py`, then the registrations job. **Live 2026-10-10:** shipped
+`git-b8fd3b8a` (CI #316 green; FR1.5 / SMOKE 7 workloads / TXN 3 services; the operator has no TXN defined, so its image
+is probe-verified only). MLflow `operator_system` v4 → @production. Registrations run `3c26232d` SUCCESS: the registrar
+reported its one expected last CONFLICT, inbound pulled the new MLflow text, and Langfuse took 1 upsert. **End state:**
+Bifrost v3 equals git byte for byte, and a read-only `decide()` gives all four app prompts `unchanged`.
 
 **The B179 trial task** (owner, 2026-10-09): written so an unattended agent can do it without asking. The full spec —
 Why, Scope, Technical context (observed API shapes: the skills list pages at 100 and ignores `limit`; each item carries

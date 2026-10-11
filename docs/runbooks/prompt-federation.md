@@ -126,6 +126,10 @@ mirrors outbound — bidirectional in one pass.
   pass pulls any unstamped MLflow text that differs from Bifrost, however old. Ship the Dagster image, then re-run
   `register_prompts.py` (command in [mlflow.md](mlflow.md)) BEFORE the registrations job. Otherwise the job's inbound pass
   pulls the old MLflow text back over the new Bifrost version and the registrar reports a CONFLICT again.
+  Observed 2026-10-10: if Bifrost's latest version is a `reconciled-from-…` one, that job still reports **one CONFLICT**.
+  The registrar runs first and won't overwrite another writer's version. Then the inbound pass pulls the new MLflow text
+  in, so Bifrost ends equal to git, and every later run reports `unchanged`. Confirm the end state, not that run's
+  conflict line.
 - **Inbound reconcile:** native edits made *in* Langfuse (playground) / MLflow flow back to Bifrost. Loop-safety =
   content-hash compare + a `synced-from-bifrost:<hash>` provenance stamp; conflict = **last-write-wins by timestamp**
   (with a WARNING). **GOTCHA:** native-edit detection keys on the VERSION-level **`commitMessage`**, NOT Langfuse
