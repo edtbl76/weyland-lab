@@ -58,6 +58,25 @@ def test_free_only_with_the_local_brain_down_is_a_503_that_says_so(client, monke
     assert "local brain unavailable" in r.json()["detail"]
 
 
+def test_the_error_responses_are_documented_in_the_contract():
+    # Sonar python:S8415 failed CI #318 on the undocumented 503; every status the endpoint raises is in its OpenAPI.
+    responses = app_mod.app.openapi()["paths"]["/operator/ask"]["post"]["responses"]
+    assert {"403", "502", "503"} <= set(responses)
+
+
+def test_the_committed_contract_snapshot_matches_the_app():
+    # docs/api/specs/weyland-operator.openapi.json is the locked contract the api-drift cron compares the LIVE service
+    # to. Hold it to what this code generates, so a hand-edited snapshot cannot drift from the app it describes.
+    import json
+    import pathlib
+    root = pathlib.Path(__file__).resolve().parents[7]
+    sys.path.insert(0, str(root / "scripts" / "lib"))
+    import api_spec_diff
+    snapshot = json.loads((root / "docs" / "api" / "specs" / "weyland-operator.openapi.json").read_text())
+    assert api_spec_diff.diff(snapshot, app_mod.app.openapi()) == []
+    assert api_spec_diff.diff(app_mod.app.openapi(), snapshot) == []
+
+
 def test_any_other_run_failure_is_still_a_502(client, monkeypatch):
     c, _ = client
 

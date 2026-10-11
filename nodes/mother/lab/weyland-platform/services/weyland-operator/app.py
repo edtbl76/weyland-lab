@@ -86,7 +86,11 @@ class AskRequest(BaseModel):
     allow_paid: bool = True
 
 
-@app.post("/operator/ask")
+@app.post("/operator/ask", responses={
+    403: {"description": "Blocked by the input or output guard"},
+    502: {"description": "The operator run failed"},
+    503: {"description": "Free-only request (allow_paid false) and the local brain is unavailable"},
+})
 async def operator_ask(req: AskRequest, actor: str | None = Depends(_actor)):
     request_id = str(uuid.uuid4())
     if guard("input", request_id, {"query": req.message}, actor):
