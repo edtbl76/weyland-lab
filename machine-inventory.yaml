@@ -16,7 +16,8 @@ hosts:
     - name: emdash
       kind: appimage
       status: keep
-      rationale: B179 software-factory trial - parallel coding-agent supervisor (Linear issue -> worktree -> agent); keep until B179's verdict
+      rationale: B179 software-factory trial - parallel coding-agent supervisor (Linear issue -> worktree -> agent); keep
+        until B179's verdict
     - name: LM-Studio
       kind: appimage
       status: unreviewed
@@ -2693,6 +2694,10 @@ hosts:
       kind: uv-tool
       status: keep
       rationale: B182 shared agent memory - serves ~/agent-memory over MCP on :8765 (user unit basic-memory.service)
+    - name: openhands
+      kind: uv-tool
+      status: keep
+      rationale: B179 software-factory trial - OpenHands CLI (headless issue-to-branch agent on a local model); keep until B179's verdict
   mother:
     role: ''
     packages:

@@ -1,0 +1,16 @@
+# qwen3-coder:30b-32k — the B179 OpenHands local-model arm's coding brain (2026-10-12).
+#
+# WHY: OpenHands' local-LLM guide says it needs at least ~22K tokens of context and warns that Ollama's default 4K is
+# insufficient; below that Ollama silently cuts the prompt (the operator lost 801 prompts that way before its 32K build,
+# see qwen2.5-7b-operator.Modelfile). 32K matches the guide's recommended OLLAMA_CONTEXT_LENGTH.
+#
+# The model is a MoE (30.5B total, ~3B active, Q4_K_M ~19 GB): it does NOT fit the 16 GB card, so Ollama splits it
+# across GPU and CPU, and loading it evicts the operator's model. Load it only for a trial, and reload the operator's
+# model afterwards (`docs/runbooks/software-factory.md`).
+#
+# Scoped to this one tag on purpose: OLLAMA_CONTEXT_LENGTH would raise VRAM for EVERY model on the card.
+#
+# Build / rebuild (rogueone):
+#   ollama create qwen3-coder:30b-32k -f /home/edwardmangini/IdeaProjects/weyland/nodes/rogueone/ollama/qwen3-coder-30b-32k.Modelfile
+FROM qwen3-coder:30b
+PARAMETER num_ctx 32768
