@@ -95,12 +95,19 @@ spec:
               path: /api/system/status
               port: 9000
             periodSeconds: 15
+            timeoutSeconds: 5
+          # 2026-10-11: with the 1s default timeout, two CI scans at once (nightly #319 + a ship #320, during the
+          # 02:17 heavy ingestion) slowed /api/system/status past 1s for ~90s and the kubelet killed SonarQube
+          # mid-analysis, failing both pipelines (same 02:4x restart on 10-01). Slow is not dead: restart only
+          # after ~3 min (6 x 30s) of no answer within 10s.
           livenessProbe:
             httpGet:
               path: /api/system/status
               port: 9000
             initialDelaySeconds: 120
             periodSeconds: 30
+            timeoutSeconds: 10
+            failureThreshold: 6
           resources:
             requests:
               cpu: 150m          # right-sized 2026-06-27: actual usage ~28m
