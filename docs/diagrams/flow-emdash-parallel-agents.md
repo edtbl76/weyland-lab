@@ -50,3 +50,40 @@ Why it matters (and where it doesn't):
 
 Demo (installed + eyes-on): [../demos/parallel-agent-emdash.md](../demos/parallel-agent-emdash.md).
 Recipe + install: [../runbooks/parallel-agent-supervisor.md](../runbooks/parallel-agent-supervisor.md).
+
+## The conveyor — `agent-ready-nightly` (B179, adopted 2026-10-12)
+
+The unattended path the B179 trials proved: a person releases a READY issue with a label, and the 04:00 automation
+picks it up with nobody steering. It runs inside the Emdash app (no app, no run; a missed slot starts on the next launch)
+and stops at a local worktree: push is off, so nothing reaches GitHub until a person reviews it. Definition of record:
+[runbooks/software-factory.md](../runbooks/software-factory.md) § The conveyor.
+
+```mermaid
+sequenceDiagram
+    participant P as person
+    participant L as Linear (Weyland Lab)
+    participant E as Emdash scheduler (rogueone)
+    participant C as Claude Code (worktree, auto-approve)
+    participant R as issue-readiness.sh
+    P->>R: check EMA-### (must print READY)
+    P->>L: add label agent-ready
+    Note over E: 04:00 NY, or on launch if the slot was missed (24 h deadline)
+    E->>C: new worktree + branch from origin/main (push OFF), the conveyor prompt
+    C->>L: oldest open issue labelled agent-ready?
+    alt none
+        L-->>C: empty (label + project verified)
+        C-->>E: "none found", stop
+    else an issue
+        L-->>C: EMA-###
+        C->>R: EMA-### --no-comment
+        alt not READY
+            R-->>C: what is missing
+            C-->>E: stop, say why
+        else READY
+            C->>C: implement, run the issue's tests, report each criterion
+            C-->>E: changes left uncommitted in the worktree
+        end
+    end
+    P->>C: morning: read the transcript + worktree
+    P->>L: if adopted: bring into main, remove agent-ready
+```

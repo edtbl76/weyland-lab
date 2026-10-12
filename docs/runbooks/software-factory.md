@@ -76,6 +76,35 @@ Each run ends at a branch in its own worktree. Tell the agent session (or me) wh
 the diff, the tests (`run-lang-tests.sh python` on the Dagster scripts project), whether it met EMA-291's six acceptance
 criteria, and the subscription usage. Nothing is pushed until you decide which branch, if any, becomes the real fix.
 
+## The conveyor: `agent-ready-nightly` (ADOPTED 2026-10-12)
+
+The definition of record. Emdash keeps it in its own database (backed up by rogueone's restic, which includes
+`~/.config`); this section is the copy in git, so it can be rebuilt by hand in **Settings → Automations** if that is lost.
+
+| Field | Value |
+|---|---|
+| Name | `agent-ready-nightly` |
+| Project | `weyland` (`/home/edwardmangini/IdeaProjects/weyland`, remote `edtbl76/weyland-lab`) |
+| Schedule | `0 4 * * *`, `America/New_York` (04:00 NY) |
+| Agent | Claude Code (TUI), auto-approve ON |
+| Workspace | new worktree, new branch from `origin/main`, **push OFF** (`pushBranch: false` → `pushRemote: null`) |
+
+Prompt, verbatim:
+
+```
+Using the Linear MCP, find the oldest open issue in the Weyland Lab project that carries the label agent-ready. If there is none, stop and say so.
+Check it is ready: run /home/edwardmangini/IdeaProjects/weyland/scripts/issue-readiness.sh <ISSUE-ID> --no-comment from /home/edwardmangini/IdeaProjects/weyland (it reads LINEAR_API_KEY from scripts/.env there). If it does not print READY, stop and say why.
+Implement the issue in this worktree, following its acceptance criteria and the repo's AGENTS.md. Run the tests the issue names and report each acceptance criterion as met or not met, with evidence.
+Leave your changes uncommitted in this worktree. Do not commit, push, open a pull request, or change anything in the cluster.
+```
+
+**Using it:** make an issue READY (`scripts/issue-readiness.sh EMA-###`), add the Linear label `agent-ready`, and leave
+Emdash running. The next 04:00 run, or the next launch if the slot was missed, takes the oldest labelled issue. In the
+morning, read the run's transcript (`~/.claude/projects/*emdash-<run>*/*.jsonl`) and its worktree
+(`~/emdash/worktrees/weyland-93040a9c/emdash-<run>`). Bring the change into `main` if it is good, then **remove the
+`agent-ready` label** (otherwise the next run redoes it) and clear the worktree:
+`git worktree remove <path> && git branch -D emdash-<run>`.
+
 ## Emdash automation settings
 
 An automation lives in two places:
