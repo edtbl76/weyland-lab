@@ -9,13 +9,15 @@ per-call timeout. So a rogueone/Ollama outage — or the card saturating (e.g. o
 **degrades to paid cloud instead of going dark**, and steady-state Haiku spend ≈ **$0**. **Only a person chatting fails
 over** (2026-10-02): by default (`INCIDENT_SWEEP_ALLOW_PAID=false`) the incident sweep runs on the local brain compiled
 without `delegate_to_realm` (the Realm is on paid Haiku), so a busy or down local brain raises `LocalUnavailable` and
-the sweep defers (`brain="none"`) instead of paying — see [flow-incident-sweep.md](flow-incident-sweep.md). See
+the sweep defers (`brain="none"`) instead of paying — see [flow-incident-sweep.md](flow-incident-sweep.md). The same
+free-only path is open over HTTP (2026-10-10): `POST /operator/ask` with `"allow_paid": false` runs it, and a down local
+brain is a `503`. The ship-images operator transaction uses it, so a post-deploy check never pays. See
 [flow-operator.md](flow-operator.md), [flow-incident-sweep.md](flow-incident-sweep.md),
 [runbooks/operator.md](../runbooks/operator.md).
 
 ```mermaid
 sequenceDiagram
-    participant C as caller (Telegram turn / sweep enrichment)
+    participant C as caller (Telegram turn / sweep enrichment / /operator/ask)
     participant R as agent.run
     participant H as health pre-check (Ollama /api/tags, ~3s, cached 30s)
     participant Lo as local qwen2.5:7b (rogueone Ollama, curated FLAT ~14 tools)

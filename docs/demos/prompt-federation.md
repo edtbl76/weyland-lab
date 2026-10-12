@@ -73,6 +73,22 @@ Two upgrades on top of Phase 1:
 `Inbound: 1 native edit(s) pulled into Bifrost`; run it again → `Inbound: 0` and everything `unchanged` — the edit
 landed in the SoT and doesn't bounce (the A→B→A loop is closed).
 
+## Git edits vs native edits (2026-10-10, RUN)
+
+`register_bifrost_prompts.py` publishes a git edit as a new Bifrost version, but **never over a version another
+writer made**. Run the registrations group (command in the runbook) and read the `bifrost_prompts_registered` step:
+
+- **A native edit is a CONFLICT, left alone.** Run `7cc3bc43` (2026-10-10):
+  `0 created, 0 updated, 100 unchanged, 1 conflict, 0 failed` with
+  `CONFLICT app-integrated/operator_system — latest version is not this registrar's ('reconciled-from-mlflow:…')`.
+- **The cause was two git copies drifting** (`scripts/register_prompts.py` for MLflow had a sentence the Bifrost
+  registrar lacked). Fixed by making the copies agree; a test now fails if the MLflow, Bifrost and operator-fallback
+  copies differ.
+- **Clean afterwards.** The scheduled run `e895fb58` (2026-10-11 05:00): `101 unchanged, 0 conflict, 0 failed`,
+  `Inbound: 0`, Langfuse and MLflow `0 upserted`.
+
+Read-only; creates nothing, so there is no teardown.
+
 > **Gotcha (cost a debug cycle):** native-edit detection keys on the *version-level* `commitMessage`, **not** Langfuse
 > `tags` — tags are *prompt-level* (sticky across every version), so a native edit inherits v1's `synced-from-bifrost`
 > tag and checking tags would falsely skip it.

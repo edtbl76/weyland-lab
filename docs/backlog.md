@@ -3952,6 +3952,34 @@ Bifrost v3 equals git byte for byte, and a read-only `decide()` gives all four a
 **Confirmed by the scheduled run (2026-10-11 05:00, `e895fb58`, SUCCESS):** prompts `101 unchanged, 0 conflict, 0
 failed`, skills 25 unchanged, federation `Inbound: 0`, Langfuse and MLflow 0 upserted.
 
+**Same batch, no item of their own (owner-directed 2026-10-10/11):** the ship-images **operator transaction**. It asks a
+read-only question through `POST /operator/ask` with the new **free-only** flag `allow_paid: false` (API 1.1), so a ship
+check never pays for Haiku. Shipped `git-6d2213dc`, its first ship: `TXN 3 answered`, `brain="local"`. Also the
+**SonarQube probe fix** (liveness `timeoutSeconds 10` / `failureThreshold 6`, readiness 5s). On 10-11 two concurrent CI
+scans during the 02:17 heavy ingestion had got it killed mid-scan, failing nightly #319 and ship #320. Lean #323 green
+after.
+
+**DoD graded 2026-10-11 (the follow-ons above + B205):**
+1. **Docs:** `api.md` (`/operator/ask` `allow_paid` + 403/502/503; model corrected to `qwen2.5:7b-operator`). Runbooks:
+   `operator.md`, `ship-images.md` (TXN table row), `prompt-federation.md` (git vs native edits; the three-copy rule;
+   go-live order), `mcp-gateway.md`, `woodpecker.md` (soak control). No host, endpoint, timer or workload added.
+2. **Diagrams:** `flow-cicd-hardening` #4 (operator transaction), `flow-operator-brain` (the HTTP free-only path).
+   LikeC4: no new component.
+3. **Demos (RUN):** `cicd-hardening.md` #4 `txn_operator` (TXN_OK in 6 s, `brain="local"`, with the negative case in
+   bats). `prompt-federation.md` "Git edits vs native edits" (run `7cc3bc43` 1 conflict, then the fix, then `e895fb58`
+   `101 unchanged, 0 conflict`). Ledger rows 76 and B88-B updated.
+4. **Cleanup:** read-only. The operator question and the registrar runs create nothing.
+5. **Tracking:** `check-linear-sync.sh` OK (210 items). EMA-292 Done. Memory: `sonarqube-ci-gate` (a server
+   restart can look like a scanner OOM).
+6. **Ops:** the registrar runs on the weekly registrations schedule (05:00 run clean), the operator transaction gates
+   every ship that bumps the operator, and the probe is live (verified on the Deployment).
+7. **Scan:** triage in `runbooks/code-quality.md` (2026-10-11). Every new critical/high was fixed: realm-of-agents
+   GitPython/PyJWT/multidict/Werkzeug, and Go `x/net` in the echo/gin demo apps. CodeScene review not run: its MCP
+   server failed to connect this session.
+8. **Cascade:** operator API 1.1, with snapshot, lock and a test tying the snapshot to the code (no consumers). The
+   three `operator_system` copies are held equal by two tests. ship-images: bats 106/106.
+9. **DR:** N/A. No new state; the prompt text in Bifrost and MLflow rebuilds from git.
+
 **The B179 trial task** (owner, 2026-10-09): written so an unattended agent can do it without asking. The full spec —
 Why, Scope, Technical context (observed API shapes: the skills list pages at 100 and ignores `limit`; each item carries
 `skill_md_body` and `latest_version`; `PUT /api/skills/{id}` with a new version, 409 on an existing one), six acceptance

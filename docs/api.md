@@ -164,13 +164,13 @@ See [runbooks/agentic-rag.md](runbooks/agentic-rag.md).
 ## Operator agent (`weyland-operator` — B66)
 
 `weyland-operator.weyland.svc:8080` (ClusterIP, **no ingress** — the interface is **Telegram** long-poll). A LangGraph
-ReAct agent (`gpt-oss:20b`) over the tool-server read + act tools, with Postgres session memory and an app-level
+ReAct agent (local `qwen2.5:7b-operator`, Haiku fallback for people only) over the tool-server read + act tools, with Postgres session memory and an app-level
 confirm-step on acts. Traced per-message in MLflow (`operator` experiment).
 
 | Route | Method | Purpose |
 |---|---|---|
 | *(Telegram DM)* | — | primary interface: allowlisted DMs → read tools freely; state-changing acts require a **yes/no confirm** (LLM proposes, the app fires) |
-| `/operator/ask` | POST | `{message}` → `{message, reply}`. **Stateless** test/probe surface (no session, never fires acts — surfaces a proposal instead). INPUT+OUTPUT guards via weyland-guard (fail-open) |
+| `/operator/ask` | POST | `{message, allow_paid?}` → `{message, reply}`. **Stateless** test/probe surface (no session, never fires acts — surfaces a proposal instead). INPUT+OUTPUT guards via weyland-guard (fail-open). `allow_paid: false` (API 1.1, 2026-10-10) = **free-only**: the unpaid local brain, no Haiku fallback or Realm; a down local brain is `503`. Used by the ship-images operator transaction. Errors: `403` guard block · `502` run failed · `503` free-only and local brain down |
 | `/health` `/ready` | GET | liveness / readiness |
 | `/metrics` | GET | `operator_requests_total`, `operator_request_seconds`, `operator_telegram_messages_total{outcome}` |
 

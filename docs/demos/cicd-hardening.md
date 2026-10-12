@@ -120,6 +120,24 @@ endpoint-less `rag-index` loader Job landed. `weyland-dagster-base` routes to `t
 webserver that transaction hits). Services with no transaction (Jobs) are **named as unchecked**, never silently
 passed.
 
+**The operator (added 2026-10-10).** It had shipped as `no transaction defined, NOT verified: weyland-operator`. Its
+transaction asks a real read-only question, **free-only**, so an automatic check never pays for the Haiku fallback:
+
+```
+[rogueone] SHIP_IMAGES_LIB=1 source scripts/ship-images.sh
+[rogueone] POD="$(txn_pod)"; time txn_operator "$POD"
+TXN_OK
+real    0m6.096s
+```
+
+What it sent and got back: `POST /operator/ask {"message": "How many Kubernetes namespaces are there? …",
+"allow_paid": false}` → `"There are 20 Kubernetes namespaces in the current cluster."` (`kubectl get ns` = 20). Proof
+it spent nothing: the operator's `/metrics` shows `operator_brain_selected_total{brain="local",reason="primary"}`
+rising, with no `haiku` series. First ship gated by it: `git-6d2213dc` (2026-10-11), `TXN: 3 service(s) answered`
+with no unverified line. **Negative case:** with the local brain down the operator answers `503 local brain
+unavailable (free-only request)`, and `txn_ok` names `weyland-operator(TXN_FAIL 503 …)` and fails the ship (bats
+`ship-images.bats`, "TXN FAILS when the operator's free local brain is down").
+
 ---
 
 ## #5 — Feature-flag deploy gate · `scripts/ship-images.sh` `ship_flag_allows`

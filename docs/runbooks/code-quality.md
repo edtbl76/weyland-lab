@@ -85,6 +85,17 @@ RBAC (`KSV-0046`) → `/.trivyignore` (each documented). See [[cve-remediation-m
 **Accepted residuals:** `KSV-0118`/`KSV-0014` (readOnlyRootFilesystem, ~195 high) + `run-as-non-root` on root
 third-party images — systemic, blanket-applying breaks writers; documented, not per-item fixed.
 
+**2026-10-11 triage (B204 follow-ons + B205 DoD, scan `2026-10-12T02-29-39Z` diff vs `2026-10-09T16-03-18Z`, weyland-lab;
+critical/high only):** semgrep, bandit, gitleaks and hadolint **0 new**; trivy 104 → 88 and osv 867 → 813 overall. Every
+new one was an advisory published after the baseline against an unchanged pin, none in this batch's files, all **REAL and
+fixed**: `realm-of-agents` GitPython 3.1.60 → 3.1.62 (GHSA-59cr-6r3x-644w) and PyJWT 2.14.0 → 2.15.0 (GHSA-42vr-xj54-vc7v,
+GHSA-x33g-cr3x-6449, PYSEC-2026-4141/4183), plus multidict 6.9.1 and Werkzeug 3.1.9 that pip-audit named. These were
+re-resolved with pip-compile holding the rest, so only those four moved. Proof: 54/54 tests, the app entrypoint imports,
+and pip-audit leaves only the accepted cryptography 49 and mlflow. Also: `golang.org/x/net` v0.57.0 → v0.60.0
+(CVE-2026-78669, HTTP/2 DoS) in `golden-paths/go/{echo,gin}`; gin's test passes in `golang:1.26`. The batch's own code
+was also checked: shellcheck on `ship-images.sh` 0 warnings, the Sonar gate passed (#323), and a scratch Sonar scan of
+the operator is clean.
+
 **2026-10-05 triage (B182 DoD, scan `2026-10-05T19-11-32Z` diff vs `2026-10-04T13-34-17Z`, weyland-lab; critical/high
 only):** **trivy 0 new.** **kubescape +10** — the two new manifests (`mcp-servers/compositor-memory.yaml`,
 `open-webui/backup.yaml`) fail exactly the 5 controls the existing fleet compositor already carries (C-0009/C-0050/C-0270
