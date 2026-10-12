@@ -49,8 +49,23 @@ nothing more; a run that needs a nudge records where it needed it, and the nudge
 1. **Emdash** — start it (`/home/edwardmangini/Applications/emdash-1.2.7-x86_64.AppImage`), open the lab repo
    (`/home/edwardmangini/IdeaProjects/weyland`), connect Linear, send EMA-291 to the **Claude Code** agent. Note the
    start time.
-2. **OpenHands** (local-model arm, last) — scheduled separately: it needs the operator's model unloaded and a local
-   coding model chosen; the command goes here once that arm is set up.
+2. **OpenHands** (local-model arm, RUN 2026-10-12 as run 5; result in the concepts doc). Headless OpenHands always
+   auto-approves, so it runs in a container with only a scratch copy of the repo mounted; its model is the 32K build
+   `qwen3-coder:30b-32k` (`nodes/rogueone/ollama/qwen3-coder-30b-32k.Modelfile`). Loading it evicts the operator's
+   model; reload that afterwards (step d). On rogueone:
+   - a. Image (`python:3.12-bookworm` + `uv pip install --system openhands==1.16.0`), built as `b179-openhands:1.16.0`.
+   - b. Scratch repo at the task's base: `git archive <base> | tar -x -C <dir>/work`, then `git init` + one commit
+     there, so the diff is measurable and the real checkout is never touched.
+   - c. **Saved settings, not env vars.** OpenHands sends `reasoning_effort=high` to every model, and Ollama answers
+     `does not support thinking`; the `LLM_*` env overrides cannot unset it. Save the agent once with it unset:
+     `LLM(model='openai/qwen3-coder:30b-32k', base_url='http://192.168.1.230:11434/v1', api_key='local-llm',
+     reasoning_effort=None, usage_id='agent')` → `AgentStore().save(get_default_cli_agent(llm))`, with `HOME` = the
+     mounted settings dir.
+   - d. Run: `docker run --rm --user "$(id -u):$(id -g)" -e HOME=/home/oh -v <dir>/home:/home/oh -v <dir>/work:/work
+     -v <task.md>:/task.md:ro -w /work b179-openhands:1.16.0 openhands --headless --json -f /task.md > run.jsonl`.
+     **Do not trust its exit code**: it exited 0 after a fatal model error. Grade the diff and the JSONL events.
+   - e. Afterwards: unload the coding model (`/api/generate` with `"keep_alive": 0`) and warm `qwen2.5:7b-operator`
+     again.
 
 Each run ends at a branch in its own worktree. Tell the agent session (or me) when a run stops; I then check the branch:
 the diff, the tests (`run-lang-tests.sh python` on the Dagster scripts project), whether it met EMA-291's six acceptance
