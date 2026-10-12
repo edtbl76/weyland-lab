@@ -105,6 +105,26 @@ morning, read the run's transcript (`~/.claude/projects/*emdash-<run>*/*.jsonl`)
 `agent-ready` label** (otherwise the next run redoes it) and clear the worktree:
 `git worktree remove <path> && git branch -D emdash-<run>`.
 
+## Freshness — `emdash-conveyor-watch` (B179 DoD)
+
+The conveyor fails by silence (no app, no run), so a daily check at 06:00 NY reads Emdash's run records, read-only,
+and reports to an Uptime-Kuma **push** monitor: **up** if `agent-ready-nightly` started a run in the last 26 h; **down**
+if none did (is Emdash running?), if the automation is disabled, or if the store cannot be read. Exit codes: 0 / 1 / 2.
+The monitor's own heartbeat timeout catches a watch that stops running.
+
+**Set up once (owner):**
+1. In Kuma, add a monitor of type **Push**, named `emdash-conveyor`, heartbeat interval **90000 s** (25 h), with the
+   lab's Telegram notification. Copy its push URL.
+2. Add it to `scripts/.env` as `KUMA_CONVEYOR_PUSH_URL=<the push URL>` (it is a credential: never paste it in chat).
+3. Install and start the timer:
+
+[rogueone]
+```
+cp /home/edwardmangini/IdeaProjects/weyland/nodes/rogueone/systemd/emdash-conveyor-watch.{service,timer} ~/.config/systemd/user/ && systemctl --user daemon-reload && systemctl --user enable --now emdash-conveyor-watch.timer && systemctl --user start emdash-conveyor-watch.service && journalctl --user -u emdash-conveyor-watch -n 3 --no-pager -o cat
+```
+
+Expected: `emdash-conveyor-watch: exit 0 — last run started N h ago`, and the Kuma monitor turns green.
+
 ## Emdash automation settings
 
 An automation lives in two places:

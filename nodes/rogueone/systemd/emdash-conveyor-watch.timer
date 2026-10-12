@@ -1,0 +1,12 @@
+# B179 — check the conveyor daily at 06:00 NY, two hours after its 04:00 slot. The Kuma push monitor's heartbeat interval
+# should be ~25 h, so a watch that stops running alerts as well (dead-man's switch). Persistent: a check missed while
+# rogueone was off runs at the next boot.
+[Unit]
+Description=software-factory conveyor freshness check daily at 06:00 (B179)
+
+[Timer]
+OnCalendar=*-*-* 06:00:00 America/New_York
+Persistent=true
+
+[Install]
+WantedBy=timers.target

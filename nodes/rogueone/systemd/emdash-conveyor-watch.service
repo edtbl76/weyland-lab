@@ -1,0 +1,20 @@
+# B179 — the software-factory conveyor's freshness signal: did Emdash's `agent-ready-nightly` automation start a run in
+# the last 26 h? Reads Emdash's own run records READ-ONLY and pushes the verdict to an Uptime-Kuma push monitor
+# (KUMA_CONVEYOR_PUSH_URL in scripts/.env). USER unit (Emdash's store is in the user's home). See
+# docs/runbooks/software-factory.md § Freshness.
+#   Install:  cp nodes/rogueone/systemd/emdash-conveyor-watch.{service,timer} ~/.config/systemd/user/
+#             systemctl --user daemon-reload && systemctl --user enable --now emdash-conveyor-watch.timer
+#   Run now:  systemctl --user start emdash-conveyor-watch.service   ·   logs: journalctl --user -u emdash-conveyor-watch
+[Unit]
+Description=software-factory conveyor freshness — Emdash agent-ready-nightly ran in the last 26 h? → Kuma (B179)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+Nice=10
+IOSchedulingClass=idle
+# Invoked via bash (the repo file may not carry the exec bit); the script resolves the repo root from its path.
+ExecStart=/bin/bash /home/edwardmangini/IdeaProjects/weyland/scripts/emdash-conveyor-watch.sh
+StandardOutput=journal
+StandardError=journal

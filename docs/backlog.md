@@ -4141,6 +4141,31 @@ A runbook (`docs/runbooks/software-factory.md`) with the pinned install and run 
 Left: the app-closed 04:00 run (Emdash quit 10-12; a missed run may start on the next launch, since each run carries a
 24 h deadline), the per-tool verdicts, then the DoD.
 
+**Verdicts (owner, 2026-10-12): Emdash ADOPT as the conveyor; OpenHands DON'T ADOPT; Warp unchanged (DON'T ADOPT).**
+Run 6 answered the last question. With the app closed nothing fires (the scheduler lives in the app). A missed run
+starts by itself seconds after launch, and with push off it left no GitHub branch.
+
+**DoD graded 2026-10-12:**
+1. **Docs:** the concepts verdict table; `runbooks/software-factory.md` has the conveyor's **definition of record**
+   (schedule, agent, push off, the exact prompt), the operating loop, Emdash's internals (two copies, never delete
+   `pushRemote`) and the Freshness setup. `schedules.md` rows at 04:00 (conveyor) and 06:00 (watch). `placement.yaml`
+   rows for the app and the watch's unit + timer, re-embedded.
+2. **Diagrams:** the conveyor sequence in `flow-emdash-parallel-agents.md`; Emdash placed in the LikeC4 model (with
+   edges to Claude Code and Linear), `likec4 validate` ✓.
+3. **Demo:** `demos/software-factory.md`, RUN 2026-10-12 (the catch-up run, its tool calls, `ls-remote` empty), with UAT
+   steps; ledger row 94.
+4. **Cleanup:** OpenHands torn down; every empty branch and worktree cleared, except one local leftover
+   (`emdash-da39df5f`).
+5. **Tracking:** EMA-237 closes when pillar 6 is live.
+6. **Ops:** reproducible (the definition in git, the databases in restic). **Freshness:** `scripts/emdash-conveyor-watch.sh`
+   plus a 06:00 user timer read Emdash's run records read-only and push Kuma (exit 0 / 1 / 2). It ran against the real
+   store: `exit 0 — last run started 0.3 h ago`. **Open:** the owner creates the Kuma push monitor, adds
+   `KUMA_CONVEYOR_PUSH_URL` and installs the timer; then the first green heartbeat closes this pillar.
+7. **Scan:** shellcheck 0 on the watch and the collector; bats 7/7 (watch) and 24/24 (inventory). No service image.
+8. **Cascade:** machine inventory (AppImages and uv tools, B129), placement, LikeC4, schedules, the `agent-ready`
+   label documented. The guard caught the missing LikeC4 placement row.
+9. **DR:** Emdash's state is in `~/.config/emdash`, which restic backs up nightly; the definition of record is in git.
+
 **History (kept for the record).**
 
 Evaluate **Warp Software Factory** (warp.dev's agentic software-development offering) and decide whether anything in it is worth adopting — same discipline as B174 (Jev/TypeSafe AI) and B119 ("master the tool"): understand it against REAL lab context, land an **ADOPT / DON'T-ADOPT** verdict with rationale, don't adopt on hype.
