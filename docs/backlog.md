@@ -2811,6 +2811,12 @@ woodpecker `users 1 / pipelines 284` (as uid 1000), open-webui `user 2 / chat 5`
 `20261006T025115Z` passed (integrity ok, `repos`/`secrets`/`crons` present). Remaining: the night proof (criteria 2–3)
 and a live alert delivery.
 
+**DoD confirmed at closure 2026-10-12.** Nothing built after 10-06, so pillars 2, 4, 6, 7, 8 and 9 stand as graded
+below. 1 Docs: `woodpecker.md` updated (the soak control replaced on 10-11 when the 10-04 one aged out of
+retention; the 00:30 rule retired). 3 Demo: the soak itself, 7 nights RUN against live Loki, each with a matching
+control. 5 Tracking: EMA-287 Done with a closing comment; `check-linear-sync.sh` OK; memory
+`woodpecker-sqlite-lock-pool` still accurate.
+
 **DoD graded 2026-10-06 (on everything built; the item stays In Progress for criterion 3's 7-night soak).**
 1 Docs: runbook woodpecker.md (lock fix, backup + restore, the on-demand collision + alert drill commands),
 arch.md + platform-map Woodpecker state, schedules row 23:50, placement row, Argo app count 83 across the docs.
@@ -4005,6 +4011,25 @@ Memory: `feedback-free-only-probe-needs-deployed-flag`.
 **Shipped `git-dbefa346` (2026-10-12):** `TXN: 3 service(s) answered`, the Realm no longer unverified. The live
 `/openapi.json` has `allow_paid`. The Realm's metrics show 1 request, answered by huginn. LiteLLM counted only
 `wl-judge` (rogueone Ollama) requests in the ship window and **0** `wl-agentic`, so the check spent nothing.
+
+**DoD addendum, the Realm transaction (2026-10-12):**
+1. **Docs:** `api.md` (`/route` `allow_paid` + 502), `runbooks/ship-images.md` (TXN row, including the
+   never-probe-before-deploy rule). No host, endpoint, timer or workload added.
+2. **Diagrams:** `flow-cicd-hardening` #4 (realm contracts + `/route` free-only).
+3. **Demos (RUN):** `cicd-hardening.md` #4 (first gated ship `git-dbefa346`, 0 `wl-agentic`); `realm-of-agents.md`
+   (free-only requests); ledger row B88-B.
+4. **Cleanup:** read-only. The check creates nothing, and the image built for verification was removed.
+5. **Tracking:** recorded here under the B204 follow-ons (owner-directed, no item of its own). `check-linear-sync.sh`
+   OK. Memory: `feedback-free-only-probe-needs-deployed-flag`.
+6. **Ops:** the check runs in every ship that bumps `realm-of-agents`. Free-only fails closed: rogueone's Ollama down
+   means a 502 and a failed transaction, never a paid answer.
+7. **Scan:** CI Sonar gate passed on the ship. A scratch Sonar scan passed; its only S8415 findings are on unchanged
+   lines (`agent_card`, `send_message`). shellcheck 0. CodeScene was disconnected again, so complexity was measured
+   with radon instead: every function in the changed files is grade A, max cc 3 (CodeScene's smell starts at 9). No
+   new dependencies.
+8. **Cascade:** Realm API 1.1, snapshot and lock, and a test tying the snapshot to the app (minus the stubbed `/a2a`).
+   The Dockerfile COPY list gained `budget.py`, now guarded by a test. ship-images bats 109/109.
+9. **DR:** N/A. No state.
 8. **Cascade:** operator API 1.1, with snapshot, lock and a test tying the snapshot to the code (no consumers). The
    three `operator_system` copies are held equal by two tests. ship-images: bats 106/106.
 9. **DR:** N/A. No new state; the prompt text in Bifrost and MLflow rebuilds from git.
