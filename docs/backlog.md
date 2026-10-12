@@ -3974,8 +3974,11 @@ after.
 6. **Ops:** the registrar runs on the weekly registrations schedule (05:00 run clean), the operator transaction gates
    every ship that bumps the operator, and the probe is live (verified on the Deployment).
 7. **Scan:** triage in `runbooks/code-quality.md` (2026-10-11). Every new critical/high was fixed: realm-of-agents
-   GitPython/PyJWT/multidict/Werkzeug, and Go `x/net` in the echo/gin demo apps. CodeScene review not run: its MCP
-   server failed to connect this session.
+   GitPython/PyJWT/multidict/Werkzeug, and Go `x/net` in the echo/gin demo apps. CodeScene (once reconnected):
+   `register_bifrost_skills.py` and the three new test files 10.0; `register_bifrost_prompts.py` 9.68 (one complex
+   conditional at :627, B111 code, not this batch). Operator `app.py` 9.27 → **9.53**: this batch had pushed
+   `operator_ask` to cc 11, so the agent call moved into `_run_agent` (89/89 tests, scratch Sonar gate passed); the
+   remaining `lifespan` smell is untouched code.
 8. **Cascade:** operator API 1.1, with snapshot, lock and a test tying the snapshot to the code (no consumers). The
    three `operator_system` copies are held equal by two tests. ship-images: bats 106/106.
 9. **DR:** N/A. No new state; the prompt text in Bifrost and MLflow rebuilds from git.

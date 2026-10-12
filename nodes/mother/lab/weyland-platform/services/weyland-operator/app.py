@@ -86,6 +86,22 @@ class AskRequest(BaseModel):
     allow_paid: bool = True
 
 
+async def _run_agent(req: AskRequest, request_id: str, actor: str | None) -> tuple[str, dict | None]:
+    """One agent run for /operator/ask, its failures mapped to HTTP: 503 for a free-only request whose local brain is
+    down (the caller asked not to pay), 502 for anything else. Records latency only for a run that answered."""
+    t0 = time.monotonic()
+    try:
+        result = await agent.run(req.message, session_id=request_id, user_id=actor, allow_fallback=req.allow_paid)
+    except agent.LocalUnavailable as exc:
+        _REQS.labels("error").inc()
+        raise HTTPException(503, f"local brain unavailable (free-only request): {exc}")
+    except Exception as exc:
+        _REQS.labels("error").inc()
+        raise HTTPException(502, f"operator run failed: {exc}")
+    _LATENCY.observe(time.monotonic() - t0)
+    return result
+
+
 @app.post("/operator/ask", responses={
     403: {"description": "Blocked by the input or output guard"},
     502: {"description": "The operator run failed"},
@@ -96,17 +112,7 @@ async def operator_ask(req: AskRequest, actor: str | None = Depends(_actor)):
     if guard("input", request_id, {"query": req.message}, actor):
         _REQS.labels("blocked").inc()
         raise HTTPException(403, "blocked by input guard")
-    t0 = time.monotonic()
-    try:
-        reply, proposal = await agent.run(req.message, session_id=request_id, user_id=actor,
-                                          allow_fallback=req.allow_paid)
-    except agent.LocalUnavailable as exc:
-        _REQS.labels("error").inc()
-        raise HTTPException(503, f"local brain unavailable (free-only request): {exc}")
-    except Exception as exc:
-        _REQS.labels("error").inc()
-        raise HTTPException(502, f"operator run failed: {exc}")
-    _LATENCY.observe(time.monotonic() - t0)
+    reply, proposal = await _run_agent(req, request_id, actor)
     # /operator/ask is stateless — surface a proposed action but NEVER fire (acts need the Telegram confirm flow).
     if proposal and proposal.get("tool"):
         reply = f"[proposed action — acts require the Telegram confirm flow] {act.describe(proposal)}"
