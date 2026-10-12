@@ -17,6 +17,11 @@ Each command runs on rogueone. They download third-party executables, so the own
 **Emdash** (AppImage into `~/Applications`, no root; the `.deb` route and the npm name-collision trap are in
 [parallel-agent-supervisor.md](parallel-agent-supervisor.md) — B104):
 
+**Launcher (2026-10-12):** on its first launch, AppImageLauncher integrated the download: it moved the file to
+`~/Applications/emdash-x86_64_8287683f3c1e9ea3c7de9f556bb0ce0e.AppImage` and relaunched from there. Launch that file, or
+the desktop menu entry; the `emdash-1.2.7-x86_64.AppImage` name below no longer exists. Keep ONE copy: the integration
+relaunch killed an automation run that the first instance had started.
+
 [rogueone]
 ```
 mkdir -p /home/edwardmangini/Applications && curl -fL -o /home/edwardmangini/Applications/emdash-1.2.7-x86_64.AppImage https://github.com/generalaction/emdash/releases/download/v1.2.7/emdash-x86_64.AppImage && chmod +x /home/edwardmangini/Applications/emdash-1.2.7-x86_64.AppImage && sha256sum /home/edwardmangini/Applications/emdash-1.2.7-x86_64.AppImage
@@ -46,7 +51,7 @@ Then refresh the inventory so it lands in Port (`docs/runbooks/machine-inventory
 `register_bifrost_skills.py` publish a new version when a skill's content changed. Give each tool exactly the issue,
 nothing more; a run that needs a nudge records where it needed it, and the nudge ends the "unattended" part.
 
-1. **Emdash** — start it (`/home/edwardmangini/Applications/emdash-1.2.7-x86_64.AppImage`), open the lab repo
+1. **Emdash** — start it (`/home/edwardmangini/Applications/emdash-x86_64_8287683f3c1e9ea3c7de9f556bb0ce0e.AppImage`), open the lab repo
    (`/home/edwardmangini/IdeaProjects/weyland`), connect Linear, send EMA-291 to the **Claude Code** agent. Note the
    start time.
 2. **OpenHands** (local-model arm, RUN 2026-10-12 as run 5; result in the concepts doc). Headless OpenHands always
@@ -73,7 +78,21 @@ criteria, and the subscription usage. Nothing is pushed until you decide which b
 
 ## Emdash automation settings
 
-An automation's task template lives in `~/.config/emdash/emdash4.db`, table `automations`, column `task_config` (JSON). `workspaceConfig.git.pushBranch` decides whether each run publishes its task branch to GitHub; it is **false** for `agent-ready-nightly` since 2026-10-12 (it had pushed an empty branch every night). Change it in the app, or, with Emdash fully quit, in the database after a backup (`sqlite3` `.backup`, then `pragma integrity_check`). Each scheduled run is stored with a deadline 24 h after its slot, so a run missed while the app is closed may start on the next launch.
+An automation lives in two places:
+- **The template:** `~/.config/emdash/emdash4.db`, table `automations`, column `task_config` (JSON).
+  `workspaceConfig.git.pushBranch` decides whether each run publishes its task branch to GitHub. It is **false** for
+  `agent-ready-nightly` since 2026-10-12; before that it pushed an empty branch every night.
+- **The compiled deployment the scheduler actually runs:** `emdash4-automations.db`, `automation_deployments.payload`,
+  where push is `workspace.git.pushRemote`. The app rebuilds it from the template on launch.
+
+**How to change it:** the app's UI has no push option, so edit the template, with Emdash fully quit and after a backup
+(`sqlite3` `.backup`, then `pragma integrity_check`). **Never delete `pushRemote`:** Emdash validates it and refuses to boot
+without it (`expected string, received undefined`). No-push is `null`.
+
+**Scheduling, measured 2026-10-12:** a run cannot fire while Emdash is closed. Its scheduler lives in the app, with no
+daemon, unit, timer or cron. A missed run keeps a 24 h deadline and starts by itself seconds after the next launch. So the
+nightly queue needs Emdash running on rogueone; otherwise it runs whenever the app is next opened. Emdash ignores SIGTERM
+(it stays in the tray); a run's `done` status means dispatched, not finished, so grade from its transcript.
 
 ## Recording a run
 
